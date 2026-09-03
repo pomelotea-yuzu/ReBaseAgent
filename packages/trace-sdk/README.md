@@ -42,7 +42,17 @@ run.meta  →  span(agent.step)  →  span(llm.call)  →  span(tool.invoke)  �
 | `edit.field` | string  | 被编辑的字段名（如 `"result"`）             |
 | `edit.value` | unknown | 新值。编辑语义由 replay 层应用               |
 
-### span（三种 kind，共同字段：`type: "span"`、`id`、`parent`（父 span id，根为 null））
+### span（三种 kind，共同字段：`type: "span"`、`id`、`parent`（父 span id，根为 null）、`timing`（可选））
+
+`timing`：span 的墙上时钟区间，由 Tracer 在 start/endSpan 时自动记录
+
+| 字段                    | 类型     | 说明                                                     |
+| --------------------- | ------ | ------------------------------------------------------ |
+| `timing.started_at`   | string | 起始时刻，ISO 8601（毫秒精度）                                   |
+| `timing.ended_at`     | string | 终止时刻，ISO 8601；与 started\_at 成对出现                       |
+| `timing`（整体缺省）        | —      | 老文件与手工构造数据合法缺失；读取器不报错，**耗时视为未知**，不得用其他字段推断 |
+
+`timing` 与 `tool.invoke.dur_ms` 不冲突：后者是"工具执行耗时"的权威值，前者提供跨 span 的统一时间坐标（时间轴、step 聚合）。
 
 **agent.step** — 一轮 loop 迭代
 

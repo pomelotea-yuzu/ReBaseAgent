@@ -9,6 +9,7 @@ out/
 
 # 运行时数据（便携数据策略：数据目录，不入库）
 data/
+.rebaseagent/
 *.jsonl.trace
 
 # Electron / 打包

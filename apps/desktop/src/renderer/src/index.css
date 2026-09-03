@@ -1,0 +1,25 @@
+@import "tailwindcss";
+
+/* 调试台基线：中性灰底 + 深色文字。语义色在组件内用 Tailwind 工具类表达。 */
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    "Microsoft YaHei",
+    sans-serif;
+  background-color: #f6f7f9;
+  color: #1f2328;
+}
+
+/* 长文本（messages / 工具结果）用等宽字体，便于肉眼比对 token 与换行 */
+.font-code {
+  font-family: "Cascadia Code", "JetBrains Mono", Consolas, "Courier New", monospace;
+}

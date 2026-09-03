@@ -58,6 +58,8 @@ export interface Tracer {
 interface ActiveSpan {
   kind: SpanKind;
   fields: Record<string, unknown>;
+  /** 起始时刻（ISO 8601），endSpan 时与终止时刻一并落盘为 timing */
+  startedAt: string;
 }
 
 /**
@@ -95,6 +97,7 @@ export abstract class BaseTracer implements Tracer {
     this.active.set(id, {
       kind,
       fields: { ...rest, parent: parent ?? null },
+      startedAt: new Date().toISOString(),
     });
     this.emit({ type: "span.start", id, kind, parent: parent ?? null });
     return id;
@@ -107,7 +110,7 @@ export abstract class BaseTracer implements Tracer {
       throw new Error(`span ${id} 不存在或已结束`);
     }
     this.active.delete(id);
-    const { kind, fields } = entry;
+    const { kind, fields, startedAt } = entry;
     // patch 类型上不允许出现 kind（EndSpanPatch 约束）；此处不做防御性剔除
     const patchFields = { ...patch } as Record<string, unknown>;
     const span = SpanSchema.parse({
@@ -116,6 +119,8 @@ export abstract class BaseTracer implements Tracer {
       kind,
       ...fields,
       ...patchFields,
+      // 墙上时钟区间：整行落盘时才完整，与 startSpan 时刻配对
+      timing: { started_at: startedAt, ended_at: new Date().toISOString() },
     }) as SpanLine;
     this.onSpan(span);
     this.emit({ type: "span.end", span });

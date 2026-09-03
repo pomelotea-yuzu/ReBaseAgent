@@ -68,11 +68,29 @@ export type RunMetaInput = Omit<RunMetaLine, "type">;
 // span（三种 kind）
 // ---------------------------------------------------------------------------
 
+/**
+ * span 的墙上时钟区间（ISO 8601 字符串，毫秒精度）。
+ *
+ * 成对出现——用嵌套对象而非两个平铺可选字段，避免出现"有起点没终点"的中间态。
+ * 可选：老文件与手工构造的 trace 合法缺失，读取器不得报错或以其他字段推断耗时。
+ * 与 `tool.invoke.dur_ms` 不冲突：dur_ms 是"工具执行耗时"的权威值，
+ * timing 提供跨 span 的统一时间坐标（时间轴、step 聚合）。
+ */
+export const SpanTimingSchema = z.object({
+  /** 起始时刻，ISO 8601（如 2026-09-03T08:55:00.123Z） */
+  started_at: z.string().min(1),
+  /** 终止时刻，ISO 8601；恒不早于 started_at */
+  ended_at: z.string().min(1),
+});
+export type SpanTiming = z.infer<typeof SpanTimingSchema>;
+
 const SpanCommon = {
   type: z.literal("span"),
   id: z.string().min(1),
   /** 父 span id；根 span 为 null */
   parent: z.string().nullable(),
+  /** 起止时刻；缺省表示时间未知（老文件合法） */
+  timing: SpanTimingSchema.optional(),
 } as const;
 
 /** agent.step：一轮 loop 迭代 */
