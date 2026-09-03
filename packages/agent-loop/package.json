@@ -1,0 +1,30 @@
+{
+  "name": "@rebaseagent/agent-loop",
+  "version": "0.1.0",
+  "description": "ReBaseAgent Agent 执行循环：OpenAI 兼容协议流式直连 + 工具执行 + Tracer 观测",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@rebaseagent/trace-sdk": "workspace:*",
+    "eventsource-parser": "^3.0.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}
