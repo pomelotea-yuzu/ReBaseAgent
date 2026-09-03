@@ -1,0 +1,56 @@
+schema: spec-driven
+
+context: |
+  项目：ReBaseAgent — Agent 的时间旅行调试器（本地优先的 Electron 桌面应用）
+
+  定位句：不止回放 Agent 做了什么，而是让你改变它做了什么。本地运行，数据不出你的机器。
+
+  概念内核：上下文是 Agent 行为的程序（Context is the program）。
+  产品 = 给这门"语言"的调试器。此概念只作透镜统一命名，不扩大工程范围。
+
+  核心创新（时间旅行）：拖回第 N 步 → 编辑该步的 tool_result / prompt →
+  沙箱副本中从该步重跑。前缀零 API 调用（查表式回退），分支点后真调用。
+
+  技术栈（已定稿，勿在 spec 中重新发明）：
+  - TypeScript strict + electron-vite + pnpm workspaces（monorepo）
+  - packages/：agent-loop（纯 TS 库，零 Electron 依赖）、trace-sdk、replay、store
+  - apps/：desktop（Electron 壳，唯一碰 Electron 的包）、examples（标本 agent）
+  - UI：React + Tailwind + zustand；可视化：ECharts + Monaco（懒加载）
+  - 存储：JSONL 为唯一事实源（一 run 一文件，append-only）；SQLite 仅为桌面端可弃索引
+  - 模型接入：OpenAI 兼容协议直连（fetch + SSE，eventsource-parser），默认 DeepSeek，备用 GLM-Flash
+  - 质量：Biome + vitest + Playwright；打包：electron-builder（portable + NSIS）
+  - 密钥：Electron safeStorage；IPC/trace 校验：zod
+
+  关键架构不变量（所有 spec 必须遵守）：
+  - Loop 纯函数四不变量：输入只有 config+messages；运行中可变状态仅 messages（追加）；
+    计数/成本从 messages 派生，禁止自增累积；无模块级可变状态
+  - 错误是数据不是异常：工具失败→带 error 的 tool_result；loop 只抛自身 bug
+  - JSONL 文件不可变（run 完成后封存）；只从已完成的 run 分支；删除有子分支的 run 需保护
+  - 便携数据策略：数据只存 <数据目录>/（exe 旁 portable.marker 或用户指定），永不写 AppData/注册表
+  - 时间旅行边界：仅 loop 内状态；副作用工具标保真度分级；外部状态源（RAG/记忆/DB）不承诺
+
+  目标用户：自研 Agent loop 的开发者（dogfood：作者本人是第一个用户）。
+  不做任何外部工具（CLI/IDE/框架）的官方适配，导入/格式转换不在路线图内。
+
+  增长策略：国产模型生态优先 + 中文一等公民 + 教程式 build in public（掘金/V2EX）。
+  MIT 协议，仓库 day 1 公开。
+
+  路线图：MVP（查看+上下文预算地图+时间旅行最小切片）→ v2 完整时间旅行 →
+  v3 Trace-as-Test / 模型 A/B。
+
+rules:
+  proposal:
+    - 每份 proposal 必须含 "Non-goals" 章节，明确列出本次不做的事
+    - 涉及时间旅行/replay 的能力，必须声明保真度边界（哪些工具 pure、哪些 best-effort）
+    - 不引入已定稿技术栈之外的新依赖，除非 proposal 显式说明理由
+  tasks:
+    - 任务粒度控制在 2 小时以内
+    - 每个实现任务须对应可验证的验收标准（对应 spec 中的 scenario）
+
+operations:
+  apply:
+    guidance:
+      - 实现时若发现 spec 设计有误，先回 proposal 修订再继续，勿静默偏离
+  archive:
+    guidance:
+      - 归档时核对所有 scenario 是否有对应测试或 fixture 覆盖

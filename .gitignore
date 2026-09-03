@@ -1,0 +1,21 @@
+node_modules/
+dist/
+out/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+
+# 运行时数据（便携数据策略：数据目录，不入库）
+data/
+*.jsonl.trace
+
+# Electron / 打包
+release/
+build/release/
+
+# 日志与临时
+*.log
+.tmp/
+.DS_Store
+Thumbs.db
