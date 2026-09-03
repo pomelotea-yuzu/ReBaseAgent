@@ -13,6 +13,8 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@rebaseagent/agent-loop": "workspace:*",
+    "@rebaseagent/replay": "workspace:*",
     "@rebaseagent/trace-sdk": "workspace:*",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",

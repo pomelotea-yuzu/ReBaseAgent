@@ -9,13 +9,16 @@ import { BaseTracer, type Tracer } from "./tracer.js";
  *   保证任何时刻文件中只有完整 JSON 行，崩溃不产生半行）
  * - endRun 时 fsync 并封存；封存后任何写入抛错（文件不可变）
  * - 构造时若目标文件已存在且已封存（含终止事件）→ 直接拒绝
+ *
+ * @param options.spanSeqStart span id 起始序号（默认 0 → 首条 s_01）。
+ *   fork run 传入父链最大序号以延续编号，保证整条分支链上 span id 全局唯一。
  */
 export class JsonlTracer extends BaseTracer implements Tracer {
   private readonly file: string;
   private fd: number | null = null;
 
-  constructor(file: string) {
-    super();
+  constructor(file: string, options: { spanSeqStart?: number } = {}) {
+    super(options);
     this.file = file;
     if (existsSync(file)) {
       const text = readFileSync(file, "utf8");

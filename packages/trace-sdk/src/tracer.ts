@@ -69,9 +69,18 @@ interface ActiveSpan {
 export abstract class BaseTracer implements Tracer {
   private readonly listeners = new Set<(event: TraceStreamEvent) => void>();
   private readonly active = new Map<string, ActiveSpan>();
-  private spanSeq = 0;
+  private spanSeq: number;
   private runStarted = false;
   private runEnded = false;
+
+  /**
+   * @param options.spanSeqStart span id 起始序号（默认 0 → 首条为 s_01）。
+   *   分支（fork）run 传入父链最大序号，使新 span id 在整条链上全局唯一
+   *   （resolveBranch 扁平拼接与再分叉的叶优先查找都依赖 id 不冲突）。
+   */
+  constructor(options: { spanSeqStart?: number } = {}) {
+    this.spanSeq = options.spanSeqStart ?? 0;
+  }
 
   subscribe(listener: (event: TraceStreamEvent) => void): () => void {
     this.listeners.add(listener);
@@ -172,6 +181,10 @@ export abstract class BaseTracer implements Tracer {
  * 测试与 headless 免配置场景使用。
  */
 export class NullTracer extends BaseTracer {
+  constructor(options: { spanSeqStart?: number } = {}) {
+    super(options);
+  }
+
   protected onMeta(): void {
     // 静默：无副作用
   }

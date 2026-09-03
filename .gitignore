@@ -25,3 +25,9 @@ Thumbs.db
 # electron-vite / vitest 运行期临时配置
 apps/desktop/electron.vite.config.*.mjs
 apps/desktop/vitest.config.ts.timestamp-*.mjs
+*.timestamp-*.mjs
+vitest.config.ts.bak
+
+# 会话运行数据（WorkBuddy 项目记忆等，不入库）
+.workbuddy/
+_tmp_*

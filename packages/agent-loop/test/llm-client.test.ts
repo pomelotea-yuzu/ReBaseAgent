@@ -99,6 +99,29 @@ describe("SSE 聚合器", () => {
     );
   });
 
+  it("流中出现 usage:null 中间块 → 容错跳过，usage 取自后续有效块（deepseek v4-flash 实测形态）", async () => {
+    const parts = [
+      chunk({ content: "你好" }),
+      sseData({ choices: [{ delta: {} }], usage: null }),
+      usageChunk(1830, 210),
+      `${DONE_MARK}\n\n`,
+    ];
+    const result = await aggregateSseStream(streamOf(parts));
+    expect(result.content).toBe("你好");
+    expect(result.usage).toEqual({ in: 1830, out: 210 });
+  });
+
+  it("usage 对象缺失 prompt_tokens/completion_tokens → 缺省为 0，不崩溃", async () => {
+    const parts = [
+      chunk({ content: "你好" }),
+      sseData({ choices: [{ delta: {} }], usage: { completion_tokens: 5 } }),
+      `${DONE_MARK}\n\n`,
+    ];
+    const result = await aggregateSseStream(streamOf(parts));
+    expect(result.content).toBe("你好");
+    expect(result.usage).toEqual({ in: 0, out: 5 });
+  });
+
   it("数据块 JSON 非法 → 抛 LlmRequestError", async () => {
     await expect(aggregateSseStream(streamOf(["data: {broken\n\n"]))).rejects.toThrow(
       LlmRequestError,

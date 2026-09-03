@@ -50,8 +50,14 @@ describe("JsonlTracer：文件写入", () => {
 
       const record = readRun(file);
       expect(record.meta.id).toBe("r_test");
-      // 行序 = endSpan 顺序（span 完成时整行写入；agent.step 最后结束）
-      expect(record.spans.map((s) => s.kind)).toEqual(["llm.call", "tool.invoke", "agent.step"]);
+      // 文件行序 = endSpan 顺序（span 完成时整行写入；agent.step 最后结束）
+      const rawKinds = readFileSync(file, "utf8")
+        .split(/\r?\n/)
+        .filter((line) => line.trim().length > 0 && line.includes('"type":"span"'))
+        .map((line) => (JSON.parse(line) as { kind: string }).kind);
+      expect(rawKinds).toEqual(["llm.call", "tool.invoke", "agent.step"]);
+      // readRun 归一为语义序（父先子后，与 trace-format fixture 一致）
+      expect(record.spans.map((s) => s.kind)).toEqual(["agent.step", "llm.call", "tool.invoke"]);
       expect(record.status).toBe("completed");
       expect(record.events[0]?.reason).toBe("completed");
     } finally {

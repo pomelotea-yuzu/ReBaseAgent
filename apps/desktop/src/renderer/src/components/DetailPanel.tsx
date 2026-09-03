@@ -1,6 +1,7 @@
 import type { SpanLine } from "@rebaseagent/trace-sdk";
 import { spanDurationMs } from "@shared/derive";
-import { useMemo } from "react";
+import type { RunDetail } from "@shared/ipc";
+import { useMemo, useState } from "react";
 import { formatDuration, prettyJson } from "../lib/format";
 import { useAppStore } from "../store";
 
@@ -130,8 +131,131 @@ function LlmCallDetail({ span }: { span: Extract<SpanLine, { kind: "llm.call" }>
   );
 }
 
-/** tool.invoke 详情：入参、结果、错误（错误是数据，不改变 run 状态） */
-function ToolInvokeDetail({ span }: { span: Extract<SpanLine, { kind: "tool.invoke" }> }) {
+/** 当前 tool.invoke 的"模型所见的返回文本"（与 derive/run-loop 组合公式一致） */
+function toolMessageText(span: Extract<SpanLine, { kind: "tool.invoke" }>): string {
+  if (span.error !== null) return `工具执行失败：${span.error}`;
+  const result = span.result;
+  if (typeof result === "string") return result;
+  if (result === undefined || result === null) return "";
+  return prettyJson(result);
+}
+
+/** tool.invoke 的"在此重跑"编辑器：改 result → 确认 → runs:fork（唯一写通道） */
+function ForkEditor({
+  span,
+  run,
+}: {
+  span: Extract<SpanLine, { kind: "tool.invoke" }>;
+  run: RunDetail;
+}) {
+  const forking = useAppStore((s) => s.forking);
+  const forkError = useAppStore((s) => s.forkError);
+  const forkErrorCode = useAppStore((s) => s.forkErrorCode);
+  const forkAt = useAppStore((s) => s.forkAt);
+  const resetFork = useAppStore((s) => s.resetFork);
+  const [open, setOpen] = useState(false);
+  const [value, setValue] = useState(() => toolMessageText(span));
+
+  const original = toolMessageText(span);
+  const unchanged = value === original;
+  const inProgress = forking === "in_progress";
+
+  if (!open) {
+    return (
+      <div className="border-t border-violet-100 px-4 py-2">
+        <button
+          type="button"
+          onClick={() => {
+            resetFork();
+            setValue(original);
+            setOpen(true);
+          }}
+          className="rounded bg-violet-600 px-2 py-1 text-[11px] text-white hover:bg-violet-700"
+        >
+          在此重跑（时间旅行）
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="border-t border-violet-100 bg-violet-50/60 px-4 py-3">
+      <div className="mb-1 flex items-center justify-between">
+        <span className="text-[11px] font-semibold text-violet-900">在此重跑</span>
+        <span className="text-[10px] text-violet-500">
+          从该工具调用之后重跑 · 父 run 文件不会被修改
+        </span>
+      </div>
+      <textarea
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        disabled={inProgress}
+        rows={6}
+        spellCheck={false}
+        className="w-full rounded border border-violet-200 bg-white px-2 py-1.5 font-code text-[11px] leading-5 text-gray-800 outline-none focus:border-violet-400 disabled:opacity-60"
+      />
+      <div className="mt-1.5 text-[10px] leading-4 text-violet-600">
+        以上文本将作为该工具的返回结果重新送入模型；其余上下文（prompt、工具表、此前步骤）与父 run
+        完全一致。
+      </div>
+
+      {unchanged ? (
+        <div className="mt-1 text-[11px] text-amber-700">
+          编辑值与原始结果相同（空 fork），需修改后再重跑。
+        </div>
+      ) : null}
+
+      {forking === "error" ? (
+        <div className="mt-1 text-[11px] text-red-700">
+          {forkError}
+          {forkErrorCode === "SETTINGS_NOT_CONFIGURED"
+            ? "（请先点击右上角“运行配置”填写 baseURL/apiKey/model）"
+            : ""}
+        </div>
+      ) : null}
+
+      <div className="mt-2 flex items-center justify-end gap-2">
+        {inProgress ? (
+          <span className="text-[11px] text-violet-600">重跑中…（真实 LLM 调用，可能耗时）</span>
+        ) : null}
+        <button
+          type="button"
+          onClick={() => {
+            resetFork();
+            setOpen(false);
+          }}
+          disabled={inProgress}
+          className="rounded border border-gray-300 px-2 py-1 text-[11px] text-gray-600 hover:bg-gray-50 disabled:opacity-40"
+        >
+          取消
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            void forkAt(run.meta.id, span.id, value);
+          }}
+          disabled={inProgress || unchanged}
+          className="rounded bg-violet-600 px-3 py-1 text-[11px] text-white hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          确认重跑
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** tool.invoke 详情：入参、结果、错误（错误是数据，不改变 run 状态）＋ 分叉入口 */
+function ToolInvokeDetail({
+  span,
+  run,
+}: {
+  span: Extract<SpanLine, { kind: "tool.invoke" }>;
+  run: RunDetail | null;
+}) {
+  const leafOwned = run?.leafSpanIds.includes(span.id) ?? false;
+  // 分叉点必须是当前 run 自身段的 tool.invoke，且 run 已封存（crashed 前缀不稳定）
+  const canFork = leafOwned && run?.status === "completed";
+
   return (
     <>
       <Section title="概要">
@@ -159,6 +283,18 @@ function ToolInvokeDetail({ span }: { span: Extract<SpanLine, { kind: "tool.invo
       <Section title="结果">
         <LongText text={prettyJson(span.result)} label="result" />
       </Section>
+
+      {canFork && run !== null ? (
+        <ForkEditor span={span} run={run} />
+      ) : span.kind === "tool.invoke" && run !== null && !leafOwned && run.chain.length > 1 ? (
+        <div className="border-t border-gray-100 px-4 py-2 text-[11px] text-gray-400">
+          该调用位于祖先前缀（继承自父 run），不属于当前 run 自身段——打开其所属 run 才可在此重跑。
+        </div>
+      ) : run !== null && leafOwned && run.status === "crashed" ? (
+        <div className="border-t border-gray-100 px-4 py-2 text-[11px] text-gray-400">
+          该 run 运行中断（未封存），不允许作为分叉起点。
+        </div>
+      ) : null}
     </>
   );
 }
@@ -214,7 +350,8 @@ export function DetailPanel() {
         ) : span.kind === "llm.call" ? (
           <LlmCallDetail span={span} />
         ) : span.kind === "tool.invoke" ? (
-          <ToolInvokeDetail span={span} />
+          // key=span.id：切换 span 时重置分叉编辑器的编辑状态
+          <ToolInvokeDetail key={span.id} span={span} run={detail} />
         ) : (
           <Section title="步骤概要">
             <KeyValue

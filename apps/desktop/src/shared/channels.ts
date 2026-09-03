@@ -5,6 +5,10 @@
 export const CHANNELS = {
   listRuns: "runs:list",
   getRun: "runs:get",
+  forkRun: "runs:fork",
+  settingsGet: "settings:get",
+  settingsSave: "settings:save",
+  settingsClear: "settings:clear",
 } as const;
 
 export type ChannelName = (typeof CHANNELS)[keyof typeof CHANNELS];

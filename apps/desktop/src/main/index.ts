@@ -1,8 +1,10 @@
 import { dirname, resolve } from "node:path";
-import { BrowserWindow, app, dialog } from "electron";
+import { BrowserWindow, app, dialog, safeStorage } from "electron";
 import { ensureTracesDir, resolveDataDir, saveDataDirPointer } from "./data-dir";
 import { registerIpc } from "./ipc";
 import { RunRepository } from "./run-repository";
+import { SettingsStore } from "./settings";
+import type { SettingsCipher } from "./settings";
 
 /**
  * 应用入口。数据目录解析 → 注册 IPC → 建窗口。
@@ -72,7 +74,18 @@ async function bootstrap(): Promise<void> {
   }
 
   const tracesDir = ensureTracesDir(dataDir);
-  registerIpc(new RunRepository(tracesDir));
+  // apiKey 优先经系统密钥环加密（Linux 无 keyring 时 safeStorage 自身不可用，降级明文）
+  const cipher: SettingsCipher = {
+    isAvailable: () => safeStorage.isEncryptionAvailable(),
+    encrypt: (plain) => safeStorage.encryptString(plain).toString("base64"),
+    decrypt: (encoded) => safeStorage.decryptString(Buffer.from(encoded, "base64")),
+  };
+  registerIpc({
+    repository: new RunRepository(tracesDir),
+    settings: new SettingsStore({ dataDir, cipher }),
+    // 工具重跑的工作目录：数据目录（trace 不记录首次 cwd，桌面以数据目录为落点）
+    execCwd: dataDir,
+  });
   createWindow();
 
   app.on("activate", () => {

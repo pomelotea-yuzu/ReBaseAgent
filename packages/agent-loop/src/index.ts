@@ -39,4 +39,4 @@ export type {
 export { ToolRegistry } from "./tool-registry.js";
 export { configHash } from "./config-hash.js";
 export { runLoop, renderToolError, deriveTotalTokens } from "./run-loop.js";
-export type { RunResult } from "./run-loop.js";
+export type { RunResult, ForkRunMeta } from "./run-loop.js";

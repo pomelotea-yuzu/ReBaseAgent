@@ -1,9 +1,23 @@
-import type { EndSpanPatch, StartSpanAttr, Tracer } from "@rebaseagent/trace-sdk";
+import type { EndSpanPatch, Fork, StartSpanAttr, Tracer } from "@rebaseagent/trace-sdk";
 import { configHash } from "./config-hash.js";
 import type { Message, RunConfig, Tool } from "./config.js";
 import type { LlmClient } from "./llm-client.js";
 import { OpenAiCompatClient } from "./llm-client.js";
 import { ToolRegistry } from "./tool-registry.js";
+
+/**
+ * fork run 元数据注入：仅覆盖新 run 的 id / parent / fork 三个 meta 字段，
+ * 不引入任何可变状态，不改变循环语义。调用方（replay 编排层）负责先校验
+ * config_hash 与父 run 一致——runLoop 无父 run 概念，信任注入。
+ */
+export interface ForkRunMeta {
+  /** fork run 自身的 id（替代自动生成） */
+  id: string;
+  /** 父 run id（替代默认 null） */
+  parent: string;
+  /** 分叉描述（at_span + edit）；根 run 为 null，fork run 必填 */
+  fork: Fork;
+}
 
 /** run 的最终结果 */
 export interface RunResult {
@@ -38,6 +52,7 @@ export async function runLoop(
   tracer: Tracer,
   tools: Tool[] = [],
   llm: LlmClient = new OpenAiCompatClient(config),
+  forkRun?: ForkRunMeta,
 ): Promise<RunResult> {
   const messages: Message[] = [...initialMessages];
   const usages: Array<{ in: number; out: number }> = [];
@@ -49,13 +64,13 @@ export async function runLoop(
   }
 
   tracer.startRun({
-    id: `run_${Date.now().toString(36)}`,
+    id: forkRun?.id ?? `run_${Date.now().toString(36)}`,
     format_version: 1,
     task: (messages.find((m) => m.role === "user")?.content as string) ?? "",
     model: config.model,
     created_at: new Date().toISOString(),
-    parent: null,
-    fork: null,
+    parent: forkRun?.parent ?? null,
+    fork: forkRun?.fork ?? null,
     config_hash: configHash(config.systemPrompt, config.tools),
   });
 
@@ -93,6 +108,8 @@ export async function runLoop(
     } catch (e) {
       // 请求失败：记录失败 span 后按 error 终止（不重试）；messages 保持完整
       const message = e instanceof Error ? e.message : String(e);
+      // 错误详情目前不落 trace（格式变更另走 spec），先打到主进程终端便于诊断
+      console.error(`[runLoop] LLM 调用失败：${message}`);
       tracer.endSpan(llmSpan, {
         response: {
           content: null,

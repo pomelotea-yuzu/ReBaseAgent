@@ -222,9 +222,17 @@ export async function aggregateSseStream(body: ReadableStream<Uint8Array>): Prom
         ttftDone = true;
       }
     }
-    const u = (parsed as { usage?: { prompt_tokens?: number; completion_tokens?: number } }).usage;
-    if (u !== undefined) {
-      agg.usage = { in: u.prompt_tokens ?? 0, out: u.completion_tokens ?? 0 };
+    const u = (parsed as { usage?: unknown }).usage;
+    // 部分端点（deepseek v4-flash 实测）会在流中携带 usage:null 或缺失
+    // prompt_tokens 的中间块——必须容错跳过，只在拿到完整对象时记录
+    if (typeof u === "object" && u !== null) {
+      const usage = u as { prompt_tokens?: unknown; completion_tokens?: unknown };
+      const input = usage.prompt_tokens;
+      const output = usage.completion_tokens;
+      agg.usage = {
+        in: typeof input === "number" ? input : 0,
+        out: typeof output === "number" ? output : 0,
+      };
     }
   }
 

@@ -11,7 +11,7 @@ import type { ListRunsData, RunDetail, RunSummary } from "../shared/ipc";
  * 纪律：单个文件读取失败必须被隔离——一个坏文件不得拖垮整个列表。
  */
 export class RunRepository {
-  constructor(private readonly tracesDir: string) {}
+  constructor(readonly tracesDir: string) {}
 
   /** 列出全部 run（按创建时间倒序）；失败文件单独成列 */
   listRuns(): ListRunsData {
@@ -37,7 +37,9 @@ export class RunRepository {
 
   /** 读取单个 run；分支 run 返回 resolveBranch 解析后的完整轨迹 */
   getRun(id: string): RunDetail {
-    const record = this.loadRun(id);
+    const record = this.loadRunRecord(id);
+    // 当前 run 自身新增的 span（分支 run 只记录这部分；合并轨迹其余为继承的祖先前缀）
+    const leafSpanIds = record.spans.map((s) => s.id);
     if (record.meta.parent === null) {
       return {
         meta: record.meta,
@@ -45,10 +47,11 @@ export class RunRepository {
         events: record.events,
         status: record.status,
         chain: [{ meta: record.meta, fork: record.meta.fork }],
+        leafSpanIds,
       };
     }
 
-    const resolved = resolveBranch(id, (runId) => this.loadRun(runId));
+    const resolved = resolveBranch(id, (runId) => this.loadRunRecord(runId));
     return {
       meta: resolved.meta,
       spans: resolved.spans,
@@ -56,10 +59,12 @@ export class RunRepository {
       // 分支 run 的结局以叶子 run 为准
       status: record.status,
       chain: resolved.chain.map((hop) => ({ meta: hop.meta, fork: hop.fork })),
+      leafSpanIds,
     };
   }
 
-  private loadRun(id: string): RunRecord {
+  /** 读取单个 run 的原始记录（供 replay/派生等编排层按 id 加载父链） */
+  loadRunRecord(id: string): RunRecord {
     return this.read(join(this.tracesDir, `${id}.jsonl`));
   }
 

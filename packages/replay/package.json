@@ -1,0 +1,29 @@
+{
+  "name": "@rebaseagent/replay",
+  "version": "0.1.0",
+  "description": "ReBaseAgent 时间旅行最小切片：从已完成 run 派生分叉状态（前缀零 API）、校验可重放性、经 agent-loop 重跑并落盘 fork run",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@rebaseagent/agent-loop": "workspace:*",
+    "@rebaseagent/trace-sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}

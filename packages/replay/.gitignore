@@ -1,0 +1,3 @@
+# 沙箱内 vitest 对 .ts config 打包产生的残留（本地 pnpm install 后即可正常删除）
+vitest.config.ts.bak
+vitest.config.ts.timestamp-*.mjs
