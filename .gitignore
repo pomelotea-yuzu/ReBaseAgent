@@ -21,3 +21,7 @@ build/release/
 .tmp/
 .DS_Store
 Thumbs.db
+
+# electron-vite / vitest 运行期临时配置
+apps/desktop/electron.vite.config.*.mjs
+apps/desktop/vitest.config.ts.timestamp-*.mjs
