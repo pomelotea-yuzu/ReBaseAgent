@@ -60,7 +60,13 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   async selectRun(id) {
     if (get().selectedRunId === id) return;
-    set({ selectedRunId: id, selectedSpanId: null, detail: null, loadingDetail: true, error: null });
+    set({
+      selectedRunId: id,
+      selectedSpanId: null,
+      detail: null,
+      loadingDetail: true,
+      error: null,
+    });
     const envelope = await api.getRun(id);
     if (!envelope.ok) {
       set({ loadingDetail: false, error: `读取 run 失败：${envelope.error.message}` });
@@ -68,7 +74,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
     const parsed = RunDetailSchema.safeParse(envelope.data);
     if (!parsed.success) {
-      set({ loadingDetail: false, error: `轨迹数据结构校验失败：${describeZodError(parsed.error)}` });
+      set({
+        loadingDetail: false,
+        error: `轨迹数据结构校验失败：${describeZodError(parsed.error)}`,
+      });
       return;
     }
     // 默认展开全部 step，用户可折叠

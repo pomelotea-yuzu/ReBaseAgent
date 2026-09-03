@@ -1,6 +1,11 @@
-import { ForkSchema, RunEventSchema, RunMetaSchema, SpanSchema } from "@rebaseagent/trace-sdk/schema";
-import { CHANNELS } from "./channels";
+import {
+  ForkSchema,
+  RunEventSchema,
+  RunMetaSchema,
+  SpanSchema,
+} from "@rebaseagent/trace-sdk/schema";
 import { z } from "zod";
+import { CHANNELS } from "./channels";
 
 /**
  * 进程间通信的唯一契约：main 与 renderer 共用这些 schema。

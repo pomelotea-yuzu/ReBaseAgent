@@ -8,13 +8,16 @@ import type { RunRepository } from "./run-repository";
  * 只读：本文件不提供任何写通道。
  */
 export function registerIpc(repository: RunRepository): void {
-  ipcMain.handle(CHANNELS.listRuns, (): ReturnType<typeof ok<ListRunsData>> | ReturnType<typeof fail> => {
-    try {
-      return ok(repository.listRuns());
-    } catch (e) {
-      return fail("LIST_RUNS_FAILED", e);
-    }
-  });
+  ipcMain.handle(
+    CHANNELS.listRuns,
+    (): ReturnType<typeof ok<ListRunsData>> | ReturnType<typeof fail> => {
+      try {
+        return ok(repository.listRuns());
+      } catch (e) {
+        return fail("LIST_RUNS_FAILED", e);
+      }
+    },
+  );
 
   ipcMain.handle(
     CHANNELS.getRun,

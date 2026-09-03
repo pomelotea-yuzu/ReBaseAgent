@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { describe, expect, it } from "vitest";
 import { parseRunText } from "@rebaseagent/trace-sdk";
 import { buildSpanTree, deriveRunSummary, deriveStepStats, spanDurationMs } from "@shared/derive";
+import { describe, expect, it } from "vitest";
 
 /** trace-sdk 的 fixtures 是本仓库的"真实数据"基准（桌面端开发期零 API 消耗） */
 const FIXTURES = resolve(import.meta.dirname, "../../../packages/trace-sdk/fixtures");

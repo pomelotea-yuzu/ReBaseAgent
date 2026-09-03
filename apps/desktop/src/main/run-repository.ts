@@ -1,7 +1,7 @@
-import { readRun, resolveBranch } from "@rebaseagent/trace-sdk";
-import type { RunRecord } from "@rebaseagent/trace-sdk";
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
+import { readRun, resolveBranch } from "@rebaseagent/trace-sdk";
+import type { RunRecord } from "@rebaseagent/trace-sdk";
 import { deriveRunSummary } from "../shared/derive";
 import type { ListRunsData, RunDetail, RunSummary } from "../shared/ipc";
 

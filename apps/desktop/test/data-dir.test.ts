@@ -1,10 +1,10 @@
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  type DataDirOptions,
   MARKER_FILE,
   POINTER_FILE,
   resolveDataDir,
-  type DataDirOptions,
 } from "../src/main/data-dir";
 
 /** 最小 fs 注入：用内存映射模拟文件存在性（key 用 join 构造，与实现侧一致） */

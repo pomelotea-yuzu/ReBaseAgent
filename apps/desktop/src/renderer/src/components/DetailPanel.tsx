@@ -102,7 +102,14 @@ function LlmCallDetail({ span }: { span: Extract<SpanLine, { kind: "llm.call" }>
                   <span className="font-code">tool_call_id: {message.tool_call_id}</span>
                 ) : null}
               </div>
-              <LongText text={typeof message.content === "string" ? message.content : prettyJson(message.content)} label="内容" />
+              <LongText
+                text={
+                  typeof message.content === "string"
+                    ? message.content
+                    : prettyJson(message.content)
+                }
+                label="内容"
+              />
             </div>
           ))}
         </div>

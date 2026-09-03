@@ -1,5 +1,5 @@
-import { BrowserWindow, app, dialog } from "electron";
 import { dirname, resolve } from "node:path";
+import { BrowserWindow, app, dialog } from "electron";
 import { ensureTracesDir, resolveDataDir, saveDataDirPointer } from "./data-dir";
 import { registerIpc } from "./ipc";
 import { RunRepository } from "./run-repository";

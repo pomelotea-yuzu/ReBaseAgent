@@ -22,6 +22,17 @@
     }
   },
   "files": {
-    "ignore": ["**/dist/**", "**/node_modules/**", "**/.pnpm-store/**"]
-  }
+    "ignore": ["**/dist/**", "**/node_modules/**", "**/.pnpm-store/**", "**/.rebaseagent/**"]
+  },
+  "overrides": [
+    {
+      "include": ["**/*.test.ts", "**/test/**"],
+      "linter": {
+        "rules": {
+          "style": { "noNonNullAssertion": "off" },
+          "suspicious": { "noExportsInTest": "off" }
+        }
+      }
+    }
+  ]
 }

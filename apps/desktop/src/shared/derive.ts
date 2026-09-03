@@ -1,5 +1,5 @@
-import type { RunSummary } from "./ipc";
 import type { SpanLine } from "@rebaseagent/trace-sdk";
+import type { RunSummary } from "./ipc";
 
 /**
  * 轨迹派生层：全部为纯函数，零 Electron、零 Node 依赖，可单测。
@@ -152,8 +152,7 @@ export function deriveRunSummary(run: RunLike): RunSummary {
     }
   }
 
-  const durationMs =
-    earliest !== null && latest !== null ? Math.max(0, latest - earliest) : null;
+  const durationMs = earliest !== null && latest !== null ? Math.max(0, latest - earliest) : null;
   const lastEvent = run.events[run.events.length - 1];
 
   return {

@@ -40,7 +40,10 @@ describe("listRuns：扫描与隔离", () => {
   it("单个文件损坏只隔离该文件，其余照常展示（带行号的原因）", () => {
     const traces = join(dir, "traces");
     // 首行为合法 run.meta，第 2 行缺 type 字段
-    writeFileSync(join(traces, "r_bad.jsonl"), `${readFirstTwoLinesOfNormal().split("\n")[0]}\n{"id":"s_01"}\n`);
+    writeFileSync(
+      join(traces, "r_bad.jsonl"),
+      `${readFirstTwoLinesOfNormal().split("\n")[0]}\n{"id":"s_01"}\n`,
+    );
 
     const { runs, failed } = repo.listRuns();
     expect(runs.map((r) => r.id)).toEqual(["r_02", "r_04", "r_03", "r_01"]);

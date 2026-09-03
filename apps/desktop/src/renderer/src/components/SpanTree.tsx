@@ -41,17 +41,21 @@ function SpanRow({ node, depth }: { node: SpanNode; depth: number }) {
   const errored = hasError(span);
   const stats = useMemo(() => deriveStepStats(node), [node]);
 
+  // 展开/选中由 click 与 keyboard 共享
+  const activate = (): void => {
+    selectSpan(span.id);
+    if (isStep && children.length > 0) toggleStep(span.id);
+  };
+
   return (
     <div>
-      <div
-        className={`flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-xs ${
+      <button
+        type="button"
+        className={`flex w-full cursor-pointer items-center gap-2 rounded px-2 py-1 text-left text-xs ${
           selected ? "bg-blue-100" : "hover:bg-gray-100"
         } ${errored ? "text-red-700" : KIND_COLOR[span.kind]}`}
         style={{ paddingLeft: 8 + depth * 14 }}
-        onClick={() => {
-          selectSpan(span.id);
-          if (isStep && children.length > 0) toggleStep(span.id);
-        }}
+        onClick={activate}
       >
         {isStep && children.length > 0 ? (
           <span className="w-2 shrink-0 text-[9px] text-gray-400">{expanded ? "▼" : "▶"}</span>
@@ -81,7 +85,7 @@ function SpanRow({ node, depth }: { node: SpanNode; depth: number }) {
             ? ` · ${formatTokens(stats.tokensIn + stats.tokensOut)}`
             : ""}
         </span>
-      </div>
+      </button>
 
       {expanded
         ? children.map((child) => <SpanRow key={child.span.id} node={child} depth={depth + 1} />)

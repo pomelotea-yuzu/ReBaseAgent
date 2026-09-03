@@ -2,7 +2,10 @@ import { formatDuration, formatTime, formatTokens, reasonLabel } from "../lib/fo
 import { useAppStore } from "../store";
 
 /** 状态徽章：completed 与 crashed 两态，崩溃明确标注"运行中断" */
-function StatusBadge({ status, reason }: { status: "completed" | "crashed"; reason: string | null }) {
+function StatusBadge({
+  status,
+  reason,
+}: { status: "completed" | "crashed"; reason: string | null }) {
   const crashed = status === "crashed";
   return (
     <span
@@ -38,8 +41,7 @@ export function RunList() {
         {!loadingList && runs.length === 0 && failed.length === 0 ? (
           <div className="px-3 py-6 text-xs leading-5 text-gray-500">
             数据目录的 traces/ 下还没有 trace 文件。
-            <br />
-            把 *.jsonl 放进去后重新打开即可。
+            <br />把 *.jsonl 放进去后重新打开即可。
           </div>
         ) : null}
 
