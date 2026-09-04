@@ -40,6 +40,23 @@ describe("schema：合法样例通过", () => {
     expect(line.fork?.at_span).toBe("s_04");
   });
 
+  it("run.meta（声明预算上限时含 budget，其余字段不变）", () => {
+    const line = RunMetaSchema.parse({
+      type: "run.meta",
+      id: "r_03",
+      format_version: 1,
+      task: "测试",
+      model: "deepseek-chat",
+      created_at: "2026-01-15T00:00:00Z",
+      parent: null,
+      fork: null,
+      budget: { max_total_tokens: 60000 },
+      config_hash: "sha256:abc",
+    });
+    expect(line.budget?.max_total_tokens).toBe(60000);
+    expect(line.format_version).toBe(1);
+  });
+
   it("agent.step", () => {
     const span = AgentStepSpanSchema.parse({
       type: "span",
@@ -204,6 +221,23 @@ describe("schema：缺字段/错类型被拒绝", () => {
         created_at: "2026-01-15T00:00:00Z",
         parent: "r_01",
         fork: { edit: { field: "result", value: "x" } },
+        config_hash: "sha256:abc",
+      }),
+    ).toThrow();
+  });
+
+  it("budget.max_total_tokens 为 0（需 positive）", () => {
+    expect(() =>
+      RunMetaSchema.parse({
+        type: "run.meta",
+        id: "r_03",
+        format_version: 1,
+        task: "t",
+        model: "m",
+        created_at: "2026-01-15T00:00:00Z",
+        parent: null,
+        fork: null,
+        budget: { max_total_tokens: 0 },
         config_hash: "sha256:abc",
       }),
     ).toThrow();

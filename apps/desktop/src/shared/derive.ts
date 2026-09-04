@@ -171,3 +171,47 @@ export function deriveRunSummary(run: RunLike): RunSummary {
     durationMs,
   };
 }
+
+// ---------------------------------------------------------------------------
+// 上下文预算地图派生：只从 spans 现算，预算上限在调用方（meta.budget）兜底
+// ---------------------------------------------------------------------------
+
+/** 预算地图上的一个数据点（一次 llm.call 的累计 token 占用） */
+export interface BudgetPoint {
+  /** llm.call 次序（从 1 起）；跳过非 llm 的 span */
+  index: number;
+  spanId: string;
+  tokensIn: number;
+  tokensOut: number;
+  /** 迄今所有 llm.call 的 in+out 累计（与 loop 侧 deriveTotalTokens 口径一致） */
+  cumulative: number;
+}
+
+/** 预算曲线：points 按 SpanTree 的 DFS 顺序（与界面树同序） */
+export interface BudgetSeries {
+  points: BudgetPoint[];
+  /** 累计 in+out 总和 */
+  total: number;
+}
+
+/**
+ * 从 spans 派生预算曲线：只收集 `llm.call`，按 `flattenTree` 的 DFS 顺序累加 in+out。
+ * 预算上限不在此处读取（由调用方从 meta.budget?.max_total_tokens 取，缺省 null）。
+ * 纯函数、无缓存——与同文件纪律一致，编辑后无需失效缓存。
+ */
+export function deriveBudgetSeries(spans: readonly SpanLine[]): BudgetSeries {
+  const points: BudgetPoint[] = [];
+  let cumulative = 0;
+  for (const { span } of flattenTree(buildSpanTree(spans))) {
+    if (span.kind !== "llm.call") continue;
+    cumulative += span.response.usage.in + span.response.usage.out;
+    points.push({
+      index: points.length + 1,
+      spanId: span.id,
+      tokensIn: span.response.usage.in,
+      tokensOut: span.response.usage.out,
+      cumulative,
+    });
+  }
+  return { points, total: cumulative };
+}

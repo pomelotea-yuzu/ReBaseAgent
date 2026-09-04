@@ -22,6 +22,7 @@ const { join, resolve } = require("node:path");
 
 const REPO_ROOT = resolve(__dirname, "..", "..", "..");
 const DEFAULT_DIR = join(REPO_ROOT, ".rebaseagent", "traces");
+const DEFAULT_BUDGET = 100000;
 
 const TASK = "读取 README.md 并把要点写入 summary.md";
 const SYSTEM_PROMPT = "你是文件助手。";
@@ -114,6 +115,8 @@ class StubLlm {
 
 async function main() {
   const outDir = process.argv[2] ?? DEFAULT_DIR;
+  // 可选第三参：覆盖预算上限，用于演示预算地图参考线/超限（默认足够大，不会超）
+  const budgetTokens = process.argv[3] ? Number(process.argv[3]) : DEFAULT_BUDGET;
   mkdirSync(outDir, { recursive: true });
 
   const llm = new StubLlm();
@@ -126,7 +129,8 @@ async function main() {
     params: { temperature: 0.7 },
     exec: { cwd: outDir, signal: null },
     maxIterations: 10,
-    budget: { maxTotalTokens: 100000 },
+    // 预算会随 1.3 转录进 run.meta.budget，预算地图据此显示参考线
+    budget: { maxTotalTokens: budgetTokens },
   };
 
   const tmpFile = join(outDir, "tmp-smoke-parent.jsonl");
@@ -155,6 +159,7 @@ async function main() {
     `  steps:${record.spans.filter((s) => s.kind === "agent.step").length} · ` +
       `llm 调用 ${llm.requests.length} 次（stub，零真实 API）`,
   );
+  console.log(`  budget: ${budgetTokens}（meta.budget 已转录，预算地图可显示参考线）`);
 }
 
 main().catch((e) => {

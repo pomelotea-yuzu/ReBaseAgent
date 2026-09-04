@@ -1,7 +1,15 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import type { SpanLine } from "@rebaseagent/trace-sdk";
 import { parseRunText } from "@rebaseagent/trace-sdk";
-import { buildSpanTree, deriveRunSummary, deriveStepStats, spanDurationMs } from "@shared/derive";
+import {
+  buildSpanTree,
+  deriveBudgetSeries,
+  deriveRunSummary,
+  deriveStepStats,
+  flattenTree,
+  spanDurationMs,
+} from "@shared/derive";
 import { describe, expect, it } from "vitest";
 
 /** trace-sdk 的 fixtures 是本仓库的"真实数据"基准（桌面端开发期零 API 消耗） */
@@ -110,5 +118,81 @@ describe("deriveStepStats / spanDurationMs", () => {
         expect(childMs).toBeLessThanOrEqual(stepMs);
       }
     }
+  });
+});
+
+describe("deriveBudgetSeries", () => {
+  let seq = 0;
+  /** 构造合成 span 的最小工厂（预算派生只关心 kind/id/usage/parent） */
+  function step(parent: string | null): SpanLine {
+    seq += 1;
+    return { type: "span", id: `s_step_${seq}`, kind: "agent.step", parent, n: 1 };
+  }
+  function llm(id: string, parent: string, inTok: number, outTok: number): SpanLine {
+    return {
+      type: "span",
+      id,
+      kind: "llm.call",
+      parent,
+      request: { model: "m", messages: [{ role: "user", content: "x" }] },
+      response: { content: null, reasoning_content: null, tool_calls: [], usage: { in: inTok, out: outTok }, ttft_ms: 1 },
+    };
+  }
+  function tool(id: string, parent: string): SpanLine {
+    return {
+      type: "span",
+      id,
+      kind: "tool.invoke",
+      parent,
+      tool: "read_file",
+      args: {},
+      result: "内容",
+      dur_ms: 1,
+      error: null,
+    };
+  }
+
+  it("3 次 llm.call：cumulative 依次累加 in+out，与聚合一致", () => {
+    const a = step(null);
+    const l1 = llm("l_1", a.id, 100, 50);
+    const l2 = llm("l_2", a.id, 200, 0);
+    const l3 = llm("l_3", a.id, 300, 100);
+    const series = deriveBudgetSeries([a, l1, l2, l3]);
+
+    expect(series.points.map((p) => p.cumulative)).toEqual([150, 350, 750]);
+    expect(series.points.map((p) => p.spanId)).toEqual(["l_1", "l_2", "l_3"]);
+    expect(series.points.map((p) => p.index)).toEqual([1, 2, 3]);
+    expect(series.total).toBe(750);
+  });
+
+  it("只收集 llm.call，跳过 tool.invoke 与其他 kind", () => {
+    const a = step(null);
+    const l1 = llm("l_1", a.id, 10, 10);
+    const t = tool("t_1", a.id);
+    const l2 = llm("l_2", a.id, 20, 5);
+    const series = deriveBudgetSeries([a, l1, t, l2]);
+
+    expect(series.points.map((p) => p.spanId)).toEqual(["l_1", "l_2"]);
+    expect(series.points.map((p) => p.cumulative)).toEqual([20, 45]);
+    // 只算 llm 的 token，工具存在不产生额外点
+    expect(series.total).toBe(45);
+  });
+
+  it("DFS 顺序与 SpanTree/flattenTree 一致", () => {
+    const s1 = step(null);
+    const l1 = llm("l_1", s1.id, 1, 1);
+    const s2 = step(s1.id); // 嵌套 step
+    const l2 = llm("l_2", s2.id, 2, 2);
+    const s3 = step(null);
+    const l3 = llm("l_3", s3.id, 3, 3);
+    const spans = [s1, l1, s2, l2, s3, l3];
+
+    // 数组里 s2 的 llm 排在 s3 前面；DFS 也应（pre-order：先子树后兄弟后续）
+    const expected = flattenTree(buildSpanTree(spans))
+      .map((node) => node.span)
+      .filter((s): s is Extract<SpanLine, { kind: "llm.call" }> => s.kind === "llm.call")
+      .map((s) => s.id);
+    const series = deriveBudgetSeries(spans);
+    expect(series.points.map((p) => p.spanId)).toEqual(expected);
   });
 });

@@ -71,6 +71,11 @@ export async function runLoop(
     created_at: new Date().toISOString(),
     parent: forkRun?.parent ?? null,
     fork: forkRun?.fork ?? null,
+    // 预算随 run 录制为文件事实源；未声明 maxTotalTokens 则省略该字段（可选语义）
+    budget:
+      config.budget.maxTotalTokens !== undefined
+        ? { max_total_tokens: config.budget.maxTotalTokens }
+        : undefined,
     config_hash: configHash(config.systemPrompt, config.tools),
   });
 

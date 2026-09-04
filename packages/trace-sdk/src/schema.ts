@@ -57,6 +57,13 @@ export const RunMetaSchema = z.object({
   parent: z.string().nullable(),
   /** 分支信息；根 run 为 null */
   fork: ForkSchema.nullable(),
+  /** 预算上限（可选）：源配置声明的累计 token 预算，run 自包含该事实源 */
+  budget: z
+    .object({
+      /** 累计 token 上限（所有 llm.call 的 in+out 之和），与 loop 侧 deriveTotalTokens 口径一致 */
+      max_total_tokens: z.number().int().positive(),
+    })
+    .optional(),
   /** 源配置指纹（system prompt + 工具表），反事实重放前比对两次运行是否同源 */
   config_hash: z.string().min(1),
 });

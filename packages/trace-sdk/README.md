@@ -32,6 +32,7 @@ run.meta  →  span(agent.step)  →  span(llm.call)  →  span(tool.invoke)  �
 | `created_at`     | string         | ISO 8601 创建时间              |
 | `parent`         | string \| null | 父 run id；根 run 为 null      |
 | `fork`           | object \| null | 分支信息，见下                    |
+| `budget`         | object?        | 预算上限（可选），见下                |
 | `config_hash`    | string         | 源配置指纹（system prompt + 工具表） |
 
 `fork`：
@@ -42,15 +43,21 @@ run.meta  →  span(agent.step)  →  span(llm.call)  →  span(tool.invoke)  �
 | `edit.field` | string  | 被编辑的字段名（如 `"result"`）             |
 | `edit.value` | unknown | 新值。编辑语义由 replay 层应用               |
 
+`budget`（可选）：源配置声明的累计 token 预算，run 自包含该事实源；老文件与未声明预算的运行合法缺失，读取器不报错
+
+| 字段                        | 类型    | 说明                                                                                         |
+| ------------------------- | ----- | ------------------------------------------------------------------------------------------ |
+| `budget.max_total_tokens` | int>0 | 累计 token 上限——口径为所有 `llm.call` 的 `usage.in + usage.out` 之和（与 loop 侧 `deriveTotalTokens` 一致） |
+
 ### span（三种 kind，共同字段：`type: "span"`、`id`、`parent`（父 span id，根为 null）、`timing`（可选））
 
 `timing`：span 的墙上时钟区间，由 Tracer 在 start/endSpan 时自动记录
 
-| 字段                    | 类型     | 说明                                                     |
-| --------------------- | ------ | ------------------------------------------------------ |
-| `timing.started_at`   | string | 起始时刻，ISO 8601（毫秒精度）                                   |
-| `timing.ended_at`     | string | 终止时刻，ISO 8601；与 started\_at 成对出现                       |
-| `timing`（整体缺省）        | —      | 老文件与手工构造数据合法缺失；读取器不报错，**耗时视为未知**，不得用其他字段推断 |
+| 字段                  | 类型     | 说明                                         |
+| ------------------- | ------ | ------------------------------------------ |
+| `timing.started_at` | string | 起始时刻，ISO 8601（毫秒精度）                        |
+| `timing.ended_at`   | string | 终止时刻，ISO 8601；与 started\_at 成对出现           |
+| `timing`（整体缺省）      | —      | 老文件与手工构造数据合法缺失；读取器不报错，**耗时视为未知**，不得用其他字段推断 |
 
 `timing` 与 `tool.invoke.dur_ms` 不冲突：后者是"工具执行耗时"的权威值，前者提供跨 span 的统一时间坐标（时间轴、step 聚合）。
 

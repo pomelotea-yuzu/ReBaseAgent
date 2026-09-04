@@ -1,9 +1,11 @@
 import type { SpanLine } from "@rebaseagent/trace-sdk";
+import { Editor } from "@monaco-editor/react";
 import { spanDurationMs } from "@shared/derive";
 import type { RunDetail } from "@shared/ipc";
 import { useMemo, useState } from "react";
 import { formatDuration, prettyJson } from "../lib/format";
 import { useAppStore } from "../store";
+import { BudgetMap } from "./BudgetMap";
 
 const COLLAPSE_THRESHOLD = 600;
 
@@ -140,6 +142,16 @@ function toolMessageText(span: Extract<SpanLine, { kind: "tool.invoke" }>): stri
   return prettyJson(result);
 }
 
+/** Monaco 语言嗅探：内容可解析为 JSON 用 json，否则纯文本 */
+function detectResultLanguage(text: string): "json" | "plaintext" {
+  try {
+    JSON.parse(text);
+    return "json";
+  } catch {
+    return "plaintext";
+  }
+}
+
 /** tool.invoke 的"在此重跑"编辑器：改 result → 确认 → runs:fork（唯一写通道） */
 function ForkEditor({
   span,
@@ -159,6 +171,8 @@ function ForkEditor({
   const original = toolMessageText(span);
   const unchanged = value === original;
   const inProgress = forking === "in_progress";
+  // 语言依据原始文本初探一次（避免编辑过程中语言选项来回闪变）
+  const language = useMemo(() => detectResultLanguage(original), [original]);
 
   if (!open) {
     return (
@@ -186,13 +200,24 @@ function ForkEditor({
           从该工具调用之后重跑 · 父 run 文件不会被修改
         </span>
       </div>
-      <textarea
+      <Editor
+        height="140px"
+        language={language}
         value={value}
-        onChange={(e) => setValue(e.target.value)}
-        disabled={inProgress}
-        rows={6}
-        spellCheck={false}
-        className="w-full rounded border border-violet-200 bg-white px-2 py-1.5 font-code text-[11px] leading-5 text-gray-800 outline-none focus:border-violet-400 disabled:opacity-60"
+        onChange={(next) => setValue(next ?? "")}
+        options={{
+          readOnly: inProgress,
+          fontSize: 12,
+          minimap: { enabled: false },
+          lineNumbers: "on",
+          scrollBeyondLastLine: false,
+          wordWrap: "on",
+          scrollbar: { vertical: "auto" },
+          // 折叠箭头常驻 gutter（默认 mouseover 才显示，用户反馈不够直观）
+          folding: true,
+          showFoldingControls: "always",
+        }}
+        className="overflow-hidden rounded border border-violet-200"
       />
       <div className="mt-1.5 text-[10px] leading-4 text-violet-600">
         以上文本将作为该工具的返回结果重新送入模型；其余上下文（prompt、工具表、此前步骤）与父 run
@@ -343,6 +368,7 @@ export function DetailPanel() {
       <BranchNotice />
 
       <div className="flex-1 overflow-y-auto pb-8">
+        {detail !== null ? <BudgetMap key={detail.meta.id} detail={detail} /> : null}
         {span === null ? (
           <div className="px-4 py-6 text-xs text-gray-500">
             {detail === null ? "尚未选择运行。" : "尚未选择 span。"}

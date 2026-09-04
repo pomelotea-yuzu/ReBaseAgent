@@ -223,6 +223,42 @@ describe("runLoop：Tracer 集成", () => {
     }
   });
 
+  it("声明 maxTotalTokens → meta 录制 budget", async () => {
+    const { dir, cleanup } = tempDir();
+    try {
+      const tracer = new JsonlTracer(join(dir, "r.jsonl"));
+      await runLoop(
+        sampleConfig(),
+        initialMessages("读 README"),
+        tracer,
+        tools,
+        new MockLlmClient([{ content: "完成" }]),
+      );
+      const record = readRun(join(dir, "r.jsonl"));
+      expect(record.meta.budget?.max_total_tokens).toBe(100000);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("仅声明 maxCost → meta 无 budget 字段", async () => {
+    const { dir, cleanup } = tempDir();
+    try {
+      const tracer = new JsonlTracer(join(dir, "r.jsonl"));
+      await runLoop(
+        sampleConfig({ budget: { maxCost: 5 } }),
+        initialMessages("读 README"),
+        tracer,
+        tools,
+        new MockLlmClient([{ content: "完成" }]),
+      );
+      const record = readRun(join(dir, "r.jsonl"));
+      expect(record.meta.budget).toBeUndefined();
+    } finally {
+      cleanup();
+    }
+  });
+
   it("工具失败后 loop 继续（错误是数据）", async () => {
     const result = await runLoop(
       sampleConfig(),
