@@ -73,9 +73,8 @@ export function buildBudgetMapOption(
 }
 
 /** 预算地图的起止点（供 summary 文案） */
-export function budgetExtent(
-  series: BudgetSeries,
-): { min: number; max: number } | null {
-  if (series.points.length === 0) return null;
-  return { min: series.points[0]!.cumulative, max: series.total };
+export function budgetExtent(series: BudgetSeries): { min: number; max: number } | null {
+  const first = series.points[0];
+  if (first === undefined) return null;
+  return { min: first.cumulative, max: series.total };
 }

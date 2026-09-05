@@ -27,7 +27,8 @@
       "**/node_modules/**",
       "**/.pnpm-store/**",
       "**/.rebaseagent/**",
-      "**/*.timestamp-*.mjs"
+      "**/*.timestamp-*.mjs",
+      "**/electron.vite.config.*.mjs"
     ]
   },
   "overrides": [

@@ -1,25 +1,45 @@
 import { ipcMain } from "electron";
-import { CHANNELS, ForkRunRequestSchema, SettingsInputSchema, fail, ok } from "../shared/ipc";
-import type { ForkRunResult, ListRunsData, RunDetail, SettingsState } from "../shared/ipc";
+import {
+  CHANNELS,
+  ForkRunRequestSchema,
+  ProxyForkRequestSchema,
+  ProxyToggleInputSchema,
+  SettingsInputSchema,
+  fail,
+  ok,
+} from "../shared/ipc";
+import type {
+  ForkRunResult,
+  ListRunsData,
+  ProxyForkResult,
+  ProxyState,
+  RunDetail,
+  SettingsState,
+} from "../shared/ipc";
 import { ForkError, runFork } from "./fork-runner";
+import type { ProxyManager } from "./proxy-manager";
+import { ProxyForkError } from "./proxy-manager";
 import type { RunRepository } from "./run-repository";
 import type { SettingsStore } from "./settings";
 
 /**
  * IPC 处理器注册。任何异常都收敛为信封返回——不让异常跨越进程边界。
  *
- * 写通道纪律：runs:fork 是唯一能产生文件写入的通道（只新建 fork run 文件）；
- * settings 三通道只读写 <数据目录>/settings.json，apiKey 永不回传渲染层。
+ * 写通道纪律：runs:fork / proxy:fork 是仅有的两个能产生文件写入的通道
+ * （都只新建 fork run 文件）；settings 三通道只读写 <数据目录>/settings.json，
+ * apiKey 与代理捕获的 key 永不回传渲染层。
  */
 export interface IpcDeps {
   repository: RunRepository;
   settings: SettingsStore;
   /** 工具执行的工作目录（重跑工具与首次同权限同 cwd，落在数据目录） */
   execCwd: string;
+  /** 本地录制代理编排（启停/key 暂存/代理分叉） */
+  proxy: ProxyManager;
 }
 
 export function registerIpc(deps: IpcDeps): void {
-  const { repository, settings, execCwd } = deps;
+  const { repository, settings, execCwd, proxy } = deps;
 
   ipcMain.handle(
     CHANNELS.listRuns,
@@ -136,4 +156,51 @@ export function registerIpc(deps: IpcDeps): void {
       return fail("SETTINGS_CLEAR_FAILED", e);
     }
   });
+
+  // -------------------------------------------------------------------------
+  // proxy —— 本地录制代理（启停即保存；key 只回 hasKey 布尔）
+  // -------------------------------------------------------------------------
+
+  ipcMain.handle(CHANNELS.proxyStatus, (): ReturnType<typeof ok<ProxyState>> => {
+    return ok(proxy.status());
+  });
+
+  ipcMain.handle(
+    CHANNELS.proxyToggle,
+    async (
+      _event,
+      input: unknown,
+    ): Promise<ReturnType<typeof ok<ProxyState>> | ReturnType<typeof fail>> => {
+      const parsed = ProxyToggleInputSchema.safeParse(input);
+      if (!parsed.success) {
+        return fail("INVALID_ARGUMENT", parsed.error);
+      }
+      try {
+        return ok(await proxy.toggle(parsed.data));
+      } catch (e) {
+        return fail("PROXY_START_FAILED", e);
+      }
+    },
+  );
+
+  ipcMain.handle(
+    CHANNELS.proxyFork,
+    async (
+      _event,
+      request: unknown,
+    ): Promise<ReturnType<typeof ok<ProxyForkResult>> | ReturnType<typeof fail>> => {
+      const parsed = ProxyForkRequestSchema.safeParse(request);
+      if (!parsed.success) {
+        return fail("INVALID_ARGUMENT", parsed.error);
+      }
+      try {
+        return ok(await proxy.fork(parsed.data));
+      } catch (e) {
+        if (e instanceof ProxyForkError) {
+          return fail(e.code, e);
+        }
+        return fail("PROXY_FORK_FAILED", e);
+      }
+    },
+  );
 }

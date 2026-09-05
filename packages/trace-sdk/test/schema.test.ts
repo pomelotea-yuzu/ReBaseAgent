@@ -57,6 +57,70 @@ describe("schema：合法样例通过", () => {
     expect(line.format_version).toBe(1);
   });
 
+  it("run.meta（代理录制：含 source、无 config_hash）", () => {
+    const line = RunMetaSchema.parse({
+      type: "run.meta",
+      id: "r_p01",
+      format_version: 1,
+      task: "(llm-proxy)",
+      model: "deepseek-chat",
+      created_at: "2026-09-05T00:00:00Z",
+      parent: null,
+      fork: null,
+      source: { kind: "proxy", base_url: "http://127.0.0.1:8787/v1" },
+    });
+    expect(line.source?.kind).toBe("proxy");
+    expect(line.source?.base_url).toBe("http://127.0.0.1:8787/v1");
+    expect(line.config_hash).toBeUndefined();
+  });
+
+  it("run.meta（无 source 无 config_hash 的字段均可选缺省，解析通过）", () => {
+    const line = RunMetaSchema.parse({
+      type: "run.meta",
+      id: "r_04",
+      format_version: 1,
+      task: "测试",
+      model: "deepseek-chat",
+      created_at: "2026-01-15T00:00:00Z",
+      parent: null,
+      fork: null,
+    });
+    expect(line.source).toBeUndefined();
+    expect(line.config_hash).toBeUndefined();
+  });
+
+  it("run.meta（既有含 config_hash 的 meta 不受影响）", () => {
+    const line = RunMetaSchema.parse({
+      type: "run.meta",
+      id: "r_05",
+      format_version: 1,
+      task: "测试",
+      model: "deepseek-chat",
+      created_at: "2026-01-15T00:00:00Z",
+      parent: null,
+      fork: null,
+      config_hash: "sha256:abc",
+    });
+    expect(line.config_hash).toBe("sha256:abc");
+    expect(line.source).toBeUndefined();
+  });
+
+  it("config_hash 存在时仍须非空（空串拒绝）", () => {
+    expect(() =>
+      RunMetaSchema.parse({
+        type: "run.meta",
+        id: "r_06",
+        format_version: 1,
+        task: "测试",
+        model: "deepseek-chat",
+        created_at: "2026-01-15T00:00:00Z",
+        parent: null,
+        fork: null,
+        config_hash: "",
+      }),
+    ).toThrow();
+  });
+
   it("agent.step", () => {
     const span = AgentStepSpanSchema.parse({
       type: "span",

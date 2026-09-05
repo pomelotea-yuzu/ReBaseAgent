@@ -2,6 +2,7 @@ import { dirname, resolve } from "node:path";
 import { BrowserWindow, app, dialog, safeStorage } from "electron";
 import { ensureTracesDir, resolveAnchorDir, resolveDataDir, saveDataDirPointer } from "./data-dir";
 import { registerIpc } from "./ipc";
+import { ProxyManager } from "./proxy-manager";
 import { RunRepository } from "./run-repository";
 import { SettingsStore } from "./settings";
 import type { SettingsCipher } from "./settings";
@@ -84,12 +85,18 @@ async function bootstrap(): Promise<void> {
     encrypt: (plain) => safeStorage.encryptString(plain).toString("base64"),
     decrypt: (encoded) => safeStorage.decryptString(Buffer.from(encoded, "base64")),
   };
+  const settings = new SettingsStore({ dataDir, cipher });
+  const repository = new RunRepository(tracesDir);
+  const proxy = new ProxyManager({ repository, settings, tracesDir });
   registerIpc({
-    repository: new RunRepository(tracesDir),
-    settings: new SettingsStore({ dataDir, cipher }),
+    repository,
+    settings,
     // 工具重跑的工作目录：数据目录（trace 不记录首次 cwd，桌面以数据目录为落点）
     execCwd: dataDir,
+    proxy,
   });
+  // 代理按 settings 自恢复（端口占用等失败不阻断应用启动，状态可见）
+  void proxy.autoStart();
   createWindow();
 
   app.on("activate", () => {

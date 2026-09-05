@@ -79,6 +79,21 @@ function makeCrashed(dir: string, id: string): void {
   expect(readRun(file).status).toBe("crashed");
 }
 
+/** 把 completed 父 run 改写成代理录制形态（meta 去 config_hash、加 source、task 换常量） */
+function makeProxyRun(dir: string, id: string): void {
+  const file = join(dir, `${id}.jsonl`);
+  const lines = readFileSync(file, "utf8")
+    .split(/\r?\n/)
+    .filter((line) => line.trim().length > 0);
+  const meta = JSON.parse(lines[0] ?? "{}") as Record<string, unknown>;
+  const { config_hash: _removed, ...rest } = meta;
+  rest.task = "(llm-proxy)";
+  rest.source = { kind: "proxy", base_url: "http://127.0.0.1:8787/v1" };
+  lines[0] = JSON.stringify(rest);
+  writeFileSync(file, `${lines.join("\n")}\n`);
+  expect(readRun(file).meta.config_hash).toBeUndefined();
+}
+
 function firstLlm(record: RunRecord): Extract<RunRecord["spans"][number], { kind: "llm.call" }> {
   const span = record.spans.find((s) => s.kind === "llm.call");
   if (span === undefined || span.kind !== "llm.call") {
@@ -214,6 +229,32 @@ describe("replayRun：拒绝路径（tasks 3.3）", () => {
           llm: mock,
         }),
       ).rejects.toThrow(/config_hash 不一致/);
+      expect(mock.requests).toHaveLength(0);
+      expect(readdirSync(dir).sort()).toEqual(before);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("代理录制的父 run（无 config_hash）→ 明确报错指向代理分叉、零 LLM 调用、不产生文件", async () => {
+    const { dir, cleanup } = tempDir();
+    try {
+      const parentId = await createParent(dir);
+      makeProxyRun(dir, parentId);
+      const before = readdirSync(dir).sort();
+      const mock = new MockLlmClient([]);
+      await expect(
+        replayRun({
+          parentId,
+          atSpanId: "s_03",
+          edit: EDIT,
+          config: CONFIG,
+          tools: TOOLS,
+          load: loader(dir),
+          outDir: dir,
+          llm: mock,
+        }),
+      ).rejects.toThrow(/由本地录制代理录制/);
       expect(mock.requests).toHaveLength(0);
       expect(readdirSync(dir).sort()).toEqual(before);
     } finally {

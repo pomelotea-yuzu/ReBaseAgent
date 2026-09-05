@@ -51,6 +51,20 @@ export class RunRepository {
       };
     }
 
+    // 代理分叉 run（fork.edit.field="messages"）：resolveBranch 的"共享前缀拼接"语义
+    // 不成立（编辑的是 messages，没有 replay 层应用它，拼接会混排出假时间线）——
+    // 降级为父链列表呈现：只返回自身 span，chain 沿 parent 链逐代列出
+    if (record.meta.source?.kind === "proxy") {
+      return {
+        meta: record.meta,
+        spans: record.spans,
+        events: record.events,
+        status: record.status,
+        chain: this.buildProxyChain(record),
+        leafSpanIds,
+      };
+    }
+
     const resolved = resolveBranch(id, (runId) => this.loadRunRecord(runId));
     return {
       meta: resolved.meta,
@@ -61,6 +75,24 @@ export class RunRepository {
       chain: resolved.chain.map((hop) => ({ meta: hop.meta, fork: hop.fork })),
       leafSpanIds,
     };
+  }
+
+  /** 代理 run 的父链（从根到本 run）；不做轨迹拼接 */
+  private buildProxyChain(leaf: RunRecord): RunDetail["chain"] {
+    const chain: RunDetail["chain"] = [];
+    const seen = new Set<string>();
+    let current: RunRecord | null = leaf;
+    while (current !== null && !seen.has(current.meta.id)) {
+      seen.add(current.meta.id);
+      chain.unshift({ meta: current.meta, fork: current.meta.fork });
+      if (current.meta.parent === null) break;
+      try {
+        current = this.loadRunRecord(current.meta.parent);
+      } catch {
+        break; // 祖先文件缺失：链到此为止（不拖垮详情读取）
+      }
+    }
+    return chain;
   }
 
   /** 读取单个 run 的原始记录（供 replay/派生等编排层按 id 加载父链） */

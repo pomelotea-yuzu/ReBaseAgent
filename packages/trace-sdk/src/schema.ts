@@ -44,6 +44,18 @@ export const ForkSchema = z.object({
 });
 export type Fork = z.infer<typeof ForkSchema>;
 
+/**
+ * 录制来源（可选）：标记录制通道。
+ * 当前仅 "proxy"（本地 LLM 录制代理）；SDK / agent-loop 直录省略该字段。
+ * base_url 是代理自身监听地址（即用户在自己应用里填的那个 base_url），
+ * 不是 upstream 转发目标——upstream 属代理配置，不进 trace。
+ */
+export const SourceSchema = z.object({
+  kind: z.literal("proxy"),
+  base_url: z.string().min(1),
+});
+export type Source = z.infer<typeof SourceSchema>;
+
 export const RunMetaSchema = z.object({
   type: z.literal("run.meta"),
   /** run id，同时是文件内唯一标识 */
@@ -64,8 +76,12 @@ export const RunMetaSchema = z.object({
       max_total_tokens: z.number().int().positive(),
     })
     .optional(),
-  /** 源配置指纹（system prompt + 工具表），反事实重放前比对两次运行是否同源 */
-  config_hash: z.string().min(1),
+  /** 源配置指纹（system prompt + 工具表），反事实重放前比对两次运行是否同源。
+   *  可选：代理录制的 run 无源配置可哈希，诚实缺省——无该字段的 run
+   *  不可作 replay 分叉父本（校验层拒绝），但可作代理分叉（proxy:fork）父本。 */
+  config_hash: z.string().min(1).optional(),
+  /** 录制来源（可选）：由代理录制时写入；SDK / agent-loop 直录省略 */
+  source: SourceSchema.optional(),
 });
 export type RunMetaLine = z.infer<typeof RunMetaSchema>;
 /** startRun 的入参（不含 type 判别字段） */

@@ -44,6 +44,8 @@ export const RunSummarySchema = z.object({
   tokensOut: z.number().int().nonnegative(),
   /** 总耗时（毫秒）；span 缺失时间区间时为 null——时间未知不得臆造 */
   durationMs: z.number().nonnegative().nullable(),
+  /** 录制来源：代理录制为 "proxy"；SDK / agent-loop 直录为 null（老文件同 null） */
+  source: z.enum(["proxy"]).nullable(),
 });
 export type RunSummary = z.infer<typeof RunSummarySchema>;
 
@@ -145,10 +147,50 @@ export const SettingsInputSchema = z.object({
 });
 export type SettingsInput = z.infer<typeof SettingsInputSchema>;
 
+// ---------------------------------------------------------------------------
+// proxy —— 本地 LLM 录制代理（key 永不回传渲染层，状态只回 hasKey 布尔）
+// ---------------------------------------------------------------------------
+
+/** 代理状态（渲染层可见；key 只体现为 hasKey 布尔） */
+export const ProxyStateSchema = z.object({
+  /** 用户意图（settings 里保存的开关） */
+  enabled: z.boolean(),
+  /** 服务当前是否在监听 */
+  running: z.boolean(),
+  port: z.number().int().min(1).max(65535),
+  upstreamBaseUrl: z.string(),
+  /** 本会话是否捕获到 key（值本身永不出 main） */
+  hasKey: z.boolean(),
+});
+export type ProxyState = z.infer<typeof ProxyStateSchema>;
+
+/** 启停即保存：toggle 同时持久化端口与 upstream（免第四个通道） */
+export const ProxyToggleInputSchema = z.object({
+  enabled: z.boolean(),
+  port: z.number().int().min(1).max(65535),
+  upstreamBaseUrl: z.string().url("upstream 必须是合法 URL"),
+});
+export type ProxyToggleInput = z.infer<typeof ProxyToggleInputSchema>;
+
+/** 代理分叉（方案 a：编辑 messages 重发单请求） */
+export const ProxyForkRequestSchema = z.object({
+  parentRunId: z.string().min(1),
+  atSpanId: z.string().min(1),
+  /** 编辑后的完整 messages 数组（原样作为请求体 messages） */
+  messages: z.array(z.record(z.string(), z.unknown())).min(1),
+});
+export type ProxyForkRequest = z.infer<typeof ProxyForkRequestSchema>;
+
+/** proxy:fork 成功结果：新 fork run 的 id */
+export const ProxyForkResultSchema = z.object({
+  id: z.string().min(1),
+});
+export type ProxyForkResult = z.infer<typeof ProxyForkResultSchema>;
+
 /**
  * preload 暴露给渲染层的受限接口。
- * 取数两个方法 + forkRun 一个写通道 + settings 三件套（单向写入，
- * apiKey 只在 save 时进入 main，永不回传）。
+ * 取数两个方法 + forkRun / proxyFork 两个写通道 + settings 三件套 + 代理三件套
+ * （apiKey / 代理 key 均单向进入 main，永不回传）。
  */
 export interface WindowApi {
   listRuns(): Promise<Envelope<ListRunsData>>;
@@ -157,4 +199,7 @@ export interface WindowApi {
   getSettings(): Promise<Envelope<SettingsState>>;
   saveSettings(input: SettingsInput): Promise<Envelope<{ configured: true }>>;
   clearSettings(): Promise<Envelope<{ configured: false }>>;
+  proxyStatus(): Promise<Envelope<ProxyState>>;
+  proxyToggle(input: ProxyToggleInput): Promise<Envelope<ProxyState>>;
+  proxyFork(request: ProxyForkRequest): Promise<Envelope<ProxyForkResult>>;
 }

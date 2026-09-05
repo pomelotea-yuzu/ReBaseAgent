@@ -25,6 +25,16 @@ export function RunList() {
   const selectedRunId = useAppStore((s) => s.selectedRunId);
   const loadingList = useAppStore((s) => s.loadingList);
   const selectRun = useAppStore((s) => s.selectRun);
+  const sourceFilter = useAppStore((s) => s.sourceFilter);
+  const setSourceFilter = useAppStore((s) => s.setSourceFilter);
+
+  // 来源过滤：proxy meta 缺失的老文件归入"本地直录"
+  const filtered =
+    sourceFilter === "all"
+      ? runs
+      : sourceFilter === "proxy"
+        ? runs.filter((r) => r.source === "proxy")
+        : runs.filter((r) => r.source !== "proxy");
 
   return (
     <aside className="flex h-full w-80 shrink-0 flex-col border-r border-gray-200 bg-white">
@@ -33,19 +43,47 @@ export function RunList() {
         <div className="text-[11px] text-gray-500">按创建时间倒序 · 只读</div>
       </div>
 
+      <div className="border-b border-gray-200 px-3 py-1.5">
+        <div className="flex items-center gap-1 text-[11px]">
+          {(
+            [
+              ["all", "全部"],
+              ["proxy", "仅代理"],
+              ["local", "仅本地直录"],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setSourceFilter(value)}
+              className={`rounded px-2 py-0.5 ${
+                sourceFilter === value
+                  ? "bg-blue-600 text-white"
+                  : "text-gray-600 hover:bg-gray-100"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="flex-1 overflow-y-auto">
         {loadingList && runs.length === 0 ? (
           <div className="px-3 py-6 text-xs text-gray-500">加载中…</div>
         ) : null}
 
-        {!loadingList && runs.length === 0 && failed.length === 0 ? (
+        {!loadingList && filtered.length === 0 && failed.length === 0 ? (
           <div className="px-3 py-6 text-xs leading-5 text-gray-500">
-            数据目录的 traces/ 下还没有 trace 文件。
-            <br />把 *.jsonl 放进去后重新打开即可。
+            {sourceFilter === "all"
+              ? "数据目录的 traces/ 下还没有 trace 文件。"
+              : "该来源下暂无运行记录。"}
+            <br />
+            {sourceFilter === "all" ? "把 *.jsonl 放进去后重新打开即可。" : ""}
           </div>
         ) : null}
 
-        {runs.map((run) => (
+        {filtered.map((run) => (
           <button
             type="button"
             key={run.id}
@@ -58,6 +96,14 @@ export function RunList() {
           >
             <div className="flex items-center gap-2">
               <StatusBadge status={run.status} reason={run.reason} />
+              {run.source === "proxy" ? (
+                <span
+                  className="shrink-0 rounded bg-sky-100 px-1.5 py-0.5 text-[11px] leading-4 text-sky-800"
+                  title="经本地录制代理录制（可在其 llm.call 详情编辑 messages 重发）"
+                >
+                  代理
+                </span>
+              ) : null}
               <span className="truncate text-xs font-medium text-gray-800" title={run.task}>
                 {run.task}
               </span>

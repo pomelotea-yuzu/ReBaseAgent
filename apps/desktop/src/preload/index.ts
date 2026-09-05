@@ -19,6 +19,9 @@ const api: WindowApi = {
   getSettings: () => ipcRenderer.invoke(CHANNELS.settingsGet),
   saveSettings: (input) => ipcRenderer.invoke(CHANNELS.settingsSave, input),
   clearSettings: () => ipcRenderer.invoke(CHANNELS.settingsClear),
+  proxyStatus: () => ipcRenderer.invoke(CHANNELS.proxyStatus),
+  proxyToggle: (input) => ipcRenderer.invoke(CHANNELS.proxyToggle, input),
+  proxyFork: (request) => ipcRenderer.invoke(CHANNELS.proxyFork, request),
 };
 
 contextBridge.exposeInMainWorld("api", api);

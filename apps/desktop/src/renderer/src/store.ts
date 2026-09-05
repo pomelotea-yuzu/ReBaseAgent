@@ -1,5 +1,18 @@
-import type { FailedFile, RunDetail, RunSummary, SettingsInput, SettingsState } from "@shared/ipc";
-import { ListRunsDataSchema, RunDetailSchema, SettingsStateSchema } from "@shared/ipc";
+import type {
+  FailedFile,
+  ProxyState,
+  ProxyToggleInput,
+  RunDetail,
+  RunSummary,
+  SettingsInput,
+  SettingsState,
+} from "@shared/ipc";
+import {
+  ListRunsDataSchema,
+  ProxyStateSchema,
+  RunDetailSchema,
+  SettingsStateSchema,
+} from "@shared/ipc";
 import { create } from "zustand";
 import { api } from "./lib/api";
 
@@ -30,6 +43,11 @@ interface AppState {
   /** 运行配置状态（不含 apiKey；null = 尚未加载成功） */
   settings: SettingsState | null;
 
+  /** 本地录制代理状态（不含 key 值；null = 尚未加载） */
+  proxy: ProxyState | null;
+  /** run 列表来源过滤 */
+  sourceFilter: "all" | "proxy" | "local";
+
   loadRuns: () => Promise<void>;
   selectRun: (id: string) => Promise<void>;
   selectSpan: (id: string) => void;
@@ -43,6 +61,17 @@ interface AppState {
   loadSettings: () => Promise<void>;
   saveSettings: (input: SettingsInput) => Promise<boolean>;
   clearSettings: () => Promise<boolean>;
+
+  loadProxyStatus: () => Promise<void>;
+  /** 启停即保存（端口/upstream 一并生效）；失败返回 null 并在 error 里给出原因 */
+  toggleProxy: (input: ProxyToggleInput) => Promise<ProxyState | null>;
+  setSourceFilter: (filter: "all" | "proxy" | "local") => void;
+  /** 代理分叉（编辑 messages 经代理重发）；成功刷新列表并自动选中新 run */
+  proxyFork: (
+    parentRunId: string,
+    atSpanId: string,
+    messages: Record<string, unknown>[],
+  ) => Promise<boolean>;
 }
 
 /** 跨进程数据不可信：统一用 schema 校验后再进状态 */
@@ -66,6 +95,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   forkError: null,
   forkErrorCode: null,
   settings: null,
+  proxy: null,
+  sourceFilter: "all",
 
   async loadRuns() {
     set({ loadingList: true, error: null });
@@ -179,6 +210,57 @@ export const useAppStore = create<AppState>((set, get) => ({
       return false;
     }
     set({ settings: null });
+    return true;
+  },
+
+  async loadProxyStatus() {
+    const envelope = await api.proxyStatus();
+    if (!envelope.ok) {
+      set({ proxy: null, error: `读取代理状态失败：${envelope.error.message}` });
+      return;
+    }
+    const parsed = ProxyStateSchema.safeParse(envelope.data);
+    if (!parsed.success) {
+      set({ proxy: null, error: `代理状态数据结构校验失败：${describeZodError(parsed.error)}` });
+      return;
+    }
+    set({ proxy: parsed.data });
+  },
+
+  async toggleProxy(input) {
+    set({ error: null });
+    const envelope = await api.proxyToggle(input);
+    if (!envelope.ok) {
+      set({ error: `代理操作失败：${envelope.error.message}` });
+      return null;
+    }
+    const parsed = ProxyStateSchema.safeParse(envelope.data);
+    if (!parsed.success) {
+      set({ error: `代理状态数据结构校验失败：${describeZodError(parsed.error)}` });
+      return null;
+    }
+    set({ proxy: parsed.data });
+    return parsed.data;
+  },
+
+  setSourceFilter(filter) {
+    set({ sourceFilter: filter });
+  },
+
+  async proxyFork(parentRunId, atSpanId, messages) {
+    set({ forking: "in_progress", forkError: null, forkErrorCode: null });
+    const envelope = await api.proxyFork({ parentRunId, atSpanId, messages });
+    if (!envelope.ok) {
+      set({
+        forking: "error",
+        forkError: envelope.error.message,
+        forkErrorCode: envelope.error.code,
+      });
+      return false;
+    }
+    set({ forking: "success" });
+    await get().loadRuns();
+    await get().selectRun(envelope.data.id);
     return true;
   },
 }));

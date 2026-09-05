@@ -9,6 +9,9 @@ export const CHANNELS = {
   settingsGet: "settings:get",
   settingsSave: "settings:save",
   settingsClear: "settings:clear",
+  proxyStatus: "proxy:status",
+  proxyToggle: "proxy:toggle",
+  proxyFork: "proxy:fork",
 } as const;
 
 export type ChannelName = (typeof CHANNELS)[keyof typeof CHANNELS];

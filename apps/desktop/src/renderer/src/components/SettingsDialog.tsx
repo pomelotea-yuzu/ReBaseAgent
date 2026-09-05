@@ -12,6 +12,8 @@ import { useAppStore } from "../store";
 export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const settings = useAppStore((s) => s.settings);
   const configured = settings?.configured ?? false;
+  const proxy = useAppStore((s) => s.proxy);
+  const toggleProxy = useAppStore((s) => s.toggleProxy);
 
   // 打开时以已保存值预填（apiKey 留空 = 保持原值）
   const [baseURL, setBaseURL] = useState(settings?.baseURL ?? "");
@@ -19,6 +21,15 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const [apiKey, setApiKey] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+
+  // 代理区（启停即保存；状态从 main 回读）
+  const [proxyEnabled, setProxyEnabled] = useState(proxy?.enabled ?? false);
+  const [proxyPort, setProxyPort] = useState(String(proxy?.port ?? 8787));
+  const [proxyUpstream, setProxyUpstream] = useState(
+    proxy?.upstreamBaseUrl ?? "https://api.deepseek.com",
+  );
+  const [proxyBusy, setProxyBusy] = useState(false);
+  const [proxyMessage, setProxyMessage] = useState<string | null>(null);
 
   const saveSettings = useAppStore((s) => s.saveSettings);
   const clearSettings = useAppStore((s) => s.clearSettings);
@@ -62,6 +73,32 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
       setMessage(useAppStore.getState().error ?? "清除失败");
     }
     setBusy(false);
+  };
+
+  /** 代理保存并应用：启停即保存，端口占用等错误可见 */
+  const doProxyApply = async (): Promise<void> => {
+    const port = Number.parseInt(proxyPort, 10);
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      setProxyMessage("端口必须是 1–65535 的整数");
+      return;
+    }
+    setProxyBusy(true);
+    setProxyMessage(null);
+    const nextState = await toggleProxy({
+      enabled: proxyEnabled,
+      port,
+      upstreamBaseUrl: proxyUpstream.trim(),
+    });
+    if (nextState === null) {
+      setProxyMessage(useAppStore.getState().error ?? "代理操作失败");
+    } else {
+      setProxyMessage(
+        nextState.running
+          ? `代理已运行：http://127.0.0.1:${nextState.port}/v1——把你的应用 base_url 改成这个地址即可录制。`
+          : "代理已停止。",
+      );
+    }
+    setProxyBusy(false);
   };
 
   const plain = settings?.encryption === "plain";
@@ -185,6 +222,89 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
               className="rounded bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {busy ? "保存中…" : "保存"}
+            </button>
+          </div>
+        </div>
+
+        {/* ---------------------------------------------------------------
+            本地录制代理：零摩擦接入（key 留在你的应用里，ReBaseAgent 不保管）
+            --------------------------------------------------------------- */}
+        <div className="mt-4 border-t border-gray-200 pt-3">
+          <div className="mb-1 flex items-center justify-between">
+            <div className="text-sm font-semibold text-gray-800">本地录制代理（零摩擦接入）</div>
+            <span
+              className={`inline-flex items-center gap-1 text-[11px] ${
+                proxy?.running === true ? "text-emerald-700" : "text-gray-400"
+              }`}
+            >
+              <span
+                className={`inline-block h-1.5 w-1.5 rounded-full ${
+                  proxy?.running === true ? "bg-emerald-500" : "bg-gray-300"
+                }`}
+              />
+              {proxy?.running === true ? `运行中 :${proxy.port}` : "已停止"}
+            </span>
+          </div>
+          <div className="mb-2 text-[11px] leading-4 text-gray-500">
+            把你的 Agent 应用 base_url 改为{" "}
+            <span className="font-code">http://127.0.0.1:&lt;端口&gt;/v1</span>， key
+            一字不动即可录制每次 LLM 调用。录制/查看不需要任何配置；key
+            仅在本会话内存中暂存用于「编辑重发」。
+          </div>
+
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 text-[11px] text-gray-700">
+              <input
+                type="checkbox"
+                checked={proxyEnabled}
+                onChange={(e) => setProxyEnabled(e.target.checked)}
+                className="h-3.5 w-3.5"
+              />
+              启用代理
+            </label>
+            <div className="flex gap-2">
+              <label className="block w-24">
+                <span className="mb-0.5 block text-[11px] font-medium text-gray-600">端口</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={65535}
+                  value={proxyPort}
+                  onChange={(e) => setProxyPort(e.target.value)}
+                  spellCheck={false}
+                  className="w-full rounded border border-gray-300 px-2 py-1 font-code text-xs outline-none focus:border-blue-400"
+                />
+              </label>
+              <label className="block flex-1">
+                <span className="mb-0.5 block text-[11px] font-medium text-gray-600">
+                  upstream（转发目标，不进 trace）
+                </span>
+                <input
+                  type="url"
+                  value={proxyUpstream}
+                  onChange={(e) => setProxyUpstream(e.target.value)}
+                  placeholder="https://api.deepseek.com"
+                  spellCheck={false}
+                  className="w-full rounded border border-gray-300 px-2 py-1 font-code text-xs outline-none focus:border-blue-400"
+                />
+              </label>
+            </div>
+          </div>
+
+          {proxyMessage !== null ? (
+            <div className="mt-2 text-[11px] leading-4 text-gray-600">{proxyMessage}</div>
+          ) : null}
+
+          <div className="mt-2 flex justify-end">
+            <button
+              type="button"
+              onClick={() => {
+                void doProxyApply();
+              }}
+              disabled={proxyBusy}
+              className="rounded bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {proxyBusy ? "应用中…" : "保存并应用"}
             </button>
           </div>
         </div>

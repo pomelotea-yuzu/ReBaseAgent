@@ -101,6 +101,14 @@ export async function replayRun(options: ReplayRunOptions): Promise<ReplayRunRes
   // 2. 父 run 必须已封存（crashed 缺终止事件，前缀不稳定，禁止分叉）
   assertForkable(leaf);
 
+  // 2.5 代理录制的 run 无 config_hash（无源配置可哈希，也没有 tool.invoke 可编辑）
+  // ——replay 语义不成立，明确指向正确入口而非含糊报错
+  if (leaf.meta.config_hash === undefined) {
+    throw new Error(
+      `run ${leaf.meta.id} 由本地录制代理录制（无 config_hash），不适用"编辑 tool_result 重跑"；请在其 llm.call 详情使用"编辑 messages 重发"（代理分叉）`,
+    );
+  }
+
   // 3. config_hash 一致性（D3：编排层校验；runLoop 信任注入）
   const hash = configHash(config.systemPrompt, config.tools);
   if (hash !== leaf.meta.config_hash) {

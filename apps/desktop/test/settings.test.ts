@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -136,5 +136,48 @@ describe("SettingsStore：清除与容错", () => {
     expect(() => broken.load()).toThrow(/无法解密/);
     // 文件仍在，用户可走 clear 重新配置
     expect(existsSync(join(dir, "settings.json"))).toBe(true);
+  });
+});
+
+describe("SettingsStore：代理配置（与运行配置解耦）", () => {
+  it("无文件 → loadProxy 返回默认值；saveProxy 后可读回", () => {
+    const store = new SettingsStore({ dataDir: tempDir("settings-"), cipher: fakeCipher(true) });
+    expect(store.loadProxy()).toEqual({
+      enabled: false,
+      port: 8787,
+      upstreamBaseUrl: "https://api.deepseek.com",
+    });
+    store.saveProxy({ enabled: true, port: 9000, upstreamBaseUrl: "https://api.example.com" });
+    expect(store.loadProxy()).toEqual({
+      enabled: true,
+      port: 9000,
+      upstreamBaseUrl: "https://api.example.com",
+    });
+  });
+
+  it("saveProxy 不触碰既有运行配置（密文 apiKey 保留）", () => {
+    const dir = tempDir("settings-");
+    const store = new SettingsStore({ dataDir: dir, cipher: fakeCipher(true) });
+    store.save({
+      baseURL: "https://api.deepseek.com/v1",
+      apiKey: "sk-keep",
+      model: "deepseek-chat",
+    });
+    store.saveProxy({ enabled: true, port: 8787, upstreamBaseUrl: "https://api.deepseek.com" });
+    const loaded = store.load();
+    expect(loaded?.apiKey).toBe("sk-keep");
+    expect(loaded?.model).toBe("deepseek-chat");
+    expect(store.loadProxy().enabled).toBe(true);
+  });
+
+  it("settings.json 损坏 → loadProxy 容错返回默认值", () => {
+    const dir = tempDir("settings-");
+    const store = new SettingsStore({ dataDir: dir, cipher: fakeCipher(true) });
+    writeFileSync(join(dir, "settings.json"), "{broken", "utf8");
+    expect(store.loadProxy()).toEqual({
+      enabled: false,
+      port: 8787,
+      upstreamBaseUrl: "https://api.deepseek.com",
+    });
   });
 });

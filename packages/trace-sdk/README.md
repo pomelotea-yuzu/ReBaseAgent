@@ -33,14 +33,15 @@ run.meta  →  span(agent.step)  →  span(llm.call)  →  span(tool.invoke)  �
 | `parent`         | string \| null | 父 run id；根 run 为 null      |
 | `fork`           | object \| null | 分支信息，见下                    |
 | `budget`         | object?        | 预算上限（可选），见下                |
-| `config_hash`    | string         | 源配置指纹（system prompt + 工具表） |
+| `config_hash`    | string?        | 源配置指纹（system prompt + 工具表）；**可选**——代理录制的 run 无源配置可哈希，诚实缺省 |
+| `source`         | object?        | 录制来源（可选），见下                |
 
 `fork`：
 
 | 字段           | 类型      | 说明                                |
 | ------------ | ------- | --------------------------------- |
 | `at_span`    | string  | 分叉点 span id（该 span 保留在共享前缀中，含于前缀） |
-| `edit.field` | string  | 被编辑的字段名（如 `"result"`）             |
+| `edit.field` | string  | 被编辑的字段名（如 `"result"`；代理分叉为 `"messages"`） |
 | `edit.value` | unknown | 新值。编辑语义由 replay 层应用               |
 
 `budget`（可选）：源配置声明的累计 token 预算，run 自包含该事实源；老文件与未声明预算的运行合法缺失，读取器不报错
@@ -48,6 +49,13 @@ run.meta  →  span(agent.step)  →  span(llm.call)  →  span(tool.invoke)  �
 | 字段                        | 类型    | 说明                                                                                         |
 | ------------------------- | ----- | ------------------------------------------------------------------------------------------ |
 | `budget.max_total_tokens` | int>0 | 累计 token 上限——口径为所有 `llm.call` 的 `usage.in + usage.out` 之和（与 loop 侧 `deriveTotalTokens` 一致） |
+
+`source`（可选）：录制来源。SDK / agent-loop 直录省略；本地录制代理写入。无 `config_hash` 的 run 不可作 replay 分叉父本（校验层拒绝），但可作代理分叉父本
+
+| 字段          | 类型               | 说明                                              |
+| ----------- | ---------------- | ----------------------------------------------- |
+| `kind`      | `"proxy"`        | 录制通道（当前仅本地录制代理）                                 |
+| `base_url`  | string           | 代理自身监听地址（即用户在自己应用里填的那个 base\_url），非 upstream 转发目标 |
 
 ### span（三种 kind，共同字段：`type: "span"`、`id`、`parent`（父 span id，根为 null）、`timing`（可选））
 

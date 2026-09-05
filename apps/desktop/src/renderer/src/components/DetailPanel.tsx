@@ -1,5 +1,5 @@
-import type { SpanLine } from "@rebaseagent/trace-sdk";
 import { Editor } from "@monaco-editor/react";
+import type { SpanLine } from "@rebaseagent/trace-sdk";
 import { spanDurationMs } from "@shared/derive";
 import type { RunDetail } from "@shared/ipc";
 import { useMemo, useState } from "react";
@@ -55,9 +55,15 @@ function KeyValue({ items }: { items: Array<[string, string]> }) {
   );
 }
 
-/** llm.call 详情：完整请求 + 响应（思维链与正文分区） */
-function LlmCallDetail({ span }: { span: Extract<SpanLine, { kind: "llm.call" }> }) {
+/** llm.call 详情：完整请求 + 响应（思维链与正文分区）；代理 run 提供编辑重发 */
+function LlmCallDetail({
+  span,
+  run,
+}: { span: Extract<SpanLine, { kind: "llm.call" }>; run: RunDetail | null }) {
   const { request, response } = span;
+  const leafOwned = run?.leafSpanIds.includes(span.id) ?? false;
+  const isProxy = run?.meta.source?.kind === "proxy";
+  const canResend = isProxy === true && leafOwned && run?.status === "completed";
   return (
     <>
       <Section title="概要">
@@ -129,7 +135,160 @@ function LlmCallDetail({ span }: { span: Extract<SpanLine, { kind: "llm.call" }>
           <LongText text={prettyJson(request.params)} label="params" />
         </Section>
       ) : null}
+
+      {canResend && run !== null ? (
+        <MessagesForkEditor key={span.id} span={span} run={run} />
+      ) : isProxy && run !== null && run.status === "crashed" ? (
+        <div className="border-t border-gray-100 px-4 py-2 text-[11px] text-gray-400">
+          该 run 运行中断（未封存），不允许作为重发起点。
+        </div>
+      ) : null}
     </>
+  );
+}
+
+/**
+ * 代理 run 的"编辑 messages 重发"（单请求级最小分叉，方案 a）：
+ * 编辑 request.messages → 经代理用暂存 key 重发 → 新 fork run。
+ * 与 runs:fork（tool.result 编辑重跑）完全独立，走 proxy:fork 通道。
+ */
+function MessagesForkEditor({
+  span,
+  run,
+}: {
+  span: Extract<SpanLine, { kind: "llm.call" }>;
+  run: RunDetail;
+}) {
+  const forking = useAppStore((s) => s.forking);
+  const forkError = useAppStore((s) => s.forkError);
+  const forkErrorCode = useAppStore((s) => s.forkErrorCode);
+  const proxyFork = useAppStore((s) => s.proxyFork);
+  const resetFork = useAppStore((s) => s.resetFork);
+  const proxy = useAppStore((s) => s.proxy);
+  const [open, setOpen] = useState(false);
+  // 预填 = 完整 messages 的 JSON 文本
+  const [value, setValue] = useState(() => prettyJson(span.request.messages));
+  const [parseError, setParseError] = useState<string | null>(null);
+
+  const inProgress = forking === "in_progress";
+  const unchanged = value === prettyJson(span.request.messages);
+
+  if (!open) {
+    return (
+      <div className="border-t border-sky-100 px-4 py-2">
+        <button
+          type="button"
+          onClick={() => {
+            resetFork();
+            setValue(prettyJson(span.request.messages));
+            setParseError(null);
+            setOpen(true);
+          }}
+          className="rounded bg-sky-600 px-2 py-1 text-[11px] text-white hover:bg-sky-700"
+        >
+          编辑 messages 重发
+        </button>
+      </div>
+    );
+  }
+
+  const doResend = (): void => {
+    // 提交时解析回结构体；解析失败可见报错，不发请求
+    let messages: unknown;
+    try {
+      messages = JSON.parse(value);
+    } catch (e) {
+      setParseError(`messages 不是合法 JSON：${(e as Error).message}`);
+      return;
+    }
+    if (!Array.isArray(messages) || messages.length === 0) {
+      setParseError("messages 必须是非空数组");
+      return;
+    }
+    setParseError(null);
+    if (
+      !window.confirm(
+        "重发将真实调用 upstream 并产生 API 费用；使用的是最近捕获的 key（可能与该 run 录制当时不同）。确认重发？",
+      )
+    ) {
+      return;
+    }
+    void proxyFork(run.meta.id, span.id, messages as Record<string, unknown>[]);
+  };
+
+  return (
+    <div className="border-t border-sky-100 bg-sky-50/60 px-4 py-3">
+      <div className="mb-1 flex items-center justify-between">
+        <span className="text-[11px] font-semibold text-sky-900">编辑 messages 重发</span>
+        <span className="text-[10px] text-sky-500">
+          单请求级分叉 · 源 run 不会被修改 · 重发使用最近捕获的 key
+        </span>
+      </div>
+      <Editor
+        height="200px"
+        language="json"
+        value={value}
+        onChange={(next) => setValue(next ?? "")}
+        options={{
+          readOnly: inProgress,
+          fontSize: 12,
+          minimap: { enabled: false },
+          lineNumbers: "on",
+          scrollBeyondLastLine: false,
+          wordWrap: "on",
+          scrollbar: { vertical: "auto" },
+          folding: true,
+          showFoldingControls: "always",
+        }}
+        className="overflow-hidden rounded border border-sky-200"
+      />
+      <div className="mt-1.5 text-[10px] leading-4 text-sky-600">
+        编辑任意一条消息后重发：model / 工具表 / 采样参数与源 run 一致，仅 messages 使用编辑后的值。
+      </div>
+
+      {parseError !== null ? (
+        <div className="mt-1 text-[11px] text-red-700">{parseError}</div>
+      ) : null}
+
+      {unchanged ? (
+        <div className="mt-1 text-[11px] text-amber-700">
+          未做任何修改（空 fork 被拒绝），编辑后再重发。
+        </div>
+      ) : null}
+
+      {forking === "error" ? (
+        <div className="mt-1 text-[11px] text-red-700">
+          {forkError}
+          {forkErrorCode === "PROXY_NO_KEY" ? "（请先把你的应用经代理跑一次，再回来重发）" : ""}
+        </div>
+      ) : null}
+
+      <div className="mt-2 flex items-center justify-end gap-2">
+        {inProgress ? (
+          <span className="text-[11px] text-sky-600">重发中…（真实 LLM 调用，可能耗时）</span>
+        ) : null}
+        <button
+          type="button"
+          onClick={() => {
+            resetFork();
+            setOpen(false);
+          }}
+          disabled={inProgress}
+          className="rounded border border-gray-300 px-2 py-1 text-[11px] text-gray-600 hover:bg-gray-50 disabled:opacity-40"
+        >
+          取消
+        </button>
+        <button
+          type="button"
+          onClick={doResend}
+          disabled={inProgress || unchanged || proxy?.running !== true}
+          title={proxy?.running !== true ? "代理未运行，请先在设置中启用" : undefined}
+          className="rounded bg-sky-600 px-3 py-1 text-[11px] text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          确认重发
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -328,6 +487,8 @@ function ToolInvokeDetail({
 function BranchNotice() {
   const detail = useAppStore((s) => s.detail);
   if (detail === null || detail.chain.length <= 1) return null;
+  // 代理分叉 run：不显示"共享前缀"提示（其语义不成立），由父链列表呈现
+  if (detail.meta.source?.kind === "proxy") return null;
 
   const hop = detail.chain[detail.chain.length - 1];
   const parentHop = detail.chain[detail.chain.length - 2];
@@ -343,6 +504,54 @@ function BranchNotice() {
       为共享前缀（来自父 run 文件，本 run 只记录新增 span）。
       <br />
       编辑字段：<span className="font-code">{fork.edit.field}</span>
+    </div>
+  );
+}
+
+/**
+ * 代理分叉的父链列表（分支视图降级形态）：
+ * proxy fork 编辑的是 messages，没有 replay 层应用编辑，不做共享前缀拼接
+ * （避免"旧 messages 的 llm.call + 新 messages 的 llm.call"混排假时间线）。
+ * 逐代 run 列出 + 编辑摘要，点击切换查看。
+ */
+function ParentChainList() {
+  const detail = useAppStore((s) => s.detail);
+  const selectedRunId = useAppStore((s) => s.selectedRunId);
+  const selectRun = useAppStore((s) => s.selectRun);
+  if (detail === null || detail.meta.source?.kind !== "proxy" || detail.chain.length <= 1) {
+    return null;
+  }
+  return (
+    <div className="border-b border-sky-200 bg-sky-50 px-4 py-2 text-[11px] leading-5 text-sky-900">
+      <div className="mb-1 font-semibold">分叉链（单请求级编辑重发）</div>
+      <div className="flex flex-wrap items-center gap-1">
+        {detail.chain.map((hop, index) => {
+          const editedMessages = hop.fork?.edit.field === "messages";
+          const isLeaf = index === detail.chain.length - 1;
+          return (
+            <span key={hop.meta.id} className="flex items-center gap-1">
+              {index > 0 ? <span className="text-sky-400">→</span> : null}
+              <button
+                type="button"
+                onClick={() => {
+                  if (!isLeaf) void selectRun(hop.meta.id);
+                }}
+                className={`rounded px-1.5 py-0.5 font-code ${
+                  isLeaf
+                    ? "bg-sky-600 text-white"
+                    : "border border-sky-300 bg-white text-sky-800 hover:bg-sky-100"
+                }`}
+                title={isLeaf ? "当前 run" : "查看该代 run 详情"}
+              >
+                {hop.meta.id}
+              </button>
+              {editedMessages ? (
+                <span className="text-[10px] text-sky-600">已编辑 messages</span>
+              ) : null}
+            </span>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -366,6 +575,7 @@ export function DetailPanel() {
       </div>
 
       <BranchNotice />
+      <ParentChainList />
 
       <div className="flex-1 overflow-y-auto pb-8">
         {detail !== null ? <BudgetMap key={detail.meta.id} detail={detail} /> : null}
@@ -374,7 +584,7 @@ export function DetailPanel() {
             {detail === null ? "尚未选择运行。" : "尚未选择 span。"}
           </div>
         ) : span.kind === "llm.call" ? (
-          <LlmCallDetail span={span} />
+          <LlmCallDetail span={span} run={detail} />
         ) : span.kind === "tool.invoke" ? (
           // key=span.id：切换 span 时重置分叉编辑器的编辑状态
           <ToolInvokeDetail key={span.id} span={span} run={detail} />

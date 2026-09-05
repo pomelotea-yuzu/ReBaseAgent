@@ -1,0 +1,28 @@
+{
+  "name": "@rebaseagent/llm-proxy",
+  "version": "0.1.0",
+  "description": "ReBaseAgent 本地 LLM 录制代理：透明转发 OpenAI-compatible 请求并产出录制数据，支持单请求级最小分叉（编辑 messages 重发）",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "eventsource-parser": "^3.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}

@@ -13,6 +13,19 @@ import { join } from "node:path";
 
 export const SETTINGS_FILE_NAME = "settings.json";
 
+/** 本地录制代理配置（与 LLM 运行配置解耦：代理用户可不填 key，只填这些） */
+export interface ProxySettings {
+  enabled: boolean;
+  port: number;
+  upstreamBaseUrl: string;
+}
+
+export const PROXY_DEFAULTS: ProxySettings = {
+  enabled: false,
+  port: 8787,
+  upstreamBaseUrl: "https://api.deepseek.com",
+};
+
 export interface SettingsCipher {
   /** 系统加密是否可用（Electron safeStorage.isEncryptionAvailable） */
   isAvailable(): boolean;
@@ -117,5 +130,49 @@ export class SettingsStore {
     } catch {
       return null;
     }
+  }
+
+  // -------------------------------------------------------------------------
+  // 代理配置：与运行配置解耦（文件缺失/损坏时返回默认值，不抛错）
+  // -------------------------------------------------------------------------
+
+  /** 读代理配置；文件缺失或字段缺失时逐字段回退默认值 */
+  loadProxy(): ProxySettings {
+    const defaults = { ...PROXY_DEFAULTS };
+    if (!this.fs.existsSync(this.file)) return defaults;
+    try {
+      const parsed = JSON.parse(this.fs.readFileSync(this.file, "utf8")) as {
+        proxy?: Partial<ProxySettings>;
+      };
+      const p = parsed.proxy;
+      if (p === undefined) return defaults;
+      return {
+        enabled: typeof p.enabled === "boolean" ? p.enabled : defaults.enabled,
+        port:
+          typeof p.port === "number" && Number.isInteger(p.port) && p.port >= 1 && p.port <= 65535
+            ? p.port
+            : defaults.port,
+        upstreamBaseUrl:
+          typeof p.upstreamBaseUrl === "string" && p.upstreamBaseUrl.length > 0
+            ? p.upstreamBaseUrl
+            : defaults.upstreamBaseUrl,
+      };
+    } catch {
+      return defaults;
+    }
+  }
+
+  /** 写代理配置：只合并 proxy 字段，不触碰既有运行配置（含密文 apiKey） */
+  saveProxy(proxy: ProxySettings): void {
+    let stored: Record<string, unknown> = {};
+    if (this.fs.existsSync(this.file)) {
+      try {
+        stored = JSON.parse(this.fs.readFileSync(this.file, "utf8")) as Record<string, unknown>;
+      } catch {
+        stored = {}; // 运行配置损坏时代理配置照常可写（不因读失败阻塞）
+      }
+    }
+    stored.proxy = proxy;
+    this.fs.writeFileSync(this.file, `${JSON.stringify(stored, null, 2)}\n`, "utf8");
   }
 }

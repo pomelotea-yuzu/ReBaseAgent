@@ -12,12 +12,14 @@ export default function App() {
   const loadingList = useAppStore((s) => s.loadingList);
   const detail = useAppStore((s) => s.detail);
   const settingsConfigured = useAppStore((s) => s.settings?.configured);
+  const proxy = useAppStore((s) => s.proxy);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   // 挂载时加载一次列表与运行配置。只读工具，不做文件监听——目录内容变化后重新打开即可
   useEffect(() => {
     void useAppStore.getState().loadRuns();
     void useAppStore.getState().loadSettings();
+    void useAppStore.getState().loadProxyStatus();
   }, []);
 
   const empty = !loadingList && runs.length === 0 && failed.length === 0;
@@ -32,6 +34,24 @@ export default function App() {
         <span className="ml-auto flex items-center gap-3">
           {detail !== null ? (
             <span className="font-code text-[11px] text-gray-400">{detail.meta.id}</span>
+          ) : null}
+          {proxy !== null ? (
+            <button
+              type="button"
+              onClick={() => setSettingsOpen(true)}
+              className="flex items-center gap-1.5 rounded border border-gray-300 px-2 py-0.5 text-[11px] text-gray-600 hover:bg-gray-50"
+              title="本地录制代理：把你的 Agent 应用 base_url 指到 http://127.0.0.1:<端口>/v1，key 一字不动即可录制"
+            >
+              <span
+                className={`inline-block h-1.5 w-1.5 rounded-full ${
+                  proxy.running ? "bg-emerald-500" : "bg-gray-300"
+                }`}
+              />
+              代理{proxy.running ? ` :${proxy.port}` : " 已停"}
+              {proxy.running && !proxy.hasKey ? (
+                <span className="text-amber-600">未捕获 key</span>
+              ) : null}
+            </button>
           ) : null}
           <button
             type="button"

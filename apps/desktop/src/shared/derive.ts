@@ -71,6 +71,8 @@ export interface RunLike {
     model: string;
     created_at: string;
     parent: string | null;
+    /** 录制来源（可选；代理录制的 run 为 { kind: "proxy", ... }） */
+    source?: { kind: string } | undefined;
   };
   spans: readonly SpanLine[];
   events: ReadonlyArray<{ reason: string }>;
@@ -169,6 +171,7 @@ export function deriveRunSummary(run: RunLike): RunSummary {
     tokensIn,
     tokensOut,
     durationMs,
+    source: run.meta.source?.kind === "proxy" ? "proxy" : null,
   };
 }
 

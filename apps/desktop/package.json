@@ -17,6 +17,7 @@
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
     "@rebaseagent/agent-loop": "workspace:*",
+    "@rebaseagent/llm-proxy": "workspace:*",
     "@rebaseagent/replay": "workspace:*",
     "@rebaseagent/trace-sdk": "workspace:*",
     "echarts": "^6.1.0",

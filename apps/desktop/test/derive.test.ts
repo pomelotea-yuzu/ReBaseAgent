@@ -135,7 +135,13 @@ describe("deriveBudgetSeries", () => {
       kind: "llm.call",
       parent,
       request: { model: "m", messages: [{ role: "user", content: "x" }] },
-      response: { content: null, reasoning_content: null, tool_calls: [], usage: { in: inTok, out: outTok }, ttft_ms: 1 },
+      response: {
+        content: null,
+        reasoning_content: null,
+        tool_calls: [],
+        usage: { in: inTok, out: outTok },
+        ttft_ms: 1,
+      },
     };
   }
   function tool(id: string, parent: string): SpanLine {
