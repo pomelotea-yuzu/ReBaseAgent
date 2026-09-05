@@ -32,7 +32,7 @@ export type FetchLike = (
 export interface ProxyHandlerOptions {
   /** upstream 转发目标（如 https://api.deepseek.com）——只用于转发，不进 trace */
   upstreamBaseUrl: string;
-  /** 代理自身监听地址（如 http://127.0.0.1:8787/v1）——写入 meta.source.base_url */
+  /** 代理自身监听地址（如 http://127.0.0.1:18787/v1）——写入 meta.source.base_url */
   proxyBaseUrl: string;
   recorder: ProxyRecorder;
   keyStore: ProxyKeyStore;

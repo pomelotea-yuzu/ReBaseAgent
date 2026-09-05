@@ -21,7 +21,7 @@
 
 ## 3. desktop main：生命周期、settings、key 暂存、IPC
 
-- [x] 3.1 settings 增 `proxy: { enabled, port, upstreamBaseUrl }`（默认 8787 / deepseek），SettingsStore 测试
+- [x] 3.1 settings 增 `proxy: { enabled, port, upstreamBaseUrl }`（默认 18787 / deepseek），SettingsStore 测试
 - [x] 3.2 代理生命周期管理：app 启动按 settings 启停；`proxy:toggle` 即时启停；错误信封化（scenario「端口被占用」）
 - [x] 3.3 recorder 接 RunRepository：每请求一 run（agent.step(n=1) + llm.call + 终止事件），meta 带 `source` + `task="(llm-proxy)"` + **无 config\_hash**（scenario「每个请求录制为一个 run」）
 - [x] 3.4 keyStore 模块级单例 + `proxy:status` 只回 `hasKey`（scenario「key 不落盘且仅内存暂存」）

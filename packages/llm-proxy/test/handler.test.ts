@@ -12,7 +12,7 @@ import type { ProxyRecorder, ProxyRecording } from "../src/index";
 // 测试基建：stub fetchImpl（零真实 API）+ 收集型 recorder
 // ---------------------------------------------------------------------------
 
-const PROXY_BASE = "http://127.0.0.1:8787/v1";
+const PROXY_BASE = "http://127.0.0.1:18787/v1";
 const UPSTREAM = "https://upstream.test";
 
 function makeRecorder() {

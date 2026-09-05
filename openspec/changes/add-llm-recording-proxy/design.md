@@ -29,7 +29,7 @@ fork meta 复用既有结构（`parent` / `at_span` / `edit{field,value}`），`
 
 ## D4 · upstream 配置与转发保真
 
-settings 增 `proxy: { enabled, port (默认 8787), upstreamBaseUrl (默认 https://api.deepseek.com) }`，复用既有 SettingsStore。转发**原样字节**：`node:http` 读出 raw body（Buffer），注入 `fetch` 转发，响应流直接 `pipe` 回客户端——代理在字节层是哑管道，只在旁边旁路聚合录制数据。不做请求改写（不做「改 model 映射」「注入系统 prompt」等花活，Non-goal 防线）。
+settings 增 `proxy: { enabled, port (默认 18787), upstreamBaseUrl (默认 https://api.deepseek.com) }`，复用既有 SettingsStore。转发**原样字节**：`node:http` 读出 raw body（Buffer），注入 `fetch` 转发，响应流直接 `pipe` 回客户端——代理在字节层是哑管道，只在旁边旁路聚合录制数据。不做请求改写（不做「改 model 映射」「注入系统 prompt」等花活，Non-goal 防线）。
 
 ## D5 · key 仅内存暂存
 

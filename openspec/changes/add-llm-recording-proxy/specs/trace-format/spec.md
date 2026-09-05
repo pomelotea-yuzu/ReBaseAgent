@@ -26,13 +26,13 @@
 
 ### Requirement: run.meta 可记录录制来源
 
-`run.meta` SHALL 支持可选 `source` 对象，结构为 `{ "kind": string, "base_url": string }`；`kind` 当前枚举仅 `"proxy"`（本地 LLM 录制代理录制）。当 run 由代理录制时，`source.kind` SHALL 为 `"proxy"`，且 `source.base_url` SHALL 为**代理自身监听地址**（即用户在自己应用里填的那个 base\_url，如 `http://127.0.0.1:8787/v1`）——SHALL NOT 混用为 upstream 转发目标地址（upstream 属代理配置，不进 trace）。由 SDK / agent-loop 直接录制时 SHALL 省略 `source`（缺省字段，仅 meta 层增量）。读取器 SHALL 接受缺失 `source` 的 meta（老文件与手工构造数据合法），不得报错。该字段 SHALL NOT 影响 `format_version`（保持不变）。
+`run.meta` SHALL 支持可选 `source` 对象，结构为 `{ "kind": string, "base_url": string }`；`kind` 当前枚举仅 `"proxy"`（本地 LLM 录制代理录制）。当 run 由代理录制时，`source.kind` SHALL 为 `"proxy"`，且 `source.base_url` SHALL 为**代理自身监听地址**（即用户在自己应用里填的那个 base\_url，如 `http://127.0.0.1:18787/v1`）——SHALL NOT 混用为 upstream 转发目标地址（upstream 属代理配置，不进 trace）。由 SDK / agent-loop 直接录制时 SHALL 省略 `source`（缺省字段，仅 meta 层增量）。读取器 SHALL 接受缺失 `source` 的 meta（老文件与手工构造数据合法），不得报错。该字段 SHALL NOT 影响 `format_version`（保持不变）。
 
 #### Scenario: 代理录制的 run
 
-- **WHEN** 一次请求经本地代理（端口 8787）录制为 run
+- **WHEN** 一次请求经本地代理（端口 18787）录制为 run
 
-- **THEN** 落盘的 `run.meta` 含 `source: { "kind": "proxy", "base_url": "http://127.0.0.1:8787/v1" }`
+- **THEN** 落盘的 `run.meta` 含 `source: { "kind": "proxy", "base_url": "http://127.0.0.1:18787/v1" }`
 
 #### Scenario: SDK 直接录制的 run
 

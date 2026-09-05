@@ -144,7 +144,7 @@ describe("SettingsStore：代理配置（与运行配置解耦）", () => {
     const store = new SettingsStore({ dataDir: tempDir("settings-"), cipher: fakeCipher(true) });
     expect(store.loadProxy()).toEqual({
       enabled: false,
-      port: 8787,
+      port: 18787,
       upstreamBaseUrl: "https://api.deepseek.com",
     });
     store.saveProxy({ enabled: true, port: 9000, upstreamBaseUrl: "https://api.example.com" });
@@ -163,7 +163,7 @@ describe("SettingsStore：代理配置（与运行配置解耦）", () => {
       apiKey: "sk-keep",
       model: "deepseek-chat",
     });
-    store.saveProxy({ enabled: true, port: 8787, upstreamBaseUrl: "https://api.deepseek.com" });
+    store.saveProxy({ enabled: true, port: 18787, upstreamBaseUrl: "https://api.deepseek.com" });
     const loaded = store.load();
     expect(loaded?.apiKey).toBe("sk-keep");
     expect(loaded?.model).toBe("deepseek-chat");
@@ -176,7 +176,7 @@ describe("SettingsStore：代理配置（与运行配置解耦）", () => {
     writeFileSync(join(dir, "settings.json"), "{broken", "utf8");
     expect(store.loadProxy()).toEqual({
       enabled: false,
-      port: 8787,
+      port: 18787,
       upstreamBaseUrl: "https://api.deepseek.com",
     });
   });

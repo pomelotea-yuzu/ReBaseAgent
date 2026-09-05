@@ -4,13 +4,13 @@
 
 ### Requirement: 代理设置与运行状态可观测可控
 
-设置对话框 SHALL 增加代理区：启用开关、监听端口（默认 8787）、upstream base\_url（默认 `https://api.deepseek.com`）。应用界面 SHALL 有代理运行状态指示（运行中含端口）。启用/停用 SHALL 即时生效并反馈结果（端口占用等错误可见）。状态指示 SHALL 包含「本会话是否已捕获 key」（不含 key 值本身）。
+设置对话框 SHALL 增加代理区：启用开关、监听端口（默认 18787）、upstream base\_url（默认 `https://api.deepseek.com`）。应用界面 SHALL 有代理运行状态指示（运行中含端口）。启用/停用 SHALL 即时生效并反馈结果（端口占用等错误可见）。状态指示 SHALL 包含「本会话是否已捕获 key」（不含 key 值本身）。
 
 #### Scenario: 启用代理
 
 - **WHEN** 用户在设置中打开代理开关并保存
 
-- **THEN** 状态指示变为运行中（显示端口 8787），用户可立即把应用的 base\_url 指过来
+- **THEN** 状态指示变为运行中（显示端口 18787），用户可立即把应用的 base\_url 指过来
 
 #### Scenario: 端口占用可见
 

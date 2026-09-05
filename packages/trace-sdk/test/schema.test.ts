@@ -67,10 +67,10 @@ describe("schema：合法样例通过", () => {
       created_at: "2026-09-05T00:00:00Z",
       parent: null,
       fork: null,
-      source: { kind: "proxy", base_url: "http://127.0.0.1:8787/v1" },
+      source: { kind: "proxy", base_url: "http://127.0.0.1:18787/v1" },
     });
     expect(line.source?.kind).toBe("proxy");
-    expect(line.source?.base_url).toBe("http://127.0.0.1:8787/v1");
+    expect(line.source?.base_url).toBe("http://127.0.0.1:18787/v1");
     expect(line.config_hash).toBeUndefined();
   });
 

@@ -22,7 +22,7 @@ export interface ProxySettings {
 
 export const PROXY_DEFAULTS: ProxySettings = {
   enabled: false,
-  port: 8787,
+  port: 18787,
   upstreamBaseUrl: "https://api.deepseek.com",
 };
 

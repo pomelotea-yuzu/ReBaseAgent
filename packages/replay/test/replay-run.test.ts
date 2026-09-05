@@ -88,7 +88,7 @@ function makeProxyRun(dir: string, id: string): void {
   const meta = JSON.parse(lines[0] ?? "{}") as Record<string, unknown>;
   const { config_hash: _removed, ...rest } = meta;
   rest.task = "(llm-proxy)";
-  rest.source = { kind: "proxy", base_url: "http://127.0.0.1:8787/v1" };
+  rest.source = { kind: "proxy", base_url: "http://127.0.0.1:18787/v1" };
   lines[0] = JSON.stringify(rest);
   writeFileSync(file, `${lines.join("\n")}\n`);
   expect(readRun(file).meta.config_hash).toBeUndefined();

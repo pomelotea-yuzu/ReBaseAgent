@@ -24,7 +24,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
 
   // 代理区（启停即保存；状态从 main 回读）
   const [proxyEnabled, setProxyEnabled] = useState(proxy?.enabled ?? false);
-  const [proxyPort, setProxyPort] = useState(String(proxy?.port ?? 8787));
+  const [proxyPort, setProxyPort] = useState(String(proxy?.port ?? 18787));
   const [proxyUpstream, setProxyUpstream] = useState(
     proxy?.upstreamBaseUrl ?? "https://api.deepseek.com",
   );

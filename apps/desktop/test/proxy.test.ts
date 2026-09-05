@@ -45,7 +45,7 @@ function fakeRecording(overrides?: Partial<ProxyRecording>): ProxyRecording {
     meta: {
       task: "(llm-proxy)",
       model: "deepseek-chat",
-      source: { kind: "proxy", base_url: "http://127.0.0.1:8787/v1" },
+      source: { kind: "proxy", base_url: "http://127.0.0.1:18787/v1" },
     },
     started_at: new Date().toISOString(),
     request: {
@@ -75,7 +75,7 @@ describe("ProxyRunRecorder：三种 outcome 的 JSONL 形态", () => {
     expect(record.status).toBe("completed");
     expect(record.meta.task).toBe("(llm-proxy)");
     expect(record.meta.config_hash).toBeUndefined();
-    expect(record.meta.source).toEqual({ kind: "proxy", base_url: "http://127.0.0.1:8787/v1" });
+    expect(record.meta.source).toEqual({ kind: "proxy", base_url: "http://127.0.0.1:18787/v1" });
     expect(record.meta.parent).toBeNull();
     expect(record.spans).toHaveLength(2);
     expect(record.spans[0]?.kind).toBe("agent.step");
