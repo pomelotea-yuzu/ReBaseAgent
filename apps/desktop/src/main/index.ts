@@ -1,6 +1,6 @@
 import { dirname, resolve } from "node:path";
 import { BrowserWindow, app, dialog, safeStorage } from "electron";
-import { ensureTracesDir, resolveDataDir, saveDataDirPointer } from "./data-dir";
+import { ensureTracesDir, resolveAnchorDir, resolveDataDir, saveDataDirPointer } from "./data-dir";
 import { registerIpc } from "./ipc";
 import { RunRepository } from "./run-repository";
 import { SettingsStore } from "./settings";
@@ -44,9 +44,13 @@ async function bootstrap(): Promise<void> {
   await app.whenReady();
 
   const exeDir = dirname(app.getPath("exe"));
+  // 单文件 portable 版会解压到临时目录再运行，此时 exeDir 是临时目录。
+  // 环境变量 PORTABLE_EXECUTABLE_DIR 才是用户双击 exe 的目录，必须优先用它锚定数据。
+  const portableExeDir = process.env.PORTABLE_EXECUTABLE_DIR;
   const resolved = resolveDataDir({
     packaged: app.isPackaged,
     exeDir,
+    portableExeDir,
     devDir: repoRoot(),
   });
 
@@ -70,7 +74,7 @@ async function bootstrap(): Promise<void> {
       return;
     }
     dataDir = chosen;
-    saveDataDirPointer(exeDir, dataDir);
+    saveDataDirPointer(resolveAnchorDir({ exeDir, portableExeDir }), dataDir);
   }
 
   const tracesDir = ensureTracesDir(dataDir);

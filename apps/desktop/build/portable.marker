@@ -1,0 +1,6 @@
+ReBaseAgent portable mode marker.
+
+Placing this file next to the executable makes the app store all data
+(traces, settings) in the adjacent "data" directory instead of any
+user profile location. Deleting this file switches back to a
+user-chosen data directory.

@@ -2,6 +2,7 @@
   "name": "@rebaseagent/desktop",
   "version": "0.1.0",
   "description": "ReBaseAgent 桌面调试台：本地查看 Agent 运行的完整轨迹（Electron 壳 + React）",
+  "author": "ReBaseAgent contributors",
   "license": "MIT",
   "private": true,
   "type": "module",
@@ -9,6 +10,7 @@
   "scripts": {
     "dev": "node scripts/start-dev.cjs",
     "build": "electron-vite build",
+    "dist": "electron-vite build && electron-builder --win --config electron-builder.yml",
     "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit",
     "test": "vitest run"
   },
@@ -31,6 +33,7 @@
     "@types/react-dom": "^19.2.5",
     "@vitejs/plugin-react": "^5.2.0",
     "electron": "^44.1.1",
+    "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.6.0",

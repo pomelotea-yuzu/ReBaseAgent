@@ -1,0 +1,44 @@
+# electron-builder 打包配置。
+#
+# 目标形态：Windows x64 **单文件 portable exe**（免安装、解压即用）。
+# 这直接服务于「本地优先 / 数据不出机器」的定位：
+# 随包附带的 portable.marker 会让应用把数据目录落在 <exe 目录>/data，
+# 而永不写 AppData 或注册表（解析逻辑见 src/main/data-dir.ts）。
+#
+# 注意：directories.output 必须避开 dist/ —— 那是 electron-vite 的构建产物目录。
+
+appId: com.rebaseagent.app
+productName: ReBaseAgent
+copyright: Copyright © 2026 ReBaseAgent（MIT 许可）
+
+directories:
+  output: ../../release
+  buildResources: build
+
+# main / preload / renderer 三段产物 + 应用清单；
+# dependencies 由 electron-builder 自动收集，此处不重复声明
+files:
+  - dist/**/*
+  - package.json
+
+# 随包附带便携标记：让 portable 版开箱即走便携数据策略
+extraFiles:
+  - from: build/portable.marker
+    to: portable.marker
+
+asar: true
+compression: maximum
+
+# 依赖全为纯 JS（react / monaco / echarts / zod / zustand），无 native 模块需要重编。
+# 关掉 rebuild 既提速，也规避 pnpm symlink 布局下 npm rebuild 失败的问题。
+npmRebuild: false
+buildDependenciesFromSource: false
+
+win:
+  target: portable
+  artifactName: ReBaseAgent-${version}-win-x64-portable.${ext}
+
+portable:
+  # 不请求管理员权限：便携场景要求能放在任意目录直接双击运行
+  requestExecutionLevel: user
+  artifactName: ReBaseAgent-${version}-win-x64-portable.${ext}
