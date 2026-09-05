@@ -4,6 +4,15 @@
 > 本地运行，数据不出你的机器。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Release](https://img.shields.io/badge/Release-v0.1.0-green.svg)](https://github.com/pomelotea-yuzu/ReBaseAgent/releases)
+
+## 下载
+
+**Windows x64 便携版（108 MB，免安装）** → [Releases](https://github.com/pomelotea-yuzu/ReBaseAgent/releases)
+
+双击即用，不需要安装。所有数据写在 exe 旁的 `data/` 目录——**不写 AppData、不碰注册表、不留临时文件**。整个文件夹拷进 U 盘就能带走。
+
+> 首次运行会有 Windows SmartScreen 的"未知发布者"提示（本项目尚未购买代码签名证书），点「更多信息 → 仍要运行」即可。
 
 ## 为什么
 
@@ -14,52 +23,120 @@ ReBaseAgent 是给"上下文"这门语言的调试器：
 | 传统调试 | ReBaseAgent |
 |---|---|
 | Profiler | 上下文预算地图（token 花在哪了） |
-| 改一行代码重跑 | 编辑某步 tool_result / prompt，从该步重跑 |
+| 改一行代码重跑 | 编辑某步 tool_result，从该步重跑 |
 | 回归测试 | Trace-as-Test 轨迹回放 |
 | git diff | 两次运行的分叉点定位 |
 
-## 核心特性（路线图）
+## 它现在能做什么（v0.1.0）
 
-- **MVP**：span 时间线查看 · 上下文预算地图 · 时间旅行最小切片（编辑已录制 span 的 tool_result，沙箱中从该步重跑）
-- **v2**：完整时间旅行（分支树 UI、改 prompt、多分支对照实验）
-- **v3**：Trace-as-Test（严格重放进 CI）· 模型 A/B（同前缀分支换模型）
+- **span 时间线** — 逐步查看每一次迭代、每一次 LLM 调用、每一次工具执行，以及模型当时实际看到的完整上下文
+- **上下文预算地图** — token 花在哪了，按消息与工具分布可视化
+- **Monaco 内联编辑** — 离线自托管，直接查看和编辑任意一步的 `tool_result`
+- **时间旅行（最小切片）** — 改掉某一步脏掉的 `tool_result`，从那一步重跑。前缀全部本地命中，只有分支点之后才真正调 API
+- **分支轨迹** — 从已完成的 run 分叉，只记录新增 span，前缀按 parent 链共享
 
-## 时间旅行怎么做到的
+时间旅行的实现方式：
 
 ```text
 回到第 N 步 = 查表（读取第 N 个 llm.call 的录制请求，零 API 调用）
-编辑        = 修改该步的 tool_result 或 prompt
-重跑        = 沙箱副本中从第 N 步继续执行（前缀全部本地命中，分支点后才真调 API）
+编辑        = 修改该步的 tool_result
+重跑        = 从第 N 步继续执行（前缀全部本地命中，分支点后才真调 API）
 ```
 
-边界（诚实声明）：时间旅行覆盖 loop 内状态；带副作用的工具按保真度分级标注；外部状态源（RAG/记忆/数据库）不承诺回退。
+## 快速开始
+
+### 只想调试现成的 Agent
+
+用 SDK 在你的 loop 里埋点，把 trace 写进桌面应用的数据目录（便携版默认在 exe 旁的 `data/traces/`）：
+
+```ts
+import { JsonlTracer } from "@rebaseagent/trace-sdk";
+
+const tracer = new JsonlTracer("traces/r_01.jsonl");
+tracer.startRun({
+  id: "r_01", format_version: 1, task: "读 README 写摘要",
+  model: "deepseek-chat", created_at: new Date().toISOString(),
+  parent: null, fork: null, config_hash: "sha256:...",
+});
+
+const step = tracer.startSpan({ kind: "agent.step", n: 1 });
+const llm = tracer.startSpan({ kind: "llm.call", parent: step, request });
+tracer.endSpan(llm, { response });
+tracer.endSpan(step);
+
+tracer.endRun({ event: "stopped", reason: "completed", at: 1 });
+```
+
+格式细节见 [`packages/trace-sdk`](packages/trace-sdk)。
+
+### 想连执行引擎一起用
+
+`@rebaseagent/agent-loop` 是纯 TypeScript 的 Agent 执行引擎，OpenAI 兼容协议直连，**零厂商 SDK**：
+
+```ts
+import { runLoop, parseRunConfig, OpenAiCompatClient } from "@rebaseagent/agent-loop";
+import { JsonlTracer } from "@rebaseagent/trace-sdk";
+
+const config = parseRunConfig({
+  baseURL: "https://api.deepseek.com/v1",
+  apiKey: "sk-...",
+  model: "deepseek-chat",
+  systemPrompt: "你是文件助手。",
+  tools: [/* OpenAI function calling 子集 */],
+  maxIterations: 25,
+  budget: { maxTotalTokens: 100_000 },
+});
+
+const result = await runLoop(
+  config,
+  [{ role: "system", content: config.systemPrompt }, { role: "user", content: "读 README" }],
+  new JsonlTracer("traces/r_01.jsonl"),
+  tools,
+  new OpenAiCompatClient(config),
+);
+```
+
+DeepSeek / GLM / Qwen / Kimi 等 OpenAI 兼容端点开箱即用。
+
+## 当前限制（诚实声明）
+
+- 只构建了 **Windows x64**，macOS / Linux 尚未出包
+- **接入仍需手工**：要么在代码里接 SDK，要么在设置里填 API key。零摩擦的本地录制代理（只改 `base_url` 即可录制）还没做——这是下一步的重点
+- 时间旅行现在**只能改 `tool_result`**；改 prompt、分支树 UI、多分支对照实验在 v2
+- 带副作用的工具默认**不真重跑**：replay 是 world-free 重放，把录下的结果喂回模型，trace 内自洽。外部状态源（RAG / 记忆 / 数据库）不承诺回退
+- 应用图标仍是 Electron 默认图标
+
+## 路线图
+
+- ✅ **v0.1.0（MVP）** — span 时间线 · 上下文预算地图 · 时间旅行最小切片 · trace 格式 v1 · Agent 执行引擎
+- 🚧 **v2** — 本地 LLM 录制代理（改一行 `base_url` 即可录制）· 分支树 UI · 改 prompt 重跑 · 多分支对照实验 · 体积瘦身
+- 📋 **v3** — Trace-as-Test 进 CI · 模型 A/B（同前缀分支换模型）
 
 ## 架构
 
 ```text
 packages/
-  agent-loop   纯 TS 的 Agent 执行引擎（零 Electron 依赖，headless 可用）
-  trace-sdk    span 埋点 API + 格式定义
+  agent-loop   Agent 执行引擎（纯 TS，零 Electron 依赖，headless 可用）
+  trace-sdk    span 埋点 API + trace 格式 v1 定义
   replay       回放编排器 + 沙箱管理器（CI 可用）
-  store        TraceStore：JSONL 事实源 + SQLite 可弃索引
 apps/
-  desktop      Electron 壳（唯一依赖 Electron 的包，可替换）
-  examples     标本 agent（也是教程素材）
+  desktop      Electron 桌面调试台（唯一依赖 Electron 的包，可替换）
 ```
 
-- 存储：JSONL 是唯一事实源，一 run 一文件，append-only；SQLite 只是桌面端缓存，删了可重建
-- 模型接入：OpenAI 兼容协议直连（DeepSeek / GLM / Qwen / Kimi 开箱即用），零厂商 SDK
-- 数据策略：便携优先——所有数据在应用目录旁的 `data/`，永不写 AppData/注册表
+- **存储**：JSONL 是唯一事实源，一 run 一文件、append-only；终止事件写入后封存，任何路径不得修改
+- **模型接入**：OpenAI 兼容协议直连，零厂商 SDK
+- **数据策略**：便携优先——所有数据在应用目录旁的 `data/`，永不写 AppData / 注册表
 
 ## 开发
 
 ```bash
 pnpm install
-pnpm dev        # 启动桌面应用
-pnpm test       # vitest + Playwright
-```
+pnpm dev            # 启动桌面应用
+pnpm test           # vitest（零 API 消耗，全部 mock 注入）
+pnpm build          # 构建所有包
 
-## 开发范式
+pnpm --filter @rebaseagent/desktop dist   # 打包 Windows portable exe
+```
 
 本项目使用 [OpenSpec](https://github.com/Fission-AI/OpenSpec) 做 Spec-Driven Development——每个能力先写 spec（proposal → 评审 → 实现 → 归档），见 `openspec/` 目录。
 
