@@ -18,9 +18,7 @@ const tracesDir = join(dataDir, "traces");
 mkdirSync(tracesDir, { recursive: true });
 
 async function main() {
-  const { startProxyServer, createProxyHandler } = await import(
-    "@rebaseagent/llm-proxy"
-  );
+  const { startProxyServer, createProxyHandler } = await import("@rebaseagent/llm-proxy");
 
   // --- stub upstream：固定 SSE ---
   const sseChunks = [
@@ -31,7 +29,9 @@ async function main() {
   const upstream = createServer((req, res) => {
     // 按 stream 标志分别返回：非流式回 JSON，流式回 SSE（与真实 provider 行为一致）
     let raw = "";
-    req.on("data", (c) => (raw += c));
+    req.on("data", (c) => {
+      raw += c;
+    });
     req.on("end", () => {
       const isStream = (() => {
         try {
@@ -87,7 +87,16 @@ async function main() {
         ];
         if (recording.response !== null) {
           const timing = { started_at: recording.started_at, ended_at: now };
-          lines.push(JSON.stringify({ type: "span", id: "s_01", parent: null, kind: "agent.step", n: 1, timing }));
+          lines.push(
+            JSON.stringify({
+              type: "span",
+              id: "s_01",
+              parent: null,
+              kind: "agent.step",
+              n: 1,
+              timing,
+            }),
+          );
           lines.push(
             JSON.stringify({
               type: "span",
@@ -98,8 +107,12 @@ async function main() {
               request: {
                 model: recording.request.model,
                 messages: recording.request.messages,
-                ...(recording.request.tools !== undefined ? { tools: recording.request.tools } : {}),
-                ...(recording.request.params !== undefined ? { params: recording.request.params } : {}),
+                ...(recording.request.tools !== undefined
+                  ? { tools: recording.request.tools }
+                  : {}),
+                ...(recording.request.params !== undefined
+                  ? { params: recording.request.params }
+                  : {}),
               },
               response: recording.response,
             }),
@@ -110,7 +123,7 @@ async function main() {
         } else if (recording.outcome === "error") {
           lines.push(JSON.stringify({ type: "run.event", event: "stopped", reason: "error" }));
         }
-        writeFileSync(join(tracesDir, `${id}.jsonl`), lines.join("\n") + "\n", "utf8");
+        writeFileSync(join(tracesDir, `${id}.jsonl`), `${lines.join("\n")}\n`, "utf8");
         console.log(`  ✓ run 落盘：${id}（${recording.outcome}${fork ? "，fork" : ""}）`);
       },
     },
@@ -153,7 +166,10 @@ async function main() {
 
   // --- 分叉：编辑第二条 user 消息后经代理重发（fork run）---
   console.log("请求 3：分叉（编辑 messages 重发）");
-  const newFiles = fs.readdirSync(tracesDir).filter((f) => f.endsWith(".jsonl") && !before.has(f)).sort();
+  const newFiles = fs
+    .readdirSync(tracesDir)
+    .filter((f) => f.endsWith(".jsonl") && !before.has(f))
+    .sort();
   if (newFiles.length < 2) throw new Error(`预期至少 2 个新 run，实际 ${newFiles.length}`);
   const srcFile = newFiles[1];
   const srcRecord = srcFile.replace(/\.jsonl$/, "");
@@ -181,7 +197,7 @@ async function main() {
   meta.parent = srcRecord;
   meta.fork = { at_span: "s_02", edit: { field: "messages", value: edited } };
   forkLines[0] = JSON.stringify(meta);
-  fs.writeFileSync(join(tracesDir, forkFile), forkLines.join("\n") + "\n", "utf8");
+  fs.writeFileSync(join(tracesDir, forkFile), `${forkLines.join("\n")}\n`, "utf8");
 
   await server.stop();
   upstream.close();
