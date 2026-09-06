@@ -12,6 +12,16 @@ import type { SettingsCipher } from "./settings";
  * 窗口安全基线：nodeIntegration 关闭、contextIsolation 开启、sandbox 开启。
  */
 
+/**
+ * 沙箱环境（CI / 受限容器 / 部分 Agent 运行环境）下，Chromium 的 GPU 子进程
+ * 会因无法初始化而反复崩溃，最终导致整个 Electron 进程 FATAL 退出。
+ * 仅当显式设置 NO_SANDBOX=1 时，才在 app ready 前注入 --no-sandbox，
+ * 让 GPU 子进程能在无特权沙箱中启动。正常桌面环境不会设置该变量，保持默认安全基线。
+ */
+if (process.env.NO_SANDBOX === "1" || process.env.NO_SANDBOX === "true") {
+  app.commandLine.appendSwitch("no-sandbox");
+}
+
 /** 开发模式下的仓库根（apps/desktop 的上两级） */
 function repoRoot(): string {
   return resolve(app.getAppPath(), "..", "..");
