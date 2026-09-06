@@ -20,6 +20,9 @@ import { api } from "./lib/api";
  * UI 状态：只存选择状态与原始数据。
  * 聚合数字一律在组件里用 shared/derive 的纯函数现算，不进 store、不落缓存。
  */
+
+/** 分支对照的条数上限：再多是界面放不下，也失去了"并排看"的意义 */
+export const MAX_COMPARE = 4;
 interface AppState {
   runs: RunSummary[];
   /** 读取失败的文件（隔离展示，不拖垮列表） */
@@ -48,6 +51,16 @@ interface AppState {
   /** run 列表来源过滤 */
   sourceFilter: "all" | "proxy" | "local";
 
+  /**
+   * 主区域视图：trace = 既有三栏（列表 / span 树 / 详情），tree = 分支树。
+   * 纯 UI 状态，不进 IPC、不持久化（design D7）。
+   */
+  view: "trace" | "tree";
+  /** 加入对照的 run id（上限 4，分支树的 ComparePanel 消费） */
+  compareIds: string[];
+  /** 对照集合的操作提示（超上限等），空则无提示 */
+  compareNotice: string | null;
+
   loadRuns: () => Promise<void>;
   selectRun: (id: string) => Promise<void>;
   selectSpan: (id: string) => void;
@@ -66,6 +79,12 @@ interface AppState {
   /** 启停即保存（端口/upstream 一并生效）；失败返回 null 并在 error 里给出原因 */
   toggleProxy: (input: ProxyToggleInput) => Promise<ProxyState | null>;
   setSourceFilter: (filter: "all" | "proxy" | "local") => void;
+
+  /** 切换主区域视图；只改 UI 状态，不触发列表重新加载（design D7） */
+  setView: (view: "trace" | "tree") => void;
+  /** 勾选/取消对照（上限 4，超出不加入并给出提示） */
+  toggleCompare: (runId: string) => void;
+  clearCompare: () => void;
   /** 代理分叉（编辑 messages 经代理重发）；成功刷新列表并自动选中新 run */
   proxyFork: (
     parentRunId: string,
@@ -97,6 +116,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   settings: null,
   proxy: null,
   sourceFilter: "all",
+  view: "trace",
+  compareIds: [],
+  compareNotice: null,
 
   async loadRuns() {
     set({ loadingList: true, error: null });
@@ -245,6 +267,30 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setSourceFilter(filter) {
     set({ sourceFilter: filter });
+  },
+
+  setView(view) {
+    set({ view });
+  },
+
+  toggleCompare(runId) {
+    const { compareIds } = get();
+    if (compareIds.includes(runId)) {
+      set({
+        compareIds: compareIds.filter((id) => id !== runId),
+        compareNotice: null,
+      });
+      return;
+    }
+    if (compareIds.length >= MAX_COMPARE) {
+      set({ compareNotice: `最多同时对照 ${MAX_COMPARE} 条运行` });
+      return;
+    }
+    set({ compareIds: [...compareIds, runId], compareNotice: null });
+  },
+
+  clearCompare() {
+    set({ compareIds: [], compareNotice: null });
   },
 
   async proxyFork(parentRunId, atSpanId, messages) {

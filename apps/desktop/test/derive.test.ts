@@ -3,13 +3,21 @@ import { resolve } from "node:path";
 import type { SpanLine } from "@rebaseagent/trace-sdk";
 import { parseRunText } from "@rebaseagent/trace-sdk";
 import {
+  buildRunForest,
   buildSpanTree,
   deriveBudgetSeries,
+  deriveChainTotals,
+  deriveComparison,
   deriveRunSummary,
   deriveStepStats,
+  findCommonAncestor,
   flattenTree,
+  forkEditLabel,
+  indexRunsById,
+  layoutRunTree,
   spanDurationMs,
 } from "@shared/derive";
+import type { RunSummary } from "@shared/ipc";
 import { describe, expect, it } from "vitest";
 
 /** trace-sdk 的 fixtures 是本仓库的"真实数据"基准（桌面端开发期零 API 消耗） */
@@ -83,6 +91,321 @@ describe("deriveRunSummary", () => {
   it("分支 fixture 摘要：parent 指向 r_01", () => {
     const summary = deriveRunSummary(loadFixture("branch"));
     expect(summary).toMatchObject({ id: "r_02", parent: "r_01", steps: 2, toolCalls: 1 });
+  });
+
+  it("分叉摘要只带 at_span 与 edit_field，不带 value", () => {
+    const summary = deriveRunSummary(loadFixture("branch"));
+    expect(summary.fork).toEqual({ at_span: "s_03", edit_field: "result" });
+  });
+
+  it("根 run 的分叉摘要为 null，不臆造", () => {
+    expect(deriveRunSummary(loadFixture("normal")).fork).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 分支树派生：以下用例全部用内存构造的 RunSummary（零 API、零文件）
+// ---------------------------------------------------------------------------
+
+let seq = 0;
+
+/** 构造一条 run 列表项的最小工厂（分支树只关心 parent / fork / 聚合数字） */
+function makeRun(
+  id: string,
+  parent: string | null,
+  overrides: Partial<RunSummary> = {},
+): RunSummary {
+  seq += 1;
+  return {
+    id,
+    task: "读 README 写摘要",
+    model: "deepseek-chat",
+    created_at: `2026-09-05T21:00:${String(seq).padStart(2, "0")}.000Z`,
+    status: "completed",
+    parent,
+    fork: null,
+    reason: "completed",
+    steps: 1,
+    toolCalls: 0,
+    toolErrors: 0,
+    tokensIn: 1000,
+    tokensOut: 100,
+    durationMs: 1000,
+    source: null,
+    ...overrides,
+  };
+}
+
+function asFork(atSpan: string, field = "result"): RunSummary["fork"] {
+  return { at_span: atSpan, edit_field: field };
+}
+
+describe("buildRunForest", () => {
+  it("三层分支链：单一根，深度依次递增", () => {
+    const runs = [makeRun("A", null), makeRun("B", "A"), makeRun("C", "B")];
+    const forest = buildRunForest(runs);
+
+    expect(forest).toHaveLength(1);
+    expect(forest[0]?.run.id).toBe("A");
+    expect(forest[0]?.depth).toBe(0);
+    expect(forest[0]?.children[0]?.run.id).toBe("B");
+    expect(forest[0]?.children[0]?.children[0]?.run.id).toBe("C");
+    expect(forest[0]?.children[0]?.children[0]?.depth).toBe(2);
+  });
+
+  it("父 run 不在列表中：提为根并标 missing-parent，其余结构不受影响", () => {
+    const runs = [makeRun("A", null), makeRun("X", "r_missing")];
+    const forest = buildRunForest(runs);
+
+    expect(forest).toHaveLength(2);
+    const orphan = forest.find((node) => node.run.id === "X");
+    expect(orphan?.orphanReason).toBe("missing-parent");
+    expect(orphan?.children).toHaveLength(0);
+  });
+
+  it("parent 链成环：环上的 run 提为根并标 cycle，不死循环", () => {
+    const runs = [makeRun("P", "Q"), makeRun("Q", "P")];
+    const forest = buildRunForest(runs);
+
+    expect(forest).toHaveLength(2);
+    expect(forest.every((node) => node.orphanReason === "cycle")).toBe(true);
+    // 被提为根后不再互挂为子节点，否则渲染会无限递归
+    expect(forest.every((node) => node.children.length === 0)).toBe(true);
+  });
+
+  it("环外的子节点仍挂在环上节点下（只断环，不多砍）", () => {
+    const runs = [makeRun("B", "C"), makeRun("C", "B"), makeRun("D", "C")];
+    const forest = buildRunForest(runs);
+
+    const c = forest.find((node) => node.run.id === "C");
+    expect(c?.orphanReason).toBe("cycle");
+    expect(c?.children.map((child) => child.run.id)).toEqual(["D"]);
+  });
+
+  it("空列表返回空森林，不报错", () => {
+    expect(buildRunForest([])).toEqual([]);
+  });
+
+  it("兄弟顺序确定：按创建时间升序，同刻按 id 升序", () => {
+    const runs = [
+      makeRun("c", "A", { created_at: "2026-09-05T21:00:03.000Z" }),
+      makeRun("a", "A", { created_at: "2026-09-05T21:00:01.000Z" }),
+      makeRun("b", "A", { created_at: "2026-09-05T21:00:01.000Z" }),
+      makeRun("A", null),
+    ];
+    const forest = buildRunForest(runs);
+    expect(forest[0]?.children.map((child) => child.run.id)).toEqual(["a", "b", "c"]);
+  });
+});
+
+describe("deriveChainTotals", () => {
+  it("正常链：逐段求和（含自身）", () => {
+    const runs = [
+      makeRun("A", null, { steps: 3, tokensIn: 5000, tokensOut: 200 }),
+      makeRun("B", "A", { steps: 2, tokensIn: 3000, tokensOut: 100 }),
+    ];
+    const totals = deriveChainTotals(indexRunsById(runs), "B");
+
+    expect(totals).toMatchObject({ steps: 5, tokensIn: 8000, tokensOut: 300, tokens: 8300 });
+    expect(totals?.durationMs).toBe(2000);
+  });
+
+  it("父 run 不在列表：整条累计不可得（null，不补 0）", () => {
+    const runs = [makeRun("X", "r_missing")];
+    expect(deriveChainTotals(indexRunsById(runs), "X")).toBeNull();
+  });
+
+  it("链成环：累计不可得", () => {
+    const runs = [makeRun("P", "Q"), makeRun("Q", "P")];
+    expect(deriveChainTotals(indexRunsById(runs), "P")).toBeNull();
+  });
+
+  it("任一段耗时未知 → 耗时合计为 null，其余照常", () => {
+    const runs = [
+      makeRun("A", null, { durationMs: null }),
+      makeRun("B", "A", { durationMs: 1500 }),
+    ];
+    const totals = deriveChainTotals(indexRunsById(runs), "B");
+    expect(totals?.durationMs).toBeNull();
+    expect(totals?.steps).toBe(2);
+  });
+
+  it("单根 run：累计等于自身增量", () => {
+    const runs = [makeRun("A", null, { steps: 3 })];
+    expect(deriveChainTotals(indexRunsById(runs), "A")?.steps).toBe(3);
+  });
+});
+
+describe("findCommonAncestor", () => {
+  it("兄弟分支：共同祖先是父 run，链完整", () => {
+    const runs = [makeRun("A", null), makeRun("B1", "A"), makeRun("B2", "A")];
+    expect(findCommonAncestor(indexRunsById(runs), ["B1", "B2"])).toEqual({
+      id: "A",
+      incomplete: false,
+    });
+  });
+
+  it("其中一条是另一条的祖先：共同祖先取那条祖先", () => {
+    const runs = [makeRun("A", null), makeRun("B", "A")];
+    expect(findCommonAncestor(indexRunsById(runs), ["A", "B"])).toEqual({
+      id: "A",
+      incomplete: false,
+    });
+  });
+
+  it("分属不同根且两条链都完整：无共同祖先且 incomplete 为 false", () => {
+    const runs = [makeRun("A1", null), makeRun("A2", null)];
+    expect(findCommonAncestor(indexRunsById(runs), ["A1", "A2"])).toEqual({
+      id: null,
+      incomplete: false,
+    });
+  });
+
+  it("父缺失：判定不完整，即便可见范围内有公共祖先也不下结论", () => {
+    const runs = [makeRun("X", "r_missing_root"), makeRun("B1", "X"), makeRun("B2", "X")];
+    expect(findCommonAncestor(indexRunsById(runs), ["B1", "B2"])).toEqual({
+      id: "X",
+      incomplete: true,
+    });
+  });
+
+  it("被对照的 run 不在列表中：判定不完整", () => {
+    const runs = [makeRun("A", null)];
+    expect(findCommonAncestor(indexRunsById(runs), ["A", "r_ghost"]).incomplete).toBe(true);
+  });
+});
+
+describe("deriveComparison", () => {
+  it("兄弟分支：给出相对共同祖先的增量差", () => {
+    const runs = [
+      makeRun("A", null, { tokensIn: 5000, tokensOut: 200, durationMs: 3000 }),
+      makeRun("B1", "A", { tokensIn: 2000, tokensOut: 100, durationMs: 1200 }),
+      makeRun("B2", "A", { tokensIn: 900, tokensOut: 100, durationMs: 900 }),
+    ];
+    const comparison = deriveComparison(runs, ["B1", "B2"]);
+
+    expect(comparison.commonAncestor).toEqual({ id: "A", incomplete: false });
+    expect(comparison.entries).toHaveLength(2);
+    expect(comparison.entries[0]?.deltaFromAncestor?.tokens).toBe(2100);
+    expect(comparison.entries[1]?.deltaFromAncestor?.tokens).toBe(1000);
+    expect(comparison.entries[0]?.deltaFromAncestor?.durationMs).toBe(1200);
+  });
+
+  it("判定不完整时增量差为 null（无可比基线，不硬凑差值）", () => {
+    const runs = [makeRun("X", "r_missing"), makeRun("B1", "X"), makeRun("B2", "X")];
+    const comparison = deriveComparison(runs, ["B1", "B2"]);
+
+    expect(comparison.commonAncestor.incomplete).toBe(true);
+    expect(comparison.entries.every((entry) => entry.deltaFromAncestor === null)).toBe(true);
+    // 累计增量本身也不可得
+    expect(comparison.entries.every((entry) => entry.totals === null)).toBe(true);
+  });
+
+  it("分属不同根：不计算增量差，但各自指标照常呈现", () => {
+    const runs = [makeRun("A1", null), makeRun("A2", null)];
+    const comparison = deriveComparison(runs, ["A1", "A2"]);
+
+    expect(comparison.commonAncestor.id).toBeNull();
+    expect(comparison.entries).toHaveLength(2);
+    expect(comparison.entries[0]?.run.id).toBe("A1");
+    expect(comparison.entries.every((entry) => entry.deltaFromAncestor === null)).toBe(true);
+  });
+
+  it("耗时任一段未知 → 耗时差为 null，tokens 差照常", () => {
+    const runs = [
+      makeRun("A", null, { durationMs: null }),
+      makeRun("B1", "A", { durationMs: 1200 }),
+      makeRun("B2", "A", { durationMs: 900 }),
+    ];
+    const comparison = deriveComparison(runs, ["B1", "B2"]);
+
+    expect(comparison.entries[0]?.deltaFromAncestor).toEqual({ tokens: 1100, durationMs: null });
+  });
+});
+
+describe("layoutRunTree", () => {
+  const treeRuns = [
+    makeRun("A", null),
+    makeRun("B1", "A", { fork: asFork("s_03") }),
+    makeRun("B2", "A", { fork: asFork("s_03") }),
+    makeRun("B3", "A", { fork: asFork("s_05", "messages") }),
+    makeRun("C1", "B3", { fork: asFork("s_07") }),
+  ];
+
+  it("布局可复现：同输入两次输出逐字段一致", () => {
+    const forest = buildRunForest(treeRuns);
+    const first = layoutRunTree(forest);
+    const second = layoutRunTree(buildRunForest(treeRuns));
+
+    expect(first).toEqual(second);
+    expect(first.edges.map((edge) => edge.path)).toEqual(second.edges.map((e) => e.path));
+  });
+
+  it("兄弟分支不重叠：所有节点包围盒两两不相交", () => {
+    const { nodes } = layoutRunTree(buildRunForest(treeRuns));
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const a = nodes[i]!;
+        const b = nodes[j]!;
+        const overlap =
+          a.x < b.x + b.width &&
+          b.x < a.x + a.width &&
+          a.y < b.y + b.height &&
+          b.y < a.y + a.height;
+        expect(overlap, `${a.id} 与 ${b.id} 重叠`).toBe(false);
+      }
+    }
+  });
+
+  it("父节点居中于首末子节点之间（tidy-tree 居中）", () => {
+    const { nodes } = layoutRunTree(buildRunForest(treeRuns));
+    const centerOf = (id: string): number => {
+      const node = nodes.find((item) => item.id === id);
+      if (node === undefined) throw new Error(`节点缺失：${id}`);
+      return node.y + node.height / 2;
+    };
+    const b3 = centerOf("B3");
+    expect(centerOf("A")).toBeCloseTo((centerOf("B1") + b3) / 2, 6);
+    expect(centerOf("B3")).toBeCloseTo(centerOf("C1"), 6);
+  });
+
+  it("同层间距一致、层间 x 递增", () => {
+    const { nodes } = layoutRunTree(buildRunForest(treeRuns));
+    const siblings = nodes
+      .filter((node) => node.depth === 1)
+      .sort((a, b) => a.y - b.y)
+      .map((node) => node.y);
+    const gaps = siblings.slice(1).map((y, i) => y - (siblings[i] ?? 0));
+    expect(new Set(gaps).size).toBe(1);
+
+    const root = nodes.find((node) => node.id === "A");
+    const child = nodes.find((node) => node.id === "B1");
+    expect(child?.x).toBeGreaterThan(root?.x ?? 0);
+  });
+
+  it("边标签由 edit_field 映射，根节点的边为 null", () => {
+    const { edges } = layoutRunTree(buildRunForest(treeRuns));
+    const labelOf = (to: string): string | null =>
+      edges.find((edge) => edge.to === to)?.label ?? null;
+
+    expect(labelOf("B1")).toBe("改 tool_result");
+    expect(labelOf("B3")).toBe("改 messages");
+    expect(forkEditLabel("system_prompt")).toBe("改 system_prompt");
+  });
+
+  it("单节点退化：无连线，尺寸仍为正", () => {
+    const layout = layoutRunTree(buildRunForest([makeRun("A", null)]));
+    expect(layout.nodes).toHaveLength(1);
+    expect(layout.edges).toHaveLength(0);
+    expect(layout.width).toBeGreaterThan(0);
+    expect(layout.height).toBeGreaterThan(0);
+  });
+
+  it("空森林：零节点零边，宽高为 0", () => {
+    const layout = layoutRunTree([]);
+    expect(layout.nodes).toEqual([]);
+    expect(layout.edges).toEqual([]);
+    expect(layout.width).toBe(0);
   });
 });
 

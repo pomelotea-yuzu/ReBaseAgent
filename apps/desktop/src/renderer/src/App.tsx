@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { BranchTree } from "./components/BranchTree";
+import { ComparePanel } from "./components/ComparePanel";
 import { DetailPanel } from "./components/DetailPanel";
 import { RunList } from "./components/RunList";
 import { SettingsDialog } from "./components/SettingsDialog";
@@ -13,6 +15,8 @@ export default function App() {
   const detail = useAppStore((s) => s.detail);
   const settingsConfigured = useAppStore((s) => s.settings?.configured);
   const proxy = useAppStore((s) => s.proxy);
+  const view = useAppStore((s) => s.view);
+  const setView = useAppStore((s) => s.setView);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   // 挂载时加载一次列表与运行配置。只读工具，不做文件监听——目录内容变化后重新打开即可
@@ -32,6 +36,32 @@ export default function App() {
           不止回放 Agent 做了什么，而是让你改变它做了什么
         </span>
         <span className="ml-auto flex items-center gap-3">
+          <span className="flex items-center gap-1 text-[11px]">
+            <button
+              type="button"
+              onClick={() => setView("trace")}
+              className={`rounded px-2 py-0.5 ${
+                view === "trace"
+                  ? "bg-blue-600 text-white"
+                  : "border border-gray-300 text-gray-600 hover:bg-gray-50"
+              }`}
+              title="三栏视图：运行列表 / span 树 / 详情"
+            >
+              轨迹
+            </button>
+            <button
+              type="button"
+              onClick={() => setView("tree")}
+              className={`rounded px-2 py-0.5 ${
+                view === "tree"
+                  ? "bg-blue-600 text-white"
+                  : "border border-gray-300 text-gray-600 hover:bg-gray-50"
+              }`}
+              title="全宽分支树：节点为运行、连线为分叉，可勾选多条对照"
+            >
+              分支树
+            </button>
+          </span>
           {detail !== null ? (
             <span className="font-code text-[11px] text-gray-400">{detail.meta.id}</span>
           ) : null}
@@ -76,9 +106,18 @@ export default function App() {
       ) : null}
 
       <main className="flex min-h-0 flex-1">
-        <RunList />
-        <SpanTree />
-        <DetailPanel />
+        {view === "trace" ? (
+          <>
+            <RunList />
+            <SpanTree />
+            <DetailPanel />
+          </>
+        ) : (
+          <>
+            <BranchTree />
+            <ComparePanel />
+          </>
+        )}
       </main>
 
       {empty ? (

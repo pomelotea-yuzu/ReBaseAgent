@@ -94,6 +94,9 @@ function resetStore(): void {
     forkError: null,
     forkErrorCode: null,
     settings: null,
+    view: "trace",
+    compareIds: [],
+    compareNotice: null,
   });
 }
 
@@ -161,5 +164,50 @@ describe("store：运行配置状态（tasks 5.2）", () => {
     const settings = useAppStore.getState().settings;
     expect(settings?.configured).toBe(false);
     expect(settings?.encryption).toBe("safe");
+  });
+});
+
+describe("store：分支树视图与对照集合", () => {
+  it("视图切换只改 view，不触发列表重新加载", async () => {
+    await useAppStore.getState().loadRuns();
+    expect(controller.listCalls).toBe(1);
+
+    useAppStore.getState().setView("tree");
+    useAppStore.getState().setView("trace");
+    expect(useAppStore.getState().view).toBe("trace");
+    expect(controller.listCalls).toBe(1);
+  });
+
+  it("切换视图后选中的 run 保持不变（两视图共享选中状态）", async () => {
+    await useAppStore.getState().loadRuns();
+    await useAppStore.getState().selectRun("r_01");
+    expect(useAppStore.getState().selectedRunId).toBe("r_01");
+
+    useAppStore.getState().setView("tree");
+    expect(useAppStore.getState().selectedRunId).toBe("r_01");
+  });
+
+  it("对照上限 4：第 5 条被拒绝并给出提示，已选集合不变", () => {
+    const store = useAppStore.getState();
+    for (const id of ["r_a", "r_b", "r_c", "r_d"]) store.toggleCompare(id);
+    expect(useAppStore.getState().compareIds).toEqual(["r_a", "r_b", "r_c", "r_d"]);
+
+    useAppStore.getState().toggleCompare("r_e");
+    expect(useAppStore.getState().compareIds).toHaveLength(4);
+    expect(useAppStore.getState().compareNotice).toContain("最多同时对照 4 条");
+  });
+
+  it("移出对照后提示清空；clearCompare 清空集合", () => {
+    const store = useAppStore.getState();
+    for (const id of ["r_a", "r_b", "r_c", "r_d"]) store.toggleCompare(id);
+    useAppStore.getState().toggleCompare("r_e");
+    expect(useAppStore.getState().compareNotice).not.toBeNull();
+
+    useAppStore.getState().toggleCompare("r_a");
+    expect(useAppStore.getState().compareNotice).toBeNull();
+    expect(useAppStore.getState().compareIds).toEqual(["r_b", "r_c", "r_d"]);
+
+    useAppStore.getState().clearCompare();
+    expect(useAppStore.getState().compareIds).toEqual([]);
   });
 });

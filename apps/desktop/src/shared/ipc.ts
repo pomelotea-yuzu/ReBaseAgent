@@ -34,6 +34,17 @@ export const RunSummarySchema = z.object({
   parent: z.string().nullable(),
   /** 终止原因（崩溃的 run 为 null） */
   reason: z.string().nullable(),
+  /**
+   * 分叉摘要（根 run 与老文件为 null）：只带分叉点 span id 与被编辑字段名，
+   * 不带 value——value 可能是整段工具结果或完整 messages，列表载荷一次性传输 N 条，
+   * 放大会直接拖慢冷启动；要看具体内容时读详情。
+   */
+  fork: z
+    .object({
+      at_span: z.string().min(1),
+      edit_field: z.string().min(1),
+    })
+    .nullable(),
   /** 迭代步数（agent.step 计数） */
   steps: z.number().int().nonnegative(),
   /** 工具调用次数 */
