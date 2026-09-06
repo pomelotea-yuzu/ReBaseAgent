@@ -1,9 +1,11 @@
 import { Editor } from "@monaco-editor/react";
 import type { SpanLine } from "@rebaseagent/trace-sdk";
-import { spanDurationMs } from "@shared/derive";
+import { forkEditLabel, isPromptForkField, spanDurationMs } from "@shared/derive";
 import type { RunDetail } from "@shared/ipc";
 import { useMemo, useState } from "react";
 import { formatDuration, prettyJson } from "../lib/format";
+import { promptForkGuard } from "../lib/prompt-fork";
+import type { PromptForkField } from "../lib/prompt-fork";
 import { useAppStore } from "../store";
 import { BudgetMap } from "./BudgetMap";
 
@@ -51,6 +53,232 @@ function KeyValue({ items }: { items: Array<[string, string]> }) {
           <span className="text-gray-400">{k}</span> <span className="font-code">{v}</span>
         </span>
       ))}
+    </div>
+  );
+}
+
+/** 从请求消息中取首条字符串 system / user 消息内容（与 replay 层定位规则同源） */
+function startupContents(
+  messages: ReadonlyArray<{ role: unknown; content?: unknown }>,
+): {
+  system: string | null;
+  user: string | null;
+} {
+  let system: string | null = null;
+  let user: string | null = null;
+  for (const message of messages) {
+    if (system === null && message.role === "system" && typeof message.content === "string") {
+      system = message.content;
+    }
+    if (user === null && message.role === "user" && typeof message.content === "string") {
+      user = message.content;
+    }
+    if (system !== null && user !== null) break;
+  }
+  return { system, user };
+}
+
+/**
+ * prompt fork 编辑器（runs:promptFork 写通道）：
+ * 编辑首次 llm.call 启动上下文中的 system prompt 或首条 user message，
+ * 确认后从头重跑（独立新轨迹，不共享父前缀）。
+ * 一次只改一个变量；空 fork、未配置、缺字符串 system 消息均在本地拦截。
+ */
+function PromptForkEditor({
+  span,
+  run,
+}: {
+  span: Extract<SpanLine, { kind: "llm.call" }>;
+  run: RunDetail;
+}) {
+  const forking = useAppStore((s) => s.forking);
+  const forkError = useAppStore((s) => s.forkError);
+  const forkErrorCode = useAppStore((s) => s.forkErrorCode);
+  const settings = useAppStore((s) => s.settings);
+  const promptFork = useAppStore((s) => s.promptFork);
+  const resetFork = useAppStore((s) => s.resetFork);
+
+  const { system: originalSystem, user: originalUser } = startupContents(span.request.messages);
+  const [field, setField] = useState<PromptForkField>("system_prompt");
+  const [value, setValue] = useState(originalSystem ?? "");
+  const [open, setOpen] = useState(false);
+
+  const inProgress = forking === "in_progress";
+  const original = field === "system_prompt" ? originalSystem : originalUser;
+  const unchanged = original === null || value === original;
+
+  const guard = promptForkGuard({
+    field,
+    hasSystem: originalSystem !== null,
+    hasUser: originalUser !== null,
+    settingsConfigured: settings?.configured === true,
+    unchanged,
+  });
+
+  const switchField = (next: PromptForkField): void => {
+    setField(next);
+    setValue(next === "system_prompt" ? (originalSystem ?? "") : (originalUser ?? ""));
+    resetFork();
+  };
+
+  if (!open) {
+    const unavailable = originalSystem === null;
+    return (
+      <div className="border-t border-emerald-100 px-4 py-2">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              resetFork();
+              switchField("system_prompt");
+              setOpen(true);
+            }}
+            disabled={unavailable || inProgress}
+            title={
+              unavailable ? "首次 llm.call 缺少字符串 system 消息，prompt fork 不可用" : undefined
+            }
+            className="rounded bg-emerald-600 px-2 py-1 text-[11px] text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            编辑 system prompt 重跑
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              resetFork();
+              switchField("user_message");
+              setOpen(true);
+            }}
+            disabled={unavailable || inProgress}
+            title={
+              unavailable ? "首次 llm.call 缺少字符串 system 消息，prompt fork 不可用" : undefined
+            }
+            className="rounded border border-emerald-500 px-2 py-1 text-[11px] text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            编辑初始 user message 重跑
+          </button>
+        </div>
+        {unavailable ? (
+          <div className="mt-1 text-[11px] text-gray-400">
+            首次 llm.call 缺少字符串形式的 system 消息，无法重建运行配置，prompt fork 不可用。
+          </div>
+        ) : (
+          <div className="mt-1 text-[11px] text-gray-400">
+            prompt fork：修改启动上下文后从头重跑（独立新轨迹，不共享父前缀）。一次只改一项。
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  const doSubmit = (): void => {
+    if (!guard.canSubmit) return;
+    const confirmed = window.confirm(
+      "确认从头重跑？\n\n" +
+        "· 将真实调用模型并计费（不承诺命中父 run 的缓存）\n" +
+        "· 父 run 只作对照，不会被修改\n" +
+        "· 配置指纹将变化——这是一次新实验，新轨迹从头完整记录",
+    );
+    if (!confirmed) return;
+    void promptFork(run.meta.id, { field, value });
+  };
+
+  return (
+    <div className="border-t border-emerald-100 bg-emerald-50/60 px-4 py-3">
+      <div className="mb-1 flex items-center justify-between">
+        <span className="text-[11px] font-semibold text-emerald-900">prompt fork · 从头重跑</span>
+        <div className="flex items-center gap-1">
+          {(["system_prompt", "user_message"] as const).map((f) => (
+            <button
+              key={f}
+              type="button"
+              onClick={() => {
+                switchField(f);
+              }}
+              disabled={inProgress}
+              className={`rounded px-1.5 py-0.5 text-[10px] ${
+                field === f
+                  ? "bg-emerald-600 text-white"
+                  : "border border-emerald-300 bg-white text-emerald-700 hover:bg-emerald-100"
+              }`}
+            >
+              {f === "system_prompt" ? "system prompt" : "首条 user message"}
+            </button>
+          ))}
+        </div>
+      </div>
+      <Editor
+        height="140px"
+        language="plaintext"
+        value={value}
+        onChange={(next) => setValue(next ?? "")}
+        options={{
+          readOnly: inProgress,
+          fontSize: 12,
+          minimap: { enabled: false },
+          lineNumbers: "on",
+          scrollBeyondLastLine: false,
+          wordWrap: "on",
+          scrollbar: { vertical: "auto" },
+          folding: true,
+          showFoldingControls: "always",
+        }}
+        className="overflow-hidden rounded border border-emerald-200"
+      />
+      <div className="mt-1.5 text-[10px] leading-4 text-emerald-700">
+        编辑值将替换首次 llm.call 请求中的
+        {field === "system_prompt" ? " system prompt" : " 首条 user message"}
+        ；新 run 从第 1 步完整执行并记录独立新轨迹。
+        {field === "system_prompt" ? "配置指纹（config_hash）将随新值变化。" : ""}
+      </div>
+      <div className="mt-1 text-[10px] leading-4 text-emerald-600">
+        从头重跑，将真实调用模型并计费 · 父 run 只作对照，不会被修改
+      </div>
+
+      {!guard.canSubmit && guard.reason !== null ? (
+        <div className="mt-1 text-[11px] text-amber-700">{guard.reason}</div>
+      ) : null}
+
+      {forking === "error" ? (
+        <div className="mt-1 text-[11px] text-red-700">
+          {forkError}
+          {forkErrorCode === "SETTINGS_NOT_CONFIGURED"
+            ? "（请先点击右上角“运行配置”填写 baseURL/apiKey/model）"
+            : ""}
+        </div>
+      ) : null}
+
+      <div className="mt-2 flex items-center justify-end gap-2">
+        {inProgress ? (
+          <span className="text-[11px] text-emerald-600">重跑中…（真实 LLM 调用，可能耗时）</span>
+        ) : null}
+        <button
+          type="button"
+          onClick={() => setValue(original ?? "")}
+          disabled={inProgress || original === null}
+          className="rounded border border-gray-300 px-2 py-1 text-[11px] text-gray-600 hover:bg-gray-50 disabled:opacity-40"
+        >
+          恢复原值
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            resetFork();
+            setOpen(false);
+          }}
+          disabled={inProgress}
+          className="rounded border border-gray-300 px-2 py-1 text-[11px] text-gray-600 hover:bg-gray-50 disabled:opacity-40"
+        >
+          取消
+        </button>
+        <button
+          type="button"
+          onClick={doSubmit}
+          disabled={inProgress || !guard.canSubmit}
+          className="rounded bg-emerald-600 px-3 py-1 text-[11px] text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          确认从头重跑
+        </button>
+      </div>
     </div>
   );
 }
@@ -135,6 +363,27 @@ function LlmCallDetail({
           <LongText text={prettyJson(request.params)} label="params" />
         </Section>
       ) : null}
+
+      {(() => {
+        // prompt fork 入口：仅限首次 llm.call（启动上下文的事实源）
+        const promptForkable =
+          run !== null &&
+          !isProxy &&
+          run.status === "completed" &&
+          run.meta.config_hash !== undefined &&
+          leafOwned;
+        const firstLlmId = run?.spans.find((s) => s.kind === "llm.call")?.id;
+        if (!promptForkable) return null;
+        if (firstLlmId === span.id && run !== null) {
+          return <PromptForkEditor key={span.id} span={span} run={run} />;
+        }
+        return (
+          <div className="border-t border-gray-100 px-4 py-2 text-[11px] text-gray-400">
+            prompt fork 只从首次 llm.call 的启动上下文出发；打开首次 llm.call（{firstLlmId}
+            ）使用编辑入口。
+          </div>
+        );
+      })()}
 
       {canResend && run !== null ? (
         <MessagesForkEditor key={span.id} span={span} run={run} />
@@ -483,7 +732,7 @@ function ToolInvokeDetail({
   );
 }
 
-/** 分支提示：前缀来自哪个父 run、分叉点是哪个 span、编辑了什么字段 */
+/** 分支提示：按 fork 字段分流——共享前缀（result）/ 从头重跑（prompt fork） */
 function BranchNotice() {
   const detail = useAppStore((s) => s.detail);
   if (detail === null || detail.chain.length <= 1) return null;
@@ -494,6 +743,21 @@ function BranchNotice() {
   const parentHop = detail.chain[detail.chain.length - 2];
   const fork = hop?.fork ?? null;
   if (fork === null || parentHop === undefined) return null;
+
+  const field = fork.edit.field;
+
+  // prompt fork：从头重跑的独立新轨迹——禁止"共享前缀"措辞，at_span 不作为普通分叉点展示
+  if (isPromptForkField(field)) {
+    return (
+      <div className="border-b border-emerald-200 bg-emerald-50 px-4 py-2 text-[11px] leading-5 text-emerald-900">
+        prompt fork（从头重跑）：本 run 的所有 span 均来自本次完整执行，父 run
+        <span className="font-code"> {parentHop.meta.id} </span>
+        仅作溯源对照——不共享前缀，父轨迹不会进入本时间线。
+        <br />
+        编辑字段：<span className="font-code">{forkEditLabel(field)}</span>
+      </div>
+    );
+  }
 
   return (
     <div className="border-b border-violet-200 bg-violet-50 px-4 py-2 text-[11px] leading-5 text-violet-900">
@@ -509,24 +773,33 @@ function BranchNotice() {
 }
 
 /**
- * 代理分叉的父链列表（分支视图降级形态）：
- * proxy fork 编辑的是 messages，没有 replay 层应用编辑，不做共享前缀拼接
- * （避免"旧 messages 的 llm.call + 新 messages 的 llm.call"混排假时间线）。
- * 逐代 run 列出 + 编辑摘要，点击切换查看。
+ * 父级溯源链列表：代理分叉（单请求级编辑重发）与 prompt fork（从头重跑）共用——
+ * 两者的详情都只呈现本 run 自身 spans，不拼接父轨迹；逐代 run 列出 + 编辑摘要，
+ * 点击切换查看。
  */
 function ParentChainList() {
   const detail = useAppStore((s) => s.detail);
   const selectedRunId = useAppStore((s) => s.selectedRunId);
   const selectRun = useAppStore((s) => s.selectRun);
-  if (detail === null || detail.meta.source?.kind !== "proxy" || detail.chain.length <= 1) {
-    return null;
-  }
+  if (detail === null || detail.chain.length <= 1) return null;
+
+  const isProxy = detail.meta.source?.kind === "proxy";
+  const forkField = detail.meta.fork?.edit.field;
+  const isPromptFork = typeof forkField === "string" && isPromptForkField(forkField);
+  if (!isProxy && !isPromptFork) return null;
+
   return (
     <div className="border-b border-sky-200 bg-sky-50 px-4 py-2 text-[11px] leading-5 text-sky-900">
-      <div className="mb-1 font-semibold">分叉链（单请求级编辑重发）</div>
+      <div className="mb-1 font-semibold">
+        {isPromptFork ? "分叉链（从头重跑的独立新轨迹）" : "分叉链（单请求级编辑重发）"}
+      </div>
       <div className="flex flex-wrap items-center gap-1">
         {detail.chain.map((hop, index) => {
           const editedMessages = hop.fork?.edit.field === "messages";
+          const editedField =
+            typeof hop.fork?.edit.field === "string" && isPromptForkField(hop.fork.edit.field)
+              ? hop.fork.edit.field
+              : null;
           const isLeaf = index === detail.chain.length - 1;
           return (
             <span key={hop.meta.id} className="flex items-center gap-1">
@@ -547,6 +820,8 @@ function ParentChainList() {
               </button>
               {editedMessages ? (
                 <span className="text-[10px] text-sky-600">已编辑 messages</span>
+              ) : editedField !== null ? (
+                <span className="text-[10px] text-emerald-700">{forkEditLabel(editedField)}</span>
               ) : null}
             </span>
           );

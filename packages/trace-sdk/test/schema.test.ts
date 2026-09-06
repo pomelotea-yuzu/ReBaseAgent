@@ -307,3 +307,54 @@ describe("schema：缺字段/错类型被拒绝", () => {
     ).toThrow();
   });
 });
+
+describe("prompt fork 字段兼容（add-prompt-replay，不升级 format_version）", () => {
+  const baseMeta = {
+    type: "run.meta",
+    id: "r_pf",
+    format_version: 1,
+    task: "t",
+    model: "m",
+    created_at: "2026-09-06T00:00:00Z",
+    parent: "r_01",
+    config_hash: "sha256:abc",
+  };
+
+  it("fork.edit.field = system_prompt 合法解析", () => {
+    const meta = RunMetaSchema.parse({
+      ...baseMeta,
+      fork: { at_span: "s_02", edit: { field: "system_prompt", value: "新的 system prompt" } },
+    });
+    expect(meta.fork?.edit.field).toBe("system_prompt");
+    expect(meta.fork?.edit.value).toBe("新的 system prompt");
+  });
+
+  it("fork.edit.field = user_message 合法解析", () => {
+    const meta = RunMetaSchema.parse({
+      ...baseMeta,
+      fork: { at_span: "s_02", edit: { field: "user_message", value: "新的初始指令" } },
+    });
+    expect(meta.fork?.edit.field).toBe("user_message");
+  });
+
+  it("旧 field（result / messages）与新 field 并存兼容；空 field 仍拒绝", () => {
+    expect(
+      RunMetaSchema.parse({
+        ...baseMeta,
+        fork: { at_span: "s_03", edit: { field: "result", value: "x" } },
+      }).fork?.edit.field,
+    ).toBe("result");
+    expect(
+      RunMetaSchema.parse({
+        ...baseMeta,
+        fork: { at_span: "s_02", edit: { field: "messages", value: [] } },
+      }).fork?.edit.field,
+    ).toBe("messages");
+    expect(() =>
+      RunMetaSchema.parse({
+        ...baseMeta,
+        fork: { at_span: "s_02", edit: { field: "", value: "x" } },
+      }),
+    ).toThrow();
+  });
+});

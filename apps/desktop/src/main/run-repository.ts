@@ -51,6 +51,8 @@ export class RunRepository {
       };
     }
 
+    const forkField = record.meta.fork?.edit.field;
+
     // 代理分叉 run（fork.edit.field="messages"）：resolveBranch 的"共享前缀拼接"语义
     // 不成立（编辑的是 messages，没有 replay 层应用它，拼接会混排出假时间线）——
     // 降级为父链列表呈现：只返回自身 span，chain 沿 parent 链逐代列出
@@ -60,7 +62,21 @@ export class RunRepository {
         spans: record.spans,
         events: record.events,
         status: record.status,
-        chain: this.buildProxyChain(record),
+        chain: this.buildLineageChain(record),
+        leafSpanIds,
+      };
+    }
+
+    // prompt fork run（fork.edit.field 为 system_prompt / user_message）：
+    // 从头重跑的独立新轨迹——所有 span 来自本次实际执行，禁止把父 run 的旧 spans
+    // 拼进时间线；chain 仅作父级溯源（沿 parent 链逐代列出）
+    if (forkField === "system_prompt" || forkField === "user_message") {
+      return {
+        meta: record.meta,
+        spans: record.spans,
+        events: record.events,
+        status: record.status,
+        chain: this.buildLineageChain(record),
         leafSpanIds,
       };
     }
@@ -77,8 +93,11 @@ export class RunRepository {
     };
   }
 
-  /** 代理 run 的父链（从根到本 run）；不做轨迹拼接 */
-  private buildProxyChain(leaf: RunRecord): RunDetail["chain"] {
+  /**
+   * 父级溯源链（从根到本 run），不做任何轨迹拼接。
+   * 代理分叉与 prompt fork 共用：两者的详情都只呈现本 run 自身 spans。
+   */
+  private buildLineageChain(leaf: RunRecord): RunDetail["chain"] {
     const chain: RunDetail["chain"] = [];
     const seen = new Set<string>();
     let current: RunRecord | null = leaf;

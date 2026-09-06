@@ -234,6 +234,28 @@ describe("deriveChainTotals", () => {
     const runs = [makeRun("A", null, { steps: 3 })];
     expect(deriveChainTotals(indexRunsById(runs), "A")?.steps).toBe(3);
   });
+
+  it("prompt fork 链：本 run 增量只算新 run，累计沿链代数求和（含多次独立完整运行）", () => {
+    // A 正常跑 5k tokens；prompt fork B 从头独立跑 6k tokens（不共享前缀）
+    const runs = [
+      makeRun("A", null, { tokensIn: 4800, tokensOut: 200 }),
+      makeRun("B", "A", {
+        fork: asFork("s_02", "system_prompt"),
+        tokensIn: 5700,
+        tokensOut: 300,
+      }),
+    ];
+    const byId = indexRunsById(runs);
+
+    // B 的「本 run 增量」= 自身完整执行（6k），不受父 run 影响
+    expect(deriveChainTotals(byId, "B")).toMatchObject({
+      tokensIn: 10500, // 4800 + 5700（沿链代数求和）
+      tokensOut: 500,
+      tokens: 11000,
+    });
+    // A 的累计 = 自身
+    expect(deriveChainTotals(byId, "A")?.tokens).toBe(5000);
+  });
 });
 
 describe("findCommonAncestor", () => {
@@ -390,7 +412,25 @@ describe("layoutRunTree", () => {
 
     expect(labelOf("B1")).toBe("改 tool_result");
     expect(labelOf("B3")).toBe("改 messages");
-    expect(forkEditLabel("system_prompt")).toBe("改 system_prompt");
+    expect(forkEditLabel("system_prompt")).toBe("改 system prompt");
+    expect(forkEditLabel("user_message")).toBe("改 user message");
+  });
+
+  it("prompt fork 的边标注「从头重跑」，不把 at_span 呈现为普通分叉点（add-prompt-replay）", () => {
+    const runs = [
+      makeRun("A", null),
+      makeRun("P1", "A", { fork: asFork("s_02", "system_prompt") }),
+      makeRun("P2", "A", { fork: asFork("s_02", "user_message") }),
+      makeRun("B1", "A", { fork: asFork("s_03", "result") }),
+    ];
+    const { edges } = layoutRunTree(buildRunForest(runs));
+    const labelOf = (to: string): string | null =>
+      edges.find((edge) => edge.to === to)?.label ?? null;
+
+    expect(labelOf("P1")).toBe("改 system prompt · 从头重跑");
+    expect(labelOf("P2")).toBe("改 user message · 从头重跑");
+    // 既有 result 边标签保持不变
+    expect(labelOf("B1")).toBe("改 tool_result");
   });
 
   it("单节点退化：无连线，尺寸仍为正", () => {

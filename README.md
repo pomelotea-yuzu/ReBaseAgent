@@ -34,6 +34,8 @@ ReBaseAgent 是给"上下文"这门语言的调试器：
 - **Monaco 内联编辑** — 离线自托管，直接查看和编辑任意一步的 `tool_result`
 - **时间旅行（最小切片）** — 改掉某一步脏掉的 `tool_result`，从那一步重跑。前缀全部本地命中，只有分支点之后才真正调 API
 - **分支轨迹** — 从已完成的 run 分叉，只记录新增 span，前缀按 parent 链共享
+- **prompt fork（完整时间旅行）** — 改启动上下文（system prompt 或首条 user message）后**从头重跑**：独立记录完整新轨迹，父 run 只作溯源对照；分支树标注「从头重跑」，多分支对照可并排比较新旧行为
+- **本地 LLM 录制代理** — 在你的应用里把 `base_url` 改成本地代理地址即可录制与"编辑 messages 重发"，key 一字不动
 
 时间旅行的实现方式：
 
@@ -41,6 +43,9 @@ ReBaseAgent 是给"上下文"这门语言的调试器：
 回到第 N 步 = 查表（读取第 N 个 llm.call 的录制请求，零 API 调用）
 编辑        = 修改该步的 tool_result
 重跑        = 从第 N 步继续执行（前缀全部本地命中，分支点后才真调 API）
+
+prompt fork = 编辑首次 llm.call 的启动上下文（system prompt / 首条 user message）
+重跑        = 从第 1 步完整执行（启动上下文变了，前缀不复用——这是新实验，不是同源回放）
 ```
 
 ## 快速开始
@@ -101,15 +106,17 @@ DeepSeek / GLM / Qwen / Kimi 等 OpenAI 兼容端点开箱即用。
 ## 当前限制（诚实声明）
 
 - 只构建了 **Windows x64**，macOS / Linux 尚未出包
-- **接入仍需手工**：要么在代码里接 SDK，要么在设置里填 API key。零摩擦的本地录制代理（只改 `base_url` 即可录制）还没做——这是下一步的重点
-- 时间旅行现在**只能改 `tool_result`**；改 prompt、分支树 UI、多分支对照实验在 v2
+- **接入仍需手工**：要么在代码里接 SDK，要么在设置里填 API key。本地录制代理已落地（只改 `base_url` 即可录制），进一步零摩擦（自动发现、一键引导）在迭代
+- 时间旅行现在支持**改 `tool_result`（从该步重跑，前缀共享）与改启动上下文（system prompt / 首条 user message，从头重跑）**；中间历史消息编辑尚不支持
+- prompt fork **从头计费**：启动上下文变了前缀天然不复用，不承诺命中父 run 的 prompt cache（是否命中由 provider 自行决定）
+- 代理录制的 run 没有 `config_hash`，不能作为 prompt fork / tool_result 重跑的父本，只能走"编辑 messages 重发"
 - 带副作用的工具默认**不真重跑**：replay 是 world-free 重放，把录下的结果喂回模型，trace 内自洽。外部状态源（RAG / 记忆 / 数据库）不承诺回退
 - 应用图标仍是 Electron 默认图标
 
 ## 路线图
 
 - ✅ **v0.1.0（MVP）** — span 时间线 · 上下文预算地图 · 时间旅行最小切片 · trace 格式 v1 · Agent 执行引擎
-- 🚧 **v2** — 本地 LLM 录制代理（改一行 `base_url` 即可录制）· 分支树 UI · 改 prompt 重跑 · 多分支对照实验 · 体积瘦身
+- 🚧 **v2** — 本地 LLM 录制代理 ✅ · 分支树 UI ✅ · 改 prompt 重跑（prompt fork）✅ · 多分支对照 ✅ · 体积瘦身
 - 📋 **v3** — Trace-as-Test 进 CI · 模型 A/B（同前缀分支换模型）
 
 ## 架构

@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { OpenAiCompatClient } from "@rebaseagent/agent-loop";
 import type { LlmClient, RunConfig, Tool, ToolDef } from "@rebaseagent/agent-loop";
-import { replayRun } from "@rebaseagent/replay";
+import { promptReplayRun, replayRun } from "@rebaseagent/replay";
 import type { RunRecord, SpanLine } from "@rebaseagent/trace-sdk";
 import type { RunRepository } from "./run-repository";
 import type { RunSettings } from "./settings";
@@ -114,6 +114,94 @@ export async function runFork(
   const result = await replayRun({
     parentId: request.parentRunId,
     atSpanId: request.atSpanId,
+    edit: request.edit,
+    config,
+    tools,
+    load: (id) => repository.loadRunRecord(id),
+    outDir: repository.tracesDir,
+    llm: llm ?? new OpenAiCompatClient(config),
+  });
+  return { id: result.id };
+}
+
+// ---------------------------------------------------------------------------
+// runs:promptFork —— 编辑启动上下文（system prompt / 首条 user message）从头重跑
+// ---------------------------------------------------------------------------
+
+/** prompt fork 专属错误码（渲染层据此给中文提示） */
+export const PROMPT_FORK_ERROR_CODES = {
+  /** 首次 llm.call 缺少字符串 system 消息：RunConfig.systemPrompt 无法重建 */
+  NO_SYSTEM: "PROMPT_FORK_NO_SYSTEM",
+} as const;
+
+/**
+ * prompt fork 的桌面编排：与 runFork 共用工具表重建，但语义正交——
+ * - 启动上下文只来自父 run 首次 llm.call 的录制请求（从头重跑，不共享前缀）
+ * - 不要求 config_hash 与父一致（改 system prompt 本来就是新实验）
+ * - config.systemPrompt 传父 run 录制原值；编排层会以编辑派生值覆写（双真相源守护）
+ */
+export async function runPromptFork(
+  options: ForkRunnerOptions,
+  request: {
+    parentRunId: string;
+    edit: { field: "system_prompt" | "user_message"; value: string };
+  },
+): Promise<{ id: string }> {
+  const { repository, settings, execCwd, llm } = options;
+
+  // 1. 父 run 的首次 llm.call（文件序 = 执行序；启动上下文的唯一事实源）
+  const leaf = repository.loadRunRecord(request.parentRunId);
+  const firstLlm = leaf.spans.find((s) => s.kind === "llm.call");
+  if (firstLlm === undefined || firstLlm.kind !== "llm.call") {
+    throw new ForkError(
+      "FORK_NO_CONTEXT",
+      `父 run ${leaf.meta.id} 的轨迹中没有 llm.call 录制，无法定位启动上下文`,
+    );
+  }
+
+  // 2. 字符串 system 消息是重建 RunConfig.systemPrompt 的唯一来源：
+  //    缺失时整个 prompt fork 不可用（不反推 config_hash、不猜、不假定空字符串）
+  const systemMessage = firstLlm.request.messages.find(
+    (m) => m.role === "system" && typeof m.content === "string",
+  );
+  if (systemMessage === undefined || typeof systemMessage.content !== "string") {
+    throw new ForkError(
+      PROMPT_FORK_ERROR_CODES.NO_SYSTEM,
+      "父 run 首次 llm.call 不含字符串形式的 system 消息，无法重建 RunConfig.systemPrompt，prompt fork 不可用",
+    );
+  }
+
+  // 3. 工具表从首次 llm.call 录制重建（与 runFork 同源的重建 + 覆盖检查）
+  const recordedTools = firstLlm.request.tools;
+  if (recordedTools === undefined) {
+    throw new ForkError("FORK_NO_CONTEXT", "父 run 录制缺少工具表，无法重建重跑配置");
+  }
+  const toolDefs = toToolDefs(recordedTools);
+  const tools = attachHandlers(toolDefs);
+  if (tools === null) {
+    const unknown = toolDefs.map((t) => t.name).filter((name) => !HANDLERS.has(name));
+    throw new ForkError(
+      FORK_ERROR_CODES.UNKNOWN_TOOL,
+      `桌面端暂不支持重跑工具：${unknown.join("、")}（内置 read_file/write_file）`,
+    );
+  }
+
+  const config: RunConfig = {
+    baseURL: settings.baseURL,
+    apiKey: settings.apiKey,
+    model: settings.model,
+    // 传父 run 录制原值；promptReplayRun 会以编辑派生值强制覆写（双真相源）
+    systemPrompt: systemMessage.content,
+    tools: toolDefs,
+    params: sanitizeParams(firstLlm.request.params),
+    exec: { cwd: execCwd, signal: null },
+    maxIterations: 10,
+    budget: { maxTotalTokens: 100_000 },
+  };
+
+  // 4. promptReplayRun：校验（封存/config_hash/空 fork/编辑目标）→ 从头重跑落盘
+  const result = await promptReplayRun({
+    parentId: request.parentRunId,
     edit: request.edit,
     config,
     tools,

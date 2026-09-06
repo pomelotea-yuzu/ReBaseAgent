@@ -6,6 +6,7 @@ import { JsonlTracer, assertForkable } from "@rebaseagent/trace-sdk";
 import type { RunLoader, RunRecord } from "@rebaseagent/trace-sdk";
 import { deriveReplayState } from "./derive.js";
 import type { ReplayEdit } from "./derive.js";
+import { loadParentChain } from "./parent-chain.js";
 
 /**
  * 时间旅行编排：把"编辑某步 tool.result 并从该步重跑"执行到落盘。
@@ -41,8 +42,8 @@ export interface ReplayRunResult {
   id: string;
 }
 
-/** 生成 fork run id（时间戳 + 随机后缀，防同毫秒碰撞） */
-function newForkRunId(): string {
+/** 生成 fork run id（时间戳 + 随机后缀，防同毫秒碰撞）；prompt fork 编排共用 */
+export function newForkRunId(): string {
   return `run_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
 }
 
@@ -73,26 +74,8 @@ export async function replayRun(options: ReplayRunOptions): Promise<ReplayRunRes
     throw new Error("config.tools 与 tools（含 handler）数量不一致，无法重跑");
   }
 
-  // 1. 加载父链（根→叶），沿 parent 走；环检测
-  const records: RunRecord[] = [];
-  const seen = new Set<string>();
-  let current: string | null = parentId;
-  while (current !== null) {
-    if (seen.has(current)) {
-      throw new Error(`parent 链成环：${current}`);
-    }
-    seen.add(current);
-    let record: RunRecord;
-    try {
-      record = load(current);
-    } catch (e) {
-      throw new Error(`父 run 文件缺失或无法读取：${current}（${(e as Error).message}）`, {
-        cause: e,
-      });
-    }
-    records.unshift(record);
-    current = record.meta.parent;
-  }
+  // 1. 加载父链（根→叶），沿 parent 走；环 / 缺失检测（无语义 helper，与 prompt fork 共用）
+  const records: RunRecord[] = loadParentChain(parentId, load);
   const leaf = records[records.length - 1];
   if (leaf === undefined) {
     throw new Error(`父 run 加载失败：${parentId}`);

@@ -16,6 +16,7 @@ const api: WindowApi = {
   listRuns: () => ipcRenderer.invoke(CHANNELS.listRuns),
   getRun: (id) => ipcRenderer.invoke(CHANNELS.getRun, id),
   forkRun: (request) => ipcRenderer.invoke(CHANNELS.forkRun, request),
+  promptFork: (request) => ipcRenderer.invoke(CHANNELS.promptFork, request),
   getSettings: () => ipcRenderer.invoke(CHANNELS.settingsGet),
   saveSettings: (input) => ipcRenderer.invoke(CHANNELS.settingsSave, input),
   clearSettings: () => ipcRenderer.invoke(CHANNELS.settingsClear),

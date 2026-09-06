@@ -137,6 +137,30 @@ export const ForkRunResultSchema = z.object({
 export type ForkRunResult = z.infer<typeof ForkRunResultSchema>;
 
 // ---------------------------------------------------------------------------
+// runs:promptFork —— prompt fork 写通道（编辑启动上下文，从头重跑）
+// ---------------------------------------------------------------------------
+
+/**
+ * prompt fork 请求：编辑父 run 首次 llm.call 启动上下文中的一项。
+ * 与 runs:fork（tool_result 编辑，共享父前缀）语义正交：prompt fork
+ * 从头重跑、不共享前缀；一次只允许修改 system_prompt 或 user_message 其一。
+ */
+export const PromptForkRequestSchema = z.object({
+  parentRunId: z.string().min(1),
+  edit: z.object({
+    field: z.enum(["system_prompt", "user_message"]),
+    value: z.string(),
+  }),
+});
+export type PromptForkRequest = z.infer<typeof PromptForkRequestSchema>;
+
+/** runs:promptFork 成功结果：新 fork run 的 id */
+export const PromptForkResultSchema = z.object({
+  id: z.string().min(1),
+});
+export type PromptForkResult = z.infer<typeof PromptForkResultSchema>;
+
+// ---------------------------------------------------------------------------
 // settings —— 运行配置（apiKey 永不回传渲染层）
 // ---------------------------------------------------------------------------
 
@@ -200,13 +224,14 @@ export type ProxyForkResult = z.infer<typeof ProxyForkResultSchema>;
 
 /**
  * preload 暴露给渲染层的受限接口。
- * 取数两个方法 + forkRun / proxyFork 两个写通道 + settings 三件套 + 代理三件套
+ * 取数两个方法 + forkRun / promptFork / proxyFork 三个写通道 + settings 三件套 + 代理三件套
  * （apiKey / 代理 key 均单向进入 main，永不回传）。
  */
 export interface WindowApi {
   listRuns(): Promise<Envelope<ListRunsData>>;
   getRun(id: string): Promise<Envelope<RunDetail>>;
   forkRun(request: ForkRunRequest): Promise<Envelope<ForkRunResult>>;
+  promptFork(request: PromptForkRequest): Promise<Envelope<PromptForkResult>>;
   getSettings(): Promise<Envelope<SettingsState>>;
   saveSettings(input: SettingsInput): Promise<Envelope<{ configured: true }>>;
   clearSettings(): Promise<Envelope<{ configured: false }>>;

@@ -7,6 +7,7 @@ import type {
   SettingsInput,
   SettingsState,
 } from "@shared/ipc";
+import type { PromptForkRequest } from "@shared/ipc";
 import {
   ListRunsDataSchema,
   ProxyStateSchema,
@@ -68,6 +69,8 @@ interface AppState {
 
   /** 编辑某 tool.invoke 的 result 并重跑；成功刷新列表并自动选中新 run */
   forkAt: (parentRunId: string, atSpanId: string, value: string) => Promise<boolean>;
+  /** prompt fork：编辑启动上下文（system prompt / 首条 user message）从头重跑 */
+  promptFork: (parentRunId: string, edit: PromptForkRequest["edit"]) => Promise<boolean>;
   /** 打开新的分叉编辑前复位状态 */
   resetFork: () => void;
 
@@ -198,6 +201,24 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   resetFork() {
     set({ forking: "idle", forkError: null, forkErrorCode: null });
+  },
+
+  async promptFork(parentRunId, edit) {
+    set({ forking: "in_progress", forkError: null, forkErrorCode: null });
+    const envelope = await api.promptFork({ parentRunId, edit });
+    if (!envelope.ok) {
+      set({
+        forking: "error",
+        forkError: envelope.error.message,
+        forkErrorCode: envelope.error.code,
+      });
+      return false;
+    }
+    // 成功：刷新列表并选中新 run（独立新轨迹 + 父级溯源；失败时不产生伪 run）
+    set({ forking: "success" });
+    await get().loadRuns();
+    await get().selectRun(envelope.data.id);
+    return true;
   },
 
   async loadSettings() {

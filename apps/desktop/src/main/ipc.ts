@@ -2,6 +2,7 @@ import { ipcMain } from "electron";
 import {
   CHANNELS,
   ForkRunRequestSchema,
+  PromptForkRequestSchema,
   ProxyForkRequestSchema,
   ProxyToggleInputSchema,
   SettingsInputSchema,
@@ -11,12 +12,13 @@ import {
 import type {
   ForkRunResult,
   ListRunsData,
+  PromptForkResult,
   ProxyForkResult,
   ProxyState,
   RunDetail,
   SettingsState,
 } from "../shared/ipc";
-import { ForkError, runFork } from "./fork-runner";
+import { ForkError, runFork, runPromptFork } from "./fork-runner";
 import type { ProxyManager } from "./proxy-manager";
 import { ProxyForkError } from "./proxy-manager";
 import type { RunRepository } from "./run-repository";
@@ -97,6 +99,45 @@ export function registerIpc(deps: IpcDeps): void {
         }
         // replayRun / derive 的领域错误（空 fork、config_hash 不一致、父未封存等）
         return fail("FORK_FAILED", e);
+      }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // runs:promptFork —— 编辑启动上下文从头重跑（与 runs:fork 语义正交的写通道）
+  // -------------------------------------------------------------------------
+
+  ipcMain.handle(
+    CHANNELS.promptFork,
+    async (
+      _event,
+      request: unknown,
+    ): Promise<ReturnType<typeof ok<PromptForkResult>> | ReturnType<typeof fail>> => {
+      // 1. 请求形状校验（parentRunId/edit 齐全、field 为两个 prompt 字段之一）
+      const parsed = PromptForkRequestSchema.safeParse(request);
+      if (!parsed.success) {
+        return fail("INVALID_ARGUMENT", parsed.error);
+      }
+
+      // 2. 运行配置必须已就绪（未配置不发任何网络请求）
+      const loaded = settings.load();
+      if (loaded === null) {
+        return fail(
+          "SETTINGS_NOT_CONFIGURED",
+          new Error("尚未配置运行参数（baseURL / apiKey / model），请先完成运行配置"),
+        );
+      }
+
+      // 3. 编排从头重跑；ForkError 的 code 原样透传（如 PROMPT_FORK_NO_SYSTEM）
+      try {
+        const result = await runPromptFork({ repository, settings: loaded, execCwd }, parsed.data);
+        return ok({ id: result.id });
+      } catch (e) {
+        if (e instanceof ForkError) {
+          return fail(e.code, e);
+        }
+        // promptReplayRun / derive 的领域错误（proxy run、空 fork、父未封存等）
+        return fail("PROMPT_FORK_FAILED", e);
       }
     },
   );

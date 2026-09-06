@@ -8,6 +8,7 @@ import type {
   Envelope,
   ForkRunResult,
   ListRunsData,
+  PromptForkResult,
   RunDetail,
   SettingsState,
   WindowApi,
@@ -45,6 +46,12 @@ const forkedSummary = { ...rootSummary, id: "run_forked", parent: "r_01" };
 interface Controller {
   forkEnvelope: Envelope<ForkRunResult> | undefined;
   forkRequests: Array<{ parentRunId: string; atSpanId: string; value: string }>;
+  promptForkEnvelope: Envelope<PromptForkResult> | undefined;
+  promptForkRequests: Array<{
+    parentRunId: string;
+    field: string;
+    value: string;
+  }>;
   listCalls: number;
 }
 
@@ -65,6 +72,14 @@ function makeFakeApi(c: Controller): WindowApi {
       });
       return c.forkEnvelope ?? ok({ id: "run_forked" });
     },
+    promptFork: async (request) => {
+      c.promptForkRequests.push({
+        parentRunId: request.parentRunId,
+        field: request.edit.field,
+        value: request.edit.value,
+      });
+      return c.promptForkEnvelope ?? ok({ id: "run_prompt_forked" });
+    },
     getSettings: async (): Promise<Envelope<SettingsState>> =>
       ok({ configured: false, baseURL: null, model: null, encryption: "safe" }),
     saveSettings: async () => ok({ configured: true }),
@@ -72,7 +87,13 @@ function makeFakeApi(c: Controller): WindowApi {
   };
 }
 
-const controller: Controller = { forkEnvelope: undefined, forkRequests: [], listCalls: 0 };
+const controller: Controller = {
+  forkEnvelope: undefined,
+  forkRequests: [],
+  promptForkEnvelope: undefined,
+  promptForkRequests: [],
+  listCalls: 0,
+};
 (globalThis as Record<string, unknown>).window = { api: makeFakeApi(controller) };
 
 // store 模块在其 import 的瞬间读 window.api——上面的 stub 必须先就位
@@ -103,6 +124,8 @@ function resetStore(): void {
 beforeEach(() => {
   controller.forkEnvelope = undefined;
   controller.forkRequests = [];
+  controller.promptForkEnvelope = undefined;
+  controller.promptForkRequests = [];
   controller.listCalls = 0;
   resetStore();
 });
@@ -154,6 +177,62 @@ describe("store：runs:fork 流转（tasks 6.1）", () => {
     expect(useAppStore.getState().forking).toBe("idle");
     expect(useAppStore.getState().forkError).toBeNull();
     expect(useAppStore.getState().forkErrorCode).toBeNull();
+  });
+});
+
+describe("store：runs:promptFork 流转（add-prompt-replay）", () => {
+  it("成功：in_progress → success，列表刷新并自动选中新 run", async () => {
+    await useAppStore.getState().loadRuns();
+
+    const okFork = await useAppStore
+      .getState()
+      .promptFork("r_01", { field: "system_prompt", value: "新的 system prompt" });
+    expect(okFork).toBe(true);
+
+    const state = useAppStore.getState();
+    expect(state.forking).toBe("success");
+    expect(state.forkError).toBeNull();
+    expect(controller.promptForkRequests).toEqual([
+      { parentRunId: "r_01", field: "system_prompt", value: "新的 system prompt" },
+    ]);
+    expect(controller.listCalls).toBeGreaterThanOrEqual(2);
+    expect(state.selectedRunId).toBe("run_prompt_forked");
+    expect(state.detail).not.toBeNull();
+  });
+
+  it("失败：error 状态保留信封错误与错误码，不刷新出伪 run", async () => {
+    controller.promptForkEnvelope = {
+      ok: false,
+      error: {
+        code: "PROMPT_FORK_NO_SYSTEM",
+        message: "父 run 首次 llm.call 不含字符串形式的 system 消息，prompt fork 不可用",
+      },
+    };
+    await useAppStore.getState().loadRuns();
+    const okFork = await useAppStore
+      .getState()
+      .promptFork("r_01", { field: "user_message", value: "新指令" });
+    expect(okFork).toBe(false);
+
+    const state = useAppStore.getState();
+    expect(state.forking).toBe("error");
+    expect(state.forkErrorCode).toBe("PROMPT_FORK_NO_SYSTEM");
+    expect(state.forkError).toContain("system 消息");
+    // 不自动选中（失败不产生伪 run）
+    expect(state.selectedRunId).toBeNull();
+    expect(controller.listCalls).toBe(1);
+  });
+
+  it("未配置运行参数的错误码原样透传（SETTINGS_NOT_CONFIGURED）", async () => {
+    controller.promptForkEnvelope = {
+      ok: false,
+      error: { code: "SETTINGS_NOT_CONFIGURED", message: "尚未配置运行参数" },
+    };
+    const okFork = await useAppStore
+      .getState()
+      .promptFork("r_01", { field: "system_prompt", value: "x" });
+    expect(okFork).toBe(false);
+    expect(useAppStore.getState().forkErrorCode).toBe("SETTINGS_NOT_CONFIGURED");
   });
 });
 

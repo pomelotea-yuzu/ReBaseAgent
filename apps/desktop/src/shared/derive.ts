@@ -533,10 +533,17 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+/** prompt fork 字段（system_prompt / user_message）：从头重跑的独立新轨迹，不共享父前缀 */
+export function isPromptForkField(field: string): boolean {
+  return field === "system_prompt" || field === "user_message";
+}
+
 /** 分叉字段 → 中文边标签（只按字段名映射，不推断编辑内容） */
 export function forkEditLabel(field: string): string {
   if (field === "result") return "改 tool_result";
   if (field === "messages") return "改 messages";
+  if (field === "system_prompt") return "改 system prompt";
+  if (field === "user_message") return "改 user message";
   return `改 ${field}`;
 }
 
@@ -609,6 +616,12 @@ export function layoutRunTree(
       const endX = child.x;
       const midX = (startX + endX) / 2;
       const childFork = child.tree.run.fork;
+      // prompt fork 的边标注「从头重跑」，不把 at_span 呈现为普通分叉点
+      const baseLabel = childFork === null ? null : forkEditLabel(childFork.edit_field);
+      const label =
+        childFork !== null && baseLabel !== null && isPromptForkField(childFork.edit_field)
+          ? `${baseLabel} · 从头重跑`
+          : baseLabel;
       edges.push({
         from: node.run.id,
         to: child.tree.run.id,
@@ -617,7 +630,7 @@ export function layoutRunTree(
         )} ${round2(child.centerY)}, ${round2(endX)} ${round2(child.centerY)}`,
         labelX: round2(midX),
         labelY: round2((centerY + child.centerY) / 2 - 6),
-        label: childFork === null ? null : forkEditLabel(childFork.edit_field),
+        label,
         fork: childFork,
       });
     }
