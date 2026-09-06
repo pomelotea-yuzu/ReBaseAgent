@@ -1,7 +1,7 @@
 # llm-proxy Specification
 
 ## Purpose
-TBD - created by archiving change add-llm-recording-proxy. Update Purpose after archive.
+本地 LLM 录制代理：用户把自己的 Agent 应用 base_url 指到 ReBaseAgent 起的本地代理（`127.0.0.1`），key 一字不动，请求透明转发到 upstream 的同时被录成 run——把「看 span」入口的摩擦降到零。并支持「单请求级最小分叉」：编辑 messages 后用暂存 key 重发，让时间旅行在零改造接入的路径上同样成立。key 只在内存暂存、永不落盘。
 
 ## Requirements
 
