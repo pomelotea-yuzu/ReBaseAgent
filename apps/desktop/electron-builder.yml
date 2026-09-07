@@ -16,10 +16,29 @@ directories:
   buildResources: build
 
 # main / preload / renderer 三段产物 + 应用清单；
-# dependencies 由 electron-builder 自动收集，此处不重复声明
+# dependencies 由 electron-builder 自动收集，此处不重复声明。
+#
+# 死重排除（design D7，依据运行时 require 扫描）：main/preload 运行时只外部 require
+# zod / @rebaseagent/* / eventsource-parser；react、monaco、echarts 等 renderer 专属依赖
+# 已由 Vite 完整打进 dist/renderer，asar 内整包只是死重（实测 monaco-editor 92.6MB /
+# echarts 55.6MB / react-dom 7MB），故按包排除，禁止再进打包。
 files:
   - dist/**/*
   - package.json
+  - build/icon.png
+  - "!node_modules/monaco-editor/**"
+  - "!node_modules/echarts/**"
+  - "!node_modules/zrender/**"
+  - "!node_modules/react/**"
+  - "!node_modules/react-dom/**"
+  - "!node_modules/scheduler/**"
+  - "!node_modules/zustand/**"
+  - "!node_modules/marked/**"
+  - "!node_modules/dompurify/**"
+  - "!node_modules/tslib/**"
+  - "!node_modules/state-local/**"
+  - "!node_modules/@monaco-editor/**"
+  - "!node_modules/@types/**"
 
 # 随包附带便携标记：让 portable 版开箱即走便携数据策略
 extraFiles:
@@ -29,12 +48,20 @@ extraFiles:
 asar: true
 compression: maximum
 
+# Electron locale 白名单（design D2）：只保留简体中文与英文回退。
+# builder 原生按此裁剪打包的 Electron locale 资源，不手工删 Chromium DLL/pak/snapshot/license。
+electronLanguages:
+  - zh-CN
+  - en-US
+
 # 依赖全为纯 JS（react / monaco / echarts / zod / zustand），无 native 模块需要重编。
 # 关掉 rebuild 既提速，也规避 pnpm symlink 布局下 npm rebuild 失败的问题。
 npmRebuild: false
 buildDependenciesFromSource: false
 
 win:
+  # 品牌图标源图：既有 getOrConvertIcon("ico") 链转 Windows 多尺寸图标写入 exe（design D4）
+  icon: build/icon.png
   target: portable
   artifactName: ReBaseAgent-${version}-win-x64-portable.${ext}
 

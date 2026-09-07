@@ -4,10 +4,11 @@ import { join } from "node:path";
 /**
  * 数据目录解析。便携优先：数据只落在数据目录内，永不写 AppData / 用户主目录 / 注册表。
  *
- * 三条路径（见 design D2）：
+ * 三条路径（见 design D2 / D3）：
  * 1. 开发模式 → 仓库根 `.rebaseagent/`
- * 2. 打包 + exe 旁 `portable.marker` → `<exe 目录>/data`
- * 3. 打包 + 无 marker → 读 exe 旁的 `data-dir.json` 指针；再没有则需要用户选择
+ * 2. 打包 + `PORTABLE_EXECUTABLE_DIR`（单文件 portable）→ `<用户双击 exe 目录>/data`
+ * 3. 打包 + exe 旁 `portable.marker`（unpacked portable）→ `<exe 目录>/data`
+ * 4. 打包 + 无任何 portable 信号 → 读 exe 旁的 `data-dir.json` 指针；再没有则需要用户选择
  *
  * **portable exe 的陷阱**：单文件 portable 版运行时会先把应用解压到系统临时目录再启动，
  * 因此 `app.getPath("exe")` 指向的是临时目录（退出即被清理），而不是用户双击的那个 exe。
@@ -21,6 +22,9 @@ export const POINTER_FILE = "data-dir.json";
 export const DEV_DIR_NAME = ".rebaseagent";
 export const PORTABLE_DIR_NAME = "data";
 export const TRACES_DIR_NAME = "traces";
+/** Electron 运行时路径在便携数据目录下的子目录名（见 D3 pre-ready 锚定）。 */
+export const USER_DATA_DIR_NAME = "userData";
+export const SESSION_DATA_DIR_NAME = "sessionData";
 
 export type DataDirResult = { kind: "resolved"; dir: string } | { kind: "needs-selection" };
 
@@ -31,13 +35,53 @@ export interface DataDirOptions {
   exeDir: string;
   /**
    * portable 版的用户可见目录，取自环境变量 `PORTABLE_EXECUTABLE_DIR`。
-   * 仅单文件 portable 版存在；存在时优先于 exeDir 作为锚点。
+   * 仅单文件 portable 版存在；存在时本身即 portable 身份（不再要求外层 marker）。
    */
   portableExeDir?: string | undefined;
   /** 开发模式的仓库根目录 */
   devDir: string;
   /** 可选的 fs 注入（测试用） */
   fs?: Pick<typeof import("node:fs"), "existsSync" | "readFileSync">;
+}
+
+export interface PortableIdentity {
+  isPortable: true;
+  /** 数据目录锚点（portable 信号的 exe 同级目录） */
+  anchorDir: string;
+}
+
+/**
+ * 派生 portable 身份（纯函数，覆盖三态，见 design D3）：
+ * - `PORTABLE_EXECUTABLE_DIR` 存在 → 单文件 portable，锚点 = 该目录（无需检查 marker）；
+ * - 否则打包且实际 exe 旁存在 `portable.marker` → unpacked portable，锚点 = exe 目录；
+ * - 否则返回 null → 走指针 / 用户选择流程。
+ */
+export function derivePortableIdentity(
+  options: Pick<DataDirOptions, "packaged" | "exeDir" | "portableExeDir" | "fs">,
+): PortableIdentity | null {
+  const fs = options.fs ?? { existsSync };
+  if (options.portableExeDir !== undefined) {
+    return { isPortable: true, anchorDir: options.portableExeDir };
+  }
+  if (options.packaged && fs.existsSync(join(options.exeDir, MARKER_FILE))) {
+    return { isPortable: true, anchorDir: options.exeDir };
+  }
+  return null;
+}
+
+/**
+ * 便携数据目录下的 Electron 运行时子路径（纯函数）：
+ * userData / sessionData 默认落在 AppData，pre-ready 时须锚定到便携数据目录内，
+ * 保证产品数据不出 exe 同级 `data/`（见 main 的 initializePortablePaths）。
+ */
+export function portableRuntimePaths(anchorDir: string): {
+  userData: string;
+  sessionData: string;
+} {
+  return {
+    userData: join(anchorDir, PORTABLE_DIR_NAME, USER_DATA_DIR_NAME),
+    sessionData: join(anchorDir, PORTABLE_DIR_NAME, SESSION_DATA_DIR_NAME),
+  };
 }
 
 /**
@@ -59,6 +103,12 @@ export function resolveDataDir(options: DataDirOptions): DataDirResult {
   }
 
   const anchorDir = resolveAnchorDir(options);
+
+  // D3：PORTABLE_EXECUTABLE_DIR 本身就是单文件 portable 的可靠身份（外层只有 exe，
+  // 没有 marker / 指针），无需再检查外层 portable.marker。
+  if (options.portableExeDir !== undefined) {
+    return { kind: "resolved", dir: join(anchorDir, PORTABLE_DIR_NAME) };
+  }
 
   if (fs.existsSync(join(anchorDir, MARKER_FILE))) {
     return { kind: "resolved", dir: join(anchorDir, PORTABLE_DIR_NAME) };

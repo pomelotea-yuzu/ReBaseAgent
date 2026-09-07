@@ -27,6 +27,7 @@
       "**/node_modules/**",
       "**/.pnpm-store/**",
       "**/.rebaseagent/**",
+      "**/.workbuddy/**",
       "**/*.timestamp-*.mjs",
       "**/electron.vite.config.*.mjs"
     ]

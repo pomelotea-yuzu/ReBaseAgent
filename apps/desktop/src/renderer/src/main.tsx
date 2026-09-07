@@ -1,13 +1,10 @@
-import { loader } from "@monaco-editor/react";
-import * as monaco from "monaco-editor";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
-
-// Monaco 离线自托管：显式指向本地打包的 monaco，避免 @monaco-editor/react 默认从 CDN 拉取
-// （本地优先、数据不出机器；无网可编辑）。需在任何 <Editor> 渲染前配置一次。
-loader.config({ monaco });
+// Monaco 离线自托管（design D1）：显式 ESM 入口 + 按需 worker，避免全量打包与 CDN 依赖。
+// 副作用导入即完成 loader 配置与 MonacoEnvironment 装配，须在任何 <Editor> 渲染前生效。
+import "./monaco-bootstrap";
 
 const container = document.getElementById("root");
 if (container === null) {

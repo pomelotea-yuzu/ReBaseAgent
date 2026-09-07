@@ -58,9 +58,7 @@ function KeyValue({ items }: { items: Array<[string, string]> }) {
 }
 
 /** 从请求消息中取首条字符串 system / user 消息内容（与 replay 层定位规则同源） */
-function startupContents(
-  messages: ReadonlyArray<{ role: unknown; content?: unknown }>,
-): {
+function startupContents(messages: ReadonlyArray<{ role: unknown; content?: unknown }>): {
   system: string | null;
   user: string | null;
 } {

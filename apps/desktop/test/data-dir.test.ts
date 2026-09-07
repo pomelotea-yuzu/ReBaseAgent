@@ -4,6 +4,11 @@ import {
   type DataDirOptions,
   MARKER_FILE,
   POINTER_FILE,
+  PORTABLE_DIR_NAME,
+  SESSION_DATA_DIR_NAME,
+  USER_DATA_DIR_NAME,
+  derivePortableIdentity,
+  portableRuntimePaths,
   resolveAnchorDir,
   resolveDataDir,
 } from "../src/main/data-dir";
@@ -89,7 +94,7 @@ describe("resolveDataDir：portable exe 锚点回落", () => {
     expect(result).toEqual({ kind: "resolved", dir: join(userDir, "data") });
   });
 
-  it("指针文件也只在用户目录查找", () => {
+  it("单文件 portable：有 PORTABLE_EXECUTABLE_DIR 时不读指针（portable 身份即 resolved，见 D3）", () => {
     const target = join("E:", "my-traces");
     const fs = fakeFs({ [join(userDir, POINTER_FILE)]: JSON.stringify({ dataDir: target }) });
     const result = resolveDataDir({
@@ -99,13 +104,97 @@ describe("resolveDataDir：portable exe 锚点回落", () => {
       packaged: true,
       fs,
     });
-    expect(result).toEqual({ kind: "resolved", dir: target });
+    expect(result).toEqual({ kind: "resolved", dir: join(userDir, "data") });
   });
 
   it("无 PORTABLE_EXECUTABLE_DIR（普通安装版）时行为不变", () => {
     const fs = fakeFs({ [join(exeDir, MARKER_FILE)]: "" });
     const result = resolveDataDir({ devDir, exeDir, packaged: true, fs });
     expect(result).toEqual({ kind: "resolved", dir: join(exeDir, "data") });
+  });
+
+  it("单文件 portable：外层只有 exe（无任何 marker/指针）→ 直接解析为 <用户目录>/data", () => {
+    // D3：PORTABLE_EXECUTABLE_DIR 本身就是可靠身份，不再要求外层 marker
+    const fs = fakeFs({});
+    const result = resolveDataDir({
+      devDir,
+      exeDir: tempExeDir,
+      portableExeDir: userDir,
+      packaged: true,
+      fs,
+    });
+    expect(result).toEqual({ kind: "resolved", dir: join(userDir, "data") });
+  });
+
+  it("单文件 portable：临时解压目录有 marker 但外层没有 → 以外层为准", () => {
+    const fs = fakeFs({ [join(tempExeDir, MARKER_FILE)]: "" });
+    const result = resolveDataDir({
+      devDir,
+      exeDir: tempExeDir,
+      portableExeDir: userDir,
+      packaged: true,
+      fs,
+    });
+    expect(result).toEqual({ kind: "resolved", dir: join(userDir, "data") });
+  });
+});
+
+describe("derivePortableIdentity：环境变量 / marker / 非 portable 三态", () => {
+  const tempExeDir = join("C:", "Temp", "nsxA2C0.tmp"); // 临时解压目录
+  const userDir = join("D:", "portable"); // PORTABLE_EXECUTABLE_DIR
+
+  it("有 PORTABLE_EXECUTABLE_DIR → 单文件 portable，锚点 = 该目录（忽略 exe 目录与 marker）", () => {
+    expect(
+      derivePortableIdentity({
+        packaged: true,
+        exeDir: tempExeDir,
+        portableExeDir: userDir,
+        fs: fakeFs({}),
+      }),
+    ).toEqual({ isPortable: true, anchorDir: userDir });
+  });
+
+  it("无环境变量但 exe 旁有 marker → unpacked portable，锚点 = exe 目录", () => {
+    expect(
+      derivePortableIdentity({
+        packaged: true,
+        exeDir,
+        portableExeDir: undefined,
+        fs: fakeFs({ [join(exeDir, MARKER_FILE)]: "" }),
+      }),
+    ).toEqual({ isPortable: true, anchorDir: exeDir });
+  });
+
+  it("无环境变量且 exe 旁无 marker → 非 portable（返回 null，走指针/选择流程）", () => {
+    expect(
+      derivePortableIdentity({
+        packaged: true,
+        exeDir,
+        portableExeDir: undefined,
+        fs: fakeFs({}),
+      }),
+    ).toBeNull();
+  });
+
+  it("开发模式无 marker 也非 portable", () => {
+    expect(
+      derivePortableIdentity({
+        packaged: false,
+        exeDir,
+        portableExeDir: undefined,
+        fs: fakeFs({}),
+      }),
+    ).toBeNull();
+  });
+});
+
+describe("portableRuntimePaths：pre-ready 锚定子目录", () => {
+  const userDir = join("D:", "portable");
+
+  it("userData / sessionData 落在 <锚点>/data/ 下明确子目录", () => {
+    const paths = portableRuntimePaths(userDir);
+    expect(paths.userData).toBe(join(userDir, PORTABLE_DIR_NAME, USER_DATA_DIR_NAME));
+    expect(paths.sessionData).toBe(join(userDir, PORTABLE_DIR_NAME, SESSION_DATA_DIR_NAME));
   });
 });
 

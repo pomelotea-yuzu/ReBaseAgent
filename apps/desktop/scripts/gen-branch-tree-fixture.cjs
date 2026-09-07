@@ -123,7 +123,8 @@ function main() {
     }
   }
 
-  const t = (minute, second) => `2026-09-06T09:${String(minute).padStart(2, "0")}:${String(second).padStart(2, "0")}.000Z`;
+  const t = (minute, second) =>
+    `2026-09-06T09:${String(minute).padStart(2, "0")}:${String(second).padStart(2, "0")}.000Z`;
 
   // 根：2 步（step1 含 read_file 工具 = s_03，step2 收尾）
   writeRun(dir, {

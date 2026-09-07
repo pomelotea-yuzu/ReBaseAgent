@@ -1,6 +1,15 @@
+import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { BrowserWindow, app, dialog, safeStorage } from "electron";
-import { ensureTracesDir, resolveAnchorDir, resolveDataDir, saveDataDirPointer } from "./data-dir";
+import { resolveAppIconPath } from "./app-icon";
+import {
+  derivePortableIdentity,
+  ensureTracesDir,
+  portableRuntimePaths,
+  resolveAnchorDir,
+  resolveDataDir,
+  saveDataDirPointer,
+} from "./data-dir";
 import { registerIpc } from "./ipc";
 import { ProxyManager } from "./proxy-manager";
 import { RunRepository } from "./run-repository";
@@ -22,6 +31,31 @@ if (process.env.NO_SANDBOX === "1" || process.env.NO_SANDBOX === "true") {
   app.commandLine.appendSwitch("no-sandbox");
 }
 
+/**
+ * pre-ready 便携路径初始化（design D3）：
+ * 必须在 app.whenReady() 和任何 session / BrowserWindow 创建之前执行。
+ * 单文件 portable 由 electron-builder 注入的 PORTABLE_EXECUTABLE_DIR 识别；
+ * unpacked 便携则由实际 exe 旁的 portable.marker 识别。
+ * 任一信号成立时，把默认落入 AppData 的 userData / sessionData 锚定到
+ * 便携数据目录下的明确子目录，保证产品数据不出 exe 同级 data/。
+ * 普通 packaged（无 portable 信号）保持既有指针 / 选择流程，此处不动作。
+ */
+function initializePortablePaths(): void {
+  const identity = derivePortableIdentity({
+    portableExeDir: process.env.PORTABLE_EXECUTABLE_DIR,
+    exeDir: dirname(app.getPath("exe")),
+    packaged: app.isPackaged,
+  });
+  if (identity === null) return;
+  const { userData, sessionData } = portableRuntimePaths(identity.anchorDir);
+  mkdirSync(userData, { recursive: true });
+  mkdirSync(sessionData, { recursive: true });
+  app.setPath("userData", userData);
+  app.setPath("sessionData", sessionData);
+}
+
+initializePortablePaths();
+
 /** 开发模式下的仓库根（apps/desktop 的上两级） */
 function repoRoot(): string {
   return resolve(app.getAppPath(), "..", "..");
@@ -34,6 +68,8 @@ function createWindow(): void {
     width: 1360,
     height: 860,
     title: "ReBaseAgent",
+    // 品牌图标：开发态与打包态同路径解析（build/icon.png 随 asar 打包）
+    icon: resolveAppIconPath(app.getAppPath()),
     webPreferences: {
       // main 产物为 CJS，__dirname 直接可用；preload 强制输出为 index.cjs
       preload: resolve(__dirname, "../preload/index.cjs"),

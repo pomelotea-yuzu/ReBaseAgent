@@ -4,13 +4,13 @@
 > 本地运行，数据不出你的机器。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Release](https://img.shields.io/badge/Release-v0.1.0-green.svg)](https://github.com/pomelotea-yuzu/ReBaseAgent/releases)
+[![Release](https://img.shields.io/badge/Release-v0.2.0-green.svg)](https://github.com/pomelotea-yuzu/ReBaseAgent/releases)
 
 ## 下载
 
-**Windows x64 便携版（108 MB，免安装）** → [Releases](https://github.com/pomelotea-yuzu/ReBaseAgent/releases)
+**Windows x64 便携版（约 94 MB，<100 MB，免安装）** → [Releases](https://github.com/pomelotea-yuzu/ReBaseAgent/releases)
 
-双击即用，不需要安装。所有数据写在 exe 旁的 `data/` 目录——**不写 AppData、不碰注册表、不留临时文件**。整个文件夹拷进 U 盘就能带走。
+实测单文件体积 `94,316,503` bytes，低于 Gitee 单附件 100 MB 上限（v0.1.0 仍保留可回滚）。双击即用，不需要安装。所有数据写在 exe 旁的 `data/` 目录——**不写 AppData、不碰注册表、不留临时文件**。整个文件夹拷进 U 盘就能带走。
 
 > 首次运行会有 Windows SmartScreen 的"未知发布者"提示（本项目尚未购买代码签名证书），点「更多信息 → 仍要运行」即可。
 
@@ -27,7 +27,7 @@ ReBaseAgent 是给"上下文"这门语言的调试器：
 | 回归测试 | Trace-as-Test 轨迹回放 |
 | git diff | 两次运行的分叉点定位 |
 
-## 它现在能做什么（v0.1.0）
+## 它现在能做什么（v0.2.0）
 
 - **span 时间线** — 逐步查看每一次迭代、每一次 LLM 调用、每一次工具执行，以及模型当时实际看到的完整上下文
 - **上下文预算地图** — token 花在哪了，按消息与工具分布可视化
@@ -111,12 +111,11 @@ DeepSeek / GLM / Qwen / Kimi 等 OpenAI 兼容端点开箱即用。
 - prompt fork **从头计费**：启动上下文变了前缀天然不复用，不承诺命中父 run 的 prompt cache（是否命中由 provider 自行决定）
 - 代理录制的 run 没有 `config_hash`，不能作为 prompt fork / tool_result 重跑的父本，只能走"编辑 messages 重发"
 - 带副作用的工具默认**不真重跑**：replay 是 world-free 重放，把录下的结果喂回模型，trace 内自洽。外部状态源（RAG / 记忆 / 数据库）不承诺回退
-- 应用图标仍是 Electron 默认图标
 
 ## 路线图
 
 - ✅ **v0.1.0（MVP）** — span 时间线 · 上下文预算地图 · 时间旅行最小切片 · trace 格式 v1 · Agent 执行引擎
-- 🚧 **v2** — 本地 LLM 录制代理 ✅ · 分支树 UI ✅ · 改 prompt 重跑（prompt fork）✅ · 多分支对照 ✅ · 体积瘦身
+- ✅ **v0.2.0（v2 完成）** — 本地 LLM 录制代理 · 分支树 UI · 改 prompt 重跑（prompt fork）· 多分支对照 · 体积瘦身与发行收口（<100 MB 便携版 + 品牌图标）
 - 📋 **v3** — Trace-as-Test 进 CI · 模型 A/B（同前缀分支换模型）
 
 ## 架构
