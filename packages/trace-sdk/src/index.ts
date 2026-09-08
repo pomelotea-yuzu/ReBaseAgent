@@ -43,6 +43,8 @@ export {
   type EndSpanPatch,
 } from "./tracer.js";
 export { JsonlTracer } from "./jsonl-tracer.js";
+export { MemoryTracer } from "./memory-tracer.js";
+export { toSemanticOrder } from "./semantic-order.js";
 export { readRun, parseRunText, TraceReadError } from "./reader.js";
 export type { RunRecord } from "./reader.js";
 export { resolveBranch } from "./branch.js";

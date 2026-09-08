@@ -161,6 +161,28 @@ importers:
         specifier: ^2.1.0
         version: 2.1.9(@types/node@20.19.43)(lightningcss@1.32.0)
 
+  packages/trace-test:
+    dependencies:
+      '@rebaseagent/agent-loop':
+        specifier: workspace:*
+        version: link:../agent-loop
+      '@rebaseagent/trace-sdk':
+        specifier: workspace:*
+        version: link:../trace-sdk
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
+    devDependencies:
+      '@types/node':
+        specifier: ^20.14.0
+        version: 20.19.43
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@20.19.43)(lightningcss@1.32.0)
+
 packages:
 
   '@babel/code-frame@7.29.7':

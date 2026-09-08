@@ -1,0 +1,30 @@
+{
+  "name": "@rebaseagent/trace-test",
+  "version": "0.1.0",
+  "description": "Trace-as-Test：把已封存 trace 当卡带，用当前 agent-loop 与当前工具声明做 headless 运行时回归测试（零网络、零 API、零落盘）",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@rebaseagent/agent-loop": "workspace:*",
+    "@rebaseagent/trace-sdk": "workspace:*",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}
