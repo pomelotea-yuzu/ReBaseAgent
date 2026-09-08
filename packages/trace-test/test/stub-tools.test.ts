@@ -113,7 +113,8 @@ describe("StubToolTable", () => {
     expect(stubs.argsDrift).toHaveLength(1);
     expect(stubs.argsDrift[0].tool).toBe("write_file");
     expect(stubs.argsDrift[0].sequence).toBe(1);
-    expect(stubs.argsDrift[0].detail).toContain("extra");
+    expect(stubs.argsDrift[0].currentArgs).toEqual({ path: "b.json" });
+    expect(stubs.argsDrift[0].recordedArgs).toEqual({ path: "b.json", extra: { nested: 1 } });
   });
 
   it("录制 result 非字符串时以 JSON 序列化返回（容错代理/手工 trace）", async () => {

@@ -7,7 +7,10 @@ export interface ArgsDrift {
   tool: string;
   /** 该工具的第 n 次调用（1 起） */
   sequence: number;
-  detail: string;
+  /** 录制 args（报告层按定义的 redact 规则格式化） */
+  recordedArgs: unknown;
+  /** 当前 args */
+  currentArgs: unknown;
 }
 
 /**
@@ -111,7 +114,8 @@ export class StubToolTable {
       this.argsDrift.push({
         tool: toolName,
         sequence,
-        detail: `第 ${sequence} 次调用的 args 形状与录制不同：录制=${JSON.stringify(span.args)}，当前=${JSON.stringify(args)}`,
+        recordedArgs: span.args,
+        currentArgs: args,
       });
     }
 
