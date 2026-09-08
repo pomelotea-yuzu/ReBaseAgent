@@ -36,6 +36,7 @@ ReBaseAgent 是给"上下文"这门语言的调试器：
 - **分支轨迹** — 从已完成的 run 分叉，只记录新增 span，前缀按 parent 链共享
 - **prompt fork（完整时间旅行）** — 改启动上下文（system prompt 或首条 user message）后**从头重跑**：独立记录完整新轨迹，父 run 只作溯源对照；分支树标注「从头重跑」，多分支对照可并排比较新旧行为
 - **本地 LLM 录制代理** — 在你的应用里把 `base_url` 改成本地代理地址即可录制与"编辑 messages 重发"，key 一字不动
+- **Trace-as-Test（V3a）** — 已封存 trace 当卡带，用你当前的 agent-loop 与工具声明本地重跑：零 API 消耗的 Agent 运行时回归测试，可进 CI（见 [`packages/trace-test`](packages/trace-test)）
 
 时间旅行的实现方式：
 
@@ -116,7 +117,8 @@ DeepSeek / GLM / Qwen / Kimi 等 OpenAI 兼容端点开箱即用。
 
 - ✅ **v0.1.0（MVP）** — span 时间线 · 上下文预算地图 · 时间旅行最小切片 · trace 格式 v1 · Agent 执行引擎
 - ✅ **v0.2.0（v2 完成）** — 本地 LLM 录制代理 · 分支树 UI · 改 prompt 重跑（prompt fork）· 多分支对照 · 体积瘦身与发行收口（<100 MB 便携版 + 品牌图标）
-- 📋 **v3** — Trace-as-Test 进 CI · 模型 A/B（同前缀分支换模型）
+- ✅ **V3a（Trace-as-Test）** — 卡带重跑运行时回归测试 · 断言 DSL · runner API + CLI · 退出码 0/1/2
+- 📋 **V3b** — 模型 A/B / 分支实验（同前缀换模型，复用 V3a 执行内核）
 
 ## 架构
 
@@ -125,6 +127,7 @@ packages/
   agent-loop   Agent 执行引擎（纯 TS，零 Electron 依赖，headless 可用）
   trace-sdk    span 埋点 API + trace 格式 v1 定义
   replay       回放编排器 + 沙箱管理器（CI 可用）
+  trace-test   Trace-as-Test：卡带重跑运行时回归测试（零网络 / 零落盘，CI 可用）
 apps/
   desktop      Electron 桌面调试台（唯一依赖 Electron 的包，可替换）
 ```

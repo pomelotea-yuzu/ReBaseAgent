@@ -16,4 +16,4 @@
 - [x] 3.3 提供基线更新路径（重新录制或 `--update-baseline`），禁止失败时静默覆盖测试资产。
 - [x] 4.1 使用 normal、tool-error、infinite-loop、代理 run fixture 覆盖通过、结构漂移、配置漂移和拒绝路径。
 - [x] 4.2 运行包级测试、Biome、TypeScript 检查和 OpenSpec strict 校验。
-- [ ] 4.3 更新 README/HANDOFF：定位为运行时回归测试，加入隐私警告、集成方式和 V3a/V3b 路线。
+- [x] 4.3 更新 README/HANDOFF：定位为运行时回归测试，加入隐私警告、集成方式和 V3a/V3b 路线。
