@@ -1,9 +1,11 @@
 import { Editor } from "@monaco-editor/react";
 import type { SpanLine } from "@rebaseagent/trace-sdk";
 import { forkEditLabel, isPromptForkField, spanDurationMs } from "@shared/derive";
-import type { RunDetail } from "@shared/ipc";
+import type { ModelAbResult, RunDetail } from "@shared/ipc";
 import { useMemo, useState } from "react";
 import { formatDuration, prettyJson } from "../lib/format";
+import { modelAbGuard, riskyToolNames } from "../lib/model-ab";
+import type { ArmDraft } from "../lib/model-ab";
 import { promptForkGuard } from "../lib/prompt-fork";
 import type { PromptForkField } from "../lib/prompt-fork";
 import { useAppStore } from "../store";
@@ -281,6 +283,312 @@ function PromptForkEditor({
   );
 }
 
+/** 父 run 录制 params 中的数值子集（A/B 的"沿用父值"与空实验判据） */
+function numericRequestParams(raw: unknown): Record<string, number> {
+  if (typeof raw !== "object" || raw === null) return {};
+  const out: Record<string, number> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof value === "number" && Number.isFinite(value)) out[key] = value;
+  }
+  return out;
+}
+
+let armKeySeq = 0;
+/** 草稿行的稳定 React key */
+function newArmKey(): string {
+  armKeySeq += 1;
+  return `arm-${armKeySeq}`;
+}
+
+/**
+ * 模型 A/B 实验编辑器（runs:modelAb 写通道）：
+ * 同一启动上下文跑 2+ 臂（model / params 组合），先 dry-run 出计划再真实执行。
+ * 一次调用 = 一批：每臂独立 run、独立 tracer、独立取消信号；experimentId 由
+ * main 侧生成，各臂 fork.edit 带同一标签供分支树 / 对照面板分组。
+ */
+function ModelAbEditor({
+  span,
+  run,
+}: {
+  span: Extract<SpanLine, { kind: "llm.call" }>;
+  run: RunDetail;
+}) {
+  const modelAbInFlight = useAppStore((s) => s.modelAbInFlight);
+  const modelAbError = useAppStore((s) => s.modelAbError);
+  const modelAbErrorCode = useAppStore((s) => s.modelAbErrorCode);
+  const settings = useAppStore((s) => s.settings);
+  const modelAb = useAppStore((s) => s.modelAb);
+  const resetModelAb = useAppStore((s) => s.resetModelAb);
+
+  const parentModel = span.request.model;
+  const parentParams = useMemo(() => numericRequestParams(span.request.params), [span]);
+  const risky = useMemo(() => riskyToolNames(span.request.tools), [span]);
+
+  const [open, setOpen] = useState(false);
+  /** 草稿行带稳定 key（列表可增删，不能用数组下标做 React key） */
+  const [rows, setRows] = useState<Array<{ key: string; arm: ArmDraft }>>(() => [
+    { key: newArmKey(), arm: { model: parentModel, paramsText: "" } },
+    { key: newArmKey(), arm: { model: parentModel, paramsText: "" } },
+  ]);
+  const arms = rows.map((row) => row.arm);
+  const [allowSideEffects, setAllowSideEffects] = useState(false);
+  const [plan, setPlan] = useState<ModelAbResult | null>(null);
+  const [executed, setExecuted] = useState<ModelAbResult | null>(null);
+
+  const inProgress = modelAbInFlight;
+
+  const guard = modelAbGuard({
+    settingsConfigured: settings?.configured === true,
+    parentModel,
+    parentParams,
+    riskyTools: risky,
+    allowSideEffects,
+    arms,
+  });
+
+  const updateArm = (index: number, patch: Partial<ArmDraft>): void => {
+    setRows(rows.map((row, i) => (i === index ? { ...row, arm: { ...row.arm, ...patch } } : row)));
+    setPlan(null);
+  };
+
+  if (!open) {
+    return (
+      <div className="border-t border-sky-100 px-4 py-2">
+        <button
+          type="button"
+          onClick={() => {
+            resetModelAb();
+            setExecuted(null);
+            setPlan(null);
+            setOpen(true);
+          }}
+          disabled={inProgress}
+          className="rounded bg-sky-600 px-2 py-1 text-[11px] text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          模型 A/B 实验（换 model / params 对比）
+        </button>
+        <div className="mt-1 text-[11px] text-gray-400">
+          用同一启动上下文跑至少两个臂（model / 采样参数组合），先出计划预览，确认后真实执行。
+        </div>
+      </div>
+    );
+  }
+
+  const doPreview = (): void => {
+    if (!guard.canSubmit) return;
+    setExecuted(null);
+    void modelAb(run.meta.id, guard.arms, true).then((result) => {
+      if (result !== null) setPlan(result);
+    });
+  };
+
+  const doExecute = (): void => {
+    if (!guard.canSubmit || plan === null) return;
+    const summary = plan.plan
+      .map(
+        (arm) =>
+          `臂 ${arm.index + 1}：${arm.model}${Object.keys(arm.params).length > 0 ? ` ${JSON.stringify(arm.params)}` : ""}`,
+      )
+      .join("\n");
+    const confirmed = window.confirm(
+      `确认执行模型 A/B 实验？\n\n· 将按 ${plan.plan.length} 个臂真实调用 ${settings?.baseURL ?? "provider"} 并产生费用\n· 各臂顺序执行，单臂失败不影响其它臂\n${summary}\n${
+        plan.sideEffectsAllowed
+          ? "· ⚠ 含副作用的工具将被真实执行：外部状态可能已被前一臂改变\n"
+          : ""
+      }· 父 run 只作对照，不会被修改`,
+    );
+    if (!confirmed) return;
+    void modelAb(run.meta.id, guard.arms, false).then((result) => {
+      if (result !== null) setExecuted(result);
+    });
+  };
+
+  return (
+    <div className="border-t border-sky-100 bg-sky-50/60 px-4 py-3">
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-[11px] font-semibold text-sky-900">
+          模型 A/B 实验 · 同上下文多臂对比
+        </span>
+        <button
+          type="button"
+          onClick={() => {
+            resetModelAb();
+            setOpen(false);
+          }}
+          disabled={inProgress}
+          className="rounded border border-gray-300 px-2 py-0.5 text-[11px] text-gray-600 hover:bg-gray-50 disabled:opacity-40"
+        >
+          收起
+        </button>
+      </div>
+
+      <div className="space-y-2">
+        {rows.map(({ key, arm }, index) => (
+          <div key={key} className="rounded border border-sky-200 bg-white px-2 py-1.5">
+            <div className="mb-1 flex items-center gap-2">
+              <span className="text-[10px] font-semibold text-sky-800">臂 {index + 1}</span>
+              <input
+                type="text"
+                value={arm.model}
+                onChange={(e) => updateArm(index, { model: e.target.value })}
+                placeholder="model 名"
+                disabled={inProgress}
+                className="min-w-0 flex-1 rounded border border-gray-300 px-1.5 py-0.5 font-code text-[11px] focus:border-sky-400 focus:outline-none"
+              />
+              {rows.length > 2 ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRows(rows.filter((_, i) => i !== index));
+                    setPlan(null);
+                  }}
+                  disabled={inProgress}
+                  className="rounded px-1 text-[11px] text-gray-400 hover:bg-gray-100 disabled:opacity-40"
+                  title="移除该臂"
+                >
+                  ✕
+                </button>
+              ) : null}
+            </div>
+            <input
+              type="text"
+              value={arm.paramsText}
+              onChange={(e) => updateArm(index, { paramsText: e.target.value })}
+              placeholder={`采样参数 JSON（留空 = 沿用父 run：${
+                Object.keys(parentParams).length > 0 ? JSON.stringify(parentParams) : "无"
+              }）`}
+              disabled={inProgress}
+              className="w-full rounded border border-gray-300 px-1.5 py-0.5 font-code text-[11px] focus:border-sky-400 focus:outline-none"
+            />
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-2 flex items-center gap-2">
+        {rows.length < 4 ? (
+          <button
+            type="button"
+            onClick={() => {
+              setRows([...rows, { key: newArmKey(), arm: { model: parentModel, paramsText: "" } }]);
+              setPlan(null);
+            }}
+            disabled={inProgress}
+            className="rounded border border-sky-300 px-2 py-0.5 text-[11px] text-sky-700 hover:bg-sky-100 disabled:opacity-40"
+          >
+            + 加一臂（最多 4）
+          </button>
+        ) : null}
+        <span className="text-[11px] text-gray-400">
+          父 run：{parentModel}
+          {Object.keys(parentParams).length > 0 ? ` ${JSON.stringify(parentParams)}` : ""}
+        </span>
+      </div>
+
+      {risky.length > 0 ? (
+        <label className="mt-2 flex items-start gap-1.5 rounded bg-amber-50 px-2 py-1.5 text-[11px] leading-4 text-amber-800">
+          <input
+            type="checkbox"
+            checked={allowSideEffects}
+            onChange={(e) => {
+              setAllowSideEffects(e.target.checked);
+              setPlan(null);
+            }}
+            disabled={inProgress}
+            className="mt-0.5"
+          />
+          <span>
+            ⚠ 工具 {risky.join("、")} 未标记 sideEffect: false。各臂顺序执行时，前一臂的
+            外部副作用会污染后一臂起点，比较结果不可信——确认接受请勾选（将随实验留痕）。
+          </span>
+        </label>
+      ) : null}
+
+      {!guard.canSubmit && guard.reason !== null ? (
+        <div className="mt-2 text-[11px] text-amber-700">{guard.reason}</div>
+      ) : null}
+
+      {modelAbInFlight ? <div className="mt-2 text-[11px] text-sky-600">处理中…</div> : null}
+      {modelAbError !== null ? (
+        <div className="mt-2 text-[11px] text-red-700">
+          {modelAbError}
+          {modelAbErrorCode === "SETTINGS_NOT_CONFIGURED"
+            ? "（请先点击右上角“运行配置”填写 baseURL/apiKey/model）"
+            : ""}
+        </div>
+      ) : null}
+
+      {plan !== null ? (
+        <div className="mt-2 rounded border border-sky-200 bg-white px-2 py-1.5">
+          <div className="mb-1 flex items-center gap-2 text-[10px] text-gray-500">
+            <span className="font-semibold text-sky-800">校验通过 · 执行计划</span>
+            <span className="font-code">实验组 {plan.experimentId}</span>
+          </div>
+          {plan.plan.map((arm) => (
+            <div key={arm.index} className="flex items-baseline gap-2 py-0.5 text-[11px]">
+              <span className="w-8 shrink-0 text-gray-400">臂 {arm.index + 1}</span>
+              <span className="font-code text-gray-800">{arm.model}</span>
+              <span className="font-code text-gray-500">
+                {Object.keys(arm.params).length > 0
+                  ? JSON.stringify(arm.params)
+                  : "（沿用父 params）"}
+              </span>
+              <span className="ml-auto text-[10px] text-gray-400">
+                {arm.changed.length > 0 ? `改变：${arm.changed.join("、")}` : "与父相同"}
+              </span>
+            </div>
+          ))}
+          {plan.sideEffectsAllowed ? (
+            <div className="mt-1 text-[10px] leading-4 text-amber-700">
+              ⚠ 副作用工具将被真实执行（顺序执行，外部状态可能已被前一臂改变）——本次实验将留痕。
+            </div>
+          ) : null}
+          <div className="mt-1 text-[10px] leading-4 text-gray-400">
+            dry-run 不联网、不写文件；真实执行按臂数产生费用。执行后各臂落盘为独立新轨迹。
+          </div>
+        </div>
+      ) : null}
+
+      {executed !== null ? (
+        <div className="mt-2 rounded border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-[11px] leading-4 text-emerald-900">
+          实验完成（实验组 <span className="font-code">{executed.experimentId}</span>）：
+          {executed.ids.length > 0 ? (
+            <span>
+              {" "}
+              成功 {executed.ids.length} 臂
+              {executed.plan.length !== executed.ids.length
+                ? `（共 ${executed.plan.length} 臂，其余失败或被取消——详情见分支树与各 run 轨迹）`
+                : ""}
+              。各臂已落盘，可在分支树按“换 model/params（A/B）”标签找到同批节点。
+            </span>
+          ) : (
+            <span> 所有臂均未成功落盘（见上方错误或 provider 响应）。</span>
+          )}
+        </div>
+      ) : null}
+
+      <div className="mt-2 flex items-center justify-end gap-2">
+        <button
+          type="button"
+          onClick={doPreview}
+          disabled={inProgress || !guard.canSubmit}
+          className="rounded border border-sky-500 px-2 py-1 text-[11px] text-sky-700 hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {plan !== null ? "重新校验" : "校验并预览计划"}
+        </button>
+        <button
+          type="button"
+          onClick={doExecute}
+          disabled={inProgress || !guard.canSubmit || plan === null}
+          className="rounded bg-sky-600 px-3 py-1 text-[11px] text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-40"
+          title={plan === null ? "先校验并预览计划" : undefined}
+        >
+          确认执行（{plan?.plan.length ?? arms.length} 次真实调用）
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /** llm.call 详情：完整请求 + 响应（思维链与正文分区）；代理 run 提供编辑重发 */
 function LlmCallDetail({
   span,
@@ -373,12 +681,17 @@ function LlmCallDetail({
         const firstLlmId = run?.spans.find((s) => s.kind === "llm.call")?.id;
         if (!promptForkable) return null;
         if (firstLlmId === span.id && run !== null) {
-          return <PromptForkEditor key={span.id} span={span} run={run} />;
+          return (
+            <>
+              <PromptForkEditor key={span.id} span={span} run={run} />
+              <ModelAbEditor key={`ab-${span.id}`} span={span} run={run} />
+            </>
+          );
         }
         return (
           <div className="border-t border-gray-100 px-4 py-2 text-[11px] text-gray-400">
-            prompt fork 只从首次 llm.call 的启动上下文出发；打开首次 llm.call（{firstLlmId}
-            ）使用编辑入口。
+            prompt fork 与模型 A/B 只从首次 llm.call 的启动上下文出发；打开首次 llm.call（
+            {firstLlmId}）使用编辑入口。
           </div>
         );
       })()}
@@ -757,6 +1070,37 @@ function BranchNotice() {
     );
   }
 
+  // 模型 A/B 臂：同样是从头重跑的独立新轨迹，额外展示实验组标签
+  if (field === "model_params") {
+    const value = fork.edit.value;
+    const experimentId =
+      typeof value === "object" && value !== null
+        ? (value as { experimentId?: unknown }).experimentId
+        : undefined;
+    const edited =
+      typeof value === "object" && value !== null
+        ? (value as { model?: unknown; params?: unknown })
+        : undefined;
+    return (
+      <div className="border-b border-sky-200 bg-sky-50 px-4 py-2 text-[11px] leading-5 text-sky-900">
+        模型 A/B 实验臂（从头重跑）：本 run 的所有 span 均来自本次完整执行，父 run
+        <span className="font-code"> {parentHop.meta.id} </span>
+        仅作对照——不共享前缀。
+        <br />
+        本臂：<span className="font-code">{String(edited?.model ?? "?")}</span>
+        {edited?.params !== undefined ? (
+          <span className="font-code"> {prettyJson(edited.params)}</span>
+        ) : null}
+        {typeof experimentId === "string" ? (
+          <>
+            {" "}
+            · 实验组 <span className="font-code">{experimentId}</span>（同批臂共享此标签）
+          </>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <div className="border-b border-violet-200 bg-violet-50 px-4 py-2 text-[11px] leading-5 text-violet-900">
       分支 run：
@@ -784,12 +1128,18 @@ function ParentChainList() {
   const isProxy = detail.meta.source?.kind === "proxy";
   const forkField = detail.meta.fork?.edit.field;
   const isPromptFork = typeof forkField === "string" && isPromptForkField(forkField);
-  if (!isProxy && !isPromptFork) return null;
+  // 模型 A/B 臂与 prompt fork 同为"从头重跑"的独立新轨迹，详情只呈现本 run 自身 spans
+  const isModelAb = forkField === "model_params";
+  if (!isProxy && !isPromptFork && !isModelAb) return null;
 
   return (
     <div className="border-b border-sky-200 bg-sky-50 px-4 py-2 text-[11px] leading-5 text-sky-900">
       <div className="mb-1 font-semibold">
-        {isPromptFork ? "分叉链（从头重跑的独立新轨迹）" : "分叉链（单请求级编辑重发）"}
+        {isModelAb
+          ? "分叉链（A/B 实验臂 · 从头重跑的独立新轨迹）"
+          : isPromptFork
+            ? "分叉链（从头重跑的独立新轨迹）"
+            : "分叉链（单请求级编辑重发）"}
       </div>
       <div className="flex flex-wrap items-center gap-1">
         {detail.chain.map((hop, index) => {

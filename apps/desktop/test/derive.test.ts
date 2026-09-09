@@ -93,13 +93,44 @@ describe("deriveRunSummary", () => {
     expect(summary).toMatchObject({ id: "r_02", parent: "r_01", steps: 2, toolCalls: 1 });
   });
 
-  it("分叉摘要只带 at_span 与 edit_field，不带 value", () => {
+  it("分叉摘要只带 at_span、edit_field 与实验组标签，不带 value", () => {
     const summary = deriveRunSummary(loadFixture("branch"));
-    expect(summary.fork).toEqual({ at_span: "s_03", edit_field: "result" });
+    expect(summary.fork).toEqual({
+      at_span: "s_03",
+      edit_field: "result",
+      experiment_id: null,
+    });
   });
 
   it("根 run 的分叉摘要为 null，不臆造", () => {
     expect(deriveRunSummary(loadFixture("normal")).fork).toBeNull();
+  });
+
+  it("model_params 分叉提取实验组标签；其它字段与缺标签恒为 null（add-model-ab-experiments）", () => {
+    const record = loadFixture("branch");
+    const withAb = {
+      ...record,
+      meta: {
+        ...record.meta,
+        fork: {
+          at_span: "s_01",
+          edit: {
+            field: "model_params",
+            value: { model: "m2", params: { temperature: 0.7 }, experimentId: "exp_9" },
+          },
+        },
+      },
+    };
+    expect(deriveRunSummary(withAb).fork?.experiment_id).toBe("exp_9");
+
+    const noTag = {
+      ...withAb,
+      meta: {
+        ...withAb.meta,
+        fork: { at_span: "s_01", edit: { field: "model_params", value: { model: "m2" } } },
+      },
+    };
+    expect(deriveRunSummary(noTag).fork?.experiment_id).toBeNull();
   });
 });
 
@@ -136,8 +167,12 @@ function makeRun(
   };
 }
 
-function asFork(atSpan: string, field = "result"): RunSummary["fork"] {
-  return { at_span: atSpan, edit_field: field };
+function asFork(
+  atSpan: string,
+  field = "result",
+  experimentId: string | null = null,
+): RunSummary["fork"] {
+  return { at_span: atSpan, edit_field: field, experiment_id: experimentId };
 }
 
 describe("buildRunForest", () => {
@@ -431,6 +466,29 @@ describe("layoutRunTree", () => {
     expect(labelOf("P2")).toBe("改 user message · 从头重跑");
     // 既有 result 边标签保持不变
     expect(labelOf("B1")).toBe("改 tool_result");
+  });
+
+  it("模型 A/B 臂：边标签为「换 model/params（A/B）」，同批臂共享 experimentId（add-model-ab-experiments）", () => {
+    const runs = [
+      makeRun("A", null),
+      makeRun("AB1", "A", { fork: asFork("s_01", "model_params", "exp_x") }),
+      makeRun("AB2", "A", { fork: asFork("s_01", "model_params", "exp_x") }),
+      makeRun("OTHER", "A", { fork: asFork("s_01", "model_params", "exp_y") }),
+    ];
+    const { edges } = layoutRunTree(buildRunForest(runs));
+    const labelOf = (to: string): string | null =>
+      edges.find((edge) => edge.to === to)?.label ?? null;
+
+    expect(labelOf("AB1")).toBe("换 model/params（A/B）");
+    expect(labelOf("AB2")).toBe("换 model/params（A/B）");
+    expect(labelOf("OTHER")).toBe("换 model/params（A/B）");
+
+    // 同批臂在摘要层共享同一 experiment_id，供对照面板分组；不同批互异
+    const byId = indexRunsById(runs);
+    expect(byId.get("AB1")?.fork?.experiment_id).toBe("exp_x");
+    expect(byId.get("AB2")?.fork?.experiment_id).toBe("exp_x");
+    expect(byId.get("OTHER")?.fork?.experiment_id).toBe("exp_y");
+    expect(forkEditLabel("model_params")).toBe("换 model/params（A/B）");
   });
 
   it("单节点退化：无连线，尺寸仍为正", () => {

@@ -7,6 +7,7 @@ export const CHANNELS = {
   getRun: "runs:get",
   forkRun: "runs:fork",
   promptFork: "runs:promptFork",
+  modelAb: "runs:modelAb",
   settingsGet: "settings:get",
   settingsSave: "settings:save",
   settingsClear: "settings:clear",

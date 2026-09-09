@@ -199,6 +199,16 @@ export function ComparePanel() {
             />
             <Row
               keys={entryKeys}
+              label="实验组"
+              values={comparison.entries.map((entry) =>
+                entry.run.fork?.experiment_id === null || entry.run.fork === null
+                  ? "—"
+                  : (entry.run.fork?.experiment_id ?? "—"),
+              )}
+              title="同一批模型 A/B 的所有臂共享一个 experimentId"
+            />
+            <Row
+              keys={entryKeys}
               label="本 run 步数"
               values={comparison.entries.map((entry) => String(entry.run.steps))}
             />

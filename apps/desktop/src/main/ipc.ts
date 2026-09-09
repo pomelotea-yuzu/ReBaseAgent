@@ -1,7 +1,9 @@
+import { ModelAbError } from "@rebaseagent/replay";
 import { ipcMain } from "electron";
 import {
   CHANNELS,
   ForkRunRequestSchema,
+  ModelAbRequestSchema,
   PromptForkRequestSchema,
   ProxyForkRequestSchema,
   ProxyToggleInputSchema,
@@ -12,13 +14,14 @@ import {
 import type {
   ForkRunResult,
   ListRunsData,
+  ModelAbResult,
   PromptForkResult,
   ProxyForkResult,
   ProxyState,
   RunDetail,
   SettingsState,
 } from "../shared/ipc";
-import { ForkError, runFork, runPromptFork } from "./fork-runner";
+import { ForkError, runFork, runModelAb, runPromptFork } from "./fork-runner";
 import type { ProxyManager } from "./proxy-manager";
 import { ProxyForkError } from "./proxy-manager";
 import type { RunRepository } from "./run-repository";
@@ -138,6 +141,45 @@ export function registerIpc(deps: IpcDeps): void {
         }
         // promptReplayRun / derive 的领域错误（proxy run、空 fork、父未封存等）
         return fail("PROMPT_FORK_FAILED", e);
+      }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // runs:modelAb —— 模型 / 采样参数 A/B 实验（一次调用 = 一批，至少两个 arm）
+  // -------------------------------------------------------------------------
+
+  ipcMain.handle(
+    CHANNELS.modelAb,
+    async (
+      _event,
+      request: unknown,
+    ): Promise<ReturnType<typeof ok<ModelAbResult>> | ReturnType<typeof fail>> => {
+      const parsed = ModelAbRequestSchema.safeParse(request);
+      if (!parsed.success) {
+        return fail("INVALID_ARGUMENT", parsed.error);
+      }
+
+      // 运行配置必须已就绪（未配置不发任何网络请求；dry-run 也要展示 provider）
+      const loaded = settings.load();
+      if (loaded === null) {
+        return fail(
+          "SETTINGS_NOT_CONFIGURED",
+          new Error("尚未配置运行参数（baseURL / apiKey / model），请先完成运行配置"),
+        );
+      }
+
+      try {
+        return ok(await runModelAb({ repository, settings: loaded, execCwd }, parsed.data));
+      } catch (e) {
+        // 编排层的稳定错误码（父不可 fork / 工具策略 / 双真相源 / 未确认费用…）
+        if (e instanceof ModelAbError) {
+          return fail(`MODEL_AB_${e.code}`, e);
+        }
+        if (e instanceof ForkError) {
+          return fail(e.code, e);
+        }
+        return fail("MODEL_AB_FAILED", e);
       }
     },
   );

@@ -6,13 +6,41 @@ export type {
 } from "./derive.js";
 export { replayRun } from "./replay-run.js";
 export type { ReplayRunOptions, ReplayRunResult } from "./replay-run.js";
-export { derivePromptForkState, firstLlmCall, locateStartupContext } from "./prompt-fork.js";
+export {
+  derivePromptForkState,
+  firstLlmCall,
+  locateStartupContext,
+  numericParams,
+  parseModelParamsValue,
+  sameParams,
+} from "./prompt-fork.js";
+export { ModelParamsValueSchema } from "./prompt-fork.js";
 export type {
   DerivePromptForkStateInput,
   DerivedPromptForkState,
+  ModelOverride,
+  ModelParamsEdit,
+  ModelParamsValue,
   PromptForkEdit,
   PromptForkField,
   StartupContext,
 } from "./prompt-fork.js";
 export { promptReplayRun } from "./prompt-replay-run.js";
 export type { PromptReplayRunOptions, PromptReplayRunResult } from "./prompt-replay-run.js";
+export { loadForkParent } from "./fork-parent.js";
+export type { ForkParent } from "./fork-parent.js";
+export {
+  DEFAULT_MAX_ITERATIONS,
+  DEFAULT_MAX_TOTAL_TOKENS,
+  ModelAbError,
+  modelReplayRunMany,
+} from "./model-replay-run.js";
+export type {
+  ModelAbErrorCode,
+  ModelArmPlan,
+  ModelArmResult,
+  ModelArmSpec,
+  ModelReplayRunManyOptions,
+  ModelReplayRunManyResult,
+  ToolPolicy,
+} from "./model-replay-run.js";

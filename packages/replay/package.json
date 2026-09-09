@@ -17,9 +17,13 @@
     "build": "tsc -p tsconfig.json",
     "test": "vitest run"
   },
+  "bin": {
+    "rebaseagent-model-ab": "./dist/model-ab-cli.js"
+  },
   "dependencies": {
     "@rebaseagent/agent-loop": "workspace:*",
-    "@rebaseagent/trace-sdk": "workspace:*"
+    "@rebaseagent/trace-sdk": "workspace:*",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",

@@ -178,11 +178,15 @@ export function deriveRunSummary(run: RunLike): RunSummary {
     created_at: run.meta.created_at,
     status: run.status,
     parent: run.meta.parent,
-    // 分叉摘要：只透传分叉点与字段名，不带 value（避免放大列表载荷，见 ipc.ts 注释）
+    // 分叉摘要：只透传分叉点、字段名与实验组标签，不带 value（避免放大列表载荷）
     fork:
       run.meta.fork === null
         ? null
-        : { at_span: run.meta.fork.at_span, edit_field: run.meta.fork.edit.field },
+        : {
+            at_span: run.meta.fork.at_span,
+            edit_field: run.meta.fork.edit.field,
+            experiment_id: experimentIdOf(run.meta.fork),
+          },
     reason: lastEvent?.reason ?? null,
     steps,
     toolCalls,
@@ -544,7 +548,17 @@ export function forkEditLabel(field: string): string {
   if (field === "messages") return "改 messages";
   if (field === "system_prompt") return "改 system prompt";
   if (field === "user_message") return "改 user message";
+  if (field === "model_params") return "换 model/params（A/B）";
   return `改 ${field}`;
+}
+
+/** model_params 分叉的实验组标签（同批所有臂共享）；其它分叉恒为 null */
+function experimentIdOf(fork: NonNullable<RunLike["meta"]["fork"]>): string | null {
+  if (fork.edit.field !== "model_params") return null;
+  const value = fork.edit.value;
+  if (typeof value !== "object" || value === null) return null;
+  const id = (value as { experimentId?: unknown }).experimentId;
+  return typeof id === "string" && id.length > 0 ? id : null;
 }
 
 /**

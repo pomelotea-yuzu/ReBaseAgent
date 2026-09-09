@@ -247,11 +247,13 @@ describe("promptReplayRun：连续 fork（A → B → C）", () => {
       const bRecord = readRun(bFile);
       expect(bRecord.meta.parent).toBe(aId);
 
-      // B → C：再改首条 user message
+      // B → C：再改首条 user message。
+      // config.systemPrompt 必须等于直接父 B 首次请求录制的 system（= B 的编辑值）——
+      // 桌面端正是从父 run 首次 llm.call 读取该值；传 A 的原值会被双真相源校验拒绝
       const c = await promptReplayRun({
         parentId: bId,
         edit: USER_EDIT,
-        config: CONFIG,
+        config: { ...CONFIG, systemPrompt: SYS_EDIT.value },
         tools: TOOLS,
         load: loader(dir),
         outDir: dir,

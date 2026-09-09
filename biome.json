@@ -28,6 +28,7 @@
       "**/.pnpm-store/**",
       "**/.rebaseagent/**",
       "**/.workbuddy/**",
+      "**/release/**",
       "**/*.timestamp-*.mjs",
       "**/electron.vite.config.*.mjs"
     ]

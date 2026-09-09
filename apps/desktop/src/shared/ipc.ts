@@ -43,6 +43,11 @@ export const RunSummarySchema = z.object({
     .object({
       at_span: z.string().min(1),
       edit_field: z.string().min(1),
+      /**
+       * 实验组标签（仅 model_params 分叉有值）：同一批 A/B 的所有臂共享同一个
+       * experimentId，分支树与对照面板据此聚成一组。短字符串，不影响载荷纪律。
+       */
+      experiment_id: z.string().min(1).nullable(),
     })
     .nullable(),
   /** 迭代步数（agent.step 计数） */
@@ -161,6 +166,54 @@ export const PromptForkResultSchema = z.object({
 export type PromptForkResult = z.infer<typeof PromptForkResultSchema>;
 
 // ---------------------------------------------------------------------------
+// runs:modelAb —— 模型 A/B 实验（一次调用 = 一批，至少两个 arm 真实重跑）
+// ---------------------------------------------------------------------------
+
+/** 单个实验臂：模型名 + 可选数值采样参数 + 可选的副作用确认声明 */
+export const ModelAbArmSchema = z.object({
+  model: z.string().min(1, "model 不能为空"),
+  /** 首期只支持数值采样参数；整体覆盖父 run 录制值 */
+  params: z.record(z.string(), z.number().finite()).optional(),
+  /** 显式确认允许带副作用的工具（全批一致为 true 才放行） */
+  allowSideEffects: z.boolean().optional(),
+});
+export type ModelAbArm = z.infer<typeof ModelAbArmSchema>;
+
+/**
+ * 模型实验请求。dryRun = true 时只做校验并返回计划：不调用模型、不写文件，
+ * 但父 run 门禁、双真相源、工具策略、同源校验全部照跑（预览即真实判据）。
+ */
+export const ModelAbRequestSchema = z.object({
+  parentRunId: z.string().min(1),
+  arms: z.array(ModelAbArmSchema).min(2, "模型实验至少需要 2 个 arm"),
+  dryRun: z.boolean().optional(),
+});
+export type ModelAbRequest = z.infer<typeof ModelAbRequestSchema>;
+
+/** dry-run 的计划条目：该臂相对父 run 实际改变了什么 */
+export const ModelArmPlanSchema = z.object({
+  index: z.number().int().nonnegative(),
+  model: z.string(),
+  params: z.record(z.string(), z.number()),
+  changed: z.array(z.string()),
+  allowSideEffects: z.boolean(),
+});
+export type ModelArmPlan = z.infer<typeof ModelArmPlanSchema>;
+
+/** runs:modelAb 结果：dry-run 只有 plan，真实执行额外给出各臂 run id */
+export const ModelAbResultSchema = z.object({
+  experimentId: z.string().min(1),
+  /** 各臂落盘的 fork run id（dry-run 为空数组） */
+  ids: z.array(z.string()),
+  /** 全部 arm 成功（dry-run 恒为 true） */
+  ok: z.boolean(),
+  plan: z.array(ModelArmPlanSchema),
+  /** 逃生舱放行：含副作用工具已被真实执行，UI 需标注"顺序执行、外部状态可能已被前一臂改变" */
+  sideEffectsAllowed: z.boolean(),
+});
+export type ModelAbResult = z.infer<typeof ModelAbResultSchema>;
+
+// ---------------------------------------------------------------------------
 // settings —— 运行配置（apiKey 永不回传渲染层）
 // ---------------------------------------------------------------------------
 
@@ -224,7 +277,7 @@ export type ProxyForkResult = z.infer<typeof ProxyForkResultSchema>;
 
 /**
  * preload 暴露给渲染层的受限接口。
- * 取数两个方法 + forkRun / promptFork / proxyFork 三个写通道 + settings 三件套 + 代理三件套
+ * 取数两个方法 + forkRun / promptFork / modelAb / proxyFork 四个写通道 + settings 三件套 + 代理三件套
  * （apiKey / 代理 key 均单向进入 main，永不回传）。
  */
 export interface WindowApi {
@@ -232,6 +285,7 @@ export interface WindowApi {
   getRun(id: string): Promise<Envelope<RunDetail>>;
   forkRun(request: ForkRunRequest): Promise<Envelope<ForkRunResult>>;
   promptFork(request: PromptForkRequest): Promise<Envelope<PromptForkResult>>;
+  modelAb(request: ModelAbRequest): Promise<Envelope<ModelAbResult>>;
   getSettings(): Promise<Envelope<SettingsState>>;
   saveSettings(input: SettingsInput): Promise<Envelope<{ configured: true }>>;
   clearSettings(): Promise<Envelope<{ configured: false }>>;

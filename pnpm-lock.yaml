@@ -134,6 +134,9 @@ importers:
       '@rebaseagent/trace-sdk':
         specifier: workspace:*
         version: link:../trace-sdk
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
     devDependencies:
       '@types/node':
         specifier: ^20.14.0

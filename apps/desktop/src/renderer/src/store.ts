@@ -1,5 +1,6 @@
 import type {
   FailedFile,
+  ModelAbResult,
   ProxyState,
   ProxyToggleInput,
   RunDetail,
@@ -7,7 +8,7 @@ import type {
   SettingsInput,
   SettingsState,
 } from "@shared/ipc";
-import type { PromptForkRequest } from "@shared/ipc";
+import type { ModelAbArm, PromptForkRequest } from "@shared/ipc";
 import {
   ListRunsDataSchema,
   ProxyStateSchema,
@@ -71,6 +72,21 @@ interface AppState {
   forkAt: (parentRunId: string, atSpanId: string, value: string) => Promise<boolean>;
   /** prompt fork：编辑启动上下文（system prompt / 首条 user message）从头重跑 */
   promptFork: (parentRunId: string, edit: PromptForkRequest["edit"]) => Promise<boolean>;
+  /**
+   * 模型 A/B：dryRun = true 只校验并返回计划（不联网、不写文件）；
+   * 真实执行成功后刷新列表（新 run 带实验组徽章），返回各臂计划与结果。
+   */
+  modelAb: (
+    parentRunId: string,
+    arms: ModelAbArm[],
+    dryRun: boolean,
+  ) => Promise<ModelAbResult | null>;
+  /** 打开新的 A/B 编辑前复位状态 */
+  resetModelAb: () => void;
+  /** A/B 实验进行中（与 fork 状态分离，两者可并存于不同编辑器） */
+  modelAbInFlight: boolean;
+  modelAbError: string | null;
+  modelAbErrorCode: string | null;
   /** 打开新的分叉编辑前复位状态 */
   resetFork: () => void;
 
@@ -116,6 +132,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   forking: "idle",
   forkError: null,
   forkErrorCode: null,
+  modelAbInFlight: false,
+  modelAbError: null,
+  modelAbErrorCode: null,
   settings: null,
   proxy: null,
   sourceFilter: "all",
@@ -219,6 +238,28 @@ export const useAppStore = create<AppState>((set, get) => ({
     await get().loadRuns();
     await get().selectRun(envelope.data.id);
     return true;
+  },
+
+  async modelAb(parentRunId, arms, dryRun) {
+    set({ modelAbInFlight: true, modelAbError: null, modelAbErrorCode: null });
+    const envelope = await api.modelAb({ parentRunId, arms, dryRun });
+    if (!envelope.ok) {
+      set({
+        modelAbInFlight: false,
+        modelAbError: envelope.error.message,
+        modelAbErrorCode: envelope.error.code,
+      });
+      return null;
+    }
+    set({ modelAbInFlight: false });
+    if (dryRun) return envelope.data;
+    // 真实执行：刷新列表（各臂新 run 带实验组徽章）；多臂不自动聚焦，由用户在树里挑
+    await get().loadRuns();
+    return envelope.data;
+  },
+
+  resetModelAb() {
+    set({ modelAbInFlight: false, modelAbError: null, modelAbErrorCode: null });
   },
 
   async loadSettings() {

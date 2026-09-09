@@ -407,7 +407,11 @@ describe("schema 兼容：prompt fork 的 IPC 契约", () => {
       );
       const record = readRun(join(traces, `${result.id}.jsonl`));
       const summary = deriveRunSummary(record);
-      expect(summary.fork).toEqual({ at_span: "s_02", edit_field: "system_prompt" });
+      expect(summary.fork).toEqual({
+        at_span: "s_02",
+        edit_field: "system_prompt",
+        experiment_id: null,
+      });
       expect(RunSummarySchema.parse(summary)).toMatchObject({
         fork: { at_span: "s_02", edit_field: "system_prompt" },
       });

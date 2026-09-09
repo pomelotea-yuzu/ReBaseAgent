@@ -2,8 +2,9 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { OpenAiCompatClient } from "@rebaseagent/agent-loop";
 import type { LlmClient, RunConfig, Tool, ToolDef } from "@rebaseagent/agent-loop";
-import { promptReplayRun, replayRun } from "@rebaseagent/replay";
+import { modelReplayRunMany, promptReplayRun, replayRun } from "@rebaseagent/replay";
 import type { RunRecord, SpanLine } from "@rebaseagent/trace-sdk";
+import type { ModelAbRequest, ModelAbResult } from "../shared/ipc";
 import type { RunRepository } from "./run-repository";
 import type { RunSettings } from "./settings";
 
@@ -135,22 +136,17 @@ export const PROMPT_FORK_ERROR_CODES = {
 } as const;
 
 /**
- * prompt fork 的桌面编排：与 runFork 共用工具表重建，但语义正交——
- * - 启动上下文只来自父 run 首次 llm.call 的录制请求（从头重跑，不共享前缀）
- * - 不要求 config_hash 与父一致（改 system prompt 本来就是新实验）
- * - config.systemPrompt 传父 run 录制原值；编排层会以编辑派生值覆写（双真相源守护）
+ * 从父 run 首次 llm.call 重建运行上下文（system prompt + 工具表）并组装完整 RunConfig。
+ * prompt fork 与模型 A/B 共用：两者启动上下文的事实源相同，config_hash 判据也同源。
  */
-export async function runPromptFork(
+function buildForkConfig(
   options: ForkRunnerOptions,
-  request: {
-    parentRunId: string;
-    edit: { field: "system_prompt" | "user_message"; value: string };
-  },
-): Promise<{ id: string }> {
-  const { repository, settings, execCwd, llm } = options;
+  parentRunId: string,
+): { config: RunConfig; tools: Tool[] } {
+  const { repository, settings, execCwd } = options;
 
   // 1. 父 run 的首次 llm.call（文件序 = 执行序；启动上下文的唯一事实源）
-  const leaf = repository.loadRunRecord(request.parentRunId);
+  const leaf = repository.loadRunRecord(parentRunId);
   const firstLlm = leaf.spans.find((s) => s.kind === "llm.call");
   if (firstLlm === undefined || firstLlm.kind !== "llm.call") {
     throw new ForkError(
@@ -160,7 +156,7 @@ export async function runPromptFork(
   }
 
   // 2. 字符串 system 消息是重建 RunConfig.systemPrompt 的唯一来源：
-  //    缺失时整个 prompt fork 不可用（不反推 config_hash、不猜、不假定空字符串）
+  //    缺失时无法重建（不反推 config_hash、不猜、不假定空字符串）
   const systemMessage = firstLlm.request.messages.find(
     (m) => m.role === "system" && typeof m.content === "string",
   );
@@ -186,20 +182,40 @@ export async function runPromptFork(
     );
   }
 
-  const config: RunConfig = {
-    baseURL: settings.baseURL,
-    apiKey: settings.apiKey,
-    model: settings.model,
-    // 传父 run 录制原值；promptReplayRun 会以编辑派生值强制覆写（双真相源）
-    systemPrompt: systemMessage.content,
-    tools: toolDefs,
-    params: sanitizeParams(firstLlm.request.params),
-    exec: { cwd: execCwd, signal: null },
-    maxIterations: 10,
-    budget: { maxTotalTokens: 100_000 },
+  return {
+    config: {
+      baseURL: settings.baseURL,
+      apiKey: settings.apiKey,
+      model: settings.model,
+      // 传父 run 录制原值；编排层先校验与录制一致，再以编辑派生值覆写（双真相源）
+      systemPrompt: systemMessage.content,
+      tools: toolDefs,
+      params: sanitizeParams(firstLlm.request.params),
+      exec: { cwd: execCwd, signal: null },
+      maxIterations: 10,
+      budget: { maxTotalTokens: 100_000 },
+    },
+    tools,
   };
+}
 
-  // 4. promptReplayRun：校验（封存/config_hash/空 fork/编辑目标）→ 从头重跑落盘
+/**
+ * prompt fork 的桌面编排：与 runFork 共用工具表重建，但语义正交——
+ * - 启动上下文只来自父 run 首次 llm.call 的录制请求（从头重跑，不共享前缀）
+ * - 不要求 config_hash 与父一致（改 system prompt 本来就是新实验）
+ * - config.systemPrompt 传父 run 录制原值；编排层会以编辑派生值覆写（双真相源守护）
+ */
+export async function runPromptFork(
+  options: ForkRunnerOptions,
+  request: {
+    parentRunId: string;
+    edit: { field: "system_prompt" | "user_message"; value: string };
+  },
+): Promise<{ id: string }> {
+  const { repository, llm } = options;
+  const { config, tools } = buildForkConfig(options, request.parentRunId);
+
+  // promptReplayRun：校验（封存/config_hash/空 fork/编辑目标）→ 从头重跑落盘
   const result = await promptReplayRun({
     parentId: request.parentRunId,
     edit: request.edit,
@@ -210,6 +226,45 @@ export async function runPromptFork(
     llm: llm ?? new OpenAiCompatClient(config),
   });
   return { id: result.id };
+}
+
+// ---------------------------------------------------------------------------
+// runs:modelAb —— 模型 / 采样参数 A/B 实验（一次调用 = 一批，至少两个 arm）
+// ---------------------------------------------------------------------------
+
+/**
+ * 模型实验的桌面编排：复用 prompt fork 的启动上下文重建，差别是
+ * - 一次调用跑多个 arm，每个 arm 独立 run id / tracer / 取消信号
+ * - 桌面端在渲染层已做费用确认（弹窗列出 provider、臂数、每臂 model 与工具策略），
+ *   因此这里 confirmCost 为真
+ * - dry-run 只校验并给出计划：不调用模型、不写文件
+ */
+export async function runModelAb(
+  options: ForkRunnerOptions,
+  request: ModelAbRequest,
+): Promise<ModelAbResult> {
+  const { repository, llm } = options;
+  const { config, tools } = buildForkConfig(options, request.parentRunId);
+
+  const result = await modelReplayRunMany({
+    parentId: request.parentRunId,
+    arms: request.arms,
+    config,
+    tools,
+    load: (id) => repository.loadRunRecord(id),
+    outDir: repository.tracesDir,
+    dryRun: request.dryRun === true,
+    confirmCost: request.dryRun !== true,
+    ...(llm !== undefined ? { llm } : {}),
+  });
+
+  return {
+    experimentId: result.experimentId,
+    ids: result.arms.map((arm) => arm.id).filter((id): id is string => id !== null),
+    ok: result.ok,
+    plan: result.plan,
+    sideEffectsAllowed: result.sideEffectsAllowed,
+  };
 }
 
 /** 定位分叉点 tool.invoke 所在 step 的 llm.call（与 derive 同源的查表逻辑） */
