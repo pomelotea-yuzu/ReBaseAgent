@@ -27,7 +27,7 @@ ReBaseAgent 是给"上下文"这门语言的调试器：
 | 回归测试 | Trace-as-Test 轨迹回放 |
 | git diff | 两次运行的分叉点定位 |
 
-## 它现在能做什么（v0.2.0）
+## 它现在能做什么（v0.2.0 · 含 V3a / V3b）
 
 - **span 时间线** — 逐步查看每一次迭代、每一次 LLM 调用、每一次工具执行，以及模型当时实际看到的完整上下文
 - **上下文预算地图** — token 花在哪了，按消息与工具分布可视化
@@ -37,6 +37,19 @@ ReBaseAgent 是给"上下文"这门语言的调试器：
 - **prompt fork（完整时间旅行）** — 改启动上下文（system prompt 或首条 user message）后**从头重跑**：独立记录完整新轨迹，父 run 只作溯源对照；分支树标注「从头重跑」，多分支对照可并排比较新旧行为
 - **本地 LLM 录制代理** — 在你的应用里把 `base_url` 改成本地代理地址即可录制与"编辑 messages 重发"，key 一字不动
 - **Trace-as-Test（V3a）** — 已封存 trace 当卡带，用你当前的 agent-loop 与工具声明本地重跑：零 API 消耗的 Agent 运行时回归测试，可进 CI（见 [`packages/trace-test`](packages/trace-test)）
+- **模型 A/B 实验（V3b）** — 同一父 run 起点批量换 model / 采样参数（如 temperature 0.2 vs 1.5），多臂顺序执行、独立录制，结果按 experimentId 在分支树与对比面板分组。桌面端提供编辑器（dry-run 计划预览 → 费用确认），命令行提供 `rebaseagent-model-ab`
+
+CLI（均含 `--help`，退出码 0=成功 / 1=执行失败 / 2=配置错误）：
+
+```bash
+# Trace-as-Test：卡带重跑回归（零网络、零费用，可进 CI）
+rebaseagent-trace-test tests/agent.trace.test.jsonl --config agent.config.mjs
+
+# 模型 A/B：先 dry-run 看计划（免密钥、不联网），再真实执行（按臂数计费，需 REBASEAGENT_API_KEY）
+rebaseagent-model-ab --parent <runId> --dir <tracesDir> \
+  --arm "deepseek-chat;temperature=0.2" --arm "deepseek-chat;temperature=1.5" \
+  [--dry-run | --confirm-cost]
+```
 
 时间旅行的实现方式：
 
@@ -110,15 +123,21 @@ DeepSeek / GLM / Qwen / Kimi 等 OpenAI 兼容端点开箱即用。
 - **接入仍需手工**：要么在代码里接 SDK，要么在设置里填 API key。本地录制代理已落地（只改 `base_url` 即可录制），进一步零摩擦（自动发现、一键引导）在迭代
 - 时间旅行现在支持**改 `tool_result`（从该步重跑，前缀共享）与改启动上下文（system prompt / 首条 user message，从头重跑）**；中间历史消息编辑尚不支持
 - prompt fork **从头计费**：启动上下文变了前缀天然不复用，不承诺命中父 run 的 prompt cache（是否命中由 provider 自行决定）
-- 代理录制的 run 没有 `config_hash`，不能作为 prompt fork / tool_result 重跑的父本，只能走"编辑 messages 重发"
+- 代理录制的 run 没有 `config_hash`，不能作为 prompt fork / tool_result 重跑 / 模型 A/B 的父本，只能走"编辑 messages 重发"
+- 桌面端还没有"直接新建一个 run"的入口：原生（非代理）父 run 目前只能通过 SDK 埋点产生
 - 带副作用的工具默认**不真重跑**：replay 是 world-free 重放，把录下的结果喂回模型，trace 内自洽。外部状态源（RAG / 记忆 / 数据库）不承诺回退
+- 命令行模型 A/B 首期只接受**空工具表**的父 run（纯对话任务）；带工具的实验请用桌面端
 
 ## 路线图
 
 - ✅ **v0.1.0（MVP）** — span 时间线 · 上下文预算地图 · 时间旅行最小切片 · trace 格式 v1 · Agent 执行引擎
 - ✅ **v0.2.0（v2 完成）** — 本地 LLM 录制代理 · 分支树 UI · 改 prompt 重跑（prompt fork）· 多分支对照 · 体积瘦身与发行收口（<100 MB 便携版 + 品牌图标）
 - ✅ **V3a（Trace-as-Test）** — 卡带重跑运行时回归测试 · 断言 DSL · runner API + CLI · 退出码 0/1/2
-- 📋 **V3b** — 模型 A/B / 分支实验（同前缀换模型，复用 V3a 执行内核）
+- ✅ **V3b（模型 A/B 实验）** — model_params fork 内核 · 多臂编排（副作用门禁 + dry-run/费用确认）· `rebaseagent-model-ab` CLI · 桌面端实验分组 UI
+- 📋 **原生 run 创建入口** — 桌面端直接新建运行（当前 run 只来自录制代理与 fork，A/B 实验的父 run 需 SDK/脚本产生）
+- 📋 **共享前缀重跑** — 改中间某步后只重跑该步之后（前缀本地命中，成本约 1/4），替代全量从头重跑
+- 📋 **隔离世界真重跑** — 带副作用工具在 COW/快照沙箱中真实执行（sideEffect 分级已预埋）
+- 📋 **工程与分发** — GitHub Actions CI（测试矩阵 + lint + spec 校验）· 面向新用户的 quickstart 文档 · macOS/Linux 打包评估 · 协作分享（trace 包导出）
 
 ## 架构
 
