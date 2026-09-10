@@ -20,7 +20,7 @@
  */
 import { renameSync } from "node:fs";
 import { join } from "node:path";
-import { configHash, OpenAiCompatClient, runLoop } from "../packages/agent-loop/dist/index.js";
+import { OpenAiCompatClient, configHash, runLoop } from "../packages/agent-loop/dist/index.js";
 import { JsonlTracer, readRun } from "../packages/trace-sdk/dist/index.js";
 
 // ---- 参数 ----
@@ -40,7 +40,8 @@ if (apiKey.length === 0) {
 }
 
 const systemPrompt = "你是一个简洁的问答助手，用两三句话回答。";
-const task = "用一句话解释什么是时间旅行调试（time-travel debugging），以及它对 Agent 开发者的价值。";
+const task =
+  "用一句话解释什么是时间旅行调试（time-travel debugging），以及它对 Agent 开发者的价值。";
 
 const config = {
   baseURL,
@@ -82,7 +83,7 @@ console.log(`  id           = ${record.meta.id}`);
 console.log(`  文件         = ${finalName}`);
 console.log(`  config_hash  = ${configHash(systemPrompt, [])}`);
 console.log(`  期待 hash    = ${record.meta.config_hash}`);
-console.log(`\n下一步（A/B 冒烟）：`);
+console.log("\n下一步（A/B 冒烟）：");
 console.log(
   `  node packages/replay/dist/model-ab-cli.js --parent ${record.meta.id} --dir "${tracesDir}" ` +
     `--arm "${model};temperature=0.2" --arm "${model};temperature=1.5" --confirm-cost`,
