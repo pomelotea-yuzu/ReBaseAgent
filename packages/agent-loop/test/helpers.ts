@@ -122,3 +122,45 @@ export function fetchReturningSse(
     return new Response(body, { status, headers: { "Content-Type": "text/event-stream" } });
   };
 }
+
+/**
+ * 构造**带真实延时**的 SSE 字节流。
+ *
+ * 与 `sseStream` 的区别：`sseStream` 的 `pull` 同步 enqueue（所有块 ~0ms 到齐），
+ * 无法检验 ttft 的取时点是否落在"流内"。本 helper 用 `async pull` + `setTimeout`
+ * 把延时放在**块之间**，从而让"首个内容 delta 与请求发出时刻之差"可被观测。
+ * 用于 `fix-llm-ttft-timing` 的回归用例（旧实现量的是解析耗时 ⇒ 必然失败）。
+ */
+export function sseStreamDelayed(
+  events: string[],
+  options: { firstDelayMs?: number; restDelayMs?: number } = {},
+): ReadableStream<Uint8Array> {
+  const encoder = new TextEncoder();
+  const firstDelay = options.firstDelayMs ?? 0;
+  const restDelay = options.restDelayMs ?? 0;
+  let i = 0;
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      if (i >= events.length) {
+        controller.close();
+        return;
+      }
+      const delay = i === 0 ? firstDelay : restDelay;
+      if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
+      controller.enqueue(encoder.encode(events[i]));
+      i += 1;
+    },
+  });
+}
+
+/** fetch mock：返回带延时的 SSE 响应（端到端验证 ttft 取时点） */
+export function fetchReturningSseDelayed(
+  events: string[],
+  options: { firstDelayMs?: number; restDelayMs?: number } = {},
+  status = 200,
+): (input: string, init?: unknown) => Promise<Response> {
+  return async () => {
+    const body = sseStreamDelayed(events, options);
+    return new Response(body, { status, headers: { "Content-Type": "text/event-stream" } });
+  };
+}

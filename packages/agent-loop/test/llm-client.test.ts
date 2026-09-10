@@ -5,7 +5,14 @@ import {
   aggregateSseStream,
   buildRequestBody,
 } from "../src/index";
-import { fetchReturningSse, sampleConfig, sampleTools, sseData } from "./helpers";
+import {
+  fetchReturningSse,
+  fetchReturningSseDelayed,
+  sampleConfig,
+  sampleTools,
+  sseData,
+  sseStreamDelayed,
+} from "./helpers";
 
 const DONE_MARK = "data: [DONE]";
 
@@ -44,6 +51,8 @@ describe("SSE 聚合器", () => {
     expect(result.reasoningContent).toBeNull();
     expect(result.toolCalls).toEqual([]);
     expect(result.usage).toEqual({ in: 1830, out: 210 });
+    // ⚠️ 该断言不足以发现取时点错误（`0` 与 `2` 都通过）——它正是本缺陷逃逸的直接原因。
+    // ttft 的真实保障见本文件末尾「ttft 取时点（可证伪旧实现）」用例组。
     expect(result.ttftMs).toBeGreaterThanOrEqual(0);
   });
 
@@ -200,5 +209,70 @@ describe("OpenAiCompatClient", () => {
     await expect(client.complete([{ role: "user", content: "hi" }], null)).rejects.toThrow(
       /空 body/,
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 回归：ttft 取时点（原实现把计时起点放在"读完整条流之后"，量到的是解析耗时）
+// 判据来自 archive/2026-09-03-add-agent-loop/design.md:40 —— 首个含内容 delta 的
+// chunk 与**请求发出时刻**之差。下列用例在旧实现上必须失败。
+// ---------------------------------------------------------------------------
+describe("ttft 取时点（可证伪旧实现）", () => {
+  it("首块延时进入流内 ⇒ ttftMs 不小于该延时（旧实现给 ≈0ms 的解析耗时）", async () => {
+    const parts = [chunk({ content: "你好" }), usageChunk(10, 5), `${DONE_MARK}\n\n`];
+
+    const startedAt = Date.now();
+    const result = await aggregateSseStream(sseStreamDelayed(parts, { firstDelayMs: 120 }));
+    const elapsed = Date.now() - startedAt;
+
+    expect(result.content).toBe("你好");
+    expect(result.ttftMs).toBeGreaterThanOrEqual(100);
+    // ttft 不可能超过本次总耗时（否则就是量到了"总时长"这种错法）
+    expect(result.ttftMs).toBeLessThanOrEqual(elapsed);
+  });
+
+  it("块数无关性：同首块延时下，1 块与 10 块的 ttftMs 基本一致（差分对照）", async () => {
+    const head = chunk({ content: "A" });
+    const tail = Array.from({ length: 9 }, (_, i) => chunk({ content: `B${i}` }));
+
+    const few = await aggregateSseStream(
+      sseStreamDelayed([head, `${DONE_MARK}\n\n`], { firstDelayMs: 50 }),
+    );
+    const many = await aggregateSseStream(
+      sseStreamDelayed([head, ...tail, `${DONE_MARK}\n\n`], { firstDelayMs: 50, restDelayMs: 0 }),
+    );
+
+    expect(few.ttftMs).toBeGreaterThanOrEqual(40);
+    expect(many.ttftMs).toBeGreaterThanOrEqual(40);
+    // 旧实现下两者都退化成"解析耗时"→ 上面两个下界先失败；即便侥幸非零，也会
+    // 随块数增长 ⇒ 下面的差分断言把"分块越多、值越大"的伪相关钉死
+    expect(Math.abs(many.ttftMs - few.ttftMs)).toBeLessThanOrEqual(40);
+  });
+
+  it("仅有 usage、无任何内容 delta ⇒ ttftMs 为 0（保底语义不变，且 0 非'未测量'）", async () => {
+    // 首块照样延时 30ms：若实现把延时误当"首个 delta"，这里就不会是 0
+    const parts = [usageChunk(12, 0), `${DONE_MARK}\n\n`];
+    const result = await aggregateSseStream(sseStreamDelayed(parts, { firstDelayMs: 30 }));
+
+    expect(result.content).toBeNull();
+    expect(result.usage).toEqual({ in: 12, out: 0 });
+    expect(result.ttftMs).toBe(0);
+  });
+
+  it("端到端：complete() 的 ttftMs 落在 (0, 该次总耗时] 内", async () => {
+    // 必须用**延时** fetch：零延时 mock 下首块与请求同刻到达，ttftMs 可为 0
+    const parts = [chunk({ content: "任务完成" }), usageChunk(500, 30), `${DONE_MARK}\n\n`];
+    const client = new OpenAiCompatClient(
+      sampleConfig(),
+      fetchReturningSseDelayed(parts, { firstDelayMs: 80 }) as never,
+    );
+
+    const startedAt = Date.now();
+    const { response } = await client.complete([{ role: "user", content: "hi" }], null);
+    const elapsed = Date.now() - startedAt;
+
+    expect(response.content).toBe("任务完成");
+    expect(response.ttftMs).toBeGreaterThan(0);
+    expect(response.ttftMs).toBeLessThanOrEqual(elapsed);
   });
 });

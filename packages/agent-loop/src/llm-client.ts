@@ -104,6 +104,9 @@ export class OpenAiCompatClient implements LlmClient {
     signal: AbortSignal | null,
   ): Promise<{ response: LlmResponse; requestBody: RequestBody }> {
     const requestBody = buildRequestBody(this.config, messages);
+    // 计时起点必须在"请求发出"之前（含 DNS/TCP/TLS + 等待响应头），与 ttft_ms 的
+    // 定义一致——故取在 fetchImpl 调用之前、try 之外。
+    const sentAt = Date.now();
     let response: Response;
     try {
       response = await this.fetchImpl(`${this.config.baseURL}/chat/completions`, {
@@ -128,7 +131,7 @@ export class OpenAiCompatClient implements LlmClient {
     if (response.body === null) {
       throw new LlmRequestError("LLM 端点返回空 body");
     }
-    const aggregated = await aggregateSseStream(response.body);
+    const aggregated = await aggregateSseStream(response.body, { sentAt });
     return { response: aggregated, requestBody };
   }
 }
@@ -150,12 +153,53 @@ interface Aggregation {
   usage: { in: number; out: number } | null;
 }
 
+/** `aggregateSseStream` 的可选项 */
+export interface AggregateOptions {
+  /**
+   * 请求发出时刻（`Date.now()` 的毫秒值）。缺省取函数入口时刻。
+   * 调用方应在 `fetch` 之前取时，以保证 ttft 含"等待响应头"那一段。
+   */
+  sentAt?: number;
+}
+
+/**
+ * 判定一个 SSE event 是否含"内容 delta"。
+ *
+ * 与聚合正文 / 思维链 / tool_calls 的判定**同源**（同一语义只写一处——本缺陷的成因
+ * 正是同一语义写两遍、其中一处跑偏）。`JSON.parse` 失败返回 `false` 且不吞错：真正的
+ * 解析错误仍由聚合循环抛 `LlmRequestError`（错误语义不变）。
+ * 注：`tool_calls: []`（空数组）亦为真，与既有实现及 `llm-proxy` 保持一致。
+ */
+function hasContentDelta(event: EventSourceMessage): boolean {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(event.data);
+  } catch {
+    return false;
+  }
+  const delta = (parsed as { choices?: Array<{ delta?: Record<string, unknown> }> }).choices?.[0]
+    ?.delta;
+  if (delta === undefined) return false;
+  const c = delta.content;
+  if (typeof c === "string" && c.length > 0) return true;
+  const r = delta.reasoning_content;
+  if (typeof r === "string" && r.length > 0) return true;
+  return Array.isArray(delta.tool_calls);
+}
+
 /** 从 SSE 字节流聚合出完整响应。流中断 / 无有效内容抛 LlmRequestError。 */
-export async function aggregateSseStream(body: ReadableStream<Uint8Array>): Promise<LlmResponse> {
+export async function aggregateSseStream(
+  body: ReadableStream<Uint8Array>,
+  options: AggregateOptions = {},
+): Promise<LlmResponse> {
+  const startedAt = options.sentAt ?? Date.now();
   const events: EventSourceMessage[] = [];
+  let firstDeltaAt: number | null = null;
   const parser = createParser({
     onEvent: (event: EventSourceMessage) => {
       events.push(event);
+      // 取时点在**流读取过程中**（而非读完之后遍历缓冲事件）——否则量到的是解析耗时
+      if (firstDeltaAt === null && hasContentDelta(event)) firstDeltaAt = Date.now();
     },
   });
   const reader = body.getReader();
@@ -172,9 +216,6 @@ export async function aggregateSseStream(body: ReadableStream<Uint8Array>): Prom
 
   const agg: Aggregation = { content: null, reasoning: null, toolCalls: new Map(), usage: null };
   let sawAnything = false;
-  let ttftDone = false;
-  let ttftMs = 0;
-  const startedAt = Date.now();
 
   for (const event of events) {
     if (event.data === "[DONE]") continue;
@@ -217,10 +258,6 @@ export async function aggregateSseStream(body: ReadableStream<Uint8Array>): Prom
         }
         sawAnything = true;
       }
-      if (!ttftDone && sawAnything) {
-        ttftMs = Date.now() - startedAt;
-        ttftDone = true;
-      }
     }
     const u = (parsed as { usage?: unknown }).usage;
     // 部分端点（deepseek v4-flash 实测）会在流中携带 usage:null 或缺失
@@ -247,6 +284,9 @@ export async function aggregateSseStream(body: ReadableStream<Uint8Array>): Prom
       type: "function" as const,
       function: { name: tc.name, arguments: tc.arguments },
     }));
+
+  // 首个含内容 delta 的 chunk 与请求发出时刻之差；流内无任何内容 delta 时记 0
+  const ttftMs = firstDeltaAt === null ? 0 : Math.max(0, firstDeltaAt - startedAt);
 
   return {
     content: agg.content,
