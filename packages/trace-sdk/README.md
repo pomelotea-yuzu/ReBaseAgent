@@ -86,7 +86,7 @@ run.meta  →  span(agent.step)  →  span(llm.call)  →  span(tool.invoke)  �
 | `response.reasoning_content` | string \| null | 思维链（推理模型）；非推理模型为 null                                                              |
 | `response.tool_calls`        | array          | 工具调用列表，默认 `[]`                                                                     |
 | `response.usage`             | `{ in, out }`  | token 用量                                                                           |
-| `response.ttft_ms`           | number         | 首 token 时延（毫秒）                                                                     |
+| `response.ttft_ms`           | number         | **首个含内容 delta 的 chunk** 与**请求发出时刻**之差（毫秒）；流内无任何内容 delta 时记 `0`。经 agent-loop 录制者起点在 `fetch` 调用之前（含等待响应头）；`llm-proxy` 录制的 run 起点为「聚合开始」（不含等待响应头）——判据同源、起点略窄。注意：若 provider 以 `reasoning`（而非 `reasoning_content`）下发思维链，则该段不计入内容 delta |
 
 **tool.invoke** — 一次工具执行
 
