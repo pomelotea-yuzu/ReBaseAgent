@@ -28,7 +28,7 @@
 
 - [x] 4.1 校验 spec 覆盖：本 change 的每个 Scenario 都有对应的可验证手段（本机实跑输出或流水线结构断言）。
 - [x] 4.2 运行 OpenSpec strict 校验与 Biome，确认本 change 自身合规。
-- [x] 4.3 登记已知平台/环境风险（不在本 change 修）：`packages/llm-proxy/test/handler.test.ts:472` 的硬编码端口 `58772`（runner 端口被占会假红；Gitee 首验实测未踩中）、`apps/desktop/test/app-icon.test.ts:7` 的写死绝对路径（纯字符串拼接断言，Linux 可过）。**已发生的平台失败与处置**：Gitee 二跑暴露 `packages/trace-test` 的 `resolveTracePath` 在 POSIX 把 `D:/...` 判为相对路径——判定为「修 src 使其平台无关」（盘符路径跨平台识别，commit 独立于本 change），符合"先记录、后独立修复"约定。
+- [x] 4.3 登记已知平台/环境风险（不在本 change 修）：`packages/llm-proxy/test/handler.test.ts:472` 的硬编码端口 `58772`（runner 端口被占会假红；Gitee 首验实测未踩中）、`apps/desktop/test/app-icon.test.ts:7` 的写死绝对路径（纯字符串拼接断言，Linux 可过）。**已发生的平台失败与处置**：① Gitee 二跑暴露 `packages/trace-test` 的 `resolveTracePath` 在 POSIX 把 `D:/...` 判为相对路径——判定为「修 src 使其平台无关」（盘符路径跨平台识别，commit 独立于本 change）；② Gitee 三跑暴露 agent-loop ttft 块数无关性差分的 40ms 定值容差在慢速 runner 抖红（实测 46ms）——判定为「改测试时序容差」（改首块延时×2=100ms，可证伪性由下界断言承担）。两条均符合"先记录、后独立修复"约定。
 
 ## 5. 归档前核对
 
