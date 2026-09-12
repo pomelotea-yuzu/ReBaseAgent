@@ -137,7 +137,7 @@ DeepSeek / GLM / Qwen / Kimi 等 OpenAI 兼容端点开箱即用。
 - 📋 **原生 run 创建入口** — 桌面端直接新建运行（当前 run 只来自录制代理与 fork，A/B 实验的父 run 需 SDK/脚本产生）
 - 📋 **共享前缀重跑** — 改中间某步后只重跑该步之后（前缀本地命中，成本约 1/4），替代全量从头重跑
 - 📋 **隔离世界真重跑** — 带副作用工具在 COW/快照沙箱中真实执行（sideEffect 分级已预埋）
-- 📋 **工程与分发** — GitHub Actions CI（测试矩阵 + lint + spec 校验）· 面向新用户的 quickstart 文档 · macOS/Linux 打包评估 · 协作分享（trace 包导出）
+- 📋 **工程与分发** — 面向新用户的 quickstart 文档 · macOS/Linux 打包评估 · 协作分享（trace 包导出）
 
 ## 架构
 
@@ -161,10 +161,17 @@ apps/
 pnpm install
 pnpm dev            # 启动桌面应用
 pnpm test           # vitest（零 API 消耗，全部 mock 注入）
-pnpm build          # 构建所有包
+pnpm build          # 构建所有包（含 desktop 前端资源）
+
+# CI 质量门禁：与云端 CI（Gitee Go 流水线 .workflow/ci.yml）跑同一条命令链
+pnpm check:ci       # = check:build → check:typecheck → check:test → check:lint → check:spec
 
 pnpm --filter @rebaseagent/desktop dist   # 打包 Windows portable exe
 ```
+
+两条构建命令的分工：`pnpm check:build`（`check:ci` 的第一步）只构建 `packages/*` 的库产物，供测试与跨包消费使用；`pnpm build` 是完整构建，额外包含 desktop 的 `electron-vite` 前端打包，供开发者本地使用。二者不可互相替代。
+
+CI 载体：首期为 **Gitee Go**（`.workflow/ci.yml`，push 到 main 与 PR 触发，零密钥）；GitHub 账号解封后将补配 GitHub Actions 调用同一条 `pnpm check:ci`。
 
 本项目使用 [OpenSpec](https://github.com/Fission-AI/OpenSpec) 做 Spec-Driven Development——每个能力先写 spec（proposal → 评审 → 实现 → 归档），见 `openspec/` 目录。
 
