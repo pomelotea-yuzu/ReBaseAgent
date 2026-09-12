@@ -59,7 +59,9 @@ describe("resolveTracePath", () => {
 
   it("绝对路径原样保留（Windows 盘符路径跨平台视为绝对，含反斜杠写法）", () => {
     expect(resolveTracePath("D:/proj/tests/x.json", "D:/other/t.jsonl")).toBe("D:/other/t.jsonl");
-    expect(resolveTracePath("D:/proj/tests/x.json", "D:\\other\\t.jsonl")).toBe("D:\\other\\t.jsonl");
+    expect(resolveTracePath("D:/proj/tests/x.json", "D:\\other\\t.jsonl")).toBe(
+      "D:\\other\\t.jsonl",
+    );
   });
 
   it("POSIX 绝对路径原样保留", () => {
