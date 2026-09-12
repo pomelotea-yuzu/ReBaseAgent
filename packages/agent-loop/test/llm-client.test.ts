@@ -245,8 +245,11 @@ describe("ttft 取时点（可证伪旧实现）", () => {
     expect(few.ttftMs).toBeGreaterThanOrEqual(40);
     expect(many.ttftMs).toBeGreaterThanOrEqual(40);
     // 旧实现下两者都退化成"解析耗时"→ 上面两个下界先失败；即便侥幸非零，也会
-    // 随块数增长 ⇒ 下面的差分断言把"分块越多、值越大"的伪相关钉死
-    expect(Math.abs(many.ttftMs - few.ttftMs)).toBeLessThanOrEqual(40);
+    // 随块数增长 ⇒ 下面的差分断言把"分块越多、值越大"的伪相关钉死。
+    // 容差 = 共同首块延时（50ms）的 2 倍：慢速 CI runner（2 核容器 + vitest 并行）
+    // 调度抖动实测可达 40ms+（40ms 定值在 Gitee Go 云端首验即抖红 46ms）。
+    // 该差分拦截的是粗大缩放错误（如每块误延时 ⇒ 差 ≥ 9×延时），100ms 不损判别力。
+    expect(Math.abs(many.ttftMs - few.ttftMs)).toBeLessThanOrEqual(100);
   });
 
   it("仅有 usage、无任何内容 delta ⇒ ttftMs 为 0（保底语义不变，且 0 非'未测量'）", async () => {
