@@ -16,7 +16,7 @@
 - [x] 2.1 新增 `.workflow/ci.yml`：`push` 精确匹配 `main` + `pr` 精确匹配 `main` 触发；全程无任何 secrets 注入。
 - [x] 2.2 `build@nodejs` 步骤：Node 20 由 commands 自装（npmmirror tar.gz → `/usr/local`；插件对 `nodeVersion` 的支持清单不可靠，首跑 v20.15.0 被静默跳过 ⇒ 该字段仅占位）；commands = 装 Node → 装 pnpm 9.15.9（npmmirror）→ `pnpm install --frozen-lockfile && pnpm check:ci`（**&& 链收成单条**：首跑实证 commands 逐条不短路，链式执行由最终退出码判败，杜绝假绿）；五道校验调用的是根脚本的对应子命令，不得另写校验逻辑。
 - [x] 2.3 确认流水线中**不存在** electron-vite build、electron-builder、Release 相关命令；确认 `check:build` 收窄到 `packages/*`。
-- [ ] 2.4 用户侧一次性动作：在 Gitee 仓库网页开通 Gitee Go（需绑定手机号），push 后触发一次流水线，确认变绿（或明确记录失败原因与处置判定）。**首跑记录（2026-09-12）：红——插件未装 Node（npm not found）、commands 逐条不短路；已修复为 commands 自装 Node 20.19.0 + `install && check:ci` 单条链，待二次触发验证。**
+- [x] 2.4 用户侧一次性动作：在 Gitee 仓库网页开通 Gitee Go（需绑定手机号），push 后触发一次流水线，确认变绿（或明确记录失败原因与处置判定）。**首跑记录（2026-09-12）：红——插件未装 Node（npm not found）、commands 逐条不短路；已修复为 commands 自装 Node 20.19.0 + `install && check:ci` 单条链，待二次触发验证。** ~~待验证~~ → **2026-09-12 13:32 五跑全绿（436 测试 / lint 139 / spec 11/11），owner 口头确认「绿了」。经三跑四跑处置：盘符路径平台修复（`94c54cf`）、ttft 时序容差（`3a33bbc`）、格式（`8b5fbe9`）。**
 
 ## 3. 文档
 
