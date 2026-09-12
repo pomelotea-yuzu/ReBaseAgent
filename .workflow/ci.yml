@@ -1,0 +1,50 @@
+# ReBaseAgent CI 质量门禁（Gitee Go 流水线）
+#
+# 校验逻辑的唯一事实源在根 package.json 的 check:* 脚本 —— 本流水线
+# 只做三件事：装环境、装依赖、按序调用 check:ci 的各段子命令。
+# 不要在这里另写一套校验逻辑（会变成"CI 绿了本地红"的双口径）。
+#
+# 平台说明：首期 CI 载体为 Gitee Go（GitHub 账号受限申诉中）。
+# GitHub 解封后补 .github/workflows/ci.yml 调同一条 check:ci，两者共存。
+
+version: '1.0'
+name: ci-gates
+displayName: CI 质量门禁
+
+# push 到 main 与 PR 均触发（PR 按源分支最新 commit 的本文件触发）
+triggers:
+  push:
+    branches:
+      precise:
+        - main
+  pr:
+    branches:
+      precise:
+        - main
+
+stages:
+  - stage: gates
+    displayName: 校验门禁
+    # fast：任一命令失败即整体失败，不掩盖错误
+    strategy: fast
+    trigger: auto
+    steps:
+      # 单 stage 单 step：Gitee Go 的多个 stage 各自在新容器执行，
+      # 拆开会每个阶段重复 checkout + 装依赖；commands 列表内逐条串行、
+      # 日志逐条可定位，任一条非零退出即红。
+      - step: build@nodejs
+        name: check_ci
+        displayName: 'check:ci（build → typecheck → test → lint → spec）'
+        # 与根 package.json 的 engines.node（>=20）一致；
+        # 若插件不接受该版本号，在 Gitee 流水线编辑器下拉里选 Node 20 系并回写此行
+        nodeVersion: 20.15.0
+        commands:
+          # pnpm 9.15.9 与根 packageManager 字段一致（走 npmmirror 加速）
+          - npm install -g pnpm@9.15.9 --registry=https://registry.npmmirror.com
+          - pnpm install --frozen-lockfile
+          # 以下五条 = check:ci 的分步子命令（与本地同一条命令链）
+          - pnpm check:build
+          - pnpm check:typecheck
+          - pnpm check:test
+          - pnpm check:lint
+          - pnpm check:spec
