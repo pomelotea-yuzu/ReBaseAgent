@@ -57,8 +57,21 @@ describe("resolveTracePath", () => {
     expect(resolved.toLowerCase()).toContain("fixtures");
   });
 
-  it("绝对路径原样保留", () => {
+  it("绝对路径原样保留（Windows 盘符路径跨平台视为绝对，含反斜杠写法）", () => {
     expect(resolveTracePath("D:/proj/tests/x.json", "D:/other/t.jsonl")).toBe("D:/other/t.jsonl");
+    expect(resolveTracePath("D:/proj/tests/x.json", "D:\\other\\t.jsonl")).toBe("D:\\other\\t.jsonl");
+  });
+
+  it("POSIX 绝对路径原样保留", () => {
+    expect(resolveTracePath("/proj/tests/x.json", "/other/t.jsonl")).toBe("/other/t.jsonl");
+  });
+
+  it("仅大小写盘符前缀被识别，普通相对路径仍拼接（防误伤）", () => {
+    // 「nn:/x」「1:/x」不是合法盘符路径，仍按相对路径处理
+    for (const weird of ["nn:/x", "1:/x", "DD:/x"]) {
+      const resolved = resolveTracePath("D:/proj/tests/x.json", weird);
+      expect(resolved).not.toBe(weird);
+    }
   });
 });
 

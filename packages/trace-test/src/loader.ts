@@ -33,8 +33,19 @@ export function loadDefinition(file: string): TraceTestDefinition {
 
 /** trace 路径相对定义文件解析（1.1/1.2 契约：不依赖 cwd，CI 换目录不崩） */
 export function resolveTracePath(definitionFile: string, trace: string): string {
-  return isAbsolute(trace) ? trace : resolve(dirname(definitionFile), trace);
+  return isAbsolute(trace) || WIN_DRIVE_PATH.test(trace)
+    ? trace
+    : resolve(dirname(definitionFile), trace);
 }
+
+/**
+ * Windows 盘符路径（`D:/...` 或 `D:\...`）在任意平台都视为绝对路径。
+ * `node:path.isAbsolute` 是平台相关的——POSIX 上 `D:/x` 会被判为相对路径，
+ * 导致 Windows 上编写的测试定义（含盘符绝对路径的 trace）在 Linux CI 中
+ * 被错误地拼接进定义目录。V3-in-CI 的场景就是「Windows 上录的卡带进
+ * Linux CI 跑」，因此这里必须跨平台识别盘符路径。
+ */
+const WIN_DRIVE_PATH = /^[A-Za-z]:[\\/]/;
 
 /** 递归发现目录下全部 *.json 测试定义（不含 node_modules）；空目录是配置错误 */
 export function discoverDefinitions(dir: string): string[] {
