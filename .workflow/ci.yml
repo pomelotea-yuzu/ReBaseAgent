@@ -1,11 +1,16 @@
 # ReBaseAgent CI 质量门禁（Gitee Go 流水线）
 #
 # 校验逻辑的唯一事实源在根 package.json 的 check:* 脚本 —— 本流水线
-# 只做三件事：装环境、装依赖、按序调用 check:ci 的各段子命令。
-# 不要在这里另写一套校验逻辑（会变成"CI 绿了本地红"的双口径）。
+# 只做三件事：装环境、装依赖、调用 check:ci。不要在这里另写一套校验逻辑。
 #
 # 平台说明：首期 CI 载体为 Gitee Go（GitHub 账号受限申诉中）。
 # GitHub 解封后补 .github/workflows/ci.yml 调同一条 check:ci，两者共存。
+#
+# ⚠️ 首跑教训（2026-09-12）：build@nodejs 插件对 nodeVersion 的支持清单
+# 不可靠（v20.15.0 被静默跳过，容器内无 node/npm，仅自带 standalone pnpm），
+# 因此 Node 由 commands 自行安装，nodeVersion 字段仅作必填占位。
+# 另：Gitee Go 的 commands 逐条执行、单条失败不短路（首跑实证），
+# 故依赖安装与五道门用 && 链成单条命令，由最终退出码判败，杜绝假绿。
 
 version: '1.0'
 name: ci-gates
@@ -25,26 +30,23 @@ triggers:
 stages:
   - stage: gates
     displayName: 校验门禁
-    # fast：任一命令失败即整体失败，不掩盖错误
+    # fast：任一环节失败即整体失败
     strategy: fast
     trigger: auto
     steps:
-      # 单 stage 单 step：Gitee Go 的多个 stage 各自在新容器执行，
-      # 拆开会每个阶段重复 checkout + 装依赖；commands 列表内逐条串行、
-      # 日志逐条可定位，任一条非零退出即红。
       - step: build@nodejs
         name: check_ci
         displayName: 'check:ci（build → typecheck → test → lint → spec）'
-        # 与根 package.json 的 engines.node（>=20）一致；
-        # 若插件不接受该版本号，在 Gitee 流水线编辑器下拉里选 Node 20 系并回写此行
-        nodeVersion: 20.15.0
+        # 占位：插件可能不认识该版本并静默跳过其自带的 Node 安装，
+        # 真正的 Node 由下一条命令自装（不依赖插件行为）
+        nodeVersion: 20.19.0
         commands:
-          # pnpm 9.15.9 与根 packageManager 字段一致（走 npmmirror 加速）
-          - npm install -g pnpm@9.15.9 --registry=https://registry.npmmirror.com
-          - pnpm install --frozen-lockfile
-          # 以下五条 = check:ci 的分步子命令（与本地同一条命令链）
-          - pnpm check:build
-          - pnpm check:typecheck
-          - pnpm check:test
-          - pnpm check:lint
-          - pnpm check:spec
+          # ① 自装 Node 20（npmmirror 镜像，curl/wget 二选一，解到 /usr/local 使 node/npm/npx 入 PATH）
+          - >-
+            (curl -fsSL https://npmmirror.com/mirrors/node/v20.19.0/node-v20.19.0-linux-x64.tar.gz -o /tmp/node.tar.gz
+            || wget -q https://npmmirror.com/mirrors/node/v20.19.0/node-v20.19.0-linux-x64.tar.gz -O /tmp/node.tar.gz)
+            && tar -xzf /tmp/node.tar.gz -C /usr/local --strip-components=1 && node -v && npm -v
+          # ② pnpm 9.15.9 与根 packageManager 字段一致（npmmirror 加速）
+          - npm install -g pnpm@9.15.9 --registry=https://registry.npmmirror.com && pnpm -v
+          # ③ 装依赖 + 五道门：&& 链 fail-fast，最后一条命令的退出码决定整体红绿
+          - pnpm install --frozen-lockfile && pnpm check:ci

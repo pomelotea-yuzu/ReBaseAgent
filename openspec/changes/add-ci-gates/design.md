@@ -120,11 +120,11 @@ GitHub 账号受限（申诉中），仓库暂不可达，Actions 无法使用�
 | 决策 | 内容 | 理由 |
 |---|---|---|
 | 配置位置 | `.workflow/ci.yml` | Gitee Go 约定目录，入仓库即代码化 |
-| 插件 | `build@nodejs`（`nodeVersion` + `commands` 列表） | commands 逐条串行执行，任一条非零退出即整体红（`strategy: fast`），无 continue-on-error 概念 |
-| **单 stage 单 step** | 五道校验放在同一个 `commands` 列表里，**不拆多 stage** | Gitee Go 的多个 stage 各自在新容器执行，拆开意味着每个阶段重复 checkout + 装依赖（白付数倍时长与额度）；commands 内逐条日志可单独定位，满足"逐条可定位"要求 |
+| 插件 | `build@nodejs`（`nodeVersion` + `commands` 列表） | commands 逐条串行执行；`strategy: fast` 下 step 失败即整体红 |
+| **Node 由 commands 自装** | 首条命令从 npmmirror 拉 `node-v20.19.0-linux-x64.tar.gz` 解到 `/usr/local`（curl/wget 兜底），node/npm/npx 进系统 PATH | **首跑教训（2026-09-12）**：插件对 `nodeVersion` 的支持清单不可靠——v20.15.0 被静默跳过，容器内无 node/npm（仅自带 standalone pnpm，内嵌 node ⇒ pnpm install 能跑但一切 postinstall / tsc / vitest / biome / npx 全灭）。旧官方文档支持清单仅 8.16.2~15.12.0。自装方案不依赖插件行为，`nodeVersion` 字段仅作必填占位 |
+| **失败链收成单条命令** | `pnpm install --frozen-lockfile && pnpm check:ci` 一条命令完成安装与五道门 | **首跑实证**：commands 逐条执行、单条失败**不短路**（ELIFECYCLE 后后续命令照跑）。若逐条写且退出码按最后一条算，存在「前面红后面绿 → 假绿」风险；`check:ci` 内部即 `&&` 链，任一道门失败即非零退出，从根上排除 |
 | 触发 | `push` 精确匹配 `main` + `pr` 精确匹配 `main` | 与原设计一致；PR 按源分支最新 commit 的 yml 触发 |
-| pnpm 安装 | `npm install -g pnpm@9.15.9 --registry=https://registry.npmmirror.com` | 容器内置 npm 但无 pnpm；版本钉死对齐 `packageManager`；走 npmmirror 提升国内拉速 |
-| Node 版本 | `nodeVersion: 20.15.0` | 与 `engines.node`（>=20）一致。**风险**：插件对版本号的支持清单未实测，若流水线创建时被拒，在 Gitee 流水线编辑器下拉里选 Node 20 系任一版本并回写 yml 即可（对校验结果无影响） |
+| pnpm 安装 | `npm install -g pnpm@9.15.9 --registry=https://registry.npmmirror.com`（Node 装好后 npm 可用） | 版本钉死对齐 `packageManager`；走 npmmirror 提升国内拉速 |
 | 连续推送收敛 | **首期不做**（Gitee Go 未见 concurrency 等价物） | 这是 GitHub Actions 的 `concurrency` 专属能力，解封后配 Actions 时补上；Gitee 侧连续 push 会排队执行，不影响红绿正确性 |
 
 ### CI 环境与矩阵
