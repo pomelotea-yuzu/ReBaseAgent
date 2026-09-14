@@ -13,7 +13,6 @@ import {
   sseData,
   sseStreamDelayed,
 } from "./helpers";
-
 const DONE_MARK = "data: [DONE]";
 
 function streamOf(parts: string[]): ReadableStream<Uint8Array> {
@@ -65,6 +64,50 @@ describe("SSE 聚合器", () => {
     const result = await aggregateSseStream(streamOf(parts));
     expect(result.reasoningContent).toBe("先分析再执行");
     expect(result.content).toBeNull();
+  });
+
+  it("Ollama 形态：纯 reasoning 字段聚合进 reasoning_content", async () => {
+    const parts = [
+      chunk({ reasoning: "思考一" }),
+      chunk({ reasoning: "思考二" }),
+      chunk({ content: "答复" }),
+      `${DONE_MARK}\n\n`,
+    ];
+    const result = await aggregateSseStream(streamOf(parts));
+    expect(result.reasoningContent).toBe("思考一思考二");
+    expect(result.content).toBe("答复");
+  });
+
+  it("两字段跨块并存 → 按到达顺序拼接（不去重）", async () => {
+    const parts = [
+      chunk({ reasoning: "A" }),
+      chunk({ reasoning_content: "B" }),
+      chunk({ reasoning: "C" }),
+      `${DONE_MARK}\n\n`,
+    ];
+    const result = await aggregateSseStream(streamOf(parts));
+    expect(result.reasoningContent).toBe("ABC");
+  });
+
+  it("同块两字段并存 → 只取 reasoning_content（块内不翻倍）", async () => {
+    const parts = [chunk({ reasoning: "忽略我", reasoning_content: "保留我" }), `${DONE_MARK}\n\n`];
+    const result = await aggregateSseStream(streamOf(parts));
+    expect(result.reasoningContent).toBe("保留我");
+  });
+
+  it("ttft 按首个 reasoning delta 计（思考模型不再记成首正文 token）", async () => {
+    const parts = [chunk({ reasoning: "先想" }), chunk({ content: "再说" }), `${DONE_MARK}\n\n`];
+    const body = sseStreamDelayed(parts, { firstDelayMs: 60, restDelayMs: 0 });
+    const result = await aggregateSseStream(body);
+    expect(result.reasoningContent).toBe("先想");
+    expect(result.ttftMs).toBeGreaterThanOrEqual(60);
+  });
+
+  it("空字符串 reasoning 不计为内容 delta（ttft 保底为 0）", async () => {
+    const parts = [chunk({ reasoning: "" }), usageChunk(10, 1), `${DONE_MARK}\n\n`];
+    const result = await aggregateSseStream(streamOf(parts));
+    expect(result.reasoningContent).toBeNull();
+    expect(result.ttftMs).toBe(0);
   });
 
   it("tool_calls 按 index 聚合 arguments 分片", async () => {
@@ -154,6 +197,27 @@ describe("buildRequestBody（前缀稳定）", () => {
   it("无工具时省略 tools 字段", () => {
     const body = buildRequestBody(sampleConfig({ tools: [] }), [{ role: "user", content: "hi" }]);
     expect(body.tools).toBeUndefined();
+  });
+
+  it("标量 params（字符串 / 布尔）原样平铺进顶层", () => {
+    const config = sampleConfig({
+      params: { reasoning_effort: "none", think: false, temperature: 0.2 },
+    });
+    const body = buildRequestBody(config, [{ role: "user", content: "hi" }]);
+    expect(body.reasoning_effort).toBe("none");
+    expect(body.think).toBe(false);
+    expect(body.temperature).toBe(0.2);
+    // 固定键不被覆盖
+    expect(body.model).toBe("deepseek-chat");
+    expect(body.stream).toBe(true);
+  });
+
+  it("标量 params 不改变逐字节稳定性", () => {
+    const config = sampleConfig({ params: { reasoning_effort: "none", think: false } });
+    const messages = [{ role: "user", content: "hi" }] as const;
+    const a = JSON.stringify(buildRequestBody(config, [...messages]));
+    const b = JSON.stringify(buildRequestBody(config, [...messages]));
+    expect(a).toBe(b);
   });
 
   it("同输入两次构造逐字节一致（JSON 序列化）", () => {

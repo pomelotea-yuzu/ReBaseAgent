@@ -1,4 +1,5 @@
-import type { Message } from "@rebaseagent/agent-loop";
+import { RESERVED_BODY_KEYS, ScalarSchema } from "@rebaseagent/agent-loop";
+import type { Message, Scalar } from "@rebaseagent/agent-loop";
 import type { Fork, LlmCallSpan, RunRecord } from "@rebaseagent/trace-sdk";
 import { z } from "zod";
 
@@ -27,8 +28,17 @@ export const ModelParamsValueSchema = z
   .object({
     /** 目标模型名（非空） */
     model: z.string().min(1, "model 不能为空"),
-    /** 数值采样参数；整体覆盖父 run 录制值，缺省沿用父值 */
-    params: z.record(z.string(), z.number().finite("采样参数必须是有限数值")).optional(),
+    /**
+     * 标量采样参数（string | number | boolean）；整体覆盖父 run 录制值，缺省沿用父值。
+     * 保留键（与 agent-loop 的 `RESERVED_BODY_KEYS` 同一常量来源）在此拒绝——
+     * params 平铺进请求体顶层，保留键冲突等于请求体注入。
+     */
+    params: z
+      .record(z.string(), ScalarSchema)
+      .refine((params) => !Object.keys(params).some((k) => isReserved(k)), {
+        message: `采样参数不得使用请求体保留键（${RESERVED_BODY_KEYS.join(" / ")}）`,
+      })
+      .optional(),
     /** 同一批实验的分组标签（可选）：仅供 UI 分组与默认配对，不参与校验与 hash */
     experimentId: z.string().min(1).optional(),
     /** 显式确认允许带副作用的工具（可选）：见 model-replay-run 的副作用门禁 */
@@ -39,6 +49,10 @@ export const ModelParamsValueSchema = z
       "（baseURL、apiKey、cwd、工具表与预算不得由此注入）",
   );
 export type ModelParamsValue = z.infer<typeof ModelParamsValueSchema>;
+
+function isReserved(key: string): boolean {
+  return (RESERVED_BODY_KEYS as readonly string[]).includes(key);
+}
 
 /** prompt fork 编辑描述：启动上下文（字符串）或模型配置（结构化） */
 export type PromptForkEdit =
@@ -58,7 +72,7 @@ export interface DerivePromptForkStateInput {
 export interface ModelOverride {
   model: string;
   /** 整体覆盖后的采样参数；父 run 未录制时为 undefined */
-  params: Record<string, number> | undefined;
+  params: Record<string, Scalar> | undefined;
 }
 
 export interface DerivedPromptForkState {
@@ -120,21 +134,25 @@ export function locateStartupContext(
 }
 
 /**
- * 把录制 params（trace 侧为 Record<string, unknown>）规整为数值采样参数。
- * 非数值项一律丢弃——首期只支持数值采样参数（temperature / top_p 等），
- * 结构化参数（response_format、stop 数组）不在本 change 范围内。
+ * 把录制 params（trace 侧为 Record<string, unknown>）规整为标量采样参数。
+ * 非标量项（嵌套对象、数组、null）一律丢弃——首期只支持 JSON 标量
+ * （reasoning_effort / think / temperature 等），结构化参数不在本 change 范围内。
+ *
+ * 与 `model-replay-run.ts` 的同名逻辑合一：两处调用同一实现，避免口径漂移。
  */
-export function numericParams(raw: unknown): Record<string, number> {
+export function scalarParams(raw: unknown): Record<string, Scalar> {
   if (typeof raw !== "object" || raw === null) return {};
-  const out: Record<string, number> = {};
+  const out: Record<string, Scalar> = {};
   for (const [key, value] of Object.entries(raw)) {
-    if (typeof value === "number") out[key] = value;
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+      out[key] = value;
+    }
   }
   return out;
 }
 
-/** 两个数值参数表是否逐键相等（父缺省视为空对象） */
-export function sameParams(a: Record<string, number>, b: Record<string, number>): boolean {
+/** 两个标量参数表是否逐键相等（父缺省视为空对象） */
+export function sameParams(a: Record<string, Scalar>, b: Record<string, Scalar>): boolean {
   const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
   for (const key of keys) {
     if (a[key] !== b[key]) return false;
@@ -239,7 +257,7 @@ function deriveModelParamsState(input: {
   const { record, llmSpan, messages, system, edit } = input;
   const value = parseModelParamsValue(edit.value);
 
-  const parentParams = numericParams(llmSpan.request.params);
+  const parentParams = scalarParams(llmSpan.request.params);
   const params = value.params ?? parentParams;
   if (value.model === llmSpan.request.model && sameParams(params, parentParams)) {
     throw new Error(

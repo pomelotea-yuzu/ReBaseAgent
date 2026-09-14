@@ -1,12 +1,14 @@
 import { join } from "node:path";
 import { OpenAiCompatClient, configHash, parseRunConfig, runLoop } from "@rebaseagent/agent-loop";
-import type { ForkRunMeta, LlmClient, RunConfig, Tool } from "@rebaseagent/agent-loop";
+import type { ForkRunMeta, LlmClient, RunConfig, Scalar, Tool } from "@rebaseagent/agent-loop";
 import { JsonlTracer } from "@rebaseagent/trace-sdk";
 import type { Fork, RunLoader } from "@rebaseagent/trace-sdk";
 import { loadForkParent } from "./fork-parent.js";
-import { derivePromptForkState } from "./prompt-fork.js";
+import { derivePromptForkState, scalarParams } from "./prompt-fork.js";
 import type { DerivedPromptForkState, ModelParamsEdit, ModelParamsValue } from "./prompt-fork.js";
 import { newForkRunId } from "./replay-run.js";
+import { warnSilentIgnores } from "./silent-ignore.js";
+import type { SilentIgnoreWarning } from "./silent-ignore.js";
 
 /**
  * 模型 A/B 多臂实验编排（V3b，2.1-2.5）。
@@ -60,7 +62,7 @@ export type ToolPolicy = "require_pure" | "require_empty";
 /** 单个实验臂的输入（与 model_params edit value 一一对应） */
 export interface ModelArmSpec {
   model: string;
-  params?: Record<string, number>;
+  params?: Record<string, Scalar>;
   /** 显式确认允许带副作用的工具；全批一致为 true 时放行（逃生舱） */
   allowSideEffects?: boolean;
   /** 该臂声明的 experimentId；同批必须相同，缺省由编排层生成 */
@@ -94,16 +96,25 @@ export interface ModelReplayRunManyOptions {
 export interface ModelArmPlan {
   index: number;
   model: string;
-  params: Record<string, number>;
+  /** 最终生效 params（含继承的父录值；arm 给出的项覆盖父值） */
+  params: Record<string, Scalar>;
   /** 相对父 run 实际改变的项（model / params.<key>） */
   changed: string[];
+  /** params 中来自 arm 显式给出、且父 run 也有的键（展示时标"覆盖"） */
+  overridden: string[];
+  /** params 中来自 arm 显式给出、但父 run 没有的键（展示时标"新增"） */
+  added: string[];
+  /** 父 run 录制值中因整体替换被丢弃的项（arm 未给 params 时为 `{}`） */
+  discarded: Record<string, Scalar>;
+  /** 知识库命中的静默忽略告警（空数组 = 未命中，不承诺"已生效"） */
+  warnings: SilentIgnoreWarning[];
   allowSideEffects: boolean;
 }
 
 export interface ModelArmResult {
   index: number;
   model: string;
-  params: Record<string, number>;
+  params: Record<string, Scalar>;
   /** 成功落盘的 fork run id；dry-run、未开始或被拒绝为 null */
   id: string | null;
   /** 该臂的失败原因；成功为 null */
@@ -216,9 +227,9 @@ function assertToolPolicy(
 /** 相对父 run 的实际改变项（供确认面板与计划展示） */
 function describeChanges(
   parentModel: string,
-  parentParams: Record<string, number>,
+  parentParams: Record<string, Scalar>,
   model: string,
-  params: Record<string, number>,
+  params: Record<string, Scalar>,
 ): string[] {
   const changed: string[] = [];
   if (model !== parentModel) changed.push("model");
@@ -275,7 +286,7 @@ export async function modelReplayRunMany(
   // 3. 父链门禁（与 prompt fork 共用；失败零文件、零调用）
   const parent = loadParentOrThrow(parentId, load);
   const parentModel = parent.llmSpan.request.model;
-  const parentParams = numericParentParams(parent.llmSpan.request.params);
+  const parentParams = scalarParams(parent.llmSpan.request.params);
 
   // 4. 每臂：值校验 + 空编辑拒绝 + 启动上下文派生（纯函数，零副作用）
   const prepared = arms.map((arm, index) => {
@@ -327,18 +338,31 @@ export async function modelReplayRunMany(
     prepared.map((p) => p.arm.experimentId),
   );
 
-  const plan: ModelArmPlan[] = prepared.map((p) => ({
-    index: p.index,
-    model: p.arm.model,
-    params: p.state.modelOverride?.params ?? {},
-    changed: describeChanges(
-      parentModel,
-      parentParams,
-      p.arm.model,
-      p.state.modelOverride?.params ?? {},
-    ),
-    allowSideEffects: p.arm.allowSideEffects === true,
-  }));
+  const plan: ModelArmPlan[] = prepared.map((p) => {
+    const effective = p.state.modelOverride?.params ?? {};
+    // arm 显式给出的键（与父值无关）；父有的标"覆盖"、父没有的标"新增"
+    const armGiven = Object.keys(p.arm.params ?? {});
+    const overridden = armGiven.filter((k) => k in parentParams);
+    const added = armGiven.filter((k) => !(k in parentParams));
+    // 整体替换不合并：arm 给了 params 时，父录值整体让位 ⇒ 父有而 arm 未给的项被丢弃
+    const discarded: Record<string, Scalar> = {};
+    if (p.arm.params !== undefined) {
+      for (const [k, v] of Object.entries(parentParams)) {
+        if (!(k in p.arm.params)) discarded[k] = v;
+      }
+    }
+    return {
+      index: p.index,
+      model: p.arm.model,
+      params: effective,
+      changed: describeChanges(parentModel, parentParams, p.arm.model, effective),
+      overridden,
+      added,
+      discarded,
+      warnings: warnSilentIgnores(config.baseURL, effective),
+      allowSideEffects: p.arm.allowSideEffects === true,
+    };
+  });
 
   // 8. dry-run：只展示校验后的计划，不需要 apiKey、不联网、不写文件（2.4）
   if (dryRun) {
@@ -472,13 +496,4 @@ function loadParentOrThrow(parentId: string, load: RunLoader): ReturnType<typeof
   } catch (e) {
     throw new ModelAbError("PARENT_NOT_FORKABLE", e instanceof Error ? e.message : String(e));
   }
-}
-
-function numericParentParams(raw: unknown): Record<string, number> {
-  if (typeof raw !== "object" || raw === null) return {};
-  const out: Record<string, number> = {};
-  for (const [key, value] of Object.entries(raw)) {
-    if (typeof value === "number") out[key] = value;
-  }
-  return out;
 }

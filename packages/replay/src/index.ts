@@ -10,9 +10,9 @@ export {
   derivePromptForkState,
   firstLlmCall,
   locateStartupContext,
-  numericParams,
   parseModelParamsValue,
   sameParams,
+  scalarParams,
 } from "./prompt-fork.js";
 export { ModelParamsValueSchema } from "./prompt-fork.js";
 export type {
@@ -25,6 +25,8 @@ export type {
   PromptForkField,
   StartupContext,
 } from "./prompt-fork.js";
+export { SILENT_IGNORE_RULES, warnSilentIgnores } from "./silent-ignore.js";
+export type { SilentIgnoreRule, SilentIgnoreWarning } from "./silent-ignore.js";
 export { promptReplayRun } from "./prompt-replay-run.js";
 export type { PromptReplayRunOptions, PromptReplayRunResult } from "./prompt-replay-run.js";
 export { loadForkParent } from "./fork-parent.js";

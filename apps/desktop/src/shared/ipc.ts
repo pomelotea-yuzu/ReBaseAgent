@@ -172,8 +172,8 @@ export type PromptForkResult = z.infer<typeof PromptForkResultSchema>;
 /** 单个实验臂：模型名 + 可选数值采样参数 + 可选的副作用确认声明 */
 export const ModelAbArmSchema = z.object({
   model: z.string().min(1, "model 不能为空"),
-  /** 首期只支持数值采样参数；整体覆盖父 run 录制值 */
-  params: z.record(z.string(), z.number().finite()).optional(),
+  /** 标量采样参数（string / number / boolean）；整体覆盖父 run 录制值 */
+  params: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional(),
   /** 显式确认允许带副作用的工具（全批一致为 true 才放行） */
   allowSideEffects: z.boolean().optional(),
 });
@@ -190,12 +190,33 @@ export const ModelAbRequestSchema = z.object({
 });
 export type ModelAbRequest = z.infer<typeof ModelAbRequestSchema>;
 
-/** dry-run 的计划条目：该臂相对父 run 实际改变了什么 */
+/** 静默忽略告警（知识库命中；空数组 = 未命中，不承诺"已生效"） */
+export const SilentIgnoreWarningSchema = z.object({
+  key: z.string(),
+  provider: z.string(),
+  reason: z.string(),
+  workaround: z.string(),
+});
+
+/**
+ * dry-run 的计划条目：该臂相对父 run 实际改变了什么。
+ * 四个展示字段（params / overridden / added / discarded / warnings）由编排层
+ * （replay 的 modelReplayRunMany）计算一次，渲染层只读不重算——双端口径同源。
+ */
 export const ModelArmPlanSchema = z.object({
   index: z.number().int().nonnegative(),
   model: z.string(),
-  params: z.record(z.string(), z.number()),
+  /** 最终生效 params（含继承的父录值） */
+  params: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])),
   changed: z.array(z.string()),
+  /** arm 显式给出、且父 run 也有的键（标"覆盖"） */
+  overridden: z.array(z.string()),
+  /** arm 显式给出、但父 run 没有的键（标"新增"） */
+  added: z.array(z.string()),
+  /** 父录值中被整体替换丢弃的项（arm 未给 params 时为 {}） */
+  discarded: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])),
+  /** 知识库命中的静默忽略告警 */
+  warnings: z.array(SilentIgnoreWarningSchema),
   allowSideEffects: z.boolean(),
 });
 export type ModelArmPlan = z.infer<typeof ModelArmPlanSchema>;

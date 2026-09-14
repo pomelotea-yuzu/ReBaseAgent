@@ -384,7 +384,8 @@ async function snapshotStreamResponse(
           agg.content = (agg.content ?? "") + c;
           agg.sawAnything = true;
         }
-        const r = delta.reasoning_content;
+        // 与 llm-client 同标准：块内二选一（优先 reasoning_content），跨块按到达顺序拼接
+        const r = delta.reasoning_content ?? delta.reasoning;
         if (typeof r === "string" && r.length > 0) {
           agg.reasoning = (agg.reasoning ?? "") + r;
           agg.sawAnything = true;
@@ -496,6 +497,9 @@ export interface ForkSourceRequest {
 /**
  * 构造分叉重发请求体：messages 用编辑后值，model/params/tools 用原录制值。
  * 恒为 stream:true（走统一聚合路径，TTFT 可测）。
+ *
+ * 固定键集与 `agent-loop` 的 `RESERVED_BODY_KEYS` 一致——新增固定键须同步该常量
+ * （params 平铺进顶层，保留键冲突等于请求体注入）。
  * @throws EmptyForkError 未修改
  */
 export function buildForkRequest(

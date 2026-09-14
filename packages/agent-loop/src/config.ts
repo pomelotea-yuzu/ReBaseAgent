@@ -91,9 +91,40 @@ export const ExecContextSchema = z.object({
 });
 export type ExecContext = z.infer<typeof ExecContextSchema>;
 
-/** LLM 采样参数（temperature/top_p 等，原样透传） */
-export const SampleParamsSchema = z.record(z.string(), z.number()).optional();
+/**
+ * 请求体保留键：`buildRequestBody` 自行构造的固定键集。
+ *
+ * **唯一事实来源**——采样参数平铺进请求体顶层，若 params 用了这些键即等于请求体注入，
+ * 故 `SampleParamsSchema` 在此拒绝（见下方 refine）。改动 `buildRequestBody` 的固定键
+ * 时必须同步本常量，否则守卫会漏；replay 包直接引用本常量（不复制键集）。
+ *
+ * 对应点：`llm-client.ts` 的 `buildRequestBody`、`llm-proxy` 的 `buildForkRequest`。
+ */
+export const RESERVED_BODY_KEYS = [
+  "model",
+  "messages",
+  "tools",
+  "stream",
+  "stream_options",
+] as const;
+
+/** JSON 标量：采样参数允许的值类型（首期不含嵌套对象/数组/null） */
+export const ScalarSchema = z.union([z.string(), z.number(), z.boolean()]);
+export type Scalar = z.infer<typeof ScalarSchema>;
+
+/** LLM 采样参数（temperature/reasoning_effort 等，原样平铺进请求体顶层） */
+export const SampleParamsSchema = z
+  .record(z.string(), ScalarSchema)
+  .refine((params) => !Object.keys(params).some((k) => isReservedBodyKey(k)), {
+    message: `采样参数不得使用请求体保留键（${RESERVED_BODY_KEYS.join(" / ")}）——params 平铺进请求体顶层，保留键冲突等于请求体注入`,
+  })
+  .optional();
 export type SampleParams = z.infer<typeof SampleParamsSchema>;
+
+/** 键是否属于请求体保留键集 */
+export function isReservedBodyKey(key: string): boolean {
+  return (RESERVED_BODY_KEYS as readonly string[]).includes(key);
+}
 
 export const RunConfigSchema = z.object({
   /** OpenAI 兼容端点（如 https://api.deepseek.com/v1） */

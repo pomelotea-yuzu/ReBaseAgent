@@ -28,12 +28,35 @@ describe("parseArmParams", () => {
     expect(parseArmParams("{}")).toEqual({ ok: true, params: undefined });
   });
 
-  it("非 JSON / 非对象 / 非有限数字 → 拦截并给出具体原因", () => {
+  it("标量扩展：字符串与布尔放行", () => {
+    expect(parseArmParams('{"reasoning_effort": "none", "think": false}')).toEqual({
+      ok: true,
+      params: { reasoning_effort: "none", think: false },
+    });
+  });
+
+  it("非 JSON / 非对象 / 嵌套对象 / 数组 / null → 拦截并给出具体原因", () => {
     expect(parseArmParams("{bad")).toMatchObject({ ok: false });
     expect(parseArmParams("[1,2]")).toMatchObject({ ok: false });
-    expect(parseArmParams('{"t": "hot"}')).toMatchObject({ ok: false });
+    expect(parseArmParams('{"t": {"nested": 1}}')).toMatchObject({ ok: false });
+    expect(parseArmParams('{"t": [1,2]}')).toMatchObject({ ok: false });
+    expect(parseArmParams('{"t": null}')).toMatchObject({ ok: false });
     expect(parseArmParams('{"t": 1}')).toMatchObject({ ok: true });
   });
+
+  it("非有限数字（NaN / Infinity）→ 拦截", () => {
+    // JSON 无 NaN/Infinity 字面量，用超范围数字触发 Infinity
+    expect(parseArmParams('{"t": 1e999}')).toMatchObject({ ok: false });
+  });
+
+  it.each(["model", "messages", "tools", "stream", "stream_options"])(
+    "保留键 %s → 拦截（与 agent-loop 同一键集）",
+    (key) => {
+      const result = parseArmParams(`{"${key}": "x"}`);
+      expect(result).toMatchObject({ ok: false });
+      if (!result.ok) expect(result.reason).toContain("保留键");
+    },
+  );
 });
 
 describe("riskyToolNames：与编排层判据同源（sideEffect !== false 即有副作用）", () => {
@@ -108,6 +131,40 @@ describe("modelAbGuard：提交前本地拦截", () => {
       ),
     });
     expect(differs.canSubmit).toBe(true);
+  });
+
+  it("空 fork 判据对标量天然成立（字符串 / 布尔差异也算改变）", () => {
+    const sameScalar = modelAbGuard({
+      ...BASE,
+      parentParams: { reasoning_effort: "none", think: false },
+      arms: arms(
+        { model: "deepseek-chat", paramsText: '{"reasoning_effort": "none", "think": false}' },
+        { model: "deepseek-chat", paramsText: "" },
+      ),
+    });
+    expect(sameScalar.canSubmit).toBe(false);
+    expect(sameScalar.reason).toContain("空实验");
+
+    const differsScalar = modelAbGuard({
+      ...BASE,
+      parentParams: { reasoning_effort: "none" },
+      arms: arms(
+        { model: "deepseek-chat", paramsText: '{"reasoning_effort": "none"}' },
+        { model: "deepseek-chat", paramsText: '{"reasoning_effort": "high"}' },
+      ),
+    });
+    expect(differsScalar.canSubmit).toBe(true);
+
+    // 布尔与字符串不相等（类型不同）
+    const boolVsString = modelAbGuard({
+      ...BASE,
+      parentParams: { think: false },
+      arms: arms(
+        { model: "deepseek-chat", paramsText: '{"think": false}' },
+        { model: "deepseek-chat", paramsText: '{"think": "false"}' },
+      ),
+    });
+    expect(boolVsString.canSubmit).toBe(true);
   });
 
   it("带副作用工具且未确认 → 拦截；勾选后放行（逃生舱是批次级确认）", () => {

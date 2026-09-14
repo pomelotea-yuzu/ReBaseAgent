@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { OpenAiCompatClient } from "@rebaseagent/agent-loop";
-import type { LlmClient, RunConfig, Tool, ToolDef } from "@rebaseagent/agent-loop";
+import type { LlmClient, RunConfig, Scalar, Tool, ToolDef } from "@rebaseagent/agent-loop";
 import {
   ToolUnwrapError,
   modelReplayRunMany,
@@ -335,12 +335,14 @@ function resolvePath(cwd: string, raw: unknown): string {
   return resolved;
 }
 
-/** 录制 params（跨包类型为 Record<string, unknown>）规整为 RunConfig 的数值采样参数 */
-function sanitizeParams(raw: unknown): Record<string, number> | undefined {
+/** 录制 params（跨包类型为 Record<string, unknown>）规整为 RunConfig 的标量采样参数 */
+function sanitizeParams(raw: unknown): Record<string, Scalar> | undefined {
   if (typeof raw !== "object" || raw === null) return undefined;
-  const out: Record<string, number> = {};
+  const out: Record<string, Scalar> = {};
   for (const [key, value] of Object.entries(raw)) {
-    if (typeof value === "number") out[key] = value;
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+      out[key] = value;
+    }
   }
   return Object.keys(out).length > 0 ? out : undefined;
 }

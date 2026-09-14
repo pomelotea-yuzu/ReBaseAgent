@@ -255,6 +255,167 @@ describe("modelReplayRunMany：两臂 A/B（端到端，mock LLM）", () => {
   });
 });
 
+describe("modelReplayRunMany：plan 字段（覆盖 / 新增 / 丢弃 / 告警）", () => {
+  it("arm 给出部分键 → 覆盖与新增分明，父的其余键列进 discarded", async () => {
+    const { dir, cleanup } = tempDir();
+    try {
+      // 父 run 录制 temperature 与 num_predict
+      const parentConfig = sampleConfig({
+        tools: PURE.map(({ handler: _h, ...def }) => def),
+        params: { temperature: 0.5, num_predict: 768 },
+      });
+      const parentId = await createParent(dir, { config: parentConfig });
+
+      const result = await modelReplayRunMany({
+        parentId,
+        arms: [
+          { model: "m-a", params: { temperature: 0.7, reasoning_effort: "none" } },
+          { model: "m-b", params: { num_predict: 256 } },
+        ],
+        config: parentConfig,
+        tools: PURE,
+        load: loader(dir),
+        outDir: dir,
+        dryRun: true,
+      });
+
+      const [a, b] = result.plan;
+      // 覆盖（父也有）+ 新增（父没有）
+      expect(a?.overridden).toEqual(["temperature"]);
+      expect(a?.added).toEqual(["reasoning_effort"]);
+      // 整体替换不合并：num_predict 父有而 arm 未给 → 丢弃
+      expect(a?.discarded).toEqual({ num_predict: 768 });
+      expect(a?.params).toEqual({ temperature: 0.7, reasoning_effort: "none" });
+      // 第二臂丢 temperature
+      expect(b?.overridden).toEqual(["num_predict"]);
+      expect(b?.added).toEqual([]);
+      expect(b?.discarded).toEqual({ temperature: 0.5 });
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("arm 未给 params → discarded 为空（不误报丢弃）", async () => {
+    const { dir, cleanup } = tempDir();
+    try {
+      const parentConfig = sampleConfig({
+        tools: PURE.map(({ handler: _h, ...def }) => def),
+        params: { temperature: 0.5 },
+      });
+      const parentId = await createParent(dir, { config: parentConfig });
+
+      const result = await modelReplayRunMany({
+        parentId,
+        arms: [{ model: "m-a" }, { model: "m-b" }],
+        config: parentConfig,
+        tools: PURE,
+        load: loader(dir),
+        outDir: dir,
+        dryRun: true,
+      });
+      expect(result.plan[0]?.discarded).toEqual({});
+      expect(result.plan[0]?.overridden).toEqual([]);
+      expect(result.plan[0]?.added).toEqual([]);
+      // 生效 params 是继承的父值
+      expect(result.plan[0]?.params).toEqual({ temperature: 0.5 });
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("baseURL 指向 Ollama 且含 num_ctx → 该臂带告警；非 Ollama 不告警", async () => {
+    const { dir, cleanup } = tempDir();
+    try {
+      const parentConfig = sampleConfig({ tools: PURE.map(({ handler: _h, ...def }) => def) });
+      const parentId = await createParent(dir, { config: parentConfig });
+
+      const ollamaConfig: RunConfig = { ...parentConfig, baseURL: "http://127.0.0.1:11434/v1" };
+      const ollamaResult = await modelReplayRunMany({
+        parentId,
+        arms: [
+          { model: "m-a", params: { num_ctx: 8192, temperature: 0.7 } },
+          { model: "m-b", params: { temperature: 0.7 } },
+        ],
+        config: ollamaConfig,
+        tools: PURE,
+        load: loader(dir),
+        outDir: dir,
+        dryRun: true,
+      });
+      expect(ollamaResult.plan[0]?.warnings.map((w) => w.key)).toEqual(["num_ctx"]);
+      expect(ollamaResult.plan[1]?.warnings).toEqual([]);
+
+      const deepseekResult = await modelReplayRunMany({
+        parentId,
+        arms: [{ model: "m-a", params: { num_ctx: 8192 } }, { model: "m-b" }],
+        config: parentConfig,
+        tools: PURE,
+        load: loader(dir),
+        outDir: dir,
+        dryRun: true,
+      });
+      expect(deepseekResult.plan[0]?.warnings).toEqual([]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("标量 params（字符串 / 布尔）端到端进入请求体并落进 plan", async () => {
+    const { dir, cleanup } = tempDir();
+    try {
+      const parentConfig = sampleConfig({ tools: PURE.map(({ handler: _h, ...def }) => def) });
+      const parentId = await createParent(dir, { config: parentConfig });
+
+      const result = await modelReplayRunMany({
+        parentId,
+        arms: [
+          { model: "m-a", params: { reasoning_effort: "none", think: false } },
+          { model: "m-b", params: { level: "high" } },
+        ],
+        config: parentConfig,
+        tools: PURE,
+        load: loader(dir),
+        outDir: dir,
+        confirmCost: true,
+        llm: perArmClient([[{ content: "A" }], [{ content: "B" }]]),
+      });
+      expect(result.ok).toBe(true);
+      expect(result.plan[0]?.params).toEqual({ reasoning_effort: "none", think: false });
+      // 落盘的 fork.edit 也带标量
+      const armA = result.arms[0];
+      if (armA?.id == null) throw new Error("arm 未落盘");
+      const value = readRun(join(dir, `${armA.id}.jsonl`)).meta.fork?.edit.value as {
+        params?: Record<string, unknown>;
+      };
+      expect(value.params).toEqual({ reasoning_effort: "none", think: false });
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("保留键 params → 整批拒绝（零文件零调用）", async () => {
+    const { dir, cleanup } = tempDir();
+    try {
+      const parentId = await createParent(dir);
+      const before = readdirSync(dir).sort();
+      await expect(
+        modelReplayRunMany({
+          parentId,
+          arms: [{ model: "m-a", params: { messages: "注入" } as never }, { model: "m-b" }],
+          config: PURE_CONFIG,
+          tools: PURE,
+          load: loader(dir),
+          outDir: dir,
+          dryRun: true,
+        }),
+      ).rejects.toThrow(/保留键/);
+      expect(readdirSync(dir).sort()).toEqual(before);
+    } finally {
+      cleanup();
+    }
+  });
+});
+
 describe("modelReplayRunMany：前置门禁（零文件、零调用）", () => {
   it("单臂 → 拒绝并指向 prompt fork", async () => {
     const { dir, cleanup } = tempDir();
@@ -715,6 +876,10 @@ describe("modelReplayRunMany：dry-run 与失败隔离", () => {
           model: "m1",
           params: {},
           changed: ["model"],
+          overridden: [],
+          added: [],
+          discarded: {},
+          warnings: [],
           allowSideEffects: false,
         },
         {
@@ -722,6 +887,10 @@ describe("modelReplayRunMany：dry-run 与失败隔离", () => {
           model: "m2",
           params: { temperature: 0.5 },
           changed: ["model", "params.temperature"],
+          overridden: [],
+          added: ["temperature"],
+          discarded: {},
+          warnings: [],
           allowSideEffects: false,
         },
       ]);

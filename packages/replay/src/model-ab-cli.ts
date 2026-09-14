@@ -23,13 +23,14 @@
  */
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import type { Scalar } from "@rebaseagent/agent-loop";
 import { readRun } from "@rebaseagent/trace-sdk";
 import {
   DEFAULT_MAX_ITERATIONS,
   DEFAULT_MAX_TOTAL_TOKENS,
   modelReplayRunMany,
 } from "./model-replay-run.js";
-import type { ModelArmSpec } from "./model-replay-run.js";
+import type { ModelArmPlan, ModelArmSpec } from "./model-replay-run.js";
 import { firstLlmCall, locateStartupContext } from "./prompt-fork.js";
 
 interface CliArgs {
@@ -100,7 +101,67 @@ function printUsageAndExit(code: 0 | 2): never {
   process.exit(code);
 }
 
-/** "deepseek-chat;temperature=0.2;top_p=0.9" → { model, params } */
+/**
+ * 解析单个采样参数值（规则顺序固定，见 design §5）。
+ *
+ * 1. `true` / `false`（严格小写全等）→ boolean
+ * 2. 合法 JSON number（含负号 / 小数）→ number
+ * 3. 引号包裹（首尾均为 `"`）→ 强制字符串，仅支持 `\"` 与 `\\` 两种转义
+ * 4. 其余 → 原字符串
+ *
+ * 引号是"我要字符串"的唯一显式标记（`k="123"` 不会被吃成 number）。不做完整转义集——
+ * `--arm` 在到达这里前已被 shell 处理过一轮，再做 `\n`/`\uXXXX` 解码只会制造两层转义的心智负担。
+ */
+function parseScalarValue(raw: string, index: number, part: string): string | number | boolean {
+  if (raw === "true") return true;
+  if (raw === "false") return false;
+  if (!raw.includes('"')) {
+    // 无引号：数值优先，否则原字符串（none / high / q4_k_m）
+    const num = Number(raw);
+    if (raw.length > 0 && Number.isFinite(num)) return num;
+    if (raw.length === 0) {
+      throw new Error(
+        `第 ${index + 1} 个 --arm 的采样参数缺值：${part}（示例：temperature=0.2 或 level=high）`,
+      );
+    }
+    return raw;
+  }
+  // 含引号：必须"首尾均为 " 且内部无裸引号"
+  if (raw.length < 2 || !raw.startsWith('"') || !raw.endsWith('"')) {
+    throw new Error(
+      `第 ${index + 1} 个 --arm 的引号未包裹整个值：${part}（示例：k="a b"；引号必须包住整个值）`,
+    );
+  }
+  const inner = raw.slice(1, -1);
+  let out = "";
+  for (let i = 0; i < inner.length; i++) {
+    const ch = inner[i];
+    if (ch !== "\\") {
+      if (ch === '"') {
+        throw new Error(`第 ${index + 1} 个 --arm 的值中出现裸引号：${part}（字面双引号请写 \\"）`);
+      }
+      out += ch;
+      continue;
+    }
+    const next = inner[i + 1];
+    if (next === '"') {
+      out += '"';
+      i += 1;
+      continue;
+    }
+    if (next === "\\") {
+      out += "\\";
+      i += 1;
+      continue;
+    }
+    throw new Error(
+      `第 ${index + 1} 个 --arm 的值含不支持的转义：${part}（仅支持 \\" 与 \\\\；\\n / \\t / \\uXXXX 等按字面量传入请去掉反斜杠）`,
+    );
+  }
+  return out;
+}
+
+/** "deepseek-chat;temperature=0.2;reasoning_effort=none" → { model, params } */
 function parseArm(spec: string, index: number): ModelArmSpec {
   const parts = spec
     .split(";")
@@ -110,7 +171,7 @@ function parseArm(spec: string, index: number): ModelArmSpec {
     throw new Error(`第 ${index + 1} 个 --arm 为空`);
   }
   let model: string | null = null;
-  const params: Record<string, number> = {};
+  const params: Record<string, Scalar> = {};
   for (const part of parts) {
     const eq = part.indexOf("=");
     if (eq === -1) {
@@ -120,13 +181,10 @@ function parseArm(spec: string, index: number): ModelArmSpec {
     }
     const key = part.slice(0, eq).trim();
     const raw = part.slice(eq + 1).trim();
-    const value = Number(raw);
-    if (key.length === 0 || !Number.isFinite(value)) {
-      throw new Error(
-        `第 ${index + 1} 个 --arm 的采样参数非法：${part}（首期只支持数值参数，如 temperature=0.2）`,
-      );
+    if (key.length === 0) {
+      throw new Error(`第 ${index + 1} 个 --arm 的采样参数缺键名：${part}`);
     }
-    params[key] = value;
+    params[key] = parseScalarValue(raw, index, part);
   }
   if (model === null || model.length === 0) {
     throw new Error(`第 ${index + 1} 个 --arm 缺少模型名：${spec}`);
@@ -142,6 +200,48 @@ async function loadConfig(path: string | null): Promise<ConfigModule> {
     throw new Error(`配置模块 ${path} 需 default 导出 { baseURL, cwd?, maxIterations?, budget? }`);
   }
   return config;
+}
+
+/** 单个标量的展示文本（字符串加引号以便与数字区分） */
+function scalarText(value: Scalar): string {
+  return typeof value === "string" ? JSON.stringify(value) : String(value);
+}
+
+/**
+ * 打印单臂计划（design §4 三段格式，与桌面 ModelAbEditor 字段语义一致）。
+ *
+ * 第一段 `生效 params`：arm 显式给出的标"覆盖"/"新增"，继承父值的标"继承"。
+ * 第二段 `丢弃父录值`：整体替换不合并 ⇒ 父有而 arm 未给的项，无此项时省略。
+ * 第三段 `⚠ 告警`：知识库命中，无命中时省略（**省略 ≠ 已生效**）。
+ */
+function printArmPlan(arm: ModelArmPlan): void {
+  const entries = Object.entries(arm.params);
+  const effectiveStr =
+    entries.length === 0
+      ? "（沿用父参数）"
+      : entries
+          .map(([k, v]) => {
+            const tag = arm.overridden.includes(k)
+              ? "（覆盖）"
+              : arm.added.includes(k)
+                ? "（新增）"
+                : "（继承）";
+            return `${k}=${scalarText(v)}${tag}`;
+          })
+          .join(" ");
+  console.log(`  arm ${arm.index + 1}：${arm.model}`);
+  console.log(`    生效 params：${effectiveStr}`);
+  const discarded = Object.entries(arm.discarded);
+  if (discarded.length > 0) {
+    console.log(
+      `    丢弃父录值：${discarded.map(([k, v]) => `${k}=${scalarText(v)}`).join(" ")}   ← 整体替换不合并，此项不会进入请求`,
+    );
+  }
+  for (const w of arm.warnings) {
+    console.log(`    ⚠ ${w.key}：${w.reason}`);
+    console.log(`      绕行：${w.workaround}`);
+  }
+  console.log(`    改变：${arm.changed.length > 0 ? arm.changed.join("、") : "（无）"}`);
 }
 
 async function main(): Promise<never> {
@@ -236,14 +336,7 @@ async function main(): Promise<never> {
 
     console.log(`实验 ${result.experimentId}（父 run ${result.parentId}）`);
     for (const arm of result.plan) {
-      const params =
-        Object.keys(arm.params).length === 0
-          ? "（沿用父参数）"
-          : Object.entries(arm.params)
-              .map(([k, v]) => `${k}=${v}`)
-              .join(" ");
-      console.log(`  arm ${arm.index + 1}：${arm.model}  ${params}`);
-      console.log(`      改变：${arm.changed.length > 0 ? arm.changed.join("、") : "（无）"}`);
+      printArmPlan(arm);
     }
     if (args.dryRun) {
       console.log("dry-run：只做了校验与计划展示，未读密钥、未联网、未写文件。");

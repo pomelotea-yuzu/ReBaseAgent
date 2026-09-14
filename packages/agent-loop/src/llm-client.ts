@@ -42,6 +42,11 @@ export interface RequestBody {
   [key: string]: unknown; // 采样参数（temperature 等）平铺
 }
 
+/**
+ * 构造请求体。**固定键集见 `RESERVED_BODY_KEYS`（agent-loop/config.ts）；
+ * 新增固定键必须同步该常量**——采样参数平铺进顶层，保留键冲突等于请求体注入，
+ * `SampleParamsSchema` 已在校验阶段拒绝（此处不重复检查）。
+ */
 export function buildRequestBody(config: RunConfig, messages: Message[]): RequestBody {
   const body: RequestBody = {
     model: config.model,
@@ -182,9 +187,21 @@ function hasContentDelta(event: EventSourceMessage): boolean {
   if (delta === undefined) return false;
   const c = delta.content;
   if (typeof c === "string" && c.length > 0) return true;
-  const r = delta.reasoning_content;
-  if (typeof r === "string" && r.length > 0) return true;
+  if (pickReasoningDelta(delta) !== null) return true;
   return Array.isArray(delta.tool_calls);
+}
+
+/**
+ * 从单块 delta 中取思维链增量文本。
+ *
+ * **块内二选一**（优先 `reasoning_content`，`??` 短路）——同一块同时携带两字段时只取一个，
+ * 避免同块内容翻倍。跨块的累加由调用方按到达顺序追加（拼接，不去重）：真实 provider 不会
+ * 并发两字段，去重需要内容级启发式（前缀/相似度）在流式增量下不可靠。若真的并发，
+ * 拼接结果是最佳努力聚合，**不承诺语义正确**。
+ */
+function pickReasoningDelta(delta: Record<string, unknown>): string | null {
+  const r = delta.reasoning_content ?? delta.reasoning;
+  return typeof r === "string" && r.length > 0 ? r : null;
 }
 
 /** 从 SSE 字节流聚合出完整响应。流中断 / 无有效内容抛 LlmRequestError。 */
@@ -233,8 +250,8 @@ export async function aggregateSseStream(
         agg.content = (agg.content ?? "") + c;
         sawAnything = true;
       }
-      const r = delta.reasoning_content;
-      if (typeof r === "string" && r.length > 0) {
+      const r = pickReasoningDelta(delta);
+      if (r !== null) {
         agg.reasoning = (agg.reasoning ?? "") + r;
         sawAnything = true;
       }

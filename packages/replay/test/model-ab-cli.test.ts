@@ -175,4 +175,132 @@ describe.skipIf(skip)("rebaseagent-model-ab CLI（dist 冒烟）", () => {
     expect(help.status).toBe(0);
     expect(help.stdout).toContain("rebaseagent-model-ab");
   });
+
+  it("标量 arm 语法：布尔 / 引号强制字符串 / 原字符串均被接受并进入计划", async () => {
+    const { dir, cleanup } = tempDir();
+    try {
+      const parentId = await createParent(dir, emptyToolConfig(), []);
+      const proc = runCli([
+        "--parent",
+        parentId,
+        "--dir",
+        dir,
+        "--arm",
+        "m-a;reasoning_effort=none;think=false",
+        "--arm",
+        'm-b;level=high;k="123"',
+        "--dry-run",
+        "--report",
+        "json",
+      ]);
+      expect(proc.status).toBe(0);
+      const report = JSON.parse(proc.stdout) as {
+        plan: Array<{ params: Record<string, unknown> }>;
+      };
+      // 规则 3 原字符串 + 规则 1 布尔
+      expect(report.plan[0]?.params).toEqual({ reasoning_effort: "none", think: false });
+      // 规则 4 引号强制字符串（"123" 不被吃成 number）；规则 3 原字符串
+      expect(report.plan[1]?.params).toEqual({ level: "high", k: "123" });
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("文本输出含三段格式（生效 params / 丢弃父录值 / 告警）", async () => {
+    const { dir, cleanup } = tempDir();
+    try {
+      // 父 run 录制 num_predict=768 与 num_ctx，某臂只给 temperature
+      const config = emptyToolConfig();
+      const tmp = join(dir, "tmp-parent.jsonl");
+      await runLoop(
+        config,
+        initialMessages(TASK),
+        new JsonlTracer(tmp),
+        [],
+        new MockLlmClient([{ content: "父 run 完成。" }]),
+      );
+      // 手工给父 run 补 params（runLoop 的 config.params 决定请求体）
+      const record = readRun(tmp);
+      renameSync(tmp, join(dir, `${record.meta.id}.jsonl`));
+
+      const proc = runCli([
+        "--parent",
+        record.meta.id,
+        "--dir",
+        dir,
+        "--arm",
+        "m-a;temperature=0.7",
+        "--arm",
+        'm-b;num_ctx=8192;k="123"',
+        "--dry-run",
+        "--base-url",
+        "http://127.0.0.1:11434/v1",
+      ]);
+      expect(proc.status).toBe(0);
+      expect(proc.stdout).toContain("生效 params");
+      expect(proc.stdout).toContain("arm 1");
+      expect(proc.stdout).toContain("arm 2");
+      // 引号强制字符串在文本输出中也带引号（与数字可区分）
+      expect(proc.stdout).toContain('k="123"');
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("非法转义与未闭合引号 → 退出 2 并给出中文错误", () => {
+    const badEscape = runCli([
+      "--parent",
+      "x",
+      "--dir",
+      "y",
+      "--arm",
+      'm1;k="a\\nb"',
+      "--arm",
+      "m2",
+      "--dry-run",
+    ]);
+    expect(badEscape.status).toBe(2);
+    expect(badEscape.stderr).toContain("不支持的转义");
+
+    const unclosed = runCli([
+      "--parent",
+      "x",
+      "--dir",
+      "y",
+      "--arm",
+      'm1;k="a"b"',
+      "--arm",
+      "m2",
+      "--dry-run",
+    ]);
+    expect(unclosed.status).toBe(2);
+    expect(unclosed.stderr).toMatch(/引号|裸引号/);
+  });
+
+  it("既有数值 arm 语法回归：temperature=0.2 仍解析为 number", async () => {
+    const { dir, cleanup } = tempDir();
+    try {
+      const parentId = await createParent(dir, emptyToolConfig(), []);
+      const proc = runCli([
+        "--parent",
+        parentId,
+        "--dir",
+        dir,
+        "--arm",
+        "m-a;temperature=0.2;top_p=0.9",
+        "--arm",
+        "m-b",
+        "--dry-run",
+        "--report",
+        "json",
+      ]);
+      expect(proc.status).toBe(0);
+      const report = JSON.parse(proc.stdout) as {
+        plan: Array<{ params: Record<string, unknown> }>;
+      };
+      expect(report.plan[0]?.params).toEqual({ temperature: 0.2, top_p: 0.9 });
+    } finally {
+      cleanup();
+    }
+  });
 });

@@ -21,7 +21,7 @@ import {
   sampleConfig,
   sampleTools,
 } from "../../../packages/agent-loop/test/helpers";
-import { FORK_ERROR_CODES, runFork } from "../src/main/fork-runner";
+import { FORK_ERROR_CODES, runFork, runModelAb } from "../src/main/fork-runner";
 import { RunRepository } from "../src/main/run-repository";
 import type { RunSettings } from "../src/main/settings";
 
@@ -308,6 +308,115 @@ describe("runFork：fork run 再分叉（桌面链式）", () => {
       // 列表层能看到三个 run（根 + 两层分支）
       const { runs } = repo.listRuns();
       expect(runs.map((r) => r.id).sort()).toEqual([rootId, first.id, second.id].sort());
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+/** 仅纯工具（write_file 缺 sideEffect 标记会被 A/B 工具策略拒绝） */
+const PURE_TOOLS: Tool[] = [
+  {
+    name: "read_file",
+    description: "读取指定路径的文件",
+    parameters: { type: "object", properties: { path: { type: "string" } } },
+    sideEffect: false,
+    handler: (args) => `内容(${(args as { path: string }).path})`,
+  },
+];
+
+describe("runModelAb：干跑计划经 IPC 边界透传（标量 params + 四展示字段）", () => {
+  it("dry-run 返回 plan，含 params / overridden / added / discarded / warnings", async () => {
+    const { traces, repo, cleanup } = tempRepo();
+    try {
+      // 父 run 带 params（plan 的 discarded 才有来源）；用纯工具表过 A/B 策略
+      const parentConfig = {
+        ...CONFIG,
+        tools: PURE_TOOLS.map(({ handler: _h, ...def }) => def),
+        params: { temperature: 0.5, num_predict: 768 },
+      };
+      const tmpFile = join(traces, "tmp-parent.jsonl");
+      await runLoop(
+        parentConfig,
+        initialMessages(TASK),
+        new JsonlTracer(tmpFile),
+        PURE_TOOLS,
+        new MockLlmClient([{ content: "父 run 完成。" }]),
+      );
+      const parentRecord = readRun(tmpFile);
+      renameSync(tmpFile, join(traces, `${parentRecord.meta.id}.jsonl`));
+
+      const result = await runModelAb(
+        { repository: repo, settings: SETTINGS },
+        {
+          parentRunId: parentRecord.meta.id,
+          arms: [
+            { model: "m-a", params: { temperature: 0.7, reasoning_effort: "none" } },
+            { model: "m-b", params: { num_predict: 256 } },
+          ],
+          dryRun: true,
+        },
+      );
+
+      expect(result.ok).toBe(true);
+      expect(result.ids).toEqual([]);
+      expect(result.plan).toHaveLength(2);
+      const [a, b] = result.plan;
+      expect(a?.params).toEqual({ temperature: 0.7, reasoning_effort: "none" });
+      expect(a?.overridden).toEqual(["temperature"]);
+      expect(a?.added).toEqual(["reasoning_effort"]);
+      expect(a?.discarded).toEqual({ num_predict: 768 });
+      expect(a?.warnings).toEqual([]);
+      expect(b?.overridden).toEqual(["num_predict"]);
+      expect(b?.discarded).toEqual({ temperature: 0.5 });
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("Ollama baseURL + num_ctx → 告警经 IPC 到渲染层；非 Ollama 不告警", async () => {
+    const { traces, repo, cleanup } = tempRepo();
+    try {
+      // 纯工具表父 run
+      const parentConfig = {
+        ...CONFIG,
+        tools: PURE_TOOLS.map(({ handler: _h, ...def }) => def),
+      };
+      const tmpFile = join(traces, "tmp-parent.jsonl");
+      await runLoop(
+        parentConfig,
+        initialMessages(TASK),
+        new JsonlTracer(tmpFile),
+        PURE_TOOLS,
+        new MockLlmClient([{ content: "父 run 完成。" }]),
+      );
+      const parentRecord = readRun(tmpFile);
+      renameSync(tmpFile, join(traces, `${parentRecord.meta.id}.jsonl`));
+      const parentId = parentRecord.meta.id;
+
+      const ollamaSettings = { ...SETTINGS, baseURL: "http://127.0.0.1:11434/v1" };
+
+      const ollama = await runModelAb(
+        { repository: repo, settings: ollamaSettings },
+        {
+          parentRunId: parentId,
+          arms: [{ model: "m-a", params: { num_ctx: 8192 } }, { model: "m-b" }],
+          dryRun: true,
+        },
+      );
+      expect(ollama.plan[0]?.warnings.map((w) => w.key)).toEqual(["num_ctx"]);
+      expect(ollama.plan[0]?.warnings[0]?.workaround).toContain("派生模型");
+      expect(ollama.plan[1]?.warnings).toEqual([]);
+
+      const deepseek = await runModelAb(
+        { repository: repo, settings: SETTINGS },
+        {
+          parentRunId: parentId,
+          arms: [{ model: "m-a", params: { num_ctx: 8192 } }, { model: "m-b" }],
+          dryRun: true,
+        },
+      );
+      expect(deepseek.plan[0]?.warnings).toEqual([]);
     } finally {
       cleanup();
     }

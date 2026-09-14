@@ -307,6 +307,69 @@ describe("流式转发与录制（SSE 透传 + 聚合）", () => {
     expect(rec?.response?.ttft_ms).toBeGreaterThanOrEqual(0);
   });
 
+  it("Ollama 形态：reasoning 字段聚合进 reasoning_content（与 llm-client 同标准）", async () => {
+    const { recorder } = makeRecorder();
+    const ollamaChunks = [
+      'data: {"choices":[{"delta":{"reasoning":"先想"}}]}\n\n',
+      'data: {"choices":[{"delta":{"reasoning_content":"再想"}}]}\n\n',
+      'data: {"choices":[{"delta":{"reasoning":"三想"}}]}\n\n',
+      'data: {"choices":[{"delta":{"content":"答"}}]}\n\n',
+      'data: {"choices":[{"delta":{}}],"usage":{"prompt_tokens":5,"completion_tokens":2}}\n\n',
+      "data: [DONE]\n\n",
+    ];
+    const handler = createProxyHandler({
+      upstreamBaseUrl: UPSTREAM,
+      proxyBaseUrl: PROXY_BASE,
+      recorder,
+      keyStore: {},
+      fetchImpl: async () => sseResponse(ollamaChunks),
+    });
+    const result = await handler.handle(
+      ctxOf(
+        JSON.stringify({
+          model: "qwen3",
+          messages: [{ role: "user", content: "hi" }],
+          stream: true,
+        }),
+      ),
+    );
+    for await (const _ of result.body) {
+      /* 消费 */
+    }
+    result.clientOk();
+    const rec = await result.recording;
+    // 块内二选一 + 块间按到达顺序拼接、不去重
+    expect(rec?.response?.reasoning_content).toBe("先想再想三想");
+    expect(rec?.response?.content).toBe("答");
+  });
+
+  it("同块两字段并存 → 代理侧只取 reasoning_content（不翻倍）", async () => {
+    const { recorder } = makeRecorder();
+    const handler = createProxyHandler({
+      upstreamBaseUrl: UPSTREAM,
+      proxyBaseUrl: PROXY_BASE,
+      recorder,
+      keyStore: {},
+      fetchImpl: async () =>
+        sseResponse([
+          'data: {"choices":[{"delta":{"reasoning":"丢弃","reasoning_content":"保留"}}]}\n\n',
+          'data: {"choices":[{"delta":{"content":"ok"}}],"usage":{"prompt_tokens":1,"completion_tokens":1}}\n\n',
+          "data: [DONE]\n\n",
+        ]),
+    });
+    const result = await handler.handle(
+      ctxOf(
+        JSON.stringify({ model: "m", messages: [{ role: "user", content: "hi" }], stream: true }),
+      ),
+    );
+    for await (const _ of result.body) {
+      /* 消费 */
+    }
+    result.clientOk();
+    const rec = await result.recording;
+    expect(rec?.response?.reasoning_content).toBe("保留");
+  });
+
   it("流结束仍无 usage → 兜底 {0,0}", async () => {
     const { recordings, recorder } = makeRecorder();
     const handler = createProxyHandler({

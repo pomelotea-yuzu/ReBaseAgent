@@ -6,24 +6,30 @@
  * main 与 replay 内核仍有同语义校验兜底（双保险）。
  */
 
+/** 采样参数值：JSON 标量（与 agent-loop 的 SampleParams 一致） */
+export type Scalar = string | number | boolean;
+
 /** 编辑器里一个臂的草稿（params 以 JSON 文本编辑，提交前解析） */
 export interface ArmDraft {
   model: string;
-  /** 空串 = 沿用父 run 的 params；否则为 JSON 对象文本（值必须是有限数字） */
+  /** 空串 = 沿用父 run 的 params；否则为 JSON 对象文本（值为 JSON 标量） */
   paramsText: string;
 }
 
 /** 解析后的单臂参数（shared ModelAbArm 形状的渲染层草稿） */
 export interface ParsedArm {
   model: string;
-  params?: Record<string, number>;
+  params?: Record<string, Scalar>;
   allowSideEffects?: boolean;
 }
 
-/** params JSON 文本 → 数值参数对象；空串视为沿用父值（undefined） */
+/** 请求体保留键（与 agent-loop 的 RESERVED_BODY_KEYS 同一键集） */
+const RESERVED_BODY_KEYS = ["model", "messages", "tools", "stream", "stream_options"];
+
+/** params JSON 文本 → 标量参数对象；空串视为沿用父值（undefined） */
 export function parseArmParams(
   text: string,
-): { ok: true; params: Record<string, number> | undefined } | { ok: false; reason: string } {
+): { ok: true; params: Record<string, Scalar> | undefined } | { ok: false; reason: string } {
   const trimmed = text.trim();
   if (trimmed.length === 0) return { ok: true, params: undefined };
   let parsed: unknown;
@@ -33,12 +39,24 @@ export function parseArmParams(
     return { ok: false, reason: 'params 不是合法 JSON（示例：{"temperature": 0.7}）' };
   }
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-    return { ok: false, reason: "params 必须是 JSON 对象（键 → 有限数字）" };
+    return { ok: false, reason: "params 必须是 JSON 对象（键 → 标量）" };
   }
-  const out: Record<string, number> = {};
+  const out: Record<string, Scalar> = {};
   for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
-    if (typeof value !== "number" || !Number.isFinite(value)) {
-      return { ok: false, reason: `params.${key} 必须是有限数字（首期只支持数值采样参数）` };
+    if (RESERVED_BODY_KEYS.includes(key)) {
+      return {
+        ok: false,
+        reason: `params.${key} 是请求体保留键（${RESERVED_BODY_KEYS.join(" / ")}），不得用作采样参数`,
+      };
+    }
+    if (typeof value !== "string" && typeof value !== "number" && typeof value !== "boolean") {
+      return {
+        ok: false,
+        reason: `params.${key} 必须是 string / number / boolean 标量（不支持嵌套对象、数组、null）`,
+      };
+    }
+    if (typeof value === "number" && !Number.isFinite(value)) {
+      return { ok: false, reason: `params.${key} 必须是有限数字` };
     }
     out[key] = value;
   }
@@ -50,8 +68,8 @@ export interface ModelAbGuardInput {
   settingsConfigured: boolean;
   /** 父 run 的模型名（空 fork 判据之一） */
   parentModel: string;
-  /** 父 run 的数值采样参数（空 fork 判据之二） */
-  parentParams: Record<string, number>;
+  /** 父 run 的采样参数（空 fork 判据之二） */
+  parentParams: Record<string, Scalar>;
   /** 首次 llm.call 录制的工具表中"未显式标记 sideEffect: false"的工具名 */
   riskyTools: string[];
   /** 是否已勾选副作用确认（riskyTools 非空时必须为 true） */
@@ -71,7 +89,7 @@ export interface ModelAbGuardResult {
 function sameAsParent(
   arm: ParsedArm,
   parentModel: string,
-  parentParams: Record<string, number>,
+  parentParams: Record<string, Scalar>,
 ): boolean {
   if (arm.model !== parentModel) return false;
   // 内核口径：value.params 缺省 = 沿用父 params，因此缺省臂在该键集上恒等

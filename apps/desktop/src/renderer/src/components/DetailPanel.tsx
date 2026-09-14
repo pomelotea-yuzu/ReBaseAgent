@@ -1,11 +1,11 @@
 import { Editor } from "@monaco-editor/react";
 import type { SpanLine } from "@rebaseagent/trace-sdk";
 import { forkEditLabel, isPromptForkField, spanDurationMs } from "@shared/derive";
-import type { ModelAbResult, RunDetail } from "@shared/ipc";
+import type { ModelAbResult, ModelArmPlan, RunDetail } from "@shared/ipc";
 import { useMemo, useState } from "react";
 import { formatDuration, prettyJson } from "../lib/format";
 import { modelAbGuard, riskyToolNames } from "../lib/model-ab";
-import type { ArmDraft } from "../lib/model-ab";
+import type { ArmDraft, Scalar } from "../lib/model-ab";
 import { promptForkGuard } from "../lib/prompt-fork";
 import type { PromptForkField } from "../lib/prompt-fork";
 import { useAppStore } from "../store";
@@ -283,12 +283,16 @@ function PromptForkEditor({
   );
 }
 
-/** 父 run 录制 params 中的数值子集（A/B 的"沿用父值"与空实验判据） */
-function numericRequestParams(raw: unknown): Record<string, number> {
+/** 父 run 录制 params 中的标量子集（A/B 的"沿用父值"与空实验判据） */
+function scalarRequestParams(raw: unknown): Record<string, Scalar> {
   if (typeof raw !== "object" || raw === null) return {};
-  const out: Record<string, number> = {};
+  const out: Record<string, Scalar> = {};
   for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
-    if (typeof value === "number" && Number.isFinite(value)) out[key] = value;
+    if (typeof value === "string" || typeof value === "boolean") {
+      out[key] = value;
+    } else if (typeof value === "number" && Number.isFinite(value)) {
+      out[key] = value;
+    }
   }
   return out;
 }
@@ -298,6 +302,71 @@ let armKeySeq = 0;
 function newArmKey(): string {
   armKeySeq += 1;
   return `arm-${armKeySeq}`;
+}
+
+/** 标量值的展示文本（字符串加引号以便与数字区分） */
+function scalarText(value: Scalar): string {
+  return typeof value === "string" ? JSON.stringify(value) : String(value);
+}
+
+/**
+ * 单臂计划（design §4 三段格式，与 CLI `printArmPlan` 字段语义一致）：
+ * 生效 params（覆盖/新增/继承）→ 丢弃父录值（整体替换不合并）→ ⚠ 告警。
+ * 三个字段全部读自编排层算好的 plan 条目，此处不重算。
+ */
+function ArmPlanRow({ arm }: { arm: ModelArmPlan }) {
+  const entries = Object.entries(arm.params) as Array<[string, Scalar]>;
+  const discarded = Object.entries(arm.discarded) as Array<[string, Scalar]>;
+  return (
+    <div className="border-b border-sky-50 py-1 last:border-b-0">
+      <div className="flex items-baseline gap-2 text-[11px]">
+        <span className="w-8 shrink-0 text-gray-400">臂 {arm.index + 1}</span>
+        <span className="font-code text-gray-800">{arm.model}</span>
+        <span className="ml-auto text-[10px] text-gray-400">
+          {arm.changed.length > 0 ? `改变：${arm.changed.join("、")}` : "与父相同"}
+        </span>
+      </div>
+      <div className="pl-10 text-[10px] leading-4 text-gray-500">
+        <div>
+          <span className="text-gray-400">生效 params：</span>
+          {entries.length === 0 ? (
+            <span className="font-code">（沿用父 params）</span>
+          ) : (
+            entries.map(([k, v]) => {
+              const tag = arm.overridden.includes(k)
+                ? "（覆盖）"
+                : arm.added.includes(k)
+                  ? "（新增）"
+                  : "（继承）";
+              return (
+                <span key={k} className="mr-2 font-code">
+                  {k}={scalarText(v)}
+                  <span className="text-gray-400">{tag}</span>
+                </span>
+              );
+            })
+          )}
+        </div>
+        {discarded.length > 0 ? (
+          <div className="text-amber-700">
+            <span className="text-gray-400">丢弃父录值：</span>
+            {discarded.map(([k, v]) => (
+              <span key={k} className="mr-2 font-code">
+                {k}={scalarText(v)}
+              </span>
+            ))}
+            <span className="text-gray-400">← 整体替换不合并，此项不会进入请求</span>
+          </div>
+        ) : null}
+        {arm.warnings.map((w) => (
+          <div key={w.key} className="text-amber-700">
+            ⚠ {w.key}：{w.reason}
+            <div className="text-gray-500">绕行：{w.workaround}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 /**
@@ -321,7 +390,7 @@ function ModelAbEditor({
   const resetModelAb = useAppStore((s) => s.resetModelAb);
 
   const parentModel = span.request.model;
-  const parentParams = useMemo(() => numericRequestParams(span.request.params), [span]);
+  const parentParams = useMemo(() => scalarRequestParams(span.request.params), [span]);
   const risky = useMemo(() => riskyToolNames(span.request.tools), [span]);
 
   const [open, setOpen] = useState(false);
@@ -385,10 +454,21 @@ function ModelAbEditor({
   const doExecute = (): void => {
     if (!guard.canSubmit || plan === null) return;
     const summary = plan.plan
-      .map(
-        (arm) =>
-          `臂 ${arm.index + 1}：${arm.model}${Object.keys(arm.params).length > 0 ? ` ${JSON.stringify(arm.params)}` : ""}`,
-      )
+      .map((arm) => {
+        const params =
+          Object.keys(arm.params).length > 0
+            ? ` ${JSON.stringify(arm.params)}`
+            : "（沿用父 params）";
+        const discarded =
+          Object.keys(arm.discarded).length > 0
+            ? `\n    丢弃父录值：${JSON.stringify(arm.discarded)}`
+            : "";
+        const warnings =
+          arm.warnings.length > 0
+            ? `\n    ⚠ ${arm.warnings.map((w) => w.key).join("、")} 可能未生效（见计划面板）`
+            : "";
+        return `臂 ${arm.index + 1}：${arm.model}${params}${discarded}${warnings}`;
+      })
       .join("\n");
     const confirmed = window.confirm(
       `确认执行模型 A/B 实验？\n\n· 将按 ${plan.plan.length} 个臂真实调用 ${settings?.baseURL ?? "provider"} 并产生费用\n· 各臂顺序执行，单臂失败不影响其它臂\n${summary}\n${
@@ -524,18 +604,7 @@ function ModelAbEditor({
             <span className="font-code">实验组 {plan.experimentId}</span>
           </div>
           {plan.plan.map((arm) => (
-            <div key={arm.index} className="flex items-baseline gap-2 py-0.5 text-[11px]">
-              <span className="w-8 shrink-0 text-gray-400">臂 {arm.index + 1}</span>
-              <span className="font-code text-gray-800">{arm.model}</span>
-              <span className="font-code text-gray-500">
-                {Object.keys(arm.params).length > 0
-                  ? JSON.stringify(arm.params)
-                  : "（沿用父 params）"}
-              </span>
-              <span className="ml-auto text-[10px] text-gray-400">
-                {arm.changed.length > 0 ? `改变：${arm.changed.join("、")}` : "与父相同"}
-              </span>
-            </div>
+            <ArmPlanRow key={arm.index} arm={arm} />
           ))}
           {plan.sideEffectsAllowed ? (
             <div className="mt-1 text-[10px] leading-4 text-amber-700">

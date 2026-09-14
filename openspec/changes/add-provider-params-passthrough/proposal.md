@@ -57,5 +57,12 @@
 - 未验证假设（实现前 5 分钟可证伪）：
   - DeepSeek 对 `reasoning_effort` 的接受度——`curl -s $BASE/v1/chat/completions -d '{"model":"deepseek-chat","messages":[...],"reasoning_effort":"none"}'` 观察 200 或 400；
   - 标量 params 平铺后 DeepSeek/Ollama 对未知字符串参数是否仍 200——同法各测一条（若 400 则告警知识库需补"硬拒绝"类目）。
+- **实测状态（2026-09-14 收口）**：两条假设均**未能在本机证伪/证实**，原因是环境不可达而非设计缺陷——
+  - 无 `REBASEAGENT_API_KEY` / `DEEPSEEK_API_KEY` 环境变量 ⇒ 不能向 DeepSeek 发真实请求；
+  - 本机 Ollama 未运行（`curl http://127.0.0.1:11434/api/tags` → `connect failed, os error 10061`）⇒ 不能复测 Ollama。
+  因此这两条**转入 4.3 真实 provider 冒烟**（用户凭据在场时执行），本变更按"未验证假设"提交：
+  - 若 DeepSeek 对 `reasoning_effort` 返回 400，则参数通道的"硬拒绝"行为需在 UI/CLI 呈现（当前实现只做告警与透传，400 由既有 `LlmRequestError` 路径承载，不静默）；
+  - 若某 provider 对未知字符串参数返回 400，知识库则不需补"硬拒绝"类目（400 本身即显式信号，非静默）；知识库只收录"**HTTP 200 但参数未生效**"这类静默失败。
+  这一区分是本变更的边界：**告警知识库 = 静默失败清单**，显式拒绝（4xx）不在其中。
 - 验收必须覆盖：标量参数逐字节进入请求体；保留键冲突零文件零调用拒绝；`reasoning` 字段聚合进 `reasoning_content` 且 ttft 谓词同步（两字段并存按到达顺序拼接、同块二选一不翻倍）；告警在 CLI 与桌面两端可见且字段同源；dry-run 三段展示（生效 params / 丢弃父录值 / 告警）双端语义一致；CLI 引号转义仅 `\"` 与 `\\`、非法转义与未闭合引号报错；既有数值 arm / 旧 trace 回归全绿。
 - 审阅收口（2026-09-14，`docs/reviews/2026-09-14-d3-provider-params-passthrough-review.md`）：P1-1 常量导出位置落地为 `config.ts` + 双消费方引用（design §1 表）；P1-2 并存聚合语义明确为"块内二选一、块间按序拼接、不去重"并写入 spec scenario；P2-1 dry-run plan 字段与三段格式固化（design §4 表 + spec scenario）；P2-2 CLI 引号转义规则表化（design §5 表 + spec scenario）；P3-1 与 P1-1 合并处理。

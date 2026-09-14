@@ -5,9 +5,12 @@ export {
   ToolDefSchema,
   BudgetSchema,
   ExecContextSchema,
+  ScalarSchema,
   SampleParamsSchema,
   RunConfigSchema,
   parseRunConfig,
+  RESERVED_BODY_KEYS,
+  isReservedBodyKey,
 } from "./config.js";
 export type {
   ChatRole,
@@ -19,6 +22,7 @@ export type {
   Tool,
   Budget,
   ExecContext,
+  Scalar,
   SampleParams,
   RunConfigInput,
   RunConfig,

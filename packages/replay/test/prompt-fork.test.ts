@@ -217,3 +217,97 @@ describe("derivePromptForkState：拒绝路径", () => {
     expect(ok.systemPrompt).toBe("新 prompt");
   });
 });
+
+describe("采样参数标量化与保留键守卫（ModelParamsValueSchema）", () => {
+  it("字符串 / 布尔 / 数值标量均可作为 model_params 的 params", () => {
+    const record = makeRecord();
+    const state = derivePromptForkState({
+      record,
+      edit: {
+        field: "model_params",
+        value: {
+          model: "qwen3",
+          params: { reasoning_effort: "none", think: false, temperature: 0.2 },
+        },
+      },
+    });
+    expect(state.modelOverride?.params).toEqual({
+      reasoning_effort: "none",
+      think: false,
+      temperature: 0.2,
+    });
+  });
+
+  it("既有纯数值 params 原样合法（回归）", () => {
+    const record = makeRecord();
+    const state = derivePromptForkState({
+      record,
+      edit: { field: "model_params", value: { model: "qwen3", params: { temperature: 0.2 } } },
+    });
+    expect(state.modelOverride?.params).toEqual({ temperature: 0.2 });
+  });
+
+  it.each([
+    ["对象", { nested: { a: 1 } }],
+    ["数组", { stops: ["a"] }],
+    ["null", { value: null }],
+  ])("非标量值（%s）→ 拒绝", (_label, params) => {
+    const record = makeRecord();
+    expect(() =>
+      derivePromptForkState({
+        record,
+        edit: { field: "model_params", value: { model: "qwen3", params: params as never } },
+      }),
+    ).toThrow(/非法的 model_params 编辑值/);
+  });
+
+  it.each(["model", "messages", "tools", "stream", "stream_options"])(
+    "保留键 %s → 拒绝（与 agent-loop 同一常量来源）",
+    (key) => {
+      const record = makeRecord();
+      expect(() =>
+        derivePromptForkState({
+          record,
+          edit: { field: "model_params", value: { model: "qwen3", params: { [key]: "x" } } },
+        }),
+      ).toThrow(/保留键/);
+    },
+  );
+
+  it("非保留键不受影响（num_ctx / thinking 等）", () => {
+    const record = makeRecord();
+    const state = derivePromptForkState({
+      record,
+      edit: { field: "model_params", value: { model: "qwen3", params: { num_ctx: 8192 } } },
+    });
+    expect(state.modelOverride?.params).toEqual({ num_ctx: 8192 });
+  });
+});
+
+describe("scalarParams：录制 params 的标量过滤", () => {
+  it("保留标量，丢弃嵌套对象 / 数组 / null", async () => {
+    const { scalarParams } = await import("../src/index");
+    expect(
+      scalarParams({
+        temperature: 0.2,
+        reasoning_effort: "none",
+        think: false,
+        nested: { a: 1 },
+        arr: [1, 2],
+        nothing: null,
+      }),
+    ).toEqual({ temperature: 0.2, reasoning_effort: "none", think: false });
+  });
+
+  it("非对象输入 → 空对象", async () => {
+    const { scalarParams } = await import("../src/index");
+    expect(scalarParams(undefined)).toEqual({});
+    expect(scalarParams(null)).toEqual({});
+    expect(scalarParams("x")).toEqual({});
+  });
+
+  it("空对象 → 空对象", async () => {
+    const { scalarParams } = await import("../src/index");
+    expect(scalarParams({})).toEqual({});
+  });
+});
