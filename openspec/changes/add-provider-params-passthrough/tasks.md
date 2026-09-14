@@ -22,6 +22,14 @@
 
 ## 4. 验证与收口
 
-- [x] 4.1 实测两条未验证假设 → **环境不可达（无 API key、本机 Ollama 未运行，`os error 10061`），已回写 proposal 证据节**：转入 4.3 冒烟，并明确"告警知识库 = 静默失败清单，显式 4xx 拒绝不在其中"的边界。
+- [x] 4.1 实测两条未验证假设 → **假设 B（未知字符串参数）已证伪**：`/v1` 发完全未知键返回 **200 + 正常出结果**，provider 静默吞键不报 400 ⇒ 知识库无需"硬拒绝"类目，静默失败面比预想更大。**假设 A（DeepSeek `reasoning_effort` 接受度）仍不可达**（无 DeepSeek 凭据），但 Ollama 侧已实测 `reasoning_effort:"none"` 被接受且生效 ⇒ 该假设对设计无影响（400 走既有 `LlmRequestError`，不静默）。边界确认：**告警知识库 = 静默失败清单（200 但未生效）**，显式 4xx 拒绝不在其中。
 - [x] 4.2 各包 vitest（agent-loop 77 / llm-proxy 18 / replay 118 / desktop 173）、Biome 144 文件 0 errors、双端 TypeScript、`check:ci` 全绿；`openspec validate --all --strict` 13/13 通过。
-- [ ] 4.3 真实 provider 冒烟（Ollama 本机 + DeepSeek，用户凭据，不进 CI）：`reasoning_effort:"none"` 臂生效（输出与 dogfood 实测的 shim 结果一致）、`num_ctx` 告警可见、dry-run 三段明细正确。**待用户凭据在场时执行**（4.1 的两条假设亦在此证伪）。
+- [x] 4.3 真实 provider 冒烟（**2026-09-14 完成，Ollama 本机 0.33.2 + qwen3:1.7b**；DeepSeek 侧待凭据）：
+  - **思维链字段确认**：流式 delta 形态 `{"role":"assistant","content":"","reasoning":"Okay"}`，`reasoning_content` 恒缺省 ⇒ 兼容修复确有必要；
+  - **`reasoning_effort:"none"` 生效**：reasoning 从 ~2900 字 → **0**，content 正常（291 字），ttft 224ms → 78ms；
+  - **`num_ctx` 三种 `/v1` 写法全部无效**：`/api/ps` 冷加载对照显示运行中 context 恒为默认 **4096**（顶层 / 嵌套 options / 字符串）；
+  - **新增发现 A（已回写知识库 workaround）**：原生 `/api/generate` 的 `options.num_ctx=2048` **确实生效**（context 4096 → 2048）⇒ 轻量绕行可用，原先只写了派生模型；
+  - **新增发现 B（已回写知识库 workaround）**：模型 card 报 `context_length: 40960`，运行时实际只加载 **4096**，易误导；
+  - **端到端链路**（真实 agent-loop 库 → 真实 Ollama）：标量 params 逐字节进请求体、`reasoning` 聚合为 `reasoningContent`（2922 字）、保留键 5 个全在 schema 层零请求拒绝、`warnSilentIgnores` 真实 baseURL 命中 2 条 / DeepSeek baseURL 零误报；
+  - dry-run 三段明细与告警双端一致性：**由 3.3 的单测覆盖锁定**（冒烟脚本不额外跑 CLI 端到端，避免重复）。
+  - 冒烟脚本（一次性，不入库）：`.tmp-smoke-d3*.cjs`，结论落盘 `.tmp-smoke-d3-*.md`。

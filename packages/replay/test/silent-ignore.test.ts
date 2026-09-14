@@ -11,7 +11,12 @@ describe("warnSilentIgnores（已知静默忽略知识库）", () => {
     expect(warnings[0]?.key).toBe("num_ctx");
     expect(warnings[0]?.provider).toBe("ollama");
     expect(warnings[0]?.reason).toContain("num_ctx");
-    expect(warnings[0]?.reason).toContain("2026-09-10");
+    expect(warnings[0]?.reason).toContain("2026-09-14");
+    // 实测结论：/v1 不转发到 options；原生 API 的 options.num_ctx 有效
+    expect(warnings[0]?.reason).toContain("/v1");
+    expect(warnings[0]?.reason).toContain("options");
+    // 绕行须同时给出「轻（原生 API）」与「重（派生模型）」两条路
+    expect(warnings[0]?.workaround).toContain("原生");
     expect(warnings[0]?.workaround).toContain("派生模型");
   });
 
@@ -20,6 +25,12 @@ describe("warnSilentIgnores（已知静默忽略知识库）", () => {
     expect(warnings).toHaveLength(1);
     expect(warnings[0]?.key).toBe("think");
     expect(warnings[0]?.workaround).toContain("reasoning_effort");
+  });
+
+  it("reason 里的实测日期必须是「较新」的复测日期（防止旧结论长期不复核）", () => {
+    for (const rule of SILENT_IGNORE_RULES) {
+      expect(rule.reason).toMatch(/实测 \d{4}-\d{2}-\d{2}/);
+    }
   });
 
   it("多键同时命中 → 全部返回", () => {

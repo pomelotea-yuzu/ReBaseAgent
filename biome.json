@@ -30,7 +30,8 @@
       "**/.workbuddy/**",
       "**/release/**",
       "**/*.timestamp-*.mjs",
-      "**/electron.vite.config.*.mjs"
+      "**/electron.vite.config.*.mjs",
+      "**/.tmp-*"
     ]
   },
   "overrides": [

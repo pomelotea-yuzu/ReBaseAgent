@@ -46,7 +46,11 @@ function isOllama(baseURL: string): boolean {
 }
 
 /**
- * 首期知识库：两条 Ollama `/v1` 实测记录（2026-09-10）。
+ * 首期知识库：两条 Ollama `/v1` 实测记录。
+ *
+ * 实测记录：2026-09-10 首测（dogfood）、2026-09-14 复测 + 补证（`/api/ps` 读运行中模型
+ * 的实际加载 context，冷加载对照）。
+ *
  * 新增条目必须附实测日期与具体行为，不接受"听说 provider X 不支持 Y"。
  */
 export const SILENT_IGNORE_RULES: SilentIgnoreRule[] = [
@@ -55,9 +59,9 @@ export const SILENT_IGNORE_RULES: SilentIgnoreRule[] = [
     matches: isOllama,
     keys: ["num_ctx"],
     reason:
-      "Ollama /v1 静默忽略 num_ctx（顶层 / 嵌套 options / 字符串三种写法均不认，实测 2026-09-10）：HTTP 200、无警告，上下文长度仍是模型默认值",
+      'Ollama /v1 静默忽略 num_ctx（实测 2026-09-14，/api/ps 冷加载对照）：顶层、嵌套 options、字符串三种写法请求后运行中模型的 context 均为默认 4096，而原生 /api/generate 的 options.num_ctx=2048 确实把 context 降到 2048 —— 即"参数本身有效、只是 /v1 不转发到 options"。HTTP 200、无任何警告，且 /v1 响应体不含上下文长度，无从自查',
     workaround:
-      "派生模型（Modelfile 中 PARAMETER num_ctx N 后 ollama create），再以派生模型名发起请求",
+      "两条路：①（轻）改走 Ollama 原生 /api/generate 的 options.num_ctx —— 实测生效；②（重）派生模型（Modelfile 中 PARAMETER num_ctx N 后 ollama create），再以派生模型名发起请求。注意模型 card 常标 context_length 40960，但运行时默认只加载 4096",
   },
   {
     provider: "ollama",
@@ -66,7 +70,7 @@ export const SILENT_IGNORE_RULES: SilentIgnoreRule[] = [
     reason:
       "Ollama /v1 顶层 think 无效（实测 2026-09-10）：不报错但思维链行为不变，须改用 OpenAI 兼容的 reasoning_effort",
     workaround:
-      '改传 reasoning_effort（如 reasoning_effort: "none" 关思考）——实测与生产结果逐字一致',
+      '改传 reasoning_effort（如 reasoning_effort: "none" 关思考）——实测与生产结果逐字一致（2026-09-14 复测：reasoning_effort="none" 使 reasoning 字段从 ~2900 字降到 0，content 正常返回）',
   },
 ];
 
