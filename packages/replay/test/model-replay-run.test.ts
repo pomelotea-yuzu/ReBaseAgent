@@ -95,8 +95,13 @@ function perArmClient(scripts: ScriptedTurn[][]): (arm: { index: number }) => Ll
   return ({ index }) => new MockLlmClient(scripts[index] ?? []);
 }
 
-/** 去掉 meta.config_hash（可同时伪装 proxy） */
-function stripConfigHash(dir: string, id: string, asProxy = false): void {
+/** 去掉 meta.config_hash（可同时伪装 proxy；可附缺因字段） */
+function stripConfigHash(
+  dir: string,
+  id: string,
+  asProxy = false,
+  reason?: "no_system" | "invalid_tool",
+): void {
   const file = join(dir, `${id}.jsonl`);
   const lines = readFileSync(file, "utf8")
     .split(/\r?\n/)
@@ -104,9 +109,26 @@ function stripConfigHash(dir: string, id: string, asProxy = false): void {
   const meta = JSON.parse(lines[0] ?? "{}") as Record<string, unknown>;
   const { config_hash: _removed, ...rest } = meta;
   if (asProxy) {
+    rest.task = "(llm-proxy)";
     rest.source = { kind: "proxy", base_url: "http://127.0.0.1:18787/v1" };
   }
+  if (reason !== undefined) {
+    rest.config_hash_reason = reason;
+  }
   lines[0] = JSON.stringify(rest);
+  writeFileSync(file, `${lines.join("\n")}\n`);
+}
+
+/** 仅把来源标记为 proxy、保留 config_hash（模拟录制侧已补指纹的代理 run） */
+function markAsProxy(dir: string, id: string): void {
+  const file = join(dir, `${id}.jsonl`);
+  const lines = readFileSync(file, "utf8")
+    .split(/\r?\n/)
+    .filter((line) => line.trim().length > 0);
+  const meta = JSON.parse(lines[0] ?? "{}") as Record<string, unknown>;
+  meta.task = "(llm-proxy)";
+  meta.source = { kind: "proxy", base_url: "http://127.0.0.1:18787/v1" };
+  lines[0] = JSON.stringify(meta);
   writeFileSync(file, `${lines.join("\n")}\n`);
 }
 
@@ -466,11 +488,11 @@ describe("modelReplayRunMany：前置门禁（零文件、零调用）", () => {
     }
   });
 
-  it("proxy 来源 / 缺 config_hash 的父 run → 拒绝", async () => {
+  it("proxy 缺 config_hash 的父 run → 拒绝（按缺因分流文案）", async () => {
     const { dir, cleanup } = tempDir();
     try {
       const parentId = await createParent(dir);
-      stripConfigHash(dir, parentId, true);
+      stripConfigHash(dir, parentId, true, "no_system");
       await expect(
         modelReplayRunMany({
           parentId,
@@ -482,28 +504,59 @@ describe("modelReplayRunMany：前置门禁（零文件、零调用）", () => {
           confirmCost: true,
           llm: perArmClient([[], []]),
         }),
-      ).rejects.toThrow(/本地录制代理/);
-      cleanup();
+      ).rejects.toThrow(/不含字符串形式的 system 消息/);
     } finally {
-      const { dir: dir2, cleanup: cleanup2 } = tempDir();
-      try {
-        const parentId = await createParent(dir2);
-        stripConfigHash(dir2, parentId, false);
-        await expect(
-          modelReplayRunMany({
-            parentId,
-            arms: [{ model: "m1" }, { model: "m2" }],
-            config: PURE_CONFIG,
-            tools: PURE,
-            load: loader(dir2),
-            outDir: dir2,
-            confirmCost: true,
-            llm: perArmClient([[], []]),
-          }),
-        ).rejects.toThrow(/缺少 config_hash/);
-      } finally {
-        cleanup2();
+      cleanup();
+    }
+  });
+
+  it("含 config_hash 的 proxy 父 run → 放行创建 A/B（各臂 hash 与父一致）", async () => {
+    const { dir, cleanup } = tempDir();
+    try {
+      const parentId = await createParent(dir);
+      markAsProxy(dir, parentId);
+      const result = await modelReplayRunMany({
+        parentId,
+        arms: [{ model: "m1" }, { model: "m2" }],
+        config: PURE_CONFIG,
+        tools: PURE,
+        load: loader(dir),
+        outDir: dir,
+        confirmCost: true,
+        llm: perArmClient([[{ content: "a" }], [{ content: "b" }]]),
+      });
+      expect(result.ok).toBe(true);
+      const parentHash = readRun(join(dir, `${parentId}.jsonl`)).meta.config_hash;
+      for (const arm of result.arms) {
+        expect(arm.id).not.toBeNull();
+        const child = readRun(join(dir, `${arm.id}.jsonl`));
+        expect(child.meta.parent).toBe(parentId);
+        expect(child.meta.config_hash).toBe(parentHash);
       }
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("非 proxy 且缺 config_hash 的父 run → 拒绝", async () => {
+    const { dir, cleanup } = tempDir();
+    try {
+      const parentId = await createParent(dir);
+      stripConfigHash(dir, parentId, false);
+      await expect(
+        modelReplayRunMany({
+          parentId,
+          arms: [{ model: "m1" }, { model: "m2" }],
+          config: PURE_CONFIG,
+          tools: PURE,
+          load: loader(dir),
+          outDir: dir,
+          confirmCost: true,
+          llm: perArmClient([[], []]),
+        }),
+      ).rejects.toThrow(/缺少 config_hash/);
+    } finally {
+      cleanup();
     }
   });
 

@@ -68,7 +68,7 @@ export interface ModelArmSpec {
 }
 
 export interface ModelReplayRunManyOptions {
-  /** 直接父 run id（已封存、非 proxy、含 config_hash、首次 llm.call 含字符串 system 消息） */
+  /** 直接父 run id（已封存、含 config_hash、首次 llm.call 含字符串 system 消息；proxy 与引擎 run 同判据） */
   parentId: string;
   /** 至少两个 arm */
   arms: ModelArmSpec[];
@@ -235,7 +235,7 @@ function describeChanges(
  * 模型 A/B 实验：一次调用 = 一批实验，顺序执行至少两个 arm。
  *
  * 全流程门禁（任一失败 = 零文件、零调用）：
- * arm 数量 ≥ 2 → 工具表一致 → 父链/封存/proxy/config_hash/system 消息 →
+ * arm 数量 ≥ 2 → 工具表一致 → 父链/封存/config_hash/system 消息 →
  * 每臂 edit 校验（zod + 空编辑）→ 双真相源先校验后覆写 → 工具策略 →
  * experimentId 一致 →（真实执行）费用确认 + apiKey。
  */

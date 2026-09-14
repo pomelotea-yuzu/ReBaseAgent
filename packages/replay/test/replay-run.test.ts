@@ -13,8 +13,8 @@ import {
   sampleConfig,
   sampleTools,
 } from "../../agent-loop/test/helpers";
-import { deriveReplayState, replayRun } from "../src/index";
-import type { ReplayEdit } from "../src/index";
+import { deriveReplayState, promptReplayRun, replayRun } from "../src/index";
+import type { PromptForkEdit, ReplayEdit } from "../src/index";
 
 /** 编排测试的父 run 由真实 runLoop + mock LLM 现造（config_hash 现算，自洽可比对） */
 const TASK = "读取 README.md 并把要点写入 summary.md";
@@ -35,6 +35,14 @@ const FORK_SCRIPT: ScriptedTurn[] = [
 ];
 /** 再分叉剧本：编辑 write_file 结果后直接收尾（一步） */
 const FURTHER_SCRIPT: ScriptedTurn[] = [{ content: "任务完成：二次分叉完成。" }];
+/**
+ * 代理 run 的 prompt fork 子剧本：先调一次 read_file（产出 tool.invoke 轨迹），
+ * 使子 run 具备可作 tool-result replay 父本的完整前缀。
+ */
+const CHILD_SCRIPT: ScriptedTurn[] = [
+  { toolCalls: [{ id: "k1", name: "read_file", args: '{"path":"README.md"}' }] },
+  { content: "遵守新约束：已读取，直接作答。" },
+];
 
 const EDIT: ReplayEdit = {
   field: "result",
@@ -92,6 +100,41 @@ function makeProxyRun(dir: string, id: string): void {
   lines[0] = JSON.stringify(rest);
   writeFileSync(file, `${lines.join("\n")}\n`);
   expect(readRun(file).meta.config_hash).toBeUndefined();
+}
+
+/**
+ * 造一个"已补指纹的代理 run"形态 fixture：单 llm.call、无 tool.invoke，
+ * meta 带 source.kind=proxy 且**保留** config_hash（模拟本变更后的录制产物）。
+ * 用真实 runLoop 现造父 run 后改写 meta —— 保证 hash 与录制事实自洽。
+ */
+async function createProxyRun(dir: string): Promise<string> {
+  const tmpFile = join(dir, "tmp-proxy.jsonl");
+  await runLoop(
+    CONFIG,
+    initialMessages(TASK),
+    new JsonlTracer(tmpFile),
+    TOOLS,
+    new MockLlmClient([{ content: "代理录制：一次应答。" }]),
+  );
+  const record = readRun(tmpFile);
+  const id = record.meta.id;
+  // 剥离 tool 相关 span，只留 agent.step + llm.call（代理 run 的真实形态）
+  const lines = readFileSync(tmpFile, "utf8")
+    .split(/\r?\n/)
+    .filter((line) => line.trim().length > 0);
+  const kept = lines.filter((line) => !line.includes('"kind":"tool.invoke"'));
+  const meta = JSON.parse(kept[0] ?? "{}") as Record<string, unknown>;
+  meta.task = "(llm-proxy)";
+  meta.source = { kind: "proxy", base_url: "http://127.0.0.1:18787/v1" };
+  // config_hash 保留：录制侧已补指纹的代理 run
+  kept[0] = JSON.stringify(meta);
+  const file = join(dir, `${id}.jsonl`);
+  writeFileSync(file, `${kept.join("\n")}\n`);
+  const final = readRun(file);
+  expect(final.meta.source?.kind).toBe("proxy");
+  expect(final.meta.config_hash).toBeDefined();
+  expect(final.spans.some((s) => s.kind === "tool.invoke")).toBe(false);
+  return id;
 }
 
 function firstLlm(record: RunRecord): Extract<RunRecord["spans"][number], { kind: "llm.call" }> {
@@ -282,6 +325,85 @@ describe("replayRun：拒绝路径（tasks 3.3）", () => {
       ).rejects.toThrow(/必须是 tool\.invoke/);
       expect(mock.requests).toHaveLength(0);
       expect(readdirSync(dir).sort()).toEqual(before);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("代理 run 即便带 config_hash 也无 tool.invoke → 结构性拒绝，零调用、不产生文件", async () => {
+    const { dir, cleanup } = tempDir();
+    try {
+      // 代理录制形态：单 llm.call、无 tool.invoke，且保留 config_hash（录制侧已补指纹）
+      const proxyId = await createProxyRun(dir);
+      expect(readRun(join(dir, `${proxyId}.jsonl`)).meta.config_hash).toBeDefined();
+      // s_02 = 代理 run 的 llm.call（无 tool.invoke 可作分叉点）
+      const before = readdirSync(dir).sort();
+      const mock = new MockLlmClient([]);
+      await expect(
+        replayRun({
+          parentId: proxyId,
+          atSpanId: "s_02",
+          edit: EDIT,
+          config: CONFIG,
+          tools: TOOLS,
+          load: loader(dir),
+          outDir: dir,
+          llm: mock,
+        }),
+      ).rejects.toThrow(/必须是 tool\.invoke/);
+      expect(mock.requests).toHaveLength(0);
+      expect(readdirSync(dir).sort()).toEqual(before);
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+describe("代理 run 经 prompt fork 的子 run 可作 tool-result replay 父本", () => {
+  it("代理 run → prompt fork → 子 run（引擎 run）→ 以子 run 为父本 replay 正常", async () => {
+    const { dir, cleanup } = tempDir();
+    try {
+      // 1. 代理形态父 run（含 config_hash、含字符串 system；无 tool.invoke）
+      const proxyId = await createProxyRun(dir);
+
+      // 2. 对该代理 run 做 prompt fork：子 run 是引擎 run（有完整 tool.invoke 轨迹）
+      const forkEdit: PromptForkEdit = {
+        field: "system_prompt",
+        value: "你是只许一次说清的助手，禁止调用工具。",
+      };
+      const child = await promptReplayRun({
+        parentId: proxyId,
+        edit: forkEdit,
+        config: CONFIG,
+        tools: TOOLS,
+        load: loader(dir),
+        outDir: dir,
+        llm: new MockLlmClient(CHILD_SCRIPT),
+      });
+      const childRecord = readRun(join(dir, `${child.id}.jsonl`));
+      expect(childRecord.meta.parent).toBe(proxyId);
+      expect(childRecord.meta.source).toBeUndefined(); // 子 run 无 proxy source
+      const childToolInvoke = childRecord.spans.find((s) => s.kind === "tool.invoke");
+      expect(childToolInvoke).toBeDefined();
+
+      // 3. 以子 run 为父本做 tool-result replay：应正常执行（祖先有 proxy，但叶是引擎 run）
+      //    子 run 的 system prompt 已被编辑，故 replay config 必须用子 run 的源码
+      const childConfig: RunConfig = { ...CONFIG, systemPrompt: forkEdit.value };
+      const mock = new MockLlmClient(FORK_SCRIPT);
+      const replayed = await replayRun({
+        parentId: child.id,
+        atSpanId: childToolInvoke!.id,
+        edit: EDIT,
+        config: childConfig,
+        tools: TOOLS,
+        load: loader(dir),
+        outDir: dir,
+        llm: mock,
+      });
+      const replayedRecord = readRun(join(dir, `${replayed.id}.jsonl`));
+      expect(replayedRecord.meta.parent).toBe(child.id);
+      expect(replayedRecord.meta.fork?.edit.field).toBe("result");
+      expect(mock.requests.length).toBeGreaterThan(0);
     } finally {
       cleanup();
     }

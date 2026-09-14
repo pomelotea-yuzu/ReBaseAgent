@@ -327,6 +327,135 @@ describe("runPromptFork：拒绝路径", () => {
   });
 });
 
+describe("runPromptFork：空工具表父 run（引擎空 tools / 代理无工具）", () => {
+  it("引擎空工具表 run 可 prompt fork，子 run config_hash 与父逐字节一致", async () => {
+    const { traces, repo, cleanup } = tempRepo();
+    try {
+      // 父 run 用空 config.tools 现造（run-loop 对空表不写 request.tools）
+      const emptyConfig = sampleConfig({ tools: [] });
+      const tmpFile = join(traces, "tmp-parent.jsonl");
+      await runLoop(
+        emptyConfig,
+        initialMessages(TASK),
+        new JsonlTracer(tmpFile),
+        [],
+        new MockLlmClient([{ content: "无工具直接作答：要点如下。" }]),
+      );
+      const parentRecord = readRun(tmpFile);
+      expect(parentRecord.status).toBe("completed");
+      const parentId = parentRecord.meta.id;
+      renameSync(tmpFile, join(traces, `${parentId}.jsonl`));
+      // 前提确认：录制侧未写 tools 字段（引擎对空表省略）
+      const parentLlm = parentRecord.spans.find((s) => s.kind === "llm.call");
+      expect(parentLlm?.kind).toBe("llm.call");
+      if (parentLlm?.kind === "llm.call") {
+        expect(parentLlm.request.tools).toBeUndefined();
+      }
+
+      const before = listFiles(traces);
+      const mock = new MockLlmClient(SYS_FORK_SCRIPT);
+      const result = await runPromptFork(
+        { repository: repo, settings: SETTINGS, execCwd: traces, llm: mock },
+        { parentRunId: parentId, edit: SYS_EDIT },
+      );
+
+      const child = readRun(join(traces, `${result.id}.jsonl`));
+      expect(child.meta.parent).toBe(parentId);
+      expect(child.meta.config_hash).toBe(configHash(SYS_EDIT.value, []));
+      // 父 run 自身 hash 为编辑前的空表指纹（空表可算，故此前被拒的空工具 run 现可 fork）
+      expect(parentRecord.meta.config_hash).toBe(configHash(CONFIG.systemPrompt, []));
+      expect(mock.requests).toHaveLength(1);
+      expect(listFiles(traces)).toEqual([...before, `${result.id}.jsonl`].sort());
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 代理 run（录制侧已补指纹、无工具）→ prompt fork
+// ---------------------------------------------------------------------------
+
+/** 造一个代理形态 fixture：单 llm.call、无 tools、meta 带 source=proxy 与 config_hash */
+async function createProxyParent(traces: string): Promise<string> {
+  const proxyConfig = sampleConfig({ tools: [] });
+  const tmpFile = join(traces, "tmp-proxy.jsonl");
+  await runLoop(
+    proxyConfig,
+    initialMessages(TASK),
+    new JsonlTracer(tmpFile),
+    [],
+    new MockLlmClient([{ content: "代理应答：一次结束。" }]),
+  );
+  const record = readRun(tmpFile);
+  const id = record.meta.id;
+  const lines = readFileSync(tmpFile, "utf8")
+    .split(/\r?\n/)
+    .filter((line) => line.trim().length > 0);
+  const meta = JSON.parse(lines[0] ?? "{}") as Record<string, unknown>;
+  meta.task = "(llm-proxy)";
+  meta.source = { kind: "proxy", base_url: "http://127.0.0.1:18787/v1" };
+  lines[0] = JSON.stringify(meta);
+  const file = join(traces, `${id}.jsonl`);
+  writeFileSync(file, `${lines.join("\n")}\n`);
+  return id;
+}
+
+describe("runPromptFork：含 hash 的代理 run（无工具）", () => {
+  it("代理 run 可 prompt fork，子 run 出现在分支树且 meta 形状与引擎父本一致", async () => {
+    const { traces, repo, cleanup } = tempRepo();
+    try {
+      const proxyId = await createProxyParent(traces);
+      const before = listFiles(traces);
+      const mock = new MockLlmClient(SYS_FORK_SCRIPT);
+      const result = await runPromptFork(
+        { repository: repo, settings: SETTINGS, execCwd: traces, llm: mock },
+        { parentRunId: proxyId, edit: SYS_EDIT },
+      );
+      const child = readRun(join(traces, `${result.id}.jsonl`));
+      expect(child.meta.parent).toBe(proxyId);
+      expect(child.meta.fork?.edit.field).toBe("system_prompt");
+      // 子 run 无 proxy source（是引擎 run）
+      expect(child.meta.source).toBeUndefined();
+
+      // 分支树：子 run 详情 chain 列出 [代理父, 子 run]
+      const detail = repo.getRun(result.id);
+      expect(detail.chain.map((hop) => hop.meta.id)).toEqual([proxyId, result.id]);
+      expect(listFiles(traces)).toEqual([...before, `${result.id}.jsonl`].sort());
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("旧无 hash 代理文件 → 拒绝且文案指向重新录制/编辑 messages 重发", async () => {
+    const { traces, repo, cleanup } = tempRepo();
+    try {
+      const proxyId = await createProxyParent(traces);
+      // 抹掉 config_hash 且带缺因（模拟历史文件）
+      const file = join(traces, `${proxyId}.jsonl`);
+      const lines = readFileSync(file, "utf8")
+        .split(/\r?\n/)
+        .filter((line) => line.trim().length > 0);
+      const meta = JSON.parse(lines[0] ?? "{}") as Record<string, unknown>;
+      const { config_hash: _removed, ...stripped } = meta;
+      stripped.config_hash_reason = "no_system";
+      lines[0] = JSON.stringify(stripped);
+      writeFileSync(file, `${lines.join("\n")}\n`);
+
+      const mock = new MockLlmClient([]);
+      await expect(
+        runPromptFork(
+          { repository: repo, settings: SETTINGS, execCwd: traces, llm: mock },
+          { parentRunId: proxyId, edit: SYS_EDIT },
+        ),
+      ).rejects.toThrow(/不含字符串形式的 system 消息[\s\S]*重新经代理录制/);
+      expect(mock.requests).toHaveLength(0);
+    } finally {
+      cleanup();
+    }
+  });
+});
+
 // ---------------------------------------------------------------------------
 // getRun 分流：prompt fork 的详情 = 自身完整 spans + 父级溯源链
 // ---------------------------------------------------------------------------

@@ -80,6 +80,12 @@ export const RunMetaSchema = z.object({
    *  可选：代理录制的 run 无源配置可哈希，诚实缺省——无该字段的 run
    *  不可作 replay 分叉父本（校验层拒绝），但可作代理分叉（proxy:fork）父本。 */
   config_hash: z.string().min(1).optional(),
+  /** config_hash 缺省时的结构化缺因（与 config_hash 互斥）：代理录制的 run 在无法
+   *  派生指纹时写入，供 fork 门禁与桌面端给出可诊断的拒绝文案。
+   *  - no_system：首次请求无字符串形式的 system 消息
+   *  - invalid_tool：工具表存在无法解包的项
+   *  历史文件无该字段，读取不受影响。 */
+  config_hash_reason: z.enum(["no_system", "invalid_tool"]).optional(),
   /** 录制来源（可选）：由代理录制时写入；SDK / agent-loop 直录省略 */
   source: SourceSchema.optional(),
 });

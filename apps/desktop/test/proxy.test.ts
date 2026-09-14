@@ -1,6 +1,7 @@
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { configHash } from "@rebaseagent/agent-loop";
 import type { ProxyRecording } from "@rebaseagent/llm-proxy";
 import { afterEach, describe, expect, it } from "vitest";
 import { ProxyForkError, ProxyManager } from "../src/main/proxy-manager";
@@ -50,7 +51,10 @@ function fakeRecording(overrides?: Partial<ProxyRecording>): ProxyRecording {
     started_at: new Date().toISOString(),
     request: {
       model: "deepseek-chat",
-      messages: [{ role: "user", content: "你好" }],
+      messages: [
+        { role: "system", content: "你是文件助手。" },
+        { role: "user", content: "你好" },
+      ],
       tools: undefined,
       params: { temperature: 0.7 },
     },
@@ -67,14 +71,15 @@ function fakeRecording(overrides?: Partial<ProxyRecording>): ProxyRecording {
 }
 
 describe("ProxyRunRecorder：三种 outcome 的 JSONL 形态", () => {
-  it("completed：meta（无 config_hash、含 source）+ step + llm.call + 终止事件", () => {
+  it("completed：meta（含 config_hash、source）+ step + llm.call + 终止事件", () => {
     const dir = tempDir("proxy-rec-");
     const recorder = new ProxyRunRecorder(dir);
     const id = recorder.write(fakeRecording());
     const record = new RunRepository(dir).loadRunRecord(id);
     expect(record.status).toBe("completed");
     expect(record.meta.task).toBe("(llm-proxy)");
-    expect(record.meta.config_hash).toBeUndefined();
+    expect(record.meta.config_hash).toBe(configHash("你是文件助手。", []));
+    expect(record.meta.config_hash_reason).toBeUndefined();
     expect(record.meta.source).toEqual({ kind: "proxy", base_url: "http://127.0.0.1:18787/v1" });
     expect(record.meta.parent).toBeNull();
     expect(record.spans).toHaveLength(2);
@@ -118,6 +123,92 @@ describe("ProxyRunRecorder：三种 outcome 的 JSONL 形态", () => {
       at_span: "s_02",
       edit: { field: "messages", value: edited },
     });
+  });
+
+  it("含工具表：config_hash 按解包后工具算（与 configHash 逐字节相等）", () => {
+    const dir = tempDir("proxy-rec-");
+    const recorder = new ProxyRunRecorder(dir);
+    const tools = [
+      {
+        type: "function",
+        function: {
+          name: "read_file",
+          description: "读取文件",
+          parameters: { type: "object", properties: { path: { type: "string" } } },
+        },
+      },
+    ];
+    const id = recorder.write(
+      fakeRecording({
+        request: {
+          model: "deepseek-chat",
+          messages: [
+            { role: "system", content: "你是文件助手。" },
+            { role: "user", content: "你好" },
+          ],
+          tools,
+          params: undefined,
+        },
+      }),
+    );
+    const record = new RunRepository(dir).loadRunRecord(id);
+    const expected = configHash("你是文件助手。", [
+      {
+        name: "read_file",
+        description: "读取文件",
+        parameters: { type: "object", properties: { path: { type: "string" } } },
+      },
+    ]);
+    expect(record.meta.config_hash).toBe(expected);
+    expect(record.meta.config_hash_reason).toBeUndefined();
+  });
+
+  it("无字符串 system 消息：不写 config_hash，写缺因 no_system", () => {
+    const dir = tempDir("proxy-rec-");
+    const recorder = new ProxyRunRecorder(dir);
+    const id = recorder.write(
+      fakeRecording({
+        request: {
+          model: "deepseek-chat",
+          messages: [{ role: "user", content: "你好" }],
+          tools: undefined,
+          params: undefined,
+        },
+      }),
+    );
+    const record = new RunRepository(dir).loadRunRecord(id);
+    expect(record.meta.config_hash).toBeUndefined();
+    expect(record.meta.config_hash_reason).toBe("no_system");
+  });
+
+  it("工具表无法解析：不写 config_hash，写缺因 invalid_tool", () => {
+    const dir = tempDir("proxy-rec-");
+    const recorder = new ProxyRunRecorder(dir);
+    const id = recorder.write(
+      fakeRecording({
+        request: {
+          model: "deepseek-chat",
+          messages: [
+            { role: "system", content: "你是文件助手。" },
+            { role: "user", content: "你好" },
+          ],
+          tools: [{ name: "broken" }], // 缺 description/parameters
+          params: undefined,
+        },
+      }),
+    );
+    const record = new RunRepository(dir).loadRunRecord(id);
+    expect(record.meta.config_hash).toBeUndefined();
+    expect(record.meta.config_hash_reason).toBe("invalid_tool");
+  });
+
+  it("error outcome：请求快照可派生即写 hash（与是否有 llm.call span 无关）", () => {
+    const dir = tempDir("proxy-rec-");
+    const recorder = new ProxyRunRecorder(dir);
+    const id = recorder.write(fakeRecording({ response: null, outcome: "error" }));
+    const record = new RunRepository(dir).loadRunRecord(id);
+    expect(record.meta.config_hash).toBe(configHash("你是文件助手。", []));
+    expect(record.spans).toHaveLength(0);
   });
 });
 
@@ -199,7 +290,10 @@ describe("ProxyManager：端到端（回环 + stub upstream）", () => {
       headers: { "content-type": "application/json", authorization: "Bearer sk-e2e" },
       body: JSON.stringify({
         model: "deepseek-chat",
-        messages: [{ role: "user", content: "原始消息" }],
+        messages: [
+          { role: "system", content: "你是文件助手。" },
+          { role: "user", content: "原始消息" },
+        ],
         temperature: 0.7,
       }),
     });
@@ -207,13 +301,13 @@ describe("ProxyManager：端到端（回环 + stub upstream）", () => {
     await new Promise((r) => setTimeout(r, 30));
     expect(manager.status().hasKey).toBe(true);
 
-    // 3. 录制结果：一 run（无 config_hash）、列表带 source 徽标数据
+    // 3. 录制结果：一 run（含 config_hash）、列表带 source 徽标数据
     const runs = repository.listRuns().runs;
     expect(runs).toHaveLength(1);
     expect(runs[0]?.source).toBe("proxy");
     expect(runs[0]?.task).toBe("(llm-proxy)");
     const parent = repository.loadRunRecord(runs[0]!.id);
-    expect(parent.meta.config_hash).toBeUndefined();
+    expect(parent.meta.config_hash).toBe(configHash("你是文件助手。", []));
     expect(parent.spans.find((s) => s.kind === "llm.call")?.request.params).toEqual({
       temperature: 0.7,
     });

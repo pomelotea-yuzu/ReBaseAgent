@@ -29,6 +29,14 @@ export { promptReplayRun } from "./prompt-replay-run.js";
 export type { PromptReplayRunOptions, PromptReplayRunResult } from "./prompt-replay-run.js";
 export { loadForkParent } from "./fork-parent.js";
 export type { ForkParent } from "./fork-parent.js";
+export { deriveProxyConfigHash } from "./proxy-config-hash.js";
+export type {
+  ConfigHashDerivation,
+  ConfigHashMissReason,
+  ProxyConfigHashInput,
+} from "./proxy-config-hash.js";
+export { ToolUnwrapError, toToolDefs, unwrapToolDef } from "./tool-unwrap.js";
+export type { ToolUnwrapFailureKind } from "./tool-unwrap.js";
 export {
   DEFAULT_MAX_ITERATIONS,
   DEFAULT_MAX_TOTAL_TOKENS,

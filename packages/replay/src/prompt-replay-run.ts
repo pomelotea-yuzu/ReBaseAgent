@@ -16,7 +16,7 @@ import { newForkRunId } from "./replay-run.js";
  * - 语义正交：tool_result replay 复用父前缀（copy-on-write 截断拼接），
  *   prompt fork 改变启动上下文、不复用任何父 span，从 agent.step 1 完整执行
  * - 校验独立：不要求新 config_hash 与父一致（改 system prompt 本来就是新实验）；
- *   但要求父 run 已封存、有 config_hash、非 proxy 来源、首次请求含字符串 system 消息
+ *   但要求父 run 已封存、有 config_hash、首次请求含字符串 system 消息（proxy 与引擎 run 同判据）
  * - 所有校验发生在创建 tracer 与发起模型请求之前：失败零文件、零调用
  *
  * model_params 编辑（V3b 单臂路径）同样走这里：它只换 model/params，
@@ -58,7 +58,7 @@ export async function promptReplayRun(
     throw new Error("config.tools 与 tools（含 handler）数量不一致，无法重跑");
   }
 
-  // 1. 父链 + 封存 + proxy + config_hash + 首次 llm.call + 字符串 system 消息
+  // 1. 父链 + 封存 + config_hash + 首次 llm.call + 字符串 system 消息
   //    （1.2：与模型 A/B 实验共用同一条门禁；失败零文件、零调用）
   const parent = loadForkParent(parentId, load);
 

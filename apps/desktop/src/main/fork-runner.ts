@@ -2,7 +2,13 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { OpenAiCompatClient } from "@rebaseagent/agent-loop";
 import type { LlmClient, RunConfig, Tool, ToolDef } from "@rebaseagent/agent-loop";
-import { modelReplayRunMany, promptReplayRun, replayRun } from "@rebaseagent/replay";
+import {
+  ToolUnwrapError,
+  modelReplayRunMany,
+  promptReplayRun,
+  replayRun,
+  toToolDefs,
+} from "@rebaseagent/replay";
 import type { RunRecord, SpanLine } from "@rebaseagent/trace-sdk";
 import type { ModelAbRequest, ModelAbResult } from "../shared/ipc";
 import type { RunRepository } from "./run-repository";
@@ -88,7 +94,7 @@ export async function runFork(
   }
 
   // 4. 桌面内置 registry 覆盖检查：未知工具拒绝（诚实 MVP 边界）
-  const toolDefs = toToolDefs(recordedTools);
+  const toolDefs = toToolDefsOrThrow(recordedTools);
   const tools = attachHandlers(toolDefs);
   if (tools === null) {
     const unknown = toolDefs.map((t) => t.name).filter((name) => !HANDLERS.has(name));
@@ -167,12 +173,11 @@ function buildForkConfig(
     );
   }
 
-  // 3. 工具表从首次 llm.call 录制重建（与 runFork 同源的重建 + 覆盖检查）
-  const recordedTools = firstLlm.request.tools;
-  if (recordedTools === undefined) {
-    throw new ForkError("FORK_NO_CONTEXT", "父 run 录制缺少工具表，无法重建重跑配置");
-  }
-  const toolDefs = toToolDefs(recordedTools);
+  // 3. 工具表从首次 llm.call 录制重建（与 runFork 同源的重建 + 覆盖检查）。
+  //    录制缺省 tools 视为空表：覆盖代理无工具 run（纯 chat 应用主路径）与引擎空工具表 run
+  //    （run-loop 对空 config.tools 不写 request.tools）——configHash 对空表成立，天然放行。
+  const recordedTools = firstLlm.request.tools ?? [];
+  const toolDefs = toToolDefsOrThrow(recordedTools);
   const tools = attachHandlers(toolDefs);
   if (tools === null) {
     const unknown = toolDefs.map((t) => t.name).filter((name) => !HANDLERS.has(name));
@@ -341,19 +346,17 @@ function sanitizeParams(raw: unknown): Record<string, number> | undefined {
 }
 
 /**
- * 把录制的工具表规整为 ToolDef。录制存在两种合法形状：
- * - 引擎新录制（runLoop 直接把 config.tools 写进 request.tools）：扁平
- *   { name, description, parameters, sideEffect? }
- * - 旧版手工 trace / 第三方兼容录制：OpenAI 请求体包装
- *   { type: "function", function: { name, description, parameters } }
- * 两种都解包为 ToolDef；sideEffect 仅在有布尔值时带出（config_hash 规范化的前提）。
- * 无法解析（如旧 fixture 每步只录单工具的残缺表）给出明确指引，不静默猜测。
+ * 把录制的工具表规整为 ToolDef（共享解包实现，见 @rebaseagent/replay 的 tool-unwrap）。
+ *
+ * 错误码转译：共享层抛 `ToolUnwrapError`（replay 自有类型，不带桌面 IPC 语义），
+ * 这里统一转成既有 `ForkError("FORK_NO_CONTEXT")` 并保留原中文文案——
+ * 渲染层对 `FORK_NO_CONTEXT` 的处理零变化。
  */
-function toToolDefs(recorded: readonly Record<string, unknown>[]): ToolDef[] {
-  const defs: ToolDef[] = [];
-  for (const raw of recorded) {
-    const def = unwrapToolDef(raw);
-    if (def === null) {
+function toToolDefsOrThrow(recorded: readonly Record<string, unknown>[]): ToolDef[] {
+  try {
+    return toToolDefs(recorded);
+  } catch (e) {
+    if (e instanceof ToolUnwrapError) {
       throw new ForkError(
         "FORK_NO_CONTEXT",
         "父 run 录制的工具表无法解析（需 name/description/parameters 或 OpenAI 的 function 包装）。" +
@@ -361,33 +364,8 @@ function toToolDefs(recorded: readonly Record<string, unknown>[]): ToolDef[] {
           "请对由 ReBaseAgent 引擎录制、config_hash 现算的 run 执行“在此重跑”",
       );
     }
-    defs.push(def);
+    throw e;
   }
-  return defs;
-}
-
-function unwrapToolDef(raw: Record<string, unknown>): ToolDef | null {
-  const wrapped = raw.function;
-  const inner =
-    typeof wrapped === "object" && wrapped !== null && !Array.isArray(wrapped)
-      ? (wrapped as Record<string, unknown>)
-      : raw;
-  const { name, description, parameters, sideEffect } = inner;
-  if (
-    typeof name !== "string" ||
-    typeof description !== "string" ||
-    typeof parameters !== "object" ||
-    parameters === null ||
-    Array.isArray(parameters)
-  ) {
-    return null;
-  }
-  return {
-    name,
-    description,
-    parameters: parameters as Record<string, unknown>,
-    ...(typeof sideEffect === "boolean" ? { sideEffect } : {}),
-  };
 }
 
 /**

@@ -79,8 +79,13 @@ function makeCrashed(dir: string, id: string): void {
   expect(readRun(file).status).toBe("crashed");
 }
 
-/** 去掉 meta.config_hash（可同时伪装成 proxy） */
-function stripConfigHash(dir: string, id: string, asProxy = false): void {
+/** 去掉 meta.config_hash（可同时伪装成 proxy；可附缺因字段） */
+function stripConfigHash(
+  dir: string,
+  id: string,
+  asProxy = false,
+  reason?: "no_system" | "invalid_tool",
+): void {
   const file = join(dir, `${id}.jsonl`);
   const lines = readFileSync(file, "utf8")
     .split(/\r?\n/)
@@ -91,7 +96,23 @@ function stripConfigHash(dir: string, id: string, asProxy = false): void {
     rest.task = "(llm-proxy)";
     rest.source = { kind: "proxy", base_url: "http://127.0.0.1:18787/v1" };
   }
+  if (reason !== undefined) {
+    rest.config_hash_reason = reason;
+  }
   lines[0] = JSON.stringify(rest);
+  writeFileSync(file, `${lines.join("\n")}\n`);
+}
+
+/** 仅把来源标记为 proxy、保留 config_hash（模拟录制侧已补指纹的代理 run） */
+function markAsProxy(dir: string, id: string): void {
+  const file = join(dir, `${id}.jsonl`);
+  const lines = readFileSync(file, "utf8")
+    .split(/\r?\n/)
+    .filter((line) => line.trim().length > 0);
+  const meta = JSON.parse(lines[0] ?? "{}") as Record<string, unknown>;
+  meta.task = "(llm-proxy)";
+  meta.source = { kind: "proxy", base_url: "http://127.0.0.1:18787/v1" };
+  lines[0] = JSON.stringify(meta);
   writeFileSync(file, `${lines.join("\n")}\n`);
 }
 
@@ -307,7 +328,7 @@ describe("promptReplayRun：拒绝路径（创建文件与调用模型之前）"
     }
   });
 
-  it("proxy 来源的父 run → 报错指向代理分叉入口、零调用、不产生文件", async () => {
+  it("proxy 来源缺 config_hash（缺因未知，历史文件）→ 报错指向代理分叉入口、零调用、不产生文件", async () => {
     const { dir, cleanup } = tempDir();
     try {
       const parentId = await createParent(dir);
@@ -327,6 +348,84 @@ describe("promptReplayRun：拒绝路径（创建文件与调用模型之前）"
       ).rejects.toThrow(/本地录制代理/);
       expect(mock.requests).toHaveLength(0);
       expect(readdirSync(dir).sort()).toEqual(before);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("proxy 缺 hash 且缺因=no_system → 文案指向重新录制、零调用、不产生文件", async () => {
+    const { dir, cleanup } = tempDir();
+    try {
+      const parentId = await createParent(dir);
+      stripConfigHash(dir, parentId, true, "no_system");
+      const before = readdirSync(dir).sort();
+      const mock = new MockLlmClient([]);
+      await expect(
+        promptReplayRun({
+          parentId,
+          edit: SYS_EDIT,
+          config: CONFIG,
+          tools: TOOLS,
+          load: loader(dir),
+          outDir: dir,
+          llm: mock,
+        }),
+      ).rejects.toThrow(/不含字符串形式的 system 消息[\s\S]*重新经代理录制/);
+      expect(mock.requests).toHaveLength(0);
+      expect(readdirSync(dir).sort()).toEqual(before);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("proxy 缺 hash 且缺因=invalid_tool → 文案指向修正工具定义、零调用、不产生文件", async () => {
+    const { dir, cleanup } = tempDir();
+    try {
+      const parentId = await createParent(dir);
+      stripConfigHash(dir, parentId, true, "invalid_tool");
+      const before = readdirSync(dir).sort();
+      const mock = new MockLlmClient([]);
+      await expect(
+        promptReplayRun({
+          parentId,
+          edit: SYS_EDIT,
+          config: CONFIG,
+          tools: TOOLS,
+          load: loader(dir),
+          outDir: dir,
+          llm: mock,
+        }),
+      ).rejects.toThrow(/工具表无法解析[\s\S]*修正源应用的工具定义格式/);
+      expect(mock.requests).toHaveLength(0);
+      expect(readdirSync(dir).sort()).toEqual(before);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("含 config_hash 的 proxy 父 run → 放行并正常从头重跑", async () => {
+    const { dir, cleanup } = tempDir();
+    try {
+      const parentId = await createParent(dir);
+      // 保留 config_hash，仅把来源标记为 proxy（模拟录制侧已补指纹）
+      markAsProxy(dir, parentId);
+      const before = readdirSync(dir).sort();
+      const mock = new MockLlmClient(SYS_FORK_SCRIPT);
+      const result = await promptReplayRun({
+        parentId,
+        edit: SYS_EDIT,
+        config: CONFIG,
+        tools: TOOLS,
+        load: loader(dir),
+        outDir: dir,
+        llm: mock,
+      });
+      expect(mock.requests.length).toBeGreaterThan(0);
+      const child = readRun(join(dir, `${result.id}.jsonl`));
+      expect(child.meta.parent).toBe(parentId);
+      expect(child.meta.fork?.edit.field).toBe("system_prompt");
+      expect(readdirSync(dir).sort()).toContain(`${result.id}.jsonl`);
+      expect(before.length).toBe(readdirSync(dir).length - 1);
     } finally {
       cleanup();
     }

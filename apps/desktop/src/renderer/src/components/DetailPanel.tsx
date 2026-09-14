@@ -671,10 +671,11 @@ function LlmCallDetail({
       ) : null}
 
       {(() => {
-        // prompt fork 入口：仅限首次 llm.call（启动上下文的事实源）
+        // prompt fork 入口：仅限首次 llm.call（启动上下文的事实源）。
+        // 代理 run 在录制侧已补 config_hash 时与引擎 run 同判据（不再无条件排除 proxy）；
+        // 无 hash 的代理 run 不显示编辑器（服务端 loadForkParent 按缺因兜底）。
         const promptForkable =
           run !== null &&
-          !isProxy &&
           run.status === "completed" &&
           run.meta.config_hash !== undefined &&
           leafOwned;
