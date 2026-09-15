@@ -45,6 +45,13 @@ interface AppState {
   /** 分叉失败的错误码（渲染层据此给针对性提示，如未配置） */
   forkErrorCode: string | null;
 
+  /** 新建运行进行中状态（runs:create 写通道） */
+  creatingRun: "idle" | "in_progress" | "success" | "error";
+  /** 新建运行失败的展示信息（来自信封 error） */
+  createRunError: string | null;
+  /** 新建运行失败的错误码（渲染层据此给针对性提示，如未配置） */
+  createRunErrorCode: string | null;
+
   /** 运行配置状态（不含 apiKey；null = 尚未加载成功） */
   settings: SettingsState | null;
 
@@ -90,6 +97,14 @@ interface AppState {
   /** 打开新的分叉编辑前复位状态 */
   resetFork: () => void;
 
+  /**
+   * 新建运行（runs:create）：从头执行一个原生 run（空工具表、无父 run）。
+   * 成功刷新列表并自动选中新 run；返回是否成功。
+   */
+  createRun: (systemPrompt: string, userMessage: string) => Promise<boolean>;
+  /** 打开"新建运行"对话框前复位状态 */
+  resetCreateRun: () => void;
+
   loadSettings: () => Promise<void>;
   saveSettings: (input: SettingsInput) => Promise<boolean>;
   clearSettings: () => Promise<boolean>;
@@ -132,6 +147,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   forking: "idle",
   forkError: null,
   forkErrorCode: null,
+  creatingRun: "idle",
+  createRunError: null,
+  createRunErrorCode: null,
   modelAbInFlight: false,
   modelAbError: null,
   modelAbErrorCode: null,
@@ -220,6 +238,28 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   resetFork() {
     set({ forking: "idle", forkError: null, forkErrorCode: null });
+  },
+
+  async createRun(systemPrompt, userMessage) {
+    set({ creatingRun: "in_progress", createRunError: null, createRunErrorCode: null });
+    const envelope = await api.createRun({ systemPrompt, userMessage });
+    if (!envelope.ok) {
+      set({
+        creatingRun: "error",
+        createRunError: envelope.error.message,
+        createRunErrorCode: envelope.error.code,
+      });
+      return false;
+    }
+    // 成功：刷新列表（新 run 归入"本地直录"）并自动选中新 run
+    set({ creatingRun: "success" });
+    await get().loadRuns();
+    await get().selectRun(envelope.data.id);
+    return true;
+  },
+
+  resetCreateRun() {
+    set({ creatingRun: "idle", createRunError: null, createRunErrorCode: null });
   },
 
   async promptFork(parentRunId, edit) {

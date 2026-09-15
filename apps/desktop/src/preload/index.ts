@@ -7,7 +7,7 @@ import type { WindowApi } from "../shared/ipc";
  *
  * 只暴露受限方法，不暴露 ipcRenderer：
  * - 取数：listRuns / getRun
- * - 写通道：forkRun / promptFork / modelAb（都只新建 fork run 文件）
+ * - 写通道：forkRun / promptFork / modelAb / createRun（都只新建 run 文件）
  * - 运行配置三件套：getSettings 只读状态（不含 apiKey）；saveSettings 单向写入；
  *   clearSettings 删除配置
  * 本文件在 sandbox 下运行，因此不引入任何第三方依赖（连通道常量都来自零依赖模块）。
@@ -18,6 +18,7 @@ const api: WindowApi = {
   forkRun: (request) => ipcRenderer.invoke(CHANNELS.forkRun, request),
   promptFork: (request) => ipcRenderer.invoke(CHANNELS.promptFork, request),
   modelAb: (request) => ipcRenderer.invoke(CHANNELS.modelAb, request),
+  createRun: (request) => ipcRenderer.invoke(CHANNELS.createRun, request),
   getSettings: () => ipcRenderer.invoke(CHANNELS.settingsGet),
   saveSettings: (input) => ipcRenderer.invoke(CHANNELS.settingsSave, input),
   clearSettings: () => ipcRenderer.invoke(CHANNELS.settingsClear),

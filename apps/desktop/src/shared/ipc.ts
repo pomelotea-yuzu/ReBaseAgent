@@ -123,7 +123,7 @@ export function fail(code: string, error: unknown): Envelope<never> {
 }
 
 // ---------------------------------------------------------------------------
-// runs:fork —— 桌面端唯一的显式写通道（分叉重跑）
+// runs:fork —— 显式写通道之一（分叉重跑；另一条是 runs:create）
 // ---------------------------------------------------------------------------
 
 /** 分叉重跑请求：用户显式选择的父 run、分叉点 span、编辑值 */
@@ -140,6 +140,29 @@ export const ForkRunResultSchema = z.object({
   id: z.string().min(1),
 });
 export type ForkRunResult = z.infer<typeof ForkRunResultSchema>;
+
+// ---------------------------------------------------------------------------
+// runs:create —— 原生 run 创建写通道（从头执行一个 run，无父 run）
+// ---------------------------------------------------------------------------
+
+/**
+ * 新建运行请求：systemPrompt 可空（空 ⇒ config_hash = configHash("", [])），
+ * userMessage 必填非空（空消息无法驱动 agent loop）。
+ *
+ * 没有 task 字段：`run.meta.task` 由 runLoop 从首条 user 消息派生
+ * （packages/agent-loop/src/run-loop.ts:69），runLoop 无 task 入参。
+ */
+export const CreateRunRequestSchema = z.object({
+  systemPrompt: z.string(),
+  userMessage: z.string().min(1, "userMessage 不能为空"),
+});
+export type CreateRunRequest = z.infer<typeof CreateRunRequestSchema>;
+
+/** runs:create 成功结果：新 run 的 id */
+export const CreateRunResultSchema = z.object({
+  id: z.string().min(1),
+});
+export type CreateRunResult = z.infer<typeof CreateRunResultSchema>;
 
 // ---------------------------------------------------------------------------
 // runs:promptFork —— prompt fork 写通道（编辑启动上下文，从头重跑）
@@ -298,7 +321,7 @@ export type ProxyForkResult = z.infer<typeof ProxyForkResultSchema>;
 
 /**
  * preload 暴露给渲染层的受限接口。
- * 取数两个方法 + forkRun / promptFork / modelAb / proxyFork 四个写通道 + settings 三件套 + 代理三件套
+ * 取数两个方法 + forkRun / promptFork / modelAb / createRun / proxyFork 五个写通道 + settings 三件套 + 代理三件套
  * （apiKey / 代理 key 均单向进入 main，永不回传）。
  */
 export interface WindowApi {
@@ -307,6 +330,7 @@ export interface WindowApi {
   forkRun(request: ForkRunRequest): Promise<Envelope<ForkRunResult>>;
   promptFork(request: PromptForkRequest): Promise<Envelope<PromptForkResult>>;
   modelAb(request: ModelAbRequest): Promise<Envelope<ModelAbResult>>;
+  createRun(request: CreateRunRequest): Promise<Envelope<CreateRunResult>>;
   getSettings(): Promise<Envelope<SettingsState>>;
   saveSettings(input: SettingsInput): Promise<Envelope<{ configured: true }>>;
   clearSettings(): Promise<Envelope<{ configured: false }>>;

@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { formatDuration, formatTime, formatTokens, reasonLabel } from "../lib/format";
 import { useAppStore } from "../store";
+import { CreateRunDialog } from "./CreateRunDialog";
 
 /** 状态徽章：completed 与 crashed 两态，崩溃明确标注"运行中断" */
 function StatusBadge({
@@ -28,6 +30,9 @@ export function RunList() {
   const sourceFilter = useAppStore((s) => s.sourceFilter);
   const setSourceFilter = useAppStore((s) => s.setSourceFilter);
 
+  // "新建运行"对话框开关（本地 UI 状态，与 App.tsx 管设置对话框同法）
+  const [createOpen, setCreateOpen] = useState(false);
+
   // 来源过滤：proxy meta 缺失的老文件归入"本地直录"
   const filtered =
     sourceFilter === "all"
@@ -39,8 +44,18 @@ export function RunList() {
   return (
     <aside className="flex h-full w-80 shrink-0 flex-col border-r border-gray-200 bg-white">
       <div className="border-b border-gray-200 px-3 py-2">
-        <div className="text-sm font-semibold text-gray-800">运行记录</div>
-        <div className="text-[11px] text-gray-500">按创建时间倒序 · 只读</div>
+        <div className="flex items-center justify-between gap-2">
+          <div className="text-sm font-semibold text-gray-800">运行记录</div>
+          <button
+            type="button"
+            onClick={() => setCreateOpen(true)}
+            title="直接在桌面端跑一个 run（不需代理、不需写代码）"
+            className="flex shrink-0 items-center gap-1.5 rounded border border-gray-300 px-2 py-0.5 text-[11px] text-gray-600 hover:bg-gray-50"
+          >
+            ＋ 新建运行
+          </button>
+        </div>
+        <div className="text-[11px] text-gray-500">按创建时间倒序 · trace 只读</div>
       </div>
 
       <div className="border-b border-gray-200 px-3 py-1.5">
@@ -75,11 +90,15 @@ export function RunList() {
 
         {!loadingList && filtered.length === 0 && failed.length === 0 ? (
           <div className="px-3 py-6 text-xs leading-5 text-gray-500">
-            {sourceFilter === "all"
-              ? "数据目录的 traces/ 下还没有 trace 文件。"
-              : "该来源下暂无运行记录。"}
-            <br />
-            {sourceFilter === "all" ? "把 *.jsonl 放进去后重新打开即可。" : ""}
+            {sourceFilter === "all" ? (
+              <>
+                还没有运行记录：点上方「＋ 新建运行」直接跑一个，
+                <br />
+                或把 *.jsonl 放进数据目录的 traces/。
+              </>
+            ) : (
+              "该来源下暂无运行记录。"
+            )}
           </div>
         ) : null}
 
@@ -133,6 +152,8 @@ export function RunList() {
           </div>
         ))}
       </div>
+
+      {createOpen ? <CreateRunDialog onClose={() => setCreateOpen(false)} /> : null}
     </aside>
   );
 }

@@ -2,6 +2,7 @@ import { ModelAbError } from "@rebaseagent/replay";
 import { ipcMain } from "electron";
 import {
   CHANNELS,
+  CreateRunRequestSchema,
   ForkRunRequestSchema,
   ModelAbRequestSchema,
   PromptForkRequestSchema,
@@ -12,6 +13,7 @@ import {
   ok,
 } from "../shared/ipc";
 import type {
+  CreateRunResult,
   ForkRunResult,
   ListRunsData,
   ModelAbResult,
@@ -24,14 +26,15 @@ import type {
 import { ForkError, runFork, runModelAb, runPromptFork } from "./fork-runner";
 import type { ProxyManager } from "./proxy-manager";
 import { ProxyForkError } from "./proxy-manager";
+import { CreateRunError, runCreate } from "./run-create";
 import type { RunRepository } from "./run-repository";
 import type { SettingsStore } from "./settings";
 
 /**
  * IPC 处理器注册。任何异常都收敛为信封返回——不让异常跨越进程边界。
  *
- * 写通道纪律：runs:fork / proxy:fork 是仅有的两个能产生文件写入的通道
- * （都只新建 fork run 文件）；settings 三通道只读写 <数据目录>/settings.json，
+ * 写通道纪律：runs:fork / runs:create / proxy:fork 是仅有三个能产生 run 文件
+ * 写入的通道；settings 三通道只读写 <数据目录>/settings.json，
  * apiKey 与代理捕获的 key 永不回传渲染层。
  */
 export interface IpcDeps {
@@ -180,6 +183,44 @@ export function registerIpc(deps: IpcDeps): void {
           return fail(e.code, e);
         }
         return fail("MODEL_AB_FAILED", e);
+      }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // runs:create —— 原生 run 创建（从头执行，无父 run；与上面三条重跑语义正交）
+  // -------------------------------------------------------------------------
+
+  ipcMain.handle(
+    CHANNELS.createRun,
+    async (
+      _event,
+      request: unknown,
+    ): Promise<ReturnType<typeof ok<CreateRunResult>> | ReturnType<typeof fail>> => {
+      // 1. 请求形状校验（systemPrompt 可空、userMessage 非空）
+      const parsed = CreateRunRequestSchema.safeParse(request);
+      if (!parsed.success) {
+        return fail("INVALID_ARGUMENT", parsed.error);
+      }
+
+      // 2. 运行配置必须已就绪（未配置不发任何网络请求、不产生任何文件）
+      const loaded = settings.load();
+      if (loaded === null) {
+        return fail(
+          "SETTINGS_NOT_CONFIGURED",
+          new Error("尚未配置运行参数（baseURL / apiKey / model），请先完成运行配置"),
+        );
+      }
+
+      // 3. 从头执行；CreateRunError 的 code 原样透传给渲染层做提示
+      try {
+        const result = await runCreate({ repository, settings: loaded, execCwd }, parsed.data);
+        return ok({ id: result.id });
+      } catch (e) {
+        if (e instanceof CreateRunError) {
+          return fail(e.code, e);
+        }
+        return fail("CREATE_RUN_FAILED", e);
       }
     },
   );
