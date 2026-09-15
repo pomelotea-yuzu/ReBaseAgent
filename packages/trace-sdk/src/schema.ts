@@ -25,6 +25,15 @@ export type LlmParams = z.infer<typeof LlmParamsSchema>;
 export const LlmUsageSchema = z.object({
   in: z.number().int().nonnegative(),
   out: z.number().int().nonnegative(),
+  /**
+   * provider 侧前缀缓存命中/未命中的 tokens（可选，非负整数）。
+   *
+   * - **有值**的判据是存在性（`!== undefined`）：`0` = 实测零命中（全量计费），是有值；
+   * - **字段缺失** = provider 未返回、命中情况未知（老文件同此）——两者语义不同，不得互相冒充；
+   * - 是 `in` 的组成部分（不额外叠加），不参与 token 合计派生。
+   */
+  cache_hit: z.number().int().nonnegative().optional(),
+  cache_miss: z.number().int().nonnegative().optional(),
 });
 export type LlmUsage = z.infer<typeof LlmUsageSchema>;
 

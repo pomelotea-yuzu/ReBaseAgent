@@ -343,3 +343,104 @@ describe("ttft 取时点（可证伪旧实现）", () => {
     expect(response.ttftMs).toBeLessThanOrEqual(elapsed);
   });
 });
+
+// ---------------------------------------------------------------------------
+// 缓存命中解析（A2 记账层）：provider 前缀缓存的命中/未命中 tokens
+// ---------------------------------------------------------------------------
+
+describe("SSE 聚合器：缓存命中字段解析", () => {
+  /** 带缓存字段的 usage 块（形态由调用方给，便于覆盖扁平 / 嵌套 / 并存） */
+  const cacheChunk = (usage: Record<string, unknown>) =>
+    sseData({ choices: [{ delta: {} }], usage });
+
+  it("DeepSeek 扁平字段被记录（in 仍为 prompt_tokens 原值）", async () => {
+    const result = await aggregateSseStream(
+      streamOf([
+        cacheChunk({
+          prompt_tokens: 1000,
+          completion_tokens: 40,
+          prompt_cache_hit_tokens: 800,
+          prompt_cache_miss_tokens: 200,
+        }),
+        `${DONE_MARK}\n\n`,
+      ]),
+    );
+    expect(result.usage).toEqual({ in: 1000, out: 40, cache_hit: 800, cache_miss: 200 });
+  });
+
+  it("零命中如实记录为 0（不得因假值省略）", async () => {
+    const result = await aggregateSseStream(
+      streamOf([
+        cacheChunk({
+          prompt_tokens: 1000,
+          completion_tokens: 40,
+          prompt_cache_hit_tokens: 0,
+          prompt_cache_miss_tokens: 1000,
+        }),
+        `${DONE_MARK}\n\n`,
+      ]),
+    );
+    // 0 是"实测零命中"（全量计费），是有值——用 truthiness 判定会静默丢掉这个最高频路径
+    expect("cache_hit" in result.usage).toBe(true);
+    expect(result.usage.cache_hit).toBe(0);
+    expect(result.usage.cache_miss).toBe(1000);
+    // 老口径不受影响：in/out 不变
+    expect(result.usage.in).toBe(1000);
+    expect(result.usage.out).toBe(40);
+  });
+
+  it("OpenAI 嵌套字段被记录（无 cache_miss 等价物 ⇒ 省略）", async () => {
+    const result = await aggregateSseStream(
+      streamOf([
+        cacheChunk({
+          prompt_tokens: 1000,
+          completion_tokens: 40,
+          prompt_tokens_details: { cached_tokens: 800 },
+        }),
+        `${DONE_MARK}\n\n`,
+      ]),
+    );
+    expect(result.usage.cache_hit).toBe(800);
+    expect("cache_miss" in result.usage).toBe(false);
+  });
+
+  it("两种形态并存时扁平优先", async () => {
+    const result = await aggregateSseStream(
+      streamOf([
+        cacheChunk({
+          prompt_tokens: 1000,
+          completion_tokens: 40,
+          prompt_cache_hit_tokens: 700,
+          prompt_cache_miss_tokens: 300,
+          prompt_tokens_details: { cached_tokens: 999 },
+        }),
+        `${DONE_MARK}\n\n`,
+      ]),
+    );
+    expect(result.usage.cache_hit).toBe(700);
+    expect(result.usage.cache_miss).toBe(300);
+  });
+
+  it("未返回缓存字段时整组省略（不写 0 冒充未知）", async () => {
+    const result = await aggregateSseStream(streamOf([usageChunk(1830, 210), `${DONE_MARK}\n\n`]));
+    expect(result.usage).toEqual({ in: 1830, out: 210 });
+    expect("cache_hit" in result.usage).toBe(false);
+    expect("cache_miss" in result.usage).toBe(false);
+  });
+
+  it("非法值（非数字 / 负数 / 非整数）降级为缺失，不写脏值进 trace", async () => {
+    const result = await aggregateSseStream(
+      streamOf([
+        cacheChunk({
+          prompt_tokens: 500,
+          completion_tokens: 10,
+          prompt_cache_hit_tokens: -1,
+          prompt_cache_miss_tokens: "many",
+        }),
+        `${DONE_MARK}\n\n`,
+      ]),
+    );
+    expect(result.usage).toEqual({ in: 500, out: 10 });
+    expect("cache_hit" in result.usage).toBe(false);
+  });
+});

@@ -1,12 +1,20 @@
+import type { LlmUsage } from "@rebaseagent/trace-sdk";
 import { type EventSourceMessage, createParser } from "eventsource-parser";
 import type { Message, RunConfig, ToolCall } from "./config.js";
 
-/** LLM 一次调用的聚合响应（与 trace-sdk llm.call span 的 response 同构） */
+/**
+ * LLM 一次调用的聚合响应（与 trace-sdk llm.call span 的 response 同构）。
+ *
+ * `usage` 直接用 trace-sdk 的 `LlmUsage`（同一语义只写一处）：含可选的
+ * `cache_hit` / `cache_miss`——**有值**的判据是 `!== undefined`（`0` = 实测零命中，
+ * 是有值），**字段缺失** = provider 未返回、命中未知。该维度是 `in` 的组成部分，
+ * 不参与既有 token 合计。
+ */
 export interface LlmResponse {
   content: string | null;
   reasoningContent: string | null;
   toolCalls: ToolCall[];
-  usage: { in: number; out: number };
+  usage: LlmUsage;
   ttftMs: number;
 }
 
@@ -155,7 +163,36 @@ interface Aggregation {
   content: string | null;
   reasoning: string | null;
   toolCalls: Map<number, AggregatingToolCall>;
-  usage: { in: number; out: number } | null;
+  usage: LlmUsage | null;
+}
+
+/** 非负整数才接受（provider 数据脏时降级为"未知"，不把脏值写进 trace） */
+function nonNegativeIntOrUndefined(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : undefined;
+}
+
+/**
+ * 从 usage 块提取缓存命中维度（可选）。
+ *
+ * 形态兼容（同一语义只写一处）：
+ * - 命中：DeepSeek 扁平 `prompt_cache_hit_tokens` 优先，OpenAI 嵌套 `prompt_tokens_details.cached_tokens` 兜底
+ * - 未命中：仅扁平形态 `prompt_cache_miss_tokens` 携带（嵌套无等价物 ⇒ 省略）
+ * - **`0` 是有值**（实测零命中 = 全量计费），只有字段缺失/非法才是"未知"——判据是 `!== undefined`，
+ *   不得用 truthiness（那会让最高频的"零命中"被静默吞掉）
+ */
+function parseCacheUsage(u: Record<string, unknown>): Pick<LlmUsage, "cache_hit" | "cache_miss"> {
+  const flatHit = nonNegativeIntOrUndefined(u.prompt_cache_hit_tokens);
+  const nested = u.prompt_tokens_details;
+  const nestedHit =
+    typeof nested === "object" && nested !== null
+      ? nonNegativeIntOrUndefined((nested as { cached_tokens?: unknown }).cached_tokens)
+      : undefined;
+  const hit = flatHit ?? nestedHit;
+  const miss = nonNegativeIntOrUndefined(u.prompt_cache_miss_tokens);
+  return {
+    ...(hit === undefined ? {} : { cache_hit: hit }),
+    ...(miss === undefined ? {} : { cache_miss: miss }),
+  };
 }
 
 /** `aggregateSseStream` 的可选项 */
@@ -283,9 +320,11 @@ export async function aggregateSseStream(
       const usage = u as { prompt_tokens?: unknown; completion_tokens?: unknown };
       const input = usage.prompt_tokens;
       const output = usage.completion_tokens;
+      // 覆盖式赋值：缓存字段与 in/out 必须同一次写入（跨块累加或分开赋值会丢字段）
       agg.usage = {
         in: typeof input === "number" ? input : 0,
         out: typeof output === "number" ? output : 0,
+        ...parseCacheUsage(u as Record<string, unknown>),
       };
     }
   }

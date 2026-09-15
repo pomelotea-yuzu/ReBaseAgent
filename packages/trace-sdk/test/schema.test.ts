@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   AgentStepSpanSchema,
   LlmCallSpanSchema,
+  LlmUsageSchema,
   RunEventSchema,
   RunMetaSchema,
   ToolInvokeSpanSchema,
@@ -356,5 +357,46 @@ describe("prompt fork 字段兼容（add-prompt-replay，不升级 format_versio
         fork: { at_span: "s_02", edit: { field: "", value: "x" } },
       }),
     ).toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// usage 缓存命中字段（A2）：缺失合法、越界非法
+// ---------------------------------------------------------------------------
+
+describe("schema：usage 缓存命中字段", () => {
+  it("含缓存字段的 usage 通过（含 0——0 是实测零命中，属有值）", () => {
+    const usage = LlmUsageSchema.parse({ in: 1000, out: 40, cache_hit: 0, cache_miss: 1000 });
+    expect(usage.cache_hit).toBe(0);
+    expect(usage.cache_miss).toBe(1000);
+  });
+
+  it("老格式 usage（无缓存字段）仍合法，解析结果不含该键", () => {
+    const usage = LlmUsageSchema.parse({ in: 1830, out: 210 });
+    expect("cache_hit" in usage).toBe(false);
+    expect("cache_miss" in usage).toBe(false);
+  });
+
+  it("llm.call 老文件（response.usage 无缓存字段）校验通过，字段原样", () => {
+    const span = LlmCallSpanSchema.parse({
+      type: "span",
+      id: "s_02",
+      kind: "llm.call",
+      parent: "s_01",
+      request: sampleRequest(),
+      response: sampleResponse(),
+    });
+    expect(span.response.usage).toEqual({ in: 1830, out: 210 });
+  });
+
+  it("越界值被拒绝：负数 / 非整数 / 非数字（缺失合法、越界非法）", () => {
+    for (const bad of [
+      { cache_hit: -1 },
+      { cache_hit: 1.5 },
+      { cache_miss: -5 },
+      { cache_hit: "800" },
+    ]) {
+      expect(() => LlmUsageSchema.parse({ in: 1000, out: 40, ...bad })).toThrow();
+    }
   });
 });
