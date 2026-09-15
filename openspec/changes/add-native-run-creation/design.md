@@ -234,12 +234,23 @@ export async function runCreate(
 | 请求形状不合法 | IPC handler | zod 校验失败 → `INVALID_ARGUMENT`，零副作用 |
 | settings 未配置 | IPC handler（`settings.load()` 返回 null） | `SETTINGS_NOT_CONFIGURED`，**在创建 tracer / 发网络请求之前**拦截 |
 | `userMessage` 为空 | renderer（禁用按钮）+ main（zod `.min(1)`） | 无网络请求 |
-| 模型调用失败 | `runLoop` 内部 | 不抛：记 `errored` 终止事件并返回；`runCreate` 据此抛 `CreateRunError("CREATE_RUN_FAILED")`；**run 文件已按 `meta.id` 归位**，用户在列表里能看到这次失败（徽标显示"出错终止"） |
+| 模型调用失败 | `runLoop` 内部 | 不抛：记 `errored` 终止事件并返回；`runCreate` 据此抛 `CreateRunError("CREATE_RUN_FAILED")`；**run 文件已按 `meta.id` 归位**，且 renderer 侧失败也会**重新拉取列表**（否则用户看不到那条 error run）——徽标显示"出错终止" |
 | 进程中途被杀 | — | 只剩 `tmp-create-*.tmp`（列表不认）→ 不产生半成品 run |
 
 **为什么 error run 要保留而不是删掉？**：trace 是不可变事实源，失败的 run 也是事实（`assertForkable` 会因未正常封存而拒绝对它 fork），删掉反而让用户失去事故现场。
 
 **⚠️ 状态字段口径（实现时校正）**：`RunRecord.status` 只有 `"completed" | "crashed"` 两值，判据是"**是否含终止事件**"（`reader.ts:106`）——`errored` 也写了终止事件，故 error run 的 `status` 仍是 `completed`，失败语义由列表徽标渲染的终止原因（`reason: "error"` → "出错终止"，`lib/format.ts:40`）表达。原始草案写的"状态为 error"不成立，已按此更正 spec 与测试断言。
+
+### 8.1 真机验证发现（2026-09-15，首次真实点击）
+
+真机跑了一次（`run_mu2guw5y`，DeepSeek 返回 **HTTP 401：`Your api key: ****2e15 is invalid`**——settings 里那把 key 已失效）。核对结果：落盘与设计一致（文件名 = `meta.id`、`parent`/`fork` 为 `null`、无 `source`、`meta.task` = user message、`config_hash` 与现算值逐字节相等、请求体不含 `tools` 键、终止事件 `errored`）。
+
+这次真跑也**暴露了两处实现不准确，已修**：
+
+1. **错误文案在骗人**：原文案说"可在列表中查看详情"，但失败原因（401 的响应体）**只被 `runLoop` 打到主进程日志，不写入 trace**——端上 `llm.call` 的 response 只有空 content 与 `{in:0,out:0}`。文案已改为只承诺"能点开看这次请求"，并明说 trace 不记录错误详情。
+2. **失败后不刷新列表**：`store.createRun` 原先在失败分支直接 `return false`，于是"在列表与详情中可查看"当场不成立（error run 落盘了但列表没重拉）。已改为失败分支同样 `loadRuns()`。
+
+**遗留缺口（本 change 不修，见 proposal 后续扩展）**：失败原因无法从 UI 获得。要真正修好需要 agent-loop 在失败 span 上带错误文本 + `trace-format` 允许该字段，属独立 change（`add-llm-error-detail`）。
 
 ## 9. 测试策略
 

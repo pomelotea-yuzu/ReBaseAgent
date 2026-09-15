@@ -68,6 +68,7 @@
 - [x] 空 systemPrompt：允许，`config_hash === configHash("", [])`，且首条 system 消息内容为空串
 - [x] LLM 失败：抛 `CreateRunError("CREATE_RUN_FAILED")`，文件仍归位、`status === "completed"` 且 `reason === "error"`（`status` 只表示"是否含终止事件"）
 - [x] 两条路径均无残留 `tmp-create-*.tmp`
+- [x] `store.test.ts` 增 2 用例（+2 → 180）：成功路径自动选中新 run；**失败路径置 error 且仍刷新列表**（真机发现的不准确，见 design.md §8.1）
 
 ### 3.2 集成（A1 核心验收）
 
@@ -86,7 +87,11 @@
 - [x] `pnpm check:ci`（build → typecheck → test → lint → spec）全绿
 - [x] `openspec validate --all --strict` 12/12 通过
 - [x] dev GUI 冒烟（**零成本分支**，`apps/desktop/scripts/create-run-cdp-smoke.cjs`）：入口按钮唯一、对话框打开、空 userMessage 禁用创建、填入后启用、`window.api.createRun` 两条非法请求均返回 `INVALID_ARGUMENT`、取消后对话框关闭、`traces/` 的 `.jsonl` 数量 38 → 38 不变
-- [ ] **真实创建一次 run（点"创建"会发起真实计费调用）** —— 未做，留给 owner 手工验收；配置好运行参数后在 dev 或便携版点一次即可
+- [x] **真实创建一次 run（2026-09-15 17:25 执行）**：DeepSeek 返回 **HTTP 401**（`Your api key: ****2e15 is invalid`，settings 里那把 key 已失效）⇒ 得到 `run_mu2guw5y`
+  - 核对通过：文件名 = `meta.id`、`parent`/`fork` 为 `null`、无 `source`、`meta.task` = user message、`config_hash` 与现算值逐字节相等、请求体不含 `tools` 键、终止事件 `errored`
+  - ⇒ **失败路径（含落盘与 UI 提示）已真机验证；成功路径（provider 返回 200）仍未真机跑通，阻塞点是 key 失效而非代码**
+  - 真机暴露 2 处实现不准确并已修：① 错误文案谎称"可在列表中查看详情"（trace 不记录失败原因）；② 失败分支不刷新列表 ⇒ error run 当场不可见
+- [ ] **成功路径真机复验**（需要一把可用的 provider key）：在设置里换有效 key → 再点一次「创建」→ 应得到 `reason: "completed"` 的 run，并在其上报一次 prompt fork 成功
 - [x] 分次提交（中文 message），收尾告知待 push
 
 ## 依赖关系

@@ -104,4 +104,4 @@ renderer 侧 SHALL 仅有两条可触发文件写入的通道：`runs:fork`（�
 #### Scenario: 执行失败不产生半成品
 
 - **WHEN** 模型调用失败（`runLoop` 以 `errored` 终止事件收尾）
-- **THEN** 该 run 的文件仍按 `meta.id` 归位，并在列表与详情中可查看（列表徽标显示终止原因为"出错终止"；`status` 仍为 `completed`——该字段只表示"是否含终止事件"）；IPC 返回 `CREATE_RUN_FAILED`，界面显示错误信息；SHALL NOT 留下任何非 `.jsonl` 的临时文件被列表读到
+- **THEN** 该 run 的文件仍按 `meta.id` 归位，且 run 列表 SHALL 被重新拉取使该 run 可见/可选中（列表徽标显示终止原因为"出错终止"；`status` 仍为 `completed`——该字段只表示"是否含终止事件"）；IPC SHALL 返回 `CREATE_RUN_FAILED` 与中文提示，提示 SHALL NOT 承诺 trace 内有错误原因（当前不记录）；SHALL NOT 留下任何非 `.jsonl` 的临时文件被列表读到

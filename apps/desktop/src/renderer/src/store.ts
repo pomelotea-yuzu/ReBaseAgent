@@ -249,6 +249,9 @@ export const useAppStore = create<AppState>((set, get) => ({
         createRunError: envelope.error.message,
         createRunErrorCode: envelope.error.code,
       });
+      // 失败也要刷新列表：error run 已按 meta.id 落盘，不刷新用户就看不到它
+      // （spec：执行失败不产生半成品，但该 run 应在列表与详情中可查看）
+      await get().loadRuns();
       return false;
     }
     // 成功：刷新列表（新 run 归入"本地直录"）并自动选中新 run

@@ -144,3 +144,4 @@
 - 从模板创建（预设常用 systemPrompt）
 - `maxIterations` / `budget.maxTotalTokens` 变为可配置（当前与既有 fork 硬编码值一致：10 / 100_000）
 - 独立 task 显示名（需 agent-loop 支持 `task` 入参）
+- **失败原因可诊断**（真机验证 2026-09-15 发现的缺口）：`runLoop` 捕获 LLM 失败后只写 `errored` 事件、不上报错误文本（只 `console.error`），故 UI 无法显示"为什么失败"。修复需 agent-loop 在失败 `llm.call` span 上带错误文本 + `trace-format` 允许该字段，属独立 change（拟名 `add-llm-error-detail`）

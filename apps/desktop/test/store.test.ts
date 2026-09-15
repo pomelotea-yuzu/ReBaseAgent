@@ -52,6 +52,8 @@ interface Controller {
     field: string;
     value: string;
   }>;
+  createRunEnvelope: Envelope<{ id: string }> | undefined;
+  createRunRequests: Array<{ systemPrompt: string; userMessage: string }>;
   listCalls: number;
 }
 
@@ -84,6 +86,13 @@ function makeFakeApi(c: Controller): WindowApi {
       ok({ configured: false, baseURL: null, model: null, encryption: "safe" }),
     saveSettings: async () => ok({ configured: true }),
     clearSettings: async () => ok({ configured: false }),
+    createRun: async (request) => {
+      c.createRunRequests.push({
+        systemPrompt: request.systemPrompt,
+        userMessage: request.userMessage,
+      });
+      return c.createRunEnvelope ?? ok({ id: "run_created" });
+    },
   };
 }
 
@@ -92,6 +101,8 @@ const controller: Controller = {
   forkRequests: [],
   promptForkEnvelope: undefined,
   promptForkRequests: [],
+  createRunEnvelope: undefined,
+  createRunRequests: [],
   listCalls: 0,
 };
 (globalThis as Record<string, unknown>).window = { api: makeFakeApi(controller) };
@@ -114,6 +125,9 @@ function resetStore(): void {
     forking: "idle",
     forkError: null,
     forkErrorCode: null,
+    creatingRun: "idle",
+    createRunError: null,
+    createRunErrorCode: null,
     settings: null,
     view: "trace",
     compareIds: [],
@@ -126,6 +140,8 @@ beforeEach(() => {
   controller.forkRequests = [];
   controller.promptForkEnvelope = undefined;
   controller.promptForkRequests = [];
+  controller.createRunEnvelope = undefined;
+  controller.createRunRequests = [];
   controller.listCalls = 0;
   resetStore();
 });
@@ -288,5 +304,45 @@ describe("store：分支树视图与对照集合", () => {
 
     useAppStore.getState().clearCompare();
     expect(useAppStore.getState().compareIds).toEqual([]);
+  });
+});
+
+describe("store：runs:create 流转（A1）", () => {
+  it("成功：in_progress → success，列表刷新并自动选中新 run", async () => {
+    await useAppStore.getState().loadRuns();
+    const created = await useAppStore.getState().createRun("你是助手。", "解释一下时间旅行调试");
+    expect(created).toBe(true);
+
+    const state = useAppStore.getState();
+    expect(state.creatingRun).toBe("success");
+    expect(state.createRunError).toBeNull();
+    expect(controller.createRunRequests).toEqual([
+      { systemPrompt: "你是助手。", userMessage: "解释一下时间旅行调试" },
+    ]);
+    expect(state.selectedRunId).toBe("run_created");
+  });
+
+  it("失败：置 error 并保留错误码，且仍刷新列表（error run 已落盘，必须可见）", async () => {
+    controller.createRunEnvelope = {
+      ok: false,
+      error: {
+        code: "CREATE_RUN_FAILED",
+        message:
+          "新建 run 执行失败：模型调用未完成（终止原因 error）。run run_x 已落盘，可在列表中点开查看这次请求；trace 不记录错误详情，请看应用主进程日志。",
+      },
+    };
+    await useAppStore.getState().loadRuns();
+    const before = controller.listCalls;
+
+    const created = await useAppStore.getState().createRun("", "你好");
+    expect(created).toBe(false);
+
+    const state = useAppStore.getState();
+    expect(state.creatingRun).toBe("error");
+    expect(state.createRunErrorCode).toBe("CREATE_RUN_FAILED");
+    expect(state.createRunError).toContain("模型调用未完成");
+    // 关键：失败也要重拉列表，否则用户看不到那条已按 meta.id 落盘的 error run
+    expect(controller.listCalls).toBeGreaterThan(before);
+    expect(state.selectedRunId).toBeNull();
   });
 });
