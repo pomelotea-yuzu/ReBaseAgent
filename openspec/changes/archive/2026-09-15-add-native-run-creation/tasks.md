@@ -80,7 +80,7 @@
 - [x] delta 定稿：ADDED「桌面端提供原生 run 创建入口」+ MODIFIED 两条（「全程只读且只呈现原样数据」「分叉重跑是唯一的显式写路径」，均保留原 scenario 名）
 - [x] `openspec validate add-native-run-creation --strict` 通过（**注意**：新 requirement 必须放 `## ADDED Requirements`；MODIFIED 是整体替换，旧 scenario 不写回会被拒）
 - [x] README：快速开始补「什么都不写：在桌面应用里直接跑一个 run」+ 能力清单 + 路线图 A1 打勾 + 修正已过期的「代理 run 无 config_hash」限制条
-- [ ] HANDOFF.md 状态更新（**待办**：收尾时随归档一起刷新）
+- [x] HANDOFF.md 状态更新（归档同一提交内完成：补 B1 / D-A / D3 / A1 四条状态 + 刷新测试与 spec 计数）
 
 ## 阶段 5：验证
 
@@ -91,7 +91,11 @@
   - 核对通过：文件名 = `meta.id`、`parent`/`fork` 为 `null`、无 `source`、`meta.task` = user message、`config_hash` 与现算值逐字节相等、请求体不含 `tools` 键、终止事件 `errored`
   - ⇒ **失败路径（含落盘与 UI 提示）已真机验证；成功路径（provider 返回 200）仍未真机跑通，阻塞点是 key 失效而非代码**
   - 真机暴露 2 处实现不准确并已修：① 错误文案谎称"可在列表中查看详情"（trace 不记录失败原因）；② 失败分支不刷新列表 ⇒ error run 当场不可见
-- [ ] **成功路径真机复验**（需要一把可用的 provider key）：在设置里换有效 key → 再点一次「创建」→ 应得到 `reason: "completed"` 的 run，并在其上报一次 prompt fork 成功
+- [x] **成功路径真机复验（2026-09-15 17:34）**：owner 换有效 key 后点「创建」→ 得到 `run_mu2h6jz9`
+  - `run.event = {event:"stopped", reason:"completed"}`；`llm.call` 有真实内容（模型回答"时间旅行调试是指记录程序执行过程中的状态变化…"）
+  - `usage = {in:25, out:40}`、`ttft_ms = 751`（非 0 ⇒ ttft 取时点确实落在流内）
+  - 六项核对全过：文件名 = `meta.id`、`parent`/`fork` 为 `null`、无 `source`、`meta.task` = user message、`config_hash` 与现算值逐字节相等、请求体不含 `tools` 键
+  - ⇒ **成功与失败两条路径均已真机验证**，A1 可归档
 - [x] 分次提交（中文 message），收尾告知待 push
 
 ## 依赖关系

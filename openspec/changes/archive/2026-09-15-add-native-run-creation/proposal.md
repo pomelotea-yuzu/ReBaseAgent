@@ -1,6 +1,6 @@
 # 桌面端原生 run 创建入口（A1 含 D5）
 
-## 背景
+## Why
 
 当前桌面端 run 只有两个来源：
 1. **代理录制（proxy）**：通过本地 LLM 代理捕获的请求
@@ -12,7 +12,7 @@
 
 才能进行 prompt fork、模型 A/B、trace-test 等操作。这与"零摩擦接入"的产品定位不一致。
 
-## 目标
+## Goals
 
 **让桌面端能够直接新建并执行一个 run**，无需依赖代理录制或外部脚本。
 
@@ -20,7 +20,11 @@
 - 便携版双击 → 新建运行 → 得到原生父 run → 直接在其上跑 A/B / prompt fork / trace-test
 - 全程无需写代码、无需配置代理、无需外部应用配合
 
-## 方案概述
+## Capabilities
+
+本 change 触及 1 个 capability：**`desktop-ui`**（新增「桌面端提供原生 run 创建入口」requirement，并修订两条既有 requirement：「全程只读且只呈现原样数据」「分叉重跑是唯一的显式写路径」——容纳第二条写通道）。不改 `agent-loop` / `replay` / `trace-format`。
+
+## What Changes
 
 ### 核心改动
 
@@ -129,13 +133,22 @@
 | 与 proxy run 混淆 | 新建 run 不写 `source` 字段（与 SDK 直录同形），列表"仅本地直录"过滤可见 |
 | 空工具表限制使用场景 | 首期 MVP，后续可扩展工具定义编辑 UI |
 
-## 非目标（Non-goals）
+## Non-goals
 
 - 不改 `agent-loop` 的 `runLoop` 签名与 `startRun` 语义（含"独立 task 字段"）
 - 不做工具定义编辑 UI、多步对话、模板创建
 - 不做"取消运行"（无 AbortController 接线）
 - 不做版本号 / changelog / 打包发版（发版时机由 owner 决定）
 - 不引入既定技术栈外的新依赖
+
+## 保真度边界
+
+本 change **只新增"从头执行一个 run"的入口，不改变任何重跑语义**：
+
+- 新建 run 是**真实执行**（真调 provider），不是重放；
+- 它作为父本时的保真度口径完全沿用既有实现——prompt fork / 模型 A/B 从头重跑、不共享前缀；`tool_result` 重跑仍走 replay 的 world-free 截断拼接（分叉点之前零 LLM 调用，`replay-run.ts:103-104`）；
+- 空工具表 ⇒ 不涉及工具副作用，本 change **不引入也不依赖隔离世界**；
+- 失败时不静默：`errored` run 原样落盘（但**错误原因不入 trace**，见「后续扩展」）。
 
 ## 后续扩展（不在本期范围）
 

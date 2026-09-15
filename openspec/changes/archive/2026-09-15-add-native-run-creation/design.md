@@ -252,6 +252,8 @@ export async function runCreate(
 
 **遗留缺口（本 change 不修，见 proposal 后续扩展）**：失败原因无法从 UI 获得。要真正修好需要 agent-loop 在失败 span 上带错误文本 + `trace-format` 允许该字段，属独立 change（`add-llm-error-detail`）。
 
+**成功路径真机复验（2026-09-15 17:34，owner 换有效 key 后）**：`run_mu2h6jz9` —— `run.event = stopped/completed`、`llm.call` 有真实内容、`usage = {in:25, out:40}`、`ttft_ms = 751`（非 0，说明 ttft 取时点确实落在流读取过程中，与 `fix-llm-ttft-timing` 的口径一致）。至此**成功与失败两条真实路径都验过**。
+
 ## 9. 测试策略
 
 **遵循仓库既有测试约定**（`apps/desktop/test/*.test.ts`；vitest `environment: node`，`include: ["test/**/*.test.ts"]`）：
