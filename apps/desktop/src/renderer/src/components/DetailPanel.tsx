@@ -1,6 +1,6 @@
 import { Editor } from "@monaco-editor/react";
 import type { SpanLine } from "@rebaseagent/trace-sdk";
-import { forkEditLabel, isPromptForkField, spanDurationMs } from "@shared/derive";
+import { findStepLlm, forkEditLabel, isPromptForkField, spanDurationMs } from "@shared/derive";
 import type { ModelAbResult, ModelArmPlan, RunDetail } from "@shared/ipc";
 import { useMemo, useState } from "react";
 import { formatDuration, prettyJson } from "../lib/format";
@@ -55,6 +55,59 @@ function KeyValue({ items }: { items: Array<[string, string]> }) {
           <span className="text-gray-400">{k}</span> <span className="font-code">{v}</span>
         </span>
       ))}
+    </div>
+  );
+}
+
+/**
+ * 缓存命中行（前缀缓存生效与否的唯一可见证据）。
+ *
+ * 判据是**存在性**（`cache_hit !== undefined`）而不是 truthiness：`0` 是「本次全量计费」——
+ * 恰是最该被看见的一态，用 `if (hit)` 会把它静默吞掉；只有**字段缺失**（老 trace / 不支持
+ * 缓存的 provider）才整行省略，且不显示 0（未知 ≠ 零命中）。
+ * `cache_hit > in` 属异常口径数据：按输入总量 clamp 并显式标注，不显示负值 / 超 100%。
+ */
+function CacheHitRow({
+  usage,
+}: { usage: Extract<SpanLine, { kind: "llm.call" }>["response"]["usage"] }) {
+  const hit = usage.cache_hit;
+  if (hit === undefined) return null;
+
+  const abnormal = hit > usage.in;
+  const shownHit = abnormal ? usage.in : hit;
+  // in === 0 时不做除法（防 0/0），只展示绝对 tokens
+  const percent = usage.in > 0 ? Math.round((shownHit / usage.in) * 100) : null;
+  const saved = percent !== null && percent >= 50;
+  // 措辞按命中量分档：0 命中才是"全量计费"，少量命中不能说成全量（省了就是省了）
+  const verdict =
+    hit === 0
+      ? "全量计费（无命中）"
+      : saved
+        ? "前缀缓存生效，本次调用省钱"
+        : "部分命中，多数输入仍按全价计费";
+
+  return (
+    <div
+      className={`mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] ${
+        saved ? "text-emerald-700" : "text-amber-700"
+      }`}
+    >
+      <span>缓存命中</span>
+      <span className="font-code">{shownHit}</span>
+      {percent === null ? null : (
+        <span>
+          / <span className="font-code">{usage.in}</span>（{percent}%）
+        </span>
+      )}
+      {usage.cache_miss === undefined ? null : (
+        <span>
+          · miss <span className="font-code">{usage.cache_miss}</span>
+        </span>
+      )}
+      <span>{verdict}</span>
+      {abnormal ? (
+        <span className="text-red-600">⚠️ 命中数大于输入总量，已按输入总量截断（数据异常）</span>
+      ) : null}
     </div>
   );
 }
@@ -680,6 +733,7 @@ function LlmCallDetail({
             ["工具调用", String(response.tool_calls.length)],
           ]}
         />
+        <CacheHitRow usage={response.usage} />
       </Section>
 
       {response.reasoning_content !== null ? (
@@ -954,8 +1008,18 @@ function ForkEditor({
   const forkErrorCode = useAppStore((s) => s.forkErrorCode);
   const forkAt = useAppStore((s) => s.forkAt);
   const resetFork = useAppStore((s) => s.resetFork);
+  const settings = useAppStore((s) => s.settings);
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState(() => toolMessageText(span));
+
+  // 父 run 在该 step 录制的模型（共享查表，与 main 侧 fork 编排同一实现）
+  const parentModel = useMemo(
+    () => findStepLlm(run.spans, span.id)?.request.model ?? null,
+    [run.spans, span.id],
+  );
+  const configModel = settings?.model ?? null;
+  // 只有 tool_result 分叉共享前缀，缓存提示才有意义（prompt fork / 代理 messages 分叉不加）
+  const modelMismatch = parentModel !== null && configModel !== null && parentModel !== configModel;
 
   const original = toolMessageText(span);
   const unchanged = value === original;
@@ -1016,6 +1080,14 @@ function ForkEditor({
       {unchanged ? (
         <div className="mt-1 text-[11px] text-amber-700">
           编辑值与原始结果相同（空 fork），需修改后再重跑。
+        </div>
+      ) : null}
+
+      {modelMismatch ? (
+        <div className="mt-1 text-[11px] leading-4 text-amber-700">
+          父 run 该步使用 <span className="font-code">{parentModel}</span>，当前运行配置为{" "}
+          <span className="font-code">{configModel}</span>
+          ——前缀缓存可能不命中，计费口径可能变化（仅提示，不阻止重跑）。
         </div>
       ) : null}
 

@@ -140,6 +140,15 @@ export function RunList() {
                 <span className="text-red-600">{run.toolErrors} 出错</span>
               ) : null}
               <span>{formatTokens(run.tokensIn + run.tokensOut)} tokens</span>
+              {/* run 级累计缓存命中：null = 无数据（未知，不显示）；0 = 实测零命中（照常显示） */}
+              {run.cacheHit === null ? null : (
+                <span
+                  className={run.cacheHit > 0 ? "text-emerald-600" : "text-amber-600"}
+                  title="本 run 自有 llm.call 的前缀缓存命中 tokens（不含祖先共享前缀）"
+                >
+                  命中 {formatTokens(run.cacheHit)}
+                </span>
+              )}
               <span>{formatDuration(run.durationMs)}</span>
             </div>
           </button>

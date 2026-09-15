@@ -9,7 +9,8 @@ import {
   replayRun,
   toToolDefs,
 } from "@rebaseagent/replay";
-import type { RunRecord, SpanLine } from "@rebaseagent/trace-sdk";
+import type { RunRecord } from "@rebaseagent/trace-sdk";
+import { findStepLlm } from "../shared/derive";
 import type { ModelAbRequest, ModelAbResult } from "../shared/ipc";
 import type { RunRepository } from "./run-repository";
 import type { RunSettings } from "./settings";
@@ -76,7 +77,8 @@ export async function runFork(
   }
 
   // 3. 重建 config：system prompt / 工具表 / 采样参数从分叉点所在 step 的 llm.call 录制取
-  const stepLlm = findStepLlm(leaf, atSpan);
+  //    查表用共享纯函数（shared/derive.ts）——renderer 的模型提示走同一实现，避免第二份漂移
+  const stepLlm = findStepLlm(leaf.spans, atSpan.id);
   if (stepLlm === null) {
     throw new ForkError(
       "FORK_NO_CONTEXT",
@@ -270,18 +272,6 @@ export async function runModelAb(
     plan: result.plan,
     sideEffectsAllowed: result.sideEffectsAllowed,
   };
-}
-
-/** 定位分叉点 tool.invoke 所在 step 的 llm.call（与 derive 同源的查表逻辑） */
-function findStepLlm(
-  record: RunRecord,
-  atSpan: Extract<SpanLine, { kind: "tool.invoke" }>,
-): Extract<SpanLine, { kind: "llm.call" }> | null {
-  if (atSpan.parent === null) return null;
-  const step = record.spans.find((s) => s.id === atSpan.parent);
-  if (step === undefined || step.kind !== "agent.step") return null;
-  const llm = record.spans.find((s) => s.parent === step.id && s.kind === "llm.call");
-  return llm !== undefined && llm.kind === "llm.call" ? llm : null;
 }
 
 // ---------------------------------------------------------------------------

@@ -6,11 +6,13 @@ import {
   buildRunForest,
   buildSpanTree,
   deriveBudgetSeries,
+  deriveCacheHitTotal,
   deriveChainTotals,
   deriveComparison,
   deriveRunSummary,
   deriveStepStats,
   findCommonAncestor,
+  findStepLlm,
   flattenTree,
   forkEditLabel,
   indexRunsById,
@@ -621,5 +623,133 @@ describe("deriveBudgetSeries", () => {
       .map((s) => s.id);
     const series = deriveBudgetSeries(spans);
     expect(series.points.map((p) => p.spanId)).toEqual(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A2 记账：run 级缓存命中派生与 main/renderer 共用查表
+// ---------------------------------------------------------------------------
+
+/** 最小 llm.call span（只填派生关心的字段——本组测的是派生逻辑，不是 schema） */
+function llmSpan(
+  id: string,
+  parent: string | null,
+  usage: { in: number; out: number; cache_hit?: number; cache_miss?: number },
+): SpanLine {
+  return {
+    type: "span",
+    id,
+    parent,
+    kind: "llm.call",
+    request: { model: "deepseek-chat", messages: [] },
+    response: { content: null, reasoning_content: null, tool_calls: [], usage, ttft_ms: 10 },
+  } as unknown as SpanLine;
+}
+
+function stepSpan(id: string, n: number): SpanLine {
+  return { type: "span", id, parent: null, kind: "agent.step", n } as unknown as SpanLine;
+}
+
+describe("deriveCacheHitTotal", () => {
+  it("累加本文件 llm.call 的命中（0 参与累加——0 是有值）", () => {
+    const spans = [
+      llmSpan("s_02", "s_01", { in: 1000, out: 40, cache_hit: 800 }),
+      llmSpan("s_04", "s_03", { in: 1000, out: 40, cache_hit: 0 }),
+      llmSpan("s_06", "s_05", { in: 1000, out: 40 }), // 无字段：跳过（未知不参与）
+    ];
+    expect(deriveCacheHitTotal(spans)).toBe(800);
+  });
+
+  it("全部无 cache_hit 字段 ⇒ null（未知 ≠ 0）", () => {
+    expect(deriveCacheHitTotal([llmSpan("s_02", "s_01", { in: 1, out: 1 })])).toBeNull();
+  });
+
+  it("只有 0 命中 ⇒ 0（不是 null）", () => {
+    expect(deriveCacheHitTotal([llmSpan("s_02", "s_01", { in: 5, out: 1, cache_hit: 0 })])).toBe(0);
+  });
+
+  it("非 llm.call 的 span 不参与", () => {
+    expect(deriveCacheHitTotal([stepSpan("s_01", 1)])).toBeNull();
+  });
+
+  it("老 fixture（无缓存字段）派生为 null，不影响既有聚合", () => {
+    const summary = deriveRunSummary(loadFixture("normal"));
+    expect(summary.cacheHit).toBeNull();
+    expect(summary.tokensIn).toBeGreaterThan(0);
+  });
+
+  it("deriveRunSummary.cacheHit 与 spans 同源现算", () => {
+    const run = {
+      meta: {
+        id: "r_x",
+        task: "t",
+        model: "m",
+        created_at: "2026-01-01T00:00:00.000Z",
+        parent: null,
+        fork: null,
+      },
+      spans: [stepSpan("s_01", 1), llmSpan("s_02", "s_01", { in: 1000, out: 40, cache_hit: 700 })],
+      events: [{ type: "run.event", event: "stopped", reason: "completed", at: 1 }],
+      status: "completed",
+    } as unknown as Parameters<typeof deriveRunSummary>[0];
+    expect(deriveRunSummary(run).cacheHit).toBe(700);
+  });
+});
+
+describe("findStepLlm（main 侧 fork 编排与 renderer 提示共用的查表）", () => {
+  const spans = [
+    stepSpan("s_01", 1),
+    llmSpan("s_02", "s_01", { in: 10, out: 2 }),
+    {
+      type: "span",
+      id: "s_03",
+      parent: "s_01",
+      kind: "tool.invoke",
+      tool: "read_file",
+      args: {},
+      result: "x",
+      dur_ms: 1,
+      error: null,
+    } as unknown as SpanLine,
+  ];
+
+  it("命中：tool.invoke → 同 step 的 llm.call", () => {
+    expect(findStepLlm(spans, "s_03")?.id).toBe("s_02");
+  });
+
+  it("span 不存在 ⇒ null", () => {
+    expect(findStepLlm(spans, "s_missing")).toBeNull();
+  });
+
+  it("span 无父 ⇒ null", () => {
+    const orphan = [llmSpan("s_09", null, { in: 1, out: 1 })];
+    expect(findStepLlm(orphan, "s_09")).toBeNull();
+  });
+
+  it("父不是 agent.step ⇒ null", () => {
+    const inner = [
+      llmSpan("s_01", null, { in: 1, out: 1 }),
+      llmSpan("s_02", "s_01", { in: 1, out: 1 }),
+    ];
+    expect(findStepLlm(inner, "s_02")).toBeNull();
+  });
+
+  it("同 step 无 llm.call ⇒ null；空数组 ⇒ null", () => {
+    const toolOnly = [
+      stepSpan("s_01", 1),
+      {
+        type: "span",
+        id: "s_03",
+        parent: "s_01",
+        kind: "tool.invoke",
+        tool: "read_file",
+        args: {},
+        result: "x",
+        dur_ms: 1,
+        error: null,
+      } as unknown as SpanLine,
+    ];
+    expect(findStepLlm(toolOnly, "s_03")).toBeNull();
+    expect(findStepLlm([], "s_01")).toBeNull();
   });
 });

@@ -140,6 +140,49 @@ export function deriveStepStats(node: SpanNode): StepStats {
   return stats;
 }
 
+/**
+ * 定位某 span 所在 step 的 `llm.call`（main 侧 fork 编排与 renderer 提示**共用同一查表**）。
+ *
+ * 由 `main/fork-runner.ts` 的私有 `findStepLlm` 上移而来（同一语义只写一处——此前它只存在于
+ * main，renderer 想用就得重写第二份）。行为与原实现逐字等价：
+ * `atSpanId` 不在 spans 内 / 无父 / 父不是 `agent.step` / 同 step 无 `llm.call` ⇒ `null`。
+ *
+ * 传 run 文件自有 spans 时用于 fork 编排（分叉点必属本 run 新增段）；传分支 run 的展开视图时
+ * 用于界面提示（用户点到祖先 span 时给的是祖先的 model，与 main 侧 `FORK_SPAN_NOT_IN_LEAF`
+ * 的拒绝并不冲突）。
+ */
+export function findStepLlm(
+  spans: readonly SpanLine[],
+  atSpanId: string,
+): Extract<SpanLine, { kind: "llm.call" }> | null {
+  const at = spans.find((span) => span.id === atSpanId);
+  if (at === undefined || at.parent === null) return null;
+  const step = spans.find((span) => span.id === at.parent);
+  if (step === undefined || step.kind !== "agent.step") return null;
+  const llm = spans.find((span) => span.parent === step.id && span.kind === "llm.call");
+  return llm !== undefined && llm.kind === "llm.call" ? llm : null;
+}
+
+/**
+ * run 级累计缓存命中（tokens）：只统计传入 spans 内 `llm.call` 的 `usage.cache_hit`。
+ *
+ * - **只传 run 文件自有的 spans**（与 `tokensIn` / `tokensOut` 同口径）：分支 run 的展开视图
+ *   含祖先共享前缀，祖先的命中属于祖先 run 的记账，不得计入本 run——本 run 的合计语义是
+ *   「本次重跑实际新发生的计费维度」。
+ * - 全无 `cache_hit` 字段 ⇒ 返回 `null`（未知 ≠ 0）；存在 `0` 命中 ⇒ 如实累加（0 是有值）。
+ */
+export function deriveCacheHitTotal(spans: readonly SpanLine[]): number | null {
+  let total: number | null = null;
+  for (const span of spans) {
+    if (span.kind !== "llm.call") continue;
+    // 存在性判定（不是 truthiness）：0 = 实测零命中，undefined = 未知
+    const hit = span.response.usage.cache_hit;
+    if (hit === undefined) continue;
+    total = (total ?? 0) + hit;
+  }
+  return total;
+}
+
 /** 整个 run 的摘要（列表行所需的全部聚合数字） */
 export function deriveRunSummary(run: RunLike): RunSummary {
   let steps = 0;
@@ -193,6 +236,8 @@ export function deriveRunSummary(run: RunLike): RunSummary {
     toolErrors,
     tokensIn,
     tokensOut,
+    // 缓存命中与本文件 spans 同源现算（含 0 命中；全无字段 ⇒ null 表示未知）
+    cacheHit: deriveCacheHitTotal(run.spans),
     durationMs,
     source: run.meta.source?.kind === "proxy" ? "proxy" : null,
   };

@@ -58,6 +58,11 @@ export const RunSummarySchema = z.object({
   toolErrors: z.number().int().nonnegative(),
   tokensIn: z.number().int().nonnegative(),
   tokensOut: z.number().int().nonnegative(),
+  /**
+   * 本 run 自有 spans 的累计缓存命中 tokens（前缀缓存生效的证据）。
+   * `null` = 全部 llm.call 都没有 cache_hit 字段（未知，不得显示为 0）；`0` = 实测零命中。
+   */
+  cacheHit: z.number().int().nonnegative().nullable(),
   /** 总耗时（毫秒）；span 缺失时间区间时为 null——时间未知不得臆造 */
   durationMs: z.number().nonnegative().nullable(),
   /** 录制来源：代理录制为 "proxy"；SDK / agent-loop 直录为 null（老文件同 null） */
