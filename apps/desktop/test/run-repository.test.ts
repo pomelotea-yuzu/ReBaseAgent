@@ -55,9 +55,10 @@ describe("listRuns：扫描与隔离", () => {
   it("format_version 过高的文件呈失败条目并提示版本不支持", () => {
     const traces = join(dir, "traces");
     const lines = readFirstTwoLinesOfNormal();
+    // v2 起是受支持版本（v1/v2 双读）⇒ 未来版本用 3
     writeFileSync(
       join(traces, "r_future.jsonl"),
-      lines.replace('"format_version":1', '"format_version":2'),
+      lines.replace('"format_version":1', '"format_version":3'),
     );
 
     const { failed } = repo.listRuns();

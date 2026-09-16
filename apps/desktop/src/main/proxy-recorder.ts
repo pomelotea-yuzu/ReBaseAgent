@@ -2,7 +2,7 @@ import { appendFileSync, existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ProxyForkMeta, ProxyRecording } from "@rebaseagent/llm-proxy";
 import { deriveProxyConfigHash } from "@rebaseagent/replay";
-import { FORMAT_VERSION } from "@rebaseagent/trace-sdk/schema";
+import { PLAIN_FORMAT_VERSION } from "@rebaseagent/trace-sdk/schema";
 
 /**
  * 代理录制的落盘器：把 llm-proxy 回调的录制数据写成 trace JSONL（一请求一 run）。
@@ -37,7 +37,7 @@ export class ProxyRunRecorder {
     const meta = {
       type: "run.meta",
       id,
-      format_version: FORMAT_VERSION,
+      format_version: PLAIN_FORMAT_VERSION,
       task: recording.meta.task,
       model: recording.meta.model,
       created_at: startedAt,

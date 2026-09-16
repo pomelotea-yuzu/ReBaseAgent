@@ -65,7 +65,8 @@ describe("readRun：崩溃与状态识别", () => {
 
 describe("readRun：格式错误", () => {
   it("未来版本：明确报「不支持的格式版本」，不产生部分结果", () => {
-    expect(() => parseRunText([metaLine({ format_version: 2 })])).toThrow(/不支持的格式版本 2/);
+    // v2 起是受支持版本（v1/v2 双读）⇒ 未来版本改用 3
+    expect(() => parseRunText([metaLine({ format_version: 3 })])).toThrow(/不支持的格式版本 3/);
   });
 
   it("某行缺 type → 报错指明行号与原因", () => {

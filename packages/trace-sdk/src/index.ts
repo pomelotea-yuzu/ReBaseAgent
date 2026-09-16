@@ -1,9 +1,15 @@
 export {
   FORMAT_VERSION,
+  PLAIN_FORMAT_VERSION,
+  FormatVersionSchema,
   ChatMessageSchema,
   LlmParamsSchema,
   LlmUsageSchema,
   LlmCallErrorSchema,
+  WorkspaceFileSchema,
+  WorkspaceSnapshotSchema,
+  WorkspaceOriginSchema,
+  WorkspaceMetaSchema,
   ForkSchema,
   SourceSchema,
   RunMetaSchema,
@@ -20,6 +26,10 @@ export type {
   LlmParams,
   LlmUsage,
   LlmCallError,
+  WorkspaceFile,
+  WorkspaceSnapshot,
+  WorkspaceOrigin,
+  WorkspaceMeta,
   Fork,
   Source,
   RunMetaLine,
@@ -36,6 +46,7 @@ export type {
   RunEventInput,
   TraceLine,
 } from "./schema.js";
+export { findVersionFieldViolation } from "./version-guard.js";
 export {
   BaseTracer,
   NullTracer,

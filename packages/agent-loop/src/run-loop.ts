@@ -78,6 +78,11 @@ export async function runLoop(
 
   tracer.startRun({
     id: forkRun?.id ?? `run_${Date.now().toString(36)}`,
+    // 普通运行恒写 v1（等于 trace-sdk 的 PLAIN_FORMAT_VERSION）。刻意**不复用**
+    // FORMAT_VERSION：那个常量是"最高支持版本"（现为 2），隔离执行的 v2 由 workspace
+    // Tracer 包装器覆盖 meta 的版本与 workspace 字段，普通 loop 不跟着跳版本。
+    // 这里保持字面量也刻意不 import trace-sdk 的运行时常量——agent-loop 对 trace-sdk
+    // 只有类型依赖，不为一个常量引入运行时依赖。
     format_version: 1,
     task: (messages.find((m) => m.role === "user")?.content as string) ?? "",
     model: config.model,

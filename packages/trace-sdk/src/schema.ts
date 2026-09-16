@@ -1,10 +1,28 @@
 import { z } from "zod";
 
 /**
- * trace 格式版本。
+ * 读取器**最高支持**的 trace 格式版本。
  * 读取器遇到更高版本必须显式报"不支持的格式版本"，不得静默降级解析。
+ *
+ * v2 新增隔离文件世界（`run.meta.workspace` / `agent.step.workspace_snapshot` /
+ * `fork.resume_after_step`）；v1 是普通运行格式。见 `version-guard.ts`。
  */
-export const FORMAT_VERSION = 1;
+export const FORMAT_VERSION = 2;
+
+/**
+ * **普通**运行写入的版本号（不含隔离字段的运行：runLoop 直录、代理录制、卡带）。
+ *
+ * ⚠️ 与 `FORMAT_VERSION` 分开是刻意的：把最高支持版本当作写入版本，会让所有普通
+ * writer 一起跳到 v2——v2 的契约是"必须有 workspace"，普通运行并不满足。
+ * 隔离执行由 workspace Tracer 包装器另行覆盖 meta 的版本与 workspace 字段。
+ */
+export const PLAIN_FORMAT_VERSION = 1;
+
+/** 支持的格式版本（当前 v1 / v2 双读） */
+export const FormatVersionSchema = z.union([
+  z.literal(PLAIN_FORMAT_VERSION),
+  z.literal(FORMAT_VERSION),
+]);
 
 // ---------------------------------------------------------------------------
 // 通用子结构
@@ -59,13 +77,80 @@ export const LlmCallErrorSchema = z.object({
 export type LlmCallError = z.infer<typeof LlmCallErrorSchema>;
 
 // ---------------------------------------------------------------------------
+// 隔离文件世界（v2）
+// ---------------------------------------------------------------------------
+
+/** 快照内的一个文件条目：逻辑路径 → 不可变内容（内容寻址 blob） */
+export const WorkspaceFileSchema = z.object({
+  /** 世界内逻辑路径（相对、`/` 分隔；完整规则见 paths 模块） */
+  path: z.string().min(1),
+  /** 内容哈希（64 位小写十六进制） */
+  sha256: z.string().regex(/^[0-9a-f]{64}$/),
+  /** 字节数（读取端与 blob 实际大小核对） */
+  bytes: z.number().int().nonnegative(),
+});
+export type WorkspaceFile = z.infer<typeof WorkspaceFileSchema>;
+
+/**
+ * 一份完整文件清单（某个时点的世界状态）。
+ *
+ * `id` = 对规范化清单 UTF-8 字节取 SHA-256（排序与序列化规则见 `workspace-hash.ts`：
+ * 路径用 `/`、按 UTF-16 代码单元序排序、序列化固定为 `[[path, sha256, bytes], …]`，
+ * 不依赖 locale / mtime / 原目录路径 / OS 枚举顺序）。空清单同样有确定哈希。
+ */
+export const WorkspaceSnapshotSchema = z.object({
+  id: z.string().regex(/^[0-9a-f]{64}$/),
+  files: z.array(WorkspaceFileSchema),
+});
+export type WorkspaceSnapshot = z.infer<typeof WorkspaceSnapshotSchema>;
+
+/** 世界来源：根运行来自导入，分支来自直接父 run 的某个检查点 */
+export const WorkspaceOriginSchema = z.union([
+  z.object({ kind: z.literal("import") }),
+  z.object({
+    kind: z.literal("checkpoint"),
+    run_id: z.string().min(1),
+    step_span: z.string().min(1),
+  }),
+]);
+export type WorkspaceOrigin = z.infer<typeof WorkspaceOriginSchema>;
+
+/**
+ * 隔离运行的 workspace 元数据（`run.meta.workspace`，**仅 v2**）。
+ *
+ * ⚠️ `write_authorized: true` 是**审计标注**，不是权限判据：它只表示创建方声称该次运行
+ * 经"允许副本内写入"确认，既不证明历史文件未被篡改，也不是可转移的凭证。真正的授权是
+ * **当前请求**携带的 `allowFileWrites`——不得把它当门禁写成恒真校验，也不得从父 meta
+ * 推导或默认勾选本次授权（详见 change `add-sandboxed-rerun` design §4）。
+ */
+export const WorkspaceMetaSchema = z.object({
+  profile: z.literal("file-tools-v1"),
+  /** 世界 id = 创建该世界的 run id */
+  world_id: z.string().min(1),
+  /** 仅审计（见上方说明） */
+  write_authorized: z.literal(true),
+  initial_snapshot: WorkspaceSnapshotSchema,
+  origin: WorkspaceOriginSchema,
+});
+export type WorkspaceMeta = z.infer<typeof WorkspaceMetaSchema>;
+
+// ---------------------------------------------------------------------------
 // run.meta 首行
 // ---------------------------------------------------------------------------
 
-/** 分支描述：从父 run 的哪个 span 之后分叉、编辑了什么 */
+/**
+ * 分支描述：从父 run 的哪个 span 之后分叉、编辑了什么。
+ *
+ * `resume_after_step`（v2 可选）区分**编辑位置**与**整轮续跑边界**：
+ * `at_span` 仍指向被编辑的工具调用，`resume_after_step` 指向该工具所属 step
+ * ——恢复点是"该轮全部工具完成后"，因此同轮兄弟工具的结果必须保留在前缀里、
+ * 不得重放（v1 按 `at_span` 单 span 截断的语义不变）。
+ */
 export const ForkSchema = z.object({
   /** 分叉点：父 run 轨迹中的 span id（该 span 保留在前缀中，编辑语义由 replay 层应用） */
   at_span: z.string().min(1),
+  /** 整轮续跑边界（仅 v2 隔离分叉）：被编辑工具所属的 agent.step span id */
+  resume_after_step: z.string().min(1).optional(),
   /** 编辑描述：被修改字段与新值 */
   edit: z.object({
     field: z.string().min(1),
@@ -90,7 +175,7 @@ export const RunMetaSchema = z.object({
   type: z.literal("run.meta"),
   /** run id，同时是文件内唯一标识 */
   id: z.string().min(1),
-  format_version: z.literal(FORMAT_VERSION),
+  format_version: FormatVersionSchema,
   task: z.string(),
   model: z.string(),
   /** ISO 8601 时间戳 */
@@ -118,6 +203,12 @@ export const RunMetaSchema = z.object({
   config_hash_reason: z.enum(["no_system", "invalid_tool"]).optional(),
   /** 录制来源（可选）：由代理录制时写入；SDK / agent-loop 直录省略 */
   source: SourceSchema.optional(),
+  /**
+   * 隔离文件世界元数据（**仅 v2 隔离运行**）。
+   * 版本与字段的一致性（v2 必须有、v1 必须没有）由 `version-guard.ts` 在 schema
+   * parse 前判定——zod object 默认**剥离**未知键，靠 schema 本身无法拒绝 v1 私带该字段。
+   */
+  workspace: WorkspaceMetaSchema.optional(),
 });
 export type RunMetaLine = z.infer<typeof RunMetaSchema>;
 /** startRun 的入参（不含 type 判别字段） */
@@ -158,6 +249,12 @@ export const AgentStepSpanSchema = z.object({
   kind: z.literal("agent.step"),
   /** 迭代序号，从 1 起 */
   n: z.number().int().positive(),
+  /**
+   * 该轮**全部工具完成后**的完整文件清单（**仅 v2 隔离运行**，由 workspace Tracer
+   * 在 endSpan(step) 时注入）。它是"从这一轮结束后继续"的恢复点：隔离分叉读它，
+   * 而不是重放这一轮的工具。版本一致性由 `version-guard.ts` 在 parse 前判定。
+   */
+  workspace_snapshot: WorkspaceSnapshotSchema.optional(),
 });
 export type AgentStepSpan = z.infer<typeof AgentStepSpanSchema>;
 

@@ -3,6 +3,7 @@ import type { ZodIssue } from "zod";
 import { FORMAT_VERSION, TraceLineSchema } from "./schema.js";
 import type { RunEventLine, RunMetaLine, SpanLine } from "./schema.js";
 import { toSemanticOrder } from "./semantic-order.js";
+import { findVersionFieldViolation } from "./version-guard.js";
 
 /** 读取 run 文件时的错误（含行号） */
 export class TraceReadError extends Error {
@@ -41,6 +42,9 @@ export function parseRunText(lines: string[]): RunRecord {
   const spans: SpanLine[] = [];
   const events: RunEventLine[] = [];
 
+  // 文件版本：由 run.meta 确定，后续行据此做"版本 ↔ 隔离字段"检查
+  let fileVersion: number | null = null;
+
   let sawContent = false;
   for (let i = 0; i < lines.length; i++) {
     const raw = lines[i];
@@ -64,6 +68,13 @@ export function parseRunText(lines: string[]): RunRecord {
       throw new TraceReadError("type 为必填", lineNo);
     }
 
+    // 版本 ↔ 隔离字段一致性：必须在 schema parse **之前**（zod 会静默剥离未知键，
+    // 否则 v1 私带隔离字段会被读成"合法 v1" → 旧路径降级执行）
+    const violation = findVersionFieldViolation(json, fileVersion);
+    if (violation !== null) {
+      throw new TraceReadError(violation, lineNo);
+    }
+
     if (lineNo === 1 || !sawContent) {
       // 首个内容行必须是 run.meta
       if (type !== "run.meta") {
@@ -74,6 +85,7 @@ export function parseRunText(lines: string[]): RunRecord {
         throw new TraceReadError(`不支持的格式版本 ${version}（当前支持 ${FORMAT_VERSION}）`);
       }
       meta = TraceLineSchema.parse(json) as RunMetaLine;
+      fileVersion = typeof version === "number" ? version : null;
       sawContent = true;
       continue;
     }
