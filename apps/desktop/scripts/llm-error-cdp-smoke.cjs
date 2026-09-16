@@ -68,18 +68,32 @@ function spanLines({ withError }) {
     },
     ...(withError ? { error: { message: MESSAGE, status: 401 } } : {}),
   });
-  return [step, llm, JSON.stringify({ type: "run.event", event: "errored", reason: "error", at: 1 })];
+  return [
+    step,
+    llm,
+    JSON.stringify({ type: "run.event", event: "errored", reason: "error", at: 1 }),
+  ];
 }
 
 const FIXTURES = [
   {
     id: "run_smoke_llmerr",
     // created_at 取未来时刻：确保排在既有本地 run 之上，脚本无需滚动列表
-    lines: [metaLine("run_smoke_llmerr", "[冒烟] 失败详情已记录（HTTP 401）", "2027-01-01T00:00:02.000Z"), ...spanLines({ withError: true })],
+    lines: [
+      metaLine("run_smoke_llmerr", "[冒烟] 失败详情已记录（HTTP 401）", "2027-01-01T00:00:02.000Z"),
+      ...spanLines({ withError: true }),
+    ],
   },
   {
     id: "run_smoke_legacyerr",
-    lines: [metaLine("run_smoke_legacyerr", "[冒烟] 老失败 run（无错误详情）", "2027-01-01T00:00:01.000Z"), ...spanLines({ withError: false })],
+    lines: [
+      metaLine(
+        "run_smoke_legacyerr",
+        "[冒烟] 老失败 run（无错误详情）",
+        "2027-01-01T00:00:01.000Z",
+      ),
+      ...spanLines({ withError: false }),
+    ],
   },
 ];
 
@@ -119,7 +133,10 @@ function check(name, actual, expected = true) {
   await page.waitForTimeout(1500);
 
   async function openRun(runId) {
-    await page.getByRole("button", { name: new RegExp(runId) }).first().click();
+    await page
+      .getByRole("button", { name: new RegExp(runId) })
+      .first()
+      .click();
     await page.waitForTimeout(600);
   }
 
@@ -153,7 +170,10 @@ function check(name, actual, expected = true) {
   check("老失败 run 显示「错误详情未记录」", legacyText.includes("错误详情未记录"));
   check("缺失提示不猜造原因（不出现 401）", legacyText.includes("HTTP 401"), false);
 
-  await page.getByRole("button", { name: /LLM 调用/ }).first().click();
+  await page
+    .getByRole("button", { name: /LLM 调用/ })
+    .first()
+    .click();
   await page.waitForTimeout(400);
   await page.screenshot({ path: join(OUT, "04-legacy-llm.png") });
   const legacyDetail = await page.locator("section").last().innerText();
