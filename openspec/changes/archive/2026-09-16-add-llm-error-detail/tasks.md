@@ -37,4 +37,12 @@
 
 - [x] 6.1 README（能力条 + 路线图 ✅ + 「当前限制」补代理失败与脱敏边界）/ HANDOFF 状态块同步
 - [x] 6.2 分次提交（三件套文档 / 实现 / 测试+文档），中文 message，收尾汇报待 push
-- [ ] 6.3 归档（`openspec archive add-llm-error-detail -y`）——**待 owner 验收后执行**
+- [x] 6.3 归档（`openspec archive add-llm-error-detail -y`，2026-09-16）——owner 已验收；落 4 份主 spec（+6 requirement / ~1 modified / -0）
+
+## 归档记录（2026-09-16）
+
+- `openspec archive add-llm-error-detail -y`：22/23 → 23/23（归档动作本身为最后一项，执行后勾选）
+- 落主 spec：`agent-loop` +2、`desktop-ui` +2（另 MODIFIED「桌面端提供原生 run 创建入口」，8 个原 scenario 全部保留）、`trace-as-test` +1、`trace-format` +1；Totals **+6 / ~1 / -0 / →0**
+- `validate --all --strict`：**11/11 通过**（主 spec 11 个，无活动 change）
+- 审阅文档 `docs/reviews/2026-09-16-add-llm-error-detail-review.md` 随本目录一并归档为 `review.md`（与 A2 归档同形）
+
