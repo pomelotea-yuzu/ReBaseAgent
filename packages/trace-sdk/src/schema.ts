@@ -37,6 +37,27 @@ export const LlmUsageSchema = z.object({
 });
 export type LlmUsage = z.infer<typeof LlmUsageSchema>;
 
+/**
+ * LLM 调用失败的诊断详情（可选，挂在 `llm.call` span 顶层）。
+ *
+ * - **缺省语义**：成功调用省略该字段；老文件缺省合法。**字段缺失只表示"未记录错误详情"，
+ *   不能反推调用成功**——也不得由空正文 / 零 token 猜造失败原因。
+ * - **与 `tool.invoke.error` 同名异构（务必按 kind 缩窄类型再判定）**：
+ *   工具是 `string | null`（`null` 才正常），本字段是 `object | undefined`（`undefined` 才正常）。
+ *   因此本字段**不接受 `null`**（`null` 的缺省态是 `undefined`）。
+ * - `message` 恒为非空诊断文本（写入侧已脱敏并按统一上限截断，见 agent-loop 的
+ *   `sanitizeDiagnosticText`）；`status` **只在实际取得 HTTP 错误状态码时**写入，
+ *   不从消息文本猜测。此处不做长度硬校验：超长的历史数据仍应可读，不把"字数超标"
+ *   变成读取失败。
+ */
+export const LlmCallErrorSchema = z.object({
+  /** 脱敏并限长后的非空诊断文本 */
+  message: z.string().min(1),
+  /** HTTP 错误状态码；无状态码的失败（网络异常 / 流中断）省略该字段 */
+  status: z.number().int().positive().optional(),
+});
+export type LlmCallError = z.infer<typeof LlmCallErrorSchema>;
+
 // ---------------------------------------------------------------------------
 // run.meta 首行
 // ---------------------------------------------------------------------------
@@ -159,6 +180,12 @@ export const LlmCallSpanSchema = z.object({
     /** time to first token，毫秒 */
     ttft_ms: z.number().nonnegative(),
   }),
+  /**
+   * 调用失败的诊断详情（可选）。成功调用省略；**缺省 ≠ 成功**（无法从这里反推）。
+   * 与 `tool.invoke.error` 同名异构：先按 kind 判分支再用各自判据
+   * （工具 `error !== null`、本次 `error !== undefined`）。
+   */
+  error: LlmCallErrorSchema.optional(),
 });
 export type LlmCallSpan = z.infer<typeof LlmCallSpanSchema>;
 export type LlmRequest = LlmCallSpan["request"];

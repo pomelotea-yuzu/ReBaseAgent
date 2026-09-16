@@ -1,6 +1,12 @@
 import { Editor } from "@monaco-editor/react";
 import type { SpanLine } from "@rebaseagent/trace-sdk";
-import { findStepLlm, forkEditLabel, isPromptForkField, spanDurationMs } from "@shared/derive";
+import {
+  deriveMissingLlmErrorDetail,
+  findStepLlm,
+  forkEditLabel,
+  isPromptForkField,
+  spanDurationMs,
+} from "@shared/derive";
 import type { ModelAbResult, ModelArmPlan, RunDetail } from "@shared/ipc";
 import { useMemo, useState } from "react";
 import { formatDuration, prettyJson } from "../lib/format";
@@ -716,10 +722,24 @@ function LlmCallDetail({
   span,
   run,
 }: { span: Extract<SpanLine, { kind: "llm.call" }>; run: RunDetail | null }) {
-  const { request, response } = span;
+  const { request, response, error } = span;
   const leafOwned = run?.leafSpanIds.includes(span.id) ?? false;
   const isProxy = run?.meta.source?.kind === "proxy";
   const canResend = isProxy === true && leafOwned && run?.status === "completed";
+
+  /**
+   * 空正文文案：失败 / 仅有工具调用 / 仅有思维链 / 真空正文 四态。
+   * 旧实现一律写"无正文，仅有工具调用"——对失败调用与 reasoning-only 成功响应都是错的。
+   */
+  const emptyContentHint =
+    error !== undefined
+      ? "（调用失败，无响应正文）"
+      : response.tool_calls.length > 0
+        ? "（无正文，仅有工具调用）"
+        : response.reasoning_content !== null
+          ? "（无正文，仅有思维链）"
+          : "（响应为空正文）";
+
   return (
     <>
       <Section title="概要">
@@ -736,6 +756,25 @@ function LlmCallDetail({
         <CacheHitRow usage={response.usage} />
       </Section>
 
+      {error !== undefined ? (
+        <Section title="错误（调用失败，错误是数据）">
+          <div className="rounded border-l-2 border-red-400 bg-red-50 px-2 py-1.5">
+            <div className="mb-1 flex flex-wrap items-center gap-2 text-[11px] text-red-900">
+              <span>调用失败</span>
+              {error.status === undefined ? null : (
+                <span className="rounded bg-red-100 px-1 font-code">HTTP {error.status}</span>
+              )}
+            </div>
+            <LongText text={error.message} label="错误详情" />
+            <div className="mt-1 text-[11px] leading-5 text-red-800">
+              这是记录于本次调用的失败原因。上列 tokens 与首 token 延迟是
+              <span className="font-medium">失败占位零值</span>
+              ，不代表实际零消耗或零延迟；请求内容仍可照常查看。
+            </div>
+          </div>
+        </Section>
+      ) : null}
+
       {response.reasoning_content !== null ? (
         <Section title="思维链（reasoning_content）">
           <div className="rounded border-l-2 border-amber-400 bg-amber-50 px-2 py-1.5">
@@ -746,7 +785,7 @@ function LlmCallDetail({
 
       <Section title="响应正文">
         {response.content === null || response.content === "" ? (
-          <div className="text-[11px] text-gray-400">（无正文，仅有工具调用）</div>
+          <div className="text-[11px] text-gray-400">{emptyContentHint}</div>
         ) : (
           <LongText text={response.content} label="正文" />
         )}
@@ -1321,6 +1360,38 @@ function ParentChainList() {
   );
 }
 
+/**
+ * 错误详情缺失提示（诚实降级）。
+ *
+ * 判定全部落在共享派生层（`deriveMissingLlmErrorDetail`）：错误终止 + 本 run 自有 spans
+ * 无任何带 error 的 llm.call。**只查 leafSpanIds 过滤后的 spans**——祖先前缀里的失败
+ * 不得冒充本次失败原因，也不得因此隐藏本 run 的缺失提示。
+ * 只陈述"未记录"这一事实，不推断原因（空正文 / 零 token / 末尾 llm.call 概不参与）。
+ */
+function ErrorDetailNotice() {
+  const detail = useAppStore((s) => s.detail);
+  const missing = useMemo(
+    () =>
+      detail !== null &&
+      deriveMissingLlmErrorDetail({
+        events: detail.events,
+        spans: detail.spans,
+        leafSpanIds: detail.leafSpanIds,
+      }),
+    [detail],
+  );
+  if (!missing) return null;
+
+  return (
+    <div className="border-b border-red-200 bg-red-50 px-4 py-2 text-[11px] leading-5 text-red-900">
+      错误详情未记录：本 run 以「出错终止」收尾，但它自身没有任何记录了失败原因的 LLM 调用
+      （代理录制的失败、或早于错误详情记录能力的历史 run）。
+      <br />
+      此处不推断失败原因；轨迹树上的失败标记只反映各 span 自身记录的 error，不代表本次终止的原因。
+    </div>
+  );
+}
+
 export function DetailPanel() {
   const detail = useAppStore((s) => s.detail);
   const selectedSpanId = useAppStore((s) => s.selectedSpanId);
@@ -1340,6 +1411,7 @@ export function DetailPanel() {
       </div>
 
       <BranchNotice />
+      <ErrorDetailNotice />
       <ParentChainList />
 
       <div className="flex-1 overflow-y-auto pb-8">

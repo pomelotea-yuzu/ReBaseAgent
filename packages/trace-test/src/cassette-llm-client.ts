@@ -1,5 +1,6 @@
 import {
   type LlmClient,
+  LlmRequestError,
   type LlmResponse,
   type Message,
   MessageSchema,
@@ -70,6 +71,10 @@ function toToolCalls(recorded: Array<Record<string, unknown>>): ToolCall[] {
  *
  * - 按调用序号消费（第 n 次 complete → 第 n 条录制响应），请求差异不硬匹配，
  *   只记入 requestDrift（方案 A：改 prompt / 改工具协议不阻断卡带消费）；
+ * - **录制的失败调用重现为失败**：先推进游标（恰好消费一次），再抛
+ *   `LlmRequestError(recorded.message, recorded.status)`——用 LlmRequestError 而非普通
+ *   Error，否则新 run 的失败 span 取不到 status（"录制有、重放无"）。不返回占位 response、
+ *   不置 exhausted，由 runLoop 收成 error outcome；
  * - 卡带耗尽：置 exhausted 标记后抛 TraceTestConfigError（runLoop 会把它
  *   当作 LLM 失败收尾，编排层在 run 结束后检查标记并还原为配置错误）；
  * - 零网络：不发起任何请求，requestBody 仅按当前 config 构造用于透传
@@ -127,6 +132,13 @@ export class CassetteLlmClient implements LlmClient {
       this.drift.push({ callIndex: this.cursor, firstDiff: diff.at, detail: diff.detail });
     }
     this.cursor += 1;
+
+    // 录制到失败调用：游标已推进（一次录制失败恰好消费一次），此处抛 LlmRequestError
+    // 让当前 runLoop 生成 error outcome——不返回占位 response（那会被当成"成功的空回答"）。
+    // 缺失 status 时不补造默认值。
+    if (span.error !== undefined) {
+      throw new LlmRequestError(span.error.message, span.error.status);
+    }
 
     const recordedToolCalls = toToolCalls(span.response.tool_calls);
     return {

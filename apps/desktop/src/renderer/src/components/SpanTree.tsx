@@ -24,8 +24,16 @@ function nodeLabel(span: SpanLine): string {
   return span.tool;
 }
 
+/**
+ * 节点是否有错误。`error` 两个分支同名异构，**先按 kind 缩窄再取各自判据**：
+ * - `tool.invoke.error` 是 `string | null` ⇒ `!== null` 才是失败（null = 成功）；
+ * - `llm.call.error` 是 `object | undefined` ⇒ `!== undefined` 才是失败（缺省 = 未记录，
+ *   不等于成功，但也没有失败可标记——不得猜造）。
+ */
 function hasError(span: SpanLine): boolean {
-  return span.kind === "tool.invoke" && span.error !== null;
+  if (span.kind === "tool.invoke") return span.error !== null;
+  if (span.kind === "llm.call") return span.error !== undefined;
+  return false;
 }
 
 function SpanRow({ node, depth }: { node: SpanNode; depth: number }) {

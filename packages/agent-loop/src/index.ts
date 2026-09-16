@@ -32,6 +32,7 @@ export {
   buildRequestBody,
   aggregateSseStream,
   LlmRequestError,
+  extractHttpStatus,
 } from "./llm-client.js";
 export type {
   LlmResponse,
@@ -39,7 +40,19 @@ export type {
   FetchLike,
   RequestBody,
   RequestBodyTool,
+  AggregateOptions,
 } from "./llm-client.js";
+export {
+  GENERIC_LLM_FAILURE,
+  DIAGNOSTIC_MAX_LENGTH,
+  TRUNCATION_MARKER,
+  REDACTION_PLACEHOLDER,
+  normalizeFailureText,
+  buildRedactionSecrets,
+  redactDiagnosticText,
+  limitDiagnosticText,
+  sanitizeDiagnosticText,
+} from "./diagnostic.js";
 export { ToolRegistry } from "./tool-registry.js";
 export { configHash } from "./config-hash.js";
 export { runLoop, renderToolError, deriveTotalTokens } from "./run-loop.js";

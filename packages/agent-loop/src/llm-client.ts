@@ -1,6 +1,7 @@
 import type { LlmUsage } from "@rebaseagent/trace-sdk";
 import { type EventSourceMessage, createParser } from "eventsource-parser";
 import type { Message, RunConfig, ToolCall } from "./config.js";
+import { buildRedactionSecrets, sanitizeDiagnosticText } from "./diagnostic.js";
 
 /**
  * LLM 一次调用的聚合响应（与 trace-sdk llm.call span 的 response 同构）。
@@ -27,6 +28,16 @@ export class LlmRequestError extends Error {
     this.name = "LlmRequestError";
     this.status = status;
   }
+}
+
+/**
+ * 从抛出物提取 HTTP 状态码——**只认 `LlmRequestError.status`**，普通异常与字符串
+ * 一律不猜（避免把 message 里的数字当状态码）。loop 落盘失败详情时复用本函数。
+ */
+export function extractHttpStatus(e: unknown): number | undefined {
+  if (!(e instanceof LlmRequestError)) return undefined;
+  const status = e.status;
+  return typeof status === "number" && Number.isInteger(status) && status > 0 ? status : undefined;
 }
 
 /** 请求体里的工具定义（sideEffect 随工具表进入 trace 请求记录） */
@@ -106,10 +117,17 @@ export interface LlmClient {
 export class OpenAiCompatClient implements LlmClient {
   private readonly config: RunConfig;
   private readonly fetchImpl: FetchLike;
+  /**
+   * 本次配置的已知 secrets（apiKey + baseURL 内嵌凭据），构造时算一次。
+   * 客户端各抛错点必须传下去：**先脱敏、后截断**——提前切片会让密钥只剩前缀、
+   * 无法按完整值替换（详见 diagnostic.ts 的顺序铁律）。
+   */
+  private readonly secrets: readonly string[];
 
   constructor(config: RunConfig, fetchImpl: FetchLike = globalThis.fetch) {
     this.config = config;
     this.fetchImpl = fetchImpl;
+    this.secrets = buildRedactionSecrets(config);
   }
 
   async complete(
@@ -132,19 +150,25 @@ export class OpenAiCompatClient implements LlmClient {
         signal,
       });
     } catch (e) {
-      throw new LlmRequestError(`LLM 请求失败：${(e as Error).message}`);
+      throw new LlmRequestError(
+        sanitizeDiagnosticText(`LLM 请求失败：${(e as Error).message}`, this.secrets),
+      );
     }
     if (!response.ok) {
       const text = await response.text().catch(() => "");
+      // 不提前切片：先对完整响应文本脱敏，再统一限长（1024，含截断标记）
       throw new LlmRequestError(
-        `LLM 端点返回 HTTP ${response.status}${text ? `：${text.slice(0, 200)}` : ""}`,
+        sanitizeDiagnosticText(
+          `LLM 端点返回 HTTP ${response.status}${text ? `：${text}` : ""}`,
+          this.secrets,
+        ),
         response.status,
       );
     }
     if (response.body === null) {
       throw new LlmRequestError("LLM 端点返回空 body");
     }
-    const aggregated = await aggregateSseStream(response.body, { sentAt });
+    const aggregated = await aggregateSseStream(response.body, { sentAt, secrets: this.secrets });
     return { response: aggregated, requestBody };
   }
 }
@@ -202,6 +226,11 @@ export interface AggregateOptions {
    * 调用方应在 `fetch` 之前取时，以保证 ttft 含"等待响应头"那一段。
    */
   sentAt?: number;
+  /**
+   * 脱敏上下文（本次配置的已知 secrets）。**可选**——既有无参数调用保持兼容，
+   * 但内置客户端必须传入（SSE 异常文本可能回显凭据）。缺省为空数组 = 只走通用规则。
+   */
+  secrets?: readonly string[];
 }
 
 /**
@@ -247,6 +276,7 @@ export async function aggregateSseStream(
   options: AggregateOptions = {},
 ): Promise<LlmResponse> {
   const startedAt = options.sentAt ?? Date.now();
+  const secrets = options.secrets ?? [];
   const events: EventSourceMessage[] = [];
   let firstDeltaAt: number | null = null;
   const parser = createParser({
@@ -265,7 +295,9 @@ export async function aggregateSseStream(
       parser.feed(decoder.decode(value, { stream: true }));
     }
   } catch (e) {
-    throw new LlmRequestError(`SSE 流中断：${(e as Error).message}`);
+    throw new LlmRequestError(
+      sanitizeDiagnosticText(`SSE 流中断：${(e as Error).message}`, secrets),
+    );
   }
 
   const agg: Aggregation = { content: null, reasoning: null, toolCalls: new Map(), usage: null };
@@ -277,7 +309,11 @@ export async function aggregateSseStream(
     try {
       parsed = JSON.parse(event.data);
     } catch {
-      throw new LlmRequestError(`SSE 数据块 JSON 解析失败：${event.data.slice(0, 100)}`);
+      // 不提前切片（原为前 100 字符）：先对**完整**数据块脱敏，再统一限长——
+      // 提前切片会让凭据只剩前缀、无法按完整值替换
+      throw new LlmRequestError(
+        sanitizeDiagnosticText(`SSE 数据块 JSON 解析失败：${event.data}`, secrets),
+      );
     }
     const delta = (parsed as { choices?: Array<{ delta?: Record<string, unknown> }> }).choices?.[0]
       ?.delta;

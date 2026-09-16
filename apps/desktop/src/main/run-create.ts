@@ -106,16 +106,15 @@ export async function runCreate(
     }
   }
 
-  // 4. runLoop 不抛 LLM 失败：它记 errored 并正常返回（run-loop.ts:113-130），
+  // 4. runLoop 不抛 LLM 失败：它记 errored 并正常返回（run-loop.ts:111-135），
   //    因此成败判据是终止事件而非 try/catch。
   //
-  //    ⚠️ 失败原因（如 HTTP 401 的响应体）目前只被 runLoop 打到主进程日志，
-  //    不写入 trace（端上 llm.call 的 response 只有空 content 与 0 usage）。
-  //    文案因此只承诺"能点开看这次请求"，不承诺 trace 里有错误详情。
+  //    失败原因（如 HTTP 401 的响应体）已随失败 span 的 error 字段落盘（脱敏 + 限长），
+  //    用户点开该 run 即可看到，无需再翻主进程日志——文案照此引导。
   if (outcome.event.event === "errored") {
     throw new CreateRunError(
       CREATE_RUN_ERROR_CODES.RUN_FAILED,
-      `新建 run 执行失败：模型调用未完成（终止原因 ${outcome.event.reason}）。run ${runId ?? "(未落盘)"} 已落盘，可在列表中点开查看这次请求；trace 不记录错误详情，请看应用主进程日志。`,
+      `新建 run 执行失败：模型调用未完成（终止原因 ${outcome.event.reason}）。run ${runId ?? "(未落盘)"} 已落盘，可在列表中点开该 run，查看失败的那次 LLM 调用上的错误详情。`,
     );
   }
 

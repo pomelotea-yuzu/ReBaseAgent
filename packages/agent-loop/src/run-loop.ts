@@ -1,8 +1,19 @@
-import type { EndSpanPatch, Fork, StartSpanAttr, Tracer } from "@rebaseagent/trace-sdk";
+import type {
+  EndSpanPatch,
+  Fork,
+  LlmCallError,
+  StartSpanAttr,
+  Tracer,
+} from "@rebaseagent/trace-sdk";
 import { configHash } from "./config-hash.js";
 import type { Message, RunConfig, Tool } from "./config.js";
+import {
+  buildRedactionSecrets,
+  normalizeFailureText,
+  sanitizeDiagnosticText,
+} from "./diagnostic.js";
 import type { LlmClient } from "./llm-client.js";
-import { OpenAiCompatClient } from "./llm-client.js";
+import { OpenAiCompatClient, extractHttpStatus } from "./llm-client.js";
 import { ToolRegistry } from "./tool-registry.js";
 
 /**
@@ -57,6 +68,8 @@ export async function runLoop(
   const messages: Message[] = [...initialMessages];
   const usages: Array<{ in: number; out: number }> = [];
   const registry = new ToolRegistry(tools);
+  // 已知 secrets 算一次：注入客户端的错误文本从未经过内置客户端，落盘前必须再兜底脱敏
+  const secrets = buildRedactionSecrets(config);
 
   // config.tools 与 tools 必须一致（config 是纯数据契约，tools 含 handler）
   if (config.tools.length !== tools.length) {
@@ -111,9 +124,13 @@ export async function runLoop(
     try {
       response = (await llm.complete(messages, config.exec.signal ?? null)).response;
     } catch (e) {
-      // 请求失败：记录失败 span 后按 error 终止（不重试）；messages 保持完整
-      const message = e instanceof Error ? e.message : String(e);
-      // 错误详情目前不落 trace（格式变更另走 spec），先打到主进程终端便于诊断
+      // 请求失败：把诊断详情随失败 span 经 Tracer 流出（唯一观测出口），随后按 error 终止
+      // （不重试）；messages 保持完整、不追加失败轮 assistant 消息。
+      // 顺序：归一化（恒有文本）→ 脱敏 → 限长；status 只认 LlmRequestError（不猜）。
+      const message = sanitizeDiagnosticText(normalizeFailureText(e), secrets);
+      const status = extractHttpStatus(e);
+      const error: LlmCallError = { message, ...(status === undefined ? {} : { status }) };
+      // 保留的日志复用同一个最终 message（不另行拼接原异常，避免绕过脱敏的第二个出口）
       console.error(`[runLoop] LLM 调用失败：${message}`);
       tracer.endSpan(llmSpan, {
         response: {
@@ -123,6 +140,7 @@ export async function runLoop(
           usage: { in: 0, out: 0 },
           ttft_ms: 0,
         },
+        error,
       } satisfies EndSpanPatch);
       tracer.endSpan(step);
       tracer.endRun({ event: "errored", reason: "error", at: iteration });

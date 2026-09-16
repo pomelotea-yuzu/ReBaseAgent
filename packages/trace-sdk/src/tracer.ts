@@ -1,4 +1,5 @@
 import type {
+  LlmCallError,
   LlmRequest,
   LlmResponse,
   RunEventInput,
@@ -31,10 +32,16 @@ export type StartSpanAttr =
       args: Record<string, unknown>;
     };
 
-/** endSpan 的补丁（按 kind 区分；错误是数据不是异常——工具失败也要 endSpan） */
+/**
+ * endSpan 的补丁（按 kind 区分；错误是数据不是异常——工具失败也要 endSpan）。
+ *
+ * llm.call 的 `error` 是**可选的失败详情**：成功调用省略；与工具分支的
+ * `error: string | null` 同名异构（两者靠 `response` / `dur_ms` 区分分支，
+ * 不靠 `error`）——判定时先按 span kind 缩窄类型。
+ */
 export type EndSpanPatch =
   | { kind?: never }
-  | { response: LlmResponse }
+  | { response: LlmResponse; error?: LlmCallError }
   | { result?: unknown; dur_ms: number; error: string | null };
 
 /**

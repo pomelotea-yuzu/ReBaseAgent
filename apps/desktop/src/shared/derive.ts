@@ -183,6 +183,37 @@ export function deriveCacheHitTotal(spans: readonly SpanLine[]): number | null {
   return total;
 }
 
+/**
+ * 「错误详情未记录」判定：run 以 `reason: error` 终止，但**本 run 自身**没有任何
+ * 记录了失败的 `llm.call`。
+ *
+ * 两个都不许猜的坑，全部在这里一次性钉死：
+ * - **只查本 run 自有 spans**：入参 `spans` 可能是 `getRun` 的展开视图（分支 run 含祖先前缀），
+ *   祖先的失败记录不得冒充本次失败原因 ⇒ 必须用 `RunDetail.leafSpanIds` 过滤后再查。
+ *   自身没有 `llm.call`（如代理录制的失败 run）同样判为缺失。
+ * - **不反推失败原因**：判据只有「终止原因 + 有无 error 字段」，空正文 / 零 token /
+ *   末尾 llm.call 一律不参与推断；字段缺失表示"未记录"，不等于"没出错"。
+ */
+export function deriveMissingLlmErrorDetail(input: {
+  events: ReadonlyArray<{ reason: string }>;
+  /** `getRun` 返回的（可能是合并后的）轨迹 */
+  spans: readonly SpanLine[];
+  /** 本 run（叶子）自身新增 span 的 id */
+  leafSpanIds: readonly string[];
+}): boolean {
+  const lastEvent = input.events[input.events.length - 1];
+  // 非错误终止（含 crashed：无终止事件）⇒ 不适用缺失提示
+  if (lastEvent?.reason !== "error") return false;
+
+  const own = new Set(input.leafSpanIds);
+  for (const span of input.spans) {
+    if (!own.has(span.id)) continue;
+    // 先按 kind 缩窄（llm.call.error 是 object|undefined，判定用 !== undefined）
+    if (span.kind === "llm.call" && span.error !== undefined) return false;
+  }
+  return true;
+}
+
 /** 整个 run 的摘要（列表行所需的全部聚合数字） */
 export function deriveRunSummary(run: RunLike): RunSummary {
   let steps = 0;
