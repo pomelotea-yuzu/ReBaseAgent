@@ -112,3 +112,85 @@ describe("readRun：格式错误", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// 失败详情往返（add-llm-error-detail）：JSONL 读取必须保留 llm.call.error
+// ---------------------------------------------------------------------------
+describe("readRun：llm.call 的失败详情不丢字段", () => {
+  const failedLlmLine = (extra: Record<string, unknown> = {}): string =>
+    JSON.stringify({
+      type: "span",
+      id: "s_02",
+      kind: "llm.call",
+      parent: "s_01",
+      request: sampleRequest(),
+      response: {
+        content: null,
+        reasoning_content: null,
+        tool_calls: [],
+        usage: { in: 0, out: 0 },
+        ttft_ms: 0,
+      },
+      error: { message: "LLM 端点返回 HTTP 401：invalid key", status: 401 },
+      ...extra,
+    });
+
+  const failedEventLine = (): string =>
+    JSON.stringify({ type: "run.event", event: "errored", reason: "error", at: 1 });
+
+  it("读取失败 run：error 字段逐字段保留，终止原因为 error", () => {
+    const record = parseRunText([
+      metaLine(),
+      stepLine("s_01", 1),
+      failedLlmLine(),
+      failedEventLine(),
+    ]);
+    const span = record.spans.find((s) => s.kind === "llm.call");
+    expect(span?.kind === "llm.call" ? span.error : undefined).toEqual({
+      message: "LLM 端点返回 HTTP 401：invalid key",
+      status: 401,
+    });
+    expect(record.events[0]?.reason).toBe("error");
+  });
+
+  it("旧失败文件（无 error 字段）照常可读：缺省 = 未记录", () => {
+    const record = parseRunText([
+      metaLine(),
+      stepLine("s_01", 1),
+      JSON.stringify({
+        type: "span",
+        id: "s_02",
+        kind: "llm.call",
+        parent: "s_01",
+        request: sampleRequest(),
+        response: {
+          content: null,
+          reasoning_content: null,
+          tool_calls: [],
+          usage: { in: 0, out: 0 },
+          ttft_ms: 0,
+        },
+      }),
+      failedEventLine(),
+    ]);
+    const span = record.spans.find((s) => s.kind === "llm.call");
+    expect(span?.kind === "llm.call" ? span.error : "missing").toBeUndefined();
+  });
+
+  it("error 为 null 的畸形行被读取器拒绝（不静默当作缺失）", () => {
+    const { dir, cleanup } = tempDir();
+    try {
+      const file = join(dir, "bad.jsonl");
+      writeFileSync(
+        file,
+        [metaLine(), stepLine("s_01", 1), failedLlmLine({ error: null }), failedEventLine()].join(
+          "\n",
+        ),
+        "utf8",
+      );
+      expect(() => readRun(file)).toThrow(TraceReadError);
+    } finally {
+      cleanup();
+    }
+  });
+});

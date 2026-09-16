@@ -9,6 +9,7 @@ import {
   deriveCacheHitTotal,
   deriveChainTotals,
   deriveComparison,
+  deriveMissingLlmErrorDetail,
   deriveRunSummary,
   deriveStepStats,
   findCommonAncestor,
@@ -751,5 +752,115 @@ describe("findStepLlm（main 侧 fork 编排与 renderer 提示共用的查表�
     ];
     expect(findStepLlm(toolOnly, "s_03")).toBeNull();
     expect(findStepLlm([], "s_01")).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 「错误详情未记录」判定（add-llm-error-detail）
+// 只查本 run 自有 spans（leafSpanIds 过滤）——祖先的失败不得冒充本次原因，
+// 也不得因祖先有 error 而隐藏本 run 的缺失提示。
+// ---------------------------------------------------------------------------
+
+/** 失败的 llm.call（error 存在 = 记录了失败原因） */
+function failedLlm(id: string, parent = "s_01"): SpanLine {
+  return {
+    type: "span",
+    id,
+    kind: "llm.call",
+    parent,
+    request: { model: "deepseek-chat", messages: [] },
+    response: {
+      content: null,
+      reasoning_content: null,
+      tool_calls: [],
+      usage: { in: 0, out: 0 },
+      ttft_ms: 0,
+    },
+    error: { message: "LLM 端点返回 HTTP 401：invalid key", status: 401 },
+  } as unknown as SpanLine;
+}
+
+/** 成功（或未记录错误）的 llm.call */
+function okLlm(id: string, parent = "s_01"): SpanLine {
+  return {
+    type: "span",
+    id,
+    kind: "llm.call",
+    parent,
+    request: { model: "deepseek-chat", messages: [] },
+    response: {
+      content: "完成",
+      reasoning_content: null,
+      tool_calls: [],
+      usage: { in: 10, out: 5 },
+      ttft_ms: 1,
+    },
+  } as unknown as SpanLine;
+}
+
+const ERROR_EVENT = { type: "run.event", event: "errored", reason: "error", at: 1 } as const;
+const DONE_EVENT = { type: "run.event", event: "stopped", reason: "completed", at: 1 } as const;
+
+describe("deriveMissingLlmErrorDetail：错误详情缺失的诚实提示", () => {
+  it("错误终止 + 本 run 无任何 error ⇒ 缺失", () => {
+    expect(
+      deriveMissingLlmErrorDetail({
+        events: [ERROR_EVENT],
+        spans: [stepSpan("s_01", 1), okLlm("s_02")],
+        leafSpanIds: ["s_01", "s_02"],
+      }),
+    ).toBe(true);
+  });
+
+  it("本 run 有 error ⇒ 不缺失（详情由失败节点自己展示）", () => {
+    expect(
+      deriveMissingLlmErrorDetail({
+        events: [ERROR_EVENT],
+        spans: [stepSpan("s_01", 1), failedLlm("s_02")],
+        leafSpanIds: ["s_01", "s_02"],
+      }),
+    ).toBe(false);
+  });
+
+  it("祖先有 error、本 run 无 error 且错误终止 ⇒ 仍显示缺失（祖先不冒充本次原因）", () => {
+    expect(
+      deriveMissingLlmErrorDetail({
+        events: [ERROR_EVENT],
+        // 合并视图：s_02 来自祖先前缀，s_07/s_08 才是本 run 新增
+        spans: [stepSpan("s_01", 1), failedLlm("s_02"), stepSpan("s_07", 2), okLlm("s_08", "s_07")],
+        leafSpanIds: ["s_07", "s_08"],
+      }),
+    ).toBe(true);
+  });
+
+  it("祖先有 error、本 run 也有 error ⇒ 不缺失", () => {
+    expect(
+      deriveMissingLlmErrorDetail({
+        events: [ERROR_EVENT],
+        spans: [
+          stepSpan("s_01", 1),
+          failedLlm("s_02"),
+          stepSpan("s_07", 2),
+          failedLlm("s_08", "s_07"),
+        ],
+        leafSpanIds: ["s_07", "s_08"],
+      }),
+    ).toBe(false);
+  });
+
+  it("成功 run 不显示该提示（无终止错误）", () => {
+    expect(
+      deriveMissingLlmErrorDetail({
+        events: [DONE_EVENT],
+        spans: [stepSpan("s_01", 1), okLlm("s_02")],
+        leafSpanIds: ["s_01", "s_02"],
+      }),
+    ).toBe(false);
+  });
+
+  it("代理失败 run（无任何 llm.call，自身无 span）⇒ 仍提示缺失，且不报错", () => {
+    expect(deriveMissingLlmErrorDetail({ events: [ERROR_EVENT], spans: [], leafSpanIds: [] })).toBe(
+      true,
+    );
   });
 });

@@ -2,9 +2,9 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { JsonlTracer, NullTracer, readRun } from "@rebaseagent/trace-sdk";
-import type { TraceStreamEvent } from "@rebaseagent/trace-sdk";
+import type { SpanLine, TraceStreamEvent } from "@rebaseagent/trace-sdk";
 import { describe, expect, it } from "vitest";
-import { runLoop } from "../src/index";
+import { GENERIC_LLM_FAILURE, LlmRequestError, runLoop } from "../src/index";
 import {
   MockLlmClient,
   type ScriptedTurn,
@@ -287,5 +287,74 @@ describe("runLoop：Tracer 集成", () => {
         new MockLlmClient([{ content: "完成" }]),
       ),
     ).rejects.toThrow(/不一致/);
+  });
+});
+
+/** 收集一次失败 run 里 llm.call span 的 endSpan 事件（失败详情就在这里） */
+async function failedLlmSpan(
+  thrower: unknown,
+  over: Parameters<typeof sampleConfig>[0] = {},
+): Promise<Extract<SpanLine, { kind: "llm.call" }>> {
+  const events: TraceStreamEvent[] = [];
+  const tracer = new NullTracer();
+  tracer.subscribe((e) => events.push(e));
+  await runLoop(sampleConfig(over), initialMessages("任务"), tracer, tools, {
+    complete: async () => {
+      throw thrower;
+    },
+  });
+  // 每次 complete 都抛同样的东西 ⇒ 恰好一轮，取该轮的 llm.call
+  const span = events.find(
+    (e): e is Extract<TraceStreamEvent, { type: "span.end" }> =>
+      e.type === "span.end" && e.span.kind === "llm.call",
+  )?.span;
+  if (span === undefined || span.kind !== "llm.call") throw new Error("未捕获到 llm.call span");
+  return span;
+}
+
+describe("runLoop：失败详情落盘（add-llm-error-detail）", () => {
+  it("LlmRequestError → error.message 落盘且保留 status", async () => {
+    const span = await failedLlmSpan(
+      new LlmRequestError("LLM 端点返回 HTTP 429：rate limited", 429),
+    );
+    expect(span.error).toEqual({ message: "LLM 端点返回 HTTP 429：rate limited", status: 429 });
+    // 失败 span 的 response 仍是空占位（不重构失败用量模型）
+    expect(span.response).toEqual({
+      content: null,
+      reasoning_content: null,
+      tool_calls: [],
+      usage: { in: 0, out: 0 },
+      ttft_ms: 0,
+    });
+  });
+
+  it("普通异常 → 只有 message，不猜 status（不写该键）", async () => {
+    const span = await failedLlmSpan(new Error("boom"));
+    expect(span.error).toEqual({ message: "boom" });
+    expect(span.error !== undefined && "status" in span.error).toBe(false);
+  });
+
+  it("非 Error 值 → 固定兜底文案（垃圾文本不落盘）", async () => {
+    for (const thrown of [{}, undefined, null, "   "]) {
+      const span = await failedLlmSpan(thrown);
+      expect(span.error?.message).toBe(GENERIC_LLM_FAILURE);
+      expect(span.error?.status).toBeUndefined();
+    }
+  });
+
+  it("注入客户端回显凭据 → 落盘前被脱敏（loop 侧兜底）", async () => {
+    // 注入客户端的错误文本从未经过内置客户端 ⇒ 必须在 loop 落盘前脱敏
+    const span = await failedLlmSpan(
+      new Error("上游回显 apiKey=sk-live-injected-9999，请检查配置"),
+      { apiKey: "sk-live-injected-9999" },
+    );
+    expect(span.error?.message).not.toContain("sk-live-injected-9999");
+    expect(span.error?.message).toContain("[已脱敏]");
+  });
+
+  it("超长错误文本被限长到 1024（含截断标记）", async () => {
+    const span = await failedLlmSpan(new Error("x".repeat(5000)));
+    expect(span.error?.message.length).toBe(1024);
+    expect(span.error?.message.endsWith("…[已截断]")).toBe(true);
   });
 });

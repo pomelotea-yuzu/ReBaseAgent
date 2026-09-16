@@ -277,6 +277,80 @@ describe("OpenAiCompatClient", () => {
 });
 
 // ---------------------------------------------------------------------------
+// 诊断文本脱敏与限长（add-llm-error-detail）
+// 顺序铁律：先脱敏、后截断——提前切片会漏掉落在切片之外的凭据，或让凭据只剩前缀。
+// ---------------------------------------------------------------------------
+describe("诊断文本：凭据不回显、长度受限", () => {
+  const KEY = "sk-live-credential-abcd1234";
+
+  it("HTTP 401 响应体回显 apiKey → 报错文本已脱敏（客户端侧）", async () => {
+    const client = new OpenAiCompatClient(
+      sampleConfig({ apiKey: KEY }),
+      (async () =>
+        new Response(`{"error":{"message":"invalid key ${KEY}"}}`, { status: 401 })) as never,
+    );
+    const err = await client
+      .complete([{ role: "user", content: "hi" }], null)
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(LlmRequestError);
+    expect((err as LlmRequestError).message).not.toContain(KEY);
+    expect((err as LlmRequestError).message).toContain("[已脱敏]");
+    expect((err as LlmRequestError).status).toBe(401);
+  });
+
+  it("凭据位于旧 200 字符切片之外 → 仍被完整替换（证明脱敏在截断之前）", async () => {
+    const padding = "filler-".repeat(40); // 240 字符 > 旧切片 200
+    const client = new OpenAiCompatClient(
+      sampleConfig({ apiKey: KEY }),
+      (async () => new Response(`${padding}key=${KEY}`, { status: 500 })) as never,
+    );
+    const err = (await client
+      .complete([{ role: "user", content: "hi" }], null)
+      .catch((e: unknown) => e)) as LlmRequestError;
+    expect(err.message).not.toContain(KEY);
+    expect(err.message).not.toContain(KEY.slice(0, 10));
+  });
+
+  it("超长响应体 → 统一限长 1024（含截断标记），且不残留凭据前缀", async () => {
+    const client = new OpenAiCompatClient(
+      sampleConfig({ apiKey: KEY }),
+      (async () => new Response(`${"x".repeat(3000)}${KEY}`, { status: 502 })) as never,
+    );
+    const err = (await client
+      .complete([{ role: "user", content: "hi" }], null)
+      .catch((e: unknown) => e)) as LlmRequestError;
+    expect(err.message.length).toBe(1024);
+    expect(err.message.endsWith("…[已截断]")).toBe(true);
+    expect(err.message).not.toContain(KEY);
+  });
+
+  it("SSE 非法数据块回显凭据（位于旧 100 字符切片之外）→ 仍被脱敏", async () => {
+    const bad = `{"padding":"${"y".repeat(150)}","key":"${KEY}"`; // 非法 JSON，凭据在 100 字符之后
+    const client = new OpenAiCompatClient(
+      sampleConfig({ apiKey: KEY }),
+      (async () =>
+        new Response(streamOf([`data: ${bad}\n\n`]), {
+          status: 200,
+          headers: { "Content-Type": "text/event-stream" },
+        })) as never,
+    );
+    const err = (await client
+      .complete([{ role: "user", content: "hi" }], null)
+      .catch((e: unknown) => e)) as LlmRequestError;
+    expect(err.message).toContain("JSON 解析失败");
+    expect(err.message).not.toContain(KEY);
+    expect(err.message.length).toBeLessThanOrEqual(1024);
+  });
+
+  it("无参数调用聚合函数保持兼容（不传脱敏上下文）", async () => {
+    const result = await aggregateSseStream(
+      streamOf([sseData({ choices: [{ delta: { content: "正常" } }] }), `${DONE_MARK}\n\n`]),
+    );
+    expect(result.content).toBe("正常");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 回归：ttft 取时点（原实现把计时起点放在"读完整条流之后"，量到的是解析耗时）
 // 判据来自 archive/2026-09-03-add-agent-loop/design.md:40 —— 首个含内容 delta 的
 // chunk 与**请求发出时刻**之差。下列用例在旧实现上必须失败。

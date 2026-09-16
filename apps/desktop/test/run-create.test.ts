@@ -135,6 +135,13 @@ describe("runCreate：失败路径", () => {
       expect(summary?.id).toBe(id);
       expect(summary?.reason).toBe("error");
       expect(record.meta.parent).toBeNull();
+
+      // 失败原因已随失败 span 落盘（add-llm-error-detail）：点开 run 即可诊断，
+      // 不必再翻主进程日志。无 HTTP 状态码的失败不写 status。
+      const llmSpan = record.spans.find((span) => span.kind === "llm.call");
+      const error = llmSpan?.kind === "llm.call" ? llmSpan.error : undefined;
+      expect(error?.message).toContain("剧本耗尽");
+      expect(error !== undefined && "status" in error).toBe(false);
     } finally {
       cleanup();
     }

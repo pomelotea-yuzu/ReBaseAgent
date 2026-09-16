@@ -400,3 +400,54 @@ describe("schema：usage 缓存命中字段", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// llm.call 的失败详情（add-llm-error-detail）：可选、非空 message、status 可选
+// ---------------------------------------------------------------------------
+describe("schema：llm.call.error（调用失败详情）", () => {
+  const spanWith = (error: unknown) => ({
+    type: "span",
+    id: "s_02",
+    kind: "llm.call",
+    parent: "s_01",
+    request: sampleRequest(),
+    response: {
+      content: null,
+      reasoning_content: null,
+      tool_calls: [],
+      usage: { in: 0, out: 0 },
+      ttft_ms: 0,
+    },
+    ...(error === undefined ? {} : { error }),
+  });
+
+  it("带 status 的失败详情通过并原样保留", () => {
+    const span = LlmCallSpanSchema.parse(
+      spanWith({ message: "LLM 端点返回 HTTP 401：invalid key", status: 401 }),
+    );
+    expect(span.error).toEqual({ message: "LLM 端点返回 HTTP 401：invalid key", status: 401 });
+  });
+
+  it("无 status 的失败通过（不写 0、不写占位）", () => {
+    const span = LlmCallSpanSchema.parse(spanWith({ message: "SSE 流中断" }));
+    expect(span.error).toEqual({ message: "SSE 流中断" });
+    expect(span.error !== undefined && "status" in span.error).toBe(false);
+  });
+
+  it("缺省合法：缺失只表示未记录，老文件照常可读", () => {
+    const span = LlmCallSpanSchema.parse(spanWith(undefined));
+    expect(span.error).toBeUndefined();
+    expect("error" in span).toBe(false);
+  });
+
+  it("error 为 null 被拒绝（缺省态是 undefined，与 tool.invoke.error 语义相反方向）", () => {
+    expect(() => LlmCallSpanSchema.parse(spanWith(null))).toThrow();
+  });
+
+  it("message 为空、status 非正整数被拒绝", () => {
+    expect(() => LlmCallSpanSchema.parse(spanWith({ message: "" }))).toThrow();
+    for (const bad of [{ status: 0 }, { status: -1 }, { status: 1.5 }, { status: "401" }]) {
+      expect(() => LlmCallSpanSchema.parse(spanWith({ message: "失败", ...bad }))).toThrow();
+    }
+  });
+});

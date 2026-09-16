@@ -40,6 +40,7 @@ ReBaseAgent 是给"上下文"这门语言的调试器：
 - **Trace-as-Test（V3a）** — 已封存 trace 当卡带，用你当前的 agent-loop 与工具声明本地重跑：零 API 消耗的 Agent 运行时回归测试，可进 CI（见 [`packages/trace-test`](packages/trace-test)）
 - **原生 run 创建（A1）** — 桌面端点「＋ 新建运行」直接跑一个 run（空工具表、纯对话），不依赖代理与脚本；产出的根 run 可直接作为 prompt fork / 模型 A/B / trace-test 的父本
 - **模型 A/B 实验（V3b）** — 同一父 run 起点批量换 model / 采样参数（如 temperature 0.2 vs 1.5），多臂顺序执行、独立录制，结果按 experimentId 在分支树与对比面板分组。桌面端提供编辑器（dry-run 计划预览 → 费用确认），命令行提供 `rebaseagent-model-ab`
+- **LLM 失败原因可诊断** — LLM 调用失败时，`llm.call` 记录脱敏并限长的 `error`（message + 已知时的 HTTP 状态码）：轨迹树标红该节点，详情直接给出原因与状态码，并声明 tokens/延迟是占位零值；老 trace 缺该字段时界面显示「错误详情未记录」而不猜造原因；Trace-as-Test 卡带消费到带 `error` 的录制会重现同样的失败
 
 CLI（均含 `--help`，退出码 0=成功 / 1=执行失败 / 2=配置错误）：
 
@@ -138,6 +139,7 @@ DeepSeek / GLM / Qwen / Kimi 等 OpenAI 兼容端点开箱即用。
 - 代理录制的 run 现在会从请求体现算 `config_hash`（有 system + 可解析工具表时），因而**可以作为 prompt fork / 模型 A/B 的父本**；不含字符串 system 消息的录制（无法派生指纹）仍不能，只能走"编辑 messages 重发"
 - 带副作用的工具默认**不真重跑**：replay 是 world-free 重放，把录下的结果喂回模型，trace 内自洽。外部状态源（RAG / 记忆 / 数据库）不承诺回退
 - 命令行模型 A/B 首期只接受**空工具表**的父 run（纯对话任务）；带工具的实验请用桌面端
+- **失败原因只覆盖端上模型的调用**：代理录制的 run 在其上游返回非 2xx 时不写 `llm.call`，这类失败没有调用级详情（界面会显示「错误详情未记录」）；脱敏是**尽力而为**——只覆盖本次配置的 apiKey / baseURL 凭据与 Authorization、Bearer、URL 凭据形态，不承诺识别任意业务文本里的所有秘密
 
 ## 路线图
 
@@ -147,6 +149,7 @@ DeepSeek / GLM / Qwen / Kimi 等 OpenAI 兼容端点开箱即用。
 - ✅ **V3b（模型 A/B 实验）** — model_params fork 内核 · 多臂编排（副作用门禁 + dry-run/费用确认）· `rebaseagent-model-ab` CLI · 桌面端实验分组 UI
 - ✅ **原生 run 创建入口（A1）** — 桌面端「＋ 新建运行」直接跑一个 run，无需代理/脚本；产出的 run 可立刻作为 prompt fork / 模型 A/B / trace-test 的父本
 - ✅ **共享前缀重跑·缓存记账与成本兑现（A2）** — 先勘误：截断复用**早已实现**（分叉点前零 LLM 调用），原条目「当前所有重跑都是从头执行」是错的；本条目补的是**计费侧**——`cache_hit`/`cache_miss` 落 trace + 桌面端展示 + 真机实测，并把「成本约 1/4」改写成**区间 + 条件**（实测 3 次调用改最后一步 ⇒ 只发 1 次请求、全价口径 21%~40%，见上）
+- ✅ **LLM 失败详情落盘与展示（`add-llm-error-detail`）** — 失败原因随 `llm.call.error` 落 trace（脱敏 + 限长 1024）、桌面端标红并展示原因与状态码、老/代理失败 run 诚实显示「错误详情未记录」、Trace-as-Test 卡带重现录制失败
 - 📋 **隔离世界真重跑** — 带副作用工具在 COW/快照沙箱中真实执行（sideEffect 分级已预埋）
 - 📋 **工程与分发** — 面向新用户的 quickstart 文档 · macOS/Linux 打包评估 · 协作分享（trace 包导出）
 

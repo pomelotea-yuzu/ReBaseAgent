@@ -328,7 +328,7 @@ describe("store：runs:create 流转（A1）", () => {
       error: {
         code: "CREATE_RUN_FAILED",
         message:
-          "新建 run 执行失败：模型调用未完成（终止原因 error）。run run_x 已落盘，可在列表中点开查看这次请求；trace 不记录错误详情，请看应用主进程日志。",
+          "新建 run 执行失败：模型调用未完成（终止原因 error）。run run_x 已落盘，可在列表中点开该 run，查看失败的那次 LLM 调用上的错误详情。",
       },
     };
     await useAppStore.getState().loadRuns();
