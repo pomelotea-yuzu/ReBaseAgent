@@ -19,5 +19,5 @@
 - **THEN** 拒绝分叉，不创建文件、不调用模型
 
 #### Scenario: 隔离父本不能转普通 prompt fork
-- **WHEN** 带 workspace 的 run 经桌面或包 API 发起 prompt fork
+- **WHEN** 带 workspace 的 run 经包 API 发起 prompt fork
 - **THEN** 明确拒绝隔离执行降级，不加载普通文件 handler、不创建子 run、不发 LLM 请求

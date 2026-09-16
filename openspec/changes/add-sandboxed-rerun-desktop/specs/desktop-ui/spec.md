@@ -2,10 +2,10 @@
 
 ### Requirement: 全程只读且只呈现原样数据
 
-系统 SHALL NOT 提供修改或删除既有 trace 的通道；span/messages SHALL 为文件原样内容，长内容用折叠而非丢弃。既有显式执行入口保持授权要求；本次扩展的 `runs:create` / `runs:fork` 在隔离模式下 SHALL 只新增本次 trace 和不可变文件附件，不修改源目录、父/兄弟运行及已有附件。目录选择、快照检查和文件差异查看 SHALL 为只读，不触发运行或补写快照。
+系统 SHALL NOT 提供修改或删除既有 trace 的通道；span/messages SHALL 为文件原样内容，长内容用折叠而非丢弃。既有显式执行入口保持授权要求；本次扩展的 `runs:create` / `runs:fork` 在隔离模式下 SHALL 只新增本次 trace 和不可变文件附件，不修改源目录、父/兄弟运行及已有附件。目录选择、轨迹浏览和隔离能力预检 SHALL 为只读，不触发运行或补写快照；本阶段不要求文件视图。
 
 #### Scenario: 浏览过程无写入
-- **WHEN** 用户浏览 run、文件快照或文本差异，或打开/取消源目录选择器
+- **WHEN** 用户浏览 run 轨迹、执行隔离能力预检，或打开/取消源目录选择器
 - **THEN** 不创建 trace/blob，不修改或删除既有文件，不请求 LLM
 
 #### Scenario: 超长消息
@@ -72,11 +72,11 @@
 
 #### Scenario: 执行失败不产生半成品
 - **WHEN** LLM 失败并由 runLoop 以 errored 封存
-- **THEN** 文件按 meta.id 归位，列表刷新使失败运行可见，status 仍表示已封存；IPC 返回 CREATE_RUN_FAILED 并引导查看详情，已记录隔离检查点保留可读，临时文件不出现在列表
+- **THEN** 文件按 meta.id 归位，列表刷新使失败运行可见，status 仍表示已封存；IPC 返回 CREATE_RUN_FAILED 并引导查看详情，已记录隔离检查点数据完整保留且轨迹可读，临时文件不出现在列表
 
 #### Scenario: 直接创建隔离文件父本
 - **WHEN** 用户选择受支持源目录、勾选副本写入并提交隔离模式
-- **THEN** 生成 v2 根运行，详情可查看初始与各轮文件快照，源目录字节不变，后续可编辑工具结果发起隔离分叉
+- **THEN** 生成 v2 根运行，详情可阅读轨迹和来源；从原始 trace 验证初始与各轮检查点已记录，源目录字节不变，后续可编辑工具结果发起隔离分叉；不要求文件页
 
 ## ADDED Requirements
 
@@ -84,7 +84,7 @@
 
 系统 SHALL 对隔离运行明确标注文件隔离，并在 result 编辑提交前显示父运行、选中工具、续跑轮末检查点、真实模型调用及副本写入授权。未满足检查点/profile/附件条件时 SHALL 禁用并显示原因。旧 trace SHALL NOT 显示为已恢复文件状态；隔离父本的 prompt fork/A-B SHALL 禁用。错误不能只靠颜色表达，执行中不得重复提交。
 
-轮号 SHALL 使用所属 run 原始 `agent.step.n`，并与该 run 身份及 step span 定位一起呈现；SHALL NOT 使用合并轨迹索引或沿链累计轮数冒充本地轮号。确认区 SHALL 指明直接父 run，当前文件检查点选择器 SHALL 使用“本 run 第 N 轮结束”，子运行的来源说明 SHALL 明确父 run 身份。
+轮号 SHALL 使用所属 run 原始 `agent.step.n`，并与该 run 身份及 step span 定位一起呈现；SHALL NOT 使用合并轨迹索引或沿链累计轮数冒充本地轮号。确认区 SHALL 指明直接父 run，子运行的来源说明 SHALL 明确父 run 身份。
 
 #### Scenario: 多工具轮次确认
 - **WHEN** 用户编辑直接父 run B 的本地第 N 轮首个工具结果，而该轮有其他工具
@@ -92,7 +92,7 @@
 
 #### Scenario: 二次分叉轮号不沿链累加
 - **WHEN** 根 run A 已有 3 轮，从子 run B 的本地第 1 轮再分叉生成 C
-- **THEN** 确认区和 C 的来源说明指向“运行 B 的第 1 轮”及其 span，B 文件选择器使用“本 run 第 1 轮结束”；不得将其标作第 4 轮或 C 的第 1 轮
+- **THEN** 确认区和 C 的来源说明指向“运行 B 的第 1 轮”及其 span；不得将其标作第 4 轮或 C 的第 1 轮
 
 #### Scenario: 历史运行和缺附件降级
 - **WHEN** 查看无检查点旧 run 或附件不可用的隔离 run
@@ -102,18 +102,27 @@
 - **WHEN** 用户查看隔离父本的 prompt fork / A-B 操作
 - **THEN** 显示本期不支持该执行方式；即使绕过 UI 发 IPC，也在 main/core 拒绝
 
-### Requirement: 文件检查点和差异只读可查
 
-详情 SHALL 提供文件视图，可选择本 run 初始状态或任一自有完成步骤。文件表 SHALL 显示路径、大小、相对初始快照的新增/修改状态及附件可用性；文本文件 SHALL 能并排比较初始与所选快照内容，二进制 SHALL 只显示可核对的大小/哈希。文件不存在、缺失和损坏 SHALL 明确区分，不渲染伪空文件。SHALL NOT 提供自动回写或应用到源目录的操作。
+#### Scenario: 每次桌面操作独立确认写入
+- **WHEN** 父 trace 带 write_authorized:true，用户重新打开创建或隔离分叉确认，或直接提交缺 allowFileWrites 的 IPC
+- **THEN** 本次副本写入复选框默认未选，必须本次显式确认；main 拒绝缺授权请求，不从历史记录补授权，零新运行和模型调用
 
-#### Scenario: 重启后查看文件差异
-- **WHEN** 应用重启后打开完成的隔离子 run，选择一个完成步骤的修改文件
-- **THEN** 从 trace 引用加载相应初始/当前文本，显示真实差异和步骤来源，全部操作零文件写入与零 LLM
+#### Scenario: 创建与确认在窄窗口可操作
+- **WHEN** 使用窄窗口和长源路径打开隔离创建或分叉确认
+- **THEN** 路径、来源、轮末边界、授权和提交状态可读且不遮挡，可滚动或换行，错误不只靠颜色表达
 
-#### Scenario: 文件读取 IPC 拒绝越权
-- **WHEN** renderer 提交清单之外路径、祖先而非自有 step，或任意物理 blob 路径
-- **THEN** 返回明确错误，不读取目标宿主文件，不以同名文件或其他快照替代
+### Requirement: 隔离详情 IPC 保留数据并校验版本
 
-#### Scenario: 长文本及窄窗口
-- **WHEN** 在代表性桌面和窄窗口中打开长路径、多文件及长文本差异
-- **THEN** 路径和状态可读，列表/内容能切换或滚动，文本不覆盖提交和导航控件；二进制或缺失附件不触发文本比较
+系统 SHALL 在 RunRecord/RunDetail 的原始输入进入 schema 转换前复用 trace-sdk 的版本禁字段 helper。v1 自有 workspace、fork.resume_after_step、span.workspace_snapshot 即使值为 null/false/空对象或内存 undefined 也 SHALL 拒绝；SHALL NOT 泛化 strict 或递归搜索业务内容同名字段。合法 v2 的 workspace、快照、fork 边界及祖先来源 SHALL 完整往返；校验 SHALL 根据记录所属 run 版本进行，不把祖先元数据遗漏。纯轨迹解析 SHALL 不读取 blob，附件不可用不影响合法 JSONL 的轨迹展示。
+
+#### Scenario: 详情 IPC 快照往返
+- **WHEN** 合法 v2 根及分支的初始、空清单和完成步骤快照经 main/preload/renderer 加载
+- **THEN** 路径、哈希、来源、边界和所属 run 完整保留；消息、步骤语义顺序不变，缺附件仍可浏览轨迹
+
+#### Scenario: 详情 IPC 拒绝 v1 隔离字段
+- **WHEN** v1 RunRecord/RunDetail 原始输入或祖先 meta 带隔离字段，另有不相关扩展和业务正文同名字段的对照
+- **THEN** 前者在转换前按属性存在性拒绝，后者保持既有兼容行为；不以字段 truthiness 判定，不丢字段后继续显示或执行
+
+#### Scenario: 真实列表扫描完整且只读
+- **WHEN** 对 1/10/50 run 的合法短路径、长 ASCII/中文路径 fixture 和 v1 对照执行实际 listRuns
+- **THEN** 每份 trace 完整校验，列表的步骤、用量、状态与完整读取派生一致，不读 blob、不写缓存或修改 trace；记录环境、字节量、首次进程/重复扫描耗时及峰值内存，不将其描述为已清空 OS 缓存或大规模即时刷新

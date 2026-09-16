@@ -17,7 +17,7 @@
 - **THEN** 报错指明分叉点非法，不产生运行文件
 
 #### Scenario: 普通入口不可降级隔离父本
-- **WHEN** 带 workspace 的父本被传给普通 replayRun，或桌面未携带隔离执行模式
+- **WHEN** 带 workspace 的父本被传给普通 replayRun
 - **THEN** 在任何工具/模型调用及子 trace 创建前拒绝；禁止只更换 cwd 或删除 workspace 后执行
 
 ### Requirement: 重跑经 agent-loop 执行并落盘 fork run

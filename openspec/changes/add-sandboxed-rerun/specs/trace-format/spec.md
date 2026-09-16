@@ -44,10 +44,10 @@ v2 `run.meta.workspace` SHALL 记录 `profile:"file-tools-v1"`、等于本 run i
 
 `write_authorized:true` SHALL 仅作为创建方记录该次运行已获确认的审计标注，SHALL NOT 作为当前执行权限或不可伪造的授权证明；新一次创建/分叉必须独立校验当前请求的副本写入授权，不得从父 trace 的该字段推导。
 
-快照 SHALL 是 `{id,files:[{path,sha256,bytes}]}`，files 为排序后的合法唯一相对文件路径清单，id 为规范清单哈希。SHA-256 SHALL 是 64 位小写十六进制，bytes SHALL 为非负整数，路径 SHALL 满足文件世界约束；快照 SHALL 不携带绝对磁盘路径、凭据或内联文件字节。事件流、JSONL 往返和详情 IPC SHALL 保留这些字段。
+快照 SHALL 是 `{id,files:[{path,sha256,bytes}]}`，files 为排序后的合法唯一相对文件路径清单，id 为规范清单哈希。SHA-256 SHALL 是 64 位小写十六进制，bytes SHALL 为非负整数，路径 SHALL 满足文件世界约束；快照 SHALL 不携带绝对磁盘路径、凭据或内联文件字节。事件流、JSONL、MemoryTracer 和读取器往返 SHALL 保留这些字段。
 
 #### Scenario: 根与分支快照往返
-- **WHEN** 初始快照和两轮结束快照经 Tracer 写入，再通过读取器及详情 IPC 加载
+- **WHEN** 初始快照和两轮结束快照经 Tracer 写入，再通过读取器加载
 - **THEN** 所有路径、哈希、来源及边界字段完整保留，span 语义顺序仍正确；空清单也可往返
 
 #### Scenario: 非法清单拒绝
@@ -56,4 +56,4 @@ v2 `run.meta.workspace` SHALL 记录 `profile:"file-tools-v1"`、等于本 run i
 
 #### Scenario: 无附件仍能看轨迹
 - **WHEN** 合法 v2 JSONL 存在但附件目录不可用
-- **THEN** 普通 trace 解析不加载附件，仍能阅读消息与步骤；文件查看和真实续跑分别报告不可用，不能改写 trace 补数据
+- **THEN** 普通 trace 解析不加载附件，仍返回完整消息与步骤；包附件读取和真实续跑分别报告不可用，不能改写 trace 补数据
