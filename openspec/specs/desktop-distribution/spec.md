@@ -4,15 +4,6 @@
 
 ## Requirements
 
-### Requirement: v2 收口使用独立的 v0.2.0 发行身份
-
-系统 SHALL 将根项目与 desktop 发行包版本设为 `0.2.0`，并生成名为 `ReBaseAgent-0.2.0-win-x64-portable.exe` 的新产物。构建与验收 SHALL NOT 覆盖或把既有 v0.1.0 产物误报为本次发行结果；未对外发布的 workspace library 版本不受本要求影响。
-
-#### Scenario: 生成 v0.2.0 产物
-
-- **WHEN** 执行本 change 的 Windows x64 portable 发布构建
-- **THEN** 输出文件名和应用版本均为 v0.2.0，v0.1.0 产物仍可独立保留用于回滚
-
 ### Requirement: portable 产物遵守严格的分发体积预算
 
 系统 SHALL 生成单个 Windows x64 portable 可执行文件，文件大小必须小于 100,000,000 bytes。发布验收 SHALL 输出产物路径与精确字节数；尺寸达到或超过阈值时 SHALL 失败，且该产物不得被标记为满足 Gitee 附件限制。
@@ -106,3 +97,31 @@ portable 可执行文件、运行窗口与 Windows 任务栏 SHALL 使用同一�
 
 - **WHEN** 本 change 未产生可复现的真实模型调用成本对照数据
 - **THEN** 发布说明不新增确定的成本节省比例，并保留其理论或待验证性质
+
+### Requirement: 发行物使用可辨认且不冲突的版本身份
+
+系统 SHALL 为每次发行确定一个可辨认的版本身份，并据此生成产物名。应用版本（`apps/desktop/package.json` 的 `version`）与产物文件名 SHALL 由**同一来源**推导；二者不一致时，发行验收 SHALL 以非零状态失败，并报告期望值与实际值。
+
+发行准备 SHALL 记录本次的目标版本、预期产物名与包含范围。新产物 SHALL 与既有产物隔离：SHALL NOT 覆盖、移动或删除既有产物，也 SHALL NOT 把既有产物判定为本次发行的结果。体验包与正式发行 SHALL 使用可分辨的身份与输出位置，使同名产物不会被混淆。
+
+未对外发布的 workspace library 版本不受本要求影响。
+
+#### Scenario: 生成带版本身份的产物
+
+- **WHEN** 仅修改应用包版本后执行 Windows x64 portable 发布构建
+- **THEN** 产物名按 `ReBaseAgent-<version>-win-x64-portable.exe` 生成、应用版本与该版本一致，且无需改动任何发行校验脚本
+
+#### Scenario: 版本与产物名不一致时验收失败
+
+- **WHEN** 产物文件名或应用版本与发行准备记录的目标版本不一致
+- **THEN** 发行验收以非零状态失败，并输出期望值与实际值
+
+#### Scenario: 既有产物不被覆盖
+
+- **WHEN** 新构建产生与既有产物相同的文件名
+- **THEN** 新产物输出到与既有产物不同的位置，既有产物的字节数与哈希保持不变
+
+#### Scenario: 既有产物不被误报为本次结果
+
+- **WHEN** 对非本次目标版本的既有产物执行发行验收
+- **THEN** 验收失败，SHALL NOT 判定为通过
