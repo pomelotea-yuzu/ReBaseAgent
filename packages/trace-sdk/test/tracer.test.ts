@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { JsonlTracer, NullTracer } from "../src/index";
 import type { TraceStreamEvent } from "../src/index";
 import { readRun } from "../src/index";
-import { recordDemoRun, sampleMeta, tempDir } from "./helpers";
+import { recordDemoRun, sampleMeta, sampleRequest, sampleResponse, tempDir } from "./helpers";
 
 describe("事件流", () => {
   it("NullTracer：事件按发生顺序流出，可被订阅断言（无文件运行）", () => {
@@ -157,6 +157,78 @@ describe("JsonlTracer：文件写入", () => {
       recordDemoRun(tracer);
       expect(existsSync(dir)).toBe(true);
       expect(readdirSync(dir)).toHaveLength(0);
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+describe("JsonlTracer：异常清理（dispose，不写终止事件）", () => {
+  it("dispose 只关句柄：未封存记录保留，readRun 判 crashed，无终止事件", () => {
+    const { dir, cleanup } = tempDir();
+    try {
+      const file = join(dir, "aborted.jsonl");
+      const tracer = new JsonlTracer(file);
+      tracer.startRun(sampleMeta());
+      const step = tracer.startSpan({ kind: "agent.step", n: 1 });
+      const llm = tracer.startSpan({
+        kind: "llm.call",
+        parent: step,
+        request: sampleRequest(),
+      });
+      tracer.endSpan(llm, { response: sampleResponse() });
+
+      tracer.dispose();
+
+      const record = readRun(file);
+      expect(record.status).toBe("crashed"); // 未封存状态保留
+      expect(record.events).toHaveLength(0); // 没有追加虚假终止事件
+      expect(record.spans.map((s) => s.kind)).toEqual(["llm.call"]); // 已写入的行原样在
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("重复 dispose 无副作用；封存后再 dispose 也无副作用", () => {
+    const { dir, cleanup } = tempDir();
+    try {
+      const file = join(dir, "twice.jsonl");
+      const tracer = new JsonlTracer(file);
+      tracer.startRun(sampleMeta());
+      tracer.dispose();
+      expect(() => tracer.dispose()).not.toThrow(); // 句柄已关：幂等
+
+      const sealed = new JsonlTracer(join(dir, "sealed.jsonl"));
+      recordDemoRun(sealed); // endRun 已关闭句柄并封存
+      expect(() => sealed.dispose()).not.toThrow();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("dispose 后再写入抛错，文件内容不变", () => {
+    const { dir, cleanup } = tempDir();
+    try {
+      const file = join(dir, "after-dispose.jsonl");
+      const tracer = new JsonlTracer(file);
+      tracer.startRun(sampleMeta());
+      tracer.dispose();
+
+      // startSpan 只进内存表，真正落盘的是 endSpan ⇒ 由它抛"文件未打开"
+      const step = tracer.startSpan({ kind: "agent.step", n: 1 });
+      expect(() => tracer.endSpan(step, {})).toThrow(/文件未打开/);
+      const before = readFileSync(file, "utf8");
+      expect(before.trim().split("\n")).toHaveLength(1); // 仍只有 meta 一行
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("从未 startRun 的 Tracer dispose 无副作用", () => {
+    const { dir, cleanup } = tempDir();
+    try {
+      const tracer = new JsonlTracer(join(dir, "never-started.jsonl"));
+      expect(() => tracer.dispose()).not.toThrow();
     } finally {
       cleanup();
     }

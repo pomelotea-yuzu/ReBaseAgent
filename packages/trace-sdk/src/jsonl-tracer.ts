@@ -52,6 +52,25 @@ export class JsonlTracer extends BaseTracer implements Tracer {
     }
   }
 
+  /**
+   * 异常清理：只关闭当前文件句柄，**不写终止事件**。
+   *
+   * 供编排层的 finally 路径使用（trace 写入失败、导入失败等导致本次编排提前退出）：
+   * 已写入的行原样保留 —— 文件保持"未封存"（readRun 判为 crashed）。这是事故现场，
+   * 不是可以补一个"成功终止"来圆场的中间态；要收口成 completed/errored 只能走正常
+   * `endRun`。幂等：句柄已关闭（含已封存、从未 startRun）时调用无副作用。
+   * 调用后本 Tracer 不可再写入（appendLine 按"文件未打开"抛错）。
+   */
+  dispose(): void {
+    if (this.fd !== null) {
+      try {
+        closeSync(this.fd);
+      } finally {
+        this.fd = null; // 关闭失败也要置空：句柄状态以本对象视角为准，避免重复 close 抛错
+      }
+    }
+  }
+
   /** 整行写入（一次 writeSync 一行，保证行原子性） */
   private appendLine(line: RunMetaLine | SpanLine | RunEventLine): void {
     if (this.fd === null) {
