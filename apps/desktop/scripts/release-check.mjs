@@ -1,9 +1,10 @@
 /**
  * 发行检查模块：release:verify CLI 与 vitest 共用的纯函数 + 确定性审计。
  *
- * 门禁（见 openspec change finish-v2-desktop-release）：
+ * 门禁（见 openspec change allow-versioned-release-identity）：
  * - 体积：单文件 portable 必须严格小于 100_000_000 bytes（Gitee 单附件阈值）。
- * - 身份：输入文件名与应用版本必须为 v0.2.0，旧 v0.1.0 产物不得冒充本次结果。
+ * - 身份：产物名与应用版本必须同源推导；产物名声明的版本与应用包版本不一致即失败，
+ *   既有版本产物不得冒充本次结果。
  * - 资源：renderer 源码不得从 monaco-editor 包根 / 基础语言聚合入口导入；
  *   构建产物必须包含 editor/json worker，且不得包含 ts/css/html worker。
  */
@@ -13,10 +14,35 @@ import { extname, join, relative } from "node:path";
 
 /** 分发体积硬阈值：严格小于 100,000,000 bytes，不用 100 MiB。 */
 export const BYTE_LIMIT = 100_000_000;
-/** 本次发行目标名（编码版本 0.2.0），builder 按 artifactName 模板生成。 */
-export const EXPECTED_ARTIFACT_NAME = "ReBaseAgent-0.2.0-win-x64-portable.exe";
-/** 本次发行应用版本。 */
-export const EXPECTED_APP_VERSION = "0.2.0";
+
+/**
+ * 产物名模板：必须与 `electron-builder.yml` 的 `artifactName` 一致
+ * （该文件以 `ReBaseAgent-${version}-win-x64-portable.${ext}` 渲染）。
+ * 二者的一致性由测试守护，避免模板与推导函数各自漂移。
+ */
+export function expectedArtifactName(version) {
+  return `ReBaseAgent-${version}-win-x64-portable.exe`;
+}
+
+/** 从产物文件名解析它声明的版本；不符合模板时返回 null。 */
+export function parseArtifactVersion(fileName) {
+  const matched = fileName.match(/^ReBaseAgent-(.+)-win-x64-portable\.exe$/);
+  return matched?.[1] ?? null;
+}
+
+/**
+ * 读取应用包的目标版本 —— 发行身份的唯一真相来源。
+ * 文件不存在、JSON 非法、`version` 缺失或非字符串一律返回 null，不抛错：
+ * 验收的职责是判定并报告，而不是在读取阶段崩溃。
+ */
+export function readAppVersion(appPackagePath) {
+  try {
+    const version = JSON.parse(readFileSync(appPackagePath, "utf8"))?.version;
+    return typeof version === "string" && version.length > 0 ? version : null;
+  } catch {
+    return null;
+  }
+}
 
 const SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]);
 
@@ -156,21 +182,28 @@ export function auditWorkerAssets(assetsDir) {
 
 /**
  * 发行验收总入口：身份 + 体积 + 资源审计。
+ *
+ * 身份判定的唯一真相是 `appPackagePath` 指向的应用包版本：
+ * - `expectedArtifactName` 由该版本推导，产物名必须精确等于它；
+ * - `appVersionOk` 要求产物名**自己声明的版本**与该版本一致。
+ * 读不到应用包版本时不放行（`fileNameOk` 与 `appVersionOk` 均为 false），
+ * 避免"未提供即跳过身份校验"。
+ *
  * 任何一项失败即返回 ok=false；不做任何写入，供 CLI 输出与文档引用。
  * @param {{ artifactPath: string, appPackagePath?: string, rendererSrcDir?: string, rendererOutDir?: string }} options
- * @returns {{ ok: boolean, artifactPath: string, fileNameOk: boolean, appVersionOk: boolean, size: object, sourceViolations: object[], workers: object | null }}
+ * @returns {{ ok: boolean, artifactPath: string, artifactName: string, expectedVersion: string | null, expectedArtifactName: string | null, artifactVersion: string | null, fileNameOk: boolean, appVersionOk: boolean, size: object, sourceViolations: object[], workers: object | null }}
  */
 export function verifyRelease(options) {
   const { artifactPath } = options;
-  const name = artifactPath.split(/[\\/]/).pop() ?? artifactPath;
-  const fileNameOk = name === EXPECTED_ARTIFACT_NAME;
+  const artifactName = artifactPath.split(/[\\/]/).pop() ?? artifactPath;
 
-  let appVersionOk = true;
-  if (options.appPackagePath !== undefined) {
-    appVersionOk =
-      existsSync(options.appPackagePath) &&
-      JSON.parse(readFileSync(options.appPackagePath, "utf8")).version === EXPECTED_APP_VERSION;
-  }
+  const expectedVersion =
+    options.appPackagePath !== undefined ? readAppVersion(options.appPackagePath) : null;
+  const expectedName = expectedVersion === null ? null : expectedArtifactName(expectedVersion);
+  const artifactVersion = parseArtifactVersion(artifactName);
+
+  const fileNameOk = expectedName !== null && artifactName === expectedName;
+  const appVersionOk = expectedVersion !== null && artifactVersion === expectedVersion;
 
   const size = existsSync(artifactPath)
     ? checkSize(statSync(artifactPath).size)
@@ -185,5 +218,17 @@ export function verifyRelease(options) {
   const ok =
     fileNameOk && appVersionOk && size.ok && sourceViolations.length === 0 && (workers?.ok ?? true);
 
-  return { ok, artifactPath, fileNameOk, appVersionOk, size, sourceViolations, workers };
+  return {
+    ok,
+    artifactPath,
+    artifactName,
+    expectedVersion,
+    expectedArtifactName: expectedName,
+    artifactVersion,
+    fileNameOk,
+    appVersionOk,
+    size,
+    sourceViolations,
+    workers,
+  };
 }

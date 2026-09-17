@@ -11,6 +11,7 @@
  *   --json                 输出机器可读的结构化摘要（README / release 文案引用用）
  *   --help                 显示本帮助
  *
+ * 期望产物名由应用包版本推导（`ReBaseAgent-<version>-win-x64-portable.exe`），本文件不硬编码版本。
  * 唯一体积通过条件：< 100_000_000 bytes。失败输出实际值/阈值/超出量并返回非零退出码。
  * 脚本只读不写，不产生构建副作用。
  */
@@ -39,8 +40,8 @@ function printHelp() {
   --help                   显示本帮助
 
 通过条件（全部满足）：
-  - 文件名严格为 ReBaseAgent-0.2.0-win-x64-portable.exe
-  - 应用版本为 0.2.0（读 --app-package 的 version 字段）
+  - 文件名严格为 ReBaseAgent-<应用包 version>-win-x64-portable.exe
+  - 产物名声明的版本与应用包 version 一致
   - 文件精确字节数 < 100,000,000
   - renderer 源码无 monaco-editor 包根 / 基础语言聚合入口导入
   - 构建产物含 editor/json worker，且不含 ts/css/html worker
@@ -83,12 +84,20 @@ function parseArgs(argv) {
 }
 
 function formatSummary(r) {
+  const target = r.expectedVersion ?? "（未能读取应用包版本）";
+  const versionLine = r.appVersionOk
+    ? `${target} ✓`
+    : `✗ 产物名声明的版本为 ${r.artifactVersion ?? "（不符合产物名模板）"}，与目标版本 ${target} 不一致`;
+
   return `发行验收：${r.ok ? "通过" : "失败"}
 
-artifact : ${r.artifactPath}
-文件名   : ${r.fileNameOk ? "✓" : "✗ 不匹配（需要 ReBaseAgent-0.2.0-win-x64-portable.exe）"}
-应用版本 : ${r.appVersionOk ? "0.2.0 ✓" : "非 0.2.0 ✗"}
-体积     : ${r.size.actual.toLocaleString("en-US")} bytes / 阈值 ${r.size.limit.toLocaleString("en-US")} bytes ${r.size.ok ? "✓" : `✗（超出 ${r.size.excess.toLocaleString("en-US")} bytes）`}
+artifact  : ${r.artifactPath}
+目标版本  : ${target}
+期望产物名: ${r.expectedArtifactName ?? "—"}
+实际产物名: ${r.artifactName}
+文件名    : ${r.fileNameOk ? "✓" : "✗ 与期望产物名不符"}
+应用版本  : ${versionLine}
+体积      : ${r.size.actual.toLocaleString("en-US")} bytes / 阈值 ${r.size.limit.toLocaleString("en-US")} bytes ${r.size.ok ? "✓" : `✗（超出 ${r.size.excess.toLocaleString("en-US")} bytes）`}
 
 资源审计：
   renderer 源码违规 : ${r.sourceViolations.length === 0 ? "无 ✓" : ""}
