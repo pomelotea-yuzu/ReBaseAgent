@@ -14,6 +14,10 @@
     "./schema": {
       "types": "./dist/schema.d.ts",
       "default": "./dist/schema.js"
+    },
+    "./workspace-hash": {
+      "types": "./dist/workspace-hash.d.ts",
+      "default": "./dist/workspace-hash.js"
     }
   },
   "files": ["dist", "fixtures"],

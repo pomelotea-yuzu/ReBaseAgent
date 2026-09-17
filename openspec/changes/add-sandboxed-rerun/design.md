@@ -44,6 +44,8 @@ type WorkspaceMeta = {
 
 `snapshot.id` 是对规范化清单 UTF-8 字节取 SHA-256：路径使用 `/`，按 UTF-16 代码单元序比较排序，序列化固定为 `JSON.stringify(files.map(f => [f.path, f.sha256, f.bytes]))`，不依赖 locale、mtime、原目录路径或 OS 枚举顺序。空清单同样有确定哈希。执行前重算验证，schema 验证类型、合法路径、去重及文件/目录冲突；reader 负责跨行与版本关联验证。
 
+**实现 1.2 时明确的两点边界（2026-09-17）**：① 清单侧只做**跨平台通用结构**的路径判定（非空、非绝对、`/` 分隔、无空段、`.`/`..`、NUL）；平台特性（ADS/UNC/设备名/尾随点空格）、长度与深度上限、NFC 与大小写碰撞及配额归 2.1 的共用路径模块，避免两处各写一半。②"重算验证"同时接在 **reader 的读取路径**上（读到 id 与清单不符即拒绝），而不只在执行前预检——否则哈希被篡改的文件会先被当作合法数据读进来。
+
 - `run.meta.workspace` 携带上述元数据；`world_id` 等于本 run id，每次真实运行新建。
 - `agent.step.workspace_snapshot` 保存该轮全部工具完成后的完整快照，由受控 Tracer 在结束 step 时注入。初始快照在首次 LLM 前已就绪。
 - 隔离 result fork 另写 `fork.resume_after_step`，指向直接父 run 中编辑工具的所属 step；`fork.at_span` 仍指向被编辑工具，`edit.field=result` 不变。

@@ -1,6 +1,6 @@
 # @rebaseagent/trace-sdk
 
-ReBaseAgent trace 格式 v1 的采集与读取 SDK：zod schema、Tracer 事件流、JSONL 读写器与分支解析。纯 TypeScript，零原生依赖、零 Electron 依赖。
+ReBaseAgent trace 格式的采集与读取 SDK：zod schema、Tracer 事件流、JSONL 读写器与分支解析。纯 TypeScript，零原生依赖、零 Electron 依赖。普通运行写 v1，隔离文件运行写 v2（读取器双读，见「导出面与子路径」）。
 
 ## 格式总览
 
@@ -154,12 +154,35 @@ import { readRun, resolveBranch } from "@rebaseagent/trace-sdk";
 const record = readRun("traces/r_02.jsonl");
 // record: { meta, spans, events, status: "completed" | "crashed" }
 // 逐行 zod 校验；非法行抛 TraceReadError（message 含"第 N 行：原因"）
-// format_version > 1 时抛"不支持的格式版本"
+// 支持 format_version 1 / 2；更高版本抛"不支持的格式版本"（不静默降级解析）
 
 const resolved = resolveBranch("r_02", (id) => readRun(`traces/${id}.jsonl`));
 // resolved.spans = 祖先共享前缀（截至各 fork 点，含 fork 点）+ 本 run 新增 span
 // resolved.chain = 祖先链，暴露 fork 元数据供 replay 层应用编辑
 ```
+
+## 导出面与子路径
+
+包按"能不能进 renderer"分三个入口，别混用：
+
+| 入口 | 内容 | 谁可以用 |
+| --- | --- | --- |
+| `@rebaseagent/trace-sdk` | Tracer / reader / 分支解析 / 纯校验函数 | **Node 侧**（main、replay、CLI） |
+| `@rebaseagent/trace-sdk/schema` | 纯 zod schema 与常量（`FORMAT_VERSION`、`PLAIN_FORMAT_VERSION` 等） | **renderer 也可用**（零 Node 依赖） |
+| `@rebaseagent/trace-sdk/workspace-hash` | 快照清单的规范排序与 SHA-256 | **仅 Node**（依赖 `node:crypto`） |
+
+主入口会连带引入 `node:fs`，`workspace-hash` 会引入 `node:crypto`，两者都不可进渲染层——
+renderer 里只允许 `import type`，或改走 `/schema`。
+
+**快照哈希的规范形式**（跨机器必须逐字节一致）：对**排序后**的清单取
+`sha256(utf8(JSON.stringify(files.map(f => [f.path, f.sha256, f.bytes]))))`，
+排序键是路径的 UTF-16 代码单元序（**不是** `localeCompare`——它跟 locale 走，会让同一份清单在不同机器算出不同 id）。
+要复刻这个 id 的实现必须逐条对齐排序键、字段顺序与编码；写完请用 `test/workspace-snapshot.test.ts` 里的
+金标准值自检。
+
+> v2 隔离字段（`run.meta.workspace`、`agent.step.workspace_snapshot`、`fork.resume_after_step`）
+> 的完整字段表尚未并入本文，随 A 段收口（任务 8.1）补齐；在此之前以
+> `openspec/changes/add-sandboxed-rerun/specs/trace-format/spec.md` 与 `src/schema.ts` 为准。
 
 ## Fixtures
 

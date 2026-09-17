@@ -4,6 +4,7 @@ import { FORMAT_VERSION, TraceLineSchema } from "./schema.js";
 import type { RunEventLine, RunMetaLine, SpanLine } from "./schema.js";
 import { toSemanticOrder } from "./semantic-order.js";
 import { findVersionFieldViolation } from "./version-guard.js";
+import { findSnapshotIdViolation } from "./workspace-hash.js";
 
 /** 读取 run 文件时的错误（含行号） */
 export class TraceReadError extends Error {
@@ -87,6 +88,14 @@ export function parseRunText(lines: string[]): RunRecord {
       meta = TraceLineSchema.parse(json) as RunMetaLine;
       fileVersion = typeof version === "number" ? version : null;
       sawContent = true;
+      // 快照 id 必须等于其清单的规范哈希。清单与 id 之间没有结构性约束，只信任记录里的 id
+      // 等于接受任意清单位图；而算哈希要 Node 字节 API（schema 层无法覆盖），故在此重算。
+      if (meta.workspace !== undefined) {
+        const idViolation = findSnapshotIdViolation(meta.workspace.initial_snapshot);
+        if (idViolation !== null) {
+          throw new TraceReadError(`初始快照校验失败：${idViolation}`, lineNo);
+        }
+      }
       continue;
     }
 
@@ -101,6 +110,13 @@ export function parseRunText(lines: string[]): RunRecord {
     }
     const line = parsed.data;
     if (line.type === "span") {
+      // 步骤检查点同样重算 id（理由见首个内容行处）
+      if (line.kind === "agent.step" && line.workspace_snapshot !== undefined) {
+        const idViolation = findSnapshotIdViolation(line.workspace_snapshot);
+        if (idViolation !== null) {
+          throw new TraceReadError(`步骤快照校验失败：${idViolation}`, lineNo);
+        }
+      }
       spans.push(line);
     } else if (line.type === "run.event") {
       events.push(line);

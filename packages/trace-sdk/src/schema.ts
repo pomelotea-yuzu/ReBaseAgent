@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { findSnapshotFilesViolation, findWorkspaceOriginViolation } from "./workspace-snapshot.js";
 
 /**
  * 读取器**最高支持**的 trace 格式版本。
@@ -97,11 +98,23 @@ export type WorkspaceFile = z.infer<typeof WorkspaceFileSchema>;
  * `id` = 对规范化清单 UTF-8 字节取 SHA-256（排序与序列化规则见 `workspace-hash.ts`：
  * 路径用 `/`、按 UTF-16 代码单元序排序、序列化固定为 `[[path, sha256, bytes], …]`，
  * 不依赖 locale / mtime / 原目录路径 / OS 枚举顺序）。空清单同样有确定哈希。
+ *
+ * 本 schema 保证清单**形状**自洽，且这些都是**解析期**可判的（renderer 同样能判）：
+ * 按规范序排列、无重复路径、无"文件同时是目录祖先"的冲突、路径为合法相对形式。
+ * `id` 是否真的等于该清单的哈希**不在这里**——算哈希要 Node 的 `node:crypto`，
+ * 由 `workspace-hash.ts` 的 `findSnapshotIdViolation` 在执行前重算。
  */
-export const WorkspaceSnapshotSchema = z.object({
-  id: z.string().regex(/^[0-9a-f]{64}$/),
-  files: z.array(WorkspaceFileSchema),
-});
+export const WorkspaceSnapshotSchema = z
+  .object({
+    id: z.string().regex(/^[0-9a-f]{64}$/),
+    files: z.array(WorkspaceFileSchema),
+  })
+  .superRefine((snapshot, ctx) => {
+    const violation = findSnapshotFilesViolation(snapshot.files);
+    if (violation !== null) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: violation, path: ["files"] });
+    }
+  });
 export type WorkspaceSnapshot = z.infer<typeof WorkspaceSnapshotSchema>;
 
 /** 世界来源：根运行来自导入，分支来自直接父 run 的某个检查点 */
@@ -171,7 +184,11 @@ export const SourceSchema = z.object({
 });
 export type Source = z.infer<typeof SourceSchema>;
 
-export const RunMetaSchema = z.object({
+/**
+ * `run.meta` 的字段形状。单独命名是为了在其上叠加跨字段校验：本行的 `workspace.origin`
+ * 必须与 `parent` / `fork` 自洽，那需要看到整个对象（见下方 `RunMetaSchema`）。
+ */
+const RunMetaObjectSchema = z.object({
   type: z.literal("run.meta"),
   /** run id，同时是文件内唯一标识 */
   id: z.string().min(1),
@@ -210,6 +227,33 @@ export const RunMetaSchema = z.object({
    */
   workspace: WorkspaceMetaSchema.optional(),
 });
+
+/**
+ * `run.meta` 行（字段形状 + 跨字段校验）。
+ *
+ * 校验的是**隔离元数据与运行关系的自洽**（规则详见 `findWorkspaceOriginViolation`）：
+ * `world_id` 等于本 run id；根 run 的 origin 为 `import`；分支的 origin 为 `checkpoint`
+ * 且指向**直接**父 run；给了 `fork.resume_after_step` 时必须与 `origin.step_span` 同指一个 step。
+ *
+ * `workspace` 缺省（普通 v1 / 代理录制 / 卡带）时整段跳过，不给既有数据引入新约束。
+ * 这里只判**这一行内部**的自洽；跨行约束（step 快照与版本、v2 完整 step 必须有检查点）
+ * 由 reader 负责。
+ */
+export const RunMetaSchema = RunMetaObjectSchema.superRefine((meta, ctx) => {
+  if (meta.workspace === undefined) {
+    return;
+  }
+  const violation = findWorkspaceOriginViolation({
+    id: meta.id,
+    parent: meta.parent,
+    resumeAfterStep: meta.fork?.resume_after_step,
+    workspace: meta.workspace,
+  });
+  if (violation !== null) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: violation, path: ["workspace"] });
+  }
+});
+
 export type RunMetaLine = z.infer<typeof RunMetaSchema>;
 /** startRun 的入参（不含 type 判别字段） */
 export type RunMetaInput = Omit<RunMetaLine, "type">;

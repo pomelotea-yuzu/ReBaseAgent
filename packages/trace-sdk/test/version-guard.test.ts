@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parseRunText } from "../src/reader";
 import { findVersionFieldViolation } from "../src/version-guard";
+import { computeWorkspaceSnapshotId, createWorkspaceSnapshot } from "../src/workspace-hash";
 import { sampleRequest, sampleResponse } from "./helpers";
 
 /**
@@ -27,7 +28,7 @@ function v1Meta(over: Record<string, unknown> = {}): Record<string, unknown> {
   };
 }
 
-/** 一份最小合法 v2 meta 原始对象 */
+/** 一份最小合法 v2 meta 原始对象（快照 id 用**真实**规范哈希：读取端会重算核对，假 id 不算合法） */
 function v2Meta(over: Record<string, unknown> = {}): Record<string, unknown> {
   return v1Meta({
     format_version: 2,
@@ -35,7 +36,7 @@ function v2Meta(over: Record<string, unknown> = {}): Record<string, unknown> {
       profile: "file-tools-v1",
       world_id: "r_01",
       write_authorized: true,
-      initial_snapshot: { id: "a".repeat(64), files: [] },
+      initial_snapshot: { id: computeWorkspaceSnapshotId([]), files: [] },
       origin: { kind: "import" },
     },
     ...over,
@@ -136,10 +137,7 @@ describe("parseRunText：版本门禁与 v1/v2 往返", () => {
   });
 
   it("v2 隔离文件可读：meta.workspace 与 step.workspace_snapshot 往返保留", () => {
-    const snapshot = {
-      id: "b".repeat(64),
-      files: [{ path: "a.txt", sha256: "c".repeat(64), bytes: 6 }],
-    };
+    const snapshot = createWorkspaceSnapshot([{ path: "a.txt", sha256: "c".repeat(64), bytes: 6 }]);
     const record = parseRunText(
       lines(
         v2Meta({ workspace: { ...(v2Meta().workspace as object), initial_snapshot: snapshot } }),

@@ -48,6 +48,14 @@ export type {
 } from "./schema.js";
 export { findVersionFieldViolation } from "./version-guard.js";
 export {
+  compareLogicalPath,
+  isCanonicalWorkspaceOrder,
+  findLogicalPathViolation,
+  findSnapshotFilesViolation,
+  findWorkspaceOriginViolation,
+} from "./workspace-snapshot.js";
+export type { WorkspaceOriginContext } from "./workspace-snapshot.js";
+export {
   BaseTracer,
   NullTracer,
   type Tracer,

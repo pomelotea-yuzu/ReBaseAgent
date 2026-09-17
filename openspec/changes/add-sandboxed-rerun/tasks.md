@@ -3,7 +3,7 @@
 ## 1. Trace 版本与检查点契约
 
 - [x] 1.1 扩展 trace-sdk v1/v2 schema、普通写入版本常量及导出；实现共用的原始对象禁字段 helper，在 reader 的 parse 前按 v1 自有属性存在性检查 workspace/fork.resume_after_step/span.workspace_snapshot，不泛化 strict（2h）。验证：`trace-format/双版本与旧读取器`、`未来版本文件`、`版本与隔离字段不匹配`、`v1 禁字段与其他扩展区分`，包含 null/false/空对象；普通 writer 默认 v1，旧 fixture 拒绝 v2，未来版本用 3。**（reader 入口已接；Tracer 入口按 A 1.3 继续，IPC 入口迁 B 1.1。实现：`FORMAT_VERSION=2` 最高支持 + `PLAIN_FORMAT_VERSION=1` 普通写入 + `FormatVersionSchema` 双读；`version-guard.ts` 纯函数三处共用，存在性判定用 `hasOwn`（null/false/{}/显式 undefined 都算存在）；v2 另有"meta 必须带 workspace"约束。新增测试 16 个）**
-- [ ] 1.2 实现快照清单与 workspace/origin schema、规范排序和哈希验证，区分 renderer 可用纯 schema 与 Node 字节哈希模块；在类型及 schema 注释注明 write_authorized 仅是审计标注、不授予新执行权限（2h）。验证：`trace-format/非法清单拒绝`，包含空清单、乱序、重复/冲突路径、hash/bytes 与 origin 非法输入，并核对审计字段文档。**（进度：schema 部分已落 —— `WorkspaceFile/Snapshot/Origin/MetaSchema` + 审计标注注释；**待做**：`workspace-hash.ts` 规范排序与哈希、非法清单（乱序/重复/冲突路径/越界）拒绝）**
+- [x] 1.2 实现快照清单与 workspace/origin schema、规范排序和哈希验证，区分 renderer 可用纯 schema 与 Node 字节哈希模块；在类型及 schema 注释注明 write_authorized 仅是审计标注、不授予新执行权限（2h）。验证：`trace-format/非法清单拒绝`，包含空清单、乱序、重复/冲突路径、hash/bytes 与 origin 非法输入，并核对审计字段文档。**（已完成：`workspace-snapshot.ts` 纯校验（路径结构 / 规范序 / 重复 / 文件目录冲突 / origin 自洽）+ `workspace-hash.ts` Node 哈希（规范排序、id 计算与重算），`superRefine` 接入两端 schema，reader 读取时重算 id；新增 33 用例，含空清单与 ASCII/中文**金标准哈希**。⚠️ 路径只做通用结构规则，平台特性与长度/深度留 2.1；详见「实现期发现」）**
 - [ ] 1.3 扩展 step EndSpanPatch、读取端跨行约束及 BaseTracer 转换前版本守卫，完整保留事件、JSONL、MemoryTracer 的合法元数据；IPC 部分迁 B 1.1（1.5h）。验证：`trace-format/根与分支快照往返`、`无附件仍能看轨迹`、`v1 禁字段与其他扩展区分`，含自有 undefined；纯解析不读 blob。来源：原 1.3-A。
 - [ ] 1.4 扩展 fork.resume_after_step 和 resolveBranch 的 v2 整轮截断，v1 行为不变（2h）。验证：`trace-format/编辑工具结果后分叉`、`隔离分叉保留同轮兄弟工具`、`隔离续跑边界矛盾`。
 - [ ] 1.5 给 JsonlTracer 增加异常清理能力，只关闭当前句柄而不写终止事件；接入新编排的 finally 路径前先测资源语义（1h）。验证：`workspace-isolation/存储故障释放资源`，未封存状态保留、重复释放无副作用。
@@ -54,6 +54,13 @@
 2. **`run-loop.ts:81` 的字面量 1 保持不动并加注释**：让它 import 常量会在 agent-loop 引入对 trace-sdk 的**运行时**依赖（现仅类型依赖），为一个常量不值得；注释里写明"不得改用 FORMAT_VERSION"。已在 `check:ci` 全绿前提下确认行为不变。
 3. **路径校验的归属与 design 相反（层级问题）**：task 2.1 写"在 replay 增加共用逻辑路径校验"，但 **replay 依赖 trace-sdk**（`packages/replay/package.json` 确认），而 trace-format 的 schema 又必须校验合法路径 ⇒ trace-sdk 无法 import replay。**结论：路径校验器与快照哈希应放 trace-sdk（最底层、纯函数），replay 复用**。实现 1.2/2.1 前按此调整，勿按原文照做。
 4. **"未来版本"基准从 2 改为 3**，三处既有断言同步更新：`packages/trace-sdk/test/reader.test.ts`、`packages/trace-sdk/test/schema.test.ts`（用例名含"未来版本"）、`apps/desktop/test/run-repository.test.ts`。v2 现在是受支持版本。
+
+**2026-09-17 · 实现 1.2 时发现 4 项**：
+
+1. **路径规则的分工必须显式划开，否则 1.2 与 2.1 各写一半**：1.2 要求清单拒绝"非法路径"，而完整路径校验是 2.1 的交付物（其验收明列 Windows ADS/UNC/设备名、NFC 与大小写碰撞、长度/深度边界）。结论：1.2 只做**跨平台通用结构**判定（非空、非绝对、`/` 分隔、无空段、无 `.`/`..`、无 NUL），平台特性与长度/深度/配额留 2.1。该边界写在 `workspace-snapshot.ts` 模块头，并用"平台特性规则不在此层"的用例固定——`CON` 与 `a.txt:ads` 当前**放行**，这是有意的不是漏判。
+2. **快照 id 的重算要接在 reader，不能只留"执行前预检"**：清单与 id 之间没有结构性约束，只在执行前查，等于允许"把一个哈希不符的文件先读进来"。已在 reader 的首个内容行与 `agent.step` 行各重算一次（重算需要 `node:crypto`，纯 schema 层做不到，这也正是"Node 哈希模块与纯 schema 分离"的实际用途）。
+3. **1.1 的既有 fixture 会被新校验判为不合法**：`test/version-guard.test.ts` 的 `v2Meta()` 与"v2 往返"用例原先拿 `"a".repeat(64)` / `"b".repeat(64)` 当快照 id，此前能过是因为没人核对 id 与清单相符。已改用 `computeWorkspaceSnapshotId([])` 与 `createWorkspaceSnapshot(...)` 生成真实 id——**属 fixture 数据修正，不是放宽校验**。
+4. **Node 哈希模块走子路径 `./workspace-hash`，不进主出口**：主出口已导出 `JsonlTracer`（带 `node:fs`），renderer 本就不该用它；但把哈希再挂主出口会让"renderer 误 import 主出口"的代价从"多打一个 fs"升级为"打了 crypto 之后运行时报错"。包内已有 `./schema` 子路径先例，故新增 `./workspace-hash`，并在 trace-sdk README 的「导出面与子路径」写明三者分工。
 
 ### 拆分后的历史说明
 

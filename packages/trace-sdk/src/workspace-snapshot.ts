@@ -1,0 +1,168 @@
+import type { WorkspaceFile, WorkspaceMeta } from "./schema.js";
+
+/**
+ * 快照清单与 workspace 元数据的**纯校验**（无 Node 依赖，renderer 可直接用）。
+ *
+ * 为什么与哈希分开：清单 id 要按规范清单算 SHA-256，那需要 Node 的 `node:crypto`
+ * （见 `workspace-hash.ts`）；而 renderer 既无 Node 也无字节哈希 API。因此本模块只做
+ * **不需要字节运算**的判定——类型外的排序性、重复、文件/目录冲突、路径结构与 origin 关系，
+ * 由 schema 的 refine 自动调用；`snapshot.id` 与规范清单是否相符另由 Node 侧重算（`findSnapshotIdViolation`）。
+ *
+ * ## 本模块的路径规则边界（1.2 与 2.1 的分工）
+ *
+ * 这里只做**跨平台通用结构**判定：非空、非绝对、`/` 分隔、无空段、无 `.` / `..` 段、无 NUL。
+ * 以下规则**留给 2.1 的共用路径校验模块**，此处不做，以免两处各写一半：
+ * - Windows 平台特性：ADS 冒号、UNC/设备路径、保留设备名（CON/PRN/AUX/NUL/COM1-9/LPT1-9）、尾随点/空格；
+ * - 长度与深度上限（512 个 UTF-16 单元 / 32 层）；
+ * - 同一世界内的 NFC + 小写键碰撞（大小写或 Unicode 等价形式的重复）；
+ * - 导入数量与字节配额。
+ *
+ * 所以**本模块通过不代表路径已被完整校验**：完整契约在 2.1 落地前，隔离运行不得开放。
+ */
+
+/**
+ * 逻辑路径的规范比较：**UTF-16 代码单元序**（即 JS 字符串的默认序）。
+ *
+ * ⚠️ 刻意不用 `localeCompare`——它依赖 locale 与 ICU 数据，同一份清单在不同机器/不同
+ * Node 构建上会排出不同顺序，进而算出不同的 `snapshot.id`（静默不等，最难排查的一类）。
+ */
+export function compareLogicalPath(a: string, b: string): number {
+  if (a < b) return -1;
+  if (a > b) return 1;
+  return 0;
+}
+
+/** 清单是否已按规范序排列（非降序）。空清单与单元素恒为真。 */
+export function isCanonicalWorkspaceOrder(files: readonly WorkspaceFile[]): boolean {
+  for (let i = 1; i < files.length; i++) {
+    if (compareLogicalPath(files[i - 1].path, files[i].path) > 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * 单条逻辑路径的**通用结构**合法性；违规返回中文原因，合法返回 `null`。
+ * 平台特性与长度/深度上限见模块头注释（归 2.1）。
+ */
+export function findLogicalPathViolation(path: string): string | null {
+  if (path.length === 0) {
+    return "路径不得为空";
+  }
+  if (path.includes("\0")) {
+    return `路径不得包含 NUL 字符：${JSON.stringify(path)}`;
+  }
+  if (path.startsWith("/")) {
+    return `路径必须是相对路径，不得以 "/" 开头：${path}`;
+  }
+  if (path.includes("\\")) {
+    return `路径分隔符必须规范化为 "/"：${path}`;
+  }
+  if (path.endsWith("/")) {
+    return `路径不得以 "/" 结尾（尾随空段）：${path}`;
+  }
+  const segments = path.split("/");
+  if (segments.some((segment) => segment.length === 0)) {
+    return `路径不得包含空段（连续的 "/"）：${path}`;
+  }
+  if (segments.some((segment) => segment === "." || segment === "..")) {
+    return `路径不得包含 "." 或 ".." 段：${path}`;
+  }
+  return null;
+}
+
+/**
+ * 清单自身的合法性：规范排序 → 路径结构 → 重复 → 文件/目录冲突。
+ *
+ * 顺序是刻意的：先判排序，才能用"集合 + 祖先前缀"的方式报出稳定的冲突原因（乱序时
+ * 相邻性没有意义，报出来的冲突会随枚举顺序变化，不可复现）。
+ *
+ * **冲突的含义**：同一世界内一条路径不能既是文件又是另一条路径的祖先目录。例如
+ * `a` 与 `a/b` 同时存在即冲突——一个世界里 `a` 不可能同时是文件和目录。
+ */
+export function findSnapshotFilesViolation(files: readonly WorkspaceFile[]): string | null {
+  if (!isCanonicalWorkspaceOrder(files)) {
+    return "清单必须按路径的 UTF-16 代码单元序升序排列（写入端排序，读取端拒绝乱序）";
+  }
+
+  const seen = new Set<string>();
+  for (const file of files) {
+    const pathViolation = findLogicalPathViolation(file.path);
+    if (pathViolation !== null) {
+      return pathViolation;
+    }
+    if (seen.has(file.path)) {
+      return `清单存在重复路径：${file.path}`;
+    }
+    seen.add(file.path);
+  }
+
+  // 文件/目录冲突：任一路径的某个真前缀（按 "/" 切分）也在清单里，说明那条前缀既是
+  // 文件又是目录。规范序下祖先不一定紧邻其后代（`a` < `a-x` < `a/b`），故必须查全部前缀，
+  // 不能只比相邻两项。
+  for (const file of files) {
+    const segments = file.path.split("/");
+    for (let i = 1; i < segments.length; i++) {
+      const ancestor = segments.slice(0, i).join("/");
+      if (seen.has(ancestor)) {
+        return `路径冲突：${ancestor} 既是文件又是 ${file.path} 的祖先目录`;
+      }
+    }
+  }
+
+  return null;
+}
+
+/** `findWorkspaceOriginViolation` 的输入：meta 行里与 origin 有关的那几个字段 */
+export interface WorkspaceOriginContext {
+  /** 本 run id（同时也是 workspace.world_id 的期望值） */
+  id: string;
+  /** 父 run id；根 run 为 null */
+  parent: string | null;
+  /** `fork.resume_after_step`（存在时才与 origin.step_span 比对，见下） */
+  resumeAfterStep?: string | undefined;
+  workspace: WorkspaceMeta;
+}
+
+/**
+ * workspace 元数据与 parent / fork 的关系一致性（矛盾即拒绝）。
+ *
+ * 规则：
+ * - `world_id` 必须等于本 run id——世界由创建它的 run 标识；
+ * - 根 run（`parent === null`）的 origin 必须是 `import`（世界来自导入）；
+ * - 分支 run 的 origin 必须是 `checkpoint` 且 `run_id` 指向**直接**父 run，
+ *   不能跨代指祖先（分层时直接用父的检查点，否则文件起点会与消息前缀错配）；
+ * - `fork.resume_after_step` **存在时**必须等于 `origin.step_span`（两者都表示"该轮末尾"）。
+ *
+ * ⚠️ "隔离分支**必须**带 `resume_after_step`" 这条必填约束**不在本模块**——它属于任务 1.4
+ * 的 v2 整轮截断契约（连同 `resolveBranch` 一起落地）。此处只做"给了就必须自洽"的条件校验，
+ * 免得在 1.2 提前收紧、把 1.4 的待实现字段变成写入端的即时失败。
+ */
+export function findWorkspaceOriginViolation(context: WorkspaceOriginContext): string | null {
+  const { id, parent, resumeAfterStep, workspace } = context;
+
+  if (workspace.world_id !== id) {
+    return `workspace.world_id 必须等于本 run id：期望 ${id}，实际 ${workspace.world_id}`;
+  }
+
+  const origin = workspace.origin;
+
+  if (parent === null) {
+    if (origin.kind !== "import") {
+      return `根 run 的 workspace.origin.kind 必须是 "import"，实际 "${origin.kind}"`;
+    }
+    return null;
+  }
+
+  if (origin.kind !== "checkpoint") {
+    return `分支 run 的 workspace.origin.kind 必须是 "checkpoint"，实际 "${origin.kind}"`;
+  }
+  if (origin.run_id !== parent) {
+    return `分支 workspace.origin.run_id 必须指向直接父 run：期望 ${parent}，实际 ${origin.run_id}`;
+  }
+  if (resumeAfterStep !== undefined && origin.step_span !== resumeAfterStep) {
+    return `workspace.origin.step_span 与 fork.resume_after_step 必须指向同一个 step：origin.step_span=${origin.step_span}，fork.resume_after_step=${resumeAfterStep}`;
+  }
+  return null;
+}
