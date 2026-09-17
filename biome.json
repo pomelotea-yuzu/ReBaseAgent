@@ -29,6 +29,7 @@
       "**/.rebaseagent/**",
       "**/.workbuddy/**",
       "**/release/**",
+      "**/release-*/**",
       "**/*.timestamp-*.mjs",
       "**/electron.vite.config.*.mjs",
       "**/.tmp-*"
