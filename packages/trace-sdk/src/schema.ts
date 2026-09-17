@@ -240,6 +240,20 @@ const RunMetaObjectSchema = z.object({
  * 由 reader 负责。
  */
 export const RunMetaSchema = RunMetaObjectSchema.superRefine((meta, ctx) => {
+  // v2 隔离分支必须携带整轮续跑边界（v1 保持"截至 at_span"的旧规则，不带该字段）。
+  // 缺了它，resolveBranch 就只能猜边界——而静默套用 v1 截断会漏掉同轮排在编辑点之后的兄弟工具。
+  if (
+    meta.format_version === FORMAT_VERSION &&
+    meta.fork !== null &&
+    meta.fork.resume_after_step === undefined
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "v2 隔离分支必须携带 fork.resume_after_step（该轮整轮续跑边界）",
+      path: ["fork", "resume_after_step"],
+    });
+  }
+
   if (meta.workspace === undefined) {
     return;
   }

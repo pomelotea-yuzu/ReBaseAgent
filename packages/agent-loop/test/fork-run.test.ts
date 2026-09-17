@@ -88,8 +88,12 @@ describe("runLoop：fork run 元数据注入", () => {
       const events: string[] = [];
       const tracer = new NullTracer();
       tracer.subscribe((e) => {
-        // 剔除墙上时钟（timing/created_at 逐次运行必不同），只比结构与数据
-        const normalized = JSON.stringify(e, (k, v) => (k === "timing" ? undefined : v));
+        // 剔除逐次运行**必然不同**的测量值：墙上时钟（timing）与工具真实耗时（dur_ms）。
+        // 不剔 dur_ms 会让本用例变成概率性失败——桩 handler 虽是同步的，但 dur_ms 取的是
+        // Date.now() 两次之差，在并行跑多包的负载下可能一次 0、一次 1（2026-09-17 实测到）。
+        const normalized = JSON.stringify(e, (k, v) =>
+          k === "timing" || k === "dur_ms" ? undefined : v,
+        );
         events.push(normalized);
       });
       const result = await runLoop(

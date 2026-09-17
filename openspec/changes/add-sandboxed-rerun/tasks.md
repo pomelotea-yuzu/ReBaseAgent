@@ -5,7 +5,7 @@
 - [x] 1.1 扩展 trace-sdk v1/v2 schema、普通写入版本常量及导出；实现共用的原始对象禁字段 helper，在 reader 的 parse 前按 v1 自有属性存在性检查 workspace/fork.resume_after_step/span.workspace_snapshot，不泛化 strict（2h）。验证：`trace-format/双版本与旧读取器`、`未来版本文件`、`版本与隔离字段不匹配`、`v1 禁字段与其他扩展区分`，包含 null/false/空对象；普通 writer 默认 v1，旧 fixture 拒绝 v2，未来版本用 3。**（reader 入口已接；Tracer 入口按 A 1.3 继续，IPC 入口迁 B 1.1。实现：`FORMAT_VERSION=2` 最高支持 + `PLAIN_FORMAT_VERSION=1` 普通写入 + `FormatVersionSchema` 双读；`version-guard.ts` 纯函数三处共用，存在性判定用 `hasOwn`（null/false/{}/显式 undefined 都算存在）；v2 另有"meta 必须带 workspace"约束。新增测试 16 个）**
 - [x] 1.2 实现快照清单与 workspace/origin schema、规范排序和哈希验证，区分 renderer 可用纯 schema 与 Node 字节哈希模块；在类型及 schema 注释注明 write_authorized 仅是审计标注、不授予新执行权限（2h）。验证：`trace-format/非法清单拒绝`，包含空清单、乱序、重复/冲突路径、hash/bytes 与 origin 非法输入，并核对审计字段文档。**（已完成：`workspace-snapshot.ts` 纯校验（路径结构 / 规范序 / 重复 / 文件目录冲突 / origin 自洽）+ `workspace-hash.ts` Node 哈希（规范排序、id 计算与重算），`superRefine` 接入两端 schema，reader 读取时重算 id；新增 33 用例，含空清单与 ASCII/中文**金标准哈希**。⚠️ 路径只做通用结构规则，平台特性与长度/深度留 2.1；详见「实现期发现」）**
 - [x] 1.3 扩展 step EndSpanPatch、读取端跨行约束及 BaseTracer 转换前版本守卫，完整保留事件、JSONL、MemoryTracer 的合法元数据；IPC 部分迁 B 1.1（1.5h）。验证：`trace-format/根与分支快照往返`、`无附件仍能看轨迹`、`v1 禁字段与其他扩展区分`，含自有 undefined；纯解析不读 blob。来源：原 1.3-A。**（已完成：`EndSpanPatch` 增可选 `workspace_snapshot`（仅 agent.step）；BaseTracer 在 `startRun` / `endSpan` 的 zod 转换**之前**跑 `findVersionFieldViolation` 并记住本次版本供 span 判定；reader 增 v2 跨行约束（**已落盘**的 `agent.step` 必须带检查点——半途中断的 step 不会有行，故缺快照只可能是写入端漏注入）；新增 16 用例覆盖根/分支往返、空清单往返、无附件解析、三处 v1 禁字段与无关扩展放行。IPC 入口归 B 1.1）**
-- [ ] 1.4 扩展 fork.resume_after_step 和 resolveBranch 的 v2 整轮截断，v1 行为不变（2h）。验证：`trace-format/编辑工具结果后分叉`、`隔离分叉保留同轮兄弟工具`、`隔离续跑边界矛盾`。
+- [x] 1.4 扩展 fork.resume_after_step 和 resolveBranch 的 v2 整轮截断，v1 行为不变（2h）。验证：`trace-format/编辑工具结果后分叉`、`隔离分叉保留同轮兄弟工具`、`隔离续跑边界矛盾`。**（已完成：`resolveBranch` 按格式版本分流 —— v2 走 `resolveWholeRound`：前缀保留边界 step 及**其全部后代**（子树按语义序一遍扫描收集，祖先不紧邻后代故不能只比相邻）；边界必须存在于**直接父自有记录**且为 `agent.step`、`at_span` 须属该轮（沿 parent 链上溯可达）且不得等于 step 本身；v1 保持按 at_span 截断的旧规则，并配了**同结构对照用例**证明 v1 会丢同轮兄弟而 v2 保留；schema 层同步加"v2 分支必须携带 resume_after_step"的必填约束。9 个新用例含 5 种边界矛盾。多级 v2 链逐级拼接有正向用例）**
 - [ ] 1.5 给 JsonlTracer 增加异常清理能力，只关闭当前句柄而不写终止事件；接入新编排的 finally 路径前先测资源语义（1h）。验证：`workspace-isolation/存储故障释放资源`，未封存状态保留、重复释放无副作用。
 
 ## 2. 文件世界存储与导入
@@ -67,6 +67,11 @@
 1. **`EndSpanPatch` 的 union 表达不了"按 span kind 约束 patch"**：id 与 kind 的关联要到运行期才知道，而 union 的第一个分支 `{ kind?: never }` 不限定 kind，所以"给 `llm.call` 传 `workspace_snapshot`"在类型上能通过、schema 又会**静默剥离**它。已在 BaseTracer 加一条运行时防御（非 `agent.step` 携带即抛错）——否则 3.4 的包装器一旦写错 kind，产物会缺检查点，只剩 reader 的跨行约束兜底。
 2. **两处守卫的时机正好相反，不能照抄**：v1 禁字段必须在 **parse 之前**按**原始自有属性**判（zod 一 parse 就剥离，之后再也看不见）；v2"step 必须有检查点"必须在 **parse 之后**按 `kind` 缩窄判（原始对象尚未经过判别联合校验）。两者都在 reader 的 span 分支里，但顺序不可对调。
 3. **守卫失败时该 span 已移出活跃表**：`endSpan` 里 `active.delete(id)` 位于守卫之前，与既有 `SpanSchema.parse` 失败的行为一致 ⇒ 守卫失败后不能纠正 patch 重试。沿用既有语义，本次不改；将来若要求"失败可重试"，需把 delete 挪到全部校验之后。
+
+**2026-09-17 · 实现 1.4 时发现 2 项**：
+
+1. **`agent-loop/test/fork-run.test.ts` 存在与本次改动无关的概率性失败（已修）**：该用例比较两次独立 run 的事件流逐字节相同，归一化只剔了 `timing`，没剔 `tool.invoke.dur_ms` —— 桩 handler 虽是同步的，但 `dur_ms` 取的是 `Date.now()` 两次之差，在 check:ci 并行跑多包的负载下可能一次 0、一次 1 ⇒ 偶发红。已在归一化里一并剔除 `dur_ms`（它是测量值，两次独立运行本就不该相等，剔除符合该用例"只比结构与数据"的原意）。**单跑与 pnpm 单包重跑均无法复现，结论靠证据链（同步桩 + Date.now 计时 + 唯一未归一化的非确定字段）而非复现**。
+2. **"只存在于祖先"边界的判定必须查直接父的 `owned` Map，而不是拼接前缀**：拼接前缀里当然找得到祖先的 step，用它判定会让"跨代指祖先检查点"静默通过，文件起点与消息前缀错配。`resolveWholeRound` 因此接收 `parentRecord`（chain 里的直接父 record）而非只拿拼接结果。
 
 ### 拆分后的历史说明
 
