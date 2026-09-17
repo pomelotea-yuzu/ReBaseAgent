@@ -56,6 +56,8 @@ type WorkspaceMeta = {
 
 禁字段检查收敛为无 Node 依赖的纯 helper：本段接入 reader 原始行入口及 BaseTracer 在 meta/span 被 zod 转换前的入口，导出给后续 B 的 RunRecord/RunDetail IPC 使用。IPC 接入与往返验收归 B，不作为 A 的验收前提。BaseTracer 保存本次已校验的格式版本以检查后续 span；v2 的必填/跨行约束另按既有设计验证。不得对整个 v1 schema 加 `.strict()`，其他未知扩展字段仍按原有 strip/passthrough 行为处理；测试同时覆盖三个禁字段和不相关扩展字段，避免为防隔离降级而破坏旧数据兼容。
 
+**实现 1.3 时补的两点（2026-09-17）**：① 非 `agent.step` 的 span 携带 `workspace_snapshot` 时，BaseTracer **直接抛错**——`EndSpanPatch` 的 union 限定不了 span kind（id 与 kind 的关联到运行期才知道），不拦就会被 schema 静默剥离，调用方以为写了检查点而文件里没有。②"v2 **已落盘**的 step 必须带检查点"落在 reader 的 span 分支，且必须在 **parse 之后**按 `kind` 缩窄判定；这与 v1 禁字段"必须在 parse **之前**按原始自有属性判定"方向相反，两处不可对调。
+
 选择 v2 的原因是执行权限语义发生变化。可选 v1 字段会被旧读取器静默丢掉，旧桌面就可能对同名 `write_file` 使用普通 handler；版本拒绝能阻止这种意外降级。新版本读取旧 trace 不变，未来版本测试改用 3。旧版应用看到 v2 报不支持，不展示部分数据。
 
 ### 3. 导入、路径与容量

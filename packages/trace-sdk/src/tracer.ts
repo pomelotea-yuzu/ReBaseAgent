@@ -8,8 +8,10 @@ import type {
   RunMetaLine,
   SpanKind,
   SpanLine,
+  WorkspaceSnapshot,
 } from "./schema.js";
 import { RunEventSchema, RunMetaSchema, SpanSchema } from "./schema.js";
+import { findVersionFieldViolation } from "./version-guard.js";
 
 /**
  * Tracer 事件流的事件——Agent loop 的所有观测的唯一出口。
@@ -38,9 +40,13 @@ export type StartSpanAttr =
  * llm.call 的 `error` 是**可选的失败详情**：成功调用省略；与工具分支的
  * `error: string | null` 同名异构（两者靠 `response` / `dur_ms` 区分分支，
  * 不靠 `error`）——判定时先按 span kind 缩窄类型。
+ *
+ * `workspace_snapshot` 属 **agent.step**：隔离运行时由 workspace Tracer 包装器在
+ * `endSpan(step)` 提交"该轮全部工具完成后"的完整文件清单。普通 v1 运行不传（传了会被
+ * 版本门禁拒绝），非 step 的 kind 也不应带它。这里只放宽类型，不代替写入端注入。
  */
 export type EndSpanPatch =
-  | { kind?: never }
+  | { kind?: never; workspace_snapshot?: WorkspaceSnapshot }
   | { response: LlmResponse; error?: LlmCallError }
   | { result?: unknown; dur_ms: number; error: string | null };
 
@@ -79,6 +85,11 @@ export abstract class BaseTracer implements Tracer {
   private spanSeq: number;
   private runStarted = false;
   private runEnded = false;
+  /**
+   * 本次运行的格式版本（取自 startRun 已校验的 meta）。
+   * span 行自身不带版本号，所以判 span 的"版本 ↔ 隔离字段"必须靠这里记下的版本。
+   */
+  private formatVersion: number | null = null;
 
   /**
    * @param options.spanSeqStart span id 起始序号（默认 0 → 首条为 s_01）。
@@ -98,7 +109,16 @@ export abstract class BaseTracer implements Tracer {
 
   startRun(meta: RunMetaInput): void {
     this.assertNotStarted();
-    const line = RunMetaSchema.parse({ type: "run.meta", ...meta });
+    const raw = { type: "run.meta", ...meta };
+    // 版本 ↔ 隔离字段一致性必须在 zod 转换**之前**判（与 reader 共用同一套纯 helper）。
+    // zod object 默认剥离未知键，不这样做，"v1 私带 workspace"会被静默丢掉、落成一个看起来
+    // 合法的 v1 文件，旧读取器随后就可能对同名 write_file 走普通 handler 降级执行。
+    const violation = findVersionFieldViolation(raw, null);
+    if (violation !== null) {
+      throw new Error(violation);
+    }
+    const line = RunMetaSchema.parse(raw);
+    this.formatVersion = line.format_version;
     this.runStarted = true;
     this.onMeta(line);
     this.emit({ type: "run.meta", meta: line });
@@ -129,7 +149,13 @@ export abstract class BaseTracer implements Tracer {
     const { kind, fields, startedAt } = entry;
     // patch 类型上不允许出现 kind（EndSpanPatch 约束）；此处不做防御性剔除
     const patchFields = { ...patch } as Record<string, unknown>;
-    const span = SpanSchema.parse({
+    // workspace_snapshot 只属 agent.step：若写错 kind，schema 会**静默剥离**它
+    // （LlmCallSpanSchema / ToolInvokeSpanSchema 没有该字段），调用方以为写了检查点、
+    // 文件里却没有。提前报错，不让它悄悄消失。
+    if (patchFields.workspace_snapshot !== undefined && kind !== "agent.step") {
+      throw new Error(`span ${id}：workspace_snapshot 只能由 agent.step 携带（当前 kind=${kind}）`);
+    }
+    const raw = {
       type: "span",
       id,
       kind,
@@ -137,7 +163,15 @@ export abstract class BaseTracer implements Tracer {
       ...patchFields,
       // 墙上时钟区间：整行落盘时才完整，与 startSpan 时刻配对
       timing: { started_at: startedAt, ended_at: new Date().toISOString() },
-    }) as SpanLine;
+    };
+    // 同样在转换前判：span 行不带版本号，用 startRun 记下的版本。
+    // 主要拦住"v1 运行里给 step 带上 workspace_snapshot"——它会被 zod 静默丢弃，
+    // 于是调用方以为写了检查点，文件里其实没有。
+    const violation = findVersionFieldViolation(raw, this.formatVersion);
+    if (violation !== null) {
+      throw new Error(`span ${id}：${violation}`);
+    }
+    const span = SpanSchema.parse(raw) as SpanLine;
     this.onSpan(span);
     this.emit({ type: "span.end", span });
   }

@@ -110,11 +110,22 @@ export function parseRunText(lines: string[]): RunRecord {
     }
     const line = parsed.data;
     if (line.type === "span") {
-      // 步骤检查点同样重算 id（理由见首个内容行处）
-      if (line.kind === "agent.step" && line.workspace_snapshot !== undefined) {
-        const idViolation = findSnapshotIdViolation(line.workspace_snapshot);
-        if (idViolation !== null) {
-          throw new TraceReadError(`步骤快照校验失败：${idViolation}`, lineNo);
+      if (line.kind === "agent.step") {
+        // v2 跨行约束：**已落盘**的 step 必须带该轮末尾的检查点。span 在 endSpan 时才整行写入，
+        // 所以"半途中断的 step"根本不会有行；出现缺快照的 step 行只可能是写入端漏注入。
+        // 放它过去，隔离分叉就要等到取恢复点那一刻才失败——那时用户已经在等结果了。
+        if (fileVersion === FORMAT_VERSION && line.workspace_snapshot === undefined) {
+          throw new TraceReadError(
+            "v2 隔离运行已完成的 agent.step 必须携带 workspace_snapshot（该轮全部工具完成后的检查点）",
+            lineNo,
+          );
+        }
+        // 步骤检查点同样重算 id（理由见首个内容行处）
+        if (line.workspace_snapshot !== undefined) {
+          const idViolation = findSnapshotIdViolation(line.workspace_snapshot);
+          if (idViolation !== null) {
+            throw new TraceReadError(`步骤快照校验失败：${idViolation}`, lineNo);
+          }
         }
       }
       spans.push(line);
