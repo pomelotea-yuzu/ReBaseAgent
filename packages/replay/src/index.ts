@@ -122,3 +122,15 @@ export type {
   WorkspaceLocateFailureCode,
   WorkspaceReadRequest,
 } from "./workspace/read-api.js";
+export {
+  FILE_TOOLS_V1_DEFINITIONS,
+  FILE_TOOLS_V1_PROFILE,
+  READ_FILE_TOOL_NAME,
+  WRITE_FILE_TOOL_NAME,
+  FileToolArgsError,
+  createFileToolsV1,
+  makeReadFileHandler,
+  makeWriteFileHandler,
+  parseReadFileArgs,
+} from "./workspace/file-tools.js";
+export type { FileToolDefinition, ParsedReadFileArgs } from "./workspace/file-tools.js";
