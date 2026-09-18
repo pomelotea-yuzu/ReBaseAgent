@@ -83,7 +83,7 @@ export type LlmCallError = z.infer<typeof LlmCallErrorSchema>;
 
 /** 快照内的一个文件条目：逻辑路径 → 不可变内容（内容寻址 blob） */
 export const WorkspaceFileSchema = z.object({
-  /** 世界内逻辑路径（相对、`/` 分隔；完整规则见 paths 模块） */
+  /** 世界内逻辑路径（相对、`/` 分隔；完整规则见 `logical-path.ts`） */
   path: z.string().min(1),
   /** 内容哈希（64 位小写十六进制） */
   sha256: z.string().regex(/^[0-9a-f]{64}$/),
@@ -100,7 +100,9 @@ export type WorkspaceFile = z.infer<typeof WorkspaceFileSchema>;
  * 不依赖 locale / mtime / 原目录路径 / OS 枚举顺序）。空清单同样有确定哈希。
  *
  * 本 schema 保证清单**形状**自洽，且这些都是**解析期**可判的（renderer 同样能判）：
- * 按规范序排列、无重复路径、无"文件同时是目录祖先"的冲突、路径为合法相对形式。
+ * 按规范序排列、无重复路径、无 NFC/大小写碰撞、无"文件同时是目录祖先"的冲突、
+ * 每条路径满足完整逻辑路径契约（相对、`/` 分隔、长度 ≤ 512、深度 ≤ 32、无 ADS/保留设备名/
+ * 尾随点空格——规则见 `logical-path.ts`）。
  * `id` 是否真的等于该清单的哈希**不在这里**——算哈希要 Node 的 `node:crypto`，
  * 由 `workspace-hash.ts` 的 `findSnapshotIdViolation` 在执行前重算。
  */

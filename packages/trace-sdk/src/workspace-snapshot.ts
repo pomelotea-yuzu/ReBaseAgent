@@ -1,3 +1,4 @@
+import { findLogicalPathCollisionViolation, findLogicalPathViolation } from "./logical-path.js";
 import type { WorkspaceFile, WorkspaceMeta } from "./schema.js";
 
 /**
@@ -5,19 +6,16 @@ import type { WorkspaceFile, WorkspaceMeta } from "./schema.js";
  *
  * 为什么与哈希分开：清单 id 要按规范清单算 SHA-256，那需要 Node 的 `node:crypto`
  * （见 `workspace-hash.ts`）；而 renderer 既无 Node 也无字节哈希 API。因此本模块只做
- * **不需要字节运算**的判定——类型外的排序性、重复、文件/目录冲突、路径结构与 origin 关系，
- * 由 schema 的 refine 自动调用；`snapshot.id` 与规范清单是否相符另由 Node 侧重算（`findSnapshotIdViolation`）。
+ * **不需要字节运算**的判定——类型外的排序性、重复、NFC/大小写碰撞、文件/目录冲突、
+ * origin 关系，由 schema 的 refine 自动调用；`snapshot.id` 与规范清单是否相符另由
+ * Node 侧重算（`findSnapshotIdViolation`）。
  *
- * ## 本模块的路径规则边界（1.2 与 2.1 的分工）
+ * 路径规则本身不在这里：**单条/一组逻辑路径的完整契约在 `logical-path.ts`**（长度/深度上限、
+ * Windows 平台特性、NFC+小写碰撞），本模块调用它。1.2 落地时这里只做"跨平台通用结构"判定并
+ * 刻意放行 `CON` / `a.txt:ads`；2.1 起完整契约生效，清单里的路径与工具写入走的是同一份标准。
  *
- * 这里只做**跨平台通用结构**判定：非空、非绝对、`/` 分隔、无空段、无 `.` / `..` 段、无 NUL。
- * 以下规则**留给 2.1 的共用路径校验模块**，此处不做，以免两处各写一半：
- * - Windows 平台特性：ADS 冒号、UNC/设备路径、保留设备名（CON/PRN/AUX/NUL/COM1-9/LPT1-9）、尾随点/空格；
- * - 长度与深度上限（512 个 UTF-16 单元 / 32 层）；
- * - 同一世界内的 NFC + 小写键碰撞（大小写或 Unicode 等价形式的重复）；
- * - 导入数量与字节配额。
- *
- * 所以**本模块通过不代表路径已被完整校验**：完整契约在 2.1 落地前，隔离运行不得开放。
+ * 文件数与字节配额（2000 / 8 MiB / 64 MiB / 128 MiB）属隔离编排，在
+ * `packages/replay/src/workspace/quota.ts`，不在本模块。
  */
 
 /**
@@ -43,43 +41,21 @@ export function isCanonicalWorkspaceOrder(files: readonly WorkspaceFile[]): bool
 }
 
 /**
- * 单条逻辑路径的**通用结构**合法性；违规返回中文原因，合法返回 `null`。
- * 平台特性与长度/深度上限见模块头注释（归 2.1）。
- */
-export function findLogicalPathViolation(path: string): string | null {
-  if (path.length === 0) {
-    return "路径不得为空";
-  }
-  if (path.includes("\0")) {
-    return `路径不得包含 NUL 字符：${JSON.stringify(path)}`;
-  }
-  if (path.startsWith("/")) {
-    return `路径必须是相对路径，不得以 "/" 开头：${path}`;
-  }
-  if (path.includes("\\")) {
-    return `路径分隔符必须规范化为 "/"：${path}`;
-  }
-  if (path.endsWith("/")) {
-    return `路径不得以 "/" 结尾（尾随空段）：${path}`;
-  }
-  const segments = path.split("/");
-  if (segments.some((segment) => segment.length === 0)) {
-    return `路径不得包含空段（连续的 "/"）：${path}`;
-  }
-  if (segments.some((segment) => segment === "." || segment === "..")) {
-    return `路径不得包含 "." 或 ".." 段：${path}`;
-  }
-  return null;
-}
-
-/**
- * 清单自身的合法性：规范排序 → 路径结构 → 重复 → 文件/目录冲突。
+ * 清单自身的合法性：规范排序 → 路径契约 → 重复 → 碰撞 → 文件/目录冲突。
  *
- * 顺序是刻意的：先判排序，才能用"集合 + 祖先前缀"的方式报出稳定的冲突原因（乱序时
- * 相邻性没有意义，报出来的冲突会随枚举顺序变化，不可复现）。
+ * 顺序是刻意的：
+ * - 先判排序，才能用"集合 + 祖先前缀"的方式报出稳定的冲突原因（乱序时相邻性没有意义，
+ *   报出来的冲突会随枚举顺序变化，不可复现）；
+ * - "逐条路径是否合法"（含长度/深度/平台保留名，见 `findLogicalPathViolation`）先于
+ *   集合类判定：一条非法路径的成因通常比"它和谁重复"更值得优先告诉用户；
+ * - 真重复先于碰撞，是为了让"完全相同的两条"报出更直接的文案。
  *
  * **冲突的含义**：同一世界内一条路径不能既是文件又是另一条路径的祖先目录。例如
  * `a` 与 `a/b` 同时存在即冲突——一个世界里 `a` 不可能同时是文件和目录。
+ *
+ * **碰撞的含义**：两条路径在 NFC + 小写意义下等价（`A.txt` 与 `a.txt`、`é` 的两种编码）。
+ * 这种清单不可能由导入或写工具产生（两处都用同一份契约拒绝），读到时只说明文件被改过或
+ * 写入端有 bug——任其通过会让同一世界出现两条指向不同内容的"同一个文件"。
  */
 export function findSnapshotFilesViolation(files: readonly WorkspaceFile[]): string | null {
   if (!isCanonicalWorkspaceOrder(files)) {
@@ -96,6 +72,11 @@ export function findSnapshotFilesViolation(files: readonly WorkspaceFile[]): str
       return `清单存在重复路径：${file.path}`;
     }
     seen.add(file.path);
+  }
+
+  const collision = findLogicalPathCollisionViolation(files.map((file) => file.path));
+  if (collision !== null) {
+    return collision;
   }
 
   // 文件/目录冲突：任一路径的某个真前缀（按 "/" 切分）也在清单里，说明那条前缀既是

@@ -54,3 +54,10 @@ export type {
   ModelReplayRunManyResult,
   ToolPolicy,
 } from "./model-replay-run.js";
+export {
+  BYTES_PER_MIB,
+  WORKSPACE_QUOTA,
+  findFileSetQuotaViolation,
+  findNewContentQuotaViolation,
+} from "./workspace/quota.js";
+export type { QuotaFileEntry, WorkspaceQuota } from "./workspace/quota.js";

@@ -10,7 +10,7 @@
 
 ## 2. 文件世界存储与导入
 
-- [ ] 2.1 在 trace-sdk 增加无 Node 依赖的共用逻辑路径校验，在 replay 定义固定配额并复用校验（1.5h）。验证：`workspace-isolation/恶意路径与未知工具` 的路径部分、`名称冲突和参数非法` 的路径部分、`超限导入与运行时超限` 的长度/深度边界，覆盖 Windows ADS/UNC/设备名、NFC 和大小写碰撞。
+- [x] 2.1 在 trace-sdk 增加无 Node 依赖的共用逻辑路径校验，在 replay 定义固定配额并复用校验（1.5h）。验证：`workspace-isolation/恶意路径与未知工具` 的路径部分、`名称冲突和参数非法` 的路径部分、`超限导入与运行时超限` 的长度/深度边界，覆盖 Windows ADS/UNC/设备名、NFC 和大小写碰撞。**（已完成：trace-sdk 新增 `logical-path.ts` —— `normalizeLogicalPath`（工具输入 `\`→`/`，只做分隔符）、`findLogicalPathViolation`（判定序固定：整串形状 → 段结构 → 长度 512/深度 32 → 逐段平台规则；覆盖 UNC/设备前缀、绝对、未规范化分隔符、尾随空段、空段/点段、冒号 ADS 与盘符、保留设备名（含 CONIN$/CONOUT$，"段名主体"按第一个点截断）、尾随点/空格）、`logicalPathCollisionKey`＋`findLogicalPathCollisionViolation`（NFC + 小写折叠，键折叠**不改写显示路径**）。`workspace-snapshot.ts` 改为复用该契约并把碰撞并入清单校验：1.2 那条"平台特性规则不在此层"的用例已按约定翻转为应拒绝（见「实现期发现」）。replay 侧新增 `src/workspace/quota.ts`：`WORKSPACE_QUOTA`（2000 文件 / 8 MiB 单文件 / 64 MiB 快照 / 128 MiB 新增内容；路径两项**引用 trace-sdk 常量**，本包不写字面量）、`findFileSetQuotaViolation`（导入与运行期共用同一份判定，顺序固定：文件数 → 单文件 → 合计）、`findNewContentQuotaViolation`；三者随 replay index 导出，且**不接受 quota 参数**（配额不是授权开关）。新增 19 + 10 用例，钉住上限含边界、零字节合法、UTF-16 单元口径（代理对记 2、512 个中文字记 512 单元而非 1536 字节）与全部平台特性/碰撞形式。接线不在本任务：导入两遍核对与 LLM 前拒绝归 2.4，运行期超限转工具错误归 3.2，快照/新增配额的派生归 2.5；设计未列举的其余 Windows 禁字符（尖括号、竖线、问号、星号等）与控制字符仍放行，收紧须先改 spec（已记入 design §3）。**）**
 - [ ] 2.2 实现内容寻址 blob 发布与读取，并导出按已校验 run/自有检查点/逻辑路径定位的包只读接口，临时独占创建、刷盘、并发同哈希去重、不覆盖既有内容（2h）。验证：`workspace-isolation/内容发布失败和并发去重`、`附件丢失或被篡改`、`包只读接口限定清单与自有步骤`，注入 I/O 失败并确认只清本次临时文件。
 - [ ] 2.3 实现 source 根校验与普通文件采集（2h）。验证：`workspace-isolation/拒绝链接及不合适的根目录`、`二进制字节保持`；独立读取 hardlink 字节，不保留链接；隐藏文件不静默跳过。
 - [ ] 2.4 补两遍集合/内容核对、导入配额和失败收尾（1.5h）。验证：`workspace-isolation/采集期间变化被拒绝`、`超限导入与运行时超限` 的导入部分，变化/超限零 LLM、零 trace，孤立 blob 不成为可用快照。
@@ -72,6 +72,13 @@
 
 1. **`agent-loop/test/fork-run.test.ts` 存在与本次改动无关的概率性失败（已修）**：该用例比较两次独立 run 的事件流逐字节相同，归一化只剔了 `timing`，没剔 `tool.invoke.dur_ms` —— 桩 handler 虽是同步的，但 `dur_ms` 取的是 `Date.now()` 两次之差，在 check:ci 并行跑多包的负载下可能一次 0、一次 1 ⇒ 偶发红。已在归一化里一并剔除 `dur_ms`（它是测量值，两次独立运行本就不该相等，剔除符合该用例"只比结构与数据"的原意）。**单跑与 pnpm 单包重跑均无法复现，结论靠证据链（同步桩 + Date.now 计时 + 唯一未归一化的非确定字段）而非复现**。
 2. **"只存在于祖先"边界的判定必须查直接父的 `owned` Map，而不是拼接前缀**：拼接前缀里当然找得到祖先的 step，用它判定会让"跨代指祖先检查点"静默通过，文件起点与消息前缀错配。`resolveWholeRound` 因此接收 `parentRecord`（chain 里的直接父 record）而非只拿拼接结果。
+
+**2026-09-18 · 实现 2.1 时发现 3 项（另 1 项为附带影响）**：
+
+1. **1.2 那条"平台特性规则不在此层"用例到期，必须翻转**：`workspace-snapshot.test.ts` 曾断言 `CON` 与 `a.txt:ads` **放行**（1.2 为避免与 2.1 各写一半而刻意留的边界，见上节第 1 项）。2.1 把完整契约接进同一层后，该用例改为断言**拒绝**，并在用例里写明"这是 1.2 显式约定的边界到期，不是收紧/放宽之争"。同时 `workspace-snapshot.ts` 模块头、`schema.ts` 的 `WorkspaceFileSchema.path` 与 `WorkspaceSnapshotSchema` 注释一并改为指向 `logical-path.ts`，否则注释会与行为相反。
+2. **"深度"的口径必须钉死，否则 7.7-A 会按别的口径造 fixture**：本段把深度定义为**段数（含文件名段，`a/b.txt` 记 2）**、长度定义为**UTF-16 代码单元**，且两者**上限含边界**（512 / 32 合法）。这不是措辞问题——按字节算长度会把 512 个中文字（1536 字节、512 单元）误拒，故用例同时用"512 个中文"与"代理对按 2 计"两条钉住口径；口径写进了常量注释。
+3. **契约进 schema 会把"清单里的路径"与"工具输入的路径"绑成同一标准 ⇒ 工具边界必须先规范化再校验**：`findLogicalPathViolation` 对 `dir\a.txt` 是**拒绝**（清单里路径必须是规范化形式），而 Windows 用户调用工具时最常写反斜杠。因此 3.1/3.2 接线时必须 `normalizeLogicalPath` → `findLogicalPathViolation` 两步走；已把这条两步用法写进 `normalizeLogicalPath` 的文档与用例（`\\server\share` 规范化后仍按 UNC 拒绝，正是"规范化不等于放行"的例子）。
+4. 附带影响（不单列任务）：清单层现在会拒绝 NFC/大小写碰撞与超长路径，故**手工构造的 v2 fixture 不能带 `A.txt` + `a.txt` 这类路径**。v2 只有隔离运行会写 `workspace`，无历史数据受影响。
 
 ### 拆分后的历史说明
 

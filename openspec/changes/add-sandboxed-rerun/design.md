@@ -72,6 +72,8 @@ type WorkspaceMeta = {
 
 首期固定配额集中定义：最多 2000 个文件；每文件 8 MiB；当前快照合计 64 MiB；一次运行新增的不同内容字节最多 128 MiB（以本 run 实际产出的唯一哈希集合求和）。零字节文件合法，超限整次导入拒绝；运行中的超限写入成为工具错误，保持旧映射，loop 可继续。配额不是授权开关，调用方不能覆盖上限。
 
+**实现 2.1 时明确的边界（2026-09-18）**：① 路径契约落在 `trace-sdk/src/logical-path.ts`（无 Node 依赖、无内部 import），判定序固定为"整串形状 → 段结构 → 长度/深度 → 逐段平台规则"，清单校验与工具写入共用同一份；文件数与字节配额落在 `replay/src/workspace/quota.ts`，其中**路径两项引用 trace-sdk 常量**，本包不写字面量，且判定函数不收 quota 参数（"配额不是授权开关"）。②**口径**：长度按 UTF-16 代码单元、深度按段数（含文件名段，`a/b.txt` 记 2），且**上限含边界**（512 / 32 合法）——按字节算会误拒 512 个中文字的路径，故须写死。③ 本节未列举的 Windows 禁字符（尖括号、竖线、问号、星号等）与控制字符**仍放行**：从 Windows 源目录导入不会遇到，从 Linux 源导入可能带进来且只作逻辑路径存 blob；收紧须先改本节与 `workspace-isolation` 的 delta。④ 保留设备名覆盖经典集合（CON/PRN/AUX/NUL/COM1-9/LPT1-9 与 CONIN$/CONOUT$），不含 `COM0`（Windows 不保留）与上标变体。⑤ 工具入口必须是 `normalizeLogicalPath`（`\`→`/`）**再** `findLogicalPathViolation` 两步：漏掉第一步会把 Windows 用户最常写的 `dir\a.txt` 拒掉，且"规范化 ≠ 放行"（`\\server\share` 规范化后仍按 UNC 拒）。
+
 ### 3.1 清单体积与完整解析取舍（P2-1）
 
 文件字节配额不限制清单重复体积，blob 去重也不会减少 JSONL 中每轮的完整清单。基准使用最多 10 个完成步骤，连同初始状态共 **11 份**清单；包 API 使用不同迭代预算时，清单数量按实际完成轮数加一计算，10 轮不是格式上限。
@@ -93,7 +95,7 @@ type WorkspaceMeta = {
 
 `file-tools-v1` 定义固定的两个工具及参数 schema：`read_file({path:string})` 返回 UTF-8 文本，`write_file({path:string,content:string})` 写入完整 UTF-8 内容并返回逻辑路径/字节数。非 UTF-8 文件可进入快照并保持字节，但读取为文本时报工具错误，不做有损转码；写文件创建必要的逻辑父目录。两者拒绝额外参数及错误类型，不使用 `String()` 强制转换 content。
 
-profile 定义、handler 和工具参数校验属于 replay；共用逻辑路径校验位于 trace-sdk 的无 Node 依赖模块，replay 复用。快照排序规则与 Node 哈希模块也位于 trace-sdk，纯 schema 不依赖 Node 字节 API，避免反向依赖 replay。`read_file.sideEffect=false`、`write_file.sideEffect=true`，指纹包含原定义，不能给写工具改标记来放行。创建/分叉每次必须显式 `allowFileWrites:true`；此授权只覆盖副本，不是网络、数据库或宿主写入许可。启动前核对完整工具表与指定 profile 逐字段一致（含顺序及 sideEffect 存在性），缺标记、未知 profile、任意自定义 handler 均拒绝。
+profile 定义、handler 和工具参数校验属于 replay；共用逻辑路径校验位于 trace-sdk 的无 Node 依赖模块（已落地为 `logical-path.ts`），replay 复用（容量配额在 replay 的 `src/workspace/quota.ts`）。快照排序规则与 Node 哈希模块也位于 trace-sdk，纯 schema 不依赖 Node 字节 API，避免反向依赖 replay。`read_file.sideEffect=false`、`write_file.sideEffect=true`，指纹包含原定义，不能给写工具改标记来放行。创建/分叉每次必须显式 `allowFileWrites:true`；此授权只覆盖副本，不是网络、数据库或宿主写入许可。启动前核对完整工具表与指定 profile 逐字段一致（含顺序及 sideEffect 存在性），缺标记、未知 profile、任意自定义 handler 均拒绝。
 
 **保留 `write_authorized:true` 作为审计标注（P2-4）**：它只表示创建方声称该次运行经副本写入确认，不能证明历史文件未被篡改，也不是可转移的权限凭证。schema 的恒真约束只保证记录形状一致；本次执行唯一的副本授权输入是当前请求的 `allowFileWrites:true`，仍须叠加 profile、路径和快照等门禁。即使父 trace 带该标注，或调用方伪造同名字段，本次请求未确认也必须拒绝；不得从父 meta 推导或补齐本次授权。该区分须写入 schema/类型注释。
 

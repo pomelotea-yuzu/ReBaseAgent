@@ -48,9 +48,16 @@ export type {
 } from "./schema.js";
 export { findVersionFieldViolation } from "./version-guard.js";
 export {
+  MAX_LOGICAL_PATH_LENGTH,
+  MAX_LOGICAL_PATH_DEPTH,
+  normalizeLogicalPath,
+  findLogicalPathViolation,
+  logicalPathCollisionKey,
+  findLogicalPathCollisionViolation,
+} from "./logical-path.js";
+export {
   compareLogicalPath,
   isCanonicalWorkspaceOrder,
-  findLogicalPathViolation,
   findSnapshotFilesViolation,
   findWorkspaceOriginViolation,
 } from "./workspace-snapshot.js";

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { findLogicalPathViolation } from "../src/logical-path";
 import { RunMetaSchema, WorkspaceSnapshotSchema } from "../src/schema";
 import type { WorkspaceFile, WorkspaceMeta } from "../src/schema";
 import {
@@ -9,7 +10,6 @@ import {
 } from "../src/workspace-hash";
 import {
   compareLogicalPath,
-  findLogicalPathViolation,
   findSnapshotFilesViolation,
   findWorkspaceOriginViolation,
   isCanonicalWorkspaceOrder,
@@ -33,32 +33,32 @@ const GOLDEN_EMPTY = "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f111612
 const GOLDEN_ASCII = "a6bd2938e7bc8a21aed7cf611d9b17c2adaeb41f208f6ee0f6c339d3d43a7d58";
 const GOLDEN_CJK = "ffe1dbb8a8d5372d326ebb3de99096affc0a34913994b6374fe7cb9fd3760505";
 
-describe("workspace-snapshot：路径结构校验", () => {
-  it("合法相对路径通过（含中文与深层）", () => {
-    expect(findLogicalPathViolation("a.txt")).toBeNull();
-    expect(findLogicalPathViolation("dir/sub/b.md")).toBeNull();
-    expect(findLogicalPathViolation("配置/说明.md")).toBeNull();
-    expect(findLogicalPathViolation("a b/c-d_e.txt")).toBeNull();
+describe("workspace-snapshot：路径契约已并入清单校验（2.1）", () => {
+  it("合法路径的清单通过（含中文与深层）", () => {
+    expect(findSnapshotFilesViolation([file("a.txt"), file("配置/说明.md")])).toBeNull();
+    expect(findSnapshotFilesViolation([file("dir/sub/b.md")])).toBeNull();
   });
 
-  it("空、绝对、反斜杠、尾随斜杠分别被拒", () => {
-    expect(findLogicalPathViolation("")).toContain("不得为空");
-    expect(findLogicalPathViolation("/etc/passwd")).toContain("相对路径");
-    expect(findLogicalPathViolation("dir\\a.txt")).toContain("规范化为");
-    expect(findLogicalPathViolation("dir/")).toContain("结尾");
+  it("平台特性规则自 2.1 起生效：1.2 刻意放行的 CON 与 ADS 现在被拒", () => {
+    // 1.2 时这两条断言是 toBeNull()（"平台特性规则不在此层，留给 2.1"）；
+    // 2.1 把完整路径契约接进来后，清单层与工具写入层用的是同一份规则。
+    expect(findLogicalPathViolation("CON")).toContain("保留设备名");
+    expect(findLogicalPathViolation("a.txt:ads")).toContain("冒号");
+    expect(findSnapshotFilesViolation([file("CON")])).toContain("保留设备名");
+    expect(findSnapshotFilesViolation([file("a.txt:ads")])).toContain("冒号");
   });
 
-  it("空段、点段与 NUL 被拒", () => {
-    expect(findLogicalPathViolation("dir//a.txt")).toContain("空段");
-    expect(findLogicalPathViolation("./a.txt")).toContain("..");
-    expect(findLogicalPathViolation("dir/../a.txt")).toContain("..");
-    expect(findLogicalPathViolation("a\0b")).toContain("NUL");
+  it("长度与深度上限在清单层同样生效", () => {
+    expect(findSnapshotFilesViolation([file("a".repeat(512))])).toBeNull();
+    expect(findSnapshotFilesViolation([file("a".repeat(513))])).toContain("长度超过上限");
+    const deep = Array.from({ length: 33 }, (_, i) => `d${i}`).join("/");
+    expect(findSnapshotFilesViolation([file(deep)])).toContain("段数超过上限");
   });
 
-  it("平台特性规则不在此层（明确留给 2.1）", () => {
-    // 这两个是 Windows 特有的非法形式，1.2 刻意不拦，避免与 2.1 的路径校验各写一半
-    expect(findLogicalPathViolation("CON")).toBeNull();
-    expect(findLogicalPathViolation("a.txt:ads")).toBeNull();
+  it("NFC/大小写碰撞的清单被拒（同一世界不可能有两条等价路径）", () => {
+    // 规范序下 `A.txt`(0x41) < `a.txt`(0x61)，故这份清单能走到碰撞判定
+    expect(isCanonicalWorkspaceOrder([file("A.txt"), file("a.txt")])).toBe(true);
+    expect(findSnapshotFilesViolation([file("A.txt"), file("a.txt")])).toContain("碰撞");
   });
 });
 
@@ -234,6 +234,19 @@ describe("schema 接入：WorkspaceSnapshotSchema", () => {
 
     expect(
       WorkspaceSnapshotSchema.safeParse({ id: HASH_A, files: [file("a"), file("a/b")] }).success,
+    ).toBe(false);
+  });
+
+  it("路径契约（保留设备名/ADS/UNC/长度/碰撞）在解析期被拒", () => {
+    const single = (path: string) =>
+      WorkspaceSnapshotSchema.safeParse({ id: HASH_A, files: [file(path)] });
+    expect(single("CON.txt").success).toBe(false);
+    expect(single("a.txt:ads").success).toBe(false);
+    expect(single("//server/share/a.txt").success).toBe(false);
+    expect(single("a".repeat(513)).success).toBe(false);
+    expect(
+      WorkspaceSnapshotSchema.safeParse({ id: HASH_A, files: [file("A.txt"), file("a.txt")] })
+        .success,
     ).toBe(false);
   });
 });
