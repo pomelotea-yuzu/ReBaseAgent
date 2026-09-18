@@ -132,5 +132,10 @@ export {
   makeReadFileHandler,
   makeWriteFileHandler,
   parseReadFileArgs,
+  parseWriteFileArgs,
 } from "./workspace/file-tools.js";
-export type { FileToolDefinition, ParsedReadFileArgs } from "./workspace/file-tools.js";
+export type {
+  FileToolDefinition,
+  ParsedReadFileArgs,
+  ParsedWriteFileArgs,
+} from "./workspace/file-tools.js";

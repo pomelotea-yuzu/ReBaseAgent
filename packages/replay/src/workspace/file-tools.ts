@@ -19,10 +19,15 @@ import type { WorkspaceWorld } from "./world.js";
  *
  * ## 交付切分
  *
- * 本模块在 3.1 只交付**定义**与 `read_file`；`write_file` 的 handler 由 3.2 补齐（现在写入即
- * 报"尚未实现"的工具错误——这是诚实失败，不是静默成功）。`read_file` 已经能完整工作，因为
- * 世界实例（2.5）与附件存储（2.2）都已就绪。3.3 的 profile 一致性校验会逐字段比对本模块
- * 导出的 `FILE_TOOLS_V1_DEFINITIONS`。
+ * 本模块在 3.1 交付**定义**与 `read_file`，3.2 补齐 `write_file`。3.3 的 profile 一致性校验
+ * 会逐字段比对本模块导出的 `FILE_TOOLS_V1_DEFINITIONS`。
+ *
+ * ## 写的顺序不可反（3.2）
+ *
+ * `write_file` 只做"参数解析 → 交给世界写"，而世界（2.5）已经把顺序钉死：
+ * **全部检查（路径/授权/配额）→ 持久发布内容附件 → 替换映射项**。
+ * 映射一旦指向未落盘的内容，世界就会出现"看起来有、实际读不到"的路径；因此失败一律发生在
+ * 替换映射**之前**。工具层因此**不需要**、也**不应该**自己兜底发布——重复实现会绕开配额与去重。
  */
 
 /** 固定 profile 名（写进 `run.meta.workspace.profile`） */
@@ -147,6 +152,63 @@ export function parseReadFileArgs(args: unknown): ParsedReadFileArgs {
   return { path };
 }
 
+/** 写入参数的解析结果：已规范化的逻辑路径 + 原文内容（**尚未编码**） */
+export interface ParsedWriteFileArgs {
+  readonly path: string;
+  readonly content: string;
+}
+
+/**
+ * 严格解析 `write_file` 参数。规则与 `parseReadFileArgs` 同构，另加 `content`：
+ *
+ * 1. **必须是普通对象**；2. **只允许 `path` 与 `content` 两个键**（多余键拒绝）；
+ * 3. `path` 非空字符串 + 规范化再校验契约（同读工具）；
+ * 4. `content` 必须是字符串——**不用 `String()` 强转**。这一条特别要紧：`content: null` 若被
+ *    `String()` 强转就写成了字面量 `"null"`，用户拿到一个内容诡异的文件却没有任何错误提示。
+ *    `undefined`（缺参）同样拒绝，不当作空串。空串是**合法**内容（零字节文件）。
+ */
+export function parseWriteFileArgs(args: unknown): ParsedWriteFileArgs {
+  const record = requirePlainObject(args);
+
+  for (const key of Object.keys(record)) {
+    if (key !== "path" && key !== "content") {
+      throw new FileToolArgsError(
+        `write_file 不接受参数 ${JSON.stringify(key)}（只接受 path 与 content）`,
+      );
+    }
+  }
+  if (!Object.prototype.hasOwnProperty.call(record, "path")) {
+    throw new FileToolArgsError("write_file 缺少必填参数 path");
+  }
+  if (!Object.prototype.hasOwnProperty.call(record, "content")) {
+    throw new FileToolArgsError("write_file 缺少必填参数 content");
+  }
+
+  const rawPath = record.path;
+  if (typeof rawPath !== "string") {
+    throw new FileToolArgsError(
+      `write_file 的 path 必须是字符串（收到 ${describeType(rawPath)}，不做隐式转换）`,
+    );
+  }
+  if (rawPath.length === 0) {
+    throw new FileToolArgsError("write_file 的 path 不得为空");
+  }
+
+  const content = record.content;
+  if (typeof content !== "string") {
+    throw new FileToolArgsError(
+      `write_file 的 content 必须是字符串（收到 ${describeType(content)}，不做隐式转换）`,
+    );
+  }
+
+  const path = normalizeLogicalPath(rawPath);
+  const violation = findLogicalPathViolation(path);
+  if (violation !== null) {
+    throw new FileToolArgsError(`write_file 路径不合法：${violation}`);
+  }
+  return { path, content };
+}
+
 /**
  * 造出固定 `file-tools-v1` 的工具表，读工具绑定给定世界。
  *
@@ -200,14 +262,34 @@ export function makeReadFileHandler(world: WorkspaceWorld): Tool["handler"] {
 }
 
 /**
- * 受控写的占位：3.2 才实现（先持久发布内容、再更新映射）。
+ * 受控写：解析参数 → 编码为 UTF-8 字节 → 交给世界写（世界内部保证"先发布、再改映射"）。
  *
- * 现在写入一律报工具错误——**不能**让它落到桌面那套 `writeFileSync`，也**不能**静默返回成功。
- * 授权门禁（`allowFileWrites`）由世界实例承担，所以即便 3.2 落地后，未授权的运行也写不进去。
+ * ## 为什么字节数按编码后算，而不是按 `content.length`
+ *
+ * 配额（8 MiB / 64 MiB / 128 MiB）约束的是**磁盘占用**，也就是 UTF-8 字节数。`content.length`
+ * 是 UTF-16 单元数：一个中文字符 `length === 1` 却是 3 字节。按字符数判会让实际写入量达到
+ * 上限的 3 倍（对应用例"按实际 UTF-8 字节数限制"）。编码只做一次，交给世界的就是最终字节。
+ *
+ * ## 五类失败都变成可诊断的工具错误（且都不改映射）
+ *
+ * 世界的 `WorldWriteFailureCode` 原样带进错误文本，配合中文原因：`not_authorized`（本次请求
+ * 未带副本写入授权）、`invalid_path`、`invalid_content`、`quota_exceeded`、`write_failed`
+ * （附件发布失败，例如磁盘故障）。这些都在世界替换映射**之前**返回 ⇒ 旧映射与已有检查点不变
+ * （对应用例「内容发布失败和并发去重」「超限导入与运行时超限」）。
+ *
+ * 返回值给模型**逻辑路径**（不是宿主路径）与实际字节数——逻辑路径是它能用来复核的坐标系。
  */
-export function makeWriteFileHandler(_world: WorkspaceWorld): Tool["handler"] {
-  return (): never => {
-    throw new FileToolArgsError("write_file 尚未实现（受控写入在第 3.2 步交付）");
+export function makeWriteFileHandler(world: WorkspaceWorld): Tool["handler"] {
+  return async (args: unknown, _ctx: ToolContext): Promise<string> => {
+    const { path, content } = parseWriteFileArgs(args);
+    const bytes = new TextEncoder().encode(content);
+    const result = await world.writeFile(path, bytes);
+    if (!result.ok) {
+      throw new FileToolArgsError(
+        `write_file 失败（${result.failure.code}）：${result.failure.reason}`,
+      );
+    }
+    return `已写入 ${result.file.path}（${result.file.bytes} 字节）`;
   };
 }
 
