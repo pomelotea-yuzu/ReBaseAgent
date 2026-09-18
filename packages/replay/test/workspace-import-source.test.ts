@@ -11,7 +11,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { findSnapshotFilesViolation } from "@rebaseagent/trace-sdk";
 import { afterEach, describe, expect, it } from "vitest";
 import {
@@ -20,33 +20,16 @@ import {
   hashWorkspaceContent,
   validateSourceRoot,
 } from "../src/index";
+import { cleanupTempDirs, makeTempDir, writeTree } from "./workspace-helpers";
 
 /** 非 UTF-8 字节（0xFF 在任何位置都非法） */
 const BINARY = Uint8Array.from([0xff, 0xfe, 0x00, 0x41, 0x80]);
 const CAFE_NFC = "caf\u00e9.txt";
 const CAFE_NFD = "cafe\u0301.txt";
 
-const cleanups: (() => void)[] = [];
-afterEach(() => {
-  for (const cleanup of cleanups.splice(0)) {
-    cleanup();
-  }
-});
+afterEach(cleanupTempDirs);
 
-function tempDir(prefix = "replay-src-"): string {
-  const dir = mkdtempSync(join(tmpdir(), prefix));
-  cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
-  return dir;
-}
-
-/** 按"相对路径 → 内容"写一棵真实目录树 */
-function writeTree(root: string, tree: Record<string, string | Uint8Array>): void {
-  for (const [path, content] of Object.entries(tree)) {
-    const full = join(root, path);
-    mkdirSync(dirname(full), { recursive: true });
-    writeFileSync(full, content);
-  }
-}
+const tempDir = (): string => makeTempDir("replay-src-");
 
 /**
  * 本机能否**真的**创建出文件符号链接。

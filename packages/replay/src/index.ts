@@ -57,10 +57,11 @@ export type {
 export {
   BYTES_PER_MIB,
   WORKSPACE_QUOTA,
+  findAppendQuotaViolation,
   findFileSetQuotaViolation,
   findNewContentQuotaViolation,
 } from "./workspace/quota.js";
-export type { QuotaFileEntry, WorkspaceQuota } from "./workspace/quota.js";
+export type { QuotaAccumulator, QuotaFileEntry, WorkspaceQuota } from "./workspace/quota.js";
 export {
   WORKSPACE_BLOBS_ALGORITHM_DIR_NAME,
   WORKSPACE_BLOBS_DIR_NAME,
@@ -77,9 +78,16 @@ export type {
   WorkspaceBlobErrorCode,
 } from "./workspace/blob-store.js";
 export { tryDecodeUtf8 } from "./workspace/utf8.js";
-export { collectSourceFiles, validateSourceRoot } from "./workspace/import-source.js";
+export {
+  collectSourceFiles,
+  importSourceTree,
+  validateSourceRoot,
+  verifySourceTreeUnchanged,
+} from "./workspace/import-source.js";
 export type {
   CollectSourceResult,
+  ImportSourceRequest,
+  ImportSourceResult,
   SourceCollection,
   SourceFileEntry,
   SourceImportFailure,

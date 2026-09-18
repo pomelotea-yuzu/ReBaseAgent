@@ -111,3 +111,38 @@ export function findNewContentQuotaViolation(newBytes: number): string | null {
   }
   return null;
 }
+
+/** 已接受集合的规模（逐条追加时用） */
+export interface QuotaAccumulator {
+  readonly count: number;
+  /** 已接受文件的字节合计 */
+  readonly bytes: number;
+}
+
+/**
+ * 逐条追加的配额判定：把"再接受一条"的影响算进去，超限返回中文原因，合规返回 `null`。
+ *
+ * 为什么需要它：导入时**不能**先把整个源目录读进来再判配额——一个 2 GiB 的文件会在读完之后才
+ * 被拒（内存先炸）。有了这条，采集可以拿 `lstat` 的大小在**读之前**就拒掉。
+ *
+ * 与 `findFileSetQuotaViolation` 的关系：**上限与边界完全一致**（文件数 → 单文件 → 合计，上限含
+ * 边界），差别只在"什么时候能说"——多条违规共存时，集合判定先报规模（结构性问题），流式判定只能
+ * 报它先撞上的那一条（它不知道后面还有多少条）。两处**结论一致**（都拒或都放行）由用例钉住。
+ * 运行期写入（3.2）也用它——写入就是"向映射追加一条"。
+ */
+export function findAppendQuotaViolation(
+  accepted: QuotaAccumulator,
+  next: QuotaFileEntry,
+): string | null {
+  if (accepted.count + 1 > WORKSPACE_QUOTA.maxFiles) {
+    return `文件数超过上限 ${WORKSPACE_QUOTA.maxFiles}（当前 ${accepted.count + 1}）`;
+  }
+  if (next.bytes > WORKSPACE_QUOTA.maxFileBytes) {
+    return `单文件超过上限 ${WORKSPACE_QUOTA.maxFileBytes} 字节：${next.path} 为 ${next.bytes} 字节`;
+  }
+  const total = accepted.bytes + next.bytes;
+  if (total > WORKSPACE_QUOTA.maxSnapshotBytes) {
+    return `快照合计超过上限 ${WORKSPACE_QUOTA.maxSnapshotBytes} 字节（当前 ${total}）`;
+  }
+  return null;
+}

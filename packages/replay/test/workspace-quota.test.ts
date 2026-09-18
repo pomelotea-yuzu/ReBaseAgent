@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   BYTES_PER_MIB,
   WORKSPACE_QUOTA,
+  findAppendQuotaViolation,
   findFileSetQuotaViolation,
   findNewContentQuotaViolation,
 } from "../src/index";
@@ -89,5 +90,61 @@ describe("workspace quota：一次运行新增内容（按唯一哈希集合求�
 
   it("新增内容上限高于单份快照上限（重复写入不得耗光配额）", () => {
     expect(WORKSPACE_QUOTA.maxNewContentBytes).toBeGreaterThan(WORKSPACE_QUOTA.maxSnapshotBytes);
+  });
+});
+
+describe("workspace quota：逐条追加判定与整集合判定必须一致", () => {
+  /** 模拟"边采边判"：逐条追加，返回第一条超限原因 */
+  function foldAppend(files: readonly { path: string; bytes: number }[]): string | null {
+    let accepted = { count: 0, bytes: 0 };
+    for (const file of files) {
+      const violation = findAppendQuotaViolation(accepted, file);
+      if (violation !== null) {
+        return violation;
+      }
+      accepted = { count: accepted.count + 1, bytes: accepted.bytes + file.bytes };
+    }
+    return null;
+  }
+
+  it("单一违规时两处报同一条原因（同一份配额只有一个口径）", () => {
+    const cases: { path: string; bytes: number }[][] = [
+      [
+        { path: "a.txt", bytes: 10 },
+        { path: "empty.txt", bytes: 0 },
+      ], // 合规
+      Array.from({ length: 8 }, (_, i) => ({
+        path: `chunk-${i}.bin`,
+        bytes: WORKSPACE_QUOTA.maxFileBytes,
+      })), // 恰好 64 MiB，合规
+      [{ path: "big.bin", bytes: WORKSPACE_QUOTA.maxFileBytes + 1 }], // 单文件超限
+      [
+        ...Array.from({ length: 8 }, (_, i) => ({
+          path: `chunk-${i}.bin`,
+          bytes: WORKSPACE_QUOTA.maxFileBytes,
+        })),
+        { path: "extra.bin", bytes: 1 },
+      ], // 合计超限
+      Array.from({ length: WORKSPACE_QUOTA.maxFiles + 1 }, (_, i) => ({
+        path: `f${String(i).padStart(5, "0")}.txt`,
+        bytes: 0,
+      })), // 文件数超限
+    ];
+
+    for (const files of cases) {
+      expect(foldAppend(files), `${files.length} 条`).toBe(findFileSetQuotaViolation(files));
+    }
+  });
+
+  it("多处违规共存时两处都拒绝，但报错顺序不同——流式判定只能报它先撞上的那条", () => {
+    const manyAndOversize = Array.from({ length: WORKSPACE_QUOTA.maxFiles + 1 }, (_, i) => ({
+      path: `f${i}.bin`,
+      bytes: WORKSPACE_QUOTA.maxFileBytes + 1,
+    }));
+
+    // 集合判定先看规模（结构性原因更值得先说）
+    expect(findFileSetQuotaViolation(manyAndOversize)).toContain("文件数超过上限");
+    // 流式判定在第一条就撞上单文件超限——它不知道后面还有多少条，这正是早期拒绝的代价
+    expect(foldAppend(manyAndOversize)).toContain("单文件超过上限");
   });
 });

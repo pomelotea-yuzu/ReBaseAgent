@@ -1,10 +1,35 @@
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { JsonlTracer } from "@rebaseagent/trace-sdk";
 import type { WorkspaceFile } from "@rebaseagent/trace-sdk";
 import { createWorkspaceSnapshot } from "@rebaseagent/trace-sdk/workspace-hash";
 import { createWorkspaceBlobStore } from "../src/workspace/blob-store";
+
+/** 已登记的临时目录（workspace 相关用例共用清理） */
+const tempDirs: string[] = [];
+
+/** 建一个临时目录并登记清理；用例文件在 `afterEach(cleanupTempDirs)` 里收尾 */
+export function makeTempDir(prefix = "replay-workspace-"): string {
+  const dir = mkdtempSync(join(tmpdir(), prefix));
+  tempDirs.push(dir);
+  return dir;
+}
+
+export function cleanupTempDirs(): void {
+  for (const dir of tempDirs.splice(0)) {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/** 按"相对路径 → 内容"写一棵真实目录树（自动建父目录） */
+export function writeTree(root: string, tree: Record<string, string | Uint8Array>): void {
+  for (const [path, content] of Object.entries(tree)) {
+    const full = join(root, path);
+    mkdirSync(dirname(full), { recursive: true });
+    writeFileSync(full, content);
+  }
+}
 
 /**
  * 隔离运行 fixture 构造器（仅供 workspace 相关用例使用）。
