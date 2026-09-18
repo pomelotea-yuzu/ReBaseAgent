@@ -96,6 +96,17 @@ export type {
   ValidateSourceRootResult,
   ValidatedSourceRoot,
 } from "./workspace/import-source.js";
+export { WorkspaceWorld, createWorkspaceWorld } from "./workspace/world.js";
+export type {
+  CreateWorkspaceWorldFailure,
+  CreateWorkspaceWorldOptions,
+  CreateWorkspaceWorldResult,
+  WorldQuotaUsage,
+  WorldReadResult,
+  WorldWriteFailure,
+  WorldWriteFailureCode,
+  WorldWriteResult,
+} from "./workspace/world.js";
 export {
   WORKSPACE_TRACES_DIR_NAME,
   locateWorkspaceSnapshot,
