@@ -37,7 +37,7 @@
 - [ ] 7.1 新增包 API 三轮 fixture：before→middle→after，分叉恢复 middle 后写 child，断言源目录、父 trace/附件及兄弟哈希不变（1.5h）。验证：`replay/恢复历史中间文件而非最终文件`、`父文件不可变`、`workspace-isolation/父子及并发兄弟隔离`。桌面操作断言迁 B 3.2。
 - [ ] 7.2 增加包 API 重新加载、dataDir 整体迁移、trace 写失败和 blob 发布后中断测试（2h）。验证：`workspace-isolation/中断与数据目录迁移`、`存储故障释放资源`、`trace-format/无附件仍能看轨迹`；孤立 blob/临时 trace 不得成为完整父本。桌面重启及文件显示由 B/C 验收。
 - [ ] 7.3 运行普通模型实验的包与 CLI 回归；桌面纯对话部分迁 B 3.1（0.5h）。验证：model-experiments 的 `创建两个模型分支`、`含 config_hash 的 proxy run 创建 A/B`、`拒绝不可 fork 父 run`、`拒绝缺少 system 消息的父 run`、`带工具的代理父本沿用既有门禁`、`pure 工具实验`、`副作用工具阻断`、`显式确认副作用后放行并留痕`、`CLI 遇到带工具的父 run`。来源：原 7.3-A。
-- [ ] 7.5 在 Windows 运行可创建的 junction/symlink 导入测试；截图部分迁 B/C（0.5h）。验证：`workspace-isolation/拒绝链接及不合适的根目录`；缺创建权限记录未验证限制，不能标作通过。来源：原 7.5-A。
+- [ ] 7.5 在 Windows 运行可创建的 junction/symlink 导入测试；截图部分迁 B/C（0.5h）。验证：`workspace-isolation/拒绝链接及不合适的根目录`；缺创建权限记录未验证限制，不能标作通过。来源：原 7.5-A。**⚠️ 开工前先提醒用户开启开发者模式（用户策略「用完即关」：本机默认关闭 `AllowDevelopmentWithoutDevLicense=0`）——开启后非管理员即可创建文件/目录符号链接且对新进程立即生效、无需重新登录；跑完提醒关闭。未开时 symlink 夹具会被探针判为"不可创建"，相关用例显示 `skipped` 而非通过（2026-09-18 已验证过一次全流程）。**
 - [ ] 7.6 执行包 build 后的完整测试、桌面 typecheck、Biome、OpenSpec strict 及桌面完整构建（1h）。验证命令为 `pnpm check:ci`、`pnpm --filter @rebaseagent/desktop build`；构建须先于依赖 dist 的测试，保存失败/通过摘要，不把规范校验等同于运行验收。
 - [ ] 7.7 生成可复用的 1/10/50 run 合法 fixture，覆盖短路径、上限附近 ASCII/中文路径、每 run 11 份清单和 v1 对照，测完整 reader 解析时间/峰值内存/正确性（1h）。验证：`trace-format/根与分支快照往返`、`无附件仍能看轨迹`；记录环境/字节量，零 blob 读取/写入，不省略验证，不把首次进程扫描称 OS 冷缓存。真实 listRuns 验收迁 B 3.4。来源：原 7.7-A。
 
