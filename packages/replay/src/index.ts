@@ -139,3 +139,17 @@ export type {
   ParsedReadFileArgs,
   ParsedWriteFileArgs,
 } from "./workspace/file-tools.js";
+export {
+  checkToolProfile,
+  checkWriteAuthority,
+  describeWriteAuthorizationAudit,
+  requireWriteAuthority,
+} from "./workspace/profile-guard.js";
+export type {
+  ToolProfileCheckResult,
+  ToolProfileFailure,
+  ToolProfileFailureKind,
+  WorkspaceWriteAuthority,
+  WriteAuthorityCheckResult,
+  WriteAuthorityFailure,
+} from "./workspace/profile-guard.js";
