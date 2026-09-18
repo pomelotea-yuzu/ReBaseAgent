@@ -61,3 +61,34 @@ export {
   findNewContentQuotaViolation,
 } from "./workspace/quota.js";
 export type { QuotaFileEntry, WorkspaceQuota } from "./workspace/quota.js";
+export {
+  WORKSPACE_BLOBS_ALGORITHM_DIR_NAME,
+  WORKSPACE_BLOBS_DIR_NAME,
+  WorkspaceBlobError,
+  WorkspaceBlobStore,
+  createWorkspaceBlobStore,
+  hashWorkspaceContent,
+} from "./workspace/blob-store.js";
+export type {
+  BlobEntry,
+  BlobReadResult,
+  BlobVerifyResult,
+  PublishedBlob,
+  WorkspaceBlobErrorCode,
+} from "./workspace/blob-store.js";
+export { tryDecodeUtf8 } from "./workspace/utf8.js";
+export {
+  WORKSPACE_TRACES_DIR_NAME,
+  locateWorkspaceSnapshot,
+  readWorkspaceFile,
+  workspaceTraceFile,
+} from "./workspace/read-api.js";
+export type {
+  LocateWorkspaceRequest,
+  LocateWorkspaceResult,
+  LocatedWorkspaceSnapshot,
+  WorkspaceFileReadResult,
+  WorkspaceLocateFailure,
+  WorkspaceLocateFailureCode,
+  WorkspaceReadRequest,
+} from "./workspace/read-api.js";

@@ -129,6 +129,8 @@ v2 `resolveBranch` 依据 `resume_after_step` 保留该 step 及所有后代，�
 
 隔离能力预检复用创建/分叉的 profile、检查点、父链和附件校验，返回数据或可区分的不可用原因；预检零 trace/blob 写入、零 LLM。B 可以在确认前取得不可用原因，提交时仍重新执行包层预检；无需依赖 C 的文件读取 IPC。差异状态是路径与 hash 的派生值，不另存事实源。B/C 的 IPC 信封、renderer 数据裁剪与视图不属于 A。
 
+**实现 2.2 时的落点与三点澄清（2026-09-18）**：① 落点 = `replay/src/workspace/blob-store.ts`（`<dataDir>/workspace-blobs/sha256/<hash>` 的发布、读取与校验）、`utf8.ts`（严格 UTF-8，非法即二进制）、`read-api.ts`（`locateWorkspaceSnapshot` / `readWorkspaceFile`）；`<dataDir>/traces/<runId>.jsonl` 的布局由 A 固定（与桌面 `TRACES_DIR_NAME` 一致）。② 发布走**异步 fs**：只有异步才能让两条发布链真交错，"并发同哈希去重"的用例才有证据（本仓其余 fs 是同步风格，属刻意偏离）。③ **未封存 run 仍可读**——本节未把"已封存"列进读取前提：崩溃 run 里已落盘的检查点正是事故现场，读取本来就不是分叉；"未封存不可分叉"是 4.x 预检的门禁。④ 完整性校验分两级：**清单 id 的重算在 reader**（1.2 接在 `readRun`，因需 `node:crypto`），附件字节的比对在读取层；读取层不得重复实现前者（会变成永远走不到的分支）。
+
 ### 8. 生命周期、故障和配额
 
 预检校验失败不创建 trace、不调用模型。导入 I/O 失败可能留下已经发布但未被引用的 blob，不能作为 checkpoint 使用；仅删除本请求自己的临时文件，已发布 blob 留待未来 GC，不冒险删除共享内容。元数据发布之前的孤立内容不破坏 JSONL 的事实源地位。
