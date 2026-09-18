@@ -153,3 +153,8 @@ export type {
   WriteAuthorityCheckResult,
   WriteAuthorityFailure,
 } from "./workspace/profile-guard.js";
+export {
+  WorkspaceCheckpointTracer,
+  createWorkspaceCheckpointTracer,
+} from "./workspace/checkpoint-tracer.js";
+export type { CheckpointTracerOptions } from "./workspace/checkpoint-tracer.js";
