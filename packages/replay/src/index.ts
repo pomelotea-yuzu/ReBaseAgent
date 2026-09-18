@@ -77,6 +77,17 @@ export type {
   WorkspaceBlobErrorCode,
 } from "./workspace/blob-store.js";
 export { tryDecodeUtf8 } from "./workspace/utf8.js";
+export { collectSourceFiles, validateSourceRoot } from "./workspace/import-source.js";
+export type {
+  CollectSourceResult,
+  SourceCollection,
+  SourceFileEntry,
+  SourceImportFailure,
+  SourceImportFailureCode,
+  SourceRootRequest,
+  ValidateSourceRootResult,
+  ValidatedSourceRoot,
+} from "./workspace/import-source.js";
 export {
   WORKSPACE_TRACES_DIR_NAME,
   locateWorkspaceSnapshot,
