@@ -165,3 +165,11 @@ export type {
   CreateIsolatedRunOptions,
   CreateIsolatedRunResult,
 } from "./workspace/isolated-run.js";
+export { preflightIsolatedReplay } from "./workspace/preflight.js";
+export type {
+  IsolatedPreflightFailure,
+  IsolatedPreflightFailureCode,
+  IsolatedPreflightOptions,
+  IsolatedPreflightResult,
+  IsolatedReplayCapability,
+} from "./workspace/preflight.js";

@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { configHash } from "@rebaseagent/agent-loop";
-import type { Message, RunConfig } from "@rebaseagent/agent-loop";
+import type { RunConfig } from "@rebaseagent/agent-loop";
 import { readRun } from "@rebaseagent/trace-sdk";
 import { computeWorkspaceSnapshotId } from "@rebaseagent/trace-sdk/workspace-hash";
 import { afterEach, describe, expect, it } from "vitest";
@@ -9,12 +9,12 @@ import {
   FILE_TOOLS_V1_DEFINITIONS,
   FILE_TOOLS_V1_PROFILE,
   WORKSPACE_TRACES_DIR_NAME,
-  WRITE_FILE_TOOL_NAME,
   createIsolatedRun,
   hashWorkspaceContent,
   readWorkspaceFile,
 } from "../src/index";
 import type { FileToolDefinition } from "../src/index";
+import { SYSTEM_PROMPT, ScriptedLlm, asLoopLlm, makeConfig, writeCall } from "./isolated-helpers";
 import { cleanupTempDirs, makeTempDir, writeTree } from "./workspace-helpers";
 
 /**
@@ -41,107 +41,7 @@ const SOURCE_TREE: Record<string, string> = {
   "nested/b.txt": "nested",
 };
 
-const SYSTEM_PROMPT = "你是文件助手。";
 const USER_MESSAGE = "把 hello 写进 out/hello.txt";
-
-/** 一轮 LLM 的编排响应 */
-interface ScriptedTurn {
-  readonly content?: string;
-  readonly toolCalls?: Array<{ readonly id: string; readonly name: string; readonly args: string }>;
-}
-
-/**
- * 最小桩：按剧本逐轮返回；剧本耗尽即抛（loop 会把 LLM 失败记成 `errored` 终止）。
- *
- * `tracesDir` 传入时，在**首次**被调用那一刻抓一次现场——用来证明"初始采集完成后才调用 LLM"
- * （首次请求发出时，meta 已经带上了 v2 与初始快照）。
- */
-class ScriptedLlm {
-  readonly requests: Message[][] = [];
-  atFirstCall: { readonly files: readonly string[]; readonly metaLine: unknown } | null = null;
-  private turn = 0;
-
-  constructor(
-    private readonly script: readonly ScriptedTurn[],
-    private readonly tracesDir?: string,
-  ) {}
-
-  async complete(messages: Message[]): Promise<{
-    response: {
-      content: string | null;
-      reasoningContent: string | null;
-      toolCalls: Array<{
-        id: string;
-        type: "function";
-        function: { name: string; arguments: string };
-      }>;
-      usage: { in: number; out: number };
-      ttftMs: number;
-    };
-    requestBody: unknown;
-  }> {
-    if (this.turn === 0 && this.tracesDir !== undefined) {
-      this.atFirstCall = captureTraces(this.tracesDir);
-    }
-    this.requests.push([...messages]);
-    const turn = this.script[this.turn];
-    this.turn += 1;
-    if (turn === undefined) {
-      throw new Error(`剧本耗尽：第 ${this.turn} 轮无编排响应`);
-    }
-    return {
-      response: {
-        content: turn.content ?? null,
-        reasoningContent: null,
-        toolCalls: (turn.toolCalls ?? []).map((call) => ({
-          id: call.id,
-          type: "function" as const,
-          function: { name: call.name, arguments: call.args },
-        })),
-        usage: { in: 100, out: 50 },
-        ttftMs: 10,
-      },
-      requestBody: {},
-    };
-  }
-}
-
-/** runLoop 的第 5 参类型（LlmClient）；桩只实现 complete */
-const asLoopLlm = (llm: ScriptedLlm): Parameters<typeof createIsolatedRun>[0]["llm"] =>
-  llm as unknown as Parameters<typeof createIsolatedRun>[0]["llm"];
-
-/** 抓一次 traces 目录现场：文件名清单 + 第一个临时文件的首行（meta） */
-function captureTraces(dir: string): { files: readonly string[]; metaLine: unknown } {
-  if (!existsSync(dir)) {
-    return { files: [], metaLine: null };
-  }
-  const files = [...readdirSync(dir)].sort();
-  const tmp = files.find((name) => name.endsWith(".tmp"));
-  if (tmp === undefined) {
-    return { files, metaLine: null };
-  }
-  const firstLine = readFileSync(join(dir, tmp), "utf8").split("\n")[0] ?? "";
-  return { files, metaLine: JSON.parse(firstLine) as unknown };
-}
-
-function makeConfig(systemPrompt = SYSTEM_PROMPT): RunConfig {
-  return {
-    baseURL: "https://api.deepseek.com/v1",
-    apiKey: "sk-test",
-    model: "deepseek-chat",
-    systemPrompt,
-    tools: [...FILE_TOOLS_V1_DEFINITIONS],
-    params: undefined,
-    exec: { cwd: "D:/nope-not-a-real-dir", signal: null },
-    maxIterations: 10,
-    budget: { maxTotalTokens: 100000 },
-  };
-}
-
-/** 一轮工具调用（args 是字符串，与真实 LLM 给的形式一致） */
-function writeCall(id: string, path: string, content: string) {
-  return { id, name: WRITE_FILE_TOOL_NAME, args: JSON.stringify({ path, content }) };
-}
 
 /** 一棵真实源树 + 一个**尚不存在**的 dataDir（用来断言"预检失败连目录都不建"） */
 function makeFixture(): { source: string; dataDir: string } {
