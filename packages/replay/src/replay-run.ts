@@ -6,7 +6,7 @@ import { JsonlTracer, assertForkable } from "@rebaseagent/trace-sdk";
 import type { RunLoader, RunRecord } from "@rebaseagent/trace-sdk";
 import { deriveReplayState } from "./derive.js";
 import type { ReplayEdit } from "./derive.js";
-import { loadParentChain } from "./parent-chain.js";
+import { loadParentChain, maxSpanSeq } from "./parent-chain.js";
 
 /**
  * 时间旅行编排：把"编辑某步 tool.result 并从该步重跑"执行到落盘。
@@ -45,25 +45,6 @@ export interface ReplayRunResult {
 /** 生成 fork run id（时间戳 + 随机后缀，防同毫秒碰撞）；prompt fork 编排共用 */
 export function newForkRunId(): string {
   return `run_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
-}
-
-/**
- * 父链最大 span 序号：fork run 的 span 从其后延续编号。
- * resolveBranch 扁平拼接父前缀 + 本 run 新增 span，若 fork run 从 s_01 重计，
- * 展开轨迹会出现重复 id；再分叉时叶优先按 id 查找会命中祖先同名 span。
- * 真实 runLoop 产出的 span id 恒为 s_NN，故取数字后缀最大值即可。
- */
-function maxSpanSeq(records: RunRecord[]): number {
-  let max = 0;
-  for (const record of records) {
-    for (const span of record.spans) {
-      const m = /^s_(\d+)$/.exec(span.id);
-      if (m !== null) {
-        max = Math.max(max, Number(m[1]));
-      }
-    }
-  }
-  return max;
 }
 
 export async function replayRun(options: ReplayRunOptions): Promise<ReplayRunResult> {

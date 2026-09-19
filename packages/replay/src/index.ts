@@ -173,3 +173,10 @@ export type {
   IsolatedPreflightResult,
   IsolatedReplayCapability,
 } from "./workspace/preflight.js";
+export { replayIsolatedRun } from "./workspace/isolated-replay.js";
+export type {
+  ReplayIsolatedRunFailure,
+  ReplayIsolatedRunFailureCode,
+  ReplayIsolatedRunOptions,
+  ReplayIsolatedRunResult,
+} from "./workspace/isolated-replay.js";

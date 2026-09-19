@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { Message, RunConfig } from "@rebaseagent/agent-loop";
 import {
   FILE_TOOLS_V1_DEFINITIONS,
+  READ_FILE_TOOL_NAME,
   WORKSPACE_TRACES_DIR_NAME,
   WRITE_FILE_TOOL_NAME,
 } from "../src/index";
@@ -123,6 +124,11 @@ export function makeConfig(systemPrompt = SYSTEM_PROMPT): RunConfig {
 /** 一轮 write_file 调用（args 是字符串，与真实 LLM 给的形式一致） */
 export function writeCall(id: string, path: string, content: string) {
   return { id, name: WRITE_FILE_TOOL_NAME, args: JSON.stringify({ path, content }) };
+}
+
+/** 一轮 read_file 调用 */
+export function readCall(id: string, path: string) {
+  return { id, name: READ_FILE_TOOL_NAME, args: JSON.stringify({ path }) };
 }
 
 export function tracesDirOf(dataDir: string): string {
