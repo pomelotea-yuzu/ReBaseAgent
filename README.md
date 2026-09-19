@@ -4,13 +4,15 @@
 > 本地运行，数据不出你的机器。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Release](https://img.shields.io/badge/Release-v0.2.0-green.svg)](https://github.com/pomelotea-yuzu/ReBaseAgent/releases)
+[![Release](https://img.shields.io/badge/Release-v0.3.0--k0-green.svg)](https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.3.0-k0)
 
 ## 下载
 
-**Windows x64 便携版（约 94 MB，<100 MB，免安装）** → [Releases](https://github.com/pomelotea-yuzu/ReBaseAgent/releases)
+**Windows x64 便携版（约 94 MB，<100 MB，免安装）** → [Releases](https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.3.0-k0)
 
-实测单文件体积 `94,316,503` bytes，低于 Gitee 单附件 100 MB 上限（v0.1.0 仍保留可回滚）。双击即用，不需要安装。所有数据写在 exe 旁的 `data/` 目录——**不写 AppData、不碰注册表、不留临时文件**。整个文件夹拷进 U 盘就能带走。
+当前版本线 **0.3.0-k0**（预览体验包）：实测单文件体积 `94,351,087` bytes，低于 Gitee 单附件 100 MB 上限。双击即用，不需要安装。所有数据写在 exe 旁的 `data/` 目录——**不写 AppData、不碰注册表、不留临时文件**。整个文件夹拷进 U 盘就能带走。
+
+> 0.3.0-k0 是**预发布体验包**（提前试用新能力）。想要稳定版请取 [v0.2.0](https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.2.0)。
 
 > 首次运行会有 Windows SmartScreen 的"未知发布者"提示（本项目尚未购买代码签名证书），点「更多信息 → 仍要运行」即可。
 
@@ -27,7 +29,7 @@ ReBaseAgent 是给"上下文"这门语言的调试器：
 | 回归测试 | Trace-as-Test 轨迹回放 |
 | git diff | 两次运行的分叉点定位 |
 
-## 它现在能做什么（v0.2.0 · 含 V3a / V3b）
+## 它现在能做什么（0.3.0-k0 · 含 V3a / V3b）
 
 - **span 时间线** — 逐步查看每一次迭代、每一次 LLM 调用、每一次工具执行，以及模型当时实际看到的完整上下文
 - **上下文预算地图** — token 花在哪了，按消息与工具分布可视化
@@ -36,7 +38,7 @@ ReBaseAgent 是给"上下文"这门语言的调试器：
 - **缓存命中记账与可视化（A2）** — `llm.call` 的 usage 记录 `cache_hit` / `cache_miss`（DeepSeek 扁平字段与 OpenAI 嵌套字段都认），llm.call 详情与 run 列表直接显示"这次调用的前缀省没省"；tool_result 分叉编辑器在「父 run 模型 ≠ 当前配置模型」时提示缓存可能不命中
 - **分支轨迹** — 从已完成的 run 分叉，只记录新增 span，前缀按 parent 链共享
 - **prompt fork（完整时间旅行）** — 改启动上下文（system prompt 或首条 user message）后**从头重跑**：独立记录完整新轨迹，父 run 只作溯源对照；分支树标注「从头重跑」，多分支对照可并排比较新旧行为
-- **隔离文件重跑（A 段 · 包层）** — 从一个目录创建**带文件检查点**的隔离 run，编辑某步 `tool_result` 后从**那一轮的副本文件世界**续跑：父 run / 源目录 / 兄弟分支逐字节不变，同轮兄弟工具的原效果保留且不重放。附件按内容寻址、跨 run 共享，整体搬走数据目录后照样可读可分叉；源目录里的链接与 junction、超配额的输入在导入期就被拒绝。**一句话：带写工具的 run 也能安全地"退回去重跑"**（桌面入口在迭代，见 [`packages/replay`](packages/replay)）
+- **隔离文件重跑（A 段 · 包层）** — 从一个目录创建**带文件检查点**的隔离 run，编辑某步 `tool_result` 后从**那一轮的副本文件世界**续跑：父 run / 源目录 / 兄弟分支逐字节不变，同轮兄弟工具的原效果保留且不重放。附件按内容寻址、跨 run 共享，整体搬走数据目录后照样可读可分叉；源目录里的链接与 junction、超配额的输入在导入期就被拒绝。**一句话：带写工具的 run 也能安全地"退回去重跑"**（**包层已在 `main` 落地；桌面入口尚未进入发行包**，见 [`packages/replay`](packages/replay)）
 - **本地 LLM 录制代理** — 在你的应用里把 `base_url` 改成本地代理地址即可录制与"编辑 messages 重发"，key 一字不动
 - **Trace-as-Test（V3a）** — 已封存 trace 当卡带，用你当前的 agent-loop 与工具声明本地重跑：零 API 消耗的 Agent 运行时回归测试，可进 CI（见 [`packages/trace-test`](packages/trace-test)）
 - **原生 run 创建（A1）** — 桌面端点「＋ 新建运行」直接跑一个 run（空工具表、纯对话），不依赖代理与脚本；产出的根 run 可直接作为 prompt fork / 模型 A/B / trace-test 的父本
@@ -163,6 +165,7 @@ DeepSeek / GLM / Qwen / Kimi 等 OpenAI 兼容端点开箱即用。
 - ✅ **原生 run 创建入口（A1）** — 桌面端「＋ 新建运行」直接跑一个 run，无需代理/脚本；产出的 run 可立刻作为 prompt fork / 模型 A/B / trace-test 的父本
 - ✅ **共享前缀重跑·缓存记账与成本兑现（A2）** — 先勘误：截断复用**早已实现**（分叉点前零 LLM 调用），原条目「当前所有重跑都是从头执行」是错的；本条目补的是**计费侧**——`cache_hit`/`cache_miss` 落 trace + 桌面端展示 + 真机实测，并把「成本约 1/4」改写成**区间 + 条件**（实测 3 次调用改最后一步 ⇒ 只发 1 次请求、全价口径 21%~40%，见上）
 - ✅ **LLM 失败详情落盘与展示（`add-llm-error-detail`）** — 失败原因随 `llm.call.error` 落 trace（脱敏 + 限长 1024）、桌面端标红并展示原因与状态码、老/代理失败 run 诚实显示「错误详情未记录」、Trace-as-Test 卡带重现录制失败
+- ✅ **v0.3.0-k0（预览体验包 · 已发布）** — 把上面五个能力（V3a 卡带回归 / V3b 模型 A/B / A1 原生建运行 / A2 缓存记账 / LLM 失败详情）打包成 Windows x64 便携版，已上传 GitHub 与 Gitee Releases。**本版不含隔离文件重跑**（见下条）
 - ✅ **隔离文件真重跑（A 段 · 包层）** — 从一个目录创建**带文件检查点**的隔离 run；编辑某步 `tool_result` 后从**那一轮的副本文件世界**续跑，父 run / 源目录 / 兄弟分支逐字节不变，同轮兄弟工具的原效果保留且不重放；受控 `file-tools-v1`、内容寻址附件（跨 run 共享）、数据目录可整体迁移；源目录里的链接/junction 与超配额输入在导入期拒绝。详见 [`packages/replay`](packages/replay)
 - 📋 **隔离执行的桌面入口（B/C 段）** — 目录选择 → 新建隔离 run → 改 result 分叉 → 重启与迁移后查看文件差异
 - 📋 **工程与分发** — 面向新用户的 quickstart 文档 · macOS/Linux 打包评估 · 协作分享（trace 包导出）
