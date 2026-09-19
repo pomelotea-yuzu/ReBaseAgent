@@ -11,21 +11,24 @@ import {
 import { dirname, join, relative } from "node:path";
 import { configHash } from "@rebaseagent/agent-loop";
 import { readRun } from "@rebaseagent/trace-sdk";
-import type {
-  AgentStepSpan,
-  RunRecord,
-  ToolInvokeSpan,
-  WorkspaceSnapshot,
-} from "@rebaseagent/trace-sdk";
+import type { AgentStepSpan, RunRecord, ToolInvokeSpan } from "@rebaseagent/trace-sdk";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   FILE_TOOLS_V1_DEFINITIONS,
   WORKSPACE_TRACES_DIR_NAME,
   createIsolatedRun,
   preflightIsolatedReplay,
+  replayIsolatedRun,
 } from "../src/index";
 import type { FileToolDefinition, IsolatedPreflightOptions, ReplayEdit } from "../src/index";
-import { SYSTEM_PROMPT, ScriptedLlm, asLoopLlm, makeConfig, writeCall } from "./isolated-helpers";
+import {
+  SYSTEM_PROMPT,
+  ScriptedLlm,
+  asLoopLlm,
+  makeConfig,
+  readCall,
+  writeCall,
+} from "./isolated-helpers";
 import { cleanupTempDirs, makeTempDir, writeTree } from "./workspace-helpers";
 
 /**
@@ -40,11 +43,10 @@ import { cleanupTempDirs, makeTempDir, writeTree } from "./workspace-helpers";
  * 正向的父本一律由 4.1 的 `createIsolatedRun` **真跑**出来（真导入、真受控工具、真 runLoop、
  * 真落盘）——这样预检消费的是真实产物，而不是"手写的、看起来像真 run 的 JSONL"。
  * 拒绝类用例在这份真父本上做**单点破坏**（截掉终止事件、删某一行、删附件、改一个字节），
- * 每个用例只改一件事，因此失败原因唯一，断言不会互相掩盖。
+ * 每个用例只改一件事，因此失败原因统一、断言不会互相掩盖。
  *
- * 唯一的例外是"祖先共享前缀的编辑点"：它需要一个**分叉 run** 作为叶子，而真实分叉要等 4.3。
- * 这里用手写的分支桩（只含 meta + 一个 step + 一个工具，形态与真实分叉一致）；
- * 4.4 会补上"真实分叉 run 再分叉"的集成用例。
+ * "祖先共享前缀的编辑点"需要一个**分叉 run** 当叶子：现在用 4.3 的 `replayIsolatedRun` 真分叉
+ * （4.2 落地时它还不存在，当时用手写 JSONL 桩顶着；桩与写入端契约脱节，已按 4.4 的计划换掉）。
  *
  * ## 零副作用的判据是**目录树指纹**
  *
@@ -197,70 +199,6 @@ function writeV1Run(dataDir: string, runId: string): void {
     { type: "run.event", event: "stopped", reason: "completed", at: 0 },
   ];
   writeFileSync(file, `${lines.map((line) => JSON.stringify(line)).join("\n")}\n`);
-}
-
-/**
- * 手写一个**分叉桩**（叶子）：形态与真实隔离分叉一致（v2 + checkpoint origin + 整轮边界），
- * 供"祖先共享前缀"用例当叶子用。4.4 会用真实分叉替换它。
- */
-function writeBranchStub(
-  dataDir: string,
-  options: {
-    readonly childId: string;
-    readonly parentId: string;
-    readonly snapshot: WorkspaceSnapshot;
-  },
-): { readonly childStepId: string; readonly childToolId: string } {
-  const file = join(dataDir, WORKSPACE_TRACES_DIR_NAME, `${options.childId}.jsonl`);
-  mkdirSync(dirname(file), { recursive: true });
-  const childStepId = "s_01";
-  const childToolId = "s_02";
-  const lines: Array<Record<string, unknown>> = [
-    {
-      type: "run.meta",
-      id: options.childId,
-      format_version: 2,
-      task: "分叉桩",
-      model: "deepseek-chat",
-      created_at: "2026-09-19T00:00:00.000Z",
-      parent: options.parentId,
-      fork: {
-        at_span: childToolId,
-        resume_after_step: childStepId,
-        edit: { field: "result", value: "编辑后的结果" },
-      },
-      config_hash: configHash(SYSTEM_PROMPT, [...FILE_TOOLS_V1_DEFINITIONS]),
-      workspace: {
-        profile: "file-tools-v1",
-        world_id: options.childId,
-        write_authorized: true,
-        initial_snapshot: options.snapshot,
-        origin: { kind: "checkpoint", run_id: options.parentId, step_span: childStepId },
-      },
-    },
-    {
-      type: "span",
-      id: childStepId,
-      parent: null,
-      kind: "agent.step",
-      n: 1,
-      workspace_snapshot: options.snapshot,
-    },
-    {
-      type: "span",
-      id: childToolId,
-      parent: childStepId,
-      kind: "tool.invoke",
-      tool: "write_file",
-      args: { path: "a.txt", content: "A2" },
-      result: "已写入",
-      dur_ms: 1,
-      error: null,
-    },
-    { type: "run.event", event: "stopped", reason: "completed", at: 1 },
-  ];
-  writeFileSync(file, `${lines.map((line) => JSON.stringify(line)).join("\n")}\n`);
-  return { childStepId, childToolId };
 }
 
 /** 起点清单里某个文件的附件物理路径 */
@@ -456,38 +394,49 @@ describe("preflightIsolatedReplay：分叉点与编辑值", () => {
     }
   });
 
-  it("编辑点落在祖先共享前缀 → ancestor_edit_point（不取直接父的检查点硬凑）", async () => {
+  it("编辑点落在祖先共享前缀 → ancestor_edit_point（真实分叉链）", async () => {
     const fixture = await makeIsolatedParent();
-    const snapshot = fixture.step1.workspace_snapshot;
-    expect(snapshot).toBeDefined();
-    const child = writeBranchStub(fixture.dataDir, {
-      childId: "run_child_stub",
-      parentId: fixture.parentId,
-      snapshot: snapshot as WorkspaceSnapshot,
-    });
 
-    // 叶是 child，请求却编辑**父本（祖先）**的工具点
-    const result = await preflight(
-      { dataDir: fixture.dataDir, parentId: "run_child_stub", tool1: fixture.tool1 },
+    // 用 4.3 的编排真分叉出一个子 run 当叶子（不再手写 JSONL：手写版会与写入端契约脱节）
+    const childResult = await replayIsolatedRun({
+      dataDir: fixture.dataDir,
+      parentId: fixture.parentId,
+      atSpanId: fixture.tool1.id,
+      edit: { field: "result", value: "第一层编辑" },
+      config: makeConfig(),
+      authority: { allowFileWrites: true },
+      llm: asLoopLlm(
+        new ScriptedLlm([{ toolCalls: [readCall("r1", "a.txt")] }, { content: "done" }]),
+      ),
+    });
+    expect(childResult.ok).toBe(true);
+    if (!childResult.ok) {
+      return;
+    }
+    const childRecord = readRun(
+      join(fixture.dataDir, WORKSPACE_TRACES_DIR_NAME, `${childResult.id}.jsonl`),
+    );
+    const childTool = childRecord.spans.find((span) => span.kind === "tool.invoke");
+    expect(childTool).toBeDefined();
+
+    // 叶是子 run，请求却编辑**祖先（根 run）**的工具点
+    const ancestor = await preflight(
+      { dataDir: fixture.dataDir, parentId: childResult.id, tool1: fixture.tool1 },
       { atSpanId: fixture.tool1.id },
     );
 
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.failure.code).toBe("ancestor_edit_point");
-      expect(result.failure.reason).toContain(fixture.parentId);
+    expect(ancestor.ok).toBe(false);
+    if (!ancestor.ok) {
+      expect(ancestor.failure.code).toBe("ancestor_edit_point");
+      expect(ancestor.failure.reason).toContain(fixture.parentId);
     }
 
-    // 对照：编辑叶子自有的工具点，预检应当通过（证明失败确实来自"祖先"而不是别的原因）
+    // 对照：编辑叶子**自有**的工具点，预检真的通过 —— 证明失败确实来自"祖先"而非别的原因
     const own = await preflight(
-      { dataDir: fixture.dataDir, parentId: "run_child_stub", tool1: fixture.tool1 },
-      { atSpanId: child.childToolId, edit: { field: "result", value: "改了" } },
+      { dataDir: fixture.dataDir, parentId: childResult.id, tool1: fixture.tool1 },
+      { atSpanId: childTool?.id ?? "", edit: { field: "result", value: "改了" } },
     );
-    // 叶子桩没有 llm.call，因此会停在批次完整性上——但**不会**是 ancestor_edit_point
-    expect(own.ok).toBe(false);
-    if (!own.ok) {
-      expect(own.failure.code).not.toBe("ancestor_edit_point");
-    }
+    expect(own.ok).toBe(true);
   });
 
   it("编辑字段或取值非法 → invalid_edit", async () => {

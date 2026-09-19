@@ -21,10 +21,41 @@ import type { CreateIsolatedRunOptions } from "../src/index";
 
 export const SYSTEM_PROMPT = "你是文件助手。";
 
-/** 一轮 LLM 的编排响应 */
+/** 一轮编排响应 */
 export interface ScriptedTurn {
   readonly content?: string;
   readonly toolCalls?: Array<{ readonly id: string; readonly name: string; readonly args: string }>;
+}
+
+/** loop 期望的 `complete` 返回值（`ScriptedLlm` 与测试内自定义桩共用） */
+export function scriptedLlmResponse(turn: ScriptedTurn): {
+  response: {
+    content: string | null;
+    reasoningContent: string | null;
+    toolCalls: Array<{
+      id: string;
+      type: "function";
+      function: { name: string; arguments: string };
+    }>;
+    usage: { in: number; out: number };
+    ttftMs: number;
+  };
+  requestBody: unknown;
+} {
+  return {
+    response: {
+      content: turn.content ?? null,
+      reasoningContent: null,
+      toolCalls: (turn.toolCalls ?? []).map((call) => ({
+        id: call.id,
+        type: "function" as const,
+        function: { name: call.name, arguments: call.args },
+      })),
+      usage: { in: 100, out: 50 },
+      ttftMs: 10,
+    },
+    requestBody: {},
+  };
 }
 
 /**
@@ -43,20 +74,7 @@ export class ScriptedLlm {
     private readonly tracesDir?: string,
   ) {}
 
-  async complete(messages: Message[]): Promise<{
-    response: {
-      content: string | null;
-      reasoningContent: string | null;
-      toolCalls: Array<{
-        id: string;
-        type: "function";
-        function: { name: string; arguments: string };
-      }>;
-      usage: { in: number; out: number };
-      ttftMs: number;
-    };
-    requestBody: unknown;
-  }> {
+  async complete(messages: Message[]) {
     if (this.turn === 0 && this.tracesDir !== undefined) {
       this.atFirstCall = captureTraces(this.tracesDir);
     }
@@ -66,25 +84,17 @@ export class ScriptedLlm {
     if (turn === undefined) {
       throw new Error(`剧本耗尽：第 ${this.turn} 轮无编排响应`);
     }
-    return {
-      response: {
-        content: turn.content ?? null,
-        reasoningContent: null,
-        toolCalls: (turn.toolCalls ?? []).map((call) => ({
-          id: call.id,
-          type: "function" as const,
-          function: { name: call.name, arguments: call.args },
-        })),
-        usage: { in: 100, out: 50 },
-        ttftMs: 10,
-      },
-      requestBody: {},
-    };
+    return scriptedLlmResponse(turn);
   }
 }
 
-/** 编排层的 LLM 客户端类型（桩只实现 complete） */
-export const asLoopLlm = (llm: ScriptedLlm): CreateIsolatedRunOptions["llm"] =>
+/**
+ * 把测试桩喂给编排层（桩只实现 `complete`，其余 LlmClient 成员不参与）。
+ *
+ * 入参是 `unknown`：除了 `ScriptedLlm`，"按上下文决策"的自定义桩（如 4.4 的 `ReactiveLlm`）
+ * 也要走这里，而这个 helper 不该认识每一个测试类。
+ */
+export const asLoopLlm = (llm: unknown): CreateIsolatedRunOptions["llm"] =>
   llm as unknown as CreateIsolatedRunOptions["llm"];
 
 /** 抓一次 traces 目录现场：文件名清单 + 第一个临时文件的首行（meta） */

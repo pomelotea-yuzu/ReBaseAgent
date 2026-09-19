@@ -12,7 +12,10 @@ export interface ResolvedRun {
   meta: RunMetaLine;
   /** 完整轨迹 = 各祖先的共享前缀（截至各 fork 点，含 fork 点 span）+ 本 run 新增 span */
   spans: SpanLine[];
-  /** 祖先链（从根到直接父），暴露 fork 元数据；编辑语义由 replay 层应用 */
+  /**
+   * 完整链（**从根到叶子，含叶子自己**），暴露每一跳的 fork 元数据；
+   * 编辑语义由 replay 层应用。
+   */
   chain: ChainHop[];
   /** 叶子 run 自身的事件（其结局） */
   events: RunEventLine[];
