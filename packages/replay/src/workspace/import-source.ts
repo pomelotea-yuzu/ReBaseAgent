@@ -154,6 +154,14 @@ export function validateSourceRoot(request: SourceRootRequest): ValidateSourceRo
   if (root === null) {
     return fail("source_not_found", `源目录不存在或无法解析真实路径：${request.source}`);
   }
+  // 解析后的真实路径必须**再**过一次"不适合作根"的判定（7.5 真机发现）：
+  // 字面形状挡不住"链接指向磁盘根"——`D:\proj\link` 字面看着是个正常子目录，
+  // realpath 之后却是 `D:\`。根的范围决定整个世界的内容，放行等于把整个盘当项目。
+  // UNC / 设备形态在 realpath 后同样会在这里被拦下（解析结果可能才显出 UNC 前缀）。
+  const resolvedUnsuited = findUnsuitableRootViolation(root);
+  if (resolvedUnsuited !== null) {
+    return fail("unsuitable_root", `${resolvedUnsuited}（源 ${request.source} 解析后为 ${root}）`);
+  }
   if (!isDirectorySync(root)) {
     return fail("source_not_a_directory", `源路径不是目录：${root}`);
   }

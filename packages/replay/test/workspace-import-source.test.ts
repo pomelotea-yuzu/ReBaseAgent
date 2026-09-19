@@ -11,7 +11,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, parse } from "node:path";
 import { findSnapshotFilesViolation } from "@rebaseagent/trace-sdk";
 import { afterEach, describe, expect, it } from "vitest";
 import {
@@ -54,6 +54,15 @@ const FILE_SYMLINK_AVAILABLE = (() => {
     rmSync(dir, { recursive: true, force: true });
   }
 })();
+
+/**
+ * 需要 **symlink 创建权限**（开发者模式 / `SeCreateSymbolicLinkPrivilege`）的用例。
+ *
+ * ⚠️ 必须用 `skipIf` 而不是"进函数体先 `if (!可用) return`"：后者会让用例**显示为通过**
+ * ——什么都没测却给绿灯，正是本任务禁止的"把未验证标作通过"。用 `skipIf` 时报告里是 skipped。
+ * （`junction` 不需要特权，因此那几条用例走普通 `it`，恒定真跑。）
+ */
+const itWithSymlink = it.skipIf(!FILE_SYMLINK_AVAILABLE);
 
 describe("源根校验：形态与关系", () => {
   it("普通目录通过，返回解析后的真实路径", () => {
@@ -147,6 +156,119 @@ describe("源根校验：形态与关系", () => {
     const result = validateSourceRoot({ source: link, dataDir: join(tempDir(), "data") });
     expect(result.ok).toBe(true);
     expect(result.ok && result.value.root).toBe(realpathSync(real));
+  });
+});
+
+/**
+ * 7.5：**链接形态的根与树**（Windows 真机，junction 免特权 + symlink 走能力探针）。
+ *
+ * 验证点（tasks.md 7.5）：`workspace-isolation/拒绝链接及不合适的根目录`。
+ *
+ * ## 为什么这件事非要在真机做
+ *
+ * "根是链接"与"树内是链接"在 Node 里都只表现为 `lstat().isSymbolicLink() === true`，
+ * 但**创建方式**分两类：junction（`MOUNT_POINT`，非管理员即可建）与 symlink（真正需要
+ * `SeCreateSymbolicLinkPrivilege` / 开发者模式）。只测 junction 会漏掉 symlink 这条路径，
+ * 反之亦然。本文件两类都真建真跑：junction 用例恒执行，symlink 用例由能力探针守卫
+ * （本机开开发者模式时真跑，关闭时显示 **skipped** —— 不伪装成通过）。
+ *
+ * ## 关键构造：用链接去撞"解析后的形态"
+ *
+ * 根校验此前只在**字面路径**上判"不适合作根"（`D:\`、UNC、设备前缀）。而 `D:\proj\link`
+ * 字面看着是个正常子目录，`realpath` 之后可能是 `D:\` —— 一旦放行，隔离世界会把整个盘当项目。
+ * 用例 2/3 正是用 junction 把这条路径钉住（真机发现，实现已同步补上"解析后复判"）。
+ */
+describe("源根与树内的链接形态（7.5 真机 junction/symlink）", () => {
+  itWithSymlink("根是目录符号链接（dir 类型）：解析一次后通过，世界根取真实路径", () => {
+    const holder = tempDir();
+    const real = join(holder, "real");
+    writeTree(real, { "a.txt": "a" });
+    const link = join(holder, "dir-link");
+    symlinkSync(real, link, "dir");
+    expect(existsSync(link)).toBe(true);
+
+    const result = validateSourceRoot({ source: link, dataDir: join(tempDir(), "data") });
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.value.root).toBe(realpathSync(real));
+  });
+
+  it("根是指向磁盘根的 junction：拒绝（字面像子目录，解析后是盘根）", () => {
+    const holder = tempDir();
+    const link = join(holder, "to-disk-root");
+    const diskRoot = parse(process.cwd()).root; // 例如 "D:\"
+    symlinkSync(diskRoot, link, "junction");
+    expect(existsSync(link)).toBe(true);
+
+    const result = validateSourceRoot({ source: link, dataDir: join(tempDir(), "data") });
+    expect(result.ok).toBe(false);
+    expect(result.ok ? null : result.failure.code).toBe("unsuitable_root");
+    // 失败信息里要能同时看到"字面给了什么"和"解析成了什么"，否则用户不知道去哪改
+    expect(result.ok ? "" : result.failure.reason).toContain(diskRoot);
+    expect(result.ok ? "" : result.failure.reason).toContain(link);
+  });
+
+  it("根是指向数据目录的 junction：按解析后的真实路径判冲突", () => {
+    const dataDir = join(tempDir(), "data");
+    mkdirSync(dataDir);
+    const holder = tempDir();
+    const link = join(holder, "to-data-dir");
+    symlinkSync(dataDir, link, "junction");
+
+    // 字面路径与 dataDir 无关，但解析后是同一处 ⇒ 必须拒
+    expect(validateSourceRoot({ source: link, dataDir })).toMatchObject({
+      failure: { code: "source_conflicts_data_dir" },
+    });
+  });
+
+  itWithSymlink("根是指向文件的符号链接：拒绝（解析后不是目录）", () => {
+    const holder = tempDir();
+    const file = join(holder, "target.txt");
+    writeFileSync(file, "x");
+    const link = join(holder, "file-link");
+    symlinkSync(file, link, "file");
+    expect(existsSync(link)).toBe(true);
+
+    // 字面既不是磁盘根也不是 UNC，但 realpath 后是一个普通文件 ⇒ 不是目录
+    expect(validateSourceRoot({ source: link, dataDir: join(tempDir(), "data") })).toMatchObject({
+      failure: { code: "source_not_a_directory" },
+    });
+  });
+
+  itWithSymlink("树内的目录符号链接（dir 类型）被拒，且不跟随、不泄露链接外内容", async () => {
+    const source = tempDir();
+    const outside = tempDir();
+    writeTree(source, { "a.txt": "a" });
+    writeTree(outside, { "leak.txt": "不该被采到" });
+    const link = join(source, "dir-link");
+    symlinkSync(outside, link, "dir");
+    expect(existsSync(link)).toBe(true);
+
+    const result = await collectSourceFiles({ source, dataDir: join(tempDir(), "data") });
+    expect(result.ok).toBe(false);
+    expect(result.ok ? null : result.failure.code).toBe("unsupported_entry");
+    expect(result.ok ? "" : result.failure.path).toBe("dir-link");
+  });
+
+  it("能力探针与实际创建结果一致：探针说不可创建时用例必须 skipped，不能静默通过", () => {
+    // 独立再测一次（与模块顶层探针同构，但不复用其实现），两端必须同结论。
+    // 本机开开发者模式时为 true；无权限环境下这条断言同样成立（都是 false），
+    // 而依赖链接的用例会显示 skipped —— 这正是"缺创建权限须记录未验证"的机制。
+    const dir = mkdtempSync(join(tmpdir(), "replay-symlink-recheck-"));
+    try {
+      const target = join(dir, "t.txt");
+      writeFileSync(target, "x");
+      const link = join(dir, "l.txt");
+      let created = false;
+      try {
+        symlinkSync(target, link, "file");
+        created = existsSync(link);
+      } catch {
+        created = false;
+      }
+      expect(created).toBe(FILE_SYMLINK_AVAILABLE);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 
@@ -255,19 +377,17 @@ describe("普通文件采集：拒绝链接与不合适的名字", () => {
   });
 
   // ⚠️ 实测本机（Windows 无创建符号链接权限）`symlinkSync` 既不抛错、链接也没真的建出来，
-  // 因此必须回查条目是否存在；否则会把"没建成"当成"建成后被放行"。
-  it.skipIf(!FILE_SYMLINK_AVAILABLE)(
-    "文件符号链接被拒（本机无法创建时该用例显示为 skipped）",
-    async () => {
-      const source = tempDir();
-      writeTree(source, { "a.txt": "a" });
-      symlinkSync(join(source, "a.txt"), join(source, "link.txt"), "file");
+  // 因此探针必须回查条目是否存在；否则会把"没建成"当成"建成后被放行"。无权限时本用例
+  // 显示 **skipped**（不是通过）——见 `itWithSymlink` 的说明。
+  itWithSymlink("文件符号链接被拒（树内，file 类型）", async () => {
+    const source = tempDir();
+    writeTree(source, { "a.txt": "a" });
+    symlinkSync(join(source, "a.txt"), join(source, "link.txt"), "file");
 
-      const result = await collectSourceFiles({ source, dataDir: join(tempDir(), "data") });
-      expect(result.ok).toBe(false);
-      expect(result.ok ? "" : result.failure.code).toBe("unsupported_entry");
-    },
-  );
+    const result = await collectSourceFiles({ source, dataDir: join(tempDir(), "data") });
+    expect(result.ok).toBe(false);
+    expect(result.ok ? "" : result.failure.code).toBe("unsupported_entry");
+  });
 
   it("NFC/NFD 等价名字在同一目录里碰撞 ⇒ 导入整体拒绝", async () => {
     const source = tempDir();
