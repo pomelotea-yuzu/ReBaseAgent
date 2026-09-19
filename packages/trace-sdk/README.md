@@ -26,7 +26,7 @@ run.meta  →  span(agent.step)  →  span(llm.call)  →  span(tool.invoke)  �
 | ---------------- | -------------- | -------------------------- |
 | `type`           | `"run.meta"`   | 行类型判别                      |
 | `id`             | string         | run id（文件内唯一标识）            |
-| `format_version` | `1`            | 格式版本；更高版本读取器显式报错           |
+| `format_version` | `1 \| 2`       | 格式版本：`1` = 普通运行，`2` = 隔离文件运行（见「v2 隔离运行与文件附件」）。读取器**双读**；更高版本显式报错，不静默降级 |
 | `task`           | string         | 任务描述                       |
 | `model`          | string         | 模型名（如 `deepseek-chat`）     |
 | `created_at`     | string         | ISO 8601 创建时间              |
@@ -35,14 +35,16 @@ run.meta  →  span(agent.step)  →  span(llm.call)  →  span(tool.invoke)  �
 | `budget`         | object?        | 预算上限（可选），见下                |
 | `config_hash`    | string?        | 源配置指纹（system prompt + 工具表）；**可选**——代理录制的 run 无源配置可哈希，诚实缺省 |
 | `source`         | object?        | 录制来源（可选），见下                |
+| `workspace`      | object?        | **仅 v2 隔离运行**的文件世界元数据，见下        |
 
 `fork`：
 
-| 字段           | 类型      | 说明                                |
-| ------------ | ------- | --------------------------------- |
-| `at_span`    | string  | 分叉点 span id（该 span 保留在共享前缀中，含于前缀） |
-| `edit.field` | string  | 被编辑的字段名（如 `"result"`；代理分叉为 `"messages"`） |
-| `edit.value` | unknown | 新值。编辑语义由 replay 层应用               |
+| 字段                     | 类型      | 说明                                                                                                                    |
+| ---------------------- | ------- | --------------------------------------------------------------------------------------------------------------------- |
+| `at_span`              | string  | 分叉点 span id（该 span 保留在共享前缀中，含于前缀）                                                                                       |
+| `resume_after_step`    | string? | **v2 隔离分支必带**：整轮续跑边界（= `at_span` 所属的 `agent.step`）。恢复点是"该轮**全部**工具完成后"，因此同轮兄弟工具的结果必须留在前缀里、不得重放；v1 保持"按 `at_span` 单 span 截断"的旧语义不变 |
+| `edit.field`           | string  | 被编辑的字段名（如 `"result"`；代理分叉为 `"messages"`）                                                                               |
+| `edit.value`           | unknown | 新值。编辑语义由 replay 层应用                                                                                                    |
 
 `budget`（可选）：源配置声明的累计 token 预算，run 自包含该事实源；老文件与未声明预算的运行合法缺失，读取器不报错
 
@@ -56,6 +58,28 @@ run.meta  →  span(agent.step)  →  span(llm.call)  →  span(tool.invoke)  �
 | ----------- | ---------------- | ----------------------------------------------- |
 | `kind`      | `"proxy"`        | 录制通道（当前仅本地录制代理）                                 |
 | `base_url`  | string           | 代理自身监听地址（即用户在自己应用里填的那个 base\_url），非 upstream 转发目标 |
+
+`workspace`（**仅 v2 隔离运行**；普通 v1 run 不得携带，读取器按版本判字段存在性并拒绝不匹配的文件）。
+完整语义与编排入口见 [`@rebaseagent/replay`](../replay) 的「隔离文件执行」。
+
+| 字段                             | 类型                                  | 说明                                                                       |
+| ------------------------------ | --------------------------------- | ------------------------------------------------------------------------ |
+| `workspace.profile`            | `"file-tools-v1"`                 | 受控工具组；本期只有这一个值                                                           |
+| `workspace.world_id`           | string                            | 本 run 的**文件世界 id**，等于该 run 自己的 id（跨字段约束，不符即解析失败）                          |
+| `workspace.write_authorized`   | `true`                            | **审计标注**：创建方声称该次运行经「允许副本内写入」确认。**不是权限判据**——真正的授权是调用方在**当前请求**里携带的 `allowFileWrites`，不得由它推导或默认勾选本次授权 |
+| `workspace.initial_snapshot`   | `{ id, files[] }`                 | 首次 LLM 调用**之前**的完整文件清单（见下）                                               |
+| `workspace.origin`             | `{kind:"import"}` \| `{kind:"checkpoint",run_id,step_span}` | 世界来源：根运行来自源目录导入；分支来自**直接父** run 的某个检查点                                    |
+
+清单（`initial_snapshot` 与 `agent.step.workspace_snapshot` 同形）：
+
+| 字段             | 类型             | 说明                                                                   |
+| -------------- | -------------- | -------------------------------------------------------------------- |
+| `id`           | 64 位小写十六进制      | **清单内容的规范哈希**，读取器会重算比对；不符即解析失败（清单与 id 之间没有别的结构性约束）                   |
+| `files[].path`   | string         | 世界内**逻辑路径**：相对、`/` 分隔、长度 ≤ 512 UTF-16 单元、深度 ≤ 32 段、无 NFC/大小写碰撞、无 Windows 保留设备名与 ADS |
+| `files[].sha256` | 64 位小写十六进制      | 文件内容哈希（对应附件文件名）                                                      |
+| `files[].bytes`  | int ≥ 0        | 字节数；读取附件时与实际大小核对                                                     |
+
+清单本身**不含**绝对磁盘路径、凭据或内联字节——文件内容按哈希存在附件存储里，见「v2 隔离运行与文件附件」。
 
 ### span（三种 kind，共同字段：`type: "span"`、`id`、`parent`（父 span id，根为 null）、`timing`（可选））
 
@@ -75,6 +99,7 @@ run.meta  →  span(agent.step)  →  span(llm.call)  →  span(tool.invoke)  �
 | ------ | -------------- | ------ |
 | `kind` | `"agent.step"` | <br /> |
 | `n`    | int ≥ 1        | 迭代序号   |
+| `workspace_snapshot` | `{ id, files[] }?` | **仅 v2 隔离运行**：该轮**全部工具执行完之后**的完整文件清单（"轮末检查点"）。v2 里已落盘的 `agent.step` **必须**带它（缺了说明写入端漏注入，读取器拒绝）；其余 kind 不得携带 |
 
 **llm.call** — 一次 LLM 调用
 
@@ -108,6 +133,32 @@ run.meta  →  span(agent.step)  →  span(llm.call)  →  span(tool.invoke)  �
 | `reason` | `"completed" \| "max_iterations" \| "budget_exceeded" \| "aborted" \| "error"` | 具体原因     |
 | `at`     | int?                                                                           | 停止时所在迭代号 |
 
+## v2 隔离运行与文件附件
+
+`format_version: 2` 表示这次运行**绑定了自己的文件世界**（隔离文件执行的产物）。它与 v1 的差别只有三处，都在同一个契约里：
+
+| 位置                            | v1 普通运行 | v2 隔离运行                        |
+| ----------------------------- | ------- | ------------------------------ |
+| `run.meta.workspace`          | **不得出现** | 必填（世界 id / 初始快照 / 来源）            |
+| `agent.step.workspace_snapshot` | 不得出现    | 每个已落盘的 `agent.step` **必带**（轮末检查点） |
+| `fork.resume_after_step`      | 不得出现（按 `at_span` 截断） | 分支 run 必带（整轮续跑边界）                |
+
+**版本与字段必须匹配**：v1 文件私带 `workspace`、或 v2 文件缺少它，都会被读取器拒绝（这是按**原始自有属性**判定的，不依赖 zod 的字段剥离）。普通写入端永远写 v1（`PLAIN_FORMAT_VERSION`），隔离写入端写 v2（`FORMAT_VERSION`）。
+
+**附件存储**：文件内容不存在 trace 里，而是按内容寻址放在同级的附件目录：
+
+```text
+<dataDir>/traces/<runId>.jsonl          trace（只有逻辑路径 + 哈希 + 字节数）
+<dataDir>/workspace-blobs/sha256/<hash>  附件（内容寻址，跨 run 共享同一份）
+```
+
+由此得到两条对使用者重要的性质：
+
+1. **附件不是"每 run 一份备份"**：相同内容只存一份；整体搬走 `dataDir` 后按新路径重建即可——trace 里没有绝对路径，所以迁移后照样解析、读取与分叉。
+2. **读取 trace 不加载附件**：附件目录不可用（被删、被裁掉）时，`readRun` 仍返回完整的消息与步骤；附件**字节**的校验是 replay 层只读接口的活（缺失 / 长度不符 / 内容不符分别可辨），缺失或损坏会**阻止分叉**，但不会阻止你看轨迹。反过来，任何一方都不会"从源目录重新读一份补上"——那会把历史事实换成当前磁盘。
+
+**能不能拿它当分叉父本**：必须**已封存**（有终止事件；`crashed` 的 run 前缀不稳定，禁止分叉），且复跑时起始清单的附件逐项可用。
+
 ## 存储不变量
 
 1. JSONL 是唯一事实源；派生索引可删可重建
@@ -115,6 +166,8 @@ run.meta  →  span(agent.step)  →  span(llm.call)  →  span(tool.invoke)  �
 3. 只从已封存（`status === "completed"`）的 run 创建分支（`assertForkable`）
 4. 存在子分支的 run 不可直接删除（`assertDeletable`）
 5. 分支文件只记录新增 span，前缀经 parent 链共享（copy-on-write，`resolveBranch`）
+6. v2 的文件内容按内容寻址放在 `<dataDir>/workspace-blobs/sha256/`，**同一内容跨 run 共享一份**；附件缺失或损坏**不阻止读 trace**，但阻止基于它的分叉（不得从源目录重读补齐）
+7. 清单的 `id` 必须等于该清单的规范哈希（读取器**重算**比对）；清单内路径必须满足逻辑路径契约（相对、`/` 分隔、≤ 512 UTF-16 单元、≤ 32 段、无 NFC / 大小写碰撞）
 
 ## 用法
 
@@ -180,9 +233,8 @@ renderer 里只允许 `import type`，或改走 `/schema`。
 要复刻这个 id 的实现必须逐条对齐排序键、字段顺序与编码；写完请用 `test/workspace-snapshot.test.ts` 里的
 金标准值自检。
 
-> v2 隔离字段（`run.meta.workspace`、`agent.step.workspace_snapshot`、`fork.resume_after_step`）
-> 的完整字段表尚未并入本文，随 A 段收口（任务 8.1）补齐；在此之前以
-> `openspec/changes/add-sandboxed-rerun/specs/trace-format/spec.md` 与 `src/schema.ts` 为准。
+> v2 隔离字段的完整字段表见上文「v2 隔离运行与文件附件」与 `src/schema.ts`；
+> 其编排入口（创建隔离根 run、预检、分叉）在 [`@rebaseagent/replay`](../replay)。
 
 ## Fixtures
 
