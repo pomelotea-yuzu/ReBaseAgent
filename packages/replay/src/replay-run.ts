@@ -6,6 +6,7 @@ import { JsonlTracer, assertForkable } from "@rebaseagent/trace-sdk";
 import type { RunLoader, RunRecord } from "@rebaseagent/trace-sdk";
 import { deriveReplayState } from "./derive.js";
 import type { ReplayEdit } from "./derive.js";
+import { assertNotIsolatedParent } from "./isolated-guard.js";
 import { loadParentChain, maxSpanSeq } from "./parent-chain.js";
 
 /**
@@ -64,6 +65,14 @@ export async function replayRun(options: ReplayRunOptions): Promise<ReplayRunRes
 
   // 2. 父 run 必须已封存（crashed 缺终止事件，前缀不稳定，禁止分叉）
   assertForkable(leaf);
+
+  // 2.2 隔离父本不得走普通重跑：普通路径用 exec.cwd 与调用方传入的 handler，
+  //     会绕过副本世界与附件映射，直接改写真实文件（`isolated-guard.ts`，与 prompt fork 共用判定）
+  assertNotIsolatedParent(
+    leaf,
+    "请改用隔离续跑（replayIsolatedRun）——它从该轮检查点建立副本世界继续执行；" +
+      "禁止通过更换 exec.cwd 或删除 workspace 字段来降级执行",
+  );
 
   // 2.5 代理录制的 run 无 config_hash（无源配置可哈希，也没有 tool.invoke 可编辑）
   // ——replay 语义不成立，明确指向正确入口而非含糊报错

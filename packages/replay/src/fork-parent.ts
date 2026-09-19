@@ -1,5 +1,6 @@
 import { assertForkable } from "@rebaseagent/trace-sdk";
 import type { LlmCallSpan, RunLoader, RunRecord } from "@rebaseagent/trace-sdk";
+import { assertNotIsolatedParent } from "./isolated-guard.js";
 import { loadParentChain } from "./parent-chain.js";
 import { firstLlmCall, locateStartupContext } from "./prompt-fork.js";
 import type { StartupContext } from "./prompt-fork.js";
@@ -47,6 +48,14 @@ export function loadForkParent(parentId: string, load: RunLoader): ForkParent {
 
   // 2. 父 run 必须已封存（crashed 缺终止事件，禁止分叉）
   assertForkable(leaf);
+
+  // 2.5 隔离父本不得降级为普通 fork（prompt fork 与模型 A/B 共用本门禁；
+  //     dryRun / allowSideEffects 都在本函数之后，不构成逃生通道）
+  assertNotIsolatedParent(
+    leaf,
+    "本期不支持把隔离 run 降级为普通 prompt fork，也不支持隔离 A/B（dry-run 与 allowSideEffects 都不是逃生通道）；" +
+      "请改选非隔离父本，或改用隔离 result 分叉（replayIsolatedRun）",
+  );
 
   // 3. 无 config_hash 的 run 无源配置指纹，不允许作为 fork 父本
   if (leaf.meta.config_hash === undefined) {

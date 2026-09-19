@@ -8,6 +8,7 @@ import type { RunConfig, Tool } from "@rebaseagent/agent-loop";
 import { JsonlTracer, readRun } from "@rebaseagent/trace-sdk";
 import { describe, expect, it } from "vitest";
 import { MockLlmClient, initialMessages, sampleConfig } from "../../agent-loop/test/helpers";
+import { round, writeIsolatedRun } from "./workspace-helpers";
 
 /**
  * CLI 冒烟测试（4.3）：真实 spawn 子进程跑 dist 产物，退出码契约 0/1/2。
@@ -129,6 +130,40 @@ describe.skipIf(skip)("rebaseagent-model-ab CLI（dist 冒烟）", () => {
       expect(proc.status).toBe(2);
       expect(proc.stderr).toContain("桌面端");
       expect(readdirSync(dir).sort()).toEqual(before);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("隔离父本 → 明确拒绝本期不支持隔离 A/B，退出 2、零文件", async () => {
+    const { dir, cleanup } = tempDir();
+    try {
+      // CLI 的 --dir 就是 traces 目录：隔离 fixture 写在 <dataDir>/traces 下
+      const dataDir = join(dir, "data");
+      const written = await writeIsolatedRun({
+        dataDir,
+        runId: "run_isolated_parent",
+        rounds: [round([["a.txt", "middle"]]), round([["a.txt", "after"]])],
+      });
+      const tracesDir = join(dataDir, "traces");
+      const before = readdirSync(tracesDir).sort();
+
+      const proc = runCli([
+        "--parent",
+        written.runId,
+        "--dir",
+        tracesDir,
+        "--arm",
+        "model-a",
+        "--arm",
+        "model-b",
+        "--dry-run",
+      ]);
+
+      expect(proc.status).toBe(2);
+      expect(proc.stderr).toContain("隔离 run");
+      expect(proc.stderr).toContain("隔离 A/B");
+      expect(readdirSync(tracesDir).sort()).toEqual(before);
     } finally {
       cleanup();
     }

@@ -31,6 +31,7 @@ export { promptReplayRun } from "./prompt-replay-run.js";
 export type { PromptReplayRunOptions, PromptReplayRunResult } from "./prompt-replay-run.js";
 export { loadForkParent } from "./fork-parent.js";
 export type { ForkParent } from "./fork-parent.js";
+export { assertNotIsolatedParent, findIsolatedParentViolation } from "./isolated-guard.js";
 export { deriveProxyConfigHash } from "./proxy-config-hash.js";
 export type {
   ConfigHashDerivation,
