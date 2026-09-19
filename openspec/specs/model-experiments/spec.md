@@ -7,37 +7,31 @@
 
 ### Requirement: 模型实验复用既有 prompt fork
 
-系统 SHALL 在已封存且含 `config_hash` 的父 run 上创建模型实验；proxy 来源的 run 在具备 `config_hash` 时 SHALL 与引擎 run 同等允许。每个 arm SHALL 通过既有 prompt fork 的从头重跑语义生成独立 run，直接 parent SHALL 相同；不得创建第二套实验记录或把 model 替换伪装成 tool-result replay。空工具表父本（引擎空 tools 或代理无工具）SHALL 允许创建实验：`configHash` 对空表成立，各臂 `config_hash` 与父一致。
+系统 SHALL 在已封存且含 config_hash 的非隔离父 run 上创建模型实验；proxy 来源在满足指纹条件时 SHALL 与普通引擎 run 同等允许。每个 arm SHALL 通过 prompt fork 从头执行，直接 parent 相同，不建立第二套实验记录或把换模型伪装成 tool-result replay。空工具表父本 SHALL 允许实验，指纹按空表计算。首期带 workspace 的隔离父本 SHALL 在整批预检时拒绝，包括 dry-run 和显式 allowSideEffects，不能借此降级到普通 handler。
 
 #### Scenario: 创建两个模型分支
-
-- **WHEN** 用户从同一父 run 提交两个不同 model/params 的 arm
-
-- **THEN** 系统为每个 arm 创建独立 fork run，`fork.edit.field` 为 `model_params`，两个 run 的直接 parent 相同，现有分支树可展示它们
+- **WHEN** 用户从同一合法非隔离父 run 提交两个不同 model/params arm
+- **THEN** 创建独立 fork run，edit.field=model_params，直接 parent 相同，既有分支树可展示
 
 #### Scenario: 含 config_hash 的 proxy run 创建 A/B
-
-- **WHEN** 用户对已封存、meta 含 `config_hash`、首次请求含字符串 system 消息且工具表为空的代理 run 发起两个 arm
-
-- **THEN** 每个 arm 独立从头执行，各臂 run 的 `config_hash` 与父 run 一致（工具表按空表参与指纹）
+- **WHEN** 已封存非隔离 proxy run 有 config_hash、字符串 system 且工具表为空
+- **THEN** 每臂独立从头执行，config_hash 与父一致
 
 #### Scenario: 拒绝不可 fork 父 run
-
-- **WHEN** 父 run 未封存或缺少 `config_hash`（含历史无 hash 代理 trace）
-
-- **THEN** 系统在创建 tracer、文件或模型请求前返回明确配置错误；proxy 来源缺 hash 时 SHALL 依 `meta.config_hash_reason` 区分缺因（`no_system` → 指向重新经代理录制带 system 的请求；`invalid_tool` → 指向修正工具定义；缺该字段 → 指向「编辑 messages 重发」入口）
+- **WHEN** 父 run 未封存或缺 config_hash（含历史代理记录）
+- **THEN** 在创建 tracer/文件/模型请求前拒绝；proxy 缺 hash 仍按 no_system/invalid_tool/未知给出重新录制、修正定义或重发提示
 
 #### Scenario: 拒绝缺少 system 消息的父 run
-
-- **WHEN** 父 run 首次 `llm.call.request.messages` 中不存在 content 为字符串的 system 消息
-
-- **THEN** 系统在任何文件写入和网络调用前拒绝，并说明启动上下文无法校验
+- **WHEN** 首次请求不存在字符串 system 消息
+- **THEN** 在任何文件写入和网络调用前拒绝，并说明启动上下文无法校验
 
 #### Scenario: 带工具的代理父本沿用既有门禁
+- **WHEN** 非隔离代理父本携带非空工具表
+- **THEN** 未知桌面工具仍被拒绝；缺 sideEffect 仍按有副作用处理，未显式 allowSideEffects 前拒绝
 
-- **WHEN** 代理父本的首次请求携带非空工具表（wire 格式，无 sideEffect 标记）
-
-- **THEN** 工具名不在桌面内置 registry 时按既有 UNKNOWN\_TOOL 拒绝；在 registry 内时按既有「缺 sideEffect 标记视为有副作用」规则处理，未显式 `allowSideEffects` 前拒绝——不因代理来源放宽工具可执行与副作用门禁
+#### Scenario: 隔离实验无降级逃生通道
+- **WHEN** 父本带 workspace，无论 dry-run 或全部 arm 声明 allowSideEffects:true
+- **THEN** 整批明确拒绝本期不支持隔离 A/B，零运行文件、零 LLM、零 handler 执行
 
 ### Requirement: model_params 编辑必须保持真实配置一致
 
@@ -83,27 +77,23 @@ params 覆盖语义维持**整体替换不合并**：arm 给出 params 时父 ru
 
 ### Requirement: 工具必须可执行且无副作用
 
-每个 arm SHALL 传入与 `config.tools` 一一对应的含 handler `Tool[]`。首期实验 SHALL 要求所有工具 `sideEffect === false`；缺少该标记按有副作用处理。任一工具不满足时，系统 SHALL 在创建第一个 run 前拒绝整个实验，不得用 V3a 的 `CassetteLlmClient` 或 `StubToolTable` 冒充真实工具结果。
+每个 arm SHALL 传入与 config.tools 一一对应的 Tool[]。对非隔离父本，默认 SHALL 要求全部 sideEffect===false，缺标记按有副作用；不满足时在首个 run 前整批拒绝，不以卡带或桩冒充真实执行。非隔离父本保留显式 allowSideEffects 的既有授权路径；该授权 SHALL NOT 绕过隔离父本拒绝规则，也不承诺隔离外部文件、网络和数据库。
 
 #### Scenario: pure 工具实验
-
-- **WHEN** 当前工具表每项均明确标记 `sideEffect: false` 且 handler 与声明一一对应
-- **THEN** 每个 arm 执行真实 handler，工具结果写入各自 trace，比较可继续进行
+- **WHEN** 非隔离工具表均明确 sideEffect:false 且 handler 一一对应
+- **THEN** 每臂真实执行 handler，结果写入自己的 trace，比较继续
 
 #### Scenario: 副作用工具阻断
-
-- **WHEN** 工具表含 `sideEffect: true` 或缺少 sideEffect，且未显式声明 `allowSideEffects`
-- **THEN** 系统返回不可执行错误，错误文本说明是哪个工具触发、首期仅支持无副作用工具表，不按 arm 顺序产生外部副作用
+- **WHEN** 非隔离工具表含 sideEffect:true 或缺标记，未显式 allowSideEffects
+- **THEN** 返回不可执行错误并指出工具，不按 arm 顺序产生外部副作用
 
 #### Scenario: 显式确认副作用后放行并留痕
-
-- **WHEN** 每个 arm 均声明 `allowSideEffects: true` 且用户已确认费用
-- **THEN** 系统按 arm 顺序真实执行，该声明随 edit value 写入 `fork.edit` 供审计，UI 在该实验分支标注"顺序执行、外部状态可能已被前一臂改变"；比较判据不变
+- **WHEN** 非隔离父本的每个 arm 声明 allowSideEffects:true 且已确认费用
+- **THEN** 仍按顺序真实执行，声明写入 fork.edit，UI 标注“顺序执行、外部状态可能已被前一臂改变”，比较判据不变
 
 #### Scenario: CLI 遇到带工具的父 run
-
-- **WHEN** CLI 对含非空工具表的父 run 发起模型实验
-- **THEN** 系统返回配置错误并提示改用桌面端，不得以桩工具或空 handler 冒充真实工具结果
+- **WHEN** CLI 对非空工具表父本发起实验
+- **THEN** 返回配置错误，不以桩或空 handler 冒充真实结果；非隔离父本可提示改用桌面，隔离父本明确提示本期不支持隔离 A/B
 
 ### Requirement: 同一批实验必须可分组
 
