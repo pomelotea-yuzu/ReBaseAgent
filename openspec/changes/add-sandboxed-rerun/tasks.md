@@ -34,7 +34,7 @@
 
 ## 7. 包集成、故障与公共回归
 
-- [ ] 7.1 新增包 API 三轮 fixture：before→middle→after，分叉恢复 middle 后写 child，断言源目录、父 trace/附件及兄弟哈希不变（1.5h）。验证：`replay/恢复历史中间文件而非最终文件`、`父文件不可变`、`workspace-isolation/父子及并发兄弟隔离`。桌面操作断言迁 B 3.2。
+- [x] 7.1 新增包 API 三轮 fixture：before→middle→after，分叉恢复 middle 后写 child，断言源目录、父 trace/附件及兄弟哈希不变（1.5h）。验证：`replay/恢复历史中间文件而非最终文件`、`父文件不可变`、`workspace-isolation/父子及并发兄弟隔离`。桌面操作断言迁 B 3.2。**（已完成：新增 `test/package-fixture.ts`（可复用的包 API 三轮 fixture）+ `test/package-api-fixture.test.ts`（3 用例，replay 372 → 375）。**fixture 是真跑出来的**：`createThreeRoundParent()` 经 `createIsolatedRun` 真导入 → 真受控工具 → 真 loop → 真落盘，源树 `a.txt=before` + `keep.txt=keep`（旁观文件），轮 1 **同轮两个兄弟工具**写 `a.txt=middle` / `b.txt=sibling`（⇒ 轮 1 轮末检查点即分叉起点）、轮 2 覆盖 `a.txt=after`、轮 3 收尾。**只走包导出面**是刻意的纪律：helper 与用例都只 import `../src/index`（`createIsolatedRun` / `replayIsolatedRun` / `workspaceTraceFile` / `readWorkspaceFile` / `WORKSPACE_BLOBS_DIR_NAME`），不碰 `../src/workspace/*` 内部模块 —— 于是每条被断言的不变性都是**包使用者**能观察到的不变性。用例：① 主场景（子=读 `middle` → 写 `child` → 读回 `child`）断言起点等于轮 1 轮末检查点（≠ 父最终态 `after`、≠ 源现值 `before`）、父的四个历史态经只读接口原样可取（不传 `stepSpanId` 读初始快照 `before`、按轮 1/轮 2 step 分别读 `middle`/`sibling`/`after`）、子轮末检查点里 `b.txt` 与 `keep.txt` **哈希一个字没动**；② ③ 并发兄弟：各写不同内容 → 附件各自独立且父已有附件逐项保留，写**相同**内容 → 存储只多一份（两条子 run 的检查点指向同一哈希，且都能读出）。**"父附件不变"的判据不是"store 里还有东西"**：先取分叉前 `workspace-blobs` 的逐项指纹（相对路径 + 字节数 + sha256），分叉后逐项 `toContain`，再断言**新增条目恰好等于子新写内容的那一个哈希** —— 后一条同时证明"子与父共享同一附件存储"（否则新增会是 0，断言同步红）与"子不污染父"。⚠️ **实现期发现 1 项**（见下）。**）**
 - [ ] 7.2 增加包 API 重新加载、dataDir 整体迁移、trace 写失败和 blob 发布后中断测试（2h）。验证：`workspace-isolation/中断与数据目录迁移`、`存储故障释放资源`、`trace-format/无附件仍能看轨迹`；孤立 blob/临时 trace 不得成为完整父本。桌面重启及文件显示由 B/C 验收。
 - [ ] 7.3 运行普通模型实验的包与 CLI 回归；桌面纯对话部分迁 B 3.1（0.5h）。验证：model-experiments 的 `创建两个模型分支`、`含 config_hash 的 proxy run 创建 A/B`、`拒绝不可 fork 父 run`、`拒绝缺少 system 消息的父 run`、`带工具的代理父本沿用既有门禁`、`pure 工具实验`、`副作用工具阻断`、`显式确认副作用后放行并留痕`、`CLI 遇到带工具的父 run`。来源：原 7.3-A。
 - [ ] 7.5 在 Windows 运行可创建的 junction/symlink 导入测试；截图部分迁 B/C（0.5h）。验证：`workspace-isolation/拒绝链接及不合适的根目录`；缺创建权限记录未验证限制，不能标作通过。来源：原 7.5-A。**⚠️ 开工前先提醒用户开启开发者模式（用户策略「用完即关」：本机默认关闭 `AllowDevelopmentWithoutDevLicense=0`）——开启后非管理员即可创建文件/目录符号链接且对新进程立即生效、无需重新登录；跑完提醒关闭。未开时 symlink 夹具会被探针判为"不可创建"，相关用例显示 `skipped` 而非通过（2026-09-18 已验证过一次全流程）。**
@@ -108,6 +108,11 @@
 2. **覆盖写不能用"追加"公式判配额**：`findAppendQuotaViolation` 的语义是 `count+1` / `total+bytes`；覆盖写要让合计**减掉旧的那一份**，所以走整集合判定。两条路径都在"替换映射"之前返回（失败即映射不变）。新路径仍用 O(1) 的追加判定，否则"写 2000 个文件"的用例会退化成 O(n²)。
 3. **"冻结"必须是返回值级的新对象**：`snapshot()` / `listFiles()` 若返回内部对象或数组引用，调用方（或 Tracer 稍后的处理）改一次就污染了世界。用例里专门钉了一句"改返回值 → 世界不变"。
 4. **授权不能有默认值**：`allowFileWrites` 必填、`fork` 也必填且**不继承**父世界的值。用一个绕过类型检查的 `fork({})` 确认运行期是 **fail closed**（按未授权处理）而不是"缺省即授权"——权限边界上的默认值是反向的坑。
+
+**2026-09-19 · 实现 7.1 时发现 2 项**：
+
+1. **指纹工具"能复用"不等于语义一致：相对路径必须规范化**。4.2 里同款 `treeFingerprint` 只做**前后自比较**（同一台机器、同一个函数），所以 `path.relative` 在 Windows 返回 `sha256\<hash>` 不影响它。7.1 要把指纹**条目拆出来**与 `sha256/<hash>`（附件存储的逻辑形状）比对，三个用例就一起红在反斜杠上——失败信息看起来像"附件多了一份"，实际是分隔符。已把指纹里的相对路径统一规范成 `/`：指纹是**逻辑形状**，不该随宿主分隔符变化。（变异排查：把"新增恰好只有 child 那一份"临时改成"零新增"，主场景用例当场失败 ⇒ 该断言真的在判"子确实往父的 store 里发布了内容"，不是空转。）
+2. **测试目录不在 `tsc -p` 的检查范围内，只有临时配置才挖得出真错**：`packages/replay/tsconfig.json` 的 `include` 只有 `src`，而 vitest 用 bundler 式转译、不做类型检查 ⇒ 我删掉 import 后遗留的 `export { WORKSPACE_TRACES_DIR_NAME }`（引用不存在的符号）不会被任何既有命令发现。排查方法：临时 tsconfig（`.rebaseagent/tsconfig.replay-test.json`，extends 包配置，并把 `module`/`moduleResolution` 覆盖为 `ESNext`/`Bundler` —— 既有测试文件普遍不写 `.js` 扩展名，与 NodeNext 冲突会淹没真实错误）对 `src`+`test` 跑一次 `--noEmit`。该配置只是本地排查工具、不入库；**改测试目录后值得跑一次**（复述 `spec`/`lint` 都覆盖不到这一层）。
 
 ### 拆分后的历史说明
 
