@@ -158,3 +158,10 @@ export {
   createWorkspaceCheckpointTracer,
 } from "./workspace/checkpoint-tracer.js";
 export type { CheckpointTracerOptions } from "./workspace/checkpoint-tracer.js";
+export { createIsolatedRun } from "./workspace/isolated-run.js";
+export type {
+  CreateIsolatedRunFailure,
+  CreateIsolatedRunFailureCode,
+  CreateIsolatedRunOptions,
+  CreateIsolatedRunResult,
+} from "./workspace/isolated-run.js";
