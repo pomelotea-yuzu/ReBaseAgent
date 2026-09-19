@@ -231,7 +231,9 @@ export async function createIsolatedRun(
     outcome = await runLoop(config, messages, tracer, tools, llm ?? new OpenAiCompatClient(config));
   } finally {
     // 异常清理（1.5 交付的 `dispose`）：只关句柄、不写终止事件，未封存状态原样保留。
-    // 必须先于 rename——Windows 上被打开的文件改名会失败；封存后调用是幂等的。
+    // **顺序**先于 rename：不要依赖平台的句柄语义（本机实测 Node 在 Windows 上以
+    // FILE_SHARE_DELETE 打开文件，未关闭也能改名/删除；换成句柄语义更严的文件系统就会失败）。
+    // 显式关闭本次句柄是资源纪律，封存后调用 `dispose` 是幂等的。
     delegate.dispose();
 
     // 成功与 errored 都归位：errored run 是有价值的失败现场（A4 的详情落盘在其中）。
