@@ -4,7 +4,7 @@
 
 ## Scope and Dependencies
 
-A 交付包层隔离内核；B `add-sandboxed-rerun-desktop` 依赖 A 归档，C `add-sandboxed-rerun-file-view` 依赖 B 归档。2026-09-17 随方向规划审阅明确 A 的 apps/desktop 白名单：仅允许因共享包版本兼容而必需的既有版本/测试断言与常量引用修正，须保留既有行为及拒绝门禁，并记录原因和回归证据；禁止新增或扩展 IPC handler、preload/store 暴露、渲染层组件和 main 侧流程。不在任何 delta 承诺桌面行为；历史兼容修正不回滚、不重复列为待办。隔离桌面工作归 B/C，可用性工作归独立 U 变更，白名单外先调整受影响分工及 OpenSpec。A 收口 trace-format、workspace-isolation、profile、配额、迭代/用量预算和当前请求授权。B/C 仅消费；发现契约缺口须先修订受影响计划及 spec，已归档契约经明确的新 change 调整。公共全仓回归及桌面构建不等于桌面功能验收。
+A 交付包层隔离内核；B `add-sandboxed-rerun-desktop` 依赖 A 归档，C `add-sandboxed-rerun-file-view` 依赖 B 归档。**A 侧 `apps/desktop` 修改白名单的条款原文只在 proposal 的 `## Non-goals` 维护**——本文件与 `tasks.md` 均改引用式，避免同一组条款在三处逐字重复、修订时漏改（2026-09-19 收敛）。不在任何 delta 承诺桌面行为；历史兼容修正不回滚、不重复列为待办。隔离桌面工作归 B/C，可用性工作归独立 U 变更，白名单外先调整受影响分工及 OpenSpec。A 收口 trace-format、workspace-isolation、profile、配额、迭代/用量预算和当前请求授权。B/C 仅消费；发现契约缺口须先修订受影响计划及 spec，已归档契约经明确的新 change 调整。公共全仓回归及桌面构建不等于桌面功能验收。
 
 ## Goals / Non-Goals
 
