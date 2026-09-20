@@ -9,6 +9,15 @@
  *   node scripts/isolated-flow-cdp-smoke.cjs --phase=restart    # 重开后核对轨迹与来源说明
  *   node scripts/isolated-flow-cdp-smoke.cjs --phase=narrow     # 窄窗口 + 长源路径的创建与确认区（3.3）
  *
+ * C 段（文件检查点视图）追加四阶段（依赖 flow 阶段产出的 state.json）：
+ *
+ *   node scripts/isolated-flow-cdp-smoke.cjs --phase=files          # 文件 tab / 检查点 / 差异 / 只读
+ *   <杀 dev 再重启 dev>
+ *   node scripts/isolated-flow-cdp-smoke.cjs --phase=files-restart  # 重启后文件差异仍可查
+ *   node scripts/isolated-flow-cdp-smoke.cjs --phase=files-migrate  # 整体迁移 dataDir 后仍可查
+ *   <杀 dev，改以 REBASEAGENT_SMOKE_PICK_DIR=<长路径源> 重启 dev>
+ *   node scripts/isolated-flow-cdp-smoke.cjs --phase=files-narrow   # 长路径 + 长文本 diff 的宽/窄窗核对
+ *
  * 前置：
  *  1) （flow 阶段）受控模型服务在 127.0.0.1:18799（剧本：read_file → 父完成 → 子完成）；
  *     应用 settings.json 的 baseURL 指向它（脚本自己写入并在结束时还原备份）。
@@ -31,6 +40,7 @@ const {
   mkdirSync,
   readFileSync,
   readdirSync,
+  renameSync,
   statSync,
   writeFileSync,
   copyFileSync,
@@ -76,6 +86,8 @@ const NARROW = { width: 460, height: 720 };
  * 最苛刻的 460px 压一压（模态框 width w-120 + max-w-full 会自适应）。
  */
 const NARROW_APP = { width: 1040, height: 720 };
+/** 文件视图的窄窗核对宽度：< 1024px（lg 断点）⇒ 列表/内容二选一切换生效 */
+const FILES_NARROW = { width: 900, height: 720 };
 const WIDE = { width: 1360, height: 860 };
 
 const phase = (process.argv.find((a) => a.startsWith("--phase=")) ?? "--phase=flow").slice(8);
@@ -553,6 +565,672 @@ async function phaseFlow() {
 }
 
 // ---------------------------------------------------------------------------
+// phase=files（C 3.1：文件检查点视图的端到端 + 只读性 + 不可用附件）
+// ---------------------------------------------------------------------------
+
+/**
+ * C 段的资产：源/父/子 run 的**每个检查点**的全部文件哈希。
+ *
+ * 判据是"三层对照"：
+ *  - 源目录（SOURCE）——文件世界的导入来源；
+ *  - 父 run 世界（初始 + 各轮）——隔离创建后的世界；
+ *  - 子 run 世界（初始 + 各轮）——隔离续跑后的世界。
+ * 逐份按 `sha256` 比对，而不是"看起来一样"。
+ */
+async function workspaceFingerprint(page, runId) {
+  return page.evaluate(async (id) => {
+    const inspect = await window.api.inspectWorkspace({ runId: id });
+    if (!inspect.ok) return { ok: false, error: inspect.error, checkpoints: [] };
+    const hashes = {};
+    for (const file of inspect.data.files) {
+      // 初始侧（不传 stepSpanId）
+      const initial = await window.api.readWorkspaceFile({ runId: id, path: file.path });
+      hashes[`initial:${file.path}`] =
+        initial.ok && initial.data.sha256 !== undefined
+          ? initial.data.sha256
+          : `<${initial.ok ? initial.data.status : initial.error.code}>`;
+    }
+    return {
+      ok: true,
+      hashes,
+      snapshotId: inspect.data.snapshotId,
+      fileCount: inspect.data.fileCount,
+    };
+  }, runId);
+}
+
+/** 源目录的文件哈希（作为"世界之外"的对照：只读视图绝不允许改动它） */
+function sourceHashes() {
+  const acc = {};
+  for (const name of readdirSync(SOURCE).sort()) {
+    const full = join(SOURCE, name);
+    if (statSync(full).isFile()) acc[name] = hash(full);
+  }
+  return acc;
+}
+
+async function phaseFiles() {
+  const state = JSON.parse(readFileSync(STATE, "utf8"));
+  const { parentId, childId } = state;
+  const { page } = await connect();
+
+  // 清掉残留对话框（模态 overlay 会挡住一切点击）
+  const stale = page.locator('dialog[aria-label="新建运行"]');
+  if ((await stale.count()) > 0) {
+    await stale.getByRole("button", { name: "取消" }).click();
+    await page.waitForTimeout(400);
+  }
+  // 恢复常规窗口尺寸（上一阶段可能把窗口留窄了）
+  await resizeWindow(page, { width: 1280, height: 860 });
+  await page.reload();
+  await page.waitForTimeout(2000);
+
+  const fingerprintsBefore = fingerprintFiles([SOURCE, ...traceFiles()]);
+  const srcBefore = sourceHashes();
+
+  // ── A. 文件 tab 只在隔离 run 出现 ───────────────────────────────────────────
+  await selectRunInList(page, parentId);
+  const filesTabOnIsolated = await page.getByTitle(/查看隔离文件世界的检查点清单/).count();
+  check("隔离 run 详情页出现「文件」tab", filesTabOnIsolated > 0);
+
+  await selectRunInList(page, "r_01");
+  const filesTabOnPlain = await page.getByTitle(/查看隔离文件世界的检查点清单/).count();
+  check("非隔离 run 详情页**不**出现「文件」tab", filesTabOnPlain === 0);
+
+  // ── B. 打开文件 tab：选择器 / 只读声明 / 无回写入口 ─────────────────────────
+  await selectRunInList(page, parentId);
+  await page
+    .getByTitle(/查看隔离文件世界的检查点清单/)
+    .first()
+    .click();
+  const tabOpened = await waitForText(page, "文件检查点", 10000);
+  check("文件 tab 打开后渲染检查点选择器", tabOpened);
+  const readonlyShown = await page.locator("text=只读视图").count();
+  check("只读声明在场（不写文件 / 不补快照 / 不调用模型）", readonlyShown > 0);
+  const writebackCount = await page.locator("text=应用到源目录").count();
+  check("**没有任何回写 / 应用到源目录的入口**", writebackCount === 0);
+  await shot(page, "11-files-tab.png");
+
+  // ── C. 选择器轮号按「本 run 自己的 step.n」计 ────────────────────────────────
+  // 父 run 冒烟剧本是 2 轮（read_file 工具轮 + 收尾轮）⇒ 选择器应含第 1、第 2 轮，
+  // 且**不含**第 3 轮（3 是"沿合并轨迹累加"才会出现的数）。
+  const rounds = await page.evaluate(() =>
+    [...document.querySelectorAll("button")]
+      .map((b) => b.textContent ?? "")
+      .filter((t) => t.startsWith("本 run 第")),
+  );
+  check(
+    "选择器含「本 run 初始状态」+ 按本 run 自有轮号命名的检查点",
+    (await page.getByRole("button", { name: "本 run 初始状态", exact: true }).count()) > 0 &&
+      rounds.includes("本 run 第 1 轮结束"),
+    JSON.stringify(rounds),
+  );
+  check(
+    "选择器**不**出现沿链累加才会有的第 3/4 轮",
+    !rounds.includes("本 run 第 3 轮结束") && !rounds.includes("本 run 第 4 轮结束"),
+    JSON.stringify(rounds),
+  );
+
+  // ── D. 逐检查点核对：初始快照 = 源目录内容（按哈希） ───────────────────────
+  const initialFp = await workspaceFingerprint(page, parentId);
+  check(
+    "文件清单 IPC 往返（runId 取到隔离世界）",
+    initialFp.ok === true,
+    JSON.stringify(initialFp.error ?? ""),
+  );
+  const src = srcBefore;
+  // a.txt 初始内容 = "alpha 内容"；keep.txt = "keep"
+  check(
+    "初始快照的 a.txt 哈希 = 源目录 a.txt（逐字节一致）",
+    initialFp.hashes["initial:a.txt"] === src["a.txt"],
+    `world=${initialFp.hashes["initial:a.txt"]} src=${src["a.txt"]}`,
+  );
+  check(
+    "初始快照的 keep.txt 哈希 = 源目录 keep.txt",
+    initialFp.hashes["initial:keep.txt"] === src["keep.txt"],
+  );
+
+  // ── E. 打开某个文件看差异（选中 a.txt） ────────────────────────────────────
+  await page
+    .getByRole("button", { name: /^a\.txt/ })
+    .first()
+    .click();
+  await page.waitForTimeout(1200);
+  const diffOrStatus = await page.locator("text=左：本 run 初始状态").count();
+  const binaryPanel = await page.locator("text=二进制文件").count();
+  check("选中文件后渲染差异视图或状态面板（不空白）", diffOrStatus > 0 || binaryPanel > 0);
+  await shot(page, "12-files-diff.png");
+
+  // ── F. 只读性：浏览一轮后源目录 + 全部 trace 逐字节不变 ─────────────────────
+  //（多走几个检查点：逐轮切换）
+  await page.getByRole("button", { name: "本 run 第 1 轮结束", exact: true }).first().click();
+  await page.waitForTimeout(900);
+  check(
+    "浏览文件视图无写入：源目录与全部 trace 逐字节不变",
+    fingerprintFiles([SOURCE, ...traceFiles()]) === fingerprintsBefore,
+  );
+  check(
+    "浏览文件视图无写入：源目录文件哈希集合不变",
+    JSON.stringify(sourceHashes()) === JSON.stringify(srcBefore),
+  );
+
+  // ── G. 子 run（隔离续跑）的文件世界：来源说明 + 编辑后的内容 ────────────────
+  // **「轮号不沿链累加」的真证据在这里**：父 run 有 2 轮，子 run 从第 1 轮后分叉、
+  // 自己只再跑 1 轮 ⇒ 子 run 的选择器只能是「本 run 第 1 轮结束」；若沿合并轨迹
+  // 累加，这里会冒出第 3 轮（父 2 + 子 1）。
+  if (childId !== null) {
+    await selectRunInList(page, childId);
+    await page
+      .getByTitle(/查看隔离文件世界的检查点清单/)
+      .first()
+      .click();
+    await page.waitForTimeout(1200);
+    const childOrigin = await page.locator(`text=父运行 ${parentId}`).count();
+    check("子 run 文件 tab 的来源说明指父 run（不写成自己的轮号）", childOrigin > 0);
+    const childRounds = await page.evaluate(() =>
+      [...document.querySelectorAll("button")]
+        .map((b) => b.textContent ?? "")
+        .filter((t) => t.startsWith("本 run 第")),
+    );
+    check(
+      "子 run 选择器只出现它自己的第 1 轮（**不沿链累加**成第 3 轮）",
+      childRounds.includes("本 run 第 1 轮结束") &&
+        !childRounds.includes("本 run 第 2 轮结束") &&
+        !childRounds.includes("本 run 第 3 轮结束"),
+      JSON.stringify(childRounds),
+    );
+    const childFp = await workspaceFingerprint(page, childId);
+    // 子 run 的初始快照 = 父 run 第 1 轮检查点（origin.kind=checkpoint + step s_01）。
+    // ⚠️ 编辑的是 **tool_result**（模型看到的数据），不是文件 ⇒ 文件世界内容与父第 1 轮
+    // 检查点**逐份相同**（拿父的 step n=1 清单做对照，而不是"看起来像"）。
+    const parentRound1Hashes = await page.evaluate(async (id) => {
+      const envelope = await window.api.getRun(id);
+      if (!envelope.ok) return {};
+      const step = envelope.data.spans.find((s) => s.kind === "agent.step" && s.n === 1);
+      if (step === undefined) return {};
+      const inspect = await window.api.inspectWorkspace({ runId: id, stepSpanId: step.id });
+      if (!inspect.ok) return {};
+      return Object.fromEntries(inspect.data.files.map((f) => [f.path, f.sha256]));
+    }, parentId);
+    check(
+      "子 run 初始快照与父 run 第 1 轮检查点**逐份哈希相同**（编辑的是 tool_result 不是文件）",
+      childFp.ok === true &&
+        Object.keys(parentRound1Hashes).length > 0 &&
+        Object.entries(parentRound1Hashes).every(
+          ([path, sha]) => childFp.hashes[`initial:${path}`] === sha,
+        ),
+      `child=${JSON.stringify(childFp.hashes)} parentR1=${JSON.stringify(parentRound1Hashes)}`,
+    );
+    await shot(page, "13-files-child.png");
+  }
+
+  // ── H. 不可用附件必须用**文字**标签（不只靠颜色）且不得渲染成空文件 ────────
+  // 做法：**临时把某个附件从 blob store 挪走**（模拟"附件缺失"），看界面是否
+  // ① 出文字标签、② 不进编辑器；看完立刻还原（源目录与 trace 都不动）。
+  const blobRoot = join(DATA_DIR, "workspace-blobs", "sha256");
+  const movedBlobs = [];
+  const fingerprintBeforeUnavailable = fingerprintFiles([SOURCE, ...traceFiles()]);
+  for (const name of existsSync(blobRoot) ? readdirSync(blobRoot) : []) {
+    const src = join(blobRoot, name);
+    const dst = `${src}.smoke-hidden`;
+    try {
+      renameSync(src, dst);
+      movedBlobs.push({ src, dst });
+    } catch {
+      /* 被占用就跳过 */
+    }
+  }
+  try {
+    await page.reload();
+    await page.waitForTimeout(1800);
+    await selectRunInList(page, parentId);
+    await page
+      .getByTitle(/查看隔离文件世界的检查点清单/)
+      .first()
+      .click();
+    await page.waitForTimeout(1200);
+    const missingLabel = await page.locator("text=附件缺失").count();
+    check(
+      "附件缺失时界面出**文字**标签「附件缺失」（不只靠颜色）",
+      missingLabel > 0,
+      `标签数=${missingLabel}（已临时挪走 ${movedBlobs.length} 个 blob）`,
+    );
+    // 汇总行也必须报不可用数
+    const summaryWarn = await page.locator("text=个附件不可用").count();
+    check("清单汇总行报出「N 个附件不可用」", summaryWarn > 0);
+    await shot(page, "15-files-unavailable.png");
+    // 点开一个缺失文件：必须出状态面板，**不得**渲染 DiffEditor 冒充空文件
+    await page
+      .getByRole("button", { name: /^a\.txt/ })
+      .first()
+      .click();
+    await page.waitForTimeout(1200);
+    const missingPanel = await page.locator("text=无法读取内容").count();
+    check("缺失附件不进编辑器：出状态面板而非伪空文件", missingPanel > 0);
+  } finally {
+    for (const { src, dst } of movedBlobs) {
+      try {
+        renameSync(dst, src);
+      } catch {
+        /* 还原失败也要继续，最后一条 check 会暴露 */
+      }
+    }
+  }
+  check(
+    "临时挪走/还原附件全程未改动源目录与 trace（只读）",
+    fingerprintFiles([SOURCE, ...traceFiles()]) === fingerprintBeforeUnavailable,
+  );
+
+  writeFileSync(join(OUT, "files-checks.json"), JSON.stringify(checks, null, 2));
+}
+
+// ---------------------------------------------------------------------------
+// phase=files-restart（C 3.1：重启后文件差异仍可查）
+// ---------------------------------------------------------------------------
+
+async function phaseFilesRestart() {
+  const state = JSON.parse(readFileSync(STATE, "utf8"));
+  const { parentId } = state;
+  const { page } = await connect();
+  const fingerprintsBefore = fingerprintFiles([SOURCE, ...traceFiles()]);
+
+  const stale = page.locator('dialog[aria-label="新建运行"]');
+  if ((await stale.count()) > 0) {
+    await stale.getByRole("button", { name: "取消" }).click();
+    await page.waitForTimeout(400);
+  }
+  await resizeWindow(page, { width: 1280, height: 860 });
+  await page.reload();
+  await page.waitForTimeout(2000);
+
+  // 重启后按 runId 直接取清单（不经 UI 状态）
+  const afterRestart = await page.evaluate(async (id) => {
+    const inspect = await window.api.inspectWorkspace({ runId: id });
+    if (!inspect.ok) return { ok: false, error: inspect.error };
+    const file = await window.api.readWorkspaceFile({ runId: id, path: "a.txt" });
+    return {
+      ok: true,
+      fileCount: inspect.data.fileCount,
+      snapshotId: inspect.data.snapshotId,
+      aText: file.ok ? file.data.status : `<${file.error.code}>`,
+      aHash: file.ok ? file.data.sha256 : null,
+    };
+  }, parentId);
+  check(
+    "重启后文件清单 IPC 仍可查（runId → 隔离世界）",
+    afterRestart.ok === true && afterRestart.fileCount >= 2,
+    JSON.stringify(afterRestart),
+  );
+
+  await selectRunInList(page, parentId);
+  await page
+    .getByTitle(/查看隔离文件世界的检查点清单/)
+    .first()
+    .click();
+  const tabOpened = await waitForText(page, "文件检查点", 10000);
+  check("重启后文件 tab 仍可打开", tabOpened);
+  await page
+    .getByRole("button", { name: /^a\.txt/ })
+    .first()
+    .click();
+  await page.waitForTimeout(1200);
+  const diffShown = await page.locator("text=左：本 run 初始状态").count();
+  check("重启后仍能查看文件差异", diffShown > 0);
+  await shot(page, "14-files-after-restart.png");
+
+  check(
+    "重启后源目录与全部 trace 逐字节不变",
+    fingerprintFiles([SOURCE, ...traceFiles()]) === fingerprintsBefore,
+  );
+
+  writeFileSync(join(OUT, "files-restart-checks.json"), JSON.stringify(checks, null, 2));
+}
+
+// ---------------------------------------------------------------------------
+// phase=files-migrate（C 3.1：整体迁移 dataDir 后文件仍可查）
+// ---------------------------------------------------------------------------
+
+/**
+ * 真迁移：把**整个数据目录**复制到新位置，再用 A 包的 read API 按**新 dataDir**
+ * 读同一份 trace，逐份核对文件哈希是否与迁移前相同。
+ *
+ * 迁移的是**数据目录**（traces + workspace-blobs），不是源目录——源目录不在 trace
+ * 引用里（附件只按 `sha256` 寻址、物理路径由哈希生成），所以迁移不影响可查性。
+ *
+ * ⚠️ 这一段**不走浏览器**：迁移的语义是"换一个 dataDir 根还能不能读"，属于包层
+ * 契约，直接用 Node 调 `@rebaseagent/replay` 的公开 API 才是最直接的判据
+ * （浏览器里再套一层 Vite 模块解析只会引入噪声）。
+ */
+async function phaseFilesMigrate() {
+  const migrated = join(OUT, "migrated-data");
+  rmSync(migrated, { recursive: true, force: true });
+  mkdirSync(migrated, { recursive: true });
+  for (const name of ["traces", "workspace-blobs"]) {
+    const from = join(DATA_DIR, name);
+    if (existsSync(from)) copyDir(from, join(migrated, name));
+  }
+  const migratedTraces = readdirSync(join(migrated, "traces")).filter((n) => n.endsWith(".jsonl"));
+  check(
+    "迁移载体齐备：traces 与 workspace-blobs 一并复制到新根",
+    migratedTraces.length > 0 && existsSync(join(migrated, "workspace-blobs", "sha256")),
+    `traces=${migratedTraces.length}`,
+  );
+
+  const state = JSON.parse(readFileSync(STATE, "utf8"));
+  const { parentId } = state;
+  const { page } = await connect();
+  const before = await workspaceFingerprint(page, parentId);
+
+  // 用新根调 A 包（Node 侧）：readRun(新 trace 路径) + readWorkspaceFile(新 root)
+  const after = await readViaNewRoot(migrated, parentId);
+  check(
+    "迁移后 A 包按新 dataDir 读到 trace 与附件（不依赖应用进程）",
+    after.ok === true,
+    after.ok ? `文件 ${Object.keys(after.hashes).length} 份` : JSON.stringify(after),
+  );
+  check(
+    "迁移后逐份哈希与迁移前**完全相同**（内容身份与所在目录无关）",
+    after.ok === true &&
+      Object.keys(before.hashes).length > 0 &&
+      Object.entries(before.hashes).every(([key, sha]) => after.hashes[key] === sha),
+    `before=${JSON.stringify(before.hashes)} after=${JSON.stringify(after.hashes)}`,
+  );
+
+  const migratedBlobDir = join(migrated, "workspace-blobs", "sha256");
+  const originalBlobDir = join(DATA_DIR, "workspace-blobs", "sha256");
+  const migratedBlobs = existsSync(migratedBlobDir) ? readdirSync(migratedBlobDir).sort() : [];
+  const originalBlobs = existsSync(originalBlobDir) ? readdirSync(originalBlobDir).sort() : [];
+  check(
+    "迁移根与原根的附件 blob **逐份同名**",
+    migratedBlobs.length > 0 && JSON.stringify(migratedBlobs) === JSON.stringify(originalBlobs),
+    `migrated=${migratedBlobs.length} original=${originalBlobs.length}`,
+  );
+  // 内容寻址自证：每个 blob 文件的内容哈希 = 它的文件名
+  const blobIntact = migratedBlobs.every((name) => hash(join(migratedBlobDir, name)) === name);
+  check("迁移根里每个 blob 的内容哈希 = 其文件名（内容寻址自证）", blobIntact);
+  check(
+    "迁移是只读复制：原 dataDir 的 blob 仍在原位可用",
+    originalBlobs.length > 0,
+    `original blobs=${originalBlobs.length}`,
+  );
+  writeFileSync(join(OUT, "files-migrate-checks.json"), JSON.stringify(checks, null, 2));
+}
+
+/**
+ * Node 侧用**新 dataDir 根**读一遍：直接调已构建的 A 包 dist。
+ * （独立于 dev 进程，证明迁移后的可读性不依赖任何内存状态。）
+ *
+ * 签名（`packages/replay/src/workspace/read-api.ts`）：`readWorkspaceFile({ dataDir, runId, path })`，
+ * 返回 `{ status, path, file, text? }`，`file.sha256` 即附件哈希。
+ */
+async function readViaNewRoot(newRoot, runId) {
+  const { pathToFileURL } = await import("node:url");
+  const { readRun } = await import(
+    pathToFileURL(join(REPO, "packages", "trace-sdk", "dist", "index.js")).href
+  );
+  const replay = await import(
+    pathToFileURL(join(REPO, "packages", "replay", "dist", "index.js")).href
+  );
+  let record;
+  try {
+    record = readRun(join(newRoot, "traces", `${runId}.jsonl`));
+  } catch (error) {
+    return { ok: false, step: "readRun", error: String(error) };
+  }
+  const hashes = {};
+  for (const entry of record.meta.workspace?.initial_snapshot?.files ?? []) {
+    try {
+      const result = await replay.readWorkspaceFile({
+        dataDir: newRoot,
+        runId,
+        path: entry.path,
+      });
+      hashes[`initial:${entry.path}`] =
+        result.status === "text" || result.status === "binary"
+          ? result.file.sha256
+          : `<${result.status}>`;
+    } catch (error) {
+      hashes[`initial:${entry.path}`] = `<${String(error).slice(0, 60)}>`;
+    }
+  }
+  return { ok: true, hashes };
+}
+
+/** 递归复制目录（Node 无内建 cp -r 的稳定实现，自己走一遍） */
+function copyDir(from, to) {
+  mkdirSync(to, { recursive: true });
+  for (const name of readdirSync(from)) {
+    const src = join(from, name);
+    const dst = join(to, name);
+    if (statSync(src).isDirectory()) copyDir(src, dst);
+    else copyFileSync(src, dst);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// phase=files-narrow（C 3.2：长路径 + 长文本 diff 的宽/窄窗口截图与核对）
+// ---------------------------------------------------------------------------
+
+/** 3.2 用的长相对路径（在源根之下，模拟深目录结构 + 长文件名） */
+const LONG_REL_DIR = join(
+  "deeply-nested-directory-structure",
+  "with-several-levels",
+  "to-exercise-path-wrapping",
+  "in-the-compact-file-list",
+);
+/** 长相对路径 + 长文本的文件（diff 内容源） */
+const LONG_REL_FILE = join(LONG_REL_DIR, "quarterly-report-with-a-rather-long-file-name.txt");
+
+/** 造一段"长文本"：足够多的行 + 若干超长行（考验换行与横向滚动） */
+function longReportText() {
+  const lines = [];
+  lines.push("== 长文本样本（C 3.2）==");
+  for (let i = 1; i <= 200; i += 1) {
+    lines.push(
+      `第 ${String(i).padStart(3, "0")} 行：这是一行用于验证长文本 diff 的中文内容，编号 ${i}。`,
+    );
+  }
+  // 两条超长行（不做换行的编辑器里必须出现横向滚动条）
+  lines.push(`超长行-单行: ${"X".repeat(400)}`);
+  lines.push(`超长行-单行: ${"Y".repeat(400)}`);
+  return `${lines.join("\n")}\n`;
+}
+
+/**
+ * C 3.2：以**长源路径**创建隔离 run，然后在文件视图里打开"长路径 + 长文本"的文件，
+ * 分别在桌面宽度与窄窗口下截图核对；并**用哈希**（不是截图）核对长文本内容。
+ *
+ * 前置（与 B 的 narrow 阶段相同）：dev 以 `REBASEAGENT_SMOKE_PICK_DIR=<LONG_SOURCE>` 启动。
+ */
+async function phaseFilesNarrow() {
+  // ── 夹具：a.txt（供 mock 的 read_file）+ 长路径长文本文件 ────────────────────
+  mkdirSync(join(LONG_SOURCE, LONG_REL_DIR), { recursive: true });
+  writeFileSync(join(LONG_SOURCE, "a.txt"), "alpha 内容");
+  const longFile = join(LONG_SOURCE, LONG_REL_FILE);
+  writeFileSync(longFile, longReportText(), "utf8");
+  const longFileHash = hash(longFile);
+
+  const { page } = await connect();
+  const stale = page.locator('dialog[aria-label="新建运行"]');
+  if ((await stale.count()) > 0) {
+    await stale.getByRole("button", { name: "取消" }).click();
+    await page.waitForTimeout(400);
+  }
+  await resizeWindow(page, WIDE);
+  await page.reload();
+  await page.waitForTimeout(2200);
+
+  const countBefore = traceFiles().length;
+  const idsBefore = await page.evaluate(async () => {
+    const envelope = await window.api.listRuns();
+    return envelope.ok ? envelope.data.runs.map((r) => r.id) : [];
+  });
+
+  // ── A. 从长源路径创建隔离 run（复用 B narrow 的对话框驱动） ─────────────────
+  await page
+    .getByRole("button", { name: /新建运行/ })
+    .first()
+    .click();
+  const dialog = page.locator('dialog[aria-label="新建运行"]');
+  await dialog.waitFor({ state: "visible", timeout: 5000 });
+  await dialog.getByRole("button", { name: "隔离文件运行" }).click();
+  await page.waitForTimeout(200);
+  await dialog.getByRole("button", { name: /选择目录/ }).click();
+  await page.waitForTimeout(800);
+  await dialog.locator("textarea").nth(1).fill("读取 a.txt 并复述内容");
+  await dialog.getByLabel("允许本次执行的副本写入", { exact: false }).check();
+  await dialog.getByRole("button", { name: "创建隔离运行" }).click();
+  const created = await waitForTraceCount(countBefore + 1);
+  check("长源路径下隔离创建落盘", created);
+  await page.waitForTimeout(1800);
+
+  const runs = await page.evaluate(async () => {
+    const envelope = await window.api.listRuns();
+    return envelope.ok ? envelope.data.runs.map((r) => r.id) : [];
+  });
+  const newId = runs.find((id) => !idsBefore.includes(id));
+  check("长源路径 run 出现在列表", typeof newId === "string" && newId.length > 0, String(newId));
+
+  // **只读基线在创建之后取**：创建本身会写 1 份 trace（这是隔离创建的合法写入），
+  // 之后浏览文件视图必须一个字节都不再动。
+  const fingerprintBaseline = fingerprintFiles([LONG_SOURCE, ...traceFiles()]);
+
+  // 长路径文件确实进了清单（世界采集了整个源目录，不只是被读的那个文件）
+  const inspect = await page.evaluate(async (id) => {
+    const envelope = await window.api.inspectWorkspace({ runId: id });
+    if (!envelope.ok) return { ok: false, error: envelope.error };
+    return {
+      ok: true,
+      files: envelope.data.files.map((f) => f.path),
+      fileCount: envelope.data.fileCount,
+    };
+  }, newId);
+  check(
+    "长路径文件被采集进隔离世界清单（清单不止被读的那个文件）",
+    inspect.ok === true && inspect.files.some((p) => p.includes("quarterly-report")),
+    JSON.stringify(inspect),
+  );
+
+  // ── B. 打开文件视图，选长路径长文本文件 ────────────────────────────────────
+  await selectRunInList(page, newId);
+  await page
+    .getByTitle(/查看隔离文件世界的检查点清单/)
+    .first()
+    .click();
+  const opened = await waitForText(page, "文件检查点", 10000);
+  check("长源路径 run 的文件 tab 可打开", opened);
+  // 文件表里长路径必须**换行显示**（break-all），不是被裁掉
+  const pathCell = page.locator("li div.break-all").filter({ hasText: "quarterly-report" }).first();
+  await pathCell.scrollIntoViewIfNeeded();
+  const listOverflow = await overflowsHorizontally(pathCell);
+  check(
+    "长路径在紧凑文件表里换行显示（无横向溢出）",
+    (await pathCell.count()) > 0 && listOverflow === false,
+    `溢出=${listOverflow}`,
+  );
+  await shot(page, "16-files-longpath-list.png");
+
+  await pathCell.click();
+  await page.waitForTimeout(1500);
+  const longDiffShown = await page.locator("text=左：本 run 初始状态").count();
+  check("长文本文件进入 diff 视图（左右两侧标题在场）", longDiffShown > 0);
+
+  // ── C. **哈希核对**（不靠截图）：IPC 读回的 sha256 = 磁盘上该文件的 sha256 ──
+  const readBack = await page.evaluate(
+    async ({ id, path }) => {
+      const result = await window.api.readWorkspaceFile({ runId: id, path });
+      if (!result.ok) return { ok: false, error: result.error };
+      return {
+        ok: true,
+        status: result.data.status,
+        sha256: result.data.sha256,
+        bytes: result.data.bytes,
+        textLength: result.data.text?.length ?? null,
+        text: result.data.text ?? null,
+      };
+    },
+    { id: newId, path: LONG_REL_FILE.replace(/\\/g, "/") },
+  );
+  check(
+    "长文本文件按哈希核对：IPC 读回的 sha256 = 磁盘源文件 sha256（不靠截图）",
+    readBack.ok === true && readBack.sha256 === longFileHash,
+    `ipc=${String(readBack.sha256)} disk=${longFileHash} status=${String(readBack.status)}`,
+  );
+  const expectedText = longReportText();
+  check(
+    "长文本**完整**返回（字符数一致，未被截断）",
+    readBack.ok === true && readBack.textLength === expectedText.length,
+    `ipc=${String(readBack.textLength)} 期望=${expectedText.length}`,
+  );
+  check(
+    "长文本内容逐字符一致（含两条 400 字符超长行）",
+    readBack.ok === true &&
+      readBack.text === expectedText &&
+      readBack.text.includes("X".repeat(400)) &&
+      readBack.text.includes("Y".repeat(400)),
+  );
+
+  // ── D. 桌面宽度截图（长文本 diff） ─────────────────────────────────────────
+  const wideActual = await resizeWindow(page, WIDE);
+  await page.waitForTimeout(1000);
+  await shot(page, "17-files-longtext-wide.png");
+  check(
+    "桌面宽度下详情列可用（>300px）",
+    (await detailColumnWidth(page)) > 300,
+    `@${wideActual.width}px`,
+  );
+
+  // ── E. 窄窗口截图 + 列表/内容切换 ──────────────────────────────────────────
+  // ⚠️ 文件视图的二选一切换挂在 Tailwind `lg`（1024px）断点下：`lg:hidden` 的切换条
+  // 只在 <1024px 出现，两栏并排是 ≥1024px 的**正确**行为。所以窄窗核对取 900px
+  // （三栏外壳固定 704px ⇒ 详情列 196px，正是切换机制设计的服务对象）。
+  const narrowActual = await resizeWindow(page, FILES_NARROW);
+  await page.waitForTimeout(1000);
+  // 窄窗口下「文件列表 / 内容」切换按钮必须出现（lg 断点以下才渲染）
+  const listTab = page.getByRole("button", { name: "文件列表", exact: true });
+  const contentTab = page.getByRole("button", { name: "内容", exact: true });
+  const toggleVisible = (await listTab.count()) > 0 && (await contentTab.count()) > 0;
+  check(
+    `窄窗口（${narrowActual.width}px < lg 1024px）下出现「文件列表 / 内容」切换（不互相遮挡）`,
+    toggleVisible,
+  );
+  await listTab.click();
+  await page.waitForTimeout(600);
+  await shot(page, "18-files-longtext-narrow-list.png");
+  const listPaneShown = await page
+    .locator("li div.break-all")
+    .filter({ hasText: "quarterly-report" })
+    .first()
+    .isVisible();
+  check("窄窗口切到「文件列表」时列表可见", listPaneShown === true);
+  await contentTab.click();
+  await page.waitForTimeout(800);
+  await shot(page, "19-files-longtext-narrow-content.png");
+  check(
+    "窄窗口切到「内容」时 diff 区可见、列表让位（不重叠）",
+    (await page.locator("text=左：本 run 初始状态").count()) > 0,
+  );
+  // 内容区不得横向溢出（wordWrap 生效）
+  const editorOverflow = await overflowsHorizontally(
+    page.locator("div.mx-4.mb-4.overflow-hidden").first(),
+  );
+  check(
+    "窄窗口下长文本按换行显示（内容区无横向溢出）",
+    editorOverflow === false,
+    `溢出=${editorOverflow}`,
+  );
+
+  // ── F. 只读性：浏览全程未改动源目录与 trace ────────────────────────────────
+  check(
+    "长路径/长文本浏览全程无写入：源目录与全部 trace 逐字节不变",
+    fingerprintFiles([LONG_SOURCE, ...traceFiles()]) === fingerprintBaseline,
+  );
+  check("长文本源文件哈希未变（只读视图不回写源目录）", hash(longFile) === longFileHash);
+
+  writeFileSync(join(OUT, "files-narrow-checks.json"), JSON.stringify(checks, null, 2));
+}
+
+// ---------------------------------------------------------------------------
 // phase=narrow（B 3.3：窄窗口 + 长源路径下的创建与确认区）
 // ---------------------------------------------------------------------------
 
@@ -819,6 +1497,14 @@ async function phaseRestart() {
       await phaseRestart();
     } else if (phase === "narrow") {
       await phaseNarrow();
+    } else if (phase === "files") {
+      await phaseFiles();
+    } else if (phase === "files-restart") {
+      await phaseFilesRestart();
+    } else if (phase === "files-migrate") {
+      await phaseFilesMigrate();
+    } else if (phase === "files-narrow") {
+      await phaseFilesNarrow();
     } else {
       throw new Error(`未知阶段：${phase}`);
     }

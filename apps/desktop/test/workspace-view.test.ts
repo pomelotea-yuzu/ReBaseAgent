@@ -1,4 +1,12 @@
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import {
+  appendFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { RunConfig } from "@rebaseagent/agent-loop";
@@ -508,6 +516,59 @@ describe("workspaces:inspect / readFile —— 浏览过程无写入（只读判
       expect(after).toBe(before);
       // 附带：源目录也不该被动过（A 段纪律：源目录只在显式授权下被改写）
       expect(readFileSync(join(layout.source, "a.txt"), "utf8")).toBe("alpha 内容");
+    } finally {
+      layout.cleanup();
+    }
+  });
+});
+
+describe("workspaces:inspect / readFile —— 失败运行已记录文件可查看", () => {
+  it("run 被 errored 事件封存后，已记录的初始/步骤检查点仍可列出并读取完整文件事实", async () => {
+    const layout = tempLayout();
+    try {
+      const dataDir = layout.dataDir;
+      const runId = await createFixture(dataDir, layout.source);
+
+      // 按真实失败 run 的落盘形态追加 errored 终止事件（runLoop 不抛 LLM 失败，
+      // 成败判据是终止事件——见真机 trace run_mu9ckoh7 的最后一行）。
+      appendFileSync(
+        join(dataDir, "traces", `${runId}.jsonl`),
+        `${JSON.stringify({ type: "run.event", event: "errored", reason: "error", at: 3 })}\n`,
+        "utf8",
+      );
+
+      const repository = new RunRepository(join(dataDir, "traces"));
+      const record = repository.loadRunRecord(runId);
+      // 终止事件在场（该 run 已被封存，不再是"进行中"）
+      expect(record.events.some((event) => event.event === "errored")).toBe(true);
+
+      // 初始清单仍完整可列（失败不撤销历史写入）
+      const initial = await inspectWorkspace({ dataDir, repository }, { runId });
+      expect(initial.ok).toBe(true);
+      if (!initial.ok) return;
+      expect(initial.result.files.map((file) => file.path)).toContain("a.txt");
+
+      // 各步骤检查点同样可列、可读完整内容
+      const steps = stepsOf(record).filter((step) => step.snapshotId !== null);
+      expect(steps.length).toBeGreaterThanOrEqual(2);
+      for (const step of steps) {
+        const outcome = await inspectWorkspace(
+          { dataDir, repository },
+          { runId, stepSpanId: step.id },
+        );
+        expect(outcome.ok).toBe(true);
+        if (!outcome.ok) continue;
+        const aFile = outcome.result.files.find((file) => file.path === "a.txt");
+        expect(aFile).toBeDefined();
+        if (aFile === undefined) continue;
+        const content = await readWorkspaceFileForView(
+          { dataDir, repository },
+          { runId, stepSpanId: step.id, path: "a.txt" },
+        );
+        expect(content.status).toBe("text");
+        if (content.status !== "text") return;
+        expect(content.text).toBe("alpha 内容");
+      }
     } finally {
       layout.cleanup();
     }
