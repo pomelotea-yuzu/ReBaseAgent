@@ -5,6 +5,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { deriveRunSummary } from "../src/shared/derive";
 import { ok } from "../src/shared/ipc";
 import type {
+  ChooseSourceResult,
+  CreateRunRequest,
   Envelope,
   ForkRunResult,
   ListRunsData,
@@ -53,7 +55,11 @@ interface Controller {
     value: string;
   }>;
   createRunEnvelope: Envelope<{ id: string }> | undefined;
-  createRunRequests: Array<{ systemPrompt: string; userMessage: string }>;
+  /** 原样记录透传出去的请求（含隔离模式的 workspace，B 2.1） */
+  createRunRequests: CreateRunRequest[];
+  /** 覆盖 chooseSource 的返回（默认取消；供"目录选择结果校验"用例注入非法载荷） */
+  chooseSourceEnvelope: Envelope<ChooseSourceResult> | undefined;
+  chooseSourceCalls: number;
   /** 覆盖 getRun 的返回详情（默认 rootDetail）；供版本守卫接线用例注入被篡改载荷 */
   getRunDetail: RunDetail | undefined;
   listCalls: number;
@@ -89,14 +95,14 @@ function makeFakeApi(c: Controller): WindowApi {
     saveSettings: async () => ok({ configured: true }),
     clearSettings: async () => ok({ configured: false }),
     createRun: async (request) => {
-      c.createRunRequests.push({
-        systemPrompt: request.systemPrompt,
-        userMessage: request.userMessage,
-      });
+      c.createRunRequests.push(request);
       return c.createRunEnvelope ?? ok({ id: "run_created" });
     },
-    // B 1.3/1.5 的只读辅助通道：store 尚未消费（UI 属任务 2.x），stub 仅满足接口形状
-    chooseSource: async () => ok({ canceled: true }),
+    // B 1.3/1.5 的只读辅助通道：chooseSource 已接（2.1），forkCapability 的 UI 属 2.2
+    chooseSource: async () => {
+      c.chooseSourceCalls += 1;
+      return c.chooseSourceEnvelope ?? ok({ canceled: true });
+    },
     forkCapability: async () => {
       throw new Error("store.test 不应调用 forkCapability");
     },
@@ -110,6 +116,8 @@ const controller: Controller = {
   promptForkRequests: [],
   createRunEnvelope: undefined,
   createRunRequests: [],
+  chooseSourceEnvelope: undefined,
+  chooseSourceCalls: 0,
   listCalls: 0,
 };
 (globalThis as Record<string, unknown>).window = { api: makeFakeApi(controller) };
@@ -149,6 +157,8 @@ beforeEach(() => {
   controller.promptForkRequests = [];
   controller.createRunEnvelope = undefined;
   controller.createRunRequests = [];
+  controller.chooseSourceEnvelope = undefined;
+  controller.chooseSourceCalls = 0;
   controller.getRunDetail = undefined;
   controller.listCalls = 0;
   resetStore();
@@ -315,19 +325,43 @@ describe("store：分支树视图与对照集合", () => {
   });
 });
 
-describe("store：runs:create 流转（A1）", () => {
+describe("store：runs:create 流转（A1 / B 2.1 请求透传）", () => {
   it("成功：in_progress → success，列表刷新并自动选中新 run", async () => {
     await useAppStore.getState().loadRuns();
-    const created = await useAppStore.getState().createRun("你是助手。", "解释一下时间旅行调试");
+    const created = await useAppStore
+      .getState()
+      .createRun({ systemPrompt: "你是助手。", userMessage: "解释一下时间旅行调试" });
     expect(created).toBe(true);
 
     const state = useAppStore.getState();
     expect(state.creatingRun).toBe("success");
     expect(state.createRunError).toBeNull();
+    // 纯对话请求里不带 workspace 键（main 据此走空工具表 + v1）
     expect(controller.createRunRequests).toEqual([
       { systemPrompt: "你是助手。", userMessage: "解释一下时间旅行调试" },
     ]);
+    expect(
+      controller.createRunRequests[0] !== undefined &&
+        "workspace" in controller.createRunRequests[0],
+    ).toBe(false);
     expect(state.selectedRunId).toBe("run_created");
+  });
+
+  it("隔离模式：store 原样透传 workspace（授权与 token 不经渲染层改写）", async () => {
+    await useAppStore.getState().createRun({
+      systemPrompt: "",
+      userMessage: "读一下 a.txt",
+      workspace: { mode: "isolated_files", sourceToken: "tok_1", allowFileWrites: true },
+    });
+
+    expect(controller.createRunRequests).toEqual([
+      {
+        systemPrompt: "",
+        userMessage: "读一下 a.txt",
+        workspace: { mode: "isolated_files", sourceToken: "tok_1", allowFileWrites: true },
+      },
+    ]);
+    expect(useAppStore.getState().creatingRun).toBe("success");
   });
 
   it("失败：置 error 并保留错误码，且仍刷新列表（error run 已落盘，必须可见）", async () => {
@@ -342,7 +376,9 @@ describe("store：runs:create 流转（A1）", () => {
     await useAppStore.getState().loadRuns();
     const before = controller.listCalls;
 
-    const created = await useAppStore.getState().createRun("", "你好");
+    const created = await useAppStore
+      .getState()
+      .createRun({ systemPrompt: "", userMessage: "你好" });
     expect(created).toBe(false);
 
     const state = useAppStore.getState();
@@ -352,6 +388,52 @@ describe("store：runs:create 流转（A1）", () => {
     // 关键：失败也要重拉列表，否则用户看不到那条已按 meta.id 落盘的 error run
     expect(controller.listCalls).toBeGreaterThan(before);
     expect(state.selectedRunId).toBeNull();
+  });
+});
+
+describe("store：chooseSource 只读通道（B 2.1）", () => {
+  it("成功结果经 schema 校验后回给对话框（含 token / 展示名 / 路径）", async () => {
+    controller.chooseSourceEnvelope = ok({
+      canceled: false,
+      sourceToken: "tok_9",
+      name: "lab",
+      path: "D:\\lab",
+      expiresAt: "2026-09-20T12:30:00.000Z",
+    });
+    const result = await useAppStore.getState().chooseSource();
+
+    expect(controller.chooseSourceCalls).toBe(1);
+    expect(result).toEqual({
+      canceled: false,
+      sourceToken: "tok_9",
+      name: "lab",
+      path: "D:\\lab",
+      expiresAt: "2026-09-20T12:30:00.000Z",
+    });
+    expect(useAppStore.getState().error).toBeNull();
+  });
+
+  it("取消返回 {canceled:true}（不是失败，组件据此不改变已选目录）", async () => {
+    const result = await useAppStore.getState().chooseSource();
+    expect(result).toEqual({ canceled: true });
+    expect(useAppStore.getState().error).toBeNull();
+  });
+
+  it("非法载荷 → null + 可读 error（跨进程数据不可信）", async () => {
+    controller.chooseSourceEnvelope = ok({ canceled: false, sourceToken: "", name: 1 } as never);
+    const result = await useAppStore.getState().chooseSource();
+    expect(result).toBeNull();
+    expect(useAppStore.getState().error).toContain("目录选择结果结构校验失败");
+  });
+
+  it("通道失败 → null + 可读 error，不误当作取消", async () => {
+    controller.chooseSourceEnvelope = {
+      ok: false,
+      error: { code: "CHOOSE_SOURCE_FAILED", message: "对话框不可用" },
+    };
+    const result = await useAppStore.getState().chooseSource();
+    expect(result).toBeNull();
+    expect(useAppStore.getState().error).toContain("选择源目录失败");
   });
 });
 

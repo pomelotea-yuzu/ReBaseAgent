@@ -49,7 +49,7 @@ export function RunList() {
           <button
             type="button"
             onClick={() => setCreateOpen(true)}
-            title="直接在桌面端跑一个 run（不需代理、不需写代码）"
+            title="直接在桌面端跑一个 run（纯对话，或隔离文件运行；不需代理、不需写代码）"
             className="flex shrink-0 items-center gap-1.5 rounded border border-gray-300 px-2 py-0.5 text-[11px] text-gray-600 hover:bg-gray-50"
           >
             ＋ 新建运行

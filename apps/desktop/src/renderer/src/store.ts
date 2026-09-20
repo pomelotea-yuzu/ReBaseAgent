@@ -1,5 +1,7 @@
 import { findRunDetailVersionViolation } from "@shared/detail-version-guard";
 import type {
+  ChooseSourceResult,
+  CreateRunRequest,
   FailedFile,
   ModelAbResult,
   ProxyState,
@@ -11,6 +13,7 @@ import type {
 } from "@shared/ipc";
 import type { ModelAbArm, PromptForkRequest } from "@shared/ipc";
 import {
+  ChooseSourceResultSchema,
   ListRunsDataSchema,
   ProxyStateSchema,
   RunDetailSchema,
@@ -99,10 +102,17 @@ interface AppState {
   resetFork: () => void;
 
   /**
-   * 新建运行（runs:create）：从头执行一个原生 run（空工具表、无父 run）。
-   * 成功刷新列表并自动选中新 run；返回是否成功。
+   * 新建运行（runs:create）：从头执行一个原生 run。
+   * 请求由 `lib/create-run.ts` 的 `resolveCreateRunSubmission` 构造（纯对话 / 隔离两态同源），
+   * store 只负责透传与状态机。成功刷新列表并自动选中新 run；返回是否成功。
    */
-  createRun: (systemPrompt: string, userMessage: string) => Promise<boolean>;
+  createRun: (request: CreateRunRequest) => Promise<boolean>;
+  /**
+   * 原生目录选择（只读辅助通道，B 1.3）：阻塞至用户选完或取消。
+   * 返回 main 的结论（取消为 `{canceled:true}`）；通道失败或结构不合法返回 null 并置 error。
+   * 本方法**不签发、不保存**任何授权——副本写入必须由对话框本次显式勾选。
+   */
+  chooseSource: () => Promise<ChooseSourceResult | null>;
   /** 打开"新建运行"对话框前复位状态 */
   resetCreateRun: () => void;
 
@@ -251,9 +261,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ forking: "idle", forkError: null, forkErrorCode: null });
   },
 
-  async createRun(systemPrompt, userMessage) {
+  async createRun(request) {
     set({ creatingRun: "in_progress", createRunError: null, createRunErrorCode: null });
-    const envelope = await api.createRun({ systemPrompt, userMessage });
+    const envelope = await api.createRun(request);
     if (!envelope.ok) {
       set({
         creatingRun: "error",
@@ -274,6 +284,21 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   resetCreateRun() {
     set({ creatingRun: "idle", createRunError: null, createRunErrorCode: null });
+  },
+
+  async chooseSource() {
+    const envelope = await api.chooseSource();
+    if (!envelope.ok) {
+      set({ error: `选择源目录失败：${envelope.error.message}` });
+      return null;
+    }
+    // 跨进程数据不可信：核验形状后再交给对话框（"取消"与"失败"必须可分辨）
+    const parsed = ChooseSourceResultSchema.safeParse(envelope.data);
+    if (!parsed.success) {
+      set({ error: `目录选择结果结构校验失败：${describeZodError(parsed.error)}` });
+      return null;
+    }
+    return parsed.data;
   },
 
   async promptFork(parentRunId, edit) {
