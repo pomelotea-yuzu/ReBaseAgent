@@ -8,7 +8,10 @@ import type {
   ChooseSourceResult,
   CreateRunRequest,
   Envelope,
+  ForkCapabilityRequest,
+  ForkCapabilityResult,
   ForkRunResult,
+  IsolatedExecutionMode,
   ListRunsData,
   PromptForkResult,
   RunDetail,
@@ -47,7 +50,12 @@ const forkedSummary = { ...rootSummary, id: "run_forked", parent: "r_01" };
 /** 用例间共享的行为控制器（闭包捕获，读 call 时最新值） */
 interface Controller {
   forkEnvelope: Envelope<ForkRunResult> | undefined;
-  forkRequests: Array<{ parentRunId: string; atSpanId: string; value: string }>;
+  forkRequests: Array<{
+    parentRunId: string;
+    atSpanId: string;
+    value: string;
+    execution?: IsolatedExecutionMode;
+  }>;
   promptForkEnvelope: Envelope<PromptForkResult> | undefined;
   promptForkRequests: Array<{
     parentRunId: string;
@@ -60,10 +68,26 @@ interface Controller {
   /** 覆盖 chooseSource 的返回（默认取消；供"目录选择结果校验"用例注入非法载荷） */
   chooseSourceEnvelope: Envelope<ChooseSourceResult> | undefined;
   chooseSourceCalls: number;
+  /** 覆盖 forkCapability 的返回（默认一条合法预检结论；B 2.2） */
+  forkCapabilityEnvelope: Envelope<ForkCapabilityResult> | undefined;
+  forkCapabilityRequests: ForkCapabilityRequest[];
   /** 覆盖 getRun 的返回详情（默认 rootDetail）；供版本守卫接线用例注入被篡改载荷 */
   getRunDetail: RunDetail | undefined;
   listCalls: number;
 }
+
+/** 合法预检结论（main 侧 `ForkCapabilityResultSchema` 的形状） */
+const CAPABILITY: ForkCapabilityResult = {
+  parentId: "r_01",
+  atSpanId: "s_03",
+  stepSpanId: "s_02",
+  ownerRunId: "r_01",
+  localIteration: 1,
+  snapshotId: "a".repeat(64),
+  fileCount: 2,
+  totalBytes: 1536,
+  configHash: `sha256:${"b".repeat(64)}`,
+};
 
 function makeFakeApi(c: Controller): WindowApi {
   return {
@@ -79,6 +103,8 @@ function makeFakeApi(c: Controller): WindowApi {
         parentRunId: request.parentRunId,
         atSpanId: request.atSpanId,
         value: request.edit.value,
+        // 未传时不写该键：与真实请求体一致（普通父本请求里没有 execution）
+        ...(request.execution === undefined ? {} : { execution: request.execution }),
       });
       return c.forkEnvelope ?? ok({ id: "run_forked" });
     },
@@ -98,13 +124,14 @@ function makeFakeApi(c: Controller): WindowApi {
       c.createRunRequests.push(request);
       return c.createRunEnvelope ?? ok({ id: "run_created" });
     },
-    // B 1.3/1.5 的只读辅助通道：chooseSource 已接（2.1），forkCapability 的 UI 属 2.2
+    // B 1.3/1.5 的只读辅助通道：chooseSource 与 forkCapability 均已接（2.1 / 2.2）
     chooseSource: async () => {
       c.chooseSourceCalls += 1;
       return c.chooseSourceEnvelope ?? ok({ canceled: true });
     },
-    forkCapability: async () => {
-      throw new Error("store.test 不应调用 forkCapability");
+    forkCapability: async (request) => {
+      c.forkCapabilityRequests.push(request);
+      return c.forkCapabilityEnvelope ?? ok(CAPABILITY);
     },
   };
 }
@@ -118,6 +145,8 @@ const controller: Controller = {
   createRunRequests: [],
   chooseSourceEnvelope: undefined,
   chooseSourceCalls: 0,
+  forkCapabilityEnvelope: undefined,
+  forkCapabilityRequests: [],
   listCalls: 0,
 };
 (globalThis as Record<string, unknown>).window = { api: makeFakeApi(controller) };
@@ -159,6 +188,8 @@ beforeEach(() => {
   controller.createRunRequests = [];
   controller.chooseSourceEnvelope = undefined;
   controller.chooseSourceCalls = 0;
+  controller.forkCapabilityEnvelope = undefined;
+  controller.forkCapabilityRequests = [];
   controller.getRunDetail = undefined;
   controller.listCalls = 0;
   resetStore();
@@ -434,6 +465,75 @@ describe("store：chooseSource 只读通道（B 2.1）", () => {
     const result = await useAppStore.getState().chooseSource();
     expect(result).toBeNull();
     expect(useAppStore.getState().error).toContain("选择源目录失败");
+  });
+});
+
+describe("store：隔离续跑的 execution 声明与能力预检（B 2.2）", () => {
+  it("隔离父本：execution 原样透传（本次显式 allowFileWrites）", async () => {
+    const okFork = await useAppStore
+      .getState()
+      .forkAt("r_01", "s_03", "编辑后的观察", { mode: "isolated_files", allowFileWrites: true });
+
+    expect(okFork).toBe(true);
+    expect(controller.forkRequests).toEqual([
+      {
+        parentRunId: "r_01",
+        atSpanId: "s_03",
+        value: "编辑后的观察",
+        execution: { mode: "isolated_files", allowFileWrites: true },
+      },
+    ]);
+  });
+
+  it("普通父本：请求里不出现 execution 键（不误加隔离声明、不降级隔离父本）", async () => {
+    await useAppStore.getState().forkAt("r_01", "s_03", "编辑后的观察");
+    const sent = controller.forkRequests[0];
+    expect(sent).toEqual({ parentRunId: "r_01", atSpanId: "s_03", value: "编辑后的观察" });
+    expect(sent !== undefined && "execution" in sent).toBe(false);
+  });
+
+  it("能力预检成功：结果经 schema 校验后返回（不入全局状态，故不污染其它编辑器）", async () => {
+    const outcome = await useAppStore.getState().loadForkCapability({
+      parentRunId: "r_01",
+      atSpanId: "s_03",
+      edit: { field: "result", value: "改" },
+    });
+
+    expect(controller.forkCapabilityRequests).toEqual([
+      { parentRunId: "r_01", atSpanId: "s_03", edit: { field: "result", value: "改" } },
+    ]);
+    expect(outcome).toEqual({ ok: true, data: CAPABILITY });
+  });
+
+  it("能力预检通道失败：返回错误码与消息，不抛异常", async () => {
+    controller.forkCapabilityEnvelope = {
+      ok: false,
+      error: { code: "FORK_CAPABILITY_UNAVAILABLE", message: "该 run 未记录文件检查点" },
+    };
+    const outcome = await useAppStore.getState().loadForkCapability({
+      parentRunId: "r_01",
+      atSpanId: "s_03",
+      edit: { field: "result", value: "改" },
+    });
+
+    expect(outcome).toEqual({
+      ok: false,
+      code: "FORK_CAPABILITY_UNAVAILABLE",
+      message: "该 run 未记录文件检查点",
+    });
+  });
+
+  it("能力预检结果结构非法：拦在渲染层（快照 id 形状不对）", async () => {
+    controller.forkCapabilityEnvelope = ok({ ...CAPABILITY, snapshotId: "not-hex" } as never);
+    const outcome = await useAppStore.getState().loadForkCapability({
+      parentRunId: "r_01",
+      atSpanId: "s_03",
+      edit: { field: "result", value: "改" },
+    });
+
+    expect(outcome.ok).toBe(false);
+    expect(outcome.ok ? "" : outcome.code).toBe("CAPABILITY_SCHEMA_INVALID");
+    expect(outcome.ok ? "" : outcome.message).toContain("结构校验失败");
   });
 });
 

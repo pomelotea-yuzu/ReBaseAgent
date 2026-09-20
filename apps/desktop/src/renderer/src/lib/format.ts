@@ -16,6 +16,19 @@ export function formatTokens(n: number): string {
   return `${(n / 1000).toFixed(1)}k`;
 }
 
+/** 字节数 → "820 B" / "13.5 MB"（隔离检查点规模用；1024 进制） */
+export function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  const units = ["KB", "MB", "GB"] as const;
+  let value = n / 1024;
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+  return `${value.toFixed(1)} ${units[unitIndex]}`;
+}
+
 /** ISO 8601 → "01-15 10:00:00"（本地时区） */
 export function formatTime(iso: string): string {
   const d = new Date(iso);

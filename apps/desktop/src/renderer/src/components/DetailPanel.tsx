@@ -7,9 +7,20 @@ import {
   isPromptForkField,
   spanDurationMs,
 } from "@shared/derive";
-import type { ModelAbResult, ModelArmPlan, RunDetail } from "@shared/ipc";
+import type { ForkCapabilityResult, ModelAbResult, ModelArmPlan, RunDetail } from "@shared/ipc";
 import { useMemo, useState } from "react";
 import { formatDuration, prettyJson } from "../lib/format";
+import {
+  isIsolatedRun,
+  isolatedBranchBoundaryLabel,
+  isolatedCheckpointLabel,
+  isolatedContinueLabel,
+  isolatedParentExecutionNotice,
+  isolatedRunNotice,
+  resolveCapabilityCheck,
+  resolveIsolatedForkSubmission,
+  resumeBoundaryIteration,
+} from "../lib/isolated-fork";
 import { modelAbGuard, riskyToolNames, scalarRequestParams } from "../lib/model-ab";
 import type { ArmDraft, Scalar } from "../lib/model-ab";
 import { promptForkGuard } from "../lib/prompt-fork";
@@ -822,14 +833,25 @@ function LlmCallDetail({
         // prompt fork 入口：仅限首次 llm.call（启动上下文的事实源）。
         // 代理 run 在录制侧已补 config_hash 时与引擎 run 同判据（不再无条件排除 proxy）；
         // 无 hash 的代理 run 不显示编辑器（服务端 loadForkParent 按缺因兜底）。
-        const promptForkable =
+        const forkEntriesAvailable =
           run !== null &&
           run.status === "completed" &&
           run.meta.config_hash !== undefined &&
           leafOwned;
         const firstLlmId = run?.spans.find((s) => s.kind === "llm.call")?.id;
-        if (!promptForkable) return null;
-        if (firstLlmId === span.id && run !== null) {
+        if (!forkEntriesAvailable || run === null) return null;
+        if (firstLlmId === span.id) {
+          // 隔离父本：两个入口都禁用并说明原因（内核对同一批请求也拒绝，见 1.2 的用例）
+          const isolatedNotice = isolatedParentExecutionNotice(run);
+          if (isolatedNotice !== null) {
+            return (
+              <div className="border-t border-violet-100 px-4 py-2 text-[11px] leading-5 text-violet-900">
+                prompt fork / 模型 A/B 本期不支持：{isolatedNotice}
+                <br />
+                可用的执行方式：在某个工具调用上使用「在此重跑（隔离续跑）」——它从该轮的轮末检查点继续。
+              </div>
+            );
+          }
           return (
             <>
               <PromptForkEditor key={span.id} span={span} run={run} />
@@ -1020,7 +1042,15 @@ function detectResultLanguage(text: string): "json" | "plaintext" {
   }
 }
 
-/** tool.invoke 的"在此重跑"编辑器：改 result → 确认 → runs:fork（唯一写通道） */
+/**
+ * tool.invoke 的"在此重跑"编辑器：改 result → 确认 → runs:fork（唯一写通道）。
+ *
+ * 两条路径，由父 run 是否隔离决定（`meta.workspace` 有无，不靠界面猜）：
+ * - 普通父 run：单步确认（既有行为不变）
+ * - 隔离父 run：**两段式** —— 先「校验续跑条件」（只读预检，取父 run/本地轮号/step/
+ *   轮末检查点/附件规模），再在确认区勾选**本次**副本写入后提交。确认区的每个数字
+ *   都来自预检结论，渲染层不自己数文件、不自己推轮号。
+ */
 function ForkEditor({
   span,
   run,
@@ -1033,9 +1063,22 @@ function ForkEditor({
   const forkErrorCode = useAppStore((s) => s.forkErrorCode);
   const forkAt = useAppStore((s) => s.forkAt);
   const resetFork = useAppStore((s) => s.resetFork);
+  const loadForkCapability = useAppStore((s) => s.loadForkCapability);
   const settings = useAppStore((s) => s.settings);
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState(() => toolMessageText(span));
+
+  // 隔离续跑的本次确认状态：全部是**组件局部**状态——每次打开对话框重新开始，
+  // 不从父 trace 的 write_authorized 标注或上一次编辑继承任何授权。
+  const [verified, setVerified] = useState<{
+    value: string;
+    result: ForkCapabilityResult;
+  } | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [checkError, setCheckError] = useState<{ code: string; message: string } | null>(null);
+  const [writesAuthorized, setWritesAuthorized] = useState(false);
+
+  const isolated = isIsolatedRun(run);
 
   // 父 run 在该 step 录制的模型（共享查表，与 main 侧 fork 编排同一实现）
   const parentModel = useMemo(
@@ -1052,20 +1095,77 @@ function ForkEditor({
   // 语言依据原始文本初探一次（避免编辑过程中语言选项来回闪变）
   const language = useMemo(() => detectResultLanguage(original), [original]);
 
+  const settingsConfigured = settings?.configured === true;
+  // 预检结论必须与当前编辑值同源：改过内容即作废（在飞的请求用值比对兜底，不会显示旧结论）
+  const capability = verified !== null && verified.value === value ? verified.result : null;
+  const check = resolveCapabilityCheck({
+    parentRunId: run.meta.id,
+    atSpanId: span.id,
+    value,
+    unchanged,
+    settingsConfigured,
+    capabilityInFlight: checking,
+    forking: inProgress,
+  });
+  // 隔离路径的提交判据与请求同源（含"本次授权"）；普通路径沿用既有单步条件
+  const submission = resolveIsolatedForkSubmission({
+    parentRunId: run.meta.id,
+    atSpanId: span.id,
+    value,
+    unchanged,
+    settingsConfigured,
+    capabilityInFlight: checking,
+    forking: inProgress,
+    capability,
+    writesAuthorized,
+  });
+  const canSubmit = isolated ? submission.ok : !unchanged;
+
+  const resetLocal = (): void => {
+    resetFork();
+    setVerified(null);
+    setChecking(false);
+    setCheckError(null);
+    setWritesAuthorized(false);
+  };
+
+  const doCheck = (): void => {
+    if (!check.ok) return;
+    const requestedValue = check.request.edit.value;
+    setChecking(true);
+    setCheckError(null);
+    void loadForkCapability(check.request)
+      .then((outcome) => {
+        if (!outcome.ok) {
+          setCheckError({ code: outcome.code, message: outcome.message });
+          setVerified(null);
+          return;
+        }
+        setVerified({ value: requestedValue, result: outcome.data });
+      })
+      .finally(() => setChecking(false));
+  };
+
   if (!open) {
     return (
       <div className="border-t border-violet-100 px-4 py-2">
         <button
           type="button"
           onClick={() => {
-            resetFork();
+            resetLocal();
             setValue(original);
             setOpen(true);
           }}
           className="rounded bg-violet-600 px-2 py-1 text-[11px] text-white hover:bg-violet-700"
         >
-          在此重跑（时间旅行）
+          {isolated ? "在此重跑（隔离续跑）" : "在此重跑（时间旅行）"}
         </button>
+        {isolated ? (
+          <div className="mt-1 text-[11px] leading-4 text-violet-600">
+            隔离续跑：从该工具所在轮次结束后继续（整轮一起续跑，该轮工具不重做）；父 run、源目录与
+            兄弟分支都不会被修改。
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -1073,16 +1173,24 @@ function ForkEditor({
   return (
     <div className="border-t border-violet-100 bg-violet-50/60 px-4 py-3">
       <div className="mb-1 flex items-center justify-between">
-        <span className="text-[11px] font-semibold text-violet-900">在此重跑</span>
+        <span className="text-[11px] font-semibold text-violet-900">
+          {isolated ? "在此重跑 · 隔离续跑" : "在此重跑"}
+        </span>
         <span className="text-[10px] text-violet-500">
-          从该工具调用之后重跑 · 父 run 文件不会被修改
+          {isolated
+            ? "从轮末检查点继续 · 父 run 与源目录不会被修改"
+            : "从该工具调用之后重跑 · 父 run 文件不会被修改"}
         </span>
       </div>
       <Editor
         height="140px"
         language={language}
         value={value}
-        onChange={(next) => setValue(next ?? "")}
+        onChange={(next) => {
+          setValue(next ?? "");
+          // 编辑即作废已校验的结论（确认区收起，避免"确认的与提交的不是同一份编辑"）
+          setVerified(null);
+        }}
         options={{
           readOnly: inProgress,
           fontSize: 12,
@@ -1098,8 +1206,9 @@ function ForkEditor({
         className="overflow-hidden rounded border border-violet-200"
       />
       <div className="mt-1.5 text-[10px] leading-4 text-violet-600">
-        以上文本将作为该工具的返回结果重新送入模型；其余上下文（prompt、工具表、此前步骤）与父 run
-        完全一致。
+        {isolated
+          ? "以上文本将作为该工具的返回结果重新送入模型；其后的步骤由模型重新生成，文件世界从该轮轮末检查点继续。"
+          : "以上文本将作为该工具的返回结果重新送入模型；其余上下文（prompt、工具表、此前步骤）与父 run 完全一致。"}
       </div>
 
       {unchanged ? (
@@ -1114,6 +1223,94 @@ function ForkEditor({
           <span className="font-code">{configModel}</span>
           ——前缀缓存可能不命中，计费口径可能变化（仅提示，不阻止重跑）。
         </div>
+      ) : null}
+
+      {isolated ? (
+        <div className="mt-2 rounded border border-violet-200 bg-white px-2 py-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] font-semibold text-violet-900">
+              续跑条件（只读预检：不创建运行、不写文件、不请求模型）
+            </span>
+            <button
+              type="button"
+              onClick={doCheck}
+              disabled={!check.ok}
+              className="rounded border border-violet-400 px-2 py-0.5 text-[10px] text-violet-700 hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {checking ? "校验中…" : capability !== null ? "重新校验" : "校验续跑条件"}
+            </button>
+          </div>
+
+          {!check.ok && check.reason !== null ? (
+            <div className="mt-1 text-[11px] leading-4 text-amber-700">{check.reason}</div>
+          ) : null}
+
+          {checkError !== null ? (
+            <div className="mt-1 text-[11px] leading-4 text-red-700">
+              续跑条件不可用（{checkError.code}）：{checkError.message}
+              <div className="mt-0.5 text-red-600">
+                不可用原因来自 main 的只读预检；界面不会用"当前目录"或父 run 的历史标注兜底。
+              </div>
+            </div>
+          ) : null}
+
+          {capability !== null ? (
+            <div className="mt-1 space-y-1">
+              <div className="text-[11px] leading-4 text-violet-900">
+                {isolatedContinueLabel(capability)}
+                <span className="text-violet-600">
+                  （整轮续跑：该轮的其余工具不重做，同轮工具在子运行前缀中各出现一次）
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-[11px] text-gray-700">
+                <span>
+                  <span className="text-gray-400">父 run</span>{" "}
+                  <span className="font-code">{capability.parentId}</span>
+                </span>
+                <span>
+                  <span className="text-gray-400">step</span>{" "}
+                  <span className="font-code">{capability.stepSpanId}</span>
+                </span>
+                <span>
+                  <span className="text-gray-400">编辑点</span>{" "}
+                  <span className="font-code">{capability.atSpanId}</span>
+                </span>
+                <span className="font-code">{isolatedCheckpointLabel(capability)}</span>
+                <span>
+                  <span className="text-gray-400">config_hash</span>{" "}
+                  <span className="font-code">{capability.configHash.slice(0, 18)}…</span>
+                </span>
+              </div>
+              <div className="text-[11px] leading-4 text-gray-600">
+                真实模型调用：<span className="font-code">{settings?.model ?? "（未配置）"}</span>
+                {settings?.baseURL === null || settings?.baseURL === undefined
+                  ? ""
+                  : ` @ ${settings.baseURL}`}
+                ；本操作只请求该模型，不写源目录。
+              </div>
+              <label className="flex items-start gap-2 rounded border border-amber-200 bg-amber-50 px-2 py-1.5">
+                <input
+                  type="checkbox"
+                  checked={writesAuthorized}
+                  onChange={(e) => setWritesAuthorized(e.target.checked)}
+                  disabled={inProgress}
+                  className="mt-0.5 shrink-0"
+                />
+                <span className="text-[11px] leading-4 text-amber-900">
+                  允许本次副本写入
+                  <span className="text-amber-700">
+                    （默认未选；只对这一次提交有效。父 trace 的 write_authorized 只是历史审计标注——
+                    不会从它补授权，重新打开也要重新勾选）
+                  </span>
+                </span>
+              </label>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {isolated && !submission.ok && submission.reason !== null ? (
+        <div className="mt-1 text-[11px] leading-4 text-amber-700">{submission.reason}</div>
       ) : null}
 
       {forking === "error" ? (
@@ -1132,7 +1329,7 @@ function ForkEditor({
         <button
           type="button"
           onClick={() => {
-            resetFork();
+            resetLocal();
             setOpen(false);
           }}
           disabled={inProgress}
@@ -1143,9 +1340,19 @@ function ForkEditor({
         <button
           type="button"
           onClick={() => {
+            if (isolated) {
+              if (!submission.ok) return;
+              void forkAt(
+                submission.request.parentRunId,
+                submission.request.atSpanId,
+                submission.request.edit.value,
+                submission.request.execution,
+              );
+              return;
+            }
             void forkAt(run.meta.id, span.id, value);
           }}
-          disabled={inProgress || unchanged}
+          disabled={inProgress || !canSubmit}
           className="rounded bg-violet-600 px-3 py-1 text-[11px] text-white hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-40"
         >
           确认重跑
@@ -1223,6 +1430,23 @@ function BranchNotice() {
   if (fork === null || parentHop === undefined) return null;
 
   const field = fork.edit.field;
+
+  // 隔离续跑分支：边界是**父 run 该轮的轮末**（不是 at_span 截断）。轮号取边界 step
+  // 自身的 `agent.step.n`——即所属 run 的本地轮号，绝不按合并轨迹沿链累加。
+  const resumeAfterStep = fork.resume_after_step;
+  if (detail.meta.workspace !== undefined && typeof resumeAfterStep === "string") {
+    const iteration = resumeBoundaryIteration(detail.spans, resumeAfterStep);
+    return (
+      <div className="border-b border-violet-200 bg-violet-50 px-4 py-2 text-[11px] leading-5 text-violet-900">
+        隔离续跑分支：{isolatedBranchBoundaryLabel(parentHop.meta.id, iteration, resumeAfterStep)}
+        ，该轮全部工具的结果作为共享前缀各出现一次。
+        <br />
+        编辑位置 <span className="font-code">{fork.at_span}</span> · 轮末边界{" "}
+        <span className="font-code">{resumeAfterStep}</span>
+        （轮号取所属 run 的原始 agent.step.n，不按合并轨迹沿链累加）
+      </div>
+    );
+  }
 
   // prompt fork：从头重跑的独立新轨迹——禁止"共享前缀"措辞，at_span 不作为普通分叉点展示
   if (isPromptForkField(field)) {
@@ -1378,6 +1602,22 @@ function ErrorDetailNotice() {
   );
 }
 
+/**
+ * 隔离运行标注：明确标注"文件隔离"并说明世界来源。
+ * v1 老 trace 没有 `meta.workspace` ⇒ 整块不出现（**不得**把老记录显示成"已恢复历史磁盘状态"）。
+ */
+function IsolatedRunNotice() {
+  const detail = useAppStore((s) => s.detail);
+  const notice = isolatedRunNotice(detail);
+  if (notice === null) return null;
+
+  return (
+    <div className="border-b border-violet-200 bg-violet-50 px-4 py-2 text-[11px] leading-5 text-violet-900">
+      {notice}
+    </div>
+  );
+}
+
 export function DetailPanel() {
   const detail = useAppStore((s) => s.detail);
   const selectedSpanId = useAppStore((s) => s.selectedSpanId);
@@ -1396,6 +1636,7 @@ export function DetailPanel() {
         </div>
       </div>
 
+      <IsolatedRunNotice />
       <BranchNotice />
       <ErrorDetailNotice />
       <ParentChainList />

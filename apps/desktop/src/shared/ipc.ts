@@ -408,8 +408,12 @@ export const ForkCapabilityResultSchema = z.object({
   ownerRunId: z.string().min(1),
   /** 本地轮号 = 该 step 的原始 agent.step.n（按所属 run 计，不沿链累加） */
   localIteration: z.number().int().positive(),
-  /** 轮末快照 id（裸 64 位 hex 指纹） */
-  snapshotId: z.string().min(1),
+  /**
+   * 轮末快照 id：裸 64 位 hex 指纹（无 `sha256:` 前缀）。
+   * 这里按注释收紧成 hex —— 确认区会把它的前 12 位显示给用户，形状不对时宁可拒绝加载，
+   * 也不要展示一个来路不明的"检查点指纹"（A 侧 `snapshot.id` 恒为 64 位 hex）。
+   */
+  snapshotId: z.string().regex(/^[0-9a-f]{64}$/, "快照 id 必须是 64 位十六进制指纹"),
   /** 起点清单的文件数与总字节（附件逐项 verify 通过后的派生值） */
   fileCount: z.number().int().nonnegative(),
   totalBytes: z.number().nonnegative(),

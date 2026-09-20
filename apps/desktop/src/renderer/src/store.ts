@@ -3,6 +3,9 @@ import type {
   ChooseSourceResult,
   CreateRunRequest,
   FailedFile,
+  ForkCapabilityRequest,
+  ForkCapabilityResult,
+  IsolatedExecutionMode,
   ModelAbResult,
   ProxyState,
   ProxyToggleInput,
@@ -14,6 +17,7 @@ import type {
 import type { ModelAbArm, PromptForkRequest } from "@shared/ipc";
 import {
   ChooseSourceResultSchema,
+  ForkCapabilityResultSchema,
   ListRunsDataSchema,
   ProxyStateSchema,
   RunDetailSchema,
@@ -79,8 +83,27 @@ interface AppState {
   selectSpan: (id: string) => void;
   toggleStep: (id: string) => void;
 
-  /** 编辑某 tool.invoke 的 result 并重跑；成功刷新列表并自动选中新 run */
-  forkAt: (parentRunId: string, atSpanId: string, value: string) => Promise<boolean>;
+  /**
+   * 编辑某 tool.invoke 的 result 并重跑；成功刷新列表并自动选中新 run。
+   * `execution` 仅隔离父本携带（本次显式 `allowFileWrites:true`）——不传时请求里
+   * **不出现该键**，普通父本走既有普通重跑，隔离父本会被 main/core 拒绝（不降级）。
+   */
+  forkAt: (
+    parentRunId: string,
+    atSpanId: string,
+    value: string,
+    execution?: IsolatedExecutionMode,
+  ) => Promise<boolean>;
+  /**
+   * 隔离续跑的只读预检（确认区的唯一数据源）：不创建运行、不写文件、不请求模型。
+   * 返回判别式联合而不是全局状态——确认区是**单个编辑器**的局部状态（与 2.1 的
+   * chooseSource 同法），避免"两个编辑器抢同一份错误状态"。
+   */
+  loadForkCapability: (
+    request: ForkCapabilityRequest,
+  ) => Promise<
+    { ok: true; data: ForkCapabilityResult } | { ok: false; code: string; message: string }
+  >;
   /** prompt fork：编辑启动上下文（system prompt / 首条 user message）从头重跑 */
   promptFork: (parentRunId: string, edit: PromptForkRequest["edit"]) => Promise<boolean>;
   /**
@@ -235,12 +258,14 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ expandedSteps: { ...expandedSteps, [id]: !expandedSteps[id] } });
   },
 
-  async forkAt(parentRunId, atSpanId, value) {
+  async forkAt(parentRunId, atSpanId, value, execution) {
     set({ forking: "in_progress", forkError: null, forkErrorCode: null });
     const envelope = await api.forkRun({
       parentRunId,
       atSpanId,
       edit: { field: "result", value },
+      // 只在隔离父本时带上 execution：普通父本请求里不出现该键（语义清爽，且便于断言）
+      ...(execution === undefined ? {} : { execution }),
     });
     if (!envelope.ok) {
       set({
@@ -259,6 +284,23 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   resetFork() {
     set({ forking: "idle", forkError: null, forkErrorCode: null });
+  },
+
+  async loadForkCapability(request) {
+    const envelope = await api.forkCapability(request);
+    if (!envelope.ok) {
+      return { ok: false, code: envelope.error.code, message: envelope.error.message };
+    }
+    // 跨进程数据不可信：确认区会把这些数字原样展示给用户，必须先校验形状
+    const parsed = ForkCapabilityResultSchema.safeParse(envelope.data);
+    if (!parsed.success) {
+      return {
+        ok: false,
+        code: "CAPABILITY_SCHEMA_INVALID",
+        message: `续跑能力预检结果结构校验失败：${describeZodError(parsed.error)}`,
+      };
+    }
+    return { ok: true, data: parsed.data };
   },
 
   async createRun(request) {
