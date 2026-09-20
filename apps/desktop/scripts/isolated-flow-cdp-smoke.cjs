@@ -1,21 +1,24 @@
 /* eslint-disable */
 /**
- * B 任务 3.2 的 GUI 冒烟（沙箱自验；配合 `scripts/mock-llm-server.cjs` 做受控模型服务）。
+ * B 任务 3.2 / 3.3 的 GUI 冒烟（沙箱自验；配合 `scripts/mock-llm-server.cjs` 做受控模型服务）。
  *
- * 两阶段（**重启必须是真重启**，故拆成两次调用，脚本自身不 spawn 任何进程）：
+ * 三阶段（**重启/换窗口尺寸都必须真做**，脚本自身不 spawn 任何进程）：
  *
  *   node scripts/isolated-flow-cdp-smoke.cjs --phase=flow       # 浏览 → 隔离创建 → 改 result → 隔离续跑
  *   <杀 dev 再重启 dev>
  *   node scripts/isolated-flow-cdp-smoke.cjs --phase=restart    # 重开后核对轨迹与来源说明
+ *   node scripts/isolated-flow-cdp-smoke.cjs --phase=narrow     # 窄窗口 + 长源路径的创建与确认区（3.3）
  *
  * 前置：
- *  1) 受控模型服务在 127.0.0.1:18799（剧本：read_file → 父完成 → 子完成）；
+ *  1) （flow 阶段）受控模型服务在 127.0.0.1:18799（剧本：read_file → 父完成 → 子完成）；
  *     应用 settings.json 的 baseURL 指向它（脚本自己写入并在结束时还原备份）。
  *  2) dev 已起且带 CDP：`NO_SANDBOX=1 REBASEAGENT_SMOKE_PICK_DIR=<源目录> node scripts/start-dev.cjs --remoteDebuggingPort=9222`
  *     —— REBASEAGENT_SMOKE_PICK_DIR 是 main 的冒烟钩子（原生目录框无法被 CDP 驱动）。
+ *     narrow 阶段要求该变量指向**长路径**源目录（脚本会自建，与 LONG_SOURCE 一致）。
  *
  * 覆盖场景：`直接创建隔离文件父本`、`浏览过程无写入`、`分叉不触碰既有文件`、
- * `新建运行不触碰既有文件`、`详情 IPC 快照往返`。
+ * `新建运行不触碰既有文件`、`详情 IPC 快照往返`（flow/restart）、
+ * `创建与确认在窄窗口可操作`（narrow）。
  * ⚠️ 按 fixture 哈希逐份核对真实文件的 diff 冒烟**迁 C**（本脚本只核到"源目录 + 既有 trace
  * 逐字节不变"这一层）。
  */
@@ -49,6 +52,31 @@ const CDP = "http://127.0.0.1:9222";
 
 /** 冒烟里编辑后的 tool result（与源文件内容不同即可；ASCII 便于逐字节核对） */
 const EDITED_RESULT = "SMOKE-EDITED alpha";
+
+/** 3.3 用的**长路径**源目录（分段拼出来，总长约 200 字符；必须与 dev 的 SMOKE_PICK_DIR 一致） */
+const LONG_SOURCE = join(
+  OUT,
+  "long-path-fixture",
+  "aaaaaaaaaaaaaaaaaaaa",
+  "bbbbbbbbbbbbbbbbbbbb",
+  "cccccccccccccccccccc",
+  "dddddddddddddddddddd",
+  "eeeeeeeeeeeeeeeeeeee",
+  "ffffffffffffffffffff",
+  "source",
+);
+
+/** 窄窗口（模拟用户把窗口拉窄）与代表性桌面尺寸 */
+const NARROW = { width: 460, height: 720 };
+/**
+ * ⚠️ 三栏外壳的固定宽度：RunList `w-80`=320px + SpanTree `w-96`=384px = **704px**，
+ * 详情列是 `flex-1 min-w-0` ⇒ 窗口窄于约 1000px 时详情列会被压到不可用（实测 770px 时
+ * 详情列只剩 51px、编辑器宽 5px 且落到视口外）。这是**既有桌面外壳的固有下限**，不是本次
+ * 确认区的问题 ⇒ 确认区读数取"明显窄但仍可用"的 1040px，而"长源路径 + 模态创建框"仍用
+ * 最苛刻的 460px 压一压（模态框 width w-120 + max-w-full 会自适应）。
+ */
+const NARROW_APP = { width: 1040, height: 720 };
+const WIDE = { width: 1360, height: 860 };
 
 const phase = (process.argv.find((a) => a.startsWith("--phase=")) ?? "--phase=flow").slice(8);
 
@@ -145,6 +173,63 @@ async function connect() {
   return { browser, page };
 }
 
+/**
+ * 真正调整窗口大小（不是改 viewport）：**必须真改 OS 窗口**，否则测的是"缩放后的布局"
+ * 而不是"窄窗口下的布局"。
+ *
+ * ⚠️ Electron 的页面级 CDP 会话里**没有 `Browser.getWindowForTarget`**（Browser 域不完整，
+ * 实测报 `'Browser.getWindowForTarget' wasn't found`）⇒ 改用渲染层的 `window.resizeTo`
+ * （Electron 支持它，等价于 BrowserWindow.setSize），并**回读 innerWidth/innerHeight 自证
+ * resize 真的生效**——不然窄窗口结论就是假的。
+ */
+async function resizeWindow(page, size) {
+  await page.evaluate((s) => window.resizeTo(s.width, s.height), size);
+  await page.waitForTimeout(900);
+  return page.evaluate(() => ({ width: innerWidth, height: innerHeight }));
+}
+
+/** 元素是否完整落在当前视口内（"不遮挡"的判据：授权框与提交按钮必须看得到、点得到） */
+async function inViewport(page, locator) {
+  const box = await locator.boundingBox();
+  const size =
+    page.viewportSize() ??
+    (await page.evaluate(() => ({ width: innerWidth, height: innerHeight })));
+  if (box === null) return false;
+  return (
+    box.x >= -1 &&
+    box.y >= -1 &&
+    box.x + box.width <= size.width + 1 &&
+    box.y + box.height <= size.height + 1
+  );
+}
+
+/** 横向是否溢出（换行生效的判据） */
+async function overflowsHorizontally(locator) {
+  return locator.evaluate((el) => el.scrollWidth > el.clientWidth + 1);
+}
+
+/** 详情列宽度（三栏外壳的挤压程度；只用于记录，不做判定） */
+async function detailColumnWidth(page) {
+  const section = page.locator("section.min-w-0.flex-1").first();
+  if ((await section.count()) === 0) return -1;
+  return Math.round(await section.evaluate((el) => el.getBoundingClientRect().width));
+}
+
+/**
+ * 截图走 CDP 的 `Page.captureScreenshot`，**不用 `page.screenshot()`**：
+ * 后者在截图前会等 `document.fonts.ready`，本机（Monaco 的字体 + 沙箱）实测会偶发挂死到
+ * 超时（日志停在 "waiting for fonts to load..."）。CDP 直取没有这一步。
+ */
+async function shot(page, name) {
+  const session = await page.context().newCDPSession(page);
+  try {
+    const { data } = await session.send("Page.captureScreenshot", { format: "png" });
+    writeFileSync(join(OUT, name), Buffer.from(data, "base64"));
+  } finally {
+    await session.detach().catch(() => {});
+  }
+}
+
 /** 点列表里的某条 run（列表项按钮含 run id 文本） */
 async function selectRunInList(page, runId) {
   await page
@@ -216,7 +301,7 @@ async function phaseFlow() {
   const countBefore = preexistingTraces.length;
 
   const { page } = await connect();
-  await page.screenshot({ path: join(OUT, "01-initial.png") });
+  await shot(page, "01-initial.png");
 
   // 清掉可能残留的对话框（上一轮创建失败时它不会自动关闭，overlay 会挡住后续点击）
   const staleDialog = page.locator('dialog[aria-label="新建运行"]');
@@ -246,7 +331,7 @@ async function phaseFlow() {
   await page.waitForTimeout(600);
   const pathShown = await dialog.locator("text=isolated-flow-smoke").count();
   check("选择器签发的目录在对话框内可见（供用户核对）", pathShown > 0);
-  await page.screenshot({ path: join(OUT, "02-picker.png") });
+  await shot(page, "02-picker.png");
   await dialog.getByRole("button", { name: "取消" }).click();
   await page.waitForTimeout(300);
 
@@ -274,7 +359,7 @@ async function phaseFlow() {
     .isDisabled();
   check("未勾选副本写入时创建按钮禁用（每次操作独立确认）", disabledWithoutAuth === true);
   await dialog.getByLabel("允许本次执行的副本写入", { exact: false }).check();
-  await page.screenshot({ path: join(OUT, "03-create-ready.png") });
+  await shot(page, "03-create-ready.png");
   await dialog.getByRole("button", { name: "创建隔离运行" }).click();
 
   // 等隔离创建结束（模型两次调用：read_file 工具轮 + 收尾）
@@ -363,7 +448,7 @@ async function phaseFlow() {
   await page.keyboard.press("Control+A");
   await page.keyboard.insertText(EDITED_RESULT);
   await page.waitForTimeout(700);
-  await page.screenshot({ path: join(OUT, "04-edited.png") });
+  await shot(page, "04-edited.png");
 
   // 编辑进入界面状态的判据：空 fork 时「校验续跑条件」是禁用的，改过之后必须可用
   const verifyEnabled = await page.getByRole("button", { name: /校验续跑条件/ }).isEnabled();
@@ -376,7 +461,7 @@ async function phaseFlow() {
 
   await page.getByRole("button", { name: /校验续跑条件/ }).click();
   const capabilityShown = await waitForText(page, `从运行 ${parentId} 的第 1 轮结束后继续`);
-  await page.screenshot({ path: join(OUT, "05-capability.png") });
+  await shot(page, "05-capability.png");
   const checkpointCount = await page.locator("text=轮末检查点").count();
   const parentRowCount = await page.locator("text=父 run").count();
   const modelShown = await page.locator("text=mock-model").count();
@@ -394,7 +479,7 @@ async function phaseFlow() {
   const forked = await waitForTraceCount(countBefore + 2);
   check("隔离续跑落盘", forked);
   await page.waitForTimeout(2000);
-  await page.screenshot({ path: join(OUT, "06-forked.png") });
+  await shot(page, "06-forked.png");
 
   const countAfterFork = traceFiles().length;
   check(
@@ -468,6 +553,184 @@ async function phaseFlow() {
 }
 
 // ---------------------------------------------------------------------------
+// phase=narrow（B 3.3：窄窗口 + 长源路径下的创建与确认区）
+// ---------------------------------------------------------------------------
+
+async function phaseNarrow() {
+  mkdirSync(LONG_SOURCE, { recursive: true });
+  writeFileSync(join(LONG_SOURCE, "a.txt"), "alpha 内容");
+  const state = JSON.parse(readFileSync(STATE, "utf8"));
+  const { parentId } = state;
+
+  const { page } = await connect();
+  const notes = [];
+  // 清掉上一轮可能残留的对话框（它是模态 overlay，会挡住后续一切点击）
+  const stale = page.locator('dialog[aria-label="新建运行"]');
+  if ((await stale.count()) > 0) {
+    await stale.getByRole("button", { name: "取消" }).click();
+    await page.waitForTimeout(400);
+  }
+  const narrowActual = await resizeWindow(page, NARROW);
+  check(
+    "窗口真的被拉窄（渲染层 innerWidth 回读自证，非 viewport 模拟）",
+    narrowActual.width < 700,
+    JSON.stringify(narrowActual),
+  );
+  // 记录（不判定）三栏外壳在 460px 下的挤压程度：这是既有外壳的固有下限，不是本 change 的确认区问题
+  notes.push({
+    at: `${String(narrowActual.width)}px`,
+    detailColumnWidth: await detailColumnWidth(page),
+    note: "三栏固定列 704px（列表 320 + span 树 384）⇒ 详情列被压到接近 0；确认区读数改取 1040px",
+  });
+
+  // ── 1. 窄窗口 + 长源路径：创建对话框 ──────────────────────────────────────
+  await page
+    .getByRole("button", { name: /新建运行/ })
+    .first()
+    .click();
+  const dialog = page.locator('dialog[aria-label="新建运行"]');
+  await dialog.waitFor({ state: "visible", timeout: 5000 });
+  await dialog.getByRole("button", { name: "隔离文件运行" }).click();
+  await page.waitForTimeout(200);
+  await dialog.getByRole("button", { name: /选择目录/ }).click();
+  await page.waitForTimeout(800);
+  await dialog.locator("textarea").nth(1).fill("在窄窗口里跑一次隔离运行");
+
+  const pathRow = dialog.locator("div.break-all").first();
+  // 先滚到可见（主体可滚动是刻意的设计），再判"横向无溢出 + 完整落在视口内"
+  await pathRow.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(200);
+  // 截图放在把长路径滚进视野之后，否则图里看不到"路径换行"这件事
+  await shot(page, "09-narrow-create.png");
+  const pathOverflow = await overflowsHorizontally(pathRow);
+  const pathVisible = await inViewport(page, pathRow);
+  check(
+    "长源路径在窄窗口内换行显示（无横向溢出、滚动后完整可见）",
+    pathOverflow === false &&
+      pathVisible === true &&
+      (await pathRow.textContent()).includes("long-path-fixture"),
+    `溢出=${pathOverflow} 视口内=${pathVisible}`,
+  );
+
+  const dialogOverflow = await overflowsHorizontally(dialog);
+  check("对话框本身不横向溢出", dialogOverflow === false);
+
+  const authLabel = dialog.getByLabel("允许本次执行的副本写入", { exact: false });
+  const createBtn = dialog.getByRole("button", { name: "创建隔离运行" });
+  const reasonText = (await dialog.locator("div.text-amber-800").first().textContent()) ?? "";
+  check(
+    "授权复选框与提交按钮在窄窗口可见（授权可见 + 未授权时禁用 + 文字原因）",
+    (await inViewport(page, authLabel)) === true &&
+      (await inViewport(page, createBtn)) === true &&
+      (await createBtn.isDisabled()) === true &&
+      reasonText.includes("副本写入"),
+    `原因文字=${JSON.stringify(reasonText.slice(0, 40))}`,
+  );
+
+  const scrollable = await dialog
+    .locator("div.overflow-y-auto")
+    .first()
+    .evaluate((el) => el.scrollHeight >= el.clientHeight);
+  check("对话框主体可滚动（内容不被裁掉）", scrollable === true);
+
+  await authLabel.check();
+  await page.waitForTimeout(200);
+  check(
+    "勾选后提交按钮由禁用转为可用（提交状态在窄窗口可辨认）",
+    (await createBtn.isEnabled()) === true,
+  );
+  await shot(page, "10-narrow-create-ready.png");
+  await dialog.getByRole("button", { name: "取消" }).click();
+  await page.waitForTimeout(300);
+
+  // ── 2. 窄窗口：隔离续跑确认区 ─────────────────────────────────────────────
+  // 先刷新页面：把上一轮可能残留的、已经打开的编辑器清掉（否则入口按钮不存在）
+  await page.reload();
+  await page.waitForTimeout(2200);
+  const appNarrowActual = await resizeWindow(page, NARROW_APP);
+  const narrowDetailWidth = await detailColumnWidth(page);
+  check(
+    "窄窗口下确认区所在详情列仍有可用宽度（>250px）",
+    narrowDetailWidth > 250,
+    `详情列 ${String(narrowDetailWidth)}px @ ${String(appNarrowActual.width)}px`,
+  );
+  await selectRunInList(page, parentId);
+  await clickSpanRow(page, /工具\s*read_file/);
+  const entry = page.getByRole("button", { name: /在此重跑（隔离续跑）/ }).first();
+  if ((await entry.count()) === 0) throw new Error("未找到「在此重跑（隔离续跑）」入口");
+  await entry.scrollIntoViewIfNeeded();
+  await entry.click();
+  await page.waitForTimeout(500);
+  await page.locator(".monaco-editor").first().click();
+  await page.keyboard.press("Control+A");
+  await page.keyboard.insertText(`${EDITED_RESULT}（窄窗口）`);
+  await page.waitForTimeout(500);
+  await page.getByRole("button", { name: /校验续跑条件/ }).click();
+  const confirmShown = await waitForText(page, `从运行 ${parentId} 的第 1 轮结束后继续`);
+  await shot(page, "11-narrow-fork-confirm.png");
+
+  const forkAuth = page.getByLabel("允许本次副本写入", { exact: false });
+  const submitBtn = page.getByRole("button", { name: "确认重跑" });
+  const parentRow = page.locator("text=父 run").first();
+  await submitBtn.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(200);
+  const forkAuthVisible = await inViewport(page, forkAuth);
+  const submitVisible = await inViewport(page, submitBtn);
+  const submitDisabled = await submitBtn.isDisabled();
+  const parentRowCount = await parentRow.count();
+  const checkpointRowCount = await page.locator("text=轮末检查点").count();
+  const confirmOverflow = await overflowsHorizontally(
+    page.locator("div.border-violet-200.bg-white").first(),
+  );
+  check(
+    "窄窗口确认区：父 run / 轮末检查点 / 授权 / 提交状态都可读且不遮挡",
+    confirmShown &&
+      appNarrowActual.width < 1100 &&
+      forkAuthVisible &&
+      submitVisible &&
+      parentRowCount > 0 &&
+      checkpointRowCount > 0 &&
+      submitDisabled &&
+      confirmOverflow === false,
+    `宽度=${appNarrowActual.width} 授权可见=${forkAuthVisible} 提交可见=${submitVisible} 提交禁用=${submitDisabled} 父行=${parentRowCount} 检查点行=${checkpointRowCount} 溢出=${confirmOverflow} 续跑行=${confirmShown}`,
+  );
+  await forkAuth.check();
+  await page.waitForTimeout(200);
+  check(
+    "窄窗口下勾选授权后「确认重跑」可用（未提交，不产生模型调用）",
+    (await submitBtn.isEnabled()) === true,
+  );
+
+  // ── 3. 代表性桌面尺寸下同一确认区（对照：宽窗不出现换行挤压） ───────────────
+  const wideActual = await resizeWindow(page, WIDE);
+  notes.push({
+    at: `${String(wideActual.width)}px`,
+    detailColumnWidth: await detailColumnWidth(page),
+  });
+  await shot(page, "12-wide-fork-confirm.png");
+  check(
+    "代表性桌面尺寸下确认区同样完整可见",
+    wideActual.width > 1000 &&
+      (await inViewport(page, forkAuth)) === true &&
+      (await inViewport(page, submitBtn)) === true,
+    JSON.stringify(wideActual),
+  );
+
+  // 收起编辑器（不提交任何东西，零模型调用）；编辑器可能已不存在，故容错
+  const closeEditor = page.getByRole("button", { name: "取消" }).first();
+  if ((await closeEditor.count()) > 0) await closeEditor.click();
+  writeFileSync(
+    join(OUT, "narrow-checks.json"),
+    JSON.stringify(
+      { checks, notes, narrow: narrowActual, appNarrow: appNarrowActual, wide: wideActual },
+      null,
+      2,
+    ),
+  );
+  console.log("截图与报告目录:", OUT);
+}
+
+// ---------------------------------------------------------------------------
 // phase=restart
 // ---------------------------------------------------------------------------
 
@@ -478,7 +741,7 @@ async function phaseRestart() {
 
   const fingerprintBefore = fingerprintFiles([SOURCE, ...traceFiles()]);
   const { page } = await connect();
-  await page.screenshot({ path: join(OUT, "07-after-restart.png") });
+  await shot(page, "07-after-restart.png");
 
   // 详情 IPC 快照往返：重启后仍能按 id 取到 v2 载荷（含边界与来源）
   const afterRestart = await page.evaluate(
@@ -536,7 +799,7 @@ async function phaseRestart() {
   await selectRunInList(page, parentId);
   const parentNotice = await page.locator("text=隔离文件运行 · profile file-tools-v1").count();
   check("重启后父运行仍显示文件隔离标注", parentNotice > 0);
-  await page.screenshot({ path: join(OUT, "08-after-restart-detail.png") });
+  await shot(page, "08-after-restart-detail.png");
 
   const noErrorBanner = await page.locator("text=轨迹数据结构校验失败").count();
   check("重启后无结构校验失败横幅（详情 IPC 未丢字段）", noErrorBanner === 0);
@@ -554,6 +817,8 @@ async function phaseRestart() {
       await phaseFlow();
     } else if (phase === "restart") {
       await phaseRestart();
+    } else if (phase === "narrow") {
+      await phaseNarrow();
     } else {
       throw new Error(`未知阶段：${phase}`);
     }
