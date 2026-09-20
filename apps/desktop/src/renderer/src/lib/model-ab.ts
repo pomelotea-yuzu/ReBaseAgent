@@ -1,9 +1,17 @@
 /**
  * 模型 A/B 编辑器的客户端校验（纯函数，可单测）。
  *
- * 只做"提交前本地拦截"：未配置、臂数不足、模型为空、params 非法、
- * 与父 run 完全相同（空 fork）、副作用工具未确认——不发 IPC 就给出原因；
- * main 与 replay 内核仍有同语义校验兜底（双保险）。
+ * 定位是**提交前的早拦层，不是权威判据**。本层只覆盖"不读文件就能判定"的条件：
+ * 运行配置是否就绪、臂数、每臂编辑值是否合法（model 非空 / params 为 JSON 标量 /
+ * 不占用请求体保留键）、**逐臂**是否为空 fork、批次级副作用确认是否勾选。
+ *
+ * ⚠️ 父 run 相关的门禁**刻意不在本层重复**：父链完整、已封存、有 config_hash、
+ * 非隔离父本、首次请求含字符串 system 消息、工具表与父逐字段一致——这些由 main +
+ * replay 内核在落盘与发请求之前裁决（`loadForkParent` / `assertToolPolicy` / `configHash` 比对）。
+ * 所以本层的 `canSubmit === true` **只表示"本层没有理由拦你"，不表示内核必然接受**。
+ * 早拦层与内核的关系是「判据镜像 + 一致性测试锁定」，不是"双保险"——本仓有过反例：
+ * 空 fork 判据曾在这里按"整批"、在内核按"逐臂"，于是界面放行、提交整批被拒
+ * （2026-09-17 K0 验收暴露）。同源性由 `test/model-ab-guard-parity.test.ts` 钉住。
  */
 
 /** 采样参数值：JSON 标量（与 agent-loop 的 SampleParams 一致） */
@@ -20,7 +28,32 @@ export interface ArmDraft {
 export interface ParsedArm {
   model: string;
   params?: Record<string, Scalar>;
+  /**
+   * 副作用声明。内核的判据是**逐臂**（`assertToolPolicy` 里的 `arms.every(...)`），
+   * 所以渲染层的批次级复选框在放行时展开到每一臂（见 `modelAbGuard`）。
+   */
   allowSideEffects?: boolean;
+}
+
+/**
+ * 父 run 录制 params 中的标量子集——A/B 的"沿用父值"与空 fork 判据的父值来源。
+ *
+ * 与 replay 内核的 `scalarParams` 同语义：非标量项（嵌套对象 / 数组 / null）静默丢弃。
+ * 唯一写法差异是本函数额外要求数字有限，而 JSONL 录制不可能出现非有限数
+ * （JSON 没有 `Infinity`/`NaN` 字面量），故真实数据上两者取值必定相同；
+ * 该等价性由 `test/model-ab-guard-parity.test.ts` 与内核逐项对照。
+ */
+export function scalarRequestParams(raw: unknown): Record<string, Scalar> {
+  if (typeof raw !== "object" || raw === null) return {};
+  const out: Record<string, Scalar> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof value === "string" || typeof value === "boolean") {
+      out[key] = value;
+    } else if (typeof value === "number" && Number.isFinite(value)) {
+      out[key] = value;
+    }
+  }
+  return out;
 }
 
 /** 请求体保留键（与 agent-loop 的 RESERVED_BODY_KEYS 同一键集） */
@@ -72,7 +105,7 @@ export interface ModelAbGuardInput {
   parentParams: Record<string, Scalar>;
   /** 首次 llm.call 录制的工具表中"未显式标记 sideEffect: false"的工具名 */
   riskyTools: string[];
-  /** 是否已勾选副作用确认（riskyTools 非空时必须为 true） */
+  /** 是否已勾选副作用确认（渲染层的批次级开关；放行时展开到每一臂） */
   allowSideEffects: boolean;
   arms: ArmDraft[];
 }
@@ -81,11 +114,18 @@ export interface ModelAbGuardResult {
   canSubmit: boolean;
   /** canSubmit = false 时的阻止原因（可直接展示；多项以"；"连接） */
   reason: string | null;
-  /** canSubmit = true 时给出去重后的 arms（不含 allowSideEffects——那是批次级确认） */
+  /**
+   * canSubmit = true 时给出去重后的 arms。批次级的副作用确认在此**已展开为每臂**
+   * `allowSideEffects: true`——内核只认每臂自己的声明，批次复选框只是渲染层的 UI 糖。
+   */
   arms: ParsedArm[];
 }
 
-/** 与父 run 完全相同 → 该臂是空 fork（与 replay 内核 derive 同判据：缺 params = 继承父值） */
+/**
+ * 与父 run 完全相同 → 该臂是空 fork。
+ * 与 replay 内核 `deriveModelParamsState` 同判据：缺 params = 继承父 params，
+ * 因此缺省臂在父 params 的键集上恒等。
+ */
 function sameAsParent(
   arm: ParsedArm,
   parentModel: string,
@@ -130,17 +170,22 @@ export function modelAbGuard(input: ModelAbGuardInput): ModelAbGuardResult {
     }
     const arm: ParsedArm = { model: draft.model.trim() };
     if (parsedParams.params !== undefined) arm.params = parsedParams.params;
+
+    // 空 fork 是**逐臂**判据：内核对每个 arm 单独 derive，任一臂与父完全相同 = 整批
+    // INVALID_ARM（零文件、零调用）。本层曾按"全部臂都相同"才拦，于是"臂 1 改、臂 2 沿用父"
+    // 会被界面放行、提交才整批被拒。粒度必须与内核一致。
+    if (sameAsParent(arm, input.parentModel, input.parentParams)) {
+      reasons.push(
+        `${label}：与父 run 完全相同（model 与采样参数都未变）= 空 fork，内核会整批拒绝；请修改该臂的 model 或 params`,
+      );
+      return;
+    }
+
+    // 批次级确认展开到每臂：内核判据是 arms.every(allowSideEffects === true)，
+    // 只勾复选框而不下发声明，逃生舱等于形同虚设（勾了也必被 TOOL_POLICY 拒）。
+    if (input.riskyTools.length > 0 && input.allowSideEffects) arm.allowSideEffects = true;
     arms.push(arm);
   });
-
-  // 空 fork：全部臂都与父完全相同 → 什么都不改，不是实验
-  if (
-    reasons.length === 0 &&
-    arms.length >= 2 &&
-    arms.every((arm) => sameAsParent(arm, input.parentModel, input.parentParams))
-  ) {
-    reasons.push("所有臂都与父 run 完全相同（空实验被拒绝），请修改 model 或 params");
-  }
 
   if (reasons.length > 0) {
     return { canSubmit: false, reason: reasons.join("；"), arms: [] };

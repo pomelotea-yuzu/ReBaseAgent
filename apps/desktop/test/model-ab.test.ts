@@ -112,28 +112,44 @@ describe("modelAbGuard：提交前本地拦截", () => {
     expect(result.reason).toContain("第 2 臂");
   });
 
-  it("全部臂与父完全相同（model + params）→ 空实验拒绝；只差一个键则放行", () => {
-    const same = modelAbGuard({
+  it("逐臂空 fork：任一臂与父完全相同即拦（粒度与内核一致，不是「全部相同」才拦）", () => {
+    // 两臂都与父相同 → 拦，且逐臂点名
+    const allSame = modelAbGuard({
       ...BASE,
       arms: arms(
         { model: "deepseek-chat", paramsText: '{"temperature": 0.7}' },
         { model: "deepseek-chat", paramsText: "" },
       ),
     });
-    expect(same.canSubmit).toBe(false);
-    expect(same.reason).toContain("空实验");
+    expect(allSame.canSubmit).toBe(false);
+    expect(allSame.reason).toContain("第 1 臂");
+    expect(allSame.reason).toContain("第 2 臂");
+    expect(allSame.reason).toContain("空 fork");
 
+    // 回归点（2026-09-17 K0 验收暴露）：臂 1 改了、臂 2 沿用父 —— 界面曾放行，
+    // 提交后内核逐臂 derive 判出空 fork、整批 INVALID_ARM。此处必须拦在第 2 臂。
+    const secondUnchanged = modelAbGuard({
+      ...BASE,
+      arms: arms({ model: "m-1", paramsText: "" }, { model: "deepseek-chat", paramsText: "" }),
+    });
+    expect(secondUnchanged.canSubmit).toBe(false);
+    expect(secondUnchanged.reason).toContain("第 2 臂");
+    expect(secondUnchanged.reason).not.toContain("第 1 臂");
+    expect(secondUnchanged.arms).toEqual([]);
+
+    // 每臂都与父不同 → 放行（臂与臂之间相同与否不受此判据约束）
     const differs = modelAbGuard({
       ...BASE,
       arms: arms(
-        { model: "deepseek-chat", paramsText: '{"temperature": 0.7}' },
-        { model: "deepseek-chat", paramsText: '{"temperature": 0.9}' },
+        { model: "m-1", paramsText: '{"temperature": 0.7}' },
+        { model: "m-2", paramsText: '{"temperature": 0.7}' },
       ),
     });
     expect(differs.canSubmit).toBe(true);
   });
 
   it("空 fork 判据对标量天然成立（字符串 / 布尔差异也算改变）", () => {
+    // 字符串标量与父相同 → 该臂是空 fork
     const sameScalar = modelAbGuard({
       ...BASE,
       parentParams: { reasoning_effort: "none", think: false },
@@ -143,31 +159,32 @@ describe("modelAbGuard：提交前本地拦截", () => {
       ),
     });
     expect(sameScalar.canSubmit).toBe(false);
-    expect(sameScalar.reason).toContain("空实验");
+    expect(sameScalar.reason).toContain("空 fork");
 
+    // 两个字符串臂都与父不同 → 放行
     const differsScalar = modelAbGuard({
       ...BASE,
       parentParams: { reasoning_effort: "none" },
       arms: arms(
-        { model: "deepseek-chat", paramsText: '{"reasoning_effort": "none"}' },
         { model: "deepseek-chat", paramsText: '{"reasoning_effort": "high"}' },
+        { model: "deepseek-chat", paramsText: '{"reasoning_effort": "low"}' },
       ),
     });
     expect(differsScalar.canSubmit).toBe(true);
 
-    // 布尔与字符串不相等（类型不同）
+    // 布尔与字符串不相等（类型不同）⇒ "false" 相对父值 false 算改变
     const boolVsString = modelAbGuard({
       ...BASE,
       parentParams: { think: false },
       arms: arms(
-        { model: "deepseek-chat", paramsText: '{"think": false}' },
         { model: "deepseek-chat", paramsText: '{"think": "false"}' },
+        { model: "deepseek-chat", paramsText: '{"think": true}' },
       ),
     });
     expect(boolVsString.canSubmit).toBe(true);
   });
 
-  it("带副作用工具且未确认 → 拦截；勾选后放行（逃生舱是批次级确认）", () => {
+  it("带副作用工具且未确认 → 拦截；勾选后放行，且声明展开到每一臂", () => {
     const input = {
       ...BASE,
       riskyTools: ["write_file"],
@@ -178,11 +195,24 @@ describe("modelAbGuard：提交前本地拦截", () => {
 
     const allowed = modelAbGuard({ ...input, allowSideEffects: true });
     expect(allowed.canSubmit).toBe(true);
-    // allowSideEffects 是批次级声明，不进单臂形状
-    expect(allowed.arms).toEqual([{ model: "m1" }, { model: "m2" }]);
+    // 批次级确认必须展开到每臂：内核判据是 arms.every(allowSideEffects === true)，
+    // 只勾复选框而不下发声明 = 勾了也必被 TOOL_POLICY 整批拒绝。
+    expect(allowed.arms).toEqual([
+      { model: "m1", allowSideEffects: true },
+      { model: "m2", allowSideEffects: true },
+    ]);
+
+    // 没有 risky 工具时不下发声明（无可声明之物，避免 fork.edit 留无意义的审计记录）
+    const pure = modelAbGuard({
+      ...BASE,
+      allowSideEffects: true,
+      arms: arms({ model: "m1", paramsText: "" }, { model: "m2", paramsText: "" }),
+    });
+    expect(pure.canSubmit).toBe(true);
+    expect(pure.arms).toEqual([{ model: "m1" }, { model: "m2" }]);
   });
 
-  it("params 的空对象等价沿用父值：model 也相同则仍判空实验", () => {
+  it("params 的空对象等价沿用父值：model 也相同则仍判空 fork", () => {
     const result = modelAbGuard({
       ...BASE,
       arms: arms(
@@ -191,6 +221,14 @@ describe("modelAbGuard：提交前本地拦截", () => {
       ),
     });
     expect(result.canSubmit).toBe(false);
-    expect(result.reason).toContain("空实验");
+    expect(result.reason).toContain("空 fork");
+
+    // 换成 model 后放行，且 `{}` 被规整成"沿用父值"（不下发空 params 覆盖父录值）
+    const withModel = modelAbGuard({
+      ...BASE,
+      arms: arms({ model: "m-1", paramsText: "{}" }, { model: "m-2", paramsText: "" }),
+    });
+    expect(withModel.canSubmit).toBe(true);
+    expect(withModel.arms).toEqual([{ model: "m-1" }, { model: "m-2" }]);
   });
 });

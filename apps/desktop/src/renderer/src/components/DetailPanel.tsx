@@ -10,7 +10,7 @@ import {
 import type { ModelAbResult, ModelArmPlan, RunDetail } from "@shared/ipc";
 import { useMemo, useState } from "react";
 import { formatDuration, prettyJson } from "../lib/format";
-import { modelAbGuard, riskyToolNames } from "../lib/model-ab";
+import { modelAbGuard, riskyToolNames, scalarRequestParams } from "../lib/model-ab";
 import type { ArmDraft, Scalar } from "../lib/model-ab";
 import { promptForkGuard } from "../lib/prompt-fork";
 import type { PromptForkField } from "../lib/prompt-fork";
@@ -342,22 +342,8 @@ function PromptForkEditor({
   );
 }
 
-/** 父 run 录制 params 中的标量子集（A/B 的"沿用父值"与空实验判据） */
-function scalarRequestParams(raw: unknown): Record<string, Scalar> {
-  if (typeof raw !== "object" || raw === null) return {};
-  const out: Record<string, Scalar> = {};
-  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
-    if (typeof value === "string" || typeof value === "boolean") {
-      out[key] = value;
-    } else if (typeof value === "number" && Number.isFinite(value)) {
-      out[key] = value;
-    }
-  }
-  return out;
-}
-
 let armKeySeq = 0;
-/** 草稿行的稳定 React key */
+/** 草稿行的稳定 React key（列表可增删，不能用数组下标做 React key） */
 function newArmKey(): string {
   armKeySeq += 1;
   return `arm-${armKeySeq}`;
