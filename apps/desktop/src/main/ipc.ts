@@ -11,6 +11,8 @@ import {
   ProxyForkRequestSchema,
   ProxyToggleInputSchema,
   SettingsInputSchema,
+  WorkspaceInspectRequestSchema,
+  WorkspaceReadFileRequestSchema,
   fail,
   ok,
 } from "../shared/ipc";
@@ -26,6 +28,8 @@ import type {
   ProxyState,
   RunDetail,
   SettingsState,
+  WorkspaceInspectResult,
+  WorkspaceReadFileResult,
 } from "../shared/ipc";
 import {
   ForkError,
@@ -41,6 +45,7 @@ import { CreateRunError, runCreate, runCreateIsolated } from "./run-create";
 import type { RunRepository } from "./run-repository";
 import type { SettingsStore } from "./settings";
 import { SourceTokenStore } from "./source-token";
+import { inspectWorkspace, readWorkspaceFileForView } from "./workspace-view";
 
 /**
  * IPC 处理器注册。任何异常都收敛为信封返回——不让异常跨越进程边界。
@@ -209,6 +214,51 @@ export function registerIpc(deps: IpcDeps): void {
           return fail(e.code, e);
         }
         return fail("FORK_CAPABILITY_FAILED", e);
+      }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // workspaces:inspect / workspaces:readFile —— 文件检查点与差异（只读；C 1.1）
+  // -------------------------------------------------------------------------
+
+  ipcMain.handle(
+    CHANNELS.inspect,
+    async (
+      _event,
+      request: unknown,
+    ): Promise<ReturnType<typeof ok<WorkspaceInspectResult>> | ReturnType<typeof fail>> => {
+      const parsed = WorkspaceInspectRequestSchema.safeParse(request);
+      if (!parsed.success) {
+        return fail("INVALID_ARGUMENT", parsed.error);
+      }
+      try {
+        const outcome = await inspectWorkspace({ dataDir, repository }, parsed.data);
+        // 定位失败（非法 runId / 清单被篡改 / 非隔离 run / 祖先 step）是**可展示的拒绝**，
+        // 不是异常：渲染层据此给出具体原因，不用"当前目录"或父 run 历史兜底
+        return outcome.ok ? ok(outcome.result) : fail(outcome.code, new Error(outcome.message));
+      } catch (e) {
+        return fail("WORKSPACE_INSPECT_FAILED", e);
+      }
+    },
+  );
+
+  ipcMain.handle(
+    CHANNELS.readFile,
+    async (
+      _event,
+      request: unknown,
+    ): Promise<ReturnType<typeof ok<WorkspaceReadFileResult>> | ReturnType<typeof fail>> => {
+      const parsed = WorkspaceReadFileRequestSchema.safeParse(request);
+      if (!parsed.success) {
+        return fail("INVALID_ARGUMENT", parsed.error);
+      }
+      try {
+        // 数据状态（text/binary/not_found/missing/corrupt/rejected）一律**成功返回**：
+        // 它们是"这条路径现在是什么"，不是 IPC 故障——渲染层必须能逐态区分展示
+        return ok(await readWorkspaceFileForView({ dataDir, repository }, parsed.data));
+      } catch (e) {
+        return fail("WORKSPACE_READ_FAILED", e);
       }
     },
   );

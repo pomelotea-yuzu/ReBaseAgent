@@ -13,6 +13,10 @@ import type {
   RunSummary,
   SettingsInput,
   SettingsState,
+  WorkspaceInspectRequest,
+  WorkspaceInspectResult,
+  WorkspaceReadFileRequest,
+  WorkspaceReadFileResult,
 } from "@shared/ipc";
 import type { ModelAbArm, PromptForkRequest } from "@shared/ipc";
 import {
@@ -22,6 +26,8 @@ import {
   ProxyStateSchema,
   RunDetailSchema,
   SettingsStateSchema,
+  WorkspaceInspectResultSchema,
+  WorkspaceReadFileResultSchema,
 } from "@shared/ipc";
 import { create } from "zustand";
 import { api } from "./lib/api";
@@ -138,6 +144,24 @@ interface AppState {
   chooseSource: () => Promise<ChooseSourceResult | null>;
   /** 打开"新建运行"对话框前复位状态 */
   resetCreateRun: () => void;
+
+  /**
+   * 隔离**文件检查点**的只读通道（C 1.1/1.2）：
+   * - `inspectWorkspace` 取某检查点的清单（省略 stepSpanId = 本 run 初始快照）
+   * - `readWorkspaceFile` 读清单内某条逻辑路径的内容
+   * 两者都不写任何文件、不调 LLM/工具；失败返回判别式联合而不是全局错误状态，
+   * 因为文件视图是**单个面板**的局部状态（与 loadForkCapability 同法）。
+   */
+  inspectWorkspace: (
+    request: WorkspaceInspectRequest,
+  ) => Promise<
+    { ok: true; data: WorkspaceInspectResult } | { ok: false; code: string; message: string }
+  >;
+  readWorkspaceFile: (
+    request: WorkspaceReadFileRequest,
+  ) => Promise<
+    { ok: true; data: WorkspaceReadFileResult } | { ok: false; code: string; message: string }
+  >;
 
   loadSettings: () => Promise<void>;
   saveSettings: (input: SettingsInput) => Promise<boolean>;
@@ -298,6 +322,39 @@ export const useAppStore = create<AppState>((set, get) => ({
         ok: false,
         code: "CAPABILITY_SCHEMA_INVALID",
         message: `续跑能力预检结果结构校验失败：${describeZodError(parsed.error)}`,
+      };
+    }
+    return { ok: true, data: parsed.data };
+  },
+
+  async inspectWorkspace(request) {
+    const envelope = await api.inspectWorkspace(request);
+    if (!envelope.ok) {
+      return { ok: false, code: envelope.error.code, message: envelope.error.message };
+    }
+    // 跨进程数据不可信：清单与数字会原样展示给用户，先校验形状
+    const parsed = WorkspaceInspectResultSchema.safeParse(envelope.data);
+    if (!parsed.success) {
+      return {
+        ok: false,
+        code: "INSPECT_SCHEMA_INVALID",
+        message: `文件清单结构校验失败：${describeZodError(parsed.error)}`,
+      };
+    }
+    return { ok: true, data: parsed.data };
+  },
+
+  async readWorkspaceFile(request) {
+    const envelope = await api.readWorkspaceFile(request);
+    if (!envelope.ok) {
+      return { ok: false, code: envelope.error.code, message: envelope.error.message };
+    }
+    const parsed = WorkspaceReadFileResultSchema.safeParse(envelope.data);
+    if (!parsed.success) {
+      return {
+        ok: false,
+        code: "READ_FILE_SCHEMA_INVALID",
+        message: `文件内容结构校验失败：${describeZodError(parsed.error)}`,
       };
     }
     return { ok: true, data: parsed.data };

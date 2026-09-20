@@ -8,7 +8,7 @@ import {
   spanDurationMs,
 } from "@shared/derive";
 import type { ForkCapabilityResult, ModelAbResult, ModelArmPlan, RunDetail } from "@shared/ipc";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { formatDuration, prettyJson } from "../lib/format";
 import {
   isIsolatedRun,
@@ -28,6 +28,7 @@ import type { PromptForkField } from "../lib/prompt-fork";
 import { useAppStore } from "../store";
 import { BudgetMap } from "./BudgetMap";
 import { LongText } from "./LongText";
+import { WorkspaceFileView } from "./WorkspaceFileView";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -1595,20 +1596,39 @@ function IsolatedRunNotice() {
 export function DetailPanel() {
   const detail = useAppStore((s) => s.detail);
   const selectedSpanId = useAppStore((s) => s.selectedSpanId);
+  /**
+   * 详情主区视图（C 2.1）：trajectory = 既有 span 详情；files = 隔离文件检查点。
+   * 纯 UI 状态，不进 IPC、不持久化。**只有隔离 run 才有文件 tab**——
+   * v1 老 trace 没有文件世界，给它们一个空 tab 等于把"没有"显示成"有"。
+   */
+  const [tab, setTab] = useState<"trajectory" | "files">("trajectory");
+  const isolated = isIsolatedRun(detail);
+
+  // 切换 run ⇒ 复位到轨迹页（文件 tab 的检查点编号体系随 run 变化）
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 只按 run 身份复位 tab，语义上依赖 detail?.meta.id
+  useEffect(() => {
+    setTab("trajectory");
+  }, [detail?.meta.id]);
 
   const span = useMemo(
     () => detail?.spans.find((s) => s.id === selectedSpanId) ?? null,
     [detail, selectedSpanId],
   );
 
+  if (detail !== null && isolated && tab === "files") {
+    return (
+      <section className="flex h-full min-w-0 flex-1 flex-col bg-white">
+        <DetailHeader tab={tab} onTab={setTab} isolated={isolated} spanId={span?.id ?? null} />
+        <div className="min-h-0 flex-1">
+          <WorkspaceFileView key={detail.meta.id} run={detail} />
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="flex h-full min-w-0 flex-1 flex-col bg-white">
-      <div className="border-b border-gray-200 px-4 py-2">
-        <div className="text-sm font-semibold text-gray-800">详情</div>
-        <div className="text-[11px] text-gray-500">
-          {span === null ? "选中左侧任意 span 查看原始请求与响应" : `span ${span.id}`}
-        </div>
-      </div>
+      <DetailHeader tab={tab} onTab={setTab} isolated={isolated} spanId={span?.id ?? null} />
 
       <IsolatedRunNotice />
       <BranchNotice />
@@ -1641,5 +1661,65 @@ export function DetailPanel() {
         )}
       </div>
     </section>
+  );
+}
+
+/**
+ * 详情标题栏 + 视图切换。
+ *
+ * 文件 tab **只在隔离 run 上出现**：v1 老 trace 没有 `meta.workspace`，
+ * 给它一个文件页等于把"没有"显示成"有"（B 段的显示义务纪律）。
+ */
+function DetailHeader({
+  tab,
+  onTab,
+  isolated,
+  spanId,
+}: {
+  tab: "trajectory" | "files";
+  onTab: (next: "trajectory" | "files") => void;
+  isolated: boolean;
+  spanId: string | null;
+}) {
+  return (
+    <div className="border-b border-gray-200 px-4 py-2">
+      <div className="flex items-center gap-2">
+        <span className="text-sm font-semibold text-gray-800">详情</span>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => onTab("trajectory")}
+            className={`rounded px-2 py-0.5 text-[11px] ${
+              tab === "trajectory"
+                ? "bg-gray-800 text-white"
+                : "border border-gray-300 text-gray-600 hover:bg-gray-50"
+            }`}
+          >
+            轨迹
+          </button>
+          {isolated ? (
+            <button
+              type="button"
+              onClick={() => onTab("files")}
+              className={`rounded px-2 py-0.5 text-[11px] ${
+                tab === "files"
+                  ? "bg-violet-600 text-white"
+                  : "border border-violet-300 text-violet-700 hover:bg-violet-50"
+              }`}
+              title="查看隔离文件世界的检查点清单与文本差异（只读）"
+            >
+              文件
+            </button>
+          ) : null}
+        </div>
+      </div>
+      <div className="text-[11px] text-gray-500">
+        {tab === "files"
+          ? "隔离文件检查点：选择初始状态或某一轮结束时的文件快照（只读）"
+          : spanId === null
+            ? "选中左侧任意 span 查看原始请求与响应"
+            : `span ${spanId}`}
+      </div>
+    </div>
   );
 }

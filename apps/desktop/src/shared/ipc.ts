@@ -422,10 +422,146 @@ export const ForkCapabilityResultSchema = z.object({
 });
 export type ForkCapabilityResult = z.infer<typeof ForkCapabilityResultSchema>;
 
+// ---------------------------------------------------------------------------
+// workspaces:inspect / workspaces:readFile —— 文件检查点与差异（只读；C 1.1）
+// ---------------------------------------------------------------------------
+
+/**
+ * 清单定位请求：`stepSpanId` 省略 = 本 run 的**初始快照**；指定时只能是该 run
+ * **自有**的已完成 `agent.step`（祖先步骤由 A 包拒绝，main 不代填）。
+ * renderer 不得传物理路径或存储根——本请求连字段都没有。
+ */
+export const WorkspaceInspectRequestSchema = z.object({
+  runId: z.string().min(1),
+  stepSpanId: z.string().min(1).optional(),
+});
+export type WorkspaceInspectRequest = z.infer<typeof WorkspaceInspectRequestSchema>;
+
+/** 清单里的一条文件：路径、大小、相对初始快照的状态、附件可用性与来源 */
+export const WorkspaceInspectFileSchema = z.object({
+  path: z.string().min(1),
+  bytes: z.number().int().nonnegative(),
+  /** 附件内容哈希（64 位小写 hex，裸值无前缀） */
+  sha256: z.string().regex(/^[0-9a-f]{64}$/),
+  /**
+   * 相对**本 run 初始快照**的状态：
+   * - `added` = 初始清单里没有这条路径
+   * - `modified` = 初始清单里有，但内容哈希不同
+   * - `unchanged` = 初始清单里有且哈希相同
+   * - `initial` = 当前查看的就是初始快照本身（没有"相对"可谈）
+   * 判据只有「路径 + 哈希」——不使用 mtime（快照不含时间戳）。
+   */
+  change: z.enum(["added", "modified", "unchanged", "initial"]),
+  /**
+   * 附件可用性：`ok` = 磁盘上存在且长度与哈希都对得上；
+   * `missing` = 清单引用了但磁盘上没有；`corrupt` = 存在但长度或哈希不符。
+   * 三者必须可分辨——缺失/损坏不得渲染成空文件。
+   */
+  availability: z.enum(["ok", "missing", "corrupt"]),
+  /** 不可用时的可读原因（ok 时为 null） */
+  unavailableReason: z.string().nullable(),
+});
+export type WorkspaceInspectFile = z.infer<typeof WorkspaceInspectFileSchema>;
+
+/**
+ * 检查点定位（选择器的数据源）。
+ *
+ * `localIteration` 是该 step **所属 run 自己的** `agent.step.n`——绝不按合并轨迹沿链累加。
+ * 初始快照的 `stepSpanId` / `localIteration` 均为 null（它不是"某一轮结束"）。
+ * `origin` 说明这份快照从哪来：根 run 为导入，分支 run 为父 run 某轮检查点。
+ */
+export const WorkspaceInspectResultSchema = z.object({
+  runId: z.string().min(1),
+  /** null = 初始快照 */
+  stepSpanId: z.string().min(1).nullable(),
+  /** 快照 id（裸 64 位 hex） */
+  snapshotId: z.string().regex(/^[0-9a-f]{64}$/),
+  /** 所属 run id（= 检查点所有者；显式保留以固定 {ownerRunId,stepSpanId,localIteration} 三元组） */
+  ownerRunId: z.string().min(1),
+  /** 本地轮号 = 该 step 的原始 agent.step.n；初始快照为 null */
+  localIteration: z.number().int().positive().nullable(),
+  profile: z.string().min(1),
+  worldId: z.string().min(1),
+  origin: z.union([
+    z.object({ kind: z.literal("import") }),
+    z.object({
+      kind: z.literal("checkpoint"),
+      runId: z.string().min(1),
+      /** 来源（父 run）那次检查点所在的 step span id */
+      stepSpanId: z.string().min(1),
+    }),
+  ]),
+  files: z.array(WorkspaceInspectFileSchema),
+  fileCount: z.number().int().nonnegative(),
+  totalBytes: z.number().nonnegative(),
+  /** 不可用附件数（missing + corrupt），供列表顶部汇总 */
+  unavailableCount: z.number().int().nonnegative(),
+  /** 初始快照 id（分支 run 用来判定"相对初始"；初始快照本身即等于 snapshotId） */
+  initialSnapshotId: z.string().regex(/^[0-9a-f]{64}$/),
+});
+export type WorkspaceInspectResult = z.infer<typeof WorkspaceInspectResultSchema>;
+
+/**
+ * 文件读取请求：清单定位 + **逻辑路径**（不是物理路径）。
+ * `path` 必须属于所选清单；越权或清单外路径由 main 与 A 包一并拒绝。
+ */
+export const WorkspaceReadFileRequestSchema = z.object({
+  runId: z.string().min(1),
+  stepSpanId: z.string().min(1).optional(),
+  path: z.string().min(1),
+});
+export type WorkspaceReadFileRequest = z.infer<typeof WorkspaceReadFileRequestSchema>;
+
+/**
+ * 文件读取结果（判别式联合，与 A 包 `WorkspaceFileReadResult` 同形但去掉字节数组——
+ * 二进制只需要大小/哈希，**不跨进程传字节**，避免把整份附件塞进 IPC 载荷）。
+ *
+ * 六态必须可分辨：`text` / `binary` / `not_found`（清单里没有这条路径）/
+ * `missing`（清单有但附件不在）/ `corrupt`（附件与哈希不符）/ `rejected`（请求本身不成立）。
+ * 无文本的一侧在 diff 里标作"不存在"，不得当空文本。
+ */
+export const WorkspaceReadFileResultSchema = z.discriminatedUnion("status", [
+  z.object({
+    status: z.literal("text"),
+    path: z.string().min(1),
+    bytes: z.number().int().nonnegative(),
+    sha256: z.string().regex(/^[0-9a-f]{64}$/),
+    text: z.string(),
+  }),
+  z.object({
+    status: z.literal("binary"),
+    path: z.string().min(1),
+    bytes: z.number().int().nonnegative(),
+    sha256: z.string().regex(/^[0-9a-f]{64}$/),
+  }),
+  z.object({ status: z.literal("not_found"), path: z.string().min(1), reason: z.string() }),
+  z.object({
+    status: z.literal("missing"),
+    path: z.string().min(1),
+    bytes: z.number().int().nonnegative(),
+    sha256: z.string().regex(/^[0-9a-f]{64}$/),
+    reason: z.string(),
+  }),
+  z.object({
+    status: z.literal("corrupt"),
+    path: z.string().min(1),
+    bytes: z.number().int().nonnegative(),
+    sha256: z.string().regex(/^[0-9a-f]{64}$/),
+    reason: z.string(),
+  }),
+  z.object({
+    status: z.literal("rejected"),
+    code: z.string().min(1),
+    reason: z.string(),
+  }),
+]);
+export type WorkspaceReadFileResult = z.infer<typeof WorkspaceReadFileResultSchema>;
+
 /**
  * preload 暴露给渲染层的受限接口。
  * 取数两个方法 + forkRun / promptFork / modelAb / createRun / proxyFork 五个写通道
  * + chooseSource / forkCapability 两个只读辅助通道（B 1.3/1.5）
+ * + inspect / readFile 两个文件只读通道（C 1.1）
  * + settings 三件套 + 代理三件套（apiKey / 代理 key 均单向进入 main，永不回传）。
  */
 export interface WindowApi {
@@ -442,6 +578,10 @@ export interface WindowApi {
    * 失败（历史 run 无检查点 / 附件不可用 / 非隔离父本等）返回可操作的错误信封。
    */
   forkCapability(request: ForkCapabilityRequest): Promise<Envelope<ForkCapabilityResult>>;
+  /** 文件检查点清单（只读）：省略 stepSpanId 取本 run 初始快照；不写任何文件、不调 LLM */
+  inspectWorkspace(request: WorkspaceInspectRequest): Promise<Envelope<WorkspaceInspectResult>>;
+  /** 读取清单内某条逻辑路径的文本（只读）：二进制/不存在/缺失/损坏各自可辨认 */
+  readWorkspaceFile(request: WorkspaceReadFileRequest): Promise<Envelope<WorkspaceReadFileResult>>;
   getSettings(): Promise<Envelope<SettingsState>>;
   saveSettings(input: SettingsInput): Promise<Envelope<{ configured: true }>>;
   clearSettings(): Promise<Envelope<{ configured: false }>>;

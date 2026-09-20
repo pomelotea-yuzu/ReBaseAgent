@@ -13,6 +13,10 @@ export const CHANNELS = {
   // chooseSource 只弹原生目录选择并签发会话 token；forkCapability 只做只读能力预检
   chooseSource: "workspaces:chooseSource",
   forkCapability: "workspaces:forkCapability",
+  // 文件检查点视图（C 1.1）：两条只读通道，只读已校验清单引用的附件字节，
+  // 不写 trace/blob、不调 LLM/工具、不接受任意物理路径
+  inspect: "workspaces:inspect",
+  readFile: "workspaces:readFile",
   settingsGet: "settings:get",
   settingsSave: "settings:save",
   settingsClear: "settings:clear",
