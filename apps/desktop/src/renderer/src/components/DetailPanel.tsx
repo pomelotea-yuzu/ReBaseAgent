@@ -27,33 +27,7 @@ import { promptForkGuard } from "../lib/prompt-fork";
 import type { PromptForkField } from "../lib/prompt-fork";
 import { useAppStore } from "../store";
 import { BudgetMap } from "./BudgetMap";
-
-const COLLAPSE_THRESHOLD = 600;
-
-/**
- * 长文本区块：默认折叠（展示前若干字符 + 省略），展开后为完整原文。
- * 不做任何截断丢弃——展开即可看到全部内容。
- */
-function LongText({ text, label }: { text: string; label: string }) {
-  const collapsed = text.length > COLLAPSE_THRESHOLD;
-  if (!collapsed) {
-    return (
-      <pre className="whitespace-pre-wrap break-words font-code text-[11px] leading-5 text-gray-800">
-        {text}
-      </pre>
-    );
-  }
-  return (
-    <details className="group">
-      <summary className="cursor-pointer select-none text-[11px] text-gray-500 hover:text-gray-700">
-        {label}（{text.length} 字符，点击展开完整内容）
-      </summary>
-      <pre className="mt-1 whitespace-pre-wrap break-words font-code text-[11px] leading-5 text-gray-800">
-        {text}
-      </pre>
-    </details>
-  );
-}
+import { LongText } from "./LongText";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
