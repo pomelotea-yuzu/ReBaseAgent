@@ -2,7 +2,9 @@ import { existsSync, renameSync } from "node:fs";
 import { join } from "node:path";
 import { OpenAiCompatClient, runLoop } from "@rebaseagent/agent-loop";
 import type { LlmClient, Message, RunConfig, RunResult } from "@rebaseagent/agent-loop";
+import { FILE_TOOLS_V1_DEFINITIONS, createIsolatedRun } from "@rebaseagent/replay";
 import { JsonlTracer, readRun } from "@rebaseagent/trace-sdk";
+import type { IsolatedWorkspaceSelection } from "../shared/ipc";
 import type { RunRepository } from "./run-repository";
 import type { RunSettings } from "./settings";
 
@@ -123,4 +125,84 @@ export async function runCreate(
   }
 
   return { id: runId };
+}
+
+// ---------------------------------------------------------------------------
+// 隔离文件模式（B 1.4）：runs:create 的 workspace 分支
+// ---------------------------------------------------------------------------
+
+export interface RunCreateIsolatedOptions extends RunCreateOptions {
+  /** 数据目录（main 按便携策略注入）：trace 落 `<dataDir>/traces`，附件落 workspace-blobs */
+  dataDir: string;
+  /** 源目录真实路径（handler 已用 sourceToken 换出；renderer 永远拿不到签发前路径的书写权） */
+  sourcePath: string;
+}
+
+export interface RunCreateIsolatedRequest {
+  systemPrompt: string;
+  userMessage: string;
+  /** 已过 zod 校验的选择（mode/sourceToken/allowFileWrites:true）；token 消费在 handler */
+  workspace: IsolatedWorkspaceSelection;
+}
+
+/** 隔离创建的失败码（渲染层据此提示；reason 来自 A 包的原始分类） */
+export const ISOLATED_CREATE_ERROR_CODE = "ISOLATED_CREATE_FAILED";
+
+/**
+ * 隔离文件模式的 runs:create 编排：把 A 的 `createIsolatedRun` 接进桌面写通道。
+ *
+ * 职责边界（design §1/§4）：
+ * - 工具表**恒为**固定 `file-tools-v1` profile（`FILE_TOOLS_V1_DEFINITIONS` 是唯一事实源，
+ *   不得手抄第二份）——`checkToolProfile` 逐字段核对，桌面不定义自己的变体
+ * - dataDir 由 main 注入；源目录校验（形态 / 与 dataDir 的关系 / 真实性）由 A 包在
+ *   导入前重新做，桌面不预判、不降级
+ * - `authority` 原样透传本次请求的授权声明：zod 层已保证 `allowFileWrites === true`，
+ *   A 的 `checkWriteAuthority` 仍会再验一次（不信任调用方）
+ * - LLM `errored` 也是落盘事实：run 照常归位，错误语义与普通创建一致（CREATE_RUN_FAILED
+ *   + 引导查看详情），不因为隔离模式改变失败表现
+ */
+export async function runCreateIsolated(
+  options: RunCreateIsolatedOptions,
+  request: RunCreateIsolatedRequest,
+): Promise<{ id: string }> {
+  const { settings, dataDir, sourcePath, llm } = options;
+
+  const config: RunConfig = {
+    baseURL: settings.baseURL,
+    apiKey: settings.apiKey,
+    model: settings.model,
+    systemPrompt: request.systemPrompt,
+    tools: [...FILE_TOOLS_V1_DEFINITIONS],
+    params: undefined,
+    exec: { cwd: dataDir, signal: null },
+    maxIterations: MAX_ITERATIONS,
+    budget: { maxTotalTokens: MAX_TOTAL_TOKENS },
+  };
+
+  const result = await createIsolatedRun({
+    dataDir,
+    source: sourcePath,
+    config,
+    userMessage: request.userMessage,
+    authority: request.workspace,
+    llm: llm ?? new OpenAiCompatClient(config),
+  });
+
+  if (!result.ok) {
+    throw new CreateRunError(
+      ISOLATED_CREATE_ERROR_CODE,
+      `隔离创建被拒绝（${result.failure.code}）：${result.failure.reason}`,
+    );
+  }
+
+  // 成功也可能以 errored 终止（模型调用失败）：run 已按 meta.id 归位且可读，
+  // 文案与普通创建保持同一语义——引导用户点开 run 看失败的那次 LLM 调用。
+  if (result.outcome.event.event === "errored") {
+    throw new CreateRunError(
+      CREATE_RUN_ERROR_CODES.RUN_FAILED,
+      `新建 run 执行失败：模型调用未完成（终止原因 ${result.outcome.event.reason}）。run ${result.id} 已落盘，可在列表中点开该 run，查看失败的那次 LLM 调用上的错误详情。`,
+    );
+  }
+
+  return { id: result.id };
 }

@@ -139,6 +139,8 @@ async function bootstrap(): Promise<void> {
     settings,
     // 工具重跑的工作目录：数据目录（trace 不记录首次 cwd，桌面以数据目录为落点）
     execCwd: dataDir,
+    // 隔离创建/续跑的 trace 与附件锚点（B 1.3/1.4）
+    dataDir,
     proxy,
   });
   // 代理按 settings 自恢复（端口占用等失败不阻断应用启动，状态可见）

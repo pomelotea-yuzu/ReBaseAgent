@@ -95,6 +95,11 @@ function makeFakeApi(c: Controller): WindowApi {
       });
       return c.createRunEnvelope ?? ok({ id: "run_created" });
     },
+    // B 1.3/1.5 的只读辅助通道：store 尚未消费（UI 属任务 2.x），stub 仅满足接口形状
+    chooseSource: async () => ok({ canceled: true }),
+    forkCapability: async () => {
+      throw new Error("store.test 不应调用 forkCapability");
+    },
   };
 }
 

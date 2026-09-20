@@ -131,12 +131,28 @@ export function fail(code: string, error: unknown): Envelope<never> {
 // runs:fork —— 显式写通道之一（分叉重跑；另一条是 runs:create）
 // ---------------------------------------------------------------------------
 
+/** 隔离执行模式声明（runs:fork 用）：mode 固定，副本写入授权必须显式 true */
+export const IsolatedExecutionModeSchema = z
+  .object({
+    mode: z.literal("isolated_files"),
+    allowFileWrites: z.literal(true),
+  })
+  .strict();
+export type IsolatedExecutionMode = z.infer<typeof IsolatedExecutionModeSchema>;
+
 /** 分叉重跑请求：用户显式选择的父 run、分叉点 span、编辑值 */
 export const ForkRunRequestSchema = z.object({
   parentRunId: z.string().min(1),
   atSpanId: z.string().min(1),
   /** MVP 只开放 tool.invoke 的 result 字段 */
   edit: z.object({ field: z.literal("result"), value: z.string() }),
+  /**
+   * 执行模式（B 1.4，可选）：隔离父本**必须**携带 `{mode:"isolated_files", allowFileWrites:true}`
+   * 才能走隔离续跑；漏传时请求会落进普通 replayRun 并被 A 的隔离父本门禁拒绝——
+   * "隔离模式与父本严格匹配，不允许漏传后落到普通 handler"。非隔离父本携带本字段
+   * 则在预检处以 parent_not_isolated 拒绝（普通 result 分叉没有文件世界可续）。
+   */
+  execution: IsolatedExecutionModeSchema.optional(),
 });
 export type ForkRunRequest = z.infer<typeof ForkRunRequestSchema>;
 
@@ -156,10 +172,28 @@ export type ForkRunResult = z.infer<typeof ForkRunResultSchema>;
  *
  * 没有 task 字段：`run.meta.task` 由 runLoop 从首条 user 消息派生
  * （packages/agent-loop/src/run-loop.ts:69），runLoop 无 task 入参。
+ *
+ * workspace（B 1.3/1.4，可选）：缺省 = 纯对话（空工具表、v1）。提供时必须是
+ * `isolated_files` 模式 + 用户**本次**显式勾选的副本写入授权（literal(true)：
+ * false / "true" / 1 在 schema 层即拒）+ 选择器签发的 sourceToken（main 消费换出
+ * 真实路径）。renderer SHALL NOT 传 handler / 物理 blob 路径 / 配额覆盖——
+ * schema 是 strict 的，多余字段直接拒绝。
  */
+export const IsolatedWorkspaceSelectionSchema = z
+  .object({
+    mode: z.literal("isolated_files"),
+    /** workspaces:chooseSource 签发的会话令牌（一次性；main 消费换出真实路径） */
+    sourceToken: z.string().min(1),
+    /** 本次执行的副本写入授权：必须显式 true，不继承历史 write_authorized 审计标注 */
+    allowFileWrites: z.literal(true),
+  })
+  .strict();
+export type IsolatedWorkspaceSelection = z.infer<typeof IsolatedWorkspaceSelectionSchema>;
+
 export const CreateRunRequestSchema = z.object({
   systemPrompt: z.string(),
   userMessage: z.string().min(1, "userMessage 不能为空"),
+  workspace: IsolatedWorkspaceSelectionSchema.optional(),
 });
 export type CreateRunRequest = z.infer<typeof CreateRunRequestSchema>;
 
@@ -324,10 +358,71 @@ export const ProxyForkResultSchema = z.object({
 });
 export type ProxyForkResult = z.infer<typeof ProxyForkResultSchema>;
 
+// ---------------------------------------------------------------------------
+// workspaces:chooseSource —— 原生目录选择（只读；B 1.3）
+// ---------------------------------------------------------------------------
+
+/**
+ * 选择结果：取消时不签发 token（`{canceled:true}`）；成功时回传 token + 显示名 +
+ * 完整路径。路径回传给渲染层仅为展示（确认区需要让用户核对选了哪个目录）——
+ * 真实校验在提交时由 main（token 换出）与 A 包（validateSourceRoot）负责。
+ */
+export const ChooseSourceResultSchema = z.discriminatedUnion("canceled", [
+  z.object({ canceled: z.literal(true) }),
+  z.object({
+    canceled: z.literal(false),
+    sourceToken: z.string().min(1),
+    name: z.string().min(1),
+    path: z.string().min(1),
+    /** token 有效期止（ISO 字符串）；过期后提交会被拒，需重新选择 */
+    expiresAt: z.string().min(1),
+  }),
+]);
+export type ChooseSourceResult = z.infer<typeof ChooseSourceResultSchema>;
+
+// ---------------------------------------------------------------------------
+// workspaces:forkCapability —— 隔离分叉的只读能力预检（B 1.5）
+// ---------------------------------------------------------------------------
+
+/** 预检请求：直接父 run、分叉点（直接父自有 tool.invoke）、编辑值（空 fork 在此即拒） */
+export const ForkCapabilityRequestSchema = z.object({
+  parentRunId: z.string().min(1),
+  atSpanId: z.string().min(1),
+  edit: z.object({ field: z.literal("result"), value: z.string() }),
+});
+export type ForkCapabilityRequest = z.infer<typeof ForkCapabilityRequestSchema>;
+
+/**
+ * 预检结论（A 的 IsolatedReplayCapability 的 IPC 裁剪面）：
+ * 轮末快照的**完整清单不跨进程**（可能上千条目，且文件清单展示是 C 的职责）——
+ * 确认区只需要定位三元组、规模统计与指纹。
+ */
+export const ForkCapabilityResultSchema = z.object({
+  /** 直接父 run id（= 检查点所属 run） */
+  parentId: z.string().min(1),
+  /** 被编辑的工具 span id */
+  atSpanId: z.string().min(1),
+  /** 该工具所属的 agent.step span id（= fork.resume_after_step 的取值） */
+  stepSpanId: z.string().min(1),
+  /** 检查点所属 run id（恒等于 parentId；显式保留以固定 {ownerRunId,stepSpanId,localIteration} 三元组） */
+  ownerRunId: z.string().min(1),
+  /** 本地轮号 = 该 step 的原始 agent.step.n（按所属 run 计，不沿链累加） */
+  localIteration: z.number().int().positive(),
+  /** 轮末快照 id（裸 64 位 hex 指纹） */
+  snapshotId: z.string().min(1),
+  /** 起点清单的文件数与总字节（附件逐项 verify 通过后的派生值） */
+  fileCount: z.number().int().nonnegative(),
+  totalBytes: z.number().nonnegative(),
+  /** 直接父的 config_hash（已与本次提交将用的配置一致） */
+  configHash: z.string().min(1),
+});
+export type ForkCapabilityResult = z.infer<typeof ForkCapabilityResultSchema>;
+
 /**
  * preload 暴露给渲染层的受限接口。
- * 取数两个方法 + forkRun / promptFork / modelAb / createRun / proxyFork 五个写通道 + settings 三件套 + 代理三件套
- * （apiKey / 代理 key 均单向进入 main，永不回传）。
+ * 取数两个方法 + forkRun / promptFork / modelAb / createRun / proxyFork 五个写通道
+ * + chooseSource / forkCapability 两个只读辅助通道（B 1.3/1.5）
+ * + settings 三件套 + 代理三件套（apiKey / 代理 key 均单向进入 main，永不回传）。
  */
 export interface WindowApi {
   listRuns(): Promise<Envelope<ListRunsData>>;
@@ -336,6 +431,13 @@ export interface WindowApi {
   promptFork(request: PromptForkRequest): Promise<Envelope<PromptForkResult>>;
   modelAb(request: ModelAbRequest): Promise<Envelope<ModelAbResult>>;
   createRun(request: CreateRunRequest): Promise<Envelope<CreateRunResult>>;
+  /** 原生目录选择：只签发会话 token，不导入、不写 trace/blob；取消返回 {canceled:true} */
+  chooseSource(): Promise<Envelope<ChooseSourceResult>>;
+  /**
+   * 隔离分叉的只读能力预检（确认区数据源）：不创建运行、不写文件、不请求模型。
+   * 失败（历史 run 无检查点 / 附件不可用 / 非隔离父本等）返回可操作的错误信封。
+   */
+  forkCapability(request: ForkCapabilityRequest): Promise<Envelope<ForkCapabilityResult>>;
   getSettings(): Promise<Envelope<SettingsState>>;
   saveSettings(input: SettingsInput): Promise<Envelope<{ configured: true }>>;
   clearSettings(): Promise<Envelope<{ configured: false }>>;

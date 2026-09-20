@@ -9,6 +9,10 @@ export const CHANNELS = {
   promptFork: "runs:promptFork",
   modelAb: "runs:modelAb",
   createRun: "runs:create",
+  // workspaces:* —— 隔离文件运行的辅助通道（只读，不产生 run 文件）：
+  // chooseSource 只弹原生目录选择并签发会话 token；forkCapability 只做只读能力预检
+  chooseSource: "workspaces:chooseSource",
+  forkCapability: "workspaces:forkCapability",
   settingsGet: "settings:get",
   settingsSave: "settings:save",
   settingsClear: "settings:clear",

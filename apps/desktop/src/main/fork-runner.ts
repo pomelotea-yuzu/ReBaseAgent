@@ -5,13 +5,21 @@ import type { LlmClient, RunConfig, Scalar, Tool, ToolDef } from "@rebaseagent/a
 import {
   ToolUnwrapError,
   modelReplayRunMany,
+  preflightIsolatedReplay,
   promptReplayRun,
+  replayIsolatedRun,
   replayRun,
   toToolDefs,
 } from "@rebaseagent/replay";
 import type { RunRecord } from "@rebaseagent/trace-sdk";
 import { findStepLlm } from "../shared/derive";
-import type { ModelAbRequest, ModelAbResult } from "../shared/ipc";
+import type {
+  ForkCapabilityRequest,
+  ForkCapabilityResult,
+  IsolatedExecutionMode,
+  ModelAbRequest,
+  ModelAbResult,
+} from "../shared/ipc";
 import type { RunRepository } from "./run-repository";
 import type { RunSettings } from "./settings";
 
@@ -42,6 +50,10 @@ export interface ForkRunnerOptions {
 export const FORK_ERROR_CODES = {
   SPAN_NOT_IN_LEAF: "FORK_SPAN_NOT_IN_LEAF",
   UNKNOWN_TOOL: "FORK_UNKNOWN_TOOL",
+  /** 隔离续跑被拒（A 包预检/授权/世界构造的原始分类随 reason 透传） */
+  ISOLATED_FORK_FAILED: "ISOLATED_FORK_FAILED",
+  /** 只读能力预检不可用（历史 run 无检查点 / 附件缺失或损坏 / 非隔离父本等） */
+  FORK_CAPABILITY_UNAVAILABLE: "FORK_CAPABILITY_UNAVAILABLE",
 } as const;
 
 export class ForkError extends Error {
@@ -381,4 +393,113 @@ function attachHandlers(defs: readonly ToolDef[]): Tool[] | null {
     });
   }
   return tools;
+}
+
+// ---------------------------------------------------------------------------
+// 隔离 result 续跑与只读能力预检（B 1.4 / 1.5）
+// ---------------------------------------------------------------------------
+
+export interface IsolatedForkOptions {
+  repository: RunRepository;
+  /** 运行配置（main 已解密；未配置由调用方先行拦截） */
+  settings: RunSettings;
+  /** 数据目录（main 按便携策略注入）：父 trace/附件都在其下 */
+  dataDir: string;
+  /** LLM 客户端（测试注入 mock；缺省真实调用 settings.baseURL） */
+  llm?: LlmClient;
+}
+
+export interface IsolatedForkRequest {
+  parentRunId: string;
+  atSpanId: string;
+  edit: { field: "result"; value: string };
+  /** zod 已保证 mode/allowFileWrites 的形状；A 层仍会再验一次授权 */
+  execution: IsolatedExecutionMode;
+}
+
+/**
+ * 隔离 result 分叉的桌面编排：把 A 的 `replayIsolatedRun` 接进 runs:fork 的
+ * execution 分支（design §1：隔离父本必须携带 execution，严格匹配不降级）。
+ *
+ * - config 复用 `buildForkConfig` 从父 run 录制重建（systemPrompt/工具表/params 来自
+ *   录制，接入取自 settings）——与父 config_hash 天然一致，普通与隔离同一条重建路径
+ * - 提交时**重新预检**是 A 包内部行为（replayIsolatedRun 不信任调用方此前的预检结果），
+ *   这里不做也不需要缓存确认时的能力快照
+ * - 失败不降级：A 返回的 failure（missing_authority / invalid_snapshot /
+ *   parent_not_isolated / attachment_missing / derive_failed 等）原样透传错误码与原因
+ */
+export async function runForkIsolated(
+  options: IsolatedForkOptions,
+  request: IsolatedForkRequest,
+): Promise<{ id: string }> {
+  const { repository, settings, dataDir, llm } = options;
+  // 工具表从录制重建（含桌面 handler 覆盖检查）；隔离续跑实际使用 A 的受控工具，
+  // 这里的 handler 对齐检查用于在入口就拒绝"父 run 用过注册表之外工具"的记录
+  const { config } = buildForkConfig(
+    { repository, settings, execCwd: dataDir },
+    request.parentRunId,
+  );
+
+  const result = await replayIsolatedRun({
+    dataDir,
+    parentId: request.parentRunId,
+    atSpanId: request.atSpanId,
+    edit: request.edit,
+    config,
+    authority: request.execution,
+    llm: llm ?? new OpenAiCompatClient(config),
+  });
+
+  if (!result.ok) {
+    throw new ForkError(
+      FORK_ERROR_CODES.ISOLATED_FORK_FAILED,
+      `隔离续跑被拒绝（${result.failure.code}）：${result.failure.reason}`,
+    );
+  }
+  return { id: result.id };
+}
+
+/**
+ * 隔离分叉的**只读能力预检**（确认区数据源，B 1.5）：
+ * 直接复用 A 的 `preflightIsolatedReplay`——不创建运行、不写文件、不请求模型；
+ * 附件不可用（missing/corrupt）在此给出原因，不提供"用当前目录冒充历史快照"的兜底。
+ * 快照的完整文件清单不跨进程（可能上千条目，清单展示归 C），只带定位三元组与规模统计。
+ */
+export async function runForkCapability(
+  options: Omit<IsolatedForkOptions, "llm">,
+  request: ForkCapabilityRequest,
+): Promise<ForkCapabilityResult> {
+  const { repository, settings, dataDir } = options;
+  const { config } = buildForkConfig(
+    { repository, settings, execCwd: dataDir },
+    request.parentRunId,
+  );
+
+  const result = await preflightIsolatedReplay({
+    dataDir,
+    parentId: request.parentRunId,
+    atSpanId: request.atSpanId,
+    edit: request.edit,
+    config,
+  });
+
+  if (!result.ok) {
+    throw new ForkError(
+      FORK_ERROR_CODES.FORK_CAPABILITY_UNAVAILABLE,
+      `该运行当前不可隔离续跑（${result.failure.code}）：${result.failure.reason}`,
+    );
+  }
+
+  const capability = result.value;
+  return {
+    parentId: capability.parentId,
+    atSpanId: capability.atSpanId,
+    stepSpanId: capability.stepSpanId,
+    ownerRunId: capability.ownerRunId,
+    localIteration: capability.localIteration,
+    snapshotId: capability.snapshot.id,
+    fileCount: capability.fileCount,
+    totalBytes: capability.totalBytes,
+    configHash: capability.configHash,
+  };
 }

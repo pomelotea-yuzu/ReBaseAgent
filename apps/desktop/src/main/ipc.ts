@@ -1,8 +1,10 @@
 import { ModelAbError } from "@rebaseagent/replay";
+import { dialog } from "electron";
 import { ipcMain } from "electron";
 import {
   CHANNELS,
   CreateRunRequestSchema,
+  ForkCapabilityRequestSchema,
   ForkRunRequestSchema,
   ModelAbRequestSchema,
   PromptForkRequestSchema,
@@ -13,7 +15,9 @@ import {
   ok,
 } from "../shared/ipc";
 import type {
+  ChooseSourceResult,
   CreateRunResult,
+  ForkCapabilityResult,
   ForkRunResult,
   ListRunsData,
   ModelAbResult,
@@ -23,18 +27,28 @@ import type {
   RunDetail,
   SettingsState,
 } from "../shared/ipc";
-import { ForkError, runFork, runModelAb, runPromptFork } from "./fork-runner";
+import {
+  ForkError,
+  runFork,
+  runForkCapability,
+  runForkIsolated,
+  runModelAb,
+  runPromptFork,
+} from "./fork-runner";
 import type { ProxyManager } from "./proxy-manager";
 import { ProxyForkError } from "./proxy-manager";
-import { CreateRunError, runCreate } from "./run-create";
+import { CreateRunError, runCreate, runCreateIsolated } from "./run-create";
 import type { RunRepository } from "./run-repository";
 import type { SettingsStore } from "./settings";
+import { SourceTokenStore } from "./source-token";
 
 /**
  * IPC 处理器注册。任何异常都收敛为信封返回——不让异常跨越进程边界。
  *
  * 写通道纪律：runs:fork / runs:create / proxy:fork 是仅有三个能产生 run 文件
- * 写入的通道；settings 三通道只读写 <数据目录>/settings.json，
+ * 写入的通道；workspaces:chooseSource / workspaces:forkCapability 只读
+ * （目录选择不落盘、能力预检不写 trace/blob 不请求模型）；
+ * settings 三通道只读写 <数据目录>/settings.json，
  * apiKey 与代理捕获的 key 永不回传渲染层。
  */
 export interface IpcDeps {
@@ -42,12 +56,25 @@ export interface IpcDeps {
   settings: SettingsStore;
   /** 工具执行的工作目录（重跑工具与首次同权限同 cwd，落在数据目录） */
   execCwd: string;
+  /** 数据目录（隔离创建/续跑的 trace 与附件锚点，main 按便携策略解析） */
+  dataDir: string;
   /** 本地录制代理编排（启停/key 暂存/代理分叉） */
   proxy: ProxyManager;
+  /** 原生目录选择（可注入测试桩；缺省 = Electron dialog，只选不写） */
+  pickDirectory?: () => Promise<string | null>;
 }
 
 export function registerIpc(deps: IpcDeps): void {
-  const { repository, settings, execCwd, proxy } = deps;
+  const { repository, settings, execCwd, dataDir, proxy } = deps;
+  const pickDirectory =
+    deps.pickDirectory ??
+    (async (): Promise<string | null> => {
+      const result = await dialog.showOpenDialog({ properties: ["openDirectory"] });
+      if (result.canceled || result.filePaths.length === 0) return null;
+      return result.filePaths[0] ?? null;
+    });
+  // 会话令牌随应用生命周期存活；15 分钟 TTL 与一次性消费见 source-token.ts
+  const sourceTokens = new SourceTokenStore();
 
   ipcMain.handle(
     CHANNELS.listRuns,
@@ -95,16 +122,93 @@ export function registerIpc(deps: IpcDeps): void {
         );
       }
 
-      // 3. 编排重跑；ForkError 的 code 原样透传给渲染层做提示
+      // 3. 编排重跑；ForkError 的 code 原样透传给渲染层做提示。
+      //    隔离父本必须走 execution 分支（replayIsolatedRun）；不带 execution 的请求
+      //    落进普通 runFork，会被 A 的隔离父本门禁拒绝（严格匹配、不降级——见 design §1）
       try {
-        const result = await runFork({ repository, settings: loaded, execCwd }, parsed.data);
+        const result =
+          parsed.data.execution !== undefined
+            ? await runForkIsolated(
+                { repository, settings: loaded, dataDir },
+                {
+                  parentRunId: parsed.data.parentRunId,
+                  atSpanId: parsed.data.atSpanId,
+                  edit: parsed.data.edit,
+                  execution: parsed.data.execution,
+                },
+              )
+            : await runFork({ repository, settings: loaded, execCwd }, parsed.data);
         return ok({ id: result.id });
       } catch (e) {
         if (e instanceof ForkError) {
           return fail(e.code, e);
         }
-        // replayRun / derive 的领域错误（空 fork、config_hash 不一致、父未封存等）
+        // replayRun / replayIsolatedRun / derive 的领域错误（空 fork、config_hash 不一致、父未封存等）
         return fail("FORK_FAILED", e);
+      }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // workspaces:chooseSource —— 原生目录选择（只读：不导入、不写 trace/blob）
+  // -------------------------------------------------------------------------
+
+  ipcMain.handle(
+    CHANNELS.chooseSource,
+    async (): Promise<ReturnType<typeof ok<ChooseSourceResult>> | ReturnType<typeof fail>> => {
+      try {
+        const picked = await pickDirectory();
+        if (picked === null) {
+          // 取消不签发 token（design §1）
+          return ok({ canceled: true } satisfies ChooseSourceResult);
+        }
+        const issued = sourceTokens.issue(picked);
+        return ok({
+          canceled: false,
+          sourceToken: issued.token,
+          name: issued.name,
+          path: picked,
+          expiresAt: issued.expiresAt,
+        } satisfies ChooseSourceResult);
+      } catch (e) {
+        return fail("CHOOSE_SOURCE_FAILED", e);
+      }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // workspaces:forkCapability —— 隔离分叉的只读能力预检（确认区数据源）
+  // -------------------------------------------------------------------------
+
+  ipcMain.handle(
+    CHANNELS.forkCapability,
+    async (
+      _event,
+      request: unknown,
+    ): Promise<ReturnType<typeof ok<ForkCapabilityResult>> | ReturnType<typeof fail>> => {
+      const parsed = ForkCapabilityRequestSchema.safeParse(request);
+      if (!parsed.success) {
+        return fail("INVALID_ARGUMENT", parsed.error);
+      }
+      // 预检不请求模型，但 config_hash 依赖 settings.model/baseURL 的口径与正式提交一致
+      const loaded = settings.load();
+      if (loaded === null) {
+        return fail(
+          "SETTINGS_NOT_CONFIGURED",
+          new Error("尚未配置运行参数（baseURL / apiKey / model），请先完成运行配置"),
+        );
+      }
+      try {
+        const result = await runForkCapability(
+          { repository, settings: loaded, dataDir },
+          parsed.data,
+        );
+        return ok(result);
+      } catch (e) {
+        if (e instanceof ForkError) {
+          return fail(e.code, e);
+        }
+        return fail("FORK_CAPABILITY_FAILED", e);
       }
     },
   );
@@ -212,9 +316,39 @@ export function registerIpc(deps: IpcDeps): void {
         );
       }
 
-      // 3. 从头执行；CreateRunError 的 code 原样透传给渲染层做提示
+      // 3. 从头执行；CreateRunError 的 code 原样透传给渲染层做提示。
+      //    workspace 存在 = 隔离文件模式：先消费 sourceToken 换出真实路径（一次性，
+      //    失败也视为已消费——每次新操作都要重新选择与确认），再交 A 包编排
+      const workspaceSelection = parsed.data.workspace;
       try {
-        const result = await runCreate({ repository, settings: loaded, execCwd }, parsed.data);
+        const result =
+          workspaceSelection !== undefined
+            ? await ((): Promise<{ id: string }> => {
+                const consumed = sourceTokens.consume(workspaceSelection.sourceToken);
+                if (!consumed.ok) {
+                  throw new CreateRunError(
+                    "INVALID_SOURCE_TOKEN",
+                    consumed.reason === "expired"
+                      ? "所选目录的确认已过期（超过 15 分钟），请重新选择目录并确认副本写入"
+                      : "目录选择凭证无效（不存在、已被使用或来自其他会话），请重新选择目录",
+                  );
+                }
+                return runCreateIsolated(
+                  {
+                    repository,
+                    settings: loaded,
+                    execCwd,
+                    dataDir,
+                    sourcePath: consumed.path,
+                  },
+                  {
+                    systemPrompt: parsed.data.systemPrompt,
+                    userMessage: parsed.data.userMessage,
+                    workspace: workspaceSelection,
+                  },
+                );
+              })()
+            : await runCreate({ repository, settings: loaded, execCwd }, parsed.data);
         return ok({ id: result.id });
       } catch (e) {
         if (e instanceof CreateRunError) {
