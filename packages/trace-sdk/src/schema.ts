@@ -396,3 +396,14 @@ export type RunEventInput = Omit<RunEventLine, "type">;
  */
 export const TraceLineSchema = z.union([RunMetaSchema, SpanSchema, RunEventSchema]);
 export type TraceLine = z.infer<typeof TraceLineSchema>;
+
+/**
+ * 版本与隔离字段一致性检查的**再导出**（实现在 `version-guard.ts`，零 Node 依赖）。
+ *
+ * 为什么要放进本纯子路径：该检查必须在**未经 zod 转换的原始输入**上执行
+ * （zod object 默认剥离未知键，"v1 私带 workspace"会被静默丢弃），而 IPC 消费端
+ * （桌面 renderer/preload）只能依赖不含 Node 内建模块的 `./schema` 子路径——
+ * 主出口会连同 reader/tracer 把 `node:fs` 拉进浏览器 bundle。version-guard 自身的
+ * 文档已把"RunRecord/RunDetail IPC schema 的原始记录入口"列为第三处共用点。
+ */
+export { findVersionFieldViolation } from "./version-guard.js";

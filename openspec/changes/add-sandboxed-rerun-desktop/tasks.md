@@ -2,8 +2,8 @@
 
 ## 1. 桌面边界与 IPC
 
-- [ ] 1.1 接入 RunRecord/RunDetail 和祖先元数据的原始版本守卫、合法 v2 快照往返；使用 A 导出的纯 helper（0.5h，原 1.3-B）。验证：`详情 IPC 快照往返`、`详情 IPC 拒绝 v1 隔离字段`，包含 null/false/空对象/自有 undefined 与不相关扩展。
-- [ ] 1.2 核对 main 的普通 result、prompt fork、A/B 路由均经过 A 门禁，直接 IPC 漏隔离模式也拒绝（0.5h，原 4.5-B）。验证：`非法请求被拒绝`、`隔离父本的其他真执行入口`；含 dry-run、allowSideEffects。
+- [x] 1.1 接入 RunRecord/RunDetail 和祖先元数据的原始版本守卫、合法 v2 快照往返；使用 A 导出的纯 helper（0.5h，原 1.3-B）。验证：`详情 IPC 快照往返`、`详情 IPC 拒绝 v1 隔离字段`，包含 null/false/空对象/自有 undefined 与不相关扩展。证据：`apps/desktop/src/shared/detail-version-guard.ts`（renderer store 在 `RunDetailSchema.safeParse` 前调用；trace-sdk `./schema` 纯子路径再导出 `findVersionFieldViolation`，与主出口同一实现的同一性断言在测试内）；`apps/desktop/test/detail-version-guard.test.ts`（23 条：拒绝/不误伤/真实 v2 根与分支往返/空清单/缺附件/守卫有牙）+ `store.test.ts` 接线用例（禁用守卫即红，已做变异验证）。
+- [x] 1.2 核对 main 的普通 result、prompt fork、A/B 路由均经过 A 门禁，直接 IPC 漏隔离模式也拒绝（0.5h，原 4.5-B）。验证：`非法请求被拒绝`、`隔离父本的其他真执行入口`；含 dry-run、allowSideEffects。证据：`apps/desktop/test/isolated-parent-rejection.test.ts`（5 条，真跑 `createIsolatedRun` 造隔离父本：runFork / runPromptFork 拒绝且零落盘零调用；runModelAb dry-run 与 confirmCost+allowSideEffects 两种形态均 `PARENT_NOT_FORKABLE`）。
 - [ ] 1.3 增加原生目录选择、15 分钟 sourceToken 会话绑定及提交消费，注入便携 dataDir，执行前重新校验（1.5h，原 5.1）。验证：`浏览过程无写入`、`非法请求被拒绝`；取消零写入，无效/过期 token 不执行。
 - [ ] 1.4 扩展 create/fork 请求 schema、通道分流、preload/store 和错误信封，失败封存 run 归位并刷新列表（2h，原 5.2）。验证：`非法请求被拒绝`、`空 fork 被拒绝`、`settings 未配置时拒绝`、`执行失败不产生半成品`。
 - [ ] 1.5 派生执行能力与续跑来源，保留 ownerRunId/stepSpanId/localIteration；复用 A 的只读预检获取附件不可用原因，不依赖 C 通道（0.75h，原 5.4-B）。验证：`历史运行和缺附件降级`、`多工具轮次确认`、`二次分叉轮号不沿链累加`。

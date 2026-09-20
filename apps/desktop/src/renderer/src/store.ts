@@ -1,3 +1,4 @@
+import { findRunDetailVersionViolation } from "@shared/detail-version-guard";
 import type {
   FailedFile,
   ModelAbResult,
@@ -187,6 +188,16 @@ export const useAppStore = create<AppState>((set, get) => ({
     const envelope = await api.getRun(id);
     if (!envelope.ok) {
       set({ loadingDetail: false, error: `读取 run 失败：${envelope.error.message}` });
+      return;
+    }
+    // 版本守卫先于 schema 转换：zod 会剥离未知键，"v1 载荷私带隔离字段"必须在此拒绝，
+    // 而不是被剥掉后当成合法 v1 继续渲染（B 任务 1.1）
+    const versionViolation = findRunDetailVersionViolation(envelope.data);
+    if (versionViolation !== null) {
+      set({
+        loadingDetail: false,
+        error: `轨迹数据版本校验失败（拒绝加载）：${versionViolation}`,
+      });
       return;
     }
     const parsed = RunDetailSchema.safeParse(envelope.data);

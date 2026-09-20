@@ -54,6 +54,8 @@ interface Controller {
   }>;
   createRunEnvelope: Envelope<{ id: string }> | undefined;
   createRunRequests: Array<{ systemPrompt: string; userMessage: string }>;
+  /** 覆盖 getRun 的返回详情（默认 rootDetail）；供版本守卫接线用例注入被篡改载荷 */
+  getRunDetail: RunDetail | undefined;
   listCalls: number;
 }
 
@@ -65,7 +67,7 @@ function makeFakeApi(c: Controller): WindowApi {
       const runs = c.listCalls > 1 ? [forkedSummary, rootSummary] : [rootSummary];
       return ok({ runs, failed: [] });
     },
-    getRun: async (): Promise<Envelope<RunDetail>> => ok(rootDetail),
+    getRun: async (): Promise<Envelope<RunDetail>> => ok(c.getRunDetail ?? rootDetail),
     forkRun: async (request) => {
       c.forkRequests.push({
         parentRunId: request.parentRunId,
@@ -142,6 +144,7 @@ beforeEach(() => {
   controller.promptForkRequests = [];
   controller.createRunEnvelope = undefined;
   controller.createRunRequests = [];
+  controller.getRunDetail = undefined;
   controller.listCalls = 0;
   resetStore();
 });
@@ -344,5 +347,32 @@ describe("store：runs:create 流转（A1）", () => {
     // 关键：失败也要重拉列表，否则用户看不到那条已按 meta.id 落盘的 error run
     expect(controller.listCalls).toBeGreaterThan(before);
     expect(state.selectedRunId).toBeNull();
+  });
+});
+
+describe("store：详情 IPC 的版本守卫接线（B 1.1）", () => {
+  it("v1 载荷私带隔离字段 → selectRun 拒绝加载并给出可读错误，detail 不进状态", async () => {
+    await useAppStore.getState().loadRuns();
+    // 单点破坏：真实 v1 fixture 的 meta 上注入 workspace（自有属性存在）
+    controller.getRunDetail = {
+      ...rootDetail,
+      meta: { ...rootDetail.meta, workspace: { world_id: "run_伪造" } },
+    };
+
+    await useAppStore.getState().selectRun("r_01");
+
+    const state = useAppStore.getState();
+    expect(state.detail).toBeNull();
+    expect(state.loadingDetail).toBe(false);
+    expect(state.error).toContain("轨迹数据版本校验失败");
+    expect(state.error).toContain("workspace");
+  });
+
+  it("正常载荷不受影响（守卫放行，schema 校验后进状态）", async () => {
+    await useAppStore.getState().loadRuns();
+    await useAppStore.getState().selectRun("r_01");
+    const state = useAppStore.getState();
+    expect(state.error).toBeNull();
+    expect(state.detail?.meta.id).toBe(record.meta.id);
   });
 });
