@@ -134,6 +134,13 @@ async function bootstrap(): Promise<void> {
   const settings = new SettingsStore({ dataDir, cipher });
   const repository = new RunRepository(tracesDir);
   const proxy = new ProxyManager({ repository, settings, tracesDir });
+  /**
+   * 冒烟钩子（B 3.2）：显式给出源目录时跳过原生目录选择框。原生对话框无法被
+   * CDP/E2E 驱动，而"目录选择 → 隔离创建"又是必须真跑的链路，故留一个环境变量入口。
+   * 未设置时 `pickDirectory` 为 undefined ⇒ handler 用 Electron dialog，行为与以前完全一致。
+   * ⚠️ 生产调用方不得设置该变量：它不是授权开关（副本写入仍需每次显式 allowFileWrites）。
+   */
+  const smokePickDir = process.env.REBASEAGENT_SMOKE_PICK_DIR;
   registerIpc({
     repository,
     settings,
@@ -142,6 +149,9 @@ async function bootstrap(): Promise<void> {
     // 隔离创建/续跑的 trace 与附件锚点（B 1.3/1.4）
     dataDir,
     proxy,
+    ...(smokePickDir === undefined || smokePickDir === ""
+      ? {}
+      : { pickDirectory: async (): Promise<string | null> => smokePickDir }),
   });
   // 代理按 settings 自恢复（端口占用等失败不阻断应用启动，状态可见）
   void proxy.autoStart();
