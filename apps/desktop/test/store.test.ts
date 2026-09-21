@@ -78,6 +78,12 @@ interface Controller {
   /** 记录 getRun 的调用顺序（同 run 重试用例断言真的重新读了） */
   getRunCalls: string[];
   listCalls: number;
+  /** 覆盖 listRuns 的返回（默认第一条只有 root，第二次起出现分支 run） */
+  listEnvelope: Envelope<ListRunsData> | undefined;
+  /** 列表返回按调用序逐个取用（末项重复），用于"失败后重试成功"的序列注入 */
+  listEnvelopesByCall: Envelope<ListRunsData>[] | undefined;
+  /** 挂起列表返回，直到用例手动 resolve（制造"请求在途"窗口） */
+  listGate: { promise: Promise<void>; release: () => void } | undefined;
 }
 
 /** 合法预检结论（main 侧 `ForkCapabilityResultSchema` 的形状） */
@@ -96,9 +102,19 @@ const CAPABILITY: ForkCapabilityResult = {
 function makeFakeApi(c: Controller): WindowApi {
   return {
     listRuns: async (): Promise<Envelope<ListRunsData>> => {
+      const callIndex = c.listCalls;
       c.listCalls += 1;
+      // 在途窗口（任务 3.4）：用例可挂起列表返回，模拟"请求还没回来时又有人要刷新"
+      if (c.listGate !== undefined) await c.listGate.promise;
+      if (c.listEnvelopesByCall !== undefined) {
+        return (
+          c.listEnvelopesByCall[Math.min(callIndex, c.listEnvelopesByCall.length - 1)] ??
+          ok({ runs: [], failed: [] })
+        );
+      }
+      if (c.listEnvelope !== undefined) return c.listEnvelope;
       // 第二次列表刷新后出现新的分支 run（排在前面）
-      const runs = c.listCalls > 1 ? [forkedSummary, rootSummary] : [rootSummary];
+      const runs = callIndex > 0 ? [forkedSummary, rootSummary] : [rootSummary];
       return ok({ runs, failed: [] });
     },
     getRun: async (id: string): Promise<Envelope<RunDetail>> => {
@@ -166,6 +182,9 @@ const controller: Controller = {
   forkCapabilityRequests: [],
   getRunCalls: [],
   listCalls: 0,
+  listEnvelope: undefined,
+  listEnvelopesByCall: undefined,
+  listGate: undefined,
 };
 (globalThis as Record<string, unknown>).window = { api: makeFakeApi(controller) };
 
@@ -184,6 +203,10 @@ function resetStore(): void {
     readingByRun: {},
     loadingList: false,
     loadingDetail: false,
+    listLoaded: false,
+    listStale: false,
+    listRefreshInFlight: 0,
+    listRefreshPending: 0,
     error: null,
     forking: "idle",
     forkError: null,
@@ -213,6 +236,9 @@ beforeEach(() => {
   controller.getRunDetailById = undefined;
   controller.getRunCalls = [];
   controller.listCalls = 0;
+  controller.listEnvelope = undefined;
+  controller.listEnvelopesByCall = undefined;
+  controller.listGate = undefined;
   resetStore();
 });
 
@@ -681,5 +707,170 @@ describe("store：阅读状态按运行恢复（任务 3.1）", () => {
     ]) {
       expect(Object.keys(reading)).not.toContain(forbidden);
     }
+  });
+});
+
+/** 把列表返回挂起，制造"请求在途"窗口（任务 3.4 的受控窗口） */
+function gateList(): () => void {
+  let release: () => void = () => {};
+  const promise = new Promise<void>((resolvePromise) => {
+    release = resolvePromise;
+  });
+  controller.listGate = { promise, release };
+  return () => {
+    controller.listGate = undefined;
+    release();
+  };
+}
+
+describe("store：列表刷新合并（任务 3.4）", () => {
+  it("刷新合并且保留阅读：请求在途时执行收尾触发的刷新被合并，并尾随补发一次", async () => {
+    await useAppStore.getState().loadRuns();
+    expect(controller.listCalls).toBe(1);
+    // 在 A 上留下阅读位置与选中，验证刷新不打扰它们
+    await useAppStore.getState().selectRun("r_01");
+    const stepId =
+      useAppStore.getState().detail?.spans.find((s) => s.kind === "agent.step")?.id ?? "";
+    useAppStore.getState().setReadingTab("r_01", "steps");
+    useAppStore.getState().toggleStep(stepId);
+    useAppStore.getState().selectSpan(stepId);
+
+    // 挂起列表返回：模拟"用户在刷新还没回来时，执行收尾又要求刷新"
+    const release = gateList();
+    const inFlight = useAppStore.getState().loadRuns();
+    // 在途期间的两次"重复刷新"（如执行收尾 + 手动重试）→ 只登记一次尾随，不发新请求
+    await useAppStore.getState().loadRuns();
+    await useAppStore.getState().loadRuns();
+    expect(controller.listCalls).toBe(2); // 挂起的这一次 + 首次挂载的那一次，没有并发发射
+    expect(useAppStore.getState().listRefreshPending).toBe(1);
+    release();
+    await inFlight;
+
+    // 尾随补发恰好一次 ⇒ 新记录最终可见
+    expect(controller.listCalls).toBe(3);
+    expect(useAppStore.getState().runs.map((r) => r.id)).toEqual(["run_forked", "r_01"]);
+    // 刷新不自动选择新记录，阅读位置与展开集合完整保留
+    const state = useAppStore.getState();
+    expect(state.selectedRunId).toBe("r_01");
+    expect(state.readingOf("r_01").tab).toBe("steps");
+    expect(state.readingOf("r_01").spanId).toBe(stepId);
+    expect(state.expandedSteps[stepId]).toBe(false);
+    expect(state.detail?.meta.id).toBe("r_01");
+    // 合并登记已消费干净
+    expect(state.listRefreshInFlight).toBe(0);
+    expect(state.listRefreshPending).toBe(0);
+  });
+
+  it("单纯刷新不自动选择新记录（首次进入列表后 selectedRunId 仍为空）", async () => {
+    await useAppStore.getState().loadRuns();
+    await useAppStore.getState().loadRuns();
+    const state = useAppStore.getState();
+    expect(state.runs).toHaveLength(2); // 新记录确实在列表里
+    expect(state.selectedRunId).toBeNull();
+    expect(state.detail).toBeNull();
+  });
+
+  it("尾随补发自身也在途：补发期间的新刷新被继续合并，不并发发射", async () => {
+    // 判据：补发必须与普通刷新走同一套在途登记（而非旁路直发）。
+    // 若补发走旁路，则补发进行中再来的刷新会被误判为"无人在途"而并发发射。
+    await useAppStore.getState().loadRuns();
+    const releaseFirst = gateList();
+    const inFlight = useAppStore.getState().loadRuns();
+    await useAppStore.getState().loadRuns(); // 登记尾随
+    expect(useAppStore.getState().listRefreshPending).toBe(1);
+
+    // 收紧：放开第一次后立刻挂上新 gate，让"补发"这一轮也停在在途状态。
+    // 注意 releaseFirst() 会清掉 listGate，故新 gate 必须在它之后同步挂上。
+    releaseFirst();
+    const releaseSecond = gateList();
+    // 等补发真正发起（微任务推进）
+    for (let i = 0; i < 5; i += 1) await Promise.resolve();
+    const duringRefire = controller.listCalls;
+    expect(duringRefire).toBe(3); // 补发已发出且仍在途
+
+    // 补发在途期间的刷新：必须被合并（不发新请求）
+    await useAppStore.getState().loadRuns();
+    expect(controller.listCalls).toBe(duringRefire);
+    expect(useAppStore.getState().listRefreshPending).toBe(1);
+
+    releaseSecond();
+    await inFlight;
+    expect(useAppStore.getState().listRefreshInFlight).toBe(0);
+    expect(useAppStore.getState().listRefreshPending).toBe(0);
+  });
+
+  it("切换不重载：setView 与 selectRun 都不触发列表请求", async () => {
+    await useAppStore.getState().loadRuns();
+    const before = controller.listCalls;
+
+    useAppStore.getState().setView("tree");
+    await useAppStore.getState().selectRun("r_01");
+    useAppStore.getState().setView("trace");
+    await useAppStore.getState().selectRun("r_02");
+
+    expect(controller.listCalls).toBe(before);
+  });
+
+  it("列表刷新失败可重试：保留旧记录、给出可读错误与未更新标记，重试后恢复", async () => {
+    await useAppStore.getState().loadRuns();
+    expect(useAppStore.getState().runs).toHaveLength(1);
+    await useAppStore.getState().selectRun("r_01");
+    const stepId =
+      useAppStore.getState().detail?.spans.find((s) => s.kind === "agent.step")?.id ?? "";
+    useAppStore.getState().selectSpan(stepId);
+
+    // 第 1 次成功、第 2 次失败、第 3 次成功
+    controller.listEnvelopesByCall = [
+      ok({ runs: [rootSummary], failed: [] }),
+      { ok: false, error: { code: "LIST_FAILED", message: "traces 目录暂时不可读" } },
+      ok({ runs: [forkedSummary, rootSummary], failed: [] }),
+    ];
+
+    await useAppStore.getState().loadRuns(); // 失败的一次
+
+    const afterFailure = useAppStore.getState();
+    // 保留旧记录（不清空）并标记未更新
+    expect(afterFailure.runs.map((r) => r.id)).toEqual(["r_01"]);
+    expect(afterFailure.listStale).toBe(true);
+    expect(afterFailure.loadingList).toBe(false);
+    expect(afterFailure.error).toContain("仍显示上次结果");
+    // 不生成假记录、不清空已成功加载的阅读位置
+    expect(afterFailure.readingOf("r_01").spanId).toBe(stepId);
+    expect(afterFailure.selectedRunId).toBe("r_01");
+    expect(afterFailure.detail?.meta.id).toBe("r_01");
+
+    // 重试成功：旧记录被替换为新结果，未更新标记清除
+    await useAppStore.getState().loadRuns();
+    const afterRetry = useAppStore.getState();
+    expect(afterRetry.runs.map((r) => r.id)).toEqual(["run_forked", "r_01"]);
+    expect(afterRetry.listStale).toBe(false);
+    expect(afterRetry.error).toBeNull();
+    expect(afterRetry.readingOf("r_01").spanId).toBe(stepId);
+  });
+
+  it("首次列表读取失败：给可重试错误，不标未更新、不生成假记录", async () => {
+    controller.listEnvelope = {
+      ok: false,
+      error: { code: "LIST_FAILED", message: "数据目录不存在" },
+    };
+    await useAppStore.getState().loadRuns();
+
+    const state = useAppStore.getState();
+    expect(state.runs).toEqual([]);
+    expect(state.listLoaded).toBe(false);
+    expect(state.listStale).toBe(false); // 从来没有可过期的数据
+    expect(state.loadingList).toBe(false);
+    expect(state.error).toContain("读取 run 列表失败");
+  });
+
+  it("列表结构非法同样不倒退：保留旧记录并标未更新", async () => {
+    await useAppStore.getState().loadRuns();
+    controller.listEnvelope = ok({ runs: "not-an-array" } as never);
+    await useAppStore.getState().loadRuns();
+
+    const state = useAppStore.getState();
+    expect(state.runs.map((r) => r.id)).toEqual(["r_01"]);
+    expect(state.listStale).toBe(true);
+    expect(state.error).toContain("仍显示上次结果");
   });
 });

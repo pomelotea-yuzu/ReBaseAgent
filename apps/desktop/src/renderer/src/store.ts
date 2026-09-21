@@ -34,6 +34,7 @@ import {
   WorkspaceInspectResultSchema,
   WorkspaceReadFileResultSchema,
 } from "@shared/ipc";
+import { decideRefresh, resolveRefreshFailure, settleRefresh } from "@shared/list-refresh";
 import { create } from "zustand";
 import { api } from "./lib/api";
 import {
@@ -72,6 +73,10 @@ interface AppState {
   readingByRun: ReadingStateByRun;
   loadingList: boolean;
   loadingDetail: boolean;
+  /** 列表曾成功加载过（用于区分「刷新失败」与「首次读取失败」的提示口径） */
+  listLoaded: boolean;
+  /** 列表刷新失败但旧记录仍在：界面据此提示「未更新」，不清空列表 */
+  listStale: boolean;
   error: string | null;
 
   /** 分叉重跑进行中状态（runs:fork 的唯一写通道） */
@@ -107,6 +112,15 @@ interface AppState {
   compareNotice: string | null;
 
   loadRuns: () => Promise<void>;
+
+  /**
+   * 在途刷新计数与尾随登记（任务 3.4）。
+   * 不是 UI 状态，故不参与渲染；放 store 内便于测试直接断言"读列表次数"。
+   */
+  listRefreshInFlight: number;
+  listRefreshPending: number;
+  /** 单次列表读取（合并调度内部使用；失败保留旧记录） */
+  refreshRunsOnce: () => Promise<void>;
   selectRun: (id: string) => Promise<void>;
   selectSpan: (id: string) => void;
   toggleStep: (id: string) => void;
@@ -235,7 +249,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   readingByRun: {},
   loadingList: false,
   loadingDetail: false,
+  listLoaded: false,
+  listStale: false,
   error: null,
+  listRefreshInFlight: 0,
+  listRefreshPending: 0,
 
   forking: "idle",
   forkError: null,
@@ -254,18 +272,73 @@ export const useAppStore = create<AppState>((set, get) => ({
   compareNotice: null,
 
   async loadRuns() {
+    // 在途合并（任务 3.4）：重复刷新不并发发射。频繁触发（挂载 + 执行收尾 + 手动重试）
+    // 只登记一次尾随，当前请求结束后补发一次——既不丢新记录，也不形成请求雪崩。
+    const decision = decideRefresh(get().listRefreshInFlight, get().listRefreshPending);
+    if (decision.action === "deferred") {
+      set({
+        listRefreshInFlight: decision.inFlight,
+        listRefreshPending: decision.pending,
+        // 刷新意图已受理：让界面保持"正在刷新"的观感，而不是闪回静止
+        loadingList: get().listLoaded,
+      });
+      return;
+    }
+    set({ listRefreshInFlight: decision.inFlight, listRefreshPending: decision.pending });
+
+    try {
+      await get().refreshRunsOnce();
+    } finally {
+      const settled = settleRefresh(get().listRefreshInFlight, get().listRefreshPending);
+      set({ listRefreshInFlight: settled.inFlight, listRefreshPending: settled.pending });
+      // 尾随补发：执行收尾在请求在途时产生的新记录，必须能在这一轮之后可见。
+      // 走 loadRuns 自身（而非旁路 refreshRunsOnce）——由它按 decideRefresh 重新登记
+      // 在途数，否则补发的这次请求无人递减计数，计数器永久残留。
+      if (settled.shouldRefire) await get().loadRuns();
+    }
+  },
+
+  /**
+   * 单次列表读取（不含合并调度）。
+   * 失败时**保留旧记录**：刷新失败只标记「未更新」，不清空已成功加载的列表与阅读位置。
+   */
+  async refreshRunsOnce() {
+    const hadLoadedBefore = get().listLoaded;
     set({ loadingList: true, error: null });
     const envelope = await api.listRuns();
     if (!envelope.ok) {
-      set({ loadingList: false, error: `读取 run 列表失败：${envelope.error.message}` });
+      const failure = resolveRefreshFailure(hadLoadedBefore);
+      set({
+        loadingList: false,
+        // 失败不倒退：runs/failed 原样保留；仅标记未更新（首次失败不标）
+        listStale: failure.stale,
+        error: hadLoadedBefore
+          ? `刷新 run 列表失败（仍显示上次结果）：${envelope.error.message}`
+          : `读取 run 列表失败：${envelope.error.message}`,
+      });
       return;
     }
     const parsed = ListRunsDataSchema.safeParse(envelope.data);
     if (!parsed.success) {
-      set({ loadingList: false, error: `列表数据结构校验失败：${describeZodError(parsed.error)}` });
+      const failure = resolveRefreshFailure(hadLoadedBefore);
+      set({
+        loadingList: false,
+        listStale: failure.stale,
+        error: hadLoadedBefore
+          ? `刷新 run 列表失败（仍显示上次结果）：列表数据结构校验失败：${describeZodError(parsed.error)}`
+          : `列表数据结构校验失败：${describeZodError(parsed.error)}`,
+      });
       return;
     }
-    set({ runs: parsed.data.runs, failed: parsed.data.failed, loadingList: false });
+    // 成功落地：列表数据替换，但**不动** selectedRunId / detail / readingByRun
+    // ——单纯刷新不自动选择新记录，也不清空已成功加载的阅读位置。
+    set({
+      runs: parsed.data.runs,
+      failed: parsed.data.failed,
+      loadingList: false,
+      listLoaded: true,
+      listStale: false,
+    });
   },
 
   async selectRun(id) {
