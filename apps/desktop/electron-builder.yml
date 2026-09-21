@@ -12,7 +12,7 @@ productName: ReBaseAgent
 copyright: Copyright © 2026 ReBaseAgent（MIT 许可）
 
 directories:
-  output: ../../release
+  output: ../../release/stable
   buildResources: build
 
 # main / preload / renderer 三段产物 + 应用清单；
