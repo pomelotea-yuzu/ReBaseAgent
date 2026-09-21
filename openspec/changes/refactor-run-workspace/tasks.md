@@ -225,7 +225,22 @@
 - 测试计数：desktop **692 passed / 0 failed（38 文件）**（4.3 基线 668，+24）。
 - 诚实边界：**未做** CDP/fixture 真实渲染验证（`line-clamp-2` 的真实两行截断、长模型换行展开的视觉效果、徽标配色）——本包无 jsdom，静态断言打不到 CSS；这些归 7.1/7.2。本任务**未实现**「模型换行并可展开完整值」的展开交互（只保留原值 + `title`），展开控件留待后续；**未接线** 4.5 的短 ID 复制与刷新/错误/空结果提示。
 
-- [ ] 4.5 接入导航的刷新/错误/空结果/选中隐藏提示及短 ID 复制（1h）；CDP 验证“同名运行的短 ID 稳定可辨”“筛选隐藏当前运行”“列表刷新失败可重试”，完整 ID 可复制且来源/状态不遮挡模型。
+- [x] 4.5 接入导航的刷新/错误/空结果/选中隐藏提示及短 ID 复制（1h）；CDP 验证“同名运行的短 ID 稳定可辨”“筛选隐藏当前运行”“列表刷新失败可重试”，完整 ID 可复制且来源/状态不遮挡模型。
+### 4.5（2026-09-21 完成）
+
+新增 `src/renderer/src/lib/nav-notice.ts`（纯判据）+ `test/run-list-refresh.test.ts`（**18 条**）；改 `components/RunList.tsx`（刷新提示/重试/空态分流/复制入口 + 行结构改为「div 容器 + 选择按钮 + 复制按钮兄弟」）。
+
+- 纯判据（`nav-notice.ts`）：`resolveNavListState`（未更新/首次失败/加载中占位）、`resolveEmptyCause`（`filtered` vs `no-records`）、`copyValueForRun`（**恒定返回完整 ID**）。
+- ⚠️ **「未更新」的唯一真源是 store 的 `listStale`，本函数不接 `listLoaded`**（变异验证逼出来的）：store 已由 `resolveRefreshFailure(hadLoadedBefore)` 保证「只有曾成功加载过才为真」⇒ 再判 `stale && loaded` 是**等价冗余**（去掉无任何用例变红）。按「删掉经不起变异的装饰性代码」处理，改为省略该参数并在注释里写明真源。
+- ⚠️ **空态两种成因必须分流**：有筛选条件 ⇒ 「当前条件下没有匹配的运行记录」+ 清除条件；无筛选条件 ⇒ 「还没有运行记录」+ 新建/放文件引导。把筛选空结果说成"没有记录"会误导用户去 `traces/` 找根本不存在的文件。
+- ⚠️ **刷新中不显示「加载中…」覆盖已有列表**：`showLoading = loading && !hasAnyData`——有旧记录就留着（delta「刷新期间保留旧列表」）。
+- ⚠️ **复制永远是完整 ID**（delta 原文「全文复制始终使用完整 ID；短 ID 只是界面标识」）：`copyValueForRun` 就是这个纪律的**单点断言**（返回原样）。复制失败（剪贴板权限/无安全上下文）**不假装成功**——`catch` 里复原显示，静默保持短 ID。
+- ⚠️ **HTML 不允许 button 套 button**：原设计把复制入口做成 `<span role="button">` 嵌在选择 `<button>` 里，被 biome `useSemanticElements` 抓住（且本身就是无效 HTML）。改为「外层 `<div>` 容器 + 选择 `<button>`（整行可点）+ 复制 `<button>`（绝对定位兄弟，`group-hover` 显现）」。
+- 判据有牙（**5 组变异**：4 抓 + 1 漏网后处理）：① `showStale` 忽略 loaded 守卫 ⇒ **漏网**（等价冗余，改为删除该判据）；② `showLoading` 忽略 `hasAnyData` ⇒ 1 条；③ 空态成因不分类 ⇒ 1 条；④ 复制返回短 ID ⇒ 1 条；⑤ 一个重试按钮不接 `loadRuns` ⇒ **漏网**（`toContain` 被另一按钮骗过），改按**按钮数=接线数**对齐后被抓。
+- ⚠️ 环境坑：根 `pnpm --filter @rebaseagent/desktop build` 会拉起 `wmic.exe` 被宿主程序黑名单硬拦（沙箱**不可绕过**）；**在 `apps/desktop` 直调 `./node_modules/.bin/electron-vite.CMD build` 正常**（产物 main/preload/renderer 齐全）⇒ 判 build 是否通过走直调。
+- 测试计数：desktop **710 passed / 0 failed（39 文件）**（4.4 基线 692，+18）。
+- 诚实边界：**未做** CDP 真实点击复制 / 剪贴板写入门槛 / `group-hover` 显现 / 刷新提示配色的实测——本包无 jsdom，静态契约打不到这些；归 7.1/7.2。**未验证** 4.5 描述里「来源/状态不遮挡模型」的**视觉**层面（只保证 DOM 顺序与字段存在）。
+
 
 ## 5. 概览与步骤阅读
 

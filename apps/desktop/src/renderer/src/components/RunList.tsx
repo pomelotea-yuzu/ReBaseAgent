@@ -1,6 +1,8 @@
 import { deriveNavLabel, filterRuns } from "@shared/nav";
+import { useEffect, useRef, useState } from "react";
 import { formatDuration, formatTime, formatTokens } from "../lib/format";
 import { NAV_MAX, NAV_MIN } from "../lib/layout";
+import { copyValueForRun, resolveEmptyCause, resolveNavListState } from "../lib/nav-notice";
 import { useAppStore } from "../store";
 import { ResizeGrip } from "./ResizeGrip";
 import { RunStatusBadge } from "./RunStatusBadge";
@@ -48,6 +50,45 @@ export function RunList({
   const clearFilters = () => {
     setSearchQuery("");
     setSourceFilter("all");
+  };
+
+  // 刷新 / 失败 / 空结果（任务 4.5）：刷新失败保留旧列表并提示「未更新」+ 可重试；
+  // 「筛选后为空」与「真的没有记录」成因分开，不把前者说成后者（否则误导用户去 traces/ 找文件）
+  const listStale = useAppStore((s) => s.listStale);
+  const error = useAppStore((s) => s.error);
+  const reload = useAppStore((s) => s.loadRuns);
+  const navState = resolveNavListState({
+    loading: loadingList,
+    stale: listStale,
+    error,
+    hasAnyData: runs.length + failed.length > 0,
+  });
+  const emptyCause = resolveEmptyCause({
+    hasActiveFilters: visibility.hasActiveFilters,
+    hasAnyData: filtered.length + failed.length > 0,
+  });
+
+  // 短 ID 复制反馈（任务 4.5）：复制的是**完整 ID**（copyValueForRun），短 ID 只是显示。
+  // 「已复制」短暂显示后复原；组件卸载时清掉定时器，避免在已卸载组件上 setState。
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (copiedTimer.current !== null) clearTimeout(copiedTimer.current);
+    },
+    [],
+  );
+  const copyRunId = async (runId: string): Promise<void> => {
+    const value = copyValueForRun(runId);
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedId(runId);
+      if (copiedTimer.current !== null) clearTimeout(copiedTimer.current);
+      copiedTimer.current = setTimeout(() => setCopiedId(null), 1200);
+    } catch {
+      // 剪贴板不可用（权限/无安全上下文）时不假装成功——静默保持短 ID 显示
+      setCopiedId(null);
+    }
   };
 
   return (
@@ -127,14 +168,42 @@ export function RunList({
         </div>
       ) : null}
 
+      {/* 刷新失败（任务 4.5）：曾成功加载 ⇒ 提示「未更新」不盖掉旧记录；首次失败给可重试错误。
+          刷新进行中保留旧列表，不显示"加载中…"覆盖已有内容。 */}
+      {navState.failure !== null && navState.showStale ? (
+        <div className="border-b border-amber-200 bg-amber-50 px-3 py-1.5 text-[11px] leading-4 text-amber-800">
+          列表未更新，仍显示上次结果。
+          <button
+            type="button"
+            onClick={() => void reload()}
+            className="ml-1 underline hover:text-amber-900"
+          >
+            重试
+          </button>
+        </div>
+      ) : null}
+
+      {navState.failure !== null && !navState.showStale ? (
+        <div className="border-b border-red-200 bg-red-50 px-3 py-1.5 text-[11px] leading-4 text-red-700">
+          <span className="break-all">{navState.failure}</span>
+          <button
+            type="button"
+            onClick={() => void reload()}
+            className="ml-1 shrink-0 underline hover:text-red-800"
+          >
+            重试
+          </button>
+        </div>
+      ) : null}
+
       <div className="flex-1 overflow-y-auto">
-        {loadingList && runs.length === 0 ? (
+        {navState.showLoading ? (
           <div className="px-3 py-6 text-xs text-gray-500">加载中…</div>
         ) : null}
 
-        {!loadingList && filtered.length === 0 && failed.length === 0 ? (
+        {emptyCause !== null ? (
           <div className="px-3 py-6 text-xs leading-5 text-gray-500">
-            {visibility.hasActiveFilters ? (
+            {emptyCause === "filtered" ? (
               <>
                 当前条件下没有匹配的运行记录。
                 <button
@@ -162,72 +231,91 @@ export function RunList({
             source: run.source === "proxy" ? "代理录制" : "本地记录",
           });
           return (
-            <button
-              type="button"
+            <div
               key={run.id}
-              onClick={() => {
-                void selectRun(run.id);
-              }}
-              className={`block w-full border-b border-gray-100 px-3 py-2 text-left hover:bg-gray-50 ${
+              className={`group relative border-b border-gray-100 hover:bg-gray-50 ${
                 selectedRunId === run.id ? "bg-blue-50 hover:bg-blue-50" : ""
               }`}
             >
-              {/* 第一行：状态 + 来源 + 任务（紧凑条目优先 task/model/status/短ID/时间/来源） */}
-              <div className="flex items-start gap-2">
-                <span className="mt-0.5 flex shrink-0 items-center gap-1">
-                  <RunStatusBadge status={run.status} reason={run.reason} />
-                  {run.source === "proxy" ? (
-                    <span
-                      className="shrink-0 rounded bg-sky-100 px-1.5 py-0.5 text-reading-meta leading-4 text-sky-800"
-                      title="经本地录制代理录制（可在其 llm.call 详情编辑 messages 重发）"
-                    >
-                      代理录制
-                    </span>
-                  ) : null}
-                </span>
-                {/* 任务最多两行；超长由 CSS 截断，完整值在 title 里（不改原值） */}
-                <span
-                  className={`line-clamp-2 min-w-0 flex-1 text-reading-meta font-medium ${
-                    label.isFallback ? "text-gray-500" : "text-gray-800"
-                  }`}
-                  title={run.task}
-                >
-                  {label.title}
-                </span>
-              </div>
-
-              {/* 第二行：短 ID（复制用完整值）+ 分支 + 模型（缺失显「未记录」，不借当前配置） */}
-              <div className="mt-1 flex items-center gap-2 text-reading-meta text-gray-500">
-                <span className="font-code" title={`完整 ID：${run.id}（点击复制入口见任务 4.5）`}>
-                  {shortIds.get(run.id) ?? run.id}
-                </span>
-                {run.parent !== null ? <span className="text-violet-600">分支</span> : null}
-                <span className="truncate" title={label.model}>
-                  {label.model}
-                </span>
-              </div>
-
-              {/* 第三行：既有指标一个不删（steps/tools/errors/token/duration/cache） */}
-              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-reading-meta text-gray-500">
-                <span>{formatTime(run.created_at)}</span>
-                <span>{run.steps} 步</span>
-                <span>{run.toolCalls} 工具</span>
-                {run.toolErrors > 0 ? (
-                  <span className="text-red-600">{run.toolErrors} 出错</span>
-                ) : null}
-                <span>{formatTokens(run.tokensIn + run.tokensOut)} tokens</span>
-                {/* run 级累计缓存命中：null = 无数据（未知，不显示）；0 = 实测零命中（照常显示） */}
-                {run.cacheHit === null ? null : (
-                  <span
-                    className={run.cacheHit > 0 ? "text-emerald-600" : "text-amber-600"}
-                    title="本 run 自有 llm.call 的已记录命中量（不含祖先共享前缀，非全运行命中率）"
-                  >
-                    命中 {formatTokens(run.cacheHit)}
+              {/* 选择区：整行可点。复制入口是**兄弟节点**（不嵌在按钮内）——
+                  HTML 不允许 button 套 button，2.4 的短 ID 又要能单独点。 */}
+              <button
+                type="button"
+                onClick={() => {
+                  void selectRun(run.id);
+                }}
+                className="block w-full px-3 py-2 text-left"
+              >
+                {/* 第一行：状态 + 来源 + 任务（紧凑条目优先 task/model/status/短ID/时间/来源） */}
+                <div className="flex items-start gap-2">
+                  <span className="mt-0.5 flex shrink-0 items-center gap-1">
+                    <RunStatusBadge status={run.status} reason={run.reason} />
+                    {run.source === "proxy" ? (
+                      <span
+                        className="shrink-0 rounded bg-sky-100 px-1.5 py-0.5 text-reading-meta leading-4 text-sky-800"
+                        title="经本地录制代理录制（可在其 llm.call 详情编辑 messages 重发）"
+                      >
+                        代理录制
+                      </span>
+                    ) : null}
                   </span>
-                )}
-                <span>{formatDuration(run.durationMs)}</span>
-              </div>
-            </button>
+                  {/* 任务最多两行；超长由 CSS 截断，完整值在 title 里（不改原值） */}
+                  <span
+                    className={`line-clamp-2 min-w-0 flex-1 text-reading-meta font-medium ${
+                      label.isFallback ? "text-gray-500" : "text-gray-800"
+                    }`}
+                    title={run.task}
+                  >
+                    {label.title}
+                  </span>
+                </div>
+
+                {/* 第二行：短 ID + 分支 + 模型（缺失显「未记录」，不借当前配置） */}
+                <div className="mt-1 flex items-center gap-2 text-reading-meta text-gray-500">
+                  {/* 短 ID 是界面标识；复制入口在**行右侧**（绝对定位的兄弟按钮，见下） */}
+                  <span className="font-code" title={`完整 ID：${run.id}`}>
+                    {shortIds.get(run.id) ?? run.id}
+                  </span>
+                  {run.parent !== null ? <span className="text-violet-600">分支</span> : null}
+                  <span className="truncate" title={label.model}>
+                    {label.model}
+                  </span>
+                </div>
+
+                {/* 第三行：既有指标一个不删（steps/tools/errors/token/duration/cache） */}
+                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-reading-meta text-gray-500">
+                  <span>{formatTime(run.created_at)}</span>
+                  <span>{run.steps} 步</span>
+                  <span>{run.toolCalls} 工具</span>
+                  {run.toolErrors > 0 ? (
+                    <span className="text-red-600">{run.toolErrors} 出错</span>
+                  ) : null}
+                  <span>{formatTokens(run.tokensIn + run.tokensOut)} tokens</span>
+                  {/* run 级累计缓存命中：null = 无数据（未知，不显示）；0 = 实测零命中（照常显示） */}
+                  {run.cacheHit === null ? null : (
+                    <span
+                      className={run.cacheHit > 0 ? "text-emerald-600" : "text-amber-600"}
+                      title="本 run 自有 llm.call 的已记录命中量（不含祖先共享前缀，非全运行命中率）"
+                    >
+                      命中 {formatTokens(run.cacheHit)}
+                    </span>
+                  )}
+                  <span>{formatDuration(run.durationMs)}</span>
+                </div>
+              </button>
+
+              {/* 复制完整 ID（任务 4.5）：短 ID 是界面标识，复制**永远给完整值**
+                  （`copyValueForRun` 单点钉住）。放在选择按钮之外——HTML 不允许 button 套 button。 */}
+              <button
+                type="button"
+                onClick={() => void copyRunId(run.id)}
+                aria-label={`复制完整运行 ID ${run.id}`}
+                title={`点击复制完整 ID：${run.id}`}
+                className="absolute top-1/2 right-2 -translate-y-1/2 rounded px-1.5 py-0.5 text-reading-meta text-gray-400 opacity-0 hover:bg-gray-200 hover:text-gray-700 focus-visible:opacity-100 group-hover:opacity-100"
+              >
+                {copiedId === run.id ? "已复制" : "复制 ID"}
+              </button>
+            </div>
           );
         })}
 
