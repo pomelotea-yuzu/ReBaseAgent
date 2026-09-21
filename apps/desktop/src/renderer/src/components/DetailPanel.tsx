@@ -8,7 +8,7 @@ import {
   spanDurationMs,
 } from "@shared/derive";
 import type { ForkCapabilityResult, ModelAbResult, ModelArmPlan, RunDetail } from "@shared/ipc";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { formatDuration, prettyJson } from "../lib/format";
 import {
   isIsolatedRun,
@@ -25,9 +25,12 @@ import { modelAbGuard, riskyToolNames, scalarRequestParams } from "../lib/model-
 import type { ArmDraft, Scalar } from "../lib/model-ab";
 import { promptForkGuard } from "../lib/prompt-fork";
 import type { PromptForkField } from "../lib/prompt-fork";
+import { decideRestore, initialRestoreState, restoreIdentity } from "../lib/restore-gate";
+import { resolveRestoreScrollTop, resolveScrollRestore } from "../lib/scroll-restore";
+import { readingScrollOf } from "../lib/workspace-selection";
 import { useAppStore } from "../store";
 import { BudgetMap } from "./BudgetMap";
-import { LongText } from "./LongText";
+import { LongText, isLongTextExpanded, toggleLongTextExpanded } from "./LongText";
 import { WorkspaceFileView } from "./WorkspaceFileView";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -718,6 +721,33 @@ function LlmCallDetail({
   const canResend = isProxy === true && leafOwned && run?.status === "completed";
 
   /**
+   * 长文本块的展开状态按 run + 调用隔离存会话（任务 3.6）。
+   *
+   * 键用**稳定字段名**（"error" / "reasoning" / "content" / "tool_calls" / `msg:<序号>` /
+   * "tools" / "params"），不用数组下标或渲染顺序——否则重读后块的位置一变，恢复就串了。
+   * 消息项用其在 request.messages 里的序号（design D6：不可变记录内的序号）。
+   */
+  const runId = run?.meta.id ?? null;
+  const expandedSections = useAppStore((s) =>
+    runId === null || s.selectedRunId !== runId
+      ? undefined
+      : s.readingOf(runId).calls[span.id]?.expanded,
+  );
+  const setCallReading = useAppStore((s) => s.setCallReading);
+  const longTextProps = (
+    key: string,
+  ): { expanded: boolean; onToggle: (next: boolean) => void } => ({
+    expanded: isLongTextExpanded(expandedSections, key),
+    onToggle: () => {
+      if (runId === null) return;
+      // 只翻转目标键的开关，`next` 由 store 里的当前值推导——受控组件不自己猜状态
+      setCallReading(runId, span.id, {
+        expanded: toggleLongTextExpanded(expandedSections, key),
+      });
+    },
+  });
+
+  /**
    * 空正文文案：失败 / 仅有工具调用 / 仅有思维链 / 真空正文 四态。
    * 旧实现一律写"无正文，仅有工具调用"——对失败调用与 reasoning-only 成功响应都是错的。
    */
@@ -755,7 +785,7 @@ function LlmCallDetail({
                 <span className="rounded bg-red-100 px-1 font-code">HTTP {error.status}</span>
               )}
             </div>
-            <LongText text={error.message} label="错误详情" />
+            <LongText text={error.message} label="错误详情" {...longTextProps("error")} />
             <div className="mt-1 text-[11px] leading-5 text-red-800">
               这是记录于本次调用的失败原因。上列 tokens 与首 token 延迟是
               <span className="font-medium">失败占位零值</span>
@@ -768,7 +798,11 @@ function LlmCallDetail({
       {response.reasoning_content !== null ? (
         <Section title="思维链（reasoning_content）">
           <div className="rounded border-l-2 border-amber-400 bg-amber-50 px-2 py-1.5">
-            <LongText text={response.reasoning_content} label="思维链" />
+            <LongText
+              text={response.reasoning_content}
+              label="思维链"
+              {...longTextProps("reasoning")}
+            />
           </div>
         </Section>
       ) : null}
@@ -777,13 +811,17 @@ function LlmCallDetail({
         {response.content === null || response.content === "" ? (
           <div className="text-[11px] text-gray-400">{emptyContentHint}</div>
         ) : (
-          <LongText text={response.content} label="正文" />
+          <LongText text={response.content} label="正文" {...longTextProps("content")} />
         )}
       </Section>
 
       {response.tool_calls.length > 0 ? (
         <Section title={`工具调用（${response.tool_calls.length}）`}>
-          <LongText text={prettyJson(response.tool_calls)} label="tool_calls" />
+          <LongText
+            text={prettyJson(response.tool_calls)}
+            label="tool_calls"
+            {...longTextProps("tool_calls")}
+          />
         </Section>
       ) : null}
 
@@ -804,6 +842,7 @@ function LlmCallDetail({
                     : prettyJson(message.content)
                 }
                 label="内容"
+                {...longTextProps(`msg:${index}`)}
               />
             </div>
           ))}
@@ -812,13 +851,13 @@ function LlmCallDetail({
 
       {request.tools !== undefined ? (
         <Section title={`工具表（${request.tools.length}）`}>
-          <LongText text={prettyJson(request.tools)} label="tools" />
+          <LongText text={prettyJson(request.tools)} label="tools" {...longTextProps("tools")} />
         </Section>
       ) : null}
 
       {request.params !== undefined ? (
         <Section title="采样参数">
-          <LongText text={prettyJson(request.params)} label="params" />
+          <LongText text={prettyJson(request.params)} label="params" {...longTextProps("params")} />
         </Section>
       ) : null}
 
@@ -1391,6 +1430,24 @@ function ToolInvokeDetail({
   // 分叉点必须是当前 run 自身段的 tool.invoke，且 run 已封存（crashed 前缀不稳定）
   const canFork = leafOwned && run?.status === "completed";
 
+  // 长文本展开状态按 run + 调用隔离存会话（任务 3.6，与 LlmCallDetail 同一口径）
+  const toolRunId = run?.meta.id ?? null;
+  const toolExpandedSections = useAppStore((s) =>
+    toolRunId === null || s.selectedRunId !== toolRunId
+      ? undefined
+      : s.readingOf(toolRunId).calls[span.id]?.expanded,
+  );
+  const setToolCallReading = useAppStore((s) => s.setCallReading);
+  const toolLongTextProps = (key: string): { expanded: boolean; onToggle: () => void } => ({
+    expanded: isLongTextExpanded(toolExpandedSections, key),
+    onToggle: () => {
+      if (toolRunId === null) return;
+      setToolCallReading(toolRunId, span.id, {
+        expanded: toggleLongTextExpanded(toolExpandedSections, key),
+      });
+    },
+  });
+
   return (
     <>
       <Section title="概要">
@@ -1406,17 +1463,17 @@ function ToolInvokeDetail({
       {span.error !== null ? (
         <Section title="错误（错误是数据不是异常）">
           <div className="rounded border-l-2 border-red-400 bg-red-50 px-2 py-1.5">
-            <LongText text={span.error} label="错误信息" />
+            <LongText text={span.error} label="错误信息" {...toolLongTextProps("error")} />
           </div>
         </Section>
       ) : null}
 
       <Section title="入参">
-        <LongText text={prettyJson(span.args)} label="args" />
+        <LongText text={prettyJson(span.args)} label="args" {...toolLongTextProps("args")} />
       </Section>
 
       <Section title="结果">
-        <LongText text={prettyJson(span.result)} label="result" />
+        <LongText text={prettyJson(span.result)} label="result" {...toolLongTextProps("result")} />
       </Section>
 
       {canFork && run !== null ? (
@@ -1631,6 +1688,25 @@ function SourceUnavailableNotice() {
   );
 }
 
+/**
+ * 失效阅读对象提示（任务 3.6 · delta「失效阅读对象安全回退」）。
+ *
+ * 只说**事实**：上次记下的阅读位置已不在此次详情里，因此回退到了默认位置。
+ * 不说"文件被删了"之类的因果（那不是渲染层能知道的事），也不暗示选了别的 run 的同 ID span。
+ */
+function ReadingInvalidatedNotice() {
+  const invalidated = useAppStore((s) => s.readingInvalidated);
+  if (!invalidated) return null;
+
+  return (
+    <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-[11px] leading-5 text-amber-900">
+      <span className="font-semibold">原阅读位置不可用：</span>
+      上次记录的 span 或展开项已不在本次读取到的轨迹里（可能是记录被重写或缩减）。
+      已清理失效引用并回到默认位置。
+    </div>
+  );
+}
+
 function ErrorDetailNotice() {
   const detail = useAppStore((s) => s.detail);
   const missing = useMemo(
@@ -1674,6 +1750,16 @@ function IsolatedRunNotice() {
 export function DetailPanel() {
   const detail = useAppStore((s) => s.detail);
   const selectedSpanId = useAppStore((s) => s.selectedSpanId);
+  const selectedRunId = useAppStore((s) => s.selectedRunId);
+  const loadingDetail = useAppStore((s) => s.loadingDetail);
+  const detailScrollTop = useAppStore((s) =>
+    s.selectedRunId === null ? 0 : s.readingOf(s.selectedRunId).overviewScrollTop,
+  );
+  /** 该 run 是否已有阅读条目（区分「没记过」与「记的就是 0」） */
+  const runReading = useAppStore((s) =>
+    s.selectedRunId === null ? null : (s.readingByRun[s.selectedRunId] ?? null),
+  );
+  const setReadingScroll = useAppStore((s) => s.setReadingScroll);
   /**
    * 详情主区视图（C 2.1）：trajectory = 既有 span 详情；files = 隔离文件检查点。
    * 纯 UI 状态，不进 IPC、不持久化。**只有隔离 run 才有文件 tab**——
@@ -1687,6 +1773,39 @@ export function DetailPanel() {
   useEffect(() => {
     setTab("trajectory");
   }, [detail?.meta.id]);
+
+  // 切换 run / 重读 ⇒ 内容身份变化（meta.id + span 指纹）⇒ 重新武装恢复窗口
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [restore, setRestore] = useState(initialRestoreState);
+  const detailKey = detail === null ? null : restoreIdentity(detail);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el === null) return;
+    const decision = decideRestore({
+      state: restore,
+      detailKey,
+      contentReady: detail !== null && !loadingDetail,
+      measurable:
+        el.clientHeight > 0 &&
+        readingScrollOf(runReading ?? {}, "overview", runReading !== null) !== undefined,
+    });
+    if (!decision.restore) return;
+    const top = resolveScrollRestore(detailScrollTop, {
+      scrollHeight: el.scrollHeight,
+      clientHeight: el.clientHeight,
+    });
+    setRestore(decision.next);
+    if (top !== null) el.scrollTop = top;
+  }, [detailKey, detail, loadingDetail, detailScrollTop, restore, runReading]);
+
+  const handleScroll = (): void => {
+    const el = scrollRef.current;
+    if (el === null || selectedRunId === null) return;
+    // 未完成布局时不记录（此刻 scrollTop 恒为 0，会把记住的位置抹掉）
+    if (resolveRestoreScrollTop(el.scrollTop, el) === null) return;
+    setReadingScroll(selectedRunId, "overview", el.scrollTop);
+  };
 
   const span = useMemo(
     () => detail?.spans.find((s) => s.id === selectedSpanId) ?? null,
@@ -1710,11 +1829,12 @@ export function DetailPanel() {
 
       <IsolatedRunNotice />
       <SourceUnavailableNotice />
+      <ReadingInvalidatedNotice />
       <BranchNotice />
       <ErrorDetailNotice />
       <ParentChainList />
 
-      <div className="flex-1 overflow-y-auto pb-8">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto pb-8" onScroll={handleScroll}>
         {detail !== null ? <BudgetMap key={detail.meta.id} detail={detail} /> : null}
         {span === null ? (
           <div className="px-4 py-6 text-xs text-gray-500">

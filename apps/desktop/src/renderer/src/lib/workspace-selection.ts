@@ -137,3 +137,57 @@ export function resolveExecutionGate(input: {
   if (input.reading) return false;
   return !input.unavailable;
 }
+
+/** 详情读取状态到「阅读内容是否就绪」的映射 */
+export type DetailPhase = "loading" | "ready" | "error";
+
+/**
+ * 详情读取状态 ⇒ 阅读内容是否已就绪。
+ *
+ * **只有 `ready` 才算就绪**：加载中恢复会把位置写进还没有内容的容器（等价于写 0）；
+ * 失败态下屏幕上是错误提示而不是被读的轨迹，恢复进去既没意义又会污染下次恢复。
+ */
+export function isReadingContentReady(phase: DetailPhase): boolean {
+  return phase === "ready";
+}
+
+/**
+ * 由「加载中 / 错误 / 详情」三个可观测信号推出详情读取状态。
+ *
+ * 纪律：**先判加载中**。`loadingDetail` 为真时旧的 `detail` 可能还在 store 里
+ * （3.3 刻意保留以便"切走再切回不闪空"），此时按 `detail !== null` 判成 ready
+ * 会让恢复动作发生在**还没换上的旧内容**上。
+ */
+export function resolveDetailPhase(input: {
+  loading: boolean;
+  error: string | null;
+  hasDetail: boolean;
+}): DetailPhase {
+  if (input.loading) return "loading";
+  if (input.error !== null) return "error";
+  return input.hasDetail ? "ready" : "loading";
+}
+
+/** 需要恢复滚动的三个位置 */
+export type ReadingScrollTarget = "overview" | "steps";
+
+/**
+ * 取某 run 在给定位置的已记录滚动值。
+ *
+ * 概览与步骤目录各一条；调用详情的位置来自 `calls[spanId].scrollTop`（由长文本块各自负责），
+ * 故不在这里解析。
+ *
+ * ⚠️ **「没记录过」和「记的就是 0」必须分清**：`readingStateOf` 对不存在的 run 返回
+ * 默认值（滚动 0），但那不是"用户读到过顶部"。故这里额外接收 `known`（该 run 在
+ * `readingByRun` 里是否已有条目）——没有条目时返回 `undefined`，调用方据此**不恢复**
+ * （保持容器当前值），而不是把默认 0 当成历史位置写进去。
+ */
+export function readingScrollOf(
+  reading: { overviewScrollTop?: number; stepsScrollTop?: number },
+  target: ReadingScrollTarget,
+  known = true,
+): number | undefined {
+  if (!known) return undefined;
+  const value = target === "overview" ? reading.overviewScrollTop : reading.stepsScrollTop;
+  return value === undefined ? undefined : value;
+}

@@ -1,8 +1,11 @@
 import type { SpanLine } from "@rebaseagent/trace-sdk";
 import type { SpanNode } from "@shared/derive";
 import { buildSpanTree, deriveStepStats } from "@shared/derive";
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatDuration, formatTokens } from "../lib/format";
+import { decideRestore, initialRestoreState, restoreIdentity } from "../lib/restore-gate";
+import { resolveRestoreScrollTop, resolveScrollRestore } from "../lib/scroll-restore";
+import { readingScrollOf } from "../lib/workspace-selection";
 import { useAppStore } from "../store";
 
 const KIND_LABEL: Record<SpanLine["kind"], string> = {
@@ -105,8 +108,61 @@ function SpanRow({ node, depth }: { node: SpanNode; depth: number }) {
 export function SpanTree() {
   const detail = useAppStore((s) => s.detail);
   const loadingDetail = useAppStore((s) => s.loadingDetail);
+  const selectedRunId = useAppStore((s) => s.selectedRunId);
+  /** 该 run 是否已有阅读条目（区分「没记过」与「记的就是 0」） */
+  const runReading = useAppStore((s) =>
+    s.selectedRunId === null ? null : (s.readingByRun[s.selectedRunId] ?? null),
+  );
+  const stepsScrollTop = useAppStore((s) =>
+    s.selectedRunId === null ? 0 : s.readingOf(s.selectedRunId).stepsScrollTop,
+  );
+  const setReadingScroll = useAppStore((s) => s.setReadingScroll);
 
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [restore, setRestore] = useState(initialRestoreState);
+
+  /** 内容身份 = meta.id + span 指纹（同 run 重读后内容变了也要重新恢复） */
+  const detailKey = detail === null ? null : restoreIdentity(detail);
   const roots = useMemo(() => (detail === null ? [] : buildSpanTree(detail.spans)), [detail]);
+
+  /**
+   * 内容挂载后恢复步骤目录滚动（design D6）。
+   *
+   * 三个前置条件缺一不可，故走 `decideRestore` 而不是在 effect 里直接写：
+   * 详情已就绪、容器已布局可测、且**这一内容身份还没恢复过**（否则用户往下滚了
+   * 几屏后任何一次重渲染都会把他顶回旧位置）。
+   */
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el === null) return;
+    const decision = decideRestore({
+      state: restore,
+      detailKey,
+      contentReady: detail !== null && !loadingDetail,
+      // 内容可恢复的前提：该 run 确实**记过**步骤目录的位置。
+      // ⚠️ 用 `readingScrollOf(..., known)` 而不是直接比 `stepsScrollTop !== undefined`——
+      // `readingOf` 对没条目的 run 返回默认值（0），"记的就是 0"与"没记过"必须分清。
+      measurable:
+        el.clientHeight > 0 &&
+        readingScrollOf(runReading ?? {}, "steps", runReading !== null) !== undefined,
+    });
+    if (!decision.restore) return;
+    const top = resolveScrollRestore(stepsScrollTop, {
+      scrollHeight: el.scrollHeight,
+      clientHeight: el.clientHeight,
+    });
+    setRestore(decision.next);
+    if (top !== null) el.scrollTop = top;
+  }, [detailKey, detail, loadingDetail, stepsScrollTop, restore, runReading]);
+
+  /** 滚动时按 run 记录位置（**只写 store 的阅读状态**，不动 trace、不落盘） */
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (el === null || selectedRunId === null) return;
+    // 未完成布局时不记录：此刻的 scrollTop 恒为 0，会把记住的位置抹掉
+    if (resolveRestoreScrollTop(el.scrollTop, el) === null) return;
+    setReadingScroll(selectedRunId, "steps", el.scrollTop);
+  }, [selectedRunId, setReadingScroll]);
 
   if (loadingDetail) {
     return (
@@ -130,7 +186,7 @@ export function SpanTree() {
         <div className="text-sm font-semibold text-gray-800">轨迹</div>
         <div className="text-[11px] text-gray-500">{detail.spans.length} 个 span · 只读呈现</div>
       </div>
-      <div className="flex-1 overflow-y-auto py-1">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto py-1" onScroll={handleScroll}>
         {roots.map((node) => (
           <SpanRow key={node.span.id} node={node} depth={0} />
         ))}

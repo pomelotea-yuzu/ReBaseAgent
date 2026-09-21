@@ -46,6 +46,13 @@ function detailFrom(rec: RunRecord): RunDetail {
 const rootDetail = detailFrom(record);
 const rootSummary = deriveRunSummary(record);
 const forkedSummary = { ...rootSummary, id: "run_forked", parent: "r_01" };
+/** r_02 的详情：换一组 span id，用于验证两条 run 的阅读状态互不串 */
+const otherDetail: RunDetail = {
+  ...rootDetail,
+  meta: { ...rootDetail.meta, id: "r_02" },
+  spans: rootDetail.spans.map((s, i) => ({ ...s, id: `${s.id}_b${i}` })),
+  leafSpanIds: rootDetail.spans.map((s, i) => `${s.id}_b${i}`),
+};
 
 /** 用例间共享的行为控制器（闭包捕获，读 call 时最新值） */
 interface Controller {
@@ -209,6 +216,7 @@ function resetStore(): void {
     selectedSpanId: null,
     expandedSteps: {},
     readingByRun: {},
+    readingInvalidated: false,
     loadingList: false,
     loadingDetail: false,
     listLoaded: false,
@@ -624,14 +632,6 @@ describe("store：详情 IPC 的版本守卫接线（B 1.1）", () => {
 });
 
 describe("store：阅读状态按运行恢复（任务 3.1）", () => {
-  /** r_02 的详情：换一组 span id，用于验证两条 run 的阅读状态互不串 */
-  const otherDetail: RunDetail = {
-    ...rootDetail,
-    meta: { ...rootDetail.meta, id: "r_02" },
-    spans: rootDetail.spans.map((s, i) => ({ ...s, id: `${s.id}_b${i}` })),
-    leafSpanIds: rootDetail.spans.map((s, i) => `${s.id}_b${i}`),
-  };
-
   it("跨运行返回恢复阅读：A 的页签/选中/展开在回到 A 后恢复", async () => {
     await useAppStore.getState().loadRuns();
     await useAppStore.getState().selectRun("r_01");
@@ -719,6 +719,95 @@ describe("store：阅读状态按运行恢复（任务 3.1）", () => {
     ]) {
       expect(Object.keys(reading)).not.toContain(forbidden);
     }
+  });
+});
+
+describe("store：滚动与展开恢复接线（任务 3.6）", () => {
+  it("跨运行返回恢复阅读：滚动位置与长文本展开在回到 A 后都还在", async () => {
+    await useAppStore.getState().loadRuns();
+    await useAppStore.getState().selectRun("r_01");
+    const llmId = useAppStore.getState().detail?.spans.find((s) => s.kind === "llm.call")?.id ?? "";
+    expect(llmId).not.toBe("");
+
+    // 在 A 上：展开一块长文本 + 滚动概览与步骤目录
+    useAppStore.getState().setReadingScroll("r_01", "overview", 480);
+    useAppStore.getState().setReadingScroll("r_01", "steps", 260);
+    useAppStore.getState().setCallReading("r_01", llmId, { expanded: ["content"] });
+    useAppStore.getState().selectSpan(llmId);
+
+    await useAppStore.getState().selectRun("r_02");
+    await useAppStore.getState().selectRun("r_01");
+
+    const state = useAppStore.getState();
+    expect(state.readingOf("r_01").overviewScrollTop).toBe(480);
+    expect(state.readingOf("r_01").stepsScrollTop).toBe(260);
+    expect(state.readingOf("r_01").calls[llmId]?.expanded).toEqual(["content"]);
+    expect(state.selectedSpanId).toBe(llmId);
+    // B 完全没被污染
+    expect(state.readingOf("r_02").overviewScrollTop).toBe(0);
+    expect(state.readingOf("r_02").calls[llmId]).toBeUndefined();
+  });
+
+  it("重读后历史 span 已不存在 ⇒ 回退默认位置并置失效提示，不选另一 run 的同 ID span", async () => {
+    await useAppStore.getState().loadRuns();
+    await useAppStore.getState().selectRun("r_01");
+    // 先制造一条"指向不存在 span"的历史（模拟记录被重写/缩减后的旧位置）
+    useAppStore.getState().selectSpan("s_vanished");
+    expect(useAppStore.getState().readingInvalidated).toBe(false);
+
+    // 重读同一 run：本次详情里没有 s_vanished ⇒ 必须回退 + 提示
+    await useAppStore.getState().selectRun("r_02");
+    useAppStore.getState().selectSpan("s_vanished_b0"); // B 里也不存在
+    await useAppStore.getState().selectRun("r_01");
+
+    const state = useAppStore.getState();
+    expect(state.readingInvalidated).toBe(true);
+    // 回退到本详情里的默认位置（首个自有 llm/tool 调用），**不是** s_vanished 借来的同 ID
+    expect(state.selectedSpanId).not.toBe("s_vanished");
+    expect(state.selectedSpanId).not.toBe("s_vanished_b0");
+    expect(state.selectedSpanId).not.toBeNull();
+  });
+
+  it("有效历史恢复 ⇒ 不误报失效", async () => {
+    await useAppStore.getState().loadRuns();
+    await useAppStore.getState().selectRun("r_01");
+    const llmId = useAppStore.getState().detail?.spans.find((s) => s.kind === "llm.call")?.id ?? "";
+    useAppStore.getState().selectSpan(llmId);
+    await useAppStore.getState().selectRun("r_02");
+    await useAppStore.getState().selectRun("r_01");
+    expect(useAppStore.getState().readingInvalidated).toBe(false);
+    expect(useAppStore.getState().selectedSpanId).toBe(llmId);
+  });
+
+  it("用户明确选择后失效提示即清除（提示只作一次性告知）", async () => {
+    await useAppStore.getState().loadRuns();
+    await useAppStore.getState().selectRun("r_01");
+    useAppStore.getState().selectSpan("s_vanished");
+    await useAppStore.getState().selectRun("r_02");
+    await useAppStore.getState().selectRun("r_01");
+    expect(useAppStore.getState().readingInvalidated).toBe(true);
+
+    const llmId = useAppStore.getState().detail?.spans.find((s) => s.kind === "llm.call")?.id ?? "";
+    useAppStore.getState().selectSpan(llmId);
+    expect(useAppStore.getState().readingInvalidated).toBe(false);
+  });
+
+  it("切 run 时不把上一条 run 的未校验 spanId 带进新 run（详情到手才解析阅读位置）", async () => {
+    controller.getRunDetailById = { r_01: rootDetail, r_02: otherDetail };
+    await useAppStore.getState().loadRuns();
+    await useAppStore.getState().selectRun("r_01");
+    const aSpan = rootDetail.spans[0]?.id ?? "";
+    useAppStore.getState().selectSpan(aSpan);
+
+    // B 的详情里没有 aSpan（span id 带 _bN 后缀）⇒ 切到 B 后不得短暂高亮 aSpan
+    await useAppStore.getState().selectRun("r_02");
+    const bState = useAppStore.getState();
+    expect(bState.selectedSpanId).not.toBe(aSpan);
+    // 落到 B 的**默认位置**（首个自有 llm/tool 调用，不是数组第一个 span）
+    const bFirstCall = otherDetail.spans.find(
+      (s) => s.kind === "llm.call" || s.kind === "tool.invoke",
+    );
+    expect(bState.selectedSpanId).toBe(bFirstCall?.id);
   });
 });
 

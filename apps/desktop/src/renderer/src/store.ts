@@ -37,6 +37,7 @@ import {
 import { decideRefresh, resolveRefreshFailure, settleRefresh } from "@shared/list-refresh";
 import { create } from "zustand";
 import { api } from "./lib/api";
+import { resolveReading } from "./lib/reading-resolve";
 import {
   defaultReadingState,
   patchCallReading,
@@ -78,6 +79,11 @@ interface AppState {
    * 只存会话、不落盘、不保存授权或草稿；切运行再返回据此恢复。
    */
   readingByRun: ReadingStateByRun;
+  /**
+   * 恢复阅读位置时发生了失效回退（保存的 span / 展开对象已不在详情里，或文件页签不再适用）。
+   * 只作一次性提示：用户下一次明确选择 span 即清除。**不**用来选另一个 run 的同 ID span。
+   */
+  readingInvalidated: boolean;
   loadingList: boolean;
   loadingDetail: boolean;
   /** 列表曾成功加载过（用于区分「刷新失败」与「首次读取失败」的提示口径） */
@@ -280,6 +286,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   selectedSpanId: null,
   expandedSteps: {},
   readingByRun: {},
+  readingInvalidated: false,
   loadingList: false,
   loadingDetail: false,
   listLoaded: false,
@@ -453,16 +460,39 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (span.kind === "agent.step") expandedSteps[span.id] = true;
     }
     const mergedExpanded = { ...expandedSteps, ...restored.expandedSteps };
+    // 统一走优先级解析（任务 3.2/3.6 接线）：显式目标 > 有效历史 > 默认位置。
+    // 详情到手才做——此前 store 里可能还留着**另一个 run** 的未校验 spanId，
+    // 直接当选中项会导致"轨迹树高亮一个不属于本 run 的 span"。
+    const resolved = resolveReading({
+      detail: {
+        spans: parsed.data.spans,
+        leafSpanIds: parsed.data.leafSpanIds,
+        hasFiles: parsed.data.meta.workspace !== undefined,
+      },
+      history: { tab: restored.tab, spanId: restored.spanId },
+      target: null,
+      currentTab: restored.tab,
+    });
+    const readingByRun = patchReadingState(get().readingByRun, id, {
+      tab: resolved.tab,
+      spanId: resolved.spanId,
+      expandedSteps: mergedExpanded,
+    });
     set({
       detail: parsed.data,
       expandedSteps: mergedExpanded,
+      selectedSpanId: resolved.spanId,
+      readingByRun,
       loadingDetail: false,
+      // 失效回退只提示一次；成功后重新选中会清掉（见 selectSpan）
+      readingInvalidated: resolved.invalidated,
     });
   },
 
   selectSpan(id) {
     const runId = get().selectedRunId;
-    set({ selectedSpanId: id });
+    // 明确选择即"换到用户要看的位置"⇒ 失效提示作废（它说的是"原位置不可用，已回退"）
+    set({ selectedSpanId: id, readingInvalidated: false });
     if (runId !== null) {
       set({ readingByRun: patchReadingState(get().readingByRun, runId, { spanId: id }) });
     }

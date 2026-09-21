@@ -157,7 +157,13 @@
 - 诚实边界：本任务只做 store 派生与接线，**首次自动选择的界面呈现（概览首屏）与"无运行入口"的完整视觉归 4.2**；搜索框只接了逻辑与基础输入框，完整导航重排归 4.4。
 
 - [x] 3.5 接入首次选择、筛选隐藏和源文件失效状态（1.5h）；store 测试“首次打开与无运行入口”“筛选隐藏当前运行”“已选源记录不可用”，确认首次详情失败不循环跳转、重读通过前执行入口不解禁。
-- [ ] 3.6 接入概览/步骤目录/逐调用滚动与长文本展开恢复（2h）；组件或 CDP 验证“跨运行返回恢复阅读”“失效阅读对象安全回退”，包含内容挂载后恢复、滚动上限裁剪和设置/分支往返。
+- [x] 3.6 接入概览/步骤目录/逐调用滚动与长文本展开恢复（2h）；组件或 CDP 验证“跨运行返回恢复阅读”“失效阅读对象安全回退”，包含内容挂载后恢复、滚动上限裁剪和设置/分支往返。
+  - 交付：`src/renderer/src/lib/scroll-restore.ts`（`canRestoreScroll` / `resolveRestoreScrollTop` / `isAtBottom` / `resolveScrollRestore`）——恢复值的上限裁剪（`[0, scrollHeight - clientHeight]`）、不可测高度返回 `null`（**不拿 0 冒充**）、NaN/±∞ 归类；`src/renderer/src/lib/restore-gate.ts`（`decideRestore` / `hasRestored` / `shouldResetRestore` / `restoreIdentity`）——"内容挂载后恢复"的三前置条件 + **每内容身份只恢复一次**（防顶回用户后续滚动）；`workspace-selection.ts` 增 `resolveDetailPhase` / `isReadingContentReady` / `readingScrollOf(..., known)`（「没记过」≠「记的是 0」）。
+  - 组件接线：`LongText` 展开状态改为**可受控**（`expanded`/`onToggle`，不传则退化为自持状态）；`LlmCallDetail` 与 `ToolInvokeDetail` 各长文本块按**稳定字段键**（`error`/`reasoning`/`content`/`tool_calls`/`msg:<序号>`/`tools`/`params`/`args`/`result`）接入 `setCallReading`；`SpanTree` 步骤目录与 `DetailPanel` 概览容器加 `ref`+`onScroll` 记录 + 挂载后恢复；新增 `ReadingInvalidatedNotice` 提示条。
+  - store：详情校验通过后统一走 `resolveReading`（**详情到手才解析阅读位置**——此前可能残留另一 run 的未校验 `spanId` 导致高亮错 span），并置 `readingInvalidated`；`selectSpan` 明确选择即清除该提示。
+  - 测试：`test/reading-scroll-restore.test.ts`（33）+ `test/store.test.ts` 新增「滚动与展开恢复接线（任务 3.6）」6 条 = **desktop 590 passed / 0 failed（34 文件）**（3.5 基线 552，+38）。覆盖受控/非受控展开静态渲染、键顺序稳定、按 run+span 隔离、滚动上限裁剪、分辨率变化重裁、内容不足一屏、不可测不恢复、相位映射、`restoreIdentity` 指纹含 span 序列、A→B→A 恢复、失效回退与提示一次性、切 run 不带旧未校验 spanId。
+  - 变异验证 6 组，5 组被抓即还原：① 去上限裁剪 ⇒ 3 条失败；② 未就绪/不可测也记账 ⇒ 2 条失败；⑤ 不报失效 ⇒ 2 条失败；⑥ LongText 忽略受控值 ⇒ 1 条失败；④ `restoreIdentity` 丢 span 指纹 ⇒ 1 条失败。**③「`shouldResetRestore` 恒 false」首次漏网**——A→B→A 路径实际由 `decideRestore` 自身的单键记账覆盖，本函数非必要条件；据此收敛：删掉"靠它作废"的错误注释、补 `restoreIdentity` 作为重读重新武装恢复的真正机制（而不是留一个测试打不到的"看起来有用"的函数）。
+  - 诚实边界：**本包无 jsdom**，组件层只能用 `renderToStaticMarkup` 做静态渲染断言，真实滚动几何、`useEffect` 时序、内容挂载先后**均未在此覆盖**——归 7.1–7.3 的 Electron/CDP 验收；「设置/分支往返恢复」只验到 store 层状态存活（`readingByRun` 不动），**未经真实设置弹层/分支树往返实测**（归 7.3）。`WorkspaceFileView` 内部检查点/路径/滚动按 design D6 不纳入本模型，未改。
 
 ## 4. 工作区与运行导航
 
