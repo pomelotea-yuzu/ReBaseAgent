@@ -73,6 +73,10 @@ interface Controller {
   forkCapabilityRequests: ForkCapabilityRequest[];
   /** 覆盖 getRun 的返回详情（默认 rootDetail）；供版本守卫接线用例注入被篡改载荷 */
   getRunDetail: RunDetail | undefined;
+  /** 按 run id 覆盖详情（供跨运行恢复用例让两条 run 返回不同轨迹） */
+  getRunDetailById: Record<string, RunDetail> | undefined;
+  /** 记录 getRun 的调用顺序（同 run 重试用例断言真的重新读了） */
+  getRunCalls: string[];
   listCalls: number;
 }
 
@@ -97,7 +101,20 @@ function makeFakeApi(c: Controller): WindowApi {
       const runs = c.listCalls > 1 ? [forkedSummary, rootSummary] : [rootSummary];
       return ok({ runs, failed: [] });
     },
-    getRun: async (): Promise<Envelope<RunDetail>> => ok(c.getRunDetail ?? rootDetail),
+    getRun: async (id: string): Promise<Envelope<RunDetail>> => {
+      c.getRunCalls.push(id);
+      // 按 run id 返回各自详情（默认 rootDetail）；供跨运行恢复用例区分两条 run
+      const base = c.getRunDetailById?.[id] ?? c.getRunDetail ?? rootDetail;
+      // 载荷归属（任务 3.3）：详情自称的 meta.id 必须与请求的 id 一致，
+      // 否则渲染层会拒绝加载。默认详情来自 fixture（meta.id = "r_01"），
+      // 请求别的 run（如 fork 产生的 run_forked）时按请求 id 改写，模拟 main 的真实行为。
+      if (base.meta.id === id) return ok(base);
+      return ok({
+        ...base,
+        meta: { ...base.meta, id },
+        chain: [{ meta: { ...base.meta, id }, fork: base.meta.fork }],
+      });
+    },
     forkRun: async (request) => {
       c.forkRequests.push({
         parentRunId: request.parentRunId,
@@ -147,6 +164,7 @@ const controller: Controller = {
   chooseSourceCalls: 0,
   forkCapabilityEnvelope: undefined,
   forkCapabilityRequests: [],
+  getRunCalls: [],
   listCalls: 0,
 };
 (globalThis as Record<string, unknown>).window = { api: makeFakeApi(controller) };
@@ -163,6 +181,7 @@ function resetStore(): void {
     selectedRunId: null,
     selectedSpanId: null,
     expandedSteps: {},
+    readingByRun: {},
     loadingList: false,
     loadingDetail: false,
     error: null,
@@ -191,6 +210,8 @@ beforeEach(() => {
   controller.forkCapabilityEnvelope = undefined;
   controller.forkCapabilityRequests = [];
   controller.getRunDetail = undefined;
+  controller.getRunDetailById = undefined;
+  controller.getRunCalls = [];
   controller.listCalls = 0;
   resetStore();
 });
@@ -561,5 +582,104 @@ describe("store：详情 IPC 的版本守卫接线（B 1.1）", () => {
     const state = useAppStore.getState();
     expect(state.error).toBeNull();
     expect(state.detail?.meta.id).toBe(record.meta.id);
+  });
+});
+
+describe("store：阅读状态按运行恢复（任务 3.1）", () => {
+  /** r_02 的详情：换一组 span id，用于验证两条 run 的阅读状态互不串 */
+  const otherDetail: RunDetail = {
+    ...rootDetail,
+    meta: { ...rootDetail.meta, id: "r_02" },
+    spans: rootDetail.spans.map((s, i) => ({ ...s, id: `${s.id}_b${i}` })),
+    leafSpanIds: rootDetail.spans.map((s, i) => `${s.id}_b${i}`),
+  };
+
+  it("跨运行返回恢复阅读：A 的页签/选中/展开在回到 A 后恢复", async () => {
+    await useAppStore.getState().loadRuns();
+    await useAppStore.getState().selectRun("r_01");
+    const firstStep = useAppStore.getState().detail?.spans.find((s) => s.kind === "agent.step");
+    expect(firstStep).toBeDefined();
+
+    // 在 A 上改动阅读状态
+    useAppStore.getState().setReadingTab("r_01", "steps");
+    useAppStore.getState().selectSpan(firstStep?.id ?? "");
+    useAppStore.getState().toggleStep(firstStep?.id ?? ""); // 折叠
+
+    // 切到 B，再回到 A
+    await useAppStore.getState().selectRun("r_02");
+    await useAppStore.getState().selectRun("r_01");
+
+    const state = useAppStore.getState();
+    expect(state.readingOf("r_01").tab).toBe("steps");
+    expect(state.selectedSpanId).toBe(firstStep?.id);
+    // 折叠状态被恢复（默认全展开，用户折叠过 ⇒ false）
+    expect(state.expandedSteps[firstStep?.id ?? ""]).toBe(false);
+  });
+
+  it("A/B 相同 span ID 不串状态（各自记录各自的值）", async () => {
+    controller.getRunDetailById = { r_01: rootDetail, r_02: otherDetail };
+    await useAppStore.getState().loadRuns();
+    await useAppStore.getState().selectRun("r_01");
+    const aFirst = rootDetail.spans[0]?.id ?? "";
+    useAppStore.getState().selectSpan(aFirst);
+
+    await useAppStore.getState().selectRun("r_02");
+    // B 的详情里没有 aFirst 这个 id 时不会误选；显式给 B 选它自己的 span
+    const bFirst = otherDetail.spans[0]?.id ?? "";
+    useAppStore.getState().selectSpan(bFirst);
+
+    expect(useAppStore.getState().readingOf("r_01").spanId).toBe(aFirst);
+    expect(useAppStore.getState().readingOf("r_02").spanId).toBe(bFirst);
+    expect(aFirst).not.toBe(bFirst);
+  });
+
+  it("selectRun 恢复历史展开集合：用户折叠过的 step 保持折叠", async () => {
+    await useAppStore.getState().loadRuns();
+    await useAppStore.getState().selectRun("r_01");
+    const stepId =
+      useAppStore.getState().detail?.spans.find((s) => s.kind === "agent.step")?.id ?? "";
+    useAppStore.getState().toggleStep(stepId);
+    expect(useAppStore.getState().expandedSteps[stepId]).toBe(false);
+
+    // 切走再回来
+    await useAppStore.getState().selectRun("r_02");
+    await useAppStore.getState().selectRun("r_01");
+    expect(useAppStore.getState().expandedSteps[stepId]).toBe(false);
+  });
+
+  it("滚动位置按 run 记忆（概览/步骤各一处），互不覆盖", () => {
+    useAppStore.getState().setReadingScroll("r_01", "overview", 120);
+    useAppStore.getState().setReadingScroll("r_01", "steps", 340);
+    useAppStore.getState().setReadingScroll("r_02", "overview", 7);
+
+    expect(useAppStore.getState().readingOf("r_01").overviewScrollTop).toBe(120);
+    expect(useAppStore.getState().readingOf("r_01").stepsScrollTop).toBe(340);
+    expect(useAppStore.getState().readingOf("r_02").overviewScrollTop).toBe(7);
+    expect(useAppStore.getState().readingOf("r_02").stepsScrollTop).toBe(0);
+  });
+
+  it("调用分区状态按 run + span 记忆", () => {
+    useAppStore.getState().setCallReading("r_01", "s_02", { io: "input", scrollTop: 5 });
+    useAppStore.getState().setCallReading("r_01", "s_02", { expanded: ["reasoning"] });
+    const call = useAppStore.getState().readingOf("r_01").calls.s_02;
+    expect(call).toEqual({ io: "input", scrollTop: 5, expanded: ["reasoning"] });
+    // 另一个 run 不共享
+    expect(useAppStore.getState().readingOf("r_02").calls.s_02).toBeUndefined();
+  });
+
+  it("阅读恢复不保存授权/草稿：readingByRun 结构里没有这些键", async () => {
+    await useAppStore.getState().loadRuns();
+    await useAppStore.getState().selectRun("r_01");
+    useAppStore.getState().setReadingTab("r_01", "files");
+    const reading = useAppStore.getState().readingOf("r_01");
+    for (const forbidden of [
+      "draft",
+      "authorization",
+      "sourceToken",
+      "allowFileWrites",
+      "content",
+    ]) {
+      expect(Object.keys(reading)).not.toContain(forbidden);
+    }
   });
 });

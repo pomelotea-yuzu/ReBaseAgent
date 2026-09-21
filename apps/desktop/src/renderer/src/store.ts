@@ -1,3 +1,8 @@
+import {
+  isCurrentDetailResponse,
+  isDetailPayloadForRun,
+  shouldApplyDetailFailure,
+} from "@shared/detail-request";
 import { findRunDetailVersionViolation } from "@shared/detail-version-guard";
 import type {
   ChooseSourceResult,
@@ -31,6 +36,13 @@ import {
 } from "@shared/ipc";
 import { create } from "zustand";
 import { api } from "./lib/api";
+import {
+  defaultReadingState,
+  patchCallReading,
+  patchReadingState,
+  readingStateOf,
+} from "./lib/reading-state";
+import type { CallReadingState, ReadingStateByRun, RunReadingState } from "./lib/reading-state";
 
 /**
  * UI 状态：只存选择状态与原始数据。
@@ -45,9 +57,19 @@ interface AppState {
   failed: FailedFile[];
   detail: RunDetail | null;
   selectedRunId: string | null;
+  /**
+   * 当前 run 的选中 span（**派生视图**）。
+   * 真源是 `readingByRun[selectedRunId].spanId`；本字段供既有组件直接读，
+   * 每次写通过 `selectSpan` 同步两处，避免组件一次性大改（渐进迁移）。
+   */
   selectedSpanId: string | null;
-  /** 展开的 step span id 集合 */
+  /** 当前 run 的展开 step 集合（**派生视图**，真源同 `readingByRun`） */
   expandedSteps: Record<string, boolean>;
+  /**
+   * 会话内按运行保存的阅读状态（页签/调用/展开/滚动）。
+   * 只存会话、不落盘、不保存授权或草稿；切运行再返回据此恢复。
+   */
+  readingByRun: ReadingStateByRun;
   loadingList: boolean;
   loadingDetail: boolean;
   error: string | null;
@@ -88,6 +110,18 @@ interface AppState {
   selectRun: (id: string) => Promise<void>;
   selectSpan: (id: string) => void;
   toggleStep: (id: string) => void;
+
+  /**
+   * 阅读状态的读写（会话内按运行恢复；只存阅读位置，不存授权/草稿）。
+   * 全部以 runId 为键——不同 run 中相同 span ID 不串状态。
+   */
+  readingOf: (runId: string) => RunReadingState;
+  /** 切换某 run 的页签（首次默认概览） */
+  setReadingTab: (runId: string, tab: RunReadingState["tab"]) => void;
+  /** 记录某 run 某处的滚动位置（概览/步骤目录） */
+  setReadingScroll: (runId: string, where: "overview" | "steps", top: number) => void;
+  /** 记录某 run 某次调用的分区阅读状态（io 切换/展开块/内部滚动） */
+  setCallReading: (runId: string, spanId: string, patch: Partial<CallReadingState>) => void;
 
   /**
    * 编辑某 tool.invoke 的 result 并重跑；成功刷新列表并自动选中新 run。
@@ -198,6 +232,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   selectedRunId: null,
   selectedSpanId: null,
   expandedSteps: {},
+  readingByRun: {},
   loadingList: false,
   loadingDetail: false,
   error: null,
@@ -235,22 +270,44 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   async selectRun(id) {
     if (get().selectedRunId === id) return;
+
+    // 切走前无需手动保存：selectSpan/toggleStep/滚动读写已逐步写入 readingByRun。
+    // 进入新 run 时**恢复**它自己的阅读状态（页签/选中/展开/滚动由该 run 记录决定），
+    // 但**不在**此处置 selectedSpanId——它要先经详情校验（失效对象安全回退，任务 3.2）。
+    const restored = readingStateOf(get().readingByRun, id);
     set({
       selectedRunId: id,
-      selectedSpanId: null,
+      selectedSpanId: restored.spanId,
+      expandedSteps: restored.expandedSteps,
       detail: null,
       loadingDetail: true,
       error: null,
     });
+    // 请求归属（3.3）：记录**发出请求时**的选中 run。此后任何分支落地前都要与此比对，
+    // 否则 A 的慢响应 / A 的失败收尾会盖掉用户已经切到的 B。
+    const selectedAtRequest = get().selectedRunId;
     const envelope = await api.getRun(id);
     if (!envelope.ok) {
+      // 已切走 ⇒ 这次失败与当前界面无关，**不清** loadingDetail（那是新 run 的加载态）
+      if (!shouldApplyDetailFailure(selectedAtRequest, get().selectedRunId, id)) return;
       set({ loadingDetail: false, error: `读取 run 失败：${envelope.error.message}` });
+      return;
+    }
+    // 跨进程数据不可信：先确认载荷自称的 run id 与请求一致（防 main 回错 / 信封串号），
+    // 再看目标 run 是否仍是当前选中——两道都过才允许落地。
+    if (!isDetailPayloadForRun(envelope.data, id)) {
+      if (!isCurrentDetailResponse(get().selectedRunId, id)) return;
+      set({
+        loadingDetail: false,
+        error: "轨迹数据归属校验失败（载荷与请求的 run 不一致）：拒绝加载",
+      });
       return;
     }
     // 版本守卫先于 schema 转换：zod 会剥离未知键，"v1 载荷私带隔离字段"必须在此拒绝，
     // 而不是被剥掉后当成合法 v1 继续渲染（B 任务 1.1）
     const versionViolation = findRunDetailVersionViolation(envelope.data);
     if (versionViolation !== null) {
+      if (!isCurrentDetailResponse(get().selectedRunId, id)) return;
       set({
         loadingDetail: false,
         error: `轨迹数据版本校验失败（拒绝加载）：${versionViolation}`,
@@ -259,27 +316,67 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
     const parsed = RunDetailSchema.safeParse(envelope.data);
     if (!parsed.success) {
+      if (!isCurrentDetailResponse(get().selectedRunId, id)) return;
       set({
         loadingDetail: false,
         error: `轨迹数据结构校验失败：${describeZodError(parsed.error)}`,
       });
       return;
     }
-    // 默认展开全部 step，用户可折叠
+    // 所有校验通过后仍需确认"目标 run 还是当前选中 run"——校验期间用户可能又切走了
+    if (!isCurrentDetailResponse(get().selectedRunId, id)) return;
+    // 默认展开全部 step，用户可折叠；但恢复的历史状态优先（用户折叠过的保持折叠）
     const expandedSteps: Record<string, boolean> = {};
     for (const span of parsed.data.spans) {
       if (span.kind === "agent.step") expandedSteps[span.id] = true;
     }
-    set({ detail: parsed.data, expandedSteps, loadingDetail: false });
+    const mergedExpanded = { ...expandedSteps, ...restored.expandedSteps };
+    set({
+      detail: parsed.data,
+      expandedSteps: mergedExpanded,
+      loadingDetail: false,
+    });
   },
 
   selectSpan(id) {
+    const runId = get().selectedRunId;
     set({ selectedSpanId: id });
+    if (runId !== null) {
+      set({ readingByRun: patchReadingState(get().readingByRun, runId, { spanId: id }) });
+    }
   },
 
   toggleStep(id) {
-    const { expandedSteps } = get();
-    set({ expandedSteps: { ...expandedSteps, [id]: !expandedSteps[id] } });
+    const { expandedSteps, selectedRunId, readingByRun } = get();
+    const next = { ...expandedSteps, [id]: !expandedSteps[id] };
+    set({ expandedSteps: next });
+    if (selectedRunId !== null) {
+      set({
+        readingByRun: patchReadingState(readingByRun, selectedRunId, { expandedSteps: next }),
+      });
+    }
+  },
+
+  readingOf(runId) {
+    return readingStateOf(get().readingByRun, runId);
+  },
+
+  setReadingTab(runId, tab) {
+    set({ readingByRun: patchReadingState(get().readingByRun, runId, { tab }) });
+  },
+
+  setReadingScroll(runId, where, top) {
+    set({
+      readingByRun: patchReadingState(
+        get().readingByRun,
+        runId,
+        where === "overview" ? { overviewScrollTop: top } : { stepsScrollTop: top },
+      ),
+    });
+  },
+
+  setCallReading(runId, spanId, patch) {
+    set({ readingByRun: patchCallReading(get().readingByRun, runId, spanId, patch) });
   },
 
   async forkAt(parentRunId, atSpanId, value, execution) {

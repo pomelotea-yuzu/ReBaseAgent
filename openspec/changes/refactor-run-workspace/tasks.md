@@ -110,9 +110,24 @@
 
 ## 3. 阅读状态与异步加载
 
-- [ ] 3.1 将每运行页签、调用、展开项及每调用阅读分区迁入会话状态（2h）；store 单测“跨运行返回恢复阅读”“阅读恢复不保存授权或草稿”，确认相同 span ID 不串状态且不保存内容副本。
-- [ ] 3.2 实现明确目标、有效历史选择和默认位置的优先级（1.5h）；单测“首次步骤选择与空轨迹”“显式错误定位优先于恢复”“失效阅读对象安全回退”，包括文件页签失效及空 span 集合。
-- [ ] 3.3 为详情请求增加 run/request 归属和同 run 重试（2h）；受控乱序 Promise 测试“快速切换及同运行重试不串响应”“非法详情不被概览绕过”，逐测旧成功/失败/版本失败/schema 失败/异常，不让旧 finally 清除新加载状态。
+- [x] 3.1 将每运行页签、调用、展开项及每调用阅读分区迁入会话状态（2h）；store 单测“跨运行返回恢复阅读”“阅读恢复不保存授权或草稿”，确认相同 span ID 不串状态且不保存内容副本。
+  - 交付：`src/renderer/src/lib/reading-state.ts`（纯函数）——`RunReadingState {tab,spanId,expandedSteps,overviewScrollTop,stepsScrollTop,calls}` + `ReadingStateByRun`；`readingStateOf`（缺省返回默认不改写）、`patchReadingState`、`patchCallReading` 全部不可变；`reconcileReadingState` 清理失效 span/step/calls 引用并在无文件时把 files 退回 overview。
+  - store：新增 `readingByRun` 为真源；`selectedSpanId`/`expandedSteps` 保留为**派生视图**（每次写双写两处，组件无需一次性大改）。`selectRun` 进入新 run 时恢复其阅读状态，并把恢复的展开集合**合并**在全展开默认之上（`{...全展开, ...恢复}`）。新增 `readingOf`/`setReadingTab`/`setReadingScroll`/`setCallReading`。
+  - 测试：`test/reading-state.test.ts`（15）+ `test/store.test.ts` 新增「阅读状态按运行恢复（任务 3.1）」6 条 = 46 条全绿。覆盖跨运行恢复、A/B 相同 span ID 不串、展开集合恢复、滚动按 run 记忆、调用分区状态、以及 `readingByRun` 里**不含** draft/authorization/sourceToken/allowFileWrites/content 键。
+  - 变异验证：把 run 键隔离改成写 `__global__` ⇒ 被 7 条用例抓到（还原）。
+- [x] 3.2 实现明确目标、有效历史选择和默认位置的优先级（1.5h）；单测“首次步骤选择与空轨迹”“显式错误定位优先于恢复”“失效阅读对象安全回退”，包括文件页签失效及空 span 集合。
+  - 交付：`src/renderer/src/lib/reading-resolve.ts`——`resolveReading({detail,history,target,currentTab})`，优先级**显式目标 > 有效历史 > 默认位置**；输出带 `source`（explicit/history/default/empty）与 `invalidated` 供界面提示与排查。默认位置=首个**自有** llm.call/tool.invoke（分支 run 不停在祖先上），无自有调用退首个可读 span，空轨迹 ⇒ `spanId:null` + `source:"empty"`。任何一层引用失效都清理降级、不抛、不选别的 run 的同 ID span。
+  - 测试：`test/reading-resolve.test.ts`（12 条）。含祖先前缀的默认选择、无自有调用回退、空轨迹空态、explicit 覆盖 history（含历史停文件页）、explicit span 失效降级、history 失效回默认、history 文件页签对非隔离 run 回退概览、空轨迹下历史 saved 的 span 不被「恢复」进来。
+  - 变异验证 4 次全部被抓：① 去掉自有 span 过滤（回退到祖先）② 历史优先于显式目标 ③ 禁用文件页签失效回退 ④ 不校验历史 span 有效性。每次跑完即还原并 diff 确认。
+- [x] 3.3 为详情请求增加 run/request 归属和同 run 重试（2h）；受控乱序 Promise 测试“快速切换及同运行重试不串响应”“非法详情不被概览绕过”，逐测旧成功/失败/版本失败/schema 失败/异常，不让旧 finally 清除新加载状态。
+  - 交付：`src/shared/detail-request.ts`（纯函数）——`isDetailForSelectedRun`、`shouldApplyDetailFailure`（失败收尾须「请求发出时的选中 run == 请求的 run == 现在的选中 run」三者一致）、`isCurrentDetailResponse`、`runIdOfDetailData`、`isDetailPayloadForRun`（**载荷自称的 meta.id 必须等于请求的 run id**）。
+  - store `selectRun`：记录 `selectedAtRequest`；失败分支先过归属守卫（**已切走就不写 error、不清 loadingDetail**——那是新 run 的加载态，治「旧 finally 清除新加载状态」）；成功分支在归属校验 + 版本守卫 + schema 转换的**每一步之后**都复查「目标 run 仍是当前选中 run」，防校验期间用户又切走。
+  - 测试：`test/detail-request.test.ts`（10 条，受控乱序 Promise：每次 getRun 返回手动 resolve 的 deferred）。
+    - 快速切换不串响应 2 条（A 慢响应后到不覆盖 B；A 迟到成功不清 B 的 loadingDetail）。
+    - 同 run 重试与失败收尾 3 条（A 失败在切到 B 后到达 ⇒ 不写 error 也不清 B 的加载态；切走再重读同一 run 的新加载态不被旧收尾清除；同 run 连发两次旧响应后到不留下 loadingDetail=true）。
+    - 非法详情不被概览绕过 4 条（main 回错 run 的载荷 ⇒ 报「归属校验失败」且不落地；版本非法 ⇒ 报「版本校验失败」；schema 非法 ⇒ 报「结构校验失败」；非法响应在切走之后到达 ⇒ 既不落地也不打扰新 run）+ 1 条异常（getRun reject）。
+  - 变异验证 3 次全部被抓：① 去掉失败归属守卫（旧 finally 污染新加载态）② 去掉成功落地归属守卫（A 的慢响应覆盖 B）③ 载荷归属只查非空不查一致（回错 run 被当合法详情）。
+  - ⚠️ 顺带修正既有桩：`test/store.test.ts` 的 getRun 桩原先无视请求 id 一律返回 fixture（`meta.id="r_01"`），fork/promptFork 成功后请求 `run_forked` 会拿到「自称 r_01」的载荷——新归属守卫恰好拒绝，暴露出桩本身在撒谎。已改为按请求 id 改写 meta.id（模拟 main 真实行为），两条既有用例恢复绿。
 - [ ] 3.4 合并列表在途刷新并处理执行收尾的尾随更新（1.5h）；单测“刷新合并且保留阅读”“列表刷新失败可重试”“切换不重载”，断言读列表次数和新记录最终可见。
 - [ ] 3.5 接入首次选择、筛选隐藏和源文件失效状态（1.5h）；store 测试“首次打开与无运行入口”“筛选隐藏当前运行”“已选源记录不可用”，确认首次详情失败不循环跳转、重读通过前执行入口不解禁。
 - [ ] 3.6 接入概览/步骤目录/逐调用滚动与长文本展开恢复（2h）；组件或 CDP 验证“跨运行返回恢复阅读”“失效阅读对象安全回退”，包含内容挂载后恢复、滚动上限裁剪和设置/分支往返。
