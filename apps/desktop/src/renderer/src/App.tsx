@@ -9,6 +9,7 @@ import { NoRunsEmpty, RunHeader, RunWorkspace } from "./components/RunWorkspace"
 import { SettingsDialog } from "./components/SettingsDialog";
 import { SpanTree } from "./components/SpanTree";
 import { isIsolatedRun } from "./lib/isolated-fork";
+import { useLayoutState } from "./lib/use-layout";
 import { useAppStore } from "./store";
 
 export default function App() {
@@ -20,7 +21,13 @@ export default function App() {
   const setCreateDialogOpen = useAppStore((s) => s.setCreateDialogOpen);
   const setSettingsSection = useAppStore((s) => s.setSettingsSection);
   const view = useAppStore((s) => s.view);
+  const tab = useAppStore((s) =>
+    s.selectedRunId === null ? "overview" : s.readingOf(s.selectedRunId).tab,
+  );
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  // 外壳布局（任务 4.3）：断点、宽度偏好、自动折叠。**自动折叠不写回偏好**。
+  const layout = useLayoutState({ tab, editing: false });
 
   // 挂载时加载一次列表与运行配置。只读工具，不做文件监听——目录内容变化后重新打开即可
   useEffect(() => {
@@ -57,17 +64,32 @@ export default function App() {
         </div>
       ) : null}
 
-      <main className="flex min-h-0 flex-1">
+      <main className="relative flex min-h-0 flex-1">
         {view === "trace" ? (
           <>
-            <RunList />
+            {/* 运行导航（任务 4.3）：宽度可调 220–360；自动折叠只在显示层生效 */}
+            {layout.navVisible ? (
+              <RunList
+                width={layout.navWidth}
+                onWidth={layout.setNavWidth}
+                onWidthKey={layout.handleNavKey}
+                onToggleCollapsed={layout.toggleNavCollapsed}
+              />
+            ) : null}
             {empty ? (
               // 无运行时：主工作区给两个**真实可用**的入口（delta「首次打开与无运行入口」），
               // 不是展示性欢迎页。步骤目录此时本就没有内容，一并卸下。
               <NoRunsEmpty onCreate={() => setCreateDialogOpen(true)} onRecord={openRecording} />
             ) : (
               <>
-                <SpanTree />
+                {/* 步骤目录（任务 4.3）：宽度可调 200–320；480px 二次约束不满足时自动收起 */}
+                {layout.stepsVisible ? (
+                  <SpanTree
+                    width={layout.stepsWidth}
+                    onWidth={layout.setStepsWidth}
+                    onWidthKey={layout.handleStepsKey}
+                  />
+                ) : null}
                 <WorkspaceShell />
               </>
             )}

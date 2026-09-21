@@ -194,7 +194,22 @@
 - 判据有牙（**5 组变异全部被抓即还原**）：① `availableTabs` 恒含 files ⇒ **4 条失败**；② 移除 `aria-selected` ⇒ 2 条失败；③ **RunList 断掉共用开关（改回本地 onClick 不写 store）⇒ 首轮漏网**——本包无 jsdom 打不到"点了没反应"，据此补**源码级接线契约**用例（`RunList` 必须含 `s.setCreateDialogOpen` + 不得含 `<CreateRunDialog`；`App` 的 `<CreateRunDialog` 挂载数必须为 1；`GlobalBar` 必须含 `setSettingsSection("proxy")`；`SettingsDialog` 必须含 `proxySectionRef` 与 `setSettingsSection(null)`）⇒ 该组重验被抓；④ App 挂两个对话框实例 ⇒ 被抓；⑤ `GlobalBar` 录制入口不定位代理分区 ⇒ 被抓。
 - 测试计数：desktop **637 passed / 0 failed（36 文件）**（3.6 基线 590，+47：4.1 的 16 + 4.2 的 31）。
 - 诚实边界：**本包无 jsdom** ⇒ 真实点击开对话框（"点两处开的是同一个"）、真实切页签与焦点流转、`scrollIntoView` 的实际滚动效果**均未在此覆盖**——归 7.1–7.3 的 Electron/CDP 验收。4.2 的接线只用**源码级契约**钉住（能抓"改成各开各的"，但抓不到"接线对而行为错"）。⚠️ **SpanTree 仍留在三栏里作为独立一栏**（搬移是 5.4 的范围），本任务只承载详情列；`steps` 页签在本壳里等价于既有「轨迹」详情。
-- [ ] 4.3 实现运行导航和步骤目录宽度调整、自动收起及临时列表返回（2h）；几何和键盘检查“自动折叠后恢复用户布局”“多尺寸与放大下关键阅读可达”“键盘导航及工具名称”，验证正文下限与偏好恢复。
+- [x] 4.3 实现运行导航和步骤目录宽度调整、自动收起及临时列表返回（2h）；几何和键盘检查“自动折叠后恢复用户布局”“多尺寸与放大下关键阅读可达”“键盘导航及工具名称”，验证正文下限与偏好恢复。
+### 4.3（2026-09-21 完成）
+
+新增 `src/renderer/src/lib/layout.ts`（纯判据）+ `src/renderer/src/lib/use-layout.ts`（React 接线）+ `src/renderer/src/components/ResizeGrip.tsx`（可调分隔条）；改 `App.tsx`（外壳消费判据）、`RunList.tsx` / `SpanTree.tsx`（宽度改由 props 传入 + 挂调节柄）；`test/layout.test.ts`（**31 条**）。
+
+- 纯判据（`lib/layout.ts`）：`breakpointOf`（四档 1280/960/720）、`clampNavWidth`(220–360) / `clampStepsWidth`(200–320)、`stepWidth`（←/→ ±16、Home/End 到界，**不认识的键返回 `null`** 让调用方别 `preventDefault`）、`decideNavVisible`、`decideStepsVisible`、`preservePrefs`、`readContentWidth`。
+- ⚠️ **断点口径必须是 `document.documentElement.clientWidth`**（D2 原文）：不是 `window.innerWidth`（含边框/滚动条，会整体偏大），也不是"主工作区宽度"。测试里按**代码行**（剔注释）断言不得出现 `innerWidth`——注释里正解释"为什么不用它"。
+- ⚠️ **`clampWidth` 的 NaN/±Infinity 回默认值，不是夹到 min**：夹到 min 会把"宽度读不出来"静默变成"宽度调到了最小"。这条与 3.6 的"不可测高度返回 null 而不是 0"同源。
+- ⚠️ **自动折叠不写回偏好**（本任务的核心纪律）：`navVisible` / `stepsVisible` 只是"这一刻显示不显示"，`LayoutPrefs` 完全不动。宽度回到 ≥1280 就自动恢复——因为偏好从没被改过。`preservePrefs` 就一个 `return prefs`，存在意义是给这条纪律一个**明确的断言点**（任何"把当前可见性存回 prefs"的写法都是错的）。「用户显式收起」与「屏幕不够宽自动收起」是**两个不同的字段**。
+- 四档行为（D2 表）：wide 常驻；medium 概览保留导航、**文件页或编辑态暂时收起**；narrow 按需打开；single(<720) 单工作区（辅助列表替换正文）。**480px 二次约束是硬约束**：`contentWidth − 导航实占 − 步骤目录宽 ≥ 480`，不满足就自动收起步骤目录（用户把目录拖到 320 也可能因此被收起——约束优先于偏好）。
+- `ResizeGrip`：`role="separator"` + `aria-orientation="vertical"` + `aria-valuenow/min/max` + `tabIndex={0}`；`pointerdown/move/up` + `setPointerCapture` 做拖动，拖动期间 `document.body.style.userSelect = "none"`（卸载也还原，避免卡在不可选中）。
+- ⚠️ 组件**不自己夹宽度**：`RunList` / `SpanTree` 的宽度与范围常量全从 `../lib/layout` 来（源码契约测试钉住"组件里不得再出现 `w-80`/`w-96`，也不得另抄一遍 220–360"）。
+- ⚠️ 踩坑：还原变异时误用 `git checkout <file>` —— 该文件**有未提交的 4.3 改动**，`checkout` 把整份 4.3 编辑回滚成已提交的 4.2 版本（丢掉约 60 行）。教训：**变异还原只能用备份副本（`cp`），绝不用 `git checkout`**，除非该文件确实已提交且无新增改动。手工重做后已恢复。
+- 判据有牙（**6 组变异全部被抓即还原**）：① `decideStepsVisible` 忽略 480 约束 ⇒ 3 条失败；② `preservePrefs` 写回偏好 ⇒ 1 条；③ medium 档文件页/编辑态不收导航 ⇒ 2 条；④ `clampWidth` 的 NaN 夹到 min ⇒ 1 条；⑤ 断点边界 `>` 代替 `>=` ⇒ 1 条；⑥ 面板写死 `w-80` ⇒ 接线契约 1 条。
+- 测试计数：desktop **668 passed / 0 failed（37 文件）**（4.2 基线 637，+31）。
+- 诚实边界：**本包无 jsdom** ⇒ 拖动指针事件、真实 CSS 生效、`documentElement.clientWidth` 的真实换算（1440/1360/1024/800/640）、**Electron 200% 缩放**均**未实测**——归 7.1/7.2。⚠️ 本任务**未实现** D2 的「<720 单工作区辅助列表替换正文」（`auxPane` 状态已备但外壳未挂 UI）与「临时列表返回正文焦点」——`use-layout.ts` 暴露了 `auxPane`/`setAuxPane`，实际替换渲染留待 5.4 的导航重构；本任务只落地宽度调整 + 自动折叠 + 480 约束三条主线。
 - [ ] 4.4 重排 RunList 的摘要、搜索、来源和展开指标（2h）；fixture/CDP 验证“多份 trace 文件”“完整任务和 ID 搜索”“长模型和空任务的导航摘要”“徽标与过滤”“老文件无来源”，保留既有 token/工具/耗时字段；同步组件、现有组件/e2e 断言、测试描述与相关注释中的“仅代理/仅本地直录/本地直录”为“代理录制/本地记录”，检索产品源码及当前测试确认旧标签无残留，历史归档不改。
 - [ ] 4.5 接入导航的刷新/错误/空结果/选中隐藏提示及短 ID 复制（1h）；CDP 验证“同名运行的短 ID 稳定可辨”“筛选隐藏当前运行”“列表刷新失败可重试”，完整 ID 可复制且来源/状态不遮挡模型。
 

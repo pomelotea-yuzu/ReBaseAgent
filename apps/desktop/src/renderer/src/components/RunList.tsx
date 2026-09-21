@@ -1,9 +1,27 @@
 import { filterRuns } from "@shared/nav";
 import { formatDuration, formatTime, formatTokens } from "../lib/format";
+import { NAV_MAX, NAV_MIN } from "../lib/layout";
 import { useAppStore } from "../store";
+import { ResizeGrip } from "./ResizeGrip";
 import { RunStatusBadge } from "./RunStatusBadge";
 
-export function RunList() {
+/**
+ * 运行导航（任务 4.3）。
+ *
+ * 宽度由外壳计算并传入（`width` / `onWidth` / `onWidthKey`）——组件**不自己夹宽度**，
+ * 那会让"220–360"这条规则散成两份。收起/展开同理由外壳决定挂不挂载。
+ */
+export function RunList({
+  width,
+  onWidth,
+  onWidthKey,
+  onToggleCollapsed,
+}: {
+  width: number;
+  onWidth: (width: number) => void;
+  onWidthKey: (key: string) => boolean;
+  onToggleCollapsed: () => void;
+}) {
   const runs = useAppStore((s) => s.runs);
   const failed = useAppStore((s) => s.failed);
   const selectedRunId = useAppStore((s) => s.selectedRunId);
@@ -28,18 +46,32 @@ export function RunList() {
   };
 
   return (
-    <aside className="flex h-full w-80 shrink-0 flex-col border-r border-gray-200 bg-white">
+    <aside
+      className="relative flex h-full shrink-0 flex-col border-r border-gray-200 bg-white"
+      style={{ width, minWidth: width }}
+    >
       <div className="border-b border-gray-200 px-3 py-2">
         <div className="flex items-center justify-between gap-2">
           <div className="text-sm font-semibold text-gray-800">运行记录</div>
-          <button
-            type="button"
-            onClick={() => setCreateDialogOpen(true)}
-            title="直接在桌面端跑一个 run（纯对话，或隔离文件运行；不需代理、不需写代码）"
-            className="flex shrink-0 items-center gap-1.5 rounded border border-gray-300 px-2 py-0.5 text-[11px] text-gray-600 hover:bg-gray-50"
-          >
-            ＋ 新建运行
-          </button>
+          <div className="flex shrink-0 items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setCreateDialogOpen(true)}
+              title="直接在桌面端跑一个 run（纯对话，或隔离文件运行；不需代理、不需写代码）"
+              className="flex shrink-0 items-center gap-1.5 rounded border border-gray-300 px-2 py-0.5 text-[11px] text-gray-600 hover:bg-gray-50"
+            >
+              ＋ 新建运行
+            </button>
+            <button
+              type="button"
+              onClick={onToggleCollapsed}
+              aria-label="收起运行列表"
+              title="收起运行列表（宽度由外壳按可用空间管理，收起后仍可用全局栏新建）"
+              className="rounded px-1.5 text-xs text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            >
+              ‹
+            </button>
+          </div>
         </div>
         <div className="text-[11px] text-gray-500">按创建时间倒序 · trace 只读</div>
       </div>
@@ -177,6 +209,16 @@ export function RunList() {
           </div>
         ))}
       </div>
+
+      {/* 宽度调节柄（任务 4.3）：220–360，拖动或 ←/→ 均可 */}
+      <ResizeGrip
+        label="运行导航宽度"
+        width={width}
+        min={NAV_MIN}
+        max={NAV_MAX}
+        onWidth={onWidth}
+        onWidthKey={onWidthKey}
+      />
     </aside>
   );
 }

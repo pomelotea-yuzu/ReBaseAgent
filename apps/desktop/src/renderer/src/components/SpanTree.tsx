@@ -3,10 +3,12 @@ import type { SpanNode } from "@shared/derive";
 import { buildSpanTree, deriveStepStats } from "@shared/derive";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatDuration, formatTokens } from "../lib/format";
+import { STEPS_MAX, STEPS_MIN } from "../lib/layout";
 import { decideRestore, initialRestoreState, restoreIdentity } from "../lib/restore-gate";
 import { resolveRestoreScrollTop, resolveScrollRestore } from "../lib/scroll-restore";
 import { readingScrollOf } from "../lib/workspace-selection";
 import { useAppStore } from "../store";
+import { ResizeGrip } from "./ResizeGrip";
 
 const KIND_LABEL: Record<SpanLine["kind"], string> = {
   "agent.step": "步骤",
@@ -105,7 +107,15 @@ function SpanRow({ node, depth }: { node: SpanNode; depth: number }) {
   );
 }
 
-export function SpanTree() {
+export function SpanTree({
+  width,
+  onWidth,
+  onWidthKey,
+}: {
+  width: number;
+  onWidth: (width: number) => void;
+  onWidthKey: (key: string) => boolean;
+}) {
   const detail = useAppStore((s) => s.detail);
   const loadingDetail = useAppStore((s) => s.loadingDetail);
   const selectedRunId = useAppStore((s) => s.selectedRunId);
@@ -166,7 +176,10 @@ export function SpanTree() {
 
   if (loadingDetail) {
     return (
-      <section className="w-96 shrink-0 border-r border-gray-200 bg-white px-3 py-6 text-xs text-gray-500">
+      <section
+        className="shrink-0 border-r border-gray-200 bg-white px-3 py-6 text-xs text-gray-500"
+        style={{ width, minWidth: width }}
+      >
         加载中…
       </section>
     );
@@ -174,14 +187,20 @@ export function SpanTree() {
 
   if (detail === null) {
     return (
-      <section className="w-96 shrink-0 border-r border-gray-200 bg-white px-3 py-6 text-xs text-gray-500">
+      <section
+        className="shrink-0 border-r border-gray-200 bg-white px-3 py-6 text-xs text-gray-500"
+        style={{ width, minWidth: width }}
+      >
         从左侧选择一次运行。
       </section>
     );
   }
 
   return (
-    <section className="flex w-96 shrink-0 flex-col border-r border-gray-200 bg-white">
+    <section
+      className="relative flex shrink-0 flex-col border-r border-gray-200 bg-white"
+      style={{ width, minWidth: width }}
+    >
       <div className="border-b border-gray-200 px-3 py-2">
         <div className="text-sm font-semibold text-gray-800">轨迹</div>
         <div className="text-[11px] text-gray-500">{detail.spans.length} 个 span · 只读呈现</div>
@@ -191,6 +210,16 @@ export function SpanTree() {
           <SpanRow key={node.span.id} node={node} depth={0} />
         ))}
       </div>
+
+      {/* 宽度调节柄（任务 4.3）：200–320，拖动或 ←/→ 均可；480px 二次约束由外壳判 */}
+      <ResizeGrip
+        label="步骤目录宽度"
+        width={width}
+        min={STEPS_MIN}
+        max={STEPS_MAX}
+        onWidth={onWidth}
+        onWidthKey={onWidthKey}
+      />
     </section>
   );
 }
