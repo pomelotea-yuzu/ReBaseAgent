@@ -35,6 +35,7 @@ import {
   WorkspaceReadFileResultSchema,
 } from "@shared/ipc";
 import { decideRefresh, resolveRefreshFailure, settleRefresh } from "@shared/list-refresh";
+import { ShortIdState } from "@shared/nav";
 import { create } from "zustand";
 import { api } from "./lib/api";
 import { resolveReading } from "./lib/reading-resolve";
@@ -146,6 +147,15 @@ interface AppState {
   createDialogOpen: boolean;
   /** 「录制接入」跳转后要高亮的设置分区（null = 常规打开设置） */
   settingsSection: "proxy" | null;
+
+  /**
+   * 会话内的短 ID 长度记忆（任务 4.4）。
+   *
+   * ⚠️ 为什么不放在 RunList 组件里：delta 要求「**会话中**已扩展的长度不因刷新删除
+   * 碰撞项而缩短」。组件随导航收起/展开会卸载重建，本地 state 一卸载就丢长度记忆 ⇒
+   * 刷新后短 ID 缩回 8 位，正是规则禁止的。放 store 才跨渲染存活。
+   */
+  shortIdState: ShortIdState;
 
   loadRuns: () => Promise<void>;
 
@@ -331,6 +341,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   compareNotice: null,
   createDialogOpen: false,
   settingsSection: null,
+  shortIdState: new ShortIdState(),
 
   async loadRuns() {
     // 在途合并（任务 3.4）：重复刷新不并发发射。频繁触发（挂载 + 执行收尾 + 手动重试）
@@ -686,7 +697,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       await get().loadRuns();
       return false;
     }
-    // 成功：刷新列表（新 run 归入"本地直录"）并自动选中新 run
+    // 成功：刷新列表（新 run 归入"本地记录"）并自动选中新 run
     set({ creatingRun: "success" });
     await get().loadRuns();
     await get().selectRun(envelope.data.id);

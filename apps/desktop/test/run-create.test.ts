@@ -63,7 +63,7 @@ describe("runCreate：成功路径", () => {
       expect(record.meta.id).toBe(id);
       expect(record.meta.parent).toBeNull();
       expect(record.meta.fork).toBeNull();
-      // 与 SDK 直录同形：不写 source（列表归入"本地直录"）
+      // 与 SDK 直录同形：不写 source（列表归入"本地记录"）
       expect(record.meta.source).toBeUndefined();
       // meta.task 由 runLoop 从首条 user 消息派生（runLoop 无 task 入参）
       expect(record.meta.task).toBe(TASK);
@@ -73,7 +73,7 @@ describe("runCreate：成功路径", () => {
       // 与既有 fork 一致的硬编码预算被如实录制
       expect(record.meta.budget).toEqual({ max_total_tokens: 100_000 });
 
-      // 列表可见并归入本地直录
+      // 列表可见并归入本地记录
       const list = repo.listRuns();
       expect(list.failed).toEqual([]);
       expect(list.runs.map((r) => r.id)).toContain(id);

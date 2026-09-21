@@ -1,4 +1,4 @@
-import { filterRuns } from "@shared/nav";
+import { deriveNavLabel, filterRuns } from "@shared/nav";
 import { formatDuration, formatTime, formatTokens } from "../lib/format";
 import { NAV_MAX, NAV_MIN } from "../lib/layout";
 import { useAppStore } from "../store";
@@ -35,6 +35,11 @@ export function RunList({
   // "新建运行"对话框开关（任务 4.2）：**与全局栏共用同一位于 store 的开关**，
   // 写的是同一个 CreateRunDialog 单例，不是两份各开各的（spec：共用同一现有创建流程）
   const setCreateDialogOpen = useAppStore((s) => s.setCreateDialogOpen);
+
+  // 短 ID（任务 4.4）：长度记忆存于 store——会话内**只增不减**，
+  // 若放组件内则运行列表一卸载（切页签）就会忘记已扩展的长度，刷新后碰撞项重现
+  const shortIdState = useAppStore((s) => s.shortIdState);
+  const shortIds = shortIdState.update(runs.map((r) => r.id));
 
   // 搜索与来源条件求交集（任务 2.4 的共用派生）；无 source 字段的老文件归入"本地记录"
   const filtered = filterRuns(runs, searchQuery, sourceFilter);
@@ -150,57 +155,81 @@ export function RunList({
           </div>
         ) : null}
 
-        {filtered.map((run) => (
-          <button
-            type="button"
-            key={run.id}
-            onClick={() => {
-              void selectRun(run.id);
-            }}
-            className={`block w-full border-b border-gray-100 px-3 py-2 text-left hover:bg-gray-50 ${
-              selectedRunId === run.id ? "bg-blue-50 hover:bg-blue-50" : ""
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <RunStatusBadge status={run.status} reason={run.reason} />
-              {run.source === "proxy" ? (
-                <span
-                  className="shrink-0 rounded bg-sky-100 px-1.5 py-0.5 text-[11px] leading-4 text-sky-800"
-                  title="经本地录制代理录制（可在其 llm.call 详情编辑 messages 重发）"
-                >
-                  代理
+        {filtered.map((run) => {
+          // 导航摘要（任务 4.4）：短 ID 只是**界面标识**，完整 ID 仍用于复制与 title
+          const label = deriveNavLabel(run, shortIds.get(run.id) ?? run.id, {
+            time: formatTime(run.created_at),
+            source: run.source === "proxy" ? "代理录制" : "本地记录",
+          });
+          return (
+            <button
+              type="button"
+              key={run.id}
+              onClick={() => {
+                void selectRun(run.id);
+              }}
+              className={`block w-full border-b border-gray-100 px-3 py-2 text-left hover:bg-gray-50 ${
+                selectedRunId === run.id ? "bg-blue-50 hover:bg-blue-50" : ""
+              }`}
+            >
+              {/* 第一行：状态 + 来源 + 任务（紧凑条目优先 task/model/status/短ID/时间/来源） */}
+              <div className="flex items-start gap-2">
+                <span className="mt-0.5 flex shrink-0 items-center gap-1">
+                  <RunStatusBadge status={run.status} reason={run.reason} />
+                  {run.source === "proxy" ? (
+                    <span
+                      className="shrink-0 rounded bg-sky-100 px-1.5 py-0.5 text-reading-meta leading-4 text-sky-800"
+                      title="经本地录制代理录制（可在其 llm.call 详情编辑 messages 重发）"
+                    >
+                      代理录制
+                    </span>
+                  ) : null}
                 </span>
-              ) : null}
-              <span className="truncate text-xs font-medium text-gray-800" title={run.task}>
-                {run.task}
-              </span>
-            </div>
-            <div className="mt-1 flex items-center gap-2 text-[11px] text-gray-500">
-              <span className="font-code">{run.id}</span>
-              {run.parent !== null ? <span className="text-violet-600">分支</span> : null}
-              <span className="truncate">{run.model}</span>
-            </div>
-            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-gray-500">
-              <span>{formatTime(run.created_at)}</span>
-              <span>{run.steps} 步</span>
-              <span>{run.toolCalls} 工具</span>
-              {run.toolErrors > 0 ? (
-                <span className="text-red-600">{run.toolErrors} 出错</span>
-              ) : null}
-              <span>{formatTokens(run.tokensIn + run.tokensOut)} tokens</span>
-              {/* run 级累计缓存命中：null = 无数据（未知，不显示）；0 = 实测零命中（照常显示） */}
-              {run.cacheHit === null ? null : (
+                {/* 任务最多两行；超长由 CSS 截断，完整值在 title 里（不改原值） */}
                 <span
-                  className={run.cacheHit > 0 ? "text-emerald-600" : "text-amber-600"}
-                  title="本 run 自有 llm.call 的前缀缓存命中 tokens（不含祖先共享前缀）"
+                  className={`line-clamp-2 min-w-0 flex-1 text-reading-meta font-medium ${
+                    label.isFallback ? "text-gray-500" : "text-gray-800"
+                  }`}
+                  title={run.task}
                 >
-                  命中 {formatTokens(run.cacheHit)}
+                  {label.title}
                 </span>
-              )}
-              <span>{formatDuration(run.durationMs)}</span>
-            </div>
-          </button>
-        ))}
+              </div>
+
+              {/* 第二行：短 ID（复制用完整值）+ 分支 + 模型（缺失显「未记录」，不借当前配置） */}
+              <div className="mt-1 flex items-center gap-2 text-reading-meta text-gray-500">
+                <span className="font-code" title={`完整 ID：${run.id}（点击复制入口见任务 4.5）`}>
+                  {shortIds.get(run.id) ?? run.id}
+                </span>
+                {run.parent !== null ? <span className="text-violet-600">分支</span> : null}
+                <span className="truncate" title={label.model}>
+                  {label.model}
+                </span>
+              </div>
+
+              {/* 第三行：既有指标一个不删（steps/tools/errors/token/duration/cache） */}
+              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-reading-meta text-gray-500">
+                <span>{formatTime(run.created_at)}</span>
+                <span>{run.steps} 步</span>
+                <span>{run.toolCalls} 工具</span>
+                {run.toolErrors > 0 ? (
+                  <span className="text-red-600">{run.toolErrors} 出错</span>
+                ) : null}
+                <span>{formatTokens(run.tokensIn + run.tokensOut)} tokens</span>
+                {/* run 级累计缓存命中：null = 无数据（未知，不显示）；0 = 实测零命中（照常显示） */}
+                {run.cacheHit === null ? null : (
+                  <span
+                    className={run.cacheHit > 0 ? "text-emerald-600" : "text-amber-600"}
+                    title="本 run 自有 llm.call 的已记录命中量（不含祖先共享前缀，非全运行命中率）"
+                  >
+                    命中 {formatTokens(run.cacheHit)}
+                  </span>
+                )}
+                <span>{formatDuration(run.durationMs)}</span>
+              </div>
+            </button>
+          );
+        })}
 
         {failed.map((item) => (
           <div key={item.file} className="border-b border-gray-100 bg-red-50 px-3 py-2">

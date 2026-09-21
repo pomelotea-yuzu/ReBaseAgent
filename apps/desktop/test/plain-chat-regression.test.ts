@@ -117,7 +117,7 @@ async function createChatRun(
 }
 
 describe("3.1 纯对话 run 的形态不变（A 段能力不渗入原形态）", () => {
-  it("v1 + 空工具表 + 无隔离元数据；列表可见且归入本地直录", async () => {
+  it("v1 + 空工具表 + 无隔离元数据；列表可见且归入本地记录", async () => {
     const { traces, repo, cleanup } = tempRepo();
     try {
       const id = await createChatRun(traces, repo, oneTurn("时间旅行调试是…"));
