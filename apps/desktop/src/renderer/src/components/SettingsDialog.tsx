@@ -1,19 +1,27 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAppStore } from "../store";
 
 /**
- * 运行配置对话框：baseURL / apiKey / model。
+ * 运行配置对话框：baseURL / apiKey / model + 本地录制代理。
  *
  * 纪律：
  * - apiKey 只进不出——保存时写入 main（单向通道），回读状态永不含密钥
  * - 加密方式明示：safeStorage 可用（safe）与明文降级（plain）分别提示
  * - 清除配置需用户确认（删除数据目录 settings.json，不可恢复）
+ *
+ * 任务 4.2：全局栏的「录制接入」要求**定位现有代理设置**（不是另建一套录制界面）。
+ * 做法是读 store 的 `settingsSection`：为 `"proxy"` 时把代理分区滚进视口并聚焦
+ * 第一个控件。`sectionRef` 只在"被要求定位"时滚动一次，常规打开不受影响。
  */
 export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const settings = useAppStore((s) => s.settings);
   const configured = settings?.configured ?? false;
   const proxy = useAppStore((s) => s.proxy);
   const toggleProxy = useAppStore((s) => s.toggleProxy);
+  const settingsSection = useAppStore((s) => s.settingsSection);
+  const setSettingsSection = useAppStore((s) => s.setSettingsSection);
+  const proxySectionRef = useRef<HTMLDivElement | null>(null);
+  const proxyCheckboxRef = useRef<HTMLInputElement | null>(null);
 
   // 打开时以已保存值预填（apiKey 留空 = 保持原值）
   const [baseURL, setBaseURL] = useState(settings?.baseURL ?? "");
@@ -111,6 +119,16 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
+
+  // 「录制接入」定位：滚到代理分区并把焦点放到第一个控件。只在显式要求时执行一次，
+  // 执行后清掉标记——否则用户手动收起后又被拉回去。jsdom/静态渲染无布局能力，
+  // 只有真实 DOM 才逐项调用，故先判方法存在。
+  useEffect(() => {
+    if (settingsSection !== "proxy") return;
+    proxySectionRef.current?.scrollIntoView?.({ block: "start" });
+    proxyCheckboxRef.current?.focus?.();
+    setSettingsSection(null);
+  }, [settingsSection, setSettingsSection]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4">
@@ -228,8 +246,9 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
 
         {/* ---------------------------------------------------------------
             本地录制代理：零摩擦接入（key 留在你的应用里，ReBaseAgent 不保管）
+            全局栏「录制接入」即定位到本分区（任务 4.2）
             --------------------------------------------------------------- */}
-        <div className="mt-4 border-t border-gray-200 pt-3">
+        <div ref={proxySectionRef} className="mt-4 border-t border-gray-200 pt-3">
           <div className="mb-1 flex items-center justify-between">
             <div className="text-sm font-semibold text-gray-800">本地录制代理（零摩擦接入）</div>
             <span
@@ -255,6 +274,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
           <div className="space-y-2">
             <label className="flex items-center gap-2 text-[11px] text-gray-700">
               <input
+                ref={proxyCheckboxRef}
                 type="checkbox"
                 checked={proxyEnabled}
                 onChange={(e) => setProxyEnabled(e.target.checked)}

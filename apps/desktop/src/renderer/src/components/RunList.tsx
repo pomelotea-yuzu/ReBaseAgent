@@ -1,26 +1,7 @@
 import { filterRuns } from "@shared/nav";
-import { useState } from "react";
-import { formatDuration, formatTime, formatTokens, reasonLabel } from "../lib/format";
+import { formatDuration, formatTime, formatTokens } from "../lib/format";
 import { useAppStore } from "../store";
-import { CreateRunDialog } from "./CreateRunDialog";
-
-/** 状态徽章：completed 与 crashed 两态，崩溃明确标注"运行中断" */
-function StatusBadge({
-  status,
-  reason,
-}: { status: "completed" | "crashed"; reason: string | null }) {
-  const crashed = status === "crashed";
-  return (
-    <span
-      className={`inline-flex shrink-0 rounded px-1.5 py-0.5 text-[11px] leading-4 ${
-        crashed ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"
-      }`}
-      title={crashed ? "进程中断，无终止事件" : undefined}
-    >
-      {crashed ? "运行中断" : reasonLabel(reason)}
-    </span>
-  );
-}
+import { RunStatusBadge } from "./RunStatusBadge";
 
 export function RunList() {
   const runs = useAppStore((s) => s.runs);
@@ -33,8 +14,9 @@ export function RunList() {
   const searchQuery = useAppStore((s) => s.searchQuery);
   const setSearchQuery = useAppStore((s) => s.setSearchQuery);
 
-  // "新建运行"对话框开关（本地 UI 状态，与 App.tsx 管设置对话框同法）
-  const [createOpen, setCreateOpen] = useState(false);
+  // "新建运行"对话框开关（任务 4.2）：**与全局栏共用同一位于 store 的开关**，
+  // 写的是同一个 CreateRunDialog 单例，不是两份各开各的（spec：共用同一现有创建流程）
+  const setCreateDialogOpen = useAppStore((s) => s.setCreateDialogOpen);
 
   // 搜索与来源条件求交集（任务 2.4 的共用派生）；无 source 字段的老文件归入"本地记录"
   const filtered = filterRuns(runs, searchQuery, sourceFilter);
@@ -52,7 +34,7 @@ export function RunList() {
           <div className="text-sm font-semibold text-gray-800">运行记录</div>
           <button
             type="button"
-            onClick={() => setCreateOpen(true)}
+            onClick={() => setCreateDialogOpen(true)}
             title="直接在桌面端跑一个 run（纯对话，或隔离文件运行；不需代理、不需写代码）"
             className="flex shrink-0 items-center gap-1.5 rounded border border-gray-300 px-2 py-0.5 text-[11px] text-gray-600 hover:bg-gray-50"
           >
@@ -148,7 +130,7 @@ export function RunList() {
             }`}
           >
             <div className="flex items-center gap-2">
-              <StatusBadge status={run.status} reason={run.reason} />
+              <RunStatusBadge status={run.status} reason={run.reason} />
               {run.source === "proxy" ? (
                 <span
                   className="shrink-0 rounded bg-sky-100 px-1.5 py-0.5 text-[11px] leading-4 text-sky-800"
@@ -195,8 +177,6 @@ export function RunList() {
           </div>
         ))}
       </div>
-
-      {createOpen ? <CreateRunDialog onClose={() => setCreateOpen(false)} /> : null}
     </aside>
   );
 }

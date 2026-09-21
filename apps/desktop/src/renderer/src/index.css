@@ -14,7 +14,77 @@ body {
   color: #1f2328;
 }
 
+/**
+ * 阅读字号档（U1 design D2）：正文 14px、代码 13px、辅助信息 12px、标题 18px，字距 0。
+ *
+ * ⚠️ 这些是**语义令牌**，不是随手写的 px：既有组件里散落着 `text-[11px]` / `text-xs`
+ * 之类的裸值，改造时逐处换成下面的令牌，才能保证"改字号只改一处"。
+ * 200% 缩放一律走系统/Electron 缩放，**不**改这些值（D2：不改变字号）。
+ */
+:root {
+  --reading-body: 14px;
+  --reading-mono: 13px;
+  --reading-meta: 12px;
+  --reading-title: 18px;
+  --reading-tracking: 0;
+
+  /* 危险/写入类动作的统一色（避免各处各挑一个红） */
+  --danger-ring: #ef4444;
+}
+
+body {
+  font-size: var(--reading-body);
+  letter-spacing: var(--reading-tracking);
+}
+
+/* 字号令牌的工具类 */
+.text-reading-body {
+  font-size: var(--reading-body);
+}
+.text-reading-mono {
+  font-size: var(--reading-mono);
+}
+.text-reading-meta {
+  font-size: var(--reading-meta);
+}
+.text-reading-title {
+  font-size: var(--reading-title);
+  font-weight: 600;
+  letter-spacing: var(--reading-tracking);
+}
+
 /* 长文本（messages / 工具结果）用等宽字体，便于肉眼比对 token 与换行 */
 .font-code {
   font-family: "Cascadia Code", "JetBrains Mono", Consolas, "Courier New", monospace;
+}
+
+/**
+ * 全局可见焦点兜底（场景「键盘导航及工具名称」）：键盘用户必须看得见焦点在哪。
+ *
+ * 只对**未显式声明焦点样式**的交互元素生效（`:focus-visible` 而非 `:focus`——
+ * 鼠标点击不该留下焦点环，否则"键盘用户在这里"这一信号会贬值）。
+ * 有自己焦点环的组件（如 IconButton 的 `focus-visible:ring-*`）会覆盖此兜底。
+ */
+:where(button, [role="button"], a[href], input, select, textarea, summary):focus-visible {
+  outline: 2px solid #0284c7;
+  outline-offset: 1px;
+}
+
+/* 不用键盘的用户不该看到兜底轮廓（上面一条已覆盖该情形，这里显式归零避免浏览器默认） */
+:where(button, [role="button"], a[href], summary):focus:not(:focus-visible) {
+  outline: none;
+}
+
+/**
+ * 尊重系统的"减少动态效果"（无障碍基线）。U1 会引入折叠/展开等过渡，
+ * 一律在此基础上退化，不额外做开关。
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

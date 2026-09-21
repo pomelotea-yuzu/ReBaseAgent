@@ -167,8 +167,33 @@
 
 ## 4. 工作区与运行导航
 
-- [ ] 4.1 添加 lucide-react、基础图标按钮与阅读字号/焦点样式（1h）；安装及 typecheck 通过，键盘/悬停核对“键盘导航及工具名称”，只更新 desktop 依赖和对应 lockfile。
-- [ ] 4.2 实现全局栏与 RunWorkspace 页签承载（2h）；组件/CDP 验证“首次打开与无运行入口”“文件承载区不附带步骤目录”，全局/列表新建共用原对话框、录制定位现有代理设置。
+- [x] 4.1 添加 lucide-react、基础图标按钮与阅读字号/焦点样式（1h）；安装及 typecheck 通过，键盘/悬停核对“键盘导航及工具名称”，只更新 desktop 依赖和对应 lockfile。
+### 4.1（2026-09-21 完成）
+
+新增三个文件：`src/renderer/src/components/IconButton.tsx`（`IconButton` / `TextIconButton` / `FOCUS_RING` / `DECORATIVE_ICON_PROPS`）、`src/renderer/src/lib/a11y-action.ts`（`auditAccessibleAction` / `looksLikeIdentifier` / `actionTitle` / `AccessibleAction`）、`test/icon-button.test.ts`（**16 条**）；改 `index.css` 加阅读字号令牌与全局焦点兜底。
+
+- 依赖：**只动 desktop** —— `apps/desktop/package.json` 加 `"lucide-react": "^1.47.0"`（实解 1.47.0）+ `pnpm-lock.yaml` 对应更新，**无其他文件变化**。
+- 阅读字号令牌（design D2）：`--reading-body:14px` / `--reading-mono:13px` / `--reading-meta:12px` / `--reading-title:18px` / `--reading-tracking:0`，配 `.text-reading-*` 工具类。**是语义令牌不是随手 px**——既有散落的 `text-[11px]`/`text-xs` 由后续任务逐步替换，本任务只立令牌。
+- 可访问名称契约：`IconButton` 输出 `aria-label`（纯名称）+ `title`（`actionTitle(label, hint)` 拼接的悬停提示，**空 hint 不产生空括号**），激活态用 `aria-pressed`。`auditAccessibleAction` 按四类问题**收集全部**（`missing-name` / `identifier-leak` / `disabled-without-reason` / `color-only-state`），**不早退**——一次修完而不是修一个重跑一次。
+- ⚠️ **图标隐藏不能只断言 `aria-hidden`**：lucide **自己**就输出 `aria-hidden="true"`（探针实测），断言它等于测库不测自己。故引入 `DECORATIVE_ICON_PROPS = { "aria-hidden": true, focusable: false, role: "presentation" }`，断言本组件负责的 `focusable="false"`（不进 Tab 序列）与 `role="presentation"`。
+- 焦点兜底（CSS）：`:where(button,[role=button],a[href],input,select,textarea,summary):focus-visible { outline:2px solid #0284c7; outline-offset:1px }` + `:focus:not(:focus-visible){outline:none}`；另加 `@media (prefers-reduced-motion: reduce)` 块。
+- 判据有牙（**5 组变异，4 被抓 + 1 漏网后补用例**）：① 移除 `{...DECORATIVE_ICON_PROPS}` ⇒ 被抓 2 条（**首轮断言 aria-hidden 未抓到，见上条纠正**）；② 去掉 `aria-pressed` ⇒ 被抓；③ `identifier-leak` 分支返回 true 恒不报 ⇒ 被抓；④ `disabled-without-reason` 忽略 hint ⇒ 被抓；⑤ **`auditAccessibleAction` 首条问题即 early return ⇒ 首次漏网**——"多问题"用例的 label 非空，走不到早退分支；补一条「空名称时也报全其余问题」（`{label:"",disabled:true}` 与 `{label:"  ",active:true}` 两个窗口）后 ⇒ 被抓。五处已全部还原。
+- ⚠️ 备份口径两次踩坑（与 3.6 同源）：`.bak` 若早于后续编辑，还原会把新代码一起回滚（本轮把 `DECORATIVE_ICON_PROPS` 声明抹掉致 8 条 `ReferenceError`）；**进一步变异前必须重建与当前一致的备份并 `md5sum` 校验**，还原后 `grep` 复核关键符号仍在，不能只看"无 MUTANT 残留"。
+- 诚实边界：**本包无 jsdom** ⇒ 真实 Tab 顺序、焦点环渲染、hover tooltip 弹出**均未在此覆盖**（归 7.3 Electron/CDP 键盘实测）。这里钉的是**属性契约**（名称存在、状态不只靠颜色、禁用带原因），不是行为验证。字号令牌只立与替换了 `IconButton`/`TextIconButton` 自身，既有组件的全量字号迁移归 4.3/4.4。
+- [x] 4.2 实现全局栏与 RunWorkspace 页签承载（2h）；组件/CDP 验证“首次打开与无运行入口”“文件承载区不附带步骤目录”，全局/列表新建共用原对话框、录制定位现有代理设置。
+### 4.2（2026-09-21 完成）
+
+新增三个组件 + 改造四个文件 + 补测试：`RunWorkspace.tsx`（`WORKSPACE_TABS` / `availableTabs` / `resolveVisibleTab` / `RunWorkspace` / `NoRunsEmpty` / `RunHeader` / `RunHeaderView`）、`GlobalBar.tsx`（`ViewToggle` / `StatusIndicators` / `GlobalBar`）、`RunStatusBadge.tsx`（从 RunList 提取，支持 `status: … | null` ⇒ 「状态未知」）；改 `App.tsx` / `RunList.tsx` / `SettingsDialog.tsx` / `store.ts`；`test/run-workspace.test.ts`（**28 条**）+ `test/store.test.ts` 新增 4.2 段 **3 条**。
+
+- store 新增：字段 `createDialogOpen: boolean`（初值 false）+ `settingsSection: "proxy" | null`（初值 null）；方法 `setCreateDialogOpen(open)`、`setSettingsSection(section)`。**新建与列表共用同一个 `createDialogOpen`**，App 层只挂**一个** `CreateRunDialog` 单例——`RunList` 原来的本地 `useState` 对话框开关已删除（那正是 spec 说的"各开各的"形态）。
+- 页签承载：`RunWorkspace` 是工作区级外壳（页头 + `role="tablist"` + `role="tab"` `aria-selected` 按钮栏 + 正文槽），页签稳定标识与 `RunReadingState.tab` 同口径。**「文件」页签只在合法隔离 run 上出现**（`isIsolatedRun` 要求有效 `meta.workspace`）——不是"渲染了但禁用"，而是根本不渲染；保存的 tab 在当前 run 上不可用时 `resolveVisibleTab` 回退 `overview`（不残留一个不存在的页签）。文件页占整个正文槽，**不附带任何步骤目录**。
+- 空态：`NoRunsEmpty` 给**两个真实可用**的入口（新建运行 → `setCreateDialogOpen(true)`；接入录制 → `setSettingsSection("proxy")` + 打开设置），文案说明两条真实路径（桌面直跑 / 代理录制）+ "可放 `*.jsonl` 到 traces/ 重开"，不写营销话术。
+- 录制接入：**定位现有代理设置**（`SettingsDialog` 读 `settingsSection === "proxy"` 时 `scrollIntoView` 代理分区并聚焦首个控件），**消费后立即 `setSettingsSection(null)`** —— 否则用户手动收起后又被拉回去（一次性定位，不是常驻吸附）。
+- `RunHeader` 拆成 **store 薄壳 + `RunHeaderView` 纯视图**：本包无 jsdom，且 **zustand v5 在 `renderToStaticMarkup` 下走 `getServerSnapshot`（恒为初始值）** ⇒ 组件测试喂不进 store 状态。拆开后"数据 → 视图"可直喂 props 测。任务/模型取**列表摘要**（详情兜底但不编造任务名），状态取**详情**（详情未到 ⇒ 「状态未知」，**不把缺省当作成功**；摘要里那个 `status` 不作数）。
+- ⚠️ 全局栏的视图切换**不手写 `role="group"`**：biome `useSemanticElements` 要求用原生 `<fieldset>` + `sr-only` 的 `<legend>` 表达互斥按钮组。
+- 判据有牙（**5 组变异全部被抓即还原**）：① `availableTabs` 恒含 files ⇒ **4 条失败**；② 移除 `aria-selected` ⇒ 2 条失败；③ **RunList 断掉共用开关（改回本地 onClick 不写 store）⇒ 首轮漏网**——本包无 jsdom 打不到"点了没反应"，据此补**源码级接线契约**用例（`RunList` 必须含 `s.setCreateDialogOpen` + 不得含 `<CreateRunDialog`；`App` 的 `<CreateRunDialog` 挂载数必须为 1；`GlobalBar` 必须含 `setSettingsSection("proxy")`；`SettingsDialog` 必须含 `proxySectionRef` 与 `setSettingsSection(null)`）⇒ 该组重验被抓；④ App 挂两个对话框实例 ⇒ 被抓；⑤ `GlobalBar` 录制入口不定位代理分区 ⇒ 被抓。
+- 测试计数：desktop **637 passed / 0 failed（36 文件）**（3.6 基线 590，+47：4.1 的 16 + 4.2 的 31）。
+- 诚实边界：**本包无 jsdom** ⇒ 真实点击开对话框（"点两处开的是同一个"）、真实切页签与焦点流转、`scrollIntoView` 的实际滚动效果**均未在此覆盖**——归 7.1–7.3 的 Electron/CDP 验收。4.2 的接线只用**源码级契约**钉住（能抓"改成各开各的"，但抓不到"接线对而行为错"）。⚠️ **SpanTree 仍留在三栏里作为独立一栏**（搬移是 5.4 的范围），本任务只承载详情列；`steps` 页签在本壳里等价于既有「轨迹」详情。
 - [ ] 4.3 实现运行导航和步骤目录宽度调整、自动收起及临时列表返回（2h）；几何和键盘检查“自动折叠后恢复用户布局”“多尺寸与放大下关键阅读可达”“键盘导航及工具名称”，验证正文下限与偏好恢复。
 - [ ] 4.4 重排 RunList 的摘要、搜索、来源和展开指标（2h）；fixture/CDP 验证“多份 trace 文件”“完整任务和 ID 搜索”“长模型和空任务的导航摘要”“徽标与过滤”“老文件无来源”，保留既有 token/工具/耗时字段；同步组件、现有组件/e2e 断言、测试描述与相关注释中的“仅代理/仅本地直录/本地直录”为“代理录制/本地记录”，检索产品源码及当前测试确认旧标签无残留，历史归档不改。
 - [ ] 4.5 接入导航的刷新/错误/空结果/选中隐藏提示及短 ID 复制（1h）；CDP 验证“同名运行的短 ID 稳定可辨”“筛选隐藏当前运行”“列表刷新失败可重试”，完整 ID 可复制且来源/状态不遮挡模型。

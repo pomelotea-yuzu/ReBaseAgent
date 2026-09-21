@@ -238,6 +238,8 @@ function resetStore(): void {
     view: "trace",
     compareIds: [],
     compareNotice: null,
+    createDialogOpen: false,
+    settingsSection: null,
   });
 }
 
@@ -1159,5 +1161,40 @@ describe("store：首次选择与筛选/源失效状态（任务 3.5）", () => 
     expect(state.sourceAvailability().reason).toBe("unknown");
     expect(state.sourceUnavailable).toBe(false); // 不误报"源已消失"
     expect(state.canExecuteFromSource()).toBe(false); // 但没有可执行资格
+  });
+});
+
+// ---------------------------------------------------------------------------
+// U1 任务 4.2：全局栏 / 列表标题区**共用同一创建流程**（spec：desktop-ui delta）
+// ---------------------------------------------------------------------------
+
+describe("store：新建运行对话框开关（任务 4.2）", () => {
+  it("setCreateDialogOpen 落到 store，全局栏与列表读同一份状态", () => {
+    expect(useAppStore.getState().createDialogOpen).toBe(false);
+    useAppStore.getState().setCreateDialogOpen(true);
+    expect(useAppStore.getState().createDialogOpen).toBe(true);
+    useAppStore.getState().setCreateDialogOpen(false);
+    expect(useAppStore.getState().createDialogOpen).toBe(false);
+  });
+
+  it("两个入口写的是**同一个**字段（不存在「各开各的」两份本地状态）", () => {
+    // 全局栏入口
+    useAppStore.getState().setCreateDialogOpen(true);
+    expect(useAppStore.getState().createDialogOpen).toBe(true);
+    useAppStore.getState().setCreateDialogOpen(false);
+
+    // 列表标题区入口——同一个 setter、同一个字段
+    useAppStore.getState().setCreateDialogOpen(true);
+    const flag = useAppStore.getState().createDialogOpen;
+    expect(flag).toBe(true);
+  });
+
+  it("录制接入口把设置定位到代理分区，常规打开设置不定位", () => {
+    expect(useAppStore.getState().settingsSection).toBe(null);
+    useAppStore.getState().setSettingsSection("proxy");
+    expect(useAppStore.getState().settingsSection).toBe("proxy");
+    // 定位是一次性的：消费后清掉，避免用户手动收起又被拉回去
+    useAppStore.getState().setSettingsSection(null);
+    expect(useAppStore.getState().settingsSection).toBe(null);
   });
 });

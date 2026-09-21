@@ -1,10 +1,14 @@
 import { useEffect, useState } from "react";
 import { BranchTree } from "./components/BranchTree";
 import { ComparePanel } from "./components/ComparePanel";
+import { CreateRunDialog } from "./components/CreateRunDialog";
 import { DetailPanel } from "./components/DetailPanel";
+import { GlobalBar } from "./components/GlobalBar";
 import { RunList } from "./components/RunList";
+import { NoRunsEmpty, RunHeader, RunWorkspace } from "./components/RunWorkspace";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { SpanTree } from "./components/SpanTree";
+import { isIsolatedRun } from "./lib/isolated-fork";
 import { useAppStore } from "./store";
 
 export default function App() {
@@ -12,11 +16,10 @@ export default function App() {
   const runs = useAppStore((s) => s.runs);
   const failed = useAppStore((s) => s.failed);
   const loadingList = useAppStore((s) => s.loadingList);
-  const detail = useAppStore((s) => s.detail);
-  const settingsConfigured = useAppStore((s) => s.settings?.configured);
-  const proxy = useAppStore((s) => s.proxy);
+  const createDialogOpen = useAppStore((s) => s.createDialogOpen);
+  const setCreateDialogOpen = useAppStore((s) => s.setCreateDialogOpen);
+  const setSettingsSection = useAppStore((s) => s.setSettingsSection);
   const view = useAppStore((s) => s.view);
-  const setView = useAppStore((s) => s.setView);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   // 挂载时加载一次列表与运行配置。只读工具，不做文件监听——目录内容变化后重新打开即可
@@ -31,78 +34,22 @@ export default function App() {
     void useAppStore.getState().loadProxyStatus();
   }, []);
 
+  /** 录制入口（全局栏 / 空态共用）：打开设置并定位到代理分区 */
+  const openRecording = (): void => {
+    setSettingsSection("proxy");
+    setSettingsOpen(true);
+  };
+
+  const openSettings = (): void => {
+    setSettingsSection(null);
+    setSettingsOpen(true);
+  };
+
   const empty = !loadingList && runs.length === 0 && failed.length === 0;
 
   return (
     <div className="flex h-full flex-col">
-      <header className="flex items-center gap-3 border-b border-gray-200 bg-white px-4 py-2">
-        <span className="text-sm font-semibold text-gray-900">ReBaseAgent</span>
-        <span className="text-[11px] text-gray-500">
-          不止回放 Agent 做了什么，而是让你改变它做了什么
-        </span>
-        <span className="ml-auto flex items-center gap-3">
-          <span className="flex items-center gap-1 text-[11px]">
-            <button
-              type="button"
-              onClick={() => setView("trace")}
-              className={`rounded px-2 py-0.5 ${
-                view === "trace"
-                  ? "bg-blue-600 text-white"
-                  : "border border-gray-300 text-gray-600 hover:bg-gray-50"
-              }`}
-              title="三栏视图：运行列表 / span 树 / 详情"
-            >
-              轨迹
-            </button>
-            <button
-              type="button"
-              onClick={() => setView("tree")}
-              className={`rounded px-2 py-0.5 ${
-                view === "tree"
-                  ? "bg-blue-600 text-white"
-                  : "border border-gray-300 text-gray-600 hover:bg-gray-50"
-              }`}
-              title="全宽分支树：节点为运行、连线为分叉，可勾选多条对照"
-            >
-              分支树
-            </button>
-          </span>
-          {detail !== null ? (
-            <span className="font-code text-[11px] text-gray-400">{detail.meta.id}</span>
-          ) : null}
-          {proxy !== null ? (
-            <button
-              type="button"
-              onClick={() => setSettingsOpen(true)}
-              className="flex items-center gap-1.5 rounded border border-gray-300 px-2 py-0.5 text-[11px] text-gray-600 hover:bg-gray-50"
-              title="本地录制代理：把你的 Agent 应用 base_url 指到 http://127.0.0.1:<端口>/v1，key 一字不动即可录制"
-            >
-              <span
-                className={`inline-block h-1.5 w-1.5 rounded-full ${
-                  proxy.running ? "bg-emerald-500" : "bg-gray-300"
-                }`}
-              />
-              代理{proxy.running ? ` :${proxy.port}` : " 已停"}
-              {proxy.running && !proxy.hasKey ? (
-                <span className="text-amber-600">未捕获 key</span>
-              ) : null}
-            </button>
-          ) : null}
-          <button
-            type="button"
-            onClick={() => setSettingsOpen(true)}
-            className="flex items-center gap-1.5 rounded border border-gray-300 px-2 py-0.5 text-[11px] text-gray-600 hover:bg-gray-50"
-            title="配置 LLM 接入（baseURL / apiKey / model），供“在此重跑”发起真实调用"
-          >
-            <span
-              className={`inline-block h-1.5 w-1.5 rounded-full ${
-                settingsConfigured === true ? "bg-emerald-500" : "bg-gray-300"
-              }`}
-            />
-            运行配置
-          </button>
-        </span>
-      </header>
+      <GlobalBar onOpenSettings={openSettings} />
 
       {error !== null ? (
         <div className="border-b border-red-200 bg-red-50 px-4 py-2 text-[11px] text-red-700">
@@ -114,8 +61,16 @@ export default function App() {
         {view === "trace" ? (
           <>
             <RunList />
-            <SpanTree />
-            <DetailPanel />
+            {empty ? (
+              // 无运行时：主工作区给两个**真实可用**的入口（delta「首次打开与无运行入口」），
+              // 不是展示性欢迎页。步骤目录此时本就没有内容，一并卸下。
+              <NoRunsEmpty onCreate={() => setCreateDialogOpen(true)} onRecord={openRecording} />
+            ) : (
+              <>
+                <SpanTree />
+                <WorkspaceShell />
+              </>
+            )}
           </>
         ) : (
           <>
@@ -125,13 +80,45 @@ export default function App() {
         )}
       </main>
 
-      {empty ? (
-        <footer className="border-t border-gray-200 bg-gray-50 px-4 py-2 text-[11px] text-gray-500">
-          数据目录的 traces/ 下还没有 trace 文件——把 *.jsonl 放进去后重新打开即可。
-        </footer>
-      ) : null}
-
       {settingsOpen ? <SettingsDialog onClose={() => setSettingsOpen(false)} /> : null}
+      {/* 「新建运行」对话框在 App 层单例：全局栏与列表标题区共用同一个 createDialogOpen */}
+      {createDialogOpen ? <CreateRunDialog onClose={() => setCreateDialogOpen(false)} /> : null}
     </div>
+  );
+}
+
+/**
+ * 详情列外壳（任务 4.2）。
+ *
+ * 把「任务头 + 概览/步骤/文件页签 + 正文」从「详情列内部一个开关」上提为工作区承载：
+ *   - 页签是**工作区级**的（同一 run 的概览 / 步骤 / 文件），不是详情列内部的局部开关
+ *   - 「文件」页签只在合法隔离 run 上出现（`isIsolatedRun` 要求有效的 `meta.workspace`）
+ *   - 页签状态进阅读状态（`readingByRun[runId].tab`），切运行再返回要恢复
+ *
+ * ⚠️ 本任务**不**把 SpanTree 从三栏里搬走（那是 5.4 的范围）：这里只承载详情列，
+ *    SpanTree 仍是左侧独立一栏。故 `steps` 在本壳里等价于既有的「轨迹」详情
+ *    （步骤目录始终在左栏可见），与 DetailPanel 内部 tab 的 `trajectory` 同义。
+ */
+function WorkspaceShell() {
+  const detail = useAppStore((s) => s.detail);
+  const selectedRunId = useAppStore((s) => s.selectedRunId);
+  const tab = useAppStore((s) =>
+    s.selectedRunId === null ? "overview" : s.readingOf(s.selectedRunId).tab,
+  );
+  const setReadingTab = useAppStore((s) => s.setReadingTab);
+  const isolated = isIsolatedRun(detail);
+
+  return (
+    <RunWorkspace
+      tab={tab}
+      onTab={(next) => {
+        if (selectedRunId === null) return;
+        setReadingTab(selectedRunId, next);
+      }}
+      isIsolated={isolated}
+      header={<RunHeader />}
+    >
+      <DetailPanel />
+    </RunWorkspace>
   );
 }

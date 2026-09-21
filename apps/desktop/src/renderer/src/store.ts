@@ -136,6 +136,17 @@ interface AppState {
   /** 对照集合的操作提示（超上限等），空则无提示 */
   compareNotice: string | null;
 
+  /**
+   * 「新建运行」对话框是否打开（**全局单例**，任务 4.2）。
+   *
+   * 为什么进 store 而不是留在组件里：全局栏与列表标题区是**同一个对话框的两个入口**
+   * （delta「新建与列表标题区既有入口打开同一现有创建流程」）。若各持一份本地 state，
+   * 就会出现两个 CreateRunDialog 实例、两套表单状态，收起列表时全局入口还会失效。
+   */
+  createDialogOpen: boolean;
+  /** 「录制接入」跳转后要高亮的设置分区（null = 常规打开设置） */
+  settingsSection: "proxy" | null;
+
   loadRuns: () => Promise<void>;
 
   /**
@@ -261,6 +272,10 @@ interface AppState {
 
   /** 切换主区域视图；只改 UI 状态，不触发列表重新加载（design D7） */
   setView: (view: "trace" | "tree") => void;
+  /** 打开/关闭全局「新建运行」对话框（全局栏与列表标题区共用同一实例，任务 4.2） */
+  setCreateDialogOpen: (open: boolean) => void;
+  /** 打开设置并定位到某分区（全局栏「录制接入」用），null = 常规打开 */
+  setSettingsSection: (section: "proxy" | null) => void;
   /** 勾选/取消对照（上限 4，超出不加入并给出提示） */
   toggleCompare: (runId: string) => void;
   clearCompare: () => void;
@@ -314,6 +329,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   view: "trace",
   compareIds: [],
   compareNotice: null,
+  createDialogOpen: false,
+  settingsSection: null,
 
   async loadRuns() {
     // 在途合并（任务 3.4）：重复刷新不并发发射。频繁触发（挂载 + 执行收尾 + 手动重试）
@@ -806,6 +823,14 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setView(view) {
     set({ view });
+  },
+
+  setCreateDialogOpen(open) {
+    set({ createDialogOpen: open });
+  },
+
+  setSettingsSection(section) {
+    set({ settingsSection: section });
   },
 
   toggleCompare(runId) {
