@@ -48,6 +48,52 @@
 - 🐛 原型阶段抓到并修掉三个真实缺陷（正是原型要提前暴露的问题）：① `[hidden]` 被作者 `display:flex` 盖过 ⇒ 四 pane 同屏；② 文件页仍带步骤目录（违反断言③）⇒ 把步骤目录移进只包步骤页的 `.steps-wrap`；③ 正文被压到 240px ⇒ 加 `min-width:480px` 二次约束。
 - ⚠️ 诚实边界：本任务用 Chrome CSS 视口等价测量，**未**在 Electron 内实测 `zoomFactor`、未用真实数据；**结论只代表原型核对完成，不能以原型代替任务 7.1/7.2 的最终桌面验收**。
 
+### 2.1（2026-09-21 完成）
+
+新增 `apps/desktop/src/shared/outcome.ts`（结局分类 + 语义色调映射）+ `apps/desktop/test/outcome.test.ts`（13 passed）。
+
+- `classifyOutcome({status, reason}) → Outcome`：**单一**结局判据来源（列表徽标、概览头、既有分支树节点共用），消除"列表说已结束、树节点说出错终止"的同库矛盾。
+- **不扩充 status 枚举**（仍只有 `completed`/`crashed`）：细分由 `status + reason` 组合得出 `OutcomeKind`（completed/error/max_iterations/budget_exceeded/aborted/interrupted/unknown）。
+- 优先级刻意如此：`crashed` **盖过**任何残留 reason（无结束记录就是无结束记录）；`completed` 却无 reason ⇒ `unknown`（不冒充已完成）；未知 reason **保留原值**并标未知。
+- `outcomeBadgeClass(tone)` 返回**静态完整类名**（非模板拼接）——Tailwind JIT 扫不到动态类名会静默丢样式。
+- 判据有牙（2 组变异，均还原）：① `crashed` 误判为 completed ⇒ 3 条失败；② `error` 误用 success 色调（"正常绿"）⇒ 1 条失败。
+- 与 1.1 fixture 交叉核对：每份 fixture 真实 `status+reason` 经分类后与 `EXPECTED-OUTCOMES.json` 的 `outcome` 一致。
+
+### 2.2（2026-09-21 完成）
+
+新增 `apps/desktop/src/shared/overview.ts`（自有输出选择 + 错误目标派生 + 自有工具错误）+ `test/overview.test.ts`（17 passed）。
+
+- `deriveOwnOutput`：最终输出**四条件缺一不可**（正常终止 + 最后自有 llm.call 非空正文 + 无 error + 无待执行 tool_calls），不满足即「未记录最终输出」并给 `missingReason` 分型（no-llm-call / empty-content / has-error / pending-tool-calls）与 `lastOutputKind`（content / reasoning-only / tool-calls-only / empty）。**绝不**回退更早正文冒充最终、**绝不**借用祖先、**绝不**由模型补全。
+- `deriveErrorTarget`：只在**自有** llm.call 找带 error 的调用；找不到即 `missingDetail=true`（不虚构入口、不反推原因）。
+- `deriveOwnToolErrors`：自有工具错误**独立**列出，与 LLM 错误缺失判定互不影响（工具错误是数据不是终止根因）。
+- 关键反例纪律：用例**刻意构造「祖先与自有并存」**（祖先带 error / 祖先有正文 / 祖先带工具错误），证明结果源自自有段。
+- 判据有牙（2 组变异，均还原）：③ 移除 `leafSpanIds` 过滤（祖先泄漏）⇒ 3 条失败；④ 放宽最终输出条件（去掉 error/tool_calls 约束）⇒ **首次漏网**，补 4 条合成边界用例（逐条堵住四条件）后 ⇒ 2 条失败。**这次漏网是"只做了一次变异就收工"的典型代价**——已把四条件逐条固化为合成用例。
+- ⚠️ 数据源纪律：`readRun` 的 RunRecord **无** `leafSpanIds`；需 `getRun` 等价形态（本 run 文件内 span 即自有），沿用 1.1 记下的陷阱。
+
+### 2.3（2026-09-21 完成）
+
+在 `shared/overview.ts` 追加 `deriveOwnConsumption` / `deriveCacheCoverage` + `test/own-consumption.test.ts`（12 passed）。
+
+- `deriveOwnConsumption`：本次消耗只聚合**自有** spans（token / 已记录时间 / 工具调用与错误 / 嵌套缓存覆盖），分支 run 展开视图的祖先前缀**不计入**；无 timing ⇒ `durationMs = null`（未知不补 0）。
+- `deriveCacheCoverage`：`recorded`（带 cache_hit 的自有调用数，`0` 算记录）/ `total`（自有调用数）/ `hitTotal`（合计；`recorded===0 ⇒ null`，未知 ≠ 0）。
+- 判据有牙（1 组变异，**首次漏网**）：⑤ 让嵌套 cache 覆盖漏掉自有段过滤 ⇒ 初版无法察觉（用例只断言 top-level token）；补「消费口径与缓存口径必须同源」用例后 ⇒ 1 条失败。
+- 与 `EXPECTED-OUTCOMES.json` 的 `cacheCoverage` 逐条交叉核对。
+
+### 2.4（2026-09-21 完成）
+
+新增 `apps/desktop/src/shared/nav.ts`（展示/搜索/短 ID）+ `test/nav.test.ts`（23 passed）。
+
+- `taskSummary` / `collapseWhitespace`：折叠连续空白（含制表/全角空格）并限长；**只影响展示**，完整原值仍用于搜索与复制。
+- `matchesSearch`：匹配**完整 task / id**（大小写不敏感），不因展示截断漏配未显示片段。
+- `computeShortIds` / `ShortIdState`：末尾 8 字符起，在**全部已加载记录**内按需延长；**后缀包含**时较短者继续延长；**按完整 ID 排序**计算（结果与输入顺序无关 ⇒ 筛选/排序不重编号）；`ShortIdState` 长度**只增不减**（刷新删除碰撞项不缩短）。
+- `deriveNavLabel` / `filterRuns` / `matchesSource`：空任务回退「来源 · 时间 · 短 ID」；缺失模型显示「未记录」；搜索与来源条件求**交集**，不改原 task。
+- 🐛 测试数据自纠：初版"同尾片段"用例的 ID 末尾 8 位其实**不同**（`aaaaaaaa` vs `aaaaaaab`）⇒ 用例假失败。这正是 1.2 记下的同一类陷阱（后缀关系必须建立在**整条 id** 上），已改为末尾 8 位真相同的 `...aaaaaaaa` 两条。
+- 判据有牙（2 组变异，均还原）：⑥ 破坏 `ShortIdState` 只增不减 ⇒ 1 条失败；⑦ 丢失后缀包含处理（只比同长后缀）⇒ 1 条失败。
+
+### 第 2 组小结
+
+新增 3 个纯函数模块（`outcome.ts` / `overview.ts` / `nav.ts`）+ 4 个测试文件 **65 用例**；desktop 全量 **491 passed / 0 failed**（较第 1 组基线 439 增 52）。`pnpm check:typecheck` ✅、biome 干净（含 unsafe 模板字符串修复与去非空断言）、`openspec validate --strict` ✅。**7 组变异验证全部还原**，其中 2 组**首次漏网**（2.2 四条件、2.3 嵌套缓存）——已各自补用例堵死。**第 2 组只做派生层（纯函数），未接线任何 UI 组件**（接线归第 3–5 组）。
+
 ## 1. 基线与关键原型
 
 - [x] 1.1 盘点并补齐普通成功/失败/上限/中止/中断、旧记录、仅工具/思维链、缓存部分覆盖 fixture（1.5h）；以可重复生成的数据和预期结局表验证“正常结束直接看到最终输出”“旧失败记录没有错误详情”“限制中止与中断如实展示”“无最终正文不借用祖先补全”。
@@ -57,10 +103,10 @@
 
 ## 2. 共用派生
 
-- [ ] 2.1 增加共用结局分类与语义样式映射（1.5h）；单测“封存状态不冒充正常结束”“崩溃的 run”“限制中止与中断如实展示”及 branch-tree“节点按封存运行的终止原因区分结局”“节点对中断和未知原因诚实降级”“节点不把已恢复的工具错误当作终止失败”，覆盖摘要未知原因和详情 event/reason 矛盾，不放宽 schema 或扩充 status 枚举。
-- [ ] 2.2 增加自有输出选择与错误目标派生（2h）；单测“正常结束直接看到最终输出”“失败概览定位真实自有调用”“旧失败记录没有错误详情”“无最终正文不借用祖先补全”，使用祖先与自有错误并存的反例防止误归因。
-- [ ] 2.3 复用自有消耗派生并增加缓存覆盖范围（1.5h）；单测“本次指标不累计共享前缀”“run 级累计现算”“fork run 的累计不含祖先前缀”“输入为零与全未知缓存”，验证缺失 timing、cache_hit=0 和失败零值语义。
-- [ ] 2.4 实现任务展示/搜索及稳定短 ID 纯函数（1.5h）；单测“完整任务和 ID 搜索”“同名运行的短 ID 稳定可辨”“长模型和空任务的导航摘要”，覆盖后缀包含、碰撞扩长、刷新删除碰撞项及筛选不重编号。
+- [x] 2.1 增加共用结局分类与语义样式映射（1.5h）；单测“封存状态不冒充正常结束”“崩溃的 run”“限制中止与中断如实展示”及 branch-tree“节点按封存运行的终止原因区分结局”“节点对中断和未知原因诚实降级”“节点不把已恢复的工具错误当作终止失败”，覆盖摘要未知原因和详情 event/reason 矛盾，不放宽 schema 或扩充 status 枚举。
+- [x] 2.2 增加自有输出选择与错误目标派生（2h）；单测“正常结束直接看到最终输出”“失败概览定位真实自有调用”“旧失败记录没有错误详情”“无最终正文不借用祖先补全”，使用祖先与自有错误并存的反例防止误归因。
+- [x] 2.3 复用自有消耗派生并增加缓存覆盖范围（1.5h）；单测“本次指标不累计共享前缀”“run 级累计现算”“fork run 的累计不含祖先前缀”“输入为零与全未知缓存”，验证缺失 timing、cache_hit=0 和失败零值语义。
+- [x] 2.4 实现任务展示/搜索及稳定短 ID 纯函数（1.5h）；单测“完整任务和 ID 搜索”“同名运行的短 ID 稳定可辨”“长模型和空任务的导航摘要”，覆盖后缀包含、碰撞扩长、刷新删除碰撞项及筛选不重编号。
 
 ## 3. 阅读状态与异步加载
 
