@@ -77,6 +77,8 @@ interface Controller {
   getRunDetailById: Record<string, RunDetail> | undefined;
   /** 记录 getRun 的调用顺序（同 run 重试用例断言真的重新读了） */
   getRunCalls: string[];
+  /** 让指定 run 的 getRun 返回信封失败（供"首次详情失败不循环跳转"用例） */
+  getRunFailureFor: string | undefined;
   listCalls: number;
   /** 覆盖 listRuns 的返回（默认第一条只有 root，第二次起出现分支 run） */
   listEnvelope: Envelope<ListRunsData> | undefined;
@@ -119,6 +121,12 @@ function makeFakeApi(c: Controller): WindowApi {
     },
     getRun: async (id: string): Promise<Envelope<RunDetail>> => {
       c.getRunCalls.push(id);
+      if (c.getRunFailureFor === id) {
+        return {
+          ok: false,
+          error: { code: "RUN_READ_FAILED", message: "该 run 的源文件读取失败" },
+        };
+      }
       // 按 run id 返回各自详情（默认 rootDetail）；供跨运行恢复用例区分两条 run
       const base = c.getRunDetailById?.[id] ?? c.getRunDetail ?? rootDetail;
       // 载荷归属（任务 3.3）：详情自称的 meta.id 必须与请求的 id 一致，
@@ -207,6 +215,10 @@ function resetStore(): void {
     listStale: false,
     listRefreshInFlight: 0,
     listRefreshPending: 0,
+    searchQuery: "",
+    initialSelectionAttempted: false,
+    sourceUnavailable: false,
+    sourceUnavailableReason: "unknown",
     error: null,
     forking: "idle",
     forkError: null,
@@ -872,5 +884,191 @@ describe("store：列表刷新合并（任务 3.4）", () => {
     expect(state.runs.map((r) => r.id)).toEqual(["r_01"]);
     expect(state.listStale).toBe(true);
     expect(state.error).toContain("仍显示上次结果");
+  });
+});
+
+describe("store：首次选择与筛选/源失效状态（任务 3.5）", () => {
+  const failedItem = { file: "broken.jsonl", error: "第 2 行缺少 type 字段" };
+
+  it("首次打开：列表首次加载成功后只尝试最近可读摘要对应的运行并进入概览", async () => {
+    await useAppStore.getState().loadRuns();
+    await useAppStore.getState().autoSelectInitialRun();
+
+    const state = useAppStore.getState();
+    // 只读了**一条** run（最近可读 = 列表倒序第一条）
+    expect(controller.getRunCalls).toEqual(["r_01"]);
+    expect(state.selectedRunId).toBe("r_01");
+    expect(state.detail?.meta.id).toBe("r_01");
+    // 进入概览（默认页签），不是步骤页
+    expect(state.readingOf("r_01").tab).toBe("overview");
+    expect(state.initialSelectionAttempted).toBe(true);
+    expect(state.error).toBeNull();
+  });
+
+  it("首次打开且无运行：不请求详情、不选中，界面据此显示新建/录制入口", async () => {
+    controller.listEnvelope = ok({ runs: [], failed: [] });
+    await useAppStore.getState().loadRuns();
+    await useAppStore.getState().autoSelectInitialRun();
+
+    const state = useAppStore.getState();
+    expect(controller.getRunCalls).toEqual([]);
+    expect(state.selectedRunId).toBeNull();
+    expect(state.detail).toBeNull();
+    expect(state.error).toBeNull();
+    // 无运行不是失败：不标未更新、不留错误
+    expect(state.listStale).toBe(false);
+  });
+
+  it("首次详情失败不循环跳转：留在该 run 的错误态，不自动遍历其他记录", async () => {
+    // 两条记录，第一条（最近可读）的详情读不出来
+    controller.listEnvelope = ok({ runs: [forkedSummary, rootSummary], failed: [] });
+    controller.getRunFailureFor = "run_forked";
+
+    await useAppStore.getState().loadRuns();
+    await useAppStore.getState().autoSelectInitialRun();
+
+    const state = useAppStore.getState();
+    // 只尝试了第一条；失败后**没有**去试 r_01
+    expect(controller.getRunCalls).toEqual(["run_forked"]);
+    expect(state.selectedRunId).toBe("run_forked");
+    expect(state.detail).toBeNull();
+    expect(state.loadingDetail).toBe(false);
+    expect(state.error).toContain("读取 run 失败");
+    // 原位可重试：再调一次 autoSelectInitialRun 不会重新遍历（已尝试过）
+    controller.getRunCalls = [];
+    await useAppStore.getState().autoSelectInitialRun();
+    expect(controller.getRunCalls).toEqual([]);
+
+    // 关键：即使选中项被清空（例如用户返回无选中态）并再刷新列表，
+    // 也不得「再试一次」——否则详情一直读不出来时会退化成静默遍历整个列表。
+    controller.getRunFailureFor = undefined;
+    useAppStore.setState({ selectedRunId: null, detail: null });
+    await useAppStore.getState().loadRuns();
+    await useAppStore.getState().autoSelectInitialRun();
+    expect(controller.getRunCalls).toEqual([]); // 一次都没再读
+    expect(useAppStore.getState().selectedRunId).toBeNull();
+  });
+
+  it("已有选中项时首次自动选择不做任何事（幂等，不覆盖用户选择）", async () => {
+    await useAppStore.getState().loadRuns();
+    await useAppStore.getState().selectRun("r_01");
+    controller.getRunCalls = [];
+
+    await useAppStore.getState().autoSelectInitialRun();
+    expect(controller.getRunCalls).toEqual([]);
+    expect(useAppStore.getState().selectedRunId).toBe("r_01");
+  });
+
+  it("筛选隐藏当前运行：提示可辨、不自动改选，主工作区状态原样保留", async () => {
+    await useAppStore.getState().loadRuns();
+    await useAppStore.getState().selectRun("r_01");
+    expect(useAppStore.getState().filterVisibility()).toEqual({
+      hidden: false,
+      hasActiveFilters: false,
+    });
+
+    // 搜索一个匹配不到当前运行的词
+    useAppStore.getState().setSearchQuery("完全不匹配的词");
+    const visibility = useAppStore.getState().filterVisibility();
+    expect(visibility.hidden).toBe(true);
+    expect(visibility.hasActiveFilters).toBe(true);
+    // 不自动改选、详情保持
+    expect(useAppStore.getState().selectedRunId).toBe("r_01");
+    expect(useAppStore.getState().detail?.meta.id).toBe("r_01");
+
+    // 清除搜索即恢复
+    useAppStore.getState().setSearchQuery("");
+    expect(useAppStore.getState().filterVisibility().hidden).toBe(false);
+  });
+
+  it("来源条件隐藏当前运行同样只提示不改选（含无 source 的老文件归本地记录）", async () => {
+    await useAppStore.getState().loadRuns();
+    await useAppStore.getState().selectRun("r_01");
+
+    // 切到"代理录制"，而 r_01 是本地记录 ⇒ 被隐藏
+    useAppStore.getState().setSourceFilter("proxy");
+    expect(useAppStore.getState().filterVisibility()).toEqual({
+      hidden: true,
+      hasActiveFilters: true,
+    });
+    expect(useAppStore.getState().selectedRunId).toBe("r_01");
+
+    useAppStore.getState().setSourceFilter("local");
+    expect(useAppStore.getState().filterVisibility().hidden).toBe(false);
+  });
+
+  it("搜索词只影响筛选，不改原 task 与选中运行", async () => {
+    await useAppStore.getState().loadRuns();
+    await useAppStore.getState().selectRun("r_01");
+    const taskBefore = useAppStore.getState().runs[0]?.task;
+
+    useAppStore.getState().setSearchQuery("r_0");
+    expect(useAppStore.getState().runs[0]?.task).toBe(taskBefore);
+    expect(useAppStore.getState().selectedRunId).toBe("r_01");
+  });
+
+  it("已选源记录不可用（记录消失）：旧内容保留但执行入口禁用，重新出现即恢复", async () => {
+    await useAppStore.getState().loadRuns();
+    await useAppStore.getState().selectRun("r_01");
+    expect(useAppStore.getState().canExecuteFromSource()).toBe(true);
+
+    // 刷新后列表里没有 r_01 了（源文件被移走），且没有读取失败文件
+    controller.listEnvelope = ok({ runs: [forkedSummary], failed: [] });
+    await useAppStore.getState().loadRuns();
+
+    const state = useAppStore.getState();
+    expect(state.sourceUnavailable).toBe(true);
+    expect(state.sourceUnavailableReason).toBe("missing");
+    // 旧内容保留（不擦掉用户正在看的东西），但不得据此执行
+    expect(state.detail?.meta.id).toBe("r_01");
+    expect(state.canExecuteFromSource()).toBe(false);
+    // 不自动改选其他运行
+    expect(state.selectedRunId).toBe("r_01");
+
+    // 重新读取并校验通过 ⇒ 自动恢复
+    controller.listEnvelope = ok({ runs: [rootSummary], failed: [] });
+    await useAppStore.getState().loadRuns();
+    expect(useAppStore.getState().sourceUnavailable).toBe(false);
+    expect(useAppStore.getState().canExecuteFromSource()).toBe(true);
+  });
+
+  it("已选源记录不可用（读取失败）：报不可读而非消失，同样禁用执行", async () => {
+    await useAppStore.getState().loadRuns();
+    await useAppStore.getState().selectRun("r_01");
+
+    controller.listEnvelope = ok({ runs: [], failed: [failedItem] });
+    await useAppStore.getState().loadRuns();
+
+    const state = useAppStore.getState();
+    expect(state.sourceUnavailable).toBe(true);
+    // 有失败文件 ⇒ 报"读取失败"，但**不**断言是哪一条（只按列表事实陈述）
+    expect(state.sourceUnavailableReason).toBe("unreadable");
+    expect(state.canExecuteFromSource()).toBe(false);
+    expect(state.detail?.meta.id).toBe("r_01");
+  });
+
+  it("详情读取中不放行执行（读取态本身不是可执行态）", async () => {
+    await useAppStore.getState().loadRuns();
+    const release = gateList();
+    const inFlight = useAppStore.getState().selectRun("r_01");
+    // 详情在途：尚无 detail，但也不能因为"列表里有"就放行执行
+    expect(useAppStore.getState().loadingDetail).toBe(true);
+    expect(useAppStore.getState().canExecuteFromSource()).toBe(false);
+    release();
+    await inFlight;
+    expect(useAppStore.getState().canExecuteFromSource()).toBe(true);
+  });
+
+  it("列表尚未成功加载时源状态为 unknown：不误报不可用、也不放行执行", async () => {
+    // 先选中一条（列表加载成功），随后刷新失败且**从未**成功加载过（listLoaded 复位）
+    await useAppStore.getState().loadRuns();
+    await useAppStore.getState().selectRun("r_01");
+    // 模拟"没有可依据的事实"：把 listLoaded 复位（首次读取失败的等价状态）
+    useAppStore.setState({ listLoaded: false, runs: [], failed: [] });
+
+    const state = useAppStore.getState();
+    expect(state.sourceAvailability().reason).toBe("unknown");
+    expect(state.sourceUnavailable).toBe(false); // 不误报"源已消失"
+    expect(state.canExecuteFromSource()).toBe(false); // 但没有可执行资格
   });
 });

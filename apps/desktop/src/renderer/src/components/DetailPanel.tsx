@@ -142,6 +142,8 @@ function PromptForkEditor({
   const settings = useAppStore((s) => s.settings);
   const promptFork = useAppStore((s) => s.promptFork);
   const resetFork = useAppStore((s) => s.resetFork);
+  // 源记录不可用时禁用依赖它的执行（任务 3.5）：旧内容仍可见，但不得据此获得执行资格
+  const sourceExecutable = useAppStore((s) => s.canExecuteFromSource)();
 
   const { system: originalSystem, user: originalUser } = startupContents(span.request.messages);
   const [field, setField] = useState<PromptForkField>("system_prompt");
@@ -159,6 +161,13 @@ function PromptForkEditor({
     settingsConfigured: settings?.configured === true,
     unchanged,
   });
+  // 提交闸门 = 既有单步条件 ∧ 源记录可用（源不可用时"能编辑"不等于"能执行"）
+  const canSubmit = guard.canSubmit && sourceExecutable;
+  const submitBlocked = !guard.canSubmit
+    ? guard.reason
+    : !sourceExecutable
+      ? "源记录不可用：重新读取并校验通过前不能发起新执行"
+      : null;
 
   const switchField = (next: PromptForkField): void => {
     setField(next);
@@ -216,7 +225,7 @@ function PromptForkEditor({
   }
 
   const doSubmit = (): void => {
-    if (!guard.canSubmit) return;
+    if (!canSubmit) return;
     const confirmed = window.confirm(
       "确认从头重跑？\n\n" +
         "· 将真实调用模型并计费（不承诺命中父 run 的缓存）\n" +
@@ -279,8 +288,8 @@ function PromptForkEditor({
         从头重跑，将真实调用模型并计费 · 父 run 只作对照，不会被修改
       </div>
 
-      {!guard.canSubmit && guard.reason !== null ? (
-        <div className="mt-1 text-[11px] text-amber-700">{guard.reason}</div>
+      {submitBlocked !== null ? (
+        <div className="mt-1 text-[11px] text-amber-700">{submitBlocked}</div>
       ) : null}
 
       {forking === "error" ? (
@@ -318,7 +327,7 @@ function PromptForkEditor({
         <button
           type="button"
           onClick={doSubmit}
-          disabled={inProgress || !guard.canSubmit}
+          disabled={inProgress || !canSubmit}
           className="rounded bg-emerald-600 px-3 py-1 text-[11px] text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
         >
           确认从头重跑
@@ -419,6 +428,8 @@ function ModelAbEditor({
   const settings = useAppStore((s) => s.settings);
   const modelAb = useAppStore((s) => s.modelAb);
   const resetModelAb = useAppStore((s) => s.resetModelAb);
+  // 源记录不可用时禁用依赖它的执行（任务 3.5）
+  const sourceExecutable = useAppStore((s) => s.canExecuteFromSource)();
 
   const parentModel = span.request.model;
   const parentParams = useMemo(() => scalarRequestParams(span.request.params), [span]);
@@ -445,6 +456,13 @@ function ModelAbEditor({
     allowSideEffects,
     arms,
   });
+  // 提交闸门 = 既有 guard ∧ 源记录可用（dry-run 也依赖父记录，一并拦截）
+  const canSubmit = guard.canSubmit && sourceExecutable;
+  const submitBlocked = !guard.canSubmit
+    ? guard.reason
+    : !sourceExecutable
+      ? "源记录不可用：重新读取并校验通过前不能发起新执行"
+      : null;
 
   const updateArm = (index: number, patch: Partial<ArmDraft>): void => {
     setRows(rows.map((row, i) => (i === index ? { ...row, arm: { ...row.arm, ...patch } } : row)));
@@ -475,7 +493,7 @@ function ModelAbEditor({
   }
 
   const doPreview = (): void => {
-    if (!guard.canSubmit) return;
+    if (!canSubmit) return;
     setExecuted(null);
     void modelAb(run.meta.id, guard.arms, true).then((result) => {
       if (result !== null) setPlan(result);
@@ -483,7 +501,7 @@ function ModelAbEditor({
   };
 
   const doExecute = (): void => {
-    if (!guard.canSubmit || plan === null) return;
+    if (!canSubmit || plan === null) return;
     const summary = plan.plan
       .map((arm) => {
         const params =
@@ -614,8 +632,8 @@ function ModelAbEditor({
         </label>
       ) : null}
 
-      {!guard.canSubmit && guard.reason !== null ? (
-        <div className="mt-2 text-[11px] text-amber-700">{guard.reason}</div>
+      {submitBlocked !== null ? (
+        <div className="mt-2 text-[11px] text-amber-700">{submitBlocked}</div>
       ) : null}
 
       {modelAbInFlight ? <div className="mt-2 text-[11px] text-sky-600">处理中…</div> : null}
@@ -670,7 +688,7 @@ function ModelAbEditor({
         <button
           type="button"
           onClick={doPreview}
-          disabled={inProgress || !guard.canSubmit}
+          disabled={inProgress || !canSubmit}
           className="rounded border border-sky-500 px-2 py-1 text-[11px] text-sky-700 hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-40"
         >
           {plan !== null ? "重新校验" : "校验并预览计划"}
@@ -678,7 +696,7 @@ function ModelAbEditor({
         <button
           type="button"
           onClick={doExecute}
-          disabled={inProgress || !guard.canSubmit || plan === null}
+          disabled={inProgress || !canSubmit || plan === null}
           className="rounded bg-sky-600 px-3 py-1 text-[11px] text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-40"
           title={plan === null ? "先校验并预览计划" : undefined}
         >
@@ -875,6 +893,8 @@ function MessagesForkEditor({
   // 预填 = 完整 messages 的 JSON 文本
   const [value, setValue] = useState(() => prettyJson(span.request.messages));
   const [parseError, setParseError] = useState<string | null>(null);
+  // 源记录不可用时禁用依赖它的执行（任务 3.5）
+  const sourceExecutable = useAppStore((s) => s.canExecuteFromSource)();
 
   const inProgress = forking === "in_progress";
   const unchanged = value === prettyJson(span.request.messages);
@@ -899,6 +919,11 @@ function MessagesForkEditor({
   }
 
   const doResend = (): void => {
+    // 源记录不可用：旧内容可见但不得据此获得执行资格（提交口兜底，不依赖按钮禁用）
+    if (!sourceExecutable) {
+      setParseError("源记录不可用：重新读取并校验通过前不能重发");
+      return;
+    }
     // 提交时解析回结构体；解析失败可见报错，不发请求
     let messages: unknown;
     try {
@@ -987,8 +1012,14 @@ function MessagesForkEditor({
         <button
           type="button"
           onClick={doResend}
-          disabled={inProgress || unchanged || proxy?.running !== true}
-          title={proxy?.running !== true ? "代理未运行，请先在设置中启用" : undefined}
+          disabled={inProgress || unchanged || proxy?.running !== true || !sourceExecutable}
+          title={
+            !sourceExecutable
+              ? "源记录不可用：重新读取并校验通过前不能重发"
+              : proxy?.running !== true
+                ? "代理未运行，请先在设置中启用"
+                : undefined
+          }
           className="rounded bg-sky-600 px-3 py-1 text-[11px] text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-40"
         >
           确认重发
@@ -1095,6 +1126,17 @@ function ForkEditor({
     writesAuthorized,
   });
   const canSubmit = isolated ? submission.ok : !unchanged;
+  // 源记录不可用时禁用依赖它的执行（任务 3.5）：先决条件同样拦住"预检"这个只读动作，
+  // 因为它已经把源记录当成可执行父本（源都不在了，预检结论没有意义）。
+  const sourceExecutable = useAppStore((s) => s.canExecuteFromSource)();
+  const canFork = canSubmit && sourceExecutable;
+  const checkAllowed = check.ok && sourceExecutable;
+  // 提示语：源不可用优先（它同时也会让 check 失配，但原因不同，不能互相冒充）
+  const checkBlockReason = !sourceExecutable
+    ? "源记录不可用：重新读取并校验通过前不能发起新执行"
+    : check.ok
+      ? null
+      : check.reason;
 
   const resetLocal = (): void => {
     resetFork();
@@ -1105,7 +1147,7 @@ function ForkEditor({
   };
 
   const doCheck = (): void => {
-    if (!check.ok) return;
+    if (!checkAllowed) return;
     const requestedValue = check.request.edit.value;
     setChecking(true);
     setCheckError(null);
@@ -1209,15 +1251,15 @@ function ForkEditor({
             <button
               type="button"
               onClick={doCheck}
-              disabled={!check.ok}
+              disabled={!checkAllowed}
               className="rounded border border-violet-400 px-2 py-0.5 text-[10px] text-violet-700 hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {checking ? "校验中…" : capability !== null ? "重新校验" : "校验续跑条件"}
             </button>
           </div>
 
-          {!check.ok && check.reason !== null ? (
-            <div className="mt-1 text-[11px] leading-4 text-amber-700">{check.reason}</div>
+          {!checkAllowed && checkBlockReason !== null ? (
+            <div className="mt-1 text-[11px] leading-4 text-amber-700">{checkBlockReason}</div>
           ) : null}
 
           {checkError !== null ? (
@@ -1327,7 +1369,7 @@ function ForkEditor({
             }
             void forkAt(run.meta.id, span.id, value);
           }}
-          disabled={inProgress || !canSubmit}
+          disabled={inProgress || !canFork}
           className="rounded bg-violet-600 px-3 py-1 text-[11px] text-white hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-40"
         >
           确认重跑
@@ -1553,6 +1595,42 @@ function ParentChainList() {
  * 不得冒充本次失败原因，也不得因此隐藏本 run 的缺失提示。
  * 只陈述"未记录"这一事实，不推断原因（空正文 / 零 token / 末尾 llm.call 概不参与）。
  */
+/**
+ * 源记录不可用标注（任务 3.5）：
+ * 刷新确认当前选中运行的源文件消失或变为读取失败时，屏幕上**已加载的内容保留**
+ * （用户还看得见他正在看的东西），但必须明确标出「源记录不可用」，并禁用依赖它的
+ * 新执行；重新读取并校验通过前不得以旧内容获得执行资格。
+ *
+ * 只按列表当前事实陈述，不猜是哪一条失败文件。
+ */
+function SourceUnavailableNotice() {
+  const unavailable = useAppStore((s) => s.sourceUnavailable);
+  const reason = useAppStore((s) => s.sourceUnavailableReason);
+  const loadRuns = useAppStore((s) => s.loadRuns);
+  if (!unavailable) return null;
+
+  return (
+    <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-[11px] leading-5 text-amber-900">
+      <span className="font-semibold">源记录不可用：</span>
+      {reason === "unreadable"
+        ? "刷新时该运行的源文件读取失败，下方内容为之前加载的结果，"
+        : "刷新时该运行的记录已不在 traces 目录中，下方内容为之前加载的结果，"}
+      依赖它的新执行（重跑、prompt/messages 编辑、模型实验）已禁用。
+      <br />
+      重新读取并校验通过后自动恢复；也可在左侧列表改选其他运行。
+      <button
+        type="button"
+        onClick={() => {
+          void loadRuns();
+        }}
+        className="ml-1 underline hover:text-amber-950"
+      >
+        重新读取
+      </button>
+    </div>
+  );
+}
+
 function ErrorDetailNotice() {
   const detail = useAppStore((s) => s.detail);
   const missing = useMemo(
@@ -1631,6 +1709,7 @@ export function DetailPanel() {
       <DetailHeader tab={tab} onTab={setTab} isolated={isolated} spanId={span?.id ?? null} />
 
       <IsolatedRunNotice />
+      <SourceUnavailableNotice />
       <BranchNotice />
       <ErrorDetailNotice />
       <ParentChainList />

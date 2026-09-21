@@ -44,6 +44,13 @@ import {
   readingStateOf,
 } from "./lib/reading-state";
 import type { CallReadingState, ReadingStateByRun, RunReadingState } from "./lib/reading-state";
+import {
+  resolveExecutionGate,
+  resolveFilterVisibility,
+  resolveInitialSelection,
+  resolveSourceAvailability,
+} from "./lib/workspace-selection";
+import type { FilterVisibility, SourceAvailability } from "./lib/workspace-selection";
 
 /**
  * UI 状态：只存选择状态与原始数据。
@@ -100,6 +107,18 @@ interface AppState {
   proxy: ProxyState | null;
   /** run 列表来源过滤 */
   sourceFilter: "all" | "proxy" | "local";
+  /** 列表搜索词（匹配完整 task/ID）；与来源条件求交集（任务 3.5） */
+  searchQuery: string;
+
+  /**
+   * 首次自动选择是否已尝试过（任务 3.5）。
+   * 一次性动作的守卫：失败后留在该 run 的错误态由用户原位重试，
+   * **不**因为"这条读不了"就去试下一条（那等于静默遍历整个列表）。
+   */
+  initialSelectionAttempted: boolean;
+  /** 当前选中运行的源记录可用性（列表刷新后派生；见 lib/workspace-selection） */
+  sourceUnavailable: boolean;
+  sourceUnavailableReason: "available" | "missing" | "unreadable" | "unknown";
 
   /**
    * 主区域视图：trace = 既有三栏（列表 / span 树 / 详情），tree = 分支树。
@@ -124,6 +143,20 @@ interface AppState {
   selectRun: (id: string) => Promise<void>;
   selectSpan: (id: string) => void;
   toggleStep: (id: string) => void;
+
+  /**
+   * 首次自动选择（任务 3.5）：列表首次成功加载且无选中项时，
+   * 尝试「最近可读摘要」对应的运行并进入概览。只尝试**一条**，失败即停。
+   */
+  autoSelectInitialRun: () => Promise<void>;
+  /** 设置列表搜索词（与来源条件求交集；不改选当前运行） */
+  setSearchQuery: (query: string) => void;
+  /** 当前选中运行的源记录可用性（列表事实的纯派生，不缓存在字段里） */
+  sourceAvailability: () => SourceAvailability;
+  /** 当前选中运行是否被搜索/来源条件隐藏（导航据此提示，不改选） */
+  filterVisibility: () => FilterVisibility;
+  /** 依赖源记录的执行入口是否可用（源不可用 ⇒ 旧内容仍可见但不得执行） */
+  canExecuteFromSource: () => boolean;
 
   /**
    * 阅读状态的读写（会话内按运行恢复；只存阅读位置，不存授权/草稿）。
@@ -267,6 +300,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   settings: null,
   proxy: null,
   sourceFilter: "all",
+  searchQuery: "",
+  initialSelectionAttempted: false,
+  sourceUnavailable: false,
+  sourceUnavailableReason: "unknown",
   view: "trace",
   compareIds: [],
   compareNotice: null,
@@ -338,6 +375,18 @@ export const useAppStore = create<AppState>((set, get) => ({
       loadingList: false,
       listLoaded: true,
       listStale: false,
+    });
+    // 刷新后按**列表当前事实**重算源可用性（任务 3.5）：源文件被删/变不可读时
+    // 屏幕上的旧内容保留，但执行入口要禁用；重新出现即自动恢复。
+    const availability = resolveSourceAvailability({
+      runs: parsed.data.runs,
+      failed: parsed.data.failed,
+      selectedRunId: get().selectedRunId,
+      listLoaded: true,
+    });
+    set({
+      sourceUnavailable: availability.unavailable,
+      sourceUnavailableReason: availability.reason,
     });
   },
 
@@ -428,6 +477,52 @@ export const useAppStore = create<AppState>((set, get) => ({
         readingByRun: patchReadingState(readingByRun, selectedRunId, { expandedSteps: next }),
       });
     }
+  },
+
+  async autoSelectInitialRun() {
+    const decision = resolveInitialSelection({
+      runs: get().runs,
+      selectedRunId: get().selectedRunId,
+      listLoaded: get().listLoaded,
+      attempted: get().initialSelectionAttempted,
+    });
+    if (decision.runId === null) return;
+    // 先落守卫再发起请求：详情失败时 selectRun 会把错误留在该 run 上（原位可重试），
+    // 而本守卫保证我们**不会**再去试下一条——失败就是失败，不静默遍历列表。
+    set({ initialSelectionAttempted: true });
+    await get().selectRun(decision.runId);
+  },
+
+  setSearchQuery(query) {
+    // 只改条件，不改选：筛选隐藏当前运行时主工作区照常显示（任务 3.5）
+    set({ searchQuery: query });
+  },
+
+  sourceAvailability() {
+    return resolveSourceAvailability({
+      runs: get().runs,
+      failed: get().failed,
+      selectedRunId: get().selectedRunId,
+      listLoaded: get().listLoaded,
+    });
+  },
+
+  filterVisibility() {
+    return resolveFilterVisibility({
+      runs: get().runs,
+      selectedRunId: get().selectedRunId,
+      query: get().searchQuery,
+      filter: get().sourceFilter,
+    });
+  },
+
+  canExecuteFromSource() {
+    const availability = get().sourceAvailability();
+    return resolveExecutionGate({
+      unavailable: availability.unavailable,
+      reading: get().loadingDetail,
+      listLoaded: get().listLoaded,
+    });
   },
 
   readingOf(runId) {

@@ -141,7 +141,22 @@
 - 诚实边界：本任务只做调度与失败口径，**未接线任何 UI**（手动刷新按钮、未更新提示条的呈现归 4.5）；`listStale` 目前只被测试断言，尚无组件消费。
 
 - [x] 3.4 合并列表在途刷新并处理执行收尾的尾随更新（1.5h）；单测“刷新合并且保留阅读”“列表刷新失败可重试”“切换不重载”，断言读列表次数和新记录最终可见。
-- [ ] 3.5 接入首次选择、筛选隐藏和源文件失效状态（1.5h）；store 测试“首次打开与无运行入口”“筛选隐藏当前运行”“已选源记录不可用”，确认首次详情失败不循环跳转、重读通过前执行入口不解禁。
+### 3.5（2026-09-21 完成）
+
+新增 `apps/desktop/src/renderer/src/lib/workspace-selection.ts`（三组纯函数）+ store 接线 + RunList/DetailPanel/App 接入 + `test/store.test.ts` 新增「首次选择与筛选/源失效状态（任务 3.5）」**11 条**（store 49 passed，desktop 全量 **552 passed / 0 failed**，较 3.4 基线 541 **+11**）。
+
+- `resolveInitialSelection`：**首次自动选择**只在「列表已成功加载 + 无选中项 + 未尝试过」时发生，取 `runs[0]`（main 已按创建时间倒序）⇒ 进概览。**`initialSelectionAttempted` 是一次性守卫**：失败后留在该 run 的原位错误态由用户重试，**绝不**因为"这条读不了"就去试下一条（那会退化成静默遍历整个列表）。`App.tsx` 挂载时 `await loadRuns()` 后再 `autoSelectInitialRun()`。
+- `resolveFilterVisibility`：判当前选中运行是否被搜索/来源条件隐藏，**只给提示与清除入口**（`RunList` 里的琥珀提示条 + 「清除条件」），主工作区照常显示该运行，**不自动改选**。同时补了 store 的 `searchQuery` 字段与搜索框（4.4 接 UI 时复用），来源标签按 4.4 口径先改为「代理录制/本地记录」。空态文案按 `hasActiveFilters` 分叉，避免把"筛没了"说成"还没有记录"。
+- `resolveSourceAvailability`：
+  - ⚠️ **`!listLoaded` 必须排在"列表里没有它"之前** —— 否则首次读取失败会把「不知道」误报成「源记录已消失」。用 `unknown` 表意；`unavailable=false` 但执行闸门仍关。
+  - 列表里没有该 run + 有失败文件 ⇒ `unreadable`；无失败文件 ⇒ `missing`。**不断言是哪一条失败文件**（只按列表当前事实陈述）。
+- `resolveExecutionGate`：源不可用时**旧内容保留**（不擦掉用户正在看的东西），但禁用依赖它的新执行。`DetailPanel` 四处执行入口（tool result 重跑/precheck、prompt fork、model AB、代理 messages 重发）统一 `既有 guard ∧ sourceExecutable`，并在提交口兜底（不只靠按钮 disabled）。新增 `SourceUnavailableNotice` 横幅（含「重新读取」）。
+- 🐛 实施发现：`check.reason` 只存在于 `CapabilityCheck` 的失败分支 ⇒ 直接 `check.reason` 过不了 typecheck；改为单独的 `checkBlockReason` 派生，源不可用优先于 guard 原因（两者原因不同，不互相冒充）。
+- 判据有牙（**4 组变异**）：① 去掉一次性守卫 ⇒ **首次漏网**（用例只调了一次，选中项已挡住第二分支），补「清空选中项后再刷新+自动选择仍不得读任何记录」后 ⇒ 被抓；② 忽略 `unavailable` ⇒ 2 条失败；③ 筛选隐藏忽略搜索词 ⇒ 1 条失败；④ 删 `unknown` 分支（把未知说成消失）⇒ 1 条失败。四处已全部还原。
+- ⚠️ 测试卫生两处坑：① 新增 store 字段必须同步进 `resetStore()`，否则跨用例污染（本轮「首次详情失败」用例单独跑过、连跑失败，正是漏加 `initialSelectionAttempted` 所致）；② **不要用 python `open(...,'w')` 改这些源文件**——会引入 CRLF，biome 立刻报「Formatter would have printed」。仓库统一 LF。
+- 诚实边界：本任务只做 store 派生与接线，**首次自动选择的界面呈现（概览首屏）与"无运行入口"的完整视觉归 4.2**；搜索框只接了逻辑与基础输入框，完整导航重排归 4.4。
+
+- [x] 3.5 接入首次选择、筛选隐藏和源文件失效状态（1.5h）；store 测试“首次打开与无运行入口”“筛选隐藏当前运行”“已选源记录不可用”，确认首次详情失败不循环跳转、重读通过前执行入口不解禁。
 - [ ] 3.6 接入概览/步骤目录/逐调用滚动与长文本展开恢复（2h）；组件或 CDP 验证“跨运行返回恢复阅读”“失效阅读对象安全回退”，包含内容挂载后恢复、滚动上限裁剪和设置/分支往返。
 
 ## 4. 工作区与运行导航

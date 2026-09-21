@@ -1,3 +1,4 @@
+import { filterRuns } from "@shared/nav";
 import { useState } from "react";
 import { formatDuration, formatTime, formatTokens, reasonLabel } from "../lib/format";
 import { useAppStore } from "../store";
@@ -29,17 +30,20 @@ export function RunList() {
   const selectRun = useAppStore((s) => s.selectRun);
   const sourceFilter = useAppStore((s) => s.sourceFilter);
   const setSourceFilter = useAppStore((s) => s.setSourceFilter);
+  const searchQuery = useAppStore((s) => s.searchQuery);
+  const setSearchQuery = useAppStore((s) => s.setSearchQuery);
 
   // "新建运行"对话框开关（本地 UI 状态，与 App.tsx 管设置对话框同法）
   const [createOpen, setCreateOpen] = useState(false);
 
-  // 来源过滤：proxy meta 缺失的老文件归入"本地直录"
-  const filtered =
-    sourceFilter === "all"
-      ? runs
-      : sourceFilter === "proxy"
-        ? runs.filter((r) => r.source === "proxy")
-        : runs.filter((r) => r.source !== "proxy");
+  // 搜索与来源条件求交集（任务 2.4 的共用派生）；无 source 字段的老文件归入"本地记录"
+  const filtered = filterRuns(runs, searchQuery, sourceFilter);
+  // 当前选中运行是否被筛选隐藏（任务 3.5）：隐藏时**不改选**，只在导航提示并给清除入口
+  const visibility = useAppStore((s) => s.filterVisibility)();
+  const clearFilters = () => {
+    setSearchQuery("");
+    setSourceFilter("all");
+  };
 
   return (
     <aside className="flex h-full w-80 shrink-0 flex-col border-r border-gray-200 bg-white">
@@ -59,12 +63,19 @@ export function RunList() {
       </div>
 
       <div className="border-b border-gray-200 px-3 py-1.5">
-        <div className="flex items-center gap-1 text-[11px]">
+        <input
+          type="search"
+          value={searchQuery}
+          onChange={(event) => setSearchQuery(event.target.value)}
+          placeholder="搜索完整任务或运行 ID"
+          className="w-full rounded border border-gray-300 px-2 py-1 text-[11px] text-gray-700 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none"
+        />
+        <div className="mt-1.5 flex items-center gap-1 text-[11px]">
           {(
             [
               ["all", "全部"],
-              ["proxy", "仅代理"],
-              ["local", "仅本地直录"],
+              ["proxy", "代理录制"],
+              ["local", "本地记录"],
             ] as const
           ).map(([value, label]) => (
             <button
@@ -83,6 +94,20 @@ export function RunList() {
         </div>
       </div>
 
+      {/* 当前运行不在筛选结果中（任务 3.5）：明确提示 + 清除条件入口，**不**自动改选其他运行 */}
+      {visibility.hidden ? (
+        <div className="border-b border-amber-200 bg-amber-50 px-3 py-1.5 text-[11px] leading-4 text-amber-800">
+          当前运行的记录不在筛选结果中，主工作区仍显示它。
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="ml-1 underline hover:text-amber-900"
+          >
+            清除条件
+          </button>
+        </div>
+      ) : null}
+
       <div className="flex-1 overflow-y-auto">
         {loadingList && runs.length === 0 ? (
           <div className="px-3 py-6 text-xs text-gray-500">加载中…</div>
@@ -90,14 +115,23 @@ export function RunList() {
 
         {!loadingList && filtered.length === 0 && failed.length === 0 ? (
           <div className="px-3 py-6 text-xs leading-5 text-gray-500">
-            {sourceFilter === "all" ? (
+            {visibility.hasActiveFilters ? (
+              <>
+                当前条件下没有匹配的运行记录。
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="ml-1 underline hover:text-gray-700"
+                >
+                  清除条件
+                </button>
+              </>
+            ) : (
               <>
                 还没有运行记录：点上方「＋ 新建运行」直接跑一个，
                 <br />
                 或把 *.jsonl 放进数据目录的 traces/。
               </>
-            ) : (
-              "该来源下暂无运行记录。"
             )}
           </div>
         ) : null}

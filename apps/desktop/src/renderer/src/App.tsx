@@ -21,7 +21,12 @@ export default function App() {
 
   // 挂载时加载一次列表与运行配置。只读工具，不做文件监听——目录内容变化后重新打开即可
   useEffect(() => {
-    void useAppStore.getState().loadRuns();
+    void (async () => {
+      await useAppStore.getState().loadRuns();
+      // 首次自动选择（任务 3.5）：列表首次成功加载且尚无选中项时，尝试最近可读摘要
+      // 对应的运行并进入概览。只尝试一条——详情失败留在该 run 的原位错误态，不遍历其他记录。
+      await useAppStore.getState().autoSelectInitialRun();
+    })();
     void useAppStore.getState().loadSettings();
     void useAppStore.getState().loadProxyStatus();
   }, []);
