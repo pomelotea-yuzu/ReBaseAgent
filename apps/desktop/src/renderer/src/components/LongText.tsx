@@ -9,9 +9,16 @@
  * 组件卸载即丢——切走再切回、进设置/分支再返回都恢复不出"用户读到哪一块"。现在由父级
  * 传入 `expanded`（键取自 `readingByRun[runId].calls[spanId].expanded`）与 `onToggle`，
  * 组件只负责渲染与回调；不传则退化为**自持状态**（旧行为，保证既有调用点不受影响）。
+ *
+ * U1 任务 5.5 追加两个"就近"能力（spec：长文本 SHALL 可查找、展开和复制）：
+ *   - **复制**：复制的是**原始文本**（`text`），不是省略后的展示；有 `navigator.clipboard`
+ *     就用它，没有（无 DOM 的静态渲染）则静默跳过，绝不抛。
+ *   - **查找**：在**完整原文**上算命中（`findInText`），支持下一个/上一个循环导航与
+ *     "第 n / m 个"提示。查找输入框只在展开后出现——折叠时连原文都看不到，查找无处可用。
  */
 
 import { useState } from "react";
+import { findInText, splitByMatches, stepFind } from "../lib/call-detail-view";
 
 /** 折叠阈值（字符数 = UTF-16 单元）：**严格大于**才折叠，正好等于不折叠 */
 export const COLLAPSE_THRESHOLD = 600;
@@ -50,6 +57,31 @@ export function toggleLongTextExpanded(expanded: string[] | undefined, id: strin
   return [...current, id];
 }
 
+/** 复制反馈文案（英文/中文各一份？不需要——统一中文，且**如实**区分成功与不可用） */
+export function copyFeedbackText(outcome: "copied" | "unavailable"): string {
+  return outcome === "copied" ? "已复制原文" : "当前环境不支持复制（可手动选择文本）";
+}
+
+/**
+ * 复制时**写到剪贴板的文本**。
+ *
+ * 抽成函数（而不是内联 `writeText(text)`）是因为 spec 明写「复制 SHALL 对应原始文本
+ * 而非省略后的展示」——这是一条**可证伪的契约**：只要复制目标不是完整原文就该被断言抓到。
+ * 内联写法下，把 `text` 改成摘要/截断串不会有任何用例变红（变异验证发现的盲区）。
+ *
+ * ⚠️ 当前折叠态只把原文塞在 `<details>` 里（DOM 仍持有全文），故复制目标恒为 `text`；
+ *    若将来引入"省略后展示"，此处必须仍返回 `text`（原文），不得返回展示串。
+ */
+export function copyPayload(text: string): string {
+  return text;
+}
+
+/** 查找的计数提示；无命中时明确说"无命中"，不显示"0 / 0"让人以为没搜 */
+export function findCountLabel(result: { matches: unknown[]; index: number }): string {
+  if (result.matches.length === 0) return "无命中";
+  return `第 ${result.index + 1} / ${result.matches.length} 个`;
+}
+
 export function LongText({
   text,
   label,
@@ -65,10 +97,37 @@ export function LongText({
 }) {
   // 非受控兜底：既有调用点不传 expanded 时行为与改造前一致
   const [uncontrolled, setUncontrolled] = useState(false);
+  const [query, setQuery] = useState("");
+  const [findIndex, setFindIndex] = useState(0);
+  const [copyFeedback, setCopyFeedback] = useState<"copied" | "unavailable" | null>(null);
+
   const controlled = expanded !== undefined;
   const isExpanded = controlled ? expanded : uncontrolled;
 
-  if (!shouldCollapse(text)) {
+  const collapsed = shouldCollapse(text);
+  // 短文本不必展开，故也不显示查找/复制工具条（无处可用）
+  const showTools = !collapsed || isExpanded;
+
+  const copy = (): void => {
+    // 复制的是**原始文本**（不是省略后的展示）；无 DOM 环境下 clipboard 不存在 ⇒ 如实提示
+    const clipboard = (globalThis as { navigator?: { clipboard?: { writeText?: unknown } } })
+      .navigator?.clipboard;
+    if (
+      clipboard === undefined ||
+      typeof (clipboard as { writeText?: unknown }).writeText !== "function"
+    ) {
+      setCopyFeedback("unavailable");
+      return;
+    }
+    void (clipboard as { writeText: (t: string) => Promise<void> })
+      .writeText(copyPayload(text))
+      .then(() => setCopyFeedback("copied"))
+      .catch(() => setCopyFeedback("unavailable"));
+  };
+
+  const find = findInText(text, query, findIndex);
+  const parts = splitByMatches(text, find);
+  if (!collapsed) {
     return (
       <pre className="whitespace-pre-wrap break-words font-code text-[11px] leading-5 text-gray-800">
         {text}
@@ -94,8 +153,66 @@ export function LongText({
       <summary className="cursor-pointer select-none text-[11px] text-gray-500 hover:text-gray-700">
         {collapsedLabel(text, label)}
       </summary>
+
+      {showTools ? (
+        <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px]">
+          {/* 查找：在完整原文上算命中；空查询时禁用导航按钮 */}
+          <input
+            type="search"
+            value={query}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setFindIndex(0);
+            }}
+            placeholder="在原文中查找"
+            aria-label={`在${label}中查找`}
+            className="w-40 rounded border border-gray-300 px-1.5 py-0.5 text-[11px] text-gray-700 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none"
+          />
+          <span className="text-gray-500" aria-live="polite">
+            {query === "" ? "" : findCountLabel(find)}
+          </span>
+          <button
+            type="button"
+            onClick={() => setFindIndex((i) => stepFind(findInText(text, query, i), -1).index)}
+            disabled={find.matches.length === 0}
+            className="rounded border border-gray-300 px-1.5 py-0.5 text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            上一个
+          </button>
+          <button
+            type="button"
+            onClick={() => setFindIndex((i) => stepFind(findInText(text, query, i), 1).index)}
+            disabled={find.matches.length === 0}
+            className="rounded border border-gray-300 px-1.5 py-0.5 text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            下一个
+          </button>
+          <button
+            type="button"
+            onClick={copy}
+            className="rounded border border-gray-300 px-1.5 py-0.5 text-gray-600 hover:bg-gray-50"
+          >
+            复制原文
+          </button>
+          {copyFeedback !== null ? (
+            <span className="text-gray-500">{copyFeedbackText(copyFeedback)}</span>
+          ) : null}
+        </div>
+      ) : null}
+
       <pre className="mt-1 whitespace-pre-wrap break-words font-code text-[11px] leading-5 text-gray-800">
-        {text}
+        {/* 高亮命中：命中片段包 <mark>，非命中保持文本。片段是位置性的、无稳定 id ⇒ 用下标作 key */}
+        {parts.map((part, index) =>
+          part.hit ? (
+            // biome-ignore lint/suspicious/noArrayIndexKey: 文本片段由同一原文切出、位置稳定，无独立 id
+            <mark key={index} className="rounded bg-yellow-200">
+              {part.text}
+            </mark>
+          ) : (
+            // biome-ignore lint/suspicious/noArrayIndexKey: 同上
+            <span key={index}>{part.text}</span>
+          ),
+        )}
       </pre>
     </details>
   );

@@ -302,7 +302,19 @@
   诚实边界：**未做** CDP 实测（真实点击展开/选中后详情替换、窄窗口重开入口的实际滚动/焦点）——本包无 jsdom，静态契约打不到；归 7.1/7.3。⚠️ 本任务**未**合并 `DetailPanel` 内部遗留的 `trajectory`/`files` 局部 tab（与工作区页签并存），该收口归后续任务。
   ⚠️ 本地 `biome check .` 会报 `docs/**/*.json`（未跟踪，CI 上不存在）与 `apps/desktop/src/shared/list-refresh.ts`（**工作副本 CRLF 假报**：git blob 实为 LF，CI 新克隆不受影响）——**均非本任务引入**，未改。
 
-- [ ] 5.5 整理调用详情的输入/输出、原始字段与就近查找/复制（2h）；fixture/CDP 验证“推理模型的思维链”“工具调用详情”“长请求和原始字段完整可读”，不丢 request.tools/params、reasoning、tool_calls 或耗时字段。
+- [x] 5.5 整理调用详情的输入/输出、原始字段与就近查找/复制（2h）；fixture/CDP 验证“推理模型的思维链”“工具调用详情”“长请求和原始字段完整可读”，不丢 request.tools/params、reasoning、tool_calls 或耗时字段。
+
+  实现：
+  - **新增** `src/renderer/src/lib/call-detail-view.ts`（纯判据）：字段清单契约 `LLM_CALL_FIELDS` / `TOOL_INVOKE_FIELDS` / `STEP_FIELDS`（spec 逐字段点名）、可选字段 `OPTIONAL_LLM_FIELDS` + `optionalSectionVisible`（有该字段才渲染栏目）、`IO_SECTIONS` + `ioCoversAllFields`（**两半并集必须覆盖全部原始字段**，把"切换不丢字段"变成可断言对象）、`defaultIoView` / `resolveIoView`（失败默认输出、成功默认输入；记忆优先）、`presentStepDetail`（三块：已记录调用/错误计数/派生消耗，**消耗取自 `deriveStepStats` 不重算**）、`findInText` / `stepFind` / `splitByMatches`（在**完整原文**上查找、大小写不敏感、空查询短路、不重叠、越界回绕）。
+  - **改写** `src/renderer/src/components/LongText.tsx`：新增查找输入框（展开后出现）+ 上一个/下一个循环导航 + `第 n / m 个` 计数 + 「复制原文」；命中用 `<mark>` 高亮；复制目标抽成 `copyPayload(text)`（**保证复制的是完整原文**，spec 明写不得复制省略后展示）；`copyFeedbackText` / `findCountLabel` 如实区分「已复制/不支持」与「无命中」。
+  - **改** `src/renderer/src/components/DetailPanel.tsx`：`LlmCallDetail` 拆壳 + **纯展示 `LlmCallDetailView`**（概要 + `CacheHitRow` + **输入/输出切换条**（`aria-pressed`）+ 错误区 + `io==="output"` 渲染思维链（琥珀底）/正文/工具调用、`io==="input"` 渲染请求消息/工具表/采样参数；fork 编辑器由壳经 `children` 注入）。`ToolInvokeDetail` 拆壳 + 纯展示 `ToolInvokeDetailView`（args/result **并排就近核对**在同一个「入参与结果」分区、error 非空显式呈现、`dur_ms` 与墙上耗时两口径并存）。新增纯展示 `StepDetailView`（概要三块 + **每条已记录调用是可下钻按钮** + 错误标记）；step 分支从 **span 树**取节点（`buildSpanTree` → `stepNode`）后接 `presentStepDetail`，`onOpenCall` 接 `selectSpan`。
+  - **新增** `test/call-detail-view.test.ts`（**60** 条）：字段清单契约 + io 切换判据 + 可选栏目判据 + `findInText`/`stepFind`/`splitByMatches` + `presentStepDetail` + 三个纯展示组件静态渲染（思维链/正文分区、输入输出换半、args/result 同分区、error 显式）+ `LongText` 查找/复制/`copyPayload` + 外壳接线源码契约。
+
+  验证：typecheck（node+web）绿；desktop 全量 **879 passed / 0 failed（44 文件）**（5.4 基线 819，+60）；`biome check` 改动 4 文件干净；`electron-vite build` 通过；`openspec validate --all --strict` 13/13。
+  变异验证 **18 组**（改→跑→`cp` 还原→`md5sum` 复核，四文件 md5 全部一致）：lib 层 12 组（①`ioCoversAllFields` 去掉 `duration` 白名单 ⇒1 红；②`IO_SECTIONS.input` 丢 messages ⇒1 红；③`defaultIoView` 抹平 ⇒1 红；④`resolveIoView` 忽略记忆 ⇒1 红；⑤可选栏目恒真 ⇒5 红；⑥轮号写死 ⇒1 红；⑦tool 错误判据改 `!==undefined` ⇒1 红；⑧消耗不取派生 ⇒1 红；⑨查找大小写敏感 ⇒2 红；⑩空查询不短路 ⇒ **挂死**（`indexOf('',n)=n` 且步进 0 ⇒ 空转，整文件零用例、`success=true` 但 `passed=0` ⇒ 判红规则必须含"零用例"）；⑪命中段不标 hit ⇒1 红；⑫`stepFind` 原地不动 ⇒2 红）；组件层 6 组（⑬输出分支永不渲染 ⇒3 红；⑭思维链标题被抹 ⇒1 红；⑮args/result 拆区 ⇒1 红；⑯tool error 判据错 ⇒4 红；⑰step 下钻断开 ⇒1 红；⑱step 节点不从树取 ⇒1 红）。
+  - ⚠️ **两处经变异验证修正的设计**：① `stepFind` 原守 `total === 0 || index < 0`，变异证明 `index < 0` 是**等价冗余**（`findInText` 仅在两处返回 `index:-1`，均同时给空 matches ⇒「无命中」蕴含「total 为 0」）⇒ **按纪律删除冗余而非补用例**。② `LongText` 的复制目标原先内联 `writeText(text)`，变异（改成截断串）**不红**——盲区；已抽 `copyPayload(text)` 并加用例 + 源码级调用点断言（`writeText(copyPayload(text))`）⇒ 复测 1 红。
+  - ⚠️ **驱动器坑（沙箱特有）**：本沙箱内 node `execSync` spawn `cmd.exe`/`npx` 必 `EBUSY`，**不能**用 node 驱动器跑 vitest；须在主 shell 里 `cd apps/desktop && ./node_modules/.bin/vitest.CMD run … > out.txt`（**不可**用 `( )` 子 shell、**不可**管道进 grep——两者都会让 vitest 静默产空输出）。判红必须**只认** `--reporter=json --outputFile=<相对路径>` 的 `numFailedTests`（ANSI 色码会让 `grep "Tests N failed"` 永远失配）；且 `success===false || numPassedTests===0` 也算红（覆盖挂死）。
+  诚实边界：**未做** CDP 实测（真实点击"输入/输出"切换后的重渲染、`<details>` 真实开合与查找框实际聚焦、剪贴板真实写入、step 调用按钮点击后的滚动/选中）——本包无 jsdom，静态契约打不到；归 7.1/7.3。**未接线**预算地图（归 5.6）与主 spec 的缓存/A-B 提示完整项（归 5.7）。
 - [ ] 5.6 接回预算地图、失败解释及已有编辑器（1.5h）；验证“预算和错误能力迁移后可达”及主 spec“预算地图与聚合一致”“选中数据点联动详情”“超限终止被标注”“无预算信息的老文件”“编辑态才加载编辑器”，保留整条轨迹预算口径。
 - [ ] 5.7 接回完整缓存展示与原模型变化提示（1h）；现有测试加组件检查覆盖“llm.call 详情展示缓存命中”“零命中仍展示为全量计费”“少量命中不得被称为全量计费”“无缓存字段的调用降级”“tool_result 分叉的模型不一致提示”“其它分叉形态不加缓存提示”“输入为零与全未知缓存”。
 

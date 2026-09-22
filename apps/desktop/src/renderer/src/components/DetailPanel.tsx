@@ -1,14 +1,18 @@
 import { Editor } from "@monaco-editor/react";
 import type { SpanLine } from "@rebaseagent/trace-sdk";
 import {
+  buildSpanTree,
   deriveMissingLlmErrorDetail,
   findStepLlm,
   forkEditLabel,
   isPromptForkField,
   spanDurationMs,
 } from "@shared/derive";
+import type { SpanNode } from "@shared/derive";
 import type { ForkCapabilityResult, ModelAbResult, ModelArmPlan, RunDetail } from "@shared/ipc";
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { IoView, StepDetailView as StepDetailViewData } from "../lib/call-detail-view";
+import { optionalSectionVisible, presentStepDetail, resolveIoView } from "../lib/call-detail-view";
 import { formatDuration, prettyJson } from "../lib/format";
 import {
   isIsolatedRun,
@@ -733,7 +737,17 @@ function LlmCallDetail({
       ? undefined
       : s.readingOf(runId).calls[span.id]?.expanded,
   );
+  /**
+   * 输入/输出切换（任务 5.5 · design D6 的 `CallReadingState.io`）。
+   *
+   * 与展开状态同存一处（`readingByRun[runId].calls[spanId]`）——切换是**阅读位置**的一种，
+   * 切走再回来要恢复用户看的那半。`undefined` = 没切过 ⇒ 按 `defaultIoView` 定默认。
+   */
+  const ioState = useAppStore((s) =>
+    runId === null || s.selectedRunId !== runId ? undefined : s.readingOf(runId).calls[span.id]?.io,
+  );
   const setCallReading = useAppStore((s) => s.setCallReading);
+  const io = resolveIoView(span, ioState);
   const longTextProps = (
     key: string,
   ): { expanded: boolean; onToggle: (next: boolean) => void } => ({
@@ -761,106 +775,16 @@ function LlmCallDetail({
           : "（响应为空正文）";
 
   return (
-    <>
-      <Section title="概要">
-        <KeyValue
-          items={[
-            ["模型", request.model],
-            ["输入 tokens", String(response.usage.in)],
-            ["输出 tokens", String(response.usage.out)],
-            ["首 token 延迟", `${response.ttft_ms}ms`],
-            ["耗时", formatDuration(spanDurationMs(span))],
-            ["工具调用", String(response.tool_calls.length)],
-          ]}
-        />
-        <CacheHitRow usage={response.usage} />
-      </Section>
-
-      {error !== undefined ? (
-        <Section title="错误（调用失败，错误是数据）">
-          <div className="rounded border-l-2 border-red-400 bg-red-50 px-2 py-1.5">
-            <div className="mb-1 flex flex-wrap items-center gap-2 text-[11px] text-red-900">
-              <span>调用失败</span>
-              {error.status === undefined ? null : (
-                <span className="rounded bg-red-100 px-1 font-code">HTTP {error.status}</span>
-              )}
-            </div>
-            <LongText text={error.message} label="错误详情" {...longTextProps("error")} />
-            <div className="mt-1 text-[11px] leading-5 text-red-800">
-              这是记录于本次调用的失败原因。上列 tokens 与首 token 延迟是
-              <span className="font-medium">失败占位零值</span>
-              ，不代表实际零消耗或零延迟；请求内容仍可照常查看。
-            </div>
-          </div>
-        </Section>
-      ) : null}
-
-      {response.reasoning_content !== null ? (
-        <Section title="思维链（reasoning_content）">
-          <div className="rounded border-l-2 border-amber-400 bg-amber-50 px-2 py-1.5">
-            <LongText
-              text={response.reasoning_content}
-              label="思维链"
-              {...longTextProps("reasoning")}
-            />
-          </div>
-        </Section>
-      ) : null}
-
-      <Section title="响应正文">
-        {response.content === null || response.content === "" ? (
-          <div className="text-[11px] text-gray-400">{emptyContentHint}</div>
-        ) : (
-          <LongText text={response.content} label="正文" {...longTextProps("content")} />
-        )}
-      </Section>
-
-      {response.tool_calls.length > 0 ? (
-        <Section title={`工具调用（${response.tool_calls.length}）`}>
-          <LongText
-            text={prettyJson(response.tool_calls)}
-            label="tool_calls"
-            {...longTextProps("tool_calls")}
-          />
-        </Section>
-      ) : null}
-
-      <Section title={`请求消息（${request.messages.length} 条）`}>
-        <div className="space-y-2">
-          {request.messages.map((message, index) => (
-            <div key={`${message.role}-${index}`} className="rounded bg-gray-50 px-2 py-1.5">
-              <div className="mb-1 flex items-center gap-2 text-[10px] text-gray-500">
-                <span className="rounded bg-gray-200 px-1 font-code">{message.role}</span>
-                {typeof message.tool_call_id === "string" ? (
-                  <span className="font-code">tool_call_id: {message.tool_call_id}</span>
-                ) : null}
-              </div>
-              <LongText
-                text={
-                  typeof message.content === "string"
-                    ? message.content
-                    : prettyJson(message.content)
-                }
-                label="内容"
-                {...longTextProps(`msg:${index}`)}
-              />
-            </div>
-          ))}
-        </div>
-      </Section>
-
-      {request.tools !== undefined ? (
-        <Section title={`工具表（${request.tools.length}）`}>
-          <LongText text={prettyJson(request.tools)} label="tools" {...longTextProps("tools")} />
-        </Section>
-      ) : null}
-
-      {request.params !== undefined ? (
-        <Section title="采样参数">
-          <LongText text={prettyJson(request.params)} label="params" {...longTextProps("params")} />
-        </Section>
-      ) : null}
-
+    <LlmCallDetailView
+      span={span}
+      io={io}
+      onIo={(next) => {
+        if (runId === null) return;
+        setCallReading(runId, span.id, { io: next });
+      }}
+      emptyContentHint={emptyContentHint}
+      longTextProps={longTextProps}
+    >
       {(() => {
         // prompt fork 入口：仅限首次 llm.call（启动上下文的事实源）。
         // 代理 run 在录制侧已补 config_hash 时与引擎 run 同判据（不再无条件排除 proxy）；
@@ -906,6 +830,175 @@ function LlmCallDetail({
           该 run 运行中断（未封存），不允许作为重发起点。
         </div>
       ) : null}
+    </LlmCallDetailView>
+  );
+}
+
+/**
+ * llm.call 详情的**纯展示**部分（任务 5.5）。
+ *
+ * 与 store 壳 `LlmCallDetail` 分离的原因：本包无 jsdom、zustand v5 在静态渲染下走
+ * `getServerSnapshot`（恒初始值）⇒ 壳喂不进状态。把"数据 → 视图"抽出来，测试才能直接喂
+ * `io` / `expandedSections` 钉住「输入输出切换」「思维链与正文分区」这些判据。
+ *
+ * 两个必须守住的义务：
+ *   1. **输入与输出是两半，切换只改看哪半、不丢字段**：输入 = messages/tools/params；
+ *      输出 = content/reasoning/tool_calls。两半的分区并集覆盖 spec 点名的全部字段
+ *      （`ioCoversAllFields` 把这条变成可断言的对象）。
+ *   2. **思维链与正文分区样式不同**（琥珀底 vs 无底），两者内容都完整。
+ */
+export function LlmCallDetailView({
+  span,
+  io,
+  onIo,
+  emptyContentHint,
+  longTextProps,
+  children,
+}: {
+  span: Extract<SpanLine, { kind: "llm.call" }>;
+  io: IoView;
+  onIo: (next: IoView) => void;
+  emptyContentHint: string;
+  longTextProps: (key: string) => { expanded: boolean; onToggle: (next: boolean) => void };
+  /** fork / 重发编辑器（由壳提供；纯展示部分不碰它们） */
+  children?: React.ReactNode;
+}) {
+  const { request, response, error } = span;
+  return (
+    <>
+      <Section title="概要">
+        <KeyValue
+          items={[
+            ["模型", request.model],
+            ["输入 tokens", String(response.usage.in)],
+            ["输出 tokens", String(response.usage.out)],
+            ["首 token 延迟", `${response.ttft_ms}ms`],
+            ["耗时", formatDuration(spanDurationMs(span))],
+            ["工具调用", String(response.tool_calls.length)],
+          ]}
+        />
+        <CacheHitRow usage={response.usage} />
+      </Section>
+
+      {/* 输入/输出切换（任务 5.5）：两半各自完整，切换只是换看哪半 */}
+      <div className="flex items-center gap-1 border-t border-gray-200 px-4 py-1.5">
+        <span className="mr-1 text-[11px] text-gray-500">查看</span>
+        {(["input", "output"] as const).map((key) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => onIo(key)}
+            aria-pressed={io === key}
+            className={`rounded px-2 py-0.5 text-[11px] ${
+              io === key ? "bg-sky-100 font-medium text-sky-900" : "text-gray-600 hover:bg-gray-100"
+            }`}
+          >
+            {key === "input" ? "输入" : "输出"}
+          </button>
+        ))}
+        <span className="ml-auto text-[10px] text-gray-400">两半内容都完整保留，切换不丢字段</span>
+      </div>
+
+      {error !== undefined ? (
+        <Section title="错误（调用失败，错误是数据）">
+          <div className="rounded border-l-2 border-red-400 bg-red-50 px-2 py-1.5">
+            <div className="mb-1 flex flex-wrap items-center gap-2 text-[11px] text-red-900">
+              <span>调用失败</span>
+              {error.status === undefined ? null : (
+                <span className="rounded bg-red-100 px-1 font-code">HTTP {error.status}</span>
+              )}
+            </div>
+            <LongText text={error.message} label="错误详情" {...longTextProps("error")} />
+            <div className="mt-1 text-[11px] leading-5 text-red-800">
+              这是记录于本次调用的失败原因。上列 tokens 与首 token 延迟是
+              <span className="font-medium">失败占位零值</span>
+              ，不代表实际零消耗或零延迟；请求内容仍可照常查看。
+            </div>
+          </div>
+        </Section>
+      ) : null}
+
+      {io === "output" ? (
+        <>
+          {response.reasoning_content !== null ? (
+            <Section title="思维链（reasoning_content）">
+              <div className="rounded border-l-2 border-amber-400 bg-amber-50 px-2 py-1.5">
+                <LongText
+                  text={response.reasoning_content}
+                  label="思维链"
+                  {...longTextProps("reasoning")}
+                />
+              </div>
+            </Section>
+          ) : null}
+
+          <Section title="响应正文">
+            {response.content === null || response.content === "" ? (
+              <div className="text-[11px] text-gray-400">{emptyContentHint}</div>
+            ) : (
+              <LongText text={response.content} label="正文" {...longTextProps("content")} />
+            )}
+          </Section>
+
+          {response.tool_calls.length > 0 ? (
+            <Section title={`工具调用（${response.tool_calls.length}）`}>
+              <LongText
+                text={prettyJson(response.tool_calls)}
+                label="tool_calls"
+                {...longTextProps("tool_calls")}
+              />
+            </Section>
+          ) : null}
+        </>
+      ) : (
+        <>
+          <Section title={`请求消息（${request.messages.length} 条）`}>
+            <div className="space-y-2">
+              {request.messages.map((message, index) => (
+                <div key={`${message.role}-${index}`} className="rounded bg-gray-50 px-2 py-1.5">
+                  <div className="mb-1 flex items-center gap-2 text-[10px] text-gray-500">
+                    <span className="rounded bg-gray-200 px-1 font-code">{message.role}</span>
+                    {typeof message.tool_call_id === "string" ? (
+                      <span className="font-code">tool_call_id: {message.tool_call_id}</span>
+                    ) : null}
+                  </div>
+                  <LongText
+                    text={
+                      typeof message.content === "string"
+                        ? message.content
+                        : prettyJson(message.content)
+                    }
+                    label="内容"
+                    {...longTextProps(`msg:${index}`)}
+                  />
+                </div>
+              ))}
+            </div>
+          </Section>
+
+          {optionalSectionVisible(span, "request.tools") ? (
+            <Section title={`工具表（${request.tools?.length ?? 0}）`}>
+              <LongText
+                text={prettyJson(request.tools)}
+                label="tools"
+                {...longTextProps("tools")}
+              />
+            </Section>
+          ) : null}
+
+          {optionalSectionVisible(span, "request.params") ? (
+            <Section title="采样参数">
+              <LongText
+                text={prettyJson(request.params)}
+                label="params"
+                {...longTextProps("params")}
+              />
+            </Section>
+          ) : null}
+        </>
+      )}
+
+      {children}
     </>
   );
 }
@@ -1449,6 +1542,47 @@ function ToolInvokeDetail({
   });
 
   return (
+    <ToolInvokeDetailView span={span} longTextProps={toolLongTextProps}>
+      {canFork && run !== null ? (
+        <ForkEditor span={span} run={run} />
+      ) : span.kind === "tool.invoke" && run !== null && !leafOwned && run.chain.length > 1 ? (
+        <div className="border-t border-gray-100 px-4 py-2 text-[11px] text-gray-400">
+          该调用位于祖先前缀（继承自父 run），不属于当前 run 自身段——打开其所属 run 才可在此重跑。
+        </div>
+      ) : run !== null && leafOwned && run.status === "crashed" ? (
+        <div className="border-t border-gray-100 px-4 py-2 text-[11px] text-gray-400">
+          该 run 运行中断（未封存），不允许作为分叉起点。
+        </div>
+      ) : null}
+    </ToolInvokeDetailView>
+  );
+}
+
+/**
+ * `tool.invoke` 详情的纯展示部分（U1 任务 5.5）。
+ *
+ * 与壳 `ToolInvokeDetail` 分离的同一理由：本包无 jsdom、zustand v5 静态渲染走
+ * `getServerSnapshot`（恒初始值）⇒ 壳喂不进状态。抽出后测试可直接喂 span 钉住
+ * 「args 与 result 就近核对」「error 非空显式呈现」「dur_ms 与墙钟耗时都在」。
+ *
+ * 三条义务：
+ *   1. **args / result 就近核对**（spec 原文「工具 args/result SHALL 在同一详情中便于核对」）：
+ *      两块**并排**（宽屏）或上下相邻（窄屏），中间只隔一个"结果"标题，不再被其它栏目冲散。
+ *   2. **error 非空必须显式呈现**：`span.error !== null`（`null` = 成功，不是"没有错误字段"）。
+ *   3. **耗时两个口径都在**：`dur_ms`（工具自身执行）与墙上耗时（`spanDurationMs`，含排队/传输）——
+ *      两者不等恰是排查"工具快但整体慢"的关键，不能只留一个。
+ */
+export function ToolInvokeDetailView({
+  span,
+  longTextProps,
+  children,
+}: {
+  span: Extract<SpanLine, { kind: "tool.invoke" }>;
+  longTextProps: (key: string) => { expanded: boolean; onToggle: (next: boolean) => void };
+  /** fork / 重跑编辑器（由壳提供） */
+  children?: React.ReactNode;
+}) {
+  return (
     <>
       <Section title="概要">
         <KeyValue
@@ -1463,32 +1597,111 @@ function ToolInvokeDetail({
       {span.error !== null ? (
         <Section title="错误（错误是数据不是异常）">
           <div className="rounded border-l-2 border-red-400 bg-red-50 px-2 py-1.5">
-            <LongText text={span.error} label="错误信息" {...toolLongTextProps("error")} />
+            <LongText text={span.error} label="错误信息" {...longTextProps("error")} />
           </div>
         </Section>
       ) : null}
 
-      <Section title="入参">
-        <LongText text={prettyJson(span.args)} label="args" {...toolLongTextProps("args")} />
+      {/* args / result 就近核对：并排（宽屏）→ 上下相邻（窄屏），中间不被其它栏目隔开 */}
+      <Section title="入参与结果">
+        <div className="grid grid-cols-1 gap-2 xl:grid-cols-2">
+          <div className="min-w-0">
+            <div className="mb-1 text-[11px] font-medium text-gray-600">入参</div>
+            <LongText text={prettyJson(span.args)} label="args" {...longTextProps("args")} />
+          </div>
+          <div className="min-w-0">
+            <div className="mb-1 text-[11px] font-medium text-gray-600">结果</div>
+            <LongText text={prettyJson(span.result)} label="result" {...longTextProps("result")} />
+          </div>
+        </div>
       </Section>
 
-      <Section title="结果">
-        <LongText text={prettyJson(span.result)} label="result" {...toolLongTextProps("result")} />
-      </Section>
-
-      {canFork && run !== null ? (
-        <ForkEditor span={span} run={run} />
-      ) : span.kind === "tool.invoke" && run !== null && !leafOwned && run.chain.length > 1 ? (
-        <div className="border-t border-gray-100 px-4 py-2 text-[11px] text-gray-400">
-          该调用位于祖先前缀（继承自父 run），不属于当前 run 自身段——打开其所属 run 才可在此重跑。
-        </div>
-      ) : run !== null && leafOwned && run.status === "crashed" ? (
-        <div className="border-t border-gray-100 px-4 py-2 text-[11px] text-gray-400">
-          该 run 运行中断（未封存），不允许作为分叉起点。
-        </div>
-      ) : null}
+      {children}
     </>
   );
+}
+
+/**
+ * `agent.step` 详情的纯展示部分（U1 任务 5.5）。
+ *
+ * spec 原文：「选中 step 时 SHALL 展示其已记录调用、错误及派生消耗」，场景
+ * 「长请求和原始字段完整可读」还要求「step 摘要仍可进入每个原始调用」。
+ *
+ * 三条义务：
+ *   1. **三块都要在**（`STEP_FIELDS` = calls / errors / consumption），缺一块就等于
+ *      把"有调用/有错误/有消耗"显示成"没有"。
+ *   2. **消耗来自 `deriveStepStats`（既有轨迹口径）**：`presentStepDetail` 只做取用，
+ *      不另算一遍——否则详情与预算地图必然分叉。
+ *   3. **每条已记录调用都可点进原始调用**（`onOpenCall(spanId)`）：step 是目录不是终点，
+ *      用户必须能从这里下钻到具体 llm.call / tool.invoke。
+ *
+ * ⚠️ `errorCount` 只合并**计数**不合并语义：llm 的 error 与 tool 的 error 口径不同
+ *    （前者 `undefined` = 未记录，后者 `null` = 成功），此处仅计数用于一眼看"这步有没有出错"。
+ */
+export function StepDetailView({
+  view,
+  onOpenCall,
+}: {
+  view: StepDetailViewData;
+  onOpenCall: (spanId: string) => void;
+}) {
+  return (
+    <>
+      <Section title="步骤概要">
+        <KeyValue
+          items={[
+            ["迭代序号", String(view.iteration)],
+            ["已记录调用", String(view.calls.length)],
+            ["其中错误", String(view.errorCount)],
+            ["耗时", formatDuration(view.durationMs)],
+            ["输入 tokens", String(view.tokensIn)],
+            ["输出 tokens", String(view.tokensOut)],
+            ["工具调用", String(view.toolCalls)],
+          ]}
+        />
+        <div className="mt-1 text-[11px] leading-5 text-gray-500">
+          下列消耗为该步骤子树的派生值（现有轨迹口径）。点任一条调用可打开其原始请求与响应。
+        </div>
+      </Section>
+
+      <Section title={`已记录调用（${view.calls.length}）`}>
+        {view.calls.length === 0 ? (
+          <div className="text-[11px] text-gray-400">
+            该步骤下没有直接记录的 LLM 调用或工具执行。
+          </div>
+        ) : (
+          <div className="space-y-1">
+            {view.calls.map((call) => (
+              <button
+                key={call.spanId}
+                type="button"
+                onClick={() => onOpenCall(call.spanId)}
+                className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-[11px] hover:bg-gray-100"
+              >
+                <span className="rounded bg-gray-200 px-1 font-code text-[10px] text-gray-600">
+                  {call.kind === "llm.call" ? "llm" : "tool"}
+                </span>
+                <span className="min-w-0 flex-1 truncate font-code text-gray-700">
+                  {call.label}
+                </span>
+                {call.errored ? (
+                  <span className="rounded bg-red-100 px-1 text-[10px] text-red-800">错误</span>
+                ) : null}
+                <span className="font-code text-[10px] text-gray-400">
+                  {shortSpanId(call.spanId)}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+      </Section>
+    </>
+  );
+}
+
+/** 短 ID（与 SpanTree 同一显示口径：只显示不影响复制，复制永远完整 ID） */
+function shortSpanId(id: string): string {
+  return id.length <= 10 ? id : `${id.slice(0, 8)}…`;
 }
 
 /** 分支提示：按 fork 字段分流——共享前缀（result）/ 从头重跑（prompt fork） */
@@ -1760,6 +1973,7 @@ export function DetailPanel() {
     s.selectedRunId === null ? null : (s.readingByRun[s.selectedRunId] ?? null),
   );
   const setReadingScroll = useAppStore((s) => s.setReadingScroll);
+  const selectSpan = useAppStore((s) => s.selectSpan);
   /**
    * 详情主区视图（C 2.1）：trajectory = 既有 span 详情；files = 隔离文件检查点。
    * 纯 UI 状态，不进 IPC、不持久化。**只有隔离 run 才有文件 tab**——
@@ -1812,6 +2026,27 @@ export function DetailPanel() {
     [detail, selectedSpanId],
   );
 
+  /**
+   * 选中的 step 在 span 树里的节点（任务 5.5）。
+   *
+   * ⚠️ 必须从**树**里取节点而不是直接拿 span：step 详情要列它的直接子调用、并让
+   *    `deriveStepStats` 算子树消耗——这些都只有 `SpanNode` 有，`SpanLine` 没有。
+   *    树缺失（detail 未加载）时为 null，分支自然回落到"尚未选择"。
+   */
+  const stepNode = useMemo(() => {
+    if (detail === null || span === null || span.kind !== "agent.step") return null;
+    const roots = buildSpanTree(detail.spans);
+    const find = (nodes: SpanNode[]): SpanNode | null => {
+      for (const node of nodes) {
+        if (node.span.id === span.id) return node;
+        const hit = find(node.children);
+        if (hit !== null) return hit;
+      }
+      return null;
+    };
+    return find(roots);
+  }, [detail, span]);
+
   if (detail !== null && isolated && tab === "files") {
     return (
       <section className="flex h-full min-w-0 flex-1 flex-col bg-white">
@@ -1845,6 +2080,13 @@ export function DetailPanel() {
         ) : span.kind === "tool.invoke" ? (
           // key=span.id：切换 span 时重置分叉编辑器的编辑状态
           <ToolInvokeDetail key={span.id} span={span} run={detail} />
+        ) : stepNode !== null ? (
+          // step 详情（任务 5.5）：已记录调用 + 错误 + 派生消耗，可下钻到原始调用
+          <StepDetailView
+            key={span.id}
+            view={presentStepDetail(stepNode)}
+            onOpenCall={(id) => selectSpan(id)}
+          />
         ) : (
           <Section title="步骤概要">
             <KeyValue
