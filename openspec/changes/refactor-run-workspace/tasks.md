@@ -615,5 +615,18 @@ dev 的 CDP 9222，无依赖 playwright，走原生 WebSocket。**抓到并修�
 
 - [x] 7.4 独立执行只读哈希回归（1h）；验证“阅读过程不修改已有数据”及主 spec 文件只读场景，逐文件比较既有 trace/附件/源目录并核对模型请求数为零；主动执行新增文件在另一轮记录。
 - [ ] 7.5 运行包构建、desktop 类型检查及相关/全仓测试（1.5h）；按 build→typecheck→test 顺序保存结果，确认 replay CLI 测试实际运行，支持所有派生/store/既有执行回归场景，不能将缺 dist 导致的跳过算通过。
+
+### 7.5（2026-09-22 完成）
+
+按 **build → typecheck → test** 顺序执行全仓质量门禁，日志落 `.workbuddy/u1-75/`（`build-packages.log`、`build-desktop.log`、`typecheck.log`、`test-all.log`）。
+
+- **build**：`pnpm --filter "./packages/*" build` 五个包（llm-proxy/trace-sdk/agent-loop/replay/trace-test）tsc 全绿；`pnpm --filter @rebaseagent/desktop build`（electron-vite）main/preload/renderer 全产出（Monaco chunks + ECharts 均在场），仅一条既有稳健提示「@monaco-editor/react 动态+静态双引」非致命。
+- **typecheck**：`pnpm --filter @rebaseagent/desktop typecheck`（tsconfig.node + tsconfig.web 双 noEmit）干净，0 输出退出 0。
+- **test**：`pnpm -r test` 全仓 **1802 passed（+4 skipped）/0 failed**：llm-proxy **18**、trace-sdk **191**、agent-loop **104**、trace-test **77**、replay **388(+4 skip)**、desktop **1024**（53 文件）。全量覆盖派生（derive/outcome/reading-state/reading-resolve）、store（detail-request/run-list-refresh 等）、既有执行回归（run-create/controlled-entrances/controlled-isolated/controlled-proxy/model-ab 等）。
+- **replay CLI 实际运行**：`model-ab-cli.test.ts`「rebaseagent-model-ab CLI（dist 冒烟）」9 条真跑（dry-run 零密钥/隔离父本拒绝/参数非法等），且该 CLI 从 `dist/model-ab-cli.js` 启动——**dist 先 build 再测试的顺序保证不被“缺 dist 跳过”**；包测试均以 `@rebaseagent/*` 的 dist 出口导入（`exports` 指向 dist），build 前置是测试真实运行的前提而非可选。
+
+⚠️ **诚实边界（按实测记录、未当产品门禁）**：① 首次在 **TRAE 沙箱**内跑 `pnpm -r test` 时 `workspace-import-source.test.ts` 的 **junction==磁盘根**用例因沙箱禁止对 `C:\` 根建链接而 EPERM 失败（环境限制，非代码问题）；**脱离沙箱重跑后 23 tests|4 skipped 全过**（4 skip 为平台相关性用例），最终以真实文件系统权限下的结果为准。② desktop build 的 Monaco 双引提示为既有编译期稳定信息，非本改变引入，产物完整。③ 全仓 4 条 skipped 均为既有环境/平台相关用例，非本次勾选范围，未人为补跑。
+
+- [x] 7.5 运行包构建、desktop 类型检查及相关/全仓测试（1.5h）；按 build→typecheck→test 顺序保存结果，确认 replay CLI 测试实际运行，支持所有派生/store/既有执行回归场景，不能将缺 dist 导致的跳过算通过。
 - [ ] 7.6 运行 lint、OpenSpec 严格校验和 desktop build（1h）；执行 `pnpm check:lint`、`openspec validate --all --strict --no-interactive`、`pnpm --filter @rebaseagent/desktop build`，保存退出码，确认本次依赖/视图拆分可构建，不安排发行打包。
 - [ ] 7.7 建立逐场景 evidence-index 并核对 U1 边界（1h）；desktop-ui 与 branch-tree 的每个 delta 场景链接测试/fixture/新截图，布局证据按 design D7 列出原生窗口边界/单位、CSS 视口、工作区/详情宽度、zoomFactor、devicePixelRatio 与 D2 断点映射；列出旧主 spec 回归和未验证项，确认 R1/U2、R2/U3、R3–R5/U4–U5、R8–R9/U7 未交付部分仍明确；证据不足不勾完，不自动归档。
