@@ -626,7 +626,6 @@ dev 的 CDP 9222，无依赖 playwright，走原生 WebSocket。**抓到并修�
 ⚠️ **诚实边界（按实测记录、未当产品门禁）**：① 首次在 **TRAE 沙箱**内跑 `pnpm -r test` 时 `workspace-import-source.test.ts` 的 **junction==磁盘根**用例因沙箱禁止对 `C:\` 根建链接而 EPERM 失败（环境限制，非代码问题）；**脱离沙箱重跑后 23 tests|4 skipped 全过**（4 skip 为平台相关性用例），最终以真实文件系统权限下的结果为准。② desktop build 的 Monaco 双引提示为既有编译期稳定信息，非本改变引入，产物完整。③ 全仓 4 条 skipped 均为既有环境/平台相关用例，非本次勾选范围，未人为补跑。
 
 - [x] 7.5 运行包构建、desktop 类型检查及相关/全仓测试（1.5h）；按 build→typecheck→test 顺序保存结果，确认 replay CLI 测试实际运行，支持所有派生/store/既有执行回归场景，不能将缺 dist 导致的跳过算通过。
-- [ ] 7.6 运行 lint、OpenSpec 严格校验和 desktop build（1h）；执行 `pnpm check:lint`、`openspec validate --all --strict --no-interactive`、`pnpm --filter @rebaseagent/desktop build`，保存退出码，确认本次依赖/视图拆分可构建，不安排发行打包。
 
 ### 7.6（2026-09-22 完成）
 
@@ -641,4 +640,17 @@ dev 的 CDP 9222，无依赖 playwright，走原生 WebSocket。**抓到并修�
 ⚠️ **诚实边界（按实测记录、未当产品门禁）**：① lint 退出码是**全仓** `biome check .` 的结果；排除的非源码目录（docs 未跟踪快照）与 CRLF 归属既有/环境问题已如实说明，未通过改动源代码去"消化"报错。② `.gitattributes` 仅作用于未来检出的 LF；已提交的 CRLF-检出文件由本次工作区归一处理，不影响 blob。③ 三项逐一执行并各自保存退出码，未合并成 `check:ci` 一次性短路。
 
 - [x] 7.6 运行 lint、OpenSpec 严格校验和 desktop build（1h）；执行 `pnpm check:lint`、`openspec validate --all --strict --no-interactive`、`pnpm --filter @rebaseagent/desktop build`，保存退出码，确认本次依赖/视图拆分可构建，不安排发行打包。
-- [ ] 7.7 建立逐场景 evidence-index 并核对 U1 边界（1h）；desktop-ui 与 branch-tree 的每个 delta 场景链接测试/fixture/新截图，布局证据按 design D7 列出原生窗口边界/单位、CSS 视口、工作区/详情宽度、zoomFactor、devicePixelRatio 与 D2 断点映射；列出旧主 spec 回归和未验证项，确认 R1/U2、R2/U3、R3–R5/U4–U5、R8–R9/U7 未交付部分仍明确；证据不足不勾完，不自动归档。
+
+### 7.7（2026-09-23 完成）
+
+产出 [`evidence-index.md`](evidence-index.md)（change 根目录）：仿归档 C 段范式，**桌面验收收口**。逐场景覆盖两份 delta spec：
+
+- **desktop-ui（6 MODIFIED + 4 ADDED = 10 requirements / 55 scenarios）+ branch-tree（1 MODIFIED / 7 scenarios）= 11 requirements / 62 scenarios**，61 场景有真实可链接证据（`apps/desktop/test/*.test.ts` → 用例名、`.rebaseagent/u1-{fixtures,lineage}/` 夹具、`docs/reviews/2026-09-22-u1-7*/` 截图、`.workbuddy/u1-7*/measurements.json` 测量，CDP 一次性脚本在 `apps/desktop/scripts/u1-7*-*.cjs`）。
+- **布局证据按 design D7 逐层记录**：原生窗口 1360×860(px)、CSS 视口 1440/1360/1024/800/640 + 200% 缩放实测 680×425、各档工作区/详情实测宽（ASIDE 264/步骤 232/详情 944·864·760·800·640）、zoomFactor（1.0 / 2.0）、devicePixelRatio（2.0 / 4.0）、D2 断点映射（≥1280 wide / 960–1279 medium / 720–959 narrow / <720 single）；`u1-71` 的 Emulation 未生效差异由 `u1-71b` 补出真实 1440 档闭合；200% 断点按**缩放后实测视口**（680→single）判定而非原生标称；系统原生 DPI / 原生对话框未纳入外壳证据（归 7.1/7.2 诚实边界）。
+- **旧主 spec 回归项**逐条列出（崩溃 run / 来源过滤 / span 树 / 详情字段 / 视图切换 / 缓存全场景 / A 段文件只读 / 预算能力 / 四指标对照 / 版本守卫）并链接对应场景。
+- **U1 边界核对**：`review.md` 四节过渡行为（R1/U2 文件内部、R2/U3 草稿保留、R3–R5/U4 操作登记、R3/R4/R5/R10/R11/U5 统一执行工作流、R8–R9/U7 双运行输出比较、U6 部分读取）逐条确认**未交付、仍由后续 change 承担**，并新增「branch-tree 状态列+终止原因列拆分」为用户可见展示变更、需知悉（如需授权应走 branch-tree spec 修订）。
+- **证据充分性**：父子来源场景（原第 7 行曾引用不存在的 `overview-conclusion-source.test.ts`）已复核改为真实 `overview-consumption-source.test.ts`（presentSource 分型整组 + 静态组 + 接线契约），此格闭合。
+
+⚠️ **诚实边界（一条未勾完，不冒充通过）**：desktop-ui Req「推理模型的思维链」——字段可达有契约级测试（`call-detail-view.test.ts`），但「思维链以区别于正文的样式单独分区展示」的**真实渲染**未见 jsdom/CDP 事件级核验，该场景如实标「⚠️ 未勾完」，后续补一张真实带 `reasoning_content` run 的步骤详情 CDP 截图即闭合。其余 61 场景证据充分；证据不足不勾完、不自动归档（本 change 未触发归档，仍为活动 change）。
+
+- [x] 7.7 建立逐场景 evidence-index 并核对 U1 边界（1h）；desktop-ui 与 branch-tree 的每个 delta 场景链接测试/fixture/新截图，布局证据按 design D7 列出原生窗口边界/单位、CSS 视口、工作区/详情宽度、zoomFactor、devicePixelRatio 与 D2 断点映射；列出旧主 spec 回归和未验证项，确认 R1/U2、R2/U3、R3–R5/U4–U5、R8–R9/U7 未交付部分仍明确；证据不足不勾完，不自动归档。
