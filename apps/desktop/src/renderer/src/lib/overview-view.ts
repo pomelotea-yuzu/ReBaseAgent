@@ -27,8 +27,16 @@
  *    `auditSafeTextRendering` 把这个"渲染方式契约"变成可断言的对象。
  */
 
+import { forkEditLabel, isPromptForkField } from "@shared/derive";
 import type { Outcome, OutcomeKind, OutcomeTone } from "@shared/outcome";
-import type { ErrorTarget, OutputBlock, OwnOutput, ToolErrorTarget } from "@shared/overview";
+import type {
+  CacheCoverage,
+  ErrorTarget,
+  OutputBlock,
+  OwnConsumption,
+  OwnOutput,
+  ToolErrorTarget,
+} from "@shared/overview";
 
 /** 结果区的内容形态（互斥，供渲染分支与测试一一对应） */
 export type ResultKind =
@@ -257,8 +265,208 @@ export function presentToolErrors(rows: readonly ToolErrorTarget[]): ToolErrorRo
 }
 
 // ---------------------------------------------------------------------------
-// 安全文本（design D7：不执行 HTML/脚本、不自动加载远程图片、不把宿主路径当能力）
+// 概览「本次消耗 / 缓存覆盖 / 父本来源」（U1 任务 5.3 · design D5）
+//
+// spec「本次指标不累计共享前缀」→ 本模块 `ConsumptionSection` / `CacheSection`；
+// spec「来源和隔离边界保持真实」→ 本模块 `SourceSection`。
 // ---------------------------------------------------------------------------
+
+/**
+ * 概览「本次消耗」区的展示形态。
+ *
+ * ⚠️ **只呈现"已记录范围"**：`durationMs === null` 时显示「未记录时间跨度」而不是
+ *    `—`（那个看上去像"瞬时"）、更不是 `0`——时间未知。同理 token 是**已记录**的合计，
+ *    不补零、不估算；失败调用占位 `usage=0` 属于"已记录 0"，`note` 里明说它可能是
+ *    占位而非真实零消费（design D5）。
+ */
+export interface ConsumptionSection {
+  tokensIn: number;
+  tokensOut: number;
+  /** 已记录时间跨度（毫秒）；null = 未记录（界面显示「未记录时间跨度」） */
+  durationMs: number | null;
+  toolCalls: number;
+  toolErrors: number;
+  /** 本次消耗的**口径说明**（固定文案，钉住"只算自有段"与"未知不补零"） */
+  scopeNote: string;
+  /** 失败占位零用量的说明；无占位时为 null */
+  zeroUsageNote: string | null;
+  cache: CacheSection;
+}
+
+/** 概览「缓存覆盖」区的展示形态（与消耗同源，只报已记录范围） */
+export interface CacheSection {
+  /** 记录了 cache_hit 的自有调用次数（`0` 命中算记录） */
+  recorded: number;
+  /** 自有调用总次数 */
+  total: number;
+  /** 已记录命中合计；null = 全无字段（未知 ≠ 0，界面不显示虚构零命中） */
+  hitTotal: number | null;
+  /** 覆盖说明文字（"已记录 X / Y 次调用的命中量"等） */
+  note: string;
+}
+
+/**
+ * 由 `deriveOwnConsumption`（任务 2.3）的结论算出「本次消耗」区显示什么。
+ *
+ * ⚠️ **口径说明是判据的一部分，不是装饰**：spec 要求「只派生自有消耗，说明已记录
+ *    时间/缓存范围，缺失不补零」。把这段话交给渲染层随手指拼，回归时极易被删；
+ *    放在纯函数里就能被断言钉住。
+ */
+export function presentConsumption(consumption: OwnConsumption): ConsumptionSection {
+  const cache = presentCacheCoverage(consumption.cache);
+  return {
+    tokensIn: consumption.tokensIn,
+    tokensOut: consumption.tokensOut,
+    durationMs: consumption.durationMs,
+    toolCalls: consumption.toolCalls,
+    toolErrors: consumption.toolErrors,
+    scopeNote: "仅本次运行自有调用的已记录值；祖先共享前缀不计入，缺失项不补零。",
+    // 有自有调用但 token 全为 0：可能是失败调用的占位零用量，也可能确实是空输入/输出。
+    // 两种都不声称"实际零消费"——如实说明它只是"记录值"。
+    zeroUsageNote:
+      consumption.tokensIn === 0 && consumption.tokensOut === 0
+        ? "本次自有调用的记录用量为 0——这可能是失败调用的占位值，不据此断言实际零消费。"
+        : null,
+    cache,
+  };
+}
+
+/**
+ * 缓存覆盖说明。
+ *
+ * ⚠️ **`recorded === 0` 与 `hitTotal === 0` 是两件事**：
+ *    - 无任何 `cache_hit` 字段（`recorded === 0`）⇒ 覆盖"未记录"，`hitTotal` 为 null，
+ *      界面**不显示**"0 命中"（那是把"不知道"说成"没有"）。
+ *    - 记录下来 0 命中（`recorded > 0` 且 `hitTotal === 0`）⇒ 照常显示"0"（0 是有值）。
+ *    概览**不生成**整次确定命中率（design D5：部分记录不能说成整次命中率）。
+ */
+export function presentCacheCoverage(cache: CacheCoverage): CacheSection {
+  if (cache.recorded === 0) {
+    return {
+      recorded: 0,
+      total: cache.total,
+      hitTotal: null,
+      note:
+        cache.total === 0
+          ? "本次运行没有自有模型调用，无缓存记录。"
+          : `本次 ${cache.total} 次自有模型调用均未记录缓存命中字段，命中量未知。`,
+    };
+  }
+  return {
+    recorded: cache.recorded,
+    total: cache.total,
+    hitTotal: cache.hitTotal,
+    note: `已记录 ${cache.recorded} / ${cache.total} 次自有调用的命中量（部分记录不构成整次命中率）。`,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// 父本来源（spec「来源和隔离边界保持真实」）
+// ---------------------------------------------------------------------------
+
+/** 概览「来源」区展示形态 */
+export interface SourceSection {
+  /** 直接父 run id；根 run 为 null */
+  parentId: string | null;
+  /** 被编辑字段（原值）；根 run 或无分叉为 null */
+  editField: string | null;
+  /** 编辑字段的中文标签（`forkEditLabel`）；无分叉为 null */
+  editLabel: string | null;
+  /**
+   * 来源关系的**执行语义**说明：
+   * - `"shared-prefix"`：result 分叉——父轨迹截至分叉点作为共享前缀；
+   * - `"independent"`：prompt fork / model_params——从头重跑的独立新轨迹；
+   * - `"proxy"`：代理录制分叉（单请求级编辑重发），不适用"共享前缀"措辞；
+   * - `"root"`：根 run，没有来源关系。
+   */
+  relation: "shared-prefix" | "independent" | "proxy" | "root";
+  /** 关系说明文字（唯一文案来源；禁止对独立执行说"共享前缀"） */
+  relationNote: string;
+  /** 隔离边界说明（仅隔离 run；否则 null） */
+  isolationNote: string | null;
+  /** 是否提供「返回父记录」入口（有直接父时才给） */
+  canOpenParent: boolean;
+}
+
+/**
+ * 由 `detail` 的 meta/chain 派生来源区显示什么。
+ *
+ * ⚠️ **三条不许含糊**：
+ *   1. **父是直接父**：`meta.parent`（不是链首、不是"某个祖先"）。
+ *   2. **执行语义按 fork 字段分流**：result 分叉共享前缀，prompt/messages（prompt fork）
+ *      与 `model_params` 是**独立执行**——绝不能对它们说"共享执行前缀"（design D5）。
+ *   3. **隔离边界如实陈述**：隔离续跑说"父 run 该轮轮末检查点为源"，绝不是"改了文件"——
+ *      本模块不复用 `isolatedRunNotice` 那类长文案，只给概览所需的**一句**边界事实；
+ *      完整说明仍在 RunWorkspace 顶部（不重复实现）。
+ */
+export function presentSource(detail: {
+  meta: {
+    id: string;
+    parent: string | null;
+    fork: { at_span: string; edit: { field: string } } | null;
+    source?: { kind: string } | undefined;
+    workspace?: { world_id: string; origin: { kind: string; run_id?: string } } | undefined;
+  };
+  chain: ReadonlyArray<unknown>;
+}): SourceSection {
+  const { parent, fork } = detail.meta;
+  const isolated = detail.meta.workspace !== undefined;
+
+  // 根 run：无来源关系（隔离根 run 的 world 是从源目录采集来的，仍算"无父"，另给隔离说明）
+  if (parent === null && fork === null) {
+    return {
+      parentId: null,
+      editField: null,
+      editLabel: null,
+      relation: "root",
+      relationNote: isolated
+        ? "这是隔离文件世界的根运行：文件世界由选定源目录采集而来，没有上游运行记录。"
+        : "这是根运行，没有上游来源记录。",
+      isolationNote: isolated
+        ? "隔离文件运行：文件读写只发生在独立世界里，源目录不会被修改。"
+        : null,
+      canOpenParent: false,
+    };
+  }
+
+  const field = fork?.edit.field ?? null;
+  const isProxy = detail.meta.source?.kind === "proxy";
+
+  let relation: SourceSection["relation"];
+  let relationNote: string;
+  if (isProxy) {
+    // 代理分叉：单请求级编辑重发——不复用 result 分叉的"共享前缀"措辞
+    relation = "proxy";
+    relationNote =
+      "代理录制的分叉运行（单请求级编辑重发）：来源关系见父链列表，本 run 只呈现自身记录。";
+  } else if (field !== null && isPromptForkField(field)) {
+    relation = "independent";
+    relationNote =
+      "prompt fork（从头重跑）：本 run 是独立执行，不共享父轨迹前缀，父 run 仅作溯源对照。";
+  } else if (field === "model_params") {
+    relation = "independent";
+    relationNote =
+      "模型 A/B 臂（从头重跑）：本 run 是独立执行，不共享父轨迹前缀，父 run 仅作对照。";
+  } else {
+    relation = "shared-prefix";
+    relationNote = "父 run 的轨迹截至分叉点为共享前缀（来自父 run 文件，本 run 只记录新增 span）。";
+  }
+
+  return {
+    parentId: parent,
+    editField: field,
+    editLabel: field === null ? null : forkEditLabel(field),
+    relation,
+    relationNote,
+    // 隔离 branch：origin.run_id 才是"从哪个 run 续跑"的真实来源（不冒充共享前缀）
+    isolationNote: isolated
+      ? detail.meta.workspace?.origin.kind === "checkpoint"
+        ? `隔离续跑：从运行 ${detail.meta.workspace.origin.run_id ?? parent} 的轮末检查点出发，文件读写只发生在独立世界里。`
+        : "隔离文件运行：文件读写只发生在独立世界里，源目录不会被修改。"
+      : null,
+    canOpenParent: parent !== null,
+  };
+}
 
 /**
  * 内容里是否**看起来**像标记语言 / 远程资源 / 宿主路径。

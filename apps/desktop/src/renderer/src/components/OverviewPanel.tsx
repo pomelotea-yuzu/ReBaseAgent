@@ -19,15 +19,29 @@
 
 import type { RunDetail } from "@shared/ipc";
 import { classifyOutcome, outcomeBadgeClass } from "@shared/outcome";
-import { deriveErrorTarget, deriveOwnOutput, deriveOwnToolErrors } from "@shared/overview";
+import {
+  deriveErrorTarget,
+  deriveOwnConsumption,
+  deriveOwnOutput,
+  deriveOwnToolErrors,
+} from "@shared/overview";
 import { Check, Copy } from "lucide-react";
 import { useMemo, useState } from "react";
-import type { LlmErrorSection } from "../lib/overview-view";
+import { formatDuration, formatTokens } from "../lib/format";
+import type {
+  CacheSection,
+  ConsumptionSection,
+  LlmErrorSection,
+  SourceSection,
+} from "../lib/overview-view";
 import {
   openCallHint,
+  presentCacheCoverage,
+  presentConsumption,
   presentLlmError,
   presentOutcome,
   presentResult,
+  presentSource,
   presentToolErrors,
 } from "../lib/overview-view";
 import { useAppStore } from "../store";
@@ -222,6 +236,141 @@ export function ToolErrorsSectionView({
 }
 
 /**
+ * 本次消耗区（任务 5.3 · design D5）。
+ *
+ * ⚠️ **口径说明必须显示**：`scopeNote` 钉住"只算自有段、缺失不补零"。这不是装饰——
+ *    用户看到 token 数第一反应是"这是总共花的吧"，必须立刻说清它只是**本次自有**记账。
+ * ⚠️ **未知与零分开渲染**：`durationMs === null` ⇒ 「未记录时间跨度」（不是 `—`，
+ *    更不是 `0`）；`hitTotal === null` ⇒ 「未记录命中量」（不是 0 命中）。
+ */
+export function ConsumptionSectionView({ section }: { section: ConsumptionSection }) {
+  return (
+    <section className="border-t border-gray-200 px-4 py-3" aria-label="本次消耗">
+      <div className="mb-1.5 flex flex-wrap items-center gap-2">
+        <span className="text-reading-meta font-semibold tracking-wide text-gray-500">
+          本次消耗
+        </span>
+        <span className="text-reading-meta text-gray-400">（本 run 自有）</span>
+      </div>
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 sm:grid-cols-3">
+        <div>
+          <dt className="text-reading-meta text-gray-500">输入 token</dt>
+          <dd className="font-code text-reading-body text-gray-800">
+            {formatTokens(section.tokensIn)}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-reading-meta text-gray-500">输出 token</dt>
+          <dd className="font-code text-reading-body text-gray-800">
+            {formatTokens(section.tokensOut)}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-reading-meta text-gray-500">已记录时间跨度</dt>
+          <dd className="font-code text-reading-body text-gray-800">
+            {/* 未记录 ⇒ 文字说明，不显示 "—"/0（未知 ≠ 零） */}
+            {section.durationMs === null ? (
+              <span className="text-gray-400">未记录时间跨度</span>
+            ) : (
+              formatDuration(section.durationMs)
+            )}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-reading-meta text-gray-500">工具调用</dt>
+          <dd className="font-code text-reading-body text-gray-800">{section.toolCalls}</dd>
+        </div>
+        <div>
+          <dt className="text-reading-meta text-gray-500">工具错误</dt>
+          <dd className="font-code text-reading-body text-gray-800">{section.toolErrors}</dd>
+        </div>
+      </dl>
+      <CacheCoverageView section={section.cache} />
+      {section.zeroUsageNote !== null ? (
+        <div className="mt-2 rounded border-l-2 border-gray-300 bg-gray-50 px-2 py-1 text-reading-meta text-gray-600">
+          {section.zeroUsageNote}
+        </div>
+      ) : null}
+      <div className="mt-2 text-reading-meta text-gray-400">{section.scopeNote}</div>
+    </section>
+  );
+}
+
+/** 缓存覆盖（嵌在消耗区内的子块；与消耗同源，只报已记录范围） */
+export function CacheCoverageView({ section }: { section: CacheSection }) {
+  return (
+    <div className="mt-2 border-t border-gray-100 pt-2">
+      <div className="mb-1 flex flex-wrap items-center gap-2 text-reading-meta">
+        <span className="text-gray-500">缓存命中</span>
+        {section.hitTotal === null ? (
+          // 全无 cache_hit 字段：说"未记录"，**不**显示 0（未知 ≠ 0）
+          <span className="text-gray-400">未记录命中量</span>
+        ) : (
+          <span className="font-code text-gray-800">{formatTokens(section.hitTotal)}</span>
+        )}
+      </div>
+      <div className="text-reading-meta text-gray-400">{section.note}</div>
+    </div>
+  );
+}
+
+/**
+ * 来源区（任务 5.3 · spec「来源和隔离边界保持真实」）。
+ *
+ * ⚠️ **执行语义按 fork 字段分流**：result 分叉是"共享前缀"，prompt fork / model_params
+ *    是"独立执行"——用同一句话盖住两者正是 spec 禁止的"来源关系不一律表示共享执行前缀"。
+ *    文案由 `presentSource` 唯一决定，本组件只摆放。
+ * ⚠️ **返回父记录入口只在真有父时出现**（`canOpenParent`），根 run 不摆一个点不动的按钮。
+ */
+export function SourceSectionView({
+  section,
+  onOpenParent,
+}: {
+  section: SourceSection;
+  onOpenParent: (runId: string) => void;
+}) {
+  return (
+    <section className="border-t border-gray-200 px-4 py-3" aria-label="来源">
+      <div className="mb-1.5 text-reading-meta font-semibold tracking-wide text-gray-500">来源</div>
+      {section.parentId !== null ? (
+        <div className="mb-1 flex flex-wrap items-center gap-2 text-reading-meta">
+          <span className="text-gray-500">直接父运行</span>
+          <span className="font-code text-gray-800" title="直接父 run id">
+            {section.parentId}
+          </span>
+          {section.canOpenParent ? (
+            <button
+              type="button"
+              onClick={() => {
+                if (section.parentId !== null) onOpenParent(section.parentId);
+              }}
+              className="rounded border border-sky-400 px-1.5 py-0.5 text-sky-800 hover:bg-sky-50"
+            >
+              返回父记录
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+      {section.editField !== null ? (
+        <div className="mb-1 flex flex-wrap items-center gap-2 text-reading-meta">
+          <span className="text-gray-500">修改字段</span>
+          <span className="font-code text-gray-800">{section.editField}</span>
+          {section.editLabel !== null ? (
+            <span className="text-gray-400">{section.editLabel}</span>
+          ) : null}
+        </div>
+      ) : null}
+      <div className="text-reading-body leading-5 text-gray-600">{section.relationNote}</div>
+      {section.isolationNote !== null ? (
+        <div className="mt-1.5 rounded border-l-2 border-violet-300 bg-violet-50/60 px-2 py-1 text-reading-meta text-violet-900">
+          {section.isolationNote}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+/**
  * 结果区纯视图（测试直接喂 props）。
  *
  * 不读 store、不发请求——`onOpenCall` 由调用方接上真实定位动作（选中 span + 展开 step
@@ -232,12 +381,14 @@ export function OverviewResultView({
   expanded,
   onToggleExpanded,
   onOpenCall,
+  onOpenParent,
 }: {
-  detail: Pick<RunDetail, "spans" | "leafSpanIds" | "status" | "events">;
+  detail: Pick<RunDetail, "spans" | "leafSpanIds" | "status" | "events" | "meta" | "chain">;
   /** 正文块的展开状态（受控，来自 `readingByRun[runId].overviewExpanded`） */
   expanded: string[] | undefined;
   onToggleExpanded: (key: string) => void;
   onOpenCall: (target: { spanId: string; stepSpanId: string | null }) => void;
+  onOpenParent: (runId: string) => void;
 }) {
   const own = useMemo(() => {
     // 自有终止原因：取**最后一条** `run.event` 的 reason（无终止事件 ⇒ status=crashed
@@ -282,6 +433,16 @@ export function OverviewResultView({
       ),
     [detail],
   );
+
+  // 本次消耗 / 缓存覆盖 / 来源（任务 5.3）：全部走上游派生，本组件只摆放
+  const consumption = useMemo(
+    () =>
+      presentConsumption(
+        deriveOwnConsumption({ spans: detail.spans, leafSpanIds: detail.leafSpanIds }),
+      ),
+    [detail],
+  );
+  const source = useMemo(() => presentSource(detail), [detail]);
 
   return (
     <div aria-label="运行概览">
@@ -372,6 +533,10 @@ export function OverviewResultView({
       </section>
       {/* 4. 工具错误：独立成区，不构成终止原因（与 LLM 错误绝不合并） */}
       <ToolErrorsSectionView rows={toolErrorRows} onOpenCall={onOpenCall} />
+      {/* 5. 本次消耗 + 缓存覆盖：只算自有段，未知不补零 */}
+      <ConsumptionSectionView section={consumption} />
+      {/* 6. 来源：真实父本 / 修改字段 / 隔离边界（执行语义按 fork 字段分流） */}
+      <SourceSectionView section={source} onOpenParent={onOpenParent} />
     </div>
   );
 }
@@ -392,6 +557,7 @@ export function OverviewPanel() {
   const selectSpan = useAppStore((s) => s.selectSpan);
   const toggleStep = useAppStore((s) => s.toggleStep);
   const setReadingTab = useAppStore((s) => s.setReadingTab);
+  const selectRun = useAppStore((s) => s.selectRun);
 
   if (detail === null) {
     return <div className="px-4 py-6 text-reading-meta text-gray-500">尚未选择运行。</div>;
@@ -416,6 +582,11 @@ export function OverviewPanel() {
         }
         selectSpan(target.spanId);
         setReadingTab(selectedRunId, "steps");
+      }}
+      onOpenParent={(runId) => {
+        // 走到父记录：既有 selectRun 会按新 run 身份重置阅读位置（读表由 store 管），
+        // 这里不自己拼部分状态——让 selectRun 走它已有的加载/校验路径。
+        void selectRun(runId);
       }}
     />
   );

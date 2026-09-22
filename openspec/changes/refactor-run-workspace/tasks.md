@@ -244,9 +244,51 @@
 
 ## 5. 概览与步骤阅读
 
-- [ ] 5.1 实现概览结果区与安全长文本（2h）；组件测试“正常结束直接看到最终输出”“无最终正文不借用祖先补全”“模型输出不产生外部副作用”，覆盖 HTML/远程图片文本、原文复制及最近中间输出。
-- [ ] 5.2 实现概览错误/限制/中断区及真实调用定位（1.5h）；CDP 验证“失败概览定位真实自有调用”“旧失败记录没有错误详情”“限制中止与中断如实展示”“显式错误定位优先于恢复”。
-- [ ] 5.3 实现概览本次指标、缓存覆盖与父本来源（1.5h）；fixture 验证“本次指标不累计共享前缀”“来源和隔离边界保持真实”“run 级累计现算”，祖先值不计本次、未知不补零、不将 tool_result 改动称为文件改动。
+### 5.1（2026-09-22 完成）
+
+新增 `src/renderer/src/lib/overview-view.ts`（展示分型 + 安全文本判据）+ `src/renderer/src/components/OverviewPanel.tsx`（`OverviewResultView` 纯视图 + `OverviewPanel` store 薄壳）+ `test/overview-result.test.ts`（**23 条**）；改 `App.tsx`（概览页挂独立内容）、`lib/reading-state.ts`（+ `overviewExpanded` 字段）、`test/reading-state.test.ts`（字段集 allowlist 同步）。desktop 全量 **733 passed / 0 failed（40 文件）**（4.5 基线 710，+23）。
+
+- `presentResult(own)`：把 2.2 的 `deriveOwnOutput` 结论翻成结果区该显示什么。**展示层的分型优先看 `lastOutputKind`**——`missingReason` 答"为什么没成为最终输出"、`lastOutputKind` 答"这次调用到底记录了什么"，spec「无最终正文不借用祖先补全」明确要求"区分已记录内容类型"，故「只记录了思维链/工具调用」比「正文为空」更准确（后者会被误读成"什么都没有"）。
+- 中间输出的角色文案固定为**「结束前记录的最后一段正文（不是本次最终结果）」**——用语里带否定语义，否则用户会把失败前的半截输出当成果。
+- ⚠️ **「概览」不再是「详情列的别名」**：`App` 的 `WorkspaceShell` 在 `overview` 页签上挂 `OverviewPanel`、其余页签才落 `DetailPanel`。页签可见性仍由 `resolveVisibleTab` 单点判定（非隔离 run 保存的 `files` 回退概览）。
+- ⚠️ **安全呈现是渲染方式、不是过滤**：正文一律走 React 文本节点（`LongText` 内部 `<pre>{text}</pre>`），从不 `dangerouslySetInnerHTML`、不渲染 `<img>`/`<iframe>` ⇒ 模型输出里的 `<script>`/远程图片/宿主路径**原样显示成字面量**，既不执行也不外联。`auditSafeTextRendering` 把这条变可断言（源码级）。
+- 🐛 **审计函数首轮假红（已修）**：`auditSafeTextRendering` 直接扫源码 ⇒ 把自己文档注释里**点名**的禁用写法（"从不 `dangerouslySetInnerHTML`"）判成违规。已加 `stripComments` 先剥注释再扫——这是"判据能红但红错了对象"，与 4.5 的 `toContain` 假门同类。
+- ✅ **判据有牙（5 组变异，4 抓 + 1 漏网后补契约）**：① `resolveMissingKind` 不区分已记录内容类型 ⇒ 2 条失败；② `stripComments` 退化为恒等 ⇒ 1 条（证明它不是装饰）；③ 真实引入 `dangerouslySetInnerHTML` 渲染正文 ⇒ 3 条；④ 中间输出角色文案弱化 ⇒ 4 条；⑤ **App 把概览分支也改回 `<DetailPanel/>` ⇒ 首轮漏网**——全量 728 条无一变红，因为所有用例都在测组件本身、没人测"它被挂在哪"。据此补 `接线契约：概览页确实挂到工作区概览页签上` 一节（5 条源码级断言：概览分支必须出现 `<OverviewPanel/>`、不得出现"概览也走 DetailPanel"、页签判据只有 `resolveVisibleTab` 一处、定位动作走既有 store 方法、展开状态进会话阅读状态）⇒ 该组重验被 1 条抓住。五处已全部还原并 `md5sum` 复核。
+- 🐛 **测试数据自纠**：初版用 `u1-ok`（正文 37 字符）断言折叠行为 ⇒ 不达 600 阈值、`<details>` 根本不渲染。改为 `detailWithContent(长正文)` 合成用例；并把 `u1-error-legacy` 的期望从 `has-error` 改回 `not-normal-end`（该 fixture 的**错误来自工具而非 LLM**，最后自有 llm.call 无 error 且有正文 ⇒ 上游 `missingReason=null`，展示层正确归为"非正常终止"）。
+- ⚠️ 顺带发现 `ResultKind` 的 `tool-calls-only` 分支**不可达**（`deriveOwnOutput` 恒把 `pendingToolCalls` 映为 `pending-tool-calls`）⇒ 已删除该分支而非留一个测不到的枚举值；`openCallHint` 里的 `lastOutputKind === "tool-calls-only"` 保留（该值在"无正文且无思维链"时确实产出）。
+- 诚实边界：**未做** CDP 实测（真实点击「打开该调用」后的滚动/聚焦、`<details>` 真实开合、剪贴板写入门槛）——本包无 jsdom，静态契约打不到这些；归 7.1/7.3。**未接线**本次消耗/缓存覆盖/父本来源（归 5.3）与错误定位区（归 5.2）。
+
+- [x] 5.1 实现概览结果区与安全长文本（2h）；组件测试“正常结束直接看到最终输出”“无最终正文不借用祖先补全”“模型输出不产生外部副作用”，覆盖 HTML/远程图片文本、原文复制及最近中间输出。
+
+### 5.2（2026-09-22 完成）
+
+在 `lib/overview-view.ts` 追加结局区/错误区/工具错误区判据（`presentOutcome` / `presentLlmError` / `presentToolErrors` + `OutcomeSection` / `LlmErrorSection` / `ToolErrorRow` 类型）；`components/OverviewPanel.tsx` 新增 `OutcomeSectionView` / `LlmErrorSectionView` / `ToolErrorsSectionView` 三区并接进 `OverviewResultView`（改为四区容器：结局 → 失败原因 → 结果 → 工具错误）。新增 `test/overview-error.test.ts`（**27 条**）。desktop 全量 **760 passed / 0 failed（41 文件）**（5.1 基线 733，+27）。
+
+- **结局区不自己判结局**：`kind`/`label`/`tone` 全部来自 `classifyOutcome`（唯一判据来源），本模块只加"这对阅读者意味着什么"的补充说明（`OUTCOME_NOTE`）。补充说明**互不冒充**：`max_iterations` 的文案不得出现"预算"、`budget_exceeded` 不得出现"迭代上限"；`completed`/`error` 的补充为 `null`（标签已足够，不堆无信息量的句子）。
+- **错误区三分支互斥且不可合并**：`located`（有带 error 的自有 llm.call ⇒ 给定位入口）/ `missing`（error 终止但自有无错误详情 ⇒ **只给说明、不给入口**）/ `none`（非 error 终止 ⇒ 整区不渲染）。"给一个指向不了的按钮比不给更糟"；"不是 error 终止却渲染空错误框"会让用户以为有错误没显示出来。
+- **工具错误独立成区、绝不与 LLM 错误合并**（delta「不断言其为终止根因」）：`u1-error-legacy` 里错误来自**工具** ⇒ 工具错误区有内容，而 LLM 错误区仍是 `missing`。两个分区各自成立、互不影响，合并成"本次失败原因"框正是 spec 禁止的误归因。有工具错误时显式标注「（不构成终止原因）」。
+- **未知不补零**：缺 HTTP 状态码显示「未记录 HTTP 状态」，不出现 `HTTP 0` / `HTTP —` 这类像数据的占位。
+- **定位动作单通道**：三处入口（结果区/错误区/工具错误行）共用同一个 `onOpenCall` prop，全部落到既有 store 方法（`selectSpan` + `toggleStep` + `setReadingTab`）；展开 step 用"只在未展开时打开"的判据，避免切进去反而收起用户已展开的。
+- 🐛 **5.1 的假红同款复发（已修）**：`expect(PANEL_SOURCE).not.toContain("dangerouslySetInnerHTML")` 又被自己的文档注释骗过——直接复用 5.1 的 `auditSafeTextRendering`（已按纪律先剥注释再扫）而非手写断言。**这说明该纪律应固化为"凡源码级禁用型断言一律走审计函数"，而非每次现场记得。**
+- ✅ **判据有牙（6 组变异全部被抓即还原）**：① `presentLlmError` 在缺失时虚构定位目标 ⇒ 3 条；② missing 分支也渲染定位按钮 ⇒ 1 条；③ 去掉「不构成终止原因」标注 ⇒ 1 条；④ 给 `completed` 加"测试通过/修复成功"文案 ⇒ 2 条；⑤ 删除 `<ToolErrorsSectionView>` 接线 ⇒ 2 条；⑥ **组件自判结局绕过 `classifyOutcome`**（`aborted` 被显示成「已结束」）⇒ 1 条。六处已全部还原并 `md5sum` 复核。
+- ⚠️ 环境坑：变异② 首版改坏了 JSX 结构 ⇒ vitest 报 `0 / 0`（**文件编译失败，不是"0 条失败"**）。**看到 `total 0` 要当编译/收集失败处理，不能当成"没有失败"**——这正是"假绿"的另一种形态。
+- 诚实边界：**未做** CDP 实测（点击定位后的滚动/聚焦、错误正文长文本展开）——本包无 jsdom，静态契约打不到；归 7.1/7.3。**未覆盖**「显式错误定位优先于恢复」的**优先级排序**（属 3.2 的 `resolveReading`，已在 `reading-resolve.test.ts` 覆盖；本任务只保证"显式定位入口存在且指向真实调用"）。
+- 本任务**未接线**本次消耗/缓存覆盖/父本来源（归 5.3）与预算地图（归 5.6）。
+- [x] 5.2 实现概览错误/限制/中断区及真实调用定位（1.5h）；CDP 验证“失败概览定位真实自有调用”“旧失败记录没有错误详情”“限制中止与中断如实展示”“显式错误定位优先于恢复”。
+
+### 5.3（2026-09-22 完成）
+
+在 `lib/overview-view.ts` 追加消耗/缓存/来源三组判据（`presentConsumption` / `presentCacheCoverage` / `presentSource` + `ConsumptionSection` / `CacheSection` / `SourceSection` 类型）；`components/OverviewPanel.tsx` 新增 `ConsumptionSectionView`（内嵌 `CacheCoverageView`）与 `SourceSectionView`，接进 `OverviewResultView`（四区容器扩为六区：结局 → 失败原因 → 结果 → 工具错误 → 本次消耗 → 来源）。`OverviewResultView` 的 `detail` 入参扩为 `…| "meta" | "chain"`，store 薄壳把 `onOpenParent` 接到既有 `selectRun`。新增 `test/overview-consumption-source.test.ts`（**30 条**）。desktop 全量 **790 passed / 0 failed（42 文件）**（5.2 基线 760，+30）。
+
+- 本次消耗：`tokensIn/tokensOut`、已记录时间跨度（`null` ⇒ 「未记录时间跨度」而非 `0`/`—`）、工具调用/错误；`scopeNote` 恒定声明「仅自有调用、缺失不补零、祖先共享前缀不计入」；自有 token 全 0 时给 `zeroUsageNote`（「可能是失败调用占位零，不据此断言实际零消费」）。
+- 缓存覆盖：`recorded === 0` ⇒ `hitTotal = null` + 「未记录命中量」（未知 ≠ 0）；`cache_hit: 0` 算已记录 ⇒ `hitTotal = 0` 照常显示；部分记录附「不构成整次命中率」。
+- 来源：`parentId` 取**直接父** `meta.parent`；按 fork 字段分流执行语义——result ⇒ `shared-prefix`，prompt fork / model_params ⇒ `independent`（措辞「独立执行」，**绝不含「共享前缀」字样**），代理 ⇒ `proxy`；隔离续跑 `isolationNote` 取真实 `origin.run_id` + 「轮末检查点」「独立世界」，**不出现「修改了源文件」/「已恢复历史磁盘状态」**；`canOpenParent` 有父才给「返回父记录」入口。
+- 🐛 **首轮 1 条假红（已修）**：代理分叉的 `relationNote` 写成「…不适用**共享前缀**语义」——否定句仍把禁用词带上屏幕。改为「来源关系见父链列表，本 run 只呈现自身记录」。（教训：断言 `not.toContain("共享前缀")` 会连**否定用法**一起抓，文案里索性别提该词。）
+- ✅ **变异验证 5 组全部被抓**：① `durationMs ?? 0`（未知补零）⇒ 2 条红；② `hitTotal: 0`（未知当零）⇒ 4 条红；③ prompt fork 改报 `shared-prefix` ⇒ 1 条红；④ 隔离来源改用 `world_id` 冒充真实来源 ⇒ 1 条红；⑤ `OverviewResultView` 删掉 `<ConsumptionSectionView>` ⇒ 源码级接线契约 1 条红。全部用备份 `cp` 还原（绝不用 `git checkout`），还原后 `md5sum` 与备份一致、`grep` 确认无 `MUTATION`/`world_id}` 残留。
+- 诚实边界：**未做** CDP 实测（真实点击「返回父记录」后的加载与位置、消耗区在窄列的换行）——本包无 jsdom，静态契约打不到；归 7.1/7.3。**未覆盖**「沿链总成本」（本 change 明令概览不新增该能力，沿链口径仍由既有树/指标面板 `deriveChainTotals` 提供——见 design D5）。
+- 本任务**未接线**预算地图（归 5.6）与调用详情的完整缓存展示（归 5.7）。
+
+- [x] 5.3 实现概览本次指标、缓存覆盖与父本来源（1.5h）；fixture 验证“本次指标不累计共享前缀”“来源和隔离边界保持真实”“run 级累计现算”，祖先值不计本次、未知不补零、不将 tool_result 改动称为文件改动。
 - [ ] 5.4 调整 SpanTree 阅读承载、展开/选择分离和自有/继承标记（1.5h）；组件/CDP 验证“三步运行的树结构”“工具报错”“展开与调用选择互不干扰”“首次步骤选择与空轨迹”“继承轨迹与独立执行来源”。
 - [ ] 5.5 整理调用详情的输入/输出、原始字段与就近查找/复制（2h）；fixture/CDP 验证“推理模型的思维链”“工具调用详情”“长请求和原始字段完整可读”，不丢 request.tools/params、reasoning、tool_calls 或耗时字段。
 - [ ] 5.6 接回预算地图、失败解释及已有编辑器（1.5h）；验证“预算和错误能力迁移后可达”及主 spec“预算地图与聚合一致”“选中数据点联动详情”“超限终止被标注”“无预算信息的老文件”“编辑态才加载编辑器”，保留整条轨迹预算口径。

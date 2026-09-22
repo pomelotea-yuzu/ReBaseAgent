@@ -49,6 +49,8 @@ function detailOf(name: string): {
   leafSpanIds: string[];
   status: "completed" | "crashed";
   events: RunEventLine[];
+  meta: Record<string, unknown>;
+  chain: unknown[];
 } {
   const record = readRun(resolve(FIXTURE_DIR, `${name}.jsonl`));
   return {
@@ -56,6 +58,9 @@ function detailOf(name: string): {
     leafSpanIds: record.spans.map((span) => span.id),
     status: record.status,
     events: record.events,
+    // 来源区（5.3）需要 meta/chain：fixture 是单 run 文件，chain 只有自己一跳
+    meta: record.meta,
+    chain: [{ meta: record.meta, fork: record.meta.fork }],
   };
 }
 
@@ -89,7 +94,17 @@ function detailWithContent(content: string): {
   leafSpanIds: string[];
   status: "completed" | "crashed";
   events: RunEventLine[];
+  meta: Record<string, unknown>;
+  chain: unknown[];
 } {
+  const meta = {
+    id: "synthetic",
+    task: "t",
+    model: "deepseek-chat",
+    created_at: "2026-09-22T00:00:00.000Z",
+    parent: null,
+    fork: null,
+  };
   return {
     status: "completed",
     events: [{ type: "run.event", event: "stopped", reason: "completed" }],
@@ -111,6 +126,8 @@ function detailWithContent(content: string): {
       } as SpanLine,
     ],
     leafSpanIds: ["s_01", "s_02"],
+    meta,
+    chain: [{ meta, fork: null }],
   };
 }
 
@@ -245,6 +262,7 @@ function render(name: string, expanded?: string[]): string {
       expanded,
       onToggleExpanded: noop,
       onOpenCall: noop,
+      onOpenParent: noop,
     }),
   );
 }
@@ -313,6 +331,7 @@ describe("OverviewResultView：结果区静态结构", () => {
         expanded: [],
         onToggleExpanded: noop,
         onOpenCall: noop,
+        onOpenParent: noop,
       }),
     );
     const expanded = html(
@@ -321,6 +340,7 @@ describe("OverviewResultView：结果区静态结构", () => {
         expanded: ["overview-result"],
         onToggleExpanded: noop,
         onOpenCall: noop,
+        onOpenParent: noop,
       }),
     );
 
@@ -368,6 +388,7 @@ describe("安全呈现：模型输出只作为文本，不产生外部副作用"
         expanded: ["overview-result"],
         onToggleExpanded: noop,
         onOpenCall: noop,
+        onOpenParent: noop,
       }),
     );
 
