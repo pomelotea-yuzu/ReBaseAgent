@@ -473,7 +473,24 @@
 **验证**：typecheck（node+web）绿（本任务只加 `test/` 文件，未触 bundle 源码 ⇒ `electron-vite build` / `release-check.mjs` / `openspec validate` 输出与 6.3 一致，未重跑——npx 在沙箱内被黑名单拦截）；biome 新文件干净；desktop 全量 1012 passed / 0 failed（50 文件）。
 
 - [x] 6.4 在受控模型服务上回归普通创建/result/prompt 入口（2h）；验证“旧创建设置及执行入口保持可达”，分别记录一次明确提交、原配置/费用门禁、结果进入概览和父记录未改写，不把既有执行行为算为 U5 验收。
-- [ ] 6.5 在受控服务上回归隔离创建/result 及只读预检（2h）；验证“旧创建设置及执行入口保持可达”“来源和隔离边界保持真实”，记录每次授权、多工具轮末及二次分叉，隔离 prompt/A-B 仍拒绝。
+
+### 6.5（2026-09-22 完成）
+
+**新增** `test/controlled-isolated.test.ts`（**4** 条）——在**受控模型服务**上回归隔离创建（`runCreateIsolated`）/ 隔离 result 续跑（`runForkIsolated`）/ 只读预检（`runForkCapability`），并钉住「隔离 prompt/A-B 仍拒绝」。四个入口**都不注入 llm**，让入口自行 new 真实 `OpenAiCompatClient`（baseURL 指向受控服务）；隔离父本也经受控服务现造。desktop 全量 **1016 passed / 0 failed（51 文件）**（6.4 基线 1012，+4）。
+
+**逐场景覆盖**：
+- **隔离创建**：恰 2 次 SSE 提交（工具轮+收尾轮，occupied `read_file/write_file` profile），v2 根 run 落盘（`world_id`=id、config_hash、预算 100k）、进概览、**源目录逐字节不变**。
+- **多工具轮末 + 只读预检 + 隔离续跑**：第 1 轮同轮两工具 → 预检**零模型请求**且给出轮末 step（`stepSpanId≠atSpanId`、`localIteration=1`、第 1 轮末文件数）→ `runForkIsolated` 恰再 1 次提交、子 run `resume_after_step=预检step`、config_hash 同父、预算保留、源目录不变。
+- **隔离二次分叉**：A→B→C 各按剧本提交（5 次），C 的续跑边界是 B 的**本地第 1 轮**（`resumeBoundaryIteration=1`，不沿链累加），三层 run 均被列表收录，源目录不变。
+- **隔离 prompt/A-B 拒绝**：隔离父本上 `runPromptFork`/`runModelAb` 仍拒绝，且受控服务计数**停在创建的 2 次**（零新请求）。
+
+⚠️ **诚实边界**：① "隔离 prompt/A-B 仍拒绝"的门禁在 `@rebaseagent/replay`（`fork-parent.ts` 的 `assertNotIsolatedParent`，桌面以 **dist** 形式消费）——变异打不到该包源码（改 src 不影响桌面测试），故本任务对拒绝门禁只做**集成级零请求**断言；门禁自身的单测在 replay 包自测与 `isolated-fork.test.ts`/`isolated-parent-rejection.test.ts` 已覆盖。② 变异只打桌面 source-imported 的预算单点（见下）。③ 未做 CDP 实测（真实 GUI 走隔离选择器/确认区）——归 7.1/7.3。
+
+✅ **变异验证**：`fork-parent.ts` 旁路门禁的变异**无效**（replay 走 dist，改 src 不生效），已当场还原并如实登记，不算"抓到"。有效 2 组（桌面 source 单点，改→跑→`cp`/反向 Edit 还原→md5 复核与原一致）：① `run-create.ts` 预算 `100_000→50_000` ⇒ 隔离创建预算断言 1 红；② `fork-runner.ts` `buildForkConfig` 预算 ⇒ 隔离续跑 + prompt fork 预算断言各 1 红（同 6.4 M3 同一定点，本轮钉的是隔离路径）。两源文件还原后 md5 均 = 基准。
+
+**验证**：typecheck（node+web）绿；biome 新文件干净；desktop 全量 1016 passed / 0 failed（51 文件）。仅加 `test/` 文件、未触 bundle 源码 ⇒ `electron-vite build` / `release-check.mjs` / `openspec validate` 输出与 6.4 一致，未重跑（npx 在沙箱被黑名单拦截）。
+
+- [x] 6.5 在受控服务上回归隔离创建/result 及只读预检（2h）；验证“旧创建设置及执行入口保持可达”“来源和隔离边界保持真实”，记录每次授权、多工具轮末及二次分叉，隔离 prompt/A-B 仍拒绝。
 - [ ] 6.6 回归代理设置/messages 重发与模型 A/B dry-run/真实执行入口（2h）；验证“旧创建设置及执行入口保持可达”“其它分叉形态不加缓存提示”，受控请求日志证明 dry-run 零请求，未捕获 key/配置缺失等原门禁保留。
 - [ ] 6.7 回归坏文件、未来版本、v1 非法隔离字段及现行缺祖先错误（1h）；验证“非法详情不被概览绕过”“列表刷新失败可重试”及主 spec“单个文件读取失败不阻塞列表”，正常运行继续可读，不吞校验异常为部分详情。
 
