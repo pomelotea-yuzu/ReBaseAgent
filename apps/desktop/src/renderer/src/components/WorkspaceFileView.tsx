@@ -75,7 +75,7 @@ export function WorkspaceFileView({ run }: { run: RunDetail }) {
   /**
    * 切换 run ⇒ 复位（不同 run 的检查点编号体系不同，绝不能沿用旧选择）。
    *
-   * `DetailPanel` 侧已用 `key={detail.meta.id}` 让本组件随 run 重挂载，所以这里的
+   * `WorkspaceFilesPanel` 侧已用 `key={detail.meta.id}` 让本组件随 run 重挂载，所以这里的
    * 复位在多数组装下是冗余的；保留它是为了**组件自身不依赖调用方给 key**——
    * 少了这一层，复用者一旦忘了 key 就会出现"上一个 run 的文件选择串到下一个 run"。
    * biome 的 `useExhaustiveDependencies` 只看"effect 读了哪些绑定"，读不出这个意图

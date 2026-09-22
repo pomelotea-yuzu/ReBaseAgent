@@ -11,6 +11,7 @@ import { RunList } from "./components/RunList";
 import { NoRunsEmpty, RunHeader, RunWorkspace, resolveVisibleTab } from "./components/RunWorkspace";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { SpanTree } from "./components/SpanTree";
+import { WorkspaceFilesPanel } from "./components/WorkspaceFilesPanel";
 import { isIsolatedRun } from "./lib/isolated-fork";
 import { useLayoutState } from "./lib/use-layout";
 import { useAppStore } from "./store";
@@ -133,13 +134,15 @@ export default function App() {
 }
 
 /**
- * 详情列外壳（任务 4.2 / 5.1 / 5.4）。
+ * 详情列外壳（任务 4.2 / 5.1 / 5.4 / 6.1）。
  *
  * 把「任务头 + 概览/步骤/文件页签 + 正文」从「详情列内部一个开关」上提为工作区承载：
  *   - 页签是**工作区级**的（同一 run 的概览 / 步骤 / 文件），不是详情列内部的局部开关
  *   - 「文件」页签只在合法隔离 run 上出现（`isIsolatedRun` 要求有效的 `meta.workspace`）
  *   - 页签状态进阅读状态（`readingByRun[runId].tab`），切运行再返回要恢复
  *   - **概览页有独立内容**（任务 5.1）：不再把"概览"当成"详情列的另一个名字"
+ *   - **文件页是一级承载**（任务 6.1）：`WorkspaceFilesPanel` 与概览同级；此前文件页躲在
+ *     `DetailPanel` 一个**不与工作区页签同步的局部 tab** 后面 ⇒ 工作区「文件」页签点不动
  *   - **步骤目录由 App 在 `tab === "steps"` 时挂载**（任务 5.4）：本壳只承载正文，
  *     以及目录被收起时的「重新打开步骤目录」入口（`onOpenSteps`；null = 不显示入口）
  */
@@ -168,7 +171,18 @@ function WorkspaceShell({ onOpenSteps }: { onOpenSteps: (() => void) | null }) {
         // 目录被收起（窄窗口或用户显式收起）时，正文顶部给一个真实可用的重开入口
         <StepsDirectoryEntry onOpen={onOpenSteps} />
       ) : null}
-      {visible === "overview" ? <OverviewPanel /> : <DetailPanel />}
+      {/*
+       * 三分支：概览（5.1）/ 文件（6.1）/ 步骤（其余）。
+       * 文件页与概览同级、**都不经 DetailPanel**——DetailPanel 内部那个
+       * `trajectory`/`files` 局部 tab 从不与工作区页签同步，是 6.1 修掉的旧形态。
+       */}
+      {visible === "overview" ? (
+        <OverviewPanel />
+      ) : visible === "files" ? (
+        <WorkspaceFilesPanel />
+      ) : (
+        <DetailPanel />
+      )}
     </RunWorkspace>
   );
 }

@@ -1,12 +1,5 @@
 import type { SpanLine } from "@rebaseagent/trace-sdk";
-import {
-  buildSpanTree,
-  deriveMissingLlmErrorDetail,
-  findStepLlm,
-  forkEditLabel,
-  isPromptForkField,
-  spanDurationMs,
-} from "@shared/derive";
+import { buildSpanTree, findStepLlm, spanDurationMs } from "@shared/derive";
 import type { SpanNode } from "@shared/derive";
 import type { ForkCapabilityResult, ModelAbResult, ModelArmPlan, RunDetail } from "@shared/ipc";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -18,14 +11,11 @@ import { forkCacheHint } from "../lib/fork-cache-hint";
 import { formatDuration, prettyJson } from "../lib/format";
 import {
   isIsolatedRun,
-  isolatedBranchBoundaryLabel,
   isolatedCheckpointLabel,
   isolatedContinueLabel,
   isolatedParentExecutionNotice,
-  isolatedRunNotice,
   resolveCapabilityCheck,
   resolveIsolatedForkSubmission,
-  resumeBoundaryIteration,
 } from "../lib/isolated-fork";
 import { modelAbGuard, riskyToolNames, scalarRequestParams } from "../lib/model-ab";
 import type { ArmDraft, Scalar } from "../lib/model-ab";
@@ -36,9 +26,9 @@ import { resolveRestoreScrollTop, resolveScrollRestore } from "../lib/scroll-res
 import { readingScrollOf } from "../lib/workspace-selection";
 import { useAppStore } from "../store";
 import { BudgetMap } from "./BudgetMap";
+import { DetailNotices } from "./DetailNotices";
 import { LongText, isLongTextExpanded, toggleLongTextExpanded } from "./LongText";
 import { MonacoCodeEditor } from "./MonacoEditor";
-import { WorkspaceFileView } from "./WorkspaceFileView";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -1708,262 +1698,6 @@ function shortSpanId(id: string): string {
   return id.length <= 10 ? id : `${id.slice(0, 8)}…`;
 }
 
-/** 分支提示：按 fork 字段分流——共享前缀（result）/ 从头重跑（prompt fork） */
-function BranchNotice() {
-  const detail = useAppStore((s) => s.detail);
-  if (detail === null || detail.chain.length <= 1) return null;
-  // 代理分叉 run：不显示"共享前缀"提示（其语义不成立），由父链列表呈现
-  if (detail.meta.source?.kind === "proxy") return null;
-
-  const hop = detail.chain[detail.chain.length - 1];
-  const parentHop = detail.chain[detail.chain.length - 2];
-  const fork = hop?.fork ?? null;
-  if (fork === null || parentHop === undefined) return null;
-
-  const field = fork.edit.field;
-
-  // 隔离续跑分支：边界是**父 run 该轮的轮末**（不是 at_span 截断）。轮号取边界 step
-  // 自身的 `agent.step.n`——即所属 run 的本地轮号，绝不按合并轨迹沿链累加。
-  const resumeAfterStep = fork.resume_after_step;
-  if (detail.meta.workspace !== undefined && typeof resumeAfterStep === "string") {
-    const iteration = resumeBoundaryIteration(detail.spans, resumeAfterStep);
-    return (
-      <div className="border-b border-violet-200 bg-violet-50 px-4 py-2 text-[11px] leading-5 text-violet-900">
-        隔离续跑分支：{isolatedBranchBoundaryLabel(parentHop.meta.id, iteration, resumeAfterStep)}
-        ，该轮全部工具的结果作为共享前缀各出现一次。
-        <br />
-        编辑位置 <span className="font-code">{fork.at_span}</span> · 轮末边界{" "}
-        <span className="font-code">{resumeAfterStep}</span>
-        （轮号取所属 run 的原始 agent.step.n，不按合并轨迹沿链累加）
-      </div>
-    );
-  }
-
-  // prompt fork：从头重跑的独立新轨迹——禁止"共享前缀"措辞，at_span 不作为普通分叉点展示
-  if (isPromptForkField(field)) {
-    return (
-      <div className="border-b border-emerald-200 bg-emerald-50 px-4 py-2 text-[11px] leading-5 text-emerald-900">
-        prompt fork（从头重跑）：本 run 的所有 span 均来自本次完整执行，父 run
-        <span className="font-code"> {parentHop.meta.id} </span>
-        仅作溯源对照——不共享前缀，父轨迹不会进入本时间线。
-        <br />
-        编辑字段：<span className="font-code">{forkEditLabel(field)}</span>
-      </div>
-    );
-  }
-
-  // 模型 A/B 臂：同样是从头重跑的独立新轨迹，额外展示实验组标签
-  if (field === "model_params") {
-    const value = fork.edit.value;
-    const experimentId =
-      typeof value === "object" && value !== null
-        ? (value as { experimentId?: unknown }).experimentId
-        : undefined;
-    const edited =
-      typeof value === "object" && value !== null
-        ? (value as { model?: unknown; params?: unknown })
-        : undefined;
-    return (
-      <div className="border-b border-sky-200 bg-sky-50 px-4 py-2 text-[11px] leading-5 text-sky-900">
-        模型 A/B 实验臂（从头重跑）：本 run 的所有 span 均来自本次完整执行，父 run
-        <span className="font-code"> {parentHop.meta.id} </span>
-        仅作对照——不共享前缀。
-        <br />
-        本臂：<span className="font-code">{String(edited?.model ?? "?")}</span>
-        {edited?.params !== undefined ? (
-          <span className="font-code"> {prettyJson(edited.params)}</span>
-        ) : null}
-        {typeof experimentId === "string" ? (
-          <>
-            {" "}
-            · 实验组 <span className="font-code">{experimentId}</span>（同批臂共享此标签）
-          </>
-        ) : null}
-      </div>
-    );
-  }
-
-  return (
-    <div className="border-b border-violet-200 bg-violet-50 px-4 py-2 text-[11px] leading-5 text-violet-900">
-      分支 run：
-      <span className="font-code"> {parentHop.meta.id} </span>
-      的轨迹截至分叉点
-      <span className="font-code"> {fork.at_span} </span>
-      为共享前缀（来自父 run 文件，本 run 只记录新增 span）。
-      <br />
-      编辑字段：<span className="font-code">{fork.edit.field}</span>
-    </div>
-  );
-}
-
-/**
- * 父级溯源链列表：代理分叉（单请求级编辑重发）与 prompt fork（从头重跑）共用——
- * 两者的详情都只呈现本 run 自身 spans，不拼接父轨迹；逐代 run 列出 + 编辑摘要，
- * 点击切换查看。
- */
-function ParentChainList() {
-  const detail = useAppStore((s) => s.detail);
-  const selectedRunId = useAppStore((s) => s.selectedRunId);
-  const selectRun = useAppStore((s) => s.selectRun);
-  if (detail === null || detail.chain.length <= 1) return null;
-
-  const isProxy = detail.meta.source?.kind === "proxy";
-  const forkField = detail.meta.fork?.edit.field;
-  const isPromptFork = typeof forkField === "string" && isPromptForkField(forkField);
-  // 模型 A/B 臂与 prompt fork 同为"从头重跑"的独立新轨迹，详情只呈现本 run 自身 spans
-  const isModelAb = forkField === "model_params";
-  if (!isProxy && !isPromptFork && !isModelAb) return null;
-
-  return (
-    <div className="border-b border-sky-200 bg-sky-50 px-4 py-2 text-[11px] leading-5 text-sky-900">
-      <div className="mb-1 font-semibold">
-        {isModelAb
-          ? "分叉链（A/B 实验臂 · 从头重跑的独立新轨迹）"
-          : isPromptFork
-            ? "分叉链（从头重跑的独立新轨迹）"
-            : "分叉链（单请求级编辑重发）"}
-      </div>
-      <div className="flex flex-wrap items-center gap-1">
-        {detail.chain.map((hop, index) => {
-          const editedMessages = hop.fork?.edit.field === "messages";
-          const editedField =
-            typeof hop.fork?.edit.field === "string" && isPromptForkField(hop.fork.edit.field)
-              ? hop.fork.edit.field
-              : null;
-          const isLeaf = index === detail.chain.length - 1;
-          return (
-            <span key={hop.meta.id} className="flex items-center gap-1">
-              {index > 0 ? <span className="text-sky-400">→</span> : null}
-              <button
-                type="button"
-                onClick={() => {
-                  if (!isLeaf) void selectRun(hop.meta.id);
-                }}
-                className={`rounded px-1.5 py-0.5 font-code ${
-                  isLeaf
-                    ? "bg-sky-600 text-white"
-                    : "border border-sky-300 bg-white text-sky-800 hover:bg-sky-100"
-                }`}
-                title={isLeaf ? "当前 run" : "查看该代 run 详情"}
-              >
-                {hop.meta.id}
-              </button>
-              {editedMessages ? (
-                <span className="text-[10px] text-sky-600">已编辑 messages</span>
-              ) : editedField !== null ? (
-                <span className="text-[10px] text-emerald-700">{forkEditLabel(editedField)}</span>
-              ) : null}
-            </span>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-/**
- * 错误详情缺失提示（诚实降级）。
- *
- * 判定全部落在共享派生层（`deriveMissingLlmErrorDetail`）：错误终止 + 本 run 自有 spans
- * 无任何带 error 的 llm.call。**只查 leafSpanIds 过滤后的 spans**——祖先前缀里的失败
- * 不得冒充本次失败原因，也不得因此隐藏本 run 的缺失提示。
- * 只陈述"未记录"这一事实，不推断原因（空正文 / 零 token / 末尾 llm.call 概不参与）。
- */
-/**
- * 源记录不可用标注（任务 3.5）：
- * 刷新确认当前选中运行的源文件消失或变为读取失败时，屏幕上**已加载的内容保留**
- * （用户还看得见他正在看的东西），但必须明确标出「源记录不可用」，并禁用依赖它的
- * 新执行；重新读取并校验通过前不得以旧内容获得执行资格。
- *
- * 只按列表当前事实陈述，不猜是哪一条失败文件。
- */
-function SourceUnavailableNotice() {
-  const unavailable = useAppStore((s) => s.sourceUnavailable);
-  const reason = useAppStore((s) => s.sourceUnavailableReason);
-  const loadRuns = useAppStore((s) => s.loadRuns);
-  if (!unavailable) return null;
-
-  return (
-    <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-[11px] leading-5 text-amber-900">
-      <span className="font-semibold">源记录不可用：</span>
-      {reason === "unreadable"
-        ? "刷新时该运行的源文件读取失败，下方内容为之前加载的结果，"
-        : "刷新时该运行的记录已不在 traces 目录中，下方内容为之前加载的结果，"}
-      依赖它的新执行（重跑、prompt/messages 编辑、模型实验）已禁用。
-      <br />
-      重新读取并校验通过后自动恢复；也可在左侧列表改选其他运行。
-      <button
-        type="button"
-        onClick={() => {
-          void loadRuns();
-        }}
-        className="ml-1 underline hover:text-amber-950"
-      >
-        重新读取
-      </button>
-    </div>
-  );
-}
-
-/**
- * 失效阅读对象提示（任务 3.6 · delta「失效阅读对象安全回退」）。
- *
- * 只说**事实**：上次记下的阅读位置已不在此次详情里，因此回退到了默认位置。
- * 不说"文件被删了"之类的因果（那不是渲染层能知道的事），也不暗示选了别的 run 的同 ID span。
- */
-function ReadingInvalidatedNotice() {
-  const invalidated = useAppStore((s) => s.readingInvalidated);
-  if (!invalidated) return null;
-
-  return (
-    <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-[11px] leading-5 text-amber-900">
-      <span className="font-semibold">原阅读位置不可用：</span>
-      上次记录的 span 或展开项已不在本次读取到的轨迹里（可能是记录被重写或缩减）。
-      已清理失效引用并回到默认位置。
-    </div>
-  );
-}
-
-function ErrorDetailNotice() {
-  const detail = useAppStore((s) => s.detail);
-  const missing = useMemo(
-    () =>
-      detail !== null &&
-      deriveMissingLlmErrorDetail({
-        events: detail.events,
-        spans: detail.spans,
-        leafSpanIds: detail.leafSpanIds,
-      }),
-    [detail],
-  );
-  if (!missing) return null;
-
-  return (
-    <div className="border-b border-red-200 bg-red-50 px-4 py-2 text-[11px] leading-5 text-red-900">
-      错误详情未记录：本 run 以「出错终止」收尾，但它自身没有任何记录了失败原因的 LLM 调用
-      （代理录制的失败、或早于错误详情记录能力的历史 run）。
-      <br />
-      此处不推断失败原因；轨迹树上的失败标记只反映各 span 自身记录的 error，不代表本次终止的原因。
-    </div>
-  );
-}
-
-/**
- * 隔离运行标注：明确标注"文件隔离"并说明世界来源。
- * v1 老 trace 没有 `meta.workspace` ⇒ 整块不出现（**不得**把老记录显示成"已恢复历史磁盘状态"）。
- */
-function IsolatedRunNotice() {
-  const detail = useAppStore((s) => s.detail);
-  const notice = isolatedRunNotice(detail);
-  if (notice === null) return null;
-
-  return (
-    <div className="border-b border-violet-200 bg-violet-50 px-4 py-2 text-[11px] leading-5 text-violet-900">
-      {notice}
-    </div>
-  );
-}
-
 export function DetailPanel() {
   const detail = useAppStore((s) => s.detail);
   const selectedSpanId = useAppStore((s) => s.selectedSpanId);
@@ -1978,19 +1712,6 @@ export function DetailPanel() {
   );
   const setReadingScroll = useAppStore((s) => s.setReadingScroll);
   const selectSpan = useAppStore((s) => s.selectSpan);
-  /**
-   * 详情主区视图（C 2.1）：trajectory = 既有 span 详情；files = 隔离文件检查点。
-   * 纯 UI 状态，不进 IPC、不持久化。**只有隔离 run 才有文件 tab**——
-   * v1 老 trace 没有文件世界，给它们一个空 tab 等于把"没有"显示成"有"。
-   */
-  const [tab, setTab] = useState<"trajectory" | "files">("trajectory");
-  const isolated = isIsolatedRun(detail);
-
-  // 切换 run ⇒ 复位到轨迹页（文件 tab 的检查点编号体系随 run 变化）
-  // biome-ignore lint/correctness/useExhaustiveDependencies: 只按 run 身份复位 tab，语义上依赖 detail?.meta.id
-  useEffect(() => {
-    setTab("trajectory");
-  }, [detail?.meta.id]);
 
   // 切换 run / 重读 ⇒ 内容身份变化（meta.id + span 指纹）⇒ 重新武装恢复窗口
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -2051,27 +1772,14 @@ export function DetailPanel() {
     return find(roots);
   }, [detail, span]);
 
-  if (detail !== null && isolated && tab === "files") {
-    return (
-      <section className="flex h-full min-w-0 flex-1 flex-col bg-white">
-        <DetailHeader tab={tab} onTab={setTab} isolated={isolated} spanId={span?.id ?? null} />
-        <div className="min-h-0 flex-1">
-          <WorkspaceFileView key={detail.meta.id} run={detail} />
-        </div>
-      </section>
-    );
-  }
-
+  // 步骤页 = 详情提示区 + 主区正文。
+  // ⚠️ 文件页**不在这里**：U1 6.1 已把它上提为工作区一级承载（`WorkspaceFilesPanel`），
+  //    由 App 在 `files` 页签挂载。此前这里是 `tab === "files"` 的内部分支，但那个
+  //    `tab` 是**组件局部 useState**、从不与 store 的工作区页签同步 ⇒ 点工作区的
+  //    「文件」页签时这里仍是 trajectory，文件视图根本不出现（只读阅读路径断裂）。
   return (
     <section className="flex h-full min-w-0 flex-1 flex-col bg-white">
-      <DetailHeader tab={tab} onTab={setTab} isolated={isolated} spanId={span?.id ?? null} />
-
-      <IsolatedRunNotice />
-      <SourceUnavailableNotice />
-      <ReadingInvalidatedNotice />
-      <BranchNotice />
-      <ErrorDetailNotice />
-      <ParentChainList />
+      <DetailNotices />
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto pb-8" onScroll={handleScroll}>
         {detail !== null ? <BudgetMap key={detail.meta.id} detail={detail} /> : null}
@@ -2106,65 +1814,5 @@ export function DetailPanel() {
         )}
       </div>
     </section>
-  );
-}
-
-/**
- * 详情标题栏 + 视图切换。
- *
- * 文件 tab **只在隔离 run 上出现**：v1 老 trace 没有 `meta.workspace`，
- * 给它一个文件页等于把"没有"显示成"有"（B 段的显示义务纪律）。
- */
-function DetailHeader({
-  tab,
-  onTab,
-  isolated,
-  spanId,
-}: {
-  tab: "trajectory" | "files";
-  onTab: (next: "trajectory" | "files") => void;
-  isolated: boolean;
-  spanId: string | null;
-}) {
-  return (
-    <div className="border-b border-gray-200 px-4 py-2">
-      <div className="flex items-center gap-2">
-        <span className="text-sm font-semibold text-gray-800">详情</span>
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => onTab("trajectory")}
-            className={`rounded px-2 py-0.5 text-[11px] ${
-              tab === "trajectory"
-                ? "bg-gray-800 text-white"
-                : "border border-gray-300 text-gray-600 hover:bg-gray-50"
-            }`}
-          >
-            轨迹
-          </button>
-          {isolated ? (
-            <button
-              type="button"
-              onClick={() => onTab("files")}
-              className={`rounded px-2 py-0.5 text-[11px] ${
-                tab === "files"
-                  ? "bg-violet-600 text-white"
-                  : "border border-violet-300 text-violet-700 hover:bg-violet-50"
-              }`}
-              title="查看隔离文件世界的检查点清单与文本差异（只读）"
-            >
-              文件
-            </button>
-          ) : null}
-        </div>
-      </div>
-      <div className="text-[11px] text-gray-500">
-        {tab === "files"
-          ? "隔离文件检查点：选择初始状态或某一轮结束时的文件快照（只读）"
-          : spanId === null
-            ? "选中左侧任意 span 查看原始请求与响应"
-            : `span ${spanId}`}
-      </div>
-    </div>
   );
 }

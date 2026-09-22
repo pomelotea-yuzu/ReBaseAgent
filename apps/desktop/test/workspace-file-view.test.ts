@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -34,6 +36,9 @@ vi.mock("@monaco-editor/react", () => ({
 (globalThis as Record<string, unknown>).window = { api: {} };
 
 const { WorkspaceFileViewBody } = await import("../src/renderer/src/components/WorkspaceFileView");
+const { WorkspaceFilesPanelView } = await import(
+  "../src/renderer/src/components/WorkspaceFilesPanel"
+);
 const { deriveCheckpointOptions } = await import("../src/renderer/src/lib/workspace-files");
 
 function hex(seed: string): string {
@@ -296,5 +301,93 @@ describe("文件视图展示层 —— 内容 / 差异呈现", () => {
       current: { status: "not_found", path: "a.txt", reason: "manifest 里没有该路径" },
     });
     expect(html).toContain("该路径不在所选清单里");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 文件页承载（U1 任务 6.1）：主工作区一级承载 + 不再躲在内部分支后面
+// ---------------------------------------------------------------------------
+
+/**
+ * 6.1 修的是一个**真实断裂的只读阅读路径**：`WorkspaceFileView` 原先挂在 `DetailPanel`
+ * 内部的 `tab === "files"` 分支上，而那个 `tab` 是**组件局部 useState、从不与 store 的
+ * 工作区页签同步** ⇒ 点工作区的「文件」页签时内部仍是 trajectory，**文件视图根本不出现**。
+ *
+ * 判据来源：delta「文件承载区不附带步骤目录」+ 6.1「保留现有隔离说明和异常」。
+ *
+ * ⚠️ 分层：**能力断言**打在纯展示层 `WorkspaceFilesPanelView`（直接喂 `detail`）——
+ *    本包无 jsdom，store 薄壳在静态渲染下走 `getServerSnapshot`（恒初始值），
+ *    喂不进状态；"它被挂在哪"另配源码级接线契约（5.1 已验证过的做法）。
+ */
+describe("文件页承载：详情就绪时真的挂上文件视图（能力断言）", () => {
+  const render = (detail: RunDetail | null, loadingDetail = false): string =>
+    renderToStaticMarkup(createElement(WorkspaceFilesPanelView, { detail, loadingDetail }));
+
+  it("detail 就绪 ⇒ 出现文件视图本体（检查点选择器 + 只读声明）", () => {
+    const html = render(isolatedRun());
+    expect(html).toContain("文件检查点");
+    expect(html).toContain("只读视图");
+    // 反向：不得退化成"没挂上"的空态占位
+    expect(html).not.toContain("尚未选择运行。");
+    expect(html).not.toContain("正在读取运行详情…");
+  });
+
+  it("检查点选项来自本 run 自有 step（详情真被消费，不是空壳）", () => {
+    const html = render(isolatedRun());
+    expect(html).toContain("本 run 第 1 轮结束");
+    expect(html).toContain("本 run 第 2 轮结束");
+  });
+
+  it("detail 为 null 且正在加载 ⇒ 明说「正在读取运行详情…」（不留白、不假装有文件）", () => {
+    const html = render(null, true);
+    expect(html).toContain("正在读取运行详情…");
+    expect(html).not.toContain("文件检查点");
+  });
+
+  it("未选运行且不在加载 ⇒ 「尚未选择运行。」（与加载态互不冒充）", () => {
+    const html = render(null, false);
+    expect(html).toContain("尚未选择运行。");
+    expect(html).not.toContain("正在读取运行详情…");
+  });
+
+  it("文件承载区不附带步骤目录（delta 显式要求）", () => {
+    const html = render(isolatedRun());
+    expect(html).not.toContain("步骤目录");
+    expect(html).not.toContain("重新打开步骤目录");
+  });
+});
+
+describe("接线契约：文件页不再躲在不与工作区页签同步的局部 tab 后面", () => {
+  const DETAIL_SOURCE = readFileSync(
+    resolve(import.meta.dirname, "../src/renderer/src/components/DetailPanel.tsx"),
+    "utf8",
+  );
+  const PANEL_SOURCE = readFileSync(
+    resolve(import.meta.dirname, "../src/renderer/src/components/WorkspaceFilesPanel.tsx"),
+    "utf8",
+  );
+
+  it("DetailPanel 已删除遗留的内部 trajectory/files 局部 tab（旧形态必须消失）", () => {
+    // 这三样是"两套页签并存"的旧形态；任一残留都会让工作区文件页签再次点不动
+    expect(DETAIL_SOURCE).not.toContain('useState<"trajectory" | "files">');
+    expect(DETAIL_SOURCE).not.toContain("DetailHeader");
+    expect(DETAIL_SOURCE).not.toContain("WorkspaceFileView");
+  });
+
+  it("文件页承载确实把 WorkspaceFileView 接上，并按 run 硬重挂载", () => {
+    expect(PANEL_SOURCE).toContain("<WorkspaceFileView");
+    // 检查点编号体系随 run 变化 ⇒ 必须按 run 重挂载，不许旧选择串到新 run
+    expect(PANEL_SOURCE).toContain("key={detail.meta.id}");
+  });
+
+  it("步骤页与文件页共用同一套提示区（隔离说明与异常不各写一份）", () => {
+    expect(PANEL_SOURCE).toContain("<DetailNotices />");
+    expect(DETAIL_SOURCE).toContain("<DetailNotices />");
+  });
+
+  it("DetailPanel 仍是步骤页（不是被掏空）", () => {
+    // 反向保护：删掉文件分支时不得顺手把步骤正文也删掉
+    expect(DETAIL_SOURCE).toContain("presentStepDetail");
+    expect(DETAIL_SOURCE).toContain("<BudgetMap");
   });
 });

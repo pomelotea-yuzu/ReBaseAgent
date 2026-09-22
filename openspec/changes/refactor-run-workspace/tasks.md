@@ -380,7 +380,30 @@
   验证：typecheck（node+web）绿；desktop 全量 **948 passed / 0 failed（47 文件）**（5.7 基线 930，+18）；`biome check` 新增 3 文件干净；`electron-vite build` 通过（主 chunk 1,015.73 kB **未变**，受控服务不在 bundle 内）；`release-check.mjs` exit 0；`openspec validate --all --strict` 13/13；CLI 入口手工验证启动正常（`[mock-llm] 启动于 … port=18899 …` + `listening on …/v1`）。
   变异验证 **12 组**（改→跑→`cp` 还原→`md5sum -c` 复核，两文件逐字一致）：①~⑫ 见上条目。**⑪ 首轮漏网已修**（假门换成"句柄不可达"）。
 
-- [ ] 6.1 将 WorkspaceFileView 接到主工作区，保留现有隔离说明和异常（1h）；CDP 验证“文件承载区不附带步骤目录”，回归主 spec“初始与各轮文件快照可选择”“文件选择器轮号不沿链累加”“二进制和不可用附件分别显示”，不更改检查点默认值或宣称恢复路径。
+### 6.1（2026-09-22 完成）
+
+**新增** `src/renderer/src/components/DetailNotices.tsx`（共享提示区）+ `src/renderer/src/components/WorkspaceFilesPanel.tsx`（文件页一级承载，`WorkspaceFilesPanel` 薄壳 + `WorkspaceFilesPanelView` 纯展示）；**改** `App.tsx`（概览/文件/步骤三分支）、`DetailPanel.tsx`（删内部遗留 `trajectory`/`files` 局部 tab 与 `DetailHeader`，改用 `<DetailNotices/>`）、`WorkspaceFileView.tsx`（注释同步）；**改** `test/workspace-file-view.test.ts`（+9）、`test/overview-result.test.ts`（+1）。desktop 全量 **958 passed / 0 failed（47 文件）**（6.0 基线 948，+10）。
+
+**本任务修的是一个真实断裂的只读阅读路径**（不是重构美化）：
+
+- 🐛 **`WorkspaceFileView` 挂在一个永不生效的分支上**：它原在 `DetailPanel` 的 `tab === "files"` 分支里，而那个 `tab` 是**组件局部 `useState("trajectory" | "files")`，从不与 store 的工作区页签（`readingOf(runId).tab`）同步**。于是点工作区顶部的「文件」页签时 `visible === "files"` → 仍渲染 `DetailPanel` → 内部 tab 还是 `"trajectory"` ⇒ **文件视图根本不出现**；文件页只能靠步骤页里那个遗留的「文件」小按钮进入（两套页签并存、语义分叉）。
+- **改法**：文件页上提为**与概览页同级**的一级承载。`WorkspaceShell` 变三分支 `overview → OverviewPanel` / `files → WorkspaceFilesPanel` / 其余 `→ DetailPanel`；`DetailPanel` 回归纯步骤页（内部 tab 与 `DetailHeader` 一并删除——`DetailHeader` 的「轨迹/文件」切换与工作区页签栏重复，且无任何测试依赖它）。
+- **保留隔离说明与异常**：把原先内联在 `DetailPanel` 的六个提示块（`IsolatedRunNotice` / `SourceUnavailableNotice` / `ReadingInvalidatedNotice` / `BranchNotice` / `ErrorDetailNotice` / `ParentChainList`）抽成 `DetailNotices`，**步骤页与文件页共用**——文件页同样需要知道"这个世界从哪来、源记录是否还可用"，否则用户会在来历不明的清单上做判断。抽成独立文件避免两套口径（delta「保留现有隔离说明和异常」）。
+- **不附带步骤目录是结构性保证**：步骤目录仍由 App 只在 `tab === "steps" && layout.stepsVisible` 挂载（design D1）⇒ 文件页天然没有它；另加一条静态断言（文件页渲染结果不得出现「步骤目录」「重新打开步骤目录」）。
+- **按 run 硬重挂载**：`<WorkspaceFileView key={detail.meta.id} …>` —— 检查点编号体系随 run 变化，绝不让上一个 run 的文件选择串到下一个 run。
+- **详情未就绪不留白也不假装有文件**：`loadingDetail` ⇒「正在读取运行详情…」，否则「尚未选择运行。」（两态互不冒充）。
+- **取值与渲染分离**（`WorkspaceFilesPanelView` 纯展示）：本包无 jsdom、store 薄壳在静态渲染下走 `getServerSnapshot`（恒初始值）⇒ 「详情就绪时**真的**挂上文件视图」这条是**能力断言**，必须能直接喂 `detail`；源码字符串断言做不到这件事（5.7 的教训）。
+- ✅ **变异验证 8 组全部被抓**：① 文件页支退回 `DetailPanel`（= 6.1 修掉的旧缺陷根因）⇒ 1 红；② 文件页支错指 `OverviewPanel` ⇒ 1 红；③ 详情就绪也不挂文件视图（永远空态）⇒ 2 红；④ 加载态与未选态文案互换 ⇒ 2 红；⑤ 去掉按 run 重挂载的 `key` ⇒ 1 红；⑥ 文件页不挂 `<DetailNotices/>` ⇒ 1 红；⑦ 步骤页不挂 `<DetailNotices/>` ⇒ 1 红；⑧ 步骤页被掏空（删 `<BudgetMap>`）⇒ 1 红。三文件 `md5sum -c` 逐字还原。
+- ⚠️ **5.1 概览接线契约在这次变更中按预期变红**（原正则锚定单行二选一 `visible === "overview" ? <OverviewPanel />`，三支链后不再匹配）——这正是它该做的事。已改写为"**分支 → 组件**逐一钉住"（概览→`OverviewPanel`、文件→`WorkspaceFilesPanel`、兜底→`DetailPanel`，且任一支都不得退回 `DetailPanel`），比原来的单行正则更贴近意图，也把新增的文件页支一并纳入保护。
+- 诚实边界：**未做** CDP 实测（真实 Electron 里点「文件」页签后文件清单/差异是否可见、窄窗口列表/内容二选一、Monaco 只读 diff 的实际渲染）——6.1 的验收原文要求 CDP 验证「文件承载区不附带步骤目录」，本任务已用"步骤目录挂载门控（App 层）+ 文件页静态渲染无目录文案"两条静态证据覆盖其**结构**前提，**运行时**点击效果归 7.1/7.3。主 spec 三条（初始与各轮快照可选择 / 轮号不沿链累加 / 二进制与不可用附件分别显示）在 `workspace-file-view.test.ts` 既有用例中已全覆盖，本次未改其判据，仅新增承载层断言。
+
+- [x] 6.1 将 WorkspaceFileView 接到主工作区，保留现有隔离说明和异常（1h）；CDP 验证“文件承载区不附带步骤目录”，回归主 spec“初始与各轮文件快照可选择”“文件选择器轮号不沿链累加”“二进制和不可用附件分别显示”，不更改检查点默认值或宣称恢复路径。
+
+  实现：**新增** `src/renderer/src/components/DetailNotices.tsx`（六个提示块抽成共享 `DetailNotices`，并逐个导出供测试渲染）、`src/renderer/src/components/WorkspaceFilesPanel.tsx`（`WorkspaceFilesPanel` store 薄壳 + `WorkspaceFilesPanelView` 纯展示：详情就绪挂 `<WorkspaceFileView key={detail.meta.id}>`，未就绪按 `loadingDetail` 分流文案）；**改** `App.tsx`（`WorkspaceShell` 三分支；`WorkspaceShell` 文档补 6.1 条目）、`DetailPanel.tsx`（删 `const [tab, setTab] = useState<"trajectory" | "files">` 及其复位 effect、删 `if (… isolated && tab === "files")` 分支、删 `DetailHeader` 组件、六提示块改 `<DetailNotices />`、清理随之失效的 7 个 import）、`WorkspaceFileView.tsx`（注释里的 `DetailPanel` 改 `WorkspaceFilesPanel`）；**改** `test/workspace-file-view.test.ts`（+9：承载层能力断言 5 + 接线契约 4）、`test/overview-result.test.ts`（+1：三分支**分支→组件**契约；原单行正则改写）。
+
+  验证：typecheck（node+web）绿；desktop 全量 **958 passed / 0 failed（47 文件）**（6.0 基线 948，+10）；`biome check` 改动 7 文件干净；`electron-vite build` 通过（主 chunk **1,014.32 kB**，较 6.0 的 1,015.73 kB 略降，monaco 仍在懒 chunk）；`release-check.mjs` exit 0；`openspec validate --all --strict` 13/13。
+  变异验证 **8 组**（改→跑→`cp` 还原→`md5sum -c` 复核，三文件逐字一致）：①~⑧ 见上条目，全部被抓。
+
 - [ ] 6.2 接好分支返回导航与共用状态文字/颜色（1.5h）；验证“切到分支树”“选中状态跨视图保持”“切换不重载”“封存状态不冒充正常结束”及 branch-tree“节点按封存运行的终止原因区分结局”“节点对中断和未知原因诚实降级”“节点不把已恢复的工具错误当作终止失败”；回归保留场景“多分支家庭呈现”“代理分叉的边标注”“选中高亮共享前缀”“无分支时退化呈现”，不重排节点或改变点击语义。
 - [ ] 6.3 回归原四条指标比较与实验限制（1h）；验证“既有四条指标对照仍可使用”及 model-experiments 主 spec 的共同祖先/不可比限制，保留本 run、沿链累计和相对祖先口径，不增加臂间差值或胜出结论。
 - [ ] 6.4 在受控模型服务上回归普通创建/result/prompt 入口（2h）；验证“旧创建设置及执行入口保持可达”，分别记录一次明确提交、原配置/费用门禁、结果进入概览和父记录未改写，不把既有执行行为算为 U5 验收。

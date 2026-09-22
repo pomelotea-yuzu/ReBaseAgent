@@ -435,9 +435,19 @@ describe("接线契约：概览页确实挂到工作区概览页签上", () => {
   it("App 在 overview 页签上挂 OverviewPanel，而不是退回 DetailPanel", () => {
     expect(APP_SOURCE).toContain("OverviewPanel");
     // 关键断言：概览分支必须出现 OverviewPanel（只在 import 里出现不算接线）
-    expect(APP_SOURCE).toMatch(/visible\s*===\s*"overview"\s*\?\s*<OverviewPanel\s*\/>/);
-    // 反向：不得出现"概览也走 DetailPanel"的旧形态
-    expect(APP_SOURCE).not.toMatch(/visible\s*===\s*"overview"\s*\?\s*<DetailPanel\s*\/>/);
+    expect(APP_SOURCE).toMatch(/visible\s*===\s*"overview"\s*\?\s*\(\s*<OverviewPanel\s*\/>/);
+    // 反向：概览分支不得退回 DetailPanel（旧形态 = "概览沦为详情列别名"）
+    expect(APP_SOURCE).not.toMatch(/visible\s*===\s*"overview"\s*\?\s*\(\s*<DetailPanel\s*\/>/);
+  });
+
+  it("三支链结构完整：概览→OverviewPanel、文件→WorkspaceFilesPanel、其余→DetailPanel", () => {
+    // 6.1 把二选一扩成三支（文件页独立承载）。若链被改坏（如删掉 files 支、
+    // 或把某支错指到别的组件），组件级测试打不到 ⇒ 此处按**分支 → 组件**逐一钉住。
+    expect(APP_SOURCE).toMatch(/visible\s*===\s*"files"\s*\?\s*\(\s*<WorkspaceFilesPanel\s*\/>/);
+    // 文件页**不得**退回 DetailPanel（那正是"工作区文件页签点不动"的旧缺陷根因）
+    expect(APP_SOURCE).not.toMatch(/visible\s*===\s*"files"\s*\?\s*\(\s*<DetailPanel\s*\/>/);
+    // 兜底支仍是 DetailPanel（步骤页），且它是链上最后一个组件
+    expect(APP_SOURCE).toMatch(/\)\s*:\s*\(\s*<DetailPanel\s*\/>\s*\)/);
   });
 
   it("App 用 resolveVisibleTab 判定可见页签（不自己再写一份回退规则）", () => {
