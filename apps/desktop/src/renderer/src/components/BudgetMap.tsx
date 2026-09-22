@@ -2,7 +2,12 @@ import type { BudgetSeries } from "@shared/derive";
 import { deriveBudgetSeries } from "@shared/derive";
 import type { RunDetail } from "@shared/ipc";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { budgetExtent, buildBudgetMapOption } from "../lib/budget";
+import {
+  budgetDetailLabel,
+  budgetExceeded,
+  budgetSummaryLabel,
+  buildBudgetMapOption,
+} from "../lib/budget";
 import { useAppStore } from "../store";
 
 const CHART_HEIGHT = 160;
@@ -24,7 +29,11 @@ export function BudgetMap({ detail }: { detail: RunDetail }) {
   const series = useMemo<BudgetSeries>(() => deriveBudgetSeries(detail.spans), [detail]);
   const maxTotal = detail.meta.budget?.max_total_tokens ?? null;
   const lastEvent = detail.events[detail.events.length - 1];
-  const exceeded = detail.status === "completed" && lastEvent?.reason === "budget_exceeded";
+  // 判据抽到 `lib/budget.ts`（纯函数，可断言）：见 `budgetExceeded` 的两条合取说明
+  const exceeded = budgetExceeded({
+    status: detail.status,
+    lastEventReason: lastEvent?.reason ?? null,
+  });
 
   // 展开时动态加载 echarts 并初始化；关闭/卸载时销毁
   useEffect(() => {
@@ -61,8 +70,6 @@ export function BudgetMap({ detail }: { detail: RunDetail }) {
     chart.setOption(buildBudgetMapOption(series, maxTotal, exceeded), true);
   }, [chart, series, maxTotal, exceeded]);
 
-  const extent = budgetExtent(series);
-
   return (
     <details
       open={open}
@@ -73,19 +80,13 @@ export function BudgetMap({ detail }: { detail: RunDetail }) {
       className="border-b border-gray-200 px-4 py-2"
     >
       <summary className="cursor-pointer select-none text-[11px] font-semibold tracking-wide text-gray-500 hover:text-gray-700">
-        上下文预算地图
-        {maxTotal !== null ? ` · 预算 ${maxTotal}` : " · 无预算信息"}
-        {exceeded ? " · 已超预算终止" : ""}
+        {budgetSummaryLabel({ maxTotal, exceeded })}
       </summary>
       {open ? (
         <>
           <div ref={containerRef} className="mt-2 w-full" style={{ height: CHART_HEIGHT }} />
           <div className="mt-1 text-[10px] leading-4 text-gray-400">
-            {extent === null
-              ? "该 run 不含任何 LLM 调用，无曲线可绘。"
-              : `累计消耗 ${extent.max} token（in+out），共 ${series.points.length} 次 LLM 调用。${
-                  maxTotal === null ? "该 run 未记录预算上限，故不画参考线。" : ""
-                }`}
+            {budgetDetailLabel({ series, maxTotal })}
           </div>
         </>
       ) : null}

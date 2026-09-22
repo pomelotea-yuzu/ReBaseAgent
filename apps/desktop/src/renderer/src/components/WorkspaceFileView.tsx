@@ -1,4 +1,3 @@
-import { DiffEditor } from "@monaco-editor/react";
 import type { RunDetail } from "@shared/ipc";
 import type { WorkspaceInspectResult, WorkspaceReadFileResult } from "@shared/ipc";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -15,6 +14,7 @@ import {
 } from "../lib/workspace-files";
 import type { CheckpointOption } from "../lib/workspace-files";
 import { useAppStore } from "../store";
+import { MonacoDiffEditor } from "./MonacoEditor";
 
 /**
  * 隔离文件检查点视图（C 任务 2.1/2.2）。
@@ -587,7 +587,8 @@ function FileContent({
         {rightMissing ? "（该侧不存在）" : ""}
       </div>
       <div className="mx-4 mb-4 overflow-hidden rounded border border-gray-200">
-        <DiffEditor
+        <MonacoDiffEditor
+          data-testid="diff-editor"
           height="420px"
           language={detectFileLanguage(sides.right ?? sides.left)}
           original={leftMissing ? "" : (sides.left ?? "")}

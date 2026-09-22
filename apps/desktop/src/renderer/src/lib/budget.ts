@@ -78,3 +78,49 @@ export function budgetExtent(series: BudgetSeries): { min: number; max: number }
   if (first === undefined) return null;
   return { min: first.cumulative, max: series.total };
 }
+
+// ---------------------------------------------------------------------------
+// 预算地图的显示判据（U1 任务 5.6：把组件里的判定抽出来，使其可断言）
+// ---------------------------------------------------------------------------
+
+/** run 是否会以 `budget_exceeded` 终止的最低事实（只要这几个字段，便于纯测） */
+export interface BudgetTerminationFacts {
+  status: string;
+  /** 最后一个 run 事件（`events` 空则为 undefined） */
+  lastEventReason: string | null | undefined;
+}
+
+/**
+ * 该 run 是否**以超预算终止**（spec 场景「超限终止被标注」）。
+ *
+ * 判据是**两个条件的合取**，缺一不可：
+ *   1. `status === "completed"`——只有正常走完并**主动**因预算停下才算"终止于超限"；
+ *      running（还在跑）或 crashed（异常中断）即使累计已超也不是这个结局。
+ *   2. 最后一个 run 事件的 reason 是 `budget_exceeded`——这是终止原因的记录源，不靠猜。
+ *
+ * ⚠️ 这是"**是否因超限终止**"，不是"累计是否超了参考线"——后者是纯数值比较，在
+ *    `buildBudgetMapOption` 的 `overdue` 里另判（两者都真才标红，见该函数的注释）。
+ */
+export function budgetExceeded(facts: BudgetTerminationFacts): boolean {
+  return facts.status === "completed" && facts.lastEventReason === "budget_exceeded";
+}
+
+/** 折叠摘要行：一眼看清"有没有预算 / 是否超限终止"，不臆造数值 */
+export function budgetSummaryLabel(input: {
+  maxTotal: number | null;
+  exceeded: boolean;
+}): string {
+  const budget = input.maxTotal === null ? "无预算信息" : `预算 ${input.maxTotal}`;
+  return `上下文预算地图 · ${budget}${input.exceeded ? " · 已超预算终止" : ""}`;
+}
+
+/** 展开后的说明行：区分"无调用可绘"与"有调用但无预算"（后者不画参考线而非臆造） */
+export function budgetDetailLabel(input: {
+  series: BudgetSeries;
+  maxTotal: number | null;
+}): string {
+  const extent = budgetExtent(input.series);
+  if (extent === null) return "该 run 不含任何 LLM 调用，无曲线可绘。";
+  const base = `累计消耗 ${extent.max} token（in+out），共 ${input.series.points.length} 次 LLM 调用。`;
+  return input.maxTotal === null ? `${base}该 run 未记录预算上限，故不画参考线。` : base;
+}

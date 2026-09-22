@@ -1,4 +1,3 @@
-import { Editor } from "@monaco-editor/react";
 import type { SpanLine } from "@rebaseagent/trace-sdk";
 import {
   buildSpanTree,
@@ -35,6 +34,7 @@ import { readingScrollOf } from "../lib/workspace-selection";
 import { useAppStore } from "../store";
 import { BudgetMap } from "./BudgetMap";
 import { LongText, isLongTextExpanded, toggleLongTextExpanded } from "./LongText";
+import { MonacoCodeEditor } from "./MonacoEditor";
 import { WorkspaceFileView } from "./WorkspaceFileView";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -267,7 +267,7 @@ function PromptForkEditor({
           ))}
         </div>
       </div>
-      <Editor
+      <MonacoCodeEditor
         height="140px"
         language="plaintext"
         value={value}
@@ -1087,7 +1087,7 @@ function MessagesForkEditor({
           单请求级分叉 · 源 run 不会被修改 · 重发使用最近捕获的 key
         </span>
       </div>
-      <Editor
+      <MonacoCodeEditor
         height="200px"
         language="json"
         value={value}
@@ -1331,7 +1331,7 @@ function ForkEditor({
             : "从该工具调用之后重跑 · 父 run 文件不会被修改"}
         </span>
       </div>
-      <Editor
+      <MonacoCodeEditor
         height="140px"
         language={language}
         value={value}
