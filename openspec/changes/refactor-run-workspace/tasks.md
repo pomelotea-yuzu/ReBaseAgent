@@ -434,7 +434,29 @@
   验证：typecheck（node+web）绿；desktop 全量 **987 passed / 0 failed（48 文件）**（6.1 基线 958，+29）；`biome check` 改动 9 文件干净；`electron-vite build` 通过（主 chunk 1,015.71 kB，monaco 仍在懒 chunk）；`release-check.mjs` exit 0；`openspec validate --all --strict` 13/13。
   变异验证 **12 组**（改→跑→`cp` 还原→`md5sum -c` 复核，五文件逐字一致）：①~⑫ 见上条目，全部被抓。
 
-- [ ] 6.3 回归原四条指标比较与实验限制（1h）；验证“既有四条指标对照仍可使用”及 model-experiments 主 spec 的共同祖先/不可比限制，保留本 run、沿链累计和相对祖先口径，不增加臂间差值或胜出结论。
+### 6.3（2026-09-22 完成）
+
+**改** `components/ComparePanel.tsx`（拆 `ComparePanel` store 薄壳 + 导出 `ComparePanelView`/`CommonAncestorRow`/`DeltaRow` 纯展示；状态列改用统一判据；按 spec 把「状态与终止原因」拆成两列；**删除一行未被任何 spec 授权的跨臂聚合差值**）；**改** `shared/outcome.ts`（补 `outcomeTextClass`——密集表格用的纯文字色，与 `outcomeBadgeClass` 同一份判据）。**新增** `test/compare-panel.test.ts`（**22 条**，此前该组件**零组件级测试**）。desktop 全量 **1009 passed / 0 failed（49 文件）**（6.2 基线 987，+22）。
+
+**发现并修掉的三处问题**（6.2 统一状态口径时**漏掉了对照面板**——它是第四处）：
+
+1. **状态列口径不一致**：原用 `reasonLabel` ⇒ `completed` 显示「**已完成**」，而列表/概览/树自 6.2 起都是「已结束」。9-21 的 UI 走查记录（`docs/reviews/2026-09-21-ui-walkthrough-assets/27-compare-two.json`）里就录到了 `状态\n已完成\n已完成`，是这条不一致的**实证**。现改由 `classifyOutcome` 驱动文字（`label`）与语义色（新增 `outcomeTextClass(tone)`——`w-14` 的密集列放不下带内边距的徽章，用纯文字色，判据同源）。
+2. **「状态与终止原因」被并成一行**：branch-tree 主 spec 要求并排展示「状态**与终止原因**」两件事，原实现只用 `reasonLabel` 把两者挤在一格 ⇒ 未知 reason 时既说不出结论也看不到原值。现拆两列：状态列给**结论**（「结束原因未知」），终止原因列给**记录原值**（未知时原样可查看，与 delta「保留可查看的原值」一致）。
+3. **一行未被 spec 授权的跨臂聚合差值**：`DeltaRow` 末尾有 `tokens 差 {formatTokens(spread)}`（`max−min` 跨臂聚合）。证据链：model-experiments 主 spec「**SHALL NOT 产出臂间差值**、胜出臂或最佳模型结论」；该 change 归档 design 明言「**不提供臂间差值列**：…A 与 B 谁减谁需要用户判断基线」；branch-tree 主 spec 授权的是「**各自**相对该共同祖先的增量差（tokens 差、耗时差）」——即逐臂值（`DeltaRow` 的每行就是它）。**同名撞车**：面板里因此出现两个都叫「tokens 差」的量（逐臂的、跨臂的），后者无 spec 依据。已删除逐臂增量行保留不变。
+   ⚠️ 这是**用户可见行为的删除**，理由如上四条证据；若你认为该散布值有独立价值，应走一次 spec 修订（给 branch-tree 主 spec 补授权）而不是静默保留实现与 spec 矛盾。
+- **其余全部保持**（本任务是回归，不动行为）：共同祖先三态文案、判定不完整时不算差值并明说原因、上限 4 条拒绝 + 提示（`MAX_COMPARE`/`compareNotice`）、`deriveComparison`/`deriveChainTotals` 派生口径、"本 run / 累计增量（沿链） / 相对共同祖先的增量差"三口径并列且各自带口径名、禁用「总耗时 / 总成本」措辞。
+- **测试从 0 到 22**：四条指标在场、三口径并列、共同祖先取父 run、上限提示随 `maxCompare` 入参、超限 notice 展示、空态/单选说明、状态列五种 reason 的文字+文字色矩阵（`error` 红 / 限制琥珀 / 中止与中断中性 / `completed` 绿且**不得出现「已完成」**）、`crashed` 中性且不当执行中、未知 reason 原值可查看、工具错误不当作终止失败、不可比三态不混说、判定不完整时不给数字**不补 0**、以及一组**负向义务**（无 胜出/最佳/最优/推荐/结论/更好/winner、无跨臂 `tokens 差 N`、无「总耗时/总成本」、无未实现的输出比较入口、无「为基准」的基线臂概念）。
+- ✅ **变异验证 10 组全部被抓**：① 状态行退回 `reasonLabel` 口径 ⇒ 4 红；② 状态色不分档 ⇒ 2 红；③ 终止原因原值列清空 ⇒ 1 红；④ 三态混说（无共同祖先说成判定不完整）⇒ 1 红；⑤ 判定不完整时硬凑差值 ⇒ 2 红；⑥ **加回跨臂 `tokens 差` 行** ⇒ 1 红；⑦ 加「最佳模型」结论 ⇒ 1 红；⑧ 上限写死 4 ⇒ 1 红；⑨ `DeltaRow` 不足两条也渲染 ⇒ 1 红；⑩ 沿链措辞改「总耗时」⇒ 2 红。单文件 `md5sum -c` 逐字还原。
+- 🐛 **变异③首轮无效（已修）**：第一版用字符串删除把 `<Row>` 块删成残缺 JSX ⇒ 编译失败 ⇒ `total 0`。按纪律 `total 0` ≠ "抓到"（那是编译失败，不是断言失败）——本轮判红规则虽把 `numPassedTests===0` 计红，但**无效变异的红不算数**。改为"保留节点、清空取值"，重测后 `total 22 / failed 1`，才是有效抓取。
+- 诚实边界：**未做** CDP 实测（勾选节点进对照、面板与树同屏滚动、第 5 条被拒的真实交互）——静态契约打不到；归 7.1/7.3。**未改** `deriveComparison` / `deriveChainTotals` 的任何派生逻辑（`derive.test.ts` 既有 9 条继续通过，本任务未新增派生用例——派生层早已覆盖）。**未新增**任何"输出比较"入口（delta 明令不做）。
+
+- [x] 6.3 回归原四条指标比较与实验限制（1h）；验证“既有四条指标对照仍可使用”及 model-experiments 主 spec 的共同祖先/不可比限制，保留本 run、沿链累计和相对祖先口径，不增加臂间差值或胜出结论。
+
+  实现：**改** `components/ComparePanel.tsx`（`ComparePanel` 薄壳 + 导出 `ComparePanelView` 纯展示与 `CommonAncestorRow`/`DeltaRow`；状态列改 `classifyOutcome` 驱动并新增 `valueClass` 传语义文字色；新增「终止原因」原值列；删除 `DeltaRow` 末尾的跨臂 `tokens 差` 聚合行）；**改** `shared/outcome.ts`（新增 `outcomeTextClass(tone)` 静态完整类名映射）；**新增** `test/compare-panel.test.ts`（**22** 条）。
+
+  验证：typecheck（node+web）绿；desktop 全量 **1009 passed / 0 failed（49 文件）**（6.2 基线 987，+22）；`biome check` 改动 3 文件干净；`electron-vite build` 通过（主 chunk 1,016.25 kB，monaco 仍在懒 chunk）；`release-check.mjs` exit 0；`openspec validate --all --strict` 13/13。
+  变异验证 **10 组**（改→跑→`cp` 还原→`md5sum -c` 复核，单文件逐字一致）：①~⑩ 见上条目，全部被抓（其中③首版无效已按"total 0 ≠ 抓到"纪律修正重测）。
+
 - [ ] 6.4 在受控模型服务上回归普通创建/result/prompt 入口（2h）；验证“旧创建设置及执行入口保持可达”，分别记录一次明确提交、原配置/费用门禁、结果进入概览和父记录未改写，不把既有执行行为算为 U5 验收。
 - [ ] 6.5 在受控服务上回归隔离创建/result 及只读预检（2h）；验证“旧创建设置及执行入口保持可达”“来源和隔离边界保持真实”，记录每次授权、多工具轮末及二次分叉，隔离 prompt/A-B 仍拒绝。
 - [ ] 6.6 回归代理设置/messages 重发与模型 A/B dry-run/真实执行入口（2h）；验证“旧创建设置及执行入口保持可达”“其它分叉形态不加缓存提示”，受控请求日志证明 dry-run 零请求，未捕获 key/配置缺失等原门禁保留。

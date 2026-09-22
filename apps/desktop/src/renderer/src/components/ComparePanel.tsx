@@ -1,11 +1,41 @@
 import { deriveComparison } from "@shared/derive";
 import type { ComparisonEntry } from "@shared/derive";
+import type { RunSummary } from "@shared/ipc";
+import { classifyOutcome, outcomeTextClass } from "@shared/outcome";
 import { useMemo } from "react";
-import { formatDuration, formatTime, formatTokens, reasonLabel } from "../lib/format";
+import { formatDuration, formatTime, formatTokens } from "../lib/format";
 import { MAX_COMPARE, useAppStore } from "../store";
 
-function Cell({ value }: { value: string }) {
-  return <span className="w-14 shrink-0 text-right font-code text-[11px]">{value}</span>;
+/**
+ * 多分支对照面板（U1 任务 6.3 回归）。
+ *
+ * 判据来源：
+ *   - branch-tree 主 spec「多分支对照到 run 级指标与共同祖先」：上限 4 条（超出拒绝 + 提示）、
+ *     并排展示状态与终止原因 / 步数 / 工具数与出错数 / tokens / 耗时 / 分叉点 / 创建时间，
+ *     给出**共同祖先**与**各自**相对它的增量差；共同祖先三态（有 / 无 / 判定不完整）
+ *     不得把「判定不完整」呈现成「分属不同根」；判定不完整时不算增量差。
+ *   - model-experiments 主 spec「比较沿用共同祖先和现有派生口径」：复用 `deriveComparison` /
+ *     `deriveChainTotals` / ComparePanel 状态展示；**只展示各臂相对父 run 的累计增量**，
+ *     SHALL NOT 产出臂间差值、胜出臂或最佳模型结论；沿链数字禁用「总耗时 / 总成本」。
+ *   - desktop-ui delta 场景「既有四条指标对照仍可使用」：既有指标与本 run/沿链口径保持，
+ *     超出上限或不可比仍按原规则提示，**不新增**臂间差值、胜出结论或未实现的输出比较入口。
+ *
+ * ⚠️ 6.3 修的一处不一致：状态行原用 `reasonLabel` ⇒ `completed` 显示「**已完成**」，
+ *    与列表/概览/树（6.2 起统一为「已结束」）不同口径。现改由 `classifyOutcome` 驱动，
+ *    与其余视图同源。密集表格放不下带内边距的徽章，故用 `outcomeTextClass` 的纯文字色
+ *    （文字仍是主要载体，颜色只做辅助，不新增判断）。
+ *
+ * ⚠️ 取值与渲染分离（`ComparePanelView`）：本包无 jsdom，store 薄壳在 `renderToStaticMarkup`
+ *    下走 `getServerSnapshot`（恒初始值）⇒ 组件测试喂不进状态。抽成纯展示层后，
+ *    "四条指标在不在、三口径是否并列、不可比时给不给差值"才能被直接断言。
+ */
+
+function Cell({ value, className }: { value: string; className?: string }) {
+  return (
+    <span className={`w-14 shrink-0 text-right font-code text-[11px] ${className ?? ""}`}>
+      {value}
+    </span>
+  );
 }
 
 function Row({
@@ -13,25 +43,28 @@ function Row({
   values,
   keys,
   title,
+  valueClass,
 }: {
   label: string;
   values: string[];
   /** 与 values 等长的 React key（run id），避免用数组下标做 key */
   keys: string[];
   title?: string | undefined;
+  /** 整行值的附加类名（如状态行的语义文字色） */
+  valueClass?: string[] | undefined;
 }) {
   return (
     <div className="flex items-center gap-1 py-0.5" title={title}>
       <span className="min-w-0 flex-1 truncate text-[11px] text-gray-500">{label}</span>
       {keys.map((key, index) => (
-        <Cell key={key} value={values[index] ?? ""} />
+        <Cell key={key} value={values[index] ?? ""} className={valueClass?.[index]} />
       ))}
     </div>
   );
 }
 
 /** 共同祖先三态：有 / 无（链完整） / 判定不完整（存在父缺失） */
-function CommonAncestorRow({
+export function CommonAncestorRow({
   id,
   incomplete,
 }: {
@@ -71,7 +104,7 @@ function CommonAncestorRow({
 }
 
 /** 增量差：不可得时明确说原因，不补 0 */
-function DeltaRow({ entries }: { entries: ComparisonEntry[] }) {
+export function DeltaRow({ entries }: { entries: ComparisonEntry[] }) {
   if (entries.length < 2) return null;
   const deltas = entries.map((entry) => entry.deltaFromAncestor);
   if (deltas.some((delta) => delta === null)) {
@@ -87,9 +120,6 @@ function DeltaRow({ entries }: { entries: ComparisonEntry[] }) {
     );
   }
 
-  const tokensList = deltas.map((delta) => delta?.tokens ?? 0);
-  const spread = Math.max(...tokensList) - Math.min(...tokensList);
-
   return (
     <div className="mt-2 border-t border-gray-100 pt-2">
       <div className="text-[11px] text-gray-500">相对共同祖先的增量差</div>
@@ -102,11 +132,11 @@ function DeltaRow({ entries }: { entries: ComparisonEntry[] }) {
           <Cell value={formatDuration(deltas[index]?.durationMs ?? null)} />
         </div>
       ))}
-      <div className="mt-1 text-[11px] text-gray-500">tokens 差 {formatTokens(spread)}</div>
     </div>
   );
 }
 
+/** store 薄壳：只把 store 数据与动作接进纯展示层 */
 export function ComparePanel() {
   const runs = useAppStore((s) => s.runs);
   const compareIds = useAppStore((s) => s.compareIds);
@@ -114,6 +144,34 @@ export function ComparePanel() {
   const clearCompare = useAppStore((s) => s.clearCompare);
   const compareNotice = useAppStore((s) => s.compareNotice);
 
+  return (
+    <ComparePanelView
+      runs={runs}
+      compareIds={compareIds}
+      compareNotice={compareNotice}
+      onToggleCompare={toggleCompare}
+      onClear={clearCompare}
+      maxCompare={MAX_COMPARE}
+    />
+  );
+}
+
+/** 纯展示层：只吃 run 列表 + 已选 id，派生与排版全在这里（可直接喂数据断言） */
+export function ComparePanelView({
+  runs,
+  compareIds,
+  compareNotice,
+  onToggleCompare,
+  onClear,
+  maxCompare = MAX_COMPARE,
+}: {
+  runs: ReadonlyArray<RunSummary>;
+  compareIds: ReadonlyArray<string>;
+  compareNotice: string | null;
+  onToggleCompare: (id: string) => void;
+  onClear: () => void;
+  maxCompare?: number;
+}) {
   const comparison = useMemo(() => deriveComparison(runs, compareIds), [runs, compareIds]);
   const entryKeys = comparison.entries.map((entry) => entry.run.id);
 
@@ -123,12 +181,12 @@ export function ComparePanel() {
         <div className="flex items-center gap-2">
           <div className="text-sm font-semibold text-gray-800">对照</div>
           <div className="text-[11px] text-gray-500">
-            已选 {compareIds.length} / {MAX_COMPARE}
+            已选 {compareIds.length} / {maxCompare}
           </div>
           {compareIds.length > 0 ? (
             <button
               type="button"
-              onClick={clearCompare}
+              onClick={onClear}
               className="ml-auto rounded px-1.5 py-0.5 text-[11px] text-gray-500 hover:bg-gray-100"
             >
               清空
@@ -180,12 +238,32 @@ export function ComparePanel() {
               label="run id"
               values={comparison.entries.map((entry) => entry.run.id.slice(0, 7))}
             />
+            {/*
+             * 状态与终止原因：与列表/概览/树**同一判据**（`classifyOutcome`）。
+             * 6.3 之前这里用 `reasonLabel` ⇒ completed 显示「已完成」（其余视图是「已结束」）。
+             */}
             <Row
               keys={entryKeys}
               label="状态"
-              values={comparison.entries.map((entry) =>
-                entry.run.status === "crashed" ? "运行中断" : reasonLabel(entry.run.reason),
+              values={comparison.entries.map(
+                (entry) =>
+                  classifyOutcome({ status: entry.run.status, reason: entry.run.reason }).label,
               )}
+              valueClass={comparison.entries.map((entry) =>
+                outcomeTextClass(
+                  classifyOutcome({ status: entry.run.status, reason: entry.run.reason }).tone,
+                ),
+              )}
+            />
+            {/*
+             * 终止原因**原值**单列（未知时不丢）：状态列给结论，本列给记录值。
+             * 两列互不冒充——状态说「结束原因未知」时这里仍能看到原始 reason。
+             */}
+            <Row
+              keys={entryKeys}
+              label="终止原因"
+              values={comparison.entries.map((entry) => entry.run.reason ?? "—")}
+              title="记录里的原始 reason；— 表示该 run 没有终止事件"
             />
             <Row
               keys={entryKeys}
@@ -231,6 +309,7 @@ export function ComparePanel() {
               label="本 run 耗时"
               values={comparison.entries.map((entry) => formatDuration(entry.run.durationMs))}
             />
+            {/* 沿链累计：口径名必须在场（与「本 run」并列，两者不混） */}
             <Row
               keys={entryKeys}
               label="累计增量（步数）"
@@ -267,7 +346,7 @@ export function ComparePanel() {
                 </span>
                 <button
                   type="button"
-                  onClick={() => toggleCompare(entry.run.id)}
+                  onClick={() => onToggleCompare(entry.run.id)}
                   className="rounded px-1 text-[11px] text-gray-400 hover:bg-gray-100"
                 >
                   移出

@@ -132,3 +132,23 @@ export function outcomeBadgeClass(tone: OutcomeTone): string {
       return "bg-gray-100 text-gray-700";
   }
 }
+
+/**
+ * 语义色调 → 纯**文字色**类名（同一份映射的第二形态，U1 6.2 补）。
+ *
+ * 用在**密集表格**里（对照面板的一列只有 ~56px，放不下带内边距的徽章）：
+ * 文字仍是主要载体（`label`），颜色只做辅助——与徽章口径同源，不新增判断。
+ * 同样是静态完整类名（Tailwind JIT 需可静态识别，不得动态拼 `text-${tone}-700`）。
+ */
+export function outcomeTextClass(tone: OutcomeTone): string {
+  switch (tone) {
+    case "success":
+      return "text-emerald-700";
+    case "danger":
+      return "text-red-700";
+    case "warn":
+      return "text-amber-700";
+    case "neutral":
+      return "text-gray-600";
+  }
+}
