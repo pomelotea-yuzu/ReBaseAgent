@@ -350,7 +350,36 @@
 
 ## 6. 旧能力接线与回归
 
-- [ ] 6.0 准备 6.4–6.6 的受控服务前置（1.5h）；核对各入口请求模式，复用 mock-llm-server.cjs 的 SSE 文本/工具剧本和请求日志，按所需用例补非流式/失败/延迟能力并完成协议探针，固定每流程重置及测试配置恢复方式；以请求格式、次数和顺序可验证为“旧创建设置及执行入口保持可达”的执行前提，未通过不开始对应主动执行回归。
+### 6.0（2026-09-22 完成）
+
+**重写** `apps/desktop/scripts/mock-llm-server.cjs`（工厂化 + 协议协商 + 失败/延迟/非流式 + 控制端点）；**新增** `test/helpers/mock-llm-harness.ts`（每流程换实例 + 配置逐字节还原）；**新增** `test/controlled-service.test.ts`（**18 条**）。desktop 全量 **948 passed / 0 failed（47 文件）**（5.7 基线 930，+18）。
+
+**各入口请求模式核对结论**（本任务用真实客户端/编排逐条钉住，非看代码猜）：
+
+| 入口 | `stream` | 端点 | 工具声明 |
+|---|---|---|---|
+| 普通创建 `runs:create` / 隔离创建 / result fork / prompt fork / 隔离续跑 / 模型 A/B | `true`（SSE，`stream_options.include_usage`） | `POST {baseURL}/chat/completions` | 空表 / file-tools-v1 / 父记录工具表 |
+| 模型 A/B **dry-run** | **零请求**（`model-replay-run.ts:368` 在费用门禁与联网前早退） | — | — |
+| **llm-proxy 转发** | **按请求体 `stream` 分流**（`handler.ts:132`；`false` 走 JSON 直通 `:198`） | 原样 `{upstreamBaseUrl}${path}` | 原样转发 |
+
+⇒ **唯一会发 `stream:false` 的是代理通道**；这正是 design D7「不能将统一 SSE 响应当成全协议模拟」的技术原因——旧 mock 只发 SSE，代理非流式路径**根本没有能力被验证**。
+
+- **协议协商**（`resolveMode`）：回合未显式指定 `mode` 时按请求协商——`stream === true` ⇒ SSE，否则 ⇒ **真 JSON**（`chat.completion` + `application/json`，不再是 SSE）。显式 `mode` 保留，用于**主动构造**协议错配用例。
+- **补齐的能力**：非流式 JSON（`mode:"json"`）、HTTP 失败（`mode:"fail"` + `status` + `errorBody`，供代理非 2xx 直通与客户端错误路径）、延迟（`delayMs`，供 ttft 探针）、用量覆盖（`usage.{in,out,cache_hit,cache_miss}` —— cache 走 DeepSeek 扁平字段，与客户端 `parseCacheUsage` 同源，**`0` 照发**）、思维链（`reasoning`）。
+- **控制端点**（不属 OpenAI 协议，供测试复位）：`GET /__log`（`{served, entries}` 内存镜像）、`POST /__reset`（计数与日志清零，body 可换剧本）、`GET /`（健康 + 回合数）。CLI 启动日志格式**保持原样**（`[mock-llm] 启动于 … port=… 剧本回合数=…` + `listening on …/v1`），既有 GUI 冒烟脚本不受影响。
+- **harness（6.4–6.6 复用）**：`withMockLlm(script, fn)` **每流程起新实例、结束必关停**——"重置"由**实例隔离**提供而非依赖调用方记得 `reset`（后者忘记就静默串计数）；`applyTestSettings(settingsPath, …)` 返回**逐字节**还原函数（原文件不存在则删除，不留回归残留）；`settingsFileIn(dataDir)` 把路径拼接只写一处。
+- **探针一律用真实实现驱动**（`OpenAiCompatClient` / `runLoop` / `runModelAb`），不手搓 fetch——否则验的是探针自己的假设。
+- ✅ **变异验证 12 组全部被抓**：① `resolveMode` 恒 sse（退回"统一 SSE 冒充全协议"）⇒ 1 红；② 恒 json ⇒ 12 红；③ `cache_hit=0` 当假值丢弃 ⇒ 1 红；④ 忽略回合 `usage.in` ⇒ 1 红；⑤ fail 恒回 200 ⇒ 1 红；⑥ `delayMs` 不生效 ⇒ 1 红；⑦ 日志 `stream` 恒 true ⇒ 1 红；⑧ json 模式回 SSE content-type ⇒ 2 红；⑨ `reset` 不清日志 ⇒ 1 红；⑩ `restore` 不还原字节 ⇒ 2 红；⑪ `withMockLlm` 不关停 ⇒ 1 红；⑫ `restoreFile` 对"原本不存在"不删除 ⇒ 1 红。两文件 `md5sum -c` 逐字还原。
+- 🐛 **变异⑪首轮漏网（已修）**：原先只断言 `second.port !== first.port` 是**假门**——新实例本来就换端口，**不关停服务照样满足**。改为"流程结束后已捕获的句柄**不可达**"（fetch 必抛）⇒ 复测被抓。**教训：验证"资源已释放"不能用"下一个实例能起来"代理，必须验**该资源本身**已失效。**
+- 诚实边界：**未做** CDP 实测（真实 Electron 里设置指向受控服务后走完整 GUI 流程）——那是 6.4–6.6 的验收内容；本任务只把**执行前提**（请求格式/次数/顺序可验证 + 每流程复位 + 配置恢复）备齐，按 design「未通过不开始对应主动执行回归」。llm-proxy 自身的 `stream` 分支逻辑已有 `packages/llm-proxy/test/handler.test.ts` 覆盖（注入 fetch），本任务补的是**服务端**能忠实提供该分支所需形状。
+
+- [x] 6.0 准备 6.4–6.6 的受控服务前置（1.5h）；核对各入口请求模式，复用 mock-llm-server.cjs 的 SSE 文本/工具剧本和请求日志，按所需用例补非流式/失败/延迟能力并完成协议探针，固定每流程重置及测试配置恢复方式；以请求格式、次数和顺序可验证为“旧创建设置及执行入口保持可达”的执行前提，未通过不开始对应主动执行回归。
+
+  实现：**重写** `apps/desktop/scripts/mock-llm-server.cjs`（`createMockLlmServer` 工厂 + `startMockLlmServer` 异步入口 + 保留 CLI；`resolveMode` 按请求协商 sse/json；回合新增 `mode`/`status`/`errorBody`/`delayMs`/`usage`/`reasoning`；`GET /__log`、`POST /__reset` 控制端点；日志条目补 `mode`）；**新增** `apps/desktop/test/helpers/mock-llm-harness.ts`（`startMockLlm`/`withMockLlm`/`applyTestSettings`/`settingsFileIn`/`snapshotFile`/`restoreFile`/`summarize`）；**新增** `apps/desktop/test/controlled-service.test.ts`（**18** 条：协议协商 2 + 真实客户端契约 6 + 请求日志 3 + 真实编排端到端 2 + harness 4 + 关停验证 1）。
+
+  验证：typecheck（node+web）绿；desktop 全量 **948 passed / 0 failed（47 文件）**（5.7 基线 930，+18）；`biome check` 新增 3 文件干净；`electron-vite build` 通过（主 chunk 1,015.73 kB **未变**，受控服务不在 bundle 内）；`release-check.mjs` exit 0；`openspec validate --all --strict` 13/13；CLI 入口手工验证启动正常（`[mock-llm] 启动于 … port=18899 …` + `listening on …/v1`）。
+  变异验证 **12 组**（改→跑→`cp` 还原→`md5sum -c` 复核，两文件逐字一致）：①~⑫ 见上条目。**⑪ 首轮漏网已修**（假门换成"句柄不可达"）。
+
 - [ ] 6.1 将 WorkspaceFileView 接到主工作区，保留现有隔离说明和异常（1h）；CDP 验证“文件承载区不附带步骤目录”，回归主 spec“初始与各轮文件快照可选择”“文件选择器轮号不沿链累加”“二进制和不可用附件分别显示”，不更改检查点默认值或宣称恢复路径。
 - [ ] 6.2 接好分支返回导航与共用状态文字/颜色（1.5h）；验证“切到分支树”“选中状态跨视图保持”“切换不重载”“封存状态不冒充正常结束”及 branch-tree“节点按封存运行的终止原因区分结局”“节点对中断和未知原因诚实降级”“节点不把已恢复的工具错误当作终止失败”；回归保留场景“多分支家庭呈现”“代理分叉的边标注”“选中高亮共享前缀”“无分支时退化呈现”，不重排节点或改变点击语义。
 - [ ] 6.3 回归原四条指标比较与实验限制（1h）；验证“既有四条指标对照仍可使用”及 model-experiments 主 spec 的共同祖先/不可比限制，保留本 run、沿链累计和相对祖先口径，不增加臂间差值或胜出结论。
