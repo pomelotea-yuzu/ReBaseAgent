@@ -602,6 +602,18 @@ dev 的 CDP 9222，无依赖 playwright，走原生 WebSocket。**抓到并修�
 
 - [x] 7.3 完成键盘与阅读往返操作（1h）；实测“键盘导航及工具名称”“跨运行返回恢复阅读”“显式错误定位优先于恢复”“快速切换及同运行重试不串响应”，按实际输入与焦点记录验收，不能只检查 DOM 存在。
 - [ ] 7.4 独立执行只读哈希回归（1h）；验证“阅读过程不修改已有数据”及主 spec 文件只读场景，逐文件比较既有 trace/附件/源目录并核对模型请求数为零；主动执行新增文件在另一轮记录。
+
+### 7.4（2026-09-22 完成）
+
+独立只读哈希回归：`u1-74-snapshot.cjs` 建基线、`u1-74-cdp.cjs` 跑真实只读阅读循环并内联比对。**29/29 判据通过**，测量落 `.workbuddy/u1-74/`（`base.json` 基线、`read.json` 阅读循环+比对、`proxy-status.json`），证据截图落 `docs/reviews/2026-09-22-u1-74/`（read-*/file-*.png）。
+
+- **基线 + 复采哈希零变化**：阅读前后对 `.rebaseagent/traces/*.jsonl`（58 个）与 `.rebaseagent/workspace-blobs/**`（6 个隔离文件世界 blob，即“附件/源目录”）逐文件 SHA-256；阅读后**文件数不变（58/58、6/6）且全部既有文件哈希一致（0 变化）**。
+- **真实只读阅读循环**：打开普通 run（run_muapnwud/r_01/r_03）与隔离 run（run_muappa2a_gk7964/run_muapr3rp_vm52），逐一渲染概览/步骤、选中调用、展开预算地图（ECharts 懒加载）；隔离 v2 run 文件页选**后续检查点 + a.txt ⇒ 离线 Monaco 只读 diff 挂载**（初始 vs 第 2 轮结束，read-only）、隔离 v1 run 文件世界可读。
+- **模型请求数为零**：全程**未点任何执行入口**（新建运行/在此重跑/分叉/续跑/授权/提交）；`proxy-status.json` 记录代理显示**已停**（无录制通道）；未写出任何新 trace/附件（文件数与哈希均不变）⇒ 读层（getRun/getFile IPC）不触发模型请求。此环**不**与“主动执行新增文件”混判——本任务只测阅读零写入。
+
+⚠️ **诚实边界（按实测记录、未当产品门禁）**：① 模型请求数为零由「未点执行入口 + 代理已停 + 无新文件写出」三方面**间接**佐证（读层按 design 不调 LLM），未在运行期对 renderer 网络做抓包/计数——desktop 读路径无模型请求入口，避免把执行回归的受控请求混入阅读结果。② 哈希范围只覆盖 desktop 实际读取的数据区（traces + workspace-blobs）；`u1-fixtures`/`u1-lineage` 等**开发夹具目录**非运行读取对象，未纳入（读取它们既发生也不该影响产品数据判定）。③ 只读循环在 1440×900/100% 档执行；缩放档（1024/640/200%）的只读属性由同一 IPC 读路径保证（7.2 已验导航折叠不以窗口缩放改写数据），未逐档复跑哈希。④ 「主动执行新增文件在另一轮记录」**未**在本任务执行（属 6.4–6.6 受控执行回归，不混入阅读零写入）。
+
+- [x] 7.4 独立执行只读哈希回归（1h）；验证“阅读过程不修改已有数据”及主 spec 文件只读场景，逐文件比较既有 trace/附件/源目录并核对模型请求数为零；主动执行新增文件在另一轮记录。
 - [ ] 7.5 运行包构建、desktop 类型检查及相关/全仓测试（1.5h）；按 build→typecheck→test 顺序保存结果，确认 replay CLI 测试实际运行，支持所有派生/store/既有执行回归场景，不能将缺 dist 导致的跳过算通过。
 - [ ] 7.6 运行 lint、OpenSpec 严格校验和 desktop build（1h）；执行 `pnpm check:lint`、`openspec validate --all --strict --no-interactive`、`pnpm --filter @rebaseagent/desktop build`，保存退出码，确认本次依赖/视图拆分可构建，不安排发行打包。
 - [ ] 7.7 建立逐场景 evidence-index 并核对 U1 边界（1h）；desktop-ui 与 branch-tree 的每个 delta 场景链接测试/fixture/新截图，布局证据按 design D7 列出原生窗口边界/单位、CSS 视口、工作区/详情宽度、zoomFactor、devicePixelRatio 与 D2 断点映射；列出旧主 spec 回归和未验证项，确认 R1/U2、R2/U3、R3–R5/U4–U5、R8–R9/U7 未交付部分仍明确；证据不足不勾完，不自动归档。
