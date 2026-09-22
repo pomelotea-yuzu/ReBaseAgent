@@ -80,7 +80,7 @@ export function RunWorkspace({
   const visible = resolveVisibleTab(tab, isIsolated);
 
   return (
-    <section className="flex h-full min-w-0 flex-1 flex-col bg-white">
+    <section className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-white">
       {header}
 
       <div

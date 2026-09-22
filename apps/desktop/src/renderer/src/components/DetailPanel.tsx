@@ -1778,7 +1778,7 @@ export function DetailPanel() {
   //    `tab` 是**组件局部 useState**、从不与 store 的工作区页签同步 ⇒ 点工作区的
   //    「文件」页签时这里仍是 trajectory，文件视图根本不出现（只读阅读路径断裂）。
   return (
-    <section className="flex h-full min-w-0 flex-1 flex-col bg-white">
+    <section className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-white">
       <DetailNotices />
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto pb-8" onScroll={handleScroll}>

@@ -445,7 +445,9 @@ export function OverviewResultView({
   const source = useMemo(() => presentSource(detail), [detail]);
 
   return (
-    <div aria-label="运行概览">
+    // 任务 7.1 布局修复：概览自带滚动容器（h-full + overflow-y-auto），内容超高时在
+    // 自身内滚动，不把所在列撑高；bg-white 让滚动区底部与正文同色，避免露背景色块。
+    <div className="h-full overflow-y-auto bg-white" aria-label="运行概览">
       {/* 1. 结束情况：这次运行为什么停了（结局的唯一判据来源是 classifyOutcome） */}
       <OutcomeSectionView status={detail.status} reason={ownReason} />
       {/* 2. 本次失败原因：自有 LLM 错误 + 定位入口；缺失时只给说明 */}

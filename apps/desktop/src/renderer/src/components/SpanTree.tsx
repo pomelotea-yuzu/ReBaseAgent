@@ -300,7 +300,7 @@ export function SpanTree({
 
   return (
     <section
-      className="relative flex shrink-0 flex-col border-r border-gray-200 bg-white"
+      className="relative flex h-full min-h-0 shrink-0 flex-col border-r border-gray-200 bg-white"
       style={{ width, minWidth: width }}
     >
       <div className="border-b border-gray-200 px-3 py-2">

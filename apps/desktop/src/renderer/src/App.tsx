@@ -68,7 +68,9 @@ export default function App() {
         </div>
       ) : null}
 
-      <main className="relative flex min-h-0 flex-1">
+      {/* 任务 7.1 布局修复：钳定主工作区高度，任何一列超高只在其自身滚动容器内滚动，
+          不把 <main> 撑高 → 左列表不再随右侧详情一起整页移动 */}
+      <main className="relative flex min-h-0 flex-1 overflow-hidden">
         {view === "trace" ? (
           <>
             {/* 运行导航（任务 4.3）：宽度可调 220–360；自动折叠只在显示层生效 */}
