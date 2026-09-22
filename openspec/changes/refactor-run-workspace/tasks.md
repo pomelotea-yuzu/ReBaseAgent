@@ -491,7 +491,25 @@
 **验证**：typecheck（node+web）绿；biome 新文件干净；desktop 全量 1016 passed / 0 failed（51 文件）。仅加 `test/` 文件、未触 bundle 源码 ⇒ `electron-vite build` / `release-check.mjs` / `openspec validate` 输出与 6.4 一致，未重跑（npx 在沙箱被黑名单拦截）。
 
 - [x] 6.5 在受控服务上回归隔离创建/result 及只读预检（2h）；验证“旧创建设置及执行入口保持可达”“来源和隔离边界保持真实”，记录每次授权、多工具轮末及二次分叉，隔离 prompt/A-B 仍拒绝。
-- [ ] 6.6 回归代理设置/messages 重发与模型 A/B dry-run/真实执行入口（2h）；验证“旧创建设置及执行入口保持可达”“其它分叉形态不加缓存提示”，受控请求日志证明 dry-run 零请求，未捕获 key/配置缺失等原门禁保留。
+
+### 6.6（2026-09-22 完成）
+
+**新增** `test/controlled-proxy.test.ts`（**3** 条）——在**受控模型服务**上回归 代理设置/messages 重发（llm-proxy 通道）与 模型 A/B dry-run/真实执行，并钉住「未捕获 key 门禁保留」。desktop 全量 **1019 passed / 0 failed（52 文件）**（6.5 基线 1016，+3）。
+
+**核心：同一代理会话在受控服务上同时验两条协议分支**（design D7「不能将统一 SSE 冒充全协议」在代理侧的落点）：
+- 外部 agent **非流式**请求经代理 → JSON 直通到受控服务 ⇒ 受控日志 `stream:false / mode:json`（代理通道是「唯一会发 `stream:false` 的地方」）；录制出带 `source.kind=proxy` 的父 run、捕获 key。
+- **编辑 messages 分叉**重发 ⇒ 内部路径 `buildForkRequest` **恒设 `stream:true`**（`handler.ts:515`）走 SSE 聚合 ⇒ 受控日志 `stream:true / mode:sse`；fork run 落盘（`parent`、`edit.field=messages`、编辑后的 messages 进 llm.call、**父文件逐字节不变**）。
+- **`edit.field !== "tool-result"`** ⇒ 不触发缓存提示（「其它分叉形态不加缓存提示」的代理侧对照；5.7 契约未动）。
+- **未捕获 key 时 `fork` → `PROXY_NO_KEY`，受控服务零请求**（门禁在联网前）。
+- **模型 A/B**：经受控服务创建父本后，dry-run **零请求**（`h.served()` 停在 1），真实执行每臂恰一次（`entries.slice(1).map(model) === ["a","b"]`）。
+
+⚠️ **诚实边界**：① 「dry-run 零请求」门禁本体在 `@rebaseagent/replay`（`model-replay-run.ts` 联网前早退；桌面以 dist 消费）——变异打不到包源码，故只做**集成级零请求**断言（6.0 已在受控服务上验证过该门禁）。② 缓存提示的渲染判据在 5.7 已完整覆盖，本任务只在代理侧对照 `edit.field !== "tool-result"`。③ 未做 CDP 实测（真实 GUI 走代理设置/分叉确认）——归 7.1/7.3。
+
+✅ **变异验证**：旁路 `ProxyManager.fork` 的 `PROXY_NO_KEY` 门禁（`if (false)`）⇒ 未捕获 key 用例红（`expect(code).toBe("PROXY_NO_KEY")`）。`cp` 还原 + md5 复核与备份逐字一致。
+
+**验证**：typecheck（node+web）绿；biome 新文件干净；desktop 全量 1019 passed / 0 failed（52 文件）。仅加 `test/` 文件、未触 bundle 源码 ⇒ `electron-vite build` / `release-check.mjs` / `openspec validate` 输出与 6.5 一致，未重跑（npx 在沙箱被黑名单拦截）。
+
+- [x] 6.6 回归代理设置/messages 重发与模型 A/B dry-run/真实执行入口（2h）；验证“旧创建设置及执行入口保持可达”“其它分叉形态不加缓存提示”，受控请求日志证明 dry-run 零请求，未捕获 key/配置缺失等原门禁保留。
 - [ ] 6.7 回归坏文件、未来版本、v1 非法隔离字段及现行缺祖先错误（1h）；验证“非法详情不被概览绕过”“列表刷新失败可重试”及主 spec“单个文件读取失败不阻塞列表”，正常运行继续可读，不吞校验异常为部分详情。
 
 ## 7. 桌面验收与质量收口
