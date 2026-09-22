@@ -1,11 +1,11 @@
 /**
- * 概览「结果区」的展示判据与安全文本判据（U1 任务 5.1 · design D4/D7）。
+ * 概览的展示判据与安全文本判据（U1 任务 5.1 结果区 + 5.2 结局/错误区 · design D4/D7）。
  *
  * 为什么抽成纯函数：本包**没有 jsdom**，组件层只能用 `renderToStaticMarkup` 做静态断言。
  * 把"该显示什么"从"怎么渲染"里剥出来，才能在这些无 DOM 的用例里钉住文案与分型，
  * 而不是依赖读源码或只能人工看。
  *
- * 三条不许含糊的纪律：
+ * 四条不许含糊的纪律：
  *
  * 1. **未记录最终输出时绝不留白**：`deriveOwnOutput`（任务 2.2）给的是
  *    `missingReason` / `lastOutputKind` 两个分型，本模块把它们翻成**具体**的中文说明——
@@ -15,14 +15,20 @@
  * 2. **中间输出绝不冒充最终输出**：用语里必须带「不是本次最终结果」的语义
  *    （"结束前的最后一条正文"而不是"结果"），否则用户会把失败前的半截输出当成果。
  *
- * 3. **模型输出只是文本**：不执行 HTML/脚本、不自动加载远程图片、不把宿主路径当能力。
+ * 3. **结局与错误一律转述上游派生，不自己重判**：结局走 `classifyOutcome`（唯一判据来源）、
+ *    错误定位走 `deriveErrorTarget`、工具错误走 `deriveOwnToolErrors`。本模块只加
+ *    "这对阅读者意味着什么"的补充说明——自己再写一遍 `reason === "error" ? …`
+ *    就会与列表徽标分叉（design D4 要消灭的正是这个）。
+ *
+ * 4. **模型输出只是文本**：不执行 HTML/脚本、不自动加载远程图片、不把宿主路径当能力。
  *    本模块只提供**判据**（`containsMarkupLikeText` 等）供测试与提示使用；
  *    真正的安全由渲染方式保证——概览一律走 React 文本节点（`{text}`），
  *    没有任何 `dangerouslySetInnerHTML`，也没有 `<img>`/`<iframe>`。
  *    `auditSafeTextRendering` 把这个"渲染方式契约"变成可断言的对象。
  */
 
-import type { OutputBlock, OwnOutput } from "@shared/overview";
+import type { Outcome, OutcomeKind, OutcomeTone } from "@shared/outcome";
+import type { ErrorTarget, OutputBlock, OwnOutput, ToolErrorTarget } from "@shared/overview";
 
 /** 结果区的内容形态（互斥，供渲染分支与测试一一对应） */
 export type ResultKind =
@@ -134,6 +140,120 @@ export function openCallHint(own: OwnOutput, presentation: ResultPresentation): 
   if (own.lastOutputKind === "reasoning-only") return "打开该调用查看完整思维链";
   if (own.lastOutputKind === "tool-calls-only") return "打开该调用查看工具调用详情";
   return null;
+}
+
+// ---------------------------------------------------------------------------
+// 概况「结局区」：错误定位 / 限制·中止·中断如实展示（U1 任务 5.2 · design D4）
+//
+// spec 四场景 → 本模块三件输出：
+//   「失败概览定位真实自有调用」  ⇒ `LlmErrorSection.detail`（可定位目标）
+//   「旧失败记录没有错误详情」    ⇒ `LlmErrorSection.missing`（缺失说明，不虚构入口）
+//   「限制中止与中断如实展示」    ⇒ `OutcomeSection`（限制/中止/中断各自的文字与色调）
+//   「无最终正文不借用祖先补全」  ⇒ 5.1 已做；本模块只管"结局本身怎么说"
+// ---------------------------------------------------------------------------
+
+/** 概览「结局区」：结局标签 + 是否可执行定位 + 纯说明型补充 */
+export interface OutcomeSection {
+  kind: OutcomeKind;
+  /** 结局中文标签（唯一文案来源：`classifyOutcome`，本模块只做补充说明） */
+  label: string;
+  tone: OutcomeTone;
+  /** 纯说明文字（"达到迭代上限"等既有标签之外的补充）；无补充时为 null */
+  note: string | null;
+}
+
+/** 概览「自有 LLM 错误区」的两种形态（互斥） */
+export type LlmErrorSection =
+  | {
+      /** 有可定位的自有失败调用：显示错误正文 + 「打开该调用并展开所属 step」 */
+      form: "located";
+      /** 可定位目标（span + 所属 step）；span 恒非 null */
+      target: { spanId: string; stepSpanId: string | null };
+      message: string;
+      /** HTTP 状态码（未记录为 null，不猜） */
+      status: number | null;
+    }
+  | {
+      /** error 终止但自有记录里没有 LLM 错误详情：显示缺失说明，**不给**定位入口 */
+      form: "missing";
+      note: string;
+    }
+  | {
+      /** 非 error 终止：本区不出现（什么都不显示，而不是显示一个空的错误框） */
+      form: "none";
+    };
+
+const OUTCOME_NOTE: Partial<Record<OutcomeKind, string>> = {
+  max_iterations: "循环达到迭代上限后停止，不是正常结束。",
+  budget_exceeded: "token / 预算超出上限后停止，不是正常结束。",
+  aborted: "运行被中止，不是正常结束；已记录内容保留在下方。",
+  interrupted: "没有记录到终止事件（进程可能被强制结束），不代表仍在执行。",
+  unknown: "有终止事件但原因不在已知枚举内，原始原因见运行记录。",
+};
+
+/**
+ * 由 `classifyOutcome` 的结论算出结局区该说什么。
+ *
+ * ⚠️ **不自己判结局**：kind/label/tone 全部来自 `classifyOutcome`（唯一判据来源），
+ *    本函数只提供"这个结局对概览阅读者意味着什么"的**补充说明**。
+ *    自己再写一遍 `reason === "error" ? …` 就会与列表徽标分叉（design D4 要消灭的正是这个）。
+ */
+export function presentOutcome(outcome: Outcome): OutcomeSection {
+  return {
+    kind: outcome.kind,
+    label: outcome.label,
+    tone: outcome.tone,
+    note: OUTCOME_NOTE[outcome.kind] ?? null,
+  };
+}
+
+/**
+ * 由 `deriveErrorTarget`（任务 2.2）的结论算出错误区该显示什么。
+ *
+ * 三分支互斥且**不可合并**：
+ * - `located`：有带 error 的自有 llm.call ⇒ 给定位入口（打开调用 + 展开 step）。
+ * - `missing`：error 终止但自有记录里没有错误详情（含"仅有工具错误"、"只有祖先有错误"）
+ *   ⇒ **只给说明、不给入口**。给一个指向不了任何东西的按钮比不给更糟。
+ * - `none`：不是 error 终止 ⇒ 整区不渲染。渲染一个空错误框会让用户以为"有错误但没显示出来"。
+ */
+export function presentLlmError(target: ErrorTarget): LlmErrorSection {
+  if (target.missingDetail) {
+    return {
+      form: "missing",
+      note: "本 run 以错误结束，但自有记录里没有 LLM 错误详情——不反推原因，也不借用祖先的错误。",
+    };
+  }
+  if (target.llmCallSpanId === null) return { form: "none" };
+  return {
+    form: "located",
+    target: { spanId: target.llmCallSpanId, stepSpanId: target.stepSpanId },
+    message: target.message ?? "",
+    status: target.status,
+  };
+}
+
+/** 概览「工具错误区」的一行 */
+export interface ToolErrorRow {
+  spanId: string;
+  stepSpanId: string | null;
+  tool: string;
+  message: string;
+}
+
+/**
+ * 工具错误的展示行。
+ *
+ * ⚠️ **刻意与 LLM 错误分区**：工具错误是**数据**、不是终止根因（delta「不断言其为终止根因」）。
+ *    两者合并成一个"本次失败原因"框，正是 spec 明文禁止的误归因。
+ *    本函数只做透传 + 保证"有工具错误也不影响 LLM 缺失判定"（那是 `presentLlmError` 的事）。
+ */
+export function presentToolErrors(rows: readonly ToolErrorTarget[]): ToolErrorRow[] {
+  return rows.map((row) => ({
+    spanId: row.spanId,
+    stepSpanId: row.stepSpanId,
+    tool: row.tool,
+    message: row.message,
+  }));
 }
 
 // ---------------------------------------------------------------------------

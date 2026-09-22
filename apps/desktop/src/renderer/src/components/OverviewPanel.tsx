@@ -18,10 +18,18 @@
  */
 
 import type { RunDetail } from "@shared/ipc";
-import { deriveOwnOutput } from "@shared/overview";
+import { classifyOutcome, outcomeBadgeClass } from "@shared/outcome";
+import { deriveErrorTarget, deriveOwnOutput, deriveOwnToolErrors } from "@shared/overview";
 import { Check, Copy } from "lucide-react";
 import { useMemo, useState } from "react";
-import { openCallHint, presentResult } from "../lib/overview-view";
+import type { LlmErrorSection } from "../lib/overview-view";
+import {
+  openCallHint,
+  presentLlmError,
+  presentOutcome,
+  presentResult,
+  presentToolErrors,
+} from "../lib/overview-view";
 import { useAppStore } from "../store";
 import { LongText, isLongTextExpanded, toggleLongTextExpanded } from "./LongText";
 
@@ -64,6 +72,156 @@ function CopyButton({ text, label }: { text: string; label: string }) {
 }
 
 /**
+ * 结局区（任务 5.2）：把「这次运行为什么停了」放在最前面。
+ *
+ * 数据全部来自 `classifyOutcome`（唯一判据来源）+ `presentOutcome` 的补充说明——
+ * 本组件不重判结局，只负责把既有结论摆出来。
+ */
+export function OutcomeSectionView({
+  status,
+  reason,
+}: {
+  status: "completed" | "crashed";
+  reason: string | null;
+}) {
+  const section = presentOutcome(classifyOutcome({ status, reason }));
+  return (
+    <section className="border-t border-gray-200 px-4 py-3" aria-label="运行结局">
+      <div className="mb-1.5 text-reading-meta font-semibold tracking-wide text-gray-500">
+        结束情况
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {/* 语义色 + 文字：颜色只是辅助，标签本身承载信息 */}
+        <span
+          className={`inline-flex rounded px-1.5 py-0.5 text-reading-body leading-5 ${outcomeBadgeClass(section.tone)}`}
+        >
+          {section.label}
+        </span>
+      </div>
+      {section.note !== null ? (
+        <div className="mt-1.5 text-reading-body leading-5 text-gray-600">{section.note}</div>
+      ) : null}
+    </section>
+  );
+}
+
+/**
+ * 自有 LLM 错误区（任务 5.2）。
+ *
+ * 三分支：可定位 / 缺失说明 / 不出现。**刻意不合并**——`missing` 时给一个指向不了的
+ * 按钮比不给更糟，而"不是 error 终止却渲染空错误框"会让用户以为有错误没显示出来。
+ */
+export function LlmErrorSectionView({
+  section,
+  onOpenCall,
+}: {
+  section: LlmErrorSection;
+  onOpenCall: (target: { spanId: string; stepSpanId: string | null }) => void;
+}) {
+  if (section.form === "none") return null;
+
+  return (
+    <section className="border-t border-gray-200 px-4 py-3" aria-label="LLM 错误">
+      <div className="mb-1.5 text-reading-meta font-semibold tracking-wide text-gray-500">
+        本次失败原因
+      </div>
+      {section.form === "located" ? (
+        <>
+          <div className="rounded border-l-2 border-red-400 bg-red-50/60 px-3 py-2">
+            <div className="mb-1 flex flex-wrap items-center gap-x-3 text-reading-meta text-gray-500">
+              <span className="font-code" title="失败调用">
+                {section.target.spanId}
+              </span>
+              {section.status !== null ? (
+                <span className="font-code">HTTP {section.status}</span>
+              ) : (
+                // 未记录状态码 ⇒ 不显示"HTTP —"这种像数据的占位
+                <span className="text-gray-400">未记录 HTTP 状态</span>
+              )}
+            </div>
+            {section.message.length > 0 ? (
+              <pre className="whitespace-pre-wrap break-words font-code text-[11px] leading-5 text-red-900">
+                {section.message}
+              </pre>
+            ) : (
+              <div className="text-reading-meta text-gray-600">
+                该调用标记了错误，但没有记录错误正文。
+              </div>
+            )}
+          </div>
+          <div className="mt-2">
+            <button
+              type="button"
+              onClick={() => onOpenCall(section.target)}
+              className="rounded border border-red-400 px-2 py-0.5 text-reading-meta text-red-800 hover:bg-red-50"
+            >
+              打开该调用并展开所属 step
+            </button>
+          </div>
+        </>
+      ) : (
+        <div className="text-reading-body leading-5 text-gray-600">{section.note}</div>
+      )}
+    </section>
+  );
+}
+
+/**
+ * 自有工具错误区（任务 5.2）。
+ *
+ * ⚠️ **独立成区、不与 LLM 错误合并**：工具错误是数据，不是终止根因
+ * （delta「不断言其为终止根因」）。合并成"本次失败原因"正是 spec 禁止的误归因。
+ * 无工具错误时整区不渲染（不摆一个空的"工具错误"标题）。
+ */
+export function ToolErrorsSectionView({
+  rows,
+  onOpenCall,
+}: {
+  rows: ReturnType<typeof presentToolErrors>;
+  onOpenCall: (target: { spanId: string; stepSpanId: string | null }) => void;
+}) {
+  if (rows.length === 0) return null;
+
+  return (
+    <section className="border-t border-gray-200 px-4 py-3" aria-label="工具错误">
+      <div className="mb-1.5 flex items-center gap-2">
+        <span className="text-reading-meta font-semibold tracking-wide text-gray-500">
+          工具错误
+        </span>
+        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-reading-meta text-amber-800">
+          {rows.length} 次
+        </span>
+        {/* 明确它不构成终止原因，避免用户把工具错误当成本次失败根因 */}
+        <span className="text-reading-meta text-gray-400">（不构成终止原因）</span>
+      </div>
+      <ul className="space-y-1.5">
+        {rows.map((row) => (
+          <li
+            key={row.spanId}
+            className="rounded border-l-2 border-amber-400 bg-amber-50/50 px-3 py-1.5"
+          >
+            <div className="mb-0.5 flex flex-wrap items-center gap-x-3 text-reading-meta text-gray-500">
+              <span className="font-medium text-gray-700">{row.tool}</span>
+              <span className="font-code">{row.spanId}</span>
+              <button
+                type="button"
+                onClick={() => onOpenCall({ spanId: row.spanId, stepSpanId: row.stepSpanId })}
+                className="ml-auto rounded border border-amber-400 px-1.5 py-0.5 text-amber-800 hover:bg-amber-50"
+              >
+                定位
+              </button>
+            </div>
+            <pre className="whitespace-pre-wrap break-words font-code text-[11px] leading-5 text-amber-900">
+              {row.message}
+            </pre>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/**
  * 结果区纯视图（测试直接喂 props）。
  *
  * 不读 store、不发请求——`onOpenCall` 由调用方接上真实定位动作（选中 span + 展开 step
@@ -99,85 +257,122 @@ export function OverviewResultView({
   const hint = openCallHint(own, presentation);
   const isFinal = presentation.kind === "final";
 
+  // 终止原因与结局、错误、工具错误（任务 5.2）：全部走上游派生，本组件只摆放
+  const termination = useMemo(() => {
+    const events = detail.events.filter((event) => event.type === "run.event");
+    const last = events[events.length - 1];
+    return last === undefined || last.type !== "run.event" ? null : last.reason;
+  }, [detail]);
+  const ownReason = detail.status === "crashed" ? null : termination;
+  const errorSection = useMemo(
+    () =>
+      presentLlmError(
+        deriveErrorTarget({
+          spans: detail.spans,
+          leafSpanIds: detail.leafSpanIds,
+          reason: ownReason,
+        }),
+      ),
+    [detail, ownReason],
+  );
+  const toolErrorRows = useMemo(
+    () =>
+      presentToolErrors(
+        deriveOwnToolErrors({ spans: detail.spans, leafSpanIds: detail.leafSpanIds }),
+      ),
+    [detail],
+  );
+
   return (
-    <section className="border-t border-gray-200 px-4 py-3" aria-label="运行结果">
-      <div className="mb-1.5 flex flex-wrap items-center gap-2">
-        <span className="text-reading-meta font-semibold tracking-wide text-gray-500">
-          {presentation.title}
-        </span>
-        {isFinal ? (
-          <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-reading-meta text-emerald-800">
-            已记录
+    <div aria-label="运行概览">
+      {/* 1. 结束情况：这次运行为什么停了（结局的唯一判据来源是 classifyOutcome） */}
+      <OutcomeSectionView status={detail.status} reason={ownReason} />
+      {/* 2. 本次失败原因：自有 LLM 错误 + 定位入口；缺失时只给说明 */}
+      <LlmErrorSectionView section={errorSection} onOpenCall={onOpenCall} />
+      {/* 3. 结果区 */}
+      <section className="border-t border-gray-200 px-4 py-3" aria-label="运行结果">
+        <div className="mb-1.5 flex flex-wrap items-center gap-2">
+          <span className="text-reading-meta font-semibold tracking-wide text-gray-500">
+            {presentation.title}
           </span>
-        ) : (
-          <span className="rounded bg-gray-100 px-1.5 py-0.5 text-reading-meta text-gray-600">
-            未记录
-          </span>
-        )}
-        {presentation.block !== null ? (
-          <span className="ml-auto">
-            <CopyButton
-              text={presentation.block.content}
-              label={presentation.blockLabel ?? "正文"}
-            />
-          </span>
-        ) : null}
-      </div>
-
-      {presentation.reason !== null ? (
-        <div className="mb-2 text-reading-body leading-5 text-gray-600">{presentation.reason}</div>
-      ) : null}
-
-      {presentation.block !== null ? (
-        <div
-          className={
-            isFinal
-              ? "rounded border-l-2 border-emerald-400 bg-emerald-50/60 px-3 py-2"
-              : "rounded border-l-2 border-amber-400 bg-amber-50/60 px-3 py-2"
-          }
-        >
-          <div className="mb-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-reading-meta text-gray-500">
-            <span>{presentation.blockLabel}</span>
-            <span className="font-code" title="产出该正文的调用">
-              {presentation.block.spanId}
+          {isFinal ? (
+            <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-reading-meta text-emerald-800">
+              已记录
             </span>
-            <span className="font-code">{presentation.block.model}</span>
+          ) : (
+            <span className="rounded bg-gray-100 px-1.5 py-0.5 text-reading-meta text-gray-600">
+              未记录
+            </span>
+          )}
+          {presentation.block !== null ? (
+            <span className="ml-auto">
+              <CopyButton
+                text={presentation.block.content}
+                label={presentation.blockLabel ?? "正文"}
+              />
+            </span>
+          ) : null}
+        </div>
+
+        {presentation.reason !== null ? (
+          <div className="mb-2 text-reading-body leading-5 text-gray-600">
+            {presentation.reason}
           </div>
-          {/*
+        ) : null}
+
+        {presentation.block !== null ? (
+          <div
+            className={
+              isFinal
+                ? "rounded border-l-2 border-emerald-400 bg-emerald-50/60 px-3 py-2"
+                : "rounded border-l-2 border-amber-400 bg-amber-50/60 px-3 py-2"
+            }
+          >
+            <div className="mb-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-reading-meta text-gray-500">
+              <span>{presentation.blockLabel}</span>
+              <span className="font-code" title="产出该正文的调用">
+                {presentation.block.spanId}
+              </span>
+              <span className="font-code">{presentation.block.model}</span>
+            </div>
+            {/*
             正文安全呈现：`LongText` 内部一律用 <pre>{text}</pre>，是 React 文本节点，
             模型输出里的标签/脚本只会显示成字面量。**不得**在此改成 Markdown 渲染。
           */}
-          <LongText
-            text={presentation.block.content}
-            label={presentation.blockLabel ?? "正文"}
-            expanded={isLongTextExpanded(expanded, "overview-result")}
-            onToggle={() => onToggleExpanded("overview-result")}
-          />
-        </div>
-      ) : null}
+            <LongText
+              text={presentation.block.content}
+              label={presentation.blockLabel ?? "正文"}
+              expanded={isLongTextExpanded(expanded, "overview-result")}
+              onToggle={() => onToggleExpanded("overview-result")}
+            />
+          </div>
+        ) : null}
 
-      {presentation.openCallTarget !== null ? (
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              const target = presentation.openCallTarget;
-              if (target !== null) onOpenCall(target);
-            }}
-            className="rounded border border-sky-400 px-2 py-0.5 text-reading-meta text-sky-800 hover:bg-sky-50"
-          >
-            打开该调用并展开所属 step
-          </button>
-          {hint !== null ? <span className="text-reading-meta text-gray-500">{hint}</span> : null}
-        </div>
-      ) : null}
+        {presentation.openCallTarget !== null ? (
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                const target = presentation.openCallTarget;
+                if (target !== null) onOpenCall(target);
+              }}
+              className="rounded border border-sky-400 px-2 py-0.5 text-reading-meta text-sky-800 hover:bg-sky-50"
+            >
+              打开该调用并展开所属 step
+            </button>
+            {hint !== null ? <span className="text-reading-meta text-gray-500">{hint}</span> : null}
+          </div>
+        ) : null}
 
-      {presentation.block === null && presentation.openCallTarget === null ? (
-        <div className="text-reading-meta text-gray-400">
-          没有可展示的输出，也没有可定位的调用。
-        </div>
-      ) : null}
-    </section>
+        {presentation.block === null && presentation.openCallTarget === null ? (
+          <div className="text-reading-meta text-gray-400">
+            没有可展示的输出，也没有可定位的调用。
+          </div>
+        ) : null}
+      </section>
+      {/* 4. 工具错误：独立成区，不构成终止原因（与 LLM 错误绝不合并） */}
+      <ToolErrorsSectionView rows={toolErrorRows} onOpenCall={onOpenCall} />
+    </div>
   );
 }
 
