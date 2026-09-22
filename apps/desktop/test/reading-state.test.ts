@@ -100,6 +100,7 @@ describe("只存阅读位置：结构上不含授权/草稿/正文副本", () =>
       [
         "calls",
         "expandedSteps",
+        "overviewExpanded",
         "overviewScrollTop",
         "spanId",
         "stepsScrollTop",
@@ -107,7 +108,13 @@ describe("只存阅读位置：结构上不含授权/草稿/正文副本", () =>
       ].sort(),
     );
     // 明确排除敏感/编辑态键
-    for (const forbidden of ["draft", "authorization", "allowFileWrites", "sourceToken", "content"]) {
+    for (const forbidden of [
+      "draft",
+      "authorization",
+      "allowFileWrites",
+      "sourceToken",
+      "content",
+    ]) {
       expect(keys).not.toContain(forbidden);
     }
   });
@@ -117,7 +124,15 @@ describe("只存阅读位置：结构上不含授权/草稿/正文副本", () =>
     const byRun = patchReadingState({}, "run_a", { tab: "files" } as never);
     const state = readingStateOf(byRun, "run_a");
     expect(Object.keys(state).sort()).toEqual(
-      ["calls", "expandedSteps", "overviewScrollTop", "spanId", "stepsScrollTop", "tab"].sort(),
+      [
+        "calls",
+        "expandedSteps",
+        "overviewExpanded",
+        "overviewScrollTop",
+        "spanId",
+        "stepsScrollTop",
+        "tab",
+      ].sort(),
     );
   });
 });

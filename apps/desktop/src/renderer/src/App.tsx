@@ -4,8 +4,9 @@ import { ComparePanel } from "./components/ComparePanel";
 import { CreateRunDialog } from "./components/CreateRunDialog";
 import { DetailPanel } from "./components/DetailPanel";
 import { GlobalBar } from "./components/GlobalBar";
+import { OverviewPanel } from "./components/OverviewPanel";
 import { RunList } from "./components/RunList";
-import { NoRunsEmpty, RunHeader, RunWorkspace } from "./components/RunWorkspace";
+import { NoRunsEmpty, RunHeader, RunWorkspace, resolveVisibleTab } from "./components/RunWorkspace";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { SpanTree } from "./components/SpanTree";
 import { isIsolatedRun } from "./lib/isolated-fork";
@@ -110,16 +111,17 @@ export default function App() {
 }
 
 /**
- * 详情列外壳（任务 4.2）。
+ * 详情列外壳（任务 4.2 / 5.1）。
  *
  * 把「任务头 + 概览/步骤/文件页签 + 正文」从「详情列内部一个开关」上提为工作区承载：
  *   - 页签是**工作区级**的（同一 run 的概览 / 步骤 / 文件），不是详情列内部的局部开关
  *   - 「文件」页签只在合法隔离 run 上出现（`isIsolatedRun` 要求有效的 `meta.workspace`）
  *   - 页签状态进阅读状态（`readingByRun[runId].tab`），切运行再返回要恢复
+ *   - **概览页有独立内容**（任务 5.1）：不再把"概览"当成"详情列的另一个名字"
  *
- * ⚠️ 本任务**不**把 SpanTree 从三栏里搬走（那是 5.4 的范围）：这里只承载详情列，
+ * ⚠️ 本任务**不**把 SpanTree 从三栏里搬走（那是 5.4 的范围）：这里只承载正文，
  *    SpanTree 仍是左侧独立一栏。故 `steps` 在本壳里等价于既有的「轨迹」详情
- *    （步骤目录始终在左栏可见），与 DetailPanel 内部 tab 的 `trajectory` 同义。
+ *    （步骤目录始终在左栏可见）。
  */
 function WorkspaceShell() {
   const detail = useAppStore((s) => s.detail);
@@ -129,6 +131,8 @@ function WorkspaceShell() {
   );
   const setReadingTab = useAppStore((s) => s.setReadingTab);
   const isolated = isIsolatedRun(detail);
+  // 概览是**独立内容**，只有步骤/文件页才落到既有详情列（任务 5.1）
+  const visible = resolveVisibleTab(tab, isolated);
 
   return (
     <RunWorkspace
@@ -140,7 +144,7 @@ function WorkspaceShell() {
       isIsolated={isolated}
       header={<RunHeader />}
     >
-      <DetailPanel />
+      {visible === "overview" ? <OverviewPanel /> : <DetailPanel />}
     </RunWorkspace>
   );
 }

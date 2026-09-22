@@ -34,6 +34,15 @@ export interface RunReadingState {
   overviewScrollTop: number;
   /** 该 run 步骤目录的滚动位置 */
   stepsScrollTop: number;
+  /**
+   * 概览页已展开的输出块标识（U1 任务 5.1）。
+   *
+   * 为什么单独一个字段而不是复用 `calls`：`calls` 的键是 spanId 且会经
+   * `reconcileReadingState` 按"该 span 是否仍在详情里"清理；概览的正文块归属
+   * **当前 run 的结果**而非某次调用（同一次调用可能既是最终输出又出现在详情里），
+   * 混进去会被误清。这里只记一个"概览结果块是否展开"的短键，不随 span 失效而清。
+   */
+  overviewExpanded: string[];
   /** 每次调用的分区阅读状态（按 spanId 键） */
   calls: Record<string, CallReadingState>;
 }
@@ -49,6 +58,7 @@ export function defaultReadingState(): RunReadingState {
     expandedSteps: {},
     overviewScrollTop: 0,
     stepsScrollTop: 0,
+    overviewExpanded: [],
     calls: {},
   };
 }
