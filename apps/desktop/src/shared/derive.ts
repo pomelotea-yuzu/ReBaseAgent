@@ -214,6 +214,32 @@ export function deriveMissingLlmErrorDetail(input: {
   return true;
 }
 
+/**
+ * 终止原因（**唯一来源**，U1 任务 6.2 提取）。
+ *
+ * 末条 `run.event` 的 `reason`；`crashed`（无终止事件）⇒ `null`。
+ *
+ * ⚠️ 为什么必须只有一处：终止原因原先有两个口径——`OverviewPanel` 内联从 events 推导，
+ *    而运行页头 `RunHeaderView` 干脆传 `reason={null}`（于是任何正常结束的 run 在页头
+ *    都显示成「运行中断」），分支树又各写一份。delta 明确要求"与运行列表及概览使用
+ *    **一致**的状态文字和语义色" ⇒ 三个视图必须从同一个函数取原因。
+ *
+ * ⚠️ **crashed 的 reason 不可信**：crashed 的语义就是「没有结束记录」，此时即便残留
+ *    一个 reason 也不代表终止原因 ⇒ 这里直接归 `null`（`classifyOutcome` 另有同样规则，
+ *    两层都判是刻意的：本函数管"字段值是否可信"，`classifyOutcome` 管"显示成什么"）。
+ */
+export function deriveTerminalReason(input: {
+  status: "completed" | "crashed";
+  /** `RunDetail` / `RunRecord` 的 events；数据缺失时按"无终止事件"处理，不猜 */
+  events: ReadonlyArray<{ reason: string }> | undefined;
+}): string | null {
+  if (input.status === "crashed") return null;
+  // 事件表里只有 `run.event` 一种（`RunEventSchema` 的 type 是字面量）⇒ 取末条即可，
+  // 与 `deriveMissingLlmErrorDetail` 同一取法（两处判据一致）。
+  const last = input.events?.[input.events.length - 1];
+  return last === undefined ? null : last.reason;
+}
+
 /** 整个 run 的摘要（列表行所需的全部聚合数字） */
 export function deriveRunSummary(run: RunLike): RunSummary {
   let steps = 0;
@@ -243,7 +269,6 @@ export function deriveRunSummary(run: RunLike): RunSummary {
   }
 
   const durationMs = earliest !== null && latest !== null ? Math.max(0, latest - earliest) : null;
-  const lastEvent = run.events[run.events.length - 1];
 
   return {
     id: run.meta.id,
@@ -261,7 +286,8 @@ export function deriveRunSummary(run: RunLike): RunSummary {
             edit_field: run.meta.fork.edit.field,
             experiment_id: experimentIdOf(run.meta.fork),
           },
-    reason: lastEvent?.reason ?? null,
+    // 终止原因走**唯一来源**（crashed ⇒ null，不把残留 reason 当终止原因）
+    reason: deriveTerminalReason({ status: run.status, events: run.events }),
     steps,
     toolCalls,
     toolErrors,

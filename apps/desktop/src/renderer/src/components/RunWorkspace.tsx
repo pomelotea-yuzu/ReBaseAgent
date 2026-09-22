@@ -17,6 +17,7 @@
  *    真正"文件页时卸下步骤目录"由本组件的 `stepsMounted` 传给 App 消费。
  */
 
+import { deriveTerminalReason } from "@shared/derive";
 import type { RunSummary } from "@shared/ipc";
 import { FileCode2, LayoutDashboard, ListTree } from "lucide-react";
 import type { ReactNode } from "react";
@@ -211,7 +212,19 @@ export function RunHeaderView({
           {task ?? "尚未选择运行"}
         </div>
         <div className="mt-0.5 flex flex-wrap items-center gap-2 text-reading-meta text-gray-500">
-          <RunStatusBadge status={detail?.status ?? null} reason={null} />
+          {/*
+           * 终止原因走**唯一来源** `deriveTerminalReason`（任务 6.2）。
+           * 此前这里硬编码 `reason={null}` ⇒ 任何正常结束的 run 在页头都被显示成
+           * 「运行中断」，与列表/概览自相矛盾。
+           */}
+          <RunStatusBadge
+            status={detail?.status ?? null}
+            reason={
+              detail === null
+                ? null
+                : deriveTerminalReason({ status: detail.status, events: detail.events })
+            }
+          />
           <span className="font-code" title="运行 ID">
             {id ?? "—"}
           </span>

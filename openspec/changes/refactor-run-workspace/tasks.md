@@ -405,7 +405,35 @@
   验证：typecheck（node+web）绿；desktop 全量 **958 passed / 0 failed（47 文件）**（6.0 基线 948，+10）；`biome check` 改动 7 文件干净；`electron-vite build` 通过（主 chunk **1,014.32 kB**，较 6.0 的 1,015.73 kB 略降，monaco 仍在懒 chunk）；`release-check.mjs` exit 0；`openspec validate --all --strict` 13/13。
   变异验证 **8 组**（改→跑→`cp` 还原→`md5sum -c` 复核，三文件逐字一致）：①~⑧ 见上条目，全部被抓。
 
-- [ ] 6.2 接好分支返回导航与共用状态文字/颜色（1.5h）；验证“切到分支树”“选中状态跨视图保持”“切换不重载”“封存状态不冒充正常结束”及 branch-tree“节点按封存运行的终止原因区分结局”“节点对中断和未知原因诚实降级”“节点不把已恢复的工具错误当作终止失败”；回归保留场景“多分支家庭呈现”“代理分叉的边标注”“选中高亮共享前缀”“无分支时退化呈现”，不重排节点或改变点击语义。
+### 6.2（2026-09-22 完成）
+
+**统一状态口径（核心）**：`RunStatusBadge.tsx` 重写为 `classifyOutcome` / `outcomeBadgeClass` 驱动；`shared/derive.ts` 新增 `deriveTerminalReason`（终止原因唯一来源）；`RunWorkspace.tsx`（页头）、`OverviewPanel.tsx`（概览，原先内联推导**两处**）、`BranchTree.tsx`（树）全部改走共享判据。**拆树**：`BranchTree` 拆为 store 薄壳 + 导出 `BranchTreeView` 纯展示，并加「查看所选运行详情」返回导航。**新增** `test/branch-tree.test.ts`（**20 条**，此前该组件**完全没有测试**）；`test/outcome.test.ts` +9、`test/overview-error.test.ts` 1 条改写。desktop 全量 **987 passed / 0 failed（48 文件）**（6.1 基线 958，+29）。
+
+**修的是三处状态渲染互不一致**（不只是"加个返回按钮"）：
+
+| 视图 | 6.2 前 | 问题 |
+|---|---|---|
+| 概览 | `classifyOutcome`（唯一合规） | — |
+| 列表 / 页头 | `RunStatusBadge` → `reasonLabel` + 硬编码 emerald/amber | `completed` 显示「**已完成**」（delta 要求「已结束」，不得暗示质量已验证）；`crashed` 用**琥珀**（delta 要求中性色）；`error` 与 `completed` **同色绿** |
+| 分支树 | 自造 `statusDotClass` + `reasonLabel` | 同上；且 **`toolErrors > 0` 就把节点染红**（delta 明令「不将工具错误数当作整次运行失败」） |
+
+- **终止原因收敛为唯一来源** `deriveTerminalReason({status, events})`：末条 `run.event` 的 reason；`crashed` ⇒ `null`（无结束记录时残留 reason 不可信）。此前有**四处**各写一份（概览内联两处、页头直接传 `reason={null}`、树用 `reasonLabel`）——页头那个尤其糟：**任何正常结束的 run 在页头都显示「运行中断」**。
+- **节点状态改用 `<RunStatusBadge>`**：文字与语义色一次性与列表/概览对齐；`toolErrors` 不再参与状态（错误数仍按原记录由列表/概览单独呈现）。
+- **`deriveRunSummary` 也改用共享派生**（原先 `lastEvent?.reason ?? null`，crashed 的残留 reason 会进摘要）。
+- **分支返回导航**：树里加「查看所选运行详情」入口（`setView("trace")`），**不改节点点击语义**（点节点仍只是选中，与列表一致），并修正 footer——原文写「点击节点查看详情」而树里根本没有详情面板，是**误导性文案**。
+- **`auditForbiddenTokens`（新）**：把"源码级禁用型断言必须先剥注释再扫"这条纪律收敛成一个通用函数（`stripComments` 一并导出）。本条纪律在本 change 已**四次**被违反（5.1 / 5.2 / 5.7 / 6.2——每次都把禁用写法写进自己的文档注释，然后手写 `not.toContain` 被自己的注释判红）⇒ 今后调用方只断言返回空数组。
+- **测试从 0 到 20**：`branch-tree.test.ts` 覆盖 delta 全部场景——多分支家庭（2 条边各标「改 tool_result」）、代理分叉边标注（`改 messages` 与 `改 tool_result` 可区分 + 代理文字标记）、选中高亮共享前缀（A/B/C 在链、兄弟 X 不在）、无分支退化（单节点、不提示"无分支可用"）、五种 reason 的文字+色调矩阵（含**不得出现「已完成」**）、`crashed` 中性色 + 残留 reason 不改判、未知 reason 原值可查看、工具错误不当作终止失败、返回导航三态、footer 与行为一致。
+- ✅ **变异验证 12 组全部被抓**：① 徽章退回 `reasonLabel` ⇒ 1 红；② 色不分档（一律绿）⇒ 4 红；③ `crashed` 不归 null ⇒ 1 红；④ 取首条 event ⇒ 1 红；⑤ 无终止事件臆造 `completed` ⇒ 2 红；⑥ 工具错误当作终止失败 ⇒ 1 红；⑦ 高亮不沿祖先链 ⇒ 1 红；⑧ 去掉返回入口 ⇒ 1 红；⑨ 未选中也显示入口 ⇒ 1 红；⑩ footer 回退成误导文案 ⇒ 1 红；⑪ 页头退回 `reason={null}` ⇒ 1 红；⑫ 概览退回内联推导 ⇒ 2 红。五文件 `md5sum -c` 逐字还原。
+- ⚠️ **两条既有契约按预期变红并已按新不变量改写**：① `outcome.test.ts` 与 `overview-error.test.ts` 原先钉住"概览内联从 events 取末条 reason"（`toContain('event.type === "run.event"')`）——6.2 把该推导提取成共享函数后它自然不在了；已改为钉「取共享派生」+「代码里不得再内联该推导」（走 `auditForbiddenTokens` 剥注释）。② `outcome.test.ts` 里原本**自己在测试内**也内联了一份"取末条 reason"（第四份口径），已改用 `deriveTerminalReason`。
+- 诚实边界：**未做** CDP 实测（真实点击节点的选中跳转、点「查看所选运行详情」后视图真的切换、缩放档位切换、窄窗口树滚动）——本包无 jsdom，静态契约打不到；归 7.1/7.3。**未覆盖**「选中状态跨视图保持 / 切换不重载」的**运行时**行为：二者由 store（`selectedRunId` + 详情请求归属）保证，已有 `detail-request.test.ts` / `store.test.ts` 覆盖其**异步归属**逻辑，本任务只保证树侧的选中/高亮判据与列表同源。**未改**树布局算法（delta 明令"不重排节点"）。
+
+- [x] 6.2 接好分支返回导航与共用状态文字/颜色（1.5h）；验证“切到分支树”“选中状态跨视图保持”“切换不重载”“封存状态不冒充正常结束”及 branch-tree“节点按封存运行的终止原因区分结局”“节点对中断和未知原因诚实降级”“节点不把已恢复的工具错误当作终止失败”；回归保留场景“多分支家庭呈现”“代理分叉的边标注”“选中高亮共享前缀”“无分支时退化呈现”，不重排节点或改变点击语义。
+
+  实现：**改** `components/RunStatusBadge.tsx`（改用 `classifyOutcome`/`outcomeBadgeClass`，`reasonLabel` 退场；未知 reason 的原值放 `title` 可查看）、`shared/derive.ts`（新增 `deriveTerminalReason`；`deriveRunSummary` 改用它）、`components/RunWorkspace.tsx`（页头改走共享派生，替换硬编码 `reason={null}`）、`components/OverviewPanel.tsx`（删内联推导**两处**，改走共享派生）、`components/BranchTree.tsx`（拆 `BranchTreeView` 纯展示 + `<RunStatusBadge>` + 「查看所选运行详情」入口 + footer 文案修正 + 节点 `data-run-id`/`data-on-path`/`data-selected` 锚点）、`lib/overview-view.ts`（`stripComments` 导出 + 新增通用 `auditForbiddenTokens`）；**新增** `test/branch-tree.test.ts`（**20** 条）；**改** `test/outcome.test.ts`（+9：`deriveTerminalReason` 4 条 + 跨视图共用契约 5 条；并改用共享派生）、`test/overview-error.test.ts`（1 条改为钉共享派生）。
+
+  验证：typecheck（node+web）绿；desktop 全量 **987 passed / 0 failed（48 文件）**（6.1 基线 958，+29）；`biome check` 改动 9 文件干净；`electron-vite build` 通过（主 chunk 1,015.71 kB，monaco 仍在懒 chunk）；`release-check.mjs` exit 0；`openspec validate --all --strict` 13/13。
+  变异验证 **12 组**（改→跑→`cp` 还原→`md5sum -c` 复核，五文件逐字一致）：①~⑫ 见上条目，全部被抓。
+
 - [ ] 6.3 回归原四条指标比较与实验限制（1h）；验证“既有四条指标对照仍可使用”及 model-experiments 主 spec 的共同祖先/不可比限制，保留本 run、沿链累计和相对祖先口径，不增加臂间差值或胜出结论。
 - [ ] 6.4 在受控模型服务上回归普通创建/result/prompt 入口（2h）；验证“旧创建设置及执行入口保持可达”，分别记录一次明确提交、原配置/费用门禁、结果进入概览和父记录未改写，不把既有执行行为算为 U5 验收。
 - [ ] 6.5 在受控服务上回归隔离创建/result 及只读预检（2h）；验证“旧创建设置及执行入口保持可达”“来源和隔离边界保持真实”，记录每次授权、多工具轮末及二次分叉，隔离 prompt/A-B 仍拒绝。

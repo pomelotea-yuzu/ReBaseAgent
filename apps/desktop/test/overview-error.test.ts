@@ -6,6 +6,7 @@ import { deriveErrorTarget, deriveOwnOutput, deriveOwnToolErrors } from "@shared
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { auditForbiddenTokens } from "../src/renderer/src/lib/overview-view";
 
 // OverviewPanel 的 store 薄壳在 import 时就会触到 `window.api`（../lib/api.ts）
 // ⇒ 桩必须先就位；ESM 静态 import 会被提升，故用动态 import（同 5.1 的 test 文件）。
@@ -386,10 +387,12 @@ describe("接线契约：概览页挂上结局/错误/工具错误三区", () =>
     expect(PANEL_SOURCE).toContain("expandedSteps");
   });
 
-  it("结局区不读 meta.status 冒充结论（status 只作 crashed 判定，reason 取最后一条 event）", () => {
-    // 关键：`reason` 必须来自 events 里最后一条 run.event，而不是自行编造
-    expect(PANEL_SOURCE).toContain('event.type === "run.event"');
-    expect(PANEL_SOURCE).toContain('last.type !== "run.event"');
+  it("结局区不读 meta.status 冒充结论（reason 取共享派生 deriveTerminalReason）", () => {
+    // 6.2 起终止原因收敛到**唯一来源** `deriveTerminalReason`（页面里不再内联"取末条
+    // event"的推导——那份判据连同页头/树的各一份造成了四处口径分叉）。
+    expect(PANEL_SOURCE).toContain("deriveTerminalReason");
+    // 反向：不得再内联自己那份推导（先剥注释再扫，注释里点名了旧写法）
+    expect(auditForbiddenTokens(PANEL_SOURCE, ['event.type === "run.event"'])).toEqual([]);
   });
 });
 

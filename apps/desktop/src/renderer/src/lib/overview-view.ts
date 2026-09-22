@@ -536,6 +536,23 @@ export function auditSafeTextRendering(source: string): SafeTextIssue[] {
  * （扫描源码里的 JSX 标签写法）不需要字符串内保真：真正危险的写法出现在 JSX/代码位置，
  * 而字符串里出现 `<img>` 本身不会造成副作用。
  */
-function stripComments(source: string): string {
+export function stripComments(source: string): string {
   return source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+}
+
+/**
+ * 源码级"禁用型"断言的**通用审计**：先剥注释，再逐个查禁用片段，返回命中的那些。
+ *
+ * ⚠️ 存在的理由（血泪）：这条纪律在本 change 里**反复**被违反——5.1、5.2、5.7、6.2 四次
+ *    都把禁用写法写进了自己的文档注释（"从不 `dangerouslySetInnerHTML`"、"不再自造
+ *    `statusDotClass`"），然后手写 `expect(src).not.toContain(...)` 就被自己的注释判红。
+ *    每次现场手写 `not.toContain` 都会重踩 ⇒ 统一收敛到本函数，调用方只断言返回值是空数组。
+ *
+ * @param source 待审计的源码文本
+ * @param forbidden 禁用片段（标识符 / 标签 / 表达式）
+ * @returns 命中的禁用片段（空数组 = 合规）
+ */
+export function auditForbiddenTokens(source: string, forbidden: readonly string[]): string[] {
+  const code = stripComments(source);
+  return forbidden.filter((token) => code.includes(token));
 }

@@ -1,8 +1,10 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parseRunText } from "@rebaseagent/trace-sdk";
+import { deriveTerminalReason } from "@shared/derive";
 import { classifyOutcome, isKnownReason, outcomeBadgeClass } from "@shared/outcome";
 import { describe, expect, it } from "vitest";
+import { auditForbiddenTokens } from "../src/renderer/src/lib/overview-view";
 
 /**
  * U1（refactor-run-workspace）任务 2.1：共用结局分类的单元测试。
@@ -125,10 +127,10 @@ describe("与 1.1 结局 fixture 交叉核对（判据有牙）", () => {
       if (!existsSync(file)) continue; // fixture 未生成时跳过（生成器另有用例保证存在）
       const text = readFileSync(file, "utf8");
       const record = parseRunText(text.split("\n"));
-      const lastEvent = record.events[record.events.length - 1] ?? null;
+      // 终止原因走**唯一来源**（6.2 提取），不再在测试里内联一份"取末条 reason"的推导
       const outcome = classifyOutcome({
         status: record.status,
-        reason: lastEvent?.reason ?? null,
+        reason: deriveTerminalReason({ status: record.status, events: record.events }),
       });
       expect(outcome.kind, `${name} 的结局分类`).toBe(expected.outcome);
       expect(outcome.reason, `${name} 的原始 reason`).toBe(expected.lastReason);
@@ -140,9 +142,108 @@ describe("与 1.1 结局 fixture 交叉核对（判据有牙）", () => {
     const file = resolve(FIXTURE_DIR, "u1-ok.jsonl");
     if (!existsSync(file)) return;
     const record = parseRunText(readFileSync(file, "utf8").split("\n"));
-    const lastEvent = record.events[record.events.length - 1] ?? null;
-    const outcome = classifyOutcome({ status: record.status, reason: lastEvent?.reason ?? null });
+    const outcome = classifyOutcome({
+      status: record.status,
+      reason: deriveTerminalReason({ status: record.status, events: record.events }),
+    });
     expect(outcome.kind).toBe("completed");
     expect(outcome.normalEnd).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 终止原因的唯一来源（6.2 提取）
+// ---------------------------------------------------------------------------
+
+describe("deriveTerminalReason：终止原因的唯一来源", () => {
+  it("取末条 run.event 的 reason", () => {
+    expect(
+      deriveTerminalReason({
+        status: "completed",
+        events: [
+          { type: "run.event", reason: "completed" },
+          { type: "run.event", reason: "error" },
+        ],
+      }),
+    ).toBe("error");
+  });
+
+  it("crashed ⇒ null（无结束记录时残留 reason 不可信）", () => {
+    expect(
+      deriveTerminalReason({
+        status: "crashed",
+        events: [{ type: "run.event", reason: "error" }],
+      }),
+    ).toBeNull();
+  });
+
+  it("events 缺失 / 为空 ⇒ null（按无终止事件处理，不猜）", () => {
+    expect(deriveTerminalReason({ status: "completed", events: [] })).toBeNull();
+    expect(deriveTerminalReason({ status: "completed", events: undefined })).toBeNull();
+  });
+
+  it("与 classifyOutcome 配合：completed 且无原因 ⇒ 结束原因未知（不冒充已完成）", () => {
+    const reason = deriveTerminalReason({ status: "completed", events: [] });
+    expect(classifyOutcome({ status: "completed", reason }).kind).toBe("unknown");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 跨视图共用同一判据（6.2：列表 / 页头 / 概览 / 树节点）
+// ---------------------------------------------------------------------------
+
+/**
+ * ⚠️ 为什么需要这一节：6.2 之前**三处各写一套**——列表与页头走 `RunStatusBadge`
+ *    （`reasonLabel` + 硬编码配色）、树节点另有 `statusDotClass`、只有概览走了
+ *    `classifyOutcome`。结果是同一份数据在三个视图里可能显示成不同结局。
+ *
+ * 本包无 jsdom ⇒ 各视图的"它用了哪个组件"用**源码级接线契约**钉住
+ * （与 4.5 / 5.1 / 6.1 同一做法；"接线对而行为错"归 CDP）。
+ */
+describe("接线契约：状态文字与语义色三处共用同一判据", () => {
+  const src = (rel: string): string =>
+    readFileSync(resolve(import.meta.dirname, "../src/renderer/src", rel), "utf8");
+
+  /**
+   * ⚠️ 禁用型断言一律走 `auditForbiddenTokens`（**先剥注释再扫**）。
+   *    这些组件的文档注释里**点名**了被禁的旧写法（"不得回退 reasonLabel"、
+   *    "不再自造 statusDotClass"），手写 `not.toContain` 会被自己的注释判红——
+   *    本 change 已四次重踩（5.1 / 5.2 / 5.7 / 6.2）。
+   */
+  const audit = (source: string, forbidden: string[]): string[] =>
+    auditForbiddenTokens(source, forbidden);
+
+  it("徽章的唯一判据是 classifyOutcome / outcomeBadgeClass（不得回退 reasonLabel）", () => {
+    const badge = src("components/RunStatusBadge.tsx");
+    expect(badge).toContain("classifyOutcome");
+    expect(badge).toContain("outcomeBadgeClass");
+    // reasonLabel 会把 completed 说成「已完成」，且不带色调语义
+    expect(audit(badge, ["reasonLabel"])).toEqual([]);
+  });
+
+  it("运行列表用共用徽章", () => {
+    expect(src("components/RunList.tsx")).toContain("RunStatusBadge");
+  });
+
+  it("运行页头用共用徽章，且终止原因取共享派生（不再硬编码 reason={null}）", () => {
+    const header = src("components/RunWorkspace.tsx");
+    expect(header).toContain("RunStatusBadge");
+    expect(header).toContain("deriveTerminalReason");
+    expect(audit(header, ["reason={null}"])).toEqual([]);
+  });
+
+  it("分支树用共用徽章，且不再自造 statusDotClass / 直接用 reasonLabel", () => {
+    const tree = src("components/BranchTree.tsx");
+    expect(tree).toContain("RunStatusBadge");
+    // 自造色点 = 第二套判据（曾把 toolErrors>0 染红、crashed 染琥珀）
+    expect(audit(tree, ["statusDotClass", "reasonLabel"])).toEqual([]);
+  });
+
+  it("概览的结局区同样来自 classifyOutcome，且终止原因取共享派生", () => {
+    const overview = src("components/OverviewPanel.tsx");
+    expect(overview).toContain("classifyOutcome");
+    expect(overview).toContain("deriveTerminalReason");
+    // 概览原先内联自己推导终止原因（三处口径分叉的来源之一）
+    expect(audit(overview, ['event.type === "run.event"'])).toEqual([]);
   });
 });

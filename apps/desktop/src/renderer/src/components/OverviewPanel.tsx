@@ -17,6 +17,7 @@
  *    store 状态。故把"数据 → 视图"抽成纯展示组件，配 store 薄壳在真实应用里用。
  */
 
+import { deriveTerminalReason } from "@shared/derive";
 import type { RunDetail } from "@shared/ipc";
 import { classifyOutcome, outcomeBadgeClass } from "@shared/outcome";
 import {
@@ -390,31 +391,30 @@ export function OverviewResultView({
   onOpenCall: (target: { spanId: string; stepSpanId: string | null }) => void;
   onOpenParent: (runId: string) => void;
 }) {
-  const own = useMemo(() => {
-    // 自有终止原因：取**最后一条** `run.event` 的 reason（无终止事件 ⇒ status=crashed
-    // ⇒ null）。不读 meta.status——那只是"文件是否封存"，不代表本 run 正常结束（design D4）。
-    const events = detail.events.filter((event) => event.type === "run.event");
-    const last = events[events.length - 1];
-    const reason = last === undefined || last.type !== "run.event" ? null : last.reason;
-    return deriveOwnOutput({
-      spans: detail.spans,
-      leafSpanIds: detail.leafSpanIds,
-      // crashed（无终止事件）⇒ reason=null，deriveOwnOutput 会判为"非正常终止"
-      reason: detail.status === "crashed" ? null : reason,
-    });
-  }, [detail]);
+  // 终止原因走**唯一来源** `deriveTerminalReason`（任务 6.2 提取）：原先本组件内联推导了
+  // **两处**，而运行页头干脆传 `reason={null}`、分支树另有一套 ⇒ 四个视图口径分叉。
+  // 不读 `meta.status`——那只是"文件是否封存"，不代表本 run 正常结束（design D4）。
+  const ownReason = useMemo(
+    () => deriveTerminalReason({ status: detail.status, events: detail.events }),
+    [detail],
+  );
+
+  const own = useMemo(
+    () =>
+      deriveOwnOutput({
+        spans: detail.spans,
+        leafSpanIds: detail.leafSpanIds,
+        // crashed（无终止事件）⇒ deriveTerminalReason 已归 null，deriveOwnOutput 判为"非正常终止"
+        reason: ownReason,
+      }),
+    [detail, ownReason],
+  );
 
   const presentation = useMemo(() => presentResult(own), [own]);
   const hint = openCallHint(own, presentation);
   const isFinal = presentation.kind === "final";
 
-  // 终止原因与结局、错误、工具错误（任务 5.2）：全部走上游派生，本组件只摆放
-  const termination = useMemo(() => {
-    const events = detail.events.filter((event) => event.type === "run.event");
-    const last = events[events.length - 1];
-    return last === undefined || last.type !== "run.event" ? null : last.reason;
-  }, [detail]);
-  const ownReason = detail.status === "crashed" ? null : termination;
+  // 错误与工具错误（任务 5.2）：全部走上游派生，本组件只摆放
   const errorSection = useMemo(
     () =>
       presentLlmError(
