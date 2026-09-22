@@ -531,26 +531,48 @@
 
 ## 7. 桌面验收与质量收口
 
-### 7.1（进行中 · 2026-09-22 首轮）
+### 7.1（2026-09-22 完成）
 
-真实 Electron + CDP 首轮已跑，**抓到并修复一个静态测试抓不到的关键崩溃**（独立提交 `…`）：
+真实 Electron + CDP 两轮已跑（脚本 `u1-71-cdp.cjs` 首轮、`u1-71b-cdp.cjs` 第二轮补证），直连本地已起
+dev 的 CDP 9222，无依赖 playwright，走原生 WebSocket。**抓到并修复两个静态测试抓不到的问题**：
 
-- 🐛 **应用启动即崩**：`reading-state.ts` 的 `defaultReadingState()` 逐次 `new` ⇒ 未初始化 run 的
-  `useAppStore((s)=>s.readingOf(run).overviewExpanded)` 选择器每次返回新数组 ⇒ zustand v5
-  `useSyncExternalStore` getSnapshot 引用不稳 ⇒ `Maximum update depth exceeded`，整个渲染器
-  **root 不挂载（body 全空）**。7.1 真实 Electron 一跑即现。修法：默认值改为**模块级共享稳定常量**
-  （全部写路径走 immutable 的 `patch*`，从不原地改默认值）；并补 `reading-state.test.ts`「引用稳定」
-  回归（用 `.toBe` 钉同一引用）。desktop 全量 **1024 passed / 0 failed**（7.0 基线 1023，+1）。
-- 证据脚本 `apps/desktop/scripts/u1-71-cdp.cjs`（CDP 直连本地已起 dev，无依赖 playwright，走原生
-  WebSocket）——对每个 CSS 视口截图运行列表/概览/步骤/文件、记录 body 是否横向溢出、点选 run、
-  核对概览容器与隔离变体。首轮已产出 8 张截图与 `docs/reviews/2026-09-22-u1-71/`。
+- 🐛 **应用启动即崩**（独立提交 `432e304`）：`reading-state.ts` 的 `defaultReadingState()` 逐次 `new`
+  ⇒ 未初始化 run 的 `useAppStore((s)=>s.readingOf(run).overviewExpanded)` 选择器每次返回新数组 ⇒
+  zustand v5 `useSyncExternalStore` getSnapshot 引用不稳 ⇒ `Maximum update depth exceeded`，整个渲染器
+  **root 不挂载（body 全空）**。修法：默认值改为**模块级共享稳定常量**（全部写路径走 immutable 的
+  `patch*`）；补 `reading-state.test.ts`「引用稳定」回归（`.toBe` 钉同一引用）。desktop 全量
+  **1024 passed / 0 failed**（7.0 基线 1023，+1）。
+- 🐛 **右详情滚动带动左列表整页随滚**（独立提交 `426d387`）：SpanTree 列根缺 `h-full/min-h-0`，内容
+  多高撑多高，把 `<main>` 一路撑过视口，右详情/左列表跟着整页滚动、左列显示不全、滚动区底部露背景
+  色块。修法：`<main>` 加 `overflow-hidden` 钳定高度；四列根容器补 `min-h-0` 允许收缩（`overflow-y-auto`
+  才生效）；概览根补 `h-full overflow-y-auto bg-white` 自带滚动且底部与正文同色。desktop 全量
+  1024 passed / 0 failed，typecheck/biome 绿。
 
-**尚未勾完（继续 7.1 的开放项）**：① 精确 CSS 视口 1440×900/1360×860 的 Emulation 覆盖与
-Electron 窗口存在差异（实测落在 1360×860，按实测记录、未当产品门禁）；② 每一步骤的「长模型/空任务
-导航摘要」、离线 Monaco/ECharts 运行时、DOM 几何逐层宽度仍需在标准 run 上补证；③ 步骤/文件承载的
-截图与 Monaco 只读 diff 未在目标尺寸完证。**本条目暂不勾选**，连同 FILES 矩阵一起在后续轮次完成。
+**两双档（1440×900 / 1360×860，100% 缩放 Emulation）补证全部通过（26/26）**，证据截图落
+`docs/reviews/2026-09-22-u1-71/`（首轮 `01-04`、二轮 `05-08`），测量落 `.workbuddy/u1-71b/measurements.json`：
 
-- [ ] 7.1 在真实 Electron 完成宽窗口阅读矩阵（1.5h）；100% 缩放下应用 CSS 视口 1440×900、1360×860 的概览/步骤/文件承载截图、DOM 几何与实际点击覆盖“多尺寸与放大下关键阅读可达”“长模型和空任务的导航摘要”，按 design D7 记录各层宽度/缩放及离线 Monaco/ECharts 是否正常。
+- **body 无横向溢出**：1440/1440、1360/1360（`body.scrollWidth <= clientWidth`）。
+- **DOM 逐层宽度**（`main` 直接子列，实测）：运行导航 `ASIDE@264px` / 步骤目录 `SECTION@232px` /
+  详情 `SECTION@944px`（1440 档）与 `864px` 详情（1360 档）。各列 `scrollHeight > clientHeight` ⇒ 内部
+  独立滚动，不整页滚。
+- **离线 ECharts 运行时**：隔离 run 步骤页预算地图是**折叠区块、展开才懒加载 echarts**，点开 summary
+  后 `canvas` 在场；步骤目录 6 个调用行可点选。
+- **离线 Monaco 运行时 + 只读 diff**：隔离 v2 run（`run_muappa2a_gk7964`）「文件」页选后续检查点 +
+  a.txt（37→二进制改写），`.monaco-diff-editor` 在**两档都真正挂载**并渲染只读 diff；文件承载区为
+  兄弟节点、不附带步骤目录。
+- **长任务导航摘要**：长任务 run（task 1730 字）列表行与页头 `title` 携带**完整原值**（title=1730），
+  正文由 `line-clamp-2`/`truncate` 截断展示。
+- **空任务导航摘要**：数据目录原无空任务 run，`u1-71b` 临时注入 `run_emptytask_demo`（task=""）验证
+  列表行回退「代理录制 · 时间 · 短 ID」（`label.isFallback` 灰字）且页头**不误显示**「尚未选择运行」；
+  **验证后已从数据目录删除**（不污染真实数据）。
+
+⚠️ **诚实边界（按实测记录、未当产品门禁）**：① 精确 CSS 视口 1440×900/1360×860 的 Emulation 覆盖与
+真实 Electron 窗口存在差异（Electron 原生窗口实测落在 1360×860）。② 两层证据均为 100% 缩放 Emulation，
+**200% 缩放、rapid 系统 DPI/原生目录框差异归 7.2**；原生窗口边界/单位、devicePixelRatio 完整的 D7
+映射归 7.7 evidence-index。③ 空任务用例为临时注入 fixture（已清），长模型用例以 qwen `-8k` 变体 + 长任务
+覆盖导航摘要截断，未单独构造纯超长模型名。
+
+- [x] 7.1 在真实 Electron 完成宽窗口阅读矩阵（1.5h）；100% 缩放下应用 CSS 视口 1440×900、1360×860 的概览/步骤/文件承载截图、DOM 几何与实际点击覆盖“多尺寸与放大下关键阅读可达”“长模型和空任务的导航摘要”，按 design D7 记录各层宽度/缩放及离线 Monaco/ECharts 是否正常。
 - [ ] 7.2 完成窄窗口和缩放矩阵（1.5h）；100% 缩放下应用 CSS 视口 1024×768、800×600、640px 宽及独立 Electron 200% 缩放用例验证“多尺寸与放大下关键阅读可达”“自动折叠后恢复用户布局”；640px 视口对应 D2 的 <720px 档，放大后重新测量实际视口与正文，说明系统 DPI/原生目录框未覆盖项，不以局部正文宽度代替视口宽度。
 - [ ] 7.3 完成键盘与阅读往返操作（1h）；实测“键盘导航及工具名称”“跨运行返回恢复阅读”“显式错误定位优先于恢复”“快速切换及同运行重试不串响应”，按实际输入与焦点记录验收，不能只检查 DOM 存在。
 - [ ] 7.4 独立执行只读哈希回归（1h）；验证“阅读过程不修改已有数据”及主 spec 文件只读场景，逐文件比较既有 trace/附件/源目录并核对模型请求数为零；主动执行新增文件在另一轮记录。
