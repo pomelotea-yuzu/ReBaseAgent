@@ -510,7 +510,24 @@
 **验证**：typecheck（node+web）绿；biome 新文件干净；desktop 全量 1019 passed / 0 failed（52 文件）。仅加 `test/` 文件、未触 bundle 源码 ⇒ `electron-vite build` / `release-check.mjs` / `openspec validate` 输出与 6.5 一致，未重跑（npx 在沙箱被黑名单拦截）。
 
 - [x] 6.6 回归代理设置/messages 重发与模型 A/B dry-run/真实执行入口（2h）；验证“旧创建设置及执行入口保持可达”“其它分叉形态不加缓存提示”，受控请求日志证明 dry-run 零请求，未捕获 key/配置缺失等原门禁保留。
-- [ ] 6.7 回归坏文件、未来版本、v1 非法隔离字段及现行缺祖先错误（1h）；验证“非法详情不被概览绕过”“列表刷新失败可重试”及主 spec“单个文件读取失败不阻塞列表”，正常运行继续可读，不吞校验异常为部分详情。
+
+### 6.7（2026-09-22 完成）
+
+**新增** `test/baddata-regression.test.ts`（**4** 条）——坏文件 / 未来版本 / v1 非法隔离字段 / 缺祖先的**读取层**回归。与 6.4–6.6 不同，这一组是读取/校验层判据、天然不发模型请求，故用既有 trace-sdk fixture 在磁盘混排好/坏/未来/v1 私带隔离/空文件，验证 `listRuns` 隔离语义 + `getRun`/版本守卫不吞校验异常为部分详情。desktop 全量 **1023 passed / 0 failed（53 文件）**（6.6 基线 1019，+4）。
+
+**逐判据覆盖（tasks.md 6.7）**：
+- **单个文件失败不阻塞列表**：坏文件只进 `failed`（带原因），同一目录的好 run 照常列出、详情仍可读。
+- **未来版本**：`format_version:3` 的文件进 `failed` 并提示「不支持」，不冒充可读 run。
+- **v1 私带隔离字段不吞异常**：磁盘上 v1 文件私带 `workspace` ⇒ **文件级守卫在 `readRun` 即拒 ⇒ 进 `failed`、绝不被吞成可读 run**（`getRun` 也抛）；纯守卫函数 `findRunDetailVersionViolation` 对篡改载荷仍能指名 `workspace`（IPC 层第二道防线）——「非法详情绝不让它进概览」。
+- **缺祖先/坏详情**：孤儿（parent 指向不存在文件）`getRun` 明确抛错，不静默返回"只剩本 run"的部分轨迹；空文件进 `failed` 不假装成 0 span 的可用 run。
+
+⚠️ **诚实边界**：① "列表刷新失败可重试" 由既有 `store.test.ts`（list-refresh）覆盖并在全量回归中保持绿，本任务未重复实现。② 本组是读层，无模型请求，故不设受控服务（与 6.4–6.6 的执行回归互补）。③ 未做 CDP 实测（真实 GUI 目录里放坏文件再刷新列表的呈现）——归 7.1/7.3。
+
+✅ **变异验证 2 组全部被抓**（改→跑→`cp` 还原→md5/git 复核一致）：① `run-repository.ts` 去掉"单文件失败隔离"（catch 改 `throw e`）⇒ 6.7 的 4 条 + 既有 `run-repository.test.ts` 相关用例一起红（坏文件拖垮整个列表）；② `detail-version-guard.ts` 的 `findRunDetailVersionViolation` 旁路（恒 `null`）⇒ 6.7「第二道防线」断言 + 既有 `detail-version-guard.test.ts` 一批红。均还原复绿。
+
+**验证**：typecheck（node+web）绿；biome 新文件干净；desktop 全量 1023 passed / 0 failed（53 文件）。仅加 `test/` 文件、未触 bundle 源码 ⇒ `electron-vite build` / `release-check.mjs` / `openspec validate` 输出与 6.6 一致，未重跑（npx 在沙箱被黑名单拦截）。
+
+- [x] 6.7 回归坏文件、未来版本、v1 非法隔离字段及现行缺祖先错误（1h）；验证“非法详情不被概览绕过”“列表刷新失败可重试”及主 spec“单个文件读取失败不阻塞列表”，正常运行继续可读，不吞校验异常为部分详情。
 
 ## 7. 桌面验收与质量收口
 
