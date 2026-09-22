@@ -457,7 +457,22 @@
   验证：typecheck（node+web）绿；desktop 全量 **1009 passed / 0 failed（49 文件）**（6.2 基线 987，+22）；`biome check` 改动 3 文件干净；`electron-vite build` 通过（主 chunk 1,016.25 kB，monaco 仍在懒 chunk）；`release-check.mjs` exit 0；`openspec validate --all --strict` 13/13。
   变异验证 **10 组**（改→跑→`cp` 还原→`md5sum -c` 复核，单文件逐字一致）：①~⑩ 见上条目，全部被抓（其中③首版无效已按"total 0 ≠ 抓到"纪律修正重测）。
 
-- [ ] 6.4 在受控模型服务上回归普通创建/result/prompt 入口（2h）；验证“旧创建设置及执行入口保持可达”，分别记录一次明确提交、原配置/费用门禁、结果进入概览和父记录未改写，不把既有执行行为算为 U5 验收。
+### 6.4（2026-09-22 完成）
+
+**新增** `test/controlled-entrances.test.ts`（**3** 条）——在**受控模型服务**上回归普通创建（`runCreate`）/ result fork（`runFork`）/ prompt fork（`runPromptFork`），三个入口**都不注入 llm**，让入口自行 new 真实 `OpenAiCompatClient`（baseURL 指向受控服务），用受控服务的请求日志逐条钉住「格式/次数/顺序」。desktop 全量 **1012 passed / 0 failed（50 文件）**（6.3 基线 1009，+3）。
+
+**逐入口覆盖（design「至少验证可达、原门禁和一次受控提交」）**：
+- **普通创建**：恰 1 次 SSE 提交（`stream:true`、空工具表、`/v1/chat/completions`），结果落盘 completed 且正文为受控响应、列表可见、预算门禁 `{max_total_tokens:100_000}` 如实录制、无 tmp 残留。
+- **result fork**：父 run 也经真实 `runLoop`+受控服务现造（2 次），fork 恰再多 1 次提交，工具表从父录制重建（read_file/write_file 进请求）、`config_hash` 与父一致、编辑后的 tool 消息带着新值进上下文、预算门禁保留、**父文件逐字节不变**、子 run 进概览。
+- **prompt fork**：编辑 `system_prompt` 从头重跑恰 1 次提交，编辑值进首条消息（system），子 run 进概览、**父文件逐字节不变**、预算门禁保留。
+
+⚠️ **诚实边界**：① 父 run 用真实客户端经受控服务现造，因此同一受控服务剧本按 FIFO 给"父+入口"各自供回合（combined script）。② 变异只打了预算门禁这一处**单点可变异**的判据（任务偏 HTTP 集成，proxied 的"一次提交/父未改写/config_hash"由 replay/sdk 内部保证，无干净单点可变异）——见下。③ 未做 CDP 实测（真实 GUI 点按钮走创建/分叉）——归 7.1/7.3；本任务用真实入口函数连真实客户端证明"入口真的连到配置的 baseURL 并恰提交一次"，不是手搓 fetch。
+
+✅ **变异验证 3 组全部被抓**（改→跑→`cp` 还原→恢复后 `md5sum` 与备份逐字一致）：① `run-create.ts` 预算 `100_000→50_000` ⇒ 创建预算断言 1 红；② `fork-runner.ts` `runFork` 预算 ⇒ result-fork 预算断言 1 红；③ `buildForkConfig` 预算 ⇒ prompt-fork 预算断言 1 红。两文件还原后 md5 均等于备份。
+
+**验证**：typecheck（node+web）绿（本任务只加 `test/` 文件，未触 bundle 源码 ⇒ `electron-vite build` / `release-check.mjs` / `openspec validate` 输出与 6.3 一致，未重跑——npx 在沙箱内被黑名单拦截）；biome 新文件干净；desktop 全量 1012 passed / 0 failed（50 文件）。
+
+- [x] 6.4 在受控模型服务上回归普通创建/result/prompt 入口（2h）；验证“旧创建设置及执行入口保持可达”，分别记录一次明确提交、原配置/费用门禁、结果进入概览和父记录未改写，不把既有执行行为算为 U5 验收。
 - [ ] 6.5 在受控服务上回归隔离创建/result 及只读预检（2h）；验证“旧创建设置及执行入口保持可达”“来源和隔离边界保持真实”，记录每次授权、多工具轮末及二次分叉，隔离 prompt/A-B 仍拒绝。
 - [ ] 6.6 回归代理设置/messages 重发与模型 A/B dry-run/真实执行入口（2h）；验证“旧创建设置及执行入口保持可达”“其它分叉形态不加缓存提示”，受控请求日志证明 dry-run 零请求，未捕获 key/配置缺失等原门禁保留。
 - [ ] 6.7 回归坏文件、未来版本、v1 非法隔离字段及现行缺祖先错误（1h）；验证“非法详情不被概览绕过”“列表刷新失败可重试”及主 spec“单个文件读取失败不阻塞列表”，正常运行继续可读，不吞校验异常为部分详情。
