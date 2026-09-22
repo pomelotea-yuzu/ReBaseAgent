@@ -10,8 +10,11 @@ import {
 import type { SpanNode } from "@shared/derive";
 import type { ForkCapabilityResult, ModelAbResult, ModelArmPlan, RunDetail } from "@shared/ipc";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { presentCacheHit, presentCacheMiss } from "../lib/cache-view";
 import type { IoView, StepDetailView as StepDetailViewData } from "../lib/call-detail-view";
 import { optionalSectionVisible, presentStepDetail, resolveIoView } from "../lib/call-detail-view";
+import type { ForkCacheHint } from "../lib/fork-cache-hint";
+import { forkCacheHint } from "../lib/fork-cache-hint";
 import { formatDuration, prettyJson } from "../lib/format";
 import {
   isIsolatedRun,
@@ -61,52 +64,58 @@ function KeyValue({ items }: { items: Array<[string, string]> }) {
 /**
  * 缓存命中行（前缀缓存生效与否的唯一可见证据）。
  *
- * 判据是**存在性**（`cache_hit !== undefined`）而不是 truthiness：`0` 是「本次全量计费」——
- * 恰是最该被看见的一态，用 `if (hit)` 会把它静默吞掉；只有**字段缺失**（老 trace / 不支持
- * 缓存的 provider）才整行省略，且不显示 0（未知 ≠ 零命中）。
- * `cache_hit > in` 属异常口径数据：按输入总量 clamp 并显式标注，不显示负值 / 超 100%。
+ * 判据与文案全部来自 `lib/cache-view.ts` 的纯函数 `presentCacheHit`——组件只负责把
+ * 结论摆成 DOM。这样做的原因：原先判据内联在组件里，本包无 jsdom ⇒ 改错打不红，
+ * 等于没有判据（spec 明写存在性而非 truthiness、`in=0` 不做除法、少量命中不得称全量）。
  */
-function CacheHitRow({
+export function CacheHitRow({
   usage,
 }: { usage: Extract<SpanLine, { kind: "llm.call" }>["response"]["usage"] }) {
-  const hit = usage.cache_hit;
-  if (hit === undefined) return null;
+  const view = presentCacheHit(usage);
+  if (view === null) return null;
 
-  const abnormal = hit > usage.in;
-  const shownHit = abnormal ? usage.in : hit;
-  // in === 0 时不做除法（防 0/0），只展示绝对 tokens
-  const percent = usage.in > 0 ? Math.round((shownHit / usage.in) * 100) : null;
-  const saved = percent !== null && percent >= 50;
-  // 措辞按命中量分档：0 命中才是"全量计费"，少量命中不能说成全量（省了就是省了）
-  const verdict =
-    hit === 0
-      ? "全量计费（无命中）"
-      : saved
-        ? "前缀缓存生效，本次调用省钱"
-        : "部分命中，多数输入仍按全价计费";
+  const miss = presentCacheMiss(usage);
+  const effective = view.tone === "effective";
 
   return (
     <div
       className={`mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] ${
-        saved ? "text-emerald-700" : "text-amber-700"
+        effective ? "text-emerald-700" : "text-amber-700"
       }`}
+      data-cache-tone={view.tone}
     >
       <span>缓存命中</span>
-      <span className="font-code">{shownHit}</span>
-      {percent === null ? null : (
+      <span className="font-code">{view.shownHit}</span>
+      {view.percent === null ? null : (
         <span>
-          / <span className="font-code">{usage.in}</span>（{percent}%）
+          / <span className="font-code">{view.input}</span>（{view.percent}%）
         </span>
       )}
-      {usage.cache_miss === undefined ? null : (
+      {miss === null ? null : (
         <span>
-          · miss <span className="font-code">{usage.cache_miss}</span>
+          · miss <span className="font-code">{miss}</span>
         </span>
       )}
-      <span>{verdict}</span>
-      {abnormal ? (
-        <span className="text-red-600">⚠️ 命中数大于输入总量，已按输入总量截断（数据异常）</span>
-      ) : null}
+      <span>{view.verdict}</span>
+      {view.abnormalNote === null ? null : (
+        <span className="text-red-600">{view.abnormalNote}</span>
+      )}
+    </div>
+  );
+}
+
+/**
+ * tool_result 分叉编辑器的缓存提示块（纯展示）。
+ *
+ * 抽成独立导出组件的原因：原先这段是 `ForkEditor`（重度依赖 store）内部的一块 JSX，
+ * 本包无 jsdom ⇒ 「提示到底渲染不渲染」在组件层断言不到（把分支改成永不渲染也不会红）。
+ * 现在判据在 `lib/fork-cache-hint.ts`、渲染在这里，两层各自可单独喂数据。
+ */
+export function ForkCacheHintView({ hint }: { hint: ForkCacheHint | null }) {
+  if (hint === null) return null;
+  return (
+    <div className="mt-1 text-[11px] leading-4 text-amber-700" data-fork-cache-hint="tool-result">
+      {hint.text}
     </div>
   );
 }
@@ -1224,8 +1233,9 @@ function ForkEditor({
     [run.spans, span.id],
   );
   const configModel = settings?.model ?? null;
-  // 只有 tool_result 分叉共享前缀，缓存提示才有意义（prompt fork / 代理 messages 分叉不加）
-  const modelMismatch = parentModel !== null && configModel !== null && parentModel !== configModel;
+  // 只有 tool_result 分叉共享前缀，缓存提示才有意义（prompt fork / 代理 messages 分叉不加）。
+  // 判据与文案都在 lib 纯函数里，本组件只负责"说不说这句话"。
+  const cacheHint = forkCacheHint({ kind: "tool-result", parentModel, configModel });
 
   const original = toolMessageText(span);
   const unchanged = value === original;
@@ -1366,13 +1376,7 @@ function ForkEditor({
         </div>
       ) : null}
 
-      {modelMismatch ? (
-        <div className="mt-1 text-[11px] leading-4 text-amber-700">
-          父 run 该步使用 <span className="font-code">{parentModel}</span>，当前运行配置为{" "}
-          <span className="font-code">{configModel}</span>
-          ——前缀缓存可能不命中，计费口径可能变化（仅提示，不阻止重跑）。
-        </div>
-      ) : null}
+      <ForkCacheHintView hint={cacheHint} />
 
       {isolated ? (
         <div className="mt-2 rounded border border-violet-200 bg-white px-2 py-1.5">

@@ -328,7 +328,25 @@
   - ⚠️ **两处变异不红，均为已知且诚实登记的盲区**：① `MonacoEditors.tsx` 的 `const ready = useMonacoReady()` 改成 `const ready = true` **不红**——本包无 jsdom 且 `renderToStaticMarkup` 不跑 `useEffect`，组件测试永远只到占位层，`useMonacoReady` 的真实门控打不到（真实加载时机归 7.x CDP；静态契约只钉"文件里存在 `ensureMonaco()` 调用"这个接线，不钉"调用被等到了"）。② `MonacoEditor.tsx` 的 `if (!loaded)` 改成 `if (true)`（即永远渲染占位、真实环境永不显示编辑器）**不红**——同因。两者的共同边界是"接线对而行为错"，与 5.4/5.5 的诚实边界同款。
   - ⚠️ **设计修正（经测试暴露）**：`<Suspense>` 包懒组件在 `renderToStaticMarkup` 下会抛 "A component suspended while responding to synchronous input" ⇒ 静态渲染与懒边界根本不兼容。改为**显式状态门**（`useState(false)` + `useEffect` 里 import 成功后置位；未加载渲染 `MonacoFallback`），静态渲染下稳定得到占位、真实运行下正常渲染。同样地，`@monaco-editor/react` 的 `<Editor>`/`<DiffEditor>` **不透传 `data-*`**，故占位与实体两条路径的 DOM 锚点都由懒包装层 `editorAttrs` 负责——这也是 `test/workspace-file-view.test.ts` 的 `vi.mock("@monaco-editor/react")` 桩**被绕开**（懒边界内才是真 import 点）后仍能通过的原因。
   诚实边界：**未做** CDP 实测（真实进入编辑态后的 monaco 实例创建、worker 实际启动、diff 并排渲染与只读生效、`<details>` 真实开合后 echarts 的点选联动）——本包无 jsdom，静态契约与产物体积分析打不到运行时行为；归 7.1/7.3。`useMonacoReady` / 占位门的**运行时**正确性亦未覆盖（见上）。
-- [ ] 5.7 接回完整缓存展示与原模型变化提示（1h）；现有测试加组件检查覆盖“llm.call 详情展示缓存命中”“零命中仍展示为全量计费”“少量命中不得被称为全量计费”“无缓存字段的调用降级”“tool_result 分叉的模型不一致提示”“其它分叉形态不加缓存提示”“输入为零与全未知缓存”。
+### 5.7（2026-09-22 完成）
+
+**新增** `src/renderer/src/lib/cache-view.ts`（`presentCacheHit` / `presentCacheMiss` / `CACHE_EFFECTIVE_PERCENT`）+ `src/renderer/src/lib/fork-cache-hint.ts`（`forkCacheHint` / `ForkKind` / `ForkCacheHint`）；**改** `components/DetailPanel.tsx`（`CacheHitRow` 改由纯判据驱动并导出、新增导出 `ForkCacheHintView`、`ForkEditor` 的 `modelMismatch` 局部判定换成 `forkCacheHint`）；**新增** `test/cache-display.test.ts`（**25 条**）。desktop 全量 **930 passed / 0 failed（46 文件）**（5.6 基线 905，+25）。
+
+本任务的实质是**把 5.1–5.6 期间已经落地的缓存/提示能力"补成可断言对象"**——功能本身已在前序任务实现，但判据长在重度依赖 store 的组件内部，本包无 jsdom ⇒ 改错不红（等于没有判据）。
+
+- **缓存命中行判据外提** `presentCacheHit(usage)`：返回 `{hit, input, shownHit, percent, tone, verdict, abnormalNote}`，`null` = 字段缺失（降级省略）。三条不许含糊对应 spec 三场景：① **存在性而非 truthiness**（`hit === undefined` 才返回 null，`0` 照常展示）；② **`in === 0` 不做除法**（`percent` 为 null，只给绝对 tokens）；③ **措辞按命中量分档**——只有 `hit === 0` 才是 `tone:"full"`「全量计费」，`< 50%` 是 `tone:"partial"`「部分命中，多数输入仍按全价计费」，二者**互不冒充**（spec 明令少量命中不得被称为全量计费）。`cache_hit > in` 按输入总量截断 + `abnormalNote` 显式标注。
+- **组件只摆 DOM**：`CacheHitRow` 从 store 无关的纯展示组件导出，`data-cache-tone` 落 DOM 供断言；`presentCacheMiss` 把「`cache_miss` 缺失 ≠ 0」也变成可断言对象。
+- **分叉提示判据外提** `forkCacheHint({kind, parentModel, configModel})`：**只有 `kind === "tool-result"`** 才可能给提示（prompt fork / 代理 messages 分叉直接 return null——spec 明令不加），且**任一模型为 null 不给**（未知 ≠ 不一致，不凭空说"可能不命中"）。提示带 `informational: true` 与「不阻止重跑」措辞，**不碰任何既有 fork 门禁**。渲染侧新增导出组件 `ForkCacheHintView`（`null` 时返回 null），`ForkEditor` 只负责 `forkCacheHint({kind:"tool-result", parentModel, configModel})` → `<ForkCacheHintView hint={cacheHint} />`。
+- 🐛 **变异⑩首轮漏网（重要教训，与 5.4 的"文案断言 ≠ 能力断言"同款）**：第一版只断言源码里存在字符串 `data-fork-cache-hint="tool-result"` 与 `{cacheHint.text}` ⇒ 把渲染分支改成 `{true ? null : (…)}`（**永不渲染**）**不红**。改为把提示块抽成导出组件 `ForkCacheHintView`，用 `renderToStaticMarkup` 做**能力断言**（给了 hint 就必须出现文本与锚点；`hint === null` 必须渲染空串）⇒ 复测被抓。**教训固化：凡是"这段 UI 到底渲染不渲染"，源码字符串断言一律无效，必须抽出可静态渲染的纯展示组件。**
+- ✅ **变异验证 11 组全部被抓**：① `hit === 0` 当假值返回 null ⇒ 4 红；② `tone` 不分档（partial 被写成 full）⇒ 3 红；③ `in=0` 仍做除法（造出 0/1 比例）⇒ 2 红；④ 无字段时以 0 冒充（降级失效）⇒ 2 红；⑤ `cache_miss` 缺失以 0 冒充 ⇒ 1 红；⑥ prompt fork 也加提示 ⇒ 2 红；⑦ 未知模型当成不一致 ⇒ 1 红；⑧ 模型一致时仍提示 ⇒ 1 红；⑨ `LlmCallDetailView` 不挂 `<CacheHitRow>` ⇒ 1 红；⑩ `<ForkCacheHintView>` 接线断开 ⇒ 1 红；⑪ `ForkCacheHintView` 恒不渲染 ⇒ 1 红。全部用备份 `cp` 还原（绝不用 `git checkout`），还原后 `md5sum -c` 三文件逐字一致。
+- 诚实边界：**未做** CDP 实测（`data-cache-tone` 对应的实际着色与视觉区分、真实点击分叉编辑器后的提示出现位置）——本包无 jsdom，静态契约与结构断言打不到样式渲染；归 7.1/7.3。**未覆盖** run 级累计在列表/概览的接线（5.3 与 `RunList` 已完成并各有测试，本任务只补 llm.call 详情侧与分叉提示侧）。
+
+- [x] 5.7 接回完整缓存展示与原模型变化提示（1h）；现有测试加组件检查覆盖“llm.call 详情展示缓存命中”“零命中仍展示为全量计费”“少量命中不得被称为全量计费”“无缓存字段的调用降级”“tool_result 分叉的模型不一致提示”“其它分叉形态不加缓存提示”“输入为零与全未知缓存”。
+
+  实现：**新增** `src/renderer/src/lib/cache-view.ts`（`presentCacheHit` 返回存在性判据 + 比例 + 三档 `tone` + 唯一 `verdict` 文案 + `abnormalNote`；`presentCacheMiss`；`CACHE_EFFECTIVE_PERCENT = 50`）与 `src/renderer/src/lib/fork-cache-hint.ts`（`forkCacheHint`：仅 tool-result 形态 ∧ 两模型皆知 ∧ 不一致才给，`informational: true`）；**改** `components/DetailPanel.tsx`（导出 `CacheHitRow` 并改由 `presentCacheHit` 驱动、落 `data-cache-tone`；新增导出 `ForkCacheHintView`；`ForkEditor` 删掉内联 `modelMismatch` 改用 `forkCacheHint({ kind: "tool-result", parentModel, configModel })`）；**新增** `test/cache-display.test.ts`（**25** 条，覆盖 spec 七条场景 + 门槛边界 + 异常数据 + 两组源码级接线契约 + `ForkCacheHintView` 能力断言）。
+
+  验证：typecheck（node+web）绿；desktop 全量 **930 passed / 0 failed（46 文件）**（5.6 基线 905，+25）；`biome check` 改动 4 文件干净；`electron-vite build` 通过（主 chunk 1,015.73 kB，**monaco 仍在懒 chunk**，5.6 的体积收益未回退）；`release-check.mjs` exit 0；`openspec validate --all --strict` 13/13。
+  变异验证 **11 组**（改→跑→`cp` 还原→`md5sum -c` 复核，三文件逐字一致）：①~⑤ 判据层（0 当假值 / tone 不分档 / `in=0` 做除法 / 无字段以 0 冒充 / `cache_miss` 以 0 冒充）；⑥~⑧ 提示层（prompt fork 也提示 / 未知当不一致 / 一致也提示）；⑨~⑪ 接线层（详情壳不挂缓存行 / 分叉编辑器不挂提示块 / `ForkCacheHintView` 恒不渲染）。**⑩ 首轮漏网已修**——见上文「教训固化」。
 
 ## 6. 旧能力接线与回归
 
