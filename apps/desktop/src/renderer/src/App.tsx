@@ -1,9 +1,11 @@
+import { PanelLeftOpen } from "lucide-react";
 import { useEffect, useState } from "react";
 import { BranchTree } from "./components/BranchTree";
 import { ComparePanel } from "./components/ComparePanel";
 import { CreateRunDialog } from "./components/CreateRunDialog";
 import { DetailPanel } from "./components/DetailPanel";
 import { GlobalBar } from "./components/GlobalBar";
+import { FOCUS_RING } from "./components/IconButton";
 import { OverviewPanel } from "./components/OverviewPanel";
 import { RunList } from "./components/RunList";
 import { NoRunsEmpty, RunHeader, RunWorkspace, resolveVisibleTab } from "./components/RunWorkspace";
@@ -83,15 +85,35 @@ export default function App() {
               <NoRunsEmpty onCreate={() => setCreateDialogOpen(true)} onRecord={openRecording} />
             ) : (
               <>
-                {/* 步骤目录（任务 4.3）：宽度可调 200–320；480px 二次约束不满足时自动收起 */}
-                {layout.stepsVisible ? (
+                {/*
+                 * 步骤目录（任务 5.4 · design D1）：**只在步骤页挂载**。
+                 *
+                 * 四条本挂载点负责的边界：
+                 *   1. 目录是**步骤页的一部分**，不是常驻第三栏——概览/文件页不挂（D1
+                 *      「文件模式不挂 SpanTree」「步骤：可收起目录 + 完整调用详情」；
+                 *      delta「文件承载区不附带步骤目录」）。
+                 *   2. 宽度可调 200–320；480px 二次约束由 `layout.stepsVisible` 判。
+                 *   3. `onToggleCollapsed` 走 `toggleStepsCollapsed`（**唯一**写偏好者）。
+                 *   4. 目录卸下时**当前调用身份不丢**（`selectedSpanId` 在 store，
+                 *      见 delta「窄窗口收起目录后保留当前调用身份」）。
+                 */}
+                {tab === "steps" && layout.stepsVisible ? (
                   <SpanTree
                     width={layout.stepsWidth}
                     onWidth={layout.setStepsWidth}
                     onWidthKey={layout.handleStepsKey}
+                    onToggleCollapsed={layout.toggleStepsCollapsed}
                   />
                 ) : null}
-                <WorkspaceShell />
+                <WorkspaceShell
+                  // 窄窗口/用户收起后「重新打开步骤目录」的入口（**在正文里**，不是树内部——
+                  // 目录都没挂载，入口自然不能在它里面）
+                  onOpenSteps={
+                    tab === "steps" && !layout.stepsVisible
+                      ? () => layout.setStepsOpened(true)
+                      : null
+                  }
+                />
               </>
             )}
           </>
@@ -111,19 +133,17 @@ export default function App() {
 }
 
 /**
- * 详情列外壳（任务 4.2 / 5.1）。
+ * 详情列外壳（任务 4.2 / 5.1 / 5.4）。
  *
  * 把「任务头 + 概览/步骤/文件页签 + 正文」从「详情列内部一个开关」上提为工作区承载：
  *   - 页签是**工作区级**的（同一 run 的概览 / 步骤 / 文件），不是详情列内部的局部开关
  *   - 「文件」页签只在合法隔离 run 上出现（`isIsolatedRun` 要求有效的 `meta.workspace`）
  *   - 页签状态进阅读状态（`readingByRun[runId].tab`），切运行再返回要恢复
  *   - **概览页有独立内容**（任务 5.1）：不再把"概览"当成"详情列的另一个名字"
- *
- * ⚠️ 本任务**不**把 SpanTree 从三栏里搬走（那是 5.4 的范围）：这里只承载正文，
- *    SpanTree 仍是左侧独立一栏。故 `steps` 在本壳里等价于既有的「轨迹」详情
- *    （步骤目录始终在左栏可见）。
+ *   - **步骤目录由 App 在 `tab === "steps"` 时挂载**（任务 5.4）：本壳只承载正文，
+ *     以及目录被收起时的「重新打开步骤目录」入口（`onOpenSteps`；null = 不显示入口）
  */
-function WorkspaceShell() {
+function WorkspaceShell({ onOpenSteps }: { onOpenSteps: (() => void) | null }) {
   const detail = useAppStore((s) => s.detail);
   const selectedRunId = useAppStore((s) => s.selectedRunId);
   const tab = useAppStore((s) =>
@@ -144,7 +164,36 @@ function WorkspaceShell() {
       isIsolated={isolated}
       header={<RunHeader />}
     >
+      {visible === "steps" && onOpenSteps !== null ? (
+        // 目录被收起（窄窗口或用户显式收起）时，正文顶部给一个真实可用的重开入口
+        <StepsDirectoryEntry onOpen={onOpenSteps} />
+      ) : null}
       {visible === "overview" ? <OverviewPanel /> : <DetailPanel />}
     </RunWorkspace>
+  );
+}
+
+/**
+ * 「重新打开步骤目录」入口（任务 5.4 · delta「保留...重新打开目录的入口」）。
+ *
+ * 目录收起后**当前调用身份仍保留**（`selectedSpanId` 在 store，卸载不丢）——
+ * 故这里只负责"把目录要回来"，不提示"选择会被重置"（那会是假承诺）。
+ * 收起是**临时**的：点这里走 `stepsOpened` 临时打开，不动用户偏好（D2）。
+ *
+ * ⚠️ 导出供测试直接渲染（本包无 jsdom，`renderToStaticMarkup` 只做静态结构断言）：
+ *    入口必须是**真实可点的 button**，不是一段说明文字。
+ */
+export function StepsDirectoryEntry({ onOpen }: { onOpen: () => void }) {
+  return (
+    <div className="border-b border-gray-200 px-4 py-1.5">
+      <button
+        type="button"
+        onClick={onOpen}
+        className={`inline-flex items-center gap-1.5 rounded px-2 py-1 text-reading-meta text-gray-600 hover:bg-gray-100 ${FOCUS_RING}`}
+      >
+        <PanelLeftOpen size={13} aria-hidden="true" focusable="false" role="presentation" />
+        <span>重新打开步骤目录</span>
+      </button>
+    </div>
   );
 }

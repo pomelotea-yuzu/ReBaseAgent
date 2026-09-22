@@ -289,7 +289,19 @@
 - 本任务**未接线**预算地图（归 5.6）与调用详情的完整缓存展示（归 5.7）。
 
 - [x] 5.3 实现概览本次指标、缓存覆盖与父本来源（1.5h）；fixture 验证“本次指标不累计共享前缀”“来源和隔离边界保持真实”“run 级累计现算”，祖先值不计本次、未知不补零、不将 tool_result 改动称为文件改动。
-- [ ] 5.4 调整 SpanTree 阅读承载、展开/选择分离和自有/继承标记（1.5h）；组件/CDP 验证“三步运行的树结构”“工具报错”“展开与调用选择互不干扰”“首次步骤选择与空轨迹”“继承轨迹与独立执行来源”。
+- [x] 5.4 调整 SpanTree 阅读承载、展开/选择分离和自有/继承标记（1.5h）；组件/CDP 验证“三步运行的树结构”“工具报错”“展开与调用选择互不干扰”“首次步骤选择与空轨迹”“继承轨迹与独立执行来源”。
+
+  实现（commit 见下）：
+  - **新增** `src/renderer/src/lib/span-tree-view.ts`（纯判据）：`SpanRowView`（行事实）、`stepLabel`（本地轮号，不累加）、`rowErrorKind`（tool 用 `error !== null` / llm 用 `error !== undefined`，两判据不合并）、`spanRowLabel`、`flattenSpanRows`（按 parent 扁平成行，depth 逐层递增；`expandedOf` **只影响是否下钻**，不碰选中）、`stepsEmptyCause`（两成因互斥，空轨迹优先）。
+  - **重写** `src/renderer/src/components/SpanTree.tsx`：`SpanRow` 为纯展示行——**展开按钮与选择按钮是两个独立按钮**（`aria-expanded` vs `aria-current`），展开只切展开、选择只改选中；继承行带「继承」文字标记；两类错误分别标「工具错误」/「LLM 错误」；空态按成因分流（`no-spans` 说「没有可展示的步骤」、`no-own-calls` 说明下方为继承前缀）。`SpanTreeRow` 递归透传 `depth`（**修复了初版 `depthOverride={0}` 恒为 0、树被拍平的缺陷**）。目录标题栏加收起控件（`onToggleCollapsed`）。
+  - **改** `src/renderer/src/App.tsx`：目录**只在步骤页挂载**（`tab === "steps" && layout.stepsVisible`）——概览/文件页不挂（delta「文件承载区不附带步骤目录」、design D1）；目录收起时正文顶部给「重新打开步骤目录」入口（`StepsDirectoryEntry`，走 `setStepsOpened(true)` **临时打开**，不写偏好），当前选中调用身份不丢（`selectedSpanId` 在 store）。
+  - **新增** `test/span-tree-view.test.ts`（**29** 条）：纯判据 + `SpanRow` 静态渲染 + `StepsDirectoryEntry` 渲染 + 外壳接线契约（源码级）。
+
+  验证：typecheck（node+web）绿；desktop 全量 **819 passed / 0 failed（43 文件）**（5.3 基线 790，+29）；`biome check` 改动 4 文件干净；`electron-vite build` 通过；`openspec validate --all --strict` 13/13。
+  变异验证 **9 组**（改→跑→`cp` 还原→`md5sum` 复核，全部还原）：①`stepLabel` 累加 ⇒ 3 红；②`rowErrorKind` llm 改用 `!== null` ⇒ 1 红；③`own` 恒真 ⇒ 2 红；④`depth` 不递增 ⇒ 2 红（正是初版缺陷）；⑤`stepsEmptyCause` 判序颠倒 ⇒ 2 红；⑥展开按钮 aria-label 固定 ⇒ 1 红；⑦去掉步骤页门控 ⇒ 1 红；⑧**首轮漏网**——重开入口只断言了文案 `toContain("重新打开步骤目录")`，改文案不红 ⇒ **已改为断言接线表达式**（`tab === "steps" && !layout.stepsVisible` + `setStepsOpened(true)` + 不得走 `toggleStepsCollapsed`）并导出组件直接渲染 ⇒ 复测 1 红；⑨去掉继承标记渲染 ⇒ 1 红。
+  诚实边界：**未做** CDP 实测（真实点击展开/选中后详情替换、窄窗口重开入口的实际滚动/焦点）——本包无 jsdom，静态契约打不到；归 7.1/7.3。⚠️ 本任务**未**合并 `DetailPanel` 内部遗留的 `trajectory`/`files` 局部 tab（与工作区页签并存），该收口归后续任务。
+  ⚠️ 本地 `biome check .` 会报 `docs/**/*.json`（未跟踪，CI 上不存在）与 `apps/desktop/src/shared/list-refresh.ts`（**工作副本 CRLF 假报**：git blob 实为 LF，CI 新克隆不受影响）——**均非本任务引入**，未改。
+
 - [ ] 5.5 整理调用详情的输入/输出、原始字段与就近查找/复制（2h）；fixture/CDP 验证“推理模型的思维链”“工具调用详情”“长请求和原始字段完整可读”，不丢 request.tools/params、reasoning、tool_calls 或耗时字段。
 - [ ] 5.6 接回预算地图、失败解释及已有编辑器（1.5h）；验证“预算和错误能力迁移后可达”及主 spec“预算地图与聚合一致”“选中数据点联动详情”“超限终止被标注”“无预算信息的老文件”“编辑态才加载编辑器”，保留整条轨迹预算口径。
 - [ ] 5.7 接回完整缓存展示与原模型变化提示（1h）；现有测试加组件检查覆盖“llm.call 详情展示缓存命中”“零命中仍展示为全量计费”“少量命中不得被称为全量计费”“无缓存字段的调用降级”“tool_result 分叉的模型不一致提示”“其它分叉形态不加缓存提示”“输入为零与全未知缓存”。
