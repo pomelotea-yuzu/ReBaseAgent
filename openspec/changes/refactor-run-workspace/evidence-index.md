@@ -14,8 +14,8 @@
 - **证据**优先是**可执行的用例**（`测试文件 › 用例名`，行号不写、定位以用例名为准）；
   纯静态约束显式写"静态"。
 - **测试**默认指 `apps/desktop/test/*.test.ts`（renderer/store/derive）；`packages/*/test` 见「由既有义务迁入的核对」。
-- **CDP** 指 `apps/desktop/scripts/u1-7{1,1b,2,2b,3,4}-*.cjs`，各脚本头注释写明其验证意图；截图/测量落在
-  gitignored `.workbuddy/u1-7*/`，归档用截图落在已跟踪草图目录 `docs/reviews/2026-09-22-u1-7*/`。
+- **CDP** 指 `apps/desktop/scripts/u1-7{1,1b,2,2b,3,4}-*.cjs`，各脚本头注释写明其验证意图；测量 JSON 统归
+  gitignored `.workbuddy/u1-7-refs/`（按序号前缀命名），归档用截图落在已跟踪草图目录 `docs/reviews/2026-09-22-u1-7*/`。
 - **§布局证据**单列：每条按 design D7 记录原生窗口边界（含单位）、应用 CSS 视口、工作区/详情实测宽、
   Electron zoomFactor、devicePixelRatio 与 D2 断点映射；右下角不把「仅某局部正文为 640px」当作极窄场景通过。
 - **fixture** 指 `.rebaseagent/u1-fixtures/`、`.rebaseagent/u1-lineage/`、`.rebaseagent/traces/*.jsonl`（真实 run）
@@ -51,7 +51,7 @@
 
 | # | scenario | 证据 |
 | --- | --- | --- |
-| 1 | 多份 trace 文件 | `run-list-nav.test.ts` ›「三条记录全部进列表，各自可辨」；`run-repository.test.ts` ›「四份 run 全部列出，按创建时间倒序」「单个文件损坏只隔离该文件，其余照常展示」；CDP `u1-74-snapshot`（`.workbuddy/u1-74/base.json`：58 份 trace 逐文件列出、哈希可信）；截图 `docs/reviews/2026-09-22-u1-71/01-*-runs.png` |
+| 1 | 多份 trace 文件 | `run-list-nav.test.ts` ›「三条记录全部进列表，各自可辨」；`run-repository.test.ts` ›「四份 run 全部列出，按创建时间倒序」「单个文件损坏只隔离该文件，其余照常展示」；CDP `u1-74-snapshot`（`.workbuddy/u1-7-refs/74-base.json`：58 份 trace 逐文件列出、哈希可信）；截图 `docs/reviews/2026-09-22-u1-71/01-*-runs.png` |
 | 2 | 崩溃的 run | `outcome.test.ts` ›「crashed（无终止事件）⇒ 运行中断，不当作执行中或读取错误」「crashed 即便残留 reason 也判中断」；`run-repository.test.ts` › 崩溃读取识别；fixture `.rebaseagent/u1-fixtures/u1-crashed.jsonl`（无终止事件）；CDP 列表截图「出错终止 / 运行中断」徽章 |
 | 3 | 封存状态不冒充正常结束 | `outcome.test.ts` ›「error ⇒ 出错终止，语义色为红（不是正常绿）」「max_iterations / budget_exceeded ⇒ 琥珀色限制」「aborted ⇒ 已中止」「completed 却无 reason ⇒ 结束原因未知」「工具曾出错后正常结束 ⇒ 仍判正常结束（错误是数据不是异常）」「未知 reason 保留原值」；`run-list-nav.test.ts` ›「步骤/工具错误数全在」；`compare-panel.test.ts` ›「五种 reason 结局与统一判据一致」「toolErrors>0 仍已结束」 |
 | 4 | 完整任务和 ID 搜索 | `nav.test.ts` ›「匹配任务片段（大小写不敏感）」「匹配完整 ID 片段」「来源过滤 + 搜索求交集」「不修改原 task」；`run-list-nav.test.ts` ›「长任务的截断之外片段仍可命中（搜索用原值，不用两行摘要）」「按完整 ID 搜索命中」 |
@@ -118,7 +118,7 @@
 | 1 | 首次打开与无运行入口 | `run-workspace.test.ts` ›「首次（无历史）进入概览」「尚未选择运行时如实说『尚未选择运行』」「空态渲染新建与录制两个按钮且都可点击，正好两个」「空态文案解释两条真实路径、不写营销话术」；`reading-resolve.test.ts` ›「默认页签为概览（D1）」；CDP 空/首访态 |
 | 2 | 文件承载区不附带步骤目录 | `run-workspace.test.ts` ›「正文槽承载 children（文件页里只有传入内容，不额外挂步骤目录）」「普通 run 没有文件页（不渲染出被选中的文件页）」；`span-tree-view.test.ts` ›「App 用 tab=steps 门控 SpanTree 挂载（概览/文件页不挂目录）」；`workspace-view.test.ts`/`workspace-file-view.test.ts`（A 段文件能力复核）；CDP `u1-71`/`u1-71b`：`files.shows步骤目录=false` + `files.hasWriteEntry=false`；截图 `04-*-files.png`、`06-*-isolated-steps.png` |
 | 3 | 旧创建设置及执行入口保持可达 | `run-workspace.test.ts` ›「App 层只挂一个 CreateRunDialog 单例（两处入口共用）」「GlobalBar 的新建运行写 store.createDialogOpen」「GlobalBar 的录制接入定位到代理分区」「SettingsDialog 消费 settingsSection 定位到代理分区并一次性清账」；`controlled-entrances.test.ts` ›「连到配置的 baseURL：恰一次 SSE 提交（空工具表）」「编辑 read_file result 重跑：恰一次提交、父文件逐字节不变」「编辑 system_prompt 从头重跑：恰一次提交」——**三条真实受控提交已落盘**；CDP `u1-73-keyboard-tools`：新建/录制/设置/代理按钮 title 与工具名称均在 | 
-| 4 | 阅读过程不修改已有数据 | CDP `u1-74-snapshot`（`.workbuddy/u1-74/base.json` → `read.json`）：阅读 5 个 run（概览+步骤）+ 隔离 v2/v1 文件世界后，**traces 58/58、workspace-blobs 6/6 逐文件哈希一致、文件数与字节数零变化、proxy 状态仍 stopped、执行入口仅新建/续跑**；`list-runs-perf.test.ts` ›「连续扫描不写任何文件：四份语料目录指纹逐字节不变，也不生成附件目录」；`workspace-view.test.ts` ›「完整浏览后数据目录指纹逐字节不变」（A 段复核） |
+| 4 | 阅读过程不修改已有数据 | CDP `u1-74-snapshot`（`.workbuddy/u1-7-refs/74-base.json` → `74-read.json`）：阅读 5 个 run（概览+步骤）+ 隔离 v2/v1 文件世界后，**traces 58/58、workspace-blobs 6/6 逐文件哈希一致、文件数与字节数零变化、proxy 状态仍 stopped、执行入口仅新建/续跑**；`list-runs-perf.test.ts` ›「连续扫描不写任何文件：四份语料目录指纹逐字节不变，也不生成附件目录」；`workspace-view.test.ts` ›「完整浏览后数据目录指纹逐字节不变」（A 段复核） |
 
 ### 8. 运行概览呈现自有结果与消耗（8，ADDED）
 
@@ -173,7 +173,7 @@
 ## §布局证据（design D7 逐层记录）
 
 > 下表每条同时给出**原生窗口边界（含单位）/ 应用 CSS 视口 / 工作区与详情实测宽 / Electron zoomFactor /
-> devicePixelRatio / D2 断点映射**。数据源为 gitignored `.workbuddy/u1-7*/measurements.json`（真实 Electron CDP），
+> devicePixelRatio / D2 断点映射**。数据源为 gitignored `.workbuddy/u1-7-refs/*-measurements.json`（真实 Electron CDP），
 > 非原型。**CSS 视口用 `documentElement.clientWidth`，不用含边框的原生窗口宽度；640px 视口映射 <720px 档
 > （single）；200% 缩放为独立用例，按缩放后实测视口判断点，不按原生标称尺寸推断。**
 

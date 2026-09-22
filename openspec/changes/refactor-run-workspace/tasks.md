@@ -549,7 +549,7 @@ dev 的 CDP 9222，无依赖 playwright，走原生 WebSocket。**抓到并修�
   1024 passed / 0 failed，typecheck/biome 绿。
 
 **两双档（1440×900 / 1360×860，100% 缩放 Emulation）补证全部通过（26/26）**，证据截图落
-`docs/reviews/2026-09-22-u1-71/`（首轮 `01-04`、二轮 `05-08`），测量落 `.workbuddy/u1-71b/measurements.json`：
+`docs/reviews/2026-09-22-u1-71/`（首轮 `01-04`、二轮 `05-08`），测量落 `.workbuddy/u1-7-refs/71b-measurements.json`：
 
 - **body 无横向溢出**：1440/1440、1360/1360（`body.scrollWidth <= clientWidth`）。
 - **DOM 逐层宽度**（`main` 直接子列，实测）：运行导航 `ASIDE@264px` / 步骤目录 `SECTION@232px` /
@@ -576,7 +576,7 @@ dev 的 CDP 9222，无依赖 playwright，走原生 WebSocket。**抓到并修�
 
 ### 7.2（2026-09-22 完成）
 
-真实 Electron + CDP 直连本地已起 dev（9222），脚本 `apps/desktop/scripts/u1-72-cdp.cjs`（窄档矩阵 + 自动折叠/恢复）与 `u1-72-zoom200.cjs`（200% 独立用例）。测得 **25/25 判据通过**，证据截图落 `docs/reviews/2026-09-22-u1-72/`（`a1-1024x768/800x600/640px-runs`、`b1-narrow-800-collapsed`、`b2-wide-restored`、`c1-zoom200-680px`），测量落 `.workbuddy/u1-72/measurements.json`：
+真实 Electron + CDP 直连本地已起 dev（9222），脚本 `apps/desktop/scripts/u1-72-cdp.cjs`（窄档矩阵 + 自动折叠/恢复）与 `u1-72-zoom200.cjs`（200% 独立用例）。测得 **25/25 判据通过**，证据截图落 `docs/reviews/2026-09-22-u1-72/`（`a1-1024x768/800x600/640px-runs`、`b1-narrow-800-collapsed`、`b2-wide-restored`、`c1-zoom200-680px`），测量落 `.workbuddy/u1-7-refs/72-measurements.json`：
 
 - **100% 窄档矩阵**（Emulation 应用 CSS 视口，dpr=2）：1024×768 / 800×600 / 640px 三档实测 `clientWidth` 均与目标一致，body **均无横向溢出**（`scrollWidth<=clientWidth`）。
   - 1024 → **medium**（≥960）：导航常驻（ASIDE@264px），详情列 760px 可读；
@@ -591,7 +591,7 @@ dev 的 CDP 9222，无依赖 playwright，走原生 WebSocket。**抓到并修�
 
 ### 7.3（2026-09-22 完成）
 
-真实 Electron + CDP 直连本地已起 dev（9222），脚本 `apps/desktop/scripts/u1-73-cdp.cjs`。测得 **22/22 判据通过**，证据截图落 `docs/reviews/2026-09-22-u1-73/`（`a1-tools-steps`、`b1-restore-r01-return`、`c1-error-located`、`d1-rapid-switch-final`），测量落 `.workbuddy/u1-73/measurements.json`。**16 次焦点巡览逐次记录 `document.activeElement`，全部为真实输入/点击，不只查 DOM 存在**：
+真实 Electron + CDP 直连本地已起 dev（9222），脚本 `apps/desktop/scripts/u1-73-cdp.cjs`。测得 **22/22 判据通过**，证据截图落 `docs/reviews/2026-09-22-u1-73/`（`a1-tools-steps`、`b1-restore-r01-return`、`c1-error-located`、`d1-rapid-switch-final`），测量落 `.workbuddy/u1-7-refs/73-measurements.json`。**16 次焦点巡览逐次记录 `document.activeElement`，全部为真实输入/点击，不只查 DOM 存在**：
 
 - **键盘导航及工具名称**：从全局栏起按 Tab 巡览 20 次，记录每个聚焦点（tags4/INPUT+各类按钮），每次聚焦的命令均带可访问名称（`title`/可见文字，如「轨迹/分支树/新建运行/复制完整 ID run_…」）⇐ 无名称按钮 0 例；r_01 步骤树里工具名称（`read_file`/`write_file`）在每行 `title=工具名` 可见。
 - **跨运行返回恢复阅读**：r_01 步骤页选中 `write_file`、折叠「第 3 轮」→ 切到 `run_muapnwud` → 切回 r_01：**页签恢复为步骤、仍选中 `write_file`（同身份不串到别的 run 同 ID span）、第 3 轮保持折叠**。
@@ -604,7 +604,7 @@ dev 的 CDP 9222，无依赖 playwright，走原生 WebSocket。**抓到并修�
 
 ### 7.4（2026-09-22 完成）
 
-独立只读哈希回归：`u1-74-snapshot.cjs` 建基线、`u1-74-cdp.cjs` 跑真实只读阅读循环并内联比对。**29/29 判据通过**，测量落 `.workbuddy/u1-74/`（`base.json` 基线、`read.json` 阅读循环+比对、`proxy-status.json`），证据截图落 `docs/reviews/2026-09-22-u1-74/`（read-*/file-*.png）。
+独立只读哈希回归：`u1-74-snapshot.cjs` 建基线、`u1-74-cdp.cjs` 跑真实只读阅读循环并内联比对。**29/29 判据通过**，测量落 `.workbuddy/u1-7-refs/`（`74-base.json` 基线、`74-read.json` 阅读循环+比对、`74-proxy-status.json`），证据截图落 `docs/reviews/2026-09-22-u1-74/`（read-*/file-*.png）。
 
 - **基线 + 复采哈希零变化**：阅读前后对 `.rebaseagent/traces/*.jsonl`（58 个）与 `.rebaseagent/workspace-blobs/**`（6 个隔离文件世界 blob，即“附件/源目录”）逐文件 SHA-256；阅读后**文件数不变（58/58、6/6）且全部既有文件哈希一致（0 变化）**。
 - **真实只读阅读循环**：打开普通 run（run_muapnwud/r_01/r_03）与隔离 run（run_muappa2a_gk7964/run_muapr3rp_vm52），逐一渲染概览/步骤、选中调用、展开预算地图（ECharts 懒加载）；隔离 v2 run 文件页选**后续检查点 + a.txt ⇒ 离线 Monaco 只读 diff 挂载**（初始 vs 第 2 轮结束，read-only）、隔离 v1 run 文件世界可读。
@@ -645,7 +645,7 @@ dev 的 CDP 9222，无依赖 playwright，走原生 WebSocket。**抓到并修�
 
 产出 [`evidence-index.md`](evidence-index.md)（change 根目录）：仿归档 C 段范式，**桌面验收收口**。逐场景覆盖两份 delta spec：
 
-- **desktop-ui（6 MODIFIED + 4 ADDED = 10 requirements / 55 scenarios）+ branch-tree（1 MODIFIED / 7 scenarios）= 11 requirements / 62 scenarios**，61 场景有真实可链接证据（`apps/desktop/test/*.test.ts` → 用例名、`.rebaseagent/u1-{fixtures,lineage}/` 夹具、`docs/reviews/2026-09-22-u1-7*/` 截图、`.workbuddy/u1-7*/measurements.json` 测量，CDP 一次性脚本在 `apps/desktop/scripts/u1-7*-*.cjs`）。
+- **desktop-ui（6 MODIFIED + 4 ADDED = 10 requirements / 55 scenarios）+ branch-tree（1 MODIFIED / 7 scenarios）= 11 requirements / 62 scenarios**，61 场景有真实可链接证据（`apps/desktop/test/*.test.ts` → 用例名、`.rebaseagent/u1-{fixtures,lineage}/` 夹具、`docs/reviews/2026-09-22-u1-7*/` 截图、`.workbuddy/u1-7-refs/*-measurements.json` 测量，CDP 一次性脚本在 `apps/desktop/scripts/u1-7*-*.cjs`）。
 - **布局证据按 design D7 逐层记录**：原生窗口 1360×860(px)、CSS 视口 1440/1360/1024/800/640 + 200% 缩放实测 680×425、各档工作区/详情实测宽（ASIDE 264/步骤 232/详情 944·864·760·800·640）、zoomFactor（1.0 / 2.0）、devicePixelRatio（2.0 / 4.0）、D2 断点映射（≥1280 wide / 960–1279 medium / 720–959 narrow / <720 single）；`u1-71` 的 Emulation 未生效差异由 `u1-71b` 补出真实 1440 档闭合；200% 断点按**缩放后实测视口**（680→single）判定而非原生标称；系统原生 DPI / 原生对话框未纳入外壳证据（归 7.1/7.2 诚实边界）。
 - **旧主 spec 回归项**逐条列出（崩溃 run / 来源过滤 / span 树 / 详情字段 / 视图切换 / 缓存全场景 / A 段文件只读 / 预算能力 / 四指标对照 / 版本守卫）并链接对应场景。
 - **U1 边界核对**：`review.md` 四节过渡行为（R1/U2 文件内部、R2/U3 草稿保留、R3–R5/U4 操作登记、R3/R4/R5/R10/R11/U5 统一执行工作流、R8–R9/U7 双运行输出比较、U6 部分读取）逐条确认**未交付、仍由后续 change 承担**，并新增「branch-tree 状态列+终止原因列拆分」为用户可见展示变更、需知悉（如需授权应走 branch-tree spec 修订）。
