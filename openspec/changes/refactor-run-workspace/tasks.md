@@ -531,6 +531,25 @@
 
 ## 7. 桌面验收与质量收口
 
+### 7.1（进行中 · 2026-09-22 首轮）
+
+真实 Electron + CDP 首轮已跑，**抓到并修复一个静态测试抓不到的关键崩溃**（独立提交 `…`）：
+
+- 🐛 **应用启动即崩**：`reading-state.ts` 的 `defaultReadingState()` 逐次 `new` ⇒ 未初始化 run 的
+  `useAppStore((s)=>s.readingOf(run).overviewExpanded)` 选择器每次返回新数组 ⇒ zustand v5
+  `useSyncExternalStore` getSnapshot 引用不稳 ⇒ `Maximum update depth exceeded`，整个渲染器
+  **root 不挂载（body 全空）**。7.1 真实 Electron 一跑即现。修法：默认值改为**模块级共享稳定常量**
+  （全部写路径走 immutable 的 `patch*`，从不原地改默认值）；并补 `reading-state.test.ts`「引用稳定」
+  回归（用 `.toBe` 钉同一引用）。desktop 全量 **1024 passed / 0 failed**（7.0 基线 1023，+1）。
+- 证据脚本 `apps/desktop/scripts/u1-71-cdp.cjs`（CDP 直连本地已起 dev，无依赖 playwright，走原生
+  WebSocket）——对每个 CSS 视口截图运行列表/概览/步骤/文件、记录 body 是否横向溢出、点选 run、
+  核对概览容器与隔离变体。首轮已产出 8 张截图与 `docs/reviews/2026-09-22-u1-71/`。
+
+**尚未勾完（继续 7.1 的开放项）**：① 精确 CSS 视口 1440×900/1360×860 的 Emulation 覆盖与
+Electron 窗口存在差异（实测落在 1360×860，按实测记录、未当产品门禁）；② 每一步骤的「长模型/空任务
+导航摘要」、离线 Monaco/ECharts 运行时、DOM 几何逐层宽度仍需在标准 run 上补证；③ 步骤/文件承载的
+截图与 Monaco 只读 diff 未在目标尺寸完证。**本条目暂不勾选**，连同 FILES 矩阵一起在后续轮次完成。
+
 - [ ] 7.1 在真实 Electron 完成宽窗口阅读矩阵（1.5h）；100% 缩放下应用 CSS 视口 1440×900、1360×860 的概览/步骤/文件承载截图、DOM 几何与实际点击覆盖“多尺寸与放大下关键阅读可达”“长模型和空任务的导航摘要”，按 design D7 记录各层宽度/缩放及离线 Monaco/ECharts 是否正常。
 - [ ] 7.2 完成窄窗口和缩放矩阵（1.5h）；100% 缩放下应用 CSS 视口 1024×768、800×600、640px 宽及独立 Electron 200% 缩放用例验证“多尺寸与放大下关键阅读可达”“自动折叠后恢复用户布局”；640px 视口对应 D2 的 <720px 档，放大后重新测量实际视口与正文，说明系统 DPI/原生目录框未覆盖项，不以局部正文宽度代替视口宽度。
 - [ ] 7.3 完成键盘与阅读往返操作（1h）；实测“键盘导航及工具名称”“跨运行返回恢复阅读”“显式错误定位优先于恢复”“快速切换及同运行重试不串响应”，按实际输入与焦点记录验收，不能只检查 DOM 存在。

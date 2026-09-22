@@ -50,17 +50,28 @@ export interface RunReadingState {
 /** 全部 run 的阅读状态（store 持有） */
 export type ReadingStateByRun = Record<string, RunReadingState>;
 
+/**
+ * 稳定的默认阅读状态（**共享冻结常量**，非逐次 new）。
+ *
+ * ⚠️ 7.1 真实 Electron 实测：逐次 `new` 会让"未访问过的 run"的 `readingOf(runId)` 选择器
+ *   每次返回**新引用**（`overviewExpanded` 是新建数组）⇒ zustand v5 `useSyncExternalStore`
+ *   getSnapshot 引用不稳 ⇒ 无限重渲（`Maximum update depth exceeded`），整个应用启动即崩。
+ *   zustand 订阅要求快照**引用稳定**；默认值对所有未初始化 run 共享同一实例即可（读多写少，
+ *   全部写路径都走 immutable 的 `patch*`/`reconcile` 新建对象，**从不原地改**默认值）。
+ */
+const DEFAULT_READING_STATE: RunReadingState = {
+  tab: "overview",
+  spanId: null,
+  expandedSteps: {},
+  overviewScrollTop: 0,
+  stepsScrollTop: 0,
+  overviewExpanded: [],
+  calls: {},
+};
+
 /** 新建一个 run 的默认阅读状态：首次访问进入概览（design D1） */
 export function defaultReadingState(): RunReadingState {
-  return {
-    tab: "overview",
-    spanId: null,
-    expandedSteps: {},
-    overviewScrollTop: 0,
-    stepsScrollTop: 0,
-    overviewExpanded: [],
-    calls: {},
-  };
+  return DEFAULT_READING_STATE;
 }
 
 /** 读取某 run 的阅读状态（不存在时返回默认值，不改动入参） */

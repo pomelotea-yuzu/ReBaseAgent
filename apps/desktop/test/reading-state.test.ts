@@ -36,6 +36,23 @@ describe("默认阅读状态与首次访问", () => {
     expect(state).toEqual(defaultReadingState());
     expect(byRun).toEqual({}); // 未被写入
   });
+
+  it("默认阅读状态**引用稳定**（7.1 崩溃回归：zustand getSnapshot 要求快照引用不变）", () => {
+    // 逐次 new 会让 useAppStore((s)=>s.readingOf(run).overviewExpanded) 在未初始化 run 上
+    // 每次返回新数组 ⇒ 无限重渲（Maximum update depth exceeded）。默认值必须是共享稳定实例。
+    expect(defaultReadingState()).toBe(defaultReadingState());
+    const byRun: ReadingStateByRun = {};
+    expect(readingStateOf(byRun, "run_a")).toBe(readingStateOf(byRun, "run_a"));
+    expect(readingStateOf(byRun, "run_b")).toBe(readingStateOf(byRun, "run_b"));
+    expect(readingStateOf(byRun, "run_a").overviewExpanded).toBe(
+      defaultReadingState().overviewExpanded,
+    );
+    // 已初始化 run 走 store 里 immutable 的对象（引用由 patch 新建，稳定）
+    byRun.run_c = { ...defaultReadingState(), tab: "steps" };
+    expect(readingStateOf(byRun, "run_c").overviewExpanded).toBe(byRun.run_c.overviewExpanded);
+    byRun.run_c = { ...byRun.run_c, overviewExpanded: ["k"] };
+    expect(readingStateOf(byRun, "run_c").overviewExpanded).toEqual(["k"]);
+  });
 });
 
 describe("按 run 隔离：相同 span ID 不串状态（关键反例）", () => {
