@@ -588,7 +588,19 @@ dev 的 CDP 9222，无依赖 playwright，走原生 WebSocket。**抓到并修�
 ⚠️ **诚实边界（按实测记录、未当产品门禁）**：① 真实 200% `zoomFactor`、rapid 系统 DPI 与原生目录框差异**未实测**——CDP 无法驱动已起 dev 的 `webContents.setZoomFactor`（无菜单、快捷键被拦）；200% 用例以“仿真有效视口 + 实测 clientWidth 判断点”完成，未冒充原生 `zoomFactor` 缩放。② Emulation 下 `Page.captureScreenshot` 偶发挂起（窗口遮挡使截图等不到帧），脚本以 `bringToFront + setFocusEmulationEnabled + 带超时重试` 兜底，非产品缺陷。③ 全矩阵读的是 `document.documentElement.clientWidth`（D2 断点口径），**不以局部正文宽度代替视口宽度**；640px 即整体 CSS 视口 640，非某列局部宽。④ 各档均只验证“多尺寸与放大下关键阅读可达”的**外壳**（导航/详情列/页签与正文在场、无横向溢出、autoSelectInitialRun 已选中可读对象），未逐档重放 Monaco/预算图等运行时深度（归 7.4/7.7）。
 
 - [x] 7.2 完成窄窗口和缩放矩阵（1.5h）；100% 缩放下应用 CSS 视口 1024×768、800×600、640px 宽及独立 Electron 200% 缩放用例验证“多尺寸与放大下关键阅读可达”“自动折叠后恢复用户布局”；640px 视口对应 D2 的 <720px 档，放大后重新测量实际视口与正文，说明系统 DPI/原生目录框未覆盖项，不以局部正文宽度代替视口宽度。
-- [ ] 7.3 完成键盘与阅读往返操作（1h）；实测“键盘导航及工具名称”“跨运行返回恢复阅读”“显式错误定位优先于恢复”“快速切换及同运行重试不串响应”，按实际输入与焦点记录验收，不能只检查 DOM 存在。
+
+### 7.3（2026-09-22 完成）
+
+真实 Electron + CDP 直连本地已起 dev（9222），脚本 `apps/desktop/scripts/u1-73-cdp.cjs`。测得 **22/22 判据通过**，证据截图落 `docs/reviews/2026-09-22-u1-73/`（`a1-tools-steps`、`b1-restore-r01-return`、`c1-error-located`、`d1-rapid-switch-final`），测量落 `.workbuddy/u1-73/measurements.json`。**16 次焦点巡览逐次记录 `document.activeElement`，全部为真实输入/点击，不只查 DOM 存在**：
+
+- **键盘导航及工具名称**：从全局栏起按 Tab 巡览 20 次，记录每个聚焦点（tags4/INPUT+各类按钮），每次聚焦的命令均带可访问名称（`title`/可见文字，如「轨迹/分支树/新建运行/复制完整 ID run_…」）⇐ 无名称按钮 0 例；r_01 步骤树里工具名称（`read_file`/`write_file`）在每行 `title=工具名` 可见。
+- **跨运行返回恢复阅读**：r_01 步骤页选中 `write_file`、折叠「第 3 轮」→ 切到 `run_muapnwud` → 切回 r_01：**页签恢复为步骤、仍选中 `write_file`（同身份不串到别的 run 同 ID span）、第 3 轮保持折叠**。
+- **显式错误定位优先于恢复**：r_03 先停在步骤首个 LLM 调用（形成历史位置）→ 回概览点工具错误「定位」→ **切到步骤页并选中错误工具 `read_file`（s_06，非历史 LLM 调用），父 step 展开**（截图可见第 2 轮展开 + 红色 `read_file 工具错误` + ENOENT 详情）。
+- **快速切换及同运行重试不串响应**：r_01→run_muapnwud→r_01→run_muapnwud 快速连点（每次仅隔 180ms）→ 等待收敛后**无错误残留、loadingDetail 收尾、最终页头为最后一次选中 run_muapnwud**（最终一致；深层乱序 Promise 时序由 `detail-request.test.ts` 10 条单测覆盖，本 CDP 环节验界面级收敛）。
+
+⚠️ **诚实边界（按实测记录、未当产品门禁）**：① 键盘巡览从**点击过的当前焦点**开始 Tab，覆盖全局栏/运行列表/步骤树的焦点序列；未逐一验证每一个弹层内（新建运行/设置）的完整 Tab 环（其焦点管理归弹层自身测试）。② 「同运行重试不串响应」的**快速切换**环节只验到界面级最终一致（最后一次选中胜出、无残留错误/加载态），未在载入期间人为钳制响应时序去复现并发竞态——那类时序由 `detail-request.test.ts` 的受控 deferred Promise 已覆盖；避免在真实 dev 上制造假延迟污染证据。③ 工具名称判定读的是 `button[title]` 与正文（`read_file`/`write_file`），未单独构造工具名含特殊字符/超长的用例。
+
+- [x] 7.3 完成键盘与阅读往返操作（1h）；实测“键盘导航及工具名称”“跨运行返回恢复阅读”“显式错误定位优先于恢复”“快速切换及同运行重试不串响应”，按实际输入与焦点记录验收，不能只检查 DOM 存在。
 - [ ] 7.4 独立执行只读哈希回归（1h）；验证“阅读过程不修改已有数据”及主 spec 文件只读场景，逐文件比较既有 trace/附件/源目录并核对模型请求数为零；主动执行新增文件在另一轮记录。
 - [ ] 7.5 运行包构建、desktop 类型检查及相关/全仓测试（1.5h）；按 build→typecheck→test 顺序保存结果，确认 replay CLI 测试实际运行，支持所有派生/store/既有执行回归场景，不能将缺 dist 导致的跳过算通过。
 - [ ] 7.6 运行 lint、OpenSpec 严格校验和 desktop build（1h）；执行 `pnpm check:lint`、`openspec validate --all --strict --no-interactive`、`pnpm --filter @rebaseagent/desktop build`，保存退出码，确认本次依赖/视图拆分可构建，不安排发行打包。
