@@ -1,0 +1,8 @@
+# 强制源码文本 LF：避免 Windows 系统级 core.autocrlf 把工作区检出成 CRLF，
+# biome（要求 LF）因此误报 format；仓库 blob 恒为 LF。仅作用于文本源码，不含二进制。
+*.ts text eol=lf
+*.tsx text eol=lf
+*.js text eol=lf
+*.cjs text eol=lf
+*.mjs text eol=lf
+*.json text eol=lf

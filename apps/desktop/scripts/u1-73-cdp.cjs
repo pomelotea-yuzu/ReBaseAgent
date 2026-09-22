@@ -46,13 +46,21 @@ function session(pageUrl) {
   const pending = new Map();
   ws.onmessage = (ev) => {
     const m = JSON.parse(ev.data);
-    if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); }
+    if (m.id && pending.has(m.id)) {
+      pending.get(m.id)(m);
+      pending.delete(m.id);
+    }
   };
   return new Promise((res, rej) => {
-    ws.onopen = () => res((method, params = {}) => new Promise((ok) => {
-      const i = ++id; pending.set(i, (m) => ok(m.result));
-      ws.send(JSON.stringify({ id: i, method, params }));
-    }));
+    ws.onopen = () =>
+      res(
+        (method, params = {}) =>
+          new Promise((ok) => {
+            const i = ++id;
+            pending.set(i, (m) => ok(m.result));
+            ws.send(JSON.stringify({ id: i, method, params }));
+          }),
+      );
     ws.onerror = rej;
   });
 }
@@ -60,14 +68,32 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 function call0(call, method, params) {
   return new Promise((ok, rej) => {
     let settled = false;
-    const timer = setTimeout(() => { if (!settled) { settled = true; rej(new Error("timeout " + method)); } }, 12000);
-    call(method, params).then((r) => { if (!settled) { settled = true; clearTimeout(timer); ok(r); } })
-      .catch((e) => { if (!settled) { settled = true; clearTimeout(timer); rej(e); } });
+    const timer = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        rej(new Error(`timeout ${method}`));
+      }
+    }, 12000);
+    call(method, params)
+      .then((r) => {
+        if (!settled) {
+          settled = true;
+          clearTimeout(timer);
+          ok(r);
+        }
+      })
+      .catch((e) => {
+        if (!settled) {
+          settled = true;
+          clearTimeout(timer);
+          rej(e);
+        }
+      });
   });
 }
 async function ev(call, expression) {
   const r = await call("Runtime.evaluate", { expression, returnByValue: true });
-  if (r?.exceptionDetails) throw new Error("eval: " + JSON.stringify(r.exceptionDetails));
+  if (r?.exceptionDetails) throw new Error(`eval: ${JSON.stringify(r.exceptionDetails)}`);
   return r.result?.value;
 }
 async function shot(call, name) {
@@ -80,13 +106,17 @@ async function shot(call, name) {
       const f = join(SHOT_DIR, name);
       writeFileSync(f, Buffer.from(data, "base64"));
       return f;
-    } catch (e) { last = e; await sleep(700); }
+    } catch (e) {
+      last = e;
+      await sleep(700);
+    }
   }
-  throw last ?? new Error("shot failed " + name);
+  throw last ?? new Error(`shot failed ${name}`);
 }
-const key = (call, props) => (Object.keys(props).length === 0
-  ? Promise.resolve()
-  : call0(call, "Input.dispatchKeyEvent", props).catch(() => {}));
+const key = (call, props) =>
+  Object.keys(props).length === 0
+    ? Promise.resolve()
+    : call0(call, "Input.dispatchKeyEvent", props).catch(() => {});
 async function tab(call) {
   await key(call, { type: "keyDown", key: "Tab", code: "Tab", windowsVirtualKeyCode: 9 });
   await key(call, { type: "keyUp", key: "Tab", code: "Tab", windowsVirtualKeyCode: 9 });
@@ -142,23 +172,31 @@ async function main() {
   mkdirSync(OUT, { recursive: true });
   const page = await connect();
   const call = await session(page.webSocketDebuggerUrl);
-  await call("Page.enable"); await call("Runtime.enable");
+  await call("Page.enable");
+  await call("Runtime.enable");
   await call("Page.bringToFront").catch(() => {});
   await call("Emulation.setFocusEmulationEnabled", { enabled: true }).catch(() => {});
   await call("Emulation.clearDeviceMetricsOverride");
   await sleep(400);
-  await call("Page.reload"); await sleep(2400);
+  await call("Page.reload");
+  await sleep(2400);
   await call("Emulation.setFocusEmulationEnabled", { enabled: true }).catch(() => {});
   await call("Page.bringToFront").catch(() => {});
   const m = {};
+  /** 新建/取某场景的测量对象（避免在表达式里赋值触发 lint/noAssignInExpressions） */
+  const sec = (key) => {
+    if (!m[key]) m[key] = {};
+    return m[key];
+  };
 
   // ─────────── A. 键盘导航及工具名称 ───────────
   if (only === "" || only === "tools") {
-    const A = (m["keyboard-tools"] = {});
+    const A = sec("keyboard-tools");
     // 选 r_01（含工具 read_file/write_file）
     check("选中含工具调用的 r_01", (await ev(call, selectRunExpr("r_01"))) === true);
     await sleep(1500);
-    await ev(call, stepsTabExpr); await sleep(1200);
+    await ev(call, stepsTabExpr);
+    await sleep(1200);
     // 键盘巡览：从当前焦点开始按 Tab 20 次，记录每次聚焦控件是否有名称
     const focusLog = [];
     for (let i = 0; i < 20; i++) {
@@ -168,107 +206,177 @@ async function main() {
     }
     A.focusLog = focusLog;
     const noName = focusLog.filter((d) => d.tag === "BUTTON" && !d.hasName && !d.aria && !d.text);
-    check("Tab 能移动焦点（≥5 个不同聚焦点）", new Set(focusLog.map((d) => d.tag + (d.aria || d.text))).size >= 5,
-      `${focusLog.length} 次聚焦记录`);
-    check("每次聚焦的按钮都有名称/可见文字", noName.length === 0, noName.length ? `无名称: ${JSON.stringify(noName.slice(0, 3))}` : undefined);
+    check(
+      "Tab 能移动焦点（≥5 个不同聚焦点）",
+      new Set(focusLog.map((d) => d.tag + (d.aria || d.text))).size >= 5,
+      `${focusLog.length} 次聚焦记录`,
+    );
+    check(
+      "每次聚焦的按钮都有名称/可见文字",
+      noName.length === 0,
+      noName.length ? `无名称: ${JSON.stringify(noName.slice(0, 3))}` : undefined,
+    );
     // 工具名称可见：r_01 步骤树里应能看到 read_file / write_file
-    const toolVisible = await ev(call, `(() => JSON.stringify((document.body.innerText||'').match(/read_file|write_file/g)))()`);
-    check("工具名称（工具行的 title=工具名）可见", /read_file/.test(toolVisible) && /write_file/.test(toolVisible),
-      toolVisible.replace(/,/g, " "));
+    const toolVisible = await ev(
+      call,
+      `(() => JSON.stringify((document.body.innerText||'').match(/read_file|write_file/g)))()`,
+    );
+    check(
+      "工具名称（工具行的 title=工具名）可见",
+      /read_file/.test(toolVisible) && /write_file/.test(toolVisible),
+      toolVisible.replace(/,/g, " "),
+    );
     await shot(call, "a1-tools-steps.png");
   }
 
   // ─────────── B. 跨运行返回恢复阅读 ───────────
   if (only === "" || only === "restore") {
-    const B = (m["cross-run-restore"] = {});
+    const B = sec("cross-run-restore");
     // A=r_01：先到步骤，选中 write_file，然后折叠「第 2 轮」步骤
-    check("B-选 r_01", (await ev(call, selectRunExpr("r_01"))) === true); await sleep(1500);
-    await ev(call, stepsTabExpr); await sleep(1200);
+    check("B-选 r_01", (await ev(call, selectRunExpr("r_01"))) === true);
+    await sleep(1500);
+    await ev(call, stepsTabExpr);
+    await sleep(1200);
     const selW = await ev(call, selectRowByTitleExpr("write_file"));
-    check("B-在 r_01 选中 write_file 调用", selW === true, "设置阅读位置"); await sleep(900);
+    check("B-在 r_01 选中 write_file 调用", selW === true, "设置阅读位置");
+    await sleep(900);
     const rowA = JSON.parse(await ev(call, `JSON.stringify(${currentRowExpr})`));
     B.rowA = rowA;
     check("B-当前选中行=write_file（阅读位置落库）", rowA?.title === "write_file", rowA?.title);
     const folded = await ev(call, toggleStepExpr("第 3 轮"));
-    check("B-折叠「第 3 轮」步骤", folded === true, "展开态进入阅读状态"); await sleep(700);
+    check("B-折叠「第 3 轮」步骤", folded === true, "展开态进入阅读状态");
+    await sleep(700);
     // 切到 B=run_muapnwud（无工具），再切回 r_01
-    check("B-切到 run_muapnwud", (await ev(call, selectRunExpr("run_muapnwud"))) === true); await sleep(1400);
-    check("B-切回 r_01", (await ev(call, selectRunExpr("r_01"))) === true); await sleep(1500);
+    check("B-切到 run_muapnwud", (await ev(call, selectRunExpr("run_muapnwud"))) === true);
+    await sleep(1400);
+    check("B-切回 r_01", (await ev(call, selectRunExpr("r_01"))) === true);
+    await sleep(1500);
     // 恢复的阅读位置：应该仍在步骤页、选中 write_file、第 3 轮保持折叠
     const restored = {
-      tabSteps: await ev(call, `(() => { const t=document.querySelector('[role="tab"][aria-selected="true"]'); return t ? (t.textContent||'').trim() : null; })()`),
+      tabSteps: await ev(
+        call,
+        `(() => { const t=document.querySelector('[role="tab"][aria-selected="true"]'); return t ? (t.textContent||'').trim() : null; })()`,
+      ),
       row: JSON.parse(await ev(call, `JSON.stringify(${currentRowExpr})`)),
-      step3Expanded: await ev(call, `(() => { const b=Array.from(document.querySelectorAll('[aria-label]')).find(x=>(x.getAttribute('aria-label')||'').startsWith('折叠该步骤') && (x.closest('div')?.textContent||'').includes('第 3 轮')); return b ? true : false; })()`),
+      step3Expanded: await ev(
+        call,
+        `(() => { const b=Array.from(document.querySelectorAll('[aria-label]')).find(x=>(x.getAttribute('aria-label')||'').startsWith('折叠该步骤') && (x.closest('div')?.textContent||'').includes('第 3 轮')); return b ? true : false; })()`,
+      ),
     };
     B.restored = restored;
     check("B-返回 r_01 恢复页签=步骤", restored.tabSteps === "步骤", restored.tabSteps);
-    check("B-返回恢复选中 write_file（同身份不串）", restored.row?.title === "write_file", restored.row?.title);
-    check("B-第 3 轮保持折叠（展开态被恢复）", restored.step3Expanded === false, "折叠状态不被展开");
+    check(
+      "B-返回恢复选中 write_file（同身份不串）",
+      restored.row?.title === "write_file",
+      restored.row?.title,
+    );
+    check(
+      "B-第 3 轮保持折叠（展开态被恢复）",
+      restored.step3Expanded === false,
+      "折叠状态不被展开",
+    );
     await shot(call, "b1-restore-r01-return.png");
   }
 
   // ─────────── C. 显式错误定位优先于恢复 ───────────
   if (only === "" || only === "error") {
-    const C = (m["error-location-priority"] = {});
+    const C = sec("error-location-priority");
     // r_03 概览有「工具错误」区（row s_06 read_file 错误）+「定位」按钮（显式错误定位）
-    check("C-选 r_03（含工具错误）", (await ev(call, selectRunExpr("r_03"))) === true); await sleep(1500);
-    await ev(call, stepsTabExpr); await sleep(1200);
+    check("C-选 r_03（含工具错误）", (await ev(call, selectRunExpr("r_03"))) === true);
+    await sleep(1500);
+    await ev(call, stepsTabExpr);
+    await sleep(1200);
     // 先停在某个非失败调用（第一个 LLM 调用），形成"历史恢复位置"
     const stop = await ev(call, selectRowByTitleExpr("LLM 调用"));
-    check("C-先在步骤页选 LLM 调用（形成历史位置）", stop === true); await sleep(900);
+    check("C-先在步骤页选 LLM 调用（形成历史位置）", stop === true);
+    await sleep(900);
     const histRow = JSON.parse(await ev(call, `JSON.stringify(${currentRowExpr})`));
     C.histRow = histRow;
     // 回概览，再点「定位」（工具错误的显式定位；目标 s_06 read_file）
-    await ev(call, overviewExpr); await sleep(900);
-    const errBtn = await ev(call, `(() => {
+    await ev(call, overviewExpr);
+    await sleep(900);
+    const errBtn = await ev(
+      call,
+      `(() => {
       const sec = Array.from(document.querySelectorAll('section[aria-label="工具错误"]'))[0];
       const b = sec ? sec.querySelector('button') : null;
       if (b && (b.textContent||'').trim() === '定位') { b.click(); return true; }
       const any = Array.from(document.querySelectorAll('button')).find(x => (x.textContent||'').trim() === '定位');
       if (any) { any.click(); return true; }
       return false;
-    })()`);
-    check("C-点工具错误「定位」按钮（显式错误定位）", errBtn === true); await sleep(1500);
+    })()`,
+    );
+    check("C-点工具错误「定位」按钮（显式错误定位）", errBtn === true);
+    await sleep(1500);
     const after = {
-      tab: await ev(call, `(() => { const t=document.querySelector('[role="tab"][aria-selected="true"]'); return t ? (t.textContent||'').trim() : null; })()`),
+      tab: await ev(
+        call,
+        `(() => { const t=document.querySelector('[role="tab"][aria-selected="true"]'); return t ? (t.textContent||'').trim() : null; })()`,
+      ),
       row: JSON.parse(await ev(call, `JSON.stringify(${currentRowExpr})`)),
     };
     C.after = after;
     check("C-显式错误定位切到步骤页（覆盖历史概览位置）", after.tab === "步骤", after.tab);
-    check("C-选中跳到显式目标（错误工具 read_file s_06，非历史第一个 LLM 调用）",
-      after.row?.title === "read_file", after.row?.title);
+    check(
+      "C-选中跳到显式目标（错误工具 read_file s_06，非历史第一个 LLM 调用）",
+      after.row?.title === "read_file",
+      after.row?.title,
+    );
     check("C-坏的调用所在 step 已展开（s_06 之父 s_04 展开）", true);
     await shot(call, "c1-error-located.png");
   }
 
   // ─────────── D. 快速切换及同运行重试不串响应 ───────────
   if (only === "" || only === "switch") {
-    const D = (m["rapid-switch"] = {});
+    const D = sec("rapid-switch");
     // 快速 A→B→A→B（连点不等加载）；最后应落 B，loadingDetail 收尾、无错误残留
-    const seq = [["r_01", "B选A1"], ["run_muapnwud", "B选B1"], ["r_01", "B选A2"], ["run_muapnwud", "B选B2"]];
+    const seq = [
+      ["r_01", "B选A1"],
+      ["run_muapnwud", "B选B1"],
+      ["r_01", "B选A2"],
+      ["run_muapnwud", "B选B2"],
+    ];
     for (const [id, name] of seq) {
       await ev(call, selectRunExpr(id));
       await sleep(180);
     }
     await sleep(2200);
-    const head = await ev(call, `(() => { const h=document.querySelector('header'); return h ? (h.innerText||'').slice(-40) : null; })()`);
+    const head = await ev(
+      call,
+      `(() => { const h=document.querySelector('header'); return h ? (h.innerText||'').slice(-40) : null; })()`,
+    );
     const st = await ev(call, `JSON.stringify(${bgStatusExpr})`).then(JSON.parse);
-    D.headtail = head; D.status = st;
+    D.headtail = head;
+    D.status = st;
     check("D-快速切换后无错误残留", st.hasErr === false);
     check("D-快速切换后 loadingDetail 收尾（无加载中）", st.loading === false);
-    const nowSelected = await ev(call, `(() => { const b=document.activeElement; return b ? (b.closest('[data-run-id]')?.getAttribute('data-run-id')||b.closest('li')?.getAttribute('data-run-id')||null) : null; })()`);
+    const nowSelected = await ev(
+      call,
+      `(() => { const b=document.activeElement; return b ? (b.closest('[data-run-id]')?.getAttribute('data-run-id')||b.closest('li')?.getAttribute('data-run-id')||null) : null; })()`,
+    );
     D.lastSelectedExplicit = nowSelected;
     // 再次切到 r_01 并确认列表里 aria-pressed 选中与最终详情一致：直接断言页头 run id 非 run_muapnwud
-    check("D-最终选中=最后一次切换目标（run_muapnwud）且详情一致",
-      /run_muapnwud/.test(head ?? ""), `页头尾部=${(head ?? "").slice(-24)}`);
+    check(
+      "D-最终选中=最后一次切换目标（run_muapnwud）且详情一致",
+      /run_muapnwud/.test(head ?? ""),
+      `页头尾部=${(head ?? "").slice(-24)}`,
+    );
     await shot(call, "d1-rapid-switch-final.png");
   }
 
   await call("Emulation.clearDeviceMetricsOverride");
-  writeFileSync(join(OUT, "measurements.json"), JSON.stringify({ m, checks, capturedAt: new Date().toISOString() }, null, 2));
+  writeFileSync(
+    join(OUT, "measurements.json"),
+    JSON.stringify({ m, checks, capturedAt: new Date().toISOString() }, null, 2),
+  );
   console.log(`\n完成：${checks.length - failed}/${checks.length} 通过；证据 ${SHOT_DIR}`);
-  if (failed) { process.exit(1); }
+  if (failed) {
+    process.exit(1);
+  }
   process.exit(0);
 }
 
-main().catch((e) => { console.error(e); process.exit(1); });
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

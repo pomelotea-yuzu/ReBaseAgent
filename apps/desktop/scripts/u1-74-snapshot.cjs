@@ -20,18 +20,25 @@ function* walk(dir) {
     else if (entry.isFile()) yield full;
   }
 }
-function sha256(file) { return createHash("sha256").update(readFileSync(file)).digest("hex"); }
+function sha256(file) {
+  return createHash("sha256").update(readFileSync(file)).digest("hex");
+}
 
 const out = {};
 for (const scope of SCOPES) {
   const root = join(DATA, scope);
-  if (!existsSync(root)) { console.error("missing scope", scope); process.exit(1); }
+  if (!existsSync(root)) {
+    console.error("missing scope", scope);
+    process.exit(1);
+  }
   const map = {};
-  let count = 0; let bytes = 0;
+  let count = 0;
+  let bytes = 0;
   for (const file of walk(root)) {
     const rel = relative(DATA, file).replace(/\\/g, "/");
     map[rel] = sha256(file);
-    count++; bytes += statSync(file).size;
+    count++;
+    bytes += statSync(file).size;
   }
   out[scope] = { fileCount: count, bytes, files: map };
 }
@@ -39,4 +46,6 @@ out.meta = { dataDir: DATA, scopes: SCOPES, at: new Date().toISOString() };
 
 const destArg = process.argv[2];
 writeFileSync(destArg ?? "ROC.hash.json", JSON.stringify(out, null, 2));
-console.log(`snapshot: traces=${out.traces.fileCount} files/${out.traces.bytes}B, workspace-blobs=${out["workspace-blobs"].fileCount} files/${out["workspace-blobs"].bytes}B`);
+console.log(
+  `snapshot: traces=${out.traces.fileCount} files/${out.traces.bytes}B, workspace-blobs=${out["workspace-blobs"].fileCount} files/${out["workspace-blobs"].bytes}B`,
+);

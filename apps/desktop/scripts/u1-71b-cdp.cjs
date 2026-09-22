@@ -38,8 +38,11 @@ function check(name, ok, detail) {
   checks.push({ name, ok: ok === true, detail: detail ?? null });
   console.log(`${ok === true ? "✓" : "✗"} ${name}${detail === undefined ? "" : ` — ${detail}`}`);
 }
-const record = (size, key, value) => measurements[size][key] = value;
 const measurements = {};
+const record = (size, key, value) => {
+  measurements[size][key] = value;
+  return value;
+};
 
 async function connect() {
   const pages = await fetch("http://127.0.0.1:9222/json/list").then((r) => r.json());
@@ -53,20 +56,31 @@ function session(pageUrl) {
   const pending = new Map();
   ws.onmessage = (ev) => {
     const m = JSON.parse(ev.data);
-    if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); }
+    if (m.id && pending.has(m.id)) {
+      pending.get(m.id)(m);
+      pending.delete(m.id);
+    }
   };
   return new Promise((res, rej) => {
-    ws.onopen = () => res((method, params = {}) => new Promise((ok) => {
-      const i = ++id; pending.set(i, (m) => ok(m.result));
-      ws.send(JSON.stringify({ id: i, method, params }));
-    }));
+    ws.onopen = () =>
+      res(
+        (method, params = {}) =>
+          new Promise((ok) => {
+            const i = ++id;
+            pending.set(i, (m) => ok(m.result));
+            ws.send(JSON.stringify({ id: i, method, params }));
+          }),
+      );
     ws.onerror = rej;
   });
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function ev(call, expression) {
-  const { result, exceptionDetails } = await call("Runtime.evaluate", { expression, returnByValue: true });
-  if (exceptionDetails) throw new Error("eval: " + JSON.stringify(exceptionDetails));
+  const { result, exceptionDetails } = await call("Runtime.evaluate", {
+    expression,
+    returnByValue: true,
+  });
+  if (exceptionDetails) throw new Error(`eval: ${JSON.stringify(exceptionDetails)}`);
   return result.value;
 }
 async function shot(call, name) {
@@ -107,34 +121,50 @@ async function main() {
   for (const size of SIZES) {
     measurements[size] = {};
     const [w, h] = size.split("x").map(Number);
-    await call("Emulation.setDeviceMetricsOverride", { width: w, height: h, deviceScaleFactor: OS_DPR, mobile: false });
+    await call("Emulation.setDeviceMetricsOverride", {
+      width: w,
+      height: h,
+      deviceScaleFactor: OS_DPR,
+      mobile: false,
+    });
     await sleep(400);
     // 首档刷新一次列表，让注入的空任务 fixture 进入列表
-    if (size === SIZES[0]) { await call("Page.reload"); await sleep(2200); }
+    if (size === SIZES[0]) {
+      await call("Page.reload");
+      await sleep(2200);
+    }
     await sleep(600);
     const tag = size.replace("x", "x");
 
     // —— 0. body 无横向溢出 ——
-    const body = await ev(call, `(() => ({ ok: document.body.scrollWidth <= document.body.clientWidth,
-      sw: document.body.scrollWidth, cw: document.body.clientWidth }))()`);
+    const body = await ev(
+      call,
+      `(() => ({ ok: document.body.scrollWidth <= document.body.clientWidth,
+      sw: document.body.scrollWidth, cw: document.body.clientWidth }))()`,
+    );
     check(`[${size}] body 无横向溢出`, body.ok, `${body.sw}/${body.cw}`);
     record(size, "body", body);
 
     // —— 1. 隔离 run：步骤页（ECharts 运行时）+ 逐层宽度 ——
-    check(`[${size}] 空任务行在场`, await ev(call, rowPresentExpr(EMPTY_RUN)) === true);
+    check(`[${size}] 空任务行在场`, (await ev(call, rowPresentExpr(EMPTY_RUN))) === true);
     const selIso = await ev(call, selectRunExpr(ISO_RUN));
     check(`[${size}] 点选隔离 run ${ISO_RUN}`, selIso === true);
     await sleep(1400);
 
-    const stepsTab = await ev(call, `(() => {
+    const stepsTab = await ev(
+      call,
+      `(() => {
       const b = Array.from(document.querySelectorAll('button[role="tab"]'))
         .find(x => (x.textContent||'').trim().includes('步骤'));
       if (!b) return false; b.click(); return true;
-    })()`);
+    })()`,
+    );
     // 轮询等步骤目录行挂载（button[title] 计数）
     let st = null;
     for (let i = 0; i < 14; i++) {
-      st = await ev(call, `(() => {
+      st = await ev(
+        call,
+        `(() => {
         const main = document.querySelector('main');
         const cols = main ? Array.from(main.children).map(e => ({
           tag: e.tagName, w: Math.round(e.getBoundingClientRect().width),
@@ -148,17 +178,21 @@ async function main() {
         return JSON.stringify({ canvas: !!document.querySelector('canvas'),
           rows: tree ? tree.querySelectorAll('button[title]').length : 0,
           hasTree: cols.some(c => c.sample.includes('轨迹')), cols });
-      })()`);
+      })()`,
+      );
       const sj = JSON.parse(st);
       if (sj.rows > 0) break;
       await sleep(700);
     }
     // 预算地图是折叠区块，展开才懒加载 echarts => 点击 summary 再轮询 canvas
-    const budget = await ev(call, `(() => {
+    const budget = await ev(
+      call,
+      `(() => {
       const s = Array.from(document.querySelectorAll('summary')).find(x =>
         (x.textContent||'').includes('预算'));
       if (!s) return false; s.click(); return true;
-    })()`);
+    })()`,
+    );
     check(`[${size}] 预算地图区块可在步骤页展开`, budget === true);
     let canvas = false;
     for (let i = 0; i < 12; i++) {
@@ -177,43 +211,61 @@ async function main() {
     await shot(call, `05-${tag}-isolated-steps.png`);
 
     // —— 2. 隔离 run：文件页 -> Monaco 只读 diff ——
-    const filesTab = await ev(call, `(() => {
+    const filesTab = await ev(
+      call,
+      `(() => {
       const b = Array.from(document.querySelectorAll('button[role="tab"]'))
         .find(x => (x.textContent||'').trim() === '文件');
       if (!b) return false; b.click(); return true;
-    })()`);
+    })()`,
+    );
     await sleep(1400);
     // 点一个后续检查点（title 含 "检查点所属 step"，取非选中的最后一个）
-    const ck = await ev(call, `(() => {
+    const ck = await ev(
+      call,
+      `(() => {
       const cand = Array.from(document.querySelectorAll('button'))
         .filter(b => (b.title||'').includes('检查点所属 step'));
       if (!cand.length) return false;
       const last = cand[cand.length - 1]; last.click(); return true;
-    })()`);
+    })()`,
+    );
     await sleep(1100);
     // 点 a.txt 文件行
-    const pickFile = await ev(call, `(() => {
+    const pickFile = await ev(
+      call,
+      `(() => {
       const b = Array.from(document.querySelectorAll('ul button'))
         .find(x => (x.textContent||'').includes('a.txt'));
       if (!b) return false; b.click(); return true;
-    })()`);
+    })()`,
+    );
     check(`[${size}] 文件页可选到 a.txt`, pickFile === true);
     // 轮询等 Monaco 懒装载
     let mono = null;
     for (let i = 0; i < 16; i++) {
-      mono = await ev(call, `(() => { const e=document.querySelector('.monaco-diff-editor');
-        return e ? { present:true, text:(document.body.innerText||'').slice(0,120) } : { present:false }; })()`);
+      mono = await ev(
+        call,
+        `(() => { const e=document.querySelector('.monaco-diff-editor');
+        return e ? { present:true, text:(document.body.innerText||'').slice(0,120) } : { present:false }; })()`,
+      );
       if (mono.present) break;
       await sleep(700);
     }
     record(size, "monaco", mono);
-    check(`[${size}] 离线 Monaco DiffEditor 运行时挂载`, mono && mono.present === true,
-      mono?.present ? "read-only diff 已渲染" : undefined);
+    check(
+      `[${size}] 离线 Monaco DiffEditor 运行时挂载`,
+      mono && mono.present === true,
+      mono?.present ? "read-only diff 已渲染" : undefined,
+    );
     await shot(call, `06-${tag}-monaco-readonly-diff.png`);
 
     // —— 3. 空任务导航摘要 ——
-    await ev(call, selectRunExpr(EMPTY_RUN)); await sleep(1300);
-    const em = await ev(call, `(() => {
+    await ev(call, selectRunExpr(EMPTY_RUN));
+    await sleep(1300);
+    const em = await ev(
+      call,
+      `(() => {
       const row = rowTask();
       const hdr = document.querySelector('header, main .border-b .text-sm, main .truncate');
       const body = document.body.innerText || '';
@@ -223,37 +275,56 @@ async function main() {
         (b.getAttribute('aria-label')||'').startsWith('复制完整运行 ID ${EMPTY_RUN}'));
         if(!copy||!copy.parentElement) return null; const span=copy.parentElement.querySelector('span[title].line-clamp-2');
         return span ? {text:(span.textContent||'').trim(), fallbackCls: span.className.includes('text-gray-500')} : null; }
-    })()`);
+    })()`,
+    );
     const emo = JSON.parse(em);
     record(size, "emptytask", JSON.parse(em));
     check(`[${size}] 空任务不误显示「尚未选择运行」`, emo.notPlaceholder === true);
-    check(`[${size}] 空任务列表行有回退标签（回退灰字）`,
+    check(
+      `[${size}] 空任务列表行有回退标签（回退灰字）`,
       emo.rowTask !== null && emo.rowTask.fallbackCls === true,
-      JSON.stringify(emo.rowTask));
+      JSON.stringify(emo.rowTask),
+    );
     await shot(call, `07-${tag}-emptytask-nav.png`);
 
     // —— 4. 长任务导航摘要 ——
-    await ev(call, selectRunExpr(LONG_RUN)); await sleep(1300);
-    const lg = await ev(call, `(() => {
+    await ev(call, selectRunExpr(LONG_RUN));
+    await sleep(1300);
+    const lg = await ev(
+      call,
+      `(() => {
       const copy = Array.from(document.querySelectorAll('button')).find(b =>
         (b.getAttribute('aria-label')||'').startsWith('复制完整运行 ID ${LONG_RUN}'));
       let rowTitle = null;
       if (copy && copy.parentElement) { const s = copy.parentElement.querySelector('span[title]');
         rowTitle = s ? { len: s.title.length, text: (s.textContent||'').trim().length } : null; }
       return JSON.stringify({ rowTitle, headerNotPlaceholder: !(document.body.innerText||'').includes('尚未选择运行') });
-    })()`);
+    })()`,
+    );
     const lgo = JSON.parse(lg);
     record(size, "longtask", lgo);
-    check(`[${size}] 长任务列表行 title 携带完整原值`, lgo.rowTitle !== null && lgo.rowTitle.len > 500,
-      lgo.rowTitle ? `title=${lgo.rowTitle.len} 字符` : undefined);
+    check(
+      `[${size}] 长任务列表行 title 携带完整原值`,
+      lgo.rowTitle !== null && lgo.rowTitle.len > 500,
+      lgo.rowTitle ? `title=${lgo.rowTitle.len} 字符` : undefined,
+    );
     await shot(call, `08-${tag}-longtask-nav.png`);
   }
 
-  writeFileSync(join(OUT, "measurements.json"), JSON.stringify({ measurements, checks, capturedAt: new Date().toISOString() }, null, 2));
+  writeFileSync(
+    join(OUT, "measurements.json"),
+    JSON.stringify({ measurements, checks, capturedAt: new Date().toISOString() }, null, 2),
+  );
   const failed = checks.filter((c) => !c.ok);
   console.log(`\n完成：${checks.length - failed.length}/${checks.length} 通过；证据 ${SHOT_DIR}`);
-  if (failed.length) { failed.forEach((f) => console.log("  ✗ " + f.name + (f.detail ? ` — ${f.detail}` : ""))); process.exit(1); }
+  if (failed.length) {
+    for (const f of failed) console.log(`  ✗ ${f.name}${f.detail ? ` — ${f.detail}` : ""}`);
+    process.exit(1);
+  }
   process.exit(0);
 }
 
-main().catch((e) => { console.error(e); process.exit(1); });
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

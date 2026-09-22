@@ -39,6 +39,11 @@ function check(name, ok, detail) {
   console.log(`${ok === true ? "✓" : "✗"} ${name}${detail === undefined ? "" : ` — ${detail}`}`);
 }
 const measurements = {};
+/** 新建/取某档的测量对象（避免在表达式里赋值触发 lint/noAssignInExpressions） */
+function entry(key) {
+  if (!measurements[key]) measurements[key] = {};
+  return measurements[key];
+}
 
 async function connect() {
   const pages = await fetch("http://127.0.0.1:9222/json/list").then((r) => r.json());
@@ -52,13 +57,21 @@ function session(pageUrl) {
   const pending = new Map();
   ws.onmessage = (ev) => {
     const m = JSON.parse(ev.data);
-    if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); }
+    if (m.id && pending.has(m.id)) {
+      pending.get(m.id)(m);
+      pending.delete(m.id);
+    }
   };
   return new Promise((res, rej) => {
-    ws.onopen = () => res((method, params = {}) => new Promise((ok) => {
-      const i = ++id; pending.set(i, (m) => ok(m.result));
-      ws.send(JSON.stringify({ id: i, method, params }));
-    }));
+    ws.onopen = () =>
+      res(
+        (method, params = {}) =>
+          new Promise((ok) => {
+            const i = ++id;
+            pending.set(i, (m) => ok(m.result));
+            ws.send(JSON.stringify({ id: i, method, params }));
+          }),
+      );
     ws.onerror = rej;
   });
 }
@@ -68,15 +81,32 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 function call0(call2, method, params) {
   return new Promise((ok, rej) => {
     let settled = false;
-    const timer = setTimeout(() => { if (!settled) { settled = true; rej(new Error("timeout " + method)); } }, 12000);
+    const timer = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        rej(new Error(`timeout ${method}`));
+      }
+    }, 12000);
     call2(method, params)
-      .then((r) => { if (!settled) { settled = true; clearTimeout(timer); ok(r); } })
-      .catch((e) => { if (!settled) { settled = true; clearTimeout(timer); rej(e); } });
+      .then((r) => {
+        if (!settled) {
+          settled = true;
+          clearTimeout(timer);
+          ok(r);
+        }
+      })
+      .catch((e) => {
+        if (!settled) {
+          settled = true;
+          clearTimeout(timer);
+          rej(e);
+        }
+      });
   });
 }
 async function ev(call, expression) {
   const r = await call("Runtime.evaluate", { expression, returnByValue: true });
-  if (r?.exceptionDetails) throw new Error("eval: " + JSON.stringify(r.exceptionDetails));
+  if (r?.exceptionDetails) throw new Error(`eval: ${JSON.stringify(r.exceptionDetails)}`);
   return r.result?.value;
 }
 async function shot(call, name) {
@@ -95,10 +125,14 @@ async function shot(call, name) {
       await sleep(700); // Emulation 下截图偶发挂起：重试
     }
   }
-  throw last ?? new Error("shot failed: " + name);
+  throw last ?? new Error(`shot failed: ${name}`);
 }
 
-const ascii = (s) => (s || "").replace(/[\s\u3000]+/g, " ").trim().slice(0, 14);
+const ascii = (s) =>
+  (s || "")
+    .replace(/[\s\u3000]+/g, " ")
+    .trim()
+    .slice(0, 14);
 
 // 读取外壳逐层几何 + 断点可见性
 const shellExpr = `(() => {
@@ -106,7 +140,7 @@ const shellExpr = `(() => {
   const rect = (e) => e ? Math.round(e.getBoundingClientRect().width) : null;
   const aside = named('main aside');
   const sections = Array.from(document.querySelectorAll('main section')).map(s => ({
-    tag: s.tagName, w: rect(s), text: ${`String`}(s.innerText||'').slice(0, 12),
+    tag: s.tagName, w: rect(s), text: String(s.innerText||'').slice(0, 12),
   }));
   return JSON.stringify({
     cw: document.documentElement.clientWidth,
@@ -125,7 +159,12 @@ const shellExpr = `(() => {
 const bpOf = (w) => (w >= 1280 ? "wide" : w >= 960 ? "medium" : w >= 720 ? "narrow" : "single");
 
 async function applyMetrics(call, w, h, dpr) {
-  await call("Emulation.setDeviceMetricsOverride", { width: w, height: h, deviceScaleFactor: dpr, mobile: false });
+  await call("Emulation.setDeviceMetricsOverride", {
+    width: w,
+    height: h,
+    deviceScaleFactor: dpr,
+    mobile: false,
+  });
   await sleep(450);
 }
 
@@ -149,12 +188,25 @@ const anyRowExpr = `(() => !!Array.from(document.querySelectorAll('button')).fin
 
 // 聚焦导航 ResizeGrip，按 → 把宽度调高（写入用户偏好）
 async function setNavWidthBy(call, steps) {
-  const focused = await ev(call, `(() => { const g = document.querySelector('[role="separator"][aria-label*="导航"]');
-    if (!g) return false; g.focus(); return true; })()`);
+  const focused = await ev(
+    call,
+    `(() => { const g = document.querySelector('[role="separator"][aria-label*="导航"]');
+    if (!g) return false; g.focus(); return true; })()`,
+  );
   if (!focused) return false;
   for (let i = 0; i < steps; i++) {
-    await call("Input.dispatchKeyEvent", { type: "keyDown", key: "ArrowRight", code: "ArrowRight", windowsVirtualKeyCode: 39 });
-    await call("Input.dispatchKeyEvent", { type: "keyUp", key: "ArrowRight", code: "ArrowRight", windowsVirtualKeyCode: 39 });
+    await call("Input.dispatchKeyEvent", {
+      type: "keyDown",
+      key: "ArrowRight",
+      code: "ArrowRight",
+      windowsVirtualKeyCode: 39,
+    });
+    await call("Input.dispatchKeyEvent", {
+      type: "keyUp",
+      key: "ArrowRight",
+      code: "ArrowRight",
+      windowsVirtualKeyCode: 39,
+    });
     await sleep(60);
   }
   return true;
@@ -186,27 +238,46 @@ async function main() {
   const hasRun = (await ev(call, anyRowExpr)) === true;
   const selected = hasRun ? await ev(call, selectRunExpr(target)) : false;
   check("有运行记录且可点选读取对象", hasRun === true, target);
-  if (selected) { await sleep(1300); }
+  if (selected) {
+    await sleep(1300);
+  }
 
   // —— Part A：100% 缩放进窄矩阵 ——
   for (const tag of SIZES) {
-    const m = (measurements[tag] = {});
-    let w; let h;
-    if (tag === "640px") { w = 640; h = 480; } else { [w, h] = tag.split("x").map(Number); }
+    const m = entry(tag);
+    let w;
+    let h;
+    if (tag === "640px") {
+      w = 640;
+      h = 480;
+    } else {
+      [w, h] = tag.split("x").map(Number);
+    }
     await applyMetrics(call, w, h, OS_DPR);
     const s = await readShell(call);
     Object.assign(m, s);
     m.breakpoint = bpOf(s.cw);
-    check(`[${tag}] 实测布局视口=${s.cw}×${s.ch} (dpr=${s.dpr?.toFixed?.(2) ?? s.dpr})`, s.cw === w, `期望 ${w}`);
+    check(
+      `[${tag}] 实测布局视口=${s.cw}×${s.ch} (dpr=${s.dpr?.toFixed?.(2) ?? s.dpr})`,
+      s.cw === w,
+      `期望 ${w}`,
+    );
     check(`[${tag}] body 无横向溢出`, s.bodyOk === true, `${s.bodySw}/${s.bodyCw}`);
     m.navW = s.navW;
 
     // 断点可见性断言（D2）
     if (s.cw >= 960) {
-      check(`[${tag}] ≥960 导航常驻`, s.navPresent === true, s.navW != null ? `导航@${s.navW}px` : undefined);
+      check(
+        `[${tag}] ≥960 导航常驻`,
+        s.navPresent === true,
+        s.navW != null ? `导航@${s.navW}px` : undefined,
+      );
     } else {
-      check(`[${tag}] <960 导航自动折叠（待命，未常驻）`, s.navPresent === false,
-        s.navW === null ? "导航未挂载（自动折叠）" : undefined);
+      check(
+        `[${tag}] <960 导航自动折叠（待命，未常驻）`,
+        s.navPresent === false,
+        s.navW === null ? "导航未挂载（自动折叠）" : undefined,
+      );
     }
     check(`[${tag}] 关键阅读可达（正文有内容，非空页面）`, s.hasReadable === true);
     check(`[${tag}] 概览页签在场`, s.hasOverviewTab === true);
@@ -215,15 +286,18 @@ async function main() {
   }
 
   // —— Part B：自动折叠后恢复用户布局 ——
-  const B = (measurements["autoCollapseRestore"] = {});
+  const B = entry("autoCollapseRestore");
   await applyMetrics(call, 1440, 900, OS_DPR); // 回 wide：导航常驻，用户可设宽
   await sleep(300);
   const navSet = await setNavWidthBy(call, 5); // 264 + 5×16 = 344
   await sleep(400);
   const customVal = await ev(call, navValueExpr);
   B.wideCustom = customVal;
-  check("wide 档键盘把导航宽度调到自定义值（偏好写入）", navSet === true && customVal !== null && customVal !== 264,
-    customVal != null ? `aria-valuenow=${customVal}px` : undefined);
+  check(
+    "wide 档键盘把导航宽度调到自定义值（偏好写入）",
+    navSet === true && customVal !== null && customVal !== 264,
+    customVal != null ? `aria-valuenow=${customVal}px` : undefined,
+  );
   // 缩到 narrow(800)：导航自动折叠（navOpened=false ⇒ 不挂载）
   await applyMetrics(call, 800, 600, OS_DPR);
   await sleep(300);
@@ -243,13 +317,15 @@ async function main() {
     await sleep(400);
   }
   B.wideRestored = restoredVal;
-  check("回 wide 后自定义导航宽度被还原（自动折叠未覆盖偏好）",
+  check(
+    "回 wide 后自定义导航宽度被还原（自动折叠未覆盖偏好）",
     navSet === true ? restoredVal === customVal : restoredVal === 264,
-    restoredVal != null ? `还原为 ${restoredVal}px` : undefined);
+    restoredVal != null ? `还原为 ${restoredVal}px` : undefined,
+  );
   await shot(call, "b2-wide-restored.png");
 
   // —— Part C：200% 独立放大用例（仿真有效视口 + 实测判断点） ——
-  const C = (measurements["zoom200"] = {});
+  const C = entry("zoom200");
   const zoomH = Math.round((900 * ZOOM_W) / 1440);
   await applyMetrics(call, ZOOM_W, zoomH, OS_DPR * 2); // dpr 加倍呈现 200% 放大
   const zs = await readShell(call);
@@ -257,10 +333,13 @@ async function main() {
   C.breakpoint = bpOf(zs.cw);
   C.zfactorNominal = 2;
   check(`[200%] 200% 缩放后实测有效视口=${zs.cw}px（由实测决定断点）`, Number.isFinite(zs.cw));
-  check(`[200%] 放大下 body 无横向溢出`, zs.bodyOk === true, `${zs.bodySw}/${zs.bodyCw}`);
-  check(`[200%] 放大下正文可读`, zs.hasReadable === true);
-  check(`[200%] dpr 呈现放大（≈${Math.round(OS_DPR * 2)}，非 100% 档 ${OS_DPR}）`,
-    Math.abs(zs.dpr - OS_DPR * 2) < 0.001, `dpr=${zs.dpr?.toFixed?.(2) ?? zs.dpr}`);
+  check("[200%] 放大下 body 无横向溢出", zs.bodyOk === true, `${zs.bodySw}/${zs.bodyCw}`);
+  check("[200%] 放大下正文可读", zs.hasReadable === true);
+  check(
+    `[200%] dpr 呈现放大（≈${Math.round(OS_DPR * 2)}，非 100% 档 ${OS_DPR}）`,
+    Math.abs(zs.dpr - OS_DPR * 2) < 0.001,
+    `dpr=${zs.dpr?.toFixed?.(2) ?? zs.dpr}`,
+  );
   check(`[200%] 断点按实测=${zs.cw}px 判定为「${C.breakpoint}」`, true);
   await shot(call, `c1-zoom200-${zs.cw}px.png`);
 
@@ -268,12 +347,30 @@ async function main() {
   await call("Emulation.clearDeviceMetricsOverride");
   await sleep(300);
 
-  writeFileSync(join(OUT, "measurements.json"),
-    JSON.stringify({ measurements, checks, zoomWidth: ZOOM_W, osDpr: OS_DPR, capturedAt: new Date().toISOString() }, null, 2));
+  writeFileSync(
+    join(OUT, "measurements.json"),
+    JSON.stringify(
+      {
+        measurements,
+        checks,
+        zoomWidth: ZOOM_W,
+        osDpr: OS_DPR,
+        capturedAt: new Date().toISOString(),
+      },
+      null,
+      2,
+    ),
+  );
   const failed = checks.filter((c) => !c.ok);
   console.log(`\n完成：${checks.length - failed.length}/${checks.length} 通过；证据 ${SHOT_DIR}`);
-  if (failed.length) { failed.forEach((f) => console.log("  ✗ " + f.name + (f.detail ? ` — ${f.detail}` : ""))); process.exit(1); }
+  if (failed.length) {
+    for (const f of failed) console.log(`  ✗ ${f.name}${f.detail ? ` — ${f.detail}` : ""}`);
+    process.exit(1);
+  }
   process.exit(0);
 }
 
-main().catch((e) => { console.error(e); process.exit(1); });
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

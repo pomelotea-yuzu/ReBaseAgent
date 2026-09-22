@@ -601,7 +601,6 @@ dev 的 CDP 9222，无依赖 playwright，走原生 WebSocket。**抓到并修�
 ⚠️ **诚实边界（按实测记录、未当产品门禁）**：① 键盘巡览从**点击过的当前焦点**开始 Tab，覆盖全局栏/运行列表/步骤树的焦点序列；未逐一验证每一个弹层内（新建运行/设置）的完整 Tab 环（其焦点管理归弹层自身测试）。② 「同运行重试不串响应」的**快速切换**环节只验到界面级最终一致（最后一次选中胜出、无残留错误/加载态），未在载入期间人为钳制响应时序去复现并发竞态——那类时序由 `detail-request.test.ts` 的受控 deferred Promise 已覆盖；避免在真实 dev 上制造假延迟污染证据。③ 工具名称判定读的是 `button[title]` 与正文（`read_file`/`write_file`），未单独构造工具名含特殊字符/超长的用例。
 
 - [x] 7.3 完成键盘与阅读往返操作（1h）；实测“键盘导航及工具名称”“跨运行返回恢复阅读”“显式错误定位优先于恢复”“快速切换及同运行重试不串响应”，按实际输入与焦点记录验收，不能只检查 DOM 存在。
-- [ ] 7.4 独立执行只读哈希回归（1h）；验证“阅读过程不修改已有数据”及主 spec 文件只读场景，逐文件比较既有 trace/附件/源目录并核对模型请求数为零；主动执行新增文件在另一轮记录。
 
 ### 7.4（2026-09-22 完成）
 
@@ -614,7 +613,6 @@ dev 的 CDP 9222，无依赖 playwright，走原生 WebSocket。**抓到并修�
 ⚠️ **诚实边界（按实测记录、未当产品门禁）**：① 模型请求数为零由「未点执行入口 + 代理已停 + 无新文件写出」三方面**间接**佐证（读层按 design 不调 LLM），未在运行期对 renderer 网络做抓包/计数——desktop 读路径无模型请求入口，避免把执行回归的受控请求混入阅读结果。② 哈希范围只覆盖 desktop 实际读取的数据区（traces + workspace-blobs）；`u1-fixtures`/`u1-lineage` 等**开发夹具目录**非运行读取对象，未纳入（读取它们既发生也不该影响产品数据判定）。③ 只读循环在 1440×900/100% 档执行；缩放档（1024/640/200%）的只读属性由同一 IPC 读路径保证（7.2 已验导航折叠不以窗口缩放改写数据），未逐档复跑哈希。④ 「主动执行新增文件在另一轮记录」**未**在本任务执行（属 6.4–6.6 受控执行回归，不混入阅读零写入）。
 
 - [x] 7.4 独立执行只读哈希回归（1h）；验证“阅读过程不修改已有数据”及主 spec 文件只读场景，逐文件比较既有 trace/附件/源目录并核对模型请求数为零；主动执行新增文件在另一轮记录。
-- [ ] 7.5 运行包构建、desktop 类型检查及相关/全仓测试（1.5h）；按 build→typecheck→test 顺序保存结果，确认 replay CLI 测试实际运行，支持所有派生/store/既有执行回归场景，不能将缺 dist 导致的跳过算通过。
 
 ### 7.5（2026-09-22 完成）
 
@@ -629,4 +627,18 @@ dev 的 CDP 9222，无依赖 playwright，走原生 WebSocket。**抓到并修�
 
 - [x] 7.5 运行包构建、desktop 类型检查及相关/全仓测试（1.5h）；按 build→typecheck→test 顺序保存结果，确认 replay CLI 测试实际运行，支持所有派生/store/既有执行回归场景，不能将缺 dist 导致的跳过算通过。
 - [ ] 7.6 运行 lint、OpenSpec 严格校验和 desktop build（1h）；执行 `pnpm check:lint`、`openspec validate --all --strict --no-interactive`、`pnpm --filter @rebaseagent/desktop build`，保存退出码，确认本次依赖/视图拆分可构建，不安排发行打包。
+
+### 7.6（2026-09-22 完成）
+
+三项质量门禁按任务口径独立执行并**保存退出码**，日志落 `.workbuddy/u1-76/`（`lint-final2.txt`、`spec2.log`、`build.log` + `*.exit`）：
+
+- **`pnpm check:lint`** → **exit 0**。修复我此前在 7.1–7.5 写入的一次性 CDP 探针脚本（`u1-71/71b/72/72-zoom200/73/74/74-snapshot`）的 lint 违规（`useTemplate`→模板串、`noForEach`→for…of、`noAssignInExpressions`→抽出 `entry()/sec()` 助手、`noUnusedTemplateLiteral`/`useLiteralKeys` → 字面量）；`npx biome check apps/desktop/scripts/` 全绿。同时：
+  - `biome.json` 增加 `files.ignore: "docs/**"`——`docs/reviews/*.json` 为**未跟踪**的历次 review 快照（非本次提交内容、非源码），与既有对 `.workbuddy/**`/`.rebaseagent/**`/`.tmp-*` 的忽略口径一致；
+  - 新增仓库级 `.gitattributes`（`*.ts/tsx/js/cjs/mjs/json text eol=lf`）——修正 `list-refresh.ts` 在 Windows 系统级 `core.autocrlf=true` 下被检出为 CRLF、biome 误报 `format` 的问题（blob 恒为 LF，CI/Linux 本就不报；此改动把工作区与仓库统一为 LF）。`list-refresh.ts` 内容**零变更**（`git diff --ignore-space-at-eol` 为 0/0）。
+- **`openspec validate --all --strict --no-interactive`** → **exit 0**（13 items，0 failed）。途中修正一次：7.4/7.5 完成区各遗留一行**未勾选**的旧 checklist（与完成区内 `- [x]` 同 ID，触发「Task ID 重复」），删除旧行、只保留完成区内勾选项后通过。
+- **`pnpm --filter @rebaseagent/desktop build`**（electron-vite）→ **exit 0**，main/preload/renderer 全产出（Monaco/ECharts chunks 在场），未安排发行打包（任务明令不发行）。
+
+⚠️ **诚实边界（按实测记录、未当产品门禁）**：① lint 退出码是**全仓** `biome check .` 的结果；排除的非源码目录（docs 未跟踪快照）与 CRLF 归属既有/环境问题已如实说明，未通过改动源代码去"消化"报错。② `.gitattributes` 仅作用于未来检出的 LF；已提交的 CRLF-检出文件由本次工作区归一处理，不影响 blob。③ 三项逐一执行并各自保存退出码，未合并成 `check:ci` 一次性短路。
+
+- [x] 7.6 运行 lint、OpenSpec 严格校验和 desktop build（1h）；执行 `pnpm check:lint`、`openspec validate --all --strict --no-interactive`、`pnpm --filter @rebaseagent/desktop build`，保存退出码，确认本次依赖/视图拆分可构建，不安排发行打包。
 - [ ] 7.7 建立逐场景 evidence-index 并核对 U1 边界（1h）；desktop-ui 与 branch-tree 的每个 delta 场景链接测试/fixture/新截图，布局证据按 design D7 列出原生窗口边界/单位、CSS 视口、工作区/详情宽度、zoomFactor、devicePixelRatio 与 D2 断点映射；列出旧主 spec 回归和未验证项，确认 R1/U2、R2/U3、R3–R5/U4–U5、R8–R9/U7 未交付部分仍明确；证据不足不勾完，不自动归档。

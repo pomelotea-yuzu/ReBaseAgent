@@ -32,7 +32,8 @@
       "**/release-*/**",
       "**/*.timestamp-*.mjs",
       "**/electron.vite.config.*.mjs",
-      "**/.tmp-*"
+      "**/.tmp-*",
+      "docs/**"
     ]
   },
   "overrides": [

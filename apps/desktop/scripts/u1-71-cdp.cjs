@@ -56,12 +56,13 @@ function makeSession(pageUrl) {
   };
   return new Promise((res, rej) => {
     ws.onopen = () =>
-      res((method, params = {}) =>
-        new Promise((r) => {
-          const i = ++id;
-          pending.set(i, (m) => r(m.result));
-          ws.send(JSON.stringify({ id: i, method, params }));
-        }),
+      res(
+        (method, params = {}) =>
+          new Promise((r) => {
+            const i = ++id;
+            pending.set(i, (m) => r(m.result));
+            ws.send(JSON.stringify({ id: i, method, params }));
+          }),
       );
     ws.onerror = rej;
   });
@@ -88,7 +89,7 @@ async function main() {
   await call("Runtime.enable");
 
   const measurements = {};
-  let stop = false;
+  const stop = false;
 
   for (const size of SIZES) {
     const [w, h] = size.split("x").map(Number);
@@ -110,7 +111,13 @@ async function main() {
           asides: aside.slice(0,3).map(rect), text:(d.body.innerText||'').slice(0,60) }); })()`,
     );
     const vp = JSON.parse(base);
-    measurements[size] = { viewport: vp.vp, dpr: vp.dpr, bodyOk: vp.bodyOk, bodyScrollW: vp.bodyScrollW, bodyClientW: vp.bodyClientW };
+    measurements[size] = {
+      viewport: vp.vp,
+      dpr: vp.dpr,
+      bodyOk: vp.bodyOk,
+      bodyScrollW: vp.bodyScrollW,
+      bodyClientW: vp.bodyClientW,
+    };
     const sizeTag = size.replace("x", "x");
     // 记录实测布局视口（Emulation 覆盖 + Electron 窗口有差异，按实测记录、不作硬门禁）；
     // body 不横向溢出才是"该视口下阅读可达"的可判据
@@ -143,7 +150,11 @@ async function main() {
     check(`[${size}] 概览容器渲染（aria-label=运行概览）`, ovj.hasOverview === true);
     // 标准 run 必须带「结束情况」「本次消耗」；隔离变体走隔离模板（无消耗区），单独记录不算失败
     const isIsolated = ovj.hasEnd === false && ovj.hasCost === false;
-    check(`[${size}] 标准 run 概览含「结束情况」`, isIsolated ? true : ovj.hasEnd === true, isIsolated ? "隔离变体，跳过" : undefined);
+    check(
+      `[${size}] 标准 run 概览含「结束情况」`,
+      isIsolated ? true : ovj.hasEnd === true,
+      isIsolated ? "隔离变体，跳过" : undefined,
+    );
     await shot(call, `02-${sizeTag}-overview.png`);
 
     // 切「步骤」页签
@@ -183,17 +194,24 @@ async function main() {
     // 「文件承载区不附带步骤目录」结构保证：文件页不应出现"步骤目录"标题
     const noDir = await evalv(call, `(() => (document.body.innerText||'').includes('步骤目录'))()`);
     check(`[${size}] 文件页不附带步骤目录`, noDir === false);
-    measurements[size].files = { hasEntry: fj.hasEntry, hasWriteEntry: fj.hasWriteEntry, shows步骤目录: noDir };
+    measurements[size].files = {
+      hasEntry: fj.hasEntry,
+      hasWriteEntry: fj.hasWriteEntry,
+      shows步骤目录: noDir,
+    };
     await shot(call, `04-${sizeTag}-files.png`);
   }
 
-  writeFileSync(join(OUT, "measurements.json"), JSON.stringify({ measurements, checks, capturedAt: new Date().toISOString() }, null, 2));
+  writeFileSync(
+    join(OUT, "measurements.json"),
+    JSON.stringify({ measurements, checks, capturedAt: new Date().toISOString() }, null, 2),
+  );
   writeFileSync(join(OUT, "shots-summary.json"), JSON.stringify({ sized: SIZES }, null, 2));
   const failed = checks.filter((c) => !c.ok);
   console.log(`\n完成：${checks.length - failed.length}/${checks.length} 通过；证据 ${SHOT_DIR}`);
   if (failed.length) {
     console.log("失败项：");
-    failed.forEach((f) => console.log("  ✗ " + f.name + (f.detail ? ` — ${f.detail}` : "")));
+    for (const f of failed) console.log(`  ✗ ${f.name}${f.detail ? ` — ${f.detail}` : ""}`);
     process.exit(1);
   }
   process.exit(0);
