@@ -1,6 +1,11 @@
 import type { RunDetail } from "@shared/ipc";
 import type { WorkspaceInspectResult, WorkspaceReadFileResult } from "@shared/ipc";
+import type { editor as MonacoEditorNs } from "monaco-editor";
+import type { KeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+/** Monaco diff 编辑器实例类型（U2 任务 4.5 差异导航用） */
+type IStandaloneDiffEditor = MonacoEditorNs.IStandaloneDiffEditor;
 import {
   type DirectoryEmptyReason,
   deriveDirectoryEmptyReason,
@@ -12,6 +17,8 @@ import {
 import {
   type DiffMode,
   FILE_DIR_DEFAULT,
+  FILE_DIR_MAX,
+  FILE_DIR_MIN,
   type FilePane,
   clampRestoredDirWidth,
   decideDiffMode,
@@ -489,6 +496,105 @@ export function WorkspaceFileViewBody({
     [inspect, query, changeFilter],
   );
 
+  /**
+   * U2 任务 4.6：**文件列表键盘导航 + 焦点恢复**。
+   *
+   * - `ArrowUp`/`ArrowDown` 在可见列表里移动选择（越过被筛掉/不可用的项）；
+   * - `Home`/`End` 跳首/尾；`Enter`/`Space` 来自按钮原生行为，
+   *   这里处理方向键让容器也能导航；
+   * - 选择后把焦点交回**原文件项**（若已不在可见列表，落到列表容器），
+   *   满足 delta「返回列表聚焦原文件或有效列表项」。
+   */
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const moveSelection = useCallback(
+    (delta: 1 | -1 | "home" | "end"): void => {
+      if (visibleFiles.length === 0) return;
+      const currentIndex = visibleFiles.findIndex((f) => f.path === selectedPath);
+      let nextIndex: number;
+      if (delta === "home") nextIndex = 0;
+      else if (delta === "end") nextIndex = visibleFiles.length - 1;
+      else if (currentIndex < 0) nextIndex = delta === 1 ? 0 : visibleFiles.length - 1;
+      else nextIndex = Math.min(visibleFiles.length - 1, Math.max(0, currentIndex + delta));
+      const target = visibleFiles[nextIndex];
+      if (target === undefined) return;
+      onSelectPath(target.path);
+      // 焦点交回目标项（等重渲染后按钮已存在）
+      const el = listRef.current?.querySelector<HTMLButtonElement>(
+        `[data-file-path="${CSS.escape(target.path)}"]`,
+      );
+      el?.focus();
+    },
+    [visibleFiles, selectedPath, onSelectPath],
+  );
+  const onListKeyDown = useCallback(
+    (e: KeyboardEvent<HTMLDivElement>): void => {
+      switch (e.key) {
+        case "ArrowDown":
+          e.preventDefault();
+          moveSelection(1);
+          break;
+        case "ArrowUp":
+          e.preventDefault();
+          moveSelection(-1);
+          break;
+        case "Home":
+          e.preventDefault();
+          moveSelection("home");
+          break;
+        case "End":
+          e.preventDefault();
+          moveSelection("end");
+          break;
+        default:
+          break;
+      }
+    },
+    [moveSelection],
+  );
+
+  /**
+   * U2 任务 4.1 + 4.6：**目录宽度可调整**（拖拽 + 键盘）。
+   *
+   * ⚠️ 这是 4.1 被误勾的缺口：`stepFileDirWidth`/`clampRestoredDirWidth` 此前是**死导入**
+   *    ——纯逻辑写全了、单测也绿，但**没有任何 UI 控件消费它** ⇒ 目录宽实际上不可调。
+   *
+   * - 键盘：在分隔条上按 ArrowLeft/ArrowRight（16px 步进）/ Home / End（到边界）；
+   * - 拖拽：pointerdown 后按 clientX 增量换算，全部经 `clampRestoredDirWidth` 夹取，
+   *   拖拽与键盘**同走** `onDirWidth`（写回会话状态，与 4.1「尺寸变化写 store」一致）。
+   */
+  const dragStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
+  const onResizerKeyDown = useCallback(
+    (e: KeyboardEvent<HTMLDivElement>): void => {
+      const next = stepFileDirWidth(dirWidth, e.key);
+      if (next === null) return;
+      e.preventDefault();
+      onDirWidth?.(next);
+    },
+    [dirWidth, onDirWidth],
+  );
+  const onResizerPointerDown = useCallback(
+    (e: ReactPointerEvent<HTMLDivElement>): void => {
+      dragStateRef.current = { startX: e.clientX, startWidth: dirWidth };
+      e.currentTarget.setPointerCapture(e.pointerId);
+    },
+    [dirWidth],
+  );
+  const onResizerPointerMove = useCallback(
+    (e: ReactPointerEvent<HTMLDivElement>): void => {
+      const drag = dragStateRef.current;
+      if (drag === null) return;
+      const next = clampRestoredDirWidth(drag.startWidth + (e.clientX - drag.startX));
+      onDirWidth?.(next);
+    },
+    [onDirWidth],
+  );
+  const onResizerPointerUp = useCallback((e: ReactPointerEvent<HTMLDivElement>): void => {
+    dragStateRef.current = null;
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+  }, []);
+
   const originNote = useMemo(() => {
     if (inspect === null) return null;
     const parentStepId = inspect.origin.kind === "checkpoint" ? inspect.origin.stepSpanId : null;
@@ -538,6 +644,23 @@ export function WorkspaceFileViewBody({
             <span className="ml-auto font-code text-[10px] text-gray-400">
               {inspectSummaryLine(inspect)}
             </span>
+          ) : null}
+          {/*
+            U2 5.2 实机缺口修复（2026-09-23）：spec「手动布局偏好不被自动折叠覆盖」的 WHEN
+            含「用户……收起目录」，但「收起/展开目录」按钮原先只在目录非常驻时渲染
+            （pane 切换条内）⇒ 目录常驻（宽档）时用户**没有任何显式收起入口**，偏好
+            `dirUserCollapsed` 无法置真。补：目录常驻时在页头提供收起按钮；
+            非常驻时仍由 pane 切换条的「展开/收起目录」承载（显示相反动作）。
+          */}
+          {dirResident && onDirCollapsed !== undefined ? (
+            <button
+              type="button"
+              onClick={() => onDirCollapsed(true)}
+              title="收起文件目录（可随时重新展开）"
+              className="rounded border border-gray-300 px-2 py-0.5 text-[11px] text-gray-600 hover:bg-gray-50"
+            >
+              收起目录
+            </button>
           ) : null}
         </div>
 
@@ -678,16 +801,30 @@ export function WorkspaceFileViewBody({
           ) : inspect === null ? (
             <div className="px-3 py-4 text-[11px] text-gray-400">选择上方任一检查点查看文件。</div>
           ) : visibleFiles.length > 0 ? (
-            <ul className="divide-y divide-gray-100">
+            <div
+              ref={listRef}
+              // biome-ignore lint/a11y/useSemanticElements: 需要 roving tabindex + 方向键导航，select 无法承载
+              onKeyDown={onListKeyDown}
+              role="listbox"
+              tabIndex={0}
+              aria-label="工作区文件列表"
+              className="divide-y divide-gray-100 focus:outline-none"
+            >
               {visibleFiles.map((file) => {
                 const active = file.path === selectedPath;
                 const usable = file.availability === "ok";
                 return (
-                  <li key={file.path}>
+                  <div key={file.path} role="presentation">
                     <button
                       type="button"
+                      data-file-path={file.path}
+                      // roving tabindex：方向键移动选择（WAI-ARIA listbox 模式）
+                      tabIndex={active ? 0 : -1}
+                      // biome-ignore lint/a11y/useSemanticElements: listbox 的 option 由按钮承载（roving tabindex + 方向键），select 无法承载
+                      role="option"
+                      aria-selected={active}
                       onClick={() => onSelectPath(file.path)}
-                      className={`block w-full px-3 py-1.5 text-left ${
+                      className={`block w-full px-3 py-1.5 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 ${
                         active ? "bg-violet-50" : "hover:bg-gray-50"
                       }`}
                     >
@@ -714,10 +851,10 @@ export function WorkspaceFileViewBody({
                         )}
                       </div>
                     </button>
-                  </li>
+                  </div>
                 );
               })}
-            </ul>
+            </div>
           ) : (
             <div className="px-3 py-4 text-[11px] text-gray-400">
               {directoryEmptyMessage(emptyReason, { query, filter: changeFilter })}
@@ -742,6 +879,24 @@ export function WorkspaceFileViewBody({
             </div>
           )}
         </div>
+
+        {/* U2 任务 4.1 + 4.6：目录宽分隔条（拖拽 + 键盘；常驻时才显示） */}
+        {dirResident && onDirWidth !== undefined ? (
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="调整文件目录宽度"
+            aria-valuenow={Math.round(dirWidth)}
+            aria-valuemin={FILE_DIR_MIN}
+            aria-valuemax={FILE_DIR_MAX}
+            tabIndex={0}
+            onKeyDown={onResizerKeyDown}
+            onPointerDown={onResizerPointerDown}
+            onPointerMove={onResizerPointerMove}
+            onPointerUp={onResizerPointerUp}
+            className="hidden w-1 shrink-0 cursor-col-resize bg-gray-200 hover:bg-violet-300 focus:bg-violet-400 focus:outline-none md:block"
+          />
+        ) : null}
 
         {/* 内容 / 差异 */}
         <div
@@ -846,6 +1001,51 @@ function FileContent({
 }) {
   const [copyFeedback, setCopyFeedback] = useState<CopyFeedback>(null);
 
+  /**
+   * U2 任务 4.5：**真实差异导航**。
+   *
+   * `diffEditorRef` 接住 `@monaco-editor/react` 经 `onMount` 外抛的 `IStandaloneDiffEditor`
+   * 实例——没有它，差异导航在结构上无法发命令（4.5 被误勾的根因）。`diffCount` 由
+   * `onDidUpdateDiff` 在 diff **真正算完**后从 `getLineChanges()` 取真实条数，绝不凭空写死。
+   *
+   * ⚠️ 静态渲染（`renderToStaticMarkup`）不跑 effect、也不挂载 monaco ⇒ 这里恒为
+   *    `null` / `0`，判据必须能优雅退化（按钮禁用 + 诚实说明），不能崩。
+   */
+  const diffEditorRef = useRef<IStandaloneDiffEditor | null>(null);
+  const [diffCount, setDiffCount] = useState(0);
+
+  const refreshDiffCount = useCallback((editor: IStandaloneDiffEditor | null): void => {
+    if (editor === null) {
+      setDiffCount(0);
+      return;
+    }
+    const changes = editor.getLineChanges();
+    setDiffCount(changes === null ? 0 : changes.length);
+  }, []);
+
+  const onDiffMount = useCallback(
+    (editor: IStandaloneDiffEditor): void => {
+      diffEditorRef.current = editor;
+      refreshDiffCount(editor);
+      // diff 是异步算的：首次 mount 时可能还没算完，靠这个事件拿到真实条数
+      editor.onDidUpdateDiff(() => refreshDiffCount(editor));
+    },
+    [refreshDiffCount],
+  );
+
+  /** 上一/下一差异：驱动真实 Monaco 命令（不是装饰性按钮）。 */
+  const goPrevDiff = useCallback((): void => {
+    diffEditorRef.current?.goToDiff("previous");
+  }, []);
+  const goNextDiff = useCallback((): void => {
+    diffEditorRef.current?.goToDiff("next");
+  }, []);
+  /** 查找：走 Monaco 内置查找控件（只读，不开放替换/写入）。 */
+  const openFind = useCallback((): void => {
+    const editor = diffEditorRef.current?.getModifiedEditor() ?? null;
+    editor?.trigger("u2-toolbar", "actions.find", null);
+  }, []);
+
   // 所选侧：加载中（且尚无结果）⇒ 该侧是"读取中"，**不是**不存在
   if (loading && current === null) {
     return (
@@ -936,7 +1136,8 @@ function FileContent({
     right: rightReady as SideReadiness,
     diffEligible: diffEligibility.ok,
     mode,
-    diffCount: diffEligibility.ok ? 1 : 0,
+    // U2 任务 4.5：**真实**差异条数（由 onDidUpdateDiff 从 Monaco 取），不再写死
+    diffCount,
   });
 
   const meta = copyableMeta(current);
@@ -1015,8 +1216,25 @@ function FileContent({
       </button>
       <button
         type="button"
+        disabled={!tools.find}
+        onClick={openFind}
+        title={tools.find ? "在当前文件查找（只读，不开放替换）" : "内容不可比较时不可查找"}
+        className="rounded border border-gray-300 px-1.5 py-0.5 text-gray-600 disabled:opacity-40"
+      >
+        查找
+      </button>
+      <button
+        type="button"
         disabled={!tools.prevDiff}
-        title={tools.prevDiff ? "上一处差异" : "没有可导航的差异"}
+        onClick={goPrevDiff}
+        title={
+          tools.prevDiff
+            ? "跳到上一处差异"
+            : diffCount === 0
+              ? "当前两版没有差异可导航"
+              : "并排且两侧都有文本时才可导航差异"
+        }
+        aria-label="上一处差异"
         className="rounded border border-gray-300 px-1.5 py-0.5 text-gray-600 disabled:opacity-40"
       >
         上一差异
@@ -1024,7 +1242,15 @@ function FileContent({
       <button
         type="button"
         disabled={!tools.nextDiff}
-        title={tools.nextDiff ? "下一处差异" : "没有可导航的差异"}
+        onClick={goNextDiff}
+        title={
+          tools.nextDiff
+            ? "跳到下一处差异"
+            : diffCount === 0
+              ? "当前两版没有差异可导航"
+              : "并排且两侧都有文本时才可导航差异"
+        }
+        aria-label="下一处差异"
         className="rounded border border-gray-300 px-1.5 py-0.5 text-gray-600 disabled:opacity-40"
       >
         下一差异
@@ -1157,6 +1383,7 @@ function FileContent({
         左：本 run 初始状态
         {sideNote(sides.leftNote)} · 右：{sides.rightLabel}
         {sideNote(sides.rightNote)}
+        {diffCount > 0 ? <span className="ml-2 text-gray-500">共 {diffCount} 处差异</span> : null}
         {modeDecision.downgraded && modeDecision.reason !== null ? (
           <span className="ml-2 text-amber-700">{modeDecision.reason}</span>
         ) : null}
@@ -1168,9 +1395,21 @@ function FileContent({
           language={detectFileLanguage(sides.right ?? sides.left)}
           original={leftMissing ? "" : (sides.left ?? "")}
           modified={rightMissing ? "" : (sides.right ?? "")}
+          onMount={onDiffMount}
           options={{
             readOnly: true,
             renderSideBySide: mode === "sideBySide",
+            // ⚠️ U2 5.1 实机缺陷修复（2026-09-23）：
+            //   Monaco 默认 `useInlineViewWhenSpaceIsLimited: true` +
+            //   `renderSideBySideInlineBreakpoint: 900`：只要**编辑器元素宽 ≤900px**，
+            //   Monaco 就无视本层传入的 `renderSideBySide: true` 强行改渲染 inline。
+            //   实测复现（CSS 视口 1210，容器 1210）：目录 248 时 monoW=909 正常并排
+            //   （447/448，sash=1）；目录 264 时 monoW=893 突变为 36/827、sash 消失 ——
+            //   左侧栏被压成 36px 不可读细条。而本层判据 `decideDiffMode` 按
+            //   `(contentArea-56)/2 >= 320` 仍判并排（perSide 439），**两层结论冲突**。
+            //   spec/design D4 明写并排条件由本层按两侧实际文字区决定，故关闭 Monaco
+            //   自己的空间启发式，让 `renderSideBySide` 成为唯一权威。
+            useInlineViewWhenSpaceIsLimited: false,
             fontSize: 13,
             minimap: { enabled: false },
             lineNumbers: "on",

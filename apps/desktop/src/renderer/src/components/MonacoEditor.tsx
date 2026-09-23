@@ -68,6 +68,22 @@ function editorAttrs(props: Record<string, unknown>): Record<string, unknown> {
   return out;
 }
 
+/**
+ * 向上层透传的**行为型** props（非 `data-*`/`aria-*` 那种 DOM 属性）。
+ *
+ * U2 任务 4.5 的**关键**：`onMount` 不在 `data-*`/`aria-*` 里，`editorAttrs` 会把它过滤掉，
+ * 于是编辑器实例永远到不了父组件、差异导航/查找**在结构上无法接线**（这正是 4.5 被误勾的
+ * 根因）。此函数把这类"要传给原生组件而非落到 DOM"的回调单独挑出来转发。
+ */
+const PASSTHROUGH_CALLBACKS = ["onMount"] as const;
+function behaviorProps(props: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const key of PASSTHROUGH_CALLBACKS) {
+    if (typeof props[key] === "function") out[key] = props[key];
+  }
+  return out;
+}
+
 let editors: ReturnType<typeof lazy<EditorsModule["CodeEditor"]>> | null = null;
 
 /**
@@ -103,6 +119,7 @@ export function MonacoCodeEditor(props: CodeEditorProps) {
   return createElement(LazyCodeEditor(), {
     ...props,
     ...editorAttrs(props as Record<string, unknown>),
+    ...behaviorProps(props as Record<string, unknown>),
   });
 }
 
@@ -131,6 +148,7 @@ export function MonacoDiffEditor(props: DiffCodeEditorProps) {
   return createElement(LazyDiffEditor(), {
     ...props,
     ...editorAttrs(props as Record<string, unknown>),
+    ...behaviorProps(props as Record<string, unknown>),
   });
 }
 

@@ -85,6 +85,30 @@ function createWindow(): void {
   } else {
     void win.loadFile(resolve(__dirname, "../renderer/index.html"));
   }
+
+  /**
+   * 验收钩子（U2 5.2）：从环境变量设置**真实** Electron zoomFactor。
+   *
+   * 为什么需要：`Emulation.setDeviceMetricsOverride` 虽能伪造视口，但实测会破坏
+   * Monaco 的 automaticLayout（几何读出 36px/5px 伪影，不可信）；
+   * `Emulation.setPageScaleFactor` 只是视觉缩放、不改布局视口。要验证"独立 zoomFactor=2
+   * 后仍可阅读"，必须走主进程 `webContents.setZoomFactor`（真 zoom：CSS 视口按比例缩小）。
+   *
+   * ⚠️ 必须在**页面加载完成后**设置：Electron 在 `did-finish-load` 时会重置 zoom 到默认值，
+   *    加载前调用会被静默覆盖（实测 1210px 窗口下 zoomFactor 仍为 1）。
+   *
+   * 未设置或非法时完全不调用 ⇒ 生产行为与以前逐字节一致（不是授权开关）。
+   * ⚠️ 仅用于 dev 实机验收；打包产物不受影响（无该环境变量）。
+   */
+  const zoomRaw = process.env.REBASEAGENT_ZOOM_FACTOR;
+  if (zoomRaw !== undefined && zoomRaw !== "") {
+    const zoom = Number(zoomRaw);
+    if (Number.isFinite(zoom) && zoom > 0) {
+      win.webContents.on("did-finish-load", () => {
+        win.webContents.setZoomFactor(zoom);
+      });
+    }
+  }
 }
 
 async function bootstrap(): Promise<void> {

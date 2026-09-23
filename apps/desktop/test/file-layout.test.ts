@@ -52,6 +52,27 @@ describe("U2 4.1 目录常驻判据（容器实测宽，不是窗口断点）", 
     expect(decideDirResident({ prefs: initialFileLayoutPrefs, containerWidth: 700 })).toBe(false);
   });
 
+  it("窄档（容器 ≤800）⇒ 目录一律收起，即使几何上装得下（spec「极窄与放大后仍可阅读」，5.2 实机回归）", () => {
+    // 800 − 200 − 12 − 64 = 524 ≥ 480：旧实现按几何判常驻，违反 spec「目录一律收起」。
+    expect(decideDirResident({ prefs: initialFileLayoutPrefs, containerWidth: 800 })).toBe(false);
+    expect(decideDirResident({ prefs: initialFileLayoutPrefs, containerWidth: 640 })).toBe(false);
+    // zoomFactor=2 的现实窗口（最大化 ⇒ CSS 视口 ≈610）同样落此档
+    expect(decideDirResident({ prefs: initialFileLayoutPrefs, containerWidth: 610 })).toBe(false);
+  });
+
+  it("窄档过渡带（801–959）⇒ 按几何判据正常决策，不强制收起", () => {
+    // 801 − 200 − 12 − 64 = 525 ≥ 480 ⇒ 常驻（窄档门只到 800）
+    expect(
+      decideDirResident({
+        prefs: { ...initialFileLayoutPrefs, dirWidth: FILE_DIR_MIN },
+        containerWidth: 801,
+      }),
+    ).toBe(true);
+    // 但窄目录才装得下；默认 232 ⇒ 801−232−12−64=493 ≥ 480 仍常驻
+    expect(decideDirResident({ prefs: initialFileLayoutPrefs, containerWidth: 801 })).toBe(true);
+    // 960 临界以下过渡带低端：801 档可并排/inline 由 decideDiffMode 独立判
+  });
+
   it("用户显式收起 ⇒ 即使很宽也不常驻（偏好优先）", () => {
     const prefs = { ...initialFileLayoutPrefs, dirUserCollapsed: true };
     expect(decideDirResident({ prefs, containerWidth: 2000 })).toBe(false);
@@ -71,10 +92,30 @@ describe("U2 4.1 目录常驻判据（容器实测宽，不是窗口断点）", 
 
 describe("U2 4.2 diff 模式判据（inline / 并排）", () => {
   it("auto：两侧文字区各自 ≥320 才并排，否则 inline", () => {
-    const wide = decideDiffMode({ prefs: initialFileLayoutPrefs, contentAreaWidth: 800 });
+    // ⚠️ 阈值随 5.1 实机修正：两侧 chrome **不对称**（左 64 / 右 47）+ 两侧外固定开销 71。
+    //    临界 contentAreaWidth = 71 + 2*(320+64) = 839（左文字区恰好 320）。
+    //    故 900 并排、800 落 inline（后者左文字区 (800-71)/2-64 = 300.5 < 320）。
+    const wide = decideDiffMode({ prefs: initialFileLayoutPrefs, contentAreaWidth: 900 });
     expect(wide.mode).toBe("sideBySide");
-    const narrow = decideDiffMode({ prefs: initialFileLayoutPrefs, contentAreaWidth: 500 });
+    const narrow = decideDiffMode({ prefs: initialFileLayoutPrefs, contentAreaWidth: 800 });
     expect(narrow.mode).toBe("inline");
+    const veryNarrow = decideDiffMode({ prefs: initialFileLayoutPrefs, contentAreaWidth: 500 });
+    expect(veryNarrow.mode).toBe("inline");
+  });
+
+  it("临界档：以**较小侧**（左侧 chrome 64）为准，不用两侧均值（5.1 实机回归）", () => {
+    // 5.1 实测缺陷：CSS 视口 1024、容器 1023、目录 200 ⇒ contentArea = 811。
+    //   旧实现 perSide=(811-56)/2=378 ≥320 ⇒ 判并排，但**实际左文字区仅 306 < 320**。
+    //   修正后 leftText = (811-71)/2 - 64 = 306 < 320 ⇒ 必须 inline。
+    const at1024 = decideDiffMode({ prefs: initialFileLayoutPrefs, contentAreaWidth: 811 });
+    expect(at1024.mode).toBe("inline");
+    // 恰好达标档：contentArea 839 ⇒ 左文字区 320（边界含等号）
+    expect(decideDiffMode({ prefs: initialFileLayoutPrefs, contentAreaWidth: 839 }).mode).toBe(
+      "sideBySide",
+    );
+    expect(decideDiffMode({ prefs: initialFileLayoutPrefs, contentAreaWidth: 838 }).mode).toBe(
+      "inline",
+    );
   });
 
   it("用户选 inline ⇒ 宽屏也 inline（不被强制并排）", () => {

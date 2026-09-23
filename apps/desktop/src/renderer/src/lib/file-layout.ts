@@ -21,8 +21,28 @@ export const FILE_DIR_MIN = 200;
 export const FILE_DIR_MAX = 320;
 export const FILE_DIR_DEFAULT = 232;
 
-/** inline（单栏）文字区硬下限（design D4：实际文字区至少 480 CSS px） */
+/**
+ * inline（单栏）文字区硬下限（design D4：**≥960 CSS px 视口下**实际文字区至少 480 CSS px）。
+ *
+ * ⚠️ 分档语义（2026-09-23 真 Monaco 实测落定，见 prototype README / design D4）：
+ *    960px 是「≥480」的**几何临界视口**（960 及以上达标；960→720 一路从 392 掉到 193，
+ *    无一档达 480）。故本常量对 **960px 及以上**视口是硬约束；**800px 及更低为窄档**——
+ *    正文按可得主区自适应，不要求达 480（此时目录收起 + 强制 inline 即正确降级）。
+ *    容器宽不足以保住 480 时 `decideDirResident` 收起目录，这是**设计预期的降级**，
+ *    不是"未达标"。**不靠缩小此常量来"通过"**（review P4）。
+ */
 export const INLINE_MIN_TEXT = 480;
+
+/**
+ * 窄档容器宽上限（design D4 / spec「极窄与放大后仍可阅读」：**800px 及更低为窄档**）。
+ *
+ * ⚠️ 2026-09-23 U2 5.2 实机发现的**实现缺口**：1.2「800px D4 结案（候选 A）」只收窄了
+ *    spec/design 语境，`decideDirResident` 没有跟进窄档门 —— 实测 800 档目录仍常驻
+ *    （800−200−12−64=524 ≥ 480），违反 spec「目录一律收起」。本常量补上该门：
+ *    容器宽 ≤800 ⇒ 目录收起（正文可用空间不足的窄档，zoomFactor=2 的现实窗口均落此档）。
+ *    801–959 为过渡带：不声称 480 下限，目录按几何判据正常决策。
+ */
+export const NARROW_TIER_MAX = 800;
 
 /** 并排时**每一侧**文字区下限（design D4 / delta：每侧至少 320px） */
 export const SIDE_BY_SIDE_MIN_TEXT = 320;
@@ -31,14 +51,43 @@ export const SIDE_BY_SIDE_MIN_TEXT = 320;
 export const MIN_CODE_FONT_SIZE = 13;
 
 /**
- * 编辑器 chrome 的**经验扣除量**（px）——文字区 = 容器内部宽 − 这些。
+ * 编辑器 chrome 的**实测扣除量**（px）——文字区 = 容器内部宽 − 这些。
  *
- * ⚠️ 这些值必须由 5.1/5.2 实机测量校准；此处给保守初值，宁小勿大地估文字区，
- *    以免"以为够宽"却实际不达标。行号槽 + glyph margin 约 60，滚动条约 14。
+ * 2026-09-23 由 U2 任务 1.2 的原型用**已安装 Monaco 0.56** 的公开布局 API
+ * （`getLayoutInfo().contentWidth`）在 1440/1360/1210/1024/800/640 六档实测校准：
+ *   - inline 实测 chrome = 58–64（原估 74，偏保守 ⇒ 会**误收**目录）
+ *   - 并排每侧实测 chrome = 55–56（原估 88 ⇒ 会**误判**空间不足而错误降级）
+ * 取实测上界并留 1–2px 余量，宁大勿小（chrome 估大 ⇒ 文字区估小 ⇒ 不会"以为够宽"）。
+ * 行号槽实测 36（含 glyph margin 0，产品未开 glyph margin）。
+ * 详情见 `docs/reviews/2026-09-23-u2-file-prototype/README.md`。
  */
-export const INLINE_CHROME = 74;
-/** 并排时**每一侧**各自的 chrome（行号 + glyph margin + 滚动条 + 中缝分摊） */
-export const DIFF_CHROME_PER_SIDE = 88;
+export const INLINE_CHROME = 64;
+/**
+ * 并排时**每一侧**各自的 chrome（px）——**两侧不对称**（2026-09-23 U2 5.1 实机复测修正）。
+ *
+ * ⚠️ 原实现用**单一常数 56**（自原型 `getLayoutInfo().contentWidth` 校准），但 5.1 在
+ *    组装后的真实应用里逐档实测发现：两侧 chrome 并不相等，且**原常数把左侧低估了 8px**，
+ *    导致 `decideDiffMode` 在临界档误判为「并排够宽」，而实际左文字区不足 320：
+ *      实测（CSS 视口 1024、容器 1023、目录 200）：box 370/371、text 306/324、chrome 64/47
+ *      —— 代码判 sideBySide（理论 perSide=(811-56)/2=378 >= 320），但左文字区只有 306 < 320。
+ *    真机四档（1024/1210/1360/1440）chrome 恒为 64（左）/ 47（右），与宽度无关。
+ *
+ * 左 > 右 的原因：Monaco diff 的行号槽（36）只出现在**左侧**（右侧行号槽被中缝吸收），
+ *    再加左侧独占的滚动条/边距分摊；右侧则与中缝共用。故并排判据必须取**较大者（左侧）**。
+ *
+ * 并排每侧 chrome 取**上界**（宁大勿小：chrome 估大 ⇒ 文字区估小 ⇒ 不会"以为够宽"）。
+ */
+export const DIFF_CHROME_PER_SIDE = 64;
+/** 并排时右侧各自的 chrome（较小；用于右侧文字区估算与展示） */
+export const DIFF_CHROME_PER_SIDE_RIGHT = 47;
+/**
+ * 并排 diff 编辑器**两侧之外**的固定开销（px）：容器→diff 盒的边距/边框/中缝分摊等。
+ *
+ * 5.1 实测反解（四档一致）：`leftTextW = (contentAreaWidth - DIFF_OUTER_CHROME)/2 - 64`
+ *   —— 1024: (811-71)/2-64 = 306 ✓；1210: (1000-71)/2-64 = 400 ✓；
+ *      1360: (885-71)/2-64 = 343 ✓；1440: (965-71)/2-64 = 383 ✓。
+ */
+export const DIFF_OUTER_CHROME = 71;
 
 /** 目录与正文之间的间距 + 内边距（design D4 提到的"间距、内边距"） */
 export const GUTTER = 12;
@@ -99,7 +148,8 @@ export const initialFileLayoutPrefs: FileLayoutPrefs = {
 /**
  * 该不该**常驻**目录。
  *
- * 判据（顺序即优先级）：用户显式收起 > 空间不够（扣目录后 inline 文字区 < 480）> 常驻。
+ * 判据（顺序即优先级）：用户显式收起 > **窄档（容器 ≤800，spec「目录一律收起」）** >
+ * 空间不够（扣目录后 inline 文字区 < 480）> 常驻。
  *
  * ⚠️ `containerWidth` 是**文件容器**实测宽（不是窗口宽、不是主工作区宽）。
  *    返回 `false` 不代表"不能看目录"——极窄档下目录与内容**占同一主区**，由切换入口
@@ -111,6 +161,9 @@ export function decideDirResident(input: {
 }): boolean {
   const { prefs, containerWidth } = input;
   if (prefs.dirUserCollapsed) return false;
+  // 窄档（≤800）：spec「极窄与放大后仍可阅读」明写"目录一律收起"——即使几何上装得下
+  // 也收起，让列表/内容二选一占主区（2026-09-23 5.2 实机补齐的实现缺口）。
+  if (containerWidth <= NARROW_TIER_MAX) return false;
   // 常驻目录后，正文可用宽 = 容器 − 目录 − 间距；其文字区须仍 ≥ 480
   const textArea = containerWidth - prefs.dirWidth - GUTTER - INLINE_CHROME;
   return textArea >= INLINE_MIN_TEXT;
@@ -134,15 +187,22 @@ export function decideDiffMode(input: {
   if (prefs.diffPreference === "inline") {
     return { mode: "inline", downgraded: false, reason: null };
   }
-  const perSide = (contentAreaWidth - DIFF_CHROME_PER_SIDE) / 2;
-  const fits = perSide >= SIDE_BY_SIDE_MIN_TEXT;
+  // ⚠️ 两侧 chrome 不对称（左 64 > 右 47，实测），且还有两侧之外的固定开销 71。
+  //    并排判据取**两侧实际文字区的较小者**（即左侧）是否 ≥320：
+  //      leftText = (contentArea - 71)/2 - 64
+  //    （原实现 `(contentArea - 56)/2` 把左侧高估 8px ⇒ 1024 档误判并排、左文字区仅 306。）
+  const perSideBox = (contentAreaWidth - DIFF_OUTER_CHROME) / 2;
+  const leftText = perSideBox - DIFF_CHROME_PER_SIDE;
+  const rightText = perSideBox - DIFF_CHROME_PER_SIDE_RIGHT;
+  const minSideText = Math.min(leftText, rightText);
+  const fits = minSideText >= SIDE_BY_SIDE_MIN_TEXT;
   if (prefs.diffPreference === "sideBySide") {
     if (fits) return { mode: "sideBySide", downgraded: false, reason: null };
     // 用户选了并排但空间不足 ⇒ 自动 inline，且**说明空间不足**（delta 明文）
     return {
       mode: "inline",
       downgraded: true,
-      reason: `可用宽度不足：并排每侧需 ≥${SIDE_BY_SIDE_MIN_TEXT}px，当前约 ${Math.max(0, Math.round(perSide))}px。`,
+      reason: `可用宽度不足：并排每侧需 ≥${SIDE_BY_SIDE_MIN_TEXT}px，当前约 ${Math.max(0, Math.round(minSideText))}px。`,
     };
   }
   // auto

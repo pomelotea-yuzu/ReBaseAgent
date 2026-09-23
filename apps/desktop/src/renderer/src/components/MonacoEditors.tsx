@@ -7,6 +7,11 @@
  *
  * 职责：先 `ensureMonaco()` 完成离线装配（配置 loader 指向本地实例 + 装配两个 worker），
  * 再渲染 `@monaco-editor/react` 的原生组件。装配是幂等的，重复渲染不会重复装配。
+ *
+ * U2 任务 4.5：本层**原样透传 props**（`createElement(Editor, props)`），因此
+ * `@monaco-editor/react` 的 `onMount` 会自然抵达原生组件，编辑器实例（`IStandaloneCodeEditor`
+ * / `IStandaloneDiffEditor`）经它外抛给上层的 `MonacoEditor.tsx`。**本文件不需要额外改动**
+ * ——真正的过滤发生在中间层 `MonacoEditor.tsx` 的 `editorAttrs`（它只透传 `data-*`/`aria-*`）。
  */
 
 import { DiffEditor, Editor } from "@monaco-editor/react";

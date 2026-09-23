@@ -306,6 +306,16 @@ describe("编辑器懒加载：纯浏览路径不加载编辑器资源", () => {
     expect(wrapper).toContain("editorAttrs(");
   });
 
+  it("懒包装层把 `onMount` 外抛（U2 4.5 先决条件：否则差异导航无法接线）", () => {
+    const wrapper = read("components/MonacoEditor.tsx");
+    // onMount 不是 data-*/aria-*，editorAttrs 会过滤掉它 ⇒ 必须单独转发
+    expect(wrapper).toContain("behaviorProps(");
+    expect(wrapper).toContain('"onMount"');
+    // 两个包装组件（Editor/DiffEditor）都必须带 behaviorProps（只改一个 = 另一条路径断）
+    const uses = wrapper.match(/\.\.\.behaviorProps\(/g) ?? [];
+    expect(uses.length).toBeGreaterThanOrEqual(2);
+  });
+
   it("MonacoEditors.tsx 是唯一的 monaco 渲染实体，且先 ensureMonaco 再渲染", () => {
     const editors = read("components/MonacoEditors.tsx");
     expect(editors).toContain('from "@monaco-editor/react"');

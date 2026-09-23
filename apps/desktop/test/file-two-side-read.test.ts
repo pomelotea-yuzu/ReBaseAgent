@@ -758,3 +758,103 @@ describe("U2 第4组 接线契约：容器测量与布局判据", () => {
     expect(SRC).toContain("copyFeedback");
   });
 });
+
+// ---------------------------------------------------------------------------
+// U2 任务 4.1 接线契约：目录宽**真的可调**（拖拽 + 键盘）
+// ---------------------------------------------------------------------------
+//
+// 背景：`stepFileDirWidth` / `clampRestoredDirWidth` 曾有单测但**零 UI 消费**
+// （死导入）——纯逻辑绿、功能却不存在。下面的契约专钉这一点。
+
+describe("U2 4.1 接线契约：目录宽可调整（拖拽 + 键盘）", () => {
+  const SRC = SRC_BODY;
+
+  it("纯逻辑 `stepFileDirWidth` / `clampRestoredDirWidth` 真的被组件消费（不是死导入）", () => {
+    expect(SRC).toContain("stepFileDirWidth(");
+    expect(SRC).toContain("clampRestoredDirWidth(");
+  });
+
+  it("存在可聚焦的分隔条，且键盘 ArrowLeft/Right 走 `stepFileDirWidth` 写回会话状态", () => {
+    expect(SRC).toContain('role="separator"');
+    expect(SRC).toContain("onResizerKeyDown");
+    // 必须真的把处理器接到分隔条上（只写函数不接线 = 键盘调整失效）
+    expect(SRC).toContain("onKeyDown={onResizerKeyDown}");
+    expect(SRC).toContain("tabIndex={0}");
+    expect(SRC).toContain("onDirWidth?.(next)");
+  });
+
+  it("拖拽（pointerdown/move/up）经 `clampRestoredDirWidth` 夹取后写回", () => {
+    expect(SRC).toContain("onPointerDown={onResizerPointerDown}");
+    expect(SRC).toContain("onPointerMove={onResizerPointerMove}");
+    expect(SRC).toContain("onPointerUp={onResizerPointerUp}");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// U2 任务 4.5 接线契约：真实差异导航 + 查找（钉死"死按钮"复发）
+// ---------------------------------------------------------------------------
+//
+// 背景：此前「上一/下一差异」是**无 onClick 的死按钮**、查找入口**根本不存在**、
+// `diffCount` 被写死为 1；测试只做字符串存在性 ⇒ 缺陷溜过。以下契约钉**接线**。
+
+describe("U2 4.5 接线契约：差异导航与查找必须接线", () => {
+  const SRC = SRC_BODY;
+
+  it("差异导航按钮有真实 onClick，调用 Monaco 的 `goToDiff`（不是装饰性按钮）", () => {
+    expect(SRC).toContain("goToDiff(");
+    expect(SRC).toContain('goToDiff("previous")');
+    expect(SRC).toContain('goToDiff("next")');
+    // 按钮必须接上处理器，不得再是"只有 disabled 没有 onClick"的死按钮
+    expect(SRC).toContain("onClick={goPrevDiff}");
+    expect(SRC).toContain("onClick={goNextDiff}");
+  });
+
+  it("查找入口存在且走 Monaco 内置查找（只读，不开放替换/写入）", () => {
+    expect(SRC).toContain("actions.find");
+    expect(SRC).toContain("openFind");
+    expect(SRC).toContain("onClick={openFind}");
+    // 只读边界：不得出现替换 / 写回入口
+    expect(SRC).not.toContain("actions.replace");
+    expect(SRC).not.toContain("editor.setValue");
+    expect(SRC).not.toContain("executeEdits");
+  });
+
+  it("`diffCount` 来自 Monaco 真实 diff（`getLineChanges` + `onDidUpdateDiff`），不得写死", () => {
+    expect(SRC).toContain("getLineChanges()");
+    expect(SRC).toContain("onDidUpdateDiff(");
+    // 反向断言：旧的写死形态必须消失
+    expect(SRC).not.toContain("diffCount: diffEligibility.ok ? 1 : 0");
+  });
+
+  it("编辑器实例经 `onMount` 外抛（先决条件：没有它结构上无法接线）", () => {
+    expect(SRC).toContain("onMount={onDiffMount}");
+    expect(SRC).toContain("diffEditorRef");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// U2 任务 4.6 接线契约：键盘导航与焦点
+// ---------------------------------------------------------------------------
+
+describe("U2 4.6 接线契约：文件列表键盘导航与焦点", () => {
+  const SRC = SRC_BODY;
+
+  it("文件列表处理方向键（ArrowUp/ArrowDown）与 Home/End", () => {
+    expect(SRC).toContain("onKeyDown={onListKeyDown}");
+    expect(SRC).toContain("moveSelection(");
+    expect(SRC).toContain('"ArrowDown"');
+    expect(SRC).toContain('"ArrowUp"');
+  });
+
+  it("列表有 listbox/option 语义与 roving tabindex（可聚焦、可被读屏）", () => {
+    expect(SRC).toContain('role="listbox"');
+    expect(SRC).toContain('role="option"');
+    expect(SRC).toContain("aria-selected={active}");
+    expect(SRC).toContain("tabIndex={active ? 0 : -1}");
+  });
+
+  it("选择后把焦点交回目标文件项（焦点恢复）", () => {
+    expect(SRC).toContain("data-file-path={file.path}");
+    expect(SRC).toContain(".focus()");
+  });
+});

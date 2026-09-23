@@ -1,5 +1,5 @@
-import type { WorkspaceInspectFile, WorkspaceInspectResult } from "../src/shared/ipc";
 import { describe, expect, it } from "vitest";
+import type { WorkspaceInspectFile, WorkspaceInspectResult } from "../src/shared/ipc";
 
 /**
  * U2 任务 3.4：文件目录的**路径搜索 + 变化筛选 + 空态派生**（纯逻辑层）。
