@@ -110,6 +110,21 @@ function renderBody(overrides: Record<string, unknown> = {}): string {
       contentError: null,
       pane: "content",
       onPane: () => {},
+      query: "",
+      onQuery: () => {},
+      changeFilter: "all",
+      onFilter: () => {},
+      filterPreference: "auto",
+      dirWidth: 232,
+      onDirWidth: () => {},
+      dirCollapsed: false,
+      onDirCollapsed: () => {},
+      diffPreference: "auto",
+      onDiffPreference: () => {},
+      wordWrap: true,
+      onWordWrap: () => {},
+      listScrollTop: 0,
+      onListScrollTop: () => {},
       fetchInitial: async () => null,
       ...overrides,
     } as never),
@@ -325,6 +340,140 @@ describe("U2 3.3 清单/内容独立重试（能力断言）", () => {
 });
 
 // ---------------------------------------------------------------------------
+// U2 任务 3.4：目录搜索 / 变化筛选 / 空态与计数（能力断言）
+// ---------------------------------------------------------------------------
+
+/** 一份含新增/修改/未变/不可用的清单 */
+function mixedInspect(): Record<string, unknown> {
+  const base = inspect();
+  return {
+    ...base,
+    files: [
+      {
+        path: "src/Alpha.ts",
+        bytes: 10,
+        sha256: hex("b"),
+        change: "modified",
+        availability: "ok",
+        unavailableReason: null,
+      },
+      {
+        path: "src/beta.ts",
+        bytes: 10,
+        sha256: hex("c"),
+        change: "unchanged",
+        availability: "ok",
+        unavailableReason: null,
+      },
+      {
+        path: "README.md",
+        bytes: 10,
+        sha256: hex("d"),
+        change: "added",
+        availability: "ok",
+        unavailableReason: null,
+      },
+      {
+        path: "docs/Guide.md",
+        bytes: 10,
+        sha256: hex("e"),
+        change: "unchanged",
+        availability: "missing",
+        unavailableReason: "没了",
+      },
+    ],
+    fileCount: 4,
+  };
+}
+
+describe("U2 3.4 目录搜索与变化筛选（能力断言）", () => {
+  it("渲染搜索框与三个筛选按钮（自动/全部/有变化）", () => {
+    const html = renderBody({ inspect: mixedInspect() });
+    expect(html).toContain("按完整路径搜索");
+    expect(html).toContain("自动");
+    expect(html).toContain("全部");
+    expect(html).toContain("有变化");
+  });
+
+  it("搜索词命中完整路径（含目录名）⇒ 只列匹配项", () => {
+    const html = renderBody({ inspect: mixedInspect(), query: "src/" });
+    expect(html).toContain("src/Alpha.ts");
+    expect(html).toContain("src/beta.ts");
+    expect(html).not.toContain("README.md");
+  });
+
+  it("变化筛选 changed ⇒ 只列 added/modified（缺失的 unchanged 不出现）", () => {
+    const html = renderBody({ inspect: mixedInspect(), changeFilter: "changed" });
+    expect(html).toContain("src/Alpha.ts");
+    expect(html).toContain("README.md");
+    expect(html).not.toContain("src/beta.ts");
+    expect(html).not.toContain("docs/Guide.md");
+  });
+
+  it("筛选计数与原始规模**分开**显示（不冒充清单规模）", () => {
+    const html = renderBody({ inspect: mixedInspect(), query: "src/" });
+    expect(html).toContain("筛出 2 / 共 4");
+    const all = renderBody({ inspect: mixedInspect() });
+    expect(all).toContain("共 4 个");
+  });
+
+  it("空清单 ⇒ 空清单文案（不是无变化、不是无匹配）", () => {
+    const html = renderBody({
+      inspect: { ...inspect(), files: [], fileCount: 0, unavailableCount: 0 },
+    });
+    expect(html).toContain("为空清单");
+    expect(html).not.toContain("没有路径匹配");
+  });
+
+  it("搜索无匹配 ⇒ 无匹配文案 + 清空搜索入口（不是无变化）", () => {
+    const html = renderBody({ inspect: mixedInspect(), query: "zzz-nope", onQuery: () => {} });
+    expect(html).toContain("没有路径匹配");
+    expect(html).toContain("清空搜索");
+    expect(html).not.toContain("相对本 run 初始没有变化");
+  });
+
+  it("changed 筛选无变化 ⇒ 无变化文案 + 查看全部入口（不是无匹配）", () => {
+    const onlyUnchanged = {
+      ...inspect(),
+      files: [
+        {
+          path: "a.ts",
+          bytes: 1,
+          sha256: hex("b"),
+          change: "unchanged",
+          availability: "ok",
+          unavailableReason: null,
+        },
+      ],
+      fileCount: 1,
+      unavailableCount: 0,
+    };
+    const html = renderBody({
+      inspect: onlyUnchanged,
+      changeFilter: "changed",
+      onFilter: () => {},
+    });
+    expect(html).toContain("相对本 run 初始没有变化");
+    expect(html).toContain("查看全部");
+    expect(html).not.toContain("没有路径匹配");
+  });
+
+  it("筛选隐藏当前选择 ⇒ **保留**内容标题与阅读状态，并说明被筛选隐藏", () => {
+    // 选中的是 beta.ts（unchanged），但 changed 筛选把它藏了——内容区仍应显示它
+    const html = renderBody({
+      inspect: mixedInspect(),
+      selectedPath: "src/beta.ts",
+      changeFilter: "changed",
+      current: text("src/beta.ts", "内容仍在"),
+      initial: text("src/beta.ts", "旧"),
+    });
+    // 内容区保留该文件标题与内容（不偷换选择）
+    expect(html).toContain("src/beta.ts");
+    expect(html).toContain('data-testid="diff-editor"');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 接线契约（source 级）
 // ---------------------------------------------------------------------------
 
@@ -417,5 +566,195 @@ describe("U2 3.1 接线契约：代次守卫，不退回 cancelled 布尔", () =
         "setFileReading",
       ]).toContain(name);
     }
+  });
+});
+
+describe("U2 3.4 接线契约：搜索/筛选/空态/计数走纯派生层", () => {
+  const SRC = SRC_BODY;
+
+  it("三个派生全部来自 lib/file-directory（组件不自己 filter 一遍）", () => {
+    expect(SRC).toContain("filterFiles(");
+    expect(SRC).toContain("deriveDirectoryEmptyReason(");
+    expect(SRC).toContain("directoryCounts(");
+    // 不得在 Body 内自造过滤（例如直接 inspect.files.filter(…change===)）
+    expect(SRC).not.toMatch(/inspect\.files\.filter\(/);
+  });
+
+  it("auto 落地走 resolveChangeFilter（连接层算好再传），而非组件内联三元", () => {
+    expect(SRC).toContain("resolveChangeFilter(");
+    // 连接层必须把解析后的 all|changed 传给展示层（不是把 auto 直接下传）
+    expect(SRC).toContain("changeFilter={changeFilter}");
+    // filterPreference 是"用户偏好原值"，与解析后的 changeFilter **分开**下传
+    expect(SRC).toContain("filterPreference={saved.filter}");
+  });
+
+  it("筛选偏好写回会话状态（setFileReading({ filter })），不是组件局部 state", () => {
+    expect(SRC).toContain("onFilter={(filter) => setFileReading(run.meta.id, { filter })}");
+  });
+
+  it("搜索词与筛选都接入展示层（缺一个按钮/输入就永不出现）", () => {
+    expect(SRC).toContain("query={");
+    expect(SRC).toContain("onQuery={");
+    expect(SRC).toContain("按完整路径搜索");
+    expect(SRC).toContain("查看全部");
+    expect(SRC).toContain("清空搜索");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// U2 任务 3.5：完整路径显示 / 隐藏选择恢复 / 计数分开（能力断言）
+// ---------------------------------------------------------------------------
+
+describe("U2 3.5 目录控件与隐藏选择恢复（能力断言）", () => {
+  it("目录项显示**完整逻辑路径**（不是 basename）", () => {
+    const html = renderBody({ inspect: mixedInspect(), changeFilter: "all" });
+    expect(html).toContain("src/Alpha.ts");
+    expect(html).toContain("docs/Guide.md");
+  });
+
+  it("**筛选隐藏当前选择** ⇒ 内容区保留该文件标题与阅读状态（不偷换）", () => {
+    // 选中的 beta.ts 是 unchanged，changed 筛选把它藏了 —— 内容区仍显示它
+    const html = renderBody({
+      inspect: mixedInspect(),
+      selectedPath: "src/beta.ts",
+      changeFilter: "changed",
+      current: text("src/beta.ts", "内容仍在"),
+      initial: text("src/beta.ts", "旧"),
+    });
+    expect(html).toContain("src/beta.ts");
+    expect(html).toContain('data-testid="diff-editor"');
+  });
+
+  it("清单规模与筛选计数**分开**（受筛时显示「筛出 N / 共 M」）", () => {
+    const html = renderBody({ inspect: mixedInspect(), query: "src/", changeFilter: "all" });
+    expect(html).toContain("筛出 2 / 共 4");
+    const all = renderBody({ inspect: mixedInspect(), changeFilter: "all" });
+    expect(all).toContain("共 4 个");
+  });
+
+  it("切检查点后仍存在的路径**保留**（不清空选择）", () => {
+    // 保存的 path 在新清单里仍存在 ⇒ selectedPath 原样传入，内容区照常渲染
+    const html = renderBody({
+      inspect: mixedInspect(),
+      selectedPath: "README.md",
+      current: text("README.md", "内容"),
+      initial: { status: "not_found", path: "README.md", reason: "新增" },
+    });
+    expect(html).toContain("README.md");
+    expect(html).toContain('data-testid="diff-editor"');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// U2 第4组：容器布局 / 编辑器 / 阅读工具（能力断言）
+// ---------------------------------------------------------------------------
+
+describe("U2 第4组 容器布局与阅读工具（能力断言）", () => {
+  it("工具栏提供复制路径/两侧原文/换行/差异导航/模式（只读，无编辑入口）", () => {
+    const html = renderBody({
+      inspect: mixedInspect(),
+      selectedPath: "src/Alpha.ts",
+      current: text("src/Alpha.ts", "新"),
+      initial: text("src/Alpha.ts", "旧"),
+    });
+    expect(html).toContain("复制路径");
+    expect(html).toContain("复制左侧原文");
+    expect(html).toContain("复制右侧原文");
+    expect(html).toContain("换行：");
+    expect(html).toContain("上一差异");
+    expect(html).toContain("下一差异");
+    // 只读：绝无编辑/替换/回写/应用补丁/导出入口
+    expect(html).not.toContain("应用补丁");
+    expect(html).not.toContain("替换全部");
+    expect(html).not.toContain("导出");
+  });
+
+  it("不可比较时工具**诚实禁用**（按条件禁用并有说明）", () => {
+    const html = renderBody({
+      inspect: mixedInspect(),
+      selectedPath: "docs/Guide.md",
+      current: { status: "missing", path: "docs/Guide.md", bytes: 10, sha256: hex("e") },
+      initial: text("docs/Guide.md", "旧"),
+    });
+    // 二进制/不可用 ⇒ 显示不可比较状态，且复制原文按钮禁用
+    expect(html).toContain("内容不可读");
+    expect(html).toMatch(/disabled/);
+  });
+
+  it("复制元信息按钮在**不可用侧**出现（复制真实大小/哈希）", () => {
+    const html = renderBody({
+      inspect: mixedInspect(),
+      selectedPath: "docs/Guide.md",
+      current: { status: "binary", path: "docs/Guide.md", bytes: 777, sha256: hex("f") },
+      initial: text("docs/Guide.md", "旧"),
+    });
+    expect(html).toContain("复制元信息");
+    expect(html).toContain("二进制文件");
+  });
+
+  it("编辑器高度不再锁死 420px（弹性高度）", () => {
+    const html = renderBody({
+      inspect: mixedInspect(),
+      selectedPath: "src/Alpha.ts",
+      current: text("src/Alpha.ts", "新"),
+      initial: text("src/Alpha.ts", "旧"),
+    });
+    expect(html).not.toContain("420px");
+  });
+
+  it("模式控件按偏好显示（自动/inline/并排）", () => {
+    const html = renderBody({
+      inspect: mixedInspect(),
+      selectedPath: "src/Alpha.ts",
+      current: text("src/Alpha.ts", "新"),
+      initial: text("src/Alpha.ts", "旧"),
+      diffPreference: "sideBySide",
+    });
+    expect(html).toContain("模式：并排");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// U2 第4组 接线契约：布局判据走纯层 + 偏好全部接入会话状态
+// ---------------------------------------------------------------------------
+
+describe("U2 第4组 接线契约：容器测量与布局判据", () => {
+  const SRC = SRC_BODY;
+
+  it("容器宽度由 ResizeObserver 实测（不是窗口断点），并驱动布局判据", () => {
+    expect(SRC).toContain("useContainerWidth");
+    expect(SRC).toContain("decideDirResident(");
+    expect(SRC).toContain("decideDiffMode(");
+    expect(SRC).toContain("resolveFilePaneVisibility(");
+    // 不得用 window.innerWidth / matchMedia 之类的窗口断点判宽
+    expect(SRC).not.toContain("window.innerWidth");
+    expect(SRC).not.toContain("matchMedia");
+  });
+
+  it("目录宽/收起/diff 偏好/换行/滚动**全部**读写会话状态（不是组件局部 state）", () => {
+    expect(SRC).toContain("onDirWidth={");
+    expect(SRC).toContain("onDirCollapsed={");
+    expect(SRC).toContain("onDiffPreference={");
+    expect(SRC).toContain("onWordWrap={");
+    expect(SRC).toContain("onListScrollTop={");
+    expect(SRC).toContain("setFileReading(run.meta.id, { directoryWidth:");
+    expect(SRC).toContain("setFileReading(run.meta.id, { diffPreference }");
+    expect(SRC).toContain("setFileReading(run.meta.id, { wordWrap }");
+  });
+
+  it("**自动降级不写回偏好**：布局决策只读 prefs，不出现写回 dirWidth/diffPreference 的自动分支", () => {
+    expect(SRC).toContain("preserveFilePrefs(");
+    // 布局的自动结论（dirResident / mode）不得被 set 回 store
+    expect(SRC).not.toMatch(/setFileReading\([^)]*\{\s*directoryWidth:\s*dirWidth\s*\}/);
+  });
+
+  it("字体 ≥13px（不靠缩字号达标），换行开关接入 Monaco", () => {
+    expect(SRC).toContain("fontSize: 13");
+    expect(SRC).toMatch(/wordWrap:\s*wordWrap\s*\?\s*"on"\s*:\s*"off"/);
+  });
+
+  it("复制走剪贴板并在失败时就近提示（不假报成功）", () => {
+    expect(SRC).toContain("clipboard.writeText(");
+    expect(SRC).toContain("copyFeedback");
   });
 });
