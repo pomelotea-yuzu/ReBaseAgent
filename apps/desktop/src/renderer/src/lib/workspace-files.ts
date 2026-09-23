@@ -75,6 +75,71 @@ export function deriveCheckpointOptions(run: {
 }
 
 /**
+ * U2 任务 2.2：默认检查点 —— **最近的自有完成步骤**；没有自有完成步骤时退**初始状态**。
+ *
+ * 判据与 `deriveCheckpointOptions` 同源（都只取 `leafSpanIds` 里的 `agent.step`）：
+ * 不借用祖先步骤、不按合并轨迹下标选、不因"run 整体非 completed"而隐藏已有步骤
+ * （delta「首次文件页选择最近自有完成步骤」明确：**失败 run 的既有完成步骤同样可用**）。
+ *
+ * ⚠️ "最近"按**本 run 本地轮号 `n` 最大**判，不是合并轨迹里的数组下标——合并轨迹把
+ *    祖先 span 排在本 run 之前，用下标会选到祖先的步骤。
+ */
+export function defaultCheckpointStepId(run: {
+  spans: readonly SpanLine[];
+  leafSpanIds: readonly string[];
+  meta: { workspace?: unknown };
+}): string | null {
+  const options = deriveCheckpointOptions(run);
+  // options[0] 恒为初始（stepSpanId: null）；其余按 n 升序 ⇒ 末条即最近
+  const steps = options.filter(
+    (option): option is CheckpointOption & { stepSpanId: string } => option.stepSpanId !== null,
+  );
+  return steps.length === 0 ? null : (steps[steps.length - 1]?.stepSpanId ?? null);
+}
+
+/**
+ * U2 任务 2.2：校验保存/显式指定的检查点是否仍属于当前 run。
+ *
+ * 三种结论与 delta「失效检查点和路径安全回退」一一对应：
+ * - `"initial"`：请求的就是初始状态（合法）；
+ * - `"valid"`：该 step 仍是本 run 的自有完成步骤；
+ * - `"stale"`：**不再属于本 run**（祖先步骤 / 已被删的轮次 / 拼错的 id）⇒ 调用方须提示并回退默认，
+ *   **不得**改用另一个"看起来可读"的检查点。
+ */
+export function validateCheckpointStepId(
+  run: {
+    spans: readonly SpanLine[];
+    leafSpanIds: readonly string[];
+    meta: { workspace?: unknown };
+  },
+  stepSpanId: string | null,
+): "initial" | "valid" | "stale" {
+  if (stepSpanId === null) return "initial";
+  const options = deriveCheckpointOptions(run);
+  return options.some((option) => option.stepSpanId === stepSpanId) ? "valid" : "stale";
+}
+
+/**
+ * U2 任务 2.2：保存的 path 在新清单里是否仍然存在。
+ *
+ * - `"present"`：完整逻辑路径在清单里 ⇒ **保留选择**（即使附件不可用或不符合筛选，
+ *   也保留阅读意图——delta「切检查点保留仍存在的路径」）；
+ * - `"absent"`：清单**确认**路径不存在 ⇒ 调用方提示、清空选择、显示列表，
+ *   **不得**改选另一同名路径；
+ * - `"unknown"`：尚未拿到清单 / 清单读取失败 ⇒ **不当作路径已消失**，保留意图以便重试
+ *   （delta「读取失败 SHALL NOT 等同引用消失」）。
+ */
+export function validateSavedPath(
+  inspect: { files: readonly { path: string }[] } | null,
+  inspectFailed: boolean,
+  path: string | null,
+): "present" | "absent" | "unknown" {
+  if (path === null) return "unknown";
+  if (inspectFailed || inspect === null) return "unknown";
+  return inspect.files.some((file) => file.path === path) ? "present" : "absent";
+}
+
+/**
  * 检查点选择器顶部的**来源说明**（选择题 2 的判据面）：
  *
  * - 根 run：世界由源目录导入，说明写"独立文件世界（导入）"；

@@ -1,16 +1,48 @@
 /**
- * 会话内按运行恢复阅读位置（U1 共用派生 · 任务 3.1 / 3.2 的纯逻辑层）。
+ * 会话内按运行恢复阅读位置（U1 共用派生 · 任务 3.1 / 3.2；U2 任务 2.1 扩展文件子结构）。
  *
  * 本模块只做**纯函数**：把「每个 run 各自的阅读状态」组织成一个可序列化的结构，
  * 并提供合并/读取/校验辅助。不需要 Electron，也不需要 store——store 只是它的持有者。
  *
- * 纪律（对应 desktop-ui delta「会话内按运行恢复阅读位置」）：
+ * 纪律（对应 desktop-ui delta「会话内按运行恢复阅读位置」「文件阅读在会话内按运行恢复并校验定位」）：
  * - **只存会话**：不写 trace、不落盘、不承诺重启恢复。因此本结构**只含阅读位置**，
  *   绝不包含草稿、授权、凭据、正文副本——那些是编辑态/执行态的东西。
  * - **按 run 身份隔离**：不同 run 中相同 span ID **不得**串状态，故状态以 runId 为键、
  *   以 spanId 为内层键；读取时必须带 runId。
- * - **文件页只有页签**：文件内部检查点/路径/滚动属既有文件视图，本模块不承诺。
+ * - **U2 起文件内部状态提上来**：检查点/路径/pane/搜索/筛选/布局偏好/滚动位置按 run 保存，
+ *   使文件组件卸载重建后仍能恢复（C 时代这些是组件局部 state，一卸载就丢）。
+ *   仍然**不存正文/清单/哈希派生/Monaco 实例**——那些每次重新经只读 IPC 取。
  */
+
+/**
+ * 单个 run 的文件阅读状态（U2 任务 2.1）。
+ *
+ * 字段范围刻意**收敛在"阅读意图与位置"**：任何一字段都不能替代 IPC 的真实读取结果。
+ * 缺省（`files === undefined`）表示"尚未进入文件页"。
+ */
+export interface FileReadingState {
+  /**
+   * 当前检查点。`null` **明确代表初始状态**，与 `undefined`（未初始化）区分。
+   * 取值是自有 agent.step 的 span id。
+   */
+  checkpoint: string | null;
+  /** 最后阅读的完整逻辑路径（不按 basename 匹配） */
+  path: string | null;
+  /** 列表 / 内容 意图（窄容器下二选一） */
+  pane: "list" | "content";
+  /** 路径搜索词（空串 = 无搜索） */
+  query: string;
+  /** 变化筛选偏好；auto 在初始取 all、完成步骤取 changed */
+  filter: "auto" | "all" | "changed";
+  /** 每运行目录首选宽度（px）与用户收起意图 */
+  directoryWidth: number;
+  directoryCollapsed: boolean;
+  /** diff 模式偏好（auto 依空间决定）与换行开关 */
+  diffPreference: "auto" | "inline" | "sideBySide";
+  wordWrap: boolean;
+  /** 列表滚动位置（按检查点保存） */
+  listScrollTop: number;
+}
 
 /** 单次调用详情的阅读分区（详情面板内的分段/展开） */
 export interface CallReadingState {
@@ -45,6 +77,14 @@ export interface RunReadingState {
   overviewExpanded: string[];
   /** 每次调用的分区阅读状态（按 spanId 键） */
   calls: Record<string, CallReadingState>;
+  /**
+   * 文件页内部阅读状态（U2 任务 2.1）。缺省 = 尚未进入文件页。
+   *
+   * ⚠️ 这里是**可选**字段而不是必填：既有 `DEFAULT_READING_STATE` 是所有未访问 run 的
+   * 共享稳定引用，加必填字段会强迫所有读点补默认值；可选字段让"没进过文件页"与
+   * "进过但停在初始状态"天然可分（后者 `checkpoint === null` 但 `files !== undefined`）。
+   */
+  files?: FileReadingState;
 }
 
 /** 全部 run 的阅读状态（store 持有） */
@@ -102,6 +142,49 @@ export function patchCallReading(
     ...byRun,
     [runId]: { ...current, calls: { ...current.calls, [spanId]: { ...call, ...patch } } },
   };
+}
+
+/**
+ * U2：文件阅读默认值（**共享冻结常量**，理由同 `DEFAULT_READING_STATE`——逐次 new 会让
+ * 选择器引用不稳）。全部写路径走 `patchFileReading` 的新建对象，**从不原地改**本常量。
+ */
+const DEFAULT_FILE_READING_STATE: FileReadingState = {
+  checkpoint: null,
+  path: null,
+  pane: "list",
+  query: "",
+  filter: "auto",
+  directoryWidth: 232,
+  directoryCollapsed: false,
+  diffPreference: "auto",
+  wordWrap: true,
+  listScrollTop: 0,
+};
+
+/** 读取某 run 的文件阅读状态（缺失时返回共享默认值，不逐次 new） */
+export function fileReadingOf(state: RunReadingState): FileReadingState {
+  return state.files ?? DEFAULT_FILE_READING_STATE;
+}
+
+/**
+ * 不可变地更新某 run 的文件阅读状态片段。
+ *
+ * `undefined` 值视为"不改这一项"——用 `Partial` 传 `pane: undefined` 时不应把 pane 清掉。
+ */
+export function patchFileReading(
+  byRun: ReadingStateByRun,
+  runId: string,
+  patch: Partial<FileReadingState>,
+): ReadingStateByRun {
+  const current = readingStateOf(byRun, runId);
+  const base = current.files ?? DEFAULT_FILE_READING_STATE;
+  const next: FileReadingState = { ...base };
+  const mutable = next as unknown as Record<string, unknown>;
+  for (const key of Object.keys(patch) as (keyof FileReadingState)[]) {
+    const value = patch[key];
+    if (value !== undefined) mutable[key] = value;
+  }
+  return { ...byRun, [runId]: { ...current, files: next } };
 }
 
 /**

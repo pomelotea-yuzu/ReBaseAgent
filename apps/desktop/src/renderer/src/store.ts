@@ -41,11 +41,18 @@ import { api } from "./lib/api";
 import { resolveReading } from "./lib/reading-resolve";
 import {
   defaultReadingState,
+  fileReadingOf,
   patchCallReading,
+  patchFileReading,
   patchReadingState,
   readingStateOf,
 } from "./lib/reading-state";
-import type { CallReadingState, ReadingStateByRun, RunReadingState } from "./lib/reading-state";
+import type {
+  CallReadingState,
+  FileReadingState,
+  ReadingStateByRun,
+  RunReadingState,
+} from "./lib/reading-state";
 import {
   resolveExecutionGate,
   resolveFilterVisibility,
@@ -196,6 +203,14 @@ interface AppState {
   setReadingScroll: (runId: string, where: "overview" | "steps", top: number) => void;
   /** 记录某 run 某次调用的分区阅读状态（io 切换/展开块/内部滚动） */
   setCallReading: (runId: string, spanId: string, patch: Partial<CallReadingState>) => void;
+
+  /**
+   * U2 文件阅读状态（任务 2.1/2.4）：读取与不可变更新。
+   * 与 `readingOf` 同法——按 run 隔离，组件卸载不丢。
+   */
+  fileReadingOf: (runId: string) => FileReadingState;
+  /** 更新某 run 的文件阅读状态片段（undefined 值视为不改该项） */
+  setFileReading: (runId: string, patch: Partial<FileReadingState>) => void;
 
   /**
    * 编辑某 tool.invoke 的 result 并重跑；成功刷新列表并自动选中新 run。
@@ -603,6 +618,14 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setCallReading(runId, spanId, patch) {
     set({ readingByRun: patchCallReading(get().readingByRun, runId, spanId, patch) });
+  },
+
+  fileReadingOf(runId) {
+    return fileReadingOf(readingStateOf(get().readingByRun, runId));
+  },
+
+  setFileReading(runId, patch) {
+    set({ readingByRun: patchFileReading(get().readingByRun, runId, patch) });
   },
 
   async forkAt(parentRunId, atSpanId, value, execution) {
