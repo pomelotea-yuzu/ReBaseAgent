@@ -2,6 +2,7 @@ import type { SpanLine } from "@rebaseagent/trace-sdk";
 import { describe, expect, it } from "vitest";
 import {
   canCompareText,
+  canEnterTextDiff,
   changeLabel,
   checkpointOriginNote,
   deriveCheckpointOptions,
@@ -244,6 +245,87 @@ describe("resolveDiffSides —— 缺席的一侧是 null（不是空串）", ()
   it("两侧都缺席 → hasContent 为 false（界面据此不进编辑器）", () => {
     const sides = resolveDiffSides(null, null, { initial: "初始", selected: "第 1 轮" });
     expect(sides.hasContent).toBe(false);
+  });
+
+  it("U2 3.3：每侧带**缺席成因**（text / not_found / unavailable / unread 四态可分）", () => {
+    const notFound: WorkspaceReadFileResult = { status: "not_found", path: "a.txt", reason: "x" };
+    const binary: WorkspaceReadFileResult = {
+      status: "binary",
+      path: "a.txt",
+      bytes: 3,
+      sha256: "a".repeat(64),
+    };
+    const a = resolveDiffSides(text("old"), text("new"), { initial: "i", selected: "s" });
+    expect([a.leftNote, a.rightNote]).toEqual(["text", "text"]);
+
+    const b = resolveDiffSides(notFound, text("new"), { initial: "i", selected: "s" });
+    expect(b.leftNote).toBe("not_found");
+
+    const c = resolveDiffSides(binary, text("new"), { initial: "i", selected: "s" });
+    expect(c.leftNote).toBe("unavailable");
+
+    const d = resolveDiffSides(null, text("new"), { initial: "i", selected: "s" });
+    expect(d.leftNote).toBe("unread");
+  });
+});
+
+describe("canEnterTextDiff —— 只有「两侧 text」或「初始经校验 not_found + 所选 text」才进 diff（U2 3.3）", () => {
+  const text = (value: string): WorkspaceReadFileResult => ({
+    status: "text",
+    path: "a.txt",
+    bytes: value.length,
+    sha256: "a".repeat(64),
+    text: value,
+  });
+  const notFound = (): WorkspaceReadFileResult => ({
+    status: "not_found",
+    path: "a.txt",
+    reason: "初始清单没有它",
+  });
+  const binary = (): WorkspaceReadFileResult => ({
+    status: "binary",
+    path: "a.txt",
+    bytes: 3,
+    sha256: "a".repeat(64),
+  });
+  const missing = (): WorkspaceReadFileResult => ({
+    status: "missing",
+    path: "a.txt",
+    bytes: 3,
+    sha256: "a".repeat(64),
+    reason: "附件不存在",
+  });
+
+  const labels = { initial: "初始", selected: "所选" };
+
+  it("两侧 text ⇒ 可进", () => {
+    expect(canEnterTextDiff(resolveDiffSides(text("a"), text("b"), labels)).ok).toBe(true);
+  });
+
+  it("初始 not_found + 所选 text（新增文件）⇒ 可进（保留不存在标识）", () => {
+    const sides = resolveDiffSides(notFound(), text("b"), labels);
+    expect(canEnterTextDiff(sides).ok).toBe(true);
+    expect(sides.leftNote).toBe("not_found");
+  });
+
+  it.each([
+    ["初始 binary", () => resolveDiffSides(binary(), text("b"), labels)],
+    ["所选 missing", () => resolveDiffSides(text("b"), missing(), labels)],
+    ["初始未读（null）", () => resolveDiffSides(null, text("b"), labels)],
+    ["两侧 not_found", () => resolveDiffSides(notFound(), notFound(), labels)],
+  ])("%s ⇒ **不可**进，并给出原因（不置空侧）", (_label, build) => {
+    const verdict = canEnterTextDiff(build());
+    expect(verdict.ok).toBe(false);
+    if (!verdict.ok) expect(verdict.reason.length).toBeGreaterThan(0);
+  });
+
+  it("所选 not_found + 初始 text ⇒ 不可进（所选侧不在清单，不该当空侧比较）", () => {
+    // 所选侧 not_found 只在"所选检查点没有这条路径"时出现，语义上不是"新增"
+    // 依据 delta：只有「初始 not_found + 所选 text」被明文允许
+    const sides = resolveDiffSides(text("a"), notFound(), labels);
+    // not_found + not_found 被拒；text + not_found 也应在真实实现里被拒吗？
+    // 明文只放行「初始 not_found」，故所选 not_found 应被拒
+    expect(canEnterTextDiff(sides).ok).toBe(false);
   });
 });
 

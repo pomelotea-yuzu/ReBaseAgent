@@ -110,6 +110,9 @@ interface BodyOverrides {
   current?: Record<string, unknown> | null;
   contentError?: { code: string; message: string } | null;
   loadingContent?: boolean;
+  /** U2 3.2：初始侧由连接层独立喂入（`null` = 尚未读取，**不是**不存在） */
+  initial?: Record<string, unknown> | null;
+  loadingInitial?: boolean;
   pane?: "list" | "content";
   stepSpanId?: string | null;
 }
@@ -133,6 +136,8 @@ function renderBody(run: RunDetail, overrides: BodyOverrides = {}): string {
       currentLabel: options.find((o) => o.stepSpanId === stepSpanId)?.label ?? "本 run 当前检查点",
       loadingContent: overrides.loadingContent ?? false,
       contentError: overrides.contentError ?? null,
+      initial: overrides.initial === undefined ? null : (overrides.initial as never),
+      loadingInitial: overrides.loadingInitial ?? false,
       pane: overrides.pane ?? "list",
       onPane: () => {},
       fetchInitial: async () => null,
@@ -245,13 +250,26 @@ describe("文件视图展示层 —— 内容 / 差异呈现", () => {
   });
 
   it("两侧都有文本 → 进 DiffEditor（只读、并排）", () => {
+    // U2 3.2 起两侧由连接层独立喂入：进编辑器需要**两侧都是 text**（或初始经校验 not_found）
     const html = renderBody(isolatedRun(), {
       inspect: inspectPayload(),
       selectedPath: "a.txt",
-      current: { status: "text", path: "a.txt", bytes: 1, sha256: hex("b"), text: "new" },
+      current: { status: "text", path: "a.txt", bytes: 3, sha256: hex("b"), text: "new" },
+      initial: { status: "text", path: "a.txt", bytes: 1, sha256: hex("c"), text: "old" },
     });
     expect(html).toContain('data-testid="diff-editor"');
     expect(html).toContain("左：本 run 初始状态");
+  });
+
+  it("初始侧未读取 → **不进**编辑器（U2 3.2：未读不等于不存在，更不等于空文本）", () => {
+    const html = renderBody(isolatedRun(), {
+      inspect: inspectPayload(),
+      selectedPath: "a.txt",
+      current: { status: "text", path: "a.txt", bytes: 3, sha256: hex("b"), text: "new" },
+    });
+    expect(html).not.toContain('data-testid="diff-editor"');
+    expect(html).toContain("不进入文本差异");
+    expect(html).toContain("初始快照侧：尚未读取");
   });
 
   it("二进制内容 → 只展示大小/哈希，**不**出现编辑器", () => {

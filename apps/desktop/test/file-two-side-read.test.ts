@@ -121,29 +121,29 @@ function renderBody(overrides: Record<string, unknown> = {}): string {
 // ---------------------------------------------------------------------------
 
 describe("U2 3.2 两侧独立状态（能力断言）", () => {
-  it("所选侧可读、初始侧加载中 ⇒ 编辑器在，且标注初始侧「正在读取」（不称不存在）", () => {
+  it("所选侧可读、初始侧加载中 ⇒ **不进** diff，并标初始侧「正在读取」（不称不存在）", () => {
     const html = renderBody({
       current: text("a.txt", "新内容"),
       initial: null,
       loadingInitial: true,
       selectedFailed: false,
     });
-    expect(html).toContain('data-testid="diff-editor"');
-    expect(html).toContain("（该侧正在读取）");
-    expect(html).not.toContain("（该侧不存在）");
+    expect(html).not.toContain('data-testid="diff-editor"');
+    expect(html).toContain("不进入文本差异");
+    expect(html).toContain("初始快照侧：正在读取");
+    expect(html).not.toContain("清单确认不存在");
   });
 
-  it("**初始侧通道失败** ⇒ 明说「读取失败，不是不存在」，且提示差异不可信", () => {
+  it("**初始侧通道失败** ⇒ 明说「读取失败（不是不存在）」，且不置空侧参与 diff", () => {
     const html = renderBody({
       current: text("a.txt", "新内容"),
       initial: null,
       initialFailed: true,
-      initialError: { code: "READ_UNEXPECTED", message: "boom" },
     });
-    expect(html).toContain("（该侧读取失败，不是不存在）");
-    expect(html).toContain("差异");
-    expect(html).toContain("不可信");
-    expect(html).not.toContain("（该侧不存在）");
+    expect(html).not.toContain('data-testid="diff-editor"');
+    expect(html).toContain("初始快照侧：读取失败（不是不存在）");
+    expect(html).toContain("不会把不可用或未读取的一侧置空参与 diff");
+    expect(html).not.toContain("清单确认不存在");
   });
 
   it("初始侧真实 not_found（新增文件）⇒ 标「该侧不存在」，**不**与失败/加载混用", () => {
@@ -184,18 +184,21 @@ describe("U2 3.2 两侧独立状态（能力断言）", () => {
     // 旧形态：!sides.hasContent 一刀切（把"未读/失败"和"确实不存在"混为一谈）
     expect(SRC_BODY).not.toContain("!sides.hasContent");
     expect(SRC_BODY).not.toContain("初始与所选检查点在两侧都没有可显示的内容");
+    // 改为显式资格判定 canEnterTextDiff（U2 3.3）
+    expect(SRC_BODY).toContain("canEnterTextDiff(");
   });
 
-  it("一侧 hasContent 为假、但另一侧真实文本 ⇒ 仍进编辑器并分别标注（不整块吞掉）", () => {
-    // 初始侧 corrupt（解析不出文本）+ 所选侧 text：comparability 只看所选侧 ⇒ 进编辑器
+  it("一侧不可比较、另一侧真实文本 ⇒ **不进** diff 并标出该侧具体成因（不置空侧）", () => {
+    // 初始侧 corrupt（不可比较）+ 所选侧 text：canEnterTextDiff 拒绝进入
     const html = renderBody({
       current: text("a.txt", "新内容"),
       initial: { status: "corrupt", path: "a.txt", bytes: 5, sha256: hex("1"), reason: "x" },
     });
-    expect(html).toContain('data-testid="diff-editor"');
-    // 初始侧标注其真实状态（不可用），不整块说"两侧都没有内容"
-    expect(html).toContain("该侧不可用");
-    expect(html).not.toContain("两侧都没有内容");
+    expect(html).not.toContain('data-testid="diff-editor"');
+    expect(html).toContain("不进入文本差异");
+    expect(html).toContain("内容不可比较（二进制 / 附件缺失 / 损坏）");
+    // 明确不把不可用侧当空文本参与 diff
+    expect(html).toContain("不会把不可用或未读取的一侧置空参与 diff");
   });
 
   it("两侧都**未读取完成**（初始侧加载中、所选侧尚无结果）⇒ 显示读取中，不渲染伪空编辑器", () => {
@@ -231,6 +234,17 @@ describe("U2 3.2 两侧独立状态（能力断言）", () => {
     expect(html).toContain("可重试");
   });
 
+  it("追加：初始经校验 not_found + 所选 text ⇒ **进** diff（新增文件的合法空侧，保留不存在标识）", () => {
+    const html = renderBody({
+      current: text("b.txt", "刚写入的新文件"),
+      initial: { status: "not_found", path: "b.txt", reason: "初始清单没有它" },
+    });
+    // 合法进入（新增文件用空侧但保留"不存在"标识），不是把空侧当空文本
+    expect(html).toContain('data-testid="diff-editor"');
+    expect(html).toContain("（该侧不存在）");
+    expect(html).toContain("本 run 新增的文件");
+  });
+
   it("零字节真实空文件（text 空串、bytes 0）**可参与比较**，与 not_found 不同判", () => {
     const html = renderBody({
       current: { status: "text", path: "a.txt", bytes: 0, sha256: hex("e"), text: "" },
@@ -239,6 +253,74 @@ describe("U2 3.2 两侧独立状态（能力断言）", () => {
     // 进入编辑器（是真文件，不是"不存在"），且没有 not_found 提示
     expect(html).toContain('data-testid="diff-editor"');
     expect(html).not.toContain("该路径不在所选清单里");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// U2 任务 3.3：独立重试与单侧可读
+// ---------------------------------------------------------------------------
+
+describe("U2 3.3 清单/内容独立重试（能力断言）", () => {
+  it("清单失败 ⇒ 渲染「重新读取清单」重试按钮；未失败时不渲染", () => {
+    const failedHtml = renderBody({
+      inspect: null,
+      inspectError: { code: "WORKSPACE_UNREADABLE", message: "读不到" },
+      onRetryList: () => {},
+    });
+    expect(failedHtml).toContain("重新读取清单");
+
+    const okHtml = renderBody({ onRetryList: () => {} });
+    expect(okHtml).not.toContain("重新读取清单");
+  });
+
+  it("所选侧读取失败 ⇒ 渲染「重新读取该文件」；不失败时不渲染", () => {
+    const failedHtml = renderBody({
+      current: null,
+      contentError: { code: "READ_UNEXPECTED", message: "boom" },
+      onRetryContent: () => {},
+    });
+    expect(failedHtml).toContain("重新读取该文件");
+
+    const okHtml = renderBody({
+      current: text("a.txt", "新内容"),
+      initial: text("a.txt", "旧内容"),
+      onRetryContent: () => {},
+    });
+    expect(okHtml).not.toContain("重新读取该文件");
+  });
+
+  it("所选侧读取失败 ⇒ 两侧各自独立的重试入口（初始侧重试 + 本侧重试互不牵连）", () => {
+    const html = renderBody({
+      current: null,
+      contentError: { code: "READ_UNEXPECTED", message: "boom" },
+      onRetryContent: () => {},
+      onRetryInitial: () => {},
+    });
+    // 所选侧自己的重试
+    expect(html).toContain("重新读取该文件");
+    expect(html).not.toContain('data-testid="diff-editor"');
+  });
+
+  it("初始侧未读取完成 + 所选侧可读 ⇒ 「不进入 diff」分支提供初始侧独立重试", () => {
+    const html = renderBody({
+      current: text("a.txt", "新内容"),
+      initial: null,
+      initialFailed: true,
+      onRetryInitial: () => {},
+      onRetryContent: () => {},
+    });
+    expect(html).toContain("不进入文本差异");
+    expect(html).toContain("重新读取初始快照");
+    // 所选侧未失败 ⇒ 不该出现"重新读取所选侧"
+    expect(html).not.toContain("重新读取所选侧");
+  });
+
+  it("重试回调缺省时不渲染按钮（展示层无回调即不提供入口）", () => {
+    const html = renderBody({
+      inspect: null,
+      inspectError: { code: "E", message: "m" },
+    });
+    expect(html).not.toContain("重新读取清单");
   });
 });
 
@@ -299,7 +381,8 @@ describe("U2 3.1 接线契约：代次守卫，不退回 cancelled 布尔", () =
   it("两侧读取**互不为前置条件**：初始侧 effect 不依赖所选侧结果", () => {
     // 初始侧 effect 的依赖数组里不得出现 current（C 时代 current 是初始侧读取的前置）
     const start = SRC.indexOf('const token = guard.begin("initial"');
-    const end = SRC.indexOf("}, [readWorkspaceFile, run.meta.id, effectivePath, initialKey]);");
+    // biome 会把依赖数组折成多行，故只按"initialKey,"定位收尾
+    const end = SRC.indexOf("initialKey,", start);
     expect(start).toBeGreaterThan(-1);
     expect(end).toBeGreaterThan(start);
     const initialEffect = SRC.slice(start, end);
@@ -310,5 +393,29 @@ describe("U2 3.1 接线契约：代次守卫，不退回 cancelled 布尔", () =
   it("结果层取值走 sideResult（failed 不冒充 not_found）", () => {
     expect(SRC).toContain("sideResult(selectedState)");
     expect(SRC).toContain("sideResult(initialState)");
+  });
+
+  it("**重试接线**：连接层必须把三个独立重试回调传给展示层（否则按钮永不出现）", () => {
+    expect(SRC).toContain("onRetryList={() =>");
+    expect(SRC).toContain("onRetryContent={() =>");
+    expect(SRC).toContain("onRetryInitial={() =>");
+    // 重试靠 nonce 变化重跑 effect（真的重新调 IPC，不是复用旧结果）
+    expect(SRC).toContain("setListRetry(");
+    expect(SRC).toContain("setSelectedRetry(");
+    expect(SRC).toContain("setInitialRetry(");
+  });
+
+  it("**不得有任何写入通道**（阅读重试只读）：无 readFile 之外的 IPC、无 write/import/apply 调用", () => {
+    // 组件只应调用 inspectWorkspace / readWorkspaceFile 两个只读动作
+    const calls = SRC.match(/useAppStore\(\(s\) => s\.(\w+)\)/g) ?? [];
+    const names = calls.map((c) => c.replace(/.*s\./, "").replace(/\)$/, ""));
+    for (const name of names) {
+      expect([
+        "inspectWorkspace",
+        "readWorkspaceFile",
+        "fileReadingOf",
+        "setFileReading",
+      ]).toContain(name);
+    }
   });
 });

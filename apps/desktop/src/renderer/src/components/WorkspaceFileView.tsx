@@ -13,6 +13,7 @@ import {
 import {
   availabilityLabel,
   canCompareText,
+  canEnterTextDiff,
   changeLabel,
   checkpointOriginNote,
   defaultCheckpointStepId,
@@ -122,6 +123,19 @@ export function WorkspaceFileView({ run }: { run: RunDetail }) {
   const [initialState, setInitialState] = useState<SideReadState>({ kind: "idle" });
   const [selectedState, setSelectedState] = useState<SideReadState>({ kind: "idle" });
 
+  /**
+   * U2 任务 3.3：**独立重试**的非单调计数。
+   *
+   * delta「清单和内容可独立重试」「阅读重试只读且重新校验」——重试不是"复用旧结果"，
+   * 而是**真的重新调用只读 IPC** 并重走一遍校验（路径是否仍在清单、检查点是否仍属本 run）。
+   * 把 nonce 加进各自 effect 的依赖数组即可触发重跑；三个面各有一个 nonce ⇒ 互不牵连。
+   *
+   * ⚠️ 重试**只读**：不导入、不补写、不调用模型/工具（本组件没有任何写通道）。
+   */
+  const [listRetry, setListRetry] = useState(0);
+  const [initialRetry, setInitialRetry] = useState(0);
+  const [selectedRetry, setSelectedRetry] = useState(0);
+
   // 清单结果（成功才有）：渲染与路径校验都从这里取
   const inspect: Selected | null = listState.kind === "ok" ? listState.result : null;
   const inspectError =
@@ -134,6 +148,7 @@ export function WorkspaceFileView({ run }: { run: RunDetail }) {
   const pathInvalidated = pathCheck === "absent";
 
   // 拉清单：选择变化即重新拉（判据是"当前选择"，与渲染同源）
+  // biome-ignore lint/correctness/useExhaustiveDependencies: listRetry 是**重试触发器**，靠变化重跑本 effect
   useEffect(() => {
     const guard = listGuardRef.current;
     if (guard === null) return;
@@ -157,7 +172,7 @@ export function WorkspaceFileView({ run }: { run: RunDetail }) {
         });
         if (next !== null) setListState(next);
       });
-  }, [inspectWorkspace, run.meta.id, effectiveStepSpanId]);
+  }, [inspectWorkspace, run.meta.id, effectiveStepSpanId, listRetry]);
 
   /**
    * U2 任务 3.2：**两侧独立读取**。初始侧与所选侧各走各的守卫与状态：
@@ -184,6 +199,7 @@ export function WorkspaceFileView({ run }: { run: RunDetail }) {
   const initialKey = effectivePath === null ? null : requestKey(run.meta.id, null, effectivePath);
 
   // 所选检查点侧：路径或检查点变化即重新读（同一对象重试也走这里，代次递增）
+  // biome-ignore lint/correctness/useExhaustiveDependencies: selectedRetry 是**重试触发器**，靠变化重跑本 effect
   useEffect(() => {
     const guard = selectedGuardRef.current;
     if (guard === null) return;
@@ -211,7 +227,14 @@ export function WorkspaceFileView({ run }: { run: RunDetail }) {
         });
         if (next !== null) setSelectedState(next);
       });
-  }, [readWorkspaceFile, run.meta.id, effectivePath, effectiveStepSpanId, currentKey]);
+  }, [
+    readWorkspaceFile,
+    run.meta.id,
+    effectivePath,
+    effectiveStepSpanId,
+    currentKey,
+    selectedRetry,
+  ]);
 
   /**
    * 初始侧：**独立**于所选侧读取（不再等"当前已读出"才拉）。
@@ -220,6 +243,7 @@ export function WorkspaceFileView({ run }: { run: RunDetail }) {
    *    以 `current` 成功为前置条件 ⇒ 所选侧一失败，初始侧就永远不读，界面只能显示
    *    "两侧都没内容"——把"未读"伪装成了"不存在"。现在两侧各自读、各自表达。
    */
+  // biome-ignore lint/correctness/useExhaustiveDependencies: initialRetry 是**重试触发器**，靠变化重跑本 effect
   useEffect(() => {
     const guard = initialGuardRef.current;
     if (guard === null) return;
@@ -243,13 +267,11 @@ export function WorkspaceFileView({ run }: { run: RunDetail }) {
         });
         if (next !== null) setInitialState(next);
       });
-  }, [readWorkspaceFile, run.meta.id, effectivePath, initialKey]);
+  }, [readWorkspaceFile, run.meta.id, effectivePath, initialKey, initialRetry]);
 
   // 结果层取值：**只有真的成功**才给；failed/loading/idle 一律 null（不是 not_found）
   const current = sideResult(selectedState);
   const initialResult = sideResult(initialState);
-
-  const hasComparisonError = contentFailure(selectedState) !== null;
 
   return (
     <WorkspaceFileViewBody
@@ -274,22 +296,18 @@ export function WorkspaceFileView({ run }: { run: RunDetail }) {
       initial={initialResult}
       initialKey={initialKey}
       loadingInitial={initialState.kind === "loading"}
-      initialError={sideFailure(initialState)}
       initialFailed={initialState.kind === "failed"}
       selectedFailed={selectedState.kind === "failed"}
-      hasComparisonError={hasComparisonError}
       pane={saved.pane}
       onPane={(pane) => setFileReading(run.meta.id, { pane })}
       fetchInitial={readSide}
+      onRetryList={() => setListRetry((n) => n + 1)}
+      onRetryContent={() => setSelectedRetry((n) => n + 1)}
+      onRetryInitial={() => setInitialRetry((n) => n + 1)}
       checkpointInvalidated={checkpointInvalidated}
       pathInvalidated={pathInvalidated}
     />
   );
-}
-
-/** 侧的**通道失败**（IPC 拒绝 / schema 不合法）折成展示层错误对象；其余为 null。 */
-function sideFailure(state: SideReadState): { code: string; message: string } | null {
-  return state.kind === "failed" ? { code: state.code, message: state.message } : null;
 }
 
 /** 所选侧的通道失败（展示层原字段名保留，减少改动面）。 */
@@ -325,19 +343,23 @@ export interface WorkspaceFileViewBodyProps {
   readonly initial?: WorkspaceReadFileResult | null;
   readonly initialKey?: string | null;
   readonly loadingInitial?: boolean;
-  readonly initialError?: { code: string; message: string } | null;
   /** 初始侧通道失败（与"结果说附件缺失"不同层） */
   readonly initialFailed?: boolean;
   /** 所选侧通道失败 */
   readonly selectedFailed?: boolean;
-  /** 至少一侧处于**通道失败**（用于禁用比较类工具，而不是假装无差异） */
-  readonly hasComparisonError?: boolean;
   readonly pane: "list" | "content";
   readonly onPane: (pane: "list" | "content") => void;
   readonly fetchInitial: (
     stepSpanId: string | null,
     path: string,
   ) => Promise<WorkspaceReadFileResult | null>;
+  /**
+   * U2 任务 3.3：**独立重试**回调（真的重新调用只读 IPC，不复用旧结果）。
+   * 三个面各自独立——清单失败不影响内容重试，反之亦然（delta「清单和内容可独立重试」）。
+   */
+  readonly onRetryList?: () => void;
+  readonly onRetryContent?: () => void;
+  readonly onRetryInitial?: () => void;
   /** U2：保存的检查点已失效（提示"原检查点不可用，已回退默认"） */
   readonly checkpointInvalidated?: boolean;
   /** U2：保存的路径在所选清单里已不存在（提示"原文件不存在，已清空选择"） */
@@ -362,13 +384,14 @@ export function WorkspaceFileViewBody({
   initial = null,
   initialKey = null,
   loadingInitial = false,
-  initialError = null,
   initialFailed = false,
   selectedFailed = false,
-  hasComparisonError = false,
   pane,
   onPane,
   fetchInitial,
+  onRetryList,
+  onRetryContent,
+  onRetryInitial,
   checkpointInvalidated = false,
   pathInvalidated = false,
 }: WorkspaceFileViewBodyProps) {
@@ -480,6 +503,16 @@ export function WorkspaceFileViewBody({
           <div className="mt-0.5 text-red-600">
             原因来自 main 的只读读取；界面不会用"当前目录"或父 run 的历史快照兜底。
           </div>
+          {/* U2 任务 3.3：清单**独立重试**——真的重新调用只读 IPC（不复用旧结果） */}
+          {onRetryList === undefined ? null : (
+            <button
+              type="button"
+              onClick={onRetryList}
+              className="mt-1 rounded border border-red-300 bg-white px-2 py-0.5 text-[11px] text-red-700 hover:bg-red-50"
+            >
+              重新读取清单
+            </button>
+          )}
         </div>
       ) : null}
 
@@ -565,11 +598,11 @@ export function WorkspaceFileViewBody({
               initial={initial}
               initialKey={initialKey}
               loadingInitial={loadingInitial}
-              initialError={initialError}
               initialFailed={initialFailed}
               selectedFailed={selectedFailed}
-              hasComparisonError={hasComparisonError}
               fetchInitial={fetchInitial}
+              onRetryContent={onRetryContent}
+              onRetryInitial={onRetryInitial}
             />
           )}
         </div>
@@ -609,11 +642,11 @@ function FileContent({
   initial,
   initialKey,
   loadingInitial,
-  initialError,
   initialFailed,
   selectedFailed,
-  hasComparisonError,
   fetchInitial,
+  onRetryContent,
+  onRetryInitial,
 }: {
   path: string;
   file: {
@@ -629,14 +662,14 @@ function FileContent({
   initial: WorkspaceReadFileResult | null;
   initialKey: string | null;
   loadingInitial: boolean;
-  initialError: { code: string; message: string } | null;
   initialFailed: boolean;
   selectedFailed: boolean;
-  hasComparisonError: boolean;
   fetchInitial: (
     stepSpanId: string | null,
     path: string,
   ) => Promise<WorkspaceReadFileResult | null>;
+  onRetryContent?: () => void;
+  onRetryInitial?: () => void;
 }) {
   // 所选侧：加载中（且尚无结果）⇒ 该侧是"读取中"，**不是**不存在
   if (loading && current === null) {
@@ -654,6 +687,15 @@ function FileContent({
         <div className="mt-0.5 text-red-600">
           这是只读通道的失败，并不表示该文件不存在；定位意图已保留，可重试。
         </div>
+        {onRetryContent === undefined ? null : (
+          <button
+            type="button"
+            onClick={onRetryContent}
+            className="mt-1 rounded border border-red-300 bg-white px-2 py-0.5 text-[11px] text-red-700 hover:bg-red-50"
+          >
+            重新读取该文件
+          </button>
+        )}
       </div>
     );
   }
@@ -730,61 +772,86 @@ function FileContent({
   }
 
   /**
-   * U2 任务 3.2：**两侧分别标真实状态**。
+   * U2 任务 3.2 / 3.3：**两侧分别标真实状态**，且**只有够格才进 diff**。
    *
-   * 这里不再有"两侧都没有可显示的内容 ⇒ 不渲染编辑器"的粗暴分支（C 时代的它把
+   * 这里不再有"两侧都没有可显示的内容 ⇒ 不渲染编辑器"的粗暴判据（C 时代的它把
    * "初始侧没读出来"和"初始侧确实不存在"混为一谈）。改为：
-   * - 只有两侧**都解析不出任何文本**、且**两侧都没有可展示的真实结果**时才不动编辑器；
-   * - 否则渲染，并对每一侧标注它是「不存在」「加载中」还是「读取失败」。
+   * - 先问 `canEnterTextDiff`：只有「两侧 text」或「经校验的初始 not_found + 所选 text」才进；
+   * - 不够格时按**具体原因**分流（不可比较 / 未读 / 失败 / 两侧都不存在），绝不置空 diff。
    */
+  const diffEligibility = canEnterTextDiff(sides);
   const leftMissing = sides.left === null;
   const rightMissing = sides.right === null;
   const initialNotRead = initial === null && (loadingInitial || initialFailed);
-  const bothUnavailable = leftMissing && rightMissing && initialNotRead;
 
-  if (bothUnavailable) {
+  if (!diffEligibility.ok) {
+    /** 一侧缺席的**具体成因**（不让"失败/加载"冒充"不存在"，也不让"二进制"冒充"空"） */
+    const noteText = (note: typeof sides.leftNote, failed: boolean, loading: boolean): string => {
+      switch (note) {
+        case "not_found":
+          return "清单确认不存在";
+        case "unavailable":
+          return "内容不可比较（二进制 / 附件缺失 / 损坏）";
+        case "unread":
+          return failed ? "读取失败（不是不存在）" : loading ? "正在读取" : "尚未读取";
+        case "text":
+          return "有文本";
+      }
+    };
     return (
       <>
         {header}
         <div className="m-4 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-[11px] leading-5 text-gray-700">
-          <div className="font-semibold text-gray-800">两侧都还没有可读文本</div>
-          <div className="mt-0.5">
-            初始快照侧：
-            {initialFailed
-              ? `读取失败（${initialError?.code ?? "未知"}）——不是"不存在"`
-              : "正在读取"}
-            ；所选检查点侧：{selectedFailed ? "读取失败（不是不存在）" : "无可读文本"}。
+          <div className="font-semibold text-gray-800">不进入文本差异</div>
+          <div className="mt-0.5">{diffEligibility.reason}</div>
+          <div className="mt-1 text-gray-600">
+            初始快照侧：{noteText(sides.leftNote, initialFailed, loadingInitial)}；所选检查点侧：
+            {noteText(sides.rightNote, selectedFailed, loading)}。
           </div>
           <div className="mt-1 text-gray-500">
-            不会用空编辑器冒充"文件是空的"，也不会宣称无变化。
+            绝不会用空编辑器冒充"文件是空的"，也不会把不可用或未读取的一侧置空参与 diff。
           </div>
+          {onRetryInitial === undefined && onRetryContent === undefined ? null : (
+            <div className="mt-1 flex gap-2">
+              {sides.leftNote === "unread" && onRetryInitial !== undefined ? (
+                <button
+                  type="button"
+                  onClick={onRetryInitial}
+                  className="rounded border border-gray-300 bg-white px-2 py-0.5 text-[11px] text-gray-700 hover:bg-gray-50"
+                >
+                  重新读取初始快照
+                </button>
+              ) : null}
+              {sides.rightNote === "unread" && onRetryContent !== undefined ? (
+                <button
+                  type="button"
+                  onClick={onRetryContent}
+                  className="rounded border border-gray-300 bg-white px-2 py-0.5 text-[11px] text-gray-700 hover:bg-gray-50"
+                >
+                  重新读取所选侧
+                </button>
+              ) : null}
+            </div>
+          )}
         </div>
       </>
     );
   }
 
-  /** 一侧的状态说明（区分：真不存在 / 加载中 / 读取失败 / 已有文本） */
-  const sideNote = (
-    side: WorkspaceReadFileResult | null,
-    isInitial: boolean,
-    notRead: boolean,
-    failed: boolean,
-  ): string => {
-    if (side !== null && side.status === "text") return "";
-    if (failed) return "（该侧读取失败，不是不存在）";
-    if (notRead) return "（该侧正在读取）";
-    if (side !== null && side.status === "not_found") return "（该侧不存在）";
-    if (side === null) return "（该侧尚未读取）";
-    return "（该侧不可用）";
-  };
+  /**
+   * 一侧的状态说明。走这里时已由 `canEnterTextDiff` 保证两侧**只有** `text` 或 `not_found`
+   * （不可比较 / 未读的一侧在上一分支就被拦下了）——所以这里只有"不存在"一种补充说明。
+   */
+  const sideNote = (note: typeof sides.leftNote): string =>
+    note === "not_found" ? "（该侧不存在）" : "";
 
   return (
     <>
       {header}
       <div className="px-4 py-1.5 text-[10px] text-gray-400">
         左：本 run 初始状态
-        {sideNote(initial, true, loadingInitial, initialFailed)} · 右：{sides.rightLabel}
-        {sideNote(current, false, loading, selectedFailed)}
+        {sideNote(sides.leftNote)} · 右：{sides.rightLabel}
+        {sideNote(sides.rightNote)}
       </div>
       <div className="mx-4 mb-4 overflow-hidden rounded border border-gray-200">
         <MonacoDiffEditor
@@ -809,19 +876,12 @@ function FileContent({
           }}
         />
       </div>
-      {hasComparisonError || initialFailed ? (
-        <div className="mx-4 mb-4 rounded border-l-2 border-red-400 bg-red-50 px-2 py-1.5 text-[10px] leading-4 text-red-800">
-          一侧只读通道失败：显示的文本不完整，差异不可信（不把失败侧当空文本比较）。
-        </div>
-      ) : null}
-      {leftMissing && !initialNotRead ? (
+      {leftMissing ? (
         <div className="mx-4 mb-4 rounded border-l-2 border-amber-400 bg-amber-50 px-2 py-1.5 text-[10px] leading-4 text-amber-900">
-          {initial !== null && initial.status === "not_found"
-            ? "初始快照里没有这条路径（本 run 新增的文件）；左侧标作不存在，未用空文本冒充。"
-            : "初始侧没有可显示文本；左侧标作不可用，未用空文本冒充。"}
+          初始快照里没有这条路径（本 run 新增的文件）；左侧标作不存在，未用空文本冒充。
         </div>
       ) : null}
-      {rightMissing && !selectedFailed && !loading ? (
+      {rightMissing ? (
         <div className="mx-4 mb-4 rounded border-l-2 border-amber-400 bg-amber-50 px-2 py-1.5 text-[10px] leading-4 text-amber-900">
           所选检查点没有这条路径；右侧标作不存在（可能是初始有、后轮被移出世界）。
         </div>

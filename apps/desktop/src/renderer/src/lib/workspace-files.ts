@@ -229,14 +229,38 @@ export function canCompareText(
  *
  * 缺席的一侧**显式表达为"不存在"**而不是空字符串——`null` 交给调用方渲染成
  * "（该侧不存在）"的提示，绝不用 `""` 冒充"文件是空的"。
+ *
+ * U2 任务 3.3 起，每一侧另带**缺席原因**（`leftNote` / `rightNote`），因为"缺席"至少有四种
+ * 不同含义，界面**必须**分开表达（delta「不可用侧不伪装为空差异」）：
+ * - `"text"`：有文本；
+ * - `"not_found"`：清单确认该侧不存在（新增文件的初始侧）——**合法**，算作"缺失的空侧"；
+ * - `"unavailable"`：binary / missing / corrupt —— **不可比较**，不得当作空文本参与 diff；
+ * - `"unread"`：null（加载中 / 通道失败 / 还没读）—— **不是**"不存在"。
  */
+export type DiffSideNote = "text" | "not_found" | "unavailable" | "unread";
+
 export interface DiffSides {
   readonly left: string | null;
   readonly right: string | null;
   readonly leftLabel: string;
   readonly rightLabel: string;
+  readonly leftNote: DiffSideNote;
+  readonly rightNote: DiffSideNote;
   /** 是否至少一侧有内容可显示（两侧都缺席时不该进编辑器） */
   readonly hasContent: boolean;
+}
+
+function sideNoteOf(side: WorkspaceReadFileResult | null): DiffSideNote {
+  if (side === null) return "unread";
+  switch (side.status) {
+    case "text":
+      return "text";
+    case "not_found":
+      return "not_found";
+    // binary / missing / corrupt / rejected 都不可参与文本比较
+    default:
+      return "unavailable";
+  }
 }
 
 export function resolveDiffSides(
@@ -251,8 +275,36 @@ export function resolveDiffSides(
     right,
     leftLabel: labels.initial,
     rightLabel: labels.selected,
+    leftNote: sideNoteOf(initial),
+    rightNote: sideNoteOf(selected),
     hasContent: left !== null || right !== null,
   };
+}
+
+/**
+ * U2 任务 3.3：两侧**是否具备进入文本 diff 的资格**。
+ *
+ * delta 明文：只有「两侧均为 text」，或「**经校验的初始 `not_found`** 与「所选 `text`」
+ * 才进 diff（新增文件的初始侧本就不存在，是**合法的空侧**）；新增文件用空侧时
+ * **保留"不存在"标识**（不是把空侧当空文本）。
+ *
+ * 其余一律不进：
+ * - 任一侧 `unavailable`（binary / missing / corrupt / rejected）⇒ 不得用空文本参与比较
+ *   （否则就是"不可用侧伪装为空差异"）；
+ * - 任一侧 `unread`（null，加载中 / 通道失败 / 还没读）⇒ "未读"不等于"不存在"；
+ * - **所选侧** `not_found` ⇒ 所选检查点里根本没有这条路径，不该当空侧比较。
+ */
+export function canEnterTextDiff(sides: DiffSides): { ok: true } | { ok: false; reason: string } {
+  const leftOk = sides.leftNote === "text" || sides.leftNote === "not_found";
+  const rightOk = sides.rightNote === "text";
+  if (!leftOk || !rightOk) {
+    return {
+      ok: false,
+      reason:
+        "至少一侧不可比较（不可用 / 尚未读取 / 读取失败 / 所选侧不存在）；不会把该侧当空文本参与 diff。",
+    };
+  }
+  return { ok: true };
 }
 
 /** Monaco 语言嗅探：内容可解析为 JSON 用 json，否则纯文本（与既有编辑器同判据） */
