@@ -29,6 +29,14 @@ import {
   stepFileDirWidth,
 } from "../lib/file-layout";
 import {
+  type ContentScrollAnchor,
+  anchorMatches,
+  buildContentAnchor,
+  clampAnchorLine,
+  resolveAnchorScrollTop,
+  sameAnchor,
+} from "../lib/file-scroll";
+import {
   type SideReadiness,
   copyableMeta,
   copyableText,
@@ -44,6 +52,8 @@ import {
   settleSide,
   sideResult,
 } from "../lib/reading-request-guard";
+import { decideRestore, initialRestoreState } from "../lib/restore-gate";
+import { resolveRestoreScrollTop, resolveScrollRestore } from "../lib/scroll-restore";
 import { useContainerWidth } from "../lib/use-file-layout";
 import {
   availabilityLabel,
@@ -61,7 +71,7 @@ import {
 } from "../lib/workspace-files";
 import type { CheckpointOption, DiffSides } from "../lib/workspace-files";
 import { useAppStore } from "../store";
-import { MonacoDiffEditor } from "./MonacoEditor";
+import { MonacoCodeEditor, MonacoDiffEditor } from "./MonacoEditor";
 
 /**
  * 隔离文件检查点视图（C 任务 2.1/2.2；U2 任务 2.4/3.x/4.x）。
@@ -165,6 +175,38 @@ export function WorkspaceFileView({ run }: { run: RunDetail }) {
   const pathCheck = validateSavedPath(inspect, inspectError !== null, saved.path);
   const effectivePath = pathCheck === "absent" ? null : saved.path;
   const pathInvalidated = pathCheck === "absent";
+
+  /**
+   * U2 5.3 实机缺口修复（2026-09-23）：**失效引用要真的清掉，不能每次挂载重算一遍**。
+   *
+   * 依据（原文）：
+   *   - design D2：「保存的 step 不再属于该 run 时，**清理 step/path/对应滚动**并提示」；
+   *     「path … 不存在则**提示、清空选择**、显示列表」。
+   *   - spec：「前者提示并清理相关位置…；后者提示并**清空文件选择**、显示列表」，且
+   *     「**仅清单确认 path 不存在时清空**，读取失败保留定位意图供重试」。
+   *
+   * 原实现只把失效值**在本帧算成 fallback**（`effectiveStepSpanId` / `effectivePath`），
+   * 从不写回 ⇒ 失效 path 一直留在会话状态里：每次往返都重新提示（"清理"退化成了"永久告警"），
+   * 与"清空"的字面要求也不符。故这里补上**一次性写回清理**。
+   *
+   * ⚠️ 清理后判据立刻变假 ⇒ 提示会跟着消失（等于"静默回退"）。因此把"发生过失效"**锁存**
+   *    在本组件这一次挂载里（`invalidNotice`），保证"提示"与"清理"同时成立。下次往返时
+   *    状态已是干净的、判据不再触发，提示自然不再反复出现——这正是"一次性清理"的语义。
+   */
+  const [invalidNotice, setInvalidNotice] = useState({ checkpoint: false, path: false });
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 只在**失效判据成立**时执行一次清理；setFileReading 是稳定引用
+  useEffect(() => {
+    if (!checkpointInvalidated && !pathInvalidated) return;
+    setFileReading(run.meta.id, {
+      ...(checkpointInvalidated ? { checkpoint: effectiveStepSpanId, contentScroll: null } : {}),
+      ...(pathInvalidated ? { path: null, contentScroll: null } : {}),
+    });
+    setInvalidNotice((prev) => ({
+      checkpoint: prev.checkpoint || checkpointInvalidated,
+      path: prev.path || pathInvalidated,
+    }));
+  }, [checkpointInvalidated, pathInvalidated, effectiveStepSpanId, run.meta.id]);
 
   // 拉清单：选择变化即重新拉（判据是"当前选择"，与渲染同源）
   // biome-ignore lint/correctness/useExhaustiveDependencies: listRetry 是**重试触发器**，靠变化重跑本 effect
@@ -335,12 +377,14 @@ export function WorkspaceFileView({ run }: { run: RunDetail }) {
       onWordWrap={(wordWrap) => setFileReading(run.meta.id, { wordWrap })}
       listScrollTop={saved.listScrollTop}
       onListScrollTop={(listScrollTop) => setFileReading(run.meta.id, { listScrollTop })}
+      contentAnchor={saved.contentScroll}
+      onContentAnchor={(contentScroll) => setFileReading(run.meta.id, { contentScroll })}
       fetchInitial={readSide}
       onRetryList={() => setListRetry((n) => n + 1)}
       onRetryContent={() => setSelectedRetry((n) => n + 1)}
       onRetryInitial={() => setInitialRetry((n) => n + 1)}
-      checkpointInvalidated={checkpointInvalidated}
-      pathInvalidated={pathInvalidated}
+      checkpointInvalidated={checkpointInvalidated || invalidNotice.checkpoint}
+      pathInvalidated={pathInvalidated || invalidNotice.path}
     />
   );
 }
@@ -396,6 +440,9 @@ export interface WorkspaceFileViewBodyProps {
   /** U2 任务 4.3：列表滚动位置 */
   readonly listScrollTop?: number;
   readonly onListScrollTop?: (top: number) => void;
+  /** U2 任务 4.3：正文滚动锚点（按检查点 + 路径匹配，跨内容不复用） */
+  readonly contentAnchor?: ContentScrollAnchor | null;
+  readonly onContentAnchor?: (anchor: ContentScrollAnchor) => void;
   readonly fetchInitial: (
     stepSpanId: string | null,
     path: string,
@@ -447,6 +494,8 @@ export function WorkspaceFileViewBody({
   onWordWrap,
   listScrollTop = 0,
   onListScrollTop,
+  contentAnchor = null,
+  onContentAnchor,
   fetchInitial,
   onRetryList,
   onRetryContent,
@@ -495,6 +544,51 @@ export function WorkspaceFileViewBody({
         : directoryCounts(inspect, query, changeFilter),
     [inspect, query, changeFilter],
   );
+
+  /**
+   * U2 任务 4.3：**恢复列表滚动位置**。
+   *
+   * ⚠️ 这是 4.3 被误勾的缺口之一：`onListScrollTop` 一直只**写**（`data-list-scroll-top`
+   *    只出不进），从未**读回** —— 文件→步骤→文件往返后列表位置永远回到顶部。
+   *
+   * 恢复必须过门控（`decideRestore`）并按**内容身份**记账：
+   *   - 身份 = 检查点 + 清单规模（清单换一份 ⇒ 旧偏移不可复用）；
+   *   - 容器未布局（`hidden` / 尚未量到高）⇒ 不恢复也**不记账**，等布局好再来；
+   *   - 每个身份只恢复一次，避免迟到的恢复把用户后续滚动顶回去。
+   */
+  const listScrollRef = useRef<HTMLDivElement | null>(null);
+  const [listRestore, setListRestore] = useState(initialRestoreState);
+  const listIdentity = `${selection.stepSpanId ?? "initial"}#${inspect === null ? "none" : inspect.files.length}`;
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: listRestore 是**恢复记账**，写回后需重算门控
+  useEffect(() => {
+    const el = listScrollRef.current;
+    if (el === null) return;
+    const decision = decideRestore({
+      state: listRestore,
+      detailKey: listIdentity,
+      contentReady: inspect !== null,
+      measurable: el.clientHeight > 0 && el.scrollHeight > 0,
+    });
+    if (!decision.restore) return;
+    const top = resolveScrollRestore(listScrollTop, {
+      scrollHeight: el.scrollHeight,
+      clientHeight: el.clientHeight,
+    });
+    setListRestore(decision.next);
+    if (top !== null) el.scrollTop = top;
+  }, [listIdentity, inspect, listScrollTop, listRestore, paneVisibility.showList]);
+
+  /**
+   * 列表滚动上报。未完成布局（`scrollTop` 恒为 0）时**不记**——那会把记住的位置抹掉
+   * （与 `DetailPanel.handleScroll` 同一口径，见 `scroll-restore.ts` 文件头）。
+   */
+  const onListScroll = useCallback((): void => {
+    const el = listScrollRef.current;
+    if (el === null) return;
+    if (resolveRestoreScrollTop(el.scrollTop, el) === null) return;
+    onListScrollTop?.(el.scrollTop);
+  }, [onListScrollTop]);
 
   /**
    * U2 任务 4.6：**文件列表键盘导航 + 焦点恢复**。
@@ -750,11 +844,8 @@ export function WorkspaceFileViewBody({
             dirResident ? "md:block md:shrink-0" : "w-full md:w-full"
           } ${paneVisibility.showList ? "block" : "hidden"}`}
           style={dirResident ? { width: dirWidth } : undefined}
-          onScroll={
-            onListScrollTop === undefined
-              ? undefined
-              : (e) => onListScrollTop(e.currentTarget.scrollTop)
-          }
+          ref={listScrollRef}
+          onScroll={onListScrollTop === undefined ? undefined : onListScroll}
           data-list-scroll-top={listScrollTop}
         >
           {/* U2 任务 3.4：搜索框 + 变化筛选 */}
@@ -928,6 +1019,9 @@ export function WorkspaceFileViewBody({
               onDiffPreference={onDiffPreference}
               wordWrap={wordWrap}
               onWordWrap={onWordWrap}
+              stepSpanId={selection.stepSpanId}
+              contentAnchor={contentAnchor}
+              onContentAnchor={onContentAnchor}
             />
           )}
         </div>
@@ -970,6 +1064,9 @@ function FileContent({
   onDiffPreference,
   wordWrap,
   onWordWrap,
+  stepSpanId,
+  contentAnchor = null,
+  onContentAnchor,
 }: {
   path: string;
   file: {
@@ -998,6 +1095,10 @@ function FileContent({
   onDiffPreference?: (pref: "auto" | "inline" | "sideBySide") => void;
   wordWrap: boolean;
   onWordWrap?: (on: boolean) => void;
+  /** U2 任务 4.3：本位置属于哪个检查点（锚点匹配用；null = 初始状态） */
+  stepSpanId: string | null;
+  contentAnchor?: ContentScrollAnchor | null;
+  onContentAnchor?: (anchor: ContentScrollAnchor) => void;
 }) {
   const [copyFeedback, setCopyFeedback] = useState<CopyFeedback>(null);
 
@@ -1012,7 +1113,44 @@ function FileContent({
    *    `null` / `0`，判据必须能优雅退化（按钮禁用 + 诚实说明），不能崩。
    */
   const diffEditorRef = useRef<IStandaloneDiffEditor | null>(null);
+  /**
+   * U2 任务 5.4：**单侧只读视图**的编辑器实例。
+   *
+   * `diffEditorRef` 在单侧视图下恒为 null（那条路径不渲染 diff）⇒ 若查找只认 diff 编辑器，
+   * 单侧可读时"查找"会点在空气上（按钮可用但无反应，正是本段禁止的"看着像能用"）。
+   */
+  const singleEditorRef = useRef<MonacoEditorNs.IStandaloneCodeEditor | null>(null);
   const [diffCount, setDiffCount] = useState(0);
+  /** 最近一次上报/恢复的锚点：用于滚动事件去重（位置没变就不写 store） */
+  const lastAnchorRef = useRef<ContentScrollAnchor | null>(null);
+
+  /**
+   * U2 任务 4.3：把当前可见位置上报为锚点（首个可见行 + 相对该行的偏移）。
+   *
+   * 两条拒绝条件，都是"宁可不记，也不能记错"：
+   * - `onContentAnchor` 未接线 ⇒ 不报（静态渲染/能力缺失）；
+   * - 编辑器尚未布局（`scrollHeight` 为 0）⇒ 此刻 `scrollTop` 恒为 0，记下去等于把位置抹掉。
+   */
+  const reportAnchor = useCallback(
+    (editor: MonacoEditorNs.IStandaloneCodeEditor): void => {
+      if (onContentAnchor === undefined) return;
+      if (editor.getScrollHeight() <= 0) return;
+      const ranges = editor.getVisibleRanges();
+      const first = ranges[0] ?? null;
+      const topLine = first === null ? 1 : first.startLineNumber;
+      const anchor = buildContentAnchor({
+        stepSpanId,
+        path,
+        topLine,
+        lineTop: editor.getTopForLineNumber(clampAnchorLine(topLine)),
+        scrollTop: editor.getScrollTop(),
+      });
+      if (sameAnchor(anchor, lastAnchorRef.current)) return;
+      lastAnchorRef.current = anchor;
+      onContentAnchor(anchor);
+    },
+    [onContentAnchor, stepSpanId, path],
+  );
 
   const refreshDiffCount = useCallback((editor: IStandaloneDiffEditor | null): void => {
     if (editor === null) {
@@ -1029,8 +1167,33 @@ function FileContent({
       refreshDiffCount(editor);
       // diff 是异步算的：首次 mount 时可能还没算完，靠这个事件拿到真实条数
       editor.onDidUpdateDiff(() => refreshDiffCount(editor));
+      const modified = editor.getModifiedEditor();
+
+      /**
+       * U2 任务 4.3：**恢复正文滚动位置**。
+       *
+       * ⚠️ 这是 4.3 被误勾的缺口之二：连接层只保存了列表偏移，正文位置**根本没有字段**
+       *    ⇒「滚动到长文本中部再往返」实测必然回到顶部。
+       *
+       * 只在锚点**属于当前 (检查点, 路径)** 时套用；按保存的首个可见行重算该行顶部像素
+       * 再叠加偏移 —— 内容变长/变短/换行开关变化都不会指向错误位置（越界由统一裁剪处理）。
+       */
+      if (anchorMatches(contentAnchor, stepSpanId, path)) {
+        const top = resolveAnchorScrollTop(contentAnchor, {
+          lineTop: modified.getTopForLineNumber(clampAnchorLine(contentAnchor.line)),
+          scrollHeight: modified.getScrollHeight(),
+          clientHeight: modified.getLayoutInfo().height,
+        });
+        if (top !== null) {
+          modified.setScrollTop(top);
+          lastAnchorRef.current = contentAnchor;
+        }
+      }
+
+      // 之后每次滚动把新位置写回会话状态（去重后写，避免每次滚动都改 store）
+      modified.onDidScrollChange(() => reportAnchor(modified));
     },
-    [refreshDiffCount],
+    [refreshDiffCount, contentAnchor, stepSpanId, path, reportAnchor],
   );
 
   /** 上一/下一差异：驱动真实 Monaco 命令（不是装饰性按钮）。 */
@@ -1040,14 +1203,36 @@ function FileContent({
   const goNextDiff = useCallback((): void => {
     diffEditorRef.current?.goToDiff("next");
   }, []);
-  /** 查找：走 Monaco 内置查找控件（只读，不开放替换/写入）。 */
+  /** 查找：走 Monaco 内置查找控件（只读，不开放替换/写入）——当前**活动**编辑器优先。 */
   const openFind = useCallback((): void => {
-    const editor = diffEditorRef.current?.getModifiedEditor() ?? null;
+    const editor = diffEditorRef.current?.getModifiedEditor() ?? singleEditorRef.current ?? null;
     editor?.trigger("u2-toolbar", "actions.find", null);
   }, []);
 
+  /**
+   * U2 任务 5.4：单侧只读视图挂载后**接住实例**（供"查找"用；无此接线按钮即空转）。
+   *
+   * ⚠️ 静态渲染不跑 effect / 不挂 monaco ⇒ 恒不触发，调用方判据须能退化。
+   */
+  const onSingleSideMount = useCallback((editor: MonacoEditorNs.IStandaloneCodeEditor): void => {
+    singleEditorRef.current = editor;
+  }, []);
+
+  /**
+   * U2 任务 5.4 实机缺陷修复（第二处）：**初始侧是否有可展示的原文**。
+   *
+   * 下面三个早返回（"所选侧加载中 / 失败 / 还没结果"）原本是**独占卡**：一旦命中就直接
+   * return，**整张卡只有一句话**。若此时初始侧**已读到文本**，可读侧原文就此消失、复制/查找
+   * 也被判禁 —— 违反 delta「可读侧完整展示并可复制查找」（实机 `sides` B 型即此形态）。
+   *
+   * 因此给三个早返回追加"另一侧也读不出东西"的条件：另一侧可读时**不**走独占卡，落入
+   * 下方统一的两侧呈现（`!diffEligibility.ok` 分支：两侧状态行 + 单侧只读编辑器 + 重试）；
+   * 所选侧的失败明细（`error.code`/`message`）在该分支内一并补出，错误码不丢。
+   */
+  const initialReadableText = initial !== null && initial.status === "text" ? initial.text : null;
+
   // 所选侧：加载中（且尚无结果）⇒ 该侧是"读取中"，**不是**不存在
-  if (loading && current === null) {
+  if (loading && current === null && initialReadableText === null) {
     return (
       <div className="px-4 py-6 text-[11px] text-gray-400">
         读取文件内容…
@@ -1055,7 +1240,7 @@ function FileContent({
       </div>
     );
   }
-  if (error !== null) {
+  if (error !== null && initialReadableText === null) {
     return (
       <div className="m-4 rounded border-l-2 border-red-400 bg-red-50 px-2 py-1.5 text-[11px] leading-4 text-red-800">
         读取失败（{error.code}）：{error.message}
@@ -1074,21 +1259,22 @@ function FileContent({
       </div>
     );
   }
-  if (current === null) {
+  if (current === null && initialReadableText === null) {
     return (
       <div className="px-4 py-6 text-[11px] text-gray-400">
         {loadingInitial ? "正在读取初始快照…" : "尚未读取该文件。"}
       </div>
     );
   }
-  if (current.status === "rejected") {
+  // ⚠️ 走到这里 `current` 可能为 null（另一侧可读时不再走上面的独占卡）⇒ 必须先判非空
+  if (current !== null && current.status === "rejected") {
     return (
       <div className="m-4 rounded border-l-2 border-red-400 bg-red-50 px-2 py-1.5 text-[11px] leading-4 text-red-800">
         请求被拒绝（{current.code}）：{current.reason}
       </div>
     );
   }
-  if (current.status === "not_found") {
+  if (current !== null && current.status === "not_found") {
     return (
       <div className="m-4 rounded border-l-2 border-amber-400 bg-amber-50 px-2 py-1.5 text-[11px] leading-4 text-amber-900">
         该路径不在所选清单里：{current.reason}
@@ -1107,6 +1293,14 @@ function FileContent({
   const rights = copyableText(current);
   const lefts = copyableText(initial);
   const diffEligibility = canEnterTextDiff(sides);
+  /**
+   * U2 任务 5.4 实机缺陷修复：**唯一可读的那一侧**。
+   *
+   * 两侧都 text 时它是"多余的"（此时走 diff）；只有进不了 diff 时它才决定"谁被完整展示"。
+   * `null` 表示两侧都没有文本可展示（都不可读 / 都未读）——那种情况**不渲染任何编辑器**。
+   */
+  const readableSide: "left" | "right" | null =
+    sides.leftNote === "text" ? "left" : sides.rightNote === "text" ? "right" : null;
   const modeDecision = decideDiffMode({
     prefs: preserveFilePrefs({ ...initialFileLayoutPrefs, diffPreference, wordWrap }),
     contentAreaWidth,
@@ -1135,6 +1329,8 @@ function FileContent({
     left: leftReady as SideReadiness,
     right: rightReady as SideReadiness,
     diffEligible: diffEligibility.ok,
+    // U2 5.4：编辑器就绪 ≠ 能进 diff —— 单侧只读视图同样"就绪"（见 file-tools.ts 注释）
+    editorReady: diffEligibility.ok || readableSide !== null,
     mode,
     // U2 任务 4.5：**真实**差异条数（由 onDidUpdateDiff 从 Monaco 取），不再写死
     diffCount,
@@ -1142,12 +1338,24 @@ function FileContent({
 
   const meta = copyableMeta(current);
 
+  /**
+   * 头部的大小/哈希来源：所选侧读出来了就用它，否则退回**清单里的记录**（`file`）。
+   *
+   * U2 5.4 实机修复后 `current` 可能为 null（另一侧可读 ⇒ 不再走独占卡），此处必须先兜底，
+   * 否则头部的 `current.bytes` 会直接抛异常（新测试 `初始侧 text + 所选侧加载中` 已坐实）。
+   */
+  const headerMeta: { bytes: number; sha256: string } | null = current ?? file;
+
   const header = (
     <div className="border-b border-gray-200 px-4 py-2">
       <div className="break-all font-code text-[11px] text-gray-800">{path}</div>
       <div className="mt-0.5 flex flex-wrap items-center gap-x-3 text-[10px] text-gray-500">
-        <span>{formatBytes(current.bytes)}</span>
-        <span className="font-code">sha256 {current.sha256.slice(0, 12)}…</span>
+        {headerMeta === null ? null : (
+          <>
+            <span>{formatBytes(headerMeta.bytes)}</span>
+            <span className="font-code">sha256 {headerMeta.sha256.slice(0, 12)}…</span>
+          </>
+        )}
         {file === null ? null : (
           <span
             className={
@@ -1276,8 +1484,79 @@ function FileContent({
     </div>
   );
 
+  /**
+   * 一侧的状态说明文案（两个"进不了 diff"分支共用；`failed`/`loadingWhile` 分侧传入）。
+   */
+  const noteText = (
+    note: DiffSides["leftNote"],
+    failed: boolean,
+    loadingWhile: boolean,
+  ): string => {
+    switch (note) {
+      case "not_found":
+        return "清单确认不存在";
+      case "unavailable":
+        return "内容不可比较（二进制 / 附件缺失 / 损坏）";
+      case "unread":
+        return failed ? "读取失败（不是不存在）" : loadingWhile ? "正在读取" : "尚未读取";
+      case "text":
+        return "有文本";
+    }
+  };
+
+  /**
+   * U2 任务 5.4 实机缺陷修复：**单侧可读时的完整展示通道**（只读，绝非 diff）。
+   *
+   * spec delta「不可用侧不伪装为空差异」（原文）：两侧分别标出真实状态，**可读侧完整展示并可
+   * 复制查找**，禁止把不可用侧置空进行 diff；**左右互换同样成立**。
+   *
+   * 5.4 实机坐实：两个早返回分支（所选侧不可比较 / 不能进 diff）都只渲染 header + toolbar +
+   * 状态卡、**没有任何编辑器** ⇒ 可读侧原文既拿不到、查找/换行还被判禁（左右互换亦然）。
+   * 这里补一条**只读单侧编辑器**压住该缺口：
+   * - 锚点用**独立**的 `single-side-editor`（**不得**复用 `diff-editor`：那会让"绝不置空 diff"
+   *   的既有断言失去意义）；
+   * - 不可比较的那一侧仍只出状态卡，绝不置空参与 diff（不渲染任何 diff 编辑器）；
+   * - `readOnly: true` + 无替换入口，与 diff 侧同一条只读红线。
+   */
+  const singleSideView =
+    readableSide === null || diffEligibility.ok ? null : (
+      <>
+        <div className="px-4 py-1.5 text-[10px] text-gray-400">
+          {readableSide === "left" ? `左：${sides.leftLabel}` : `右：${sides.rightLabel}`}
+          （该侧原文完整展示；另一侧不可比较，未用空文本参与 diff）
+        </div>
+        {/* ⚠️ 锚点挂在**真实 DOM 包裹层**上，不挂在 <Editor> 上：`@monaco-editor/react` 只通过
+            `wrapperProps` 透传 `data-*`，直接给 <Editor> 的 `data-testid` 在编辑器**已加载**
+            时不落到 DOM（只在懒加载占位期间存在）⇒ 用它判"有没有单侧视图"会得到假结果。 */}
+        <div
+          data-testid="single-side-editor"
+          className="mx-4 mb-4 overflow-hidden rounded border border-gray-200"
+        >
+          <MonacoCodeEditor
+            height="min(60vh, 640px)"
+            language={detectFileLanguage(readableSide === "left" ? sides.left : sides.right)}
+            value={(readableSide === "left" ? sides.left : sides.right) ?? ""}
+            onMount={onSingleSideMount}
+            options={{
+              readOnly: true,
+              fontSize: 13,
+              minimap: { enabled: false },
+              lineNumbers: "on",
+              scrollBeyondLastLine: false,
+              wordWrap: wordWrap ? "on" : "off",
+              scrollbar: { vertical: "auto", horizontal: "auto" },
+              folding: true,
+              showFoldingControls: "always",
+            }}
+          />
+        </div>
+      </>
+    );
+
   // 不可比较：只呈现状态，明确不渲染伪空文件
-  if (!comparability.ok) {
+  // ⚠️ `current !== null` 是**类型收窄 + 语义显式**：`canCompareText(null)` 恒为 ok，故此分支
+  //    本来就不会被"所选侧无结果"命中；但 5.4 的门控让 `current` 之后可能为 null，TS 需要它。
+  if (current !== null && !comparability.ok) {
     return (
       <>
         {header}
@@ -1297,7 +1576,26 @@ function FileContent({
               清单记录大小 {formatBytes(current.bytes)} · sha256 {current.sha256}
             </div>
           ) : null}
+          {/* U2 5.4：本分支原先**只标所选侧**（卡片标题/原因都是它），初始侧状态完全不可见 ⇒
+              左右互换（初始侧可读、所选侧不可比较）时用户看不到"另一侧有文本"。补统一的
+              两侧状态行，与「不进入文本差异」分支同源同文案。 */}
+          <div className="mt-1 text-gray-600">
+            初始快照侧：{noteText(sides.leftNote, initialFailed, loadingInitial)}；所选检查点侧：
+            {noteText(sides.rightNote, selectedFailed, loading)}。
+          </div>
+          {sides.leftNote === "unread" && onRetryInitial !== undefined ? (
+            <div className="mt-1">
+              <button
+                type="button"
+                onClick={onRetryInitial}
+                className="rounded border border-gray-300 bg-white px-2 py-0.5 text-[11px] text-gray-700 hover:bg-gray-50"
+              >
+                重新读取初始快照
+              </button>
+            </div>
+          ) : null}
         </div>
+        {singleSideView}
       </>
     );
   }
@@ -1312,22 +1610,6 @@ function FileContent({
   const initialNotRead = initial === null && (loadingInitial || initialFailed);
 
   if (!diffEligibility.ok) {
-    const noteText = (
-      note: DiffSides["leftNote"],
-      failed: boolean,
-      loadingWhile: boolean,
-    ): string => {
-      switch (note) {
-        case "not_found":
-          return "清单确认不存在";
-        case "unavailable":
-          return "内容不可比较（二进制 / 附件缺失 / 损坏）";
-        case "unread":
-          return failed ? "读取失败（不是不存在）" : loadingWhile ? "正在读取" : "尚未读取";
-        case "text":
-          return "有文本";
-      }
-    };
     return (
       <>
         {header}
@@ -1342,6 +1624,13 @@ function FileContent({
           <div className="mt-1 text-gray-500">
             绝不会用空编辑器冒充"文件是空的"，也不会把不可用或未读取的一侧置空参与 diff。
           </div>
+          {/* U2 5.4：所选侧通道失败时不再走独占错误卡（其条件是"另一侧也读不出东西"），
+              错误码/原因必须在这里补出，否则"读取失败"只剩一句状态、丢失可诊断信息。 */}
+          {error === null ? null : (
+            <div className="mt-1 text-red-700">
+              读取失败（{error.code}）：{error.message}（这是只读通道的失败，并不表示该文件不存在）
+            </div>
+          )}
           {onRetryInitial === undefined && onRetryContent === undefined ? null : (
             <div className="mt-1 flex gap-2">
               {sides.leftNote === "unread" && onRetryInitial !== undefined ? (
@@ -1365,6 +1654,7 @@ function FileContent({
             </div>
           )}
         </div>
+        {singleSideView}
       </>
     );
   }

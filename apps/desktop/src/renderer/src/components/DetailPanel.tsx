@@ -23,6 +23,7 @@ import { promptForkGuard } from "../lib/prompt-fork";
 import type { PromptForkField } from "../lib/prompt-fork";
 import { decideRestore, initialRestoreState, restoreIdentity } from "../lib/restore-gate";
 import { resolveRestoreScrollTop, resolveScrollRestore } from "../lib/scroll-restore";
+import { validateCheckpointStepId } from "../lib/workspace-files";
 import { readingScrollOf } from "../lib/workspace-selection";
 import { useAppStore } from "../store";
 import { BudgetMap } from "./BudgetMap";
@@ -1635,13 +1636,34 @@ export function ToolInvokeDetailView({
 export function StepDetailView({
   view,
   onOpenCall,
+  onOpenStepFiles,
 }: {
   view: StepDetailViewData;
   onOpenCall: (spanId: string) => void;
+  /**
+   * U2 任务 2.3/5.3：**从该步骤打开本 run 这一轮的文件**（design D2「自有步骤的文件入口
+   * 提供明确轮末定位」）。`undefined` = 该步骤不是本 run 的自有完成步骤，**不渲染入口**
+   * —— 祖先步骤不得提供会"冒充当前运行检查点"的入口（delta 明文）。
+   */
+  onOpenStepFiles?: () => void;
 }) {
   return (
     <>
       <Section title="步骤概要">
+        {onOpenStepFiles === undefined ? null : (
+          <div className="mb-1">
+            <button
+              type="button"
+              onClick={onOpenStepFiles}
+              className="rounded border border-violet-300 bg-violet-50 px-2 py-0.5 text-[11px] text-violet-800 hover:bg-violet-100"
+            >
+              打开该轮文件
+            </button>
+            <div className="mt-0.5 text-[10px] leading-4 text-gray-500">
+              定位到本 run 该轮结束的文件检查点（不是历史检查点，也不借用父 run 的快照）。
+            </div>
+          </div>
+        )}
         <KeyValue
           items={[
             ["迭代序号", String(view.iteration)],
@@ -1712,6 +1734,7 @@ export function DetailPanel() {
   );
   const setReadingScroll = useAppStore((s) => s.setReadingScroll);
   const selectSpan = useAppStore((s) => s.selectSpan);
+  const openFileAt = useAppStore((s) => s.openFileAt);
 
   // 切换 run / 重读 ⇒ 内容身份变化（meta.id + span 指纹）⇒ 重新武装恢复窗口
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -1772,6 +1795,26 @@ export function DetailPanel() {
     return find(roots);
   }, [detail, span]);
 
+  /**
+   * U2 任务 2.3/5.3：步骤页的**自有步骤文件入口**。
+   *
+   * ⚠️ 这是 5.3 实机暴露的真实缺口：`store.openFileAt`（一次性显式文件目标）写好了、
+   *    `WorkspaceFilesPanel` 也接好了消费端，但**全仓没有任何调用方** ⇒ spec 场景
+   *    「显式文件定位覆盖历史」的 WHEN「用户从当前运行的自有步骤打开该轮文件」在界面上
+   *    根本不可达（又一个"能力断言不钉接线"的复发）。
+   *
+   * 判据必须与选择器同源（`validateCheckpointStepId(...) === "valid"` = 该 step 是本 run
+   * 的自有完成步骤）：祖先步骤 / 已删轮次 / 拼错 id 一律**不给入口**，否则就是
+   * delta 明令禁止的"把祖先当本 run 检查点"。
+   */
+  const openStepFiles = useMemo(() => {
+    if (detail === null || span === null || span.kind !== "agent.step") return null;
+    if (validateCheckpointStepId(detail, span.id) !== "valid") return null;
+    const runId = detail.meta.id;
+    const stepSpanId = span.id;
+    return () => openFileAt(runId, { stepSpanId });
+  }, [detail, span, openFileAt]);
+
   // 步骤页 = 详情提示区 + 主区正文。
   // ⚠️ 文件页**不在这里**：U1 6.1 已把它上提为工作区一级承载（`WorkspaceFilesPanel`），
   //    由 App 在 `files` 页签挂载。此前这里是 `tab === "files"` 的内部分支，但那个
@@ -1798,6 +1841,7 @@ export function DetailPanel() {
             key={span.id}
             view={presentStepDetail(stepNode)}
             onOpenCall={(id) => selectSpan(id)}
+            onOpenStepFiles={openStepFiles ?? undefined}
           />
         ) : (
           <Section title="步骤概要">

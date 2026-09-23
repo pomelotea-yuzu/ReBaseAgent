@@ -106,6 +106,9 @@ describe("U2 文件阅读状态：不可变 patch 与按 run 隔离", () => {
         "diffPreference",
         "wordWrap",
         "listScrollTop",
+        // U2 任务 4.3：正文滚动锚点（行号 + 相对偏移 + 所属 step/path），
+        // 不是正文副本 —— 只记"读到哪"，不记"读到什么"。
+        "contentScroll",
       ]),
     );
     for (const forbidden of [

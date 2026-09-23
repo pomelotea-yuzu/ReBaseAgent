@@ -73,6 +73,7 @@ describe("U2 4.5/4.6 工具诚实启用", () => {
       left: "ready",
       right: "ready",
       diffEligible: true,
+      editorReady: true,
       mode: "sideBySide",
       diffCount: 3,
     });
@@ -85,21 +86,40 @@ describe("U2 4.5/4.6 工具诚实启用", () => {
     expect(t.modeToggle).toBe(true);
   });
 
-  it("**只有一侧 ready** ⇒ 该侧可复制/查找，另一侧禁；无真实 diff ⇒ 差异导航禁", () => {
+  it("**只有一侧 ready + 单侧只读视图就绪** ⇒ 该侧可复制/查找/换行；另一侧禁；差异导航禁", () => {
+    // U2 5.4 实机修正：原先 find/wordWrap 绑 `diffEligible`，单侧可读时被一并禁掉，
+    // 违反 delta「单侧可读时该侧仍可复制查找」。
     const t = resolveToolEnablement({
       hasPath: true,
       left: "unavailable",
       right: "ready",
       diffEligible: false,
+      editorReady: true,
       mode: "inline",
       diffCount: 0,
     });
     expect(t.copyLeftText).toBe(false);
     expect(t.copyRightText).toBe(true);
     expect(t.copyMeta).toBe(true); // 有不可用侧 ⇒ 可复制其元信息
-    expect(t.find).toBe(false); // 不可比较 ⇒ 禁查找
-    expect(t.prevDiff).toBe(false);
+    expect(t.find).toBe(true); // 该侧有只读编辑器 ⇒ 查找可用
+    expect(t.wordWrap).toBe(true);
+    expect(t.prevDiff).toBe(false); // 没有 diff ⇒ 不假跳转
     expect(t.nextDiff).toBe(false);
+    expect(t.modeToggle).toBe(false); // 进不了 diff ⇒ 不给模式切换
+  });
+
+  it("一侧 ready 但**编辑器根本没就绪** ⇒ 查找/换行仍诚实禁用（不空转）", () => {
+    const t = resolveToolEnablement({
+      hasPath: true,
+      left: "unavailable",
+      right: "ready",
+      diffEligible: false,
+      editorReady: false,
+      mode: "inline",
+      diffCount: 0,
+    });
+    expect(t.find).toBe(false);
+    expect(t.wordWrap).toBe(false);
   });
 
   it("**没有差异**（diffCount=0）⇒ 不假跳转（差异导航禁）", () => {
@@ -108,6 +128,7 @@ describe("U2 4.5/4.6 工具诚实启用", () => {
       left: "ready",
       right: "ready",
       diffEligible: true,
+      editorReady: true,
       mode: "sideBySide",
       diffCount: 0,
     });
@@ -121,6 +142,7 @@ describe("U2 4.5/4.6 工具诚实启用", () => {
       left: "ready",
       right: "ready",
       diffEligible: true,
+      editorReady: true,
       mode: "inline",
       diffCount: 5,
     });
@@ -134,6 +156,7 @@ describe("U2 4.5/4.6 工具诚实启用", () => {
       left: "empty",
       right: "empty",
       diffEligible: false,
+      editorReady: false,
       mode: "inline",
       diffCount: 0,
     });

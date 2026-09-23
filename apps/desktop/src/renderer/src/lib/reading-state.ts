@@ -14,6 +14,8 @@
  *   仍然**不存正文/清单/哈希派生/Monaco 实例**——那些每次重新经只读 IPC 取。
  */
 
+import type { ContentScrollAnchor } from "./file-scroll";
+
 /**
  * 单个 run 的文件阅读状态（U2 任务 2.1）。
  *
@@ -40,8 +42,15 @@ export interface FileReadingState {
   /** diff 模式偏好（auto 依空间决定）与换行开关 */
   diffPreference: "auto" | "inline" | "sideBySide";
   wordWrap: boolean;
-  /** 列表滚动位置（按检查点保存） */
+  /** 列表滚动位置（像素） */
   listScrollTop: number;
+  /**
+   * 正文滚动锚点（U2 任务 4.3，design D1「正文按 run/step/path/侧记录行列锚点与滚动偏移」）。
+   *
+   * `null` = 尚无可恢复的正文位置。**必须按 (stepSpanId, path) 匹配后才可套用**——
+   * 正文内容随检查点/路径整体更换，像素偏移不可跨内容复用（见 `lib/file-scroll.ts`）。
+   */
+  contentScroll: ContentScrollAnchor | null;
 }
 
 /** 单次调用详情的阅读分区（详情面板内的分段/展开） */
@@ -159,6 +168,7 @@ const DEFAULT_FILE_READING_STATE: FileReadingState = {
   diffPreference: "auto",
   wordWrap: true,
   listScrollTop: 0,
+  contentScroll: null,
 };
 
 /** 读取某 run 的文件阅读状态（缺失时返回共享默认值，不逐次 new） */

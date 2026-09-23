@@ -83,7 +83,9 @@ export interface ToolEnablement {
  * - **路径复制**：只要有路径即可（哪怕清单还没回来）——复制的是逻辑路径字符串；
  * - **原文复制**：该侧 `ready` 才可（二进制/不可用/未读一律禁，禁时给元信息替代）；
  * - **元信息复制**：任一侧拿到了结果且带大小/哈希即可；
- * - **查找 / 换行**：至少一侧 `ready` 且编辑器就绪（inline 或并排都算"就绪"）；
+ * - **查找 / 换行**：至少一侧 `ready` 且**编辑器就绪** —— 并排/inline diff、或**只读单侧视图**
+ *   都算就绪（U2 5.4 实机修正：原先绑在 `diffEligible` 上，导致"一侧可读、另一侧不可比较"
+ *   时把可读侧的查找/换行一并禁掉，违反 delta「单侧可读时该侧仍可复制查找」）；
  * - **上一/下一差异**：**只有并排且两侧都有文本**才有真实 diff 可导航（无差异不假跳转）；
  * - **模式切换**：内容区已可进 diff（即 `canEnterTextDiff`）时才给。
  */
@@ -93,6 +95,14 @@ export function resolveToolEnablement(input: {
   right: SideReadiness;
   /** 是否可进入文本 diff（由 `canEnterTextDiff` 决定） */
   diffEligible: boolean;
+  /**
+   * 是否已渲染出**可用的只读编辑器**（并排 diff 或**单侧只读视图**）。
+   *
+   * ⚠️ 与 `diffEligible` 必须分开：单侧可读时没有 diff，但可读侧**确实有编辑器**，
+   *    该侧的查找/换行应当可用（delta「不可比较或未就绪时工具诚实禁用」的
+   *    "单侧可读时该侧仍可复制查找"）。把二者合并即 5.4 实机坐实的缺陷。
+   */
+  editorReady: boolean;
   /** 实际落地模式 */
   mode: "inline" | "sideBySide";
   /** 是否存在至少一条差异（由真实 diff 计算得出；未知时传 0 表示"暂无"） */
@@ -105,8 +115,8 @@ export function resolveToolEnablement(input: {
     copyLeftText: input.left === "ready",
     copyRightText: input.right === "ready",
     copyMeta: input.left === "unavailable" || input.right === "unavailable",
-    find: anyReady && input.diffEligible,
-    wordWrap: anyReady && input.diffEligible,
+    find: anyReady && input.editorReady,
+    wordWrap: anyReady && input.editorReady,
     // 差异导航要求真实 diff：并排 + 两侧文本 + 已知差异数 > 0
     prevDiff: input.diffEligible && input.mode === "sideBySide" && bothReady && input.diffCount > 0,
     nextDiff: input.diffEligible && input.mode === "sideBySide" && bothReady && input.diffCount > 0,

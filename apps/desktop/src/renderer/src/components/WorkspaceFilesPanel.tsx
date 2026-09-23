@@ -46,6 +46,16 @@ export function WorkspaceFilesPanel() {
    * - 有 `path` ⇒ 选中该 path 并把 pane 切到 content（delta「有 path 时显示目标内容」）；
    * - 无 `path` ⇒ 清空旧文件选择并显示列表（delta「无 path 时显示未选文件的列表」）。
    *
+   * ⚠️ 有 path 时**必须同时清空搜索并切 `all`**（design D2 原文：「指定合法 path 则显示
+   *    内容、**清空阻挡它的搜索并切 all**」）。否则定位"成功"了、内容也显示了，但目标在
+   *    列表里仍被搜索词/变化筛选隐藏 —— 用户看不到"它在哪里"，这正是 5.3「搜索隐藏选择」
+   *    场景要抓的形态。
+   *
+   * ⚠️ **无 path 时同样要清空搜索并切 `all`**：定位目的是"显示未选文件的列表"（design D2
+   *    原文：「显式目标未指定 path 时清空旧文件选择并显示列表」）。若上一次留下的搜索词/
+   *    筛选把清单筛空，用户点「打开该轮文件」后看到的是**空列表**——"显示了列表"却一个文件
+   *    都看不到，与"显示列表"的意图相反。这是 5.3 实机抓到的缺口（原本只清有 path 的那支）。
+   *
    * ⚠️ 只在**目标 run 与当前详情 run 相同**时消费——否则会把 A 的目标落到 B 上
    *    （delta「异步消费目标受 run 与导航代次约束，旧目标不能抢回当前页」）。
    */
@@ -55,12 +65,20 @@ export function WorkspaceFilesPanel() {
     if (pendingTarget.runId !== detailId) return;
     const { file } = pendingTarget;
     if (file.path === undefined) {
-      setFileReading(detailId, { checkpoint: file.stepSpanId, path: null, pane: "list" });
+      setFileReading(detailId, {
+        checkpoint: file.stepSpanId,
+        path: null,
+        pane: "list",
+        query: "",
+        filter: "all",
+      });
     } else {
       setFileReading(detailId, {
         checkpoint: file.stepSpanId,
         path: file.path,
         pane: "content",
+        query: "",
+        filter: "all",
       });
     }
     useAppStore.setState({ pendingFileTarget: null });
