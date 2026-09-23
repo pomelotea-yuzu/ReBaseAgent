@@ -1,4 +1,5 @@
 import type { RunDetail } from "@shared/ipc";
+import { useEffect } from "react";
 import { useAppStore } from "../store";
 import { DetailNotices } from "./DetailNotices";
 import { WorkspaceFileView } from "./WorkspaceFileView";
@@ -33,7 +34,39 @@ import { WorkspaceFileView } from "./WorkspaceFileView";
 export function WorkspaceFilesPanel() {
   const detail = useAppStore((s) => s.detail);
   const loadingDetail = useAppStore((s) => s.loadingDetail);
-  return <WorkspaceFilesPanelView detail={detail} loadingDetail={loadingDetail} />;
+  const runId = useAppStore((s) => s.selectedRunId);
+  const setFileReading = useAppStore((s) => s.setFileReading);
+  const detailId = detail?.meta.id ?? null;
+
+  /**
+   * U2 任务 2.3（接线）：消费**一次性显式文件目标**。
+   *
+   * 目标由 `selectRun`/定位入口存入 store 的 `pendingFileTarget`，本组件在详情就绪后
+   * **消费一次**（清空），把 file 目标落到该 run 的文件阅读状态上：
+   * - 有 `path` ⇒ 选中该 path 并把 pane 切到 content（delta「有 path 时显示目标内容」）；
+   * - 无 `path` ⇒ 清空旧文件选择并显示列表（delta「无 path 时显示未选文件的列表」）。
+   *
+   * ⚠️ 只在**目标 run 与当前详情 run 相同**时消费——否则会把 A 的目标落到 B 上
+   *    （delta「异步消费目标受 run 与导航代次约束，旧目标不能抢回当前页」）。
+   */
+  const pendingTarget = useAppStore((s) => s.pendingFileTarget);
+  useEffect(() => {
+    if (pendingTarget === null || detailId === null) return;
+    if (pendingTarget.runId !== detailId) return;
+    const { file } = pendingTarget;
+    if (file.path === undefined) {
+      setFileReading(detailId, { checkpoint: file.stepSpanId, path: null, pane: "list" });
+    } else {
+      setFileReading(detailId, {
+        checkpoint: file.stepSpanId,
+        path: file.path,
+        pane: "content",
+      });
+    }
+    useAppStore.setState({ pendingFileTarget: null });
+  }, [pendingTarget, detailId, setFileReading]);
+
+  return <WorkspaceFilesPanelView detail={detail} loadingDetail={loadingDetail} runId={runId} />;
 }
 
 /** 纯展示层：详情就绪挂文件视图，否则如实说明"正在读"还是"还没选"（不留白、不假装有文件） */
@@ -43,6 +76,8 @@ export function WorkspaceFilesPanelView({
 }: {
   detail: RunDetail | null;
   loadingDetail: boolean;
+  /** U2：当前 run id（保留入参以便后续接线；本层不消费） */
+  runId?: string | null;
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col bg-white">

@@ -7,10 +7,13 @@ import {
   canCompareText,
   changeLabel,
   checkpointOriginNote,
+  defaultCheckpointStepId,
   deriveCheckpointOptions,
   detectFileLanguage,
   inspectSummaryLine,
   resolveDiffSides,
+  validateCheckpointStepId,
+  validateSavedPath,
 } from "../lib/workspace-files";
 import type { CheckpointOption } from "../lib/workspace-files";
 import { useAppStore } from "../store";
@@ -58,38 +61,45 @@ function requestKey(runId: string, stepSpanId: string | null, path: string): str
 export function WorkspaceFileView({ run }: { run: RunDetail }) {
   const inspectWorkspace = useAppStore((s) => s.inspectWorkspace);
   const readWorkspaceFile = useAppStore((s) => s.readWorkspaceFile);
+  const fileReading = useAppStore((s) => s.fileReadingOf(run.meta.id));
+  const setFileReading = useAppStore((s) => s.setFileReading);
 
   const options = useMemo(() => deriveCheckpointOptions(run), [run]);
-  const [selection, setSelection] = useState<Selection>({ stepSpanId: null });
+
+  /**
+   * U2 任务 2.4：选择/pane/偏好**接入会话状态**，不再用组件局部 state。
+   *
+   * C 时代这些是 `useState`，而 `WorkspaceFilesPanel` 以 `key={detail.meta.id}` 硬重挂载
+   * ⇒ 每次「文件 → 步骤 → 文件」都回到初始状态（R7 复现的缺陷）。改为读写 store 后，
+   * 卸载重建不丢选择；run 隔离由 store 的按 runId 分键保证（不需要组件内复位）。
+   *
+   * ⚠️ 恢复前必须**重新校验**：保存的 step / path 可能已不在当前详情里（见 2.2 的
+   *    `validateCheckpointStepId` / `validateSavedPath`），失效时按优先级回退并提示，
+   *    绝不沿用失效引用。
+   */
+  const saved = fileReading;
+
+  // 默认检查点：首次进入用最近自有完成步骤；保存的 step 失效则回退默认（delta「失效检查点安全回退」）
+  const checkpointCheck = validateCheckpointStepId(run, saved.checkpoint);
+  const effectiveStepSpanId =
+    checkpointCheck === "valid"
+      ? saved.checkpoint
+      : checkpointCheck === "stale"
+        ? defaultCheckpointStepId(run)
+        : saved.checkpoint;
+  const checkpointInvalidated = checkpointCheck === "stale";
+
   const [inspect, setInspect] = useState<Selected | null>(null);
   const [inspectError, setInspectError] = useState<{ code: string; message: string } | null>(null);
   const [loadingList, setLoadingList] = useState(false);
-  const [selectedPath, setSelectedPath] = useState<string | null>(null);
-  /** 当前查看的文件内容（按请求键存，键不符 = 旧结果，不渲染） */
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [contentError, setContentError] = useState<{ code: string; message: string } | null>(null);
   const [loadingContent, setLoadingContent] = useState(false);
-  /** 窄窗口：列表 / 内容 二选一（宽窗口下两栏并排） */
-  const [pane, setPane] = useState<"list" | "content">("list");
 
-  /**
-   * 切换 run ⇒ 复位（不同 run 的检查点编号体系不同，绝不能沿用旧选择）。
-   *
-   * `WorkspaceFilesPanel` 侧已用 `key={detail.meta.id}` 让本组件随 run 重挂载，所以这里的
-   * 复位在多数组装下是冗余的；保留它是为了**组件自身不依赖调用方给 key**——
-   * 少了这一层，复用者一旦忘了 key 就会出现"上一个 run 的文件选择串到下一个 run"。
-   * biome 的 `useExhaustiveDependencies` 只看"effect 读了哪些绑定"，读不出这个意图
-   * （它要的是"effect 里没有引用 `run.meta.id`"），故显式抑制并写明原因。
-   */
-  // biome-ignore lint/correctness/useExhaustiveDependencies: 只按 run 身份复位，语义上依赖 run.meta.id
-  useEffect(() => {
-    setSelection({ stepSpanId: null });
-    setSelectedPath(null);
-    setLoaded(null);
-    setContentError(null);
-    setInspectError(null);
-    setPane("list");
-  }, [run.meta.id]);
+  // 保存的 path 在新清单里是否仍存在（present/absent/unknown；unknown 不当作消失）
+  const pathCheck = validateSavedPath(inspect, inspectError !== null, saved.path);
+  const effectivePath = pathCheck === "absent" ? null : saved.path;
+  const pathInvalidated = pathCheck === "absent";
 
   // 拉清单：选择变化即重新拉（判据是"当前选择"，与渲染同源）
   useEffect(() => {
@@ -97,9 +107,9 @@ export function WorkspaceFileView({ run }: { run: RunDetail }) {
     setLoadingList(true);
     setInspectError(null);
     const request =
-      selection.stepSpanId === null
+      effectiveStepSpanId === null
         ? { runId: run.meta.id }
-        : { runId: run.meta.id, stepSpanId: selection.stepSpanId };
+        : { runId: run.meta.id, stepSpanId: effectiveStepSpanId };
     void inspectWorkspace(request)
       .then((outcome) => {
         if (cancelled) return;
@@ -109,10 +119,6 @@ export function WorkspaceFileView({ run }: { run: RunDetail }) {
           return;
         }
         setInspect(outcome.data);
-        // 选中路径在新清单里可能已不存在（切检查点后文件集变化）⇒ 清掉选择
-        setSelectedPath((current) =>
-          current !== null && outcome.data.files.some((f) => f.path === current) ? current : null,
-        );
       })
       .finally(() => {
         if (!cancelled) setLoadingList(false);
@@ -120,7 +126,7 @@ export function WorkspaceFileView({ run }: { run: RunDetail }) {
     return () => {
       cancelled = true;
     };
-  }, [inspectWorkspace, run.meta.id, selection.stepSpanId]);
+  }, [inspectWorkspace, run.meta.id, effectiveStepSpanId]);
 
   // 读取"初始"与"当前"两侧内容（diff 需要两份；不做任何写入）
   const readSide = useCallback(
@@ -160,43 +166,43 @@ export function WorkspaceFileView({ run }: { run: RunDetail }) {
   );
 
   const currentKey =
-    selectedPath === null ? null : requestKey(run.meta.id, selection.stepSpanId, selectedPath);
+    effectivePath === null ? null : requestKey(run.meta.id, effectiveStepSpanId, effectivePath);
   const current = loaded !== null && loaded.key === currentKey ? loaded.result : null;
 
   // 选中文件时拉内容；新增文件（初始侧不存在）也照常读——初始侧缺席由 diff 侧呈现
   useEffect(() => {
-    if (selectedPath === null) {
+    if (effectivePath === null) {
       setLoaded(null);
       return;
     }
-    void loadContent(selectedPath, selection.stepSpanId);
-  }, [selectedPath, selection.stepSpanId, loadContent]);
+    void loadContent(effectivePath, effectiveStepSpanId);
+  }, [effectivePath, effectiveStepSpanId, loadContent]);
 
   return (
     <WorkspaceFileViewBody
       run={run}
       options={options}
-      selection={selection}
+      selection={{ stepSpanId: effectiveStepSpanId }}
       onSelect={(stepSpanId) => {
-        setSelection({ stepSpanId });
-        setPane("list");
+        setFileReading(run.meta.id, { checkpoint: stepSpanId, pane: "list" });
       }}
       inspect={inspect}
       inspectError={inspectError}
       loadingList={loadingList}
-      selectedPath={selectedPath}
+      selectedPath={effectivePath}
       onSelectPath={(path) => {
-        setSelectedPath(path);
-        setPane("content");
+        setFileReading(run.meta.id, { path, pane: "content" });
       }}
       current={current}
       currentKey={currentKey}
-      currentLabel={checkpointLabel(options, selection.stepSpanId)}
+      currentLabel={checkpointLabel(options, effectiveStepSpanId)}
       loadingContent={loadingContent}
       contentError={contentError}
-      pane={pane}
-      onPane={setPane}
+      pane={saved.pane}
+      onPane={(pane) => setFileReading(run.meta.id, { pane })}
       fetchInitial={readSide}
+      checkpointInvalidated={checkpointInvalidated}
+      pathInvalidated={pathInvalidated}
     />
   );
 }
@@ -227,6 +233,10 @@ export interface WorkspaceFileViewBodyProps {
     stepSpanId: string | null,
     path: string,
   ) => Promise<WorkspaceReadFileResult | null>;
+  /** U2：保存的检查点已失效（提示"原检查点不可用，已回退默认"） */
+  readonly checkpointInvalidated?: boolean;
+  /** U2：保存的路径在所选清单里已不存在（提示"原文件不存在，已清空选择"） */
+  readonly pathInvalidated?: boolean;
 }
 
 export function WorkspaceFileViewBody({
@@ -247,6 +257,8 @@ export function WorkspaceFileViewBody({
   pane,
   onPane,
   fetchInitial,
+  checkpointInvalidated = false,
+  pathInvalidated = false,
 }: WorkspaceFileViewBodyProps) {
   const selectedFile = inspect?.files.find((f) => f.path === selectedPath) ?? null;
 
@@ -302,6 +314,19 @@ export function WorkspaceFileViewBody({
 
         {originNote !== null ? (
           <div className="mt-1 text-[11px] leading-4 text-violet-800">{originNote}</div>
+        ) : null}
+        {/* U2：失效引用安全回退的**可见说明**（delta「失效检查点和路径安全回退」）——
+            回退是静默的坏体验：用户会以为自己看的就是上次那处。 */}
+        {checkpointInvalidated ? (
+          <div className="mt-1 text-[11px] leading-4 text-amber-800">
+            上次保存的检查点已不属于本
+            run（可能来自祖先步骤或已删除的轮次），已回到最近的自有完成步骤。
+          </div>
+        ) : null}
+        {pathInvalidated ? (
+          <div className="mt-1 text-[11px] leading-4 text-amber-800">
+            上次阅读的文件不在所选清单里，已清空选择并显示列表（不会改选同名的其它路径）。
+          </div>
         ) : null}
         <div className="mt-1 text-[10px] leading-4 text-gray-400">
           只读视图：仅按 trace

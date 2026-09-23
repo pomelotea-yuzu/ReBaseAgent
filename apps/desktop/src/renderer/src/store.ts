@@ -211,6 +211,16 @@ interface AppState {
   fileReadingOf: (runId: string) => FileReadingState;
   /** 更新某 run 的文件阅读状态片段（undefined 值视为不改该项） */
   setFileReading: (runId: string, patch: Partial<FileReadingState>) => void;
+  /**
+   * U2 任务 2.3：一次性显式文件目标（如从步骤页「打开该轮文件」）。
+   *
+   * 与阅读历史分开存：历史是"上次读到哪"，目标是"这次要看哪"——混在一起会让普通
+   * 页签返回被误当成定位请求（delta 明文禁止）。由文件页承载组件消费一次后清空，
+   * 且与目标 run 的身份绑定（旧目标不抢回当前页）。
+   */
+  pendingFileTarget: { runId: string; file: { stepSpanId: string | null; path?: string } } | null;
+  /** 登记一次性文件目标（切到该 run 的文件页） */
+  openFileAt: (runId: string, file: { stepSpanId: string | null; path?: string }) => void;
 
   /**
    * 编辑某 tool.invoke 的 result 并重跑；成功刷新列表并自动选中新 run。
@@ -626,6 +636,16 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setFileReading(runId, patch) {
     set({ readingByRun: patchFileReading(get().readingByRun, runId, patch) });
+  },
+
+  pendingFileTarget: null,
+
+  openFileAt(runId, file) {
+    // 登记目标并切到该 run 的文件页；目标由文件页承载组件消费一次后清空
+    set({
+      pendingFileTarget: { runId, file },
+      readingByRun: patchReadingState(get().readingByRun, runId, { tab: "files" }),
+    });
   },
 
   async forkAt(parentRunId, atSpanId, value, execution) {
