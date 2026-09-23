@@ -23,7 +23,17 @@
 - `validateCheckpointStepId` 三态：`initial`（请求初始）/ `valid` / `stale`（祖先步骤或被删轮次 ⇒ 提示并回退默认，**不**改用另一个"看起来可读"的检查点）。
 - `validateSavedPath` 三态刻意把"清单读取失败"判为 `unknown` 而非 `absent`——delta 明文「读取失败 SHALL NOT 等同引用消失」，故保留意图供重试。
 
-### 2.3（2026-09-23 完成 · 纯逻辑与 store 接线上半）
+### 2.4（2026-09-23 完成）
+
+`WorkspaceFileView` 的选择/pane/路径改读 store（`fileReadingOf` / `setFileReading`），**删除旧的挂载复位 effect 与局部 `selection`/`pane`/`selectedPath` state**；`WorkspaceFilesPanel` 消费一次性 `pendingFileTarget`；store 增加 `pendingFileTarget` 与 `openFileAt`。新增 `test/file-view-session-state.test.ts`（8 passed）。
+
+- **R7 缺陷根因被正面消除**（commit 信息与注释都写明）：C 时代检查点/路径是组件局部 `useState`，而承载组件以 `key={detail.meta.id}` 硬重挂载 ⇒「文件 → 步骤 → 文件」必然回到初始。改用 store 后卸载重建不丢，run 隔离由按 runId 分键保证。
+- 接线契约用例**反向断言旧形态必须消失**（`setSelection({...})` / `setSelectedPath(null)` / `setPane("list")` / `const [selection, setSelection]` / `const [pane, setPane]` 均不得出现）——否则"局部 state 复活"会让本段白做且无人察觉。
+- 失效回退**可见**：`checkpointInvalidated` / `pathInvalidated` 两条说明各有能力断言（渲染出文字）+ 反向断言（未失效时不渲染，不误报）。
+- 一次性目标消费**受 run 身份约束**（`pendingTarget.runId !== detailId` 不消费），避免 A 的目标落到 B。
+- 未覆盖：目标消费的**实机**往返（步骤页入口 → 文件页）归 5.3；`openFileAt` 与自有步骤入口的接线归第 4 组一并验。
+
+
 
 `lib/reading-resolve.ts` 的 `ReadingTarget` 增加嵌套 `file: { stepSpanId, path? }` 分支（审阅 P2 采纳判别式字段），`ResolvedReading` 增加 `fileTarget`；新增 `parseReadingTarget` 拒收混传。store 增加 `fileReadingOf` / `setFileReading`。新增 `test/file-reading-target.test.ts`（12 passed）+ 既有 `reading-resolve.test.ts` 12 条**零回归**。
 
@@ -32,6 +42,20 @@
 - **file 目标在无文件页的 run** ⇒ 降级概览并标 `invalidated`，不臆造文件页。
 - `ResolvedReading` 新增必填 `fileTarget` 字段 ⇒ 所有返回路径都显式给出（5 处 return 全部补齐），无隐式 undefined。
 - 未覆盖：**自有步骤文件入口的接线**与"迟到导航不抢页"（代次约束）归 2.3 下半 + 4.3；实机往返归 5.3。
+
+### 3.1 + 3.2（2026-09-23 完成）
+
+`lib/reading-request-guard.ts`（新，纯逻辑）：`RequestGuard`（`begin`/`accept`/`invalidate` 单调代次）+ `ListReadState`/`SideReadState` 三态 + `settleList`/`settleSide` 收口 + `sideResult`/`sideLoading`/`sideFailed` 查询；新增 `test/reading-request-guard.test.ts`（16 passed，含延迟 promise 时序）。`WorkspaceFileView` 连接层改用**三个独立守卫**（清单 / 初始侧 / 所选侧），两侧**独立读取**；`FileContent` 改为只排版（删掉内部自拉初始侧）；新增 `test/file-two-side-read.test.ts`（18 passed）。
+
+- **`cancelled` 布尔是 3.1 的根因**：它只能挡卸载后的迟到响应，挡不住 delta 点名的两类——① 同对象重试 / A→B→A 往返（第二次是**新闭包**，`cancelled` 又为 `false`，旧 A 依然写回，且 key 与当前完全相同，"键相等"判据无解）；② 旧请求 `finally setLoading(false)` 抹掉新请求刚置起的 loading。改用单调代次后二者同时消除：**同 key 也有不同代次**。
+- **三个守卫而非一个**：delta 要求「清单和内容分别维护加载/成功/失败」「可独立重试」；共用一个计数器会让一面请求顶掉另一面的代次。`useRef` 持有（守卫是命令式、跨渲染同实例，且自身不触发渲染）。
+- **`null` 不再是"不存在"**：`sideResult` 只对 `ok` 给结果，`failed`/`loading`/`idle` 一律 `null`（语义=「没有可用结果」）。文件是否不存在只由 `result.status === "not_found"` 表达——这正是 3.2 要消除的 `null` 等同不存在。
+- **通道失败与结果层状态分家**：`failed`（IPC 拒绝 / schema 不合法，连结果都没有）≠ `missing`/`corrupt`/`binary`/`not_found`（拿到了**真实事实**）。界面文案刻意分开（"该侧读取失败，不是不存在" vs "该侧不存在"）。
+- **初始侧读取**由"以所选侧成功为前置"改为**独立 effect**（依赖数组只含 `readWorkspaceFile/run.meta.id/effectivePath/initialKey`，不含 `current`）——旧写法下所选侧一失败初始侧就永不读，界面把"未读"显示成"两侧都没有"。
+- **`FileContent` 内部拉取删除**：旧代码 `useEffect` + `useState<WorkspaceReadFileResult>` 自拉初始侧，且 `current === null || current.status === "rejected"` 时**直接 return 不读**。现在两侧数据全由连接层喂入，`FileContent` 只渲染；`!sides.hasContent` 的粗暴合并分支（把"未读/失败"与"确实不存在"混谈）一并删除。
+- **变异验证**（4 组，全部被捕获）：① `accept` 退化成只比 key → 5 条失败；② `settle` 无视守卫 → 失败；③ `sideResult` 把 failed 折成 `not_found` → 失败；④ 接线契约反向断言：清单 `then` 必须过 `settleList`、三处不得 `setXxxState({kind:"ok"})` 绕过、`!sides.hasContent` 必须消失、`FileContent` 函数体内不得有 `useEffect`/`fetchInitial(null`/`useState<WorkspaceReadFileResult`。源码变异还原后 `md5sum -c` 复核通过。
+- **接线契约必须源码级**：本包无 jsdom，「响应有没有过守卫」组件测试打不到（U1 三度复发的同类问题），故用 source 级正/反向断言钉住。
+- 未覆盖：**延迟切换/重试的实机点击核对**归 5.4；独立重试按钮与单侧可读的完整呈现归 3.3；目录搜索/筛选归 3.4。
 
 ## 1. 基线、标本与原型
 
@@ -47,8 +71,8 @@
 
 ## 3. 双侧读取和目录
 
-- [ ] 3.1 为清单与两侧读取增加身份/代次守卫及完整错误状态（2h）；用延迟 promise 验证“快速切换不串清单正文错误和加载”“同对象重试与往返有请求代次”，分别覆盖成功/失败/异常/finally 和卸载。
-- [ ] 3.2 实现独立两侧读取与比较资格派生，去除 null 等同不存在（1.5h）；验证“新增文件与零字节文件不混同”“不可用侧不伪装为空差异”“两侧都不可读时没有伪空编辑器”，左右互换与初始同侧均有用例。
+- [x] 3.1 为清单与两侧读取增加身份/代次守卫及完整错误状态（2h）；用延迟 promise 验证“快速切换不串清单正文错误和加载”“同对象重试与往返有请求代次”，分别覆盖成功/失败/异常/finally 和卸载。
+- [x] 3.2 实现独立两侧读取与比较资格派生，去除 null 等同不存在（1.5h）；验证“新增文件与零字节文件不混同”“不可用侧不伪装为空差异”“两侧都不可读时没有伪空编辑器”，左右互换与初始同侧均有用例。
 - [ ] 3.3 展示单侧可读、双侧异常及清单/内容独立重试（1.5h）；验证“二进制和不可用附件分别显示”“不可用侧不伪装为空差异”“阅读重试只读且重新校验”，读取失败保留定位、不假报无变化。
 - [ ] 3.4 增加路径搜索、auto/all/changed 偏好与空态派生（1.5h）；验证“路径搜索与变化筛选组合”“初始与完成检查点的默认筛选”“空清单无变化和无匹配可区分”，可用性与变化分离。
 - [ ] 3.5 连接目录控件、完整路径显示和隐藏选择恢复（1h）；验证“筛选不偷换当前文件”“切检查点保留仍存在的路径”，单独标示筛选计数，保留原清单规模。

@@ -1,7 +1,15 @@
 import type { RunDetail } from "@shared/ipc";
 import type { WorkspaceInspectResult, WorkspaceReadFileResult } from "@shared/ipc";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatBytes } from "../lib/format";
+import {
+  type ListReadState,
+  RequestGuard,
+  type SideReadState,
+  settleList,
+  settleSide,
+  sideResult,
+} from "../lib/reading-request-guard";
 import {
   availabilityLabel,
   canCompareText,
@@ -34,7 +42,6 @@ import { MonacoDiffEditor } from "./MonacoEditor";
  */
 
 type Selected = WorkspaceInspectResult;
-type Loaded = { readonly key: string; readonly result: WorkspaceReadFileResult };
 
 /** 检查点选择项：每次选择都要带上 stepSpanId（null = 初始） */
 interface Selection {
@@ -42,8 +49,11 @@ interface Selection {
 }
 
 /**
- * 请求的稳定键：用于"在飞结果回来后判断是不是当前选择"（避免慢响应覆盖新选择）。
- * 与 `isolated-fork.ts` 的 `verifying.value === value` 同法。
+ * 请求的稳定键：标识"逻辑上同一个对象"（同 run 同 step 同 path）。
+ *
+ * ⚠️ 这个键**只用于识别对象**，**不用来判定新旧**——同对象重试的 key 完全相同，
+ *    靠 key 相等无法区分先后（U2 任务 3.1 的根因）。新旧一律由 `RequestGuard` 的
+ *    单调代次判（见 `lib/reading-request-guard.ts` 文件头）。
  */
 function requestKey(runId: string, stepSpanId: string | null, path: string): string {
   return `${runId}\u0000${stepSpanId ?? ""}\u0000${path}`;
@@ -57,6 +67,13 @@ function requestKey(runId: string, stepSpanId: string | null, path: string): str
  *    这层、把"排版"留在 `WorkspaceFileViewBody`，就能对展示层做结构断言。
  * 2. **判据与请求同源**——拉取判据（选中哪个检查点）与渲染判据在同一处产生，
  *    不在组件里另算一遍。
+ *
+ * U2 任务 3.1 的请求纪律（三条，缺一即回归 C 时代缺陷）：
+ * - **清单与两侧各自持有 `RequestGuard` 与显式三态**（`ListReadState` / `SideReadState`）：
+ *   加载 / 成功 / 失败分别维护，**不共用一个布尔**（否则一面请求的收尾会抹掉另一面的 loading）。
+ * - **每个响应先过 `accept`**：旧代次的成功/失败/异常一律**丢弃**（一个字节都不写），
+ *   这是"同对象重试 / A→B→A 往返"唯一能靠住的判据。
+ * - **loading 由状态机持有**，不在 `finally` 里无条件清除——旧请求的收尾不得抹掉新请求的 loading。
  */
 export function WorkspaceFileView({ run }: { run: RunDetail }) {
   const inspectWorkspace = useAppStore((s) => s.inspectWorkspace);
@@ -89,12 +106,27 @@ export function WorkspaceFileView({ run }: { run: RunDetail }) {
         : saved.checkpoint;
   const checkpointInvalidated = checkpointCheck === "stale";
 
-  const [inspect, setInspect] = useState<Selected | null>(null);
-  const [inspectError, setInspectError] = useState<{ code: string; message: string } | null>(null);
-  const [loadingList, setLoadingList] = useState(false);
-  const [loaded, setLoaded] = useState<Loaded | null>(null);
-  const [contentError, setContentError] = useState<{ code: string; message: string } | null>(null);
-  const [loadingContent, setLoadingContent] = useState(false);
+  /**
+   * U2 任务 3.1：三个**各自独立**的请求面。用 `useRef` 而不是 `useState`——
+   * 守卫是**命令式**的（begin/accept 要跨渲染保持同一实例），且它自身不会触发渲染；
+   * 状态变化由下面的 `useState` 承担。
+   */
+  const listGuardRef = useRef<RequestGuard | null>(null);
+  const initialGuardRef = useRef<RequestGuard | null>(null);
+  const selectedGuardRef = useRef<RequestGuard | null>(null);
+  if (listGuardRef.current === null) listGuardRef.current = new RequestGuard();
+  if (initialGuardRef.current === null) initialGuardRef.current = new RequestGuard();
+  if (selectedGuardRef.current === null) selectedGuardRef.current = new RequestGuard();
+
+  const [listState, setListState] = useState<ListReadState>({ kind: "idle" });
+  const [initialState, setInitialState] = useState<SideReadState>({ kind: "idle" });
+  const [selectedState, setSelectedState] = useState<SideReadState>({ kind: "idle" });
+
+  // 清单结果（成功才有）：渲染与路径校验都从这里取
+  const inspect: Selected | null = listState.kind === "ok" ? listState.result : null;
+  const inspectError =
+    listState.kind === "failed" ? { code: listState.code, message: listState.message } : null;
+  const loadingList = listState.kind === "loading";
 
   // 保存的 path 在新清单里是否仍存在（present/absent/unknown；unknown 不当作消失）
   const pathCheck = validateSavedPath(inspect, inspectError !== null, saved.path);
@@ -103,32 +135,38 @@ export function WorkspaceFileView({ run }: { run: RunDetail }) {
 
   // 拉清单：选择变化即重新拉（判据是"当前选择"，与渲染同源）
   useEffect(() => {
-    let cancelled = false;
-    setLoadingList(true);
-    setInspectError(null);
+    const guard = listGuardRef.current;
+    if (guard === null) return;
     const request =
       effectiveStepSpanId === null
         ? { runId: run.meta.id }
         : { runId: run.meta.id, stepSpanId: effectiveStepSpanId };
+    const token = guard.begin("list", requestKey(run.meta.id, effectiveStepSpanId, ""));
+    setListState({ kind: "loading" });
     void inspectWorkspace(request)
       .then((outcome) => {
-        if (cancelled) return;
-        if (!outcome.ok) {
-          setInspect(null);
-          setInspectError({ code: outcome.code, message: outcome.message });
-          return;
-        }
-        setInspect(outcome.data);
+        // 旧代次：不写任何状态（含不清 loading——新请求的 loading 由新请求自己管）
+        const next = settleList(guard, token, outcome);
+        if (next !== null) setListState(next);
       })
-      .finally(() => {
-        if (!cancelled) setLoadingList(false);
+      .catch((error: unknown) => {
+        const next = settleList(guard, token, {
+          ok: false,
+          code: "INSPECT_UNEXPECTED",
+          message: error instanceof Error ? error.message : String(error),
+        });
+        if (next !== null) setListState(next);
       });
-    return () => {
-      cancelled = true;
-    };
   }, [inspectWorkspace, run.meta.id, effectiveStepSpanId]);
 
-  // 读取"初始"与"当前"两侧内容（diff 需要两份；不做任何写入）
+  /**
+   * U2 任务 3.2：**两侧独立读取**。初始侧与所选侧各走各的守卫与状态：
+   * - 任一侧不可用（失败 / 二进制 / 缺失 / 损坏）**不阻止**另一侧展示（delta 明文）；
+   * - 通道失败折成 `failed` 状态，**不**折成 `not_found`（"读取失败 SHALL NOT 等同引用消失"）。
+   *
+   * `readSide` 保留（展示层 `fetchInitial` 契约仍要），但它现在只在**调用方指定**时使用；
+   * 视图层的两侧数据由下面两个 effect 独立维持。
+   */
   const readSide = useCallback(
     async (stepSpanId: string | null, path: string): Promise<WorkspaceReadFileResult | null> => {
       const request =
@@ -141,42 +179,77 @@ export function WorkspaceFileView({ run }: { run: RunDetail }) {
     [readWorkspaceFile, run.meta.id],
   );
 
-  const loadContent = useCallback(
-    async (path: string, stepSpanId: string | null): Promise<void> => {
-      const key = requestKey(run.meta.id, stepSpanId, path);
-      setLoadingContent(true);
-      setContentError(null);
-      try {
-        const outcome = await readWorkspaceFile(
-          stepSpanId === null
-            ? { runId: run.meta.id, path }
-            : { runId: run.meta.id, stepSpanId, path },
-        );
-        if (!outcome.ok) {
-          setContentError({ code: outcome.code, message: outcome.message });
-          setLoaded(null);
-          return;
-        }
-        setLoaded({ key, result: outcome.data });
-      } finally {
-        setLoadingContent(false);
-      }
-    },
-    [readWorkspaceFile, run.meta.id],
-  );
-
   const currentKey =
     effectivePath === null ? null : requestKey(run.meta.id, effectiveStepSpanId, effectivePath);
-  const current = loaded !== null && loaded.key === currentKey ? loaded.result : null;
+  const initialKey = effectivePath === null ? null : requestKey(run.meta.id, null, effectivePath);
 
-  // 选中文件时拉内容；新增文件（初始侧不存在）也照常读——初始侧缺席由 diff 侧呈现
+  // 所选检查点侧：路径或检查点变化即重新读（同一对象重试也走这里，代次递增）
   useEffect(() => {
-    if (effectivePath === null) {
-      setLoaded(null);
+    const guard = selectedGuardRef.current;
+    if (guard === null) return;
+    if (effectivePath === null || currentKey === null) {
+      guard.invalidate();
+      setSelectedState({ kind: "idle" });
       return;
     }
-    void loadContent(effectivePath, effectiveStepSpanId);
-  }, [effectivePath, effectiveStepSpanId, loadContent]);
+    const token = guard.begin("selected", currentKey);
+    setSelectedState({ kind: "loading" });
+    void readWorkspaceFile(
+      effectiveStepSpanId === null
+        ? { runId: run.meta.id, path: effectivePath }
+        : { runId: run.meta.id, stepSpanId: effectiveStepSpanId, path: effectivePath },
+    )
+      .then((outcome) => {
+        const next = settleSide(guard, token, outcome);
+        if (next !== null) setSelectedState(next);
+      })
+      .catch((error: unknown) => {
+        const next = settleSide(guard, token, {
+          ok: false,
+          code: "READ_UNEXPECTED",
+          message: error instanceof Error ? error.message : String(error),
+        });
+        if (next !== null) setSelectedState(next);
+      });
+  }, [readWorkspaceFile, run.meta.id, effectivePath, effectiveStepSpanId, currentKey]);
+
+  /**
+   * 初始侧：**独立**于所选侧读取（不再等"当前已读出"才拉）。
+   *
+   * ⚠️ 与所选侧分开的关键原因（delta「不可用侧不伪装为空差异」的根因）：C 时代初始侧
+   *    以 `current` 成功为前置条件 ⇒ 所选侧一失败，初始侧就永远不读，界面只能显示
+   *    "两侧都没内容"——把"未读"伪装成了"不存在"。现在两侧各自读、各自表达。
+   */
+  useEffect(() => {
+    const guard = initialGuardRef.current;
+    if (guard === null) return;
+    if (effectivePath === null || initialKey === null) {
+      guard.invalidate();
+      setInitialState({ kind: "idle" });
+      return;
+    }
+    const token = guard.begin("initial", initialKey);
+    setInitialState({ kind: "loading" });
+    void readWorkspaceFile({ runId: run.meta.id, path: effectivePath })
+      .then((outcome) => {
+        const next = settleSide(guard, token, outcome);
+        if (next !== null) setInitialState(next);
+      })
+      .catch((error: unknown) => {
+        const next = settleSide(guard, token, {
+          ok: false,
+          code: "READ_UNEXPECTED",
+          message: error instanceof Error ? error.message : String(error),
+        });
+        if (next !== null) setInitialState(next);
+      });
+  }, [readWorkspaceFile, run.meta.id, effectivePath, initialKey]);
+
+  // 结果层取值：**只有真的成功**才给；failed/loading/idle 一律 null（不是 not_found）
+  const current = sideResult(selectedState);
+  const initialResult = sideResult(initialState);
+
+  const hasComparisonError = contentFailure(selectedState) !== null;
 
   return (
     <WorkspaceFileViewBody
@@ -196,8 +269,15 @@ export function WorkspaceFileView({ run }: { run: RunDetail }) {
       current={current}
       currentKey={currentKey}
       currentLabel={checkpointLabel(options, effectiveStepSpanId)}
-      loadingContent={loadingContent}
-      contentError={contentError}
+      loadingContent={selectedState.kind === "loading"}
+      contentError={contentFailure(selectedState)}
+      initial={initialResult}
+      initialKey={initialKey}
+      loadingInitial={initialState.kind === "loading"}
+      initialError={sideFailure(initialState)}
+      initialFailed={initialState.kind === "failed"}
+      selectedFailed={selectedState.kind === "failed"}
+      hasComparisonError={hasComparisonError}
       pane={saved.pane}
       onPane={(pane) => setFileReading(run.meta.id, { pane })}
       fetchInitial={readSide}
@@ -205,6 +285,16 @@ export function WorkspaceFileView({ run }: { run: RunDetail }) {
       pathInvalidated={pathInvalidated}
     />
   );
+}
+
+/** 侧的**通道失败**（IPC 拒绝 / schema 不合法）折成展示层错误对象；其余为 null。 */
+function sideFailure(state: SideReadState): { code: string; message: string } | null {
+  return state.kind === "failed" ? { code: state.code, message: state.message } : null;
+}
+
+/** 所选侧的通道失败（展示层原字段名保留，减少改动面）。 */
+function contentFailure(state: SideReadState): { code: string; message: string } | null {
+  return state.kind === "failed" ? { code: state.code, message: state.message } : null;
 }
 
 /**
@@ -227,6 +317,21 @@ export interface WorkspaceFileViewBodyProps {
   readonly currentLabel: string;
   readonly loadingContent: boolean;
   readonly contentError: { code: string; message: string } | null;
+  /**
+   * U2 任务 3.2：**初始侧**由连接层独立维持（不再由 `FileContent` 内部自行拉取）。
+   * 三件套对应"加载 / 成功 / 失败"三态；`initial` 为 null **不代表文件不存在**，
+   * 只代表"还没拿到结果"（不存在由 `status === "not_found"` 表达）。
+   */
+  readonly initial?: WorkspaceReadFileResult | null;
+  readonly initialKey?: string | null;
+  readonly loadingInitial?: boolean;
+  readonly initialError?: { code: string; message: string } | null;
+  /** 初始侧通道失败（与"结果说附件缺失"不同层） */
+  readonly initialFailed?: boolean;
+  /** 所选侧通道失败 */
+  readonly selectedFailed?: boolean;
+  /** 至少一侧处于**通道失败**（用于禁用比较类工具，而不是假装无差异） */
+  readonly hasComparisonError?: boolean;
   readonly pane: "list" | "content";
   readonly onPane: (pane: "list" | "content") => void;
   readonly fetchInitial: (
@@ -254,6 +359,13 @@ export function WorkspaceFileViewBody({
   currentLabel,
   loadingContent,
   contentError,
+  initial = null,
+  initialKey = null,
+  loadingInitial = false,
+  initialError = null,
+  initialFailed = false,
+  selectedFailed = false,
+  hasComparisonError = false,
   pane,
   onPane,
   fetchInitial,
@@ -450,6 +562,13 @@ export function WorkspaceFileViewBody({
               currentLabel={currentLabel}
               loading={loadingContent}
               error={contentError}
+              initial={initial}
+              initialKey={initialKey}
+              loadingInitial={loadingInitial}
+              initialError={initialError}
+              initialFailed={initialFailed}
+              selectedFailed={selectedFailed}
+              hasComparisonError={hasComparisonError}
               fetchInitial={fetchInitial}
             />
           )}
@@ -468,10 +587,17 @@ function checkpointLabel(options: readonly CheckpointOption[], stepSpanId: strin
 /**
  * 单个文件的内容区。
  *
- * 分三种呈现（判据全来自派生层，组件不做二次判断）：
- * - **可比较**（两侧都有文本，或一侧缺席但有另一侧）：进 DiffEditor 并排
- * - **不可比较**（二进制 / 缺失 / 损坏）：只展示状态与大小/哈希，**不进编辑器**
- * - **两侧皆缺席**：明确说"两侧都没有内容"，不渲染空编辑器
+ * U2 任务 3.2 起，**两侧数据都由连接层独立提供**（`current` / `initial`），本组件只排版：
+ *
+ * - **两侧都有真实结果**（含新增文件的初始侧 `not_found`）⇒ 进 DiffEditor；
+ *   缺席的一侧**显式标"不存在"**、同时仍如实标明它到底是"不存在"还是"加载中/读取失败"。
+ * - **任一侧不可比较**（二进制 / 缺失 / 损坏）⇒ 只呈现该侧真实状态，**不进编辑器**。
+ * - **任一侧通道失败** ⇒ 显示该侧错误，可用侧**照常展示**（不因另一侧失败而白屏）。
+ * - **两侧都没有可读文本** ⇒ 明确说清两侧各自状态，不渲染空编辑器。
+ *
+ * ⚠️ 与 C 时代的关键差别：此前本组件内部自行拉初始侧，且以"当前侧已读出"为**前置条件**
+ *    ⇒ 当前侧一失败，初始侧就永不读取，界面把"未读"显示成"两侧都没有"。现在两侧独立，
+ *    且 `initial === null` 只表示"还没拿到结果"，**不表示文件不存在**。
  */
 function FileContent({
   path,
@@ -480,6 +606,13 @@ function FileContent({
   currentLabel,
   loading,
   error,
+  initial,
+  initialKey,
+  loadingInitial,
+  initialError,
+  initialFailed,
+  selectedFailed,
+  hasComparisonError,
   fetchInitial,
 }: {
   path: string;
@@ -493,37 +626,43 @@ function FileContent({
   currentLabel: string;
   loading: boolean;
   error: { code: string; message: string } | null;
+  initial: WorkspaceReadFileResult | null;
+  initialKey: string | null;
+  loadingInitial: boolean;
+  initialError: { code: string; message: string } | null;
+  initialFailed: boolean;
+  selectedFailed: boolean;
+  hasComparisonError: boolean;
   fetchInitial: (
     stepSpanId: string | null,
     path: string,
   ) => Promise<WorkspaceReadFileResult | null>;
 }) {
-  const [initial, setInitial] = useState<WorkspaceReadFileResult | null>(null);
-
-  // 初始侧只在"当前不是初始快照"且当前已读出时拉一次（同一文件、同一 run）
-  useEffect(() => {
-    let cancelled = false;
-    if (current === null || current.status === "rejected") return;
-    void fetchInitial(null, path).then((result) => {
-      if (!cancelled) setInitial(result);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [fetchInitial, path, current]);
-
+  // 所选侧：加载中（且尚无结果）⇒ 该侧是"读取中"，**不是**不存在
   if (loading && current === null) {
-    return <div className="px-4 py-6 text-[11px] text-gray-400">读取文件内容…</div>;
+    return (
+      <div className="px-4 py-6 text-[11px] text-gray-400">
+        读取文件内容…
+        {loadingInitial ? <span className="ml-2 text-gray-300">（初始快照同步读取中）</span> : null}
+      </div>
+    );
   }
   if (error !== null) {
     return (
       <div className="m-4 rounded border-l-2 border-red-400 bg-red-50 px-2 py-1.5 text-[11px] leading-4 text-red-800">
         读取失败（{error.code}）：{error.message}
+        <div className="mt-0.5 text-red-600">
+          这是只读通道的失败，并不表示该文件不存在；定位意图已保留，可重试。
+        </div>
       </div>
     );
   }
   if (current === null) {
-    return <div className="px-4 py-6 text-[11px] text-gray-400">尚未读取该文件。</div>;
+    return (
+      <div className="px-4 py-6 text-[11px] text-gray-400">
+        {loadingInitial ? "正在读取初始快照…" : "尚未读取该文件。"}
+      </div>
+    );
   }
   if (current.status === "rejected") {
     return (
@@ -590,26 +729,62 @@ function FileContent({
     );
   }
 
-  if (!sides.hasContent) {
+  /**
+   * U2 任务 3.2：**两侧分别标真实状态**。
+   *
+   * 这里不再有"两侧都没有可显示的内容 ⇒ 不渲染编辑器"的粗暴分支（C 时代的它把
+   * "初始侧没读出来"和"初始侧确实不存在"混为一谈）。改为：
+   * - 只有两侧**都解析不出任何文本**、且**两侧都没有可展示的真实结果**时才不动编辑器；
+   * - 否则渲染，并对每一侧标注它是「不存在」「加载中」还是「读取失败」。
+   */
+  const leftMissing = sides.left === null;
+  const rightMissing = sides.right === null;
+  const initialNotRead = initial === null && (loadingInitial || initialFailed);
+  const bothUnavailable = leftMissing && rightMissing && initialNotRead;
+
+  if (bothUnavailable) {
     return (
       <>
         {header}
-        <div className="m-4 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-[11px] text-gray-600">
-          初始与所选检查点在两侧都没有可显示的内容（不渲染空编辑器冒充"文件是空的"）。
+        <div className="m-4 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-[11px] leading-5 text-gray-700">
+          <div className="font-semibold text-gray-800">两侧都还没有可读文本</div>
+          <div className="mt-0.5">
+            初始快照侧：
+            {initialFailed
+              ? `读取失败（${initialError?.code ?? "未知"}）——不是"不存在"`
+              : "正在读取"}
+            ；所选检查点侧：{selectedFailed ? "读取失败（不是不存在）" : "无可读文本"}。
+          </div>
+          <div className="mt-1 text-gray-500">
+            不会用空编辑器冒充"文件是空的"，也不会宣称无变化。
+          </div>
         </div>
       </>
     );
   }
 
-  const leftMissing = sides.left === null;
-  const rightMissing = sides.right === null;
+  /** 一侧的状态说明（区分：真不存在 / 加载中 / 读取失败 / 已有文本） */
+  const sideNote = (
+    side: WorkspaceReadFileResult | null,
+    isInitial: boolean,
+    notRead: boolean,
+    failed: boolean,
+  ): string => {
+    if (side !== null && side.status === "text") return "";
+    if (failed) return "（该侧读取失败，不是不存在）";
+    if (notRead) return "（该侧正在读取）";
+    if (side !== null && side.status === "not_found") return "（该侧不存在）";
+    if (side === null) return "（该侧尚未读取）";
+    return "（该侧不可用）";
+  };
 
   return (
     <>
       {header}
       <div className="px-4 py-1.5 text-[10px] text-gray-400">
-        左：本 run 初始状态{leftMissing ? "（该侧不存在）" : ""} · 右：{sides.rightLabel}
-        {rightMissing ? "（该侧不存在）" : ""}
+        左：本 run 初始状态
+        {sideNote(initial, true, loadingInitial, initialFailed)} · 右：{sides.rightLabel}
+        {sideNote(current, false, loading, selectedFailed)}
       </div>
       <div className="mx-4 mb-4 overflow-hidden rounded border border-gray-200">
         <MonacoDiffEditor
@@ -634,11 +809,21 @@ function FileContent({
           }}
         />
       </div>
-      {leftMissing || rightMissing ? (
+      {hasComparisonError || initialFailed ? (
+        <div className="mx-4 mb-4 rounded border-l-2 border-red-400 bg-red-50 px-2 py-1.5 text-[10px] leading-4 text-red-800">
+          一侧只读通道失败：显示的文本不完整，差异不可信（不把失败侧当空文本比较）。
+        </div>
+      ) : null}
+      {leftMissing && !initialNotRead ? (
         <div className="mx-4 mb-4 rounded border-l-2 border-amber-400 bg-amber-50 px-2 py-1.5 text-[10px] leading-4 text-amber-900">
-          {leftMissing
+          {initial !== null && initial.status === "not_found"
             ? "初始快照里没有这条路径（本 run 新增的文件）；左侧标作不存在，未用空文本冒充。"
-            : "所选检查点没有这条路径；右侧标作不存在（可能是初始有、后轮被移出世界）。"}
+            : "初始侧没有可显示文本；左侧标作不可用，未用空文本冒充。"}
+        </div>
+      ) : null}
+      {rightMissing && !selectedFailed && !loading ? (
+        <div className="mx-4 mb-4 rounded border-l-2 border-amber-400 bg-amber-50 px-2 py-1.5 text-[10px] leading-4 text-amber-900">
+          所选检查点没有这条路径；右侧标作不存在（可能是初始有、后轮被移出世界）。
         </div>
       ) : null}
     </>
