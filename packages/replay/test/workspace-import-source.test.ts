@@ -64,6 +64,15 @@ const FILE_SYMLINK_AVAILABLE = (() => {
  */
 const itWithSymlink = it.skipIf(!FILE_SYMLINK_AVAILABLE);
 
+/**
+ * **仅 Windows 有意义**的用例：实现的大小写折叠只在 `win32` 生效（`describePathRelation`
+ * 的 `fold`），POSIX 上 `/Proj` 与 `/proj/data` 本来就是两个不同目录——判 ok 才是正确行为。
+ *
+ * ⚠️ 2026-09-24 Gitee Go 假红实证：不加门控时该用例在 Linux CI 上必红
+ * （expected { ok: true } to match { failure: source_conflicts_data_dir }）。
+ */
+const itOnWindows = it.skipIf(process.platform !== "win32");
+
 describe("源根校验：形态与关系", () => {
   it("普通目录通过，返回解析后的真实路径", () => {
     const source = tempDir();
@@ -135,7 +144,7 @@ describe("源根校验：形态与关系", () => {
     ).toMatchObject({ failure: { code: "source_conflicts_data_dir" } });
   });
 
-  it("数据目录写成大小写变体时仍判为冲突（Windows 路径不区分大小写）", () => {
+  itOnWindows("数据目录写成大小写变体时仍判为冲突（Windows 路径不区分大小写）", () => {
     const outer = tempDir();
     const proj = join(outer, "Proj");
     mkdirSync(proj);
@@ -144,6 +153,19 @@ describe("源根校验：形态与关系", () => {
       validateSourceRoot({ source: proj, dataDir: join(outer, "proj", "data") }),
     ).toMatchObject({ failure: { code: "source_conflicts_data_dir" } });
   });
+
+  it.skipIf(process.platform === "win32")(
+    "POSIX 路径区分大小写：大小写变体不算冲突（判 ok 才是正确行为）",
+    () => {
+      const outer = tempDir();
+      const proj = join(outer, "Proj");
+      mkdirSync(proj);
+
+      const result = validateSourceRoot({ source: proj, dataDir: join(outer, "proj", "data") });
+      expect(result.ok).toBe(true);
+      expect(result.ok && result.value.root).toBe(realpathSync(proj));
+    },
+  );
 
   it("根自己是 junction：解析一次后通过，并把真实路径作为世界根", () => {
     const holder = tempDir();

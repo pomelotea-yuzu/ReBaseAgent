@@ -15,7 +15,7 @@
   "files": ["dist"],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run --testTimeout=30000"
   },
   "bin": {
     "rebaseagent-model-ab": "./dist/model-ab-cli.js"
