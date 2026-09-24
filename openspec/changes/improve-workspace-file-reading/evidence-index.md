@@ -218,6 +218,56 @@ delta 场景总数 = 35（MODIFIED 9 + ADDED 26）；requirements = 6（M 1 + A 
 4. **本索引不含发行打包证据**：6.2 明确"不安排发行打包"；`release:verify` 的产物名/体积/身份三项**未在本 change 内执行**
    （但**资源门禁已在 6.2 以源码审计 + 产物审计先行覆盖**，并因此抓出并修复了 monaco 包根类型导入）。
 
+## 同类缺陷模式单列：「纯逻辑写好、接线少一支」（本 change 复发 14 处）
+
+> HANDOFF §八 要求 6.3「值得单列一条，并在结论里如实说明」。此处单列。
+> **定义**：纯逻辑函数写对、单测全绿，但**没有被界面消费**——死导入 / 全仓无调用方 / 只写不读 /
+> 条件分支漏一支 / 取值写死 / 从不写回。既有测试**结构上抓不到**，因为测试只打纯逻辑与静态渲染，
+> 而"有没有接上"是**接线**问题。这正是 U1 三次复发过的同一形态（「组件级测试覆盖不到它被挂在哪」）。
+
+| 任务 | 缺口 | 症状（用户可见） | 修法 | 现在由什么守住 |
+| --- | --- | --- | --- | --- |
+| 4.1 | `stepFileDirWidth`/`clampRestoredDirWidth` 是**死导入**（零 UI 消费） | 目录宽**不可调** | 接分隔条拖拽 + 键盘 | `file-two-side-read.test.ts` ›「U2 4.1 接线契约：目录宽可调整（拖拽 + 键盘）」+ 变异 M4 |
+| 4.5 | **查找入口不存在** | 无处查找 | 接 `actions.find` | 同文件 ›「U2 4.5 接线契约：差异导航与查找必须接线」 |
+| 4.5 | 「上一/下一差异」是**无 `onClick` 的死按钮** | 点了没反应 | 接 `goToDiff` | 同上 + 变异 M1 |
+| 4.5 | `diffCount` **写死为 `1`** | 差异计数恒为 1 | 接 `onDidUpdateDiff` + `getLineChanges()` | 同上 + 变异 M2 |
+| 4.6 | **无任何** `onKeyDown`/`tabIndex`/`role`/方向键/焦点恢复 | 键盘全不可用 | roving tabindex + `role="listbox"/"option"` + 焦点交回 | 同文件 ›「U2 4.6 接线契约：文件列表键盘导航与焦点」+ 变异 M3 |
+| 5.3 ① | 正文滚动位置**根本没有字段**（4.3 被误勾成完成） | 往返后回不到原行 | 新增 `lib/file-scroll.ts` + `FileReadingState.contentScroll` + mount 恢复与滚动上报 | `file-scroll.test.ts`(10) + `file-view-scroll-wiring.test.ts`(16) + 变异 M3 |
+| 5.3 ② | 列表滚动**只写不读** | 列表位置不恢复 | `listScrollRef` + `decideRestore` 门控恢复 | 同上 ›「滚动位置真的会被**恢复**，不只是保存」+ 变异 M4 |
+| 5.3 ③ | `openFileAt` **全仓无调用方** | 步骤页没有"打开该轮文件"入口 | `DetailPanel` 步骤页加入口（以 `validateCheckpointStepId(...)==='valid'` 为门，祖先步骤不给） | 同文件 ›「步骤页真的有『打开该轮文件』入口」+ 变异 M6 |
+| 5.3 ④ | 带 path 的显式目标**未清搜索/切 all** | 定位后仍被筛选挡住 | 消费目标时清 query + 切 all | 同文件 ›「『搜索隐藏选择』：显式目标须解阻」+ 变异 M5 |
+| 5.3 ⑤ | **无 path** 的显式目标同样未解阻 | 定位后看到**空列表** | 同上（无 path 也要解阻） | 同上 + 变异 M5 |
+| 5.3 ⑥ | 失效引用**从不写回**会话状态 | "清空"退化为**永久告警** | 一次性写回清理 + 提示锁存（清理只认 `absent`，读取失败保留意图） | 同文件 ›「『失效检查点和路径安全回退』：失效引用须真的被清掉」+ 变异 M1/M2 |
+| 5.4 ① | 两个"进不了 diff"的早返回分支**不渲染任何编辑器** | 单侧可读时**看不到正文** | 新增**只读单侧视图**（`MonacoCodeEditor` + `data-testid="single-side-editor"`）并修 `resolveToolEnablement`（新增 `editorReady`） | `file-single-side-view.test.ts`(18) + 变异 6/6 |
+| 5.4 ② | `!comparability.ok` 分支**只标所选侧** | 另一侧"有文本"**完全不可见** | 补同源同文案的两侧状态行 + 初始侧重试入口；附带修"独占卡"门控（可读侧全文被早返回吞掉） | 同上 |
+| 5.6 | 首次进入的默认检查点被 `checkpoint === null` 吞掉（`defaultCheckpointStepId` 只用在 `stale` 分支） | 实机总停在**初始**（违反 delta「首次进入 SHALL 选择最近自有完成步骤」） | 新增 `resolveCheckpoint(run,{entered,checkpoint})` + store `fileReadingEntered` + 首帧写回（写回前复查新鲜状态） | `file-checkpoint-resolve.test.ts` +11（纯函数 5 + 接线契约 6，含 2 条反向断言） |
+
+**另有一类（不是接线，而是"判据/几何与实机不符"）**，同样由实机才暴露，一并如实列出：
+
+| 任务 | 缺陷 | 修法 |
+| --- | --- | --- |
+| 5.1 ① | Monaco 内部 `renderSideBySideInlineBreakpoint:900` **静默覆盖**外层 `renderSideBySide`（monoW 909→893 时左侧塌成 36px） | 加 `useInlineViewWhenSpaceIsLimited:false`，由外层判据唯一裁决 |
+| 5.1 ② | `decideDiffMode` 把两侧 chrome 当**同一常数 56**（实测左 64 / 右 47）⇒ 1024 档误判并排 | 改双常量 + 外层 71，**取较小侧**判据；补临界回归单测（811→inline / 839→sideBySide） |
+| 5.2 ③ | 窄档（≤800px）目录**未强制收起**（1.2 候选 A 只收窄了 spec 语境，**实现未跟进**） | 加 `NARROW_TIER_MAX=800` 窄档门（先于几何判据）+ 2 临界回归单测 |
+| 5.2 ④ | 宽档（目录常驻）**无任何收起入口**（按钮只在 `!dirResident` 分支渲染） | 页头加「收起目录」按钮，宽档 WHEN 可达 |
+| 6.2 | `WorkspaceFileView.tsx` 从 **monaco 包根**做类型导入 ⇒ `release:verify` 资源门禁**必失败** | 改显式 ESM 子路径 `monaco-editor/editor/editor.api`；补「真实 `src/renderer` 零违规」守卫（`ecd54da`） |
+
+### 结论（如实说明）
+
+1. **判据要三层才够**。上表 14 处里**没有一处**是纯逻辑单测能抓到的——它们全都长期存在于"纯逻辑有函数 +
+   单测全绿"的状态下（desktop 每轮 1225→1236→1284→1295→1296 **全部 0 failed**）。有效配方 =
+   **能力断言（纯展示组件静态渲染）+ 源码级接线契约（钉住门控表达式与动作）+ 实机点击/内容核对**，缺任一层都会漏。
+2. **抓出途径分布**：**9 处由实机 CDP 抓出**（5.3 的 6 + 5.4 的 2 + 5.6 的 1）、
+   **5 处由源码复核抓出**（4.1/4.5/4.6，共 3 个任务 5 个发现，见 `docs/reviews/2026-09-23-u2-2x-4x-audit.md`）。
+   ⇒ 这不是"测试不够多"，而是"**测试对象选错了**"：只测纯逻辑与静态渲染，永远测不到"有没有接上"。
+3. **变异验证是"接线契约有牙"的唯一证明**：4.x 补齐 6 组（M1 删导航 `onClick` / M2 写死 `diffCount` /
+   M3 删列表 `onKeyDown` / M4 删分隔条键盘 / M5 删查找 `onClick` / M6 删 `onMount` 转发）、
+   5.3 6 组（M1–M6）、5.4 6 组，**全部被捕获**（`.workbuddy/u2-mutate.cjs` / `u2-53-mutate.cjs` / `u2-54-mutate.cjs`）。
+4. **对本 change 验收的含义**：这 14 处**已在实现层修复**，且每处都补了守住它的接线契约用例——但它们说明
+   **"纯逻辑层走过一遍"不能作为任务完成的判据**。凡是"X 可调整 / 可导航 / 可操作"类任务，
+   必须顺 UI 控件的 `onClick`/`onKeyDown`/`onPointerDown` **反查消费链**（本 change 4.1 与 5.3③ 就是
+   靠这条反查抓出来的）。这一纪律已沉淀进 skill `openspec-change-apply`。
+
 ## 归档状态与边界（如实表述）
 
 - **U1 `refactor-run-workspace`：已完成并已归档**（`openspec/changes/archive/2026-09-23-refactor-run-workspace/`，
