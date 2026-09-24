@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type {
   CallDraftKey,
+  CallDraftSource,
   DraftRepo,
   ModelAbArmRow,
 } from "../src/renderer/src/lib/debugging-drafts";
@@ -675,5 +676,108 @@ describe("store 接线（drafts slice）", () => {
     expect(useAppStore.getState().createSourceRef).toBeNull();
     // 目录引用不在草稿仓库里（design D4：独立受限会话引用）
     expect(JSON.stringify(useAppStore.getState().drafts)).not.toContain("tok_1");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// store 接线：源基线（任务 1.4，design D2）
+// ---------------------------------------------------------------------------
+
+/** 构造一份满足 CallDraftSource 的样例（测试只关心落库与保留行为） */
+function makeSource(configHash: string): CallDraftSource {
+  return {
+    runStatus: "completed",
+    leafSpanIds: ["s_01"],
+    configHash,
+    proxy: false,
+    isolated: false,
+    target: {
+      kind: "llm.call",
+      startupSystem: "sys",
+      startupUser: "user",
+      model: "m",
+      paramsSignature: "{}",
+      toolsSignature: "null",
+      messagesSignature: "[]",
+    },
+  };
+}
+
+describe("store 接线（源基线随条目落库）", () => {
+  beforeEach(() => {
+    useAppStore.setState({ drafts: draftsModule.emptyDraftRepo() });
+  });
+
+  it("ensure 携带的源基线随条目落库；恢复重验可从条目取到", () => {
+    const k = key("r_01", "s_01", "system_prompt");
+    const source = makeSource("sha256:a");
+    const entry = useAppStore.getState().ensureCallDraft(k, "sys 原文", source);
+    expect(entry.source).toBe(source);
+    expect(useAppStore.getState().callDraftOf(k)?.source).toBe(source);
+  });
+
+  it("重开编辑不覆盖已有条目的源基线（与 baseline 同纪律）", () => {
+    const k = key("r_01", "s_01", "system_prompt");
+    const original = makeSource("sha256:a");
+    useAppStore.getState().ensureCallDraft(k, "sys 原文", original);
+    useAppStore.getState().writeCallDraftText(k, "已编辑");
+
+    const reopened = makeSource("sha256:b");
+    const entry = useAppStore.getState().ensureCallDraft(k, "sys 原文", reopened);
+    expect(entry.source).toBe(original);
+    expect(entry.text).toBe("已编辑");
+  });
+
+  it("A/B 批次的源基线同样随条目落库且重开不覆盖", () => {
+    const k = { runId: "r_01", spanId: "s_01" };
+    const original = makeSource("sha256:a");
+    useAppStore.getState().ensureModelAbDraft(k, BASELINE, original);
+    expect(useAppStore.getState().modelAbDraftOf(k)?.source).toBe(original);
+
+    const reopened = makeSource("sha256:b");
+    const entry = useAppStore.getState().ensureModelAbDraft(k, BASELINE, reopened);
+    expect(entry.source).toBe(original);
+  });
+});
+
+describe("任务 1.4：草稿存储与阅读缓存、详情/列表刷新分离", () => {
+  beforeEach(() => {
+    useAppStore.setState({ drafts: draftsModule.emptyDraftRepo() });
+  });
+
+  it("阅读状态翻页/分区、列表刷新与详情失败都不动草稿仓库（引用与内容双断言）", () => {
+    const k = key("r_01", "s_01", "result");
+    useAppStore.getState().ensureCallDraft(k, "base");
+    useAppStore.getState().writeCallDraftText(k, "edited");
+    const repoBefore = useAppStore.getState().drafts;
+
+    // 阅读缓存更新（页签 / 调用分区 / 文件页）
+    useAppStore.getState().setReadingTab("r_01", "steps");
+    useAppStore.getState().setCallReading("r_01", "s_01", { io: "input" });
+    useAppStore.getState().setFileReading("r_01", { checkpoint: null });
+    useAppStore.getState().setSearchQuery("无关刷新");
+
+    // 详情读取失败态 + 列表刷新清空/缺项（store 直接置位与动作同效的字段）
+    useAppStore.setState({ detail: null, loadingDetail: true, listStale: true });
+    useAppStore.setState({ runs: [], failed: [] });
+
+    // 仓库引用不变（未触发草稿订阅者）且条目内容原样
+    expect(useAppStore.getState().drafts).toBe(repoBefore);
+    expect(useAppStore.getState().callDraftOf(k)?.text).toBe("edited");
+  });
+
+  it("A/B 批次与创建草稿同样不受阅读/刷新影响", () => {
+    const k = { runId: "r_01", spanId: "s_01" };
+    useAppStore.getState().ensureModelAbDraft(k, BASELINE);
+    useAppStore.getState().ensureCreateRunDraft();
+    useAppStore.getState().writeCreateRunDraft({ userMessage: "任务" });
+    const repoBefore = useAppStore.getState().drafts;
+
+    useAppStore.getState().setReadingTab("r_02", "overview");
+    useAppStore.setState({ detail: null, runs: [] });
+
+    expect(useAppStore.getState().drafts).toBe(repoBefore);
+    expect(useAppStore.getState().modelAbDraftOf(k)).toBeDefined();
+    expect(useAppStore.getState().createRunDraftOf()?.userMessage).toBe("任务");
   });
 });

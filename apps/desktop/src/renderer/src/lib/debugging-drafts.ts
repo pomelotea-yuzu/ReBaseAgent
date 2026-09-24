@@ -1,3 +1,5 @@
+import type { RunDetail } from "@shared/ipc";
+
 import type { CreateRunMode } from "./create-run";
 
 /**
@@ -35,6 +37,57 @@ import type { CreateRunMode } from "./create-run";
 /** 调用类草稿的字段 */
 export type CallDraftField = "result" | "system_prompt" | "user_message" | "messages";
 
+// ---------------------------------------------------------------------------
+// 源基线（任务 1.4，design D2）：编辑目标在登记时刻的已校验源事实
+// ---------------------------------------------------------------------------
+
+/**
+ * 「源基线」：登记草稿那一刻，已校验详情里编辑目标所依赖的源身份与内容事实。
+ *
+ * 恢复草稿时由 `lib/draft-source.ts` 的重验函数与当前详情逐项比较：缺失、损坏、
+ * 内容改变或资格失效 ⇒ 保留草稿但禁止提交，不静默用新原文重置基线（design D2）。
+ *
+ * - 只存事实、不做算法版本签名或迁移：草稿不跨 renderer 会话，恢复只比较事实源
+ *   与当前门禁，无需升级路径（design D2 明文）。
+ * - 不含授权、凭据、dry-run 计划（D1/D4 纪律同前）。
+ * - 事实输入来自**已通过 schema 校验**的详情（store 的 detail 字段），不在本层重验格式。
+ */
+export interface CallDraftSource {
+  /** run 级资格事实：登记时刻的已校验值（恢复时逐项与当前详情比较） */
+  readonly runStatus: RunDetail["status"];
+  /** 自有叶子 span 集（各执行入口「leafOwned」判据的输入） */
+  readonly leafSpanIds: readonly string[];
+  /** 源配置指纹（prompt fork / A/B 入口判据；undefined = 代理录制缺省，事实照存） */
+  readonly configHash: string | undefined;
+  /** 录制来源是本地代理（messages 重发入口的资格事实） */
+  readonly proxy: boolean;
+  /** 隔离文件运行（prompt fork / A/B 的入口排除项；result 续跑走只读预检） */
+  readonly isolated: boolean;
+  /** 目标 span 的内容事实：重建请求所依赖字段（恢复时按编辑字段选用比较） */
+  readonly target: CallDraftTargetFacts;
+}
+
+/** 目标 span 的内容事实。llm.call 记录重建请求所依赖字段的签名与启动文本 */
+export type CallDraftTargetFacts =
+  | {
+      readonly kind: "llm.call";
+      /** 首条字符串 system / user 消息（prompt fork 两字段的直接编辑对象） */
+      readonly startupSystem: string | null;
+      readonly startupUser: string | null;
+      /** 父录制模型（A/B 空 fork 判据输入） */
+      readonly model: string;
+      /** scalarRequestParams 的稳定 JSON 签名（A/B 继承/空 fork 判据输入） */
+      readonly paramsSignature: string;
+      /** 工具表签名（risky 工具判据与 config 指纹的输入） */
+      readonly toolsSignature: string;
+      /** 完整请求消息签名（messages 字段的编辑对象；prompt 字段经启动文本覆盖） */
+      readonly messagesSignature: string;
+    }
+  | {
+      /** tool.invoke 的 result 编辑：源内容 = 登记时的结果文本，已存于条目 baseline */
+      readonly kind: "tool.invoke";
+    };
+
 /** 编辑身份：当前父本 runId + 调用 spanId + 字段。相同 span ID 的不同 run 不串草稿 */
 export interface CallDraftKey {
   readonly runId: string;
@@ -50,6 +103,12 @@ export interface CallDraftEntry {
   readonly text: string;
   /** 创建时分配、每次实际内容变化时递增的会话内修订号 */
   readonly revision: number;
+  /**
+   * 任务 1.4：登记时刻的源基线（undefined = 旧条目无源基线；恢复重验时按
+   * 「无法核对来源」保守拒绝——宁可禁执行，不可拿错误来源放行）。
+   * 只在条目创建时写入；重开编辑**不覆盖**（与 baseline 同纪律）。
+   */
+  readonly source?: CallDraftSource;
 }
 
 // ---------------------------------------------------------------------------
@@ -99,6 +158,8 @@ export interface ModelAbDraftEntry {
   readonly rows: ReadonlyArray<ModelAbArmRow>;
   /** 批次修订：增删行/改语义字段/改顺序都推进；仅行 ID 变化不推进 */
   readonly revision: number;
+  /** 任务 1.4：登记时刻的源基线（纪律同 CallDraftEntry.source） */
+  readonly source?: CallDraftSource;
 }
 
 /** 行 ID 生成器（模块级单调；与 DetailPanel 旧 armKeySeq 语义一致，任务 2.4 迁移用） */
@@ -151,16 +212,18 @@ export interface EnsureCallDraftResult {
 
 /**
  * 编辑器打开时登记基线：不存在则新建（text = baseline，分配新修订）；
- * 已存在则**原样保留**（不覆盖基线、不推进修订——恢复/重开编辑不得覆盖已有输入）。
+ * 已存在则**原样保留**（不覆盖基线、不推进修订、不换源基线——恢复/重开编辑不得覆盖已有输入）。
+ * `source` 为任务 1.4 的源基线：只在创建时随条目落库，来自已校验详情。
  */
 export function ensureCallDraft(
   repo: DraftRepo,
   key: CallDraftKey,
   baseline: string,
+  source?: CallDraftSource,
 ): EnsureCallDraftResult {
   const existing = callDraftOf(repo, key);
   if (existing !== undefined) return { repo, entry: existing };
-  const entry: CallDraftEntry = { baseline, text: baseline, revision: repo.nextRevision };
+  const entry: CallDraftEntry = { baseline, text: baseline, revision: repo.nextRevision, source };
   return { repo: putCallEntry(repo, key, entry, repo.nextRevision + 1), entry };
 }
 
@@ -344,12 +407,14 @@ export interface EnsureModelAbDraftResult {
 
 /**
  * 打开 A/B 编辑器时登记批次：不存在则以传入基线臂初始化（每臂分配稳定行 ID）；
- * 已存在则原样保留（不覆盖、不推进修订）。
+ * 已存在则原样保留（不覆盖、不推进修订、不换源基线）。
+ * `source` 为任务 1.4 的源基线：只在创建时随条目落库，来自已校验详情。
  */
 export function ensureModelAbDraft(
   repo: DraftRepo,
   key: ModelAbDraftKey,
   baselineArms: ReadonlyArray<ModelAbBaselineArm>,
+  source?: CallDraftSource,
 ): EnsureModelAbDraftResult {
   const existing = modelAbDraftOf(repo, key);
   if (existing !== undefined) return { repo, entry: existing };
@@ -361,6 +426,7 @@ export function ensureModelAbDraft(
       paramsText: arm.paramsText,
     })),
     revision: repo.nextRevision,
+    source,
   };
   return { repo: putModelAbEntry(repo, key, entry, repo.nextRevision + 1), entry };
 }

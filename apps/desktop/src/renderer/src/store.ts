@@ -41,6 +41,7 @@ import { api } from "./lib/api";
 import type {
   CallDraftEntry,
   CallDraftKey,
+  CallDraftSource,
   CreateRunDraftEntry,
   CreateRunDraftPatch,
   CreateSourceRef,
@@ -253,8 +254,13 @@ interface AppState {
   /**
    * 编辑器打开时登记基线（来自已校验详情的原文）。已存在同 key 条目则原样保留：
    * 不覆盖基线、不推进修订——重开编辑不得覆盖已有输入（design D2）。
+   * `source` 为任务 1.4 的源基线（captureCallDraftSource 的产物），只在条目创建时落库。
    */
-  ensureCallDraft: (key: CallDraftKey, baseline: string) => CallDraftEntry;
+  ensureCallDraft: (
+    key: CallDraftKey,
+    baseline: string,
+    source?: CallDraftSource,
+  ) => CallDraftEntry;
   /**
    * 输入事件**同步**写入原始文本（不得仅靠 debounce/失焦/卸载保存最后一次输入）；
    * 实际内容变化才推进修订。须先 ensureCallDraft——未登记基线的目标不接收写入。
@@ -277,6 +283,7 @@ interface AppState {
   ensureModelAbDraft: (
     key: ModelAbDraftKey,
     baselineArms: ReadonlyArray<{ model: string; paramsText: string }>,
+    source?: CallDraftSource,
   ) => ModelAbDraftEntry;
   /** 整批替换行列表（增删/改内容/重排都经此）；语义不变仅行 ID 变化不推进修订 */
   setModelAbRows: (key: ModelAbDraftKey, rows: ReadonlyArray<ModelAbArmRow>) => void;
@@ -725,8 +732,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     return draftLib.callDraftOf(get().drafts, key);
   },
 
-  ensureCallDraft(key, baseline) {
-    const next = draftLib.ensureCallDraft(get().drafts, key, baseline);
+  ensureCallDraft(key, baseline, source) {
+    const next = draftLib.ensureCallDraft(get().drafts, key, baseline, source);
     // 无变化（条目已存在）时仓库引用不变，不触发无关订阅者
     if (next.repo !== get().drafts) set({ drafts: next.repo });
     return next.entry;
@@ -770,8 +777,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     return draftLib.modelAbDraftOf(get().drafts, key);
   },
 
-  ensureModelAbDraft(key, baselineArms) {
-    const next = draftLib.ensureModelAbDraft(get().drafts, key, baselineArms);
+  ensureModelAbDraft(key, baselineArms, source) {
+    const next = draftLib.ensureModelAbDraft(get().drafts, key, baselineArms, source);
     if (next.repo !== get().drafts) set({ drafts: next.repo });
     return next.entry;
   },
