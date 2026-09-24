@@ -11,7 +11,7 @@ import {
   presentStepDetail,
   resolveIoView,
 } from "../lib/call-detail-view";
-import { newArmRowKey } from "../lib/debugging-drafts";
+import { isModelAbDraftDirty, newArmRowKey } from "../lib/debugging-drafts";
 import type { CallDraftField, CallDraftKey, ModelAbDraftKey } from "../lib/debugging-drafts";
 import { deriveDraftList, draftBadgeForSpan } from "../lib/draft-list";
 import {
@@ -353,6 +353,25 @@ function PromptForkEditor({
     resetFork();
   };
 
+  /**
+   * U3 任务 2.6：按修订明确放弃——**只影响当前字段**（另一字段及其他运行不受影响，
+   * 各字段是独立草稿键）；确认核对当前内容，CAS 拒绝旧确认删除新修订。
+   * 清空为零长度的变更同样是 dirty，一样要经此确认。
+   */
+  const discardCurrentField = (): void => {
+    if (activeEntry === undefined || inProgress) return;
+    const snapshot = activeEntry;
+    const fieldLabel = field === "system_prompt" ? "system prompt" : "首条 user message";
+    const confirmed = window.confirm(
+      `放弃「prompt fork · ${fieldLabel}」的草稿？（run ${run.meta.id} · ${span.id}）\n\n当前草稿内容：\n${snapshot.text}\n\n只影响这一个字段；放弃按确认时的修订校验：此后内容若被更新，本次放弃不会执行。`,
+    );
+    if (!confirmed) return; // 取消：逐字保留
+    if (discardCallDraft(draftKeyOf(field), snapshot.revision)) {
+      resetFork();
+      setOpen(false);
+    }
+  };
+
   if (!open) {
     const unavailable = originalSystem === null;
     return (
@@ -438,24 +457,50 @@ function PromptForkEditor({
           ))}
         </div>
       </div>
-      <MonacoCodeEditor
-        height="140px"
-        language="plaintext"
-        value={value}
-        onChange={(next) => writeCallDraftText(draftKeyOf(field), next ?? "")}
-        options={{
-          readOnly: inProgress,
-          fontSize: 12,
-          minimap: { enabled: false },
-          lineNumbers: "on",
-          scrollBeyondLastLine: false,
-          wordWrap: "on",
-          scrollbar: { vertical: "auto" },
-          folding: true,
-          showFoldingControls: "always",
-        }}
-        className="overflow-hidden rounded border border-emerald-200"
-      />
+      {/* U3 任务 2.6：原值（只读）/草稿（可编辑）就近核对——宽屏并排、窄屏上下 */}
+      <div className="grid grid-cols-1 gap-2 xl:grid-cols-2" data-draft-compare="prompt">
+        <div className="min-w-0">
+          <div className="mb-0.5 text-[10px] font-medium text-gray-500">原值（只读）</div>
+          <MonacoCodeEditor
+            height="140px"
+            language="plaintext"
+            value={original ?? ""}
+            options={{
+              readOnly: true,
+              fontSize: 12,
+              minimap: { enabled: false },
+              lineNumbers: "on",
+              scrollBeyondLastLine: false,
+              wordWrap: "on",
+              scrollbar: { vertical: "auto" },
+              folding: true,
+              showFoldingControls: "always",
+            }}
+            className="overflow-hidden rounded border border-gray-200"
+          />
+        </div>
+        <div className="min-w-0">
+          <div className="mb-0.5 text-[10px] font-medium text-emerald-700">草稿（可编辑）</div>
+          <MonacoCodeEditor
+            height="140px"
+            language="plaintext"
+            value={value}
+            onChange={(next) => writeCallDraftText(draftKeyOf(field), next ?? "")}
+            options={{
+              readOnly: inProgress,
+              fontSize: 12,
+              minimap: { enabled: false },
+              lineNumbers: "on",
+              scrollBeyondLastLine: false,
+              wordWrap: "on",
+              scrollbar: { vertical: "auto" },
+              folding: true,
+              showFoldingControls: "always",
+            }}
+            className="overflow-hidden rounded border border-emerald-200"
+          />
+        </div>
+      </div>
       <div className="mt-1.5 text-[10px] leading-4 text-emerald-700">
         编辑值将替换首次 llm.call 请求中的
         {field === "system_prompt" ? " system prompt" : " 首条 user message"}
@@ -504,6 +549,19 @@ function PromptForkEditor({
         {inProgress ? (
           <span className="text-[11px] text-emerald-600">重跑中…（真实 LLM 调用，可能耗时）</span>
         ) : null}
+        <button
+          type="button"
+          onClick={discardCurrentField}
+          disabled={inProgress || unchanged}
+          title={unchanged ? "尚无修改可放弃" : "放弃这个字段的草稿（需确认；只影响当前字段）"}
+          className={`mr-auto rounded border px-2 py-1 text-[11px] disabled:cursor-not-allowed disabled:opacity-40 ${
+            unchanged
+              ? "border-gray-200 text-gray-300"
+              : "border-amber-400 text-amber-800 hover:bg-amber-50"
+          }`}
+        >
+          放弃修改
+        </button>
         <button
           type="button"
           onClick={() => writeCallDraftText(draftKeyOf(field), original ?? "")}
@@ -659,6 +717,8 @@ function ModelAbEditor({
     key: row.key,
     arm: { model: row.model, paramsText: row.paramsText },
   }));
+  // U3 任务 2.6：批次 dirty（行语义序列偏离基线；初始两臂不算修改）
+  const isBatchDirty = draftEntry !== undefined && isModelAbDraftDirty(draftEntry);
 
   const inProgress = modelAbInFlight;
 
@@ -754,6 +814,29 @@ function ModelAbEditor({
     );
   }
 
+  /**
+   * U3 任务 2.6：放弃**整个批次**（design D3：A/B 放弃整批，不提供批量清除）。
+   * 确认核对全部臂内容；CAS 拒绝旧确认删除新修订。
+   */
+  const discardBatch = (): void => {
+    if (draftEntry === undefined || inProgress) return;
+    const snapshot = draftEntry;
+    const summary = snapshot.rows
+      .map(
+        (row, i) =>
+          `臂 ${i + 1}：${row.model}（${row.paramsText === "" ? "沿用父 params" : row.paramsText}）`,
+      )
+      .join("\n");
+    const confirmed = window.confirm(
+      `放弃整个模型 A/B 批次草稿？（run ${run.meta.id} · ${span.id}）\n\n${summary}\n\n放弃整批；按确认时的修订校验：此后批次若被更新，本次放弃不会执行。`,
+    );
+    if (!confirmed) return; // 取消：逐字保留
+    if (discardModelAbDraft(draftKey, snapshot.revision)) {
+      resetModelAb();
+      setOpen(false);
+    }
+  };
+
   const doPreview = (): void => {
     if (!canSubmit) return;
     setExecuted(null);
@@ -814,6 +897,29 @@ function ModelAbEditor({
       </div>
 
       <div className="space-y-2">
+        {/* U3 任务 2.6：父本基线臂（只读）与批次草稿就近核对——宽屏并排、窄屏上下 */}
+        <div className="grid grid-cols-1 gap-2 xl:grid-cols-2" data-draft-compare="model-ab">
+          <div className="min-w-0 rounded border border-gray-200 bg-white px-2 py-1.5">
+            <div className="mb-1 text-[10px] font-medium text-gray-500">
+              原值（父本基线臂 · 只读）
+            </div>
+            {baselineArms.map((arm, i) => (
+              <div key={i} className="font-code text-[11px] leading-4 text-gray-600">
+                臂 {i + 1}：{arm.model}
+                {arm.paramsText === "" ? "（沿用父 params）" : ` · ${arm.paramsText}`}
+              </div>
+            ))}
+          </div>
+          <div className="min-w-0 rounded border border-sky-200 bg-white px-2 py-1.5">
+            <div className="mb-1 text-[10px] font-medium text-sky-700">草稿（可编辑批次）</div>
+            {rows.map(({ key, arm }, index) => (
+              <div key={key} className="font-code text-[11px] leading-4 text-gray-700">
+                臂 {index + 1}：{arm.model}
+                {arm.paramsText === "" ? "（沿用父 params）" : ` · ${arm.paramsText}`}
+              </div>
+            ))}
+          </div>
+        </div>
         {rows.map(({ key, arm }, index) => (
           <div key={key} className="rounded border border-sky-200 bg-white px-2 py-1.5">
             <div className="mb-1 flex items-center gap-2">
@@ -967,6 +1073,19 @@ function ModelAbEditor({
       ) : null}
 
       <div className="mt-2 flex items-center justify-end gap-2">
+        <button
+          type="button"
+          onClick={discardBatch}
+          disabled={inProgress || !isBatchDirty}
+          title={isBatchDirty ? "放弃整个批次草稿（需确认）" : "批次与基线一致，尚无修改可放弃"}
+          className={`mr-auto rounded border px-2 py-1 text-[11px] disabled:cursor-not-allowed disabled:opacity-40 ${
+            isBatchDirty
+              ? "border-amber-400 text-amber-800 hover:bg-amber-50"
+              : "border-gray-200 text-gray-300"
+          }`}
+        >
+          放弃整批
+        </button>
         <button
           type="button"
           onClick={doPreview}
@@ -1413,6 +1532,23 @@ function MessagesForkEditor({
     void proxyFork(run.meta.id, span.id, messages as Record<string, unknown>[]);
   };
 
+  /**
+   * U3 任务 2.6：按修订明确放弃（design D3）——确认核对当前内容；CAS 拒绝旧确认
+   * 删除新修订。清空为零长度的变更同样是 dirty，一样要经此确认。
+   */
+  const discardCurrent = (): void => {
+    if (draftEntry === undefined || inProgress) return;
+    const snapshot = draftEntry;
+    const confirmed = window.confirm(
+      `放弃这份 messages 重发草稿？（run ${run.meta.id} · ${span.id}）\n\n当前草稿内容：\n${snapshot.text}\n\n放弃按确认时的修订校验：此后内容若被更新，本次放弃不会执行。`,
+    );
+    if (!confirmed) return; // 取消：逐字保留
+    if (discardCallDraft(draftKey, snapshot.revision)) {
+      resetFork();
+      setOpen(false);
+    }
+  };
+
   return (
     <div className="border-t border-sky-100 bg-sky-50/60 px-4 py-3">
       <div className="mb-1 flex items-center justify-between">
@@ -1421,24 +1557,50 @@ function MessagesForkEditor({
           单请求级分叉 · 源 run 不会被修改 · 重发使用最近捕获的 key
         </span>
       </div>
-      <MonacoCodeEditor
-        height="200px"
-        language="json"
-        value={value}
-        onChange={(next) => writeCallDraftText(draftKey, next ?? "")}
-        options={{
-          readOnly: inProgress,
-          fontSize: 12,
-          minimap: { enabled: false },
-          lineNumbers: "on",
-          scrollBeyondLastLine: false,
-          wordWrap: "on",
-          scrollbar: { vertical: "auto" },
-          folding: true,
-          showFoldingControls: "always",
-        }}
-        className="overflow-hidden rounded border border-sky-200"
-      />
+      {/* U3 任务 2.6：原值（只读）/草稿（可编辑）就近核对——宽屏并排、窄屏上下 */}
+      <div className="grid grid-cols-1 gap-2 xl:grid-cols-2" data-draft-compare="messages">
+        <div className="min-w-0">
+          <div className="mb-0.5 text-[10px] font-medium text-gray-500">原值（只读）</div>
+          <MonacoCodeEditor
+            height="200px"
+            language="json"
+            value={messagesBaseline}
+            options={{
+              readOnly: true,
+              fontSize: 12,
+              minimap: { enabled: false },
+              lineNumbers: "on",
+              scrollBeyondLastLine: false,
+              wordWrap: "on",
+              scrollbar: { vertical: "auto" },
+              folding: true,
+              showFoldingControls: "always",
+            }}
+            className="overflow-hidden rounded border border-gray-200"
+          />
+        </div>
+        <div className="min-w-0">
+          <div className="mb-0.5 text-[10px] font-medium text-sky-700">草稿（可编辑）</div>
+          <MonacoCodeEditor
+            height="200px"
+            language="json"
+            value={value}
+            onChange={(next) => writeCallDraftText(draftKey, next ?? "")}
+            options={{
+              readOnly: inProgress,
+              fontSize: 12,
+              minimap: { enabled: false },
+              lineNumbers: "on",
+              scrollBeyondLastLine: false,
+              wordWrap: "on",
+              scrollbar: { vertical: "auto" },
+              folding: true,
+              showFoldingControls: "always",
+            }}
+            className="overflow-hidden rounded border border-sky-200"
+          />
+        </div>
+      </div>
       <div className="mt-1.5 text-[10px] leading-4 text-sky-600">
         编辑任意一条消息后重发：model / 工具表 / 采样参数与源 run 一致，仅 messages 使用编辑后的值。
       </div>
@@ -1479,6 +1641,19 @@ function MessagesForkEditor({
         {inProgress ? (
           <span className="text-[11px] text-sky-600">重发中…（真实 LLM 调用，可能耗时）</span>
         ) : null}
+        <button
+          type="button"
+          onClick={discardCurrent}
+          disabled={inProgress || unchanged}
+          title={unchanged ? "尚无修改可放弃" : "放弃这份草稿（需确认；按当前修订校验）"}
+          className={`mr-auto rounded border px-2 py-1 text-[11px] disabled:cursor-not-allowed disabled:opacity-40 ${
+            unchanged
+              ? "border-gray-200 text-gray-300"
+              : "border-amber-400 text-amber-800 hover:bg-amber-50"
+          }`}
+        >
+          放弃修改
+        </button>
         <button
           type="button"
           onClick={() => {
@@ -1679,6 +1854,25 @@ function ForkEditor({
     setWritesAuthorized(false);
   };
 
+  /**
+   * U3 任务 2.6：按修订明确放弃（design D3）——确认明确目标并核对当前内容；
+   * 取消逐字保留；确认只删除本目标（draftKey 单一字段）。放弃以**确认时看到的
+   * 修订**做 CAS：确认后内容被更新 ⇒ 拒绝删除（旧确认不作数），界面随 store
+   * 显示当前内容，须重新核对。清空为零长度的变更同样要经此确认（dirty 判据）。
+   */
+  const discardCurrent = (): void => {
+    if (draftEntry === undefined || inProgress) return;
+    const snapshot = draftEntry;
+    const confirmed = window.confirm(
+      `放弃这份工具结果草稿？（run ${run.meta.id} · ${span.id}）\n\n当前草稿内容：\n${snapshot.text}\n\n放弃按确认时的修订校验：此后内容若被更新，本次放弃不会执行。`,
+    );
+    if (!confirmed) return; // 取消：逐字保留
+    if (discardCallDraft(draftKey, snapshot.revision)) {
+      resetLocal();
+      setOpen(false);
+    }
+  };
+
   const doCheck = (): void => {
     if (!checkAllowed) return;
     const requestedValue = check.request.edit.value;
@@ -1733,30 +1927,57 @@ function ForkEditor({
             : "从该工具调用之后重跑 · 父 run 文件不会被修改"}
         </span>
       </div>
-      <MonacoCodeEditor
-        height="140px"
-        language={language}
-        value={value}
-        onChange={(next) => {
-          // 输入同步写入 store 草稿（实际内容变化才推进修订）
-          writeCallDraftText(draftKey, next ?? "");
-          // 编辑即作废已校验的结论（确认区收起，避免"确认的与提交的不是同一份编辑"）
-          setVerified(null);
-        }}
-        options={{
-          readOnly: inProgress,
-          fontSize: 12,
-          minimap: { enabled: false },
-          lineNumbers: "on",
-          scrollBeyondLastLine: false,
-          wordWrap: "on",
-          scrollbar: { vertical: "auto" },
-          // 折叠箭头常驻 gutter（默认 mouseover 才显示，用户反馈不够直观）
-          folding: true,
-          showFoldingControls: "always",
-        }}
-        className="overflow-hidden rounded border border-violet-200"
-      />
+      {/* U3 任务 2.6：原值（只读）/草稿（可编辑）就近核对——宽屏并排、窄屏上下，
+          两侧都完整可读（Monaco wordWrap 不截断），不为对比固定挤占窄窗 */}
+      <div className="grid grid-cols-1 gap-2 xl:grid-cols-2" data-draft-compare="tool-result">
+        <div className="min-w-0">
+          <div className="mb-0.5 text-[10px] font-medium text-gray-500">原值（只读）</div>
+          <MonacoCodeEditor
+            height="140px"
+            language={language}
+            value={original}
+            options={{
+              readOnly: true,
+              fontSize: 12,
+              minimap: { enabled: false },
+              lineNumbers: "on",
+              scrollBeyondLastLine: false,
+              wordWrap: "on",
+              scrollbar: { vertical: "auto" },
+              folding: true,
+              showFoldingControls: "always",
+            }}
+            className="overflow-hidden rounded border border-gray-200"
+          />
+        </div>
+        <div className="min-w-0">
+          <div className="mb-0.5 text-[10px] font-medium text-violet-700">草稿（可编辑）</div>
+          <MonacoCodeEditor
+            height="140px"
+            language={language}
+            value={value}
+            onChange={(next) => {
+              // 输入同步写入 store 草稿（实际内容变化才推进修订）
+              writeCallDraftText(draftKey, next ?? "");
+              // 编辑即作废已校验的结论（确认区收起，避免"确认的与提交的不是同一份编辑"）
+              setVerified(null);
+            }}
+            options={{
+              readOnly: inProgress,
+              fontSize: 12,
+              minimap: { enabled: false },
+              lineNumbers: "on",
+              scrollBeyondLastLine: false,
+              wordWrap: "on",
+              scrollbar: { vertical: "auto" },
+              // 折叠箭头常驻 gutter（默认 mouseover 才显示，用户反馈不够直观）
+              folding: true,
+              showFoldingControls: "always",
+            }}
+            className="overflow-hidden rounded border border-violet-200"
+          />
+        </div>
+      </div>
       <div className="mt-1.5 text-[10px] leading-4 text-violet-600">
         {isolated
           ? "以上文本将作为该工具的返回结果重新送入模型；其后的步骤由模型重新生成，文件世界从该轮轮末检查点继续。"
@@ -1887,6 +2108,19 @@ function ForkEditor({
         {inProgress ? (
           <span className="text-[11px] text-violet-600">重跑中…（真实 LLM 调用，可能耗时）</span>
         ) : null}
+        <button
+          type="button"
+          onClick={discardCurrent}
+          disabled={inProgress || unchanged}
+          title={unchanged ? "尚无修改可放弃" : "放弃这份草稿（需确认；按当前修订校验）"}
+          className={`mr-auto rounded border px-2 py-1 text-[11px] disabled:cursor-not-allowed disabled:opacity-40 ${
+            unchanged
+              ? "border-gray-200 text-gray-300"
+              : "border-amber-400 text-amber-800 hover:bg-amber-50"
+          }`}
+        >
+          放弃修改
+        </button>
         <button
           type="button"
           onClick={() => {

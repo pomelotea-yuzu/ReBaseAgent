@@ -71,6 +71,43 @@ describe("接线契约：ForkEditor 读写 store 草稿（任务 2.1）", () => 
 });
 
 // ---------------------------------------------------------------------------
+// U3 任务 2.6：原值/草稿核对布局 + 按修订明确放弃
+// ---------------------------------------------------------------------------
+
+describe("接线契约：原值/草稿核对与按修订放弃（任务 2.6）", () => {
+  const src = forkEditorSource;
+
+  it("原值（只读）/草稿（可编辑）就近核对：宽屏并排、窄屏上下，两侧完整可读", () => {
+    const code = src();
+    // 可用内容宽度响应式：grid 单列起步、xl 并排（与 args/result 同一约定）
+    expect(code).toContain('data-draft-compare="tool-result"');
+    expect(code).toContain("grid-cols-1 gap-2 xl:grid-cols-2");
+    // 原值只读 twin + 两侧都不截断正文（wordWrap）
+    expect(code).toContain("readOnly: true");
+    expect(code.match(/wordWrap: "on"/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
+    expect(code).toContain("原值（只读）");
+    expect(code).toContain("草稿（可编辑）");
+  });
+
+  it("放弃修改：确认核对当前内容、按渲染快照修订 CAS；取消逐字保留", () => {
+    const code = src();
+    expect(code).toContain("放弃修改");
+    // 确认等待期间内容被更新 ⇒ CAS 拒绝（旧确认不作数），界面保持当前内容
+    expect(code).toContain("discardCallDraft(draftKey, snapshot.revision)");
+    expect(code).toContain("if (!confirmed) return; // 取消：逐字保留");
+    // 无变更（含改回基线）时不可放弃
+    expect(code).toContain("disabled={inProgress || unchanged}");
+  });
+
+  it("清空为零长度的变更同样要经确认（dirty 判据不豁免空串）", () => {
+    const code = src();
+    // 放弃按钮的可用性由 unchanged（text !== baseline）驱动：空串偏离基线即可放弃
+    expect(code).toContain("const unchanged = value === original;");
+    expect(code).toContain("disabled={inProgress || unchanged}");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // store 行为：编辑器实际调用的动作序列
 // ---------------------------------------------------------------------------
 
@@ -153,5 +190,15 @@ describe("store 行为：result 草稿逐字恢复与重开不覆盖（ForkEdito
     const source2 = captureCallDraftSource(detailFrom(readRun(FIXTURE)), toolSpan);
     useAppStore.getState().ensureCallDraft(key, BASELINE, source2);
     expect(useAppStore.getState().callDraftOf(key)?.source).toBe(source);
+  });
+
+  it("任务 2.6：清空为零长度的变更同样按修订放弃（空串不绕过确认）", () => {
+    useAppStore.getState().ensureCallDraft(key, BASELINE, captureCallDraftSource(detail, toolSpan));
+    // 清空为零长度：dirty（需保护），放弃确认后按快照修订 CAS 删除
+    useAppStore.getState().writeCallDraftText(key, "");
+    const entry = useAppStore.getState().callDraftOf(key)!;
+    expect(entry.text).toBe("");
+    expect(useAppStore.getState().discardCallDraft(key, entry.revision)).toBe(true);
+    expect(useAppStore.getState().callDraftOf(key)).toBeUndefined();
   });
 });

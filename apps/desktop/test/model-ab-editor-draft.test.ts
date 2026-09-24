@@ -71,6 +71,19 @@ describe("接线契约：ModelAbEditor 批次草稿（任务 2.4）", () => {
     expect(code).toContain("DraftSourceBanner");
     expect(code).toContain("discardModelAbDraft(draftKey, draftEntry.revision)");
   });
+
+  it("任务 2.6：放弃整批（不提供批量清除）+ 基线臂/批次草稿核对网格", () => {
+    const code = src();
+    // 放弃整批：确认核对全部臂内容，按渲染快照修订 CAS
+    expect(code).toContain("放弃整批");
+    expect(code).toContain("discardModelAbDraft(draftKey, snapshot.revision)");
+    // 无修改（批次与基线一致）不可放弃
+    expect(code).toContain("disabled={inProgress || !isBatchDirty}");
+    // 核对网格：父本基线臂只读 vs 批次草稿，宽屏并排窄屏上下
+    expect(code).toContain('data-draft-compare="model-ab"');
+    expect(code).toContain("grid-cols-1 gap-2 xl:grid-cols-2");
+    expect(code).toContain("原值（父本基线臂 · 只读）");
+  });
 });
 
 // ---------------------------------------------------------------------------

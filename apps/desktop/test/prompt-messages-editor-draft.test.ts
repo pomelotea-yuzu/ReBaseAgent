@@ -67,6 +67,19 @@ describe("接线契约：PromptForkEditor 两字段独立草稿（任务 2.2）"
     expect(code).toContain("DraftSourceBanner");
     expect(code).toContain("discardCallDraft(draftKeyOf(field), activeEntry.revision)");
   });
+
+  it("任务 2.6：按修订明确放弃只影响当前字段；原值/草稿核对网格就位", () => {
+    const code = src();
+    // 确认文案明确目标与范围（只影响这一个字段——另一字段是独立草稿键）
+    expect(code).toContain("只影响这一个字段");
+    expect(code).toContain("discardCallDraft(draftKeyOf(field), snapshot.revision)");
+    // 核对网格：原值只读 + 草稿可编辑，宽屏并排窄屏上下
+    expect(code).toContain('data-draft-compare="prompt"');
+    expect(code).toContain("grid-cols-1 gap-2 xl:grid-cols-2");
+    expect(code).toContain("readOnly: true");
+    // 放弃按钮：无修改（含空串改回基线）不可用
+    expect(code).toContain("disabled={inProgress || unchanged}");
+  });
 });
 
 describe("接线契约：MessagesForkEditor 接入 messages 草稿（任务 2.2）", () => {
@@ -88,6 +101,14 @@ describe("接线契约：MessagesForkEditor 接入 messages 草稿（任务 2.2�
     // U3 2.5：放弃入口只在来源失效视图（CAS）；取消路径不删草稿
     expect(code).toContain("DraftSourceBanner");
     expect(code).toContain("discardCallDraft(draftKey, draftEntry.revision)");
+  });
+
+  it("任务 2.6：按修订放弃 + 原值/草稿核对网格（messages）", () => {
+    const code = src();
+    expect(code).toContain("discardCallDraft(draftKey, snapshot.revision)");
+    expect(code).toContain('data-draft-compare="messages"');
+    expect(code).toContain("grid-cols-1 gap-2 xl:grid-cols-2");
+    expect(code).toContain("readOnly: true");
   });
 });
 
@@ -176,5 +197,20 @@ describe("store 行为：prompt 两字段不串草稿、messages 非法输入原
     useAppStore.getState().writeCallDraftText(sysKey, sysBaseline);
     expect(draftsModule.isCallDraftDirty(useAppStore.getState().callDraftOf(sysKey)!)).toBe(false);
     expect(useAppStore.getState().callDraftOf(sysKey)?.text).toBe(sysBaseline);
+  });
+
+  it("任务 2.6：放弃只影响指定目标——放弃 system 字段不碰 user 字段", () => {
+    useAppStore.getState().ensureCallDraft(sysKey, sysBaseline, source);
+    useAppStore.getState().ensureCallDraft(userKey, userBaseline, source);
+    useAppStore.getState().writeCallDraftText(sysKey, "sys 改动");
+    useAppStore.getState().writeCallDraftText(userKey, "user 改动");
+
+    // 确认放弃 system 字段（快照修订 CAS）
+    const sysSnapshot = useAppStore.getState().callDraftOf(sysKey)!;
+    expect(useAppStore.getState().discardCallDraft(sysKey, sysSnapshot.revision)).toBe(true);
+
+    expect(useAppStore.getState().callDraftOf(sysKey)).toBeUndefined();
+    // 另一字段逐字保留（同 span 的独立键互不影响）
+    expect(useAppStore.getState().callDraftOf(userKey)?.text).toBe("user 改动");
   });
 });
