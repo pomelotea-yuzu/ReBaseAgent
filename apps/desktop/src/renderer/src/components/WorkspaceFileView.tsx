@@ -1,6 +1,6 @@
 import type { RunDetail } from "@shared/ipc";
 import type { WorkspaceInspectResult, WorkspaceReadFileResult } from "@shared/ipc";
-import type { editor as MonacoEditorNs } from "monaco-editor";
+import type { editor as MonacoEditorNs } from "monaco-editor/editor/editor.api";
 import type { KeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 

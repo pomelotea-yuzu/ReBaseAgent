@@ -94,6 +94,15 @@ describe("源码静态审计：禁用导入规则", () => {
     );
     expect(auditRendererSource(tmp)).toEqual([]);
   });
+
+  it("真实仓库 src/renderer 零违规（离线/懒加载门禁，不只测合成目录）", () => {
+    // 上面几条全打在合成 tmp 目录上 ⇒ 真实源码违规**测不到**。实测代价：U2 5.1 引入的
+    // `import type { editor } from "monaco-editor"` 一路藏到打包门禁（release:verify 默认就扫
+    // 真实 src/renderer）才会炸。此处把真实目录也钉住，新增源文件不得重新引入包根/聚合入口。
+    // 注意：连 `import type` 也算违规——规则是文本级，且显式 ESM 子路径同样能取到类型。
+    const rendererRoot = join(HERE, "..", "src", "renderer");
+    expect(auditRendererSource(rendererRoot)).toEqual([]);
+  });
 });
 
 describe("构建产物 worker 审计：缺失 / 禁用规则（合成目录）", () => {
