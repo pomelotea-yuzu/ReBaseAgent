@@ -11,6 +11,8 @@ import {
   submitCreateRun,
   switchCreateRunMode,
 } from "../lib/create-run";
+import type { CreateRunFormState } from "../lib/create-run";
+import { isCreateRunDraftDirty } from "../lib/debugging-drafts";
 import { useAppStore } from "../store";
 
 /**
@@ -31,9 +33,23 @@ import { useAppStore } from "../store";
  * 一次提交 = 一次真实模型调用（按实际用量计费），因此创建中禁用一切关闭路径。
  */
 export function CreateRunDialog({ onClose }: { onClose: () => void }) {
-  const [form, setForm] = useState(initialCreateRunForm);
-  const [systemPrompt, setSystemPrompt] = useState("");
-  const [userMessage, setUserMessage] = useState("");
+  /**
+   * U3 任务 2.3：模式 / System Prompt / User Message 改由**会话创建草稿**驱动
+   * （design D1/D3：关闭/设置往返保留；切模式保留文本；显式放弃才重置整份表单）。
+   * 本地 state 只保留**本次对话框会话**的授权状态（源目录 + 副本授权）——
+   * 那属于 D4 的 sourceToken 引用接线（任务 3.2），不进草稿。
+   */
+  const draftEntry = useAppStore((s) => s.createRunDraftOf());
+  const ensureCreateRunDraft = useAppStore((s) => s.ensureCreateRunDraft);
+  const writeCreateRunDraft = useAppStore((s) => s.writeCreateRunDraft);
+  const discardCreateRunDraft = useAppStore((s) => s.discardCreateRunDraft);
+  const setCreateSourceRef = useAppStore((s) => s.setCreateSourceRef);
+  const [form, setForm] = useState<CreateRunFormState>(() => ({
+    // 首次打开时草稿可能尚未 ensure（挂载 effect 里补）⇒ 退回默认纯对话；
+    // 再次打开时草稿已在，模式随之恢复
+    ...initialCreateRunForm(),
+    mode: useAppStore.getState().createRunDraftOf()?.mode ?? "chat",
+  }));
   /** 原生目录选择器是否正在打开（阻塞期间同样不允许重复点击/关闭） */
   const [pickingSource, setPickingSource] = useState(false);
 
@@ -43,6 +59,16 @@ export function CreateRunDialog({ onClose }: { onClose: () => void }) {
   const resetCreateRun = useAppStore((s) => s.resetCreateRun);
   const chooseSource = useAppStore((s) => s.chooseSource);
   const settings = useAppStore((s) => s.settings);
+
+  // 挂载即登记创建草稿（已存在则原样保留——重开不覆盖已有输入）
+  useEffect(() => {
+    ensureCreateRunDraft();
+  }, [ensureCreateRunDraft]);
+
+  // 文本字段直接读草稿（未 ensure 前退回默认值，与 ensure 的初始值一致）
+  const systemPrompt = draftEntry?.systemPrompt ?? "";
+  const userMessage = draftEntry?.userMessage ?? "";
+  const draftDirty = draftEntry !== null && isCreateRunDraftDirty(draftEntry);
 
   const busy = creatingRun === "in_progress";
   const isolated = form.mode === "isolated_files";
@@ -87,7 +113,31 @@ export function CreateRunDialog({ onClose }: { onClose: () => void }) {
   const switchMode = (mode: (typeof CREATE_RUN_MODES)[number]): void => {
     // 点击当前模式不清空已选目录；切换模式 = 新的一次隔离操作，目录与授权作废
     if (mode === form.mode) return;
+    // 草稿只推进模式：systemPrompt / userMessage 文本保留（任务 1.3 语义）
+    writeCreateRunDraft({ mode });
     setForm(switchCreateRunMode(mode));
+  };
+
+  /**
+   * U3 任务 2.3：显式放弃整份创建草稿（design D3：确认明确目标，取消逐字保留；
+   * 放弃 = 模式 / 文本全部重置）。目录与授权属本地会话状态，一并复位；
+   * 目录引用（design D4：明确放弃创建清除引用）同步清除。
+   */
+  const discardDraft = (): void => {
+    if (modalLocked) return;
+    const current = useAppStore.getState().createRunDraftOf();
+    if (current === null || !isCreateRunDraftDirty(current)) return;
+    const confirmed = window.confirm(
+      "放弃本次填写的创建内容？\n\n运行模式、System Prompt 与 User Message 将全部重置（源目录选择与写入授权也一并作废）。",
+    );
+    if (!confirmed) return;
+    // 确认是同步的：确认与放弃之间修订不可能推进；CAS 仍按修订校验（防御性）
+    const discarded = discardCreateRunDraft(current.revision);
+    if (!discarded) return;
+    setCreateSourceRef(null);
+    setForm(initialCreateRunForm());
+    // 立即重新登记空表单草稿（新修订），用户可继续输入
+    ensureCreateRunDraft();
   };
 
   const settingsLine =
@@ -218,7 +268,7 @@ export function CreateRunDialog({ onClose }: { onClose: () => void }) {
             </span>
             <textarea
               value={systemPrompt}
-              onChange={(e) => setSystemPrompt(e.target.value)}
+              onChange={(e) => writeCreateRunDraft({ systemPrompt: e.target.value })}
               placeholder="例如：你是一个简洁的问答助手，用两三句话回答。"
               spellCheck={false}
               rows={3}
@@ -238,7 +288,7 @@ export function CreateRunDialog({ onClose }: { onClose: () => void }) {
             </span>
             <textarea
               value={userMessage}
-              onChange={(e) => setUserMessage(e.target.value)}
+              onChange={(e) => writeCreateRunDraft({ userMessage: e.target.value })}
               placeholder="要交给模型的任务。它会同时成为该 run 在列表中的标题。"
               spellCheck={false}
               rows={5}
@@ -270,6 +320,15 @@ export function CreateRunDialog({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="mt-4 flex shrink-0 items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={discardDraft}
+            disabled={modalLocked || !draftDirty}
+            title={draftDirty ? undefined : "尚无修改可放弃"}
+            className="mr-auto rounded border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            放弃填写内容
+          </button>
           <button
             type="button"
             onClick={onClose}
