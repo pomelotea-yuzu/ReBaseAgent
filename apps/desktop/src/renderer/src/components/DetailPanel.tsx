@@ -11,7 +11,8 @@ import {
   presentStepDetail,
   resolveIoView,
 } from "../lib/call-detail-view";
-import type { CallDraftKey } from "../lib/debugging-drafts";
+import { newArmRowKey } from "../lib/debugging-drafts";
+import type { CallDraftKey, ModelAbDraftKey } from "../lib/debugging-drafts";
 import { captureCallDraftSource } from "../lib/draft-source";
 import type { ForkCacheHint } from "../lib/fork-cache-hint";
 import { forkCacheHint } from "../lib/fork-cache-hint";
@@ -374,13 +375,6 @@ function PromptForkEditor({
   );
 }
 
-let armKeySeq = 0;
-/** 草稿行的稳定 React key（列表可增删，不能用数组下标做 React key） */
-function newArmKey(): string {
-  armKeySeq += 1;
-  return `arm-${armKeySeq}`;
-}
-
 /** 标量值的展示文本（字符串加引号以便与数字区分） */
 function scalarText(value: Scalar): string {
   return typeof value === "string" ? JSON.stringify(value) : String(value);
@@ -465,6 +459,8 @@ function ModelAbEditor({
   const settings = useAppStore((s) => s.settings);
   const modelAb = useAppStore((s) => s.modelAb);
   const resetModelAb = useAppStore((s) => s.resetModelAb);
+  const ensureModelAbDraft = useAppStore((s) => s.ensureModelAbDraft);
+  const writeRows = useAppStore((s) => s.setModelAbRows);
   // 源记录不可用时禁用依赖它的执行（任务 3.5）
   const sourceExecutable = useAppStore((s) => s.canExecuteFromSource)();
 
@@ -473,15 +469,29 @@ function ModelAbEditor({
   const risky = useMemo(() => riskyToolNames(span.request.tools), [span]);
 
   const [open, setOpen] = useState(false);
-  /** 草稿行带稳定 key（列表可增删，不能用数组下标做 React key） */
-  const [rows, setRows] = useState<Array<{ key: string; arm: ArmDraft }>>(() => [
-    { key: newArmKey(), arm: { model: parentModel, paramsText: "" } },
-    { key: newArmKey(), arm: { model: parentModel, paramsText: "" } },
-  ]);
-  const arms = rows.map((row) => row.arm);
   const [allowSideEffects, setAllowSideEffects] = useState(false);
   const [plan, setPlan] = useState<ModelAbResult | null>(null);
   const [executed, setExecuted] = useState<ModelAbResult | null>(null);
+
+  /**
+   * U3 任务 2.4：批次行改由**批次草稿**驱动（稳定行 ID；design D1/D4）。
+   * - 打开经 `ensureModelAbDraft` 登记基线（初始两臂）+ 源基线；已存在批次原样保留
+   *   ——增删行/非法参数文本经 `setModelAbRows` 落 store，往返逐字恢复；
+   * - 临时计划与副作用许可是**本次编辑会话**的本地状态：不进草稿、恢复时清理
+   *   （打开即复位——计划须重新校验、授权须重新勾选）；
+   * - 预览 / 执行 / 实验结果**不隐式清理批次**（只动本地 plan/executed）；
+   * - 放弃整个批次归任务 2.6（CAS 确认）。
+   */
+  const draftKey: ModelAbDraftKey = { runId: run.meta.id, spanId: span.id };
+  const draftEntry = useAppStore((s) => s.modelAbDraftOf(draftKey));
+  const baselineArms: ReadonlyArray<{ model: string; paramsText: string }> = [
+    { model: parentModel, paramsText: "" },
+    { model: parentModel, paramsText: "" },
+  ];
+  const rows = (draftEntry?.rows ?? []).map((row) => ({
+    key: row.key,
+    arm: { model: row.model, paramsText: row.paramsText },
+  }));
 
   const inProgress = modelAbInFlight;
 
@@ -491,7 +501,7 @@ function ModelAbEditor({
     parentParams,
     riskyTools: risky,
     allowSideEffects,
-    arms,
+    arms: rows.map((row) => row.arm),
   });
   // 提交闸门 = 既有 guard ∧ 源记录可用（dry-run 也依赖父记录，一并拦截）
   const canSubmit = guard.canSubmit && sourceExecutable;
@@ -501,9 +511,19 @@ function ModelAbEditor({
       ? "源记录不可用：重新读取并校验通过前不能发起新执行"
       : null;
 
-  const updateArm = (index: number, patch: Partial<ArmDraft>): void => {
-    setRows(rows.map((row, i) => (i === index ? { ...row, arm: { ...row.arm, ...patch } } : row)));
+  /** 行变更统一落批次草稿（语义不变仅行 ID 变化不推进修订）；任何行变更作废已校验计划 */
+  const commitRows = (next: Array<{ key: string; arm: ArmDraft }>): void => {
+    writeRows(
+      draftKey,
+      next.map((row) => ({ key: row.key, model: row.arm.model, paramsText: row.arm.paramsText })),
+    );
     setPlan(null);
+  };
+
+  const updateArm = (index: number, patch: Partial<ArmDraft>): void => {
+    commitRows(
+      rows.map((row, i) => (i === index ? { ...row, arm: { ...row.arm, ...patch } } : row)),
+    );
   };
 
   if (!open) {
@@ -513,8 +533,11 @@ function ModelAbEditor({
           type="button"
           onClick={() => {
             resetModelAb();
+            // 恢复/打开即清理临时计划与许可（design D4：授权与计划不随草稿恢复）
             setExecuted(null);
             setPlan(null);
+            setAllowSideEffects(false);
+            ensureModelAbDraft(draftKey, baselineArms, captureCallDraftSource(run, span));
             setOpen(true);
           }}
           disabled={inProgress}
@@ -605,8 +628,7 @@ function ModelAbEditor({
                 <button
                   type="button"
                   onClick={() => {
-                    setRows(rows.filter((_, i) => i !== index));
-                    setPlan(null);
+                    commitRows(rows.filter((_, i) => i !== index));
                   }}
                   disabled={inProgress}
                   className="rounded px-1 text-[11px] text-gray-400 hover:bg-gray-100 disabled:opacity-40"
@@ -635,8 +657,10 @@ function ModelAbEditor({
           <button
             type="button"
             onClick={() => {
-              setRows([...rows, { key: newArmKey(), arm: { model: parentModel, paramsText: "" } }]);
-              setPlan(null);
+              commitRows([
+                ...rows,
+                { key: newArmRowKey(), arm: { model: parentModel, paramsText: "" } },
+              ]);
             }}
             disabled={inProgress}
             className="rounded border border-sky-300 px-2 py-0.5 text-[11px] text-sky-700 hover:bg-sky-100 disabled:opacity-40"
@@ -737,7 +761,7 @@ function ModelAbEditor({
           className="rounded bg-sky-600 px-3 py-1 text-[11px] text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-40"
           title={plan === null ? "先校验并预览计划" : undefined}
         >
-          确认执行（{plan?.plan.length ?? arms.length} 次真实调用）
+          确认执行（{plan?.plan.length ?? rows.length} 次真实调用）
         </button>
       </div>
     </div>

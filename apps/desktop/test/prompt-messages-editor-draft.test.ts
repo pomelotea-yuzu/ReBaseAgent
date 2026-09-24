@@ -37,7 +37,7 @@ function sliceBetween(startMarker: string, endMarker: string): string {
 }
 
 describe("接线契约：PromptForkEditor 两字段独立草稿（任务 2.2）", () => {
-  const src = () => sliceBetween("function PromptForkEditor(", "let armKeySeq = 0;");
+  const src = () => sliceBetween("function PromptForkEditor(", "function ArmPlanRow");
 
   it("两个 prompt 字段各自独立键（draftKeyOf(field)），激活值从对应草稿派生", () => {
     const code = src();
