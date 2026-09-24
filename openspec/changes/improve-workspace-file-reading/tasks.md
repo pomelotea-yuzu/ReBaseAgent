@@ -1,6 +1,6 @@
 # U2 实施任务
 
-当前第 1、2、3 组已完成；**第 4 组已完成（4.1–4.6 全部勾选；4.1/4.5/4.6 经 2026-09-23 复核发现未真正落地后已补齐）**；第 5、6 组待办。依赖 U1 已完成但未归档的源码和 delta，不以旧主 spec 代替现状；本次不归档 U1。每项预算不超过 2h，超出先拆分。场景名均引用 [desktop-ui delta](specs/desktop-ui/spec.md)，其中 C 原有九个场景与行为保留，仅将窄窗口场景的“提交和导航控件”校准为“检查点与导航控件”。
+当前第 1、2、3 组已完成；**第 4 组已完成（4.1–4.6 全部勾选；4.1/4.5/4.6 经 2026-09-23 复核发现未真正落地后已补齐）**；第 5 组 5.1–5.5 已完成，5.6 待办；第 6 组待办。依赖 U1 已完成但未归档的源码和 delta，不以旧主 spec 代替现状；本次不归档 U1。每项预算不超过 2h，超出先拆分。场景名均引用 [desktop-ui delta](specs/desktop-ui/spec.md)，其中 C 原有九个场景与行为保留，仅将窄窗口场景的“提交和导航控件”校准为“检查点与导航控件”。
 
 ## 进度记录
 
@@ -191,7 +191,15 @@
   - 实机暴露并修复 **2 处真实产品缺陷**（均属"可读侧全文没接上界面"，静态单测全绿照不出来）：① 两个"进不了 diff"的早返回分支**不渲染任何编辑器** ⇒ 新增**只读单侧视图**（`MonacoCodeEditor` + 真实 DOM 锚点，`readOnly: true`、无替换入口、`onMount` 接实例供查找）并修 `resolveToolEnablement` 判据（新增 `editorReady`，`find/wordWrap` 不再绑 `diffEligible`）；② `!comparability.ok` 分支**只标所选侧**（另一侧"有文本"完全不可见）⇒ 补同源同文案的两侧状态行 + 初始侧重试入口。附带：三个早返回是**独占卡**（另一侧可读时会把可读侧全文一起吞掉）⇒ 以 `initialReadableText === null` 门控落入统一呈现（失败明细/错误码不丢），并修门控后 `current` 可为 null 引发的头部取值与 `rejected`/`not_found` 判空。
   - 回归与变异验证：新增 `test/file-single-side-view.test.ts`（18 用例：能力断言 + 门控断言 + 接线契约），`file-tools.test.ts` 补 `editorReady` 并把"只有一侧 ready"拆成两条路；`.workbuddy/u2-54-mutate.cjs` 打 6 个变异（单侧视图不渲染 / 两侧状态不标 / 判据退回 `diffEligible` / 查找不接单侧实例 / 单侧编辑器非只读 / 早返回门控被拿掉）**6/6 全被捕获**（baseline 18/18 全绿），证明源码级接线断言非空转。
   - 陷阱记录（README §5，harness 侧，全部已修）：`@monaco-editor/react` 只经 `wrapperProps` 透传 `data-*` ⇒ 给 `<Editor>` 的 `data-testid` 在已加载时**不落 DOM**，探针必须改用 monaco 原生容器类 / 产品挂在真实包裹层上的锚点；Windows 剪贴板把 LF 规范化为 CRLF（8529→8732，差 203 = 行数）是平台行为，断言前归一；查找框不是 `input[aria-label="查找"]`（且被选区自动预填）⇒ 原写法**一个字符都没输进去却假通过**，改按 `.monaco-inputbox .input` 定位并断言输入值；`setRules` 未重置 `__u254n` 代次计数 ⇒ 后续子场景的失败注入静默失效；同路径两侧读共用 key ⇒ 注入需按 `side` 点名；卸载场景基准须取在切页之后且延迟须大于 `pickFile` 耗时；`node --check` 抓不到模板字面量内嵌反引号。
-- [ ] 5.5 回归原 IPC 安全、未录制/失败记录和只读不变性（1.5h）；验证“文件读取 IPC 拒绝越权”“二进制和不可用附件分别显示”“失败运行已记录文件可查看”“文件浏览过程无写入”“阅读重试只读且重新校验”；源/父/兄弟/既有 trace/附件逐文件前后 SHA-256 一致，模型及工具零调用。
+- [x] 5.5 回归原 IPC 安全、未录制/失败记录和只读不变性（1.5h）；验证“文件读取 IPC 拒绝越权”“二进制和不可用附件分别显示”“失败运行已记录文件可查看”“文件浏览过程无写入”“阅读重试只读且重新校验”；源/父/兄弟/既有 trace/附件逐文件前后 SHA-256 一致，模型及工具零调用。
+  - 证据：`docs/reviews/2026-09-24-u2-55/README.md`（12 张截图 + 六 tag 结果矩阵）；原始数据 `.workbuddy/u2-55/measurements.json`（**40/40 checks 全绿**：ipc-guard 11、unavailable 8、errored 6、readonly 12、selfcheck 3；probe 只 dump 真机事实不计 checks）。环境真值：CSS 视口 1210×713、DPR 2.1（medium 档）；夹具生成器 `apps/desktop/scripts/gen-u2-55-fixtures.cjs`（真实引擎 root/fork/errored + 独立哈希的 missing/corrupt + 无自有完成步骤标本），采集脚本 `apps/desktop/scripts/u2-55-cdp.cjs`。
+  - 强证据（**越权走真 IPC**）：`window.api` 直调（不经 store/组件）——非法 runId（穿越/NUL/`.`/`..`）返 `WORKSPACE_INVALID_REQUEST` 或 `rejected{invalid_request}`；清单外路径、物理 blob 路径、未规范化分隔符一律 `not_found`；**祖先 step** 定位本 run ⇒ `rejected{step_not_found}`（read）与 `WORKSPACE_STEP_NOT_FOUND`（inspect）；请求形状非法 ⇒ `INVALID_ARGUMENT`；**同一路径存在于别的 run 的清单、或只存在于本 run 的别的检查点** ⇒ 均 `not_found`（不以同名文件/其他快照替代）。哨兵宿主文件（5 种物理/穿越写法）**全部无泄漏**；对照项（合法请求）**确实成功**并返回真实文本 ⇒ 拒绝判据非"一律拒绝"。
+  - 强证据（**不可用附件分别显示**）：二进制 ⇒「二进制文件」+ 真实大小/完整哈希、**一个编辑器都不渲染**；附件缺失 ⇒ 列表徽标「附件缺失」+「不会用空文本或源目录兜底」；附件损坏 ⇒「附件损坏」+「哈希/长度不符，拒绝展示内容」；三者 `fakeEmptyClaim` 全 false。无自有完成步骤的旧 run ⇒ 选择器**只剩「本 run 初始状态」**、初始清单照常可读。
+  - 强证据（**失败运行**）：`reason:"error"` + 概览「出错终止」双证据；已落盘的 3 个检查点全列出；第 1 轮 monaco **真模型** `初始版本 → 失败前的写入`（真实写入），切第 2 轮仍可读 ⇒ 失败不撤销历史写入。
+  - 强证据（**只读不变性**）：冻结源目录/夹具目录/live trace/live 附件共 **119 条哈希（113 个唯一文件）**，浏览（切检查点、开 diff、开长文本、开二进制、重试清单、重试内容）前后 **`diff = []`**、`traces 70→70 / blobs 21→21 / source 6→6` ⇒ 逐字节不变故**零 LLM/工具调用**。重试由**真 IPC 包装层日志**立证真的重发：`inspect occ1 fail → occ2 pass`、`read/selected/edit.txt occ1 fail → occ2 pass` 且随后显示**当前**校验结果。
+  - **"判据有牙"自检**（`selfcheck` 3/3，非验收项）：故意新增文件 / 改写清单 ⇒ 分别检出「新增」「哈希变化」，逐字节还原后回到零差异 ⇒ 冻结面不是空转真。
+  - 本轮**未发现产品缺陷**；但发现并修正 **1.1 留下的一处坏标本**：其「无自有完成步骤」标本把 `fork.at_span` 与 `resume_after_step` 设成同一个 `agent.step` id，而 `trace-sdk` 的 `resolveBranch` 硬校验前者必须是该轮内的工具调用 ⇒ 该标本**经运行列表读取必被拒**（1.1 的用例只 `readRun` 本文件，未覆盖分支解析，故未暴露）。本任务生成器改为取该轮内真实 `tool.invoke` 作 `at_span`，并把自检改为**显式调用 `resolveBranch`**。1.1 的生成器本轮未改动，如实记为遗留项（README §5）。
+  - harness 侧另修 6 类坑（`find` 返回 `undefined` 致脚本崩溃 / `null?.diff === null` 恒假的假失败 / 两侧读共用计数桶致点名注入静默失效 / 同检查点同路径不重发 IPC / 模块 URL 形态不唯一 / `node --check` 抓不到模板字面量内嵌反引号）。
 - [ ] 5.6 在受控数据副本上重启、整体迁移、仅迁 JSONL 并断网读取（1.5h）；验证“重启后查看文件差异”“数据目录迁移后文件仍可查”“文件阅读状态不跨进程承诺”“文件阅读键盘操作与离线加载”；普通 run 无伪文件页，现有概览/步骤/编辑/执行入口仍可达。
 
 ## 6. 质量检查与证据
