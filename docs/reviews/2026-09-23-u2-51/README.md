@@ -2,7 +2,7 @@
 
 > change: `improve-workspace-file-reading`（U2） · 日期: 2026-09-23 · 承载需求: design D7 / D4
 > 采集脚本: `apps/desktop/scripts/u2-51-cdp.cjs`（+ `scripts/lib/u2-cdp-util.cjs`）
-> 原始数据: `.workbuddy/u2-51/measurements.json`（75 checks）/ `window-calibration.json`
+> 原始数据: `.workbuddy/u2/u2-51/measurements.json`（75 checks）/ `window-calibration.json`
 > **本轮结论：D7 六档全部可达并全绿（75/75 checks）；过程中发现并修复 2 处真实产品缺陷。**
 
 ---
@@ -156,7 +156,7 @@ cd apps/desktop && NO_SANDBOX=1 node scripts/start-dev.cjs --remoteDebuggingPort
 & .workbuddy\ps-win.ps1 -OuterWidth 2030 -OuterHeight 1310 -X 0 -Y 0   # 1440 档
 CDP_PORT=9612 node apps/desktop/scripts/u2-51-cdp.cjs --tag=1440 --expect=1440
 
-# 其余档外框见 §2 映射表 / .workbuddy/u2-51/window-calibration.json
+# 其余档外框见 §2 映射表 / .workbuddy/u2/u2-51/window-calibration.json
 # ⚠️ 每档必须单独调用：containerChange 只保留最后一次调用的结果
 ```
 

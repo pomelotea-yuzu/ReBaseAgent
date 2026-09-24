@@ -14,7 +14,7 @@
  * ⚠️ 2026-09-23 修正：先前的「design D7 的 1440×900 / 1360×860 在本机物理不可达」结论**错误**——
  *    那是窗口被**最大化裁剪**（1221 上限）所致。复原窗口（SW_RESTORE）后六档**全部可达**，
  *    故本脚本对 D7 六档一视同仁地真实采集，**不再有"不可达"分支**。
- *    外框↔CSS 映射见 `.workbuddy/u2-51/window-calibration.json`。
+ *    外框↔CSS 映射见 `.workbuddy/u2/u2-51/window-calibration.json`。
  *
  * 用法（分档执行；每档前先由人/编排用 PowerShell 把窗口改到 `--outer` 指定的外框）：
  *   node apps/desktop/scripts/u2-51-cdp.cjs --tag=1440 --expect=1440
@@ -35,7 +35,7 @@
  *   左侧被压成 36px 细条（sash 消失）。`WorkspaceFileView.tsx` 已显式关闭该启发式。
  *   故本脚本在 inline 档读到 `original` 层 36px 是**正常的隐藏层**，有效文字区取**较宽侧**。
  *
- * 证据落 `docs/reviews/2026-09-23-u2-51/` 与 `.workbuddy/u2-51/measurements.json`。
+ * 证据落 `docs/reviews/2026-09-23-u2-51/` 与 `.workbuddy/u2/u2-51/measurements.json`。
  * ⚠️ 本脚本**不 spawn、不重启 dev、不改窗口**；窗口尺寸由编排层负责。
  */
 "use strict";

@@ -15,7 +15,7 @@
  * ⚠️ 与 5.1–5.5 的关键差别（5.6 的题目本身要求）：**本脚本会重启 dev 应用、会临时移动数据目录**。
  *   - 重启：`node apps/desktop/scripts/u2-dev-host.cjs --stop` 后重新 spawn（按 PID 杀、绝不按映像名）。
  *   - 数据目录操作**全部是可逆重命名**，并在 `finally` 里还原；同时落一枚
- *     `.workbuddy/u2-56/RESTORE-NEEDED.txt` 标记，还原成功后删除（万一脚本中断可按标记手工还原）。
+ *     `.workbuddy/u2/u2-56/RESTORE-NEEDED.txt` 标记，还原成功后删除（万一脚本中断可按标记手工还原）。
  *   - 仍**不伪造 deviceMetrics**（会破坏 Monaco automaticLayout），不改窗口尺寸。
  *
  * 用法（每次一个 tag）：

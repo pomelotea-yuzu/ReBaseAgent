@@ -1,7 +1,7 @@
 # U2 任务 5.2 实机验收证据（2026-09-23）
 
 change：`improve-workspace-file-reading` · 任务 5.2（实机矩阵：800/640/zoom2 + 偏好保持 + 键盘/离线）
-原始数据：`.workbuddy/u2-52/measurements.json`（**54/54 checks 全绿**）· 截图 7 张（本目录）
+原始数据：`.workbuddy/u2/u2-52/measurements.json`（**54/54 checks 全绿**）· 截图 7 张（本目录）
 
 ## 环境真值（CDP `screen.*` + `devicePixelRatio` 证实）
 
@@ -74,7 +74,7 @@ change：`improve-workspace-file-reading` · 任务 5.2（实机矩阵：800/640
 
 | 文件 | 内容 |
 | --- | --- |
-| `.workbuddy/u2-52/measurements.json` | 全部 54 checks + 各档几何测量 |
+| `.workbuddy/u2/u2-52/measurements.json` | 全部 54 checks + 各档几何测量 |
 | `a-zoom2-narrow.png` / `a-800-narrow-narrow.png` / `a-640-single-narrow.png` | 三档降级形态 |
 | `b-prefs-prefs-set.png` / `b-prefs-narrow-degraded.png` / `b-prefs-restore-restored.png` | 偏好设定→降级→复原 |
 | `c-offline-offline.png` | 离线加载 |

@@ -1,9 +1,9 @@
 # U2 任务 5.4 实机验收证据（2026-09-23/24）
 
 change：`improve-workspace-file-reading` · 任务 5.4（实测双侧异常、延迟切换/重试及工具命令）
-原始数据：`.workbuddy/u2-54/measurements.json`（**44/44 checks 全绿**）· 截图 19 张（本目录）
+原始数据：`.workbuddy/u2/u2-54/measurements.json`（**44/44 checks 全绿**）· 截图 19 张（本目录）
 采集脚本：`apps/desktop/scripts/u2-54-cdp.cjs` · 夹具生成：`apps/desktop/scripts/gen-u2-54-side-fixtures.cjs`
-变异验证：`.workbuddy/u2-54-mutate.cjs`（**6/6 全被捕获**，baseline 18/18 全绿）
+变异验证：`.workbuddy/u2/u2-54-mutate.cjs`（**6/6 全被捕获**，baseline 18/18 全绿）
 
 任务原文（`tasks.md`）：
 
@@ -130,7 +130,7 @@ B 型（左右互换，`u2side_mirror` 第 1 轮）：`[data-testid="single-side
 ### 回归与变异验证
 
 - 新增 `test/file-single-side-view.test.ts`（**18 用例**：能力断言 6 + 门控能力断言 4 + 接线契约 8）；`test/file-tools.test.ts` 补 `editorReady` 并把"只有一侧 ready"拆成两个用例（`editorReady` 真/假两条路）。
-- `.workbuddy/u2-54-mutate.cjs` 打 6 个变异，**6/6 全被捕获**（baseline 18/18 全绿）：M1 单侧视图不渲染 / M2 两侧状态不标 / M3 判据退回 `diffEligible` / M4 查找不接单侧实例 / M5 单侧编辑器非只读 / M6 早返回门控被拿掉。证明源码级接线断言**非空转**。
+- `.workbuddy/u2/u2-54-mutate.cjs` 打 6 个变异，**6/6 全被捕获**（baseline 18/18 全绿）：M1 单侧视图不渲染 / M2 两侧状态不标 / M3 判据退回 `diffEligible` / M4 查找不接单侧实例 / M5 单侧编辑器非只读 / M6 早返回门控被拿掉。证明源码级接线断言**非空转**。
 
 ---
 

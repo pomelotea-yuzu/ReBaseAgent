@@ -1,7 +1,7 @@
 # U2 任务 5.5 实机验收证据（2026-09-24）
 
 change：`improve-workspace-file-reading` · 任务 5.5（回归原 IPC 安全、未录制/失败记录和只读不变性）
-原始数据：`.workbuddy/u2-55/measurements.json`（**40/40 checks 全绿**：ipc-guard 11 · unavailable 8 · errored 6 · readonly 12 · selfcheck 3；`probe` 只 dump 真机事实不计分）
+原始数据：`.workbuddy/u2/u2-55/measurements.json`（**40/40 checks 全绿**：ipc-guard 11 · unavailable 8 · errored 6 · readonly 12 · selfcheck 3；`probe` 只 dump 真机事实不计分）
 截图：12 张（本目录）· 采集脚本：`apps/desktop/scripts/u2-55-cdp.cjs` · 夹具生成：`apps/desktop/scripts/gen-u2-55-fixtures.cjs`
 
 任务原文（`tasks.md`）：

@@ -14,13 +14,13 @@
 - **测试**默认指 `apps/desktop/test/*.test.ts`。
 - **CDP** 指 `apps/desktop/scripts/u2-5*-cdp.cjs`（`u2-51`…`u2-56`），其**截图与结果矩阵已入库**到
   `docs/reviews/2026-09-23-u2-51|52|53|54/`、`docs/reviews/2026-09-24-u2-55|56/`（各含 `README.md`）；
-  原始 `measurements.json` 落 gitignored `.workbuddy/u2-5*/`。**tag 名即 README 结果矩阵的行名。**
+  原始 `measurements.json` 落 gitignored `.workbuddy/u2/u2-5*/`。**tag 名即 README 结果矩阵的行名。**
 - **原型**指 `docs/reviews/2026-09-23-u2-file-prototype/`（1.2 产出，真 Monaco 0.56 的权威 D4 数字）。
 - **fixture** 由 `apps/desktop/scripts/gen-u2-file-fixtures.cjs` / `gen-u2-54-side-fixtures.cjs` /
   `gen-u2-55-fixtures.cjs` / `gen-u2-56-fixtures.cjs` 生成到 gitignored `.rebaseagent/`；
   资产齐备性由 `u2-file-fixtures.test.ts` 的「1.1 资产齐备」组守护。
 - **质量门禁**指任务 6.1（构建/类型检查/desktop 全量/replay 读取链）与 6.2（lint/openspec 全量/desktop build
-  + 离线懒加载回归）；原始日志落 `.workbuddy/u2-61/`。
+  + 离线懒加载回归）；原始日志落 `.workbuddy/u2/u2-61/`。
 
 ## 汇总
 
@@ -43,7 +43,7 @@
 ## 差集核对：MODIFIED 的既有 9 场景零丢失
 
 `## MODIFIED` 是**整体替换**语义，丢 scenario 是**静默**的 ⇒ 按 requirement 名 + scenario 名做集合差
-（脚本 `.workbuddy/u2-61/scenario-diff.cjs`，输出 `.workbuddy/u2-61/16-scenario-diff.log`）：
+（脚本 `.workbuddy/u2/u2-61/scenario-diff.cjs`，输出 `.workbuddy/u2/u2-61/16-scenario-diff.log`）：
 
 ```
 「文件检查点和差异只读可查」主 spec 9 场景 → delta 9 场景
@@ -135,7 +135,7 @@ delta 场景总数 = 35（MODIFIED 9 + ADDED 26）；requirements = 6（M 1 + A 
 > 每条给出**原生窗口外框（Win32 px）/ 应用 CSS 视口 / 文件容器宽 / 目录宽 / Monaco 两侧实际文字区 /
 > zoomFactor / devicePixelRatio / 短句可读性 / 截图**。数据源为**真实 Electron CDP**（`MoveWindow` 改外框，
 > **禁用** `Emulation.setDeviceMetricsOverride` —— 它会让 Monaco `automaticLayout` 产出 36px 伪影，几何不可信），
-> 落 `.workbuddy/u2-5*/measurements.json`，**非原型**。CSS 视口用 `documentElement.clientWidth`。
+> 落 `.workbuddy/u2/u2-5*/measurements.json`，**非原型**。CSS 视口用 `documentElement.clientWidth`。
 > 本机真值：物理屏 2560×1600 @210% ⇒ CSS 桌面 1220×762、DPR 基线 **2.1**。
 
 | 档 | 外框 (Win32) | CSS 视口 | 容器宽 | 目录宽(常驻) | 左 box/text | 右 box/text | 有效文字区 | 模式 | zoom | DPR | 短句可读 | 截图 |
@@ -262,7 +262,7 @@ delta 场景总数 = 35（MODIFIED 9 + ADDED 26）；requirements = 6（M 1 + A 
    ⇒ 这不是"测试不够多"，而是"**测试对象选错了**"：只测纯逻辑与静态渲染，永远测不到"有没有接上"。
 3. **变异验证是"接线契约有牙"的唯一证明**：4.x 补齐 6 组（M1 删导航 `onClick` / M2 写死 `diffCount` /
    M3 删列表 `onKeyDown` / M4 删分隔条键盘 / M5 删查找 `onClick` / M6 删 `onMount` 转发）、
-   5.3 6 组（M1–M6）、5.4 6 组，**全部被捕获**（`.workbuddy/u2-mutate.cjs` / `u2-53-mutate.cjs` / `u2-54-mutate.cjs`）。
+   5.3 6 组（M1–M6）、5.4 6 组，**全部被捕获**（`.workbuddy/u2/u2-mutate.cjs` / `u2-53-mutate.cjs` / `u2-54-mutate.cjs`）。
 4. **对本 change 验收的含义**：这 14 处**已在实现层修复**，且每处都补了守住它的接线契约用例——但它们说明
    **"纯逻辑层走过一遍"不能作为任务完成的判据**。凡是"X 可调整 / 可导航 / 可操作"类任务，
    必须顺 UI 控件的 `onClick`/`onKeyDown`/`onPointerDown` **反查消费链**（本 change 4.1 与 5.3③ 就是

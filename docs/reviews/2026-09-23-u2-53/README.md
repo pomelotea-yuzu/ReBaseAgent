@@ -1,7 +1,7 @@
 # U2 任务 5.3 实机验收证据（2026-09-23）
 
 change：`improve-workspace-file-reading` · 任务 5.3（实测文件/步骤/运行/分支/设置往返、长正文滚动及显式定位）
-原始数据：`.workbuddy/u2-53/measurements.json`（**36/36 checks 全绿**）· 截图 15 张（本目录）
+原始数据：`.workbuddy/u2/u2-53/measurements.json`（**36/36 checks 全绿**）· 截图 15 张（本目录）
 采集脚本：`apps/desktop/scripts/u2-53-cdp.cjs`（+ `scripts/lib/u2-cdp-util.cjs`）
 
 任务原文（`tasks.md`）：
@@ -171,7 +171,7 @@ A = 根 run（检查点 `s_01`，第 1 轮），B = 一次分叉 `run_mudwrlgl_9
 | `test/file-view-scroll-wiring.test.ts`（新，16 用例） | 缺口 ①②③⑤⑥ 的**能力断言**（渲染出来没有）+ **接线契约**（源码里连没连）+ 失效清理的**反向断言** |
 | `test/file-reading-state.test.ts`（+1 用例） | `FileReadingState` 字段清单纳入 `contentScroll`，且仍排除正文/清单/哈希派生/Monaco 实例 |
 
-**变异验证**（`.workbuddy/u2-53-mutate.cjs`，一次性脚本，从基线副本打变异 → 跑定点测试 → 读 JSON 报告 → `finally` 还原）：
+**变异验证**（`.workbuddy/u2/u2-53-mutate.cjs`，一次性脚本，从基线副本打变异 → 跑定点测试 → 读 JSON 报告 → `finally` 还原）：
 
 | 变异 | 内容（复现缺口原形态） | 结果 |
 | --- | --- | --- |
@@ -203,8 +203,8 @@ A = 根 run（检查点 `s_01`，第 1 轮），B = 一次分叉 `run_mudwrlgl_9
 
 | 文件 | 内容 |
 | --- | --- |
-| `.workbuddy/u2-53/measurements.json` | 36 checks + 六场景全量测量（DOM/store 双通道） |
-| `.workbuddy/u2-53/gate.txt` | 质量门禁日志（两条 tsconfig 的 tsc / 全量 vitest / biome / OpenSpec 严格校验，均 EXIT=0） |
+| `.workbuddy/u2/u2-53/measurements.json` | 36 checks + 六场景全量测量（DOM/store 双通道） |
+| `.workbuddy/u2/u2-53/gate.txt` | 质量门禁日志（两条 tsconfig 的 tsc / 全量 vitest / biome / OpenSpec 严格校验，均 EXIT=0） |
 | `roundtrip-1-滚动后.png` / `-2-步骤页.png` / `-3-返回文件页.png` | 长正文滚动 → 步骤页 → 返回恢复 |
 | `cross-run-1-A-文件页.png` / `-2-B-文件页.png` / `-3-跨运行回A.png` / `-4-辅助视图返回A.png` | 同名文件跨 run 各自保持 |
 | `explicit-1-搜索隐藏选择.png` / `-2-步骤页入口.png` / `-3-显式定位后.png` | 自有步骤入口与覆盖历史 |
@@ -212,7 +212,7 @@ A = 根 run（检查点 `s_01`，第 1 轮），B = 一次分叉 `run_mudwrlgl_9
 | `search-hidden-1-解阻后.png` | 显式目标解除搜索阻挡 |
 | `probe-probe.png` | 探路快照（模块 URL / 运行清单 / 初始 DOM） |
 | `apps/desktop/scripts/u2-53-cdp.cjs` | 采集 harness（6 个 tag） |
-| `.workbuddy/u2-53-mutate.cjs` · `.workbuddy/u2-53-mut-base/` | 变异验证脚本与基线副本 |
+| `.workbuddy/u2/u2-53-mutate.cjs` · `.workbuddy/u2/u2-53-mut-base/` | 变异验证脚本与基线副本 |
 
 ---
 
@@ -231,8 +231,8 @@ node apps/desktop/scripts/u2-53-cdp.cjs --tag=fallback
 node apps/desktop/scripts/u2-53-cdp.cjs --tag=search-hidden
 
 # 2) 变异验证（可选，验证接线测试非空转）
-node .workbuddy/u2-53-mutate.cjs snapshot
-foreach ($m in "M1","M2","M3","M4","M5","M6") { node .workbuddy/u2-53-mutate.cjs $m }
+node .workbuddy/u2/u2-53-mutate.cjs snapshot
+foreach ($m in "M1","M2","M3","M4","M5","M6") { node .workbuddy/u2/u2-53-mutate.cjs $m }
 ```
 
 夹具：`.rebaseagent/u2-file-fixtures/iso-data`（真实引擎产物）——根 run `run_mudwrlbg_199xw1`（3 轮）、分叉 `run_mudwrlgl_93di`（2 轮，同名 a.txt/keep.txt/long.txt）、errored `run_mudwrlhv_jvqf9c`。

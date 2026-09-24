@@ -1,7 +1,7 @@
 # U2 任务 5.6 实机验收证据（2026-09-24）
 
 change：`improve-workspace-file-reading` · 任务 5.6（重启 / 数据目录迁移 / 离线读取）
-原始数据：`.workbuddy/u2-56/measurements.json`（**34/34 checks 全绿**：restart-state 9 · migrate 10 · keyboard-offline 10 · compat 5；`probe` 只 dump 真机事实不计分）
+原始数据：`.workbuddy/u2/u2-56/measurements.json`（**34/34 checks 全绿**：restart-state 9 · migrate 10 · keyboard-offline 10 · compat 5；`probe` 只 dump 真机事实不计分）
 截图：9 张（本目录）· 采集脚本：`apps/desktop/scripts/u2-56-cdp.cjs` · 夹具生成：`apps/desktop/scripts/gen-u2-56-fixtures.cjs`
 
 任务原文（`tasks.md`）：
@@ -79,7 +79,7 @@ change：`improve-workspace-file-reading` · 任务 5.6（重启 / 数据目录�
 | 不渲染伪空文件 | 一个编辑器都没渲染；卡片文案「附件缺失，无法读取内容；不会用空文本或源目录兜底」 |
 | 复位 + 重启 | 文件恢复可读，diff 与迁移前逐字一致 |
 
-**可逆性与安全**：三处文件系统操作全部是 `rename`（同卷即时），并在 `finally` 里还原；另有 `.workbuddy/u2-56/RESTORE-NEEDED.txt` 标记，还原成功后删除。**收尾核验**：`workspace-blobs` 在位、`moved-data` / `workspace-blobs-bak` / 标记文件都不存在。
+**可逆性与安全**：三处文件系统操作全部是 `rename`（同卷即时），并在 `finally` 里还原；另有 `.workbuddy/u2/u2-56/RESTORE-NEEDED.txt` 标记，还原成功后删除。**收尾核验**：`workspace-blobs` 在位、`moved-data` / `workspace-blobs-bak` / 标记文件都不存在。
 
 ### 2.3 文件阅读键盘操作与离线加载（`keyboard-offline` 10/10）
 

@@ -67,7 +67,7 @@ node apps/desktop/scripts/u2-dev-host.cjs --stop
 
 ## 3. 本轮 HEAD 复跑：26 个 tag、**210/210 通过**
 
-证据落 `docs/reviews/2026-09-24-u2-acceptance/`（**59 张新截图**，按任务分目录）+ 原始日志 `.workbuddy/u2-acc/acc-*.log`。
+证据落 `docs/reviews/2026-09-24-u2-acceptance/`（**59 张新截图**，按任务分目录）+ 原始日志 `.workbuddy/u2/u2-acc/acc-*.log`。
 
 | 任务 | 复跑 tag（checks） | 小计 |
 | --- | --- | --- |
@@ -132,7 +132,7 @@ node apps/desktop/scripts/u2-dev-host.cjs --stop
 
 **打包链（全部 EXIT=0）**：`check:build` → `electron-vite build` → `electron-builder --win`
 （`-c.directories.output=../../release/preview` + `-c.electronDist=.rebaseagent/electron-dist`，
-先 `unset *_proxy`）→ `release:verify` → 打包后离线冒烟。日志落 `.workbuddy/u2-acc/d4-*.log`。
+先 `unset *_proxy`）→ `release:verify` → 打包后离线冒烟。日志落 `.workbuddy/u2/u2-acc/d4-*.log`。
 
 ⚠️ **发现：既有的「20 项断言」离线冒烟脚本已大面积过时**（`.workbuddy/smoke-monaco-slim/packaged-offline-smoke-k0.mjs`，
 最后修改 **09-21**，即 **U1 三栏改造之前**）⇒ 它对 k1 包**必然失败**，而那**不代表包有问题**。实测三例过时判据：
