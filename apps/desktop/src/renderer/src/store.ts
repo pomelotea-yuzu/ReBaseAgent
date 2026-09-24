@@ -38,8 +38,18 @@ import { decideRefresh, resolveRefreshFailure, settleRefresh } from "@shared/lis
 import { ShortIdState } from "@shared/nav";
 import { create } from "zustand";
 import { api } from "./lib/api";
-import type { CallDraftEntry, CallDraftKey, CallDraftRepo } from "./lib/debugging-drafts";
-import * as drafts from "./lib/debugging-drafts";
+import type {
+  CallDraftEntry,
+  CallDraftKey,
+  CreateRunDraftEntry,
+  CreateRunDraftPatch,
+  CreateSourceRef,
+  DraftRepo,
+  ModelAbArmRow,
+  ModelAbDraftEntry,
+  ModelAbDraftKey,
+} from "./lib/debugging-drafts";
+import * as draftLib from "./lib/debugging-drafts";
 import { resolveReading } from "./lib/reading-resolve";
 import {
   defaultReadingState,
@@ -232,12 +242,12 @@ interface AppState {
   openFileAt: (runId: string, file: { stepSpanId: string | null; path?: string }) => void;
 
   /**
-   * U3 任务 1.1：调用类调试草稿仓库（result / system_prompt / user_message / messages）。
+   * U3 会话调试草稿仓库（任务 1.1/1.2/1.3）：调用类（result / system_prompt /
+   * user_message / messages）+ 创建表单 + A/B 批次，三区共享会话内单调修订计数器。
    * 只存 renderer 会话内存——不落 localStorage / URL / 日志 / settings / trace，
-   * 也不保存授权、凭据或 sourceToken（design D1/D4）。创建表单与 A/B 批次草稿
-   * 是独立结构（任务 1.3），不经此仓库。
+   * 也不保存授权、凭据或 dry-run 计划（design D1/D4）。
    */
-  callDrafts: CallDraftRepo;
+  drafts: DraftRepo;
   /** 读取某编辑目标的草稿条目（无则 undefined；返回仓库内对象，引用稳定） */
   callDraftOf: (key: CallDraftKey) => CallDraftEntry | undefined;
   /**
@@ -255,6 +265,29 @@ interface AppState {
    * 确认等待期间内容已推进或条目不存在时不动仓库。返回是否真的放弃。
    */
   discardCallDraft: (key: CallDraftKey, expectedRevision: number) => boolean;
+  /** 创建表单草稿（会话内单份；null = 默认空表单）；打开创建流程时 ensure */
+  createRunDraftOf: () => CreateRunDraftEntry | null;
+  ensureCreateRunDraft: () => CreateRunDraftEntry;
+  /** 合并写入创建草稿（切模式只传 mode ⇒ 文本保留）；实际内容变化才推进修订 */
+  writeCreateRunDraft: (patch: CreateRunDraftPatch) => void;
+  /** 放弃创建草稿（CAS）：确认后恢复默认空表单；旧确认不动新修订 */
+  discardCreateRunDraft: (expectedRevision: number) => boolean;
+  /** A/B 批次草稿读写（稳定行 ID；授权/计划不进草稿） */
+  modelAbDraftOf: (key: ModelAbDraftKey) => ModelAbDraftEntry | undefined;
+  ensureModelAbDraft: (
+    key: ModelAbDraftKey,
+    baselineArms: ReadonlyArray<{ model: string; paramsText: string }>,
+  ) => ModelAbDraftEntry;
+  /** 整批替换行列表（增删/改内容/重排都经此）；语义不变仅行 ID 变化不推进修订 */
+  setModelAbRows: (key: ModelAbDraftKey, rows: ReadonlyArray<ModelAbArmRow>) => void;
+  /** 放弃整个 A/B 批次（CAS） */
+  discardModelAbDraft: (key: ModelAbDraftKey, expectedRevision: number) => boolean;
+  /**
+   * 创建源目录的独立受限会话引用（design D4）：仅 main 已签发 token + 核对用
+   * name/path。**不属于**草稿仓库：有效期由 main 判定，授权/计划不在此。
+   */
+  createSourceRef: CreateSourceRef | null;
+  setCreateSourceRef: (ref: CreateSourceRef | null) => void;
 
   /**
    * 编辑某 tool.invoke 的 result 并重跑；成功刷新列表并自动选中新 run。
@@ -686,30 +719,78 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
   },
 
-  callDrafts: drafts.emptyCallDraftRepo(),
+  drafts: draftLib.emptyDraftRepo(),
 
   callDraftOf(key) {
-    return drafts.callDraftOf(get().callDrafts, key);
+    return draftLib.callDraftOf(get().drafts, key);
   },
 
   ensureCallDraft(key, baseline) {
-    const next = drafts.ensureCallDraft(get().callDrafts, key, baseline);
+    const next = draftLib.ensureCallDraft(get().drafts, key, baseline);
     // 无变化（条目已存在）时仓库引用不变，不触发无关订阅者
-    if (next.repo !== get().callDrafts) set({ callDrafts: next.repo });
+    if (next.repo !== get().drafts) set({ drafts: next.repo });
     return next.entry;
   },
 
   writeCallDraftText(key, text) {
-    const next = drafts.writeCallDraftText(get().callDrafts, key, text);
+    const next = draftLib.writeCallDraftText(get().drafts, key, text);
     // 相同文本 / 未 ensure：仓库引用不变，不推进修订
-    if (next !== get().callDrafts) set({ callDrafts: next });
+    if (next !== get().drafts) set({ drafts: next });
   },
 
   discardCallDraft(key, expectedRevision) {
-    const next = drafts.discardCallDraft(get().callDrafts, key, expectedRevision);
+    const next = draftLib.discardCallDraft(get().drafts, key, expectedRevision);
     // 未删除（修订已推进 / 条目不存在）：仓库引用不变
-    if (next.repo !== get().callDrafts) set({ callDrafts: next.repo });
+    if (next.repo !== get().drafts) set({ drafts: next.repo });
     return next.discarded;
+  },
+
+  createRunDraftOf() {
+    return get().drafts.create;
+  },
+
+  ensureCreateRunDraft() {
+    const next = draftLib.ensureCreateRunDraft(get().drafts);
+    if (next.repo !== get().drafts) set({ drafts: next.repo });
+    return next.entry;
+  },
+
+  writeCreateRunDraft(patch) {
+    const next = draftLib.writeCreateRunDraft(get().drafts, patch);
+    if (next !== get().drafts) set({ drafts: next });
+  },
+
+  discardCreateRunDraft(expectedRevision) {
+    const next = draftLib.discardCreateRunDraft(get().drafts, expectedRevision);
+    if (next.repo !== get().drafts) set({ drafts: next.repo });
+    return next.discarded;
+  },
+
+  modelAbDraftOf(key) {
+    return draftLib.modelAbDraftOf(get().drafts, key);
+  },
+
+  ensureModelAbDraft(key, baselineArms) {
+    const next = draftLib.ensureModelAbDraft(get().drafts, key, baselineArms);
+    if (next.repo !== get().drafts) set({ drafts: next.repo });
+    return next.entry;
+  },
+
+  setModelAbRows(key, rows) {
+    const next = draftLib.setModelAbRows(get().drafts, key, rows);
+    if (next !== get().drafts) set({ drafts: next });
+  },
+
+  discardModelAbDraft(key, expectedRevision) {
+    const next = draftLib.discardModelAbDraft(get().drafts, key, expectedRevision);
+    if (next.repo !== get().drafts) set({ drafts: next.repo });
+    return next.discarded;
+  },
+
+  createSourceRef: null,
+
+  setCreateSourceRef(ref) {
+    set({ createSourceRef: ref });
   },
 
   async forkAt(parentRunId, atSpanId, value, execution) {
