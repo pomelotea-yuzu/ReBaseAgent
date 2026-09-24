@@ -38,6 +38,8 @@ import { decideRefresh, resolveRefreshFailure, settleRefresh } from "@shared/lis
 import { ShortIdState } from "@shared/nav";
 import { create } from "zustand";
 import { api } from "./lib/api";
+import type { CallDraftEntry, CallDraftKey, CallDraftRepo } from "./lib/debugging-drafts";
+import * as drafts from "./lib/debugging-drafts";
 import { resolveReading } from "./lib/reading-resolve";
 import {
   defaultReadingState,
@@ -228,6 +230,26 @@ interface AppState {
   pendingFileTarget: { runId: string; file: { stepSpanId: string | null; path?: string } } | null;
   /** 登记一次性文件目标（切到该 run 的文件页） */
   openFileAt: (runId: string, file: { stepSpanId: string | null; path?: string }) => void;
+
+  /**
+   * U3 任务 1.1：调用类调试草稿仓库（result / system_prompt / user_message / messages）。
+   * 只存 renderer 会话内存——不落 localStorage / URL / 日志 / settings / trace，
+   * 也不保存授权、凭据或 sourceToken（design D1/D4）。创建表单与 A/B 批次草稿
+   * 是独立结构（任务 1.3），不经此仓库。
+   */
+  callDrafts: CallDraftRepo;
+  /** 读取某编辑目标的草稿条目（无则 undefined；返回仓库内对象，引用稳定） */
+  callDraftOf: (key: CallDraftKey) => CallDraftEntry | undefined;
+  /**
+   * 编辑器打开时登记基线（来自已校验详情的原文）。已存在同 key 条目则原样保留：
+   * 不覆盖基线、不推进修订——重开编辑不得覆盖已有输入（design D2）。
+   */
+  ensureCallDraft: (key: CallDraftKey, baseline: string) => CallDraftEntry;
+  /**
+   * 输入事件**同步**写入原始文本（不得仅靠 debounce/失焦/卸载保存最后一次输入）；
+   * 实际内容变化才推进修订。须先 ensureCallDraft——未登记基线的目标不接收写入。
+   */
+  writeCallDraftText: (key: CallDraftKey, text: string) => void;
 
   /**
    * 编辑某 tool.invoke 的 result 并重跑；成功刷新列表并自动选中新 run。
@@ -657,6 +679,25 @@ export const useAppStore = create<AppState>((set, get) => ({
       pendingFileTarget: { runId, file },
       readingByRun: patchReadingState(get().readingByRun, runId, { tab: "files" }),
     });
+  },
+
+  callDrafts: drafts.emptyCallDraftRepo(),
+
+  callDraftOf(key) {
+    return drafts.callDraftOf(get().callDrafts, key);
+  },
+
+  ensureCallDraft(key, baseline) {
+    const next = drafts.ensureCallDraft(get().callDrafts, key, baseline);
+    // 无变化（条目已存在）时仓库引用不变，不触发无关订阅者
+    if (next.repo !== get().callDrafts) set({ callDrafts: next.repo });
+    return next.entry;
+  },
+
+  writeCallDraftText(key, text) {
+    const next = drafts.writeCallDraftText(get().callDrafts, key, text);
+    // 相同文本 / 未 ensure：仓库引用不变，不推进修订
+    if (next !== get().callDrafts) set({ callDrafts: next });
   },
 
   async forkAt(parentRunId, atSpanId, value, execution) {
