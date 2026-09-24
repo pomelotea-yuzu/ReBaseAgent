@@ -202,3 +202,67 @@ describe("store 行为：result 草稿逐字恢复与重开不覆盖（ForkEdito
     expect(useAppStore.getState().callDraftOf(key)).toBeUndefined();
   });
 });
+
+// ---------------------------------------------------------------------------
+// U3 任务 3.1：预检修订绑定、授权生命周期与迟到守卫
+// ---------------------------------------------------------------------------
+
+describe("接线契约：预检修订绑定与授权生命周期（任务 3.1）", () => {
+  it("预检结论绑定确认时的草稿修订；迟到响应不安装旧结论", () => {
+    const code = forkEditorSource();
+    // 确认时记录修订（请求代次），响应按它校验
+    expect(code).toContain("const requestedRevision = draftRevision;");
+    expect(code).toContain("useAppStore.getState().callDraftOf(draftKey)?.revision ?? null");
+    expect(code).toContain("if (currentRevision !== requestedRevision) return;");
+    // 取用结论同样要求修订一致：改走又改回同一文本也不复活旧结论
+    expect(code).toContain("verified.revision === draftRevision");
+  });
+
+  it("恢复/离开编辑器后必须重新预检（结论与授权均为组件局部态）", () => {
+    const code = forkEditorSource();
+    // useState 局部：组件重挂即重置 ⇒ 恢复草稿后 capability 与授权均为空，须重走门禁
+    expect(code).toContain("const [verified, setVerified] = useState<{");
+    expect(code).toContain("const [writesAuthorized, setWritesAuthorized] = useState(false);");
+    // 结论/comment 明确「恢复编辑器……必须重新预检」的绑定语义
+    expect(code).toContain("恢复编辑器（组件");
+  });
+
+  it("内容变化使本次副本授权失效（授权只用于当次提交）", () => {
+    const code = forkEditorSource();
+    // onChange 序列：写草稿 + 作废结论 + 作废授权（design D4）
+    expect(code).toContain('writeCallDraftText(draftKey, next ?? "")');
+    expect(code).toContain("setVerified(null);");
+    expect(code).toContain("setWritesAuthorized(false);");
+  });
+});
+
+describe("store 行为：预检是只读通道，不动草稿仓库（任务 3.1）", () => {
+  const key = { runId: detail.meta.id, spanId: "s_03", field: "result" as const };
+
+  beforeEach(() => {
+    useAppStore.setState({ drafts: draftsModule.emptyDraftRepo() });
+  });
+
+  it("loadForkCapability 全流程（含失败信封）不写草稿：仓库引用与条目原样", async () => {
+    useAppStore
+      .getState()
+      .ensureCallDraft(key, "草稿内容", captureCallDraftSource(detail, toolSpan));
+    useAppStore.getState().writeCallDraftText(key, "编辑后内容");
+    const repoBefore = useAppStore.getState().drafts;
+
+    // api 桩注入失败信封（成功路径的形状校验归 store.test；此处核对「预检不碰草稿」）
+    (globalThis.window as unknown as { api: Record<string, unknown> }).api.forkCapability =
+      async () => ({ ok: false as const, error: { code: "STUB", message: "桩" } });
+    const outcome = await useAppStore
+      .getState()
+      .loadForkCapability({
+        parentRunId: detail.meta.id,
+        atSpanId: "s_03",
+        edit: { field: "result", value: "编辑后内容" },
+      });
+    expect(outcome.ok).toBe(false);
+
+    expect(useAppStore.getState().drafts).toBe(repoBefore);
+    expect(useAppStore.getState().callDraftOf(key)?.text).toBe("编辑后内容");
+  });
+});

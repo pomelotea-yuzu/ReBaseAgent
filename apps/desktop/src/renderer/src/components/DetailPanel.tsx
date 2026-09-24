@@ -1754,7 +1754,10 @@ function ForkEditor({
 
   // 隔离续跑的本次确认状态：全部是**组件局部**状态——每次打开对话框重新开始，
   // 不从父 trace 的 write_authorized 标注或上一次编辑继承任何授权。
+  // U3 任务 3.1：预检结论绑定**确认时的草稿修订**（请求代次）——恢复编辑器（组件
+  // 重挂）、内容变化、离开编辑流程都会让它失效，返回后必须重新预检。
   const [verified, setVerified] = useState<{
+    revision: number | null;
     value: string;
     result: ForkCapabilityResult;
   } | null>(null);
@@ -1809,8 +1812,14 @@ function ForkEditor({
   const language = useMemo(() => detectResultLanguage(original), [original]);
 
   const settingsConfigured = settings?.configured === true;
-  // 预检结论必须与当前编辑值同源：改过内容即作废（在飞的请求用值比对兜底，不会显示旧结论）
-  const capability = verified !== null && verified.value === value ? verified.result : null;
+  // 预检结论必须与当前编辑值同源：改过内容即作废（在飞的请求用值比对兜底，不会显示旧结论）。
+  // U3 任务 3.1：再加**修订绑定**——仅值相同不放行（改走又改回同一文本也不复活旧结论），
+  // 修订推进（任何内容变化事件）即失效，恢复/离开后（verified 为组件局部态已重置）必须重新预检。
+  const draftRevision = draftEntry !== undefined ? draftEntry.revision : null;
+  const capability =
+    verified !== null && verified.value === value && verified.revision === draftRevision
+      ? verified.result
+      : null;
   const check = resolveCapabilityCheck({
     parentRunId: run.meta.id,
     atSpanId: span.id,
@@ -1876,6 +1885,8 @@ function ForkEditor({
   const doCheck = (): void => {
     if (!checkAllowed) return;
     const requestedValue = check.request.edit.value;
+    // U3 任务 3.1：记录**确认时的草稿修订**（请求代次）——响应按它校验
+    const requestedRevision = draftRevision;
     setChecking(true);
     setCheckError(null);
     void loadForkCapability(check.request)
@@ -1885,7 +1896,11 @@ function ForkEditor({
           setVerified(null);
           return;
         }
-        setVerified({ value: requestedValue, result: outcome.data });
+        // U3 任务 3.1：守卫迟到预检——响应到达时草稿修订已推进（内容已变）
+        // ⇒ 不安装旧结论（不给修改后的草稿安装旧预检）。
+        const currentRevision = useAppStore.getState().callDraftOf(draftKey)?.revision ?? null;
+        if (currentRevision !== requestedRevision) return;
+        setVerified({ revision: requestedRevision, value: requestedValue, result: outcome.data });
       })
       .finally(() => setChecking(false));
   };
@@ -1961,6 +1976,9 @@ function ForkEditor({
               writeCallDraftText(draftKey, next ?? "");
               // 编辑即作废已校验的结论（确认区收起，避免"确认的与提交的不是同一份编辑"）
               setVerified(null);
+              // U3 任务 3.1（design D4）：内容变化使本次副本授权失效——授权只用于
+              // 当次构造的请求，改了内容必须重新勾选后再预检/提交。
+              setWritesAuthorized(false);
             }}
             options={{
               readOnly: inProgress,
