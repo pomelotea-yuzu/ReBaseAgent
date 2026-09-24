@@ -42,8 +42,7 @@ function sides(leftNote: string, rightNote: string) {
   };
 }
 
-const ROOT = resolve(import.meta.dirname, "../../..");
-const DIR = resolve(ROOT, ".rebaseagent/u2-file-fixtures");
+const DIR = resolve(import.meta.dirname, "fixtures/u2-file-fixtures");
 const MANIFEST_FILE = join(DIR, "MANIFEST.json");
 
 interface FileFacts {

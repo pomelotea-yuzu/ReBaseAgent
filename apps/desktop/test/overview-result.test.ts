@@ -30,7 +30,7 @@ const { auditSafeTextRendering, containsMarkupLikeText, openCallHint, presentRes
  *       **静态结构断言**。真实点击定位、滚动、复制到剪贴板归 7.1/7.3 的 Electron/CDP。
  */
 
-const FIXTURE_DIR = resolve(import.meta.dirname, "../../../.rebaseagent/u1-fixtures");
+const FIXTURE_DIR = resolve(import.meta.dirname, "fixtures/u1-fixtures");
 const PANEL_SOURCE = readFileSync(
   resolve(import.meta.dirname, "../src/renderer/src/components/OverviewPanel.tsx"),
   "utf8",

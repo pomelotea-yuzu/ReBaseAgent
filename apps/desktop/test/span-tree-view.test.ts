@@ -34,7 +34,7 @@ const { flattenSpanRows, rowErrorKind, spanRowLabel, stepLabel, stepsEmptyCause 
  *    真实点击展开/选中后的详情替换归 7.1/7.3 的 Electron/CDP。
  */
 
-const FIXTURE_DIR = resolve(import.meta.dirname, "../../../.rebaseagent/u1-fixtures");
+const FIXTURE_DIR = resolve(import.meta.dirname, "fixtures/u1-fixtures");
 const APP_SOURCE = readFileSync(
   resolve(import.meta.dirname, "../src/renderer/src/App.tsx"),
   "utf8",

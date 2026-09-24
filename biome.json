@@ -33,6 +33,7 @@
       "**/*.timestamp-*.mjs",
       "**/electron.vite.config.*.mjs",
       "**/.tmp-*",
+      "**/test/fixtures/**",
       "docs/**"
     ]
   },

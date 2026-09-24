@@ -168,12 +168,15 @@ async function createV1Parent(dataDir: string, source: string): Promise<RunRecor
 describe("SourceTokenStore：会话签发与一次性消费（B 1.3）", () => {
   it("签发 → 消费换出真实路径；二次消费报 invalid（一次性）", () => {
     const store = new SourceTokenStore();
-    const issued = store.issue("D:\\some\\dir");
+    // ⚠️ 路径按平台给：`name` 用平台 `basename` 提取末段——Windows 风格的 "D:\some\dir"
+    // 在 POSIX 上反斜杠不是分隔符（整串就是 basename），Linux CI 会假红（2026-09-24 实证）。
+    const selected = process.platform === "win32" ? "D:\\some\\dir" : "/some/dir";
+    const issued = store.issue(selected);
     expect(issued.name).toBe("dir");
     expect(issued.token).toMatch(/^[0-9a-f]{32}$/);
 
     const consumed = store.consume(issued.token);
-    expect(consumed).toEqual({ ok: true, path: "D:\\some\\dir" });
+    expect(consumed).toEqual({ ok: true, path: selected });
     expect(store.consume(issued.token)).toEqual({ ok: false, reason: "invalid" });
   });
 

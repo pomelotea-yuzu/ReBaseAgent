@@ -35,8 +35,7 @@ import { describe, expect, it } from "vitest";
  *   缺父链（祖先 run 缺失）语料归 U6；此处 `parent` 指向的 run 都真实存在于同一目录。
  */
 
-const ROOT = resolve(import.meta.dirname, "../../..");
-const DIR = resolve(ROOT, ".rebaseagent/u1-lineage");
+const DIR = resolve(import.meta.dirname, "fixtures/u1-lineage");
 const TRACES = resolve(DIR, "traces");
 const BROKEN = resolve(DIR, "broken");
 const ISO = resolve(DIR, "isolated-traces");

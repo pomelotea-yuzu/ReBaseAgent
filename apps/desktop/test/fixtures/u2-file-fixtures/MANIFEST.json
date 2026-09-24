@@ -1,0 +1,160 @@
+{
+  "生成器": "apps/desktop/scripts/gen-u2-file-fixtures.cjs",
+  "说明": "1.1 文件阅读语料清单。每组的 <数据目录> 都是可直接被读取 API 消费的完整数据目录（traces/ 与 workspace-blobs/ 同级）；iso-data 为真实引擎产物（含绝对临时路径，不追求逐字节可重复）；broken/* 为故意自相矛盾的异常标本。",
+  "数据目录": {
+    "isolated": "iso-data",
+    "sourceSnapshot": "source",
+    "brokenMissing": "broken/missing",
+    "brokenCorrupt": "broken/corrupt",
+    "brokenNoOwnSteps": "broken/no-own-steps"
+  },
+  "关系": {
+    "isolated": {
+      "root": "run_mufbxhbd_qp0ijq",
+      "fork1": "run_mufbxhen_73kc",
+      "fork2": "run_mufbxhf8_joiy",
+      "语义": "一次分叉 + 二次分叉，真实 v2 隔离谱系"
+    },
+    "errored": {
+      "id": "run_mufbxhfq_sdgivu",
+      "终止事件": "errored",
+      "自有步骤": [
+        "s_01",
+        "s_04"
+      ],
+      "检查点数": 2,
+      "语义": "第 1 轮真实写入后第 2 轮 LLM 失败 ⇒ errored 封存，但已记录的文件检查点必须仍可读"
+    }
+  },
+  "源目录": "(生成时临时目录，未随 fixture 入库；可用生成器重建)",
+  "隔离附件哈希": [
+    {
+      "name": "0f567bf33845b923cf0f5dd5357610ad995614501a66a11b286706ab3b60ab62",
+      "sha256": "0f567bf33845b923cf0f5dd5357610ad995614501a66a11b286706ab3b60ab62"
+    },
+    {
+      "name": "1be43124bf0260fd0f15c391926dec451d62466f068e2d1c475ac5a314dae1e2",
+      "sha256": "1be43124bf0260fd0f15c391926dec451d62466f068e2d1c475ac5a314dae1e2"
+    },
+    {
+      "name": "307cb13935e47574694afcdf90bd024ac85976271f1bc0a6403c49db263abed0",
+      "sha256": "307cb13935e47574694afcdf90bd024ac85976271f1bc0a6403c49db263abed0"
+    },
+    {
+      "name": "7b81d63b718b848fa1f87426529cd9107e8f726664a3ed3f69678925271f1155",
+      "sha256": "7b81d63b718b848fa1f87426529cd9107e8f726664a3ed3f69678925271f1155"
+    },
+    {
+      "name": "93ace5eda774ada5291d566049d9d24a2b6e3c08e5860424006b8ad89811f108",
+      "sha256": "93ace5eda774ada5291d566049d9d24a2b6e3c08e5860424006b8ad89811f108"
+    },
+    {
+      "name": "9c58f522a3fc62d6bb65fc89ad6882e4b9a7272082fd6b9405f5f20ccf537825",
+      "sha256": "9c58f522a3fc62d6bb65fc89ad6882e4b9a7272082fd6b9405f5f20ccf537825"
+    },
+    {
+      "name": "de071610f9cc32eb288f345353660a0c92aeb1db4cc74fa0c33b385abd19ed51",
+      "sha256": "de071610f9cc32eb288f345353660a0c92aeb1db4cc74fa0c33b385abd19ed51"
+    },
+    {
+      "name": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "e4c4fe37f6f8de80057c026c72dd553f318c70e8827154c4648b85fc3a14c51a",
+      "sha256": "e4c4fe37f6f8de80057c026c72dd553f318c70e8827154c4648b85fc3a14c51a"
+    }
+  ],
+  "异常标本": {
+    "missing": {
+      "id": "u2bad_missing",
+      "数据目录": "broken/missing",
+      "成因": "trace 声明的附件全部未落盘 ⇒ 读取报 missing"
+    },
+    "corrupt": {
+      "id": "u2bad_corrupt",
+      "数据目录": "broken/corrupt",
+      "成因": "附件落盘但内容被替换 ⇒ 哈希校验失败，读取报 corrupt"
+    },
+    "noCheckpoint": {
+      "id": "u2bad_noownsteps",
+      "数据目录": "broken/no-own-steps",
+      "成因": "把自有 agent.step.n 整体抬高 100 ⇒ 本 run 一个自有完成步骤都没有（只剩初始快照），对应「无自有完成步骤时选择初始」。⚠️ 不可用删快照的方式构造：v2 已完成 step 必带 workspace_snapshot 是读取器强制的硬不变量。"
+    }
+  },
+  "检查点快照": {
+    "root": {
+      "id": "run_mufbxhbd_qp0ijq",
+      "自有spanIds": [
+        "s_01",
+        "s_02",
+        "s_03",
+        "s_04",
+        "s_05",
+        "s_06",
+        "s_07",
+        "s_08",
+        "s_09",
+        "s_10",
+        "s_11",
+        "s_12"
+      ],
+      "parent": null,
+      "步骤轮号": [
+        1,
+        2,
+        3
+      ],
+      "workspaceWorldId": "run_mufbxhbd_qp0ijq"
+    },
+    "fork1": {
+      "id": "run_mufbxhen_73kc",
+      "自有spanIds": [
+        "s_13",
+        "s_14",
+        "s_15",
+        "s_16",
+        "s_17",
+        "s_18"
+      ],
+      "parent": "run_mufbxhbd_qp0ijq",
+      "步骤轮号": [
+        1,
+        2
+      ],
+      "workspaceWorldId": "run_mufbxhen_73kc"
+    },
+    "fork2": {
+      "id": "run_mufbxhf8_joiy",
+      "自有spanIds": [
+        "s_19",
+        "s_20",
+        "s_21",
+        "s_22",
+        "s_23"
+      ],
+      "parent": "run_mufbxhen_73kc",
+      "步骤轮号": [
+        1,
+        2
+      ],
+      "workspaceWorldId": "run_mufbxhf8_joiy"
+    },
+    "errored": {
+      "id": "run_mufbxhfq_sdgivu",
+      "自有spanIds": [
+        "s_01",
+        "s_02",
+        "s_03",
+        "s_04",
+        "s_05"
+      ],
+      "parent": null,
+      "步骤轮号": [
+        1,
+        2
+      ],
+      "workspaceWorldId": "run_mufbxhfq_sdgivu"
+    }
+  }
+}

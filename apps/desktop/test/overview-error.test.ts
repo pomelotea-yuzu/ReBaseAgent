@@ -37,7 +37,7 @@ const { auditSafeTextRendering } = await import("../src/renderer/src/lib/overvie
  *    真实点击定位后的滚动/聚焦归 7.1/7.3 的 Electron/CDP。
  */
 
-const FIXTURE_DIR = resolve(import.meta.dirname, "../../../.rebaseagent/u1-fixtures");
+const FIXTURE_DIR = resolve(import.meta.dirname, "fixtures/u1-fixtures");
 const PANEL_SOURCE = readFileSync(
   resolve(import.meta.dirname, "../src/renderer/src/components/OverviewPanel.tsx"),
   "utf8",

@@ -6,3 +6,5 @@
 *.cjs text eol=lf
 *.mjs text eol=lf
 *.json text eol=lf
+# 测试 fixture：内容按哈希命名/校验，行尾必须逐字节稳定，禁一切行尾转换
+apps/desktop/test/fixtures/** -text

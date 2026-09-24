@@ -23,7 +23,7 @@
  *   ④ 本任务**不实现**短 ID / 搜索派生（那是 2.4）——这里只保证"碰撞条件确实成立"。
  *
  * 用法：node scripts/gen-u1-lineage-fixtures.cjs [目标目录]
- * 默认目标目录 = 仓库根 .rebaseagent/u1-lineage
+ * 默认目标目录 = apps/desktop/test/fixtures/u1-lineage（入库，CI 直接可用）
  */
 "use strict";
 
@@ -40,7 +40,7 @@ const { join, resolve } = require("node:path");
 const { readRun, JsonlTracer } = require("@rebaseagent/trace-sdk");
 
 const REPO_ROOT = resolve(__dirname, "..", "..", "..");
-const DEFAULT_DIR = join(REPO_ROOT, ".rebaseagent", "u1-lineage");
+const DEFAULT_DIR = join(REPO_ROOT, "apps", "desktop", "test", "fixtures", "u1-lineage");
 
 const MODEL = "deepseek-chat";
 const REASONER = "deepseek-reasoner";

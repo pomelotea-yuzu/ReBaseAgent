@@ -16,7 +16,7 @@ import { describe, expect, it } from "vitest";
  *     缺失 timing 不补零、cache_hit=0 算记录、失败占位零不被解释为实际零消费。
  */
 
-const FIXTURE_DIR = resolve(import.meta.dirname, "../../../.rebaseagent/u1-fixtures");
+const FIXTURE_DIR = resolve(import.meta.dirname, "fixtures/u1-fixtures");
 const has = (name: string): boolean => existsSync(resolve(FIXTURE_DIR, `${name}.jsonl`));
 
 function ownDetail(name: string) {

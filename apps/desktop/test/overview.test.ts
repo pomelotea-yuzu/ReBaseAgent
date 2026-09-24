@@ -17,7 +17,7 @@ import { describe, expect, it } from "vitest";
  *    用于证明派生结果来自自有段而非祖先段——只测「有错误时能找到错误」无法发现误归因。
  */
 
-const FIXTURE_DIR = resolve(import.meta.dirname, "../../../.rebaseagent/u1-fixtures");
+const FIXTURE_DIR = resolve(import.meta.dirname, "fixtures/u1-fixtures");
 
 /**
  * 读取 fixture 并构造与 `getRun` 的 RunDetail 同构的输入。

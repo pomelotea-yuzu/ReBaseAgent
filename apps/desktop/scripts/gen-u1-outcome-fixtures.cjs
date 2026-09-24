@@ -22,7 +22,7 @@
  * 逐字段断言）。本组是 U1 自己的结局样本，落 dev 数据目录，只被 U1 的验证用例消费。
  *
  * 用法：node scripts/gen-u1-outcome-fixtures.cjs [目标目录] [--stdout]
- * 默认目标目录 = 仓库根 .rebaseagent/u1-fixtures
+ * 默认目标目录 = apps/desktop/test/fixtures/u1-fixtures（入库，CI 直接可用）
  */
 "use strict";
 
@@ -31,7 +31,7 @@ const { mkdirSync, writeFileSync } = require("node:fs");
 const { join, resolve } = require("node:path");
 
 const REPO_ROOT = resolve(__dirname, "..", "..", "..");
-const DEFAULT_DIR = join(REPO_ROOT, ".rebaseagent", "u1-fixtures");
+const DEFAULT_DIR = join(REPO_ROOT, "apps", "desktop", "test", "fixtures", "u1-fixtures");
 
 const MODEL = "deepseek-chat";
 const REASONER = "deepseek-reasoner";

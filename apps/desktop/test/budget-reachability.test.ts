@@ -38,7 +38,7 @@ const { MonacoFallback } = await import("../src/renderer/src/components/MonacoEd
  *    （真实点击后的滚动/加载时机归 7.x CDP）。
  */
 
-const FIXTURE_DIR = resolve(import.meta.dirname, "../../../.rebaseagent/u1-fixtures");
+const FIXTURE_DIR = resolve(import.meta.dirname, "fixtures/u1-fixtures");
 const has = (name: string): boolean => existsSync(resolve(FIXTURE_DIR, `${name}.jsonl`));
 
 const html = (node: Parameters<typeof renderToStaticMarkup>[0]): string =>

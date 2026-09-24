@@ -1,0 +1,4 @@
+{"type":"run.meta","id":"u1b_schema","format_version":1,"task":"结构损坏运行","model":"deepseek-chat","created_at":"2026-09-21T14:02:00.000Z","parent":null,"fork":null,"config_hash":"sha256:u1lineage000000000000000000000000000000000000000000000000000000"}
+{"id":"s_01","parent":null,"timing":{"started_at":"2026-09-21T14:02:00.000Z","ended_at":"2026-09-21T14:02:00.800Z"},"kind":"agent.step","n":1}
+{"type":"span","id":"s_02","parent":"s_01","timing":{"started_at":"2026-09-21T14:02:00.000Z","ended_at":"2026-09-21T14:02:00.600Z"},"kind":"llm.call","request":{"model":"deepseek-chat","messages":[{"role":"user","content":"结构损坏运行"}]},"response":{"content":"完成。","reasoning_content":null,"tool_calls":[],"usage":{"in":400,"out":8},"ttft_ms":90}}
+{"type":"run.event","event":"stopped","reason":"completed","at":1}

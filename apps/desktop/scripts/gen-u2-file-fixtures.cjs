@@ -32,7 +32,7 @@
  *      注：复现①时需**重跑生成器**，夹具才会回到"退化成有步骤"的形态。
  *
  * 用法：node scripts/gen-u2-file-fixtures.cjs [目标目录]
- * 默认目标目录 = 仓库根 .rebaseagent/u2-file-fixtures
+ * 默认目标目录 = apps/desktop/test/fixtures/u2-file-fixtures（入库，CI 直接可用）
  */
 "use strict";
 
@@ -52,7 +52,7 @@ const { join, resolve } = require("node:path");
 const { readRun } = require("@rebaseagent/trace-sdk");
 
 const REPO_ROOT = resolve(__dirname, "..", "..", "..");
-const DEFAULT_DIR = join(REPO_ROOT, ".rebaseagent", "u2-file-fixtures");
+const DEFAULT_DIR = join(REPO_ROOT, "apps", "desktop", "test", "fixtures", "u2-file-fixtures");
 
 const MODEL = "deepseek-chat";
 const FAKE_HASH = "sha256:u2file00000000000000000000000000000000000000000000000000000000";

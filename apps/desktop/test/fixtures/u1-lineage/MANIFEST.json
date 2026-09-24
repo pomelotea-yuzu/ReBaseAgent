@@ -1,0 +1,168 @@
+{
+  "生成器": "apps/desktop/scripts/gen-u1-lineage-fixtures.cjs",
+  "说明": "1.2 语料清单。isolated-* 为真实引擎产物（含绝对临时路径，故不追求逐字节可重复）；手工组固定时间常量。",
+  "关系": {
+    "result": {
+      "parent": "u1r_parent",
+      "child": "u1r_child",
+      "语义": "共享父前缀"
+    },
+    "prompt": {
+      "parent": "u1p_parent",
+      "child": "u1p_child",
+      "语义": "独立执行，零祖先 span"
+    },
+    "model_params": {
+      "parent": "u1m_parent",
+      "arms": [
+        "u1m_arm_a",
+        "u1m_arm_b"
+      ],
+      "experimentId": "exp_u1_ab",
+      "语义": "同批 A/B 臂"
+    },
+    "proxy": {
+      "parent": "run_zz01",
+      "child": "run_zz02",
+      "语义": "代理分叉（改 messages）"
+    },
+    "isolated": {
+      "root": "run_mub3nk1j_5koo53",
+      "fork1": "run_mub3nk3x_jt3h",
+      "fork2": "run_mub3nk4f_p4vj",
+      "语义": "一次分叉 + 二次分叉，真实 v2 隔离谱系"
+    }
+  },
+  "短ID碰撞组": [
+    "zzzz0000a1b2c3d4",
+    "yyyy0000a1b2c3d4",
+    "0000a1b2c3d4"
+  ],
+  "坏版本组": [
+    "u1b_future.jsonl",
+    "u1b_schema.jsonl",
+    "u1b_v1ws.jsonl"
+  ],
+  "隔离附件哈希": [
+    {
+      "name": "26b36ccb92b026c00fe9e787af2229f867bc1a87952c08264c4f48b818d9d918",
+      "sha256": "26b36ccb92b026c00fe9e787af2229f867bc1a87952c08264c4f48b818d9d918"
+    },
+    {
+      "name": "2d2616fba6ab13a8f354005ed4101a3c1bac9f1722d0c83d96e799de1750cd49",
+      "sha256": "2d2616fba6ab13a8f354005ed4101a3c1bac9f1722d0c83d96e799de1750cd49"
+    },
+    {
+      "name": "6ca7ea2feefc88ecb5ed6356ed963f47dc9137f82526fdd25d618ea626d0803f",
+      "sha256": "6ca7ea2feefc88ecb5ed6356ed963f47dc9137f82526fdd25d618ea626d0803f"
+    }
+  ],
+  "隔离源目录": "(生成时临时目录，未随 fixture 入库；可用生成器重建)",
+  "轨迹边界": {
+    "result_parent": {
+      "id": "u1r_parent",
+      "自有spanIds": [
+        "s_01",
+        "s_02",
+        "s_03",
+        "s_04",
+        "s_05"
+      ],
+      "parent": null,
+      "fork字段": null,
+      "有configHash": true
+    },
+    "result_child": {
+      "id": "u1r_child",
+      "自有spanIds": [
+        "s_09",
+        "s_10"
+      ],
+      "parent": "u1r_parent",
+      "fork字段": "result",
+      "有configHash": true
+    },
+    "prompt_parent": {
+      "id": "u1p_parent",
+      "自有spanIds": [
+        "s_01",
+        "s_02"
+      ],
+      "parent": null,
+      "fork字段": null,
+      "有configHash": true
+    },
+    "prompt_child": {
+      "id": "u1p_child",
+      "自有spanIds": [
+        "s_01",
+        "s_02"
+      ],
+      "parent": "u1p_parent",
+      "fork字段": "system_prompt",
+      "有configHash": true
+    },
+    "isolated_root": {
+      "id": "run_mub3nk1j_5koo53",
+      "自有spanIds": [
+        "s_01",
+        "s_02",
+        "s_03",
+        "s_04",
+        "s_05",
+        "s_06",
+        "s_07",
+        "s_08"
+      ],
+      "parent": null,
+      "fork字段": null,
+      "resumeAfterStep": null,
+      "workspaceWorldId": "run_mub3nk1j_5koo53",
+      "originKind": "import",
+      "步骤轮号": [
+        1,
+        2,
+        3
+      ]
+    },
+    "isolated_fork1": {
+      "id": "run_mub3nk3x_jt3h",
+      "自有spanIds": [
+        "s_09",
+        "s_10",
+        "s_11",
+        "s_12",
+        "s_13",
+        "s_14"
+      ],
+      "parent": "run_mub3nk1j_5koo53",
+      "fork字段": "result",
+      "resumeAfterStep": "s_04",
+      "workspaceWorldId": "run_mub3nk3x_jt3h",
+      "originKind": "checkpoint",
+      "步骤轮号": [
+        1,
+        2
+      ]
+    },
+    "isolated_fork2": {
+      "id": "run_mub3nk4f_p4vj",
+      "自有spanIds": [
+        "s_15",
+        "s_16",
+        "s_17",
+        "s_18",
+        "s_19"
+      ],
+      "parent": "run_mub3nk3x_jt3h",
+      "fork字段": "result",
+      "resumeAfterStep": "s_09",
+      "workspaceWorldId": "run_mub3nk4f_p4vj",
+      "originKind": "checkpoint",
+      "步骤轮号": [
+        1,
+        2
+      ]
+    }
+  }
+}

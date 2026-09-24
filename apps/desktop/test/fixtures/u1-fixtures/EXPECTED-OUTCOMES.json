@@ -1,0 +1,163 @@
+{
+  "u1-ok": {
+    "status": "completed",
+    "lastReason": "completed",
+    "outcome": "completed",
+    "label": "已结束",
+    "tone": "normal",
+    "ownsLlm": true,
+    "hasOwnLlmError": false,
+    "finalOutput": "任务完成：README.md 的要点已写入 summary.md，共 2 条。",
+    "intermediateOutput": null,
+    "cacheCoverage": [
+      0,
+      3
+    ],
+    "missingErrorDetail": false
+  },
+  "u1-error-detail": {
+    "status": "completed",
+    "lastReason": "error",
+    "outcome": "error",
+    "label": "出错终止",
+    "tone": "danger",
+    "ownsLlm": true,
+    "hasOwnLlmError": true,
+    "finalOutput": null,
+    "intermediateOutput": "我先读取 README.md。",
+    "cacheCoverage": [
+      0,
+      2
+    ],
+    "missingErrorDetail": false
+  },
+  "u1-error-legacy": {
+    "status": "completed",
+    "lastReason": "error",
+    "outcome": "error",
+    "label": "出错终止",
+    "tone": "danger",
+    "ownsLlm": true,
+    "hasOwnLlmError": false,
+    "finalOutput": null,
+    "intermediateOutput": "文件不存在，无法继续。",
+    "cacheCoverage": [
+      0,
+      2
+    ],
+    "missingErrorDetail": true
+  },
+  "u1-aborted": {
+    "status": "completed",
+    "lastReason": "aborted",
+    "outcome": "aborted",
+    "label": "已中止",
+    "tone": "neutral",
+    "ownsLlm": true,
+    "hasOwnLlmError": false,
+    "finalOutput": null,
+    "intermediateOutput": "继续读取 packages 目录，正在整理各包的入口文件……",
+    "cacheCoverage": [
+      0,
+      2
+    ],
+    "missingErrorDetail": false
+  },
+  "u1-crashed": {
+    "status": "crashed",
+    "lastReason": null,
+    "outcome": "interrupted",
+    "label": "运行中断",
+    "tone": "neutral",
+    "ownsLlm": true,
+    "hasOwnLlmError": false,
+    "finalOutput": null,
+    "intermediateOutput": "准备重命名 a.png 与 b.png。",
+    "cacheCoverage": [
+      0,
+      2
+    ],
+    "missingErrorDetail": false
+  },
+  "u1-reasoning-only": {
+    "status": "completed",
+    "lastReason": "completed",
+    "outcome": "completed",
+    "label": "已结束",
+    "tone": "normal",
+    "ownsLlm": true,
+    "hasOwnLlmError": false,
+    "finalOutput": null,
+    "intermediateOutput": null,
+    "cacheCoverage": [
+      0,
+      1
+    ],
+    "missingErrorDetail": false
+  },
+  "u1-tool-only": {
+    "status": "completed",
+    "lastReason": "completed",
+    "outcome": "completed",
+    "label": "已结束",
+    "tone": "normal",
+    "ownsLlm": true,
+    "hasOwnLlmError": false,
+    "finalOutput": null,
+    "intermediateOutput": null,
+    "cacheCoverage": [
+      0,
+      1
+    ],
+    "missingErrorDetail": false
+  },
+  "u1-cache-partial": {
+    "status": "completed",
+    "lastReason": "completed",
+    "outcome": "completed",
+    "label": "已结束",
+    "tone": "normal",
+    "ownsLlm": true,
+    "hasOwnLlmError": false,
+    "finalOutput": "已汇总三个文件。",
+    "intermediateOutput": null,
+    "cacheCoverage": [
+      2,
+      3
+    ],
+    "cacheHitTotal": 800,
+    "missingErrorDetail": false
+  },
+  "u1-fork-parent": {
+    "status": "completed",
+    "lastReason": "completed",
+    "outcome": "completed",
+    "label": "已结束",
+    "tone": "normal",
+    "ownsLlm": true,
+    "hasOwnLlmError": false,
+    "finalOutput": "我先读取 README.md。",
+    "intermediateOutput": null,
+    "cacheCoverage": [
+      0,
+      1
+    ],
+    "missingErrorDetail": false
+  },
+  "u1-fork-child": {
+    "status": "completed",
+    "lastReason": "completed",
+    "outcome": "completed",
+    "label": "已结束",
+    "tone": "normal",
+    "ownsLlm": false,
+    "hasOwnLlmError": false,
+    "finalOutput": null,
+    "intermediateOutput": null,
+    "cacheCoverage": [
+      0,
+      0
+    ],
+    "missingErrorDetail": false
+  }
+}

@@ -19,7 +19,7 @@ import { auditForbiddenTokens } from "../src/renderer/src/lib/overview-view";
  * 摘要未知原因 / 详情 event/reason 矛盾 / 不放宽 schema 或扩充 status 枚举。
  */
 
-const FIXTURE_DIR = resolve(import.meta.dirname, "../../../.rebaseagent/u1-fixtures");
+const FIXTURE_DIR = resolve(import.meta.dirname, "fixtures/u1-fixtures");
 
 describe("classifyOutcome：按 status + reason 分类，不扩充 status 枚举", () => {
   it("completed ⇒ 已结束（success，normalEnd）", () => {

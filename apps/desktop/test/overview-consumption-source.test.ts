@@ -34,8 +34,8 @@ const { presentCacheCoverage, presentConsumption, presentSource } = await import
  *    真实点击「返回父记录」后的加载归 7.x 的 Electron/CDP。
  */
 
-const FIXTURE_DIR = resolve(import.meta.dirname, "../../../.rebaseagent/u1-fixtures");
-const LINEAGE_DIR = resolve(import.meta.dirname, "../../../.rebaseagent/u1-lineage");
+const FIXTURE_DIR = resolve(import.meta.dirname, "fixtures/u1-fixtures");
+const LINEAGE_DIR = resolve(import.meta.dirname, "fixtures/u1-lineage");
 const TRACES = resolve(LINEAGE_DIR, "traces");
 const ISO = resolve(LINEAGE_DIR, "isolated-traces");
 

@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
  * U1（refactor-run-workspace）任务 1.1：结局 fixture 组的预期结局表验证。
  *
  * 数据来源：`apps/desktop/scripts/gen-u1-outcome-fixtures.cjs`
- * （可重复生成：固定时间常量，两次生成逐字节一致；生成物落 `.rebaseagent/u1-fixtures`，
+ * （可重复生成：固定时间常量，两次生成逐字节一致；生成物入库于 `apps/desktop/test/fixtures/u1-fixtures`，
  *  不入库，故无需 Git LFS/大文件考虑）。
  *
  * ⚠️ 本文件的定位是**数据契约校验**，不是 U1 的验收：
@@ -22,7 +22,7 @@ import { describe, expect, it } from "vitest";
  *   缺父链（祖先 run 缺失）语料归 U6，不在此处伪造。
  */
 
-const FIXTURE_DIR = resolve(import.meta.dirname, "../../../.rebaseagent/u1-fixtures");
+const FIXTURE_DIR = resolve(import.meta.dirname, "fixtures/u1-fixtures");
 const EXPECTED_FILE = resolve(FIXTURE_DIR, "EXPECTED-OUTCOMES.json");
 
 /** 结局分类的预期形状（与生成器的 EXPECTED-OUTCOMES.json 同构） */
