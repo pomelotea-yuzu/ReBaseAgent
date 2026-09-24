@@ -228,6 +228,13 @@ CI 载体：首期为 **Gitee Go**（`.workflow/ci.yml`，push 到 main 与 PR �
 
 本项目使用 [OpenSpec](https://github.com/Fission-AI/OpenSpec) 做 Spec-Driven Development——每个能力先写 spec（proposal → 评审 → 实现 → 归档），见 `openspec/` 目录。
 
+## 贡献
+
+欢迎 issue 与 PR：开发环境与流程见 [CONTRIBUTING.md](CONTRIBUTING.md)，
+质量门禁与 OpenSpec 工作流见 [docs/development/workflow.md](docs/development/workflow.md)。
+安全问题请勿走公开 issue，见 [SECURITY.md](SECURITY.md)。
+大陆网络环境可使用 [Gitee 镜像仓库](https://gitee.com/yuzu-tea-duck/re-base-agent)。
+
 ## License
 
 MIT

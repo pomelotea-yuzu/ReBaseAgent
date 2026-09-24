@@ -1,0 +1,28 @@
+name: 功能建议
+description: 提出新能力或改进想法
+labels: [enhancement]
+body:
+  - type: textarea
+    id: scenario
+    attributes:
+      label: 想解决什么问题
+      description: 描述你的调试场景与卡点，而不是直接给实现方案。例如：A/B 两个分支跑完后，看不出费用差异是怎么来的。
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 期望的效果
+      description: 你理想中的使用方式（界面草图、命令行示例都可以）。
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 现在的替代做法
+      description: 目前你是怎么绕过这个限制的。
+  - type: textarea
+    id: context
+    attributes:
+      label: 补充上下文（可选）
+      description: 相关 issue、截图或竞品对照。

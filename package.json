@@ -4,6 +4,14 @@
   "private": true,
   "description": "ReBaseAgent — Agent 的时间旅行调试器。不止回放 Agent 做了什么，而是让你改变它做了什么。",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pomelotea-yuzu/ReBaseAgent.git"
+  },
+  "homepage": "https://github.com/pomelotea-yuzu/ReBaseAgent#readme",
+  "bugs": {
+    "url": "https://github.com/pomelotea-yuzu/ReBaseAgent/issues"
+  },
   "packageManager": "pnpm@9.15.9",
   "scripts": {
     "build": "pnpm -r build",

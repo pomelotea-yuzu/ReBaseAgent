@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Gitee 镜像仓库
+    url: https://gitee.com/yuzu-tea-duck/re-base-agent
+    about: 大陆网络环境可到 Gitee 侧提 issue（中文模板）
+  - name: 使用文档
+    url: https://github.com/pomelotea-yuzu/ReBaseAgent/blob/main/README.md
+    about: 快速开始、当前限制与路线图先看这里

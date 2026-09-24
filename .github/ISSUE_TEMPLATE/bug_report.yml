@@ -1,0 +1,74 @@
+name: Bug 报告
+description: 使用中遇到的问题或错误行为
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        提交前请先搜索已有 issue。涉及 API key 等敏感信息请先脱敏——
+        日志里只需保留报错形态，不要贴完整凭据。
+  - type: textarea
+    id: problem
+    attributes:
+      label: 遇到的问题
+      description: 一句话说清现象。例如：改某步 tool_result 续跑后，分支树里没有出现新节点。
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: 复现步骤
+      description: 编号列出最少复现路径；涉及界面的请附截图。
+      placeholder: |
+        1. …
+        2. …
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望行为
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际行为
+    validations:
+      required: true
+  - type: dropdown
+    id: runmode
+    attributes:
+      label: 运行方式
+      options:
+        - 便携版 exe
+        - 源码（pnpm dev）
+        - SDK 接入（agent-loop / trace-sdk）
+        - 本地录制代理（llm-proxy）
+        - 模型 A/B CLI
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: ReBaseAgent 版本
+      description: exe 文件名（如 ReBaseAgent-0.3.0-k0-win-x64-portable.exe）或 package.json 的 version。
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: 操作系统
+      placeholder: Windows 11 23H2
+    validations:
+      required: true
+  - type: input
+    id: provider
+    attributes:
+      label: 模型 / Provider（如涉及）
+      placeholder: DeepSeek / GLM / Qwen / Kimi / 其他 OpenAI 兼容端点
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志或截图（可选）
+      description: 便携版日志在 exe 同级 data/ 目录；可粘贴关键报错片段。
