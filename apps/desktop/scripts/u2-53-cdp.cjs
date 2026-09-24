@@ -32,6 +32,7 @@
  *   node apps/desktop/scripts/u2-53-cdp.cjs --tag=explicit
  *   node apps/desktop/scripts/u2-53-cdp.cjs --tag=fallback
  *   node apps/desktop/scripts/u2-53-cdp.cjs --tag=search-hidden
+ *   node apps/desktop/scripts/u2-53-cdp.cjs --tag=list-scroll   # D-1：长清单列表滚动（需先跑 gen-u2-acc-list-fixtures.cjs）
  */
 "use strict";
 
@@ -919,6 +920,80 @@ async function scenarioProbe(call, m) {
   return m;
 }
 
+/**
+ * D-1 专项：**文件目录列表**的滚动位置在往返后真的恢复（实机强证据）。
+ *
+ * 背景（2026-09-24 验收复核）：`roundtrip` 里那条「往返后列表位置也恢复」断言虽然存在，
+ * 但当轮夹具的清单**只可滚 2px** ⇒ `scrollTop` 恒为 0，断言在"清单不足一屏"的宽免分支里通过
+ * （`acceptance.md` 的 D-1 / tasks 5.3 都如实标注为"证据力弱"）。
+ * 本 tag 用 `gen-u2-acc-list-fixtures.cjs` 造的**长清单 run（61 项）**，把该断言升级为**实机强证据**：
+ *   ① 先断言清单**确实可滚**（scrollHeight > clientHeight）——旧夹具缺的正是这个前提；
+ *   ② 真滚轮滚下去，断言 store 的 `listScrollTop > 0` 且 DOM 实测与之一致；
+ *   ③ 文件→步骤→文件 往返后，**再次**断言 store 保留 + DOM 实测 ≈ store（容差 1px）。
+ */
+async function scenarioListScroll(call) {
+  const m = {};
+  const manifestPath = join(REPO, ".rebaseagent", "u2-acc-list", "MANIFEST-D1.json");
+  if (!existsSync(manifestPath)) {
+    throw new Error(
+      `缺少 D-1 长清单夹具：先跑 node apps/desktop/scripts/gen-u2-acc-list-fixtures.cjs（期望 ${manifestPath}）`,
+    );
+  }
+  const listRun = JSON.parse(readFileSync(manifestPath, "utf8")).长清单run;
+  m.listRun = listRun;
+
+  // 选中 run → 文件页；筛选「全部」避免 auto=changed 把未改动文件滤掉；检查点不显式选（用默认）
+  Object.assign(m, await enterFiles(call, listRun, null, "全部"), { enter: true });
+  m.atTop = await dom(call);
+  m.storeAtTop = await storeState(call, listRun);
+  await shot(call, SHOT_DIR, `${TAG}-1-长清单顶部.png`);
+
+  check(
+    "长清单**确实可滚**（scrollHeight > clientHeight）——旧夹具缺的正是这个前提",
+    m.atTop.listScrollHeight !== null &&
+      m.atTop.listClientHeight !== null &&
+      m.atTop.listScrollHeight > m.atTop.listClientHeight,
+    `sh=${m.atTop.listScrollHeight} ch=${m.atTop.listClientHeight} rows=${m.atTop.fileOptions?.length}`,
+  );
+
+  // 真滚轮：滚两下，拿到一个明显非 0 的位置
+  m.wheel1 = await wheelList(call, 600);
+  m.wheel2 = await wheelList(call, 600);
+  m.afterScroll = await dom(call);
+  m.storeAfterScroll = await storeState(call, listRun);
+  await shot(call, SHOT_DIR, `${TAG}-2-列表滚下去.png`);
+
+  check(
+    "列表真的滚动过（store.listScrollTop > 0，且属于本 run）",
+    m.storeAfterScroll.listScrollTop !== null && m.storeAfterScroll.listScrollTop > 0,
+    `listScrollTop=${m.storeAfterScroll.listScrollTop}`,
+  );
+  check(
+    "滚动位置写进会话状态且与 DOM 实测一致（容差 1px）",
+    Math.abs((m.storeAfterScroll.listScrollTop ?? -1) - (m.afterScroll.listScrollActual ?? -2)) <=
+      1,
+    `store=${m.storeAfterScroll.listScrollTop} actual=${m.afterScroll.listScrollActual} data=${m.afterScroll.listDataScrollTop}`,
+  );
+
+  // 往返：文件 → 步骤 → 文件
+  m.toSteps = await clickTab(call, "步骤");
+  m.storeInSteps = await storeState(call, listRun);
+  m.toFiles = await clickTab(call, "文件");
+  await sleep(1400);
+  m.afterBack = await dom(call);
+  m.storeAfterBack = await storeState(call, listRun);
+  await shot(call, SHOT_DIR, `${TAG}-3-返回后列表位置.png`);
+
+  check("往返后回到文件页", m.afterBack.tabSelected === "文件", m.afterBack.tabSelected);
+  check(
+    "往返后列表位置**真的恢复**（DOM 实测 ≈ store 保存值，容差 1px；非 0 才有说服力）",
+    (m.storeAfterBack.listScrollTop ?? 0) > 0 &&
+      Math.abs((m.afterBack.listScrollActual ?? -1) - m.storeAfterBack.listScrollTop) <= 1,
+    `store=${m.storeAfterBack.listScrollTop} actual=${m.afterBack.listScrollActual} sh=${m.afterBack.listScrollHeight} ch=${m.afterBack.listClientHeight}`,
+  );
+  return m;
+}
+
 async function main() {
   mkdirSync(SHOT_DIR, { recursive: true });
   mkdirSync(OUT_DIR, { recursive: true });
@@ -960,6 +1035,7 @@ async function main() {
   else if (TAG === "explicit") out = await scenarioExplicit(call);
   else if (TAG === "fallback") out = await scenarioFallback(call);
   else if (TAG === "search-hidden") out = await scenarioSearchHidden(call);
+  else if (TAG === "list-scroll") out = await scenarioListScroll(call);
   else throw new Error(`unknown tag: ${TAG}`);
   data.measurements[TAG] = out;
 
