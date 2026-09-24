@@ -200,3 +200,113 @@ describe("store 行为：A/B 批次草稿的增删行与恢复（ModelAbEditor �
     expect(useAppStore.getState().modelAbDraftOf(key)!.revision).toBeGreaterThan(before.revision);
   });
 });
+
+// ---------------------------------------------------------------------------
+// U3 任务 3.3：A/B 预览绑定批次修订 / 请求代次，内容变化或恢复后重新预览与授权
+// ---------------------------------------------------------------------------
+
+describe("接线契约：A/B 预览修订绑定与迟到守卫（任务 3.3）", () => {
+  const src = () => sliceBetween("function ModelAbEditor(", "/** llm.call 详情");
+
+  it("预览发起时记录批次修订；迟到响应按它校验，且先守卫后安装", () => {
+    const code = src();
+    expect(code).toContain("const requestedRevision = draftRevision;");
+    expect(code).toContain("useAppStore.getState().modelAbDraftOf(draftKey)?.revision ?? null");
+    expect(code).toContain("if (currentRevision !== requestedRevision) return;");
+    expect(code).toContain("setPlanRevision(requestedRevision);");
+    // 顺序有牙：守卫必须在 setPlan 之前（先装后判等于装上了旧计划）
+    expect(code.indexOf("if (currentRevision !== requestedRevision) return;")).toBeLessThan(
+      code.indexOf("setPlan(result);"),
+    );
+  });
+
+  it("计划与当前批次修订同源：修订推进即失效，改走又改回也不复活", () => {
+    const code = src();
+    expect(code).toContain(
+      "const draftRevision = draftEntry !== undefined ? draftEntry.revision : null;",
+    );
+    expect(code).toContain("planRevision === draftRevision");
+    // 渲染/执行只认派生计划，不直接读原始局部态（否则旧计划仍会被展示/执行）
+    expect(code).not.toContain("{plan !== null ?");
+    expect(code).toContain("{activePlan !== null ?");
+    expect(code).toContain("if (!canSubmit || activePlan === null) return;");
+    expect(code).toContain("disabled={inProgress || !canSubmit || activePlan === null}");
+  });
+
+  it("内容变化作废副作用许可；恢复/离开后计划与许可均须重来（组件局部态）", () => {
+    const code = src();
+    // commitRows 是唯一行写入路径：改行既清计划也清授权（切片进函数体，避免被别处的复位序列糊过去）
+    const commit = sliceBetween("const commitRows = ", "const updateArm = ");
+    expect(commit).toContain("setPlan(null);");
+    expect(commit).toContain("setAllowSideEffects(false);");
+    // 计划修订与副作用许可都是组件局部态 ⇒ 重挂载即重置，恢复后必须重新预览并重新勾选
+    expect(code).toContain(
+      "const [planRevision, setPlanRevision] = useState<number | null>(null);",
+    );
+    expect(code).toContain("const [allowSideEffects, setAllowSideEffects] = useState(false);");
+  });
+});
+
+describe("store 行为：A/B 预览不隐式清理批次（任务 3.3）", () => {
+  const key = { runId: detail.meta.id, spanId: "s_02" };
+  const source = captureCallDraftSource(detail, firstLlmSpan);
+  const BASELINE = [
+    { model: "deepseek-chat", paramsText: "" },
+    { model: "deepseek-chat", paramsText: "" },
+  ];
+
+  beforeEach(() => {
+    useAppStore.setState({ drafts: draftsModule.emptyDraftRepo() });
+  });
+
+  it("dry-run 预览（成功或失败信封）不写、不清、不推进批次草稿", async () => {
+    useAppStore.getState().ensureModelAbDraft(key, BASELINE, source);
+    useAppStore.getState().setModelAbRows(key, [
+      { key: draftsModule.newArmRowKey(), model: "m-a", paramsText: "" },
+      { key: draftsModule.newArmRowKey(), model: "m-b", paramsText: '{"temperature":0.9}' },
+    ]);
+    const entryBefore = useAppStore.getState().modelAbDraftOf(key)!;
+    const repoBefore = useAppStore.getState().drafts;
+
+    const api = (globalThis.window as unknown as { api: Record<string, unknown> }).api;
+    api.modelAb = async () => ({
+      ok: true as const,
+      data: { experimentId: "exp_stub", ids: [], ok: true, plan: [], sideEffectsAllowed: false },
+    });
+    const planned = await useAppStore
+      .getState()
+      .modelAb(detail.meta.id, [{ model: "m-a" }, { model: "m-b" }], true);
+    expect(planned?.experimentId).toBe("exp_stub");
+
+    // 预览是只读通道：仓库引用与批次条目（内容/修订/行 ID）原样
+    expect(useAppStore.getState().drafts).toBe(repoBefore);
+    const entryAfter = useAppStore.getState().modelAbDraftOf(key)!;
+    expect(entryAfter).toBe(entryBefore);
+    expect(entryAfter.revision).toBe(entryBefore.revision);
+    expect(entryAfter.rows.map((r) => r.model)).toEqual(["m-a", "m-b"]);
+    expect(entryAfter.rows[1]!.paramsText).toBe('{"temperature":0.9}');
+
+    // 失败信封同样不动草稿（业务拒绝、部分失败都不清批次）
+    api.modelAb = async () => ({
+      ok: false as const,
+      error: { code: "STUB", message: "桩" },
+    });
+    expect(await useAppStore.getState().modelAb(detail.meta.id, [], true)).toBeNull();
+    expect(useAppStore.getState().drafts).toBe(repoBefore);
+    expect(useAppStore.getState().modelAbDraftOf(key)).toBe(entryBefore);
+  });
+
+  it("批次修订随语义变化推进：迟到响应因此拿不到旧修订（守卫判据有效）", () => {
+    useAppStore.getState().ensureModelAbDraft(key, BASELINE, source);
+    const requestedRevision = useAppStore.getState().modelAbDraftOf(key)!.revision;
+    const rows = useAppStore.getState().modelAbDraftOf(key)!.rows;
+    // 预览在飞时用户改了臂内容 ⇒ 响应到达时修订已不同，旧计划不得安装
+    useAppStore.getState().setModelAbRows(key, [{ ...rows[0]!, model: "m-late" }, rows[1]!]);
+    const currentRevision = useAppStore.getState().modelAbDraftOf(key)!.revision;
+    expect(currentRevision).not.toBe(requestedRevision);
+
+    // 放弃批次后取修订为 null（响应到达时批次已不存在 ⇒ 同样被守卫拒绝）
+    expect(useAppStore.getState().discardModelAbDraft(key, currentRevision)).toBe(true);
+    expect(useAppStore.getState().modelAbDraftOf(key)?.revision ?? null).toBeNull();
+  });
+});

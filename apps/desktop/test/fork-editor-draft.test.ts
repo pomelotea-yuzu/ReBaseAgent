@@ -253,13 +253,11 @@ describe("store 行为：预检是只读通道，不动草稿仓库（任务 3.1
     // api 桩注入失败信封（成功路径的形状校验归 store.test；此处核对「预检不碰草稿」）
     (globalThis.window as unknown as { api: Record<string, unknown> }).api.forkCapability =
       async () => ({ ok: false as const, error: { code: "STUB", message: "桩" } });
-    const outcome = await useAppStore
-      .getState()
-      .loadForkCapability({
-        parentRunId: detail.meta.id,
-        atSpanId: "s_03",
-        edit: { field: "result", value: "编辑后内容" },
-      });
+    const outcome = await useAppStore.getState().loadForkCapability({
+      parentRunId: detail.meta.id,
+      atSpanId: "s_03",
+      edit: { field: "result", value: "编辑后内容" },
+    });
     expect(outcome.ok).toBe(false);
 
     expect(useAppStore.getState().drafts).toBe(repoBefore);

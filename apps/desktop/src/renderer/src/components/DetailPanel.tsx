@@ -690,6 +690,8 @@ function ModelAbEditor({
   const [open, setOpen] = useState(false);
   const [allowSideEffects, setAllowSideEffects] = useState(false);
   const [plan, setPlan] = useState<ModelAbResult | null>(null);
+  // U3 任务 3.3：计划所绑定的批次修订（预览时的请求代次）——见下方 activePlan
+  const [planRevision, setPlanRevision] = useState<number | null>(null);
   const [executed, setExecuted] = useState<ModelAbResult | null>(null);
 
   /**
@@ -699,6 +701,8 @@ function ModelAbEditor({
    * - 临时计划与副作用许可是**本次编辑会话**的本地状态：不进草稿、恢复时清理
    *   （打开即复位——计划须重新校验、授权须重新勾选）；
    * - 预览 / 执行 / 实验结果**不隐式清理批次**（只动本地 plan/executed）；
+   * - U3 任务 3.3：计划绑定**预览时的批次修订**（请求代次）——任何内容变化或恢复后
+   *   即失效，必须重新预览并重新确认副作用；迟到预览响应不安装旧计划（同 3.1 守卫）；
    * - 放弃整个批次归任务 2.6（CAS 确认）。
    */
   const draftKey: ModelAbDraftKey = useMemo(
@@ -717,8 +721,19 @@ function ModelAbEditor({
     key: row.key,
     arm: { model: row.model, paramsText: row.paramsText },
   }));
+  // 基线臂只读对照项：给渲染项稳定身份——两臂内容恒等（不能用内容当 key），也禁用下标
+  const baselineRows = useMemo(
+    () => baselineArms.map((arm, i) => ({ id: `baseline-${i + 1}`, no: i + 1, arm })),
+    [baselineArms],
+  );
   // U3 任务 2.6：批次 dirty（行语义序列偏离基线；初始两臂不算修改）
   const isBatchDirty = draftEntry !== undefined && isModelAbDraftDirty(draftEntry);
+
+  // U3 任务 3.3：计划必须与当前批次修订同源——修订推进（任何内容变化事件）即失效，
+  // 「改走又改回同一文本」也不复活旧计划（修订单调，见 1.2）。恢复/离开编辑器后
+  // plan/planRevision 为组件局部态已重置 ⇒ 必须重新预览并重新确认副作用。
+  const draftRevision = draftEntry !== undefined ? draftEntry.revision : null;
+  const activePlan = plan !== null && planRevision === draftRevision ? plan : null;
 
   const inProgress = modelAbInFlight;
 
@@ -773,13 +788,16 @@ function ModelAbEditor({
       ? "源记录不可用：重新读取并校验通过前不能发起新执行"
       : null;
 
-  /** 行变更统一落批次草稿（语义不变仅行 ID 变化不推进修订）；任何行变更作废已校验计划 */
+  /** 行变更统一落批次草稿（语义不变仅行 ID 变化不推进修订）；任何行变更作废已校验计划与副作用许可 */
   const commitRows = (next: Array<{ key: string; arm: ArmDraft }>): void => {
     writeRows(
       draftKey,
       next.map((row) => ({ key: row.key, model: row.arm.model, paramsText: row.arm.paramsText })),
     );
     setPlan(null);
+    // U3 任务 3.3（design D4）：内容变化使本次副作用许可失效——许可只用于当次构造的批，
+    // 改了臂/参数必须重新勾选后再预览/执行（与 result 编辑的副本授权同规则）。
+    setAllowSideEffects(false);
   };
 
   const updateArm = (index: number, patch: Partial<ArmDraft>): void => {
@@ -840,14 +858,22 @@ function ModelAbEditor({
   const doPreview = (): void => {
     if (!canSubmit) return;
     setExecuted(null);
+    // U3 任务 3.3：记录**发起预览时的批次修订**（请求代次）——响应按它校验
+    const requestedRevision = draftRevision;
     void modelAb(run.meta.id, guard.arms, true).then((result) => {
-      if (result !== null) setPlan(result);
+      if (result === null) return;
+      // U3 任务 3.3：守卫迟到预览——响应到达时批次修订已推进（或批次已被放弃）
+      // ⇒ 不安装旧计划（不给修改后的批次安装旧校验结论）。
+      const currentRevision = useAppStore.getState().modelAbDraftOf(draftKey)?.revision ?? null;
+      if (currentRevision !== requestedRevision) return;
+      setPlan(result);
+      setPlanRevision(requestedRevision);
     });
   };
 
   const doExecute = (): void => {
-    if (!canSubmit || plan === null) return;
-    const summary = plan.plan
+    if (!canSubmit || activePlan === null) return;
+    const summary = activePlan.plan
       .map((arm) => {
         const params =
           Object.keys(arm.params).length > 0
@@ -865,8 +891,8 @@ function ModelAbEditor({
       })
       .join("\n");
     const confirmed = window.confirm(
-      `确认执行模型 A/B 实验？\n\n· 将按 ${plan.plan.length} 个臂真实调用 ${settings?.baseURL ?? "provider"} 并产生费用\n· 各臂顺序执行，单臂失败不影响其它臂\n${summary}\n${
-        plan.sideEffectsAllowed
+      `确认执行模型 A/B 实验？\n\n· 将按 ${activePlan.plan.length} 个臂真实调用 ${settings?.baseURL ?? "provider"} 并产生费用\n· 各臂顺序执行，单臂失败不影响其它臂\n${summary}\n${
+        activePlan.sideEffectsAllowed
           ? "· ⚠ 含副作用的工具将被真实执行：外部状态可能已被前一臂改变\n"
           : ""
       }· 父 run 只作对照，不会被修改`,
@@ -903,9 +929,9 @@ function ModelAbEditor({
             <div className="mb-1 text-[10px] font-medium text-gray-500">
               原值（父本基线臂 · 只读）
             </div>
-            {baselineArms.map((arm, i) => (
-              <div key={i} className="font-code text-[11px] leading-4 text-gray-600">
-                臂 {i + 1}：{arm.model}
+            {baselineRows.map(({ id, no, arm }) => (
+              <div key={id} className="font-code text-[11px] leading-4 text-gray-600">
+                臂 {no}：{arm.model}
                 {arm.paramsText === "" ? "（沿用父 params）" : ` · ${arm.paramsText}`}
               </div>
             ))}
@@ -1034,16 +1060,16 @@ function ModelAbEditor({
         </div>
       ) : null}
 
-      {plan !== null ? (
+      {activePlan !== null ? (
         <div className="mt-2 rounded border border-sky-200 bg-white px-2 py-1.5">
           <div className="mb-1 flex items-center gap-2 text-[10px] text-gray-500">
             <span className="font-semibold text-sky-800">校验通过 · 执行计划</span>
-            <span className="font-code">实验组 {plan.experimentId}</span>
+            <span className="font-code">实验组 {activePlan.experimentId}</span>
           </div>
-          {plan.plan.map((arm) => (
+          {activePlan.plan.map((arm) => (
             <ArmPlanRow key={arm.index} arm={arm} />
           ))}
-          {plan.sideEffectsAllowed ? (
+          {activePlan.sideEffectsAllowed ? (
             <div className="mt-1 text-[10px] leading-4 text-amber-700">
               ⚠ 副作用工具将被真实执行（顺序执行，外部状态可能已被前一臂改变）——本次实验将留痕。
             </div>
@@ -1092,16 +1118,16 @@ function ModelAbEditor({
           disabled={inProgress || !canSubmit}
           className="rounded border border-sky-500 px-2 py-1 text-[11px] text-sky-700 hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          {plan !== null ? "重新校验" : "校验并预览计划"}
+          {activePlan !== null ? "重新校验" : "校验并预览计划"}
         </button>
         <button
           type="button"
           onClick={doExecute}
-          disabled={inProgress || !canSubmit || plan === null}
+          disabled={inProgress || !canSubmit || activePlan === null}
           className="rounded bg-sky-600 px-3 py-1 text-[11px] text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-40"
-          title={plan === null ? "先校验并预览计划" : undefined}
+          title={activePlan === null ? "先校验并预览计划" : undefined}
         >
-          确认执行（{plan?.plan.length ?? rows.length} 次真实调用）
+          确认执行（{activePlan?.plan.length ?? rows.length} 次真实调用）
         </button>
       </div>
     </div>
