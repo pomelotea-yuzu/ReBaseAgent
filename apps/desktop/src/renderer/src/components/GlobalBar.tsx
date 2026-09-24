@@ -13,9 +13,12 @@
  *    名称必须直接可见（纯图标形态留给 4.5 的密集工具条）。
  */
 
-import { Activity, GitBranch, Plus, Radio, Settings, Waypoints } from "lucide-react";
+import { Activity, GitBranch, Plus, Radio, ScrollText, Settings, Waypoints } from "lucide-react";
 import type { ReactNode } from "react";
+import { useMemo, useState } from "react";
+import { deriveDraftList } from "../lib/draft-list";
 import { useAppStore } from "../store";
+import { DraftListPanel } from "./DraftListPanel";
 import { FOCUS_RING } from "./IconButton";
 
 /** 视图切换按钮（轨迹 / 分支树）：两者互斥，用 aria-pressed 表达当前态 */
@@ -111,6 +114,91 @@ function StatusIndicators({ onOpenSettings }: { onOpenSettings: () => void }): R
   );
 }
 
+/**
+ * U3 任务 2.5：会话草稿入口（全局）。
+ *
+ * 与步骤页的「本运行草稿列表」共用同一份派生（`deriveDraftList` 全量、不按 run
+ * 过滤）与同一个 `DraftListPanel` 视图——design D2「两个入口复用同一列表视图和
+ * 选择逻辑」。保证源 run 消失后仍能从会话级入口复制/放弃草稿内容。
+ */
+function SessionDraftsEntry() {
+  const drafts = useAppStore((s) => s.drafts);
+  const openDraftAt = useAppStore((s) => s.openDraftAt);
+  const discardCallDraft = useAppStore((s) => s.discardCallDraft);
+  const discardModelAbDraft = useAppStore((s) => s.discardModelAbDraft);
+  const discardCreateRunDraft = useAppStore((s) => s.discardCreateRunDraft);
+  const items = useMemo(() => deriveDraftList(drafts), [drafts]);
+  const dirtyCount = items.filter((item) => item.dirty).length;
+  const [panelOpen, setPanelOpen] = useState(false);
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        aria-expanded={panelOpen ? "true" : undefined}
+        onClick={() => setPanelOpen((prev) => !prev)}
+        title="本会话的全部调试草稿（不落盘；关闭应用即清空）"
+        className={`inline-flex cursor-pointer items-center gap-1.5 rounded border px-2 py-0.5 text-reading-meta ${
+          dirtyCount > 0
+            ? "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
+            : "border-gray-300 text-gray-700 hover:bg-gray-50"
+        } ${FOCUS_RING}`}
+      >
+        <ScrollText size={12} aria-hidden="true" focusable="false" role="presentation" />
+        会话草稿{dirtyCount > 0 ? ` · ${dirtyCount}` : ""}
+      </button>
+      {panelOpen ? (
+        <div className="absolute right-0 top-full z-40 mt-1 max-h-80 w-96 max-w-[90vw] overflow-y-auto rounded border border-gray-200 bg-white p-2 shadow-xl">
+          <div className="mb-1 flex items-center justify-between">
+            <span className="text-[11px] font-semibold text-gray-700">会话草稿</span>
+            <button
+              type="button"
+              onClick={() => setPanelOpen(false)}
+              className={`rounded px-1 text-[11px] text-gray-400 hover:bg-gray-100 ${FOCUS_RING}`}
+              aria-label="关闭草稿列表"
+            >
+              ✕
+            </button>
+          </div>
+          <DraftListPanel
+            items={items}
+            emptyHint="本会话暂无草稿：编辑重跑 / prompt / messages / A-B 或填写创建表单后出现在这里。"
+            onOpen={(item) => {
+              setPanelOpen(false);
+              void openDraftAt({ runId: item.runId, spanId: item.spanId, field: item.field });
+            }}
+            onCopy={(item) => {
+              void navigator.clipboard.writeText(item.copyText);
+            }}
+            onDiscard={(item) => {
+              if (
+                !window.confirm(
+                  `放弃「${item.title}」的草稿？${item.field === "create" ? "" : `（run ${item.runId}${item.spanId !== null ? ` · ${item.spanId}` : ""}）`}\n内容将被删除，不可撤销。`,
+                )
+              ) {
+                return;
+              }
+              if (item.field === "create") {
+                discardCreateRunDraft(item.revision);
+                return;
+              }
+              if (item.spanId === null) return;
+              if (item.field === "model_ab") {
+                discardModelAbDraft({ runId: item.runId, spanId: item.spanId }, item.revision);
+                return;
+              }
+              discardCallDraft(
+                { runId: item.runId, spanId: item.spanId, field: item.field },
+                item.revision,
+              );
+            }}
+          />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function GlobalBar({ onOpenSettings }: { onOpenSettings: () => void }) {
   const setCreateDialogOpen = useAppStore((s) => s.setCreateDialogOpen);
   const setSettingsSection = useAppStore((s) => s.setSettingsSection);
@@ -131,6 +219,7 @@ export function GlobalBar({ onOpenSettings }: { onOpenSettings: () => void }) {
         {detail !== null ? (
           <span className="font-code text-reading-meta text-gray-400">{detail.meta.id}</span>
         ) : null}
+        <SessionDraftsEntry />
         <button
           type="button"
           onClick={() => setCreateDialogOpen(true)}

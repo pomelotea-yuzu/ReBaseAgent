@@ -2,7 +2,7 @@ import type { SpanLine } from "@rebaseagent/trace-sdk";
 import { buildSpanTree, findStepLlm, spanDurationMs } from "@shared/derive";
 import type { SpanNode } from "@shared/derive";
 import type { ForkCapabilityResult, ModelAbResult, ModelArmPlan, RunDetail } from "@shared/ipc";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { presentCacheHit, presentCacheMiss } from "../lib/cache-view";
 import type { IoView, StepDetailView as StepDetailViewData } from "../lib/call-detail-view";
 import {
@@ -12,8 +12,13 @@ import {
   resolveIoView,
 } from "../lib/call-detail-view";
 import { newArmRowKey } from "../lib/debugging-drafts";
-import type { CallDraftKey, ModelAbDraftKey } from "../lib/debugging-drafts";
-import { captureCallDraftSource } from "../lib/draft-source";
+import type { CallDraftField, CallDraftKey, ModelAbDraftKey } from "../lib/debugging-drafts";
+import { deriveDraftList, draftBadgeForSpan } from "../lib/draft-list";
+import {
+  captureCallDraftSource,
+  revalidateCallDraftSource,
+  revalidateModelAbDraftSource,
+} from "../lib/draft-source";
 import type { ForkCacheHint } from "../lib/fork-cache-hint";
 import { forkCacheHint } from "../lib/fork-cache-hint";
 import { formatDuration, prettyJson } from "../lib/format";
@@ -36,6 +41,8 @@ import { readingScrollOf } from "../lib/workspace-selection";
 import { useAppStore } from "../store";
 import { BudgetMap } from "./BudgetMap";
 import { DetailNotices } from "./DetailNotices";
+import { DraftListPanel } from "./DraftListPanel";
+import { FOCUS_RING } from "./IconButton";
 import { LongText, isLongTextExpanded, toggleLongTextExpanded } from "./LongText";
 import { MonacoCodeEditor } from "./MonacoEditor";
 
@@ -119,6 +126,107 @@ export function ForkCacheHintView({ hint }: { hint: ForkCacheHint | null }) {
   );
 }
 
+/**
+ * U3 任务 2.5：草稿来源失效视图（design D2「保留原身份和草稿供复制/放弃并阻止执行」）。
+ *
+ * 四个编辑器共用：判定来自任务 1.4 的重验函数（缺失/损坏/改变/资格失效都到这）；
+ * 提交闸门由调用方叠加 `verdict.kind === "eligible"`，本组件只负责展示与两个动作。
+ * 放弃走编辑器各自的 CAS（确认 + 按当前修订）；放弃确认对话框的模态化归任务 5.2。
+ */
+function DraftSourceBanner({
+  reason,
+  copyText,
+  onDiscard,
+}: {
+  reason: string;
+  copyText: string;
+  onDiscard: () => void;
+}) {
+  return (
+    <div
+      data-draft-source-blocked="true"
+      className="mt-1 rounded border border-amber-300 bg-amber-50 px-2 py-1.5"
+    >
+      <div className="text-[11px] leading-4 text-amber-900">来源失效，已禁止执行：{reason}</div>
+      <div className="mt-1 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => void navigator.clipboard.writeText(copyText)}
+          className={`rounded border border-amber-400 px-2 py-0.5 text-[11px] text-amber-800 hover:bg-amber-100 ${FOCUS_RING}`}
+        >
+          复制草稿内容
+        </button>
+        <button
+          type="button"
+          onClick={onDiscard}
+          className={`rounded border border-amber-400 px-2 py-0.5 text-[11px] text-amber-800 hover:bg-amber-100 ${FOCUS_RING}`}
+        >
+          放弃草稿
+        </button>
+        <span className="text-[10px] text-amber-700">
+          草稿内容保留到明确放弃；重新校验通过后自动恢复执行资格
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * U3 任务 2.5：步骤页的「本运行草稿列表」（design D2）。
+ *
+ * 数据来自与全局会话入口**同一份**派生（`deriveDraftList` + runId 过滤）与
+ * 同一个 `DraftListPanel` 视图；无草稿时整节不渲染（不加噪音）。
+ */
+function RunDraftListSection({ runId }: { runId: string }) {
+  const drafts = useAppStore((s) => s.drafts);
+  const openDraftAt = useAppStore((s) => s.openDraftAt);
+  const discardCallDraft = useAppStore((s) => s.discardCallDraft);
+  const discardModelAbDraft = useAppStore((s) => s.discardModelAbDraft);
+  const items = useMemo(() => deriveDraftList(drafts, { runId }), [drafts, runId]);
+  if (items.length === 0) return null;
+  return (
+    <section
+      data-run-draft-list="true"
+      className="border-b border-gray-200 bg-gray-50/60 px-4 py-2"
+    >
+      <div className="mb-1 text-[11px] font-semibold text-gray-600">
+        本运行草稿（{items.length}）
+      </div>
+      <DraftListPanel
+        items={items}
+        emptyHint="本运行暂无草稿"
+        onOpen={(item) => {
+          void openDraftAt({ runId: item.runId, spanId: item.spanId, field: item.field });
+        }}
+        onCopy={(item) => {
+          void navigator.clipboard.writeText(item.copyText);
+        }}
+        onDiscard={(item) => {
+          if (item.field === "create") return; // 本运行列表不含创建草稿（防御）
+          if (
+            !window.confirm(
+              `放弃「${item.title}」的草稿？（run ${item.runId}${item.spanId !== null ? ` · ${item.spanId}` : ""}）\n内容将被删除，不可撤销。`,
+            )
+          ) {
+            return;
+          }
+          if (item.field === "model_ab") {
+            if (item.spanId !== null) {
+              discardModelAbDraft({ runId: item.runId, spanId: item.spanId }, item.revision);
+            }
+            return;
+          }
+          if (item.spanId === null) return;
+          discardCallDraft(
+            { runId: item.runId, spanId: item.spanId, field: item.field },
+            item.revision,
+          );
+        }}
+      />
+    </section>
+  );
+}
+
 /** 从请求消息中取首条字符串 system / user 消息内容（与 replay 层定位规则同源） */
 function startupContents(messages: ReadonlyArray<{ role: unknown; content?: unknown }>): {
   system: string | null;
@@ -173,16 +281,19 @@ function PromptForkEditor({
    * - 源基线（任务 1.4）随条目落库，恢复重验在 2.5/2.6 接入；
    * - 关闭编辑与设置往返不删草稿（关闭 ≠ 放弃）。
    */
-  const draftSource = captureCallDraftSource(run, span);
+  const draftSource = useMemo(() => captureCallDraftSource(run, span), [run, span]);
   const draftKeyOf = (f: PromptForkField): CallDraftKey => ({
     runId: run.meta.id,
     spanId: span.id,
     field: f,
   });
-  const ensureFieldDraft = (f: PromptForkField): void => {
-    const baseline = f === "system_prompt" ? (originalSystem ?? "") : (originalUser ?? "");
-    ensureCallDraft(draftKeyOf(f), baseline, draftSource);
-  };
+  const ensureFieldDraft = useCallback(
+    (f: PromptForkField): void => {
+      const baseline = f === "system_prompt" ? (originalSystem ?? "") : (originalUser ?? "");
+      ensureCallDraft({ runId: run.meta.id, spanId: span.id, field: f }, baseline, draftSource);
+    },
+    [originalSystem, originalUser, ensureCallDraft, run.meta.id, span.id, draftSource],
+  );
 
   const inProgress = forking === "in_progress";
   const original = field === "system_prompt" ? originalSystem : originalUser;
@@ -190,6 +301,34 @@ function PromptForkEditor({
   // 草稿已登记 ⇒ 读该字段草稿；未登记（尚未打开/切换到）⇒ 退回该字段原值
   const value = activeEntry !== undefined ? activeEntry.text : (original ?? "");
   const unchanged = original === null || value === original;
+
+  // U3 任务 2.5：草稿列表的定位目标到达即打开对应字段（ensure 幂等；重开不覆盖）
+  const pending = useAppStore((s) => s.pendingDraftTarget);
+  const consumeDraftTarget = useAppStore((s) => s.consumeDraftTarget);
+  const discardCallDraft = useAppStore((s) => s.discardCallDraft);
+  useEffect(() => {
+    if (pending === null) return;
+    if (pending.runId !== run.meta.id || pending.spanId !== span.id) return;
+    if (pending.field !== "system_prompt" && pending.field !== "user_message") return;
+    ensureFieldDraft(pending.field);
+    setField(pending.field);
+    setOpen(true);
+    consumeDraftTarget();
+  }, [pending, consumeDraftTarget, ensureFieldDraft, run, span]);
+
+  // U3 任务 2.5/1.4：恢复重验——源缺失/损坏/改变/资格失效 ⇒ 保留草稿、禁止执行
+  const sourceVerdict =
+    activeEntry === undefined
+      ? null
+      : revalidateCallDraftSource({
+          runId: run.meta.id,
+          spanId: span.id,
+          field,
+          baseline: activeEntry.baseline,
+          source: activeEntry.source,
+          detail: run,
+        });
+  const sourceBlocked = sourceVerdict?.kind === "blocked" ? sourceVerdict : null;
 
   const guard = promptForkGuard({
     field,
@@ -199,7 +338,8 @@ function PromptForkEditor({
     unchanged,
   });
   // 提交闸门 = 既有单步条件 ∧ 源记录可用（源不可用时"能编辑"不等于"能执行"）
-  const canSubmit = guard.canSubmit && sourceExecutable;
+  //           ∧ 恢复重验通过（U3 2.5：源缺失/损坏/改变/资格失效都拦）
+  const canSubmit = guard.canSubmit && sourceExecutable && sourceBlocked === null;
   const submitBlocked = !guard.canSubmit
     ? guard.reason
     : !sourceExecutable
@@ -328,6 +468,27 @@ function PromptForkEditor({
 
       {submitBlocked !== null ? (
         <div className="mt-1 text-[11px] text-amber-700">{submitBlocked}</div>
+      ) : null}
+
+      {sourceBlocked !== null && activeEntry !== undefined ? (
+        <DraftSourceBanner
+          reason={sourceBlocked.reason}
+          copyText={activeEntry.text}
+          onDiscard={() => {
+            if (activeEntry === undefined) return;
+            if (
+              !window.confirm(
+                `放弃这份 prompt 草稿（${field === "system_prompt" ? "system prompt" : "user message"}）？内容将被删除（不可撤销）。`,
+              )
+            ) {
+              return;
+            }
+            if (discardCallDraft(draftKeyOf(field), activeEntry.revision)) {
+              resetFork();
+              setOpen(false);
+            }
+          }}
+        />
       ) : null}
 
       {forking === "error" ? (
@@ -482,18 +643,58 @@ function ModelAbEditor({
    * - 预览 / 执行 / 实验结果**不隐式清理批次**（只动本地 plan/executed）；
    * - 放弃整个批次归任务 2.6（CAS 确认）。
    */
-  const draftKey: ModelAbDraftKey = { runId: run.meta.id, spanId: span.id };
+  const draftKey: ModelAbDraftKey = useMemo(
+    () => ({ runId: run.meta.id, spanId: span.id }),
+    [run.meta.id, span.id],
+  );
   const draftEntry = useAppStore((s) => s.modelAbDraftOf(draftKey));
-  const baselineArms: ReadonlyArray<{ model: string; paramsText: string }> = [
-    { model: parentModel, paramsText: "" },
-    { model: parentModel, paramsText: "" },
-  ];
+  const baselineArms: ReadonlyArray<{ model: string; paramsText: string }> = useMemo(
+    () => [
+      { model: parentModel, paramsText: "" },
+      { model: parentModel, paramsText: "" },
+    ],
+    [parentModel],
+  );
   const rows = (draftEntry?.rows ?? []).map((row) => ({
     key: row.key,
     arm: { model: row.model, paramsText: row.paramsText },
   }));
 
   const inProgress = modelAbInFlight;
+
+  // U3 任务 2.5：草稿列表的定位目标到达即打开（ensure 幂等；重开不覆盖已有批次；
+  // 临时计划/许可照旧清理——授权与计划不随草稿恢复）
+  const pending = useAppStore((s) => s.pendingDraftTarget);
+  const consumeDraftTarget = useAppStore((s) => s.consumeDraftTarget);
+  const discardModelAbDraft = useAppStore((s) => s.discardModelAbDraft);
+  useEffect(() => {
+    if (pending === null) return;
+    if (
+      pending.runId !== run.meta.id ||
+      pending.spanId !== span.id ||
+      pending.field !== "model_ab"
+    ) {
+      return;
+    }
+    ensureModelAbDraft(draftKey, baselineArms, captureCallDraftSource(run, span));
+    setExecuted(null);
+    setPlan(null);
+    setAllowSideEffects(false);
+    setOpen(true);
+    consumeDraftTarget();
+  }, [pending, consumeDraftTarget, ensureModelAbDraft, draftKey, run, span, baselineArms]);
+
+  // U3 任务 2.5/1.4：恢复重验——源缺失/损坏/改变/资格失效 ⇒ 保留批次、禁止执行
+  const sourceVerdict =
+    draftEntry === undefined
+      ? null
+      : revalidateModelAbDraftSource({
+          runId: run.meta.id,
+          spanId: span.id,
+          source: draftEntry.source,
+          detail: run,
+        });
+  const sourceBlocked = sourceVerdict?.kind === "blocked" ? sourceVerdict : null;
 
   const guard = modelAbGuard({
     settingsConfigured: settings?.configured === true,
@@ -504,7 +705,8 @@ function ModelAbEditor({
     arms: rows.map((row) => row.arm),
   });
   // 提交闸门 = 既有 guard ∧ 源记录可用（dry-run 也依赖父记录，一并拦截）
-  const canSubmit = guard.canSubmit && sourceExecutable;
+  //           ∧ 恢复重验通过（U3 2.5：源缺失/损坏/改变/资格失效都拦）
+  const canSubmit = guard.canSubmit && sourceExecutable && sourceBlocked === null;
   const submitBlocked = !guard.canSubmit
     ? guard.reason
     : !sourceExecutable
@@ -697,6 +899,25 @@ function ModelAbEditor({
         <div className="mt-2 text-[11px] text-amber-700">{submitBlocked}</div>
       ) : null}
 
+      {sourceBlocked !== null && draftEntry !== undefined ? (
+        <DraftSourceBanner
+          reason={sourceBlocked.reason}
+          copyText={JSON.stringify(
+            draftEntry.rows.map((r) => ({ model: r.model, paramsText: r.paramsText })),
+          )}
+          onDiscard={() => {
+            if (draftEntry === undefined) return;
+            if (!window.confirm("放弃这个模型 A/B 批次草稿？全部臂内容将被删除（不可撤销）。")) {
+              return;
+            }
+            if (discardModelAbDraft(draftKey, draftEntry.revision)) {
+              resetModelAb();
+              setOpen(false);
+            }
+          }}
+        />
+      ) : null}
+
       {modelAbInFlight ? <div className="mt-2 text-[11px] text-sky-600">处理中…</div> : null}
       {modelAbError !== null ? (
         <div className="mt-2 text-[11px] text-red-700">
@@ -828,6 +1049,13 @@ function LlmCallDetail({
           ? "（无正文，仅有思维链）"
           : "（响应为空正文）";
 
+  // U3 任务 2.5：该调用的会话草稿标记（徽章数据从草稿仓库派生，useMemo 保引用稳定）
+  const drafts = useAppStore((s) => s.drafts);
+  const llmDraftBadge = useMemo(
+    () => (runId === null ? null : draftBadgeForSpan(drafts, runId, span.id)),
+    [drafts, runId, span.id],
+  );
+
   return (
     <LlmCallDetailView
       span={span}
@@ -838,6 +1066,7 @@ function LlmCallDetail({
       }}
       emptyContentHint={emptyContentHint}
       longTextProps={longTextProps}
+      draftBadge={llmDraftBadge}
     >
       {(() => {
         // prompt fork 入口：仅限首次 llm.call（启动上下文的事实源）。
@@ -907,6 +1136,7 @@ export function LlmCallDetailView({
   onIo,
   emptyContentHint,
   longTextProps,
+  draftBadge,
   children,
 }: {
   span: Extract<SpanLine, { kind: "llm.call" }>;
@@ -914,6 +1144,8 @@ export function LlmCallDetailView({
   onIo: (next: IoView) => void;
   emptyContentHint: string;
   longTextProps: (key: string) => { expanded: boolean; onToggle: (next: boolean) => void };
+  /** U3 任务 2.5：该调用的会话草稿标记（null = 无草稿） */
+  draftBadge?: { label: string; dirty: boolean } | null;
   /** fork / 重发编辑器（由壳提供；纯展示部分不碰它们） */
   children?: React.ReactNode;
 }) {
@@ -929,6 +1161,9 @@ export function LlmCallDetailView({
             ["首 token 延迟", `${response.ttft_ms}ms`],
             ["耗时", formatDuration(spanDurationMs(span))],
             ["工具调用", String(response.tool_calls.length)],
+            ...(draftBadge !== null && draftBadge !== undefined
+              ? ([["草稿", draftBadge.label]] as Array<[string, string]>)
+              : []),
           ]}
         />
         <CacheHitRow usage={response.usage} />
@@ -1078,7 +1313,10 @@ function MessagesForkEditor({
    * U3 任务 2.2：messages 草稿（无损字符串——非法 JSON / 空串原样暂存，解析只在提交边界）。
    * 打开经 ensure 登记基线（重开不覆盖已有输入）；关闭/设置往返不删草稿。
    */
-  const draftKey: CallDraftKey = { runId: run.meta.id, spanId: span.id, field: "messages" };
+  const draftKey: CallDraftKey = useMemo(
+    () => ({ runId: run.meta.id, spanId: span.id, field: "messages" }),
+    [run.meta.id, span.id],
+  );
   const draftEntry = useAppStore((s) => s.callDraftOf(draftKey));
   const [parseError, setParseError] = useState<string | null>(null);
   // 源记录不可用时禁用依赖它的执行（任务 3.5）
@@ -1088,6 +1326,39 @@ function MessagesForkEditor({
   const messagesBaseline = prettyJson(span.request.messages);
   const value = draftEntry !== undefined ? draftEntry.text : messagesBaseline;
   const unchanged = value === messagesBaseline;
+
+  // U3 任务 2.5：草稿列表的定位目标到达即打开（ensure 幂等；重开不覆盖已有输入）
+  const pending = useAppStore((s) => s.pendingDraftTarget);
+  const consumeDraftTarget = useAppStore((s) => s.consumeDraftTarget);
+  const discardCallDraft = useAppStore((s) => s.discardCallDraft);
+  useEffect(() => {
+    if (pending === null) return;
+    if (
+      pending.runId !== run.meta.id ||
+      pending.spanId !== span.id ||
+      pending.field !== "messages"
+    ) {
+      return;
+    }
+    ensureCallDraft(draftKey, messagesBaseline, captureCallDraftSource(run, span));
+    setParseError(null);
+    setOpen(true);
+    consumeDraftTarget();
+  }, [pending, consumeDraftTarget, ensureCallDraft, draftKey, run, span, messagesBaseline]);
+
+  // U3 任务 2.5/1.4：恢复重验——源缺失/损坏/改变/资格失效 ⇒ 保留草稿、禁止执行
+  const sourceVerdict =
+    draftEntry === undefined
+      ? null
+      : revalidateCallDraftSource({
+          runId: run.meta.id,
+          spanId: span.id,
+          field: "messages",
+          baseline: draftEntry.baseline,
+          source: draftEntry.source,
+          detail: run,
+        });
+  const sourceBlocked = sourceVerdict?.kind === "blocked" ? sourceVerdict : null;
 
   if (!open) {
     return (
@@ -1112,6 +1383,11 @@ function MessagesForkEditor({
     // 源记录不可用：旧内容可见但不得据此获得执行资格（提交口兜底，不依赖按钮禁用）
     if (!sourceExecutable) {
       setParseError("源记录不可用：重新读取并校验通过前不能重发");
+      return;
+    }
+    // U3 任务 2.5：恢复重验未通过同样在提交口兜底
+    if (sourceBlocked !== null) {
+      setParseError(`来源失效，已禁止重发：${sourceBlocked.reason}`);
       return;
     }
     // 提交时解析回结构体；解析失败可见报错，不发请求
@@ -1177,6 +1453,21 @@ function MessagesForkEditor({
         </div>
       ) : null}
 
+      {sourceBlocked !== null && draftEntry !== undefined ? (
+        <DraftSourceBanner
+          reason={sourceBlocked.reason}
+          copyText={draftEntry.text}
+          onDiscard={() => {
+            if (draftEntry === undefined) return;
+            if (!window.confirm("放弃这份 messages 重发草稿？内容将被删除（不可撤销）。")) return;
+            if (discardCallDraft(draftKey, draftEntry.revision)) {
+              resetFork();
+              setOpen(false);
+            }
+          }}
+        />
+      ) : null}
+
       {forking === "error" ? (
         <div className="mt-1 text-[11px] text-red-700">
           {forkError}
@@ -1202,7 +1493,13 @@ function MessagesForkEditor({
         <button
           type="button"
           onClick={doResend}
-          disabled={inProgress || unchanged || proxy?.running !== true || !sourceExecutable}
+          disabled={
+            inProgress ||
+            unchanged ||
+            proxy?.running !== true ||
+            !sourceExecutable ||
+            sourceBlocked !== null
+          }
           title={
             !sourceExecutable
               ? "源记录不可用：重新读取并校验通过前不能重发"
@@ -1263,6 +1560,9 @@ function ForkEditor({
   const settings = useAppStore((s) => s.settings);
   const ensureCallDraft = useAppStore((s) => s.ensureCallDraft);
   const writeCallDraftText = useAppStore((s) => s.writeCallDraftText);
+  const discardCallDraft = useAppStore((s) => s.discardCallDraft);
+  const pending = useAppStore((s) => s.pendingDraftTarget);
+  const consumeDraftTarget = useAppStore((s) => s.consumeDraftTarget);
   const [open, setOpen] = useState(false);
   /**
    * U3 任务 2.1：输入改读写 store 草稿（普通/隔离共用同一 key 与保留规则——
@@ -1271,7 +1571,10 @@ function ForkEditor({
    * - 重开经 `ensureCallDraft` 登记基线：已存在条目原样保留，**不覆盖已有输入**；
    * - 源基线（任务 1.4 `captureCallDraftSource`）随条目落库，恢复重验在 2.5/2.6 接入。
    */
-  const draftKey: CallDraftKey = { runId: run.meta.id, spanId: span.id, field: "result" };
+  const draftKey: CallDraftKey = useMemo(
+    () => ({ runId: run.meta.id, spanId: span.id, field: "result" }),
+    [run.meta.id, span.id],
+  );
   const draftEntry = useAppStore((s) => s.callDraftOf(draftKey));
 
   // 隔离续跑的本次确认状态：全部是**组件局部**状态——每次打开对话框重新开始，
@@ -1302,6 +1605,31 @@ function ForkEditor({
   const value = draftEntry !== undefined ? draftEntry.text : original;
   const unchanged = value === original;
   const inProgress = forking === "in_progress";
+
+  // U3 任务 2.5：草稿列表的定位目标到达即打开（ensure 幂等；重开不覆盖已有输入）
+  useEffect(() => {
+    if (pending === null) return;
+    if (pending.runId !== run.meta.id || pending.spanId !== span.id || pending.field !== "result") {
+      return;
+    }
+    ensureCallDraft(draftKey, toolMessageText(span), captureCallDraftSource(run, span));
+    setOpen(true);
+    consumeDraftTarget();
+  }, [pending, consumeDraftTarget, ensureCallDraft, draftKey, run, span]);
+
+  // U3 任务 2.5/1.4：恢复重验——源缺失/损坏/改变/资格失效 ⇒ 保留草稿、禁止执行
+  const sourceVerdict =
+    draftEntry === undefined
+      ? null
+      : revalidateCallDraftSource({
+          runId: run.meta.id,
+          spanId: span.id,
+          field: "result",
+          baseline: draftEntry.baseline,
+          source: draftEntry.source,
+          detail: run,
+        });
+  const sourceBlocked = sourceVerdict?.kind === "blocked" ? sourceVerdict : null;
   // 语言依据原始文本初探一次（避免编辑过程中语言选项来回闪变）
   const language = useMemo(() => detectResultLanguage(original), [original]);
 
@@ -1333,8 +1661,9 @@ function ForkEditor({
   // 源记录不可用时禁用依赖它的执行（任务 3.5）：先决条件同样拦住"预检"这个只读动作，
   // 因为它已经把源记录当成可执行父本（源都不在了，预检结论没有意义）。
   const sourceExecutable = useAppStore((s) => s.canExecuteFromSource)();
-  const canFork = canSubmit && sourceExecutable;
-  const checkAllowed = check.ok && sourceExecutable;
+  // U3 任务 2.5：恢复重验未通过（源缺失/损坏/改变/资格失效）⇒ 一并拦提交与预检
+  const canFork = canSubmit && sourceExecutable && sourceBlocked === null;
+  const checkAllowed = check.ok && sourceExecutable && sourceBlocked === null;
   // 提示语：源不可用优先（它同时也会让 check 失配，但原因不同，不能互相冒充）
   const checkBlockReason = !sourceExecutable
     ? "源记录不可用：重新读取并校验通过前不能发起新执行"
@@ -1441,6 +1770,21 @@ function ForkEditor({
       ) : null}
 
       <ForkCacheHintView hint={cacheHint} />
+
+      {sourceBlocked !== null && draftEntry !== undefined ? (
+        <DraftSourceBanner
+          reason={sourceBlocked.reason}
+          copyText={draftEntry.text}
+          onDiscard={() => {
+            if (draftEntry === undefined) return;
+            if (!window.confirm("放弃这份工具结果草稿？内容将被删除（不可撤销）。")) return;
+            if (discardCallDraft(draftKey, draftEntry.revision)) {
+              resetLocal();
+              setOpen(false);
+            }
+          }}
+        />
+      ) : null}
 
       {isolated ? (
         <div className="mt-2 rounded border border-violet-200 bg-white px-2 py-1.5">
@@ -1599,6 +1943,12 @@ function ToolInvokeDetail({
       : s.readingOf(toolRunId).calls[span.id]?.expanded,
   );
   const setToolCallReading = useAppStore((s) => s.setCallReading);
+  // U3 任务 2.5：该调用的会话草稿标记（徽章数据从草稿仓库派生，useMemo 保引用稳定）
+  const drafts = useAppStore((s) => s.drafts);
+  const toolDraftBadge = useMemo(
+    () => (toolRunId === null ? null : draftBadgeForSpan(drafts, toolRunId, span.id)),
+    [drafts, toolRunId, span.id],
+  );
   const toolLongTextProps = (key: string): { expanded: boolean; onToggle: () => void } => ({
     expanded: isLongTextExpanded(toolExpandedSections, key),
     onToggle: () => {
@@ -1610,7 +1960,7 @@ function ToolInvokeDetail({
   });
 
   return (
-    <ToolInvokeDetailView span={span} longTextProps={toolLongTextProps}>
+    <ToolInvokeDetailView span={span} longTextProps={toolLongTextProps} draftBadge={toolDraftBadge}>
       {canFork && run !== null ? (
         <ForkEditor span={span} run={run} />
       ) : span.kind === "tool.invoke" && run !== null && !leafOwned && run.chain.length > 1 ? (
@@ -1643,10 +1993,13 @@ function ToolInvokeDetail({
 export function ToolInvokeDetailView({
   span,
   longTextProps,
+  draftBadge,
   children,
 }: {
   span: Extract<SpanLine, { kind: "tool.invoke" }>;
   longTextProps: (key: string) => { expanded: boolean; onToggle: (next: boolean) => void };
+  /** U3 任务 2.5：该调用的会话草稿标记（null = 无草稿） */
+  draftBadge?: { label: string; dirty: boolean } | null;
   /** fork / 重跑编辑器（由壳提供） */
   children?: React.ReactNode;
 }) {
@@ -1658,6 +2011,9 @@ export function ToolInvokeDetailView({
             ["工具", span.tool],
             ["执行耗时", `${span.dur_ms}ms`],
             ["墙上耗时", formatDuration(spanDurationMs(span))],
+            ...(draftBadge !== null && draftBadge !== undefined
+              ? ([["草稿", draftBadge.label]] as Array<[string, string]>)
+              : []),
           ]}
         />
       </Section>
@@ -1896,6 +2252,7 @@ export function DetailPanel() {
   return (
     <section className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-white">
       <DetailNotices />
+      {selectedRunId !== null ? <RunDraftListSection runId={selectedRunId} /> : null}
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto pb-8" onScroll={handleScroll}>
         {detail !== null ? <BudgetMap key={detail.meta.id} detail={detail} /> : null}

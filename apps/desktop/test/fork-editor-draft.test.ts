@@ -54,11 +54,12 @@ describe("接线契约：ForkEditor 读写 store 草稿（任务 2.1）", () => 
     expect(auditForbiddenTokens(src, ["setValue", "useState(() =>"])).toEqual([]);
   });
 
-  it("编辑值从草稿条目派生（callDraftOf），收起/取消不删除草稿", () => {
+  it("编辑值从草稿条目派生（callDraftOf）；放弃只经失效视图的 CAS 确认，取消/收起不删草稿", () => {
     const src = forkEditorSource();
     expect(src).toContain("s.callDraftOf(draftKey)");
-    // 取消按钮只收 UI：本任务不接放弃（CAS 确认与放弃视图归任务 2.5/2.6）
-    expect(auditForbiddenTokens(src, ["discardCallDraft"])).toEqual([]);
+    // U3 2.5：放弃入口只存在于来源失效视图（确认 + 按当前修订 CAS）；取消/收起路径仍不删
+    expect(src).toContain("DraftSourceBanner");
+    expect(src).toContain("discardCallDraft(draftKey, draftEntry.revision)");
   });
 
   it("普通/隔离共用同一编辑器与同一草稿身份（isolated 分支在 ForkEditor 内）", () => {

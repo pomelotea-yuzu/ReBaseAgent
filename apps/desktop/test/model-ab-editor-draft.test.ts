@@ -61,14 +61,15 @@ describe("接线契约：ModelAbEditor 批次草稿（任务 2.4）", () => {
     expect(code).toContain("setPlan(null);");
   });
 
-  it("打开即清理临时计划与许可（授权不随草稿恢复）；预览/执行不隐式清理批次", () => {
+  it("打开即清理临时计划与许可（授权不随草稿恢复）；放弃只经失效视图 CAS，预览/执行不隐式清理批次", () => {
     const code = src();
     // 打开点击序列：复位本地临时态 + ensure 草稿
     expect(code).toContain("setExecuted(null);");
     expect(code).toContain("setPlan(null);");
     expect(code).toContain("setAllowSideEffects(false);");
-    // 本任务不接批次放弃（CAS 确认归 2.6）；预览/执行路径无任何草稿删除
-    expect(auditForbiddenTokens(code, ["discardModelAbDraft"])).toEqual([]);
+    // U3 2.5：放弃入口只在来源失效视图（CAS + 确认）；预览/执行路径无任何草稿删除
+    expect(code).toContain("DraftSourceBanner");
+    expect(code).toContain("discardModelAbDraft(draftKey, draftEntry.revision)");
   });
 });
 

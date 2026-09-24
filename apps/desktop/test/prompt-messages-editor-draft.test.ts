@@ -50,16 +50,22 @@ describe("接线契约：PromptForkEditor 两字段独立草稿（任务 2.2）"
 
   it("打开/切字段经 ensureFieldDraft 登记基线并捕获源基线；不再重置字段值", () => {
     const code = src();
-    expect(code).toContain("ensureCallDraft(draftKeyOf(f), baseline, draftSource)");
+    // U3 2.5：ensureFieldDraft 用 useCallback 稳定化（biome 依赖纪律），键按字段内联构造
+    expect(code).toContain("ensureFieldDraft = useCallback");
+    expect(code).toContain(
+      "ensureCallDraft({ runId: run.meta.id, spanId: span.id, field: f }, baseline, draftSource)",
+    );
     expect(code).toContain("captureCallDraftSource(run, span)");
     // 旧根因：switchField / 打开按钮把值重置回原值 ⇒ 字段切换丢输入、重开覆盖
     expect(auditForbiddenTokens(code, ["setValue"])).toEqual([]);
   });
 
-  it("沿用原字段校验（promptForkGuard）与取消不删草稿", () => {
+  it("沿用原字段校验（promptForkGuard）；放弃只经失效视图 CAS，取消/切换不删草稿", () => {
     const code = src();
     expect(code).toContain("promptForkGuard(");
-    expect(auditForbiddenTokens(code, ["discardCallDraft"])).toEqual([]);
+    // U3 2.5：放弃入口只在来源失效视图（CAS）；切字段/取消路径不删草稿
+    expect(code).toContain("DraftSourceBanner");
+    expect(code).toContain("discardCallDraft(draftKeyOf(field), activeEntry.revision)");
   });
 });
 
@@ -75,11 +81,13 @@ describe("接线契约：MessagesForkEditor 接入 messages 草稿（任务 2.2�
     expect(auditForbiddenTokens(code, ["setValue"])).toEqual([]);
   });
 
-  it("沿用提交边界解析（JSON.parse）与取消不删草稿", () => {
+  it("沿用提交边界解析（JSON.parse）；放弃只经失效视图 CAS，取消不删草稿", () => {
     const code = src();
     // 解析/校验只在提交边界进行：非法 JSON 在草稿里原样暂存
     expect(code).toContain("JSON.parse(value)");
-    expect(auditForbiddenTokens(code, ["discardCallDraft"])).toEqual([]);
+    // U3 2.5：放弃入口只在来源失效视图（CAS）；取消路径不删草稿
+    expect(code).toContain("DraftSourceBanner");
+    expect(code).toContain("discardCallDraft(draftKey, draftEntry.revision)");
   });
 });
 

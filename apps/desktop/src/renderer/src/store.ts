@@ -51,6 +51,7 @@ import type {
   ModelAbDraftKey,
 } from "./lib/debugging-drafts";
 import * as draftLib from "./lib/debugging-drafts";
+import type { DraftKind } from "./lib/draft-list";
 import { resolveReading } from "./lib/reading-resolve";
 import {
   defaultReadingState,
@@ -295,6 +296,24 @@ interface AppState {
    */
   createSourceRef: CreateSourceRef | null;
   setCreateSourceRef: (ref: CreateSourceRef | null) => void;
+
+  /**
+   * U3 任务 2.5：一次性草稿定位目标（草稿列表「定位」动作的载体，与 U2 的
+   * pendingFileTarget 同法）。由对应编辑器消费一次后经 `consumeDraftTarget` 清空；
+   * 定位失败（运行不可达 / span 不在详情）时保留——列表的复制/放弃仍可用。
+   */
+  pendingDraftTarget: { runId: string; spanId: string | null; field: DraftKind } | null;
+  /**
+   * 定位一个草稿条目：创建类 = 打开创建对话框（表单读草稿恢复）；
+   * 调用类 = 切到该运行（需要时）+ 步骤页签 + 选中该 span，pending 交编辑器消费。
+   */
+  openDraftAt: (target: {
+    runId: string;
+    spanId: string | null;
+    field: DraftKind;
+  }) => Promise<void>;
+  /** 编辑器消费定位目标后清空（一次性；旧目标不抢新页面） */
+  consumeDraftTarget: () => void;
 
   /**
    * 编辑某 tool.invoke 的 result 并重跑；成功刷新列表并自动选中新 run。
@@ -798,6 +817,30 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setCreateSourceRef(ref) {
     set({ createSourceRef: ref });
+  },
+
+  pendingDraftTarget: null,
+
+  async openDraftAt(target) {
+    // 创建草稿：定位 = 恢复创建表单（对话框挂载即 ensure/读取草稿）；
+    // 同时清掉可能残留的调用类 pending（一次性目标不跨页面残留）
+    if (target.field === "create") {
+      set({ pendingDraftTarget: null, createDialogOpen: true });
+      return;
+    }
+    set({ pendingDraftTarget: target });
+    if (get().selectedRunId !== target.runId) {
+      await get().selectRun(target.runId);
+    }
+    // 运行不可达（selectRun 失败）时 pending 保留：列表的复制/放弃仍可用（spec：详情失败仍能访问输入）
+    if (get().selectedRunId === target.runId) {
+      get().setReadingTab(target.runId, "steps");
+      if (target.spanId !== null) get().selectSpan(target.spanId);
+    }
+  },
+
+  consumeDraftTarget() {
+    set({ pendingDraftTarget: null });
   },
 
   async forkAt(parentRunId, atSpanId, value, execution) {
