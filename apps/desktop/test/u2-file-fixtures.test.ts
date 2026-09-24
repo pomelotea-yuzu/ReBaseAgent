@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { locateWorkspaceSnapshot, readWorkspaceFile } from "@rebaseagent/replay";
-import { readRun } from "@rebaseagent/trace-sdk";
+import { readRun, resolveBranch } from "@rebaseagent/trace-sdk";
 import { describe, expect, it } from "vitest";
 
 /**
@@ -612,6 +612,29 @@ describe("断言⑤ 附：无自有完成步骤的运行仍可读初始清单（
     // readRun 不抛 ⇒ 结构合法（v2 的 workspace / 快照 id 都照常，meta.workspace 仍在）
     expect(record.meta.workspace).toBeDefined();
     expect(record.meta.parent).toBe(manifest.关系.isolated.root);
+  });
+
+  /**
+   * ⚠️⚠️ **这条是 2026-09-24 验收阶段补的（D-2）**：上面几条都用 `readRun` 读**本文件**，
+   *    **不触发分支解析** ⇒ 标本里「`fork.at_span` 被设成等于 `resume_after_step`」这个非法形态
+   *    一路没被发现。而**经运行列表读取**这条真实路径（详情页）一定会走 `resolveBranch`，
+   *    该函数硬校验 `at_span` 必须是分叉轮内的**工具调用** ⇒ 标本会被直接拒绝（详情页打不开）。
+   *
+   *    这正是 5.5 实测发现的问题；5.5/5.6 的生成器当时已按正确形态另建标本并显式调 `resolveBranch` 自检，
+   *    1.1 的生成器直到本次才补齐。**本用例就是防止它再退回去**。
+   */
+  it("no-own-steps 标本能通过 resolveBranch 合并读取（fork.at_span 必须是该轮内的工具调用）", () => {
+    const dir = dataDir("brokenNoOwnSteps");
+    const id = manifest.异常标本.noCheckpoint?.id as string;
+
+    // 不抛 ⇒ fork.at_span / resume_after_step / workspace.origin 三者自洽
+    const resolved = resolveBranch(id, (rid) => recordOf(dir, rid));
+
+    // 合并轨迹里确实能看到**父 run 的**步骤（祖先不是自有检查点，但必须在场）
+    expect(resolved.spans.filter((s) => s.kind === "agent.step").length).toBeGreaterThan(0);
+    expect(resolved.chain.length).toBeGreaterThan(1);
+    // 而本 run 自有 `agent.step` 为 0（标本定义）⇒ 检查点选择器只剩「本 run 初始状态」
+    expect(recordOf(dir, id).spans.filter((s) => s.kind === "agent.step")).toEqual([]);
   });
 
   /**

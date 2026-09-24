@@ -393,7 +393,7 @@ function deriveBrokenRun({ baseText, oldWorldId, newId, newTask }) {
  * 使读取器走 `resolveBranch` 合并路径；剔除本 run 自有的 `agent.step`，
  * 同时把 `world_id` 抬到新 id（读取器强制 `world_id === meta.id`）。
  */
-function deriveNoOwnSteps(baseText, oldWorldId, newId, newTask, parentId, resumeAfterStep) {
+function deriveNoOwnSteps(baseText, oldWorldId, newId, newTask, parentId, resumeAfterStep, atSpan) {
   const kept = [];
   let droppedSteps = 0;
   for (const [index, line] of baseText
@@ -405,9 +405,13 @@ function deriveNoOwnSteps(baseText, oldWorldId, newId, newTask, parentId, resume
       obj.id = newId;
       obj.task = newTask;
       obj.parent = parentId; // 挂到真实 root ⇒ 详情走合并轨迹路径
-      // ForkSchema 要求 at_span + edit 都在（resume_after_step 是 v2 额外边界）
+      // ⚠️⚠️ `at_span` 必须是**该轮内的工具调用**，且**不得等于** `resume_after_step`
+      //    （`packages/trace-sdk/src/branch.ts` 硬校验）。初版把两者都填成同一个 `agent.step` id
+      //    ⇒ 该标本**经运行列表读取必被 `resolveBranch` 拒**（详情页打不开）；因为 1.1 的用例只
+      //    `readRun` 本文件、不触发分支解析，所以当时没暴露（5.5 实测发现并另建了正确标本）。
+      //    5.5/5.6 的生成器已按此形态构造；此处补齐，并让 `u2-file-fixtures.test.ts` 显式调 `resolveBranch` 自检。
       obj.fork = {
-        at_span: resumeAfterStep,
+        at_span: atSpan,
         resume_after_step: resumeAfterStep,
         edit: { field: "result", value: "（无自有完成步骤标本）" },
       };
@@ -543,6 +547,18 @@ function main() {
     mkdirSync(join(noCheckpointDir, "traces"), { recursive: true });
     // 合并轨迹要求父 run 也在同一个 traces/ 目录里，否则 resolveBranch 取不到父记录
     writeFileSync(join(noCheckpointDir, "traces", `${isolated.rootId}.jsonl`), rootText, "utf8");
+    // ⚠️ `fork.at_span` 必须是「该轮内的工具调用」，不能等于 `resume_after_step`（两者都是 id）
+    //    ⇒ 从真实 root trace 里取第 1 轮内**真实存在**的 `tool.invoke`（trace-sdk `branch.ts` 硬校验）。
+    const firstRoundToolSpanId = rootText
+      .split("\n")
+      .filter((l) => l !== "")
+      .map((l) => JSON.parse(l))
+      .find(
+        (o) => o.type === "span" && o.kind === "tool.invoke" && o.parent === isolated.rootSteps[0],
+      )?.id;
+    if (firstRoundToolSpanId === undefined) {
+      throw new Error("1.1 夹具：root 第 1 轮内没有 tool.invoke span，无法构造合法的 fork.at_span");
+    }
     writeFileSync(
       join(noCheckpointDir, "traces", `${noCheckpointId}.jsonl`),
       deriveNoOwnSteps(
@@ -552,6 +568,7 @@ function main() {
         "无自有完成步骤样本",
         isolated.rootId,
         isolated.rootSteps[0], // 从 root 第 1 轮的 step 之后续跑
+        firstRoundToolSpanId, // fork.at_span 必须是该轮内的 tool.invoke（≠ resume_after_step）
       ),
       "utf8",
     );
