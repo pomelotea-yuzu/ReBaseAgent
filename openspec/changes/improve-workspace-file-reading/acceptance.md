@@ -104,14 +104,45 @@ node apps/desktop/scripts/u2-dev-host.cjs --stop
 | **H-2** | **脚本内 `spawn` 起 dev 在本环境起不来**（detached 子进程随父脚本退出被回收）⇒ `restart-state` 的"停→起→重连"必失败 | 环境限制 | ✅ **已补**：给 5.6 增加独立 **`first-enter`** tag——不做进程重启，只依赖 main() 的**冷重载**（文件阅读状态是 zustand 内存态 ⇒ 重载等价于"本会话首次进入"），3/3 通过；`restart-state` 保留不删（仍是更强证据，换环境可跑） |
 | **H-3** | **窄档是 1px 敏感的**：外框 1134 → CSS **801** ⇒ `NARROW_TIER_MAX=800` 不含它 ⇒ 目录不收起（首次跑 `800-narrow` 得 11/12，报"目录一律收起"失败） | 采集口径（非产品） | ✅ 已按实测 CSS 视口重跑（外框 **1133** → CSS 恰好 800）⇒ **12/12**。⚠️ 含义：基准档位必须以**实测 CSS 视口**为准，不能只看外框标称值 |
 
-## 5. D 类：4 条未验证 / 已知限制的处置（owner 定为"逐条讨论"，以下为建议）
+## 5. D 类：4 条的处置与结果（owner 2026-09-24 拍板：**D-1/D-2/D-3/D-4 全部补齐**）
 
-| # | 项 | 现状 | 建议 | 补齐代价 |
-| --- | --- | --- | --- | --- |
-| **D-1** | **列表滚动**的实机证据力弱（5.3 当轮夹具清单只可滚 2px） | 正文滚动是实机强证据；列表滚动改由接线契约 + 变异 M4 立证 | **建议补齐**（本项是唯一的"实机弱"项，且不算贵） | 小～中：造"长清单"夹具（生成器加一份多文件语料）+ 一个 CDP tag |
-| **D-2** | **1.1 生成器的坏标本未修**：`u2bad_noownsteps` 的 `fork.at_span` 被设成等于 `resume_after_step` ⇒ 经**运行列表读取必被 `resolveBranch` 拒** | 已登记 `evidence-index.md` §已知限制 2；5.5/5.6 已按正确形态另建标本并显式调 `resolveBranch` 自检。**仅影响 gitignored 夹具可复用性，不影响产品** | **建议顺手补齐**（最便宜，避免下一个人踩） | 小：`at_span` 改取该轮内真实 `tool.invoke` + 重生成 + 自检加 `resolveBranch` |
-| **D-3** | **系统级原生 DPI（非应用内 zoomFactor）未独立实测**；原生目录/新建对话框差异未纳入布局证据 | 已在 evidence-index §布局证据末段如实标注 | **建议接受为已知限制**（应用内 zoomFactor=2 已实测 DPR 4.2；原生 DPI 属 OS 层，改它会影响全机） | 中：需改系统缩放并重启应用 |
-| **D-4** | **发行打包三项门禁（产物名/体积/身份）未在本 change 执行** | 6.2 明写"不安排发行打包"；**资源门禁已先行覆盖**并抓出 1 处会卡死 `release:verify` 的真实缺陷（`ecd54da`） | **建议接受**（本就归 K1/K2/K3） | 独立任务：electron-builder ≈2 min + `release:verify` + 打包后离线冒烟 |
+> owner 选择"全部补齐"（不是接受为已知限制）。以下逐条记录**做法与结果**；证据同 §3 的验收目录。
+
+| # | 项 | 处置 | 结果与证据 |
+| --- | --- | --- | --- |
+| **D-1** | **列表滚动**的实机证据力弱（5.3 当轮夹具清单只可滚 2px ⇒ `scrollTop` 恒 0，断言落在"不足一屏"的宽免分支里通过） | ✅ **已补齐** | 新造**长清单夹具**（`gen-u2-acc-list-fixtures.cjs`，61 项清单）＋新 tag `u2-53-cdp.cjs --tag=list-scroll`。实测：清单 `scrollHeight 2862 / clientHeight 400 / 61 行` ⇒ **确实可滚**；真滚轮后 `store.listScrollTop=1200 / DOM 实测=1200`；**文件→步骤→文件往返后 `store=1200 / DOM=1200`（页签=文件）** ⇒ **5/5 通过**。截图 `u2-acceptance/u2-53/list-scroll-{1,2,3}.png` |
+| **D-2** | **1.1 生成器的坏标本**：`u2bad_noownsteps` 的 `fork.at_span` == `resume_after_step`（step id）⇒ 经运行列表读取必被 `resolveBranch` 拒 | ✅ **已补齐** | 生成器改为取**该轮内真实 `tool.invoke`** 作 `at_span`；重生成夹具；并把 `u2-file-fixtures.test.ts` 的自检从"只 `readRun`"改为**显式调 `resolveBranch`**。**先证明有牙**：不重生成时新用例直接变红，报 `fork.at_span 不能等于 resume_after_step（s_01）…` ⇒ 证明旧标本确实是坏的；重生成后 **39/39 通过**。`evidence-index.md` §已知限制 2 可关闭 |
+| **D-3** | **系统级原生 DPI 未独立实测** | ✅ **已补齐**（**应用级强制 scale factor**，见下方"方法与被测范围"） | 主进程新增 pre-ready 钩子 `REBASEAGENT_FORCE_SCALE_FACTOR`（**未设置时不注入，生产行为不变**；与既有 `NO_SANDBOX`/`REBASEAGENT_ZOOM_FACTOR` 同款、非授权开关）。三档实测（`dpi-probe.cjs`，证据 `u2-acceptance/dpi/`）：<br>· **125%** ⇒ 视口 1343×794、DPR **1.25**、有效文字区 682、无整页横向溢出<br>· **150%** ⇒ 视口 1346×801、DPR **1.5**、隐藏层 43 + 有效文字区 **685**、无溢出<br>· **300%** ⇒ 视口 847×493、DPR **3**、**模式=inline**（`original=121` 是 Monaco 隐藏层）⇒ 有效文字区 **450**，无溢出（847 属 801–959 过渡带，spec 不要求 480 ⇒ 合规）<br>⇒ 三档**均正常渲染、正文可读、无空白页、无整页横向溢出** |
+| **D-4** | **发行打包三项门禁（产物名/体积/身份）未在本 change 执行** | ⏳ **补齐中**（本行在打包完成前保持未勾） | 需先定**版本号**（当前 `0.3.0-k0-a3.1` 已发行为 tag 并占用产物名）⇒ 与 owner 确认后走：`electron-vite build` → `electron-builder --win`（离线 electronDist）→ `release:verify`（产物名/体积 <100MB/身份）→ 打包后**强制离线冒烟**（20 项断言）。资源门禁已在 6.2 先行覆盖（并抓修 1 处会卡死 `release:verify` 的真实缺陷 `ecd54da`） |
+
+### D-3 的方法与被测范围（**如实标注边界**）
+
+- 做法：`app.commandLine.appendSwitch("force-device-scale-factor", X)`，**在 `app.whenReady()` 之前**注入
+  （ready 之后再调无效）。走的是与 OS 缩放**同一条** `devicePixelRatio` 路径，**区别于** `setZoomFactor`
+  的页面缩放（后者是 5.2 的 `zoom2` 档，DPR 4.2）。
+- ⚠️ **未改系统设置**：真改 OS 缩放会影响整台机器、多数情况还要重新登录，本环境不做。
+  若需要"真 OS 缩放"的等效证据，可另找时间改一次系统缩放，其余照本探针复测即可。
+- ⚠️ 探针自写的"inline/并排"判定读的是 `.monaco-diff-editor` 的 `side-by-side` 类名，
+  **未与 5.1 的同款判定方式交叉核对** ⇒ 该字段仅作参考，不作验收断言；断言只打在
+  "编辑器在场 + 有效文字区 > 0 + 无整页横向溢出 + 页签含文件"上。
+- ⚠️ 视口与 scale 因子**不是简单的反比**（125% → 1343、150% → 1346，几乎相同），
+  说明窗口物理尺寸本身也参与了取值 ⇒ **基准档位一律以实测 CSS 视口为准**（同 §1 的 1px 提示）。
+
+### D-1 补齐的副产品：抓到并修掉 1 处**真实产品缺陷**（整页空白 值）
+
+`--tag=list-scroll` 首跑 3/5，两次失败都源于**页面已整页空白**。定位后确认是真实缺陷（非夹具问题）：
+
+- **触发链**：`request.messages` 允许有**不带 `content` 键**的消息（仅含 `tool_calls` 的 assistant 消息、
+  空 system 提示都合法，`readRun` 不拒绝）⇒ `DetailPanel` 内联 `prettyJson(message.content)` ⇒
+  `prettyJson(undefined)` **返回 `undefined`**（`JSON.stringify(undefined)` 的返回值，与它 `: string`
+  的签名相反）⇒ `LongText` 里 `shouldCollapse(undefined)` 读 `.length` 抛错 ⇒ **渲染层没有 error boundary**
+  ⇒ **整个步骤页空白**。
+- **修复两层**：① `prettyJson` 保证返回字符串；② 抽 `messageContentText()` 纯函数并加 5 条回归用例
+  （含"缺 content 键 ⇒ 返回字符串而不是 undefined"）。提交 `bea1650`。
+- **验证**：四人一 run 逐个试点「步骤」判影响面（只该形态触发）；修后 `--tag=list-scroll` **5/5**；
+  typecheck 0；desktop 全量 **66 文件 / 1302 用例 / 0 失败 / 0 跳过**。
+- ⚠️ **未修但同时登记**：渲染层**没有 error boundary** ⇒ 任一渲染期异常都会让整个窗口空白。
+  本 change 只消除这一个已知触发点；"全局兜底"是跨 change 的设计决定，不在 U2 顺手塞入。
 
 ## 6. E 类：签署表（请逐行填，**不要**总体一句「都过了」）
 
@@ -127,7 +158,7 @@ node apps/desktop/scripts/u2-dev-host.cjs --stop
 | A8 | 失效回退提示 / 筛选不偷换当前文件 | ☐ | ☐ | ☐ | HEAD 9/9 + 5/5 |
 | A9 | 键盘全项 + 离线加载 | ☐ | ☐ | ☐ | HEAD `keyboard-offline` 10/10 |
 | B1 | 追认 §3 的 IPC/只读类（界面点不到） | ☐ | ☐ | ☐ | HEAD `ipc-guard` 11/11 + `readonly` 12/12 + `selfcheck` 3/3 |
-| D1–D4 | 4 条未验证项的处置（见 §5 建议） | ☐ 接受建议 | ☐ 另议 | ☐ | D-1/D-2 建议补；D-3/D-4 建议接受 |
+| D1–D4 | 4 条未验证项的处置（owner 定为**全部补齐**，见 §5） | ☐ | ☐ | ☐ | **D-1/D-2/D-3 已补齐**（D-1 长清单实机 5/5、D-2 39/39 且先证明有牙、D-3 三档 125%/150%/300% 实测）；**D-4 补齐中**（待定版本号后打便携包走三项门禁） |
 
 **验收结论**：☐ 通过，同意归档　☐ 有条件通过（见备注）　☐ 不通过
 

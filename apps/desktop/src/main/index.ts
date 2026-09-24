@@ -32,6 +32,24 @@ if (process.env.NO_SANDBOX === "1" || process.env.NO_SANDBOX === "true") {
 }
 
 /**
+ * 实机验收钩子：**应用级强制 device scale factor**（= 让应用"看到"系统缩放为 X%）。
+ *
+ * 用途（U2 验收 D-3「系统级原生 DPI」）：真改 OS 缩放会影响整台机器、多数情况还要重新登录，
+ * 而 `force-device-scale-factor` 走的是与 OS 缩放**同一条** devicePixelRatio 路径
+ * （区别于 `setZoomFactor` 的页面缩放），足以回答"应用在别的系统 DPI 下是否仍可读、不崩版"。
+ *
+ * ⚠️ 必须在 **app ready 之前**注入（同上面的 `--no-sandbox`），ready 之后再调无效。
+ * ⚠️ 未设置或非法时**完全不注入** ⇒ 生产行为逐字节不变（不是授权开关；打包产物无该环境变量）。
+ */
+const forcedScale = process.env.REBASEAGENT_FORCE_SCALE_FACTOR;
+if (forcedScale !== undefined && forcedScale !== "") {
+  const scale = Number(forcedScale);
+  if (Number.isFinite(scale) && scale > 0) {
+    app.commandLine.appendSwitch("force-device-scale-factor", String(scale));
+  }
+}
+
+/**
  * pre-ready 便携路径初始化（design D3）：
  * 必须在 app.whenReady() 和任何 session / BrowserWindow 创建之前执行。
  * 单文件 portable 由 electron-builder 注入的 PORTABLE_EXECUTABLE_DIR 识别；
