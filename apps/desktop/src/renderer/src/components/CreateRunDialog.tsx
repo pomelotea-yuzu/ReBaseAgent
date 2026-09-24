@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   CREATE_RUN_MODES,
   CREATE_RUN_MODE_LABELS,
@@ -44,11 +44,18 @@ export function CreateRunDialog({ onClose }: { onClose: () => void }) {
   const writeCreateRunDraft = useAppStore((s) => s.writeCreateRunDraft);
   const discardCreateRunDraft = useAppStore((s) => s.discardCreateRunDraft);
   const setCreateSourceRef = useAppStore((s) => s.setCreateSourceRef);
+  const createRunErrorCode = useAppStore((s) => s.createRunErrorCode);
   const [form, setForm] = useState<CreateRunFormState>(() => ({
     // 首次打开时草稿可能尚未 ensure（挂载 effect 里补）⇒ 退回默认纯对话；
-    // 再次打开时草稿已在，模式随之恢复
+    // 再次打开时草稿已在，模式随之恢复。
+    // U3 任务 3.2：源目录引用从**会话级 store 引用**恢复（design D4：同一次未提交
+    // 创建可在关闭/设置往返后保留引用）；授权**不**随引用恢复（复位为未选）。
     ...initialCreateRunForm(),
     mode: useAppStore.getState().createRunDraftOf()?.mode ?? "chat",
+    source: ((): CreateRunFormState["source"] => {
+      const ref = useAppStore.getState().createSourceRef;
+      return ref === null ? null : { token: ref.token, name: ref.name, path: ref.path };
+    })(),
   }));
   /** 原生目录选择器是否正在打开（阻塞期间同样不允许重复点击/关闭） */
   const [pickingSource, setPickingSource] = useState(false);
@@ -92,21 +99,40 @@ export function CreateRunDialog({ onClose }: { onClose: () => void }) {
     return () => resetCreateRun();
   }, [resetCreateRun]);
 
+  // U3 任务 3.2：失效/已消费 token 的提交错误 ⇒ 要求重新选目录（清引用），但
+  // 任务、系统指令与模式在**草稿**里原样保留——不能清空任务。
+  useEffect(() => {
+    if (createRunErrorCode !== "INVALID_SOURCE_TOKEN") return;
+    setCreateSourceRef(null);
+    setForm((prev) => ({ ...prev, source: null }));
+  }, [createRunErrorCode, setCreateSourceRef]);
+
   const submit = async (): Promise<void> => {
     // 判据不通过时 submitCreateRun 直接返回 false：一次 IPC 都不会发
     const created = await submitCreateRun(form, { systemPrompt, userMessage, busy }, { createRun });
     if (created) onClose();
   };
 
+  /** 目录选择的请求代次（U3 任务 3.2）：卸载/重开使在飞代次失效，迟到响应不落地 */
+  const pickGeneration = useRef(0);
+
   const pickSource = async (): Promise<void> => {
     if (modalLocked) return;
+    const generation = ++pickGeneration.current;
     setPickingSource(true);
     try {
       const result = await chooseSource();
-      // null = 通道失败（已置全局 error）；{canceled:true} = 用户取消（状态原样不动）
-      if (result !== null) setForm((prev) => applyChosenSource(prev, result));
+      // 迟到守卫：代次已推进（对话框重开/卸载）⇒ 不给当前表单安装旧选择
+      if (generation !== pickGeneration.current) return;
+      // null = 通道失败（已置全局 error）；{canceled:true} = 用户取消
+      // （design D4：取消目录选择**保留原引用**，首次取消仍未选）
+      if (result !== null && !result.canceled) {
+        setForm((prev) => applyChosenSource(prev, result));
+        // 镜像到会话级引用：关闭/设置往返后重开可恢复（授权仍复位——applyChosenSource）
+        setCreateSourceRef({ token: result.sourceToken, name: result.name, path: result.path });
+      }
     } finally {
-      setPickingSource(false);
+      if (generation === pickGeneration.current) setPickingSource(false);
     }
   };
 
@@ -115,6 +141,8 @@ export function CreateRunDialog({ onClose }: { onClose: () => void }) {
     if (mode === form.mode) return;
     // 草稿只推进模式：systemPrompt / userMessage 文本保留（任务 1.3 语义）
     writeCreateRunDraft({ mode });
+    // U3 任务 3.2（design D4）：切模式清除源目录引用（重新进入隔离模式须重选+重授权）
+    setCreateSourceRef(null);
     setForm(switchCreateRunMode(mode));
   };
 

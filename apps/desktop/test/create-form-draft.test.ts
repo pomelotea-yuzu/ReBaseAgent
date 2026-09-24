@@ -64,6 +64,43 @@ describe("接线契约：CreateRunDialog 读写创建草稿（任务 2.3）", ()
 });
 
 // ---------------------------------------------------------------------------
+// U3 任务 3.2：sourceToken 独立受限引用接线
+// ---------------------------------------------------------------------------
+
+const SOURCE_REF = readFileSync(
+  resolve(import.meta.dirname, "../src/renderer/src/components/CreateRunDialog.tsx"),
+  "utf8",
+);
+
+describe("接线契约：sourceToken 会话引用（任务 3.2，design D4）", () => {
+  it("打开时从会话级引用恢复源目录（授权不随引用恢复，仍为未选）", () => {
+    expect(SOURCE_REF).toContain("const ref = useAppStore.getState().createSourceRef;");
+    // 授权字段不来自引用：initialCreateRunForm 的 writesAuthorized: false 保留
+    expect(SOURCE_REF).toContain("...initialCreateRunForm()");
+  });
+
+  it("选择成功镜像到会话引用；取消保留原引用；请求代次守卫迟到响应", () => {
+    expect(SOURCE_REF).toContain(
+      "setCreateSourceRef({ token: result.sourceToken, name: result.name, path: result.path })",
+    );
+    expect(SOURCE_REF).toContain("取消目录选择**保留原引用**");
+    expect(SOURCE_REF).toContain("const pickGeneration = useRef(0);");
+    expect(SOURCE_REF).toContain("if (generation !== pickGeneration.current) return;");
+  });
+
+  it("切模式清除引用；INVALID_SOURCE_TOKEN 提示重选但不清空草稿任务", () => {
+    // 切模式片段（到 discardDraft 为止）必须含清引用
+    const modeStart = SOURCE_REF.indexOf("const switchMode");
+    const modeEnd = SOURCE_REF.indexOf("const discardDraft");
+    const switchModeSlice = SOURCE_REF.slice(modeStart, modeEnd);
+    expect(switchModeSlice).toContain("setCreateSourceRef(null)");
+    // 失效令牌：清引用要求重选；任务/系统指令/模式在草稿里原样保留
+    expect(SOURCE_REF).toContain('createRunErrorCode !== "INVALID_SOURCE_TOKEN"');
+    expect(SOURCE_REF).toContain("不能清空任务");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // store 行为：关闭/重开恢复、切模式保留文本、显式放弃重置（编辑器同形调用）
 // ---------------------------------------------------------------------------
 
@@ -152,5 +189,36 @@ describe("store 行为：创建草稿的恢复与放弃（CreateRunDialog 同形
     expect(useAppStore.getState().createSourceRef).toBeNull();
     // 引用不进草稿仓库（1.3 的隔离纪律）
     expect(JSON.stringify(useAppStore.getState().drafts)).not.toContain("tok_x");
+  });
+
+  it("任务 3.2：INVALID_SOURCE_TOKEN 提交失败不清空草稿任务（要求重选目录）", async () => {
+    useAppStore.getState().ensureCreateRunDraft();
+    useAppStore.getState().writeCreateRunDraft({ userMessage: "保留的任务" });
+    useAppStore.getState().writeCreateRunDraft({ mode: "isolated_files" });
+    const repoBefore = useAppStore.getState().drafts;
+
+    // api 桩：main 消费点拒绝（token 失效/已消费）；失败路径的列表刷新一并打桩
+    (globalThis.window as unknown as { api: Record<string, unknown> }).api.createRun =
+      async () => ({
+        ok: false as const,
+        error: { code: "INVALID_SOURCE_TOKEN", message: "源目录令牌无效或已消费" },
+      });
+    (globalThis.window as unknown as { api: Record<string, unknown> }).api.listRuns = async () => ({
+      ok: false as const,
+      error: { code: "STUB", message: "桩" },
+    });
+    const created = await useAppStore.getState().createRun({
+      systemPrompt: "",
+      userMessage: "保留的任务",
+      workspace: { mode: "isolated_files", sourceToken: "tok_stale", allowFileWrites: true },
+    });
+    expect(created).toBe(false);
+    expect(useAppStore.getState().createRunErrorCode).toBe("INVALID_SOURCE_TOKEN");
+
+    // 任务 / 模式在草稿里原样保留（引用清除由对话框 effect 负责——源码契约已钉）
+    expect(useAppStore.getState().drafts).toBe(repoBefore);
+    const entry = useAppStore.getState().createRunDraftOf();
+    expect(entry?.userMessage).toBe("保留的任务");
+    expect(entry?.mode).toBe("isolated_files");
   });
 });
