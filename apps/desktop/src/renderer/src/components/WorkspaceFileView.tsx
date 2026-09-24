@@ -65,8 +65,8 @@ import {
   deriveCheckpointOptions,
   detectFileLanguage,
   inspectSummaryLine,
+  resolveCheckpoint,
   resolveDiffSides,
-  validateCheckpointStepId,
   validateSavedPath,
 } from "../lib/workspace-files";
 import type { CheckpointOption, DiffSides } from "../lib/workspace-files";
@@ -122,9 +122,12 @@ export function WorkspaceFileView({ run }: { run: RunDetail }) {
   const inspectWorkspace = useAppStore((s) => s.inspectWorkspace);
   const readWorkspaceFile = useAppStore((s) => s.readWorkspaceFile);
   const fileReading = useAppStore((s) => s.fileReadingOf(run.meta.id));
+  const fileReadingEntered = useAppStore((s) => s.fileReadingEntered(run.meta.id));
   const setFileReading = useAppStore((s) => s.setFileReading);
 
   const options = useMemo(() => deriveCheckpointOptions(run), [run]);
+  /** 首次进入要用的默认检查点（最近自有完成步骤；无则 null = 初始） */
+  const defaultStepSpanId = useMemo(() => defaultCheckpointStepId(run), [run]);
 
   /**
    * U2 任务 2.4：选择/pane/偏好**接入会话状态**，不再用组件局部 state。
@@ -135,15 +138,34 @@ export function WorkspaceFileView({ run }: { run: RunDetail }) {
    */
   const saved = fileReading;
 
-  // 默认检查点：首次进入用最近自有完成步骤；保存的 step 失效则回退默认
-  const checkpointCheck = validateCheckpointStepId(run, saved.checkpoint);
-  const effectiveStepSpanId =
-    checkpointCheck === "valid"
-      ? saved.checkpoint
-      : checkpointCheck === "stale"
-        ? defaultCheckpointStepId(run)
-        : saved.checkpoint;
-  const checkpointInvalidated = checkpointCheck === "stale";
+  /**
+   * 有效检查点（U2 5.6 实机缺陷修复，判据见 `resolveCheckpoint` 的注释）：
+   * - **从未进入文件页** ⇒ 默认（最近自有完成步骤；无自有完成步骤时即初始）；
+   * - 已进入 + 保存的 step 仍有效 ⇒ 保持保存值（含用户**明确**选的初始）；
+   * - 已进入 + 保存的 step 已失效（stale）⇒ 提示并回退默认。
+   */
+  const resolved = resolveCheckpoint(run, {
+    entered: fileReadingEntered,
+    checkpoint: saved.checkpoint,
+  });
+  const effectiveStepSpanId = resolved.stepSpanId;
+  const checkpointInvalidated = resolved.invalidated;
+
+  /**
+   * 首次进入：把解析出的默认检查点**写进会话状态**。
+   *
+   * 为什么必须写：`patchFileReading` 以 `DEFAULT_FILE_READING_STATE`（`checkpoint: null`）起底，
+   * 若不在首帧写下来，之后任何一次 patch（选文件 / 切 pane / 换行 / 筛选 / 滚动…）都会把状态
+   * 变成"已进入 + checkpoint=null" ⇒ 界面**突然跳回初始**，与刚显示的默认步骤自相矛盾。
+   *
+   * ⚠️ 写入前**再查一次新鲜状态**：显式文件目标由父组件（`WorkspaceFilesPanel`）在同一提交里
+   *    写入，不能因为拿到的是旧渲染快照就把它的 checkpoint 覆盖掉。
+   */
+  useEffect(() => {
+    if (fileReadingEntered) return;
+    if (useAppStore.getState().fileReadingEntered(run.meta.id)) return;
+    setFileReading(run.meta.id, { checkpoint: defaultStepSpanId });
+  }, [fileReadingEntered, defaultStepSpanId, run.meta.id, setFileReading]);
 
   /**
    * U2 任务 3.1：三个**各自独立**的请求面。用 `useRef` 而不是 `useState`——

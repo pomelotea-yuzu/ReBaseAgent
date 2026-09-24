@@ -129,7 +129,18 @@ describe("U2 接线契约：文件选择来自会话状态，不是组件局部 
   });
 
   it("恢复前做引用校验（不沿用失效引用）", () => {
-    expect(SRC).toContain("validateCheckpointStepId(");
+    // U2 5.6：检查点解析已收敛到 `resolveCheckpoint`（它内部调 `validateCheckpointStepId`
+    // 并补上"首次进入取默认"那一支）；视图层仍必须把 entered+checkpoint 交给它，
+    // 且不得绕过它直接决定 effective（否则首次进入的缺陷会复退）。
+    expect(SRC).toContain("resolveCheckpoint(run, {");
+    expect(SRC).toContain("entered: fileReadingEntered");
+    expect(SRC).not.toContain("validateCheckpointStepId(");
+    const lib = readFileSync(
+      resolve(import.meta.dirname, "../src/renderer/src/lib/workspace-files.ts"),
+      "utf8",
+    );
+    expect(lib).toContain("validateCheckpointStepId(run, saved.checkpoint)");
+    expect(lib).toContain('check === "stale"');
     expect(SRC).toContain("validateSavedPath(");
   });
 });

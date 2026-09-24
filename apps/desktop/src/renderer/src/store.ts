@@ -209,6 +209,13 @@ interface AppState {
    * 与 `readingOf` 同法——按 run 隔离，组件卸载不丢。
    */
   fileReadingOf: (runId: string) => FileReadingState;
+  /**
+   * 该 run 是否**进入过**文件页（会话里 `files !== undefined`）。
+   *
+   * ⚠️ 必须与 `fileReadingOf(...).checkpoint === null` 分开用：`null` 明确代表"要看初始"，
+   * 而"从未进入"要套**默认检查点**（最近自有完成步骤）——U2 5.6 实机缺陷正是把两者混为一谈。
+   */
+  fileReadingEntered: (runId: string) => boolean;
   /** 更新某 run 的文件阅读状态片段（undefined 值视为不改该项） */
   setFileReading: (runId: string, patch: Partial<FileReadingState>) => void;
   /**
@@ -632,6 +639,10 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   fileReadingOf(runId) {
     return fileReadingOf(readingStateOf(get().readingByRun, runId));
+  },
+
+  fileReadingEntered(runId) {
+    return readingStateOf(get().readingByRun, runId).files !== undefined;
   },
 
   setFileReading(runId, patch) {

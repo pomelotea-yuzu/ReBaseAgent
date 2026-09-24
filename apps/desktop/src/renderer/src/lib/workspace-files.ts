@@ -120,6 +120,39 @@ export function validateCheckpointStepId(
 }
 
 /**
+ * 有效检查点的解析（**U2 任务 5.6 实机缺陷修复**）。
+ *
+ * 两种"没有 step id"必须分开——`validateCheckpointStepId` 单看 `null` 是分不出的：
+ * - `entered === false`（会话里 `files === undefined`，**从未进入过文件页**）
+ *   ⇒ 走**默认**：最近自有完成步骤；没有自有完成步骤时即初始（`null`）。
+ *   delta 原文：「首次进入 SHALL 选择最近自有完成步骤，无此步骤时选择初始」。
+ * - `entered === true` 且 `checkpoint === null`（**用户明确选了初始**）⇒ 保持初始，不套默认。
+ *
+ * ⚠️ 原实现只把 `defaultCheckpointStepId` 用在 `stale` 分支，首次进入被
+ *    `validateCheckpointStepId(run, null) === "initial"` 吞掉 ⇒ 实际总是落在**初始**，
+ *    与 delta 直接矛盾。这正是 U1/U2 反复出现的"纯逻辑写好、接线少一支"形态：
+ *    `defaultCheckpointStepId` 的纯函数用例全绿，没有任何用例钉住"首次进入"这条分支。
+ *
+ * @returns `stepSpanId`（null = 初始）与 `invalidated`（保存的 step 已失效，调用方须提示）
+ */
+export function resolveCheckpoint(
+  run: {
+    spans: readonly SpanLine[];
+    leafSpanIds: readonly string[];
+    meta: { workspace?: unknown };
+  },
+  saved: { entered: boolean; checkpoint: string | null },
+): { stepSpanId: string | null; invalidated: boolean } {
+  if (!saved.entered) {
+    return { stepSpanId: defaultCheckpointStepId(run), invalidated: false };
+  }
+  const check = validateCheckpointStepId(run, saved.checkpoint);
+  if (check === "valid") return { stepSpanId: saved.checkpoint, invalidated: false };
+  if (check === "stale") return { stepSpanId: defaultCheckpointStepId(run), invalidated: true };
+  return { stepSpanId: saved.checkpoint, invalidated: false };
+}
+
+/**
  * U2 任务 2.2：保存的 path 在新清单里是否仍然存在。
  *
  * - `"present"`：完整逻辑路径在清单里 ⇒ **保留选择**（即使附件不可用或不符合筛选，

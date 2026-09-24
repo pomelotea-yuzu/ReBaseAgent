@@ -1,6 +1,6 @@
 # U2 实施任务
 
-当前第 1、2、3 组已完成；**第 4 组已完成（4.1–4.6 全部勾选；4.1/4.5/4.6 经 2026-09-23 复核发现未真正落地后已补齐）**；第 5 组 5.1–5.5 已完成，5.6 待办；第 6 组待办。依赖 U1 已完成但未归档的源码和 delta，不以旧主 spec 代替现状；本次不归档 U1。每项预算不超过 2h，超出先拆分。场景名均引用 [desktop-ui delta](specs/desktop-ui/spec.md)，其中 C 原有九个场景与行为保留，仅将窄窗口场景的“提交和导航控件”校准为“检查点与导航控件”。
+当前第 1、2、3 组已完成；**第 4 组已完成（4.1–4.6 全部勾选；4.1/4.5/4.6 经 2026-09-23 复核发现未真正落地后已补齐）**；**第 5 组全部完成（5.1–5.6）**；第 6 组待办。依赖 U1 已完成但未归档的源码和 delta，不以旧主 spec 代替现状；本次不归档 U1。每项预算不超过 2h，超出先拆分。场景名均引用 [desktop-ui delta](specs/desktop-ui/spec.md)，其中 C 原有九个场景与行为保留，仅将窄窗口场景的“提交和导航控件”校准为“检查点与导航控件”。
 
 ## 进度记录
 
@@ -200,7 +200,14 @@
   - **"判据有牙"自检**（`selfcheck` 3/3，非验收项）：故意新增文件 / 改写清单 ⇒ 分别检出「新增」「哈希变化」，逐字节还原后回到零差异 ⇒ 冻结面不是空转真。
   - 本轮**未发现产品缺陷**；但发现并修正 **1.1 留下的一处坏标本**：其「无自有完成步骤」标本把 `fork.at_span` 与 `resume_after_step` 设成同一个 `agent.step` id，而 `trace-sdk` 的 `resolveBranch` 硬校验前者必须是该轮内的工具调用 ⇒ 该标本**经运行列表读取必被拒**（1.1 的用例只 `readRun` 本文件，未覆盖分支解析，故未暴露）。本任务生成器改为取该轮内真实 `tool.invoke` 作 `at_span`，并把自检改为**显式调用 `resolveBranch`**。1.1 的生成器本轮未改动，如实记为遗留项（README §5）。
   - harness 侧另修 6 类坑（`find` 返回 `undefined` 致脚本崩溃 / `null?.diff === null` 恒假的假失败 / 两侧读共用计数桶致点名注入静默失效 / 同检查点同路径不重发 IPC / 模块 URL 形态不唯一 / `node --check` 抓不到模板字面量内嵌反引号）。
-- [ ] 5.6 在受控数据副本上重启、整体迁移、仅迁 JSONL 并断网读取（1.5h）；验证“重启后查看文件差异”“数据目录迁移后文件仍可查”“文件阅读状态不跨进程承诺”“文件阅读键盘操作与离线加载”；普通 run 无伪文件页，现有概览/步骤/编辑/执行入口仍可达。
+- [x] 5.6 在受控数据副本上重启、整体迁移、仅迁 JSONL 并断网读取（1.5h）；验证“重启后查看文件差异”“数据目录迁移后文件仍可查”“文件阅读状态不跨进程承诺”“文件阅读键盘操作与离线加载”；普通 run 无伪文件页，现有概览/步骤/编辑/执行入口仍可达。
+  - 证据：`docs/reviews/2026-09-24-u2-56/README.md`（9 张截图 + 四 tag 结果矩阵）；原始数据 `.workbuddy/u2-56/measurements.json`（**34/34 checks 全绿**：restart-state 9、migrate 10、keyboard-offline 10、compat 5；probe 只 dump 真机事实不计 checks）。环境真值：CSS 视口 1210×713、DPR 2.1（medium 档）、运行名单 71 项；新增夹具生成器 `apps/desktop/scripts/gen-u2-56-fixtures.cjs`（真实引擎根 R + **隔离子 run S（自有轮写入）** ⇒ 初始 vs 完成步骤有真实差异）与采集脚本 `apps/desktop/scripts/u2-56-cdp.cjs`（五 tag）。
+  - 强证据（**重启后查看文件差异 + 状态不跨进程**）：**真进程重启**（先确认 9612 端口真的空出，避免"pid 过期 ⇒ `--stop` 假成功 ⇒ 启动因端口占用直接返回"的假重启）；重启前刻意选**非默认**的初始（`entered=true, checkpoint=null`）⇒ 重启后 `entered=false`（文件状态未跨进程）且按首次进入策略落到**默认检查点「本 run 第 2 轮结束」**；选中完成步骤的修改文件后 monaco **真模型** `根第二轮改写 → 子 run 改写`、`lineChangeCount=1`、只读；未选文件时界面无任何内容副本；浏览全程逐文件 SHA-256（夹具 9 + traces 72 + 附件 25 = **106 文件**）**零变化**。
+  - 强证据（**数据目录迁移**）：①整体迁移＝把 `.rebaseagent` **整个改名到另一个绝对路径**，用**新 dataDir** 直调真实读取 API 仍读出两侧真实文本，且迁移期间原 `source` 路径随数据目录一并不可达（⇒ **不依赖原 source 路径**）；迁回 + 重启后界面 diff 逐字一致。②仅迁 JSONL＝新路径下只有 `traces/` ⇒ `readRun` 成功而 `readWorkspaceFile` 报 **`missing`**；应用层（临时移走 live 附件 + 重启）徽标「附件缺失」、轨迹与步骤页照常可读、不渲染伪空文件；复位 + 重启后恢复可读。三处 rename 全程在 `finally` 还原（另有 `RESTORE-NEEDED.txt` 标记，收尾核验无残留）。
+  - 强证据（**键盘 + 离线**）：资源 host **只有 localhost**（外部 host 0，monaco/css/worker 相关 172 项）⇒ Monaco 本地懒加载；`offline=true` 下仍渲染 diff 编辑器；键盘逐项实测——列表 `Home/End/ArrowUp` 选中且焦点跟随、检查点 Enter 激活、搜索键入 `edit` 筛到 1 项且退格清空恢复、目录宽度分隔条 `ArrowRight` 232→248、工具栏「换行」Enter 翻转、查找 Esc 关闭且焦点回编辑器。
+  - 兼容性：普通 run `r_02` **只有概览/步骤两页签**、无文件清单/无 `listbox`（**无伪文件页**）；概览/步骤可达；在**自有**工具 span 上出现「在此重跑」编辑入口；壳层「新建运行/运行配置/代理录制」等执行类入口可达。
+  - **实机暴露并修复 1 处真实产品缺陷**（违反 delta「首次进入 SHALL 选择最近自有完成步骤」，`specs/desktop-ui/spec.md` L51/L55-57）：`WorkspaceFileView` 只把 `defaultCheckpointStepId` 用在 `stale` 分支，首次进入时 `saved.checkpoint === null` 被 `validateCheckpointStepId(run, null) === "initial"` 吞掉 ⇒ 实际总停在**初始**；根因是**两种"没有 step id"被混为一谈**（`files === undefined` 从未进入 vs `checkpoint === null` 明确要看初始）。修复：新增纯函数 `resolveCheckpoint(run, {entered, checkpoint})` + store 的 `fileReadingEntered(runId)`，并在首帧把解析出的默认检查点**写回会话状态**（否则随后任一 patch 以 `checkpoint:null` 起底 ⇒ 界面突然跳回初始；写回前复查新鲜状态以免覆盖父组件写入的显式目标）。回归：`file-checkpoint-resolve.test.ts` +11（纯函数 5 + 接线契约 6，含 2 条反向断言），`file-view-session-state.test.ts` 的引用校验断言同步改钉新接线；desktop **1295 passed / 66 文件**（较 5.5 +11）；实机复测首次进入落「第 2 轮结束」并立刻呈现真实差异。
+  - harness 侧另修 8 类坑（`node --check` 抓不到模板字面量内嵌反引号 / `<button>` 的 Enter 激活需 `rawKeyDown+char+keyUp` / store 字段名写错静默变空 / `bodySample` 截断致详情判据假失败 / 「清空搜索」只在空态渲染 / find widget 可见性须按 `visible` 类名 / 重启须确认端口真空出 / **一次调用跑多 tag 会让 spawn 的 Electron 撞沙箱** ⇒ 每个 tag 单独一次调用且 dev 非沙箱起）。
 
 ## 6. 质量检查与证据
 
