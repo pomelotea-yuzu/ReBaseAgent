@@ -156,16 +156,38 @@ function PromptForkEditor({
   const settings = useAppStore((s) => s.settings);
   const promptFork = useAppStore((s) => s.promptFork);
   const resetFork = useAppStore((s) => s.resetFork);
+  const ensureCallDraft = useAppStore((s) => s.ensureCallDraft);
+  const writeCallDraftText = useAppStore((s) => s.writeCallDraftText);
   // 源记录不可用时禁用依赖它的执行（任务 3.5）：旧内容仍可见，但不得据此获得执行资格
   const sourceExecutable = useAppStore((s) => s.canExecuteFromSource)();
 
   const { system: originalSystem, user: originalUser } = startupContents(span.request.messages);
   const [field, setField] = useState<PromptForkField>("system_prompt");
-  const [value, setValue] = useState(originalSystem ?? "");
   const [open, setOpen] = useState(false);
+
+  /**
+   * U3 任务 2.2：两个 prompt 字段各自独立草稿（相同 span ID 不同字段不串草稿）。
+   * - 打开/切字段经 `ensureCallDraft` 登记该字段基线：已存在条目原样保留，
+   *   **字段切换保留独立值、重开不覆盖已有输入**；
+   * - 源基线（任务 1.4）随条目落库，恢复重验在 2.5/2.6 接入；
+   * - 关闭编辑与设置往返不删草稿（关闭 ≠ 放弃）。
+   */
+  const draftSource = captureCallDraftSource(run, span);
+  const draftKeyOf = (f: PromptForkField): CallDraftKey => ({
+    runId: run.meta.id,
+    spanId: span.id,
+    field: f,
+  });
+  const ensureFieldDraft = (f: PromptForkField): void => {
+    const baseline = f === "system_prompt" ? (originalSystem ?? "") : (originalUser ?? "");
+    ensureCallDraft(draftKeyOf(f), baseline, draftSource);
+  };
 
   const inProgress = forking === "in_progress";
   const original = field === "system_prompt" ? originalSystem : originalUser;
+  const activeEntry = useAppStore((s) => s.callDraftOf(draftKeyOf(field)));
+  // 草稿已登记 ⇒ 读该字段草稿；未登记（尚未打开/切换到）⇒ 退回该字段原值
+  const value = activeEntry !== undefined ? activeEntry.text : (original ?? "");
   const unchanged = original === null || value === original;
 
   const guard = promptForkGuard({
@@ -184,8 +206,9 @@ function PromptForkEditor({
       : null;
 
   const switchField = (next: PromptForkField): void => {
+    // 目标字段草稿未登记时登记（已存在则原样保留）⇒ 字段切换保留各自独立值
+    ensureFieldDraft(next);
     setField(next);
-    setValue(next === "system_prompt" ? (originalSystem ?? "") : (originalUser ?? ""));
     resetFork();
   };
 
@@ -278,7 +301,7 @@ function PromptForkEditor({
         height="140px"
         language="plaintext"
         value={value}
-        onChange={(next) => setValue(next ?? "")}
+        onChange={(next) => writeCallDraftText(draftKeyOf(field), next ?? "")}
         options={{
           readOnly: inProgress,
           fontSize: 12,
@@ -321,7 +344,7 @@ function PromptForkEditor({
         ) : null}
         <button
           type="button"
-          onClick={() => setValue(original ?? "")}
+          onClick={() => writeCallDraftText(draftKeyOf(field), original ?? "")}
           disabled={inProgress || original === null}
           className="rounded border border-gray-300 px-2 py-1 text-[11px] text-gray-600 hover:bg-gray-50 disabled:opacity-40"
         >
@@ -1023,16 +1046,24 @@ function MessagesForkEditor({
   const forkErrorCode = useAppStore((s) => s.forkErrorCode);
   const proxyFork = useAppStore((s) => s.proxyFork);
   const resetFork = useAppStore((s) => s.resetFork);
+  const ensureCallDraft = useAppStore((s) => s.ensureCallDraft);
+  const writeCallDraftText = useAppStore((s) => s.writeCallDraftText);
   const proxy = useAppStore((s) => s.proxy);
   const [open, setOpen] = useState(false);
-  // 预填 = 完整 messages 的 JSON 文本
-  const [value, setValue] = useState(() => prettyJson(span.request.messages));
+  /**
+   * U3 任务 2.2：messages 草稿（无损字符串——非法 JSON / 空串原样暂存，解析只在提交边界）。
+   * 打开经 ensure 登记基线（重开不覆盖已有输入）；关闭/设置往返不删草稿。
+   */
+  const draftKey: CallDraftKey = { runId: run.meta.id, spanId: span.id, field: "messages" };
+  const draftEntry = useAppStore((s) => s.callDraftOf(draftKey));
   const [parseError, setParseError] = useState<string | null>(null);
   // 源记录不可用时禁用依赖它的执行（任务 3.5）
   const sourceExecutable = useAppStore((s) => s.canExecuteFromSource)();
 
   const inProgress = forking === "in_progress";
-  const unchanged = value === prettyJson(span.request.messages);
+  const messagesBaseline = prettyJson(span.request.messages);
+  const value = draftEntry !== undefined ? draftEntry.text : messagesBaseline;
+  const unchanged = value === messagesBaseline;
 
   if (!open) {
     return (
@@ -1041,7 +1072,7 @@ function MessagesForkEditor({
           type="button"
           onClick={() => {
             resetFork();
-            setValue(prettyJson(span.request.messages));
+            ensureCallDraft(draftKey, messagesBaseline, captureCallDraftSource(run, span));
             setParseError(null);
             setOpen(true);
           }}
@@ -1094,7 +1125,7 @@ function MessagesForkEditor({
         height="200px"
         language="json"
         value={value}
-        onChange={(next) => setValue(next ?? "")}
+        onChange={(next) => writeCallDraftText(draftKey, next ?? "")}
         options={{
           readOnly: inProgress,
           fontSize: 12,
