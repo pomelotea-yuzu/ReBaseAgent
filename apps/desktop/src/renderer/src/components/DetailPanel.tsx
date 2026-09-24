@@ -11,6 +11,8 @@ import {
   presentStepDetail,
   resolveIoView,
 } from "../lib/call-detail-view";
+import type { CallDraftKey } from "../lib/debugging-drafts";
+import { captureCallDraftSource } from "../lib/draft-source";
 import type { ForkCacheHint } from "../lib/fork-cache-hint";
 import { forkCacheHint } from "../lib/fork-cache-hint";
 import { formatDuration, prettyJson } from "../lib/format";
@@ -1204,8 +1206,18 @@ function ForkEditor({
   const resetFork = useAppStore((s) => s.resetFork);
   const loadForkCapability = useAppStore((s) => s.loadForkCapability);
   const settings = useAppStore((s) => s.settings);
+  const ensureCallDraft = useAppStore((s) => s.ensureCallDraft);
+  const writeCallDraftText = useAppStore((s) => s.writeCallDraftText);
   const [open, setOpen] = useState(false);
-  const [value, setValue] = useState(() => toolMessageText(span));
+  /**
+   * U3 任务 2.1：输入改读写 store 草稿（普通/隔离共用同一 key 与保留规则——
+   * 同一组件、同一 `runId + spanId + "result"` 身份）。
+   * - 步骤页签/运行往返、关闭编辑与设置往返都不删草稿（卸载只丢临时 UI 状态）；
+   * - 重开经 `ensureCallDraft` 登记基线：已存在条目原样保留，**不覆盖已有输入**；
+   * - 源基线（任务 1.4 `captureCallDraftSource`）随条目落库，恢复重验在 2.5/2.6 接入。
+   */
+  const draftKey: CallDraftKey = { runId: run.meta.id, spanId: span.id, field: "result" };
+  const draftEntry = useAppStore((s) => s.callDraftOf(draftKey));
 
   // 隔离续跑的本次确认状态：全部是**组件局部**状态——每次打开对话框重新开始，
   // 不从父 trace 的 write_authorized 标注或上一次编辑继承任何授权。
@@ -1230,6 +1242,9 @@ function ForkEditor({
   const cacheHint = forkCacheHint({ kind: "tool-result", parentModel, configModel });
 
   const original = toolMessageText(span);
+  // 草稿条目已登记（正常打开路径必经 ensure）⇒ 读草稿；未登记（未点开过）⇒ 退回原值。
+  // 编辑同步落 store：onChange 每次键入都写入，不靠 debounce / 失焦 / 卸载。
+  const value = draftEntry !== undefined ? draftEntry.text : original;
   const unchanged = value === original;
   const inProgress = forking === "in_progress";
   // 语言依据原始文本初探一次（避免编辑过程中语言选项来回闪变）
@@ -1304,7 +1319,8 @@ function ForkEditor({
           type="button"
           onClick={() => {
             resetLocal();
-            setValue(original);
+            // 登记草稿基线 + 源基线（已存在条目原样保留——重开不覆盖已有输入）
+            ensureCallDraft(draftKey, original, captureCallDraftSource(run, span));
             setOpen(true);
           }}
           className="rounded bg-violet-600 px-2 py-1 text-[11px] text-white hover:bg-violet-700"
@@ -1338,7 +1354,8 @@ function ForkEditor({
         language={language}
         value={value}
         onChange={(next) => {
-          setValue(next ?? "");
+          // 输入同步写入 store 草稿（实际内容变化才推进修订）
+          writeCallDraftText(draftKey, next ?? "");
           // 编辑即作废已校验的结论（确认区收起，避免"确认的与提交的不是同一份编辑"）
           setVerified(null);
         }}
