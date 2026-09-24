@@ -105,8 +105,15 @@ describe("workspace-snapshot：规范序与清单冲突", () => {
     // 代码单元序：`-`(0x2D) < `/`(0x2F)，且中文（U+554A）大于 ASCII 的 `b`
     expect(compareLogicalPath("a-x", "a/b")).toBeLessThan(0);
     expect(compareLogicalPath("啊", "b")).toBeGreaterThan(0);
-    // locale 序（zh）会认为 "啊" 在 "b" 之前——两者结论相反，故本用例能区分实现
-    expect("啊".localeCompare("b")).toBeLessThan(0);
+    // 对照断言：locale 序（zh pinyin）认为 "啊" 在 "b" 之前，与代码单元序结论
+    // 相反——环境确实会区分这两种序时，上面的断言才能证明实现不是 locale 序。
+    // ⚠️ 不能写 `"啊".localeCompare("b")`：它跟随环境默认 locale，Linux CI
+    // 容器默认 locale 非 zh，返回 >0 导致假红（2026-09-24 Gitee Go 实证）。
+    // 故用显式 Collator("zh") 取 locale 序，且仅在完整 ICU（zh 序确与代码
+    // 单元序相反）时断言；缺 zh 排序数据的环境退化但不得假红。
+    if (new Intl.Collator("zh").compare("啊", "b") < 0) {
+      expect(compareLogicalPath("啊", "b")).toBeGreaterThan(0);
+    }
   });
 });
 
