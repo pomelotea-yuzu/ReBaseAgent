@@ -1,0 +1,786 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>U2 原型 · 文件阅读（示例数据）</title>
+    <style>
+      /* ============================================================
+         U2 文件阅读原型 —— 严格按 U2 design D4 的阈值与 U1 §17 视觉 token
+         目录 232（可拖 200–320）；INLINE_MIN_TEXT=480；SIDE_BY_SIDE_MIN_TEXT=320
+         代码正文 ≥13px；编辑器 flex 填充、不锁死 420px
+         决策顺序：先算「目录能否常驻」→ 再算「inline 还是并排」
+         ============================================================ */
+      :root {
+        --bg: #f4f5f7;
+        --panel: #ffffff;
+        --panel-2: #fafbfc;
+        --line: #e3e6ea;
+        --line-strong: #d0d5dc;
+        --ink: #1f2329;
+        --ink-2: #4e5969;
+        --ink-3: #86909c;
+        --accent: #2b6cb0;
+        --ok: #1f8a4c;
+        --warn: #b26a00;
+        --err: #c0392b;
+        --ok-bg: #e8f5ee;
+        --neutral-bg: #eef0f3;
+        --warn-bg: #fff7e6;
+        --err-bg: #fdecea;
+        --code-bg: #f6f8fa;
+        --nav-w: 264px;
+        --dir-w: 232px;
+        --code: 13px;
+        --aux: 12px;
+      }
+      * { box-sizing: border-box; }
+      html, body {
+        margin: 0; padding: 0; height: 100%;
+        font-family: -apple-system, "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+        font-size: 14px; letter-spacing: 0; color: var(--ink); background: var(--bg);
+      }
+      html, body { overflow-x: hidden; }
+      button { font: inherit; letter-spacing: 0; color: inherit; cursor: pointer; }
+      code, pre, .mono { font-family: "Cascadia Mono", Consolas, "SF Mono", monospace; font-size: var(--code); }
+
+      .demoflag { background: #fff8e1; border-bottom: 1px solid #f0dcae; color: #7a5200;
+        font-size: var(--aux); padding: 4px 14px; }
+
+      .topbar { height: 48px; display: flex; align-items: center; gap: 12px; padding: 0 12px;
+        background: var(--panel); border-bottom: 1px solid var(--line); }
+      .brand { font-weight: 600; }
+      .brand small { color: var(--ink-3); font-weight: 400; margin-left: 6px; font-size: var(--aux); }
+      .topbar .spacer { flex: 1 1 auto; }
+      .tbtn { height: 30px; padding: 0 10px; border: 1px solid var(--line-strong); background: var(--panel);
+        border-radius: 4px; font-size: 13px; white-space: nowrap; }
+      .tbtn:disabled { opacity: .45; cursor: not-allowed; }
+      .tbtn[aria-pressed="true"] { background: #eef4fd; border-color: var(--accent); color: var(--accent); }
+
+      /* ---------- 外壳：导航 + 主区（文件页不附带步骤目录） ---------- */
+      .shell { display: flex; height: calc(100% - 48px - 22px); min-height: 0; }
+      .nav { width: var(--nav-w); min-width: var(--nav-w); background: var(--panel);
+        border-right: 1px solid var(--line); overflow: auto; padding: 10px; }
+      .nav h3 { font-size: var(--aux); color: var(--ink-3); margin: 0 0 8px; font-weight: 600; }
+      .navitem { padding: 6px 8px; border-radius: 4px; font-size: 13px; color: var(--ink-2); }
+      .navitem[aria-current="true"] { background: #eef4fd; color: var(--accent); font-weight: 600; }
+
+      .main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+
+      /* ---------- 页头：检查点 + 只读声明（U1 详情页头同法） ---------- */
+      .ws-head { background: var(--panel); border-bottom: 1px solid var(--line);
+        padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; }
+      .ws-title { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+      .ws-title strong { font-size: 14px; }
+      .muted { color: var(--ink-3); font-size: var(--aux); }
+      .cpbar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+      /* ---------- 文件页主体 ---------- */
+      .filewrap { display: flex; flex: 1 1 auto; min-width: 0; min-height: 0; overflow: hidden; }
+
+      /* 目录：232 固定，可拖 200–320 */
+      .filedir { width: var(--dir-w); min-width: 200px; max-width: 320px; border-right: 1px solid var(--line);
+        background: var(--panel); display: flex; flex-direction: column; min-height: 0; }
+      .filedir.collapsed { display: none; }
+      .dir-head { padding: 8px 10px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
+      .dir-head .row { display: flex; align-items: center; gap: 6px; }
+      .dir-head input[type="search"] { flex: 1 1 auto; min-width: 0; height: 26px; padding: 0 6px;
+        border: 1px solid var(--line-strong); border-radius: 4px; font: inherit; font-size: 13px; }
+      .seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 4px; overflow: hidden; }
+      .seg button { border: 0; background: var(--panel); padding: 4px 8px; font-size: var(--aux); }
+      .seg button[aria-pressed="true"] { background: #eef4fd; color: var(--accent); font-weight: 600; }
+      .count { font-size: var(--aux); color: var(--ink-3); }
+      .dir-list { overflow: auto; flex: 1 1 auto; min-height: 0; }
+      .fitem { width: 100%; text-align: left; border: 0; background: transparent; padding: 7px 10px;
+        font-size: 13px; border-bottom: 1px solid var(--line); display: flex; gap: 6px; align-items: center; }
+      .fitem[aria-current="true"] { background: #eef4fd; font-weight: 600; }
+      .fitem .p { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .badge { font-size: 10px; padding: 1px 5px; border-radius: 3px; background: var(--neutral-bg); color: var(--ink-2); white-space: nowrap; }
+      .badge.added { background: var(--ok-bg); color: var(--ok); }
+      .badge.modified { background: var(--warn-bg); color: var(--warn); }
+      .badge.bin, .badge.miss { background: var(--err-bg); color: var(--err); }
+
+      .dragbar { width: 5px; cursor: col-resize; background: transparent; }
+      .dragbar:focus-visible { outline: 2px solid var(--accent); }
+
+      /* 内容区：工具栏 + 编辑器 */
+      .fview { flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--bg); }
+      .toolbar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+        padding: 8px 10px; background: var(--panel); border-bottom: 1px solid var(--line); }
+      .toolbar .sep { width: 1px; height: 20px; background: var(--line); margin: 0 2px; }
+      .toolbar .title { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis;
+        white-space: nowrap; max-width: 40%; }
+      .tbtn.icon { width: 30px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+
+      .editorwrap { flex: 1 1 auto; min-height: 0; display: flex; padding: 10px; gap: 10px; }
+      /* inline：单列，文字区 = 容器宽 */
+      .editorwrap.inline { flex-direction: column; }
+      /* 并排：两列，每列文字区各需 ≥320 */
+      .editorwrap.side-by-side { flex-direction: row; }
+      /* ⚠️ 真 Monaco 是**直接挂进 `#editorwrap`** 的（没有 `.pane` 外壳），
+         而 .editorwrap 是 row flex + gap 的容器 ⇒ Monaco 根元素会被当成一个
+         **不可伸缩的 flex item** 压成几十像素（实测 diff 容器只剩 74px、
+         contentWidth 变负数）。给直挂的 Monaco 一个能撑满的宿主。
+         mock 侧有 .pane 包，不受影响。 */
+      .editorwrap > .monaco-diff-editor,
+      .editorwrap > .monaco-editor { flex: 1 1 0; min-width: 0; height: 100%; }
+      .pane { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column;
+        border: 1px solid var(--line-strong); border-radius: 4px; background: var(--panel); overflow: hidden; }
+      .pane > .ph { padding: 5px 8px; font-size: var(--aux); color: var(--ink-3);
+        background: var(--panel-2); border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; }
+      /* 模拟 Monaco：行号沟 56px + 内边距 ⇒ 文字区 = 面板宽 − 56 − 16 */
+      .codemock { flex: 1 1 auto; min-height: 0; overflow: auto; display: flex; background: var(--code-bg); }
+      .guttermock { width: 56px; min-width: 56px; padding: 8px 6px; text-align: right;
+        color: var(--ink-3); background: var(--panel-2); border-right: 1px solid var(--line); user-select: none; }
+      .textmock { flex: 1 1 auto; min-width: 0; padding: 8px; white-space: pre; font-size: var(--code);
+        line-height: 1.55; }
+      .textmock.wrap { white-space: pre-wrap; word-break: break-word; }
+
+      /* 状态块（不可用侧：不渲染伪空编辑器） */
+      .statusblock { flex: 1 1 auto; display: flex; flex-direction: column; align-items: center;
+        justify-content: center; gap: 6px; color: var(--ink-2); padding: 16px; text-align: center; }
+      .statusblock .big { font-size: 13px; font-weight: 600; }
+      .statusblock .why { font-size: var(--aux); color: var(--ink-3); max-width: 42ch; }
+
+      .empty { display: flex; flex-direction: column; align-items: center; justify-content: center;
+        gap: 12px; height: 100%; color: var(--ink-2); }
+
+      /* 窄窗（<720）：目录与内容二选一 */
+      .auxback { display: none; padding: 8px 14px; background: var(--panel); border-bottom: 1px solid var(--line); }
+      body[data-narrow="1"] .filedir { display: none; }
+      body[data-narrow="1"][data-aux="dir"] .filedir { display: flex; flex: 1 1 auto; width: auto; max-width: none; }
+      body[data-narrow="1"][data-aux="dir"] .fview { display: none; }
+      body[data-narrow="1"] .auxback.show { display: flex; align-items: center; gap: 8px; }
+      body[data-narrow="1"] .editorwrap.side-by-side { flex-direction: column; }
+
+      .toast { position: fixed; right: 16px; bottom: 16px; background: #1f2329; color: #fff;
+        padding: 8px 12px; border-radius: 6px; font-size: 13px; z-index: 60; }
+    </style>
+  </head>
+  <body data-narrow="0" data-aux="main">
+    <div class="demoflag">
+      示例数据原型：文件、哈希、检查点均为内置样例，不读取真实 trace、不发起模型请求。
+      本目录用于在写组件前锁定 D4 的**两次决策**与几何阈值。
+    </div>
+
+    <div class="topbar">
+      <span class="brand">ReBaseAgent <small>U2 文件阅读原型</small></span>
+      <span class="spacer"></span>
+      <button class="tbtn" id="btn-zoom">zoom 100%</button>
+      <button class="tbtn" id="btn-narrow">窄窗 640</button>
+      <button class="tbtn" id="btn-log">导出几何</button>
+      <button class="tbtn" id="btn-source">正文来源：schema</button>
+    </div>
+
+    <div class="shell">
+      <!-- 运行导航（U1 外壳；960–1279 进入文件页时收起，此处按视口脚本切换） -->
+      <aside class="nav" id="nav">
+        <h3>运行</h3>
+        <div class="navitem" aria-current="true">run_test root（3 轮）</div>
+        <div class="navitem">run_test fork1（2 轮）</div>
+        <div class="navitem">run_test fork2（2 轮）</div>
+      </aside>
+
+      <div class="main">
+        <!-- 页头：检查点选择 + 只读声明 -->
+        <div class="ws-head">
+          <div class="ws-title">
+            <strong class="mono" id="hdr-run">run_test root</strong>
+            <span class="muted">隔离文件世界 · profile file-tools-v1</span>
+          </div>
+          <div class="cpbar">
+            <span class="muted">检查点</span>
+            <button class="tbtn" data-cp="initial">本 run 初始状态</button>
+            <button class="tbtn" data-cp="s_01">本 run 第 1 轮结束</button>
+            <button class="tbtn" data-cp="s_04">本 run 第 2 轮结束</button>
+            <button class="tbtn" data-cp="s_11" aria-pressed="true">本 run 第 3 轮结束</button>
+            <span class="muted">· 只读视图（不写文件 / 不补快照 / 不调用模型）</span>
+          </div>
+        </div>
+
+        <div class="auxback" id="auxback">
+          <button class="tbtn" id="btn-back-dir">← 目录</button>
+          <span class="muted" id="auxback-label">内容</span>
+        </div>
+
+        <div class="filewrap" id="filewrap">
+          <!-- 目录 -->
+          <aside class="filedir" id="filedir" aria-label="文件目录">
+            <div class="dir-head">
+              <div class="row">
+                <input type="search" id="q" placeholder="按完整路径搜索" aria-label="按完整路径搜索" />
+              </div>
+              <div class="row">
+                <div class="seg" role="group" aria-label="变化筛选">
+                  <button data-filter="auto" aria-pressed="true">自动</button>
+                  <button data-filter="all">全部</button>
+                  <button data-filter="changed">有变化</button>
+                </div>
+                <span class="count" id="count">筛出 5 / 共 7</span>
+              </div>
+            </div>
+            <div class="dir-list" id="dirlist"></div>
+          </aside>
+          <div class="dragbar" id="dragbar" tabindex="0" role="separator"
+               aria-label="调整目录宽度" aria-orientation="vertical"></div>
+
+          <!-- 内容 -->
+          <section class="fview" id="fview">
+            <div class="toolbar" role="toolbar" aria-label="文件阅读工具">
+              <span class="title mono" id="fpath">fixtures/a-long-directory-name/notes.md</span>
+              <span class="sep"></span>
+              <button class="tbtn" id="btn-copy-path">复制路径</button>
+              <button class="tbtn" id="btn-copy-left">复制初始原文</button>
+              <button class="tbtn" id="btn-copy-right">复制所选原文</button>
+              <button class="tbtn" id="btn-copy-meta">复制元信息</button>
+              <span class="sep"></span>
+              <button class="tbtn" id="btn-find">查找</button>
+              <button class="tbtn" id="btn-wrap" aria-pressed="false">换行</button>
+              <button class="tbtn" id="btn-prev-diff">上一差异</button>
+              <button class="tbtn" id="btn-next-diff">下一差异</button>
+              <span class="sep"></span>
+              <button class="tbtn" id="btn-mode" aria-pressed="false">并排</button>
+              <button class="tbtn" id="btn-dir" aria-pressed="true">目录</button>
+            </div>
+            <div class="editorwrap" id="editorwrap"></div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // =========================================================================
+      // 示例数据（对齐 U2 1.1 夹具的文件状态：新增/修改/未变化/零字节/二进制/缺失）
+      // =========================================================================
+      const FILES = [
+        { path: "fixtures/a-long-directory-name/notes.md", change: "modified", avail: "ok" },
+        { path: "a.txt", change: "unchanged", avail: "ok" },
+        { path: "new.txt", change: "added", avail: "ok" },
+        { path: "empty.txt", change: "unchanged", avail: "ok" },
+        { path: "bin.dat", change: "unchanged", avail: "ok", binary: true },
+        { path: "gone.txt", change: "unchanged", avail: "missing" },
+        { path: "broken.txt", change: "unchanged", avail: "corrupt" },
+      ];
+      const LONG = Array.from({ length: 120 }, (_, i) =>
+        `第 ${String(i + 1).padStart(3, "0")} 行：长文本样本，用于验证正文区域与滚动。`
+      ).join("\n");
+      const TEXT = {
+        initial: { "fixtures/a-long-directory-name/notes.md": "标题\n初始内容（未修改前的版本）\n" + LONG },
+        selected: { "fixtures/a-long-directory-name/notes.md": "标题\n修改后的内容\n" + LONG },
+      };
+
+      const MIN_INLINE_TEXT = 480;      // D4：inline 文字区下限
+      const MIN_SIDE_TEXT = 320;        // D4：并排每侧文字区下限
+      const DIR_DEFAULT = 232, DIR_MIN = 200, DIR_MAX = 320;
+
+      // 「正文占用」来源：schema（mock）或 real（真 Monaco）。见文件末 REAL 段注释。
+      let paneSource = "schema";
+      let realDiff = null;              // 真 Monaco editor 实例（并排）
+      let realSingle = null;            // 真 Monaco editor 实例（inline 单栏）
+      let realReady = false;
+      let lastDiffCount = null;         // 最近一次 onDidUpdateDiff 得到的差异块数
+      const realUnsub = [];
+
+      let state = {
+        filter: "auto", query: "", selected: FILES[0].path, mode: "auto",
+        dirWidth: DIR_DEFAULT, dirCollapsed: false, wrap: false, zoom: 1,
+      };
+
+      const q = (s) => document.querySelector(s);
+      const vis = (el) => !!el && el.offsetParent !== null && getComputedStyle(el).display !== "none";
+      const w = (el) => (el ? Math.round(el.getBoundingClientRect().width) : 0);
+
+      function availBadge(f) {
+        if (f.avail === "missing") return '<span class="badge miss">缺失</span>';
+        if (f.avail === "corrupt") return '<span class="badge miss">损坏</span>';
+        if (f.binary) return '<span class="badge bin">二进制</span>';
+        if (f.change === "added") return '<span class="badge added">新增</span>';
+        if (f.change === "modified") return '<span class="badge modified">修改</span>';
+        return "";
+      }
+
+      function visibleFiles() {
+        const changed = state.filter === "changed" || (state.filter === "auto" && false);
+        return FILES.filter((f) => {
+          if (state.query && !f.path.toLowerCase().includes(state.query.toLowerCase())) return false;
+          if (changed && !(f.change === "added" || f.change === "modified")) return false;
+          return true;
+        });
+      }
+
+      function renderDir() {
+        const list = visibleFiles();
+        q("#dirlist").innerHTML = list.map((f) =>
+          `<button class="fitem" data-path="${f.path}" aria-current="${f.path === state.selected}">
+             <span class="p mono">${f.path}</span>${availBadge(f)}
+           </button>`).join("") || `<div class="statusblock"><div class="big">无匹配</div>
+             <div class="why">没有路径匹配当前搜索。</div></div>`;
+        const total = FILES.length;
+        q("#count").textContent = list.length === total ? `共 ${total} 个` : `筛出 ${list.length} / 共 ${total}`;
+        for (const b of q("#dirlist").querySelectorAll(".fitem")) {
+          b.onclick = () => { state.selected = b.dataset.path; renderDir(); renderEditor(); measure("点击"); };
+        }
+      }
+
+      /** 目录能否常驻：扣除目录/间距/内边距后，inline 文字区仍 ≥480 */
+      function decideDirResident(containerWidth, dirWidth) {
+        const EDITOR_CHROME = 56 + 16 + 20 + 2; // 行号沟 + 内边距 + 外层 padding + 边框
+        const withDir = containerWidth - dirWidth - 5 - EDITOR_CHROME;
+        if (withDir >= MIN_INLINE_TEXT) return { resident: true, textWithoutDir: withDir };
+        const withoutDir = containerWidth - EDITOR_CHROME;
+        return { resident: false, textWithoutDir: withoutDir };
+      }
+
+      /** diff 模式：两侧文字区各 ≥320 才并排 */
+      function decideDiffMode(textAreaWidth, pref) {
+        const perSide = Math.floor((textAreaWidth - 10) / 2); // 两列间距 10
+        if (pref === "inline") return { mode: "inline", perSide, reason: "用户选择 inline" };
+        if (perSide >= MIN_SIDE_TEXT) {
+          return { mode: "side-by-side", perSide,
+            reason: pref === "auto" ? "两侧文字区各 ≥320，自动并排" : "用户选择并排且空间足够" };
+        }
+        return { mode: "inline", perSide,
+          reason: pref === "auto" ? `自动降级：每侧仅 ${perSide}px < 320` : `空间不足（每侧 ${perSide}px < 320），已降级为 inline` };
+      }
+
+      /**
+       * 量测。
+       *
+       * ⚠️ 「文字区」有**两个来源**，必须分清（这是本原型最容易骗人的地方）：
+       *   - `monacoContentWidth`：真 Monaco `getLayoutInfo().contentWidth`，**只有
+       *     paneSource === "real" 且编辑器已装配时**才有值；这是唯一能作为 D4 证据的数字。
+       *   - `schemaTextWidths`：本次工作区**实际生效的排版 schema**（目录 200–320 / 间距 5 /
+       *     编辑器外层 padding 10 / 面板边框 1 / 行号沟 56 / 内边距 8）。
+       *
+       * 原型自身不引入任何"每次测量现算"的 chrome 常数（那会变成第三套猜测）：
+       * inline 决策**直接吃 mock 的文字区**，于是"决策"与"展示"永远同源、互相自洽。
+       * real 模式下，决策改吃 `contentWidth`，再由 `crossCheck` 把两个数字摆在一起比对。
+       */
+      function measure(tag) {
+        const wrap = q("#filewrap");
+        const containerWidth = w(wrap);
+        const dirEl = q("#filedir");
+        const dirVisible = vis(dirEl);
+        const dirDecision = decideDirResident(containerWidth, dirVisible ? w(dirEl) : 0);
+        const textAreaWidth = dirVisible ? containerWidth - w(dirEl) - 5 : containerWidth;
+        const modeDecision = decideDiffMode(textAreaWidth, state.mode);
+
+        const gutters = document.querySelectorAll(".guttermock");
+        const schemaTexts = [...document.querySelectorAll(".pane")]
+          .map((p) => Math.round(p.getBoundingClientRect().width) - 56 - 16);
+
+        // 真 Monaco：从布局信息取文字区（含行号沟 / 滚动条 / 内边距的真实扣减）
+        const real = realLayout();
+        const authoritative = paneSource === "real" && real !== null;
+
+        return {
+          tag,
+          paneSource,
+          viewportCSS: document.documentElement.clientWidth,
+          fileContainer: containerWidth,
+          dirVisible,
+          dirWidth: dirVisible ? w(dirEl) : 0,
+          dirResidentDecision: dirDecision.resident,
+          textAreaWidth,
+          resolvedMode: modeDecision.mode,
+          textPerSide: modeDecision.perSide,
+          modeReason: modeDecision.reason,
+          gutterWidth: gutters.length ? w(gutters[0]) : 0,
+          paneCount: document.querySelectorAll(".pane").length,
+          // ── schema 侧（mock 排版，永远有值）──
+          schemaTextWidths: schemaTexts,
+          schemaMinPaneText: schemaTexts.length ? Math.min(...schemaTexts) : null,
+          // ── 真 Monaco 侧（仅 real 模式 + 已装配）──
+          monacoReady: realReady,
+          monacoContentWidth: real === null ? null : real.contentWidth,
+          monacoContentWidths: real === null ? null : real.contentWidths,
+          monacoLineNumbersWidth: real === null ? null : real.lineNumbersWidth,
+          monacoGlyphMarginWidth: real === null ? null : real.glyphMarginWidth,
+          monacoDecorationsWidth: real === null ? null : real.decorationsWidth,
+          monacoVerticalScrollbarWidth: real === null ? null : real.verticalScrollbarWidth,
+          monacoMinimapWidth: real === null ? null : real.minimapWidth,
+          monacoFontSize: real === null ? null : real.fontSize,
+          diffCount: lastDiffCount,
+          // 决策采用的数字（real 模式 = Monaco contentWidth；schema 模式 = mock 文字区）
+          authoritativeTextWidth: authoritative
+            ? (real.contentWidths.length ? Math.min(...real.contentWidths) : real.contentWidth)
+            : schemaTexts.length
+              ? Math.min(...schemaTexts)
+              : null,
+          authoritativeSource: authoritative ? "monaco.getLayoutInfo()" : "schema",
+          // 同尺寸下两个来源的对照（real 模式才有意义）
+          crossCheck:
+            paneSource === "real" && real !== null && schemaTexts.length
+              ? {
+                  来源: "Monaco contentWidth − mock 文字区",
+                  差值: real.contentWidths.map((v, i) => v - (schemaTexts[i] ?? 0)),
+                }
+              : null,
+          codeFontSize: parseFloat(getComputedStyle(q(".textmock") || document.body).fontSize),
+          realFontSize: real === null ? null : real.fontSize,
+          hOverflow: document.body.scrollWidth > document.documentElement.clientWidth,
+          zoom: state.zoom,
+        };
+      }
+
+      /** schema 模式的排版（mock 正文）：不依赖 Monaco，纯 DOM，随时可量。 */
+      function renderSchemaEditor() {
+        const wrap = q("#editorwrap");
+        const containerWidth = w(q("#filewrap"));
+        const dirVisible = vis(q("#filedir"));
+        const textAreaWidth = dirVisible ? containerWidth - w(q("#filedir")) - 5 : containerWidth;
+        const decision = decideDiffMode(textAreaWidth, state.mode);
+        wrap.className = "editorwrap " + decision.mode;
+
+        const f = FILES.find((x) => x.path === state.selected);
+        q("#fpath").textContent = state.selected;
+
+        // 不可用侧：绝不渲染伪空编辑器
+        if (f.avail !== "ok" || f.binary) {
+          wrap.innerHTML = `<div class="pane"><div class="ph"><span>所选检查点</span></div>
+            <div class="statusblock">
+              <div class="big">${f.binary ? "二进制文件" : f.avail === "missing" ? "附件缺失" : "附件损坏"}</div>
+              <div class="why">${f.binary
+                ? "只显示真实大小与哈希，不做有损文本比较。"
+                : "trace 引用了该附件，但磁盘上" + (f.avail === "missing" ? "并不存在" : "内容与哈希不符") + "。不是空文件。"}</div>
+            </div></div>`;
+          const m = measure("不可用侧");
+          window.__last = m;
+          return;
+        }
+
+        const leftText = TEXT.initial[state.selected] ?? "";
+        const rightText = TEXT.selected[state.selected] ?? leftText;
+        const wrapCls = state.wrap ? "textmock wrap" : "textmock";
+        const short = (t) => t.split("\n").slice(0, 400).map((l, i) =>
+          `<span>${String(i + 1).padStart(3, " ")}  ${l.replace(/</g, "&lt;")}</span>`).join("\n");
+
+        const mkCol = (label, text) => `<div class="pane">
+          <div class="ph"><span>${label}</span><span class="mono">${text.length} B</span></div>
+          <div class="codemock"><div class="guttermock mono">${text.split("\n").slice(0, 400)
+            .map((_, i) => i + 1).join("<br>")}</div>
+            <div class="${wrapCls} mono">${short(text)}</div></div></div>`;
+
+        if (decision.mode === "side-by-side") {
+          wrap.innerHTML = mkCol("初始快照", leftText) + mkCol("所选检查点", rightText);
+        } else {
+          wrap.innerHTML = mkCol("初始快照 → 所选检查点（inline 合并视图）", rightText);
+        }
+        window.__last = measure("渲染");
+      }
+
+      /**
+       * 统一入口：schema 模式走 mock 排版；real 模式交给真 Monaco。
+       * 真 Monaco 是异步装配的，故 real 分支不阻塞调用方（量测脚本会等 ready）。
+       */
+      function renderEditor() {
+        if (paneSource === "real") {
+          const wrap = q("#editorwrap");
+          const containerWidth = w(q("#filewrap"));
+          const dirVisible = vis(q("#filedir"));
+          const textAreaWidth = dirVisible ? containerWidth - w(q("#filedir")) - 5 : containerWidth;
+          wrap.className = "editorwrap " + decideDiffMode(textAreaWidth, state.mode).mode;
+          const f = FILES.find((x) => x.path === state.selected);
+          q("#fpath").textContent = state.selected;
+          if (f && (f.avail !== "ok" || f.binary)) {
+            renderSchemaEditor(); // 不可用侧用状态块（两模式共用）
+          } else {
+            void realRender();
+          }
+          return;
+        }
+        renderSchemaEditor();
+      }
+
+      // =========================================================================
+      // 真 Monaco 段（paneSource === "real" 时启用）
+      //
+      // 目的：把 mock 的 `56 + 16` 行号沟假设，换成**已安装 Monaco 自己的公开布局 API**
+      // 实测的文字区。这是 1.2 的核心——不然「800px 够不够 480」全靠自证。
+      //
+      // 用的是与产品**同一份**装配路径（`ensureMonaco()` 的等价物：从本地实例配置
+      // `loader`，不联网）和与 `WorkspaceFileView` 同一组 options，只补两处：
+      //   - `automaticLayout: true`，否则容器变宽不会 relayout（这正是"响应容器变化"）；
+      //   - `useInlineViewWhenSpaceIsLimited: false`，否则 Monaco 内置的
+      //     `renderSideBySideInlineBreakpoint: 900` 会**自己**把并排翻成 inline，
+      //     我们量到的就不是 `renderSideBySide: true` 的真实排版了。
+      //     （产品当前没设这条 ⇒ 见 README「撞到的真实缺陷」。）
+      // =========================================================================
+
+      /**
+       * Monaco 的模块入口：与产品同一份本地实例（monaco-bootstrap.ts 的等价来源）。
+       *
+       * ⚠️ pnpm 下**不能**走 `apps/desktop/node_modules/monaco-editor/esm/...`：
+       * 那是个符号链接目录，静态服务端 `join()` 会跟随链接落到 `.pnpm` 实体，
+       * 而浏览器解析出的 URL 不会 —— 结果 404 + MIME text/css。
+       * 必须直接指向 `.pnpm` 里的**实体路径**（相对仓库根，便于 serveLocal 覆盖）。
+       */
+      const MONACO_PKG = "../../../node_modules/.pnpm/monaco-editor@0.56.0/node_modules/monaco-editor";
+      const MONACO_ENTRY = MONACO_PKG + "/esm/vs/editor/editor.api.js";
+
+      async function realSetup() {
+        const api = await import(MONACO_ENTRY);
+        window.__monaco = api;
+        window.monaco = api;
+        return api;
+      }
+
+      async function realEnsure() {
+        if (realReady) return true;
+        try {
+          const api = await realSetup();
+          window.MonacoEnvironment = {
+            getWorker() {
+              // 本原型只需纯文本 diff，不装配语言 worker（worker 走 blob 在 file:// 下不可靠）
+              return {
+                postMessage() {},
+                terminate() {},
+                addEventListener() {},
+                removeEventListener() {},
+              };
+            },
+          };
+          realReady = true;
+          void api;
+          realRender();
+          return true;
+        } catch (e) {
+          document.querySelector("#editorwrap").innerHTML =
+            `<div class="statusblock"><div class="big">无法装配本地 Monaco</div>` +
+            `<div class="why">${String(e && e.message ? e.message : e)}<br/>` +
+            `需要本地 HTTP 服务（file:// 下 ESM 动态导入受限）。</div></div>`;
+          return false;
+        }
+      }
+
+      /** 取真 Monaco 的布局信息（≤2 个编辑器）。未装配时返回 null。 */
+      function realLayout() {
+        if (!realReady) return null;
+        const eds = [realDiff ? realDiff.getModifiedEditor() : null, realSingle].filter(Boolean);
+        if (!eds.length) return null;
+        // ⚠️ getLayoutInfo() 依赖已完成的一次 layout。若容器刚变过宽（或首次装配），
+        // 读到的是上一轮甚至初始尺寸 ⇒ contentWidth 会离谱（实测见过 -9）。
+        // 先强制 layout() 再读，是这里唯一可靠的口径。
+        const infos = eds.map((e) => {
+          try {
+            // 显式 layout：diff 编辑器在容器刚插入/变宽时不会自动重排（automaticLayout
+            // 只在容器 resize 事件上触发，首帧尺寸为 0 时也会漏），必须手动喂 size。
+            const host = e.getDomNode().parentElement;
+            if (host && host.clientWidth > 0) {
+              e.layout({ width: host.clientWidth, height: host.clientHeight });
+            }
+          } catch { /* 忽略：无尺寸时 layout 是 no-op */ }
+          return e.getLayoutInfo();
+        });
+        let fontSize = null;
+        try {
+          // EditorOption.fontSize = 61（见 monaco editorOptions.js `61 /* EditorOption.fontSize */`）。
+          // 用数值前务必核对枚举，48 是别的选项（会返回字符串）。
+          fontSize = eds[0].getOption(61);
+        } catch {
+          fontSize = null;
+        }
+        const first = infos[0];
+        return {
+          contentWidth: first.contentWidth,
+          contentWidths: infos.map((i) => i.contentWidth),
+          lineNumbersWidth: first.lineNumbersWidth,
+          glyphMarginWidth: first.glyphMarginWidth,
+          decorationsWidth: first.decorationsWidth,
+          verticalScrollbarWidth: first.verticalScrollbarWidth,
+          minimapWidth: first.minimap ? first.minimap.minimapWidth : 0,
+          fontSize,
+        };
+      }
+
+      function realTeardown() {
+        while (realUnsub.length) realUnsub.pop().dispose();
+        if (realDiff) { realDiff.dispose(); realDiff = null; }
+        if (realSingle) { realSingle.dispose(); realSingle = null; }
+        lastDiffCount = null;
+      }
+
+      async function realRender() {
+        if (paneSource !== "real") return;
+        if (!(await realEnsure())) return;
+        const wrap = q("#editorwrap");
+        const api = window.__monaco;
+        const f = FILES.find((x) => x.path === state.selected);
+        if (!f || f.avail !== "ok" || f.binary) return; // 不可用侧：renderEditor 已出状态块
+
+        const containerWidth = w(q("#filewrap"));
+        const dirVisible = vis(q("#filedir"));
+        const textAreaWidth = dirVisible ? containerWidth - w(q("#filedir")) - 5 : containerWidth;
+        const decision = decideDiffMode(textAreaWidth, state.mode);
+        const leftText = TEXT.initial[state.selected] ?? "";
+        const rightText = TEXT.selected[state.selected] ?? leftText;
+
+        // 与产品同组的 options；两处原型专用差异见段首注释
+        const base = {
+          readOnly: true,
+          fontSize: 13,
+          minimap: { enabled: false },
+          lineNumbers: "on",
+          scrollBeyondLastLine: false,
+          wordWrap: state.wrap ? "on" : "off",
+          scrollbar: { vertical: "auto", horizontal: "auto" },
+          folding: true,
+          showFoldingControls: "always",
+          originalEditable: false,
+          automaticLayout: true,
+          useInlineViewWhenSpaceIsLimited: false,
+        };
+
+        realTeardown();
+        wrap.innerHTML = "";
+        if (decision.mode === "side-by-side") {
+          realDiff = api.editor.createDiffEditor(wrap, {
+            ...base,
+            renderSideBySide: true,
+            renderOverviewRuler: false,
+          });
+          realDiff.setModel({
+            original: api.editor.createModel(leftText, "plaintext"),
+            modified: api.editor.createModel(rightText, "plaintext"),
+          });
+          const onDiff = () => {
+            const changes = realDiff.getLineChanges();
+            lastDiffCount = changes === null ? 0 : changes.length;
+          };
+          realUnsub.push(realDiff.onDidUpdateDiff(onDiff));
+        } else {
+          realSingle = api.editor.create(wrap, { ...base, value: rightText, language: "plaintext" });
+        }
+        await new Promise((r) => setTimeout(r, 220)); // 等 Monaco 完成 layout
+        window.__last = measure("real 渲染");
+      }
+
+      /** 真 Monaco 的**公开定位命令**：上一/下一差异、首个差异、查找 */
+      window.__diffApi = {
+        next() { if (realDiff) realDiff.goToDiff("next"); },
+        prev() { if (realDiff) realDiff.goToDiff("previous"); },
+        first() { if (realDiff) realDiff.revealFirstDiff(); },
+        count() { if (!realDiff) return null; const c = realDiff.getLineChanges(); return c === null ? 0 : c.length; },
+        find(term) {
+          const ed = realDiff ? realDiff.getModifiedEditor() : realSingle;
+          if (!ed) return null;
+          const ctrl = ed.getContribution("editor.contrib.findController");
+          if (!ctrl) return null;
+          ctrl.getState().change({ searchString: term }, false);
+          return ed.getContribution("editor.contrib.findController").getState().searchString;
+        },
+      };
+
+      function applyLayout() {
+        const vw = document.documentElement.clientWidth;
+        // 窄窗（<720）：目录与内容二选一
+        const narrow = vw < 720;
+        document.body.dataset.narrow = narrow ? "1" : "0";
+        q("#auxback").classList.toggle("show", narrow);
+
+        // 960–1279 进入文件页收起运行导航（U1 外壳既有规则）
+        const nav = q("#nav");
+        nav.style.display = vw >= 960 && vw < 1280 ? "none" : "";
+
+        q("#filedir").style.width = state.dirWidth + "px";
+        q("#filedir").classList.toggle("collapsed", state.dirCollapsed);
+        q("#btn-dir").setAttribute("aria-pressed", String(!state.dirCollapsed));
+      }
+
+      function setMode(mode) {
+        state.mode = mode;
+        q("#btn-mode").textContent = mode === "sideBySide" ? "并排" : mode === "inline" ? "单列" : "自动";
+        q("#btn-mode").setAttribute("aria-pressed", String(mode === "sideBySide"));
+      }
+
+      // ---- 交互接线 ----
+      q("#q").oninput = (e) => { state.query = e.target.value; renderDir(); };
+      for (const b of document.querySelectorAll(".seg button")) {
+        b.onclick = () => {
+          state.filter = b.dataset.filter;
+          for (const x of document.querySelectorAll(".seg button"))
+            x.setAttribute("aria-pressed", String(x === b));
+          renderDir();
+        };
+      }
+      q("#btn-dir").onclick = () => { state.dirCollapsed = !state.dirCollapsed; applyLayout(); renderEditor(); };
+      q("#btn-mode").onclick = () => {
+        const next = state.mode === "auto" ? "sideBySide" : state.mode === "sideBySide" ? "inline" : "auto";
+        setMode(next); renderEditor();
+      };
+      q("#btn-wrap").onclick = () => {
+        state.wrap = !state.wrap;
+        q("#btn-wrap").setAttribute("aria-pressed", String(state.wrap));
+        renderEditor();
+      };
+      q("#btn-zoom").onclick = () => {
+        state.zoom = state.zoom === 1 ? 2 : 1;
+        // 200% 等效于 CSS 视口减半
+        q("#btn-zoom").textContent = "zoom " + state.zoom * 100 + "%";
+        renderWithZoom();
+      };
+      q("#btn-narrow").onclick = () => {
+        const el = q("#filewrap");
+        el.style.maxWidth = el.dataset.narrow === "1" ? "" : "640px";
+        el.dataset.narrow = el.dataset.narrow === "1" ? "0" : "1";
+        q("#btn-narrow").textContent = el.dataset.narrow === "1" ? "恢复宽度" : "窄窗 640";
+        applyLayout(); renderEditor();
+      };
+      q("#btn-back-dir").onclick = () => { document.body.dataset.aux = "dir"; renderEditor(); };
+      for (const el of document.querySelectorAll("#dirlist .fitem")) el.onclick = () => {};
+
+      // 拖拽目录宽（夹到 200–320）
+      (() => {
+        const bar = q("#dragbar");
+        let startX = 0, startW = 0, dragging = false;
+        const clampDir = (x) => Math.max(DIR_MIN, Math.min(DIR_MAX, x));
+        bar.onpointerdown = (e) => {
+          dragging = true; startX = e.clientX; startW = state.dirWidth;
+          bar.setPointerCapture(e.pointerId);
+        };
+        bar.onpointermove = (e) => {
+          if (!dragging) return;
+          state.dirWidth = clampDir(startW + (e.clientX - startX));
+          applyLayout(); renderEditor();
+        };
+        bar.onpointerup = () => { dragging = false; };
+        bar.onkeydown = (e) => {
+          if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+          e.preventDefault();
+          state.dirWidth = clampDir(state.dirWidth + (e.key === "ArrowLeft" ? -8 : 8));
+          applyLayout(); renderEditor();
+        };
+      })();
+
+      function renderWithZoom() {
+        // 用独立容器把可用宽度减半，模拟 zoomFactor=2 下的 CSS 视口
+        const shell = q(".shell");
+        shell.style.transform = state.zoom === 2 ? "scale(1)" : "";
+        shell.style.maxWidth = state.zoom === 2 ? "50%" : "";
+        applyLayout(); renderEditor();
+      }
+
+      q("#btn-log").onclick = () => {
+        const out = { m: window.__last, files: FILES.length, filter: state.filter };
+        q("#btn-log").textContent = "已导出（见控制台）";
+        console.log(JSON.stringify(out, null, 2));
+        window.__export = out;
+      };
+
+      /** schema ⇄ real 切换（量测脚本用它拿到真 Monaco 的文字区） */
+      window.__setPaneSource = (src) => {
+        paneSource = src === "real" ? "real" : "schema";
+        q("#btn-source").textContent = "正文来源：" + paneSource;
+        q("#btn-source").setAttribute("aria-pressed", String(paneSource === "real"));
+        renderEditor();
+      };
+      q("#btn-source").onclick = () =>
+        window.__setPaneSource(paneSource === "real" ? "schema" : "real");
+
+      window.addEventListener("resize", () => { applyLayout(); renderEditor(); });
+      window.__state = state;
+      window.__measure = measure;
+      applyLayout(); renderDir(); renderEditor(); setMode("auto");
+    </script>
+  </body>
+</html>

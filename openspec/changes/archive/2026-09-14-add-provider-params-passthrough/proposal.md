@@ -4,7 +4,7 @@
 
 模型 A/B 的臂参数目前只接受数值（`Record<string, number>`），而真实 provider 的关键开关大量是非数值——`reasoning_effort: "none"`、`think: false`。更贵的问题是**静默失败**：参数发出去 HTTP 200、无警告，但 provider 根本没生效（Ollama `/v1` 对 `num_ctx` 三种写法全部静默忽略；`think:false` 无效需换 `reasoning_effort`）。2026-09-10 dogfood 实测累计 5 条这类"不报错但结果不对"的坑，任何用非标准 provider 的用户第一次接入就会踩到，而且无从察觉。本变更让参数通道接受标量原始参数，并把"哪些参数可能没生效"从猜谜变成显式信息。
 
-立项依据：`docs/plans/2026-09-10-next-phase-plan.md` §八 owner 批准排序 `B1（已完成）→ D-A（已完成，2026-09-14）→ D3 → A1 → A2/A3`，本变更即 D3。
+立项依据：`docs/engineering/plans/2026-09-10-next-phase-plan.md` §八 owner 批准排序 `B1（已完成）→ D-A（已完成，2026-09-14）→ D3 → A1 → A2/A3`，本变更即 D3。
 
 ## What Changes
 
@@ -48,7 +48,7 @@
 
 ## 证据与验证口径
 
-- 实测（2026-09-10，本机 Ollama，记录于 `docs/plans/2026-09-10-dogfood-plan.md` §二 与 `HANDOFF.md` §六）：
+- 实测（2026-09-10，本机 Ollama，记录于 `docs/engineering/plans/2026-09-10-dogfood-plan.md` §二 与 `HANDOFF.md` §六）：
   - `/v1` 静默忽略 `num_ctx`（顶层 / 嵌套 `options` / 字符串三种写法均不认）；
   - `think:false` 在 `/v1` 无效，`reasoning_effort:"none"` 实测与生产逐字一致；
   - Ollama `/v1` 思维链字段为 `reasoning`；

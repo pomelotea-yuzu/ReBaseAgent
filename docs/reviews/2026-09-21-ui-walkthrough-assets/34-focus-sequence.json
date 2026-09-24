@@ -1,0 +1,27 @@
+[
+  {
+    "tag": "BUTTON",
+    "text": "▼\n步骤\n第 1 轮\n7.0s · 96",
+    "insideDialog": false
+  },
+  {
+    "tag": "BUTTON",
+    "text": "LLM\nLLM 调用\n7.0s",
+    "insideDialog": false
+  },
+  {
+    "tag": "BUTTON",
+    "text": "工具\nwrite_file\n18ms",
+    "insideDialog": false
+  },
+  {
+    "tag": "BUTTON",
+    "text": "▼\n步骤\n第 2 轮\n7.0s · 96",
+    "insideDialog": false
+  },
+  {
+    "tag": "BUTTON",
+    "text": "LLM\nLLM 调用\n7.0s",
+    "insideDialog": false
+  }
+]

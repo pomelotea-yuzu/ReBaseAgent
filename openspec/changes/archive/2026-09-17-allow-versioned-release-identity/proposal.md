@@ -6,7 +6,7 @@
 
 > 系统 SHALL 将根项目与 desktop 发行包版本设为 `0.2.0`，并生成名为 `ReBaseAgent-0.2.0-win-x64-portable.exe` 的新产物。
 
-该约束使任何非 `0.2.0` 的打包与规范直接冲突。2026-09-17 构建 K0 已完成功能体验包时正撞上此约束：`docs/plans/2026-09-16-isolated-rerun-roadmap.md` §9.1 要求「新体验包使用可辨认的预发布版本**或**独立构建标识**与输出目录**……不覆盖成同名『新旧混合包』」——改版本号违反 spec，不改版本号则与既有产物同名。当次只能取后半条（输出到 `release-k0/`），代价是 K0 包与 09-07 正式版**完全同名**（均为 `ReBaseAgent-0.2.0-win-x64-portable.exe`），仅能靠目录与 SHA-256 区分。
+该约束使任何非 `0.2.0` 的打包与规范直接冲突。2026-09-17 构建 K0 已完成功能体验包时正撞上此约束：`docs/engineering/plans/2026-09-16-isolated-rerun-roadmap.md` §9.1 要求「新体验包使用可辨认的预发布版本**或**独立构建标识**与输出目录**……不覆盖成同名『新旧混合包』」——改版本号违反 spec，不改版本号则与既有产物同名。当次只能取后半条（输出到 `release-k0/`），代价是 K0 包与 09-07 正式版**完全同名**（均为 `ReBaseAgent-0.2.0-win-x64-portable.exe`），仅能靠目录与 SHA-256 区分。
 
 roadmap §9.1 已规划 K0–K4 六个打包节点，自 K1 起会持续产出体验包。若身份继续固定，同名产物将逐节点累积，误用与误发的风险随之上升。
 
@@ -50,7 +50,7 @@ roadmap §9.1 已规划 K0–K4 六个打包节点，自 K1 起会持续产出�
 - `apps/desktop/scripts/release-verify.mjs:42,43,89,90`：帮助文本与摘要输出中重复书写 `ReBaseAgent-0.2.0-win-x64-portable.exe` 与 `0.2.0`。
 - `apps/desktop/test/release-check.test.ts:178,181,207-209`：用例名与 fixture 使用 `0.2.0`，并有三条 `toBe("0.2.0")` 式断言钉死三个常量。
 - `apps/desktop/electron-builder.yml:66,71`：`win.artifactName` 与 `portable.artifactName` 均为 `ReBaseAgent-${version}-win-x64-portable.${ext}`，即 builder 已按应用包版本生成文件名。
-- `docs/reports/2026-09-17-k0-experience-build.md`：K0 构建记录，含撞约束的实证、产物哈希与「包名与正式版同名」的已知限制。
+- `docs/engineering/reports/2026-09-17-k0-experience-build.md`：K0 构建记录，含撞约束的实证、产物哈希与「包名与正式版同名」的已知限制。
 
 ## 验收标准
 

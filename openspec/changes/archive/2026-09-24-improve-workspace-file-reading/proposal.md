@@ -4,7 +4,7 @@
 
 U1 `refactor-run-workspace` 已完成但未归档，文件页已进入主工作区；内部仍固定文件目录与并排 diff，检查点和路径随组件卸载重置。用户需要在常见窗口宽度下读完整文件，并在文件、步骤和其他运行之间往返时继续阅读。
 
-本 change 对应 [U 拆分计划](../../../docs/plans/2026-09-21-ui-change-split-plan.md) U2、[UI 方案 V0.2](../../../docs/plans/2026-09-19-ui-layout-discussion.md) §13 及文件部分的 §17/§18。[走查 R1/R7](../../../docs/reviews/2026-09-21-ui-usability-walkthrough.md) 是改造前的问题证据，不能作为 U2 验收结果：R1 曾测得 1210px 视口修改侧约 106px、1024px 约 5px；R7 复现文件页往返丢失第 1 轮和 a.txt。U1 已改善外层布局，U2 须在当前代码上重新测量文件正文。
+本 change 对应 [U 拆分计划](../../../docs/engineering/plans/2026-09-21-ui-change-split-plan.md) U2、[UI 方案 V0.2](../../../docs/engineering/plans/2026-09-19-ui-layout-discussion.md) §13 及文件部分的 §17/§18。[走查 R1/R7](../../../docs/reviews/2026-09-21-ui-usability-walkthrough.md) 是改造前的问题证据，不能作为 U2 验收结果：R1 曾测得 1210px 视口修改侧约 106px、1024px 约 5px；R7 复现文件页往返丢失第 1 轮和 a.txt。U1 已改善外层布局，U2 须在当前代码上重新测量文件正文。
 
 源码依据（本轮未执行 GUI）：`WorkspaceFileView.tsx` 使用组件局部 selection/path/pane、挂载时选初始状态、`lg:w-72` 目录和固定并排 diff；`readSide` 将失败信封变为 null，初始侧非文本又可被呈现为不存在。U2 同时收口两侧状态与迟到响应，防止文件差异被错误解释。
 

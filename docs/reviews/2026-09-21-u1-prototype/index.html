@@ -1,0 +1,934 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>U1 原型 · 运行工作区（示例数据）</title>
+    <style>
+      /* ============================================================
+         U1 原型样式 —— 严格按 design D1/D2 与 UI 方案 V0.2 §17 规范
+         字号：正文 14 / 代码 13 等宽 / 辅助 12 / 标题 18，字距 0
+         导航默认 264（220–360）；步骤目录默认 232（200–320）
+         断点用整个应用内容视口 CSS 宽度；<1280 / 960–1279 / 720–959 / <720
+         ============================================================ */
+      :root {
+        --bg: #f4f5f7;
+        --panel: #ffffff;
+        --panel-2: #fafbfc;
+        --line: #e3e6ea;
+        --line-strong: #d0d5dc;
+        --ink: #1f2329;
+        --ink-2: #4e5969;
+        --ink-3: #86909c;
+        --accent: #2b6cb0;
+        --ok: #1f8a4c;
+        --warn: #b26a00;
+        --warn-bg: #fff7e6;
+        --err: #c0392b;
+        --err-bg: #fdecea;
+        --ok-bg: #e8f5ee;
+        --neutral-bg: #eef0f3;
+        --code-bg: #f6f8fa;
+        --nav-w: 264px;
+        --steps-w: 232px;
+        --rail: 48px;
+        --step-node: 14px;
+        --code: 13px;
+        --aux: 12px;
+      }
+      * { box-sizing: border-box; }
+      html, body {
+        margin: 0; padding: 0; height: 100%;
+        font-family: -apple-system, "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+        font-size: 14px; letter-spacing: 0; color: var(--ink); background: var(--bg);
+      }
+      /* 页面整体不允许横向滚动（§17.3） */
+      html, body { overflow-x: hidden; }
+      button { font: inherit; letter-spacing: 0; color: inherit; cursor: pointer; }
+      code, pre, .mono { font-family: "Cascadia Mono", Consolas, "SF Mono", monospace; font-size: var(--code); }
+
+      /* ---------- 全局栏 48px ---------- */
+      .topbar {
+        height: var(--rail); display: flex; align-items: center; gap: 12px;
+        padding: 0 12px; background: var(--panel); border-bottom: 1px solid var(--line);
+        flex-wrap: nowrap; position: relative; z-index: 20;
+      }
+      .brand { font-weight: 600; font-size: 14px; color: var(--ink); white-space: nowrap; }
+      .brand small { color: var(--ink-3); font-weight: 400; margin-left: 6px; font-size: var(--aux); }
+      .topbar .spacer { flex: 1 1 auto; }
+      .tbtn {
+        height: 32px; padding: 0 10px; border: 1px solid var(--line-strong); background: var(--panel);
+        border-radius: 4px; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+      }
+      .tbtn:hover { background: var(--panel-2); }
+      .tbtn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+      .tbtn.ghost { border-color: transparent; background: transparent; }
+      .tbtn.ghost:hover { background: var(--neutral-bg); }
+      .tbtn[aria-pressed="true"] { background: var(--neutral-bg); border-color: var(--line-strong); font-weight: 600; }
+      .tbtn .ico { width: 16px; height: 16px; display: inline-block; flex: none; }
+      .badge {
+        font-size: var(--aux); padding: 1px 6px; border-radius: 999px; background: var(--neutral-bg);
+        color: var(--ink-2); border: 1px solid var(--line); white-space: nowrap;
+      }
+      .badge.ok { background: var(--ok-bg); color: var(--ok); border-color: #bfe3cd; }
+      .badge.proxy { background: #eef4fd; color: #2b6cb0; border-color: #c9dcf5; }
+
+      /* ---------- 主框架 ---------- */
+      .app { display: flex; height: calc(100% - var(--rail)); min-height: 0; }
+
+      /* ---------- 运行导航（可收起 / 可调整） ---------- */
+      .nav { width: var(--nav-w); min-width: var(--nav-w); border-right: 1px solid var(--line);
+        background: var(--panel); display: flex; flex-direction: column; min-height: 0; position: relative; }
+      .nav.collapsed { display: none; }
+      .nav-head { padding: 10px; display: flex; flex-direction: column; gap: 8px; border-bottom: 1px solid var(--line); }
+      .searchrow { display: flex; gap: 6px; flex-wrap: wrap; }
+      .searchrow input {
+        flex: 1 1 120px; min-width: 0; height: 32px; padding: 0 8px; border: 1px solid var(--line-strong);
+        border-radius: 4px; font: inherit;
+      }
+      .seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 4px; overflow: hidden; }
+      .seg button { border: 0; background: var(--panel); padding: 0 8px; height: 28px; font-size: var(--aux); }
+      .seg button + button { border-left: 1px solid var(--line); }
+      .seg button[aria-pressed="true"] { background: var(--neutral-bg); font-weight: 600; }
+      .listmeta { font-size: var(--aux); color: var(--ink-3); padding: 0 2px; display: flex; justify-content: space-between; gap: 8px; }
+      .runs { overflow-y: auto; flex: 1 1 auto; min-height: 0; }
+      .run {
+        width: 100%; text-align: left; border: 0; border-bottom: 1px solid var(--line);
+        background: var(--panel); padding: 10px 10px; display: flex; flex-direction: column; gap: 4px;
+      }
+      .run:hover { background: var(--panel-2); }
+      .run[aria-current="true"] { background: #eef4fd; box-shadow: inset 3px 0 0 var(--accent); }
+      .run .r1 { display: flex; gap: 6px; align-items: baseline; }
+      .run .task { font-size: 14px; line-height: 1.35; max-height: 2.7em; overflow: hidden; }
+      .run .r2 { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; font-size: var(--aux); color: var(--ink-3); }
+      .run .r3 { display: flex; gap: 8px; flex-wrap: wrap; font-size: var(--aux); color: var(--ink-2); }
+      .shortid { font-family: "Cascadia Mono", Consolas, monospace; font-size: 11px; color: var(--ink-3); }
+      .st { font-size: var(--aux); padding: 1px 6px; border-radius: 3px; border: 1px solid transparent; white-space: nowrap; }
+      .st.ok { background: var(--ok-bg); color: var(--ok); border-color: #bfe3cd; }
+      .st.err { background: var(--err-bg); color: var(--err); border-color: #f2c8c2; }
+      .st.warn { background: var(--warn-bg); color: var(--warn); border-color: #f0dcae; }
+      .st.neutral { background: var(--neutral-bg); color: var(--ink-2); border-color: var(--line); }
+
+      /* 导航调整手柄 */
+      .grip { position: absolute; top: 0; right: -3px; width: 6px; height: 100%; cursor: col-resize; z-index: 6; }
+      .grip:hover { background: #cfe0f5; }
+
+      /* ---------- 主工作区 ---------- */
+      .main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; min-height: 0; background: var(--bg); }
+      .ws-head { background: var(--panel); border-bottom: 1px solid var(--line); padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; }
+      .ws-title-row { display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; }
+      .ws-title { font-size: 18px; font-weight: 600; line-height: 1.3; min-width: 0; overflow-wrap: anywhere; flex: 1 1 320px; }
+      .ws-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+      .ws-meta { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; font-size: var(--aux); color: var(--ink-3); }
+      .parentlink { color: var(--accent); text-decoration: underline; background: none; border: 0; padding: 0; font-size: var(--aux); }
+      .tabs { display: flex; gap: 4px; background: var(--panel); border-bottom: 1px solid var(--line); padding: 0 14px; flex-wrap: wrap; }
+      .tab { border: 0; background: transparent; padding: 9px 10px; border-bottom: 2px solid transparent; color: var(--ink-2); white-space: nowrap; }
+      .tab[aria-selected="true"] { color: var(--ink); font-weight: 600; border-bottom-color: var(--accent); }
+
+      /* ⚠️ 坑位（原型初版踩过）：`[hidden]` 只是 UA 的 `display:none`，
+         任何作者写的 `display:flex` 都会**盖过**它 —— 结果 4 个 pane 同时出现。
+         凡自带 display 的元素必须显式补 `[hidden]{display:none}`。 */
+      [hidden] { display: none !important; }
+      .body { flex: 1 1 auto; min-height: 0; display: flex; overflow: hidden; }
+      .pane { flex: 1 1 auto; min-width: 0; overflow: auto; padding: 14px; }
+      .pane.overview { max-width: 960px; }
+      .pane[hidden] { display: none; }
+
+      /* ---------- 步骤页：目录 + 详情 ----------
+         结构上把步骤目录放在 .steps-wrap 里（只包住步骤页），
+         与文件页并列。这样「步骤目录」在 DOM 上就不可能出现在文件页里 ——
+         断言③「文件承载区不附带步骤目录」由结构保证，而非靠样式隐藏。 */
+      .steps-wrap { flex: 1 1 auto; min-width: 0; display: flex; overflow: hidden; }
+      .steps-wrap[hidden] { display: none; }
+      .steps-dir { width: var(--steps-w); min-width: var(--steps-w); border-right: 1px solid var(--line);
+        background: var(--panel); overflow: auto; position: relative; flex: none; }
+      .steps-dir.collapsed { display: none; }
+      .dir-head { padding: 8px 10px; border-bottom: 1px solid var(--line); font-size: var(--aux); color: var(--ink-3); display: flex; justify-content: space-between; align-items: center; }
+      .dir-group { border-bottom: 1px solid var(--line); }
+      .dir-group > summary { list-style: none; padding: 8px 10px; display: flex; gap: 6px; align-items: center; cursor: pointer; font-size: 13px; }
+      .dir-group > summary::-webkit-details-marker { display: none; }
+      .dir-group .carat { width: 10px; color: var(--ink-3); }
+      .leaf { width: 100%; text-align: left; border: 0; background: transparent; padding: 6px 10px 6px 26px;
+        display: block; font-size: 13px; color: var(--ink-2); }
+      .leaf:hover { background: var(--panel-2); }
+      .leaf[aria-current="true"] { background: #eef4fd; color: var(--ink); font-weight: 600; box-shadow: inset 3px 0 0 var(--accent); }
+      .leaf .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+      .dot.err { background: var(--err); } .dot.warn { background: var(--warn); } .dot.ok { background: var(--ok); } .dot.n { background: var(--ink-3); }
+      .leaf .lib { font-size: 11px; color: var(--ink-3); margin-left: 4px; }
+
+      .detail { flex: 1 1 auto; min-width: 0; overflow: auto; padding: 14px; }
+      .detail .dtitle { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+      .card { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; margin-bottom: 12px; }
+      .card h3 { margin: 0 0 8px; font-size: 14px; font-weight: 600; }
+      .card h4 { margin: 10px 0 6px; font-size: var(--aux); color: var(--ink-3); text-transform: none; font-weight: 600; }
+      pre.code { background: var(--code-bg); border: 1px solid var(--line); border-radius: 4px; padding: 8px 10px; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+      .scrollbox { max-height: 220px; overflow: auto; }
+
+      /* ---------- 概览 ---------- */
+      .kpis { display: flex; gap: 16px; flex-wrap: wrap; }
+      .kpi { min-width: 84px; }
+      .kpi .k { font-size: var(--aux); color: var(--ink-3); }
+      .kpi .v { font-size: 14px; font-weight: 600; }
+      .out { white-space: pre-wrap; overflow-wrap: anywhere; }
+      .mid { border-left: 3px solid var(--warn); background: var(--warn-bg); padding: 8px 10px; border-radius: 0 4px 4px 0; }
+      .errcall { border-left: 3px solid var(--err); background: var(--err-bg); padding: 8px 10px; border-radius: 0 4px 4px 0; display: flex; flex-direction: column; gap: 6px; }
+      .muted { color: var(--ink-3); font-size: var(--aux); }
+      .note { font-size: var(--aux); color: var(--ink-2); background: var(--panel-2); border: 1px dashed var(--line-strong); border-radius: 4px; padding: 6px 8px; }
+
+      /* ---------- 文件页承载（证明无步骤目录） ---------- */
+      .filewrap { display: flex; flex: 1 1 auto; min-width: 0; overflow: hidden; }
+      .filelist { width: 200px; min-width: 200px; border-right: 1px solid var(--line); background: var(--panel); overflow: auto; }
+      .filelist.collapsed { display: none; }
+      .filelist .fh { padding: 8px 10px; border-bottom: 1px solid var(--line); font-size: var(--aux); color: var(--ink-3); }
+      .fitem { width: 100%; text-align: left; border: 0; background: transparent; padding: 7px 10px; font-size: 13px; border-bottom: 1px solid var(--line); }
+      .fitem[aria-current="true"] { background: #eef4fd; font-weight: 600; }
+      .fview { flex: 1 1 auto; min-width: 0; overflow: auto; padding: 12px 14px; }
+      .diff { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+      .diff.single { grid-template-columns: 1fr; }
+      .diffcol h4 { margin: 0 0 6px; font-size: var(--aux); color: var(--ink-3); }
+
+      /* ---------- 窄窗口：辅助列表替换正文 ---------- */
+      .auxback { display: none; padding: 8px 14px; background: var(--panel); border-bottom: 1px solid var(--line); }
+      .auxback.show { display: flex; align-items: center; gap: 8px; }
+
+      .toast { position: fixed; right: 16px; bottom: 16px; background: #1f2329; color: #fff; padding: 8px 12px;
+        border-radius: 6px; font-size: 13px; opacity: 0; transition: opacity .2s; z-index: 60; pointer-events: none; }
+      .toast.show { opacity: .95; }
+
+      .demoflag { background: #fff8e1; border-bottom: 1px solid #f0dcae; color: #7a5200; font-size: var(--aux);
+        padding: 4px 14px; display: flex; gap: 8px; align-items: center; }
+
+      /* ---------- 断点（依据 design D2 表） ---------- */
+      body[data-bp="1280"] .nav { } /* >=1280：导航常驻 */
+
+      /* 960–1279：进入文件页或编辑态暂时收起运行导航 */
+      body[data-bp="960"][data-tab="files"] .nav { display: none; }
+      body[data-bp="960"][data-editing="1"] .nav { display: none; }
+
+      /* 720–959：导航与步骤目录按需打开，正文单列 */
+      body[data-bp="720"] .nav { display: none; }
+      body[data-bp="720"] .nav.open { display: flex; position: absolute; left: 0; top: var(--rail); bottom: 0; z-index: 30; box-shadow: 4px 0 16px rgba(0,0,0,.12); }
+      body[data-bp="720"] .steps-dir { display: none; }
+      body[data-bp="720"] .steps-dir.open { display: block; position: absolute; left: 0; top: calc(var(--rail) + 120px); bottom: 0; z-index: 25; box-shadow: 4px 0 16px rgba(0,0,0,.12); }
+      .only720 { display: none; }
+      body[data-bp="720"] .only720 { display: inline-flex; }
+
+      /* <720：单工作区，辅助列表替换正文 */
+      body[data-bp="640"] .nav { display: none; }
+      body[data-bp="640"] .nav.open { display: flex; flex: 1 1 auto; }
+      body[data-bp="640"] .main { display: none; }
+      body[data-bp="640"][data-aux="main"] .nav { display: none; }
+      body[data-bp="640"][data-aux="main"] .main { display: flex; }
+      body[data-bp="640"] .steps-dir { display: none; }
+      body[data-bp="640"] .auxback.show { display: flex; }
+      body[data-bp="640"] .diff { grid-template-columns: 1fr; }
+
+      /* 200% 缩放用例：用独立容器模拟「内容视口 CSS 宽度 = 标称/2」 */
+      body.zoom200 { --z: 1; }
+
+      /* ---------- 480px 正文二次约束（design D2）----------
+         ≥960 两档声明「步骤目录需保证详情至少 480px，否则收起」。
+         只对实际含步骤目录的页面生效（概览页无此约束）。 */
+      body[data-bp="1280"][data-tab="steps"] .steps-wrap:not(:has(.steps-dir.collapsed)) .detail { min-width: 480px; }
+      body[data-bp="960"][data-tab="steps"] .steps-wrap:not(:has(.steps-dir.collapsed)) .detail { min-width: 480px; }
+      /* 详情达到 480px 下限后，主区可横向滚动承接（页面本身仍不溢出让出滚动位置给主滚动区） */
+      body[data-tab="steps"][data-bp="960"] .steps-wrap,
+      body[data-tab="steps"][data-bp="1280"] .steps-wrap { overflow-x: auto; }
+
+      /* 无运行空态 */
+      .empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; height: 100%; color: var(--ink-2); }
+      .empty h2 { font-size: 18px; margin: 0; font-weight: 600; }
+      .empty .row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+
+      .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+      /* ---------- 截图/标注辅助：尺寸标尺 ---------- */
+      .ruler { position: fixed; left: 0; bottom: 0; background: #111; color: #fff; font: 11px/1.4 monospace;
+        padding: 3px 8px; z-index: 80; pointer-events: none; }
+      body.noruler .ruler { display: none; }
+    </style>
+  </head>
+  <body data-bp="1280" data-tab="overview" data-aux="aux" data-editing="0">
+    <!-- ============ 全局栏 ============ -->
+    <header class="topbar">
+      <span class="brand">ReBaseAgent<small>时间旅行调试器</small></span>
+      <div class="spacer"></div>
+      <button class="tbtn primary" id="btn-new">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+        新建运行
+      </button>
+      <button class="tbtn" id="btn-record">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M5 12a7 7 0 0 1 14 0"/></svg>
+        录制接入 <span class="badge ok" id="rec-status">已停</span>
+      </button>
+      <div class="seg" role="group" aria-label="视图切换">
+        <button id="view-trace" aria-pressed="true">轨迹</button>
+        <button id="view-tree" aria-pressed="false">分支树</button>
+      </div>
+      <button class="tbtn ghost" id="btn-settings" title="设置" aria-label="设置">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+      </button>
+      <button class="tbtn ghost" id="btn-navtoggle" title="收起/展开运行导航" aria-label="收起或展开运行导航" aria-pressed="false">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h10M4 18h16"/></svg>
+      </button>
+    </header>
+
+    <div class="demoflag">
+      <strong>示例数据</strong>
+      <span>本页所有 run、span、消耗与错误均为原型内置样例，用于核对布局与承载结构，不是产品实测记录。</span>
+    </div>
+
+    <div class="app">
+      <!-- ============ 运行导航 ============ -->
+      <nav class="nav" id="nav" aria-label="运行导航">
+        <div class="nav-head">
+          <div class="searchrow">
+            <input id="q" type="search" placeholder="搜索完整任务或运行 ID" aria-label="搜索运行" />
+            <button class="tbtn" id="btn-refresh" title="刷新" aria-label="刷新运行列表">
+              <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7M21 3v6h-6"/></svg>
+            </button>
+          </div>
+          <div class="seg" role="group" aria-label="来源筛选">
+            <button data-src="all" aria-pressed="true">全部</button>
+            <button data-src="proxy" aria-pressed="false">代理录制</button>
+            <button data-src="local" aria-pressed="false">本地记录</button>
+          </div>
+          <div class="listmeta"><span id="listcount">6 条记录</span><span>按创建时间倒序</span></div>
+        </div>
+        <div class="runs" id="runs" role="list"></div>
+        <div class="grip" id="grip-nav" role="separator" aria-label="调整运行导航宽度" tabindex="0"></div>
+      </nav>
+
+      <!-- ============ 主工作区 ============ -->
+      <section class="main" id="main" aria-label="运行工作区">
+        <!-- 空态（无运行） -->
+        <div class="empty" id="empty" hidden>
+          <h2>还没有运行记录</h2>
+          <p class="muted" style="margin:0">新建一次运行，或接入已有的 Agent 录制。</p>
+          <div class="row">
+            <button class="tbtn primary" data-empty="new">新建运行</button>
+            <button class="tbtn" data-empty="record">录制接入</button>
+          </div>
+        </div>
+
+        <div id="ws" style="display:flex;flex-direction:column;min-height:0;flex:1 1 auto">
+          <div class="auxback" id="auxback">
+            <button class="tbtn" id="btn-back">← 返回运行</button>
+            <span class="muted" id="auxback-label">运行列表</span>
+          </div>
+
+          <!-- 页头：任务 / 状态 / 来源 / 运行级操作 -->
+          <div class="ws-head">
+            <div class="ws-title-row">
+              <div class="ws-title" id="ws-task">—</div>
+              <div class="ws-actions">
+                <span class="st neutral" id="ws-status">—</span>
+                <span class="badge" id="ws-source">本地记录</span>
+                <button class="tbtn only720" id="btn-open-nav">运行列表</button>
+                <button class="tbtn" id="btn-edit" data-cap="1">修改工具结果并重跑</button>
+                <button class="tbtn" id="btn-ab" data-cap="1">模型 A/B</button>
+                <button class="tbtn ghost" id="btn-copyid" title="复制完整运行 ID" aria-label="复制完整运行 ID">复制 ID</button>
+              </div>
+            </div>
+            <div class="ws-meta">
+              <span id="ws-model">—</span>
+              <span id="ws-time">—</span>
+              <span id="ws-shortid" class="shortid">—</span>
+              <span id="ws-parentwrap" hidden>来源：<button class="parentlink" id="ws-parent">—</button></span>
+              <span class="muted" id="ws-fork"></span>
+            </div>
+          </div>
+
+          <!-- 平级页签 -->
+          <div class="tabs" role="tablist" aria-label="运行工作区页签">
+            <button class="tab" role="tab" id="tab-overview" aria-selected="true" data-tab="overview" data-key="o">概览</button>
+            <button class="tab" role="tab" id="tab-steps" aria-selected="false" data-tab="steps" data-key="s">步骤</button>
+            <button class="tab" role="tab" id="tab-files" aria-selected="false" data-tab="files" data-key="f" hidden>文件</button>
+          </div>
+
+          <div class="body">
+            <!-- ---------- 概览 ---------- -->
+            <div class="pane overview" id="pane-overview" role="tabpanel" aria-labelledby="tab-overview">
+              <div class="card">
+                <h3>结果</h3>
+                <div id="ov-output"></div>
+              </div>
+              <div class="card" id="ov-errorcard" hidden>
+                <h3>错误</h3>
+                <div id="ov-error"></div>
+              </div>
+              <div class="card">
+                <h3>来源</h3>
+                <div id="ov-source" class="muted"></div>
+              </div>
+              <div class="card">
+                <h3>本次消耗</h3>
+                <div class="kpis" id="ov-kpis"></div>
+                <p class="muted" style="margin:8px 0 0" id="ov-cache"></p>
+              </div>
+            </div>
+
+            <!-- ---------- 步骤 ---------- -->
+            <div class="pane" id="pane-steps" role="tabpanel" aria-labelledby="tab-steps" hidden style="padding:0;overflow:hidden;display:flex;flex-direction:column">
+              <!-- 窄窗口下步骤目录改为按需面板；宽窗口常驻 -->
+              <div class="dir-head only720" style="border-bottom:1px solid var(--line);background:var(--panel)">
+                <span>步骤目录（按需打开）</span>
+                <button class="tbtn" id="btn-open-steps">打开目录</button>
+              </div>
+              <div class="steps-wrap">
+                <aside class="steps-dir" id="stepsdir" aria-label="步骤目录">
+                  <div class="dir-head"><span id="dir-scope">本次自有记录</span><span class="muted" id="dir-count"></span></div>
+                  <div id="dir-body"></div>
+                  <div class="grip" id="grip-steps" role="separator" aria-label="调整步骤目录宽度" tabindex="0"></div>
+                </aside>
+                <div class="detail" id="detail"></div>
+              </div>
+            </div>
+
+            <!-- ---------- 文件（承载：占满主工作区，无步骤目录） ----------
+                 .filewrap 是步骤页的**兄弟**节点，不含 .steps-dir；
+                 因此「文件页不附带步骤目录」是结构事实，截图不靠断点隐藏。 -->
+            <div class="filewrap" id="pane-files" role="tabpanel" aria-labelledby="tab-files" hidden>
+              <aside class="filelist" id="filelist" aria-label="文件列表">
+                <div class="fh">本 run 快照（初始 → 第 2 轮结束）</div>
+                <button class="fitem" aria-current="true">a.txt</button>
+                <button class="fitem">b.txt <span class="badge">新增</span></button>
+                <button class="fitem">logo.png <span class="badge">二进制</span></button>
+                <div class="fh" style="border-top:1px solid var(--line)">不可用附件</div>
+                <button class="fitem">gone.txt <span class="st warn">缺失</span></button>
+              </aside>
+              <div class="fview">
+                <div class="detail" style="padding:0">
+                  <div class="dtitle">
+                    <strong class="mono">a.txt</strong>
+                    <span class="muted">本 run 第 2 轮结束</span>
+                    <button class="tbtn ghost" id="btn-diffmode" title="切换并排/单列 diff">并排 diff</button>
+                    <button class="tbtn ghost" id="btn-filelist-toggle" title="收起/展开文件列表" aria-label="收起或展开文件列表">目录</button>
+                  </div>
+                  <div class="diff" id="file-diff">
+                    <div class="diffcol"><h4>初始快照</h4><pre class="code">alpha 内容</pre></div>
+                    <div class="diffcol"><h4>第 2 轮结束</h4><pre class="code">alpha 内容【本地编辑后】</pre></div>
+                  </div>
+                  <p class="note" style="margin-top:10px">文件页使用整个主工作区：没有运行导航之外的额外步骤目录。不可用附件带文字标签，不渲染空编辑器冒充“文件是空的”。</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="toast" id="toast"></div>
+    <div class="ruler" id="ruler"></div>
+
+    <script>
+      // ============================================================
+      // 原型数据（示例数据，明确标注；不读取任何真实 trace）
+      // ============================================================
+      const RUNS = [
+        {
+          id: "run_muappa2a_gk7964", short: "…a_gk7964", task: "读取 a.txt 并复述内容",
+          model: "ui-review-local", time: "09-21 11:55", status: "ok", statusText: "已结束",
+          source: "local", steps: 2, tools: 1, errs: 0, tokens: 192, cache: "1/2 次调用已记录命中",
+          hasFiles: true, parent: null, fork: null,
+          outcome: "final", finalOutput: "a.txt 的内容是：alpha 内容。",
+          mid: null,
+          error: null,
+          kpis: { "输入 tokens": "104", "输出 tokens": "88", "已记录耗时": "14.0s", "工具调用": "1（0 错）" },
+        },
+        {
+          id: "run_muaps3pw_m1lr", short: "…pw_m1lr", task: "UI_REVIEW_ISOLATED update a.txt",
+          model: "ui-review-local", time: "09-21 11:57", status: "err", statusText: "出错终止",
+          source: "local", steps: 1, tools: 0, errs: 0, tokens: 96, cache: "未记录",
+          hasFiles: true, parent: "run_muappa2a_gk7964", fork: "result（改 tool_result）",
+          outcome: "error", finalOutput: null,
+          mid: "已读取 a.txt，准备写入摘要。",
+          error: {
+            own: true,
+            detail: "上游 503：upstream temporarily unavailable",
+            call: "第 1 轮 · llm.call s_02",
+            ancestorOnly: false,
+          },
+          kpis: { "输入 tokens": "96", "输出 tokens": "0", "已记录耗时": "7.0s", "工具调用": "0（0 错）" },
+        },
+        {
+          id: "run_muapr3rp_vm52", short: "…rp_vm52", task: "UI_REVIEW_ISOLATED update a.txt",
+          model: "ui-review-local", time: "09-21 11:56", status: "err", statusText: "出错终止",
+          source: "local", steps: 1, tools: 0, errs: 0, tokens: 0, cache: "未记录",
+          hasFiles: true, parent: "run_muappa2a_gk7964", fork: "result（改 tool_result）",
+          // 老记录：error 终止但自有 LLM 无错误详情
+          outcome: "error-no-detail", finalOutput: null, mid: null,
+          error: { own: false, detail: null, call: null, ancestorOnly: false, toolErrors: 0 },
+          kpis: { "输入 tokens": "0（占位）", "输出 tokens": "0（占位）", "已记录耗时": "7.0s", "工具调用": "0（0 错）" },
+        },
+        {
+          id: "run_muapo2ji", short: "…o2ji", task: "UI_REVIEW_FAIL controlled creation",
+          model: "ui-review-local", time: "09-21 11:54", status: "warn", statusText: "达到迭代上限",
+          source: "local", steps: 10, tools: 8, errs: 1, tokens: 4096, cache: "5/10 次调用已记录命中",
+          hasFiles: false, parent: null, fork: null,
+          outcome: "limit", finalOutput: null,
+          mid: "继续调用工具以完成目标。",
+          error: null,
+          kpis: { "输入 tokens": "3200", "输出 tokens": "896", "已记录耗时": "42.3s", "工具调用": "8（1 错）" },
+        },
+        {
+          id: "run_muapnwud", short: "…nwud", task: "UI_REVIEW_CHAT controlled creation",
+          model: "ui-review-local", time: "09-21 11:54", status: "neutral", statusText: "运行中断",
+          source: "proxy", steps: 1, tools: 0, errs: 0, tokens: 96, cache: "未记录",
+          hasFiles: false, parent: null, fork: null,
+          outcome: "crashed", finalOutput: null, mid: "已发送请求，等待响应……",
+          error: null,
+          kpis: { "输入 tokens": "96", "输出 tokens": "0", "已记录耗时": "未知", "工具调用": "0（0 错）" },
+        },
+        {
+          id: "run_mu9l8qoc_8p226w", short: "…qoc_8p226w", task: "读取 a.txt 并复述内容",
+          model: "mock-model", time: "09-20 17:02", status: "ok", statusText: "已结束",
+          source: "local", steps: 1, tools: 0, errs: 0, tokens: 26, cache: "1/1 次调用已记录命中",
+          hasFiles: true, parent: null, fork: null,
+          outcome: "final", finalOutput: "文件 a.txt 的内容是 “alpha 内容”。",
+          mid: null, error: null,
+          kpis: { "输入 tokens": "18", "输出 tokens": "8", "已记录耗时": "6ms", "工具调用": "0（0 错）" },
+        },
+      ];
+
+      // 步骤目录（对应当前选中 run；原型内置样例）
+      const STEPS_BY_RUN = {
+        "run_muappa2a_gk7964": [
+          { n: 1, open: true, leaves: [
+            { id: "s_02", kind: "llm.call", label: "llm.call · mock-model", dot: "ok", sel: true },
+            { id: "s_03", kind: "tool.invoke", label: "tool.invoke · read_file", dot: "ok" },
+          ]},
+          { n: 2, open: true, leaves: [
+            { id: "s_05", kind: "llm.call", label: "llm.call · mock-model", dot: "ok" },
+          ]},
+        ],
+        "run_muaps3pw_m1lr": [
+          { n: 1, open: true, leaves: [
+            { id: "s_02", kind: "llm.call", label: "llm.call · ui-review-local", dot: "err", sel: true, err: true },
+          ]},
+        ],
+        "run_muapr3rp_vm52": [
+          { n: 1, open: true, leaves: [
+            { id: "s_02", kind: "llm.call", label: "llm.call · ui-review-local", dot: "n", sel: true },
+          ]},
+        ],
+        "run_muapo2ji": [
+          { n: 1, open: true, leaves: [ { id: "s_02", kind: "llm.call", label: "llm.call", dot: "ok" }, { id: "s_03", kind: "tool.invoke", label: "tool.invoke · read_file", dot: "ok", err: true } ]},
+          { n: 2, open: true, leaves: [ { id: "s_05", kind: "llm.call", label: "llm.call", dot: "ok" } ]},
+          { n: 3, open: false, leaves: [ { id: "s_08", kind: "llm.call", label: "llm.call", dot: "ok" } ]},
+        ],
+        "run_muapnwud": [ { n: 1, open: true, leaves: [ { id: "s_02", kind: "llm.call", label: "llm.call · proxy", dot: "n", sel: true } ] } ],
+        "run_mu9l8qoc_8p226w": [ { n: 1, open: true, leaves: [ { id: "s_02", kind: "llm.call", label: "llm.call · mock-model", dot: "ok", sel: true } ] } ],
+      };
+
+      const DETAIL_BY_SPAN = {
+        "run_muappa2a_gk7964:s_02": { title: "llm.call · s_02（第 1 轮）", input: 'role=user\n\n读取 a.txt 并复述内容', output: '我先读取 a.txt。\n\ntool_calls: read_file({"path":"a.txt"})' },
+        "run_muappa2a_gk7964:s_03": { title: "tool.invoke · s_03（read_file）", input: '{"path":"a.txt"}', output: 'alpha 内容\n\n耗时 7ms · error: null' },
+        "run_muappa2a_gk7964:s_05": { title: "llm.call · s_05（第 2 轮）", input: 'role=user\n\n读取 a.txt 并复述内容', output: 'a.txt 的内容是：alpha 内容。' },
+        "run_muaps3pw_m1lr:s_02": { title: "llm.call · s_02（第 1 轮，出错）", input: 'role=user\n\nUI_REVIEW_ISOLATED update a.txt', output: '（无正文）', error: 'upstream 503：upstream temporarily unavailable\nstatus: 503' },
+        "run_muapr3rp_vm52:s_02": { title: "llm.call · s_02（第 1 轮）", input: 'role=user\n\nUI_REVIEW_ISOLATED update a.txt', output: '（无正文）\n\n本调用未记录 error 字段', none: true },
+        "run_muapo2ji:s_02": { title: "llm.call · s_02", input: 'role=user\n\n完成目标', output: '调用工具继续。' },
+        "run_muapo2ji:s_03": { title: "tool.invoke · s_03（read_file）", input: '{"path":"missing.txt"}', output: '（无结果）', error: 'ENOENT: no such file or directory' },
+        "run_muapo2ji:s_05": { title: "llm.call · s_05", input: 'role=user\n\n完成目标', output: '继续调用工具以完成目标。' },
+        "run_muapo2ji:s_08": { title: "llm.call · s_08", input: 'role=user\n\n完成目标', output: '（正文空）' },
+        "run_muapnwud:s_02": { title: "llm.call · s_02（代理录制）", input: 'role=user\n\nUI_REVIEW_CHAT controlled creation', output: '（无终止事件：记录在响应前中断）' },
+        "run_mu9l8qoc_8p226w:s_02": { title: "llm.call · s_02", input: 'role=user\n\n读取 a.txt 并复述内容', output: '文件 a.txt 的内容是 “alpha 内容”。' },
+      };
+
+      // ============================================================
+      // 断点判定：用应用内容视口 CSS 宽度（documentElement.clientWidth）
+      // ============================================================
+      function bpOf(w) {
+        if (w >= 1280) return "1280";
+        if (w >= 960) return "960";
+        if (w >= 720) return "720";
+        return "640";
+      }
+      function applyBreakpoint() {
+        const w = document.documentElement.clientWidth;
+        const bp = bpOf(w);
+        document.body.dataset.bp = bp;
+        // <720 档默认让辅助列表替换正文；由 data-aux 决定看哪边
+        if (bp === "640" && !document.body.dataset.aux) document.body.dataset.aux = "aux";
+        document.getElementById("ruler").textContent =
+          "视口 CSS 宽度 " + w + "px · 断点档 " + (bp === "640" ? "<720" : bp === "720" ? "720–959" : bp === "960" ? "960–1279" : ">=1280");
+      }
+      window.addEventListener("resize", applyBreakpoint);
+
+      // ============================================================
+      // 状态
+      // ============================================================
+      const state = { selectedId: RUNS[0].id, tab: "overview", span: null, src: "all", q: "", empty: false };
+
+      function currentRun() { return RUNS.find((r) => r.id === state.selectedId); }
+      function sel(tab) {
+        state.tab = tab;
+        document.body.dataset.tab = tab;
+        for (const t of ["overview", "steps", "files"]) {
+          const btn = document.getElementById("tab-" + t);
+          const pane = document.getElementById("pane-" + t);
+          const on = t === tab;
+          btn.setAttribute("aria-selected", String(on));
+          pane.hidden = !on;
+        }
+      }
+
+      // ============================================================
+      // 渲染：运行列表
+      // ============================================================
+      function renderList() {
+        const box = document.getElementById("runs");
+        const q = state.q.trim().toLowerCase();
+        const items = RUNS.filter((r) => {
+          if (state.src === "proxy" && r.source !== "proxy") return false;
+          if (state.src === "local" && r.source === "proxy") return false;
+          if (q && !(r.task.toLowerCase().includes(q) || r.id.toLowerCase().includes(q))) return false;
+          return true;
+        });
+        box.innerHTML = "";
+        if (items.length === 0) {
+          const d = document.createElement("div");
+          d.className = "muted";
+          d.style.padding = "12px 10px";
+          d.textContent = "没有匹配的运行";
+          const clr = document.createElement("button");
+          clr.className = "tbtn"; clr.textContent = "清除条件"; clr.style.margin = "0 10px 12px";
+          clr.onclick = () => { state.q = ""; state.src = "all"; document.getElementById("q").value = ""; syncSeg(); renderList(); };
+          box.append(d, clr);
+          document.getElementById("listcount").textContent = "0 条记录";
+          return;
+        }
+        for (const r of items) {
+          const b = document.createElement("button");
+          b.className = "run"; b.setAttribute("role", "listitem");
+          b.setAttribute("aria-current", String(r.id === state.selectedId));
+          b.setAttribute("data-run", r.id);
+          b.innerHTML =
+            '<div class="r1"><span class="task"></span></div>' +
+            '<div class="r2"><span class="st ' + r.status + '"></span>' +
+            (r.source === "proxy" ? '<span class="badge proxy">代理录制</span>' : '<span class="badge">本地记录</span>') +
+            '<span class="shortid"></span></div>' +
+            '<div class="r3"><span class="mono" style="font-size:11px"></span><span></span><span></span></div>';
+          b.querySelector(".task").textContent = r.task;
+          b.querySelector(".st").textContent = r.statusText;
+          b.querySelector(".shortid").textContent = r.short;
+          const r3 = b.querySelectorAll(".r3 span");
+          r3[0].textContent = r.model;
+          r3[1].textContent = r.time;
+          r3[2].textContent = r.steps + " 步 · " + r.tools + " 工具 · " + r.tokens + " tokens" + (r.cache !== "未记录" ? " · " + r.cache : "");
+          b.onclick = () => selectRun(r.id);
+          box.append(b);
+        }
+        document.getElementById("listcount").textContent = items.length + " 条记录";
+      }
+
+      // ============================================================
+      // 渲染：工作区
+      // ============================================================
+      function selectRun(id) {
+        state.selectedId = id;
+        state.span = null;
+        renderList();
+        renderWorkspace();
+        sel("overview");           // 首次/切换运行进入概览
+        if (document.body.dataset.bp === "640") document.body.dataset.aux = "main";
+        if (document.body.dataset.bp === "720") closePanels();
+      }
+
+      // 显式错误定位：优先于历史位置（§9.4 / D6）
+      function locateError() {
+        const r = currentRun();
+        if (!r.error || !r.error.own) return;
+        sel("steps");
+        openStepOf(r.error.call);
+        const leaf = document.querySelector('.leaf[aria-current="true"]');
+        if (leaf) { leaf.focus(); leaf.scrollIntoView({ block: "center" }); }
+        toast("已定位到真实自有失败调用：" + r.error.call);
+      }
+
+      function openStepOf(callText) {
+        const sid = (callText || "").match(/s_\d+/);
+        if (!sid) return;
+        state.span = sid[0];
+        renderDir();
+        renderDetail();
+      }
+
+      function renderWorkspace() {
+        const r = currentRun();
+        document.getElementById("ws-task").textContent = r.task;
+        const st = document.getElementById("ws-status");
+        st.className = "st " + r.status; st.textContent = r.statusText;
+        const src = document.getElementById("ws-source");
+        src.textContent = r.source === "proxy" ? "代理录制" : "本地记录";
+        src.className = "badge" + (r.source === "proxy" ? " proxy" : "");
+        document.getElementById("ws-model").textContent = r.model;
+        document.getElementById("ws-time").textContent = r.time;
+        document.getElementById("ws-shortid").textContent = r.short;
+        const pw = document.getElementById("ws-parentwrap");
+        if (r.parent) {
+          pw.hidden = false;
+          document.getElementById("ws-parent").textContent = r.parent;
+          document.getElementById("ws-fork").textContent = "· 分叉：" + r.fork;
+        } else {
+          pw.hidden = true;
+          document.getElementById("ws-fork").textContent = "";
+        }
+        // 文件页能力
+        const fTab = document.getElementById("tab-files");
+        fTab.hidden = !r.hasFiles;
+        if (!r.hasFiles && state.tab === "files") sel("overview");
+
+        // 概览
+        const out = document.getElementById("ov-output");
+        const ec = document.getElementById("ov-errorcard");
+        const ee = document.getElementById("ov-error");
+        out.innerHTML = ""; ee.innerHTML = ""; ec.hidden = true;
+        if (r.outcome === "final") {
+          out.innerHTML = '<div class="out"></div><p class="muted" style="margin:8px 0 0">结束原因：completed · 表示执行已结束，不代表测试通过或修复成功</p>';
+          out.querySelector(".out").textContent = r.finalOutput;
+        } else if (r.outcome === "limit") {
+          out.innerHTML = '<p class="muted" style="margin:0">未记录最终输出（达到迭代上限）</p>';
+        } else if (r.outcome === "crashed") {
+          out.innerHTML = '<p class="muted" style="margin:0">未记录最终输出（无终止事件）</p>';
+        } else {
+          out.innerHTML = '<p class="muted" style="margin:0">未记录最终输出</p>';
+        }
+        if (r.mid) {
+          const m = document.createElement("div");
+          m.className = "mid"; m.style.marginTop = "10px";
+          m.innerHTML = '<div class="muted" style="margin-bottom:4px">' +
+            (r.outcome === "error" ? "失败前输出" : r.outcome === "crashed" ? "中断前最后输出" : "限制前输出") +
+            "（作为中间输出保留，不冒充最终结果）</div>";
+          const t = document.createElement("div"); t.className = "out"; t.textContent = r.mid;
+          m.append(t); out.append(m);
+        }
+        if (r.error) {
+          ec.hidden = false;
+          if (r.error.own) {
+            ee.innerHTML =
+              '<div class="errcall"><div><strong>自有 LLM 错误</strong> · <span class="mono"></span></div>' +
+              '<pre class="code scrollbox"></pre>' +
+              '<div><button class="tbtn" id="btn-gotoerr">打开该调用并展开所属 step</button></div></div>';
+            ee.querySelector(".mono").textContent = r.error.call;
+            ee.querySelector("pre").textContent = r.error.detail;
+            ee.querySelector("#btn-gotoerr").onclick = locateError;
+          } else {
+            ee.innerHTML =
+              '<div class="errcall" style="border-left-color:var(--warn);background:var(--warn-bg)">' +
+              "<div><strong>错误详情未记录</strong></div>" +
+              '<p class="muted" style="margin:6px 0 0">本 run 以 error 结束，但自有 LLM 调用没有记录错误详情' +
+              (r.error.toolErrors ? "，自有工具错误可单独查看" : "") +
+              "。不虚构失败调用入口或原因；祖先错误不替代本次原因。</p></div>";
+          }
+        }
+        document.getElementById("ov-source").textContent = r.parent
+          ? "直接父运行 " + r.parent + " · 分叉字段 " + r.fork + "。本 run 为独立执行，不共享父执行前缀。"
+          : "根运行（无父）。本次消耗只统计本 run 自有 spans。";
+        const k = document.getElementById("ov-kpis");
+        k.innerHTML = "";
+        for (const [key, val] of Object.entries(r.kpis)) {
+          const d = document.createElement("div"); d.className = "kpi";
+          d.innerHTML = '<div class="k"></div><div class="v"></div>';
+          d.querySelector(".k").textContent = key; d.querySelector(".v").textContent = val;
+          k.append(d);
+        }
+        document.getElementById("ov-cache").textContent =
+          "缓存：" + r.cache + "（0 为有值、缺失为未知；部分记录不称全运行确定命中率）";
+
+        renderDir();
+        renderDetail();
+      }
+
+      function renderDir() {
+        const r = currentRun();
+        const groups = STEPS_BY_RUN[r.id] || [];
+        const box = document.getElementById("dir-body");
+        box.innerHTML = "";
+        let count = 0;
+        for (const g of groups) {
+          const det = document.createElement("details");
+          det.className = "dir-group"; det.open = g.open;
+          const sm = document.createElement("summary");
+          sm.innerHTML = '<span class="carat">▸</span><span></span>';
+          sm.querySelector("span:last-child").textContent = "第 " + g.n + " 轮";
+          det.append(sm);
+          for (const lf of g.leaves) {
+            count++;
+            const b = document.createElement("button");
+            b.className = "leaf"; b.setAttribute("data-span", lf.id);
+            if (lf.sel && !state.span) state.span = lf.id;
+            b.setAttribute("aria-current", String(state.span === lf.id));
+            b.innerHTML = '<span class="dot ' + lf.dot + '"></span><span class="txt"></span>';
+            b.querySelector(".txt").textContent = lf.label;
+            if (lf.err) {
+              const e = document.createElement("span"); e.className = "st err"; e.style.marginLeft = "6px"; e.textContent = "error";
+              b.append(e);
+            }
+            b.onclick = () => { state.span = lf.id; renderDir(); renderDetail(); };
+            det.append(b);
+          }
+          box.append(det);
+        }
+        document.getElementById("dir-count").textContent = count + " 个调用";
+        document.getElementById("dir-scope").textContent = r.parent ? "本次自有记录（继承前缀不在选择器内）" : "本次自有记录";
+      }
+
+      function renderDetail() {
+        const r = currentRun();
+        const d = document.getElementById("detail");
+        const key = r.id + ":" + (state.span || "");
+        const info = DETAIL_BY_SPAN[key];
+        if (!info) { d.innerHTML = '<p class="muted">选择一个调用以查看完整原始请求与响应。</p>'; return; }
+        d.innerHTML =
+          '<div class="dtitle"><strong></strong>' +
+          (info.error ? '<span class="st err">error</span>' : "") +
+          (info.none ? '<span class="st warn">未记录 error</span>' : "") +
+          "</div>" +
+          '<div class="card"><h3>输入</h3><pre class="code scrollbox" data-k="in"></pre></div>' +
+          (info.error ? '<div class="card"><h3>错误</h3><pre class="code scrollbox" data-k="err"></pre></div>' : "") +
+          '<div class="card"><h3>输出</h3><pre class="code scrollbox" data-k="out"></pre></div>' +
+          '<p class="muted">完整原文可展开、查找与复制；阅读不发起模型请求。</p>';
+        d.querySelector(".dtitle strong").textContent = info.title;
+        d.querySelector('[data-k="in"]').textContent = info.input;
+        d.querySelector('[data-k="out"]').textContent = info.output;
+        if (info.error) d.querySelector('[data-k="err"]').textContent = info.error;
+      }
+
+      // ============================================================
+      // 交互
+      // ============================================================
+      function toast(msg) {
+        const t = document.getElementById("toast");
+        t.textContent = msg; t.classList.add("show");
+        clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove("show"), 1800);
+      }
+      function syncSeg() {
+        document.querySelectorAll(".seg [data-src]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.src === state.src)));
+        document.querySelectorAll('.seg button[aria-pressed="true"]').forEach((b) => b.setAttribute("aria-pressed", b.getAttribute("aria-pressed")));
+      }
+
+      document.getElementById("q").addEventListener("input", (e) => { state.q = e.target.value; renderList(); });
+      document.querySelectorAll(".seg [data-src]").forEach((b) => b.addEventListener("click", () => {
+        state.src = b.dataset.src;
+        document.querySelectorAll(".seg [data-src]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+        renderList();
+      }));
+      document.getElementById("btn-refresh").onclick = () => toast("已刷新（合并重复在途请求，保留阅读位置）");
+      document.getElementById("btn-copyid").onclick = () => toast("已复制完整 ID：" + currentRun().id);
+      document.getElementById("btn-new").onclick = () => toast("打开现有 CreateRunDialog");
+      document.getElementById("btn-record").onclick = () => toast("定位现有设置弹层的代理区域");
+      document.getElementById("btn-settings").onclick = () => toast("打开现有设置弹层");
+      document.getElementById("btn-edit").onclick = () => {
+        document.body.dataset.editing = "1";
+        toast("进入编辑态（960–1279 档会暂时收起运行导航）");
+      };
+      document.getElementById("btn-ab").onclick = () => toast("打开现有模型 A/B 计划");
+      document.getElementById("ws-parent").onclick = () => { if (currentRun().parent) selectRun(currentRun().parent); };
+      document.getElementById("btn-navtoggle").onclick = (e) => {
+        const n = document.getElementById("nav");
+        const on = n.classList.toggle("collapsed");
+        e.currentTarget.setAttribute("aria-pressed", String(on));
+        e.currentTarget.setAttribute("aria-label", on ? "展开运行导航" : "收起运行导航");
+      };
+      document.getElementById("btn-open-nav").onclick = () => {
+        document.getElementById("nav").classList.add("open");
+        document.body.dataset.aux = "aux";
+      };
+      document.getElementById("btn-back").onclick = () => { document.body.dataset.aux = "aux"; };
+      document.getElementById("btn-open-steps").onclick = () => document.getElementById("stepsdir").classList.toggle("open");
+      document.getElementById("btn-diffmode").onclick = (e) => {
+        const d = document.getElementById("file-diff");
+        const single = d.classList.toggle("single");
+        e.currentTarget.textContent = single ? "单列 diff" : "并排 diff";
+      };
+      document.getElementById("btn-filelist-toggle").onclick = () =>
+        document.getElementById("filelist").classList.toggle("collapsed");
+      for (const t of document.querySelectorAll(".tab")) {
+        t.onclick = () => { sel(t.dataset.tab); if (document.body.dataset.bp === "640") document.body.dataset.aux = "main"; };
+      }
+      document.querySelectorAll("[data-empty]").forEach((b) => b.onclick = () =>
+        toast(b.dataset.empty === "new" ? "打开现有 CreateRunDialog" : "定位现有设置弹层的代理区域"));
+
+      // 宽度拖拽/键盘（夹到合法范围；仅本会话）
+      function wireGrip(gripId, target, min, max, onDelta) {
+        const g = document.getElementById(gripId);
+        const el = document.getElementById(target);
+        let dragging = false, x0 = 0, w0 = 0;
+        g.addEventListener("mousedown", (e) => {
+          dragging = true; x0 = e.clientX; w0 = parseInt(getComputedStyle(el).width, 10);
+          document.body.style.userSelect = "none";
+        });
+        window.addEventListener("mousemove", (e) => {
+          if (!dragging) return;
+          let w = Math.max(min, Math.min(max, w0 + (e.clientX - x0)));
+          el.style.width = el.style.minWidth = w + "px";
+          if (onDelta) onDelta(w);
+        });
+        window.addEventListener("mouseup", () => { dragging = false; document.body.style.userSelect = ""; });
+        g.addEventListener("keydown", (e) => {
+          const cur = parseInt(getComputedStyle(el).width, 10);
+          let w = cur;
+          if (e.key === "ArrowRight") w = cur + 16;
+          else if (e.key === "ArrowLeft") w = cur - 16;
+          else if (e.key === "Home") w = min;
+          else if (e.key === "End") w = max;
+          else return;
+          e.preventDefault();
+          w = Math.max(min, Math.min(max, w));
+          el.style.width = el.style.minWidth = w + "px";
+          toast(target === "nav" ? "运行导航宽度 " + w + "px（220–360）" : "步骤目录宽度 " + w + "px（200–320）");
+        });
+      }
+      wireGrip("grip-nav", "nav", 220, 360);
+      wireGrip("grip-steps", "stepsdir", 200, 320);
+
+      // 初始化
+      applyBreakpoint();
+      renderList();
+      renderWorkspace();
+      sel("overview");
+      // 允许通过 URL 指定初始视图，便于截图：?run=<id>&tab=<tab>&empty=1&noruler=1
+      const u = new URLSearchParams(location.search);
+      if (u.get("empty") === "1") {
+        // 无运行空态：工作区与空态互斥（不靠 hidden 并存）
+        state.empty = true;
+        document.getElementById("ws").hidden = true;
+        document.getElementById("empty").hidden = false;
+      }
+      if (u.get("noruler") === "1") document.body.classList.add("noruler");
+      if (!state.empty && u.get("run") && RUNS.some((r) => r.id === u.get("run"))) {
+        state.selectedId = u.get("run"); renderList(); renderWorkspace();
+      }
+      if (!state.empty && u.get("tab")) { sel(u.get("tab")); if (u.get("tab") === "files") document.body.dataset.aux = "main"; }
+      // 供自动化读取测量值
+      window.__u1 = {
+        measure() {
+          const q = (s) => document.querySelector(s);
+          const w = (el) => (el ? Math.round(el.getBoundingClientRect().width) : null);
+          const vis = (el) => !!el && getComputedStyle(el).display !== "none";
+          // 同一时刻只应有一个 pane 可见（tabpanel 互斥）
+          const panes = ["pane-overview", "pane-steps", "pane-files"].filter((id) => vis(q("#" + id)));
+          return {
+            viewportCSS: document.documentElement.clientWidth,
+            bp: document.body.dataset.bp,
+            navWidth: w(q("#nav")),
+            navVisible: vis(q("#nav")),
+            stepsVisible: vis(q("#stepsdir")),
+            stepsWidth: w(q("#stepsdir")),
+            detailWidth: w(q("#detail")),
+            overviewVisible: !q("#pane-overview").hidden,
+            visiblePaneCount: panes.length,
+            visiblePanes: panes,
+            emptyVisible: vis(q("#empty")),
+            wsVisible: vis(q("#ws")),
+            bodyScrollW: document.body.scrollWidth,
+            docClientW: document.documentElement.clientWidth,
+            hOverflow: document.body.scrollWidth > document.documentElement.clientWidth,
+          };
+        },
+        state,
+      };
+    </script>
+  </body>
+</html>
