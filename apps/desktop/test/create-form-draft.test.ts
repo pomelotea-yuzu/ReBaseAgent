@@ -57,7 +57,8 @@ describe("接线契约：CreateRunDialog 读写创建草稿（任务 2.3）", ()
   });
 
   it("原忙碌关闭限制保留（modalLocked 禁用关闭与 Esc）", () => {
-    expect(DIALOG).toContain("const modalLocked = busy || pickingSource;");
+    // U3 3.5 起冻结期也视同忙碌（待定提交不得被关窗或 Esc 绕开）
+    expect(DIALOG).toContain("const modalLocked = busy || pickingSource || draftFrozen;");
     expect(DIALOG).toContain('if (e.key === "Escape" && !modalLocked) onClose();');
     expect(DIALOG).toContain("disabled={modalLocked}");
   });

@@ -296,8 +296,8 @@ function PromptForkEditor({
   );
 
   // U3 任务 3.4：待定提交冻结该字段草稿（store 侧同时拒绝写入/放弃）
-  const draftFrozen = useAppStore((s) => s.isCallDraftFrozen(draftKeyOf(field)));
-  const beginCallDraftSubmission = useAppStore((s) => s.beginCallDraftSubmission);
+  const draftFrozen = useAppStore((s) => s.isDraftFrozen(draftKeyOf(field)));
+  const beginDraftSubmission = useAppStore((s) => s.beginDraftSubmission);
   // U3 任务 3.4：待定提交期间视同进行中——输入、放弃、关闭、提交一并禁用
   const inProgress = forking === "in_progress" || draftFrozen;
   const original = field === "system_prompt" ? originalSystem : originalUser;
@@ -436,7 +436,7 @@ function PromptForkEditor({
     if (!confirmed) return;
     // U3 任务 3.4：原子登记提交关联（key + 修订 + 快照），提交值取自快照；
     // 已有待定提交时拒绝重复提交。收尾由 store 执行函数负责（卸载不解冻）。
-    const assoc = beginCallDraftSubmission({ channel: "prompt", key: draftKeyOf(field) });
+    const assoc = beginDraftSubmission({ channel: "prompt", target: draftKeyOf(field) });
     if (assoc === null) return;
     void promptFork(run.meta.id, { field, value: assoc.submittedText }, assoc);
   };
@@ -744,13 +744,18 @@ function ModelAbEditor({
   // U3 任务 2.6：批次 dirty（行语义序列偏离基线；初始两臂不算修改）
   const isBatchDirty = draftEntry !== undefined && isModelAbDraftDirty(draftEntry);
 
+  // U3 任务 3.5：待定执行冻结**整批**（store 侧同时拒绝改行与放弃）
+  const draftFrozen = useAppStore((s) => s.isDraftFrozen(draftKey));
+  const beginDraftSubmission = useAppStore((s) => s.beginDraftSubmission);
+
   // U3 任务 3.3：计划必须与当前批次修订同源——修订推进（任何内容变化事件）即失效，
   // 「改走又改回同一文本」也不复活旧计划（修订单调，见 1.2）。恢复/离开编辑器后
   // plan/planRevision 为组件局部态已重置 ⇒ 必须重新预览并重新确认副作用。
   const draftRevision = draftEntry !== undefined ? draftEntry.revision : null;
   const activePlan = plan !== null && planRevision === draftRevision ? plan : null;
 
-  const inProgress = modelAbInFlight;
+  // U3 任务 3.3/3.5：待定执行期间视同进行中（预览与执行都禁用），且整批已冻结
+  const inProgress = modelAbInFlight || draftFrozen;
 
   // U3 任务 2.5：草稿列表的定位目标到达即打开（ensure 幂等；重开不覆盖已有批次；
   // 临时计划/许可照旧清理——授权与计划不随草稿恢复）
@@ -913,7 +918,11 @@ function ModelAbEditor({
       }· 父 run 只作对照，不会被修改`,
     );
     if (!confirmed) return;
-    void modelAb(run.meta.id, guard.arms, false).then((result) => {
+    // U3 任务 3.5：登记整批提交关联（取批次修订 + 行快照）⇒ 冻结整批；
+    // 已有待定提交时拒绝重复提交。收尾由 store 执行函数负责（卸载/收起不解冻）。
+    const assoc = beginDraftSubmission({ channel: "model_ab", target: draftKey });
+    if (assoc === null) return;
+    void modelAb(run.meta.id, guard.arms, false, assoc).then((result) => {
       if (result !== null) setExecuted(result);
     });
   };
@@ -1063,6 +1072,13 @@ function ModelAbEditor({
             }
           }}
         />
+      ) : null}
+
+      {draftFrozen ? (
+        <div className="mt-2 rounded border border-violet-200 bg-violet-50 px-2 py-1.5 text-[11px] leading-4 text-violet-800">
+          本次执行待处理：已按提交时的批次修订冻结整个批次，请求返回前不可增删臂、改参数或放弃。
+          无论成功、业务拒绝还是部分臂失败，批次都保留（待 U5 接入可信操作身份后才自动清理）。
+        </div>
       ) : null}
 
       {modelAbInFlight ? <div className="mt-2 text-[11px] text-sky-600">处理中…</div> : null}
@@ -1479,9 +1495,9 @@ function MessagesForkEditor({
   );
   const draftEntry = useAppStore((s) => s.callDraftOf(draftKey));
   // U3 任务 3.4：待定提交冻结该草稿（store 侧同时拒绝写入/放弃）
-  const draftFrozen = useAppStore((s) => s.isCallDraftFrozen(draftKey));
-  const beginCallDraftSubmission = useAppStore((s) => s.beginCallDraftSubmission);
-  const settleCallDraftSubmission = useAppStore((s) => s.settleCallDraftSubmission);
+  const draftFrozen = useAppStore((s) => s.isDraftFrozen(draftKey));
+  const beginDraftSubmission = useAppStore((s) => s.beginDraftSubmission);
+  const settleDraftSubmission = useAppStore((s) => s.settleDraftSubmission);
   const [parseError, setParseError] = useState<string | null>(null);
   // 源记录不可用时禁用依赖它的执行（任务 3.5）
   const sourceExecutable = useAppStore((s) => s.canExecuteFromSource)();
@@ -1558,19 +1574,19 @@ function MessagesForkEditor({
     // U3 任务 3.4：先原子登记提交关联（key + 修订 + 请求快照），提交边界的解析只针对
     // **快照原文**——校验的与提交的必须是同一份。本地拒绝/取消确认 = 明确未发请求，
     // 直接收尾（否则草稿会被永久冻结在没有在途请求的状态里）。
-    const assoc = beginCallDraftSubmission({ channel: "messages", key: draftKey });
+    const assoc = beginDraftSubmission({ channel: "messages", target: draftKey });
     if (assoc === null) return;
     // 提交时解析回结构体；解析失败可见报错，不发请求
     let messages: unknown;
     try {
       messages = JSON.parse(assoc.submittedText);
     } catch (e) {
-      settleCallDraftSubmission(assoc);
+      settleDraftSubmission(assoc);
       setParseError(`messages 不是合法 JSON：${(e as Error).message}`);
       return;
     }
     if (!Array.isArray(messages) || messages.length === 0) {
-      settleCallDraftSubmission(assoc);
+      settleDraftSubmission(assoc);
       setParseError("messages 必须是非空数组");
       return;
     }
@@ -1580,7 +1596,7 @@ function MessagesForkEditor({
         "重发将真实调用 upstream 并产生 API 费用；使用的是最近捕获的 key（可能与该 run 录制当时不同）。确认重发？",
       )
     ) {
-      settleCallDraftSubmission(assoc);
+      settleDraftSubmission(assoc);
       return;
     }
     void proxyFork(run.meta.id, span.id, messages as Record<string, unknown>[], assoc);
@@ -1813,8 +1829,8 @@ function ForkEditor({
   );
   const draftEntry = useAppStore((s) => s.callDraftOf(draftKey));
   // U3 任务 3.4：待定提交冻结该草稿（store 侧同时拒绝写入/放弃）；冻结与编辑器挂载无关
-  const draftFrozen = useAppStore((s) => s.isCallDraftFrozen(draftKey));
-  const beginCallDraftSubmission = useAppStore((s) => s.beginCallDraftSubmission);
+  const draftFrozen = useAppStore((s) => s.isDraftFrozen(draftKey));
+  const beginDraftSubmission = useAppStore((s) => s.beginDraftSubmission);
 
   // 隔离续跑的本次确认状态：全部是**组件局部**状态——每次打开对话框重新开始，
   // 不从父 trace 的 write_authorized 标注或上一次编辑继承任何授权。
@@ -2229,7 +2245,7 @@ function ForkEditor({
             if (isolated && !submission.ok) return;
             // U3 任务 3.4：先原子登记提交关联（取 key + 修订 + 请求快照），提交值取自快照；
             // 已有待定提交时拒绝重复提交。收尾由 store 执行函数负责（卸载不解冻）。
-            const assoc = beginCallDraftSubmission({ channel: "result", key: draftKey });
+            const assoc = beginDraftSubmission({ channel: "result", target: draftKey });
             if (assoc === null) return;
             if (isolated && submission.ok) {
               void forkAt(

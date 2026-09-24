@@ -1,4 +1,4 @@
-import type { CallDraftEntry, CallDraftKey } from "./debugging-drafts";
+import type { CallDraftKey, ModelAbDraftKey } from "./debugging-drafts";
 
 /**
  * U3（preserve-debugging-drafts）任务 3.4：**提交关联**（design D5）。
@@ -21,19 +21,32 @@ import type { CallDraftEntry, CallDraftKey } from "./debugging-drafts";
  *   也不实现"按 completed 自动清理"。
  */
 
-/** 提交通道：与既有执行入口一一对应（U3 只接线 result / prompt / messages） */
-export type DraftSubmitChannel = "result" | "prompt" | "messages";
+/** 提交通道：与既有执行入口一一对应（调用类三通道 + A/B 整批 + 创建整份） */
+export type DraftSubmitChannel = "result" | "prompt" | "messages" | "model_ab" | "create";
+
+/**
+ * 提交目标（任务 3.5 泛化）：调用类 = runId + spanId + 字段；A/B = 父本 runId + 起始
+ * llm spanId（无 `field` 键，靠它判别）；创建 = 会话内单份表单（只有 `field: "create"`）。
+ * 三类共用同一套「登记 / 冻结 / 令牌收尾」，不各造一份。
+ */
+export type DraftSubmitTarget = CallDraftKey | ModelAbDraftKey | { readonly field: "create" };
+
+/** 创建表单的提交目标（会话内单份，store 与对话框共用同一常量避免两处各写一份） */
+export const CREATE_SUBMIT_TARGET: DraftSubmitTarget = { field: "create" };
 
 /** 单次提交关联：提交时的身份 + 修订 + 请求快照 */
 export interface DraftSubmission {
   /** 目标标识 `${runId}|${spanId}|${field}`（与草稿列表 listKey 同编码，不作编辑身份） */
   readonly id: string;
-  /** 编辑身份：当前父本 runId + 调用 spanId + 字段 */
-  readonly key: CallDraftKey;
+  /** 提交目标：调用类 / A/B 批次 / 创建表单 */
+  readonly target: DraftSubmitTarget;
   readonly channel: DraftSubmitChannel;
   /** 提交时该草稿的修订——U5 的清理条件之一（"相同修订"） */
   readonly submittedRevision: number;
-  /** 提交时原子的请求快照（提交值取自此处，不取组件可能过期的局部值） */
+  /**
+   * 提交时原子的请求快照：调用类 = 草稿原文（提交值直接取它，不取组件可能过期的局部值）；
+   * A/B = 批次行 JSON；创建 = 表单 JSON（后两者与草稿列表 copyText 同形，供 U5 核对与展示）。
+   */
   readonly submittedText: string;
   /** 本次提交的匹配令牌（会话内单调）：只有同令牌的响应才可解冻 */
   readonly token: number;
@@ -51,23 +64,29 @@ export function emptySubmissionStore(): SubmissionStore {
 }
 
 /** 目标标识：与 `lib/draft-list.ts` 的 listKey 同编码（不是编辑身份本身） */
-export function submissionIdOf(key: CallDraftKey): string {
-  return `${key.runId}|${key.spanId}|${key.field}`;
+export function submissionIdOf(target: DraftSubmitTarget): string {
+  // A/B 目标没有 field 键（ModelAbDraftKey 只有 runId + spanId）
+  if (!("field" in target)) return `${target.runId}|${target.spanId}|model_ab`;
+  // 创建草稿不属于任何运行：与列表的 "|create" 保持一致
+  if (target.field === "create") return "|create";
+  return `${target.runId}|${target.spanId}|${target.field}`;
 }
 
 /** 读取某目标的待定提交；无则 undefined（= 未冻结） */
 export function submissionOf(
   store: SubmissionStore,
-  key: CallDraftKey,
+  target: DraftSubmitTarget,
 ): DraftSubmission | undefined {
-  return store.byId[submissionIdOf(key)];
+  return store.byId[submissionIdOf(target)];
 }
 
 export interface BeginSubmissionInput {
   readonly channel: DraftSubmitChannel;
-  readonly key: CallDraftKey;
-  /** 提交时的草稿条目（store 原子读取的当前值；快照与修订都取自它） */
-  readonly entry: CallDraftEntry;
+  readonly target: DraftSubmitTarget;
+  /** 提交时的草稿修订（store 原子读取） */
+  readonly submittedRevision: number;
+  /** 提交时的请求快照（store 原子读取同类草稿拼出，语义见 DraftSubmission.submittedText） */
+  readonly submittedText: string;
 }
 
 export interface BeginSubmissionResult {
@@ -81,20 +100,20 @@ export interface BeginSubmissionResult {
  * 开始一次提交：登记关联并冻结目标。
  * - 同一目标已有待定提交 ⇒ 返回 null 且仓库不变（不覆盖旧关联，也不换令牌——
  *   否则旧请求的响应会变成"迟到"而永远解冻不了当前目标）。
- * - 快照与修订取自 `entry`（提交值 = 此刻 store 里的原文）。
+ * - 修订与快照由调用方从 store 原子读取后传入（批次/整份各自的可核对串在 store 侧拼）。
  */
 export function beginSubmission(
   store: SubmissionStore,
   input: BeginSubmissionInput,
 ): BeginSubmissionResult {
-  const id = submissionIdOf(input.key);
+  const id = submissionIdOf(input.target);
   if (store.byId[id] !== undefined) return { store, submission: null };
   const submission: DraftSubmission = {
     id,
-    key: input.key,
+    target: input.target,
     channel: input.channel,
-    submittedRevision: input.entry.revision,
-    submittedText: input.entry.text,
+    submittedRevision: input.submittedRevision,
+    submittedText: input.submittedText,
     token: store.nextToken,
   };
   return {

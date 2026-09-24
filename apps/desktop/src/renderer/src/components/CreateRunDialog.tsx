@@ -13,6 +13,7 @@ import {
 } from "../lib/create-run";
 import type { CreateRunFormState } from "../lib/create-run";
 import { isCreateRunDraftDirty } from "../lib/debugging-drafts";
+import { CREATE_SUBMIT_TARGET } from "../lib/draft-submission";
 import { useAppStore } from "../store";
 
 /**
@@ -79,11 +80,15 @@ export function CreateRunDialog({ onClose }: { onClose: () => void }) {
 
   const busy = creatingRun === "in_progress";
   const isolated = form.mode === "isolated_files";
+  // U3 任务 3.5：待定提交冻结整份表单（store 侧同时拒绝写入与放弃）——视同忙碌：
+  // 输入与全部关闭路径一并禁用，展示状态复位（unmount 的 resetCreateRun）不解冻
+  const draftFrozen = useAppStore((s) => s.isDraftFrozen(CREATE_SUBMIT_TARGET));
+  const beginDraftSubmission = useAppStore((s) => s.beginDraftSubmission);
   // 禁用判据与将要发出的请求同源（同一个函数），不存在两处口径漂移
   const submission = resolveCreateRunSubmission(form, { systemPrompt, userMessage, busy });
-  const canCreate = submission.ok;
+  const canCreate = submission.ok && !draftFrozen;
   const blockedReason = submission.ok ? null : submission.reason;
-  const modalLocked = busy || pickingSource;
+  const modalLocked = busy || pickingSource || draftFrozen;
 
   // Esc 关闭对话框；创建中/选目录中不响应（真实调用已在飞，关掉只会丢状态）
   useEffect(() => {
@@ -108,8 +113,21 @@ export function CreateRunDialog({ onClose }: { onClose: () => void }) {
   }, [createRunErrorCode, setCreateSourceRef]);
 
   const submit = async (): Promise<void> => {
-    // 判据不通过时 submitCreateRun 直接返回 false：一次 IPC 都不会发
-    const created = await submitCreateRun(form, { systemPrompt, userMessage, busy }, { createRun });
+    // 判据不通过（含待定提交冻结）⇒ 一次 IPC 都不发、也不登记关联
+    if (!canCreate) return;
+    // U3 任务 3.5：先原子登记提交关联（整份表单的修订 + 快照）⇒ 冻结整份；
+    // 已有待定提交时拒绝重复提交。提交值仍由 `lib/create-run.ts` 单一来源构造，
+    // 关联经闭包随请求交给 store，收尾由 store 的 createRun 负责（卸载不解冻）。
+    const assoc = beginDraftSubmission({ channel: "create", target: CREATE_SUBMIT_TARGET });
+    if (assoc === null) return;
+    // canCreate 已通过 ⇒ submitCreateRun 的判据必然同样通过，必定发出请求并由 store 收尾
+    const created = await submitCreateRun(
+      form,
+      { systemPrompt, userMessage, busy },
+      {
+        createRun: (request) => createRun(request, assoc),
+      },
+    );
     if (created) onClose();
   };
 
@@ -300,7 +318,8 @@ export function CreateRunDialog({ onClose }: { onClose: () => void }) {
               placeholder="例如：你是一个简洁的问答助手，用两三句话回答。"
               spellCheck={false}
               rows={3}
-              className="w-full resize-y rounded border border-gray-300 px-2 py-1 font-code text-xs outline-none focus:border-blue-400"
+              disabled={draftFrozen}
+              className="w-full resize-y rounded border border-gray-300 px-2 py-1 font-code text-xs outline-none focus:border-blue-400 disabled:bg-gray-50"
             />
             {systemPrompt.trim().length === 0 ? (
               <span className="mt-0.5 block text-[11px] text-gray-500">
@@ -320,7 +339,8 @@ export function CreateRunDialog({ onClose }: { onClose: () => void }) {
               placeholder="要交给模型的任务。它会同时成为该 run 在列表中的标题。"
               spellCheck={false}
               rows={5}
-              className="w-full resize-y rounded border border-gray-300 px-2 py-1 font-code text-xs outline-none focus:border-blue-400"
+              disabled={draftFrozen}
+              className="w-full resize-y rounded border border-gray-300 px-2 py-1 font-code text-xs outline-none focus:border-blue-400 disabled:bg-gray-50"
             />
             <span className="mt-0.5 block text-[11px] text-gray-500">
               该 run 在列表中的标题（task）即这段文字。
@@ -337,6 +357,13 @@ export function CreateRunDialog({ onClose }: { onClose: () => void }) {
           {createRunError !== null ? (
             <div className="rounded border-l-2 border-red-400 bg-red-50 px-2 py-1.5 text-[11px] leading-4 text-red-700">
               {createRunError}
+            </div>
+          ) : null}
+
+          {draftFrozen ? (
+            <div className="rounded border-l-2 border-violet-400 bg-violet-50 px-2 py-1.5 text-[11px] leading-4 text-violet-800">
+              本次提交待处理：已按提交时的修订冻结整份表单，请求返回前不可修改、切换模式或放弃。
+              无论成功、业务拒绝还是失败，表单内容都保留（待 U5 接入可信操作身份后才自动清理）。
             </div>
           ) : null}
 
