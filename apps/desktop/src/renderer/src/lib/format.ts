@@ -59,10 +59,24 @@ export function reasonLabel(reason: string | null): string {
   }
 }
 
-/** 未知结构的 JSON 美化（工具 args / result / tool_calls 原样展示） */
+/**
+ * 未知结构的 JSON 美化（工具 args / result / tool_calls 原样展示）。
+ *
+ * ⚠️⚠️ **必须总是返回 `string`**（签名如此声明，调用方按字符串用）。
+ *   `JSON.stringify` 对 `undefined` / 函数 / Symbol 的返回值**就是 `undefined`**（不是字符串），
+ *   所以早期版本在 `prettyJson(undefined)` 时**返回 undefined**——一个"类型撒谎"：
+ *   调用方 `DetailPanel` 的 `text={typeof content === "string" ? content : prettyJson(content)}`
+ *   把它塞进 `<LongText text={…}>` ⇒ `shouldCollapse(undefined)` 读 `.length` 抛错
+ *   ⇒ **整页空白**（渲染层没有 error boundary）。
+ *   触发数据完全合法：`request.messages` 里允许有**不带 `content` 键**的消息
+ *   （如仅含 `tool_calls` 的 assistant 消息、空 system 提示）——2026-09-24 验收阶段实测复现。
+ *   故此处兜底成 `String(value)`（`undefined` → `"undefined"`），保证返回类型为真。
+ */
 export function prettyJson(value: unknown): string {
   try {
-    return JSON.stringify(value, null, 2);
+    const text = JSON.stringify(value, null, 2);
+    // `undefined` / 函数 / Symbol 会被 stringify 直接吃掉 ⇒ 退回 String(value)
+    return text === undefined ? String(value) : text;
   } catch {
     return String(value);
   }

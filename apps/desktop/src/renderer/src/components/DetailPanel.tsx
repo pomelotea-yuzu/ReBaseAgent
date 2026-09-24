@@ -5,7 +5,12 @@ import type { ForkCapabilityResult, ModelAbResult, ModelArmPlan, RunDetail } fro
 import { useEffect, useMemo, useRef, useState } from "react";
 import { presentCacheHit, presentCacheMiss } from "../lib/cache-view";
 import type { IoView, StepDetailView as StepDetailViewData } from "../lib/call-detail-view";
-import { optionalSectionVisible, presentStepDetail, resolveIoView } from "../lib/call-detail-view";
+import {
+  messageContentText,
+  optionalSectionVisible,
+  presentStepDetail,
+  resolveIoView,
+} from "../lib/call-detail-view";
 import type { ForkCacheHint } from "../lib/fork-cache-hint";
 import { forkCacheHint } from "../lib/fork-cache-hint";
 import { formatDuration, prettyJson } from "../lib/format";
@@ -963,11 +968,7 @@ export function LlmCallDetailView({
                     ) : null}
                   </div>
                   <LongText
-                    text={
-                      typeof message.content === "string"
-                        ? message.content
-                        : prettyJson(message.content)
-                    }
+                    text={messageContentText(message)}
                     label="内容"
                     {...longTextProps(`msg:${index}`)}
                   />

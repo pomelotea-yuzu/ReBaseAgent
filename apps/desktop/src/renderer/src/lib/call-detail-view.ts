@@ -26,6 +26,7 @@
 import type { SpanLine } from "@rebaseagent/trace-sdk";
 import type { SpanNode } from "@shared/derive";
 import { deriveStepStats } from "@shared/derive";
+import { prettyJson } from "./format";
 
 // ---------------------------------------------------------------------------
 // 字段清单：spec 逐字段点名的"原始字段"，一条都不能少
@@ -284,4 +285,25 @@ export function splitByMatches(
   }
   if (cursor < text.length) parts.push({ text: text.slice(cursor), hit: false });
   return parts;
+}
+
+/**
+ * 一条 `request.messages` 消息在详情里要展示的**文本**（纯判据，可静态断言）。
+ *
+ * ⚠️⚠️ 抽成函数的原因（2026-09-24 U2 验收阶段实测的真实缺陷）：
+ *   消息**允许没有 `content` 键**——仅含 `tool_calls` 的 assistant 消息、空 system 提示都合法，
+ *   且 `readRun` 不会拒绝。渲染层原先内联写 `typeof content === "string" ? content : prettyJson(content)`，
+ *   而 `prettyJson(undefined)` 当时**返回 `undefined`**（`JSON.stringify(undefined)` 的返回值）——
+ *   一个"签名说 string、实际给 undefined"的类型谎言 ⇒ `LongText` 里 `undefined.length` 抛错 ⇒
+ *   **整个步骤页空白**（渲染层无 error boundary）。触发数据仅需一条不带 `content` 的消息。
+ *
+ * 修复分两层，本函数是第二层：① `prettyJson` 现在保证返回字符串（见 `lib/format.ts`）；
+ *   ② 这里把"非字符串一律走 JSON 分支"的判据固定下来，并有用例钉住**返回值永远是字符串**。
+ */
+export function messageContentText(message: unknown): string {
+  // 参数取 `unknown` 而非 `{ content?: unknown }`：读到的 message 来自 zod 的 passthrough 对象，
+  // 其静态类型**只声明了 `role`**（`content` 是透传字段）⇒ 窄类型参数会触发 TS2559
+  //（"has no properties in common"）。此处按"未知结构的对象"取字段，与 schema 的宽松口径一致。
+  const content = (message as { content?: unknown } | null | undefined)?.content;
+  return typeof content === "string" ? content : prettyJson(content);
 }

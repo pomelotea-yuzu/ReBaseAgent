@@ -24,6 +24,7 @@ const {
   findInText,
   stepFind,
   splitByMatches,
+  messageContentText,
 } = await import("../src/renderer/src/lib/call-detail-view");
 const { LlmCallDetailView, ToolInvokeDetailView, StepDetailView } = await import(
   "../src/renderer/src/components/DetailPanel"
@@ -768,5 +769,54 @@ describe("源码级接线契约：DetailPanel 的外壳接线", () => {
       "utf8",
     );
     expect(longSource).toContain("writeText(copyPayload(text))");
+  });
+});
+
+/**
+ * 2026-09-24 U2 验收阶段实测到的**真实缺陷**回归（整页空白）。
+ *
+ * 触发链：`request.messages` 里允许有**不带 `content` 键**的消息（仅含 `tool_calls` 的 assistant
+ * 消息、空 system 提示都合法，`readRun` 不拒）⇒ 旧内联写法把它交给 `prettyJson`，
+ * 而 `prettyJson(undefined)` 当时返回 **`undefined`**（`JSON.stringify(undefined)` 的返回值），
+ * 与它 `: string` 的签名相反 ⇒ `LongText` 里 `shouldCollapse(undefined)` 读 `.length` 抛错
+ * ⇒ 渲染层无 error boundary，**整个步骤页空白**。
+ *
+ * 两层修复各钉一条：判据层（本组）**返回值永远是字符串**；格式化层（`prettyJson`）保证 totality。
+ */
+describe("消息内容永远是字符串（防整页空白回归）", () => {
+  it("字符串原样返回", () => {
+    expect(messageContentText({ content: "正文" })).toBe("正文");
+    expect(messageContentText({ content: "" })).toBe("");
+  });
+
+  it("**缺 content 键**（合法消息形态）⇒ 返回字符串而不是 undefined", () => {
+    const text = messageContentText({});
+    expect(typeof text).toBe("string");
+    expect(text).toBe("undefined");
+  });
+
+  it("content 为 null / 数字 / 对象 ⇒ 都转成字符串（JSON 分支）", () => {
+    for (const content of [null, 0, false, { a: 1 }, [1, 2]]) {
+      const text = messageContentText({ content });
+      expect(typeof text).toBe("string");
+    }
+    expect(messageContentText({ content: null })).toBe("null");
+    expect(messageContentText({ content: { a: 1 } })).toBe('{\n  "a": 1\n}');
+  });
+
+  it("`prettyJson` 对 stringify 会吃掉的值（undefined / 函数 / Symbol）也返回字符串", () => {
+    // JSON.stringify 对这三类**返回 undefined**（不是字符串）——这正是旧缺陷的根
+    for (const value of [undefined, () => 1, Symbol("s")]) {
+      const text = messageContentText({ content: value });
+      expect(typeof text).toBe("string");
+    }
+  });
+
+  it("接线：DetailPanel 的消息渲染走该函数（不再内联 prettyJson）", () => {
+    const source = readFileSync(
+      resolve(import.meta.dirname, "../src/renderer/src/components/DetailPanel.tsx"),
+      "utf8",
+    );
+    expect(source).toContain("text={messageContentText(message)}");
   });
 });
