@@ -1,6 +1,6 @@
 # U2 实施任务
 
-当前第 1、2、3 组已完成；**第 4 组已完成（4.1–4.6 全部勾选；4.1/4.5/4.6 经 2026-09-23 复核发现未真正落地后已补齐）**；**第 5 组全部完成（5.1–5.6）**；第 6 组待办。依赖 U1 已完成但未归档的源码和 delta，不以旧主 spec 代替现状；本次不归档 U1。每项预算不超过 2h，超出先拆分。场景名均引用 [desktop-ui delta](specs/desktop-ui/spec.md)，其中 C 原有九个场景与行为保留，仅将窄窗口场景的“提交和导航控件”校准为“检查点与导航控件”。
+当前第 1、2、3 组已完成；**第 4 组已完成（4.1–4.6 全部勾选；4.1/4.5/4.6 经 2026-09-23 复核发现未真正落地后已补齐）**；**第 5 组全部完成（5.1–5.6）**；**第 6 组进行中（6.1 完成）**。依赖 U1 已完成但未归档的源码和 delta，不以旧主 spec 代替现状；本次不归档 U1。每项预算不超过 2h，超出先拆分。场景名均引用 [desktop-ui delta](specs/desktop-ui/spec.md)，其中 C 原有九个场景与行为保留，仅将窄窗口场景的“提交和导航控件”校准为“检查点与导航控件”。
 
 ## 进度记录
 
@@ -211,6 +211,12 @@
 
 ## 6. 质量检查与证据
 
-- [ ] 6.1 执行依赖包构建、类型检查、desktop 全量与相关 replay 读取测试（1.5h）；保存命令/退出码，确认前述纯派生、store、IPC 场景实际执行，失败或跳过不算通过。
+- [x] 6.1 执行依赖包构建、类型检查、desktop 全量与相关 replay 读取测试（1.5h）；保存命令/退出码，确认前述纯派生、store、IPC 场景实际执行，失败或跳过不算通过。
+  - 命令与退出码（原始日志/JSON 报告落 `.workbuddy/u2-61/`，gitignored）：① 构建 `pnpm check:build`（= `--filter "./packages/*" build`）⇒ **EXIT=0**，5/5 包 `tsc` 完成、5 份 `dist/index.{js,d.ts}` 时间戳全部刷新（**build 必须先于 test**，否则跨包消费者静默跳过用例）；② 类型检查 `pnpm check:typecheck`（desktop `tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit`）⇒ **EXIT=0**，日志 259 字节、零诊断；③ desktop 全量 `cd apps/desktop && vitest.CMD run --testTimeout=30000 --reporter=default --reporter=json` ⇒ **EXIT=0**，`Test Files 66 passed (66)` / `Tests 1295 passed (1295)`、**无 `Errors` 行**、逐文件汇总 `skipped=0 / todo=0 / failed=0`；④ replay 读取链 `cd packages/replay && vitest.CMD run --testTimeout=30000 --pool=forks --poolOptions.forks.singleFork=true` ⇒ **EXIT=1**，`Test Files 2 failed | 26 passed (28)` / `Tests 12 failed | 380 passed (392)`、`skipped=0`。
+  - ⚠️ **desktop 首轮判为不可信并已重跑**（`03-desktop.json` 不计入结论）：命中既有 `%TEMP%\<rand>\ssr\<hash>` `EPERM` 间歇故障 ⇒ 只跑 64/66 文件、1200 用例并报 `2 errors`（恰好缺 `store.test.ts` 57 + `u2-file-fixtures.test.ts` 38 = 95 条）。按"**文件数 + 用例数 + Errors 三元组任一不符即重跑**"复跑后 66/1295/0 全符。
+  - **纯派生 / store / IPC 场景逐文件确认真跑**（JSON 报告逐文件计数，全部 0 failed / 0 skipped）：纯派生 `file-reading-state` 8、`file-checkpoint-resolve` 24、`file-reading-target` 12、`file-directory-filter` 21、`file-layout` 16、`file-tools` 12、`reading-request-guard` 16、`reading-resolve` 12、`reading-state` 16、`workspace-files` 30；store `file-view-session-state` 8、`store` 57；IPC/组件 `workspace-view` 20（**直接驱动真 `workspaces:inspect`/`workspaces:readFile` 处理器**：非法 runId ⇒ `WORKSPACE_INVALID_REQUEST` 不抛错、清单外路径/物理 blob 路径 ⇒ `not_found`、祖先 step ⇒ `step_not_found`、附件删除/篡改 ⇒ `missing`/`corrupt`、完整浏览后数据目录全树指纹**逐字节不变**）、`file-two-side-read` 62、`file-single-side-view` 18、`workspace-file-view` 26、`file-scroll` 10、`file-view-scroll-wiring` 16、`reading-scroll-restore` 33；标本 `u2-file-fixtures` 38。**读取链合计 455 条，全绿零跳过。**
+  - replay 侧读取链**全绿零跳过**：`workspace-file-tools` 72、`workspace-profile-guard` 28、`workspace-isolated-preflight` 19、`workspace-world` 17、`workspace-read-api` 15、`workspace-checkpoint-tracer` 14、`workspace-isolated-run` 13、`workspace-quota` 12、`workspace-blob-store`(+injection) 13、`derive` 9、`isolated-entry-guard` 8、`workspace-isolated-integration` 6、`workspace-isolated-replay` 5、`workspace-package-recovery` 4、`workspace-trace-failure` 4、`package-api-fixture` 3。
+  - **12 条失败已逐条归因，全部为沙箱既有环境故障、非本 change 回归**（且整段 U2 从未改动 `packages/`：`git log --name-only 4628b80..HEAD -- packages/` 输出为空）：**9 × `model-ab-cli`**（CLI dist 冒烟须 spawn 子进程，沙箱一律 `EBUSY`/`status===null`；产物本身 `node dist/model-ab-cli.js --help` 可直验）；**3 × `workspace-import-source`** 的 symlink 形态用例——沙箱**伪造 symlink**（`symlinkSync` 不抛错、`existsSync` 为真，但条目不是真链接），该文件的能力探针只回查 `existsSync` ⇒ 被误导成"可用"，用例由 expected `skipped` 变成本轮真跑并失败（junction 那几条不需特权、恒真跑且全绿）。与 09-23 基线"replay 12 条沙箱环境失败属预期"逐条同源。
+  - 未通过项：无。desktop 0 失败 0 跳过；replay 12 条已全部归因到沙箱环境并给出复验路径，**不计作"跳过"或"通过"**（属既有环境缺口，非本段引入）。
 - [ ] 6.2 执行仓库 lint、OpenSpec 全量严格校验及 desktop build（1h）；支持“文件阅读键盘操作与离线加载”等离线构建回归，记录结果；不安排发行打包。
 - [ ] 6.3 建立逐场景 evidence-index 并核对 C 九个旧场景与所有新增场景（1h）；链接 fixture/测试/实机截图及宽度/只读证据，按 D7 分别链接 U1 详情竞态回归与 U2 两条文件竞态场景的具体断言，不能以详情测试代替文件验收；列出未验证项，确认 U1 完成未归档、U2 验收状态与 U3–U8 边界如实表述，不自动归档。
