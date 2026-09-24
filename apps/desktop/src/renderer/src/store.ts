@@ -52,6 +52,8 @@ import type {
 } from "./lib/debugging-drafts";
 import * as draftLib from "./lib/debugging-drafts";
 import type { DraftKind } from "./lib/draft-list";
+import type { DraftSubmission, DraftSubmitChannel, SubmissionStore } from "./lib/draft-submission";
+import * as submissionLib from "./lib/draft-submission";
 import { resolveReading } from "./lib/reading-resolve";
 import {
   defaultReadingState,
@@ -298,6 +300,28 @@ interface AppState {
   setCreateSourceRef: (ref: CreateSourceRef | null) => void;
 
   /**
+   * U3 任务 3.4：提交关联（renderer 本地，与草稿仓库和授权都分开）。提交时**原子**
+   * 取到目标 key、当前修订与请求快照，据此冻结该草稿的修改/放弃；收尾由既有执行函数
+   * 负责——组件卸载、`resetFork`、展示状态复位都不是解冻依据（design D5）。
+   */
+  draftSubmissions: SubmissionStore;
+  /**
+   * 开始一次提交：返回关联（快照 `submittedText` + 匹配令牌），目标已有待定提交时返回
+   * null（拒绝重复提交，不覆盖旧关联）。提交值必须取自返回的快照，不用组件可能过期的局部值。
+   */
+  beginCallDraftSubmission: (input: {
+    channel: DraftSubmitChannel;
+    key: CallDraftKey;
+  }) => DraftSubmission | null;
+  /**
+   * 收尾一次提交（解除冻结）：只认令牌相同的关联，旧回调不解冻新提交。仅"已明确有结论"
+   * 的路径可调用（响应到达 / 本地校验拒绝）；通道断开等不确定状态保留冻结。
+   */
+  settleCallDraftSubmission: (submission: DraftSubmission) => void;
+  /** 该草稿是否被待定提交冻结（冻结期间仓库拒绝写入与放弃） */
+  isCallDraftFrozen: (key: CallDraftKey) => boolean;
+
+  /**
    * U3 任务 2.5：一次性草稿定位目标（草稿列表「定位」动作的载体，与 U2 的
    * pendingFileTarget 同法）。由对应编辑器消费一次后经 `consumeDraftTarget` 清空；
    * 定位失败（运行不可达 / span 不在详情）时保留——列表的复制/放弃仍可用。
@@ -325,6 +349,8 @@ interface AppState {
     atSpanId: string,
     value: string,
     execution?: IsolatedExecutionMode,
+    /** U3 任务 3.4：本次提交关联——执行函数负责收尾（任何响应都不清草稿） */
+    submission?: DraftSubmission,
   ) => Promise<boolean>;
   /**
    * 隔离续跑的只读预检（确认区的唯一数据源）：不创建运行、不写文件、不请求模型。
@@ -337,7 +363,12 @@ interface AppState {
     { ok: true; data: ForkCapabilityResult } | { ok: false; code: string; message: string }
   >;
   /** prompt fork：编辑启动上下文（system prompt / 首条 user message）从头重跑 */
-  promptFork: (parentRunId: string, edit: PromptForkRequest["edit"]) => Promise<boolean>;
+  promptFork: (
+    parentRunId: string,
+    edit: PromptForkRequest["edit"],
+    /** U3 任务 3.4：本次提交关联——执行函数负责收尾（任何响应都不清草稿） */
+    submission?: DraftSubmission,
+  ) => Promise<boolean>;
   /**
    * 模型 A/B：dryRun = true 只校验并返回计划（不联网、不写文件）；
    * 真实执行成功后刷新列表（新 run 带实验组徽章），返回各臂计划与结果。
@@ -412,6 +443,8 @@ interface AppState {
     parentRunId: string,
     atSpanId: string,
     messages: Record<string, unknown>[],
+    /** U3 任务 3.4：本次提交关联——执行函数负责收尾（任何响应都不清草稿） */
+    submission?: DraftSubmission,
   ) => Promise<boolean>;
 }
 
@@ -460,6 +493,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   createDialogOpen: false,
   settingsSection: null,
   shortIdState: new ShortIdState(),
+  // U3 任务 3.4：提交关联仓库（与草稿仓库分开的生命周期，见 draft-submission.ts）
+  draftSubmissions: submissionLib.emptySubmissionStore(),
 
   async loadRuns() {
     // 在途合并（任务 3.4）：重复刷新不并发发射。频繁触发（挂载 + 执行收尾 + 手动重试）
@@ -759,12 +794,17 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   writeCallDraftText(key, text) {
+    // U3 任务 3.4：待定提交冻结修改（design D5）——冻结期间仓库拒绝写入，界面同时禁用输入。
+    // 拦在 store 而不是只靠组件禁用：提交快照必须独立于编辑器挂载与后续输入。
+    if (submissionLib.submissionOf(get().draftSubmissions, key) !== undefined) return;
     const next = draftLib.writeCallDraftText(get().drafts, key, text);
     // 相同文本 / 未 ensure：仓库引用不变，不推进修订
     if (next !== get().drafts) set({ drafts: next });
   },
 
   discardCallDraft(key, expectedRevision) {
+    // U3 任务 3.4：冻结期间拒绝放弃（含迟到确认）——待定请求引用的就是这份快照
+    if (submissionLib.submissionOf(get().draftSubmissions, key) !== undefined) return false;
     const next = draftLib.discardCallDraft(get().drafts, key, expectedRevision);
     // 未删除（修订已推进 / 条目不存在）：仓库引用不变
     if (next.repo !== get().drafts) set({ drafts: next.repo });
@@ -819,6 +859,27 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ createSourceRef: ref });
   },
 
+  beginCallDraftSubmission({ channel, key }) {
+    const entry = draftLib.callDraftOf(get().drafts, key);
+    // 未登记基线 ⇒ 没有可提交的草稿（正常提交路径必经 ensure）；不猜测快照
+    if (entry === undefined) return null;
+    const next = submissionLib.beginSubmission(get().draftSubmissions, { channel, key, entry });
+    // 该目标已有待定提交：拒绝重复提交，不覆盖旧关联（旧关联的响应仍能正确收尾）
+    if (next.submission === null) return null;
+    set({ draftSubmissions: next.store });
+    return next.submission;
+  },
+
+  settleCallDraftSubmission(submission) {
+    const next = submissionLib.settleSubmission(get().draftSubmissions, submission);
+    // 令牌不匹配（旧回调）/ 已被收尾 ⇒ 引用不变
+    if (next !== get().draftSubmissions) set({ draftSubmissions: next });
+  },
+
+  isCallDraftFrozen(key) {
+    return submissionLib.submissionOf(get().draftSubmissions, key) !== undefined;
+  },
+
   pendingDraftTarget: null,
 
   async openDraftAt(target) {
@@ -843,7 +904,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ pendingDraftTarget: null });
   },
 
-  async forkAt(parentRunId, atSpanId, value, execution) {
+  async forkAt(parentRunId, atSpanId, value, execution, submission) {
     set({ forking: "in_progress", forkError: null, forkErrorCode: null });
     const envelope = await api.forkRun({
       parentRunId,
@@ -852,6 +913,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       // 只在隔离父本时带上 execution：普通父本请求里不出现该键（语义清爽，且便于断言）
       ...(execution === undefined ? {} : { execution }),
     });
+    // U3 任务 3.4：已明确返回（成功或业务拒绝）⇒ 收尾本次提交关联、解除冻结；
+    // **任何响应都不删草稿**（design D5）。通道抛错不进这里，冻结保留（状态未知）。
+    if (submission !== undefined) get().settleCallDraftSubmission(submission);
     if (!envelope.ok) {
       set({
         forking: "error",
@@ -961,9 +1025,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     return parsed.data;
   },
 
-  async promptFork(parentRunId, edit) {
+  async promptFork(parentRunId, edit, submission) {
     set({ forking: "in_progress", forkError: null, forkErrorCode: null });
     const envelope = await api.promptFork({ parentRunId, edit });
+    // U3 任务 3.4：已明确返回即收尾本次提交关联（草稿保留，见 design D5）
+    if (submission !== undefined) get().settleCallDraftSubmission(submission);
     if (!envelope.ok) {
       set({
         forking: "error",
@@ -1102,9 +1168,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ compareIds: [], compareNotice: null });
   },
 
-  async proxyFork(parentRunId, atSpanId, messages) {
+  async proxyFork(parentRunId, atSpanId, messages, submission) {
     set({ forking: "in_progress", forkError: null, forkErrorCode: null });
     const envelope = await api.proxyFork({ parentRunId, atSpanId, messages });
+    // U3 任务 3.4：已明确返回即收尾本次提交关联（草稿保留，见 design D5）
+    if (submission !== undefined) get().settleCallDraftSubmission(submission);
     if (!envelope.ok) {
       set({
         forking: "error",

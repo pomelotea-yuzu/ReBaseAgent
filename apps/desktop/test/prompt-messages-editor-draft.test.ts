@@ -96,8 +96,9 @@ describe("接线契约：MessagesForkEditor 接入 messages 草稿（任务 2.2�
 
   it("沿用提交边界解析（JSON.parse）；放弃只经失效视图 CAS，取消不删草稿", () => {
     const code = src();
-    // 解析/校验只在提交边界进行：非法 JSON 在草稿里原样暂存
-    expect(code).toContain("JSON.parse(value)");
+    // 解析/校验只在提交边界进行：非法 JSON 在草稿里原样暂存。
+    // U3 3.4 起解析源改为**提交时的原子快照**（仍是同一份无损草稿原文，不在编辑器内解析）
+    expect(code).toContain("JSON.parse(assoc.submittedText)");
     // U3 2.5：放弃入口只在来源失效视图（CAS）；取消路径不删草稿
     expect(code).toContain("DraftSourceBanner");
     expect(code).toContain("discardCallDraft(draftKey, draftEntry.revision)");
