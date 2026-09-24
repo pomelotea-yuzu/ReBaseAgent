@@ -250,6 +250,11 @@ interface AppState {
    * 实际内容变化才推进修订。须先 ensureCallDraft——未登记基线的目标不接收写入。
    */
   writeCallDraftText: (key: CallDraftKey, text: string) => void;
+  /**
+   * U3 任务 1.2：按 key + revision 的放弃校验（CAS）。仅当目标修订与确认时一致才删除；
+   * 确认等待期间内容已推进或条目不存在时不动仓库。返回是否真的放弃。
+   */
+  discardCallDraft: (key: CallDraftKey, expectedRevision: number) => boolean;
 
   /**
    * 编辑某 tool.invoke 的 result 并重跑；成功刷新列表并自动选中新 run。
@@ -698,6 +703,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     const next = drafts.writeCallDraftText(get().callDrafts, key, text);
     // 相同文本 / 未 ensure：仓库引用不变，不推进修订
     if (next !== get().callDrafts) set({ callDrafts: next });
+  },
+
+  discardCallDraft(key, expectedRevision) {
+    const next = drafts.discardCallDraft(get().callDrafts, key, expectedRevision);
+    // 未删除（修订已推进 / 条目不存在）：仓库引用不变
+    if (next.repo !== get().callDrafts) set({ callDrafts: next.repo });
+    return next.discarded;
   },
 
   async forkAt(parentRunId, atSpanId, value, execution) {

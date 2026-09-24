@@ -9,8 +9,11 @@
  * - 无损保存用户原始字符串：末尾空白、换行、空串、非法 JSON 一律原样；解析只在校验/提交
  *   边界进行，本模块绝不 parse/stringify 后回写编辑器。
  * - 修订号由仓库级单调计数器分配：条目创建与每次**实际内容变化**各分配一次；恢复/收起/
- *   查看/相同文本重复写入不推进。计数器只增不减 ⇒ 删除后重建同 key 也不复用旧修订（防 ABA；
- *   放弃动作与 dirty 派生在任务 1.2 接入）。
+ *   查看/相同文本重复写入不推进。计数器只增不减 ⇒ 放弃后重建同 key 也不复用旧修订（防 ABA）。
+ * - dirty 是纯派生：text !== baseline 即有未放弃的编辑；改回基线 dirty=false（条目保留，
+ *   其后再次修改继续递增）。仓库**不自动淘汰** dirty 条目。
+ * - 放弃走 key + revision 的 CAS：确认打开时记下修订，执行放弃时修订已推进 ⇒ 拒绝删除，
+ *   旧确认不作数（任务 1.2）。
  * - 未发生编辑不创建 dirty 项：条目只在编辑器打开（ensure，传入已校验基线）时出现；
  *   ensure 不覆盖已有条目（来源改变的处理归任务 1.4，不得静默重置基线）。
  * - 草稿只在 renderer 内存：不写 localStorage / sessionStorage / URL / 日志 / settings / trace。
@@ -121,4 +124,57 @@ function putEntry(
     },
     nextRevision,
   };
+}
+
+/**
+ * dirty 派生：text !== baseline 即有未放弃的编辑。
+ * - 打开未编辑（ensure）⇒ false，不产生虚假 dirty；
+ * - 清空为零长度、输入仅空白、非法 JSON 同样算 dirty（原样字符串比较，无 trim）；
+ * - 改回基线 ⇒ false（标记消失），条目保留，其后再次修改继续递增修订。
+ * dirty 只表示未放弃的编辑，不表示可提交或执行成功（能力门禁在既有流程）。
+ */
+export function isCallDraftDirty(entry: CallDraftEntry): boolean {
+  return entry.text !== entry.baseline;
+}
+
+export interface DiscardCallDraftResult {
+  /** 放弃成功时为新仓库引用；未删除时与入参同引用（不触发 store 更新） */
+  readonly repo: CallDraftRepo;
+  /** 是否真的删除了条目 */
+  readonly discarded: boolean;
+}
+
+/**
+ * 按 key + revision 的放弃校验（CAS 放弃，design D3）：
+ * - 条目存在且修订与确认时一致 ⇒ 删除（沿路径剪枝空父级），兄弟条目引用不变；
+ * - 确认等待期间内容又变（修订已推进）⇒ **拒绝删除**，旧确认不作数，须重新核对；
+ * - 条目不存在（已放弃过 / 从未 ensure）⇒ 幂等，返回原仓库。
+ * 删除不触碰修订计数器：重建同 key 必然拿到更新的修订。仓库不自动淘汰 dirty 条目。
+ */
+export function discardCallDraft(
+  repo: CallDraftRepo,
+  key: CallDraftKey,
+  expectedRevision: number,
+): DiscardCallDraftResult {
+  const entry = callDraftOf(repo, key);
+  if (entry === undefined || entry.revision !== expectedRevision) {
+    return { repo, discarded: false };
+  }
+  const run = repo.byRun[key.runId] ?? {};
+  const span = run[key.spanId] ?? {};
+  const nextSpan = { ...span };
+  delete nextSpan[key.field];
+  const nextByRun = { ...repo.byRun };
+  if (Object.keys(nextSpan).length === 0) {
+    const nextRun = { ...run };
+    delete nextRun[key.spanId];
+    if (Object.keys(nextRun).length === 0) {
+      delete nextByRun[key.runId];
+    } else {
+      nextByRun[key.runId] = nextRun;
+    }
+  } else {
+    nextByRun[key.runId] = { ...run, [key.spanId]: nextSpan };
+  }
+  return { repo: { byRun: nextByRun, nextRevision: repo.nextRevision }, discarded: true };
 }
