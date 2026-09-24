@@ -100,17 +100,17 @@ async function evAsync(call, expression) {
  * ⚠️ 见文件头：ES 模块身份 = 完整 URL（含 `?t=` 版本戳）。写死 `/src/...` 会拿到另一份
  *    模块实例（空 store）且**不报错**。故一律先从 `performance` 资源表解析。
  */
-async function appImport(call, needle, body) {
+async function appImport(call, needles, body) {
+  const list = Array.isArray(needles) ? needles : [needles];
   const raw = await evAsync(
     call,
     `(async () => {
-      const pick = (n) => {
-        const names = performance.getEntriesByType('resource').map(e => e.name)
-          .filter(x => x.includes(n));
-        return names.find(x => x.includes('?t=')) ?? names[0] ?? null;
-      };
-      const url = pick(${JSON.stringify(needle)});
-      if (url === null) return JSON.stringify({ error: 'module-url-not-found', needle: ${JSON.stringify(needle)} });
+      const wanted = ${JSON.stringify(list)};
+      const all = performance.getEntriesByType('resource').map(e => e.name)
+        .filter(n => wanted.some(w => n.includes(w)));
+      const rank = (n) => (n.includes('?t=') ? 0 : n.includes('/@fs/') ? 2 : 1);
+      const url = all.slice().sort((a, b) => rank(a) - rank(b))[0] ?? null;
+      if (url === null) return JSON.stringify({ error: 'module-url-not-found', needle: wanted.join(' | ') });
       const m = await import(url);
       ${body}
     })()`,
@@ -118,15 +118,23 @@ async function appImport(call, needle, body) {
   return JSON.parse(raw);
 }
 
-const STORE_NEEDLE = "/src/renderer/src/store.ts";
+// 候选子串：`/src/renderer/src/...`（@fs 形态）与 `/src/...`（Vite root 内常规服务形态）。
+// ⚠️ electron.vite.config.ts 的 renderer `root` = apps/desktop/src/renderer ⇒ 应用侧真实 URL
+//    是 `http://localhost:5173/src/store.ts`；只写单形态会在换加载路径时匹配不到
+//    （2026-09-24 验收复跑实测踩到，5.5/5.6 已用同款候选数组规避）。
+const STORE_NEEDLE = ["/src/renderer/src/store.ts", "/src/store.ts"];
 
 /** 读某 run 的文件阅读会话状态（权威：位置/选择是否真的被记住） */
 async function storeState(call, runId) {
   return appImport(
     call,
     STORE_NEEDLE,
-    `const rsUrl = pick('/src/renderer/src/lib/reading-state.ts');
-      if (rsUrl === null) return JSON.stringify({ error: 'module-url-not-found' });
+    `const rsNeedles = ['/src/renderer/src/lib/reading-state.ts', '/src/lib/reading-state.ts'];
+      const rsAll = performance.getEntriesByType('resource').map(e => e.name)
+        .filter(n => rsNeedles.some(w => n.includes(w)));
+      const rsrank = (n) => (n.includes('?t=') ? 0 : n.includes('/@fs/') ? 2 : 1);
+      const rsUrl = rsAll.slice().sort((a, b) => rsrank(a) - rsrank(b))[0] ?? null;
+      if (rsUrl === null) return JSON.stringify({ error: 'module-url-not-found', needle: 'reading-state' });
       const rs = await import(rsUrl);
       const st = m.useAppStore.getState();
       const r = rs.readingStateOf(st.readingByRun, ${JSON.stringify(runId)});
@@ -161,7 +169,7 @@ async function callStoreAction(call, body) {
 
 // —— monaco 通道 ——
 
-const MONACO_NEEDLE = "/src/renderer/src/monaco-bootstrap.ts";
+const MONACO_NEEDLE = ["/src/renderer/src/monaco-bootstrap.ts", "/src/monaco-bootstrap.ts"];
 
 /**
  * 读**真 monaco**（与界面同一实例）的事实：模型文本、真实 diff、readOnly 选项、find 关联。

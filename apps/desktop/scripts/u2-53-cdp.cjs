@@ -101,10 +101,15 @@ async function storeState(call, runId) {
   const raw = await evAsync(
     call,
     `(async () => {
+      // ⚠️ electron.vite.config.ts 的 renderer root = apps/desktop/src/renderer ⇒ 应用侧真实
+      //    URL 是 /src/store.ts；经 @fs / HMR 后则呈现 /@fs/D:/…/src/renderer/src/store.ts?t=…
+      //    两种形态都要认（2026-09-24 验收复跑实测踩到：单形态会匹配不到）。
       const pick = (file) => {
-        const names = performance.getEntriesByType('resource').map(e => e.name)
-          .filter(n => n.includes('/src/renderer/src/' + file));
-        return names.find(n => n.includes('?t=')) ?? names[0] ?? null;
+        const wants = ['/src/renderer/src/' + file, '/src/' + file];
+        const all = performance.getEntriesByType('resource').map(e => e.name)
+          .filter(n => wants.some(w => n.includes(w)));
+        const rank = (n) => (n.includes('?t=') ? 0 : n.includes('/@fs/') ? 2 : 1);
+        return all.slice().sort((a, b) => rank(a) - rank(b))[0] ?? null;
       };
       const storeUrl = pick('store.ts');
       const rsUrl = pick('lib/reading-state.ts');
@@ -138,9 +143,11 @@ async function callStoreAction(call, body) {
   const raw = await evAsync(
     call,
     `(async () => {
-      const names = performance.getEntriesByType('resource').map(e => e.name)
-        .filter(n => n.includes('/src/renderer/src/store.ts'));
-      const storeUrl = names.find(n => n.includes('?t=')) ?? names[0];
+      const wants = ['/src/renderer/src/store.ts', '/src/store.ts'];
+      const all = performance.getEntriesByType('resource').map(e => e.name)
+        .filter(n => wants.some(w => n.includes(w)));
+      const rank = (n) => (n.includes('?t=') ? 0 : n.includes('/@fs/') ? 2 : 1);
+      const storeUrl = all.slice().sort((a, b) => rank(a) - rank(b))[0];
       if (storeUrl === undefined) return JSON.stringify({ error: 'module-url-not-found' });
       const m = await import(storeUrl);
       ${body}

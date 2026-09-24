@@ -21,6 +21,7 @@
  * 用法（每次一个 tag）：
  *   node apps/desktop/scripts/u2-56-cdp.cjs --tag=probe
  *   node apps/desktop/scripts/u2-56-cdp.cjs --tag=restart-state
+ *   node apps/desktop/scripts/u2-56-cdp.cjs --tag=first-enter
  *   node apps/desktop/scripts/u2-56-cdp.cjs --tag=migrate
  *   node apps/desktop/scripts/u2-56-cdp.cjs --tag=keyboard-offline
  *   node apps/desktop/scripts/u2-56-cdp.cjs --tag=compat
@@ -1291,6 +1292,48 @@ async function scenarioCompat(call) {
   return m;
 }
 
+/**
+ * A1 专项：**首次进入文件页**是否落「最近自有完成步骤」
+ * （delta：首次进入 SHALL 选择最近自有完成步骤，而不是停在初始）。
+ *
+ * 与 `restart-state` 的分工：本 tag **不做进程重启**，只依赖 main() 的**冷重载**——
+ * 文件阅读状态是 zustand **内存态**，冷重载即等价于「本会话首次进入」，故 A1 可单独复跑。
+ * `restart-state` 仍是更强证据（真进程重启 + 跨进程不恢复 + 之后读真实差异），保留不删。
+ * 拆出的原因（2026-09-24 验收复跑实测）：脚本内 `spawn` 起 dev 在本环境起不来
+ * （detached 子进程随父脚本退出被回收）⇒ 需要一个不依赖重启也能钉住 A1 的 tag。
+ */
+async function scenarioFirstEnter(call) {
+  const m = {};
+
+  const before = await storeState(call, SUB_RUN);
+  m.beforeEnter = before;
+  check(
+    "冷重载后文件阅读状态为「从未进入」（entered=false ⇒ 后续断言才是真正的首次进入）",
+    before.error === undefined && before.entered === false,
+    JSON.stringify(before),
+  );
+
+  Object.assign(m, await enterFiles(call, SUB_RUN, null, "全部"), { enter: true });
+  m.ckpts = (await dom(call)).ckpts;
+  m.store = await storeState(call, SUB_RUN);
+  const active = await ev(call, CKPT_ACTIVE_EXPR);
+  m.activeCkpt = active;
+  await shot(call, SHOT_DIR, "first-enter-1-首次进入落默认检查点.png");
+
+  check(
+    "首次进入落到**最近自有完成步骤**（第 2 轮），而不是初始状态",
+    typeof active === "string" && active.includes("第 2 轮"),
+    JSON.stringify({ active, ckpts: m.ckpts }),
+  );
+  check(
+    "会话状态真的被写回默认检查点（checkpoint 非 null ⇒ 不是「停在初始」）",
+    m.store.error === undefined && m.store.entered === true && m.store.checkpoint !== null,
+    JSON.stringify({ entered: m.store.entered, checkpoint: m.store.checkpoint }),
+  );
+
+  return m;
+}
+
 // ---------------------------------------------------------------------------
 // 驱动
 // ---------------------------------------------------------------------------
@@ -1328,6 +1371,7 @@ async function main() {
   let out = {};
   if (TAG === "probe") out = await scenarioProbe(call);
   else if (TAG === "restart-state") out = await scenarioRestartState(call);
+  else if (TAG === "first-enter") out = await scenarioFirstEnter(call);
   else if (TAG === "migrate") out = await scenarioMigrate(call);
   else if (TAG === "keyboard-offline") out = await scenarioKeyboardOffline(call);
   else if (TAG === "compat") out = await scenarioCompat(call);
