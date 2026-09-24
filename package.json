@@ -1,6 +1,6 @@
 {
   "name": "rebaseagent",
-  "version": "0.3.0-k0-a3.1",
+  "version": "0.3.0-k1",
   "private": true,
   "description": "ReBaseAgent — Agent 的时间旅行调试器。不止回放 Agent 做了什么，而是让你改变它做了什么。",
   "license": "MIT",

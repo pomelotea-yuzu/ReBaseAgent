@@ -113,7 +113,7 @@ node apps/desktop/scripts/u2-dev-host.cjs --stop
 | **D-1** | **列表滚动**的实机证据力弱（5.3 当轮夹具清单只可滚 2px ⇒ `scrollTop` 恒 0，断言落在"不足一屏"的宽免分支里通过） | ✅ **已补齐** | 新造**长清单夹具**（`gen-u2-acc-list-fixtures.cjs`，61 项清单）＋新 tag `u2-53-cdp.cjs --tag=list-scroll`。实测：清单 `scrollHeight 2862 / clientHeight 400 / 61 行` ⇒ **确实可滚**；真滚轮后 `store.listScrollTop=1200 / DOM 实测=1200`；**文件→步骤→文件往返后 `store=1200 / DOM=1200`（页签=文件）** ⇒ **5/5 通过**。截图 `u2-acceptance/u2-53/list-scroll-{1,2,3}.png` |
 | **D-2** | **1.1 生成器的坏标本**：`u2bad_noownsteps` 的 `fork.at_span` == `resume_after_step`（step id）⇒ 经运行列表读取必被 `resolveBranch` 拒 | ✅ **已补齐** | 生成器改为取**该轮内真实 `tool.invoke`** 作 `at_span`；重生成夹具；并把 `u2-file-fixtures.test.ts` 的自检从"只 `readRun`"改为**显式调 `resolveBranch`**。**先证明有牙**：不重生成时新用例直接变红，报 `fork.at_span 不能等于 resume_after_step（s_01）…` ⇒ 证明旧标本确实是坏的；重生成后 **39/39 通过**。`evidence-index.md` §已知限制 2 可关闭 |
 | **D-3** | **系统级原生 DPI 未独立实测** | ✅ **已补齐**（**应用级强制 scale factor**，见下方"方法与被测范围"） | 主进程新增 pre-ready 钩子 `REBASEAGENT_FORCE_SCALE_FACTOR`（**未设置时不注入，生产行为不变**；与既有 `NO_SANDBOX`/`REBASEAGENT_ZOOM_FACTOR` 同款、非授权开关）。三档实测（`dpi-probe.cjs`，证据 `u2-acceptance/dpi/`）：<br>· **125%** ⇒ 视口 1343×794、DPR **1.25**、有效文字区 682、无整页横向溢出<br>· **150%** ⇒ 视口 1346×801、DPR **1.5**、隐藏层 43 + 有效文字区 **685**、无溢出<br>· **300%** ⇒ 视口 847×493、DPR **3**、**模式=inline**（`original=121` 是 Monaco 隐藏层）⇒ 有效文字区 **450**，无溢出（847 属 801–959 过渡带，spec 不要求 480 ⇒ 合规）<br>⇒ 三档**均正常渲染、正文可读、无空白页、无整页横向溢出** |
-| **D-4** | **发行打包三项门禁（产物名/体积/身份）未在本 change 执行** | ⏳ **补齐中**（本行在打包完成前保持未勾） | 需先定**版本号**（当前 `0.3.0-k0-a3.1` 已发行为 tag 并占用产物名）⇒ 与 owner 确认后走：`electron-vite build` → `electron-builder --win`（离线 electronDist）→ `release:verify`（产物名/体积 <100MB/身份）→ 打包后**强制离线冒烟**（20 项断言）。资源门禁已在 6.2 先行覆盖（并抓修 1 处会卡死 `release:verify` 的真实缺陷 `ecd54da`） |
+| **D-4** | **发行打包三项门禁（产物名/体积/身份）未在本 change 执行** | ✅ **已补齐** | owner 定 **`0.3.0-k1`**（体验包 → `release/preview`），**只做三项门禁 + 离线冒烟，不碰 tag、不上传 Release**。产物 **`ReBaseAgent-0.3.0-k1-win-x64-portable.exe`** = **95,439,340 B**（< 100 MB ✓），SHA-256 `d34687851fbb7263877d4fbc7cd2fcf01fbb2c1413dd604b6690e9bfd4f280a8`。<br>① 构建：`check:build` EXIT=0 + `electron-vite build` EXIT=0；② 打包：electron-builder **离线 electronDist**（日志含 `using custom unpacked Electron distribution` ⇒ 零下载）EXIT=0；③ **`release:verify` EXIT=0**：产物名 ✓ / 应用版本 0.3.0-k1 ✓ / 体积 ✓ / **renderer 源码违规 无** ✓ / worker 集合 editor+json ✓；④ **打包后强制离线冒烟**：`PACKAGED_OFFLINE_PASS` + EXIT=0（**零非 localhost 请求**）。<br>旧产物未被覆盖：`…-0.3.0-k0-a3.1…` 仍为 `5ba04a00…`（与 09-21 记录一致）、`release/stable` 未动 |
 
 ### D-3 的方法与被测范围（**如实标注边界**）
 
@@ -128,7 +128,31 @@ node apps/desktop/scripts/u2-dev-host.cjs --stop
 - ⚠️ 视口与 scale 因子**不是简单的反比**（125% → 1343、150% → 1346，几乎相同），
   说明窗口物理尺寸本身也参与了取值 ⇒ **基准档位一律以实测 CSS 视口为准**（同 §1 的 1px 提示）。
 
-### D-1 补齐的副产品：抓到并修掉 1 处**真实产品缺陷**（整页空白 值）
+### D-4 打包记录 与 ⚠️「离线冒烟脚本已过时」的发现
+
+**打包链（全部 EXIT=0）**：`check:build` → `electron-vite build` → `electron-builder --win`
+（`-c.directories.output=../../release/preview` + `-c.electronDist=.rebaseagent/electron-dist`，
+先 `unset *_proxy`）→ `release:verify` → 打包后离线冒烟。日志落 `.workbuddy/u2-acc/d4-*.log`。
+
+⚠️ **发现：既有的「20 项断言」离线冒烟脚本已大面积过时**（`.workbuddy/smoke-monaco-slim/packaged-offline-smoke-k0.mjs`，
+最后修改 **09-21**，即 **U1 三栏改造之前**）⇒ 它对 k1 包**必然失败**，而那**不代表包有问题**。实测三例过时判据：
+
+| 旧脚本判据 | 现状 |
+| --- | --- |
+| `document.querySelector("section.w-96")`（6 处） | 源码里 **`w-96` 已完全移除**（U1 三栏改造后详情不再固定 384px） |
+| 文案「在此重跑（时间旅行）」 | 现为「**在此重跑（隔离续跑）**」 |
+| 文案「LLM 调用」 | 渲染层已无此字符串（旧详情标签） |
+
+⇒ 已新写 **`packaged-offline-smoke-k1.mjs`（v2，当前 UI 口径）**并**跑通**：
+`✓` 同级 data 落点 3 项 + 隔离 AppData/LocalAppData 各 1 项 + 名单 2 条 + `r_03` 可按 `aria-label` 定位 +
+页签为「概览/步骤」且**无伪文件页** + 步骤页可选中工具调用 + 工具详情有「在此重跑*」入口 +
+**Monaco 离线挂载** + **零非 localhost 请求** ⇒ **`PACKAGED_OFFLINE_PASS` / EXIT=0**。
+
+⚠️ **未做（如实列出）**：① 旧 20 项脚本**尚未按当前 UI 重写**（我只写了 v2 替代链路；旧脚本的其余断言——
+JSON/纯文本 token 类数、ECharts 预算地图、代理启停等——**未逐条迁移**）；② **未打 tag、未上传 Release**
+（owner 明确"只做三项门禁 + 离线冒烟"）；③ §9.1 的"人工实机验收"6 条**未执行**（自动冒烟替代不了全部）；
+④ `release/preview/win-unpacked/`（360 MB）等构建副产物未清（可随时清，`release/data/` 永不删）。
+### D-1 补齐的副产品：抓到并修掉 1 处**真实产品缺陷**（整页空白）
 
 `--tag=list-scroll` 首跑 3/5，两次失败都源于**页面已整页空白**。定位后确认是真实缺陷（非夹具问题）：
 
