@@ -18,6 +18,7 @@ import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 import { deriveDraftList } from "../lib/draft-list";
 import { useAppStore } from "../store";
+import { requestConfirm } from "./ConfirmDialog";
 import { DraftListPanel } from "./DraftListPanel";
 import { FOCUS_RING } from "./IconButton";
 
@@ -173,26 +174,26 @@ function SessionDraftsEntry() {
               void navigator.clipboard.writeText(item.copyText);
             }}
             onDiscard={(item) => {
-              if (
-                !window.confirm(
-                  `放弃「${item.title}」的草稿？${item.field === "create" ? "" : `（run ${item.runId}${item.spanId !== null ? ` · ${item.spanId}` : ""}）`}\n内容将被删除，不可撤销。`,
-                )
-              ) {
-                return;
-              }
-              if (item.field === "create") {
-                discardCreateRunDraft(item.revision);
-                return;
-              }
-              if (item.spanId === null) return;
-              if (item.field === "model_ab") {
-                discardModelAbDraft({ runId: item.runId, spanId: item.spanId }, item.revision);
-                return;
-              }
-              discardCallDraft(
-                { runId: item.runId, spanId: item.spanId, field: item.field },
-                item.revision,
-              );
+              // U3 5.2：放弃确认走真模态（异步）——CAS 按列表条目修订校验
+              const field = item.field;
+              const runId = item.runId;
+              const spanId = item.spanId;
+              void requestConfirm({
+                title: "放弃草稿",
+                message: `放弃「${item.title}」的草稿？${field === "create" ? "" : `（run ${runId}${spanId !== null ? ` · ${spanId}` : ""}）`}\n内容将被删除，不可撤销。`,
+              }).then((confirmed) => {
+                if (!confirmed) return;
+                if (field === "create") {
+                  discardCreateRunDraft(item.revision);
+                  return;
+                }
+                if (spanId === null) return;
+                if (field === "model_ab") {
+                  discardModelAbDraft({ runId, spanId }, item.revision);
+                  return;
+                }
+                discardCallDraft({ runId, spanId, field }, item.revision);
+              });
             }}
           />
         </div>

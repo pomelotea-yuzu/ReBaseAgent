@@ -65,7 +65,8 @@ describe("接线契约：PromptForkEditor 两字段独立草稿（任务 2.2）"
     expect(code).toContain("promptForkGuard(");
     // U3 2.5：放弃入口只在来源失效视图（CAS）；切字段/取消路径不删草稿
     expect(code).toContain("DraftSourceBanner");
-    expect(code).toContain("discardCallDraft(draftKeyOf(field), activeEntry.revision)");
+    // U3 5.2：确认改为异步模态，放弃执行点按请求时快照修订做 CAS
+    expect(code).toContain("discardCallDraft(draftKeyOf(field), snapshot.revision)");
   });
 
   it("任务 2.6：按修订明确放弃只影响当前字段；原值/草稿核对网格就位", () => {
@@ -101,7 +102,7 @@ describe("接线契约：MessagesForkEditor 接入 messages 草稿（任务 2.2�
     expect(code).toContain("JSON.parse(assoc.submittedText)");
     // U3 2.5：放弃入口只在来源失效视图（CAS）；取消路径不删草稿
     expect(code).toContain("DraftSourceBanner");
-    expect(code).toContain("discardCallDraft(draftKey, draftEntry.revision)");
+    expect(code).toContain("discardCallDraft(draftKey, snapshot.revision)");
   });
 
   it("任务 2.6：按修订放弃 + 原值/草稿核对网格（messages）", () => {

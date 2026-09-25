@@ -40,6 +40,7 @@ import { validateCheckpointStepId } from "../lib/workspace-files";
 import { readingScrollOf } from "../lib/workspace-selection";
 import { useAppStore } from "../store";
 import { BudgetMap } from "./BudgetMap";
+import { requestConfirm } from "./ConfirmDialog";
 import { DetailNotices } from "./DetailNotices";
 import { DraftListPanel } from "./DraftListPanel";
 import { FOCUS_RING } from "./IconButton";
@@ -203,24 +204,26 @@ function RunDraftListSection({ runId }: { runId: string }) {
         }}
         onDiscard={(item) => {
           if (item.field === "create") return; // 本运行列表不含创建草稿（防御）
-          if (
-            !window.confirm(
-              `放弃「${item.title}」的草稿？（run ${item.runId}${item.spanId !== null ? ` · ${item.spanId}` : ""}）\n内容将被删除，不可撤销。`,
-            )
-          ) {
-            return;
-          }
-          if (item.field === "model_ab") {
-            if (item.spanId !== null) {
-              discardModelAbDraft({ runId: item.runId, spanId: item.spanId }, item.revision);
+          // U3 5.2：放弃确认走真模态（异步）——CAS 按列表条目修订校验，
+          // 确认等待期间修订推进 ⇒ 旧确认不删新修订。
+          // field/runId/spanId 先捕获为 const：TS 收窄可以越过异步闭包保留
+          const field = item.field;
+          const runId = item.runId;
+          const spanId = item.spanId;
+          void requestConfirm({
+            title: "放弃草稿",
+            message: `放弃「${item.title}」的草稿？（run ${runId}${spanId !== null ? ` · ${spanId}` : ""}）\n内容将被删除，不可撤销。`,
+          }).then((confirmed) => {
+            if (!confirmed) return;
+            if (field === "model_ab") {
+              if (spanId !== null) {
+                discardModelAbDraft({ runId, spanId }, item.revision);
+              }
+              return;
             }
-            return;
-          }
-          if (item.spanId === null) return;
-          discardCallDraft(
-            { runId: item.runId, spanId: item.spanId, field: item.field },
-            item.revision,
-          );
+            if (spanId === null) return;
+            discardCallDraft({ runId, spanId, field }, item.revision);
+          });
         }}
       />
     </section>
@@ -366,14 +369,17 @@ function PromptForkEditor({
     if (activeEntry === undefined || inProgress) return;
     const snapshot = activeEntry;
     const fieldLabel = field === "system_prompt" ? "system prompt" : "首条 user message";
-    const confirmed = window.confirm(
-      `放弃「prompt fork · ${fieldLabel}」的草稿？（run ${run.meta.id} · ${span.id}）\n\n当前草稿内容：\n${snapshot.text}\n\n只影响这一个字段；放弃按确认时的修订校验：此后内容若被更新，本次放弃不会执行。`,
-    );
-    if (!confirmed) return; // 取消：逐字保留
-    if (discardCallDraft(draftKeyOf(field), snapshot.revision)) {
-      resetFork();
-      setOpen(false);
-    }
+    // U3 5.2：异步模态确认；CAS 按请求时的快照修订校验（确认期间修订推进 ⇒ 放弃不执行）
+    void requestConfirm({
+      title: `放弃 prompt 草稿 · ${fieldLabel}`,
+      message: `放弃「prompt fork · ${fieldLabel}」的草稿？（run ${run.meta.id} · ${span.id}）\n\n当前草稿内容：\n${snapshot.text}\n\n只影响这一个字段；放弃按确认时的修订校验：此后内容若被更新，本次放弃不会执行。`,
+    }).then((confirmed) => {
+      if (!confirmed) return; // 取消：逐字保留
+      if (discardCallDraft(draftKeyOf(field), snapshot.revision)) {
+        resetFork();
+        setOpen(false);
+      }
+    });
   };
 
   if (!open) {
@@ -529,17 +535,17 @@ function PromptForkEditor({
           copyText={activeEntry.text}
           onDiscard={() => {
             if (activeEntry === undefined) return;
-            if (
-              !window.confirm(
-                `放弃这份 prompt 草稿（${field === "system_prompt" ? "system prompt" : "user message"}）？内容将被删除（不可撤销）。`,
-              )
-            ) {
-              return;
-            }
-            if (discardCallDraft(draftKeyOf(field), activeEntry.revision)) {
-              resetFork();
-              setOpen(false);
-            }
+            const snapshot = activeEntry;
+            void requestConfirm({
+              title: "放弃 prompt 草稿",
+              message: `放弃这份 prompt 草稿（${field === "system_prompt" ? "system prompt" : "user message"}）？内容将被删除（不可撤销）。`,
+            }).then((confirmed) => {
+              if (!confirmed) return;
+              if (discardCallDraft(draftKeyOf(field), snapshot.revision)) {
+                resetFork();
+                setOpen(false);
+              }
+            });
           }}
         />
       ) : null}
@@ -865,14 +871,17 @@ function ModelAbEditor({
           `臂 ${i + 1}：${row.model}（${row.paramsText === "" ? "沿用父 params" : row.paramsText}）`,
       )
       .join("\n");
-    const confirmed = window.confirm(
-      `放弃整个模型 A/B 批次草稿？（run ${run.meta.id} · ${span.id}）\n\n${summary}\n\n放弃整批；按确认时的修订校验：此后批次若被更新，本次放弃不会执行。`,
-    );
-    if (!confirmed) return; // 取消：逐字保留
-    if (discardModelAbDraft(draftKey, snapshot.revision)) {
-      resetModelAb();
-      setOpen(false);
-    }
+    // U3 5.2：异步模态确认；CAS 按请求时的快照修订校验
+    void requestConfirm({
+      title: "放弃模型 A/B 批次",
+      message: `放弃整个模型 A/B 批次草稿？（run ${run.meta.id} · ${span.id}）\n\n${summary}\n\n放弃整批；按确认时的修订校验：此后批次若被更新，本次放弃不会执行。`,
+    }).then((confirmed) => {
+      if (!confirmed) return; // 取消：逐字保留
+      if (discardModelAbDraft(draftKey, snapshot.revision)) {
+        resetModelAb();
+        setOpen(false);
+      }
+    });
   };
 
   const doPreview = (): void => {
@@ -1063,13 +1072,17 @@ function ModelAbEditor({
           )}
           onDiscard={() => {
             if (draftEntry === undefined) return;
-            if (!window.confirm("放弃这个模型 A/B 批次草稿？全部臂内容将被删除（不可撤销）。")) {
-              return;
-            }
-            if (discardModelAbDraft(draftKey, draftEntry.revision)) {
-              resetModelAb();
-              setOpen(false);
-            }
+            const snapshot = draftEntry;
+            void requestConfirm({
+              title: "放弃模型 A/B 批次",
+              message: "放弃这个模型 A/B 批次草稿？全部臂内容将被删除（不可撤销）。",
+            }).then((confirmed) => {
+              if (!confirmed) return;
+              if (discardModelAbDraft(draftKey, snapshot.revision)) {
+                resetModelAb();
+                setOpen(false);
+              }
+            });
           }}
         />
       ) : null}
@@ -1609,14 +1622,17 @@ function MessagesForkEditor({
   const discardCurrent = (): void => {
     if (draftEntry === undefined || inProgress) return;
     const snapshot = draftEntry;
-    const confirmed = window.confirm(
-      `放弃这份 messages 重发草稿？（run ${run.meta.id} · ${span.id}）\n\n当前草稿内容：\n${snapshot.text}\n\n放弃按确认时的修订校验：此后内容若被更新，本次放弃不会执行。`,
-    );
-    if (!confirmed) return; // 取消：逐字保留
-    if (discardCallDraft(draftKey, snapshot.revision)) {
-      resetFork();
-      setOpen(false);
-    }
+    // U3 5.2：异步模态确认；CAS 按请求时的快照修订校验
+    void requestConfirm({
+      title: "放弃 messages 重发草稿",
+      message: `放弃这份 messages 重发草稿？（run ${run.meta.id} · ${span.id}）\n\n当前草稿内容：\n${snapshot.text}\n\n放弃按确认时的修订校验：此后内容若被更新，本次放弃不会执行。`,
+    }).then((confirmed) => {
+      if (!confirmed) return; // 取消：逐字保留
+      if (discardCallDraft(draftKey, snapshot.revision)) {
+        resetFork();
+        setOpen(false);
+      }
+    });
   };
 
   return (
@@ -1691,11 +1707,17 @@ function MessagesForkEditor({
           copyText={draftEntry.text}
           onDiscard={() => {
             if (draftEntry === undefined) return;
-            if (!window.confirm("放弃这份 messages 重发草稿？内容将被删除（不可撤销）。")) return;
-            if (discardCallDraft(draftKey, draftEntry.revision)) {
-              resetFork();
-              setOpen(false);
-            }
+            const snapshot = draftEntry;
+            void requestConfirm({
+              title: "放弃 messages 重发草稿",
+              message: "放弃这份 messages 重发草稿？内容将被删除（不可撤销）。",
+            }).then((confirmed) => {
+              if (!confirmed) return;
+              if (discardCallDraft(draftKey, snapshot.revision)) {
+                resetFork();
+                setOpen(false);
+              }
+            });
           }}
         />
       ) : null}
@@ -1953,14 +1975,17 @@ function ForkEditor({
   const discardCurrent = (): void => {
     if (draftEntry === undefined || inProgress) return;
     const snapshot = draftEntry;
-    const confirmed = window.confirm(
-      `放弃这份工具结果草稿？（run ${run.meta.id} · ${span.id}）\n\n当前草稿内容：\n${snapshot.text}\n\n放弃按确认时的修订校验：此后内容若被更新，本次放弃不会执行。`,
-    );
-    if (!confirmed) return; // 取消：逐字保留
-    if (discardCallDraft(draftKey, snapshot.revision)) {
-      resetLocal();
-      setOpen(false);
-    }
+    // U3 5.2：异步模态确认；CAS 按请求时的快照修订校验
+    void requestConfirm({
+      title: "放弃工具结果草稿",
+      message: `放弃这份工具结果草稿？（run ${run.meta.id} · ${span.id}）\n\n当前草稿内容：\n${snapshot.text}\n\n放弃按确认时的修订校验：此后内容若被更新，本次放弃不会执行。`,
+    }).then((confirmed) => {
+      if (!confirmed) return; // 取消：逐字保留
+      if (discardCallDraft(draftKey, snapshot.revision)) {
+        resetLocal();
+        setOpen(false);
+      }
+    });
   };
 
   const doCheck = (): void => {
@@ -2097,11 +2122,17 @@ function ForkEditor({
           copyText={draftEntry.text}
           onDiscard={() => {
             if (draftEntry === undefined) return;
-            if (!window.confirm("放弃这份工具结果草稿？内容将被删除（不可撤销）。")) return;
-            if (discardCallDraft(draftKey, draftEntry.revision)) {
-              resetLocal();
-              setOpen(false);
-            }
+            const snapshot = draftEntry;
+            void requestConfirm({
+              title: "放弃工具结果草稿",
+              message: "放弃这份工具结果草稿？内容将被删除（不可撤销）。",
+            }).then((confirmed) => {
+              if (!confirmed) return;
+              if (discardCallDraft(draftKey, snapshot.revision)) {
+                resetLocal();
+                setOpen(false);
+              }
+            });
           }}
         />
       ) : null}

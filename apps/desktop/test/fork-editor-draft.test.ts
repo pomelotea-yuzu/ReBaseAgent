@@ -59,7 +59,8 @@ describe("接线契约：ForkEditor 读写 store 草稿（任务 2.1）", () => 
     expect(src).toContain("s.callDraftOf(draftKey)");
     // U3 2.5：放弃入口只存在于来源失效视图（确认 + 按当前修订 CAS）；取消/收起路径仍不删
     expect(src).toContain("DraftSourceBanner");
-    expect(src).toContain("discardCallDraft(draftKey, draftEntry.revision)");
+    // U3 5.2：确认改为异步模态，放弃执行点按请求时快照修订做 CAS
+    expect(src).toContain("discardCallDraft(draftKey, snapshot.revision)");
   });
 
   it("普通/隔离共用同一编辑器与同一草稿身份（isolated 分支在 ForkEditor 内）", () => {

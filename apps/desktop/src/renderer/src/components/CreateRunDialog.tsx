@@ -15,6 +15,7 @@ import type { CreateRunFormState } from "../lib/create-run";
 import { isCreateRunDraftDirty } from "../lib/debugging-drafts";
 import { CREATE_SUBMIT_TARGET } from "../lib/draft-submission";
 import { useAppStore } from "../store";
+import { requestConfirm } from "./ConfirmDialog";
 import { ModalDialog } from "./ModalDialog";
 
 /**
@@ -174,17 +175,21 @@ export function CreateRunDialog({ onClose }: { onClose: () => void }) {
     if (modalLocked) return;
     const current = useAppStore.getState().createRunDraftOf();
     if (current === null || !isCreateRunDraftDirty(current)) return;
-    const confirmed = window.confirm(
-      "放弃本次填写的创建内容？\n\n运行模式、System Prompt 与 User Message 将全部重置（源目录选择与写入授权也一并作废）。",
-    );
-    if (!confirmed) return;
-    // 确认是同步的：确认与放弃之间修订不可能推进；CAS 仍按修订校验（防御性）
-    const discarded = discardCreateRunDraft(current.revision);
-    if (!discarded) return;
-    setCreateSourceRef(null);
-    setForm(initialCreateRunForm());
-    // 立即重新登记空表单草稿（新修订），用户可继续输入
-    ensureCreateRunDraft();
+    // U3 5.2：放弃确认走真模态（异步）；CAS 按请求时的快照修订校验
+    void requestConfirm({
+      title: "放弃创建草稿",
+      message:
+        "放弃本次填写的创建内容？\n\n运行模式、System Prompt 与 User Message 将全部重置（源目录选择与写入授权也一并作废）。",
+    }).then((confirmed) => {
+      if (!confirmed) return;
+      // CAS 按确认请求时的修订校验：等待期间修订推进 ⇒ 放弃不执行
+      const discarded = discardCreateRunDraft(current.revision);
+      if (!discarded) return;
+      setCreateSourceRef(null);
+      setForm(initialCreateRunForm());
+      // 立即重新登记空表单草稿（新修订），用户可继续输入
+      ensureCreateRunDraft();
+    });
   };
 
   const settingsLine =

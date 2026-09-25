@@ -69,7 +69,8 @@ describe("接线契约：ModelAbEditor 批次草稿（任务 2.4）", () => {
     expect(code).toContain("setAllowSideEffects(false);");
     // U3 2.5：放弃入口只在来源失效视图（CAS + 确认）；预览/执行路径无任何草稿删除
     expect(code).toContain("DraftSourceBanner");
-    expect(code).toContain("discardModelAbDraft(draftKey, draftEntry.revision)");
+    // U3 5.2：确认改为异步模态，放弃执行点按请求时快照修订做 CAS
+    expect(code).toContain("discardModelAbDraft(draftKey, snapshot.revision)");
   });
 
   it("任务 2.6：放弃整批（不提供批量清除）+ 基线臂/批次草稿核对网格", () => {
