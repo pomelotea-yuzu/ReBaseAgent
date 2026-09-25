@@ -120,7 +120,31 @@
   门禁：desktop **80 文件 / 1519 用例 / 0 失败** · `biome check .` **364 文件 0 错** · tsc 双 0 ·
   `validate preserve-debugging-drafts --strict` valid 且 `--all --strict` **13 passed**
   （日志 `.workbuddy/u3/u3-69/openspec-{strict,all}.log`、`desktop-full.log`）。
-- [ ] 6.10 创建/设置/嵌套确认实测 Tab/Shift+Tab/Esc、Monaco 内部弹层及 busy 关闭限制，保存焦点序列与截图（<=2h）。验收：创建设置和放弃确认不泄漏焦点 / Esc 只关闭最上层并恢复焦点 / 创建忙碌期间不能通过焦点修复绕过关闭锁。
+- [x] 6.10 创建/设置/嵌套确认实测 Tab/Shift+Tab/Esc、Monaco 内部弹层及 busy 关闭限制，保存焦点序列与截图（<=2h）。验收：创建设置和放弃确认不泄漏焦点 / Esc 只关闭最上层并恢复焦点 / 创建忙碌期间不能通过焦点修复绕过关闭锁。
+  证据：`apps/desktop/scripts/u3-610-cdp.cjs`（7 tag / **63 检查 / 0 失败**；`docs/reviews/2026-09-26-u3-610/`
+  README + 截图 7 张 + `measurements.json` 焦点链）：focus-create 9 / focus-settings 8（top layer、初始焦点=
+  首个可见可用控件、Tab×16+Shift+Tab×8 禁闭且回绕、背景真鼠标 inert、Esc 关+焦点恢复触发入口）、
+  nested-confirm 10 / editor-confirm-esc 10（一次 Esc 只关最上层确认，底层对话框/编辑器仍在，取消不丢草稿，
+  焦点逐级恢复，关闭≠放弃）、monaco-esc 7（真 Ctrl+F 弹层先消费第一次 Esc、第二次才收起编辑区）、
+  busy-lock 11（受控服务 delayMs=6s：全入口禁用、Esc 被吞、无可用控件态焦点不逃逸背景、恰 1 次请求、
+  应答后正常收尾、锁不外泄）、fallback-focus 8（触发点卸载 ⇒ 焦点=回退锚点且真实可见）。键盘/鼠标一律
+  CDP trusted 输入；多层模态顶层判据 = `querySelectorAll('dialog:modal')` 末位。
+  **抓到并修 2 处真实缺陷 + 1 处接线缺口**：① CreateRunDialog 残留 window keydown Esc 与 cancel 双通道
+  ⇒ 嵌套确认一次按键双关（删监听，单通道走 ModalDialog；SettingsDialog 同款 5.1 已删、契约当时只钉了设置侧）；
+  ② 🔴 **Chromium 模态框 Esc「两步关闭」**——busy 期第一次 cancel 可 preventDefault，第二次 cancel 以
+  `cancelable:false` 派发（preventDefault 无效）⇒ 只在 cancel 上吞必被二次 Esc 绕过；且 React 委托的
+  onCancel 第二次不再执行（监听器在场但行为缺席）。修＝cancel 手动绑定/解绑 + 关闭锁主拦截点移到
+  document 捕获 keydown（锁定且本模态为最顶层 modal 时吃掉 Escape，嵌套确认上层放行）；
+  ③ 编辑区 Esc 收起缺接线（spec L58/L62 + D7 要求）⇒ 新增 `lib/use-escape-close.ts`
+  （纯判据 shouldEscapeClose：Escape ∧ ¬defaultPrevented ∧ ¬模态在场 ∧ 栈顶）+ 四编辑器接
+  `useEscapeClose(open && !inProgress, 与收起按钮同动作)`。契约：shouldEscapeClose 5 用例 + 接线断言
+  （4 处 hook、单通道、手动 cancel、keydown 守卫）+ create-form「原忙碌关闭限制」改钉新通道。
+  变异 4 处全捕获（`u3-610-mutate.cjs`）：A 回插双通道 ⇒ nested-confirm 3 红；B 不注册 keydown 守卫 ⇒
+  busy-lock 3 红；C 去 modalPresent 让位 ⇒ editor-confirm-esc 2 红；D 删回退锚点 ⇒ fallback-focus 2 红
+  （C 第一版注入 defaultPrevented 分支实机**不可观测**——Monaco 消费走 stopPropagation，改注入 modalPresent
+  后捕获，该分支由单测钉住，如实记录）。harness 新坑：**Page.reload 后 CDP 真鼠标不再触发 React onClick**
+  ⇒ 要干净页面用重启 dev；探针 document 级监听跨轮叠加污染打点。门禁：desktop **80 文件 / 1525 用例 / 0 失败** ·
+  biome **366 文件 0 错** · tsc 双 0 · desktop build EXIT=0 · `validate preserve-debugging-drafts --strict` valid。
 - [ ] 6.11 检查零调用/逐文件哈希/无草稿持久化，重载与重启不恢复草稿；回归 U1/U2 阅读及文件状态（<=2h）。验收：草稿不会跨 renderer 会话持久恢复 / 草稿操作零执行且已有文件不变 / 原有执行入口和文件阅读继续可用。
 
 ## 7. 门禁与证据收口
