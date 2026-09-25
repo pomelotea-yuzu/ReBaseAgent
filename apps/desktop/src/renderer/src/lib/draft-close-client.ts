@@ -41,9 +41,17 @@ export interface DraftCloseClientDeps {
   /**
    * 锁前输入同步：把控件/Monaco model 已接收文本同步进 store。
    * §2 的编辑器已在变更事件同步写入 store（无 debounce），此处为收口点；
-   * 任务 4.3 在此补输入法组合的尾随收尾。
+   * 输入法组合的锁前已接收文字同样经变更事件入 store（组合中的插入文本会触发
+   * Monaco 的 model content 变更）。
    */
   readonly flushInputs: () => void;
+  /**
+   * 输入是否已收尾（任务 4.3）：`false` = 有进行中的输入法组合——
+   * 组合尚未结束⇒不得报告可直接退出的 clean（D6），main 据此走 unknown 降级。
+   * 锁前组合的尾随 compositionend 之后该值翻回 true，但**不会**重发应答：
+   * main 对未收尾应答的原生确认照常进行，收尾不自动关闭确认（D6）。
+   */
+  readonly isInputSettled: () => boolean;
   /** 锁状态变化（true = 关闭核对期间，禁止新编辑/粘贴/放弃/提交） */
   readonly onLockChange: (locked: boolean) => void;
   readonly onRejected?: (reason: string) => void;
@@ -148,7 +156,7 @@ export class DraftCloseClient {
       requestId: query.requestId,
       sequence: this.nextSequence(),
       dirtyCount: this.deps.getDirtyCount(),
-      inputSettled: true, // 任务 4.3 接入输入法组合判定
+      inputSettled: this.deps.isInputSettled(), // 任务 4.3：组合进行中 = false（不得冒充 clean）
     };
     this.deps.api.draftCloseAnswer(answer);
   }

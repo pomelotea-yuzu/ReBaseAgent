@@ -88,6 +88,7 @@ async function microtasks(): Promise<void> {
 
 function makeClient(api: FakeDraftCloseApi, opts?: { initialDirty?: number }) {
   let dirty = opts?.initialDirty ?? 0;
+  let composing = false; // 任务 4.3：输入法组合进行中
   const log: string[] = [];
   const client = new DraftCloseClient({
     api,
@@ -96,6 +97,7 @@ function makeClient(api: FakeDraftCloseApi, opts?: { initialDirty?: number }) {
       dirty = 5; // 模拟「锁前同步把尚未入 store 的输入收进来」
       log.push("flush");
     },
+    isInputSettled: () => !composing,
     onLockChange: (locked) => {
       log.push(`lock:${String(locked)}`);
     },
@@ -105,6 +107,9 @@ function makeClient(api: FakeDraftCloseApi, opts?: { initialDirty?: number }) {
     log,
     setDirty: (n: number): void => {
       dirty = n;
+    },
+    setComposing: (v: boolean): void => {
+      composing = v;
     },
   };
 }
@@ -249,6 +254,40 @@ describe("U3 4.2 dirtyCountOf：与草稿列表同一 dirty 口径", () => {
   });
 });
 
+describe("U3 4.3 输入法组合：inputSettled 判定", () => {
+  it("组合进行中应答 inputSettled=false（不得冒充 clean）；无组合时为 true", async () => {
+    const api = new FakeDraftCloseApi();
+    const { client, setComposing } = makeClient(api);
+    client.start();
+    await microtasks();
+
+    // 组合进行中：查询应答必须标 false（main 据此走 unknown 降级，不直接关闭）
+    setComposing(true);
+    api.emitQuery("sess-1", "rq-1");
+    expect(api.answers[0]?.inputSettled).toBe(false);
+    api.emitRelease("sess-1", "rq-1");
+
+    // 组合已收尾：恢复正常 true
+    setComposing(false);
+    api.emitQuery("sess-1", "rq-2");
+    expect(api.answers[1]?.inputSettled).toBe(true);
+  });
+
+  it("组合收尾发生在查询之后也不重发应答（main 的确认不被自动关闭）", async () => {
+    const api = new FakeDraftCloseApi();
+    const { client, setComposing } = makeClient(api);
+    client.start();
+    await microtasks();
+    setComposing(true);
+    api.emitQuery("sess-1", "rq-1");
+    expect(api.answers).toHaveLength(1);
+    // 尾随 compositionend 到达：只翻状态，不产生第二条应答
+    setComposing(false);
+    client.reportDirtyIfChanged();
+    expect(api.answers).toHaveLength(1);
+  });
+});
+
 describe("U3 4.2 App 接线契约（源码级）", () => {
   const APP = readFileSync(resolve(import.meta.dirname, "../src/renderer/src/App.tsx"), "utf8");
   const HOOK = readFileSync(
@@ -273,5 +312,21 @@ describe("U3 4.2 App 接线契约（源码级）", () => {
     expect(HOOK).toContain("useAppStore.subscribe");
     // hook 的 dirty 计数必须来自 dirtyCountOf（与列表同一口径）
     expect(HOOK).toContain("dirtyCountOf");
+  });
+
+  it("任务 4.3：组合跟踪 + 尾随收尾放行（只拦可取消事件）+ isInputSettled 接线", () => {
+    // document 捕获跟踪组合状态，喂给 client 的 isInputSettled
+    expect(HOOK).toContain('"compositionstart"');
+    expect(HOOK).toContain('"compositionend"');
+    expect(HOOK).toContain("isInputSettled: () => !composingRef.current");
+    // 锁内只阻止可取消事件 ⇒ 锁前组合的尾随 composition 插入不被拦（可收尾）
+    expect(HOOK).toContain("if (!event.cancelable) return;");
+    // client 侧：应答的 inputSettled 必须来自依赖注入，不得硬编码 true
+    const CLIENT_SRC = readFileSync(
+      resolve(import.meta.dirname, "../src/renderer/src/lib/draft-close-client.ts"),
+      "utf8",
+    );
+    expect(CLIENT_SRC).toContain("inputSettled: this.deps.isInputSettled()");
+    expect(CLIENT_SRC).not.toContain("inputSettled: true");
   });
 });
