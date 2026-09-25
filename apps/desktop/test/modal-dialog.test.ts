@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { firstFocusableOf } from "../src/renderer/src/components/ModalDialog";
+import { shouldEscapeClose } from "../src/renderer/src/lib/use-escape-close";
 
 /**
  * U3 任务 5.1：小型原生模态包装（design D7）。
@@ -17,6 +18,25 @@ import { firstFocusableOf } from "../src/renderer/src/components/ModalDialog";
  *   ② 接线契约（源码级）：两个对话框必须经 ModalDialog 且不得再出现静态
  *      `<dialog open>`（那正是"非 top layer、无焦点禁闭"的旧形态）。
  */
+
+describe("U3 6.10 shouldEscapeClose：编辑区 Esc 的层级判据（纯函数）", () => {
+  const ok = { key: "Escape", defaultPrevented: false, modalPresent: false, isTopmost: true };
+  it("四条件全满足才消费", () => {
+    expect(shouldEscapeClose(ok)).toBe(true);
+  });
+  it("非 Escape 键不消费", () => {
+    expect(shouldEscapeClose({ ...ok, key: "Enter" })).toBe(false);
+  });
+  it("Monaco 弹层已消费（defaultPrevented）⇒ 编辑区让位", () => {
+    expect(shouldEscapeClose({ ...ok, defaultPrevented: true })).toBe(false);
+  });
+  it("真模态在场（创建/设置/放弃确认）⇒ 一次按键不同时关确认与底层编辑区", () => {
+    expect(shouldEscapeClose({ ...ok, modalPresent: true })).toBe(false);
+  });
+  it("非最近打开的编辑区不消费（prompt 与 A/B 并存逐层收起）", () => {
+    expect(shouldEscapeClose({ ...ok, isTopmost: false })).toBe(false);
+  });
+});
 
 describe("U3 5.1 firstFocusableOf：初始焦点的可见可用判定", () => {
   function fakeRoot(elements: Array<Partial<HTMLElement>>): {
@@ -95,9 +115,24 @@ describe("U3 5.1 接线契约（源码级）", () => {
     expect(globalBar).toContain("data-modal-focus-fallback");
   });
 
-  it("设置对话框的手写 Esc 监听已被原生 cancel 取代", () => {
+  it("创建/设置对话框的手写 Esc 监听都已被原生 cancel 取代（单通道）", () => {
+    // U3 6.10：创建对话框残留的 window keydown Esc 与 cancel 双通道并存，
+    // 嵌套放弃确认在场时一次按键同时关掉确认与创建对话框（违反 D7）⇒ 必须消失
     expect(settings).not.toContain('e.key === "Escape"');
-    expect(modal).toContain("onCancel=");
+    expect(create).not.toContain('e.key === "Escape"');
+    expect(create).not.toContain('window.addEventListener("keydown"');
+    // U3 6.10：cancel 处理**不走 React 委托**（实机坐实 React 的 onCancel 监听
+    // 第二次 Esc 不再运行 ⇒ busy 锁被绕）——必须手动绑定/解绑且与 open 同生命周期
+    expect(modal).toContain('el.addEventListener("cancel", onCancel)');
+    expect(modal).toContain('el.removeEventListener("cancel", onCancel)');
+    expect(modal).not.toContain("onCancel=");
+    // U3 6.10：Chromium「两步关闭」——第二次 Esc 的 cancel 以 cancelable:false 派发，
+    // cancel 上 preventDefault 无效 ⇒ 关闭锁必须在 keydown 捕获阶段吃掉 Escape，
+    // 且只在**本模态是最顶层 modal** 时拦（嵌套确认的 Esc 要放行）
+    expect(modal).toContain('document.addEventListener("keydown", onKeyCapture, true)');
+    expect(modal).toContain('document.removeEventListener("keydown", onKeyCapture, true)');
+    expect(modal).toContain('if (e.key !== "Escape" || !closeDisabledRef.current) return;');
+    expect(modal).toContain("modals[modals.length - 1] !== el");
   });
 
   it("输入锁覆盖指针事件（top layer 逃过覆盖层，须捕获阶段拦截）", () => {
@@ -105,5 +140,24 @@ describe("U3 5.1 接线契约（源码级）", () => {
     expect(lock).toContain('"click"');
     expect(lock).toContain('"auxclick"');
     expect(lock).toContain('"contextmenu"');
+  });
+
+  it("U3 6.10：四个编辑区都接 useEscapeClose，且与收起按钮同动作（保留草稿）", () => {
+    const panel = R("../src/renderer/src/components/DetailPanel.tsx");
+    const hook = R("../src/renderer/src/lib/use-escape-close.ts");
+    // 四编辑器各一处（result / prompt / messages / A-B）
+    expect(panel.match(/useEscapeClose\(open && !inProgress/g)?.length).toBe(4);
+    // 收起动作与按钮一致：不触碰 discard/删除草稿的 store 动作
+    const escBlocks = panel.match(
+      /useEscapeClose\(open && !inProgress, \(\) => \{\s*reset[A-Za-z]+\(\);\s*setOpen\(false\);\s*\}\);/g,
+    );
+    expect(escBlocks?.length).toBe(4);
+    expect(panel).toContain('import { useEscapeClose } from "../lib/use-escape-close";');
+    // 层级判据齐备：模态在场不消费、defaultPrevented 让位、栈顶才消费
+    expect(hook).toContain('ctx.key === "Escape"');
+    expect(hook).toContain("!ctx.defaultPrevented");
+    expect(hook).toContain("!ctx.modalPresent");
+    expect(hook).toContain("ctx.isTopmost");
+    expect(hook).toContain('document.querySelector("dialog:modal")');
   });
 });

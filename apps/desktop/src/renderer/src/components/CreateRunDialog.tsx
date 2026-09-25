@@ -92,14 +92,10 @@ export function CreateRunDialog({ onClose }: { onClose: () => void }) {
   const blockedReason = submission.ok ? null : submission.reason;
   const modalLocked = busy || pickingSource || draftFrozen;
 
-  // Esc 关闭对话框；创建中/选目录中不响应（真实调用已在飞，关掉只会丢状态）
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === "Escape" && !modalLocked) onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose, modalLocked]);
+  // U3 任务 6.10（design D7）：Esc 关闭只走 ModalDialog 的原生 cancel（单一通道）——
+  // 原 window keydown 监听与 cancel 双通道并存，嵌套放弃确认在场时一次按键会
+  // **同时**关掉确认与创建对话框（实机 6.10 抓出，同 5.1 设置对话框已删的旧形态）。
+  // 忙碌/锁定时由 closeDisabled 吞掉，语义不变。
 
   // 卸载时复位（下次打开不残留上次的报错与进行中状态）
   useEffect(() => {

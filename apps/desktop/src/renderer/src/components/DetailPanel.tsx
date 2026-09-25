@@ -36,6 +36,7 @@ import { promptForkGuard } from "../lib/prompt-fork";
 import type { PromptForkField } from "../lib/prompt-fork";
 import { decideRestore, initialRestoreState, restoreIdentity } from "../lib/restore-gate";
 import { resolveRestoreScrollTop, resolveScrollRestore } from "../lib/scroll-restore";
+import { useEscapeClose } from "../lib/use-escape-close";
 import { validateCheckpointStepId } from "../lib/workspace-files";
 import { readingScrollOf } from "../lib/workspace-selection";
 import { useAppStore } from "../store";
@@ -381,6 +382,12 @@ function PromptForkEditor({
       }
     });
   };
+
+  // U3 任务 6.10（design D7）：Esc 收起与「取消」按钮同动作（保留草稿，不等于放弃）
+  useEscapeClose(open && !inProgress, () => {
+    resetFork();
+    setOpen(false);
+  });
 
   if (!open) {
     const unavailable = originalSystem === null;
@@ -831,6 +838,12 @@ function ModelAbEditor({
       rows.map((row, i) => (i === index ? { ...row, arm: { ...row.arm, ...patch } } : row)),
     );
   };
+
+  // U3 任务 6.10（design D7）：Esc 收起与「收起」按钮同动作（保留批次草稿）
+  useEscapeClose(open && !inProgress, () => {
+    resetModelAb();
+    setOpen(false);
+  });
 
   if (!open) {
     return (
@@ -1554,6 +1567,12 @@ function MessagesForkEditor({
         });
   const sourceBlocked = sourceVerdict?.kind === "blocked" ? sourceVerdict : null;
 
+  // U3 任务 6.10（design D7）：Esc 收起与「取消」按钮同动作（保留草稿）
+  useEscapeClose(open && !inProgress, () => {
+    resetFork();
+    setOpen(false);
+  });
+
   if (!open) {
     return (
       <div className="border-t border-sky-100 px-4 py-2">
@@ -2010,6 +2029,12 @@ function ForkEditor({
       })
       .finally(() => setChecking(false));
   };
+
+  // U3 任务 6.10（design D7）：Esc 收起与「取消」按钮同动作（保留草稿，不等于放弃）
+  useEscapeClose(open && !inProgress, () => {
+    resetLocal();
+    setOpen(false);
+  });
 
   if (!open) {
     return (

@@ -76,20 +76,46 @@ export function ModalDialog({
   onCloseRef.current = onClose;
   const closeDisabledRef = useRef(closeDisabled);
   closeDisabledRef.current = closeDisabled;
-  // biome useExhaustiveDependencies：ref.current 在 render 期取出作为依赖，
-  // 元素稳定时不变（正是期望的重开聚焦语义）
-  const initialFocus = initialFocusRef?.current ?? null;
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 初始焦点须在 effect 执行时读 ref——render 期快照进依赖数组会让首帧后 null→元素 漂移重跑 cleanup 的 el.close()，绕过 busy 关闭锁（6.10 实机坐实）
   useEffect(() => {
     const el = dialogRef.current;
     if (el === null || !open) return;
     const previouslyFocused = document.activeElement;
+    // Esc→cancel 的处理**不走 React onCancel 委托**：6.10 实机坐实 React 挂在该
+    // dialog 元素上的 cancel 监听只在第一次 Esc 生效，第二次事件到达但处理器不再
+    // 运行（preventDefault 缺席 ⇒ 原生默认直接关闭对话框）⇒ busy 关闭锁被绕过。
+    // 手动绑定到 dialog 元素本身，与 open 生命周期严格同挂同卸，行为确定。
+    const onCancel = (e: Event): void => {
+      e.preventDefault();
+      if (!closeDisabledRef.current) onCloseRef.current();
+    };
+    el.addEventListener("cancel", onCancel);
+    // 关闭锁的**主拦截点是 keydown**：6.10 实机坐实 Chromium 对模态框的 Esc 是
+    // 「两步关闭」——第一次 cancel 可被 preventDefault，第二次 cancel 以
+    // cancelable:false 派发（处理器里的 preventDefault 完全无效）⇒ 只在 cancel
+    // 上吞一次必然被第二次 Esc 绕过。锁定时在本模态为最顶层 modal 的 keydown
+    // 捕获阶段直接吃掉 Escape，让 cancel 根本不生成；嵌套确认在其上层时不拦截。
+    const onKeyCapture = (e: KeyboardEvent): void => {
+      if (e.key !== "Escape" || !closeDisabledRef.current) return;
+      const modals = document.querySelectorAll("dialog:modal");
+      if (modals[modals.length - 1] !== el) return;
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    document.addEventListener("keydown", onKeyCapture, true);
     if (!el.open) {
       el.showModal();
-      const target = initialFocus ?? firstFocusableOf(el);
+      // 初始焦点在**effect 执行时**读 ref（不是 render 期快照）：ConfirmDialog 的
+      // cancelRef.current 首帧后才有值——放进依赖数组会让 null→元素 的漂移触发
+      // effect 重跑、cleanup 对仍在场的模态 el.close()。重开时新 initialFocusRef
+      // 由对话框整体重挂载路径承担（CreateRunDialog 即如此），不依赖本 effect 重跑。
+      const target = initialFocusRef?.current ?? firstFocusableOf(el);
       target?.focus();
     }
     return () => {
+      el.removeEventListener("cancel", onCancel);
+      document.removeEventListener("keydown", onKeyCapture, true);
       if (el.open) el.close();
       // 焦点恢复：触发元素仍在文档中还给触发元素；否则回退到全局栏入口
       const fallback =
@@ -98,18 +124,12 @@ export function ModalDialog({
           : document.querySelector<HTMLElement>("[data-modal-focus-fallback]");
       fallback?.focus();
     };
-  }, [open, initialFocus]);
+  }, [open]);
 
   return (
     <dialog
       ref={dialogRef}
       aria-label={ariaLabel}
-      onCancel={(e) => {
-        // Esc 命中最上层模态且未被 Monaco 弹层消费时到达这里；
-        // 关闭锁期间只吞掉（preventDefault + 不关），焦点修复不能绕过
-        e.preventDefault();
-        if (!closeDisabledRef.current) onCloseRef.current();
-      }}
       // top layer 居中由 UA `dialog:modal { margin:auto; position:fixed }` 完成；
       // 遮罩用原生 ::backdrop（Tailwind backdrop: 变体）
       className={`m-auto max-w-full rounded-lg border border-gray-200 bg-white shadow-xl backdrop:bg-black/20 ${className}`}

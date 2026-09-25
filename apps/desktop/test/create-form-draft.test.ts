@@ -59,7 +59,11 @@ describe("接线契约：CreateRunDialog 读写创建草稿（任务 2.3）", ()
   it("原忙碌关闭限制保留（modalLocked 禁用关闭与 Esc）", () => {
     // U3 3.5 起冻结期也视同忙碌（待定提交不得被关窗或 Esc 绕开）
     expect(DIALOG).toContain("const modalLocked = busy || pickingSource || draftFrozen;");
-    expect(DIALOG).toContain('if (e.key === "Escape" && !modalLocked) onClose();');
+    // U3 6.10：Esc 关闭锁改由 ModalDialog 单通道承担（closeDisabled → keydown 捕获
+    // 吞 Escape + cancel 双保险）；原 window keydown 监听与 cancel 双通道并存，
+    // 嵌套放弃确认在场时一次按键会同时关掉确认与创建对话框 ⇒ 必须消失
+    expect(DIALOG).toContain("closeDisabled={modalLocked}");
+    expect(DIALOG).not.toContain('e.key === "Escape"');
     expect(DIALOG).toContain("disabled={modalLocked}");
   });
 });
