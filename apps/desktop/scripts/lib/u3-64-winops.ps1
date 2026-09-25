@@ -198,6 +198,8 @@ switch ($Action) {
     if ($d -eq $null) { $lines += "dialog=none" }
     else {
       $lines += ("dialog-name=" + $d.Current.Name)
+      # 框句柄：跨轮次判"同一层框未关"还是"排队关闭的新轮新框"（6.7 加，多余键不影响既有解析）
+      $lines += ("dialog-hwnd=" + $d.Current.NativeWindowHandle)
       $tc = New-Object System.Windows.Automation.PropertyCondition(
         $AE::ControlTypeProperty, [System.Windows.Automation.ControlType]::Text)
       foreach ($t in $d.FindAll([System.Windows.Automation.TreeScope]::Descendants, $tc)) {
