@@ -557,6 +557,62 @@ export const WorkspaceReadFileResultSchema = z.discriminatedUnion("status", [
 ]);
 export type WorkspaceReadFileResult = z.infer<typeof WorkspaceReadFileResultSchema>;
 
+/* ------------------------------------------------------------------ *
+ * U3 关闭协商协议（design D6）：main 持有决策，renderer 只报告元数据。
+ *
+ * 纪律：
+ * - 所有载荷都是**纯元数据**——草稿正文、run 内容、sourceToken、授权、apiKey
+ *   一律不出现在任何消息里（凭据与草稿分离，场景「旧会话伪造发送者和乱序消息
+ *   不影响关闭」同时要求"不传输草稿正文、sourceToken、授权或凭据"）；
+ * - 计数是有界非负整数（拒绝 NaN / 负数 / 超界 / 非整数的伪造载荷）；
+ * - schema 校验只发生在 main 侧（preload 在 sandbox 下不能引入 zod），
+ *   renderer 侧代码可以（也应当）复用这里的类型。
+ * ------------------------------------------------------------------ */
+
+/** 协议计数字段（dirtyCount）的 schema 上限：有界非负整数，防伪造超大载荷 */
+export const DRAFT_CLOSE_DIRTY_MAX = 1_000_000;
+/** 协议序号字段（sequence）的 schema 上限：renderer 会话内单调递增的消息计数 */
+export const DRAFT_CLOSE_SEQUENCE_MAX = Number.MAX_SAFE_INTEGER;
+/** 会话 / 请求 id 的长度上限（uuid 为 36 字符，留余量） */
+export const DRAFT_CLOSE_ID_MAX = 128;
+
+const DraftCloseIdSchema = z.string().min(1).max(DRAFT_CLOSE_ID_MAX);
+
+/** main → renderer（did-finish-load 后推送）：本文档会话的 id（renderer 侧可丢弃，握手 invoke 兜底） */
+export const DraftCloseSessionPayloadSchema = z.object({
+  sessionId: DraftCloseIdSchema,
+});
+export type DraftCloseSessionPayload = z.infer<typeof DraftCloseSessionPayloadSchema>;
+
+/** main → renderer：关闭查询。应答只认当前 requestId（迟到的旧应答一律拒绝） */
+export const DraftCloseQuerySchema = z.object({
+  sessionId: DraftCloseIdSchema,
+  requestId: DraftCloseIdSchema,
+});
+export type DraftCloseQuery = z.infer<typeof DraftCloseQuerySchema>;
+
+/**
+ * renderer → main：dirty 元数据上报（单向 send，无应答）。
+ * `sequence` 是 renderer 会话内单调递增的消息序号——main 拒绝 ≤ 已接受序号的消息（乱序防护）。
+ */
+export const DraftCloseReportSchema = z.object({
+  sessionId: DraftCloseIdSchema,
+  sequence: z.number().int().min(0).max(DRAFT_CLOSE_SEQUENCE_MAX),
+  dirtyCount: z.number().int().min(0).max(DRAFT_CLOSE_DIRTY_MAX),
+});
+export type DraftCloseReport = z.infer<typeof DraftCloseReportSchema>;
+
+/**
+ * renderer → main：关闭查询应答（单向 send）。
+ * `inputSettled=true` 表示：锁前已接收输入完成同步进 store，且没有待收尾的输入法组合。
+ * false 或应答缺失都**不得**当作 clean。
+ */
+export const DraftCloseAnswerSchema = DraftCloseReportSchema.extend({
+  requestId: DraftCloseIdSchema,
+  inputSettled: z.boolean(),
+});
+export type DraftCloseAnswer = z.infer<typeof DraftCloseAnswerSchema>;
+
 /**
  * preload 暴露给渲染层的受限接口。
  * 取数两个方法 + forkRun / promptFork / modelAb / createRun / proxyFork 五个写通道
@@ -588,4 +644,18 @@ export interface WindowApi {
   proxyStatus(): Promise<Envelope<ProxyState>>;
   proxyToggle(input: ProxyToggleInput): Promise<Envelope<ProxyState>>;
   proxyFork(request: ProxyForkRequest): Promise<Envelope<ProxyForkResult>>;
+  /* ---- U3 关闭协商（design D6）：受限报告与订阅/解绑，不暴露 ipcRenderer ---- */
+  /**
+   * 关闭协商握手：renderer 挂载后调用，取当前文档会话 id；
+   * main 据此把该文档会话标记为「已完成握手」（未握手的会话在关闭时走 unknown 降级）。
+   */
+  draftCloseHandshake(): Promise<Envelope<DraftCloseSessionPayload>>;
+  /** 向 main 上报 dirty 元数据（单向 send，无应答；载荷只含元数据） */
+  draftCloseReport(report: DraftCloseReport): void;
+  /** 应答 main 的关闭查询（单向 send；main 只认当前 requestId） */
+  draftCloseAnswer(answer: DraftCloseAnswer): void;
+  /** 订阅文档会话 id 推送（did-finish-load 后）；返回解绑函数 */
+  onDraftCloseSession(listener: (payload: DraftCloseSessionPayload) => void): () => void;
+  /** 订阅关闭查询；返回解绑函数 */
+  onDraftCloseQuery(listener: (query: DraftCloseQuery) => void): () => void;
 }

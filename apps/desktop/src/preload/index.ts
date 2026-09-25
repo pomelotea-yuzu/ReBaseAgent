@@ -33,6 +33,24 @@ const api: WindowApi = {
   proxyStatus: () => ipcRenderer.invoke(CHANNELS.proxyStatus),
   proxyToggle: (input) => ipcRenderer.invoke(CHANNELS.proxyToggle, input),
   proxyFork: (request) => ipcRenderer.invoke(CHANNELS.proxyFork, request),
+  // draft-close:*（U3 关闭协商，design D6）：只暴露受限报告与订阅/解绑接口。
+  // 载荷原样透传——schema 严格校验在 main 侧（sandbox preload 不引入 zod）
+  draftCloseHandshake: () => ipcRenderer.invoke(CHANNELS.draftCloseHandshake),
+  draftCloseReport: (report) => ipcRenderer.send(CHANNELS.draftCloseReport, report),
+  draftCloseAnswer: (answer) => ipcRenderer.send(CHANNELS.draftCloseAnswer, answer),
+  onDraftCloseSession: (listener) => onMainEvent(CHANNELS.draftCloseSession, listener),
+  onDraftCloseQuery: (listener) => onMainEvent(CHANNELS.draftCloseQuery, listener),
 };
+
+/** 订阅 main → renderer 的单向事件；返回解绑函数（不把 event 对象暴露给渲染层） */
+function onMainEvent<T>(channel: string, listener: (payload: T) => void): () => void {
+  const handler = (_event: Electron.IpcRendererEvent, payload: T): void => {
+    listener(payload);
+  };
+  ipcRenderer.on(channel, handler);
+  return () => {
+    ipcRenderer.removeListener(channel, handler);
+  };
+}
 
 contextBridge.exposeInMainWorld("api", api);

@@ -10,6 +10,7 @@ import {
   resolveDataDir,
   saveDataDirPointer,
 } from "./data-dir";
+import { type DraftCloseGuardHandle, attachDraftCloseGuard } from "./draft-close-attach";
 import { registerIpc } from "./ipc";
 import { ProxyManager } from "./proxy-manager";
 import { RunRepository } from "./run-repository";
@@ -80,6 +81,8 @@ function repoRoot(): string {
 }
 
 let mainWindow: BrowserWindow | null = null;
+/** U3 关闭协商 guard（§4）：窗口创建时装配；4.4 起在 close/app.quit 路径消费 */
+let draftClose: DraftCloseGuardHandle | null = null;
 
 function createWindow(): void {
   const win = new BrowserWindow({
@@ -97,6 +100,8 @@ function createWindow(): void {
     },
   });
   mainWindow = win;
+  // U3 关闭协商：装配受限协议（会话轮换 / 握手 / sender 校验）；销毁时自动解绑
+  draftClose = attachDraftCloseGuard(win);
 
   if (process.env.ELECTRON_RENDERER_URL) {
     void win.loadURL(process.env.ELECTRON_RENDERER_URL);

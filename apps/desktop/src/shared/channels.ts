@@ -23,6 +23,14 @@ export const CHANNELS = {
   proxyStatus: "proxy:status",
   proxyToggle: "proxy:toggle",
   proxyFork: "proxy:fork",
+  // draft-close:* —— U3 关闭协商（design D6）：main 持有关闭决策，renderer 只报告元数据。
+  // 所有消息只传 sessionId/sequence/dirtyCount/requestId/inputSettled，
+  // 不传草稿正文、run 内容、sourceToken、授权或凭据
+  draftCloseHandshake: "draft-close:handshake",
+  draftCloseSession: "draft-close:session",
+  draftCloseQuery: "draft-close:query",
+  draftCloseReport: "draft-close:report",
+  draftCloseAnswer: "draft-close:answer",
 } as const;
 
 export type ChannelName = (typeof CHANNELS)[keyof typeof CHANNELS];
