@@ -100,7 +100,26 @@
   变异 2 处全捕获（`u3-68-panel-mutate.cjs`）：去 `xl:` 断点 ⇒ 三窄档轨道数判红；草稿侧 wordWrap off ⇒ 四档绘制右溢判红
   （18~319px），均 exit=1，跑完 `git diff` 零残留。harness 事实：Monaco 换字段/断点重挂首帧 5px 壳 ⇒ 测量前 `waitGridReady`
   轮询两侧 ≥100px（开发中一次 1210 档"网格未找到"瞬态同源，加等待后 3 轮整跑未复现）。
-- [ ] 6.9 独立验证 Electron 200% 页面缩放，记录实际 viewport、zoom/DPR 与编辑/操作可达性，不要求各宽度与缩放全组合（<=2h）。验收：宽窄窗口均可核对完整编辑内容（200% 缩放）。
+- [x] 6.9 独立验证 Electron 200% 页面缩放，记录实际 viewport、zoom/DPR 与编辑/操作可达性，不要求各宽度与缩放全组合（<=2h）。验收：宽窄窗口均可核对完整编辑内容（200% 缩放）。
+  证据：`apps/desktop/scripts/u3-69-cdp.cjs`（3 tag / **108 检查 / 0 失败**，dev 带 `REBASEAGENT_ZOOM_FACTOR=2`
+  经 `.workbuddy/u3/u3-69/run-all.cjs` 每 tag 全新起）：tool-result 三档 41、prompt 三档 38（两字段独立不串值）、
+  model-ab 三档 29；三档外框 3610/2030/1134 ⇒ **实测 CSS 1284/720/400、dpr 恒 4.2（=2.1×2）** ⇒
+  **200% 下并排档（≥1280）仍可达**；每档断言：缩放真实生效 / 视口命中 / 轨道数=xl 断点 / 两侧 ≥200px（未缩正文）/
+  零绘制右溢 / **整页 `scrollWidth≤innerWidth+2`（200% 专属加测）** / 「放弃修改」滚动可达 / model 12 行完整 /
+  改窗往返逐字保留；**编辑可达**=极窄档（CSS≈400）现场键入/写入臂参数并核对 store。截图 9 张
+  （`docs/reviews/2026-09-25-u3-69/`）。**抓到并修 1 处真实产品缺陷**：model-ab 核对网格臂行无空格 JSON 长拉丁串
+  不强制断行 ⇒ 草稿侧绘制右溢 26px(1280)/36px(400) 截文 ⇒ 两侧臂行加 `break-all` + 契约测试 +2 断言
+  （变异「去 break-all」⇒ 用例 `1 failed` 变红）；6.8 未抓到系夹具拉丁连段恰短于临界。**回归**：6.8 `model-ab`
+  tag（zoom1 两极端档）复跑 16/16 全绿。变异 2 处全捕获（`u3-69-mutate.cjs`）：M1 禁用 main 的 zoom 注入（先清
+  持久 zoom）⇒ 基准 dpr 与三档视口共 8 条判红；M2 去草稿侧 `break-all` ⇒ 1280/400 溢出判红，均 exit=1、还原零残留。
+  harness 两条新事实：① **MoveWindow 回报不可信**（off-screen 158×26 幽灵窗会让 ps-win 面积筛选选错 hwnd）⇒
+  改窗一律 `resizeTo` 以**页内实测 CSS** 复核重试；② 🔴 **`REBASEAGENT_ZOOM_FACTOR` 经 Chromium per-host zoom
+  持久化污染后续 dev**（`Preferences.partition.per_host_zoom_levels.*.localhost` ⇒ 不带 env 的 dev 也开在 200%，
+  6.8 回归首轮「运行列表未就绪」即此因）⇒ 跑 zoom1 场景前必须 `--reset-zoom`（dev 停止后执行，zoom2 dev 退出会写回）；
+  另 200% 下默认窗口 CSS≈605 落窄档、运行导航收起 ⇒ 就绪轮询前先真实改窗到宽档（harness 已内置）。
+  门禁：desktop **80 文件 / 1519 用例 / 0 失败** · `biome check .` **364 文件 0 错** · tsc 双 0 ·
+  `validate preserve-debugging-drafts --strict` valid 且 `--all --strict` **13 passed**
+  （日志 `.workbuddy/u3/u3-69/openspec-{strict,all}.log`、`desktop-full.log`）。
 - [ ] 6.10 创建/设置/嵌套确认实测 Tab/Shift+Tab/Esc、Monaco 内部弹层及 busy 关闭限制，保存焦点序列与截图（<=2h）。验收：创建设置和放弃确认不泄漏焦点 / Esc 只关闭最上层并恢复焦点 / 创建忙碌期间不能通过焦点修复绕过关闭锁。
 - [ ] 6.11 检查零调用/逐文件哈希/无草稿持久化，重载与重启不恢复草稿；回归 U1/U2 阅读及文件状态（<=2h）。验收：草稿不会跨 renderer 会话持久恢复 / 草稿操作零执行且已有文件不变 / 原有执行入口和文件阅读继续可用。
 
