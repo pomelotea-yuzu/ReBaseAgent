@@ -57,7 +57,14 @@
   确认框为真 `#32770`（UIA 读文案与按钮、BM_CLICK 真应答），退出判定只看窗口句柄与主进程 PID 真实消失，不看 guard 返回值。
   抓并修 1 处真实缺陷：窗口销毁后 `disposeIpc` 仍访问 `win.webContents` ⇒ 主进程未捕获异常弹「Error」框（干净退出被污染成一次询问），
   改为 `win.isDestroyed()` 时才跳过 webContents 解绑；验收钩子另加 dev-only `REBASEAGENT_SMOKE_QUIT_FILE` 哨兵文件触发 `app.quit`。
-- [ ] 6.5 Electron 验证最后一键/粘贴、中文输入法组合及其尾随事件，锁内新输入阻止、取消恢复与焦点（<=2h）。验收：退出输入锁保留已接收文字且不重放按键 / 最新 clean 应答才允许直接关闭。真实输入法实测单独留证，合成 composition 事件不能冒充系统输入法已通过。
+- [x] 6.5 Electron 验证最后一键/粘贴、中文输入法组合及其尾随事件，锁内新输入阻止、取消恢复与焦点（<=2h）。验收：退出输入锁保留已接收文字且不重放按键 / 最新 clean 应答才允许直接关闭。真实输入法实测单独留证，合成 composition 事件不能冒充系统输入法已通过。
+  证据：`apps/desktop/scripts/u3-65-cdp.cjs` + `scripts/lib/u3-65-input.ps1`（keybd_event 真按键 / Set-Clipboard 真系统剪贴板 /
+  GetGUIThreadInfo+ImmGetContext 输入法状态；6 tag / 47 检查 / 0 失败）+ `docs/reviews/2026-09-25-u3-65/README.md`
+  + `.workbuddy/u3/u3-65/{run-final.log,gates.txt}`。真实输入法单独留证：`hkl=0x08040804` 下只发 ASCII 拼音与空格却产出汉字，
+  全程不合成 CompositionEvent；锁内分「纯锁定期」与「确认框在场（不抬窗口）」两段各断言值不变与插入类事件被阻止。
+  两条实现面事实留档（不改判据）：本机 Monaco 走 `native-edit-context` ⇒ document 级 `composition*` 事件 0 条、
+  `inputSettled` 实际恒 true（本轮仍出 dirty 询问，但 D6 的 unknown 分支在真输入法下无触发路径，交 §7 决定）；
+  未提交候选在确认框抢焦点时被输入法干净丢弃（不留裸拼音），已提交文字实测未被换回旧基线。
 - [ ] 6.6 独立 Electron 测试进程验证崩溃、失联、重载、旧/伪造消息；隔离事件测试核对系统会话结束边界，不触发宿主机注销/关机（<=2h）。验收：renderer 失联或应答无效仍有退出确认 / 重载不能用空仓库抹掉旧会话未知状态 / 旧会话伪造发送者和乱序消息不影响关闭 / 系统会话结束不沿用普通退出承诺。
 - [ ] 6.7 注入小于/超过 1.5s 的应答延迟并辅以 CDP CPU 降速，记录超时提示、取消解锁、迟到应答和下次正常查询（<=2h）。验收：慢响应降级后可取消并重新核对 / 重复关闭取消和迟到应答不会重入。不以“慢 renderer 不能超时”为判据，不宣称开发机注入等同真实慢机校准。
 - [ ] 6.8 真窗口/Monaco 验证 1440、1210、1024、800 CSS px 四档的完整原值/草稿核对，记录正文尺寸及截图（<=2h）。验收：宽窄窗口均可核对完整编辑内容（四档宽度）。
