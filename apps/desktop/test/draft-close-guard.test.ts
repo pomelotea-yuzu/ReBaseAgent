@@ -303,3 +303,65 @@ describe("U3 4.1 协议形状：只传元数据（凭据与草稿分离）", () 
     expect(DRAFT_CLOSE_DIRTY_MAX).toBe(1_000_000);
   });
 });
+
+describe("U3 4.7 会话失效与遗留标志（重载/崩溃）", () => {
+  /** 把当前会话置为指定形态的快捷手段 */
+  function shapeSession(
+    guard: DraftCloseGuard,
+    opts: { handshaken?: boolean; reported?: number | null },
+  ): void {
+    const target = guard.targetOf(WC);
+    if (target === undefined) throw new Error("no target");
+    if (opts.handshaken !== undefined) target.handshaken = opts.handshaken;
+    if (opts.reported !== undefined) {
+      target.lastReported =
+        opts.reported === null ? null : { sequence: 10, dirtyCount: opts.reported };
+    }
+  }
+
+  it("旧会话 dirty ⇒ 轮换置遗留标志；新会话 clean 上报不能抹掉它（空仓库不消音）", () => {
+    const { guard } = setup();
+    handshaken(guard);
+    shapeSession(guard, { handshaken: true, reported: 3 });
+    guard.rotateSession({ webContentsId: WC, getMainFrameRoutingId: (): number => FRAME });
+    expect(guard.hasPendingLoss()).toBe(true);
+
+    // 新会话正常握手 + 上报 clean：标志必须仍在
+    handshaken(guard);
+    expect(
+      guard.handleReport(sender(), { sessionId: "sess-2", sequence: 0, dirtyCount: 0 }),
+    ).toEqual({ ok: true });
+    expect(guard.hasPendingLoss()).toBe(true);
+  });
+
+  it("旧会话状态不明（未握手 / 从未上报）⇒ 同样置标志", () => {
+    const { guard } = setup();
+    handshaken(guard);
+    shapeSession(guard, { handshaken: false, reported: null });
+    guard.rotateSession({ webContentsId: WC, getMainFrameRoutingId: (): number => FRAME });
+    expect(guard.hasPendingLoss()).toBe(true);
+
+    const { guard: g2 } = setup();
+    handshaken(g2);
+    shapeSession(g2, { handshaken: true, reported: null }); // 从未上报 = 状态不明
+    g2.rotateSession({ webContentsId: WC, getMainFrameRoutingId: (): number => FRAME });
+    expect(g2.hasPendingLoss()).toBe(true);
+  });
+
+  it("旧会话 clean（已握手且上报 0）⇒ 正常轮换不置标志", () => {
+    const { guard } = setup();
+    handshaken(guard);
+    shapeSession(guard, { handshaken: true, reported: 0 });
+    guard.rotateSession({ webContentsId: WC, getMainFrameRoutingId: (): number => FRAME });
+    expect(guard.hasPendingLoss()).toBe(false);
+  });
+
+  it("崩溃（markPendingLoss）置标志；用户确认返回（acknowledge）才清除", () => {
+    const { guard } = setup();
+    expect(guard.hasPendingLoss()).toBe(false);
+    guard.markPendingLoss();
+    expect(guard.hasPendingLoss()).toBe(true);
+    guard.acknowledgePendingLoss();
+    expect(guard.hasPendingLoss()).toBe(false);
+  });
+});

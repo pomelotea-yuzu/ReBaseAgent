@@ -101,11 +101,19 @@ export class DraftCloseGuard {
    * 登记 / 轮换一个窗口的文档会话。窗口创建时与每次 did-finish-load（含重载）
    * 各调用一次：**每次调用都生成新 sessionId 并重置握手与序号**——
    * 旧文档会话的一切消息自此失效（重载不能用旧会话继续说话）。
+   *
+   * 轮换away时评估旧会话（design D6）：旧会话 dirty 或状态不明（未握手 /
+   * 从未上报）⇒ 置「会话状态丢失」遗留标志——新 renderer 的空仓库**不能**
+   * 静默消除它，下次关闭必须明确说明先前草稿可能已丢失。
    */
   rotateSession(spec: {
     webContentsId: number;
     getMainFrameRoutingId: () => number;
   }): DraftCloseTargetState {
+    const previous = this.targets.get(spec.webContentsId);
+    if (previous !== undefined && this.isSessionUnresolved(previous)) {
+      this.pendingLoss = true;
+    }
     const sessionId = this.newSessionId();
     const state: DraftCloseTargetState = {
       webContentsId: spec.webContentsId,
@@ -120,6 +128,34 @@ export class DraftCloseGuard {
     this.onSessionRotated?.(state, sessionId);
     return state;
   }
+
+  /** 旧会话是否「dirty 或状态不明」（D6：重载时据此保留遗留标志） */
+  private isSessionUnresolved(state: DraftCloseTargetState): boolean {
+    return !state.handshaken || state.lastReported === null || state.lastReported.dirtyCount > 0;
+  }
+
+  /**
+   * renderer 崩溃（render-process-gone）：旧会话状态永久不明 ⇒ 直接置遗留标志
+   * （崩溃后不一定发生重载，不能只依赖 did-finish-load 轮换评估）。
+   */
+  markPendingLoss(): void {
+    this.pendingLoss = true;
+  }
+
+  /** 是否存在未解决的会话丢失标志（关闭决策的 clean 前置条件之一） */
+  hasPendingLoss(): boolean {
+    return this.pendingLoss;
+  }
+
+  /**
+   * 用户在退出确认中明确选择「返回」（已知悉先前草稿可能丢失）⇒ 清除遗留标志，
+   * 新会话之后的关闭走正常核对。renderer 的新鲜上报**无权**清除本标志。
+   */
+  acknowledgePendingLoss(): void {
+    this.pendingLoss = false;
+  }
+
+  private pendingLoss = false;
 
   /** 窗口销毁：解除登记与挂起查询（electron 适配层在 closed 事件时调用） */
   detach(webContentsId: number): void {

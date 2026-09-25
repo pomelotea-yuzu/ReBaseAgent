@@ -41,23 +41,24 @@ function senderOf(event: IpcMainEvent | IpcMainInvokeEvent): {
 }
 
 /** 原生确认文案（design D6 第 3/4 步：默认/取消 = 返回；不诊断存活状态） */
-function confirmOptions(kind: "dirty" | "unknown"): {
-  title: string;
-  message: string;
-  detail: string;
-} {
+function confirmOptions(
+  kind: "dirty" | "unknown",
+  pendingLoss: boolean,
+): { title: string; message: string; detail: string } {
+  const lossNote = pendingLoss
+    ? " 此外，先前会话的调试草稿可能已经丢失（该会话在退出或重载前未能完成核对）。"
+    : "";
   if (kind === "dirty") {
     return {
       title: "退出 ReBaseAgent",
       message: "有未放弃的调试草稿",
-      detail: "本轮会话中已输入的调试草稿在退出后将丢失，且无法恢复。要继续编辑请选择「返回」。",
+      detail: `本轮会话中已输入的调试草稿在退出后将丢失，且无法恢复。要继续编辑请选择「返回」。${lossNote}`,
     };
   }
   return {
     title: "退出 ReBaseAgent",
     message: "暂时无法确认草稿状态",
-    detail:
-      "暂时无法确认草稿状态，不能确定是否有未放弃的编辑。选择「返回」可继续使用应用，稍后再次退出时会重新核对。",
+    detail: `暂时无法确认草稿状态，不能确定是否有未放弃的编辑。选择「返回」可继续使用应用，稍后再次退出时会重新核对。${lossNote}`,
   };
 }
 
@@ -88,37 +89,43 @@ export function attachDraftCloseGuard(win: BrowserWindow): DraftCloseGuardHandle
   });
   const webContentsId = win.webContents.id;
 
-  flow = new DraftCloseFlow(webContentsId, guard, {
-    sendQuery: (query) => {
-      try {
-        win.webContents.send(CHANNELS.draftCloseQuery, query);
-      } catch {
-        // 窗口可能正在销毁——查询发不出，决策流将走 unknown 降级（4.5 超时兜底）
-      }
+  flow = new DraftCloseFlow(
+    webContentsId,
+    guard,
+    {
+      sendQuery: (query) => {
+        try {
+          win.webContents.send(CHANNELS.draftCloseQuery, query);
+        } catch {
+          // 窗口可能正在销毁——查询发不出，决策流将走 unknown 降级（4.5 超时兜底）
+        }
+      },
+      showConfirm: async (kind) => {
+        const opts = confirmOptions(kind, guard.hasPendingLoss());
+        const { response } = await dialog.showMessageBox(win, {
+          type: "warning",
+          buttons: ["返回", "退出并丢弃草稿"],
+          defaultId: 0,
+          cancelId: 0,
+          noLink: true,
+          ...opts,
+        });
+        return response === 1 ? "quit" : "return";
+      },
+      closeWindow: () => {
+        win.close();
+      },
+      sendRelease: (sessionId, requestId) => {
+        try {
+          win.webContents.send(CHANNELS.draftCloseRelease, { sessionId, requestId });
+        } catch {
+          // 同 onQueryReleased：窗口销毁中，无需释放通知
+        }
+      },
     },
-    showConfirm: async (kind) => {
-      const opts = confirmOptions(kind);
-      const { response } = await dialog.showMessageBox(win, {
-        type: "warning",
-        buttons: ["返回", "退出并丢弃草稿"],
-        defaultId: 0,
-        cancelId: 0,
-        noLink: true,
-        ...opts,
-      });
-      return response === 1 ? "quit" : "return";
-    },
-    closeWindow: () => {
-      win.close();
-    },
-    sendRelease: (sessionId, requestId) => {
-      try {
-        win.webContents.send(CHANNELS.draftCloseRelease, { sessionId, requestId });
-      } catch {
-        // 同 onQueryReleased：窗口销毁中，无需释放通知
-      }
-    },
-  });
+    // 会话丢失遗留标志参与 clean 判定（4.7）；用户返回时由 flow 确认清除
+    { hasPendingLoss: () => guard.hasPendingLoss() },
+  );
 
   const onHandshake = (event: IpcMainInvokeEvent): Envelope<{ sessionId: string }> => {
     const result = guard.handshake(senderOf(event));
@@ -139,6 +146,11 @@ export function attachDraftCloseGuard(win: BrowserWindow): DraftCloseGuardHandle
       getMainFrameRoutingId: () => win.webContents.mainFrame.routingId,
     });
   };
+  const onRenderProcessGone = (): void => {
+    // 任务 4.7：renderer 崩溃 ⇒ 旧会话状态永久不明，直接置遗留标志
+    // （崩溃后不一定重载，不能只依赖 did-finish-load 轮换评估）
+    guard.markPendingLoss();
+  };
   const onClose = (event: Event): void => {
     // U3 4.4：标题栏关闭 / Alt+F4 都走这里。bypass 在手 → 放行（一次性）；
     // 否则阻止默认关闭并启动协商（连续触发时决策流复用当前流程）
@@ -154,6 +166,7 @@ export function attachDraftCloseGuard(win: BrowserWindow): DraftCloseGuardHandle
   ipcMain.on(CHANNELS.draftCloseReport, onReport);
   ipcMain.on(CHANNELS.draftCloseAnswer, onAnswer);
   win.webContents.on("did-finish-load", onDidFinishLoad);
+  win.webContents.on("render-process-gone", onRenderProcessGone);
   win.on("close", onClose);
   win.on("closed", onClosed);
 
@@ -162,6 +175,7 @@ export function attachDraftCloseGuard(win: BrowserWindow): DraftCloseGuardHandle
     ipcMain.removeListener(CHANNELS.draftCloseReport, onReport);
     ipcMain.removeListener(CHANNELS.draftCloseAnswer, onAnswer);
     win.webContents.removeListener("did-finish-load", onDidFinishLoad);
+    win.webContents.removeListener("render-process-gone", onRenderProcessGone);
     win.removeListener("close", onClose);
     win.removeListener("closed", onClosed);
   }

@@ -88,7 +88,7 @@ function setup(opts?: {
     },
   };
   h.flow = new DraftCloseFlow(WC, guard, ports, {
-    hasPendingLoss: opts?.hasPendingLoss,
+    hasPendingLoss: opts?.hasPendingLoss ?? ((): boolean => guard.hasPendingLoss()),
     scheduleTimeout: opts?.scheduleTimeout,
   });
   flowRef = h.flow;
@@ -424,5 +424,33 @@ describe("U3 4.6 防重入 / bypass 生命周期 / 递归 quit", () => {
     expect(index).not.toContain("app.exit(");
     expect(index).not.toContain("bypassArmed");
     expect(index).not.toContain("armBypass");
+  });
+});
+
+describe("U3 4.7 决策流 × 遗留标志：重载后空草稿不能直接放行", () => {
+  it("遗留标志把 clean 降级为 unknown；用户返回确认后，下次关闭恢复正常核对", async () => {
+    const h = setup();
+    h.setHandshaken(true);
+
+    // 旧会话 dirty 后重载（rotateSession 评估旧状态 → 置标志）
+    const target = h.guard.targetOf(WC);
+    if (target !== undefined) target.lastReported = { sequence: 9, dirtyCount: 2 };
+    h.guard.rotateSession({ webContentsId: WC, getMainFrameRoutingId: (): number => FRAME });
+    expect(h.guard.hasPendingLoss()).toBe(true);
+    h.setHandshaken(true);
+
+    // 新会话上报 clean（空仓库）+ 关闭查询得到 clean 应答 ⇒ 仍 unknown（标志不消失）
+    h.flow.interceptClose();
+    answerThrough(h, { dirtyCount: 0, sequence: 1 });
+    const outcome = await h.flow.requestClose();
+    expect(outcome).toBe("canceled");
+    expect(h.confirms).toEqual(["unknown"]);
+
+    // 用户返回 = 已知悉 ⇒ 标志清除；下次关闭 clean 应答直接放行
+    expect(h.guard.hasPendingLoss()).toBe(false);
+    h.flow.interceptClose();
+    answerThrough(h, { dirtyCount: 0, sequence: 5 });
+    expect(await h.flow.requestClose()).toBe("closed");
+    expect(h.confirms).toEqual(["unknown"]); // 第二轮没有再弹确认
   });
 });

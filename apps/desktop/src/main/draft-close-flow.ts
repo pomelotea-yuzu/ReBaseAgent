@@ -186,8 +186,10 @@ export class DraftCloseFlow {
       return this.executeQuit();
     }
     // 返回：取消本次核对，通知 renderer 解锁并恢复焦点；
-    // 挂起查询同时清除 ⇒ 迟到应答因 requestId 失配被 guard 拒绝，不会关窗
+    // 挂起查询同时清除 ⇒ 迟到应答因 requestId 失配被 guard 拒绝，不会关窗。
+    // 用户已看到确认并知悉（含会话丢失说明）⇒ 清除遗留标志，新会话再走正常核对。
     this.guard.cancelQuery(this.webContentsId);
+    this.guard.acknowledgePendingLoss();
     const sessionId = this.currentSessionId;
     const requestId = this.lastSentRequestId;
     this.currentSessionId = null;
