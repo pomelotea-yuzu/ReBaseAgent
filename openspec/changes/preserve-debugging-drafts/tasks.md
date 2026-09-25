@@ -65,7 +65,19 @@
   两条实现面事实留档（不改判据）：本机 Monaco 走 `native-edit-context` ⇒ document 级 `composition*` 事件 0 条、
   `inputSettled` 实际恒 true（本轮仍出 dirty 询问，但 D6 的 unknown 分支在真输入法下无触发路径，交 §7 决定）；
   未提交候选在确认框抢焦点时被输入法干净丢弃（不留裸拼音），已提交文字实测未被换回旧基线。
-- [ ] 6.6 独立 Electron 测试进程验证崩溃、失联、重载、旧/伪造消息；隔离事件测试核对系统会话结束边界，不触发宿主机注销/关机（<=2h）。验收：renderer 失联或应答无效仍有退出确认 / 重载不能用空仓库抹掉旧会话未知状态 / 旧会话伪造发送者和乱序消息不影响关闭 / 系统会话结束不沿用普通退出承诺。
+- [x] 6.6 独立 Electron 测试进程验证崩溃、失联、重载、旧/伪造消息；隔离事件测试核对系统会话结束边界，不触发宿主机注销/关机（<=2h）。验收：renderer 失联或应答无效仍有退出确认 / 重载不能用空仓库抹掉旧会话未知状态 / 旧会话伪造发送者和乱序消息不影响关闭 / 系统会话结束不沿用普通退出承诺。
+  证据：`apps/desktop/scripts/u3-66-cdp.cjs`（5 tag / **64 检查 / 0 失败**：`crash-gone` 真 `forcefullyCrashRenderer` 崩溃、
+  `hung-timeout` 真同步忙等冻结（不合成事件）、`reload-empty-repo` CDP 真重载 × 空仓库 clean 应答仍被降级询问、
+  `forged-stale` 7 类伪造经真 preload 通道直发 + 反证收口（全被拒 ⇒ 零询问直退真实结束）、
+  `session-event` 合成两种系统会话结束事件零确认零阻止 + 普通承诺随后成立）
+  + `docs/reviews/2026-09-25-u3-66/README.md`（含 2 张确认框在场屏幕截取）+ `.workbuddy/u3/u3-66/{measurements.json,run-all.cjs}`。
+  隔离事件测试：`test/u3-66-smoke-hook.test.ts` 8 用例（动作白名单/哨兵消费/**钩子文件零监听**的 D6 跨文件契约）。
+  变异 6 处全捕获：单测面 4 处（`mutate.cjs`）+ 实机面 2 处（`u3-66-guard-mutate.cjs`：撤销轮换评估 ⇒ reload tag 判红；
+  跳过 sessionId 校验 ⇒ forged tag 判红，exit=1）。新增 dev-only 钩子 `REBASEAGENT_SMOKE_EVENT_FILE`
+  （`src/main/smoke-event-hook.ts`，只合成不监听、白名单外不执行、未设变量生产逐字节不变）。
+  ⚠️ 抓到并修 harness 假绿通道：失联后无界 await ⇒ 事件轮排空 ⇒ **node 静默退 0**（判红信息全丢）
+  ⇒ 全 CDP 求值 25s 有界 + 截图 15s race + 240s 看门狗 exit 3；后续"会弄死应用"的 tag 一律照此设界。
+  sender/frame 冒名实机不可注入（Electron 注入事件对象，渲染层碰不到），由 guard 单测承载，README 已写明边界。
 - [ ] 6.7 注入小于/超过 1.5s 的应答延迟并辅以 CDP CPU 降速，记录超时提示、取消解锁、迟到应答和下次正常查询（<=2h）。验收：慢响应降级后可取消并重新核对 / 重复关闭取消和迟到应答不会重入。不以“慢 renderer 不能超时”为判据，不宣称开发机注入等同真实慢机校准。
 - [ ] 6.8 真窗口/Monaco 验证 1440、1210、1024、800 CSS px 四档的完整原值/草稿核对，记录正文尺寸及截图（<=2h）。验收：宽窄窗口均可核对完整编辑内容（四档宽度）。
 - [ ] 6.9 独立验证 Electron 200% 页面缩放，记录实际 viewport、zoom/DPR 与编辑/操作可达性，不要求各宽度与缩放全组合（<=2h）。验收：宽窄窗口均可核对完整编辑内容（200% 缩放）。

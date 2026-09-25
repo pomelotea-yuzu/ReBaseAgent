@@ -16,6 +16,7 @@ import { ProxyManager } from "./proxy-manager";
 import { RunRepository } from "./run-repository";
 import { SettingsStore } from "./settings";
 import type { SettingsCipher } from "./settings";
+import { installSmokeEventHook } from "./smoke-event-hook";
 
 /**
  * 应用入口。数据目录解析 → 注册 IPC → 建窗口。
@@ -229,6 +230,20 @@ async function bootstrap(): Promise<void> {
     }, 250);
     // 真正开始退出时停表；用户选择「返回」使 quit 被阻止时不停表，以便再次触发
     app.on("will-quit", () => clearInterval(timer));
+  }
+  /**
+   * 验收钩子（U3 任务 6.6）：哨兵文件出现 ⇒ 对当前窗口执行一个白名单动作
+   * （真崩溃 renderer / 合成系统会话结束事件）。动作语义与边界见
+   * `smoke-event-hook.ts` 文件头——本钩子**不注册任何事件监听**，
+   * design D6「系统结束会话不接入确认/不阻止」的源码契约（4.4）不因验收而失守。
+   * 未设置或为空 ⇒ 不注册任何定时器，生产行为逐字节一致。
+   */
+  const smokeEventFile = process.env.REBASEAGENT_SMOKE_EVENT_FILE;
+  if (smokeEventFile !== undefined && smokeEventFile !== "") {
+    const dispose = installSmokeEventHook(smokeEventFile, () =>
+      mainWindow !== null && !mainWindow.isDestroyed() ? mainWindow : null,
+    );
+    app.on("will-quit", dispose);
   }
   /**
    * U3 任务 4.4：常规 app.quit 也走关闭协商（与标题栏关闭/Alt+F4 同一 guard）。
