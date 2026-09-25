@@ -963,7 +963,7 @@ function ModelAbEditor({
               原值（父本基线臂 · 只读）
             </div>
             {baselineRows.map(({ id, no, arm }) => (
-              <div key={id} className="font-code text-[11px] leading-4 text-gray-600">
+              <div key={id} className="font-code break-all text-[11px] leading-4 text-gray-600">
                 臂 {no}：{arm.model}
                 {arm.paramsText === "" ? "（沿用父 params）" : ` · ${arm.paramsText}`}
               </div>
@@ -972,7 +972,7 @@ function ModelAbEditor({
           <div className="min-w-0 rounded border border-sky-200 bg-white px-2 py-1.5">
             <div className="mb-1 text-[10px] font-medium text-sky-700">草稿（可编辑批次）</div>
             {rows.map(({ key, arm }, index) => (
-              <div key={key} className="font-code text-[11px] leading-4 text-gray-700">
+              <div key={key} className="font-code break-all text-[11px] leading-4 text-gray-700">
                 臂 {index + 1}：{arm.model}
                 {arm.paramsText === "" ? "（沿用父 params）" : ` · ${arm.paramsText}`}
               </div>

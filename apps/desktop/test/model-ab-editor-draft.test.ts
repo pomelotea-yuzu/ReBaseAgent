@@ -84,6 +84,10 @@ describe("接线契约：ModelAbEditor 批次草稿（任务 2.4）", () => {
     expect(code).toContain('data-draft-compare="model-ab"');
     expect(code).toContain("grid-cols-1 gap-2 xl:grid-cols-2");
     expect(code).toContain("原值（父本基线臂 · 只读）");
+    // 6.9 实机缺陷：无空格 JSON 长拉丁串（`{"temperature":0.777…`）在窄盒不断行 ⇒
+    // 两侧臂行绘制右溢 26~36px 截文 ⇒ 基线与草稿臂行一律 break-all 强制断行
+    expect(code).toContain('className="font-code break-all text-[11px] leading-4 text-gray-600"');
+    expect(code).toContain('className="font-code break-all text-[11px] leading-4 text-gray-700"');
   });
 });
 
