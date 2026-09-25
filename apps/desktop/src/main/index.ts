@@ -207,6 +207,26 @@ async function bootstrap(): Promise<void> {
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+
+  /**
+   * U3 任务 4.4：常规 app.quit 也走关闭协商（与标题栏关闭/Alt+F4 同一 guard）。
+   * - 目标窗口不存在（window-all-closed 后的 quit / 窗口已销毁）⇒ 直接放行；
+   * - 否则阻止本次 quit，启动（或复用进行中的）协商：用户确认退出后 flow 已
+   *   armed bypass 并触发 win.close()，窗口销毁后的 window-all-closed → quit
+   *   会因目标不存在而放行；用户选择返回则维持现状。
+   * Windows 注销/关机不走 before-quit（design D6），本处不接入系统会话结束路径，
+   * 不为草稿保护阻止系统结束会话。
+   */
+  app.on("before-quit", (event) => {
+    const handle = draftClose;
+    const target = handle === null ? undefined : handle.guard.targetOf(handle.webContentsId);
+    if (handle === null || target === undefined) return;
+    event.preventDefault();
+    void handle.flow.requestClose().then((outcome) => {
+      // "closed"：窗口正在关闭（bypass 已消费）；"canceled"：用户选择返回
+      void outcome;
+    });
+  });
 }
 
 app.on("window-all-closed", () => {

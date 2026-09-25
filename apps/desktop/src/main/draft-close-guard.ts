@@ -65,6 +65,11 @@ export interface DraftCloseGuardOptions {
    * `{sessionId, requestId}` 发给 renderer，令其解除输入锁并恢复焦点。
    */
   onQueryReleased?: (target: DraftCloseTargetState, sessionId: string, requestId: string) => void;
+  /**
+   * 关闭应答被接受时通知（装配层转发给关闭决策流 `DraftCloseFlow`）。
+   * 只在**通过全部校验**后回调——拒绝的伪造/迟到应答不会到达决策流。
+   */
+  onAnswerAccepted?: (webContentsId: number, answer: DraftCloseAnswer) => void;
 }
 
 export type DraftCloseGuardResult = { ok: true } | { ok: false; reason: string };
@@ -80,6 +85,7 @@ export class DraftCloseGuard {
   private readonly onSessionRotated?: DraftCloseGuardOptions["onSessionRotated"];
   private readonly onRejected?: DraftCloseGuardOptions["onRejected"];
   private readonly onQueryReleased?: DraftCloseGuardOptions["onQueryReleased"];
+  private readonly onAnswerAccepted?: DraftCloseGuardOptions["onAnswerAccepted"];
   /** 每窗口最近一次被接受的关闭应答（由 takeAnswer 消费） */
   private readonly lastAnswer = new Map<number, DraftCloseAnswer>();
 
@@ -88,6 +94,7 @@ export class DraftCloseGuard {
     this.onSessionRotated = options.onSessionRotated;
     this.onRejected = options.onRejected;
     this.onQueryReleased = options.onQueryReleased;
+    this.onAnswerAccepted = options.onAnswerAccepted;
   }
 
   /**
@@ -206,6 +213,7 @@ export class DraftCloseGuard {
     // 应答只对当前 requestId 有效：接受即消费挂起查询（迟到重放自然失效）
     this.pendingQueries.delete(sender.webContentsId);
     this.lastAnswer.set(sender.webContentsId, answer);
+    this.onAnswerAccepted?.(sender.webContentsId, answer);
     return { ok: true };
   }
 
