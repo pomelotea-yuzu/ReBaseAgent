@@ -24,6 +24,14 @@ export type CloseDecision = "clean" | "dirty" | "unknown";
 export type CloseOutcome = "closed" | "canceled";
 
 /**
+ * 关闭查询的有界等待（design D6）：**设计初值 1.5 秒**，不是实测的 renderer
+ * 存活阈值。超时只说明本次未及时取得可信状态 ⇒ unknown 降级（原生确认），
+ * 不能据此显示/断言"已崩溃/已失联"，也不能无限等待。若实测需调整阈值，
+ * 先同步修改 design/spec 与测试，不宣称此值已在慢机校准。
+ */
+export const DRAFT_CLOSE_QUERY_TIMEOUT_MS = 1500;
+
+/**
  * 依据当前应答与会话状态裁决关闭（D6 第 3/4 步的判定）：
  * - 未握手 / 无有效应答 / inputSettled=false / 有会话丢失遗留 ⇒ unknown（保守，不猜存活）；
  * - dirtyCount>0 ⇒ dirty；
@@ -55,6 +63,10 @@ export interface DraftCloseFlowPorts {
 export interface DraftCloseFlowDeps {
   /** 未解决的会话丢失标志（4.7 接入；clean 需要其为 false） */
   hasPendingLoss?: () => boolean;
+  /** 查询超时毫秒（默认 DRAFT_CLOSE_QUERY_TIMEOUT_MS） */
+  queryTimeoutMs?: number;
+  /** 可注入的定时器（测试用假时钟）；返回取消函数 */
+  scheduleTimeout?: (fn: () => void, ms: number) => () => void;
 }
 
 export class DraftCloseFlow {
@@ -118,10 +130,8 @@ export class DraftCloseFlow {
     this.lastSentRequestId = query.requestId;
     // 发起新鲜查询（D6 第 2 步：无论上次报告是否 clean 都重新查询）
     this.ports.sendQuery(query);
-    // 等待本 requestId 的有效应答（4.5 在此加 1.5s 有界等待与超时降级）
-    const answer = await new Promise<DraftCloseAnswer | undefined>((resolve) => {
-      this.answerWaiter = resolve;
-    });
+    // 1.5s 有界等待本 requestId 的有效应答；超时 ⇒ unknown 降级（D6 第 4 步）
+    const answer = await this.waitForAnswer();
     const target = this.guard.targetOf(this.webContentsId);
     const decision = evaluateCloseAnswer(answer, {
       handshaken: target?.handshaken ?? false,
@@ -131,6 +141,39 @@ export class DraftCloseFlow {
       return this.executeQuit();
     }
     return this.confirm(decision);
+  }
+
+  /**
+   * 有界等待本 requestId 的有效应答：应答先到则取消定时器并返回；
+   * 超时先到则以 undefined 完成（走 unknown 降级）。两条路径都清 answerWaiter，
+   * 之后到达的应答一律被忽略（迟到应答守卫的另一层，第一层在 guard 的 requestId）。
+   */
+  private waitForAnswer(): Promise<DraftCloseAnswer | undefined> {
+    const answerPromise = new Promise<DraftCloseAnswer | undefined>((resolve) => {
+      this.answerWaiter = resolve;
+    });
+    const timeoutMs = this.deps.queryTimeoutMs ?? DRAFT_CLOSE_QUERY_TIMEOUT_MS;
+    const schedule =
+      this.deps.scheduleTimeout ??
+      ((fn, ms) => {
+        const t = setTimeout(fn, ms);
+        return () => {
+          clearTimeout(t);
+        };
+      });
+    const cancelTimer = schedule(() => this.onQueryTimeout(), timeoutMs);
+    return answerPromise.then((answer) => {
+      cancelTimer();
+      return answer;
+    });
+  }
+
+  /** 查询超时：清挂起查询（迟到应答随 requestId 失效）并以"无应答"完成等待 */
+  private onQueryTimeout(): void {
+    this.guard.cancelQuery(this.webContentsId);
+    const waiter = this.answerWaiter;
+    this.answerWaiter = null;
+    waiter?.(undefined);
   }
 
   /** dirty / unknown 共用：原生确认（默认返回），退出则一次性放行 */

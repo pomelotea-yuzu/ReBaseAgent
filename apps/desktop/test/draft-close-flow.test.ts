@@ -2,7 +2,9 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  DRAFT_CLOSE_QUERY_TIMEOUT_MS,
   DraftCloseFlow,
+  type DraftCloseFlowDeps,
   type DraftCloseFlowPorts,
   evaluateCloseAnswer,
 } from "../src/main/draft-close-flow";
@@ -45,6 +47,7 @@ interface Harness {
 function setup(opts?: {
   confirmChoice?: "return" | "quit";
   hasPendingLoss?: () => boolean;
+  scheduleTimeout?: DraftCloseFlowDeps["scheduleTimeout"];
 }): Harness {
   // flow 在 guard 之后创建；guard 的应答转发经此 ref（与装配层同接线）
   let flowRef: DraftCloseFlow | null = null;
@@ -84,7 +87,10 @@ function setup(opts?: {
       h.releases.push({ sessionId, requestId });
     },
   };
-  h.flow = new DraftCloseFlow(WC, guard, ports, { hasPendingLoss: opts?.hasPendingLoss });
+  h.flow = new DraftCloseFlow(WC, guard, ports, {
+    hasPendingLoss: opts?.hasPendingLoss,
+    scheduleTimeout: opts?.scheduleTimeout,
+  });
   flowRef = h.flow;
   return h;
 }
@@ -242,5 +248,110 @@ describe("U3 4.4 源码契约：不接入系统会话结束路径", () => {
       expect(src).not.toContain("session-end");
       expect(src).not.toContain('on("session');
     }
+  });
+});
+
+describe("U3 4.5 有界查询与超时降级", () => {
+  interface TimerRec {
+    fn: () => void;
+    ms: number;
+    canceled: boolean;
+  }
+
+  /** 假时钟 harness：定时器不自动触发，由测试手动推进；返回原对象（闭包同一引用） */
+  function setupWithTimer(opts?: { confirmChoice?: "return" | "quit" }): {
+    h: Harness;
+    timers: TimerRec[];
+  } {
+    const timers: TimerRec[] = [];
+    const h = setup({
+      ...opts,
+      scheduleTimeout: (fn: () => void, ms: number): (() => void) => {
+        const rec: TimerRec = { fn, ms, canceled: false };
+        timers.push(rec);
+        return () => {
+          rec.canceled = true;
+        };
+      },
+    });
+    return { h, timers };
+  }
+
+  it("超时常量为 1.5s（设计初值，非慢机校准）", () => {
+    expect(DRAFT_CLOSE_QUERY_TIMEOUT_MS).toBe(1500);
+  });
+
+  it("1.5s 内无应答 ⇒ unknown 确认（不诊断存活）；迟到应答被拒且不关窗", async () => {
+    const { h, timers } = setupWithTimer();
+    h.setHandshaken(true);
+    h.flow.interceptClose();
+    expect(timers).toHaveLength(1);
+    expect(timers[0]?.ms).toBe(1500);
+
+    // 超时触发：走 unknown 降级
+    timers[0]?.fn();
+    const outcome = await h.flow.requestClose();
+    expect(outcome).toBe("canceled");
+    expect(h.confirms).toEqual(["unknown"]);
+    expect(h.closeCalls).toBe(0);
+    expect(h.releases).toHaveLength(1); // 通知 renderer 解锁（锁持续到关闭决定）
+    // 超时必须清掉 guard 层的挂起查询（否则迟到应答能再次通过协议校验）
+    expect(h.guard.pendingQueryOf(WC)).toBeUndefined();
+
+    // 迟到应答：挂起查询已在超时时清除 ⇒ guard 拒绝 ⇒ 不关窗
+    const late = h.guard.handleAnswer(sender(), {
+      sessionId: "sess-main",
+      requestId: h.queries[0]?.requestId ?? "",
+      sequence: 1,
+      dirtyCount: 0,
+      inputSettled: true,
+    });
+    expect(late.ok).toBe(false);
+    expect(h.closeCalls).toBe(0);
+  });
+
+  it("应答先于超时到达 ⇒ 正常决策且定时器被取消", async () => {
+    const { h, timers } = setupWithTimer();
+    h.setHandshaken(true);
+    h.flow.interceptClose();
+    answerThrough(h, { dirtyCount: 0, inputSettled: true });
+    const outcome = await h.flow.requestClose();
+    expect(outcome).toBe("closed");
+    expect(timers[0]?.canceled).toBe(true);
+    expect(h.confirms).toEqual([]);
+    expect(h.closeCalls).toBe(1);
+  });
+
+  it("慢响应降级后可取消并重新核对：下次查询正常完成", async () => {
+    const { h, timers } = setupWithTimer();
+    h.setHandshaken(true);
+
+    // 第一轮：超时降级，用户取消（默认返回）
+    h.flow.interceptClose();
+    timers[0]?.fn();
+    expect(await h.flow.requestClose()).toBe("canceled");
+    expect(h.confirms).toEqual(["unknown"]);
+
+    // 第二轮（用户再次关闭，明确退出）：新鲜查询正常应答，流程完整走通
+    h.confirmChoice = "quit";
+    h.flow.interceptClose();
+    answerThrough(h, { dirtyCount: 1, sequence: 5 });
+    expect(await h.flow.requestClose()).toBe("closed");
+    expect(h.queries).toHaveLength(2); // 两次独立的新鲜查询
+    expect(h.confirms).toEqual(["unknown", "dirty"]); // 第二轮按真实 dirty 确认
+    expect(h.closeCalls).toBe(1);
+  });
+
+  it("unknown 提示只说明暂时无法确认，不断言崩溃/失联（源码契约）", () => {
+    const attach = readFileSync(
+      resolve(import.meta.dirname, "../src/main/draft-close-attach.ts"),
+      "utf8",
+    );
+    // 未知档文案必须有「暂时无法确认」语义
+    expect(attach).toContain("暂时无法确认草稿状态");
+    // 不做存活诊断：文案不得断言崩溃/失联/无响应
+    expect(attach).not.toContain("已崩溃");
+    expect(attach).not.toContain("失联");
+    expect(attach).not.toContain("无响应");
   });
 });
