@@ -174,8 +174,13 @@ export function attachDraftCloseGuard(win: BrowserWindow): DraftCloseGuardHandle
     ipcMain.removeHandler(CHANNELS.draftCloseHandshake);
     ipcMain.removeListener(CHANNELS.draftCloseReport, onReport);
     ipcMain.removeListener(CHANNELS.draftCloseAnswer, onAnswer);
-    win.webContents.removeListener("did-finish-load", onDidFinishLoad);
-    win.webContents.removeListener("render-process-gone", onRenderProcessGone);
+    // 窗口销毁后 `win.webContents` 上的任何调用都会抛 "Object has been destroyed"
+    // （U3 6.4 实测：closed → disposeIpc 的主进程未捕获异常弹出错误框，把一次干净退出
+    //   变成了"确认框"）。webContents 的监听器与其同生命周期，销毁后已无处可解绑。
+    if (!win.isDestroyed()) {
+      win.webContents.removeListener("did-finish-load", onDidFinishLoad);
+      win.webContents.removeListener("render-process-gone", onRenderProcessGone);
+    }
     win.removeListener("close", onClose);
     win.removeListener("closed", onClosed);
   }

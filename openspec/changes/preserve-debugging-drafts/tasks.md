@@ -51,7 +51,12 @@
   抓并修 1 处真实缺陷：`fork-runner.ts` 的 `ModelAbResult.ids` 按「id 非空」计成功 ⇒ 部分臂失败被播报「成功 2 臂」，
   改为只取 `error===null` 的臂并补单测（注入旧写法 ⇒ `expected 2 to be 1` 变红）；
   另按仓库根整跑 biome 清掉 6.1/6.2 harness 的 21 处既有违规，并复跑 6.1（29 检查）/6.2（20 检查）证明未改坏。
-- [ ] 6.4 Electron 验证标题栏关闭、Alt+F4、app.quit 的 dirty/clean、取消/确认与连续关闭（<=2h）。验收：有草稿时关闭可返回或明确退出 / 最新 clean 应答才允许直接关闭 / 重复关闭取消和迟到应答不会重入。确认退出须观察进程/窗口真实结束，不能仅断言 guard 返回值。
+- [x] 6.4 Electron 验证标题栏关闭、Alt+F4、app.quit 的 dirty/clean、取消/确认与连续关闭（<=2h）。验收：有草稿时关闭可返回或明确退出 / 最新 clean 应答才允许直接关闭 / 重复关闭取消和迟到应答不会重入。确认退出须观察进程/窗口真实结束，不能仅断言 guard 返回值。
+  证据：`apps/desktop/scripts/u3-64-cdp.cjs` + `scripts/lib/u3-64-winops.ps1`（CDP × Win32/UIA 双通道，8 tag / 59 检查 / 0 失败）
+  + `docs/reviews/2026-09-25-u3-64/README.md` + `.workbuddy/u3/u3-64/{final-run.log,gates.txt}`；关闭经真 `SC_CLOSE`/真 Alt+F4 按键/真 `app.quit`，
+  确认框为真 `#32770`（UIA 读文案与按钮、BM_CLICK 真应答），退出判定只看窗口句柄与主进程 PID 真实消失，不看 guard 返回值。
+  抓并修 1 处真实缺陷：窗口销毁后 `disposeIpc` 仍访问 `win.webContents` ⇒ 主进程未捕获异常弹「Error」框（干净退出被污染成一次询问），
+  改为 `win.isDestroyed()` 时才跳过 webContents 解绑；验收钩子另加 dev-only `REBASEAGENT_SMOKE_QUIT_FILE` 哨兵文件触发 `app.quit`。
 - [ ] 6.5 Electron 验证最后一键/粘贴、中文输入法组合及其尾随事件，锁内新输入阻止、取消恢复与焦点（<=2h）。验收：退出输入锁保留已接收文字且不重放按键 / 最新 clean 应答才允许直接关闭。真实输入法实测单独留证，合成 composition 事件不能冒充系统输入法已通过。
 - [ ] 6.6 独立 Electron 测试进程验证崩溃、失联、重载、旧/伪造消息；隔离事件测试核对系统会话结束边界，不触发宿主机注销/关机（<=2h）。验收：renderer 失联或应答无效仍有退出确认 / 重载不能用空仓库抹掉旧会话未知状态 / 旧会话伪造发送者和乱序消息不影响关闭 / 系统会话结束不沿用普通退出承诺。
 - [ ] 6.7 注入小于/超过 1.5s 的应答延迟并辅以 CDP CPU 降速，记录超时提示、取消解锁、迟到应答和下次正常查询（<=2h）。验收：慢响应降级后可取消并重新核对 / 重复关闭取消和迟到应答不会重入。不以“慢 renderer 不能超时”为判据，不宣称开发机注入等同真实慢机校准。

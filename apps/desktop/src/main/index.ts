@@ -1,4 +1,4 @@
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, unlinkSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { BrowserWindow, app, dialog, safeStorage } from "electron";
 import { resolveAppIconPath } from "./app-icon";
@@ -208,6 +208,28 @@ async function bootstrap(): Promise<void> {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 
+  /**
+   * 验收钩子（U3 任务 6.4）：Windows 上外部**没有**任何路径能调用到 `app.quit()`
+   * （没有 quit IPC 通道，也不该为验收新增一条），而「窗口在场时的 app.quit 协商」
+   * 是必须真跑的一条分支，故留一个哨兵文件入口：`REBASEAGENT_SMOKE_QUIT_FILE` 给出路径后，
+   * 该文件一旦出现 ⇒ 调一次 `app.quit()` 并删除文件（可重复触发，返回后仍可再试）。
+   * 未设置或为空 ⇒ 不注册任何定时器与监听，生产行为与以前逐字节一致。
+   * ⚠️ 这不是授权开关：quit 之后仍走 design D6 的新鲜查询与用户确认，钩子只负责"发起 quit"。
+   */
+  const quitSentinel = process.env.REBASEAGENT_SMOKE_QUIT_FILE;
+  if (quitSentinel !== undefined && quitSentinel !== "") {
+    const timer = setInterval(() => {
+      if (!existsSync(quitSentinel)) return;
+      try {
+        unlinkSync(quitSentinel);
+      } catch {
+        // 并发触发（文件已消失）：本次不重复 quit，等下一轮轮询
+      }
+      app.quit();
+    }, 250);
+    // 真正开始退出时停表；用户选择「返回」使 quit 被阻止时不停表，以便再次触发
+    app.on("will-quit", () => clearInterval(timer));
+  }
   /**
    * U3 任务 4.4：常规 app.quit 也走关闭协商（与标题栏关闭/Alt+F4 同一 guard）。
    * - 目标窗口不存在（window-all-closed 后的 quit / 窗口已销毁）⇒ 直接放行；
