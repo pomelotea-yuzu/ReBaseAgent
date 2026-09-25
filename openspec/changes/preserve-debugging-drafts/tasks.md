@@ -145,7 +145,27 @@
   后捕获，该分支由单测钉住，如实记录）。harness 新坑：**Page.reload 后 CDP 真鼠标不再触发 React onClick**
   ⇒ 要干净页面用重启 dev；探针 document 级监听跨轮叠加污染打点。门禁：desktop **80 文件 / 1525 用例 / 0 失败** ·
   biome **366 文件 0 错** · tsc 双 0 · desktop build EXIT=0 · `validate preserve-debugging-drafts --strict` valid。
-- [ ] 6.11 检查零调用/逐文件哈希/无草稿持久化，重载与重启不恢复草稿；回归 U1/U2 阅读及文件状态（<=2h）。验收：草稿不会跨 renderer 会话持久恢复 / 草稿操作零执行且已有文件不变 / 原有执行入口和文件阅读继续可用。
+- [x] 6.11 检查零调用/逐文件哈希/无草稿持久化，重载与重启不恢复草稿；回归 U1/U2 阅读及文件状态（<=2h）。验收：草稿不会跨 renderer 会话持久恢复 / 草稿操作零执行且已有文件不变 / 原有执行入口和文件阅读继续可用。
+  证据：`apps/desktop/scripts/u3-611-cdp.cjs`（5 tag / **45 检查 / 0 失败**，零产品代码改动；
+  `docs/reviews/2026-09-26-u3-611/` README + 截图 5 张 + `measurements.json`）：
+  zero-exec 15（五通道草稿全操作 + 真哨兵 `app.quit`→UIA「返回」取消退出 ⇒ 受控服务 `entries()=0`、
+  traces/blobs/source/settings **逐文件 SHA-256 diff=[]**、traces 126→126、localStorage+sessionStorage 零标记、
+  取消退出后三区原样）；reload 9（真 `Page.reload` ⇒ store 三区全空、徽标无 dirty、重开编辑器=原值且只登记基线、
+  `.rebaseagent` 全树零痕迹）；restart-pre/post 2+6（run-all 每 tag 全新进程 = 真重启 ⇒ 三区全空、磁盘零痕迹、
+  重开=原值、计数一致）；regression 13（U1 页签/选中 span 往返恢复、U2 文件列表/选择/path 往返保持/正文渲染、
+  result/prompt/messages/A-B/隔离续跑五入口在场、历史草稿零泄漏）。restart 语义由 run-all 固定全序承担
+  （pre 落 handoff.json，post 在新进程验证）。变异 3 处全捕获（`u3-611-mutate.cjs`）：A 草稿镜像 localStorage ⇒
+  web storage 判红；B 键入顺手 `saveSettings` ⇒ 冻结面 `["settings:settings.json"]` 判红；
+  C sessionStorage 跨重载复活 ⇒ reload 3 条判红；还原 `git diff src` 零残留。harness 四条新事实：
+  ① IIFE 括号错位求值出函数对象 ⇒ `=== true` 恒假**静默假阴**，`ev()` 加「求值出函数即抛」自防御；
+  ② `clickSpan` 的 title 过滤必须 `closest('header')===null`——GlobalBar「运行配置」title 含「LLM」，
+  会被先命中**静默打开设置模态**、其后真鼠标全被 backdrop 吞（6.8/6.10 的 LLM 场景同样中招，
+  对已出结论无影响——top layer 不改底层布局；本轮起每步 dump dialog 集合防复发）；
+  ③ 真鼠标点击前 `scrollIntoView({behavior:'instant'})` + 稳定取 rect + `elementFromPoint` 校验，不过即抛不盲点；
+  ④ 文件页默认检查点 auto 过滤会筛空（相对初始无变化）⇒ 先「查看全部」再数 `role=option`。
+  另：desktop 全量首轮 2 条 `controlled-entrances` 红为环境 flake（紧邻 run-all 的 mock 端口起停），
+  未改一码复跑全绿。门禁：desktop **80 文件 / 1525 用例 / 0 失败** · biome **367 文件 0 错** ·
+  `validate preserve-debugging-drafts --strict` valid（零产品改动，tsc/build 沿用上轮绿态）。
 
 ## 7. 门禁与证据收口
 
