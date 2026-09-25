@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useAppStore } from "../store";
+import { ModalDialog } from "./ModalDialog";
 
 /**
  * 运行配置对话框：baseURL / apiKey / model + 本地录制代理。
@@ -111,15 +112,6 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
 
   const plain = settings?.encryption === "plain";
 
-  // Esc 关闭对话框；回车不在本层处理（提交走显式按钮）
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
   // 「录制接入」定位：滚到代理分区并把焦点放到第一个控件。只在显式要求时执行一次，
   // 执行后清掉标记——否则用户手动收起后又被拉回去。jsdom/静态渲染无布局能力，
   // 只有真实 DOM 才逐项调用，故先判方法存在。
@@ -131,204 +123,199 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   }, [settingsSection, setSettingsSection]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4">
-      <dialog
-        open
-        aria-label="运行配置"
-        onCancel={(e) => e.preventDefault()}
-        className="relative m-0 w-105 max-w-full rounded-lg border border-gray-200 bg-white p-4 shadow-xl"
-      >
-        <div className="mb-3 flex items-center justify-between">
-          <div>
-            <div className="text-sm font-semibold text-gray-800">运行配置（LLM 接入）</div>
-            <div className="text-[11px] text-gray-500">
-              {configured ? "已配置 · 重跑将使用该接入点" : "尚未配置 · 重跑前必须完成"}
-            </div>
+    // U3 任务 5.1：showModal 真 top layer——Esc 经原生 cancel 关闭（最上层语义），
+    // Tab 禁闭与背景 inert 由浏览器保证；原手写 window keydown 监听已移除
+    <ModalDialog open onClose={onClose} ariaLabel="运行配置" className="w-105 p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <div>
+          <div className="text-sm font-semibold text-gray-800">运行配置（LLM 接入）</div>
+          <div className="text-[11px] text-gray-500">
+            {configured ? "已配置 · 重跑将使用该接入点" : "尚未配置 · 重跑前必须完成"}
           </div>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded px-1.5 text-sm text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+          aria-label="关闭"
+        >
+          ✕
+        </button>
+      </div>
+
+      <div className="space-y-2.5">
+        <label className="block">
+          <span className="mb-0.5 block text-[11px] font-medium text-gray-600">baseURL</span>
+          <input
+            type="url"
+            value={baseURL}
+            onChange={(e) => setBaseURL(e.target.value)}
+            placeholder="https://api.deepseek.com/v1"
+            spellCheck={false}
+            className="w-full rounded border border-gray-300 px-2 py-1 font-code text-xs outline-none focus:border-blue-400"
+          />
+        </label>
+
+        <label className="block">
+          <span className="mb-0.5 block text-[11px] font-medium text-gray-600">apiKey</span>
+          <input
+            type="password"
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            placeholder={configured ? "留空表示保持已保存的密钥" : "必填"}
+            autoComplete="off"
+            spellCheck={false}
+            className="w-full rounded border border-gray-300 px-2 py-1 font-code text-xs outline-none focus:border-blue-400"
+          />
+        </label>
+
+        <label className="block">
+          <span className="mb-0.5 block text-[11px] font-medium text-gray-600">model</span>
+          <input
+            type="text"
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            placeholder="deepseek-chat"
+            spellCheck={false}
+            className="w-full rounded border border-gray-300 px-2 py-1 font-code text-xs outline-none focus:border-blue-400"
+          />
+        </label>
+      </div>
+
+      {plain ? (
+        <div className="mt-3 rounded border-l-2 border-amber-400 bg-amber-50 px-2 py-1.5 text-[11px] leading-4 text-amber-800">
+          系统加密不可用：apiKey 将以明文保存在数据目录 settings.json 中。请仅在可信环境下使用。
+        </div>
+      ) : (
+        <div className="mt-3 rounded border-l-2 border-emerald-400 bg-emerald-50 px-2 py-1.5 text-[11px] text-emerald-800">
+          apiKey 将经系统加密（safeStorage）后写入数据目录 settings.json。
+        </div>
+      )}
+
+      {message !== null ? <div className="mt-2 text-[11px] text-gray-600">{message}</div> : null}
+
+      {missing.length > 0 ? (
+        <div className="mt-2 text-[11px] text-amber-700">
+          请先填写：{missing.join("、")}（apiKey 可在已配置后留空以保持不变）
+        </div>
+      ) : null}
+
+      <div className="mt-4 flex items-center justify-between">
+        <button
+          type="button"
+          onClick={() => {
+            void doClear();
+          }}
+          disabled={!configured || busy}
+          className="rounded px-2 py-1 text-[11px] text-gray-500 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          清除配置
+        </button>
+        <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={onClose}
-            className="rounded px-1.5 text-sm text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-            aria-label="关闭"
+            className="rounded border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50"
           >
-            ✕
+            关闭
           </button>
-        </div>
-
-        <div className="space-y-2.5">
-          <label className="block">
-            <span className="mb-0.5 block text-[11px] font-medium text-gray-600">baseURL</span>
-            <input
-              type="url"
-              value={baseURL}
-              onChange={(e) => setBaseURL(e.target.value)}
-              placeholder="https://api.deepseek.com/v1"
-              spellCheck={false}
-              className="w-full rounded border border-gray-300 px-2 py-1 font-code text-xs outline-none focus:border-blue-400"
-            />
-          </label>
-
-          <label className="block">
-            <span className="mb-0.5 block text-[11px] font-medium text-gray-600">apiKey</span>
-            <input
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder={configured ? "留空表示保持已保存的密钥" : "必填"}
-              autoComplete="off"
-              spellCheck={false}
-              className="w-full rounded border border-gray-300 px-2 py-1 font-code text-xs outline-none focus:border-blue-400"
-            />
-          </label>
-
-          <label className="block">
-            <span className="mb-0.5 block text-[11px] font-medium text-gray-600">model</span>
-            <input
-              type="text"
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              placeholder="deepseek-chat"
-              spellCheck={false}
-              className="w-full rounded border border-gray-300 px-2 py-1 font-code text-xs outline-none focus:border-blue-400"
-            />
-          </label>
-        </div>
-
-        {plain ? (
-          <div className="mt-3 rounded border-l-2 border-amber-400 bg-amber-50 px-2 py-1.5 text-[11px] leading-4 text-amber-800">
-            系统加密不可用：apiKey 将以明文保存在数据目录 settings.json 中。请仅在可信环境下使用。
-          </div>
-        ) : (
-          <div className="mt-3 rounded border-l-2 border-emerald-400 bg-emerald-50 px-2 py-1.5 text-[11px] text-emerald-800">
-            apiKey 将经系统加密（safeStorage）后写入数据目录 settings.json。
-          </div>
-        )}
-
-        {message !== null ? <div className="mt-2 text-[11px] text-gray-600">{message}</div> : null}
-
-        {missing.length > 0 ? (
-          <div className="mt-2 text-[11px] text-amber-700">
-            请先填写：{missing.join("、")}（apiKey 可在已配置后留空以保持不变）
-          </div>
-        ) : null}
-
-        <div className="mt-4 flex items-center justify-between">
           <button
             type="button"
             onClick={() => {
-              void doClear();
+              void doSave();
             }}
-            disabled={!configured || busy}
-            className="rounded px-2 py-1 text-[11px] text-gray-500 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
+            disabled={!canSave}
+            className="rounded bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            清除配置
+            {busy ? "保存中…" : "保存"}
           </button>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50"
-            >
-              关闭
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                void doSave();
-              }}
-              disabled={!canSave}
-              className="rounded bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              {busy ? "保存中…" : "保存"}
-            </button>
-          </div>
         </div>
+      </div>
 
-        {/* ---------------------------------------------------------------
+      {/* ---------------------------------------------------------------
             本地录制代理：零摩擦接入（key 留在你的应用里，ReBaseAgent 不保管）
             全局栏「录制接入」即定位到本分区（任务 4.2）
             --------------------------------------------------------------- */}
-        <div ref={proxySectionRef} className="mt-4 border-t border-gray-200 pt-3">
-          <div className="mb-1 flex items-center justify-between">
-            <div className="text-sm font-semibold text-gray-800">本地录制代理（零摩擦接入）</div>
+      <div ref={proxySectionRef} className="mt-4 border-t border-gray-200 pt-3">
+        <div className="mb-1 flex items-center justify-between">
+          <div className="text-sm font-semibold text-gray-800">本地录制代理（零摩擦接入）</div>
+          <span
+            className={`inline-flex items-center gap-1 text-[11px] ${
+              proxy?.running === true ? "text-emerald-700" : "text-gray-400"
+            }`}
+          >
             <span
-              className={`inline-flex items-center gap-1 text-[11px] ${
-                proxy?.running === true ? "text-emerald-700" : "text-gray-400"
+              className={`inline-block h-1.5 w-1.5 rounded-full ${
+                proxy?.running === true ? "bg-emerald-500" : "bg-gray-300"
               }`}
-            >
-              <span
-                className={`inline-block h-1.5 w-1.5 rounded-full ${
-                  proxy?.running === true ? "bg-emerald-500" : "bg-gray-300"
-                }`}
-              />
-              {proxy?.running === true ? `运行中 :${proxy.port}` : "已停止"}
-            </span>
-          </div>
-          <div className="mb-2 text-[11px] leading-4 text-gray-500">
-            把你的 Agent 应用 base_url 改为{" "}
-            <span className="font-code">http://127.0.0.1:&lt;端口&gt;/v1</span>， key
-            一字不动即可录制每次 LLM 调用。录制/查看不需要任何配置；key
-            仅在本会话内存中暂存用于「编辑重发」。
-          </div>
+            />
+            {proxy?.running === true ? `运行中 :${proxy.port}` : "已停止"}
+          </span>
+        </div>
+        <div className="mb-2 text-[11px] leading-4 text-gray-500">
+          把你的 Agent 应用 base_url 改为{" "}
+          <span className="font-code">http://127.0.0.1:&lt;端口&gt;/v1</span>， key
+          一字不动即可录制每次 LLM 调用。录制/查看不需要任何配置；key
+          仅在本会话内存中暂存用于「编辑重发」。
+        </div>
 
-          <div className="space-y-2">
-            <label className="flex items-center gap-2 text-[11px] text-gray-700">
+        <div className="space-y-2">
+          <label className="flex items-center gap-2 text-[11px] text-gray-700">
+            <input
+              ref={proxyCheckboxRef}
+              type="checkbox"
+              checked={proxyEnabled}
+              onChange={(e) => setProxyEnabled(e.target.checked)}
+              className="h-3.5 w-3.5"
+            />
+            启用代理
+          </label>
+          <div className="flex gap-2">
+            <label className="block w-24">
+              <span className="mb-0.5 block text-[11px] font-medium text-gray-600">端口</span>
               <input
-                ref={proxyCheckboxRef}
-                type="checkbox"
-                checked={proxyEnabled}
-                onChange={(e) => setProxyEnabled(e.target.checked)}
-                className="h-3.5 w-3.5"
+                type="number"
+                min={1}
+                max={65535}
+                value={proxyPort}
+                onChange={(e) => setProxyPort(e.target.value)}
+                spellCheck={false}
+                className="w-full rounded border border-gray-300 px-2 py-1 font-code text-xs outline-none focus:border-blue-400"
               />
-              启用代理
             </label>
-            <div className="flex gap-2">
-              <label className="block w-24">
-                <span className="mb-0.5 block text-[11px] font-medium text-gray-600">端口</span>
-                <input
-                  type="number"
-                  min={1}
-                  max={65535}
-                  value={proxyPort}
-                  onChange={(e) => setProxyPort(e.target.value)}
-                  spellCheck={false}
-                  className="w-full rounded border border-gray-300 px-2 py-1 font-code text-xs outline-none focus:border-blue-400"
-                />
-              </label>
-              <label className="block flex-1">
-                <span className="mb-0.5 block text-[11px] font-medium text-gray-600">
-                  upstream（转发目标，不进 trace）
-                </span>
-                <input
-                  type="url"
-                  value={proxyUpstream}
-                  onChange={(e) => setProxyUpstream(e.target.value)}
-                  placeholder="https://api.deepseek.com"
-                  spellCheck={false}
-                  className="w-full rounded border border-gray-300 px-2 py-1 font-code text-xs outline-none focus:border-blue-400"
-                />
-              </label>
-            </div>
-          </div>
-
-          {proxyMessage !== null ? (
-            <div className="mt-2 text-[11px] leading-4 text-gray-600">{proxyMessage}</div>
-          ) : null}
-
-          <div className="mt-2 flex justify-end">
-            <button
-              type="button"
-              onClick={() => {
-                void doProxyApply();
-              }}
-              disabled={proxyBusy}
-              className="rounded bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              {proxyBusy ? "应用中…" : "保存并应用"}
-            </button>
+            <label className="block flex-1">
+              <span className="mb-0.5 block text-[11px] font-medium text-gray-600">
+                upstream（转发目标，不进 trace）
+              </span>
+              <input
+                type="url"
+                value={proxyUpstream}
+                onChange={(e) => setProxyUpstream(e.target.value)}
+                placeholder="https://api.deepseek.com"
+                spellCheck={false}
+                className="w-full rounded border border-gray-300 px-2 py-1 font-code text-xs outline-none focus:border-blue-400"
+              />
+            </label>
           </div>
         </div>
-      </dialog>
-    </div>
+
+        {proxyMessage !== null ? (
+          <div className="mt-2 text-[11px] leading-4 text-gray-600">{proxyMessage}</div>
+        ) : null}
+
+        <div className="mt-2 flex justify-end">
+          <button
+            type="button"
+            onClick={() => {
+              void doProxyApply();
+            }}
+            disabled={proxyBusy}
+            className="rounded bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {proxyBusy ? "应用中…" : "保存并应用"}
+          </button>
+        </div>
+      </div>
+    </ModalDialog>
   );
 }

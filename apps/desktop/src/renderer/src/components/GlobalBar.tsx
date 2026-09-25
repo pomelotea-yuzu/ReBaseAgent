@@ -98,6 +98,8 @@ function StatusIndicators({ onOpenSettings }: { onOpenSettings: () => void }): R
       <button
         type="button"
         onClick={onOpenSettings}
+        // U3 5.1：模态关闭时的焦点回退锚点——触发元素已卸载时聚焦这个常驻入口
+        data-modal-focus-fallback
         className={`inline-flex cursor-pointer items-center gap-1.5 rounded border border-gray-300 px-2 py-0.5 text-gray-600 hover:bg-gray-50 ${FOCUS_RING}`}
         title="配置 LLM 接入（baseURL / apiKey / model），供“在此重跑”发起真实调用"
       >

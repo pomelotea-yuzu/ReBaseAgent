@@ -15,6 +15,7 @@ import type { CreateRunFormState } from "../lib/create-run";
 import { isCreateRunDraftDirty } from "../lib/debugging-drafts";
 import { CREATE_SUBMIT_TARGET } from "../lib/draft-submission";
 import { useAppStore } from "../store";
+import { ModalDialog } from "./ModalDialog";
 
 /**
  * 新建运行对话框：桌面端原生 run 的唯一入口（runs:create）。
@@ -194,216 +195,216 @@ export function CreateRunDialog({ onClose }: { onClose: () => void }) {
         : "尚未配置运行参数：提交会被拒绝（SETTINGS_NOT_CONFIGURED），请先点右上角“运行配置”";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4">
-      <dialog
-        open
-        aria-label="新建运行"
-        onCancel={(e) => e.preventDefault()}
-        className="relative m-0 flex max-h-[85vh] w-120 max-w-full flex-col rounded-lg border border-gray-200 bg-white p-4 shadow-xl"
-      >
-        <div className="mb-3 flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <div className="text-sm font-semibold text-gray-800">新建运行</div>
-            <div className="text-[11px] text-gray-500">
-              {isolated
-                ? `从头执行一个隔离文件 run（固定 ${ISOLATED_TOOL_PROFILE_LABEL} 工具组、无父 run）· 将发起一次真实模型调用`
-                : "从头执行一个 run（空工具表、无父 run）· 将发起一次真实模型调用"}
-            </div>
+    <ModalDialog
+      open
+      onClose={onClose}
+      ariaLabel="新建运行"
+      // 创建执行中 / 目录选择中的既有关闭锁：Esc/取消被吞掉（5.1）
+      closeDisabled={modalLocked}
+      className="flex max-h-[85vh] w-120 flex-col p-4"
+    >
+      <div className="mb-3 flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="text-sm font-semibold text-gray-800">新建运行</div>
+          <div className="text-[11px] text-gray-500">
+            {isolated
+              ? `从头执行一个隔离文件 run（固定 ${ISOLATED_TOOL_PROFILE_LABEL} 工具组、无父 run）· 将发起一次真实模型调用`
+              : "从头执行一个 run（空工具表、无父 run）· 将发起一次真实模型调用"}
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={modalLocked}
-            className="shrink-0 rounded px-1.5 text-sm text-gray-400 hover:bg-gray-100 hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-40"
-            aria-label="关闭"
-          >
-            ✕
-          </button>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          disabled={modalLocked}
+          className="shrink-0 rounded px-1.5 text-sm text-gray-400 hover:bg-gray-100 hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-40"
+          aria-label="关闭"
+        >
+          ✕
+        </button>
+      </div>
+
+      {/* 主体可滚动：窄窗口下长源路径与确认区不遮挡提交按钮（spec 场景「创建与确认在窄窗口可操作」） */}
+      <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto pr-0.5">
+        <div>
+          <span className="mb-1 block text-[11px] font-medium text-gray-600">运行模式</span>
+          {/* 与运行列表的来源过滤同形：一组 aria-pressed 按钮，不额外声明 role */}
+          <div className="flex items-center gap-1">
+            {CREATE_RUN_MODES.map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                aria-pressed={form.mode === mode}
+                onClick={() => switchMode(mode)}
+                disabled={modalLocked}
+                className={`flex-1 rounded border px-2 py-1 text-[11px] disabled:cursor-not-allowed disabled:opacity-40 ${
+                  form.mode === mode
+                    ? "border-blue-600 bg-blue-600 text-white"
+                    : "border-gray-300 text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                {CREATE_RUN_MODE_LABELS[mode]}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* 主体可滚动：窄窗口下长源路径与确认区不遮挡提交按钮（spec 场景「创建与确认在窄窗口可操作」） */}
-        <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto pr-0.5">
-          <div>
-            <span className="mb-1 block text-[11px] font-medium text-gray-600">运行模式</span>
-            {/* 与运行列表的来源过滤同形：一组 aria-pressed 按钮，不额外声明 role */}
-            <div className="flex items-center gap-1">
-              {CREATE_RUN_MODES.map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  aria-pressed={form.mode === mode}
-                  onClick={() => switchMode(mode)}
-                  disabled={modalLocked}
-                  className={`flex-1 rounded border px-2 py-1 text-[11px] disabled:cursor-not-allowed disabled:opacity-40 ${
-                    form.mode === mode
-                      ? "border-blue-600 bg-blue-600 text-white"
-                      : "border-gray-300 text-gray-600 hover:bg-gray-50"
-                  }`}
-                >
-                  {CREATE_RUN_MODE_LABELS[mode]}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {isolated ? (
-            <div className="space-y-2 rounded border border-gray-200 bg-gray-50 p-2">
-              <div className="flex items-start gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    void pickSource();
-                  }}
-                  disabled={modalLocked}
-                  className="shrink-0 rounded border border-gray-300 bg-white px-2 py-1 text-[11px] text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  {pickingSource ? "选择中…" : form.source === null ? "选择目录…" : "重新选择…"}
-                </button>
-                <div className="min-w-0 flex-1">
-                  {form.source === null ? (
-                    <div className="text-[11px] text-gray-500">尚未选择源目录</div>
-                  ) : (
-                    <>
-                      <div className="truncate text-[11px] font-medium text-gray-700">
-                        {form.source.name}
-                      </div>
-                      {/* 长路径换行而非截断：用户需要核对到底选了哪个目录 */}
-                      <div className="break-all font-code text-[11px] leading-4 text-gray-500">
-                        {form.source.path}
-                      </div>
-                    </>
-                  )}
-                </div>
+        {isolated ? (
+          <div className="space-y-2 rounded border border-gray-200 bg-gray-50 p-2">
+            <div className="flex items-start gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  void pickSource();
+                }}
+                disabled={modalLocked}
+                className="shrink-0 rounded border border-gray-300 bg-white px-2 py-1 text-[11px] text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {pickingSource ? "选择中…" : form.source === null ? "选择目录…" : "重新选择…"}
+              </button>
+              <div className="min-w-0 flex-1">
+                {form.source === null ? (
+                  <div className="text-[11px] text-gray-500">尚未选择源目录</div>
+                ) : (
+                  <>
+                    <div className="truncate text-[11px] font-medium text-gray-700">
+                      {form.source.name}
+                    </div>
+                    {/* 长路径换行而非截断：用户需要核对到底选了哪个目录 */}
+                    <div className="break-all font-code text-[11px] leading-4 text-gray-500">
+                      {form.source.path}
+                    </div>
+                  </>
+                )}
               </div>
+            </div>
 
-              <ul className="list-disc space-y-0.5 pl-4 text-[11px] leading-4 text-gray-600">
-                <li>
-                  采集选定目录下全部受支持的普通文件（含隐藏文件）；链接、非普通文件、磁盘根与数据目录内的路径会被拒绝。
-                </li>
-                <li>
-                  文件内容只落入数据目录里的不可变附件，源目录不会被修改；后续分叉的写入也只落在各自的副本映射里。
-                </li>
-                <li>
-                  {ISOLATED_TOOL_NAMES.join(" / ")} 工具读出的文本会进入你配置的模型请求。
-                  <span className="text-gray-500">（{settingsLine}）</span>
-                </li>
-              </ul>
+            <ul className="list-disc space-y-0.5 pl-4 text-[11px] leading-4 text-gray-600">
+              <li>
+                采集选定目录下全部受支持的普通文件（含隐藏文件）；链接、非普通文件、磁盘根与数据目录内的路径会被拒绝。
+              </li>
+              <li>
+                文件内容只落入数据目录里的不可变附件，源目录不会被修改；后续分叉的写入也只落在各自的副本映射里。
+              </li>
+              <li>
+                {ISOLATED_TOOL_NAMES.join(" / ")} 工具读出的文本会进入你配置的模型请求。
+                <span className="text-gray-500">（{settingsLine}）</span>
+              </li>
+            </ul>
 
-              <label className="flex items-start gap-2 rounded border border-amber-200 bg-amber-50 px-2 py-1.5">
-                <input
-                  type="checkbox"
-                  checked={form.writesAuthorized}
-                  // 未选目录时无可授权的对象；执行中不允许改授权
-                  disabled={modalLocked || form.source === null}
-                  onChange={(e) => setForm((prev) => setWritesAuthorized(prev, e.target.checked))}
-                  className="mt-0.5 shrink-0"
-                />
-                <span className="text-[11px] leading-4 text-amber-900">
-                  允许本次执行的副本写入
-                  <span className="text-amber-700">
-                    （默认未选；只对这一次提交有效，重新打开或切换模式后都要重新勾选）
-                  </span>
+            <label className="flex items-start gap-2 rounded border border-amber-200 bg-amber-50 px-2 py-1.5">
+              <input
+                type="checkbox"
+                checked={form.writesAuthorized}
+                // 未选目录时无可授权的对象；执行中不允许改授权
+                disabled={modalLocked || form.source === null}
+                onChange={(e) => setForm((prev) => setWritesAuthorized(prev, e.target.checked))}
+                className="mt-0.5 shrink-0"
+              />
+              <span className="text-[11px] leading-4 text-amber-900">
+                允许本次执行的副本写入
+                <span className="text-amber-700">
+                  （默认未选；只对这一次提交有效，重新打开或切换模式后都要重新勾选）
                 </span>
-              </label>
-            </div>
-          ) : null}
-
-          <label className="block">
-            <span className="mb-0.5 block text-[11px] font-medium text-gray-600">
-              System Prompt（可选）
-            </span>
-            <textarea
-              value={systemPrompt}
-              onChange={(e) => writeCreateRunDraft({ systemPrompt: e.target.value })}
-              placeholder="例如：你是一个简洁的问答助手，用两三句话回答。"
-              spellCheck={false}
-              rows={3}
-              disabled={draftFrozen}
-              className="w-full resize-y rounded border border-gray-300 px-2 py-1 font-code text-xs outline-none focus:border-blue-400 disabled:bg-gray-50"
-            />
-            {systemPrompt.trim().length === 0 ? (
-              <span className="mt-0.5 block text-[11px] text-gray-500">
-                留空也可以：此时 config_hash 按空 system 计算
-                {isolated ? "（按空 system + 固定工具组）" : ""}，仍可作为分叉与 A/B 的父本。
               </span>
-            ) : null}
-          </label>
+            </label>
+          </div>
+        ) : null}
 
-          <label className="block">
-            <span className="mb-0.5 block text-[11px] font-medium text-gray-600">
-              User Message（必填）
-            </span>
-            <textarea
-              value={userMessage}
-              onChange={(e) => writeCreateRunDraft({ userMessage: e.target.value })}
-              placeholder="要交给模型的任务。它会同时成为该 run 在列表中的标题。"
-              spellCheck={false}
-              rows={5}
-              disabled={draftFrozen}
-              className="w-full resize-y rounded border border-gray-300 px-2 py-1 font-code text-xs outline-none focus:border-blue-400 disabled:bg-gray-50"
-            />
+        <label className="block">
+          <span className="mb-0.5 block text-[11px] font-medium text-gray-600">
+            System Prompt（可选）
+          </span>
+          <textarea
+            value={systemPrompt}
+            onChange={(e) => writeCreateRunDraft({ systemPrompt: e.target.value })}
+            placeholder="例如：你是一个简洁的问答助手，用两三句话回答。"
+            spellCheck={false}
+            rows={3}
+            disabled={draftFrozen}
+            className="w-full resize-y rounded border border-gray-300 px-2 py-1 font-code text-xs outline-none focus:border-blue-400 disabled:bg-gray-50"
+          />
+          {systemPrompt.trim().length === 0 ? (
             <span className="mt-0.5 block text-[11px] text-gray-500">
-              该 run 在列表中的标题（task）即这段文字。
+              留空也可以：此时 config_hash 按空 system 计算
+              {isolated ? "（按空 system + 固定工具组）" : ""}，仍可作为分叉与 A/B 的父本。
             </span>
-          </label>
-
-          {/* 提交被挡的原因：文字表达，不靠颜色 */}
-          {blockedReason !== null && !busy ? (
-            <div className="rounded border-l-2 border-amber-400 bg-amber-50 px-2 py-1.5 text-[11px] leading-4 text-amber-800">
-              {blockedReason}
-            </div>
           ) : null}
+        </label>
 
-          {createRunError !== null ? (
-            <div className="rounded border-l-2 border-red-400 bg-red-50 px-2 py-1.5 text-[11px] leading-4 text-red-700">
-              {createRunError}
-            </div>
-          ) : null}
+        <label className="block">
+          <span className="mb-0.5 block text-[11px] font-medium text-gray-600">
+            User Message（必填）
+          </span>
+          <textarea
+            value={userMessage}
+            onChange={(e) => writeCreateRunDraft({ userMessage: e.target.value })}
+            placeholder="要交给模型的任务。它会同时成为该 run 在列表中的标题。"
+            spellCheck={false}
+            rows={5}
+            disabled={draftFrozen}
+            className="w-full resize-y rounded border border-gray-300 px-2 py-1 font-code text-xs outline-none focus:border-blue-400 disabled:bg-gray-50"
+          />
+          <span className="mt-0.5 block text-[11px] text-gray-500">
+            该 run 在列表中的标题（task）即这段文字。
+          </span>
+        </label>
 
-          {draftFrozen ? (
-            <div className="rounded border-l-2 border-violet-400 bg-violet-50 px-2 py-1.5 text-[11px] leading-4 text-violet-800">
-              本次提交待处理：已按提交时的修订冻结整份表单，请求返回前不可修改、切换模式或放弃。
-              无论成功、业务拒绝还是失败，表单内容都保留（待 U5 接入可信操作身份后才自动清理）。
-            </div>
-          ) : null}
+        {/* 提交被挡的原因：文字表达，不靠颜色 */}
+        {blockedReason !== null && !busy ? (
+          <div className="rounded border-l-2 border-amber-400 bg-amber-50 px-2 py-1.5 text-[11px] leading-4 text-amber-800">
+            {blockedReason}
+          </div>
+        ) : null}
 
-          {busy ? (
-            <div className="rounded border-l-2 border-blue-400 bg-blue-50 px-2 py-1.5 text-[11px] text-blue-800">
-              执行中…（真实调用，请勿关闭应用）
-            </div>
-          ) : null}
-        </div>
+        {createRunError !== null ? (
+          <div className="rounded border-l-2 border-red-400 bg-red-50 px-2 py-1.5 text-[11px] leading-4 text-red-700">
+            {createRunError}
+          </div>
+        ) : null}
 
-        <div className="mt-4 flex shrink-0 items-center justify-end gap-2">
-          <button
-            type="button"
-            onClick={discardDraft}
-            disabled={modalLocked || !draftDirty}
-            title={draftDirty ? undefined : "尚无修改可放弃"}
-            className="mr-auto rounded border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            放弃填写内容
-          </button>
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={modalLocked}
-            className="rounded border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            取消
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              void submit();
-            }}
-            disabled={!canCreate}
-            className="rounded bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {busy ? "创建中…" : isolated ? "创建隔离运行" : "创建"}
-          </button>
-        </div>
-      </dialog>
-    </div>
+        {draftFrozen ? (
+          <div className="rounded border-l-2 border-violet-400 bg-violet-50 px-2 py-1.5 text-[11px] leading-4 text-violet-800">
+            本次提交待处理：已按提交时的修订冻结整份表单，请求返回前不可修改、切换模式或放弃。
+            无论成功、业务拒绝还是失败，表单内容都保留（待 U5 接入可信操作身份后才自动清理）。
+          </div>
+        ) : null}
+
+        {busy ? (
+          <div className="rounded border-l-2 border-blue-400 bg-blue-50 px-2 py-1.5 text-[11px] text-blue-800">
+            执行中…（真实调用，请勿关闭应用）
+          </div>
+        ) : null}
+      </div>
+
+      <div className="mt-4 flex shrink-0 items-center justify-end gap-2">
+        <button
+          type="button"
+          onClick={discardDraft}
+          disabled={modalLocked || !draftDirty}
+          title={draftDirty ? undefined : "尚无修改可放弃"}
+          className="mr-auto rounded border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          放弃填写内容
+        </button>
+        <button
+          type="button"
+          onClick={onClose}
+          disabled={modalLocked}
+          className="rounded border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          取消
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            void submit();
+          }}
+          disabled={!canCreate}
+          className="rounded bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {busy ? "创建中…" : isolated ? "创建隔离运行" : "创建"}
+        </button>
+      </div>
+    </ModalDialog>
   );
 }

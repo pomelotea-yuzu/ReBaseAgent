@@ -80,7 +80,20 @@ export function useDraftCloseGuard(): boolean {
       event.preventDefault();
       event.stopPropagation();
     };
-    const events = ["keydown", "keypress", "beforeinput", "paste", "drop", "dragstart"] as const;
+    const events = [
+      "keydown",
+      "keypress",
+      "beforeinput",
+      "paste",
+      "drop",
+      "dragstart",
+      // 任务 5.1：showModal 的对话框在 top layer，覆盖层遮不住 ⇒ 指针事件也须
+      // 在捕获阶段拦截（对话框内的按钮/输入否则仍可点）
+      "mousedown",
+      "click",
+      "auxclick",
+      "contextmenu",
+    ] as const;
     const options: AddEventListenerOptions = { capture: true };
     for (const type of events) {
       document.addEventListener(type, block, options);
