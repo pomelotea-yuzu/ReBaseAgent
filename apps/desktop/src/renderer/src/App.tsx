@@ -2,6 +2,7 @@ import { PanelLeftOpen } from "lucide-react";
 import { useEffect, useState } from "react";
 import { BranchTree } from "./components/BranchTree";
 import { ComparePanel } from "./components/ComparePanel";
+import { ConfirmDialogHost } from "./components/ConfirmDialog";
 import { CreateRunDialog } from "./components/CreateRunDialog";
 import { DetailPanel } from "./components/DetailPanel";
 import { DraftCloseLockOverlay } from "./components/DraftCloseLockOverlay";
@@ -136,6 +137,8 @@ export default function App() {
       {settingsOpen ? <SettingsDialog onClose={() => setSettingsOpen(false)} /> : null}
       {/* 「新建运行」对话框在 App 层单例：全局栏与列表标题区共用同一个 createDialogOpen */}
       {createDialogOpen ? <CreateRunDialog onClose={() => setCreateDialogOpen(false)} /> : null}
+      {/* U3 任务 5.2：放弃确认的单实例模态宿主（requestConfirm 驱动） */}
+      <ConfirmDialogHost />
       {/* U3 任务 4.2：关闭核对期间禁止一切新输入（键盘/粘贴由 hook 的捕获监听挡） */}
       {draftCloseLocked ? <DraftCloseLockOverlay /> : null}
     </div>
