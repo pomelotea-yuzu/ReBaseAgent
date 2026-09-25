@@ -355,3 +355,74 @@ describe("U3 4.5 有界查询与超时降级", () => {
     expect(attach).not.toContain("无响应");
   });
 });
+
+describe("U3 4.6 防重入 / bypass 生命周期 / 递归 quit", () => {
+  it("busy 贯穿协商与确认，结束后回到空闲", async () => {
+    const h = setup();
+    expect(h.flow.busy).toBe(false);
+    h.setHandshaken(true);
+    h.flow.interceptClose();
+    expect(h.flow.busy).toBe(true);
+    answerThrough(h, { dirtyCount: 1 });
+    await h.flow.requestClose();
+    expect(h.flow.busy).toBe(false);
+  });
+
+  it("取消后旧 requestId 应答被拒；新关闭用新 requestId 重新核对", async () => {
+    const h = setup({ confirmChoice: "return" });
+    h.setHandshaken(true);
+
+    // 第一轮：dirty → 用户返回 → 取消
+    h.flow.interceptClose();
+    const firstRequestId = h.queries[0]?.requestId ?? "";
+    answerThrough(h, { dirtyCount: 2 });
+    expect(await h.flow.requestClose()).toBe("canceled");
+
+    // 旧 requestId 的迟到应答被 guard 拒绝（不会唤醒任何流程）
+    expect(
+      h.guard.handleAnswer(sender(), {
+        sessionId: "sess-main",
+        requestId: firstRequestId,
+        sequence: 50,
+        dirtyCount: 0,
+        inputSettled: true,
+      }).ok,
+    ).toBe(false);
+
+    // 第二轮：新关闭 = 新鲜查询（requestId 换新），正常走完
+    h.flow.interceptClose();
+    const secondRequestId = h.queries[1]?.requestId ?? "";
+    expect(secondRequestId).not.toBe(firstRequestId);
+    answerThrough(h, { dirtyCount: 0, sequence: 60 });
+    expect(await h.flow.requestClose()).toBe("closed");
+    // 放行路径的释放通知必须携带**本轮**的 requestId（陈旧身份即泄漏）
+    expect(h.releases).toHaveLength(2);
+    expect(h.releases[1]?.requestId).toBe(secondRequestId);
+  });
+
+  it("确认退出的 bypass 只消费一次：泄漏到下一次关闭 = 重新协商（不静默放行）", async () => {
+    const h = setup({ confirmChoice: "quit" });
+    h.setHandshaken(true);
+
+    h.flow.interceptClose();
+    answerThrough(h, { dirtyCount: 1 });
+    expect(await h.flow.requestClose()).toBe("closed");
+    expect(h.flow.interceptClose()).toBe(true); // 本次确认退出的 bypass
+
+    // bypass 已消费：下一次关闭必须重新协商（后续会话不复用放行标记）
+    h.confirmChoice = "return";
+    expect(h.flow.interceptClose()).toBe(false);
+    expect(h.flow.busy).toBe(true);
+    expect(h.queries).toHaveLength(2); // 新的新鲜查询已发出
+    expect(h.closeCalls).toBe(1); // 上一轮的关窗调用，未被重复
+  });
+
+  it("源码契约：before-quit 复用 flow.requestClose，不直接退出/不自行操作 bypass", () => {
+    const index = readFileSync(resolve(import.meta.dirname, "../src/main/index.ts"), "utf8");
+    // quit 路径必须经决策流（同一 guard），不得 app.exit 绕过其他窗口的核对
+    expect(index).toContain("handle.flow.requestClose()");
+    expect(index).not.toContain("app.exit(");
+    expect(index).not.toContain("bypassArmed");
+    expect(index).not.toContain("armBypass");
+  });
+});

@@ -70,7 +70,6 @@ export interface DraftCloseFlowDeps {
 }
 
 export class DraftCloseFlow {
-  private state: "idle" | "negotiating" | "confirming" = "idle";
   private bypassArmed = false;
   private pending: Promise<CloseOutcome> | null = null;
   private answerWaiter: ((answer: DraftCloseAnswer | undefined) => void) | null = null;
@@ -83,6 +82,11 @@ export class DraftCloseFlow {
     private readonly ports: DraftCloseFlowPorts,
     private readonly deps: DraftCloseFlowDeps = {},
   ) {}
+
+  /** 是否有进行中的协商/确认（防重入由 pending 复用保证，此为可观测出口） */
+  get busy(): boolean {
+    return this.pending !== null;
+  }
 
   /**
    * 窗口 close 事件入口。返回 true = 放行本次 close（消费一次性 bypass）；
@@ -120,7 +124,6 @@ export class DraftCloseFlow {
 
   /** 协商核心。返回 "closed" 时 bypass 已 armed 且窗口正在关闭 */
   private async run(): Promise<CloseOutcome> {
-    this.state = "negotiating";
     const query = this.guard.beginQuery(this.webContentsId);
     if (query === null) {
       // 目标不存在（窗口已销毁）：无可核对对象 ⇒ 保守走 unknown 确认，不静默放行
@@ -178,9 +181,7 @@ export class DraftCloseFlow {
 
   /** dirty / unknown 共用：原生确认（默认返回），退出则一次性放行 */
   private async confirm(kind: "dirty" | "unknown"): Promise<CloseOutcome> {
-    this.state = "confirming";
     const choice = await this.ports.showConfirm(kind);
-    this.state = "idle";
     if (choice === "quit") {
       return this.executeQuit();
     }
