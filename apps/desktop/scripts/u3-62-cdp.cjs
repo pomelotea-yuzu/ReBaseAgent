@@ -39,8 +39,14 @@ function fixture() {
 
 const checks = [];
 function check(name, ok, detail) {
-  checks.push({ name: `[${TAG}] ${name}`, ok: ok === true, detail: ok === true ? "" : String(detail ?? "") });
-  console.log(`${ok === true ? "✓" : "✗"} ${name}${ok === true ? "" : ` — ${String(detail ?? "")}`}`);
+  checks.push({
+    name: `[${TAG}] ${name}`,
+    ok: ok === true,
+    detail: ok === true ? "" : String(detail ?? ""),
+  });
+  console.log(
+    `${ok === true ? "✓" : "✗"} ${name}${ok === true ? "" : ` — ${String(detail ?? "")}`}`,
+  );
 }
 function loadOut() {
   if (existsSync(OUT)) return JSON.parse(readFileSync(OUT, "utf8"));
@@ -64,8 +70,13 @@ async function appImport(call, needles, body) {
     const m = await import(urls[0]);
     ${body}
   })()`;
-  const r = await call("Runtime.evaluate", { expression: expr, returnByValue: true, awaitPromise: true });
-  if (r?.exceptionDetails) throw new Error(`eval: ${JSON.stringify(r.exceptionDetails).slice(0, 300)}`);
+  const r = await call("Runtime.evaluate", {
+    expression: expr,
+    returnByValue: true,
+    awaitPromise: true,
+  });
+  if (r?.exceptionDetails)
+    throw new Error(`eval: ${JSON.stringify(r.exceptionDetails).slice(0, 300)}`);
   const raw = r?.result?.value;
   try {
     return JSON.parse(raw);
@@ -74,7 +85,9 @@ async function appImport(call, needles, body) {
   }
 }
 const evAsync = (call, expression) =>
-  call("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true }).then((r) => r?.result?.value);
+  call("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true }).then(
+    (r) => r?.result?.value,
+  );
 
 async function drafts(call) {
   return appImport(
@@ -284,7 +297,7 @@ async function seedMessagesDraft(call, runId, text) {
   await typeIntoEditableMonaco(call, text);
   const d = await drafts(call);
   if (!(d?.calls?.[runId]?.s_02?.messages?.text ?? "").includes(text)) {
-    throw new Error(`messages 草稿写入失败`);
+    throw new Error("messages 草稿写入失败");
   }
   await clickTabChecked(call, "概览");
 }
@@ -298,7 +311,7 @@ async function scenarioR2(call, fx) {
   const task = `R2任务对照-${mark}`;
   await clickByTextChecked(call, "新建运行", 1000);
   const typed = await typeIntoDom(call, 'textarea[placeholder^="要交给模型的任务"]', task);
-  check("R2 首次键入控件", typed.value !== null && typed.value.includes(task), JSON.stringify(typed.value));
+  check("R2 首次键入控件", typed.value?.includes(task), JSON.stringify(typed.value));
   const clickInOpenDialog = async (text) => {
     const ok = await ev(
       call,
@@ -320,7 +333,7 @@ async function scenarioR2(call, fx) {
     `(() => { const i = document.querySelector('textarea[placeholder^="要交给模型的任务"]');
       return i === null ? null : i.value; })()`,
   );
-  check("R2 创建关闭配置再新建仍有任务", restored !== null && restored.includes(task), JSON.stringify(restored));
+  check("R2 创建关闭配置再新建仍有任务", restored?.includes(task), JSON.stringify(restored));
   // 输入对照落 measurements
   await shot(call, SHOT_DIR, "62-r2-create-restored.png");
   return { typed: task, restored };
@@ -355,7 +368,11 @@ async function scenarioPrecision(call, fx) {
   const items = JSON.parse(panelButtons);
   const idxA = items.findIndex((t) => t.includes(runA));
   const idxB = items.findIndex((t) => t.includes(runB));
-  check("R10 列表条目可区分（按 run 归属）", idxA >= 0 && idxB >= 0 && idxA !== idxB, JSON.stringify(items));
+  check(
+    "R10 列表条目可区分（按 run 归属）",
+    idxA >= 0 && idxB >= 0 && idxA !== idxB,
+    JSON.stringify(items),
+  );
   await ev(
     call,
     `(() => { const btns = Array.from(document.querySelectorAll('button[title="定位到该草稿的编辑目标"]'));
@@ -447,8 +464,12 @@ async function scenarioSourceChange(call, fx) {
     if (banner !== null) break;
     await sleep(500);
   }
-  check("source-change 失效横幅出现", banner !== null && banner.includes("来源失效，已禁止执行"), JSON.stringify(banner));
-  check("source-change 横幅标注来源已改变", banner !== null && banner.includes("改变"), JSON.stringify(banner));
+  check(
+    "source-change 失效横幅出现",
+    banner?.includes("来源失效，已禁止执行"),
+    JSON.stringify(banner),
+  );
+  check("source-change 横幅标注来源已改变", banner?.includes("改变"), JSON.stringify(banner));
 
   // 草稿仍可编辑（readOnly=false 且文本保留）
   const info = await monacoInfo(call);
@@ -511,7 +532,7 @@ async function scenarioSourceMissing(call, fx) {
       return true;
     }
   });
-  writeFileSync(file, kept.join("\n") + "\n");
+  writeFileSync(file, `${kept.join("\n")}\n`);
   console.log("[missing] s_03 span 行已摘除");
 
   // 重开编辑器（⚠️ 同 run 短路 ⇒ 先切到 proxy run 再切回，强制重拉详情）
@@ -611,25 +632,28 @@ async function scenarioDiscard(call, fx) {
   );
   check(
     "discard 模态出现且目标明确",
-    modalText !== null && modalText.includes(runA) && modalText.includes("放弃"),
+    modalText?.includes(runA) && modalText.includes("放弃"),
     JSON.stringify(modalText),
   );
   await shot(call, SHOT_DIR, "62-discard-modal.png");
   await clickByTextChecked(call, "取消", 700);
   let d = await drafts(call);
-  check(
-    "discard 取消后 A 草稿保留",
-    (d?.calls?.[runA]?.s_03?.result?.text ?? "").includes(tA),
-  );
+  check("discard 取消后 A 草稿保留", (d?.calls?.[runA]?.s_03?.result?.text ?? "").includes(tA));
 
   // 第二次：放弃 A → 确认 → 仅 A 消失，B 仍在
   await discardItemOf(runA);
   await sleep(700);
   await clickByTextChecked(call, "确认放弃", 800);
   d = await drafts(call);
-  const aGone = (d?.calls?.[runA]?.s_03?.result?.text ?? "") === "" || d?.calls?.[runA]?.s_03?.result === undefined;
+  const aGone =
+    (d?.calls?.[runA]?.s_03?.result?.text ?? "") === "" ||
+    d?.calls?.[runA]?.s_03?.result === undefined;
   const bKept = (d?.calls?.[runB]?.s_02?.messages?.text ?? "").includes(tB);
-  check("discard 确认后 A 草稿删除", aGone === true, JSON.stringify(d?.calls?.[runA]?.s_03 ?? null));
+  check(
+    "discard 确认后 A 草稿删除",
+    aGone === true,
+    JSON.stringify(d?.calls?.[runA]?.s_03 ?? null),
+  );
   check("discard 只影响指定目标（B 仍保留）", bKept === true);
   await shot(call, SHOT_DIR, "62-discard-after-confirm.png");
   return { tA, tB };
@@ -677,7 +701,9 @@ async function main() {
   saveOut(data);
 
   const failed = checks.filter((c) => !c.ok);
-  console.log(`\n完成：[${TAG}] ${checks.length - failed.length}/${checks.length} 通过；证据 ${SHOT_DIR}`);
+  console.log(
+    `\n完成：[${TAG}] ${checks.length - failed.length}/${checks.length} 通过；证据 ${SHOT_DIR}`,
+  );
   for (const f of failed) console.log(`  ✗ ${f.name}${f.detail ? ` — ${f.detail}` : ""}`);
   process.exit(failed.length ? 1 : 0);
 }

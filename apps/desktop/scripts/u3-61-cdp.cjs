@@ -49,8 +49,14 @@ function fixture() {
 // —— 断言记录（沿 u2-54 形态）——
 const checks = [];
 function check(name, ok, detail) {
-  checks.push({ name: `[${TAG}] ${name}`, ok: ok === true, detail: ok === true ? "" : String(detail ?? "") });
-  console.log(`${ok === true ? "✓" : "✗"} ${name}${ok === true ? "" : ` — ${String(detail ?? "")}`}`);
+  checks.push({
+    name: `[${TAG}] ${name}`,
+    ok: ok === true,
+    detail: ok === true ? "" : String(detail ?? ""),
+  });
+  console.log(
+    `${ok === true ? "✓" : "✗"} ${name}${ok === true ? "" : ` — ${String(detail ?? "")}`}`,
+  );
 }
 
 function loadOut() {
@@ -75,8 +81,13 @@ async function appImport(call, needles, body) {
     ${body}
   })()`;
   // ⚠️ async IIFE 必须 awaitPromise（否则拿到的是 Promise 序列化成 [object Object]）
-  const r = await call("Runtime.evaluate", { expression: expr, returnByValue: true, awaitPromise: true });
-  if (r?.exceptionDetails) throw new Error(`eval: ${JSON.stringify(r.exceptionDetails).slice(0, 300)}`);
+  const r = await call("Runtime.evaluate", {
+    expression: expr,
+    returnByValue: true,
+    awaitPromise: true,
+  });
+  if (r?.exceptionDetails)
+    throw new Error(`eval: ${JSON.stringify(r.exceptionDetails).slice(0, 300)}`);
   const raw = r?.result?.value;
   try {
     return JSON.parse(raw);
@@ -228,7 +239,11 @@ async function typeIntoEditableMonaco(call, text) {
   const modelChanged = async (expectIncludes) => {
     const info2 = await monacoInfo(call);
     const e2 = info2.editors[idx];
-    return e2 !== undefined && e2.value !== null && (!expectIncludes || e2.value.includes(expectIncludes));
+    return (
+      e2 !== undefined &&
+      e2.value !== null &&
+      (!expectIncludes || e2.value.includes(expectIncludes))
+    );
   };
   const before = info.editors[idx].value ?? "";
 
@@ -247,12 +262,16 @@ async function typeIntoEditableMonaco(call, text) {
   if (focus.ok === true) {
     for (const ch of Array.from(text)) {
       await call("Input.dispatchKeyEvent", {
-        type: "keyDown", key: ch, text: ch, windowsVirtualKeyCode: 0, unmodifiedText: ch,
+        type: "keyDown",
+        key: ch,
+        text: ch,
+        windowsVirtualKeyCode: 0,
+        unmodifiedText: ch,
       });
       await call("Input.dispatchKeyEvent", { type: "keyUp", key: ch, windowsVirtualKeyCode: 0 });
     }
     await sleep(700);
-    if (await modelChanged(null) && (await monacoInfo(call)).editors[idx].value !== before) {
+    if ((await modelChanged(null)) && (await monacoInfo(call)).editors[idx].value !== before) {
       return "cdp-keyboard";
     }
   }
@@ -346,7 +365,8 @@ async function scenarioResult(call, fx) {
     await clickTabChecked(call, "步骤");
     return detailSpans(call);
   })();
-  if (spans.tools.length === 0) throw new Error(`普通 run 无 tool.invoke：${JSON.stringify(spans)}`);
+  if (spans.tools.length === 0)
+    throw new Error(`普通 run 无 tool.invoke：${JSON.stringify(spans)}`);
   const toolSpan = spans.tools[0];
 
   await clickSpan(call, "read_file", toolSpan);
@@ -354,12 +374,16 @@ async function scenarioResult(call, fx) {
 
   const text = `结果草稿-A1-${Math.random().toString(36).slice(2, 6)}`;
   const typingPath = await typeIntoEditableMonaco(call, text);
-  check("result 键入路径已记录（三级回退，如实）", ["cdp-keyboard", "dom-input-event", "monaco-trigger"].includes(typingPath), `path=${typingPath}`);
+  check(
+    "result 键入路径已记录（三级回退，如实）",
+    ["cdp-keyboard", "dom-input-event", "monaco-trigger"].includes(typingPath),
+    `path=${typingPath}`,
+  );
 
   // 最后一次键入确实落入 store（导航前读）
   let d = await drafts(call);
   const stored = d?.calls?.[runId]?.[toolSpan]?.result?.text ?? null;
-  check("result 最后键入落入 store", stored !== null && stored.includes(text), `store=${JSON.stringify(stored)}`);
+  check("result 最后键入落入 store", stored?.includes(text), `store=${JSON.stringify(stored)}`);
   check("result dirty=true", d?.calls?.[runId]?.[toolSpan]?.result?.text !== undefined);
 
   // 步骤页签往返（打开态是临时 UI ⇒ 往返后须重新打开编辑器，草稿从 store 恢复）
@@ -369,7 +393,7 @@ async function scenarioResult(call, fx) {
   await clickByTextChecked(call, "在此重跑（时间旅行）", 1200);
   await shot(call, SHOT_DIR, "61-result-after-tab-roundtrip.png");
   let info = await monacoInfo(call);
-  let restored = info.editors.some((e) => e.value !== null && e.value.includes(text));
+  let restored = info.editors.some((e) => e.value?.includes(text));
   check("result 页签往返后控件逐字恢复（重开后）", restored, JSON.stringify(info.editors));
 
   // 运行往返：切走再切回
@@ -379,7 +403,7 @@ async function scenarioResult(call, fx) {
   await clickSpan(call, "read_file", toolSpan);
   await clickByTextChecked(call, "在此重跑（时间旅行）", 1200);
   info = await monacoInfo(call);
-  restored = info.editors.some((e) => e.value !== null && e.value.includes(text));
+  restored = info.editors.some((e) => e.value?.includes(text));
   check("result 运行往返后控件逐字恢复", restored, JSON.stringify(info.editors));
   d = await drafts(call);
   check(
@@ -435,7 +459,7 @@ async function scenarioContrast(call, fx) {
   const info = await monacoInfo(call);
   check(
     "同span对照：返回 A 后其草稿逐字保留",
-    info.editors.some((e) => e.value !== null && e.value.includes(aText)),
+    info.editors.some((e) => e.value?.includes(aText)),
     JSON.stringify(info.editors.map((e) => (e.value ?? "").slice(-40))),
   );
   await shot(call, SHOT_DIR, "61-contrast-a.png");
@@ -446,7 +470,7 @@ async function scenarioContrast(call, fx) {
   const info2 = await monacoInfo(call);
   check(
     "同span对照：B 侧草稿独立保留",
-    info2.editors.some((e) => e.value !== null && e.value.includes(bText)),
+    info2.editors.some((e) => e.value?.includes(bText)),
   );
   await shot(call, SHOT_DIR, "61-contrast-b.png");
 }
@@ -495,7 +519,7 @@ async function scenarioPrompt(call, fx) {
   let info = await monacoInfo(call);
   check(
     "prompt system 往返后控件恢复",
-    info.editors.some((e) => e.value !== null && e.value.includes(sysText)),
+    info.editors.some((e) => e.value?.includes(sysText)),
     JSON.stringify(info.editors.map((e) => (e.value ?? "").slice(-30))),
   );
   await shot(call, SHOT_DIR, "61-prompt-system-restored.png");
@@ -503,7 +527,7 @@ async function scenarioPrompt(call, fx) {
   info = await monacoInfo(call);
   check(
     "prompt user 往返后控件恢复",
-    info.editors.some((e) => e.value !== null && e.value.includes(usrText)),
+    info.editors.some((e) => e.value?.includes(usrText)),
     JSON.stringify(info.editors.map((e) => (e.value ?? "").slice(-30))),
   );
 }
@@ -520,7 +544,7 @@ async function scenarioMessages(call, fx) {
   await clickByTextChecked(call, "编辑 messages 重发", 1200);
 
   // 非法 JSON 仍可暂存（无损字符串）
-  const broken = `{"broken": [1,2,` + Math.random().toString(36).slice(2, 5);
+  const broken = `{"broken": [1,2,${Math.random().toString(36).slice(2, 5)}`;
   await typeIntoEditableMonaco(call, broken);
   let d = await drafts(call);
   check(
@@ -536,7 +560,7 @@ async function scenarioMessages(call, fx) {
   const info = await monacoInfo(call);
   check(
     "messages 非法 JSON 往返后控件逐字恢复",
-    info.editors.some((e) => e.value !== null && e.value.includes(broken)),
+    info.editors.some((e) => e.value?.includes(broken)),
     JSON.stringify(info.editors.map((e) => (e.value ?? "").slice(-30))),
   );
   await shot(call, SHOT_DIR, "61-messages-restored.png");
@@ -559,7 +583,11 @@ async function scenarioMessages(call, fx) {
        readOnlyFlags: eds.map((x) => x.getOption(monaco.editor.EditorOption.readOnly)),
      });`,
   );
-  check("messages 清空为空串（模型事件）", cleared.ok === true && cleared.value === "", JSON.stringify(cleared).slice(0, 200));
+  check(
+    "messages 清空为空串（模型事件）",
+    cleared.ok === true && cleared.value === "",
+    JSON.stringify(cleared).slice(0, 200),
+  );
   d = await drafts(call);
   const msgText = d?.calls?.[runId]?.[firstLlm]?.messages?.text ?? null;
   check("messages 空输入仍可暂存（store 空串）", msgText === "", JSON.stringify(msgText));
@@ -580,15 +608,23 @@ async function scenarioAb(call, fx) {
   // 非法参数（非 JSON 文本）写入第 1 臂 paramsText
   const badParams = `{not-json-${Math.random().toString(36).slice(2, 5)}`;
   const typed = await typeIntoDom(call, 'input[placeholder^="采样参数 JSON"]', badParams);
-  check("A/B 非法参数写入控件", typed.value !== null && typed.value.includes(badParams), `value=${JSON.stringify(typed.value)} path=${typed.path}`);
+  check(
+    "A/B 非法参数写入控件",
+    typed.value?.includes(badParams),
+    `value=${JSON.stringify(typed.value)} path=${typed.path}`,
+  );
   // 两条键入路径均为 DOM 层真输入（CDP insertText / native setter+input 事件），
   // React 受控输入实测走 native-setter；如实记录即可，不作硬性限定
-  check("A/B 键入路径已记录", ["insertText", "native-setter"].includes(typed.path), `path=${typed.path}`);
+  check(
+    "A/B 键入路径已记录",
+    ["insertText", "native-setter"].includes(typed.path),
+    `path=${typed.path}`,
+  );
   let d = await drafts(call);
   const rows = d?.modelAb?.[runId]?.[firstLlm]?.rows ?? null;
   check(
     "A/B 非法参数最后键入落入 store",
-    rows !== null && rows.some((r) => r.paramsText === badParams),
+    rows?.some((r) => r.paramsText === badParams),
     JSON.stringify(rows),
   );
 
@@ -609,14 +645,16 @@ async function scenarioAb(call, fx) {
     rowsRestored === rowsAfterAdd && rowsRestored === 3,
     `afterAdd=${rowsAfterAdd} restored=${rowsRestored}`,
   );
-  const stillBad = (d?.modelAb?.[runId]?.[firstLlm]?.rows ?? []).some((r) => r.paramsText === badParams);
+  const stillBad = (d?.modelAb?.[runId]?.[firstLlm]?.rows ?? []).some(
+    (r) => r.paramsText === badParams,
+  );
   check("A/B 非法参数往返后保留", stillBad);
   const domValue = await ev(
     call,
     `(() => { const i = document.querySelector('input[placeholder^="采样参数 JSON"]');
       return i === null ? null : i.value; })()`,
   );
-  check("A/B 再次挂载控件值恢复", domValue !== null && domValue.includes(badParams), JSON.stringify(domValue));
+  check("A/B 再次挂载控件值恢复", domValue?.includes(badParams), JSON.stringify(domValue));
   await shot(call, SHOT_DIR, "61-ab-restored.png");
 }
 
@@ -626,12 +664,8 @@ async function scenarioCreate(call, fx) {
   // 打开创建（全局栏「新建运行」）
   await clickByTextChecked(call, "新建运行", 1000);
   const task = `创建任务草稿-${mark}`;
-  const typed = await typeIntoDom(
-    call,
-    'textarea[placeholder^="要交给模型的任务"]',
-    task,
-  );
-  check("创建表单键入控件", typed.value !== null && typed.value.includes(task), JSON.stringify(typed.value));
+  const typed = await typeIntoDom(call, 'textarea[placeholder^="要交给模型的任务"]', task);
+  check("创建表单键入控件", typed.value?.includes(task), JSON.stringify(typed.value));
   let d = await drafts(call);
   check(
     "创建最后键入落入 store",
@@ -652,12 +686,9 @@ async function scenarioCreate(call, fx) {
     `(() => { const i = document.querySelector('textarea[placeholder^="要交给模型的任务"]');
       return i === null ? null : i.value; })()`,
   );
-  check("创建关闭/设置往返后任务恢复", restored !== null && restored.includes(task), JSON.stringify(restored));
+  check("创建关闭/设置往返后任务恢复", restored?.includes(task), JSON.stringify(restored));
   d = await drafts(call);
-  check(
-    "创建 store 仍保留",
-    d?.create !== null && (d?.create?.userMessage ?? "").includes(task),
-  );
+  check("创建 store 仍保留", d?.create !== null && (d?.create?.userMessage ?? "").includes(task));
   await shot(call, SHOT_DIR, "61-create-restored.png");
   // 收尾：关闭对话框，避免影响后续 tag
   await clickByTextChecked(call, "取消", 600).catch(() => {});
@@ -706,7 +737,9 @@ async function main() {
   saveOut(data);
 
   const failed = checks.filter((c) => !c.ok);
-  console.log(`\n完成：[${TAG}] ${checks.length - failed.length}/${checks.length} 通过；证据 ${SHOT_DIR}`);
+  console.log(
+    `\n完成：[${TAG}] ${checks.length - failed.length}/${checks.length} 通过；证据 ${SHOT_DIR}`,
+  );
   for (const f of failed) console.log(`  ✗ ${f.name}${f.detail ? ` — ${f.detail}` : ""}`);
   process.exit(failed.length ? 1 : 0);
 }

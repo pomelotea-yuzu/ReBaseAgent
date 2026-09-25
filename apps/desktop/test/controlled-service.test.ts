@@ -451,6 +451,49 @@ describe("模型 A/B 经受控服务：dry-run 零请求、真实执行按臂计
       cleanup();
     }
   });
+
+  it("部分臂失败：ids 只计成功臂，失败臂仍落盘且带 error（不谎报成功）", async () => {
+    const { dir, cleanup } = await tempDir("controlled-ab-partial-");
+    try {
+      const traces = join(dir, "traces");
+      mkdirSync(traces);
+      await createParent(traces);
+      const parentId = readRun(join(traces, readdirSync(traces)[0] as string)).meta.id;
+
+      await withMockLlm(
+        {
+          turns: [{ content: "臂一收尾。" }, { mode: "fail", status: 503 }],
+        },
+        async (h) => {
+          const result = await runModelAb(
+            {
+              repository: new RunRepository(traces),
+              settings: { ...SETTINGS, baseURL: h.baseURL },
+              execCwd: dir,
+            },
+            abRequest(parentId, [
+              { model: "mock-arm-a", paramsText: "" },
+              { model: "mock-arm-b", paramsText: "" },
+            ]),
+          );
+          // 判据来自内核的逐臂终止事件：失败臂**有 run 文件但不是成功臂**
+          expect(result.ok).toBe(false);
+          expect(result.ids.length).toBe(1);
+          expect(result.plan.length).toBe(2);
+          const files = readdirSync(traces).filter((n) => n.endsWith(".jsonl"));
+          // 父 + 两臂（失败臂照常封存，错误即数据）
+          expect(files.length).toBe(3);
+          const failed = files
+            .filter((n) => !result.ids.some((id) => n.startsWith(id)))
+            .map((n) => readRun(join(traces, n)))
+            .find((r) => r.meta.parent === parentId);
+          expect(failed?.meta.fork?.edit.field).toBe("model_params");
+        },
+      );
+    } finally {
+      cleanup();
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------

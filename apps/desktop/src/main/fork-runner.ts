@@ -279,7 +279,12 @@ export async function runModelAb(
 
   return {
     experimentId: result.experimentId,
-    ids: result.arms.map((arm) => arm.id).filter((id): id is string => id !== null),
+    // ids 的语义是**成功臂**的 run id：内核已按终止事件逐臂判失败（provider 报错不抛异常，
+    // 失败臂同样落盘 ⇒ 只按「有 id」计会把失败臂报成成功，U3 6.3 受控实测抓到）
+    ids: result.arms
+      .filter((arm) => arm.error === null)
+      .map((arm) => arm.id)
+      .filter((id): id is string => id !== null),
     ok: result.ok,
     plan: result.plan,
     sideEffectsAllowed: result.sideEffectsAllowed,
