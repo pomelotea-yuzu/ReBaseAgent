@@ -614,6 +614,16 @@ export const DraftCloseAnswerSchema = DraftCloseReportSchema.extend({
 export type DraftCloseAnswer = z.infer<typeof DraftCloseAnswerSchema>;
 
 /**
+ * main → renderer：本次关闭决定已出（取消或完成）。renderer 收到后解除输入锁并
+ * 恢复编辑焦点；与查询的 requestId 匹配才生效（旧查询的 release 不解锁新核对）。
+ */
+export const DraftCloseReleaseSchema = z.object({
+  sessionId: DraftCloseIdSchema,
+  requestId: DraftCloseIdSchema,
+});
+export type DraftCloseRelease = z.infer<typeof DraftCloseReleaseSchema>;
+
+/**
  * preload 暴露给渲染层的受限接口。
  * 取数两个方法 + forkRun / promptFork / modelAb / createRun / proxyFork 五个写通道
  * + chooseSource / forkCapability 两个只读辅助通道（B 1.3/1.5）
@@ -658,4 +668,6 @@ export interface WindowApi {
   onDraftCloseSession(listener: (payload: DraftCloseSessionPayload) => void): () => void;
   /** 订阅关闭查询；返回解绑函数 */
   onDraftCloseQuery(listener: (query: DraftCloseQuery) => void): () => void;
+  /** 订阅关闭决定释放（取消/完成后解锁）；返回解绑函数 */
+  onDraftCloseRelease(listener: (release: DraftCloseRelease) => void): () => void;
 }

@@ -142,6 +142,16 @@ export function deriveDraftList(
   return out;
 }
 
+/**
+ * dirty 草稿计数（U3 任务 4.2 关闭协商的元数据源）：
+ * 复用列表派生的 dirty 判定，保证「徽章/列表看到的 dirty」与「上报给 main 的
+ * dirtyCount」是**同一口径**——两处判定不得漂移。
+ * 全会话口径：调用类 + A/B 批次 + 创建表单（含未通过校验的输入）。
+ */
+export function dirtyCountOf(repo: DraftRepo): number {
+  return deriveDraftList(repo).filter((item) => item.dirty).length;
+}
+
 /** 调用旁草稿标记（llm.call / tool.invoke 头部小徽章）；null = 该调用无草稿 */
 export function draftBadgeForSpan(
   repo: DraftRepo,

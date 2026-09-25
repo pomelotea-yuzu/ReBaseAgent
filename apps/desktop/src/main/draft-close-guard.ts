@@ -60,6 +60,11 @@ export interface DraftCloseGuardOptions {
   onSessionRotated?: (target: DraftCloseTargetState, sessionId: string) => void;
   /** 校验拒绝的可观测回调（测试断言拒绝原因；生产可接日志） */
   onRejected?: (reason: string, sender: DraftCloseSender | null) => void;
+  /**
+   * 关闭决定释放通知（取消/完成后调用）：electron 适配层用它把
+   * `{sessionId, requestId}` 发给 renderer，令其解除输入锁并恢复焦点。
+   */
+  onQueryReleased?: (target: DraftCloseTargetState, sessionId: string, requestId: string) => void;
 }
 
 export type DraftCloseGuardResult = { ok: true } | { ok: false; reason: string };
@@ -74,6 +79,7 @@ export class DraftCloseGuard {
   private readonly newSessionId: () => string;
   private readonly onSessionRotated?: DraftCloseGuardOptions["onSessionRotated"];
   private readonly onRejected?: DraftCloseGuardOptions["onRejected"];
+  private readonly onQueryReleased?: DraftCloseGuardOptions["onQueryReleased"];
   /** 每窗口最近一次被接受的关闭应答（由 takeAnswer 消费） */
   private readonly lastAnswer = new Map<number, DraftCloseAnswer>();
 
@@ -81,6 +87,7 @@ export class DraftCloseGuard {
     this.newSessionId = options.newSessionId ?? ((): string => crypto.randomUUID());
     this.onSessionRotated = options.onSessionRotated;
     this.onRejected = options.onRejected;
+    this.onQueryReleased = options.onQueryReleased;
   }
 
   /**
@@ -224,6 +231,22 @@ export class DraftCloseGuard {
   /** 关闭决定已出（或本次核对取消）：清除挂起查询，迟到应答不再被接受 */
   cancelQuery(webContentsId: number): void {
     this.pendingQueries.delete(webContentsId);
+  }
+
+  /**
+   * 关闭决定已出并通知 renderer 解锁：清除挂起查询 + 发 `draft-close:release`。
+   * 返回是否通知成功（目标不存在 = false）。renderer 按 requestId 匹配才解锁。
+   */
+  releaseQuery(webContentsId: number): boolean {
+    const pending = this.pendingQueries.get(webContentsId);
+    const target = this.targets.get(webContentsId);
+    if (pending === undefined || target === undefined) {
+      this.pendingQueries.delete(webContentsId);
+      return false;
+    }
+    this.pendingQueries.delete(webContentsId);
+    this.onQueryReleased?.(target, target.sessionId, pending.requestId);
+    return true;
   }
 
   /** 元数据消息（report）共用的校验链；answer 的差异部分在 handleAnswer 内自行处理 */

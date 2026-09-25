@@ -4,6 +4,7 @@ import { BranchTree } from "./components/BranchTree";
 import { ComparePanel } from "./components/ComparePanel";
 import { CreateRunDialog } from "./components/CreateRunDialog";
 import { DetailPanel } from "./components/DetailPanel";
+import { DraftCloseLockOverlay } from "./components/DraftCloseLockOverlay";
 import { GlobalBar } from "./components/GlobalBar";
 import { FOCUS_RING } from "./components/IconButton";
 import { OverviewPanel } from "./components/OverviewPanel";
@@ -13,6 +14,7 @@ import { SettingsDialog } from "./components/SettingsDialog";
 import { SpanTree } from "./components/SpanTree";
 import { WorkspaceFilesPanel } from "./components/WorkspaceFilesPanel";
 import { isIsolatedRun } from "./lib/isolated-fork";
+import { useDraftCloseGuard } from "./lib/use-draft-close-guard";
 import { useLayoutState } from "./lib/use-layout";
 import { useAppStore } from "./store";
 
@@ -29,6 +31,9 @@ export default function App() {
     s.selectedRunId === null ? "overview" : s.readingOf(s.selectedRunId).tab,
   );
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  // U3 任务 4.2：关闭协商客户端（握手/查询应答/dirty 上报）与输入锁；锁定期渲染全文档遮罩
+  const draftCloseLocked = useDraftCloseGuard();
 
   // 外壳布局（任务 4.3）：断点、宽度偏好、自动折叠。**自动折叠不写回偏好**。
   const layout = useLayoutState({ tab, editing: false });
@@ -131,6 +136,8 @@ export default function App() {
       {settingsOpen ? <SettingsDialog onClose={() => setSettingsOpen(false)} /> : null}
       {/* 「新建运行」对话框在 App 层单例：全局栏与列表标题区共用同一个 createDialogOpen */}
       {createDialogOpen ? <CreateRunDialog onClose={() => setCreateDialogOpen(false)} /> : null}
+      {/* U3 任务 4.2：关闭核对期间禁止一切新输入（键盘/粘贴由 hook 的捕获监听挡） */}
+      {draftCloseLocked ? <DraftCloseLockOverlay /> : null}
     </div>
   );
 }

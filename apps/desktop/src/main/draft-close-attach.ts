@@ -41,6 +41,13 @@ export function attachDraftCloseGuard(win: BrowserWindow): DraftCloseGuardHandle
         // 窗口可能正在销毁——推送失败不影响会话登记；renderer 重载后握手兜底
       }
     },
+    onQueryReleased: (target, sessionId, requestId) => {
+      try {
+        win.webContents.send(CHANNELS.draftCloseRelease, { sessionId, requestId });
+      } catch {
+        // 窗口可能正在销毁——释放通知发不出去时 renderer 即将随窗口消失，无需锁释放
+      }
+    },
   });
   const webContentsId = win.webContents.id;
 

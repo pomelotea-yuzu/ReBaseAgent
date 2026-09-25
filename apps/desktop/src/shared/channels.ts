@@ -31,6 +31,7 @@ export const CHANNELS = {
   draftCloseQuery: "draft-close:query",
   draftCloseReport: "draft-close:report",
   draftCloseAnswer: "draft-close:answer",
+  draftCloseRelease: "draft-close:release",
 } as const;
 
 export type ChannelName = (typeof CHANNELS)[keyof typeof CHANNELS];

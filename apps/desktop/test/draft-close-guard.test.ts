@@ -242,6 +242,48 @@ describe("U3 4.1 关闭协商：查询请求身份与迟到应答", () => {
   });
 });
 
+describe("U3 4.2 关闭协商：release 通知（renderer 解锁信号）", () => {
+  it("releaseQuery 清除挂起查询并携带 sessionId/requestId 通知，迟到应答随之失效", () => {
+    const released: Array<{ sessionId: string; requestId: string }> = [];
+    const guard = new DraftCloseGuard({
+      onQueryReleased: (_target, sessionId, requestId) => {
+        released.push({ sessionId, requestId });
+      },
+    });
+    guard.rotateSession({ webContentsId: WC, getMainFrameRoutingId: (): number => FRAME });
+    const sessionId = handshaken(guard);
+    const query = guard.beginQuery(WC);
+
+    expect(guard.releaseQuery(WC)).toBe(true);
+    expect(released).toEqual([{ sessionId, requestId: query?.requestId ?? "" }]);
+    // 挂起查询已清除：迟到应答不再被接受
+    expect(
+      guard.handleAnswer(sender(), {
+        sessionId,
+        requestId: query?.requestId ?? "",
+        sequence: 0,
+        dirtyCount: 0,
+        inputSettled: true,
+      }).ok,
+    ).toBe(false);
+    // 重复 release：无挂起查询，返回 false 且不再通知
+    expect(guard.releaseQuery(WC)).toBe(false);
+    expect(released).toHaveLength(1);
+  });
+
+  it("无挂起查询时 releaseQuery 返回 false 且不通知", () => {
+    const released: string[] = [];
+    const guard = new DraftCloseGuard({
+      onQueryReleased: (_t, sessionId) => {
+        released.push(sessionId);
+      },
+    });
+    guard.rotateSession({ webContentsId: WC, getMainFrameRoutingId: (): number => FRAME });
+    expect(guard.releaseQuery(WC)).toBe(false);
+    expect(released).toEqual([]);
+  });
+});
+
 describe("U3 4.1 协议形状：只传元数据（凭据与草稿分离）", () => {
   it("report / answer 载荷键恰好是元数据字段，无正文/凭据通道", () => {
     // schema 的键即协议的全部表达力：多一个字段都过不了 strict-ish 形状断言

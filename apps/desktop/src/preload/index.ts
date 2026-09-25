@@ -40,6 +40,7 @@ const api: WindowApi = {
   draftCloseAnswer: (answer) => ipcRenderer.send(CHANNELS.draftCloseAnswer, answer),
   onDraftCloseSession: (listener) => onMainEvent(CHANNELS.draftCloseSession, listener),
   onDraftCloseQuery: (listener) => onMainEvent(CHANNELS.draftCloseQuery, listener),
+  onDraftCloseRelease: (listener) => onMainEvent(CHANNELS.draftCloseRelease, listener),
 };
 
 /** 订阅 main → renderer 的单向事件；返回解绑函数（不把 event 对象暴露给渲染层） */
