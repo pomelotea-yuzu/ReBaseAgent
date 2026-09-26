@@ -12,6 +12,7 @@ import {
 } from "./data-dir";
 import { type DraftCloseGuardHandle, attachDraftCloseGuard } from "./draft-close-attach";
 import { registerIpc } from "./ipc";
+import { OperationRegistry } from "./operation-registry";
 import { ProxyManager } from "./proxy-manager";
 import { RunRepository } from "./run-repository";
 import { SettingsStore } from "./settings";
@@ -183,6 +184,12 @@ async function bootstrap(): Promise<void> {
   const repository = new RunRepository(tracesDir);
   const proxy = new ProxyManager({ repository, settings, tracesDir });
   /**
+   * U4：操作登记与主动执行槽在 **main 生命周期**创建一次，全窗口共用（design D1）。
+   * renderer 的文档会话 id（U3 关闭协商）与这里的 epoch 各有职责、不能互代：
+   * 同一个 main 内重载 renderer 不会换 epoch，main 重启才会。
+   */
+  const operations = new OperationRegistry();
+  /**
    * 冒烟钩子（B 3.2）：显式给出源目录时跳过原生目录选择框。原生对话框无法被
    * CDP/E2E 驱动，而"目录选择 → 隔离创建"又是必须真跑的链路，故留一个环境变量入口。
    * 未设置时 `pickDirectory` 为 undefined ⇒ handler 用 Electron dialog，行为与以前完全一致。
@@ -197,6 +204,7 @@ async function bootstrap(): Promise<void> {
     // 隔离创建/续跑的 trace 与附件锚点（B 1.3/1.4）
     dataDir,
     proxy,
+    operations,
     ...(smokePickDir === undefined || smokePickDir === ""
       ? {}
       : { pickDirectory: async (): Promise<string | null> => smokePickDir }),

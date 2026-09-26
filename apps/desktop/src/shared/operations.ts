@@ -27,7 +27,7 @@ export const OPERATION_STATUS_LIST_MAX = 10_000;
 
 const OperationIdSchema = z.string().min(1).max(OPERATION_ID_MAX);
 /** main 每次启动生成的 epoch 与 renderer 提交时生成的 operationId 都是 UUID */
-const UuidSchema = z.string().uuid("epoch / operationId 必须是 UUID");
+export const OperationUuidSchema = z.string().uuid("epoch / operationId 必须是 UUID");
 const RunIdSchema = z.string().min(1).max(OPERATION_ID_MAX);
 const CodeSchema = z.string().min(1).max(OPERATION_CODE_MAX);
 const TimestampSchema = z.string().datetime({ offset: true });
@@ -39,8 +39,8 @@ const TimestampSchema = z.string().datetime({ offset: true });
 /** 执行身份：每次主动提交由 renderer 新生成的 operationId + 当前 main epoch */
 export const OperationIdentitySchema = z
   .object({
-    epoch: UuidSchema,
-    operationId: UuidSchema,
+    epoch: OperationUuidSchema,
+    operationId: OperationUuidSchema,
   })
   .strict();
 export type OperationIdentity = z.infer<typeof OperationIdentitySchema>;
@@ -62,12 +62,13 @@ export type ExecutionEnvelope = z.infer<typeof ExecutionEnvelopeSchema>;
 
 /** 登记版本（每次登记变更单调递增）：renderer 据此丢弃乱序快照 */
 export const RegistryVersionSchema = z.number().int().positive();
+export type RegistryVersion = z.infer<typeof RegistryVersionSchema>;
 
 /** 执行响应的登记回执：renderer 只认「匹配身份 + 登记版本」的终态，不认裸 ok/fail */
 export const OperationAckSchema = z
   .object({
-    epoch: UuidSchema,
-    operationId: UuidSchema,
+    epoch: OperationUuidSchema,
+    operationId: OperationUuidSchema,
     registryVersion: RegistryVersionSchema,
     state: z.enum(["running", "settled", "notAccepted"]),
   })
@@ -173,14 +174,25 @@ export const OperationDiagnosticSchema = z
   .strict();
 export type OperationDiagnostic = z.infer<typeof OperationDiagnosticSchema>;
 
+/** 一条操作携带的诊断列表（main 追加时的上限即由此定义，超限只丢新条目） */
+export const OperationDiagnosticsListSchema = z
+  .array(OperationDiagnosticSchema)
+  .max(OPERATION_DIAGNOSTIC_MAX);
+
+/** 可信运行身份与臂摘要列表（同一上限，main 侧永不裁剪终态） */
+export const OperationRunIdsListSchema = z.array(RunIdSchema).max(OPERATION_SUMMARY_LIST_MAX);
+export const OperationArmsListSchema = z
+  .array(OperationArmSummarySchema)
+  .max(OPERATION_SUMMARY_LIST_MAX);
+
 /**
  * 一条操作的登记记录。状态联合的精炼（下方 refine）是**契约的一部分**：
  * main 构造与 renderer 采信走同一份判据，任何一侧造出不自洽的记录都会被拒绝。
  */
 export const OperationRecordSchema = z
   .object({
-    epoch: UuidSchema,
-    operationId: UuidSchema,
+    epoch: OperationUuidSchema,
+    operationId: OperationUuidSchema,
     /** reconcile 先到的 tombstone：没有执行事实可陈述，target 为 null（不伪造身份与目标） */
     target: OperationTargetSchema.nullable(),
     state: OperationStateSchema,
@@ -190,15 +202,15 @@ export const OperationRecordSchema = z
     startedAt: TimestampSchema.nullable(),
     settledAt: TimestampSchema.nullable(),
     /** 去重后的可信运行身份；来自实际回调/结构化结果，未产生运行时为空数组 */
-    runIds: z.array(RunIdSchema).max(OPERATION_SUMMARY_LIST_MAX),
+    runIds: OperationRunIdsListSchema,
     experimentId: RunIdSchema.nullable(),
     /** 仅 modelAb 批次有条目，其余操作为空数组 */
-    arms: z.array(OperationArmSummarySchema).max(OPERATION_SUMMARY_LIST_MAX),
+    arms: OperationArmsListSchema,
     /** 仅 settled 有值 */
     requestOutcome: RequestOutcomeSchema.nullable(),
     /** 业务拒绝/失败的稳定错误码（原字段级校验错误不入登记） */
     errorCode: CodeSchema.nullable(),
-    diagnostics: z.array(OperationDiagnosticSchema).max(OPERATION_DIAGNOSTIC_MAX),
+    diagnostics: OperationDiagnosticsListSchema,
   })
   .strict()
   .superRefine((record, ctx) => {
@@ -286,9 +298,9 @@ export type OperationRecord = z.infer<typeof OperationRecordSchema>;
  */
 export const OperationSlotStateSchema = z
   .object({
-    epoch: UuidSchema,
+    epoch: OperationUuidSchema,
     registryVersion: RegistryVersionSchema,
-    activeOperationId: UuidSchema.nullable(),
+    activeOperationId: OperationUuidSchema.nullable(),
     closing: z.boolean(),
     configurationBusy: z.boolean(),
   })

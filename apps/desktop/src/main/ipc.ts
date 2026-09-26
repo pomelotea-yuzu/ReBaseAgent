@@ -31,6 +31,7 @@ import type {
   WorkspaceInspectResult,
   WorkspaceReadFileResult,
 } from "../shared/ipc";
+import type { OperationStatusResult } from "../shared/operations";
 import {
   ForkError,
   runFork,
@@ -39,6 +40,7 @@ import {
   runModelAb,
   runPromptFork,
 } from "./fork-runner";
+import type { OperationRegistry } from "./operation-registry";
 import type { ProxyManager } from "./proxy-manager";
 import { ProxyForkError } from "./proxy-manager";
 import { CreateRunError, runCreate, runCreateIsolated } from "./run-create";
@@ -55,6 +57,7 @@ import { inspectWorkspace, readWorkspaceFileForView } from "./workspace-view";
  * （目录选择不落盘、能力预检不写 trace/blob 不请求模型）；
  * settings 三通道只读写 <数据目录>/settings.json，
  * apiKey 与代理捕获的 key 永不回传渲染层。
+ * operations:status 只读——返回 main 会话的操作快照，不执行业务、不改登记。
  */
 export interface IpcDeps {
   repository: RunRepository;
@@ -65,12 +68,17 @@ export interface IpcDeps {
   dataDir: string;
   /** 本地录制代理编排（启停/key 暂存/代理分叉） */
   proxy: ProxyManager;
+  /**
+   * U4：main 会话内唯一的操作登记与主动执行槽（bootstrap 创建一次、全窗口共用）。
+   * 判重、占槽、状态快照都以它为准——renderer 的本地 busy 只是补空隙。
+   */
+  operations: OperationRegistry;
   /** 原生目录选择（可注入测试桩；缺省 = Electron dialog，只选不写） */
   pickDirectory?: () => Promise<string | null>;
 }
 
 export function registerIpc(deps: IpcDeps): void {
-  const { repository, settings, execCwd, dataDir, proxy } = deps;
+  const { repository, settings, execCwd, dataDir, proxy, operations } = deps;
   const pickDirectory =
     deps.pickDirectory ??
     (async (): Promise<string | null> => {
@@ -508,6 +516,23 @@ export function registerIpc(deps: IpcDeps): void {
           return fail(e.code, e);
         }
         return fail("PROXY_FORK_FAILED", e);
+      }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // operations:status —— 只读握手/快照（design D4）：无参、不执行业务、不消费授权
+  // -------------------------------------------------------------------------
+
+  ipcMain.handle(
+    CHANNELS.operationsStatus,
+    (): ReturnType<typeof ok<OperationStatusResult>> | ReturnType<typeof fail> => {
+      try {
+        // snapshot() 出口自带契约与自洽校验：main 一旦造出矛盾快照就抛错 ⇒ 失败信封，
+        // renderer 据此保留未知与锁，而不是部分采纳所谓成功字段
+        return ok(operations.snapshot());
+      } catch (e) {
+        return fail("OPERATIONS_STATUS_FAILED", e);
       }
     },
   );
