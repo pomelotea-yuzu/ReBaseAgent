@@ -69,6 +69,9 @@ export default function App() {
     })();
     void useAppStore.getState().loadSettings();
     void useAppStore.getState().loadProxyStatus();
+    // U4 任务 4.5：挂载即与 main 握手一次并"接着核对"——同 main 重载要恢复在跑的操作与
+    // 已有终态/封禁（不重发、不以空草稿仓库解除活跃锁）；空闲会话不会因此持续打 IPC。
+    void useAppStore.getState().ensureOperationStatusPolling();
   }, []);
 
   /** 录制入口（全局栏 / 空态共用）：打开设置并定位到代理分区 */

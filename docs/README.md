@@ -66,7 +66,7 @@ engineering / collab / competition / reviews），原 9 个并列目录归组；
 
 **briefs/**（交接单）：`2026-09-10-ttft-fix-review-brief.md`、`2026-09-10-ttft-fix-apply-brief.md`
 
-**notes/**（功能说明与工作流约定）：`2026-09-08-v3a-trace-as-test-notes.md`、[`model-collaboration-workflow.md`](engineering/notes/model-collaboration-workflow.md)、[`2026-09-25-gitee-release-blocked.md`](engineering/notes/2026-09-25-gitee-release-blocked.md)（Gitee `v0.3.0-k1` release 被自动审核拦截的完整取证与结案：触发源锁定为发布稿第 5–8 行「演进宣告段」，删除即通过；含排除项、时间线与人工复核申诉文案）
+**notes/**（功能说明与工作流约定）：`2026-09-08-v3a-trace-as-test-notes.md`、[`model-collaboration-workflow.md`](engineering/notes/model-collaboration-workflow.md)、[`2026-09-25-gitee-release-blocked.md`](engineering/notes/2026-09-25-gitee-release-blocked.md)（Gitee `v0.3.0-k1` release 被自动审核拦截的完整取证与结案：触发源锁定为发布稿第 5–8 行「演进宣告段」，删除即通过；含排除项、时间线与人工复核申诉文案）、[`2026-09-26-u4-snapshot-cost.md`](engineering/notes/2026-09-26-u4-snapshot-cost.md)（U4 任务 4.5 的操作快照成本实测：100/1000 条的 main 构造、payload 字节数、renderer 校验三段口径与中位数 ⇒ 校准 1 秒轮询初值、确认不裁剪终态与封禁、并写明真机 IPC 往返与满载诊断两项**未测**）
 
 ### collab/ — 跨项目通信与过程叙事
 

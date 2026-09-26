@@ -71,6 +71,16 @@ import type {
 import { CREATE_SUBMIT_TARGET } from "./lib/draft-submission";
 import * as submissionLib from "./lib/draft-submission";
 import {
+  type PollContext,
+  type PollState,
+  type PollStep,
+  disarmPoll,
+  initialPollState,
+  onPollSettled,
+  onResponseSettled,
+  onTimerFired,
+} from "./lib/operation-polling";
+import {
   type OperationBlockedBy,
   type OperationSession,
   type PendingSubmission,
@@ -383,6 +393,13 @@ interface AppState {
    */
   refreshOperationStatus: () => Promise<OperationSession>;
   /**
+   * U4 任务 4.5：挂载/重载时的"接着核对"入口——必要时先握手一次，然后**只在确实有在跑的
+   * 操作时**排一次单路轮询（空闲不排、失联不排）。
+   */
+  ensureOperationStatusPolling: () => Promise<OperationSession>;
+  /** 任务 4.5：停止自动轮询（手动核对不受它限制；也不重放任何业务 payload） */
+  stopOperationStatusPolling: () => void;
+  /**
    * U4 任务 4.1/4.5：按 `operationId` 核对一次。**只补该操作的事实与当前槽，
    * 不清 `unknown`**（通信是否恢复只能由完整快照握手确认），
    * 也绝不因"查到旧操作已 settled"而解除别的操作的锁。
@@ -574,6 +591,56 @@ function inspectAck(
   return { ack: parsed.data, problem: null };
 }
 
+// ---------------------------------------------------------------------------
+// 单路有界轮询（任务 4.5）：判据在 `lib/operation-polling.ts`，这里只管那一个计时器。
+// 轮询**只读 status**，绝不重放业务 payload（重放等于自动重发，spec 明令禁止）。
+// ---------------------------------------------------------------------------
+
+let pollState: PollState = initialPollState();
+let pollTimer: ReturnType<typeof setTimeout> | null = null;
+
+function pollContextOf(session: OperationSession): PollContext {
+  return {
+    // 本地未确认终态的提交也算"还在跑"：回执丢失时正是需要核对的时候
+    hasActive: session.activeOperationId !== null || session.pending.length > 0,
+    unknown: session.unknown,
+  };
+}
+
+/** 任何一步都先清掉旧定时器 ⇒ 同一时刻至多一个待触发的轮询 */
+function applyPollStep(step: PollStep): void {
+  pollState = step.state;
+  if (pollTimer !== null) {
+    clearTimeout(pollTimer);
+    pollTimer = null;
+  }
+  if (step.action.type === "arm") {
+    const delay = step.action.delayMs;
+    pollTimer = setTimeout(() => {
+      pollTimer = null;
+      void runStatusPoll();
+    }, delay);
+  }
+}
+
+/** 停止自动轮询（保留在飞守卫；手动核对不受它限制） */
+export function stopOperationStatusPolling(): void {
+  applyPollStep({ state: disarmPoll(pollState), action: { type: "none" } });
+}
+
+async function runStatusPoll(): Promise<void> {
+  const step = onTimerFired(pollState, pollContextOf(useAppStore.getState().operations));
+  pollState = step.state;
+  if (step.action.type !== "poll") return;
+  const session = await useAppStore.getState().refreshOperationStatus();
+  applyPollStep(onPollSettled(pollState, pollContextOf(session), !session.unknown));
+}
+
+/** 可信响应/握手之后重新计时（计时起点是"响应完成"，慢响应不会堆积） */
+function rescheduleStatusPoll(): void {
+  applyPollStep(onResponseSettled(pollState, pollContextOf(useAppStore.getState().operations)));
+}
+
 /**
  * 主动执行的统一提交适配器（U4 design D6，tasks 4.1/4.2/4.3 的适配器半边）。
  *
@@ -628,11 +695,15 @@ async function submitActive<TRequest, TResponse>(
   } catch (error) {
     // 未知：保留在飞身份并保守锁住（不重发、不解冻、不假装结束）
     useAppStore.setState((state) => ({ operations: markUnknown(state.operations) }));
+    // 任务 4.5：失联 ⇒ 自动轮询停下（手动核对仍可用），不靠重试打爆通道
+    stopOperationStatusPolling();
     throw error;
   }
   if (!response.ok && response.error.code === OPERATION_ERROR.staleEpoch) {
     // 新 main 会话：旧 epoch 的响应不采纳。旧身份**不销账**——它的结局仍是未知（任务 4.6）
     useAppStore.setState((state) => ({ operations: markUnknown(state.operations) }));
+    // 任务 4.5：状态未确认 ⇒ 停下自动轮询，等用户/下一次握手来核对
+    stopOperationStatusPolling();
     return response;
   }
   // 回执核验：可信回执才销账；缺回执 / 回执身份不匹配 ⇒ 未知（不部分采纳成功字段）
@@ -653,6 +724,8 @@ async function submitActive<TRequest, TResponse>(
       operations: endLocalSubmission(state.operations, identity.operationId),
     }));
   }
+  // 任务 4.5：计时起点是"这次响应完成"——批次/长请求在飞期间不叠加定时请求
+  rescheduleStatusPoll();
   return response;
 }
 
@@ -1174,6 +1247,19 @@ export const useAppStore = create<AppState>((set, get) => ({
       operations: applyStatus(get().operations, parsed.data, issuing.generation).session,
     });
     return get().operations;
+  },
+
+  async ensureOperationStatusPolling() {
+    // 挂载/重载入口：没握过手先握手一次，再按"当前有没有在跑的操作"决定要不要轮询。
+    // 已有定时器在排 ⇒ 不叠加（单路守卫在 `lib/operation-polling.ts`）。
+    const session =
+      get().operations.epoch === null ? await get().refreshOperationStatus() : get().operations;
+    rescheduleStatusPoll();
+    return session;
+  },
+
+  stopOperationStatusPolling() {
+    stopOperationStatusPolling();
   },
 
   async reconcileOperation(operationId) {
