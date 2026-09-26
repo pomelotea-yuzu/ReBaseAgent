@@ -20,6 +20,7 @@ import {
   revalidateModelAbDraftSource,
 } from "../lib/draft-source";
 import { deriveEntryGate } from "../lib/entry-gate";
+import type { EntryGate } from "../lib/entry-gate";
 import type { ForkCacheHint } from "../lib/fork-cache-hint";
 import { forkCacheHint } from "../lib/fork-cache-hint";
 import { formatDuration, prettyJson } from "../lib/format";
@@ -257,6 +258,18 @@ function startupContents(messages: ReadonlyArray<{ role: unknown; content?: unkn
  * 确认后从头重跑（独立新轨迹，不共享父前缀）。
  * 一次只改一个变量；空 fork、未配置、缺字符串 system 消息均在本地拦截。
  */
+/**
+ * U4 任务 4.3/4.4：门禁理由的可见说明（四个执行入口共用）。
+ * 只把按钮置灰 = 死按钮；spec「操作入口在窄窗口和键盘下可达」要求"为什么不能提交"读得到。
+ */
+function EntryGateNotice({ gate }: { gate: EntryGate }) {
+  return gate.notice !== null ? (
+    <div data-testid="entry-gate-notice" className="mt-1 text-[11px] leading-4 text-amber-700">
+      {gate.notice}
+    </div>
+  ) : null;
+}
+
 function PromptForkEditor({
   span,
   run,
@@ -305,6 +318,8 @@ function PromptForkEditor({
   const beginDraftSubmission = useAppStore((s) => s.beginDraftSubmission);
   // U3 任务 3.4：待定提交期间视同进行中——输入、放弃、关闭、提交一并禁用
   const inProgress = forking === "in_progress" || draftFrozen;
+  // U4 任务 4.4：入口可用性从统一操作槽派生（只拦"再发一条"，不锁输入与放弃）
+  const gate = deriveEntryGate(useAppStore((s) => s.operations));
   const original = field === "system_prompt" ? originalSystem : originalUser;
   const activeEntry = useAppStore((s) => s.callDraftOf(draftKeyOf(field)));
   // 草稿已登记 ⇒ 读该字段草稿；未登记（尚未打开/切换到）⇒ 退回该字段原值
@@ -574,6 +589,8 @@ function PromptForkEditor({
         </div>
       ) : null}
 
+      <EntryGateNotice gate={gate} />
+
       <div className="mt-2 flex items-center justify-end gap-2">
         {inProgress ? (
           <span className="text-[11px] text-emerald-600">重跑中…（真实 LLM 调用，可能耗时）</span>
@@ -613,7 +630,7 @@ function PromptForkEditor({
         <button
           type="button"
           onClick={doSubmit}
-          disabled={inProgress || !canSubmit}
+          disabled={inProgress || !canSubmit || !gate.canSubmit}
           className="rounded bg-emerald-600 px-3 py-1 text-[11px] text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
         >
           确认从头重跑
@@ -770,6 +787,9 @@ function ModelAbEditor({
 
   // U3 任务 3.3/3.5：待定执行期间视同进行中（预览与执行都禁用），且整批已冻结
   const inProgress = modelAbInFlight || draftFrozen;
+  // U4 任务 4.4：A/B 只有**真实执行**受统一槽约束；"校验并预览计划"走只读通道
+  // （runs:modelAbPlan），占槽期间照常可用——把预览一起禁用就是拿门禁当业务判据。
+  const gate = deriveEntryGate(useAppStore((s) => s.operations));
 
   // U3 任务 2.5：草稿列表的定位目标到达即打开（ensure 幂等；重开不覆盖已有批次；
   // 临时计划/许可照旧清理——授权与计划不随草稿恢复）
@@ -1156,6 +1176,8 @@ function ModelAbEditor({
         </div>
       ) : null}
 
+      <EntryGateNotice gate={gate} />
+
       <div className="mt-2 flex items-center justify-end gap-2">
         <button
           type="button"
@@ -1181,7 +1203,7 @@ function ModelAbEditor({
         <button
           type="button"
           onClick={doExecute}
-          disabled={inProgress || !canSubmit || activePlan === null}
+          disabled={inProgress || !canSubmit || activePlan === null || !gate.canSubmit}
           className="rounded bg-sky-600 px-3 py-1 text-[11px] text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-40"
           title={activePlan === null ? "先校验并预览计划" : undefined}
         >
@@ -1531,6 +1553,8 @@ function MessagesForkEditor({
 
   // U3 任务 3.4：待定提交期间视同进行中——输入、放弃、关闭、提交一并禁用
   const inProgress = forking === "in_progress" || draftFrozen;
+  // U4 任务 4.4：代理 messages 重发同样是主动执行 ⇒ 受统一槽约束
+  const gate = deriveEntryGate(useAppStore((s) => s.operations));
   const messagesBaseline = prettyJson(span.request.messages);
   const value = draftEntry !== undefined ? draftEntry.text : messagesBaseline;
   const unchanged = value === messagesBaseline;
@@ -1756,6 +1780,8 @@ function MessagesForkEditor({
         </div>
       ) : null}
 
+      <EntryGateNotice gate={gate} />
+
       <div className="mt-2 flex items-center justify-end gap-2">
         {inProgress ? (
           <span className="text-[11px] text-sky-600">重发中…（真实 LLM 调用，可能耗时）</span>
@@ -1792,7 +1818,8 @@ function MessagesForkEditor({
             unchanged ||
             proxy?.running !== true ||
             !sourceExecutable ||
-            sourceBlocked !== null
+            sourceBlocked !== null ||
+            !gate.canSubmit
           }
           title={
             !sourceExecutable
@@ -2255,11 +2282,7 @@ function ForkEditor({
         <div className="mt-1 text-[11px] leading-4 text-amber-700">{submission.reason}</div>
       ) : null}
 
-      {gate.notice !== null ? (
-        <div data-testid="entry-gate-notice" className="mt-1 text-[11px] leading-4 text-amber-700">
-          {gate.notice}
-        </div>
-      ) : null}
+      <EntryGateNotice gate={gate} />
 
       {draftFrozen ? (
         <div className="mt-2 rounded border border-violet-200 bg-violet-50 px-2 py-1.5 text-[11px] leading-4 text-violet-800">

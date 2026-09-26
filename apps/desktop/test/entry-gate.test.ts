@@ -115,3 +115,59 @@ describe("4.3 接线契约：create 与 result 都从同一份会话派生", () 
     );
   });
 });
+
+describe("4.4 接线契约：prompt / messages / A-B 也接同一份会话", () => {
+  const panel = readFileSync(PANEL, "utf8");
+
+  /** 切出某个编辑器（从声明到下一个顶层声明），避免"文件里某处出现过"式的假绿 */
+  function editorBody(start: string, end: string): string {
+    const from = panel.indexOf(start);
+    const to = panel.indexOf(end, from + start.length);
+    if (from < 0 || to < 0) throw new Error(`unreachable：切不出 ${start}`);
+    return panel.slice(from, to);
+  }
+
+  const PROMPT = editorBody("function PromptForkEditor({", "function scalarText(");
+  const MESSAGES = editorBody("function MessagesForkEditor({", "function toolMessageText(");
+  const MODEL_AB = editorBody("function ModelAbEditor({", "function LlmCallDetail(");
+
+  it("三个编辑器都声明同一来源的门禁，并渲染禁用理由", () => {
+    for (const [label, body] of [
+      ["prompt", PROMPT],
+      ["messages", MESSAGES],
+      ["modelAb", MODEL_AB],
+    ] as const) {
+      expect(body, label).toContain("deriveEntryGate(useAppStore((s) => s.operations))");
+      expect(body, label).toContain("<EntryGateNotice gate={gate} />");
+    }
+  });
+
+  it("真实执行的提交按钮受门禁约束", () => {
+    expect(PROMPT).toMatch(
+      /onClick=\{doSubmit\}\s+disabled=\{inProgress \|\| !canSubmit \|\| !gate\.canSubmit\}/,
+    );
+    expect(MESSAGES).toMatch(/sourceBlocked !== null \|\|\s+!gate\.canSubmit/);
+    expect(MODEL_AB).toMatch(
+      /onClick=\{doExecute\}\s+disabled=\{inProgress \|\| !canSubmit \|\| activePlan === null \|\| !gate\.canSubmit\}/,
+    );
+  });
+
+  it("只读入口与本地放弃不受门禁影响（占槽期间照常可用，正文始终可达）", () => {
+    const disabledOf = (body: string, handler: string): string => {
+      const at = body.indexOf(`onClick={${handler}}`);
+      if (at < 0) throw new Error(`unreachable：没有 onClick={${handler}}`);
+      const start = body.indexOf("disabled={", at);
+      return body.slice(start, body.indexOf("}", start));
+    };
+    // A/B 的"校验并预览计划"走只读通道 ⇒ 不该被主动槽禁用
+    expect(disabledOf(MODEL_AB, "doPreview")).not.toContain("gate.");
+    // 放弃草稿是本地动作：门禁不该把它一起锁掉
+    expect(disabledOf(PROMPT, "discardCurrentField")).not.toContain("gate.");
+    expect(disabledOf(MESSAGES, "discardCurrent")).not.toContain("gate.");
+    expect(disabledOf(MODEL_AB, "discardBatch")).not.toContain("gate.");
+    // 门禁也没被并进"自己那次提交在飞"的输入锁
+    expect(PROMPT).toContain('const inProgress = forking === "in_progress" || draftFrozen;');
+    expect(MESSAGES).toContain('const inProgress = forking === "in_progress" || draftFrozen;');
+    expect(MODEL_AB).toContain("const inProgress = modelAbInFlight || draftFrozen;");
+  });
+});

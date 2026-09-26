@@ -238,7 +238,10 @@ describe("接线契约：A/B 预览修订绑定与迟到守卫（任务 3.3）",
     expect(code).not.toContain("{plan !== null ?");
     expect(code).toContain("{activePlan !== null ?");
     expect(code).toContain("if (!canSubmit || activePlan === null) return;");
-    expect(code).toContain("disabled={inProgress || !canSubmit || activePlan === null}");
+    // U4 4.4 追加了统一门禁（只加不减：activePlan 判据仍在原位）
+    expect(code).toContain(
+      "disabled={inProgress || !canSubmit || activePlan === null || !gate.canSubmit}",
+    );
   });
 
   it("内容变化作废副作用许可；恢复/离开后计划与许可均须重来（组件局部态）", () => {
