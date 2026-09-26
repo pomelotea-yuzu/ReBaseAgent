@@ -38,6 +38,26 @@ export default function App() {
 
   // 外壳布局（任务 4.3）：断点、宽度偏好、自动折叠。**自动折叠不写回偏好**。
   const layout = useLayoutState({ tab, editing: false });
+  const navReplacesWorkspace =
+    layout.navVisible && (layout.breakpoint === "narrow" || layout.breakpoint === "single");
+  const stepsReplaceWorkspace =
+    tab === "steps" && layout.stepsVisible && layout.stepsFullWidth && !navReplacesWorkspace;
+
+  // Replacing the workspace must also move keyboard focus into the visible pane.
+  useEffect(() => {
+    if (view !== "trace" || (!navReplacesWorkspace && !stepsReplaceWorkspace)) return;
+    const pane = document.getElementById(
+      navReplacesWorkspace ? "run-navigation" : "steps-navigation",
+    );
+    const returnSelector = navReplacesWorkspace ? "#run-navigation-toggle" : "[data-open-steps]";
+    pane?.querySelector<HTMLElement>(navReplacesWorkspace ? "input" : "button")?.focus();
+    return () => {
+      const restore =
+        document.activeElement === document.body || pane?.contains(document.activeElement);
+      if (restore)
+        requestAnimationFrame(() => document.querySelector<HTMLElement>(returnSelector)?.focus());
+    };
+  }, [navReplacesWorkspace, stepsReplaceWorkspace, view]);
 
   // 挂载时加载一次列表与运行配置。只读工具，不做文件监听——目录内容变化后重新打开即可
   useEffect(() => {
@@ -66,7 +86,18 @@ export default function App() {
 
   return (
     <div className="flex h-full flex-col">
-      <GlobalBar onOpenSettings={openSettings} />
+      <GlobalBar
+        onOpenSettings={openSettings}
+        navigation={
+          view === "trace"
+            ? {
+                visible: layout.navVisible && !stepsReplaceWorkspace,
+                onToggle:
+                  layout.navVisible && !stepsReplaceWorkspace ? layout.closeNav : layout.openNav,
+              }
+            : undefined
+        }
+      />
 
       {error !== null ? (
         <div className="border-b border-red-200 bg-red-50 px-4 py-2 text-[11px] text-red-700">
@@ -76,19 +107,33 @@ export default function App() {
 
       {/* 任务 7.1 布局修复：钳定主工作区高度，任何一列超高只在其自身滚动容器内滚动，
           不把 <main> 撑高 → 左列表不再随右侧详情一起整页移动 */}
-      <main className="relative flex min-h-0 flex-1 overflow-hidden">
+      <main
+        className="relative flex min-h-0 flex-1 overflow-hidden"
+        onKeyDown={(event) => {
+          if (event.key !== "Escape" || event.defaultPrevented) return;
+          if (navReplacesWorkspace) {
+            event.preventDefault();
+            layout.closeNav();
+          } else if (stepsReplaceWorkspace) {
+            event.preventDefault();
+            layout.toggleStepsCollapsed();
+          }
+        }}
+      >
         {view === "trace" ? (
           <>
             {/* 运行导航（任务 4.3）：宽度可调 220–360；自动折叠只在显示层生效 */}
-            {layout.navVisible ? (
+            {layout.navVisible && !stepsReplaceWorkspace ? (
               <RunList
                 width={layout.navWidth}
                 onWidth={layout.setNavWidth}
                 onWidthKey={layout.handleNavKey}
-                onToggleCollapsed={layout.toggleNavCollapsed}
+                onToggleCollapsed={layout.closeNav}
+                fullWidth={navReplacesWorkspace}
+                onSelected={layout.navOpened ? layout.closeNav : undefined}
               />
             ) : null}
-            {empty ? (
+            {navReplacesWorkspace ? null : empty ? (
               // 无运行时：主工作区给两个**真实可用**的入口（delta「首次打开与无运行入口」），
               // 不是展示性欢迎页。步骤目录此时本就没有内容，一并卸下。
               <NoRunsEmpty onCreate={() => setCreateDialogOpen(true)} onRecord={openRecording} />
@@ -112,17 +157,21 @@ export default function App() {
                     onWidth={layout.setStepsWidth}
                     onWidthKey={layout.handleStepsKey}
                     onToggleCollapsed={layout.toggleStepsCollapsed}
+                    fullWidth={stepsReplaceWorkspace}
+                    onSelected={stepsReplaceWorkspace ? layout.toggleStepsCollapsed : undefined}
                   />
                 ) : null}
-                <WorkspaceShell
-                  // 窄窗口/用户收起后「重新打开步骤目录」的入口（**在正文里**，不是树内部——
-                  // 目录都没挂载，入口自然不能在它里面）
-                  onOpenSteps={
-                    tab === "steps" && !layout.stepsVisible
-                      ? () => layout.setStepsOpened(true)
-                      : null
-                  }
-                />
+                {!stepsReplaceWorkspace ? (
+                  <WorkspaceShell
+                    // 窄窗口/用户收起后「重新打开步骤目录」的入口（**在正文里**，不是树内部——
+                    // 目录都没挂载，入口自然不能在它里面）
+                    onOpenSteps={
+                      tab === "steps" && !layout.stepsVisible
+                        ? () => layout.setStepsOpened(true)
+                        : null
+                    }
+                  />
+                ) : null}
               </>
             )}
           </>
@@ -213,6 +262,7 @@ export function StepsDirectoryEntry({ onOpen }: { onOpen: () => void }) {
   return (
     <div className="border-b border-gray-200 px-4 py-1.5">
       <button
+        data-open-steps
         type="button"
         onClick={onOpen}
         className={`inline-flex items-center gap-1.5 rounded px-2 py-1 text-reading-meta text-gray-600 hover:bg-gray-100 ${FOCUS_RING}`}

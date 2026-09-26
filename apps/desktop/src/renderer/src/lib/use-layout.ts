@@ -29,6 +29,7 @@ import {
   initialLayoutPrefs,
   readContentWidth,
   stepWidth,
+  stepsUseFullWorkspace,
 } from "./layout";
 
 /** 订阅应用内容视口宽度（resize 时重读） */
@@ -51,6 +52,7 @@ export interface LayoutState {
   prefs: LayoutPrefs;
   navVisible: boolean;
   stepsVisible: boolean;
+  stepsFullWidth: boolean;
   /** <720 档：正文 / 辅助列表二选一 */
   auxPane: AuxPane;
   /** 临时打开导航（narrow/single 档） */
@@ -65,6 +67,8 @@ export interface LayoutState {
   setStepsWidth: (width: number) => void;
   /** 用户显式收起/展开（**只有这个**会写偏好） */
   toggleNavCollapsed: () => void;
+  openNav: () => void;
+  closeNav: () => void;
   toggleStepsCollapsed: () => void;
   /** 键盘调整：返回是否已消费该键（false ⇒ 调用方不要 preventDefault） */
   handleNavKey: (key: string) => boolean;
@@ -125,33 +129,51 @@ export function useLayoutState(input: {
   }, []);
 
   const toggleNavCollapsed = useCallback(() => {
+    setNavOpened(false);
     setPrefs((prev) => ({ ...prev, navUserCollapsed: !prev.navUserCollapsed }));
   }, []);
 
+  const openNav = useCallback(() => {
+    setStepsOpened(false);
+    if (
+      breakpoint === "wide" ||
+      (breakpoint === "medium" && input.tab !== "files" && !input.editing)
+    ) {
+      setPrefs((prev) => ({ ...prev, navUserCollapsed: false }));
+    } else {
+      setNavOpened(true);
+    }
+  }, [breakpoint, input.tab, input.editing]);
+
+  const closeNav = useCallback(() => {
+    setNavOpened(false);
+    if (!navOpened) setPrefs((prev) => ({ ...prev, navUserCollapsed: true }));
+  }, [navOpened]);
+
   const toggleStepsCollapsed = useCallback(() => {
+    if (stepsOpened) {
+      setStepsOpened(false);
+      return;
+    }
     setPrefs((prev) => ({ ...prev, stepsUserCollapsed: !prev.stepsUserCollapsed }));
-  }, []);
+  }, [stepsOpened]);
 
   const handleNavKey = useCallback((key: string): boolean => {
-    let consumed = false;
-    setPrefs((prev) => {
-      const next = stepWidth(prev.navWidth, key, NAV_MIN, NAV_MAX);
-      if (next === null) return prev;
-      consumed = true;
-      return { ...prev, navWidth: next };
-    });
-    return consumed;
+    if (stepWidth(NAV_MIN, key, NAV_MIN, NAV_MAX) === null) return false;
+    setPrefs((prev) => ({
+      ...prev,
+      navWidth: stepWidth(prev.navWidth, key, NAV_MIN, NAV_MAX) ?? prev.navWidth,
+    }));
+    return true;
   }, []);
 
   const handleStepsKey = useCallback((key: string): boolean => {
-    let consumed = false;
-    setPrefs((prev) => {
-      const next = stepWidth(prev.stepsWidth, key, STEPS_MIN, STEPS_MAX);
-      if (next === null) return prev;
-      consumed = true;
-      return { ...prev, stepsWidth: next };
-    });
-    return consumed;
+    if (stepWidth(STEPS_MIN, key, STEPS_MIN, STEPS_MAX) === null) return false;
+    setPrefs((prev) => ({
+      ...prev,
+      stepsWidth: stepWidth(prev.stepsWidth, key, STEPS_MIN, STEPS_MAX) ?? prev.stepsWidth,
+    }));
+    return true;
   }, []);
 
   return {
@@ -159,6 +181,12 @@ export function useLayoutState(input: {
     prefs,
     navVisible,
     stepsVisible,
+    stepsFullWidth: stepsUseFullWorkspace({
+      contentWidth,
+      navVisible,
+      navWidth: prefs.navWidth,
+      stepsWidth: prefs.stepsWidth,
+    }),
     auxPane,
     navOpened,
     setNavOpened,
@@ -168,6 +196,8 @@ export function useLayoutState(input: {
     setNavWidth,
     setStepsWidth,
     toggleNavCollapsed,
+    openNav,
+    closeNav,
     toggleStepsCollapsed,
     handleNavKey,
     handleStepsKey,

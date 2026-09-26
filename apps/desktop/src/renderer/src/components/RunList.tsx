@@ -18,11 +18,15 @@ export function RunList({
   onWidth,
   onWidthKey,
   onToggleCollapsed,
+  fullWidth = false,
+  onSelected,
 }: {
   width: number;
   onWidth: (width: number) => void;
   onWidthKey: (key: string) => boolean;
   onToggleCollapsed: () => void;
+  fullWidth?: boolean;
+  onSelected?: () => void;
 }) {
   const runs = useAppStore((s) => s.runs);
   const failed = useAppStore((s) => s.failed);
@@ -93,8 +97,10 @@ export function RunList({
 
   return (
     <aside
+      id="run-navigation"
+      aria-label="运行列表"
       className="relative flex h-full min-h-0 shrink-0 flex-col border-r border-gray-200 bg-white"
-      style={{ width, minWidth: width }}
+      style={fullWidth ? { width: "100%", minWidth: 0 } : { width, minWidth: width }}
     >
       <div className="border-b border-gray-200 px-3 py-2">
         <div className="flex items-center justify-between gap-2">
@@ -111,8 +117,8 @@ export function RunList({
             <button
               type="button"
               onClick={onToggleCollapsed}
-              aria-label="收起运行列表"
-              title="收起运行列表（宽度由外壳按可用空间管理，收起后仍可用全局栏新建）"
+              aria-label={fullWidth ? "返回当前运行" : "收起运行列表"}
+              title={fullWidth ? "返回当前运行" : "收起运行列表"}
               className="rounded px-1.5 text-xs text-gray-400 hover:bg-gray-100 hover:text-gray-600"
             >
               ‹
@@ -243,6 +249,7 @@ export function RunList({
                 type="button"
                 onClick={() => {
                   void selectRun(run.id);
+                  onSelected?.();
                 }}
                 className="block w-full px-3 py-2 text-left"
               >
@@ -328,14 +335,16 @@ export function RunList({
       </div>
 
       {/* 宽度调节柄（任务 4.3）：220–360，拖动或 ←/→ 均可 */}
-      <ResizeGrip
-        label="运行导航宽度"
-        width={width}
-        min={NAV_MIN}
-        max={NAV_MAX}
-        onWidth={onWidth}
-        onWidthKey={onWidthKey}
-      />
+      {!fullWidth ? (
+        <ResizeGrip
+          label="运行导航宽度"
+          width={width}
+          min={NAV_MIN}
+          max={NAV_MAX}
+          onWidth={onWidth}
+          onWidthKey={onWidthKey}
+        />
+      ) : null}
     </aside>
   );
 }

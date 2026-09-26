@@ -93,7 +93,7 @@ export function ResizeGrip({
       onPointerCancel={stop}
       onKeyDown={onKeyDown}
       title={`${label} ${width}px（${min}–${max}）· 拖动或 ←/→ 调整`}
-      className={`w-1 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-sky-300 ${
+      className={`absolute inset-y-0 right-0 z-10 w-1 cursor-col-resize bg-transparent transition-colors hover:bg-sky-300 ${
         dragging ? "bg-sky-400" : ""
       } ${FOCUS_RING}`}
     />

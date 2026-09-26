@@ -149,7 +149,11 @@ export function SpanRow({
  *    缩进一次接不上（例如恒传 0），整棵树就会拍平成一列——看似"只是样式"，实为
  *    delta「三步运行的树结构」不成立。故 depth 由递归参数给出，**不另设覆盖径**。
  */
-function SpanTreeRow({ node, depth }: { node: SpanNode; depth: number }) {
+function SpanTreeRow({
+  node,
+  depth,
+  onSelected,
+}: { node: SpanNode; depth: number; onSelected?: () => void }) {
   const selectedSpanId = useAppStore((s) => s.selectedSpanId);
   const expandedSteps = useAppStore((s) => s.expandedSteps);
   const leafSpanIds = useAppStore((s) => s.detail?.leafSpanIds ?? []);
@@ -180,7 +184,10 @@ function SpanTreeRow({ node, depth }: { node: SpanNode; depth: number }) {
         row={row}
         selected={selectedSpanId === span.id}
         expanded={expanded}
-        onSelect={selectSpan}
+        onSelect={(id) => {
+          selectSpan(id);
+          onSelected?.();
+        }}
         onToggleExpand={(id) => {
           if (isStep) toggleStep(id);
         }}
@@ -189,7 +196,12 @@ function SpanTreeRow({ node, depth }: { node: SpanNode; depth: number }) {
       />
       {expanded
         ? children.map((child) => (
-            <SpanTreeRow key={child.span.id} node={child} depth={depth + 1} />
+            <SpanTreeRow
+              key={child.span.id}
+              node={child}
+              depth={depth + 1}
+              onSelected={onSelected}
+            />
           ))
         : null}
     </div>
@@ -201,12 +213,16 @@ export function SpanTree({
   onWidth,
   onWidthKey,
   onToggleCollapsed,
+  fullWidth = false,
+  onSelected,
 }: {
   width: number;
   onWidth: (width: number) => void;
   onWidthKey: (key: string) => boolean;
   /** 用户显式收起步骤目录（写偏好；自动折叠由外壳按可用空间决定，不走这里） */
   onToggleCollapsed: () => void;
+  fullWidth?: boolean;
+  onSelected?: () => void;
 }) {
   const detail = useAppStore((s) => s.detail);
   const loadingDetail = useAppStore((s) => s.loadingDetail);
@@ -222,6 +238,7 @@ export function SpanTree({
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [restore, setRestore] = useState(initialRestoreState);
+  const panelStyle = fullWidth ? { width: "100%", minWidth: 0 } : { width, minWidth: width };
 
   /** 内容身份 = meta.id + span 指纹（同 run 重读后内容变了也要重新恢复） */
   const detailKey = detail === null ? null : restoreIdentity(detail);
@@ -280,7 +297,7 @@ export function SpanTree({
     return (
       <section
         className="shrink-0 border-r border-gray-200 bg-white px-3 py-6 text-xs text-gray-500"
-        style={{ width, minWidth: width }}
+        style={panelStyle}
       >
         加载中…
       </section>
@@ -291,7 +308,7 @@ export function SpanTree({
     return (
       <section
         className="shrink-0 border-r border-gray-200 bg-white px-3 py-6 text-xs text-gray-500"
-        style={{ width, minWidth: width }}
+        style={panelStyle}
       >
         从左侧选择一次运行。
       </section>
@@ -300,8 +317,9 @@ export function SpanTree({
 
   return (
     <section
+      id="steps-navigation"
       className="relative flex h-full min-h-0 shrink-0 flex-col border-r border-gray-200 bg-white"
-      style={{ width, minWidth: width }}
+      style={panelStyle}
     >
       <div className="border-b border-gray-200 px-3 py-2">
         <div className="flex items-center justify-between gap-2">
@@ -309,7 +327,7 @@ export function SpanTree({
           <button
             type="button"
             onClick={onToggleCollapsed}
-            aria-label="收起步骤目录"
+            aria-label={fullWidth ? "返回当前调用" : "收起步骤目录"}
             title="收起步骤目录（正文右侧会保留「重新打开步骤目录」入口，当前选中的调用不会丢失）"
             className="shrink-0 rounded px-1.5 text-xs text-gray-400 hover:bg-gray-100 hover:text-gray-600"
           >
@@ -329,19 +347,21 @@ export function SpanTree({
           </div>
         ) : null}
         {roots.map((node) => (
-          <SpanTreeRow key={node.span.id} node={node} depth={0} />
+          <SpanTreeRow key={node.span.id} node={node} depth={0} onSelected={onSelected} />
         ))}
       </div>
 
       {/* 宽度调节柄（任务 4.3）：200–320，拖动或 ←/→ 均可；480px 二次约束由外壳判 */}
-      <ResizeGrip
-        label="步骤目录宽度"
-        width={width}
-        min={STEPS_MIN}
-        max={STEPS_MAX}
-        onWidth={onWidth}
-        onWidthKey={onWidthKey}
-      />
+      {!fullWidth ? (
+        <ResizeGrip
+          label="步骤目录宽度"
+          width={width}
+          min={STEPS_MIN}
+          max={STEPS_MAX}
+          onWidth={onWidth}
+          onWidthKey={onWidthKey}
+        />
+      ) : null}
     </section>
   );
 }

@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { stepsUseFullWorkspace } from "../src/renderer/src/lib/layout";
 import {
   BREAKPOINTS,
   DETAIL_MIN_WIDTH,
@@ -275,6 +276,50 @@ describe("步骤目录可见性：480px 二次约束是硬约束", () => {
     expect(
       decideStepsVisible({ ...base, breakpoint: "medium", prefs: wide, contentWidth: 1024 }),
     ).toBe(false);
+    expect(
+      decideStepsVisible({
+        ...base,
+        breakpoint: "medium",
+        prefs: wide,
+        contentWidth: 1024,
+        stepsOpened: true,
+      }),
+    ).toBe(true);
+    expect(
+      stepsUseFullWorkspace({
+        contentWidth: 1024,
+        navVisible: true,
+        navWidth: 264,
+        stepsWidth: 320,
+      }),
+    ).toBe(true);
+  });
+
+  it("临时目录不足 480px 正文时替换工作区，足够时并排", () => {
+    expect(
+      stepsUseFullWorkspace({
+        contentWidth: 720,
+        navVisible: false,
+        navWidth: 264,
+        stepsWidth: 320,
+      }),
+    ).toBe(true);
+    expect(
+      stepsUseFullWorkspace({
+        contentWidth: 800,
+        navVisible: false,
+        navWidth: 264,
+        stepsWidth: 320,
+      }),
+    ).toBe(false);
+    expect(
+      stepsUseFullWorkspace({
+        contentWidth: 640,
+        navVisible: false,
+        navWidth: 264,
+        stepsWidth: 200,
+      }),
+    ).toBe(true);
   });
 
   it("720–959 按需打开", () => {
@@ -336,7 +381,7 @@ describe("接线契约：宽度由外壳统一判（源码）", () => {
       const src = read(f);
       expect(src).not.toMatch(/className="[^"]*\bw-80\b/);
       expect(src).not.toMatch(/className="[^"]*\bw-96\b/);
-      expect(src).toContain("style={{ width, minWidth: width }}");
+      expect(src).toContain('{ width: "100%", minWidth: 0 } : { width, minWidth: width }');
       expect(src).toContain("<ResizeGrip");
     }
   });

@@ -155,6 +155,7 @@ export function decideStepsVisible(input: {
   stepsOpened: boolean;
 }): boolean {
   const { breakpoint, prefs, navVisible, navWidth, contentWidth, stepsOpened } = input;
+  if (stepsOpened) return true;
   if (prefs.stepsUserCollapsed) return stepsOpened;
   if (breakpoint === "narrow" || breakpoint === "single") return stepsOpened;
 
@@ -162,6 +163,20 @@ export function decideStepsVisible(input: {
   const navTaken = navVisible ? navWidth : 0;
   const detailAfterSteps = contentWidth - navTaken - prefs.stepsWidth;
   return detailAfterSteps >= DETAIL_MIN_WIDTH;
+}
+
+/** Explicitly opened directories replace the workspace when a sidebar would squeeze the text. */
+export function stepsUseFullWorkspace(input: {
+  contentWidth: number;
+  navVisible: boolean;
+  navWidth: number;
+  stepsWidth: number;
+}): boolean {
+  return (
+    input.contentWidth < 720 ||
+    input.contentWidth - (input.navVisible ? input.navWidth : 0) - input.stepsWidth <
+      DETAIL_MIN_WIDTH
+  );
 }
 
 /** <720 档：辅助列表替换正文时看哪一边 */

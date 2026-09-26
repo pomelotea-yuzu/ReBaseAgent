@@ -13,7 +13,17 @@
  *    名称必须直接可见（纯图标形态留给 4.5 的密集工具条）。
  */
 
-import { Activity, GitBranch, Plus, Radio, ScrollText, Settings, Waypoints } from "lucide-react";
+import {
+  Activity,
+  GitBranch,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Plus,
+  Radio,
+  ScrollText,
+  Settings,
+  Waypoints,
+} from "lucide-react";
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 import { deriveDraftList } from "../lib/draft-list";
@@ -202,7 +212,13 @@ function SessionDraftsEntry() {
   );
 }
 
-export function GlobalBar({ onOpenSettings }: { onOpenSettings: () => void }) {
+export function GlobalBar({
+  onOpenSettings,
+  navigation,
+}: {
+  onOpenSettings: () => void;
+  navigation?: { visible: boolean; onToggle: () => void };
+}) {
   const setCreateDialogOpen = useAppStore((s) => s.setCreateDialogOpen);
   const setSettingsSection = useAppStore((s) => s.setSettingsSection);
   const detail = useAppStore((s) => s.detail);
@@ -215,12 +231,32 @@ export function GlobalBar({ onOpenSettings }: { onOpenSettings: () => void }) {
 
   return (
     <header className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-gray-200 bg-white px-3 py-1.5">
+      {navigation !== undefined ? (
+        <button
+          id="run-navigation-toggle"
+          type="button"
+          aria-label={navigation.visible ? "收起运行列表" : "打开运行列表"}
+          title={navigation.visible ? "收起运行列表" : "打开运行列表"}
+          aria-expanded={navigation.visible}
+          aria-controls="run-navigation"
+          onClick={navigation.onToggle}
+          className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-gray-600 hover:bg-gray-100 ${FOCUS_RING}`}
+        >
+          {navigation.visible ? (
+            <PanelLeftClose size={16} aria-hidden="true" />
+          ) : (
+            <PanelLeftOpen size={16} aria-hidden="true" />
+          )}
+        </button>
+      ) : null}
       <span className="text-reading-body font-semibold text-gray-900">ReBaseAgent</span>
       <ViewToggle />
 
-      <div className="ml-auto flex flex-wrap items-center gap-x-2 gap-y-1.5">
+      <div className="ml-auto flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5">
         {detail !== null ? (
-          <span className="font-code text-reading-meta text-gray-400">{detail.meta.id}</span>
+          <span className="break-all font-code text-reading-meta text-gray-400">
+            {detail.meta.id}
+          </span>
         ) : null}
         <SessionDraftsEntry />
         <button
