@@ -430,10 +430,7 @@ function frozenTargets(): string[] {
   return Object.keys(useAppStore.getState().draftSubmissions.byId);
 }
 
-function reconcileResultFor(
-  operationId: string,
-  state: "settled" | "notAccepted" | "running",
-) {
+function reconcileResultFor(operationId: string, state: "settled" | "notAccepted" | "running") {
   // 三种状态各自允许的字段由 schema 精炼钉死（notAccepted 不得带时间/结局/运行身份，
   // settled 必须带开始+结束+结局）——这里造的是**合法**记录，非法载荷另有专测。
   const neverAccepted = state === "notAccepted";

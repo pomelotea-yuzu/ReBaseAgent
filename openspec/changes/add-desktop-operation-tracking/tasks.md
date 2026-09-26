@@ -127,7 +127,22 @@
   登记侧臂事实是 `{index,id,outcome}` 另一套形状——两边都要断言。
   变异 2 处捕获：M-64A（`ids` 按「有 id」计 ⇒ 谎报 2 臂成功，1 条判红）、
   M-64B（摘掉 dryRun 误闯的早退 ⇒ 预览占了主动槽并登记 returned，2 条判红）。
-- [ ] 6.5 注入响应丢失、status/reconcile 故障和两种到达顺序，验证 Unknown 可核对且无重发/错误解冻（<=2h）。验收：reconcile 先到封禁迟到提交 / 执行先到核对实际状态 / 状态通道不可用保持未知 / 核对终态只解冻对应修订。
+- [x] 6.5 注入响应丢失、status/reconcile 故障和两种到达顺序，验证 Unknown 可核对且无重发/错误解冻（<=2h）。验收：reconcile 先到封禁迟到提交 / 执行先到核对实际状态 / 状态通道不可用保持未知 / 核对终态只解冻对应修订。
+  证据：`docs/reviews/2026-09-26-u4-65/README.md`（**4 tag / 28 检查 / 0 失败**，整跑 4/4）·
+  采集 `apps/desktop/scripts/u4-65-cdp.cjs`（`probe` / `reconcile-first` / `execution-first` / `lock-isolation`）·
+  驱动 `.workbuddy/u4/u4-65/run-all.cjs`。
+  🔴 **本批抓到并修复一处真实缺陷**（提交 `13d6058`）：`reconcileOperation` 从没调用解冻口
+  `settleDraftByOperation` ⇒ 真机上核对永远解不开待定关联（该动作此前唯一调用方是它自己的单测）——
+  又是「纯逻辑写好、接线少一支」。修复只在核对被采纳且该操作已进终态时按身份解那一条；
+  `applied=false`/`running`/非法载荷一律不动任何关联。新增 6 条接线用例，反证＝摘掉接线正好红那 3 条。
+  实机侧另坐实两条口径：**在飞判据必须给 `delayMs` 回合**；**「另一条操作」必须是完整跑完的真提交**
+  （只登记关联不发请求 ⇒ `epoch=null`，本就不该被核对解冻 ⇒ 构造无效而非缺陷）。
+  ⚠️ **部分覆盖，如实标注**：`probe` 实测 `window.api` 属性
+  `writable:false / configurable:false`（`defineProperty` 抛 `Cannot redefine property`）⇒
+  「篡改 status 载荷 / 丢弃执行响应」这两类注入**真机做不到**，对应的
+  `状态通道不可用保持未知`、`非法操作响应不能解除门禁` 由 §4 的 store 用例
+  （M-N/M-Q/M-R/M-S/M-AF + 本批新增 6 条）承载；§7.2 evidence-index 按此分层引用，不得写成实机已测。
+  变异：M-65A（查找口忽略 operationId）**无牙**（记录保留），M-65B（摘掉那支持线）3 条判红。
 - [ ] 6.6 实测同 main renderer reload 与真正 main 重启，记录 epoch/槽/真实调用次数和旧响应行为（<=2h）。验收：同 main 重载恢复操作 / 新 main 会话不伪造旧操作结局 / 乱序快照不回退新状态。
 - [ ] 6.7 实测标题栏/Alt+F4/app.quit 下 dirty+running、clean+running、无应答及返回；验证输入/活跃任务保留（<=2h）。验收：无草稿的活跃操作也需确认 / 草稿与操作合并且关闭竞争不漏保护 / 退出输入锁保留已接收文字且不重放按键 / 重复关闭取消和迟到应答不会重入。
 - [ ] 6.8 实测 800px、200% 缩放和键盘焦点；回归 U1 阅读/U2 文件/U3 草稿，验证状态/核对只读及源父兄弟/既有附件哈希不变（<=2h）。验收：操作入口在窄窗口和键盘下可达 / 核对结果只由用户明确打开 / 会话登记不泄漏输入和凭据 / 只读入口和被动录制不占主动槽。
