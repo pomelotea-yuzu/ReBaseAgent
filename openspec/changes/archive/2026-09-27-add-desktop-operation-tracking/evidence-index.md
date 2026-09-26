@@ -66,7 +66,7 @@
 | **合计** | **16** | **23** | **16** | **7** | **0** |
 
 - **同名冲突核对**：5 个 ADDED requirement（desktop-ui）+ 3 个（其余 spec）与各自主 spec 现有 requirement **无同名**
-  ⇒ 归档时是纯新增，不会与既有条目撞名。主 spec `desktop-ui` 归档后 requirements 47 → **52**、scenarios 200 → **229**（净新增 5/29）。
+  ⇒ 归档时是纯新增，不会与既有条目撞名。主 spec `desktop-ui` 归档后 requirements 47 → **52**、scenarios 200 → **236**（净新增 5 requirement / 36 场景 = 29 ADDED + 上表 MODIFIED 内新增 7）。
 - **七入口点名核对**（tasks 7.2 明列）：`runs:create`（普通 + 隔离）/ `runs:fork`（普通 + 隔离）/ `runs:promptFork` /
   `proxy:fork` / `runs:modelAb` = **七类主动入口**，全部①在 schema 可表达（`operation-schemas › 五种 kind（create/result 各含普通与隔离 = 七类主动入口）均可表达`）、
   ②进 §3.8 矩阵（`exec-entry-matrix` 的 `describe.each` 七行 × 六判据）、③出现在 preload 白名单的七个主动方法
