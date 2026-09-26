@@ -347,7 +347,12 @@ export function registerIpc(deps: IpcDeps): void {
       }
 
       try {
-        return ok(await runModelAb({ repository, settings: loaded, execCwd }, parsed.data));
+        // `armFacts` 只供 main 侧操作登记（U4 3.4）；跨进程载荷保持既有 ModelAbResult 形状
+        const { armFacts: _armFacts, ...result } = await runModelAb(
+          { repository, settings: loaded, execCwd },
+          parsed.data,
+        );
+        return ok(result);
       } catch (e) {
         // 编排层的稳定错误码（父不可 fork / 工具策略 / 双真相源 / 未确认费用…）
         if (e instanceof ModelAbError) {

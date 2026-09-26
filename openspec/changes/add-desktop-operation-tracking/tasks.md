@@ -21,7 +21,7 @@
 - [x] 2.5 在 modelReplayRunMany 添加按臂回调与 catch 保留已知 ID，保留 dry-run 和失败继续语义（<=2h）。验收（model-experiments）：批次运行中可关联各臂 / 部分失败和异常臂保留已知 ID。
 - [x] 2.6 补齐实验观察省略/抛错、未开始/meta 前失败、dry-run、订阅释放测试（<=2h）。验收（model-experiments）：未开始臂与 dry-run 不产生 ID / 实验身份观察不改变原执行。
 - [x] 2.7 普通 runCreate 订阅本 tracer；CreateRunError 添加可选 runId，隔离创建消费包回调并传递结构化身份（<=2h）。验收：普通和隔离创建失败保留 ID / 分叉在已知身份后异常仍可关联。
-- [ ] 2.8 fork-runner 传递普通/隔离/prompt 回调，runModelAb 返回完整臂允许字段且保持旧成功 ids（<=2h）。验收：分叉在已知身份后异常仍可关联 / A-B 部分失败保留各臂事实。
+- [x] 2.8 fork-runner 传递普通/隔离/prompt 回调，runModelAb 返回完整臂允许字段且保持旧成功 ids（<=2h）。验收：分叉在已知身份后异常仍可关联 / A-B 部分失败保留各臂事实。
 - [ ] 2.9 替换 ProxyManager 全局 lastWrittenRunId，以本次 fork 对象关联 recorder 结果和受控写入失败，finally 清理（<=2h）。验收：主动代理重发与被动录制交错。
 - [ ] 2.10 增加代理交错请求/record 吞错回归和敏感错误标记测试，证明不借用被动 ID 或二次写入（<=2h）。验收：主动代理重发与被动录制交错 / 会话登记不泄漏输入和凭据。
 

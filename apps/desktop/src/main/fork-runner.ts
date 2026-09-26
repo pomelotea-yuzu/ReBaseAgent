@@ -11,6 +11,7 @@ import {
   replayRun,
   toToolDefs,
 } from "@rebaseagent/replay";
+import type { OnArmRunIdentified, OnRunIdentified } from "@rebaseagent/replay";
 import type { RunRecord } from "@rebaseagent/trace-sdk";
 import { findStepLlm } from "../shared/derive";
 import type {
@@ -44,6 +45,28 @@ export interface ForkRunnerOptions {
   execCwd: string;
   /** LLM 客户端（测试注入 mock；缺省真实调用 settings.baseURL） */
   llm?: LlmClient;
+  /**
+   * U4 的可信身份观察口（普通 result / prompt 分叉）：本次 trace 写出 run.meta 后、
+   * 首次模型调用前收到最终 run id。操作登记由此取身份，不解析异常文案（design D5）。
+   */
+  onRunIdentified?: OnRunIdentified;
+  /** U4：A/B 按臂身份观察（每臂 meta 写出后、该臂首次模型前一次） */
+  onArmRunIdentified?: OnArmRunIdentified;
+}
+
+/**
+ * U4：一次 A/B 提交按臂的完整事实（main 侧操作登记用）。
+ * `ModelAbResult.ids` 的口径不变——**只含成功臂**；失败臂与未开始臂的身份/结局放在这里，
+ * 不把失败混报成成功（U3 6.3 实测抓到的那类缺陷）。
+ */
+export interface ModelAbArmFact {
+  readonly index: number;
+  readonly id: string | null;
+  readonly outcome: "returned" | "failed";
+}
+
+export interface ModelAbRunResult extends ModelAbResult {
+  readonly armFacts: readonly ModelAbArmFact[];
 }
 
 /** 各 IPC 错误码（渲染层据此给中文提示） */
@@ -141,6 +164,7 @@ export async function runFork(
     load: (id) => repository.loadRunRecord(id),
     outDir: repository.tracesDir,
     llm: llm ?? new OpenAiCompatClient(config),
+    onRunIdentified: options.onRunIdentified,
   });
   return { id: result.id };
 }
@@ -243,6 +267,7 @@ export async function runPromptFork(
     load: (id) => repository.loadRunRecord(id),
     outDir: repository.tracesDir,
     llm: llm ?? new OpenAiCompatClient(config),
+    onRunIdentified: options.onRunIdentified,
   });
   return { id: result.id };
 }
@@ -261,7 +286,7 @@ export async function runPromptFork(
 export async function runModelAb(
   options: ForkRunnerOptions,
   request: ModelAbRequest,
-): Promise<ModelAbResult> {
+): Promise<ModelAbRunResult> {
   const { repository, llm } = options;
   const { config, tools } = buildForkConfig(options, request.parentRunId);
 
@@ -275,6 +300,7 @@ export async function runModelAb(
     dryRun: request.dryRun === true,
     confirmCost: request.dryRun !== true,
     ...(llm !== undefined ? { llm } : {}),
+    onArmRunIdentified: options.onArmRunIdentified,
   });
 
   return {
@@ -288,6 +314,16 @@ export async function runModelAb(
     ok: result.ok,
     plan: result.plan,
     sideEffectsAllowed: result.sideEffectsAllowed,
+    /**
+     * U4 登记用的完整臂事实：每条臂都占一格（含失败臂与未开始臂）。
+     * `id` 只在**该臂的 meta 实际写出后**非空——未开始/未写 meta 一律 null，不臆造身份；
+     * `outcome` 是该臂的请求层结局，不代表整批成功（`ok` 才是全臂成功的判据）。
+     */
+    armFacts: result.arms.map((arm) => ({
+      index: arm.index,
+      id: arm.id,
+      outcome: arm.error === null ? ("returned" as const) : ("failed" as const),
+    })),
   };
 }
 
@@ -412,6 +448,11 @@ export interface IsolatedForkOptions {
   dataDir: string;
   /** LLM 客户端（测试注入 mock；缺省真实调用 settings.baseURL） */
   llm?: LlmClient;
+  /**
+   * U4：隔离续跑的身份观察口。包层回调给的是 checkpoint tracer 替换后的**最终世界身份**
+   * （= 落盘 meta.id = world_id），预检/授权拒绝时不会被调用——没有记录就不给身份。
+   */
+  onRunIdentified?: OnRunIdentified;
 }
 
 export interface IsolatedForkRequest {
@@ -453,6 +494,7 @@ export async function runForkIsolated(
     config,
     authority: request.execution,
     llm: llm ?? new OpenAiCompatClient(config),
+    onRunIdentified: options.onRunIdentified,
   });
 
   if (!result.ok) {
