@@ -153,7 +153,19 @@
   （摘掉 status 的代次/版本守卫 ⇒ 真机 2 条判红：界面被压回 `v10/running` 而 main 已到 `v11/settled`）。
   ⚠️ 采集面硬教训：**`Page.reload` 偶发不换文档**（同一 ws 上挂着 25 s 不返回的 awaitPromise 时出现过一次）
   ⇒ `reloadAndWait()` 现挂 `window.__u466Doc` 活体标记，没换就抛错——M-66D 首轮 15/15 全绿正是判据空转。
-- [ ] 6.7 实测标题栏/Alt+F4/app.quit 下 dirty+running、clean+running、无应答及返回；验证输入/活跃任务保留（<=2h）。验收：无草稿的活跃操作也需确认 / 草稿与操作合并且关闭竞争不漏保护 / 退出输入锁保留已接收文字且不重放按键 / 重复关闭取消和迟到应答不会重入。
+- [x] 6.7 实测标题栏/Alt+F4/app.quit 下 dirty+running、clean+running、无应答及返回；验证输入/活跃任务保留（<=2h）。验收：无草稿的活跃操作也需确认 / 草稿与操作合并且关闭竞争不漏保护 / 退出输入锁保留已接收文字且不重放按键 / 重复关闭取消和迟到应答不会重入。
+  证据：`docs/reviews/2026-09-27-u4-67/README.md`（**5 tag / 82 检查 / 0 失败**，逐 tag 全新 dev + quit 哨兵钩子，零产品代码改动）·
+  采集 `apps/desktop/scripts/u4-67-cdp.cjs`（`clean-running` / `altf4-dirty` / `frozen-unknown` / `quit-return` / `quit-executing`）·
+  系统级通道复用 `lib/u3-64-winops.ps1`（关闭投递 + `#32770` UIA 读写 + `CopyFromScreen` 全屏截取）。
+  四条验收逐字对上：`无草稿的活跃操作也需确认`（clean+占槽仍弹一次确认，`closing`+`notAccepted` 读 main 不读界面置灰）/
+  `草稿与操作合并且关闭竞争不漏保护`（Alt+F4=标题栏同一条协商，一次合并文案；无应答连发关闭仍至多一层）/
+  `退出输入锁保留已接收文字且不重放按键`（锁内真键盘不改表单、真鼠标点「创建」不提交、往返草稿逐字保留）/
+  `重复关闭取消和迟到应答不会重入`（冻结 4s ⇒ 应答迟到 >1.5s ⇒ unknown 降级；点击-核对-重试排空；app.quit 返回后下次照常）。
+  合并文案五档实机读全（UIA `dialog-text` 逐字 + 全屏截图）；三处变异 M-67A/B/C 各自判红、还原复绿。
+  ⚠️ 三条实机口径写进 README 第五节：`#32770` CDP 看不见、新建运行在 top layer（输入锁靠捕获 preventDefault 不靠遮罩命中）、
+  桥接面外带发起的在飞不会被界面轮询自动推进（读终态须先 `refreshOperationStatus`）。
+  ⚠️ 如实标注未做实机面的：`configurationBusy` 合并档（造够长的配置在飞窗口难，`有一次配置变更尚未完成` 文案由 §5 单测 + M-CL4 承载）、
+  输入法组合分支（本机 `native-edit-context` 无 composition 事件，留 §7）。
 - [ ] 6.8 实测 800px、200% 缩放和键盘焦点；回归 U1 阅读/U2 文件/U3 草稿，验证状态/核对只读及源父兄弟/既有附件哈希不变（<=2h）。验收：操作入口在窄窗口和键盘下可达 / 核对结果只由用户明确打开 / 会话登记不泄漏输入和凭据 / 只读入口和被动录制不占主动槽。
 
 ## 7. 门禁与证据收口
