@@ -19,6 +19,7 @@ import {
   revalidateCallDraftSource,
   revalidateModelAbDraftSource,
 } from "../lib/draft-source";
+import { deriveEntryGate } from "../lib/entry-gate";
 import type { ForkCacheHint } from "../lib/fork-cache-hint";
 import { forkCacheHint } from "../lib/fork-cache-hint";
 import { formatDuration, prettyJson } from "../lib/format";
@@ -1968,7 +1969,11 @@ function ForkEditor({
   // 因为它已经把源记录当成可执行父本（源都不在了，预检结论没有意义）。
   const sourceExecutable = useAppStore((s) => s.canExecuteFromSource)();
   // U3 任务 2.5：恢复重验未通过（源缺失/损坏/改变/资格失效）⇒ 一并拦提交与预检
-  const canFork = canSubmit && sourceExecutable && sourceBlocked === null;
+  // U4 任务 4.3：入口可用性从**统一操作槽**派生（main 槽 / 通信未知 / 关闭 / 配置变更 /
+  // 本地尚未确认的提交），不再只看本地 forking。⚠️ 只拦"提交"，不拦只读的能力预检——
+  // 预检按 spec 不占主动槽，占槽期间照常可用。
+  const gate = deriveEntryGate(useAppStore((s) => s.operations));
+  const canFork = canSubmit && sourceExecutable && sourceBlocked === null && gate.canSubmit;
   const checkAllowed = check.ok && sourceExecutable && sourceBlocked === null;
   // 提示语：源不可用优先（它同时也会让 check 失配，但原因不同，不能互相冒充）
   const checkBlockReason = !sourceExecutable
@@ -2248,6 +2253,12 @@ function ForkEditor({
 
       {isolated && !submission.ok && submission.reason !== null ? (
         <div className="mt-1 text-[11px] leading-4 text-amber-700">{submission.reason}</div>
+      ) : null}
+
+      {gate.notice !== null ? (
+        <div data-testid="entry-gate-notice" className="mt-1 text-[11px] leading-4 text-amber-700">
+          {gate.notice}
+        </div>
       ) : null}
 
       {draftFrozen ? (

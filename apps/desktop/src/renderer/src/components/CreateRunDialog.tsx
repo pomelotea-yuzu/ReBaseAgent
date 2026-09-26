@@ -14,6 +14,7 @@ import {
 import type { CreateRunFormState } from "../lib/create-run";
 import { isCreateRunDraftDirty } from "../lib/debugging-drafts";
 import { CREATE_SUBMIT_TARGET } from "../lib/draft-submission";
+import { deriveEntryGate } from "../lib/entry-gate";
 import { useAppStore } from "../store";
 import { requestConfirm } from "./ConfirmDialog";
 import { ModalDialog } from "./ModalDialog";
@@ -88,8 +89,12 @@ export function CreateRunDialog({ onClose }: { onClose: () => void }) {
   const beginDraftSubmission = useAppStore((s) => s.beginDraftSubmission);
   // 禁用判据与将要发出的请求同源（同一个函数），不存在两处口径漂移
   const submission = resolveCreateRunSubmission(form, { systemPrompt, userMessage, busy });
-  const canCreate = submission.ok && !draftFrozen;
-  const blockedReason = submission.ok ? null : submission.reason;
+  // U4 任务 4.3：入口可用性从**统一操作槽**派生（不再只看本地 in_progress）。
+  // 只禁"提交"，不进 modalLocked —— 门禁拦下属于"这次发不出去"，
+  // 不该顺手把输入与关闭也锁住（那是自己那次提交在飞时才做的事）。
+  const gate = deriveEntryGate(useAppStore((s) => s.operations));
+  const canCreate = submission.ok && !draftFrozen && gate.canSubmit;
+  const blockedReason = submission.ok ? gate.notice : submission.reason;
   const modalLocked = busy || pickingSource || draftFrozen;
 
   // U3 任务 6.10（design D7）：Esc 关闭只走 ModalDialog 的原生 cancel（单一通道）——
