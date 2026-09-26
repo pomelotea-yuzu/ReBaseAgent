@@ -179,4 +179,21 @@
   desktop `electron-vite build` **EXIT=0**。
   环境阻塞记录：**本轮 0 次**——6.11 首轮曾出现的 2 条 `controlled-entrances` 红（紧邻 run-all 的 mock 端口起停）
   本轮整跑未复现，未复跑、未改码；产品失败 **0**。实机面（6.1–6.11）未被跳过，逐场景证据见 7.2。
-- [ ] 7.2 编写 evidence-index，逐场景关联测试/fixture/真实截图与命令结果，核对入口接线和 U4/U5 边界、所有任务实际完成情况（<=2h）。未执行项保持待办，不宣称跨页执行或自动清理完成；归档另行处理。
+- [x] 7.2 编写 evidence-index，逐场景关联测试/fixture/真实截图与命令结果，核对入口接线和 U4/U5 边界、所有任务实际完成情况（<=2h）。未执行项保持待办，不宣称跨页执行或自动清理完成；归档另行处理。
+  产出 `evidence-index.md`：delta **9 requirements / 41 scenarios 全覆盖、未验证 0**（全 ADDED，既有场景零改动）。
+  **四项引用回查全部机器化**（脚本在 `.workbuddy/u3/u3-72/`，各带反证证明判据有牙）：
+  场景逐条覆盖 41/缺失 0（M1 改名/M2 删行/M3 虚构 三处注入全部判红）；
+  **62 个实机 tag 名**在 11 个采集脚本源码内命中；**78 张截图**逐张存在且目录计数相等；
+  **79 个用例名片段**命中 `describe/it` 标题（⚠️ 本轮回查抓到并修正 3 处把 describe 与 it 拼接的"非逐字"引用——
+  人读没问题、机器判红，已把「用例名逐字取自 `it(...)` 标题」写成索引纪律）。
+  三条实现面事实**逐条给结论**：① `native-edit-context` ⇒ `inputSettled` 在输入法路径无触发＝**可接受**
+  （保护由 `dirtyCount` 侧承担，spec R7-3 THEN 尾句已覆盖；design D6 需注明通道适用面，**不回 proposal**）；
+  ② 未提交候选被输入法丢弃＝**可接受、已写死**（二选一断言 + 已提交文字必须保留）；
+  ③ Monaco 弹层 `stopPropagation` ⇒ `defaultPrevented` 让位分支实机不可观测＝**可接受、证据分层**
+  （单测钉该分支，实机面由 `modalPresent` 承担；教训：变异要在可观测路径上注入）。
+  另列 **9 条已知限制**（零持久化无单测面、真原生目录选择取消不可自动化、`fff6581`/`eef8fed` 无新增单测、
+  `event.sender` 冒名不可注入、`u3-64/65` 的 measurements 是修缺陷前中间态等）与 **U4/U5 边界表**
+  （操作登记/执行槽/reconcile/自动清理/真实取消全部未做，本索引不宣称）；U2 遗留「渲染层无 error boundary」**不归本 change**。
+  复跑门禁（同 7.1，加入索引后复验）：根 `biome check .` **367 文件 0 错**、
+  `validate preserve-debugging-drafts --strict` **valid**；日志 `.workbuddy/u3/u3-72/22-biome-root.log`、
+  `23-openspec-strict.log`。**tasks 37/37 全勾，仅剩 owner 验收与归档（按约定不自动归档）。**
