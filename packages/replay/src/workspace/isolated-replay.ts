@@ -7,6 +7,8 @@ import { deriveReplayState } from "../derive.js";
 import type { ReplayEdit } from "../derive.js";
 import { maxSpanSeq } from "../parent-chain.js";
 import { newForkRunId } from "../replay-run.js";
+import { observeRunIdentity } from "../run-identity.js";
+import type { OnRunIdentified } from "../run-identity.js";
 import { createWorkspaceCheckpointTracer } from "./checkpoint-tracer.js";
 import { createFileToolsV1 } from "./file-tools.js";
 import { preflightIsolatedReplay } from "./preflight.js";
@@ -72,6 +74,12 @@ export interface ReplayIsolatedRunOptions {
   readonly authority: unknown;
   /** LLM 客户端（测试注入 mock；缺省真调 `config.baseURL`） */
   readonly llm?: LlmClient;
+  /**
+   * 可选的可信运行身份观察（U4 design D5）：预检/授权/源校验通过后、首次 LLM 前收到
+   * 最终 run id（= 落盘 meta.id = 本副本世界的 `world_id`）。
+   * 拒绝路径（授权缺失、快照定位失败、预检失败）一律不回调；归位失败也不撤销已报告的身份。
+   */
+  readonly onRunIdentified?: OnRunIdentified;
 }
 
 /** 失败码：本层三类 + 预检原始分类（原样透传，便于上层直接映射提示） */
@@ -178,6 +186,8 @@ export async function replayIsolatedRun(
 
   let outcome: RunResult | null = null;
   let landedId: string | null = null;
+  // 挂在底层 delegate 上 ⇒ 报告的是 checkpoint tracer 加工后的最终 meta（与 4.1 同一口径）
+  const releaseIdentityWatch = observeRunIdentity(delegate, options.onRunIdentified);
   try {
     outcome = await runLoop(
       config,
@@ -188,6 +198,7 @@ export async function replayIsolatedRun(
       forkRun,
     );
   } finally {
+    releaseIdentityWatch();
     // 与 4.1 同序：先释放句柄（Windows 上打开的文件不能改名），再归位。
     delegate.dispose();
     if (existsSync(tmpFile)) {

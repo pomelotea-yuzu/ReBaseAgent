@@ -4,6 +4,8 @@ import { OpenAiCompatClient, runLoop } from "@rebaseagent/agent-loop";
 import type { LlmClient, Message, RunConfig, RunResult } from "@rebaseagent/agent-loop";
 import { JsonlTracer, readRun } from "@rebaseagent/trace-sdk";
 import { createWorkspaceSnapshot } from "@rebaseagent/trace-sdk/workspace-hash";
+import { observeRunIdentity } from "../run-identity.js";
+import type { OnRunIdentified } from "../run-identity.js";
 import { createWorkspaceCheckpointTracer } from "./checkpoint-tracer.js";
 import { FILE_TOOLS_V1_PROFILE, createFileToolsV1 } from "./file-tools.js";
 import { importSourceTree } from "./import-source.js";
@@ -85,6 +87,13 @@ export interface CreateIsolatedRunOptions {
   readonly authority: unknown;
   /** LLM 客户端（测试注入 mock；缺省真调 `config.baseURL`） */
   readonly llm?: LlmClient;
+  /**
+   * 可选的可信运行身份观察（U4 design D5）：收到的是 **checkpoint tracer 注入后的最终
+   * run id**（= 落盘 meta.id = `workspace.world_id`），绝不是 loop 自造的临时 id。
+   * 只观察：不改 ID、不动预检/授权/配额门禁与轮末检查点语义；
+   * 之后的归位或收尾失败都不会撤销已报告的身份。
+   */
+  readonly onRunIdentified?: OnRunIdentified;
 }
 
 /** 创建失败的分类码：预检三类 + 导入原始分类 + 建世界/归位 */
@@ -227,9 +236,13 @@ export async function createIsolatedRun(
 
   let outcome: RunResult | null = null;
   let landedId: string | null = null;
+  // 身份观察挂在**底层 delegate** 上：包装器先把 id/world_id 替换成最终隔离 id 再调
+  // delegate.startRun，所以这里收到的一定是最终 meta.id（临时文件名与 loop 自造 id 都不外泄）。
+  const releaseIdentityWatch = observeRunIdentity(delegate, options.onRunIdentified);
   try {
     outcome = await runLoop(config, messages, tracer, tools, llm ?? new OpenAiCompatClient(config));
   } finally {
+    releaseIdentityWatch();
     // 异常清理（1.5 交付的 `dispose`）：只关句柄、不写终止事件，未封存状态原样保留。
     // **顺序**先于 rename：不要依赖平台的句柄语义（本机实测 Node 在 Windows 上以
     // FILE_SHARE_DELETE 打开文件，未关闭也能改名/删除；换成句柄语义更严的文件系统就会失败）。
