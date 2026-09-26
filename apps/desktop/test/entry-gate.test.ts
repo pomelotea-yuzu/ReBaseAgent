@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { deriveEntryGate } from "../src/renderer/src/lib/entry-gate";
+import { deriveConfigGate, deriveEntryGate } from "../src/renderer/src/lib/entry-gate";
 import { type OperationSession, initialSession } from "../src/renderer/src/lib/operation-session";
 
 /**
@@ -21,6 +21,7 @@ import { type OperationSession, initialSession } from "../src/renderer/src/lib/o
 
 const DIALOG = resolve(import.meta.dirname, "../src/renderer/src/components/CreateRunDialog.tsx");
 const PANEL = resolve(import.meta.dirname, "../src/renderer/src/components/DetailPanel.tsx");
+const SETTINGS = resolve(import.meta.dirname, "../src/renderer/src/components/SettingsDialog.tsx");
 
 function sessionWith(overrides: Partial<OperationSession>): OperationSession {
   return { ...initialSession(), ...overrides };
@@ -169,5 +170,60 @@ describe("4.4 接线契约：prompt / messages / A-B 也接同一份会话", () 
     expect(PROMPT).toContain('const inProgress = forking === "in_progress" || draftFrozen;');
     expect(MESSAGES).toContain('const inProgress = forking === "in_progress" || draftFrozen;');
     expect(MODEL_AB).toContain("const inProgress = modelAbInFlight || draftFrozen;");
+  });
+});
+
+describe("4.8 接线契约：配置写入口绑同一门禁，读取与关闭不受影响", () => {
+  const settings = readFileSync(SETTINGS, "utf8");
+
+  it("deriveConfigGate 与提交门禁同源：空闲放行、有操作在跑/未握手/未知都拒写", () => {
+    expect(deriveConfigGate(sessionWith({ epoch: "e-1" })).canChange).toBe(true);
+    for (const [label, session] of [
+      ["未握手", sessionWith({})],
+      ["未知", sessionWith({ epoch: "e-1", unknown: true })],
+      ["关闭协商", sessionWith({ epoch: "e-1", closing: true })],
+      ["配置变更中", sessionWith({ epoch: "e-1", configurationBusy: true })],
+      ["有操作在跑", sessionWith({ epoch: "e-1", activeOperationId: "op-1" })],
+    ] as const) {
+      const gate = deriveConfigGate(session);
+      expect(gate.canChange, label).toBe(false);
+      expect(gate.notice, label).toBeTruthy();
+    }
+    // "配置变更中"要说人话（不是套提交入口的文案）
+    expect(
+      deriveConfigGate(sessionWith({ epoch: "e-1", configurationBusy: true })).notice,
+    ).toContain("变更");
+  });
+
+  it("三个写动作都判 configGate.canChange，且给出可见理由", () => {
+    expect(settings).toContain(
+      "const canSave = missing.length === 0 && !busy && configGate.canChange",
+    );
+    expect(settings).toContain("disabled={!configured || busy || !configGate.canChange}");
+    expect(settings).toContain("disabled={proxyBusy || !configGate.canChange}");
+    expect(settings).toContain('data-testid="config-gate-notice"');
+  });
+
+  it("读取、关闭与回读不被门禁锁掉（spec：settings:get / proxy:status 仍可用）", () => {
+    // 关闭按钮：不带任何门禁判据（用户随时能退出这个对话框）
+    const closeBtn = settings.slice(settings.indexOf("onClick={onClose}"));
+    expect(closeBtn.slice(0, closeBtn.indexOf(">"))).not.toContain("disabled");
+    // 载入/回读路径不接门禁
+    const loaders = [
+      settings.slice(
+        settings.indexOf("void loadSettings()"),
+        settings.indexOf("}", settings.indexOf("void loadSettings()")),
+      ),
+      settings.slice(
+        settings.indexOf("void loadProxyStatus()"),
+        settings.indexOf("}", settings.indexOf("void loadProxyStatus()")),
+      ),
+    ];
+    for (const body of loaders) {
+      expect(body).not.toContain("configGate");
+    }
+    expect(settings).not.toContain("disabled={configGate");
+    // 模态焦点通道（ModalDialog + closeDisabled）不因门禁改写
+    expect(settings).toContain("<ModalDialog");
   });
 });

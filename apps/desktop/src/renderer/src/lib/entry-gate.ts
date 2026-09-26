@@ -49,3 +49,28 @@ export function deriveEntryGate(session: OperationSession): EntryGate {
     shouldReconcile: gate.blockedBy === "communication_unknown",
   };
 }
+
+/**
+ * 配置写入口的门禁（任务 4.8）：settings 保存/清除与代理启停。
+ *
+ * 与提交入口同源（同一份会话），但**只管写**——spec 明确要求
+ * `settings:get` / `proxy:status` 一类读取在任何状态下都保持可用（「直接 IPC 不能绕过配置锁」
+ * 的 THEN 句），所以读取路径不接这里，只有三个写动作接。
+ */
+export interface ConfigGate {
+  readonly canChange: boolean;
+  readonly notice: string | null;
+}
+
+export function deriveConfigGate(session: OperationSession): ConfigGate {
+  const gate = deriveGate(session);
+  if (gate.blockedBy === null) return { canChange: true, notice: null };
+  return {
+    canChange: false,
+    // 自己就是"配置变更中"那条判据的持有者 ⇒ 文案换成面向配置的说法
+    notice:
+      gate.blockedBy === "configuration_busy"
+        ? NOTICES.configuration_busy
+        : NOTICES[gate.blockedBy],
+  };
+}

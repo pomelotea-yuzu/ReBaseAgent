@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { deriveConfigGate } from "../lib/entry-gate";
 import { useAppStore } from "../store";
 import { ModalDialog } from "./ModalDialog";
 
@@ -42,6 +43,10 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
 
   const saveSettings = useAppStore((s) => s.saveSettings);
   const clearSettings = useAppStore((s) => s.clearSettings);
+  // U4 任务 4.8：三个**写**动作（保存/清除/代理启停）绑统一门禁。
+  // ⚠️ 只绑写通道：`settings:get` / `proxy:status` 的读取与"关闭"按钮不受门禁影响
+  // （spec「直接 IPC 不能绕过配置锁」的 THEN 句要求读取照常可用），main 判锁仍是最后防线。
+  const configGate = deriveConfigGate(useAppStore((s) => s.operations));
 
   const trimmed = {
     baseURL: baseURL.trim(),
@@ -52,7 +57,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
     trimmed.baseURL.length === 0 ? "baseURL" : "",
     trimmed.model.length === 0 ? "model" : "",
   ].filter(Boolean);
-  const canSave = missing.length === 0 && !busy;
+  const canSave = missing.length === 0 && !busy && configGate.canChange;
 
   const doSave = async (): Promise<void> => {
     if (!canSave) return;
@@ -194,6 +199,12 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
 
       {message !== null ? <div className="mt-2 text-[11px] text-gray-600">{message}</div> : null}
 
+      {configGate.notice !== null ? (
+        <div data-testid="config-gate-notice" className="mt-2 text-[11px] leading-4 text-amber-700">
+          {configGate.notice}
+        </div>
+      ) : null}
+
       {missing.length > 0 ? (
         <div className="mt-2 text-[11px] text-amber-700">
           请先填写：{missing.join("、")}（apiKey 可在已配置后留空以保持不变）
@@ -206,7 +217,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
           onClick={() => {
             void doClear();
           }}
-          disabled={!configured || busy}
+          disabled={!configured || busy || !configGate.canChange}
           className="rounded px-2 py-1 text-[11px] text-gray-500 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
         >
           清除配置
@@ -309,7 +320,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
             onClick={() => {
               void doProxyApply();
             }}
-            disabled={proxyBusy}
+            disabled={proxyBusy || !configGate.canChange}
             className="rounded bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {proxyBusy ? "应用中…" : "保存并应用"}
