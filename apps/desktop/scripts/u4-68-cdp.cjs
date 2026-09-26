@@ -158,7 +158,8 @@ async function sendKey(type, key, code, text) {
     windowsVirtualKeyCode: keyCodeOf(code),
     nativeVirtualKeyCode: keyCodeOf(code),
   };
-  if (text !== undefined) await callB("Input.dispatchKeyEvent", { ...base, text, unmodifiedText: text });
+  if (text !== undefined)
+    await callB("Input.dispatchKeyEvent", { ...base, text, unmodifiedText: text });
   else await callB("Input.dispatchKeyEvent", base);
 }
 function keyCodeOf(code) {
@@ -166,15 +167,8 @@ function keyCodeOf(code) {
 }
 const KEY_SEQUENCES = {
   "char-only": [{ t: "char", x: "\r" }],
-  "down-up": [
-    { t: "keyDown", x: "\r" },
-    { t: "keyUp" },
-  ],
-  "down-char-up": [
-    { t: "keyDown", x: "\r" },
-    { t: "char", x: "\r" },
-    { t: "keyUp" },
-  ],
+  "down-up": [{ t: "keyDown", x: "\r" }, { t: "keyUp" }],
+  "down-char-up": [{ t: "keyDown", x: "\r" }, { t: "char", x: "\r" }, { t: "keyUp" }],
 };
 /**
  * 键盘激活当前焦点元素：装真 click 计数哨，逐个候选序列试到**恰一次** click 为止
@@ -236,7 +230,12 @@ async function rectsInViewport(selector) {
   const vw = await innerWidth();
   const vh = Number(await evB("String(window.innerHeight)"));
   const rects = JSON.parse(raw);
-  return { vw, vh, rects, allInside: rects.every((x) => x.l >= 0 && x.r <= vw && x.t >= 0 && x.b <= vh) };
+  return {
+    vw,
+    vh,
+    rects,
+    allInside: rects.every((x) => x.l >= 0 && x.r <= vw && x.t >= 0 && x.b <= vh),
+  };
 }
 /** 文档横向溢出（长 ID 撑破布局的直接证据） */
 const hOverflow = async () =>
@@ -270,6 +269,11 @@ async function mainStatus() {
     list,
   };
 }
+/** store 里已加载的运行条数（就绪判据的真源，不依赖导航是否展开） */
+const storeRunCount = async () => {
+  const n = await H.storeQ(call, "return JSON.stringify((s.runs ?? []).length);");
+  return Number(n) || 0;
+};
 const view = () =>
   H.storeQ(
     call,
@@ -280,10 +284,7 @@ const view = () =>
        });`,
   );
 const adoptNow = async () => {
-  await H.storeQ(
-    call,
-    "await s.refreshOperationStatus(); return JSON.stringify({ done: true });",
-  );
+  await H.storeQ(call, "await s.refreshOperationStatus(); return JSON.stringify({ done: true });");
   return view();
 };
 const CREATE_SYSTEM = "你是冒烟助手。只回一句话。";
@@ -490,7 +491,11 @@ async function tagNarrowKeyboard(fx) {
   await H.clickTab(call, "概览");
   await H.selectRun(call, fx.normalRun);
   const v1 = await view();
-  check("U1 回归：窄窗下仍能选中运行并读到身份", v1.selectedRunId === fx.normalRun, v1.selectedRunId);
+  check(
+    "U1 回归：窄窗下仍能选中运行并读到身份",
+    v1.selectedRunId === fx.normalRun,
+    v1.selectedRunId,
+  );
   const tabs = await evB(
     `(() => JSON.stringify(Array.from(document.querySelectorAll('[role="tab"]'))
       .map(t => ({ label: (t.textContent||'').trim(), sel: t.getAttribute('aria-selected'), dis: t.disabled === true }))))()`,
@@ -583,15 +588,17 @@ async function discardResultDraftSafe(runId) {
 // ---------------------------------------------------------------------------
 async function tagZoom200Keyboard(fx) {
   const css = await resizeOuter(1280, 1400);
-  const zoom = await evB(
-    `(() => { const d = window.devicePixelRatio; return String(d); })()`,
-  );
-  dump.layout.push({ at: "zoom200", css, dpr: zoom, outer: await evB("String(window.outerWidth)") });
-  check(
-    "200% 缩放确实生效（dpr ≈ 基线 2.1 × 2；非 Emulation 伪缩放）",
-    Number(zoom) > 3.6,
-    { dpr: zoom, css },
-  );
+  const zoom = await evB("(() => { const d = window.devicePixelRatio; return String(d); })()");
+  dump.layout.push({
+    at: "zoom200",
+    css,
+    dpr: zoom,
+    outer: await evB("String(window.outerWidth)"),
+  });
+  check("200% 缩放确实生效（dpr ≈ 基线 2.1 × 2；非 Emulation 伪缩放）", Number(zoom) > 3.6, {
+    dpr: zoom,
+    css,
+  });
   const epoch = (await adoptNow()).epoch;
   const id = freshId();
   const created = await bridgeCreate(epoch, id, `${TASK_MARK} 200% 缩放那条 ${rand()}`);
@@ -629,7 +636,11 @@ async function tagZoom200Keyboard(fx) {
   await H.clickTab(call, "概览");
   await H.selectRun(call, fx.normalRun);
   const v = await view();
-  check("200% 下 U1 阅读面照常（可选运行、可读身份）", v.selectedRunId === fx.normalRun, v.selectedRunId);
+  check(
+    "200% 下 U1 阅读面照常（可选运行、可读身份）",
+    v.selectedRunId === fx.normalRun,
+    v.selectedRunId,
+  );
   return { id, runId, css, dpr: zoom };
 }
 
@@ -655,17 +666,21 @@ async function tagReadonlyNoslot(mock, fx) {
     dryRun: true,
   });
   const a1 = await mainStatus();
-  check(
-    "A/B 预览不占主动槽、不登记（只读通道）",
-    a1.slot === null && a1.count === 0,
-    { slot: a1.slot, count: a1.count, planOk: plan.ok },
-  );
+  check("A/B 预览不占主动槽、不登记（只读通道）", a1.slot === null && a1.count === 0, {
+    slot: a1.slot,
+    count: a1.count,
+    planOk: plan.ok,
+  });
   check(
     "A/B 预览零模型请求、零新增文件",
     mock.served() === servedStart && H.traceIds().size === filesStart,
     { served: mock.served(), files: H.traceIds().size },
   );
-  dump.preview = { ok: plan.ok, code: plan.error?.code ?? null, arms: plan.data?.plan?.length ?? null };
+  dump.preview = {
+    ok: plan.ok,
+    code: plan.error?.code ?? null,
+    arms: plan.data?.plan?.length ?? null,
+  };
 
   // ---- 只读入口 2：隔离能力预检（forkCapability） ----
   const cap = await H.apiCall(call, "forkCapability", {
@@ -727,11 +742,7 @@ async function tagReadonlyNoslot(mock, fx) {
   const bodyHits = await leakScan(canary, "登记不泄漏请求正文");
   check("登记/status/核对/面板全都不含请求正文（canary 零命中）", bodyHits.length === 0, bodyHits);
   const keyHits = await leakScan(API_KEY_MARK, "登记不泄漏凭据");
-  check(
-    "配置读与登记全都不含 apiKey（凭据 canary 零命中）",
-    keyHits.length === 0,
-    keyHits,
-  );
+  check("配置读与登记全都不含 apiKey（凭据 canary 零命中）", keyHits.length === 0, keyHits);
   const stackHits = await leakScan("at Object.", "登记不泄漏 stack");
   const rawDump = JSON.stringify((await mainStatus()).raw);
   check(
@@ -759,11 +770,10 @@ async function tagReadonlyNoslot(mock, fx) {
       afterReconcile.activeTab === beforeNav.activeTab,
     { recClicked, before: beforeNav.selectedRunId, after: afterReconcile.selectedRunId },
   );
-  check(
-    "核对也不重放执行：模型请求计数未增",
-    mock.served() === servedStart + 2,
-    { served: mock.served(), servedStart },
-  );
+  check("核对也不重放执行：模型请求计数未增", mock.served() === servedStart + 2, {
+    served: mock.served(),
+    servedStart,
+  });
   const opened = await evB(
     `(() => { const b = Array.from(document.querySelectorAll('#operations-panel button'))
         .find(x => ((x.textContent||'').trim()) === '打开记录');
@@ -834,23 +844,24 @@ async function main() {
   await call("Emulation.clearDeviceMetricsOverride").catch(() => {});
   H.attachDialogHandler(call, pageDialogs);
 
+  // 就绪判据读 **store 的 runs 列表**（真源），不读 DOM 复制按钮 —— 200%/窄档下导航收起，
+  // 列表行不在 DOM 里，读按钮会把"已加载"误判成"没就绪"（本批一次假红即此）。
   let ready = 0;
   for (let i = 0; i < 30 && ready === 0; i++) {
     await H.sleep(1000);
-    ready = (await H.runs(call).catch(() => []))
-      .length;
+    ready = await storeRunCount().catch(() => 0);
   }
   if (ready === 0) {
-    // 200% 缩放把默认窗口压进窄档 ⇒ 运行列表收起，H.runs 读不到 ⇒ 先开导航开关再探一次
-    await resizeOuter(1400, 1000).catch(() => {});
-    const nav = await ensureNavOpen().catch(() => null);
-    for (let i = 0; i < 20 && ready === 0; i++) {
+    await H.storeQ(call, "await s.loadRuns(); return JSON.stringify({ ok: true });").catch(
+      () => {},
+    );
+    await ensureNavOpen().catch(() => null);
+    for (let i = 0; i < 15 && ready === 0; i++) {
       await H.sleep(1000);
-      ready = (await H.runs(call).catch(() => [])).length;
+      ready = await storeRunCount().catch(() => 0);
     }
-    dump.layout.push({ at: "readiness-fallback", nav, ready });
   }
-  check("运行列表就绪（夹具在场）", ready > 0, ready);
+  check("运行列表就绪（store.runs 有夹具）", ready > 0, ready);
   if (ready === 0) finish();
 
   const mock = await H.prepare(call, SCRIPTS[TAG]);

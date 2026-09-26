@@ -319,8 +319,20 @@ async function realClickDialogButton(text) {
   );
   const p = JSON.parse(box);
   if (p.error !== undefined) return p.error;
-  await callB("Input.dispatchMouseEvent", { type: "mousePressed", x: p.x, y: p.y, button: "left", clickCount: 1 });
-  await callB("Input.dispatchMouseEvent", { type: "mouseReleased", x: p.x, y: p.y, button: "left", clickCount: 1 });
+  await callB("Input.dispatchMouseEvent", {
+    type: "mousePressed",
+    x: p.x,
+    y: p.y,
+    button: "left",
+    clickCount: 1,
+  });
+  await callB("Input.dispatchMouseEvent", {
+    type: "mouseReleased",
+    x: p.x,
+    y: p.y,
+    button: "left",
+    clickCount: 1,
+  });
   return "clicked";
 }
 
@@ -436,8 +448,7 @@ async function hookAnswerClock() {
       return 'hooked'; })()`,
   );
 }
-const answerLog = async () =>
-  JSON.parse(String(await evB("JSON.stringify(window.__q67 || [])")));
+const answerLog = async () => JSON.parse(String(await evB("JSON.stringify(window.__q67 || [])")));
 
 // ---------------------------------------------------------------------------
 // 草稿与对话框（真 UI 路径）
@@ -531,7 +542,10 @@ async function tagCleanRunning(mock, fx) {
   const kinds = await noteDialog("clean-running 第一次询问", dlg);
   check(
     "无草稿但 main 占槽 ⇒ 仍弹一次确认（文案档 = 有操作正在执行）",
-    dlg !== null && kinds.active === true && kinds.draftDirty === false && kinds.configBusy === false,
+    dlg !== null &&
+      kinds.active === true &&
+      kinds.draftDirty === false &&
+      kinds.configBusy === false,
     { kinds, texts: dlg?.texts?.slice(0, 200) },
   );
   check(
@@ -554,7 +568,11 @@ async function tagCleanRunning(mock, fx) {
     { closing: mid.closing, slot: mid.slot },
   );
   const secondId = freshId();
-  const second = await bridgeCreate(mid.epoch, secondId, `${TASK_MARK} 询问期间的第二入口 ${rand()}`);
+  const second = await bridgeCreate(
+    mid.epoch,
+    secondId,
+    `${TASK_MARK} 询问期间的第二入口 ${rand()}`,
+  );
   const secondRec = (await recordOf(secondId)).rec;
   check(
     "询问期间第二主动入口被 main 拒 ⇒ OPERATION_NOT_ACCEPTED 且登记 notAccepted",
@@ -569,17 +587,13 @@ async function tagCleanRunning(mock, fx) {
     { served: mock.served(), files: H.traceIds().size, baseline: flight.filesBefore },
   );
 
-  const settingsBefore = H.existsSync(H.SETTINGS_FILE)
-    ? H.readFileSync(H.SETTINGS_FILE)
-    : null;
+  const settingsBefore = H.existsSync(H.SETTINGS_FILE) ? H.readFileSync(H.SETTINGS_FILE) : null;
   const cfgWrite = await H.apiCall(call, "saveSettings", {
     baseURL: H.MOCK_BASE,
     apiKey: `${TASK_MARK}-should-not-be-written-${rand()}`,
     model: "mock-model",
   });
-  const settingsAfter = H.existsSync(H.SETTINGS_FILE)
-    ? H.readFileSync(H.SETTINGS_FILE)
-    : null;
+  const settingsAfter = H.existsSync(H.SETTINGS_FILE) ? H.readFileSync(H.SETTINGS_FILE) : null;
   check(
     "询问期间配置写被 main 拒（closing），且配置文件逐字节未变",
     cfgWrite.ok === false &&
@@ -599,10 +613,7 @@ async function tagCleanRunning(mock, fx) {
   // 不会自动知道槽被占（status 是 pull-only，轮询只在"界面已知有活跃操作"时才武装）。
   // 显式刷一次 status（等价于用户打开操作面板），让界面按 main 事实采纳那个在飞槽。
   const countBeforeAdopt = (await mainStatus()).count;
-  await H.storeQ(
-    call,
-    "await s.refreshOperationStatus(); return JSON.stringify({ done: true });",
-  );
+  await H.storeQ(call, "await s.refreshOperationStatus(); return JSON.stringify({ done: true });");
   const gate = await entryGate().catch(() => null);
   check(
     "界面采纳 main 事实后拒绝新提交（询问在场 ⇒ blockedBy=closing，文案「应用正在退出」）",
@@ -648,7 +659,11 @@ async function tagCleanRunning(mock, fx) {
       mock.served() === flight.servedBefore + 1,
     { state: settled.rec?.state, runIds: settled.rec?.runIds, served: mock.served() },
   );
-  const banAgain = await bridgeCreate(settled.snap.epoch, secondId, `${TASK_MARK} 复活被封禁的身份 ${rand()}`);
+  const banAgain = await bridgeCreate(
+    settled.snap.epoch,
+    secondId,
+    `${TASK_MARK} 复活被封禁的身份 ${rand()}`,
+  );
   check(
     "notAccepted 永不复活：稍后用同一身份再提仍被拒、仍是 notAccepted",
     banAgain.ok === false &&
@@ -658,10 +673,7 @@ async function tagCleanRunning(mock, fx) {
   );
   // 这条在飞是从桥接面外带发起的（renderer 没经手 ⇒ 未武装本地轮询），界面只会按用户
   // 明确动作刷新 ⇒ 打开面板前显式刷一次（等价用户点开），读出 main 的真实终态。
-  await H.storeQ(
-    call,
-    "await s.refreshOperationStatus(); return JSON.stringify({ done: true });",
-  );
+  await H.storeQ(call, "await s.refreshOperationStatus(); return JSON.stringify({ done: true });");
   const rows = await panelRows();
   check(
     "界面上那条已收口（带可信 runId）+ 被拒那条以「未接受」在场（面板逐条读数）",
@@ -684,10 +696,7 @@ async function tagCleanRunning(mock, fx) {
 
 /** 界面采纳 main 的当前快照（等价用户点开操作面板）：桥接面外带发起的操作不会被本地轮询自动推进 */
 async function adoptNow() {
-  await H.storeQ(
-    call,
-    "await s.refreshOperationStatus(); return JSON.stringify({ done: true });",
-  );
+  await H.storeQ(call, "await s.refreshOperationStatus(); return JSON.stringify({ done: true });");
   return view();
 }
 async function panelRows() {
@@ -744,7 +753,9 @@ async function tagAltF4Dirty(mock, fx) {
     String(dlg?.buttons ?? "").includes("退出并丢弃草稿"),
     dlg?.buttons,
   );
-  await captureScreen(`67-${TAG}-dialog`).then((f) => dump.screens.push({ at: "altf4-dirty", file: typeof f }));
+  await captureScreen(`67-${TAG}-dialog`).then((f) =>
+    dump.screens.push({ at: "altf4-dirty", file: typeof f }),
+  );
 
   const locked = await overlayPresent();
   check("询问在场时输入锁生效（遮罩渲染）", locked === true, locked);
@@ -790,10 +801,7 @@ async function tagAltF4Dirty(mock, fx) {
     { rev0: draft0.revision, rev1: draft1.revision, queries: q1.length },
   );
 
-  await H.storeQ(
-    call,
-    "await s.refreshOperationStatus(); return JSON.stringify({ done: true });",
-  );
+  await H.storeQ(call, "await s.refreshOperationStatus(); return JSON.stringify({ done: true });");
   const gate = await entryGate().catch(() => null);
   check("门禁采纳在飞槽后拒绝新提交", gate?.canSubmit === false, gate);
 
@@ -899,7 +907,9 @@ async function tagFrozenUnknown(mock, fx) {
       String(dlg.buttons).includes("丢弃") === false,
     dlg?.buttons,
   );
-  await captureScreen(`67-${TAG}-dialog`).then((f) => dump.screens.push({ at: "frozen-unknown", file: typeof f }));
+  await captureScreen(`67-${TAG}-dialog`).then((f) =>
+    dump.screens.push({ at: "frozen-unknown", file: typeof f }),
+  );
 
   await winops("close-titlebar");
   await winops("close-titlebar");
@@ -908,11 +918,7 @@ async function tagFrozenUnknown(mock, fx) {
     samples.push(await dialogCount());
     await H.sleep(500);
   }
-  check(
-    "无应答期间连发关闭仍至多一层（不重入、不叠加确认）",
-    Math.max(...samples) === 1,
-    samples,
-  );
+  check("无应答期间连发关闭仍至多一层（不重入、不叠加确认）", Math.max(...samples) === 1, samples);
   const mid = await mainStatus();
   check("冻结期间 closing 仍守得住（询问未结束 ⇒ 第二个入口被拒）", mid.closing === true, {
     closing: mid.closing,
@@ -984,12 +990,12 @@ async function tagQuitReturn(mock, fx) {
     dlg !== null && kinds.mergedDirtyActive === true,
     { kinds, texts: dlg?.texts?.slice(0, 240) },
   );
-  await captureScreen(`67-${TAG}-dialog`).then((f) => dump.screens.push({ at: "quit-return", file: typeof f }));
-  check(
-    "哨兵文件已被消费（一次 quit 只发起一次协商）",
-    existsSync(QUIT_FLAG) === false,
-    { still: existsSync(QUIT_FLAG) },
+  await captureScreen(`67-${TAG}-dialog`).then((f) =>
+    dump.screens.push({ at: "quit-return", file: typeof f }),
   );
+  check("哨兵文件已被消费（一次 quit 只发起一次协商）", existsSync(QUIT_FLAG) === false, {
+    still: existsSync(QUIT_FLAG),
+  });
 
   const drained = await drainDialogs(0);
   check("quit 协商可返回", drained.clean && drained.rounds.length >= 1, drained.rounds);
@@ -1011,10 +1017,7 @@ async function tagQuitReturn(mock, fx) {
     draft !== null && String(draft.userMessage).includes(initial),
     draft?.userMessage?.slice(0, 80),
   );
-  await H.storeQ(
-    call,
-    "await s.refreshOperationStatus(); return JSON.stringify({ done: true });",
-  );
+  await H.storeQ(call, "await s.refreshOperationStatus(); return JSON.stringify({ done: true });");
   const gate = await entryGate().catch(() => null);
   check(
     "取消退出后门禁仍按 main 的在飞槽判定（采纳后 blockedBy=operation_running）",
@@ -1028,7 +1031,11 @@ async function tagQuitReturn(mock, fx) {
     { state: settled.rec?.state, served: mock.served() },
   );
   const discard = await discardCreateDraft();
-  check("放弃填写内容 + 确认 ⇒ 草稿回到 clean（取消退出后再核对）", discard.clean === true, discard);
+  check(
+    "放弃填写内容 + 确认 ⇒ 草稿回到 clean（取消退出后再核对）",
+    discard.clean === true,
+    discard,
+  );
   const pidOfMain = MAIN_PID;
   writeFileSync(QUIT_FLAG, "quit-again\n");
   await H.sleep(4000);
@@ -1065,7 +1072,9 @@ async function tagQuitExecuting(mock, fx) {
   );
   const qi = quitButtonIndex(dlg);
   check("退出按钮可定位（下标 > 0 ⇒ 「返回」在 0）", qi > 0, { qi, buttons: dlg?.buttons });
-  await captureScreen(`67-${TAG}-dialog`).then((f) => dump.screens.push({ at: "quit-executing", file: typeof f }));
+  await captureScreen(`67-${TAG}-dialog`).then((f) =>
+    dump.screens.push({ at: "quit-executing", file: typeof f }),
+  );
 
   const pidOfMain = MAIN_PID;
   const clicked = await winops("dialog-click", ["-Index", String(qi)]);
@@ -1082,11 +1091,10 @@ async function tagQuitExecuting(mock, fx) {
   await H.sleep(3000);
   const newFiles = [...H.traceIds()].filter((x) => !idsBefore.has(x)).sort();
   const hashesNow = H.hashAllTraces();
-  check(
-    "退出不会把在飞那次伪装成已完成：它只留下自己那一份未完成文件",
-    newFiles.length <= 1,
-    { newFiles, files: H.traceIds().size },
-  );
+  check("退出不会把在飞那次伪装成已完成：它只留下自己那一份未完成文件", newFiles.length <= 1, {
+    newFiles,
+    files: H.traceIds().size,
+  });
   check(
     "退出后既有历史逐字节不变（不回填终态、不认领被打断那次）",
     Object.entries(hashesNow).every(([n, v]) => n.endsWith(".jsonl") && typeof v === "string") &&

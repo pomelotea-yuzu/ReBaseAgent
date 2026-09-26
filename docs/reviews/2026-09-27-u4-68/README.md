@@ -32,6 +32,9 @@ U3 草稿（改 result 的草稿落 store 并保留、可放弃）；`源/父/�
 3. **200% 缩放把默认窗口压进窄档 ⇒ 运行列表收起**，就绪探测读到 0 ⇒ 采集入口前先 `resizeOuter` 到宽档 +
    `ensureNavOpen()`（点 `button[aria-controls="run-navigation"]`）兜底；收尾驱动**必须 `reset-zoom`**
    （`REBASEAGENT_ZOOM_FACTOR` 经 Chromium per-host 持久化会污染后续 dev，见项目记忆）。
+4. 🔴 **就绪判据要读 `store.runs.length`，不读 DOM 复制按钮**：200%/窄档下导航收起时列表行**不在 DOM 里**，
+   `H.runs()`（数 `aria-label="复制完整运行 ID …"` 按钮）会读到 0 ⇒ 把"数据已加载"误判成"没就绪"（recheck 首跑 zoom200 就是这么假红，
+   且 `resizeOuter` 在 200% 下撞 Win32 32767 上限跑飞）。改成读 store 真源 + `loadRuns` 兜底后 3/3 稳定复绿。
 
 ## 三、按层交付（真机测到了什么，什么仍归别处）
 
