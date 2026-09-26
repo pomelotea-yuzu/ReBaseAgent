@@ -8,6 +8,8 @@ import { loadForkParent } from "./fork-parent.js";
 import { derivePromptForkState } from "./prompt-fork.js";
 import type { PromptForkEdit } from "./prompt-fork.js";
 import { newForkRunId } from "./replay-run.js";
+import { observeRunIdentity } from "./run-identity.js";
+import type { OnRunIdentified } from "./run-identity.js";
 
 /**
  * prompt fork 编排：把"编辑启动上下文并从头重跑"执行到落盘。
@@ -41,6 +43,13 @@ export interface PromptReplayRunOptions {
   outDir: string;
   /** LLM 客户端（测试注入 mock；缺省真调 config.baseURL） */
   llm?: LlmClient;
+  /**
+   * 可选的可信运行身份观察（U4 design D5）：本次最终 run.meta 写出后、首次 LLM 调用前
+   * 通知一次 id，覆盖本入口已支持的 system_prompt / user_message / model_params 三种编辑。
+   * 从头执行与父链门禁语义不因它改变；前置拒绝（隔离父本、缺父链、不可还原 system、
+   * 空编辑、双真相源）一律不回调——没有记录就不给身份。
+   */
+  onRunIdentified?: OnRunIdentified;
 }
 
 export interface PromptReplayRunResult {
@@ -88,13 +97,18 @@ export async function promptReplayRun(
   const id = newForkRunId();
   const tracer = new JsonlTracer(join(outDir, `${id}.jsonl`));
   const forkRun: ForkRunMeta = { id, parent: parentId, fork: state.fork };
-  await runLoop(
-    effectiveConfig,
-    state.messages,
-    tracer,
-    tools,
-    llm ?? new OpenAiCompatClient(effectiveConfig),
-    forkRun,
-  );
+  const releaseIdentityWatch = observeRunIdentity(tracer, options.onRunIdentified);
+  try {
+    await runLoop(
+      effectiveConfig,
+      state.messages,
+      tracer,
+      tools,
+      llm ?? new OpenAiCompatClient(effectiveConfig),
+      forkRun,
+    );
+  } finally {
+    releaseIdentityWatch();
+  }
   return { id };
 }
