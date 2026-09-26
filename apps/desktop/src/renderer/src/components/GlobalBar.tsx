@@ -31,6 +31,7 @@ import { useAppStore } from "../store";
 import { requestConfirm } from "./ConfirmDialog";
 import { DraftListPanel } from "./DraftListPanel";
 import { FOCUS_RING } from "./IconButton";
+import { OperationsEntry } from "./OperationsEntry";
 
 /** 视图切换按钮（轨迹 / 分支树）：两者互斥，用 aria-pressed 表达当前态 */
 function ViewToggle() {
@@ -258,6 +259,7 @@ export function GlobalBar({
             {detail.meta.id}
           </span>
         ) : null}
+        <OperationsEntry />
         <SessionDraftsEntry />
         <button
           type="button"
