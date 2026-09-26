@@ -47,6 +47,14 @@ export type AcceptanceLookup =
   | { outcome: "banned"; record: OperationRecord }
   | { outcome: "conflict"; record: OperationRecord };
 
+/** `tryAccept` 的五种结果——除 `accepted` 外都不产生任何执行副作用 */
+export type AcceptResult =
+  | { kind: "accepted"; record: OperationRecord }
+  | { kind: "duplicate"; record: OperationRecord }
+  | { kind: "banned"; record: OperationRecord }
+  | { kind: "conflict"; record: OperationRecord }
+  | { kind: "not-accepted"; record: OperationRecord };
+
 export interface OperationRegistryOptions {
   /** epoch 生成器（默认 crypto.randomUUID；测试可注入固定值） */
   newEpoch?: () => string;
@@ -198,6 +206,41 @@ export class OperationRegistry {
       return { outcome: "duplicate", record: toRecord(existing) };
     }
     return { outcome: "conflict", record: toRecord(existing) };
+  }
+
+  /**
+   * 接受序列的同步段（design D2 第 2–4 步）：**整段不含 await**，因此"查重 → 判锁 →
+   * 占槽"是一个原子决定——两个不同入口在同一轮事件循环里同时提交，必然只有一个被接受。
+   *
+   * - `accepted`  ⇒ 已登记 running 并占槽；调用方随后才允许读 settings、消费许可、开始编排；
+   * - `duplicate` ⇒ 同 ID 同参：只返回原关联/原终态，绝不重新执行；
+   * - `banned`    ⇒ 该 ID 曾未接受（含 reconcile 封禁）：原结论照实返回，永不复活；
+   * - `conflict`  ⇒ 同 ID 异参（含跨通道复用）：原登记一字不改，稳定码 OPERATION_CONFLICT；
+   * - `not-accepted` ⇒ 新 ID 撞上 closing / 配置变更 / 槽忙：已登记 notAccepted 并封禁该 ID，
+   *   零执行、零许可消费；用户要再试必须**换新的 operationId**。
+   */
+  tryAccept(spec: {
+    operationId: string;
+    target: OperationTarget;
+    fingerprint: string;
+  }): AcceptResult {
+    const lookup = this.inspectForAcceptance(spec);
+    if (lookup.outcome === "duplicate") return { kind: "duplicate", record: lookup.record };
+    if (lookup.outcome === "banned") return { kind: "banned", record: lookup.record };
+    if (lookup.outcome === "conflict") return { kind: "conflict", record: lookup.record };
+    const gate = this.isAccepting();
+    if (!gate.accepting) {
+      return {
+        kind: "not-accepted",
+        record: this.registerNotAccepted({
+          operationId: spec.operationId,
+          target: spec.target,
+          reason: gate.reason,
+          fingerprint: spec.fingerprint,
+        }),
+      };
+    }
+    return { kind: "accepted", record: this.registerRunning(spec) };
   }
 
   /**

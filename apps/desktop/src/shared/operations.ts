@@ -154,6 +154,17 @@ export const NotAcceptedReasonSchema = z.enum([
 ]);
 export type NotAcceptedReason = z.infer<typeof NotAcceptedReasonSchema>;
 
+/**
+ * 操作层自己的稳定错误码（业务拒绝沿用各通道既有码，两者在响应里可分辨）。
+ * renderer 只按码分支，不按文案分支——文案可以改，码不可以。
+ */
+export const OPERATION_ERROR = {
+  /** 同 ID 携带不同规范化请求（含跨通道复用）：原登记不变，不执行 */
+  conflict: "OPERATION_CONFLICT",
+  /** 未接受（忙碌 / 关闭协商 / 配置变更 / 已被核对封禁）：不执行，重试须换新 ID */
+  notAccepted: "OPERATION_NOT_ACCEPTED",
+} as const;
+
 /** 单个 A/B 臂的摘要：未开始的臂 id 与结局均为 null，绝不生成假身份 */
 export const OperationArmSummarySchema = z
   .object({

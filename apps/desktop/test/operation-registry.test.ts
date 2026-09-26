@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { OperationRegistry, OperationRegistryInvariantError } from "../src/main/operation-registry";
-import type { OperationStatusResult } from "../src/shared/operations";
+import type { OperationStatusResult, OperationTarget } from "../src/shared/operations";
 import {
   OPERATION_DIAGNOSTIC_MAX,
   OPERATION_DIAGNOSTIC_MESSAGE_MAX,
@@ -386,6 +386,149 @@ describe("U4 1.2 关闭与配置变更标记", () => {
       configurationBusy: true,
     });
     expect(registry.isAccepting()).toEqual({ accepting: false, reason: "configuration_busy" });
+  });
+});
+
+describe("U4 1.4 原子接受判定：一个同步段内完成查重、判锁与占槽", () => {
+  /** 模拟调用方的执行门：只有 accepted 才允许真正开始编排（用于数调用次数） */
+  function submitter(registry: OperationRegistry) {
+    const started: string[] = [];
+    return {
+      started,
+      submit(operationId: string, fingerprint: string, target?: OperationTarget) {
+        const result = registry.tryAccept({
+          operationId,
+          fingerprint,
+          target: target ?? { kind: "create", mode: "plain" },
+        });
+        if (result.kind === "accepted") started.push(operationId);
+        return result;
+      },
+    };
+  }
+
+  it("同 ID 同参的重复提交：只执行一次，后续只关联原操作与原终态", () => {
+    const { registry } = setup();
+    const submit = submitter(registry);
+    const first = submit.submit(OP_A, FP);
+    const again = submit.submit(OP_A, FP);
+    expect(first.kind).toBe("accepted");
+    expect(again.kind).toBe("duplicate");
+    if (first.kind !== "accepted" || again.kind !== "duplicate") throw new Error("unreachable");
+    expect(again.record).toEqual(first.record);
+    expect(submit.started).toEqual([OP_A]);
+    // settled 之后再来同参请求：duplicate 且带着终态，不重新执行
+    registry.attachRunId(OP_A, "run_x");
+    registry.settle({ operationId: OP_A, requestOutcome: "returned" });
+    const afterSettle = submit.submit(OP_A, FP);
+    expect(afterSettle.kind).toBe("duplicate");
+    if (afterSettle.kind !== "duplicate") throw new Error("unreachable");
+    expect(afterSettle.record).toMatchObject({ state: "settled", runIds: ["run_x"] });
+    expect(submit.started).toEqual([OP_A]);
+  });
+
+  it("不同 ID 同时到达：一个被接受占槽，另一个 notAccepted 且零执行", () => {
+    const { registry } = setup();
+    const submit = submitter(registry);
+    const first = submit.submit(OP_A, FP);
+    const second = submit.submit(OP_B, FP);
+    expect(first.kind).toBe("accepted");
+    expect(second.kind).toBe("not-accepted");
+    if (second.kind !== "not-accepted") throw new Error("unreachable");
+    expect(second.record).toMatchObject({ state: "notAccepted", rejection: "busy" });
+    expect(submit.started).toEqual([OP_A]);
+    expect(snapshotOf(registry).activeOperationId).toBe(OP_A);
+  });
+
+  it("忙碌请求在槽释放后也不会自动执行：同 ID 再来仍是封禁", () => {
+    const { registry } = setup();
+    const submit = submitter(registry);
+    submit.submit(OP_A, FP);
+    submit.submit(OP_B, FP);
+    registry.settle({ operationId: OP_A, requestOutcome: "returned" });
+    const late = submit.submit(OP_B, FP);
+    expect(late.kind).toBe("banned");
+    expect(submit.started).toEqual([OP_A]);
+    // 用户再提交必须换新 ID —— 新 ID 在槽空闲时可被接受
+    expect(submit.submit(OP_AB, FP).kind).toBe("accepted");
+  });
+
+  it("closing 与配置变更各自给出稳定拒绝原因，且优先于槽忙碌", () => {
+    const { registry } = setup();
+    const submit = submitter(registry);
+    submit.submit(OP_A, FP);
+    registry.setClosing(true);
+    const duringClose = submit.submit(OP_B, FP);
+    expect(duringClose.kind).toBe("not-accepted");
+    if (duringClose.kind !== "not-accepted") throw new Error("unreachable");
+    expect(duringClose.record.rejection).toBe("closing");
+    registry.setClosing(false);
+    registry.beginConfigurationChange();
+    const duringConfig = submit.submit(OP_X, FP);
+    if (duringConfig.kind !== "not-accepted") throw new Error("unreachable");
+    expect(duringConfig.record.rejection).toBe("configuration_busy");
+    // 两者都不是主动操作：不占槽、不入 runIds
+    expect(snapshotOf(registry).activeOperationId).toBe(OP_A);
+    expect(registry.recordOf(OP_A)?.runIds).toEqual([]);
+  });
+
+  it("同 ID 异参（换通道/改正文/调臂顺序）⇒ conflict：原登记与版本都不动", () => {
+    const { registry } = setup();
+    const submit = submitter(registry);
+    const accepted = submit.submit(OP_A, FP, {
+      kind: "result",
+      mode: "plain",
+      parentRunId: "run_p",
+      atSpanId: "s1",
+      editField: "result",
+    });
+    const before = registry.recordOf(OP_A);
+    const version = registry.registryVersion;
+    for (const otherFingerprint of ["1".repeat(64), "2".repeat(64)]) {
+      const conflict = submit.submit(OP_A, otherFingerprint);
+      expect(conflict.kind).toBe("conflict");
+    }
+    expect(registry.recordOf(OP_A)).toEqual(before);
+    expect(registry.registryVersion).toBe(version);
+    expect(registry.size).toBe(1);
+    expect(submit.started).toEqual([OP_A]);
+    expect(accepted.kind).toBe("accepted");
+  });
+
+  it("旧操作收尾不能释放新操作：owner 校验贯穿 settle 与身份追加", () => {
+    const { registry } = setup();
+    const submit = submitter(registry);
+    submit.submit(OP_A, FP);
+    registry.settle({ operationId: OP_A, requestOutcome: "returned" });
+    submit.submit(OP_B, FP);
+    // A 的重复完成回调 / 迟到的身份追加都不影响 B 占槽
+    const repeated = registry.settle({ operationId: OP_A, requestOutcome: "failed" });
+    expect(repeated.requestOutcome).toBe("returned");
+    expect(() => registry.attachRunId(OP_A, "run_late")).toThrow(OperationRegistryInvariantError);
+    expect(snapshotOf(registry).activeOperationId).toBe(OP_B);
+    // B 自己收尾才释放
+    registry.settle({ operationId: OP_B, requestOutcome: "returned" });
+    expect(registry.activeId).toBeNull();
+  });
+
+  it("接受判定的原子性：同一同步段内两入口交错，仍只有一个 accepted", () => {
+    const { registry } = setup();
+    const submit = submitter(registry);
+    // 两个"入口"在同一轮事件循环里各自走完 tryAccept（无任何 await 边界）
+    const results = [
+      submit.submit(OP_A, FP),
+      submit.submit(OP_B, FP),
+      submit.submit(OP_X, FP),
+      submit.submit(OP_A, FP),
+    ];
+    expect(results.map((one) => one.kind)).toEqual([
+      "accepted",
+      "not-accepted",
+      "not-accepted",
+      "duplicate",
+    ]);
+    expect(submit.started).toEqual([OP_A]);
+    expect(snapshotOf(registry).activeOperationId).toBe(OP_A);
   });
 });
 
