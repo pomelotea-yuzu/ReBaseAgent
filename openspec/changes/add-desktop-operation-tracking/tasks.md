@@ -1,6 +1,6 @@
 # U4 实施任务
 
-实施进度：**§1–§5 与 §6.1–§6.8 已完成**（下列已勾项各附证据摘要），仅 §7.1–§7.2 待办。基线为已归档 U1/U2/U3；旧走查和文档校验不算功能证据。每项预算 <=2h，超过先拆分。场景引用为对应 delta 的逐字标题：默认 [desktop-ui](specs/desktop-ui/spec.md)，包层另标 [replay](specs/replay/spec.md)、[prompt-replay](specs/prompt-replay/spec.md)、[model-experiments](specs/model-experiments/spec.md)。实施任务包含相应自动化断言，实机与完整门禁另列。
+实施进度：**§1–§7 全部完成（48/48）**——§1–§5 实现 + §6.1–§6.8 实机 + §7.1 门禁整跑 + §7.2 `evidence-index.md`（63 场景逐条机器回查）。基线为已归档 U1/U2/U3；旧走查和文档校验不算功能证据。每项预算 <=2h，超过先拆分。场景引用为对应 delta 的逐字标题：默认 [desktop-ui](specs/desktop-ui/spec.md)，包层另标 [replay](specs/replay/spec.md)、[prompt-replay](specs/prompt-replay/spec.md)、[model-experiments](specs/model-experiments/spec.md)。实施任务包含相应自动化断言，实机与完整门禁另列。**归档另行处理（需 owner 拍板）**。
 
 ## 1. 操作类型与 main 登记
 
@@ -179,5 +179,37 @@
 
 ## 7. 门禁与证据收口
 
-- [ ] 7.1 运行包构建、replay/desktop 适用及全量测试、桌面 typecheck、Biome、OpenSpec strict 和 desktop build，核对测试文件实际执行（<=2h）。验收：本 change 全部场景的自动化断言；记录环境阻塞与真实失败，不以 build 替代 6.x。
-- [ ] 7.2 编写 evidence-index，逐场景引用真实用例名/fixtures/实机截图与日志，核对七入口、所有 MODIFIED 保留场景及 U5 边界（<=2h）。验收：全部 delta scenarios 有可复核证据；未验证项保持待办，不声称完整执行结果闭环、自动清理、取消或发布完成，归档另行处理。
+- [x] 7.1 运行包构建、replay/desktop 适用及全量测试、桌面 typecheck、Biome、OpenSpec strict 和 desktop build，核对测试文件实际执行（<=2h）。验收：本 change 全部场景的自动化断言；记录环境阻塞与真实失败，不以 build 替代 6.x。
+  整跑（2026-09-27，HEAD `b1f1e4e`，逐段替换执行 ⇒ 见「已知限制」⑨）：
+  `pnpm --filter "./packages/*" build` **EXIT=0（5/5，排除 desktop）** ⇒ 随后**逐包单跑** vitest
+  **llm-proxy 18 / trace-sdk 191 / agent-loop 104 / trace-test 77 / replay 412 passed + 5 skipped（417）**
+  ——先 build 再 test ⇒ replay 那 60+ 条以 `existsSync(dist)` 守卫的 CLI 用例**实际执行**（P0 不变量，未被静默跳过）；
+  5 条 skipped 是既知的"伪造 symlink"环境用例，非本轮引入。
+  `desktop vitest run` **103 文件 / 1828 用例 / 0 失败 / 无 `Errors` 行**（EXIT=0）。
+  根 `biome check .` **Checked 419 files，0 错**（两支新采集脚本入库后由 417 → 419）。
+  `desktop typecheck` **node / web 两配置各 EXIT=0**。
+  `openspec validate add-desktop-operation-tracking --strict` **valid**（无子进程直调缓存内 `bin/openspec.js`）。
+  `electron-vite build` **EXIT=0（✓ built）**。
+  **产品真实失败 0**；本 change 期间唯一真实缺陷（§6.5 `reconcileOperation` 漏接解冻口）已在 `13d6058` 修掉并带反证。
+  ⚠️ **环境阻塞如实记录、不写成回归**：`test/controlled-proxy.test.ts`（mock 端口紧邻起停）、
+  `test/proxy.test.ts` + `test/proxy-fork-identity.test.ts`（真回环端口 + stub upstream 并行负载下 `fetch failed`）、
+  `test/controlled-service.test.ts` 一条 —— 判法＝**单跑复现**（单跑全绿即 flake）。
+  实机面未被 build 替代：§6.1–6.8 共 **34 tag / 485 检查全绿**（见 7.2 索引与其真值回查）。
+  ⚠️ desktop 测试不在 tsc 双配置覆盖内（项目记忆 `desktop-tests-not-typechecked.md`）⇒ 新用例类型检查走一次性
+  `tsconfig.testcheck.json`；§6.7/6.8 未新增 desktop `*.test.ts`，该口径只对 §1–§5 历史用例有效。
+- [x] 7.2 编写 evidence-index，逐场景引用真实用例名/fixtures/实机截图与日志，核对七入口、所有 MODIFIED 保留场景及 U5 边界（<=2h）。验收：全部 delta scenarios 有可复核证据；未验证项保持待办，不声称完整执行结果闭环、自动清理、取消或发布完成，归档另行处理。
+  证据：`evidence-index.md`（本 change 目录）——范围 **12 requirements / 63 scenarios**
+  （desktop-ui 5 ADDED + 4 MODIFIED = 52；replay 4 / prompt-replay 3 / model-experiments 4）。
+  🔴 **全部引用经机器回查**（脚本 `.workbuddy/u4/u4-72/case-inventory.cjs` 抽标题池 + `verify-index-refs.cjs` 六项对账）：
+  delta 场景逐条覆盖 **63/63、缺失 0**、虚构行 **0**；用例名逐字命中 **118**（4 条豁免 = delta 场景标题）；
+  tag 名 **33/33** 真实（扫描 U3+U4 共 31 个采集脚本）；检查数与**该批 run 自己落盘的 measurements JSON** 一致 **40/40**；
+  入库截图逐批计数相符（合计 30，6.1 未入库已注明）。`--selftest` 四道反证全部咬住（假用例名查不到、假 tag 不命中、
+  冒充 999/999 判红、内存抹掉一行即报缺失）。
+  回查**抓到并修正 4 处非逐字引用**（我给源码标题"补"了一个空格 + 三处省略号截断）与 1 处**批次歧义**
+  （`probe` 在 6.1/6.5/6.6 三批各不同读数 ⇒ 回查改为按上下文批次定位）——已写进索引的「引用回查」节。
+  核对项：**七类主动入口**四处点名（schema 可表达 / §3.8 矩阵七行 / preload 七个主动方法 / 实机四批覆盖）；
+  **MODIFIED 保留场景 16 条逐字丢失 0**（差集表：2+2+3+9 保留、1+3+1+2 新增）；主 spec desktop-ui 归档后 47→52 requirements、200→229 scenarios。
+  **九条已知限制/诚实边界**逐条列出（① 桥接面不可包装 ⇒ 两条未知态场景只由 §4 承载；② 跨 epoch 在飞关联真机无前提；
+  ③ ProxyManager 层被动录制不变量仍无有牙反证；④ configurationBusy 合并档未实机诱发；⑤ `native-edit-context` 无 composition 事件；
+  ⑥ 真机 IPC 往返与满载诊断体积未测；⑦ 6.1 原始截图未入库；⑧ 隔离父本守卫无稳定码（属改契约待用户定口径）；⑨ 沙箱跑不了整条 `check:ci`）。
+  **不宣称**：U5 的进度/取消/自动清理/任务恢复/队列并发、`forkCapability` 进登记、窄窗口 N1、发版与归档（**归档另行处理**）。
