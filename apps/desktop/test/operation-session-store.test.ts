@@ -385,3 +385,149 @@ describe("4.9 真实消费：结果不可读不重执行、也不锁配置", () 
     expect(calls.filter((one) => one === "runs:fork")).toHaveLength(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// U4 6.5：核对驱动的解冻接线
+// ---------------------------------------------------------------------------
+/**
+ * spec 把「核对到 settled/notAccepted」定为响应丢失后**唯一**合法的解冻口
+ * （不自动重发、只能重新核对）。本轮实机抓到一支"纯逻辑写好、接线少一支"的缺口：
+ * `settleDraftByOperation` 此前只有单测直接调用，`reconcileOperation` 从没调它
+ * ⇒ 真机上核对永远解不开任何锁。下面钉住接线本身：
+ * ① settled / ② notAccepted ⇒ 只解冻该身份那一条；③ running ⇒ 保持冻结；
+ * ④ 别人的身份 ⇒ 一条都不解；⑤ 非法载荷 ⇒ 按未知处理且不解锁。
+ */
+const targetA = "r_a|s_1|result";
+const OP_A = "11111111-1111-4111-8111-111111111111";
+const OP_B = "22222222-2222-4222-8222-222222222222";
+const OP_OTHER = "33333333-3333-4333-8333-333333333333";
+const targetB = "r_b|s_2|result";
+
+/** 两条待定关联：A 带本次要核对的身份，B 代表"另一条在飞的提交" */
+function seedTwoSubmissions(opA: string): void {
+  useAppStore.setState({ operations: { ...initialSession(), epoch: FAKE_EPOCH } });
+  let store = subLib.emptySubmissionStore();
+  for (const [id, operationId] of [
+    [targetA, opA],
+    [targetB, OP_B],
+  ] as const) {
+    const [runId, spanId, field] = id.split("|");
+    const begun = subLib.beginSubmission(store, {
+      channel: "result",
+      target: { runId, spanId, field: field as "result" },
+      submittedRevision: 1,
+      submittedText: `草稿 ${runId}`,
+      operationId,
+      epoch: FAKE_EPOCH,
+    });
+    store = begun.store;
+  }
+  useAppStore.setState({ draftSubmissions: store });
+  calls.length = 0;
+}
+
+function frozenTargets(): string[] {
+  return Object.keys(useAppStore.getState().draftSubmissions.byId);
+}
+
+function reconcileResultFor(
+  operationId: string,
+  state: "settled" | "notAccepted" | "running",
+) {
+  // 三种状态各自允许的字段由 schema 精炼钉死（notAccepted 不得带时间/结局/运行身份，
+  // settled 必须带开始+结束+结局）——这里造的是**合法**记录，非法载荷另有专测。
+  const neverAccepted = state === "notAccepted";
+  return {
+    epoch: FAKE_EPOCH,
+    registryVersion: 9,
+    activeOperationId: state === "running" ? operationId : null,
+    closing: false,
+    configurationBusy: false,
+    operation: {
+      epoch: FAKE_EPOCH,
+      operationId,
+      target: {
+        kind: "result" as const,
+        mode: "plain" as const,
+        parentRunId: "r_a",
+        atSpanId: "s_1",
+        editField: "result" as const,
+      },
+      state,
+      rejection: neverAccepted ? ("busy" as const) : null,
+      startedAt: neverAccepted ? null : "2026-09-26T00:00:00.000Z",
+      settledAt: state === "settled" ? "2026-09-26T00:00:01.000Z" : null,
+      runIds: state === "settled" ? ["run_from_reconcile"] : [],
+      experimentId: null,
+      arms: [],
+      requestOutcome: state === "settled" ? ("returned" as const) : null,
+      errorCode: null,
+      diagnostics: [],
+    },
+  };
+}
+
+describe("U4 6.5 reconcileOperation 必须走解冻口（只解匹配身份那一条）", () => {
+  function stubReconcile(data: unknown): void {
+    apiStub.operationsReconcile = async () => ({ ok: true as const, data });
+  }
+
+  it("核对到 settled ⇒ 只解冻该身份那一条，另一条仍冻结", async () => {
+    seedTwoSubmissions(OP_A);
+    stubReconcile(reconcileResultFor(OP_A, "settled"));
+    await useAppStore.getState().reconcileOperation(OP_A);
+    expect(frozenTargets()).toEqual([targetB]);
+  });
+
+  it("核对到 notAccepted（该身份从未被接受）⇒ 同样只解那一条", async () => {
+    seedTwoSubmissions(OP_A);
+    stubReconcile(reconcileResultFor(OP_A, "notAccepted"));
+    await useAppStore.getState().reconcileOperation(OP_A);
+    expect(frozenTargets()).toEqual([targetB]);
+  });
+
+  it("核对到 running ⇒ 保持冻结（不提前解自己的锁）", async () => {
+    seedTwoSubmissions(OP_A);
+    stubReconcile(reconcileResultFor(OP_A, "running"));
+    await useAppStore.getState().reconcileOperation(OP_A);
+    expect(frozenTargets().sort()).toEqual([targetA, targetB].sort());
+  });
+
+  it("核对别人的身份 ⇒ 两条都不解冻（解冻口只认匹配身份）", async () => {
+    seedTwoSubmissions(OP_A);
+    stubReconcile(reconcileResultFor(OP_OTHER, "settled"));
+    await useAppStore.getState().reconcileOperation(OP_OTHER);
+    expect(frozenTargets().sort()).toEqual([targetA, targetB].sort());
+  });
+
+  it("核对载荷不合 schema ⇒ 按未知处理且不解任何锁", async () => {
+    seedTwoSubmissions(OP_A);
+    apiStub.operationsReconcile = async () =>
+      ({ ok: true, data: { epoch: "not-a-uuid" } }) as unknown as Awaited<
+        ReturnType<WindowApi["operationsReconcile"]>
+      >;
+    await useAppStore.getState().reconcileOperation(OP_A);
+    expect(frozenTargets().sort()).toEqual([targetA, targetB].sort());
+    expect(useAppStore.getState().operations.unknown).toBe(true);
+  });
+
+  it("草稿保留：核对解冻不等于删除输入", async () => {
+    seedTwoSubmissions(OP_A);
+    useAppStore.setState({
+      drafts: draftLib.writeCallDraftText(
+        draftLib.ensureCallDraft(
+          draftLib.emptyDraftRepo(),
+          { runId: "r_a", spanId: "s_1", field: "result" },
+          "原值",
+        ).repo,
+        { runId: "r_a", spanId: "s_1", field: "result" },
+        "U4-65 待核对的草稿",
+      ),
+    });
+    stubReconcile(reconcileResultFor(OP_A, "settled"));
+    await useAppStore.getState().reconcileOperation(OP_A);
+    const entry = useAppStore.getState().drafts.calls.r_a?.s_1?.result;
+    expect(entry?.text).toBe("U4-65 待核对的草稿");
+    expect(useAppStore.getState().draftSubmissions.byId[targetA]).toBeUndefined();
+  });
+});

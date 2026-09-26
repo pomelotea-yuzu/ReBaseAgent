@@ -93,6 +93,7 @@ import {
   endLocalSubmission,
   hasSameEpochPending,
   initialSession,
+  isSettledState,
   markUnknown,
 } from "./lib/operation-session";
 import { resolveReading } from "./lib/reading-resolve";
@@ -1303,7 +1304,21 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ operations: markUnknown(get().operations) });
       return get().operations;
     }
-    set({ operations: applyReconcile(get().operations, parsed.data, generation).session });
+    const applied = applyReconcile(get().operations, parsed.data, generation);
+    set({ operations: applied.session });
+    /**
+     * U4 任务 6.5 实机补上的一支接线：spec 把「核对到 settled/notAccepted」列为
+     * **唯一**能把待定关联解冻的合法入口（响应丢失时不自动重发、只能重新核对）。
+     * 之前只有 `finishDraftSubmission`（响应路径）会解冻，`settleDraftByOperation`
+     * 在真链路上从没被调用 ⇒ 核对解不开任何锁。这里补调用，且只解**这一条身份**：
+     * 未采纳（applied=false）与 running 都不动任何关联。
+     */
+    if (applied.applied && isSettledState(parsed.data.operation)) {
+      get().settleDraftByOperation({
+        epoch: parsed.data.epoch,
+        operationId: parsed.data.operation.operationId,
+      });
+    }
     return get().operations;
   },
 
