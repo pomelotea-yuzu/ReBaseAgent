@@ -62,10 +62,11 @@ engineering / collab / competition / reviews），原 9 个并列目录归组；
 | [`2026-09-17-k0-experience-build.md`](engineering/reports/2026-09-17-k0-experience-build.md) | **K0 体验包构建记录**：`0.3.0-k0` 产物与哈希、实机验收。**K0 验收通过的权威记录** |
 | `2026-09-17-v0.3.0-k0-release-notes.md` | `v0.3.0-k0` 预览版发布说明 |
 | [`2026-09-21-a3-experience-build.md`](engineering/reports/2026-09-21-a3-experience-build.md) | A3 阶段预览包 `0.3.0-k0-a3.1` 构建记录 |
+| [`2026-09-25-k1-gitee-template.md`](engineering/reports/2026-09-25-k1-gitee-template.md) | 🔧 **发 release 就抄这份**：`v0.3.0-k1` 线上定稿（4839 字符，已过审），正文逐字取自 Gitee API，改版本号/附件名/大小/SHA-256/链接即可。文件头带 7 条写法约定（禁演进宣告段、禁评价式措辞、必须条目体、禁内部发布流程自述、禁图片等）。（同目录另两篇 `…-k0-a3.1-…-`、`…-k1-release-notes.md` 未建索引行）
 
 **briefs/**（交接单）：`2026-09-10-ttft-fix-review-brief.md`、`2026-09-10-ttft-fix-apply-brief.md`
 
-**notes/**（功能说明与工作流约定）：`2026-09-08-v3a-trace-as-test-notes.md`、[`model-collaboration-workflow.md`](engineering/notes/model-collaboration-workflow.md)
+**notes/**（功能说明与工作流约定）：`2026-09-08-v3a-trace-as-test-notes.md`、[`model-collaboration-workflow.md`](engineering/notes/model-collaboration-workflow.md)、[`2026-09-25-gitee-release-blocked.md`](engineering/notes/2026-09-25-gitee-release-blocked.md)（Gitee `v0.3.0-k1` release 被自动审核拦截的完整取证与结案：触发源锁定为发布稿第 5–8 行「演进宣告段」，删除即通过；含排除项、时间线与人工复核申诉文案）
 
 ### collab/ — 跨项目通信与过程叙事
 
