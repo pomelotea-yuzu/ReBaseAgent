@@ -40,7 +40,10 @@ import {
   type ExecutedRequest,
   type ExecutedResponse,
   OPERATION_ERROR,
+  type OperationAck,
+  OperationAckSchema,
   OperationStatusResultSchema,
+  ReconcileResultSchema,
 } from "@shared/operations";
 import { create } from "zustand";
 import { api } from "./lib/api";
@@ -66,6 +69,20 @@ import type {
 } from "./lib/draft-submission";
 import { CREATE_SUBMIT_TARGET } from "./lib/draft-submission";
 import * as submissionLib from "./lib/draft-submission";
+import {
+  type OperationBlockedBy,
+  type OperationSession,
+  type PendingSubmission,
+  applyReconcile,
+  applyStatus,
+  beginHandshake,
+  beginLocalSubmission,
+  captureGeneration,
+  deriveGate,
+  endLocalSubmission,
+  initialSession,
+  markUnknown,
+} from "./lib/operation-session";
 import { resolveReading } from "./lib/reading-resolve";
 import {
   defaultReadingState,
@@ -129,11 +146,14 @@ interface AppState {
   error: string | null;
 
   /**
-   * U4：main 会话 epoch（`operations:status` 握手所得，见 `handshakeOperations`）。
-   * 它与 U3 的文档会话 id 各有职责、不能互代：同一 main 内重载 renderer 不换 epoch，
-   * main 重启才会换。`submitActive` 用它给每次提交配对身份。
+   * U4 任务 4.1：**main 操作会话**（`operations:status` 握手所得 + 乱序/代次守卫）。
+   * 它取代了原先单个 `mainEpoch` 缓存——epoch 只是其中一项，锁还要看
+   * 当前槽、配置变更标记、关闭标记、通信未知与**本地尚未确认的提交**
+   * （spec「现有界面消费统一操作事实」；判据在 `lib/operation-session.ts`）。
+   * 与 U3 的文档会话 id 各有职责、不能互代：同一 main 内重载 renderer 不换 epoch，
+   * main 重启才会换。
    */
-  mainEpoch: string | null;
+  operations: OperationSession;
 
   /** 分叉重跑进行中状态（runs:fork 的唯一写通道） */
   forking: "idle" | "in_progress" | "success" | "error";
@@ -343,11 +363,18 @@ interface AppState {
   isDraftFrozen: (target: DraftSubmitTarget) => boolean;
 
   /**
-   * U4（tasks 4.1 的握手半边）：读一次 `operations:status` 并校验后缓存 main epoch。
-   * 返回 null 表示握手未成功（通道失败或载荷不合契约）——此时主动入口一律不提交，
-   * 失败载荷**不部分采纳**（renderer 保留未知，与 status 失联同一口径）。
+   * U4 任务 4.1：读一次 `operations:status` 并**校验后整份采纳**。
+   * 三种结论都保留保守锁：通道失败、载荷不合契约（含不自洽的槽引用）⇒ `unknown`；
+   * 旧代次/低登记版本的迟到快照 ⇒ 整份丢弃（不部分采纳所谓成功字段）。
+   * 返回采纳后的会话，界面按 `deriveGate` 禁用入口。
    */
-  handshakeOperations: () => Promise<string | null>;
+  refreshOperationStatus: () => Promise<OperationSession>;
+  /**
+   * U4 任务 4.1/4.5：按 `operationId` 核对一次。**只补该操作的事实与当前槽，
+   * 不清 `unknown`**（通信是否恢复只能由完整快照握手确认），
+   * 也绝不因"查到旧操作已 settled"而解除别的操作的锁。
+   */
+  reconcileOperation: (operationId: string) => Promise<OperationSession>;
 
   /**
    * U3 任务 2.5：一次性草稿定位目标（草稿列表「定位」动作的载体，与 U2 的
@@ -488,48 +515,116 @@ function describeZodError(error: unknown): string {
   return String(error);
 }
 
+/** 门禁禁用原因 → 稳定码 + 中文文案（renderer 本地结论，请求一次都没发出） */
+const LOCAL_BLOCKED: Record<OperationBlockedBy, { code: string; message: string }> = {
+  not_handshaked: {
+    code: "MAIN_HANDSHAKE_REQUIRED",
+    message: "尚未与主进程完成操作握手，本次请求未发送；请重试或重新加载窗口",
+  },
+  communication_unknown: {
+    code: "OPERATION_STATE_UNKNOWN",
+    message: "操作状态未确认（状态通道失联或返回非法结构），本次请求未发送；请先核对状态",
+  },
+  closing: {
+    code: "OPERATION_CLOSING",
+    message: "应用正在退出协商，本次请求未发送",
+  },
+  configuration_busy: {
+    code: "OPERATION_CONFIGURATION_BUSY",
+    message: "运行配置或代理服务正在变更，本次请求未发送；请等变更完成后重试",
+  },
+  operation_running: {
+    code: "OPERATION_BUSY",
+    message: "已有操作在执行（或尚未确认结束），本次请求未发送；请等当前操作结束",
+  },
+};
+
 /**
- * 主动执行的统一提交适配器（U4 design D6，tasks 4.2/4.3 的适配器半边）。
+ * 执行响应的回执核验（任务 4.1「非法操作响应不能解除门禁」的落点）：
+ * `ok:true` 但没有可信回执、或回执身份不是我们刚发出的那一次 ⇒ 一律按**未知**处理，
+ * 不部分采纳所谓成功字段（调用方因此不会解冻草稿、不会把本地锁当已释放）。
+ */
+function inspectAck(
+  response: ExecutedResponse<unknown>,
+  identity: PendingSubmission,
+): { readonly ack: OperationAck | null; readonly problem: string | null } {
+  if (response.operation === null || response.operation === undefined) {
+    return { ack: null, problem: "响应缺少操作回执" };
+  }
+  const parsed = OperationAckSchema.safeParse(response.operation);
+  if (!parsed.success) {
+    return { ack: null, problem: `操作回执结构不合法：${describeZodError(parsed.error)}` };
+  }
+  if (parsed.data.epoch !== identity.epoch || parsed.data.operationId !== identity.operationId) {
+    return { ack: null, problem: "操作回执身份与本次提交不匹配" };
+  }
+  return { ack: parsed.data, problem: null };
+}
+
+/**
+ * 主动执行的统一提交适配器（U4 design D6，tasks 4.1/4.2/4.3 的适配器半边）。
  *
- * 所有主动入口都走这里：取 epoch → 新生成 operationId → 包成 `{operation, request}` →
+ * 所有主动入口都走这里：读会话门禁 → 新生成 operationId → 包成 `{operation, request}` →
  * 交给对应通道。operationId **每次提交都新**（含失败重试——重试不复用被封禁/已结束的
  * 许可，见 spec「新执行 SHALL 使用新 ID」）。响应原样返回给调用方，由它按
  * 「身份 + 登记版本 + 状态」处理草稿冻结，而不是把裸 `ok/fail` 当操作结局。
  *
- * epoch 未知时先补一次握手；握手没成功 ⇒ **本地未发送**（不是通信未知）：不冻结草稿、
- * 不进 Unknown，直接给出针对性错误码。
+ * 门禁（任务 4.1）：
+ * - 尚未握手 ⇒ 补一次握手，仍不可用就按**本地未发送**处理（不冻结草稿、不进 Unknown）；
+ * - 通信未知 / 关闭协商 / 配置变更中 / 已有操作在飞（含本地尚未确认的提交）⇒ 同样本地拒发。
+ *   main 返回 busy 仍是最后防线，界面不能靠"发不出去才报错"当门禁。
+ * - 通道抛错 ⇒ 请求是否被 main 接受**不可知**：置 Unknown 并保留该在飞身份，
+ *   绝不自动重发（下一次有效 status 才会确认）。
  */
 async function submitActive<TRequest, TResponse>(
   call: (request: ExecutedRequest<TRequest>) => Promise<ExecutedResponse<TResponse>>,
   business: TRequest,
 ): Promise<ExecutedResponse<TResponse>> {
-  const epoch = await ensureMainEpoch();
-  if (epoch === null) {
+  if (deriveGate(useAppStore.getState().operations).blockedBy === "not_handshaked") {
+    await useAppStore.getState().refreshOperationStatus();
+  }
+  const blocked = deriveGate(useAppStore.getState().operations).blockedBy;
+  if (blocked !== null) {
+    const { code, message } = LOCAL_BLOCKED[blocked];
+    return { ok: false, operation: null, error: { code, message } };
+  }
+  const epoch = useAppStore.getState().operations.epoch as string;
+  const identity = { epoch, operationId: crypto.randomUUID() };
+  useAppStore.setState((state) => ({
+    operations: beginLocalSubmission(state.operations, identity),
+  }));
+  let response: ExecutedResponse<TResponse>;
+  try {
+    response = await call({ operation: identity, request: business });
+  } catch (error) {
+    // 未知：保留在飞身份并保守锁住（不重发、不解冻、不假装结束）
+    useAppStore.setState((state) => ({ operations: markUnknown(state.operations) }));
+    throw error;
+  }
+  if (!response.ok && response.error.code === OPERATION_ERROR.staleEpoch) {
+    // 新 main 会话：旧 epoch 的响应不采纳。旧身份**不销账**——它的结局仍是未知（任务 4.6）
+    useAppStore.setState((state) => ({ operations: markUnknown(state.operations) }));
+    return response;
+  }
+  // 回执核验：可信回执才销账；缺回执 / 回执身份不匹配 ⇒ 未知（不部分采纳成功字段）
+  const { ack, problem } = inspectAck(response as ExecutedResponse<unknown>, identity);
+  if (problem !== null || ack === null) {
+    useAppStore.setState((state) => ({ operations: markUnknown(state.operations) }));
     return {
       ok: false,
       operation: null,
       error: {
-        code: "MAIN_HANDSHAKE_REQUIRED",
-        message: "尚未与主进程完成操作握手，本次请求未发送；请重试或重新加载窗口",
+        code: "OPERATION_ACK_INVALID",
+        message: `执行响应的操作回执不可信（${problem}）：本次执行状态未确认，请核对状态`,
       },
     };
   }
-  const response = await call({
-    operation: { epoch, operationId: crypto.randomUUID() },
-    request: business,
-  });
-  if (!response.ok && response.error.code === OPERATION_ERROR.staleEpoch) {
-    // 新 main 会话：旧 epoch 的响应不采纳，下次提交重新握手（旧关联仍保持未知，不自动重发）
-    useAppStore.setState({ mainEpoch: null });
+  if (ack.state !== "running") {
+    useAppStore.setState((state) => ({
+      operations: endLocalSubmission(state.operations, identity.operationId),
+    }));
   }
   return response;
-}
-
-/** 有缓存用缓存，没有就握手一次（握手失败不改缓存，下次仍会重试） */
-async function ensureMainEpoch(): Promise<string | null> {
-  const cached = useAppStore.getState().mainEpoch;
-  if (cached !== null) return cached;
-  return await useAppStore.getState().handshakeOperations();
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -546,7 +641,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   listLoaded: false,
   listStale: false,
   error: null,
-  mainEpoch: null,
+  operations: initialSession(),
   listRefreshInFlight: 0,
   listRefreshPending: 0,
 
@@ -1002,20 +1097,48 @@ export const useAppStore = create<AppState>((set, get) => ({
     return submissionLib.submissionOf(get().draftSubmissions, target) !== undefined;
   },
 
-  async handshakeOperations() {
-    const envelope = await api.operationsStatus();
-    if (!envelope.ok) {
-      set({ mainEpoch: null });
-      return null;
+  async refreshOperationStatus() {
+    // 先记代次再发请求：期间若有新握手，本次响应整份丢弃（迟到响应不得覆盖新状态）
+    const issuing = beginHandshake(get().operations);
+    set({ operations: issuing });
+    let envelope: Awaited<ReturnType<typeof api.operationsStatus>>;
+    try {
+      envelope = await api.operationsStatus();
+    } catch {
+      // 通道失联 ⇒ 未知：保留既有事实与锁，等下一次有效 status 才清
+      set({ operations: markUnknown(get().operations) });
+      return get().operations;
     }
-    // 快照不合契约（含不自洽的槽引用）就当握手失败：绝不部分采纳所谓成功字段
-    const parsed = OperationStatusResultSchema.safeParse(envelope.data);
-    if (!parsed.success) {
-      set({ mainEpoch: null });
-      return null;
+    // 快照不合契约（含不自洽的槽引用）就当未知，绝不部分采纳所谓成功字段
+    const parsed = envelope.ok ? OperationStatusResultSchema.safeParse(envelope.data) : null;
+    if (parsed === null || !parsed.success) {
+      set({ operations: markUnknown(get().operations) });
+      return get().operations;
     }
-    set({ mainEpoch: parsed.data.epoch });
-    return parsed.data.epoch;
+    set({
+      operations: applyStatus(get().operations, parsed.data, issuing.generation).session,
+    });
+    return get().operations;
+  },
+
+  async reconcileOperation(operationId) {
+    const epoch = get().operations.epoch;
+    if (epoch === null) return get().operations;
+    const generation = captureGeneration(get().operations);
+    let envelope: Awaited<ReturnType<typeof api.operationsReconcile>>;
+    try {
+      envelope = await api.operationsReconcile({ epoch, operationId });
+    } catch {
+      set({ operations: markUnknown(get().operations) });
+      return get().operations;
+    }
+    const parsed = envelope.ok ? ReconcileResultSchema.safeParse(envelope.data) : null;
+    if (parsed === null || !parsed.success) {
+      set({ operations: markUnknown(get().operations) });
+      return get().operations;
+    }
+    set({ operations: applyReconcile(get().operations, parsed.data, generation).session });
+    return get().operations;
   },
 
   pendingDraftTarget: null,

@@ -1,8 +1,9 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
+import * as sessionLib from "../src/renderer/src/lib/operation-session";
 import { auditForbiddenTokens } from "../src/renderer/src/lib/overview-view";
-import { installOperationChannels } from "./helpers/operation-channels";
+import { executedFail, installOperationChannels } from "./helpers/operation-channels";
 
 /**
  * U3（preserve-debugging-drafts）任务 2.3：创建表单恢复模式/任务/system，
@@ -123,6 +124,7 @@ describe("store 行为：创建草稿的恢复与放弃（CreateRunDialog 同形
       drafts: draftsModule.emptyDraftRepo(),
       createSourceRef: null,
       createDialogOpen: false,
+      operations: sessionLib.initialSession(),
     });
   });
 
@@ -206,11 +208,10 @@ describe("store 行为：创建草稿的恢复与放弃（CreateRunDialog 同形
     const repoBefore = useAppStore.getState().drafts;
 
     // api 桩：main 消费点拒绝（token 失效/已消费）；失败路径的列表刷新一并打桩
-    (globalThis.window as unknown as { api: Record<string, unknown> }).api.createRun =
-      async () => ({
-        ok: false as const,
-        error: { code: "INVALID_SOURCE_TOKEN", message: "源目录令牌无效或已消费" },
-      });
+    (globalThis.window as unknown as { api: Record<string, unknown> }).api.createRun = executedFail(
+      "INVALID_SOURCE_TOKEN",
+      "源目录令牌无效或已消费",
+    );
     (globalThis.window as unknown as { api: Record<string, unknown> }).api.listRuns = async () => ({
       ok: false as const,
       error: { code: "STUB", message: "桩" },

@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { captureCallDraftSource } from "../src/renderer/src/lib/draft-source";
 import { auditForbiddenTokens } from "../src/renderer/src/lib/overview-view";
 import type { RunDetail } from "../src/shared/ipc";
-import { installOperationChannels } from "./helpers/operation-channels";
+import { executedFail, installOperationChannels } from "./helpers/operation-channels";
 
 /**
  * U3（preserve-debugging-drafts）任务 2.4：A/B 编辑器接入批次草稿。
@@ -279,9 +279,10 @@ describe("store 行为：A/B 预览不隐式清理批次（任务 3.3）", () =>
     const api = (globalThis.window as unknown as { api: Record<string, unknown> }).api;
     // U4：预览是只读通道（runs:modelAbPlan），主动执行通道一次都不该被碰到
     let activeCalls = 0;
-    api.modelAb = async () => {
+    const rejected = executedFail("SHOULD_NOT_RUN", "预览不该占主动槽");
+    api.modelAb = async (request) => {
       activeCalls += 1;
-      return { ok: false as const, error: { code: "SHOULD_NOT_RUN", message: "预览不该占主动槽" } };
+      return rejected(request);
     };
     api.modelAbPlan = async () => ({
       ok: true as const,

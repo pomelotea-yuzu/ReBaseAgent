@@ -2,6 +2,7 @@ import { resolve } from "node:path";
 import { readRun } from "@rebaseagent/trace-sdk";
 import type { RunRecord } from "@rebaseagent/trace-sdk";
 import { beforeEach, describe, expect, it } from "vitest";
+import * as sessionLib from "../src/renderer/src/lib/operation-session";
 import { deriveRunSummary } from "../src/shared/derive";
 import { ok } from "../src/shared/ipc";
 import type {
@@ -1230,7 +1231,7 @@ describe("U4 4.9 主动入口的执行身份", () => {
   const apiObject = (globalThis.window as unknown as { api: Record<string, unknown> }).api;
 
   it("三条主动通道都经同一适配器：epoch 来自握手、operationId 每次都是新 UUID", async () => {
-    useAppStore.setState({ mainEpoch: null });
+    useAppStore.setState({ operations: sessionLib.initialSession() });
     controller.activeOperations.length = 0;
     await useAppStore.getState().loadRuns();
     expect(await useAppStore.getState().forkAt("r_01", "s_03", "编辑后的结果")).toBe(true);
@@ -1255,7 +1256,7 @@ describe("U4 4.9 主动入口的执行身份", () => {
   });
 
   it("握手失败 ⇒ 本地未发送：不提交业务请求，错误码可针对性提示", async () => {
-    useAppStore.setState({ mainEpoch: null });
+    useAppStore.setState({ operations: sessionLib.initialSession() });
     controller.activeOperations.length = 0;
     const forksBefore = controller.forkRequests.length;
     apiObject.operationsStatus = async () => ({
@@ -1273,13 +1274,13 @@ describe("U4 4.9 主动入口的执行身份", () => {
   });
 
   it("握手返回非法快照 ⇒ 同样按未发送处理，不部分采纳", async () => {
-    useAppStore.setState({ mainEpoch: null });
+    useAppStore.setState({ operations: sessionLib.initialSession() });
     apiObject.operationsStatus = async () => ({
       ok: true,
       data: { epoch: "not-a-uuid", registryVersion: 0, operations: [] },
     });
     expect(await useAppStore.getState().forkAt("r_01", "s_03", "值")).toBe(false);
-    expect(useAppStore.getState().mainEpoch).toBeNull();
+    expect(useAppStore.getState().operations.epoch).toBeNull();
     expect(useAppStore.getState().forkErrorCode).toBe("MAIN_HANDSHAKE_REQUIRED");
   });
 });

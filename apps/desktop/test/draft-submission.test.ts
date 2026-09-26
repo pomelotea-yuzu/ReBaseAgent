@@ -10,8 +10,9 @@ import { captureCallDraftSource } from "../src/renderer/src/lib/draft-source";
 import { CREATE_SUBMIT_TARGET } from "../src/renderer/src/lib/draft-submission";
 import * as subLib from "../src/renderer/src/lib/draft-submission";
 import type { DraftSubmission } from "../src/renderer/src/lib/draft-submission";
+import * as sessionLib from "../src/renderer/src/lib/operation-session";
 import type { RunDetail } from "../src/shared/ipc";
-import { installOperationChannels } from "./helpers/operation-channels";
+import { executedFail, executedOk, installOperationChannels } from "./helpers/operation-channels";
 
 /**
  * U3（preserve-debugging-drafts）任务 3.4/3.5：提交绑定草稿快照并冻结，响应不清草稿。
@@ -182,10 +183,10 @@ function stubVictoryPath(): void {
       chain: [{ meta: { ...detail.meta, id }, fork: detail.meta.fork }],
     },
   });
-  api.forkRun = async () => ({ ok: true as const, data: { id: "run_forked" } });
-  api.promptFork = async () => ({ ok: true as const, data: { id: "run_prompt_forked" } });
-  api.proxyFork = async () => ({ ok: true as const, data: { id: "run_proxy_forked" } });
-  api.createRun = async () => ({ ok: true as const, data: { id: "run_created" } });
+  api.forkRun = executedOk({ id: "run_forked" });
+  api.promptFork = executedOk({ id: "run_prompt_forked" });
+  api.proxyFork = executedOk({ id: "run_proxy_forked" });
+  api.createRun = executedOk({ id: "run_created" });
 }
 
 function resetDraftState(): void {
@@ -195,6 +196,7 @@ function resetDraftState(): void {
     forking: "idle",
     creatingRun: "idle",
     modelAbInFlight: false,
+    operations: sessionLib.initialSession(),
   });
 }
 
@@ -255,7 +257,7 @@ describe("store 行为：调用类提交冻结与收尾（任务 3.4）", () => 
 
   it("成功响应收尾（解冻）但草稿保留原文", async () => {
     const assoc = openAndSubmitEdit("成功也要留草稿");
-    api.forkRun = async () => ({ ok: true as const, data: { id: "run_forked" } });
+    api.forkRun = executedOk({ id: "run_forked" });
 
     expect(
       await useAppStore
@@ -269,10 +271,7 @@ describe("store 行为：调用类提交冻结与收尾（任务 3.4）", () => 
   it("业务拒绝同样收尾（可重新提交）且草稿保留；三个通道一致", async () => {
     // result（forkAt）
     const resultAssoc = openAndSubmitEdit("失败也留草稿");
-    api.forkRun = async () => ({
-      ok: false as const,
-      error: { code: "BUSINESS_REJECTED", message: "拒绝" },
-    });
+    api.forkRun = executedFail("BUSINESS_REJECTED", "拒绝");
     expect(
       await useAppStore
         .getState()
@@ -292,7 +291,7 @@ describe("store 行为：调用类提交冻结与收尾（任务 3.4）", () => 
     const promptAssoc = useAppStore
       .getState()
       .beginDraftSubmission({ channel: "prompt", target: promptKey })!;
-    api.promptFork = async () => ({ ok: false as const, error: { code: "X", message: "拒绝" } });
+    api.promptFork = executedFail("X", "拒绝");
     expect(
       await useAppStore
         .getState()
@@ -311,10 +310,7 @@ describe("store 行为：调用类提交冻结与收尾（任务 3.4）", () => 
     const msgAssoc = useAppStore
       .getState()
       .beginDraftSubmission({ channel: "messages", target: MESSAGES_KEY })!;
-    api.proxyFork = async () => ({
-      ok: false as const,
-      error: { code: "PROXY_NO_KEY", message: "拒绝" },
-    });
+    api.proxyFork = executedFail("PROXY_NO_KEY", "拒绝");
     expect(await useAppStore.getState().proxyFork("r_01", "s_02", [], msgAssoc)).toBe(false);
     expect(useAppStore.getState().isDraftFrozen(MESSAGES_KEY)).toBe(false);
     expect(useAppStore.getState().callDraftOf(MESSAGES_KEY)!.text).toBe('[{"role":"user"}]');
@@ -403,10 +399,7 @@ describe("store 行为：创建整份与 A/B 整批的提交关联（任务 3.5�
 
     // 业务拒绝（INVALID_SOURCE_TOKEN 等）：可重新提交，内容不丢
     const rejected = openCreateDraft("被拒绝也要留");
-    api.createRun = async () => ({
-      ok: false as const,
-      error: { code: "INVALID_SOURCE_TOKEN", message: "令牌失效" },
-    });
+    api.createRun = executedFail("INVALID_SOURCE_TOKEN", "令牌失效");
     expect(
       await useAppStore
         .getState()
@@ -455,16 +448,13 @@ describe("store 行为：创建整份与 A/B 整批的提交关联（任务 3.5�
       { index: 0, model: "m-a", params: {}, discarded: {}, warnings: [] },
       { index: 1, model: "m-b", params: {}, discarded: {}, warnings: [] },
     ];
-    api.modelAb = async () => ({
-      ok: true as const,
-      data: {
-        experimentId: "exp_partial",
-        // 两臂只落盘一条 ⇒ 部分失败
-        ids: ["run_a"],
-        ok: false,
-        plan,
-        sideEffectsAllowed: false,
-      },
+    api.modelAb = executedOk({
+      experimentId: "exp_partial",
+      // 两臂只落盘一条 ⇒ 部分失败
+      ids: ["run_a"],
+      ok: false,
+      plan,
+      sideEffectsAllowed: false,
     });
 
     const result = await useAppStore

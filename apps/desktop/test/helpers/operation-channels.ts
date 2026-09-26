@@ -46,6 +46,32 @@ export function toExecuted<T>(
     : { ok: false, operation, error: envelope.error };
 }
 
+/**
+ * 主动通道桩：按**请求带来的身份**回话（U4 之后 `ok:true` 必须带回执，
+ * 否则 renderer 按「回执不可信」处理 = 未知，不部分采纳成功字段）。
+ */
+export function executedOk<T>(data: T, registryVersion = 2) {
+  return async (request: {
+    operation: OperationIdentity;
+  }): Promise<ExecutedResponse<T>> => toExecuted(ok(data), request.operation, registryVersion);
+}
+
+/** 业务拒绝同样要带回执（settled 是可信终态，不是"没执行"） */
+export function executedFail(code: string, message: string, registryVersion = 2) {
+  return async (request: {
+    operation: OperationIdentity;
+  }): Promise<ExecutedResponse<never>> => ({
+    ok: false,
+    operation: {
+      epoch: request.operation.epoch,
+      operationId: request.operation.operationId,
+      registryVersion,
+      state: "settled",
+    },
+    error: { code, message },
+  });
+}
+
 /** 空结果的 A/B 响应（草稿/编辑器类用例只关心"有明确返回"） */
 export const EMPTY_MODEL_AB_RESULT = {
   experimentId: "exp_stub",
