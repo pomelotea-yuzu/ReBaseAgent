@@ -435,7 +435,7 @@ async function scenarioProbe(mock) {
   const fifo = await measureArrivalOrder(8);
   dump.fifo = fifo;
   check(
-    "probe：并发 status 乱序次数量成读数（0 ⇒ 旧快照迟到的分支真机不可诱发，交回 §4 单测）",
+    "probe：并发 status 乱序次数量成读数（只反映 main 侧应答顺序；store 层多请求链交错的迟到响应另说）",
     Number.isInteger(fifo.inversions),
     fifo,
   );

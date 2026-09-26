@@ -6,7 +6,7 @@
 
 ## 一、结论
 
-**4 tag / 82 检查 / 0 失败，整跑 4/4 通过**（`gates.txt` 同目录），零产品代码改动。
+**4 tag / 82 检查 / 0 失败**，还原产品代码后**整跑两次都是 4/4 通过**（`gates.txt` 同目录），零产品代码改动。
 覆盖 delta 的三条逐字场景：
 
 | 场景（spec 原文） | 落在哪个 tag | 关键判据 |
@@ -49,17 +49,22 @@
 ## 四、本批抓到的是一个**采集面**缺陷，不是产品缺陷
 
 第一次跑 M-66D（摘掉挂载时的补握手）时 `out-of-order` **15/15 全绿**——按判据这不可能。
-逐项排查（`.workbuddy/u4/u4-66/reload-probe.cjs`）：
+排查过程（`.workbuddy/u4/u4-66/reload-probe.cjs`）与结论：
 
-- 页内 `window.__alive` 在 reload 后为 `null` ⇒ 上下文**确实**换了；
-- 服务中的 `store.ts` 含变异体（`ensureOperationStatusPolling() { const session = get().operations; … }`）；
-- 挂上 `console.log` 栈探针后：握手来源只有 `App.tsx` 的 `ensureOperationStatusPolling` 一处，
-  摘掉它之后 reload 后 `epoch:null / v:0` ⇒ **挂载握手确实没了**。
+- 页内 `window.__alive` 在 `Page.reload` 后为 `null` ⇒ 文档**确实**会换；
+- 服务中的 `store.ts` 就是磁盘上那一份（用 `fetch(url,{cache:'no-store'})` 与 node 侧各取一次比对函数体；
+  ⚠️ 别用"注释里有没有变异标记"来判断——**Vite 的 transform 会把注释整段剥掉**，这条路量不出 staleness）；
+- 挂上 `console.log` 栈探针后确认：握手来源只有 `App.tsx` 挂载时那次 `ensureOperationStatusPolling`，
+  摘掉它之后 reload 后读到 `epoch:null / v:0` ⇒ **变异确实生效**；
+- 也就是说：变异生效、上下文换新、握手只有一条来源，三件事同时成立时 `out-of-order` 判红 5 条。
+  第一次那轮全绿只剩一个解释：**那一次 `Page.reload` 本身没换文档**，旧 store 的状态一路带到最后
+  （"重载后 epoch 不变/槽还在"于是全都凭空成立）。
+  诱因怀疑是同一条 ws 上挂着一个 25 s 不返回的 `awaitPromise` evaluate（用纯 `setTimeout` 替身复现不出来，
+  ⇒ 只登记为未证实的怀疑，不当结论用）。
 
-也就是说：变异生效、上下文换新都成立，唯一解释是**那次 `Page.reload` 本身没换文档**
-（同一 ws 会话上挂着一个 25 s 不返回的 `awaitPromise` evaluate 时出现过一次；用纯
-`setTimeout` 复现不出来 ⇒ 属偶发）。这类"判据空转"比红更危险，因为它会绿。
-修法就是第 2.3 条的活体标记；加了标记之后重跑 M-66D ⇒ **5 条判红**，之后整跑 4/4 全绿。
+这类"判据空转"比红更危险，因为它会绿。修法就是第 2.3 条的活体标记：`reloadAndWait()` 现在
+导航前写 `window.__u466Doc`、导航后读回来还在就**直接抛错**，不给空转的机会。
+加标记后重跑 M-66D ⇒ **5 条判红**；还原产品代码后整跑 4/4 全绿（这一轮才是本批的正式读数）。
 
 ## 五、变异反证（每条都为判据的牙齿负责，无牙的也照记）
 
@@ -73,8 +78,11 @@
 
 ## 六、门禁与清理
 
+- **正式读数是"还原后连跑两次"**：两轮都 4/4、82 检查 0 失败，且 `reloadAndWait` 的活体标记
+  一次也没触发（⇒ 第四节那次空转是偶发，但判据已经不再依赖运气）。
 - `apps/desktop` vitest：**103 文件 / 1828 用例 / 0 失败**（本批零产品改动 ⇒ 与 6.5 收尾同一批数）
 - `tsc --noEmit -p tsconfig.node.json` / `-p tsconfig.web.json`：均 0 错
 - 根 `biome check .`：**417 文件 0 错**（新增 1 个脚本文件）
+- `openspec validate add-desktop-operation-tracking --strict`：**valid**
 - 驱动收尾无条件还原 `settings.json`；本批产出的 run 靠正文里的 `U4-66` 标记识别并在下次起跑前清理
   （`.rebaseagent/traces` 里遗留的 6 份属采集产物，非用户数据）
