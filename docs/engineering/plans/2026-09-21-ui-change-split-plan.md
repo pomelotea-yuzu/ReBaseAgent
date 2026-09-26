@@ -1,7 +1,7 @@
 # UI 可用性 change 拆分计划
 
 > 日期：2026-09-21
-> 状态（2026-09-26 更新）：U1 [refactor-run-workspace](../../../openspec/changes/archive/2026-09-23-refactor-run-workspace/proposal.md)、U2 [improve-workspace-file-reading](../../../openspec/changes/archive/2026-09-24-improve-workspace-file-reading/proposal.md)、U3 [preserve-debugging-drafts](../../../openspec/changes/archive/2026-09-26-preserve-debugging-drafts/proposal.md) 均已完成并归档；**当前无活动 change**；U4–U8 仍为候选（U4 = 下一条主线）。
+> 状态（2026-09-26 更新）：U1 [refactor-run-workspace](../../../openspec/changes/archive/2026-09-23-refactor-run-workspace/proposal.md)、U2 [improve-workspace-file-reading](../../../openspec/changes/archive/2026-09-24-improve-workspace-file-reading/proposal.md)、U3 [preserve-debugging-drafts](../../../openspec/changes/archive/2026-09-26-preserve-debugging-drafts/proposal.md) 均已完成并归档；**U4 [add-desktop-operation-tracking](../../../openspec/changes/add-desktop-operation-tracking/proposal.md) 已编写四件套，实施待办**；U5–U8 仍为候选。
 > 基线：拆分时 A3-A/B/C 全部归档，U1/U2/U3 均已合入主 spec（`desktop-ui` 现 47 requirements / 200 scenarios）。依据 [UI 方案 V0.2](2026-09-19-ui-layout-discussion.md)与[实际走查 R1–R11](../../reviews/2026-09-21-ui-usability-walkthrough.md)。
 > 文档职责：本文件维护 U 的工程拆分和实施依赖；UI 方案维护界面行为，[可用性规划](2026-09-15-usability-improvement-plan.md)维护 P0–P3 流程，[路线](2026-09-16-isolated-rerun-roadmap.md)维护产品顺序和打包。U1–U8 是 change 编号，不是新的产品阶段。
 
@@ -20,13 +20,15 @@
 | U1 | [`refactor-run-workspace`](../../../openspec/changes/archive/2026-09-23-refactor-run-workspace/proposal.md)（已归档） | 可折叠运行导航、默认概览、完整步骤阅读和每运行阅读恢复 | 已归档基线 | R1/R6/R9，R3 状态色 |
 | U2 | [`improve-workspace-file-reading`](../../../openspec/changes/archive/2026-09-24-improve-workspace-file-reading/proposal.md)（已归档） | 在足够宽的工作区看检查点/diff，返回保留文件选择 | U1 | R1/R7 |
 | U3 | [`preserve-debugging-drafts`](../../../openspec/changes/archive/2026-09-26-preserve-debugging-drafts/proposal.md)（已归档） | 切步骤、运行、设置或关闭编辑区后保留草稿，明确放弃 | U1 | R2，R3 草稿部分，R10/R11 |
-| U4 | `add-desktop-operation-tracking` | 所有主动执行受 main 登记/去重/执行槽约束，可信关联运行和核对未知状态 | 已归档基线 | R3/R4/R5 的契约基础，V0.1 自审 P2-2 |
+| U4 | [`add-desktop-operation-tracking`](../../../openspec/changes/add-desktop-operation-tracking/proposal.md)（四件套已编写，待实施） | 所有主动执行受 main 登记/去重/执行槽约束，可信关联运行和核对未知状态 | 已归档基线 | R3/R4/R5 的契约基础，V0.1 自审 P2-2 |
 | U5 | `unify-run-execution-workflow` | 创建与重跑可跨页查看状态、核实结果、定位失败、返回配置且不丢草稿 | U1 + U3 + U4 | R3/R4/R5/R10/R11 |
 | U6 | `add-partial-run-reading` | 缺祖先文件时可读当前运行的已校验自有记录，仍拒绝不安全执行 | U1 | V0.1 自审 P2-3、V0.2 §18.4 |
 | U7 | `improve-branch-comparison` | 定位并打开分支、比较两次修改/输出，四条指标仍可读可辨 | U1 + U2 + U6 | R8/R9 |
 | U8 | `unify-recording-and-experiment-workspaces` | 录制接入与已有模型实验使用统一工作区、草稿、操作与结果入口 | U5 + U7 | V0.2 §11/§15.4/§16 的完整设计范围 |
 
-U1/U2 均已归档并有 evidence-index；U3 已有 proposal/design/tasks/spec delta，实施任务全部待办；U4–U8 名称目前仅为候选标识。U8 是完整方案的收尾，未把未实测的代理/实验执行问题写成新发现的缺陷。
+U1/U2/U3 均已归档并有 evidence-index；U4 已有 proposal/design/tasks/spec delta，实施任务全部待办；U5–U8 名称目前仅为候选标识。U8 是完整方案的收尾，未把未实测的代理/实验执行问题写成新发现的缺陷。
+
+2026-09-26 补充核对：U1 原归档并非没有缺口，evidence-index 当时为 61/62，且导航折叠后重开入口与调节柄交互未闭合。已先完成 [U1 补齐与实机回归](../../reviews/2026-09-26-u1-completion/README.md)，累计覆盖更新为 62/62，保留原归档历史；100%/200% 导航及 U2 文件状态、U3 草稿恢复通过。U4 实施仍待开始。
 
 ## 3. 依赖与实施顺序
 
@@ -211,6 +213,8 @@ U1 的新概览/导航、U3 的会话草稿、U5 的统一结果流程应各有�
 
 **U1 `refactor-run-workspace`、U2 `improve-workspace-file-reading`** 均已完成并归档，规范已合入主 spec。实施和验收分别见 [U1 evidence-index](../../../openspec/changes/archive/2026-09-23-refactor-run-workspace/evidence-index.md) 与 [U2 evidence-index](../../../openspec/changes/archive/2026-09-24-improve-workspace-file-reading/evidence-index.md)。
 
-**U3 `preserve-debugging-drafts`** 已完成实施与实机验收，**2026-09-26 已归档**（`archive/2026-09-26-preserve-debugging-drafts/`），9 条 requirement / 41 条场景已合入主 spec `desktop-ui`（38→47 requirements、159→200 scenarios，既有场景零丢失）。tasks **37/37**，验收与证据见 [U3 evidence-index](../../../openspec/changes/archive/2026-09-26-preserve-debugging-drafts/evidence-index.md)。**U4 是当前主线候选**：先核实各编排可信 ID 的产出点与失败结构，再展开四件套。
+**U3 `preserve-debugging-drafts`** 已完成实施与实机验收，**2026-09-26 已归档**（`archive/2026-09-26-preserve-debugging-drafts/`），9 条 requirement / 41 条场景已合入主 spec `desktop-ui`（38→47 requirements、159→200 scenarios，既有场景零丢失）。tasks **37/37**，验收与证据见 [U3 evidence-index](../../../openspec/changes/archive/2026-09-26-preserve-debugging-drafts/evidence-index.md)。
 
-其余 U4–U8 先按本计划保留候选，前置契约稳定后逐个展开正式四件套。尤其 U4 先核实各编排可信 ID 的产出点和失败结构，U6 先固定“祖先不存在”诊断来源；这些事实未核实前不能把相应 tasks 标成可直接实现。每次生成正式 change 时回填本表状态和链接，再按依赖实施、验收和归档。
+**U4 [add-desktop-operation-tracking](../../../openspec/changes/add-desktop-operation-tracking/proposal.md)** 已按 U3 归档后基线编写四件套，实施与验收全部待办。[design](../../../openspec/changes/add-desktop-operation-tracking/design.md) 已核实普通/隔离创建、result/prompt、代理重发和 A/B 各臂可信 ID 的产出点，明确可选编排回调、CreateRunError 结构化 ID、代理请求局部关联及配置互斥；相关包契约在 replay/prompt-replay/model-experiments delta 中明列，不修改 trace 格式。下一步按 [tasks](../../../openspec/changes/add-desktop-operation-tracking/tasks.md) 实施，文档校验不算功能验收。
+
+其余 U5–U8 先按本计划保留候选，前置契约稳定后逐个展开正式四件套。U6 先固定“祖先不存在”诊断来源；事实未核实前不能把相应 tasks 标成可直接实现。每次生成正式 change 时回填本表状态和链接，再按依赖实施、验收和归档。
