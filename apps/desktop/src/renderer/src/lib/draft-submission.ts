@@ -206,11 +206,14 @@ export function settleSubmissionByOperation(
 /**
  * "这条请求到底执行了没有"的未知码：响应形似结束、但**不能**据此解冻。
  * - `OPERATION_ACK_INVALID`：main 说成功却给不出可信回执（身份缺失/不匹配/形状非法）；
- * - `OPERATION_STATE_UNKNOWN`：本地已知通信未知 ⇒ 之前发出的请求可能仍在跑，也不能算这条没执行。
+ * - `OPERATION_STATE_UNKNOWN`：本地已知通信未知 ⇒ 之前发出的请求可能仍在跑，也不能算这条没执行；
+ * - `OPERATION_SESSION_SWITCHED`（任务 4.6）：main 已换新会话 ⇒ 旧那次提交的结局**永久未知**，
+ *   既不按成功也不按"从没发生"处理（草稿保留，由用户明确核对/放弃）。
  */
 export const UNKNOWN_RESULT_CODES: readonly string[] = [
   "OPERATION_ACK_INVALID",
   "OPERATION_STATE_UNKNOWN",
+  "OPERATION_SESSION_SWITCHED",
 ];
 
 export type SettleDecision = "settle" | "keep_unknown";

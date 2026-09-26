@@ -96,10 +96,27 @@ function blockedReasonOf(session: OperationSession): OperationBlockedBy | null {
   if (session.unknown) return "communication_unknown";
   if (session.closing) return "closing";
   if (session.configurationBusy) return "configuration_busy";
-  if (session.activeOperationId !== null || session.pending.length > 0) {
+  if (session.activeOperationId !== null || hasSameEpochPending(session)) {
     return "operation_running";
   }
   return null;
+}
+
+/**
+ * 只有**同 epoch** 的在飞身份才锁住可执行性（任务 4.6）。
+ *
+ * 新 main 会话没有旧登记，spec 要求「只按新 main 的槽决定可执行性」——旧 epoch 的
+ * 未确认提交既不能标成功/失败/已取消，也不该把新会话永远锁死。它的正确去处是
+ * `stalePendingOf`：留在未知历史里（草稿冻结照旧解除不了，由用户明确处理），
+ * 但不参与门禁。
+ */
+export function hasSameEpochPending(session: OperationSession): boolean {
+  return session.pending.some((one) => one.epoch === session.epoch);
+}
+
+/** 跨 epoch 的未知历史（界面用它说"这次提交结局未知"，绝不据此猜关联或自动重发） */
+export function stalePendingOf(session: OperationSession): PendingSubmission[] {
+  return session.pending.filter((one) => one.epoch !== session.epoch);
 }
 
 /** 发出一次 status 握手：先记下代次，迟到响应凭它丢弃 */

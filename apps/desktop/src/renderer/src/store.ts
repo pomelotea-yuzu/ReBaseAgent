@@ -91,6 +91,7 @@ import {
   captureGeneration,
   deriveGate,
   endLocalSubmission,
+  hasSameEpochPending,
   initialSession,
   markUnknown,
 } from "./lib/operation-session";
@@ -601,8 +602,9 @@ let pollTimer: ReturnType<typeof setTimeout> | null = null;
 
 function pollContextOf(session: OperationSession): PollContext {
   return {
-    // 本地未确认终态的提交也算"还在跑"：回执丢失时正是需要核对的时候
-    hasActive: session.activeOperationId !== null || session.pending.length > 0,
+    // 本地未确认终态的提交也算"还在跑"：回执丢失时正是需要核对的时候。
+    // 任务 4.6：只数**同 epoch** 的在飞身份——旧会话的未知历史该被核对，但不该永远锁住新会话。
+    hasActive: session.activeOperationId !== null || hasSameEpochPending(session),
     unknown: session.unknown,
   };
 }
@@ -705,6 +707,19 @@ async function submitActive<TRequest, TResponse>(
     // 任务 4.5：状态未确认 ⇒ 停下自动轮询，等用户/下一次握手来核对
     stopOperationStatusPolling();
     return response;
+  }
+  // 任务 4.6：会话已经换过（epoch 与发出时不同）⇒ 这条迟到的旧响应不得解冻、不得导航、
+  // 也不得把会话状态回退。⚠️ 这里**不标通信未知**：新会话的状态刚由一次有效握手确认过，
+  // 未知的是"旧那次提交的结局"（永久未知）——把它标成通道失联会连带锁死新会话。
+  if (useAppStore.getState().operations.epoch !== identity.epoch) {
+    return {
+      ok: false,
+      operation: null,
+      error: {
+        code: "OPERATION_SESSION_SWITCHED",
+        message: "主进程会话已更换：这次提交（属旧会话）的结局未知，不会自动重发，也不会跳转结果",
+      },
+    };
   }
   // 回执核验：可信回执才销账；缺回执 / 回执身份不匹配 ⇒ 未知（不部分采纳成功字段）
   const { ack, problem } = inspectAck(response as ExecutedResponse<unknown>, identity);

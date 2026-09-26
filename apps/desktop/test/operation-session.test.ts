@@ -12,6 +12,7 @@ import {
   initialSession,
   markUnknown,
   operationOf,
+  stalePendingOf,
 } from "../src/renderer/src/lib/operation-session";
 
 /**
@@ -325,7 +326,7 @@ describe("4.1 本地尚未确认的提交也参与门禁", () => {
     expect(banned.session.pending).toHaveLength(0);
   });
 
-  it("新 main 会话不伪造旧在飞身份的结局：旧身份保持、且不再被新快照销账", () => {
+  it("新 main 会话不伪造旧在飞身份的结局：保留为未知历史，但不锁住新会话", () => {
     const busy = beginLocalSubmission(withStatus(initialSession(), statusOf()).session, identity);
     const switched = withStatus(
       busy,
@@ -333,7 +334,30 @@ describe("4.1 本地尚未确认的提交也参与门禁", () => {
     );
     // 该记录属于 EPOCH_A，不能解释新会话里这次提交（身份查询按 epoch 收窄）
     expect(operationOf(switched.session, EPOCH_A, OP_A)).toBeUndefined();
+    // 既没被标成"已执行"，也没被当成"从没发生过"：身份原样留在未知历史里
     expect(switched.session.pending).toEqual([identity]);
-    expect(deriveGate(switched.session).blockedBy).toBe("operation_running");
+    expect(stalePendingOf(switched.session)).toEqual([identity]);
+    // spec「只按新 main 的槽决定可执行性」⇒ 旧会话的未确认提交不锁新会话
+    expect(deriveGate(switched.session).blockedBy).toBe(null);
+  });
+
+  it("同 epoch 的在飞身份仍然锁住入口；销账只认同 epoch 的终态", () => {
+    const idle = withStatus(initialSession(), statusOf()).session;
+    const busy = beginLocalSubmission(idle, identity);
+    expect(deriveGate(busy).blockedBy).toBe("operation_running");
+    // 新 epoch 的快照里出现同 ID 的 settled ⇒ 不销旧账（不伪造结局）
+    const switched = withStatus(
+      busy,
+      statusOf({ epoch: EPOCH_B, registryVersion: 1, operations: [recordOf(OP_A, "settled")] }),
+    );
+    expect(switched.session.pending).toHaveLength(1);
+    // 但同 epoch 的在飞身份会被本会话的终态销掉
+    const sameEpoch = beginLocalSubmission(idle, { epoch: EPOCH_A, operationId: OP_B });
+    const settled = withStatus(
+      sameEpoch,
+      statusOf({ registryVersion: 2, operations: [recordOf(OP_B, "settled")] }),
+    );
+    expect(settled.session.pending).toHaveLength(0);
+    expect(stalePendingOf(settled.session)).toEqual([]);
   });
 });
