@@ -561,7 +561,9 @@ describe("接线契约：五类提交走快照并受冻结约束（任务 3.4/3.
       expect(body).toContain(ret);
     }
 
-    // 五个执行函数：响应到达即收尾（放在 await 之后、错误分支之前 ⇒ 成功与业务拒绝都覆盖）
+    // 五个执行函数：响应到达即**按身份**收尾（放在 await 之后、错误分支之前 ⇒ 成功与业务拒绝都覆盖）
+    // U4 任务 4.2：收尾一律走 `finishDraftSubmission`（内部按 epoch/operationId 判解冻），
+    // 不再无条件 `settleDraftSubmission(submission)`——那等于"任何响应都算结束"。
     for (const [start, end] of [
       ["async forkAt(parentRunId, atSpanId, value, execution, submission) {", "resetFork() {"],
       ["async promptFork(parentRunId, edit, submission) {", "async modelAb("],
@@ -570,9 +572,12 @@ describe("接线契约：五类提交走快照并受冻结约束（任务 3.4/3.
       ["async modelAb(parentRunId, arms, dryRun, submission) {", "resetModelAb() {"],
     ] as const) {
       const body = slice(STORE_SRC, start, end);
-      const settleAt = body.indexOf("settleDraftSubmission(submission)");
-      expect(settleAt).toBeGreaterThan(body.indexOf("await api."));
-      expect(settleAt).toBeLessThan(body.indexOf("if (!envelope.ok)"));
+      const settleAt = body.indexOf("get().finishDraftSubmission(submission");
+      expect(settleAt, start).toBeGreaterThan(body.indexOf("await submitActive("));
+      expect(settleAt, start).toBeLessThan(body.indexOf("if (!envelope.ok)"));
+      expect(body, start).not.toContain("get().settleDraftSubmission(submission)");
+      // 身份要一路传到通道：登记关联的 operationId 必须就是请求里那个
+      expect(body, start).toContain(", submission)");
     }
   });
 });

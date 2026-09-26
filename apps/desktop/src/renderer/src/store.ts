@@ -7,6 +7,7 @@ import { findRunDetailVersionViolation } from "@shared/detail-version-guard";
 import type {
   ChooseSourceResult,
   CreateRunRequest,
+  Envelope,
   FailedFile,
   ForkCapabilityRequest,
   ForkCapabilityResult,
@@ -359,6 +360,18 @@ interface AppState {
    * 的路径可调用（响应到达 / 本地校验拒绝）；通道断开等不确定状态保留冻结。
    */
   settleDraftSubmission: (submission: DraftSubmission) => void;
+  /**
+   * U4 任务 4.2：执行响应到达后**按身份**收尾（spec「核对终态只解冻对应修订」
+   * 「迟到回调与未知状态不能错误解冻」）。
+   * 判据在 `decideSettle`：回执身份必须等于本次提交绑定的 `epoch`/`operationId` 且已进终态；
+   * running、身份不匹配、回执不可信 ⇒ 保留冻结。一律不删草稿。
+   */
+  finishDraftSubmission: (submission: DraftSubmission, response: ExecutedResponse<unknown>) => void;
+  /**
+   * U4 任务 4.2/4.5：核对到某身份已进终态时按身份解冻（reconcile 与迟到响应的唯一合法解冻口）。
+   * 身份查不到（已结束 / 从未登记）⇒ 状态不变。
+   */
+  settleDraftByOperation: (identity: { epoch: string; operationId: string }) => void;
   /** 该目标是否被待定提交冻结（冻结期间仓库拒绝写入与放弃） */
   isDraftFrozen: (target: DraftSubmitTarget) => boolean;
 
@@ -579,6 +592,8 @@ function inspectAck(
 async function submitActive<TRequest, TResponse>(
   call: (request: ExecutedRequest<TRequest>) => Promise<ExecutedResponse<TResponse>>,
   business: TRequest,
+  /** U4 任务 4.2：带草稿关联的提交用**关联里已生成的** operationId（身份与快照同步定下） */
+  submission?: DraftSubmission,
 ): Promise<ExecutedResponse<TResponse>> {
   if (deriveGate(useAppStore.getState().operations).blockedBy === "not_handshaked") {
     await useAppStore.getState().refreshOperationStatus();
@@ -589,7 +604,21 @@ async function submitActive<TRequest, TResponse>(
     return { ok: false, operation: null, error: { code, message } };
   }
   const epoch = useAppStore.getState().operations.epoch as string;
-  const identity = { epoch, operationId: crypto.randomUUID() };
+  const identity: PendingSubmission = {
+    epoch,
+    // 关联里已生成的 operationId 就是本次提交的身份；没有关联（如 dryRun/预览）才另起
+    operationId: submission?.operationId ?? crypto.randomUUID(),
+  };
+  // 关联的 epoch 在真正发出的这一刻绑定（此前它可能是 null = 还没握上手）
+  if (submission !== undefined && submission.epoch !== epoch) {
+    useAppStore.setState((state) => ({
+      draftSubmissions: submissionLib.bindSubmissionEpoch(
+        state.draftSubmissions,
+        submission,
+        epoch,
+      ),
+    }));
+  }
   useAppStore.setState((state) => ({
     operations: beginLocalSubmission(state.operations, identity),
   }));
@@ -1080,6 +1109,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       target,
       submittedRevision,
       submittedText,
+      // U4 任务 4.2：身份与草稿快照在同一步原子定下——operationId 现在就生成，
+      // epoch 等真正发出时由 `submitActive` 绑定（未握手 ⇒ null，请求根本不会离开）
+      operationId: crypto.randomUUID(),
+      epoch: get().operations.epoch,
     });
     // 该目标已有待定提交：拒绝重复提交，不覆盖旧关联（旧关联的响应仍能正确收尾）
     if (next.submission === null) return null;
@@ -1090,6 +1123,28 @@ export const useAppStore = create<AppState>((set, get) => ({
   settleDraftSubmission(submission) {
     const next = submissionLib.settleSubmission(get().draftSubmissions, submission);
     // 令牌不匹配（旧回调）/ 已被收尾 ⇒ 引用不变
+    if (next !== get().draftSubmissions) set({ draftSubmissions: next });
+  },
+
+  finishDraftSubmission(submission, response) {
+    // 用**仓库里当前那条**判定：epoch 是发出时才绑上的，入参可能是绑定前的旧快照
+    const current = submissionLib.submissionOf(get().draftSubmissions, submission.target);
+    if (current === undefined || current.token !== submission.token) return;
+    const ack = response.operation ?? null;
+    const decision = submissionLib.decideSettle(
+      current,
+      ack,
+      response.ok ? null : response.error.code,
+    );
+    if (decision === "settle") get().settleDraftSubmission(current);
+  },
+
+  settleDraftByOperation({ epoch, operationId }) {
+    const next = submissionLib.settleSubmissionByOperation(
+      get().draftSubmissions,
+      epoch,
+      operationId,
+    );
     if (next !== get().draftSubmissions) set({ draftSubmissions: next });
   },
 
@@ -1167,16 +1222,20 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   async forkAt(parentRunId, atSpanId, value, execution, submission) {
     set({ forking: "in_progress", forkError: null, forkErrorCode: null });
-    const envelope = await submitActive(api.forkRun, {
-      parentRunId,
-      atSpanId,
-      edit: { field: "result", value },
-      // 只在隔离父本时带上 execution：普通父本请求里不出现该键（语义清爽，且便于断言）
-      ...(execution === undefined ? {} : { execution }),
-    });
+    const envelope = await submitActive(
+      api.forkRun,
+      {
+        parentRunId,
+        atSpanId,
+        edit: { field: "result", value },
+        // 只在隔离父本时带上 execution：普通父本请求里不出现该键（语义清爽，且便于断言）
+        ...(execution === undefined ? {} : { execution }),
+      },
+      submission,
+    );
     // U3 任务 3.4：已明确返回（成功或业务拒绝）⇒ 收尾本次提交关联、解除冻结；
     // **任何响应都不删草稿**（design D5）。通道抛错不进这里，冻结保留（状态未知）。
-    if (submission !== undefined) get().settleDraftSubmission(submission);
+    if (submission !== undefined) get().finishDraftSubmission(submission, envelope);
     if (!envelope.ok) {
       set({
         forking: "error",
@@ -1248,10 +1307,10 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   async createRun(request, submission) {
     set({ creatingRun: "in_progress", createRunError: null, createRunErrorCode: null });
-    const envelope = await submitActive(api.createRun, request);
+    const envelope = await submitActive(api.createRun, request, submission);
     // U3 任务 3.5：已明确返回（成功或业务拒绝）⇒ 收尾本次提交关联、解除整份冻结；
     // **任何响应都不删草稿**（design D5）。通道抛错不进这里，冻结保留（状态未知）。
-    if (submission !== undefined) get().settleDraftSubmission(submission);
+    if (submission !== undefined) get().finishDraftSubmission(submission, envelope);
     if (!envelope.ok) {
       set({
         creatingRun: "error",
@@ -1291,9 +1350,9 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   async promptFork(parentRunId, edit, submission) {
     set({ forking: "in_progress", forkError: null, forkErrorCode: null });
-    const envelope = await submitActive(api.promptFork, { parentRunId, edit });
+    const envelope = await submitActive(api.promptFork, { parentRunId, edit }, submission);
     // U3 任务 3.4：已明确返回即收尾本次提交关联（草稿保留，见 design D5）
-    if (submission !== undefined) get().settleDraftSubmission(submission);
+    if (submission !== undefined) get().finishDraftSubmission(submission, envelope);
     if (!envelope.ok) {
       set({
         forking: "error",
@@ -1311,15 +1370,19 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   async modelAb(parentRunId, arms, dryRun, submission) {
     set({ modelAbInFlight: true, modelAbError: null, modelAbErrorCode: null });
-    // 两条分支彻底分开：预览走只读通道（不占主动槽、不需要执行身份），
+    // 两条分支彻底分开：预览走只读通道（不占主动槽、不需要执行身份、不登记关联），
     // 真实执行走主动通道（整批一个槽，main 判重先于任何副作用）
-    const envelope =
-      dryRun === true
-        ? await api.modelAbPlan({ parentRunId, arms, dryRun: true })
-        : await submitActive(api.modelAb, { parentRunId, arms });
-    // U3 任务 3.5：真实执行的明确返回即收尾整批关联（含"部分臂失败"——那仍是明确返回）；
-    // 草稿与批次一律保留。dryRun（预览）不传关联，故不受影响。
-    if (submission !== undefined) get().settleDraftSubmission(submission);
+    type AbResponse = ExecutedResponse<ModelAbResult> | Envelope<ModelAbResult>;
+    let envelope: AbResponse;
+    if (dryRun === true) {
+      envelope = await api.modelAbPlan({ parentRunId, arms, dryRun: true });
+    } else {
+      const executed = await submitActive(api.modelAb, { parentRunId, arms }, submission);
+      // U3 任务 3.5 + U4 任务 4.2：真实执行的返回即按**身份**收尾整批关联
+      // （含"部分臂失败"——那仍是明确返回）；草稿与批次一律保留。
+      if (submission !== undefined) get().finishDraftSubmission(submission, executed);
+      envelope = executed;
+    }
     if (!envelope.ok) {
       set({
         modelAbInFlight: false,
@@ -1442,9 +1505,13 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   async proxyFork(parentRunId, atSpanId, messages, submission) {
     set({ forking: "in_progress", forkError: null, forkErrorCode: null });
-    const envelope = await submitActive(api.proxyFork, { parentRunId, atSpanId, messages });
+    const envelope = await submitActive(
+      api.proxyFork,
+      { parentRunId, atSpanId, messages },
+      submission,
+    );
     // U3 任务 3.4：已明确返回即收尾本次提交关联（草稿保留，见 design D5）
-    if (submission !== undefined) get().settleDraftSubmission(submission);
+    if (submission !== undefined) get().finishDraftSubmission(submission, envelope);
     if (!envelope.ok) {
       set({
         forking: "error",

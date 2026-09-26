@@ -1,3 +1,4 @@
+import type { OperationAck } from "@shared/operations";
 import type { CallDraftKey, ModelAbDraftKey } from "./debugging-drafts";
 
 /**
@@ -17,8 +18,11 @@ import type { CallDraftKey, ModelAbDraftKey } from "./debugging-drafts";
  *   已明确返回或本地校验拒绝的请求可解除本次冻结，迟到回调不能解除新关联。
  * - 通道断开、无法确定执行是否仍在进行时保留冻结：调用方不得因不确定而调用
  *   `settleSubmission`（宁可保留待处理，也不把未知当已完成）。
- * - 为 U5 保留 `{key, submittedRevision}` 关联位置；本次不引入 operationId / main epoch，
- *   也不实现"按 completed 自动清理"。
+ * - 为 U5 保留 `{key, submittedRevision}` 关联位置。
+ *
+ * U4 任务 4.2 在本结构上追加了 **main 操作身份**（`epoch` + `operationId`）：
+ * 提交时生成 operationId、发出时绑定 epoch，收尾一律按身份判定（`decideSettle`）——
+ * 不匹配的回执、没有回执但状态未知的码，都不能解除冻结。草稿正文仍永不因执行结果删除。
  */
 
 /** 提交通道：与既有执行入口一一对应（调用类三通道 + A/B 整批 + 创建整份） */
@@ -34,7 +38,7 @@ export type DraftSubmitTarget = CallDraftKey | ModelAbDraftKey | { readonly fiel
 /** 创建表单的提交目标（会话内单份，store 与对话框共用同一常量避免两处各写一份） */
 export const CREATE_SUBMIT_TARGET: DraftSubmitTarget = { field: "create" };
 
-/** 单次提交关联：提交时的身份 + 修订 + 请求快照 */
+/** 单次提交关联：提交时的身份 + 修订 + 请求快照 + U4 的 main 操作身份 */
 export interface DraftSubmission {
   /** 目标标识 `${runId}|${spanId}|${field}`（与草稿列表 listKey 同编码，不作编辑身份） */
   readonly id: string;
@@ -50,6 +54,14 @@ export interface DraftSubmission {
   readonly submittedText: string;
   /** 本次提交的匹配令牌（会话内单调）：只有同令牌的响应才可解冻 */
   readonly token: number;
+  /**
+   * U4 任务 4.2：本次提交的 **main 操作身份**。
+   * `operationId` 在登记关联时就生成（与草稿快照同一步原子取到，之后不再换）；
+   * `epoch` 在真正发出请求时绑定（握手没成功就是 `null` ⇒ 请求根本没离开 renderer）。
+   * 解冻只认这对身份：不匹配的回执（迟到的、冒充的、回执本身不合法的）都不能解锁。
+   */
+  readonly operationId: string;
+  readonly epoch: string | null;
 }
 
 export interface SubmissionStore {
@@ -87,6 +99,9 @@ export interface BeginSubmissionInput {
   readonly submittedRevision: number;
   /** 提交时的请求快照（store 原子读取同类草稿拼出，语义见 DraftSubmission.submittedText） */
   readonly submittedText: string;
+  /** U4 任务 4.2：本次提交的操作身份（operationId 登记时就定；epoch 发出时绑定，先给 null） */
+  readonly operationId: string;
+  readonly epoch: string | null;
 }
 
 export interface BeginSubmissionResult {
@@ -115,6 +130,8 @@ export function beginSubmission(
     submittedRevision: input.submittedRevision,
     submittedText: input.submittedText,
     token: store.nextToken,
+    operationId: input.operationId,
+    epoch: input.epoch,
   };
   return {
     store: {
@@ -141,4 +158,85 @@ export function settleSubmission(
   const nextById = { ...store.byId };
   delete nextById[submission.id];
   return { byId: nextById, nextToken: store.nextToken };
+}
+
+// ---------------------------------------------------------------------------
+// U4 任务 4.2：按 main 操作身份收尾（epoch + operationId）
+// ---------------------------------------------------------------------------
+
+/**
+ * 发出请求时把 epoch 绑进关联（`operationId` 在登记时已定，不再改）。
+ * 只认令牌相同且 `epoch` 仍为 null 的那一条——旧回调、别的目标的握手结果都写不进来。
+ */
+export function bindSubmissionEpoch(
+  store: SubmissionStore,
+  submission: DraftSubmission,
+  epoch: string,
+): SubmissionStore {
+  const current = store.byId[submission.id];
+  if (current === undefined || current.token !== submission.token) return store;
+  if (current.epoch === epoch) return store;
+  return {
+    byId: { ...store.byId, [submission.id]: { ...current, epoch } },
+    nextToken: store.nextToken,
+  };
+}
+
+/** 按身份找待定关联（核对驱动解冻用；身份不含目标，所以要跨目标查） */
+export function submissionByOperation(
+  store: SubmissionStore,
+  epoch: string,
+  operationId: string,
+): DraftSubmission | undefined {
+  return Object.values(store.byId).find(
+    (one) => one.epoch === epoch && one.operationId === operationId,
+  );
+}
+
+/** 按身份收尾：找不到该身份（已结束/从未登记）⇒ 引用不变 */
+export function settleSubmissionByOperation(
+  store: SubmissionStore,
+  epoch: string,
+  operationId: string,
+): SubmissionStore {
+  const found = submissionByOperation(store, epoch, operationId);
+  return found === undefined ? store : settleSubmission(store, found);
+}
+
+/**
+ * "这条请求到底执行了没有"的未知码：响应形似结束、但**不能**据此解冻。
+ * - `OPERATION_ACK_INVALID`：main 说成功却给不出可信回执（身份缺失/不匹配/形状非法）；
+ * - `OPERATION_STATE_UNKNOWN`：本地已知通信未知 ⇒ 之前发出的请求可能仍在跑，也不能算这条没执行。
+ */
+export const UNKNOWN_RESULT_CODES: readonly string[] = [
+  "OPERATION_ACK_INVALID",
+  "OPERATION_STATE_UNKNOWN",
+];
+
+export type SettleDecision = "settle" | "keep_unknown";
+
+/**
+ * 解冻判据（spec「核对终态只解冻对应修订」「迟到回调与未知状态不能错误解冻」）：
+ * - 回执身份 == 本次提交的 `epoch`/`operationId` 且已进终态（settled / notAccepted）⇒ 解冻；
+ * - 回执仍是 running ⇒ 保留；
+ * - 回执身份不匹配（迟到的旧提交、或 main 回了别人的操作）⇒ 保留；
+ * - 没有回执且码属于"接受之前的拒绝"（本地门禁、伪造 sender、旧 epoch、schema 失败）
+ *   ⇒ 明确未执行 ⇒ 解冻（草稿仍保留原文，只是可以再次提交）；
+ * - 没有回执但码是未知类 ⇒ 保留。
+ *
+ * 一律**不删草稿**：解冻只解除"修改/放弃"的冻结，正文保留是 U3 已定的纪律（design D5）。
+ */
+export function decideSettle(
+  submission: DraftSubmission,
+  ack: OperationAck | null,
+  errorCode: string | null,
+): SettleDecision {
+  if (ack !== null) {
+    if (ack.epoch !== submission.epoch || ack.operationId !== submission.operationId) {
+      return "keep_unknown";
+    }
+    return ack.state === "running" ? "keep_unknown" : "settle";
+  }
+  if (errorCode !== null && UNKNOWN_RESULT_CODES.includes(errorCode)) return "keep_unknown";
+  return "settle";
 }
