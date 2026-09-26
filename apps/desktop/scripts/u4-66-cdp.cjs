@@ -11,12 +11,15 @@
  * 1. **真重启原语**：`u2-dev-host.cjs --stop` 走 pid 文件 `taskkill /T /F` 真杀进程树 ⇒
  *    必须等 9612 真空出再起新 dev（项目记忆 `desktop-cdp-harness-gotchas.md`），
  *    重连后要重建 CDP 会话与 dialog 应答器；
- * 2. **status/reconcile 是 pull-only**：`window.api` 属性不可包装（6.5 实测），且 main 对
- *    并发 status 按 FIFO 应答 ⇒ 「同代次的迟到旧快照」在真机**不可诱发**。`probe` 把这个
- *    乱序次数**量成读数**，`out-of-order` 只断真机可观测的不变量（版本单调、槽不回退、
- *    风暴后采纳到 main 最新值），generation/version 两条守卫的**分支**留在 §4 单测层，
- *    README 如实分层，不冒充实测；
- * 3. **草稿与提交关联只在 renderer 内存**（U3 起的设计），所以重载必然带走它们。
+ * 2. **status/reconcile 是 pull-only**：`window.api` 属性不可包装（6.5 实测）。`probe` 量的
+ *    FIFO 只是 **main 侧的应答顺序**（并发 8 条 status 到达顺序乱序 0 次）；这不等于
+ *    renderer 侧拿不到旧快照——变异 M-66E（摘掉 status 的代次/版本两条守卫）在
+ *    `out-of-order` 上真机判红 2 条，红因就是"旧快照把已推进的状态压回去、轮询链已停 ⇒
+ *    界面永远停在旧值"。⇒ 「迟到快照整份丢弃」在真机**有牙**，本 tag 的并发+重载形状就能撞出来；
+ * 3. **`Page.reload` 必须验活体**：第一次跑 M-66D 时该 tag 全绿，事后查明那次 reload
+ *    根本没换文档（旧 store 状态一路带过来 ⇒ 所有"重载后"判据空转）。现在 `reloadAndWait()`
+ *    在导航前挂 `window.__u466Doc`，导航后读回来还在就**直接抛错**，不给空转的机会。
+ * 4. **草稿与提交关联只在 renderer 内存**（U3 起的设计），所以重载必然带走它们。
  *    本批据此把「重载后不复活、也不伪造一条关联」写成**正向判据**，而不是当成缺陷。
  *
  * ⚠️ reload 后 CDP 真鼠标不再触发 React onClick（U3 6.6 实测）⇒ 本批一律用页内程序化动作。
@@ -78,11 +81,19 @@ const watchdog = setTimeout(() => {
 
 /** 重启会留下悬空的 CDP 响应（旧会话的 pending 永不 resolve）⇒ 异常只记录、不误杀采集 */
 process.on("uncaughtException", (e) => {
-  dump.strayErrors.push({ kind: "uncaughtException", at: new Date().toISOString(), msg: String(e?.stack ?? e).slice(0, 500) });
+  dump.strayErrors.push({
+    kind: "uncaughtException",
+    at: new Date().toISOString(),
+    msg: String(e?.stack ?? e).slice(0, 500),
+  });
   console.log("记录未捕获异常（重启期悬空响应）:", String(e?.message ?? e).slice(0, 160));
 });
 process.on("unhandledRejection", (e) => {
-  dump.strayErrors.push({ kind: "unhandledRejection", at: new Date().toISOString(), msg: String(e?.message ?? e).slice(0, 500) });
+  dump.strayErrors.push({
+    kind: "unhandledRejection",
+    at: new Date().toISOString(),
+    msg: String(e?.message ?? e).slice(0, 500),
+  });
   console.log("记录未处理拒绝（重启期悬空响应）:", String(e?.message ?? e).slice(0, 160));
 });
 
@@ -251,16 +262,30 @@ async function waitGateOpen(ms = 30_000) {
   }
 }
 async function reloadAndWait() {
+  // 导航前在 window 上留一个"活体标记"：真重载会把它连同 JS 上下文一起销毁。
+  // 读回来还在 ⇒ 这次根本没换文档 ⇒ 后面所有"重载后"的判据都是空转 ⇒ 直接炸给脚本看。
+  await H.ev(call, `(() => { window.__u466Doc = ${Date.now()}; return true; })()`);
   await call("Page.reload", { ignoreCache: true });
+  let readyMs = 0;
   for (let i = 0; i < 60; i++) {
     await H.sleep(500);
+    readyMs += 500;
     try {
       if ((await H.runs(call)).length > 0) break;
     } catch {
       /* 重载瞬间 */
     }
   }
+  const alive = await H.ev(
+    call,
+    `(() => (typeof window.__u466Doc === 'number' ? window.__u466Doc : null))()`,
+  );
+  if (alive !== null) {
+    throw new Error(`Page.reload 未换文档（活体标记仍在 ⇒ ${alive}）⇒ 重载类判据会空转`);
+  }
+  dump.reloadWaits = [...(dump.reloadWaits ?? []), readyMs];
   await H.sleep(1200);
+  return readyMs;
 }
 async function openOperationsPanel() {
   const expanded = await H.ev(
@@ -327,7 +352,14 @@ async function cdpHttpUp(seconds = 90) {
  * 等 9612 真空出，再起新 host 并重连 CDP。返回实测读数（供判据用，不返回布尔）。
  */
 async function restartMain(why) {
-  const rec = { why, pidBefore: null, stopOut: "", freedAfter: null, upAfter: null, reconnect: false };
+  const rec = {
+    why,
+    pidBefore: null,
+    stopOut: "",
+    freedAfter: null,
+    upAfter: null,
+    reconnect: false,
+  };
   if (H.existsSync(PID_FILE)) rec.pidBefore = readFileSync(PID_FILE, "utf8").trim();
   try {
     call.ws.close();
@@ -366,7 +398,9 @@ async function restartMain(why) {
     rec.reconnect = true;
   }
   dump.restarts.push(rec);
-  console.log(`[真重启:${why}] stop=${rec.stopOut} 空出=${rec.freedAfter} 起来=${rec.upAfter} 重连=${rec.reconnect}`);
+  console.log(
+    `[真重启:${why}] stop=${rec.stopOut} 空出=${rec.freedAfter} 起来=${rec.upAfter} 重连=${rec.reconnect}`,
+  );
   return rec;
 }
 
@@ -388,11 +422,15 @@ async function measureArrivalOrder(n) {
 // ---------------------------------------------------------------------------
 async function scenarioProbe(mock) {
   const before = await mainStatus();
-  check("probe：旧 main 会话可读（epoch 在场、槽空闲）", before.epoch !== null && before.slot === null, {
-    epoch: before.epoch,
-    slot: before.slot,
-    version: before.version,
-  });
+  check(
+    "probe：旧 main 会话可读（epoch 在场、槽空闲）",
+    before.epoch !== null && before.slot === null,
+    {
+      epoch: before.epoch,
+      slot: before.slot,
+      version: before.version,
+    },
+  );
 
   const fifo = await measureArrivalOrder(8);
   dump.fifo = fifo;
@@ -451,7 +489,11 @@ async function scenarioProbe(mock) {
     settled.rec?.state === "settled" && settled.rec.runIds.length === 1,
     settled.rec,
   );
-  check("probe：采集全程无未捕获异常打断", dump.strayErrors.length === 0, dump.strayErrors.slice(0, 3));
+  check(
+    "probe：采集全程无未捕获异常打断",
+    dump.strayErrors.length === 0,
+    dump.strayErrors.slice(0, 3),
+  );
   await H.shot(call, SHOT_DIR, "66-probe.png");
   return { before: before.epoch, after: after.epoch, id, served: mock.served() };
 }
@@ -461,7 +503,11 @@ async function scenarioProbe(mock) {
 // ---------------------------------------------------------------------------
 async function scenarioReloadRunning(mock, fx) {
   const epoch0 = (await mainStatus()).epoch;
-  check("同 main：起点 epoch 在场且槽空闲", epoch0 !== null && (await mainStatus()).slot === null, epoch0);
+  check(
+    "同 main：起点 epoch 在场且槽空闲",
+    epoch0 !== null && (await mainStatus()).slot === null,
+    epoch0,
+  );
 
   // ---- 基准：一次跑完的真提交（后面要跨重载重放它） ----
   const baseMsg = `U4-66 重放基准 ${rand()}`;
@@ -536,7 +582,11 @@ async function scenarioReloadRunning(mock, fx) {
     after.epoch === epoch0 &&
       after.list.find((o) => o.operationId === flightId)?.state === "running" &&
       after.slot === flightId,
-    { epoch: after.epoch, state: after.list.find((o) => o.operationId === flightId)?.state, slot: after.slot },
+    {
+      epoch: after.epoch,
+      state: after.list.find((o) => o.operationId === flightId)?.state,
+      slot: after.slot,
+    },
   );
   const v1 = await view();
   check(
@@ -561,11 +611,10 @@ async function scenarioReloadRunning(mock, fx) {
     gate?.canSubmit === false && gate?.blockedBy === "operation_running",
     gate,
   );
-  check(
-    "重载不重放在飞请求：模型请求计数没增加",
-    mock.served() === servedBefore + 1,
-    { served: mock.served(), expected: servedBefore + 1 },
-  );
+  check("重载不重放在飞请求：模型请求计数没增加", mock.served() === servedBefore + 1, {
+    served: mock.served(),
+    expected: servedBefore + 1,
+  });
   check(
     "重载不重放文件：份数与重载前一致（在飞那次的文件没被复制成第二份）",
     H.traceIds().size === filesAtReload,
@@ -609,7 +658,9 @@ async function scenarioReloadRunning(mock, fx) {
   const panel = await openOperationsPanel();
   check(
     "重载后打开面板：那条按身份显示为「已收口」并带完整 operationId 与可信 runId",
-    panel.includes("已收口") && panel.includes(String(flightId)) && panel.includes(String(done.rec?.runIds?.[0] ?? "")),
+    panel.includes("已收口") &&
+      panel.includes(String(flightId)) &&
+      panel.includes(String(done.rec?.runIds?.[0] ?? "")),
     panel.slice(0, 260),
   );
   check(
@@ -622,7 +673,9 @@ async function scenarioReloadRunning(mock, fx) {
   const dup = await createRun(epoch0, baseId, baseMsg);
   check(
     "跨重载重放同一身份同一请求 ⇒ OPERATION_DUPLICATED、零执行零文件",
-    dup.ok === false && dup.error?.code === "OPERATION_DUPLICATED" && mock.served() === servedBefore + 1,
+    dup.ok === false &&
+      dup.error?.code === "OPERATION_DUPLICATED" &&
+      mock.served() === servedBefore + 1,
     dup.ok ? dup.data : dup.error,
   );
   const dupRec = await recordOf(baseId);
@@ -687,12 +740,20 @@ async function scenarioOutOfOrder(mock, fx) {
   // 重载会作废这个页内 Promise ⇒ 只让它自己落地，不在此 await（下面用 main 登记读数核对）
   fireCreate(base.epoch, flightId, `U4-66 风暴中的在飞 ${rand()}`).catch(() => {});
   const flight = await waitRunning(flightId);
-  check("风暴开始前：那条已在 main 登记为 running", flight.rec?.state === "running", flight.rec?.state);
+  check(
+    "风暴开始前：那条已在 main 登记为 running",
+    flight.rec?.state === "running",
+    flight.rec?.state,
+  );
   const versionDuring = (await mainStatus()).version;
   // 先让界面采纳一次在飞快照：之后的采样才有"从 running 回退成空闲"可测
   await H.storeQ(call, "await s.refreshOperationStatus(); return JSON.stringify({ ok: true });");
   const adopted = await view();
-  check("风暴开始前：界面已采纳那条在飞执行（槽 = 该身份）", adopted.activeOperationId === flightId, adopted);
+  check(
+    "风暴开始前：界面已采纳那条在飞执行（槽 = 该身份）",
+    adopted.activeOperationId === flightId,
+    adopted,
+  );
 
   const samples = [];
   const fired = [];
@@ -704,11 +765,7 @@ async function scenarioOutOfOrder(mock, fx) {
   const versions = samples.map((x) => x.registryVersion);
   const monotonic = versions.every((v, i) => i === 0 || v >= versions[i - 1]);
   dump.storm = { versions, slotFlips: 0, mainVersion: versionDuring };
-  check(
-    "乱序快照不回退新状态：并发 8 次刷新期间界面采纳版本单调不减",
-    monotonic,
-    versions,
-  );
+  check("乱序快照不回退新状态：并发 8 次刷新期间界面采纳版本单调不减", monotonic, versions);
   let flipToIdle = 0;
   for (const s of samples) if (s.epoch !== null && s.activeOperationId === null) flipToIdle += 1;
   const stillRunning = (await recordOf(flightId)).rec?.state === "running";
@@ -814,7 +871,11 @@ async function scenarioMainRestart(mock) {
   const flightId = freshId();
   fireCreate(old.epoch, flightId, `U4-66 被重启打断的在飞 ${rand()}`).catch(() => {});
   const flight = await waitRunning(flightId);
-  check("重启前：那条执行确实 running（真在飞，不是假窗口）", flight.rec?.state === "running", flight.rec);
+  check(
+    "重启前：那条执行确实 running（真在飞，不是假窗口）",
+    flight.rec?.state === "running",
+    flight.rec,
+  );
   // 打断点要落在"模型正在回答"上，而不是"还没出门"：基准那次已经占了一个计数，
   // 所以要等计数涨到 servedBefore+2 才说明在飞这真的出门了（第一版拿 +1 当目标 ⇒ 秒过、假在飞）。
   const reachedModel = await waitServedAtLeast(mock, servedBefore + 2, 25_000);
@@ -936,8 +997,14 @@ async function scenarioMainRestart(mock) {
   const viewAfter = await view();
   check(
     "新会话的界面登记与 main 同源（版本一致、unknown=false）",
-    viewAfter.epoch === neu.epoch && viewAfter.registryVersion >= neu.version && viewAfter.unknown === false,
-    { view: viewAfter.registryVersion, main: (await mainStatus()).version, unknown: viewAfter.unknown },
+    viewAfter.epoch === neu.epoch &&
+      viewAfter.registryVersion >= neu.version &&
+      viewAfter.unknown === false,
+    {
+      view: viewAfter.registryVersion,
+      main: (await mainStatus()).version,
+      unknown: viewAfter.unknown,
+    },
   );
 
   // ---- 历史文件一字未改（含被打断那次留下的那一份） ----
@@ -951,7 +1018,8 @@ async function scenarioMainRestart(mock) {
   check(
     "被打断那次的未完成文件原样留在盘上（新会话既不续写也不删，也不认领它）",
     flightFilesAtKill.length === 0 ||
-      hashesAtKill[`${flightFilesAtKill[0]}.jsonl`] === hashesAfter[`${flightFilesAtKill[0]}.jsonl`],
+      hashesAtKill[`${flightFilesAtKill[0]}.jsonl`] ===
+        hashesAfter[`${flightFilesAtKill[0]}.jsonl`],
     flightFilesAtKill,
   );
   check(
@@ -976,15 +1044,19 @@ async function scenarioMainRestart(mock) {
       ),
     oldQueried,
   );
-  const ownRow = rows.find((r) => r.includes(fresh)) ?? null;
+  const ownRowText = rows.find((r) => r.includes(fresh)) ?? "";
   check(
     "新会话自己的那条照常是「已收口 + 可信 runId」（旧会话不存在不影响新会话）",
-    ownRow !== null &&
-      ownRow.includes("已收口") &&
-      ownRow.includes(String(freshDone.rec?.runIds?.[0] ?? "")),
-    ownRow,
+    ownRowText !== "" &&
+      ownRowText.includes("已收口") &&
+      ownRowText.includes(String(freshDone.rec?.runIds?.[0] ?? "")),
+    ownRowText.slice(0, 200),
   );
-  check("整场采集未被未捕获异常打断（重启期悬空响应已单独记录）", dump.strayErrors.length === 0, dump.strayErrors.slice(0, 3));
+  check(
+    "整场采集未被未捕获异常打断（重启期悬空响应已单独记录）",
+    dump.strayErrors.length === 0,
+    dump.strayErrors.slice(0, 3),
+  );
   await H.shot(call, SHOT_DIR, "66-main-restart.png");
   return {
     old: old.epoch,
@@ -1015,7 +1087,10 @@ async function main() {
   console.log(`冷重载完成：运行列表 ${(await H.runs(call)).length} 项`);
 
   const scripts = {
-    probe: { turns: [{ content: "重启后真跑通的那一次", delayMs: 3000 }], fallback: { content: "兜底" } },
+    probe: {
+      turns: [{ content: "重启后真跑通的那一次", delayMs: 3000 }],
+      fallback: { content: "兜底" },
+    },
     "reload-running": {
       turns: [{ content: "基准那一次" }, { content: "在飞的那一次", delayMs: 30_000 }],
       fallback: { content: "兜底" },
@@ -1025,7 +1100,11 @@ async function main() {
       fallback: { content: "兜底" },
     },
     "main-restart": {
-      turns: [{ content: "重启前跑通" }, { content: "被打断的在飞", delayMs: 25_000 }, { content: "新会话跑通" }],
+      turns: [
+        { content: "重启前跑通" },
+        { content: "被打断的在飞", delayMs: 25_000 },
+        { content: "新会话跑通" },
+      ],
       fallback: { content: "兜底" },
     },
   };
