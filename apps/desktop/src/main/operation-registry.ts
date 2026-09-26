@@ -1,6 +1,9 @@
 import {
   type NotAcceptedReason,
+  OPERATION_CODE_MAX,
   OPERATION_DIAGNOSTIC_MAX,
+  OPERATION_DIAGNOSTIC_MESSAGE_MAX,
+  OPERATION_ERROR,
   type OperationArmSummary,
   type OperationDiagnostic,
   OperationDiagnosticsListSchema,
@@ -112,12 +115,57 @@ export class OperationRegistryInvariantError extends Error {
   }
 }
 
+/**
+ * 编排的产出（三种请求结局，design D1 的 `returned/failed/rejected`）。
+ * `message` 只用于**本次响应**的展示；登记里只留稳定错误码与受控诊断。
+ */
+export type OperationRunResult =
+  | { outcome: "returned"; data: unknown }
+  | { outcome: "rejected"; code: string; message: string }
+  | { outcome: "failed"; code: string; message: string };
+
+/** 执行期间可用的登记口：编排与收尾只能通过它写登记（受控、不抛的实现由调用方保证） */
+export interface OperationContext {
+  readonly operationId: string;
+  attachRunId(runId: string): void;
+  attachExperimentId(experimentId: string): void;
+  attachArm(arm: OperationArmSummary): void;
+  diagnose(code: string, message: string, stage?: OperationDiagnostic["stage"]): void;
+}
+
+export interface ExecutionSpec {
+  operationId: string;
+  target: OperationTarget;
+  fingerprint: string;
+  /**
+   * 业务编排：取 settings 快照、检查领域门禁、消费许可、跑包层。
+   * 必须在这里等到 trace 归位完成——`settled` 的口径是「执行与收尾都已结束」。
+   */
+  execute(ctx: OperationContext): Promise<OperationRunResult>;
+  /** 收尾（句柄/订阅/请求局部关联清理）；抛错只记诊断，不丢先前 runIds */
+  cleanup?(ctx: OperationContext): void | Promise<void>;
+}
+
+/** 一次提交的响应：接受结论 + 该操作的受限记录（`data` 只有本次执行且成功时才有） */
+export interface ExecutionReport {
+  acceptance: AcceptResult["kind"];
+  record: OperationRecord;
+  data: unknown;
+  error: { code: string; message: string } | null;
+}
+
 export class OperationRegistry {
   /** main 每次启动生成一次；全窗口共用，renderer 的文档会话 id 不能替代它 */
   readonly epoch: string;
   private readonly now: () => number;
   private readonly onChanged?: OperationRegistryOptions["onChanged"];
   private readonly operations = new Map<string, MutableOperation>();
+  /**
+   * 在飞执行的**完成信号**（不含正文与结果）：同 ID 的重复 invoke 等这一个 promise，
+   * 因此重复请求既不会二次执行、也不会自己伪造终态。settled 后立即删除 ⇒
+   * 登记不再持有执行上下文（闭包里捕获的请求正文、许可、模型响应随之可回收）。
+   */
+  private readonly completions = new Map<string, Promise<void>>();
   private version: RegistryVersion = 1;
   private activeOperationId: string | null = null;
   private closing = false;
@@ -241,6 +289,90 @@ export class OperationRegistry {
       };
     }
     return { kind: "accepted", record: this.registerRunning(spec) };
+  }
+
+  /**
+   * 一次主动执行的完整生命周期（design D2 第 2–5 步）。
+   *
+   * 关键点：**接受段在第一个 await 之前同步完成**——所以并发到达的两个提交在事件循环的
+   * 同一轮里就已经分出 accepted / not-accepted，不存在「先 await 再抢槽」的窗口。
+   * 收尾（cleanup）跑完才写 settled；清理抛错只落一条受控诊断，先前登记的 runIds 不丢。
+   */
+  async submitExecution(spec: ExecutionSpec): Promise<ExecutionReport> {
+    const accept = this.tryAccept(spec);
+    if (accept.kind !== "accepted") {
+      // duplicate：等同一个执行收口；banned/conflict/not-accepted：本就没有执行可等
+      const inFlight = this.completions.get(spec.operationId);
+      if (accept.kind === "duplicate" && inFlight !== undefined) await inFlight;
+      return {
+        acceptance: accept.kind,
+        record: this.recordOf(spec.operationId) ?? accept.record,
+        data: null,
+        error: rejectionOf(accept),
+      };
+    }
+    let signalCompletion!: () => void;
+    const completion = new Promise<void>((resolve) => {
+      signalCompletion = resolve;
+    });
+    this.completions.set(spec.operationId, completion);
+    const ctx: OperationContext = {
+      operationId: spec.operationId,
+      attachRunId: (runId) => this.attachRunId(spec.operationId, runId),
+      attachExperimentId: (id) => this.attachExperimentId(spec.operationId, id),
+      attachArm: (arm) => this.attachArm(spec.operationId, arm),
+      diagnose: (code, message, stage) =>
+        this.addDiagnostic(spec.operationId, {
+          code: code.slice(0, OPERATION_CODE_MAX),
+          stage: stage ?? "execute",
+          message: boundedMessage(message),
+        }),
+    };
+    let result: OperationRunResult;
+    try {
+      result = await spec.execute(ctx);
+    } catch (error) {
+      // 未预期的异常：终态仍是可信的 failed，且不丢已登记的身份
+      result = {
+        outcome: "failed",
+        code: "OPERATION_EXECUTION_FAILED",
+        message: describeError(error),
+      };
+    }
+    if (spec.cleanup !== undefined) {
+      try {
+        await spec.cleanup(ctx);
+      } catch (error) {
+        this.addDiagnostic(spec.operationId, {
+          code: "CLEANUP_FAILED",
+          stage: "cleanup",
+          message: describeError(error),
+        });
+      }
+    }
+    let record: OperationRecord;
+    try {
+      record = this.settle({
+        operationId: spec.operationId,
+        requestOutcome: result.outcome,
+        errorCode: result.outcome === "returned" ? null : result.code,
+      });
+    } finally {
+      // 无论 settle 是否成功，都必须唤醒等待方并放掉执行上下文引用
+      this.completions.delete(spec.operationId);
+      signalCompletion();
+    }
+    return {
+      acceptance: "accepted",
+      record,
+      data: result.outcome === "returned" ? result.data : null,
+      error: result.outcome === "returned" ? null : { code: result.code, message: result.message },
+    };
+  }
+
+  /** 该操作是否仍有在飞的执行（settled 收口后即 false；用于断言「收尾结束才释放」） */
+  hasInFlightExecution(operationId: string): boolean {
+    return this.completions.has(operationId);
   }
 
   /**
@@ -493,4 +625,39 @@ export class OperationRegistry {
     }
     throw new OperationRegistryInvariantError("收尾的操作不是当前槽 owner");
   }
+}
+
+/**
+ * 未被接受/被拒绝时的稳定响应码。`duplicate` **不是错误**——它是同 ID 同参的正常关联，
+ * 调用方按原记录的终态处理即可。
+ */
+function rejectionOf(
+  accept: Exclude<AcceptResult, { kind: "accepted" }>,
+): { code: string; message: string } | null {
+  switch (accept.kind) {
+    case "duplicate":
+      return null;
+    case "conflict":
+      return {
+        code: OPERATION_ERROR.conflict,
+        message: "该 operationId 已用于另一份业务请求，本次未执行",
+      };
+    default:
+      return {
+        code: OPERATION_ERROR.notAccepted,
+        message: `操作未被接受（${accept.record.rejection ?? "unknown"}），本次未执行；请重新提交`,
+      };
+  }
+}
+
+/** 诊断/响应文案的限长（超长来自上游，截断即可；原始 Error 与 stack 一律不带出） */
+function boundedMessage(message: string): string {
+  return message.length > OPERATION_DIAGNOSTIC_MESSAGE_MAX
+    ? message.slice(0, OPERATION_DIAGNOSTIC_MESSAGE_MAX)
+    : message;
+}
+
+/** 异常 → 单行受控文案：只取 message（`Error.stack` 是另一个属性，因此永不入诊断） */
+function describeError(error: unknown): string {
+  return boundedMessage(error instanceof Error ? error.message : String(error));
 }
