@@ -5,6 +5,7 @@ import {
   ExecutionEnvelopeSchema,
   OPERATION_DIAGNOSTIC_MAX,
   OPERATION_DIAGNOSTIC_MESSAGE_MAX,
+  type OperationArmSummary,
   type OperationRecord,
   OperationRecordSchema,
   OperationStatusResultSchema,
@@ -177,7 +178,7 @@ describe("U4 1.1 目标摘要：七类入口可表达，正文与授权值无处
   });
 
   it("臂摘要：未开始的臂 id/结局为 null；非 modelAb 不得携带臂或 experimentId", () => {
-    const arms = [
+    const arms: OperationArmSummary[] = [
       { index: 0, id: "run_arm0", outcome: "returned" },
       { index: 1, id: null, outcome: null },
     ];

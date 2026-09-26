@@ -37,6 +37,16 @@ import {
 /** 注册表可观察变化的类别（测试与后续诊断用；不进入快照） */
 export type RegistryChange = "accept" | "settle" | "not-accepted" | "identity" | "flag";
 
+/**
+ * 判重结论（design D2 第 2 步）。四种结果各自对应的后续动作由调用方（`tryAccept`）
+ * 决定——registry 只回答「这个 ID 我见过吗、参数一样吗」，不做任何执行。
+ */
+export type AcceptanceLookup =
+  | { outcome: "absent" }
+  | { outcome: "duplicate"; record: OperationRecord }
+  | { outcome: "banned"; record: OperationRecord }
+  | { outcome: "conflict"; record: OperationRecord };
+
 export interface OperationRegistryOptions {
   /** epoch 生成器（默认 crypto.randomUUID；测试可注入固定值） */
   newEpoch?: () => string;
@@ -61,6 +71,11 @@ interface MutableOperation {
   requestOutcome: RequestOutcome | null;
   errorCode: string | null;
   readonly diagnostics: OperationDiagnostic[];
+  /**
+   * 会话 HMAC 摘要（**内部字段，绝不出快照**）：判重只比摘要，因此登记里
+   * 既没有正文、也没有可跨会话复用的原始请求。reconcile 先到的 tombstone 为 null。
+   */
+  fingerprint: string | null;
 }
 
 function toRecord(operation: MutableOperation): OperationRecord {
@@ -165,10 +180,35 @@ export class OperationRegistry {
   // ---------------------------------------------------------------------------
 
   /**
+   * 判重（D2 第 2 步）：**在占槽与任何副作用之前**同步查 operationId。
+   * - 同 ID 同指纹 → `duplicate`，调用方只关联原操作/原终态，绝不重新读配置或消费许可；
+   * - 同 ID 异指纹（含换通道、换模式、改正文、调臂顺序）→ `conflict`，原登记一字不改；
+   * - 已 notAccepted → `banned`，连指纹都不比（封禁结论永不复活）。
+   */
+  inspectForAcceptance(spec: {
+    operationId: string;
+    fingerprint: string;
+  }): AcceptanceLookup {
+    const existing = this.operations.get(spec.operationId);
+    if (existing === undefined) return { outcome: "absent" };
+    if (existing.state === "notAccepted") {
+      return { outcome: "banned", record: toRecord(existing) };
+    }
+    if (existing.fingerprint === spec.fingerprint) {
+      return { outcome: "duplicate", record: toRecord(existing) };
+    }
+    return { outcome: "conflict", record: toRecord(existing) };
+  }
+
+  /**
    * 登记 running 并占槽。调用方（`tryAccept`）必须已经确认槽空闲且没有
    * closing/configurationBusy；这里只做**不变量复核**，不重复业务判定。
    */
-  registerRunning(spec: { operationId: string; target: OperationTarget }): OperationRecord {
+  registerRunning(spec: {
+    operationId: string;
+    target: OperationTarget;
+    fingerprint: string;
+  }): OperationRecord {
     this.assertOperationId(spec.operationId);
     if (this.activeOperationId !== null) {
       throw new OperationRegistryInvariantError("执行槽已被占用");
@@ -176,21 +216,14 @@ export class OperationRegistry {
     if (this.operations.has(spec.operationId)) {
       throw new OperationRegistryInvariantError("同一 operationId 重复登记");
     }
-    const operation: MutableOperation = {
-      epoch: this.epoch,
+    const operation = this.newOperation({
       operationId: spec.operationId,
       target: spec.target,
+      fingerprint: spec.fingerprint,
       state: "running",
       rejection: null,
       startedAt: this.timestamp(),
-      settledAt: null,
-      runIds: [],
-      experimentId: null,
-      arms: [],
-      requestOutcome: null,
-      errorCode: null,
-      diagnostics: [],
-    };
+    });
     this.operations.set(spec.operationId, operation);
     this.activeOperationId = spec.operationId;
     this.bump("accept");
@@ -205,26 +238,21 @@ export class OperationRegistry {
     operationId: string;
     target: OperationTarget | null;
     reason: NotAcceptedReason;
+    /** 被拒请求的指纹（可选）：仅作内部留痕，封禁判定从不依赖它 */
+    fingerprint?: string | null;
   }): OperationRecord {
     this.assertOperationId(spec.operationId);
     if (this.operations.has(spec.operationId)) {
       throw new OperationRegistryInvariantError("已存在的操作不能被改写为 notAccepted");
     }
-    const operation: MutableOperation = {
-      epoch: this.epoch,
+    const operation = this.newOperation({
       operationId: spec.operationId,
       target: spec.target,
+      fingerprint: spec.fingerprint ?? null,
       state: "notAccepted",
       rejection: spec.reason,
       startedAt: null,
-      settledAt: null,
-      runIds: [],
-      experimentId: null,
-      arms: [],
-      requestOutcome: null,
-      errorCode: null,
-      diagnostics: [],
-    };
+    });
     this.operations.set(spec.operationId, operation);
     this.bump("not-accepted");
     return toRecord(operation);
@@ -356,6 +384,32 @@ export class OperationRegistry {
 
   private timestamp(): string {
     return new Date(this.now()).toISOString();
+  }
+
+  private newOperation(spec: {
+    operationId: string;
+    target: OperationTarget | null;
+    fingerprint: string | null;
+    state: OperationRecord["state"];
+    rejection: NotAcceptedReason | null;
+    startedAt: string | null;
+  }): MutableOperation {
+    return {
+      epoch: this.epoch,
+      operationId: spec.operationId,
+      target: spec.target,
+      state: spec.state,
+      rejection: spec.rejection,
+      startedAt: spec.startedAt,
+      settledAt: null,
+      runIds: [],
+      experimentId: null,
+      arms: [],
+      requestOutcome: null,
+      errorCode: null,
+      diagnostics: [],
+      fingerprint: spec.fingerprint,
+    };
   }
 
   /** 入口即拒绝非 UUID 身份：坏 id 必须在本该被拒绝的那一次调用上暴露 */

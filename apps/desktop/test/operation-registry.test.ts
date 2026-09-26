@@ -39,6 +39,8 @@ const OP_X = uuid("d");
 const OP_BUSY = uuid("e");
 const OP_NEVER = uuid("f");
 const OP_GHOST = uuid("0");
+/** 会话 HMAC 摘要的形状（内容对本组断言无意义，只验证它不出快照） */
+const FP = "f".repeat(64);
 
 function setup(options?: { epoch?: string }): {
   registry: OperationRegistry;
@@ -103,6 +105,7 @@ describe("U4 1.2 running/settled/notAccepted 的登记与快照", () => {
     const { registry } = setup();
     const record = registry.registerRunning({
       operationId: OP_A,
+      fingerprint: FP,
       target: { kind: "create", mode: "isolated" },
     });
     expect(record.state).toBe("running");
@@ -112,13 +115,19 @@ describe("U4 1.2 running/settled/notAccepted 的登记与快照", () => {
     const snapshot = snapshotOf(registry);
     expect(snapshot.activeOperationId).toBe(OP_A);
     expect(snapshot.operations).toHaveLength(1);
+    // 指纹与「runIds 之外的内部字段」都不出快照（登记不泄漏输入 ⇒ 摘要同样不外泄）
+    expect(JSON.stringify(snapshot)).not.toContain("f".repeat(64));
     expect(registry.isAccepting()).toEqual({ accepting: false, reason: "busy" });
   });
 
   it("settled 后释放自己的槽，但记录仍在快照中（终态不随面板关闭消失）", () => {
     const { registry, advance } = setup();
     advance();
-    registry.registerRunning({ operationId: OP_A, target: { kind: "create", mode: "plain" } });
+    registry.registerRunning({
+      operationId: OP_A,
+      fingerprint: FP,
+      target: { kind: "create", mode: "plain" },
+    });
     advance();
     const settled = registry.settle({ operationId: OP_A, requestOutcome: "returned" });
     expect(settled.state).toBe("settled");
@@ -138,7 +147,11 @@ describe("U4 1.2 running/settled/notAccepted 的登记与快照", () => {
 
   it("notAccepted 不占槽、不伪造执行时间，并与后续操作共存于快照", () => {
     const { registry } = setup();
-    registry.registerRunning({ operationId: OP_A, target: { kind: "create", mode: "plain" } });
+    registry.registerRunning({
+      operationId: OP_A,
+      fingerprint: FP,
+      target: { kind: "create", mode: "plain" },
+    });
     const rejected = registry.registerNotAccepted({
       operationId: OP_BUSY,
       target: { kind: "prompt", parentRunId: "run_p", editField: "user_message" },
@@ -169,7 +182,11 @@ describe("U4 1.2 running/settled/notAccepted 的登记与快照", () => {
 
   it("业务拒绝的终态：settled/rejected 必须带稳定错误码（未配置等门禁不被绕过）", () => {
     const { registry } = setup();
-    registry.registerRunning({ operationId: OP_A, target: { kind: "create", mode: "plain" } });
+    registry.registerRunning({
+      operationId: OP_A,
+      fingerprint: FP,
+      target: { kind: "create", mode: "plain" },
+    });
     const settled = registry.settle({
       operationId: OP_A,
       requestOutcome: "rejected",
@@ -188,7 +205,11 @@ describe("U4 1.2 running/settled/notAccepted 的登记与快照", () => {
 describe("U4 1.2 同 main 重载与面板关闭不改变登记", () => {
   it("重载后的新消费者握手：同一 epoch、同一槽、同一登记（含 running）", () => {
     const { registry } = setup();
-    registry.registerRunning({ operationId: OP_A, target: { kind: "create", mode: "plain" } });
+    registry.registerRunning({
+      operationId: OP_A,
+      fingerprint: FP,
+      target: { kind: "create", mode: "plain" },
+    });
     registry.attachRunId(OP_A, "run_1");
     const before = snapshotOf(registry);
     // 「另一个 renderer 会话」——纯函数式读取，registry 不持窗口/文档会话状态
@@ -203,7 +224,11 @@ describe("U4 1.2 同 main 重载与面板关闭不改变登记", () => {
 
   it("快照方法无任何过滤参数 ⇒ 无法按界面开合裁剪终态或封禁", () => {
     const { registry } = setup();
-    registry.registerRunning({ operationId: OP_A, target: { kind: "create", mode: "plain" } });
+    registry.registerRunning({
+      operationId: OP_A,
+      fingerprint: FP,
+      target: { kind: "create", mode: "plain" },
+    });
     registry.settle({ operationId: OP_A, requestOutcome: "failed", errorCode: "FORK_FAILED" });
     registry.registerNotAccepted({
       operationId: OP_B,
@@ -220,7 +245,11 @@ describe("U4 1.2 同 main 重载与面板关闭不改变登记", () => {
 describe("U4 1.2 登记版本与身份追加", () => {
   it("每次可见状态转换都递增版本；诊断追加不递增（迟到诊断不得伪装成新状态）", () => {
     const { registry, changes } = setup();
-    registry.registerRunning({ operationId: OP_A, target: { kind: "create", mode: "plain" } });
+    registry.registerRunning({
+      operationId: OP_A,
+      fingerprint: FP,
+      target: { kind: "create", mode: "plain" },
+    });
     registry.attachRunId(OP_A, "run_1");
     registry.addDiagnostic(OP_A, { code: "X", stage: "execute", message: "m" });
     registry.setClosing(true);
@@ -235,6 +264,7 @@ describe("U4 1.2 登记版本与身份追加", () => {
     const { registry } = setup();
     registry.registerRunning({
       operationId: OP_A,
+      fingerprint: FP,
       target: {
         kind: "result",
         mode: "isolated",
@@ -254,6 +284,7 @@ describe("U4 1.2 登记版本与身份追加", () => {
     const { registry } = setup();
     registry.registerRunning({
       operationId: OP_AB,
+      fingerprint: FP,
       target: { kind: "modelAb", parentRunId: "run_p", armCount: 3 },
     });
     registry.attachExperimentId(OP_AB, "exp_1");
@@ -279,7 +310,11 @@ describe("U4 1.2 登记版本与身份追加", () => {
 
   it("settled 之后不再接受身份追加（终态不可倒流）", () => {
     const { registry } = setup();
-    registry.registerRunning({ operationId: OP_A, target: { kind: "create", mode: "plain" } });
+    registry.registerRunning({
+      operationId: OP_A,
+      fingerprint: FP,
+      target: { kind: "create", mode: "plain" },
+    });
     registry.settle({ operationId: OP_A, requestOutcome: "returned" });
     expect(() => registry.attachRunId(OP_A, "run_late")).toThrow(OperationRegistryInvariantError);
     expect(registry.recordOf(OP_A)?.runIds).toEqual([]);
@@ -287,7 +322,11 @@ describe("U4 1.2 登记版本与身份追加", () => {
 
   it("诊断：不合契约的条目不入登记，超过上限只丢新条目（终态与 runIds 永不裁剪）", () => {
     const { registry } = setup();
-    registry.registerRunning({ operationId: OP_A, target: { kind: "create", mode: "plain" } });
+    registry.registerRunning({
+      operationId: OP_A,
+      fingerprint: FP,
+      target: { kind: "create", mode: "plain" },
+    });
     registry.addDiagnostic(OP_A, {
       code: "X",
       stage: "not-a-stage" as "execute",
@@ -336,7 +375,11 @@ describe("U4 1.2 关闭与配置变更标记", () => {
 
   it("running 期间的配置变更标记不改变槽 owner", () => {
     const { registry } = setup();
-    registry.registerRunning({ operationId: OP_A, target: { kind: "create", mode: "plain" } });
+    registry.registerRunning({
+      operationId: OP_A,
+      fingerprint: FP,
+      target: { kind: "create", mode: "plain" },
+    });
     registry.beginConfigurationChange();
     expect(snapshotOf(registry)).toMatchObject({
       activeOperationId: OP_A,
@@ -349,12 +392,24 @@ describe("U4 1.2 关闭与配置变更标记", () => {
 describe("U4 1.2 登记不变量（拒绝会造成状态倒流或误解锁的调用）", () => {
   it("同一 operationId 不能重复登记 running；槽被占用时不能登记第二个 running", () => {
     const { registry } = setup();
-    registry.registerRunning({ operationId: OP_A, target: { kind: "create", mode: "plain" } });
+    registry.registerRunning({
+      operationId: OP_A,
+      fingerprint: FP,
+      target: { kind: "create", mode: "plain" },
+    });
     expect(() =>
-      registry.registerRunning({ operationId: OP_A, target: { kind: "create", mode: "plain" } }),
+      registry.registerRunning({
+        operationId: OP_A,
+        fingerprint: FP,
+        target: { kind: "create", mode: "plain" },
+      }),
     ).toThrow(OperationRegistryInvariantError);
     expect(() =>
-      registry.registerRunning({ operationId: OP_B, target: { kind: "create", mode: "plain" } }),
+      registry.registerRunning({
+        operationId: OP_B,
+        fingerprint: FP,
+        target: { kind: "create", mode: "plain" },
+      }),
     ).toThrow(OperationRegistryInvariantError);
     expect(snapshotOf(registry).operations).toHaveLength(1);
   });
@@ -382,6 +437,7 @@ describe("U4 1.2 登记不变量（拒绝会造成状态倒流或误解锁的调
     expect(() =>
       registry.registerRunning({
         operationId: "renderer-tab-1",
+        fingerprint: FP,
         target: { kind: "create", mode: "plain" },
       }),
     ).toThrow(OperationRegistryInvariantError);
@@ -394,9 +450,17 @@ describe("U4 1.2 登记不变量（拒绝会造成状态倒流或误解锁的调
 
   it("重复完成只保留既有终态：不二次释放槽，旧操作的迟到收尾不影响新操作", () => {
     const { registry } = setup();
-    registry.registerRunning({ operationId: OP_A, target: { kind: "create", mode: "plain" } });
+    registry.registerRunning({
+      operationId: OP_A,
+      fingerprint: FP,
+      target: { kind: "create", mode: "plain" },
+    });
     const first = registry.settle({ operationId: OP_A, requestOutcome: "returned" });
-    registry.registerRunning({ operationId: OP_B, target: { kind: "create", mode: "plain" } });
+    registry.registerRunning({
+      operationId: OP_B,
+      fingerprint: FP,
+      target: { kind: "create", mode: "plain" },
+    });
     const versionBefore = registry.registryVersion;
     const repeated = registry.settle({ operationId: OP_A, requestOutcome: "failed" });
     expect(repeated).toEqual(first);
