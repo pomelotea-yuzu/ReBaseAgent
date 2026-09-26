@@ -85,7 +85,17 @@
   判据三处同时核对（落盘 `meta.id` / 受控服务 `served` / traces 文件计数），全程经真桥接面带执行信封。
   ⚠️ 本轮坐实两条契约形状：重复提交的那条回 `OPERATION_DUPLICATED` **不带 `data`**（身份经 status/reconcile 取）；
   `ReconcileResult` 的终态在 `data.operation`，不存在 `data.state`（采集脚本首版据此写错断言、非产品缺陷）。
-- [ ] 6.2 实测普通/隔离 result 与 prompt，切页面后核对登记和草稿，回归授权/父链/轮末门禁（<=2h）。验收：所有入口实际使用同一适配器 / 提交快照独立于编辑器挂载 / 分叉在已知身份后异常仍可关联。
+- [x] 6.2 实测普通/隔离 result 与 prompt，切页面后核对登记和草稿，回归授权/父链/轮末门禁（<=2h）。验收：所有入口实际使用同一适配器 / 提交快照独立于编辑器挂载 / 分叉在已知身份后异常仍可关联。
+  证据：`docs/reviews/2026-09-26-u4-62/README.md`（**4 tag / 93 检查 / 0 失败**，整跑 4/4）·
+  采集 `apps/desktop/scripts/u4-62-cdp.cjs` · 机制层抽出 `scripts/lib/u4-smoke-harness.cjs`（复用 U3 6.3 已验证的
+  真会话/真 store/落盘哈希 helper，6.3–6.8 继续用）· 批量驱动 `.workbuddy/u4/u4-62/run-all.cjs` ·
+  逐条 `<tag>-measurements.json` + 截图。
+  在飞窗口由受控服务 `delayMs` 造出，切页与提交在同一次页内求值内完成 ⇒ 「卸载不换关联」是直接实测；
+  登记只读 main `operations:status`，renderer 会话作同源对照。
+  变异 2 处捕获（M-62A 界面门禁恒可提交 ⇒ 仅该条判红；M-62B 「核对状态」混入导航 ⇒ 仅该条判红），还原后复绿。
+  ⚠️ 本轮两次判红都指向**判据口径**而非产品缺陷：`runLoop` 不抛 LLM 失败 ⇒ 失败 run 的登记是
+  `settled / requestOutcome=returned / errorCode=null`，失败事实只在 trace 侧（`llm.call.error` + `run.event=errored`）；
+  README §三 已把这条写成后续 tag 的纪律。
 - [ ] 6.3 实测 proxy 主动重发交错被动录制、无 key/写入失败，核对单请求身份与错误（<=2h）。验收：主动代理重发与被动录制交错 / 同 ID 重复请求只执行一次。
 - [ ] 6.4 实测 A/B dry-run、实际部分失败与批次期间第二操作/配置拒绝，逐臂比对 trace（<=2h）。验收：A-B 一批占槽直到全部收尾 / A-B 部分失败保留各臂事实 / 只读入口和被动录制不占主动槽。
 - [ ] 6.5 注入响应丢失、status/reconcile 故障和两种到达顺序，验证 Unknown 可核对且无重发/错误解冻（<=2h）。验收：reconcile 先到封禁迟到提交 / 执行先到核对实际状态 / 状态通道不可用保持未知 / 核对终态只解冻对应修订。
