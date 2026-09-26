@@ -376,6 +376,24 @@ export class OperationRegistry {
   }
 
   /**
+   * 原子核对（design D4）：在**同一个同步段**里完成「查在不在 → 有则返回真实状态 /
+   * 无则登记 notAccepted 封禁」。因此 reconcile 先于正式请求到达时，后到的执行必然撞上
+   * `banned` 分支——零 token 消费、零模型/工具调用、零运行文件。
+   *
+   * 核对不执行业务、不取消操作、也不改运行文件；封禁保留至本 main 会话结束。
+   */
+  reconcile(operationId: string): OperationRecord {
+    this.assertOperationId(operationId);
+    const existing = this.operations.get(operationId);
+    if (existing !== undefined) return toRecord(existing);
+    return this.registerNotAccepted({
+      operationId,
+      target: null,
+      reason: "reconcile_tombstone",
+    });
+  }
+
+  /**
    * 登记 running 并占槽。调用方（`tryAccept`）必须已经确认槽空闲且没有
    * closing/configurationBusy；这里只做**不变量复核**，不重复业务判定。
    */

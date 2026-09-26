@@ -12,6 +12,7 @@ import {
 } from "./data-dir";
 import { type DraftCloseGuardHandle, attachDraftCloseGuard } from "./draft-close-attach";
 import { registerIpc } from "./ipc";
+import type { TrustedSender } from "./operation-endpoints";
 import { OperationRegistry } from "./operation-registry";
 import { ProxyManager } from "./proxy-manager";
 import { RunRepository } from "./run-repository";
@@ -85,6 +86,19 @@ function repoRoot(): string {
 let mainWindow: BrowserWindow | null = null;
 /** U3 关闭协商 guard（§4）：窗口创建时装配；4.4 起在 close/app.quit 路径消费 */
 let draftClose: DraftCloseGuardHandle | null = null;
+/**
+ * U4：本应用创建的窗口 → **主 frame** routingId 的取值函数。
+ * 导航会更换 frame 实例，所以存的是取值函数而不是快照值；窗口销毁时移除。
+ * 判据只用于「这条 IPC 是不是我创建的窗口的主 frame 发的」——子 frame、其他
+ * webContents（含 devtools、外链）一律不信。
+ */
+const trustedMainFrameOf = new Map<number, () => number>();
+
+function isTrustedSender(sender: TrustedSender): boolean {
+  const getMainFrameRoutingId = trustedMainFrameOf.get(sender.webContentsId);
+  if (getMainFrameRoutingId === undefined) return false;
+  return sender.frameRoutingId === getMainFrameRoutingId();
+}
 
 function createWindow(): void {
   const win = new BrowserWindow({
@@ -102,6 +116,13 @@ function createWindow(): void {
     },
   });
   mainWindow = win;
+  // U4：登记为可信发送者来源（不等 did-finish-load——preload 代码在加载完成前就会发 IPC；
+  // 主 frame id 每次导航会变，故存取值函数）。窗口销毁时解除登记。
+  const sourceWebContentsId = win.webContents.id;
+  trustedMainFrameOf.set(sourceWebContentsId, () => win.webContents.mainFrame.routingId);
+  win.on("closed", () => {
+    trustedMainFrameOf.delete(sourceWebContentsId);
+  });
   // U3 关闭协商：装配受限协议（会话轮换 / 握手 / sender 校验）；销毁时自动解绑
   draftClose = attachDraftCloseGuard(win);
 
@@ -205,6 +226,7 @@ async function bootstrap(): Promise<void> {
     dataDir,
     proxy,
     operations,
+    isTrustedSender,
     ...(smokePickDir === undefined || smokePickDir === ""
       ? {}
       : { pickDirectory: async (): Promise<string | null> => smokePickDir }),

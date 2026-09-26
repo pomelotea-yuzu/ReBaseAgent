@@ -163,6 +163,12 @@ export const OPERATION_ERROR = {
   conflict: "OPERATION_CONFLICT",
   /** 未接受（忙碌 / 关闭协商 / 配置变更 / 已被核对封禁）：不执行，重试须换新 ID */
   notAccepted: "OPERATION_NOT_ACCEPTED",
+  /** 缺身份 / 非 UUID / 信封形状不合：在副作用之前拒绝 */
+  invalidIdentity: "OPERATION_INVALID_IDENTITY",
+  /** 发送者不是已登记窗口的主 frame：在副作用之前拒绝 */
+  untrustedSender: "OPERATION_UNTRUSTED_SENDER",
+  /** 请求携带旧 main epoch：零副作用，绝不释放当前槽 */
+  staleEpoch: "OPERATION_STALE_EPOCH",
 } as const;
 
 /** 单个 A/B 臂的摘要：未开始的臂 id 与结局均为 null，绝不生成假身份 */

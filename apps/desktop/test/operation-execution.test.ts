@@ -7,6 +7,7 @@ import {
   OperationRegistryInvariantError,
 } from "../src/main/operation-registry";
 import { OPERATION_CODE_MAX, OPERATION_DIAGNOSTIC_MESSAGE_MAX } from "../src/shared/operations";
+import { deferred, flush } from "./helpers/deterministic-schedule";
 
 /**
  * U4 任务 1.5：共享执行 promise、统一 settled/finally 收口、允许字段的诊断，
@@ -29,25 +30,6 @@ const OP_OTHER = "bbbbbbbb-2222-4222-8222-222222222222";
 const FP = "f".repeat(64);
 const target = { kind: "create", mode: "plain" } as const;
 
-function deferred<T>(): {
-  promise: Promise<T>;
-  resolve: (value: T) => void;
-  reject: (reason?: unknown) => void;
-} {
-  let resolve!: (value: T) => void;
-  let reject!: (reason?: unknown) => void;
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res;
-    reject = rej;
-  });
-  return { promise, resolve, reject };
-}
-
-/** 让所有已 resolve 的微任务链跑完 */
-async function flush(): Promise<void> {
-  await new Promise((resolve) => setImmediate(resolve));
-}
-
 function setup(): { registry: OperationRegistry; calls: string[] } {
   const calls: string[] = [];
   const registry = new OperationRegistry({
@@ -58,7 +40,6 @@ function setup(): { registry: OperationRegistry; calls: string[] } {
 
 /** 构造一个「执行与收尾都可控」的 spec，并记录调用次数 */
 function controllableSpec(
-  registry: OperationRegistry,
   calls: string[],
   operationId: string,
   options?: { rejectWith?: unknown; cleanupThrows?: unknown },
@@ -101,7 +82,7 @@ function controllableSpec(
 describe("U4 1.5 收口时机：执行与收尾都结束才 settled 并释放槽", () => {
   it("编排返回后收尾仍被延迟 ⇒ 继续占槽、第二操作被拒；收尾完成才释放", async () => {
     const { registry, calls } = setup();
-    const run = controllableSpec(registry, calls, OP);
+    const run = controllableSpec(calls, OP);
     const inFlight = registry.submitExecution(run.spec);
     await run.executeStarted;
     expect(registry.activeId).toBe(OP);
@@ -131,7 +112,7 @@ describe("U4 1.5 收口时机：执行与收尾都结束才 settled 并释放槽
     const { registry, calls } = setup();
     const leaky = new Error("归位失败：目标文件被占用");
     leaky.stack = "Error: 归位失败\n    at Object.<anonymous> (secret/path/leak.ts:1:1)";
-    const run = controllableSpec(registry, calls, OP, { cleanupThrows: leaky });
+    const run = controllableSpec(calls, OP, { cleanupThrows: leaky });
     const report = await (async () => {
       const inFlight = registry.submitExecution(run.spec);
       await run.executeStarted;
@@ -156,7 +137,7 @@ describe("U4 1.5 收口时机：执行与收尾都结束才 settled 并释放槽
 
   it("编排抛异常：以 settled/failed 结束并给出稳定码，槽照常释放", async () => {
     const { registry, calls } = setup();
-    const run = controllableSpec(registry, calls, OP, {
+    const run = controllableSpec(calls, OP, {
       rejectWith: new Error("provider 连接中断\nstack: at crash()"),
     });
     const inFlight = registry.submitExecution(run.spec);
@@ -184,7 +165,7 @@ describe("U4 1.5 收口时机：执行与收尾都结束才 settled 并释放槽
 describe("U4 1.5 共享执行：重复 invoke 只执行一次", () => {
   it("同 ID 同参的并发 invoke：第二个等待第一个收口，且拿到同一终态", async () => {
     const { registry, calls } = setup();
-    const run = controllableSpec(registry, calls, OP);
+    const run = controllableSpec(calls, OP);
     const first = registry.submitExecution(run.spec);
     await run.executeStarted;
     const second = registry.submitExecution({ ...run.spec });
@@ -205,7 +186,7 @@ describe("U4 1.5 共享执行：重复 invoke 只执行一次", () => {
 
   it("banned / conflict / not-accepted 三种响应都带稳定码，且一次都不执行", async () => {
     const { registry, calls } = setup();
-    const run = controllableSpec(registry, calls, OP);
+    const run = controllableSpec(calls, OP);
     const first = registry.submitExecution(run.spec);
     await run.executeStarted;
     run.finishExecute();
@@ -298,7 +279,7 @@ describe("U4 1.5 登记内容与上下文释放", () => {
       apiKey: "sk-secret-9",
       modelResponse: "完整模型响应文本",
     };
-    const run = controllableSpec(registry, calls, OP);
+    const run = controllableSpec(calls, OP);
     const inFlight = registry.submitExecution(run.spec);
     await run.executeStarted;
     // 执行上下文里带正文（闭包捕获）——但登记与快照都不得复制它

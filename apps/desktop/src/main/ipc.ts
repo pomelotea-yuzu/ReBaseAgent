@@ -31,7 +31,7 @@ import type {
   WorkspaceInspectResult,
   WorkspaceReadFileResult,
 } from "../shared/ipc";
-import type { OperationStatusResult } from "../shared/operations";
+import type { OperationStatusResult, ReconcileResult } from "../shared/operations";
 import {
   ForkError,
   runFork,
@@ -40,6 +40,12 @@ import {
   runModelAb,
   runPromptFork,
 } from "./fork-runner";
+import {
+  type OperationEndpointDeps,
+  type TrustedSender,
+  readOperationStatus,
+  reconcileOperation,
+} from "./operation-endpoints";
 import type { OperationRegistry } from "./operation-registry";
 import type { ProxyManager } from "./proxy-manager";
 import { ProxyForkError } from "./proxy-manager";
@@ -73,12 +79,18 @@ export interface IpcDeps {
    * 判重、占槽、状态快照都以它为准——renderer 的本地 busy 只是补空隙。
    */
   operations: OperationRegistry;
+  /**
+   * U4：sender 可信度判据——「本应用创建的窗口的**主 frame**」才放行。
+   * status/reconcile 与全部主动执行通道都在任何副作用之前过这一关（design D6）。
+   */
+  isTrustedSender: (sender: TrustedSender) => boolean;
   /** 原生目录选择（可注入测试桩；缺省 = Electron dialog，只选不写） */
   pickDirectory?: () => Promise<string | null>;
 }
 
 export function registerIpc(deps: IpcDeps): void {
-  const { repository, settings, execCwd, dataDir, proxy, operations } = deps;
+  const { repository, settings, execCwd, dataDir, proxy, operations, isTrustedSender } = deps;
+  const endpointDeps: OperationEndpointDeps = { registry: operations, isTrustedSender };
   const pickDirectory =
     deps.pickDirectory ??
     (async (): Promise<string | null> => {
@@ -521,19 +533,33 @@ export function registerIpc(deps: IpcDeps): void {
   );
 
   // -------------------------------------------------------------------------
-  // operations:status —— 只读握手/快照（design D4）：无参、不执行业务、不消费授权
+  // operations:status / operations:reconcile —— 状态查询与原子核对（design D4）
+  // 都不执行业务、不消费授权、不写 trace/blob/source；reconcile 只改 main 内存封禁
   // -------------------------------------------------------------------------
 
   ipcMain.handle(
     CHANNELS.operationsStatus,
-    (): ReturnType<typeof ok<OperationStatusResult>> | ReturnType<typeof fail> => {
-      try {
-        // snapshot() 出口自带契约与自洽校验：main 一旦造出矛盾快照就抛错 ⇒ 失败信封，
-        // renderer 据此保留未知与锁，而不是部分采纳所谓成功字段
-        return ok(operations.snapshot());
-      } catch (e) {
-        return fail("OPERATIONS_STATUS_FAILED", e);
-      }
-    },
+    (event): ReturnType<typeof ok<OperationStatusResult>> | ReturnType<typeof fail> =>
+      readOperationStatus(endpointDeps, senderOf(event)),
   );
+
+  ipcMain.handle(
+    CHANNELS.operationsReconcile,
+    (event, payload: unknown): ReturnType<typeof ok<ReconcileResult>> | ReturnType<typeof fail> =>
+      reconcileOperation(endpointDeps, senderOf(event), payload),
+  );
+}
+
+/**
+ * 从 invoke 事件中提取受限发送者描述。`senderFrame` 取不到时给 -1——
+ * 它必然不等于任何主 frame，因此走拒绝分支（宁可不放行，也不猜身份）。
+ */
+function senderOf(event: {
+  sender: { id: number };
+  senderFrame?: { routingId: number } | null;
+}): TrustedSender {
+  return {
+    webContentsId: event.sender.id,
+    frameRoutingId: event.senderFrame?.routingId ?? -1,
+  };
 }
