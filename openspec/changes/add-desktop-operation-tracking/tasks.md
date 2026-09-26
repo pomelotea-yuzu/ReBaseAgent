@@ -113,7 +113,20 @@
   于是「响应已转发、录制写盘失败」也归 `rejected`——字面上更像"拒绝执行"。本轮按现状断言
   （登记仍可信：settled + 稳定码 + runIds 空 + 不借用别的 id）；若要改归 `failed` 属**改契约**，
   需回 proposal/design，已写进证据 README §三.4 与 §六待办。
-- [ ] 6.4 实测 A/B dry-run、实际部分失败与批次期间第二操作/配置拒绝，逐臂比对 trace（<=2h）。验收：A-B 一批占槽直到全部收尾 / A-B 部分失败保留各臂事实 / 只读入口和被动录制不占主动槽。
+- [x] 6.4 实测 A/B dry-run、实际部分失败与批次期间第二操作/配置拒绝，逐臂比对 trace（<=2h）。验收：A-B 一批占槽直到全部收尾 / A-B 部分失败保留各臂事实 / 只读入口和被动录制不占主动槽。
+  证据：`docs/reviews/2026-09-26-u4-64/README.md`（**2 tag / 35 检查 / 0 失败**，整跑 2/2）·
+  采集 `apps/desktop/scripts/u4-64-cdp.cjs`（`dry-run` / `partial-fail`）· 驱动 `.workbuddy/u4/u4-64/run-all.cjs`。
+  ⚠️ **父本必须现造**：A/B 首期拒带副作用工具的父本（`MODEL_AB_TOOL_POLICY` 实测拒掉夹具 `normalRun`），
+  且臂的调用次数 = 父本步数、受控服务回合按调用序消费 ⇒ 用「空工具表 + 单轮」纯对话父本，
+  剧本才是确定的 `[父本, 臂 A 成功, 臂 B 503]`；父本当场核对 `config_hash` 与恰 1 次 `llm.call`。
+  逐臂判据：登记 `arms[i].id` × 落盘 `meta.id` 一一对应，成功臂无 `llm.call.error`、
+  失败臂确有 error 且 `run.event=errored`，两臂 id 互不相同；traces +2、服务 +2（无重试）。
+  整批占槽由外部观察证：在飞期间 `activeOperationId` 指向本批、第二主动入口 `OPERATION_NOT_ACCEPTED`
+  （登记 `notAccepted/rejection=busy`、零身份零请求零文件）、配置写被 main 拒而配置读照常。
+  预览侧口径：`ModelAbResult` 的计划在 **`data.plan`**（不是 `data.arms`），`data.ids` 只数成功臂；
+  登记侧臂事实是 `{index,id,outcome}` 另一套形状——两边都要断言。
+  变异 2 处捕获：M-64A（`ids` 按「有 id」计 ⇒ 谎报 2 臂成功，1 条判红）、
+  M-64B（摘掉 dryRun 误闯的早退 ⇒ 预览占了主动槽并登记 returned，2 条判红）。
 - [ ] 6.5 注入响应丢失、status/reconcile 故障和两种到达顺序，验证 Unknown 可核对且无重发/错误解冻（<=2h）。验收：reconcile 先到封禁迟到提交 / 执行先到核对实际状态 / 状态通道不可用保持未知 / 核对终态只解冻对应修订。
 - [ ] 6.6 实测同 main renderer reload 与真正 main 重启，记录 epoch/槽/真实调用次数和旧响应行为（<=2h）。验收：同 main 重载恢复操作 / 新 main 会话不伪造旧操作结局 / 乱序快照不回退新状态。
 - [ ] 6.7 实测标题栏/Alt+F4/app.quit 下 dirty+running、clean+running、无应答及返回；验证输入/活跃任务保留（<=2h）。验收：无草稿的活跃操作也需确认 / 草稿与操作合并且关闭竞争不漏保护 / 退出输入锁保留已接收文字且不重放按键 / 重复关闭取消和迟到应答不会重入。
