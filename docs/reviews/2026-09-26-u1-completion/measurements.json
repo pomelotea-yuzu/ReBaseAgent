@@ -1,0 +1,519 @@
+{
+  "checks": [
+    {
+      "name": "wide viewport reaches >=1280",
+      "passed": true,
+      "detail": {
+        "width": 1440,
+        "height": 921,
+        "dpr": 1,
+        "overflow": false,
+        "nav": {
+          "x": 0,
+          "y": 41,
+          "width": 264,
+          "height": 880
+        },
+        "steps": null,
+        "tabs": {
+          "x": 264,
+          "y": 101,
+          "width": 1176,
+          "height": 35
+        }
+      }
+    },
+    {
+      "name": "wide collapse hides list",
+      "passed": true
+    },
+    {
+      "name": "wide reopen restores list",
+      "passed": true
+    },
+    {
+      "name": "800 native viewport",
+      "passed": true,
+      "detail": {
+        "width": 800,
+        "height": 921,
+        "dpr": 1,
+        "overflow": false,
+        "nav": null,
+        "steps": null,
+        "tabs": {
+          "x": 0,
+          "y": 131,
+          "width": 800,
+          "height": 35
+        }
+      }
+    },
+    {
+      "name": "800 initially hidden",
+      "passed": true
+    },
+    {
+      "name": "800 navigation replaces workspace",
+      "passed": true,
+      "detail": {
+        "width": 800,
+        "height": 921,
+        "dpr": 1,
+        "overflow": false,
+        "nav": {
+          "x": 0,
+          "y": 71,
+          "width": 800,
+          "height": 850
+        },
+        "steps": null,
+        "tabs": null
+      }
+    },
+    {
+      "name": "800 search receives focus",
+      "passed": true
+    },
+    {
+      "name": "800 Escape restores workspace and focus",
+      "passed": true
+    },
+    {
+      "name": "800 keyboard reopens navigation",
+      "passed": true
+    },
+    {
+      "name": "800 selection returns to chosen run",
+      "passed": true
+    },
+    {
+      "name": "640 native viewport",
+      "passed": true,
+      "detail": {
+        "width": 640,
+        "height": 921,
+        "dpr": 1,
+        "overflow": false,
+        "nav": null,
+        "steps": null,
+        "tabs": {
+          "x": 0,
+          "y": 161,
+          "width": 640,
+          "height": 35
+        }
+      }
+    },
+    {
+      "name": "640 initially hidden",
+      "passed": true
+    },
+    {
+      "name": "640 navigation replaces workspace",
+      "passed": true,
+      "detail": {
+        "width": 640,
+        "height": 921,
+        "dpr": 1,
+        "overflow": false,
+        "nav": {
+          "x": 0,
+          "y": 101,
+          "width": 640,
+          "height": 820
+        },
+        "steps": null,
+        "tabs": null
+      }
+    },
+    {
+      "name": "640 search receives focus",
+      "passed": true
+    },
+    {
+      "name": "640 Escape restores workspace and focus",
+      "passed": true
+    },
+    {
+      "name": "640 keyboard reopens navigation",
+      "passed": true
+    },
+    {
+      "name": "640 selection returns to chosen run",
+      "passed": true
+    },
+    {
+      "name": "single steps replace workspace",
+      "passed": true,
+      "detail": {
+        "width": 640,
+        "height": 921,
+        "dpr": 1,
+        "overflow": false,
+        "nav": null,
+        "steps": {
+          "x": 0,
+          "y": 101,
+          "width": 640,
+          "height": 820
+        },
+        "tabs": null
+      }
+    },
+    {
+      "name": "single steps Escape restores entry focus",
+      "passed": true
+    },
+    {
+      "name": "single span selection returns to detail",
+      "passed": true
+    },
+    {
+      "name": "separator mouse drag changes steps width",
+      "passed": true
+    },
+    {
+      "name": "separator keyboard End reaches maximum",
+      "passed": true
+    },
+    {
+      "name": "medium constrained steps fold",
+      "passed": true
+    },
+    {
+      "name": "medium constrained steps reopen as full workspace",
+      "passed": true,
+      "detail": {
+        "width": 1024,
+        "height": 921,
+        "dpr": 1,
+        "overflow": false,
+        "nav": null,
+        "steps": {
+          "x": 0,
+          "y": 41,
+          "width": 1024,
+          "height": 880
+        },
+        "tabs": null
+      }
+    },
+    {
+      "name": "medium steps return restores focus",
+      "passed": true
+    },
+    {
+      "name": "file reading has selected path",
+      "passed": true,
+      "detail": {
+        "checkpoint": "s_15",
+        "path": "a.txt",
+        "pane": "content",
+        "query": "",
+        "filter": "all",
+        "directoryWidth": 232,
+        "directoryCollapsed": false,
+        "diffPreference": "auto",
+        "wordWrap": true,
+        "listScrollTop": 0,
+        "contentScroll": null
+      }
+    },
+    {
+      "name": "medium files auto-fold navigation",
+      "passed": true
+    },
+    {
+      "name": "medium files navigation reopens",
+      "passed": true
+    },
+    {
+      "name": "file workspace temporarily unmounts",
+      "passed": true
+    },
+    {
+      "name": "file path checkpoint and pane survive navigation",
+      "passed": true,
+      "detail": {
+        "fileBefore": {
+          "checkpoint": "s_15",
+          "path": "a.txt",
+          "pane": "content",
+          "query": "",
+          "filter": "all",
+          "directoryWidth": 232,
+          "directoryCollapsed": false,
+          "diffPreference": "auto",
+          "wordWrap": true,
+          "listScrollTop": 0,
+          "contentScroll": null
+        },
+        "fileAfter": {
+          "checkpoint": "s_15",
+          "path": "a.txt",
+          "pane": "content",
+          "query": "",
+          "filter": "all",
+          "directoryWidth": 232,
+          "directoryCollapsed": false,
+          "diffPreference": "auto",
+          "wordWrap": true,
+          "listScrollTop": 0,
+          "contentScroll": {
+            "stepSpanId": "s_15",
+            "path": "a.txt",
+            "line": 1,
+            "offset": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "restored file content path is visible",
+      "passed": true
+    },
+    {
+      "name": "real editor input creates draft",
+      "passed": true,
+      "detail": {
+        "revision": 2
+      }
+    },
+    {
+      "name": "draft text and revision survive workspace replacement",
+      "passed": true
+    },
+    {
+      "name": "reopened editor renders retained draft",
+      "passed": true
+    },
+    {
+      "name": "automatic folding preserves wide preference",
+      "passed": true
+    },
+    {
+      "name": "reasoning and response rendered in distinct nonoverlapping sections",
+      "passed": true,
+      "detail": {
+        "found": true,
+        "separate": true,
+        "reasoning": true,
+        "content": true,
+        "a": {
+          "x": 584,
+          "y": 268,
+          "width": 856,
+          "height": 79.5,
+          "top": 268,
+          "right": 1440,
+          "bottom": 347.5,
+          "left": 584
+        },
+        "b": {
+          "x": 584,
+          "y": 347.5,
+          "width": 856,
+          "height": 67.5,
+          "top": 347.5,
+          "right": 1440,
+          "bottom": 415,
+          "left": 584
+        },
+        "color": "oklch(0.987 0.022 95.277)",
+        "border": "2px"
+      }
+    },
+    {
+      "name": "reasoning has distinct visible styling",
+      "passed": true,
+      "detail": {
+        "found": true,
+        "separate": true,
+        "reasoning": true,
+        "content": true,
+        "a": {
+          "x": 584,
+          "y": 268,
+          "width": 856,
+          "height": 79.5,
+          "top": 268,
+          "right": 1440,
+          "bottom": 347.5,
+          "left": 584
+        },
+        "b": {
+          "x": 584,
+          "y": 347.5,
+          "width": 856,
+          "height": 67.5,
+          "top": 347.5,
+          "right": 1440,
+          "bottom": 415,
+          "left": 584
+        },
+        "color": "oklch(0.987 0.022 95.277)",
+        "border": "2px"
+      }
+    },
+    {
+      "name": "existing traces blobs and settings unchanged",
+      "passed": true
+    }
+  ],
+  "measurements": [
+    {
+      "width": 1440,
+      "height": 921,
+      "dpr": 1,
+      "overflow": false,
+      "nav": {
+        "x": 0,
+        "y": 41,
+        "width": 264,
+        "height": 880
+      },
+      "steps": null,
+      "tabs": {
+        "x": 264,
+        "y": 101,
+        "width": 1176,
+        "height": 35
+      }
+    },
+    {
+      "width": 800,
+      "height": 921,
+      "dpr": 1,
+      "overflow": false,
+      "nav": null,
+      "steps": null,
+      "tabs": {
+        "x": 0,
+        "y": 131,
+        "width": 800,
+        "height": 35
+      }
+    },
+    {
+      "width": 640,
+      "height": 921,
+      "dpr": 1,
+      "overflow": false,
+      "nav": null,
+      "steps": null,
+      "tabs": {
+        "x": 0,
+        "y": 161,
+        "width": 640,
+        "height": 35
+      }
+    },
+    {
+      "width": 1440,
+      "height": 921,
+      "dpr": 1,
+      "overflow": false,
+      "nav": {
+        "x": 0,
+        "y": 41,
+        "width": 264,
+        "height": 880
+      },
+      "steps": null,
+      "tabs": {
+        "x": 264,
+        "y": 101,
+        "width": 1176,
+        "height": 35
+      }
+    },
+    {
+      "width": 1024,
+      "height": 921,
+      "dpr": 1,
+      "overflow": false,
+      "nav": {
+        "x": 0,
+        "y": 41,
+        "width": 264,
+        "height": 880
+      },
+      "steps": null,
+      "tabs": {
+        "x": 264,
+        "y": 101,
+        "width": 760,
+        "height": 35
+      }
+    },
+    {
+      "width": 640,
+      "height": 921,
+      "dpr": 1,
+      "overflow": false,
+      "nav": null,
+      "steps": null,
+      "tabs": {
+        "x": 0,
+        "y": 175,
+        "width": 640,
+        "height": 35
+      }
+    },
+    {
+      "width": 1440,
+      "height": 921,
+      "dpr": 1,
+      "overflow": false,
+      "nav": {
+        "x": 0,
+        "y": 41,
+        "width": 264,
+        "height": 880
+      },
+      "steps": {
+        "x": 264,
+        "y": 41,
+        "width": 320,
+        "height": 880
+      },
+      "tabs": {
+        "x": 584,
+        "y": 101,
+        "width": 856,
+        "height": 35
+      }
+    },
+    {
+      "reasoning": {
+        "found": true,
+        "separate": true,
+        "reasoning": true,
+        "content": true,
+        "a": {
+          "x": 584,
+          "y": 268,
+          "width": 856,
+          "height": 79.5,
+          "top": 268,
+          "right": 1440,
+          "bottom": 347.5,
+          "left": 584
+        },
+        "b": {
+          "x": 584,
+          "y": 347.5,
+          "width": 856,
+          "height": 67.5,
+          "top": 347.5,
+          "right": 1440,
+          "bottom": 415,
+          "left": 584
+        },
+        "color": "oklch(0.987 0.022 95.277)",
+        "border": "2px"
+      }
+    }
+  ]
+}

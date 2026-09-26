@@ -23,21 +23,23 @@
 
 ## 汇总
 
+2026-09-26 补齐：原 61/62 中缺少的 reasoning/正文真实分区渲染已完成 CDP 验证；同时修复导航/步骤目录折叠后不可达及调节柄无点击高度。详见 [U1 补验报告](../../../../docs/reviews/2026-09-26-u1-completion/README.md)（100% 38/38、200% 19/19，含 U2 文件状态与 U3 草稿回归）。下表为累计覆盖，原 2026-09-23 验收历史保留于 tasks。
+
 | requirement | 变化 | 场景数 | 已覆盖 | 未勾完 |
 | --- | --- | --- | --- | --- |
 | run 列表从 traces 目录扫描派生（MODIFIED） | M | 8 | 8 | 0 |
 | run 列表标注录制来源并可过滤（MODIFIED） | M | 3 | 3 | 0 |
 | 轨迹以 span 树呈现（MODIFIED） | M | 5 | 5 | 0 |
-| 详情面板完整展示一步的原始请求与响应（MODIFIED） | M | 5 | 4 | 1（⚠️ 思维链分区未做事件级核验，契约级） |
+| 详情面板完整展示一步的原始请求与响应（MODIFIED） | M | 5 | 5 | 0（2026-09-26 补真实渲染） |
 | 界面提供分支树与轨迹两种视图（MODIFIED） | M | 4 | 4 | 0 |
 | 缓存命中可视化（MODIFIED） | M | 9 | 9 | 0 |
 | 运行工作区按阅读任务组织（ADDED） | A | 4 | 4 | 0 |
 | 运行概览呈现自有结果与消耗（ADDED） | A | 8 | 8 | 0 |
 | 会话内按运行恢复阅读位置（ADDED） | A | 6 | 6 | 0 |
 | 工作区在窄窗口和键盘操作下可读（ADDED） | A | 3 | 3 | 0 |
-| **desktop-ui 小计** | 6M+4A | **55** | **54** | **1** |
+| **desktop-ui 小计** | 6M+4A | **55** | **55** | **0** |
 | 分支树以节点-边图呈现运行与分叉（branch-tree，MODIFIED） | M | 7 | 7 | 0 |
-| **合计** | 11 | **62** | **61** | **1** |
+| **合计** | 11 | **62** | **62** | **0** |
 
 > 补充说明：§布局证据 所有宽/窄/200% 尺寸均有**真实 Electron CDP 测量**（`u1-71` 的 Emulation
 > 与真实窗口的差异、`u1-71b` 补出的 1440 档、`u1-72` 的 1024/800/640 与 200%）——即便个别场景细节
@@ -82,7 +84,7 @@
 
 | # | scenario | 证据 |
 | --- | --- | --- |
-| 1 | 推理模型的思维链 | ⚠️ **未勾完（契约级）**。`call-detail-view.test.ts` ›「LLM_CALL_FIELDS 逐条覆盖 spec 点名的字段」「输入/输出两半合起来不漏任何原始字段」——`reasoning_content` 的**字段可达**受契约覆盖；fixture `.rebaseagent/u1-fixtures/u1-reasoning-only.jsonl`；`overview-result.test.ts` ›「仅思维链 ⇒ 明说内容类型是思维链」。**但“与正文以区别样式单独分区”的渲染细节未做 jsdom/CDP 事件级核验**（jsdom 打不到真实开合样式），主语料来自字段契约与静态，不以“已通过”标注。 |
+| 1 | 推理模型的思维链 | 原 2026-09-23 仅字段契约覆盖，未完成渲染核验。2026-09-26 补验通过：`u1-completion-cdp.cjs` 真实点击步骤/输出，断言 recorded reasoning/content 分别处于独立且不重叠的 DOM 分区，reasoning 背景及 2px 边框在场；[截图](../../../../docs/reviews/2026-09-26-u1-completion/reasoning-sections.png)、[测量](../../../../docs/reviews/2026-09-26-u1-completion/measurements.json)。受控 fixture 验证渲染，不声称新调用推理模型。原 `call-detail-view.test.ts` 字段完整性与 `overview-result.test.ts` 仅思维链语义测试继续通过。 |
 | 2 | 工具调用详情 | `call-detail-view.test.ts` ›「TOOL_INVOKE_FIELDS 逐条覆盖 spec 点名的字段」「tool.error 判定」「子树无 timing ⇒ durationMs 为 null（不伪装成 0）」；`span-tree-view.test.ts` › tool 行用工具名；fixture `u1-fixtures/u1-error-detail.jsonl`（tool 调用带 args/result/error）；截图 `docs/reviews/2026-09-22-u1-73/a1-tools-steps.png` |
 | 3 | 长请求和原始字段完整可读 | `call-detail-view.test.ts` ›「ioCoversAllFields 为空 ⇒ 输入输出两半合起来不漏任何原始字段」「OPTIONAL_LLM_FIELDS 恰为两个可选字段」「stepFind 下一个/上一个」「命中切片拼回来等于原文（不丢字不多字）」；`overview-result.test.ts` ›「长正文（>600 字符）折叠为摘要、展开后为完整原文；开合由受控状态驱动」；静态：LongText 复制口径对应原始文本（`output`/复制入口） |
 | 4 | 预算和错误能力迁移后可达 | `budget-reachability.test.ts` ›「地图点击用同一调用定位动作（selectSpan），不自造第二套选中逻辑」「预算地图随 run 身份重建」「失败 LLM 的错误区渲染 HTTP 状态/错误详情/占位零值解释」「摘要明说『无预算信息/未记录预算上限』」「main.tsx 不再静态装配 Monaco（懒加载）」；CDP `u1-71b-cdp`：隔离 run 步骤页 ECharts canvas 展开后懒加载在场、离线 Monaco 只读 diff 运行时挂载；截图 `05-*-isolated-steps.png`、`06-*-monaco-readonly-diff.png` |
@@ -203,7 +205,7 @@
 | 崩溃的 run 不再当"文件读取错误"（列表） | Req1-2（outcome/run-repository） |
 | 徽标与过滤 / 老文件无来源（来源筛选） | Req2-1/2-2 |
 | 三步运行 / 工具报错（span 树） | Req3-1/3-2 |
-| 思维链 / 工具调用详情（详情面板） | Req4-1（⚠️ 契约级）/4-2 |
+| 思维链 / 工具调用详情（详情面板） | Req4-1（2026-09-26 补真实渲染）/4-2 |
 | 切到分支树 / 跨视图保持 / 切换不重载（视图切换） | Req5-1/5-2/5-3 |
 | 缓存命中展示全场景（缓存可视化既有 8 场景） | Req6-1…6-9 |
 | 文件只读/hash / 文件选择器轮号不沿链累加 / 二进制与不可用附件（A 段 WorkspaceFileView） | Req7-2/7-4（workspace-view/workspace-file-view/workspace-files）+ u1-74 哈希零变化 |
@@ -240,7 +242,7 @@
 
 ## 证据不足 / 需主 agent 复核的点（总结）
 
-1. **Req4-1「推理模型的思维链」⚠️ 未勾完**：字段可达有契约级测试（`call-detail-view`），但"思维链以区别于正文的样式单独分区展示"的**真实渲染**未见 jsdom/CDP 事件级核验 —— 未冒充已通过。可选项：后续以真实带 `reasoning_content` 的 run 补一张步骤详情 CDP 截图即闭合。
+1. **Req4-1「推理模型的思维链」已于 2026-09-26 补齐**：原先只有字段契约；本次真实 Electron 分区、样式、几何断言及截图通过，见上方 Req4-1 和补验报告。
 2. **Req8-7「来源和隔离边界保持真实」**：已由主 agent 复核，证据改为真实文件 `overview-consumption-source.test.ts`（presentSource 分型整组 + SourceSectionView 静态组 + 接线契约 `onOpenParent→selectRun`），**直接断言**父 ID、返回父入口、independent 不冒充共享前缀与隔离边界措辞——此格证据充分，已闭合。
 3. **系统原生 DPI（非 zoomFactor）未单独实测**、原生目录/新建对话框差异未纳入外壳布局证据（§布局证据末行）——已在 tasks 7.1/7.2 诚实边界标注，不放大为通过。
-4. 其余全部 61 场景均有测试/静态断言/CDP 截图即可链接证据，无发现编造的行为；所有"未交付"项与 review.md/proposal 过渡行为逐条对上。
+4. 累计 62 场景均有可链接证据。2026-09-26 发现并修复了原导航重开接线、受限宽度目录重开及调节柄几何缺口；不能将原有静态断言当作这些交互当时已通过的证明。后续 U2/U3 归属仍按各自 change 验收，U4–U8 未交付项不计入 U1 完成。

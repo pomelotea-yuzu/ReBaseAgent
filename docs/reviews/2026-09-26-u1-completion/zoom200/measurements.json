@@ -1,0 +1,180 @@
+{
+  "checks": [
+    {
+      "name": "800 native viewport",
+      "passed": true,
+      "detail": {
+        "width": 800,
+        "height": 460,
+        "dpr": 2,
+        "overflow": false,
+        "nav": null,
+        "steps": null,
+        "tabs": {
+          "x": 0,
+          "y": 131,
+          "width": 800,
+          "height": 35
+        }
+      }
+    },
+    {
+      "name": "800 initially hidden",
+      "passed": true
+    },
+    {
+      "name": "800 navigation replaces workspace",
+      "passed": true,
+      "detail": {
+        "width": 800,
+        "height": 460,
+        "dpr": 2,
+        "overflow": false,
+        "nav": {
+          "x": 0,
+          "y": 71,
+          "width": 800,
+          "height": 389.5
+        },
+        "steps": null,
+        "tabs": null
+      }
+    },
+    {
+      "name": "800 search receives focus",
+      "passed": true
+    },
+    {
+      "name": "800 Escape restores workspace and focus",
+      "passed": true
+    },
+    {
+      "name": "800 keyboard reopens navigation",
+      "passed": true
+    },
+    {
+      "name": "800 selection returns to chosen run",
+      "passed": true
+    },
+    {
+      "name": "640 native viewport",
+      "passed": true,
+      "detail": {
+        "width": 640,
+        "height": 460,
+        "dpr": 2,
+        "overflow": false,
+        "nav": null,
+        "steps": null,
+        "tabs": {
+          "x": 0,
+          "y": 161,
+          "width": 640,
+          "height": 35
+        }
+      }
+    },
+    {
+      "name": "640 initially hidden",
+      "passed": true
+    },
+    {
+      "name": "640 navigation replaces workspace",
+      "passed": true,
+      "detail": {
+        "width": 640,
+        "height": 460,
+        "dpr": 2,
+        "overflow": false,
+        "nav": {
+          "x": 0,
+          "y": 101,
+          "width": 640,
+          "height": 359.5
+        },
+        "steps": null,
+        "tabs": null
+      }
+    },
+    {
+      "name": "640 search receives focus",
+      "passed": true
+    },
+    {
+      "name": "640 Escape restores workspace and focus",
+      "passed": true
+    },
+    {
+      "name": "640 keyboard reopens navigation",
+      "passed": true
+    },
+    {
+      "name": "640 selection returns to chosen run",
+      "passed": true
+    },
+    {
+      "name": "single steps replace workspace",
+      "passed": true,
+      "detail": {
+        "width": 640,
+        "height": 460,
+        "dpr": 2,
+        "overflow": false,
+        "nav": null,
+        "steps": {
+          "x": 0,
+          "y": 101,
+          "width": 640,
+          "height": 359.5
+        },
+        "tabs": null
+      }
+    },
+    {
+      "name": "single steps Escape restores entry focus",
+      "passed": true
+    },
+    {
+      "name": "single span selection returns to detail",
+      "passed": true
+    },
+    {
+      "name": "200 percent Electron zoom under forced scale 1",
+      "passed": true
+    },
+    {
+      "name": "existing traces blobs and settings unchanged",
+      "passed": true
+    }
+  ],
+  "measurements": [
+    {
+      "width": 800,
+      "height": 460,
+      "dpr": 2,
+      "overflow": false,
+      "nav": null,
+      "steps": null,
+      "tabs": {
+        "x": 0,
+        "y": 131,
+        "width": 800,
+        "height": 35
+      }
+    },
+    {
+      "width": 640,
+      "height": 460,
+      "dpr": 2,
+      "overflow": false,
+      "nav": null,
+      "steps": null,
+      "tabs": {
+        "x": 0,
+        "y": 161,
+        "width": 640,
+        "height": 35
+      }
+    }
+  ]
+}
