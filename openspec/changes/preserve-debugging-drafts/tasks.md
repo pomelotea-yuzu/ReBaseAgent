@@ -169,5 +169,14 @@
 
 ## 7. 门禁与证据收口
 
-- [ ] 7.1 运行适用包构建、桌面 typecheck、desktop 全量测试、Biome、OpenSpec strict；环境阻塞与产品失败分别记录（<=2h）。覆盖本 change 全部场景对应的自动化断言，不因纯逻辑测试通过而跳过 6.x。
+- [x] 7.1 运行适用包构建、桌面 typecheck、desktop 全量测试、Biome、OpenSpec strict；环境阻塞与产品失败分别记录（<=2h）。覆盖本 change 全部场景对应的自动化断言，不因纯逻辑测试通过而跳过 6.x。
+  证据（2026-09-26，HEAD `8e3995b`，零产品代码改动；日志 `.workbuddy/u3/u3-71/gates.txt`）：
+  packages build **EXIT=0（5/5，排除 desktop）** · desktop typecheck **node/web 双 0** ·
+  desktop 全量 **80 文件 / 1525 用例 / 0 失败 / 无 `Errors` 行**（EXIT=0）·
+  **文件级差集**（`.workbuddy/u3/u3-71/file-diff.cjs`）磁盘 80 ↔ 日志 80，**missing 0**（防 EPERM 吞文件）·
+  根 `biome check .` **EXIT=0，Checked 367 files / 0 错** ·
+  `validate preserve-debugging-drafts --strict` **valid**、`validate --all --strict` **13 passed / 0 failed** ·
+  desktop `electron-vite build` **EXIT=0**。
+  环境阻塞记录：**本轮 0 次**——6.11 首轮曾出现的 2 条 `controlled-entrances` 红（紧邻 run-all 的 mock 端口起停）
+  本轮整跑未复现，未复跑、未改码；产品失败 **0**。实机面（6.1–6.11）未被跳过，逐场景证据见 7.2。
 - [ ] 7.2 编写 evidence-index，逐场景关联测试/fixture/真实截图与命令结果，核对入口接线和 U4/U5 边界、所有任务实际完成情况（<=2h）。未执行项保持待办，不宣称跨页执行或自动清理完成；归档另行处理。
