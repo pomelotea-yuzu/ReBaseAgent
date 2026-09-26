@@ -96,7 +96,23 @@
   ⚠️ 本轮两次判红都指向**判据口径**而非产品缺陷：`runLoop` 不抛 LLM 失败 ⇒ 失败 run 的登记是
   `settled / requestOutcome=returned / errorCode=null`，失败事实只在 trace 侧（`llm.call.error` + `run.event=errored`）；
   README §三 已把这条写成后续 tag 的纪律。
-- [ ] 6.3 实测 proxy 主动重发交错被动录制、无 key/写入失败，核对单请求身份与错误（<=2h）。验收：主动代理重发与被动录制交错 / 同 ID 重复请求只执行一次。
+- [x] 6.3 实测 proxy 主动重发交错被动录制、无 key/写入失败，核对单请求身份与错误（<=2h）。验收：主动代理重发与被动录制交错 / 同 ID 重复请求只执行一次。
+  证据：`docs/reviews/2026-09-26-u4-63/README.md`（**5 tag / 67 检查 / 0 失败**，整跑 5/5）·
+  采集 `apps/desktop/scripts/u4-63-cdp.cjs`（`interleave` / `dup` / `nokey` / `write-fail` / `passive-no-slot`）·
+  批量驱动 `.workbuddy/u4/u4-63/run-all.cjs`。
+  身份只认 main `operations:status` 的 `runIds`，并与落盘 `meta.id` + 同窗被动 run 的 id **三方比对**；
+  代理启停走 store 真动作、upstream 不带路径；外部请求从 harness 进程直连代理。
+  写入失败注入 = 在飞窗口内把 `.rebaseagent/traces` **同卷 rename** 走（不删文件，`finally` 还原并核对份数）；
+  🔴 第一版把改名放在请求发出前 ⇒ 命中的是 `PROXY_PARENT_INVALID`（读父失败），根本没走到录制写盘——
+  **注入窗口的位置就是这支判据的命门**，README §三 已写成后续 tag 的纪律。
+  变异：M-63A（写失败改成就借用父 id）⇒ 3 条判红；M-63B 首版（被动借用主动上下文）**无牙**
+  （交错顺序里主动自己那份最后写入并覆盖 ⇒ 全绿），改注入端点层 `ctx.attachRunId(parentRunId)` 后
+  `interleave` 3 条 + `dup` 2 条判红 ⇒ 又一课：**变异要注入在可观测路径上**。
+  另两条实测形状：被动录制的 `meta.fork` 是 **null**（不是缺字段）；`servedBefore` 取在 seed 之后 ⇒ 交错窗期望增量是 +2 不是 +3。
+  ⚠️ **口径待定（未改产品）**：端点规则是「带稳定领域码 ⇒ `requestOutcome=rejected`，未预期异常 ⇒ `failed`」，
+  于是「响应已转发、录制写盘失败」也归 `rejected`——字面上更像"拒绝执行"。本轮按现状断言
+  （登记仍可信：settled + 稳定码 + runIds 空 + 不借用别的 id）；若要改归 `failed` 属**改契约**，
+  需回 proposal/design，已写进证据 README §三.4 与 §六待办。
 - [ ] 6.4 实测 A/B dry-run、实际部分失败与批次期间第二操作/配置拒绝，逐臂比对 trace（<=2h）。验收：A-B 一批占槽直到全部收尾 / A-B 部分失败保留各臂事实 / 只读入口和被动录制不占主动槽。
 - [ ] 6.5 注入响应丢失、status/reconcile 故障和两种到达顺序，验证 Unknown 可核对且无重发/错误解冻（<=2h）。验收：reconcile 先到封禁迟到提交 / 执行先到核对实际状态 / 状态通道不可用保持未知 / 核对终态只解冻对应修订。
 - [ ] 6.6 实测同 main renderer reload 与真正 main 重启，记录 epoch/槽/真实调用次数和旧响应行为（<=2h）。验收：同 main 重载恢复操作 / 新 main 会话不伪造旧操作结局 / 乱序快照不回退新状态。
