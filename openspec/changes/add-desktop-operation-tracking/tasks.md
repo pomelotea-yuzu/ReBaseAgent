@@ -1,6 +1,6 @@
 # U4 实施任务
 
-实施进度：**§1–§5 与 §6.1 已完成**（下列已勾项各附证据摘要），§6.2–6.8 与 §7.1–7.2 待办。基线为已归档 U1/U2/U3；旧走查和文档校验不算功能证据。每项预算 <=2h，超过先拆分。场景引用为对应 delta 的逐字标题：默认 [desktop-ui](specs/desktop-ui/spec.md)，包层另标 [replay](specs/replay/spec.md)、[prompt-replay](specs/prompt-replay/spec.md)、[model-experiments](specs/model-experiments/spec.md)。实施任务包含相应自动化断言，实机与完整门禁另列。
+实施进度：**§1–§5 与 §6.1–§6.8 已完成**（下列已勾项各附证据摘要），仅 §7.1–§7.2 待办。基线为已归档 U1/U2/U3；旧走查和文档校验不算功能证据。每项预算 <=2h，超过先拆分。场景引用为对应 delta 的逐字标题：默认 [desktop-ui](specs/desktop-ui/spec.md)，包层另标 [replay](specs/replay/spec.md)、[prompt-replay](specs/prompt-replay/spec.md)、[model-experiments](specs/model-experiments/spec.md)。实施任务包含相应自动化断言，实机与完整门禁另列。
 
 ## 1. 操作类型与 main 登记
 
@@ -166,7 +166,16 @@
   桥接面外带发起的在飞不会被界面轮询自动推进（读终态须先 `refreshOperationStatus`）。
   ⚠️ 如实标注未做实机面的：`configurationBusy` 合并档（造够长的配置在飞窗口难，`有一次配置变更尚未完成` 文案由 §5 单测 + M-CL4 承载）、
   输入法组合分支（本机 `native-edit-context` 无 composition 事件，留 §7）。
-- [ ] 6.8 实测 800px、200% 缩放和键盘焦点；回归 U1 阅读/U2 文件/U3 草稿，验证状态/核对只读及源父兄弟/既有附件哈希不变（<=2h）。验收：操作入口在窄窗口和键盘下可达 / 核对结果只由用户明确打开 / 会话登记不泄漏输入和凭据 / 只读入口和被动录制不占主动槽。
+- [x] 6.8 实测 800px、200% 缩放和键盘焦点；回归 U1 阅读/U2 文件/U3 草稿，验证状态/核对只读及源父兄弟/既有附件哈希不变（<=2h）。验收：操作入口在窄窗口和键盘下可达 / 核对结果只由用户明确打开 / 会话登记不泄漏输入和凭据 / 只读入口和被动录制不占主动槽。
+  证据：`docs/reviews/2026-09-27-u4-68/README.md`（**3 tag / 40 检查 / 0 失败**：`narrow-keyboard` 18 / `zoom200-keyboard` 8 / `readonly-noslot` 14，零产品代码改动）·
+  采集 `apps/desktop/scripts/u4-68-cdp.cjs` · 驱动 `.workbuddy/u4/u4-68/run-all.cjs`（逐 tag 全新 dev + 收尾 `reset-zoom`）。
+  四条验收逐字对上：入口在 800px（实测视口 805）与 200%（dpr 4.2）下**真键盘可达**（focus + 单发 `char` 序列 ⇒ 恰一次原生 click）、
+  类型/状态/完整 36 位 ID 可读、面板按钮矩形落在视口内、无停止/取消按钮 · 核对不导航不重放、只有「打开记录」导航（M-AL 实机面）·
+  正文+凭据双 canary 扫 status/面板/核对/settings 四处零命中、无 stack 字段 · A/B 预览+隔离预检+被动录制全程 `activeOperationId=null`、被动独立落盘不登记。
+  回归：U1 选 run/读 span、U2 隔离根文件页签、U3 改 result 草稿可留可弃；**源父兄弟 run 文件 + workspace-blobs 附件逐字节不变**。
+  🔴 **M-AO 补上真反证（单测层，§4 沙箱拦的欠账）**：给 `src/preload/index.ts` 的 api 对象多挂 `fsReveal:` ⇒
+  `test/preload-surface.test.ts` 25 项白名单当场判红（1 failed/4 passed），还原后复绿（5 passed）；按层引用为"单测有牙"，非实机（`window.api` 属性不可包装）。
+  两条 harness 新坑写进 README 第二节：真键盘激活只发 `char`（`keyDown+text` 会双 click 被开关吃掉）、MoveWindow virtual→CSS 比 ≈1.42 且回报不可信（一律以页内 innerWidth 反解重试）。
 
 ## 7. 门禁与证据收口
 
