@@ -13,7 +13,7 @@ import { FOCUS_RING } from "./IconButton";
  *
  * 两个动作走两条不同通道，界面上就不可能混用：
  * - 「核对状态」→ `operations:reconcile(operationId)`（只读操作事实，不读 run 文件）；
- * - 「打开记录」→ 既有运行详情通道（`selectRun(runId)`，含 v1/v2 版本守卫与读取重试）。
+ * - 「打开记录」→ 既有运行详情通道（`reopenRun(runId)`：同一 ID 也真的重读，含 v1/v2 版本守卫）。
  * 读取失败只允许按同一 runId 重试读取，**不会**重新执行，也不会去核对另一个 ID。
  *
  * 结果一律**由用户明确打开**：核对、轮询、快照更新都不改当前页面（design D6 末段）。
@@ -108,7 +108,7 @@ function OperationRowView({
 export function OperationsEntry() {
   const session = useAppStore((s) => s.operations);
   const reconcileOperation = useAppStore((s) => s.reconcileOperation);
-  const selectRun = useAppStore((s) => s.selectRun);
+  const reopenRun = useAppStore((s) => s.reopenRun);
   const refreshOperationStatus = useAppStore((s) => s.refreshOperationStatus);
   const [open, setOpen] = useState(false);
   const rows = deriveOperationRows(session);
@@ -180,7 +180,7 @@ export function OperationsEntry() {
                   onOpenRun={(runId) => {
                     // 明确打开：只有这个动作会切页面；核对与轮询都不导航
                     setOpen(false);
-                    void selectRun(runId);
+                    void reopenRun(runId);
                   }}
                 />
               ))}

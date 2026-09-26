@@ -330,3 +330,58 @@ describe("4.1 store：迟到快照不得回退已采纳状态", () => {
     expect(generation).toBeGreaterThan(0);
   });
 });
+
+describe("4.9 真实消费：结果不可读不重执行、也不锁配置", () => {
+  it("按可信 runId 读详情失败 ⇒ 无操作占槽、下一次提交与握手照常", async () => {
+    statusWith({
+      registryVersion: 3,
+      activeOperationId: null,
+      operations: [
+        {
+          epoch: FAKE_EPOCH,
+          operationId: "66666666-6666-4666-8666-666666666666",
+          target: {
+            kind: "result",
+            mode: "plain",
+            parentRunId: "r_01",
+            atSpanId: "s_03",
+            editField: "result",
+          },
+          state: "settled",
+          rejection: null,
+          startedAt: "2026-09-26T00:00:00.000Z",
+          settledAt: "2026-09-26T00:00:04.000Z",
+          runIds: ["run_unreadable"],
+          experimentId: null,
+          arms: [],
+          requestOutcome: "returned",
+          errorCode: null,
+          diagnostics: [{ code: "FINALIZE_RENAME_FAILED", stage: "finalize", message: "归位失败" }],
+        },
+      ],
+    });
+    apiStub.getRun = async () => {
+      calls.push("getRun");
+      return { ok: false as const, error: { code: "RUN_READ_FAILED", message: "文件不可读" } };
+    };
+    await useAppStore.getState().refreshOperationStatus();
+    const before = useAppStore.getState().operations;
+    expect(before.activeOperationId).toBeNull();
+
+    // 用户明确打开该记录 ⇒ 读取失败只留在详情错误态，不产生任何新的主动执行
+    await useAppStore.getState().selectRun("run_unreadable");
+    expect(calls).toContain("getRun");
+    expect(calls).not.toContain("runs:fork");
+    const after = useAppStore.getState().operations;
+    // 读取失败不改变登记事实，也不锁住可执行性（配置与下一次提交都还可用）
+    expect(after).toEqual(before);
+    expect(deriveGate(after).canSubmit).toBe(true);
+    expect(deriveGate(after).canChangeConfiguration).toBe(true);
+
+    // 对照项：同一 ID 再次明确打开 ⇒ 真的重读（`selectRun` 会短路，重试口是 reopenRun）
+    await useAppStore.getState().reopenRun("run_unreadable");
+    expect(calls.filter((one) => one === "getRun")).toHaveLength(2);
+    // 两次失败读取都没有触发任何主动执行通道
+    expect(calls.filter((one) => one === "runs:fork")).toHaveLength(0);
+  });
+});

@@ -159,16 +159,18 @@ describe("4.7 接线契约：入口挂在既有全局栏，且两种查询不混
     expect(entry).not.toContain("useState<OperationRecord");
   });
 
-  it("核对只发 reconcile(operationId)，打开只走 selectRun(runId)", () => {
+  it("核对只发 reconcile(operationId)，打开只走 reopenRun(runId)", () => {
     const reconcile = entry.slice(
       entry.indexOf("onReconcile={(operationId)"),
       entry.indexOf("onOpenRun={(runId)"),
     );
     expect(reconcile).toContain("reconcileOperation(operationId)");
-    expect(reconcile).not.toContain("selectRun(");
+    expect(reconcile).not.toContain("reopenRun(");
     const open = entry.slice(entry.indexOf("onOpenRun={(runId)"));
-    expect(open).toContain("selectRun(runId)");
+    expect(open).toContain("reopenRun(runId)");
     expect(open).not.toContain("reconcileOperation(");
+    // 「按同 ID 重试读取」要有真通道：selectRun 对已选中同 ID 会短路 ⇒ 入口不能用它
+    expect(entry).not.toContain("selectRun(");
     // 两个动作的入参类型不同名 ⇒ 想混用得改代码
     expect(entry).toContain("onReconcile: (operationId: string) => void");
     expect(entry).toContain("onOpenRun: (runId: string) => void");

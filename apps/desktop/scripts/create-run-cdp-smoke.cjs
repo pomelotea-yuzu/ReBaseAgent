@@ -65,13 +65,45 @@ function traceCount() {
   await page.screenshot({ path: join(OUT, "03-filled.png") });
 
   // 3) IPC 链路（零成本分支）：preload → ipcMain 的 zod 校验，不产生任何文件与请求
-  const empty = await page.evaluate(() =>
+  //
+  // U4 起主动执行通道只接受执行信封 `{operation:{epoch,operationId}, request}`，
+  // 所以这里分两组断言：
+  //   a) **无身份直调**必须在任何副作用之前被拒（`OPERATION_INVALID_IDENTITY`）——
+  //      旧脚本正是这样调的，那套形状校验如今由信封内的业务 parse 承担；
+  //   b) 带身份但业务形状非法 ⇒ 走既有 `INVALID_ARGUMENT`（epoch 先向 main 握手取，
+  //      operationId 每次新生成，与渲染层适配器同一口径）。
+  const noIdentity = await page.evaluate(() =>
     window.api.createRun({ systemPrompt: "", userMessage: "" }),
   );
-  console.log("空 userMessage 的 IPC 返回:", JSON.stringify(empty));
-  const badShape = await page.evaluate(() => window.api.createRun({ userMessage: "x" }));
-  console.log("缺 systemPrompt 的 IPC 返回:", JSON.stringify(badShape));
-  writeFileSync(join(OUT, "ipc-results.json"), JSON.stringify({ empty, badShape }, null, 2));
+  console.log("无身份直调的返回:", JSON.stringify(noIdentity));
+  const badIdentity = await page.evaluate(() =>
+    window.api.createRun({ operation: { epoch: "not-a-uuid" }, request: {} }),
+  );
+  console.log("身份形状非法的返回:", JSON.stringify(badIdentity));
+
+  const envelopeRejections = await page.evaluate(async () => {
+    const status = await window.api.operationsStatus();
+    if (!status.ok) return { fatal: `operationsStatus 失败：${JSON.stringify(status.error)}` };
+    const epoch = status.data.epoch;
+    const fresh = () => ({
+      epoch,
+      operationId: crypto.randomUUID(),
+    });
+    const empty = await window.api.createRun({
+      operation: fresh(),
+      request: { systemPrompt: "", userMessage: "" },
+    });
+    const missingSystemPrompt = await window.api.createRun({
+      operation: fresh(),
+      request: { userMessage: "x" },
+    });
+    return { empty, missingSystemPrompt, epoch };
+  });
+  console.log("带身份的形状拒绝:", JSON.stringify(envelopeRejections));
+  writeFileSync(
+    join(OUT, "ipc-results.json"),
+    JSON.stringify({ noIdentity, badIdentity, envelopeRejections }, null, 2),
+  );
 
   // 4) 关闭（取消）——不触发任何调用
   await dialog.getByRole("button", { name: "取消" }).click();
@@ -88,10 +120,14 @@ function traceCount() {
     (await entry.count()) === 1 &&
     emptyDisabled === true &&
     filledDisabled === false &&
-    empty.ok === false &&
-    empty.error.code === "INVALID_ARGUMENT" &&
-    badShape.ok === false &&
-    badShape.error.code === "INVALID_ARGUMENT" &&
+    noIdentity.ok === false &&
+    noIdentity.error.code === "OPERATION_INVALID_IDENTITY" &&
+    badIdentity.ok === false &&
+    badIdentity.error.code === "OPERATION_INVALID_IDENTITY" &&
+    envelopeRejections.empty?.ok === false &&
+    envelopeRejections.empty?.error?.code === "INVALID_ARGUMENT" &&
+    envelopeRejections.missingSystemPrompt?.ok === false &&
+    envelopeRejections.missingSystemPrompt?.error?.code === "INVALID_ARGUMENT" &&
     stillOpen === false &&
     before === after;
   console.log(ok ? "冒烟通过 ✅" : "冒烟存在问题 ❌");

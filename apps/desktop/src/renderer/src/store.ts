@@ -242,6 +242,8 @@ interface AppState {
   /** 单次列表读取（合并调度内部使用；失败保留旧记录） */
   refreshRunsOnce: () => Promise<void>;
   selectRun: (id: string) => Promise<void>;
+  /** 按同一 runId 重新读取详情（spec「结果不可读不重执行」的重试口）；不产生任何主动执行 */
+  reopenRun: (id: string) => Promise<void>;
   selectSpan: (id: string) => void;
   toggleStep: (id: string) => void;
 
@@ -867,6 +869,14 @@ export const useAppStore = create<AppState>((set, get) => ({
       sourceUnavailable: availability.unavailable,
       sourceUnavailableReason: availability.reason,
     });
+  },
+
+  async reopenRun(id) {
+    // spec「结果不可读不重执行且不锁配置」要求"按同 ID 重试读取"。
+    // `selectRun` 对已选中的同一 ID 短路（切换标签不该白重读），那正好是重试的场景
+    // ⇒ 先清选中再走原详情通道。只重读，**不**触碰任何主动执行通道。
+    if (get().selectedRunId === id) set({ selectedRunId: null });
+    await get().selectRun(id);
   },
 
   async selectRun(id) {
