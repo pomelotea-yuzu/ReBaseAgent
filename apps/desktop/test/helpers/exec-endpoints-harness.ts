@@ -135,6 +135,11 @@ export interface ExecHarness {
    * 那样测不到父本门禁本身）。
    */
   makeV1Parent(): Promise<{ parentId: string; atSpanId: string }>;
+  /**
+   * 现造**首次 llm.call 不含 system 消息**的父 run：prompt fork 与 A/B 的
+   * 启动上下文门禁（`PROMPT_FORK_NO_SYSTEM`）要求前置拒绝，必须有这种标本。
+   */
+  makeNoSystemParent(): Promise<string>;
   /** 现造模型 A/B 可用的父 run（纯工具表 + 带 params 的首次请求） */
   makePureParent(): Promise<string>;
   cleanup(): void;
@@ -308,6 +313,21 @@ export function openExecHarness(): ExecHarness {
       if (toolSpan?.kind !== "tool.invoke") throw new Error("unreachable：v1 剧本必有 tool.invoke");
       renameSync(tmpFile, join(traces, `${record.meta.id}.jsonl`));
       return { parentId: record.meta.id, atSpanId: toolSpan.id };
+    },
+    async makeNoSystemParent() {
+      // 真实引擎，只是初始 messages 不含 system：prompt/A-B 的启动上下文门禁
+      // （`PROMPT_FORK_NO_SYSTEM`）只能这样造，手写 trace 会踩 v1/v2 不变量
+      const tmpFile = join(traces, "tmp-nosystem-parent.jsonl");
+      await runLoop(
+        CONFIG,
+        [{ role: "user", content: TASK }],
+        new JsonlTracer(tmpFile),
+        TOOLS,
+        new MockLlmClient([{ content: "父 run 完成（无 system 消息）。" }]),
+      );
+      const record = readRun(tmpFile);
+      renameSync(tmpFile, join(traces, `${record.meta.id}.jsonl`));
+      return record.meta.id;
     },
     async makePureParent() {
       const tmpFile = join(traces, "tmp-pure-parent.jsonl");
