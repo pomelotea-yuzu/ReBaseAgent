@@ -20,6 +20,8 @@ const api: WindowApi = {
   forkRun: (request) => ipcRenderer.invoke(CHANNELS.forkRun, request),
   promptFork: (request) => ipcRenderer.invoke(CHANNELS.promptFork, request),
   modelAb: (request) => ipcRenderer.invoke(CHANNELS.modelAb, request),
+  // A/B 预览是只读通道：不带执行身份、不占主动槽（载荷原样透传，校验在 main 侧）
+  modelAbPlan: (request) => ipcRenderer.invoke(CHANNELS.modelAbPlan, request),
   createRun: (request) => ipcRenderer.invoke(CHANNELS.createRun, request),
   // workspaces:*（B 1.3/1.5）：目录选择签发 token、隔离分叉只读预检——都不产生 run 文件
   chooseSource: () => ipcRenderer.invoke(CHANNELS.chooseSource),

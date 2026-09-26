@@ -36,6 +36,12 @@ import {
 } from "@shared/ipc";
 import { decideRefresh, resolveRefreshFailure, settleRefresh } from "@shared/list-refresh";
 import { ShortIdState } from "@shared/nav";
+import {
+  type ExecutedRequest,
+  type ExecutedResponse,
+  OPERATION_ERROR,
+  OperationStatusResultSchema,
+} from "@shared/operations";
 import { create } from "zustand";
 import { api } from "./lib/api";
 import type {
@@ -121,6 +127,13 @@ interface AppState {
   /** 列表刷新失败但旧记录仍在：界面据此提示「未更新」，不清空列表 */
   listStale: boolean;
   error: string | null;
+
+  /**
+   * U4：main 会话 epoch（`operations:status` 握手所得，见 `handshakeOperations`）。
+   * 它与 U3 的文档会话 id 各有职责、不能互代：同一 main 内重载 renderer 不换 epoch，
+   * main 重启才会换。`submitActive` 用它给每次提交配对身份。
+   */
+  mainEpoch: string | null;
 
   /** 分叉重跑进行中状态（runs:fork 的唯一写通道） */
   forking: "idle" | "in_progress" | "success" | "error";
@@ -330,6 +343,13 @@ interface AppState {
   isDraftFrozen: (target: DraftSubmitTarget) => boolean;
 
   /**
+   * U4（tasks 4.1 的握手半边）：读一次 `operations:status` 并校验后缓存 main epoch。
+   * 返回 null 表示握手未成功（通道失败或载荷不合契约）——此时主动入口一律不提交，
+   * 失败载荷**不部分采纳**（renderer 保留未知，与 status 失联同一口径）。
+   */
+  handshakeOperations: () => Promise<string | null>;
+
+  /**
    * U3 任务 2.5：一次性草稿定位目标（草稿列表「定位」动作的载体，与 U2 的
    * pendingFileTarget 同法）。由对应编辑器消费一次后经 `consumeDraftTarget` 清空；
    * 定位失败（运行不可达 / span 不在详情）时保留——列表的复制/放弃仍可用。
@@ -468,6 +488,50 @@ function describeZodError(error: unknown): string {
   return String(error);
 }
 
+/**
+ * 主动执行的统一提交适配器（U4 design D6，tasks 4.2/4.3 的适配器半边）。
+ *
+ * 所有主动入口都走这里：取 epoch → 新生成 operationId → 包成 `{operation, request}` →
+ * 交给对应通道。operationId **每次提交都新**（含失败重试——重试不复用被封禁/已结束的
+ * 许可，见 spec「新执行 SHALL 使用新 ID」）。响应原样返回给调用方，由它按
+ * 「身份 + 登记版本 + 状态」处理草稿冻结，而不是把裸 `ok/fail` 当操作结局。
+ *
+ * epoch 未知时先补一次握手；握手没成功 ⇒ **本地未发送**（不是通信未知）：不冻结草稿、
+ * 不进 Unknown，直接给出针对性错误码。
+ */
+async function submitActive<TRequest, TResponse>(
+  call: (request: ExecutedRequest<TRequest>) => Promise<ExecutedResponse<TResponse>>,
+  business: TRequest,
+): Promise<ExecutedResponse<TResponse>> {
+  const epoch = await ensureMainEpoch();
+  if (epoch === null) {
+    return {
+      ok: false,
+      operation: null,
+      error: {
+        code: "MAIN_HANDSHAKE_REQUIRED",
+        message: "尚未与主进程完成操作握手，本次请求未发送；请重试或重新加载窗口",
+      },
+    };
+  }
+  const response = await call({
+    operation: { epoch, operationId: crypto.randomUUID() },
+    request: business,
+  });
+  if (!response.ok && response.error.code === OPERATION_ERROR.staleEpoch) {
+    // 新 main 会话：旧 epoch 的响应不采纳，下次提交重新握手（旧关联仍保持未知，不自动重发）
+    useAppStore.setState({ mainEpoch: null });
+  }
+  return response;
+}
+
+/** 有缓存用缓存，没有就握手一次（握手失败不改缓存，下次仍会重试） */
+async function ensureMainEpoch(): Promise<string | null> {
+  const cached = useAppStore.getState().mainEpoch;
+  if (cached !== null) return cached;
+  return await useAppStore.getState().handshakeOperations();
+}
+
 export const useAppStore = create<AppState>((set, get) => ({
   runs: [],
   failed: [],
@@ -482,6 +546,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   listLoaded: false,
   listStale: false,
   error: null,
+  mainEpoch: null,
   listRefreshInFlight: 0,
   listRefreshPending: 0,
 
@@ -937,6 +1002,22 @@ export const useAppStore = create<AppState>((set, get) => ({
     return submissionLib.submissionOf(get().draftSubmissions, target) !== undefined;
   },
 
+  async handshakeOperations() {
+    const envelope = await api.operationsStatus();
+    if (!envelope.ok) {
+      set({ mainEpoch: null });
+      return null;
+    }
+    // 快照不合契约（含不自洽的槽引用）就当握手失败：绝不部分采纳所谓成功字段
+    const parsed = OperationStatusResultSchema.safeParse(envelope.data);
+    if (!parsed.success) {
+      set({ mainEpoch: null });
+      return null;
+    }
+    set({ mainEpoch: parsed.data.epoch });
+    return parsed.data.epoch;
+  },
+
   pendingDraftTarget: null,
 
   async openDraftAt(target) {
@@ -963,7 +1044,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   async forkAt(parentRunId, atSpanId, value, execution, submission) {
     set({ forking: "in_progress", forkError: null, forkErrorCode: null });
-    const envelope = await api.forkRun({
+    const envelope = await submitActive(api.forkRun, {
       parentRunId,
       atSpanId,
       edit: { field: "result", value },
@@ -1044,7 +1125,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   async createRun(request, submission) {
     set({ creatingRun: "in_progress", createRunError: null, createRunErrorCode: null });
-    const envelope = await api.createRun(request);
+    const envelope = await submitActive(api.createRun, request);
     // U3 任务 3.5：已明确返回（成功或业务拒绝）⇒ 收尾本次提交关联、解除整份冻结；
     // **任何响应都不删草稿**（design D5）。通道抛错不进这里，冻结保留（状态未知）。
     if (submission !== undefined) get().settleDraftSubmission(submission);
@@ -1087,7 +1168,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   async promptFork(parentRunId, edit, submission) {
     set({ forking: "in_progress", forkError: null, forkErrorCode: null });
-    const envelope = await api.promptFork({ parentRunId, edit });
+    const envelope = await submitActive(api.promptFork, { parentRunId, edit });
     // U3 任务 3.4：已明确返回即收尾本次提交关联（草稿保留，见 design D5）
     if (submission !== undefined) get().settleDraftSubmission(submission);
     if (!envelope.ok) {
@@ -1107,7 +1188,12 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   async modelAb(parentRunId, arms, dryRun, submission) {
     set({ modelAbInFlight: true, modelAbError: null, modelAbErrorCode: null });
-    const envelope = await api.modelAb({ parentRunId, arms, dryRun });
+    // 两条分支彻底分开：预览走只读通道（不占主动槽、不需要执行身份），
+    // 真实执行走主动通道（整批一个槽，main 判重先于任何副作用）
+    const envelope =
+      dryRun === true
+        ? await api.modelAbPlan({ parentRunId, arms, dryRun: true })
+        : await submitActive(api.modelAb, { parentRunId, arms });
     // U3 任务 3.5：真实执行的明确返回即收尾整批关联（含"部分臂失败"——那仍是明确返回）；
     // 草稿与批次一律保留。dryRun（预览）不传关联，故不受影响。
     if (submission !== undefined) get().settleDraftSubmission(submission);
@@ -1233,7 +1319,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   async proxyFork(parentRunId, atSpanId, messages, submission) {
     set({ forking: "in_progress", forkError: null, forkErrorCode: null });
-    const envelope = await api.proxyFork({ parentRunId, atSpanId, messages });
+    const envelope = await submitActive(api.proxyFork, { parentRunId, atSpanId, messages });
     // U3 任务 3.4：已明确返回即收尾本次提交关联（草稿保留，见 design D5）
     if (submission !== undefined) get().settleDraftSubmission(submission);
     if (!envelope.ok) {

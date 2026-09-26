@@ -6,7 +6,13 @@ import {
 } from "@rebaseagent/trace-sdk/schema";
 import { z } from "zod";
 import { CHANNELS } from "./channels";
-import type { OperationStatusResult, ReconcileRequest, ReconcileResult } from "./operations";
+import type {
+  ExecutedRequest,
+  ExecutedResponse,
+  OperationStatusResult,
+  ReconcileRequest,
+  ReconcileResult,
+} from "./operations";
 
 /**
  * 进程间通信的唯一契约：main 与 renderer 共用这些 schema。
@@ -626,18 +632,30 @@ export type DraftCloseRelease = z.infer<typeof DraftCloseReleaseSchema>;
 
 /**
  * preload 暴露给渲染层的受限接口。
- * 取数两个方法 + forkRun / promptFork / modelAb / createRun / proxyFork 五个写通道
- * + chooseSource / forkCapability 两个只读辅助通道（B 1.3/1.5）
- * + inspect / readFile 两个文件只读通道（C 1.1）
- * + settings 三件套 + 代理三件套（apiKey / 代理 key 均单向进入 main，永不回传）。
+ *
+ * 两类通道形状不同（U4 之后的契约）：
+ * - **主动执行**（`forkRun` / `promptFork` / `modelAb` / `createRun` / `proxyFork`）：
+ *   请求是 `{operation:{epoch,operationId}, request}`，响应两个分支都带登记回执。
+ *   main 在判重与占槽之后才开始任何副作用；缺身份、旧 epoch 或在途重复提交一律不执行。
+ * - **只读与预览**（取数、`chooseSource` / `forkCapability`、`inspectWorkspace` /
+ *   `readWorkspaceFile`、`modelAbPlan`、`getSettings` / `proxyStatus`、`operationsStatus`）：
+ *   不带执行身份、不占主动槽、不消耗授权。
+ *
+ * A/B 的 dryRun 走 `modelAbPlan` —— `modelAb` 收到 `dryRun:true` 会被拒（两条分支不混用）。
+ * settings 写通道与代理启停由 main 判锁；apiKey / 代理 key 均单向进入 main，永不回传。
  */
 export interface WindowApi {
   listRuns(): Promise<Envelope<ListRunsData>>;
   getRun(id: string): Promise<Envelope<RunDetail>>;
-  forkRun(request: ForkRunRequest): Promise<Envelope<ForkRunResult>>;
-  promptFork(request: PromptForkRequest): Promise<Envelope<PromptForkResult>>;
-  modelAb(request: ModelAbRequest): Promise<Envelope<ModelAbResult>>;
-  createRun(request: CreateRunRequest): Promise<Envelope<CreateRunResult>>;
+  forkRun(request: ExecutedRequest<ForkRunRequest>): Promise<ExecutedResponse<ForkRunResult>>;
+  promptFork(
+    request: ExecutedRequest<PromptForkRequest>,
+  ): Promise<ExecutedResponse<PromptForkResult>>;
+  /** A/B 真实执行：整批占一个主动槽（dry-run 请用 `modelAbPlan`） */
+  modelAb(request: ExecutedRequest<ModelAbRequest>): Promise<ExecutedResponse<ModelAbResult>>;
+  /** A/B 计划预览：只读、零网络、零文件、不占主动槽，因而**不**要求执行身份 */
+  modelAbPlan(request: ModelAbRequest): Promise<Envelope<ModelAbResult>>;
+  createRun(request: ExecutedRequest<CreateRunRequest>): Promise<ExecutedResponse<CreateRunResult>>;
   /** 原生目录选择：只签发会话 token，不导入、不写 trace/blob；取消返回 {canceled:true} */
   chooseSource(): Promise<Envelope<ChooseSourceResult>>;
   /**
@@ -654,7 +672,7 @@ export interface WindowApi {
   clearSettings(): Promise<Envelope<{ configured: false }>>;
   proxyStatus(): Promise<Envelope<ProxyState>>;
   proxyToggle(input: ProxyToggleInput): Promise<Envelope<ProxyState>>;
-  proxyFork(request: ProxyForkRequest): Promise<Envelope<ProxyForkResult>>;
+  proxyFork(request: ExecutedRequest<ProxyForkRequest>): Promise<ExecutedResponse<ProxyForkResult>>;
   /* ---- U3 关闭协商（design D6）：受限报告与订阅/解绑，不暴露 ipcRenderer ---- */
   /**
    * 关闭协商握手：renderer 挂载后调用，取当前文档会话 id；

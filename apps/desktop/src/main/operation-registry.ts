@@ -150,6 +150,8 @@ export interface ExecutionSpec {
 export interface ExecutionReport {
   acceptance: AcceptResult["kind"];
   record: OperationRecord;
+  /** 响应生成时刻的登记版本：renderer 据此丢弃乱序快照 */
+  registryVersion: RegistryVersion;
   data: unknown;
   error: { code: string; message: string } | null;
 }
@@ -307,6 +309,7 @@ export class OperationRegistry {
       return {
         acceptance: accept.kind,
         record: this.recordOf(spec.operationId) ?? accept.record,
+        registryVersion: this.version,
         data: null,
         error: rejectionOf(accept),
       };
@@ -365,6 +368,7 @@ export class OperationRegistry {
     return {
       acceptance: "accepted",
       record,
+      registryVersion: this.version,
       data: result.outcome === "returned" ? result.data : null,
       error: result.outcome === "returned" ? null : { code: result.code, message: result.message },
     };

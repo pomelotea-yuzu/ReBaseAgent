@@ -11,6 +11,7 @@ import { CREATE_SUBMIT_TARGET } from "../src/renderer/src/lib/draft-submission";
 import * as subLib from "../src/renderer/src/lib/draft-submission";
 import type { DraftSubmission } from "../src/renderer/src/lib/draft-submission";
 import type { RunDetail } from "../src/shared/ipc";
+import { installOperationChannels } from "./helpers/operation-channels";
 
 /**
  * U3（preserve-debugging-drafts）任务 3.4/3.5：提交绑定草稿快照并冻结，响应不清草稿。
@@ -157,6 +158,8 @@ if (toolSpan === undefined || firstLlmSpan === undefined) {
 // store 接线（模块读 window.api，桩须先于动态 import 就位）
 (globalThis as Record<string, unknown>).window = { api: {} };
 const api = (globalThis.window as unknown as { api: Record<string, unknown> }).api;
+// U4：每个主动入口都先握手取 epoch，再带 {operation, request} 提交
+installOperationChannels(api);
 const { useAppStore } = await import("../src/renderer/src/store");
 
 const RESULT_KEY: CallDraftKey = { runId: detail.meta.id, spanId: toolSpan.id, field: "result" };

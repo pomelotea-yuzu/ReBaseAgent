@@ -9,6 +9,10 @@ export const CHANNELS = {
   promptFork: "runs:promptFork",
   modelAb: "runs:modelAb",
   createRun: "runs:create",
+  // A/B 的真实执行（runs:modelAb）是主动写通道，必须带执行身份；
+  // 计划预览（dry-run）不建运行、不消耗授权，走这条**只读**通道，
+  // 因此不进入执行 envelope（design D1：dry-run 保持独立只读分支）
+  modelAbPlan: "runs:modelAbPlan",
   // workspaces:* —— 隔离文件运行的辅助通道（只读，不产生 run 文件）：
   // chooseSource 只弹原生目录选择并签发会话 token；forkCapability 只做只读能力预检
   chooseSource: "workspaces:chooseSource",

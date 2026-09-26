@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { captureCallDraftSource } from "../src/renderer/src/lib/draft-source";
 import { auditForbiddenTokens } from "../src/renderer/src/lib/overview-view";
 import type { RunDetail } from "../src/shared/ipc";
+import { installOperationChannels } from "./helpers/operation-channels";
 
 /**
  * U3（preserve-debugging-drafts）任务 2.4：A/B 编辑器接入批次草稿。
@@ -117,6 +118,8 @@ if (firstLlmSpan === undefined || firstLlmSpan.kind !== "llm.call") {
 
 // store 接线（模块读 window.api，桩须先于动态 import 就位）
 (globalThis as Record<string, unknown>).window = { api: {} };
+// U4：主动/A-B 只读预览两条通道都要先握手取 epoch，这里装上默认应答
+installOperationChannels((globalThis.window as unknown as { api: Record<string, unknown> }).api);
 const { useAppStore } = await import("../src/renderer/src/store");
 const draftsModule = await import("../src/renderer/src/lib/debugging-drafts");
 
@@ -274,7 +277,13 @@ describe("store 行为：A/B 预览不隐式清理批次（任务 3.3）", () =>
     const repoBefore = useAppStore.getState().drafts;
 
     const api = (globalThis.window as unknown as { api: Record<string, unknown> }).api;
-    api.modelAb = async () => ({
+    // U4：预览是只读通道（runs:modelAbPlan），主动执行通道一次都不该被碰到
+    let activeCalls = 0;
+    api.modelAb = async () => {
+      activeCalls += 1;
+      return { ok: false as const, error: { code: "SHOULD_NOT_RUN", message: "预览不该占主动槽" } };
+    };
+    api.modelAbPlan = async () => ({
       ok: true as const,
       data: { experimentId: "exp_stub", ids: [], ok: true, plan: [], sideEffectsAllowed: false },
     });
@@ -282,6 +291,7 @@ describe("store 行为：A/B 预览不隐式清理批次（任务 3.3）", () =>
       .getState()
       .modelAb(detail.meta.id, [{ model: "m-a" }, { model: "m-b" }], true);
     expect(planned?.experimentId).toBe("exp_stub");
+    expect(activeCalls).toBe(0);
 
     // 预览是只读通道：仓库引用与批次条目（内容/修订/行 ID）原样
     expect(useAppStore.getState().drafts).toBe(repoBefore);
@@ -292,7 +302,7 @@ describe("store 行为：A/B 预览不隐式清理批次（任务 3.3）", () =>
     expect(entryAfter.rows[1]!.paramsText).toBe('{"temperature":0.9}');
 
     // 失败信封同样不动草稿（业务拒绝、部分失败都不清批次）
-    api.modelAb = async () => ({
+    api.modelAbPlan = async () => ({
       ok: false as const,
       error: { code: "STUB", message: "桩" },
     });

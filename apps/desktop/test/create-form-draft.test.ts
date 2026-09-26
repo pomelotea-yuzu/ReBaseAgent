@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import { auditForbiddenTokens } from "../src/renderer/src/lib/overview-view";
+import { installOperationChannels } from "./helpers/operation-channels";
 
 /**
  * U3（preserve-debugging-drafts）任务 2.3：创建表单恢复模式/任务/system，
@@ -111,6 +112,8 @@ describe("接线契约：sourceToken 会话引用（任务 3.2，design D4）", 
 
 // store 接线（模块读 window.api，桩须先于动态 import 就位）
 (globalThis as Record<string, unknown>).window = { api: {} };
+// U4：创建是主动执行入口，提交前要先与 main 握手取 epoch
+installOperationChannels((globalThis.window as unknown as { api: Record<string, unknown> }).api);
 const { useAppStore } = await import("../src/renderer/src/store");
 const draftsModule = await import("../src/renderer/src/lib/debugging-drafts");
 

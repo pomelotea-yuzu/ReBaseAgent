@@ -18,6 +18,7 @@ import type {
   SettingsState,
   WindowApi,
 } from "../src/shared/ipc";
+import { FAKE_EPOCH, statusSnapshot, toExecuted } from "./helpers/operation-channels";
 
 /**
  * store（zustand）流转测试：runs:fork 的 forking 状态机 + 成功后刷新列表并自动选中
@@ -72,6 +73,11 @@ interface Controller {
   createRunEnvelope: Envelope<{ id: string }> | undefined;
   /** 原样记录透传出去的请求（含隔离模式的 workspace，B 2.1） */
   createRunRequests: CreateRunRequest[];
+  /**
+   * U4（tasks 4.9）：每次主动提交带的执行身份（通道 + epoch + operationId）。
+   * 断言"每次提交新 ID、epoch 来自握手"，而不是只看请求体。
+   */
+  activeOperations: Array<{ channel: string; epoch: string; operationId: string }>;
   /** 覆盖 chooseSource 的返回（默认取消；供"目录选择结果校验"用例注入非法载荷） */
   chooseSourceEnvelope: Envelope<ChooseSourceResult> | undefined;
   chooseSourceCalls: number;
@@ -110,6 +116,12 @@ const CAPABILITY: ForkCapabilityResult = {
 
 function makeFakeApi(c: Controller): WindowApi {
   return {
+    // U4：主动入口提交前先握手取 epoch（默认给一份自洽的空闲快照）
+    operationsStatus: async () => ok(statusSnapshot()),
+    operationsReconcile: async () => ({
+      ok: false as const,
+      error: { code: "NOT_STUBBED", message: "本桩未实现核对" },
+    }),
     listRuns: async (): Promise<Envelope<ListRunsData>> => {
       const callIndex = c.listCalls;
       c.listCalls += 1;
@@ -146,7 +158,9 @@ function makeFakeApi(c: Controller): WindowApi {
         chain: [{ meta: { ...base.meta, id }, fork: base.meta.fork }],
       });
     },
-    forkRun: async (request) => {
+    forkRun: async (envelope) => {
+      const request = envelope.request;
+      c.activeOperations.push({ channel: "runs:fork", ...envelope.operation });
       c.forkRequests.push({
         parentRunId: request.parentRunId,
         atSpanId: request.atSpanId,
@@ -154,23 +168,29 @@ function makeFakeApi(c: Controller): WindowApi {
         // 未传时不写该键：与真实请求体一致（普通父本请求里没有 execution）
         ...(request.execution === undefined ? {} : { execution: request.execution }),
       });
-      return c.forkEnvelope ?? ok({ id: "run_forked" });
+      return toExecuted(c.forkEnvelope ?? ok({ id: "run_forked" }), envelope.operation);
     },
-    promptFork: async (request) => {
+    promptFork: async (envelope) => {
+      const request = envelope.request;
+      c.activeOperations.push({ channel: "runs:promptFork", ...envelope.operation });
       c.promptForkRequests.push({
         parentRunId: request.parentRunId,
         field: request.edit.field,
         value: request.edit.value,
       });
-      return c.promptForkEnvelope ?? ok({ id: "run_prompt_forked" });
+      return toExecuted(
+        c.promptForkEnvelope ?? ok({ id: "run_prompt_forked" }),
+        envelope.operation,
+      );
     },
     getSettings: async (): Promise<Envelope<SettingsState>> =>
       ok({ configured: false, baseURL: null, model: null, encryption: "safe" }),
     saveSettings: async () => ok({ configured: true }),
     clearSettings: async () => ok({ configured: false }),
-    createRun: async (request) => {
-      c.createRunRequests.push(request);
-      return c.createRunEnvelope ?? ok({ id: "run_created" });
+    createRun: async (envelope) => {
+      c.activeOperations.push({ channel: "runs:create", ...envelope.operation });
+      c.createRunRequests.push(envelope.request);
+      return toExecuted(c.createRunEnvelope ?? ok({ id: "run_created" }), envelope.operation);
     },
     // B 1.3/1.5 的只读辅助通道：chooseSource 与 forkCapability 均已接（2.1 / 2.2）
     chooseSource: async () => {
@@ -191,6 +211,7 @@ const controller: Controller = {
   promptForkRequests: [],
   createRunEnvelope: undefined,
   createRunRequests: [],
+  activeOperations: [],
   chooseSourceEnvelope: undefined,
   chooseSourceCalls: 0,
   forkCapabilityEnvelope: undefined,
@@ -1196,5 +1217,69 @@ describe("store：新建运行对话框开关（任务 4.2）", () => {
     // 定位是一次性的：消费后清掉，避免用户手动收起又被拉回去
     useAppStore.getState().setSettingsSection(null);
     expect(useAppStore.getState().settingsSection).toBe(null);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// U4 任务 4.9（随 3.1–3.4 同批落地）：主动入口的真实消费——每次提交带新身份，
+// 握手没成功就"本地未发送"（不提交、不进通信未知）。
+// 这些断言打在线段上（api 收到的实际载荷），不是只测纯 reducer。
+// ---------------------------------------------------------------------------
+
+describe("U4 4.9 主动入口的执行身份", () => {
+  const apiObject = (globalThis.window as unknown as { api: Record<string, unknown> }).api;
+
+  it("三条主动通道都经同一适配器：epoch 来自握手、operationId 每次都是新 UUID", async () => {
+    useAppStore.setState({ mainEpoch: null });
+    controller.activeOperations.length = 0;
+    await useAppStore.getState().loadRuns();
+    expect(await useAppStore.getState().forkAt("r_01", "s_03", "编辑后的结果")).toBe(true);
+    expect(
+      await useAppStore.getState().promptFork("r_01", { field: "user_message", value: "换个问法" }),
+    ).toBe(true);
+    expect(
+      await useAppStore.getState().createRun({ systemPrompt: "", userMessage: "新任务" }),
+    ).toBe(true);
+
+    expect(controller.activeOperations.map((one) => one.channel)).toEqual([
+      "runs:fork",
+      "runs:promptFork",
+      "runs:create",
+    ]);
+    for (const one of controller.activeOperations) {
+      expect(one.epoch).toBe(FAKE_EPOCH);
+      expect(one.operationId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-/);
+    }
+    // 同一会话内三次提交互不相同（失败重试同样换新 ID，不复用被封禁/已结束的许可）
+    expect(new Set(controller.activeOperations.map((one) => one.operationId)).size).toBe(3);
+  });
+
+  it("握手失败 ⇒ 本地未发送：不提交业务请求，错误码可针对性提示", async () => {
+    useAppStore.setState({ mainEpoch: null });
+    controller.activeOperations.length = 0;
+    const forksBefore = controller.forkRequests.length;
+    apiObject.operationsStatus = async () => ({
+      ok: false,
+      error: { code: "OPERATIONS_STATUS_FAILED", message: "通道断开" },
+    });
+    expect(await useAppStore.getState().forkAt("r_01", "s_03", "值")).toBe(false);
+    const state = useAppStore.getState();
+    expect(state.forking).toBe("error");
+    expect(state.forkErrorCode).toBe("MAIN_HANDSHAKE_REQUIRED");
+    expect(state.forkError).toContain("未发送");
+    // 一次业务请求都没发出（不是"发出去后状态未知"）
+    expect(controller.forkRequests).toHaveLength(forksBefore);
+    expect(controller.activeOperations).toHaveLength(0);
+  });
+
+  it("握手返回非法快照 ⇒ 同样按未发送处理，不部分采纳", async () => {
+    useAppStore.setState({ mainEpoch: null });
+    apiObject.operationsStatus = async () => ({
+      ok: true,
+      data: { epoch: "not-a-uuid", registryVersion: 0, operations: [] },
+    });
+    expect(await useAppStore.getState().forkAt("r_01", "s_03", "值")).toBe(false);
+    expect(useAppStore.getState().mainEpoch).toBeNull();
+    expect(useAppStore.getState().forkErrorCode).toBe("MAIN_HANDSHAKE_REQUIRED");
   });
 });

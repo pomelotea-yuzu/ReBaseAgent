@@ -60,6 +60,9 @@ export const ExecutionEnvelopeSchema = z
   .strict();
 export type ExecutionEnvelope = z.infer<typeof ExecutionEnvelopeSchema>;
 
+/** 七个主动入口的统一请求形状（业务形状仍由各通道 schema 单独 parse 一次） */
+export type ExecutedRequest<T> = { operation: OperationIdentity; request: T };
+
 /** 登记版本（每次登记变更单调递增）：renderer 据此丢弃乱序快照 */
 export const RegistryVersionSchema = z.number().int().positive();
 export type RegistryVersion = z.infer<typeof RegistryVersionSchema>;
@@ -75,11 +78,28 @@ export const OperationAckSchema = z
   .strict();
 export type OperationAck = z.infer<typeof OperationAckSchema>;
 
-/** 把业务结果包成「身份 + 登记版本 + 允许字段摘要」的执行响应（业务结果本身不含正文） */
-export function executedResultSchema<T extends z.ZodTypeAny>(data: T) {
-  return z.object({ operation: OperationAckSchema, data }).strict();
+/**
+ * 主动执行通道的响应：**两个分支都带登记回执**。
+ *
+ * `ok:false` 同样携带 `operation`（只有"接受之前"的拒绝——不可信 sender、形状不合、
+ * 旧 epoch——才是 `null`），这样 renderer 一律按「身份 + 登记版本 + 状态」决定解冻与
+ * 门禁，而不是把裸 `ok/fail` 当成操作结局（design D2「不再以任意 ok/fail 解冻」）。
+ */
+export function executedResponseSchema<T extends z.ZodTypeAny>(data: T) {
+  return z.discriminatedUnion("ok", [
+    z.object({ ok: z.literal(true), operation: OperationAckSchema, data }).strict(),
+    z
+      .object({
+        ok: z.literal(false),
+        operation: OperationAckSchema.nullable(),
+        error: z.object({ code: CodeSchema, message: z.string().min(1).max(2048) }).strict(),
+      })
+      .strict(),
+  ]);
 }
-export type ExecutedResult<T> = { operation: OperationAck; data: T };
+export type ExecutedResponse<T> =
+  | { ok: true; operation: OperationAck; data: T }
+  | { ok: false; operation: OperationAck | null; error: { code: string; message: string } };
 
 // ---------------------------------------------------------------------------
 // 操作事实（D1）：七类主动入口归为五种 kind，create/result 各带普通/隔离模式
@@ -161,6 +181,8 @@ export type NotAcceptedReason = z.infer<typeof NotAcceptedReasonSchema>;
 export const OPERATION_ERROR = {
   /** 同 ID 携带不同规范化请求（含跨通道复用）：原登记不变，不执行 */
   conflict: "OPERATION_CONFLICT",
+  /** 同 ID 同参的重复提交：main 只关联原操作与原终态，本次不执行（重试须换新 ID） */
+  duplicated: "OPERATION_DUPLICATED",
   /** 未接受（忙碌 / 关闭协商 / 配置变更 / 已被核对封禁）：不执行，重试须换新 ID */
   notAccepted: "OPERATION_NOT_ACCEPTED",
   /** 缺身份 / 非 UUID / 信封形状不合：在副作用之前拒绝 */

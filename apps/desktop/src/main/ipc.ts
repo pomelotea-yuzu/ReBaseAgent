@@ -1,14 +1,7 @@
-import { ModelAbError } from "@rebaseagent/replay";
-import { dialog } from "electron";
-import { ipcMain } from "electron";
+import { dialog, ipcMain } from "electron";
 import {
   CHANNELS,
-  CreateRunRequestSchema,
   ForkCapabilityRequestSchema,
-  ForkRunRequestSchema,
-  ModelAbRequestSchema,
-  PromptForkRequestSchema,
-  ProxyForkRequestSchema,
   WorkspaceInspectRequestSchema,
   WorkspaceReadFileRequestSchema,
   fail,
@@ -29,7 +22,11 @@ import type {
   WorkspaceInspectResult,
   WorkspaceReadFileResult,
 } from "../shared/ipc";
-import type { OperationStatusResult, ReconcileResult } from "../shared/operations";
+import type {
+  ExecutedResponse,
+  OperationStatusResult,
+  ReconcileResult,
+} from "../shared/operations";
 import {
   type ConfigEndpointDeps,
   clearRunSettings,
@@ -37,13 +34,15 @@ import {
   writeRunSettings,
 } from "./config-endpoints";
 import {
-  ForkError,
-  runFork,
-  runForkCapability,
-  runForkIsolated,
-  runModelAb,
-  runPromptFork,
-} from "./fork-runner";
+  type ExecEndpointDeps,
+  execCreateRun,
+  execForkRun,
+  execModelAb,
+  execModelAbPlan,
+  execPromptFork,
+  execProxyFork,
+} from "./exec-endpoints";
+import { ForkError, runForkCapability } from "./fork-runner";
 import {
   type OperationEndpointDeps,
   type TrustedSender,
@@ -51,9 +50,8 @@ import {
   reconcileOperation,
 } from "./operation-endpoints";
 import type { OperationRegistry } from "./operation-registry";
+import { RequestFingerprinter } from "./operation-request";
 import type { ProxyManager } from "./proxy-manager";
-import { ProxyForkError } from "./proxy-manager";
-import { CreateRunError, runCreate, runCreateIsolated } from "./run-create";
 import type { RunRepository } from "./run-repository";
 import type { SettingsStore } from "./settings";
 import { SourceTokenStore } from "./source-token";
@@ -62,12 +60,16 @@ import { inspectWorkspace, readWorkspaceFileForView } from "./workspace-view";
 /**
  * IPC 处理器注册。任何异常都收敛为信封返回——不让异常跨越进程边界。
  *
- * 写通道纪律：runs:fork / runs:create / proxy:fork 是仅有三个能产生 run 文件
- * 写入的通道；workspaces:chooseSource / workspaces:forkCapability 只读
- * （目录选择不落盘、能力预检不写 trace/blob 不请求模型）；
- * settings 三通道只读写 <数据目录>/settings.json，
+ * 通道纪律（U4 之后）：
+ * - **主动执行**（runs:fork / runs:promptFork / runs:modelAb / runs:create / proxy:fork）
+ *   全部转交 `exec-endpoints`：必须带 `{operation, request}` 信封，main 判重 + 占槽
+ *   之后才读配置、消费 sourceToken、导入源目录、调模型/工具。缺身份的直接拒绝——
+ *   这里**不留"无身份后门"**（Migration 的硬要求）。
+ * - **只读**（runs:list / runs:get / workspaces:* / runs:modelAbPlan / settings:get /
+ *   proxy:status / operations:status）不占主动槽、不消耗授权；operations:reconcile
+ *   只改 main 内存里的封禁记录。
+ * - **配置写**（settings:save/clear、proxy:toggle）经 `config-endpoints` 判锁。
  * apiKey 与代理捕获的 key 永不回传渲染层。
- * operations:status 只读——返回 main 会话的操作快照，不执行业务、不改登记。
  */
 export interface IpcDeps {
   repository: RunRepository;
@@ -102,6 +104,24 @@ export function registerIpc(deps: IpcDeps): void {
     registry: operations,
     isTrustedSender,
   };
+  /**
+   * 七个主动执行入口共用同一份依赖与同一套接受序列（tasks 3.1–3.4）。
+   * 指纹密钥随 main 会话随机 ⇒ 摘要只在本次会话内有意义，且从不跨进程回传。
+   * 会话令牌随应用生命周期存活；15 分钟 TTL 与一次性消费见 source-token.ts——
+   * 消费只发生在**已被接受**的操作里（判重先于许可消费）。
+   */
+  const sourceTokens = new SourceTokenStore();
+  const execDeps: ExecEndpointDeps = {
+    registry: operations,
+    fingerprinter: new RequestFingerprinter(),
+    isTrustedSender,
+    repository,
+    settings,
+    execCwd,
+    dataDir,
+    proxy,
+    sourceTokens,
+  };
   const pickDirectory =
     deps.pickDirectory ??
     (async (): Promise<string | null> => {
@@ -109,8 +129,6 @@ export function registerIpc(deps: IpcDeps): void {
       if (result.canceled || result.filePaths.length === 0) return null;
       return result.filePaths[0] ?? null;
     });
-  // 会话令牌随应用生命周期存活；15 分钟 TTL 与一次性消费见 source-token.ts
-  const sourceTokens = new SourceTokenStore();
 
   ipcMain.handle(
     CHANNELS.listRuns,
@@ -137,52 +155,16 @@ export function registerIpc(deps: IpcDeps): void {
     },
   );
 
+  // -------------------------------------------------------------------------
+  // 主动执行通道（runs:fork / runs:promptFork / runs:modelAb / runs:create /
+  // proxy:fork）：全部经 `exec-endpoints` —— sender/信封/epoch 校验、一次业务解析、
+  // 判重与占槽都在那里，端点体不 import electron、可直测。
+  // -------------------------------------------------------------------------
+
   ipcMain.handle(
     CHANNELS.forkRun,
-    async (
-      _event,
-      request: unknown,
-    ): Promise<ReturnType<typeof ok<ForkRunResult>> | ReturnType<typeof fail>> => {
-      // 1. 请求形状校验（parentRunId/atSpanId/edit 齐全、field 为 result）
-      const parsed = ForkRunRequestSchema.safeParse(request);
-      if (!parsed.success) {
-        return fail("INVALID_ARGUMENT", parsed.error);
-      }
-
-      // 2. 运行配置必须已就绪（未配置不发任何网络请求）
-      const loaded = settings.load();
-      if (loaded === null) {
-        return fail(
-          "SETTINGS_NOT_CONFIGURED",
-          new Error("尚未配置运行参数（baseURL / apiKey / model），请先完成运行配置"),
-        );
-      }
-
-      // 3. 编排重跑；ForkError 的 code 原样透传给渲染层做提示。
-      //    隔离父本必须走 execution 分支（replayIsolatedRun）；不带 execution 的请求
-      //    落进普通 runFork，会被 A 的隔离父本门禁拒绝（严格匹配、不降级——见 design §1）
-      try {
-        const result =
-          parsed.data.execution !== undefined
-            ? await runForkIsolated(
-                { repository, settings: loaded, dataDir },
-                {
-                  parentRunId: parsed.data.parentRunId,
-                  atSpanId: parsed.data.atSpanId,
-                  edit: parsed.data.edit,
-                  execution: parsed.data.execution,
-                },
-              )
-            : await runFork({ repository, settings: loaded, execCwd }, parsed.data);
-        return ok({ id: result.id });
-      } catch (e) {
-        if (e instanceof ForkError) {
-          return fail(e.code, e);
-        }
-        // replayRun / replayIsolatedRun / derive 的领域错误（空 fork、config_hash 不一致、父未封存等）
-        return fail("FORK_FAILED", e);
-      }
-    },
+    (event, request: unknown): Promise<ExecutedResponse<ForkRunResult>> =>
+      execForkRun(execDeps, senderOf(event), request),
   );
 
   // -------------------------------------------------------------------------
@@ -300,151 +282,37 @@ export function registerIpc(deps: IpcDeps): void {
 
   ipcMain.handle(
     CHANNELS.promptFork,
-    async (
-      _event,
-      request: unknown,
-    ): Promise<ReturnType<typeof ok<PromptForkResult>> | ReturnType<typeof fail>> => {
-      // 1. 请求形状校验（parentRunId/edit 齐全、field 为两个 prompt 字段之一）
-      const parsed = PromptForkRequestSchema.safeParse(request);
-      if (!parsed.success) {
-        return fail("INVALID_ARGUMENT", parsed.error);
-      }
-
-      // 2. 运行配置必须已就绪（未配置不发任何网络请求）
-      const loaded = settings.load();
-      if (loaded === null) {
-        return fail(
-          "SETTINGS_NOT_CONFIGURED",
-          new Error("尚未配置运行参数（baseURL / apiKey / model），请先完成运行配置"),
-        );
-      }
-
-      // 3. 编排从头重跑；ForkError 的 code 原样透传（如 PROMPT_FORK_NO_SYSTEM）
-      try {
-        const result = await runPromptFork({ repository, settings: loaded, execCwd }, parsed.data);
-        return ok({ id: result.id });
-      } catch (e) {
-        if (e instanceof ForkError) {
-          return fail(e.code, e);
-        }
-        // promptReplayRun / derive 的领域错误（proxy run、空 fork、父未封存等）
-        return fail("PROMPT_FORK_FAILED", e);
-      }
-    },
+    (event, request: unknown): Promise<ExecutedResponse<PromptForkResult>> =>
+      execPromptFork(execDeps, senderOf(event), request),
   );
-
   // -------------------------------------------------------------------------
   // runs:modelAb —— 模型 / 采样参数 A/B 实验（一次调用 = 一批，至少两个 arm）
   // -------------------------------------------------------------------------
 
   ipcMain.handle(
     CHANNELS.modelAb,
-    async (
-      _event,
-      request: unknown,
-    ): Promise<ReturnType<typeof ok<ModelAbResult>> | ReturnType<typeof fail>> => {
-      const parsed = ModelAbRequestSchema.safeParse(request);
-      if (!parsed.success) {
-        return fail("INVALID_ARGUMENT", parsed.error);
-      }
-
-      // 运行配置必须已就绪（未配置不发任何网络请求；dry-run 也要展示 provider）
-      const loaded = settings.load();
-      if (loaded === null) {
-        return fail(
-          "SETTINGS_NOT_CONFIGURED",
-          new Error("尚未配置运行参数（baseURL / apiKey / model），请先完成运行配置"),
-        );
-      }
-
-      try {
-        // `armFacts` 只供 main 侧操作登记（U4 3.4）；跨进程载荷保持既有 ModelAbResult 形状
-        const { armFacts: _armFacts, ...result } = await runModelAb(
-          { repository, settings: loaded, execCwd },
-          parsed.data,
-        );
-        return ok(result);
-      } catch (e) {
-        // 编排层的稳定错误码（父不可 fork / 工具策略 / 双真相源 / 未确认费用…）
-        if (e instanceof ModelAbError) {
-          return fail(`MODEL_AB_${e.code}`, e);
-        }
-        if (e instanceof ForkError) {
-          return fail(e.code, e);
-        }
-        return fail("MODEL_AB_FAILED", e);
-      }
-    },
+    (event, request: unknown): Promise<ExecutedResponse<ModelAbResult>> =>
+      execModelAb(execDeps, senderOf(event), request),
   );
 
+  // runs:modelAbPlan —— A/B 预览的只读分支：不占主动槽、不要求执行身份（design D1/D3）
+  ipcMain.handle(
+    CHANNELS.modelAbPlan,
+    (
+      event,
+      request: unknown,
+    ): Promise<ReturnType<typeof ok<ModelAbResult>> | ReturnType<typeof fail>> =>
+      execModelAbPlan(execDeps, senderOf(event), request),
+  );
   // -------------------------------------------------------------------------
   // runs:create —— 原生 run 创建（从头执行，无父 run；与上面三条重跑语义正交）
   // -------------------------------------------------------------------------
 
   ipcMain.handle(
     CHANNELS.createRun,
-    async (
-      _event,
-      request: unknown,
-    ): Promise<ReturnType<typeof ok<CreateRunResult>> | ReturnType<typeof fail>> => {
-      // 1. 请求形状校验（systemPrompt 可空、userMessage 非空）
-      const parsed = CreateRunRequestSchema.safeParse(request);
-      if (!parsed.success) {
-        return fail("INVALID_ARGUMENT", parsed.error);
-      }
-
-      // 2. 运行配置必须已就绪（未配置不发任何网络请求、不产生任何文件）
-      const loaded = settings.load();
-      if (loaded === null) {
-        return fail(
-          "SETTINGS_NOT_CONFIGURED",
-          new Error("尚未配置运行参数（baseURL / apiKey / model），请先完成运行配置"),
-        );
-      }
-
-      // 3. 从头执行；CreateRunError 的 code 原样透传给渲染层做提示。
-      //    workspace 存在 = 隔离文件模式：先消费 sourceToken 换出真实路径（一次性，
-      //    失败也视为已消费——每次新操作都要重新选择与确认），再交 A 包编排
-      const workspaceSelection = parsed.data.workspace;
-      try {
-        const result =
-          workspaceSelection !== undefined
-            ? await ((): Promise<{ id: string }> => {
-                const consumed = sourceTokens.consume(workspaceSelection.sourceToken);
-                if (!consumed.ok) {
-                  throw new CreateRunError(
-                    "INVALID_SOURCE_TOKEN",
-                    consumed.reason === "expired"
-                      ? "所选目录的确认已过期（超过 15 分钟），请重新选择目录并确认副本写入"
-                      : "目录选择凭证无效（不存在、已被使用或来自其他会话），请重新选择目录",
-                  );
-                }
-                return runCreateIsolated(
-                  {
-                    repository,
-                    settings: loaded,
-                    execCwd,
-                    dataDir,
-                    sourcePath: consumed.path,
-                  },
-                  {
-                    systemPrompt: parsed.data.systemPrompt,
-                    userMessage: parsed.data.userMessage,
-                    workspace: workspaceSelection,
-                  },
-                );
-              })()
-            : await runCreate({ repository, settings: loaded, execCwd }, parsed.data);
-        return ok({ id: result.id });
-      } catch (e) {
-        if (e instanceof CreateRunError) {
-          return fail(e.code, e);
-        }
-        return fail("CREATE_RUN_FAILED", e);
-      }
-    },
+    (event, request: unknown): Promise<ExecutedResponse<CreateRunResult>> =>
+      execCreateRun(execDeps, senderOf(event), request),
   );
-
   ipcMain.handle(
     CHANNELS.settingsGet,
     (): ReturnType<typeof ok<SettingsState>> | ReturnType<typeof fail> => {
@@ -504,25 +372,9 @@ export function registerIpc(deps: IpcDeps): void {
 
   ipcMain.handle(
     CHANNELS.proxyFork,
-    async (
-      _event,
-      request: unknown,
-    ): Promise<ReturnType<typeof ok<ProxyForkResult>> | ReturnType<typeof fail>> => {
-      const parsed = ProxyForkRequestSchema.safeParse(request);
-      if (!parsed.success) {
-        return fail("INVALID_ARGUMENT", parsed.error);
-      }
-      try {
-        return ok(await proxy.fork(parsed.data));
-      } catch (e) {
-        if (e instanceof ProxyForkError) {
-          return fail(e.code, e);
-        }
-        return fail("PROXY_FORK_FAILED", e);
-      }
-    },
+    (event, request: unknown): Promise<ExecutedResponse<ProxyForkResult>> =>
+      execProxyFork(execDeps, senderOf(event), request),
   );
-
   // -------------------------------------------------------------------------
   // operations:status / operations:reconcile —— 状态查询与原子核对（design D4）
   // 都不执行业务、不消费授权、不写 trace/blob/source；reconcile 只改 main 内存封禁

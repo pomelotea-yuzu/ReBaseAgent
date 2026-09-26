@@ -5,6 +5,7 @@ import {
   ExecutionEnvelopeSchema,
   OPERATION_DIAGNOSTIC_MAX,
   OPERATION_DIAGNOSTIC_MESSAGE_MAX,
+  OPERATION_ERROR,
   type OperationArmSummary,
   type OperationRecord,
   OperationRecordSchema,
@@ -12,7 +13,7 @@ import {
   OperationTargetSchema,
   ReconcileRequestSchema,
   ReconcileResultSchema,
-  executedResultSchema,
+  executedResponseSchema,
   findSlotStateViolation,
 } from "../src/shared/operations";
 
@@ -432,33 +433,39 @@ describe("U4 1.1 reconcile 结果与执行响应：锁由全局槽派生，不�
     ).toBe(false);
   });
 
-  it("执行响应 = 登记回执 + 允许字段的业务结果；回执非法或结果走样都不能通过", () => {
-    const schema = executedResultSchema(ForkRunResultSchema);
+  it("执行响应两个分支都带登记回执；回执非法或结果走样都不能通过", () => {
+    const schema = executedResponseSchema(ForkRunResultSchema);
+    const ack = { epoch: EPOCH, operationId: OP, registryVersion: 3, state: "running" };
+    expect(schema.safeParse({ ok: true, operation: ack, data: { id: "run_new" } }).success).toBe(
+      true,
+    );
+    // 业务拒绝也带回执：renderer 按「身份 + 登记版本 + 状态」解冻，而不是把裸 fail 当结论
     expect(
       schema.safeParse({
-        operation: { epoch: EPOCH, operationId: OP, registryVersion: 3, state: "running" },
-        data: { id: "run_new" },
+        ok: false,
+        operation: { ...ack, state: "settled" },
+        error: { code: "FORK_FAILED", message: "父 run 未封存" },
+      }).success,
+    ).toBe(true);
+    // 只有"接受之前"的拒绝（sender / 形状 / 旧 epoch）才允许回执为 null
+    expect(
+      schema.safeParse({
+        ok: false,
+        operation: null,
+        error: { code: OPERATION_ERROR.staleEpoch, message: "旧 main 会话" },
       }).success,
     ).toBe(true);
     const bad: unknown[] = [
-      {
-        operation: { epoch: EPOCH, operationId: OP, registryVersion: 0, state: "running" },
-        data: { id: "run_new" },
-      },
-      {
-        operation: { epoch: EPOCH, operationId: OP, registryVersion: 3, state: "done" },
-        data: { id: "run_new" },
-      },
-      { operation: { epoch: EPOCH, operationId: OP, registryVersion: 3 }, data: { id: "run_new" } },
-      {
-        operation: { epoch: EPOCH, operationId: OP, registryVersion: 3, state: "running" },
-        data: {},
-      },
-      {
-        operation: { epoch: EPOCH, operationId: OP, registryVersion: 3, state: "running" },
-        data: { id: "run_new" },
-        retried: true,
-      },
+      { ok: true, data: { id: "run_new" } },
+      { ok: true, operation: { ...ack, registryVersion: 0 }, data: { id: "run_new" } },
+      { ok: true, operation: { ...ack, state: "done" }, data: { id: "run_new" } },
+      { ok: true, operation: { ...ack, epoch: "not-a-uuid" }, data: { id: "run_new" } },
+      { ok: true, operation: ack, data: {} },
+      { ok: true, operation: ack, data: { id: "run_new" }, retried: true },
+      { ok: false, operation: ack },
+      { ok: false, error: { code: "X", message: "m" } },
+      { ok: false, operation: ack, error: { code: "X", message: "m", zodIssues: [] } },
+      { ok: false, operation: ack, error: { code: "X" } },
     ];
     for (const payload of bad) {
       expect(schema.safeParse(payload).success, JSON.stringify(payload)).toBe(false);
