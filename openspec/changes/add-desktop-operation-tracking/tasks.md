@@ -10,7 +10,7 @@
 - [x] 1.4 实现同步接受/占槽与 busy/closing/configurationBusy 的 notAccepted，所有状态转换检查 owner（<=2h）。验收：不同入口并发只有一个被接受 / 旧操作收尾不能释放新操作。
 - [x] 1.5 实现共享执行 promise、统一 settled/finally 收口和允许字段的诊断，释放执行上下文引用（<=2h）。验收：执行和收尾结束才释放本操作 / 接受后业务拒绝仍有可信终态 / 会话登记不泄漏输入和凭据。
 - [x] 1.6 实现 status/reconcile handler，原子 tombstone、当前槽和版本快照；校验 sender/frame/epoch（<=2h）。验收：reconcile 先到封禁迟到提交 / 执行先到核对实际状态 / 旧 epoch 和非法身份无副作用。
-- [ ] 1.7 用可控调度补全 registry 竞争测试，含 settled A/reconcile A 与 running B、重复完成和顺序反转（<=2h）。验收：核对旧操作不解除另一操作的锁 / 旧操作收尾不能释放新操作 / 不同入口并发只有一个被接受。
+- [x] 1.7 用可控调度补全 registry 竞争测试，含 settled A/reconcile A 与 running B、重复完成和顺序反转（<=2h）。验收：核对旧操作不解除另一操作的锁 / 旧操作收尾不能释放新操作 / 不同入口并发只有一个被接受。
 
 ## 2. 可信身份的编排扩展
 
