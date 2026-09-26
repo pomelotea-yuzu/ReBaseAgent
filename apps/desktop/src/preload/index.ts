@@ -41,6 +41,10 @@ const api: WindowApi = {
   onDraftCloseSession: (listener) => onMainEvent(CHANNELS.draftCloseSession, listener),
   onDraftCloseQuery: (listener) => onMainEvent(CHANNELS.draftCloseQuery, listener),
   onDraftCloseRelease: (listener) => onMainEvent(CHANNELS.draftCloseRelease, listener),
+  // operations:*（U4 操作登记）：只有身份进出，不接受任何业务载荷；
+  // status 无参、reconcile 只带 {epoch, operationId}，schema 校验在 main 侧
+  operationsStatus: () => ipcRenderer.invoke(CHANNELS.operationsStatus),
+  operationsReconcile: (request) => ipcRenderer.invoke(CHANNELS.operationsReconcile, request),
 };
 
 /** 订阅 main → renderer 的单向事件；返回解绑函数（不把 event 对象暴露给渲染层） */

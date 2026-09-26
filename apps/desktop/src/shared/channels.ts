@@ -23,6 +23,11 @@ export const CHANNELS = {
   proxyStatus: "proxy:status",
   proxyToggle: "proxy:toggle",
   proxyFork: "proxy:fork",
+  // operations:* —— U4 操作登记（design D4）：两条通道都**只读或不执行业务**，
+  // status 无参返回自洽快照，reconcile 只按身份返回事实或建立内存封禁（notAccepted），
+  // 都不调用模型/工具、不写 trace/blob/source、不消费授权
+  operationsStatus: "operations:status",
+  operationsReconcile: "operations:reconcile",
   // draft-close:* —— U3 关闭协商（design D6）：main 持有关闭决策，renderer 只报告元数据。
   // 所有消息只传 sessionId/sequence/dirtyCount/requestId/inputSettled，
   // 不传草稿正文、run 内容、sourceToken、授权或凭据

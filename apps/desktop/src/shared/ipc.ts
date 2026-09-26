@@ -6,6 +6,7 @@ import {
 } from "@rebaseagent/trace-sdk/schema";
 import { z } from "zod";
 import { CHANNELS } from "./channels";
+import type { OperationStatusResult, ReconcileRequest, ReconcileResult } from "./operations";
 
 /**
  * 进程间通信的唯一契约：main 与 renderer 共用这些 schema。
@@ -670,4 +671,15 @@ export interface WindowApi {
   onDraftCloseQuery(listener: (query: DraftCloseQuery) => void): () => void;
   /** 订阅关闭决定释放（取消/完成后解锁）；返回解绑函数 */
   onDraftCloseRelease(listener: (release: DraftCloseRelease) => void): () => void;
+  /* ---- U4 操作登记（design D4/D6）：状态查询与原子核对，都不执行业务 ---- */
+  /**
+   * 只读握手 / 快照：返回 main 当前 epoch、单调登记版本、活跃槽、配置变更与关闭标记，
+   * 以及本会话全部操作的受限元数据（含 settled 与 notAccepted 封禁）。
+   */
+  operationsStatus(): Promise<Envelope<OperationStatusResult>>;
+  /**
+   * 按 epoch/operationId 原子核对：已有登记返回真实状态，从未接受的 ID 建立永久封禁。
+   * 不读 run 文件、不消费授权——按 ID 看记录仍走 getRun 的详情版本守卫。
+   */
+  operationsReconcile(request: ReconcileRequest): Promise<Envelope<ReconcileResult>>;
 }
