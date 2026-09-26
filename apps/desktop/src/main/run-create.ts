@@ -2,7 +2,12 @@ import { existsSync, renameSync } from "node:fs";
 import { join } from "node:path";
 import { OpenAiCompatClient, runLoop } from "@rebaseagent/agent-loop";
 import type { LlmClient, Message, RunConfig, RunResult } from "@rebaseagent/agent-loop";
-import { FILE_TOOLS_V1_DEFINITIONS, createIsolatedRun } from "@rebaseagent/replay";
+import {
+  FILE_TOOLS_V1_DEFINITIONS,
+  createIsolatedRun,
+  observeRunIdentity,
+} from "@rebaseagent/replay";
+import type { OnRunIdentified } from "@rebaseagent/replay";
 import { JsonlTracer, readRun } from "@rebaseagent/trace-sdk";
 import type { IsolatedWorkspaceSelection } from "../shared/ipc";
 import type { RunRepository } from "./run-repository";
@@ -29,6 +34,12 @@ export interface RunCreateOptions {
   execCwd: string;
   /** LLM 客户端（测试注入 mock；缺省真实调用 settings.baseURL） */
   llm?: LlmClient;
+  /**
+   * U4 的可信身份观察口：本次 trace 实际写出 run.meta 后、首次模型调用前收到最终 run id。
+   * 创建失败（含 errored 终止）时，操作登记仍能拿到这条失败记录的 ID——
+   * 身份来自这条结构化回调，不去解析异常文案。
+   */
+  onRunIdentified?: OnRunIdentified;
 }
 
 export interface RunCreateRequest {
@@ -44,12 +55,19 @@ export const CREATE_RUN_ERROR_CODES = {
 } as const;
 
 export class CreateRunError extends Error {
-  constructor(
-    readonly code: string,
-    message: string,
-  ) {
+  readonly code: string;
+  /**
+   * `runId` = 这条失败**已经有对应的落盘记录**时该记录的 id（U4 design D5）。
+   * 它只表达身份，不声称文件已封存或运行成功；拿不到时为 undefined——
+   * 宁可"无 ID"，也不臆造一个未被 meta 证实的 id。
+   */
+  readonly runId: string | undefined;
+
+  constructor(code: string, message: string, runId?: string) {
     super(message);
     this.name = "CreateRunError";
+    this.code = code;
+    this.runId = runId;
   }
 }
 
@@ -61,7 +79,7 @@ export async function runCreate(
   options: RunCreateOptions,
   request: RunCreateRequest,
 ): Promise<{ id: string }> {
-  const { repository, settings, execCwd, llm } = options;
+  const { repository, settings, execCwd, llm, onRunIdentified } = options;
   const tracesDir = repository.tracesDir;
 
   // 1. 组装 RunConfig（空工具表；config.tools 与传给 runLoop 的 tools 必须等长）
@@ -95,11 +113,21 @@ export async function runCreate(
 
   let outcome: RunResult;
   let runId: string | null = null;
+  /**
+   * meta 写出那一刻拿到的真实身份：即使随后的归位/收尾失败，它也**不被撤销**，
+   * 且它是"文件里真有这一行"的事实（不是预分配的临时文件名）。
+   */
+  let identifiedId: string | null = null;
+  const releaseIdentityWatch = observeRunIdentity(tracer, (id) => {
+    identifiedId = id;
+    onRunIdentified?.(id);
+  });
   try {
     // 第 6 参 forkRun 必须省略（可选参数，省略 = 根 run，parent/fork 均为 null）。
     // ⚠️ 不能传 null——那是类型错误，也会误表达"显式的空分叉"。
     outcome = await runLoop(config, messages, tracer, [], llm ?? new OpenAiCompatClient(config));
   } finally {
+    releaseIdentityWatch();
     // 成功与失败都要归位：error run 也是事实（spec 要求它存在且状态为 error）。
     // readRun 对残缺文件会抛（进程中途被杀）——此时保留 tmp 供排查，错误照常向上抛。
     if (existsSync(tmpFile)) {
@@ -107,6 +135,7 @@ export async function runCreate(
       renameSync(tmpFile, join(tracesDir, `${runId}.jsonl`));
     }
   }
+  const knownId = runId ?? identifiedId;
 
   // 4. runLoop 不抛 LLM 失败：它记 errored 并正常返回（run-loop.ts:111-135），
   //    因此成败判据是终止事件而非 try/catch。
@@ -116,12 +145,17 @@ export async function runCreate(
   if (outcome.event.event === "errored") {
     throw new CreateRunError(
       CREATE_RUN_ERROR_CODES.RUN_FAILED,
-      `新建 run 执行失败：模型调用未完成（终止原因 ${outcome.event.reason}）。run ${runId ?? "(未落盘)"} 已落盘，可在列表中点开该 run，查看失败的那次 LLM 调用上的错误详情。`,
+      `新建 run 执行失败：模型调用未完成（终止原因 ${outcome.event.reason}）。run ${knownId ?? "(未落盘)"} 已落盘，可在列表中点开该 run，查看失败的那次 LLM 调用上的错误详情。`,
+      knownId ?? undefined,
     );
   }
 
   if (runId === null) {
-    throw new CreateRunError(CREATE_RUN_ERROR_CODES.RUN_FAILED, "run 未产出任何 trace 文件");
+    throw new CreateRunError(
+      CREATE_RUN_ERROR_CODES.RUN_FAILED,
+      "run 未产出任何 trace 文件",
+      identifiedId ?? undefined,
+    );
   }
 
   return { id: runId };
@@ -165,7 +199,7 @@ export async function runCreateIsolated(
   options: RunCreateIsolatedOptions,
   request: RunCreateIsolatedRequest,
 ): Promise<{ id: string }> {
-  const { settings, dataDir, sourcePath, llm } = options;
+  const { settings, dataDir, sourcePath, llm, onRunIdentified } = options;
 
   const config: RunConfig = {
     baseURL: settings.baseURL,
@@ -179,6 +213,8 @@ export async function runCreateIsolated(
     budget: { maxTotalTokens: MAX_TOTAL_TOKENS },
   };
 
+  /** 包层回调给的是**最终世界身份**（checkpoint tracer 替换后）；预检拒绝时不会被调用 */
+  let identifiedId: string | null = null;
   const result = await createIsolatedRun({
     dataDir,
     source: sourcePath,
@@ -186,12 +222,18 @@ export async function runCreateIsolated(
     userMessage: request.userMessage,
     authority: request.workspace,
     llm: llm ?? new OpenAiCompatClient(config),
+    onRunIdentified: (id) => {
+      identifiedId = id;
+      onRunIdentified?.(id);
+    },
   });
 
   if (!result.ok) {
     throw new CreateRunError(
       ISOLATED_CREATE_ERROR_CODE,
       `隔离创建被拒绝（${result.failure.code}）：${result.failure.reason}`,
+      // 失败发生在 meta 写出之后（如归位失败）时，仍带上已被证实的身份
+      identifiedId ?? undefined,
     );
   }
 
@@ -201,6 +243,7 @@ export async function runCreateIsolated(
     throw new CreateRunError(
       CREATE_RUN_ERROR_CODES.RUN_FAILED,
       `新建 run 执行失败：模型调用未完成（终止原因 ${result.outcome.event.reason}）。run ${result.id} 已落盘，可在列表中点开该 run，查看失败的那次 LLM 调用上的错误详情。`,
+      result.id,
     );
   }
 
