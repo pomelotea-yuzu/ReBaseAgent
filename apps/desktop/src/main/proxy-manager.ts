@@ -27,11 +27,34 @@ export class ProxyForkError extends Error {
       | "PROXY_NO_KEY"
       | "PROXY_PARENT_INVALID"
       | "PROXY_EMPTY_FORK"
-      | "PROXY_FORK_FAILED",
+      | "PROXY_FORK_FAILED"
+      /** 响应已转发，但**本次**重发的录制写入失败：不借用别的 run id 报成功 */
+      | "PROXY_RECORDING_WRITE_FAILED",
     message: string,
   ) {
     super(message);
   }
+}
+
+/**
+ * U4（design D5）：一次主动重发的**请求局部**上下文。
+ *
+ * 旧实现是一个 `lastWrittenRunId` 字段，被主动重发与被动录制共用：等待返回期间任何被动
+ * 请求都会把它的值换掉，于是"分叉成功了"可能指的是别人的 run。这里改成按 handler 原样
+ * 透传下来的**同一个 `ProxyForkMeta` 对象**匹配——被动录制不带 forkMeta，因此根本不进表。
+ */
+interface ForkWriteContext {
+  runId: string | null;
+  /** recorder 写入失败的受控文案（llm-proxy 为保护转发会吞掉异常，故在这里自己留痕） */
+  writeFailure: string | null;
+}
+
+/**
+ * 录制落盘面（`ProxyRunRecorder` 结构上即满足）。U4 用它做可注入边界，
+ * 以便确定性制造"主动重发等待期间被动录制先后写入"与"录制写入失败"两类交错。
+ */
+export interface ProxyRecorderSink {
+  write(recording: ProxyRecording, fork?: ProxyForkMeta): string;
 }
 
 export interface ProxyManagerDeps {
@@ -40,14 +63,19 @@ export interface ProxyManagerDeps {
   tracesDir: string;
   /** fetch 注入（测试 stub，零真实 API；缺省全局 fetch） */
   fetchImpl?: ProxyHandlerOptions["fetchImpl"];
+  /**
+   * recorder 工厂（缺省 = `new ProxyRunRecorder(tracesDir)`）。
+   * ⚠️ 只是测试接缝，不是授权开关：生产不传，行为与注入前逐字节一致。
+   */
+  newRecorder?: (tracesDir: string) => ProxyRecorderSink;
 }
 
 export class ProxyManager {
   private readonly keyStore: { lastKey?: string } = {};
   private server: { port: number; stop(): Promise<void> } | null = null;
   private handler: ProxyHandler | null = null;
-  /** 最近一次分叉写入的 run id（recorder 回调写回，fork 编排读取） */
-  private lastWrittenRunId: string | null = null;
+  /** 按 forkMeta 对象匹配的主动重发上下文（被动录制不入表） */
+  private readonly activeForks = new Map<ProxyForkMeta, ForkWriteContext>();
 
   constructor(private readonly deps: ProxyManagerDeps) {}
 
@@ -91,7 +119,9 @@ export class ProxyManager {
   }
 
   private async startServer(port: number, upstreamBaseUrl: string): Promise<void> {
-    const recorder = new ProxyRunRecorder(this.deps.tracesDir);
+    const recorder = (this.deps.newRecorder ?? ((dir: string) => new ProxyRunRecorder(dir)))(
+      this.deps.tracesDir,
+    );
     const proxyBaseUrl = `http://127.0.0.1:${port}/v1`;
     this.handler = createProxyHandler({
       upstreamBaseUrl,
@@ -99,7 +129,20 @@ export class ProxyManager {
       keyStore: this.keyStore,
       recorder: {
         record: (recording: ProxyRecording, fork?: ProxyForkMeta) => {
-          this.lastWrittenRunId = recorder.write(recording, fork);
+          // 只匹配"本次主动重发"的上下文：没有 forkMeta（被动录制）或不是登记中的
+          // fork 对象，都不碰任何 activeForks 条目——被动 ID 不会被借走
+          const context = fork === undefined ? undefined : this.activeForks.get(fork);
+          try {
+            const id = recorder.write(recording, fork);
+            if (context !== undefined) context.runId = id;
+          } catch (error) {
+            if (context !== undefined) {
+              context.writeFailure = error instanceof Error ? error.message : String(error);
+            }
+            // 原样抛出：llm-proxy 自行吞掉以保护转发（handler.ts:79）。失败事实已经
+            // 记在 context 上，因此主动重发既不会误报成功，也不会二次写同一份录制。
+            throw error;
+          }
         },
       },
       ...(this.deps.fetchImpl !== undefined ? { fetchImpl: this.deps.fetchImpl } : {}),
@@ -171,14 +214,17 @@ export class ProxyManager {
       throw e;
     }
 
-    // 4. 构造分叉请求经代理内部路径发起（走同一转发+录制路径，自动录为 fork run）
+    // 4. 构造分叉请求经代理内部路径发起（走同一转发+录制路径，自动录为 fork run）。
+    //    身份只认**本次 forkMeta 对象**匹配到的上下文——等待返回期间到达的被动录制
+    //    既不进这张表，也不能改写它的结论。
     const { body } = buildForkRequest(span.request, request.messages);
     const forkMeta: ProxyForkMeta = {
       parent: request.parentRunId,
       atSpan: request.atSpanId,
       editValue: request.messages,
     };
-    this.lastWrittenRunId = null;
+    const context: ForkWriteContext = { runId: null, writeFailure: null };
+    this.activeForks.set(forkMeta, context);
     try {
       const result = await this.handler.handle(buildForkContext(body, authorization), forkMeta);
       const recording = await result.recording;
@@ -189,10 +235,19 @@ export class ProxyManager {
     } catch (e) {
       if (e instanceof ProxyForkError) throw e;
       throw new ProxyForkError("PROXY_FORK_FAILED", `分叉重发失败：${(e as Error).message}`);
+    } finally {
+      this.activeForks.delete(forkMeta);
     }
-    if (this.lastWrittenRunId === null) {
+    if (context.writeFailure !== null) {
+      // 录制写失败 ⇒ 这条 fork 记录并不存在。宁可报失败，也不拿别的 run 的 id 冒充成功。
+      throw new ProxyForkError(
+        "PROXY_RECORDING_WRITE_FAILED",
+        `分叉响应已由代理转发，但本次录制写入失败：${context.writeFailure}`,
+      );
+    }
+    if (context.runId === null) {
       throw new ProxyForkError("PROXY_FORK_FAILED", "分叉请求已完成但未产生 run 文件");
     }
-    return { id: this.lastWrittenRunId };
+    return { id: context.runId };
   }
 }
