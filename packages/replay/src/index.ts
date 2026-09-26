@@ -6,6 +6,8 @@ export type {
 } from "./derive.js";
 export { replayRun } from "./replay-run.js";
 export type { ReplayRunOptions, ReplayRunResult } from "./replay-run.js";
+export { observeRunIdentity } from "./run-identity.js";
+export type { OnRunIdentified } from "./run-identity.js";
 export {
   derivePromptForkState,
   firstLlmCall,

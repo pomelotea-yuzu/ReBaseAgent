@@ -8,6 +8,8 @@ import { deriveReplayState } from "./derive.js";
 import type { ReplayEdit } from "./derive.js";
 import { assertNotIsolatedParent } from "./isolated-guard.js";
 import { loadParentChain, maxSpanSeq } from "./parent-chain.js";
+import { observeRunIdentity } from "./run-identity.js";
+import type { OnRunIdentified } from "./run-identity.js";
 
 /**
  * 时间旅行编排：把"编辑某步 tool.result 并从该步重跑"执行到落盘。
@@ -36,6 +38,12 @@ export interface ReplayRunOptions {
   outDir: string;
   /** LLM 客户端（测试注入 mock；缺省真调 config.baseURL） */
   llm?: LlmClient;
+  /**
+   * 可选的可信运行身份观察（U4 design D5）：本次 run.meta 实际写出后、首次 LLM 调用前
+   * 收到最终 run id，恰一次。只观察——不改 ID、不动门禁与文件语义；省略时行为逐字节不变，
+   * 观察者抛错也不成为新的失败原因。已报告的 ID 不因后续失败被撤销。
+   */
+  onRunIdentified?: OnRunIdentified;
 }
 
 export interface ReplayRunResult {
@@ -101,13 +109,19 @@ export async function replayRun(options: ReplayRunOptions): Promise<ReplayRunRes
     spanSeqStart: maxSpanSeq(records),
   });
   const forkRun: ForkRunMeta = { id, parent: parentId, fork: state.fork };
-  await runLoop(
-    config,
-    state.messages,
-    tracer,
-    tools,
-    llm ?? new OpenAiCompatClient(config),
-    forkRun,
-  );
+  // 身份观察必须在 runLoop（它才写 meta）之前挂上；收尾无论成功/抛错都解绑
+  const releaseIdentityWatch = observeRunIdentity(tracer, options.onRunIdentified);
+  try {
+    await runLoop(
+      config,
+      state.messages,
+      tracer,
+      tools,
+      llm ?? new OpenAiCompatClient(config),
+      forkRun,
+    );
+  } finally {
+    releaseIdentityWatch();
+  }
   return { id };
 }

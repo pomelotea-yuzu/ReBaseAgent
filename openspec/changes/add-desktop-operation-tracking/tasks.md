@@ -14,7 +14,7 @@
 
 ## 2. 可信身份的编排扩展
 
-- [ ] 2.1 在 replayRun options 接入可选 onRunIdentified，订阅最终 run.meta，隔离观察异常并释放订阅（<=2h）。验收（replay）：普通 result 编排暴露已创建身份 / 可选观察不改变执行结果。
+- [x] 2.1 在 replayRun options 接入可选 onRunIdentified，订阅最终 run.meta，隔离观察异常并释放订阅（<=2h）。验收（replay）：普通 result 编排暴露已创建身份 / 可选观察不改变执行结果。
 - [ ] 2.2 在 createIsolatedRun 接入底层 delegate 身份观察，覆盖被替换 ID、meta 前失败和归位失败（<=2h）。验收（replay）：隔离编排报告最终世界身份 / 拒绝和写入前失败没有运行身份。
 - [ ] 2.3 在 replayIsolatedRun 接入相同观察口，保留预检/授权/轮末和收尾语义（<=2h）。验收（replay）：隔离编排报告最终世界身份 / 拒绝和写入前失败没有运行身份 / 可选观察不改变执行结果。
 - [ ] 2.4 在 promptReplayRun 添加可选身份观察，覆盖三种既有字段和前置拒绝（<=2h）。验收（prompt-replay）：prompt 身份在后续失败时仍可关联 / prompt 前置拒绝不报告假身份 / prompt 观察者兼容且释放。
