@@ -8,16 +8,18 @@ import {
 } from "electron";
 import { CHANNELS } from "../shared/channels";
 import type { Envelope } from "../shared/ipc";
-import { DraftCloseFlow } from "./draft-close-flow";
+import { type CloseConfirmFacts, DraftCloseFlow, buildCloseConfirmText } from "./draft-close-flow";
 import { DraftCloseGuard } from "./draft-close-guard";
+import type { OperationRegistry } from "./operation-registry";
 
 /**
- * U3 关闭协商（design D6）的 electron 装配层：把 ipcMain / BrowserWindow 事件
- * 适配成 `DraftCloseGuard`（受限数据：webContentsId + frame routingId）与
- * `DraftCloseFlow`（关闭决策流），并负责「窗口创建时装配、销毁时解除监听」。
+ * U3 关闭协商（design D6）+ U4 任务 5.1/5.2 的 electron 装配层：把 ipcMain / BrowserWindow
+ * 事件适配成 `DraftCloseGuard`（受限数据：webContentsId + frame routingId）与
+ * `DraftCloseFlow`（关闭决策流），并把 **main 的操作真相源**（`OperationRegistry`）
+ * 接成两条端口——`setClosing` 与 `readMainFacts`。
  *
  * 本文件不被任何测试 import（electron 无法在 vitest 下加载）；
- * 校验逻辑在纯核心 `draft-close-guard.ts`、决策逻辑在纯核心 `draft-close-flow.ts`
+ * 校验逻辑在纯核心 `draft-close-guard.ts`、决策与文案逻辑在纯核心 `draft-close-flow.ts`
  * 中单测；实机行为由 §6 承载。
  */
 
@@ -40,29 +42,30 @@ function senderOf(event: IpcMainEvent | IpcMainInvokeEvent): {
   };
 }
 
-/** 原生确认文案（design D6 第 3/4 步：默认/取消 = 返回；不诊断存活状态） */
-function confirmOptions(
-  kind: "dirty" | "unknown",
-  pendingLoss: boolean,
-): { title: string; message: string; detail: string } {
-  const lossNote = pendingLoss
-    ? " 此外，先前会话的调试草稿可能已经丢失（该会话在退出或重载前未能完成核对）。"
-    : "";
-  if (kind === "dirty") {
-    return {
-      title: "退出 ReBaseAgent",
-      message: "有未放弃的调试草稿",
-      detail: `本轮会话中已输入的调试草稿在退出后将丢失，且无法恢复。要继续编辑请选择「返回」。${lossNote}`,
-    };
-  }
-  return {
-    title: "退出 ReBaseAgent",
-    message: "暂时无法确认草稿状态",
-    detail: `暂时无法确认草稿状态，不能确定是否有未放弃的编辑。选择「返回」可继续使用应用，稍后再次退出时会重新核对。${lossNote}`,
-  };
+/** 原生确认（草稿 + 活跃操作 + 配置变更合并成一次询问；文案判据在纯核心里单测） */
+async function showMergedConfirm(
+  win: BrowserWindow,
+  guard: DraftCloseGuard,
+  facts: CloseConfirmFacts,
+): Promise<"return" | "quit"> {
+  const text = buildCloseConfirmText(facts, guard.hasPendingLoss());
+  const { response } = await dialog.showMessageBox(win, {
+    type: "warning",
+    buttons: ["返回", text.quitLabel],
+    defaultId: 0,
+    cancelId: 0,
+    noLink: true,
+    title: text.title,
+    message: text.message,
+    detail: text.detail,
+  });
+  return response === 1 ? "quit" : "return";
 }
 
-export function attachDraftCloseGuard(win: BrowserWindow): DraftCloseGuardHandle {
+export function attachDraftCloseGuard(
+  win: BrowserWindow,
+  operations: OperationRegistry,
+): DraftCloseGuardHandle {
   let flow: DraftCloseFlow | null = null;
   const guard = new DraftCloseGuard({
     // did-finish-load 后把新文档会话 id 推给 renderer；推送可能早于渲染层订阅，
@@ -100,18 +103,7 @@ export function attachDraftCloseGuard(win: BrowserWindow): DraftCloseGuardHandle
           // 窗口可能正在销毁——查询发不出，决策流将走 unknown 降级（4.5 超时兜底）
         }
       },
-      showConfirm: async (kind) => {
-        const opts = confirmOptions(kind, guard.hasPendingLoss());
-        const { response } = await dialog.showMessageBox(win, {
-          type: "warning",
-          buttons: ["返回", "退出并丢弃草稿"],
-          defaultId: 0,
-          cancelId: 0,
-          noLink: true,
-          ...opts,
-        });
-        return response === 1 ? "quit" : "return";
-      },
+      showConfirm: (facts) => showMergedConfirm(win, guard, facts),
       closeWindow: () => {
         win.close();
       },
@@ -121,6 +113,17 @@ export function attachDraftCloseGuard(win: BrowserWindow): DraftCloseGuardHandle
         } catch {
           // 同 onQueryReleased：窗口销毁中，无需释放通知
         }
+      },
+      // U4 5.1：closing 标记落在**操作真相源**上——协商期间 main 拒绝新主动执行与配置变更
+      setClosing: (closing) => {
+        operations.setClosing(closing);
+      },
+      readMainFacts: () => {
+        const slot = operations.slotState();
+        return {
+          activeOperationId: slot.activeOperationId,
+          configurationBusy: slot.configurationBusy,
+        };
       },
     },
     // 会话丢失遗留标志参与 clean 判定（4.7）；用户返回时由 flow 确认清除
@@ -159,6 +162,8 @@ export function attachDraftCloseGuard(win: BrowserWindow): DraftCloseGuardHandle
   };
   const onClosed = (): void => {
     guard.detach(webContentsId);
+    // U4 5.4：窗口已销毁 ⇒ 协商随其结束，closing 标记必须解除（否则封住后续会话）
+    flow?.onWindowClosed();
     disposeIpc();
   };
 

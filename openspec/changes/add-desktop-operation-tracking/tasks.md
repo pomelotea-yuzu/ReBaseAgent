@@ -50,10 +50,31 @@
 
 ## 5. U3 关闭协商整合
 
-- [ ] 5.1 DraftCloseFlow 注入 registry，进入协商先置 closing，clean 判定联合 main 槽/配置变更（<=2h）。验收：最新 clean 应答才允许直接关闭 / 无草稿的活跃操作也需确认 / 草稿与操作合并且关闭竞争不漏保护。
-- [ ] 5.2 合并原生确认文案与活跃事实，返回仅解除关闭/输入锁，保留 owner 槽；显式退出不伪造取消（<=2h）。验收：有草稿时关闭可返回或明确退出 / renderer 失联或应答无效仍有退出确认 / 无草稿的活跃操作也需确认。
-- [ ] 5.3 补退出竞争及 U3 回归测试：新提交/settled/重载/慢应答/重复关闭/旧 sender（<=2h）。验收：慢响应降级后可取消并重新核对 / 重载不能用空仓库抹掉旧会话未知状态 / 旧会话伪造发送者和乱序消息不影响关闭 / 重复关闭取消和迟到应答不会重入。
-- [ ] 5.4 保持输入同步/焦点/系统退出边界，验证 closing 标记取消与异常清理（<=2h）。验收：退出输入锁保留已接收文字且不重放按键 / 系统会话结束不沿用普通退出承诺 / 草稿与操作合并且关闭竞争不漏保护。
+- [x] 5.1 DraftCloseFlow 注入 registry，进入协商先置 closing，clean 判定联合 main 槽/配置变更（<=2h）。验收：最新 clean 应答才允许直接关闭 / 无草稿的活跃操作也需确认 / 草稿与操作合并且关闭竞争不漏保护。
+  证据：`draft-close-flow.ts` 新增 `MainCloseFacts`/`evaluateCloseOutcome` 与两条必选端口
+  （`setClosing`、`readMainFacts`）——顺序固定为 closing → 查询 → 应答 → **最后**读槽；
+  `draft-close-attach.ts` 把端口接到**真 registry**（`operations.setClosing` / `operations.slotState()`），
+  `index.ts` 的 `operations` 提到模块作用域并穿进 `createWindow`。
+  用例 `test/draft-close-flow.test.ts`「U4 5.1」9 条（真 registry 接线：询问期间新提交被拒且留
+  notAccepted 封禁 / clean+占槽 ⇒ 只弹确认不关窗 / 顺序契约由 `h.events` 逐字钉住）。
+  变异 5 处全捕获（读槽提前到查询前 1 红、摘掉置 closing 7 红、返回不解除 5 红、
+  忽略 configurationBusy 2 红、忽略活跃槽 4 红）。
+- [x] 5.2 合并原生确认文案与活跃事实，返回仅解除关闭/输入锁，保留 owner 槽；显式退出不伪造取消（<=2h）。验收：有草稿时关闭可返回或明确退出 / renderer 失联或应答无效仍有退出确认 / 无草稿的活跃操作也需确认。
+  证据：`buildCloseConfirmText`（纯函数）把「草稿档 + 活跃操作 + 配置变更 + 会话丢失遗留」合进**一次**
+  文案，退出按钮按档改文案；`test/draft-close-flow.test.ts`「U4 5.2」5 条 + 返回路径断言
+  `registry` 槽仍 busy、登记仍 running；「明确退出不伪造取消」用例断言 quit 后 record 仍 `running`
+  且 `activeId` 未变。变异 1 处捕获（摘掉活跃操作说明 ⇒ 文案用例判红）。
+- [x] 5.3 补退出竞争及 U3 回归测试：新提交/settled/重载/慢应答/重复关闭/旧 sender（<=2h）。验收：慢响应降级后可取消并重新核对 / 重载不能用空仓库抹掉旧会话未知状态 / 旧会话伪造发送者和乱序消息不影响关闭 / 重复关闭取消和迟到应答不会重入。
+  证据：U3 既有 4.4/4.5/4.6/4.7 全部**在新端口形状下原样复跑通过**（慢应答降级后重新核对、
+  旧 requestId 被拒、伪造 sender 由 `draft-close-guard.test.ts` 承载）；新增「重载后 clean +
+  main 仍占槽 ⇒ 合并确认」「连续关闭共享同一协商（closing 只置一次）」。
+  desktop 全量 **103 文件 / 1822 用例 / 0 失败**。
+- [x] 5.4 保持输入同步/焦点/系统退出边界，验证 closing 标记取消与异常清理（<=2h）。验收：退出输入锁保留已接收文字且不重放按键 / 系统会话结束不沿用普通退出承诺 / 草稿与操作合并且关闭竞争不漏保护。
+  证据：`run()` 的 try/catch ⇒ 确认端口抛错时解除 closing + 取消挂起查询 + 发释放通知
+  （否则 renderer 永久锁死），用例「确认端口抛错…」钉住；窗口销毁经
+  `flow.onWindowClosed()` 解除 closing（源码契约断言 `flow?.onWindowClosed()`）。
+  输入锁/焦点与系统会话结束面**未改动**（`draft-close-client.test.ts` 与 4.4 源码契约仍绿），
+  真机复核归 §6.7。
 
 ## 6. 实机与受控故障验收
 

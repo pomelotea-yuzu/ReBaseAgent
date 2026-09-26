@@ -87,6 +87,13 @@ let mainWindow: BrowserWindow | null = null;
 /** U3 关闭协商 guard（§4）：窗口创建时装配；4.4 起在 close/app.quit 路径消费 */
 let draftClose: DraftCloseGuardHandle | null = null;
 /**
+ * U4（design D1）：操作登记与主动执行槽在 **main 生命周期**创建一次，全窗口共用。
+ * renderer 的文档会话 id（U3 关闭协商）与这里的 epoch 各有职责、不能互代：
+ * 同一个 main 内重载 renderer 不会换 epoch，main 重启才会。
+ * U4 5.1 起关闭协商也要消费它（closing 标记 + 活跃槽事实），故不再留在 bootstrap 局部。
+ */
+const operations = new OperationRegistry();
+/**
  * U4：本应用创建的窗口 → **主 frame** routingId 的取值函数。
  * 导航会更换 frame 实例，所以存的是取值函数而不是快照值；窗口销毁时移除。
  * 判据只用于「这条 IPC 是不是我创建的窗口的主 frame 发的」——子 frame、其他
@@ -124,7 +131,8 @@ function createWindow(): void {
     trustedMainFrameOf.delete(sourceWebContentsId);
   });
   // U3 关闭协商：装配受限协议（会话轮换 / 握手 / sender 校验）；销毁时自动解绑
-  draftClose = attachDraftCloseGuard(win);
+  // U4 5.1：一并接进操作登记（协商期间 closing 封住主动执行与配置变更，clean 判定读活跃槽）
+  draftClose = attachDraftCloseGuard(win, operations);
 
   if (process.env.ELECTRON_RENDERER_URL) {
     void win.loadURL(process.env.ELECTRON_RENDERER_URL);
@@ -204,12 +212,6 @@ async function bootstrap(): Promise<void> {
   const settings = new SettingsStore({ dataDir, cipher });
   const repository = new RunRepository(tracesDir);
   const proxy = new ProxyManager({ repository, settings, tracesDir });
-  /**
-   * U4：操作登记与主动执行槽在 **main 生命周期**创建一次，全窗口共用（design D1）。
-   * renderer 的文档会话 id（U3 关闭协商）与这里的 epoch 各有职责、不能互代：
-   * 同一个 main 内重载 renderer 不会换 epoch，main 重启才会。
-   */
-  const operations = new OperationRegistry();
   /**
    * 冒烟钩子（B 3.2）：显式给出源目录时跳过原生目录选择框。原生对话框无法被
    * CDP/E2E 驱动，而"目录选择 → 隔离创建"又是必须真跑的链路，故留一个环境变量入口。
