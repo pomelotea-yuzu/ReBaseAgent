@@ -573,6 +573,19 @@ export class OperationRegistry {
     return { accepting: true };
   }
 
+  /**
+   * 配置写通道（settings 保存/清除、代理启停）的互斥判据（design D3）。
+   *
+   * 与 `isAccepting()` 的三条相同，但**这里把"槽被主动操作占用"也算拒绝**：
+   * 判据与写入之间不能有 await，否则"配置在操作途中被换掉"就又变成两套事实源。
+   */
+  canChangeConfiguration(): { ok: true } | { ok: false; reason: NotAcceptedReason } {
+    if (this.closing) return { ok: false, reason: "closing" };
+    if (this.configurationBusy) return { ok: false, reason: "configuration_busy" };
+    if (this.activeOperationId !== null) return { ok: false, reason: "busy" };
+    return { ok: true };
+  }
+
   // ---------------------------------------------------------------------------
 
   private timestamp(): string {

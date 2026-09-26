@@ -9,8 +9,6 @@ import {
   ModelAbRequestSchema,
   PromptForkRequestSchema,
   ProxyForkRequestSchema,
-  ProxyToggleInputSchema,
-  SettingsInputSchema,
   WorkspaceInspectRequestSchema,
   WorkspaceReadFileRequestSchema,
   fail,
@@ -32,6 +30,12 @@ import type {
   WorkspaceReadFileResult,
 } from "../shared/ipc";
 import type { OperationStatusResult, ReconcileResult } from "../shared/operations";
+import {
+  type ConfigEndpointDeps,
+  clearRunSettings,
+  toggleProxy,
+  writeRunSettings,
+} from "./config-endpoints";
 import {
   ForkError,
   runFork,
@@ -91,6 +95,13 @@ export interface IpcDeps {
 export function registerIpc(deps: IpcDeps): void {
   const { repository, settings, execCwd, dataDir, proxy, operations, isTrustedSender } = deps;
   const endpointDeps: OperationEndpointDeps = { registry: operations, isTrustedSender };
+  /** 配置写通道（settings 保存/清除、代理启停）共用同一份判据与锁（tasks 3.5/3.6） */
+  const configDeps: ConfigEndpointDeps = {
+    settings,
+    proxy,
+    registry: operations,
+    isTrustedSender,
+  };
   const pickDirectory =
     deps.pickDirectory ??
     (async (): Promise<string | null> => {
@@ -464,31 +475,18 @@ export function registerIpc(deps: IpcDeps): void {
 
   ipcMain.handle(
     CHANNELS.settingsSave,
-    async (
-      _event,
+    (
+      event,
       input: unknown,
-    ): Promise<ReturnType<typeof ok<{ configured: true }>> | ReturnType<typeof fail>> => {
-      const parsed = SettingsInputSchema.safeParse(input);
-      if (!parsed.success) {
-        return fail("INVALID_ARGUMENT", parsed.error);
-      }
-      try {
-        settings.save(parsed.data);
-        return ok({ configured: true });
-      } catch (e) {
-        return fail("SETTINGS_SAVE_FAILED", e);
-      }
-    },
+    ): ReturnType<typeof ok<{ configured: true }>> | ReturnType<typeof fail> =>
+      writeRunSettings(configDeps, senderOf(event), input),
   );
 
-  ipcMain.handle(CHANNELS.settingsClear, (): ReturnType<typeof ok<{ configured: false }>> => {
-    try {
-      settings.clear();
-      return ok({ configured: false });
-    } catch (e) {
-      return fail("SETTINGS_CLEAR_FAILED", e);
-    }
-  });
+  ipcMain.handle(
+    CHANNELS.settingsClear,
+    (event): ReturnType<typeof ok<{ configured: false }>> | ReturnType<typeof fail> =>
+      clearRunSettings(configDeps, senderOf(event)),
+  );
 
   // -------------------------------------------------------------------------
   // proxy —— 本地录制代理（启停即保存；key 只回 hasKey 布尔）
@@ -500,20 +498,8 @@ export function registerIpc(deps: IpcDeps): void {
 
   ipcMain.handle(
     CHANNELS.proxyToggle,
-    async (
-      _event,
-      input: unknown,
-    ): Promise<ReturnType<typeof ok<ProxyState>> | ReturnType<typeof fail>> => {
-      const parsed = ProxyToggleInputSchema.safeParse(input);
-      if (!parsed.success) {
-        return fail("INVALID_ARGUMENT", parsed.error);
-      }
-      try {
-        return ok(await proxy.toggle(parsed.data));
-      } catch (e) {
-        return fail("PROXY_START_FAILED", e);
-      }
-    },
+    (event, input: unknown): Promise<ReturnType<typeof ok<ProxyState>> | ReturnType<typeof fail>> =>
+      toggleProxy(configDeps, senderOf(event), input),
   );
 
   ipcMain.handle(
