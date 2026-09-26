@@ -143,7 +143,16 @@
   `状态通道不可用保持未知`、`非法操作响应不能解除门禁` 由 §4 的 store 用例
   （M-N/M-Q/M-R/M-S/M-AF + 本批新增 6 条）承载；§7.2 evidence-index 按此分层引用，不得写成实机已测。
   变异：M-65A（查找口忽略 operationId）**无牙**（记录保留），M-65B（摘掉那支持线）3 条判红。
-- [ ] 6.6 实测同 main renderer reload 与真正 main 重启，记录 epoch/槽/真实调用次数和旧响应行为（<=2h）。验收：同 main 重载恢复操作 / 新 main 会话不伪造旧操作结局 / 乱序快照不回退新状态。
+- [x] 6.6 实测同 main renderer reload 与真正 main 重启，记录 epoch/槽/真实调用次数和旧响应行为（<=2h）。验收：同 main 重载恢复操作 / 新 main 会话不伪造旧操作结局 / 乱序快照不回退新状态。
+  证据：`docs/reviews/2026-09-27-u4-66/README.md`（**4 tag / 82 检查 / 0 失败**，整跑 4/4，零产品代码改动）·
+  采集 `apps/desktop/scripts/u4-66-cdp.cjs`（`probe` / `reload-running` / `out-of-order` / `main-restart`）·
+  驱动 `.workbuddy/u4/u4-66/run-all.cjs`。真重启走 `u2-dev-host.cjs --stop`（按 pid 文件杀进程树）⇒
+  受控服务在 tag 进程内不受影响，重启前后计数可直接比对。
+  两条分层见 README 第三节：status 载荷非法/失联仍归 §4（桥接面不可包装）；跨 epoch 的在飞关联
+  在真机凑不出前提。变异 5 处 M-66A…E，其中 **M-66E 推翻"旧快照真机不可诱发"的初判**
+  （摘掉 status 的代次/版本守卫 ⇒ 真机 2 条判红：界面被压回 `v10/running` 而 main 已到 `v11/settled`）。
+  ⚠️ 采集面硬教训：**`Page.reload` 偶发不换文档**（同一 ws 上挂着 25 s 不返回的 awaitPromise 时出现过一次）
+  ⇒ `reloadAndWait()` 现挂 `window.__u466Doc` 活体标记，没换就抛错——M-66D 首轮 15/15 全绿正是判据空转。
 - [ ] 6.7 实测标题栏/Alt+F4/app.quit 下 dirty+running、clean+running、无应答及返回；验证输入/活跃任务保留（<=2h）。验收：无草稿的活跃操作也需确认 / 草稿与操作合并且关闭竞争不漏保护 / 退出输入锁保留已接收文字且不重放按键 / 重复关闭取消和迟到应答不会重入。
 - [ ] 6.8 实测 800px、200% 缩放和键盘焦点；回归 U1 阅读/U2 文件/U3 草稿，验证状态/核对只读及源父兄弟/既有附件哈希不变（<=2h）。验收：操作入口在窄窗口和键盘下可达 / 核对结果只由用户明确打开 / 会话登记不泄漏输入和凭据 / 只读入口和被动录制不占主动槽。
 
