@@ -7,6 +7,7 @@ import { loadForkParent } from "./fork-parent.js";
 import { derivePromptForkState, scalarParams } from "./prompt-fork.js";
 import type { DerivedPromptForkState, ModelParamsEdit, ModelParamsValue } from "./prompt-fork.js";
 import { newForkRunId } from "./replay-run.js";
+import { observeRunIdentity } from "./run-identity.js";
 import { warnSilentIgnores } from "./silent-ignore.js";
 import type { SilentIgnoreWarning } from "./silent-ignore.js";
 
@@ -69,6 +70,19 @@ export interface ModelArmSpec {
   experimentId?: string;
 }
 
+/**
+ * 按臂的可信身份观察（U4 design D5）：某臂**实际写出** run.meta 后、该臂首次 LLM 前通知一次。
+ * `index` 是臂在原顺序中的下标——桌面登记据此把多臂分别关联到各自记录，
+ * 不靠"批次结束后一起返回"（那会让首臂失败时的后续臂身份丢失）。
+ */
+export interface ArmRunIdentity {
+  readonly experimentId: string;
+  readonly index: number;
+  readonly id: string;
+}
+
+export type OnArmRunIdentified = (info: ArmRunIdentity) => void;
+
 export interface ModelReplayRunManyOptions {
   /** 直接父 run id（已封存、含 config_hash、首次 llm.call 含字符串 system 消息；proxy 与引擎 run 同判据） */
   parentId: string;
@@ -91,6 +105,11 @@ export interface ModelReplayRunManyOptions {
   signal?: AbortSignal | null;
   /** LLM 客户端（测试注入；可给工厂以便每臂不同剧本）；缺省真调 config.baseURL */
   llm?: LlmClient | ((arm: { index: number; config: RunConfig }) => LlmClient);
+  /**
+   * 可选的按臂身份观察：只观察——不改臂顺序、执行能力、费用确认、参数透传、
+   * 失败继续与比较限制；省略时行为逐字节不变，dry-run 一律不通知（零运行身份）。
+   */
+  onArmRunIdentified?: OnArmRunIdentified;
 }
 
 export interface ModelArmPlan {
@@ -115,7 +134,10 @@ export interface ModelArmResult {
   index: number;
   model: string;
   params: Record<string, Scalar>;
-  /** 成功落盘的 fork run id；dry-run、未开始或被拒绝为 null */
+  /**
+   * 该臂的真实 run id：dry-run、未开始、或 meta 尚未写出即为 null。
+   * **本层抛错也保留**——只要 meta 已写出，这条记录就在磁盘上，失败结局不能把身份抹掉。
+   */
   id: string | null;
   /** 该臂的失败原因；成功为 null */
   error: string | null;
@@ -430,9 +452,16 @@ export async function modelReplayRunMany(
     };
 
     const id = newForkRunId();
+    // 已写出的真实身份（观察所得）：本臂后续以任何方式失败都不撤销它
+    let observedId: string | null = null;
+    let releaseIdentityWatch = (): void => {};
     try {
       const tracer = new JsonlTracer(join(outDir, `${id}.jsonl`));
       const forkRun: ForkRunMeta = { id, parent: parentId, fork };
+      releaseIdentityWatch = observeRunIdentity(tracer, (runId) => {
+        observedId = runId;
+        options.onArmRunIdentified?.({ experimentId, index: p.index, id: runId });
+      });
       // provider 错误不会抛出——runLoop 把 error outcome 记进 trace 并正常返回（错误即数据）。
       // 因此"这一臂失败"要看终止事件，而不是等异常；否则失败臂会被当成成功。
       // 同时包一层 client 把 LLM 的原始错误留下来：runLoop 只把它打到控制台，不外传。
@@ -471,10 +500,12 @@ export async function modelReplayRunMany(
         index: p.index,
         model: p.arm.model,
         params: params ?? {},
-        id: null,
+        // meta 已写出 ⇒ 身份保留（调用方仍能定位到这条失败记录）；未写出才为 null
+        id: observedId,
         error: e instanceof Error ? e.message : String(e),
       });
     } finally {
+      releaseIdentityWatch();
       unlink();
     }
   }

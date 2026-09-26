@@ -49,12 +49,14 @@ export {
   modelReplayRunMany,
 } from "./model-replay-run.js";
 export type {
+  ArmRunIdentity,
   ModelAbErrorCode,
   ModelArmPlan,
   ModelArmResult,
   ModelArmSpec,
   ModelReplayRunManyOptions,
   ModelReplayRunManyResult,
+  OnArmRunIdentified,
   ToolPolicy,
 } from "./model-replay-run.js";
 export {
