@@ -1,6 +1,6 @@
 # U4 实施任务
 
-当前仅完成 change 编写，以下实施与验收任务全部待办。基线为已归档 U1/U2/U3；旧走查和文档校验不算功能证据。每项预算 <=2h，超过先拆分。场景引用为对应 delta 的逐字标题：默认 [desktop-ui](specs/desktop-ui/spec.md)，包层另标 [replay](specs/replay/spec.md)、[prompt-replay](specs/prompt-replay/spec.md)、[model-experiments](specs/model-experiments/spec.md)。实施任务包含相应自动化断言，实机与完整门禁另列。
+实施进度：**§1–§5 与 §6.1 已完成**（下列已勾项各附证据摘要），§6.2–6.8 与 §7.1–7.2 待办。基线为已归档 U1/U2/U3；旧走查和文档校验不算功能证据。每项预算 <=2h，超过先拆分。场景引用为对应 delta 的逐字标题：默认 [desktop-ui](specs/desktop-ui/spec.md)，包层另标 [replay](specs/replay/spec.md)、[prompt-replay](specs/prompt-replay/spec.md)、[model-experiments](specs/model-experiments/spec.md)。实施任务包含相应自动化断言，实机与完整门禁另列。
 
 ## 1. 操作类型与 main 登记
 
