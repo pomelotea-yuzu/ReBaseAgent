@@ -1,7 +1,7 @@
 # ci-gates Specification
 
 ## Purpose
-定义 ReBaseAgent 仓库的自动化质量门禁：在云端 CI（首期为 Gitee Go 流水线；GitHub Actions 待账号解封后补配，两者调用同一条根级校验命令）上执行构建、类型检查、测试、代码风格与规范一致性校验，全程零密钥、零网络模型调用。
+定义 ReBaseAgent 仓库的自动化质量门禁：在 Gitee Go 与 GitHub Actions 上执行构建、类型检查、测试、代码风格与规范一致性校验，两者调用同一条根级校验命令，全程零密钥、零网络模型调用。
 
 ## Requirements
 

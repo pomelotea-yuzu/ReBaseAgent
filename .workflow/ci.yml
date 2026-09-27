@@ -3,8 +3,8 @@
 # 校验逻辑的唯一事实源在根 package.json 的 check:* 脚本 —— 本流水线
 # 只做三件事：装环境、装依赖、调用 check:ci。不要在这里另写一套校验逻辑。
 #
-# 平台说明：首期 CI 载体为 Gitee Go（GitHub 账号受限申诉中）。
-# GitHub 解封后补 .github/workflows/ci.yml 调同一条 check:ci，两者共存。
+# 平台说明：Gitee Go 与 GitHub Actions 共用根级 check:ci。
+# Gitee 保留为镜像门禁，GitHub Actions 负责 GitHub 仓库的 push/PR 检查。
 #
 # ⚠️ 首跑教训（2026-09-12）：build@nodejs 插件对 nodeVersion 的支持清单
 # 不可靠（v20.15.0 被静默跳过，容器内无 node/npm，仅自带 standalone pnpm），
