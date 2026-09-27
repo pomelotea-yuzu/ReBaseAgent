@@ -190,11 +190,12 @@ interface AppState {
   operations: OperationSession;
 
   /**
-   * 分叉重跑的**请求**状态（`runs:fork` / `runs:promptFork` 写通道）。
-   * U5 任务 3.2 起 result / prompt 两条入口 ok 后回到 `idle`——"success" 是"响应即成功"的旧形态；
-   * 仅剩 `proxyFork`（messages）还在写它，待任务 3.3 一并去掉。运行结局另由可信身份核实。
+   * 分叉类入口的**请求**状态（`runs:fork` / `runs:promptFork` / `proxy:fork` 共用一条写通道）。
+   *
+   * U5 任务 3.1–3.3：取值里没有"成功"——三条入口在 ok 后都回到 `idle`，
+   * 因为响应只证明"这次请求明确返回了"；运行结局另由可信身份核实（`resultReads`）给出。
    */
-  forking: "idle" | "in_progress" | "success" | "error";
+  forking: "idle" | "in_progress" | "error";
   /** 分叉失败的展示信息（来自信封 error） */
   forkError: string | null;
   /** 分叉失败的错误码（渲染层据此给针对性提示，如未配置） */
@@ -517,8 +518,9 @@ interface AppState {
     submission?: DraftSubmission,
   ) => Promise<boolean>;
   /**
-   * 模型 A/B：dryRun = true 只校验并返回计划（不联网、不写文件）；
-   * 真实执行成功后刷新列表（新 run 带实验组徽章），返回各臂计划与结果。
+   * 模型 A/B：dryRun = true 走**只读预览通道**（不占槽、不登记、不联网、不写文件，返回计划）；
+   * 真实执行只交代请求事实并返回信封里的计划/结果 —— U5 任务 3.3 起不再在入口刷列表，
+   * 各臂结局由终态消费按登记的 `runIds`/`arms` 逐条核实（返回的 ids 不是"哪条臂成功"的结论）。
    */
   modelAb: (
     parentRunId: string,
@@ -601,7 +603,11 @@ interface AppState {
   /** 勾选/取消对照（上限 4，超出不加入并给出提示） */
   toggleCompare: (runId: string) => void;
   clearCompare: () => void;
-  /** 代理分叉（编辑 messages 经代理重发）；成功刷新列表并自动选中新 run */
+  /**
+   * 代理 run 的 messages 单请求重发（`proxy:fork`）：只交代**请求事实**。
+   * U5 任务 3.3：与 result / prompt 同形——不再"成功刷新列表并自动选中新 run"；
+   * 列表刷新与按可信 ID 核实归终态消费点，是否进入新 run 概览归导航意图（任务 3.4）。
+   */
   proxyFork: (
     parentRunId: string,
     atSpanId: string,
@@ -1741,8 +1747,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
     set({ modelAbInFlight: false });
     if (dryRun) return envelope.data;
-    // 真实执行：刷新列表（各臂新 run 带实验组徽章）；多臂不自动聚焦，由用户在树里挑
-    await get().loadRuns();
+    // U5 任务 3.3：真实执行也不在入口刷列表——各臂的新 run 由终态消费按**登记的 runIds**
+    // 刷一次、逐条核实；多臂从不自动聚焦（旧实现连 `selectRun` 都没有，只多刷了一次列表）。
+    // 返回的 `data`（信封 ids / 计划）只是请求事实，不是"哪条臂成功"的结论（design D4）。
     return envelope.data;
   },
 
@@ -1868,9 +1875,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       });
       return false;
     }
-    set({ forking: "success" });
-    await get().loadRuns();
-    await get().selectRun(envelope.data.id);
+    // U5 任务 3.3：messages 重发也不消费响应——旧实现 `forking: "success"` + `loadRuns()` +
+    // `selectRun(信封里的 id)`。delta 对这条入口的改判：执行结束 SHALL 刷新列表并按可信身份核实结果，
+    // 自动导航仅在本次流程意图仍有效时进行（任务 3.4），所以这里只把请求标记复位。
+    set({ forking: "idle" });
     return true;
   },
 }));
