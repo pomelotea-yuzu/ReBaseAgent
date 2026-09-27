@@ -17,7 +17,7 @@ engineering / collab / competition / reviews），原 9 个并列目录归组；
 
 | 目录 | 内容 |
 |---|---|
-| [`guide/`](guide/getting-started.md) | **快速开始**：下载/源码运行、三条上手路径、核心概念 1 分钟 |
+| [`guide/`](guide/getting-started.md) | **快速开始**：下载/源码运行、四条上手路径、核心概念 1 分钟 |
 | [`architecture/`](architecture/overview.md) | **架构总览**：monorepo 包结构、数据流、设计原则 |
 | [`development/`](development/workflow.md) | **开发工作流**：质量门禁 `check:ci`、OpenSpec 流程、文档约定 |
 
@@ -25,9 +25,13 @@ engineering / collab / competition / reviews），原 9 个并列目录归组；
 
 | 入口 | 内容 |
 |---|---|
+| [`project-status.md`](development/project-status.md) | **09/27 项目状态与版本依据**：U1–U4 已归档、U5 实施中；K1 发布记录、产物哈希及源码/发行包边界 |
 | [`research/`](research/README.md) | Agent 调试方案对照、来源记录、重跑一致性实验设计 |
 | [`replay-state-consistency.md`](architecture/replay-state-consistency.md) | 工具观察编辑、整轮文件快照与分支隔离的机制和边界 |
-| [`governance-and-maintenance.md`](development/governance-and-maintenance.md) | 贡献闭环、维护职责、发布要求与持续维护安排 |
+| [`governance-and-maintenance.md`](development/governance-and-maintenance.md) | 维护职责、Issue 状态与响应、PR 复审、贡献许可、发布与交接规则；未落实事项单列 |
+| [`maintenance-policy.md`](development/maintenance-policy.md) | 版本与平台维护范围、依赖更新、数据兼容和停止维护说明 |
+| [`release-and-handoff.md`](development/release-and-handoff.md) | 发布与交接指南：固定候选、独立输出、静态检查与实包验收、双端发布和人员交接 |
+| [`third-party-notices.md`](development/third-party-notices.md) | 第三方声明的范围、组件记录、交付形式与完成判据；不代表实际发行核查已完成 |
 | [`audits/`](development/audits/README.md) | 依赖许可证核查报告、机器清单与只读生成器 |
 
 ## 工程过程资产
@@ -45,6 +49,7 @@ engineering / collab / competition / reviews），原 9 个并列目录归组；
 | 文件 | 说明 |
 |---|---|
 | [2026-shanghai-os-contest-plan.md](competition/2026-shanghai-os-contest-plan.md) | **2026 上海开源软件应用创新大赛方案**：U1–U8 验收后录制，目标 10/02 开发收口、10/03 实包验收、10/04–10/05 录制、10/06 复核，争取 **10/07 全部材料实际提交**；含 Gitee 交付、视频主线及材料清单 |
+| [2026-09-27-evaluation-gap-analysis.md](competition/2026-09-27-evaluation-gap-analysis.md) | **四项评审维度证据矩阵**：技术创新、场景落地、开源治理、长期发展当前证据、缺口、边界和分步补强顺序 |
 
 ### engineering/ — 执行方案、报告与交接单
 
@@ -58,8 +63,8 @@ engineering / collab / competition / reviews），原 9 个并列目录归组；
 | `2026-09-13-target-app-concept.md` | 第三个项目（代号待定）· 概念提案 v0.1 |
 | [`2026-09-15-usability-improvement-plan.md`](engineering/plans/2026-09-15-usability-improvement-plan.md) | **可用性完善规划**：独立推进定位、修改与双运行对比 |
 | [`2026-09-19-ui-layout-discussion.md`](engineering/plans/2026-09-19-ui-layout-discussion.md) | **UI 布局与交互设计 V0.1**：完整工作台及状态规范 |
-| [`2026-09-15-open-source-growth-plan.md`](engineering/plans/2026-09-15-open-source-growth-plan.md) | **开源传播与 Gitee 首轮推广规划（09-23 更新）** |
-| [`2026-09-16-isolated-rerun-roadmap.md`](engineering/plans/2026-09-16-isolated-rerun-roadmap.md) | **隔离重跑演进路线（09-23 同步）**：§9.1 打包节点、§10 竞品对照及 Gitee 宣发 |
+| [`2026-09-15-open-source-growth-plan.md`](engineering/plans/2026-09-15-open-source-growth-plan.md) | **开源传播与 Gitee 首轮推广规划（09/27 校准）**：已发布版本与后续试用安排分列，本轮仅修改文档 |
+| [`2026-09-16-isolated-rerun-roadmap.md`](engineering/plans/2026-09-16-isolated-rerun-roadmap.md) | **隔离重跑演进路线（09/27 校准）**：当前研发与版本进度、§9.1 打包节点；§10 实验保留为后续设计，不在本轮执行 |
 | `2026-09-16-a3-split-plan.md` | **A3 拆分方案**：A/B/C 三段任务迁移表与边界判据 |
 
 **reports/**（交付与执行报告）：
@@ -71,7 +76,8 @@ engineering / collab / competition / reviews），原 9 个并列目录归组；
 | [`2026-09-17-k0-experience-build.md`](engineering/reports/2026-09-17-k0-experience-build.md) | **K0 体验包构建记录**：`0.3.0-k0` 产物与哈希、实机验收。**K0 验收通过的权威记录** |
 | `2026-09-17-v0.3.0-k0-release-notes.md` | `v0.3.0-k0` 预览版发布说明 |
 | [`2026-09-21-a3-experience-build.md`](engineering/reports/2026-09-21-a3-experience-build.md) | A3 阶段预览包 `0.3.0-k0-a3.1` 构建记录 |
-| [`2026-09-25-k1-gitee-template.md`](engineering/reports/2026-09-25-k1-gitee-template.md) | 🔧 **发 release 就抄这份**：`v0.3.0-k1` 线上定稿（4839 字符，已过审），正文逐字取自 Gitee API，改版本号/附件名/大小/SHA-256/链接即可。文件头带 7 条写法约定（禁演进宣告段、禁评价式措辞、必须条目体、禁内部发布流程自述、禁图片等）。（同目录另两篇 `…-k0-a3.1-…-`、`…-k1-release-notes.md` 未建索引行）
+| [`2026-09-24-v0.3.0-k1-release-notes.md`](engineering/reports/2026-09-24-v0.3.0-k1-release-notes.md) | K1 内部发布草稿，保留当时未发布及验收边界；后续状态见 09/25 记录 |
+| [`2026-09-25-k1-gitee-template.md`](engineering/reports/2026-09-25-k1-gitee-template.md) | **K1 发布正文存档**：09/25 过审记录、产物与哈希。历史正文含已过时主张，不直接复用；新稿按发布指南核对 |
 
 **briefs/**（交接单）：`2026-09-10-ttft-fix-review-brief.md`、`2026-09-10-ttft-fix-apply-brief.md`
 
@@ -101,7 +107,7 @@ engineering / collab / competition / reviews），原 9 个并列目录归组；
 
 - **日期前缀** `YYYY-MM-DD-`：会话产物（日志、审阅、报告、回信）一律带，便于时间序检索
 - **无日期前缀**：长期有效文档（`product.md`、`direction-2026H2.md`、`model-collaboration-workflow.md`）
-- 新增文档按上表选目录；**跨目录引用用 `docs/<类目>/<文件>.md` 全路径**
+- 新增文档按上表选目录；**跨目录链接按当前 Markdown 文件计算相对路径**，文字中的仓库相对路径须标明上下文。
 
 ## 路径变更记录
 

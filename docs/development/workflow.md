@@ -15,7 +15,7 @@ pnpm --filter @rebaseagent/desktop dist   # 打包 Windows portable exe
 
 ## 质量门禁
 
-CI 与本地跑同一条命令链（Gitee Go 流水线 `.workflow/ci.yml`；GitHub Actions 待账号恢复后补配）：
+CI 与本地跑同一条命令链（Gitee Go `.workflow/ci.yml` 与 GitHub Actions `.github/workflows/ci.yml`）：
 
 ```bash
 pnpm check:ci   # = check:build → check:typecheck → check:test → check:lint → check:spec
@@ -45,3 +45,11 @@ proposal（提案） → 评审 → apply（实现 + tasks 逐条销账）
 
 - 文档地图见 [`../README.md`](../README.md)；跨目录引用用 `docs/<类目>/...` 全路径。
 - 会话产物（日志、审阅、报告）带 `YYYY-MM-DD-` 日期前缀；长期文档不带。
+- 纯文档改动核对事实、版本边界、相对链接与格式，不需要为文字修改启动应用或真实模型。若同时改了代码或构建配置，仍按对应质量门禁验证。
+- 贡献、审阅与问题处理规则见[治理与维护安排](governance-and-maintenance.md)；未运行的检查写明原因，不把计划或旧提交的结果记为本次通过。
+
+## 维护与发布
+
+- [版本与维护政策](maintenance-policy.md)：支持范围、依赖更新与数据兼容要求。
+- [发布与维护交接指南](release-and-handoff.md)：正式发布时使用独立候选目录，记录提交、产物哈希及各项验证；本地构建不等于已发布。
+- [第三方声明与发行说明](third-party-notices.md)：实际分发组件与声明交付要求，不以包元数据代替最终发行物核查。

@@ -1,7 +1,7 @@
 # UI 可用性 change 拆分计划
 
 > 日期：2026-09-21
-> 状态（2026-09-27 更新）：U1 [refactor-run-workspace](../../../openspec/changes/archive/2026-09-23-refactor-run-workspace/proposal.md)、U2 [improve-workspace-file-reading](../../../openspec/changes/archive/2026-09-24-improve-workspace-file-reading/proposal.md)、U3 [preserve-debugging-drafts](../../../openspec/changes/archive/2026-09-26-preserve-debugging-drafts/proposal.md)、U4 [add-desktop-operation-tracking](../../../openspec/changes/archive/2026-09-27-add-desktop-operation-tracking/proposal.md) 均已完成并归档；**当前主线 U5 [unify-run-execution-workflow](../../../openspec/changes/unify-run-execution-workflow/proposal.md) 已起草四件套，待实施**；U6–U8 仍为候选。
+> 状态（2026-09-27 更新）：U1 [refactor-run-workspace](../../../openspec/changes/archive/2026-09-23-refactor-run-workspace/proposal.md)、U2 [improve-workspace-file-reading](../../../openspec/changes/archive/2026-09-24-improve-workspace-file-reading/proposal.md)、U3 [preserve-debugging-drafts](../../../openspec/changes/archive/2026-09-26-preserve-debugging-drafts/proposal.md)、U4 [add-desktop-operation-tracking](../../../openspec/changes/archive/2026-09-27-add-desktop-operation-tracking/proposal.md) 均已完成并归档；**当前主线 U5 [unify-run-execution-workflow](../../../openspec/changes/unify-run-execution-workflow/proposal.md) 实施中，完成状态见其活动 tasks**；U6–U8 仍为候选。
 > 基线：拆分时 A3-A/B/C 全部归档，U1–U4 均已合入主 spec（`desktop-ui` 现 52 requirements / 236 scenarios，`replay` 8/22、`prompt-replay` 6/15、`model-experiments` 12/38）。依据 [UI 方案 V0.2](2026-09-19-ui-layout-discussion.md)与[实际走查 R1–R11](../../reviews/2026-09-21-ui-usability-walkthrough.md)。
 > 文档职责：本文件维护 U 的工程拆分和实施依赖；UI 方案维护界面行为，[可用性规划](2026-09-15-usability-improvement-plan.md)维护 P0–P3 流程，[路线](2026-09-16-isolated-rerun-roadmap.md)维护产品顺序和打包。U1–U8 是 change 编号，不是新的产品阶段。
 
@@ -21,14 +21,14 @@
 | U2 | [`improve-workspace-file-reading`](../../../openspec/changes/archive/2026-09-24-improve-workspace-file-reading/proposal.md)（已归档） | 在足够宽的工作区看检查点/diff，返回保留文件选择 | U1 | R1/R7 |
 | U3 | [`preserve-debugging-drafts`](../../../openspec/changes/archive/2026-09-26-preserve-debugging-drafts/proposal.md)（已归档） | 切步骤、运行、设置或关闭编辑区后保留草稿，明确放弃 | U1 | R2，R3 草稿部分，R10/R11 |
 | U4 | [`add-desktop-operation-tracking`](../../../openspec/changes/archive/2026-09-27-add-desktop-operation-tracking/proposal.md)（已归档） | 所有主动执行受 main 登记/去重/执行槽约束，可信关联运行和核对未知状态 | 已归档基线 | R3/R4/R5 的契约基础，V0.1 自审 P2-2 |
-| U5 | [`unify-run-execution-workflow`](../../../openspec/changes/unify-run-execution-workflow/proposal.md)（已起草，待实施） | 创建与重跑可跨页查看状态、核实结果、定位失败、返回配置且不丢草稿 | U1 + U3 + U4 | R3/R4/R5/R10/R11 |
+| U5 | [`unify-run-execution-workflow`](../../../openspec/changes/unify-run-execution-workflow/proposal.md)（实施中） | 创建与重跑可跨页查看状态、核实结果、定位失败、返回配置且不丢草稿 | U1 + U3 + U4 | R3/R4/R5/R10/R11 |
 | U6 | `add-partial-run-reading` | 缺祖先文件时可读当前运行的已校验自有记录，仍拒绝不安全执行 | U1 | V0.1 自审 P2-3、V0.2 §18.4 |
 | U7 | `improve-branch-comparison` | 定位并打开分支、比较两次修改/输出，四条指标仍可读可辨 | U1 + U2 + U6 | R8/R9 |
 | U8 | `unify-recording-and-experiment-workspaces` | 录制接入与已有模型实验使用统一工作区、草稿、操作与结果入口 | U5 + U7 | V0.2 §11/§15.4/§16 的完整设计范围 |
 
-U1/U2/U3/U4 均已归档并有 evidence-index；U5 已建立 proposal/design/specs/tasks，尚未实施；U6–U8 名称仍为候选标识。U8 是完整方案的收尾，未把未实测的代理/实验执行问题写成新发现的缺陷。
+U1/U2/U3/U4 均已归档并有 evidence-index；U5 已建立 proposal/design/specs/tasks，正在实施，尚未收口；U6–U8 名称仍为候选标识。U8 是完整方案的收尾，未把未实测的代理/实验执行问题写成新发现的缺陷。
 
-2026-09-26 补充核对：U1 原归档并非没有缺口，evidence-index 当时为 61/62，且导航折叠后重开入口与调节柄交互未闭合。已先完成 [U1 补齐与实机回归](../../reviews/2026-09-26-u1-completion/README.md)，累计覆盖更新为 62/62，保留原归档历史；100%/200% 导航及 U2 文件状态、U3 草稿恢复通过。U4 实施仍待开始。
+2026-09-26 补充核对：U1 原归档并非没有缺口，evidence-index 当时为 61/62，且导航折叠后重开入口与调节柄交互未闭合。已先完成 [U1 补齐与实机回归](../../reviews/2026-09-26-u1-completion/README.md)，累计覆盖更新为 62/62，保留原归档历史；100%/200% 导航及 U2 文件状态、U3 草稿恢复通过。当时 U4 尚未实施；09/27 已归档，见页首状态。
 
 ## 3. 依赖与实施顺序
 

@@ -2,6 +2,8 @@
 
 此目录保存按日期固定的核查报告和机器可读输入。报告记录扫描范围、证据与未完成事项，不以包元数据替代最终发行物检查。
 
+如何将核查结果整理成发行物可交付的声明，见[第三方声明与发行说明](../third-party-notices.md)。该说明是流程要求，不代表已经生成完整声明或完成发行验收。
+
 - [2026-09-27 依赖许可证核查](2026-09-27-dependency-licenses.md)
 - [对应清单](2026-09-27-dependency-licenses.json)
 - [只读清单生成器](../tools/dependency-license-inventory.cjs)

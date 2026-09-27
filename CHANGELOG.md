@@ -6,8 +6,12 @@
 ## [Unreleased]
 
 - 文档体系开源化：guide / architecture / development 三层 + 工程过程资产归档（`docs/`）
+- U3 草稿保护、U4 桌面操作追踪已归档；U5 仍在开发。证据与发行范围见[项目状态](docs/development/project-status.md)。
+- 开源治理、维护政策、发布交接和第三方声明文档补齐；远程配置与发行物许可核验另行记录。
 
-## [0.3.0-k1] — 预览（已构建，待实机验收后发布）2026-09-24
+## [0.3.0-k1] — 预览（09/24 构建，09/25 有发布记录）2026-09-25
+
+2026-09-27 校准：本地标签及 [09/25 发布存档](docs/engineering/reports/2026-09-25-k1-gitee-template.md)已记录发布，早期草稿中的“待发布”不再代表当前状态。该记录不补齐旧报告中未完成的人工验收，本轮未在线复核下载。
 
 运行工作区重构：把调试台从"一栏滚到底"变成"用得住"的工具。
 
@@ -15,9 +19,9 @@
 - 文件阅读：按宽度自适应布局、会话内记忆阅读位置、两侧状态真实（U2）
 - desktop 66 文件 / 1302 用例全绿，26 个实机 tag / 210 项检查通过
 
-## [0.3.0-k0-a3.1] — 预览 2026-09-21
+## [0.3.0-k0-a3.1] — 预览构建 2026-09-21
 
-隔离文件真重跑（A 段包层）：
+隔离文件真重跑（A/B/C：包层、桌面入口及文件视图）。此处记录构建；当时未上传及人工验收待完成的边界见[构建报告](docs/engineering/reports/2026-09-21-a3-experience-build.md)。
 
 - 从目录创建带文件检查点的隔离 run；改某步 `tool_result` 后从那一轮的副本文件世界续跑
 - 父 run / 源目录 / 兄弟分支逐字节不变；受控 `file-tools-v1`、内容寻址附件、数据目录整体迁移
@@ -44,7 +48,7 @@
 - trace 格式 v1（JSONL 事实源，一 run 一文件、append-only）
 - 纯 TypeScript Agent 执行引擎（OpenAI 兼容协议直连，零厂商 SDK）
 
-[Unreleased]: https://github.com/pomelotea-yuzu/ReBaseAgent/compare/v0.3.0-k0...HEAD
+[Unreleased]: https://github.com/pomelotea-yuzu/ReBaseAgent/compare/v0.3.0-k1...HEAD
 [0.3.0-k1]: https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.3.0-k1
 [0.3.0-k0-a3.1]: https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.3.0-k0-a3.1
 [0.3.0-k0]: https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.3.0-k0
