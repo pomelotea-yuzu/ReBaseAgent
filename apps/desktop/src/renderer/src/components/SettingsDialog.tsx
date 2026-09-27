@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { deriveConfigGate } from "../lib/entry-gate";
+import { settingsDraftDirty } from "../lib/settings-form";
 import { useAppStore } from "../store";
+import { requestConfirm } from "./ConfirmDialog";
 import { ModalDialog } from "./ModalDialog";
 
 /**
@@ -31,6 +33,8 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const [apiKey, setApiKey] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  // U5 任务 5.4："已保存但回读失败"的专属态——驱动只读重试按钮
+  const [rereadFailed, setRereadFailed] = useState(false);
 
   // 代理区（启停即保存；状态从 main 回读）
   const [proxyEnabled, setProxyEnabled] = useState(proxy?.enabled ?? false);
@@ -42,6 +46,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const [proxyMessage, setProxyMessage] = useState<string | null>(null);
 
   const saveSettings = useAppStore((s) => s.saveSettings);
+  const loadSettings = useAppStore((s) => s.loadSettings);
   const clearSettings = useAppStore((s) => s.clearSettings);
   // U4 任务 4.8：三个**写**动作（保存/清除/代理启停）绑统一门禁。
   // ⚠️ 只绑写通道：`settings:get` / `proxy:status` 的读取与"关闭"按钮不受门禁影响
@@ -59,18 +64,70 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   ].filter(Boolean);
   const canSave = missing.length === 0 && !busy && configGate.canChange;
 
+  /**
+   * U5 任务 5.4（「未保存设置关闭可继续或放弃」）：有未保存修改时，关闭/Esc 先过
+   * 真模态确认。"放弃"只丢弃**会话输入**（打过的密钥从未离开渲染层的暂存，单向通道
+   * 只在保存成功时写入）；已保存配置、运行阅读与调试草稿一概不动；"继续编辑"逐字保留。
+   */
+  const dirty = settingsDraftDirty({
+    draft: { baseURL, model, apiKey },
+    proxyDraft: { enabled: proxyEnabled, portText: proxyPort, upstream: proxyUpstream },
+    saved: settings,
+    proxy,
+  });
+  const requestClose = (): void => {
+    if (!dirty) {
+      onClose();
+      return;
+    }
+    void requestConfirm({
+      title: "运行配置有未保存修改",
+      message:
+        "baseURL / apiKey / model 或代理字段有未保存的修改。\n\n放弃会丢失这些未保存输入（含打过的密钥——它从未被写入）；已保存的配置与调试草稿不受影响。",
+      confirmLabel: "放弃修改并关闭",
+      cancelLabel: "继续编辑",
+    }).then((discard) => {
+      if (discard) onClose();
+    });
+  };
+
   const doSave = async (): Promise<void> => {
-    if (!canSave) return;
+    // U5 任务 5.4：保存中不重复提交（canSave 里的 busy 是渲染期判据，这里再挡一次
+    // 同帧双触发——双向保险，不新造状态机）
+    if (busy || !canSave) return;
     setBusy(true);
     setMessage(null);
-    const okSaved = await saveSettings({ baseURL: trimmed.baseURL, apiKey, model: trimmed.model });
-    if (okSaved) {
+    setRereadFailed(false);
+    const outcome = await saveSettings({ baseURL: trimmed.baseURL, apiKey, model: trimmed.model });
+    if (outcome === "saved") {
       setApiKey("");
-      setMessage("已保存。此后“在此重跑”将使用该配置发起真实调用。");
+      // 「不冒充连通」：只陈述"已保存并回读到配置状态"，不发连接测试、不说连接成功
+      setMessage(
+        "已保存并回读到配置状态（未发起任何连接测试）。此后“在此重跑”将使用该配置发起真实调用。",
+      );
+    } else if (outcome === "reread-failed") {
+      // 保存已确认，但回读失败 ⇒ 不把旧摘要当新配置事实（store 已清 settings），给只读重试
+      setRereadFailed(true);
+      setMessage(
+        "已保存，但配置状态回读失败：当前不展示任何配置摘要，可只读重试回读（不会重新保存）。",
+      );
     } else {
+      // 保存失败：输入（含已打的密钥）**逐字保留**
       setMessage(useAppStore.getState().error ?? "保存失败");
     }
     setBusy(false);
+  };
+
+  /** 只读重试回读：走 `settings:get`，不碰写通道、不受配置写门禁影响 */
+  const doReread = async (): Promise<void> => {
+    setRereadFailed(false);
+    const okReread = await loadSettings();
+    setMessage(
+      okReread
+        ? "配置状态已回读核实。"
+        : `回读仍然失败（${useAppStore.getState().error ?? "未知原因"}）——这是只读通道，不涉及重新保存。`,
+    );
+    if (!okReread) setRereadFailed(true);
   };
 
   const doClear = async (): Promise<void> => {
@@ -130,7 +187,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   return (
     // U3 任务 5.1：showModal 真 top layer——Esc 经原生 cancel 关闭（最上层语义），
     // Tab 禁闭与背景 inert 由浏览器保证；原手写 window keydown 监听已移除
-    <ModalDialog open onClose={onClose} ariaLabel="运行配置" className="w-105 p-4">
+    <ModalDialog open onClose={requestClose} ariaLabel="运行配置" className="w-105 p-4">
       <div className="mb-3 flex items-center justify-between">
         <div>
           <div className="text-sm font-semibold text-gray-800">运行配置（LLM 接入）</div>
@@ -140,7 +197,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
         </div>
         <button
           type="button"
-          onClick={onClose}
+          onClick={requestClose}
           className="rounded px-1.5 text-sm text-gray-400 hover:bg-gray-100 hover:text-gray-600"
           aria-label="关闭"
         >
@@ -198,6 +255,20 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
       )}
 
       {message !== null ? <div className="mt-2 text-[11px] text-gray-600">{message}</div> : null}
+      {/* U5 任务 5.4：保存已确认但回读失败 ⇒ 明确"待读取"，只读重试（不重新保存、不受写门禁） */}
+      {rereadFailed ? (
+        <button
+          type="button"
+          data-reread-settings
+          onClick={() => {
+            void doReread();
+          }}
+          title="只重发 settings:get 读取（不写任何东西）"
+          className="mt-1 rounded border border-gray-300 px-2 py-0.5 text-[11px] text-gray-700 hover:bg-gray-50"
+        >
+          重新读取配置状态
+        </button>
+      ) : null}
 
       {configGate.notice !== null ? (
         <div data-testid="config-gate-notice" className="mt-2 text-[11px] leading-4 text-amber-700">
@@ -225,7 +296,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
             className="rounded border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50"
           >
             关闭

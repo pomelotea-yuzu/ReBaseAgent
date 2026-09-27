@@ -160,6 +160,7 @@ import {
   resultReadOf,
   verifyResultPayload,
 } from "./lib/result-verification";
+import type { SettingsSaveOutcome } from "./lib/settings-form";
 import {
   resolveExecutionGate,
   resolveFilterVisibility,
@@ -704,8 +705,8 @@ interface AppState {
     { ok: true; data: WorkspaceReadFileResult } | { ok: false; code: string; message: string }
   >;
 
-  loadSettings: () => Promise<void>;
-  saveSettings: (input: SettingsInput) => Promise<boolean>;
+  loadSettings: () => Promise<boolean>;
+  saveSettings: (input: SettingsInput) => Promise<SettingsSaveOutcome>;
   clearSettings: () => Promise<boolean>;
 
   loadProxyStatus: () => Promise<void>;
@@ -2148,25 +2149,26 @@ export const useAppStore = create<AppState>((set, get) => ({
     const envelope = await api.getSettings();
     if (!envelope.ok) {
       set({ settings: null, error: `读取运行配置失败：${envelope.error.message}` });
-      return;
+      return false;
     }
     const parsed = SettingsStateSchema.safeParse(envelope.data);
     if (!parsed.success) {
       set({ settings: null, error: `运行配置数据结构校验失败：${describeZodError(parsed.error)}` });
-      return;
+      return false;
     }
     set({ settings: parsed.data });
+    return true;
   },
 
   async saveSettings(input) {
     const envelope = await api.saveSettings(input);
     if (!envelope.ok) {
       set({ error: `保存运行配置失败：${envelope.error.message}` });
-      return false;
+      return "save-failed";
     }
-    // 回读状态（baseURL/model/加密方式；apiKey 永不回传）
-    await get().loadSettings();
-    return true;
+    // U5 任务 5.4：保存与回读是**两个结论**——回读失败不否定"已保存"，
+    // 但也绝不把旧摘要当新配置事实（loadSettings 失败路径已把 settings 置 null）。
+    return (await get().loadSettings()) ? "saved" : "reread-failed";
   },
 
   async clearSettings() {

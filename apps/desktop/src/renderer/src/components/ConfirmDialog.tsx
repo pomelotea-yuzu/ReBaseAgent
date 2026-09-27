@@ -22,6 +22,8 @@ export interface ConfirmRequest {
   message: string;
   /** 确认按钮文字（缺省「确认放弃」） */
   confirmLabel?: string;
+  /** 取消按钮文字（U5 5.3 增设；缺省「取消」）——"继续编辑"这类非破坏语义要能说清 */
+  cancelLabel?: string;
 }
 
 interface PendingConfirm {
@@ -95,7 +97,7 @@ export function ConfirmDialogHost() {
           }}
           className="rounded border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50"
         >
-          取消
+          {pending.req.cancelLabel ?? "取消"}
         </button>
         <button
           type="button"
