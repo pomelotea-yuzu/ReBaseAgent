@@ -52,6 +52,14 @@ import {
 } from "@shared/operations";
 import { create } from "zustand";
 import { api } from "./lib/api";
+import type { CreateReturnLocation, SourceView, WorkspaceView } from "./lib/create-workspace";
+import {
+  decideCreateEntry,
+  decideCreateReturn,
+  filePatchOfLocation,
+  liveSpanOfLocation,
+  readingPatchOfLocation,
+} from "./lib/create-workspace";
 import type {
   CallDraftEntry,
   CallDraftKey,
@@ -245,23 +253,33 @@ interface AppState {
   sourceUnavailableReason: "available" | "missing" | "unreadable" | "unknown";
 
   /**
-   * 主区域视图：trace = 既有三栏（列表 / span 树 / 详情），tree = 分支树。
+   * 主区域视图：trace = 既有三栏（列表 / span 树 / 详情），tree = 分支树，
+   * create = 创建工作区（U5 任务 4.1：新建不再是覆盖模态，而是主工作区的一个页面）。
    * 纯 UI 状态，不进 IPC、不持久化（design D7）。
    */
-  view: "trace" | "tree";
+  view: WorkspaceView;
   /** 加入对照的 run id（上限 4，分支树的 ComparePanel 消费） */
   compareIds: string[];
   /** 对照集合的操作提示（超上限等），空则无提示 */
   compareNotice: string | null;
 
   /**
-   * 「新建运行」对话框是否打开（**全局单例**，任务 4.2）。
+   * 创建工作区（U5 任务 4.1）：**这次是从哪儿点进来创建的**。
    *
-   * 为什么进 store 而不是留在组件里：全局栏与列表标题区是**同一个对话框的两个入口**
-   * （delta「新建与列表标题区既有入口打开同一现有创建流程」）。若各持一份本地 state，
-   * 就会出现两个 CreateRunDialog 实例、两套表单状态，收起列表时全局入口还会失效。
+   * 「新建」不再是覆盖模态而是主工作区的一个页面（`view === "create"`），于是需要一个
+   * 与创建草稿**分开**的凭据来兑现"返回来源"（design D1 + delta 场景「创建工作区任务
+   * 优先且可返回来源」）。三条纪律：
+   * - 只含阅读位置（运行 / 页签 / 调用 / 文件定位），**不含**草稿正文、目录引用、授权、
+   *   凭据，也不含 main 操作登记的任何字段（判据与形状都在 `lib/create-workspace.ts`）；
+   * - 只存 renderer 会话：不落盘、不进 URL/日志/IPC ⇒ **重载后必然失效**，
+   *   返回时只能回退到已有可用工作区，不从草稿或登记反推旧位置；
+   * - 与草稿生命周期互不决定：草稿的恢复/放弃/正常结束清理都不动它；
+   *   从别的工作区进入创建重记，创建页内重复点击与设置往返沿用。
+   *
+   * ⚠️ 与 `createSourceRef`（隔离运行的**源目录**引用：main 签发的 token + name/path）
+   * 是两回事，别混用。
    */
-  createDialogOpen: boolean;
+  createReturnLocation: CreateReturnLocation | null;
   /** 「录制接入」跳转后要高亮的设置分区（null = 常规打开设置） */
   settingsSection: "proxy" | null;
 
@@ -656,10 +674,20 @@ interface AppState {
   toggleProxy: (input: ProxyToggleInput) => Promise<ProxyState | null>;
   setSourceFilter: (filter: "all" | "proxy" | "local") => void;
 
-  /** 切换主区域视图；只改 UI 状态，不触发列表重新加载（design D7） */
-  setView: (view: "trace" | "tree") => void;
-  /** 打开/关闭全局「新建运行」对话框（全局栏与列表标题区共用同一实例，任务 4.2） */
-  setCreateDialogOpen: (open: boolean) => void;
+  /** 切换主区域视图（轨迹 / 分支树）；只改 UI 状态，不触发列表重新加载（design D7） */
+  setView: (view: SourceView) => void;
+  /**
+   * 打开创建工作区（全局栏与列表标题区**共用**这一个动作，U5 任务 4.1）。
+   * 从别的工作区进来 ⇒ 以当时阅读位置重记来源并推进阅读代次；已在创建页 ⇒ 什么都不动
+   * （来源沿用，任务 3.4 的自动导航资格因此不被"重复点击"撤销）。
+   */
+  openCreateWorkspace: () => void;
+  /**
+   * 返回本次创建的来源位置（spec 场景「创建工作区任务优先且可返回来源」）。
+   * 来源失效（重载 / 运行已不在列表）⇒ 回退到已有可用工作区，不伪造旧位置。
+   * 与创建草稿无关：返回不动输入内容，也不解任何冻结。
+   */
+  returnToCreateSource: () => Promise<void>;
   /** 打开设置并定位到某分区（全局栏「录制接入」用），null = 常规打开 */
   setSettingsSection: (section: "proxy" | null) => void;
   /** 勾选/取消对照（上限 4，超出不加入并给出提示） */
@@ -1025,7 +1053,7 @@ async function attemptResultNavigation(
   const decision = decideResultNavigation({
     intent: navigationIntentOf(state.navIntents, record.operationId),
     generation: state.navGeneration,
-    coveringModal: state.createDialogOpen || state.settingsSection !== null,
+    coveringModal: state.settingsSection !== null,
     record,
     entry:
       onlyRunId === undefined
@@ -1142,7 +1170,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   view: "trace",
   compareIds: [],
   compareNotice: null,
-  createDialogOpen: false,
+  createReturnLocation: null,
   settingsSection: null,
   shortIdState: new ShortIdState(),
   // U3 任务 3.4：提交关联仓库（与草稿仓库分开的生命周期，见 draft-submission.ts）
@@ -1239,6 +1267,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   async selectRun(id) {
+    // U5 任务 4.1：创建页在场时"要看某条运行"就是离开创建去读它。放在同 ID 短路**之前**——
+    // 否则在创建页里"打开结果"（结果恰是上一条选中的运行）会被短路成什么都不发生。
+    if (get().view === "create") set({ view: "trace", createReturnLocation: null });
     if (get().selectedRunId === id) return;
     // U5 3.4：换"在看哪条 run"= 改变阅读对象 ⇒ 撤销在飞的自动导航资格。
     // 放在同 ID 短路**之后**：自动导航自己调用它时不会把代次白推进一次。
@@ -1361,6 +1392,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       selectedRunId: get().selectedRunId,
       listLoaded: get().listLoaded,
       attempted: get().initialSelectionAttempted,
+      // U5 任务 4.1：用户已经走进创建工作区 ⇒ 迟到的首次读取不能把他从创建页拽出来
+      userWorkspace: get().view === "create",
     });
     if (decision.runId === null) return;
     // 先落守卫再发起请求：详情失败时 selectRun 会把错误留在该 run 上（原位可重试），
@@ -1768,7 +1801,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     // 创建草稿：定位 = 恢复创建表单（对话框挂载即 ensure/读取草稿）；
     // 同时清掉可能残留的调用类 pending（一次性目标不跨页面残留）
     if (target.field === "create") {
-      set({ pendingDraftTarget: null, createDialogOpen: true });
+      // U5 任务 4.1：创建草稿的定位 = 走进创建工作区（与全局栏同一个入口动作，
+      // 从别的工作区进来照常取新来源）；同时清掉可能残留的调用类 pending
+      set({ pendingDraftTarget: null });
+      get().openCreateWorkspace();
       return;
     }
     set({ pendingDraftTarget: target });
@@ -2037,13 +2073,81 @@ export const useAppStore = create<AppState>((set, get) => ({
   setView(view) {
     // U5 3.4：轨迹 / 分支树之间切换也是"换了在看的东西"⇒ 撤销在飞的自动导航资格
     noteReadingChanged();
-    set({ view });
+    // U5 4.1：从创建页切去别的工作区 = 本次来源用掉（下次进入按新位置重记）。
+    // ⚠️ 刻意**不清**创建草稿——离开创建保留它是 U3 的既有语义。
+    set({ view, createReturnLocation: null });
   },
 
-  setCreateDialogOpen(open) {
-    // 只改"有没有覆盖模态"，不推进代次：打开创建页正是**提交发生的地方**，
-    // 关掉它也不等于用户去看别的东西了（判据见 `decideResultNavigation` 的 coveringModal）
-    set({ createDialogOpen: open });
+  openCreateWorkspace() {
+    const state = get();
+    const selected = state.selectedRunId;
+    const decision = decideCreateEntry({
+      view: state.view,
+      selectedRunId: selected,
+      // 文件定位由 `reading.files` 自己表达（undefined = 从未进入文件页）——
+      // 不在这里另传一份"进入过"布尔，两处判据会漂移
+      reading:
+        state.view === "trace" && selected !== null
+          ? readingStateOf(state.readingByRun, selected)
+          : null,
+    });
+    // 已经在创建页：来源沿用、代次不推进（重复点「新建」不该把这次流程的导航资格撤销掉）
+    if (decision.kind === "keep") return;
+    // 进入创建页 = 离开原来在看的那条运行 ⇒ 撤销在飞的自动导航资格
+    noteReadingChanged();
+    set({ view: "create", createReturnLocation: decision.location });
+  },
+
+  async returnToCreateSource() {
+    const state = get();
+    const decision = decideCreateReturn({
+      location: state.createReturnLocation,
+      knownRunIds: state.runs.map((run) => run.id),
+    });
+    // 一次性凭据：恢复与回退都算用掉，不存在"回到创建页再按一次返回来源"的旧位置复活
+    set({ createReturnLocation: null });
+    const target = decision.kind === "restore" ? decision.location.view : decision.view;
+    noteReadingChanged();
+    set({ view: target });
+    if (decision.kind !== "restore" || decision.location.runId === null) return;
+
+    const { runId } = decision.location;
+    if (get().selectedRunId === runId) {
+      // 该 run 本来就选中：没有"恢复"这一步可借，直接用既有的阅读动作当场对齐
+      const recorded = decision.location;
+      if (recorded.tab !== null && readingStateOf(get().readingByRun, runId).tab !== recorded.tab) {
+        get().setReadingTab(runId, recorded.tab);
+      }
+      const liveSpan = liveSpanOfLocation(
+        recorded,
+        (get().detail?.spans ?? []).map((span) => span.id),
+      );
+      if (liveSpan !== null && get().selectedSpanId !== liveSpan) get().selectSpan(liveSpan);
+      const filePatch = filePatchOfLocation(recorded);
+      const liveFile = fileReadingOf(readingStateOf(get().readingByRun, runId));
+      if (
+        filePatch !== null &&
+        (liveFile.checkpoint !== filePatch.checkpoint || liveFile.path !== filePatch.path)
+      ) {
+        get().setFileReading(runId, filePatch);
+      }
+      return;
+    }
+    // 换运行：先把位置写成该 run 的会话阅读状态，再走 `selectRun`——
+    // 它自带"按详情校验 + 失效回退"，这里不重复判一遍有效性（判了也不认）。
+    const readingPatch = readingPatchOfLocation(decision.location);
+    if (Object.keys(readingPatch).length > 0) {
+      set((current) => ({
+        readingByRun: patchReadingState(current.readingByRun, runId, readingPatch),
+      }));
+    }
+    const filePatch = filePatchOfLocation(decision.location);
+    if (filePatch !== null) {
+      set((current) => ({
+        readingByRun: patchFileReading(current.readingByRun, runId, filePatch),
+      }));
+    }
+    await get().selectRun(runId);
   },
 
   setSettingsSection(section) {

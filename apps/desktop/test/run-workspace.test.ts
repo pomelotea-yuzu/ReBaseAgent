@@ -9,6 +9,7 @@ import { describe, expect, it, vi } from "vitest";
 // 故这里用动态 import（与 store.test.ts 同法）。本文件只测不依赖 store 的纯判据与纯视图。
 (globalThis as Record<string, unknown>).window = { api: {} };
 
+import { auditForbiddenTokens } from "../src/renderer/src/lib/overview-view";
 import type { RunSummary } from "../src/shared/ipc";
 const {
   NoRunsEmpty,
@@ -295,30 +296,34 @@ describe("运行页头（纯视图）：任务、状态与来源可辨", () => {
 });
 
 /**
- * 接线断言（任务 4.2）：spec 要求「全局栏与列表标题区**共用同一现有创建流程**」。
+ * 接线断言（任务 4.2 / U5 任务 4.1）：spec 要求「新建与列表标题区既有入口打开
+ * **同一创建工作区**」。
  *
- * ⚠️ 本包无 jsdom ⇒ 无法渲染点击来验证"点两处开的是同一个对话框"。这里退一步，
- *    在**源码级**钉住契约：两处入口都必须写 store 的 `createDialogOpen`，
- *    且**不得**各自留一份本地 `useState` 对话框开关（那正是"各开各的"的形态）。
- *    这是"属性契约"而非"行为验证"——真实点击归 7.3 端到端实测。
+ * ⚠️ 本包无 jsdom ⇒ 无法渲染点击来验证"点两处开的是同一个页面"。这里退一步，
+ *    在**源码级**钉住契约：两处入口都走 store 的同一个动作 `openCreateWorkspace`，
+ *    且**不得**各自留一份本地开关（那正是"各开各的"的形态）。
+ *    这是"属性契约"而非"行为验证"——真实点击归 §6 端到端实测。
  */
-describe("接线：全局栏与列表共用同一新建流程（源码契约）", () => {
+describe("接线：全局栏与列表共用同一创建工作区（源码契约）", () => {
   const read = (rel: string): string =>
     readFileSync(resolve(import.meta.dirname, "..", rel), "utf8");
 
-  it("RunList 用 store 的 setCreateDialogOpen，而不是本地 useState", () => {
+  it("RunList 的「＋ 新建运行」走 store 的 openCreateWorkspace，而不是本地 useState", () => {
     const src = read("src/renderer/src/components/RunList.tsx");
-    expect(src).toContain("s.setCreateDialogOpen");
-    expect(src).toContain("setCreateDialogOpen(true)");
-    // 不得再自持一份对话框开关，也不得自己挂一个对话框实例（那正是"各开各的"）
+    expect(src).toContain("s.openCreateWorkspace");
+    expect(src).toContain("onClick={openCreateWorkspace}");
+    // 不得再自持一份开关，也不得自己挂一个创建页实例（那正是"各开各的"）
     expect(src).not.toMatch(/useState\(false\)\s*;\s*\/\/[^\n]*新建/);
-    expect(src).not.toMatch(/<CreateRunDialog\b/);
+    expect(
+      auditForbiddenTokens(src, ["<CreateRunDialog", "<CreateRunWorkspace", "createDialogOpen"]),
+    ).toEqual([]);
   });
 
-  it("GlobalBar 的「新建运行」同样写 store 的 createDialogOpen", () => {
+  it("GlobalBar 的「新建运行」同样走 store 的 openCreateWorkspace", () => {
     const src = read("src/renderer/src/components/GlobalBar.tsx");
-    expect(src).toContain("s.setCreateDialogOpen");
-    expect(src).toContain("setCreateDialogOpen(true)");
+    expect(src).toContain("s.openCreateWorkspace");
+    expect(src).toContain("onClick={openCreateWorkspace}");
+    expect(auditForbiddenTokens(src, ["createDialogOpen", "CreateRunDialog"])).toEqual([]);
   });
 
   it("GlobalBar 的「录制接入」定位到代理分区（不是另建录制界面）", () => {
@@ -326,11 +331,15 @@ describe("接线：全局栏与列表共用同一新建流程（源码契约）"
     expect(src).toContain('setSettingsSection("proxy")');
   });
 
-  it("App 层只挂一个 CreateRunDialog 单例（两处入口共用，不是各处挂一个）", () => {
+  it("App 只挂一个创建工作区，且它与运行导航在同一分支里（页面不吞掉导航）", () => {
     const src = read("src/renderer/src/App.tsx");
-    const mounts = src.match(/<CreateRunDialog\b/g) ?? [];
+    const mounts = src.match(/<CreateRunWorkspace\b/g) ?? [];
     expect(mounts).toHaveLength(1);
-    expect(src).toContain("s.createDialogOpen");
+    expect(src).toContain('view === "create"');
+    expect(auditForbiddenTokens(src, ["createDialogOpen", "<CreateRunDialog"])).toEqual([]);
+    // 创建页与 RunList 同属"非分支树"那一支 ⇒ 进入创建保留运行导航
+    const branch = src.slice(src.indexOf('view === "tree"'), src.indexOf('view === "create"'));
+    expect(branch).toContain("<RunList");
   });
 
   it("SettingsDialog 消费 settingsSection 定位到代理分区并一次性清账", () => {

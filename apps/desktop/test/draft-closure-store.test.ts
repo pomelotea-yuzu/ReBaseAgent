@@ -161,7 +161,10 @@ beforeEach(async () => {
     drafts: draftLib.emptyDraftRepo(),
     draftSubmissions: { byId: {}, closures: {}, nextToken: 1 },
     createSourceRef: null,
-    createDialogOpen: false,
+    // U5 任务 4.1：创建已是主工作区的一个视图；复位表随新会话字段一起更新，
+    // 否则上一条用例留下的视图/来源会渗进下一条（同族假红见 U5 3.1 与 MEMORY 记录）
+    view: "trace",
+    createReturnLocation: null,
     runs: [],
     failed: [],
     listLoaded: false,

@@ -19,7 +19,10 @@ import { type OperationSession, initialSession } from "../src/renderer/src/lib/o
  * 这三条都是"少接一支就静默失效"的接线判据，纯 reducer 测不到。
  */
 
-const DIALOG = resolve(import.meta.dirname, "../src/renderer/src/components/CreateRunDialog.tsx");
+const DIALOG = resolve(
+  import.meta.dirname,
+  "../src/renderer/src/components/CreateRunWorkspace.tsx",
+);
 const PANEL = resolve(import.meta.dirname, "../src/renderer/src/components/DetailPanel.tsx");
 const SETTINGS = resolve(import.meta.dirname, "../src/renderer/src/components/SettingsDialog.tsx");
 
@@ -78,7 +81,7 @@ describe("4.3 接线契约：create 与 result 都从同一份会话派生", () 
 
   it("两个入口都读 s.operations 并经 deriveEntryGate 判定", () => {
     for (const [src, label] of [
-      [dialog, "CreateRunDialog"],
+      [dialog, "CreateRunWorkspace"],
       [panel, "DetailPanel（result 编辑器）"],
     ] as const) {
       expect(src, label).toContain("deriveEntryGate(useAppStore((s) => s.operations))");
@@ -86,11 +89,11 @@ describe("4.3 接线契约：create 与 result 都从同一份会话派生", () 
   });
 
   it("门禁 AND 进提交判据，但没有并进输入锁/关闭锁/只读预检", () => {
-    // create：canCreate 含 gate，modalLocked 不含 gate（门禁不该锁输入与关闭）
+    // create：canCreate 含 gate，formLocked 不含 gate（门禁不该锁输入与关闭）
     expect(dialog).toMatch(/const canCreate = submission\.ok && !draftFrozen && gate\.canSubmit/);
     const locked = dialog.slice(
-      dialog.indexOf("const modalLocked"),
-      dialog.indexOf("\n", dialog.indexOf("const modalLocked")),
+      dialog.indexOf("const formLocked"),
+      dialog.indexOf("\n", dialog.indexOf("const formLocked")),
     );
     expect(locked).not.toContain("gate.");
     // result：canFork 含 gate

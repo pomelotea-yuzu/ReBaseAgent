@@ -1,16 +1,18 @@
 # U5 实施与验收任务
 
-> 实施进度（2026-09-27）：**§1 全部完成（1.1–1.4）+ §2 全部完成（2.1–2.5）+ §3 全部完成（3.1–3.6）**
+> 实施进度（2026-09-27）：**§1 全部完成（1.1–1.4）+ §2 全部完成（2.1–2.5）+ §3 全部完成（3.1–3.6）
+> + §4.1 完成**
 > （`shared/terminal-facts.ts` 19 条 + `lib/result-verification.ts` 纯判据 15 条 + store 核实 9 条 +
 > 终态消费 13 条 + `draft-submission` 收尾关联 13 条 + `draft-closure` 清理判据 20 条 +
-> store 收尾/批次/反证 17 条 + `create-entry-closure` 创建入口 9 条 + `fork-entry-closure` result/prompt 入口 6 条 +
-> `proxy-ab-entry-closure` messages/A-B 入口 9 条 + `navigation-intent` 纯判据 14 条 + 导航接线 13 条 +
-> `operation-result-view` 呈现与通知判据（含喂 props 的视图）19 条 + `operation-result-actions` 明确动作 12 条；
-> desktop 全量 117 文件 / 2016 用例绿，`tsc` node/web 双 0 错，根 `biome check .` 439 文件 0 错；
+> store 收尾/批次/反证 17 条 + `create-entry-closure` 创建入口 10 条 + `fork-entry-closure` result/prompt 入口 6 条 +
+> `proxy-ab-entry-closure` messages/A-B 入口 9 条 + `navigation-intent` 纯判据 14 条 + 导航接线 14 条 +
+> `operation-result-view` 呈现与通知判据（含喂 props 的视图）19 条 + `operation-result-actions` 明确动作 12 条 +
+> `create-workspace` 来源判据 14 条 + 创建工作区接线 21 条；
+> desktop 全量 119 文件 / 2054 用例绿，`tsc` node/web 双 0 错，根 `biome check .` 442 文件 0 错；
 > 变异：1.1 三组、1.2 三组、1.3 四组、1.4 五组、2.1 三组、2.2 四组、2.3 三组、2.4 三组、
-> 2.5 两组、3.1 三组、3.2 三组、3.3 三组、3.4 四组、3.5 四组、3.6 三组各有牙
+> 2.5 两组、3.1 三组、3.2 三组、3.3 三组、3.4 四组、3.5 四组、3.6 三组、4.1 九组各有牙
 > （另有 3.1 的一组"响应路径次序补支"判**无牙** ⇒ 已回退，见注记）。
-> 其余 §4–§7 全部待办；没有实施、GUI 验收或发布通过声明。
+> 其余 §4.2–§7 全部待办；没有实施、GUI 验收或发布通过声明。
 > ⚠️ 已知环境噪声（非回归）：`test/controlled-service.test.ts` 在并行整跑下出现过 4 条超时失败，
 > 单跑 19 条全绿；复跑整跑亦全绿 ⇒ 按"单包/单文件复跑"口径判定，登记为端口时序 flake。
 > 每项实施/验收控制在 2h 内；若实际超出先拆分。场景名称对应 `specs/desktop-ui/spec.md`，既有场景用于回归，不能用旧报告替代新接线验证。
@@ -75,6 +77,9 @@
     不再断言"入口刷列表 / `creatingRun === success` / 选中新 run"，改判为"入口零次列表刷新、
     回到 idle、`selectedRunId` 保持 null"；`test/run-list-nav.test.ts` 的「本地记录」正向锚点
     从 store 注释改指 `RunList.tsx`（被钉的那句注释随成功分支一起删除）。
+    **（4.1 之后本文件的"零导航"又改判了一次：创建页不再是覆盖模态 ⇒ 留在流程内时跳的是
+    **登记的那条**，`readCalls` 改按出现顺序去重。见 4.1 注记的"反向改判"条——
+    入口不消费响应这件事本身没有被削弱。）**
   - ⚠️ **反向欠账（本轮查明，别补错方向）**：曾怀疑"响应路径在终态消费之后才转存关联 ⇒ 快执行的
     清理永远不发生"，并在 `settleDraftSubmission` 里补了一次立即收尾。变异验证**判无牙**
     （摘掉后 9 条全绿）⇒ 该补支是死代码，已回退；实际次序是消费点内部先 `settleDraftByOperation`
@@ -164,6 +169,9 @@
     ② 原生 `confirm()` 与设置对话框之外的确认框不在 store 里，`coveringModal` 只覆盖
     `createDialogOpen` / `settingsSection`；③ 创建页在 §4 改成工作区页面之前，覆盖模态恒在场 ⇒
     **创建入口实际不会自动导航**（这是 spec 要求的"不跳到模态背后"，不是漏接）。
+    **（4.1 已兑现这一条：创建改为工作区页面后 `coveringModal` 只看 `settingsSection`，
+    创建入口从此走本项判据 ⇒ 留在流程内就跳；上面 ② 点名的 `createDialogOpen` 随 4.1 删除，
+    本项 3.4 的"创建页内不跳"证据由 `create-entry-closure.test.ts` 的改判支接替，见 4.1 注记。）**
 - [x] 3.5 接通明确打开结果、真实自有失败调用、返回草稿及失效回退（≤2h）。验收：「失败定位和返回草稿明确可达」「祖先结束与失败调用不能冒充本次事实」「核对结果只由用户明确打开」。
   - 落点：新纯判据 `renderer/src/lib/operation-result-view.ts`（`deriveOperationResultView` /
     `buildOperationResultViews`，键编码与 `lib/operation-list` 的 `row.key` 同源）——动作只给得出事实的那些：
@@ -214,7 +222,66 @@
 
 ## 4. 创建工作区与检查确认
 
-- [ ] 4.1 将新建迁入 App 主工作区，接全局入口/草稿定位/返回位置，保留导航和 U1/U2 阅读恢复；来源引用独立存于 renderer 会话导航状态（≤2h）。验收：「创建工作区任务优先且可返回来源」「创建关闭配置再新建仍有任务」「首次打开与无运行入口」「旧创建设置及执行入口保持可达」；断言重进创建取新来源、创建内重复点击/设置往返沿用、草稿不含来源、重载后失效并安全回退。
+- [x] 4.1 将新建迁入 App 主工作区，接全局入口/草稿定位/返回位置，保留导航和 U1/U2 阅读恢复；来源引用独立存于 renderer 会话导航状态（≤2h）。验收：「创建工作区任务优先且可返回来源」「创建关闭配置再新建仍有任务」「首次打开与无运行入口」「旧创建设置及执行入口保持可达」；断言重进创建取新来源、创建内重复点击/设置往返沿用、草稿不含来源、重载后失效并安全回退。
+  - 落点：新纯判据 `renderer/src/lib/create-workspace.ts`（`WorkspaceView = trace|tree|create`、
+    `decideCreateEntry` 只在"视图不是创建页"时以当时阅读位置重记来源、`decideCreateReturn`
+    三态 `restore / fallback(no-location) / fallback(run-missing)`、
+    `readingPatchOfLocation` + `filePatchOfLocation` + `liveSpanOfLocation` 决定回写哪一份位置）。
+    来源引用只含**视图 / 运行 / 页签 / 调用 / 文件定位**（`files === undefined` 即"从未进入文件页"，
+    与 store 的 `fileReadingEntered` 是同一定义而非第二份判据；`checkpoint === null` 是"进过、停在初始"
+    ⇒ 照记，不伪造）——不含草稿正文、目录引用、授权、凭据与任何登记字段。
+  - store 接线：`view` 增加 `"create"`，**删除** `createDialogOpen` / `setCreateDialogOpen`；
+    新增 `createReturnLocation`（会话内，不落盘 / 不进 URL/日志/IPC）+ `openCreateWorkspace`
+    （全局栏、列表标题区、`openDraftAt(create)` 三处共用的唯一入口动作；从别的工作区进来
+    重记来源并**推进阅读代次**，页内重复点击与设置往返走 keep 支 ⇒ 什么都不动）+
+    `returnToCreateSource`（可用即恢复：该 run 仍选中则用既有阅读动作当场对齐，否则先把位置写成
+    该 run 的会话阅读状态再走 `selectRun` 的校验/失效回退；用过即清，一次性凭据）。
+    `selectRun` 在创建页在场时**先退出创建页**（放在同 ID 短路之前 ⇒「打开结果」不会点了没反应）
+    并作废来源引用；`setView` 离开创建页同样作废引用（草稿不动）。
+  - 守卫：`resolveInitialSelection` 新增 `userWorkspace` 入参与 `user-workspace` 结论
+    ——**首次读取迟到也不覆盖已进入的创建页**，且这一支不消耗 `attempted`
+    （回到轨迹后原规则照常，属"不误伤"）；后台 `loadRuns` 本就不改选，用例另钉。
+  - 组件与承载：`CreateRunDialog.tsx` → `CreateRunWorkspace.tsx`（App 的
+    `view === "create"` 分支挂载，与 `RunList` 同一支 ⇒ 运行导航保留；不再是 App 层模态单例）；
+    去 `ModalDialog` 与全窗 `closeDisabled`（表单锁定判据 `formLocked = busy || pickingSource ||
+    draftFrozen` 一字未动，只是不再锁住离页）；正文单列 `max-w-200`（800px）；
+    页头「返回来源」；**两模式共用**当前接入摘要（旧形态只在隔离块里出现）；
+    高级 System Prompt 改为可展开区（`aria-expanded`），初始按草稿是否有内容决定。
+  - 证据：`test/create-workspace.test.ts` 纯判据 14 条 + `test/create-workspace-store.test.ts`
+    接线 21 条（进入取新来源 / 页内重复点击与设置往返沿用 / 换工作区后重记 /
+    两条恢复路径 / 文件定位两种"进过没进过" / 重载失效与运行缺失各回退且不伪造 /
+    首次读取迟到不覆盖 + 对照不误伤 / 后台刷新不动现场 / 来源与草稿互不决定 + 草稿键集合不含来源 /
+    点运行与同 ID 短路都退出创建页 / 三条源码级"判据只有一份"契约）。
+  - ⚠️ **有意契约变更**（反向改判 §3.1 的导航证据，两边留痕）：3.4 注记 ③ 的前提
+    （"创建页在 §4 改成工作区页面之前覆盖模态恒在场 ⇒ 创建入口实际不会自动导航"）随本项消失，
+    `coveringModal` 从此只看 `settingsSection` ⇒ `create-entry-closure.test.ts` 的四支
+    "零导航"（成功、失败信封、running→轮询、隔离创建）改判为**跳的是登记的那条**，
+    `readCalls` 判据改为按出现顺序去重（协调器自己会再读一次详情）；
+    另加一支「提交发生在创建页里 ⇒ 终态落定照样按意图跳概览」钉这条。
+    **入口不消费响应**仍由"信封 id 一次都不读 + `createRun` 体内无 `loadRuns`/`selectRun`"钉住。
+    同步在 `navigation-intent-store.test.ts` 补「提交后走进创建工作区 ⇒ 不跳也不顶掉创建页」
+    （进入创建页推进代次 ⇒ 资格永久作废，不是"这一刻不跳"）。
+  - ⚠️ **载体迁移**（U3/3.x 证据跟着组件改名，判据强度不变；§7.3 逐条核对时别读成"证据被换弱"）：
+    `modal-dialog.test.ts` 的"创建经 ModalDialog + `closeDisabled={modalLocked}`"拆成两条
+    ——设置仍是模态、**创建页不得做成模态**（`<ModalDialog`/`showModal`/`fixed inset-0` 走剥注释审计器）；
+    `create-form-draft.test.ts` 的锁定判据改名 `formLocked` 并新增"返回来源走 store 动作 +
+    页面不读写 `createReturnLocation`"；`entry-gate` / `confirm-dialog` / `draft-submission`
+    的文件路径与常量名随改名更新；`operation-result-actions.test.ts` 的"覆盖模态在场"夹具由
+    `createDialogOpen: true` 换成 `settingsSection: "proxy"`（同一判据、不同载体）；
+    `store.test.ts` 原「新建运行对话框开关」两支合并为一支「创建工作区只有一个会话状态」；
+    `draft-list` / `result-verification-store` / `draft-closure-store` 复位表补 `view` 与
+    `createReturnLocation`（U5 §九 第 2 条的复位纪律）。
+  - 九组反证各有牙：摘掉 keep 支 ⇒ 3 红；去掉"进入过文件页"判据 ⇒ 2 红；去掉 run-missing 回退 ⇒ 2 红；
+    去掉 `userWorkspace` 守卫 ⇒ 1 红（对照支仍绿，不误伤）；把创建视图重新算进 `coveringModal` ⇒ 2 红；
+    摘掉 `selectRun` 的退出创建页 ⇒ 3 红；返回来源不清引用 ⇒ 2 红；进入创建页不推进代次 ⇒ 2 红
+    （机制支 + 行为支各一）；`setView` 不清来源 ⇒ 1 红。
+  - ⚠️ 已知边界（不静默）：① 真机上"点另一条运行"必然先离开创建页 ⇒「仍在创建页但选中项已变」
+    的恢复支只能由 store 单测摆放现场来钉（构造有效但 UI 不自然，写清楚免得被读成缺陷）；
+    ② 进入创建页的初始焦点、Tab/Esc 与响应式属 §5.6，实机证据归 §6.2/§6.8；
+    ③ 字段错误呈现与"就近配置入口"（点一下直达设置）留到 §4.2，目录选择/token/每次副本授权的
+    迁移与复验留到 §4.3；④ 设置盖在创建页之上仍走 App 本地 `settingsOpen`，
+    "返回并刷新摘要 / 使预检与许可失效"属 §5.3；⑤ 本轮只改 desktop，packages 逐包单跑与
+    `electron-vite build` 未重跑（§7.2 统一补）。
 - [ ] 4.2 布置任务、模式、两模式模型摘要、高级系统指令和字段错误，沿用已有请求形状（≤2h）。验收：「userMessage 为空时禁用提交」「空 systemPrompt 允许」「settings 未配置时拒绝」「两模式配置后返回任务」。
 - [ ] 4.3 迁移目录选择、token 和每次副本授权，保留取消选择、过期、消费与异步代次守卫（≤2h）。验收：「直接创建隔离文件父本」「切创建模式保留文本而放弃重置表单」「创建忙碌期间不能通过焦点修复绕过关闭锁」；回归主 spec「sourceToken 在有效期内恢复但授权复位」「sourceToken 失效不清空任务」「取消目录选择保留原引用」。
 - [ ] 4.4 接创建/普通 result 的检查确认及真实边界，不添加无接口支持的预检信息（≤2h）。验收：「创建和普通重跑只声明已完成的检查」「普通结果与隔离结果确认边界不同」的普通部分；后者须与 4.5 的隔离证据合并，单独通过仅记部分覆盖。

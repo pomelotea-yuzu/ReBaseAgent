@@ -55,7 +55,7 @@ describe("U3 5.2 接线契约（源码级）：放弃确认迁出 window.confirm
     "utf8",
   );
   const create = readFileSync(
-    resolve(import.meta.dirname, "../src/renderer/src/components/CreateRunDialog.tsx"),
+    resolve(import.meta.dirname, "../src/renderer/src/components/CreateRunWorkspace.tsx"),
     "utf8",
   );
   const globalBar = readFileSync(

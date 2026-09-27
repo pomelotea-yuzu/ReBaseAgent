@@ -38,9 +38,9 @@ export function RunList({
   const searchQuery = useAppStore((s) => s.searchQuery);
   const setSearchQuery = useAppStore((s) => s.setSearchQuery);
 
-  // "新建运行"对话框开关（任务 4.2）：**与全局栏共用同一位于 store 的开关**，
-  // 写的是同一个 CreateRunDialog 单例，不是两份各开各的（spec：共用同一现有创建流程）
-  const setCreateDialogOpen = useAppStore((s) => s.setCreateDialogOpen);
+  // 「新建运行」入口（任务 4.2 / U5 任务 4.1）：**与全局栏共用 store 的同一个入口动作**，
+  // 打开的是主工作区里的同一个创建工作区，不是两份各开各的（spec：共用同一创建工作区）
+  const openCreateWorkspace = useAppStore((s) => s.openCreateWorkspace);
 
   // 短 ID（任务 4.4）：长度记忆存于 store——会话内**只增不减**，
   // 若放组件内则运行列表一卸载（切页签）就会忘记已扩展的长度，刷新后碰撞项重现
@@ -108,7 +108,7 @@ export function RunList({
           <div className="flex shrink-0 items-center gap-1">
             <button
               type="button"
-              onClick={() => setCreateDialogOpen(true)}
+              onClick={openCreateWorkspace}
               title="直接在桌面端跑一个 run（纯对话，或隔离文件运行；不需代理、不需写代码）"
               className="flex shrink-0 items-center gap-1.5 rounded border border-gray-300 px-2 py-0.5 text-[11px] text-gray-600 hover:bg-gray-50"
             >

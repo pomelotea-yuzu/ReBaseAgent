@@ -152,7 +152,7 @@ function seed(overrides: Partial<OperationRecord> = {}): DraftSubmission {
 /** 断言"自动导航没抢在显式动作之前"（覆盖模态在场 ⇒ 3.4 判 wait） */
 function expectNoAutoNavigation(): void {
   const state = useAppStore.getState();
-  expect(state.createDialogOpen).toBe(true);
+  expect(state.settingsSection).toBe("proxy");
   expect(state.selectedRunId).toBe(PARENT);
 }
 
@@ -181,13 +181,15 @@ beforeEach(async () => {
     detail: null,
     readingByRun: {},
     view: "trace",
+    createReturnLocation: null,
     pendingDraftTarget: null,
     forking: "idle",
     forkError: null,
     forkErrorCode: null,
-    // 覆盖模态在场：本文件的每一次跳转都必须是显式动作造成的
-    createDialogOpen: true,
-    settingsSection: null,
+    // 覆盖模态在场：本文件的每一次跳转都必须是显式动作造成的。
+    // U5 任务 4.1：创建工作区已是页面、不再充当覆盖模态 ⇒ 这个夹具改由设置分区承担
+    // （同一判据，见 decideResultNavigation 的 coveringModal）。
+    settingsSection: "proxy",
   });
   await useAppStore.getState().refreshOperationStatus();
   calls.length = 0;

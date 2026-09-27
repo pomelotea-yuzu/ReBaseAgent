@@ -260,7 +260,7 @@ function resetStore(): void {
     view: "trace",
     compareIds: [],
     compareNotice: null,
-    createDialogOpen: false,
+    createReturnLocation: null,
     settingsSection: null,
   });
 }
@@ -1199,28 +1199,25 @@ describe("store：首次选择与筛选/源失效状态（任务 3.5）", () => 
 });
 
 // ---------------------------------------------------------------------------
-// U1 任务 4.2：全局栏 / 列表标题区**共用同一创建流程**（spec：desktop-ui delta）
+// U1 任务 4.2（U5 任务 4.1 改形）：全局栏 / 列表标题区**共用同一创建工作区**
+// （spec：desktop-ui delta「新建与列表标题区既有入口打开同一创建工作区」）
 // ---------------------------------------------------------------------------
 
-describe("store：新建运行对话框开关（任务 4.2）", () => {
-  it("setCreateDialogOpen 落到 store，全局栏与列表读同一份状态", () => {
-    expect(useAppStore.getState().createDialogOpen).toBe(false);
-    useAppStore.getState().setCreateDialogOpen(true);
-    expect(useAppStore.getState().createDialogOpen).toBe(true);
-    useAppStore.getState().setCreateDialogOpen(false);
-    expect(useAppStore.getState().createDialogOpen).toBe(false);
-  });
-
-  it("两个入口写的是**同一个**字段（不存在「各开各的」两份本地状态）", () => {
-    // 全局栏入口
-    useAppStore.getState().setCreateDialogOpen(true);
-    expect(useAppStore.getState().createDialogOpen).toBe(true);
-    useAppStore.getState().setCreateDialogOpen(false);
-
-    // 列表标题区入口——同一个 setter、同一个字段
-    useAppStore.getState().setCreateDialogOpen(true);
-    const flag = useAppStore.getState().createDialogOpen;
-    expect(flag).toBe(true);
+describe("store：创建工作区只有一个会话状态（任务 4.2 / U5 4.1）", () => {
+  it("新建入口落到 store 的 view，两个入口共用同一份状态", () => {
+    // 组件侧"两处入口调同一个动作"由 run-workspace.test.ts 钉源码；
+    // 这里钉 store 侧：状态只有一份，且就在 view 上（不再是布尔开关 + 本地 useState）。
+    expect(useAppStore.getState().view).toBe("trace");
+    useAppStore.getState().openCreateWorkspace();
+    expect(useAppStore.getState().view).toBe("create");
+    // 创建页内重复点击「新建」：既不换视图，也不重记来源（来源沿用本次）
+    const source = useAppStore.getState().createReturnLocation;
+    useAppStore.getState().openCreateWorkspace();
+    expect(useAppStore.getState().createReturnLocation).toBe(source);
+    // 离开创建页（切视图）⇒ 本次来源作废（草稿的保留由 create-form-draft 钉）
+    useAppStore.getState().setView("trace");
+    expect(useAppStore.getState().view).toBe("trace");
+    expect(useAppStore.getState().createReturnLocation).toBeNull();
   });
 
   it("录制接入口把设置定位到代理分区，常规打开设置不定位", () => {

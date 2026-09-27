@@ -195,7 +195,7 @@ beforeEach(async () => {
     forking: "idle",
     forkError: null,
     forkErrorCode: null,
-    createDialogOpen: false,
+    createReturnLocation: null,
     settingsSection: null,
   });
   await useAppStore.getState().refreshOperationStatus();
@@ -258,10 +258,13 @@ describe("3.4 留在本次流程：结果可读即进入其概览", () => {
     expect(useAppStore.getState().selectedRunId).toBe(ELSEWHERE);
   });
 
-  it("有覆盖模态在场 ⇒ 不跳到它背后（创建对话框开着时结果到达也不动页面）", async () => {
+  it("有覆盖模态在场 ⇒ 不跳到它背后（设置模态开着时结果到达也不动页面）", async () => {
     const assoc = seedSubmission();
     armSnapshot(assoc);
-    useAppStore.getState().setCreateDialogOpen(true);
+    // U5 任务 4.1：创建工作区已是页面，不再是覆盖模态 ⇒ 覆盖模态这一支改由设置承担。
+    // 用 setState 而不是 setSettingsSection：后者会推进阅读代次，那是"离开流程"的撤销判据，
+    // 会把本用例想钉的"这一刻不跳、意图留着"变成"永久作废"。
+    useAppStore.setState({ settingsSection: "proxy" });
 
     await useAppStore.getState().forkAt(PARENT, SPAN, "编辑后的结果", undefined, assoc);
 
@@ -292,6 +295,26 @@ describe("3.4 撤销：离开过就不回来", () => {
     // 作废而不是留着等下一次：这条意图永久失效
     expect(intentOf(assoc.operationId)).toBeUndefined();
     // 但结果本身照样读到、照样可核对（导航与核实是两件事）
+    expect(readCalls()).toContain(`runs:get:${REGISTERED}`);
+  });
+
+  it("提交后走进创建工作区 ⇒ 结果到达不跳，也不把创建页顶掉（U5 4.1）", async () => {
+    ackState = "running";
+    const assoc = seedSubmission();
+    await useAppStore.getState().forkAt(PARENT, SPAN, "编辑后的结果", undefined, assoc);
+    armSnapshot(assoc);
+    useAppStore.getState().stopOperationStatusPolling();
+
+    // 用户离开本次流程去做别的：走进创建工作区（它现在是页面，不是"盖住的模态"）
+    useAppStore.getState().openCreateWorkspace();
+    await useAppStore.getState().refreshOperationStatus();
+
+    const state = useAppStore.getState();
+    expect(state.view).toBe("create");
+    expect(state.selectedRunId).toBe(PARENT);
+    // 资格永久作废（不是"这一刻不跳"）：创建页不会替用户认领这次结果
+    expect(intentOf(assoc.operationId)).toBeUndefined();
+    // 结果本身照样核实到（导航与核实是两件事）
     expect(readCalls()).toContain(`runs:get:${REGISTERED}`);
   });
 
@@ -461,7 +484,7 @@ describe("3.4 接线契约：导航只有一个调用点", () => {
     const offenders: string[] = [];
     for (const name of [
       "components/DetailPanel.tsx",
-      "components/CreateRunDialog.tsx",
+      "components/CreateRunWorkspace.tsx",
       "components/RunList.tsx",
       "App.tsx",
     ]) {

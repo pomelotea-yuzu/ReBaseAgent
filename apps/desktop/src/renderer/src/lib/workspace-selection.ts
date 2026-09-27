@@ -3,7 +3,8 @@
  *
  * 三件事，都是**纯函数**：
  *   1. **首次自动选择**：列表首次成功加载且尚无选中项时，尝试「最近可读摘要」
- *      对应的运行并进入概览；失败**不**遍历其他记录。
+ *      对应的运行并进入概览；失败**不**遍历其他记录。用户已主动进入别的顶层工作区
+ *      （U5 4.1：创建工作区页面）时**不**自动选——首次读取迟到也不覆盖它。
  *   2. **筛选隐藏当前运行**：搜索/来源条件把当前选中运行滤掉时，主工作区继续显示它，
  *      只给导航一个「不在筛选结果中」的提示与清除入口——不自动改选。
  *   3. **已选源记录不可用**：刷新确认选中运行的源文件消失或读取失败时，标明源不可用，
@@ -25,7 +26,7 @@ export interface InitialSelection {
   /** 应当选中的 run id；null = 不做选择 */
   runId: string | null;
   /** 为何不选（供界面呈现，不是错误） */
-  reason: "selected" | "already-selected" | "no-runs" | "not-loaded";
+  reason: "selected" | "already-selected" | "no-runs" | "not-loaded" | "user-workspace";
 }
 
 /**
@@ -35,16 +36,21 @@ export interface InitialSelection {
  * @param selectedRunId 当前选中（null = 尚未选择）
  * @param listLoaded   列表是否曾成功加载
  * @param attempted    首次自动选择是否**已经尝试过**（一次性动作的守卫）
+ * @param userWorkspace U5 任务 4.1：用户是否已主动进入别的顶层工作区（当前 = 创建页）。
+ *   delta「运行工作区按阅读任务组织」明令：首次读取**迟到**也不得覆盖用户已进入的创建/
+ *   编辑流程 ⇒ 这一支必须在 `selectRun` 之前判掉；不是"选完再把页面收掉"。
  */
 export function resolveInitialSelection(input: {
   runs: readonly RunSummary[];
   selectedRunId: string | null;
   listLoaded: boolean;
   attempted: boolean;
+  userWorkspace: boolean;
 }): InitialSelection {
   if (input.selectedRunId !== null) return { runId: null, reason: "already-selected" };
   // 一次性：已尝试过就不再自动选（失败后由用户原位重试，不做静默遍历）
   if (input.attempted) return { runId: null, reason: "already-selected" };
+  if (input.userWorkspace) return { runId: null, reason: "user-workspace" };
   if (!input.listLoaded) return { runId: null, reason: "not-loaded" };
   const first = input.runs[0];
   if (first === undefined) return { runId: null, reason: "no-runs" };

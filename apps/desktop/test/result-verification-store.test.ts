@@ -183,7 +183,9 @@ beforeEach(async () => {
     readingByRun: {},
     pendingFileTarget: null,
     pendingDraftTarget: null,
-    createDialogOpen: false,
+    // U5 任务 4.1：创建已是主工作区的一个视图，复位表随新字段更新（旧的布尔开关已删）
+    view: "trace",
+    createReturnLocation: null,
     initialSelectionAttempted: false,
   });
   await placeUserReading();

@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { BranchTree } from "./components/BranchTree";
 import { ComparePanel } from "./components/ComparePanel";
 import { ConfirmDialogHost } from "./components/ConfirmDialog";
-import { CreateRunDialog } from "./components/CreateRunDialog";
+import { CreateRunWorkspace } from "./components/CreateRunWorkspace";
 import { DetailPanel } from "./components/DetailPanel";
 import { DraftCloseLockOverlay } from "./components/DraftCloseLockOverlay";
 import { GlobalBar } from "./components/GlobalBar";
@@ -24,8 +24,7 @@ export default function App() {
   const runs = useAppStore((s) => s.runs);
   const failed = useAppStore((s) => s.failed);
   const loadingList = useAppStore((s) => s.loadingList);
-  const createDialogOpen = useAppStore((s) => s.createDialogOpen);
-  const setCreateDialogOpen = useAppStore((s) => s.setCreateDialogOpen);
+  const openCreateWorkspace = useAppStore((s) => s.openCreateWorkspace);
   const setSettingsSection = useAppStore((s) => s.setSettingsSection);
   const view = useAppStore((s) => s.view);
   const tab = useAppStore((s) =>
@@ -40,12 +39,17 @@ export default function App() {
   const layout = useLayoutState({ tab, editing: false });
   const navReplacesWorkspace =
     layout.navVisible && (layout.breakpoint === "narrow" || layout.breakpoint === "single");
+  // U5 任务 4.1：创建工作区自带正文，不参与"步骤目录占满工作区"的形态
   const stepsReplaceWorkspace =
-    tab === "steps" && layout.stepsVisible && layout.stepsFullWidth && !navReplacesWorkspace;
+    view === "trace" &&
+    tab === "steps" &&
+    layout.stepsVisible &&
+    layout.stepsFullWidth &&
+    !navReplacesWorkspace;
 
   // Replacing the workspace must also move keyboard focus into the visible pane.
   useEffect(() => {
-    if (view !== "trace" || (!navReplacesWorkspace && !stepsReplaceWorkspace)) return;
+    if (view === "tree" || (!navReplacesWorkspace && !stepsReplaceWorkspace)) return;
     const pane = document.getElementById(
       navReplacesWorkspace ? "run-navigation" : "steps-navigation",
     );
@@ -92,7 +96,7 @@ export default function App() {
       <GlobalBar
         onOpenSettings={openSettings}
         navigation={
-          view === "trace"
+          view !== "tree"
             ? {
                 visible: layout.navVisible && !stepsReplaceWorkspace,
                 onToggle:
@@ -123,9 +127,15 @@ export default function App() {
           }
         }}
       >
-        {view === "trace" ? (
+        {view === "tree" ? (
           <>
-            {/* 运行导航（任务 4.3）：宽度可调 220–360；自动折叠只在显示层生效 */}
+            <BranchTree />
+            <ComparePanel />
+          </>
+        ) : (
+          <>
+            {/* 运行导航（任务 4.3）：宽度可调 220–360；自动折叠只在显示层生效。
+                U5 任务 4.1：创建工作区同样**保留**它（delta「主工作区显示单列表单且运行导航保留」） */}
             {layout.navVisible && !stepsReplaceWorkspace ? (
               <RunList
                 width={layout.navWidth}
@@ -136,10 +146,13 @@ export default function App() {
                 onSelected={layout.navOpened ? layout.closeNav : undefined}
               />
             ) : null}
-            {navReplacesWorkspace ? null : empty ? (
+            {navReplacesWorkspace ? null : view === "create" ? (
+              // 创建 = 主工作区的一个页面（不是覆盖模态）：切运行、去设置、读文件都不被它挡住
+              <CreateRunWorkspace />
+            ) : empty ? (
               // 无运行时：主工作区给两个**真实可用**的入口（delta「首次打开与无运行入口」），
               // 不是展示性欢迎页。步骤目录此时本就没有内容，一并卸下。
-              <NoRunsEmpty onCreate={() => setCreateDialogOpen(true)} onRecord={openRecording} />
+              <NoRunsEmpty onCreate={openCreateWorkspace} onRecord={openRecording} />
             ) : (
               <>
                 {/*
@@ -178,17 +191,12 @@ export default function App() {
               </>
             )}
           </>
-        ) : (
-          <>
-            <BranchTree />
-            <ComparePanel />
-          </>
         )}
       </main>
 
       {settingsOpen ? <SettingsDialog onClose={() => setSettingsOpen(false)} /> : null}
-      {/* 「新建运行」对话框在 App 层单例：全局栏与列表标题区共用同一个 createDialogOpen */}
-      {createDialogOpen ? <CreateRunDialog onClose={() => setCreateDialogOpen(false)} /> : null}
+      {/* U5 任务 4.1：创建不再是 App 层的模态单例，而是主工作区的一个视图
+          （上面 `view === "create"` 那一支）；全局栏与列表标题区共用 `openCreateWorkspace` */}
       {/* U3 任务 5.2：放弃确认的单实例模态宿主（requestConfirm 驱动） */}
       <ConfirmDialogHost />
       {/* U3 任务 4.2：关闭核对期间禁止一切新输入（键盘/粘贴由 hook 的捕获监听挡） */}

@@ -2,7 +2,8 @@
  * 紧凑全局栏（U1 任务 4.2 · design D1/D2）。
  *
  * 三个**真实可用**的入口（delta：「全局栏 SHALL 提供真实可用的新建运行、录制接入和设置入口」）：
- *   - 新建运行 → 与列表标题区**同一个** `CreateRunDialog`（状态在 store，见 `createDialogOpen`）
+ *   - 新建运行 → 与列表标题区**同一个**创建工作区（判据在 store 的 `openCreateWorkspace`，
+ *     U5 任务 4.1 起它是主工作区的一个页面，不再是覆盖模态）
  *   - 录制接入 → 打开设置并**定位到代理分区**（不是另开一套录制 UI）
  *   - 设置     → 常规打开设置
  *
@@ -220,7 +221,7 @@ export function GlobalBar({
   onOpenSettings: () => void;
   navigation?: { visible: boolean; onToggle: () => void };
 }) {
-  const setCreateDialogOpen = useAppStore((s) => s.setCreateDialogOpen);
+  const openCreateWorkspace = useAppStore((s) => s.openCreateWorkspace);
   const setSettingsSection = useAppStore((s) => s.setSettingsSection);
   const detail = useAppStore((s) => s.detail);
 
@@ -263,7 +264,7 @@ export function GlobalBar({
         <SessionDraftsEntry />
         <button
           type="button"
-          onClick={() => setCreateDialogOpen(true)}
+          onClick={openCreateWorkspace}
           title="直接在桌面端跑一个 run（纯对话，或隔离文件运行；不需代理、不需写代码）"
           className={`inline-flex cursor-pointer items-center gap-1.5 rounded border border-gray-300 px-2 py-0.5 text-reading-meta text-gray-700 hover:bg-gray-50 ${FOCUS_RING}`}
         >

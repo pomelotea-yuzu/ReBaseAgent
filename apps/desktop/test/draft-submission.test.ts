@@ -30,8 +30,8 @@ const DETAIL_PANEL = readFileSync(
   resolve(import.meta.dirname, "../src/renderer/src/components/DetailPanel.tsx"),
   "utf8",
 );
-const CREATE_DIALOG = readFileSync(
-  resolve(import.meta.dirname, "../src/renderer/src/components/CreateRunDialog.tsx"),
+const CREATE_WORKSPACE = readFileSync(
+  resolve(import.meta.dirname, "../src/renderer/src/components/CreateRunWorkspace.tsx"),
   "utf8",
 );
 const STORE_SRC = readFileSync(
@@ -521,20 +521,20 @@ describe("接线契约：五类提交走快照并受冻结约束（任务 3.4/3.
       DETAIL_PANEL.match(/const inProgress = forking === "in_progress" \|\| draftFrozen;/g)?.length,
     ).toBe(3);
     expect(DETAIL_PANEL).toContain("const inProgress = modelAbInFlight || draftFrozen;");
-    // 四个编辑器各查一次冻结（三调用类 + A/B），创建对话框在另一文件
+    // 四个编辑器各查一次冻结（三调用类 + A/B），创建工作区在另一文件
     expect(DETAIL_PANEL.match(/isDraftFrozen\(/g)?.length).toBe(4);
     expect(DETAIL_PANEL.match(/本次提交待处理/g)?.length).toBe(3);
     expect(DETAIL_PANEL).toContain("本次执行待处理");
 
-    expect(CREATE_DIALOG).toContain("isDraftFrozen(CREATE_SUBMIT_TARGET)");
-    expect(CREATE_DIALOG).toContain("const modalLocked = busy || pickingSource || draftFrozen;");
-    expect(CREATE_DIALOG).toContain("本次提交待处理");
+    expect(CREATE_WORKSPACE).toContain("isDraftFrozen(CREATE_SUBMIT_TARGET)");
+    expect(CREATE_WORKSPACE).toContain("const formLocked = busy || pickingSource || draftFrozen;");
+    expect(CREATE_WORKSPACE).toContain("本次提交待处理");
     // 两个文本域与提交钮在冻结期不可编辑
-    expect(CREATE_DIALOG.match(/disabled=\{draftFrozen\}/g)?.length).toBe(2);
+    expect(CREATE_WORKSPACE.match(/disabled=\{draftFrozen\}/g)?.length).toBe(2);
   });
 
   it("创建提交：判据通过后才登记整份关联，并随请求交给 store 收尾", () => {
-    const submit = slice(CREATE_DIALOG, "const submit = ", "const pickGeneration");
+    const submit = slice(CREATE_WORKSPACE, "const submit = ", "const pickGeneration");
     expect(submit.indexOf("if (!canCreate) return;")).toBeLessThan(
       submit.indexOf('beginDraftSubmission({ channel: "create", target: CREATE_SUBMIT_TARGET })'),
     );

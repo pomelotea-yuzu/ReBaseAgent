@@ -149,7 +149,9 @@ describe("store 行为：openDraftAt 精确返回编辑目标（任务 2.5）", 
     useAppStore.setState({
       drafts: emptyDraftRepo(),
       pendingDraftTarget: null,
-      createDialogOpen: false,
+      view: "trace",
+      createReturnLocation: null,
+      readingByRun: {},
       selectedRunId: null,
       detail: null,
       loadingDetail: false,
@@ -180,7 +182,7 @@ describe("store 行为：openDraftAt 精确返回编辑目标（任务 2.5）", 
     expect(useAppStore.getState().selectedSpanId).toBe("s_02");
   });
 
-  it("同一运行内的目标不重复 selectRun；create 目标打开创建对话框", async () => {
+  it("同一运行内的目标不重复 selectRun；create 目标打开创建工作区", async () => {
     useAppStore.setState({
       selectedRunId: "r_01",
       selectRun: async () => {
@@ -192,8 +194,18 @@ describe("store 行为：openDraftAt 精确返回编辑目标（任务 2.5）", 
     expect(useAppStore.getState().selectedSpanId).toBe("s_03");
 
     await useAppStore.getState().openDraftAt({ runId: "", spanId: null, field: "create" });
-    expect(useAppStore.getState().createDialogOpen).toBe(true);
-    expect(useAppStore.getState().pendingDraftTarget).toBeNull();
+    const state = useAppStore.getState();
+    // U5 任务 4.1：草稿定位 = 走进创建工作区页面（旧的 `createDialogOpen` 布尔已作废）
+    expect(state.view).toBe("create");
+    expect(state.pendingDraftTarget).toBeNull();
+    // 定位走的是与全局栏同一个入口动作 ⇒ 来源按当时位置重记（这里是 r_01 的调用页）
+    expect(state.createReturnLocation).toEqual({
+      view: "trace",
+      runId: "r_01",
+      tab: "steps",
+      spanId: "s_03",
+      file: null,
+    });
   });
 
   it("consumeDraftTarget 清空 pending（编辑器消费一次后不残留）", () => {

@@ -10,6 +10,7 @@ import * as draftLib from "../src/renderer/src/lib/debugging-drafts";
 import type { DraftSubmission } from "../src/renderer/src/lib/draft-submission";
 import { CREATE_SUBMIT_TARGET } from "../src/renderer/src/lib/draft-submission";
 import * as subLib from "../src/renderer/src/lib/draft-submission";
+import { emptyNavigationIntents } from "../src/renderer/src/lib/navigation-intent";
 import { initialSession } from "../src/renderer/src/lib/operation-session";
 import { emptyResultReadStore, resultReadKeyOf } from "../src/renderer/src/lib/result-verification";
 import { deriveRunSummary } from "../src/shared/derive";
@@ -20,7 +21,8 @@ import { FAKE_EPOCH, statusSnapshot, toExecuted } from "./helpers/operation-chan
  *
  * 判据来源：design D3/D4 + delta「桌面端提供原生 run 创建入口」「结果按可信运行身份核实且
  * 读取重试不执行」。验收场景（delta 逐字标题）：
- * - 「新建 run 成功」——新 run **可选中**（不是"被自动选中"）；
+ * - 「新建 run 成功」——新 run **可选中**（入口不拿信封 id 去选它）；是否自动进入它的
+ *   概览归任务 3.4/4.1 的导航意图判据（U5 4.1 起创建页不是覆盖模态 ⇒ 留在流程内会跳）；
  * - 「执行失败不产生半成品」——失败运行照样按可信身份可见、可读；
  * - 「失败信封仍可打开可信记录」——按登记的 runId 读，不解析错误文案、不扫列表最新项。
  *
@@ -30,7 +32,7 @@ import { FAKE_EPOCH, statusSnapshot, toExecuted } from "./helpers/operation-chan
  * （`submitActive` 回执 → `refreshOperationStatus` → `consumeSettledOperations`：
  * 解冻 → 整批至多一次列表刷新 → 按登记 `runIds` 串行核实 → 按修订收尾草稿）。
  *
- * ⚠️ 断言刻意不看"组件渲染出了什么"：创建对话框可能在响应前就被关闭/卸载
+ * ⚠️ 断言刻意不看"组件渲染出了什么"：创建页可能在响应前就被离开/卸载
  *    （`resetCreateRun` 只复位展示态），收尾照样必须发生。
  */
 
@@ -130,6 +132,11 @@ const { useAppStore } = await import("../src/renderer/src/store");
 
 const listCount = () => calls.filter((one) => one === "runs:list").length;
 const readCalls = () => calls.filter((one) => one.startsWith("runs:get:"));
+/**
+ * 按出现顺序去重后的读取集合（U5 3.4 起留在流程内时协调器会再走一次 `selectRun`，
+ * 那次自己会再读一遍详情 ⇒ "读了两次"不是缺陷，"读了信封 id"才是）。
+ */
+const dedupedReads = () => [...new Set(readCalls())];
 const entryOf = (assoc: DraftSubmission) =>
   useAppStore.getState().resultReads.byKey[
     resultReadKeyOf({ epoch: FAKE_EPOCH, operationId: assoc.operationId, runId: REGISTERED })
@@ -179,16 +186,20 @@ beforeEach(async () => {
     detail: null,
     readingByRun: {},
     view: "trace",
+    createReturnLocation: null,
+    navIntents: emptyNavigationIntents(),
+    navGeneration: 0,
     creatingRun: "idle",
     createRunError: null,
     createRunErrorCode: null,
     createSourceRef: null,
     /**
-     * 与真机一致：创建提交发生在**打开着的创建对话框**里。U5 3.4 的导航判据据此判
-     * "有覆盖模态在场 ⇒ 不跳到它背后"，所以本文件的"零导航"断言才成立
-     * （创建页改成工作区页面后由 §4 重定这条；模态在场时不跳是 spec 要求的，不是漏接）。
+     * U5 任务 4.1 的改判（不是削弱）：创建**不再是覆盖模态**，所以从创建页提交的这一次
+     * 操作会走任务 3.4 的导航意图判据 ⇒ 留在流程内就跳概览（失败也跳失败概览）。
+     * 旧口径"创建对话框恒在场 ⇒ 创建入口实际不会自动导航"见 tasks 3.4 注记 ③，
+     * 该前提随 4.1 一起消失；两边的留痕在 tasks 3.1 与本项条目。
      */
-    createDialogOpen: true,
+    settingsSection: null,
   });
   // 握手一次（空闲会话）：入口的门禁要求已握手，之后各用例自行覆盖 snapshot
   await useAppStore.getState().refreshOperationStatus();
@@ -196,7 +207,7 @@ beforeEach(async () => {
 });
 
 describe("3.1 创建入口不再消费响应（普通创建）", () => {
-  it("「新建 run 成功」：按登记的可信 ID 收尾，零导航、列表只刷一次", async () => {
+  it("「新建 run 成功」：按登记的可信 ID 收尾；留在流程内 ⇒ 跳的是登记的那条", async () => {
     const assoc = seedCreate("解释一下时间旅行调试");
 
     const returned = await useAppStore
@@ -205,20 +216,40 @@ describe("3.1 创建入口不再消费响应（普通创建）", () => {
 
     expect(returned).toBe(true);
     // 唯一被读的是**登记里**的 id；信封那个 id 一次都不读（旧实现正是拿它去 selectRun）
-    expect(readCalls()).toEqual([`runs:get:${REGISTERED}`]);
+    expect(dedupedReads()).toEqual([`runs:get:${REGISTERED}`]);
     expect(calls).not.toContain(`runs:get:${ENVELOPE_RUN}`);
     // 列表刷新只有终态消费的那一次（入口不再自己 loadRuns，也不重复刷）
     expect(listCount()).toBe(1);
-    // 零导航：选中的运行、详情、页签、阅读状态、视图一概不动
+    // U5 任务 4.1 改判：创建页不再是覆盖模态 ⇒ 留在本次流程的意图放行，跳向**登记的那条**
+    // （旧口径"创建入口零导航"的前提是模态恒在场，随 4.1 消失；导航仍不由入口的响应驱动）
     const state = useAppStore.getState();
-    expect(state.selectedRunId).toBeNull();
-    expect(state.detail).toBeNull();
-    expect(state.readingByRun).toEqual({});
+    expect(state.selectedRunId).toBe(REGISTERED);
+    expect(state.detail?.meta.id).toBe(REGISTERED);
     expect(state.view).toBe("trace");
+    expect(Object.keys(state.readingByRun)).toEqual([REGISTERED]);
     expect(state.loadingDetail).toBe(false);
     // 「响应即成功」的展示态已不存在：请求交出后回到 idle
     expect(state.creatingRun).toBe("idle");
     expect(state.createRunError).toBeNull();
+  });
+
+  it("提交发生在创建页里 ⇒ 终态落定照样按意图跳概览（页面不是导航屏障，U5 4.1）", async () => {
+    // 与真机同形：先进入创建工作区（旧的覆盖模态已不存在），再在这页里提交
+    useAppStore.getState().openCreateWorkspace();
+    expect(useAppStore.getState().view).toBe("create");
+    const assoc = seedCreate("从创建页里提交");
+
+    await useAppStore
+      .getState()
+      .createRun({ systemPrompt: "", userMessage: "从创建页里提交" }, assoc);
+
+    const state = useAppStore.getState();
+    // 结果可读 + 用户没离开本次流程 ⇒ 跳登记的那条，并离开创建页（来源随之作废）
+    expect(state.view).toBe("trace");
+    expect(state.selectedRunId).toBe(REGISTERED);
+    expect(state.createReturnLocation).toBeNull();
+    // 跳转不是"响应自己选的"：信封 id 一次都没读
+    expect(calls).not.toContain(`runs:get:${ENVELOPE_RUN}`);
   });
 
   it("「新建 run 成功」的正常终止一侧：核实通过才按提交修订清理草稿与目录引用", async () => {
@@ -300,13 +331,15 @@ describe("3.1 创建入口不再消费响应（普通创建）", () => {
 
     // 轮询到终态 ⇒ 同一条消费路径：解冻 → 刷一次列表 → 按登记 ID 核实 → 按修订清理
     await useAppStore.getState().refreshOperationStatus();
-    expect(readCalls()).toEqual([`runs:get:${REGISTERED}`]);
+    expect(dedupedReads()).toEqual([`runs:get:${REGISTERED}`]);
     expect(listCount()).toBe(1);
     const state = useAppStore.getState();
     expect(state.isDraftFrozen(CREATE_SUBMIT_TARGET)).toBe(false);
     expect(state.drafts.create).toBeNull();
     expect(state.createSourceRef).toBeNull();
     expect(subLib.closureOf(state.draftSubmissions, FAKE_EPOCH, assoc.operationId)).toBeUndefined();
+    // U5 4.1：轮询到终态这一路同样按意图导航（响应那一侧仍未消费——上面"零读取"已钉）
+    expect(state.selectedRunId).toBe(REGISTERED);
   });
 });
 
@@ -337,7 +370,7 @@ describe("3.1 失败信封仍按可信身份收尾（普通创建）", () => {
     expect(returned).toBe(false);
     // 失败运行的可见性来自终态消费（登记里有它的 id），不是入口自己那次 loadRuns
     expect(listCount()).toBe(1);
-    expect(readCalls()).toEqual([`runs:get:${REGISTERED}`]);
+    expect(dedupedReads()).toEqual([`runs:get:${REGISTERED}`]);
     const state = useAppStore.getState();
     // 请求事实与运行结局各占一行、互不覆盖
     expect(state.creatingRun).toBe("error");
@@ -350,8 +383,10 @@ describe("3.1 失败信封仍按可信身份收尾（普通创建）", () => {
     expect(createDraft()?.userMessage).toBe("失败也要看得见");
     expect(state.createSourceRef).not.toBeNull();
     expect(subLib.closureOf(state.draftSubmissions, FAKE_EPOCH, assoc.operationId)).toBeDefined();
-    // 失败也不产生导航
-    expect(state.selectedRunId).toBeNull();
+    // U5 4.1：失败结局照样进它的**失败概览**（spec「留在当前流程可进入成功或失败概览」），
+    // 且跳的是登记的那条；草稿保留说明"跳过去"不等于"当它成功了"
+    expect(state.selectedRunId).toBe(REGISTERED);
+    expect(state.detail?.meta.id).toBe(REGISTERED);
   });
 
   it("「失败信封仍可打开可信记录」的反面：登记没有 ID ⇒ 不解析文案、不扫列表", async () => {
@@ -394,10 +429,11 @@ describe("3.1 隔离创建走同一条收尾（同一 store 动作）", () => {
     expect(returned).toBe(true);
     // 授权与 token 不经渲染层改写（透传）
     expect(createRunRequests).toEqual([request]);
-    expect(readCalls()).toEqual([`runs:get:${REGISTERED}`]);
+    expect(dedupedReads()).toEqual([`runs:get:${REGISTERED}`]);
     expect(listCount()).toBe(1);
     const state = useAppStore.getState();
-    expect(state.selectedRunId).toBeNull();
+    // 隔离创建与普通创建同一条收尾路，也包括"按意图跳向登记的那条"
+    expect(state.selectedRunId).toBe(REGISTERED);
     expect(createDraft()).toBeNull();
     expect(state.createSourceRef).toBeNull();
     expect(subLib.closureOf(state.draftSubmissions, FAKE_EPOCH, assoc.operationId)).toBeUndefined();

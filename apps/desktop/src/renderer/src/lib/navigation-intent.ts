@@ -97,7 +97,10 @@ export interface NavigationDecisionInput {
   readonly intent: NavigationIntent | undefined;
   /** **当下**（导航前一刻）的阅读代次，不是读取开始时的快照 */
   readonly generation: number;
-  /** 有覆盖模态在场（创建页 / 设置）：不跳到它背后 */
+  /**
+   * 有覆盖模态在场（U5 4.1 起 = 设置对话框；创建工作区已是页面，不再算覆盖模态）：
+   * 不跳到它背后
+   */
   readonly coveringModal: boolean;
   /** 这条操作在会话镜像里的登记记录（undefined = 本会话镜像里没有） */
   readonly record: OperationRecord | undefined;
