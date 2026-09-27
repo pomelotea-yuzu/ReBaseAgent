@@ -9,6 +9,7 @@ import { DraftCloseLockOverlay } from "./components/DraftCloseLockOverlay";
 import { GlobalBar } from "./components/GlobalBar";
 import { FOCUS_RING } from "./components/IconButton";
 import { OverviewPanel } from "./components/OverviewPanel";
+import { ResultLiveRegion } from "./components/ResultLiveRegion";
 import { RunList } from "./components/RunList";
 import { NoRunsEmpty, RunHeader, RunWorkspace, resolveVisibleTab } from "./components/RunWorkspace";
 import { SettingsDialog } from "./components/SettingsDialog";
@@ -105,6 +106,9 @@ export default function App() {
             : undefined
         }
       />
+
+      {/* U5 任务 5.2：全局结果通知区——挂在外壳上，独立于操作面板的开合与当前视图 */}
+      <ResultLiveRegion />
 
       {error !== null ? (
         <div className="border-b border-red-200 bg-red-50 px-4 py-2 text-[11px] text-red-700">
