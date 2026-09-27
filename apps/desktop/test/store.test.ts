@@ -447,16 +447,19 @@ describe("store：分支树视图与对照集合", () => {
   });
 });
 
-describe("store：runs:create 流转（A1 / B 2.1 请求透传）", () => {
-  it("成功：in_progress → success，列表刷新并自动选中新 run", async () => {
+describe("store：runs:create 流转（A1 / B 2.1 请求透传 + U5 3.1 入口不再消费响应）", () => {
+  it("成功：请求状态回到 idle，列表刷新与选中新 run 都由入口移除（收尾归终态消费）", async () => {
     await useAppStore.getState().loadRuns();
+    const before = controller.listCalls;
     const created = await useAppStore
       .getState()
       .createRun({ systemPrompt: "你是助手。", userMessage: "解释一下时间旅行调试" });
     expect(created).toBe(true);
 
     const state = useAppStore.getState();
-    expect(state.creatingRun).toBe("success");
+    // U5 任务 3.1 的**有意契约变更**：`creatingRun` 不再有 "success" 这个值——
+    // 响应只证明请求明确返回，运行结局另由可信身份核实（见 operation-create-closure.test.ts）。
+    expect(state.creatingRun).toBe("idle");
     expect(state.createRunError).toBeNull();
     // 纯对话请求里不带 workspace 键（main 据此走空工具表 + v1）
     expect(controller.createRunRequests).toEqual([
@@ -466,7 +469,11 @@ describe("store：runs:create 流转（A1 / B 2.1 请求透传）", () => {
       controller.createRunRequests[0] !== undefined &&
         "workspace" in controller.createRunRequests[0],
     ).toBe(false);
-    expect(state.selectedRunId).toBe("run_created");
+    // 本文件的 status 桩答"没有任何登记操作"⇒ 终态消费无事可做 ⇒ 入口这条路零次列表刷新、
+    // 零导航（旧实现在这里刷一次列表并把信封里的 id 选成当前运行）
+    expect(controller.listCalls).toBe(before);
+    expect(state.selectedRunId).toBeNull();
+    expect(state.resultReads.byKey).toEqual({});
   });
 
   it("隔离模式：store 原样透传 workspace（授权与 token 不经渲染层改写）", async () => {
@@ -483,10 +490,10 @@ describe("store：runs:create 流转（A1 / B 2.1 请求透传）", () => {
         workspace: { mode: "isolated_files", sourceToken: "tok_1", allowFileWrites: true },
       },
     ]);
-    expect(useAppStore.getState().creatingRun).toBe("success");
+    expect(useAppStore.getState().creatingRun).toBe("idle");
   });
 
-  it("失败：置 error 并保留错误码，且仍刷新列表（error run 已落盘，必须可见）", async () => {
+  it("失败：置 error 并保留错误码，入口不再自己刷列表（失败运行的可见性由终态消费负责）", async () => {
     controller.createRunEnvelope = {
       ok: false,
       error: {
@@ -507,8 +514,10 @@ describe("store：runs:create 流转（A1 / B 2.1 请求透传）", () => {
     expect(state.creatingRun).toBe("error");
     expect(state.createRunErrorCode).toBe("CREATE_RUN_FAILED");
     expect(state.createRunError).toContain("模型调用未完成");
-    // 关键：失败也要重拉列表，否则用户看不到那条已按 meta.id 落盘的 error run
-    expect(controller.listCalls).toBeGreaterThan(before);
+    // U5 任务 3.1：那条已落盘的 error run 之所以可见，是因为 main 把它的 id 挂在了操作上，
+    // 终态消费据此刷**一次**列表并按该可信 ID 读详情（用例见 operation-create-closure.test.ts）；
+    // 入口自己再拉一次列表是"用响应当结果"的旧形态，已移除。
+    expect(controller.listCalls).toBe(before);
     expect(state.selectedRunId).toBeNull();
   });
 });

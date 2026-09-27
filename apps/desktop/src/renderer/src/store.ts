@@ -196,8 +196,13 @@ interface AppState {
   /** 分叉失败的错误码（渲染层据此给针对性提示，如未配置） */
   forkErrorCode: string | null;
 
-  /** 新建运行进行中状态（runs:create 写通道） */
-  creatingRun: "idle" | "in_progress" | "success" | "error";
+  /**
+   * 新建运行的**请求**状态（runs:create 写通道）。
+   *
+   * U5 任务 3.1：取值里刻意没有"成功"——响应回来只证明"这次请求明确返回了"，
+   * 运行结局另由可信身份核实（`resultReads`）给出。ok 之后回到 idle = 输入面已交出。
+   */
+  creatingRun: "idle" | "in_progress" | "error";
   /** 新建运行失败的展示信息（来自信封 error） */
   createRunError: string | null;
   /** 新建运行失败的错误码（渲染层据此给针对性提示，如未配置） */
@@ -524,9 +529,19 @@ interface AppState {
   resetFork: () => void;
 
   /**
-   * 新建运行（runs:create）：从头执行一个原生 run。
-   * 请求由 `lib/create-run.ts` 的 `resolveCreateRunSubmission` 构造（纯对话 / 隔离两态同源），
-   * store 只负责透传与状态机。成功刷新列表并自动选中新 run；返回是否成功。
+   * 新建运行（runs:create）：从头执行一个原生 run（纯对话与隔离文件两态同一入口）。
+   * 请求由 `lib/create-run.ts` 的 `resolveCreateRunSubmission` 构造（判据与请求同源），
+   * store 只负责透传与**请求**状态机。
+   *
+   * U5 任务 3.1：这里不再消费响应——旧实现在 ok 后 `loadRuns()` + `selectRun(信封里的 id)`，
+   * 失败分支也自己刷一次列表。三者都已移除：
+   * - 列表刷新与结果核实归**终态消费唯一落点**（`consumeSettledOperations`：回执 → status →
+   *   整批至多一次刷新 → 按登记的可信 `runIds` 串行核实），所以编辑器关不关、
+   *   响应先到还是轮询先到都不影响收尾；
+   * - 失败运行的可见性同一条路：main 在执行开始时就把 runId 挂到该操作上（`onRunIdentified`），
+   *   信封失败不改变登记事实 ⇒ 仍按可信 ID 刷列表、读详情，而不是解析错误文案里的 id；
+   * - 是否切到新 run 的概览属**导航意图**（任务 3.4），入口一概不做。
+   * 返回值只表示"请求是否被明确接受并返回"（供表单交出输入面），**不是**运行结局。
    */
   createRun: (
     request: CreateRunRequest,
@@ -1641,20 +1656,17 @@ export const useAppStore = create<AppState>((set, get) => ({
     // **任何响应都不删草稿**（design D5）。通道抛错不进这里，冻结保留（状态未知）。
     if (submission !== undefined) get().finishDraftSubmission(submission, envelope);
     if (!envelope.ok) {
+      // 请求事实单独留一行：错误信封说明"这次提交被怎样对待"，不替代运行结局。
+      // 失败运行若要可见走的是终态消费（main 已把 runId 挂到该操作上），不在这里刷列表。
       set({
         creatingRun: "error",
         createRunError: envelope.error.message,
         createRunErrorCode: envelope.error.code,
       });
-      // 失败也要刷新列表：error run 已按 meta.id 落盘，不刷新用户就看不到它
-      // （spec：执行失败不产生半成品，但该 run 应在列表与详情中可查看）
-      await get().loadRuns();
       return false;
     }
-    // 成功：刷新列表（新 run 归入"本地记录"）并自动选中新 run
-    set({ creatingRun: "success" });
-    await get().loadRuns();
-    await get().selectRun(envelope.data.id);
+    // U5 任务 3.1：ok 只结束"这次请求在飞"的本地标记；没有"success"，也没有导航。
+    set({ creatingRun: "idle" });
     return true;
   },
 

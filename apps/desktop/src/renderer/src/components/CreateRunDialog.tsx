@@ -124,14 +124,17 @@ export function CreateRunDialog({ onClose }: { onClose: () => void }) {
     const assoc = beginDraftSubmission({ channel: "create", target: CREATE_SUBMIT_TARGET });
     if (assoc === null) return;
     // canCreate 已通过 ⇒ submitCreateRun 的判据必然同样通过，必定发出请求并由 store 收尾
-    const created = await submitCreateRun(
+    const returned = await submitCreateRun(
       form,
       { systemPrompt, userMessage, busy },
       {
         createRun: (request) => createRun(request, assoc),
       },
     );
-    if (created) onClose();
+    // U5 任务 3.1：这里交出的是**输入面**，不是"运行成功"的宣告——响应回来只代表这次请求
+    // 明确返回。运行结局、列表与草稿清理走 store 的终态消费；是否进入新 run 的概览
+    // 归导航意图（任务 3.4），旧实现"ok 即自动选中新 run"已从 store 移除。
+    if (returned) onClose();
   };
 
   /** 目录选择的请求代次（U3 任务 3.2）：卸载/重开使在飞代次失效，迟到响应不落地 */

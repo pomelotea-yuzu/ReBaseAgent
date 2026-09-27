@@ -241,9 +241,10 @@ describe("接线：既有指标字段一个不删，源标签同步", () => {
     }
   });
 
-  it("store 的创建成功注释已同步为「本地记录」", () => {
-    const src = read("src/renderer/src/store.ts");
-    expect(src).toContain('归入"本地记录"');
-    expect(src).not.toContain('归入"本地直录"');
+  it("「本地记录」标签在列表侧在场；store 侧不再有旧标签", () => {
+    // U5 任务 3.1：创建入口不再自己刷列表，原先钉在 store 成功分支里的那句注释一并消失——
+    // 标签的真实出处在 RunList 的来源过滤与徽章文案，正向核对改指那里（旧标签的负向核对见上一支）。
+    expect(read("src/renderer/src/components/RunList.tsx")).toContain('["local", "本地记录"]');
+    expect(read("src/renderer/src/store.ts")).not.toContain('归入"本地直录"');
   });
 });
