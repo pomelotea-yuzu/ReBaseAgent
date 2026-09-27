@@ -303,3 +303,35 @@ export function operationOf(
 export function isSettledState(record: OperationRecord | undefined): boolean {
   return record !== undefined && (record.state === "settled" || record.state === "notAccepted");
 }
+
+// ---------------------------------------------------------------------------
+// U5 任务 1.4：终态消费的"新增"判定
+//
+// 轮询每轮回的是**全量快照**（D1：本阶段不裁历史）。若按"快照里有终态"就动手，
+// 同一操作的解冻/列表刷新/结果读取会被重复触发；只认"这一轮第一次进终态"才是幂等的。
+// 键含 epoch：新 main 会话的记录与旧会话同名记录互不相干（旧会话的结局仍未知）。
+// ---------------------------------------------------------------------------
+
+/** 该记录是否已被本轮快照在场（同 epoch 同 operationId 且已进可信终态） */
+function settledKeyOf(record: OperationRecord): string {
+  return `${record.epoch}|${record.operationId}`;
+}
+
+/**
+ * 相对上一份会话，本轮**新进入**可信终态的登记记录（其余操作一律不重复收尾）。
+ *
+ * renderer 重载后上一份是空的 ⇒ 快照里已有的终态全算"新"——这正是恢复语义要的：
+ * 重载只能恢复登记与读取结果，不推测草稿（design D3）。
+ */
+export function newlySettledOperations(
+  previous: OperationSession,
+  next: OperationSession,
+): OperationRecord[] {
+  const already = new Set<string>();
+  for (const record of previous.operations) {
+    if (isSettledState(record)) already.add(settledKeyOf(record));
+  }
+  return next.operations.filter(
+    (record) => isSettledState(record) && !already.has(settledKeyOf(record)),
+  );
+}

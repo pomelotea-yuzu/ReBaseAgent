@@ -6,6 +6,7 @@ import {
   deriveGate,
   initialSession,
 } from "../src/renderer/src/lib/operation-session";
+import * as resultLib from "../src/renderer/src/lib/result-verification";
 import { ok } from "../src/shared/ipc";
 import type { Envelope, WindowApi } from "../src/shared/ipc";
 import type { OperationRecord, OperationStatusResult } from "../src/shared/operations";
@@ -110,6 +111,7 @@ function resetSession(): void {
   calls.length = 0;
   useAppStore.setState({
     operations: initialSession(),
+    resultReads: resultLib.emptyResultReadStore(),
     drafts: draftLib.emptyDraftRepo(),
     draftSubmissions: subLib.emptySubmissionStore(),
     forking: "idle",
@@ -380,9 +382,16 @@ describe("4.9 真实消费：结果不可读不重执行、也不锁配置", () 
 
     // 对照项：同一 ID 再次明确打开 ⇒ 真的重读（`selectRun` 会短路，重试口是 reopenRun）
     await useAppStore.getState().reopenRun("run_unreadable");
-    expect(calls.filter((one) => one === "getRun")).toHaveLength(2);
-    // 两次失败读取都没有触发任何主动执行通道
+    // 三次失败读取：U5 任务 1.4 起，采纳含终态的快照会自动按可信 ID 核实一次（第 1 次），
+    // 之后才是用户的明确打开与原位重试。读取失败只留在结果项里，不改登记、不重执行。
+    expect(calls.filter((one) => one === "getRun")).toHaveLength(3);
+    // 三次失败读取都没有触发任何主动执行通道
     expect(calls.filter((one) => one === "runs:fork")).toHaveLength(0);
+    // 自动核实留下的结论：不可读，且没有任何"结果"被猜出来
+    const reads = useAppStore.getState().resultReads.byKey;
+    const key = `${FAKE_EPOCH}|66666666-6666-4666-8666-666666666666|run_unreadable`;
+    expect(reads[key]).toMatchObject({ phase: "unreadable", attempt: 1, facts: null });
+    expect(reads[key]?.reason).toContain("RUN_READ_FAILED");
   });
 });
 

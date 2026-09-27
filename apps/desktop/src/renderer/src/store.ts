@@ -37,11 +37,14 @@ import {
 } from "@shared/ipc";
 import { decideRefresh, resolveRefreshFailure, settleRefresh } from "@shared/list-refresh";
 import { ShortIdState } from "@shared/nav";
+import type {
+  ExecutedRequest,
+  ExecutedResponse,
+  OperationAck,
+  OperationStatusResult,
+} from "@shared/operations";
 import {
-  type ExecutedRequest,
-  type ExecutedResponse,
   OPERATION_ERROR,
-  type OperationAck,
   OperationAckSchema,
   OperationStatusResultSchema,
   ReconcileResultSchema,
@@ -93,8 +96,8 @@ import {
   endLocalSubmission,
   hasSameEpochPending,
   initialSession,
-  isSettledState,
   markUnknown,
+  newlySettledOperations,
 } from "./lib/operation-session";
 import { resolveReading } from "./lib/reading-resolve";
 import {
@@ -776,6 +779,12 @@ async function submitActive<TRequest, TResponse>(
     useAppStore.setState((state) => ({
       operations: endLocalSubmission(state.operations, identity.operationId),
     }));
+    /**
+     * U5 任务 1.4：拿到**可信终态回执**就立刻取一次 status——`runIds` 只存在于登记快照里，
+     * 回执本身只说明"这条操作结束了"。刷新后由 `consumeSettledOperations` 统一收尾，
+     * 于是"响应到达"与"轮询/核对到达"走的是同一条核实路径（spec「所有入口实际使用同一适配器」）。
+     */
+    await useAppStore.getState().refreshOperationStatus();
   }
   // 任务 4.5：计时起点是"这次响应完成"——批次/长请求在飞期间不叠加定时请求
   rescheduleStatusPoll();
@@ -783,7 +792,7 @@ async function submitActive<TRequest, TResponse>(
 }
 
 /**
- * 一次「按可信 ID 核实结果」的实际读取（U5 任务 1.2/1.3）。
+ * 一次按可信 ID 核实结果的实际读取（U5 任务 1.2/1.3）。
  *
  * 三条判据都落在这里，组件无从各写一套：
  * - **去重**（`force=false`）：该身份已在读或已核实 ⇒ 直接交回在场的结论，不发第二次请求
@@ -806,6 +815,33 @@ async function readRunResult(
   }));
   // 守卫丢弃本次结论时，交回界面上真正在场的那一条（调用方据此呈现，绝不拿废结论去导航）
   return resultReadOf(useAppStore.getState().resultReads, identity) as ResultReadEntry;
+}
+
+/**
+ * U5 任务 1.4：**终态消费的唯一落点**（design D3）。
+ *
+ * 三条入口——有效 status 采纳、有效执行回执后的状态刷新、reconcile 后的状态刷新——
+ * 全部汇到本函数，所以"哪个先到"不改变结论，组件挂不挂载也不改变结论：
+ * 1. 按身份解冻待定关联（只解这一条）；
+ * 2. 整批**至多一次**列表刷新（没有任何新运行就不刷；列表失败也不拦住第 3 步）；
+ * 3. 逐条按可信 runId 核实结果（串行发读，去重与代次守卫都在 `readRunResult` 里）。
+ *
+ * ⚠️ `runIds` 为空的 settled 一条都不读——那是"结果未定位"，只能核对登记，
+ *    从列表最新项或错误文案里猜一个 id 正是 spec 禁止的做法。
+ */
+async function consumeSettledOperations(previous: OperationSession): Promise<void> {
+  const fresh = newlySettledOperations(previous, useAppStore.getState().operations);
+  if (fresh.length === 0) return;
+  const state = useAppStore.getState();
+  for (const record of fresh) {
+    state.settleDraftByOperation({ epoch: record.epoch, operationId: record.operationId });
+  }
+  if (fresh.some((record) => record.runIds.length > 0)) await state.loadRuns();
+  for (const record of fresh) {
+    for (const runId of record.runIds) {
+      await readRunResult({ epoch: record.epoch, operationId: record.operationId, runId }, false);
+    }
+  }
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -1316,7 +1352,8 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   async refreshOperationStatus() {
     // 先记代次再发请求：期间若有新握手，本次响应整份丢弃（迟到响应不得覆盖新状态）
-    const issuing = beginHandshake(get().operations);
+    const previous = get().operations;
+    const issuing = beginHandshake(previous);
     set({ operations: issuing });
     let envelope: Awaited<ReturnType<typeof api.operationsStatus>>;
     try {
@@ -1332,9 +1369,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ operations: markUnknown(get().operations) });
       return get().operations;
     }
-    set({
-      operations: applyStatus(get().operations, parsed.data, issuing.generation).session,
-    });
+    const applied = applyStatus(get().operations, parsed.data, issuing.generation);
+    set({ operations: applied.session });
+    // U5 任务 1.4：只有**被采纳的**快照才驱动终态消费（失联/非法/迟到都不动任何收尾）
+    if (applied.applied) await consumeSettledOperations(previous);
     return get().operations;
   },
 
@@ -1367,26 +1405,21 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ operations: markUnknown(get().operations) });
       return get().operations;
     }
-    const applied = applyReconcile(get().operations, parsed.data, generation);
+    const previous = get().operations;
+    const applied = applyReconcile(previous, parsed.data, generation);
     set({ operations: applied.session });
     /**
-     * U4 任务 6.5 实机补上的一支接线：spec 把「核对到 settled/notAccepted」列为
-     * **唯一**能把待定关联解冻的合法入口（响应丢失时不自动重发、只能重新核对）。
-     * 之前只有 `finishDraftSubmission`（响应路径）会解冻，`settleDraftByOperation`
-     * 在真链路上从没被调用 ⇒ 核对解不开任何锁。这里补调用，且只解**这一条身份**：
-     * 未采纳（applied=false）与 running 都不动任何关联。
+     * U4 任务 6.5 的接线在 U5 任务 1.4 里并入统一落点：spec 把「核对到 settled/notAccepted」
+     * 列为**唯一**能把待定关联解冻的合法入口（响应丢失时不自动重发、只能重新核对），
+     * 而解冻、单次列表刷新与按 ID 核实必须走同一条路——所以这里不再单独调
+     * `settleDraftByOperation`，交给 `consumeSettledOperations`（只处理本轮新进终态的记录）。
      */
-    if (applied.applied && isSettledState(parsed.data.operation)) {
-      get().settleDraftByOperation({
-        epoch: parsed.data.epoch,
-        operationId: parsed.data.operation.operationId,
-      });
-    }
+    if (applied.applied) await consumeSettledOperations(previous);
     return get().operations;
   },
 
   async verifyRunResult(identity) {
-    // U5 任务 1.2：核实动作**只**读详情通道并写自己的读取项。
+    // U5 任务 1.2/1.3：核实动作**只**读详情通道并写自己的读取项。
     // 不 selectRun / reopenRun（那会换选中项、恢复阅读状态、动 loadingDetail 与全局 error），
     // 不 loadRuns（列表失败与按 ID 核实互不相干），不碰任何执行通道。
     return readRunResult(identity, false);

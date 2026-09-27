@@ -187,6 +187,10 @@ beforeEach(async () => {
     initialSelectionAttempted: false,
   });
   await placeUserReading();
+  // U5 任务 1.4 之后，握手采纳含终态的快照会**自动**消费一次（刷列表 + 按 ID 核实）。
+  // 本文件钉的是"核实动作本身不改用户的阅读现场"，所以从那之后清零调用流水与读取项。
+  calls.length = 0;
+  useAppStore.setState({ resultReads: emptyResultReadStore() });
 });
 
 describe("verifyRunResult：核实不改变用户正在读的东西", () => {
