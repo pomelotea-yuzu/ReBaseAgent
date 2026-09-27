@@ -139,6 +139,38 @@ export function settingsStampOf(input: {
   ].join("|");
 }
 
+/**
+ * 模型配置指纹（U5 任务 5.3）：`settingsStampOf` 的**去代理**投影——
+ * 设置往返要作废的是"dry-run 计划绑的模型配置"，代理启停/凭据波动**不该**把 A/B
+ * 计划连带打掉（delta「代理凭据仍按自身会话规则判断，不由桌面模型密钥替代」）。
+ * 同样刻意不含 apiKey 明文与加密方式（单向存储读不回，渲染层观察不到）。
+ */
+export function modelConfigStampOf(settings: SettingsState | null): string {
+  return [
+    settings === null ? "unread" : settings.configured ? "configured" : "unconfigured",
+    settings?.model ?? "-",
+    settings?.baseURL ?? "-",
+  ].join("|");
+}
+
+/** 计划新鲜度（U5 任务 5.3）：修订推进与配置往返是**两种要分开的失效原因** */
+export type PlanFreshness = "fresh" | "revision-stale" | "config-stale";
+
+export function decidePlanFreshness(input: {
+  /** 预览成功时记录的批次修订；null = 还没预览 */
+  readonly planRevision: number | null;
+  readonly draftRevision: number | null;
+  /** 预览成功时记录的模型配置指纹；null = 还没预览 */
+  readonly planConfigStamp: string | null;
+  readonly currentConfigStamp: string;
+}): PlanFreshness {
+  if (input.planConfigStamp === null || input.planRevision === null) return "revision-stale";
+  // 配置先判：它是"这次计划要打到哪儿"的前提，比修订更值得先说
+  if (input.planConfigStamp !== input.currentConfigStamp) return "config-stale";
+  if (input.planRevision !== input.draftRevision) return "revision-stale";
+  return "fresh";
+}
+
 // ---------------------------------------------------------------------------
 // 确认态的展示内容（每个入口一份，全部由事实拼出）
 // ---------------------------------------------------------------------------

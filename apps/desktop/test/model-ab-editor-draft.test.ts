@@ -236,7 +236,13 @@ describe("接线契约：A/B 预览修订绑定与迟到守卫（任务 3.3）",
     expect(code).toContain(
       "const draftRevision = draftEntry !== undefined ? draftEntry.revision : null;",
     );
-    expect(code).toContain("planRevision === draftRevision");
+    // U5 任务 5.3 改判（两边留痕）：修订比对从组件字面量迁进 `decidePlanFreshness` 纯判据
+    // （行为单测在 `settings-roundtrip-invalidate.test.ts` 的 decidePlanFreshness 节；
+    //  配置指纹一并进同一判据）。这里钉"组件把两份修订都交给了它、activePlan 只认 fresh"。
+    expect(code).toContain('plan !== null && planFreshness === "fresh" ? plan : null');
+    expect(code.replace(/\s+/g, " ")).toContain(
+      "decidePlanFreshness({ planRevision, draftRevision, planConfigStamp, currentConfigStamp, })",
+    );
     // 渲染/执行只认派生计划，不直接读原始局部态（否则旧计划仍会被展示/执行）
     expect(code).not.toContain("{plan !== null ?");
     expect(code).toContain("{activePlan !== null ?");

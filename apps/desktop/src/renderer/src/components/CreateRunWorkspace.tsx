@@ -19,8 +19,13 @@ import type { CreateRunFormState } from "../lib/create-run";
 import { isCreateRunDraftDirty } from "../lib/debugging-drafts";
 import { CREATE_SUBMIT_TARGET } from "../lib/draft-submission";
 import { deriveEntryGate } from "../lib/entry-gate";
-import { createDisclosure, disclosureLines } from "../lib/execution-confirmation";
+import {
+  createDisclosure,
+  disclosureLines,
+  modelConfigStampOf,
+} from "../lib/execution-confirmation";
 import type { ConfirmationRow } from "../lib/execution-confirmation";
+import { useRevokeOnConfigChange } from "../lib/use-revoke-on-config-change";
 import { useAppStore } from "../store";
 import { requestConfirm } from "./ConfirmDialog";
 import { FOCUS_RING } from "./IconButton";
@@ -477,6 +482,13 @@ export function CreateRunWorkspace({ onOpenSettings }: { onOpenSettings: () => v
   const resetCreateRun = useAppStore((s) => s.resetCreateRun);
   const chooseSource = useAppStore((s) => s.chooseSource);
   const settings = useAppStore((s) => s.settings);
+
+  // U5 任务 5.3：设置往返保存成功（模型配置指纹变了）⇒ 本次副本写入授权作废。
+  // **模式与目录引用照旧保留**（delta「两模式配置后返回任务」的"保留"半边——token 有效性
+  // 仍由 main 使用时判定）；确认凭据的撤销走 setSettingsSection 进出（4.4），两路互补。
+  useRevokeOnConfigChange(modelConfigStampOf(settings), () => {
+    setForm((prev) => (prev.writesAuthorized ? setWritesAuthorized(prev, false) : prev));
+  });
 
   // 页头标题是进入本页时的初始焦点（D8：创建是页面，不做焦点禁闭，但要把"你在哪儿"给到）
   const headingRef = useRef<HTMLHeadingElement | null>(null);

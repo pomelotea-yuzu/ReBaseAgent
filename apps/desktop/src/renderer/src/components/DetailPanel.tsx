@@ -23,8 +23,10 @@ import { deriveEntryGate } from "../lib/entry-gate";
 import type { EntryGate } from "../lib/entry-gate";
 import {
   abDisclosure,
+  decidePlanFreshness,
   disclosureLines,
   messagesDisclosure,
+  modelConfigStampOf,
   promptDisclosure,
   resultIsolatedDisclosure,
   resultPlainDisclosure,
@@ -48,6 +50,7 @@ import type { PromptForkField } from "../lib/prompt-fork";
 import { decideRestore, initialRestoreState, restoreIdentity } from "../lib/restore-gate";
 import { resolveRestoreScrollTop, resolveScrollRestore } from "../lib/scroll-restore";
 import { useEscapeClose } from "../lib/use-escape-close";
+import { useRevokeOnConfigChange } from "../lib/use-revoke-on-config-change";
 import { validateCheckpointStepId } from "../lib/workspace-files";
 import { readingScrollOf } from "../lib/workspace-selection";
 import { useAppStore } from "../store";
@@ -863,10 +866,24 @@ function ModelAbEditor({
   // 「改走又改回同一文本」也不复活旧计划（修订单调，见 1.2）。恢复/离开编辑器后
   // plan/planRevision 为组件局部态已重置 ⇒ 必须重新预览并重新确认副作用。
   const draftRevision = draftEntry !== undefined ? draftEntry.revision : null;
-  const activePlan = plan !== null && planRevision === draftRevision ? plan : null;
-  // 计划不见了的原因分两种：还没预览，或预览所绑的批次修订已经推进（改臂/改参数）。
-  // 后者要就近说清楚，否则用户只会看到一个禁用的执行按钮。
-  const planStale = plan !== null && planRevision !== draftRevision;
+  // U5 任务 5.3：计划还绑着**预览时的模型配置指纹**——设置往返保存成功后旧计划失效
+  // （dry-run 结论要打到的是"当时那台上游"）；代理启停/凭据波动不参与（modelConfigStampOf 的口径）
+  const currentConfigStamp = modelConfigStampOf(settings);
+  const [planConfigStamp, setPlanConfigStamp] = useState<string | null>(null);
+  const planFreshness = decidePlanFreshness({
+    planRevision,
+    draftRevision,
+    planConfigStamp,
+    currentConfigStamp,
+  });
+  const activePlan = plan !== null && planFreshness === "fresh" ? plan : null;
+  // 计划不见了的原因分三种：还没预览、预览所绑的批次修订已推进（改臂/改参数）、配置变了。
+  // 后两种要就近说清楚，否则用户只会看到一个禁用的执行按钮。
+  const planStale = plan !== null && planFreshness !== "fresh";
+  const planStaleText =
+    planFreshness === "config-stale"
+      ? "预览之后运行配置已改变（设置往返作废这份计划）：须重新校验并预览，旧确认一并作废"
+      : "这份计划属于旧批次修订：改臂或改参数后须重新校验并预览，旧确认一并作废";
 
   // U3 任务 3.3/3.5：待定执行期间视同进行中（预览与执行都禁用），且整批已冻结
   const inProgress = modelAbInFlight || draftFrozen;
@@ -1034,8 +1051,10 @@ function ModelAbEditor({
     // U5 任务 4.7：一次预览 = 一次新的检查 ⇒ 检查代次推进，旧确认作废（旧响应也不能装回）
     restartExecutionCheck(draftKey);
     setExecutedOperationId(null);
-    // U3 任务 3.3：记录**发起预览时的批次修订**（请求代次）——响应按它校验
+    // U3 任务 3.3：记录**发起预览时的批次修订**（请求代次）——响应按它校验；
+    // U5 任务 5.3：同一时刻的模型配置指纹一并记录（在飞期间改了设置也不装新计划）
     const requestedRevision = draftRevision;
+    const requestedStamp = currentConfigStamp;
     void modelAb(run.meta.id, guard.arms, true).then((result) => {
       if (result === null) return;
       // U3 任务 3.3：守卫迟到预览——响应到达时批次修订已推进（或批次已被放弃）
@@ -1044,6 +1063,7 @@ function ModelAbEditor({
       if (currentRevision !== requestedRevision) return;
       setPlan(result);
       setPlanRevision(requestedRevision);
+      setPlanConfigStamp(requestedStamp);
     });
   };
 
@@ -1320,9 +1340,7 @@ function ModelAbEditor({
         </dl>
         {!abConfirmed && (planStale || submitBlocked !== null) ? (
           <div className="border-t border-gray-100 px-2 py-1.5 text-[11px] leading-4 text-amber-800">
-            {submitBlocked !== null
-              ? submitBlocked
-              : "这份计划属于旧批次修订：改臂或改参数后须重新校验并预览，旧确认一并作废"}
+            {submitBlocked !== null ? submitBlocked : planStaleText}
           </div>
         ) : null}
       </div>
@@ -2148,6 +2166,9 @@ function ForkEditor({
   const [checking, setChecking] = useState(false);
   const [checkError, setCheckError] = useState<{ code: string; message: string } | null>(null);
   const [writesAuthorized, setWritesAuthorized] = useState(false);
+  // U5 任务 5.3：模型配置变了（设置往返保存成功）⇒ "本次副本写入"授权作废——
+  // 授权绑的是当时那台上游；确认/检查代次走 setSettingsSection 进出（4.4），两路互补。
+  useRevokeOnConfigChange(modelConfigStampOf(settings), () => setWritesAuthorized(false));
 
   const isolated = isIsolatedRun(run);
 
