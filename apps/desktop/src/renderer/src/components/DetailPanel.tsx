@@ -1239,7 +1239,8 @@ function ModelAbEditor({
       {draftFrozen ? (
         <div className="mt-2 rounded border border-violet-200 bg-violet-50 px-2 py-1.5 text-[11px] leading-4 text-violet-800">
           本次执行待处理：已按提交时的批次修订冻结整个批次，请求返回前不可增删臂、改参数或放弃。
-          无论成功、业务拒绝还是部分臂失败，批次都保留（待 U5 接入可信操作身份后才自动清理）。
+          无论成功、业务拒绝还是部分臂失败，批次都先保留；各臂按可信身份核实到正常结束、
+          且草稿修订与提交时逐字相同，才自动清理（U5 §2/§3/5.1 已接线）。
         </div>
       ) : null}
 
@@ -1966,7 +1967,8 @@ function MessagesForkEditor({
       {draftFrozen ? (
         <div className="mt-2 rounded border border-sky-200 bg-sky-100/60 px-2 py-1.5 text-[11px] leading-4 text-sky-900">
           本次提交待处理：已按提交时的修订冻结这份草稿，请求返回前不可修改或放弃。
-          无论成功、业务拒绝还是失败，草稿都保留（待 U5 接入可信操作身份后才自动清理）。
+          无论成功、业务拒绝还是失败，草稿都先保留；按可信身份核实到正常结束、
+          且草稿修订与提交时逐字相同，才自动清理（U5 §2/§3 已接线）。
         </div>
       ) : null}
 
@@ -2680,7 +2682,8 @@ function ForkEditor({
       {draftFrozen ? (
         <div className="mt-2 rounded border border-violet-200 bg-violet-50 px-2 py-1.5 text-[11px] leading-4 text-violet-800">
           本次提交待处理：已按提交时的修订冻结这份草稿，请求返回前不可修改或放弃。
-          无论成功、业务拒绝还是失败，草稿都保留（待 U5 接入可信操作身份后才自动清理）。
+          无论成功、业务拒绝还是失败，草稿都先保留；按可信身份核实到正常结束、
+          且草稿修订与提交时逐字相同，才自动清理（U5 §2/§3 已接线）。
         </div>
       ) : null}
 

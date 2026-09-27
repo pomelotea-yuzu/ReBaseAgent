@@ -200,7 +200,14 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   return (
     // U3 任务 5.1：showModal 真 top layer——Esc 经原生 cancel 关闭（最上层语义），
     // Tab 禁闭与背景 inert 由浏览器保证；原手写 window keydown 监听已移除
-    <ModalDialog open onClose={requestClose} ariaLabel="运行配置" className="w-105 p-4">
+    // U5 任务 5.6：设置界面受可用视口高度钳制（长表单/200% 缩放在框内滚动，
+    // 不撑破屏幕；宽度上限 `max-w-full` 由 ModalDialog 基层给）
+    <ModalDialog
+      open
+      onClose={requestClose}
+      ariaLabel="运行配置"
+      className="max-h-[85vh] w-105 overflow-y-auto p-4"
+    >
       <div className="mb-3 flex items-center justify-between">
         <div>
           <div className="text-sm font-semibold text-gray-800">运行配置（LLM 接入）</div>

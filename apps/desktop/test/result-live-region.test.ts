@@ -129,14 +129,27 @@ describe("5.2 全局 aria-live 区：独立于面板、只报派生通知", () =
 });
 
 describe("5.2 关闭详情只关查看：不冒充停止、不触达登记", () => {
-  it("面板✕只做 setOpen(false)：没有任何登记清理、重发或「停止执行」类动作", () => {
+  it("面板✕只关闭查看：没有任何登记清理、重发或「停止执行」类动作", () => {
     const src = codeOf("../src/renderer/src/components/OperationsEntry.tsx");
-    expect(src).toContain("onClick={() => setOpen(false)}");
+    // U5 5.6 改判（两边留痕）：✕ 与 Esc 共用 closePanel（关闭后把焦点还给触发入口）。
+    // "只关查看"的判据不变——close 路径依旧只动展示态，不触达任何操作通道。
+    const closeBlock = src.slice(
+      src.indexOf("const closePanel"),
+      src.indexOf("useEscapeClose(open, closePanel)"),
+    );
+    expect(closeBlock).toContain("setOpen(false)");
+    expect(closeBlock).toContain("triggerRef.current?.focus()");
+    for (const forbidden of [
+      "reconcile",
+      "refreshOperationStatus",
+      "stopOperation",
+      "cancelOperation",
+      "abort",
+      "terminate",
+    ]) {
+      expect(closeBlock, forbidden).not.toContain(forbidden);
+    }
     // 关闭按钮的标签是「关闭操作列表」，不是「停止/取消」
     expect(src).toContain('aria-label="关闭操作列表"');
-    // 组件里不存在停止/取消/中止类执行动作词（剥注释后扫；通道表白名单另有 U4 preload 钉）
-    for (const forbidden of ["stopOperation", "cancelOperation", "abort", "terminate"]) {
-      expect(src, forbidden).not.toContain(forbidden);
-    }
   });
 });

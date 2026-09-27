@@ -1,11 +1,12 @@
 import type { OperationDiagnostic } from "@shared/operations";
 import { Waypoints } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { OperationRow } from "../lib/operation-list";
 import { deriveOperationRows, hasWatchableOperation, operationBadge } from "../lib/operation-list";
 import type { ResultAction } from "../lib/operation-result-view";
 import { deriveResultNotices } from "../lib/result-notices";
 import type { ResultReadIdentity } from "../lib/result-verification";
+import { useEscapeClose } from "../lib/use-escape-close";
 import { useWaitClock } from "../lib/use-wait-clock";
 import { useAppStore } from "../store";
 import { FOCUS_RING } from "./IconButton";
@@ -279,8 +280,20 @@ export function OperationsEntry() {
   const seenNoticeKeys = useAppStore((s) => s.seenNoticeKeys);
   const markNoticesSeen = useAppStore((s) => s.markNoticesSeen);
   const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  /**
+   * U5 任务 5.6：✕ 与 Esc 同一动作——**只关闭查看**，并把焦点还给触发入口
+   * （spec「关闭后恢复有效入口」「Esc 只处理最上层」：判据在 `useEscapeClose`，
+   * 有真模态在场时面板不消费）。不触达 main 登记、不重发、不核对。
+   */
+  const closePanel = (): void => {
+    setOpen(false);
+    triggerRef.current?.focus();
+  };
+
   // U5 任务 5.2：**唯一时钟**——只在"面板开着 ∧ 会话里有在飞/未确认操作"时走秒；
   // 时长与状态全部由 lib 派生（这里不复算一个判断）。
+  useEscapeClose(open, closePanel);
   const nowMs = useWaitClock(open && hasWatchableOperation(session));
   const rows = deriveOperationRows(
     session,
@@ -302,6 +315,7 @@ export function OperationsEntry() {
   return (
     <div className="relative">
       <button
+        ref={triggerRef}
         type="button"
         aria-expanded={open ? "true" : "false"}
         aria-controls="operations-panel"
@@ -325,7 +339,7 @@ export function OperationsEntry() {
       {open ? (
         <div
           id="operations-panel"
-          className="absolute right-0 top-full z-40 mt-1 max-h-80 w-96 max-w-[90vw] overflow-y-auto rounded border border-gray-200 bg-white p-2 shadow-xl"
+          className="absolute right-0 top-full z-40 mt-1 max-h-[min(70vh,24rem)] w-96 max-w-[90vw] overflow-y-auto rounded border border-gray-200 bg-white p-2 shadow-xl"
           aria-describedby="operations-panel-note"
         >
           <div className="mb-1 flex items-center justify-between gap-2">
@@ -343,7 +357,7 @@ export function OperationsEntry() {
               </button>
               <button
                 type="button"
-                onClick={() => setOpen(false)}
+                onClick={closePanel}
                 className={`rounded px-1 text-[11px] text-gray-400 hover:bg-gray-100 ${FOCUS_RING}`}
                 aria-label="关闭操作列表"
               >
