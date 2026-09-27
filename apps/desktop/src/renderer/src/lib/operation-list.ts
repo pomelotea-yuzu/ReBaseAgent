@@ -8,6 +8,8 @@ import {
 import type { OperationSession } from "./operation-session";
 import { stalePendingOf } from "./operation-session";
 import type { ResultReadStore } from "./result-verification";
+import type { WaitView } from "./wait-timing";
+import { deriveWaitView } from "./wait-timing";
 
 /**
  * U4 任务 4.7：全局栏「操作」入口的**数据派生**（纯函数，可单测）。
@@ -65,6 +67,11 @@ export interface OperationRow {
   /** 提示语：状态后面那句人话 */
   readonly hint: string;
   /**
+   * U5 任务 5.2 的**真实等待计时**；不传时钟、或没有任何时间事实 ⇒ null（不造数）。
+   * 文本由 `lib/wait-timing.ts` 现算——组件与面板都不复算时长。
+   */
+  readonly wait: WaitView | null;
+  /**
    * U5 任务 3.5 的**结果呈现**（含明确动作与诚实说明）；未提供读取项或属未知历史 ⇒ null，
    * 面板退回"只报身份"的形态。⚠️ 它只是呈现：跳转与否由用户点击决定（`lib/operation-result-view`）。
    */
@@ -75,6 +82,11 @@ export interface OperationRow {
 export interface OperationRowResults {
   readonly reads: ResultReadStore;
   readonly draftPresentOf: (record: OperationRecord) => boolean;
+}
+
+/** U5 任务 5.2：等待计时的时钟注入（组件从 `useWaitClock` 拿读数；不传 ⇒ `wait` 为 null） */
+export interface OperationRowClock {
+  readonly nowMs: number;
 }
 
 const KIND_LABELS: Record<OperationKind, string> = {
@@ -109,7 +121,12 @@ function targetTextOf(record: OperationRecord): string {
   }
 }
 
-function rowOf(record: OperationRecord, result: OperationResultView | null): OperationRow {
+function rowOf(
+  record: OperationRecord,
+  result: OperationResultView | null,
+  submittedAt: number | null,
+  clock: OperationRowClock | undefined,
+): OperationRow {
   const phase: OperationPhase = record.state;
   return {
     key: `${record.epoch}/${record.operationId}`,
@@ -128,11 +145,17 @@ function rowOf(record: OperationRecord, result: OperationResultView | null): Ope
     experimentId: record.experimentId,
     canReconcile: true,
     hint: PHASE_HINTS[phase],
+    wait: clock === undefined ? null : deriveWaitView({ record, submittedAt, nowMs: clock.nowMs }),
     result,
   };
 }
 
-function unknownRow(epoch: string, operationId: string): OperationRow {
+function unknownRow(
+  epoch: string,
+  operationId: string,
+  submittedAt: number | null,
+  clock: OperationRowClock | undefined,
+): OperationRow {
   return {
     key: `${epoch}/${operationId}`,
     phase: "unknown",
@@ -146,6 +169,11 @@ function unknownRow(epoch: string, operationId: string): OperationRow {
     experimentId: null,
     canReconcile: true,
     hint: PHASE_HINTS.unknown,
+    // 未知历史只有"本地提交了多久"这一个时间事实（重载后连它也没有 ⇒ null，不造数）
+    wait:
+      clock === undefined
+        ? null
+        : deriveWaitView({ record: null, submittedAt, nowMs: clock.nowMs }),
     // 旧会话的操作没有本会话的读取项可依附 ⇒ 不给结果动作（只能核对）
     result: null,
   };
@@ -157,10 +185,13 @@ function unknownRow(epoch: string, operationId: string): OperationRow {
  *
  * @param results 可选：U5 3.5 的结果呈现（`{reads, draftPresentOf}`）。不传 ⇒ `result` 为 null，
  *                面板退回"只报身份"的形态（U4 既有用例即走这条路）。
+ * @param clock 可选：U5 5.2 的等待计时读数（`{nowMs}`，由可见性受控时钟注入）。
+ *              不传 ⇒ `wait` 为 null——时长绝不由组件自算。
  */
 export function deriveOperationRows(
   session: OperationSession,
   results?: OperationRowResults,
+  clock?: OperationRowClock,
 ): OperationRow[] {
   const views =
     results === undefined
@@ -170,10 +201,16 @@ export function deriveOperationRows(
           reads: results.reads,
           draftPresentOf: results.draftPresentOf,
         });
+  // 本地提交时刻只挂在**尚未销账的在飞身份**上（settle 后即从 pending 移除，
+  // 终态行的时长因此退回 main startedAt + "自接受起"标注——这是刻意的口径分层）
+  const submittedAtOf = (operationId: string): number | null =>
+    session.pending.find((one) => one.operationId === operationId)?.submittedAt ?? null;
   const rows = session.operations.map((record) =>
-    rowOf(record, views[resultViewKeyOf(record)] ?? null),
+    rowOf(record, views[resultViewKeyOf(record)] ?? null, submittedAtOf(record.operationId), clock),
   );
-  const stale = stalePendingOf(session).map((one) => unknownRow(one.epoch, one.operationId));
+  const stale = stalePendingOf(session).map((one) =>
+    unknownRow(one.epoch, one.operationId, one.submittedAt, clock),
+  );
   return [...rows.reverse(), ...stale];
 }
 

@@ -883,6 +883,8 @@ async function submitActive<TRequest, TResponse>(
     epoch,
     // 关联里已生成的 operationId 就是本次提交的身份；没有关联（如 dryRun/预览）才另起
     operationId: submission?.operationId ?? crypto.randomUUID(),
+    // U5 任务 5.2：本地提交时刻——等待计时的首选基准（会话内存，不进 IPC 信封）
+    submittedAt: Date.now(),
   };
   // 关联的 epoch 在真正发出的这一刻绑定（此前它可能是 null = 还没握上手）
   if (submission !== undefined && submission.epoch !== epoch) {
@@ -899,7 +901,12 @@ async function submitActive<TRequest, TResponse>(
   }));
   let response: ExecutedResponse<TResponse>;
   try {
-    response = await call({ operation: identity, request: business });
+    // 信封 identity 只带契约里的两键（main 侧 OperationIdentitySchema 是 strict 的，
+    // 多一个 submittedAt 都会被判非法形状）——本地时间事实不跨进程外带。
+    response = await call({
+      operation: { epoch: identity.epoch, operationId: identity.operationId },
+      request: business,
+    });
   } catch (error) {
     // 未知：保留在飞身份并保守锁住（不重发、不解冻、不假装结束）
     useAppStore.setState((state) => ({ operations: markUnknown(state.operations) }));

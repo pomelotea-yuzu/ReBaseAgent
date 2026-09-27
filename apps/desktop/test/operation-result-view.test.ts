@@ -342,6 +342,7 @@ describe("3.5 面板视图（喂 props）：入口与说明互斥地出现", () 
     experimentId: null,
     canReconcile: true,
     hint: "已收口：请求执行并收尾完毕；不等于运行成功",
+    wait: null,
     result,
   });
 

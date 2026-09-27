@@ -68,7 +68,10 @@ describe("4.3 入口门禁的派生（纯判据）", () => {
 
   it("本地尚未确认的提交同样禁用入口（与 main 槽同源）", () => {
     const gate = deriveEntryGate(
-      sessionWith({ epoch: "e-1", pending: [{ epoch: "e-1", operationId: "op-1" }] }),
+      sessionWith({
+        epoch: "e-1",
+        pending: [{ epoch: "e-1", operationId: "op-1", submittedAt: 1 }],
+      }),
     );
     expect(gate.canSubmit).toBe(false);
     expect(gate.blockedBy).toBe("operation_running");

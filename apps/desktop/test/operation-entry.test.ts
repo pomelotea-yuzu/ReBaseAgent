@@ -104,7 +104,7 @@ describe("4.7 入口的数据派生（只报 main 给得出的事实）", () => 
           record(OP_RUNNING, "running"),
           record(OP_BANNED, "notAccepted"),
         ],
-        pending: [{ epoch: OLD_EPOCH, operationId: OP_STALE }],
+        pending: [{ epoch: OLD_EPOCH, operationId: OP_STALE, submittedAt: 1_700_000_000_000 }],
       }),
     );
     // 后登记的在前（快照按登记顺序，入口倒序展示），未知历史殿后且不丢任何一条
@@ -138,11 +138,17 @@ describe("4.7 入口的数据派生（只报 main 给得出的事实）", () => 
       hasWatchableOperation(sessionWith({ operations: [record(OP_RUNNING, "running")] })),
     ).toBe(true);
     expect(
-      hasWatchableOperation(sessionWith({ pending: [{ epoch: EPOCH, operationId: OP_STALE }] })),
+      hasWatchableOperation(
+        sessionWith({
+          pending: [{ epoch: EPOCH, operationId: OP_STALE, submittedAt: 1_700_000_000_000 }],
+        }),
+      ),
     ).toBe(true);
     expect(
       hasWatchableOperation(
-        sessionWith({ pending: [{ epoch: OLD_EPOCH, operationId: OP_STALE }] }),
+        sessionWith({
+          pending: [{ epoch: OLD_EPOCH, operationId: OP_STALE, submittedAt: 1_700_000_000_000 }],
+        }),
       ),
     ).toBe(true);
   });

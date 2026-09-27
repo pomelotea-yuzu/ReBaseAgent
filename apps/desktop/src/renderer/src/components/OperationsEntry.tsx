@@ -2,10 +2,11 @@ import type { OperationDiagnostic } from "@shared/operations";
 import { Waypoints } from "lucide-react";
 import { useState } from "react";
 import type { OperationRow } from "../lib/operation-list";
-import { deriveOperationRows, operationBadge } from "../lib/operation-list";
+import { deriveOperationRows, hasWatchableOperation, operationBadge } from "../lib/operation-list";
 import type { ResultAction } from "../lib/operation-result-view";
 import { deriveResultNotices } from "../lib/result-notices";
 import type { ResultReadIdentity } from "../lib/result-verification";
+import { useWaitClock } from "../lib/use-wait-clock";
 import { useAppStore } from "../store";
 import { FOCUS_RING } from "./IconButton";
 
@@ -147,6 +148,12 @@ export function OperationRowView({
       {row.requestLine !== null ? (
         <div className="text-[10px] leading-4 text-gray-500">{row.requestLine}</div>
       ) : null}
+      {/* U5 5.2：真实等待计时（文本自带口径标注与"计时已停止"，组件不加戏） */}
+      {row.wait !== null ? (
+        <div className="text-[10px] leading-4 text-gray-500" data-wait-basis={row.wait.basis}>
+          {row.wait.text}
+        </div>
+      ) : null}
 
       {result === null ? (
         row.runLinks.length > 0 ? (
@@ -272,11 +279,18 @@ export function OperationsEntry() {
   const seenNoticeKeys = useAppStore((s) => s.seenNoticeKeys);
   const markNoticesSeen = useAppStore((s) => s.markNoticesSeen);
   const [open, setOpen] = useState(false);
-  const rows = deriveOperationRows(session, {
-    reads,
-    draftPresentOf: (record) =>
-      isOperationDraftPresent({ epoch: record.epoch, operationId: record.operationId }),
-  });
+  // U5 任务 5.2：**唯一时钟**——只在"面板开着 ∧ 会话里有在飞/未确认操作"时走秒；
+  // 时长与状态全部由 lib 派生（这里不复算一个判断）。
+  const nowMs = useWaitClock(open && hasWatchableOperation(session));
+  const rows = deriveOperationRows(
+    session,
+    {
+      reads,
+      draftPresentOf: (record) =>
+        isOperationDraftPresent({ epoch: record.epoch, operationId: record.operationId }),
+    },
+    { nowMs },
+  );
   // 通知是现算派生（3.6）：只存"哪些键看过"，重复快照堆不出第二份
   const notices = deriveResultNotices({
     records: session.operations,

@@ -49,6 +49,13 @@ export interface OperationSession {
 export interface PendingSubmission {
   readonly epoch: string;
   readonly operationId: string;
+  /**
+   * U5 任务 5.2：本地提交时刻（renderer `Date.now()`，毫秒）。等待计时的**首选**时间事实；
+   * renderer 重载后它丢失 ⇒ 判据退回 main `startedAt` 并明标"自接受起等待"。
+   * ⚠️ 它只活在会话内存里——**不随 IPC 信封出门**（main 的 `OperationIdentitySchema` 是
+   * strict 的，信封 identity 只带 epoch/operationId 两键）。
+   */
+  readonly submittedAt: number;
 }
 
 export function initialSession(): OperationSession {

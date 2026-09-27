@@ -290,7 +290,7 @@ describe("4.1 核对旧操作不解除另一操作的锁", () => {
 });
 
 describe("4.1 本地尚未确认的提交也参与门禁", () => {
-  const identity = { epoch: EPOCH_A, operationId: OP_A };
+  const identity = { epoch: EPOCH_A, operationId: OP_A, submittedAt: 1_700_000_000_000 };
 
   it("发出一次提交即锁住跨入口；可信终态回执才销账", () => {
     const idle = withStatus(initialSession(), statusOf()).session;
@@ -320,7 +320,11 @@ describe("4.1 本地尚未确认的提交也参与门禁", () => {
     );
     expect(done.session.pending).toHaveLength(0);
     const banned = withStatus(
-      beginLocalSubmission(done.session, { epoch: EPOCH_A, operationId: OP_B }),
+      beginLocalSubmission(done.session, {
+        epoch: EPOCH_A,
+        operationId: OP_B,
+        submittedAt: 1_700_000_000_000,
+      }),
       statusOf({ registryVersion: 5, operations: [recordOf(OP_B, "notAccepted")] }),
     );
     expect(banned.session.pending).toHaveLength(0);
@@ -352,7 +356,11 @@ describe("4.1 本地尚未确认的提交也参与门禁", () => {
     );
     expect(switched.session.pending).toHaveLength(1);
     // 但同 epoch 的在飞身份会被本会话的终态销掉
-    const sameEpoch = beginLocalSubmission(idle, { epoch: EPOCH_A, operationId: OP_B });
+    const sameEpoch = beginLocalSubmission(idle, {
+      epoch: EPOCH_A,
+      operationId: OP_B,
+      submittedAt: 1_700_000_000_000,
+    });
     const settled = withStatus(
       sameEpoch,
       statusOf({ registryVersion: 2, operations: [recordOf(OP_B, "settled")] }),

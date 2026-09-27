@@ -214,6 +214,7 @@ describe("5.1 受控诊断：详情可读但不泄漏输入", () => {
       experimentId: null,
       canReconcile: true,
       hint: "已收口：请求执行并收尾完毕；不等于运行成功",
+      wait: null,
       result,
     };
     const markup = renderToStaticMarkup(
