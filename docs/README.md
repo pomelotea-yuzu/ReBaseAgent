@@ -21,6 +21,15 @@ engineering / collab / competition / reviews），原 9 个并列目录归组；
 | [`architecture/`](architecture/overview.md) | **架构总览**：monorepo 包结构、数据流、设计原则 |
 | [`development/`](development/workflow.md) | **开发工作流**：质量门禁 `check:ci`、OpenSpec 流程、文档约定 |
 
+## 研发调研与维护
+
+| 入口 | 内容 |
+|---|---|
+| [`research/`](research/README.md) | Agent 调试方案对照、来源记录、重跑一致性实验设计 |
+| [`replay-state-consistency.md`](architecture/replay-state-consistency.md) | 工具观察编辑、整轮文件快照与分支隔离的机制和边界 |
+| [`governance-and-maintenance.md`](development/governance-and-maintenance.md) | 贡献闭环、维护职责、发布要求与持续维护安排 |
+| [`audits/`](development/audits/README.md) | 依赖许可证核查报告、机器清单与只读生成器 |
+
 ## 工程过程资产
 
 ### product/ — 方向与产品定稿（长期有效，改动少）
