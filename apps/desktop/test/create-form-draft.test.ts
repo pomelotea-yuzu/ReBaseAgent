@@ -41,8 +41,8 @@ describe("接线契约：创建工作区读写创建草稿（任务 2.3）", () 
   });
 
   it("输入同步写入草稿；本地文本 setter 已移除（重开覆盖输入的旧根因）", () => {
-    expect(WORKSPACE).toContain("writeCreateRunDraft({ systemPrompt: e.target.value })");
-    expect(WORKSPACE).toContain("writeCreateRunDraft({ userMessage: e.target.value })");
+    expect(WORKSPACE).toContain("writeCreateRunDraft({ systemPrompt: text })");
+    expect(WORKSPACE).toContain("writeCreateRunDraft({ userMessage: text })");
     expect(auditForbiddenTokens(WORKSPACE, ["setSystemPrompt", "setUserMessage"])).toEqual([]);
   });
 
@@ -58,15 +58,21 @@ describe("接线契约：创建工作区读写创建草稿（任务 2.3）", () 
     // 放弃同时清除目录引用（design D4）并复位本地授权状态
     expect(WORKSPACE).toContain("setCreateSourceRef(null)");
     expect(WORKSPACE).toContain("setForm(initialCreateRunForm())");
-    // 无变更时不可放弃（不制造虚假草稿动作）
-    expect(WORKSPACE).toContain("!draftDirty");
+    // 无变更时不可放弃（不制造虚假草稿动作）：判据进 lock.canDiscard，禁用由视图落到按钮
+    expect(WORKSPACE).toContain("canDiscard: draftDirty && !formLocked");
   });
 
   it("锁定判据不变，但创建页不得做成模态（U5 4.1：焦点不禁闭、离页不挡）", () => {
     // U3 3.5 起冻结期也视同忙碌（待定提交期间不得改这份草稿）
     expect(WORKSPACE).toContain("const formLocked = busy || pickingSource || draftFrozen;");
-    expect(WORKSPACE).toContain("disabled={formLocked}");
-    expect(WORKSPACE).toContain("disabled={draftFrozen}");
+    // 锁位经 `lock` 交给视图（4.2 拆分）；"禁用真的落到控件上"是能力断言，
+    // 打在 create-form-view.test.ts 的喂 props 用例上，不在这里靠字符串猜
+    const at = WORKSPACE.indexOf("lock={{");
+    const lockLiteral = WORKSPACE.slice(at, WORKSPACE.indexOf("}}", at));
+    expect(at).toBeGreaterThan(-1);
+    expect(lockLiteral).toContain("fields: formLocked");
+    expect(lockLiteral).toContain("draftFrozen,");
+    expect(lockLiteral).toContain("canSubmit: canCreate");
     // U5 4.1：创建是页面——不得套 ModalDialog（那是"执行期间锁全窗"的旧形态），
     // 也不自己处理 Escape（盖在它上面的确认框才是模态）
     expect(auditForbiddenTokens(WORKSPACE, ["<ModalDialog", 'e.key === "Escape"'])).toEqual([]);

@@ -113,10 +113,12 @@ describe("4.3 接线契约：create 与 result 都从同一份会话派生", () 
   it("禁用理由真的渲染出来（不是只改 disabled 的死按钮）", () => {
     expect(panel).toContain("gate.notice !== null");
     expect(dialog).toContain("blockedReason");
-    // create 侧：submission 自身判据通过时，理由回落到门禁文案
-    expect(dialog).toMatch(
-      /const blockedReason = submission\.ok \? gate\.notice : submission\.reason/,
-    );
+    // create 侧（U5 4.2 起）：门禁文案走"表单级说明位"，字段级拒绝走各自的槽——
+    // 两条都在同一份判据的输出里，组件不自己拼第二套理由
+    expect(dialog).toMatch(/const blockedReason = submission\.ok \? gate\.notice : null/);
+    expect(dialog).toContain("{ ...submissionErrors, form: blockedReason }");
+    // 说明位真的被视图消费（渲染判据见 create-form-view.test.ts）
+    expect(dialog).toContain("errors.form !== null");
   });
 });
 

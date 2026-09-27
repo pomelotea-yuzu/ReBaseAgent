@@ -1,18 +1,18 @@
 # U5 实施与验收任务
 
 > 实施进度（2026-09-27）：**§1 全部完成（1.1–1.4）+ §2 全部完成（2.1–2.5）+ §3 全部完成（3.1–3.6）
-> + §4.1 完成**
+> + §4.1、§4.2 完成**
 > （`shared/terminal-facts.ts` 19 条 + `lib/result-verification.ts` 纯判据 15 条 + store 核实 9 条 +
 > 终态消费 13 条 + `draft-submission` 收尾关联 13 条 + `draft-closure` 清理判据 20 条 +
 > store 收尾/批次/反证 17 条 + `create-entry-closure` 创建入口 10 条 + `fork-entry-closure` result/prompt 入口 6 条 +
 > `proxy-ab-entry-closure` messages/A-B 入口 9 条 + `navigation-intent` 纯判据 14 条 + 导航接线 14 条 +
 > `operation-result-view` 呈现与通知判据（含喂 props 的视图）19 条 + `operation-result-actions` 明确动作 12 条 +
-> `create-workspace` 来源判据 14 条 + 创建工作区接线 21 条；
-> desktop 全量 119 文件 / 2054 用例绿，`tsc` node/web 双 0 错，根 `biome check .` 442 文件 0 错；
+> `create-workspace` 来源判据 14 条 + 创建工作区接线 21 条 + `create-form-view` 创建页能力 16 条；
+> desktop 全量 120 文件 / 2072 用例绿，`tsc` node/web 双 0 错，根 `biome check .` 443 文件 0 错；
 > 变异：1.1 三组、1.2 三组、1.3 四组、1.4 五组、2.1 三组、2.2 四组、2.3 三组、2.4 三组、
-> 2.5 两组、3.1 三组、3.2 三组、3.3 三组、3.4 四组、3.5 四组、3.6 三组、4.1 九组各有牙
+> 2.5 两组、3.1 三组、3.2 三组、3.3 三组、3.4 四组、3.5 四组、3.6 三组、4.1 九组、4.2 四组各有牙
 > （另有 3.1 的一组"响应路径次序补支"判**无牙** ⇒ 已回退，见注记）。
-> 其余 §4.2–§7 全部待办；没有实施、GUI 验收或发布通过声明。
+> 其余 §4.3–§7 全部待办；没有实施、GUI 验收或发布通过声明。
 > ⚠️ 已知环境噪声（非回归）：`test/controlled-service.test.ts` 在并行整跑下出现过 4 条超时失败，
 > 单跑 19 条全绿；复跑整跑亦全绿 ⇒ 按"单包/单文件复跑"口径判定，登记为端口时序 flake。
 > 每项实施/验收控制在 2h 内；若实际超出先拆分。场景名称对应 `specs/desktop-ui/spec.md`，既有场景用于回归，不能用旧报告替代新接线验证。
@@ -282,7 +282,48 @@
     迁移与复验留到 §4.3；④ 设置盖在创建页之上仍走 App 本地 `settingsOpen`，
     "返回并刷新摘要 / 使预检与许可失效"属 §5.3；⑤ 本轮只改 desktop，packages 逐包单跑与
     `electron-vite build` 未重跑（§7.2 统一补）。
-- [ ] 4.2 布置任务、模式、两模式模型摘要、高级系统指令和字段错误，沿用已有请求形状（≤2h）。验收：「userMessage 为空时禁用提交」「空 systemPrompt 允许」「settings 未配置时拒绝」「两模式配置后返回任务」。
+- [x] 4.2 布置任务、模式、两模式模型摘要、高级系统指令和字段错误，沿用已有请求形状（≤2h）。验收：「userMessage 为空时禁用提交」「空 systemPrompt 允许」「settings 未配置时拒绝」「两模式配置后返回任务」。
+  - 落点：`lib/create-run.ts` 的拒绝分支新增**归属键** `field`
+    （`userMessage / source / writesAuthorized / null`）与新纯函数 `fieldErrorsOf`
+    ——就近呈现的位置由同一份提交判据给出，组件不另算"哪条错该显示在哪儿"；
+    理由文案与请求形状**一字未改**（用例逐字钉住）。
+    组件拆成**容器 + 纯视图**两个导出：`CreateRunWorkspaceView` 只吃 props（可见结构全部在此），
+    `CreateRunWorkspace` 订阅 store、把判据结果与锁位交出去。正文按 design D1 顺序
+    （模式 → 任务 → 隔离目录 → 当前模型/接入摘要 → 高级系统指令 → 执行范围 → 操作区，
+    单列 `max-w-200`）：两模式共用接入摘要 + 就近「运行配置…」入口
+    （经 App 传入的 `onOpenSettings`，组件**不自建**第二份设置状态）；执行范围与
+    "一次提交 = 一次真实模型调用"就地可读；高级 System Prompt 折叠（展开态是展示态，不进草稿）；
+    请求事实（`createRunError`）单独一行，不与运行结局说明合并。
+  - 四条验收的对位：空 userMessage ⇒ 拒绝落在**它自己的**槽上，textarea 带
+    `aria-describedby` + `aria-invalid`；空 systemPrompt ⇒ 放行且给"留空也可以（按空 system 算
+    config_hash）"说明；settings 未配置 ⇒ 摘要转告警态 + 可点的配置入口 + 拒绝理由走表单级说明位
+    （`SETTINGS_NOT_CONFIGURED` 仍由 main 判定，页面不冒充预检通过）；两模式配置后返回任务 ⇒
+    摘要与入口**在两种模式下都在**（"配好之后回到任务"的返回与失效属 §5.3）。
+  - 证据：新 `test/create-form-view.test.ts` 16 条能力断言（喂 props 的
+    `renderToStaticMarkup`）——错误给得出就必须文本+锚点都在、没给就一条都不渲染；
+    隔离块只在隔离模式存在；未选目录时复选框真 disabled（对照：选了就可点）；
+    **逐控件**判 `disabled=""`（只看"整页有几处 disabled"会被别的按钮凑数，
+    类名里的 `disabled:` 变体还会被裸子串误伤）；两模式摘要与配置入口；执行范围随模式换内容；
+    表单级说明与"进行中"条分工；源码级"视图段里不得出现 store / 提交判据 / 门禁派生"。
+    判据本身仍在 `test/create-run-dialog.test.ts`（新增两条：四类拒绝各自点名归属、
+    放行分支键集合不含 field）。
+  - ⚠️ **载体迁移**（容器/视图拆分的连带，判据强度不变；§7.3 别读成"证据被换弱"）：
+    `create-form-draft.test.ts` 三条源码断言改写（`e.target.value` → 回调参数 `text`、
+    `!draftDirty` → `canDiscard: draftDirty && !formLocked`、`disabled={formLocked}` →
+    `lock={{...}}` 片段 + 能力断言移到视图用例）；`draft-submission.test.ts` 的
+    `disabled={draftFrozen}`×2 → `disabled={lock.draftFrozen}`×2；
+    `entry-gate.test.ts` 的 `blockedReason = submission.ok ? gate.notice : submission.reason`
+    → `: null`，另钉 `{ ...submissionErrors, form: blockedReason }` 与视图消费
+    （**理由**：4.2 起门禁文案属表单级、字段拒绝属字段级，一条横幅不再同时承载两者）。
+  - 四组反证各有牙：摘掉 userMessage 的 `aria-describedby` ⇒ 1 红；把两段文本的 `disabled`
+    改成恒 `false` ⇒ 逐控件支红（顺带暴露我第一版"数整页 disabled"是**假牙**，改判后才咬）；
+    `fieldErrorsOf` 把所有拒绝都塞进 `form` ⇒ 映射支红；表单说明位判据反向 ⇒ 该支红。
+  - ⚠️ 已知边界（不静默）：① 未配置时页面只给摘要与入口，真正的拒绝仍发生在 main
+    （不给"看起来已经预检过"的假象，D2）；② 设置模态的开合仍是 App 本地 state ⇒
+    `coveringModal` 只认 `settingsSection`，从创建页"常规打开设置"那一刻不算覆盖模态
+    （与 3.4 同源，留给 §5.3 连同"返回并刷新摘要"一起收）；③ 目录选择、token 与每次副本授权
+    的迁移与复验属 §4.3；④ 键盘可达与窄窗实测属 §5.6 / §6.8；⑤ 本轮只改 desktop，
+    packages 逐包单跑与 `electron-vite build` 未重跑（§7.2 统一补）。
 - [ ] 4.3 迁移目录选择、token 和每次副本授权，保留取消选择、过期、消费与异步代次守卫（≤2h）。验收：「直接创建隔离文件父本」「切创建模式保留文本而放弃重置表单」「创建忙碌期间不能通过焦点修复绕过关闭锁」；回归主 spec「sourceToken 在有效期内恢复但授权复位」「sourceToken 失效不清空任务」「取消目录选择保留原引用」。
 - [ ] 4.4 接创建/普通 result 的检查确认及真实边界，不添加无接口支持的预检信息（≤2h）。验收：「创建和普通重跑只声明已完成的检查」「普通结果与隔离结果确认边界不同」的普通部分；后者须与 4.5 的隔离证据合并，单独通过仅记部分覆盖。
 - [ ] 4.5 接隔离 result 的只读预检、轮末确认和失效规则，保持主进程重验（≤2h）。验收：「普通结果与隔离结果确认边界不同」的隔离部分、「返回修改与设置往返撤销旧确认」；前者须与 4.4 的普通证据合并，单独通过仅记部分覆盖。

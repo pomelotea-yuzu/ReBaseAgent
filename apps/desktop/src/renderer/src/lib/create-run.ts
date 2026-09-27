@@ -1,7 +1,7 @@
 import type { ChooseSourceResult, CreateRunRequest } from "@shared/ipc";
 
 /**
- * 新建运行对话框的纯逻辑（无 React、无 fs，可在 node 环境单测）。
+ * 新建运行（创建工作区）的纯逻辑（无 React、无 fs，可在 node 环境单测）。
  *
  * 设计要点（B 任务 2.1 / spec:desktop-ui「桌面端提供原生 run 创建入口」）：
  *
@@ -13,7 +13,7 @@ import type { ChooseSourceResult, CreateRunRequest } from "@shared/ipc";
  *    ——后者经结构化克隆后仍是自有属性，会让 strict schema 与"是否隔离"的分流
  *    出现两种读法。用例直接断言 `"workspace" in request === false`。
  * 3. **授权只对本次操作有效**（spec 场景「每次桌面操作独立确认写入」）：
- *    - `initialCreateRunForm()` 每次打开对话框都返回未授权状态；
+ *    - `initialCreateRunForm()` 每次新的创建操作都返回未授权状态；
  *    - 选中目录**不等于**授权（`applyChosenSource` 只落目录，把授权复位）；
  *    - 切换运行模式视为新的一次隔离操作，目录与授权一并丢弃 —— 宁可让用户重选，
  *      也不把上一次的授权带进下一次提交（`workspace.write_authorized` 那类历史
@@ -59,7 +59,7 @@ export interface CreateRunFormState {
   writesAuthorized: boolean;
 }
 
-/** 一次新的对话框会话：默认纯对话、无目录、未授权 */
+/** 一次新的创建操作：默认纯对话、无目录、未授权 */
 export function initialCreateRunForm(): CreateRunFormState {
   return { mode: "chat", source: null, writesAuthorized: false };
 }
@@ -107,22 +107,34 @@ export interface CreateRunFormFields {
 /**
  * 提交判据 + 请求构造（同一个函数，杜绝两处口径分叉）：
  * 不满足条件时给出可直接展示的中文原因，且**不产出请求** ⇒ 调用方不可能发出半截请求。
+ *
+ * `field` 是**就近呈现**的归属（U5 任务 4.2）：错误跟着它所属的字段走，而不是全堆在
+ * 按钮上方一条横幅里。它只是同一份判据多带的一个键——组件不得据此再算一套"能不能提交"，
+ * 也不得给一个 `field` 之外的情形凭空造错误。`null` = 不属于任何字段（执行中/门禁），
+ * 由表单级的说明位承接。
  */
+export type CreateRunFailureField = "userMessage" | "source" | "writesAuthorized";
+
 export type CreateRunSubmission =
   | { ok: true; request: CreateRunRequest }
-  | { ok: false; reason: string };
+  | { ok: false; reason: string; field: CreateRunFailureField | null };
 
 export function resolveCreateRunSubmission(
   state: CreateRunFormState,
   fields: CreateRunFormFields,
 ): CreateRunSubmission {
   if (fields.busy) {
-    return { ok: false, reason: "执行中：本次运行尚未结束，不能重复提交" };
+    return {
+      ok: false,
+      reason: "执行中：本次运行尚未结束，不能重复提交",
+      field: null,
+    };
   }
   if (fields.userMessage.trim().length === 0) {
     return {
       ok: false,
       reason: "User Message 不能为空（它同时是该 run 的标题与首条用户消息）",
+      field: "userMessage",
     };
   }
 
@@ -131,12 +143,14 @@ export function resolveCreateRunSubmission(
       return {
         ok: false,
         reason: "隔离文件运行需要先选择源目录（只读采集，源目录不会被修改）",
+        field: "source",
       };
     }
     if (!state.writesAuthorized) {
       return {
         ok: false,
         reason: "请勾选“允许本次执行的副本写入”——授权只对这一次提交有效，不会从历史记录补授权",
+        field: "writesAuthorized",
       };
     }
     return {
@@ -158,6 +172,32 @@ export function resolveCreateRunSubmission(
     ok: true,
     request: { systemPrompt: fields.systemPrompt, userMessage: fields.userMessage },
   };
+}
+
+/**
+ * 拒绝的**就近归属**（U5 任务 4.2）：把一条拒绝分到它所属的输入框，其余留给表单级说明位。
+ *
+ * 组件只消费这个映射，不得自己再判一次"这条错该显示在哪儿"——那会变成第二份判据，
+ * 与 `resolveCreateRunSubmission` 漂移。全 null = 没有任何拒绝。
+ */
+export interface CreateRunFieldErrors {
+  readonly userMessage: string | null;
+  readonly source: string | null;
+  readonly writesAuthorized: string | null;
+  /** 不属于任何字段的说明（执行中；调用方另可在此放门禁文案） */
+  readonly form: string | null;
+}
+
+export function fieldErrorsOf(submission: CreateRunSubmission): CreateRunFieldErrors {
+  const blank: CreateRunFieldErrors = {
+    userMessage: null,
+    source: null,
+    writesAuthorized: null,
+    form: null,
+  };
+  if (submission.ok) return blank;
+  const { reason, field } = submission;
+  return field === null ? { ...blank, form: reason } : { ...blank, [field]: reason };
 }
 
 /**

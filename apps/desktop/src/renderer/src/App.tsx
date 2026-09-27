@@ -147,8 +147,9 @@ export default function App() {
               />
             ) : null}
             {navReplacesWorkspace ? null : view === "create" ? (
-              // 创建 = 主工作区的一个页面（不是覆盖模态）：切运行、去设置、读文件都不被它挡住
-              <CreateRunWorkspace />
+              // 创建 = 主工作区的一个页面（不是覆盖模态）：切运行、去设置、读文件都不被它挡住。
+              // 就近的「运行配置」入口复用 App 的开设置通道（组件不自建第二份设置状态）。
+              <CreateRunWorkspace onOpenSettings={openSettings} />
             ) : empty ? (
               // 无运行时：主工作区给两个**真实可用**的入口（delta「首次打开与无运行入口」），
               // 不是展示性欢迎页。步骤目录此时本就没有内容，一并卸下。

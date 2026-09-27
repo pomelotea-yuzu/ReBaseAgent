@@ -435,3 +435,50 @@ describe("2.1 展示文案不漂移（渲染层不 import replay）", () => {
     expect([...ISOLATED_TOOL_NAMES]).toEqual([READ_FILE_TOOL_NAME, WRITE_FILE_TOOL_NAME]);
   });
 });
+
+/**
+ * U5（unify-run-execution-workflow）任务 4.2：每条拒绝都**点名归属字段**。
+ *
+ * 就近呈现要求每个错误跟着自己的字段走，而归属只能来自同一份提交判据——
+ * 组件不得自己再算一套"哪条错属于哪个框"。`null` = 不属于任何字段（执行中），
+ * 由表单级说明位承接。视图侧的能力断言见 `test/create-form-view.test.ts`。
+ */
+function rejection(sub: ReturnType<typeof resolveCreateRunSubmission>): string {
+  return sub.ok ? "（放行了，本用例只判拒绝）" : `${sub.field ?? "<无归属>"}`;
+}
+
+describe("U5 4.2 拒绝的字段归属（就近呈现的唯一依据）", () => {
+  it("四类拒绝各自点名；同一表单补齐后即放行且 ok 分支不带归属键", () => {
+    expect(
+      rejection(resolveCreateRunSubmission(initialCreateRunForm(), fields({ userMessage: "" }))),
+    ).toBe("userMessage");
+    const isolated = switchCreateRunMode("isolated_files");
+    expect(rejection(resolveCreateRunSubmission(isolated, fields()))).toBe("source");
+    expect(
+      rejection(
+        resolveCreateRunSubmission(
+          applyChosenSource(isolated, chosenSource("D:\\lab\\src")),
+          fields(),
+        ),
+      ),
+    ).toBe("writesAuthorized");
+    // 执行中不属于任何字段（它是这一次提交的状态，不是某个输入框的问题）
+    expect(
+      rejection(resolveCreateRunSubmission(initialCreateRunForm(), fields({ busy: true }))),
+    ).toBe("<无归属>");
+
+    const passed = resolveCreateRunSubmission(initialCreateRunForm(), fields());
+    expect(passed.ok).toBe(true);
+    // 放行分支的键集合钉死：不加 field、也不带 workspace
+    expect(Object.keys(passed).sort()).toEqual(["ok", "request"]);
+  });
+
+  it("归属只说明「错在哪个框」，不改写拒绝理由本身", () => {
+    const sub = resolveCreateRunSubmission(initialCreateRunForm(), fields({ userMessage: "  " }));
+    expect(sub.ok).toBe(false);
+    // 文案与 U3/B 时代逐字相同（就近的是位置，不是话术）
+    expect(sub.ok ? "" : sub.reason).toBe(
+      "User Message 不能为空（它同时是该 run 的标题与首条用户消息）",
+    );
+  });
+});

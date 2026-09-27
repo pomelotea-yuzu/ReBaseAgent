@@ -529,8 +529,8 @@ describe("接线契约：五类提交走快照并受冻结约束（任务 3.4/3.
     expect(CREATE_WORKSPACE).toContain("isDraftFrozen(CREATE_SUBMIT_TARGET)");
     expect(CREATE_WORKSPACE).toContain("const formLocked = busy || pickingSource || draftFrozen;");
     expect(CREATE_WORKSPACE).toContain("本次提交待处理");
-    // 两个文本域与提交钮在冻结期不可编辑
-    expect(CREATE_WORKSPACE.match(/disabled=\{draftFrozen\}/g)?.length).toBe(2);
+    // 两个文本域在冻结期不可编辑（4.2 起由纯视图落到控件上，能力断言见 create-form-view）
+    expect(CREATE_WORKSPACE.match(/disabled=\{lock\.draftFrozen\}/g)?.length).toBe(2);
   });
 
   it("创建提交：判据通过后才登记整份关联，并随请求交给 store 收尾", () => {
