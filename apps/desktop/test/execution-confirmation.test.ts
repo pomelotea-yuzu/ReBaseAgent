@@ -10,6 +10,7 @@ import {
   disclosureLines,
   emptyConfirmationStore,
   releaseConfirmation,
+  resultIsolatedDisclosure,
   resultPlainDisclosure,
   settingsStampOf,
 } from "../src/renderer/src/lib/execution-confirmation";
@@ -123,6 +124,67 @@ describe("4.4 设置快照不含凭据本身", () => {
     });
     expect(stamp).not.toContain("sk-secret-value");
     expect(stamp).toContain("key");
+  });
+});
+
+describe("4.5 隔离 result 的确认：与普通路径边界不同，措辞也各说各的", () => {
+  const precheck = {
+    parentId: "r_parent",
+    stepSpanId: "s_02",
+    atSpanId: "s_05",
+    checkpointLabel: "第 2 轮结束检查点 ck_02",
+    continueLabel: "从该轮轮末继续",
+    configHash: "a".repeat(24),
+  };
+
+  it("预检在场 ⇒ 直接父 / 轮号 / 整轮检查点进事实，只读预检才算「已做的检查」", () => {
+    const d = resultIsolatedDisclosure({
+      toolName: "read_file",
+      oldValue: "旧结果",
+      newValue: "新结果",
+      modelSummary: "deepseek-chat @ https://api.deepseek.com/v1",
+      writesAuthorized: true,
+      precheck,
+    });
+    const rows = disclosureLines(d)
+      .map((row) => `${row.label}=${row.value}`)
+      .join("\n");
+    expect(rows).toContain("直接父=r_parent");
+    expect(rows).toContain("本地轮号=s_02");
+    expect(rows).toContain("整轮结束检查点=第 2 轮结束检查点 ck_02");
+    expect(d.checks.join("\n")).toContain("runs:forkCapability");
+    expect(d.limits.join("\n")).toContain("不重做");
+    expect(d.limits.join("\n")).toContain("不撤销已经发生的写入");
+    // 隔离路径绝不借用普通路径的措辞（场景要的是"边界不同"）
+    expect(d.limits.join("\n")).not.toContain("世界不隔离");
+  });
+
+  it("没有预检结论 ⇒ 不说做过只读检查，并指出缺的是哪一项", () => {
+    const d = resultIsolatedDisclosure({
+      toolName: null,
+      oldValue: "a",
+      newValue: "b",
+      modelSummary: "m",
+      writesAuthorized: false,
+      precheck: null,
+    });
+    expect(d.checks).toEqual([expect.stringContaining("本地字段检查")]);
+    expect(d.checks.join("\n")).not.toContain("forkCapability");
+    expect(d.facts.map((row) => row.value).join("\n")).toContain("尚未取得只读预检结论");
+    expect(d.facts.map((row) => row.value).join("\n")).toContain("未勾选");
+  });
+
+  it("授权是本次事实：勾了才写「已勾选」，父 trace 的历史标注不算授权", () => {
+    const granted = resultIsolatedDisclosure({
+      toolName: null,
+      oldValue: "a",
+      newValue: "b",
+      modelSummary: "m",
+      writesAuthorized: true,
+      precheck,
+    });
+    expect(granted.facts.map((row) => row.value).join("\n")).toContain("已勾选");
+    expect(granted.limits.join("\n")).toContain("不从历史记录补授权");
   });
 });
 

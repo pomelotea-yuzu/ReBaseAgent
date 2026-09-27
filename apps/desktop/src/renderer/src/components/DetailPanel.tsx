@@ -21,7 +21,11 @@ import {
 } from "../lib/draft-source";
 import { deriveEntryGate } from "../lib/entry-gate";
 import type { EntryGate } from "../lib/entry-gate";
-import { disclosureLines, resultPlainDisclosure } from "../lib/execution-confirmation";
+import {
+  disclosureLines,
+  resultIsolatedDisclosure,
+  resultPlainDisclosure,
+} from "../lib/execution-confirmation";
 import type { ForkCacheHint } from "../lib/fork-cache-hint";
 import { forkCacheHint } from "../lib/fork-cache-hint";
 import { formatDuration, prettyJson } from "../lib/format";
@@ -1907,6 +1911,7 @@ function ForkEditor({
   const currentConfirmationBinding = useAppStore((s) => s.currentConfirmationBinding);
   const executionConfirmationReady = useAppStore((s) => s.executionConfirmationReady);
   const armExecutionConfirmation = useAppStore((s) => s.armExecutionConfirmation);
+  const restartExecutionCheck = useAppStore((s) => s.restartExecutionCheck);
 
   // 隔离续跑的本次确认状态：全部是**组件局部**状态——每次打开对话框重新开始，
   // 不从父 trace 的 write_authorized 标注或上一次编辑继承任何授权。
@@ -2007,15 +2012,11 @@ function ForkEditor({
   // 本地尚未确认的提交），不再只看本地 forking。⚠️ 只拦"提交"，不拦只读的能力预检——
   // 预检按 spec 不占主动槽，占槽期间照常可用。
   const gate = deriveEntryGate(useAppStore((s) => s.operations));
-  const plainBinding = currentConfirmationBinding("result", draftKey);
-  const plainConfirmed = executionConfirmationReady(plainBinding);
+  const executionBinding = currentConfirmationBinding("result", draftKey);
+  const executionConfirmed = executionConfirmationReady(executionBinding);
   // U5 4.4：普通路径再叠一道"已核对本次目标与边界"的确认；隔离路径仍走既有预检 + 本次授权
   const canFork =
-    canSubmit &&
-    (isolated || plainConfirmed) &&
-    sourceExecutable &&
-    sourceBlocked === null &&
-    gate.canSubmit;
+    canSubmit && executionConfirmed && sourceExecutable && sourceBlocked === null && gate.canSubmit;
   const checkAllowed = check.ok && sourceExecutable && sourceBlocked === null;
   // 提示语：源不可用优先（它同时也会让 check 失配，但原因不同，不能互相冒充）
   const checkBlockReason = !sourceExecutable
@@ -2056,6 +2057,9 @@ function ForkEditor({
 
   const doCheck = (): void => {
     if (!checkAllowed) return;
+    // U5 任务 4.5：重新启动只读预检 ⇒ 推进检查代次并作废既有确认
+    // （旧预检的响应不能给新一次执行安装确认，判据在 `lib/execution-confirmation.ts`）
+    restartExecutionCheck(draftKey);
     const requestedValue = check.request.edit.value;
     // U3 任务 3.1：记录**确认时的草稿修订**（请求代次）——响应按它校验
     const requestedRevision = draftRevision;
@@ -2290,6 +2294,82 @@ function ForkEditor({
               </label>
             </div>
           ) : null}
+
+          {/*
+           * U5 任务 4.5：隔离路径的**核对本次续跑**。上面那块已经把预检事实列全了
+           * （直接父 / 轮号 / 检查点 / config_hash），这里只补两份别处没有的内容：
+           * "这次到底做过哪些检查"与"本次执行的边界"（不重做本轮其余工具、不撤销原写入、
+           * 副本授权只本次有效）。确认按钮要求**预检结论 + 本次授权**都在场——
+           * 没有预检就没有边界可核对，界面上也不假称检查过。
+           *（"事实"与"结论"两处都由 `lib/execution-confirmation.ts` 生成，顺序与措辞不同处不写第二份。）
+           */}
+          {(() => {
+            const isolatedDisclosure = resultIsolatedDisclosure({
+              toolName: span.kind === "tool.invoke" ? span.tool : null,
+              oldValue: original,
+              newValue: value,
+              modelSummary: `${settings?.model ?? "（未配置模型）"}${
+                settings?.baseURL ? ` @ ${settings.baseURL}` : ""
+              }`,
+              writesAuthorized,
+              precheck:
+                capability === null
+                  ? null
+                  : {
+                      parentId: capability.parentId,
+                      stepSpanId: capability.stepSpanId,
+                      atSpanId: capability.atSpanId,
+                      checkpointLabel: isolatedCheckpointLabel(capability),
+                      continueLabel: isolatedContinueLabel(capability),
+                      configHash: capability.configHash,
+                    },
+            });
+            return (
+              <div className="mt-1.5 border-t border-violet-100 pt-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-semibold text-violet-900">核对本次续跑</span>
+                  <button
+                    type="button"
+                    data-confirm-execution
+                    aria-pressed={executionConfirmed ? "true" : undefined}
+                    disabled={
+                      inProgress ||
+                      executionConfirmed ||
+                      capability === null ||
+                      !writesAuthorized ||
+                      !canSubmit ||
+                      !sourceExecutable ||
+                      sourceBlocked !== null ||
+                      !gate.canSubmit
+                    }
+                    onClick={() =>
+                      armExecutionConfirmation(currentConfirmationBinding("result", draftKey))
+                    }
+                    className={`shrink-0 rounded border px-2 py-0.5 text-[10px] disabled:cursor-not-allowed disabled:opacity-40 ${
+                      executionConfirmed
+                        ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+                        : "border-violet-400 text-violet-700 hover:bg-violet-50"
+                    }`}
+                  >
+                    {executionConfirmed ? "已确认本次续跑" : "已核对，确认本次续跑"}
+                  </button>
+                </div>
+                {capability === null ? (
+                  <div className="mt-1 text-[11px] leading-4 text-amber-700">
+                    还没拿到只读预检结论：先点上方「校验续跑条件」，确认要核对的就是那份结论。
+                  </div>
+                ) : null}
+                <ul className="mt-1 space-y-0.5 text-[11px] leading-4 text-gray-600">
+                  {isolatedDisclosure.checks.map((one) => (
+                    <li key={`check-${one}`}>已做的检查：{one}</li>
+                  ))}
+                  {isolatedDisclosure.limits.map((one) => (
+                    <li key={`limit-${one}`}>本次边界：{one}</li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })()}
         </div>
       ) : null}
 
@@ -2309,10 +2389,10 @@ function ForkEditor({
             <button
               type="button"
               data-confirm-execution
-              aria-pressed={plainConfirmed ? "true" : undefined}
+              aria-pressed={executionConfirmed ? "true" : undefined}
               disabled={
                 inProgress ||
-                plainConfirmed ||
+                executionConfirmed ||
                 !canSubmit ||
                 !sourceExecutable ||
                 sourceBlocked !== null ||
@@ -2322,12 +2402,12 @@ function ForkEditor({
                 armExecutionConfirmation(currentConfirmationBinding("result", draftKey))
               }
               className={`shrink-0 rounded border px-2 py-1 text-[11px] disabled:cursor-not-allowed disabled:opacity-40 ${
-                plainConfirmed
+                executionConfirmed
                   ? "border-emerald-300 bg-emerald-50 text-emerald-800"
                   : "border-gray-300 text-gray-700 hover:bg-gray-50"
               }`}
             >
-              {plainConfirmed ? "已确认本次重跑" : "已核对，确认本次重跑"}
+              {executionConfirmed ? "已确认本次重跑" : "已核对，确认本次重跑"}
             </button>
           </div>
           <dl className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 border-t border-gray-100 px-2 py-1.5 text-[11px] leading-4">
@@ -2408,7 +2488,7 @@ function ForkEditor({
               channel: "result",
               target: draftKey,
               // U5 4.4：普通路径带现场确认（不成立 ⇒ store 拒绝登记 ⇒ 一次 IPC 都不发）
-              ...(isolated ? {} : { confirmation: plainBinding }),
+              confirmation: executionBinding,
             });
             if (assoc === null) return;
             if (isolated && submission.ok) {

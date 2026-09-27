@@ -265,6 +265,78 @@ export function resultPlainDisclosure(input: ResultDisclosureInput): Confirmatio
   };
 }
 
+/** 只读预检结论的展示形态（由调用方从 `forkCapability` 结果与既有标签函数拼好） */
+export interface IsolatedPrecheckFacts {
+  readonly parentId: string;
+  readonly stepSpanId: string;
+  readonly atSpanId: string;
+  /** 整轮结束检查点的既有标签（`isolatedCheckpointLabel`），不在这里另算一份 */
+  readonly checkpointLabel: string;
+  /** 续跑语义的既有标签（`isolatedContinueLabel`） */
+  readonly continueLabel: string;
+  readonly configHash: string;
+}
+
+export interface IsolatedResultDisclosureInput {
+  readonly toolName: string | null;
+  readonly oldValue: string;
+  readonly newValue: string;
+  readonly modelSummary: string;
+  readonly writesAuthorized: boolean;
+  /** null = 还没做过只读预检（或预检失败）：确认不可用，措辞要说明缺的是什么 */
+  readonly precheck: IsolatedPrecheckFacts | null;
+}
+
+/**
+ * 隔离 result 续跑的确认（U5 任务 4.5）：与普通路径**边界不同**，措辞必须各说各的。
+ *
+ * 隔离侧的真实事实：直接父、本地轮号、整轮结束检查点、不重做本轮其余工具、
+ * **不撤销已经发生过的原写入**、副本写入要本次重新授权；预检是真实存在的只读请求
+ * （`runs:forkCapability`），所以它可以出现在"已做的检查"里——普通路径没有这个接口，
+ * 也就不能借用这句话。
+ */
+export function resultIsolatedDisclosure(
+  input: IsolatedResultDisclosureInput,
+): ConfirmationDisclosure {
+  const pre = input.precheck;
+  return {
+    facts: [
+      {
+        label: "被改的调用",
+        value:
+          input.toolName === null
+            ? (pre?.atSpanId ?? "-")
+            : `${input.toolName} · ${pre?.atSpanId ?? "-"}`,
+      },
+      { label: "原值", value: preview(input.oldValue) },
+      { label: "新值", value: preview(input.newValue) },
+      ...(pre === null
+        ? [{ label: "续跑条件", value: "尚未取得只读预检结论（下面这几项要预检后才知道）" }]
+        : [
+            { label: "直接父", value: pre.parentId },
+            { label: "本地轮号", value: pre.stepSpanId },
+            { label: "整轮结束检查点", value: pre.checkpointLabel },
+            { label: "续跑方式", value: pre.continueLabel },
+            { label: "config_hash", value: pre.configHash },
+            { label: "真实调用", value: input.modelSummary },
+          ]),
+      {
+        label: "本次副本写入",
+        value: input.writesAuthorized ? "已勾选（只对这次提交有效）" : "未勾选（隔离提交会被拒绝）",
+      },
+    ],
+    checks:
+      pre === null
+        ? [LOCAL_FIELD_CHECK]
+        : [LOCAL_FIELD_CHECK, "只读预检 `runs:forkCapability`：不创建运行、不写文件、不请求模型"],
+    limits: [
+      "整轮续跑：这一轮的其余工具**不重做**（它们在子运行的前缀里各出现一次），编辑点之后的步骤由模型重新生成。",
+      "不撤销已经发生的写入：源目录与父 trace 都不会被改动，写入只落在本副本映射里；父 trace 上的历史授权标注不构成本次授权。",
+      "副本写入需要本次显式勾选；重新打开编辑或换目录都要重新勾选，不从历史记录补授权。",
+    ],
+  };
+}
+
 /** 披露里"检查"与"边界"合成可读列表（视图只渲染，不再自己拼句子） */
 export function disclosureLines(disclosure: ConfirmationDisclosure): ConfirmationRow[] {
   return [

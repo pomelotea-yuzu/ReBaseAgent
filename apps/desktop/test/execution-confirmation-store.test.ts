@@ -180,8 +180,37 @@ describe("4.4 接线契约：确认判据只有一份", () => {
     const panel = read("components/DetailPanel.tsx");
     expect(create).toContain("createDisclosure({");
     expect(panel).toContain("resultPlainDisclosure({");
+    // U5 4.5：隔离侧的"已做的检查 / 本次边界"也出自同一模块
+    expect(panel).toContain("resultIsolatedDisclosure({");
     // 两个入口都经同一份 disclosureLines，不存在各写一套顺序
     expect(create).toContain("disclosureLines(");
     expect(panel).toContain("disclosureLines(");
+  });
+
+  it("两条 result 路径都把现场确认交给登记口（4.5 起隔离侧不再豁免）", () => {
+    const panel = read("components/DetailPanel.tsx");
+    const flat = panel.replace(/\s+/g, " ");
+    expect(flat).toContain("confirmation: executionBinding,");
+    expect(flat).not.toContain("isolated ? {} :");
+  });
+
+  it("隔离侧的确认按钮要求预检结论与本次授权都在场（无预检就不给确认）", () => {
+    const panel = read("components/DetailPanel.tsx");
+    const at = panel.indexOf("data-confirm-execution");
+    expect(at).toBeGreaterThan(-1);
+    const gate = panel.slice(at, panel.indexOf("onClick", at)).replace(/\s+/g, " ");
+    expect(gate).toContain("capability === null ||");
+    expect(gate).toContain("!writesAuthorized ||");
+    // 预检缺席时就近给出原因，而不是只把按钮禁掉
+    expect(panel).toContain("还没拿到只读预检结论");
+    // 重新启动预检必须先推进检查代次：否则"旧预检 + 新确认"能拼出一条没人核对过的执行
+    const from = panel.indexOf("const doCheck");
+    const check = panel.slice(from, panel.indexOf("loadForkCapability", from));
+    expect(check.length).toBeGreaterThan(20);
+    expect(check).toContain("restartExecutionCheck(draftKey)");
+    // 而且是在判据通过之后才推进（被挡住的点击不产生代次抖动）
+    expect(check.indexOf("if (!checkAllowed) return;")).toBeLessThan(
+      check.indexOf("restartExecutionCheck(draftKey)"),
+    );
   });
 });

@@ -99,10 +99,10 @@ describe("4.3 接线契约：create 与 result 都从同一份会话派生", () 
       dialog.indexOf("\n", dialog.indexOf("const formLocked")),
     );
     expect(locked).not.toContain("gate.");
-    // result：canFork 含 gate；普通路径另需"已核对本次重跑"的确认
-    // （隔离路径仍走既有预检 + 本次授权，其确认门禁属 §4.5）
+    // result：canFork 含 gate；两条路径都另需"已核对本次目标与边界"的确认
+    // （U5 4.5 起隔离侧同样要确认，其按钮还要求只读预检结论与本次副本授权）
     expect(panel.replace(/\s+/g, " ")).toContain(
-      "const canFork = canSubmit && (isolated || plainConfirmed) && sourceExecutable && sourceBlocked === null && gate.canSubmit",
+      "const canFork = canSubmit && executionConfirmed && sourceExecutable && sourceBlocked === null && gate.canSubmit",
     );
     // 只读能力预检不受主动槽影响（spec「只读入口和被动录制不占主动槽」）
     const checkAllowed = panel.slice(
