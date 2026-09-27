@@ -64,6 +64,13 @@ import type {
   ModelAbDraftKey,
 } from "./lib/debugging-drafts";
 import * as draftLib from "./lib/debugging-drafts";
+import {
+  applyDraftClosure,
+  decideDraftClosure,
+  draftStateOf,
+  pendingTokenForTarget,
+  verdictOfOperation,
+} from "./lib/draft-closure";
 import type { DraftKind } from "./lib/draft-list";
 import type {
   DraftSubmission,
@@ -813,8 +820,48 @@ async function readRunResult(
   useAppStore.setState((state) => ({
     resultReads: finishResultRead(state.resultReads, identity, started.attempt, verification),
   }));
+  // U5 任务 2.2/2.5：读取结论一落地就**立刻**尝试按修订收尾——自动核实、显式只读重试、
+  // 面板收起后的轮询都走这一处，组件挂不挂载与它无关（收尾不留在 `.then()` 里）。
+  closeDraftClosureFor(identity);
   // 守卫丢弃本次结论时，交回界面上真正在场的那一条（调用方据此呈现，绝不拿废结论去导航）
   return resultReadOf(useAppStore.getState().resultReads, identity) as ResultReadEntry;
+}
+
+/**
+ * U5 任务 2.2/2.4：**按提交修订收尾一份草稿**（读取结论落地后尝试）。
+ *
+ * 判据全在 `lib/draft-closure`（四道闸 + 修订 CAS），这里只负责"看得见的那一份仓库"：
+ * 关联查不到 / 登记里没有该身份 ⇒ 直接返回（宁可留着草稿，也不凭空判一个结局）。
+ * 只有**真的删掉了**（或该目标本就无草稿）才释放关联——CAS 输了就留着关联等下一次核实，
+ * 免得把"还没清成"的凭据先扔了。创建入口连该提交对应的目录引用一并清掉。
+ */
+function closeDraftClosureFor(identity: { epoch: string; operationId: string }): void {
+  const state = useAppStore.getState();
+  const closure = submissionLib.closureOf(
+    state.draftSubmissions,
+    identity.epoch,
+    identity.operationId,
+  );
+  if (closure === undefined) return;
+  const record = state.operations.operations.find(
+    (one) => one.epoch === identity.epoch && one.operationId === identity.operationId,
+  );
+  if (record === undefined) return;
+  const decision = decideDraftClosure({
+    closure,
+    draft: draftStateOf(state.drafts, closure.target),
+    verdict: verdictOfOperation(record, state.resultReads, closure.expectedArmCount),
+    pendingToken: pendingTokenForTarget(state.draftSubmissions.byId, closure),
+  });
+  if (decision.kind === "keep") return;
+  const applied = applyDraftClosure(state.drafts, closure, decision);
+  if (!applied.cleaned && decision.kind === "clean") return;
+  useAppStore.setState((current) => ({
+    drafts: applied.repo,
+    draftSubmissions: submissionLib.releaseClosure(current.draftSubmissions, identity),
+    // 创建入口：整份表单被清 ⇒ 这次提交对应的目录引用同步失效（不继承给下一份草稿）
+    ...(applied.cleaned && closure.channel === "create" ? { createSourceRef: null } : {}),
+  }));
 }
 
 /**

@@ -1,9 +1,10 @@
 # U5 实施与验收任务
 
-> 实施进度（2026-09-27）：**§1 全部完成（1.1–1.4）+ 2.1**（`shared/terminal-facts.ts` 19 条 +
+> 实施进度（2026-09-27）：**§1 全部完成（1.1–1.4）+ 2.1 / 2.2**（`shared/terminal-facts.ts` 19 条 +
 > `lib/result-verification.ts` 纯判据 15 条 + store 核实接线 9 条 + 终态消费 13 条 +
-> `draft-submission` 收尾关联 13 条；desktop 全量 108 文件 / 1897 用例绿，根 `biome check .` EXIT=0；
-> 变异：1.1 三组、1.2 三组、1.3 四组、1.4 五组、2.1 三组，各有牙）。其余全部待办；
+> `draft-submission` 收尾关联 13 条 + `draft-closure` 清理判据 20 条 / store 收尾 7 条；
+> desktop 全量 110 文件 / 1924 用例绿，根 `biome check .` EXIT=0；
+> 变异：1.1 三组、1.2 三组、1.3 四组、1.4 五组、2.1 三组、2.2 四组，各有牙）。其余全部待办；
 > 没有实施、GUI 验收或发布通过声明。
 > 每项实施/验收控制在 2h 内；若实际超出先拆分。场景名称对应 `specs/desktop-ui/spec.md`，既有场景用于回归，不能用旧报告替代新接线验证。
 
@@ -25,7 +26,14 @@
   - 落点：`SubmissionStore.closures`（键 `(epoch, operationId)`，值只含目标 / 目标标识 / 通道 /
     提交修订 / 令牌 / A-B 预期臂数）；`settleSubmission` 与 `settleSubmissionByOperation` 解冻时转存，
     `epoch === null`（本地未发送）不留关联；同目标新提交作废旧关联。
-- [ ] 2.2 实现单运行正常终止后的原子修订清理，包括创建对应目录引用；保留其他草稿（≤2h）。验收：「单运行正常结束清理匹配修订」「解冻后修改不被旧结果删除」。
+- [x] 2.2 实现单运行正常终止后的原子修订清理，包括创建对应目录引用；保留其他草稿（≤2h）。验收：「单运行正常结束清理匹配修订」「解冻后修改不被旧结果删除」。
+  - 落点：`lib/draft-closure.ts`（`verdictOfOperation` 结局聚合、`decideDraftClosure` 四道闸、
+    `applyDraftClosure` 走 U3 修订 CAS）+ `store` 在每次读取结论落地后尝试收尾（自动核实、
+    显式只读重试、面板收起后的轮询同一去处）。A/B 的整批清理判据已在本模块内实现，
+    store 侧的批次证据按任务 2.4 单独收口。
+  - 落点：`lib/draft-closure.ts`（`verdictOfOperation` / `decideDraftClosure` 四道闸 / `applyDraftClosure`
+    走 U3 修订 CAS）+ `store.closeDraftClosureFor`（挂在每次读取结论落地之后，覆盖自动核实与只读重试）。
+    A/B 整批判据（`batchGapOf`）与 `expectedArmCount` 基准一并落在此处，2.4 只补 store 侧批次用例。
 - [ ] 2.3 加固 token/修订竞争与放弃重建幂等，未知或旧会话不清理（≤2h）。验收：「同修订再次提交也不被旧操作清理」「重复收尾与显式放弃不会误删重建草稿」「迟到回调与未知状态不能错误解冻」。
 - [ ] 2.4 实现 A/B 预期臂完整性核对及整批清理，保留 null ID、缺臂、失败和不可读的整份配置（≤2h）。验收：「全部预期实验臂正常才清理整批」「实验缺臂部分失败与未核实保留整批」「实验预览和结果不隐式清理批次」。
 - [ ] 2.5 补读取重试成功后清理与非正常结果保留的 store 接线反证（≤2h）。验收：「失败与读取恢复分别收尾」；断言读取重试执行调用增量为零，且组件卸载后仍能完成收尾。
