@@ -61,7 +61,15 @@ describe("纯逻辑：提交关联的登记与收尾（任务 3.4/3.5）", () =>
     submittedText: string,
     channel: subLib.DraftSubmitChannel = "result",
   ): subLib.BeginSubmissionResult =>
-    subLib.beginSubmission(store, { channel, target, submittedRevision, submittedText });
+    // epoch 固定 null：本文件钉"登记 / 令牌 / 冻结"，U5 的收尾关联只服务**真正发出过**的提交
+    subLib.beginSubmission(store, {
+      channel,
+      target,
+      submittedRevision,
+      submittedText,
+      operationId: crypto.randomUUID(),
+      epoch: null,
+    });
 
   it("登记取当前修订与请求快照，令牌单调递增", () => {
     const empty = subLib.emptySubmissionStore();

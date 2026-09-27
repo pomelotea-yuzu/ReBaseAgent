@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import * as draftLib from "../src/renderer/src/lib/debugging-drafts";
+import type { ModelAbDraftKey } from "../src/renderer/src/lib/debugging-drafts";
 import type { DraftSubmission } from "../src/renderer/src/lib/draft-submission";
 import { submissionByOperation, submissionIdOf } from "../src/renderer/src/lib/draft-submission";
 import * as subLib from "../src/renderer/src/lib/draft-submission";
@@ -321,5 +322,105 @@ describe("4.2 reconcile 驱动的解冻口（settleDraftByOperation）", () => {
     expect(submissionByOperation(store, second.epoch as string, second.operationId)?.id).toBe(
       submissionIdOf(OTHER_KEY),
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// U5 任务 2.1：解冻**之后**仍留着收尾关联（真实 store 路径，不是只有纯函数）
+//
+// design D3：待定冻结管"现在不能改"，收尾关联管"这次执行的结局够不够格清哪份草稿"。
+// 结果核实天然晚于解冻（main 登记终态就解锁让用户继续编辑），所以元数据必须在解冻时转存；
+// 反过来，一次根本没发出的请求没有结局可核对，不该留下任何"将来可以清草稿"的凭据。
+// ---------------------------------------------------------------------------
+describe("U5 2.1 收尾关联随解冻留场（store 接线）", () => {
+  it("settled 回执解冻 ⇒ 关联带着身份/目标/修订/令牌留场，草稿正文一字未动", async () => {
+    const assoc = stubFork((operationId) => ({
+      ok: true,
+      operation: ackOf(operationId, "settled"),
+    }));
+    if (assoc === null) throw new Error("unreachable：应能登记关联");
+    await useAppStore.getState().forkAt("r_01", KEY.spanId, assoc.submittedText, undefined, assoc);
+
+    const store = useAppStore.getState().draftSubmissions;
+    expect(subLib.submissionOf(store, KEY)).toBeUndefined(); // 冻结已解除
+    const closure = subLib.closureOf(store, FAKE_EPOCH, assoc.operationId);
+    expect(closure).toMatchObject({
+      epoch: FAKE_EPOCH,
+      operationId: assoc.operationId,
+      targetKey: submissionIdOf(KEY),
+      channel: "result",
+      submittedRevision: assoc.submittedRevision,
+      token: assoc.token,
+      expectedArmCount: null,
+    });
+    // 草稿正文仍在（U3 纪律：解冻不删草稿），且关联里没有第二份正文
+    expect(useAppStore.getState().callDraftOf(KEY)?.text).toBe("编辑后的结果");
+    expect(JSON.stringify(closure)).not.toContain("编辑后的结果");
+  });
+
+  it("本地门禁拦下（请求没发出）⇒ 解冻但不留关联；重新握手后可再次提交", async () => {
+    reset();
+    useAppStore.getState().ensureCallDraft(KEY, "原结果", undefined);
+    useAppStore.getState().writeCallDraftText(KEY, "编辑后的结果");
+    const assoc = useAppStore.getState().beginDraftSubmission({ channel: "result", target: KEY });
+    if (assoc === null) throw new Error("unreachable：应能登记关联");
+    // 未握手：提交路径按"本地未发送"拒绝，关联的 epoch 仍是 null
+    apiStub.operationsStatus = async () => ({
+      ok: false as const,
+      error: { code: "STATUS_FAILED", message: "断开" },
+    });
+    expect(
+      await useAppStore
+        .getState()
+        .forkAt("r_01", KEY.spanId, assoc.submittedText, undefined, assoc),
+    ).toBe(false);
+
+    const store = useAppStore.getState().draftSubmissions;
+    expect(subLib.submissionOf(store, KEY)).toBeUndefined();
+    expect(Object.keys(store.closures)).toHaveLength(0);
+  });
+
+  it("reconcile 解冻（settleDraftByOperation）同样转存关联；重复核对不产生第二条", () => {
+    const assoc = useAppStore.getState().beginDraftSubmission({ channel: "result", target: KEY });
+    if (assoc === null) throw new Error("unreachable：应能登记关联");
+    useAppStore.getState().settleDraftByOperation({
+      epoch: assoc.epoch as string,
+      operationId: assoc.operationId,
+    });
+    const once = useAppStore.getState().draftSubmissions;
+    expect(subLib.closureOf(once, assoc.epoch as string, assoc.operationId)?.targetKey).toBe(
+      submissionIdOf(KEY),
+    );
+    // 再核对一次同一身份：待定已空 ⇒ 仓库引用不变（收尾只发生一次）
+    useAppStore.getState().settleDraftByOperation({
+      epoch: assoc.epoch as string,
+      operationId: assoc.operationId,
+    });
+    expect(useAppStore.getState().draftSubmissions).toBe(once);
+  });
+
+  it("A/B 提交把**预期臂数**带进关联（整批清理的基准，任务 2.4）", () => {
+    const abKey: ModelAbDraftKey = { runId: "r_01", spanId: "s_02" };
+    useAppStore.getState().ensureModelAbDraft(abKey, [
+      { model: "m-a", paramsText: "{}" },
+      { model: "m-b", paramsText: "{}" },
+      { model: "m-c", paramsText: "{}" },
+    ]);
+    const assoc = useAppStore
+      .getState()
+      .beginDraftSubmission({ channel: "model_ab", target: abKey });
+    if (assoc === null) throw new Error("unreachable：应能登记整批关联");
+    expect(assoc.expectedArmCount).toBe(3);
+    useAppStore.getState().settleDraftByOperation({
+      epoch: assoc.epoch as string,
+      operationId: assoc.operationId,
+    });
+    expect(
+      subLib.closureOf(
+        useAppStore.getState().draftSubmissions,
+        assoc.epoch as string,
+        assoc.operationId,
+      )?.expectedArmCount,
+    ).toBe(3);
   });
 });

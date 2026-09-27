@@ -62,17 +62,65 @@ export interface DraftSubmission {
    */
   readonly operationId: string;
   readonly epoch: string | null;
+  /**
+   * U5 任务 2.1：A/B 批次的**预期臂数**（整批清理基准，任务 2.4）。
+   * 其余入口为 null。登记里的 `arms` 只说明 main 观察到几条，缺臂时它会更短——
+   * "全部预期臂都正常"必须以提交时用户真正交出去的臂数为基准，不能以登记为准。
+   */
+  readonly expectedArmCount: number | null;
+}
+
+/**
+ * U5 任务 2.1：**提交收尾关联**（design D3）。
+ *
+ * 与 `DraftSubmission` 的分工是刻意的两件事：
+ * - 待定提交（`byId`）管"这份草稿现在不能改/不能放弃"——它随解冻消失；
+ * - 收尾关联（`closures`）管"这次执行的结局够不够格清掉哪一份草稿"——它必须在解冻**之后**
+ *   继续在场，因为结果核实（U5 任务 1.2–1.4）天然晚于解冻：main 登记终态即解冻让用户继续编辑，
+ *   而"能不能删草稿"要等详情读到手、自有终止事件核实完才知道。
+ *
+ * 三条纪律：
+ * 1. **只存最小元数据**：目标标识、修订、令牌、身份，外加 A/B 的预期臂数。
+ *    正文一份都不复制——草稿与原提交快照各自已有，再抄一份就是第二个真相源。
+ * 2. **不能授予执行资格**：它只是"该不该清理"的凭据，界面与门禁都不读它。
+ * 3. **只保留每个目标最新一次**：同目标再次提交 ⇒ 旧关联作废（spec
+ *    「同修订再次提交也不被旧操作清理」）。否则旧操作核实正常后会把新一次提交引用的
+ *    同一份草稿删掉——身份对了，权限却早就换人了。
+ */
+export interface SubmissionClosure {
+  /** 关联键 `${epoch}|${operationId}` */
+  readonly id: string;
+  readonly epoch: string;
+  readonly operationId: string;
+  /** 草稿目标（调用类 / A/B 批次 / 创建整份）：清理时按它回查当前草稿 */
+  readonly target: DraftSubmitTarget;
+  /** 目标标识（`submissionIdOf(target)`）：同目标作废与草稿列表回查都用它 */
+  readonly targetKey: string;
+  readonly channel: DraftSubmitChannel;
+  /** 提交时的草稿修订：清理要求当前修订**逐字相同**（内容相同也不算，见 design D5） */
+  readonly submittedRevision: number;
+  /** 提交令牌：与更晚的待定提交比较，判断"这份草稿是否已被后来的提交接管" */
+  readonly token: number;
+  /** A/B 批次的预期臂数（整批清理的基准，任务 2.4）；其余入口为 null */
+  readonly expectedArmCount: number | null;
 }
 
 export interface SubmissionStore {
   /** 待定提交：目标标识 → 关联（同一目标同时最多一个） */
   readonly byId: Readonly<Record<string, DraftSubmission>>;
+  /** 收尾关联：`${epoch}|${operationId}` → 最小清理凭据（解冻后仍保留） */
+  readonly closures: Readonly<Record<string, SubmissionClosure>>;
   /** 令牌分配器：只增不减，旧关联的令牌不会与后续提交相同 */
   readonly nextToken: number;
 }
 
 export function emptySubmissionStore(): SubmissionStore {
-  return { byId: {}, nextToken: 1 };
+  return { byId: {}, closures: {}, nextToken: 1 };
+}
+
+/** 收尾关联的键 */
+export function closureIdOf(epoch: string, operationId: string): string {
+  return `${epoch}|${operationId}`;
 }
 
 /** 目标标识：与 `lib/draft-list.ts` 的 listKey 同编码（不是编辑身份本身） */
@@ -102,6 +150,12 @@ export interface BeginSubmissionInput {
   /** U4 任务 4.2：本次提交的操作身份（operationId 登记时就定；epoch 发出时绑定，先给 null） */
   readonly operationId: string;
   readonly epoch: string | null;
+  /**
+   * U5 任务 2.4：A/B 批次的**预期臂数**（整批清理的基准）。
+   * 非 A/B 入口不传（= null）；A/B 必须传本次提交的行数——缺臂/null ID 的判断
+   * 不能靠登记的 `arms.every()`（空集合恒真）。
+   */
+  readonly expectedArmCount?: number | null;
 }
 
 export interface BeginSubmissionResult {
@@ -132,10 +186,16 @@ export function beginSubmission(
     token: store.nextToken,
     operationId: input.operationId,
     epoch: input.epoch,
+    expectedArmCount: input.expectedArmCount ?? null,
   };
+  // 新一次提交接管这个目标 ⇒ 该目标更早的收尾关联作废（旧操作不得清理新提交的草稿）
+  const closures = Object.fromEntries(
+    Object.entries(store.closures).filter(([, one]) => one.targetKey !== id),
+  );
   return {
     store: {
       byId: { ...store.byId, [id]: submission },
+      closures,
       nextToken: store.nextToken + 1,
     },
     submission,
@@ -149,6 +209,17 @@ export function beginSubmission(
  * - 只提供给"已明确有结论"的路径调用（响应到达 / 本地校验拒绝）；通道断开等
  *   不确定状态**不得**调用，按 design D5 保留冻结。
  */
+/**
+ * 收尾一次提交（解除冻结）：
+ * - 仅当该目标的待定关联**令牌相同**才删除 —— 旧回调不能解冻后来发起的新提交；
+ * - 目标已无待定关联（已被收尾 / 已被放弃）⇒ 幂等，返回原引用；
+ * - 只提供给"已明确有结论"的路径调用（响应到达 / 本地校验拒绝）；通道断开等
+ *   不确定状态**不得**调用，按 design D5 保留冻结。
+ *
+ * U5 任务 2.1：解冻**不再丢弃**这次提交的最小元数据——转成交收关联（`SubmissionClosure`），
+ * 供晚到的结果核实按修订判断"能不能清草稿"。只有真正发出过（`epoch` 已绑定）的提交才留：
+ * 本地未发送的请求根本没有结局，给它挂一条关联等于凭空多出一份可清理凭据。
+ */
 export function settleSubmission(
   store: SubmissionStore,
   submission: DraftSubmission,
@@ -157,7 +228,60 @@ export function settleSubmission(
   if (current === undefined || current.token !== submission.token) return store;
   const nextById = { ...store.byId };
   delete nextById[submission.id];
-  return { byId: nextById, nextToken: store.nextToken };
+  return {
+    byId: nextById,
+    closures: withClosure(store.closures, current),
+    nextToken: store.nextToken,
+  };
+}
+
+/**
+ * 把一条刚解冻的提交转成交收关联。
+ *
+ * **没真正发出过（`epoch === null`）的不生成**：本地未发送的请求没有结局可核对，
+ * 留一条关联等于凭空多出一份"将来可以清草稿"的凭据（design D3 的关联只服务已执行的操作）。
+ */
+function withClosure(
+  closures: Readonly<Record<string, SubmissionClosure>>,
+  submission: DraftSubmission,
+): Readonly<Record<string, SubmissionClosure>> {
+  if (submission.epoch === null) return closures;
+  const closure: SubmissionClosure = {
+    id: closureIdOf(submission.epoch, submission.operationId),
+    epoch: submission.epoch,
+    operationId: submission.operationId,
+    target: submission.target,
+    targetKey: submission.id,
+    channel: submission.channel,
+    submittedRevision: submission.submittedRevision,
+    token: submission.token,
+    expectedArmCount: submission.expectedArmCount,
+  };
+  return { ...closures, [closure.id]: closure };
+}
+
+/** 按 main 身份查收尾关联（结果核实到达后用） */
+export function closureOf(
+  store: SubmissionStore,
+  epoch: string,
+  operationId: string,
+): SubmissionClosure | undefined {
+  return store.closures[closureIdOf(epoch, operationId)];
+}
+
+/**
+ * 释放一条收尾关联（清理完成 / 显式放弃该目标草稿）。
+ * 查不到该身份 ⇒ 引用不变（幂等：重复 status、重复读取重试都不会多删一次）。
+ */
+export function releaseClosure(
+  store: SubmissionStore,
+  identity: { epoch: string; operationId: string },
+): SubmissionStore {
+  const id = closureIdOf(identity.epoch, identity.operationId);
+  if (store.closures[id] === undefined) return store;
+  const closures = { ...store.closures };
+  delete closures[id];
+  return { ...store, closures };
 }
 
 // ---------------------------------------------------------------------------
@@ -178,6 +302,7 @@ export function bindSubmissionEpoch(
   if (current.epoch === epoch) return store;
   return {
     byId: { ...store.byId, [submission.id]: { ...current, epoch } },
+    closures: store.closures,
     nextToken: store.nextToken,
   };
 }

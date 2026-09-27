@@ -1276,6 +1276,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     // 原子取提交快照：三类草稿各自的可核对串（同一步内读修订与内容，不会读到半新半旧）
     let submittedRevision: number;
     let submittedText: string;
+    // U5 任务 2.1/2.4：A/B 整批的预期臂数——只在这次提交里说一次，之后登记缺臂也以此为准
+    let expectedArmCount: number | null = null;
     if (!("field" in target)) {
       // A/B 批次（整批）：行内容 JSON，与草稿列表的 copyText 同形
       const entry = draftLib.modelAbDraftOf(get().drafts, target);
@@ -1284,6 +1286,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       submittedText = JSON.stringify(
         entry.rows.map((row) => ({ model: row.model, paramsText: row.paramsText })),
       );
+      expectedArmCount = entry.rows.length;
     } else if (target.field === "create") {
       // 创建表单（整份）
       const entry = get().drafts.create;
@@ -1311,6 +1314,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       // epoch 等真正发出时由 `submitActive` 绑定（未握手 ⇒ null，请求根本不会离开）
       operationId: crypto.randomUUID(),
       epoch: get().operations.epoch,
+      // U5 任务 2.1/2.4：A/B 的预期臂数与快照同一步定下（解冻后仍留在收尾关联里）
+      expectedArmCount,
     });
     // 该目标已有待定提交：拒绝重复提交，不覆盖旧关联（旧关联的响应仍能正确收尾）
     if (next.submission === null) return null;
