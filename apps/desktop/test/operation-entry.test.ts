@@ -91,7 +91,7 @@ describe("4.7 入口的数据派生（只报 main 给得出的事实）", () => 
     expect(running?.runLinks).toEqual([]);
     expect(done?.hint).toContain("不等于运行成功");
     expect(done?.experimentId).toBe("exp_one");
-    expect(done?.diagnosticCount).toBe(1);
+    expect(done?.diagnostics.length).toBe(1);
     // settled 的 runIds 是身份，note 明说"未确认文件可读"
     expect(done?.runLinks[0]?.note).toContain("未确认文件可读");
   });

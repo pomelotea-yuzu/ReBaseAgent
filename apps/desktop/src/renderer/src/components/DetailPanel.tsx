@@ -42,6 +42,7 @@ import {
 } from "../lib/isolated-fork";
 import { modelAbGuard, riskyToolNames, scalarRequestParams } from "../lib/model-ab";
 import type { ArmDraft, Scalar } from "../lib/model-ab";
+import { deriveAbBatchResult } from "../lib/operation-result-view";
 import { promptForkGuard } from "../lib/prompt-fork";
 import type { PromptForkField } from "../lib/prompt-fork";
 import { decideRestore, initialRestoreState, restoreIdentity } from "../lib/restore-gate";
@@ -50,6 +51,7 @@ import { useEscapeClose } from "../lib/use-escape-close";
 import { validateCheckpointStepId } from "../lib/workspace-files";
 import { readingScrollOf } from "../lib/workspace-selection";
 import { useAppStore } from "../store";
+import { AbBatchResultSection } from "./AbBatchResult";
 import { BudgetMap } from "./BudgetMap";
 import { requestConfirm } from "./ConfirmDialog";
 import { DetailNotices } from "./DetailNotices";
@@ -813,7 +815,9 @@ function ModelAbEditor({
   const [plan, setPlan] = useState<ModelAbResult | null>(null);
   // U3 任务 3.3：计划所绑定的批次修订（预览时的请求代次）——见下方 activePlan
   const [planRevision, setPlanRevision] = useState<number | null>(null);
-  const [executed, setExecuted] = useState<ModelAbResult | null>(null);
+  // U5 任务 5.1：批次结果区改吃**登记 + 独立核实**——这里只留提交身份当指针，
+  // 信封 `ModelAbResult` 是请求事实（ids 计数会冒充臂结局），不再进面板。
+  const [executedOperationId, setExecutedOperationId] = useState<string | null>(null);
 
   /**
    * U3 任务 2.4：批次行改由**批次草稿**驱动（稳定行 ID；design D1/D4）。
@@ -821,7 +825,8 @@ function ModelAbEditor({
    *   ——增删行/非法参数文本经 `setModelAbRows` 落 store，往返逐字恢复；
    * - 临时计划与副作用许可是**本次编辑会话**的本地状态：不进草稿、恢复时清理
    *   （打开即复位——计划须重新校验、授权须重新勾选）；
-   * - 预览 / 执行 / 实验结果**不隐式清理批次**（只动本地 plan/executed）；
+   * - 预览 / 执行 / 实验结果**不隐式清理批次**（只动本地 plan / executedOperationId——
+   *   U5 5.1 后批次呈现改吃登记快照，指针清空即撤面板）；
    * - U3 任务 3.3：计划绑定**预览时的批次修订**（请求代次）——任何内容变化或恢复后
    *   即失效，必须重新预览并重新确认副作用；迟到预览响应不安装旧计划（同 3.1 守卫）；
    * - 放弃整个批次归任务 2.6（CAS 确认）。
@@ -867,7 +872,8 @@ function ModelAbEditor({
   const inProgress = modelAbInFlight || draftFrozen;
   // U4 任务 4.4：A/B 只有**真实执行**受统一槽约束；"校验并预览计划"走只读通道
   // （runs:modelAbPlan），占槽期间照常可用——把预览一起禁用就是拿门禁当业务判据。
-  const gate = deriveEntryGate(useAppStore((s) => s.operations));
+  const operationsSession = useAppStore((s) => s.operations);
+  const gate = deriveEntryGate(operationsSession);
 
   // U5 任务 4.7：A/B 的确认对象是**当前这份预览计划**（同一凭据、同一执法点）。
   // 检查代次由"校验并预览计划"推进：重新预览 ⇒ 旧确认作废，旧响应也装不回新确认。
@@ -877,6 +883,24 @@ function ModelAbEditor({
   const restartExecutionCheck = useAppStore((s) => s.restartExecutionCheck);
   const abBinding = currentConfirmationBinding("model_ab", draftKey);
   const abConfirmed = executionConfirmationReady(abBinding);
+
+  // U5 任务 5.1：批次结果区的**唯一事实来源是登记快照 + 读取项**（现算派生，不缓存）。
+  // 提交身份是指针：登记还没到场（提交在飞/快照未采纳）时 deriveAbBatchResult 只报等待，
+  // 不预告结局；到达后逐臂按 target.armCount 呈现，动作走与操作面板同一批 store 口。
+  const resultReads = useAppStore((s) => s.resultReads);
+  const openOperationResult = useAppStore((s) => s.openOperationResult);
+  const openOperationFailure = useAppStore((s) => s.openOperationFailure);
+  const retryResultRead = useAppStore((s) => s.retryResultRead);
+  const abBatchView =
+    executedOperationId === null
+      ? null
+      : deriveAbBatchResult({
+          operationId: executedOperationId,
+          record:
+            operationsSession.operations.find((one) => one.operationId === executedOperationId) ??
+            null,
+          reads: resultReads,
+        });
 
   // U3 任务 2.5：草稿列表的定位目标到达即打开（ensure 幂等；重开不覆盖已有批次；
   // 临时计划/许可照旧清理——授权与计划不随草稿恢复）
@@ -893,7 +917,7 @@ function ModelAbEditor({
       return;
     }
     ensureModelAbDraft(draftKey, baselineArms, captureCallDraftSource(run, span));
-    setExecuted(null);
+    setExecutedOperationId(null);
     setPlan(null);
     setAllowSideEffects(false);
     setOpen(true);
@@ -961,7 +985,7 @@ function ModelAbEditor({
           onClick={() => {
             resetModelAb();
             // 恢复/打开即清理临时计划与许可（design D4：授权与计划不随草稿恢复）
-            setExecuted(null);
+            setExecutedOperationId(null);
             setPlan(null);
             setAllowSideEffects(false);
             ensureModelAbDraft(draftKey, baselineArms, captureCallDraftSource(run, span));
@@ -1009,7 +1033,7 @@ function ModelAbEditor({
     if (!canSubmit) return;
     // U5 任务 4.7：一次预览 = 一次新的检查 ⇒ 检查代次推进，旧确认作废（旧响应也不能装回）
     restartExecutionCheck(draftKey);
-    setExecuted(null);
+    setExecutedOperationId(null);
     // U3 任务 3.3：记录**发起预览时的批次修订**（请求代次）——响应按它校验
     const requestedRevision = draftRevision;
     void modelAb(run.meta.id, guard.arms, true).then((result) => {
@@ -1035,9 +1059,10 @@ function ModelAbEditor({
       confirmation: abBinding,
     });
     if (assoc === null) return;
-    void modelAb(run.meta.id, guard.arms, false, assoc).then((result) => {
-      if (result !== null) setExecuted(result);
-    });
+    // U5 任务 5.1：批次结果区从登记快照逐臂呈现——信封返回值不再进面板
+    // （modelAb 仍返回 `ModelAbResult` 供请求事实行使用，但"哪条臂成了"只认登记与核实）。
+    setExecutedOperationId(assoc.operationId);
+    void modelAb(run.meta.id, guard.arms, false, assoc);
   };
 
   return (
@@ -1228,22 +1253,28 @@ function ModelAbEditor({
         </div>
       ) : null}
 
-      {executed !== null ? (
-        <div className="mt-2 rounded border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-[11px] leading-4 text-emerald-900">
-          实验完成（实验组 <span className="font-code">{executed.experimentId}</span>）：
-          {executed.ids.length > 0 ? (
-            <span>
-              {" "}
-              成功 {executed.ids.length} 臂
-              {executed.plan.length !== executed.ids.length
-                ? `（共 ${executed.plan.length} 臂，其余失败或被取消——详情见分支树与各 run 轨迹）`
-                : ""}
-              。各臂已落盘，可在分支树按“换 model/params（A/B）”标签找到同批节点。
-            </span>
-          ) : (
-            <span> 所有臂均未成功落盘（见上方错误或 provider 响应）。</span>
-          )}
-        </div>
+      {/*
+       * U5 任务 5.1：批次结果区改**逐臂读取状态 + 可信 ID 动作**（原绿色通报框拿
+       * 信封 ModelAbResult 的 ids 数组长度计臂数——那是请求事实，缺臂/失败臂会被计成"成功"）。
+       */}
+      {abBatchView !== null ? (
+        <AbBatchResultSection
+          view={abBatchView}
+          onAct={(action, identity) => {
+            if (action === "open-result") {
+              void openOperationResult(identity);
+              return;
+            }
+            if (action === "view-failure") {
+              void openOperationFailure(identity);
+              return;
+            }
+            if (action === "retry-read") {
+              void retryResultRead(identity);
+            }
+            // "return-draft" 不在臂级出现（草稿返回是记录级动作，走操作面板）
+          }}
+        />
       ) : null}
 
       {/*

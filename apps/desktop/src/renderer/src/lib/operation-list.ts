@@ -1,6 +1,10 @@
-import type { OperationKind, OperationRecord } from "@shared/operations";
+import type { OperationDiagnostic, OperationKind, OperationRecord } from "@shared/operations";
 import type { OperationResultView } from "./operation-result-view";
-import { buildOperationResultViews, resultViewKeyOf } from "./operation-result-view";
+import {
+  buildOperationResultViews,
+  requestFactsLineOf,
+  resultViewKeyOf,
+} from "./operation-result-view";
 import type { OperationSession } from "./operation-session";
 import { stalePendingOf } from "./operation-session";
 import type { ResultReadStore } from "./result-verification";
@@ -43,8 +47,17 @@ export interface OperationRow {
    */
   readonly epoch: string;
   readonly runLinks: ReadonlyArray<OperationRunLink>;
-  /** 诊断条数（>0 时给"有 N 条受控诊断"的可展开提示） */
-  readonly diagnosticCount: number;
+  /**
+   * 受控诊断列表（U5 任务 5.1：详情可读诊断）。main 侧已做脱敏与限长
+   * （码 ≤64、文案 ≤512、条数 ≤32，`shared/operations` schema strict），这里原样透传，
+   * **组件不再校一遍**——正文、密钥、授权与 sourceToken 从结构上就没有进来的通道。
+   */
+  readonly diagnostics: readonly OperationDiagnostic[];
+  /**
+   * 请求事实（信封侧）单独一行，与 `result` 里的运行结局**分层呈现、互不覆盖**；
+   * running / notAccepted / 未知历史为 null（"零调用未执行"只属于 notAccepted 文案）。
+   */
+  readonly requestLine: string | null;
   /** 实验号（仅 A/B） */
   readonly experimentId: string | null;
   /** 能否核对：unknown 历史也能（它就是去核对的入口）；已终态也可再核对一次 */
@@ -110,7 +123,8 @@ function rowOf(record: OperationRecord, result: OperationResultView | null): Ope
       runId,
       note: phase === "running" ? "已创建，尚未收尾" : "身份来自编排回调，未确认文件可读",
     })),
-    diagnosticCount: record.diagnostics.length,
+    diagnostics: record.diagnostics,
+    requestLine: requestFactsLineOf(record),
     experimentId: record.experimentId,
     canReconcile: true,
     hint: PHASE_HINTS[phase],
@@ -127,7 +141,8 @@ function unknownRow(epoch: string, operationId: string): OperationRow {
     operationId,
     epoch,
     runLinks: [],
-    diagnosticCount: 0,
+    diagnostics: [],
+    requestLine: null,
     experimentId: null,
     canReconcile: true,
     hint: PHASE_HINTS.unknown,

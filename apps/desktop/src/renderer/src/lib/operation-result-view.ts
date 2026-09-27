@@ -1,6 +1,6 @@
-import type { NotAcceptedReason, OperationRecord } from "@shared/operations";
+import type { NotAcceptedReason, OperationRecord, RequestOutcome } from "@shared/operations";
 import type { ResultReadEntry, ResultReadStore } from "./result-verification";
-import { viewOperationResult } from "./result-verification";
+import { resultReadOf, viewOperationResult } from "./result-verification";
 
 /**
  * U5（unify-run-execution-workflow）任务 3.5：**操作面板的结果呈现与明确动作**。
@@ -18,6 +18,14 @@ import { viewOperationResult } from "./result-verification";
  * 3. **未定位没有链接**：settled 但 `runIds` 为空 ⇒ 只说"核对登记"，不生成伪结果入口。
  * 4. **展示口径复用既有派生**（`classifyOutcome` / `viewOperationResult`），这里不重写第二份判据；
  *    清理判据（严格 `stopped`+`completed`）**不**用于展示，两者刻意不同。
+ *
+ * 任务 5.1 在本文件追加两族呈现（同一纪律：只报 main / 核实通道给得出的事实）：
+ * - `requestFactsLineOf`：**请求事实与运行结局分层**——信封侧结局（returned/failed/rejected +
+ *   稳定码）单独一行，不与逐条运行结局互相覆盖；`rejected` 是编排分类，
+ *   **不一律称为"零调用未执行"**（design D4，那说法只属于 notAccepted / 本地未发送）。
+ * - `deriveAbBatchResult`：A/B 批次结果区改**逐臂读取状态 + 可信 ID 动作**，
+ *   集合基准是登记 `target.armCount`（不是信封 `ids`）；缺臂 / null ID 只给诚实说明，
+ *   不从邻近记录或信封多报的 id 里凑。
  */
 
 /** 面板上可点的动作（全部由用户主动触发；没有任何"自动跳转"混在这里） */
@@ -197,6 +205,165 @@ export function deriveOperationResultView(input: {
         items: view.items.map((item) => itemViewOf(item.runId, item.entry)),
         canReturnDraft,
         draftNote,
+      };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 任务 5.1a：请求事实（信封侧）单独一行——与运行结局分层，互不覆盖
+// ---------------------------------------------------------------------------
+
+const REQUEST_OUTCOME_LABEL: Record<RequestOutcome, string> = {
+  returned: "返回",
+  failed: "请求异常",
+  rejected: "业务拒绝",
+};
+
+/**
+ * settled 才有请求事实可陈述（running / notAccepted ⇒ null：前者没有结局，
+ * 后者的"没有执行"说法由 notAccepted 自己的拒绝文案承担，二者不叠加）。
+ */
+export function requestFactsLineOf(record: OperationRecord): string | null {
+  if (record.state !== "settled" || record.requestOutcome === null) return null;
+  const code = record.errorCode === null ? "" : `（稳定码 ${record.errorCode}）`;
+  switch (record.requestOutcome) {
+    case "returned":
+      return record.target?.kind === "modelAb"
+        ? `请求事实：主进程按「返回」收口${code}——A/B 的返回可含失败臂，不宣告任何一条运行正常完成`
+        : `请求事实：主进程按「返回」收口${code}——各运行的结局只看自有终止事件`;
+    case "failed":
+      return `请求事实：${REQUEST_OUTCOME_LABEL.failed}${code}——失败信封不影响按可信 ID 打开与核实已登记的运行`;
+    case "rejected":
+      return `请求事实：${REQUEST_OUTCOME_LABEL.rejected}${code}——拒绝是编排时的分类，不一律等于零模型调用；是否发生过调用看自有终止事实`;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 任务 5.1b：A/B 批次结果的逐臂呈现（集合基准 = 登记 target.armCount，不是信封 ids）
+// ---------------------------------------------------------------------------
+
+export interface AbArmResultView {
+  readonly index: number;
+  /** 登记的可信运行 id；null = main 未观察到该臂身份（未开始 / 缺臂），不造链接 */
+  readonly runId: string | null;
+  /** 该臂的请求层结局；null = main 尚未观察到 */
+  readonly armOutcome: RequestOutcome | null;
+  /** 有可信 id 时的逐条呈现（与单运行同一 itemViewOf）；无 id ⇒ null */
+  readonly item: ResultItemView | null;
+  /** 无可信 id / 未观察时的诚实说明 */
+  readonly note: string | null;
+}
+
+export interface AbBatchResultView {
+  readonly operationId: string;
+  /** 所属 main 会话；登记快照未在场（提交在飞 / 快照未落地）⇒ null，一切动作都不给 */
+  readonly epoch: string | null;
+  /** 记录级状态行：执行中 / 已收口 / 本次未接受 / 等待登记快照 */
+  readonly statusLabel: string;
+  readonly statusDetail: string;
+  /** 信封侧请求事实（与下方逐臂运行结局分层呈现） */
+  readonly requestLine: string | null;
+  readonly experimentId: string | null;
+  readonly arms: readonly AbArmResultView[];
+}
+
+const ARM_OUTCOME_TEXT: Record<RequestOutcome, string> = {
+  returned: "请求层：该臂返回",
+  failed: "请求层：该臂失败",
+  rejected: "请求层：该臂被拒绝",
+};
+
+function abArmViewOf(
+  index: number,
+  record: OperationRecord,
+  reads: ResultReadStore,
+): AbArmResultView {
+  const arm = record.arms.find((one) => one.index === index);
+  if (arm === undefined || arm.id === null) {
+    return {
+      index,
+      runId: null,
+      armOutcome: arm?.outcome ?? null,
+      item: null,
+      note:
+        record.state === "running"
+          ? `臂 ${index + 1}：尚无登记的可信运行 ID（执行中，未观察到不代表失败，也不提前给结果入口）`
+          : `臂 ${index + 1}：main 未登记可信运行 ID（缺臂 / 未开始）——不生成结果链接，不从信封多报的 id 或邻近记录凑一个`,
+    };
+  }
+  return {
+    index,
+    runId: arm.id,
+    armOutcome: arm.outcome,
+    item: itemViewOf(
+      arm.id,
+      resultReadOf(reads, {
+        epoch: record.epoch,
+        operationId: record.operationId,
+        runId: arm.id,
+      }),
+    ),
+    note: null,
+  };
+}
+
+/**
+ * A/B 批次呈现的唯一派生口。`record` 为 null = 提交身份已知但登记快照还没到场
+ * （刚提交 / 通信未知）——这时**什么结论都不说**，只留等待事实。
+ */
+export function deriveAbBatchResult(input: {
+  operationId: string;
+  record: OperationRecord | null;
+  reads: ResultReadStore;
+}): AbBatchResultView {
+  const { record } = input;
+  if (record === null) {
+    return {
+      operationId: input.operationId,
+      epoch: null,
+      statusLabel: "等待登记快照",
+      statusDetail:
+        "本次执行的提交身份已确定，但主进程登记快照尚未到场：不预告结局，可在「操作」入口核对状态",
+      requestLine: null,
+      experimentId: null,
+      arms: [],
+    };
+  }
+  const armCount = record.target?.kind === "modelAb" ? record.target.armCount : record.arms.length;
+  const arms =
+    record.state === "notAccepted"
+      ? []
+      : Array.from({ length: armCount }, (_, i) => abArmViewOf(i, record, input.reads));
+  switch (record.state) {
+    case "running":
+      return {
+        operationId: record.operationId,
+        epoch: record.epoch,
+        statusLabel: "执行中",
+        statusDetail: "整批按登记逐臂呈现；不显示进度、阶段或百分比（主进程没有这些事实）",
+        requestLine: null,
+        experimentId: record.experimentId,
+        arms,
+      };
+    case "notAccepted":
+      return {
+        operationId: record.operationId,
+        epoch: record.epoch,
+        statusLabel: "本次未接受",
+        statusDetail: "整批没有开始执行，也不消耗任何许可；不存在可读的实验结果",
+        requestLine: null,
+        experimentId: null,
+        arms,
+      };
+    case "settled":
+      return {
+        operationId: record.operationId,
+        epoch: record.epoch,
+        statusLabel: "已收口",
+        statusDetail: "逐臂状态按登记身份与独立核实呈现：收口不等于全部成功，缺臂与失败臂原样保留",
+        requestLine: requestFactsLineOf(record),
+        experimentId: record.experimentId,
+        arms,
       };
   }
 }

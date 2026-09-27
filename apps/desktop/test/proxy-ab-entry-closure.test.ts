@@ -26,7 +26,9 @@ import { FAKE_EPOCH, statusSnapshot, toExecuted } from "./helpers/operation-chan
  *
  * 至此五条通道（普通/隔离 create、普通/隔离 result、prompt、messages、A/B）都走同一个落点，
  * 「全部七类入口使用相同核实路径」的覆盖也在此收口（1.4 注记当时只到三条消费入口）。
- * 组件侧的批次结果面板仍显示信封 `ModelAbResult`（请求事实），其"按臂呈现读取状态"属 §5.1。
+ * ~~组件侧的批次结果面板仍显示信封 `ModelAbResult`（请求事实），其"按臂呈现读取状态"属 §5.1~~
+ * ⇒ **5.1 已接线**：`ModelAbEditor` 的批次结果区改吃登记快照 + 读取项（`deriveAbBatchResult`，
+ * 见 `operation-request-facts.test.ts`）；本文件的 store 侧判据不受影响、一字未改。
  */
 
 /** 信封 id：U5 起不驱动任何读取（旧实现拿它 selectRun / 当作臂的清单） */

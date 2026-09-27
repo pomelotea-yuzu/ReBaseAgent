@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { readRun } from "@rebaseagent/trace-sdk";
 import type { RunRecord } from "@rebaseagent/trace-sdk";
+import type { ExecutedRequest } from "@shared/operations";
 import { beforeEach, describe, expect, it } from "vitest";
 import { captureCallDraftSource } from "../src/renderer/src/lib/draft-source";
 import { auditForbiddenTokens } from "../src/renderer/src/lib/overview-view";
@@ -65,7 +66,9 @@ describe("接线契约：ModelAbEditor 批次草稿（任务 2.4）", () => {
   it("打开即清理临时计划与许可（授权不随草稿恢复）；放弃只经失效视图 CAS，预览/执行不隐式清理批次", () => {
     const code = src();
     // 打开点击序列：复位本地临时态 + ensure 草稿
-    expect(code).toContain("setExecuted(null);");
+    // U5 5.1 改判（两边留痕）：批次呈现改吃登记快照，本地指针由 `executed`（信封数据）
+    // 改为 `executedOperationId`（提交身份）——"临时态清理"这条判据本身不变。
+    expect(code).toContain("setExecutedOperationId(null);");
     expect(code).toContain("setPlan(null);");
     expect(code).toContain("setAllowSideEffects(false);");
     // U3 2.5：放弃入口只在来源失效视图（CAS + 确认）；预览/执行路径无任何草稿删除
@@ -284,7 +287,7 @@ describe("store 行为：A/B 预览不隐式清理批次（任务 3.3）", () =>
     // U4：预览是只读通道（runs:modelAbPlan），主动执行通道一次都不该被碰到
     let activeCalls = 0;
     const rejected = executedFail("SHOULD_NOT_RUN", "预览不该占主动槽");
-    api.modelAb = async (request) => {
+    api.modelAb = async (request: ExecutedRequest<unknown>) => {
       activeCalls += 1;
       return rejected(request);
     };

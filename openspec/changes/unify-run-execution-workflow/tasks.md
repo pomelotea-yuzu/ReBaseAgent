@@ -1,20 +1,21 @@
 # U5 实施与验收任务
 
 > 实施进度（2026-09-27）：**§1 全部完成（1.1–1.4）+ §2 全部完成（2.1–2.5）+ §3 全部完成（3.1–3.6）
-> + §4 全部完成（4.1–4.7）**
+> + §4 全部完成（4.1–4.7）+ §5.1 完成**
 > （`shared/terminal-facts.ts` 19 条 + `lib/result-verification.ts` 纯判据 15 条 + store 核实 9 条 +
 > 终态消费 13 条 + `draft-submission` 收尾关联 13 条 + `draft-closure` 清理判据 20 条 +
 > store 收尾/批次/反证 17 条 + `create-entry-closure` 创建入口 10 条 + `fork-entry-closure` result/prompt 入口 6 条 +
 > `proxy-ab-entry-closure` messages/A-B 入口 9 条 + `navigation-intent` 纯判据 14 条 + 导航接线 14 条 +
 > `operation-result-view` 呈现与通知判据（含喂 props 的视图）19 条 + `operation-result-actions` 明确动作 12 条 +
 > `create-workspace` 来源判据 14 条 + 创建工作区接线 21 条 + `create-form-view` 创建页能力 19 条 +
-> `execution-confirmation` 确认判据 27 条 + 确认接线 14 条 + A/B 确认接线 11 条；
-> desktop 全量 123 文件 / 2131 用例绿，`tsc` node/web 双 0 错，根 `biome check .` 447 文件 0 错；
+> `execution-confirmation` 确认判据 27 条 + 确认接线 14 条 + A/B 确认接线 11 条 +
+> `operation-request-facts` 请求事实/诊断/A-B 逐臂 16 条；
+> desktop 全量 124 文件 / 2147 用例绿，`tsc` node/web 双 0 错，根 `biome check .` 449 文件 0 错；
 > 变异：1.1 三组、1.2 三组、1.3 四组、1.4 五组、2.1 三组、2.2 四组、2.3 三组、2.4 三组、
 > 2.5 两组、3.1 三组、3.2 三组、3.3 三组、3.4 四组、3.5 四组、3.6 三组、4.1 九组、4.2 四组、
-> 4.3 三组、4.4 三组、4.5 两组、4.6 两组、4.7 四组各有牙
+> 4.3 三组、4.4 三组、4.5 两组、4.6 两组、4.7 四组、5.1 五组各有牙
 > （另有 3.1 的一组"响应路径次序补支"判**无牙** ⇒ 已回退，见注记）。
-> 其余 §5–§7 全部待办；没有实施、GUI 验收或发布通过声明。
+> 其余 §5.2–§7 全部待办；没有实施、GUI 验收或发布通过声明。
 > ⚠️ 已知环境噪声（非回归）：`test/controlled-service.test.ts` 在并行整跑下出现过 4 条超时失败，
 > 单跑 19 条全绿；复跑整跑亦全绿 ⇒ 按"单包/单文件复跑"口径判定，登记为端口时序 flake。
 > 每项实施/验收控制在 2h 内；若实际超出先拆分。场景名称对应 `specs/desktop-ui/spec.md`，既有场景用于回归，不能用旧报告替代新接线验证。
@@ -135,6 +136,8 @@
     那是**请求事实**而非结局；把它换成"逐臂读取状态 + 可信 ID 动作"属任务 5.1
     （「操作详情可读诊断但不泄漏输入」），本轮不动，归档时别当已交付。
     **（3.4 之后本文件 messages 那支的 `selectedRunId` 判据改判为"跳向登记 id"，见 3.4 注记。）**
+    **➕ 5.1 已兑现本边界**：批次结果区改吃登记快照 + `resultReads` 逐臂呈现（`deriveAbBatchResult`），
+    信封 `ModelAbResult` 不再进面板；两边留痕见下方 5.1 注记与 `proxy-ab-entry-closure.test.ts` 头注。
 - [x] 3.4 增加提交来源/导航代次与自动导航撤销规则，以独立导航动作在核实后、实际切换前重验当前资格（≤2h）。验收：「留在当前流程可进入成功或失败概览」「离开再返回不恢复旧自动导航」「读取途中离页仍不抢焦点」；分别断言资格有效才导航、核实期间撤销资格则零导航，不复用读取开始时的资格快照。
   - 落点：新纯判据模块 `renderer/src/lib/navigation-intent.ts`（`NavigationIntent {operationId, generation}`
     + `armNavigationIntent` / `releaseNavigationIntent` 幂等 + `decideResultNavigation` 四态
@@ -506,7 +509,41 @@
 
 ## 5. 全局反馈与设置返回
 
-- [ ] 5.1 扩展操作列表/详情的请求事实、结果状态、受控诊断及结果动作（≤2h）。验收：「操作详情可读诊断但不泄漏输入」「失败信封仍可打开可信记录」「settled 无身份与 notAccepted 不猜测结果」。
+- [x] 5.1 扩展操作列表/详情的请求事实、结果状态、受控诊断及结果动作（≤2h）。验收：「操作详情可读诊断但不泄漏输入」「失败信封仍可打开可信记录」「settled 无身份与 notAccepted 不猜测结果」。
+  - 落点：`lib/operation-result-view.ts` 新增 `requestFactsLineOf`（信封侧收口**单独一行**：
+    returned/failed/rejected + 稳定码；rejected 措辞钉"是编排分类，不一律等于零模型调用"，
+    running/notAccepted ⇒ null——"没有开始执行"只属于 notAccepted 文案）与
+    `deriveAbBatchResult`（A/B 逐臂：集合基准 = 登记 `target.armCount`，**不是**信封 `ids` 也不是
+    `arms.length`；有 id 的臂复用与操作面板同一个 `itemViewOf`，缺臂/null ID 只给诚实说明、
+    零动作零链接；快照未到场 ⇒ 只报等待不预告结局）。`lib/operation-list.ts` 的
+    `OperationRow.diagnosticCount` 替换为 `diagnostics`（main 已脱敏限长，原样透传，条数从列表现数）
+    + `requestLine`；`OperationsEntry` 渲染请求事实行与 `<details>` 诊断列表，
+    `ACTION_LABELS`/`TONE_STYLES` 导出共用（两处各写一份必然分叉）。
+    新组件 `components/AbBatchResult.tsx`（只吃 props）+ `DetailPanel` 的 `ModelAbEditor`：
+    信封 `executed` 状态**删除**，改留 `executedOperationId` 提交身份指针；批次结果区现算吃
+    登记快照 + `resultReads`；"实验完成/成功 N 臂"通报框消失，底部写死"不产出臂间差值/胜出臂"。
+  - 证据：`test/operation-request-facts.test.ts` 16 条——分层措辞（returned 不宣告结局、
+    failed 不削减结果动作、rejected 不一律零调用）、失败信封仍给 open-result、
+    unlocated/notAccepted 不造链接、诊断逐条渲染 + 夹带未知字段的记录被
+    `OperationRecordSchema.strict` 拒（"不泄漏"的机器判据）+ 呈现层 import 面扫描
+    （无草稿/提交快照/目录凭据通道）、`deriveAbBatchResult` 逐臂与缺臂诚实、
+    DetailPanel 源码级接线（信封不再进面板）。门禁复跑：desktop **124 文件 / 2147 用例 / 0 失败 /
+    无 Errors 行**；根 biome 449 文件 0 错；tsc node/web 双 0；desktop-test 配置**我改的文件 0 错**
+    （顺手修掉该文件一处 HEAD 既有隐式 any，总错误 212→211）；`validate --all --strict` 13/13。
+  - 五组变异（Edit 施加、当场复原）：① rejected 措辞注入"未执行任何模型调用"⇒ 1 红；
+    ② 臂基准改 `arms.length` ⇒ 1 红（running 两臂支）；③ `diagnostics` 摘空 ⇒ 2 文件红；
+    ④ `requestLine` 摘 null ⇒ 1 红；⑤ 逐臂读取键的 epoch 挪空 ⇒ 1 红（verified 臂掉回"待读取"）。
+  - ⚠️ 改判留痕（两边）：`model-ab-editor-draft.test.ts` 的 U3 源码断言
+    `setExecuted(null);` → `setExecutedOperationId(null);`（临时态清理判据不变，载体改名）；
+    `entry-gate.test.ts`「三个编辑器同一来源」的 A/B 支改判为"先订阅后派生"两步字面在场
+    （`operationsSession` 被批次结果区共用，判据仍是同一份 `s.operations`，无第二套状态源）；
+    3.3 注记的"批次结果区仍显示信封"边界兑现，见上方 3.3 的 ➕ 回补与
+    `proxy-ab-entry-closure.test.ts` 头注迁移。
+  - ⚠️ 已知边界（不静默）：① 等待计时/未读标记/`aria-live` 属 5.2——本项的行内时间字段
+    （startedAt/settledAt）仍未显示；② 批次面板以**本地提交身份指针**为输入，renderer 重载后
+    呈现退场（登记快照仍可在操作面板核对）——重载恢复语义归 5.2/6.6；③ 真实点击、费用文案
+    与窄窗呈现归 6.5/6.8；④ "本次执行待处理"通报框里"待 U5 接入可信操作身份后才自动清理"
+    是滞后的过渡文案，按 4.7 注记归 5.6 文案更新，本项不动。
 - [ ] 5.2 添加真实等待计时、跨页入口、结果未读提示和全局 `aria-live="polite"` 通知，关闭详情只关闭查看；通知区域独立于操作面板，重复状态和计时不重复通知（≤2h）。验收：「执行中离页仍可查询等待」「终态和重载后的计时不伪造」「关闭详情与退出不冒充停止」「恢复核对重试与批次结果只通知」。
 - [ ] 5.3 接设置来源返回和摘要刷新，使原检查/许可失效，保持代理入口可达（≤2h）。验收：「两模式配置后返回任务」「重跑编辑配置往返保持阅读」「录制入口保持现有代理区可达」。
 - [ ] 5.4 补设置未保存修改关闭确认、单向 key、保存防重入和失败/回读失败反馈（≤2h）。验收：「未保存设置关闭可继续或放弃」「单向密钥与保存反馈不冒充连通」「保存失败和保存后回读失败区分」。

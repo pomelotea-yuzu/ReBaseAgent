@@ -1,6 +1,8 @@
+import type { OperationDiagnostic } from "@shared/operations";
 import { Waypoints } from "lucide-react";
 import { useState } from "react";
-import { type OperationRow, deriveOperationRows, operationBadge } from "../lib/operation-list";
+import type { OperationRow } from "../lib/operation-list";
+import { deriveOperationRows, operationBadge } from "../lib/operation-list";
 import type { ResultAction } from "../lib/operation-result-view";
 import { deriveResultNotices } from "../lib/result-notices";
 import type { ResultReadIdentity } from "../lib/result-verification";
@@ -8,11 +10,12 @@ import { useAppStore } from "../store";
 import { FOCUS_RING } from "./IconButton";
 
 /**
- * U4 任务 4.7 + U5 任务 3.5 / 3.6：全局栏的操作入口。
+ * U4 任务 4.7 + U5 任务 3.5 / 3.6 / 5.1：全局栏的操作入口。
  *
  * 只呈现 main 与核实通道给得出的事实：类型、目标定位、running/settled/notAccepted/unknown、
- * 可信 runIds、**按身份核实到的结局**、受控诊断条数。**没有**进度百分比、"第几步"、
- * 停止/取消按钮（spec 明令不显示虚构阶段与取消能力）。
+ * 可信 runIds、**按身份核实到的结局**、**信封侧请求事实（5.1，与运行结局分层）**、
+ * **可读的受控诊断列表（5.1，main 已脱敏限长）**。
+ * **没有**进度百分比、"第几步"、停止/取消按钮（spec 明令不显示虚构阶段与取消能力）。
  *
  * 三个动作走三条不同通道，界面上就不可能混用：
  * - 「核对状态」→ `operations:reconcile(operationId)`（只读操作事实，不读 run 文件，**不导航**）；
@@ -37,19 +40,39 @@ const PHASE_LABELS: Record<OperationRow["phase"], string> = {
   unknown: "待核对",
 };
 
-const TONE_STYLES: Record<"neutral" | "success" | "danger" | "warn", string> = {
+/** U5 5.1：与 A/B 批次结果区共用同一套色调（两处各写一份必然分叉） */
+export const TONE_STYLES: Record<"neutral" | "success" | "danger" | "warn", string> = {
   neutral: "border-gray-200 bg-gray-50 text-gray-600",
   success: "border-emerald-200 bg-emerald-50 text-emerald-800",
   danger: "border-rose-200 bg-rose-50 text-rose-800",
   warn: "border-amber-200 bg-amber-50 text-amber-800",
 };
 
-const ACTION_LABELS: Record<ResultAction, string> = {
+/** U5 5.1：A/B 批次结果区（`AbBatchResultSection`）与本面板共用同一套动作词与色调 */
+export const ACTION_LABELS: Record<ResultAction, string> = {
   "open-result": "打开结果",
   "view-failure": "查看失败调用",
   "retry-read": "重读这条结果",
   "return-draft": "返回草稿",
 };
+
+const DIAGNOSTIC_STAGE_LABELS: Record<OperationDiagnostic["stage"], string> = {
+  execute: "执行",
+  identity: "身份登记",
+  finalize: "收尾",
+  cleanup: "清理",
+  rejection: "拒绝",
+};
+
+/** 一条受控诊断：码与文案原样列出（main 已脱敏限长），阶段给中文标签便于扫读 */
+function DiagnosticLine({ diagnostic }: { diagnostic: OperationDiagnostic }) {
+  return (
+    <li className="break-all text-[10px] leading-4 text-gray-500">
+      〔{DIAGNOSTIC_STAGE_LABELS[diagnostic.stage]}〕{" "}
+      <span className="font-code">{diagnostic.code}</span>：{diagnostic.message}
+    </li>
+  );
+}
 
 function RowActionButton({
   action,
@@ -120,6 +143,10 @@ export function OperationRowView({
         操作 {row.operationId}
       </div>
       <div className="mt-0.5 text-[10px] leading-4 text-gray-600">{row.hint}</div>
+      {/* U5 5.1：信封侧请求事实单独一行——它与下方逐条运行结局分层，互不覆盖 */}
+      {row.requestLine !== null ? (
+        <div className="text-[10px] leading-4 text-gray-500">{row.requestLine}</div>
+      ) : null}
 
       {result === null ? (
         row.runLinks.length > 0 ? (
@@ -209,10 +236,24 @@ export function OperationRowView({
           实验 {row.experimentId}
         </div>
       ) : null}
-      {row.diagnosticCount > 0 ? (
-        <div className="mt-0.5 text-[10px] leading-4 text-gray-500">
-          另有 {row.diagnosticCount} 条受控诊断（不含正文与凭据）
-        </div>
+      {/* U5 5.1：受控诊断从"只报条数"改为可读列表——main 侧已脱敏限长，这里原样列出 */}
+      {row.diagnostics.length > 0 ? (
+        <details className="mt-0.5">
+          <summary
+            className={`cursor-pointer text-[10px] leading-4 text-gray-500 ${FOCUS_RING}`}
+            title="受控诊断：稳定码 + 脱敏限长文案（正文、密钥、授权与源目录凭据从结构上就没有进来的通道）"
+          >
+            受控诊断 {row.diagnostics.length} 条（不含正文与凭据）
+          </summary>
+          <ul className="mt-1 space-y-0.5">
+            {row.diagnostics.map((diagnostic, index) => (
+              <DiagnosticLine
+                key={`${diagnostic.stage}/${diagnostic.code}/${index}`}
+                diagnostic={diagnostic}
+              />
+            ))}
+          </ul>
+        </details>
       ) : null}
     </li>
   );

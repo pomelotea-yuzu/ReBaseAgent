@@ -148,11 +148,16 @@ describe("4.4 接线契约：prompt / messages / A-B 也接同一份会话", () 
     for (const [label, body] of [
       ["prompt", PROMPT],
       ["messages", MESSAGES],
-      ["modelAb", MODEL_AB],
     ] as const) {
       expect(body, label).toContain("deriveEntryGate(useAppStore((s) => s.operations))");
       expect(body, label).toContain("<EntryGateNotice gate={gate} />");
     }
+    // U5 任务 5.1 改判（两边留痕）：ModelAbEditor 的会话快照被批次结果区共用 ⇒ 拆成
+    // "先订阅、后派生"两步。**判据不变**：仍是同一份 `s.operations` 派生的门禁，
+    // 没有第二套状态源——所以两步都必须按字面在场，缺一即接线偏离。
+    expect(MODEL_AB).toContain("const operationsSession = useAppStore((s) => s.operations);");
+    expect(MODEL_AB).toContain("deriveEntryGate(operationsSession)");
+    expect(MODEL_AB).toContain("<EntryGateNotice gate={gate} />");
   });
 
   it("真实执行的提交按钮受门禁与确认约束", () => {
