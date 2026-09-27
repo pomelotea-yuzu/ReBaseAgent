@@ -194,11 +194,25 @@ describe("4.4 接线契约：确认判据只有一份", () => {
     expect(flat).not.toContain("isolated ? {} :");
   });
 
+  it("四个入口各有一处就地确认（不共用一个按钮、也不漏接）", () => {
+    const panel = read("components/DetailPanel.tsx");
+    const create = read("components/CreateRunWorkspace.tsx");
+    // result 编辑器两个分支（普通 / 隔离）+ prompt + messages
+    expect(panel.match(/data-confirm-execution/g)?.length).toBe(4);
+    expect(create.match(/data-confirm-execution/g)?.length).toBe(1);
+  });
+
   it("隔离侧的确认按钮要求预检结论与本次授权都在场（无预检就不给确认）", () => {
     const panel = read("components/DetailPanel.tsx");
-    const at = panel.indexOf("data-confirm-execution");
+    const at = panel.indexOf("已核对，确认本次续跑");
     expect(at).toBeGreaterThan(-1);
-    const gate = panel.slice(at, panel.indexOf("onClick", at)).replace(/\s+/g, " ");
+    // 按钮的 disabled 写在标签之前：往回切出这一支的禁用清单
+    const gate = panel
+      .slice(
+        panel.lastIndexOf("disabled={", at),
+        panel.indexOf("}", panel.lastIndexOf("disabled={", at)),
+      )
+      .replace(/\s+/g, " ");
     expect(gate).toContain("capability === null ||");
     expect(gate).toContain("!writesAuthorized ||");
     // 预检缺席时就近给出原因，而不是只把按钮禁掉
@@ -212,5 +226,22 @@ describe("4.4 接线契约：确认判据只有一份", () => {
     expect(check.indexOf("if (!checkAllowed) return;")).toBeLessThan(
       check.indexOf("restartExecutionCheck(draftKey)"),
     );
+  });
+
+  it("prompt 与 messages 的资格原因就近显示（不是只把按钮禁掉）", () => {
+    const panel = read("components/DetailPanel.tsx");
+    // prompt：门禁 / 源不可用 / 恢复重验三类原因进确认区（钉**判据形状**：
+    // 只写"出现过 submitBlocked"是假门 —— 反向条件也满足它）
+    const promptAt = panel.indexOf("已核对，确认从头重跑");
+    expect(panel.slice(promptAt, panel.indexOf("</dl>", promptAt) + 900)).toContain(
+      "!promptConfirmed && submitBlocked !== null",
+    );
+    // messages：按"源 → 重验 → 代理 → key → 槽"顺序算出的 ineligible 直接显示
+    const msgAt = panel.indexOf("已核对，确认本次重发");
+    expect(msgAt).toBeGreaterThan(promptAt);
+    expect(panel.slice(msgAt, panel.indexOf("</dl>", msgAt) + 900)).toContain(
+      "!messagesConfirmed && ineligible !== null",
+    );
+    expect(panel).toContain("本会话未捕获到 key：先把你的应用经代理跑一次");
   });
 });

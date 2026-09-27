@@ -9,6 +9,8 @@ import {
   decideConfirmation,
   disclosureLines,
   emptyConfirmationStore,
+  messagesDisclosure,
+  promptDisclosure,
   releaseConfirmation,
   resultIsolatedDisclosure,
   resultPlainDisclosure,
@@ -185,6 +187,75 @@ describe("4.5 隔离 result 的确认：与普通路径边界不同，措辞也�
     });
     expect(granted.facts.map((row) => row.value).join("\n")).toContain("已勾选");
     expect(granted.limits.join("\n")).toContain("不从历史记录补授权");
+  });
+});
+
+describe("4.6 prompt / messages 不冒充续跑完整世界", () => {
+  it("prompt：从头执行、不共享父前缀、一次只改一个启动字段", () => {
+    const d = promptDisclosure({
+      parentRunId: "r_parent",
+      fieldLabel: "System Prompt（启动 system 消息）",
+      oldValue: "旧 system",
+      newValue: "新 system",
+      modelSummary: "deepseek-chat",
+      rebuildable: true,
+    });
+    const all = disclosureLines(d)
+      .map((row) => `${row.label}=${row.value}`)
+      .join("\n");
+    expect(all).toContain("从头执行一条新轨迹");
+    expect(all).toContain("不复用父 run 的执行前缀");
+    expect(all).toContain("一次只改一个启动字段");
+    expect(all).toContain("改动的启动字段=System Prompt（启动 system 消息）");
+    // 不写成"续跑/继续"，也不承诺命中缓存
+    expect(all).not.toContain("续跑");
+  });
+
+  it("prompt 启动上下文不可重建 ⇒ 边界条目直说入口不可用（不假装能核对）", () => {
+    const d = promptDisclosure({
+      parentRunId: "r_p",
+      fieldLabel: "首个 user 消息",
+      oldValue: "",
+      newValue: "u",
+      modelSummary: "m",
+      rebuildable: false,
+    });
+    expect(d.limits.join("\n")).toContain("该入口不可用");
+  });
+
+  it("messages：只重发这一个请求，不执行外部工具、不恢复其工作区", () => {
+    const d = messagesDisclosure({
+      parentRunId: "r_proxy",
+      atSpanId: "s_llm",
+      messageCount: 7,
+      modelSummary: "deepseek-chat",
+      keyCaptured: true,
+      upstream: "https://api.deepseek.com/v1",
+      ineligible: null,
+    });
+    const all = disclosureLines(d)
+      .map((row) => `${row.label}=${row.value}`)
+      .join("\n");
+    expect(all).toContain("本次请求的 messages=7 条（完整替换发送，不截断）");
+    expect(all).toContain("只重发这一个请求");
+    expect(all).toContain("不执行任何外部 Agent 的工具");
+    expect(all).toContain("凭据=使用代理会话最近捕获的 key");
+    expect(all).toContain("upstream=https://api.deepseek.com/v1");
+  });
+
+  it("messages 未捕获 key ⇒ 事实里就写「本次无法重发」，不等提交才发现", () => {
+    const d = messagesDisclosure({
+      parentRunId: "r_proxy",
+      atSpanId: "s_llm",
+      messageCount: 2,
+      modelSummary: "m",
+      keyCaptured: false,
+      upstream: null,
+      ineligible: "本会话未捕获到 key",
+    });
+    const all = d.facts.map((row) => row.value).join("\n");
+    expect(all).toContain("未捕获 key：本次无法重发");
+    expect(all).toContain("（代理未运行，无 upstream）");
   });
 });
 

@@ -1,7 +1,7 @@
 # U5 实施与验收任务
 
 > 实施进度（2026-09-27）：**§1 全部完成（1.1–1.4）+ §2 全部完成（2.1–2.5）+ §3 全部完成（3.1–3.6）
-> + §4.1、§4.2、§4.3、§4.4、§4.5 完成**
+> + §4.1–§4.6 完成**
 > （`shared/terminal-facts.ts` 19 条 + `lib/result-verification.ts` 纯判据 15 条 + store 核实 9 条 +
 > 终态消费 13 条 + `draft-submission` 收尾关联 13 条 + `draft-closure` 清理判据 20 条 +
 > store 收尾/批次/反证 17 条 + `create-entry-closure` 创建入口 10 条 + `fork-entry-closure` result/prompt 入口 6 条 +
@@ -9,13 +9,13 @@
 > `operation-result-view` 呈现与通知判据（含喂 props 的视图）19 条 + `operation-result-actions` 明确动作 12 条 +
 > `create-workspace` 来源判据 14 条 + 创建工作区接线 21 条 + `create-form-view` 创建页能力 16 条；
 > `create-workspace` 来源判据 14 条 + 创建工作区接线 21 条 + `create-form-view` 创建页能力 19 条 +
-> `execution-confirmation` 确认判据 17 条 + 确认接线 13 条；
-> desktop 全量 122 文件 / 2108 用例绿，`tsc` node/web 双 0 错，根 `biome check .` 446 文件 0 错；
+> `execution-confirmation` 确认判据 21 条 + 确认接线 14 条；
+> desktop 全量 122 文件 / 2114 用例绿，`tsc` node/web 双 0 错，根 `biome check .` 446 文件 0 错；
 > 变异：1.1 三组、1.2 三组、1.3 四组、1.4 五组、2.1 三组、2.2 四组、2.3 三组、2.4 三组、
 > 2.5 两组、3.1 三组、3.2 三组、3.3 三组、3.4 四组、3.5 四组、3.6 三组、4.1 九组、4.2 四组、
-> 4.3 三组、4.4 三组、4.5 两组各有牙
+> 4.3 三组、4.4 三组、4.5 两组、4.6 两组各有牙
 > （另有 3.1 的一组"响应路径次序补支"判**无牙** ⇒ 已回退，见注记）。
-> 其余 §4.6–§7 全部待办；没有实施、GUI 验收或发布通过声明。
+> 其余 §4.7–§7 全部待办；没有实施、GUI 验收或发布通过声明。
 > ⚠️ 已知环境噪声（非回归）：`test/controlled-service.test.ts` 在并行整跑下出现过 4 条超时失败，
 > 单跑 19 条全绿；复跑整跑亦全绿 ⇒ 按"单包/单文件复跑"口径判定，登记为端口时序 flake。
 > 每项实施/验收控制在 2h 内；若实际超出先拆分。场景名称对应 `specs/desktop-ui/spec.md`，既有场景用于回归，不能用旧报告替代新接线验证。
@@ -440,7 +440,38 @@
     后者守"用户核对过边界"），主进程仍独立重验，桌面任何一条都不授予执行资格；
     ② 确认按钮的可点/禁用清单是源码级契约（本包无 jsdom），真实点击与焦点行为归 §6.3；
     ③ "整轮不重做所选工具"的措辞来自 main 的预检语义，界面不解释成"撤销原写入"。
-- [ ] 4.6 接 prompt/messages 确认与就近资格原因，保留单变量/单请求语义（≤2h）。验收：「prompt 与 messages 不冒充续跑完整世界」「返回修改与设置往返撤销旧确认」。
+- [x] 4.6 接 prompt / messages 确认与就近资格原因，保留单变量/单请求语义（≤2h）。验收：「prompt 与 messages 不冒充续跑完整世界」「返回修改与设置往返撤销旧确认」。
+  - 落点：`lib/execution-confirmation.ts` 新增 `promptDisclosure` 与 `messagesDisclosure` ——
+    prompt 侧写死"从头执行一条新轨迹：不复用父执行前缀、不回放工具结果、父 run 只作对照、
+    一次只改一个启动字段"；messages 侧写死"只重发这一个请求：不执行外部 Agent 的工具、
+    不恢复其工作区、凭据是代理会话**最近捕获**的 key（可能与录制当时不同）"，
+    并把 messages 条数与 upstream 作为事实列出（代理未运行时 upstream 显示"无"，不编一个）。
+    两个编辑器各有一处就地确认（`data-confirm-execution`）：prompt 的 `canSubmit` 加
+    `promptConfirmed`，messages 的提交按钮加 `!messagesConfirmed`；沿用 4.4 的执法点
+    （`beginDraftSubmission` 带 `confirmation`），**原生 `window.confirm` 在这两处撤下**。
+  - 就近资格原因（本章第一条正向要求）：messages 按「源记录 → 恢复重验 → 代理是否在跑 →
+    是否捕获到 key → 统一槽门禁」的顺序算出 `ineligible` 并显示在确认区里；
+    prompt 复用既有 `submitBlocked`。两处都钉**判据形状**（`!messagesConfirmed && ineligible !== null`
+    / `!promptConfirmed && submitBlocked !== null`），只断言"出现过这个变量"是假门。
+  - ⚠️ 与 HANDOFF 预判不同的实施结论（更正，免得后人照旧计划绕路）：messages 原本"先登记 →
+    解析快照 → 原生确认 → 取消则回滚关联"**不需要重排** —— 确认改在登记口执法后，
+    不成立就返回 null（连关联都不登记），而"解析只针对快照原文"这条性质必须保留。
+    因此 `settleDraftSubmission(assoc)` 的调用点由 3 处降到 2 处（两处本地校验），
+    "取消确认"这一支整体消失。
+  - ⚠️ 载体迁移（双侧留痕）：`confirm-dialog.test.ts` 的"`window.confirm` 三处执行确认"计数
+    3 → 1（只剩 A/B，由 §4.7 收口）；`draft-submission.test.ts` 的 messages 契约同步改判
+    （settle 次数 3 → 2 + 不得再出现原生确认 + 登记必须交出 `confirmation: messagesBinding`）。
+    DetailPanel 里两条解释性注释改用"原生确认对话框"措辞 —— 计数判据会被注释里的
+    `window.confirm` 字面量误伤（本轮实测：注释让计数停在 3，看起来像"没迁走"）。
+  - 三条 messages 既有门禁（「未修改禁用」「未捕获 key」「SDK run 无此入口」）**实现未动**，
+    3.3 的源码级 + 受控端到端证据继续有效；本项只在其后叠加确认凭据，不替换任何门禁。
+  - 证据：纯判据 4 条（`execution-confirmation.test.ts` 4.6 组）+ 接线 3 条
+    （四处确认按钮计数、隔离侧禁用清单、prompt/messages 原因显示的条件形状）。
+  - 两组反证各有牙：messages 登记不再交出确认 ⇒ 契约红；原因显示条件反向 ⇒ 判据形状支红
+    （我第一版把它写成"出现过 submitBlocked"，同一条变异**不红** ⇒ 假门，改判据形状后才有牙）。
+  - ⚠️ 已知边界：① 就地确认的按钮态是源码级契约（无 jsdom），真实点击与焦点归 §6.4；
+    ② A/B 仍走原生 `window.confirm`（§4.7 收口前不宣称"五类入口都已接确认"）；
+    ③ messages 的"未捕获 key"文案与 `PROXY_NO_KEY` 的 IPC 侧提示各自存在，本项不合并措辞。
 - [ ] 4.7 接 A/B 当前计划确认及修订失效，不迁独立实验工作区（≤2h）。验收：「实验确认使用当前预览计划」「实验臂增删和非法参数可恢复」。
 
 ## 5. 全局反馈与设置返回

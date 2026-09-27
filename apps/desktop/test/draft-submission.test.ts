@@ -555,11 +555,14 @@ describe("接线契约：五类提交走快照并受冻结约束（任务 3.4/3.
     expect(lib).toContain("if (!submission.ok) return false;");
   });
 
-  it("messages 在本地校验拒绝/取消确认时收尾（不发请求就不留冻结）", () => {
+  it("messages 在本地校验拒绝时收尾；取消确认改为登记前 ⇒ 不留待定关联", () => {
     const resend = slice(DETAIL_PANEL, "const doResend = ", "const discardCurrent = ");
     expect(resend).toContain("JSON.parse(assoc.submittedText)");
-    // 两处本地校验 + 一处取消确认，各收尾一次
-    expect(resend.match(/settleDraftSubmission\(assoc\);/g)?.length).toBe(3);
+    // U5 4.6：两处本地校验（JSON 非法 / 非空数组）各收尾一次；
+    // 旧的第三处"原生 confirm 取消"已消失——确认不成立时根本不会登记关联
+    expect(resend.match(/settleDraftSubmission\(assoc\);/g)?.length).toBe(2);
+    expect(resend).not.toContain("window.confirm");
+    expect(resend).toContain("confirmation: messagesBinding");
   });
 
   it("store：六处写入/放弃路径拦冻结；五个执行函数负责收尾", () => {

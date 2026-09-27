@@ -78,13 +78,16 @@ describe("U3 5.2 接线契约（源码级）：放弃确认迁出 window.confirm
     expect(globalBar).not.toContain("window.confirm");
   });
 
-  it("执行类确认保留原生 window.confirm（既有原生执行确认不迁移）", () => {
-    // 三处执行确认：prompt 从头重跑 / A/B 实验 / proxy 重发（各自带费用提示）
+  it("执行确认的原生 window.confirm 只剩 A/B 一处（U5 4.6 迁走 prompt 与 messages）", () => {
+    // U3 时代有三处执行确认：prompt 从头重跑 / A/B 实验 / proxy messages 重发。
+    // U5 任务 4.6 把后两处之外的 prompt 与 messages 换成"就地核对 + 一次性确认凭据"
+    //（判据在 lib/execution-confirmation.ts，执法点在 store.beginDraftSubmission）；
+    // A/B 那一处仍走原生确认，其"当前预览计划确认 + 修订失效"由 §4.7 收口。
     const count = (detail.match(/window\.confirm/g) ?? []).length;
-    expect(count).toBe(3);
-    expect(detail).toContain("确认从头重跑？");
+    expect(count).toBe(1);
     expect(detail).toContain("确认执行模型 A/B 实验？");
-    expect(detail).toContain("确认重发？");
+    expect(detail).not.toContain("确认从头重跑？");
+    expect(detail).not.toContain("确认重发？");
   });
 
   it("异步确认后 CAS 仍按快照修订校验（旧确认不能删新修订）", () => {

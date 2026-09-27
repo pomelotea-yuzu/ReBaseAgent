@@ -23,6 +23,8 @@ import { deriveEntryGate } from "../lib/entry-gate";
 import type { EntryGate } from "../lib/entry-gate";
 import {
   disclosureLines,
+  messagesDisclosure,
+  promptDisclosure,
   resultIsolatedDisclosure,
   resultPlainDisclosure,
 } from "../lib/execution-confirmation";
@@ -321,6 +323,10 @@ function PromptForkEditor({
   // U3 任务 3.4：待定提交冻结该字段草稿（store 侧同时拒绝写入/放弃）
   const draftFrozen = useAppStore((s) => s.isDraftFrozen(draftKeyOf(field)));
   const beginDraftSubmission = useAppStore((s) => s.beginDraftSubmission);
+  // U5 任务 4.6：prompt 的执行前确认（同一份凭据与执法点，见 lib/execution-confirmation）
+  const currentConfirmationBinding = useAppStore((s) => s.currentConfirmationBinding);
+  const executionConfirmationReady = useAppStore((s) => s.executionConfirmationReady);
+  const armExecutionConfirmation = useAppStore((s) => s.armExecutionConfirmation);
   // U3 任务 3.4：待定提交期间视同进行中——输入、放弃、关闭、提交一并禁用
   const inProgress = forking === "in_progress" || draftFrozen;
   // U4 任务 4.4：入口可用性从统一操作槽派生（只拦"再发一条"，不锁输入与放弃）
@@ -368,7 +374,11 @@ function PromptForkEditor({
   });
   // 提交闸门 = 既有单步条件 ∧ 源记录可用（源不可用时"能编辑"不等于"能执行"）
   //           ∧ 恢复重验通过（U3 2.5：源缺失/损坏/改变/资格失效都拦）
-  const canSubmit = guard.canSubmit && sourceExecutable && sourceBlocked === null;
+  //           ∧ 已核对本次从头重跑（U5 4.6：确认凭据，判据在 lib/execution-confirmation.ts）
+  const promptBinding = currentConfirmationBinding("prompt", draftKeyOf(field));
+  const promptConfirmed = executionConfirmationReady(promptBinding);
+  const canSubmit =
+    guard.canSubmit && sourceExecutable && sourceBlocked === null && promptConfirmed;
   const submitBlocked = !guard.canSubmit
     ? guard.reason
     : !sourceExecutable
@@ -461,16 +471,15 @@ function PromptForkEditor({
 
   const doSubmit = (): void => {
     if (!canSubmit) return;
-    const confirmed = window.confirm(
-      "确认从头重跑？\n\n" +
-        "· 将真实调用模型并计费（不承诺命中父 run 的缓存）\n" +
-        "· 父 run 只作对照，不会被修改\n" +
-        "· 配置指纹将变化——这是一次新实验，新轨迹从头完整记录",
-    );
-    if (!confirmed) return;
     // U3 任务 3.4：原子登记提交关联（key + 修订 + 快照），提交值取自快照；
     // 已有待定提交时拒绝重复提交。收尾由 store 执行函数负责（卸载不解冻）。
-    const assoc = beginDraftSubmission({ channel: "prompt", target: draftKeyOf(field) });
+    // U5 4.6：旧的原生确认对话框换成"就地核对 + 一次性确认凭据"——登记口是执法点，
+    // 确认不成立（改了字段、换了设置、离开过现场）就直接拒绝，一次 IPC 都不发。
+    const assoc = beginDraftSubmission({
+      channel: "prompt",
+      target: draftKeyOf(field),
+      confirmation: promptBinding,
+    });
     if (assoc === null) return;
     void promptFork(run.meta.id, { field, value: assoc.submittedText }, assoc);
   };
@@ -597,6 +606,66 @@ function PromptForkEditor({
       <EntryGateNotice gate={gate} />
 
       <div className="mt-2 flex items-center justify-end gap-2">
+        {/*
+         * U5 任务 4.6：prompt 的**核对本次从头重跑**。措辞由 `promptDisclosure` 给：
+         * 从头执行、不共享父前缀、一次只改一个启动字段、父 run 只作对照。
+         * 资格不足时（未配置 / 源不可用 / 恢复重验未过）把原因显示在确认区里，
+         * 不是只把按钮禁掉让人猜。
+         */}
+        <div className="mt-2 rounded border border-emerald-200 bg-white">
+          <div className="flex items-center justify-between gap-2 px-2 py-1.5">
+            <span className="text-[11px] font-medium text-gray-600">核对本次从头重跑</span>
+            <button
+              type="button"
+              data-confirm-execution
+              aria-pressed={promptConfirmed ? "true" : undefined}
+              disabled={
+                inProgress ||
+                promptConfirmed ||
+                !guard.canSubmit ||
+                !sourceExecutable ||
+                sourceBlocked !== null ||
+                !gate.canSubmit
+              }
+              onClick={() => armExecutionConfirmation(promptBinding)}
+              className={`shrink-0 rounded border px-2 py-0.5 text-[11px] disabled:cursor-not-allowed disabled:opacity-40 ${
+                promptConfirmed
+                  ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+                  : "border-gray-300 text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              {promptConfirmed ? "已确认从头重跑" : "已核对，确认从头重跑"}
+            </button>
+          </div>
+          <dl className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 border-t border-gray-100 px-2 py-1.5 text-[11px] leading-4">
+            {disclosureLines(
+              promptDisclosure({
+                parentRunId: run.meta.id,
+                fieldLabel:
+                  field === "system_prompt"
+                    ? "System Prompt（启动 system 消息）"
+                    : "首个 user 消息",
+                oldValue: original ?? "",
+                newValue: value,
+                modelSummary: `${settings?.model ?? "（未配置模型）"}${
+                  settings?.baseURL ? ` @ ${settings.baseURL}` : ""
+                }`,
+                rebuildable: originalSystem !== null,
+              }),
+            ).map((row) => (
+              <div key={`${row.label}-${row.value}`} className="col-span-2 grid grid-cols-subgrid">
+                <dt className="text-gray-500">{row.label}</dt>
+                <dd className="min-w-0 break-words text-gray-700">{row.value}</dd>
+              </div>
+            ))}
+          </dl>
+          {!promptConfirmed && submitBlocked !== null ? (
+            <div className="border-t border-gray-100 px-2 py-1.5 text-[11px] leading-4 text-amber-800">
+              {submitBlocked}
+            </div>
+          ) : null}
+        </div>
+
         {inProgress ? (
           <span className="text-[11px] text-emerald-600">重跑中…（真实 LLM 调用，可能耗时）</span>
         ) : null}
@@ -1552,6 +1621,10 @@ function MessagesForkEditor({
   const draftFrozen = useAppStore((s) => s.isDraftFrozen(draftKey));
   const beginDraftSubmission = useAppStore((s) => s.beginDraftSubmission);
   const settleDraftSubmission = useAppStore((s) => s.settleDraftSubmission);
+  // U5 任务 4.6：messages 的执行前确认（同一凭据与执法点）
+  const currentConfirmationBinding = useAppStore((s) => s.currentConfirmationBinding);
+  const executionConfirmationReady = useAppStore((s) => s.executionConfirmationReady);
+  const armExecutionConfirmation = useAppStore((s) => s.armExecutionConfirmation);
   const [parseError, setParseError] = useState<string | null>(null);
   // 源记录不可用时禁用依赖它的执行（任务 3.5）
   const sourceExecutable = useAppStore((s) => s.canExecuteFromSource)();
@@ -1597,6 +1670,24 @@ function MessagesForkEditor({
         });
   const sourceBlocked = sourceVerdict?.kind === "blocked" ? sourceVerdict : null;
 
+  /**
+   * U5 任务 4.6：messages 的资格原因（就近显示，不只靠禁用与悬停）。
+   * 顺序 = 谁先挡住这次重发：源记录 → 恢复重验 → 代理是否在跑 → 是否捕获到 key → 统一槽门禁。
+   */
+  const ineligible = !sourceExecutable
+    ? "源记录不可用：重新读取并校验通过前不能重发"
+    : sourceBlocked !== null
+      ? `来源失效，已禁止重发：${sourceBlocked.reason}`
+      : proxy?.running !== true
+        ? "本地录制代理未运行：没有可重发的 upstream"
+        : proxy?.hasKey !== true
+          ? "本会话未捕获到 key：先把你的应用经代理跑一次，再回来重发"
+          : gate.canSubmit
+            ? null
+            : gate.notice;
+  const messagesBinding = currentConfirmationBinding("messages", draftKey);
+  const messagesConfirmed = executionConfirmationReady(messagesBinding);
+
   // U3 任务 6.10（design D7）：Esc 收起与「取消」按钮同动作（保留草稿）
   useEscapeClose(open && !inProgress, () => {
     resetFork();
@@ -1634,9 +1725,15 @@ function MessagesForkEditor({
       return;
     }
     // U3 任务 3.4：先原子登记提交关联（key + 修订 + 请求快照），提交边界的解析只针对
-    // **快照原文**——校验的与提交的必须是同一份。本地拒绝/取消确认 = 明确未发请求，
-    // 直接收尾（否则草稿会被永久冻结在没有在途请求的状态里）。
-    const assoc = beginDraftSubmission({ channel: "messages", target: draftKey });
+    // **快照原文**——校验的与提交的必须是同一份。本地拒绝 = 明确未发请求，直接收尾
+    //（否则草稿会被永久冻结在没有在途请求的状态里）。
+    // U5 任务 4.6：旧的原生确认对话框换成"就地核对 + 一次性确认凭据"——确认与门禁
+    // 都在登记口执法（不成立就返回 null，一次 IPC 都不发），因此快照解析次序不必改动。
+    const assoc = beginDraftSubmission({
+      channel: "messages",
+      target: draftKey,
+      confirmation: messagesBinding,
+    });
     if (assoc === null) return;
     // 提交时解析回结构体；解析失败可见报错，不发请求
     let messages: unknown;
@@ -1653,14 +1750,6 @@ function MessagesForkEditor({
       return;
     }
     setParseError(null);
-    if (
-      !window.confirm(
-        "重发将真实调用 upstream 并产生 API 费用；使用的是最近捕获的 key（可能与该 run 录制当时不同）。确认重发？",
-      )
-    ) {
-      settleDraftSubmission(assoc);
-      return;
-    }
     void proxyFork(run.meta.id, span.id, messages as Record<string, unknown>[], assoc);
   };
 
@@ -1785,6 +1874,54 @@ function MessagesForkEditor({
         </div>
       ) : null}
 
+      {/*
+       * U5 任务 4.6：messages 的**核对本次重发**。这条路径最容易被人读成"把那个 Agent
+       * 接着跑完"，所以边界写死：只重发这一个请求、不执行外部工具、不恢复其工作区、
+       * 用的是代理会话最近捕获的 key（可能与录制当时不同）。缺资格时原因就近显示。
+       */}
+      <div className="mt-2 rounded border border-sky-200 bg-white">
+        <div className="flex items-center justify-between gap-2 px-2 py-1.5">
+          <span className="text-[11px] font-medium text-gray-600">核对本次重发</span>
+          <button
+            type="button"
+            data-confirm-execution
+            aria-pressed={messagesConfirmed ? "true" : undefined}
+            disabled={inProgress || messagesConfirmed || ineligible !== null}
+            onClick={() => armExecutionConfirmation(messagesBinding)}
+            className={`shrink-0 rounded border px-2 py-0.5 text-[11px] disabled:cursor-not-allowed disabled:opacity-40 ${
+              messagesConfirmed
+                ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+                : "border-gray-300 text-gray-700 hover:bg-gray-50"
+            }`}
+          >
+            {messagesConfirmed ? "已确认重发" : "已核对，确认本次重发"}
+          </button>
+        </div>
+        <dl className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 border-t border-gray-100 px-2 py-1.5 text-[11px] leading-4">
+          {disclosureLines(
+            messagesDisclosure({
+              parentRunId: run.meta.id,
+              atSpanId: span.id,
+              messageCount: span.request.messages.length,
+              modelSummary: span.request.model,
+              keyCaptured: proxy?.hasKey === true,
+              upstream: proxy?.running === true ? proxy.upstreamBaseUrl : null,
+              ineligible,
+            }),
+          ).map((row) => (
+            <div key={`${row.label}-${row.value}`} className="col-span-2 grid grid-cols-subgrid">
+              <dt className="text-gray-500">{row.label}</dt>
+              <dd className="min-w-0 break-words text-gray-700">{row.value}</dd>
+            </div>
+          ))}
+        </dl>
+        {!messagesConfirmed && ineligible !== null ? (
+          <div className="border-t border-gray-100 px-2 py-1.5 text-[11px] leading-4 text-amber-800">
+            {ineligible}
+          </div>
+        ) : null}
+      </div>
+
       <EntryGateNotice gate={gate} />
 
       <div className="mt-2 flex items-center justify-end gap-2">
@@ -1821,6 +1958,7 @@ function MessagesForkEditor({
           disabled={
             inProgress ||
             unchanged ||
+            !messagesConfirmed ||
             proxy?.running !== true ||
             !sourceExecutable ||
             sourceBlocked !== null ||

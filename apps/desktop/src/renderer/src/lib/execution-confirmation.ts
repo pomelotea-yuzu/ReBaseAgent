@@ -337,6 +337,80 @@ export function resultIsolatedDisclosure(
   };
 }
 
+export interface PromptDisclosureInput {
+  readonly parentRunId: string;
+  /** 本次要改的启动字段（一次只能一项） */
+  readonly fieldLabel: string;
+  readonly oldValue: string;
+  readonly newValue: string;
+  readonly modelSummary: string;
+  /** 启动上下文能否从首个 `llm.call` 重建（false ⇒ 入口本就不可用） */
+  readonly rebuildable: boolean;
+}
+
+/**
+ * prompt fork 的确认（U5 任务 4.6）：**从头执行**是它全部语义，措辞不得让人以为
+ * 在续跑父 run 的世界（delta 场景「prompt 与 messages 不冒充续跑完整世界」）。
+ */
+export function promptDisclosure(input: PromptDisclosureInput): ConfirmationDisclosure {
+  return {
+    facts: [
+      { label: "父运行（只作对照）", value: input.parentRunId },
+      { label: "改动的启动字段", value: input.fieldLabel },
+      { label: "原值", value: preview(input.oldValue) },
+      { label: "新值", value: preview(input.newValue) },
+      { label: "真实调用", value: input.modelSummary },
+    ],
+    checks: [LOCAL_FIELD_CHECK],
+    limits: [
+      "从头执行一条新轨迹：不复用父 run 的执行前缀，不回放任何工具结果，父 run 不会被修改。",
+      "一次只改一个启动字段（system 或首个 user），其余上下文与后续步骤都由模型重新生成。",
+      input.rebuildable
+        ? "启动上下文取自该次调用录制的首个 llm.call（system + 首个 user），config_hash 随改动变化。"
+        : "启动上下文无法从首次调用重建：该入口不可用，原因已就近标在入口上。",
+    ],
+  };
+}
+
+export interface MessagesDisclosureInput {
+  readonly parentRunId: string;
+  readonly atSpanId: string;
+  readonly messageCount: number;
+  readonly modelSummary: string;
+  /** 代理会话是否已捕获 key（决定"这次能不能发"） */
+  readonly keyCaptured: boolean;
+  readonly upstream: string | null;
+  /** 缺资格的原因（就近显示；null = 资格齐备） */
+  readonly ineligible: string | null;
+}
+
+/**
+ * 代理 messages 单请求重发的确认（U5 任务 4.6）：说的是"**这一个请求**重发一次"，
+ * 不得读成"把那个外部 Agent 接着跑完"——它不执行外部工具，也不恢复其工作区。
+ */
+export function messagesDisclosure(input: MessagesDisclosureInput): ConfirmationDisclosure {
+  return {
+    facts: [
+      { label: "目标 run · 调用", value: `${input.parentRunId} · ${input.atSpanId}` },
+      { label: "本次请求的 messages", value: `${input.messageCount} 条（完整替换发送，不截断）` },
+      { label: "upstream", value: input.upstream ?? "（代理未运行，无 upstream）" },
+      {
+        label: "凭据",
+        value: input.keyCaptured ? "使用代理会话最近捕获的 key" : "未捕获 key：本次无法重发",
+      },
+      { label: "模型", value: input.modelSummary },
+    ],
+    checks: [
+      "本地结构检查：messages 必须是非空 JSON 数组（不合法就就近报错、不发请求，不调用模型）",
+    ],
+    limits: [
+      "只重发这一个请求：不执行任何外部 Agent 的工具，也不恢复它的工作区或后续步骤。",
+      "凭据是代理会话**最近捕获**的那一个，可能与该 run 录制当时不同（也可能没有 ⇒ 会被拒）。",
+      "被动录制的 run 没有自有 config_hash：它仍是可对照的轨迹，但这条路径不产生父子续跑。",
+    ],
+  };
+}
+
 /** 披露里"检查"与"边界"合成可读列表（视图只渲染，不再自己拼句子） */
 export function disclosureLines(disclosure: ConfirmationDisclosure): ConfirmationRow[] {
   return [
