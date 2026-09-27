@@ -1,14 +1,16 @@
 # U5 实施与验收任务
 
-> 实施进度（2026-09-27）：**§1 全部完成（1.1–1.4）+ §2 全部完成（2.1–2.5）+ §3 的 3.1–3.4**
+> 实施进度（2026-09-27）：**§1 全部完成（1.1–1.4）+ §2 全部完成（2.1–2.5）+ §3 全部完成（3.1–3.6）**
 > （`shared/terminal-facts.ts` 19 条 + `lib/result-verification.ts` 纯判据 15 条 + store 核实 9 条 +
 > 终态消费 13 条 + `draft-submission` 收尾关联 13 条 + `draft-closure` 清理判据 20 条 +
 > store 收尾/批次/反证 17 条 + `create-entry-closure` 创建入口 9 条 + `fork-entry-closure` result/prompt 入口 6 条 +
-> `proxy-ab-entry-closure` messages/A-B 入口 9 条 + `navigation-intent` 纯判据 14 条 + 导航接线 13 条；
-> desktop 全量 115 文件 / 1985 用例绿，`tsc` node/web 双 0 错，根 `biome check .` 435 文件 0 错；
+> `proxy-ab-entry-closure` messages/A-B 入口 9 条 + `navigation-intent` 纯判据 14 条 + 导航接线 13 条 +
+> `operation-result-view` 呈现与通知判据（含喂 props 的视图）19 条 + `operation-result-actions` 明确动作 12 条；
+> desktop 全量 117 文件 / 2016 用例绿，`tsc` node/web 双 0 错，根 `biome check .` 439 文件 0 错；
 > 变异：1.1 三组、1.2 三组、1.3 四组、1.4 五组、2.1 三组、2.2 四组、2.3 三组、2.4 三组、
-> 2.5 两组、3.1 三组、3.2 三组、3.3 三组、3.4 四组各有牙（另有 3.1 的一组"响应路径次序补支"判**无牙** ⇒ 已回退，见注记）。
-> 其余 §3 的 3.5–3.6 与 §4–§7 全部待办；没有实施、GUI 验收或发布通过声明。
+> 2.5 两组、3.1 三组、3.2 三组、3.3 三组、3.4 四组、3.5 四组、3.6 三组各有牙
+> （另有 3.1 的一组"响应路径次序补支"判**无牙** ⇒ 已回退，见注记）。
+> 其余 §4–§7 全部待办；没有实施、GUI 验收或发布通过声明。
 > ⚠️ 已知环境噪声（非回归）：`test/controlled-service.test.ts` 在并行整跑下出现过 4 条超时失败，
 > 单跑 19 条全绿；复跑整跑亦全绿 ⇒ 按"单包/单文件复跑"口径判定，登记为端口时序 flake。
 > 每项实施/验收控制在 2h 内；若实际超出先拆分。场景名称对应 `specs/desktop-ui/spec.md`，既有场景用于回归，不能用旧报告替代新接线验证。
@@ -162,8 +164,53 @@
     ② 原生 `confirm()` 与设置对话框之外的确认框不在 store 里，`coveringModal` 只覆盖
     `createDialogOpen` / `settingsSection`；③ 创建页在 §4 改成工作区页面之前，覆盖模态恒在场 ⇒
     **创建入口实际不会自动导航**（这是 spec 要求的"不跳到模态背后"，不是漏接）。
-- [ ] 3.5 接通明确打开结果、真实自有失败调用、返回草稿及失效回退（≤2h）。验收：「失败定位和返回草稿明确可达」「祖先结束与失败调用不能冒充本次事实」「核对结果只由用户明确打开」。
-- [ ] 3.6 接通恢复/核对/重试/批次的只通知路径及去重，后台读取不碰当前阅读状态（≤2h）。验收：「恢复核对重试与批次结果只通知」「旧读取响应不能污染其他结果」。
+- [x] 3.5 接通明确打开结果、真实自有失败调用、返回草稿及失效回退（≤2h）。验收：「失败定位和返回草稿明确可达」「祖先结束与失败调用不能冒充本次事实」「核对结果只由用户明确打开」。
+  - 落点：新纯判据 `renderer/src/lib/operation-result-view.ts`（`deriveOperationResultView` /
+    `buildOperationResultViews`，键编码与 `lib/operation-list` 的 `row.key` 同源）——动作只给得出事实的那些：
+    可信 runId ⇒ 「打开结果」；`facts.failure.llmCallSpanId` 在场 ⇒ 「查看失败调用」；
+    草稿仍在（`isOperationDraftPresent`）⇒ 「返回草稿」；不可读 ⇒ 只给"按同一 runId 重读"。
+    不给的每一种都配诚实说明（`failureNote` / `draftNote`），其中"以 error 终止但自有无失败详情"
+    与"本次不是 error 终止"两种措辞分开，杜绝"跳祖先的最后一个错误调用凑数"。
+  - store 明确动作：`openOperationResult`（走既有 `selectRun`，**不**过 3.4 的导航意图判据）、
+    `openOperationFailure`（拿不到自有失败 span ⇒ `false` 且一点也不动页面）、
+    `returnOperationDraft`（按身份查目标：待定关联优先、其次收尾关联；草稿不在 ⇒ `false`，
+    不登记定位目标、不写回任何正文）。`lib/draft-submission.ts` 新增 `submissionTargetOf`
+    作为"按身份找回草稿目标"的唯一入口（只回目标键，正文仍只在草稿仓库）。
+  - 组件接线：`OperationsEntry` 的行视图改为消费 `row.result`（`deriveOperationRows(session, {reads,
+    draftPresentOf})`），四个动作全部走 store 动作；核对与"刷新"按钮既不收起面板也不切页面，
+    失败定位只在 store 返回 true 时才收起。`reopenRun` 不再是面板的通路（明确动作用身份三元组）。
+  - 证据：`test/operation-result-view.test.ts` 19 条（纯呈现 + 喂 props 的 `renderToStaticMarkup`）
+    + `test/operation-result-actions.test.ts` 12 条（store 接线）。关键条：
+    「自有失败调用在场 ⇒ 给入口并带真实错误正文」与「祖先含失败调用、自有无 ⇒ 无入口 + 说明」成对；
+    「打开结果」即便覆盖模态在场也切（证明明确动作不受意图判据约束）、reconcile 与只读重试都不切、
+    「返回草稿」失败保留时可达 / 被清理后 false、`isOperationDraftPresent` 三态分开。
+  - 四组反证：给「打开结果」加上覆盖模态判据 ⇒ 3 支红；让失败定位在无自有失败时"跳一个 span"⇒ 1 支红；
+    去掉"草稿不在就不返回"的守卫 ⇒ 1 支红；面板行视图里出现结局判据（`viewOperationResult` 等）
+    的源码级契约另立一条（组件不重写第二份判据）。
+  - ⚠️ 有意契约变更（U4 的 4.7 用例）：`test/operation-entry.test.ts` 的两支改判——
+    "打开只走 `reopenRun(runId)`"改为"打开只走 `openOperationResult(identity)`，组件里不出现
+    `selectRun`/`reopenRun`/`loadRuns`"；"只有打开记录会收起面板"改为
+    "核对与刷新都不收起；失败定位只在定位成功时收起"。
+  - ⚠️ 已知边界：「许可复位」（返回草稿后旧预检/确认失效）仍属 §4.5/§4.6 的确认流程，本轮只做
+    "定位到那份草稿 + 执行状态不被这次返回改动"；来源位置（页签/滚动/文件）不进 `NavigationIntent`，
+    等 §4.1 的创建工作区再存。
+- [x] 3.6 接通恢复/核对/重试/批次的只通知路径及去重，后台读取不碰当前阅读状态（≤2h）。验收：「恢复核对重试与批次结果只通知」「旧读取响应不能污染其他结果」。
+  - 落点：新纯判据 `renderer/src/lib/result-notices.ts` —— `deriveResultNotices({records, reads, seenKeys})`
+    现算未读通知（**没有通知队列**，符合"数据派生不累积"），只有落到结论的才报：
+    可查看 / 不可读 / 未定位 / 本次未接受；`running` 与"正在读取"都不报。
+    **两层去重**：① 用户已看过的身份键；② 同一次派生里同一键只报一次（快照拼接/旧 epoch 同 id 都可能重复出现）。
+    通知文本刻意不含等待计时（进了就等于每秒重复通知），计时显示属 §5.2。
+  - store 侧：会话内 `seenNoticeKeys` + `markNoticesSeen(keys)`（幂等，无变化不改引用）；
+    「打开结果」顺带标记该条已看，面板展开标记全部已看。组件用订阅状态现算，不缓存条数。
+  - 证据：`test/operation-result-view.test.ts` 的 3.6 段（未读/在读不算通知、四种结论各算一条、
+    标已看后归零、**同一结论两条记录也只算一条**、文本不含计时、批次逐臂各算一条不合并）
+    + `test/operation-result-actions.test.ts` 的 3.6 段（轮询再来两轮不把同一结论数成两条、
+    标记幂等、后台自动核实不改页签/滚动/选中调用/选中运行、以及"跳转与定位的唯一入口是 store 动作"）。
+  - 三组反证：去掉已看过滤 ⇒ 2 支红；去掉同键一次派生去重 ⇒ 1 支红；
+    「打开结果」不标记已看 ⇒ 1 支红。
+  - ➕ 本轮补的实质缺陷（写用例时发现，非变异）：`deriveResultNotices` 初版只做"已看过滤"，
+    **同一次派生里同一身份会重复计数**（两条同 id 登记 ⇒ 两条通知）⇒ 补第二层去重后才有牙。
+    「恢复核对重试与批次结果只通知」的 live 区域与未读标记 UI 属 §5.2；本项交付的是判据与去重本身。
 
 ## 4. 创建工作区与检查确认
 

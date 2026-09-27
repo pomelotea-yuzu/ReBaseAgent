@@ -337,6 +337,23 @@ export function submissionByOperation(
   );
 }
 
+/**
+ * 按身份找回**这次提交编辑的是哪一份草稿**（U5 任务 3.5 的返回草稿入口）。
+ *
+ * 先查待定区（还在跑 / 未接受时正文与关联都在），再查收尾关联区（解冻后仍留目标）。
+ * 两处都没有 ⇒ null：那条操作不属于本会话（重载恢复），或用户已显式放弃。
+ * ⚠️ 只回目标键，不回正文 —— 正文的唯一来源仍是草稿仓库（收尾关联刻意不复制正文）。
+ */
+export function submissionTargetOf(
+  store: SubmissionStore,
+  epoch: string,
+  operationId: string,
+): DraftSubmitTarget | null {
+  const pending = submissionByOperation(store, epoch, operationId);
+  if (pending !== undefined) return pending.target;
+  return closureOf(store, epoch, operationId)?.target ?? null;
+}
+
 /** 按身份收尾：找不到该身份（已结束/从未登记）⇒ 引用不变 */
 export function settleSubmissionByOperation(
   store: SubmissionStore,

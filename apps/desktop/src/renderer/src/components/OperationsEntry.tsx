@@ -1,29 +1,33 @@
 import { Waypoints } from "lucide-react";
 import { useState } from "react";
 import { type OperationRow, deriveOperationRows, operationBadge } from "../lib/operation-list";
+import type { ResultAction } from "../lib/operation-result-view";
+import { deriveResultNotices } from "../lib/result-notices";
+import type { ResultReadIdentity } from "../lib/result-verification";
 import { useAppStore } from "../store";
 import { FOCUS_RING } from "./IconButton";
 
 /**
- * U4 任务 4.7：全局栏的**最小操作入口**。
+ * U4 任务 4.7 + U5 任务 3.5 / 3.6：全局栏的操作入口。
  *
- * 只呈现 main 给得出的事实：类型、目标定位、running/settled/notAccepted/unknown、
- * 可信 runIds、受控诊断条数。**没有**进度百分比、"第几步"、停止/取消按钮
- * （spec 明令不显示虚构阶段与取消能力；取消归 U5）。
+ * 只呈现 main 与核实通道给得出的事实：类型、目标定位、running/settled/notAccepted/unknown、
+ * 可信 runIds、**按身份核实到的结局**、受控诊断条数。**没有**进度百分比、"第几步"、
+ * 停止/取消按钮（spec 明令不显示虚构阶段与取消能力）。
  *
- * 两个动作走两条不同通道，界面上就不可能混用：
- * - 「核对状态」→ `operations:reconcile(operationId)`（只读操作事实，不读 run 文件）；
- * - 「打开记录」→ 既有运行详情通道（`reopenRun(runId)`：同一 ID 也真的重读，含 v1/v2 版本守卫）。
- * 读取失败只允许按同一 runId 重试读取，**不会**重新执行，也不会去核对另一个 ID。
+ * 三个动作走三条不同通道，界面上就不可能混用：
+ * - 「核对状态」→ `operations:reconcile(operationId)`（只读操作事实，不读 run 文件，**不导航**）；
+ * - 「打开结果 / 查看失败调用 / 返回草稿」→ U5 3.5 的明确动作（用户主动才切页面）；
+ * - 「重读这条结果」→ 同一条可信 runId 的只读重试（绝不重新执行、绝不换个 id 试试）。
  *
- * 结果一律**由用户明确打开**：核对、轮询、快照更新都不改当前页面（design D6 末段）。
+ * 结果状态是**只通知**的：核对、轮询、后台读取都只更新这里的事实，不改当前页面（design D6）；
+ * 按钮上的「结果待看 N」由 `deriveResultNotices` 现算，同一结论重复到达不会把计数顶上去。
  */
 
 const PHASE_STYLES: Record<OperationRow["phase"], string> = {
   running: "border-sky-300 bg-sky-50 text-sky-800",
   settled: "border-gray-200 bg-gray-50 text-gray-600",
   notAccepted: "border-amber-300 bg-amber-50 text-amber-800",
-  unknown: "border-violet-300 bg-violet-50 text-violet-800",
+  unknown: "border-violet-300 bg-violet-300 text-violet-800",
 };
 
 const PHASE_LABELS: Record<OperationRow["phase"], string> = {
@@ -33,15 +37,62 @@ const PHASE_LABELS: Record<OperationRow["phase"], string> = {
   unknown: "待核对",
 };
 
-function OperationRowView({
+const TONE_STYLES: Record<"neutral" | "success" | "danger" | "warn", string> = {
+  neutral: "border-gray-200 bg-gray-50 text-gray-600",
+  success: "border-emerald-200 bg-emerald-50 text-emerald-800",
+  danger: "border-rose-200 bg-rose-50 text-rose-800",
+  warn: "border-amber-200 bg-amber-50 text-amber-800",
+};
+
+const ACTION_LABELS: Record<ResultAction, string> = {
+  "open-result": "打开结果",
+  "view-failure": "查看失败调用",
+  "retry-read": "重读这条结果",
+  "return-draft": "返回草稿",
+};
+
+function RowActionButton({
+  action,
+  identity,
+  onAct,
+}: {
+  action: ResultAction;
+  identity: ResultReadIdentity;
+  onAct: (action: ResultAction, identity: ResultReadIdentity) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        onAct(action, identity);
+      }}
+      title={
+        action === "retry-read"
+          ? `只按同一个可信运行 ID 重读（${identity.runId}）：不会重新执行，也不会换一条记录试`
+          : action === "view-failure"
+            ? "只定位本次运行自有的失败调用；祖先里的错误调用不算本次原因"
+            : action === "return-draft"
+              ? "回到这次提交编辑的那份草稿（许可已复位，需重新检查与授权）"
+              : "按可信运行 ID 打开概览（这是用户主动动作，与自动导航的意图判据无关）"
+      }
+      className={`shrink-0 rounded border border-gray-300 px-1.5 py-0.5 text-[10px] text-gray-700 hover:bg-gray-50 ${FOCUS_RING}`}
+    >
+      {ACTION_LABELS[action]}
+    </button>
+  );
+}
+
+/** 导出的唯一理由：本包无 jsdom，store 订阅部分测不了，但喂 props 的行视图可以走 renderToStaticMarkup。 */
+export function OperationRowView({
   row,
   onReconcile,
-  onOpenRun,
+  onAct,
 }: {
   row: OperationRow;
   onReconcile: (operationId: string) => void;
-  onOpenRun: (runId: string) => void;
+  onAct: (action: ResultAction, identity: ResultReadIdentity) => void;
 }) {
+  const result = row.result;
   return (
     <li className="mt-1 rounded border border-gray-200 bg-white p-1.5">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -58,7 +109,7 @@ function OperationRowView({
           onClick={() => {
             onReconcile(row.operationId);
           }}
-          title={`operations:reconcile(${row.operationId})——只核对操作事实，不读运行文件`}
+          title={`operations:reconcile(${row.operationId})——只核对操作事实，不读运行文件，也不切页面`}
           className={`ml-auto shrink-0 rounded border border-gray-300 px-1.5 py-0.5 text-[11px] text-gray-700 hover:bg-gray-50 ${FOCUS_RING}`}
         >
           核对状态
@@ -69,28 +120,90 @@ function OperationRowView({
         操作 {row.operationId}
       </div>
       <div className="mt-0.5 text-[10px] leading-4 text-gray-600">{row.hint}</div>
-      {row.runLinks.length > 0 ? (
-        <ul className="mt-1 space-y-1">
-          {row.runLinks.map((link) => (
-            <li key={link.runId} className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-              <span className="min-w-0 break-all font-code text-[10px] text-gray-700">
-                {link.runId}
-              </span>
-              <span className="text-[10px] text-gray-400">{link.note}</span>
-              <button
-                type="button"
-                onClick={() => {
-                  onOpenRun(link.runId);
-                }}
-                title={`按既有运行详情通道读取 ${link.runId}（读取失败只重试读取，不会重新执行）`}
-                className={`ml-auto shrink-0 rounded border border-gray-300 px-1.5 py-0.5 text-[10px] text-gray-700 hover:bg-gray-50 ${FOCUS_RING}`}
+
+      {result === null ? (
+        row.runLinks.length > 0 ? (
+          <ul className="mt-1 space-y-1">
+            {row.runLinks.map((link) => (
+              <li key={link.runId} className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                <span className="min-w-0 break-all font-code text-[10px] text-gray-700">
+                  {link.runId}
+                </span>
+                <span className="text-[10px] text-gray-400">{link.note}</span>
+              </li>
+            ))}
+          </ul>
+        ) : null
+      ) : (
+        <div className="mt-1 space-y-1">
+          {/* 记录级呈现：执行中 / 本次未接受 / 结果未定位 */}
+          {result.kind !== "items" ? (
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+              <span
+                className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] ${TONE_STYLES.neutral}`}
               >
-                打开记录
-              </button>
-            </li>
+                {result.label}
+              </span>
+              <span className="min-w-0 break-all text-[10px] leading-4 text-gray-500">
+                {result.detail}
+              </span>
+            </div>
+          ) : null}
+          {result.items.map((item) => (
+            <div
+              key={item.runId}
+              className="flex flex-wrap items-center gap-x-2 gap-y-0.5 rounded border border-gray-100 bg-gray-50/60 px-1.5 py-1"
+            >
+              <span className="min-w-0 break-all font-code text-[10px] text-gray-700">
+                {item.runId}
+              </span>
+              <span
+                className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] ${TONE_STYLES[item.tone]}`}
+              >
+                {item.label}
+              </span>
+              <div className="ml-auto flex shrink-0 items-center gap-1">
+                {item.actions.map((action) => (
+                  <RowActionButton
+                    key={action}
+                    action={action}
+                    identity={{
+                      epoch: row.epoch,
+                      operationId: row.operationId,
+                      runId: item.runId,
+                    }}
+                    onAct={onAct}
+                  />
+                ))}
+              </div>
+              {item.detail !== null ? (
+                <div className="w-full break-all text-[10px] leading-4 text-gray-500">
+                  {item.detail}
+                </div>
+              ) : null}
+              {/* 拿不到自有失败调用时只说明，不给入口：不跳祖先、不跳"最后一个调用"凑数 */}
+              {item.failureNote !== null ? (
+                <div className="w-full break-all text-[10px] leading-4 text-gray-400">
+                  {item.failureNote}
+                </div>
+              ) : null}
+            </div>
           ))}
-        </ul>
-      ) : null}
+          {result.canReturnDraft ? (
+            <div className="flex items-center gap-1">
+              <RowActionButton
+                action="return-draft"
+                identity={{ epoch: row.epoch, operationId: row.operationId, runId: "" }}
+                onAct={onAct}
+              />
+            </div>
+          ) : null}
+          {result.draftNote !== null ? (
+            <div className="break-all text-[10px] leading-4 text-gray-400">{result.draftNote}</div>
+          ) : null}
+        </div>
+      )}
+
       {row.experimentId !== null ? (
         <div className="mt-0.5 break-all font-code text-[10px] text-gray-400">
           实验 {row.experimentId}
@@ -107,12 +220,29 @@ function OperationRowView({
 
 export function OperationsEntry() {
   const session = useAppStore((s) => s.operations);
+  const reads = useAppStore((s) => s.resultReads);
   const reconcileOperation = useAppStore((s) => s.reconcileOperation);
-  const reopenRun = useAppStore((s) => s.reopenRun);
   const refreshOperationStatus = useAppStore((s) => s.refreshOperationStatus);
+  const openOperationResult = useAppStore((s) => s.openOperationResult);
+  const openOperationFailure = useAppStore((s) => s.openOperationFailure);
+  const returnOperationDraft = useAppStore((s) => s.returnOperationDraft);
+  const isOperationDraftPresent = useAppStore((s) => s.isOperationDraftPresent);
+  const retryResultRead = useAppStore((s) => s.retryResultRead);
+  const seenNoticeKeys = useAppStore((s) => s.seenNoticeKeys);
+  const markNoticesSeen = useAppStore((s) => s.markNoticesSeen);
   const [open, setOpen] = useState(false);
-  const rows = deriveOperationRows(session);
-  const badge = operationBadge(rows);
+  const rows = deriveOperationRows(session, {
+    reads,
+    draftPresentOf: (record) =>
+      isOperationDraftPresent({ epoch: record.epoch, operationId: record.operationId }),
+  });
+  // 通知是现算派生（3.6）：只存"哪些键看过"，重复快照堆不出第二份
+  const notices = deriveResultNotices({
+    records: session.operations,
+    reads,
+    seenKeys: seenNoticeKeys,
+  });
+  const badge = operationBadge(rows, notices.unreadCount);
 
   return (
     <div className="relative">
@@ -123,6 +253,8 @@ export function OperationsEntry() {
         onClick={() => {
           // 打开即读一次当前状态（spec：查询可在握手、提交返回、窗口重新获得焦点与用户点击时触发）
           if (!open) void refreshOperationStatus();
+          // 展开面板 = 用户此刻已经看到这些结果状态 ⇒ 标成已看（通知本身仍是现算派生）
+          markNoticesSeen(notices.notices.map((one) => one.key));
           setOpen((prev) => !prev);
         }}
         title="本会话的主动操作登记（只存主进程内存；关闭应用即清空）"
@@ -139,6 +271,7 @@ export function OperationsEntry() {
         <div
           id="operations-panel"
           className="absolute right-0 top-full z-40 mt-1 max-h-80 w-96 max-w-[90vw] overflow-y-auto rounded border border-gray-200 bg-white p-2 shadow-xl"
+          aria-describedby="operations-panel-note"
         >
           <div className="mb-1 flex items-center justify-between gap-2">
             <span className="text-[11px] font-semibold text-gray-700">本会话操作</span>
@@ -175,20 +308,40 @@ export function OperationsEntry() {
                   key={row.key}
                   row={row}
                   onReconcile={(operationId) => {
+                    // 核对：只补这条操作的事实，不切页面、不读运行文件
                     void reconcileOperation(operationId);
                   }}
-                  onOpenRun={(runId) => {
-                    // 明确打开：只有这个动作会切页面；核对与轮询都不导航
-                    setOpen(false);
-                    void reopenRun(runId);
+                  onAct={(action, identity) => {
+                    if (action === "open-result") {
+                      setOpen(false);
+                      void openOperationResult(identity);
+                      return;
+                    }
+                    if (action === "view-failure") {
+                      // 拿不到自有失败调用时 store 返回 false ⇒ 面板留着，页面一点不动
+                      void openOperationFailure(identity).then((located) => {
+                        if (located) setOpen(false);
+                      });
+                      return;
+                    }
+                    if (action === "return-draft") {
+                      setOpen(false);
+                      void returnOperationDraft({
+                        epoch: identity.epoch,
+                        operationId: identity.operationId,
+                      });
+                      return;
+                    }
+                    // 只读重试：面板保持展开，让用户看到这一条从"不可读"变成结论
+                    void retryResultRead(identity);
                   }}
                 />
               ))}
             </ul>
           )}
-          <p className="mt-2 text-[10px] leading-4 text-gray-400">
-            「核对状态」只查操作登记（不读运行文件）；「打开记录」按运行 ID 走既有详情通道。
-            登记不显示进度或取消按钮——主进程没有这些事实。
+          <p id="operations-panel-note" className="mt-2 text-[10px] leading-4 text-gray-400">
+            「核对状态」只查操作登记（不读运行文件、不切页面）；结果状态由按可信运行 ID
+            的独立读取核实，要看内容请明确点「打开结果」。登记不显示进度或取消按钮——主进程没有这些事实。
           </p>
         </div>
       ) : null}

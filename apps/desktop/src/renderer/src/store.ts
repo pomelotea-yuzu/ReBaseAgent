@@ -139,6 +139,7 @@ import {
   emptyResultReadStore,
   finishResultRead,
   resultReadAlreadySettledOrInFlight,
+  resultReadKeyOf,
   resultReadOf,
   verifyResultPayload,
 } from "./lib/result-verification";
@@ -483,6 +484,48 @@ interface AppState {
    * 与 `verifyRunResult` 的分工：后者对已在读/已核实的身份去重，本动作绕过那道去重。
    */
   retryResultRead: (identity: ResultReadIdentity) => Promise<ResultReadEntry>;
+
+  /**
+   * U5 任务 3.5：**用户明确打开某条可信结果**。
+   *
+   * 与 3.4 的自动导航分开：那条要过导航意图（离开过流程就不跳），这条**不过**——
+   * 用户点了就是要去看。仍走既有 `selectRun`（恢复该 run 自己的阅读状态），不另写落地逻辑。
+   * 顺带把该条通知标成已看（3.6 的去重）。
+   */
+  openOperationResult: (identity: ResultReadIdentity) => Promise<void>;
+  /**
+   * U5 任务 3.5：**失败定位只到真实自有调用**。
+   *
+   * 判据取 `deriveOwnTerminalFacts` 的 `failure`（`deriveErrorTarget` 已在 `leafSpanIds` 内找）；
+   * 拿不到自有失败 span ⇒ 返回 false 且**一点也不动页面**——绝不跳祖先的错误调用、
+   * 绝不跳"最后一个调用"凑数。诚实说明由视图给（`lib/operation-result-view` 的 `failureNote`）。
+   */
+  openOperationFailure: (identity: ResultReadIdentity) => Promise<boolean>;
+  /**
+   * U5 任务 3.5：**返回该提交对应的草稿**（复用既有草稿定位通道）。
+   *
+   * 目标键按身份查：先看待定关联（还在跑/未接受时正文与关联都在），再看收尾关联（解冻后）。
+   * 草稿已被清理或从未登记 ⇒ 返回 false，由视图给回退说明；**不复活**旧内容，也不恢复旧授权。
+   */
+  returnOperationDraft: (identity: {
+    epoch: string;
+    operationId: string;
+  }) => Promise<boolean>;
+  /**
+   * U5 任务 3.5：该操作对应的草稿**是否仍在**（面板据此决定给不给「返回草稿」）。
+   * 按身份找回目标键（待定关联优先，其次收尾关联）后再查草稿仓库 ——
+   * 与清理判据同一份仓库，不建"我以为还在"的第二套存在性。
+   */
+  isOperationDraftPresent: (identity: { epoch: string; operationId: string }) => boolean;
+
+  /**
+   * U5 任务 3.6：**已看过的结果通知键**（会话内）。
+   * 通知本身是**现算派生**（组件用 `deriveResultNotices` 从订阅状态算），这里只存"哪些键已看过"，
+   * 不存在通知队列 ⇒ 重复快照不可能堆出第二份（红线「数据派生不累积」）。
+   */
+  seenNoticeKeys: Readonly<Record<string, true>>;
+  /** 标记为已看（展开操作面板、或用户明确打开某条结果时调用）；无变化 ⇒ 引用不变 */
+  markNoticesSeen: (keys: readonly string[]) => void;
 
   /**
    * U3 任务 2.5：一次性草稿定位目标（草稿列表「定位」动作的载体，与 U2 的
@@ -876,6 +919,25 @@ async function readRunResult(
 }
 
 /**
+ * 提交目标 → 草稿定位目标（U5 任务 3.5 的「返回草稿」）。
+ *
+ * 两套编码同源不同形：提交侧的 `DraftSubmitTarget` 用判别联合（A/B 没有 `field` 键，
+ * 创建只有 `field:"create"`），而定位通道（`openDraftAt` / `pendingDraftTarget`）要的是
+ * 草稿列表那一形（`runId + spanId|null + DraftKind`）。这里只做一次机械换算，
+ * **不**新增第二套身份判据 —— A/B 与创建的落地分支仍由 `openDraftAt` 自己判（U3 既有）。
+ */
+function draftLocatorOf(target: DraftSubmitTarget): {
+  runId: string;
+  spanId: string | null;
+  field: DraftKind;
+} {
+  if (!("field" in target))
+    return { runId: target.runId, spanId: target.spanId, field: "model_ab" };
+  if (target.field === "create") return { runId: "", spanId: null, field: "create" };
+  return { runId: target.runId, spanId: target.spanId, field: target.field };
+}
+
+/**
  * U5 任务 2.3：**显式放弃**某目标草稿时一并释放它的收尾关联。
  *
  * design D3 给关联的寿命是"到 renderer 会话结束或显式放弃相关草稿"为止。用户既然明确说
@@ -1056,6 +1118,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   // U5 任务 3.4：阅读代次 + 各提交的导航意图（同为会话内，不进任何持久化）
   navGeneration: 0,
   navIntents: emptyNavigationIntents(),
+  // U5 任务 3.6：已看过的结果通知键（通知本身由 deriveResultNotices 现算）
+  seenNoticeKeys: {},
   listRefreshInFlight: 0,
   listRefreshPending: 0,
 
@@ -1650,6 +1714,52 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   async retryResultRead(identity) {
     return readRunResult(identity, true);
+  },
+
+  async openOperationResult(identity) {
+    // 3.5：用户主动 ⇒ 不经导航意图；但只走既有选择动作，落地口径与手动切运行完全一致
+    get().markNoticesSeen([resultReadKeyOf(identity)]);
+    await get().selectRun(identity.runId);
+  },
+
+  async openOperationFailure(identity) {
+    const entry = resultReadOf(get().resultReads, identity);
+    const spanId = entry?.facts?.failure.llmCallSpanId ?? null;
+    if (spanId === null) return false;
+    await get().openOperationResult(identity);
+    // 详情读不出来 ⇒ 不做任何定位（不跳到一个"大概在那里"的调用上）
+    if (get().selectedRunId !== identity.runId) return false;
+    get().setReadingTab(identity.runId, "steps");
+    get().selectSpan(spanId);
+    return true;
+  },
+
+  async returnOperationDraft({ epoch, operationId }) {
+    const target = submissionLib.submissionTargetOf(get().draftSubmissions, epoch, operationId);
+    if (target === null) return false;
+    // 草稿不在（已按修订清理 / 已显式放弃）⇒ 交给视图说清"为什么不返回"，这里不复活内容
+    if (!draftStateOf(get().drafts, target).exists) return false;
+    await get().openDraftAt(draftLocatorOf(target));
+    return true;
+  },
+
+  isOperationDraftPresent({ epoch, operationId }) {
+    const target = submissionLib.submissionTargetOf(get().draftSubmissions, epoch, operationId);
+    return target !== null && draftStateOf(get().drafts, target).exists;
+  },
+
+  markNoticesSeen(keys) {
+    if (keys.length === 0) return;
+    set((state) => {
+      let changed = false;
+      const next = { ...state.seenNoticeKeys };
+      for (const key of keys) {
+        if (next[key] === true) continue;
+        next[key] = true;
+        changed = true;
+      }
+      return changed ? { seenNoticeKeys: next } : {};
+    });
   },
 
   pendingDraftTarget: null,

@@ -1,6 +1,9 @@
 import type { OperationKind, OperationRecord } from "@shared/operations";
+import type { OperationResultView } from "./operation-result-view";
+import { buildOperationResultViews, resultViewKeyOf } from "./operation-result-view";
 import type { OperationSession } from "./operation-session";
 import { stalePendingOf } from "./operation-session";
+import type { ResultReadStore } from "./result-verification";
 
 /**
  * U4 任务 4.7：全局栏「操作」入口的**数据派生**（纯函数，可单测）。
@@ -34,6 +37,11 @@ export interface OperationRow {
   readonly targetText: string;
   /** operationId（核对用的唯一键；完整显示，长文本靠 break-all 不遮挡） */
   readonly operationId: string;
+  /**
+   * 所属 main 会话 epoch（U5 任务 3.5：结果动作的身份是 `(epoch, operationId, runId)` 三元组，
+   * 少了 epoch 就没法按身份回查读取项，也不会 accidentally 拿旧会话的结论去标新会话的账）。
+   */
+  readonly epoch: string;
   readonly runLinks: ReadonlyArray<OperationRunLink>;
   /** 诊断条数（>0 时给"有 N 条受控诊断"的可展开提示） */
   readonly diagnosticCount: number;
@@ -43,6 +51,17 @@ export interface OperationRow {
   readonly canReconcile: boolean;
   /** 提示语：状态后面那句人话 */
   readonly hint: string;
+  /**
+   * U5 任务 3.5 的**结果呈现**（含明确动作与诚实说明）；未提供读取项或属未知历史 ⇒ null，
+   * 面板退回"只报身份"的形态。⚠️ 它只是呈现：跳转与否由用户点击决定（`lib/operation-result-view`）。
+   */
+  readonly result: OperationResultView | null;
+}
+
+/** 结果呈现的注入参数（store 侧才拿得到的两份会话内数据 + 草稿在场判据） */
+export interface OperationRowResults {
+  readonly reads: ResultReadStore;
+  readonly draftPresentOf: (record: OperationRecord) => boolean;
 }
 
 const KIND_LABELS: Record<OperationKind, string> = {
@@ -77,7 +96,7 @@ function targetTextOf(record: OperationRecord): string {
   }
 }
 
-function rowOf(record: OperationRecord): OperationRow {
+function rowOf(record: OperationRecord, result: OperationResultView | null): OperationRow {
   const phase: OperationPhase = record.state;
   return {
     key: `${record.epoch}/${record.operationId}`,
@@ -85,6 +104,7 @@ function rowOf(record: OperationRecord): OperationRow {
     kindLabel: record.target === null ? null : KIND_LABELS[record.target.kind],
     targetText: targetTextOf(record),
     operationId: record.operationId,
+    epoch: record.epoch,
     // runIds 是身份，不是"可读证明"：note 说清这一点，界面据此显示"读取可能失败"
     runLinks: record.runIds.map((runId) => ({
       runId,
@@ -94,6 +114,7 @@ function rowOf(record: OperationRecord): OperationRow {
     experimentId: record.experimentId,
     canReconcile: true,
     hint: PHASE_HINTS[phase],
+    result,
   };
 }
 
@@ -104,35 +125,60 @@ function unknownRow(epoch: string, operationId: string): OperationRow {
     kindLabel: null,
     targetText: "（本次提交属上一个主进程会话，登记事实不在当前快照里）",
     operationId,
+    epoch,
     runLinks: [],
     diagnosticCount: 0,
     experimentId: null,
     canReconcile: true,
     hint: PHASE_HINTS.unknown,
+    // 旧会话的操作没有本会话的读取项可依附 ⇒ 不给结果动作（只能核对）
+    result: null,
   };
 }
 
 /**
  * 入口要显示的行：**新的在前**（用户最关心刚提交的那条），未知历史排在其后。
  * 不按界面开合或本地关联裁剪——快照里有几条就报几条。
+ *
+ * @param results 可选：U5 3.5 的结果呈现（`{reads, draftPresentOf}`）。不传 ⇒ `result` 为 null，
+ *                面板退回"只报身份"的形态（U4 既有用例即走这条路）。
  */
-export function deriveOperationRows(session: OperationSession): OperationRow[] {
-  const rows = session.operations.map(rowOf);
+export function deriveOperationRows(
+  session: OperationSession,
+  results?: OperationRowResults,
+): OperationRow[] {
+  const views =
+    results === undefined
+      ? {}
+      : buildOperationResultViews({
+          records: session.operations,
+          reads: results.reads,
+          draftPresentOf: results.draftPresentOf,
+        });
+  const rows = session.operations.map((record) =>
+    rowOf(record, views[resultViewKeyOf(record)] ?? null),
+  );
   const stale = stalePendingOf(session).map((one) => unknownRow(one.epoch, one.operationId));
   return [...rows.reverse(), ...stale];
 }
 
-/** 全局栏按钮上的最小事实：总数 + 有没有在跑/未知（不显示百分比） */
-export function operationBadge(rows: readonly OperationRow[]): {
-  readonly label: string;
-  readonly attention: boolean;
-} {
+/**
+ * 全局栏按钮上的最小事实：总数 + 要不要盯（没有百分比、没有进度）。
+ *
+ * `unreadResults`（U5 3.6）是**未读结果通知条数**——它由 `deriveResultNotices` 现算，
+ * 同一结论的重复快照不会让它变大 ⇒ "重复状态不重复通知"在这一层也拿不到计数增量。
+ */
+export function operationBadge(
+  rows: readonly OperationRow[],
+  unreadResults = 0,
+): { readonly label: string; readonly attention: boolean } {
   const running = rows.filter((one) => one.phase === "running").length;
   const unknown = rows.filter((one) => one.phase === "unknown").length;
-  const attention = running > 0 || unknown > 0;
+  const attention = running > 0 || unknown > 0 || unreadResults > 0;
   const parts = [`操作 ${rows.length}`];
   if (running > 0) parts.push(`执行中 ${running}`);
   if (unknown > 0) parts.push(`待核对 ${unknown}`);
+  if (unreadResults > 0) parts.push(`结果待看 ${unreadResults}`);
   return { label: parts.join(" · "), attention };
 }
 

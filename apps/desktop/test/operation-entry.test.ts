@@ -159,24 +159,30 @@ describe("4.7 接线契约：入口挂在既有全局栏，且两种查询不混
     expect(entry).not.toContain("useState<OperationRecord");
   });
 
-  it("核对只发 reconcile(operationId)，打开只走 reopenRun(runId)", () => {
+  it("核对只发 reconcile(operationId)，打开只走明确动作通道（不经列表、不自己 selectRun）", () => {
+    // U5 任务 3.5：面板的"打开/失败定位/返回草稿/重读"合并成一个 `onAct(action, identity)`，
+    // 身份是 (epoch, operationId, runId) 三元组 ⇒ 想混用得同时改三处形状。
     const reconcile = entry.slice(
       entry.indexOf("onReconcile={(operationId)"),
-      entry.indexOf("onOpenRun={(runId)"),
+      entry.indexOf("onAct={(action, identity)"),
     );
     expect(reconcile).toContain("reconcileOperation(operationId)");
-    expect(reconcile).not.toContain("reopenRun(");
-    const open = entry.slice(entry.indexOf("onOpenRun={(runId)"));
-    expect(open).toContain("reopenRun(runId)");
-    expect(open).not.toContain("reconcileOperation(");
-    // 「按同 ID 重试读取」要有真通道：selectRun 对已选中同 ID 会短路 ⇒ 入口不能用它
+    expect(reconcile).not.toContain("openOperationResult(");
+    const act = entry.slice(entry.indexOf("onAct={(action, identity)"));
+    expect(act).toContain("openOperationResult(identity)");
+    expect(act).toContain("openOperationFailure(identity)");
+    expect(act).toContain("retryResultRead(identity)");
+    expect(act).not.toContain("reconcileOperation(");
+    // 落地只走 store 动作：组件里既不出现 selectRun / reopenRun，也不出现列表读取
     expect(entry).not.toContain("selectRun(");
+    expect(entry).not.toContain("reopenRun(");
+    expect(entry).not.toContain("loadRuns(");
     // 两个动作的入参类型不同名 ⇒ 想混用得改代码
     expect(entry).toContain("onReconcile: (operationId: string) => void");
-    expect(entry).toContain("onOpenRun: (runId: string) => void");
+    expect(entry).toContain("onAct: (action: ResultAction, identity: ResultReadIdentity) => void");
   });
 
-  it("不显示进度/百分比/停止按钮；不自动导航（核对与刷新都留面板在原处）", () => {
+  it("不显示进度/百分比/停止按钮；核对与刷新都不收起面板、不切页面", () => {
     // 只看**UI 手段**（注释里出现"停止/百分比"这类词是允许且必要的，不能拿来当断言对象）
     for (const affordance of [
       "<progress",
@@ -191,16 +197,24 @@ describe("4.7 接线契约：入口挂在既有全局栏，且两种查询不混
     // 状态标签恰好四种，没有第五种"阶段"
     const labels = entry.slice(
       entry.indexOf("const PHASE_LABELS"),
-      entry.indexOf("function OperationRowView"),
+      entry.indexOf("const TONE_STYLES"),
     );
     expect(labels.match(/: "/g)).toHaveLength(4);
-    // 只有"打开记录"会收起面板并切页面
+    // 核对与"刷新"都不收起面板、不切页面（U5 3.4 之后"自动跳"另有判据，但绝不由核对触发）
+    const reconcileBlock = entry.slice(
+      entry.indexOf("onReconcile={(operationId)"),
+      entry.indexOf("onAct={(action, identity)"),
+    );
+    expect(reconcileBlock).not.toContain("setOpen(false)");
     expect(
-      entry.slice(entry.indexOf("onOpenRun={(runId)")).indexOf("setOpen(false)"),
-    ).toBeGreaterThan(-1);
-    expect(
-      entry.slice(entry.indexOf("onReconcile={(operationId)"), entry.indexOf("onOpenRun={(runId)")),
+      entry.slice(
+        entry.indexOf('title="重新读取主进程的操作快照（只读）"') - 260,
+        entry.indexOf('title="重新读取主进程的操作快照（只读）"'),
+      ),
     ).not.toContain("setOpen(false)");
+    // 只有明确动作会收起面板并切页面；失败定位拿不到自有调用时**不**收起（页面也不动）
+    expect(entry.slice(entry.indexOf('if (action === "open-result")'))).toContain("setOpen(false)");
+    expect(entry).toContain("if (located) setOpen(false);");
   });
 
   it("窄窗口与键盘可达：受视口宽度约束、长 ID 断行、按钮可聚焦且带 aria 关系", () => {
