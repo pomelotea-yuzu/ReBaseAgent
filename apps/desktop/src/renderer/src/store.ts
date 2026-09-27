@@ -112,6 +112,15 @@ import type {
   RunReadingState,
 } from "./lib/reading-state";
 import {
+  type ResultReadEntry,
+  type ResultReadIdentity,
+  type ResultReadStore,
+  emptyResultReadStore,
+  resultReadEntryOf,
+  setResultRead,
+  verifyResultPayload,
+} from "./lib/result-verification";
+import {
   resolveExecutionGate,
   resolveFilterVisibility,
   resolveInitialSelection,
@@ -409,6 +418,23 @@ interface AppState {
    * 也绝不因"查到旧操作已 settled"而解除别的操作的锁。
    */
   reconcileOperation: (operationId: string) => Promise<OperationSession>;
+
+  /**
+   * U5 任务 1.2：按可信身份读取到的**结果读取项**（design D3）。
+   * 键为 `(epoch, operationId, runId)`；只存 renderer 会话内存，
+   * 不落盘、不进 URL/日志/操作 IPC，也**不是**第二套执行真相源——
+   * 它只说明"renderer 看到了哪条已校验的结局"。
+   */
+  resultReads: ResultReadStore;
+  /**
+   * U5 任务 1.2：**与导航分离**的结果核实。按 main 登记的 runId 独立读取并校验
+   * （归属 → 版本 → schema → 自有终止事件归属），只写本条读取项。
+   *
+   * ⚠️ 刻意不调 `selectRun`/`reopenRun`，也不刷新列表、不写全局 `error`：
+   * 核实一次结局不得改掉用户正在读的运行、页签、调用、滚动或焦点（spec
+   * 「列表失败不阻断已知结果」「读取途中离页仍不抢焦点」）。零执行通道调用。
+   */
+  verifyRunResult: (identity: ResultReadIdentity) => Promise<ResultReadEntry>;
 
   /**
    * U3 任务 2.5：一次性草稿定位目标（草稿列表「定位」动作的载体，与 U2 的
@@ -762,6 +788,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   listStale: false,
   error: null,
   operations: initialSession(),
+  // U5 任务 1.2：按可信身份读取的结果（会话内，与阅读状态和草稿都分开）
+  resultReads: emptyResultReadStore(),
   listRefreshInFlight: 0,
   listRefreshPending: 0,
 
@@ -1320,6 +1348,17 @@ export const useAppStore = create<AppState>((set, get) => ({
       });
     }
     return get().operations;
+  },
+
+  async verifyRunResult(identity) {
+    // U5 任务 1.2：核实动作**只**读详情通道并写自己的读取项。
+    // 不 selectRun / reopenRun（那会换选中项、恢复阅读状态、动 loadingDetail 与全局 error），
+    // 不 loadRuns（列表失败与按 ID 核实互不相干），不碰任何执行通道。
+    const entry = resultReadEntryOf(
+      verifyResultPayload(identity.runId, await api.getRun(identity.runId)),
+    );
+    set((state) => ({ resultReads: setResultRead(state.resultReads, identity, entry) }));
+    return entry;
   },
 
   pendingDraftTarget: null,
