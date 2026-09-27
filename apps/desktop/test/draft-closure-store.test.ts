@@ -1,3 +1,4 @@
+import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { readRun } from "@rebaseagent/trace-sdk";
 import type { RunRecord } from "@rebaseagent/trace-sdk";
@@ -6,11 +7,11 @@ import type { Envelope, ListRunsData, RunDetail, WindowApi } from "@shared/ipc";
 import type { OperationRecord } from "@shared/operations";
 import { beforeEach, describe, expect, it } from "vitest";
 import * as draftLib from "../src/renderer/src/lib/debugging-drafts";
-import type { CallDraftKey } from "../src/renderer/src/lib/debugging-drafts";
+import type { CallDraftKey, ModelAbDraftKey } from "../src/renderer/src/lib/debugging-drafts";
 import { CREATE_SUBMIT_TARGET, closureOf } from "../src/renderer/src/lib/draft-submission";
 import { initialSession } from "../src/renderer/src/lib/operation-session";
-import { emptyResultReadStore } from "../src/renderer/src/lib/result-verification";
-import { FAKE_EPOCH, statusSnapshot } from "./helpers/operation-channels";
+import { emptyResultReadStore, resultReadKeyOf } from "../src/renderer/src/lib/result-verification";
+import { FAKE_EPOCH, statusSnapshot, toExecuted } from "./helpers/operation-channels";
 
 /**
  * U5（unify-run-execution-workflow）任务 2.2 的 **store 接线**：
@@ -31,6 +32,9 @@ const KEY_A: CallDraftKey = { runId: "run_viewing", spanId: "s_03", field: "resu
 const KEY_B: CallDraftKey = { runId: "run_viewing", spanId: "s_03", field: "messages" };
 const TRUSTED = "run_from_registry";
 const OTHER_TRUSTED = "run_other_arm";
+/** A/B 两臂的可信运行 id */
+const RUN_A = "run_arm_a";
+const RUN_B = "run_arm_b";
 
 const FIXTURE_DIR = resolve(import.meta.dirname, "fixtures/u1-fixtures");
 function detailNamed(fixture: string, id: string): RunDetail {
@@ -443,5 +447,166 @@ describe("2.3 显式放弃、重建与旧会话：不确定就不删", () => {
     expect(
       closureOf(useAppStore.getState().draftSubmissions, FAKE_EPOCH, submission.operationId),
     ).toBeDefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 任务 2.4：A/B 预期臂完整性核对与整批清理
+// ---------------------------------------------------------------------------
+const AB_KEY: ModelAbDraftKey = { runId: "run_viewing", spanId: "s_02" };
+const AB_TARGET = { kind: "modelAb" as const, parentRunId: "run_viewing", armCount: 2 };
+
+function abRecord(
+  arms: OperationRecord["arms"],
+  runIds: string[],
+  overrides: Partial<OperationRecord> = {},
+): OperationRecord {
+  return settledRecord({
+    target: AB_TARGET,
+    arms,
+    runIds,
+    experimentId: "exp_1",
+    ...overrides,
+  });
+}
+
+/** 整批草稿（两臂）+ 提交关联；返回本次提交的关联 */
+function beginAbBatch() {
+  const store = useAppStore.getState();
+  store.ensureModelAbDraft(AB_KEY, [
+    { model: "m-a", paramsText: "{}" },
+    { model: "m-b", paramsText: "{}" },
+  ]);
+  const submission = store.beginDraftSubmission({ channel: "model_ab", target: AB_KEY });
+  if (submission === null) throw new Error("unreachable：应能登记整批关联");
+  return submission;
+}
+
+describe("2.4 A/B 批次：全部预期臂正常才清整批", () => {
+  it("两条预期臂各自核实正常结束 ⇒ 整批一次清干净（不逐臂删配置）", async () => {
+    const submission = beginAbBatch();
+    expect(submission.expectedArmCount).toBe(2);
+    registry = () => [
+      abRecord(
+        [
+          { index: 0, id: RUN_A, outcome: "returned" },
+          { index: 1, id: RUN_B, outcome: "returned" },
+        ],
+        [RUN_A, RUN_B],
+        { operationId: submission.operationId },
+      ),
+    ];
+    calls.length = 0;
+
+    await useAppStore.getState().refreshOperationStatus();
+
+    const state = useAppStore.getState();
+    expect(draftLib.modelAbDraftOf(state.drafts, AB_KEY)).toBeUndefined();
+    expect(closureOf(state.draftSubmissions, FAKE_EPOCH, submission.operationId)).toBeUndefined();
+    // 两条臂各读一次，都走只读通道；列表只刷一次
+    expect(calls.filter((one) => one === `runs:get:${RUN_A}`)).toHaveLength(1);
+    expect(calls.filter((one) => one === `runs:get:${RUN_B}`)).toHaveLength(1);
+    expect(calls.filter((one) => one === "runs:list")).toHaveLength(1);
+  });
+
+  it("缺臂 / null ID / 失败臂 ⇒ 整批配置与关联都保留", async () => {
+    const cases: Array<[OperationRecord["arms"], string[]]> = [
+      [[{ index: 0, id: RUN_A, outcome: "returned" }], [RUN_A]],
+      [
+        [
+          { index: 0, id: RUN_A, outcome: "returned" },
+          { index: 1, id: null, outcome: null },
+        ],
+        [RUN_A],
+      ],
+      [
+        [
+          { index: 0, id: RUN_A, outcome: "returned" },
+          { index: 1, id: RUN_B, outcome: "failed" },
+        ],
+        [RUN_A, RUN_B],
+      ],
+    ];
+    for (const [arms, runIds] of cases) {
+      useAppStore.setState({
+        drafts: draftLib.emptyDraftRepo(),
+        draftSubmissions: { byId: {}, closures: {}, nextToken: 1 },
+        resultReads: emptyResultReadStore(),
+      });
+      const submission = beginAbBatch();
+      registry = () => [abRecord(arms, runIds, { operationId: submission.operationId })];
+      await useAppStore.getState().refreshOperationStatus();
+      const state = useAppStore.getState();
+      expect(draftLib.modelAbDraftOf(state.drafts, AB_KEY)?.rows).toHaveLength(2);
+      expect(closureOf(state.draftSubmissions, FAKE_EPOCH, submission.operationId)).toBeDefined();
+    }
+  });
+
+  it("一条臂结果不可读 ⇒ 整批保留（部分成功不冒充全臂成功）", async () => {
+    const submission = beginAbBatch();
+    registry = () => [
+      abRecord(
+        [
+          { index: 0, id: RUN_A, outcome: "returned" },
+          { index: 1, id: RUN_B, outcome: "returned" },
+        ],
+        [RUN_A, RUN_B],
+        { operationId: submission.operationId },
+      ),
+    ];
+    details = {
+      [RUN_A]: ok(detailNamed("u1-ok", RUN_A)),
+      [RUN_B]: { ok: false, error: { code: "RUN_NOT_FOUND", message: "缺文件" } },
+    };
+
+    await useAppStore.getState().refreshOperationStatus();
+
+    const state = useAppStore.getState();
+    expect(draftLib.modelAbDraftOf(state.drafts, AB_KEY)?.rows).toHaveLength(2);
+    // 已读到的那条臂的结论照常在场（不因为它正常就清整批）
+    const readA =
+      state.resultReads.byKey[
+        resultReadKeyOf({ epoch: FAKE_EPOCH, operationId: submission.operationId, runId: RUN_A })
+      ];
+    expect(readA?.facts?.normalEnd).toBe(true);
+    expect(closureOf(state.draftSubmissions, FAKE_EPOCH, submission.operationId)).toBeDefined();
+  });
+
+  it("执行信封把 ids 全带回来，但登记与核实未跟上 ⇒ 整批保留", async () => {
+    const submission = beginAbBatch();
+    // 真实执行：信封回了两条 id，但登记快照里还没有这条操作的事实
+    apiStub.modelAb = async (envelope: { operation: { epoch: string; operationId: string } }) =>
+      toExecuted(
+        ok({
+          experimentId: "exp_1",
+          ids: [RUN_A, RUN_B],
+          ok: true,
+          plan: [],
+          sideEffectsAllowed: false,
+        }),
+        envelope.operation,
+      );
+    const result = await useAppStore.getState().modelAb("run_viewing", [], false, submission);
+    expect(result?.ids).toEqual([RUN_A, RUN_B]);
+    const state = useAppStore.getState();
+    // spec「IPC 返回 ID 不能触发清理」：没有独立核实的正常终止 ⇒ 整批一字不动
+    expect(draftLib.modelAbDraftOf(state.drafts, AB_KEY)?.rows).toHaveLength(2);
+    expect(Object.keys(state.resultReads.byKey)).toHaveLength(0);
+    expect(closureOf(state.draftSubmissions, FAKE_EPOCH, submission.operationId)).toBeDefined();
+  });
+
+  it("dry-run 预览既不登记新关联也不读结果", async () => {
+    const submission = beginAbBatch();
+    // 预览不占提交口：走 modelAbPlan 只读通道
+    const plan = await useAppStore.getState().modelAb("run_viewing", [], true);
+    expect(plan).not.toBeNull();
+    const state = useAppStore.getState();
+    expect(draftLib.modelAbDraftOf(state.drafts, AB_KEY)?.rows).toHaveLength(2);
+    // 预览不是提交：既没有新关联，也不动已在场的那条待定提交的冻结
+    expect(Object.keys(state.draftSubmissions.closures)).toHaveLength(0);
+    expect(state.isDraftFrozen(AB_KEY)).toBe(true);
+    expect(submission.channel).toBe("model_ab");
+    expect(Object.keys(state.resultReads.byKey)).toHaveLength(0);
+    expect(calls.filter((one) => one.startsWith("runs:get"))).toHaveLength(0);
   });
 });
