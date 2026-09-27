@@ -6,7 +6,13 @@ import type { Envelope, ListRunsData, RunDetail, WindowApi } from "@shared/ipc";
 import type { OperationRecord } from "@shared/operations";
 import { beforeEach, describe, expect, it } from "vitest";
 import { initialSession } from "../src/renderer/src/lib/operation-session";
-import { emptyResultReadStore } from "../src/renderer/src/lib/result-verification";
+import {
+  emptyResultReadStore,
+  resultReadKeyOf,
+  viewOperationResult,
+} from "../src/renderer/src/lib/result-verification";
+import type { Deferred } from "./helpers/deterministic-schedule";
+import { deferred } from "./helpers/deterministic-schedule";
 import { FAKE_EPOCH, statusSnapshot } from "./helpers/operation-channels";
 
 /**
@@ -46,6 +52,11 @@ const TRUSTED_ID = "run_trusted_new";
 
 const calls: string[] = [];
 let getRunEnvelope: Envelope<RunDetail> = ok(detailFor(read("u1-ok"), TRUSTED_ID));
+/**
+ * 在途闸门（任务 1.3 的时序判据）：非空时按调用序取用一条 deferred，
+ * 由用例自己决定"哪一次响应先落地"——用来钉住旧代次的迟到响应。
+ */
+let getRunGates: Array<Deferred<Envelope<RunDetail>>> = [];
 
 const apiStub: Record<string, unknown> = {
   listRuns: async (): Promise<Envelope<ListRunsData>> => {
@@ -54,6 +65,8 @@ const apiStub: Record<string, unknown> = {
   },
   getRun: async (id: string): Promise<Envelope<RunDetail>> => {
     calls.push(`runs:get:${id}`);
+    const gate = getRunGates.shift();
+    if (gate !== undefined) return gate.promise;
     return getRunEnvelope;
   },
   operationsStatus: async () => ok(statusSnapshot({ operations: [settledRecord()] })),
@@ -162,6 +175,7 @@ const identity = { epoch: FAKE_EPOCH, operationId: settledRecord().operationId, 
 
 beforeEach(async () => {
   calls.length = 0;
+  getRunGates = [];
   getRunEnvelope = ok(detailFor(read("u1-ok"), TRUSTED_ID));
   useAppStore.setState({
     operations: initialSession(),
@@ -199,18 +213,95 @@ describe("verifyRunResult：核实不改变用户正在读的东西", () => {
     expect(useAppStore.getState().listStale).toBe(true);
   });
 
-  it("重试核实 ⇒ 只重读同一条详情，不刷新列表、不重发任何执行通道", async () => {
+  it("同一身份的重复核实去重：只读一次详情；显式只读重试才发第二次读取", async () => {
     const before = stateWithoutResultReads();
     await useAppStore.getState().verifyRunResult(identity);
     await useAppStore.getState().verifyRunResult(identity);
+    expect(calls).toEqual([`runs:get:${TRUSTED_ID}`]);
 
+    const retried = await useAppStore.getState().retryResultRead(identity);
     expect(calls).toEqual([`runs:get:${TRUSTED_ID}`, `runs:get:${TRUSTED_ID}`]);
+    expect(retried).toMatchObject({ phase: "verified", attempt: 2 });
     expect(
       calls.some(
         (one) => one.startsWith("runs:fork") || one === "runs:create" || one === "runs:list",
       ),
     ).toBe(false);
     expect(stateWithoutResultReads()).toEqual(before);
+  });
+
+  it("结果不可读 ⇒ 只按同一条可信 runId 重试读取，恢复后即为已核实（零执行调用）", async () => {
+    getRunEnvelope = { ok: false, error: { code: "RUN_NOT_FOUND", message: "记录尚未归位" } };
+    const first = await useAppStore.getState().verifyRunResult(identity);
+    expect(first).toMatchObject({ phase: "unreadable", attempt: 1 });
+
+    // 文件归位后重试：仍是同一条 runId，且整条路径只有 runs:get
+    getRunEnvelope = ok(detailFor(read("u1-ok"), TRUSTED_ID));
+    const retried = await useAppStore.getState().retryResultRead(identity);
+    expect(retried).toMatchObject({ phase: "verified", attempt: 2 });
+    expect(retried.facts?.normalEnd).toBe(true);
+    expect(calls).toEqual([`runs:get:${TRUSTED_ID}`, `runs:get:${TRUSTED_ID}`]);
+  });
+
+  it("旧读取响应迟到 ⇒ 只认当代代次：不覆盖新结论，也不碰其他身份与其他状态", async () => {
+    const otherIdentity = { ...identity, operationId: "66666666-6666-6666-8666-666666666666" };
+    // 另一条身份先核实到"已结束"，本次竞争里它必须原样在场
+    await useAppStore.getState().verifyRunResult(otherIdentity);
+
+    const staleGate = deferred<Envelope<RunDetail>>();
+    const currentGate = deferred<Envelope<RunDetail>>();
+    getRunGates = [staleGate, currentGate];
+    const first = useAppStore.getState().verifyRunResult(identity); // attempt 1（在途）
+    await Promise.resolve();
+    const second = useAppStore.getState().retryResultRead(identity); // attempt 2（在途）
+    await Promise.resolve();
+
+    // attempt 2 先回：读到的是一条出错终止的记录
+    currentGate.resolve(ok(detailFor(read("u1-error-detail"), TRUSTED_ID)));
+    const secondEntry = await second;
+    expect(secondEntry).toMatchObject({ phase: "verified", attempt: 2 });
+    expect(secondEntry.facts?.outcome.kind).toBe("error");
+
+    // attempt 1 的响应后到（内容刻意不同）⇒ 整份丢弃
+    staleGate.resolve(ok(detailFor(read("u1-ok"), TRUSTED_ID)));
+    const firstEntry = await first;
+    expect(firstEntry).toMatchObject({ attempt: 2 }); // 交回的是在场的结论，不是废结论
+    expect(useAppStore.getState().resultReads.byKey[resultReadKeyOf(identity)]).toMatchObject({
+      attempt: 2,
+      facts: { outcome: { kind: "error" } },
+    });
+    // 其他身份与其他状态一概不动
+    expect(useAppStore.getState().resultReads.byKey[resultReadKeyOf(otherIdentity)]).toMatchObject({
+      attempt: 1,
+      facts: { outcome: { kind: "completed" } },
+    });
+  });
+});
+
+describe("settled 无身份与 notAccepted：不产出任何猜测的结果", () => {
+  it("登记里没有可信 runId ⇒ 呈现为未定位，读取项里一条结论都没有", () => {
+    const record = { ...settledRecord(), runIds: [] };
+    const view = viewOperationResult(record, useAppStore.getState().resultReads);
+    expect(view).toEqual({ kind: "unlocated" });
+    expect(Object.keys(useAppStore.getState().resultReads.byKey)).toHaveLength(0);
+    // 未定位不产生任何读取：详情通道一次都没被调用
+    expect(calls.filter((one) => one.startsWith("runs:get"))).toHaveLength(0);
+  });
+
+  it("notAccepted ⇒ 本次未接受（带稳定拒绝原因），没有核实成功的路径", () => {
+    const record: OperationRecord = {
+      ...settledRecord(),
+      state: "notAccepted",
+      rejection: "busy",
+      startedAt: null,
+      settledAt: null,
+      requestOutcome: null,
+      errorCode: null,
+      runIds: [],
+    };
+    const view = viewOperationResult(record, useAppStore.getState().resultReads);
+    expect(view).toEqual({ kind: "not-accepted", rejection: "busy" });
+    expect(calls.filter((one) => one.startsWith("runs:get"))).toHaveLength(0);
   });
 });
 

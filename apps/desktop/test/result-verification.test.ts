@@ -3,14 +3,19 @@ import { readRun } from "@rebaseagent/trace-sdk";
 import type { RunRecord } from "@rebaseagent/trace-sdk";
 import { ok } from "@shared/ipc";
 import type { Envelope, RunDetail } from "@shared/ipc";
+import type { OperationRecord } from "@shared/operations";
 import { describe, expect, it } from "vitest";
 import {
+  beginResultRead,
   emptyResultReadStore,
+  finishResultRead,
+  resultReadAlreadySettledOrInFlight,
   resultReadEntryOf,
   resultReadKeyOf,
   resultReadOf,
   setResultRead,
   verifyResultPayload,
+  viewOperationResult,
 } from "../src/renderer/src/lib/result-verification";
 
 /**
@@ -53,8 +58,9 @@ describe("verifyResultPayload：可信身份 + 合法详情 ⇒ 已核实的自�
     if (!verified.ok) throw new Error("unreachable");
     expect(verified.facts.normalEnd).toBe(true);
     expect(verified.facts.outcome.label).toBe("已结束");
-    expect(resultReadEntryOf(verified)).toEqual({
+    expect(resultReadEntryOf(verified, 1)).toEqual({
       phase: "verified",
+      attempt: 1,
       facts: verified.facts,
       reason: null,
     });
@@ -80,7 +86,7 @@ describe("verifyResultPayload：可信身份 + 合法详情 ⇒ 已核实的自�
       ok: false,
       reason: "结果读取失败（RUN_READ_FAILED）：该 run 的源文件读取失败",
     });
-    expect(resultReadEntryOf(result).phase).toBe("unreadable");
+    expect(resultReadEntryOf(result, 1).phase).toBe("unreadable");
   });
 });
 
@@ -143,9 +149,10 @@ describe("结果读取项：按 (epoch, operationId, runId) 隔离，不可变�
     operationId: "22222222-2222-2222-8222-222222222222",
     runId: "u1_ok",
   };
-  const verified = resultReadEntryOf(verifyResultPayload(identity.runId, ok(okDetail)));
+  const verified = resultReadEntryOf(verifyResultPayload(identity.runId, ok(okDetail)), 1);
   const unreadable = resultReadEntryOf(
     verifyResultPayload("u1_gone", { ok: false, error: { code: "X", message: "没了" } }),
+    1,
   );
 
   it("未核实过的键 ⇒ 无条目（= 未读），不默认成任何结论", () => {
@@ -176,3 +183,127 @@ describe("结果读取项：按 (epoch, operationId, runId) 隔离，不可变�
     ).toBeUndefined();
   });
 });
+
+describe("任务 1.3：读取代次、去重守卫与记录级呈现", () => {
+  const identity = {
+    epoch: "11111111-1111-1111-8111-111111111111",
+    operationId: "22222222-2222-2222-8222-222222222222",
+    runId: "u1_ok",
+  };
+  const other = { ...identity, runId: "u1_error_detail" };
+  const verifiedEntry = resultReadEntryOf(verifyResultPayload(identity.runId, ok(okDetail)), 2);
+  const lateEntry = resultReadEntryOf(verifyResultPayload(identity.runId, ok(errorDetail)), 1);
+
+  it("beginResultRead 递增代次并先占 reading 位（重复快照据此不再拉取）", () => {
+    const first = beginResultRead(emptyResultReadStore(), identity);
+    expect(first.attempt).toBe(1);
+    expect(resultReadOf(first.store, identity)).toEqual({
+      phase: "reading",
+      attempt: 1,
+      facts: null,
+      reason: null,
+    });
+    // 已有第 2 代结论时再读 ⇒ 3，且其他键不受影响
+    const store = setResultRead(first.store, other, verifiedEntry);
+    const second = beginResultRead(store, identity);
+    expect(second.attempt).toBe(2);
+    expect(resultReadOf(second.store, other)).toBe(verifiedEntry);
+  });
+
+  it("已在读 / 已核实 ⇒ 视为已处理；不可读 ⇒ 不算（只能显式只读重试）", () => {
+    expect(resultReadAlreadySettledOrInFlight(undefined)).toBe(false);
+    expect(resultReadAlreadySettledOrInFlight(verifiedEntry)).toBe(true);
+    expect(
+      resultReadAlreadySettledOrInFlight({
+        phase: "reading",
+        attempt: 1,
+        facts: null,
+        reason: null,
+      }),
+    ).toBe(true);
+    expect(
+      resultReadAlreadySettledOrInFlight({
+        phase: "unreadable",
+        attempt: 1,
+        facts: null,
+        reason: "读不到",
+      }),
+    ).toBe(false);
+  });
+
+  it("旧代次的迟到响应整份丢弃：不覆盖新读取，也不碰其他键", () => {
+    const current = setResultRead(emptyResultReadStore(), identity, verifiedEntry);
+    const withOther = setResultRead(current, other, verifiedEntry);
+    const dropped = finishResultRead(withOther, identity, 1, { ok: false, reason: "迟到的旧结论" });
+    expect(dropped).toBe(withOther); // 引用相同 = 什么都没写
+    expect(resultReadOf(dropped, identity)).toBe(verifiedEntry);
+    expect(resultReadOf(dropped, other)).toBe(verifiedEntry);
+    // 对照组：当代代次可以落地
+    const applied = finishResultRead(withOther, identity, 2, {
+      ok: false,
+      reason: "本次重试仍不可读",
+    });
+    expect(applied).not.toBe(withOther);
+    expect(resultReadOf(applied, identity)).toMatchObject({ phase: "unreadable", attempt: 2 });
+    // 其他键仍不动
+    expect(resultReadOf(applied, other)).toBe(verifiedEntry);
+    expect(lateEntry.phase).toBe("unreadable");
+  });
+
+  it("viewOperationResult：running / notAccepted / settled 无身份都不产出结局", () => {
+    expect(viewOperationResult(recordIn("running", []), emptyResultReadStore())).toEqual({
+      kind: "running",
+    });
+    expect(
+      viewOperationResult(
+        recordIn("notAccepted", [], { rejection: "busy" }),
+        emptyResultReadStore(),
+      ),
+    ).toEqual({ kind: "not-accepted", rejection: "busy" });
+    // settled 但 runIds 为空 ⇒ 未定位：没有可读的 ID，也就没有任何"结果"
+    expect(viewOperationResult(recordIn("settled", []), emptyResultReadStore())).toEqual({
+      kind: "unlocated",
+    });
+  });
+
+  it("viewOperationResult：settled 逐条给出可信 ID 的读取状态，未读的不补结论", () => {
+    const record = recordIn("settled", [identity.runId, other.runId]);
+    const view = viewOperationResult(record, emptyResultReadStore());
+    expect(view.kind).toBe("results");
+    if (view.kind !== "results") throw new Error("unreachable");
+    expect(view.items.map((item) => item.runId)).toEqual([identity.runId, other.runId]);
+    expect(view.items.every((item) => item.entry === undefined)).toBe(true);
+
+    // 只读过其中一条 ⇒ 另一条仍是"未读"，绝不从邻近记录推断
+    const store = setResultRead(emptyResultReadStore(), identity, verifiedEntry);
+    const partial = viewOperationResult(record, store);
+    if (partial.kind !== "results") throw new Error("unreachable");
+    expect(partial.items[0]?.entry).toBe(verifiedEntry);
+    expect(partial.items[1]?.entry).toBeUndefined();
+  });
+});
+
+/** 构造一条合法的登记记录（只关心 state / runIds / rejection，其余填自洽值） */
+function recordIn(
+  state: OperationRecord["state"],
+  runIds: string[],
+  extra: Partial<OperationRecord> = {},
+): OperationRecord {
+  const settled = state === "settled";
+  return {
+    epoch: "11111111-1111-1111-8111-111111111111",
+    operationId: "22222222-2222-2222-8222-222222222222",
+    target: { kind: "create", mode: "plain" },
+    state,
+    rejection: state === "notAccepted" ? "busy" : null,
+    startedAt: state === "notAccepted" ? null : "2026-09-27T00:00:00.000Z",
+    settledAt: settled ? "2026-09-27T00:00:05.000Z" : null,
+    runIds,
+    experimentId: null,
+    arms: [],
+    requestOutcome: settled ? "returned" : null,
+    errorCode: null,
+    diagnostics: [],
+    ...extra,
+  };
+}

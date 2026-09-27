@@ -115,9 +115,11 @@ import {
   type ResultReadEntry,
   type ResultReadIdentity,
   type ResultReadStore,
+  beginResultRead,
   emptyResultReadStore,
-  resultReadEntryOf,
-  setResultRead,
+  finishResultRead,
+  resultReadAlreadySettledOrInFlight,
+  resultReadOf,
   verifyResultPayload,
 } from "./lib/result-verification";
 import {
@@ -435,6 +437,13 @@ interface AppState {
    * 「列表失败不阻断已知结果」「读取途中离页仍不抢焦点」）。零执行通道调用。
    */
   verifyRunResult: (identity: ResultReadIdentity) => Promise<ResultReadEntry>;
+  /**
+   * U5 任务 1.3：**显式只读重试**。只对同一条可信 runId 重读详情（`attempt` 递增），
+   * 零执行通道调用——"重试读取"绝不复用执行通道、不重发模型请求（spec
+   * 「结果不可读只重试同一记录」；重新执行必须换新 operationId 并重新授权）。
+   * 与 `verifyRunResult` 的分工：后者对已在读/已核实的身份去重，本动作绕过那道去重。
+   */
+  retryResultRead: (identity: ResultReadIdentity) => Promise<ResultReadEntry>;
 
   /**
    * U3 任务 2.5：一次性草稿定位目标（草稿列表「定位」动作的载体，与 U2 的
@@ -771,6 +780,32 @@ async function submitActive<TRequest, TResponse>(
   // 任务 4.5：计时起点是"这次响应完成"——批次/长请求在飞期间不叠加定时请求
   rescheduleStatusPoll();
   return response;
+}
+
+/**
+ * 一次「按可信 ID 核实结果」的实际读取（U5 任务 1.2/1.3）。
+ *
+ * 三条判据都落在这里，组件无从各写一套：
+ * - **去重**（`force=false`）：该身份已在读或已核实 ⇒ 直接交回在场的结论，不发第二次请求
+ *   （轮询返回全量快照，逐次快照都重读会把 IO 放大，design 风险段第 3 条）；
+ * - **代次**：每次实际读取都递增 `attempt`，响应落地只认当代——期间有人重试 ⇒
+ *   这条迟到的旧结论整份丢弃，不覆盖新读取、也不碰其他键（spec「旧读取响应不能污染其他结果」）；
+ * - **只读**：整条路径只走 `runs:get`，零执行通道、零列表刷新、零选择/滚动/焦点变更。
+ */
+async function readRunResult(
+  identity: ResultReadIdentity,
+  force: boolean,
+): Promise<ResultReadEntry> {
+  const current = resultReadOf(useAppStore.getState().resultReads, identity);
+  if (!force && resultReadAlreadySettledOrInFlight(current)) return current as ResultReadEntry;
+  const started = beginResultRead(useAppStore.getState().resultReads, identity);
+  useAppStore.setState({ resultReads: started.store });
+  const verification = verifyResultPayload(identity.runId, await api.getRun(identity.runId));
+  useAppStore.setState((state) => ({
+    resultReads: finishResultRead(state.resultReads, identity, started.attempt, verification),
+  }));
+  // 守卫丢弃本次结论时，交回界面上真正在场的那一条（调用方据此呈现，绝不拿废结论去导航）
+  return resultReadOf(useAppStore.getState().resultReads, identity) as ResultReadEntry;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -1354,11 +1389,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     // U5 任务 1.2：核实动作**只**读详情通道并写自己的读取项。
     // 不 selectRun / reopenRun（那会换选中项、恢复阅读状态、动 loadingDetail 与全局 error），
     // 不 loadRuns（列表失败与按 ID 核实互不相干），不碰任何执行通道。
-    const entry = resultReadEntryOf(
-      verifyResultPayload(identity.runId, await api.getRun(identity.runId)),
-    );
-    set((state) => ({ resultReads: setResultRead(state.resultReads, identity, entry) }));
-    return entry;
+    return readRunResult(identity, false);
+  },
+
+  async retryResultRead(identity) {
+    // 任务 1.3：显式只读重试绕过"已在读/已核实"的去重，但仍只走 runs:get
+    return readRunResult(identity, true);
   },
 
   pendingDraftTarget: null,
