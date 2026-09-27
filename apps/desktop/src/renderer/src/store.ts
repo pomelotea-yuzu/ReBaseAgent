@@ -41,6 +41,7 @@ import type {
   ExecutedRequest,
   ExecutedResponse,
   OperationAck,
+  OperationRecord,
   OperationStatusResult,
 } from "@shared/operations";
 import {
@@ -80,6 +81,15 @@ import type {
 } from "./lib/draft-submission";
 import { CREATE_SUBMIT_TARGET } from "./lib/draft-submission";
 import * as submissionLib from "./lib/draft-submission";
+import {
+  type NavigationIntentStore,
+  type NavigationTrigger,
+  armNavigationIntent,
+  decideResultNavigation,
+  emptyNavigationIntents,
+  navigationIntentOf,
+  releaseNavigationIntent,
+} from "./lib/navigation-intent";
 import {
   type PollContext,
   type PollState,
@@ -448,6 +458,15 @@ interface AppState {
    * 它只说明"renderer 看到了哪条已校验的结局"。
    */
   resultReads: ResultReadStore;
+
+  /**
+   * U5 任务 3.4：**阅读代次**（design D6）。每次"用户主动换阅读对象或进出覆盖模态"都推进它，
+   * 提交时登记的导航意图与它一比就知道用户有没有离开本次流程。
+   * ⚠️ 单调递增、永不倒退 ⇒「离开再返回同一位置」不恢复旧资格（位置相等恒成立，代次不等）。
+   */
+  navGeneration: number;
+  /** 本次会话各提交的导航意图（键 = operationId；renderer 内存，不落盘 / 不进 IPC / 不进日志） */
+  navIntents: NavigationIntentStore;
   /**
    * U5 任务 1.2：**与导航分离**的结果核实。按 main 登记的 runId 独立读取并校验
    * （归属 → 版本 → schema → 自有终止事件归属），只写本条读取项。
@@ -915,6 +934,58 @@ function closeDraftClosureFor(identity: { epoch: string; operationId: string }):
 }
 
 /**
+ * U5 任务 3.4：阅读现场变了 ⇒ **推进代次**（design D6 的撤销面）。
+ *
+ * 只挂在"用户真的换了在看的东西或进出覆盖模态"的既有动作上（`selectRun` / 换页签 / 选调用 /
+ * 换视图 / 开设置 / 开或关创建页 / 草稿定位）。刻意**不**挂在 `resetFork` / `resetCreateRun`
+ * 这类展示态复位上：组件卸载与收起不该替用户决定"你不要这次结果"（同一纪律见 design D5
+ * "组件卸载或展示状态复位 SHALL NOT 解除冻结"）。
+ * 代次只增不减 ⇒「离开再返回不恢复旧自动导航」是自然结论（返回时又推进了一次）。
+ */
+function noteReadingChanged(): void {
+  useAppStore.setState((state) => ({ navGeneration: state.navGeneration + 1 }));
+}
+
+/**
+ * 终态到达后由**流程协调处**尝试一次结果导航（design D4：核实与导航是两个动作）。
+ *
+ * 入参一律取**调用这一刻**的 store 状态：读取在飞期间用户可能已经离页、开了设置或换了运行，
+ * 那时这条意图永久作废（spec「读取途中离页仍不抢焦点」）—— 绝不让读取开始时快照的资格说话。
+ * 只有 `wait`（结果还在读）留着意图；导航成功与一切"不跳"的判定都把它收掉：
+ * 一次性动作不重复产生（spec「重复快照不得重复导航」）。
+ */
+async function attemptResultNavigation(
+  record: OperationRecord,
+  trigger: NavigationTrigger,
+): Promise<void> {
+  const state = useAppStore.getState();
+  const onlyRunId = record.runIds.length === 1 ? record.runIds[0] : undefined;
+  const decision = decideResultNavigation({
+    intent: navigationIntentOf(state.navIntents, record.operationId),
+    generation: state.navGeneration,
+    coveringModal: state.createDialogOpen || state.settingsSection !== null,
+    record,
+    entry:
+      onlyRunId === undefined
+        ? undefined
+        : resultReadOf(state.resultReads, {
+            epoch: record.epoch,
+            operationId: record.operationId,
+            runId: onlyRunId,
+          }),
+    trigger,
+  });
+  if (decision.kind === "wait") return;
+  useAppStore.setState((current) => ({
+    navIntents: releaseNavigationIntent(current.navIntents, record.operationId),
+  }));
+  if (decision.kind !== "navigate") return;
+  // 走既有的选择动作（恢复该 run 自己的阅读状态），不在这里另写一份落地逻辑。
+  // ⚠️ 同 ID 时 `selectRun` 自己短路 ⇒ 自动导航既不改页签/滚动，也不推进代次。
+  await useAppStore.getState().selectRun(decision.runId);
+}
+
+/**
  * U5 任务 1.4：**终态消费的唯一落点**（design D3）。
  *
  * 三条入口——有效 status 采纳、有效执行回执后的状态刷新、reconcile 后的状态刷新——
@@ -926,7 +997,10 @@ function closeDraftClosureFor(identity: { epoch: string; operationId: string }):
  * ⚠️ `runIds` 为空的 settled 一条都不读——那是"结果未定位"，只能核对登记，
  *    从列表最新项或错误文案里猜一个 id 正是 spec 禁止的做法。
  */
-async function consumeSettledOperations(previous: OperationSession): Promise<void> {
+async function consumeSettledOperations(
+  previous: OperationSession,
+  trigger: NavigationTrigger,
+): Promise<void> {
   const fresh = newlySettledOperations(previous, useAppStore.getState().operations);
   if (fresh.length > 0) {
     const state = useAppStore.getState();
@@ -938,6 +1012,10 @@ async function consumeSettledOperations(previous: OperationSession): Promise<voi
       for (const runId of record.runIds) {
         await readRunResult({ epoch: record.epoch, operationId: record.operationId, runId }, false);
       }
+    }
+    // U5 任务 3.4：核实全部落地**之后**才谈导航（design D4：核实与导航分开两个动作）
+    for (const record of fresh) {
+      await attemptResultNavigation(record, trigger);
     }
   }
   // 无论本轮有没有新终态，都在场的关联补一次收尾：结果早于通信恢复读到的情形也要有出路
@@ -975,6 +1053,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   operations: initialSession(),
   // U5 任务 1.2：按可信身份读取的结果（会话内，与阅读状态和草稿都分开）
   resultReads: emptyResultReadStore(),
+  // U5 任务 3.4：阅读代次 + 各提交的导航意图（同为会话内，不进任何持久化）
+  navGeneration: 0,
+  navIntents: emptyNavigationIntents(),
   listRefreshInFlight: 0,
   listRefreshPending: 0,
 
@@ -1095,6 +1176,9 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   async selectRun(id) {
     if (get().selectedRunId === id) return;
+    // U5 3.4：换"在看哪条 run"= 改变阅读对象 ⇒ 撤销在飞的自动导航资格。
+    // 放在同 ID 短路**之后**：自动导航自己调用它时不会把代次白推进一次。
+    noteReadingChanged();
 
     // 切走前无需手动保存：selectSpan/toggleStep/滚动读写已逐步写入 readingByRun。
     // 进入新 run 时**恢复**它自己的阅读状态（页签/选中/展开/滚动由该 run 记录决定），
@@ -1187,6 +1271,8 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   selectSpan(id) {
     const runId = get().selectedRunId;
+    // U5 3.4：换"看哪一次调用"= 改变阅读对象 ⇒ 撤销在飞的自动导航资格
+    noteReadingChanged();
     // 明确选择即"换到用户要看的位置"⇒ 失效提示作废（它说的是"原位置不可用，已回退"）
     set({ selectedSpanId: id, readingInvalidated: false });
     if (runId !== null) {
@@ -1256,6 +1342,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   setReadingTab(runId, tab) {
+    // U5 3.4：换页签（概览 / 步骤 / 文件）= 改变阅读对象 ⇒ 撤销在飞的自动导航资格
+    noteReadingChanged();
     set({ readingByRun: patchReadingState(get().readingByRun, runId, { tab }) });
   },
 
@@ -1439,8 +1527,17 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
     // 该目标已有待定提交：拒绝重复提交，不覆盖旧关联（旧关联的响应仍能正确收尾）
     if (next.submission === null) return null;
-    set({ draftSubmissions: next.store });
-    return next.submission;
+    const submitted = next.submission;
+    /**
+     * U5 任务 3.4：**登记导航意图的唯一咽喉**。七类入口的提交都只经这里登记
+     * （组件不许各自登记，否则必然漂出七套语义）。代次取当下：之后任何一次
+     * 主动换阅读对象都会把它作废（判据在 `lib/navigation-intent.ts`）。
+     */
+    set((state) => ({
+      draftSubmissions: next.store,
+      navIntents: armNavigationIntent(state.navIntents, submitted.operationId, state.navGeneration),
+    }));
+    return submitted;
   },
 
   settleDraftSubmission(submission) {
@@ -1497,7 +1594,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const applied = applyStatus(get().operations, parsed.data, issuing.generation);
     set({ operations: applied.session });
     // U5 任务 1.4：只有**被采纳的**快照才驱动终态消费（失联/非法/迟到都不动任何收尾）
-    if (applied.applied) await consumeSettledOperations(previous);
+    if (applied.applied) await consumeSettledOperations(previous, "status");
     return get().operations;
   },
 
@@ -1538,8 +1635,9 @@ export const useAppStore = create<AppState>((set, get) => ({
      * 列为**唯一**能把待定关联解冻的合法入口（响应丢失时不自动重发、只能重新核对），
      * 而解冻、单次列表刷新与按 ID 核实必须走同一条路——所以这里不再单独调
      * `settleDraftByOperation`，交给 `consumeSettledOperations`（只处理本轮新进终态的记录）。
+     * U5 任务 3.4：显式核对到达的终态**只通知**——导航意图当场作废，不跳到结果概览。
      */
-    if (applied.applied) await consumeSettledOperations(previous);
+    if (applied.applied) await consumeSettledOperations(previous, "reconcile");
     return get().operations;
   },
 
@@ -1827,14 +1925,20 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   setView(view) {
+    // U5 3.4：轨迹 / 分支树之间切换也是"换了在看的东西"⇒ 撤销在飞的自动导航资格
+    noteReadingChanged();
     set({ view });
   },
 
   setCreateDialogOpen(open) {
+    // 只改"有没有覆盖模态"，不推进代次：打开创建页正是**提交发生的地方**，
+    // 关掉它也不等于用户去看别的东西了（判据见 `decideResultNavigation` 的 coveringModal）
     set({ createDialogOpen: open });
   },
 
   setSettingsSection(section) {
+    // U5 3.4：进设置 SHALL 撤销自动导航资格（delta「结果导航尊重用户当前阅读意图」）
+    if (section !== null) noteReadingChanged();
     set({ settingsSection: section });
   },
 

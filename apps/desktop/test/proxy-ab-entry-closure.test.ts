@@ -166,7 +166,8 @@ const { useAppStore } = await import("../src/renderer/src/store");
 
 const listCount = () => calls.filter((one) => one === "runs:list").length;
 const readCalls = () => calls.filter((one) => one.startsWith("runs:get:"));
-const tailCalls = () => calls.slice(1).join(" → ");
+/** 消费序列（去首通道名、按出现顺序去重）：U5 3.4 的自动导航会再读一次详情，不改变"走了哪几步" */
+const tailCalls = () => [...new Set(calls.slice(1))].join(" → ");
 const entryOf = (assoc: DraftSubmission, runId: string) =>
   useAppStore.getState().resultReads.byKey[
     resultReadKeyOf({ epoch: FAKE_EPOCH, operationId: assoc.operationId, runId })
@@ -237,7 +238,8 @@ describe("3.3 代理 messages 入口不再消费响应", () => {
       .proxyFork(PARENT, SPAN, [{ role: "user", content: "改过的请求" }], assoc);
 
     expect(sent).toBe(true);
-    expect(readCalls()).toEqual([`runs:get:${REGISTERED_PROXY}`]);
+    // 读过的只有登记的那条（U5 3.4 的自动导航会再读一次同一 id）；信封 id 一次都不读
+    expect([...new Set(readCalls())]).toEqual([`runs:get:${REGISTERED_PROXY}`]);
     expect(calls).not.toContain(`runs:get:${ENVELOPE_PROXY}`);
     // 与 create / result / prompt 完全同形的那条序列（「全部七类入口使用相同核实路径」）
     expect(tailCalls()).toBe("operations:status → runs:list → runs:get:run_registered_proxy");
@@ -246,9 +248,9 @@ describe("3.3 代理 messages 入口不再消费响应", () => {
     expect(entryOf(assoc, REGISTERED_PROXY)?.facts?.normalEnd).toBe(true);
     expect(state.drafts.calls[PARENT]?.[SPAN]?.messages).toBeUndefined();
     expect(subLib.closureOf(state.draftSubmissions, FAKE_EPOCH, assoc.operationId)).toBeUndefined();
-    // 自动导航已移除：改由 §3.4 的意图决定，3.3 之后入口一概不跳
-    expect(state.selectedRunId).toBeNull();
-    expect(state.detail).toBeNull();
+    // U5 3.4：留在流程内 ⇒ 协调器按登记 id 进入概览；入口自己不再拿信封 id 抢导航
+    expect(state.selectedRunId).toBe(REGISTERED_PROXY);
+    expect(state.detail?.meta.id).toBe(REGISTERED_PROXY);
     expect(state.forking).toBe("idle");
   });
 

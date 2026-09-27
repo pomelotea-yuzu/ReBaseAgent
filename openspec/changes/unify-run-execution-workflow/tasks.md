@@ -1,14 +1,14 @@
 # U5 实施与验收任务
 
-> 实施进度（2026-09-27）：**§1 全部完成（1.1–1.4）+ §2 全部完成（2.1–2.5）+ §3 的 3.1–3.3**
+> 实施进度（2026-09-27）：**§1 全部完成（1.1–1.4）+ §2 全部完成（2.1–2.5）+ §3 的 3.1–3.4**
 > （`shared/terminal-facts.ts` 19 条 + `lib/result-verification.ts` 纯判据 15 条 + store 核实 9 条 +
 > 终态消费 13 条 + `draft-submission` 收尾关联 13 条 + `draft-closure` 清理判据 20 条 +
 > store 收尾/批次/反证 17 条 + `create-entry-closure` 创建入口 9 条 + `fork-entry-closure` result/prompt 入口 6 条 +
-> `proxy-ab-entry-closure` messages/A-B 入口 9 条；
-> desktop 全量 113 文件 / 1958 用例绿，`tsc` node/web 双 0 错，根 `biome check .` 432 文件 0 错；
+> `proxy-ab-entry-closure` messages/A-B 入口 9 条 + `navigation-intent` 纯判据 14 条 + 导航接线 13 条；
+> desktop 全量 115 文件 / 1985 用例绿，`tsc` node/web 双 0 错，根 `biome check .` 435 文件 0 错；
 > 变异：1.1 三组、1.2 三组、1.3 四组、1.4 五组、2.1 三组、2.2 四组、2.3 三组、2.4 三组、
-> 2.5 两组、3.1 三组、3.2 三组、3.3 三组各有牙（另有 3.1 的一组"响应路径次序补支"判**无牙** ⇒ 已回退，见注记）。
-> 其余 §3 的 3.4–3.6 与 §4–§7 全部待办；没有实施、GUI 验收或发布通过声明。
+> 2.5 两组、3.1 三组、3.2 三组、3.3 三组、3.4 四组各有牙（另有 3.1 的一组"响应路径次序补支"判**无牙** ⇒ 已回退，见注记）。
+> 其余 §3 的 3.5–3.6 与 §4–§7 全部待办；没有实施、GUI 验收或发布通过声明。
 > ⚠️ 已知环境噪声（非回归）：`test/controlled-service.test.ts` 在并行整跑下出现过 4 条超时失败，
 > 单跑 19 条全绿；复跑整跑亦全绿 ⇒ 按"单包/单文件复跑"口径判定，登记为端口时序 flake。
 > 每项实施/验收控制在 2h 内；若实际超出先拆分。场景名称对应 `specs/desktop-ui/spec.md`，既有场景用于回归，不能用旧报告替代新接线验证。
@@ -95,6 +95,8 @@
   - ⚠️ 有意契约变更（既有判据被改）：`test/store.test.ts` 的 `runs:fork` / `runs:promptFork`
     成功两支不再断言 `forking === "success"`、列表出现新 run 与 `selectedRunId`/`detail` 被填，
     改判为"回到 idle、入口这条路零次列表刷新、零详情读取、不选中"。
+    **（3.4 之后本文件的 `selectedRunId` 判据又改了一次：留在流程内时由协调器跳向登记 id；
+    见 3.4 注记的"反向改判"条。）**
 - [x] 3.3 接入代理 messages 与 A/B 真实执行，保留 dry-run 独立路径、失败臂身份和原门禁（≤2h）。验收：「全部七类入口使用相同核实路径」「实验缺臂部分失败与未核实保留整批」「编辑并重发成功」「未修改禁用」「未捕获 key」「SDK run 无此入口」。
   - 落点：`store.proxyFork` 的 ok 分支删掉 `loadRuns()` + `selectRun(信封里的 id)` 与
     `forking: "success"`；`store.modelAb` 真实执行分支删掉入口自己的 `loadRuns()`
@@ -123,7 +125,43 @@
   - ⚠️ 已知边界（不静默）：A/B 面板的批次结果区仍显示信封 `ModelAbResult`（`ids.length` 计臂数），
     那是**请求事实**而非结局；把它换成"逐臂读取状态 + 可信 ID 动作"属任务 5.1
     （「操作详情可读诊断但不泄漏输入」），本轮不动，归档时别当已交付。
-- [ ] 3.4 增加提交来源/导航代次与自动导航撤销规则，以独立导航动作在核实后、实际切换前重验当前资格（≤2h）。验收：「留在当前流程可进入成功或失败概览」「离开再返回不恢复旧自动导航」「读取途中离页仍不抢焦点」；分别断言资格有效才导航、核实期间撤销资格则零导航，不复用读取开始时的资格快照。
+    **（3.4 之后本文件 messages 那支的 `selectedRunId` 判据改判为"跳向登记 id"，见 3.4 注记。）**
+- [x] 3.4 增加提交来源/导航代次与自动导航撤销规则，以独立导航动作在核实后、实际切换前重验当前资格（≤2h）。验收：「留在当前流程可进入成功或失败概览」「离开再返回不恢复旧自动导航」「读取途中离页仍不抢焦点」；分别断言资格有效才导航、核实期间撤销资格则零导航，不复用读取开始时的资格快照。
+  - 落点：新纯判据模块 `renderer/src/lib/navigation-intent.ts`（`NavigationIntent {operationId, generation}`
+    + `armNavigationIntent` / `releaseNavigationIntent` 幂等 + `decideResultNavigation` 四态
+    `navigate / wait / drop / none`）。**资格按阅读代次判，不按"位置是否等于提交时位置"判** ⇒
+    返回同一位置也不恢复；`coveringModal`（创建对话框 / 设置）只是 `wait`（这一刻不跳），
+    与"永久作废"分开；A/B 批次、多运行、未定位、notAccepted、不可读、终态来自 reconcile ⇒ `drop`。
+  - store 接线：`navGeneration` + `navIntents` 两个会话内字段（不落盘、不进 IPC）；
+    登记唯一咽喉是 `beginDraftSubmission`（七入口都经它，组件侧不得各自登记）；
+    撤销面挂在既有阅读动作 `selectRun`（同 ID 短路 ⇒ 自动导航不推进代次）/ `setReadingTab` /
+    `selectSpan` / `setView` / `setSettingsSection(打开)`；刻意**不**挂 `resetFork` / `resetCreateRun`
+    这类展示态复位（D5 同一纪律）。协调器 `attemptResultNavigation(record, trigger)` **只在**
+    `consumeSettledOperations` 里、全部核实落地之后被调用，入参一律现取（spec：不复用读取开始时的资格快照）；
+    `refreshOperationStatus → "status"`（可导航）、`reconcileOperation → "reconcile"`（只通知）。
+  - 证据：`test/navigation-intent.test.ts` 纯判据 14 条 + `test/navigation-intent-store.test.ts`
+    接线 13 条。三条验收场景逐条对上：成功与失败结局都进概览（且不以"打开"冒充成功、失败不清草稿）、
+    切走再切回原 run ⇒ 不跳且意图作废（但结果照样核实到）、详情读取挂在半路时用户切走 ⇒
+    落地后选择与详情仍是用户那一条；另有"重复快照只跳一次""覆盖模态不跳""reconcile 不跳"
+    "手动只读重试不跳""A/B 只识别出一条臂也不跳（批次规则优先于单运行）""非批次多运行不跳"
+    "组件侧不得出现判据"共 9 项。
+  - 四组反证：撤销面失效（代次不推进）⇒ 3 支红；reconcile 改用 status ⇒ 2 支红；
+    摘掉批次判据 ⇒ 1 支红（该用例刻意把登记做成"只有一条臂拿到 id"，否则多运行规则会替它挡住 ⇒ 无牙）；
+    摘掉覆盖模态判据 ⇒ 1 支红。
+  - ⚠️ **3.4 反过来改了 §3.1–3.3 证据的导航断言**（有意契约变更，同一 change 内部）：
+    result / prompt / messages 三支"留在流程内"的用例现在**应当**跳转，故
+    `fork-entry-closure.test.ts`（3 支）与 `proxy-ab-entry-closure.test.ts`（1 支）把
+    `selectedRunId 为 null` 改为"跳的是**登记的那条**"，`readCalls` 判据改为去重后只含登记 id
+    （协调器自己会再读一次详情）；`create-entry-closure.test.ts` 的复位表补
+    `createDialogOpen: true`（与真机一致：提交发生在打开着的创建对话框里 ⇒ `wait` ⇒ 不跳），
+    该文件的"零导航"因此继续成立。`draft-closure-store.test.ts` 2.5 的"重试不导航"
+    改判为"重试前后选择不变"（第一轮 status 消费会按意图跳一次，那是 3.4 的行为）。
+    **入口不消费响应**这件事本身仍由"信封 id 一次都不读 + 函数体内无 `loadRuns`/`selectRun`"两层钉住。
+  - ⚠️ 已知边界（不静默）：① 内联编辑器"收起"是组件本地状态 + `resetFork`，本轮刻意不把它当撤销 ⇒
+    收起后结果到达仍会跳概览；实机若判定这是抢焦点，改在 §5.6/§6 收口（届时撤销面挂到组件的收起动作）。
+    ② 原生 `confirm()` 与设置对话框之外的确认框不在 store 里，`coveringModal` 只覆盖
+    `createDialogOpen` / `settingsSection`；③ 创建页在 §4 改成工作区页面之前，覆盖模态恒在场 ⇒
+    **创建入口实际不会自动导航**（这是 spec 要求的"不跳到模态背后"，不是漏接）。
 - [ ] 3.5 接通明确打开结果、真实自有失败调用、返回草稿及失效回退（≤2h）。验收：「失败定位和返回草稿明确可达」「祖先结束与失败调用不能冒充本次事实」「核对结果只由用户明确打开」。
 - [ ] 3.6 接通恢复/核对/重试/批次的只通知路径及去重，后台读取不碰当前阅读状态（≤2h）。验收：「恢复核对重试与批次结果只通知」「旧读取响应不能污染其他结果」。
 

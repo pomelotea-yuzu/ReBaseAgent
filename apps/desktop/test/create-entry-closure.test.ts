@@ -183,7 +183,12 @@ beforeEach(async () => {
     createRunError: null,
     createRunErrorCode: null,
     createSourceRef: null,
-    createDialogOpen: false,
+    /**
+     * 与真机一致：创建提交发生在**打开着的创建对话框**里。U5 3.4 的导航判据据此判
+     * "有覆盖模态在场 ⇒ 不跳到它背后"，所以本文件的"零导航"断言才成立
+     * （创建页改成工作区页面后由 §4 重定这条；模态在场时不跳是 spec 要求的，不是漏接）。
+     */
+    createDialogOpen: true,
   });
   // 握手一次（空闲会话）：入口的门禁要求已握手，之后各用例自行覆盖 snapshot
   await useAppStore.getState().refreshOperationStatus();

@@ -635,6 +635,12 @@ describe("2.5 读取恢复后清理：只读通道、组件无关", () => {
     expect(
       closureOf(afterFailure.draftSubmissions, FAKE_EPOCH, submission.operationId),
     ).toBeDefined();
+    /**
+     * U5 3.4 起，这一轮"留在流程内 + 首次自动读取可读"会由**导航协调器**跳到那条记录
+     * （失败也进概览，spec「留在当前流程可进入成功或失败概览」）。本用例关心的是
+     * **只读重试不再产生任何导航** ⇒ 判据改成"重试前后选择不变"，而不是"从头就没跳过"。
+     */
+    const navigatedByStatus = afterFailure.selectedRunId;
     const before = { exec: execCalls(), list: calls.filter((one) => one === "runs:list").length };
 
     // 组件侧复位（等价于编辑器卸载、局部 forking 状态清空）——收尾归 store，不靠挂载中的组件
@@ -653,8 +659,8 @@ describe("2.5 读取恢复后清理：只读通道、组件无关", () => {
     // 只读重试：执行通道零增量，也不额外刷列表
     expect(execCalls()).toBe(before.exec);
     expect(calls.filter((one) => one === "runs:list")).toHaveLength(before.list);
-    // 读取重试不产生导航（结果清理与"跳到那次结果"是两件事）
-    expect(state.selectedRunId).toBeNull();
+    // 读取重试不产生导航：选择项与状态视图都不被它改动（结果清理与"跳到那次结果"是两件事）
+    expect(state.selectedRunId).toBe(navigatedByStatus);
     expect(state.view).toBe("trace");
   });
 

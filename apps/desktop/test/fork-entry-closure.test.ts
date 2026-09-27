@@ -147,8 +147,12 @@ const { useAppStore } = await import("../src/renderer/src/store");
 
 const listCount = () => calls.filter((one) => one === "runs:list").length;
 const readCalls = () => calls.filter((one) => one.startsWith("runs:get:"));
-/** 消费序列（去掉首个通道的名字，剩下的形状就是"同一适配器"的判据） */
-const tailCalls = () => calls.slice(1).join(" → ");
+/**
+ * 消费序列（去掉首个通道名、按出现顺序去重）——"同一适配器"的判据。
+ * 去重是必要的：U5 3.4 起，留在流程内且结果可读时协调器会再走一次 `selectRun`
+ * （它自己还要读一次详情），序列里同一项出现两次不改变"走的是哪几步"这件事。
+ */
+const tailCalls = () => [...new Set(calls.slice(1))].join(" → ");
 const entryOf = (assoc: DraftSubmission, runId: string) =>
   useAppStore.getState().resultReads.byKey[
     resultReadKeyOf({ epoch: FAKE_EPOCH, operationId: assoc.operationId, runId })
@@ -202,7 +206,7 @@ beforeEach(async () => {
 });
 
 describe("3.2 result 入口不再消费响应（普通与隔离）", () => {
-  it("「成功信封但运行错误」：按登记 ID 读出失败，保留草稿且不导航", async () => {
+  it("「成功信封但运行错误」：按登记 ID 读出失败，草稿保留、进的是失败概览", async () => {
     details[REGISTERED_FORK] = ok(detailOf("u1-error-detail", REGISTERED_FORK));
     const assoc = seed(RESULT_KEY, "result", "编辑后的结果", {});
 
@@ -212,7 +216,8 @@ describe("3.2 result 入口不再消费响应（普通与隔离）", () => {
 
     // 信封是 ok 的（返回 true 只表示请求明确返回并被接受），但结局由详情自己的事件说话
     expect(okFork).toBe(true);
-    expect(readCalls()).toEqual([`runs:get:${REGISTERED_FORK}`]);
+    // 被读的只有**登记的那个 id**（导航自己会再读一次同一条）；信封 id 一次都不读
+    expect([...new Set(readCalls())]).toEqual([`runs:get:${REGISTERED_FORK}`]);
     expect(calls).not.toContain(`runs:get:${ENVELOPE_FORK}`);
     expect(entryOf(assoc, REGISTERED_FORK)?.phase).toBe("verified");
     expect(entryOf(assoc, REGISTERED_FORK)?.facts?.normalEnd).toBe(false);
@@ -221,13 +226,15 @@ describe("3.2 result 入口不再消费响应（普通与隔离）", () => {
     const state = useAppStore.getState();
     expect(state.drafts.calls[PARENT]?.[SPAN]?.result?.text).toBe("编辑后的结果");
     expect(subLib.closureOf(state.draftSubmissions, FAKE_EPOCH, assoc.operationId)).toBeDefined();
-    // 响应既不刷列表两次也不导航
+    // 列表刷新只有终态消费那一次（入口不再自己刷）
     expect(listCount()).toBe(1);
-    expect(state.selectedRunId).toBeNull();
-    expect(state.detail).toBeNull();
     // 「响应即成功」的展示态不再出现在 result 路径上
     expect(state.forking).toBe("idle");
     expect(state.forkError).toBeNull();
+    // U5 3.4：跳不跳由**导航意图**判，不由入口判。用户没离开过流程 ⇒ 进失败概览
+    //（spec「留在当前流程可进入成功或失败概览」；"跳向信封 id"仍被上面两条钉住）
+    expect(state.selectedRunId).toBe(REGISTERED_FORK);
+    expect(state.detail?.meta.id).toBe(REGISTERED_FORK);
     // 普通父本的请求里不出现 execution 键
     expect(execRequests).toEqual([
       {
@@ -272,17 +279,18 @@ describe("3.2 result 入口不再消费响应（普通与隔离）", () => {
 
     expect(okFork).toBe(true);
     expect((execRequests[0]?.request as Record<string, unknown>).execution).toEqual(EXECUTION);
-    expect(readCalls()).toEqual([`runs:get:${REGISTERED_FORK}`]);
+    expect([...new Set(readCalls())]).toEqual([`runs:get:${REGISTERED_FORK}`]);
     expect(listCount()).toBe(1);
     expect(useAppStore.getState().drafts.calls[PARENT]?.[SPAN]).toBeUndefined();
-    expect(useAppStore.getState().selectedRunId).toBeNull();
+    // U5 3.4：留在流程内 ⇒ 协调器跳向**登记的那条**（入口自己不再拿信封 id 抢导航）
+    expect(useAppStore.getState().selectedRunId).toBe(REGISTERED_FORK);
     // 与 3.1 的创建入口同一条序列：通道 → status → 一次列表 → 一次按 ID 读取
     expect(tailCalls()).toBe("operations:status → runs:list → runs:get:run_registered_fork");
   });
 });
 
 describe("3.2 prompt 入口不再消费响应", () => {
-  it("成功信封 + 自有正常终止 ⇒ 核实后清该字段草稿，且响应侧零导航", async () => {
+  it("成功信封 + 自有正常终止 ⇒ 核实后清该字段草稿，跳转只指向登记 ID", async () => {
     const assoc = seed(PROMPT_KEY, "prompt", "新的 system prompt", {
       target: PROMPT_TARGET,
       runIds: [REGISTERED_PROMPT],
@@ -293,13 +301,14 @@ describe("3.2 prompt 入口不再消费响应", () => {
       .promptFork(PARENT, { field: "system_prompt", value: "新的 system prompt" }, assoc);
 
     expect(okFork).toBe(true);
-    expect(readCalls()).toEqual([`runs:get:${REGISTERED_PROMPT}`]);
+    expect([...new Set(readCalls())]).toEqual([`runs:get:${REGISTERED_PROMPT}`]);
     expect(calls).not.toContain(`runs:get:${ENVELOPE_PROMPT}`);
     expect(entryOf(assoc, REGISTERED_PROMPT)?.facts?.normalEnd).toBe(true);
     const state = useAppStore.getState();
     expect(state.drafts.calls[PARENT]?.s_05?.system_prompt).toBeUndefined();
-    expect(state.selectedRunId).toBeNull();
-    expect(state.detail).toBeNull();
+    // U5 3.4：留在流程内 ⇒ 协调器跳的是**登记的那条**；入口自己不再拿信封 id 抢导航
+    expect(state.selectedRunId).toBe(REGISTERED_PROMPT);
+    expect(state.detail?.meta.id).toBe(REGISTERED_PROMPT);
     expect(state.forking).toBe("idle");
     // 与 result / create 同一条消费序列（同一适配器）
     expect(tailCalls()).toBe("operations:status → runs:list → runs:get:run_registered_prompt");
@@ -320,7 +329,8 @@ describe("3.2 prompt 入口不再消费响应", () => {
     expect(entryOf(assoc, REGISTERED_PROMPT)?.facts?.normalEnd).toBe(false);
     expect(state.drafts.calls[PARENT]?.s_05?.system_prompt?.text).toBe("会失败的 prompt");
     expect(subLib.closureOf(state.draftSubmissions, FAKE_EPOCH, assoc.operationId)).toBeDefined();
-    expect(state.selectedRunId).toBeNull();
+    // 失败也进概览（进的是失败概览），但跳的是登记的那条，不是信封 id
+    expect(state.selectedRunId).toBe(REGISTERED_PROMPT);
   });
 });
 
