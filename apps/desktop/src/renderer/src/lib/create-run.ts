@@ -201,6 +201,27 @@ export function fieldErrorsOf(submission: CreateRunSubmission): CreateRunFieldEr
 }
 
 /**
+ * 重新进入创建工作区时的表单底稿（U5 任务 4.3）。
+ *
+ * 三条规则各有一处判据，都在这个函数里（此前它们散在组件的 `useState` 初始化里，
+ * 只能靠源码字符串钉，改一行就静默失效）：
+ * - **模式**跟着会话草稿走（离开再回来不丢已选模式）；
+ * - **源目录引用**从 store 的 `createSourceRef` 恢复——它是 main 先前签发的 token，
+ *   是否仍然有效**只由 main 在真正使用时判定**（渲染层不校时间戳，也不按路径重建引用）；
+ * - **副本授权恒为未选**：spec「每次桌面操作独立确认写入」——引用可恢复，授权不可继承。
+ */
+export function restoreCreateForm(input: {
+  draftMode: CreateRunMode | null | undefined;
+  sourceRef: ChosenSource | null;
+}): CreateRunFormState {
+  return {
+    mode: input.draftMode ?? "chat",
+    source: input.sourceRef,
+    writesAuthorized: false,
+  };
+}
+
+/**
  * 提交：先过判据，再发请求。判据不过时**一次 IPC 都不发**
  * （用例据此断言"userMessage 为空 / 未授权时零请求"）。
  */

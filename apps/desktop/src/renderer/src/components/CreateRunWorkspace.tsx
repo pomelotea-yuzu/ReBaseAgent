@@ -9,6 +9,7 @@ import {
   fieldErrorsOf,
   initialCreateRunForm,
   resolveCreateRunSubmission,
+  restoreCreateForm,
   setWritesAuthorized,
   submitCreateRun,
   switchCreateRunMode,
@@ -397,16 +398,14 @@ export function CreateRunWorkspace({ onOpenSettings }: { onOpenSettings: () => v
   const setCreateSourceRef = useAppStore((s) => s.setCreateSourceRef);
   const createRunErrorCode = useAppStore((s) => s.createRunErrorCode);
   const returnToCreateSource = useAppStore((s) => s.returnToCreateSource);
-  const [form, setForm] = useState<CreateRunFormState>(() => ({
-    // 首次进入时草稿可能尚未 ensure（挂载 effect 里补）⇒ 退回默认纯对话；
-    // 再次进入时草稿已在，模式随之恢复。
-    ...initialCreateRunForm(),
-    mode: useAppStore.getState().createRunDraftOf()?.mode ?? "chat",
-    source: ((): CreateRunFormState["source"] => {
-      const ref = useAppStore.getState().createSourceRef;
-      return ref === null ? null : { token: ref.token, name: ref.name, path: ref.path };
-    })(),
-  }));
+  const [form, setForm] = useState<CreateRunFormState>(() =>
+    restoreCreateForm({
+      draftMode: useAppStore.getState().createRunDraftOf()?.mode,
+      // 源目录引用从 store 恢复（离开/设置往返后仍在），但**授权不随引用恢复**——
+      // 判据在 `lib/create-run.ts` 的 `restoreCreateForm`，这里只是取现场
+      sourceRef: useAppStore.getState().createSourceRef,
+    }),
+  );
   /** 原生目录选择器是否正在打开（系统对话框阻塞期间不接收重复点击） */
   const [pickingSource, setPickingSource] = useState(false);
   /**

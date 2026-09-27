@@ -28,6 +28,7 @@ import {
   applyChosenSource,
   initialCreateRunForm,
   resolveCreateRunSubmission,
+  restoreCreateForm,
   setWritesAuthorized,
   submitCreateRun,
   switchCreateRunMode,
@@ -446,6 +447,46 @@ describe("2.1 展示文案不漂移（渲染层不 import replay）", () => {
 function rejection(sub: ReturnType<typeof resolveCreateRunSubmission>): string {
   return sub.ok ? "（放行了，本用例只判拒绝）" : `${sub.field ?? "<无归属>"}`;
 }
+
+/**
+ * U5（unify-run-execution-workflow）任务 4.3：重进创建工作区的底稿。
+ *
+ * 三条规则一起测（它们此前散在组件的 `useState` 初始化里）：模式跟草稿、
+ * 源目录引用跟 store、副本授权**恒不继承**。过期与消费由 main 判定，渲染层不校时间戳。
+ */
+describe("U5 4.3 restoreCreateForm：引用可恢复、授权不继承", () => {
+  const ref = { token: "tok_1", name: "src", path: "D:\\lab\\src" };
+
+  it("草稿选了隔离模式 + 会话里有引用 ⇒ 两者都回来，授权仍是未选", () => {
+    expect(restoreCreateForm({ draftMode: "isolated_files", sourceRef: ref })).toEqual({
+      mode: "isolated_files",
+      source: ref,
+      writesAuthorized: false,
+    });
+  });
+
+  it("没有草稿条目（首次进入）⇒ 默认纯对话、无目录", () => {
+    expect(restoreCreateForm({ draftMode: null, sourceRef: null })).toEqual({
+      mode: "chat",
+      source: null,
+      writesAuthorized: false,
+    });
+  });
+
+  it("引用在场也不能让表单变成可提交：未授权照样被拒（每次操作独立确认写入）", () => {
+    const restored = restoreCreateForm({ draftMode: "isolated_files", sourceRef: ref });
+    const submission = resolveCreateRunSubmission(restored, fields());
+    expect(submission.ok).toBe(false);
+    expect(submission.ok ? "" : submission.reason).toContain("副本写入");
+    // 对照：同目录同模式，本次显式勾选后才放行（授权来自这一次交互，不来自引用）
+    const rec = recorder();
+    expect(
+      submitCreateRun(setWritesAuthorized(restored, true), fields(), rec),
+    ).resolves.toBeTruthy();
+    expect(rec.requests).toHaveLength(1);
+    expect(rec.requests[0]?.workspace?.sourceToken).toBe("tok_1");
+  });
+});
 
 describe("U5 4.2 拒绝的字段归属（就近呈现的唯一依据）", () => {
   it("四类拒绝各自点名；同一表单补齐后即放行且 ok 分支不带归属键", () => {

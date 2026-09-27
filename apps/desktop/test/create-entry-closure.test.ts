@@ -341,6 +341,35 @@ describe("3.1 创建入口不再消费响应（普通创建）", () => {
     // U5 4.1：轮询到终态这一路同样按意图导航（响应那一侧仍未消费——上面"零读取"已钉）
     expect(state.selectedRunId).toBe(REGISTERED);
   });
+  it("执行中不放行第二次执行：离页、展示态复位与重复登记都发不出新的 runs:create（U5 4.3）", async () => {
+    // 这条改判自 U3 的「创建忙碌期间不能通过焦点修复绕过关闭锁」：4.1 起创建是页面、
+    // 没有"关闭锁"可绕 ⇒ 挡重复执行的是**待定登记与执行槽**，不是模态。
+    // （模态侧的原判据仍留在设置与放弃确认上，见 modal-dialog.test.ts。）
+    ackState = "running";
+    const assoc = seedCreate("在飞期间别让我再点一次");
+    await useAppStore
+      .getState()
+      .createRun({ systemPrompt: "", userMessage: "在飞期间别让我再点一次" }, assoc);
+    expect(useAppStore.getState().isDraftFrozen(CREATE_SUBMIT_TARGET)).toBe(true);
+
+    // 用户离页（进/出创建工作区）+ 组件卸载式的展示态复位：都不算解冻
+    useAppStore.getState().openCreateWorkspace();
+    useAppStore.getState().resetCreateRun();
+    const state = useAppStore.getState();
+    expect(state.isDraftFrozen(CREATE_SUBMIT_TARGET)).toBe(true);
+    expect(state.creatingRun).toBe("idle");
+    // 组件同形的第二次提交：登记口直接拒绝 ⇒ 一次请求都不多发
+    expect(
+      useAppStore
+        .getState()
+        .beginDraftSubmission({ channel: "create", target: CREATE_SUBMIT_TARGET }),
+    ).toBeNull();
+    expect(createRunRequests).toHaveLength(1);
+    // 草稿与目录引用都还在（解冻只认明确回执或终态核对）
+    expect(createDraft()?.userMessage).toBe("在飞期间别让我再点一次");
+    expect(state.createSourceRef).not.toBeNull();
+    useAppStore.getState().stopOperationStatusPolling();
+  });
 });
 
 describe("3.1 失败信封仍按可信身份收尾（普通创建）", () => {

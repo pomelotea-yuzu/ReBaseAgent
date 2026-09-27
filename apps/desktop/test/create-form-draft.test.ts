@@ -95,11 +95,15 @@ const SOURCE_REF = readFileSync(
   "utf8",
 );
 
-describe("接线契约：sourceToken 会话引用（任务 3.2，design D4）", () => {
-  it("打开时从会话级引用恢复源目录（授权不随引用恢复，仍为未选）", () => {
-    expect(SOURCE_REF).toContain("const ref = useAppStore.getState().createSourceRef;");
-    // 授权字段不来自引用：initialCreateRunForm 的 writesAuthorized: false 保留
-    expect(SOURCE_REF).toContain("...initialCreateRunForm()");
+describe("接线契约：sourceToken 会话引用（任务 3.2 / U5 任务 4.3 取现场判据）", () => {
+  it("重进创建页的底稿走 restoreCreateForm（引用与模式恢复、授权复位）", () => {
+    // U5 4.3：这段判据此前散在组件的 useState 初始化里（只能靠字符串钉），
+    // 现在收敛到 lib 的纯函数并由 create-run-dialog.test.ts 逐条测行为
+    expect(SOURCE_REF).toContain("restoreCreateForm({");
+    expect(SOURCE_REF).toContain("sourceRef: useAppStore.getState().createSourceRef");
+    expect(SOURCE_REF).toContain("draftMode: useAppStore.getState().createRunDraftOf()?.mode");
+    // 组件不再自己决定"授权跟不跟引用回来"——它连 writesAuthorized 这个键都不写
+    expect(auditForbiddenTokens(SOURCE_REF, ["writesAuthorized: true"])).toEqual([]);
   });
 
   it("选择成功镜像到会话引用；取消保留原引用；请求代次守卫迟到响应", () => {
