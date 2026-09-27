@@ -1,21 +1,20 @@
 # U5 实施与验收任务
 
 > 实施进度（2026-09-27）：**§1 全部完成（1.1–1.4）+ §2 全部完成（2.1–2.5）+ §3 全部完成（3.1–3.6）
-> + §4.1–§4.6 完成**
+> + §4 全部完成（4.1–4.7）**
 > （`shared/terminal-facts.ts` 19 条 + `lib/result-verification.ts` 纯判据 15 条 + store 核实 9 条 +
 > 终态消费 13 条 + `draft-submission` 收尾关联 13 条 + `draft-closure` 清理判据 20 条 +
 > store 收尾/批次/反证 17 条 + `create-entry-closure` 创建入口 10 条 + `fork-entry-closure` result/prompt 入口 6 条 +
 > `proxy-ab-entry-closure` messages/A-B 入口 9 条 + `navigation-intent` 纯判据 14 条 + 导航接线 14 条 +
 > `operation-result-view` 呈现与通知判据（含喂 props 的视图）19 条 + `operation-result-actions` 明确动作 12 条 +
-> `create-workspace` 来源判据 14 条 + 创建工作区接线 21 条 + `create-form-view` 创建页能力 16 条；
 > `create-workspace` 来源判据 14 条 + 创建工作区接线 21 条 + `create-form-view` 创建页能力 19 条 +
-> `execution-confirmation` 确认判据 21 条 + 确认接线 14 条；
-> desktop 全量 122 文件 / 2114 用例绿，`tsc` node/web 双 0 错，根 `biome check .` 446 文件 0 错；
+> `execution-confirmation` 确认判据 27 条 + 确认接线 14 条 + A/B 确认接线 11 条；
+> desktop 全量 123 文件 / 2131 用例绿，`tsc` node/web 双 0 错，根 `biome check .` 447 文件 0 错；
 > 变异：1.1 三组、1.2 三组、1.3 四组、1.4 五组、2.1 三组、2.2 四组、2.3 三组、2.4 三组、
 > 2.5 两组、3.1 三组、3.2 三组、3.3 三组、3.4 四组、3.5 四组、3.6 三组、4.1 九组、4.2 四组、
-> 4.3 三组、4.4 三组、4.5 两组、4.6 两组各有牙
+> 4.3 三组、4.4 三组、4.5 两组、4.6 两组、4.7 四组各有牙
 > （另有 3.1 的一组"响应路径次序补支"判**无牙** ⇒ 已回退，见注记）。
-> 其余 §4.7–§7 全部待办；没有实施、GUI 验收或发布通过声明。
+> 其余 §5–§7 全部待办；没有实施、GUI 验收或发布通过声明。
 > ⚠️ 已知环境噪声（非回归）：`test/controlled-service.test.ts` 在并行整跑下出现过 4 条超时失败，
 > 单跑 19 条全绿；复跑整跑亦全绿 ⇒ 按"单包/单文件复跑"口径判定，登记为端口时序 flake。
 > 每项实施/验收控制在 2h 内；若实际超出先拆分。场景名称对应 `specs/desktop-ui/spec.md`，既有场景用于回归，不能用旧报告替代新接线验证。
@@ -470,9 +469,40 @@
   - 两组反证各有牙：messages 登记不再交出确认 ⇒ 契约红；原因显示条件反向 ⇒ 判据形状支红
     （我第一版把它写成"出现过 submitBlocked"，同一条变异**不红** ⇒ 假门，改判据形状后才有牙）。
   - ⚠️ 已知边界：① 就地确认的按钮态是源码级契约（无 jsdom），真实点击与焦点归 §6.4；
-    ② A/B 仍走原生 `window.confirm`（§4.7 收口前不宣称"五类入口都已接确认"）；
+    ② 当时 A/B 仍走原生确认 ⇒ **已由 §4.7 收口**（五类入口的执行确认至此全部就地化）；
     ③ messages 的"未捕获 key"文案与 `PROXY_NO_KEY` 的 IPC 侧提示各自存在，本项不合并措辞。
-- [ ] 4.7 接 A/B 当前计划确认及修订失效，不迁独立实验工作区（≤2h）。验收：「实验确认使用当前预览计划」「实验臂增删和非法参数可恢复」。
+- [x] 4.7 接 A/B 当前计划确认及修订失效，不迁独立实验工作区（≤2h）。验收：「实验确认使用当前预览计划」「实验臂增删和非法参数可恢复」。
+  - 落点：`lib/execution-confirmation.ts` 新增 `abDisclosure` —— 事实一律取自**当前生效的 dry-run
+    计划**（逐臂 `plan.params` 实际生效值、被丢弃的父录值、静默忽略告警、实验组 ID、副作用放行与否）；
+    计划缺失时只列目标与规模并明说"尚未取得当前批次的计划"，**不把未校验的草稿文本摊开冒充计划**
+    （草稿里的 params 还要经解析、与父 params 合并、丢弃无效项）。"已做的检查"按事实分级：
+    只有真跑过预览才追加 `runs:modelAbPlan`（dry-run）那一条。
+  - `ModelAbEditor` 就地"核对本次实验"（全会话第 5 处 `data-confirm-execution`）：确认按钮要求
+    `activePlan !== null ∧ canSubmit ∧ gate.canSubmit`，执行按钮追加 `!abConfirmed`，
+    **原生确认对话框在此撤下**（五类入口的执行确认至此全部就地化），登记口交出
+    `confirmation: abBinding`（执法点仍是 `beginDraftSubmission`，不新增第二处）。
+  - "检查"的重启：`doPreview` 在资格判据**之后**调 `restartExecutionCheck(draftKey)` ⇒ 重新预览
+    推进检查代次，旧确认当场作废（旧响应也装不回新确认）；预览本身仍是只读通道，既不受主动槽
+    也不受确认约束（否则就是把门禁当业务判据）。
+  - 修订失效沿用 U3 3.3 的 `activePlan = plan !== null && planRevision === draftRevision`：
+    披露喂的是 `plan: activePlan` 而非组件局部 `plan`，所以"改了臂还拿旧计划的结论执行"在源头
+    断掉。新增的 `planStale` 只用于就近说明"这份计划属于旧批次修订"，**不是第二份判据**。
+  - ⚠️ 载体迁移（双侧留痕）：`confirm-dialog.test.ts` 的执行确认原生计数 **1 → 0**（A/B 是最后一处；
+    其"A/B 原生确认仍在"的旧契约随之删除，等价证据改为本项的接线用例）；
+    `entry-gate.test.ts` 的 A/B 执行按钮契约加 `!abConfirmed` 并改为**归一空白**比对（biome 会折行，
+    跨行断言不该依赖排版）；`model-ab-editor-draft.test.ts` 的 3.3 守卫/禁用契约同步加确认项
+    （只加不减，`activePlan` 判据仍在原位）；`draft-submission.test.ts` 的 A/B 登记契约改为带
+    `confirmation: abBinding`；`execution-confirmation-store.test.ts` 的就地确认计数 4 → 5。
+  - 证据：纯判据 6 条（无计划不给臂级事实 / 逐臂实际生效值 / 副作用放行两条 / 边界两条 / 不虚构
+    连通性）+ `execution-confirmation-ab.test.ts` 11 条（store 6：整批修订、跨 span 不共享、
+    增删臂与非法文本、代次推进、一次性消费、放弃整批撤销；接线 5）。
+  - 四组反证各有牙：① 执行按钮去掉 `!abConfirmed` ⇒ 两支红（4.7 与 4.4 契约各一）；
+    ② 披露改喂 `plan` ⇒ "activePlan"支红；③ `doPreview` 去掉 `restartExecutionCheck` ⇒ 代次支红；
+    ④ 登记不交出 `confirmation: abBinding` ⇒ 两支红（A/B 接线 + 3.4/3.5 快照契约）。
+  - ⚠️ 已知边界：① 「实验臂增删和非法参数可恢复」的**可恢复**一面仍由 U3 任务 2.4/2.6 的证据承担
+    （`debugging-drafts` / `model-ab-editor-draft`），本项只补"行写入同样作废确认、非法文本逐字留在
+    草稿"这一条 store 判据，没有新造恢复路径；② 就地确认的按钮态是源码级契约（无 jsdom），真实点击、
+    费用与"重新校验"文案的可发现性归 §6.5；③ 未迁独立实验工作区（按本项口径保持就地）。
 
 ## 5. 全局反馈与设置返回
 

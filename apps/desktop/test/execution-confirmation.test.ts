@@ -1,8 +1,9 @@
-import type { ProxyState, SettingsState } from "@shared/ipc";
+import type { ModelAbResult, ModelArmPlan, ProxyState, SettingsState } from "@shared/ipc";
 import { describe, expect, it } from "vitest";
 import { CREATE_SUBMIT_TARGET } from "../src/renderer/src/lib/draft-submission";
 import type { DraftSubmitTarget } from "../src/renderer/src/lib/draft-submission";
 import {
+  abDisclosure,
   armConfirmation,
   confirmationTargetKey,
   createDisclosure,
@@ -339,5 +340,120 @@ describe("4.4 披露只说确实做过的事", () => {
     });
     expect(unknown.facts.map((row) => row.value).join("\n")).toContain("不据此推断一致性");
     expect(unknown.facts.map((row) => row.value).join("\n")).not.toContain("前缀缓存");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// U5 任务 4.7：A/B 的确认对象是「当前预览计划」
+// ---------------------------------------------------------------------------
+
+const warn = (key: string): ModelArmPlan["warnings"][number] => ({
+  key,
+  provider: "openai-compatible",
+  reason: "该 provider 忽略此参数",
+  workaround: "改走模型侧设置",
+});
+
+function armPlan(over: Partial<ModelArmPlan> = {}): ModelArmPlan {
+  return {
+    index: 0,
+    model: "arm-model-a",
+    params: { temperature: 0.2 },
+    changed: ["model"],
+    overridden: [],
+    added: [],
+    discarded: {},
+    warnings: [],
+    allowSideEffects: false,
+    ...over,
+  };
+}
+
+function abPlan(over: Partial<ModelAbResult> = {}): ModelAbResult {
+  return {
+    experimentId: "exp_7",
+    ids: [],
+    ok: true,
+    plan: [armPlan(), armPlan({ index: 1, model: "arm-model-b", params: {} })],
+    sideEffectsAllowed: false,
+    ...over,
+  };
+}
+
+const AB_INPUT = {
+  parentRunId: "r_parent",
+  atSpanId: "s_04",
+  provider: "https://api.example.com/v1",
+  armCount: 2,
+};
+
+function flatten(d: ReturnType<typeof abDisclosure>): string {
+  return [...d.facts.map((row) => `${row.label}=${row.value}`), ...d.checks, ...d.limits].join(
+    "\n",
+  );
+}
+
+describe("4.7 A/B 确认使用当前预览计划", () => {
+  it("没有计划 ⇒ 事实只有目标与规模，明说缺的是当前批次计划", () => {
+    const d = abDisclosure({ ...AB_INPUT, plan: null });
+    const all = flatten(d);
+    expect(all).toContain("r_parent · s_04");
+    expect(all).toContain("尚未取得当前批次的计划（2 臂）");
+    // 未校验的草稿不能冒充计划：一条臂级事实、一个实验组 ID 都不许出现
+    expect(d.facts.some((row) => row.label.startsWith("臂 "))).toBe(false);
+    expect(d.facts.map((row) => row.label)).not.toContain("实验组");
+    expect(all).not.toContain("exp_");
+  });
+
+  it("没有计划 ⇒ 已做的检查只到本地批次检查，不宣称跑过 dry-run", () => {
+    const d = abDisclosure({ ...AB_INPUT, plan: null });
+    expect(d.checks).toHaveLength(1);
+    expect(d.checks[0]).toContain("本地批次检查");
+    expect(d.checks.join("\n")).not.toContain("modelAbPlan");
+  });
+
+  it("有计划 ⇒ 逐臂显示计划里实际生效的参数（不是草稿文本）", () => {
+    const d = abDisclosure({
+      ...AB_INPUT,
+      plan: abPlan({
+        plan: [
+          armPlan({ model: "m1", params: { temperature: 0.7 }, discarded: { top_p: 1 } }),
+          armPlan({ index: 1, model: "m2", params: {}, warnings: [warn("seed")] }),
+        ],
+      }),
+    });
+    const all = flatten(d);
+    expect(all).toContain('臂 1 实际生效=m1 {"temperature":0.7} · 丢弃父录值 {"top_p":1}');
+    expect(all).toContain("（沿用父 run 的采样参数）");
+    expect(all).toContain("⚠ seed 可能未生效");
+    expect(all).toContain("exp_7");
+    expect(all).toContain("真实调用=2 次");
+    // dry-run 只在真的做过之后才进"已做的检查"
+    expect(d.checks.join("\n")).toContain("只读校验 `runs:modelAbPlan`");
+    expect(d.checks.join("\n")).toContain("不占主动执行槽");
+  });
+
+  it("副作用放行与否则按当前计划呈现，边界随之变化", () => {
+    const risky = abDisclosure({ ...AB_INPUT, plan: abPlan({ sideEffectsAllowed: true }) });
+    expect(flatten(risky)).toContain("已放行：含副作用的工具会真实执行");
+    expect(risky.limits.join("\n")).toContain("前一臂的外部副作用会改变后一臂的起点");
+    const plain = abDisclosure({ ...AB_INPUT, plan: abPlan() });
+    expect(flatten(plain)).toContain("未放行：该调用没有需要放行的副作用工具");
+    expect(plain.limits.join("\n")).not.toContain("前一臂的外部副作用");
+  });
+
+  it("边界必带两条：父 run 只作对照 + 改输入/配置作废旧计划与旧确认", () => {
+    for (const plan of [null, abPlan()]) {
+      const limits = abDisclosure({ ...AB_INPUT, plan }).limits.join("\n");
+      expect(limits).toContain("父 run 只作对照，不会被修改");
+      expect(limits).toContain("改臂、改参数、改动副作用许可或修改运行配置都会作废旧计划与旧确认");
+    }
+  });
+
+  it("不虚构：没有连通性检查、也没有把 dry-run 说成真实调用", () => {
+    const d = abDisclosure({ ...AB_INPUT, plan: abPlan() });
+    const all = flatten(d);
+    expect(all).not.toMatch(/上游连通|网络检查|已产生费用/);
+    expect(d.checks.join("\n")).toContain("不联网、不写文件");
   });
 });

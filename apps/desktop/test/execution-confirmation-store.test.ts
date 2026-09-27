@@ -194,11 +194,11 @@ describe("4.4 接线契约：确认判据只有一份", () => {
     expect(flat).not.toContain("isolated ? {} :");
   });
 
-  it("四个入口各有一处就地确认（不共用一个按钮、也不漏接）", () => {
+  it("五个入口各有一处就地确认（不共用一个按钮、也不漏接）", () => {
+    // U5 4.7 起 A/B 也接入：口径 4 → 5（result 普通 / result 隔离 / prompt / messages / A-B）
     const panel = read("components/DetailPanel.tsx");
     const create = read("components/CreateRunWorkspace.tsx");
-    // result 编辑器两个分支（普通 / 隔离）+ prompt + messages
-    expect(panel.match(/data-confirm-execution/g)?.length).toBe(4);
+    expect(panel.match(/data-confirm-execution/g)?.length).toBe(5);
     expect(create.match(/data-confirm-execution/g)?.length).toBe(1);
   });
 

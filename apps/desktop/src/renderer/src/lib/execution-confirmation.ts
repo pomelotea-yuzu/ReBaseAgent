@@ -1,4 +1,4 @@
-import type { ProxyState, SettingsState } from "@shared/ipc";
+import type { ModelAbResult, ModelArmPlan, ProxyState, SettingsState } from "@shared/ipc";
 import type { DraftSubmitChannel, DraftSubmitTarget } from "./draft-submission";
 import { submissionIdOf } from "./draft-submission";
 import { forkCacheHint } from "./fork-cache-hint";
@@ -168,6 +168,13 @@ function preview(text: string, max = 60): string {
 
 /** 本地字段检查的措辞：只说做了的事 */
 const LOCAL_FIELD_CHECK = "本地字段检查：必填项、模式与授权条件（不联网、不调用模型）";
+
+/**
+ * A/B 的本地批次检查（`modelAbGuard` 的真实判据，逐臂粒度）——dry-run 之外唯一
+ * 在渲染层确实做过的事，所以计划缺失时它也要显示。
+ */
+const AB_LOCAL_CHECK =
+  "本地批次检查：运行配置已填、至少两臂、每臂 model 非空、参数 JSON 可解析、逐臂与父不同（空 fork 整批会被拒）";
 
 export interface CreateDisclosureInput {
   readonly mode: "chat" | "isolated_files";
@@ -409,6 +416,87 @@ export function messagesDisclosure(input: MessagesDisclosureInput): Confirmation
       "被动录制的 run 没有自有 config_hash：它仍是可对照的轨迹，但这条路径不产生父子续跑。",
     ],
   };
+}
+
+export interface AbDisclosureInput {
+  readonly parentRunId: string;
+  readonly atSpanId: string;
+  /** 接入摘要（baseURL；未配置 ⇒ 说明未配置） */
+  readonly provider: string;
+  /** 当前批次臂数（真实调用次数的口径来源，未预览时也用它说明规模） */
+  readonly armCount: number;
+  /** 当前生效的 dry-run 计划：null = 还没预览，或预览所绑的批次修订已推进 */
+  readonly plan: ModelAbResult | null;
+}
+
+/**
+ * A/B 实验的确认（U5 任务 4.7）：**确认的对象是"当前这份预览计划"**，不是屏幕上的草稿。
+ *
+ * 所以 `plan` 为 null（还没预览，或预览所绑的批次修订已经推进）时，这里不给臂级事实——
+ * 只说缺的是什么。把未校验的草稿文本摊开当"已核对的计划"看，正是这条路径最容易骗人的地方：
+ * 草稿里的 params 还要经过解析、与父 params 合并、丢弃无效项，最终生效的是 `plan.params`。
+ */
+export function abDisclosure(input: AbDisclosureInput): ConfirmationDisclosure {
+  const plan = input.plan;
+  return {
+    facts:
+      plan === null
+        ? [
+            { label: "目标 run · 调用", value: `${input.parentRunId} · ${input.atSpanId}` },
+            { label: "接入", value: input.provider },
+            {
+              label: "执行计划",
+              value: `尚未取得当前批次的计划（${input.armCount} 臂）：先“校验并预览计划”，确认要核对的是计划里各臂实际生效的参数`,
+            },
+          ]
+        : [
+            { label: "目标 run · 调用", value: `${input.parentRunId} · ${input.atSpanId}` },
+            { label: "接入", value: input.provider },
+            { label: "实验组", value: plan.experimentId },
+            {
+              label: "真实调用",
+              value: `${plan.plan.length} 次（每臂一次，各自落盘为独立新 run）`,
+            },
+            ...plan.plan.map(
+              (arm): ConfirmationRow => ({
+                label: `臂 ${arm.index + 1} 实际生效`,
+                value: armPlanLine(arm),
+              }),
+            ),
+            {
+              label: "副作用工具",
+              value: plan.sideEffectsAllowed
+                ? "已放行：含副作用的工具会真实执行"
+                : "未放行：该调用没有需要放行的副作用工具",
+            },
+          ],
+    checks:
+      plan === null
+        ? [AB_LOCAL_CHECK]
+        : [
+            AB_LOCAL_CHECK,
+            "只读校验 `runs:modelAbPlan`（dry-run）：不联网、不写文件、不占主动执行槽",
+          ],
+    limits: [
+      `一次执行按臂数发起真实模型调用并产生费用（当前 ${input.armCount} 臂）；各臂顺序执行，单臂失败不影响其它臂。`,
+      "父 run 只作对照，不会被修改；各臂各自落盘为独立新轨迹，同批共享一个实验组 ID。",
+      ...(plan?.sideEffectsAllowed === true
+        ? ["⚠ 前一臂的外部副作用会改变后一臂的起点：比较结果不一定可信（该声明随实验留痕）。"]
+        : []),
+      "计划与批次修订同源：改臂、改参数、改动副作用许可或修改运行配置都会作废旧计划与旧确认，须重新预览再重新确认。",
+    ],
+  };
+}
+
+/** 一臂在计划里实际会用的东西：生效参数 + 被丢弃的父录值 + 静默忽略告警（全部来自 dry-run 响应） */
+function armPlanLine(arm: ModelArmPlan): string {
+  const params =
+    Object.keys(arm.params).length > 0 ? JSON.stringify(arm.params) : "（沿用父 run 的采样参数）";
+  const discarded =
+    Object.keys(arm.discarded).length > 0 ? ` · 丢弃父录值 ${JSON.stringify(arm.discarded)}` : "";
+  const warnings =
+    arm.warnings.length > 0 ? ` · ⚠ ${arm.warnings.map((w) => w.key).join("、")} 可能未生效` : "";
+  return `${arm.model} ${params}${discarded}${warnings}`;
 }
 
 /** 披露里"检查"与"边界"合成可读列表（视图只渲染，不再自己拼句子） */

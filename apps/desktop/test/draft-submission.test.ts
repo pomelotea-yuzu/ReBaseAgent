@@ -46,6 +46,9 @@ function slice(src: string, startMarker: string, endMarker: string): string {
   return src.slice(start, end);
 }
 
+/** 归一空白：判据是"经过什么调用"，不是"排版成几行"（biome 会折长表达式） */
+const flat = (src: string): string => src.replace(/\s+/g, " ");
+
 // ---------------------------------------------------------------------------
 // 纯逻辑：登记 / 令牌匹配收尾 / 冻结隔离
 // ---------------------------------------------------------------------------
@@ -510,7 +513,10 @@ describe("接线契约：五类提交走快照并受冻结约束（任务 3.4/3.
 
   it("A/B 执行：登记整批关联后才发请求；预览不带关联", () => {
     const execute = slice(DETAIL_PANEL, "const doExecute = ", "return (");
-    expect(execute).toContain('beginDraftSubmission({ channel: "model_ab", target: draftKey })');
+    // U5 任务 4.7：登记时带上当下的确认凭据（缺确认 ⇒ store 侧直接拒绝，不发请求）
+    expect(flat(execute)).toContain(
+      'beginDraftSubmission({ channel: "model_ab", target: draftKey, confirmation: abBinding',
+    );
     expect(execute).toContain("modelAb(run.meta.id, guard.arms, false, assoc)");
     // 预览（dry-run）不是提交：不得登记关联
     const preview = slice(DETAIL_PANEL, "const doPreview = ", "const doExecute = ");

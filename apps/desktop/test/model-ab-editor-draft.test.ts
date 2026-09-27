@@ -237,10 +237,11 @@ describe("接线契约：A/B 预览修订绑定与迟到守卫（任务 3.3）",
     // 渲染/执行只认派生计划，不直接读原始局部态（否则旧计划仍会被展示/执行）
     expect(code).not.toContain("{plan !== null ?");
     expect(code).toContain("{activePlan !== null ?");
-    expect(code).toContain("if (!canSubmit || activePlan === null) return;");
-    // U4 4.4 追加了统一门禁（只加不减：activePlan 判据仍在原位）
-    expect(code).toContain(
-      "disabled={inProgress || !canSubmit || activePlan === null || !gate.canSubmit}",
+    // U5 4.7 追加就地确认（只加不减：activePlan 判据仍在原位）
+    expect(code).toContain("if (!canSubmit || activePlan === null || !abConfirmed) return;");
+    // U4 4.4 追加了统一门禁（只加不减：activePlan 判据仍在原位；表达式换行 ⇒ 归一空白）
+    expect(code.replace(/\s+/g, " ")).toContain(
+      "disabled={ inProgress || !canSubmit || activePlan === null || !gate.canSubmit || !abConfirmed }",
     );
   });
 

@@ -22,6 +22,7 @@ import {
 import { deriveEntryGate } from "../lib/entry-gate";
 import type { EntryGate } from "../lib/entry-gate";
 import {
+  abDisclosure,
   disclosureLines,
   messagesDisclosure,
   promptDisclosure,
@@ -858,12 +859,24 @@ function ModelAbEditor({
   // plan/planRevision 为组件局部态已重置 ⇒ 必须重新预览并重新确认副作用。
   const draftRevision = draftEntry !== undefined ? draftEntry.revision : null;
   const activePlan = plan !== null && planRevision === draftRevision ? plan : null;
+  // 计划不见了的原因分两种：还没预览，或预览所绑的批次修订已经推进（改臂/改参数）。
+  // 后者要就近说清楚，否则用户只会看到一个禁用的执行按钮。
+  const planStale = plan !== null && planRevision !== draftRevision;
 
   // U3 任务 3.3/3.5：待定执行期间视同进行中（预览与执行都禁用），且整批已冻结
   const inProgress = modelAbInFlight || draftFrozen;
   // U4 任务 4.4：A/B 只有**真实执行**受统一槽约束；"校验并预览计划"走只读通道
   // （runs:modelAbPlan），占槽期间照常可用——把预览一起禁用就是拿门禁当业务判据。
   const gate = deriveEntryGate(useAppStore((s) => s.operations));
+
+  // U5 任务 4.7：A/B 的确认对象是**当前这份预览计划**（同一凭据、同一执法点）。
+  // 检查代次由"校验并预览计划"推进：重新预览 ⇒ 旧确认作废，旧响应也装不回新确认。
+  const currentConfirmationBinding = useAppStore((s) => s.currentConfirmationBinding);
+  const executionConfirmationReady = useAppStore((s) => s.executionConfirmationReady);
+  const armExecutionConfirmation = useAppStore((s) => s.armExecutionConfirmation);
+  const restartExecutionCheck = useAppStore((s) => s.restartExecutionCheck);
+  const abBinding = currentConfirmationBinding("model_ab", draftKey);
+  const abConfirmed = executionConfirmationReady(abBinding);
 
   // U3 任务 2.5：草稿列表的定位目标到达即打开（ensure 幂等；重开不覆盖已有批次；
   // 临时计划/许可照旧清理——授权与计划不随草稿恢复）
@@ -994,6 +1007,8 @@ function ModelAbEditor({
 
   const doPreview = (): void => {
     if (!canSubmit) return;
+    // U5 任务 4.7：一次预览 = 一次新的检查 ⇒ 检查代次推进，旧确认作废（旧响应也不能装回）
+    restartExecutionCheck(draftKey);
     setExecuted(null);
     // U3 任务 3.3：记录**发起预览时的批次修订**（请求代次）——响应按它校验
     const requestedRevision = draftRevision;
@@ -1009,35 +1024,16 @@ function ModelAbEditor({
   };
 
   const doExecute = (): void => {
-    if (!canSubmit || activePlan === null) return;
-    const summary = activePlan.plan
-      .map((arm) => {
-        const params =
-          Object.keys(arm.params).length > 0
-            ? ` ${JSON.stringify(arm.params)}`
-            : "（沿用父 params）";
-        const discarded =
-          Object.keys(arm.discarded).length > 0
-            ? `\n    丢弃父录值：${JSON.stringify(arm.discarded)}`
-            : "";
-        const warnings =
-          arm.warnings.length > 0
-            ? `\n    ⚠ ${arm.warnings.map((w) => w.key).join("、")} 可能未生效（见计划面板）`
-            : "";
-        return `臂 ${arm.index + 1}：${arm.model}${params}${discarded}${warnings}`;
-      })
-      .join("\n");
-    const confirmed = window.confirm(
-      `确认执行模型 A/B 实验？\n\n· 将按 ${activePlan.plan.length} 个臂真实调用 ${settings?.baseURL ?? "provider"} 并产生费用\n· 各臂顺序执行，单臂失败不影响其它臂\n${summary}\n${
-        activePlan.sideEffectsAllowed
-          ? "· ⚠ 含副作用的工具将被真实执行：外部状态可能已被前一臂改变\n"
-          : ""
-      }· 父 run 只作对照，不会被修改`,
-    );
-    if (!confirmed) return;
+    // U5 任务 4.7：确认改在就地核对区给出（原生对话框消失）——这里只做最后一道校验：
+    // 资格齐备 ∧ 有当前批次的生效计划 ∧ 确认仍绑定着这份现场，缺任一项都不发出执行。
+    if (!canSubmit || activePlan === null || !abConfirmed) return;
     // U3 任务 3.5：登记整批提交关联（取批次修订 + 行快照）⇒ 冻结整批；
     // 已有待定提交时拒绝重复提交。收尾由 store 执行函数负责（卸载/收起不解冻）。
-    const assoc = beginDraftSubmission({ channel: "model_ab", target: draftKey });
+    const assoc = beginDraftSubmission({
+      channel: "model_ab",
+      target: draftKey,
+      confirmation: abBinding,
+    });
     if (assoc === null) return;
     void modelAb(run.meta.id, guard.arms, false, assoc).then((result) => {
       if (result !== null) setExecuted(result);
@@ -1250,6 +1246,56 @@ function ModelAbEditor({
         </div>
       ) : null}
 
+      {/*
+       * U5 任务 4.7：核对本次实验。事实取自**当前生效的 dry-run 计划**（各臂实际执行的
+       * model/params、被丢弃的父录值、静默忽略告警、实验组 ID）；没有计划时只说缺什么，
+       * 不把未校验的草稿文本摊开冒充计划。确认与其余入口同一份凭据、同一个执法点。
+       */}
+      <div className="mt-2 rounded border border-sky-200 bg-white">
+        <div className="flex items-center justify-between gap-2 px-2 py-1.5">
+          <span className="text-[11px] font-medium text-gray-600">核对本次实验</span>
+          <button
+            type="button"
+            data-confirm-execution
+            aria-pressed={abConfirmed ? "true" : undefined}
+            disabled={
+              inProgress || abConfirmed || activePlan === null || !canSubmit || !gate.canSubmit
+            }
+            onClick={() => armExecutionConfirmation(abBinding)}
+            className={`shrink-0 rounded border px-2 py-0.5 text-[11px] disabled:cursor-not-allowed disabled:opacity-40 ${
+              abConfirmed
+                ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+                : "border-gray-300 text-gray-700 hover:bg-gray-50"
+            }`}
+          >
+            {abConfirmed ? "已确认执行实验" : "已核对，确认执行实验"}
+          </button>
+        </div>
+        <dl className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 border-t border-gray-100 px-2 py-1.5 text-[11px] leading-4">
+          {disclosureLines(
+            abDisclosure({
+              parentRunId: run.meta.id,
+              atSpanId: span.id,
+              provider: settings?.baseURL ?? "（未配置 baseURL）",
+              armCount: rows.length,
+              plan: activePlan,
+            }),
+          ).map((row) => (
+            <div key={`${row.label}-${row.value}`} className="col-span-2 grid grid-cols-subgrid">
+              <dt className="text-gray-500">{row.label}</dt>
+              <dd className="min-w-0 break-words text-gray-700">{row.value}</dd>
+            </div>
+          ))}
+        </dl>
+        {!abConfirmed && (planStale || submitBlocked !== null) ? (
+          <div className="border-t border-gray-100 px-2 py-1.5 text-[11px] leading-4 text-amber-800">
+            {submitBlocked !== null
+              ? submitBlocked
+              : "这份计划属于旧批次修订：改臂或改参数后须重新校验并预览，旧确认一并作废"}
+          </div>
+        ) : null}
+      </div>
+
       <EntryGateNotice gate={gate} />
 
       <div className="mt-2 flex items-center justify-end gap-2">
@@ -1277,9 +1323,17 @@ function ModelAbEditor({
         <button
           type="button"
           onClick={doExecute}
-          disabled={inProgress || !canSubmit || activePlan === null || !gate.canSubmit}
+          disabled={
+            inProgress || !canSubmit || activePlan === null || !gate.canSubmit || !abConfirmed
+          }
           className="rounded bg-sky-600 px-3 py-1 text-[11px] text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-40"
-          title={activePlan === null ? "先校验并预览计划" : undefined}
+          title={
+            activePlan === null
+              ? "先校验并预览计划"
+              : !abConfirmed
+                ? "先核对上面的目标与执行边界并确认"
+                : undefined
+          }
         >
           确认执行（{activePlan?.plan.length ?? rows.length} 次真实调用）
         </button>

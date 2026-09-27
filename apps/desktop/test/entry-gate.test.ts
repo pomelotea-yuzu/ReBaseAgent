@@ -141,6 +141,9 @@ describe("4.4 接线契约：prompt / messages / A-B 也接同一份会话", () 
   const MESSAGES = editorBody("function MessagesForkEditor({", "function toolMessageText(");
   const MODEL_AB = editorBody("function ModelAbEditor({", "function LlmCallDetail(");
 
+  /** 归一空白：biome 会把长表达式换行，跨行断言不该依赖排版 */
+  const flat = (body: string): string => body.replace(/\s+/g, " ");
+
   it("三个编辑器都声明同一来源的门禁，并渲染禁用理由", () => {
     for (const [label, body] of [
       ["prompt", PROMPT],
@@ -152,13 +155,14 @@ describe("4.4 接线契约：prompt / messages / A-B 也接同一份会话", () 
     }
   });
 
-  it("真实执行的提交按钮受门禁约束", () => {
+  it("真实执行的提交按钮受门禁与确认约束", () => {
     expect(PROMPT).toMatch(
       /onClick=\{doSubmit\}\s+disabled=\{inProgress \|\| !canSubmit \|\| !gate\.canSubmit\}/,
     );
     expect(MESSAGES).toMatch(/sourceBlocked !== null \|\|\s+!gate\.canSubmit/);
-    expect(MODEL_AB).toMatch(
-      /onClick=\{doExecute\}\s+disabled=\{inProgress \|\| !canSubmit \|\| activePlan === null \|\| !gate\.canSubmit\}/,
+    // U5 任务 4.7：A/B 的执行按钮同时受确认凭据约束（表达式换行 ⇒ 先归一空白再比）
+    expect(flat(MODEL_AB)).toContain(
+      "onClick={doExecute} disabled={ inProgress || !canSubmit || activePlan === null || !gate.canSubmit || !abConfirmed }",
     );
   });
 

@@ -78,14 +78,15 @@ describe("U3 5.2 接线契约（源码级）：放弃确认迁出 window.confirm
     expect(globalBar).not.toContain("window.confirm");
   });
 
-  it("执行确认的原生 window.confirm 只剩 A/B 一处（U5 4.6 迁走 prompt 与 messages）", () => {
+  it("执行确认不再有任何原生 window.confirm（U5 4.6/4.7 全部迁为就地核对）", () => {
     // U3 时代有三处执行确认：prompt 从头重跑 / A/B 实验 / proxy messages 重发。
-    // U5 任务 4.6 把后两处之外的 prompt 与 messages 换成"就地核对 + 一次性确认凭据"
-    //（判据在 lib/execution-confirmation.ts，执法点在 store.beginDraftSubmission）；
-    // A/B 那一处仍走原生确认，其"当前预览计划确认 + 修订失效"由 §4.7 收口。
+    // U5 任务 4.6 迁走 prompt 与 messages，4.7 迁走 A/B：确认改成"就地核对 + 一次性凭据"
+    //（判据在 lib/execution-confirmation.ts，执法点在 store.beginDraftSubmission）。
+    // 双向变更留痕：本用例口径 3 → 1 → 0；A/B 的"原生确认仍在"契约同时消失，
+    // 其等价证据改由 `execution-confirmation-ab.test.ts`（接线）与 4.7 纯判据组承担。
     const count = (detail.match(/window\.confirm/g) ?? []).length;
-    expect(count).toBe(1);
-    expect(detail).toContain("确认执行模型 A/B 实验？");
+    expect(count).toBe(0);
+    expect(detail).not.toContain("确认执行模型 A/B 实验？");
     expect(detail).not.toContain("确认从头重跑？");
     expect(detail).not.toContain("确认重发？");
   });
