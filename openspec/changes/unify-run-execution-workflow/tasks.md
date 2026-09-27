@@ -1,7 +1,7 @@
 # U5 实施与验收任务
 
 > 实施进度（2026-09-27）：**§1 全部完成（1.1–1.4）+ §2 全部完成（2.1–2.5）+ §3 全部完成（3.1–3.6）
-> + §4 全部完成（4.1–4.7）+ §5.1 完成**
+> + §4 全部完成（4.1–4.7）+ §5 全部完成（5.1–5.6）**
 > （`shared/terminal-facts.ts` 19 条 + `lib/result-verification.ts` 纯判据 15 条 + store 核实 9 条 +
 > 终态消费 13 条 + `draft-submission` 收尾关联 13 条 + `draft-closure` 清理判据 20 条 +
 > store 收尾/批次/反证 17 条 + `create-entry-closure` 创建入口 10 条 + `fork-entry-closure` result/prompt 入口 6 条 +
@@ -9,13 +9,17 @@
 > `operation-result-view` 呈现与通知判据（含喂 props 的视图）19 条 + `operation-result-actions` 明确动作 12 条 +
 > `create-workspace` 来源判据 14 条 + 创建工作区接线 21 条 + `create-form-view` 创建页能力 19 条 +
 > `execution-confirmation` 确认判据 27 条 + 确认接线 14 条 + A/B 确认接线 11 条 +
-> `operation-request-facts` 请求事实/诊断/A-B 逐臂 16 条；
-> desktop 全量 124 文件 / 2147 用例绿，`tsc` node/web 双 0 错，根 `biome check .` 449 文件 0 错；
+> `operation-request-facts` 请求事实/诊断/A-B 逐臂 16 条 + `wait-timing` 等待计时 15 条 +
+> `result-live-region` 通知区 5 条 + `settings-roundtrip-invalidate` 配置往返 11 条 +
+> `settings-save-feedback` 保存三态 11 条 + `settings-clear-confirm` 清除确认 7 条 +
+> `focus-escape-responsive` 焦点/钳制/销账 5 条；
+> desktop 全量 130 文件 / 2201 用例绿，`tsc` node/web 双 0 错，根 `biome check .` 0 错；
 > 变异：1.1 三组、1.2 三组、1.3 四组、1.4 五组、2.1 三组、2.2 四组、2.3 三组、2.4 三组、
 > 2.5 两组、3.1 三组、3.2 三组、3.3 三组、3.4 四组、3.5 四组、3.6 三组、4.1 九组、4.2 四组、
-> 4.3 三组、4.4 三组、4.5 两组、4.6 两组、4.7 四组、5.1 五组各有牙
+> 4.3 三组、4.4 三组、4.5 两组、4.6 两组、4.7 四组、5.1 五组、5.2 五组、5.3 三组、5.4 两组、
+> 5.5 一组、5.6 一组各有牙
 > （另有 3.1 的一组"响应路径次序补支"判**无牙** ⇒ 已回退，见注记）。
-> 其余 §5.2–§7 全部待办；没有实施、GUI 验收或发布通过声明。
+> 其余 §6–§7 全部待办；没有实施、GUI 验收或发布通过声明。
 > ⚠️ 已知环境噪声（非回归）：`test/controlled-service.test.ts` 在并行整跑下出现过 4 条超时失败，
 > 单跑 19 条全绿；复跑整跑亦全绿 ⇒ 按"单包/单文件复跑"口径判定，登记为端口时序 flake。
 > 每项实施/验收控制在 2h 内；若实际超出先拆分。场景名称对应 `specs/desktop-ui/spec.md`，既有场景用于回归，不能用旧报告替代新接线验证。
