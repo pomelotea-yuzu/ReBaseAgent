@@ -1,19 +1,21 @@
 # U5 实施与验收任务
 
 > 实施进度（2026-09-27）：**§1 全部完成（1.1–1.4）+ §2 全部完成（2.1–2.5）+ §3 全部完成（3.1–3.6）
-> + §4.1、§4.2、§4.3 完成**
+> + §4.1、§4.2、§4.3、§4.4 完成**
 > （`shared/terminal-facts.ts` 19 条 + `lib/result-verification.ts` 纯判据 15 条 + store 核实 9 条 +
 > 终态消费 13 条 + `draft-submission` 收尾关联 13 条 + `draft-closure` 清理判据 20 条 +
 > store 收尾/批次/反证 17 条 + `create-entry-closure` 创建入口 10 条 + `fork-entry-closure` result/prompt 入口 6 条 +
 > `proxy-ab-entry-closure` messages/A-B 入口 9 条 + `navigation-intent` 纯判据 14 条 + 导航接线 14 条 +
 > `operation-result-view` 呈现与通知判据（含喂 props 的视图）19 条 + `operation-result-actions` 明确动作 12 条 +
 > `create-workspace` 来源判据 14 条 + 创建工作区接线 21 条 + `create-form-view` 创建页能力 16 条；
-> desktop 全量 120 文件 / 2076 用例绿，`tsc` node/web 双 0 错，根 `biome check .` 443 文件 0 错；
+> `create-workspace` 来源判据 14 条 + 创建工作区接线 21 条 + `create-form-view` 创建页能力 19 条 +
+> `execution-confirmation` 确认判据 14 条 + 确认接线 10 条；
+> desktop 全量 122 文件 / 2103 用例绿，`tsc` node/web 双 0 错，根 `biome check .` 446 文件 0 错；
 > 变异：1.1 三组、1.2 三组、1.3 四组、1.4 五组、2.1 三组、2.2 四组、2.3 三组、2.4 三组、
 > 2.5 两组、3.1 三组、3.2 三组、3.3 三组、3.4 四组、3.5 四组、3.6 三组、4.1 九组、4.2 四组、
-> 4.3 三组各有牙
+> 4.3 三组、4.4 三组各有牙
 > （另有 3.1 的一组"响应路径次序补支"判**无牙** ⇒ 已回退，见注记）。
-> 其余 §4.4–§7 全部待办；没有实施、GUI 验收或发布通过声明。
+> 其余 §4.5–§7 全部待办；没有实施、GUI 验收或发布通过声明。
 > ⚠️ 已知环境噪声（非回归）：`test/controlled-service.test.ts` 在并行整跑下出现过 4 条超时失败，
 > 单跑 19 条全绿；复跑整跑亦全绿 ⇒ 按"单包/单文件复跑"口径判定，登记为端口时序 flake。
 > 每项实施/验收控制在 2h 内；若实际超出先拆分。场景名称对应 `specs/desktop-ui/spec.md`，既有场景用于回归，不能用旧报告替代新接线验证。
@@ -360,7 +362,46 @@
     （v2 根 run、检查点、源目录字节不变）属 §6.2，本项交付的是表单与判据面；
     ③ 隔离模式的**只读预检与轮末确认**属 §4.5，检查确认边界属 §4.4；④ 本轮只改 desktop，
     packages 逐包单跑与 `electron-vite build` 未重跑（§7.2 统一补）。
-- [ ] 4.4 接创建/普通 result 的检查确认及真实边界，不添加无接口支持的预检信息（≤2h）。验收：「创建和普通重跑只声明已完成的检查」「普通结果与隔离结果确认边界不同」的普通部分；后者须与 4.5 的隔离证据合并，单独通过仅记部分覆盖。
+- [x] 4.4 接创建/普通 result 的检查确认及真实边界，不添加无接口支持的预检信息（≤2h）。验收：「创建和普通重跑只声明已完成的检查」「普通结果与隔离结果确认边界不同」的普通部分；后者须与 4.5 的隔离证据合并，单独通过仅记部分覆盖。
+  - 落点：新纯判据 `renderer/src/lib/execution-confirmation.ts` —— 确认是一份**绑现场的凭据**
+    （`ConfirmationBinding = 通道 + 目标 + 草稿修订 + 设置快照 + 检查代次`），
+    `armConfirmation` / `releaseConfirmation` / `decideConfirmation`（**现算比对**，任一不同即
+    `missing`/`stale`，不靠"记得去清"）；`settingsStampOf` 只取模型 / baseURL / 是否已配置 /
+    代理在跑与是否已捕获 key，**不含 apiKey 值**（用例钉住"凭据不进指纹"）。
+    披露由同一模块给出：`createDisclosure` / `resultPlainDisclosure` / `disclosureLines`，
+    普通 result 的模型行**复用** `lib/fork-cache-hint.ts`（未知 ≠ 不一致，不在这里另算一套）。
+  - store 接线：`confirmations` + `checkGenerations` 两个会话内字段（不落盘 / 不进 IPC）+
+    `currentConfirmationBinding`（**修订与设置快照一律现取**，组件传不进旧值）、
+    `armExecutionConfirmation` / `releaseExecutionConfirmation` / `executionConfirmationReady` /
+    `restartExecutionCheck`（推进代次并作废）。**执法点只有一个**：`beginDraftSubmission` 带上
+    `confirmation` 时先现算一次，不成立 ⇒ 返回 null（组件因此一次 IPC 都不发）；登记成功即
+    **消费**该确认（重新执行要重新确认）。既有"未带 confirmation 的入口"行为不变（opt-in，
+    隔离 result / prompt / messages / A-B 在 4.5–4.7 逐条接入，本轮不静默宣称它们已受约束）。
+    撤销面：`noteReadingChanged`（切运行 / 换页签 / 换调用 / 换视图 / 进创建页）与
+    `setSettingsSection`（进与不进设置都算一次往返）撤销待用确认；三类草稿显式放弃时一并释放。
+  - 入口形态：创建页在正文末尾**就地**给「核对本次提交」区（逐行事实 + 已做的检查 + 本次边界 +
+    确认按钮），未确认时提交按钮不可用、还不能确认时就近给原因；result 编辑器同形（普通路径），
+    隔离路径不动（仍走既有 `forkCapability` 预检 + 本次授权，判据归 4.5）。两处都不新增
+    阻断阅读的大模态（design D2）。
+  - 证据：`test/execution-confirmation.test.ts` 纯判据 14 条（现场比对六条 + 指纹不含密钥 +
+    披露只说做过的事：普通创建明说"没有独立的模型连通性预检"、隔离明说"没有目录采集预览接口"
+    且不给数字、普通 result 说明"世界不隔离 / 后续工具会真的执行"且不得出现隔离专属话术）+
+    `test/execution-confirmation-store.test.ts` 接线 10 条（现取绑定、改输入即失效、离开现场与
+    设置往返撤销、重启检查推进代次、不成立的确认被登记口拒绝、当场消费、显式放弃释放、
+    组件不得自判与披露唯一来源的源码契约）+ `create-form-view.test.ts` 追加 3 条视图能力断言。
+  - ⚠️ **载体迁移**（判据强度不变）：`entry-gate.test.ts` 的 `canCreate` / `canFork` 两条正则改为
+    折叠空白后子串比对，并各多要求一道确认（`&& confirmed` / `(isolated || plainConfirmed)`）；
+    `draft-submission.test.ts` 的两处源码契约同样改折叠空白（登记调用换行传 `confirmation` 了），
+    并新增"创建提交登记时必须交出 confirmation"一条。
+  - 三组反证各有牙：摘掉登记口的现场确认校验 ⇒ "改输入后用当下现场登记即被拒"红；
+    登记后不消费确认 ⇒ "当场消费、重新执行要重新确认"红；
+    `noteReadingChanged` 不清确认 ⇒ "换视图 / 进设置撤销"红（`setSettingsSection(null)` 那支仍绿，
+    说明两条路各自有判据，不是一条兜住全部）。
+  - ⚠️ 已知边界（不静默）：① 场景「普通结果与隔离结果确认边界不同」**本轮只交付普通侧**，
+    与 4.5 的隔离证据合并才算覆盖（§7.3 按部分覆盖记）；② 确认是 renderer 会话内的展示与许可凭据，
+    main 侧的门禁与重复校验一字未改，确认**不授予**执行资格；③ 创建页的确认区在窄容器下的
+    几何与键盘可达属 §5.6 / §6.8；④ 「无独立预检接口」的措辞依据是仓库现有 IPC 面
+    （`runs:forkCapability` 只对隔离续跑有效），没有采集预览端点 ⇒ 不显示文件数量或"目录检查通过"。
 - [ ] 4.5 接隔离 result 的只读预检、轮末确认和失效规则，保持主进程重验（≤2h）。验收：「普通结果与隔离结果确认边界不同」的隔离部分、「返回修改与设置往返撤销旧确认」；前者须与 4.4 的普通证据合并，单独通过仅记部分覆盖。
 - [ ] 4.6 接 prompt/messages 确认与就近资格原因，保留单变量/单请求语义（≤2h）。验收：「prompt 与 messages 不冒充续跑完整世界」「返回修改与设置往返撤销旧确认」。
 - [ ] 4.7 接 A/B 当前计划确认及修订失效，不迁独立实验工作区（≤2h）。验收：「实验确认使用当前预览计划」「实验臂增删和非法参数可恢复」。

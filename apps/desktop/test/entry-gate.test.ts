@@ -90,15 +90,19 @@ describe("4.3 接线契约：create 与 result 都从同一份会话派生", () 
 
   it("门禁 AND 进提交判据，但没有并进输入锁/关闭锁/只读预检", () => {
     // create：canCreate 含 gate，formLocked 不含 gate（门禁不该锁输入与关闭）
-    expect(dialog).toMatch(/const canCreate = submission\.ok && !draftFrozen && gate\.canSubmit/);
+    // U5 4.4：两个入口各再叠一道"已核对本次目标与边界"的确认门禁（判据在 store，组件只读结果）
+    expect(dialog.replace(/\s+/g, " ")).toContain(
+      "const canCreate = submission.ok && !draftFrozen && gate.canSubmit && confirmed",
+    );
     const locked = dialog.slice(
       dialog.indexOf("const formLocked"),
       dialog.indexOf("\n", dialog.indexOf("const formLocked")),
     );
     expect(locked).not.toContain("gate.");
-    // result：canFork 含 gate
-    expect(panel).toMatch(
-      /const canFork = canSubmit && sourceExecutable && sourceBlocked === null && gate\.canSubmit/,
+    // result：canFork 含 gate；普通路径另需"已核对本次重跑"的确认
+    // （隔离路径仍走既有预检 + 本次授权，其确认门禁属 §4.5）
+    expect(panel.replace(/\s+/g, " ")).toContain(
+      "const canFork = canSubmit && (isolated || plainConfirmed) && sourceExecutable && sourceBlocked === null && gate.canSubmit",
     );
     // 只读能力预检不受主动槽影响（spec「只读入口和被动录制不占主动槽」）
     const checkAllowed = panel.slice(

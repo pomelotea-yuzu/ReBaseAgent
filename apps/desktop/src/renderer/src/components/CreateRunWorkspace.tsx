@@ -19,6 +19,8 @@ import type { CreateRunFormState } from "../lib/create-run";
 import { isCreateRunDraftDirty } from "../lib/debugging-drafts";
 import { CREATE_SUBMIT_TARGET } from "../lib/draft-submission";
 import { deriveEntryGate } from "../lib/entry-gate";
+import { createDisclosure, disclosureLines } from "../lib/execution-confirmation";
+import type { ConfirmationRow } from "../lib/execution-confirmation";
 import { useAppStore } from "../store";
 import { requestConfirm } from "./ConfirmDialog";
 import { FOCUS_RING } from "./IconButton";
@@ -78,6 +80,16 @@ export interface CreateRunFormViewProps {
   readonly settingsMissing: boolean;
   /** 执行范围与计费事实（D8：必须就近可读，不靠悬停与跳转） */
   readonly scopeFacts: { readonly execution: string; readonly cost: string };
+  /**
+   * 本次提交的核对与确认（U5 任务 4.4，design D2）：确认态只列**确实做过**的本地检查
+   * 与本次边界，未确认时提交按钮不可用；改输入 / 换设置 / 离开现场即作废（判据在 store）。
+   */
+  readonly confirmation: {
+    readonly ready: boolean;
+    readonly rows: readonly ConfirmationRow[];
+    /** 还不能确认的原因（输入判据没过 / 门禁挡住）；null = 现在就能确认 */
+    readonly blocked: string | null;
+  };
   readonly lock: CreateRunLock;
   readonly headingRef: RefObject<HTMLHeadingElement | null>;
   readonly onMode: (mode: CreateRunMode) => void;
@@ -87,6 +99,7 @@ export interface CreateRunFormViewProps {
   readonly onWrites: (authorized: boolean) => void;
   readonly onToggleAdvanced: () => void;
   readonly onOpenSettings: () => void;
+  readonly onConfirm: () => void;
   readonly onDiscard: () => void;
   readonly onSubmit: () => void;
   readonly onReturn: () => void;
@@ -331,6 +344,48 @@ export function CreateRunWorkspaceView(props: CreateRunFormViewProps) {
             <div className="mt-0.5 text-gray-500">{scopeFacts.cost}</div>
           </div>
 
+          {/* 核对本次提交（U5 4.4）：就地展开，不再新增阻断阅读的大模态；确认后才放行提交 */}
+          <div className="rounded border border-gray-200 bg-white">
+            <div className="flex items-start justify-between gap-2 px-2 py-1.5">
+              <div className="min-w-0">
+                <span className="block text-[11px] font-medium text-gray-600">核对本次提交</span>
+                <span className="mt-0.5 block text-[11px] leading-4 text-gray-500">
+                  确认后才会放行创建；改任何输入、换配置或去别的页面看一眼，都要重新确认。
+                </span>
+              </div>
+              <button
+                type="button"
+                data-confirm-execution
+                aria-pressed={props.confirmation.ready ? "true" : undefined}
+                disabled={props.confirmation.blocked !== null || props.confirmation.ready}
+                onClick={props.onConfirm}
+                className={`shrink-0 rounded border px-2 py-1 text-[11px] disabled:cursor-not-allowed disabled:opacity-40 ${
+                  props.confirmation.ready
+                    ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+                    : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                } ${FOCUS_RING}`}
+              >
+                {props.confirmation.ready ? "已确认本次提交" : "已核对，确认本次提交"}
+              </button>
+            </div>
+            <dl className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 border-t border-gray-100 px-2 py-1.5 text-[11px] leading-4">
+              {props.confirmation.rows.map((row) => (
+                <div
+                  key={`${row.label}-${row.value}`}
+                  className="col-span-2 grid grid-cols-subgrid"
+                >
+                  <dt className="text-gray-500">{row.label}</dt>
+                  <dd className="min-w-0 break-words text-gray-700">{row.value}</dd>
+                </div>
+              ))}
+            </dl>
+            {props.confirmation.blocked !== null ? (
+              <div className="border-t border-gray-100 px-2 py-1.5 text-[11px] leading-4 text-gray-500">
+                {props.confirmation.blocked}
+              </div>
+            ) : null}
+          </div>
+
           {/* 表单级说明：不属于某个字段的拒绝（门禁 / 执行中） */}
           {errors.form !== null && !lock.busy ? (
             <div className="rounded border-l-2 border-amber-400 bg-amber-50 px-2 py-1.5 text-[11px] leading-4 text-amber-800">
@@ -457,13 +512,23 @@ export function CreateRunWorkspace({ onOpenSettings }: { onOpenSettings: () => v
   // 离开时这份草稿连同冻结一起留在会话里（判据在 draft-submission，不在组件）。
   const draftFrozen = useAppStore((s) => s.isDraftFrozen(CREATE_SUBMIT_TARGET));
   const beginDraftSubmission = useAppStore((s) => s.beginDraftSubmission);
+  const currentConfirmationBinding = useAppStore((s) => s.currentConfirmationBinding);
+  const executionConfirmationReady = useAppStore((s) => s.executionConfirmationReady);
+  const armExecutionConfirmation = useAppStore((s) => s.armExecutionConfirmation);
   // 禁用判据与将要发出的请求同源（同一个函数），不存在两处口径漂移
   const submission = resolveCreateRunSubmission(form, { systemPrompt, userMessage, busy });
   // U4 任务 4.3：入口可用性从**统一操作槽**派生（不再只看本地 in_progress）。
   // 只禁"提交"——门禁拦下属于"这次发不出去"，不该顺手把输入也锁住（那是自己那次
   // 提交在飞时草稿冻结要做的事）。
   const gate = deriveEntryGate(useAppStore((s) => s.operations));
-  const canCreate = submission.ok && !draftFrozen && gate.canSubmit;
+  /**
+   * U5 任务 4.4：确认门禁。**现场绑定由 store 现取**（修订与设置快照组件传不进旧值），
+   * 判据在 `lib/execution-confirmation.ts`；store 的登记口在确认不成立时直接拒绝登记，
+   * 所以这里即使被绕过也不会发出请求。
+   */
+  const confirmation = currentConfirmationBinding("create", CREATE_SUBMIT_TARGET);
+  const confirmed = executionConfirmationReady(confirmation);
+  const canCreate = submission.ok && !draftFrozen && gate.canSubmit && confirmed;
   const formLocked = busy || pickingSource || draftFrozen;
   // 就近归属来自同一份判据；表单级说明位只在提交判据本身通过时补门禁文案
   const blockedReason = submission.ok ? gate.notice : null;
@@ -491,13 +556,36 @@ export function CreateRunWorkspace({ onOpenSettings }: { onOpenSettings: () => v
         cost: "一次提交 = 一次真实模型调用（按实际用量计费）。",
       };
 
+  /** 确认区展示的内容：全部由事实拼出（`lib/execution-confirmation.ts`），组件不写第二套话术 */
+  const confirmationRows = disclosureLines(
+    createDisclosure({
+      mode: form.mode,
+      systemPrompt,
+      userMessage,
+      modelSummary: settingsSummary,
+      sourcePath: form.source?.path ?? null,
+      writesAuthorized: form.writesAuthorized,
+    }),
+  );
+  const confirmBlocked = confirmed
+    ? null
+    : !submission.ok
+      ? "先补齐必填输入，再核对本次提交"
+      : gate.canSubmit
+        ? null
+        : gate.notice;
+
   const submit = async (): Promise<void> => {
     // 判据不通过（含待定提交冻结）⇒ 一次 IPC 都不发、也不登记关联
     if (!canCreate) return;
     // U3 任务 3.5：先原子登记提交关联（整份表单的修订 + 快照）⇒ 冻结整份；
     // 已有待定提交时拒绝重复提交。提交值仍由 `lib/create-run.ts` 单一来源构造，
     // 关联经闭包随请求交给 store，收尾由 store 的 createRun 负责（卸载不解冻）。
-    const assoc = beginDraftSubmission({ channel: "create", target: CREATE_SUBMIT_TARGET });
+    const assoc = beginDraftSubmission({
+      channel: "create",
+      target: CREATE_SUBMIT_TARGET,
+      confirmation,
+    });
     if (assoc === null) return;
     // canCreate 已通过 ⇒ submitCreateRun 的判据必然同样通过，必定发出请求并由 store 收尾
     await submitCreateRun(
@@ -582,6 +670,7 @@ export function CreateRunWorkspace({ onOpenSettings }: { onOpenSettings: () => v
         settingsSummary={settingsSummary}
         settingsMissing={settingsMissing}
         scopeFacts={scopeFacts}
+        confirmation={{ ready: confirmed, rows: confirmationRows, blocked: confirmBlocked }}
         lock={{
           fields: formLocked,
           draftFrozen,
@@ -600,6 +689,9 @@ export function CreateRunWorkspace({ onOpenSettings }: { onOpenSettings: () => v
         onWrites={(authorized) => setForm((prev) => setWritesAuthorized(prev, authorized))}
         onToggleAdvanced={() => setAdvancedOpen((prev) => !prev)}
         onOpenSettings={onOpenSettings}
+        onConfirm={() =>
+          armExecutionConfirmation(currentConfirmationBinding("create", CREATE_SUBMIT_TARGET))
+        }
         onDiscard={discardDraft}
         onSubmit={() => {
           void submit();

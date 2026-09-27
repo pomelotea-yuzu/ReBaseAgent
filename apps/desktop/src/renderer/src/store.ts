@@ -89,6 +89,15 @@ import type {
 } from "./lib/draft-submission";
 import { CREATE_SUBMIT_TARGET } from "./lib/draft-submission";
 import * as submissionLib from "./lib/draft-submission";
+import type { ConfirmationBinding, ConfirmationStore } from "./lib/execution-confirmation";
+import {
+  armConfirmation,
+  confirmationTargetKey,
+  decideConfirmation,
+  emptyConfirmationStore,
+  releaseConfirmation,
+  settingsStampOf,
+} from "./lib/execution-confirmation";
 import {
   type NavigationIntentStore,
   type NavigationTrigger,
@@ -424,10 +433,16 @@ interface AppState {
    * 开始一次提交：返回关联（快照 `submittedText` + 匹配令牌），目标已有待定提交时返回
    * null（拒绝重复提交，不覆盖旧关联）。调用类提交值必须取自返回的快照，不用组件可能
    * 过期的局部值；A/B 与创建的快照由本动作按同类草稿拼出。
+   *
+   * U5 任务 4.4：入口可以带上**本次执行确认**（只给目标即可——修订与设置快照由 store
+   * 当场取，组件传不进旧值）。带确认的提交在登记前先验一次现场：不是 `confirmed`
+   * ⇒ 返回 null，一次 IPC 都不发；通过后这份确认即被消费（重新执行要重新确认）。
    */
   beginDraftSubmission: (input: {
     channel: DraftSubmitChannel;
     target: DraftSubmitTarget;
+    /** 已给出的本次确认（缺省 = 该入口尚未接入确认门禁，见 tasks 4.4 边界条） */
+    confirmation?: ConfirmationBinding;
   }) => DraftSubmission | null;
   /**
    * 收尾一次提交（解除冻结）：只认令牌相同的关联，旧回调不解冻新提交。仅"已明确有结论"
@@ -448,6 +463,30 @@ interface AppState {
   settleDraftByOperation: (identity: { epoch: string; operationId: string }) => void;
   /** 该目标是否被待定提交冻结（冻结期间仓库拒绝写入与放弃） */
   isDraftFrozen: (target: DraftSubmitTarget) => boolean;
+
+  /**
+   * U5 任务 4.4：**执行前确认**（会话内凭据，design D2）。
+   *
+   * 绑"目标 + 草稿修订 + 设置快照 + 检查代次"，任一变化即失效；判据在
+   * `lib/execution-confirmation.ts`。它**不授予执行资格**（门禁仍是 U4 的统一槽 +
+   * main 的重复校验），也不落盘 / 不进 URL/日志/操作 IPC。
+   */
+  confirmations: ConfirmationStore;
+  /** 只读检查代次（按目标键）：重启检查即推进，旧响应不可安装新确认 */
+  checkGenerations: Record<string, number>;
+  /** 当前现场确认绑定：修订与设置快照都由 store 现取，组件传不进旧值 */
+  currentConfirmationBinding: (
+    channel: DraftSubmitChannel,
+    target: DraftSubmitTarget,
+  ) => ConfirmationBinding;
+  /** 记下一次确认（"已核对目标与边界"） */
+  armExecutionConfirmation: (binding: ConfirmationBinding) => void;
+  /** 撤销确认：返回编辑、切换对象、进入设置、重新执行、显式放弃都走这个出口 */
+  releaseExecutionConfirmation: (target: DraftSubmitTarget) => void;
+  /** 该现场现在还算不算已确认（现算，不缓存结论） */
+  executionConfirmationReady: (binding: ConfirmationBinding) => boolean;
+  /** 重新开始一次只读检查：推进代次并作废既有确认 */
+  restartExecutionCheck: (target: DraftSubmitTarget) => void;
 
   /**
    * U4 任务 4.1：读一次 `operations:status` 并**校验后整份采纳**。
@@ -1034,6 +1073,24 @@ function closeDraftClosureFor(identity: { epoch: string; operationId: string }):
  */
 function noteReadingChanged(): void {
   useAppStore.setState((state) => ({ navGeneration: state.navGeneration + 1 }));
+  // U5 任务 4.4：离开现场同样撤销待用的执行确认（切运行 / 换页签 / 换调用 / 换视图 /
+  // 进创建页 —— 之前核对的目标已经不是现在要提交的目标）
+  clearExecutionConfirmations();
+}
+
+/**
+ * 撤销全部待用的执行确认（U5 任务 4.4，design D2「目标、修订、设置或流程代次变化 SHALL
+ * 使旧检查与许可失效」里"离开现场"那一半）。
+ *
+ * 修订 / 设置 / 检查代次的变化由**现算比对**兜住，这里清的是比对看不出来的那种变化：
+ * 用户已经不在当初核对的那个现场了。没有确认时不改引用，避免无谓重渲染。
+ */
+function clearExecutionConfirmations(): void {
+  useAppStore.setState((state) =>
+    Object.keys(state.confirmations.byTargetKey).length === 0
+      ? {}
+      : { confirmations: emptyConfirmationStore() },
+  );
 }
 
 /**
@@ -1509,7 +1566,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     // 未删除（修订已推进 / 条目不存在）：仓库引用不变
     if (next.repo !== get().drafts) set({ drafts: next.repo });
     // U5 任务 2.3：显式放弃 ⇒ 该目标的收尾关联一并释放（用户已明确说这份输入不要了）
-    if (next.discarded) discardClosureTarget(key);
+    if (next.discarded) {
+      discardClosureTarget(key);
+      // U5 4.4：这份输入已经不要了 ⇒ 它的确认一并作废（不留给下一份草稿）
+      get().releaseExecutionConfirmation(key);
+    }
     return next.discarded;
   },
 
@@ -1539,8 +1600,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
     const next = draftLib.discardCreateRunDraft(get().drafts, expectedRevision);
     if (next.repo !== get().drafts) set({ drafts: next.repo });
-    // U5 任务 2.3：显式放弃 ⇒ 释放该目标的收尾关联（目录引用由创建对话框同轮清，见 CreateRunDialog）
-    if (next.discarded) discardClosureTarget(CREATE_SUBMIT_TARGET);
+    // U5 任务 2.3：显式放弃 ⇒ 释放该目标的收尾关联（目录引用由创建页同轮清，见 CreateRunWorkspace）
+    if (next.discarded) {
+      discardClosureTarget(CREATE_SUBMIT_TARGET);
+      // U5 4.4：创建草稿被弃 ⇒ 本次执行的确认一并作废
+      get().releaseExecutionConfirmation(CREATE_SUBMIT_TARGET);
+    }
     return next.discarded;
   },
 
@@ -1567,7 +1632,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     const next = draftLib.discardModelAbDraft(get().drafts, key, expectedRevision);
     if (next.repo !== get().drafts) set({ drafts: next.repo });
     // U5 任务 2.3：显式放弃 ⇒ 释放该目标的收尾关联
-    if (next.discarded) discardClosureTarget(key);
+    if (next.discarded) {
+      discardClosureTarget(key);
+      // U5 4.4：这份输入已经不要了 ⇒ 它的确认一并作废（不留给下一份草稿）
+      get().releaseExecutionConfirmation(key);
+    }
     return next.discarded;
   },
 
@@ -1577,7 +1646,17 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ createSourceRef: ref });
   },
 
-  beginDraftSubmission({ channel, target }) {
+  beginDraftSubmission({ channel, target, confirmation }) {
+    /**
+     * U5 任务 4.4：带确认的提交先验一次**当下**现场（不是"提交前某刻看过一眼"）。
+     * 修订、设置快照或检查代次与确认时不同 ⇒ 直接拒绝登记，组件因此一次 IPC 都不发。
+     */
+    if (
+      confirmation !== undefined &&
+      decideConfirmation(get().confirmations, confirmation).kind !== "confirmed"
+    ) {
+      return null;
+    }
     // 原子取提交快照：三类草稿各自的可核对串（同一步内读修订与内容，不会读到半新半旧）
     let submittedRevision: number;
     let submittedText: string;
@@ -1633,6 +1712,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((state) => ({
       draftSubmissions: next.store,
       navIntents: armNavigationIntent(state.navIntents, submitted.operationId, state.navGeneration),
+      // U5 4.4：确认是**一次性**凭据——登记成功即消费，重新执行要重新确认
+      ...(confirmation === undefined
+        ? {}
+        : { confirmations: releaseConfirmation(state.confirmations, target) }),
     }));
     return submitted;
   },
@@ -1667,6 +1750,59 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   isDraftFrozen(target) {
     return submissionLib.submissionOf(get().draftSubmissions, target) !== undefined;
+  },
+
+  confirmations: emptyConfirmationStore(),
+  checkGenerations: {},
+
+  currentConfirmationBinding(channel, target) {
+    const state = get();
+    // 修订一律现取（与 `beginDraftSubmission` 读同一份草稿），组件传不进旧值
+    let revision = -1;
+    if (!("field" in target)) {
+      revision = draftLib.modelAbDraftOf(state.drafts, target)?.revision ?? -1;
+    } else if (target.field === "create") {
+      revision = state.drafts.create?.revision ?? -1;
+    } else {
+      revision = draftLib.callDraftOf(state.drafts, target)?.revision ?? -1;
+    }
+    return {
+      channel,
+      target,
+      revision,
+      settingsStamp: settingsStampOf({ settings: state.settings, proxy: state.proxy }),
+      generation: state.checkGenerations[confirmationTargetKey(target)] ?? 0,
+    };
+  },
+
+  armExecutionConfirmation(binding) {
+    set((state) => {
+      const next = armConfirmation(state.confirmations, binding);
+      return next === state.confirmations ? {} : { confirmations: next };
+    });
+  },
+
+  releaseExecutionConfirmation(target) {
+    set((state) => {
+      const next = releaseConfirmation(state.confirmations, target);
+      return next === state.confirmations ? {} : { confirmations: next };
+    });
+  },
+
+  executionConfirmationReady(binding) {
+    // 现算：现场（修订 / 设置 / 代次）任一不同即未确认——不缓存"已确认"的布尔
+    return decideConfirmation(get().confirmations, binding).kind === "confirmed";
+  },
+
+  restartExecutionCheck(target) {
+    const key = confirmationTargetKey(target);
+    set((state) => ({
+      checkGenerations: {
+        ...state.checkGenerations,
+        [key]: (state.checkGenerations[key] ?? 0) + 1,
+      },
+      confirmations: releaseConfirmation(state.confirmations, target),
+    }));
   },
 
   async refreshOperationStatus() {
@@ -2153,6 +2289,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   setSettingsSection(section) {
     // U5 3.4：进设置 SHALL 撤销自动导航资格（delta「结果导航尊重用户当前阅读意图」）
     if (section !== null) noteReadingChanged();
+    // U5 4.4：设置往返本身即撤销待用的执行确认（进出都算——确认时看到的模型/接入
+    // 与回来后可能已经不是同一份配置了）
+    else clearExecutionConfirmations();
     set({ settingsSection: section });
   },
 

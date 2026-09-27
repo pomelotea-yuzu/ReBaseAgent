@@ -492,8 +492,11 @@ describe("store 行为：创建整份与 A/B 整批的提交关联（任务 3.5�
 
 describe("接线契约：五类提交走快照并受冻结约束（任务 3.4/3.5）", () => {
   it("调用类三编辑器：先登记关联，提交值取自快照而非渲染局部值", () => {
+    // 折叠空白后再找：4.4 起 result 的登记调用带上了确认参数（多行写法），
+    // 判据是"经 beginDraftSubmission 登记"，不是"写成一行"
+    const flatPanel = DETAIL_PANEL.replace(/\s+/g, " ");
     for (const channel of ["result", "prompt", "messages"] as const) {
-      expect(DETAIL_PANEL).toContain(`beginDraftSubmission({ channel: "${channel}", target:`);
+      expect(flatPanel).toContain(`beginDraftSubmission({ channel: "${channel}", target:`);
     }
     // 每个通道都从关联里取提交值
     expect(DETAIL_PANEL.match(/assoc\.submittedText/g)?.length).toBeGreaterThanOrEqual(3);
@@ -534,10 +537,15 @@ describe("接线契约：五类提交走快照并受冻结约束（任务 3.4/3.
   });
 
   it("创建提交：判据通过后才登记整份关联，并随请求交给 store 收尾", () => {
-    const submit = slice(CREATE_WORKSPACE, "const submit = ", "const pickGeneration");
-    expect(submit.indexOf("if (!canCreate) return;")).toBeLessThan(
-      submit.indexOf('beginDraftSubmission({ channel: "create", target: CREATE_SUBMIT_TARGET })'),
+    const submit = slice(CREATE_WORKSPACE, "const submit = ", "const pickGeneration").replace(
+      /\s+/g,
+      " ",
     );
+    expect(submit.indexOf("if (!canCreate) return;")).toBeLessThan(
+      submit.indexOf('beginDraftSubmission({ channel: "create", target: CREATE_SUBMIT_TARGET'),
+    );
+    // U5 4.4：登记时交出现场确认 ⇒ 不成立的确认在 store 侧就被拒（组件不是执法点）
+    expect(submit).toContain("confirmation,");
     expect(submit).toContain("createRun(request, assoc)");
     // 判据不通过时零 IPC（原有保证不变）
     const lib = readFileSync(

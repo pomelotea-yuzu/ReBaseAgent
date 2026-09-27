@@ -65,6 +65,11 @@ function props(over: Partial<CreateRunFormViewProps> = {}): CreateRunFormViewPro
     settingsSummary: "当前模型 deepseek-chat（https://api.deepseek.com/v1）",
     settingsMissing: false,
     scopeFacts: { execution: "纯对话：空工具表", cost: "一次提交 = 一次真实模型调用。" },
+    confirmation: {
+      ready: true,
+      rows: [{ label: "任务（User Message）", value: "用一句话解释时间旅行调试" }],
+      blocked: null,
+    },
     lock: IDLE_LOCK,
     headingRef: { current: null },
     onMode: () => {},
@@ -74,6 +79,7 @@ function props(over: Partial<CreateRunFormViewProps> = {}): CreateRunFormViewPro
     onWrites: () => {},
     onToggleAdvanced: () => {},
     onOpenSettings: () => {},
+    onConfirm: () => {},
     onDiscard: () => {},
     onSubmit: () => {},
     onReturn: () => {},
@@ -261,6 +267,57 @@ describe("4.2 锁位与可操作性：disabled 真的落到控件上", () => {
     expect(opened).toContain('id="create-system-prompt"');
     expect(opened).toContain('aria-expanded="true"');
     expect(opened).toContain("留空也可以");
+  });
+});
+
+describe("4.4 创建页的核对与确认：未确认就没有提交这条路", () => {
+  /** 取确认按钮自己的开标签（判 disabled 只认属性，理由同 `tagOf`） */
+  function confirmTag(markup: string): string {
+    const at = markup.indexOf("data-confirm-execution");
+    expect(at).toBeGreaterThan(-1);
+    return markup.slice(markup.lastIndexOf("<button", at), markup.indexOf(">", at) + 1);
+  }
+
+  it("未确认 ⇒ 披露逐行可读、确认按钮可点、提交按钮仍被挡住", () => {
+    const markup = html({
+      confirmation: {
+        ready: false,
+        rows: [
+          { label: "任务（User Message）", value: "解释一下时间旅行调试" },
+          { label: "已做的检查", value: "本地字段检查：必填项、模式与授权条件" },
+          { label: "本次边界", value: "没有独立的模型连通性预检" },
+        ],
+        blocked: null,
+      },
+      lock: { ...IDLE_LOCK, canSubmit: false },
+    });
+    expect(markup).toContain("解释一下时间旅行调试");
+    expect(markup).toContain("本地字段检查");
+    expect(markup).toContain("没有独立的模型连通性预检");
+    expect(markup).toContain("已核对，确认本次提交");
+    expect(confirmTag(markup)).not.toContain('disabled=""');
+    expect(markup).toMatch(/disabled=""[^>]*>创建<\/button>/);
+  });
+
+  it("已确认 ⇒ 确认按钮变状态标识且不可重复点，提交才可能放行", () => {
+    const markup = html({
+      confirmation: { ready: true, rows: [{ label: "任务", value: "t" }], blocked: null },
+    });
+    expect(markup).toContain("已确认本次提交");
+    expect(markup).toContain('aria-pressed="true"');
+    expect(confirmTag(markup)).toContain('disabled=""');
+  });
+
+  it("还不能确认 ⇒ 就近给出原因（不是只把按钮禁掉）", () => {
+    const markup = html({
+      confirmation: {
+        ready: false,
+        rows: [{ label: "任务", value: "t" }],
+        blocked: "先补齐必填输入，再核对本次提交",
+      },
+    });
+    expect(markup).toContain("先补齐必填输入，再核对本次提交");
+    expect(confirmTag(markup)).toContain('disabled=""');
   });
 });
 

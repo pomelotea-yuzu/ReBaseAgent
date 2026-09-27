@@ -21,6 +21,7 @@ import {
 } from "../lib/draft-source";
 import { deriveEntryGate } from "../lib/entry-gate";
 import type { EntryGate } from "../lib/entry-gate";
+import { disclosureLines, resultPlainDisclosure } from "../lib/execution-confirmation";
 import type { ForkCacheHint } from "../lib/fork-cache-hint";
 import { forkCacheHint } from "../lib/fork-cache-hint";
 import { formatDuration, prettyJson } from "../lib/format";
@@ -1900,6 +1901,12 @@ function ForkEditor({
   // U3 任务 3.4：待定提交冻结该草稿（store 侧同时拒绝写入/放弃）；冻结与编辑器挂载无关
   const draftFrozen = useAppStore((s) => s.isDraftFrozen(draftKey));
   const beginDraftSubmission = useAppStore((s) => s.beginDraftSubmission);
+  // U5 任务 4.4：普通 result 的**执行前确认**（隔离路径的预检确认属 §4.5，仍是既有流程）。
+  // 现场确认绑定由 store 现取（修订与设置快照组件传不进旧值），判据在
+  // `lib/execution-confirmation.ts`；store 的登记口在确认不成立时直接拒绝登记。
+  const currentConfirmationBinding = useAppStore((s) => s.currentConfirmationBinding);
+  const executionConfirmationReady = useAppStore((s) => s.executionConfirmationReady);
+  const armExecutionConfirmation = useAppStore((s) => s.armExecutionConfirmation);
 
   // 隔离续跑的本次确认状态：全部是**组件局部**状态——每次打开对话框重新开始，
   // 不从父 trace 的 write_authorized 标注或上一次编辑继承任何授权。
@@ -2000,7 +2007,15 @@ function ForkEditor({
   // 本地尚未确认的提交），不再只看本地 forking。⚠️ 只拦"提交"，不拦只读的能力预检——
   // 预检按 spec 不占主动槽，占槽期间照常可用。
   const gate = deriveEntryGate(useAppStore((s) => s.operations));
-  const canFork = canSubmit && sourceExecutable && sourceBlocked === null && gate.canSubmit;
+  const plainBinding = currentConfirmationBinding("result", draftKey);
+  const plainConfirmed = executionConfirmationReady(plainBinding);
+  // U5 4.4：普通路径再叠一道"已核对本次目标与边界"的确认；隔离路径仍走既有预检 + 本次授权
+  const canFork =
+    canSubmit &&
+    (isolated || plainConfirmed) &&
+    sourceExecutable &&
+    sourceBlocked === null &&
+    gate.canSubmit;
   const checkAllowed = check.ok && sourceExecutable && sourceBlocked === null;
   // 提示语：源不可用优先（它同时也会让 check 失配，但原因不同，不能互相冒充）
   const checkBlockReason = !sourceExecutable
@@ -2282,6 +2297,60 @@ function ForkEditor({
         <div className="mt-1 text-[11px] leading-4 text-amber-700">{submission.reason}</div>
       ) : null}
 
+      {!isolated ? (
+        /*
+         * U5 任务 4.4：普通 result 的**核对本次重跑**（就地展开，不再叠一层大模态）。
+         * 内容全部来自 `resultPlainDisclosure`：本次目标、原/新值、模型与前缀，
+         * 以及"确实做过哪些检查 / 这次执行的边界"；没有独立预检接口这件事直说。
+         */
+        <div className="mt-2 rounded border border-gray-200 bg-white">
+          <div className="flex items-center justify-between gap-2 px-2 py-1.5">
+            <span className="text-[11px] font-medium text-gray-600">核对本次重跑</span>
+            <button
+              type="button"
+              data-confirm-execution
+              aria-pressed={plainConfirmed ? "true" : undefined}
+              disabled={
+                inProgress ||
+                plainConfirmed ||
+                !canSubmit ||
+                !sourceExecutable ||
+                sourceBlocked !== null ||
+                !gate.canSubmit
+              }
+              onClick={() =>
+                armExecutionConfirmation(currentConfirmationBinding("result", draftKey))
+              }
+              className={`shrink-0 rounded border px-2 py-1 text-[11px] disabled:cursor-not-allowed disabled:opacity-40 ${
+                plainConfirmed
+                  ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+                  : "border-gray-300 text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              {plainConfirmed ? "已确认本次重跑" : "已核对，确认本次重跑"}
+            </button>
+          </div>
+          <dl className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 border-t border-gray-100 px-2 py-1.5 text-[11px] leading-4">
+            {disclosureLines(
+              resultPlainDisclosure({
+                parentRunId: run.meta.id,
+                atSpanId: span.id,
+                toolName: span.tool,
+                oldValue: original,
+                newValue: value,
+                parentModel,
+                configModel,
+              }),
+            ).map((row) => (
+              <div key={`${row.label}-${row.value}`} className="col-span-2 grid grid-cols-subgrid">
+                <dt className="text-gray-500">{row.label}</dt>
+                <dd className="min-w-0 break-words text-gray-700">{row.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      ) : null}
+
       <EntryGateNotice gate={gate} />
 
       {draftFrozen ? (
@@ -2335,7 +2404,12 @@ function ForkEditor({
             if (isolated && !submission.ok) return;
             // U3 任务 3.4：先原子登记提交关联（取 key + 修订 + 请求快照），提交值取自快照；
             // 已有待定提交时拒绝重复提交。收尾由 store 执行函数负责（卸载不解冻）。
-            const assoc = beginDraftSubmission({ channel: "result", target: draftKey });
+            const assoc = beginDraftSubmission({
+              channel: "result",
+              target: draftKey,
+              // U5 4.4：普通路径带现场确认（不成立 ⇒ store 拒绝登记 ⇒ 一次 IPC 都不发）
+              ...(isolated ? {} : { confirmation: plainBinding }),
+            });
             if (assoc === null) return;
             if (isolated && submission.ok) {
               void forkAt(
