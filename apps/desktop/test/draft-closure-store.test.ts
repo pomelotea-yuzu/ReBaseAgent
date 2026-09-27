@@ -10,6 +10,7 @@ import * as draftLib from "../src/renderer/src/lib/debugging-drafts";
 import type { CallDraftKey, ModelAbDraftKey } from "../src/renderer/src/lib/debugging-drafts";
 import { CREATE_SUBMIT_TARGET, closureOf } from "../src/renderer/src/lib/draft-submission";
 import { initialSession } from "../src/renderer/src/lib/operation-session";
+import { stripComments } from "../src/renderer/src/lib/overview-view";
 import { emptyResultReadStore, resultReadKeyOf } from "../src/renderer/src/lib/result-verification";
 import { FAKE_EPOCH, statusSnapshot, toExecuted } from "./helpers/operation-channels";
 
@@ -608,5 +609,73 @@ describe("2.4 A/B 批次：全部预期臂正常才清整批", () => {
     expect(submission.channel).toBe("model_ab");
     expect(Object.keys(state.resultReads.byKey)).toHaveLength(0);
     expect(calls.filter((one) => one.startsWith("runs:get"))).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 任务 2.5：失败与读取恢复**分别**收尾的接线反证
+// ---------------------------------------------------------------------------
+describe("2.5 读取恢复后清理：只读通道、组件无关", () => {
+  /** 主动执行通道被调用的次数（读取重试必须是零增量） */
+  function execCalls(): number {
+    return calls.filter((one) =>
+      ["runs:fork", "runs:promptFork", "proxy:fork", "runs:create", "runs:modelAb"].includes(one),
+    ).length;
+  }
+
+  it("运行失败 ⇒ 保留；只读重试读到正常终止 ⇒ 才清理，全程零执行调用", async () => {
+    const submission = submitDraft(KEY_A, "编辑后的结果");
+    registry = () => [settledRecord({ operationId: submission.operationId })];
+    details = { [TRUSTED]: ok(detailNamed("u1-error-detail", TRUSTED)) };
+
+    await useAppStore.getState().refreshOperationStatus();
+
+    const afterFailure = useAppStore.getState();
+    expect(afterFailure.callDraftOf(KEY_A)?.text).toBe("编辑后的结果");
+    expect(
+      closureOf(afterFailure.draftSubmissions, FAKE_EPOCH, submission.operationId),
+    ).toBeDefined();
+    const before = { exec: execCalls(), list: calls.filter((one) => one === "runs:list").length };
+
+    // 组件侧复位（等价于编辑器卸载、局部 forking 状态清空）——收尾归 store，不靠挂载中的组件
+    useAppStore.getState().resetFork();
+    details = { [TRUSTED]: ok(detailNamed("u1-ok", TRUSTED)) };
+    const restored = await useAppStore.getState().retryResultRead({
+      epoch: FAKE_EPOCH,
+      operationId: submission.operationId,
+      runId: TRUSTED,
+    });
+
+    expect(restored.facts?.normalEnd).toBe(true);
+    const state = useAppStore.getState();
+    expect(draftLib.callDraftOf(state.drafts, KEY_A)).toBeUndefined();
+    expect(closureOf(state.draftSubmissions, FAKE_EPOCH, submission.operationId)).toBeUndefined();
+    // 只读重试：执行通道零增量，也不额外刷列表
+    expect(execCalls()).toBe(before.exec);
+    expect(calls.filter((one) => one === "runs:list")).toHaveLength(before.list);
+    // 读取重试不产生导航（结果清理与"跳到那次结果"是两件事）
+    expect(state.selectedRunId).toBeNull();
+    expect(state.view).toBe("trace");
+  });
+
+  it("源码级接线契约：清理判据只在 store 里被消费，组件不复写第二份", () => {
+    const storeSrc = stripComments(
+      readFileSync(resolve(import.meta.dirname, "../src/renderer/src/store.ts"), "utf8"),
+    );
+    // 1) 读取结论落地后尝试收尾；终态消费末尾再补一轮 ⇒ 两处消费点
+    const consumers = storeSrc.match(/closeDraftClosureFor\(/g) ?? [];
+    expect(consumers.length).toBeGreaterThanOrEqual(3); // 定义 + 两处调用
+    // 2) 组件侧不得出现清理判据（否则"响应即清草稿"的旧分支会复活）
+    const componentDir = resolve(import.meta.dirname, "../src/renderer/src/components");
+    const offenders = readdirSync(componentDir)
+      .filter((name) => name.endsWith(".tsx"))
+      .map(
+        (name) => [name, stripComments(readFileSync(resolve(componentDir, name), "utf8"))] as const,
+      )
+      .filter(([, src]) =>
+        /applyDraftClosure|decideDraftClosure|verdictOfOperation|releaseClosure\s*\(/.test(src),
+      )
+      .map(([name]) => name);
+    expect(offenders).toEqual([]);
   });
 });

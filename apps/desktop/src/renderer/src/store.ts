@@ -1522,7 +1522,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   async retryResultRead(identity) {
-    // 任务 1.3：显式只读重试绕过"已在读/已核实"的去重，但仍只走 runs:get
     return readRunResult(identity, true);
   },
 
