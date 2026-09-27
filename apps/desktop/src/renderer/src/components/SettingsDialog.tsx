@@ -130,10 +130,23 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
     if (!okReread) setRereadFailed(true);
   };
 
+  /**
+   * U5 任务 5.5：清除确认迁到真模态（渲染层最后一处 `window.confirm` 在此归零）。
+   * 确认文案**点名保存凭据**一并删除；取消 = 零清除调用、输入逐字保留。
+   * "受槽约束"由按钮的 `configGate.canChange` 承担（U4 4.8），这里不重复判锁。
+   */
   const doClear = async (): Promise<void> => {
-    if (!window.confirm("清除运行配置？已保存的 apiKey 将一并删除，不可恢复。")) return;
+    if (busy) return;
+    const confirmed = await requestConfirm({
+      title: "清除运行配置",
+      message:
+        "清除会删除已保存的配置：\n\n• apiKey（保存的凭据）一并删除，不可恢复\n• baseURL 与 model 回到未配置\n\n调试草稿与已有运行不受影响。",
+      confirmLabel: "确认清除",
+    });
+    if (!confirmed) return;
     setBusy(true);
     setMessage(null);
+    setRereadFailed(false);
     const okCleared = await clearSettings();
     if (okCleared) {
       setBaseURL("");
