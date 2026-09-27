@@ -189,7 +189,11 @@ interface AppState {
    */
   operations: OperationSession;
 
-  /** 分叉重跑进行中状态（runs:fork 的唯一写通道） */
+  /**
+   * 分叉重跑的**请求**状态（`runs:fork` / `runs:promptFork` 写通道）。
+   * U5 任务 3.2 起 result / prompt 两条入口 ok 后回到 `idle`——"success" 是"响应即成功"的旧形态；
+   * 仅剩 `proxyFork`（messages）还在写它，待任务 3.3 一并去掉。运行结局另由可信身份核实。
+   */
   forking: "idle" | "in_progress" | "success" | "error";
   /** 分叉失败的展示信息（来自信封 error） */
   forkError: string | null;
@@ -482,6 +486,10 @@ interface AppState {
    * 编辑某 tool.invoke 的 result 并重跑；成功刷新列表并自动选中新 run。
    * `execution` 仅隔离父本携带（本次显式 `allowFileWrites:true`）——不传时请求里
    * **不出现该键**，普通父本走既有普通重跑，隔离父本会被 main/core 拒绝（不降级）。
+   */
+  /**
+   * result 分叉重跑（普通父本不带 `execution`；隔离父本必带）：只交代**请求事实**。
+   * U5 任务 3.2：不再在 ok 后刷列表 / 选中新 run（见函数体注记）。
    */
   forkAt: (
     parentRunId: string,
@@ -1588,10 +1596,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       });
       return false;
     }
-    // 成功：刷新列表（新 run 带分支徽章）并自动选中新 run（合并轨迹 + 分叉点标注）
-    set({ forking: "success" });
-    await get().loadRuns();
-    await get().selectRun(envelope.data.id);
+    // U5 任务 3.2：ok 只结束"这次请求在飞"的本地标记。旧实现在这里 `loadRuns()` +
+    // `selectRun(信封里的 id)`——把响应当成了结局（成功信封 + 运行 error 时照样跳过去）。
+    // 列表刷新、按可信 ID 核实与是否导航，与创建同一条路：全部归终态消费点与导航意图。
+    set({ forking: "idle" });
     return true;
   },
 
@@ -1702,10 +1710,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       });
       return false;
     }
-    // 成功：刷新列表并选中新 run（独立新轨迹 + 父级溯源；失败时不产生伪 run）
-    set({ forking: "success" });
-    await get().loadRuns();
-    await get().selectRun(envelope.data.id);
+    // U5 任务 3.2：与 forkAt 同形——响应不决定结局，也不产生导航（失败同样不产生伪 run：
+    // 那条 run 是否在列表里、结局如何，只看登记的可信 ID 与它自己的终止事件）。
+    set({ forking: "idle" });
     return true;
   },
 

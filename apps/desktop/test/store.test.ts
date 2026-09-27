@@ -286,8 +286,8 @@ beforeEach(() => {
   resetStore();
 });
 
-describe("store：runs:fork 流转（tasks 6.1）", () => {
-  it("成功：in_progress → success，列表刷新并自动选中新 run", async () => {
+describe("store：runs:fork 流转（tasks 6.1 + U5 3.2 入口不再消费响应）", () => {
+  it("成功：请求状态回到 idle，入口不刷列表也不选中新 run（收尾归终态消费）", async () => {
     await useAppStore.getState().loadRuns();
     expect(useAppStore.getState().runs).toHaveLength(1);
 
@@ -295,16 +295,18 @@ describe("store：runs:fork 流转（tasks 6.1）", () => {
     expect(okFork).toBe(true);
 
     const state = useAppStore.getState();
-    expect(state.forking).toBe("success");
+    // U5 任务 3.2 的**有意契约变更**：result 路径不再有 "success" 展示态
+    expect(state.forking).toBe("idle");
     expect(state.forkError).toBeNull();
     expect(controller.forkRequests).toEqual([
       { parentRunId: "r_01", atSpanId: "s_03", value: "编辑后的结果" },
     ]);
-    // 刷新后列表含新 run 且自动选中
-    expect(controller.listCalls).toBeGreaterThanOrEqual(2);
-    expect(state.runs[0]?.id).toBe("run_forked");
-    expect(state.selectedRunId).toBe("run_forked");
-    expect(state.detail).not.toBeNull();
+    // 本文件的 status 桩不登记任何操作 ⇒ 消费点无事可做：入口这条路零次额外刷新、零导航。
+    // （旧实现在这里 loadRuns + selectRun(信封 id)；带登记的同形核对见 fork-entry-closure.test.ts）
+    expect(controller.listCalls).toBe(1);
+    expect(state.selectedRunId).toBeNull();
+    expect(state.detail).toBeNull();
+    expect(controller.getRunCalls).toEqual([]);
   });
 
   it("失败：in_progress → error，保留信封错误信息与错误码，不选中新 run", async () => {
@@ -336,8 +338,8 @@ describe("store：runs:fork 流转（tasks 6.1）", () => {
   });
 });
 
-describe("store：runs:promptFork 流转（add-prompt-replay）", () => {
-  it("成功：in_progress → success，列表刷新并自动选中新 run", async () => {
+describe("store：runs:promptFork 流转（add-prompt-replay + U5 3.2）", () => {
+  it("成功：请求状态回到 idle，入口不刷列表也不选中新 run", async () => {
     await useAppStore.getState().loadRuns();
 
     const okFork = await useAppStore
@@ -346,14 +348,15 @@ describe("store：runs:promptFork 流转（add-prompt-replay）", () => {
     expect(okFork).toBe(true);
 
     const state = useAppStore.getState();
-    expect(state.forking).toBe("success");
+    expect(state.forking).toBe("idle");
     expect(state.forkError).toBeNull();
     expect(controller.promptForkRequests).toEqual([
       { parentRunId: "r_01", field: "system_prompt", value: "新的 system prompt" },
     ]);
-    expect(controller.listCalls).toBeGreaterThanOrEqual(2);
-    expect(state.selectedRunId).toBe("run_prompt_forked");
-    expect(state.detail).not.toBeNull();
+    // 同 result 入口：序列里只有首次那一次列表读取，详情一次都不读
+    expect(controller.listCalls).toBe(1);
+    expect(state.selectedRunId).toBeNull();
+    expect(controller.getRunCalls).toEqual([]);
   });
 
   it("失败：error 状态保留信封错误与错误码，不刷新出伪 run", async () => {
