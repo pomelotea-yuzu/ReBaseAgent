@@ -77,6 +77,15 @@ function settledRecord(overrides: Partial<OperationRecord> = {}): OperationRecor
   };
 }
 
+/** 默认 status 应答：按 `registry()` 出快照（用例可临时替换成新 epoch/失联） */
+function defaultStatusHandler() {
+  return async () => {
+    calls.push("operations:status");
+    registryVersion += 1;
+    return ok(statusSnapshot({ registryVersion, operations: registry() }));
+  };
+}
+
 const apiStub: Record<string, unknown> = {
   listRuns: async (): Promise<Envelope<ListRunsData>> => {
     calls.push("runs:list");
@@ -86,11 +95,7 @@ const apiStub: Record<string, unknown> = {
     calls.push(`runs:get:${id}`);
     return details[id] ?? ok(detailNamed("u1-ok", id));
   },
-  operationsStatus: async () => {
-    calls.push("operations:status");
-    registryVersion += 1;
-    return ok(statusSnapshot({ registryVersion, operations: registry() }));
-  },
+  operationsStatus: defaultStatusHandler(),
   operationsReconcile: async () => ({
     ok: false as const,
     error: { code: "NOT_STUBBED", message: "本桩未实现核对" },
@@ -143,6 +148,8 @@ beforeEach(async () => {
   registryVersion = 1;
   details = {};
   registry = () => [];
+  // 上一支用例可能替换过 status 实现（换 epoch / 失联）⇒ 每支都从默认应答开始
+  apiStub.operationsStatus = defaultStatusHandler();
   useAppStore.setState({
     operations: initialSession(),
     resultReads: emptyResultReadStore(),
@@ -342,5 +349,99 @@ describe("2.2 单运行正常终止后的原子修订清理", () => {
     expect(draftLib.callDraftOf(useAppStore.getState().drafts, KEY_A)?.text).toBe("编辑后的结果");
     expect(useAppStore.getState().isDraftFrozen(KEY_A)).toBe(true);
     expect(submission.operationId).not.toBe(other.operationId);
+  });
+});
+
+describe("2.3 显式放弃、重建与旧会话：不确定就不删", () => {
+  it("显式放弃 ⇒ 关联一并释放；重建同目标草稿后，迟到结果也不误删", async () => {
+    const submission = submitDraft(KEY_A, "编辑后的结果");
+    details = { [TRUSTED]: { ok: false, error: { code: "RUN_NOT_FOUND", message: "缺文件" } } };
+    registry = () => [settledRecord({ operationId: submission.operationId })];
+    await useAppStore.getState().refreshOperationStatus();
+    const withClosure = useAppStore.getState();
+    expect(
+      closureOf(withClosure.draftSubmissions, FAKE_EPOCH, submission.operationId),
+    ).toBeDefined();
+
+    // 用户显式放弃（解冻后才允许）⇒ 条目与关联一起走
+    const revision = withClosure.callDraftOf(KEY_A)?.revision as number;
+    expect(useAppStore.getState().discardCallDraft(KEY_A, revision)).toBe(true);
+    const afterDiscard = useAppStore.getState();
+    expect(draftLib.callDraftOf(afterDiscard.drafts, KEY_A)).toBeUndefined();
+    expect(
+      closureOf(afterDiscard.draftSubmissions, FAKE_EPOCH, submission.operationId),
+    ).toBeUndefined();
+
+    // 重建同目标草稿（单调修订，绝不复用旧修订）⇒ 迟到的正常结果没有可清理的凭据
+    useAppStore.getState().ensureCallDraft(KEY_A, "原结果", undefined);
+    useAppStore.getState().writeCallDraftText(KEY_A, "编辑后的结果");
+    details = { [TRUSTED]: ok(detailNamed("u1-ok", TRUSTED)) };
+    await useAppStore.getState().retryResultRead({
+      epoch: FAKE_EPOCH,
+      operationId: submission.operationId,
+      runId: TRUSTED,
+    });
+    const state = useAppStore.getState();
+    expect(draftLib.callDraftOf(state.drafts, KEY_A)?.text).toBe("编辑后的结果");
+    expect((draftLib.callDraftOf(state.drafts, KEY_A)?.revision as number) > revision).toBe(true);
+  });
+
+  it("旧 main 会话的关联：换新 epoch 后迟到的正常结果也不清理", async () => {
+    const submission = submitDraft(KEY_A, "编辑后的结果");
+    // 第一次核实读不到 ⇒ 解冻但保留输入与关联（关联属于当前 FAKE_EPOCH）
+    details = { [TRUSTED]: { ok: false, error: { code: "RUN_NOT_FOUND", message: "缺文件" } } };
+    registry = () => [settledRecord({ operationId: submission.operationId })];
+    await useAppStore.getState().refreshOperationStatus();
+    expect(
+      closureOf(useAppStore.getState().draftSubmissions, FAKE_EPOCH, submission.operationId),
+    ).toBeDefined();
+
+    // main 换新会话：epoch 变了、旧登记不在新快照里（旧操作结局永久未知）
+    registry = () => [];
+    const NEW_EPOCH = "99999999-9999-9999-8999-999999999999";
+    apiStub.operationsStatus = async () => {
+      calls.push("operations:status");
+      registryVersion += 1;
+      return ok(statusSnapshot({ epoch: NEW_EPOCH, registryVersion, operations: [] }));
+    };
+    await useAppStore.getState().refreshOperationStatus();
+    expect(useAppStore.getState().operations.epoch).toBe(NEW_EPOCH);
+
+    // 旧身份的结果现在读得到且正常结束 ⇒ 仍不得清理（只结当前会话的账）
+    details = { [TRUSTED]: ok(detailNamed("u1-ok", TRUSTED)) };
+    const entry = await useAppStore.getState().retryResultRead({
+      epoch: FAKE_EPOCH,
+      operationId: submission.operationId,
+      runId: TRUSTED,
+    });
+    expect(entry.facts?.normalEnd).toBe(true);
+    const state = useAppStore.getState();
+    expect(draftLib.callDraftOf(state.drafts, KEY_A)?.text).toBe("编辑后的结果");
+    expect(closureOf(state.draftSubmissions, FAKE_EPOCH, submission.operationId)).toBeDefined();
+  });
+
+  it("通信未知时即使核实到正常结束也不清理（先确认通信，再谈删输入）", async () => {
+    const submission = submitDraft(KEY_A, "编辑后的结果");
+    registry = () => [settledRecord({ operationId: submission.operationId })];
+    details = { [TRUSTED]: { ok: false, error: { code: "RUN_NOT_FOUND", message: "缺文件" } } };
+    await useAppStore.getState().refreshOperationStatus();
+    // 让通道失联一次 ⇒ unknown；此时任何收尾都不该发生
+    apiStub.operationsStatus = async () => ({
+      ok: false as const,
+      error: { code: "STATUS_FAILED", message: "断开" },
+    });
+    await useAppStore.getState().refreshOperationStatus();
+    expect(useAppStore.getState().operations.unknown).toBe(true);
+
+    details = { [TRUSTED]: ok(detailNamed("u1-ok", TRUSTED)) };
+    await useAppStore.getState().retryResultRead({
+      epoch: FAKE_EPOCH,
+      operationId: submission.operationId,
+      runId: TRUSTED,
+    });
+    expect(draftLib.callDraftOf(useAppStore.getState().drafts, KEY_A)?.text).toBe("编辑后的结果");
+    expect(
+      closureOf(useAppStore.getState().draftSubmissions, FAKE_EPOCH, submission.operationId),
+    ).toBeDefined();
   });
 });

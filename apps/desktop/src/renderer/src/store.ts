@@ -828,6 +828,20 @@ async function readRunResult(
 }
 
 /**
+ * U5 任务 2.3：**显式放弃**某目标草稿时一并释放它的收尾关联。
+ *
+ * design D3 给关联的寿命是"到 renderer 会话结束或显式放弃相关草稿"为止。用户既然明确说
+ * 这份输入不要了，那次执行就不该再留着一份"将来可以替她决定删什么"的凭据——
+ * 否则之后重建的同目标草稿（新修订）与该关联同处一室，判据面徒增歧义。
+ */
+function discardClosureTarget(target: DraftSubmitTarget): void {
+  useAppStore.setState((state) => {
+    const next = submissionLib.releaseClosuresForTarget(state.draftSubmissions, target);
+    return next === state.draftSubmissions ? {} : { draftSubmissions: next };
+  });
+}
+
+/**
  * U5 任务 2.2/2.4：**按提交修订收尾一份草稿**（读取结论落地后尝试）。
  *
  * 判据全在 `lib/draft-closure`（四道闸 + 修订 CAS），这里只负责"看得见的那一份仓库"：
@@ -847,6 +861,13 @@ function closeDraftClosureFor(identity: { epoch: string; operationId: string }):
     (one) => one.epoch === identity.epoch && one.operationId === identity.operationId,
   );
   if (record === undefined) return;
+  /**
+   * U5 任务 2.3：**只结"当前会话、通信已确认"的账**（design D3）。
+   * - 换过 main 会话后旧登记的结局永久未知——哪怕它的结果迟到了、草稿修订也对得上，
+   *   也不能拿一份没被现行会话确认过的事实去删用户的输入；
+   * - 通信未知时同样不清理：此刻连"这条操作到底停在哪儿"都没确认。
+   */
+  if (state.operations.epoch !== identity.epoch || state.operations.unknown) return;
   const decision = decideDraftClosure({
     closure,
     draft: draftStateOf(state.drafts, closure.target),
@@ -878,16 +899,33 @@ function closeDraftClosureFor(identity: { epoch: string; operationId: string }):
  */
 async function consumeSettledOperations(previous: OperationSession): Promise<void> {
   const fresh = newlySettledOperations(previous, useAppStore.getState().operations);
-  if (fresh.length === 0) return;
-  const state = useAppStore.getState();
-  for (const record of fresh) {
-    state.settleDraftByOperation({ epoch: record.epoch, operationId: record.operationId });
-  }
-  if (fresh.some((record) => record.runIds.length > 0)) await state.loadRuns();
-  for (const record of fresh) {
-    for (const runId of record.runIds) {
-      await readRunResult({ epoch: record.epoch, operationId: record.operationId, runId }, false);
+  if (fresh.length > 0) {
+    const state = useAppStore.getState();
+    for (const record of fresh) {
+      state.settleDraftByOperation({ epoch: record.epoch, operationId: record.operationId });
     }
+    if (fresh.some((record) => record.runIds.length > 0)) await state.loadRuns();
+    for (const record of fresh) {
+      for (const runId of record.runIds) {
+        await readRunResult({ epoch: record.epoch, operationId: record.operationId, runId }, false);
+      }
+    }
+  }
+  // 无论本轮有没有新终态，都在场的关联补一次收尾：结果早于通信恢复读到的情形也要有出路
+  closeRemainingClosures();
+}
+
+/**
+ * 补一轮"遗留关联"的收尾（U5 任务 2.3）。
+ *
+ * 只处理本轮新终态会漏掉两类事实：通信恢复后旧操作的结果早已读到、以及迟到响应改变了
+ * 另一条身份的结论。这里对**在场的每条关联**再走一次同一判据（四道闸 + 修订 CAS 都不变），
+ * 所以重复调用只可能"已经清过 ⇒ 什么都不做"，不会删错。
+ */
+function closeRemainingClosures(): void {
+  const closures = useAppStore.getState().draftSubmissions.closures;
+  for (const closure of Object.values(closures)) {
+    closeDraftClosureFor({ epoch: closure.epoch, operationId: closure.operationId });
   }
 }
 
@@ -1256,6 +1294,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     const next = draftLib.discardCallDraft(get().drafts, key, expectedRevision);
     // 未删除（修订已推进 / 条目不存在）：仓库引用不变
     if (next.repo !== get().drafts) set({ drafts: next.repo });
+    // U5 任务 2.3：显式放弃 ⇒ 该目标的收尾关联一并释放（用户已明确说这份输入不要了）
+    if (next.discarded) discardClosureTarget(key);
     return next.discarded;
   },
 
@@ -1285,6 +1325,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
     const next = draftLib.discardCreateRunDraft(get().drafts, expectedRevision);
     if (next.repo !== get().drafts) set({ drafts: next.repo });
+    // U5 任务 2.3：显式放弃 ⇒ 释放该目标的收尾关联（目录引用由创建对话框同轮清，见 CreateRunDialog）
+    if (next.discarded) discardClosureTarget(CREATE_SUBMIT_TARGET);
     return next.discarded;
   },
 
@@ -1310,6 +1352,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (submissionLib.submissionOf(get().draftSubmissions, key) !== undefined) return false;
     const next = draftLib.discardModelAbDraft(get().drafts, key, expectedRevision);
     if (next.repo !== get().drafts) set({ drafts: next.repo });
+    // U5 任务 2.3：显式放弃 ⇒ 释放该目标的收尾关联
+    if (next.discarded) discardClosureTarget(key);
     return next.discarded;
   },
 

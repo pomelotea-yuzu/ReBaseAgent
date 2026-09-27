@@ -260,6 +260,25 @@ function withClosure(
   return { ...closures, [closure.id]: closure };
 }
 
+/**
+ * 释放某目标的全部收尾关联（**显式放弃**该目标草稿时用）。
+ *
+ * design D3 给关联的寿命是"到 renderer 会话结束或显式放弃相关草稿"：用户既然明确说这份输入
+ * 不要了，那次执行就没有再"替她决定"的余地。没有匹配关联 ⇒ 引用不变（幂等）。
+ */
+export function releaseClosuresForTarget(
+  store: SubmissionStore,
+  target: DraftSubmitTarget,
+): SubmissionStore {
+  const key = submissionIdOf(target);
+  const kept = Object.fromEntries(
+    Object.entries(store.closures).filter(([, one]) => one.targetKey !== key),
+  );
+  return Object.keys(kept).length === Object.keys(store.closures).length
+    ? store
+    : { ...store, closures: kept };
+}
+
 /** 按 main 身份查收尾关联（结果核实到达后用） */
 export function closureOf(
   store: SubmissionStore,
@@ -270,7 +289,7 @@ export function closureOf(
 }
 
 /**
- * 释放一条收尾关联（清理完成 / 显式放弃该目标草稿）。
+ * 释放一条收尾关联（清理完成时用）。
  * 查不到该身份 ⇒ 引用不变（幂等：重复 status、重复读取重试都不会多删一次）。
  */
 export function releaseClosure(
