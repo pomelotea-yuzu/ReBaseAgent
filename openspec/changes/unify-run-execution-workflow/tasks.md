@@ -721,7 +721,34 @@
   - ⚠️ 环境注记：`first-load-late` 的迟到窗口在 CDP 连接后抢不到（本地 listRuns 毫秒级），
     采用注入式诱出并在 measurements 里注明机制；「空目录一侧」仍未诱出（数据目录恒有历史 run），
     按计划由单元证据承载登记（evidence-index M2.1 行）。
-- [ ] 6.3 实机验证普通/隔离 result 成功/失败、离开再返回及读取途中导航（≤2h）。验收：「成功信封但运行错误」「普通结果与隔离结果确认边界不同」「离开再返回不恢复旧自动导航」「读取途中离页仍不抢焦点」。
+- [x] 6.3 实机验证普通/隔离 result 成功/失败、离开再返回及读取途中导航（≤2h）。验收：「成功信封但运行错误」「普通结果与隔离结果确认边界不同」「离开再返回不恢复旧自动导航」「读取途中离页仍不抢焦点」。
+  - 落点：`scripts/u5-63-cdp.cjs`（12 tag）+ `.workbuddy/u5/u5-63/run-all.cjs` 批量驱动；
+    父本夹具 = U3 6.1 manifest 的 normalRun / isoRoot；组合剧本（turns 顺序消费 + fallback）覆盖
+    "失败父本 → 成功子 run"的跨代场景。
+  - 验收对位：`envelope-ok-run-error` 10/10（A3.1：信封 ok、子 run errored/error+503、
+    失败概览导航、查看失败调用在场、草稿保留）、`result-plain-boundary` 4/4 + `result-isolated-boundary`
+    6/6（A1.2：普通/隔离披露互斥断言 + 预检不占槽零消费）、`leave-and-return` 5/5（A5.2）、
+    `nav-during-read` 4/4（A5.3，页内竞速捕获 phase=reading 窗口）。
+  - 顺带闭合（6.3 计划 tag 全部跑完）：result-check 5/5（A1.1 两半齐）、confirm-return 5/5
+    （A1.5 的 6.3 半边；result 编辑器确认文案 =「确认本次重跑」）、leaf-only-failure 12/12（A3.4）、
+    navigate-in-flow 4/4（A5.1 两半齐）、unmount-keeps-snapshot 9/9（M5.1）、response-keeps-draft 5/5
+    （M5.2 的 6.3 半边，6.5 A/B 支仍欠）、resubmit-same-rev 8/8（A4.3）。
+  - ⚠️ 实机契约三条（写进索引行）：
+    ① **llm span 没有 result fork 入口**（「在此重跑（时间旅行）」是工具结果 span 专属）；
+    llm span 的 fork 入口是「编辑 system prompt / 初始 user message 重跑」（prompt fork）
+    ⇒ leaf-only-failure 走 prompt fork 闭合，子 run 自有无失败、祖先失败不冒充；
+    ② 直调 IPC 造 fail503 父本 ⇒ 信封 `CREATE_RUN_FAILED`（不是 ok）但登记仍带 runId
+    ——与 6.2 create-503 同形，A3.2「失败信封仍可打开可信记录」的又一直接取证；
+    ③ DetailPanel 同时挂着 system_prompt / user_message 两个 prompt 编辑器（都可见）
+    ⇒ 自动化点「确认从头重跑」必须挑**可用**的那个（visible+!disabled），第一个是 disabled 的。
+  - ⚠️ resubmit-same-rev 的「在飞接管」半边真机诱不出（冻结期第二次登记被拒——那正是 M6.3 的
+    证据）⇒ 按单元承载登记；真机闭合的半边 = error 后同修订重发 + 旧操作迟到核对不误清理。
+  - 门禁：12/12 tag 全绿（单次整跑）；本轮**零产品代码改动**（6.2 已修的确认订阅缺陷之外无新缺陷）
+    ⇒ desktop 全量/tsc/biome 沿用 6.2 收口基线（2223 用例），`openspec validate --all --strict` 13/13，
+    索引回查脚本 6 判据全过（已交付 21 / 待实机 52 / 实机不成立 1）。
+  - ⚠️ harness 注记：`nav-during-read` 的「读取途中」窗口只有一次 IPC 往返 ⇒ 用页内同帧竞速
+    （轮询到 `resultReads` phase=reading 立即 store.selectRun），是这台机器上唯一可行的诱出方式；
+    fallback 剧本毫秒级返回会让关联捕获扑空 ⇒ operationId 从登记表按 runIds 反查。
 - [ ] 6.4 实机验证 prompt 与代理 messages 的确认、失败定位、正常清理和凭据缺失门禁（≤2h）。验收：「prompt 与 messages 不冒充续跑完整世界」「单运行正常结束清理匹配修订」「失败定位和返回草稿明确可达」。
 - [ ] 6.5 实机验证 A/B 全正常/部分失败与计划失效，逐臂记录可信 ID 和真实终止事件（≤2h）。验收：「实验确认使用当前预览计划」「全部预期实验臂正常才清理整批」「实验缺臂部分失败与未核实保留整批」；不可从桌面自然诱发的缺臂/null ID 由集成 fixture 单列，不能冒充实机已测。
 - [ ] 6.6 实机验证列表/结果读取失败与重试、终态解冻后新修订、通信核对和同 main 重载（≤2h）。验收：「列表失败不阻断已知结果」「结果不可读只重试同一记录」「解冻后修改不被旧结果删除」「未知通信与新会话分开呈现」「恢复核对重试与批次结果只通知」。
