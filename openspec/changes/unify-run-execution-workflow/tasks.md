@@ -1,7 +1,7 @@
 # U5 实施与验收任务
 
-> 实施进度（2026-09-27）：**§1 全部完成（1.1–1.4）+ §2 全部完成（2.1–2.5）+ §3 全部完成（3.1–3.6）
-> + §4 全部完成（4.1–4.7）+ §5 全部完成（5.1–5.6）**
+> 实施进度（2026-09-28）：**§1 全部完成（1.1–1.4）+ §2 全部完成（2.1–2.5）+ §3 全部完成（3.1–3.6）
+> + §4 全部完成（4.1–4.7）+ §5 全部完成（5.1–5.6）+ §6.1 完成（受控 fixture 与场景清单）**
 > （`shared/terminal-facts.ts` 19 条 + `lib/result-verification.ts` 纯判据 15 条 + store 核实 9 条 +
 > 终态消费 13 条 + `draft-submission` 收尾关联 13 条 + `draft-closure` 清理判据 20 条 +
 > store 收尾/批次/反证 17 条 + `create-entry-closure` 创建入口 10 条 + `fork-entry-closure` result/prompt 入口 6 条 +
@@ -12,14 +12,17 @@
 > `operation-request-facts` 请求事实/诊断/A-B 逐臂 16 条 + `wait-timing` 等待计时 15 条 +
 > `result-live-region` 通知区 5 条 + `settings-roundtrip-invalidate` 配置往返 11 条 +
 > `settings-save-feedback` 保存三态 11 条 + `settings-clear-confirm` 清除确认 7 条 +
-> `focus-escape-responsive` 焦点/钳制/销账 5 条；
-> desktop 全量 130 文件 / 2201 用例绿，`tsc` node/web 双 0 错，根 `biome check .` 0 错；
+> `focus-escape-responsive` 焦点/钳制/销账 5 条 + `controlled-sse-fixtures` 剧本自检 11 条 +
+> `controlled-read-faults` 只读注入自检 10 条；
+> desktop 全量 **132 文件 / 2222 用例**绿（6.1 收口复跑，无 `Errors` 行），`tsc` node/web 双 0 错，
+> 根 `biome check .` 464 文件 0 错，`openspec validate --all --strict` 13/13；
 > 变异：1.1 三组、1.2 三组、1.3 四组、1.4 五组、2.1 三组、2.2 四组、2.3 三组、2.4 三组、
 > 2.5 两组、3.1 三组、3.2 三组、3.3 三组、3.4 四组、3.5 四组、3.6 三组、4.1 九组、4.2 四组、
 > 4.3 三组、4.4 三组、4.5 两组、4.6 两组、4.7 四组、5.1 五组、5.2 五组、5.3 三组、5.4 两组、
-> 5.5 一组、5.6 一组各有牙
+> 5.5 一组、5.6 一组、6.1a 五组、6.1b 四组各有牙；6.1c 的回查脚本另有 `--selftest` 十四项破坏性反证
+> （复用同一批判据函数，含"标题真实但挂错文件"这种最容易犯的）
 > （另有 3.1 的一组"响应路径次序补支"判**无牙** ⇒ 已回退，见注记）。
-> 其余 §6–§7 全部待办；没有实施、GUI 验收或发布通过声明。
+> 其余 §6.2–§6.8 与 §7 全部待办；**§6 的实机批一次都还没跑 ⇒ 没有 GUI 验收或发布通过声明**。
 > ⚠️ 已知环境噪声（非回归）：`test/controlled-service.test.ts` 在并行整跑下出现过 4 条超时失败，
 > 单跑 19 条全绿；复跑整跑亦全绿 ⇒ 按"单包/单文件复跑"口径判定，登记为端口时序 flake。
 > 每项实施/验收控制在 2h 内；若实际超出先拆分。场景名称对应 `specs/desktop-ui/spec.md`，既有场景用于回归，不能用旧报告替代新接线验证。
@@ -651,7 +654,44 @@
 
 ## 6. 真实接线与受控 Electron 验收
 
-- [ ] 6.1 准备受控 SSE 成功/503/延迟/限制 fixture 与调用计数、只读失败注入，建立本次 evidence-index 场景清单（≤2h）。验收：每条 delta 场景有计划用例或实机入口，fixture 不访问付费 provider；记录所用 main/renderer/脚本版本和数据目录。
+- [x] 6.1 准备受控 SSE 成功/503/延迟/限制 fixture 与调用计数、只读失败注入，建立本次 evidence-index 场景清单（≤2h）。验收：每条 delta 场景有计划用例或实机入口，fixture 不访问付费 provider；记录所用 main/renderer/脚本版本和数据目录。
+  - 落点（三个提交，各自独立验证）：
+    ① **受控剧本目录** `scripts/lib/u5-sse-fixtures.cjs` —— 六条剧本（successPlain / fail503 /
+      delayedInFlight / budgetExceeded / maxIterations / notConsumed），每条把**期望调用数**与
+      **期望自有终止事件**绑在剧本上，并点名它立证的 delta 场景；6.2–6.8 只引用 `剧本=ID`，
+      不再各批口头约定。⚠️ 上限类结局**不需要开隔离模式**：未知工具的失败是数据
+      （`tool-registry.ts:33-39`）⇒ 空工具表的普通创建照样打出 budget_exceeded（单轮用量超 100k）
+      与 max_iterations（fallback 永不动手，恰好 10 次调用）。
+    ② **只读失败注入原语** `scripts/lib/u5-read-faults.cjs` —— 六种注入（fileMissing / corruptTail /
+      unsupportedVersion / unknownTerminalReason / noTerminalEvent / tracesDirGone），统一
+      「施加 → 还原 → **逐字节指纹核验**」，还原失败或残留就落 `RESTORE-NEEDED.txt`；
+      同卷 rename、不删文件（继承 U2/U4 口径）。桥接面 `window.api` 属性不可写 ⇒ 页内篡改响应
+      真机做不到，只能从数据侧诱发，所以这套原语是 6.6 的唯一可行注入面。
+    ③ **场景清单** `evidence-index.md` —— 14 requirement / **74 场景**（41 ADDED + 33 MODIFIED）
+      逐行点名「已有单元/契约用例」+「实机入口（批次 + 计划 tag + 剧本/注入）」+「现状」。
+      回查脚本 `.workbuddy/u5/u5-61/verify-scenario-checklist.cjs`（**先写脚本再写索引**）：
+      五组判据 + `--selftest` 十四项破坏性反证；用例名池 = `case-inventory.cjs` 抽出的 172 文件 /
+      2597 条 `it` 标题，**引用格式钉死 `文件 › 用例名`**（挂错文件也判红，不只"全局存在"）。
+  - 证据：`test/controlled-sse-fixtures.test.ts` 11 条 + `test/controlled-read-faults.test.ts` 10 条
+    （全部在 127.0.0.1 受控服务上真跑，零付费）+ 索引机器回查全绿（74/74 覆盖、0 虚构、
+    208 处用例引用逐字命中、批次与剧本/注入 id 全部真实、汇总计数一致）。
+  - 变异：6.1a 五组（期望调用数 10→9、预算用量改到阈下、503→500、场景标题非逐字、418→429）、
+    6.1b 四组（摘终止行改空操作、`clean` 判据忽略残留差集、目录注入改空操作、非法原因换成合法原因）
+    各有牙并当场复原；6.1c 不靠手工变异 —— `--selftest` 复用**同一批判据函数**造十四种破坏，
+    外加"标题真实但挂错文件"这一种（人最容易犯的那种）。
+  - 🔴 本轮坐实两条**分层结论**（写在索引里，免得 6.6 去追不存在的注入面）：
+    ① 「列表刷新失败但详情可读」在 fs 层**没有**注入面（列表与详情同源；文件级故障被
+    `listRuns` 的 `failed` 隔离，目录级故障两面一起倒）⇒ 该场景记 `实机不成立`，只由 §1 store 用例承载；
+    ② 非法 `reason` 的真机落点是**读取失败**而不是"结束原因未知"的显示
+    （`RunEventSchema.reason` 是枚举，`schema.ts:379`）⇒ 「中止」与「未识别 reason 显示」两半边
+    一律按层引用。另：损坏/版本非法的文件进 `failed` 而**不拖垮整表**——与"文件不在盘上"是两种形状。
+  - ⚠️ 已知边界（不静默）：① 两套原语目前只在**单元层**真跑过，Electron 侧沿用 U4 机制层
+    `scripts/lib/u4-smoke-harness.cjs`（6.2 首跑若冲突以实机为准修引用，不改判据）；
+    ② A/B 缺臂 / null ID 桌面自然诱发不了 ⇒ 6.5 单列**集成 fixture**，不冒充实机；
+    ③ 版本与数据目录登记（HEAD `14bbd37`、Electron 44.1.1、Node v24.19.0、三个 lib 的 sha256 前 12 位、
+    dev 数据目录 `.rebaseagent/traces` 208 个 `.jsonl`）只覆盖本轮；6.2 起每批 `run-all.cjs`
+    要在自己的 measurements 里落同一份字段；④ 本轮不动产品代码（`src/main`、`src/renderer` 零改动）。
+
 - [ ] 6.2 实机验证普通/隔离创建成功、503、执行中离开和配置返回；核对真实 trace、草稿及源目录指纹（≤2h）。验收：「新建 run 成功」「直接创建隔离文件父本」「执行失败不产生半成品」「执行中离页仍可查询等待」「两模式配置后返回任务」。
 - [ ] 6.3 实机验证普通/隔离 result 成功/失败、离开再返回及读取途中导航（≤2h）。验收：「成功信封但运行错误」「普通结果与隔离结果确认边界不同」「离开再返回不恢复旧自动导航」「读取途中离页仍不抢焦点」。
 - [ ] 6.4 实机验证 prompt 与代理 messages 的确认、失败定位、正常清理和凭据缺失门禁（≤2h）。验收：「prompt 与 messages 不冒充续跑完整世界」「单运行正常结束清理匹配修订」「失败定位和返回草稿明确可达」。
