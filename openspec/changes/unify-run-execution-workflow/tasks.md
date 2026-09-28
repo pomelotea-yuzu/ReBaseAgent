@@ -692,7 +692,35 @@
     dev 数据目录 `.rebaseagent/traces` 208 个 `.jsonl`）只覆盖本轮；6.2 起每批 `run-all.cjs`
     要在自己的 measurements 里落同一份字段；④ 本轮不动产品代码（`src/main`、`src/renderer` 零改动）。
 
-- [ ] 6.2 实机验证普通/隔离创建成功、503、执行中离开和配置返回；核对真实 trace、草稿及源目录指纹（≤2h）。验收：「新建 run 成功」「直接创建隔离文件父本」「执行失败不产生半成品」「执行中离页仍可查询等待」「两模式配置后返回任务」。
+- [x] 6.2 实机验证普通/隔离创建成功、503、执行中离开和配置返回；核对真实 trace、草稿及源目录指纹（≤2h）。验收：「新建 run 成功」「直接创建隔离文件父本」「执行失败不产生半成品」「执行中离页仍可查询等待」「两模式配置后返回任务」。
+  - 落点：`scripts/u5-62-cdp.cjs`（18 tag）+ `.workbuddy/u5/u5-62/run-all.cjs` 批量驱动；
+    复用 6.1 的两套原语与 U4 机制库（`u4-smoke-harness.cjs`），期望调用数一律 `fixtureOf(剧本)` 读出。
+  - 验收对位：`create-success` 13/13（M3.1，含 A5.1 导航半边 + A4.1 清理半边 + 身份三方一致）、
+    `isolated-root-create` 10/10（M3.9，v2 根 run + workspace.world_id=自身 + 源目录 sha256 差集为空）、
+    `create-503-no-partial` 9/9（M3.8，errored/error + status=503 + 草稿保留）、
+    `in-flight-off-page` 12/12（A2.1，basis=submitted「自提交起」+ 终态「计时已停止」+ 离页不抢焦点 + 槽占用）、
+    `create-settings-roundtrip` 11/11（A6.1，真实 UI 保存 + 授权撤销 + 旧确认撤销 + 两模式摘要）。
+  - 顺带闭合（6.2 计划 tag 全部跑完）：create-check 6/6、empty-task-disabled 5/5、empty-system-allowed 6/6、
+    create-not-configured 6/6（SETTINGS_NOT_CONFIGURED + 零消费）、failed-envelope-open 5/5、
+    diagnostics-readable 6/6、busy-no-second-run 7/7（M6.3 的 6.2 半边）、create-draft-roundtrip 3/3、
+    create-mode-switch-discard 6/6（真点放弃确认两支）、create-return-source 3/3、discard-then-late 4/4、
+    dup-rejected 8/8（notAccepted(busy) 零身份 + OPERATION_DUPLICATED/CONFLICT 双取证）、
+    first-load-late 2/2（`addScriptToEvaluateOnNewDocument` 注入「最早用户」诱出首读迟到窗口）。
+    部分行只闭合 6.2 半边（6.3/6.4/6.6/6.7 各留一半），evidence-index 已逐行注明。
+  - 🔴 **6.2 首跑抓到并修复一个真产品缺陷**：五个入口的执行确认按钮"落库不刷新"——容器只订阅
+    `executionConfirmationReady` 的函数引用，`armExecutionConfirmation` 落库后不触发重渲染
+    （确认在 store 里已挂上、修订/stamp 全对，按钮却永远停在未确认态）。修 =
+    `confirmed` 一律在 `useAppStore` 选择器内现算（CreateRunWorkspace 1 处 + DetailPanel 4 处），
+    `execution-confirmation-store.test.ts` 加源码级接线契约。「纯逻辑写好、接线少一支」家族新形态：**少的是一条订阅**。
+  - 🔴 **实机发现（登记为已知限制，不静默）**：`OperationRegistry.addDiagnostic` 当前**零调用方**
+    ⇒ main 侧没有产出诊断的路径，实机 diagnostics 恒为空；「可读诊断」呈现面由单元承载
+    （`operation-request-facts` 喂 props），要不要给失败路径接诊断产出归后续口径。
+  - 门禁：18/18 tag 全绿（单次整跑，每 tag measurements 自带 HEAD `d164251` / Electron 44.1.1 /
+    剧本与注入 sha / traces 计数）；desktop 全量 **132 文件 / 2223 用例**绿（基线 2222 + 接线契约 1 条）、
+    tsc node/web 双 0、根 biome 0 错；evidence-index 回查脚本 6 判据全过（已交付 12 / 待实机 61 / 实机不成立 1）。
+  - ⚠️ 环境注记：`first-load-late` 的迟到窗口在 CDP 连接后抢不到（本地 listRuns 毫秒级），
+    采用注入式诱出并在 measurements 里注明机制；「空目录一侧」仍未诱出（数据目录恒有历史 run），
+    按计划由单元证据承载登记（evidence-index M2.1 行）。
 - [ ] 6.3 实机验证普通/隔离 result 成功/失败、离开再返回及读取途中导航（≤2h）。验收：「成功信封但运行错误」「普通结果与隔离结果确认边界不同」「离开再返回不恢复旧自动导航」「读取途中离页仍不抢焦点」。
 - [ ] 6.4 实机验证 prompt 与代理 messages 的确认、失败定位、正常清理和凭据缺失门禁（≤2h）。验收：「prompt 与 messages 不冒充续跑完整世界」「单运行正常结束清理匹配修订」「失败定位和返回草稿明确可达」。
 - [ ] 6.5 实机验证 A/B 全正常/部分失败与计划失效，逐臂记录可信 ID 和真实终止事件（≤2h）。验收：「实验确认使用当前预览计划」「全部预期实验臂正常才清理整批」「实验缺臂部分失败与未核实保留整批」；不可从桌面自然诱发的缺臂/null ID 由集成 fixture 单列，不能冒充实机已测。

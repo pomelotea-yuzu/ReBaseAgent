@@ -331,7 +331,6 @@ function PromptForkEditor({
   const beginDraftSubmission = useAppStore((s) => s.beginDraftSubmission);
   // U5 任务 4.6：prompt 的执行前确认（同一份凭据与执法点，见 lib/execution-confirmation）
   const currentConfirmationBinding = useAppStore((s) => s.currentConfirmationBinding);
-  const executionConfirmationReady = useAppStore((s) => s.executionConfirmationReady);
   const armExecutionConfirmation = useAppStore((s) => s.armExecutionConfirmation);
   // U3 任务 3.4：待定提交期间视同进行中——输入、放弃、关闭、提交一并禁用
   const inProgress = forking === "in_progress" || draftFrozen;
@@ -382,7 +381,7 @@ function PromptForkEditor({
   //           ∧ 恢复重验通过（U3 2.5：源缺失/损坏/改变/资格失效都拦）
   //           ∧ 已核对本次从头重跑（U5 4.6：确认凭据，判据在 lib/execution-confirmation.ts）
   const promptBinding = currentConfirmationBinding("prompt", draftKeyOf(field));
-  const promptConfirmed = executionConfirmationReady(promptBinding);
+  const promptConfirmed = useAppStore((s) => s.executionConfirmationReady(promptBinding));
   const canSubmit =
     guard.canSubmit && sourceExecutable && sourceBlocked === null && promptConfirmed;
   const submitBlocked = !guard.canSubmit
@@ -895,11 +894,10 @@ function ModelAbEditor({
   // U5 任务 4.7：A/B 的确认对象是**当前这份预览计划**（同一凭据、同一执法点）。
   // 检查代次由"校验并预览计划"推进：重新预览 ⇒ 旧确认作废，旧响应也装不回新确认。
   const currentConfirmationBinding = useAppStore((s) => s.currentConfirmationBinding);
-  const executionConfirmationReady = useAppStore((s) => s.executionConfirmationReady);
   const armExecutionConfirmation = useAppStore((s) => s.armExecutionConfirmation);
   const restartExecutionCheck = useAppStore((s) => s.restartExecutionCheck);
   const abBinding = currentConfirmationBinding("model_ab", draftKey);
-  const abConfirmed = executionConfirmationReady(abBinding);
+  const abConfirmed = useAppStore((s) => s.executionConfirmationReady(abBinding));
 
   // U5 任务 5.1：批次结果区的**唯一事实来源是登记快照 + 读取项**（现算派生，不缓存）。
   // 提交身份是指针：登记还没到场（提交在飞/快照未采纳）时 deriveAbBatchResult 只报等待，
@@ -1727,7 +1725,6 @@ function MessagesForkEditor({
   const settleDraftSubmission = useAppStore((s) => s.settleDraftSubmission);
   // U5 任务 4.6：messages 的执行前确认（同一凭据与执法点）
   const currentConfirmationBinding = useAppStore((s) => s.currentConfirmationBinding);
-  const executionConfirmationReady = useAppStore((s) => s.executionConfirmationReady);
   const armExecutionConfirmation = useAppStore((s) => s.armExecutionConfirmation);
   const [parseError, setParseError] = useState<string | null>(null);
   // 源记录不可用时禁用依赖它的执行（任务 3.5）
@@ -1790,7 +1787,7 @@ function MessagesForkEditor({
             ? null
             : gate.notice;
   const messagesBinding = currentConfirmationBinding("messages", draftKey);
-  const messagesConfirmed = executionConfirmationReady(messagesBinding);
+  const messagesConfirmed = useAppStore((s) => s.executionConfirmationReady(messagesBinding));
 
   // U3 任务 6.10（design D7）：Esc 收起与「取消」按钮同动作（保留草稿）
   useEscapeClose(open && !inProgress, () => {
@@ -2152,7 +2149,6 @@ function ForkEditor({
   // 现场确认绑定由 store 现取（修订与设置快照组件传不进旧值），判据在
   // `lib/execution-confirmation.ts`；store 的登记口在确认不成立时直接拒绝登记。
   const currentConfirmationBinding = useAppStore((s) => s.currentConfirmationBinding);
-  const executionConfirmationReady = useAppStore((s) => s.executionConfirmationReady);
   const armExecutionConfirmation = useAppStore((s) => s.armExecutionConfirmation);
   const restartExecutionCheck = useAppStore((s) => s.restartExecutionCheck);
 
@@ -2259,7 +2255,7 @@ function ForkEditor({
   // 预检按 spec 不占主动槽，占槽期间照常可用。
   const gate = deriveEntryGate(useAppStore((s) => s.operations));
   const executionBinding = currentConfirmationBinding("result", draftKey);
-  const executionConfirmed = executionConfirmationReady(executionBinding);
+  const executionConfirmed = useAppStore((s) => s.executionConfirmationReady(executionBinding));
   // U5 4.4：普通路径再叠一道"已核对本次目标与边界"的确认；隔离路径仍走既有预检 + 本次授权
   const canFork =
     canSubmit && executionConfirmed && sourceExecutable && sourceBlocked === null && gate.canSubmit;

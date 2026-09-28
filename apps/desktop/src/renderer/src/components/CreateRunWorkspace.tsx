@@ -525,7 +525,6 @@ export function CreateRunWorkspace({ onOpenSettings }: { onOpenSettings: () => v
   const draftFrozen = useAppStore((s) => s.isDraftFrozen(CREATE_SUBMIT_TARGET));
   const beginDraftSubmission = useAppStore((s) => s.beginDraftSubmission);
   const currentConfirmationBinding = useAppStore((s) => s.currentConfirmationBinding);
-  const executionConfirmationReady = useAppStore((s) => s.executionConfirmationReady);
   const armExecutionConfirmation = useAppStore((s) => s.armExecutionConfirmation);
   // 禁用判据与将要发出的请求同源（同一个函数），不存在两处口径漂移
   const submission = resolveCreateRunSubmission(form, { systemPrompt, userMessage, busy });
@@ -539,7 +538,11 @@ export function CreateRunWorkspace({ onOpenSettings }: { onOpenSettings: () => v
    * 所以这里即使被绕过也不会发出请求。
    */
   const confirmation = currentConfirmationBinding("create", CREATE_SUBMIT_TARGET);
-  const confirmed = executionConfirmationReady(confirmation);
+  // U5 §6.2 实机修正（6.2 首跑坐实的接线缺口）：confirmed 必须经 store **订阅现算**——
+  // 此前只订阅了函数引用，`armExecutionConfirmation` 落库后容器不重渲染，
+  // 确认按钮永远停在未确认态（DetailPanel 五处确认同样修正，见本提交）。
+  // 判定本身仍是 store 的 ready 动作（判据只有一份，组件不自比）。
+  const confirmed = useAppStore((s) => s.executionConfirmationReady(confirmation));
   const canCreate = submission.ok && !draftFrozen && gate.canSubmit && confirmed;
   const formLocked = busy || pickingSource || draftFrozen;
   // 就近归属来自同一份判据；表单级说明位只在提交判据本身通过时补门禁文案

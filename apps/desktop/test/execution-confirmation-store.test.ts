@@ -175,6 +175,25 @@ describe("4.4 接线契约：确认判据只有一份", () => {
     expect(offenders).toEqual([]);
   });
 
+  it("确认态经 store 订阅现算（U5 §6.2 实机首跑坐实的接线缺口）", () => {
+    // 缺陷形状：组件只订阅了 ready/arm 的**函数引用**（useAppStore((s) => s.executionConfirmationReady)），
+    // armExecutionConfirmation 落库后不触发重渲染 ⇒ 五个入口的确认按钮永远停在未确认态。
+    // 修正形状：confirmed 一律在 useAppStore 选择器内现算（订阅返回的布尔值本身）。
+    for (const name of ["components/CreateRunWorkspace.tsx", "components/DetailPanel.tsx"]) {
+      const flat = read(name).replace(/\s+/g, " ");
+      // 旧写法（只订阅函数引用）不得复活
+      expect(flat).not.toContain("useAppStore((s) => s.executionConfirmationReady);");
+      expect(flat).not.toContain("useAppStore((s) => s.executionConfirmationReady )");
+    }
+    const create = read("components/CreateRunWorkspace.tsx").replace(/\s+/g, " ");
+    expect(create).toContain("s.executionConfirmationReady(confirmation)");
+    // DetailPanel 四处（result / prompt / messages / A-B）同修
+    const panel = read("components/DetailPanel.tsx").replace(/\s+/g, " ");
+    for (const binding of ["promptBinding", "abBinding", "messagesBinding", "executionBinding"]) {
+      expect(panel).toContain(`s.executionConfirmationReady(${binding})`);
+    }
+  });
+
   it("披露内容全部来自 lib（组件不自己拼「这次会怎样」的句子）", () => {
     const create = read("components/CreateRunWorkspace.tsx");
     const panel = read("components/DetailPanel.tsx");
