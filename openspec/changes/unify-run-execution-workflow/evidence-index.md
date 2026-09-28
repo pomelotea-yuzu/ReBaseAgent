@@ -6,7 +6,7 @@
 > 回查脚本：`.workbuddy/u5/u5-61/verify-scenario-checklist.cjs`（六项判据 + `--selftest` 反证）；
 > 用例名池：`.workbuddy/u5/u5-61/case-inventory.json`（172 文件 / 2597 条 `it` 标题）。
 
-汇总口径：**74 条场景（41 ADDED / 33 MODIFIED）**，单元或契约证据已交付 **28** 条、待实机 **45** 条、实机不成立 **1** 条（6.2 + 6.3 + 6.4 批实测后）
+汇总口径：**74 条场景（41 ADDED / 33 MODIFIED）**，单元或契约证据已交付 **34** 条、待实机 **39** 条、实机不成立 **1** 条（6.2 + 6.3 + 6.4 + 6.5 批实测后）
 
 ## 怎么读这张表
 
@@ -120,7 +120,7 @@
 | 1 | 创建和普通重跑只声明已完成的检查 | `execution-confirmation.test.ts › 纯对话创建：只有本地字段检查，并明说没有连通性预检`、`execution-confirmation.test.ts › 没有预检结论 ⇒ 不说做过只读检查，并指出缺的是哪一项`、`create-form-view.test.ts › 执行范围与计费事实就地可读，且随模式换内容` | 6.2 实测 tag `create-check` 6/6；6.3 实测 tag `result-check` 5/5（2026-09-28 实机） | 已交付（6.2 + 6.3 实测） |
 | 2 | 普通结果与隔离结果确认边界不同 | `execution-confirmation.test.ts › 普通 result：说明不隔离与后续工具真副作用，不借用隔离话术`、`execution-confirmation.test.ts › 预检在场 ⇒ 直接父 / 轮号 / 整轮检查点进事实，只读预检才算「已做的检查」`、`execution-confirmation-store.test.ts › 隔离侧的确认按钮要求预检结论与本次授权都在场（无预检就不给确认）`、`execution-confirmation-store.test.ts › 两条 result 路径都把现场确认交给登记口（4.5 起隔离侧不再豁免）` | 6.3 实测 tag `result-plain-boundary` 4/4 + `result-isolated-boundary` 6/6（普通侧无隔离话术 / 隔离侧无「世界不隔离」互斥断言，预检不占槽零消费）（2026-09-28 实机） | 已交付（6.3 实测） |
 | 3 | prompt 与 messages 不冒充续跑完整世界 | `execution-confirmation.test.ts › prompt：从头执行、不共享父前缀、一次只改一个启动字段`、`execution-confirmation.test.ts › messages：只重发这一个请求，不执行外部工具、不恢复其工作区`、`execution-confirmation-store.test.ts › prompt 与 messages 的资格原因就近显示（不是只把按钮禁掉）` | 6.4 实测 tag `prompt-confirm` 3/3（披露短语 lib 源码同源抽取全在场 + 确认可挂上，零消费）+ `messages-confirm` 5/5（不冒充续跑 + 肯定分支凭据事实「使用代理会话最近捕获的 key」在场，捕获转发恰 1 次零额外消费）（剧本=successPlain）（2026-09-28 实机） | 已交付（6.4 实测） |
-| 4 | 实验确认使用当前预览计划 | `execution-confirmation-ab.test.ts › 披露喂的是 activePlan：属于旧修订的计划不进确认`、`execution-confirmation-ab.test.ts › 重新预览推进检查代次 ⇒ 那份确认作废，登记口当场拒绝`、`execution-confirmation.test.ts › 没有计划 ⇒ 已做的检查只到本地批次检查，不宣称跑过 dry-run`、`draft-closure-store.test.ts › dry-run 预览既不登记新关联也不读结果` | 6.5 计划 tag `ab-plan-confirm`（剧本=successPlain 造父本） | 待实机 |
+| 4 | 实验确认使用当前预览计划 | `execution-confirmation-ab.test.ts › 披露喂的是 activePlan：属于旧修订的计划不进确认`、`execution-confirmation-ab.test.ts › 重新预览推进检查代次 ⇒ 那份确认作废，登记口当场拒绝`、`execution-confirmation.test.ts › 没有计划 ⇒ 已做的检查只到本地批次检查，不宣称跑过 dry-run`、`draft-closure-store.test.ts › dry-run 预览既不登记新关联也不读结果` | 6.5 实测 tag `ab-plan-confirm` 14/14（预览 ⇒ 计划区在场（实验组 ID）+ abDisclosure 静态短语 lib 同源抽取全在场（分支互斥字面量按前缀排除）+ 确认可挂上（绑定当前预览计划）；改臂 ⇒ 旧确认作废 + 执行按钮禁用；重新预览 ⇒ 新计划在场 + 确认可重新挂上；全程零消费零落盘）（剧本=successPlain 造父本）（2026-09-28 实机） | 已交付（6.5 实测） |
 | 5 | 返回修改与设置往返撤销旧确认 | `execution-confirmation.test.ts › 改输入（修订推进）⇒ 旧确认作废：这就是「返回修改撤销旧确认」`、`execution-confirmation.test.ts › 检查代次推进 ⇒ 旧响应不能安装确认`、`execution-confirmation-store.test.ts › 换视图 / 进设置 / 常规打开设置 ⇒ 撤销待用的确认（离开现场）`、`settings-roundtrip-invalidate.test.ts › 设置往返改了配置 ⇒ config-stale，且**优先于**修订变化（先说打到哪变了）` | 6.3 实测 tag `confirm-return` 5/5（改输入 ⇒ 旧确认作废 + 重新确认恢复；result 编辑器确认文案 =「确认本次重跑」）（2026-09-28 实机）；6.7 计划 tag `settings-roundtrip-confirm` | 待实机（6.7 半边） |
 
 ### A2. 跨页操作反馈展示真实等待与分层状态（ADDED，5 场景）
@@ -155,8 +155,8 @@
 | 2 | 解冻后修改不被旧结果删除 | `draft-closure-store.test.ts › 解冻后用户又改了草稿 ⇒ 迟到的正常结果不清新修订（内容改回一样也不清）`、`draft-closure-decision.test.ts › 修订推进 ⇒ 保留（判据只看修订，内容改回一样也不算）` | 6.6 计划 tag `rev-after-settle`（剧本=delayedInFlight） | 待实机 |
 | 3 | 同修订再次提交也不被旧操作清理 | `draft-closure-store.test.ts › 同目标被更晚的提交接管 ⇒ 旧操作即使核实正常也不清理（草稿归新提交冻结）`、`draft-closure.test.ts › 旧操作已解冻留有关联 ⇒ 同目标再次提交后，旧关联不再在场`、`draft-submission-identity.test.ts › 旧提交的回执不能解冻新提交（身份 + 令牌双守卫）` | 6.3 实测 tag `resubmit-same-rev` 8/8（error 后同修订重发 ⇒ 迟到核对不误清理 + 新提交核实成功才清理；⚠️ 在飞接管半边真机诱不出——冻结期第二次登记被拒正是 M6.3 的证据 ⇒ 按单元承载）（2026-09-28 实机） | 已交付（6.3 实测） |
 | 4 | 失败与读取恢复分别收尾 | `draft-closure-store.test.ts › 运行失败 ⇒ 保留；只读重试读到正常终止 ⇒ 才清理，全程零执行调用`、`create-entry-closure.test.ts › 结果不可读 ⇒ 解冻了也绝不先删草稿（关联留着等下一次核实）`、`create-entry-closure.test.ts › 只读重试读到正常终止 ⇒ 这条响应路径当场完成收尾（不等下一轮 status）` | 6.6 计划 tag `retry-then-cleanup`（注入=fileMissing，还原后再重试） | 待实机 |
-| 5 | 全部预期实验臂正常才清理整批 | `draft-closure-store.test.ts › 两条预期臂各自核实正常结束 ⇒ 整批一次清干净（不逐臂删配置）`、`draft-closure-decision.test.ts › 登记 arms 为空但预期两臂 ⇒ 不成立（空集合恒真就是这里的口子）`、`proxy-ab-entry-closure.test.ts › 「全部预期实验臂正常才清理整批」：逐臂按登记 ID 读一次，整批一次刷新` | 6.5 计划 tag `ab-all-normal`（剧本=successPlain 两臂） | 待实机 |
-| 6 | 实验缺臂部分失败与未核实保留整批 | `draft-closure-store.test.ts › 缺臂 / null ID / 失败臂 ⇒ 整批配置与关联都保留`、`proxy-ab-entry-closure.test.ts › 「实验缺臂部分失败与未核实保留整批」：信封多报 id 也只读登记里的那条`、`operation-request-facts.test.ts › 「实验缺臂部分失败」逐臂诚实：登记短于 armCount 也不从信封多报的 id 凑` | 6.5 计划 tag `ab-partial-fail`（第二臂剧本=fail503）；⚠️ 缺臂 / null ID 桌面自然诱发不了 ⇒ 单列**集成 fixture**（6.5 注记，不冒充实机） | 待实机 |
+| 5 | 全部预期实验臂正常才清理整批 | `draft-closure-store.test.ts › 两条预期臂各自核实正常结束 ⇒ 整批一次清干净（不逐臂删配置）`、`draft-closure-decision.test.ts › 登记 arms 为空但预期两臂 ⇒ 不成立（空集合恒真就是这里的口子）`、`proxy-ab-entry-closure.test.ts › 「全部预期实验臂正常才清理整批」：逐臂按登记 ID 读一次，整批一次刷新` | 6.5 实测 tag `ab-all-normal` 15/15（两臂各恰一次调用、各自落盘 stopped/completed、fork.edit.experimentId 两臂同标签且与登记一致、两臂父本 = 夹具 run、登记臂 id = 落盘 meta.id 逐臂三方一致、逐臂 verified、**全部臂正常 ⇒ 整批一次清干净**——批次草稿不再存在）（剧本=successPlain 两臂）（2026-09-28 实机） | 已交付（6.5 实测） |
+| 6 | 实验缺臂部分失败与未核实保留整批 | `draft-closure-store.test.ts › 缺臂 / null ID / 失败臂 ⇒ 整批配置与关联都保留`、`proxy-ab-entry-closure.test.ts › 「实验缺臂部分失败与未核实保留整批」：信封多报 id 也只读登记里的那条`、`operation-request-facts.test.ts › 「实验缺臂部分失败」逐臂诚实：登记短于 armCount 也不从信封多报的 id 凑` | 6.5 实测 tag `ab-partial-fail` 14/14（臂 1 returned = stopped/completed、臂 2 failed = errored/error + llm 503，**失败臂也是完整落盘 run**；登记逐臂诚实 outcome 不从信封凑；两臂均 verified；**部分失败 ⇒ 整批保留**——批次草稿在、model 原样、解冻可编辑；批次结果区"已收口 / 收口不等于全部成功"在场）（第二臂剧本=fail503）（2026-09-28 实机）；⚠️ 缺臂 / null ID 桌面自然诱发不了 ⇒ 维持**集成 fixture** 承载（不冒充实机） | 已交付（6.5 实测；缺臂半边按集成 fixture） |
 | 7 | 重复收尾与显式放弃不会误删重建草稿 | `draft-closure-store.test.ts › 清理幂等：重复 status 与重复读取重试都不再产生第二次删除`、`draft-closure-store.test.ts › 显式放弃 ⇒ 关联一并释放；重建同目标草稿后，迟到结果也不误删`、`draft-closure.test.ts › 释放后关联不在场；再释放一次引用不变` | 6.6 计划 tag `idempotent-closure`；6.2 实测 tag `discard-then-late` 4/4（2026-09-28 实机） | 待实机（6.6 半边） |
 
 ### A5. 结果导航尊重用户当前阅读意图（ADDED，5 场景）
@@ -236,15 +236,15 @@
 | --- | --- | --- | --- | --- |
 | 1 | 创建关闭配置再新建仍有任务 | `create-form-draft.test.ts › 打开（ensure）→ 填写 → 离开创建页 → 再打开：模式与任务逐字恢复`、`debugging-drafts.test.ts › store 创建草稿：切模式保留文本、放弃恢复默认空表单` | 6.2 实测 tag `create-draft-roundtrip` 3/3（2026-09-28 实机） | 已交付（6.2 实测） |
 | 2 | 切创建模式保留文本而放弃重置表单 | `create-form-draft.test.ts › 切模式保留文本：只推进 mode，systemPrompt/userMessage 原样且修订照常推进`、`create-form-draft.test.ts › 放弃同时清除目录引用（design D4：明确放弃创建清除引用）` | 6.2 实测 tag `create-mode-switch-discard` 6/6（真点放弃确认两支）（2026-09-28 实机） | 已交付（6.2 实测） |
-| 3 | 实验臂增删和非法参数可恢复 | `model-ab-editor-draft.test.ts › 打开 → 改参数（含非法 JSON）/增删行 → 关闭往返 → 重开：逐字恢复且行 ID 稳定`、`debugging-drafts.test.ts › 增删行推进批次修订；行 ID 顺序无关内容，非法参数原样保存` | 6.5 计划 tag `ab-rows-restore` | 待实机 |
-| 4 | 实验预览和结果不隐式清理批次 | `draft-closure-store.test.ts › dry-run 预览既不登记新关联也不读结果`、`model-ab-editor-draft.test.ts › dry-run 预览（成功或失败信封）不写、不清、不推进批次草稿`、`draft-closure-store.test.ts › 执行信封把 ids 全带回来，但登记与核实未跟上 ⇒ 整批保留` | 6.5 计划 tag `ab-no-implicit-clear`（剧本=successPlain、剧本=fail503） | 待实机 |
+| 3 | 实验臂增删和非法参数可恢复 | `model-ab-editor-draft.test.ts › 打开 → 改参数（含非法 JSON）/增删行 → 关闭往返 → 重开：逐字恢复且行 ID 稳定`、`debugging-drafts.test.ts › 增删行推进批次修订；行 ID 顺序无关内容，非法参数原样保存` | 6.5 实测 tag `ab-rows-restore` 10/10（非法 params 原文落草稿、+ 加一臂 ⇒ 3 行、收起/重开逐字恢复、行 ID 重开前后一致、>2 臂时逐行移除按钮在场、零消费零落盘）（2026-09-28 实机） | 已交付（6.5 实测） |
+| 4 | 实验预览和结果不隐式清理批次 | `draft-closure-store.test.ts › dry-run 预览既不登记新关联也不读结果`、`model-ab-editor-draft.test.ts › dry-run 预览（成功或失败信封）不写、不清、不推进批次草稿`、`draft-closure-store.test.ts › 执行信封把 ids 全带回来，但登记与核实未跟上 ⇒ 整批保留` | 6.5 实测 tag `ab-no-implicit-clear` 7/7（dry-run 预览：批次 revision 不变、rows 逐字不变、不登记新关联（operations 数不变）、零消费、零落盘）（2026-09-28 实机） | 已交付（6.5 实测） |
 
 ### M5. 提交绑定草稿修订且响应不清除草稿（MODIFIED，4 场景）
 
 | # | scenario | 已有单元/契约证据 | 实机入口 | 现状 |
 | --- | --- | --- | --- | --- |
 | 1 | 提交快照独立于编辑器挂载 | `draft-submission.test.ts › 提交快照独立于编辑器挂载：resetFork 与展示状态复位后仍冻结`、`fork-editor-draft.test.ts › 打开 → 编辑 → 切页签/切运行（其他状态翻动）→ 重开：草稿逐字恢复` | 6.3 实测 tag `unmount-keeps-snapshot` 9/9（在飞切页签卸载编辑器 ⇒ 关联不变 + 快照=草稿原文 + 落盘 fork.edit.value 逐字一致）（2026-09-28 实机） | 已交付（6.3 实测） |
-| 2 | 成功错误和部分失败均保留草稿 | `draft-submission.test.ts › 成功响应收尾（解冻）但草稿保留原文`、`draft-submission.test.ts › A/B：部分臂失败（仍是明确返回）收尾且批次保留`、`draft-closure-decision.test.ts › 成功信封但运行 error ⇒ 非正常，并带真实结局文字` | 6.3 实测 tag `response-keeps-draft` 5/5（error 子 run 草稿保留 + success 子 run 核实后按修订清理对照）（2026-09-28 实机）；6.5 计划同 tag（A/B 部分失败支） | 待实机（6.5 半边） |
+| 2 | 成功错误和部分失败均保留草稿 | `draft-submission.test.ts › 成功响应收尾（解冻）但草稿保留原文`、`draft-submission.test.ts › A/B：部分臂失败（仍是明确返回）收尾且批次保留`、`draft-closure-decision.test.ts › 成功信封但运行 error ⇒ 非正常，并带真实结局文字` | 6.3 实测 tag `response-keeps-draft` 5/5（error 子 run 草稿保留 + success 子 run 核实后按修订清理对照）（2026-09-28 实机）；6.5 实测 `ab-partial-fail` 同口径（部分失败 ⇒ 批次草稿保留原文 + 解冻可编辑）（2026-09-28 实机） | 已交付（6.3 + 6.5 实测） |
 | 3 | 迟到回调与未知状态不能错误解冻 | `draft-submission.test.ts › 迟到回调不解冻新提交；通道抛错（状态未知）保留冻结`、`operation-session-store.test.ts › staleEpoch 响应 ⇒ 不采纳、旧身份不销账（它的结局仍是未知）`、`operation-session-epoch.test.ts › 旧 epoch 的成功响应迟到 ⇒ 不导航、不解冻、不回退会话` | 6.6 计划 tag `late-callback`（真 main 重启造旧 epoch）；⚠️ "通道断开/篡改响应"半边真机不可达 ⇒ 按层引用（见分层结论第 2 条） | 待实机 |
 | 4 | 核对终态只解冻对应修订 | `draft-submission-identity.test.ts › reconcile 解冻（settleDraftByOperation）同样转存关联；重复核对不产生第二条`、`operation-session-store.test.ts › 核对到 settled ⇒ 只解冻该身份那一条，另一条仍冻结`、`operation-session-store.test.ts › 核对别人的身份 ⇒ 两条都不解冻（解冻口只认匹配身份）` | 6.6 计划 tag `reconcile-single-unfreeze` | 待实机 |
 
