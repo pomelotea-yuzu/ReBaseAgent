@@ -1,7 +1,9 @@
 # U5 实施与验收任务
 
 > 实施进度（2026-09-28）：**§1 全部完成（1.1–1.4）+ §2 全部完成（2.1–2.5）+ §3 全部完成（3.1–3.6）
-> + §4 全部完成（4.1–4.7）+ §5 全部完成（5.1–5.6）+ §6.1 完成（受控 fixture 与场景清单）**
+> + §4 全部完成（4.1–4.7）+ §5 全部完成（5.1–5.6）+ §6.1 完成（受控 fixture 与场景清单）
+> + §6.2 完成（第一批受控实机 18/18 + 确认订阅缺陷修复）+ §6.3 完成（第二批受控实机 12/12）
+> + §6.4 完成（第三批受控实机 9/9）**
 > （`shared/terminal-facts.ts` 19 条 + `lib/result-verification.ts` 纯判据 15 条 + store 核实 9 条 +
 > 终态消费 13 条 + `draft-submission` 收尾关联 13 条 + `draft-closure` 清理判据 20 条 +
 > store 收尾/批次/反证 17 条 + `create-entry-closure` 创建入口 10 条 + `fork-entry-closure` result/prompt 入口 6 条 +
@@ -14,7 +16,8 @@
 > `settings-save-feedback` 保存三态 11 条 + `settings-clear-confirm` 清除确认 7 条 +
 > `focus-escape-responsive` 焦点/钳制/销账 5 条 + `controlled-sse-fixtures` 剧本自检 11 条 +
 > `controlled-read-faults` 只读注入自检 10 条；
-> desktop 全量 **132 文件 / 2222 用例**绿（6.1 收口复跑，无 `Errors` 行），`tsc` node/web 双 0 错，
+> desktop 全量 **132 文件 / 2223 用例**绿（6.2 收口复跑基线；6.3/6.4 零产品代码改动沿用，无 `Errors` 行），
+> `tsc` node/web 双 0 错，
 > 根 `biome check .` 464 文件 0 错，`openspec validate --all --strict` 13/13；
 > 变异：1.1 三组、1.2 三组、1.3 四组、1.4 五组、2.1 三组、2.2 四组、2.3 三组、2.4 三组、
 > 2.5 两组、3.1 三组、3.2 三组、3.3 三组、3.4 四组、3.5 四组、3.6 三组、4.1 九组、4.2 四组、
@@ -22,7 +25,7 @@
 > 5.5 一组、5.6 一组、6.1a 五组、6.1b 四组各有牙；6.1c 的回查脚本另有 `--selftest` 十四项破坏性反证
 > （复用同一批判据函数，含"标题真实但挂错文件"这种最容易犯的）
 > （另有 3.1 的一组"响应路径次序补支"判**无牙** ⇒ 已回退，见注记）。
-> 其余 §6.2–§6.8 与 §7 全部待办；**§6 的实机批一次都还没跑 ⇒ 没有 GUI 验收或发布通过声明**。
+> 其余 §6.5–§6.8 与 §7 待办；**§6.5–§6.8 实机批未跑 ⇒ 仍没有完整 GUI 验收或发布通过声明**。
 > ⚠️ 已知环境噪声（非回归）：`test/controlled-service.test.ts` 在并行整跑下出现过 4 条超时失败，
 > 单跑 19 条全绿；复跑整跑亦全绿 ⇒ 按"单包/单文件复跑"口径判定，登记为端口时序 flake。
 > 每项实施/验收控制在 2h 内；若实际超出先拆分。场景名称对应 `specs/desktop-ui/spec.md`，既有场景用于回归，不能用旧报告替代新接线验证。
@@ -749,7 +752,30 @@
   - ⚠️ harness 注记：`nav-during-read` 的「读取途中」窗口只有一次 IPC 往返 ⇒ 用页内同帧竞速
     （轮询到 `resultReads` phase=reading 立即 store.selectRun），是这台机器上唯一可行的诱出方式；
     fallback 剧本毫秒级返回会让关联捕获扑空 ⇒ operationId 从登记表按 runIds 反查。
-- [ ] 6.4 实机验证 prompt 与代理 messages 的确认、失败定位、正常清理和凭据缺失门禁（≤2h）。验收：「prompt 与 messages 不冒充续跑完整世界」「单运行正常结束清理匹配修订」「失败定位和返回草稿明确可达」。
+- [x] 6.4 实机验证 prompt 与代理 messages 的确认、失败定位、正常清理和凭据缺失门禁（≤2h）。验收：「prompt 与 messages 不冒充续跑完整世界」「单运行正常结束清理匹配修订」「失败定位和返回草稿明确可达」。
+  - 交付：`apps/desktop/scripts/u5-64-cdp.cjs` **9 tag**（prompt-confirm / messages-no-key / messages-confirm /
+    prompt-cleanup / failure-locate / return-draft / messages-refork / messages-unchanged / sdk-run-no-entry），
+    批量驱动 `.workbuddy/u5/u5-64/run-all.cjs` 单次整跑 **9/9**。
+  - 验收对位：prompt-confirm 3/3 + messages-confirm 5/5（A1.3 不冒充续跑 + 肯定分支凭据事实在场）；
+    prompt-cleanup 7/7（A4.1，messages 清理半边由 messages-refork 同口径闭合）；
+    failure-locate 3/3 + return-draft 3/3（A3.5，失败定位落真实自有调用、返回草稿回父 run）；
+    messages-refork 7/7（M1.1）、messages-unchanged 3/3（M1.2）、messages-no-key 7/7（M1.3）、
+    sdk-run-no-entry 4/4（M1.4）。
+  - 🔴 实机坐实的两条契约（已写进 evidence-index 对应行）：
+    ① **凭据缺失门禁 = UX 先拦**：hasKey=false ⇒ 就近资格原因 + 否定披露先于提交在场（"不等提交才发现"）、
+    确认按钮 disabled 无确认凭据可挂；main 稳定码 PROXY_NO_KEY 由 controlled-proxy 单元用例承载。
+    **keyStore.lastKey 是 main 会话级的、禁用代理不清 key**（toggle 只停服务器）⇒ messages-no-key
+    必须先于任何捕获 tag 跑（批首 = 新 dev 会话），前提破了首 check 会响亮地红，不会静默假绿；
+    ② **normalRun 与 proxyRun 的 llm span 同名 s_02**：selectRun 点完不验证、clickSpan 只看全局
+    selectedSpanId ⇒ 跨 tag 选中残留时探针看到的是代理 run 的入口（首跑 sdk-run-no-entry 假红根因）
+    ⇒ 自动化必须 run+span 双证选中态 + 只对可见按钮判 absent（3s 稳定窗口，不信瞬态 DOM）。
+  - 门禁：9/9 tag 全绿（单次整跑）；本轮**零产品代码改动** ⇒ desktop 全量/tsc/biome 沿用 6.2 收口基线
+    （132 文件 / 2223 用例），`openspec validate --all --strict` 13/13，索引回查 6 判据全过
+    （已交付 28 / 待实机 45 / 实机不成立 1）。
+  - harness 注记：捕获扑空 ⇒ operationId 从登记表按 runIds 反查（6.3 教训复用）；storeQ 恒 JSON.parse
+    ⇒ 页内 stringify 到手已是对象、再 parse 即 "[object Object]" is not valid JSON
+    （messages-no-key 首跑的 harness 缺陷，已修）；披露/资格原因判据一律运行时从 lib/DetailPanel
+    源码同源抽取，不手抄第二份话术。
 - [ ] 6.5 实机验证 A/B 全正常/部分失败与计划失效，逐臂记录可信 ID 和真实终止事件（≤2h）。验收：「实验确认使用当前预览计划」「全部预期实验臂正常才清理整批」「实验缺臂部分失败与未核实保留整批」；不可从桌面自然诱发的缺臂/null ID 由集成 fixture 单列，不能冒充实机已测。
 - [ ] 6.6 实机验证列表/结果读取失败与重试、终态解冻后新修订、通信核对和同 main 重载（≤2h）。验收：「列表失败不阻断已知结果」「结果不可读只重试同一记录」「解冻后修改不被旧结果删除」「未知通信与新会话分开呈现」「恢复核对重试与批次结果只通知」。
 - [ ] 6.7 实机验证设置保存/清除/未保存退出和合并窗口退出，记录密钥不回读证据（≤2h）。验收：「未保存设置关闭可继续或放弃」「保存失败和保存后回读失败区分」「清除确认包含凭据且受槽约束」「关闭详情与退出不冒充停止」。

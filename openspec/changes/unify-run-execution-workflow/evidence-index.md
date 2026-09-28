@@ -6,7 +6,7 @@
 > 回查脚本：`.workbuddy/u5/u5-61/verify-scenario-checklist.cjs`（六项判据 + `--selftest` 反证）；
 > 用例名池：`.workbuddy/u5/u5-61/case-inventory.json`（172 文件 / 2597 条 `it` 标题）。
 
-汇总口径：**74 条场景（41 ADDED / 33 MODIFIED）**，单元或契约证据已交付 **21** 条、待实机 **52** 条、实机不成立 **1** 条（6.2 + 6.3 批实测后）
+汇总口径：**74 条场景（41 ADDED / 33 MODIFIED）**，单元或契约证据已交付 **28** 条、待实机 **45** 条、实机不成立 **1** 条（6.2 + 6.3 + 6.4 批实测后）
 
 ## 怎么读这张表
 
@@ -119,7 +119,7 @@
 | --- | --- | --- | --- | --- |
 | 1 | 创建和普通重跑只声明已完成的检查 | `execution-confirmation.test.ts › 纯对话创建：只有本地字段检查，并明说没有连通性预检`、`execution-confirmation.test.ts › 没有预检结论 ⇒ 不说做过只读检查，并指出缺的是哪一项`、`create-form-view.test.ts › 执行范围与计费事实就地可读，且随模式换内容` | 6.2 实测 tag `create-check` 6/6；6.3 实测 tag `result-check` 5/5（2026-09-28 实机） | 已交付（6.2 + 6.3 实测） |
 | 2 | 普通结果与隔离结果确认边界不同 | `execution-confirmation.test.ts › 普通 result：说明不隔离与后续工具真副作用，不借用隔离话术`、`execution-confirmation.test.ts › 预检在场 ⇒ 直接父 / 轮号 / 整轮检查点进事实，只读预检才算「已做的检查」`、`execution-confirmation-store.test.ts › 隔离侧的确认按钮要求预检结论与本次授权都在场（无预检就不给确认）`、`execution-confirmation-store.test.ts › 两条 result 路径都把现场确认交给登记口（4.5 起隔离侧不再豁免）` | 6.3 实测 tag `result-plain-boundary` 4/4 + `result-isolated-boundary` 6/6（普通侧无隔离话术 / 隔离侧无「世界不隔离」互斥断言，预检不占槽零消费）（2026-09-28 实机） | 已交付（6.3 实测） |
-| 3 | prompt 与 messages 不冒充续跑完整世界 | `execution-confirmation.test.ts › prompt：从头执行、不共享父前缀、一次只改一个启动字段`、`execution-confirmation.test.ts › messages：只重发这一个请求，不执行外部工具、不恢复其工作区`、`execution-confirmation-store.test.ts › prompt 与 messages 的资格原因就近显示（不是只把按钮禁掉）` | 6.4 计划 tag `prompt-confirm`、`messages-confirm`（剧本=successPlain） | 待实机 |
+| 3 | prompt 与 messages 不冒充续跑完整世界 | `execution-confirmation.test.ts › prompt：从头执行、不共享父前缀、一次只改一个启动字段`、`execution-confirmation.test.ts › messages：只重发这一个请求，不执行外部工具、不恢复其工作区`、`execution-confirmation-store.test.ts › prompt 与 messages 的资格原因就近显示（不是只把按钮禁掉）` | 6.4 实测 tag `prompt-confirm` 3/3（披露短语 lib 源码同源抽取全在场 + 确认可挂上，零消费）+ `messages-confirm` 5/5（不冒充续跑 + 肯定分支凭据事实「使用代理会话最近捕获的 key」在场，捕获转发恰 1 次零额外消费）（剧本=successPlain）（2026-09-28 实机） | 已交付（6.4 实测） |
 | 4 | 实验确认使用当前预览计划 | `execution-confirmation-ab.test.ts › 披露喂的是 activePlan：属于旧修订的计划不进确认`、`execution-confirmation-ab.test.ts › 重新预览推进检查代次 ⇒ 那份确认作废，登记口当场拒绝`、`execution-confirmation.test.ts › 没有计划 ⇒ 已做的检查只到本地批次检查，不宣称跑过 dry-run`、`draft-closure-store.test.ts › dry-run 预览既不登记新关联也不读结果` | 6.5 计划 tag `ab-plan-confirm`（剧本=successPlain 造父本） | 待实机 |
 | 5 | 返回修改与设置往返撤销旧确认 | `execution-confirmation.test.ts › 改输入（修订推进）⇒ 旧确认作废：这就是「返回修改撤销旧确认」`、`execution-confirmation.test.ts › 检查代次推进 ⇒ 旧响应不能安装确认`、`execution-confirmation-store.test.ts › 换视图 / 进设置 / 常规打开设置 ⇒ 撤销待用的确认（离开现场）`、`settings-roundtrip-invalidate.test.ts › 设置往返改了配置 ⇒ config-stale，且**优先于**修订变化（先说打到哪变了）` | 6.3 实测 tag `confirm-return` 5/5（改输入 ⇒ 旧确认作废 + 重新确认恢复；result 编辑器确认文案 =「确认本次重跑」）（2026-09-28 实机）；6.7 计划 tag `settings-roundtrip-confirm` | 待实机（6.7 半边） |
 
@@ -151,7 +151,7 @@
 
 | # | scenario | 已有单元/契约证据 | 实机入口 | 现状 |
 | --- | --- | --- | --- | --- |
-| 1 | 单运行正常结束清理匹配修订 | `draft-closure-store.test.ts › 核实到自有 stopped/completed ⇒ 清掉匹配修订，同 run 另一字段与创建草稿不动`、`draft-closure-store.test.ts › 创建入口正常结束 ⇒ 整份表单与这次提交的目录引用一并清理`、`create-entry-closure.test.ts › 「新建 run 成功」的正常终止一侧：核实通过才按提交修订清理草稿与目录引用` | 6.2 实测并入 `create-success` 13/13（「正常终止 ⇒ 创建草稿清理」断言在其内）（2026-09-28 实机）；6.4 计划 tag `prompt-cleanup` | 待实机（6.4 半边） |
+| 1 | 单运行正常结束清理匹配修订 | `draft-closure-store.test.ts › 核实到自有 stopped/completed ⇒ 清掉匹配修订，同 run 另一字段与创建草稿不动`、`draft-closure-store.test.ts › 创建入口正常结束 ⇒ 整份表单与这次提交的目录引用一并清理`、`create-entry-closure.test.ts › 「新建 run 成功」的正常终止一侧：核实通过才按提交修订清理草稿与目录引用` | 6.2 实测并入 `create-success` 13/13（「正常终止 ⇒ 创建草稿清理」断言在其内）（2026-09-28 实机）；6.4 实测 tag `prompt-cleanup` 7/7（fork 收口 + 子 run completed + 提交快照落盘 + 登记/核实 + 匹配修订 prompt 草稿清理）+ `messages-refork` 7/7 内同口径断言「正常结束 ⇒ messages 草稿清理」（2026-09-28 实机） | 已交付（6.2 + 6.4 实测） |
 | 2 | 解冻后修改不被旧结果删除 | `draft-closure-store.test.ts › 解冻后用户又改了草稿 ⇒ 迟到的正常结果不清新修订（内容改回一样也不清）`、`draft-closure-decision.test.ts › 修订推进 ⇒ 保留（判据只看修订，内容改回一样也不算）` | 6.6 计划 tag `rev-after-settle`（剧本=delayedInFlight） | 待实机 |
 | 3 | 同修订再次提交也不被旧操作清理 | `draft-closure-store.test.ts › 同目标被更晚的提交接管 ⇒ 旧操作即使核实正常也不清理（草稿归新提交冻结）`、`draft-closure.test.ts › 旧操作已解冻留有关联 ⇒ 同目标再次提交后，旧关联不再在场`、`draft-submission-identity.test.ts › 旧提交的回执不能解冻新提交（身份 + 令牌双守卫）` | 6.3 实测 tag `resubmit-same-rev` 8/8（error 后同修订重发 ⇒ 迟到核对不误清理 + 新提交核实成功才清理；⚠️ 在飞接管半边真机诱不出——冻结期第二次登记被拒正是 M6.3 的证据 ⇒ 按单元承载）（2026-09-28 实机） | 已交付（6.3 实测） |
 | 4 | 失败与读取恢复分别收尾 | `draft-closure-store.test.ts › 运行失败 ⇒ 保留；只读重试读到正常终止 ⇒ 才清理，全程零执行调用`、`create-entry-closure.test.ts › 结果不可读 ⇒ 解冻了也绝不先删草稿（关联留着等下一次核实）`、`create-entry-closure.test.ts › 只读重试读到正常终止 ⇒ 这条响应路径当场完成收尾（不等下一轮 status）` | 6.6 计划 tag `retry-then-cleanup`（注入=fileMissing，还原后再重试） | 待实机 |
@@ -167,7 +167,7 @@
 | 2 | 离开再返回不恢复旧自动导航 | `navigation-intent-store.test.ts › 「离开再返回不恢复旧自动导航」：切走再切回原 run ⇒ 结果到达也不跳`、`navigation-intent.test.ts › 「离开再返回不恢复旧自动导航」：代次不等 ⇒ drop（不是 wait）` | 6.3 实测 tag `leave-and-return` 5/5（切走再切回 ⇒ 代次推进意图作废，结果照样核实、到达不跳）（2026-09-28 实机） | 已交付（6.3 实测） |
 | 3 | 读取途中离页仍不抢焦点 | `navigation-intent-store.test.ts › 「读取途中离页仍不抢焦点」：详情在飞时用户切走 ⇒ 落地后不覆盖他的页面`、`navigation-intent.test.ts › 「读取途中离页仍不抢焦点」：判定只看当下代次 ⇒ 读取开始时是 7、切换时已是 8 ⇒ drop` | 6.3 实测 tag `nav-during-read` 4/4（页内竞速捕获 resultReads phase=reading 窗口并当场切走 ⇒ 落地不覆盖用户页面）（2026-09-28 实机） | 已交付（6.3 实测） |
 | 4 | 恢复核对重试与批次结果只通知 | `navigation-intent-store.test.ts › 「核对结果只由用户明确打开」：reconcile 到达的终态不导航`、`navigation-intent-store.test.ts › 手动只读重试读到正常终止 ⇒ 仍不跳（重试不是导航也不是重发）`、`result-live-region.test.ts › 区域恒渲染：空文本也不卸载，属性可访问（polite live region），面板收起不影响它`、`result-live-region.test.ts › 文本与面板徽标同源（同一份 deriveResultNotices）；重复快照派生出**逐字相同**的文本 ⇒ DOM 不变不重复播报`、`operation-result-view.test.ts › 等待计时不进通知文本（进了就等于每秒重复通知）` | 6.6 计划 tag `notice-only`；6.8 计划 tag `live-region-a11y`（面板关闭态） | 待实机 |
-| 5 | 失败定位和返回草稿明确可达 | `operation-result-actions.test.ts › 「失败定位和返回草稿明确可达」：只跳真实自有失败调用，并落到步骤页签`、`operation-result-actions.test.ts › 「返回草稿明确可达」：失败保留时恢复原编辑目标；被清理后不返回也不复活`、`operation-result-view.test.ts › 「失败定位和返回草稿明确可达」：草稿在才给返回；被清理后给回退说明且不复活` | 6.4 计划 tag `failure-locate` + `return-draft`（剧本=fail503） | 待实机 |
+| 5 | 失败定位和返回草稿明确可达 | `operation-result-actions.test.ts › 「失败定位和返回草稿明确可达」：只跳真实自有失败调用，并落到步骤页签`、`operation-result-actions.test.ts › 「返回草稿明确可达」：失败保留时恢复原编辑目标；被清理后不返回也不复活`、`operation-result-view.test.ts › 「失败定位和返回草稿明确可达」：草稿在才给返回；被清理后给回退说明且不复活` | 6.4 实测 tag `failure-locate` 3/3 + `return-draft` 3/3（失败定位落到真实自有失败调用的 run+span+步骤页签；返回草稿回到父 run 编辑目标且草稿原文在场）（剧本=fail503）（2026-09-28 实机） | 已交付（6.4 实测） |
 
 ### A6. 设置往返保留编辑并真实反馈配置结果（ADDED，7 场景）
 
@@ -201,10 +201,10 @@
 
 | # | scenario | 已有单元/契约证据 | 实机入口 | 现状 |
 | --- | --- | --- | --- | --- |
-| 1 | 编辑并重发成功 | `proxy-ab-entry-closure.test.ts › 「编辑并重发成功」的可信 ID 一侧：核实后清该草稿，序列与其余入口同形`、`controlled-proxy.test.ts › 外部非流式请求 JSON 直通 + 编辑 messages 分叉按 stream:true 重发：受控日志两种模式、fork run 落盘、父不改写` | 6.4 计划 tag `messages-refork`（剧本=successPlain） | 待实机 |
-| 2 | 未修改禁用 | `proxy-ab-entry-closure.test.ts › 「未修改禁用」与「未捕获 key」：提交按钮判据仍含两者（门禁不由响应替代）` | 6.4 计划 tag `messages-unchanged` | 待实机 |
-| 3 | 未捕获 key | `controlled-proxy.test.ts › 未捕获 key 时分叉 → PROXY_NO_KEY，且受控服务零请求（门禁在联网之前）`、`execution-confirmation.test.ts › messages 未捕获 key ⇒ 事实里就写「本次无法重发」，不等提交才发现` | 6.4 计划 tag `messages-no-key`（剧本=notConsumed） | 待实机 |
-| 4 | SDK run 无此入口 | `proxy-ab-entry-closure.test.ts › 「SDK run 无此入口」：messages 入口只给已封存代理 run 的自有 llm.call` | 6.4 计划 tag `sdk-run-no-entry` | 待实机 |
+| 1 | 编辑并重发成功 | `proxy-ab-entry-closure.test.ts › 「编辑并重发成功」的可信 ID 一侧：核实后清该草稿，序列与其余入口同形`、`controlled-proxy.test.ts › 外部非流式请求 JSON 直通 + 编辑 messages 分叉按 stream:true 重发：受控日志两种模式、fork run 落盘、父不改写` | 6.4 实测 tag `messages-refork` 7/7（经代理重发落恰 1 份子 run、编辑追加在场、身份三方一致、核实 verified、匹配修订清理；捕获扑空 ⇒ operationId 从登记表按 runIds 反查）（剧本=successPlain）（2026-09-28 实机） | 已交付（6.4 实测） |
+| 2 | 未修改禁用 | `proxy-ab-entry-closure.test.ts › 「未修改禁用」与「未捕获 key」：提交按钮判据仍含两者（门禁不由响应替代）` | 6.4 实测 tag `messages-unchanged` 3/3（未修改 ⇒ 提交按钮 disabled，零调用零新 trace）（2026-09-28 实机） | 已交付（6.4 实测） |
+| 3 | 未捕获 key | `controlled-proxy.test.ts › 未捕获 key 时分叉 → PROXY_NO_KEY，且受控服务零请求（门禁在联网之前）`、`execution-confirmation.test.ts › messages 未捕获 key ⇒ 事实里就写「本次无法重发」，不等提交才发现` | 6.4 实测 tag `messages-no-key` 7/7（剧本=notConsumed）（🔴 实机口径 = **UX 门禁先拦**：hasKey=false ⇒ 确认按钮 disabled、无确认凭据可挂 + 否定披露「未捕获 key：本次无法重发」与就近资格原因先于提交在场——"不等提交才发现"；main 稳定码 PROXY_NO_KEY 仍由上列单元用例承载。⚠️ keyStore.lastKey 是 main 会话级的、禁用代理不清 key（toggle 只停服务器）⇒ 本 tag 必须先于任何捕获 tag 跑（批首=新 dev 会话），否则 hasKey=false 前提不成立——前提破了首 check 会响亮地红）（2026-09-28 实机） | 已交付（6.4 实测） |
+| 4 | SDK run 无此入口 | `proxy-ab-entry-closure.test.ts › 「SDK run 无此入口」：messages 入口只给已封存代理 run 的自有 llm.call` | 6.4 实测 tag `sdk-run-no-entry` 4/4（无可见入口 3s 稳定；⚠️ normalRun 与 proxyRun 的 llm span 恰好同名 s_02 ⇒ 自动化必须 run+span 双证选中态——run 没切对时看到的是代理 run 的入口，首跑假红根因；只对可见按钮判 absent，不信瞬态 DOM）（2026-09-28 实机） | 已交付（6.4 实测） |
 
 ### M2. 运行工作区按阅读任务组织（MODIFIED，4 场景）
 
