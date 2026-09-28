@@ -803,7 +803,24 @@
     `Array.find` 返回 undefined 而非 null（`b === null` 判空漏 undefined ⇒ TypeError）；
     受控 `<input>` 用原生 setter + input 事件（React onChange 才触发）；storeQ 恒 JSON.parse
     ⇒ 到手已是对象，绝不能再 parse（6.2 教训在诊断代码里复刻了一次，当场被抓）。
-- [ ] 6.6 实机验证列表/结果读取失败与重试、终态解冻后新修订、通信核对和同 main 重载（≤2h）。验收：「列表失败不阻断已知结果」「结果不可读只重试同一记录」「解冻后修改不被旧结果删除」「未知通信与新会话分开呈现」「恢复核对重试与批次结果只通知」。
+- [x] 6.6 实机验证列表/结果读取失败与重试、终态解冻后新修订、通信核对和同 main 重载（≤2h）。验收：「列表失败不阻断已知结果」「结果不可读只重试同一记录」「解冻后修改不被旧结果删除」「未知通信与新会话分开呈现」「恢复核对重试与批次结果只通知」。
+  - ✅ 2026-09-29 实机批五收口：**14 tag / 156 检查全绿**（`reload-timing` 14、`stale-read` 7、`notice-only` 8、
+    `limit-outcomes` 14、`unreadable-retry` 20、`retry-then-cleanup` 8、`rev-after-settle` 9、`idempotent-closure` 15、
+    `reload-return-fallback` 10、`reconcile-single-unfreeze` 10、`unlocated-reconcile` 9、`reconcile-no-nav` 4、
+    `main-restart` 16、`late-callback` 12）；采集 `apps/desktop/scripts/u5-66-cdp.cjs`、批量驱动
+    `.workbuddy/u5/u5-66/run-all.cjs`（gates.txt / 逐 tag measurements.json 落盘）；evidence-index 已回填
+    （**已交付 49 / 待实机 24 / 实机不成立 1**，6.6 计划 tag 15 行全部转实测）。
+  - 「列表失败不阻断已知结果」：fs 层无注入面 ⇒ 维持「实机不成立」按 §1 store 用例承载（6.1 分层结论）。
+  - 实机硬事实与探针坑 ⇒ `UI-VERIFY.md`「U5 §6.6 下沉」：🔴 **spawnSync 全链 EBUSY**（含子进程内层
+    `spawnSync(taskkill)`）⇒ 真重启改为 tag 进程内**异步 spawn taskkill 直杀 pid 文件进程树**
+    （u2-dev-host --stop 的 "exit=0" 是假成功信号，stop() 不因 taskkill 失败而非零退出）；
+    **在飞期 renderer 会话不持有 running 登记记录**（只有 main registry 有）⇒ 在飞判据轮询 `operations:status`；
+    registry `assertOperationId` 只收 UUID ⇒ 注入/核对未知 ID 必须 UUID（否则错误信封 ⇒ store 进
+    communication_unknown）；竞速注入升级 fs.watch 事件驱动 + 1ms 轮询兜底，暖 dev 收尾链毫秒级 ⇒
+    `reconcile-single-unfreeze` 重构为不依赖竞速（竞速由 retry-then-cleanup / rev-after-settle /
+    idempotent-closure 三个 tag 各自承载）；终态行等待口径**刻意**退回「自接受起」（operation-list.ts:205，
+    pending 清账后 submittedAt 不可用）⇒ 重载 transition 半边只有单元可观测；通知两层去重实测坐实
+    （同一 unreadable 键重复注入不重复播报）。
 - [ ] 6.7 实机验证设置保存/清除/未保存退出和合并窗口退出，记录密钥不回读证据（≤2h）。验收：「未保存设置关闭可继续或放弃」「保存失败和保存后回读失败区分」「清除确认包含凭据且受槽约束」「关闭详情与退出不冒充停止」。
 - [ ] 6.8 按代表宽度和独立 200% 缩放采集长文本/路径/多臂、真实 Tab/Shift+Tab/Esc、U2 文件页往返及数据指纹（≤2h）。验收：「长任务路径模型与结果不遮挡操作」「创建页面键盘可离开而模态约束焦点」「操作入口在窄窗口和键盘下可达」「只读反馈和读取重试保持数据边界」「恢复核对重试与批次结果只通知」；面板关闭时断言 live 区域可访问且为 polite，真实结果变为可查看/不可读时文本更新、重复状态/计时不重复通知、焦点不变。未实测屏幕阅读器时仅记 DOM/可访问属性证据，不宣称已验证实际播报。
 
