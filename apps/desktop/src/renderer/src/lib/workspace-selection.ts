@@ -138,9 +138,17 @@ export function resolveExecutionGate(input: {
   unavailable: boolean;
   reading: boolean;
   listLoaded: boolean;
+  /**
+   * U6 任务 5.12：当前详情是否 ownOnly（父链不完整）。
+   * ownOnly ⇒ 同样不给执行资格——所有执行编辑器经 `canExecuteFromSource` 这一个
+   * 咽喉拿判据，禁用态各自沿用既有的就近原因行（"源记录不可用：重新读取并校验
+   * 通过前不能发起新执行"）。缺省 false 兼容既有调用方与旧测试。
+   */
+  lineageIncomplete?: boolean;
 }): boolean {
   if (!input.listLoaded) return false;
   if (input.reading) return false;
+  if (input.lineageIncomplete === true) return false;
   return !input.unavailable;
 }
 

@@ -22,6 +22,7 @@ import type {
   ModelAbResult,
 } from "../shared/ipc";
 import type { RunRepository } from "./run-repository";
+import { checkRunSource } from "./run-source-gate";
 import type { RunSettings } from "./settings";
 
 /**
@@ -517,6 +518,9 @@ export async function runForkCapability(
   request: ForkCapabilityRequest,
 ): Promise<ForkCapabilityResult> {
   const { repository, settings, dataDir } = options;
+  // U6 §5.8：来源门禁同判据（design D5 只读端点行）——被引用父本 ownOnly/不可读时
+  // 不授予许可、不生成预检结论；自有文件阅读（inspect/readFile）不经此处，保持独立可读
+  checkRunSource(repository.tracesDir, request.parentRunId);
   const { config } = buildForkConfig(
     { repository, settings, execCwd: dataDir },
     request.parentRunId,

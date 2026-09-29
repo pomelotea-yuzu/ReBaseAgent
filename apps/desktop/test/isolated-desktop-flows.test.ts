@@ -27,6 +27,7 @@ import { ISOLATED_CREATE_ERROR_CODE, runCreateIsolated } from "../src/main/run-c
 import { RunRepository } from "../src/main/run-repository";
 import type { RunSettings } from "../src/main/settings";
 import { SourceTokenStore } from "../src/main/source-token";
+import { inspectWorkspace } from "../src/main/workspace-view";
 import { CreateRunRequestSchema, ForkRunRequestSchema } from "../src/shared/ipc";
 
 /**
@@ -469,6 +470,94 @@ describe("runForkIsolated（B 1.4）", () => {
 function renameSyncFixture(from: string, to: string): void {
   renameSync(from, to);
 }
+
+describe("U6 5.8：runForkCapability 对不完整来源拒绝，自有文件阅读独立可读", () => {
+  it("正对照：根在场时二次分叉父本的 capability 照常给出", async () => {
+    const { dataDir, source, cleanup } = tempLayout();
+    try {
+      const rootId = await createIsolatedParent(dataDir, source, [
+        { toolCalls: [readCall("c1", "a.txt")] },
+        { toolCalls: [writeCall("c2", "b.txt", "beta")] },
+        { content: "根完成。" },
+      ]);
+      const rootRecord = readRun(join(dataDir, "traces", `${rootId}.jsonl`));
+      const writeB = rootRecord.spans.find(
+        (s) => s.kind === "tool.invoke" && s.tool === "write_file",
+      );
+      if (writeB?.kind !== "tool.invoke") throw new Error("缺少写工具 span");
+
+      const forkB = await replayIsolatedRun({
+        dataDir,
+        parentId: rootId,
+        atSpanId: writeB.id,
+        edit: { field: "result", value: "内容(a.txt)【B 的观察】" },
+        config: isolatedConfig(),
+        authority: { allowFileWrites: true },
+        llm: new MockLlmClient([{ toolCalls: [readCall("c4", "b.txt")] }, { content: "B 完成。" }]),
+      });
+      if (!forkB.ok) throw new Error(`${forkB.failure.code} ${forkB.failure.reason}`);
+      const bRecord = readRun(join(dataDir, "traces", `${forkB.id}.jsonl`));
+      const bRead = bRecord.spans.find((s) => s.kind === "tool.invoke");
+      if (bRead?.kind !== "tool.invoke") throw new Error("B 缺少自有 tool.invoke span");
+
+      const repo = new RunRepository(join(dataDir, "traces"));
+      const capability = await runForkCapability(
+        { repository: repo, settings: SETTINGS, dataDir },
+        { parentRunId: forkB.id, atSpanId: bRead.id, edit: { field: "result", value: "改" } },
+      );
+      expect(capability.parentId).toBe(forkB.id);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("根 trace 消失 ⇒ capability 以 RUN_LINEAGE_INCOMPLETE 拒绝（不授予许可、不写文件）", async () => {
+    const { dataDir, source, cleanup } = tempLayout();
+    try {
+      const rootId = await createIsolatedParent(dataDir, source, [
+        { toolCalls: [readCall("c1", "a.txt")] },
+        { content: "根完成。" },
+      ]);
+      const rootRecord = readRun(join(dataDir, "traces", `${rootId}.jsonl`));
+      const readSpan = rootRecord.spans.find((s) => s.kind === "tool.invoke");
+      if (readSpan?.kind !== "tool.invoke") throw new Error("缺少 tool.invoke span");
+
+      const forkB = await replayIsolatedRun({
+        dataDir,
+        parentId: rootId,
+        atSpanId: readSpan.id,
+        edit: { field: "result", value: "内容(a.txt)【B 的观察】" },
+        config: isolatedConfig(),
+        authority: { allowFileWrites: true },
+        llm: new MockLlmClient([{ toolCalls: [readCall("c4", "b.txt")] }, { content: "B 完成。" }]),
+      });
+      if (!forkB.ok) throw new Error(`${forkB.failure.code} ${forkB.failure.reason}`);
+      const bRecord = readRun(join(dataDir, "traces", `${forkB.id}.jsonl`));
+      const bRead = bRecord.spans.find((s) => s.kind === "tool.invoke");
+      if (bRead?.kind !== "tool.invoke") throw new Error("B 缺少自有 tool.invoke span");
+
+      // 根 trace 消失 ⇒ B 为 ownOnly（U6 §3 的读取语义）
+      rmSync(join(dataDir, "traces", `${rootId}.jsonl`));
+      const repo = new RunRepository(join(dataDir, "traces"));
+      await expect(
+        runForkCapability(
+          { repository: repo, settings: SETTINGS, dataDir },
+          { parentRunId: forkB.id, atSpanId: bRead.id, edit: { field: "result", value: "改" } },
+        ),
+      ).rejects.toMatchObject({ code: "RUN_LINEAGE_INCOMPLETE", missingRunId: rootId });
+
+      // 自有文件接口保持独立可读：B 自己的初始快照照常取得（来源缺失不封禁自有文件）
+      const inspect = await inspectWorkspace({ dataDir, repository: repo }, { runId: forkB.id });
+      expect(inspect.ok).toBe(true);
+      if (inspect.ok) {
+        expect(inspect.result.runId).toBe(forkB.id);
+        expect(inspect.result.origin.kind).toBe("checkpoint");
+      }
+    } finally {
+      cleanup();
+    }
+  });
+});
 
 describe("runForkCapability（B 1.5）", () => {
   it("多工具轮次：定位三元组指向该轮，轮末快照是初始清单（本例无写入）", async () => {

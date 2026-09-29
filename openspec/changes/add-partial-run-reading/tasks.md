@@ -53,12 +53,12 @@
 - [x] 5.4 接 prompt 端点，来源拒绝后仍保留完整父本的原领域门禁（对应“ownOnly prompt、代理和实验臂不执行”）。—— `promptChannel.run` settings 检查后接 `checkRunSource`；ownOnly prompt 父本（真实 prompt fork 出子 run 后删父）⇒ RUN_LINEAGE_INCOMPLETE + settled/rejected 回执 + 零模型调用；正对照反证：完整父本 + 无 system 消息 ⇒ `PROMPT_FORK_NO_SYSTEM` 照常拒绝（领域门禁不被绕过）。证据 `u6-exec-source-gate.test.ts` 5.4 组 2 条
 - [x] 5.5 接 proxy 端点，计数模型请求/录制写入/真实 ID，零借用其他记录（对应“ownOnly prompt、代理和实验臂不执行”）。—— `proxyChannel.run` 在 `deps.proxy.fork` 之前接 `checkRunSource`（发请求/录制之前）；ownOnly 父本 ⇒ RUN_LINEAGE_INCOMPLETE + runIds 空 + 代理 fork 零调用；正对照：完整父本 + 代理桩 ⇒ 成功。真实代理链路（发请求/录制写入计数）归 §6 受控回归。证据同文件 5.5 组 1 条
 - [x] 5.6 接 A/B 整批执行来源门禁，第一臂前拒绝且无运行身份（对应“ownOnly prompt、代理和实验臂不执行”、“ownOnly model_params dry-run 保持只读”）。—— `modelAbChannel.run` settings 检查后、`runModelAb` 之前接 `checkRunSource`；ownOnly 父本（真实批次造臂后删父）⇒ RUN_LINEAGE_INCOMPLETE，record arms []/runIds []/experimentId null（零臂身份），零模型调用；正对照：完整父本整批成功。证据同文件 5.6 组 1 条
-- [ ] 5.7 接 A/B dry-run 同源拒绝；对照完整合法父本预览仍可用且不占槽（对应“ownOnly model_params dry-run 保持只读”）。
-- [ ] 5.8 接隔离 capability 来源拒绝；自有文件接口保持独立可读（对应“隔离 capability 对不完整来源明确拒绝”）。
-- [ ] 5.9 验证父链变化与有效 direct IPC 绕过 UI；服务端重读，不信任客户端详情（对应“预检后父链变化仍由 main 拒绝”）。
-- [ ] 5.10 验证同 ID 恢复不复活、异参/旧 epoch/tombstone 及槽归属；新 ID 重检才可能执行（对应“父链恢复不复活已拒绝操作”）。
-- [ ] 5.11 回归普通/隔离 create 与被动录制，无父本路径不受所选 ownOnly 阻断（对应“无父本创建和被动录制保持原契约”）。
-- [ ] 5.12 反查 renderer 所有执行按钮与只读重试，disabled 有就近原因，重试不调用执行通道（对应“读取重试与执行严格分离”、“ownOnly result 不可重跑”）。
+- [x] 5.7 接 A/B dry-run 同源拒绝；对照完整合法父本预览仍可用且不占槽（对应“ownOnly model_params dry-run 保持只读”）。—— `execModelAbPlan` settings 检查后接 `checkRunSource`（捕获 `RunSourceRejection` 转普通错误信封——本通道不登记不占槽的既有语义不变）；ownOnly 父本 ⇒ RUN_LINEAGE_INCOMPLETE + 零网络 + registry 无新登记；正对照：完整父本 dry-run 计划照常给出。证据 `u6-exec-source-gate.test.ts` 5.7 组 2 条
+- [x] 5.8 接隔离 capability 来源拒绝；自有文件接口保持独立可读（对应“隔离 capability 对不完整来源明确拒绝”）。—— `runForkCapability` 入口接 `checkRunSource`；ipc.ts catch 增 `RunSourceRejection` 分支（不落 FORK_CAPABILITY_FAILED 兜底）；真实隔离链（根→B 续跑）删根后 capability ⇒ RUN_LINEAGE_INCOMPLETE + missingRunId=根；正对照根在场照常给出；同場景断言 `inspectWorkspace(B)` 初始快照照常取得（自有文件阅读不被封禁）。证据 `isolated-desktop-flows.test.ts` U6 5.8 组 2 条
+- [x] 5.9 验证父链变化与有效 direct IPC 绕过 UI；服务端重读，不信任客户端详情（对应“预检后父链变化仍由 main 拒绝”）。—— 端点级测试本身即 direct-IPC 等价（不经任何 renderer/按钮）；专测：dry-run 预检通过后父文件消失，正式提交仍被来源门禁拒绝（当前 run 缺失 ⇒ RUN_DETAIL_UNREADABLE，design D2「缺当前文件直接失败」）；请求 schema 里本就没有 completeness 字段 ⇒ 客户端声明无从伪造。证据同文件 5.9 组 1 条
+- [x] 5.10 验证同 ID 恢复不复活、异参/旧 epoch/tombstone 及槽归属；新 ID 重检才可能执行（对应“父链恢复不复活已拒绝操作”）。—— 同 ID 再提交先命中 U4 判重（OPERATION_ERROR.duplicated，零重读零执行——异参 conflict/旧 epoch/tombstone 归 U4 既有测试，未动）；恢复父文件后**新 ID** 重新提交 ⇒ 重检通过正常执行。证据同文件 5.10 组 1 条
+- [x] 5.11 回归普通/隔离 create 与被动录制，无父本路径不受所选 ownOnly 阻断（对应“无父本创建和被动录制保持原契约”）。—— create 通道无 parentRunId ⇒ 不经过来源门禁（代码路径事实）；专测：磁盘存在 ownOnly run 时普通 create 照常成功；被动录制不经 exec 端点（proxy-manager 录制路径零改动）。证据同文件 5.11 组 1 条
+- [x] 5.12 反查 renderer 所有执行按钮与只读重试，disabled 有就近原因，重试不调用执行通道（对应“读取重试与执行严格分离”、“ownOnly result 不可重跑”）。—— 反查结论：五类执行编辑器经 `canExecuteFromSource` 单咽喉取执行资格（grep：DetailPanel 四处消费）；`resolveExecutionGate` 增 `lineageIncomplete` 入参、store 注入 `detail.completeness === "ownOnly"` ⇒ ownOnly 时全部执行入口禁用并沿用既有就近原因行（“源记录不可用：重新读取并校验通过前不能发起新执行”）；重试不调执行通道已由 4.9 store 测试钉住（calls 仅 runs:get）；main 来源门禁仍是权威防线（renderer disabled 非保护依据）。证据 `u6-partial-result-closure.test.ts` 5.12 组 2 条
 
 ## 6. 受控验证与 Electron 证据
 

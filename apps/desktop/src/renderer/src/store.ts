@@ -1579,6 +1579,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       unavailable: availability.unavailable,
       reading: get().loadingDetail,
       listLoaded: get().listLoaded,
+      // U6 任务 5.12：详情为 ownOnly（父链不完整）⇒ 依赖父本的执行入口一并禁用，
+      // 就近原因沿用各编辑器既有的"源记录不可用"行；main 侧来源门禁仍是权威防线
+      lineageIncomplete: get().detail?.completeness === "ownOnly",
     });
   },
 

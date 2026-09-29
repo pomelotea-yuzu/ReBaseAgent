@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readRun } from "@rebaseagent/trace-sdk";
@@ -7,6 +7,7 @@ import {
   execCreateRun,
   execForkRun,
   execModelAb,
+  execModelAbPlan,
   execPromptFork,
   execProxyFork,
 } from "../src/main/exec-endpoints";
@@ -15,8 +16,10 @@ import {
   RunSourceRejection,
   checkRunSource,
 } from "../src/main/run-source-gate";
+import { OPERATION_ERROR } from "../src/shared/operations";
 import {
   type ExecHarness,
+  ONE_TURN,
   TRUSTED_SENDER,
   envelope,
   opId,
@@ -522,5 +525,172 @@ describe("5.6 A/B 整批执行：第一臂之前拒绝，无运行身份", () =>
     expect(record?.arms).toEqual([]);
     expect(record?.experimentId).toBeNull();
     expect(h.llmCalls()).toBe(callsBefore);
+  });
+});
+
+describe("5.7 A/B dry-run 只读端点：同源拒绝、不占槽不登记、完整父本预览仍可用", () => {
+  let h: ExecHarness;
+  beforeEach(() => {
+    h = openExecHarness();
+  });
+
+  it("正对照：完整父本的 dry-run 计划可用且不产生登记、零模型调用", async () => {
+    h.configure();
+    const pureParent = await h.makePureParent();
+    const callsBefore = h.llmCalls();
+    const plan = await execModelAbPlan(h.deps, TRUSTED_SENDER, {
+      parentRunId: pureParent,
+      arms: [{ model: "m-a" }, { model: "m-b" }],
+      dryRun: true,
+    });
+    expect(plan.ok).toBe(true);
+    if (plan.ok) return;
+    expect(plan.data.plan).toHaveLength(2);
+    expect(h.llmCalls()).toBe(callsBefore);
+    expect(h.registry.snapshot().operations).toHaveLength(0);
+  });
+
+  it("ownOnly 父本 ⇒ RUN_LINEAGE_INCOMPLETE：无计划、零网络、登记仍为空", async () => {
+    h.configure();
+    const pureParent = await h.makePureParent();
+    h.setScript([{ content: "臂完成。" }, { content: "臂完成。" }]);
+    const batch = await execModelAb(
+      h.deps,
+      TRUSTED_SENDER,
+      envelope(1, {
+        parentRunId: pureParent,
+        arms: [{ model: "m-a" }, { model: "m-b" }],
+        dryRun: false,
+      }),
+    );
+    expect(batch.ok).toBe(true);
+    if (!batch.ok) return;
+    const armId = batch.data.ids[0];
+    expect(armId).toBeTruthy();
+
+    rmSync(join(h.traces, `${pureParent}.jsonl`));
+    const callsBefore = h.llmCalls();
+    const plan = await execModelAbPlan(h.deps, TRUSTED_SENDER, {
+      parentRunId: armId ?? "unreachable",
+      arms: [{ model: "m-c" }, { model: "m-d" }],
+      dryRun: true,
+    });
+    expect(plan.ok).toBe(false);
+    if (plan.ok) return;
+    expect(plan.error.code).toBe(RUN_SOURCE_REJECTION.incomplete);
+    expect(h.llmCalls()).toBe(callsBefore);
+    // 只读端点不登记、不占槽：registry 里没有这条请求的任何操作
+    expect(h.registry.snapshot().operations).toHaveLength(1); // 只有第 1 步真实批次
+  });
+});
+
+describe("5.9–5.11 服务端重读 / 同 ID 不复活 / 无父本路径回归", () => {
+  let h: ExecHarness;
+  beforeEach(() => {
+    h = openExecHarness();
+  });
+
+  /** 真实造出 ownOnly 父本：父链完整时 fork 出子 run，再删父文件；返回父文件原文以便恢复 */
+  async function makeOwnOnlyChild(): Promise<{
+    childId: string;
+    atSpanId: string;
+    parentFile: string;
+    parentContent: string;
+  }> {
+    h.setScript([{ content: "父 run 一步完成。" }]);
+    const parent = await h.makeParent();
+    h.setScript(CHILD_SCRIPT);
+    const child = await execForkRun(h.deps, TRUSTED_SENDER, envelope(90, {
+      parentRunId: parent.parentId,
+      atSpanId: parent.atSpanId,
+      edit: { field: "result", value: "编辑后的结果" },
+    }));
+    if (!child.ok) throw new Error("正对照失败");
+    const parentFile = join(h.traces, `${parent.parentId}.jsonl`);
+    const parentContent = readFileSync(parentFile, "utf8");
+    rmSync(parentFile);
+    return {
+      childId: child.data.id,
+      atSpanId: toolSpanIdOf(h, child.data.id),
+      parentFile,
+      parentContent,
+    };
+  }
+
+  it("5.9 直调端点（绕过 UI）：main 现读磁盘——预检通过后父文件消失仍拒绝", async () => {
+    h.configure();
+    h.setScript([{ content: "臂完成。" }, { content: "臂完成。" }]);
+    const pureParent = await h.makePureParent();
+    // 预检（只读端点）此刻通过——客户端视角"一切就绪"
+    const plan = await execModelAbPlan(h.deps, TRUSTED_SENDER, {
+      parentRunId: pureParent,
+      arms: [{ model: "m-a" }, { model: "m-b" }],
+      dryRun: true,
+    });
+    expect(plan.ok).toBe(true);
+
+    // 预检之后、提交之前父文件消失：main 提交时**服务端重读**仍拒绝。
+    // 父文件即当前 run ⇒ 严格失败形态（RUN_DETAIL_UNREADABLE，design D2「缺当前文件直接失败」）
+    rmSync(join(h.traces, `${pureParent}.jsonl`));
+    const response = await execModelAb(h.deps, TRUSTED_SENDER, envelope(91, {
+      parentRunId: pureParent,
+      arms: [{ model: "m-a" }, { model: "m-b" }],
+      dryRun: false,
+    }));
+    expect(response.ok).toBe(false);
+    if (response.ok) return;
+    expect(response.error.code).toBe(RUN_SOURCE_REJECTION.unreadable);
+    expect(h.llmCalls()).toBe(0);
+  });
+
+  it("5.10 来源拒绝后恢复父文件：同 ID 只命中判重不复活；新 ID 重检后可执行", async () => {
+    h.configure();
+    const { childId, atSpanId, parentFile, parentContent } = await makeOwnOnlyChild();
+
+    // 第一次提交：来源拒绝（settled/rejected）
+    const first = await execForkRun(h.deps, TRUSTED_SENDER, envelope(92, {
+      parentRunId: childId,
+      atSpanId,
+      edit: { field: "result", value: "恢复前的编辑" },
+    }));
+    expect(first.ok).toBe(false);
+    if (first.ok) return;
+    expect(first.error.code).toBe(RUN_SOURCE_REJECTION.incomplete);
+
+    // 父文件恢复 ⇒ 同 ID 再提交：先命中 U4 判重（duplicate），**不重读父本、不执行**
+    writeFileSync(parentFile, parentContent);
+    const filesBefore = h.traceFiles();
+    const callsBefore = h.llmCalls();
+    const sameId = await execForkRun(h.deps, TRUSTED_SENDER, envelope(92, {
+      parentRunId: childId,
+      atSpanId,
+      edit: { field: "result", value: "恢复前的编辑" },
+    }));
+    expect(sameId.ok).toBe(false);
+    if (sameId.ok) return;
+    expect(sameId.error.code).toBe(OPERATION_ERROR.duplicated);
+    expect(h.llmCalls()).toBe(callsBefore);
+    expect(h.traceFiles()).toEqual(filesBefore);
+
+    // 新 ID 重新提交：通过重检（父链已恢复）⇒ 正常执行
+    const renewed = await execForkRun(h.deps, TRUSTED_SENDER, envelope(93, {
+      parentRunId: childId,
+      atSpanId,
+      edit: { field: "result", value: "恢复后的新提交" },
+    }));
+    expect(renewed.ok).toBe(true);
+    expect(h.llmCalls()).toBeGreaterThan(callsBefore);
+  });
+
+  it("5.11 无父本的普通 create 不受已存在的 ownOnly run 阻断", async () => {
+    h.configure();
+    await makeOwnOnlyChild(); // 磁盘上存在 ownOnly run
+    h.setScript(ONE_TURN);
+    const created = await execCreateRun(h.deps, TRUSTED_SENDER, envelope(94, {
+      systemPrompt: "你是简洁的问答助手。",
+      userMessage: "无父本创建照常工作。",
+    }));
+    expect(created.ok).toBe(true);
+    if (created.ok) return;
   });
 });

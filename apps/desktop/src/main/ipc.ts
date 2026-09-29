@@ -53,6 +53,7 @@ import type { OperationRegistry } from "./operation-registry";
 import { RequestFingerprinter } from "./operation-request";
 import type { ProxyManager } from "./proxy-manager";
 import type { RunRepository } from "./run-repository";
+import { RunSourceRejection } from "./run-source-gate";
 import type { SettingsStore } from "./settings";
 import { SourceTokenStore } from "./source-token";
 import { inspectWorkspace, readWorkspaceFileForView } from "./workspace-view";
@@ -224,6 +225,10 @@ export function registerIpc(deps: IpcDeps): void {
         return ok(result);
       } catch (e) {
         if (e instanceof ForkError) {
+          return fail(e.code, e);
+        }
+        // U6 §5.8：来源门禁拒绝（ownOnly / 详情不可读）按稳定码回话，不落兜底码
+        if (e instanceof RunSourceRejection) {
           return fail(e.code, e);
         }
         return fail("FORK_CAPABILITY_FAILED", e);

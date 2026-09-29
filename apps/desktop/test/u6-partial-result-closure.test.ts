@@ -571,3 +571,75 @@ describe("4.10 renderer 得知来源不完整 ⇒ 撤销旧预检/计划/确认/
     expect(Object.keys(state.confirmations.byTargetKey)).toHaveLength(1);
   });
 });
+
+describe("5.12 执行入口单咽喉：ownOnly 详情 ⇒ 依赖父本的执行入口禁用", () => {
+  it("resolveExecutionGate：lineageIncomplete ⇒ false（缺省/complete 不受影响）", async () => {
+    const { resolveExecutionGate } = await import("../src/renderer/src/lib/workspace-selection");
+    expect(resolveExecutionGate({ unavailable: false, reading: false, listLoaded: true })).toBe(
+      true,
+    );
+    expect(
+      resolveExecutionGate({
+        unavailable: false,
+        reading: false,
+        listLoaded: true,
+        lineageIncomplete: true,
+      }),
+    ).toBe(false);
+    // 既有优先级保持：未加载/读取中/列表不可用仍先行拒绝
+    expect(resolveExecutionGate({ unavailable: true, reading: false, listLoaded: true })).toBe(
+      false,
+    );
+    expect(resolveExecutionGate({ unavailable: false, reading: true, listLoaded: true })).toBe(
+      false,
+    );
+  });
+
+  it("store：详情落地 ownOnly ⇒ canExecuteFromSource false；complete ⇒ true", async () => {
+    const summaryOf = (id: string) => ({
+      id,
+      task: "t",
+      model: "m",
+      created_at: "2026-09-29T00:00:00.000Z",
+      status: "completed" as const,
+      parent: null,
+      reason: "completed",
+      fork: null,
+      steps: 1,
+      toolCalls: 0,
+      toolErrors: 0,
+      tokensIn: 0,
+      tokensOut: 0,
+      cacheHit: null,
+      durationMs: 1,
+      source: null,
+    });
+    const { readRun: rr } = await import("@rebaseagent/trace-sdk");
+    const record = rr(resolve(FIXTURE_DIR, "u1-ok.jsonl"));
+    const meta = { ...record.meta, id: "run_complete" };
+    const completeDetail = {
+      meta,
+      spans: record.spans,
+      events: record.events,
+      status: record.status,
+      chain: [{ meta, fork: null }],
+      leafSpanIds: record.spans.map((span) => span.id),
+      completeness: "complete",
+      spanScope: "own",
+      lineage: { status: "complete" },
+    } as RunDetail;
+
+    // ownOnly 落地 ⇒ 执行资格关闭
+    useAppStore.setState({ runs: [summaryOf("run_own")] });
+    details = { run_own: ok(ownOnlyNamed("run_own")) };
+    await useAppStore.getState().selectRun("run_own");
+    useAppStore.setState({ listLoaded: true });
+    expect(useAppStore.getState().canExecuteFromSource()).toBe(false);
+
+    // complete 落地 ⇒ 执行资格恢复（不因曾经 ownOnly 而永久禁用）
+    useAppStore.setState({ runs: [summaryOf("run_complete")] });
+    details = { run_complete: ok(completeDetail) };
+    await useAppStore.getState().selectRun("run_complete");
+    expect(useAppStore.getState().canExecuteFromSource()).toBe(true);
+  });
+});

@@ -568,6 +568,16 @@ export async function execModelAbPlan(
       },
     };
   }
+  // U6 §5.7：只读预览与真实执行同判据——ownOnly / 不可读父本直接给来源拒绝原因，
+  // 不生成可执行计划、不调网络、不写文件；本通道本就不登记、不占槽
+  try {
+    checkRunSource(deps.repository.tracesDir, parsed.data.parentRunId);
+  } catch (error) {
+    if (error instanceof RunSourceRejection) {
+      return { ok: false, error: { code: error.code, message: error.message } };
+    }
+    throw error;
+  }
   try {
     const { armFacts: _armFacts, ...result } = await runModelAb(
       { repository: deps.repository, settings: loaded, execCwd: deps.execCwd },
