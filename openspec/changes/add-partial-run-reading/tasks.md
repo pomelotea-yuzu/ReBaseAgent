@@ -50,9 +50,9 @@
 - [x] 5.1 定义共享 main 来源检查及 RUN_LINEAGE_INCOMPLETE/RUN_DETAIL_UNREADABLE 映射，在 U4 接受后 settled/rejected 收口（对应“详情加载失败在执行入口即拒绝”）。—— 新模块 `main/run-source-gate.ts`：`checkRunSource(tracesDir, runId)` 复用 `readRunLineage` 单次读取上下文（只读零写入）——完整链放行；祖先确实缺失 ⇒ `RunSourceRejection("RUN_LINEAGE_INCOMPLETE", …, missingRunId)`；其余读取失败（当前缺失/损坏/版本/成环/非法定位）⇒ `RUN_DETAIL_UNREADABLE`；`toRunResult` 增映射分支 ⇒ settled/rejected + 稳定码 + runIds 空 + finally 只释放本槽（registry 既有语义）。证据 `test/u6-exec-source-gate.test.ts` A 组 4 条 + B 组回执断言
 - [x] 5.2 接普通 result 端点；有效请求直调覆盖零业务副作用与匹配回执（对应“ownOnly result 不可重跑”）。—— `forkChannel.run` 在 settings 检查之后、`runFork` 之前接 `checkRunSource`；真实 fork 链造 ownOnly 标本（fork 出子 run 后删父文件）：响应 ok:false + settled 回执 + `RUN_LINEAGE_INCOMPLETE`（消息含缺失 ID、无路径），record rejected/runIds []，零模型调用零新 trace。正对照：父链完整时同形请求成功。证据 B 组 3 条
 - [x] 5.3 接隔离 result 端点与合法 allowFileWrites 请求，断言无副本世界/trace 创建，不新增 sourceToken（对应“ownOnly 隔离 result 不消费副本授权”）。—— 同一 `checkRunSource` 覆盖隔离分支（`runForkIsolated` 之前）；真实隔离根 run（execCreateRun+token）→ 隔离续跑出 C（正对照 ok）→ 删根文件 → C 上合法 allowFileWrites 请求 ⇒ `RUN_LINEAGE_INCOMPLETE`，零模型调用零新 trace，令牌消费计数不变（result 请求 schema 本无 sourceToken 字段）。证据 C 组 1 条
-- [ ] 5.4 接 prompt 端点，来源拒绝后仍保留完整父本的原领域门禁（对应“ownOnly prompt、代理和实验臂不执行”）。
-- [ ] 5.5 接 proxy 端点，计数模型请求/录制写入/真实 ID，零借用其他记录（对应“ownOnly prompt、代理和实验臂不执行”）。
-- [ ] 5.6 接 A/B 整批执行来源门禁，第一臂前拒绝且无运行身份（对应“ownOnly prompt、代理和实验臂不执行”、“ownOnly model_params dry-run 保持只读”）。
+- [x] 5.4 接 prompt 端点，来源拒绝后仍保留完整父本的原领域门禁（对应“ownOnly prompt、代理和实验臂不执行”）。—— `promptChannel.run` settings 检查后接 `checkRunSource`；ownOnly prompt 父本（真实 prompt fork 出子 run 后删父）⇒ RUN_LINEAGE_INCOMPLETE + settled/rejected 回执 + 零模型调用；正对照反证：完整父本 + 无 system 消息 ⇒ `PROMPT_FORK_NO_SYSTEM` 照常拒绝（领域门禁不被绕过）。证据 `u6-exec-source-gate.test.ts` 5.4 组 2 条
+- [x] 5.5 接 proxy 端点，计数模型请求/录制写入/真实 ID，零借用其他记录（对应“ownOnly prompt、代理和实验臂不执行”）。—— `proxyChannel.run` 在 `deps.proxy.fork` 之前接 `checkRunSource`（发请求/录制之前）；ownOnly 父本 ⇒ RUN_LINEAGE_INCOMPLETE + runIds 空 + 代理 fork 零调用；正对照：完整父本 + 代理桩 ⇒ 成功。真实代理链路（发请求/录制写入计数）归 §6 受控回归。证据同文件 5.5 组 1 条
+- [x] 5.6 接 A/B 整批执行来源门禁，第一臂前拒绝且无运行身份（对应“ownOnly prompt、代理和实验臂不执行”、“ownOnly model_params dry-run 保持只读”）。—— `modelAbChannel.run` settings 检查后、`runModelAb` 之前接 `checkRunSource`；ownOnly 父本（真实批次造臂后删父）⇒ RUN_LINEAGE_INCOMPLETE，record arms []/runIds []/experimentId null（零臂身份），零模型调用；正对照：完整父本整批成功。证据同文件 5.6 组 1 条
 - [ ] 5.7 接 A/B dry-run 同源拒绝；对照完整合法父本预览仍可用且不占槽（对应“ownOnly model_params dry-run 保持只读”）。
 - [ ] 5.8 接隔离 capability 来源拒绝；自有文件接口保持独立可读（对应“隔离 capability 对不完整来源明确拒绝”）。
 - [ ] 5.9 验证父链变化与有效 direct IPC 绕过 UI；服务端重读，不信任客户端详情（对应“预检后父链变化仍由 main 拒绝”）。

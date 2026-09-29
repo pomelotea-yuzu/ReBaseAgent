@@ -3,7 +3,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readRun } from "@rebaseagent/trace-sdk";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { execCreateRun, execForkRun } from "../src/main/exec-endpoints";
+import {
+  execCreateRun,
+  execForkRun,
+  execModelAb,
+  execPromptFork,
+  execProxyFork,
+} from "../src/main/exec-endpoints";
 import {
   RUN_SOURCE_REJECTION,
   RunSourceRejection,
@@ -349,5 +355,172 @@ describe("5.3 隔离 result 端点：副本授权消费之前拒绝", () => {
     expect(h.traceFiles()).toEqual(filesBefore);
     // result 请求本就没有 sourceToken 字段（schema 层事实）；令牌消费计数不变
     expect(h.tokenConsumes()).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// C. 5.4–5.6：prompt / proxy / A-B 整批三个执行入口接同一来源门禁
+// ---------------------------------------------------------------------------
+
+describe("5.4 prompt 端点：来源拒绝 + 原领域门禁保留", () => {
+  let h: ExecHarness;
+  beforeEach(() => {
+    h = openExecHarness();
+  });
+
+  it("ownOnly prompt 父本 ⇒ RUN_LINEAGE_INCOMPLETE，零模型调用", async () => {
+    h.configure();
+    h.setScript([{ content: "父 run 一步完成。" }]);
+    const parent = await h.makeParent();
+    // 先 fork 出 prompt 子 run（正对照：父链完整时成功）
+    h.setScript([{ content: "prompt 子 run 完成。" }]);
+    const child = await execPromptFork(
+      h.deps,
+      TRUSTED_SENDER,
+      envelope(1, {
+        parentRunId: parent.parentId,
+        edit: { field: "system_prompt", value: "改过的 system prompt" },
+      }),
+    );
+    expect(child.ok).toBe(true);
+    if (!child.ok) return;
+
+    rmSync(join(h.traces, `${parent.parentId}.jsonl`));
+    const callsBefore = h.llmCalls();
+    const response = await execPromptFork(
+      h.deps,
+      TRUSTED_SENDER,
+      envelope(2, {
+        parentRunId: child.data.id,
+        edit: { field: "user_message", value: "在 ownOnly 父本上的编辑" },
+      }),
+    );
+    expect(response.ok).toBe(false);
+    if (response.ok) return;
+    expect(response.operation.state).toBe("settled");
+    expect(response.error.code).toBe(RUN_SOURCE_REJECTION.incomplete);
+    expect(h.registry.recordOf(opId(2))?.runIds).toEqual([]);
+    expect(h.llmCalls()).toBe(callsBefore);
+  });
+
+  it("来源完整时原领域门禁照常拒绝（PROMPT_FORK_NO_SYSTEM 不被绕过）", async () => {
+    h.configure();
+    const noSystemParent = await h.makeNoSystemParent();
+    const response = await execPromptFork(
+      h.deps,
+      TRUSTED_SENDER,
+      envelope(3, {
+        parentRunId: noSystemParent,
+        edit: { field: "system_prompt", value: "补一个 system prompt" },
+      }),
+    );
+    expect(response.ok).toBe(false);
+    if (response.ok) return;
+    // 来源门禁放行（父链完整）⇒ 领域门禁的稳定码原样保留
+    expect(response.error.code).toBe("PROMPT_FORK_NO_SYSTEM");
+  });
+});
+
+describe("5.5 proxy 端点：发请求/录制之前拒绝", () => {
+  let h: ExecHarness;
+  beforeEach(() => {
+    h = openExecHarness();
+  });
+
+  it("ownOnly 父本 ⇒ RUN_LINEAGE_INCOMPLETE，代理 fork 零调用", async () => {
+    h.configure();
+    h.setScript([{ content: "父 run 一步完成。" }]);
+    const parent = await h.makeParent();
+    h.setScript(CHILD_SCRIPT);
+    const child = await execForkRun(
+      h.deps,
+      TRUSTED_SENDER,
+      envelope(1, {
+        parentRunId: parent.parentId,
+        atSpanId: parent.atSpanId,
+        edit: { field: "result", value: "编辑后的结果" },
+      }),
+    );
+    if (!child.ok) throw new Error("正对照失败");
+    // 正对照：完整父本 + 代理桩 ⇒ 成功（证明桩与门禁顺序）
+    h.setProxyFork(async () => ({ id: "proxy_fork_child" }));
+    const okCase = await execProxyFork(
+      h.deps,
+      TRUSTED_SENDER,
+      envelope(2, {
+        parentRunId: child.data.id,
+        atSpanId: toolSpanIdOf(h, child.data.id),
+        messages: [{ role: "user", content: "编辑后的 messages" }],
+      }),
+    );
+    expect(okCase.ok).toBe(true);
+
+    rmSync(join(h.traces, `${parent.parentId}.jsonl`));
+    const proxyBefore = h.proxyCalls();
+    const response = await execProxyFork(
+      h.deps,
+      TRUSTED_SENDER,
+      envelope(3, {
+        parentRunId: child.data.id,
+        atSpanId: toolSpanIdOf(h, child.data.id),
+        messages: [{ role: "user", content: "ownOnly 父本上的编辑" }],
+      }),
+    );
+    expect(response.ok).toBe(false);
+    if (response.ok) return;
+    expect(response.error.code).toBe(RUN_SOURCE_REJECTION.incomplete);
+    expect(h.registry.recordOf(opId(3))?.runIds).toEqual([]);
+    // 代理 fork 一次都没发生（不发请求、不录制）
+    expect(h.proxyCalls()).toBe(proxyBefore);
+  });
+});
+
+describe("5.6 A/B 整批执行：第一臂之前拒绝，无运行身份", () => {
+  let h: ExecHarness;
+  beforeEach(() => {
+    h = openExecHarness();
+  });
+
+  it("ownOnly 父本 ⇒ RUN_LINEAGE_INCOMPLETE：零臂身份、零模型调用", async () => {
+    h.configure();
+    const pureParent = await h.makePureParent();
+    // 先整批跑一次造出 model_params 臂（正对照：完整父本 ⇒ 批次成功）
+    h.setScript([{ content: "臂完成。" }]);
+    const batch = await execModelAb(
+      h.deps,
+      TRUSTED_SENDER,
+      envelope(1, {
+        parentRunId: pureParent,
+        arms: [{ model: "m-a" }, { model: "m-b" }],
+        dryRun: false,
+      }),
+    );
+    expect(batch.ok).toBe(true);
+    if (!batch.ok) return;
+    const armId = batch.data.ids[0];
+    expect(armId).toBeTruthy();
+
+    // 父文件消失 ⇒ 臂 run 变 ownOnly；以它为父本的整批必须在第一臂前拒绝
+    rmSync(join(h.traces, `${pureParent}.jsonl`));
+    const callsBefore = h.llmCalls();
+    const response = await execModelAb(
+      h.deps,
+      TRUSTED_SENDER,
+      envelope(2, {
+        parentRunId: armId ?? "unreachable",
+        arms: [{ model: "m-c" }, { model: "m-d" }],
+        dryRun: false,
+      }),
+    );
+    expect(response.ok).toBe(false);
+    if (response.ok) return;
+    expect(response.operation.state).toBe("settled");
+    expect(response.error.code).toBe(RUN_SOURCE_REJECTION.incomplete);
+    const record = h.registry.recordOf(opId(2));
+    expect(record?.requestOutcome).toBe("rejected");
+    expect(record?.runIds).toEqual([]);
+    expect(record?.arms).toEqual([]);
+    expect(record?.experimentId).toBeNull();
+    expect(h.llmCalls()).toBe(callsBefore);
   });
 });

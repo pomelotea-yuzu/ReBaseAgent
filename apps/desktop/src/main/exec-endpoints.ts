@@ -396,6 +396,9 @@ const promptChannel: ActiveChannel<PromptForkRequest, PromptForkResult> = {
         "尚未配置运行参数（baseURL / apiKey / model），请先完成运行配置",
       );
     }
+    // U6 §5.4：服务端重读 prompt 父本来源（design D5 同一判据）；来源拒绝后
+    // 仍保留完整父本的原领域门禁（启动上下文 / config_hash 等不因 complete 绕过）
+    checkRunSource(deps.repository.tracesDir, business.parentRunId);
     const result = await runPromptFork(
       {
         repository: deps.repository,
@@ -431,6 +434,9 @@ const proxyChannel: ActiveChannel<ProxyForkRequest, ProxyForkResult> = {
     atSpanId: business.atSpanId,
   }),
   async run(deps, business, ctx) {
+    // U6 §5.5：服务端重读代理父本来源——必须在 ProxyManager.fork 发请求/录制之前
+    //（ownOnly ⇒ RUN_LINEAGE_INCOMPLETE；不借用其他代理记录凑父链）
+    checkRunSource(deps.repository.tracesDir, business.parentRunId);
     const result = await deps.proxy.fork(business);
     // 代理的身份来自 recorder 的返回值（本次 fork 上下文），不是全局"最后写入"字段
     ctx.attachRunId(result.id);
@@ -473,6 +479,9 @@ const modelAbChannel: ActiveChannel<ModelAbRequest, ModelAbResult> = {
         "尚未配置运行参数（baseURL / apiKey / model），请先完成运行配置",
       );
     }
+    // U6 §5.6：整批来源门禁——在第一臂开始之前拒绝（零臂身份、零模型调用）；
+    // dry-run 通道检查已在上面的分支里，此处只服务真实执行
+    checkRunSource(deps.repository.tracesDir, business.parentRunId);
     const result: ModelAbRunResult = await runModelAb(
       {
         repository: deps.repository,
