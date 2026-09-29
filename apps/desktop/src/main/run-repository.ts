@@ -4,6 +4,7 @@ import { readRun, resolveBranch } from "@rebaseagent/trace-sdk";
 import type { RunRecord } from "@rebaseagent/trace-sdk";
 import { deriveRunSummary } from "../shared/derive";
 import type { ListRunsData, RunDetail, RunSummary } from "../shared/ipc";
+import { findIllegalRunIdViolation, readRunLineage } from "./run-lineage-read";
 
 /**
  * main 进程唯一持有 fs 的地方：扫描 traces 目录、读取并解析 trace 文件。
@@ -35,9 +36,26 @@ export class RunRepository {
     return { runs, failed };
   }
 
-  /** 读取单个 run；分支 run 返回 resolveBranch 解析后的完整轨迹 */
+  /**
+   * 读取单个 run 详情。U6 §1 起：当前 hop 校验（身份/版本/schema/结构）与父链
+   * 读取统一走 `readRunLineage` 单次读取上下文——祖先 ENOENT 之外的一切读取失败
+   * 都是受控中文的严格失败（信封仍为 GET_RUN_FAILED）。
+   *
+   * 分支语义（§1 保持现状）：
+   * - 普通/隔离 result：父链不完整 = 严格失败（§3 起改为返回 ownOnly 详情信封）；
+   * - prompt / 代理 messages：保持既有「链到此为止」呈现（§3.4/3.5 起改 ownOnly）。
+   */
   getRun(id: string): RunDetail {
-    const record = this.loadRunRecord(id);
+    const outcome = readRunLineage(this.tracesDir, id);
+    if (!outcome.ok) {
+      throw new Error(outcome.message);
+    }
+    // 叶子 run = 连续可读链的最后一跳（complete 与 incomplete 两形态同构）
+    const record = outcome.records[outcome.records.length - 1];
+    if (record === undefined) {
+      // readRunLineage 的成功形态至少包含当前 run；此分支按不变量不可达
+      throw new Error(`run ${id} 读取结果为空`);
+    }
     // 当前 run 自身新增的 span（分支 run 只记录这部分；合并轨迹其余为继承的祖先前缀）
     const leafSpanIds = record.spans.map((s) => s.id);
     if (record.meta.parent === null) {
@@ -81,7 +99,30 @@ export class RunRepository {
       };
     }
 
-    const resolved = resolveBranch(id, (runId) => this.loadRunRecord(runId));
+    if (!outcome.complete) {
+      // U6 §1 边界：祖先缺失的结构化结论已经拿到（missingRunId 受校验），
+      // ownOnly 详情信封在 §2/§3 落地；此前保持严格失败，只用受控原因替换
+      // 旧文案里的 errno/物理路径。
+      throw new Error(
+        `父链不完整：祖先 run ${outcome.missingRunId} 的 trace 文件缺失，无法解析分支轨迹`,
+      );
+    }
+
+    const recordsById = new Map(outcome.records.map((r) => [r.meta.id, r]));
+    let resolved: ReturnType<typeof resolveBranch>;
+    try {
+      resolved = resolveBranch(id, (runId) => {
+        const hit = recordsById.get(runId);
+        if (hit === undefined) {
+          throw new Error(`run ${runId} 不在本次已读取的记录中`);
+        }
+        return hit;
+      });
+    } catch (e) {
+      // resolveBranch 的报错只含 run/span id（前缀级定位校验：v1 at_span、
+      // 完整链的前缀扫描），收敛为受控原因，不透传原始异常
+      throw new Error(`分支轨迹解析失败：${e instanceof Error ? e.message : String(e)}`);
+    }
     return {
       meta: resolved.meta,
       spans: resolved.spans,
@@ -114,8 +155,15 @@ export class RunRepository {
     return chain;
   }
 
-  /** 读取单个 run 的原始记录（供 replay/派生等编排层按 id 加载父链） */
+  /**
+   * 读取单个 run 的原始记录（供 replay/派生等编排层按 id 加载父链）。
+   * 标识先经形状校验（U6 1.4：目录外读取前拒绝穿越/绝对路径/分隔符）。
+   */
   loadRunRecord(id: string): RunRecord {
+    const illegal = findIllegalRunIdViolation(id);
+    if (illegal !== null) {
+      throw new Error(`run 标识非法：${illegal}`);
+    }
     return this.read(join(this.tracesDir, `${id}.jsonl`));
   }
 
