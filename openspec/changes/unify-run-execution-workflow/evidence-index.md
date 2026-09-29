@@ -197,6 +197,42 @@
 - **改窗映射在窄档反向**（U2 旧知识再确认）：1024/800 档的面板断言全部按实测 CSS 宽度判，
   不按外框名义值；本批四档落点全部 ±1px 内。
 
+### 7.1/7.2 门禁登记（2026-09-29）
+
+**7.1 回归（点名文件复跑，全绿）**：
+- 新建父本三条：`apps/desktop/test/plain-chat-regression.test.ts`（prompt fork / 模型 A/B /
+  trace-test 卡带 + 配置漂移对照支）+ `run-create.test.ts`（落盘形状与执行路径）。
+- 执行权限/配置锁：`exec-create-fork.test.ts`、`config-gate.test.ts`、`entry-gate.test.ts`。
+- U1/U2/U3 阅读与草稿保护代表组：`workspace-file-view.test.ts`、`draft-closure-store.test.ts`、
+  `draft-submission.test.ts`、`fork-editor-draft.test.ts`、`create-form-draft.test.ts`、
+  `run-workspace.test.ts`。
+- 读数：6 + 5 文件共 **180 用例全绿**（vitest `--pool=forks`，HEAD `4262ac5`）。
+
+**7.2 全量门禁（HEAD `4262ac5`，本批零产品代码改动）**：
+
+| 项 | 读数 |
+| --- | --- |
+| desktop 测试 | **132 文件 / 2225 用例 / 0 失败 / 无 `Errors` 行**（`--pool=forks --poolOptions.forks.singleFork`，见下方环境限制③） |
+| desktop 类型检查 | `tsc -p tsconfig.node.json` 与 `-p tsconfig.web.json` **双 0 错** |
+| desktop 构建 | `electron-vite build` ✓（main/preload/renderer 三段全过） |
+| packages build | 5/5（`tsc -p tsconfig.json` 产 dist） |
+| packages 逐包单跑 | agent-loop 49 ✓ / llm-proxy 18 ✓ / trace-sdk 191 ✓ / trace-test 77 ✓ / **replay 374 绿 + 1 skipped + 12 环境受阻**（见下） |
+| 根 biome | 全仓 0 错 |
+| OpenSpec | `validate --all --strict` **13 passed / 0 failed**；索引回查脚本六判据全过（74/74、208 引用） |
+
+**环境限制（如实登记，非回归）**：
+1. **replay 12 条环境受阻**（`git diff d164251..HEAD -- packages/` 为空 ⇒ 非回归硬证据）：
+   - `model-ab-cli.test.ts` 9 条（dist 冒烟）：测试内部 `spawnSync` 起子进程 ⇒ 本环境
+     **spawnSync 全链 EBUSY**（6.6 已登记的沙箱环境类，实测连系统 node/cmd 都一样，
+     关沙箱与剥 NODE_OPTIONS 均无效）；build 产 dist 后用例正常挂载（不再 skip）。
+   - `workspace-import-source.test.ts` 3 条（junction/symlink）：沙箱内 junction 创建行为
+     与探针判定不一致——HANDOFF §六 已登记的测试基础设施欠账②（探针只查 existsSync），
+     非 U5 场景遗漏。
+2. **desktop 全量必须 `--poolOptions.forks.singleFork` 串行**：多 worker 并发下 vitest 的
+   resolveConfig 会向共享 ssr 临时文件并发写 ⇒ WorkBuddy fs shim 介入后间歇 EPERM ⇒
+   文件收集随机缺失（132→129~131 波动）+ `Errors` 行假红；singleFork 串行后恢复
+   132/2225 干净读数。并行/串行差异属运行器环境，非测试差异。
+
 ---
 
 ## ADDED requirements
@@ -308,9 +344,9 @@
 | # | scenario | 已有单元/契约证据 | 实机入口 | 现状 |
 | --- | --- | --- | --- | --- |
 | 1 | 新建 run 成功 | `create-entry-closure.test.ts › 「新建 run 成功」：按登记的可信 ID 收尾；留在流程内 ⇒ 跳的是登记的那条`、`run-create.test.ts › 落盘为 ${meta.id}.jsonl，且是根 run（parent/fork 为 null、无 source）` | 6.2 实测 tag `create-success` 13/13（2026-09-28 实机） | 已交付（6.2 实测） |
-| 2 | 新建 run 作为父本进行 prompt fork | `run-create.test.ts › prompt fork：子 run 的 parent 指向新建 run`、`plain-chat-regression.test.ts › prompt fork：子 parent 指向新建 run，父文件逐字节不变` | 7.1 计划回归 `new-parent-prompt`（离线集成已覆盖一轮，7.1 在新建路径上复跑） | 待实机 |
-| 3 | 新建 run 作为父本进行模型 A/B | `run-create.test.ts › 模型 A/B：两臂各自落盘，parent 与 config_hash 均指向新建 run`、`plain-chat-regression.test.ts › 模型 A/B：两臂各自落盘，parent 与 config_hash 均指向新建 run` | 7.1 计划回归 `new-parent-ab`（父本必须现造：空工具表 + 单轮，见上方剧本目录口径） | 待实机 |
-| 4 | 新建 run 作为父本进行 trace-test | `plain-chat-regression.test.ts › 桌面产出的 trace 直接当卡带：passed / cassette / 配置无漂移，且零落盘`、`plain-chat-regression.test.ts › 对照：工具声明与基线不匹配时 trace-test 会报配置漂移（不是永远通过）` | 7.1 计划回归 `new-parent-cassette` | 待实机 |
+| 2 | 新建 run 作为父本进行 prompt fork | `run-create.test.ts › prompt fork：子 run 的 parent 指向新建 run`、`plain-chat-regression.test.ts › prompt fork：子 parent 指向新建 run，父文件逐字节不变` | 7.1 回归实测：`plain-chat-regression.test.ts` + `run-create.test.ts` 在 HEAD 复跑全绿（子 run parent 指向新建 run、父文件逐字节不变）（2026-09-29 实机） | 已交付（7.1 回归） |
+| 3 | 新建 run 作为父本进行模型 A/B | `run-create.test.ts › 模型 A/B：两臂各自落盘，parent 与 config_hash 均指向新建 run`、`plain-chat-regression.test.ts › 模型 A/B：两臂各自落盘，parent 与 config_hash 均指向新建 run` | 7.1 回归实测：`plain-chat-regression.test.ts` + `run-create.test.ts` 在 HEAD 复跑全绿（两臂 parent 与 config_hash 均指向新建 run）（2026-09-29 实机） | 已交付（7.1 回归） |
+| 4 | 新建 run 作为父本进行 trace-test | `plain-chat-regression.test.ts › 桌面产出的 trace 直接当卡带：passed / cassette / 配置无漂移，且零落盘`、`plain-chat-regression.test.ts › 对照：工具声明与基线不匹配时 trace-test 会报配置漂移（不是永远通过）` | 7.1 回归实测：`plain-chat-regression.test.ts` 在 HEAD 复跑全绿（桌面产出的 trace 直接当卡带 + 配置漂移对照支）（2026-09-29 实机） | 已交付（7.1 回归） |
 | 5 | settings 未配置时拒绝 | `exec-create-fork.test.ts › 未配置运行参数：接受之后才失败 ⇒ 可信终态 + 原稳定码 + 零模型调用`、`store.test.ts › 未配置运行参数的错误码原样透传（SETTINGS_NOT_CONFIGURED）`、`create-form-view.test.ts › 未配置时摘要照给（拒绝理由是就近的，不是全局栏里才有）` | 6.2 实测 tag `create-not-configured` 6/6（2026-09-28 实机） | 已交付（6.2 实测） |
 | 6 | userMessage 为空时禁用提交 | `create-run-dialog.test.ts › 空串与纯空白都拒绝，且一次 IPC 都不发`、`create-form-view.test.ts › 不可提交时按钮 disabled，且文案区分进行中 / 两种模式` | 6.2 实测 tag `empty-task-disabled` 5/5（2026-09-28 实机） | 已交付（6.2 实测） |
 | 7 | 空 systemPrompt 允许 | `create-run-dialog.test.ts › 空 systemPrompt 允许：两种模式都放行，且请求里 systemPrompt 为空串`、`run-create.test.ts › 空 systemPrompt 允许：config_hash = configHash("", [])` | 6.2 实测 tag `empty-system-allowed` 6/6（2026-09-28 实机） | 已交付（6.2 实测） |

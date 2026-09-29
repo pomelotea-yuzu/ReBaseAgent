@@ -6,7 +6,8 @@
 > + §6.4 完成（第三批受控实机 9/9）+ §6.5 完成（第四批受控实机 5 tag / 60 检查）
 > + §6.6 完成（第五批受控实机 14 tag / 156 检查）+ §6.7 完成（第六批受控实机 10 tag / 104 检查
 > + 录制入口接线缺陷 `d158523` 与 Esc 叠层穿透缺陷 `40287fb` 两笔修复）
-> + §6.8 完成（第七批受控实机 6 tag / 76 检查：代表宽度 + 200% + 真键盘 + 指纹 + live 区域）**
+> + §6.8 完成（第七批受控实机 6 tag / 76 检查：代表宽度 + 200% + 真键盘 + 指纹 + live 区域）
+> + §7.1 完成（回归点名复跑 180 用例全绿）+ §7.2 完成（全量门禁收口，desktop 132/2225 + strict 13/13）**
 > （`shared/terminal-facts.ts` 19 条 + `lib/result-verification.ts` 纯判据 15 条 + store 核实 9 条 +
 > 终态消费 13 条 + `draft-submission` 收尾关联 13 条 + `draft-closure` 清理判据 20 条 +
 > store 收尾/批次/反证 17 条 + `create-entry-closure` 创建入口 10 条 + `fork-entry-closure` result/prompt 入口 6 条 +
@@ -886,6 +887,23 @@
 
 ## 7. 回归与收口
 
-- [ ] 7.1 回归新创建父本的 prompt/A-B/Trace-as-Test、现有执行权限/配置锁与 U1/U2/U3 阅读/草稿保护（≤2h）。验收：「新建 run 作为父本进行 prompt fork」「新建 run 作为父本进行模型 A/B」「新建 run 作为父本进行 trace-test」「所有入口实际使用同一适配器」「文件承载区不附带步骤目录」「阅读过程不修改已有数据」及原有包层不变量。
-- [ ] 7.2 执行仓库要求的 Biome、desktop 类型检查/测试/构建和相关包门禁，记录实际通过/失败/跳过与环境限制；长门禁按现有串行规则运行（≤2h 记录窗口，超出拆任务，不与 Electron 证据脚本争用实例）。验收：新增接线无回归、无隐藏 Errors；OpenSpec 全量 strict 通过。
+- [x] 7.1 回归新创建父本的 prompt/A-B/Trace-as-Test、现有执行权限/配置锁与 U1/U2/U3 阅读/草稿保护（≤2h）。验收：「新建 run 作为父本进行 prompt fork」「新建 run 作为父本进行模型 A/B」「新建 run 作为父本进行 trace-test」「所有入口实际使用同一适配器」「文件承载区不附带步骤目录」「阅读过程不修改已有数据」及原有包层不变量。
+  - ✅ 2026-09-29 回归实测（HEAD `4262ac5`，vitest `--pool=forks`）：**点名文件 180 用例全绿**——
+    新建父本三条 = `plain-chat-regression.test.ts`（prompt fork / 模型 A/B / trace-test 卡带 +
+    配置漂移对照支）+ `run-create.test.ts`；执行权限/配置锁 = `exec-create-fork` / `config-gate` /
+    `entry-gate`；U1/U2/U3 阅读与草稿保护代表组 = `workspace-file-view` / `draft-closure-store` /
+    `draft-submission` / `fork-editor-draft` / `create-form-draft` / `run-workspace`。
+    「所有入口实际使用同一适配器」的实机半边已由 6.2–6.5 各批调用序列同形判据承载（各批 gates
+    在案），evidence-index A3.9/M7.2 行的逐条核对归 7.3。
+- [x] 7.2 执行仓库要求的 Biome、desktop 类型检查/测试/构建和相关包门禁，记录实际通过/失败/跳过与环境限制；长门禁按现有串行规则运行（≤2h 记录窗口，超出拆任务，不与 Electron 证据脚本争用实例）。验收：新增接线无回归、无隐藏 Errors；OpenSpec 全量 strict 通过。
+  - ✅ 2026-09-29 门禁收口（HEAD `4262ac5`，本批零产品代码改动；详表 ⇒ evidence-index「7.1/7.2
+    门禁登记」）：desktop **132 文件 / 2225 用例 / 0 失败 / 无 `Errors` 行**、tsc node/web 双 0、
+    `electron-vite build` ✓、packages build 5/5 + 逐包单跑（agent-loop 49 / llm-proxy 18 /
+    trace-sdk 191 / trace-test 77 / replay 374 绿 + 1 skipped + **12 环境受阻**）、根 biome 0 错、
+    strict 13/13、索引回查六判据全过。
+  - ⚠️ 环境限制（如实登记，非回归；`git diff d164251..HEAD -- packages/` 为空 ⇒ 硬证据）：
+    ① replay 12 条 = spawnSync 全链 EBUSY（6.6 环境类，dist 冒烟 9 条）+ junction 探针沙箱内
+    说谎（HANDOFF 欠账②，3 条）；② desktop 全量须 `--poolOptions.forks.singleFork` 串行——
+    多 worker 并发写共享 ssr 临时文件在 fs shim 下间歇 EPERM ⇒ 收集随机缺失 + `Errors` 假红
+    （运行器环境差异，非测试差异）。
 - [ ] 7.3 逐条核对 delta→用例/fixture/实机证据和七入口→消费点，复核七条 MODIFIED 的场景差集并记录有意契约变更及未验证限制（≤2h）。验收：无虚构引用、无漏场景，U4 旧证据与 U5 新证据分开；「普通结果与隔离结果确认边界不同」须同时引用 4.4/4.5 两侧证据，缺一侧只记部分覆盖；tasks 仅在真实完成后勾选，归档/打包/发布另行处理。
