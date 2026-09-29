@@ -46,10 +46,11 @@ interface FixtureModule {
 }
 const catalog = require("../scripts/lib/u5-sse-fixtures.cjs") as FixtureModule;
 
-/** delta 场景标题的权威出处（引用逐字对账用） */
+/** delta 场景标题的权威出处（引用逐字对账用）。
+ * U5 已于 2026-09-29 归档（`29d84b2`）⇒ 权威位置随迁 archive，不再指活动 change 路径。 */
 const DELTA_SPEC = resolve(
   import.meta.dirname,
-  "../../../openspec/changes/unify-run-execution-workflow/specs/desktop-ui/spec.md",
+  "../../../openspec/changes/archive/2026-09-29-unify-run-execution-workflow/specs/desktop-ui/spec.md",
 );
 
 const SYSTEM = "你是简洁的问答助手。";
