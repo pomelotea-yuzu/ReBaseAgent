@@ -6,7 +6,7 @@
 > 回查脚本：`.workbuddy/u5/u5-61/verify-scenario-checklist.cjs`（六项判据 + `--selftest` 反证）；
 > 用例名池：`.workbuddy/u5/u5-61/case-inventory.json`（172 文件 / 2597 条 `it` 标题）。
 
-汇总口径：**74 条场景（41 ADDED / 33 MODIFIED）**，单元或契约证据已交付 **66** 条、待实机 **7** 条、实机不成立 **1** 条（6.2–6.8 六批实测后；剩余 7 条按层引用或归 §7.1 回归 / §7.3 逐条核对）
+汇总口径：**74 条场景（41 ADDED / 33 MODIFIED）**，单元或契约证据已交付 **71** 条、待实机 **0** 条、实机不成立 **3** 条（6.2–6.8 六批实测 + 7.1 回归 + 7.3 逐条核对后；3 条实机不成立均给出真机采样面缺失的理由并按层引用）
 
 ## 怎么读这张表
 
@@ -233,6 +233,72 @@
    文件收集随机缺失（132→129~131 波动）+ `Errors` 行假红；singleFork 串行后恢复
    132/2225 干净读数。并行/串行差异属运行器环境，非测试差异。
 
+### 7.3 逐条核对结论（2026-09-29；核对脚本 `.workbuddy/u5/u5-61/verify-73-checklist.cjs`）
+
+**① MODIFIED 差集复核（机器解析 delta vs 主 spec 的 `#### Scenario:` 标题集）**：
+
+- ADDED 七条 = **41 场景**（5+5+9+7+5+7+3），与 proposal 口径一致 ✓
+- MODIFIED 七条 delta = **33 场景**，其中 **32 条逐字保留**自主 spec、**1 条改写/新增**
+  （M3「创建工作区任务优先且可返回来源」——4.1 把创建迁出模态后整条重写）
+- **净新增场景 = 41 + 1 = 42**；归档合并后的主 spec 差集复核以此数为基准
+
+**② 七入口→消费点扫描（源码 grep 计数，反查「接线少一支」家族）**：
+
+| 入口 | store 动作 | 动作定义 | 组件调用 | confirmed 订阅 |
+| --- | --- | --- | --- | --- |
+| 创建 | `createRun` | 1 | 1（CreateRunWorkspace） | 7 处 |
+| 普通/隔离 result + prompt | `forkAt` | 1 | 1（DetailPanel） | 18 处（四编辑器共用容器） |
+| messages 重发 | `proxyFork` | 1 | 1（DetailPanel） | 同上 |
+| 模型 A/B | `modelAb` | 1 | 1（DetailPanel 内 A/B 编辑器） | 同上 |
+| 设置写 | `saveSettings` | 1 | 1（SettingsDialog） | 2 处（configGate 分支） |
+
+- 消费咽喉唯一性：`consumeSettledOperations` 全仓 6 处（定义 1 + 内部汇合），
+  `beginDraftSubmission` 3 处（定义 + 登记入口），OperationsEntry 只读会话不直连
+  ——**每个入口恰好一条登记通路、一条消费汇合点，零缺消费点**（6.2 的「落库不刷新」
+  缺陷修复后有源码级契约钉住：`execution-confirmation-store.test.ts` 15 条）。
+
+**③ 原待实机 4 条的逐条处理（不虚构，逐条给理由）**：
+
+- **A3.9「全部七类入口使用相同核实路径」→ 实机不成立（按层引用）**：原计划引用
+  「6.2–6.5 各批的调用序列同形判据」——核对坐实 u5-6{2..5} 实机脚本**无逐通道序列采样**
+  （grep 0 处断言），且真机无渲染层调用序列的采样面（`window.api` 属性只读不可包桩、
+  无 IPC 监听通道）⇒ 序列同形断言由单元层四文件承载（operation-result-consumption /
+  fork-entry-closure / proxy-ab-entry-closure / create-entry-closure）；实机各批承载的
+  是入口可达与结果面。
+- **M7.2「所有入口实际使用同一适配器」→ 实机不成立（同 A3.9）**。
+- **M2.1「首次打开与无运行入口」→ 已交付（6.2 实测 + U1 归档承载）**：迟到半边 6.2
+  `first-load-late` 2/2 实测；空态半边由 U1 归档实机证据承载（空 traces 前提在 dev 数据
+  目录恒有历史 run 的前提下真机不可再现）。
+- **M2.3「旧创建设置及执行入口保持可达」→ 已交付（6.2–6.5 各批实测）**：入口可达断言
+  分布在各批 gates（create-settings-roundtrip / result-check / messages-confirm /
+  sdk-run-no-entry / ab-plan-confirm）。
+
+**④ 部分覆盖与两侧证据核对**：
+
+- A1.2「普通结果与隔离结果确认边界不同」**两侧证据齐**：4.4 侧 = 6.3 `result-plain-boundary`
+  4/4（「世界不隔离」+ 无轮末检查点话术）、4.5 侧 = 6.3 `result-isolated-boundary` 6/6
+  （「轮末检查点」+ 无「世界不隔离」互斥断言）——不存在缺一侧的部分覆盖。
+- 其余「半边按单元承载」的行（A3.3 aborted、A2.5 诊断空、A4.6 缺臂、6.6 分层五条等）
+  均已在现状列写明理由，核对无漏。
+
+**⑤ 有意契约变更登记（归档时别当回归/遗漏）**：
+
+1. U4 用例 4.9 详情读取次数 2 → 3（采纳含终态快照即自动核实一次）；
+2. 3.4 反向改判 3.1–3.3 的导航断言（留在流程内**会**跳登记那条）；
+3. 4.1 反向改判 3.1 的覆盖模态判据（`coveringModal` 只看 `settingsSection`）；
+4. 6.7 两笔产品缺陷修复带源码级契约：`d158523`（录制入口专用开器）、`40287fb`
+   （ModalDialog Esc 合成关闭，modal-dialog 契约更新）；
+5. M3.10 场景「创建工作区任务优先且可返回来源」为 4.1 重写（唯一一条 MODIFIED 改写）。
+
+**⑥ 未验证限制（归档后仍属事实）**：
+
+- `addDiagnostic` 零调用方 ⇒ 实机 diagnostics 恒空（已知限制，6.2 坐实）；
+- aborted 桌面端不可诱发（无取消通道，桥接面白名单钉死）；
+- A/B 缺臂 / null ID 桌面自然诱发不了（集成 fixture 承载）；
+- replay 12 条环境受阻（spawnSync EBUSY 9 + junction 探针 3，见 7.1/7.2 门禁登记）；
+- live 区域未实测屏幕阅读器（只记 DOM/可访问属性证据）；
+- U4 遗留四条欠账与两条待定口径（HANDOFF §九 3–4）继续有效。
+
 ---
 
 ## ADDED requirements
@@ -269,7 +335,7 @@
 | 6 | 结果不可读只重试同一记录 | `result-verification-store.test.ts › 结果不可读 ⇒ 只按同一条可信 runId 重试读取，恢复后即为已核实（零执行调用）`、`operation-result-view.test.ts › 「结果不可读只重试同一记录」⇒ 只给重读，且明说此时不做失败定位`、`controlled-read-faults.test.ts › fileMissing：详情读取失败，列表其余项照常且该 run 既不在 runs 也不在 failed`、`run-repository.test.ts › format_version 过高的文件呈失败条目并提示版本不支持` | 6.6 实测 tag `unreadable-retry` 20/20（fileMissing/corruptTail/unsupportedVersion 三轮：重读均 unreadable（attempt 2/4/6 递增、带诚实说明）、通知区首次播报「结果不可读」且同键重复注入**不重复播报**（两层去重）、面板行保留同一条记录的重读说明、还原后重读回 verified、全程零执行调用零新 trace、逐字节还原）（2026-09-29 实机） | 已交付（6.6 实测） |
 | 7 | settled 无身份与 notAccepted 不猜测结果 | `result-verification-store.test.ts › 登记里没有可信 runId ⇒ 呈现为未定位，读取项里一条结论都没有`、`result-verification-store.test.ts › notAccepted ⇒ 本次未接受（带稳定拒绝原因），没有核实成功的路径`、`operation-request-facts.test.ts › 「settled 无身份与 notAccepted 不猜测结果」在详情层同样成立：请求事实有、结果链接无` | 6.6 实测 tag `unlocated-reconcile` 9/9（核对未知 UUID ⇒ notAccepted 封禁（无目标/无时间）+ 读取项零结论 + 封禁不占槽 + 通知「未被主进程接受」+ 面板行无任何结果动作、对照 settled 行动作正常）（2026-09-29 实机）；6.2 实测 tag `dup-rejected` 8/8（notAccepted(busy) 零身份 + OPERATION_DUPLICATED / OPERATION_CONFLICT 双取证）（2026-09-28 实机） | 已交付（6.2 + 6.6 实测） |
 | 8 | 旧读取响应不能污染其他结果 | `result-verification-store.test.ts › 旧读取响应迟到 ⇒ 只认当代代次：不覆盖新结论，也不碰其他身份与其他状态`、`result-verification-store.test.ts › 同一身份的重复核实去重：只读一次详情；显式只读重试才发第二次读取`、`operation-session-epoch.test.ts › 旧 epoch 的成功响应迟到 ⇒ 不导航、不解冻、不回退会话` | 6.6 实测 tag `stale-read` 7/7（重复核实去重不发第二次读取（attempt 仍 1）；显式重试 attempt 2/3 递增、最终条目认最大代次；乙的读取项与甲的重试互不影响）；⚠️ 「旧响应迟到整份丢弃」的迟到窗需 runs:get 可延时——真机无此注入面 ⇒ 按单元承载（详见 UI-VERIFY U5 §6.6 下沉）（2026-09-29 实机） | 已交付（6.6 实测） |
-| 9 | 全部七类入口使用相同核实路径 | `operation-result-consumption.test.ts › 有效 status 采纳 ⇒ 解冻该身份 + 单次列表刷新 + 按可信 ID 核实`、`operation-result-consumption.test.ts › reconcile 采纳 ⇒ 走同一条消费（解冻 + 刷新 + 核实），结论与 status 路径一致`、`fork-entry-closure.test.ts › forkAt 与 promptFork 体内既不打列表也不选中新 run`、`proxy-ab-entry-closure.test.ts › proxyFork 与 modelAb 体内不刷列表、不选中新 run、不碰草稿仓库`、`create-entry-closure.test.ts › createRun 函数体里没有列表刷新、没有 selectRun；状态机没有 success` | 6.2 / 6.3 / 6.4 / 6.5 各批的调用序列同形判据（剧本=successPlain 贯穿） | 待实机 |
+| 9 | 全部七类入口使用相同核实路径 | `operation-result-consumption.test.ts › 有效 status 采纳 ⇒ 解冻该身份 + 单次列表刷新 + 按可信 ID 核实`、`operation-result-consumption.test.ts › reconcile 采纳 ⇒ 走同一条消费（解冻 + 刷新 + 核实），结论与 status 路径一致`、`fork-entry-closure.test.ts › forkAt 与 promptFork 体内既不打列表也不选中新 run`、`proxy-ab-entry-closure.test.ts › proxyFork 与 modelAb 体内不刷列表、不选中新 run、不碰草稿仓库`、`create-entry-closure.test.ts › createRun 函数体里没有列表刷新、没有 selectRun；状态机没有 success` | 7.3 核对改判：原计划的「各批调用序列同形判据」**不成立**——u5-6{2..5} 实机脚本无逐通道序列采样（grep 坐实 0 处断言），且真机无渲染层调用序列的采样面（`window.api` 属性只读不可包桩、无 IPC 监听通道）⇒ 序列同形断言由单元层四文件承载；实机各批承载的是入口可达与结果面（非序列本身）（2026-09-29 核对） | 实机不成立（真机无调用序列采样面，按层引用） |
 
 ### A4. 正常结束仅清理提交对应草稿修订（ADDED，7 场景）
 
@@ -334,9 +400,9 @@
 
 | # | scenario | 已有单元/契约证据 | 实机入口 | 现状 |
 | --- | --- | --- | --- | --- |
-| 1 | 首次打开与无运行入口 | `create-workspace-store.test.ts › 「首次打开与无运行入口」的反面：首次读取迟到不覆盖已进入的创建页`、`create-workspace-store.test.ts › 对照：没进创建页时首次自动选择照常发生（新守卫不误伤）` | 6.2 实测 tag `first-load-late` 2/2（addScriptToEvaluateOnNewDocument 注入「最早用户」诱出迟到窗口）（2026-09-28 实机）；⚠️ 空目录一侧要另造（数据目录恒为 `.rebaseagent`），6.2 里诱不出来就按单元承载登记 | 待实机 |
+| 1 | 首次打开与无运行入口 | `create-workspace-store.test.ts › 「首次打开与无运行入口」的反面：首次读取迟到不覆盖已进入的创建页`、`create-workspace-store.test.ts › 对照：没进创建页时首次自动选择照常发生（新守卫不误伤）` | 6.2 实测 tag `first-load-late` 2/2（addScriptToEvaluateOnNewDocument 注入「最早用户」诱出迟到窗口）（2026-09-28 实机）；「无运行入口（空态）」半边由 **U1 归档实机证据**承载（空态两成因分流 `resolveEmptyCause` + 新建运行入口可达，U1 evidence-index 62/62 内）——dev 数据目录恒有历史 run，空 traces 前提真机不可再现（7.3 核对登记） | 已交付（6.2 实测 + U1 归档承载） |
 | 2 | 文件承载区不附带步骤目录 | `workspace-file-view.test.ts › 文件承载区不附带步骤目录（delta 显式要求）` | —（U2 已归档的实机证据承载，本 change 未改文件页） | 单元已交付 |
-| 3 | 旧创建设置及执行入口保持可达 | `entry-gate.test.ts › 三个编辑器都声明同一来源的门禁，并渲染禁用理由`、`execution-confirmation-store.test.ts › 五个入口各有一处就地确认（不共用一个按钮、也不漏接）`、`operation-entry.test.ts › 挂在现有全局栏（不新开一处界面），数据源就是 operations 会话` | 6.2 / 6.3 / 6.4 / 6.5 各批的入口可达判据（剧本=successPlain） | 待实机 |
+| 3 | 旧创建设置及执行入口保持可达 | `entry-gate.test.ts › 三个编辑器都声明同一来源的门禁，并渲染禁用理由`、`execution-confirmation-store.test.ts › 五个入口各有一处就地确认（不共用一个按钮、也不漏接）`、`operation-entry.test.ts › 挂在现有全局栏（不新开一处界面），数据源就是 operations 会话` | 7.3 核对转实测：入口可达判据分布在各批——6.2 `create-settings-roundtrip`（「运行配置…」入口打开设置模态）+ `create-check`（就地摘要与配置入口）、6.3 `result-check`（确认按钮在场）、6.4 `messages-confirm`/`sdk-run-no-entry`（messages 入口在场与缺席两面）、6.5 `ab-plan-confirm`（A/B 批次入口）（2026-09-28/29 实机，各批 gates 在案） | 已交付（6.2–6.5 各批实测） |
 | 4 | 阅读过程不修改已有数据 | `operation-result-actions.test.ts › 后台读取（自动核实）不碰当前阅读现场：页签、滚动、选中调用都不动`、`draft-source.test.ts › 源基线不含授权/凭据/计划字段（与草稿同一纪律）` | 6.8 实测 tag `readonly-fingerprint` 内同口径断言（只读动作一轮 + 重试全程 ⇒ traces 逐文件 sha256 差集为空；对照支真创建恰 +1 份证明判据有牙）（2026-09-29 实机） | 已交付（6.8 实测） |
 
 ### M3. 桌面端提供原生 run 创建入口（MODIFIED，10 场景）
@@ -385,7 +451,7 @@
 | # | scenario | 已有单元/契约证据 | 实机入口 | 现状 |
 | --- | --- | --- | --- | --- |
 | 1 | 初始握手失败禁用主动入口 | `operation-session.test.ts › 没握过手 ⇒ 主动入口与配置写入口都禁用，原因是不知握手而非未知`、`entry-gate.test.ts › 空闲会话 ⇒ 可提交且无提示；未握手 ⇒ 禁用并给提示`、`settings-clear-confirm.test.ts › 初始握手未成功 ⇒ 配置写入口整体禁用（U4 门禁接线回归到设置对话框这一层）` | 6.6 实测 tag `main-restart` 半边（重启后首帧「未握手」窗口被采样：epoch=null 时禁用原因全为 not_handshaked，最终门禁开放；「握手返回非法结构」半边真机诱不出 ⇒ 按层引用）（2026-09-29 实机） | 已交付（6.6 实测） |
-| 2 | 所有入口实际使用同一适配器 | `operation-result-consumption.test.ts › 有效 status 采纳 ⇒ 解冻该身份 + 单次列表刷新 + 按可信 ID 核实`、`entry-gate.test.ts › 两个入口都读 s.operations 并经 deriveEntryGate 判定`、`fork-entry-closure.test.ts › 隔离 result（带 execution）走同一条消费：请求透传、序列同形` | 6.2 / 6.3 / 6.4 / 6.5 各批的调用序列同形判据（通道 → operations:status → runs:list → runs:get） | 待实机 |
+| 2 | 所有入口实际使用同一适配器 | `operation-result-consumption.test.ts › 有效 status 采纳 ⇒ 解冻该身份 + 单次列表刷新 + 按可信 ID 核实`、`entry-gate.test.ts › 两个入口都读 s.operations 并经 deriveEntryGate 判定`、`fork-entry-closure.test.ts › 隔离 result（带 execution）走同一条消费：请求透传、序列同形` | 7.3 核对改判：与 A3.9 同因——「通道 → operations:status → runs:list → runs:get」的序列同形断言只在单元层，真机无渲染层调用序列采样面（`window.api` 只读不可包桩）；实机各批承载入口可达与结果面（2026-09-29 核对） | 实机不成立（真机无调用序列采样面，按层引用） |
 | 3 | 核对结果只由用户明确打开 | `operation-entry.test.ts › 核对只发 reconcile(operationId)，打开只走明确动作通道（不经列表、不自己 selectRun）`、`navigation-intent-store.test.ts › 「核对结果只由用户明确打开」：reconcile 到达的终态不导航`、`operation-result-view.test.ts › 未定位（settled 无可信 id）⇒ 没有任何结果动作，只让核对登记` | 6.6 实测 tag `reconcile-no-nav` 4/4（前置选择在别的 run；**核对到达终态不导航**（选择/页签/代次/视图都不动）；「打开结果」显式动作才切换）（2026-09-29 实机） | 已交付（6.6 实测） |
 | 4 | 操作入口在窄窗口和键盘下可达 | `operation-entry.test.ts › 窄窗口与键盘可达：受视口宽度约束、长 ID 断行、按钮可聚焦且带 aria 关系`、`focus-escape-responsive.test.ts › 操作面板 max-h 按视口比例钳制 + 横向不超 90vw` | 6.8 实测 tag `narrow-keyboard-panel` 11/11（800px 窄档：入口可聚焦且带 aria-expanded/aria-controls、真 Enter 开合面板、面板 ≤90vw、页面无横向溢出、长 ID 断行完整在场）（2026-09-29 实机）；`zoom200` 内同口径断言（独立 200% 缩放下面板几何 + 入口命中）（2026-09-29 实机） | 已交付（6.8 实测） |
 
