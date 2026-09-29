@@ -75,7 +75,7 @@ export { MemoryTracer } from "./memory-tracer.js";
 export { toSemanticOrder } from "./semantic-order.js";
 export { readRun, parseRunText, TraceReadError } from "./reader.js";
 export type { RunRecord } from "./reader.js";
-export { resolveBranch } from "./branch.js";
+export { resolveBranch, resolveWholeRound } from "./branch.js";
 export type { RunLoader, ResolvedRun } from "./branch.js";
 export { assertForkable, assertDeletable } from "./guards.js";
 export type { ChainHop } from "./guards.js";

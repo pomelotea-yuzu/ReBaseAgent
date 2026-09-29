@@ -21,15 +21,15 @@
 
 ## 3. repository 来源与轨迹投影
 
-- [ ] 3.1 建立单次读取上下文，根与纯 v1 result 完整链复用严格 loader/resolver（对应“根 run 以自有轨迹返回”、“普通 result 的完整父链仍合并”）。
-- [ ] 3.2 实现直接缺父 ownOnly，自有 spans/events/status 与 leaf IDs 精确匹配（对应“普通 result 缺祖先只读当前记录”、“合法零 span 记录可部分读取”）。
-- [ ] 3.3 实现隔代缺失连续 chain 与真实 missingRunId，不混入中间祖先 spans（对应“普通 result 的隔代祖先缺失”）。
-- [ ] 3.4 实现 prompt 独立范围与缺失诊断，完整与缺失均不拼父轨迹（对应“prompt、代理和 model_params 的自有范围不等于降级”、“prompt fork 缺祖先不改变从头轨迹”）。
-- [ ] 3.5 实现 proxy 独立范围与缺失诊断，不借列表或其他被动记录（对应“proxy fork 缺祖先不借用代理记录”、“独立轨迹缺祖先也返回结构化 ownOnly”）。
-- [ ] 3.6 修正 model_params 自有轨迹与完整来源检查，补完整/缺失两组 fixture（对应“model_params 臂缺祖先不变成可比较结果”、“prompt、代理和 model_params 的自有范围不等于降级”）。
-- [ ] 3.7 显式断言完整隔离 result 返回 complete/resolved 与完整 lineage，保留 v2 整轮截断及直接父边界校验，并覆盖隔离直接/隔代缺失（对应“完整隔离 result 保留整轮前缀”、“fork 定位非法不降级”、“普通 result 的隔代祖先缺失”）。
-- [ ] 3.8 实现混合链逐 hop 投影与独立边界，未知 field 拒绝；只读逻辑不改执行解析（对应“混合父链不跨独立边界拼接”）。
-- [ ] 3.9 恢复父文件后全链重读，非法恢复仍失败，不缓存旧 completeness（对应“父文件恢复后重试全量重验”、“祖先文件损坏不降级”）。
+- [x] 3.1 建立单次读取上下文，根与纯 v1 result 完整链复用严格 loader/resolver（对应“根 run 以自有轨迹返回”、“普通 result 的完整父链仍合并”）。—— §1 的 readRunLineage 即该上下文；纯链（isPlainResultChain）仍走 resolveBranch，行为逐 id 不变（对照用例锁定）
+- [x] 3.2 实现直接缺父 ownOnly，自有 spans/events/status 与 leaf IDs 精确匹配（对应“普通 result 缺祖先只读当前记录”、“合法零 span 记录可部分读取”）。—— result 分支缺祖先改返回 ownOnly/own 投影；零 span 变体断言空数组合法、自有事件保留
+- [x] 3.3 实现隔代缺失连续 chain 与真实 missingRunId，不混入中间祖先 spans（对应“普通 result 的隔代祖先缺失”）。—— walk 已产连续 records；ownOnly 投影 spans 恒取当前 run 自有
+- [x] 3.4 实现 prompt 独立范围与缺失诊断，完整与缺失均不拼父轨迹（对应“prompt、代理和 model_params 的自有范围不等于降级”、“prompt fork 缺祖先不改变从头轨迹”）。—— §2 起独立分支 ownLabels；本段补完整链不拼父轨迹用例
+- [x] 3.5 实现 proxy 独立范围与缺失诊断，不借列表或其他被动记录（对应“proxy fork 缺祖先不借用代理记录”、“独立轨迹缺祖先也返回结构化 ownOnly”）。—— 同上；用例断言另一条完整 proxy run 的数据零渗入
+- [x] 3.6 修正 model_params 自有轨迹与完整来源检查，补完整/缺失两组 fixture（对应“model_params 臂缺祖先不变成可比较结果”、“prompt、代理和 model_params 的自有范围不等于降级”）。—— forkField=model_params 从 resolveBranch 合并改为独立 own 轨迹（有意变更）；完整/缺失两组用例
+- [x] 3.7 显式断言完整隔离 result 返回 complete/resolved 与完整 lineage，保留 v2 整轮截断及直接父边界校验，并覆盖隔离直接/隔代缺失（对应“完整隔离 result 保留整轮前缀”、“fork 定位非法不降级”、“普通 result 的隔代祖先缺失”）。—— 复用 u2 iso-data 三层隔离链 fixture；直接/隔代缺失 ownOnly + 断点正确
+- [x] 3.8 实现混合链逐 hop 投影与独立边界，未知 field 拒绝；只读逻辑不改执行解析（对应“混合父链不跨独立边界拼接”）。—— 新增 run-detail-project.ts：result hop 按版本截断（v2 共用 resolveWholeRound 的最小提取导出，执行语义零改动）、独立边界重置、未知 field 受控拒绝；纯链不受影响
+- [x] 3.9 恢复父文件后全链重读，非法恢复仍失败，不缓存旧 completeness（对应“父文件恢复后重试全量重验”、“祖先文件损坏不降级”）。—— 每次 getRun 全新 walk 天然无缓存；用例锁 ownOnly→损坏恢复仍失败→合法恢复切 complete
 
 ## 4. 详情 UI 与 U5 结果收尾
 

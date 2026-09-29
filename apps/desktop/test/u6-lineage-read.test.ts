@@ -14,8 +14,8 @@ import { RunRepository } from "../src/main/run-repository";
  * 1.1 当前缺失/祖先 ENOENT 分类、1.2 损坏与不可读区分、1.3 版本守卫回归、
  * 1.4 身份与路径校验、1.5 结构检查与「缺失不遮蔽已知错误」、1.6 受控文案。
  *
- * 边界（§1 既定）：普通/隔离 result 缺祖先此处仍为严格失败（受控原因），
- * ownOnly 详情信封在 §2/§3 落地；prompt/代理的「链到此为止」行为保持不变。
+ * 边界（§3 起生效）：普通/隔离 result 缺祖先返回结构化 ownOnly；prompt/代理的
+ * 截断链同样 ownOnly（§2 起）。文件头注释随实施段落更新。
  */
 
 const FIXTURES = resolve(import.meta.dirname, "../../../packages/trace-sdk/fixtures");
@@ -457,7 +457,7 @@ describe("U6 §1 RunRepository 接线：信封保持 GET_RUN_FAILED，行为按 
     expect(readdirSync(traces)).toEqual([]);
   });
 
-  it("普通 result 缺祖先 → 严格失败且原因受控（§3 起本行为改返回 ownOnly 详情信封）", () => {
+  it("普通 result 缺祖先 → 结构化 ownOnly（U6 §3.2 起生效；missingRunId 受校验）", () => {
     freshTraces();
     writeRun("r_c", [
       metaLine("r_c", { parent: "r_no", fork: v1Fork("s_01") }),
@@ -465,15 +465,15 @@ describe("U6 §1 RunRepository 接线：信封保持 GET_RUN_FAILED，行为按 
       STOP,
     ]);
     const repo = new RunRepository(traces);
-    try {
-      repo.getRun("r_c");
-      expect.unreachable("缺祖先必须失败");
-    } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
-      expect(message).toContain("r_no");
-      expect(message).toContain("父链不完整");
-      expectControlled(message);
-    }
+    const detail = repo.getRun("r_c");
+    expect(detail.completeness).toBe("ownOnly");
+    expect(detail.spanScope).toBe("own");
+    expect(detail.lineage).toEqual({
+      status: "incomplete",
+      reason: "ANCESTOR_NOT_FOUND",
+      missingRunId: "r_no",
+    });
+    expect(detail.spans.map((s) => s.id)).toEqual(["s_01"]);
   });
 
   it("prompt fork 缺祖先 → 维持既有「链到此为止」行为，不抛（§3.4 起改 ownOnly）", () => {

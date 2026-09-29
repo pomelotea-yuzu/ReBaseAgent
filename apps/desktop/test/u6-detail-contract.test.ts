@@ -320,7 +320,7 @@ describe("U6 §2 main 返回自检与消费入口", () => {
     expect(orphanDetail.chain.map((h) => h.meta.id)).toEqual(["r_missing_child"]);
     expect(RunDetailSchema.safeParse(orphanDetail).success).toBe(true);
 
-    // 普通/隔离 result 缺祖先仍是严格失败（§3 起改 ownOnly 详情信封）
+    // 普通/隔离 result 缺祖先：U6 §3.2 起同样返回结构化 ownOnly
     writeRun("r_result_child", [
       metaLine("r_result_child", {
         parent: "r_ghost",
@@ -328,7 +328,15 @@ describe("U6 §2 main 返回自检与消费入口", () => {
       }),
       STOP,
     ]);
-    expect(() => repo.getRun("r_result_child")).toThrow(/父链不完整/);
+    const resultOwnOnly = repo.getRun("r_result_child");
+    expect(resultOwnOnly.completeness).toBe("ownOnly");
+    expect(resultOwnOnly.spanScope).toBe("own");
+    expect(resultOwnOnly.lineage).toEqual({
+      status: "incomplete",
+      reason: "ANCESTOR_NOT_FOUND",
+      missingRunId: "r_ghost",
+    });
+    expect(RunDetailSchema.safeParse(resultOwnOnly).success).toBe(true);
   });
 
   it("2.5 U5 后台核实入口对错配载荷返回失败（verifyResultPayload 不放宽）", async () => {

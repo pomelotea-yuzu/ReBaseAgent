@@ -115,8 +115,12 @@ export function resolveBranch(runId: string, load: RunLoader): ResolvedRun {
  * - `at_span` 必须**属于**该 step（沿 parent 链上溯可达）。
  *
  * 本函数只拼接记录：不加载附件、不应用 result 编辑、不读源目录。
+ *
+ * U6 起桌面只读详情投影共用本函数（change `add-partial-run-reading` design D3 的
+ * 「不改变原调用行为的最小提取」）：执行路径（`resolveBranch`）与只读投影对 v2 整轮
+ * 截断必须保持同一判据，重抄会漂移。只提取，不改执行语义。
  */
-function resolveWholeRound(
+export function resolveWholeRound(
   prefix: SpanLine[],
   parentRecord: RunRecord,
   fork: Fork,
