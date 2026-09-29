@@ -10,7 +10,7 @@
 > `.workbuddy/u6/u6-61/verify-scenario-checklist.cjs` 按点名的那个文件核（含 `--selftest` 反例：
 > 漏行 / 虚构场景 / 假用例名 / 假文件 / 标题真实但挂错文件 / 半截引用）。
 
-汇总口径：**47 条场景（37 ADDED / 10 MODIFIED）**，已交付 **6** 条、待验证 **41** 条、实机不成立 **0** 条
+汇总口径：**47 条场景（37 ADDED / 10 MODIFIED）**，已交付 **15** 条、待验证 **32** 条、实机不成立 **0** 条
 
 ### A1. 详情完整性在缺祖先文件时结构化降级（ADDED，22 场景）
 
@@ -20,11 +20,11 @@
 | 2 | 根 run 以自有轨迹返回 | `u6-detail-contract.test.ts › 2.1 complete/own（根 run）：chain 单跳即根，空 spans + 空 leafSpanIds 合法` | 6.9 实机 | 待验证 |
 | 3 | 普通 result 缺祖先只读当前记录 | `u6-detail-project.test.ts › 直接缺父：只读当前已校验自有记录，chain 只剩当前 run` + `u6-lineage-read.test.ts › 普通 result 缺祖先 → 结构化 ownOnly（U6 §3.2 起生效；missingRunId 受校验）` | 6.4 实机（注入=ancestorMissing） | 已交付（6.4 实机） |
 | 4 | 普通 result 的隔代祖先缺失 | `u6-detail-project.test.ts › 3.3 隔代缺失：chain 保留当前与直接父，spans 不混入中间祖先轨迹` + `u6-lineage-read.test.ts › 1.1 隔代祖先缺失 → 链保留当前与直接父，missingRunId 是隔代` | 6.4 实机（注入=ancestorMissing） | 已交付（6.4 实机） |
-| 5 | prompt、代理和 model_params 的自有范围不等于降级 | `u6-detail-project.test.ts › 3.4 完整父链的 prompt fork：只展示自有 spans，父轨迹不进时间线` + `u6-detail-project.test.ts › 3.6 model_params 臂（完整链）：独立自有轨迹，不再误合并父前缀` | 6.5 实机 | 待验证 |
-| 6 | 独立轨迹缺祖先也返回结构化 ownOnly | `u6-detail-project.test.ts › 3.4 prompt fork 缺祖先：从头轨迹语义不变，不补父 spans，父缺失原因可见` + `u6-detail-project.test.ts › 3.5 proxy fork 缺祖先：保留本次自有事实，缺失原因可见，不借用其他 proxy 记录` + `u6-detail-project.test.ts › 3.6 model_params 臂缺祖先：ownOnly，不算可比较结果，不补父历史` | 6.5 实机（注入=ancestorMissing） | 待验证 |
-| 7 | prompt fork 缺祖先不改变从头轨迹 | `u6-detail-project.test.ts › 3.4 prompt fork 缺祖先：从头轨迹语义不变，不补父 spans，父缺失原因可见` | 6.5 实机（注入=ancestorMissing） | 待验证 |
-| 8 | proxy fork 缺祖先不借用代理记录 | `u6-detail-project.test.ts › 3.5 proxy fork 缺祖先：保留本次自有事实，缺失原因可见，不借用其他 proxy 记录` | 6.5 实机（注入=ancestorMissing） | 待验证 |
-| 9 | model_params 臂缺祖先不变成可比较结果 | `u6-detail-project.test.ts › 3.6 model_params 臂缺祖先：ownOnly，不算可比较结果，不补父历史` | 6.5 实机（注入=ancestorMissing） | 待验证 |
+| 5 | prompt、代理和 model_params 的自有范围不等于降级 | `u6-detail-project.test.ts › 3.4 完整父链的 prompt fork：只展示自有 spans，父轨迹不进时间线` + `u6-detail-project.test.ts › 3.6 model_params 臂（完整链）：独立自有轨迹，不再误合并父前缀` | 6.5 实机 | 已交付（6.5 实机） |
+| 6 | 独立轨迹缺祖先也返回结构化 ownOnly | `u6-detail-project.test.ts › 3.4 prompt fork 缺祖先：从头轨迹语义不变，不补父 spans，父缺失原因可见` + `u6-detail-project.test.ts › 3.5 proxy fork 缺祖先：保留本次自有事实，缺失原因可见，不借用其他 proxy 记录` + `u6-detail-project.test.ts › 3.6 model_params 臂缺祖先：ownOnly，不算可比较结果，不补父历史` | 6.5 实机（注入=ancestorMissing） | 已交付（6.5 实机） |
+| 7 | prompt fork 缺祖先不改变从头轨迹 | `u6-detail-project.test.ts › 3.4 prompt fork 缺祖先：从头轨迹语义不变，不补父 spans，父缺失原因可见` | 6.5 实机（注入=ancestorMissing） | 已交付（6.5 实机） |
+| 8 | proxy fork 缺祖先不借用代理记录 | `u6-detail-project.test.ts › 3.5 proxy fork 缺祖先：保留本次自有事实，缺失原因可见，不借用其他 proxy 记录` | 6.5 实机（注入=ancestorMissing） | 已交付（6.5 实机） |
+| 9 | model_params 臂缺祖先不变成可比较结果 | `u6-detail-project.test.ts › 3.6 model_params 臂缺祖先：ownOnly，不算可比较结果，不补父历史` | 6.5 实机（注入=ancestorMissing） | 已交付（6.5 实机） |
 | 10 | 当前文件或祖先不是可确认的缺失 | `u6-lineage-read.test.ts › 1.1 当前文件缺失 → CURRENT_RUN_NOT_FOUND，原因受控（对应「当前文件或祖先不是可确认的缺失」）` + `u6-lineage-faults.test.ts › currentMissing ⇒ 读取直接失败（缺当前文件不返回 ownOnly）` | 6.6 实机（注入=currentMissing） | 待验证 |
 | 11 | 祖先文件损坏不降级 | `u6-lineage-read.test.ts › 1.2 祖先 JSONL 损坏 → ANCESTOR_INVALID 严格失败，不降级（对应「祖先文件损坏不降级」）` + `u6-lineage-faults.test.ts › ancestorCorrupt ⇒ 严格失败不降级 ownOnly（受控中文，不透传路径）` | 6.6 实机（注入=ancestorCorrupt） | 待验证 |
 | 12 | 未来版本祖先不降级 | `u6-lineage-read.test.ts › 1.3 未来版本祖先 → 版本守卫拒绝，不是缺失（对应「未来版本祖先不降级」）` + `u6-lineage-faults.test.ts › ancestorFutureVersion ⇒ 版本守卫拒绝，schema 转换前失败` | 6.6 实机（注入=ancestorFutureVersion） | 待验证 |
@@ -44,15 +44,15 @@
 | n | 场景 | 用例 | 入口/批次 | 状态 |
 |---|---|---|---|---|
 | 23 | ownOnly result 不可重跑 | `u6-exec-source-gate.test.ts › 父文件消失 ⇒ RUN_LINEAGE_INCOMPLETE：settled/rejected 回执 + runIds 空 + 零模型调用 + 零新 trace` | 6.3 变异（摘 execForkRun 门禁须红）+ 6.4 实机 | 待验证 |
-| 24 | ownOnly prompt、代理和实验臂不执行 | `u6-exec-source-gate.test.ts › ownOnly prompt 父本 ⇒ RUN_LINEAGE_INCOMPLETE，零模型调用` + `u6-exec-source-gate.test.ts › ownOnly 父本 ⇒ RUN_LINEAGE_INCOMPLETE，代理 fork 零调用` + `u6-exec-source-gate.test.ts › ownOnly 父本 ⇒ RUN_LINEAGE_INCOMPLETE：零臂身份、零模型调用` | 6.3 变异（摘 prompt/proxy/modelAb 门禁须红）+ 6.5 实机 | 待验证 |
+| 24 | ownOnly prompt、代理和实验臂不执行 | `u6-exec-source-gate.test.ts › ownOnly prompt 父本 ⇒ RUN_LINEAGE_INCOMPLETE，零模型调用` + `u6-exec-source-gate.test.ts › ownOnly 父本 ⇒ RUN_LINEAGE_INCOMPLETE，代理 fork 零调用` + `u6-exec-source-gate.test.ts › ownOnly 父本 ⇒ RUN_LINEAGE_INCOMPLETE：零臂身份、零模型调用` | 6.3 变异（摘 prompt/proxy/modelAb 门禁须红）+ 6.5 实机 | 已交付（6.5 实机） |
 | 25 | ownOnly 隔离 result 不消费副本授权 | `u6-exec-source-gate.test.ts › ownOnly 隔离父本 + 合法 allowFileWrites 请求 ⇒ RUN_LINEAGE_INCOMPLETE，无副本世界/trace 创建` | 6.3 变异 + 6.4 实机 | 待验证 |
-| 26 | ownOnly model_params dry-run 保持只读 | `u6-exec-source-gate.test.ts › ownOnly 父本 ⇒ RUN_LINEAGE_INCOMPLETE：无计划、零网络、登记仍为空` + `u6-exec-source-gate.test.ts › 正对照：完整父本的 dry-run 计划可用且不产生登记、零模型调用` | 6.3 变异 + 6.5 实机 | 待验证 |
+| 26 | ownOnly model_params dry-run 保持只读 | `u6-exec-source-gate.test.ts › ownOnly 父本 ⇒ RUN_LINEAGE_INCOMPLETE：无计划、零网络、登记仍为空` + `u6-exec-source-gate.test.ts › 正对照：完整父本的 dry-run 计划可用且不产生登记、零模型调用` | 6.3 变异 + 6.5 实机 | 已交付（6.5 实机） |
 | 27 | 读取重试与执行严格分离 | `u6-partial-result-closure.test.ts › 不可读 → ownOnly 正常：重试后按原关联清理；全程零执行通道、不换选中项` + `u6-partial-result-closure.test.ts › store：详情落地 ownOnly ⇒ canExecuteFromSource false；complete ⇒ true` | 6.7 实机（重试按钮 → 仅 runs:get） | 待验证 |
 | 28 | 详情加载失败在执行入口即拒绝 | `u6-exec-source-gate.test.ts › 当前文件损坏 ⇒ RUN_DETAIL_UNREADABLE（缺失不掩盖损坏，missingRunId 为 null）` + `u6-exec-source-gate.test.ts › 父文件损坏 ⇒ RUN_DETAIL_UNREADABLE（严格失败不降级）` | 6.3 变异 + 6.6 实机（注入=ancestorCorrupt） | 待验证 |
 | 29 | 父链恢复不复活已拒绝操作 | `u6-exec-source-gate.test.ts › 5.10 来源拒绝后恢复父文件：同 ID 只命中判重不复活；新 ID 重检后可执行` | 6.3 + 6.6 实机 | 待验证 |
 | 30 | 预检后父链变化仍由 main 拒绝 | `u6-exec-source-gate.test.ts › 5.9 直调端点（绕过 UI）：main 现读磁盘——预检通过后父文件消失仍拒绝` + `u6-partial-result-closure.test.ts › 执行响应以来源类稳定码拒绝 ⇒ 撤销并清空确认；其他错误码不撤销` | 6.3 + 6.6 实机 | 待验证 |
-| 31 | 隔离 capability 对不完整来源明确拒绝 | `isolated-desktop-flows.test.ts › 根 trace 消失 ⇒ capability 以 RUN_LINEAGE_INCOMPLETE 拒绝（不授予许可、不写文件）` + `isolated-desktop-flows.test.ts › 正对照：根在场时二次分叉父本的 capability 照常给出` | 6.3 变异 + 6.5 实机 | 待验证 |
-| 32 | 无父本创建和被动录制保持原契约 | `u6-exec-source-gate.test.ts › 5.11 无父本的普通 create 不受已存在的 ownOnly run 阻断` | 6.5 实机（ownOnly 在场时创建照常） | 待验证 |
+| 31 | 隔离 capability 对不完整来源明确拒绝 | `isolated-desktop-flows.test.ts › 根 trace 消失 ⇒ capability 以 RUN_LINEAGE_INCOMPLETE 拒绝（不授予许可、不写文件）` + `isolated-desktop-flows.test.ts › 正对照：根在场时二次分叉父本的 capability 照常给出` | 6.3 变异 + 6.5 实机 | 已交付（6.5 实机） |
+| 32 | 无父本创建和被动录制保持原契约 | `u6-exec-source-gate.test.ts › 5.11 无父本的普通 create 不受已存在的 ownOnly run 阻断` | 6.5 实机（ownOnly 在场时创建照常） | 已交付（6.5 实机） |
 
 ### A3. 部分详情沿用自有结果核实与草稿收尾（ADDED，5 场景）
 
