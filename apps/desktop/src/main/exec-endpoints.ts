@@ -43,6 +43,7 @@ import type { ProxyManager } from "./proxy-manager";
 import { ProxyForkError } from "./proxy-manager";
 import { CreateRunError, runCreate, runCreateIsolated } from "./run-create";
 import type { RunRepository } from "./run-repository";
+import { RunSourceRejection, checkRunSource } from "./run-source-gate";
 import type { SettingsStore } from "./settings";
 import type { SourceTokenStore } from "./source-token";
 
@@ -138,6 +139,10 @@ function errorOfNonAccepted(
 /** 领域错误 → 既有稳定码；未预期异常 → OPERATION_EXECUTION_FAILED */
 function toRunResult(error: unknown): OperationRunResult {
   const message = error instanceof Error ? error.message : String(error);
+  // U6 §5.1：来源门禁拒绝（父本 ownOnly / 详情不可读）——在授权消费与业务副作用之前
+  if (error instanceof RunSourceRejection) {
+    return { outcome: "rejected", code: error.code, message };
+  }
   if (error instanceof CreateRunError) {
     return { outcome: "rejected", code: error.code, message };
   }
@@ -328,6 +333,10 @@ const forkChannel: ActiveChannel<ForkRunRequest, ForkRunResult> = {
         "尚未配置运行参数（baseURL / apiKey / model），请先完成运行配置",
       );
     }
+    // U6 §5.2/5.3：服务端重读被引用父本的来源（design D5：来源检查位于一切副作用之前）
+    // ——ownOnly ⇒ RUN_LINEAGE_INCOMPLETE；读取失败 ⇒ RUN_DETAIL_UNREADABLE。
+    // 普通/隔离两条分支共用同一判据；隔离分支的副本世界创建、trace 写入都在它之后。
+    checkRunSource(deps.repository.tracesDir, business.parentRunId);
     const result =
       business.execution === undefined
         ? await runFork(
