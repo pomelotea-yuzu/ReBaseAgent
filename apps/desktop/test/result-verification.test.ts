@@ -45,6 +45,9 @@ function detailFor(record: RunRecord, id = record.meta.id): RunDetail {
     status: record.status,
     chain: [{ meta, fork: record.meta.fork }],
     leafSpanIds: record.spans.map((span) => span.id),
+    completeness: "complete",
+    spanScope: "own",
+    lineage: { status: "complete" },
   };
 }
 
@@ -100,7 +103,7 @@ describe("verifyResultPayload：身份核对不过 ⇒ 这条详情根本不解�
     expect(verifyResultPayload("u1_ok", ok(okDetail)).ok).toBe(true);
   });
 
-  it("祖先链末跳不是本次 run ⇒ 自有终止事件归属不成立", () => {
+  it("祖先链末跳不是本次 run ⇒ 载荷不被采信（U6 起末跳身份先由 schema 拒，身份核对层由 terminal-facts 单测直承）", () => {
     const tampered: RunDetail = {
       ...okDetail,
       chain: [
@@ -111,8 +114,10 @@ describe("verifyResultPayload：身份核对不过 ⇒ 这条详情根本不解�
     const result = verifyResultPayload("u1_ok", ok(tampered));
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("unreachable");
-    expect(result.reason).toContain("身份核对失败");
-    expect(result.reason).toContain("末跳记录");
+    // U6 完整性契约把「chain 末跳身份 = 当前 meta」下沉为载荷级规则 ⇒
+    // 这份串号载荷在结构校验就被拒（拒得更早，结论不变：不可信、不解释本次操作）。
+    expect(result.reason).toContain("结构校验失败");
+    expect(result.reason).toContain("末跳");
   });
 
   it("版本守卫先于 schema：v1 载荷私带隔离字段 ⇒ 拒读（zod 会静默剥掉，界面不能照渲染）", () => {

@@ -13,11 +13,11 @@
 
 ## 2. shared、main、preload 与读取入口
 
-- [ ] 2.1 增加 completeness/spanScope/lineage 必填结构与合法组合，拒绝错配及未知枚举（对应“详情完整性字段拒绝错配”、“根 run 以自有轨迹返回”）。
-- [ ] 2.2 增加 chain 连续性、唯一性、末跳身份和缺失边界关系校验（对应“详情完整性字段拒绝错配”、“普通 result 的隔代祖先缺失”）。
-- [ ] 2.3 校验 leafSpanIds 自有范围，main 对照原始记录；允许合法空数组，拒绝重复/多余/遗漏 ID（对应“合法零 span 记录可部分读取”、“详情完整性字段拒绝错配”）。
-- [ ] 2.4 在 main 返回与 renderer 选中详情入口接版本/schema 守卫；preload 方法面不扩张（对应“详情完整性字段拒绝错配”、“未来版本祖先不降级”）。
-- [ ] 2.5 迁移 U5 后台 verifyResultPayload 与全部详情 fixture/API 桩，补串号与错配载荷接线测试（对应“ownOnly 正常结果仍按原修订清理”、“详情完整性字段拒绝错配”）。
+- [x] 2.1 增加 completeness/spanScope/lineage 必填结构与合法组合，拒绝错配及未知枚举（对应“详情完整性字段拒绝错配”、“根 run 以自有轨迹返回”）。—— `RunLineageSchema`（discriminatedUnion + strict，complete 不带缺失字段）+ `RunDetailSchema.superRefine`；组合判据：ownOnly 只配 own，未知枚举/缺省 completeness 整份拒
+- [x] 2.2 增加 chain 连续性、唯一性、末跳身份和缺失边界关系校验（对应“详情完整性字段拒绝错配”、“普通 result 的隔代祖先缺失”）。—— `run-detail-integrity.ts`：chain 非空/ID 唯一/末跳=meta/相邻 parent 连续；ownOnly 首项 parent=missingRunId 且断点不在链内
+- [x] 2.3 校验 leafSpanIds 自有范围，main 对照原始记录；允许合法空数组，拒绝重复/多余/遗漏 ID（对应“合法零 span 记录可部分读取”、“详情完整性字段拒绝错配”）。—— 载荷层判子集/精确覆盖/重复；main 侧由 §1 单次上下文的 `leafSpanIds = record.spans` 构造天然对齐原始记录
+- [x] 2.4 在 main 返回与 renderer 选中详情入口接版本/schema 守卫；preload 方法面不扩张（对应“详情完整性字段拒绝错配”、“未来版本祖先不降级”）。—— `getRun` 返回前 `checkedDetail` 自检（main 不出站错配载荷）；store 选中详情与 U5 后台核实既走版本守卫 + safeParse，契约收紧自动生效；preload 未动
+- [x] 2.5 迁移 U5 后台 verifyResultPayload 与全部详情 fixture/API 桩，补串号与错配载荷接线测试（对应“ownOnly 正常结果仍按原修订清理”、“详情完整性字段拒绝错配”）。—— 15 个测试文件的 detail 构造器批量迁移（批量脚本 15/15 一次命中）；main 四形态产出过 schema 的契约测试 + verifyResultPayload 拒绝缺省载荷；「末跳串号」断言改注层次（schema 先拒，身份核对层由 terminal-facts 单测直承）
 
 ## 3. repository 来源与轨迹投影
 

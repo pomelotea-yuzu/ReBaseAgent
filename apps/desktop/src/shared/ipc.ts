@@ -13,6 +13,7 @@ import type {
   ReconcileRequest,
   ReconcileResult,
 } from "./operations";
+import { findRunDetailIntegrityViolation } from "./run-detail-integrity";
 
 /**
  * 进程间通信的唯一契约：main 与 renderer 共用这些 schema。
@@ -96,18 +97,53 @@ export const ChainHopSchema = z.object({
   fork: ForkSchema.nullable(),
 });
 
-/** run 详情：分支 run 返回的是 resolveBranch 解析后的完整轨迹 */
-export const RunDetailSchema = z.object({
+/**
+ * 来源完整性 lineage：complete 恒不带缺失字段；incomplete 只允许
+ * ANCESTOR_NOT_FOUND 且必须携带 missingRunId（strict 拒绝未知形态）。
+ */
+export const RunLineageSchema = z.discriminatedUnion("status", [
+  z.object({ status: z.literal("complete") }).strict(),
+  z
+    .object({
+      status: z.literal("incomplete"),
+      reason: z.literal("ANCESTOR_NOT_FOUND"),
+      missingRunId: z.string().min(1),
+    })
+    .strict(),
+]);
+export type RunLineage = z.infer<typeof RunLineageSchema>;
+
+/**
+ * run 详情：分支 run 返回的是 resolveBranch 解析后的完整轨迹。
+ *
+ * U6 起详情携带受校验的完整性元数据（completeness/spanScope/lineage）：
+ * main 依据已校验 fork 类型生成，renderer 不从 chain 长度猜完整性；
+ * `own` 不代表降级。载荷内一致性由 superRefine 判定（判据见
+ * `run-detail-integrity.ts`，main 自检与 renderer 两处入口共用）。
+ */
+const RunDetailObjectSchema = z.object({
   meta: RunMetaSchema,
   spans: z.array(SpanSchema),
   events: z.array(RunEventSchema),
   status: z.enum(["completed", "crashed"]),
-  /** 祖先链（从根到本 run）；根 run 只有一跳 */
+  /** 祖先链（从最早可读 hop 到本 run）；ownOnly 时在缺失点截断 */
   chain: z.array(ChainHopSchema),
   /** 当前 run（叶子）自身新增 span 的 id（在合并轨迹中区分"自己"与"继承的祖先前缀"） */
   leafSpanIds: z.array(z.string()),
+  /** complete = 全链校验通过；ownOnly = 祖先文件确实缺失（只读当前已校验自有记录） */
+  completeness: z.enum(["complete", "ownOnly"]),
+  /** resolved = 轨迹含已合并的祖先前缀；own = 只有本 run 自有轨迹（独立执行不是降级） */
+  spanScope: z.enum(["resolved", "own"]),
+  lineage: RunLineageSchema,
 });
-export type RunDetail = z.infer<typeof RunDetailSchema>;
+
+export const RunDetailSchema = RunDetailObjectSchema.superRefine((detail, ctx) => {
+  const violation = findRunDetailIntegrityViolation(detail);
+  if (violation !== null) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: violation, path: ["completeness"] });
+  }
+});
+export type RunDetail = z.infer<typeof RunDetailObjectSchema>;
 
 /** 统一信封：任何通道的返回都是这个形状，错误不靠异常跨越进程边界 */
 export const EnvelopeSchema = z.discriminatedUnion("ok", [

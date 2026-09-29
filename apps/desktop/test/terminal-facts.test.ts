@@ -126,6 +126,9 @@ describe("deriveOwnTerminalFacts：正常结束只认自有 stopped/completed", 
       status: record.status,
       chain: [{ meta: record.meta, fork: record.meta.fork }],
       leafSpanIds: record.spans.map((span) => span.id),
+      completeness: "complete",
+      spanScope: "own",
+      lineage: { status: "complete" },
     };
     expect(RunDetailSchema.safeParse(raw).success).toBe(false);
     // 对照组：同一份记录只把 reason 换成合法枚举即可通过 ⇒ 失败确实来自 reason

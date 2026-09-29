@@ -35,6 +35,9 @@ function detailFrom(rec: RunRecord): RunDetail {
     status: rec.status,
     chain: [{ meta: rec.meta, fork: rec.meta.fork }],
     leafSpanIds: rec.spans.map((s) => s.id),
+    completeness: "complete",
+    spanScope: "own",
+    lineage: { status: "complete" },
   };
 }
 

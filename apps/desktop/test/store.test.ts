@@ -42,18 +42,22 @@ function detailFrom(rec: RunRecord): RunDetail {
     status: rec.status,
     chain: [{ meta: rec.meta, fork: rec.meta.fork }],
     leafSpanIds: rec.spans.map((s) => s.id),
+    completeness: "complete",
+    spanScope: "own",
+    lineage: { status: "complete" },
   };
 }
 
 const rootDetail = detailFrom(record);
 const rootSummary = deriveRunSummary(record);
 const forkedSummary = { ...rootSummary, id: "run_forked", parent: "r_01" };
-/** r_02 的详情：换一组 span id，用于验证两条 run 的阅读状态互不串 */
+/** r_02 的详情：换一组 span id，用于验证两条 run 的阅读状态互不串（chain 末跳身份同步改写） */
 const otherDetail: RunDetail = {
   ...rootDetail,
   meta: { ...rootDetail.meta, id: "r_02" },
   spans: rootDetail.spans.map((s, i) => ({ ...s, id: `${s.id}_b${i}` })),
   leafSpanIds: rootDetail.spans.map((s, i) => `${s.id}_b${i}`),
+  chain: [{ meta: { ...rootDetail.meta, id: "r_02" }, fork: rootDetail.meta.fork }],
 };
 
 /** 用例间共享的行为控制器（闭包捕获，读 call 时最新值） */
