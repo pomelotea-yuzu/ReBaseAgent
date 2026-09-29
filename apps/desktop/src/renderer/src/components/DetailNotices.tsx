@@ -1,5 +1,10 @@
 import { deriveMissingLlmErrorDetail, forkEditLabel, isPromptForkField } from "@shared/derive";
 import { useMemo } from "react";
+import {
+  lineageIncompleteViewOf,
+  ownOnlyBranchNoticeOf,
+  truncatedChainTitleOf,
+} from "../lib/detail-completeness";
 import { prettyJson } from "../lib/format";
 import {
   isolatedBranchBoundaryLabel,
@@ -16,13 +21,14 @@ import { useAppStore } from "../store";
  * 源记录不可用、阅读位置失效…）。抽出来两边共用，避免出现"步骤页有、文件页没有"
  * 的两套口径——那正是 delta「保留现有隔离说明和异常」要防的。
  *
- * 六块互不替代，各自只回答一个问题：
+ * 七块互不替代，各自只回答一个问题：
  *   1. `IsolatedRunNotice`：这是不是一个文件隔离 run、世界从哪来（v1 老 trace 无此字段 ⇒ 不出现）
  *   2. `SourceUnavailableNotice`：源记录已不可用 ⇒ 依赖它的**新执行**被禁用（只读阅读仍可继续）
  *   3. `ReadingInvalidatedNotice`：上次记的阅读位置不在了 ⇒ 已回退默认
- *   4. `BranchNotice`：本 run 与父 run 的关系（**按 fork 字段分流**，独立执行绝不称"共享前缀"）
- *   5. `ErrorDetailNotice`：错误终止但没有记录失败原因 ⇒ 只陈述"未记录"，不推断原因
- *   6. `ParentChainList`：逐代父链与编辑摘要（代理/prompt fork/模型 A+B 臂才出现）
+ *   4. `LineageIncompleteNotice`：U6 ownOnly——固定提示 + 缺失祖先 run ID（自有内容仍可读）
+ *   5. `BranchNotice`：本 run 与父 run 的关系（**按 fork 字段分流**，独立执行绝不称"共享前缀"；ownOnly 分流见判据）
+ *   6. `ErrorDetailNotice`：错误终止但没有记录失败原因 ⇒ 只陈述"未记录"，不推断原因
+ *   7. `ParentChainList`：逐代父链与编辑摘要（代理/prompt fork/模型 A+B 臂/ownOnly 截断链才出现）
  *
  * ⚠️ 全部读 store（当前选中 run）。本包无 jsdom 打不到真实渲染，故这层只做"呈现"，
  *    判据本身在 `@shared/derive` 与 `lib/isolated-fork` 里（已有各自测试）。
@@ -32,6 +38,20 @@ import { useAppStore } from "../store";
 function BranchNotice() {
   const detail = useAppStore((s) => s.detail);
   if (detail === null || detail.chain.length <= 1) return null;
+  // U6 任务 4.2：ownOnly 分支一律走「父链不完整」文案——result / 隔离续跑的
+  // "共享前缀"措辞在父前缀没进时间线时是伪造（delta「部分普通分支不伪造共享前缀」）。
+  // 分叉点与被编辑字段的标注保留（记录元数据不因祖先缺失消失），判据在纯函数里。
+  const partialNotice = ownOnlyBranchNoticeOf(detail);
+  if (partialNotice !== null) {
+    return (
+      <div
+        data-branch-partial="true"
+        className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-[11px] leading-5 text-amber-900 whitespace-pre-line"
+      >
+        {partialNotice}
+      </div>
+    );
+  }
   // 代理分叉 run：不显示"共享前缀"提示（其语义不成立），由父链列表呈现
   if (detail.meta.source?.kind === "proxy") return null;
 
@@ -131,16 +151,20 @@ function ParentChainList() {
   const isPromptFork = typeof forkField === "string" && isPromptForkField(forkField);
   // 模型 A/B 臂与 prompt fork 同为"从头重跑"的独立新轨迹，详情只呈现本 run 自身 spans
   const isModelAb = forkField === "model_params";
-  if (!isProxy && !isPromptFork && !isModelAb) return null;
+  // U6 任务 4.2：ownOnly 的来源链也要单列展示——标为**截断链**（首项不是根 run），
+  // 不绘制虚假的根到叶连接（delta「部分来源链首项不冒充根」）。
+  const partialTitle = truncatedChainTitleOf(detail);
+  if (!isProxy && !isPromptFork && !isModelAb && partialTitle === null) return null;
 
   return (
     <div className="border-b border-sky-200 bg-sky-50 px-4 py-2 text-[11px] leading-5 text-sky-900">
       <div className="mb-1 font-semibold">
-        {isModelAb
-          ? "分叉链（A/B 实验臂 · 从头重跑的独立新轨迹）"
-          : isPromptFork
-            ? "分叉链（从头重跑的独立新轨迹）"
-            : "分叉链（单请求级编辑重发）"}
+        {partialTitle ??
+          (isModelAb
+            ? "分叉链（A/B 实验臂 · 从头重跑的独立新轨迹）"
+            : isPromptFork
+              ? "分叉链（从头重跑的独立新轨迹）"
+              : "分叉链（单请求级编辑重发）")}
       </div>
       <div className="flex flex-wrap items-center gap-1">
         {detail.chain.map((hop, index) => {
@@ -284,6 +308,30 @@ function IsolatedRunNotice() {
 }
 
 /**
+ * U6 任务 4.1：ownOnly 详情的固定提示（步骤页与文件页共用——本组件挂在
+ * `DetailNotices` 组合里，两处同源）。
+ *
+ * 展示义务：固定文案 + 缺失祖先 run ID + 「自有内容仍可读、祖先指标未知」的
+ * 口径说明。文案判据唯一来源是 `lib/detail-completeness.ts`；渲染层不重判。
+ */
+function LineageIncompleteNotice() {
+  const detail = useAppStore((s) => s.detail);
+  const view = useMemo(() => (detail === null ? null : lineageIncompleteViewOf(detail)), [detail]);
+  if (view === null) return null;
+
+  return (
+    <div
+      data-lineage-incomplete="true"
+      className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-[11px] leading-5 text-amber-900"
+    >
+      <span className="font-semibold">{view.text}：</span>
+      {view.missingNote}
+      。本运行自有输出、步骤、消耗与终止事实仍可读；共享前缀与祖先增量未知，不补零、不推算。
+    </div>
+  );
+}
+
+/**
  * 提示区组合（顺序即阅读顺序：先"这是什么 run"，再"有没有异常"，最后"与父的关系"）。
  *
  * ⚠️ 步骤页与**文件页**共用本组件——文件页同样需要知道世界来源与源记录是否可用，
@@ -295,6 +343,7 @@ export function DetailNotices() {
       <IsolatedRunNotice />
       <SourceUnavailableNotice />
       <ReadingInvalidatedNotice />
+      <LineageIncompleteNotice />
       <BranchNotice />
       <ErrorDetailNotice />
       <ParentChainList />
@@ -307,6 +356,7 @@ export {
   BranchNotice,
   ErrorDetailNotice,
   IsolatedRunNotice,
+  LineageIncompleteNotice,
   ParentChainList,
   ReadingInvalidatedNotice,
   SourceUnavailableNotice,

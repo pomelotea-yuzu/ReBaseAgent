@@ -362,6 +362,14 @@ export function SourceSectionView({
         </div>
       ) : null}
       <div className="text-reading-body leading-5 text-gray-600">{section.relationNote}</div>
+      {section.incompleteNote !== null ? (
+        <div
+          data-source-incomplete="true"
+          className="mt-1.5 rounded border-l-2 border-amber-400 bg-amber-50/60 px-2 py-1 text-reading-meta text-amber-900"
+        >
+          {section.incompleteNote}
+        </div>
+      ) : null}
       {section.isolationNote !== null ? (
         <div className="mt-1.5 rounded border-l-2 border-violet-300 bg-violet-50/60 px-2 py-1 text-reading-meta text-violet-900">
           {section.isolationNote}
@@ -384,7 +392,10 @@ export function OverviewResultView({
   onOpenCall,
   onOpenParent,
 }: {
-  detail: Pick<RunDetail, "spans" | "leafSpanIds" | "status" | "events" | "meta" | "chain">;
+  detail: Pick<
+    RunDetail,
+    "spans" | "leafSpanIds" | "status" | "events" | "meta" | "chain" | "completeness" | "lineage"
+  >;
   /** 正文块的展开状态（受控，来自 `readingByRun[runId].overviewExpanded`） */
   expanded: string[] | undefined;
   onToggleExpanded: (key: string) => void;
@@ -434,11 +445,16 @@ export function OverviewResultView({
     [detail],
   );
 
-  // 本次消耗 / 缓存覆盖 / 来源（任务 5.3）：全部走上游派生，本组件只摆放
+  // 本次消耗 / 缓存覆盖 / 来源（任务 5.3）：全部走上游派生，本组件只摆放。
+  // U6 4.1：ownOnly 时消耗区追加"沿链指标未知"口径、来源区显示缺失说明——判据在
+  // `presentConsumption` / `presentSource`（读 detail 的完整性元数据），组件不另判。
   const consumption = useMemo(
     () =>
       presentConsumption(
         deriveOwnConsumption({ spans: detail.spans, leafSpanIds: detail.leafSpanIds }),
+        {
+          lineageIncomplete: detail.completeness === "ownOnly",
+        },
       ),
     [detail],
   );

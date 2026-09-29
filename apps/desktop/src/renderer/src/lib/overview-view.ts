@@ -37,6 +37,7 @@ import type {
   OwnOutput,
   ToolErrorTarget,
 } from "@shared/overview";
+import { LINEAGE_INCOMPLETE_TEXT, LINEAGE_METRICS_UNKNOWN_TEXT } from "./detail-completeness";
 
 /** 结果区的内容形态（互斥，供渲染分支与测试一一对应） */
 export type ResultKind =
@@ -312,7 +313,11 @@ export interface CacheSection {
  *    时间/缓存范围，缺失不补零」。把这段话交给渲染层随手指拼，回归时极易被删；
  *    放在纯函数里就能被断言钉住。
  */
-export function presentConsumption(consumption: OwnConsumption): ConsumptionSection {
+export function presentConsumption(
+  consumption: OwnConsumption,
+  /** U6 任务 4.1：ownOnly 时追加"沿链指标未知"的固定口径说明（complete 省略） */
+  options: { lineageIncomplete?: boolean } = {},
+): ConsumptionSection {
   const cache = presentCacheCoverage(consumption.cache);
   return {
     tokensIn: consumption.tokensIn,
@@ -320,7 +325,9 @@ export function presentConsumption(consumption: OwnConsumption): ConsumptionSect
     durationMs: consumption.durationMs,
     toolCalls: consumption.toolCalls,
     toolErrors: consumption.toolErrors,
-    scopeNote: "仅本次运行自有调用的已记录值；祖先共享前缀不计入，缺失项不补零。",
+    scopeNote: `仅本次运行自有调用的已记录值；祖先共享前缀不计入，缺失项不补零。${
+      options.lineageIncomplete === true ? LINEAGE_METRICS_UNKNOWN_TEXT : ""
+    }`,
     // 有自有调用但 token 全为 0：可能是失败调用的占位零用量，也可能确实是空输入/输出。
     // 两种都不声称"实际零消费"——如实说明它只是"记录值"。
     zeroUsageNote:
@@ -382,6 +389,11 @@ export interface SourceSection {
   relation: "shared-prefix" | "independent" | "proxy" | "root";
   /** 关系说明文字（唯一文案来源；禁止对独立执行说"共享前缀"） */
   relationNote: string;
+  /**
+   * U6 任务 4.1：ownOnly 时来源区必须出现的缺失说明（固定提示 + 缺失祖先 run ID）；
+   * complete 时为 null。文案唯一来源是 `lib/detail-completeness.ts`，本模块只转述。
+   */
+  incompleteNote: string | null;
   /** 隔离边界说明（仅隔离 run；否则 null） */
   isolationNote: string | null;
   /** 是否提供「返回父记录」入口（有直接父时才给） */
@@ -408,9 +420,25 @@ export function presentSource(detail: {
     workspace?: { world_id: string; origin: { kind: string; run_id?: string } } | undefined;
   };
   chain: ReadonlyArray<unknown>;
+  /**
+   * U6 任务 4.1：详情完整性元数据（载荷受校验，renderer 不从 chain 长度猜）。
+   * 省略 = complete（老调用方兼容：本包内只有 OverviewPanel 传入完整 detail）。
+   */
+  completeness?: "complete" | "ownOnly";
+  lineage?: { status: "complete" } | { status: "incomplete"; reason: string; missingRunId: string };
 }): SourceSection {
   const { parent, fork } = detail.meta;
   const isolated = detail.meta.workspace !== undefined;
+  // ownOnly 展示事实（唯一判据来源：detail-completeness；这里只转述，不另写文案）
+  const incompleteView =
+    detail.completeness === "ownOnly" &&
+    detail.lineage !== undefined &&
+    detail.lineage.status === "incomplete"
+      ? {
+          missingRunId: detail.lineage.missingRunId,
+          note: `${LINEAGE_INCOMPLETE_TEXT}（缺失祖先 run：${detail.lineage.missingRunId}）`,
+        }
+      : null;
 
   // 根 run：无来源关系（隔离根 run 的 world 是从源目录采集来的，仍算"无父"，另给隔离说明）
   if (parent === null && fork === null) {
@@ -422,6 +450,7 @@ export function presentSource(detail: {
       relationNote: isolated
         ? "这是隔离文件世界的根运行：文件世界由选定源目录采集而来，没有上游运行记录。"
         : "这是根运行，没有上游来源记录。",
+      incompleteNote: incompleteView?.note ?? null,
       isolationNote: isolated
         ? "隔离文件运行：文件读写只发生在独立世界里，源目录不会被修改。"
         : null,
@@ -447,6 +476,12 @@ export function presentSource(detail: {
     relation = "independent";
     relationNote =
       "模型 A/B 臂（从头重跑）：本 run 是独立执行，不共享父轨迹前缀，父 run 仅作对照。";
+  } else if (incompleteView !== null) {
+    // U6 任务 4.1：ownOnly 的 result 分支**不得**声称共享前缀——父前缀没进时间线，
+    // 沿链指标未知。固定提示 + 缺失 ID 走 incompleteNote，这里只换掉关系说明。
+    relation = "shared-prefix";
+    relationNote =
+      "父链不完整：仅显示本运行记录的自有轨迹，共享前缀与祖先增量未知，不补零、不推算。";
   } else {
     relation = "shared-prefix";
     relationNote = "父 run 的轨迹截至分叉点为共享前缀（来自父 run 文件，本 run 只记录新增 span）。";
@@ -458,6 +493,7 @@ export function presentSource(detail: {
     editLabel: field === null ? null : forkEditLabel(field),
     relation,
     relationNote,
+    incompleteNote: incompleteView?.note ?? null,
     // 隔离 branch：origin.run_id 才是"从哪个 run 续跑"的真实来源（不冒充共享前缀）
     isolationNote: isolated
       ? detail.meta.workspace?.origin.kind === "checkpoint"

@@ -33,9 +33,9 @@
 
 ## 4. 详情 UI 与 U5 结果收尾
 
-- [ ] 4.1 概览显示固定提示、缺失 ID、自有输出/消耗；沿链指标未知，不补零（对应“部分普通分支不伪造共享前缀”、“model_params 臂缺祖先不变成可比较结果”）。
-- [ ] 4.2 步骤与来源组件接完整性投影，截断首项不冒充根，保留被编辑字段（对应“部分来源链首项不冒充根”、“分支 run 的轨迹”、“完整普通分支保留被编辑字段”）。
-- [ ] 4.3 独立分支仅显示自有轨迹，父级链单列；反查现有分支派生与比较消费点（对应“完整独立分支不拼接父轨迹”、“独立分支来源链完整但不共享执行前缀”）。
+- [x] 4.1 概览显示固定提示、缺失 ID、自有输出/消耗；沿链指标未知，不补零（对应“部分普通分支不伪造共享前缀”、“model_params 臂缺祖先不变成可比较结果”）。—— 新纯判据 `lib/detail-completeness.ts`（`LINEAGE_INCOMPLETE_TEXT` 固定文案唯一来源 + `lineageIncompleteViewOf`）；`presentSource` 增 `incompleteNote`（ownOnly result 分支替换掉"共享前缀"原句式）、`presentConsumption` 增 ownOnly 口径行；`SourceSectionView` 渲染 `data-source-incomplete` 块；证据 `test/u6-detail-ui-completeness.test.ts`（18 条，含错配载荷防御）
+- [x] 4.2 步骤与来源组件接完整性投影，截断首项不冒充根，保留被编辑字段（对应“部分来源链首项不冒充根”、“分支 run 的轨迹”、“完整普通分支保留被编辑字段”）。—— `DetailNotices` 新增 `LineageIncompleteNotice`（步骤页+文件页同源）；`BranchNotice` ownOnly 分流（`ownOnlyBranchNoticeOf`：不称共享前缀、保留分叉点/编辑字段标注）；`ParentChainList` ownOnly 也渲染并标「截断：首项不是根 run」（`truncatedChainTitleOf`）；SpanTree 自有/继承标记走 leafSpanIds，own 范围下无假「继承」行（反查确认无需改）
+- [x] 4.3 独立分支仅显示自有轨迹，父级链单列；反查现有分支派生与比较消费点（对应“完整独立分支不拼接父轨迹”、“独立分支来源链完整但不共享执行前缀”）。—— main §3.4–3.6 已投影独立 own 轨迹；ParentChainList 对独立分支单列（既有）；反查结论：`deriveChainTotals`/`findCommonAncestor`/`deriveComparison` 均以列表 `walkUpChain.incomplete` 为闸——ownOnly 祖先不在列表 ⇒ 拒绝比较，无需新改（derive.ts 486–589 源码依据）
 - [ ] 4.4 文件入口保留初始/自有完成步骤与 C 的清单/blob 校验，来源缺失不阻断自有文件（对应“ownOnly 文件入口不显示祖先检查点”、“缺祖先与缺附件分别诊断”）。
 - [ ] 4.5 接详情刷新 run ID/读取代次/导航守卫，保留有效阅读状态及失效回退（对应“读取重试不改变阅读位置”、“父文件恢复后重试全量重验”）。
 - [ ] 4.6 操作结果展示自有结局与来源警告，接后台核实和匹配修订清理的真实 store 路径（对应“ownOnly 正常结果仍按原修订清理”）。
