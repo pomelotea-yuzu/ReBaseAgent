@@ -52,6 +52,12 @@ export interface ResultReadEntry {
   readonly attempt: number;
   /** 经校验的自有终止事实；非 `verified` 时为 null（不造结论） */
   readonly facts: OwnTerminalFacts | null;
+  /**
+   * U6 任务 4.6：经核实的**来源完整性**；非 `verified` 时为 null（不造结论）。
+   * ownOnly 不影响核实本身（身份/版本/schema 照过），但要随结论一起带出来——
+   * 操作面板据此把"自有结局"与"来源缺失"分别呈现，避免"正常结束"被读成可重跑。
+   */
+  readonly lineage: RunDetail["lineage"] | null;
   /** 不可读的诚实说明（含原诊断）；已核实与在读为 null */
   readonly reason: string | null;
 }
@@ -110,8 +116,14 @@ export function resultReadEntryOf(
   attempt: number,
 ): ResultReadEntry {
   return verification.ok
-    ? { phase: "verified", attempt, facts: verification.facts, reason: null }
-    : { phase: "unreadable", attempt, facts: null, reason: verification.reason };
+    ? {
+        phase: "verified",
+        attempt,
+        facts: verification.facts,
+        lineage: verification.detail.lineage,
+        reason: null,
+      }
+    : { phase: "unreadable", attempt, facts: null, lineage: null, reason: verification.reason };
 }
 
 /** 一次实际读取的开始：代次在此递增（`reading` 占位让重复快照能识别"已经在读"） */
@@ -126,7 +138,13 @@ export function beginResultRead(
 ): BeginResultRead {
   const attempt = (resultReadOf(store, identity)?.attempt ?? 0) + 1;
   return {
-    store: setResultRead(store, identity, { phase: "reading", attempt, facts: null, reason: null }),
+    store: setResultRead(store, identity, {
+      phase: "reading",
+      attempt,
+      facts: null,
+      lineage: null,
+      reason: null,
+    }),
     attempt,
   };
 }

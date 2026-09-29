@@ -38,10 +38,10 @@
 - [x] 4.3 独立分支仅显示自有轨迹，父级链单列；反查现有分支派生与比较消费点（对应“完整独立分支不拼接父轨迹”、“独立分支来源链完整但不共享执行前缀”）。—— main §3.4–3.6 已投影独立 own 轨迹；ParentChainList 对独立分支单列（既有）；反查结论：`deriveChainTotals`/`findCommonAncestor`/`deriveComparison` 均以列表 `walkUpChain.incomplete` 为闸——ownOnly 祖先不在列表 ⇒ 拒绝比较，无需新改（derive.ts 486–589 源码依据）
 - [x] 4.4 文件入口保留初始/自有完成步骤与 C 的清单/blob 校验，来源缺失不阻断自有文件（对应“ownOnly 文件入口不显示祖先检查点”、“缺祖先与缺附件分别诊断”）。—— 判据已在 C/U2 落在 leafSpanIds（`workspace-files.ts`），main §3 投影保证 ownOnly spans 只含自有记录；本条在 ownOnly 形状下钉行为锁：祖先 step 不进选择器/判 stale/回退最近自有步骤、附件缺失与祖先缺失两套文案互不冒充；文件读取不挂 `canExecuteFromSource` 闸（grep 反查：该闸仅 DetailPanel 四处执行编辑器消费）。证据 `test/u6-file-entry-ownonly.test.ts`（6 条）
 - [x] 4.5 接详情刷新 run ID/读取代次/导航守卫，保留有效阅读状态及失效回退（对应“读取重试不改变阅读位置”、“父文件恢复后重试全量重验”）。—— `detail-request.ts` 新增 `isCurrentDetailAttempt`；store.selectRun 每次实际发读递增 `detailReadAttempt`（模块计数，五处落地口全挂代次闸——同 run 连续重试是归属判据的盲区）；落地时**现取** readingByRun 历史（旧快照会覆盖在飞期间的新选择）；证据 `test/u6-detail-refresh-guard.test.ts`（6 条，含"恢复前 ownOnly 旧响应后到不盖 complete"与"旧失败收尾不清新加载态"）
-- [ ] 4.6 操作结果展示自有结局与来源警告，接后台核实和匹配修订清理的真实 store 路径（对应“ownOnly 正常结果仍按原修订清理”）。
-- [ ] 4.7 回归 error/限制/中断保留草稿，显式失败定位只认自有调用（对应“ownOnly 失败定位只使用自有调用”）。
-- [ ] 4.8 A/B 部分详情沿用预期臂/唯一 ID/experimentId 判据，缺臂与 null ID 保留整批（对应“部分实验结果保留完整批次判据”）。
-- [ ] 4.9 结果手动重试沿用 U5 身份/代次去重，保护新修订与新 token，无关联不猜草稿（对应“后台重试不导航也不重发执行”）。
+- [x] 4.6 操作结果展示自有结局与来源警告，接后台核实和匹配修订清理的真实 store 路径（对应“ownOnly 正常结果仍按原修订清理”）。—— `ResultReadEntry` 增 `lineage`（verified 携带经核实的来源完整性，reading/unreadable 恒 null）；`itemViewOf` 增 `sourceWarning`（"……正常结束不等于可以重跑"，与结局分层）；OperationsEntry/AbBatchResult 渲染 `sourceWarning` 警告行；清理路径零改动——`decideDraftClosure` 只认 facts.normalEnd，ownOnly 天然参与。证据 `test/u6-partial-result-closure.test.ts`（4.6 组 2 条：store 清理路径 + 面板分层呈现）
+- [x] 4.7 回归 error/限制/中断保留草稿，显式失败定位只认自有调用（对应“ownOnly 失败定位只使用自有调用”）。—— 回归确认：`deriveOwnTerminalFacts.failure` 走 leafSpanIds（ownOnly spans 全自有 ⇒ 定位必在自有调用内）；无自有失败详情 ⇒ 无 view-failure 动作只给诚实说明；error 终止 normalEnd=false ⇒ 草稿保留。证据同文件 4.7 组 2 条
+- [x] 4.8 A/B 部分详情沿用预期臂/唯一 ID/experimentId 判据，缺臂与 null ID 保留整批（对应“部分实验结果保留完整批次判据”）。—— 判据零改动：`batchGapOf` 不看 completeness；ownOnly 臂各自身被独立核实为正常终止后照常计入整批。证据同文件 4.8 组 2 条（两臂 ownOnly 清理 + 缺臂/null ID/不可读三例保留）
+- [x] 4.9 结果手动重试沿用 U5 身份/代次去重，保护新修订与新 token，无关联不猜草稿（对应“后台重试不导航也不重发执行”）。—— `retryResultRead` = `readRunResult(force=true)` 既有路径回归确认：不可读→ownOnly 正常后按尚存关联清理，全程只走 `runs:get`、不换选中项、不导航；重试前推进的新修订不被删除（修订 CAS）。证据同文件 4.9 组 3 条（含纯层 verifyResultPayload 携带 lineage 回归）
 - [ ] 4.10 renderer 得知来源不完整/不可读后，复用检查代次使旧预检/计划/确认与副本授权失效；恢复要求重新检查且保留草稿，main 不新增许可吊销登记（对应“预检后父链变化仍由 main 拒绝”）。
 - [ ] 4.11 长 ID、警告、禁用原因和重试动作接现有可达性规则（对应“部分详情提示和恢复动作可达”）。
 

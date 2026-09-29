@@ -216,6 +216,15 @@ export function OperationRowView({
                   {item.detail}
                 </div>
               ) : null}
+              {/* U6 4.6：来源警告与运行结局分层——ownOnly 的"正常结束"不得被读成可重跑 */}
+              {item.sourceWarning !== null ? (
+                <div
+                  data-result-source-warning="true"
+                  className="w-full break-all text-[10px] leading-4 text-amber-800"
+                >
+                  {item.sourceWarning}
+                </div>
+              ) : null}
               {/* 拿不到自有失败调用时只说明，不给入口：不跳祖先、不跳"最后一个调用"凑数 */}
               {item.failureNote !== null ? (
                 <div className="w-full break-all text-[10px] leading-4 text-gray-400">

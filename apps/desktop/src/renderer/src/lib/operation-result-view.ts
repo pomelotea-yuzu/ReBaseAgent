@@ -1,4 +1,5 @@
 import type { NotAcceptedReason, OperationRecord, RequestOutcome } from "@shared/operations";
+import { LINEAGE_INCOMPLETE_TEXT } from "./detail-completeness";
 import type { ResultReadEntry, ResultReadStore } from "./result-verification";
 import { resultReadOf, viewOperationResult } from "./result-verification";
 
@@ -42,6 +43,12 @@ export interface ResultItemView {
   readonly actions: readonly ResultAction[];
   /** 拿不到失败调用入口时的诚实说明（与 `view-failure` 互斥） */
   readonly failureNote: string | null;
+  /**
+   * U6 任务 4.6：来源完整性警告（ownOnly 时非 null）。
+   * 与运行结局**分层**呈现——"自有 stopped/completed"与"父链不完整"同时成立，
+   * 且"正常结束"绝不暗示可重跑（执行资格由 §5 的 main 来源门禁决定，不由这里声明）。
+   */
+  readonly sourceWarning: string | null;
 }
 
 /** 整条操作的结果呈现 */
@@ -70,7 +77,7 @@ const NOT_ACCEPTED_TEXT: Record<NotAcceptedReason, string> = {
 const DRAFT_GONE_NOTE =
   "该提交的草稿已按修订清理或从未登记：不返回、不复活旧内容（需要旧输入请在草稿列表里复制）";
 
-/** 单条运行的呈现：未读 / 在读 / 不可读 / 已核实（含失败定位可用性） */
+/** 单条运行的呈现：未读 / 在读 / 不可读 / 已核实（含失败定位可用性与来源警告） */
 function itemViewOf(runId: string, entry: ResultReadEntry | undefined): ResultItemView {
   if (entry === undefined) {
     return {
@@ -80,6 +87,7 @@ function itemViewOf(runId: string, entry: ResultReadEntry | undefined): ResultIt
       detail: "还没有按这个可信运行 ID 读过；打开即读一次，不会重新执行",
       actions: ["open-result"],
       failureNote: null,
+      sourceWarning: null,
     };
   }
   if (entry.phase === "reading") {
@@ -90,6 +98,7 @@ function itemViewOf(runId: string, entry: ResultReadEntry | undefined): ResultIt
       detail: "只读通道在飞（不重发执行、不改当前阅读现场）",
       actions: [],
       failureNote: null,
+      sourceWarning: null,
     };
   }
   if (entry.phase === "unreadable") {
@@ -101,10 +110,17 @@ function itemViewOf(runId: string, entry: ResultReadEntry | undefined): ResultIt
       // 只按**同一个** runId 重试读取：没有"换个 id 试试"这条路
       actions: ["retry-read"],
       failureNote: "结局读不出来时不做失败定位（不拿别的记录凑原因）",
+      sourceWarning: null,
     };
   }
   const facts = entry.facts;
   const failureSpanId = facts?.failure.llmCallSpanId ?? null;
+  // U6 任务 4.6：来源警告只来自经核实的 lineage，不从 chain 长度或结局倒推
+  const lineage = entry.lineage;
+  const sourceWarning =
+    lineage?.status === "incomplete"
+      ? `${LINEAGE_INCOMPLETE_TEXT}（缺失祖先 run：${lineage.missingRunId}）——只核实了本运行自有记录；正常结束不等于可以重跑`
+      : null;
   return {
     runId,
     label: facts?.outcome.label ?? "结局未知",
@@ -122,6 +138,7 @@ function itemViewOf(runId: string, entry: ResultReadEntry | undefined): ResultIt
           ? "以错误终止，但本次自有记录里没有失败的模型调用详情（不取祖先调用冒充原因）"
           : "本次不是以错误终止，没有失败调用可定位"
         : null,
+    sourceWarning,
   };
 }
 

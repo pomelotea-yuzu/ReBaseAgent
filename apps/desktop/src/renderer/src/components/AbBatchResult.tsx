@@ -112,6 +112,12 @@ function ArmRow({
               {item.detail}
             </div>
           ) : null}
+          {/* U6 4.6：ownOnly 臂的来源警告与该臂结局分层呈现（不推断胜出臂、不暗示可重跑） */}
+          {item.sourceWarning !== null ? (
+            <div className="w-full break-all text-[10px] leading-4 text-amber-800">
+              {item.sourceWarning}
+            </div>
+          ) : null}
           {item.failureNote !== null ? (
             <div className="w-full break-all text-[10px] leading-4 text-gray-400">
               {item.failureNote}
