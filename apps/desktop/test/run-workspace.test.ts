@@ -328,7 +328,11 @@ describe("接线：全局栏与列表共用同一创建工作区（源码契约�
 
   it("GlobalBar 的「录制接入」定位到代理分区（不是另建录制界面）", () => {
     const src = read("src/renderer/src/components/GlobalBar.tsx");
-    expect(src).toContain('setSettingsSection("proxy")');
+    // U5 6.7 契约迁移：GlobalBar 走 onOpenRecording 专用开器（不清 settingsSection），
+    // "proxy" 标记由 App.openRecording 设置——旧形状（本地 setSettingsSection("proxy")
+    // 后又调 onOpenSettings 把它清掉）正是 6.7 实机抓到的定位失效缺陷，不得复活。
+    expect(src).toContain("onOpenRecording()");
+    expect(src).not.toContain('setSettingsSection("proxy")');
   });
 
   it("App 只挂一个创建工作区，且它与运行导航在同一分支里（页面不吞掉导航）", () => {

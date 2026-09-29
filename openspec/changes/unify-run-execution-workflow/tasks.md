@@ -1,9 +1,11 @@
 # U5 实施与验收任务
 
-> 实施进度（2026-09-28）：**§1 全部完成（1.1–1.4）+ §2 全部完成（2.1–2.5）+ §3 全部完成（3.1–3.6）
+> 实施进度（2026-09-29）：**§1 全部完成（1.1–1.4）+ §2 全部完成（2.1–2.5）+ §3 全部完成（3.1–3.6）
 > + §4 全部完成（4.1–4.7）+ §5 全部完成（5.1–5.6）+ §6.1 完成（受控 fixture 与场景清单）
 > + §6.2 完成（第一批受控实机 18/18 + 确认订阅缺陷修复）+ §6.3 完成（第二批受控实机 12/12）
-> + §6.4 完成（第三批受控实机 9/9）+ §6.5 完成（第四批受控实机 5 tag / 60 检查）**
+> + §6.4 完成（第三批受控实机 9/9）+ §6.5 完成（第四批受控实机 5 tag / 60 检查）
+> + §6.6 完成（第五批受控实机 14 tag / 156 检查）+ §6.7 完成（第六批受控实机 10 tag / 104 检查
+> + 录制入口接线缺陷 `d158523` 与 Esc 叠层穿透缺陷 `40287fb` 两笔修复）**
 > （`shared/terminal-facts.ts` 19 条 + `lib/result-verification.ts` 纯判据 15 条 + store 核实 9 条 +
 > 终态消费 13 条 + `draft-submission` 收尾关联 13 条 + `draft-closure` 清理判据 20 条 +
 > store 收尾/批次/反证 17 条 + `create-entry-closure` 创建入口 10 条 + `fork-entry-closure` result/prompt 入口 6 条 +
@@ -821,7 +823,35 @@
     idempotent-closure 三个 tag 各自承载）；终态行等待口径**刻意**退回「自接受起」（operation-list.ts:205，
     pending 清账后 submittedAt 不可用）⇒ 重载 transition 半边只有单元可观测；通知两层去重实测坐实
     （同一 unreadable 键重复注入不重复播报）。
-- [ ] 6.7 实机验证设置保存/清除/未保存退出和合并窗口退出，记录密钥不回读证据（≤2h）。验收：「未保存设置关闭可继续或放弃」「保存失败和保存后回读失败区分」「清除确认包含凭据且受槽约束」「关闭详情与退出不冒充停止」。
+- [x] 6.7 实机验证设置保存/清除/未保存退出和合并窗口退出，记录密钥不回读证据（≤2h）。验收：「未保存设置关闭可继续或放弃」「保存失败和保存后回读失败区分」「清除确认包含凭据且受槽约束」「关闭详情与退出不冒充停止」。
+  - ✅ 2026-09-29 实机批六收口：**10 tag / 104 检查全绿，单次整跑**（`editor-settings-roundtrip` 5、
+    `settings-roundtrip-confirm` 6、`settings-close-dirty` 13、`key-one-way` 11、`save-fail-shapes` 14、
+    `clear-confirm` 15、`recording-entry` 8、`esc-topmost` 8、`quit-return` 12、`quit-executing` 12）；
+    采集 `apps/desktop/scripts/u5-67-cdp.cjs`、批量驱动 `.workbuddy/u5/u5-67/run-all.cjs`
+    （dev 带 quit 哨兵钩子，quit-executing 排最后真杀应用）；evidence-index 已回填
+    （**已交付 60 / 待实机 13 / 实机不成立 1**，6.7 计划 tag 10 行全部转实测 + 补转 6.6 遗留的 A3.7 行）。
+  - 验收对位：未保存关闭三路同源（✕/Esc/底部关闭）真点选 + 初始焦点「继续编辑」+ 焦点恢复到
+    全局栏触发入口 + 放弃不动磁盘与已保存配置（settings-close-dirty）；**密钥不回读磁盘侧证据**
+    （safeStorage 密文落盘不含明文、回读键集无 apiKey、打过字未保存磁盘逐字节不动、重开输入不回显）
+    （key-one-way）；save-failed 用 main「apiKey 不能为空」校验**零注入**诱发，reread-failed 由
+    「保存落盘瞬间改写 settings.json 缺 apiKey」竞速注入坐实（main 的 load() 每次读盘；两次整跑
+    分别第 3 / 第 2 次尝试得手 ⇒ 按实机已测登记，不再按单元承载）（save-fail-shapes）；
+    清除确认真点选两支（取消零清除 / 确认清盘）+ 在飞占槽时写入口禁用（clear-confirm）；
+    关闭详情与退出不冒充停止 + 创建忙碌的退出协商与「询问期间第二入口被拒、返回后不自动执行」
+    （quit-executing / quit-return，winops 通道复用 U4 6.7）。
+  - 🔴 **批内修复两个真产品缺陷**（详见 evidence-index「6.7 采集口径登记」）：
+    ① GlobalBar 录制入口经 `onOpenSettings`（先清 settingsSection）⇒ 代理分区定位从不发生
+    ——「接线少一支」家族：App.openRecording 写对了但全局栏这一跳没接它；修在 `d158523`；
+    ② Chromium「两步关闭」让第二次 Esc 以 cancelable:false 直关**底层**设置（脏输入被静默
+    丢弃，M6.2「Esc 只关闭最上层」被穿透）；修 = ModalDialog 最上层模态在 keydown 捕获段
+    **合成** Esc 关闭（preventDefault 压掉原生 cancel，非最上层放行）；修在 `40287fb`。
+  - 🔴 **实机分层事实**：在飞 run 被杀**盘上零痕迹**（llm.call span 未 end 不落盘，meta 也不在
+    ——「run 文件运行开始时就落盘」的旧注记作废，U4 6.7 的 `≤1` 口径正为此定）；探针坑：
+    store 确认凭据在 `confirmations.byTargetKey`（顶层 keys 只有容器名）；设置槽约束
+    （configurationBusy）只随 main 快照进会话 ⇒ 判据前要先 `refreshOperationStatus()`。
+  - 门禁：desktop 全量 **132 文件 / 2225 用例**绿（基线 2223 + 两笔修复新增契约 2 条）、
+    tsc node/web 双 0、根 biome 0 错；`openspec validate --all --strict` 13/13；索引回查
+    6 判据全过（74/74 覆盖、208 处用例引用逐字命中）。
 - [ ] 6.8 按代表宽度和独立 200% 缩放采集长文本/路径/多臂、真实 Tab/Shift+Tab/Esc、U2 文件页往返及数据指纹（≤2h）。验收：「长任务路径模型与结果不遮挡操作」「创建页面键盘可离开而模态约束焦点」「操作入口在窄窗口和键盘下可达」「只读反馈和读取重试保持数据边界」「恢复核对重试与批次结果只通知」；面板关闭时断言 live 区域可访问且为 polite，真实结果变为可查看/不可读时文本更新、重复状态/计时不重复通知、焦点不变。未实测屏幕阅读器时仅记 DOM/可访问属性证据，不宣称已验证实际播报。
 
 ## 7. 回归与收口

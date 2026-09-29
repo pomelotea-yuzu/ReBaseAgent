@@ -6,7 +6,7 @@
 > 回查脚本：`.workbuddy/u5/u5-61/verify-scenario-checklist.cjs`（六项判据 + `--selftest` 反证）；
 > 用例名池：`.workbuddy/u5/u5-61/case-inventory.json`（172 文件 / 2597 条 `it` 标题）。
 
-汇总口径：**74 条场景（41 ADDED / 33 MODIFIED）**，单元或契约证据已交付 **49** 条、待实机 **24** 条、实机不成立 **1** 条（6.2 + 6.3 + 6.4 + 6.5 + 6.6 批实测后）
+汇总口径：**74 条场景（41 ADDED / 33 MODIFIED）**，单元或契约证据已交付 **60** 条、待实机 **13** 条、实机不成立 **1** 条（6.2 + 6.3 + 6.4 + 6.5 + 6.6 + 6.7 批实测后）
 
 ## 怎么读这张表
 
@@ -109,6 +109,54 @@
    （`operation-request-facts.test.ts` 喂 props），实机可证的半边 =「不泄漏输入」+
    登记如实（空就是空）。已登记为已知限制；要不要给失败路径接诊断产出归后续口径。
 
+### 6.7 采集口径登记（第六批受控实机：设置 / 密钥 / 退出协商，2026-09-29）
+
+| 项 | 值 |
+| --- | --- |
+| 批量驱动 | `.workbuddy/u5/u5-67/run-all.cjs`（10 tag 串跑，`汇总：10/10 通过`；dev 带 quit 哨兵钩子，settings 备份/无条件还原） |
+| 采集脚本 | `apps/desktop/scripts/u5-67-cdp.cjs`（每个 tag 的 measurements JSON 各带 HEAD / Electron / 三 lib sha 前 12 位 / traces 计数） |
+| 仓库 HEAD | `40287fb`（= 6.7 批内两个产品缺陷修复落地后；全量门禁与整跑同 HEAD） |
+| Electron / Node | `44.1.1` / `v22.22.2` |
+| 数据目录 | dev 恒为 `<仓库根>/.rebaseagent`；`.rebaseagent/traces` 计数 268 → 270（批内自清理按 task 含 "U5-67" 认） |
+| 截图 | `docs/reviews/2026-09-29-u5-67/` |
+
+🔴 **6.7 抓到并修复的两个真产品缺陷（都带反证，不是只记账）**：
+
+1. **GlobalBar 的录制入口定位失效（修在 `d158523`）**：`GlobalBar.openRecording` 先
+   `setSettingsSection("proxy")` 再调 `onOpenSettings`——而后者（App.openSettings）**又同步把
+   section 清成 null** ⇒ "proxy" 标记在设置模态挂载前就被清掉，定位效果（滚到代理分区 +
+   聚焦首控件）从不发生，实机焦点落在 ✕ 而不是代理复选框。「接线少一支」家族新形态：
+   App.openRecording 本身写对了（空态入口在用），但全局栏这一跳没接它，单元层只钉了
+   App 侧形状、GlobalBar → 开器这一跳没有判据。修 = GlobalBar 增 `onOpenRecording`
+   专用 prop 直连不清 section 的开器；`settings-roundtrip-invalidate` / `run-workspace`
+   两处源码级契约同步（`run-workspace` 旧断言改判为禁旧形状）。
+2. **Chromium「两步关闭」穿透叠层模态（修在 `40287fb`）**：脏设置 + 确认框在上时，
+   第二次 Esc 以 cancelable:false 派发给**底层设置**（顶层确认框反而收不到）⇒ 设置被原生
+   关闭、未保存输入被静默丢弃——M6.2「Esc 只关闭最上层」被平台行为穿透。旧防御
+   （keydown 捕获段只在 closeDisabled 时吞）只保得了第一次。修 = ModalDialog 最上层
+   模态在 keydown 捕获段**合成** Esc 关闭（preventDefault 压掉原生 cancel 通道，第任意次
+   都成立；非最上层放行给上层处理；closeDisabled 仍只吞不放）；`modal-dialog.test.ts`
+   契约更新钉合成三件套与旧形状禁令。修复后实机逐层成立（第二层 Esc 只关确认、
+   输入逐字保留、第三层可再次唤起）。
+
+🔴 **6.7 坐实的实机事实（写进对应行，别再按旧注记跑）**：
+
+- **「在飞 run 文件运行开始时就落盘」的旧注记不成立**：llm.call span 未 end 不落盘 ⇒
+  在飞中被杀的 run **盘上零痕迹**（meta 都没写）。U4 6.7 的 `newFiles.length <= 1` 判据
+  正是为这个形状定的口径，6.7 沿用；「不冒充停止」的硬判据 = 留下的那份（若在）无终态
+  事件 + 历史逐字节不变 + 请求只出过一次门。
+- **reread-failed 的真机注入面坐实**：main 的 `SettingsStore.load()` 每次读盘（无缓存）⇒
+  「保存落盘瞬间改写 settings.json 缺 apiKey（load() 抛「内容不完整」）」的竞速注入可行，
+  窗口毫秒级（两次实测分别第 3 / 第 2 次尝试得手），输了就按 tasks 6.7 预设口径回退
+  单元承载——本轮两次整跑都得手 ⇒ 按**实机已测**登记，不再按单元承载。
+- **save-failed 零注入诱发**：clearSettings 后空 apiKey 保存 ⇒ main 校验「apiKey 不能为空」
+  拒绝，反馈带真实校验文案（不是笼统失败），输入逐字保留、settings 原样、磁盘零字节不写。
+- **设置槽约束（configurationBusy）只随 main 快照进会话** ⇒ 在飞判据要先
+  `refreshOperationStatus()`（等价用户打开操作面板）再读 `deriveConfigGate`，否则门禁读数
+  停在旧快照（U4 6.7 同教训在设置层的复刻）。
+- **store 的确认凭据在 `confirmations.byTargetKey`**（不是顶层键）——探针读 `Object.keys(
+  s.confirmations)` 只会拿到容器名，首跑假红根因。
+
 ---
 
 ## ADDED requirements
@@ -121,7 +169,7 @@
 | 2 | 普通结果与隔离结果确认边界不同 | `execution-confirmation.test.ts › 普通 result：说明不隔离与后续工具真副作用，不借用隔离话术`、`execution-confirmation.test.ts › 预检在场 ⇒ 直接父 / 轮号 / 整轮检查点进事实，只读预检才算「已做的检查」`、`execution-confirmation-store.test.ts › 隔离侧的确认按钮要求预检结论与本次授权都在场（无预检就不给确认）`、`execution-confirmation-store.test.ts › 两条 result 路径都把现场确认交给登记口（4.5 起隔离侧不再豁免）` | 6.3 实测 tag `result-plain-boundary` 4/4 + `result-isolated-boundary` 6/6（普通侧无隔离话术 / 隔离侧无「世界不隔离」互斥断言，预检不占槽零消费）（2026-09-28 实机） | 已交付（6.3 实测） |
 | 3 | prompt 与 messages 不冒充续跑完整世界 | `execution-confirmation.test.ts › prompt：从头执行、不共享父前缀、一次只改一个启动字段`、`execution-confirmation.test.ts › messages：只重发这一个请求，不执行外部工具、不恢复其工作区`、`execution-confirmation-store.test.ts › prompt 与 messages 的资格原因就近显示（不是只把按钮禁掉）` | 6.4 实测 tag `prompt-confirm` 3/3（披露短语 lib 源码同源抽取全在场 + 确认可挂上，零消费）+ `messages-confirm` 5/5（不冒充续跑 + 肯定分支凭据事实「使用代理会话最近捕获的 key」在场，捕获转发恰 1 次零额外消费）（剧本=successPlain）（2026-09-28 实机） | 已交付（6.4 实测） |
 | 4 | 实验确认使用当前预览计划 | `execution-confirmation-ab.test.ts › 披露喂的是 activePlan：属于旧修订的计划不进确认`、`execution-confirmation-ab.test.ts › 重新预览推进检查代次 ⇒ 那份确认作废，登记口当场拒绝`、`execution-confirmation.test.ts › 没有计划 ⇒ 已做的检查只到本地批次检查，不宣称跑过 dry-run`、`draft-closure-store.test.ts › dry-run 预览既不登记新关联也不读结果` | 6.5 实测 tag `ab-plan-confirm` 14/14（预览 ⇒ 计划区在场（实验组 ID）+ abDisclosure 静态短语 lib 同源抽取全在场（分支互斥字面量按前缀排除）+ 确认可挂上（绑定当前预览计划）；改臂 ⇒ 旧确认作废 + 执行按钮禁用；重新预览 ⇒ 新计划在场 + 确认可重新挂上；全程零消费零落盘）（剧本=successPlain 造父本）（2026-09-28 实机） | 已交付（6.5 实测） |
-| 5 | 返回修改与设置往返撤销旧确认 | `execution-confirmation.test.ts › 改输入（修订推进）⇒ 旧确认作废：这就是「返回修改撤销旧确认」`、`execution-confirmation.test.ts › 检查代次推进 ⇒ 旧响应不能安装确认`、`execution-confirmation-store.test.ts › 换视图 / 进设置 / 常规打开设置 ⇒ 撤销待用的确认（离开现场）`、`settings-roundtrip-invalidate.test.ts › 设置往返改了配置 ⇒ config-stale，且**优先于**修订变化（先说打到哪变了）` | 6.3 实测 tag `confirm-return` 5/5（改输入 ⇒ 旧确认作废 + 重新确认恢复；result 编辑器确认文案 =「确认本次重跑」）（2026-09-28 实机）；6.7 计划 tag `settings-roundtrip-confirm` | 待实机（6.7 半边） |
+| 5 | 返回修改与设置往返撤销旧确认 | `execution-confirmation.test.ts › 改输入（修订推进）⇒ 旧确认作废：这就是「返回修改撤销旧确认」`、`execution-confirmation.test.ts › 检查代次推进 ⇒ 旧响应不能安装确认`、`execution-confirmation-store.test.ts › 换视图 / 进设置 / 常规打开设置 ⇒ 撤销待用的确认（离开现场）`、`settings-roundtrip-invalidate.test.ts › 设置往返改了配置 ⇒ config-stale，且**优先于**修订变化（先说打到哪变了）` | 6.3 实测 tag `confirm-return` 5/5（改输入 ⇒ 旧确认作废 + 重新确认恢复；result 编辑器确认文案 =「确认本次重跑」）（2026-09-28 实机）；6.7 实测 tag `settings-roundtrip-confirm` 6/6（确认挂上（store 恰一份凭据）→ 设置往返（非 dirty）⇒ 旧确认撤销 + 凭据出库（confirmations.byTargetKey 空）→ 重新确认可挂上，全程零消费）（2026-09-29 实机） | 已交付（6.3 + 6.7 实测） |
 
 ### A2. 跨页操作反馈展示真实等待与分层状态（ADDED，5 场景）
 
@@ -129,7 +177,7 @@
 | --- | --- | --- | --- | --- |
 | 1 | 执行中离页仍可查询等待 | `wait-timing.test.ts › running ∧ 本地提交时刻在场 ⇒ 自提交起，且明说不是模型耗时/进度`、`wait-timing.test.ts › OperationsEntry 只有一个时钟调用点，且受「面板开 ∧ 有可盯操作」约束；组件自己不动系统时间`、`operation-entry.test.ts › 挂在现有全局栏（不新开一处界面），数据源就是 operations 会话` | 6.2 实测 tag `in-flight-off-page` 12/12（2026-09-28 实机） | 已交付（6.2 实测） |
 | 2 | 终态和重载后的计时不伪造 | `wait-timing.test.ts › settled ⇒ 时长定格在 settledAt：nowMs 再大也不增长，文本写死计时已停止`、`wait-timing.test.ts › 重载后只剩 main startedAt ⇒ 口径换成「自接受起」，不把接受冒充提交`、`wait-timing.test.ts › 提交时 pending 身份含有限 submittedAt；IPC 信封 operation 只有契约里的两键` | 6.6 实测 tag `reload-timing` 14/14（在飞 basis=submitted「自提交起已等待」+ 写明等待时长语义；收口与重载后均定格「计时已停止」且口径为 accepted——**终态行刻意按 main startedAt 定格**（operation-list.ts:205：pending 清账后 submittedAt 不再可用）；「重载后才换成 accepted」的 transition 半边真机不可观测（收口即清账）⇒ 按单元引用）（2026-09-29 实机） | 已交付（6.6 实测） |
-| 3 | 关闭详情与退出不冒充停止 | `result-live-region.test.ts › 面板✕只关闭查看：没有任何登记清理、重发或「停止执行」类动作`、`focus-escape-responsive.test.ts › 面板走共享 useEscapeClose(open, closePanel)；✕ 与 Esc 同一关闭动作`、`preload-surface.test.ts › 本阶段不交付取消能力：桥接面没有 stop/cancel/abort 通道`、`draft-close-flow.test.ts › 明确退出不伪造取消：登记保持 running、槽不释放，flow 只放行窗口` | 6.7 计划 tag `quit-executing`（剧本=delayedInFlight）；6.8 面板 ✕ 焦点回位 | 待实机 |
+| 3 | 关闭详情与退出不冒充停止 | `result-live-region.test.ts › 面板✕只关闭查看：没有任何登记清理、重发或「停止执行」类动作`、`focus-escape-responsive.test.ts › 面板走共享 useEscapeClose(open, closePanel)；✕ 与 Esc 同一关闭动作`、`preload-surface.test.ts › 本阶段不交付取消能力：桥接面没有 stop/cancel/abort 通道`、`draft-close-flow.test.ts › 明确退出不伪造取消：登记保持 running、槽不释放，flow 只放行窗口` | 6.7 实测 tag `quit-executing` 12/12（面板 ✕ 只关闭查看：面板退场、登记仍 running、槽仍指向它、重开面板操作仍在；哨兵 quit ⇒ 活跃操作档确认（「退出不会取消上游请求」措辞在场）⇒ 点退出窗口与进程真结束、在飞至多留一份未完成文件（**盘上常为零痕迹**——llm.call span 未 end 不落盘，见 6.7 登记节）、请求只出过一次门不重放）（剧本=delayedInFlight）（2026-09-29 实机）；6.8 面板 ✕ 焦点回位半边仍待 | 已交付（6.7 实测；6.8 半边待） |
 | 4 | 未知通信与新会话分开呈现 | `operation-session.test.ts › Unknown 只由下一次有效 status 清除；reconcile 只补事实、不解未知`、`operation-session.test.ts › 新 main 会话不伪造旧在飞身份的结局：保留为未知历史，但不锁住新会话`、`operation-session-store.test.ts › 通道抛错 ⇒ 未知锁且保留在飞身份；不自动重发，只有有效 status 才解锁` | 6.6 实测 tag `main-restart` 16/16（真 main 重启 kill=exit=0、9612 空出=1s 起来=5s 重连；**首帧「未握手」窗口被 2ms 采样器采到且禁用原因全为 not_handshaked**（不知握手而非未知）；新 epoch 全新、登记空、pending 空、resultReads 空、门禁开放；新会话真跑通；旧 opId 核对 ⇒ notAccepted 封禁；在场 run 文件逐份哈希不变）（2026-09-29 实机） | 已交付（6.6 实测） |
 | 5 | 操作详情可读诊断但不泄漏输入 | `operation-request-facts.test.ts › 面板渲染出每条诊断的码/阶段/文案；操作摘要不含正文与 sourceToken 类字段`、`operation-request-facts.test.ts › 「rejected 不一律称为零调用」：拒绝行只报编排分类，「没有开始执行」只属于 notAccepted 侧`、`operation-request-facts.test.ts › 夹带未知字段的登记记录在 schema 层即非法：strict 契约是'不泄漏'的机器判据` | 6.2 实测 tag `diagnostics-readable` 6/6（🔴 diagnostics 恒空：main 的 addDiagnostic 零调用方，见「已知限制」）（2026-09-28 实机）；6.6 实测 tag `unlocated-reconcile` 9/9（核对未知 UUID ⇒ notAccepted 封禁（无目标/无时间）+ 读取项零结论 + 封禁不占槽 + 通知「未被主进程接受」+ 面板行无任何结果动作、对照 settled 行动作正常）（2026-09-29 实机） | 已交付（6.2 + 6.6 实测） |
 
@@ -143,7 +191,7 @@
 | 4 | 祖先结束与失败调用不能冒充本次事实 | `terminal-facts.test.ts › 祖先含失败调用、叶子以 error 终止但自有无详情 ⇒ 定位不到祖先的 s_05`、`terminal-facts.test.ts › 祖先正常结束、叶子无终止事件 ⇒ 运行中断，不从祖先补正常结局`、`operation-result-view.test.ts › 「祖先结束与失败调用不能冒充本次事实」⇒ 没有自有失败就没有入口，只有说明` | 6.3 实测 tag `leaf-only-failure` 12/12（fail503 父本直调 IPC 造出——信封 CREATE_RUN_FAILED 但登记带 runId；**llm span 没有 result 入口** ⇒ 走 prompt fork（编辑初始 user message 重跑）子 run 成功；无「查看失败调用」+ 诚实说明）（2026-09-28 实机） | 已交付（6.3 实测） |
 | 5 | 列表失败不阻断已知结果 | `result-verification-store.test.ts › 读取失败 ⇒ 不可读只落在本条读取项，全局 error 与列表 stale 都不被改写`、`result-verification-store.test.ts › 成功核实 ⇒ 只多出读取项；运行/页签/调用/滚动/全局错误逐字不动`、`operation-result-consumption.test.ts › 一批两条新终态 ⇒ 列表只刷一次，两条各自按身份读取` | —（fs 层无"列表单独失败"的注入面，见分层结论第 1 条） | 实机不成立 |
 | 6 | 结果不可读只重试同一记录 | `result-verification-store.test.ts › 结果不可读 ⇒ 只按同一条可信 runId 重试读取，恢复后即为已核实（零执行调用）`、`operation-result-view.test.ts › 「结果不可读只重试同一记录」⇒ 只给重读，且明说此时不做失败定位`、`controlled-read-faults.test.ts › fileMissing：详情读取失败，列表其余项照常且该 run 既不在 runs 也不在 failed`、`run-repository.test.ts › format_version 过高的文件呈失败条目并提示版本不支持` | 6.6 实测 tag `unreadable-retry` 20/20（fileMissing/corruptTail/unsupportedVersion 三轮：重读均 unreadable（attempt 2/4/6 递增、带诚实说明）、通知区首次播报「结果不可读」且同键重复注入**不重复播报**（两层去重）、面板行保留同一条记录的重读说明、还原后重读回 verified、全程零执行调用零新 trace、逐字节还原）（2026-09-29 实机） | 已交付（6.6 实测） |
-| 7 | settled 无身份与 notAccepted 不猜测结果 | `result-verification-store.test.ts › 登记里没有可信 runId ⇒ 呈现为未定位，读取项里一条结论都没有`、`result-verification-store.test.ts › notAccepted ⇒ 本次未接受（带稳定拒绝原因），没有核实成功的路径`、`operation-request-facts.test.ts › 「settled 无身份与 notAccepted 不猜测结果」在详情层同样成立：请求事实有、结果链接无` | 6.6 计划 tag `unlocated-reconcile`；6.2 实测 tag `dup-rejected` 8/8（notAccepted(busy) 零身份 + OPERATION_DUPLICATED / OPERATION_CONFLICT 双取证）（2026-09-28 实机） | 待实机（6.6 半边） |
+| 7 | settled 无身份与 notAccepted 不猜测结果 | `result-verification-store.test.ts › 登记里没有可信 runId ⇒ 呈现为未定位，读取项里一条结论都没有`、`result-verification-store.test.ts › notAccepted ⇒ 本次未接受（带稳定拒绝原因），没有核实成功的路径`、`operation-request-facts.test.ts › 「settled 无身份与 notAccepted 不猜测结果」在详情层同样成立：请求事实有、结果链接无` | 6.6 实测 tag `unlocated-reconcile` 9/9（核对未知 UUID ⇒ notAccepted 封禁（无目标/无时间）+ 读取项零结论 + 封禁不占槽 + 通知「未被主进程接受」+ 面板行无任何结果动作、对照 settled 行动作正常）（2026-09-29 实机）；6.2 实测 tag `dup-rejected` 8/8（notAccepted(busy) 零身份 + OPERATION_DUPLICATED / OPERATION_CONFLICT 双取证）（2026-09-28 实机） | 已交付（6.2 + 6.6 实测） |
 | 8 | 旧读取响应不能污染其他结果 | `result-verification-store.test.ts › 旧读取响应迟到 ⇒ 只认当代代次：不覆盖新结论，也不碰其他身份与其他状态`、`result-verification-store.test.ts › 同一身份的重复核实去重：只读一次详情；显式只读重试才发第二次读取`、`operation-session-epoch.test.ts › 旧 epoch 的成功响应迟到 ⇒ 不导航、不解冻、不回退会话` | 6.6 实测 tag `stale-read` 7/7（重复核实去重不发第二次读取（attempt 仍 1）；显式重试 attempt 2/3 递增、最终条目认最大代次；乙的读取项与甲的重试互不影响）；⚠️ 「旧响应迟到整份丢弃」的迟到窗需 runs:get 可延时——真机无此注入面 ⇒ 按单元承载（详见 UI-VERIFY U5 §6.6 下沉）（2026-09-29 实机） | 已交付（6.6 实测） |
 | 9 | 全部七类入口使用相同核实路径 | `operation-result-consumption.test.ts › 有效 status 采纳 ⇒ 解冻该身份 + 单次列表刷新 + 按可信 ID 核实`、`operation-result-consumption.test.ts › reconcile 采纳 ⇒ 走同一条消费（解冻 + 刷新 + 核实），结论与 status 路径一致`、`fork-entry-closure.test.ts › forkAt 与 promptFork 体内既不打列表也不选中新 run`、`proxy-ab-entry-closure.test.ts › proxyFork 与 modelAb 体内不刷列表、不选中新 run、不碰草稿仓库`、`create-entry-closure.test.ts › createRun 函数体里没有列表刷新、没有 selectRun；状态机没有 success` | 6.2 / 6.3 / 6.4 / 6.5 各批的调用序列同形判据（剧本=successPlain 贯穿） | 待实机 |
 
@@ -174,12 +222,12 @@
 | # | scenario | 已有单元/契约证据 | 实机入口 | 现状 |
 | --- | --- | --- | --- | --- |
 | 1 | 两模式配置后返回任务 | `create-workspace-store.test.ts › 设置往返（覆盖模态开合、视图未变）后再点新建 ⇒ 仍是本次来源`、`settings-roundtrip-invalidate.test.ts › 隔离 result 与创建页：配置指纹变化 ⇒ 本次副本授权作废；目录引用/模式照旧保留`、`create-form-view.test.ts › 两种模式都显示当前接入摘要，且都带可点的「运行配置」入口` | 6.2 实测 tag `create-settings-roundtrip` 11/11（2026-09-28 实机） | 已交付（6.2 实测） |
-| 2 | 重跑编辑配置往返保持阅读 | `settings-roundtrip-invalidate.test.ts › 修订与配置都同源 ⇒ fresh`、`execution-confirmation-store.test.ts › 换视图 / 进设置 / 常规打开设置 ⇒ 撤销待用的确认（离开现场）`、`fork-editor-draft.test.ts › 打开 → 编辑 → 切页签/切运行（其他状态翻动）→ 重开：草稿逐字恢复` | 6.7 计划 tag `editor-settings-roundtrip` | 待实机 |
-| 3 | 未保存设置关闭可继续或放弃 | `settings-save-feedback.test.ts › 模型字段或代理字段任何一项偏离 ⇒ 脏`、`settings-save-feedback.test.ts › 设置对话框不冒充连通、不清调试草稿、防重入双保险、只读重试走读通道`、`confirm-dialog.test.ts › 宿主渲染契约：取消为初始焦点、确认按钮可改标签` | 6.7 计划 tag `settings-close-dirty`（真点选 + 焦点回位） | 待实机 |
-| 4 | 单向密钥与保存反馈不冒充连通 | `settings-save-feedback.test.ts › 单向 key：apiKey 只要打过字就算未保存输入（它从未离开渲染层暂存）`、`settings-save-feedback.test.ts › SettingsState 的键集里**没有** apiKey：回读只含配置状态`、`config-gate.test.ts › 写失败只回单行文案：不回显密钥、也不带 stack` | 6.7 计划 tag `key-one-way`（磁盘侧不回读证据） | 待实机 |
-| 5 | 保存失败和保存后回读失败区分 | `settings-save-feedback.test.ts › 保存失败 ⇒ save-failed，错误入 store，settings 原样（没写进去也不该动事实）`、`settings-save-feedback.test.ts › 「保存失败和保存后回读失败区分」：回读失败 ⇒ reread-failed，且**不把旧摘要当新配置事实**（settings 清空）`、`settings-save-feedback.test.ts › 回读载荷形状不合法也算 reread-failed（不是 saved）` | 6.7 计划 tag `save-fail-shapes`；⚠️ 真机诱发"保存成功但回读失败"的形状要先在 6.7 里坐实，诱不出来就按单元承载登记 | 待实机 |
-| 6 | 清除确认包含凭据且受槽约束 | `settings-clear-confirm.test.ts › 确认文案点名保存凭据一并删除且不可恢复；走 requestConfirm 真模态`、`settings-clear-confirm.test.ts › 取消 ⇒ 清除通道一次都不碰；确认之后的复位只动配置输入，不越界清草稿`、`settings-clear-confirm.test.ts › 清除按钮受 U4 配置门禁（busy 防重入 + configGate），而「关闭/✕」不吃这把锁（查看返回可用）`、`config-gate.test.ts › 主动操作占槽时：save/clear 被拒、配置文件字节不变、registry 不被写入` | 6.7 计划 tag `clear-confirm`（真点选：取消一支 + 确认一支） | 待实机 |
-| 7 | 录制入口保持现有代理区可达 | `settings-roundtrip-invalidate.test.ts › 「录制入口保持现有代理区可达」：全局/空态的录制入口定位既有代理分区`、`entry-gate.test.ts › 读取、关闭与回读不被门禁锁掉（spec：settings:get / proxy:status 仍可用）` | 6.7 计划 tag `recording-entry` | 待实机 |
+| 2 | 重跑编辑配置往返保持阅读 | `settings-roundtrip-invalidate.test.ts › 修订与配置都同源 ⇒ fresh`、`execution-confirmation-store.test.ts › 换视图 / 进设置 / 常规打开设置 ⇒ 撤销待用的确认（离开现场）`、`fork-editor-draft.test.ts › 打开 → 编辑 → 切页签/切运行（其他状态翻动）→ 重开：草稿逐字恢复` | 6.7 实测 tag `editor-settings-roundtrip` 5/5（result 编辑器草稿键入后经全局栏打开设置并真实保存（换 model 改指纹）再关闭 ⇒ 阅读位置（run/span/视图）逐字不动、Monaco 草稿逐字保留；418 兜底零消费）（2026-09-29 实机） | 已交付（6.7 实测） |
+| 3 | 未保存设置关闭可继续或放弃 | `settings-save-feedback.test.ts › 模型字段或代理字段任何一项偏离 ⇒ 脏`、`settings-save-feedback.test.ts › 设置对话框不冒充连通、不清调试草稿、防重入双保险、只读重试走读通道`、`confirm-dialog.test.ts › 宿主渲染契约：取消为初始焦点、确认按钮可改标签` | 6.7 实测 tag `settings-close-dirty` 13/13（真点选：✕ 触发「运行配置有未保存修改」真模态、**初始焦点在「继续编辑」**、继续编辑逐字保留；Esc 同样先过确认（三路同源）；放弃修改并关闭 ⇒ 已保存配置与磁盘逐字节不动、**打过的密钥从未落盘**、重开输入为空；关闭后焦点恢复到全局栏触发入口）（2026-09-29 实机） | 已交付（6.7 实测） |
+| 4 | 单向密钥与保存反馈不冒充连通 | `settings-save-feedback.test.ts › 单向 key：apiKey 只要打过字就算未保存输入（它从未离开渲染层暂存）`、`settings-save-feedback.test.ts › SettingsState 的键集里**没有** apiKey：回读只含配置状态`、`config-gate.test.ts › 写失败只回单行文案：不回显密钥、也不带 stack` | 6.7 实测 tag `key-one-way` 11/11（磁盘侧不回读证据：本机 safeStorage 可用 ⇒ 落盘字节不含密钥明文（`apiKeyEncrypted=true`）；回读键集结构上没有 apiKey + 载荷不含明文；**打过字未保存 ⇒ 磁盘逐字节不动**；保存后新密钥同方式落盘、回读与重开的输入框都不回显；反馈只称「已保存并回读」并明说未发起连接测试）（2026-09-29 实机） | 已交付（6.7 实测） |
+| 5 | 保存失败和保存后回读失败区分 | `settings-save-feedback.test.ts › 保存失败 ⇒ save-failed，错误入 store，settings 原样（没写进去也不该动事实）`、`settings-save-feedback.test.ts › 「保存失败和保存后回读失败区分」：回读失败 ⇒ reread-failed，且**不把旧摘要当新配置事实**（settings 清空）`、`settings-save-feedback.test.ts › 回读载荷形状不合法也算 reread-failed（不是 saved）` | 6.7 实测 tag `save-fail-shapes` 14/14（save-failed 用 main「apiKey 不能为空」校验**零注入**诱发：反馈带真实校验文案、输入逐字保留、settings 原样、磁盘零字节不写；reread-failed 由竞速注入坐实——**保存落盘瞬间改写 settings.json 缺 apiKey**（main 的 load() 每次读盘）⇒ 专属反馈「已保存，但配置状态回读失败」+ 只读重试按钮在场 + settings 清空，还原后重试回读核实、按钮退场；竞速窗口毫秒级，第 2 次尝试得手）（2026-09-29 实机） | 已交付（6.7 实测） |
+| 6 | 清除确认包含凭据且受槽约束 | `settings-clear-confirm.test.ts › 确认文案点名保存凭据一并删除且不可恢复；走 requestConfirm 真模态`、`settings-clear-confirm.test.ts › 取消 ⇒ 清除通道一次都不碰；确认之后的复位只动配置输入，不越界清草稿`、`settings-clear-confirm.test.ts › 清除按钮受 U4 配置门禁（busy 防重入 + configGate），而「关闭/✕」不吃这把锁（查看返回可用）`、`config-gate.test.ts › 主动操作占槽时：save/clear 被拒、配置文件字节不变、registry 不被写入` | 6.7 实测 tag `clear-confirm` 15/15（真点选两支：取消 ⇒ 零清除调用、磁盘逐字节不动、配置事实原样；确认清除 ⇒ settings null + 磁盘 settings.json 删除 + 输入复位 + 反馈「运行配置已清除。」；确认文案点名「apiKey（保存的凭据）一并删除」不可恢复且草稿运行不受影响；槽约束半边 = 在飞期间（真占槽）设置内清除与保存都被禁用且就近给门禁说明）（2026-09-29 实机） | 已交付（6.7 实测） |
+| 7 | 录制入口保持现有代理区可达 | `settings-roundtrip-invalidate.test.ts › 「录制入口保持现有代理区可达」：全局/空态的录制入口定位既有代理分区`、`entry-gate.test.ts › 读取、关闭与回读不被门禁锁掉（spec：settings:get / proxy:status 仍可用）` | 6.7 实测 tag `recording-entry` 8/8（全局栏与选中运行两个状态的录制入口都打开既有设置模态、代理分区在场、**焦点落到代理分区启用复选框**、settingsSection 用后即清）——🔴 首跑抓到并修复真产品缺陷：GlobalBar 的录制入口此前经 `onOpenSettings`（先清 settingsSection 再开）⇒ "proxy" 标记挂载前就被清掉、定位效果从不发生；修在 `d158523`（GlobalBar 增 `onOpenRecording` 专用 prop 直连不清 section 的开器 + 源码级契约）（2026-09-29 实机） | 已交付（6.7 实测） |
 
 ### A7. 执行流程在窄窗口与键盘下连续可用（ADDED，3 场景）
 
@@ -253,8 +301,8 @@
 | # | scenario | 已有单元/契约证据 | 实机入口 | 现状 |
 | --- | --- | --- | --- | --- |
 | 1 | 创建设置和放弃确认不泄漏焦点 | `modal-dialog.test.ts › 真模态在场（创建/设置/放弃确认）⇒ 一次按键不同时关确认与底层编辑区`、`modal-dialog.test.ts › 焦点恢复与失效回退：打开前元素优先，回退锚点在全局栏`、`create-form-draft.test.ts › 锁定判据不变，但创建页不得做成模态（U5 4.1：焦点不禁闭、离页不挡）` | 6.8 计划 tag `real-keyboard`（创建页可离开 + 模态禁闭对照） | 待实机 |
-| 2 | Esc 只关闭最上层并恢复焦点 | `modal-dialog.test.ts › 非最近打开的编辑区不消费（prompt 与 A/B 并存逐层收起）`、`focus-escape-responsive.test.ts › 面板走共享 useEscapeClose(open, closePanel)；✕ 与 Esc 同一关闭动作`、`confirm-dialog.test.ts › 放弃确认全部经 requestConfirm（DetailPanel 9 处 + 创建 1 处）` | 6.7 计划 tag `esc-topmost`（真 Esc 键）；6.8 计划 tag `real-keyboard` | 待实机 |
-| 3 | 创建忙碌期间不能通过焦点修复绕过关闭锁 | `create-entry-closure.test.ts › 执行中不放行第二次执行：离页、展示态复位与重复登记都发不出新的 runs:create（U5 4.3）`、`draft-close-flow.test.ts › 询问期间到达的新提交：被拒并留下 notAccepted 封禁，返回后也不自动执行`、`create-form-draft.test.ts › 锁定判据不变，但创建页不得做成模态（U5 4.1：焦点不禁闭、离页不挡）` | 6.2 实测 tag `busy-no-second-run` 7/7（2026-09-28 实机）；6.7 计划 tag `quit-return` | 待实机（6.7 半边） |
+| 2 | Esc 只关闭最上层并恢复焦点 | `modal-dialog.test.ts › 非最近打开的编辑区不消费（prompt 与 A/B 并存逐层收起）`、`focus-escape-responsive.test.ts › 面板走共享 useEscapeClose(open, closePanel)；✕ 与 Esc 同一关闭动作`、`confirm-dialog.test.ts › 放弃确认全部经 requestConfirm（DetailPanel 9 处 + 创建 1 处）` | 6.7 实测 tag `esc-topmost` 8/8（真 Esc 键：非脏 ⇒ 设置关闭且焦点恢复到全局栏触发入口；脏 ⇒ 第一层 Esc 出现未保存确认（设置在下层原位）、第二层 Esc **只关确认**且输入逐字保留、第三层可再次唤起、放弃收尾后全部关闭且磁盘逐字节不动）——🔴 首跑抓到并修复真产品缺陷：Chromium「两步关闭」让第二次 Esc 以 cancelable:false 直关**底层**设置（未保存输入被静默丢弃，M6.2 被平台行为穿透）；修在 `40287fb`（ModalDialog 最上层模态在 keydown 捕获段**合成** Esc 关闭，preventDefault 压掉原生 cancel 通道，非最上层放行；modal-dialog 源码级契约同步更新）；6.8 计划 tag `real-keyboard`（真 Tab/Shift+Tab）仍待 | 已交付（6.7 实测；6.8 半边待） |
+| 3 | 创建忙碌期间不能通过焦点修复绕过关闭锁 | `create-entry-closure.test.ts › 执行中不放行第二次执行：离页、展示态复位与重复登记都发不出新的 runs:create（U5 4.3）`、`draft-close-flow.test.ts › 询问期间到达的新提交：被拒并留下 notAccepted 封禁，返回后也不自动执行`、`create-form-draft.test.ts › 锁定判据不变，但创建页不得做成模态（U5 4.1：焦点不禁闭、离页不挡）` | 6.2 实测 tag `busy-no-second-run` 7/7（2026-09-28 实机）；6.7 实测 tag `quit-return` 12/12（创建在飞 ⇒ 哨兵 quit 仍先过协商（活跃操作档）；询问期间 main 的 closing 在场且第二主动入口被拒（OPERATION_NOT_ACCEPTED + 登记 notAccepted + 零副作用）；返回 ⇒ 退出被阻止、closing 解除但槽不释放、被拒那条不自动执行（仍 notAccepted、零新文件）；原在飞照常收口并按可信 ID 核实 verified）（2026-09-29 实机） | 已交付（6.2 + 6.7 实测） |
 
 ### M7. 现有界面消费统一操作事实（MODIFIED，4 场景）
 
