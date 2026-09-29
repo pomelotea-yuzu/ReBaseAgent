@@ -365,7 +365,7 @@ export function SourceSectionView({
       {section.incompleteNote !== null ? (
         <div
           data-source-incomplete="true"
-          className="mt-1.5 rounded border-l-2 border-amber-400 bg-amber-50/60 px-2 py-1 text-reading-meta text-amber-900"
+          className="mt-1.5 break-all rounded border-l-2 border-amber-400 bg-amber-50/60 px-2 py-1 text-reading-meta text-amber-900"
         >
           {section.incompleteNote}
         </div>

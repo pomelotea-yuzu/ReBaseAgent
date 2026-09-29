@@ -8,6 +8,9 @@ import type { RunDetail } from "../src/shared/ipc";
 (globalThis as Record<string, unknown>).window = { api: {} };
 
 const { SourceSectionView } = await import("../src/renderer/src/components/OverviewPanel");
+const { LineageIncompleteNoticeView } = await import(
+  "../src/renderer/src/components/DetailNotices"
+);
 const { presentConsumption, presentSource } = await import("../src/renderer/src/lib/overview-view");
 const {
   LINEAGE_INCOMPLETE_TEXT,
@@ -288,5 +291,38 @@ describe("U6 4.1：SourceSectionView 静态渲染——缺失说明进 DOM", () 
       }),
     );
     expect(markup).not.toContain("data-source-incomplete");
+  });
+});
+
+describe("U6 4.11：LineageIncompleteNoticeView 静态渲染——长 ID/警告/复制动作可达", () => {
+  const html = (node: Parameters<typeof renderToStaticMarkup>[0]): string =>
+    renderToStaticMarkup(node);
+
+  const view = {
+    incomplete: true as const,
+    text: "仅显示本运行记录，父链不完整",
+    missingRunId: "run_a_very_long_missing_identifier_0123456789abcdef",
+    missingNote: `缺失的祖先运行：run_a_very_long_missing_identifier_0123456789abcdef`,
+    chainTruncated: true,
+  };
+
+  it("缺失 ID 以 break-all 呈现（窄窗/200% 下长 ID 换行不断版）", () => {
+    const markup = html(createElement(LineageIncompleteNoticeView, { view, onCopy: () => {} }));
+    expect(markup).toContain("data-lineage-incomplete");
+    expect(markup).toContain("break-all");
+    expect(markup).toContain(view.missingRunId);
+  });
+
+  it("复制动作是真按钮：带 aria-label（读屏可辨）且文案明确", () => {
+    const markup = html(createElement(LineageIncompleteNoticeView, { view, onCopy: () => {} }));
+    expect(markup).toContain('aria-label="复制缺失祖先 run ID');
+    expect(markup).toContain("复制缺失 run ID");
+    expect(markup).toContain('type="button"');
+  });
+
+  it("固定提示与口径说明同块呈现（不拆成两条互相矛盾的口径）", () => {
+    const markup = html(createElement(LineageIncompleteNoticeView, { view, onCopy: () => {} }));
+    expect(markup).toContain("仅显示本运行记录，父链不完整");
+    expect(markup).toContain("不补零、不推算");
   });
 });

@@ -1,6 +1,7 @@
 import { deriveMissingLlmErrorDetail, forkEditLabel, isPromptForkField } from "@shared/derive";
 import { useMemo } from "react";
 import {
+  type LineageIncompleteView,
   lineageIncompleteViewOf,
   ownOnlyBranchNoticeOf,
   truncatedChainTitleOf,
@@ -12,6 +13,7 @@ import {
   resumeBoundaryIteration,
 } from "../lib/isolated-fork";
 import { useAppStore } from "../store";
+import { FOCUS_RING } from "./IconButton";
 
 /**
  * 运行详情提示区（U1 任务 6.1 抽出）。
@@ -308,26 +310,57 @@ function IsolatedRunNotice() {
 }
 
 /**
- * U6 任务 4.1：ownOnly 详情的固定提示（步骤页与文件页共用——本组件挂在
+ * U6 任务 4.1/4.11：ownOnly 详情的固定提示（步骤页与文件页共用——本组件挂在
  * `DetailNotices` 组合里，两处同源）。
  *
  * 展示义务：固定文案 + 缺失祖先 run ID + 「自有内容仍可读、祖先指标未知」的
  * 口径说明。文案判据唯一来源是 `lib/detail-completeness.ts`；渲染层不重判。
+ *
+ * 可达性（任务 4.11）：缺失 ID 用 `break-all`（窄窗/200% 下长 ID 换行不断版），
+ * 复制动作是带 `FOCUS_RING` 与 `aria-label` 的真按钮——Tab 可达、读屏可辨。
+ * 纯视图单独导出供静态断言；store 薄壳只取详情与剪贴板。
  */
-function LineageIncompleteNotice() {
-  const detail = useAppStore((s) => s.detail);
-  const view = useMemo(() => (detail === null ? null : lineageIncompleteViewOf(detail)), [detail]);
-  if (view === null) return null;
-
+export function LineageIncompleteNoticeView({
+  view,
+  onCopy,
+}: {
+  view: LineageIncompleteView;
+  onCopy: (missingRunId: string) => void;
+}) {
   return (
     <div
       data-lineage-incomplete="true"
       className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-[11px] leading-5 text-amber-900"
     >
       <span className="font-semibold">{view.text}：</span>
-      {view.missingNote}
+      <span className="break-all">
+        缺失的祖先运行：<span className="font-code">{view.missingRunId}</span>
+      </span>
       。本运行自有输出、步骤、消耗与终止事实仍可读；共享前缀与祖先增量未知，不补零、不推算。
+      <button
+        type="button"
+        aria-label={`复制缺失祖先 run ID（${view.missingRunId}）`}
+        onClick={() => onCopy(view.missingRunId)}
+        className={`ml-1 rounded border border-amber-400 px-1.5 py-0.5 text-amber-800 hover:bg-amber-100 ${FOCUS_RING}`}
+      >
+        复制缺失 run ID
+      </button>
     </div>
+  );
+}
+
+/** store 薄壳：取当前详情派生展示事实，复制动作接剪贴板 */
+function LineageIncompleteNotice() {
+  const detail = useAppStore((s) => s.detail);
+  const view = useMemo(() => (detail === null ? null : lineageIncompleteViewOf(detail)), [detail]);
+  if (view === null) return null;
+  return (
+    <LineageIncompleteNoticeView
+      view={view}
+      onCopy={(missingRunId) => {
+        void navigator.clipboard.writeText(missingRunId);
+      }}
+    />
   );
 }
 
@@ -351,12 +384,11 @@ export function DetailNotices() {
   );
 }
 
-/** 逐个导出供测试直接渲染（本包无 jsdom，只做静态结构断言） */
+/** 逐个导出供测试直接渲染（本包无 jsdom，只做静态结构断言；ownOnly 视图另有 `LineageIncompleteNoticeView`） */
 export {
   BranchNotice,
   ErrorDetailNotice,
   IsolatedRunNotice,
-  LineageIncompleteNotice,
   ParentChainList,
   ReadingInvalidatedNotice,
   SourceUnavailableNotice,
