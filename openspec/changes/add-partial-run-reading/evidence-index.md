@@ -10,7 +10,7 @@
 > `.workbuddy/u6/u6-61/verify-scenario-checklist.cjs` 按点名的那个文件核（含 `--selftest` 反例：
 > 漏行 / 虚构场景 / 假用例名 / 假文件 / 标题真实但挂错文件 / 半截引用）。
 
-汇总口径：**47 条场景（37 ADDED / 10 MODIFIED）**，已交付 **0** 条、待验证 **47** 条、实机不成立 **0** 条
+汇总口径：**47 条场景（37 ADDED / 10 MODIFIED）**，已交付 **6** 条、待验证 **41** 条、实机不成立 **0** 条
 
 ### A1. 详情完整性在缺祖先文件时结构化降级（ADDED，22 场景）
 
@@ -18,8 +18,8 @@
 |---|---|---|---|---|
 | 1 | 普通 result 的完整父链仍合并 | `u6-lineage-read.test.ts › 1.1 完整 v1 父链 → complete:true，记录按根到叶排列` + `u6-detail-project.test.ts › 纯 result 链不受投影改造影响：resolveBranch 既有行为逐 id 不变（对照「普通 result 的完整父链仍合并」）` | 6.9 实机完整链回归 | 待验证 |
 | 2 | 根 run 以自有轨迹返回 | `u6-detail-contract.test.ts › 2.1 complete/own（根 run）：chain 单跳即根，空 spans + 空 leafSpanIds 合法` | 6.9 实机 | 待验证 |
-| 3 | 普通 result 缺祖先只读当前记录 | `u6-detail-project.test.ts › 直接缺父：只读当前已校验自有记录，chain 只剩当前 run` + `u6-lineage-read.test.ts › 普通 result 缺祖先 → 结构化 ownOnly（U6 §3.2 起生效；missingRunId 受校验）` | 6.4 实机（注入=ancestorMissing） | 待验证 |
-| 4 | 普通 result 的隔代祖先缺失 | `u6-detail-project.test.ts › 3.3 隔代缺失：chain 保留当前与直接父，spans 不混入中间祖先轨迹` + `u6-lineage-read.test.ts › 1.1 隔代祖先缺失 → 链保留当前与直接父，missingRunId 是隔代` | 6.4 实机（注入=ancestorMissing） | 待验证 |
+| 3 | 普通 result 缺祖先只读当前记录 | `u6-detail-project.test.ts › 直接缺父：只读当前已校验自有记录，chain 只剩当前 run` + `u6-lineage-read.test.ts › 普通 result 缺祖先 → 结构化 ownOnly（U6 §3.2 起生效；missingRunId 受校验）` | 6.4 实机（注入=ancestorMissing） | 已交付（6.4 实机） |
+| 4 | 普通 result 的隔代祖先缺失 | `u6-detail-project.test.ts › 3.3 隔代缺失：chain 保留当前与直接父，spans 不混入中间祖先轨迹` + `u6-lineage-read.test.ts › 1.1 隔代祖先缺失 → 链保留当前与直接父，missingRunId 是隔代` | 6.4 实机（注入=ancestorMissing） | 已交付（6.4 实机） |
 | 5 | prompt、代理和 model_params 的自有范围不等于降级 | `u6-detail-project.test.ts › 3.4 完整父链的 prompt fork：只展示自有 spans，父轨迹不进时间线` + `u6-detail-project.test.ts › 3.6 model_params 臂（完整链）：独立自有轨迹，不再误合并父前缀` | 6.5 实机 | 待验证 |
 | 6 | 独立轨迹缺祖先也返回结构化 ownOnly | `u6-detail-project.test.ts › 3.4 prompt fork 缺祖先：从头轨迹语义不变，不补父 spans，父缺失原因可见` + `u6-detail-project.test.ts › 3.5 proxy fork 缺祖先：保留本次自有事实，缺失原因可见，不借用其他 proxy 记录` + `u6-detail-project.test.ts › 3.6 model_params 臂缺祖先：ownOnly，不算可比较结果，不补父历史` | 6.5 实机（注入=ancestorMissing） | 待验证 |
 | 7 | prompt fork 缺祖先不改变从头轨迹 | `u6-detail-project.test.ts › 3.4 prompt fork 缺祖先：从头轨迹语义不变，不补父 spans，父缺失原因可见` | 6.5 实机（注入=ancestorMissing） | 待验证 |
@@ -70,11 +70,11 @@
 |---|---|---|---|---|
 | 38 | 分支 run 的轨迹 | `u6-detail-project.test.ts › 纯 result 链不受投影改造影响：resolveBranch 既有行为逐 id 不变（对照「普通 result 的完整父链仍合并」）` + `u6-lineage-read.test.ts › 完整链详情与既有语义一致（回归：resolveBranch 经单次上下文的缓存 loader）` | 6.9 实机（U1 完整链阅读回归） | 待验证 |
 | 39 | 完整独立分支不拼接父轨迹 | `u6-detail-project.test.ts › 3.4 完整父链的 prompt fork：只展示自有 spans，父轨迹不进时间线` + `u6-detail-project.test.ts › 3.6 model_params 臂（完整链）：独立自有轨迹，不再误合并父前缀` | 6.9 实机 | 待验证 |
-| 40 | 部分普通分支不伪造共享前缀 | `u6-detail-ui-completeness.test.ts › ownOnly result 分支：固定提示 + 缺失 ID，且**不出现**「共享前缀」措辞` + `u6-detail-ui-completeness.test.ts › ownOnly result 分支：关系说明不再声称共享前缀，缺失说明带缺失 run ID` | 6.4 实机 | 待验证 |
-| 41 | 部分来源链首项不冒充根 | `u6-detail-ui-completeness.test.ts › ownOnly ⇒ 明确标为截断链（首项不是根 run）` + `u6-detail-ui-completeness.test.ts › ownOnly 首项 parent 非 null ⇒ 链被截断（首项不是根）` | 6.4 实机（隔代缺失标本） | 待验证 |
+| 40 | 部分普通分支不伪造共享前缀 | `u6-detail-ui-completeness.test.ts › ownOnly result 分支：固定提示 + 缺失 ID，且**不出现**「共享前缀」措辞` + `u6-detail-ui-completeness.test.ts › ownOnly result 分支：关系说明不再声称共享前缀，缺失说明带缺失 run ID` | 6.4 实机 | 已交付（6.4 实机） |
+| 41 | 部分来源链首项不冒充根 | `u6-detail-ui-completeness.test.ts › ownOnly ⇒ 明确标为截断链（首项不是根 run）` + `u6-detail-ui-completeness.test.ts › ownOnly 首项 parent 非 null ⇒ 链被截断（首项不是根）` | 6.4 实机（隔代缺失标本） | 已交付（6.4 实机） |
 | 42 | 完整普通分支保留被编辑字段 | `u6-detail-project.test.ts › 纯 result 链不受投影改造影响：resolveBranch 既有行为逐 id 不变（对照「普通 result 的完整父链仍合并」）` + `u6-detail-ui-completeness.test.ts › ownOnly 分支保留分叉点与被编辑字段标注（记录元数据不因祖先缺失消失）` | 6.9 实机 | 待验证 |
 | 43 | 独立分支来源链完整但不共享执行前缀 | `u6-detail-project.test.ts › 3.4 完整父链的 prompt fork：只展示自有 spans，父轨迹不进时间线` + `u6-detail-ui-completeness.test.ts › ownOnly 独立分支：独立执行措辞保留，缺失说明单独出现` | 6.9 实机 | 待验证 |
-| 44 | ownOnly 文件入口不显示祖先检查点 | `u6-file-entry-ownonly.test.ts › 祖先 step 即使出现在 spans 里也不进选择器（leafSpanIds 界定自有段）` + `u6-file-entry-ownonly.test.ts › 没有自有完成步骤 ⇒ 默认落初始状态（初始快照仍是本 run 的，不是祖先的）` | 6.4 实机 | 待验证 |
+| 44 | ownOnly 文件入口不显示祖先检查点 | `u6-file-entry-ownonly.test.ts › 祖先 step 即使出现在 spans 里也不进选择器（leafSpanIds 界定自有段）` + `u6-file-entry-ownonly.test.ts › 没有自有完成步骤 ⇒ 默认落初始状态（初始快照仍是本 run 的，不是祖先的）` | 6.4 实机 | 已交付（6.4 实机） |
 | 45 | 完整隔离 result 保留整轮前缀 | `u6-detail-project.test.ts › 完整隔离链：complete/resolved + 完整 lineage，v2 整轮前缀保留（含恢复点整轮的兄弟工具）` + `u6-detail-project.test.ts › 隔离 result 直接父缺失：ownOnly，missingRunId 是直接父` | 6.9 实机（v2 隔离链回归） | 待验证 |
 | 46 | 混合父链不跨独立边界拼接 | `u6-detail-project.test.ts › result 的父是 prompt fork：不跨独立边界拼接（root 轨迹不进 result 时间线），chain 溯源不断` + `u6-detail-project.test.ts › 未知 edit.field：明确拒绝，不默认按 result 拼接` | 6.9 实机 | 待验证 |
-| 47 | 缺祖先与缺附件分别诊断 | `u6-file-entry-ownonly.test.ts › 附件缺失走原附件错误文案，不提祖先/父链` + `u6-file-entry-ownonly.test.ts › 来源完整性提示与附件诊断是两套文案（互不冒充）` | 6.4 实机 | 待验证 |
+| 47 | 缺祖先与缺附件分别诊断 | `u6-file-entry-ownonly.test.ts › 附件缺失走原附件错误文案，不提祖先/父链` + `u6-file-entry-ownonly.test.ts › 来源完整性提示与附件诊断是两套文案（互不冒充）` | 6.4 实机 | 已交付（6.4 实机） |
