@@ -42,7 +42,7 @@
 - [x] 4.7 回归 error/限制/中断保留草稿，显式失败定位只认自有调用（对应“ownOnly 失败定位只使用自有调用”）。—— 回归确认：`deriveOwnTerminalFacts.failure` 走 leafSpanIds（ownOnly spans 全自有 ⇒ 定位必在自有调用内）；无自有失败详情 ⇒ 无 view-failure 动作只给诚实说明；error 终止 normalEnd=false ⇒ 草稿保留。证据同文件 4.7 组 2 条
 - [x] 4.8 A/B 部分详情沿用预期臂/唯一 ID/experimentId 判据，缺臂与 null ID 保留整批（对应“部分实验结果保留完整批次判据”）。—— 判据零改动：`batchGapOf` 不看 completeness；ownOnly 臂各自身被独立核实为正常终止后照常计入整批。证据同文件 4.8 组 2 条（两臂 ownOnly 清理 + 缺臂/null ID/不可读三例保留）
 - [x] 4.9 结果手动重试沿用 U5 身份/代次去重，保护新修订与新 token，无关联不猜草稿（对应“后台重试不导航也不重发执行”）。—— `retryResultRead` = `readRunResult(force=true)` 既有路径回归确认：不可读→ownOnly 正常后按尚存关联清理，全程只走 `runs:get`、不换选中项、不导航；重试前推进的新修订不被删除（修订 CAS）。证据同文件 4.9 组 3 条（含纯层 verifyResultPayload 携带 lineage 回归）
-- [ ] 4.10 renderer 得知来源不完整/不可读后，复用检查代次使旧预检/计划/确认与副本授权失效；恢复要求重新检查且保留草稿，main 不新增许可吊销登记（对应“预检后父链变化仍由 main 拒绝”）。
+- [x] 4.10 renderer 得知来源不完整/不可读后，复用检查代次使旧预检/计划/确认与副本授权失效；恢复要求重新检查且保留草稿，main 不新增许可吊销登记（对应“预检后父链变化仍由 main 拒绝”）。—— `detail-completeness.ts` 增 `LINEAGE_REJECTION_CODES`/`isLineageRejectionCode`；store 增 `sourceRevocation` 撤销令牌 + `revokeSourceBoundPermissions`（检查代次每键 +1 + 确认清空 + 令牌 +1），触发口 = selectRun 落地 ownOnly 与 `submitActive` 响应以来源类稳定码拒绝；DetailPanel 隔离编辑器/A-B 编辑器订阅令牌（复用 `useRevokeOnConfigChange`，签名放宽为 string|number）撤销 capability 结果/副本授权与 A/B 计划/副作用许可，草稿正文保留；令牌只增不减 ⇒ 恢复不自动复活；main 侧吊销登记零新增（renderer 会话内凭据）。证据 `u6-partial-result-closure.test.ts` 4.10 组 3 条
 - [ ] 4.11 长 ID、警告、禁用原因和重试动作接现有可达性规则（对应“部分详情提示和恢复动作可达”）。
 
 ## 5. 执行门禁与实际端点接线

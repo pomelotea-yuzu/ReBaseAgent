@@ -74,6 +74,7 @@ import type {
   ModelAbDraftKey,
 } from "./lib/debugging-drafts";
 import * as draftLib from "./lib/debugging-drafts";
+import { isLineageRejectionCode } from "./lib/detail-completeness";
 import {
   applyDraftClosure,
   decideDraftClosure,
@@ -476,6 +477,13 @@ interface AppState {
   confirmations: ConfirmationStore;
   /** 只读检查代次（按目标键）：重启检查即推进，旧响应不可安装新确认 */
   checkGenerations: Record<string, number>;
+  /**
+   * U6 任务 4.10：**来源撤销令牌**（会话内单调递增）。
+   * 详情落地为 ownOnly、或预检/执行响应以来源类稳定码拒绝时 +1；
+   * 编辑器据此撤销绑定旧父本的 A/B 计划 / capability 结果 / 本次副本授权。
+   * 只增不减 ⇒ 父文件恢复不能自动复活（恢复后必须重新检查）。
+   */
+  sourceRevocation: number;
   /** 当前现场确认绑定：修订与设置快照都由 store 现取，组件传不进旧值 */
   currentConfirmationBinding: (
     channel: DraftSubmitChannel,
@@ -936,6 +944,12 @@ async function submitActive<TRequest, TResponse>(
       },
     };
   }
+  // U6 任务 4.10：main 以来源类稳定码拒绝（父本 ownOnly / 详情不可读）⇒
+  // renderer 同步撤销绑定旧父本的可提交状态（检查代次推进 + 确认清空 + 撤销令牌 +1），
+  // 恢复必须重新检查；草稿正文不受影响（拒绝不等于放弃输入）。
+  if (!response.ok && isLineageRejectionCode(response.error.code)) {
+    revokeSourceBoundPermissions();
+  }
   // 回执核验：可信回执才销账；缺回执 / 回执身份不匹配 ⇒ 未知（不部分采纳成功字段）
   const { ack, problem } = inspectAck(response as ExecutedResponse<unknown>, identity);
   if (problem !== null || ack === null) {
@@ -1112,6 +1126,45 @@ function clearExecutionConfirmations(): void {
       ? {}
       : { confirmations: emptyConfirmationStore() },
   );
+}
+
+/**
+ * U6 任务 4.10：renderer 得知父本来源不完整/不可读 ⇒ **撤销绑定旧来源的可提交状态**。
+ *
+ * 触发口有两类（判据 `isLineageRejectionCode` / `completeness === "ownOnly"`）：
+ * 1. 详情读取落地为 ownOnly（当前选中 run 的父链已确认不完整）；
+ * 2. 预检/执行响应以 `RUN_LINEAGE_INCOMPLETE` / `RUN_DETAIL_UNREADABLE` 拒绝。
+ *
+ * 撤销面（design D4）：
+ * - **检查代次全部推进**（`checkGenerations` 每键 +1）：旧只读检查的响应装不回新确认——
+ *   父文件恢复也**不能自动复活**，恢复后必须重新检查；
+ * - **确认凭据清空**（与 U5 的"离开现场"同一出口）；
+ * - **来源撤销令牌 +1**：编辑器（A/B 计划 / 隔离 capability 结果 / 本次副本授权）订阅它，
+ *   变化即清各自的组件局部状态——正文（草稿）一律保留。
+ *
+ * ⚠️ 这只是 renderer 会话内的展示与许可状态，**不是**第二套执行真相源：
+ *    main 在每次新提交中仍会重读并重验来源（不信任任何客户端声明）。
+ */
+function revokeSourceBoundPermissions(): void {
+  useAppStore.setState((state) => {
+    const hasChecks = Object.keys(state.checkGenerations).length > 0;
+    const hasConfirmations = Object.keys(state.confirmations.byTargetKey).length > 0;
+    if (!hasChecks && !hasConfirmations) {
+      return { sourceRevocation: state.sourceRevocation + 1 };
+    }
+    return {
+      sourceRevocation: state.sourceRevocation + 1,
+      checkGenerations: hasChecks
+        ? Object.fromEntries(
+            Object.entries(state.checkGenerations).map(([key, generation]) => [
+              key,
+              generation + 1,
+            ]),
+          )
+        : state.checkGenerations,
+      ...(hasConfirmations ? { confirmations: emptyConfirmationStore() } : {}),
+    };
+  });
 }
 
 /**
@@ -1454,6 +1507,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       // 失效回退只提示一次；成功后重新选中会清掉（见 selectSpan）
       readingInvalidated: resolved.invalidated,
     });
+    // U6 任务 4.10：落地的是 ownOnly ⇒ 当前父本来源已确认不完整，
+    // 撤销绑定它的检查代次/确认/A-B 计划/副本授权（草稿正文保留；恢复须重新检查）。
+    if (parsed.data.completeness === "ownOnly") revokeSourceBoundPermissions();
   },
 
   selectSpan(id) {
@@ -1789,6 +1845,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   confirmations: emptyConfirmationStore(),
   checkGenerations: {},
+  sourceRevocation: 0,
 
   currentConfirmationBinding(channel, target) {
     const state = get();

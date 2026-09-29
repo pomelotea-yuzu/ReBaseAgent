@@ -102,3 +102,24 @@ export function truncatedChainTitleOf(detail: RunDetail): string | null {
     ? "分叉链（截断：父链不完整，首项不是根 run）"
     : "分叉链（父链不完整）";
 }
+
+// ---------------------------------------------------------------------------
+// U6 任务 4.10：来源拒绝码 ⇒ renderer 撤销旧预检/计划/确认/副本授权
+//
+// main 的稳定码（§5 执行门禁交付；renderer 侧先行接好消费面）：
+//   - `RUN_LINEAGE_INCOMPLETE`：被引用父本 ownOnly（祖先文件确实缺失）；
+//   - `RUN_DETAIL_UNREADABLE`：被引用详情读取失败（损坏/版本/成环/非法定位）。
+// 两种情况下"当初预检/确认时看到的父本"已经不成立 ⇒ 绑它的可提交状态全部作废，
+// 恢复必须重新检查（父文件恢复**不能自动复活**旧确认——代次只增不减）。
+// ---------------------------------------------------------------------------
+
+/** main 侧来源类拒绝的稳定码集合 */
+export const LINEAGE_REJECTION_CODES: readonly string[] = [
+  "RUN_LINEAGE_INCOMPLETE",
+  "RUN_DETAIL_UNREADABLE",
+] as const;
+
+/** 该错误码是否是"父本来源不成立"类拒绝（预检/执行响应共用这一个判据） */
+export function isLineageRejectionCode(code: string): boolean {
+  return LINEAGE_REJECTION_CODES.includes(code);
+}

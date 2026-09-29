@@ -8,10 +8,14 @@ import { useEffect, useRef } from "react";
  * （打到的是另一台上游）。确认凭据的撤销走 `setSettingsSection` 进出（任务 4.4 已交付），
  * 本钩子管的是**保存成功导致指纹变化**这一路。
  *
+ * U6 任务 4.10 起复用为通用的"撤销令牌"订阅：`currentStamp` 也可以是
+ * store 的 `sourceRevocation` 计数（数值）——令牌推进 ⇒ 回调撤销编辑器的
+ * A/B 计划 / capability 结果 / 本次副本授权。
+ *
  * 只在指纹**变化**时回调一次；首次挂载不算变化（不清掉进页面前就存在的勾选）。
  * 回调经 ref 取最新值，不要求调用方 memoize。
  */
-export function useRevokeOnConfigChange(currentStamp: string, revoke: () => void): void {
+export function useRevokeOnConfigChange(currentStamp: string | number, revoke: () => void): void {
   const previous = useRef(currentStamp);
   const revokeRef = useRef(revoke);
   revokeRef.current = revoke;

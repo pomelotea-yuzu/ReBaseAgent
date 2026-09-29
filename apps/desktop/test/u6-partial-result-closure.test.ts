@@ -7,6 +7,7 @@ import type { OperationRecord } from "@shared/operations";
 import { beforeEach, describe, expect, it } from "vitest";
 import * as draftLib from "../src/renderer/src/lib/debugging-drafts";
 import type { CallDraftKey, ModelAbDraftKey } from "../src/renderer/src/lib/debugging-drafts";
+import { isLineageRejectionCode } from "../src/renderer/src/lib/detail-completeness";
 import { closureOf } from "../src/renderer/src/lib/draft-submission";
 import { buildOperationResultViews } from "../src/renderer/src/lib/operation-result-view";
 import { initialSession } from "../src/renderer/src/lib/operation-session";
@@ -16,7 +17,7 @@ import {
   resultReadKeyOf,
   verifyResultPayload,
 } from "../src/renderer/src/lib/result-verification";
-import { FAKE_EPOCH, statusSnapshot } from "./helpers/operation-channels";
+import { FAKE_EPOCH, executedFail, statusSnapshot } from "./helpers/operation-channels";
 
 /**
  * U6（add-partial-run-reading）任务 4.6–4.9：部分详情沿用 U5 的结果核实与草稿收尾。
@@ -194,6 +195,10 @@ beforeEach(async () => {
     drafts: draftLib.emptyDraftRepo(),
     draftSubmissions: { byId: {}, closures: {}, nextToken: 1 },
     createSourceRef: null,
+    confirmations: { byTargetKey: {} },
+    checkGenerations: {},
+    sourceRevocation: 0,
+    forking: "idle" as const,
     view: "trace",
     createReturnLocation: null,
     runs: [],
@@ -473,5 +478,96 @@ describe("4.9 手动重试：只读、不导航、只按尚存关联清理", () 
     expect(entry.lineage?.status === "incomplete" && entry.lineage.missingRunId === MISSING).toBe(
       true,
     );
+  });
+});
+
+describe("4.10 renderer 得知来源不完整 ⇒ 撤销旧预检/计划/确认/授权", () => {
+  it("isLineageRejectionCode：只认两类来源稳定码（纯判据）", () => {
+    expect(isLineageRejectionCode("RUN_LINEAGE_INCOMPLETE")).toBe(true);
+    expect(isLineageRejectionCode("RUN_DETAIL_UNREADABLE")).toBe(true);
+    expect(isLineageRejectionCode("PARENT_NOT_ISOLATED")).toBe(false);
+    expect(isLineageRejectionCode("GET_RUN_FAILED")).toBe(false);
+  });
+
+  /** 完整详情夹具（与 ownOnlyNamed 相同底料，completeness=complete） */
+  function completeNamed(id: string): RunDetail {
+    const record: RunRecord = readRun(resolve(FIXTURE_DIR, "u1-ok.jsonl"));
+    const meta = { ...record.meta, id };
+    return {
+      meta,
+      spans: record.spans,
+      events: record.events,
+      status: record.status,
+      chain: [{ meta, fork: null }],
+      leafSpanIds: record.spans.map((span) => span.id),
+      completeness: "complete",
+      spanScope: "own",
+      lineage: { status: "complete" },
+    } as RunDetail;
+  }
+
+  /** 预置一份草稿 + 已推进的检查代次 + 已武装的确认（先检查后确认，与真实流程同序） */
+  function armPermissionState(): {
+    revocation: number;
+    generation: number | undefined;
+    armed: number;
+  } {
+    const store = useAppStore.getState();
+    store.ensureCallDraft(KEY_A, "原结果", undefined);
+    store.writeCallDraftText(KEY_A, "确认过的输入");
+    store.restartExecutionCheck(KEY_A);
+    store.armExecutionConfirmation(store.currentConfirmationBinding("result", KEY_A));
+    const state = useAppStore.getState();
+    const keys = Object.keys(state.checkGenerations);
+    expect(keys.length).toBe(1);
+    return {
+      revocation: state.sourceRevocation,
+      generation: state.checkGenerations[keys[0] ?? ""],
+      armed: Object.keys(state.confirmations.byTargetKey).length,
+    };
+  }
+
+  it("详情落地为 ownOnly ⇒ 撤销令牌 +1 且检查代次推进（complete 则都不动）", async () => {
+    const before = armPermissionState();
+    details = { run_own: ok(ownOnlyNamed("run_own")) };
+
+    await useAppStore.getState().selectRun("run_own");
+
+    const keys = Object.keys(useAppStore.getState().checkGenerations);
+    const state = useAppStore.getState();
+    expect(state.sourceRevocation).toBe(before.revocation + 1);
+    // 检查代次 +1：旧检查的响应装不回新确认；父文件恢复也不能复活
+    expect(state.checkGenerations[keys[0] ?? ""]).toBe((before.generation ?? 0) + 1);
+
+    // 对照组：complete 落地不撤销（注意 selectRun 自身会清确认——那是 U5 的"离开现场"，
+    // 与来源撤销无关；判别面是撤销令牌与检查代次）
+    const beforeComplete = armPermissionState();
+    details = { run_complete: ok(completeNamed("run_complete")) };
+    await useAppStore.getState().selectRun("run_complete");
+    const keys2 = Object.keys(useAppStore.getState().checkGenerations);
+    const state2 = useAppStore.getState();
+    expect(state2.sourceRevocation).toBe(beforeComplete.revocation);
+    expect(state2.checkGenerations[keys2[0] ?? ""]).toBe(beforeComplete.generation);
+  });
+
+  it("执行响应以来源类稳定码拒绝 ⇒ 撤销并清空确认；其他错误码不撤销", async () => {
+    // 来源类拒绝：forkRun 桩返回 RUN_LINEAGE_INCOMPLETE（带合法回执）
+    const before = armPermissionState();
+    expect(before.armed).toBe(1);
+    apiStub.forkRun = executedFail("RUN_LINEAGE_INCOMPLETE", "来源不完整：祖先文件缺失");
+    const accepted = await useAppStore.getState().forkAt("run_viewing", "s_03", "编辑后的结果");
+    expect(accepted).toBe(false);
+    let state = useAppStore.getState();
+    expect(state.sourceRevocation).toBe(before.revocation + 1);
+    expect(Object.keys(state.confirmations.byTargetKey)).toHaveLength(0);
+
+    // 非 source 类拒绝：不触发撤销（确认原样保留——那是 U5 既有语义）
+    const beforeOther = armPermissionState();
+    expect(beforeOther.armed).toBe(1);
+    apiStub.forkRun = executedFail("PARENT_NOT_ISOLATED", "普通父本不带隔离声明");
+    await useAppStore.getState().forkAt("run_viewing", "s_03", "再次编辑");
+    state = useAppStore.getState();
+    expect(state.sourceRevocation).toBe(beforeOther.revocation);
+    expect(Object.keys(state.confirmations.byTargetKey)).toHaveLength(1);
   });
 });

@@ -869,6 +869,13 @@ function ModelAbEditor({
   // （dry-run 结论要打到的是"当时那台上游"）；代理启停/凭据波动不参与（modelConfigStampOf 的口径）
   const currentConfigStamp = modelConfigStampOf(settings);
   const [planConfigStamp, setPlanConfigStamp] = useState<string | null>(null);
+  // U6 任务 4.10：来源撤销令牌——详情重读为 ownOnly、或 main 以来源类稳定码拒绝后，
+  // 旧计划与本次副作用许可作废，恢复须重新预览并重新确认（批次草稿正文保留）。
+  const sourceRevocation = useAppStore((s) => s.sourceRevocation);
+  useRevokeOnConfigChange(sourceRevocation, () => {
+    setPlan(null);
+    setAllowSideEffects(false);
+  });
   const planFreshness = decidePlanFreshness({
     planRevision,
     draftRevision,
@@ -2167,6 +2174,13 @@ function ForkEditor({
   // U5 任务 5.3：模型配置变了（设置往返保存成功）⇒ "本次副本写入"授权作废——
   // 授权绑的是当时那台上游；确认/检查代次走 setSettingsSection 进出（4.4），两路互补。
   useRevokeOnConfigChange(modelConfigStampOf(settings), () => setWritesAuthorized(false));
+  // U6 任务 4.10：来源撤销令牌——详情重读为 ownOnly、或 main 以来源类稳定码拒绝后，
+  // 旧 capability 结果与本次副本写入授权作废，恢复须重新预检（草稿正文保留）。
+  const sourceRevocation = useAppStore((s) => s.sourceRevocation);
+  useRevokeOnConfigChange(sourceRevocation, () => {
+    setVerified(null);
+    setWritesAuthorized(false);
+  });
 
   const isolated = isIsolatedRun(run);
 
