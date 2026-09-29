@@ -10,7 +10,7 @@
 > `.workbuddy/u6/u6-61/verify-scenario-checklist.cjs` 按点名的那个文件核（含 `--selftest` 反例：
 > 漏行 / 虚构场景 / 假用例名 / 假文件 / 标题真实但挂错文件 / 半截引用）。
 
-汇总口径：**47 条场景（37 ADDED / 10 MODIFIED）**，已交付 **15** 条、待验证 **32** 条、实机不成立 **0** 条
+汇总口径：**47 条场景（37 ADDED / 10 MODIFIED）**，已交付 **23** 条、待验证 **24** 条、实机不成立 **0** 条
 
 ### A1. 详情完整性在缺祖先文件时结构化降级（ADDED，22 场景）
 
@@ -25,17 +25,17 @@
 | 7 | prompt fork 缺祖先不改变从头轨迹 | `u6-detail-project.test.ts › 3.4 prompt fork 缺祖先：从头轨迹语义不变，不补父 spans，父缺失原因可见` | 6.5 实机（注入=ancestorMissing） | 已交付（6.5 实机） |
 | 8 | proxy fork 缺祖先不借用代理记录 | `u6-detail-project.test.ts › 3.5 proxy fork 缺祖先：保留本次自有事实，缺失原因可见，不借用其他 proxy 记录` | 6.5 实机（注入=ancestorMissing） | 已交付（6.5 实机） |
 | 9 | model_params 臂缺祖先不变成可比较结果 | `u6-detail-project.test.ts › 3.6 model_params 臂缺祖先：ownOnly，不算可比较结果，不补父历史` | 6.5 实机（注入=ancestorMissing） | 已交付（6.5 实机） |
-| 10 | 当前文件或祖先不是可确认的缺失 | `u6-lineage-read.test.ts › 1.1 当前文件缺失 → CURRENT_RUN_NOT_FOUND，原因受控（对应「当前文件或祖先不是可确认的缺失」）` + `u6-lineage-faults.test.ts › currentMissing ⇒ 读取直接失败（缺当前文件不返回 ownOnly）` | 6.6 实机（注入=currentMissing） | 待验证 |
-| 11 | 祖先文件损坏不降级 | `u6-lineage-read.test.ts › 1.2 祖先 JSONL 损坏 → ANCESTOR_INVALID 严格失败，不降级（对应「祖先文件损坏不降级」）` + `u6-lineage-faults.test.ts › ancestorCorrupt ⇒ 严格失败不降级 ownOnly（受控中文，不透传路径）` | 6.6 实机（注入=ancestorCorrupt） | 待验证 |
-| 12 | 未来版本祖先不降级 | `u6-lineage-read.test.ts › 1.3 未来版本祖先 → 版本守卫拒绝，不是缺失（对应「未来版本祖先不降级」）` + `u6-lineage-faults.test.ts › ancestorFutureVersion ⇒ 版本守卫拒绝，schema 转换前失败` | 6.6 实机（注入=ancestorFutureVersion） | 待验证 |
+| 10 | 当前文件或祖先不是可确认的缺失 | `u6-lineage-read.test.ts › 1.1 当前文件缺失 → CURRENT_RUN_NOT_FOUND，原因受控（对应「当前文件或祖先不是可确认的缺失」）` + `u6-lineage-faults.test.ts › currentMissing ⇒ 读取直接失败（缺当前文件不返回 ownOnly）` | 6.6 实机（注入=currentMissing） | 已交付（6.6 实机） |
+| 11 | 祖先文件损坏不降级 | `u6-lineage-read.test.ts › 1.2 祖先 JSONL 损坏 → ANCESTOR_INVALID 严格失败，不降级（对应「祖先文件损坏不降级」）` + `u6-lineage-faults.test.ts › ancestorCorrupt ⇒ 严格失败不降级 ownOnly（受控中文，不透传路径）` | 6.6 实机（注入=ancestorCorrupt） | 已交付（6.6 实机） |
+| 12 | 未来版本祖先不降级 | `u6-lineage-read.test.ts › 1.3 未来版本祖先 → 版本守卫拒绝，不是缺失（对应「未来版本祖先不降级」）` + `u6-lineage-faults.test.ts › ancestorFutureVersion ⇒ 版本守卫拒绝，schema 转换前失败` | 6.6 实机（注入=ancestorFutureVersion） | 已交付（6.6 实机） |
 | 13 | v1 祖先携带隔离字段不降级 | `u6-lineage-read.test.ts › 1.3 v1 祖先私带隔离字段（meta/fork/span 三处，值 null/空对象也算存在）→ 守卫失败而非缺失` | 6.6（元数据级注入，实机与单元同形则按单元承载） | 待验证 |
-| 14 | 祖先链成环不降级 | `u6-lineage-read.test.ts › 1.5 祖先链成环 → LINEAGE_CYCLE 终止，不死循环不截断（对应「祖先链成环不降级」）` + `u6-lineage-faults.test.ts › lineageCycle ⇒ 成环严格失败，不截断成 ownOnly` | 6.6 实机（注入=lineageCycle） | 待验证 |
-| 15 | fork 定位非法不降级 | `u6-lineage-read.test.ts › 1.5 v2 整轮边界不在可读直接父自有记录、隔代缺失 → FORK_INVALID 优先（对应「fork 定位非法不降级」）` + `u6-lineage-faults.test.ts › forkInvalid ⇒ at_span 不属于父轨迹 ⇒ 定位非法失败` | 6.6 实机（注入=forkInvalid） | 待验证 |
-| 16 | 父文件恢复后重试全量重验 | `u6-detail-project.test.ts › ownOnly → 恢复父文件 → complete；恢复的是损坏文件 → 仍失败，不缓存旧结论` + `u6-lineage-faults.test.ts › ancestorMissing ⇒ 结构化 ownOnly；还原（父文件恢复）后重读 ⇒ complete/resolved` + `u6-exec-source-gate.test.ts › 5.10 来源拒绝后恢复父文件：同 ID 只命中判重不复活；新 ID 重检后可执行` | 6.6 实机（注入=ancestorMissing 后还原） | 待验证 |
+| 14 | 祖先链成环不降级 | `u6-lineage-read.test.ts › 1.5 祖先链成环 → LINEAGE_CYCLE 终止，不死循环不截断（对应「祖先链成环不降级」）` + `u6-lineage-faults.test.ts › lineageCycle ⇒ 成环严格失败，不截断成 ownOnly` | 6.6 实机（注入=lineageCycle） | 已交付（6.6 实机） |
+| 15 | fork 定位非法不降级 | `u6-lineage-read.test.ts › 1.5 v2 整轮边界不在可读直接父自有记录、隔代缺失 → FORK_INVALID 优先（对应「fork 定位非法不降级」）` + `u6-lineage-faults.test.ts › forkInvalid ⇒ at_span 不属于父轨迹 ⇒ 定位非法失败` | 6.6 实机（注入=forkInvalid） | 已交付（6.6 实机） |
+| 16 | 父文件恢复后重试全量重验 | `u6-detail-project.test.ts › ownOnly → 恢复父文件 → complete；恢复的是损坏文件 → 仍失败，不缓存旧结论` + `u6-lineage-faults.test.ts › ancestorMissing ⇒ 结构化 ownOnly；还原（父文件恢复）后重读 ⇒ complete/resolved` + `u6-exec-source-gate.test.ts › 5.10 来源拒绝后恢复父文件：同 ID 只命中判重不复活；新 ID 重检后可执行` | 6.6 实机（注入=ancestorMissing 后还原） | 已交付（6.6 实机） |
 | 17 | 读取重试不改变阅读位置 | `u6-detail-refresh-guard.test.ts › 重试在飞期间选择别的调用 ⇒ 落地不覆盖新阅读位置` + `u6-detail-refresh-guard.test.ts › 重试在飞期间换页签 ⇒ 落地落在用户新页签上` + `u6-detail-refresh-guard.test.ts › 恢复前的 ownOnly 旧响应后到 ⇒ 不覆盖恢复后的 complete 详情` | 6.7 实机 | 待验证 |
 | 18 | 详情完整性字段拒绝错配 | `u6-detail-contract.test.ts › 缺省 completeness 整份拒绝（不允许静默缺省）` + `u6-detail-contract.test.ts › 未知枚举由 schema 拒绝（不能借未知字段剥离接受错配）` + `u6-detail-contract.test.ts › 2.5 U5 后台核实入口对错配载荷返回失败（verifyResultPayload 不放宽）` | —（schema/main 自检/renderer 守卫三层全单元承载；错配载荷无实机注入面：桥接面只回真 main 产出） | 待验证 |
 | 19 | 文件身份与路径不能伪造来源 | `u6-lineage-read.test.ts › 1.4 非法请求标识在任何 fs 访问之前拒绝（对应「文件身份与路径不能伪造来源」的路径半边）` + `u6-lineage-read.test.ts › 1.4 祖先 meta.id 与文件名不符 → 拒绝详情，不从错误正文猜缺失 ID` + `u6-lineage-read.test.ts › 非法 run id → 抛受控原因（getRun 与 loadRunRecord 两处都在 fs 之前拒绝）` | —（路径伪造在真机只能经 UI 输入 run id，桌面无该输入面；单元层注入计数已证零 fs 访问） | 待验证 |
-| 20 | 已知无效关系不能被更早缺失遮蔽 | `u6-lineage-read.test.ts › 1.5 可读 hop 缺 fork 且更早祖先缺失 → FORK_INVALID 优先于缺失（对应「已知无效关系不能被更早缺失遮蔽」）` + `u6-lineage-read.test.ts › 1.5 祖先未封存且隔代缺失 → 严格失败而非 ownOnly（未封存不能被缺失遮蔽）` | 6.6 实机（注入=lineageCycle 与缺失叠加） | 待验证 |
+| 20 | 已知无效关系不能被更早缺失遮蔽 | `u6-lineage-read.test.ts › 1.5 可读 hop 缺 fork 且更早祖先缺失 → FORK_INVALID 优先于缺失（对应「已知无效关系不能被更早缺失遮蔽」）` + `u6-lineage-read.test.ts › 1.5 祖先未封存且隔代缺失 → 严格失败而非 ownOnly（未封存不能被缺失遮蔽）` | 6.6 实机（注入=lineageCycle 与缺失叠加） | 已交付（6.6 实机） |
 | 21 | 合法零 span 记录可部分读取 | `u6-detail-project.test.ts › 合法零 span 记录：空数组不当损坏，自有事件照常保留` + `u6-lineage-read.test.ts › 1.1 合法零 span 当前记录 + 祖先缺失 → 结构化缺失，空数组不当损坏（对照「合法零 span 记录可部分读取」分类半边）` | 6.4 实机 | 待验证 |
 | 22 | 读取诊断不泄漏路径和正文 | `u6-lineage-read.test.ts › 1.1 当前文件缺失 → CURRENT_RUN_NOT_FOUND，原因受控（对应「当前文件或祖先不是可确认的缺失」）` + `u6-exec-source-gate.test.ts › 祖先缺失 ⇒ RUN_LINEAGE_INCOMPLETE 并携带受校验的 missingRunId`（该用例断言无盘符/无 traces 路径） | 6.4 实机（截屏核对提示文案） | 待验证 |
 
@@ -48,7 +48,7 @@
 | 25 | ownOnly 隔离 result 不消费副本授权 | `u6-exec-source-gate.test.ts › ownOnly 隔离父本 + 合法 allowFileWrites 请求 ⇒ RUN_LINEAGE_INCOMPLETE，无副本世界/trace 创建` | 6.3 变异 + 6.4 实机 | 待验证 |
 | 26 | ownOnly model_params dry-run 保持只读 | `u6-exec-source-gate.test.ts › ownOnly 父本 ⇒ RUN_LINEAGE_INCOMPLETE：无计划、零网络、登记仍为空` + `u6-exec-source-gate.test.ts › 正对照：完整父本的 dry-run 计划可用且不产生登记、零模型调用` | 6.3 变异 + 6.5 实机 | 已交付（6.5 实机） |
 | 27 | 读取重试与执行严格分离 | `u6-partial-result-closure.test.ts › 不可读 → ownOnly 正常：重试后按原关联清理；全程零执行通道、不换选中项` + `u6-partial-result-closure.test.ts › store：详情落地 ownOnly ⇒ canExecuteFromSource false；complete ⇒ true` | 6.7 实机（重试按钮 → 仅 runs:get） | 待验证 |
-| 28 | 详情加载失败在执行入口即拒绝 | `u6-exec-source-gate.test.ts › 当前文件损坏 ⇒ RUN_DETAIL_UNREADABLE（缺失不掩盖损坏，missingRunId 为 null）` + `u6-exec-source-gate.test.ts › 父文件损坏 ⇒ RUN_DETAIL_UNREADABLE（严格失败不降级）` | 6.3 变异 + 6.6 实机（注入=ancestorCorrupt） | 待验证 |
+| 28 | 详情加载失败在执行入口即拒绝 | `u6-exec-source-gate.test.ts › 当前文件损坏 ⇒ RUN_DETAIL_UNREADABLE（缺失不掩盖损坏，missingRunId 为 null）` + `u6-exec-source-gate.test.ts › 父文件损坏 ⇒ RUN_DETAIL_UNREADABLE（严格失败不降级）` | 6.3 变异 + 6.6 实机（注入=ancestorCorrupt） | 已交付（6.6 实机） |
 | 29 | 父链恢复不复活已拒绝操作 | `u6-exec-source-gate.test.ts › 5.10 来源拒绝后恢复父文件：同 ID 只命中判重不复活；新 ID 重检后可执行` | 6.3 + 6.6 实机 | 待验证 |
 | 30 | 预检后父链变化仍由 main 拒绝 | `u6-exec-source-gate.test.ts › 5.9 直调端点（绕过 UI）：main 现读磁盘——预检通过后父文件消失仍拒绝` + `u6-partial-result-closure.test.ts › 执行响应以来源类稳定码拒绝 ⇒ 撤销并清空确认；其他错误码不撤销` | 6.3 + 6.6 实机 | 待验证 |
 | 31 | 隔离 capability 对不完整来源明确拒绝 | `isolated-desktop-flows.test.ts › 根 trace 消失 ⇒ capability 以 RUN_LINEAGE_INCOMPLETE 拒绝（不授予许可、不写文件）` + `isolated-desktop-flows.test.ts › 正对照：根在场时二次分叉父本的 capability 照常给出` | 6.3 变异 + 6.5 实机 | 已交付（6.5 实机） |

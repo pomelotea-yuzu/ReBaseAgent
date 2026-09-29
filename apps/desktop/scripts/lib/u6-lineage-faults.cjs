@@ -148,6 +148,41 @@ const LINEAGE_FAULTS = {
     },
   },
 
+  /** 关系篡改：v1 祖先私带隔离字段（meta.workspace / fork.resume_after_step）⇒ 版本守卫失败 */
+  ancestorV1IsolationField: {
+    说明: "v1 祖先携带非法隔离字段（值 null/空对象也算存在）",
+    needsAncestor: true,
+    apply(ctx) {
+      editMetaLine(ctx.ancestorFile, (meta) => {
+        if (meta.format_version !== 1)
+          throw new Error(`ancestorV1IsolationField 要求 v1 祖先，实际 format_version=${meta.format_version}`);
+        // 值取 null / 空对象——守卫判"字段存在"而非"值有效"，null 也算违规（U6 §1.3 口径）
+        meta.workspace = null;
+        return meta;
+      });
+    },
+    restore(ctx) {
+      writeFileSync(ctx.ancestorFile, ctx.snapshotAncestor);
+    },
+  },
+
+  /** 关系篡改：删可读祖先的 fork 字段（parent 非空 ⇒ 结构非法）⇒ FORK_INVALID 优先于更早缺失 */
+  ancestorForkMissing: {
+    说明: "可读祖先缺 fork 元数据（parent 已指向某 run）",
+    needsAncestor: true,
+    apply(ctx) {
+      editMetaLine(ctx.ancestorFile, (meta) => {
+        if (meta.parent === null || meta.parent === undefined)
+          throw new Error("ancestorForkMissing 要求祖先 parent 非空（根 run 带 fork 是另一种错误）");
+        meta.fork = null;
+        return meta;
+      });
+    },
+    restore(ctx) {
+      writeFileSync(ctx.ancestorFile, ctx.snapshotAncestor);
+    },
+  },
+
   /** 当前文件缺失 ⇒ 读取直接失败（D2「缺当前文件直接失败」，不返回 ownOnly） */
   currentMissing: {
     说明: "当前 run 的 trace 文件缺失（读取直接失败）",

@@ -216,8 +216,65 @@ describe("U6 6.1 来源链注入：每种注入的实际读取形状（对着真
     expect(restore.clean).toBe(true);
   });
 
-  it("currentMissing ⇒ 读取直接失败（缺当前文件不返回 ownOnly）", async () => {
+  it("ancestorV1IsolationField ⇒ v1 祖先私带隔离字段被守卫拒绝（不是缺失）", async () => {
     const { traces, repo } = tempTraces();
+    const { fnResult, restore } = await lineageFaults.withLineageFault(
+      { ...CHILD_TARGET(), tracesDir: traces },
+      "ancestorV1IsolationField",
+      async () => ({
+        detail: probeDetail(repo, CHILD_ID),
+        raw: (() => {
+          try {
+            repo.getRun(CHILD_ID);
+            return "";
+          } catch (e) {
+            return e instanceof Error ? e.message : String(e);
+          }
+        })(),
+      }),
+    );
+    const observed = fnResult as { detail: { ok: boolean }; raw: string };
+    expect(observed.detail.ok).toBe(false);
+    expect(observed.detail.completeness).toBeUndefined();
+    // 字段值是 null 也算"存在"⇒ 守卫失败而非缺失（不把该祖先当文件缺失）
+    expect(observed.raw).not.toContain("不存在");
+    expect(restore.clean).toBe(true);
+  });
+
+  it("ancestorForkMissing ⇒ 可读祖先缺 fork ⇒ FORK_INVALID（结构非法不被缺失遮蔽的注入面）", async () => {
+    // 三代链：root ← mid ← child；删 mid 的 fork（mid.parent=root 非空）⇒ 结构失败。
+    // 叠加 root 缺失时该错误仍优先（#20 的注入面；叠加组合由实机批跑）。
+    const { traces, repo } = tempTraces();
+    // 造 mid：mid.parent=root、fork 合法
+    writeFileSync(
+      join(traces, "r_mid.jsonl"),
+      `${[
+        metaLine("r_mid", ROOT_ID, { at_span: "s1", edit: { field: "result", value: "m" } }),
+        stepLine("m_s1"),
+        STOP,
+      ].join("\n")}\n`,
+    );
+    // child 改挂 mid
+    writeFileSync(
+      join(traces, "r_grand.jsonl"),
+      `${[
+        metaLine("r_grand", "r_mid", { at_span: "m_s1", edit: { field: "result", value: "g" } }),
+        stepLine("g_s1"),
+        STOP,
+      ].join("\n")}\n`,
+    );
+    const { fnResult, restore } = await lineageFaults.withLineageFault(
+      { tracesDir: traces, childRunId: "r_mid", ancestorRunId: "r_mid" },
+      "ancestorForkMissing",
+      async () => probeDetail(repo, "r_grand"),
+    );
+    const observed = fnResult as { ok: boolean; message: string };
+    expect(observed.ok).toBe(false);
+    expect(observed.message).toContain("fork");
+    expect(restore.clean).toBe(true);
+  });
+
+  it("currentMissing ⇒ 读取直接失败（缺当前文件不返回 ownOnly）", async () => {    const { traces, repo } = tempTraces();
     const { fnResult, restore } = await lineageFaults.withLineageFault(
       { tracesDir: traces, childRunId: CHILD_ID },
       "currentMissing",
@@ -229,8 +286,25 @@ describe("U6 6.1 来源链注入：每种注入的实际读取形状（对着真
     expect(restore.clean).toBe(true);
   });
 
-  it("六种注入逐字节还原：指纹差集为空且不留隐藏文件与残留标记", async () => {
+  it("八种注入逐字节还原：指纹差集为空且不留隐藏文件与残留标记", async () => {
     const { traces } = tempTraces();
+    // ancestorForkMissing 需要非根祖先：补三代链（mid、grand）
+    writeFileSync(
+      join(traces, "r_mid.jsonl"),
+      `${[
+        metaLine("r_mid", ROOT_ID, { at_span: "s1", edit: { field: "result", value: "m" } }),
+        stepLine("m_s1"),
+        STOP,
+      ].join("\n")}\n`,
+    );
+    writeFileSync(
+      join(traces, "r_grand.jsonl"),
+      `${[
+        metaLine("r_grand", "r_mid", { at_span: "m_s1", edit: { field: "result", value: "g" } }),
+        stepLine("g_s1"),
+        STOP,
+      ].join("\n")}\n`,
+    );
     const before = (() => {
       // 复用 U5 的指纹原语：直接经注入模块外的同一实现（require 避免 TS 类型面扩张）
       const u5 = require("../scripts/lib/u5-read-faults.cjs") as {
@@ -246,7 +320,9 @@ describe("U6 6.1 来源链注入：每种注入的实际读取形状（对着真
       const target: FaultTarget =
         kind === "currentMissing" || kind === "forkInvalid"
           ? { tracesDir: traces, childRunId: CHILD_ID }
-          : { ...CHILD_TARGET(), tracesDir: traces };
+          : kind === "ancestorForkMissing"
+            ? { tracesDir: traces, childRunId: "r_grand", ancestorRunId: "r_mid" }
+            : { ...CHILD_TARGET(), tracesDir: traces };
       const { restore } = await lineageFaults.withLineageFault(target, kind, async () => undefined);
       expect(restore.clean, `${kind} 未回到施加前`).toBe(true);
       expect(restore.diff).toEqual({ added: [], removed: [], changed: [] });
