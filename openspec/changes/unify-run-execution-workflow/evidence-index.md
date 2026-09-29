@@ -6,7 +6,7 @@
 > 回查脚本：`.workbuddy/u5/u5-61/verify-scenario-checklist.cjs`（六项判据 + `--selftest` 反证）；
 > 用例名池：`.workbuddy/u5/u5-61/case-inventory.json`（172 文件 / 2597 条 `it` 标题）。
 
-汇总口径：**74 条场景（41 ADDED / 33 MODIFIED）**，单元或契约证据已交付 **60** 条、待实机 **13** 条、实机不成立 **1** 条（6.2 + 6.3 + 6.4 + 6.5 + 6.6 + 6.7 批实测后）
+汇总口径：**74 条场景（41 ADDED / 33 MODIFIED）**，单元或契约证据已交付 **66** 条、待实机 **7** 条、实机不成立 **1** 条（6.2–6.8 六批实测后；剩余 7 条按层引用或归 §7.1 回归 / §7.3 逐条核对）
 
 ## 怎么读这张表
 
@@ -157,6 +157,46 @@
 - **store 的确认凭据在 `confirmations.byTargetKey`**（不是顶层键）——探针读 `Object.keys(
   s.confirmations)` 只会拿到容器名，首跑假红根因。
 
+### 6.8 采集口径登记（第七批受控实机：代表宽度 / 200% / 真键盘 / 指纹 / live 区域，2026-09-29）
+
+| 项 | 值 |
+| --- | --- |
+| 批量驱动 | `.workbuddy/u5/u5-68/run-all.cjs`（6 tag 两组串跑，`汇总：6/6 通过`；组 2 带 `REBASEAGENT_ZOOM_FACTOR=2`） |
+| 采集脚本 | `apps/desktop/scripts/u5-68-cdp.cjs`（measurements 各带 HEAD / Electron / lib+ps1 sha 前 12 位 / traces 计数） |
+| 仓库 HEAD | `4262ac5`（6.7 收口提交；本批零产品代码改动） |
+| Electron / Node | `44.1.1` / `v22.22.2` |
+| 数据目录 | dev 恒为 `<仓库根>/.rebaseagent`；`.rebaseagent/traces` 计数 270 → 276 |
+| 系统通道 | 改窗 `.workbuddy/ps-win.ps1`（SW_RESTORE + MoveWindow）；真键盘 `lib/u3-65-input.ps1`（keybd_event） |
+| 截图 | `docs/reviews/2026-09-29-u5-68/` |
+
+🔴 **6.8 坐实的实机事实与探针坑（写进对应行，别再按旧注记跑）**：
+
+- **组间停 dev 必须「自记 pid + 异步 taskkill + 45s 真空出」**：u2-dev-host `--stop` 的内层
+  spawnSync(taskkill) 在批进程树里可能 EBUSY 假成功，且它**先删 pid 文件**——旧 dev 还在监听时
+  下一次 startDev 会撞上 "port already listening — assume dev running" 直接复用旧进程（首跑
+  zoom200 判 DPR=2.1 的根因：跑在了组 1 的无缩放 dev 上）；且 Electron 整树退出实测可超过 20s
+  （首跑 23s 预算内端口未空出、随后才空出）⇒ run-all 自己 spawn 时记住 dev host pid，
+  **异步 spawn** taskkill 直杀（批内只有异步 spawn 全链可用）+ 45s 真空出预算。
+- **zoom2 下外框→CSS 比例是 ×2.82（不是 zoom1 的 ×1.41）**：改窗收敛用**实测比例反解**
+  （outer = target / (css/outer)），加法修正在高 DPR 下每轮只挪 1/2.82、不收敛；
+  真 zoom 金标准仍是 DPR > 3.5。zoom 经 Preferences 的 per_host_zoom_levels 持久化且重启仍生效
+  ⇒ run-all 对该文件做快照/还原（zoom 组放最后）。
+- **窄档导航收起 ⇒ 选行走 store**：800px/200% 下运行列表整列收起、复制按钮不在 DOM
+  ⇒ `H.selectRun`（按 DOM 行定位）必挂；改 `storeQ("await s.selectRun(id)")`（U4 6.8 同坑的
+  第 N 次复发，判据读 store 不读 DOM）。
+- **指纹判据的零写入基线必须取「注入前」**：fileMissing 注入期间目标文件被隐藏，拿注入中
+  的快照当基线会把「还原」误判成「写入」（首跑假红根因）。
+- **live 通知会被自动导航标已看**：markNoticesSeen 触发面 = 面板展开 + 明确打开结果（含创建
+  落地后的自动导航）⇒ 要观测「未读通知更新」，创建提交后必须**立刻离页**（选中别的 run，
+  代次 drop ⇒ 不导航），通知保持未读。
+- **u3-65-input.ps1 的 RESULT 行写在 OutFile**（stdout 只有 "lines=N"，与 u3-64-winops 同构）
+  ⇒ node 侧读文件并剥 BOM；`keys` 动作支持 TAB/SHIFT+TAB/ESC/ENTER 组合 token；本批全部
+  真键盘判据只按键位导航（不打字母）⇒ imm/hkl 只记录不做 IME 组合断言。
+- **6.7 的 Esc 合成修复在系统级真键盘下同样成立**（real-keyboard 复证）：真 Esc 关闭设置 +
+  焦点恢复到全局栏触发入口。
+- **改窗映射在窄档反向**（U2 旧知识再确认）：1024/800 档的面板断言全部按实测 CSS 宽度判，
+  不按外框名义值；本批四档落点全部 ±1px 内。
+
 ---
 
 ## ADDED requirements
@@ -177,7 +217,7 @@
 | --- | --- | --- | --- | --- |
 | 1 | 执行中离页仍可查询等待 | `wait-timing.test.ts › running ∧ 本地提交时刻在场 ⇒ 自提交起，且明说不是模型耗时/进度`、`wait-timing.test.ts › OperationsEntry 只有一个时钟调用点，且受「面板开 ∧ 有可盯操作」约束；组件自己不动系统时间`、`operation-entry.test.ts › 挂在现有全局栏（不新开一处界面），数据源就是 operations 会话` | 6.2 实测 tag `in-flight-off-page` 12/12（2026-09-28 实机） | 已交付（6.2 实测） |
 | 2 | 终态和重载后的计时不伪造 | `wait-timing.test.ts › settled ⇒ 时长定格在 settledAt：nowMs 再大也不增长，文本写死计时已停止`、`wait-timing.test.ts › 重载后只剩 main startedAt ⇒ 口径换成「自接受起」，不把接受冒充提交`、`wait-timing.test.ts › 提交时 pending 身份含有限 submittedAt；IPC 信封 operation 只有契约里的两键` | 6.6 实测 tag `reload-timing` 14/14（在飞 basis=submitted「自提交起已等待」+ 写明等待时长语义；收口与重载后均定格「计时已停止」且口径为 accepted——**终态行刻意按 main startedAt 定格**（operation-list.ts:205：pending 清账后 submittedAt 不再可用）；「重载后才换成 accepted」的 transition 半边真机不可观测（收口即清账）⇒ 按单元引用）（2026-09-29 实机） | 已交付（6.6 实测） |
-| 3 | 关闭详情与退出不冒充停止 | `result-live-region.test.ts › 面板✕只关闭查看：没有任何登记清理、重发或「停止执行」类动作`、`focus-escape-responsive.test.ts › 面板走共享 useEscapeClose(open, closePanel)；✕ 与 Esc 同一关闭动作`、`preload-surface.test.ts › 本阶段不交付取消能力：桥接面没有 stop/cancel/abort 通道`、`draft-close-flow.test.ts › 明确退出不伪造取消：登记保持 running、槽不释放，flow 只放行窗口` | 6.7 实测 tag `quit-executing` 12/12（面板 ✕ 只关闭查看：面板退场、登记仍 running、槽仍指向它、重开面板操作仍在；哨兵 quit ⇒ 活跃操作档确认（「退出不会取消上游请求」措辞在场）⇒ 点退出窗口与进程真结束、在飞至多留一份未完成文件（**盘上常为零痕迹**——llm.call span 未 end 不落盘，见 6.7 登记节）、请求只出过一次门不重放）（剧本=delayedInFlight）（2026-09-29 实机）；6.8 面板 ✕ 焦点回位半边仍待 | 已交付（6.7 实测；6.8 半边待） |
+| 3 | 关闭详情与退出不冒充停止 | `result-live-region.test.ts › 面板✕只关闭查看：没有任何登记清理、重发或「停止执行」类动作`、`focus-escape-responsive.test.ts › 面板走共享 useEscapeClose(open, closePanel)；✕ 与 Esc 同一关闭动作`、`preload-surface.test.ts › 本阶段不交付取消能力：桥接面没有 stop/cancel/abort 通道`、`draft-close-flow.test.ts › 明确退出不伪造取消：登记保持 running、槽不释放，flow 只放行窗口` | 6.7 实测 tag `quit-executing` 12/12（面板 ✕ 只关闭查看：面板退场、登记仍 running、槽仍指向它、重开面板操作仍在；哨兵 quit ⇒ 活跃操作档确认（「退出不会取消上游请求」措辞在场）⇒ 点退出窗口与进程真结束、在飞至多留一份未完成文件（**盘上常为零痕迹**——llm.call span 未 end 不落盘，见 6.7 登记节）、请求只出过一次门不重放）（剧本=delayedInFlight）（2026-09-29 实机）；6.8 实测 `live-region-a11y` 内面板 ✕ 关闭后焦点回到触发入口（triggerRef.focus()，2026-09-29 实机） | 已交付（6.7 + 6.8 实测） |
 | 4 | 未知通信与新会话分开呈现 | `operation-session.test.ts › Unknown 只由下一次有效 status 清除；reconcile 只补事实、不解未知`、`operation-session.test.ts › 新 main 会话不伪造旧在飞身份的结局：保留为未知历史，但不锁住新会话`、`operation-session-store.test.ts › 通道抛错 ⇒ 未知锁且保留在飞身份；不自动重发，只有有效 status 才解锁` | 6.6 实测 tag `main-restart` 16/16（真 main 重启 kill=exit=0、9612 空出=1s 起来=5s 重连；**首帧「未握手」窗口被 2ms 采样器采到且禁用原因全为 not_handshaked**（不知握手而非未知）；新 epoch 全新、登记空、pending 空、resultReads 空、门禁开放；新会话真跑通；旧 opId 核对 ⇒ notAccepted 封禁；在场 run 文件逐份哈希不变）（2026-09-29 实机） | 已交付（6.6 实测） |
 | 5 | 操作详情可读诊断但不泄漏输入 | `operation-request-facts.test.ts › 面板渲染出每条诊断的码/阶段/文案；操作摘要不含正文与 sourceToken 类字段`、`operation-request-facts.test.ts › 「rejected 不一律称为零调用」：拒绝行只报编排分类，「没有开始执行」只属于 notAccepted 侧`、`operation-request-facts.test.ts › 夹带未知字段的登记记录在 schema 层即非法：strict 契约是'不泄漏'的机器判据` | 6.2 实测 tag `diagnostics-readable` 6/6（🔴 diagnostics 恒空：main 的 addDiagnostic 零调用方，见「已知限制」）（2026-09-28 实机）；6.6 实测 tag `unlocated-reconcile` 9/9（核对未知 UUID ⇒ notAccepted 封禁（无目标/无时间）+ 读取项零结论 + 封禁不占槽 + 通知「未被主进程接受」+ 面板行无任何结果动作、对照 settled 行动作正常）（2026-09-29 实机） | 已交付（6.2 + 6.6 实测） |
 
@@ -214,7 +254,7 @@
 | 1 | 留在当前流程可进入成功或失败概览 | `navigation-intent.test.ts › 留在流程 + 单运行 + 结果已核实 ⇒ 进入那条记录的概览`、`navigation-intent-store.test.ts › 「留在当前流程可进入成功或失败概览」：失败结局同样进入，且不以打开冒充成功` | 6.2 实测（create-success 13/13 / create-503 9/9）；6.3 实测 tag `navigate-in-flow` 4/4（result 成功支）（2026-09-28 实机） | 已交付（6.2 + 6.3 实测） |
 | 2 | 离开再返回不恢复旧自动导航 | `navigation-intent-store.test.ts › 「离开再返回不恢复旧自动导航」：切走再切回原 run ⇒ 结果到达也不跳`、`navigation-intent.test.ts › 「离开再返回不恢复旧自动导航」：代次不等 ⇒ drop（不是 wait）` | 6.3 实测 tag `leave-and-return` 5/5（切走再切回 ⇒ 代次推进意图作废，结果照样核实、到达不跳）（2026-09-28 实机） | 已交付（6.3 实测） |
 | 3 | 读取途中离页仍不抢焦点 | `navigation-intent-store.test.ts › 「读取途中离页仍不抢焦点」：详情在飞时用户切走 ⇒ 落地后不覆盖他的页面`、`navigation-intent.test.ts › 「读取途中离页仍不抢焦点」：判定只看当下代次 ⇒ 读取开始时是 7、切换时已是 8 ⇒ drop` | 6.3 实测 tag `nav-during-read` 4/4（页内竞速捕获 resultReads phase=reading 窗口并当场切走 ⇒ 落地不覆盖用户页面）（2026-09-28 实机） | 已交付（6.3 实测） |
-| 4 | 恢复核对重试与批次结果只通知 | `navigation-intent-store.test.ts › 「核对结果只由用户明确打开」：reconcile 到达的终态不导航`、`navigation-intent-store.test.ts › 手动只读重试读到正常终止 ⇒ 仍不跳（重试不是导航也不是重发）`、`result-live-region.test.ts › 区域恒渲染：空文本也不卸载，属性可访问（polite live region），面板收起不影响它`、`result-live-region.test.ts › 文本与面板徽标同源（同一份 deriveResultNotices）；重复快照派生出**逐字相同**的文本 ⇒ DOM 不变不重复播报`、`operation-result-view.test.ts › 等待计时不进通知文本（进了就等于每秒重复通知）` | 6.6 实测 tag `notice-only` 8/8（重载后 pending 空、恢复轮询接管收口、快照终态全算新 ⇒ 自动核实；通知区独立于面板播报成功结局、不含等待计时字样、1.5s 重复快照逐字相同不重复播报；手动只读重试不导航）（2026-09-29 实机）；6.8 计划 tag `live-region-a11y`（面板关闭态 a11y）仍待 | 已交付（6.6 实测；6.8 半边待） |
+| 4 | 恢复核对重试与批次结果只通知 | `navigation-intent-store.test.ts › 「核对结果只由用户明确打开」：reconcile 到达的终态不导航`、`navigation-intent-store.test.ts › 手动只读重试读到正常终止 ⇒ 仍不跳（重试不是导航也不是重发）`、`result-live-region.test.ts › 区域恒渲染：空文本也不卸载，属性可访问（polite live region），面板收起不影响它`、`result-live-region.test.ts › 文本与面板徽标同源（同一份 deriveResultNotices）；重复快照派生出**逐字相同**的文本 ⇒ DOM 不变不重复播报`、`operation-result-view.test.ts › 等待计时不进通知文本（进了就等于每秒重复通知）` | 6.6 实测 tag `notice-only` 8/8（重载后 pending 空、恢复轮询接管收口、快照终态全算新 ⇒ 自动核实；通知区独立于面板播报成功结局、不含等待计时字样、1.5s 重复快照逐字相同不重复播报；手动只读重试不导航）（2026-09-29 实机）；6.8 实测 tag `live-region-a11y` 10/10（面板关闭态：区域恒渲染、OUTPUT+aria-live=polite、不在焦点链上、✕ 焦点回位；成功/失败两轮真实收口 ⇒ live 文本随结局更新且含新 runId；1.6s 重复快照逐字不变；等待期间焦点不变；**只记 DOM/可访问属性证据，未实测屏幕阅读器**）（2026-09-29 实机） | 已交付（6.6 + 6.8 实测） |
 | 5 | 失败定位和返回草稿明确可达 | `operation-result-actions.test.ts › 「失败定位和返回草稿明确可达」：只跳真实自有失败调用，并落到步骤页签`、`operation-result-actions.test.ts › 「返回草稿明确可达」：失败保留时恢复原编辑目标；被清理后不返回也不复活`、`operation-result-view.test.ts › 「失败定位和返回草稿明确可达」：草稿在才给返回；被清理后给回退说明且不复活` | 6.4 实测 tag `failure-locate` 3/3 + `return-draft` 3/3（失败定位落到真实自有失败调用的 run+span+步骤页签；返回草稿回到父 run 编辑目标且草稿原文在场）（剧本=fail503）（2026-09-28 实机） | 已交付（6.4 实测） |
 
 ### A6. 设置往返保留编辑并真实反馈配置结果（ADDED，7 场景）
@@ -233,9 +273,9 @@
 
 | # | scenario | 已有单元/契约证据 | 实机入口 | 现状 |
 | --- | --- | --- | --- | --- |
-| 1 | 长任务路径模型与结果不遮挡操作 | `focus-escape-responsive.test.ts › 操作面板 max-h 按视口比例钳制 + 横向不超 90vw`、`focus-escape-responsive.test.ts › 设置模态受 85vh 钳制并内部滚动（长表单/200% 缩放在框内滚，不撑破屏幕）`、`operation-entry.test.ts › 窄窗口与键盘可达：受视口宽度约束、长 ID 断行、按钮可聚焦且带 aria 关系`、`fork-editor-draft.test.ts › 原值（只读）/草稿（可编辑）就近核对：宽屏并排、窄屏上下，两侧完整可读` | 6.8 计划 tag `widths-1440-1210-1024-800` + `zoom200`（长任务、路径、ID、多臂结果） | 待实机 |
-| 2 | 创建页面键盘可离开而模态约束焦点 | `modal-dialog.test.ts › U5 4.1：创建工作区已迁出模态——它盖不住阅读区，也不禁闭焦点`、`modal-dialog.test.ts › 输入锁覆盖指针事件（top layer 逃过覆盖层，须捕获阶段拦截）`、`create-form-draft.test.ts › 锁定判据不变，但创建页不得做成模态（U5 4.1：焦点不禁闭、离页不挡）` | 6.8 计划 tag `real-keyboard`（真 Tab/Shift+Tab/Esc，U3 6.5 通道） | 待实机 |
-| 3 | 只读反馈和读取重试保持数据边界 | `operation-result-actions.test.ts › 后台读取（自动核实）不碰当前阅读现场：页签、滚动、选中调用都不动`、`result-live-region.test.ts › 通知区不摸执行/导航/计时通道：只派生文本`、`controlled-read-faults.test.ts › 六种注入逐字节还原：指纹差集为空且不留隐藏文件与残留标记` | 6.8 计划 tag `readonly-fingerprint`（逐文件 sha256 前后差集） | 待实机 |
+| 1 | 长任务路径模型与结果不遮挡操作 | `focus-escape-responsive.test.ts › 操作面板 max-h 按视口比例钳制 + 横向不超 90vw`、`focus-escape-responsive.test.ts › 设置模态受 85vh 钳制并内部滚动（长表单/200% 缩放在框内滚，不撑破屏幕）`、`operation-entry.test.ts › 窄窗口与键盘可达：受视口宽度约束、长 ID 断行、按钮可聚焦且带 aria 关系`、`fork-editor-draft.test.ts › 原值（只读）/草稿（可编辑）就近核对：宽屏并排、窄屏上下，两侧完整可读` | 6.8 实测 tag `widths-1440-1210-1024-800` 30/30（四档代表宽度逐档：改窗实测 CSS 落点 ±1px、面板 ≤90vw 且不超视口高、页面无横向溢出（长任务/长 ID 断行）、长操作 ID 完整在场、入口命中测试可点（长内容不遮挡操作）、✕ 焦点回位；store 级选中——窄档导航收起时 DOM 行不在）（2026-09-29 实机）；6.8 实测 tag `zoom200` 8/8（独立 200%：DPR>3.5 金标准、面板几何、设置模态 85vh 钳制 + 长表单框内滚动）（2026-09-29 实机） | 已交付（6.8 实测） |
+| 2 | 创建页面键盘可离开而模态约束焦点 | `modal-dialog.test.ts › U5 4.1：创建工作区已迁出模态——它盖不住阅读区，也不禁闭焦点`、`modal-dialog.test.ts › 输入锁覆盖指针事件（top layer 逃过覆盖层，须捕获阶段拦截）`、`create-form-draft.test.ts › 锁定判据不变，但创建页不得做成模态（U5 4.1：焦点不禁闭、离页不挡）` | 6.8 实测 tag `real-keyboard` 8/8（真键盘通道 keybd_event：真 Shift+Tab 可离开创建工作区（焦点不禁闭、无模态在场对照）；真 Tab 在设置模态内禁闭（top layer 原生约束）；真 Esc 关闭设置且焦点恢复到触发入口（6.7 合成路径在真键盘下同样成立）；hkl/imm 只记录——本 tag 不打字母，不做 IME 组合断言）（2026-09-29 实机） | 已交付（6.8 实测） |
+| 3 | 只读反馈和读取重试保持数据边界 | `operation-result-actions.test.ts › 后台读取（自动核实）不碰当前阅读现场：页签、滚动、选中调用都不动`、`result-live-region.test.ts › 通知区不摸执行/导航/计时通道：只派生文本`、`controlled-read-faults.test.ts › 六种注入逐字节还原：指纹差集为空且不留隐藏文件与残留标记` | 6.8 实测 tag `readonly-fingerprint` 9/9（浏览/编辑器开合/面板开合一轮 ⇒ traces 逐文件 sha256 差集为空；对照支真创建 ⇒ 恰 +1 份（判据有牙）；fileMissing 注入期重读 unreadable → 还原核验 → 重读 verified，全程零写入——零写入基线取注入前）（2026-09-29 实机） | 已交付（6.8 实测） |
 
 ---
 
@@ -261,7 +301,7 @@
 | 1 | 首次打开与无运行入口 | `create-workspace-store.test.ts › 「首次打开与无运行入口」的反面：首次读取迟到不覆盖已进入的创建页`、`create-workspace-store.test.ts › 对照：没进创建页时首次自动选择照常发生（新守卫不误伤）` | 6.2 实测 tag `first-load-late` 2/2（addScriptToEvaluateOnNewDocument 注入「最早用户」诱出迟到窗口）（2026-09-28 实机）；⚠️ 空目录一侧要另造（数据目录恒为 `.rebaseagent`），6.2 里诱不出来就按单元承载登记 | 待实机 |
 | 2 | 文件承载区不附带步骤目录 | `workspace-file-view.test.ts › 文件承载区不附带步骤目录（delta 显式要求）` | —（U2 已归档的实机证据承载，本 change 未改文件页） | 单元已交付 |
 | 3 | 旧创建设置及执行入口保持可达 | `entry-gate.test.ts › 三个编辑器都声明同一来源的门禁，并渲染禁用理由`、`execution-confirmation-store.test.ts › 五个入口各有一处就地确认（不共用一个按钮、也不漏接）`、`operation-entry.test.ts › 挂在现有全局栏（不新开一处界面），数据源就是 operations 会话` | 6.2 / 6.3 / 6.4 / 6.5 各批的入口可达判据（剧本=successPlain） | 待实机 |
-| 4 | 阅读过程不修改已有数据 | `operation-result-actions.test.ts › 后台读取（自动核实）不碰当前阅读现场：页签、滚动、选中调用都不动`、`draft-source.test.ts › 源基线不含授权/凭据/计划字段（与草稿同一纪律）` | 6.8 计划 tag `readonly-fingerprint`（逐文件 sha256） | 待实机 |
+| 4 | 阅读过程不修改已有数据 | `operation-result-actions.test.ts › 后台读取（自动核实）不碰当前阅读现场：页签、滚动、选中调用都不动`、`draft-source.test.ts › 源基线不含授权/凭据/计划字段（与草稿同一纪律）` | 6.8 实测 tag `readonly-fingerprint` 内同口径断言（只读动作一轮 + 重试全程 ⇒ traces 逐文件 sha256 差集为空；对照支真创建恰 +1 份证明判据有牙）（2026-09-29 实机） | 已交付（6.8 实测） |
 
 ### M3. 桌面端提供原生 run 创建入口（MODIFIED，10 场景）
 
@@ -300,8 +340,8 @@
 
 | # | scenario | 已有单元/契约证据 | 实机入口 | 现状 |
 | --- | --- | --- | --- | --- |
-| 1 | 创建设置和放弃确认不泄漏焦点 | `modal-dialog.test.ts › 真模态在场（创建/设置/放弃确认）⇒ 一次按键不同时关确认与底层编辑区`、`modal-dialog.test.ts › 焦点恢复与失效回退：打开前元素优先，回退锚点在全局栏`、`create-form-draft.test.ts › 锁定判据不变，但创建页不得做成模态（U5 4.1：焦点不禁闭、离页不挡）` | 6.8 计划 tag `real-keyboard`（创建页可离开 + 模态禁闭对照） | 待实机 |
-| 2 | Esc 只关闭最上层并恢复焦点 | `modal-dialog.test.ts › 非最近打开的编辑区不消费（prompt 与 A/B 并存逐层收起）`、`focus-escape-responsive.test.ts › 面板走共享 useEscapeClose(open, closePanel)；✕ 与 Esc 同一关闭动作`、`confirm-dialog.test.ts › 放弃确认全部经 requestConfirm（DetailPanel 9 处 + 创建 1 处）` | 6.7 实测 tag `esc-topmost` 8/8（真 Esc 键：非脏 ⇒ 设置关闭且焦点恢复到全局栏触发入口；脏 ⇒ 第一层 Esc 出现未保存确认（设置在下层原位）、第二层 Esc **只关确认**且输入逐字保留、第三层可再次唤起、放弃收尾后全部关闭且磁盘逐字节不动）——🔴 首跑抓到并修复真产品缺陷：Chromium「两步关闭」让第二次 Esc 以 cancelable:false 直关**底层**设置（未保存输入被静默丢弃，M6.2 被平台行为穿透）；修在 `40287fb`（ModalDialog 最上层模态在 keydown 捕获段**合成** Esc 关闭，preventDefault 压掉原生 cancel 通道，非最上层放行；modal-dialog 源码级契约同步更新）；6.8 计划 tag `real-keyboard`（真 Tab/Shift+Tab）仍待 | 已交付（6.7 实测；6.8 半边待） |
+| 1 | 创建设置和放弃确认不泄漏焦点 | `modal-dialog.test.ts › 真模态在场（创建/设置/放弃确认）⇒ 一次按键不同时关确认与底层编辑区`、`modal-dialog.test.ts › 焦点恢复与失效回退：打开前元素优先，回退锚点在全局栏`、`create-form-draft.test.ts › 锁定判据不变，但创建页不得做成模态（U5 4.1：焦点不禁闭、离页不挡）` | 6.8 实测 tag `real-keyboard` 半边（创建页真 Shift+Tab 可离开 + 设置模态真 Tab 禁闭 + 真 Esc 关闭后焦点恢复到全局栏触发入口）（2026-09-29 实机） | 已交付（6.8 实测） |
+| 2 | Esc 只关闭最上层并恢复焦点 | `modal-dialog.test.ts › 非最近打开的编辑区不消费（prompt 与 A/B 并存逐层收起）`、`focus-escape-responsive.test.ts › 面板走共享 useEscapeClose(open, closePanel)；✕ 与 Esc 同一关闭动作`、`confirm-dialog.test.ts › 放弃确认全部经 requestConfirm（DetailPanel 9 处 + 创建 1 处）` | 6.7 实测 tag `esc-topmost` 8/8（真 Esc 键：非脏 ⇒ 设置关闭且焦点恢复到全局栏触发入口；脏 ⇒ 第一层 Esc 出现未保存确认（设置在下层原位）、第二层 Esc **只关确认**且输入逐字保留、第三层可再次唤起、放弃收尾后全部关闭且磁盘逐字节不动）——🔴 首跑抓到并修复真产品缺陷：Chromium「两步关闭」让第二次 Esc 以 cancelable:false 直关**底层**设置（未保存输入被静默丢弃，M6.2 被平台行为穿透）；修在 `40287fb`（ModalDialog 最上层模态在 keydown 捕获段**合成** Esc 关闭，preventDefault 压掉原生 cancel 通道，非最上层放行；modal-dialog 源码级契约同步更新）；6.8 实测 `real-keyboard` 用系统级真键盘复证同一行为（真 Esc 关闭 + 焦点恢复）（2026-09-29 实机） | 已交付（6.7 + 6.8 实测） |
 | 3 | 创建忙碌期间不能通过焦点修复绕过关闭锁 | `create-entry-closure.test.ts › 执行中不放行第二次执行：离页、展示态复位与重复登记都发不出新的 runs:create（U5 4.3）`、`draft-close-flow.test.ts › 询问期间到达的新提交：被拒并留下 notAccepted 封禁，返回后也不自动执行`、`create-form-draft.test.ts › 锁定判据不变，但创建页不得做成模态（U5 4.1：焦点不禁闭、离页不挡）` | 6.2 实测 tag `busy-no-second-run` 7/7（2026-09-28 实机）；6.7 实测 tag `quit-return` 12/12（创建在飞 ⇒ 哨兵 quit 仍先过协商（活跃操作档）；询问期间 main 的 closing 在场且第二主动入口被拒（OPERATION_NOT_ACCEPTED + 登记 notAccepted + 零副作用）；返回 ⇒ 退出被阻止、closing 解除但槽不释放、被拒那条不自动执行（仍 notAccepted、零新文件）；原在飞照常收口并按可信 ID 核实 verified）（2026-09-29 实机） | 已交付（6.2 + 6.7 实测） |
 
 ### M7. 现有界面消费统一操作事实（MODIFIED，4 场景）
@@ -311,7 +351,7 @@
 | 1 | 初始握手失败禁用主动入口 | `operation-session.test.ts › 没握过手 ⇒ 主动入口与配置写入口都禁用，原因是不知握手而非未知`、`entry-gate.test.ts › 空闲会话 ⇒ 可提交且无提示；未握手 ⇒ 禁用并给提示`、`settings-clear-confirm.test.ts › 初始握手未成功 ⇒ 配置写入口整体禁用（U4 门禁接线回归到设置对话框这一层）` | 6.6 实测 tag `main-restart` 半边（重启后首帧「未握手」窗口被采样：epoch=null 时禁用原因全为 not_handshaked，最终门禁开放；「握手返回非法结构」半边真机诱不出 ⇒ 按层引用）（2026-09-29 实机） | 已交付（6.6 实测） |
 | 2 | 所有入口实际使用同一适配器 | `operation-result-consumption.test.ts › 有效 status 采纳 ⇒ 解冻该身份 + 单次列表刷新 + 按可信 ID 核实`、`entry-gate.test.ts › 两个入口都读 s.operations 并经 deriveEntryGate 判定`、`fork-entry-closure.test.ts › 隔离 result（带 execution）走同一条消费：请求透传、序列同形` | 6.2 / 6.3 / 6.4 / 6.5 各批的调用序列同形判据（通道 → operations:status → runs:list → runs:get） | 待实机 |
 | 3 | 核对结果只由用户明确打开 | `operation-entry.test.ts › 核对只发 reconcile(operationId)，打开只走明确动作通道（不经列表、不自己 selectRun）`、`navigation-intent-store.test.ts › 「核对结果只由用户明确打开」：reconcile 到达的终态不导航`、`operation-result-view.test.ts › 未定位（settled 无可信 id）⇒ 没有任何结果动作，只让核对登记` | 6.6 实测 tag `reconcile-no-nav` 4/4（前置选择在别的 run；**核对到达终态不导航**（选择/页签/代次/视图都不动）；「打开结果」显式动作才切换）（2026-09-29 实机） | 已交付（6.6 实测） |
-| 4 | 操作入口在窄窗口和键盘下可达 | `operation-entry.test.ts › 窄窗口与键盘可达：受视口宽度约束、长 ID 断行、按钮可聚焦且带 aria 关系`、`focus-escape-responsive.test.ts › 操作面板 max-h 按视口比例钳制 + 横向不超 90vw` | 6.8 计划 tag `narrow-keyboard-panel`（800px 与独立 200%） | 待实机 |
+| 4 | 操作入口在窄窗口和键盘下可达 | `operation-entry.test.ts › 窄窗口与键盘可达：受视口宽度约束、长 ID 断行、按钮可聚焦且带 aria 关系`、`focus-escape-responsive.test.ts › 操作面板 max-h 按视口比例钳制 + 横向不超 90vw` | 6.8 实测 tag `narrow-keyboard-panel` 11/11（800px 窄档：入口可聚焦且带 aria-expanded/aria-controls、真 Enter 开合面板、面板 ≤90vw、页面无横向溢出、长 ID 断行完整在场）（2026-09-29 实机）；`zoom200` 内同口径断言（独立 200% 缩放下面板几何 + 入口命中）（2026-09-29 实机） | 已交付（6.8 实测） |
 
 ---
 
