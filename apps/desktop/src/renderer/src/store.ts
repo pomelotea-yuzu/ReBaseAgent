@@ -1,4 +1,5 @@
 import {
+  isCurrentDetailAttempt,
   isCurrentDetailResponse,
   isDetailPayloadForRun,
   shouldApplyDetailFailure,
@@ -1087,6 +1088,18 @@ function noteReadingChanged(): void {
 }
 
 /**
+ * U6 任务 4.5：详情读取的**代次**计数（每次实际发起 `getRun` 递增）。
+ *
+ * 与 U5 `resultReads` 的 `attempt` 同一思路，但那是"按可信 runId 的后台结果核实"，
+ * 这是"当前选中详情"的读取——两个读写面各持各的代次，互不顶掉（同
+ * `reading-request-guard.ts` 的分面纪律）。只增不减、不进渲染状态（不是 UI 状态）。
+ * 归属判定（`shouldApplyDetailFailure` / `isCurrentDetailResponse`）挡不住
+ * **同 run 的连续重试**——那正是"父文件恢复后重试全量重验"要覆盖的场景：
+ * 恢复前的 ownOnly 响应若后到，会把恢复后的 complete 详情盖回去。
+ */
+let detailReadAttempt = 0;
+
+/**
  * 撤销全部待用的执行确认（U5 任务 4.4，design D2「目标、修订、设置或流程代次变化 SHALL
  * 使旧检查与许可失效」里"离开现场"那一半）。
  *
@@ -1340,6 +1353,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     // 放在同 ID 短路**之后**：自动导航自己调用它时不会把代次白推进一次。
     noteReadingChanged();
 
+    // U6 任务 4.5：本次实际发起的读取代次——同 run 的连续重试全靠它区分新旧
+    const attemptAtRequest = ++detailReadAttempt;
+
     // 切走前无需手动保存：selectSpan/toggleStep/滚动读写已逐步写入 readingByRun。
     // 进入新 run 时**恢复**它自己的阅读状态（页签/选中/展开/滚动由该 run 记录决定），
     // 但**不在**此处置 selectedSpanId——它要先经详情校验（失效对象安全回退，任务 3.2）。
@@ -1359,6 +1375,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!envelope.ok) {
       // 已切走 ⇒ 这次失败与当前界面无关，**不清** loadingDetail（那是新 run 的加载态）
       if (!shouldApplyDetailFailure(selectedAtRequest, get().selectedRunId, id)) return;
+      // U6 4.5：旧代次的失败收尾一律不落地（不清 loadingDetail、不写 error）
+      if (!isCurrentDetailAttempt(attemptAtRequest, detailReadAttempt)) return;
       set({ loadingDetail: false, error: `读取 run 失败：${envelope.error.message}` });
       return;
     }
@@ -1366,6 +1384,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     // 再看目标 run 是否仍是当前选中——两道都过才允许落地。
     if (!isDetailPayloadForRun(envelope.data, id)) {
       if (!isCurrentDetailResponse(get().selectedRunId, id)) return;
+      if (!isCurrentDetailAttempt(attemptAtRequest, detailReadAttempt)) return;
       set({
         loadingDetail: false,
         error: "轨迹数据归属校验失败（载荷与请求的 run 不一致）：拒绝加载",
@@ -1377,6 +1396,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const versionViolation = findRunDetailVersionViolation(envelope.data);
     if (versionViolation !== null) {
       if (!isCurrentDetailResponse(get().selectedRunId, id)) return;
+      if (!isCurrentDetailAttempt(attemptAtRequest, detailReadAttempt)) return;
       set({
         loadingDetail: false,
         error: `轨迹数据版本校验失败（拒绝加载）：${versionViolation}`,
@@ -1386,6 +1406,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const parsed = RunDetailSchema.safeParse(envelope.data);
     if (!parsed.success) {
       if (!isCurrentDetailResponse(get().selectedRunId, id)) return;
+      if (!isCurrentDetailAttempt(attemptAtRequest, detailReadAttempt)) return;
       set({
         loadingDetail: false,
         error: `轨迹数据结构校验失败：${describeZodError(parsed.error)}`,
@@ -1394,12 +1415,18 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
     // 所有校验通过后仍需确认"目标 run 还是当前选中 run"——校验期间用户可能又切走了
     if (!isCurrentDetailResponse(get().selectedRunId, id)) return;
+    // U6 4.5：旧代次的响应整体丢弃——期间已有更新的读取发起（同 run 重试），
+    // 它的结论才是现状；这里什么都不写（不覆盖新读取的 loading/detail/error）。
+    if (!isCurrentDetailAttempt(attemptAtRequest, detailReadAttempt)) return;
+    // U6 4.5：落地时**现取**阅读历史——读取在飞期间用户的 selectSpan / toggleStep /
+    // 换页签都已写进 readingByRun，旧快照会把这些新位置覆盖回去（「读取重试不改变阅读位置」）。
+    const landed = readingStateOf(get().readingByRun, id);
     // 默认展开全部 step，用户可折叠；但恢复的历史状态优先（用户折叠过的保持折叠）
     const expandedSteps: Record<string, boolean> = {};
     for (const span of parsed.data.spans) {
       if (span.kind === "agent.step") expandedSteps[span.id] = true;
     }
-    const mergedExpanded = { ...expandedSteps, ...restored.expandedSteps };
+    const mergedExpanded = { ...expandedSteps, ...landed.expandedSteps };
     // 统一走优先级解析（任务 3.2/3.6 接线）：显式目标 > 有效历史 > 默认位置。
     // 详情到手才做——此前 store 里可能还留着**另一个 run** 的未校验 spanId，
     // 直接当选中项会导致"轨迹树高亮一个不属于本 run 的 span"。
@@ -1409,9 +1436,9 @@ export const useAppStore = create<AppState>((set, get) => ({
         leafSpanIds: parsed.data.leafSpanIds,
         hasFiles: parsed.data.meta.workspace !== undefined,
       },
-      history: { tab: restored.tab, spanId: restored.spanId },
+      history: { tab: landed.tab, spanId: landed.spanId },
       target: null,
-      currentTab: restored.tab,
+      currentTab: landed.tab,
     });
     const readingByRun = patchReadingState(get().readingByRun, id, {
       tab: resolved.tab,

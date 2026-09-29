@@ -46,6 +46,19 @@ export function isCurrentDetailResponse(
   return selectedRunIdNow === requestedRunId;
 }
 
+/**
+ * U6 任务 4.5：这次响应/失败收尾是否仍是**当代**详情读取。
+ *
+ * 为什么只有 run-ID 归属不够：同一 run 的**连续两次重试**（父文件恢复前后各读一次、
+ * 或快速双击重试）都是 `selectedRunId === id`——若只按归属判定，先发出、后返回的
+ * 旧响应会把新读取刚落地的结论覆盖掉（旧 completeness 冒充现状）。读取调度在每次
+ * 实际发请求时递增代次，响应落地前必须与**当前**代次全等；小代次一律整体丢弃
+ * （不写 detail、不动 loadingDetail/error——那是新读取的现场）。
+ */
+export function isCurrentDetailAttempt(attemptAtRequest: number, attemptNow: number): boolean {
+  return attemptAtRequest === attemptNow;
+}
+
 /** 便捷：从一个信封载荷里取 run id（meta.id），取不到返回 null */
 export function runIdOfDetailData(data: unknown): string | null {
   if (typeof data !== "object" || data === null || Array.isArray(data)) return null;
