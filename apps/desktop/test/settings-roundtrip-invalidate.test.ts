@@ -171,4 +171,24 @@ describe("5.3 容器接线（源码级契约）", () => {
     expect(app).not.toContain("ProxyWorkspace");
     expect(app).not.toContain("RecordingWorkspace");
   });
+
+  // U5 6.7 实机坐实的接线缺陷（「接线少一支」家族）：GlobalBar 的录制入口此前只拿到
+  // openSettings（先清 settingsSection 再开）⇒ "proxy" 标记在设置模态挂载前就被清掉，
+  // 定位效果（滚到代理分区 + 聚焦首控件）从不发生。单元层只钉了 App.openRecording 的形状，
+  // GlobalBar → 开器这一跳没有判据 ⇒ 实机焦点落在 ✕ 而不是代理复选框。修复后钉两层：
+  it("录制入口的 GlobalBar 一跳必须走不清 section 的专用开器（6.7 实机缺陷的契约）", () => {
+    const app = read("../src/renderer/src/App.tsx");
+    // App 把专用开器接到 GlobalBar（与常规 openSettings 分开）
+    expect(app).toContain("onOpenRecording={openRecording}");
+    const bar = read("../src/renderer/src/components/GlobalBar.tsx");
+    const at = bar.indexOf("const openRecording");
+    expect(at).toBeGreaterThan(-1);
+    const barBlock = bar.slice(at, at + 200);
+    // GlobalBar 的录制入口走 onOpenRecording，**不得**再经过会清 section 的 onOpenSettings
+    expect(barBlock).toContain("onOpenRecording()");
+    expect(barBlock).not.toContain("onOpenSettings()");
+    // 开器内部不得先清 settingsSection（清了标记就到不了设置模态的定位 effect）
+    const recBlock = app.slice(at, app.indexOf("const openSettings", at));
+    expect(recBlock).not.toContain("setSettingsSection(null)");
+  });
 });

@@ -96,6 +96,10 @@ export default function App() {
     <div className="flex h-full flex-col">
       <GlobalBar
         onOpenSettings={openSettings}
+        // U5 6.7 实机坐实的接线缺陷修复：录制入口必须走**不清 settingsSection** 的开器——
+        // 此前 GlobalBar 只拿到 openSettings（先清 section 再开）⇒ "proxy" 标记在挂载前
+        // 就被清掉，设置模态的定位效果（滚到代理分区 + 聚焦首控件）从不发生
+        onOpenRecording={openRecording}
         navigation={
           view !== "tree"
             ? {

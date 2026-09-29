@@ -216,19 +216,20 @@ function SessionDraftsEntry() {
 
 export function GlobalBar({
   onOpenSettings,
+  onOpenRecording,
   navigation,
 }: {
   onOpenSettings: () => void;
+  /** 录制入口专用开器：**不清** `settingsSection`（常规开器会清，定位标记就到不了设置模态） */
+  onOpenRecording: () => void;
   navigation?: { visible: boolean; onToggle: () => void };
 }) {
   const openCreateWorkspace = useAppStore((s) => s.openCreateWorkspace);
-  const setSettingsSection = useAppStore((s) => s.setSettingsSection);
   const detail = useAppStore((s) => s.detail);
 
   /** 录制接入 = 打开设置并定位代理分区（不另建录制界面） */
   const openRecording = (): void => {
-    setSettingsSection("proxy");
-    onOpenSettings();
+    onOpenRecording();
   };
 
   return (
