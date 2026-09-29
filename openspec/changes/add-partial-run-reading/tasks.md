@@ -62,7 +62,7 @@
 
 ## 6. 受控验证与 Electron 证据
 
-- [ ] 6.1 建立自建临时数据的备份/注入/finally 还原/指纹核验工具，失败保留恢复指引（对应“父文件恢复后重试全量重验”、“读取诊断不泄漏路径和正文”）。
+- [x] 6.1 建立自建临时数据的备份/注入/finally 还原/指纹核验工具，失败保留恢复指引（对应“父文件恢复后重试全量重验”、“读取诊断不泄漏路径和正文”）。—— 新原语 `apps/desktop/scripts/lib/u6-lineage-faults.cjs`（六种来源链注入：ancestorMissing / ancestorCorrupt / ancestorFutureVersion / lineageCycle / forkInvalid / currentMissing；复用 U5 指纹/RESTORE-NEEDED 原语，同卷 rename + finally 还原 + 逐字节核验）。自检 `test/u6-lineage-faults.test.ts`（11 条，11 绿）：每种注入对着真 `getRun` 数形状——ancestorMissing ⇒ ownOnly+真实 missingRunId、还原后重读 complete（父文件恢复全量重验的工具级通道）；其余五种严格失败不降级；指纹差集空、故意不还原/残留文件/重复 end/缺 ancestorRunId 四条反证均有牙。🔴 实测形状：成环注入必须给被改祖先补 fork（结构检查先于成环检查，否则先撞「缺少 fork 元数据」）——注入尊重读取器判定次序的证据已写进工具注释。
 - [ ] 6.2 建立场景→fixture/测试/实机 tag 索引及回查工具，加入漏行/错文件反例；初始全部标待验证（对应“详情完整性字段拒绝错配”）。
 - [ ] 6.3 逐入口运行契约负例并配可达正对照；移除来源门禁必须使对应负例变红（对应“ownOnly result 不可重跑”、“ownOnly 隔离 result 不消费副本授权”、“ownOnly prompt、代理和实验臂不执行”、“详情加载失败在执行入口即拒绝”）。
 - [ ] 6.4 Electron 第一批：普通/隔离 result 直接与隔代缺失、文件自有检查点，保存实际读数与截图（对应“普通 result 缺祖先只读当前记录”、“普通 result 的隔代祖先缺失”、“ownOnly 文件入口不显示祖先检查点”、“缺祖先与缺附件分别诊断”）。
