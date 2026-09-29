@@ -65,6 +65,8 @@ describe("verifyResultPayload：可信身份 + 合法详情 ⇒ 已核实的自�
       phase: "verified",
       attempt: 1,
       facts: verified.facts,
+      // U6 4.6：verified 读取项携带经核实的来源完整性（complete 详情 ⇒ complete）
+      lineage: { status: "complete" },
       reason: null,
     });
   });
@@ -206,6 +208,8 @@ describe("任务 1.3：读取代次、去重守卫与记录级呈现", () => {
       phase: "reading",
       attempt: 1,
       facts: null,
+      // U6 4.6：非 verified 时 lineage 恒 null（不造结论）
+      lineage: null,
       reason: null,
     });
     // 已有第 2 代结论时再读 ⇒ 3，且其他键不受影响
