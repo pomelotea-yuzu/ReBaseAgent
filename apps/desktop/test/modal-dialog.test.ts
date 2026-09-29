@@ -137,12 +137,24 @@ describe("U3 5.1 接线契约（源码级）", () => {
     expect(modal).toContain('el.removeEventListener("cancel", onCancel)');
     expect(modal).not.toContain("onCancel=");
     // U3 6.10：Chromium「两步关闭」——第二次 Esc 的 cancel 以 cancelable:false 派发，
-    // cancel 上 preventDefault 无效 ⇒ 关闭锁必须在 keydown 捕获阶段吃掉 Escape，
-    // 且只在**本模态是最顶层 modal** 时拦（嵌套确认的 Esc 要放行）
+    // cancel 上 preventDefault 无效 ⇒ 关闭必须在 keydown 捕获阶段接管
     expect(modal).toContain('document.addEventListener("keydown", onKeyCapture, true)');
     expect(modal).toContain('document.removeEventListener("keydown", onKeyCapture, true)');
-    expect(modal).toContain('if (e.key !== "Escape" || !closeDisabledRef.current) return;');
-    expect(modal).toContain("modals[modals.length - 1] !== el");
+  });
+
+  it("U5 6.7：最上层模态在 keydown 捕获段**合成** Esc 关闭——两步关闭穿透不了叠层", () => {
+    // 6.7 实机坐实：脏设置 + 确认框在上时，第二次 Esc 经两步关闭直接关掉了**底层设置**
+    // （未保存输入被静默丢弃，M6.2「Esc 只关闭最上层」被平台行为穿透）——旧防御
+    // （只在 closeDisabled 时吞）只保得了第一次 Esc。合成路径 = 最上层模态在捕获段
+    // preventDefault 压掉原生 cancel，未锁时调 onClose；非最上层放行（上层会处理）。
+    expect(modal).toContain("const isTopmost = modals[modals.length - 1] === el;");
+    expect(modal).toContain("if (!isTopmost) return;");
+    // 合成三件套必须同序在场：压掉原生通道 → 阻断传播 → 未锁时才调 onClose
+    expect(modal).toMatch(
+      /e\.preventDefault\(\);\s*e\.stopPropagation\(\);\s*if \(!closeDisabledRef\.current\) onCloseRef\.current\(\);/,
+    );
+    // 旧形状不得复活：只在 closeDisabled 时吞（那就是被两步穿透的版本）
+    expect(modal).not.toContain('if (e.key !== "Escape" || !closeDisabledRef.current) return;');
   });
 
   it("输入锁覆盖指针事件（top layer 逃过覆盖层，须捕获阶段拦截）", () => {

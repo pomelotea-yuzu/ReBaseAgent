@@ -7,9 +7,10 @@ import { type ReactNode, type RefObject, useEffect, useRef } from "react";
  * - **真 top layer**：打开时调 `dialog.showModal()`（不是静态 `open` 属性）——
  *   获得原生模态语义：背景 inert、浏览器级焦点禁闭（Tab/Shift+Tab 天然不出层）、
  *   Esc 只命中**最上层**模态（native cancel 事件按 top layer 栈分发）；
- * - **Esc 层级**：Monaco 内部弹层对 Esc 的 keydown 会 preventDefault，Chromium
- *   据此抑制 dialog 的 cancel ⇒ 弹层先消费、第二次 Esc 才关闭模态（D7「Esc 先由
- *   最上层可关闭界面消费」）；本组件的 cancel 处理器转为 onClose；
+ * - **Esc 层级**：Esc 关闭由 keydown 捕获段**合成**（见下方 onKeyCapture）——最上层模态
+ *   preventDefault 压掉原生 cancel 通道后调 onClose。Chromium 的原生 cancel 只能防第一次
+ *   Esc，第二次以 cancelable:false 派发（6.7 实机坐实会穿透叠层直关底层模态）；合成路径
+ *   对第任意次都成立。本组件的 cancel 处理器保留为非键盘关闭的兜底；
  * - **焦点**：打开时聚焦 `initialFocusRef`（缺省第一个可见可用控件），关闭/卸载时
  *   把焦点还给打开前的元素；触发节点已卸载时回退 `[data-modal-focus-fallback]`
  *   （全局栏入口，始终在文档中）；
@@ -94,14 +95,20 @@ export function ModalDialog({
     // 关闭锁的**主拦截点是 keydown**：6.10 实机坐实 Chromium 对模态框的 Esc 是
     // 「两步关闭」——第一次 cancel 可被 preventDefault，第二次 cancel 以
     // cancelable:false 派发（处理器里的 preventDefault 完全无效）⇒ 只在 cancel
-    // 上吞一次必然被第二次 Esc 绕过。锁定时在本模态为最顶层 modal 的 keydown
-    // 捕获阶段直接吃掉 Escape，让 cancel 根本不生成；嵌套确认在其上层时不拦截。
+    // 上吞一次必然被第二次 Esc 绕过。
+    // U5 6.7 实机坐实（叠层场景）：脏设置 + 确认框在上时，第二次 Esc 经两步关闭
+    // **直接关掉了底层设置**（未保存输入被静默丢弃，M6.2「Esc 只关闭最上层」被穿透）
+    // —— cancel 上的防御只保得了第一次。因此最上层模态在 keydown 捕获段**合成**
+    // Esc 关闭：preventDefault 压掉原生 cancel 通道（第任意次都成立），未锁时调
+    // onClose；非最上层时放行（上层的捕获监听会处理，底层不得越权）。
     const onKeyCapture = (e: KeyboardEvent): void => {
-      if (e.key !== "Escape" || !closeDisabledRef.current) return;
+      if (e.key !== "Escape") return;
       const modals = document.querySelectorAll("dialog:modal");
-      if (modals[modals.length - 1] !== el) return;
+      const isTopmost = modals[modals.length - 1] === el;
+      if (!isTopmost) return;
       e.preventDefault();
       e.stopPropagation();
+      if (!closeDisabledRef.current) onCloseRef.current();
     };
     document.addEventListener("keydown", onKeyCapture, true);
     if (!el.open) {
