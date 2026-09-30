@@ -49,7 +49,11 @@ export type EditUnavailableCode =
   /** fork.edit.value 字面缺失（未记录 ≠ 空串） */
   | "EDIT_VALUE_UNRECORDED"
   /** 来源 run 未记录可核对的首次 llm.call / 启动消息（prompt/messages 原值缺证） */
-  | "START_CONTEXT_UNRECORDED";
+  | "START_CONTEXT_UNRECORDED"
+  /** 链上相邻 parent 不连续：逐跳核对直接父失败（4.2） */
+  | "CHAIN_BREAK"
+  /** 分叉点 / 来源轨迹不在该侧当前投影视图内（ownOnly、独立边界截断；4.2） */
+  | "SPAN_NOT_IN_VIEW";
 
 /** 编辑语义分型（场景「直接父子展示真实编辑前后值」：从头重跑、单请求语义可辨） */
 export type EditSemantics =
@@ -222,7 +226,7 @@ function projectChildFork(
     fork.edit.field === "user_message" ||
     fork.edit.field === "messages"
   ) {
-    return projectContextFork(source.detail, target.detail, identity, fork);
+    return projectContextFork(identity, fork, variantOf(target.detail), source.detail);
   }
   if (fork.edit.field === "model_params") {
     return {
@@ -258,18 +262,20 @@ function ownFirstLlmCall(sourceDetail: RunDetail): Extract<SpanLine, { kind: "ll
 }
 
 /**
- * system/user prompt 与 messages 编辑（tasks 4.11）：原值取自来源 run
+ * system/user prompt 与 messages 编辑（tasks 4.11/4.2）：原值取自来源 run
  * **自有**首次 llm.call 的实际请求——prompt 取对应启动消息 content，
  * messages 取整份请求 messages（代理单请求语义）。
  *
  * 消息缺证判据与既有提取器同源（`role` 匹配且 `content` 为字符串才算已记录；
  * draft-source.ts / fork-runner.ts 同款），找不到如实 unavailable，不补空串。
+ * `sourceDetail === null` 表示来源 run 轨迹不在当前投影视图内（4.2 的
+ * ownOnly / 独立边界截断情形），原值无从核对但不猜。
  */
 function projectContextFork(
-  sourceDetail: RunDetail,
-  targetDetail: RunDetail,
   identity: EditEvidenceIdentity,
   fork: NonNullable<RunDetail["meta"]["fork"]>,
+  variant: EditEvidenceVariant,
+  sourceDetail: RunDetail | null,
 ): DirectEditEvidence {
   const updated = presenceOf(fork.edit.value);
   if (updated.kind === "unrecorded") {
@@ -278,6 +284,16 @@ function projectContextFork(
       status: "unavailable",
       reasonCode: "EDIT_VALUE_UNRECORDED",
       reason: "编辑新值未记录：无法核对前后值",
+      original: { kind: "unrecorded" },
+      updated,
+    };
+  }
+  if (sourceDetail === null) {
+    return {
+      ...identity,
+      status: "unavailable",
+      reasonCode: "SPAN_NOT_IN_VIEW",
+      reason: `来源 run ${identity.sourceRunId} 的轨迹不在该侧当前投影视图内：启动上下文原值无从核对`,
       original: { kind: "unrecorded" },
       updated,
     };
@@ -300,7 +316,7 @@ function projectContextFork(
     return {
       ...identity,
       status: "verified",
-      variant: "plain-v1",
+      variant,
       semantics: "single-request",
       tool: null,
       original: { kind: "value", value: firstCall.request.messages },
@@ -329,7 +345,7 @@ function projectContextFork(
   return {
     ...identity,
     status: "verified",
-    variant: "plain-v1",
+    variant,
     semantics: "from-scratch",
     tool: null,
     original: { kind: "value", value: message.content },
@@ -339,12 +355,35 @@ function projectContextFork(
   };
 }
 
-/** result 编辑：v1 按 at_span 定位父 tool.invoke；v2 同源取值并携带整轮边界 */
+/**
+ * result 编辑的视图级投影核心：在给定轨迹视图（直接父的自有详情，或某侧的
+ * 投影 spans——4.2 逐跳）中定位分叉点取原值。v2 同源取值并携带整轮边界。
+ */
 function projectResultFork(
   sourceDetail: RunDetail,
   targetDetail: RunDetail,
   identity: EditEvidenceIdentity,
   fork: NonNullable<RunDetail["meta"]["fork"]>,
+): DirectEditEvidence {
+  return projectResultForkInView(
+    identity,
+    fork,
+    variantOf(targetDetail),
+    sourceDetail.spans,
+    sourceDetail.meta.id,
+  );
+}
+
+function variantOf(detail: RunDetail): EditEvidenceVariant {
+  return detail.meta.format_version === FORMAT_VERSION ? "isolated-v2" : "plain-v1";
+}
+
+function projectResultForkInView(
+  identity: EditEvidenceIdentity,
+  fork: NonNullable<RunDetail["meta"]["fork"]>,
+  variant: EditEvidenceVariant,
+  viewSpans: readonly SpanLine[],
+  sourceRunId: string,
 ): DirectEditEvidence {
   const updated = presenceOf(fork.edit.value);
   if (updated.kind === "unrecorded") {
@@ -358,14 +397,13 @@ function projectResultFork(
     };
   }
 
-  const isV2 = targetDetail.meta.format_version === FORMAT_VERSION;
-  const atSpan = sourceDetail.spans.find((span) => span.id === fork.at_span);
+  const atSpan = viewSpans.find((span) => span.id === fork.at_span);
   if (atSpan === undefined) {
     return {
       ...identity,
       status: "unavailable",
       reasonCode: "FORK_SPAN_NOT_FOUND",
-      reason: `分叉点 ${fork.at_span} 未出现在来源 run ${sourceDetail.meta.id} 的轨迹中：原值无法核对`,
+      reason: `分叉点 ${fork.at_span} 未出现在来源 run ${sourceRunId} 的轨迹中：原值无法核对`,
       original: { kind: "unrecorded" },
       updated,
     };
@@ -381,15 +419,15 @@ function projectResultFork(
     };
   }
 
-  // v2 边界：resume_after_step（schema 保证 v2 fork 必带）；在来源轨迹定位该 step
-  const resumeAfterStep = isV2 ? (fork.resume_after_step ?? null) : null;
+  // v2 边界：resume_after_step（schema 保证 v2 fork 必带）；在同一视图定位该 step
+  const resumeAfterStep = variant === "isolated-v2" ? (fork.resume_after_step ?? null) : null;
   const boundaryStep =
-    resumeAfterStep !== null ? locateBoundaryStep(sourceDetail.spans, resumeAfterStep) : null;
+    resumeAfterStep !== null ? locateBoundaryStep(viewSpans, resumeAfterStep) : null;
 
   return {
     ...identity,
     status: "verified",
-    variant: isV2 ? "isolated-v2" : "plain-v1",
+    variant,
     semantics: "shared-prefix",
     tool: atSpan.tool,
     original: { kind: "value", value: atSpan.result },
@@ -397,4 +435,160 @@ function projectResultFork(
     resumeAfterStep,
     boundaryStep,
   };
+}
+
+// ---------------------------------------------------------------------------
+// tasks 4.2：多跳 / 兄弟的逐跳编辑证据链
+//
+// design D4：「多跳和兄弟比较逐跳列出从已确认共同祖先到两侧的来源路径，每跳
+// 核对其直接父；不把整条链压缩成一次编辑。」
+// ---------------------------------------------------------------------------
+
+/** 逐跳投影的来源详情提供方：直接父子对中另一侧的 ready 详情（可能没有） */
+export type SourceDetailProvider = (runId: string) => RunDetail | null;
+
+/** 单侧的逐跳编辑证据链：从共同祖先（不含）到该侧叶，按链序排列 */
+export interface SideHopChain {
+  /** 该侧叶子 run id */
+  readonly runId: string;
+  /** 逐跳证据（链序）；共同祖先未确认时为空 */
+  readonly hops: readonly DirectEditEvidence[];
+}
+
+/**
+ * 从已确认的共同祖先到各 ready 侧逐跳投影编辑证据。
+ *
+ * - `ancestorId === null`（不同根 / 链不完整）：共同祖先未确认 ⇒ 不产出逐跳链
+ *   （不按可见链首项推断根，不压缩、不猜测）；
+ * - 每跳先核对直接父（hop.meta.parent 必须等于前一跳 id；不符 ⇒ CHAIN_BREAK）；
+ * - 值级证据尽力投影：result 跳在**该侧**投影 spans 中定位分叉点（resolved 视图
+ *   含全链前缀；ownOnly / 独立边界截断时如实 SPAN_NOT_IN_VIEW）；context 跳在
+ *   来源 run 详情在比较对内时取其实际请求，否则 SPAN_NOT_IN_VIEW。
+ */
+export function deriveHopChains(
+  items: readonly CompareRunItem[],
+  ancestorId: string | null,
+): readonly SideHopChain[] {
+  if (ancestorId === null) {
+    return [];
+  }
+  return items
+    .filter((item): item is Extract<CompareRunItem, { status: "ready" }> => item.status === "ready")
+    .map((side) => ({
+      runId: side.runId,
+      hops: deriveSideHops(side, ancestorId, (runId) => {
+        const hit = items.find((item) => item.status === "ready" && item.runId === runId);
+        return hit !== undefined && hit.status === "ready" ? hit.detail : null;
+      }),
+    }));
+}
+
+/** 单侧逐跳：从 chain 中祖先之后的位置起投影；祖先不在该侧链内 ⇒ 空链（不猜） */
+function deriveSideHops(
+  side: Extract<CompareRunItem, { status: "ready" }>,
+  ancestorId: string,
+  provideSource: SourceDetailProvider,
+): readonly DirectEditEvidence[] {
+  const chain = side.detail.chain;
+  const ancestorIndex = chain.findIndex((hop) => hop.meta.id === ancestorId);
+  if (ancestorIndex === -1) {
+    return [];
+  }
+
+  const hops: DirectEditEvidence[] = [];
+  for (let i = ancestorIndex + 1; i < chain.length; i++) {
+    const hop = chain[i];
+    const prev = chain[i - 1];
+    if (hop === undefined || prev === undefined) {
+      break; // 按不变量不可达（chain 连续）
+    }
+    const identity: EditEvidenceIdentity = {
+      sourceRunId: prev.meta.id,
+      targetRunId: hop.meta.id,
+      field: hop.fork?.edit.field ?? "unknown",
+      atSpanId: hop.fork?.at_span ?? "unknown",
+    };
+
+    // 每跳核对其直接父：链上 parent 声明必须与相邻前一项一致
+    if (hop.meta.parent !== prev.meta.id) {
+      hops.push({
+        ...identity,
+        status: "unavailable",
+        reasonCode: "CHAIN_BREAK",
+        reason: `链不连续：${hop.meta.id} 声明的父（${String(hop.meta.parent)}）不是前一跳 ${prev.meta.id}`,
+        original: { kind: "unrecorded" },
+        updated: presenceOf(hop.fork?.edit.value),
+      });
+      continue;
+    }
+    const fork = hop.fork;
+    if (fork === null) {
+      // 按读取层不变量不应出现（parent 已声明的 run 必有 fork）；防御性不猜
+      hops.push({
+        ...identity,
+        status: "unavailable",
+        reasonCode: "EDIT_VALUE_UNRECORDED",
+        reason: `跳 ${hop.meta.id} 未记录 fork 元数据：无编辑事实可核对`,
+        original: { kind: "unrecorded" },
+        updated: { kind: "unrecorded" },
+      });
+      continue;
+    }
+
+    hops.push(projectHopFork(side.detail, hop, identity, fork, provideSource));
+  }
+  return hops;
+}
+
+/** 单跳的值级投影：result 跳在该侧视图定位；context 跳找来源 run 详情 */
+function projectHopFork(
+  sideDetail: RunDetail,
+  hop: RunDetail["chain"][number],
+  identity: EditEvidenceIdentity,
+  fork: NonNullable<RunDetail["meta"]["fork"]>,
+  provideSource: SourceDetailProvider,
+): DirectEditEvidence {
+  if (fork.edit.field === "result") {
+    return projectResultForkInView(
+      identity,
+      fork,
+      variantOfHop(hop),
+      sideDetail.spans,
+      identity.sourceRunId,
+    );
+  }
+  if (
+    fork.edit.field === "system_prompt" ||
+    fork.edit.field === "user_message" ||
+    fork.edit.field === "messages"
+  ) {
+    return projectContextFork(
+      identity,
+      fork,
+      variantOfHop(hop),
+      provideSource(identity.sourceRunId),
+    );
+  }
+  if (fork.edit.field === "model_params") {
+    return {
+      ...identity,
+      status: "unavailable",
+      reasonCode: "FIELD_NOT_PROJECTED",
+      reason: "model_params 编辑属于模型实验比较（另有资格门禁），普通比较不投影前后值",
+      original: { kind: "unrecorded" },
+      updated: presenceOf(fork.edit.value),
+    };
+  }
+  return {
+    ...identity,
+    status: "unavailable",
+    reasonCode: "UNKNOWN_EDIT_FIELD",
+    reason: `未知编辑字段「${fork.edit.field}」：原值无法核对，仅展示已记录新值`,
+    original: { kind: "unrecorded" },
+    updated: presenceOf(fork.edit.value),
+  };
+}
+
+function variantOfHop(hop: RunDetail["chain"][number]): EditEvidenceVariant {
+  return hop.meta.format_version === FORMAT_VERSION ? "isolated-v2" : "plain-v1";
 }

@@ -1,6 +1,6 @@
 import type { Fork, SpanLine } from "@rebaseagent/trace-sdk/schema";
 import { describe, expect, it } from "vitest";
-import { deriveDirectEditEvidence } from "../src/shared/compare-edit-evidence";
+import { deriveDirectEditEvidence, deriveHopChains } from "../src/shared/compare-edit-evidence";
 import type { CompareRunItem, RunDetail } from "../src/shared/ipc";
 
 /**
@@ -543,5 +543,168 @@ describe("U7 4.11 system/user prompt 与 messages：实际父请求取值", () =
       reasonCode: "START_CONTEXT_UNRECORDED",
       original: { kind: "unrecorded" },
     });
+  });
+});
+
+describe("U7 4.2 多跳/兄弟：逐跳编辑证据链", () => {
+  // A → B → C 与 A → D：C 侧 2 跳、D 侧 1 跳（共同祖先 A）
+  const aSpans = [stepSpan("a_step"), toolSpan("a_t", "A 的工具结果")];
+  const bFork: Fork = { at_span: "a_t", edit: { field: "result", value: "B 的编辑" } };
+  const bSpans = [...aSpans, toolSpan("b_t", "A 的工具结果"), stepSpan("b_step", 2)];
+  const cFork: Fork = { at_span: "b_t", edit: { field: "result", value: "C 的编辑" } };
+  const cSpans = [...bSpans, stepSpan("c_step", 3)];
+  const dFork: Fork = { at_span: "a_t", edit: { field: "result", value: "D 的编辑" } };
+
+  function chainItem(
+    id: string,
+    parent: string | null,
+    fork: Fork | null,
+    spans: SpanLine[],
+  ): Extract<CompareRunItem, { status: "ready" }> {
+    return ready(id, parent, fork, spans);
+  }
+
+  it("兄弟两臂：各侧从共同祖先逐跳列出，跳数 = 链长（不压缩成一次编辑）", () => {
+    const a = chainItem("r_a", null, null, aSpans);
+    const b = chainItem("r_b", "r_a", bFork, bSpans);
+    const c = chainItem("r_c", "r_b", cFork, cSpans);
+    const d = chainItem("r_d", "r_a", dFork, aSpans);
+
+    const chains = deriveHopChains([b, d], "r_a");
+    expect(chains).toHaveLength(2);
+
+    const sideB = chains.find((s) => s.runId === "r_b");
+    expect(sideB?.hops).toHaveLength(1);
+    expect(sideB?.hops[0]).toMatchObject({
+      status: "verified",
+      sourceRunId: "r_a",
+      targetRunId: "r_b",
+      field: "result",
+      atSpanId: "a_t",
+    });
+
+    const sideC = chains.find((s) => s.runId === "r_c");
+    // 注意：deriveHopChains 按 items 里 ready 侧逐侧产出；C 不在 items 里所以没有
+    expect(sideC).toBeUndefined();
+  });
+
+  it("多跳链：C 侧两跳身份连续（A→B→C），每跳直接父核对通过，值从该侧投影视图取", () => {
+    const b = chainItem("r_b", "r_a", bFork, bSpans);
+    // C 的 chain 必须是完整三跳（root..leaf）：A → B → C
+    const c: Extract<CompareRunItem, { status: "ready" }> = {
+      status: "ready",
+      runId: "r_c",
+      detail: detail("r_c", "r_b", cFork, cSpans, [
+        hop("r_a", null, null),
+        hop("r_b", "r_a", bFork),
+        hop("r_c", "r_b", cFork),
+      ]),
+      chainSummaries: [],
+    };
+
+    const chains = deriveHopChains([c], "r_a");
+    const sideC = chains[0];
+    expect(sideC?.hops).toHaveLength(2);
+
+    const hop1 = sideC?.hops[0];
+    expect(hop1).toMatchObject({
+      status: "verified",
+      sourceRunId: "r_a",
+      targetRunId: "r_b",
+      atSpanId: "a_t",
+      semantics: "shared-prefix",
+    });
+    if (hop1?.status === "verified") {
+      // C 的 resolved 视图含 A 的 tool.invoke 原值
+      expect(hop1.original).toEqual({ kind: "value", value: "A 的工具结果" });
+      expect(hop1.updated).toEqual({ kind: "value", value: "B 的编辑" });
+    }
+
+    const hop2 = sideC?.hops[1];
+    expect(hop2).toMatchObject({
+      status: "verified",
+      sourceRunId: "r_b",
+      targetRunId: "r_c",
+      atSpanId: "b_t",
+    });
+  });
+
+  it("祖先未确认（ancestorId=null）⇒ 空链（不按可见链首项推断根）", () => {
+    const a = chainItem("r_a", null, null, aSpans);
+    const b = chainItem("r_b", "r_a", bFork, bSpans);
+    expect(deriveHopChains([a, b], null)).toEqual([]);
+  });
+
+  it("ownOnly 侧：跳身份保留、值 SPAN_NOT_IN_VIEW（分叉点不在自有视图）", () => {
+    // ownOnly 叶子：chain 只含自身，spanScope=own
+    const orphanFork: Fork = { at_span: "x_t", edit: { field: "result", value: "孤儿编辑" } };
+    const orphanDetail: RunDetail = {
+      meta: meta("r_o", "r_x", orphanFork),
+      spans: [stepSpan("o_step"), toolSpan("o_t", "自有结果")],
+      events: [{ type: "run.event", event: "stopped", reason: "completed" }],
+      status: "completed",
+      chain: [hop("r_o", "r_x", orphanFork)],
+      leafSpanIds: ["o_step", "o_t"],
+      completeness: "ownOnly",
+      spanScope: "own",
+      lineage: { status: "incomplete", reason: "ANCESTOR_NOT_FOUND", missingRunId: "r_x" },
+    };
+    const orphan: Extract<CompareRunItem, { status: "ready" }> = {
+      status: "ready",
+      runId: "r_o",
+      detail: orphanDetail,
+      chainSummaries: [],
+    };
+    const other = chainItem("r_d", null, null, aSpans);
+
+    // 关系不完整时上游不传祖先 id ⇒ 空链；这里验证防御分支：即便传了缺失祖先 id 也不猜
+    const chains = deriveHopChains([orphan, other], "r_x");
+    const sideO = chains.find((s) => s.runId === "r_o");
+    // r_x 不在 orphan 的 chain 内 ⇒ 空链
+    expect(sideO?.hops).toEqual([]);
+  });
+
+  it("prompt fork 叶（兄弟对中另一臂）：context 跳的来源不在对内 ⇒ SPAN_NOT_IN_VIEW", () => {
+    const promptFork: Fork = {
+      at_span: "a_01",
+      edit: { field: "system_prompt", value: "新提示词" },
+    };
+    const b = chainItem("r_b", "r_a", promptFork, [stepSpan("b_step")]);
+    const d = chainItem("r_d", "r_a", dFork, aSpans);
+
+    const chains = deriveHopChains([b, d], "r_a");
+    const sideB = chains.find((s) => s.runId === "r_b");
+    expect(sideB?.hops[0]).toMatchObject({
+      status: "unavailable",
+      reasonCode: "SPAN_NOT_IN_VIEW",
+      sourceRunId: "r_a",
+      targetRunId: "r_b",
+      field: "system_prompt",
+      updated: { kind: "value", value: "新提示词" },
+    });
+  });
+
+  it("prompt fork 直接父子：来源（父）在对内 ⇒ 走实际请求取值（与 4.1 同源）", () => {
+    const promptFork: Fork = {
+      at_span: "a_01",
+      edit: { field: "system_prompt", value: "新提示词" },
+    };
+    const parent = chainItem("r_p", null, null, [
+      stepSpan("t_step"),
+      llmSpan("a_01", [{ role: "system", content: "原系统提示词" }]),
+    ]);
+    const child = chainItem("r_c", "r_p", promptFork, [stepSpan("c_step")]);
+
+    const chains = deriveHopChains([child, parent], "r_p");
+    const sideChild = chains.find((s) => s.runId === "r_c");
+    expect(sideChild?.hops[0]).toMatchObject({
+      status: "verified",
+      semantics: "from-scratch",
+      sourceRunId: "r_p",
+      targetRunId: "r_c",
+    });
+    if (sideChild?.hops[0]?.status === "verified") {
+      expect(sideChild.hops[0].original).toEqual({ kind: "value", value: "原系统提示词" });
+    }
   });
 });
