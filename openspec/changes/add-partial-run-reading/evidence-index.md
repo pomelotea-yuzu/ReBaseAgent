@@ -10,7 +10,7 @@
 > `.workbuddy/u6/u6-61/verify-scenario-checklist.cjs` 按点名的那个文件核（含 `--selftest` 反例：
 > 漏行 / 虚构场景 / 假用例名 / 假文件 / 标题真实但挂错文件 / 半截引用）。
 
-汇总口径：**47 条场景（37 ADDED / 10 MODIFIED）**，已交付 **44** 条、待验证 **3** 条、实机不成立 **0** 条
+汇总口径：**47 条场景（37 ADDED / 10 MODIFIED）**，已交付 **44** 条、待验证 **0** 条、实机不成立 **3** 条
 
 ### A1. 详情完整性在缺祖先文件时结构化降级（ADDED，22 场景）
 
@@ -33,10 +33,10 @@
 | 15 | fork 定位非法不降级 | `u6-lineage-read.test.ts › 1.5 v2 整轮边界不在可读直接父自有记录、隔代缺失 → FORK_INVALID 优先（对应「fork 定位非法不降级」）` + `u6-lineage-faults.test.ts › forkInvalid ⇒ at_span 不属于父轨迹 ⇒ 定位非法失败` | 6.6 实机（注入=forkInvalid） | 已交付（6.6 实机） |
 | 16 | 父文件恢复后重试全量重验 | `u6-detail-project.test.ts › ownOnly → 恢复父文件 → complete；恢复的是损坏文件 → 仍失败，不缓存旧结论` + `u6-lineage-faults.test.ts › ancestorMissing ⇒ 结构化 ownOnly；还原（父文件恢复）后重读 ⇒ complete/resolved` + `u6-exec-source-gate.test.ts › 5.10 来源拒绝后恢复父文件：同 ID 只命中判重不复活；新 ID 重检后可执行` | 6.6 实机（注入=ancestorMissing 后还原） | 已交付（6.6 实机） |
 | 17 | 读取重试不改变阅读位置 | `u6-detail-refresh-guard.test.ts › 重试在飞期间选择别的调用 ⇒ 落地不覆盖新阅读位置` + `u6-detail-refresh-guard.test.ts › 重试在飞期间换页签 ⇒ 落地落在用户新页签上` + `u6-detail-refresh-guard.test.ts › 恢复前的 ownOnly 旧响应后到 ⇒ 不覆盖恢复后的 complete 详情` | 6.7 实机（ownOnly→恢复→complete 三态切换中阅读位置保持；**在飞交叠半边真机无延时注入面 ⇒ 单元承载**） | 已交付（6.7 实机） |
-| 18 | 详情完整性字段拒绝错配 | `u6-detail-contract.test.ts › 缺省 completeness 整份拒绝（不允许静默缺省）` + `u6-detail-contract.test.ts › 未知枚举由 schema 拒绝（不能借未知字段剥离接受错配）` + `u6-detail-contract.test.ts › 2.5 U5 后台核实入口对错配载荷返回失败（verifyResultPayload 不放宽）` | —（schema/main 自检/renderer 守卫三层全单元承载；错配载荷无实机注入面：桥接面只回真 main 产出） | 待验证 |
-| 19 | 文件身份与路径不能伪造来源 | `u6-lineage-read.test.ts › 1.4 非法请求标识在任何 fs 访问之前拒绝（对应「文件身份与路径不能伪造来源」的路径半边）` + `u6-lineage-read.test.ts › 1.4 祖先 meta.id 与文件名不符 → 拒绝详情，不从错误正文猜缺失 ID` + `u6-lineage-read.test.ts › 非法 run id → 抛受控原因（getRun 与 loadRunRecord 两处都在 fs 之前拒绝）` | —（路径伪造在真机只能经 UI 输入 run id，桌面无该输入面；单元层注入计数已证零 fs 访问） | 待验证 |
+| 18 | 详情完整性字段拒绝错配 | `u6-detail-contract.test.ts › 缺省 completeness 整份拒绝（不允许静默缺省）` + `u6-detail-contract.test.ts › 未知枚举由 schema 拒绝（不能借未知字段剥离接受错配）` + `u6-detail-contract.test.ts › 2.5 U5 后台核实入口对错配载荷返回失败（verifyResultPayload 不放宽）` | —（schema/main 自检/renderer 守卫三层全单元承载；错配载荷无实机注入面：桥接面只回真 main 产出） | 实机不成立（单元承载：u6-detail-contract 三例） |
+| 19 | 文件身份与路径不能伪造来源 | `u6-lineage-read.test.ts › 1.4 非法请求标识在任何 fs 访问之前拒绝（对应「文件身份与路径不能伪造来源」的路径半边）` + `u6-lineage-read.test.ts › 1.4 祖先 meta.id 与文件名不符 → 拒绝详情，不从错误正文猜缺失 ID` + `u6-lineage-read.test.ts › 非法 run id → 抛受控原因（getRun 与 loadRunRecord 两处都在 fs 之前拒绝）` | —（路径伪造在真机只能经 UI 输入 run id，桌面无该输入面；单元层注入计数已证零 fs 访问） | 实机不成立（单元承载：u6-lineage-read 1.4 三例） |
 | 20 | 已知无效关系不能被更早缺失遮蔽 | `u6-lineage-read.test.ts › 1.5 可读 hop 缺 fork 且更早祖先缺失 → FORK_INVALID 优先于缺失（对应「已知无效关系不能被更早缺失遮蔽」）` + `u6-lineage-read.test.ts › 1.5 祖先未封存且隔代缺失 → 严格失败而非 ownOnly（未封存不能被缺失遮蔽）` | 6.6 实机（注入=lineageCycle 与缺失叠加） | 已交付（6.6 实机） |
-| 21 | 合法零 span 记录可部分读取 | `u6-detail-project.test.ts › 合法零 span 记录：空数组不当损坏，自有事件照常保留` + `u6-lineage-read.test.ts › 1.1 合法零 span 当前记录 + 祖先缺失 → 结构化缺失，空数组不当损坏（对照「合法零 span 记录可部分读取」分类半边）` | 6.4 实机 | 待验证 |
+| 21 | 合法零 span 记录可部分读取 | `u6-detail-project.test.ts › 合法零 span 记录：空数组不当损坏，自有事件照常保留` + `u6-lineage-read.test.ts › 1.1 合法零 span 当前记录 + 祖先缺失 → 结构化缺失，空数组不当损坏（对照「合法零 span 记录可部分读取」分类半边）` | —（合法零 span 记录只能经 fixture 构造——真实执行的 run 至少有 llm span 且在飞期盘上零痕迹，无实机注入面） | 实机不成立（单元承载：u6-detail-project + u6-lineage-read 1.1） |
 | 22 | 读取诊断不泄漏路径和正文 | `u6-lineage-read.test.ts › 1.1 当前文件缺失 → CURRENT_RUN_NOT_FOUND，原因受控（对应「当前文件或祖先不是可确认的缺失」）` + `u6-exec-source-gate.test.ts › 祖先缺失 ⇒ RUN_LINEAGE_INCOMPLETE 并携带受校验的 missingRunId`（该用例断言无盘符/无 traces 路径） | 6.6 实机已覆盖（ancestor-error-gates：诊断不透传盘符/traces 路径 + UI 失败横幅不泄漏盘符，截屏在场）| 已交付（6.6 实机，记账补翻） |
 
 ### A2. 运行详情的来源完整性控制主动执行（ADDED，10 场景）
