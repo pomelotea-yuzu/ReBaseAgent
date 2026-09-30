@@ -304,6 +304,20 @@ describe("U7 2.2/2.5 手动集合与 pair 编辑", () => {
     expect(state.comparePair).toBeNull();
     expect(state.compareNotice).toContain("显式选择两条");
   });
+
+  it("集合进入清残留 pair：先 pair 进入再把集合缩到 1 条重进 ⇒ 旧 pair 必须清掉（6.4 实机坐实）", async () => {
+    // 先经两条集合进入（pair 在场）
+    useAppStore.setState({ compareIds: ["r_parent", "r_child"] });
+    await useAppStore.getState().openCompareWorkspace();
+    expect(useAppStore.getState().comparePair).not.toBeNull();
+    // 再把集合缩到 1 条重进 ⇒ 残留 pair 若不清，工作区会卡在「正在读取详细比较对象…」
+    useAppStore.setState({ compareIds: ["r_other"] });
+    await useAppStore.getState().openCompareWorkspace();
+    const state = useAppStore.getState();
+    expect(state.view).toBe("compare");
+    expect(state.comparePair).toBeNull();
+    expect(state.compareRead.selection).toEqual(["r_other"]);
+  });
 });
 
 describe("U7 5.3 指标表显式选两条（openComparePair）", () => {

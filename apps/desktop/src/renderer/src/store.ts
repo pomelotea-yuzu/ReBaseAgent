@@ -1214,7 +1214,10 @@ async function enterCompareView(pair: ComparePair | null): Promise<void> {
   useAppStore.setState({
     view: "compare",
     ...(alreadyInCompare ? {} : { compareReturnLocation: location }),
-    ...(pair !== null ? { comparePair: pair } : {}),
+    // 6.4 实机坐实：集合进入（0/1/3/4 条）必须清 pair——pair 残留会让工作区卡在
+    // 「正在读取详细比较对象…」（结论 runIds 与残留 pair 永不对齐，重试也出不来）。
+    // design 2.2 的「无 pair」语义 = comparePair 置 null（指标表模式承载）。
+    comparePair: pair,
   });
   if (pair !== null) {
     const changed =
