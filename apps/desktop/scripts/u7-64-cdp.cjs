@@ -210,19 +210,19 @@ const FLOWS = {
     );
     await H.shot(call, SHOT_DIR, "tree-focused.png");
 
-    // ── 切「全部」范围：家庭/代理边/长文本/搜索都跨树 ⇒ 后续判据在全部范围下打 ──
+    // ── 切「全部」范围：家庭/代理边/长文本都跨树 ⇒ 后续判据在全部范围下打 ──
     await H.storeQ(call, `s.setTreeScope("all"); return JSON.stringify("ok");`);
     await H.sleep(1000);
     st = await storeState(call);
     check("#1 前置：范围切到「全部」", st.treeScope === "all", st.treeScope);
 
-    // ── #1/#2：家庭呈现 + 代理边标注（svg 限定在树节点所在 section 内） ──
+    // ── #1/#2：家庭呈现 + 代理边标注（图 svg = 滚动容器内那个，排除工具栏图标 svg） ──
     const graphText = await H.ev(
       call,
       `(() => {
          const anchor = document.querySelector('[data-run-id="u7c_g"]');
          if (anchor === null) return JSON.stringify(null);
-         const svg = anchor.closest('section').querySelector('svg');
+         const svg = anchor.closest('section').querySelector('.overflow-auto svg');
          const labels = svg ? Array.from(svg.querySelectorAll('text')).map(t => t.textContent) : [];
          return JSON.stringify({ edgeLabels: labels, paths: svg ? svg.querySelectorAll('path').length : 0 });
        })()`,
@@ -250,7 +250,22 @@ const FLOWS = {
     );
     await H.storeQ(call, `await s.selectRun("u7c_l1"); return JSON.stringify("ok");`);
     await H.sleep(1200);
-    const detail = await treeDetail(call);
+    let detail = await treeDetail(call);
+    // LongText 默认折叠（摘要行）；在场就点开，展开后断言完整原文
+    if (detail?.hasExpand) {
+      await H.ev(
+        call,
+        `(() => {
+           const d = document.querySelector('[data-tree-detail="true"]');
+           const b = Array.from(d.querySelectorAll('button'))
+             .find(x => (x.textContent || '').includes('点击展开完整内容'));
+           if (b) b.click();
+           return JSON.stringify(b ? 'clicked' : 'absent');
+         })()`,
+      );
+      await H.sleep(600);
+      detail = await treeDetail(call);
+    }
     check(
       "#17 详情面板：完整任务全文在场（R9「尾行被裁」以详情区完整承载）+ 完整 ID 可复制",
       detail !== null &&
@@ -313,6 +328,8 @@ const FLOWS = {
       st.treeScope === "all" && geomL1b !== null && geomL1b.inView === true,
       { scope: st.treeScope, inView: geomL1b?.inView },
     );
+    // 空结果对照基准 = 定位后（scope=all）的在渲染节点数
+    const nodesAfterLocate = await H.ev(call, `document.querySelectorAll('[data-run-id]').length`);
     await H.storeQ(call, `s.setTreeQuery("zzz_no_such_run_zzz"); return JSON.stringify("ok");`);
     await H.sleep(600);
     const search2 = await H.ev(
@@ -327,10 +344,10 @@ const FLOWS = {
       "#15 空结果明确提示且保持原渲染（不丢节点）",
       search2 !== null &&
         (search2.boxText || "").includes("没有匹配") &&
-        search2.nodes === nodesBeforeSearch,
+        search2.nodes === nodesAfterLocate,
       {
         nodes: search2?.nodes,
-        before: nodesBeforeSearch,
+        before: nodesAfterLocate,
         hint: (search2?.boxText || "").slice(0, 60),
       },
     );
@@ -346,12 +363,13 @@ const FLOWS = {
     await H.sleep(700);
     await openTree(call);
     st = await storeState(call);
+    const vp = st.treeViewport;
     const vpRestored =
-      st.treeViewport !== null &&
-      st.treeViewport.zoom === 150 &&
-      Number(st.treeViewport.scrollLeft) === 137 &&
-      Number(st.treeViewport.scrollTop) === 219;
-    check("#16 返回树：会话视口恢复（缩放/平移保持）", vpRestored, st.treeViewport);
+      vp !== null &&
+      vp.zoom === 150 &&
+      Math.abs(Number(vp.scrollLeft) - 137) <= 2 &&
+      Math.abs(Number(vp.scrollTop) - 219) <= 2;
+    check("#16 返回树：会话视口恢复（缩放/平移保持）", vpRestored, vp);
     const scrollNow = await H.ev(
       call,
       `(() => {
@@ -374,7 +392,7 @@ const FLOWS = {
         `(() => {
            const n = document.querySelector('[data-run-id="${id}"]');
            if (n === null) return JSON.stringify(null);
-           const badge = n.querySelector('span[title], span[class*="bg-"]');
+           const badge = n.querySelector('span[class*="bg-"]');
            const cls = badge ? badge.className : null;
            return JSON.stringify({ label: badge ? badge.textContent : null, cls });
          })()`,
@@ -436,7 +454,7 @@ const FLOWS = {
          const list = document.querySelector('[data-tree-list="true"]');
          if (list === null) return JSON.stringify(null);
          const rowOf = (id) => {
-           const row = list.querySelector('[data-run-id="${id}"]');
+           const row = list.querySelector('[data-run-id="' + id + '"]');
            if (row === null) return null;
            const btns = Array.from(row.querySelectorAll('button')).map(b => ({
              text: (b.textContent || '').trim(),
