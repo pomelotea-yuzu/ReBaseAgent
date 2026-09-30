@@ -1,4 +1,5 @@
 import { FORMAT_VERSION } from "@rebaseagent/trace-sdk/schema";
+import type { SpanLine } from "@rebaseagent/trace-sdk/schema";
 import type { RunDetail } from "./ipc";
 
 /**
@@ -161,7 +162,7 @@ export function deriveResultSourceMapping(detail: RunDetail): SourceMapping {
 
 /** v1 边界：at_span 必须在视图中恰好出现一次，且不早于当前游标 */
 function locateV1Boundary(
-  spans: readonly RunDetail["spans"],
+  spans: readonly SpanLine[],
   atSpan: string,
   cursor: number,
 ): number | string {
@@ -188,7 +189,7 @@ function locateV1Boundary(
  * 属于该子树（且不是 step 本身）；子树在视图内连续。
  */
 function locateV2Boundary(
-  spans: readonly RunDetail["spans"],
+  spans: readonly SpanLine[],
   boundary: Extract<HopBoundary, { kind: "v2" }>,
   cursor: number,
 ): number | string {
