@@ -42,8 +42,8 @@
 - [x] 4.5 复用输出/结局派生并实现单侧错误跳转，补相应单元/IPC/store/组件验证（对应“最终输出不借中间正文或祖先”）。（`e1ecf98`：shared/compare-output.ts deriveSideOutputFacts 薄组合 deriveOwnTerminalFacts + deriveOwnOutput，只补 failure.runId 侧身份；store 动作 openCompareSideError——落地判据 = 详情已读出且归属相符（selectRun 失败也落 selectedRunId，不能只看选中项），打开单侧保留 pair/来源引用；组件级呈现归 4.12）
 - [ ] 4.6 实现输出工具栏、只读 diff 与独立滚动，补相应单元/IPC/store/组件验证（对应“长输出独立阅读与合法文本差异”）。
 - [x] 4.7 提取普通 v1 resolver 的只读来源映射，对照原完整轨迹验证 span 边界与被覆写值（对应“result 共享前缀保留真实边界”）。（`4e2bd12`：shared/compare-source-map.ts deriveV1ResultSourceMapping——不做截断，从已校验投影视图 + chain 推导分段；边界须恰好出现一次且按链序递进，缺失/错序/重复 ⇒ unreliable 不折叠；段末 boundaryEdit 标注下一跳编辑、共同区被覆写值保留原值；spanScope=own ⇒ 单段归属叶子；独立边界/v2 ⇒ notPlainV1 归 4.8/4.13）
-- [ ] 4.8 实现独立步骤目录和复合定位，覆盖混合链，补相应单元/IPC/store/组件验证（对应“重复 span ID 与独立分支不强行对齐”）。
-- [ ] 4.9 接入 ownOnly 步骤限制与完整另一侧，补相应单元/IPC/store/组件验证（对应“缺父链仅显示自有步骤”）。
+- [x] 4.8 实现独立步骤目录和复合定位，覆盖混合链，补相应单元/IPC/store/组件验证（对应“重复 span ID 与独立分支不强行对齐”）。（`606b299`：renderer/lib/compare-steps.ts deriveSideStepCatalog——每侧独立目录，复用 buildSpanTree+flattenSpanRows，行补来源归属（来源映射可靠时标注物理来源 run）；store compareStepSelection {left,right} + selectCompareStep 只动本侧；重复 s_01/同轮号不对齐不合并（目录纯派生 + 选中分列）；更换清被换侧、交换随 pair 对调、换 pair 全清/同 pair 保留；视图渲染归 4.12）
+- [x] 4.9 接入 ownOnly 步骤限制与完整另一侧，补相应单元/IPC/store/组件验证（对应“缺父链仅显示自有步骤”）。（`606b299`：compare-steps 的 prefixUnknown 位——ownOnly 侧只显示已校验自有步骤并提示前缀未知，attribution=own 单段归属，不按可见链首项推断根、不折叠未知祖先；完整另一侧照常成目录互不影响；组件级提示呈现归 4.12）
 - [x] 4.10 实现隔离 result 编辑证据，保留原始来源与本地整轮续跑边界并测试（对应“直接父子展示真实编辑前后值”）。（`08da068`：随 4.1 同轮交付——v2 分型 variant=isolated-v2，resume_after_step 在来源轨迹定位 agent.step（boundaryStep，未定位如实 null）；前后值提取与 v1 同源；整轮边界的视图呈现归 4.12）
 - [x] 4.11 实现 system/user prompt 与 messages 的实际父请求取值和从头/单请求语义并测试（对应“直接父子展示真实编辑前后值”）。（`87fccd3`：原值 = 来源 run 自有首次 llm.call（leafSpanIds 过滤，反例钉住合并视图祖先调用不冒充）；role+字符串 content 判据与 draft-source/fork-runner 同款，缺证 START_CONTEXT_UNRECORDED；messages 取整份请求；verified 新增 semantics 分型 shared-prefix/from-scratch/single-request；4.1 注记的 FIELD_NOT_PROJECTED 改判在此兑现——prompt/messages 四分支的 4.1 期用例同步改判）
 - [ ] 4.12 实现编辑证据完整展开、复制与左右方向展示，消费 4.1/4.10/4.11 的结果（对应“直接父子展示真实编辑前后值”）。
