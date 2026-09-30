@@ -4,13 +4,13 @@
 
 ## 1. 只读比较契约与完整性
 
-- [ ] 1.1 新增只读比较请求/响应 schema，验证数量、唯一身份、完整性及受控错误（对应“比较拒绝非法身份和错配载荷”）。
-- [ ] 1.2 提取按 run ID 缓存的单次读取上下文，保持 U6 读取拒绝与 ownOnly 行为并补 repository 回归（对应“列表完整但比较读取缺祖先”）。
-- [ ] 1.3 实现逐对象失败结果和合法侧保留，补相应单元/IPC/store/组件验证（对应“一侧不可读保留另一侧”）。
+- [x] 1.1 新增只读比较请求/响应 schema，验证数量、唯一身份、完整性及受控错误（对应“比较拒绝非法身份和错配载荷”）。（`6349ce7`：channels/ipc 三 schema + findCompareResponseMismatch + preload 透传；契约测试 15 条。1.7 起同轮改判：ready 项新增必填 chainSummaries）
+- [x] 1.2 提取按 run ID 缓存的单次读取上下文，保持 U6 读取拒绝与 ownOnly 行为并补 repository 回归（对应“列表完整但比较读取缺祖先”）。（`619ae94`：main/run-read-context.ts RunReadContext——成功与失败都按物理文件缓存一次；getRun 委托行为零变化；回归 u6 五文件 75 用例绿）
+- [x] 1.3 实现逐对象失败结果和合法侧保留，补相应单元/IPC/store/组件验证（对应“一侧不可读保留另一侧”）。（`345509b`：main/compare-endpoints.ts——请求级拒绝在读取前，逐项 ready/unavailable 稳定码映射（U6 六分类 + FORK_INVALID/RUN_INVALID/RUN_UNREADABLE），受控原因码点截断 512；RunDetailReadError 结构化诊断。store/组件消费归 §2 接线时同轮验证）
 - [ ] 1.4 实现选择集读取代次、迟到响应和销毁守卫，补相应单元/IPC/store/组件验证（对应“快速更换交换移出不串内容”）。
 - [ ] 1.5 接线只读重试、结论失效及恢复，补相应单元/IPC/store/组件验证（对应“比较重试恢复必须全量重验”）。
-- [ ] 1.6 接入 main/preload 的 compareRuns 只读通道与 renderer 验证；有效和非法请求各有实际往返测试（对应“比较拒绝非法身份和错配载荷”）。
-- [ ] 1.7 以本次已校验祖先自有摘要接共同祖先/累计派生；覆盖列表过期、ownOnly 与完整另一侧（对应“列表完整但比较读取缺祖先”）。
+- [x] 1.6 接入 main/preload 的 compareRuns 只读通道与 renderer 验证；有效和非法请求各有实际往返测试（对应“比较拒绝非法身份和错配载荷”）。（`48fc2b8`：ipc.ts 注册 handler；compare-ipc.test.ts 以 vi.mock("electron") 捕获真实注册 handler（HANDOFF §六登记补法首次落地），往返 5 条）
+- [x] 1.7 以本次已校验祖先自有摘要接共同祖先/累计派生；覆盖列表过期、ownOnly 与完整另一侧（对应“列表完整但比较读取缺祖先”）。（`dc0d648`：ready 项新增必填 chainSummaries；shared/compare-derive.ts deriveVerifiedComparison 三态 relation，唯一事实源 = 本次已校验链摘要并集，复用 deriveChainTotals/findCommonAncestor 不回退列表缓存；测试 7 条 + 列表版同源对照）
 - [ ] 1.8 核对概览沿用 U6 缺祖先的只读自有事实；用 ownOnly 正对照与损坏/版本/权限等严格错误反对照锁定修订后的概览判据（对应“缺祖先概览沿用已校验自有事实”“非法详情不被概览绕过”）。
 
 本组依赖顺序：1.1 → 1.2/1.3 → 1.6/1.7 → 1.4/1.5；编号用于追踪，不表示可以跳过依赖。
