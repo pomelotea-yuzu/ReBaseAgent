@@ -287,7 +287,6 @@ describe("5.10 比较全程只读（写入反证）", () => {
     const seedRevocation = { "source-token": { revoked: true } };
     useAppStore.setState({
       compareIds: ["r_a", "r_b"],
-      // @ts-expect-error 既有测试同款宽松种子（判据：比较动作对其零改动）
       drafts: seedDrafts,
       confirmations: seedConfirmations,
       sourceRevocation: seedRevocation,
