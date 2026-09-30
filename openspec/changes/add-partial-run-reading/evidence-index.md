@@ -10,7 +10,7 @@
 > `.workbuddy/u6/u6-61/verify-scenario-checklist.cjs` 按点名的那个文件核（含 `--selftest` 反例：
 > 漏行 / 虚构场景 / 假用例名 / 假文件 / 标题真实但挂错文件 / 半截引用）。
 
-汇总口径：**47 条场景（37 ADDED / 10 MODIFIED）**，已交付 **29** 条、待验证 **18** 条、实机不成立 **0** 条
+汇总口径：**47 条场景（37 ADDED / 10 MODIFIED）**，已交付 **30** 条、待验证 **17** 条、实机不成立 **0** 条
 
 ### A1. 详情完整性在缺祖先文件时结构化降级（ADDED，22 场景）
 
@@ -62,7 +62,7 @@
 | 34 | ownOnly 失败定位只使用自有调用 | `u6-partial-result-closure.test.ts › ownOnly + 自有 error 终止 ⇒ 保留草稿；定位给自有失败调用（不取祖先）` + `u6-partial-result-closure.test.ts › ownOnly + error 终止但无自有失败详情 ⇒ 诚实说明，不给定位入口` | 6.7 实机（受控 503 错误子 run + 父本隐藏 ⇒ 保留草稿 + 定位 = 自有失败 span + 面板「查看失败调用」跳自有 span；**「error 但无自有失败详情」半边受控失败必落自有 llm.call.error，真机造不出 ⇒ store 集成承载**） | 已交付（6.7 实机） |
 | 35 | 部分实验结果保留完整批次判据 | `u6-partial-result-closure.test.ts › 两臂均为 ownOnly 正常终止 ⇒ 整批照常清理（ownOnly 不另设门槛）` + `u6-partial-result-closure.test.ts › 缺臂 / null ID / 不可读臂任一存在 ⇒ 整批保留，不推断胜出臂` | 6.7 实机（A/B UI 两批：[ok,ok] 两臂 ownOnly 正常 ⇒ 整批清理；[ok,fail] 两臂 ownOnly + 错误臂 ⇒ 整批保留；**缺臂/null ID/不可读臂真机不可达（main 收尾每臂必带 id、逐臂独立读取）⇒ store 集成承载**） | 已交付（6.7 实机） |
 | 36 | 后台重试不导航也不重发执行 | `u6-partial-result-closure.test.ts › 不可读 → ownOnly 正常：重试后按原关联清理；全程零执行通道、不换选中项` + `u6-partial-result-closure.test.ts › 重试前草稿已推进新修订 ⇒ 不被删除（无关联/修订不匹配不猜草稿）` | 6.7 实机（两支：不可读首读 → ownOnly 正常重试清理 + 零执行/不导航；修订推进后 ownOnly 正常重试不清新修订） | 已交付（6.7 实机） |
-| 37 | 部分详情提示和恢复动作可达 | `u6-detail-ui-completeness.test.ts › 缺失 ID 以 break-all 呈现（窄窗/200% 下长 ID 换行不断版）` + `u6-detail-ui-completeness.test.ts › 复制动作是真按钮：带 aria-label（读屏可辨）且文案明确` | 6.8 实机（800/1024/1440 + 200% + 真键盘） | 待验证 |
+| 37 | 部分详情提示和恢复动作可达 | `u6-detail-ui-completeness.test.ts › 缺失 ID 以 break-all 呈现（窄窗/200% 下长 ID 换行不断版）` + `u6-detail-ui-completeness.test.ts › 复制动作是真按钮：带 aria-label（读屏可辨）且文案明确` | 6.8 实机（**已交付**：1440/1024/800 三档 + 独立 200%（DPR 4.2）+ 真键盘（keybd_event Tab/Enter/Shift+Tab）——提示块在场、缺失 ID break-all 不断版（页面/块双零横向溢出）、复制按钮 aria 带完整缺失 ID 且真 Enter 后剪贴板=完整 ID、禁用原因行（键入 Monaco 后判来源原因）、重读落地仍 ownOnly 不改阅读位置） | 已交付（6.8 实机） |
 
 ### M1. 分支 run 展示解析后的完整轨迹（MODIFIED，10 场景）
 
