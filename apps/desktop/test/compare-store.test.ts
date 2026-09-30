@@ -289,3 +289,58 @@ describe("U7 1.4/1.5 只读边界", () => {
     expect(calls).toHaveLength(2);
   });
 });
+
+describe("U7 4.5 单侧错误跳转", () => {
+  it("打开该侧运行并定位失败调用：离开比较视图但 pair 与来源引用保留", async () => {
+    // 临时让 getRun 成功返回 r_err 的详情（selectRun 读取通路）
+    const originalGetRun = apiStub.getRun;
+    apiStub.getRun = async (id: string) => {
+      calls.push(`runs:get:${id}`);
+      return ok(detailOf(id));
+    };
+    useAppStore.setState({
+      view: "compare",
+      comparePair: { leftRunId: "r_a", rightRunId: "r_err" },
+      compareReturnLocation: {
+        view: "trace",
+        runId: "r_a",
+        tab: "steps",
+        spanId: null,
+        file: null,
+      },
+      selectedRunId: null,
+      selectedSpanId: null,
+    } as never);
+
+    const landed = await useAppStore.getState().openCompareSideError("r_err", "c_02");
+
+    expect(landed).toBe(true);
+    const state = useAppStore.getState();
+    expect(state.view).toBe("trace");
+    expect(state.selectedRunId).toBe("r_err");
+    expect(state.selectedSpanId).toBe("c_02");
+    // 2.3 纪律：打开单侧保留 pair 与来源引用 ⇒ 返回比较仍成立
+    expect(state.comparePair).toEqual({ leftRunId: "r_a", rightRunId: "r_err" });
+    expect(state.compareReturnLocation).not.toBeNull();
+    // 读取通路走 runs:get（比较结论不复用为导航真相源）
+    expect(calls).toContain("runs:get:r_err");
+    apiStub.getRun = originalGetRun;
+  });
+
+  it("详情读取失败 ⇒ false，不做任何定位（不跳到大概在的位置）", async () => {
+    useAppStore.setState({
+      view: "compare",
+      comparePair: { leftRunId: "r_a", rightRunId: "r_x" },
+      selectedRunId: null,
+      selectedSpanId: null,
+    } as never);
+
+    const landed = await useAppStore.getState().openCompareSideError("r_x", "c_02");
+
+    expect(landed).toBe(false);
+    const state = useAppStore.getState();
+    // selectRun 已把界面切到该 run（读取失败原位可重试），但不做 span 定位
+    expect(state.selectedRunId).toBe("r_x");
+    expect(state.selectedSpanId).toBeNull();
+  });
+});

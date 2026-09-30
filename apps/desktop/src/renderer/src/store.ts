@@ -643,6 +643,13 @@ interface AppState {
    * 同 pair 幂等：`enterCompareSelection` 不重读，会话结论与阅读位置保留。
    */
   returnToCompare: () => void;
+  /**
+   * U7 任务 4.5：比较侧的**单侧错误跳转**——打开目标侧运行并定位其自有失败
+   * 调用。spanId 来自该侧已校验详情的错误定位派生（`deriveSideOutputFacts`），
+   * 本动作不做二次归属判断；运行不可达（详情读取失败）⇒ false，由视图给
+   * 回退说明。打开单侧按 2.3 保留 pair 与来源引用 ⇒ 「返回比较」仍成立。
+   */
+  openCompareSideError: (runId: string, llmCallSpanId: string) => Promise<boolean>;
 
   /**
    * U7 任务 3.1/3.2/3.3：分支树的**会话观察状态**（design D2——视口是观察参数，
@@ -2300,6 +2307,23 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ view: target });
     if (decision.kind !== "restore" || decision.location.runId === null) return;
     await restoreReadingLocation(decision.location);
+  },
+
+  async openCompareSideError(runId, llmCallSpanId) {
+    // U7 4.5：单侧错误跳转 = 打开该侧运行并定位自有失败调用（同 openOperationFailure
+    // 的「先落地、再定位」次序——详情读不出来就不做任何定位）。
+    // selectRun 走既有读取通路：比较结论里的 detail 不复用为导航真相源；
+    // 2.3 纪律：离开比较视图但保留 pair 与来源引用 ⇒ 「返回比较」仍成立。
+    // ⚠️ selectRun 在读取失败时也会落 selectedRunId（原位可重试）——
+    // 「落地」判据必须是详情已读出且归属相符，不能只看 selectedRunId。
+    await get().selectRun(runId);
+    const detail = get().detail;
+    if (get().selectedRunId !== runId || detail === null || detail.meta.id !== runId) {
+      return false;
+    }
+    get().setReadingTab(runId, "steps");
+    get().selectSpan(llmCallSpanId);
+    return true;
   },
 
   returnToCompare() {
