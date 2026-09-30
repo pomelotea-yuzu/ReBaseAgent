@@ -39,7 +39,7 @@
 - [x] 4.2 实现逐跳编辑证据与来源链呈现，补相应单元/IPC/store/组件验证（对应“多跳兄弟展示逐跳修改链”）。（`2009a88`：deriveHopChains(items, ancestorId)——从已确认共同祖先（不含）到各 ready 侧逐跳，每跳核对直接父（CHAIN_BREAK 兜底）；值级证据尽力投影：result 跳在该侧 resolved 视图定位、context 跳在来源详情于对内时走实际请求、否则 SPAN_NOT_IN_VIEW；ancestorId=null ⇒ 空链不推断根。纯派生层交付；「呈现」归 4.12 视图消费）
 - [x] 4.3 实现不同根事实对照及不适用状态，补相应单元/IPC/store/组件验证（对应“不同根只核对实际输入配置”）。（`7613e4b`：deriveDifferentRootFacts——relation=unrelated 且两侧 ready 时逐侧列出模型/system/user/params 实际记录值；relation 非 unrelated 或有不可读侧 ⇒ notApplicable（共同祖先未确认不得按不同根呈现）；不触 config_hash；视图呈现归 4.12）
 - [x] 4.4 实现编辑证据三态、未知字段与空值边界，补相应单元/IPC/store/组件验证（对应“原值缺失未知字段不补空”）。（`5131d0c`：三态/未知字段/空值/未记录/祖先不可得判据已随 4.1（`08da068`）、4.10、4.11（`87fccd3`）模块与用例交付，本轮补齐最后三支边界——edit.value 字面 undefined ⇒ EDIT_VALUE_UNRECORDED、null+空串双真实值 verified、不可用结论恒带身份四元组与无路径受控原因；IPC 层无新通道；store/组件级验证归 4.12 接线同轮补）
-- [ ] 4.5 复用输出/结局派生并实现单侧错误跳转，补相应单元/IPC/store/组件验证（对应“最终输出不借中间正文或祖先”）。
+- [x] 4.5 复用输出/结局派生并实现单侧错误跳转，补相应单元/IPC/store/组件验证（对应“最终输出不借中间正文或祖先”）。（`e1ecf98`：shared/compare-output.ts deriveSideOutputFacts 薄组合 deriveOwnTerminalFacts + deriveOwnOutput，只补 failure.runId 侧身份；store 动作 openCompareSideError——落地判据 = 详情已读出且归属相符（selectRun 失败也落 selectedRunId，不能只看选中项），打开单侧保留 pair/来源引用；组件级呈现归 4.12）
 - [ ] 4.6 实现输出工具栏、只读 diff 与独立滚动，补相应单元/IPC/store/组件验证（对应“长输出独立阅读与合法文本差异”）。
 - [ ] 4.7 提取普通 v1 resolver 的只读来源映射，对照原完整轨迹验证 span 边界与被覆写值（对应“result 共享前缀保留真实边界”）。
 - [ ] 4.8 实现独立步骤目录和复合定位，覆盖混合链，补相应单元/IPC/store/组件验证（对应“重复 span ID 与独立分支不强行对齐”）。
