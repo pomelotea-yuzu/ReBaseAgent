@@ -170,7 +170,7 @@ const treeDetail = (call) =>
      })()`,
   ).then(JSON.parse);
 
-/** 指标表探测：等 <table> 出现（可选等子串在场），超时返回最后一次读数 */
+/** 指标表探测：等 <table> 出现（可选等子串在场），超时返回最后一次读数 + 现场诊断 */
 async function tableProbe(call, substr, timeoutMs = 15000) {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
@@ -178,13 +178,22 @@ async function tableProbe(call, substr, timeoutMs = 15000) {
       call,
       `(() => {
          const t = document.querySelector('table');
-         if (t === null) return JSON.stringify(null);
-         const ths = Array.from(t.querySelectorAll('thead th')).map(th => ({
-           text: (th.textContent || '').trim(), w: th.offsetWidth }));
-         return JSON.stringify({ text: t.textContent, ths });
+         const ws = document.querySelector('[aria-label="比较工作区"]');
+         const btn = document.querySelector('[aria-label="查看指标对照表"]');
+         return JSON.stringify({
+           hasTable: t !== null,
+           text: t === null ? null : t.textContent,
+           ths: t === null ? null : Array.from(t.querySelectorAll('thead th')).map(th => ({
+             text: (th.textContent || '').trim(), w: th.offsetWidth })),
+           hasWorkspace: ws !== null,
+           wsText: ws === null ? null : ws.textContent.slice(0, 200),
+           hasTableBtn: btn !== null,
+         });
        })()`,
     ).then(JSON.parse);
-    if (p !== null && (substr === undefined || (p.text || "").includes(substr))) return p;
+    if (p !== null && p.hasTable && (substr === undefined || (p.text || "").includes(substr))) {
+      return p;
+    }
     if (Date.now() > deadline) return p;
     await H.sleep(500);
   }
@@ -192,6 +201,7 @@ async function tableProbe(call, substr, timeoutMs = 15000) {
 
 /** 详细比较头部切到指标表（pair 在场时默认详细比较模式，表是显式入口） */
 async function openTableMode(call) {
+  await H.sleep(900);
   const r = await H.ev(
     call,
     `(() => {
@@ -304,7 +314,7 @@ const FLOWS = {
       "#17 详情面板：完整任务全文在场（R9「尾行被裁」以详情区完整承载）+ 完整 ID 可复制",
       detail !== null &&
         detail.text.includes("标注来源文件与行号范围") &&
-        detail.text.includes("便于后续人工复核") &&
+        detail.text.includes("以便后续人工复核") &&
         detail.copyIdBtn === true,
       {
         hasText: detail?.text?.includes("标注来源"),
