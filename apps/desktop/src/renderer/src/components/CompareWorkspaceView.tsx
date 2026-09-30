@@ -6,6 +6,7 @@ import { outcomeBadgeClass } from "@shared/outcome";
 import { foldCatalogRows } from "../lib/compare-steps";
 import type { SideStepCatalog } from "../lib/compare-steps";
 import type { CompareFileEntry } from "../lib/compare-files";
+import { FOCUS_RING } from "./IconButton";
 import { LongText } from "./LongText";
 import { MonacoDiffEditor } from "./MonacoEditor";
 import { ShortIdLabel } from "./ShortIdLabel";
@@ -481,7 +482,7 @@ export function SideOutputSection({
             type="button"
             aria-label={`打开 ${facts.runId} 的失败调用`}
             onClick={() => onOpenError(facts.runId, failure.llmCallSpanId ?? "")}
-            className="rounded border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50"
+            className={`rounded border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50 ${FOCUS_RING}`}
           >
             打开失败调用（{failure.llmCallSpanId}）
           </button>
@@ -537,7 +538,7 @@ export function SideStepsSection({
                 type="button"
                 aria-label="展开完整前缀"
                 onClick={onToggleFold}
-                className="w-full rounded bg-gray-100 px-2 py-1 text-left text-[11px] text-gray-600 hover:bg-gray-200"
+                className={`w-full rounded bg-gray-100 px-2 py-1 text-left text-[11px] text-gray-600 hover:bg-gray-200 ${FOCUS_RING}`}
               >
                 共享前缀：{entry.summary.rowCount} 条来自 {entry.summary.sourceRunIds.join("、")}
                 {entry.summary.edits.length > 0
@@ -559,7 +560,7 @@ export function SideStepsSection({
                   selectedSpanId === entry.row.spanId
                     ? "bg-blue-100 text-blue-900"
                     : "hover:bg-gray-100"
-                }`}
+                } ${FOCUS_RING}`}
                 style={{ paddingLeft: `${8 + entry.row.depth * 12}px` }}
               >
                 <span className={entry.row.own ? "" : "text-gray-400"}>{entry.row.label}</span>
@@ -603,7 +604,13 @@ export function CompareWorkspaceView({
 }: CompareWorkspaceViewProps) {
   const diffAvailable = diffGate.status === "available";
   return (
-    <div className="flex min-w-0 flex-1 flex-col overflow-hidden" aria-label="比较工作区">
+    <div
+      className="flex min-w-0 flex-1 flex-col overflow-hidden outline-none"
+      aria-label="比较工作区"
+      // U7 5.9：程序化焦点落点——从单侧运行「返回比较」后焦点回到比较头部（不落页顶）
+      data-compare-primary="true"
+      tabIndex={-1}
+    >
       <div className="flex items-center justify-between border-b border-gray-200 px-4 py-2">
         <h2 className="text-sm font-medium text-gray-800">比较</h2>
         <div className="flex items-center gap-2">
@@ -612,7 +619,7 @@ export function CompareWorkspaceView({
               type="button"
               aria-label="查看指标对照表"
               onClick={onOpenMetricsTable}
-              className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
+              className={`rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 ${FOCUS_RING}`}
             >
               指标表
             </button>
@@ -623,7 +630,7 @@ export function CompareWorkspaceView({
             onClick={onToggleDiffMode}
             disabled={!diffAvailable}
             title={diffAvailable ? "两侧独立滚动 ↔ 只读文本差异（同步滚动）" : diffGate.reason}
-            className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 enabled:hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400"
+            className={`rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 enabled:hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400 ${FOCUS_RING}`}
           >
             {diffMode ? "退出文本差异" : "文本差异"}
           </button>
@@ -631,7 +638,7 @@ export function CompareWorkspaceView({
             type="button"
             aria-label="交换左右"
             onClick={onSwap}
-            className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
+            className={`rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 ${FOCUS_RING}`}
           >
             交换左右
           </button>
@@ -639,7 +646,7 @@ export function CompareWorkspaceView({
             type="button"
             aria-label="返回来源"
             onClick={onReturn}
-            className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
+            className={`rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 ${FOCUS_RING}`}
           >
             返回来源
           </button>
@@ -690,7 +697,7 @@ export function CompareWorkspaceView({
                           ? (side.fileEntry.note ?? "进入该运行自己的 U2 文件页（保留比较对象）")
                           : side.fileEntry.reason
                       }
-                      className="rounded border border-gray-300 px-1.5 py-0.5 text-[10px] text-gray-600 enabled:hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400"
+                      className={`rounded border border-gray-300 px-1.5 py-0.5 text-[10px] text-gray-600 enabled:hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400 ${FOCUS_RING}`}
                     >
                       打开文件
                     </button>

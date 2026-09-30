@@ -681,6 +681,64 @@ describe("5.6/5.7 单侧文件入口", () => {
   });
 });
 
+describe("5.9 键盘交互与异步焦点", () => {
+  const left = okSide("left", "r_l", [stepSpan("s_01"), llmSpan("c_01", { content: "左侧正文" })]);
+  const right = okSide("right", "r_r", [
+    stepSpan("s_01"),
+    llmSpan("c_01", { content: "右侧正文" }),
+  ]);
+  const props = {
+    pair: { leftRunId: "r_l", rightRunId: "r_r" },
+    left,
+    right,
+    diffMode: false,
+    onToggleDiffMode: vi.fn(),
+    onSwap: vi.fn(),
+    onReturn: vi.fn(),
+    stacked: false,
+    onOpenRun: vi.fn(),
+    onOpenMetricsTable: vi.fn(),
+    evidence: {
+      kind: "unavailable",
+      reason: "尚无可核对两侧的比较结论",
+    } as EvidenceViewData,
+  };
+
+  it("动作按钮全部带 focus-visible 焦点环（键盘焦点可见）", () => {
+    const html = renderToStaticMarkup(
+      <CompareWorkspaceView
+        {...props}
+        loading={false}
+        diffGate={{ status: "unavailable", reason: "不可用" }}
+      />,
+    );
+    expect(html).toContain("focus-visible:ring-2");
+    // 主要异步焦点落点在场
+    expect(html).toContain('data-compare-primary="true"');
+  });
+
+  it("在飞读取不卸载动作按钮（交换/加载/重试不把焦点甩回页顶的静态前提）", () => {
+    const idle = renderToStaticMarkup(
+      <CompareWorkspaceView
+        {...props}
+        loading={false}
+        diffGate={{ status: "unavailable", reason: "不可用" }}
+      />,
+    );
+    const loading = renderToStaticMarkup(
+      <CompareWorkspaceView
+        {...props}
+        loading={true}
+        diffGate={{ status: "unavailable", reason: "不可用" }}
+      />,
+    );
+    for (const marker of ['aria-label="交换左右"', 'aria-label="返回来源"']) {
+      expect(idle).toContain(marker);
+      expect(loading).toContain(marker);
+    }
+  });
+});
+
 describe("5.11/5.15 模型实验比较区", () => {
   it("eligible：批次身份 + 相对父累计增量 + 无臂间结论恒定说明 + 副作用放行说明", () => {
     const html = renderToStaticMarkup(

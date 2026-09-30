@@ -1,6 +1,7 @@
 import type { RunSummary } from "@shared/ipc";
 import { taskSummary } from "@shared/nav";
 import { MAX_COMPARE, useAppStore } from "../store";
+import { FOCUS_RING } from "./IconButton";
 import { ShortIdLabel } from "./ShortIdLabel";
 
 /** store 薄壳：把对照集合、提示与动作接进纯展示层 */
@@ -104,7 +105,7 @@ export function CompareSelectionBarView({
                     type="button"
                     aria-label={`移出对照 ${id}`}
                     onClick={() => onToggleCompare(id)}
-                    className="rounded px-1 text-[11px] text-gray-400 hover:bg-gray-200 hover:text-gray-600"
+                    className={`rounded px-1 text-[11px] text-gray-400 hover:bg-gray-200 hover:text-gray-600 ${FOCUS_RING}`}
                   >
                     移出
                   </button>
@@ -116,7 +117,7 @@ export function CompareSelectionBarView({
             type="button"
             aria-label="进入对照与比较工作区"
             onClick={onEnter}
-            className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
+            className={`rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 ${FOCUS_RING}`}
           >
             {compareIds.length === 2 ? "进入详细比较" : "进入指标对照"}
           </button>
@@ -124,7 +125,7 @@ export function CompareSelectionBarView({
             type="button"
             aria-label="清空对照集合"
             onClick={onClear}
-            className="rounded px-1.5 py-1 text-[11px] text-gray-500 hover:bg-gray-100"
+            className={`rounded px-1.5 py-1 text-[11px] text-gray-500 hover:bg-gray-100 ${FOCUS_RING}`}
           >
             清空
           </button>

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { FOCUS_RING } from "./IconButton";
 import { copyPayload } from "./LongText";
 
 /**
@@ -55,7 +56,7 @@ export function ShortIdLabel({
         aria-label={`复制完整 ${label} ${id}`}
         title={`复制完整 ID：${id}`}
         onClick={copy}
-        className="shrink-0 rounded px-1 text-[10px] text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+        className={`shrink-0 rounded px-1 text-[10px] text-gray-400 hover:bg-gray-100 hover:text-gray-600 ${FOCUS_RING}`}
       >
         复制
       </button>

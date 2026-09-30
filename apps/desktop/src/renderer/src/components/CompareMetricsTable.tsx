@@ -1,4 +1,5 @@
 import type { MetricsRow, MetricsTableModel } from "../lib/compare-metrics";
+import { FOCUS_RING } from "./IconButton";
 import { ShortIdLabel } from "./ShortIdLabel";
 
 /**
@@ -48,7 +49,7 @@ export function CompareMetricsTable(props: {
             type="button"
             aria-label="重试比较读取"
             onClick={props.onRetry}
-            className="mt-2 rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
+            className={`mt-2 rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 ${FOCUS_RING}`}
           >
             重试读取
           </button>
@@ -95,7 +96,7 @@ export function CompareMetricsTable(props: {
             aria-label="打开所选两条的详细比较"
             onClick={props.onOpenPair}
             disabled={props.pick.left === null || props.pick.right === null}
-            className="rounded border border-gray-300 px-2 py-0.5 text-[11px] text-gray-700 enabled:hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+            className={`rounded border border-gray-300 px-2 py-0.5 text-[11px] text-gray-700 enabled:hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 ${FOCUS_RING}`}
           >
             打开详细比较
           </button>
@@ -104,7 +105,7 @@ export function CompareMetricsTable(props: {
               type="button"
               aria-label="清除挑选"
               onClick={props.onClearPick}
-              className="rounded px-1.5 py-0.5 text-[11px] text-gray-500 hover:bg-gray-100"
+              className={`rounded px-1.5 py-0.5 text-[11px] text-gray-500 hover:bg-gray-100 ${FOCUS_RING}`}
             >
               清除
             </button>
@@ -163,7 +164,7 @@ export function CompareMetricsTable(props: {
                           aria-label={`设为左列 ${column.runId}`}
                           aria-pressed={props.pick?.left === column.runId}
                           onClick={() => props.onPickSide?.("left", column.runId)}
-                          className="rounded border border-gray-300 px-1.5 py-0.5 text-[10px] text-gray-600 hover:bg-gray-50"
+                          className={`rounded border border-gray-300 px-1.5 py-0.5 text-[10px] text-gray-600 hover:bg-gray-50 ${FOCUS_RING}`}
                         >
                           设为左列
                         </button>
@@ -172,7 +173,7 @@ export function CompareMetricsTable(props: {
                           aria-label={`设为右列 ${column.runId}`}
                           aria-pressed={props.pick?.right === column.runId}
                           onClick={() => props.onPickSide?.("right", column.runId)}
-                          className="rounded border border-gray-300 px-1.5 py-0.5 text-[10px] text-gray-600 hover:bg-gray-50"
+                          className={`rounded border border-gray-300 px-1.5 py-0.5 text-[10px] text-gray-600 hover:bg-gray-50 ${FOCUS_RING}`}
                         >
                           设为右列
                         </button>

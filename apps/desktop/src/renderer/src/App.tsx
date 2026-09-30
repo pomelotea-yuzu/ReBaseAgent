@@ -313,7 +313,13 @@ export function ReturnToCompareBar() {
       <button
         type="button"
         aria-label="返回比较工作区"
-        onClick={() => returnToCompare()}
+        onClick={() => {
+          returnToCompare();
+          // U7 5.9：异步焦点——返回后焦点落到比较工作区主容器（不落页顶、不丢位置）
+          requestAnimationFrame(() => {
+            document.querySelector<HTMLElement>("[data-compare-primary]")?.focus();
+          });
+        }}
         className={`rounded border border-sky-200 px-2 py-0.5 text-reading-meta text-sky-900 hover:bg-sky-100 ${FOCUS_RING}`}
       >
         返回比较

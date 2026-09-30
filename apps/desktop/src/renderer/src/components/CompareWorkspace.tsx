@@ -131,7 +131,13 @@ export function CompareWorkspace({ stacked = false }: { stacked?: boolean } = {}
   if (comparePair === null || tableMode) {
     const model = deriveCompareMetricsTable({ items: acceptedItems, shortIds });
     return (
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden" aria-label="比较工作区">
+      <div
+        className="flex min-w-0 flex-1 flex-col overflow-hidden outline-none"
+        aria-label="比较工作区"
+        // U7 5.9：程序化焦点落点（指标表模式同理）
+        data-compare-primary="true"
+        tabIndex={-1}
+      >
         {comparePair !== null ? (
           <div className="flex items-center justify-between border-b border-gray-200 px-4 py-2">
             <span className="text-[11px] text-gray-500">
@@ -178,7 +184,12 @@ export function CompareWorkspace({ stacked = false }: { stacked?: boolean } = {}
   if (!pairAligned) {
     // 结论不在场 / 请求级拒绝 / 尚未按 pair 对齐：如实呈现，不冒充、不借旧结论
     return (
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden" aria-label="比较工作区">
+      <div
+        className="flex min-w-0 flex-1 flex-col overflow-hidden outline-none"
+        aria-label="比较工作区"
+        data-compare-primary="true"
+        tabIndex={-1}
+      >
         <div className="px-4 py-2 text-[11px] text-gray-500">正在读取详细比较对象…</div>
         {conclusion?.kind === "rejected" ? (
           <div className="px-4 py-2">
