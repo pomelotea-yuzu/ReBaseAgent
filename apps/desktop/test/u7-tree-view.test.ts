@@ -67,7 +67,7 @@ describe("U7 3.1 首次进入决策与树归属", () => {
 
   it("有选中运行 ⇒ 当前树 + 焦点该节点；无选中 ⇒ 全部、无焦点", () => {
     expect(decideTreeInitialFocus("B")).toEqual({ scope: "current", focusRunId: "B" });
-    expect(decideTreeInitialFocus(null)).toEqual({ scope: "all", focusRunId: null });
+    expect(decideTreeInitialFocus(null)).toEqual({ scope: "all" as const, focusRunId: null });
   });
 
   it("树根判定：沿 parent 上溯；父缺失/成环 ⇒ 自身即根（与森林提根同口径）", () => {
@@ -188,13 +188,16 @@ function render(
     onSelect: () => {},
     onToggleCompare: () => {},
     onOpenDetail: () => {},
+    onOpenRun: () => {},
     scope: over.scope ?? "all",
     query: over.query ?? "",
     viewport: { zoom: 100, scrollLeft: 0, scrollTop: 0 },
-    onArmSession: () => ({ scope: "all", focusRunId: null }),
+    mode: "graph",
+    onArmSession: () => ({ scope: "all" as const, focusRunId: null }),
     onScopeChange: () => {},
     onQueryChange: () => {},
     onViewportChange: () => {},
+    onModeChange: () => {},
   };
   return renderToStaticMarkup(createElement(BranchTreeView, props));
 }
@@ -240,5 +243,180 @@ describe("U7 3.2/3.4 树组件静态结构", () => {
     expect(markup).toContain("模型：未记录");
     // 完整 run id 在 title 提示里（短 ID 只用于展示区分）
     expect(markup).toContain("r_nomodel");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// U7 3.4/3.5 选中详情区 + 3.6/3.7 关系列表与占位/分组
+// ---------------------------------------------------------------------------
+
+const { SelectedRunDetail } = await import("../src/renderer/src/components/BranchTree");
+const { deriveChainTotals } = await import("@shared/derive");
+
+describe("U7 3.4/3.5 选中详情区（静态结构）", () => {
+  const runs = [
+    run("r_parent"),
+    run("r_child", {
+      parent: "r_parent",
+      fork: { at_span: "s_9", edit_field: "result", experiment_id: null },
+      model: "",
+    }),
+  ];
+  const byId = new Map(runs.map((r) => [r.id, r]));
+
+  function detailHtml(id: string, over: { inCompare?: boolean } = {}): string {
+    const target = byId.get(id);
+    if (target === undefined) throw new Error(`夹具缺 ${id}`);
+    return renderToStaticMarkup(
+      createElement(SelectedRunDetail, {
+        run: target,
+        totals: deriveChainTotals(byId, id),
+        inCompare: over.inCompare ?? false,
+        onOpen: () => {},
+        onToggleCompare: () => {},
+      }),
+    );
+  }
+
+  it("完整 ID + 复制按钮；完整任务展开/复制（LongText 契约）；模型缺失标未记录", () => {
+    const markup = detailHtml("r_child");
+    expect(markup).toContain("复制完整 ID");
+    expect(markup).toContain("r_child");
+    expect(markup).toContain("模型：未记录");
+    expect(markup).toContain("任务 r_child"); // LongText 渲染完整任务原文
+  });
+
+  it("入边标注带分叉摘要与分叉点 span id（不推断编辑内容）", () => {
+    const markup = detailHtml("r_child");
+    expect(markup).toContain("改 tool_result");
+    expect(markup).toContain("s_9");
+  });
+
+  it("沿链累计显示真实求和值并保留口径说明；无标签动作仍可用", () => {
+    const markup = detailHtml("r_child");
+    expect(markup).toContain("沿链累计（沿链求和）");
+    expect(markup).toContain("2 步"); // 两代各 1 步沿链求和
+    expect(markup).toContain("打开运行");
+    expect(markup).toContain("加入对照");
+  });
+
+  it("对照状态同步：inCompare ⇒ aria-pressed 且文案为「移出对照」", () => {
+    const markup = detailHtml("r_child", { inCompare: true });
+    expect(markup).toContain("移出对照");
+    expect(markup).toContain('aria-pressed="true"');
+  });
+});
+
+describe("U7 3.6 关系列表（图同步 + 键盘动作）", () => {
+  const runs = [run("A"), run("B", { parent: "A" })];
+
+  function listHtml(over: { selectedRunId?: string | null; compareIds?: string[] } = {}): string {
+    return renderToStaticMarkup(
+      createElement(BranchTreeView, {
+        runs,
+        selectedRunId: over.selectedRunId ?? null,
+        compareIds: over.compareIds ?? [],
+        onSelect: () => {},
+        onToggleCompare: () => {},
+        onOpenDetail: () => {},
+        onOpenRun: () => {},
+        scope: "all",
+        query: "",
+        viewport: { zoom: 100, scrollLeft: 0, scrollTop: 0 },
+        mode: "list",
+        onArmSession: () => ({ scope: "all" as const, focusRunId: null }),
+        onScopeChange: () => {},
+        onQueryChange: () => {},
+        onViewportChange: () => {},
+        onModeChange: () => {},
+      }),
+    );
+  }
+
+  it("列表渲染同一数据：行带选中/打开/加入对照三动作（均为可 Tab 聚焦的 button）", () => {
+    const markup = listHtml();
+    expect(markup).toContain('data-tree-list="true"');
+    expect(markup).toContain("选中");
+    expect(markup).toContain("打开运行");
+    expect(markup).toContain("加入对照");
+  });
+
+  it("选中与对比状态在列表可见（aria-pressed 同步）", () => {
+    const markup = listHtml({ selectedRunId: "B", compareIds: ["B"] });
+    const row = nodeHtml(markup, "B");
+    expect(row).toContain('data-selected="true"');
+    expect(row).toContain("移出对照");
+  });
+});
+
+describe("U7 3.7 缺父占位与实验分组（不造记录）", () => {
+  it("缺父占位只显示真实引用与不可用原因，无任何动作按钮；原 run 保留", () => {
+    const runs = [run("r_orphan", { parent: "r_missing" })];
+    const markup = renderToStaticMarkup(
+      createElement(BranchTreeView, {
+        runs,
+        selectedRunId: null,
+        compareIds: [],
+        onSelect: () => {},
+        onToggleCompare: () => {},
+        onOpenDetail: () => {},
+        onOpenRun: () => {},
+        scope: "all",
+        query: "",
+        viewport: { zoom: 100, scrollLeft: 0, scrollTop: 0 },
+        mode: "list",
+        onArmSession: () => ({ scope: "all" as const, focusRunId: null }),
+        onScopeChange: () => {},
+        onQueryChange: () => {},
+        onViewportChange: () => {},
+        onModeChange: () => {},
+      }),
+    );
+    expect(markup).toContain('data-tree-placeholder="r_missing"');
+    expect(markup).toContain("缺失的父运行");
+    expect(markup).toContain("无法打开或加入比较");
+    // 占位行本身没有动作（渲染里 placeholder 之后才是原 run 的行）
+    const at = markup.indexOf('data-tree-placeholder="r_missing"');
+    const placeholderSegment = markup.slice(at, markup.indexOf('data-run-id="r_orphan"'));
+    expect(placeholderSegment).not.toContain("加入对照");
+    // 原 run 保留且照常可用
+    expect(markup).toContain('data-run-id="r_orphan"');
+  });
+
+  it("实验分组只按记录 experimentId：组头在首臂前出现一次，无标签 run 不进组", () => {
+    const runs = [
+      run("r_arm1", {
+        fork: { at_span: "s_1", edit_field: "model_params", experiment_id: "exp1" },
+      }),
+      run("r_plain"),
+      run("r_arm2", {
+        fork: { at_span: "s_2", edit_field: "model_params", experiment_id: "exp1" },
+      }),
+    ];
+    const markup = renderToStaticMarkup(
+      createElement(BranchTreeView, {
+        runs,
+        selectedRunId: null,
+        compareIds: [],
+        onSelect: () => {},
+        onToggleCompare: () => {},
+        onOpenDetail: () => {},
+        onOpenRun: () => {},
+        scope: "all",
+        query: "",
+        viewport: { zoom: 100, scrollLeft: 0, scrollTop: 0 },
+        mode: "list",
+        onArmSession: () => ({ scope: "all" as const, focusRunId: null }),
+        onScopeChange: () => {},
+        onQueryChange: () => {},
+        onViewportChange: () => {},
+        onModeChange: () => {},
+      }),
+    );
+    expect(markup).toContain('data-experiment-group="exp1"');
+    expect(markup).toContain("实验组 exp1（2 臂）");
+    expect((markup.match(/data-experiment-group="exp1"/g) ?? []).length).toBe(1);
+    // 无 experimentId 的 run 不进组（没有第二个组头）
+    expect((markup.match(/data-experiment-group=/g) ?? []).length).toBe(1);
   });
 });

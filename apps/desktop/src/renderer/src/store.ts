@@ -662,6 +662,12 @@ interface AppState {
   setTreeQuery: (query: string) => void;
   /** U7 3.3：记录视口（滚动/缩放/适应画布/定位都落这里，返回树据此恢复） */
   setTreeViewport: (viewport: TreeViewport) => void;
+  /**
+   * U7 3.6：树的呈现模式（图 / 关系列表）。会话内状态——从列表打开某运行再返回，
+   * 仍停留在列表模式（scenario「返回保留来源模式」）；与范围/搜索/视口一样不落盘。
+   */
+  treeMode: "graph" | "list";
+  setTreeMode: (mode: "graph" | "list") => void;
 
   /**
    * U5 任务 3.5：**用户明确打开某条可信结果**。
@@ -1495,6 +1501,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   treeScope: null,
   treeQuery: "",
   treeViewport: null,
+  treeMode: "graph",
   // U5 任务 3.4：阅读代次 + 各提交的导航意图（同为会话内，不进任何持久化）
   navGeneration: 0,
   navIntents: emptyNavigationIntents(),
@@ -2328,6 +2335,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   setTreeViewport(viewport) {
     // U7 3.3：视口落会话（缩放/平移/定位/适应画布都汇到这里）；返回树恢复
     set({ treeViewport: viewport });
+  },
+
+  setTreeMode(mode) {
+    // U7 3.6：呈现模式落会话（返回树保留来源模式）；不影响选中与对比集合
+    set({ treeMode: mode });
   },
 
   async openOperationResult(identity) {
