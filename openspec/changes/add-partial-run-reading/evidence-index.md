@@ -10,7 +10,7 @@
 > `.workbuddy/u6/u6-61/verify-scenario-checklist.cjs` 按点名的那个文件核（含 `--selftest` 反例：
 > 漏行 / 虚构场景 / 假用例名 / 假文件 / 标题真实但挂错文件 / 半截引用）。
 
-汇总口径：**47 条场景（37 ADDED / 10 MODIFIED）**，已交付 **23** 条、待验证 **24** 条、实机不成立 **0** 条
+汇总口径：**47 条场景（37 ADDED / 10 MODIFIED）**，已交付 **29** 条、待验证 **18** 条、实机不成立 **0** 条
 
 ### A1. 详情完整性在缺祖先文件时结构化降级（ADDED，22 场景）
 
@@ -32,7 +32,7 @@
 | 14 | 祖先链成环不降级 | `u6-lineage-read.test.ts › 1.5 祖先链成环 → LINEAGE_CYCLE 终止，不死循环不截断（对应「祖先链成环不降级」）` + `u6-lineage-faults.test.ts › lineageCycle ⇒ 成环严格失败，不截断成 ownOnly` | 6.6 实机（注入=lineageCycle） | 已交付（6.6 实机） |
 | 15 | fork 定位非法不降级 | `u6-lineage-read.test.ts › 1.5 v2 整轮边界不在可读直接父自有记录、隔代缺失 → FORK_INVALID 优先（对应「fork 定位非法不降级」）` + `u6-lineage-faults.test.ts › forkInvalid ⇒ at_span 不属于父轨迹 ⇒ 定位非法失败` | 6.6 实机（注入=forkInvalid） | 已交付（6.6 实机） |
 | 16 | 父文件恢复后重试全量重验 | `u6-detail-project.test.ts › ownOnly → 恢复父文件 → complete；恢复的是损坏文件 → 仍失败，不缓存旧结论` + `u6-lineage-faults.test.ts › ancestorMissing ⇒ 结构化 ownOnly；还原（父文件恢复）后重读 ⇒ complete/resolved` + `u6-exec-source-gate.test.ts › 5.10 来源拒绝后恢复父文件：同 ID 只命中判重不复活；新 ID 重检后可执行` | 6.6 实机（注入=ancestorMissing 后还原） | 已交付（6.6 实机） |
-| 17 | 读取重试不改变阅读位置 | `u6-detail-refresh-guard.test.ts › 重试在飞期间选择别的调用 ⇒ 落地不覆盖新阅读位置` + `u6-detail-refresh-guard.test.ts › 重试在飞期间换页签 ⇒ 落地落在用户新页签上` + `u6-detail-refresh-guard.test.ts › 恢复前的 ownOnly 旧响应后到 ⇒ 不覆盖恢复后的 complete 详情` | 6.7 实机 | 待验证 |
+| 17 | 读取重试不改变阅读位置 | `u6-detail-refresh-guard.test.ts › 重试在飞期间选择别的调用 ⇒ 落地不覆盖新阅读位置` + `u6-detail-refresh-guard.test.ts › 重试在飞期间换页签 ⇒ 落地落在用户新页签上` + `u6-detail-refresh-guard.test.ts › 恢复前的 ownOnly 旧响应后到 ⇒ 不覆盖恢复后的 complete 详情` | 6.7 实机（ownOnly→恢复→complete 三态切换中阅读位置保持；**在飞交叠半边真机无延时注入面 ⇒ 单元承载**） | 已交付（6.7 实机） |
 | 18 | 详情完整性字段拒绝错配 | `u6-detail-contract.test.ts › 缺省 completeness 整份拒绝（不允许静默缺省）` + `u6-detail-contract.test.ts › 未知枚举由 schema 拒绝（不能借未知字段剥离接受错配）` + `u6-detail-contract.test.ts › 2.5 U5 后台核实入口对错配载荷返回失败（verifyResultPayload 不放宽）` | —（schema/main 自检/renderer 守卫三层全单元承载；错配载荷无实机注入面：桥接面只回真 main 产出） | 待验证 |
 | 19 | 文件身份与路径不能伪造来源 | `u6-lineage-read.test.ts › 1.4 非法请求标识在任何 fs 访问之前拒绝（对应「文件身份与路径不能伪造来源」的路径半边）` + `u6-lineage-read.test.ts › 1.4 祖先 meta.id 与文件名不符 → 拒绝详情，不从错误正文猜缺失 ID` + `u6-lineage-read.test.ts › 非法 run id → 抛受控原因（getRun 与 loadRunRecord 两处都在 fs 之前拒绝）` | —（路径伪造在真机只能经 UI 输入 run id，桌面无该输入面；单元层注入计数已证零 fs 访问） | 待验证 |
 | 20 | 已知无效关系不能被更早缺失遮蔽 | `u6-lineage-read.test.ts › 1.5 可读 hop 缺 fork 且更早祖先缺失 → FORK_INVALID 优先于缺失（对应「已知无效关系不能被更早缺失遮蔽」）` + `u6-lineage-read.test.ts › 1.5 祖先未封存且隔代缺失 → 严格失败而非 ownOnly（未封存不能被缺失遮蔽）` | 6.6 实机（注入=lineageCycle 与缺失叠加） | 已交付（6.6 实机） |
@@ -47,7 +47,7 @@
 | 24 | ownOnly prompt、代理和实验臂不执行 | `u6-exec-source-gate.test.ts › ownOnly prompt 父本 ⇒ RUN_LINEAGE_INCOMPLETE，零模型调用` + `u6-exec-source-gate.test.ts › ownOnly 父本 ⇒ RUN_LINEAGE_INCOMPLETE，代理 fork 零调用` + `u6-exec-source-gate.test.ts › ownOnly 父本 ⇒ RUN_LINEAGE_INCOMPLETE：零臂身份、零模型调用` | 6.3 变异（摘 prompt/proxy/modelAb 门禁须红）+ 6.5 实机 | 已交付（6.5 实机） |
 | 25 | ownOnly 隔离 result 不消费副本授权 | `u6-exec-source-gate.test.ts › ownOnly 隔离父本 + 合法 allowFileWrites 请求 ⇒ RUN_LINEAGE_INCOMPLETE，无副本世界/trace 创建` | 6.3 变异 + 6.4 实机 | 待验证 |
 | 26 | ownOnly model_params dry-run 保持只读 | `u6-exec-source-gate.test.ts › ownOnly 父本 ⇒ RUN_LINEAGE_INCOMPLETE：无计划、零网络、登记仍为空` + `u6-exec-source-gate.test.ts › 正对照：完整父本的 dry-run 计划可用且不产生登记、零模型调用` | 6.3 变异 + 6.5 实机 | 已交付（6.5 实机） |
-| 27 | 读取重试与执行严格分离 | `u6-partial-result-closure.test.ts › 不可读 → ownOnly 正常：重试后按原关联清理；全程零执行通道、不换选中项` + `u6-partial-result-closure.test.ts › store：详情落地 ownOnly ⇒ canExecuteFromSource false；complete ⇒ true` | 6.7 实机（重试按钮 → 仅 runs:get） | 待验证 |
+| 27 | 读取重试与执行严格分离 | `u6-partial-result-closure.test.ts › 不可读 → ownOnly 正常：重试后按原关联清理；全程零执行通道、不换选中项` + `u6-partial-result-closure.test.ts › store：详情落地 ownOnly ⇒ canExecuteFromSource false；complete ⇒ true` | 6.7 实机（面板「重读」按钮 → 仅 runs:get：零执行/零新 trace/不换选中项；ownOnly ⇒ canExecuteFromSource false，complete 对照 true） | 已交付（6.7 实机） |
 | 28 | 详情加载失败在执行入口即拒绝 | `u6-exec-source-gate.test.ts › 当前文件损坏 ⇒ RUN_DETAIL_UNREADABLE（缺失不掩盖损坏，missingRunId 为 null）` + `u6-exec-source-gate.test.ts › 父文件损坏 ⇒ RUN_DETAIL_UNREADABLE（严格失败不降级）` | 6.3 变异 + 6.6 实机（注入=ancestorCorrupt） | 已交付（6.6 实机） |
 | 29 | 父链恢复不复活已拒绝操作 | `u6-exec-source-gate.test.ts › 5.10 来源拒绝后恢复父文件：同 ID 只命中判重不复活；新 ID 重检后可执行` | 6.3 + 6.6 实机 | 待验证 |
 | 30 | 预检后父链变化仍由 main 拒绝 | `u6-exec-source-gate.test.ts › 5.9 直调端点（绕过 UI）：main 现读磁盘——预检通过后父文件消失仍拒绝` + `u6-partial-result-closure.test.ts › 执行响应以来源类稳定码拒绝 ⇒ 撤销并清空确认；其他错误码不撤销` | 6.3 + 6.6 实机 | 待验证 |
@@ -58,10 +58,10 @@
 
 | n | 场景 | 用例 | 入口/批次 | 状态 |
 |---|---|---|---|---|
-| 33 | ownOnly 正常结果仍按原修订清理 | `u6-partial-result-closure.test.ts › ownOnly + 自有 stopped/completed ⇒ 进入原 U5 清理；读取项携带来源缺失` + `u6-partial-result-closure.test.ts › 面板同一行显示自有结局与来源警告：正常结束不被读成可重跑` | 6.7 实机 | 待验证 |
-| 34 | ownOnly 失败定位只使用自有调用 | `u6-partial-result-closure.test.ts › ownOnly + 自有 error 终止 ⇒ 保留草稿；定位给自有失败调用（不取祖先）` + `u6-partial-result-closure.test.ts › ownOnly + error 终止但无自有失败详情 ⇒ 诚实说明，不给定位入口` | 6.7 实机 | 待验证 |
-| 35 | 部分实验结果保留完整批次判据 | `u6-partial-result-closure.test.ts › 两臂均为 ownOnly 正常终止 ⇒ 整批照常清理（ownOnly 不另设门槛）` + `u6-partial-result-closure.test.ts › 缺臂 / null ID / 不可读臂任一存在 ⇒ 整批保留，不推断胜出臂` | 6.7 实机（缺臂/null ID 实机不可达由 store 承载并注明） | 待验证 |
-| 36 | 后台重试不导航也不重发执行 | `u6-partial-result-closure.test.ts › 不可读 → ownOnly 正常：重试后按原关联清理；全程零执行通道、不换选中项` + `u6-partial-result-closure.test.ts › 重试前草稿已推进新修订 ⇒ 不被删除（无关联/修订不匹配不猜草稿）` | 6.7 实机 | 待验证 |
+| 33 | ownOnly 正常结果仍按原修订清理 | `u6-partial-result-closure.test.ts › ownOnly + 自有 stopped/completed ⇒ 进入原 U5 清理；读取项携带来源缺失` + `u6-partial-result-closure.test.ts › 面板同一行显示自有结局与来源警告：正常结束不被读成可重跑` | 6.7 实机（UI fork 提交 → 竞速隐藏父本 → 自动核实 ownOnly+正常 ⇒ 按原修订清理 + 面板行同屏「已结束 + 不等于可以重跑」） | 已交付（6.7 实机） |
+| 34 | ownOnly 失败定位只使用自有调用 | `u6-partial-result-closure.test.ts › ownOnly + 自有 error 终止 ⇒ 保留草稿；定位给自有失败调用（不取祖先）` + `u6-partial-result-closure.test.ts › ownOnly + error 终止但无自有失败详情 ⇒ 诚实说明，不给定位入口` | 6.7 实机（受控 503 错误子 run + 父本隐藏 ⇒ 保留草稿 + 定位 = 自有失败 span + 面板「查看失败调用」跳自有 span；**「error 但无自有失败详情」半边受控失败必落自有 llm.call.error，真机造不出 ⇒ store 集成承载**） | 已交付（6.7 实机） |
+| 35 | 部分实验结果保留完整批次判据 | `u6-partial-result-closure.test.ts › 两臂均为 ownOnly 正常终止 ⇒ 整批照常清理（ownOnly 不另设门槛）` + `u6-partial-result-closure.test.ts › 缺臂 / null ID / 不可读臂任一存在 ⇒ 整批保留，不推断胜出臂` | 6.7 实机（A/B UI 两批：[ok,ok] 两臂 ownOnly 正常 ⇒ 整批清理；[ok,fail] 两臂 ownOnly + 错误臂 ⇒ 整批保留；**缺臂/null ID/不可读臂真机不可达（main 收尾每臂必带 id、逐臂独立读取）⇒ store 集成承载**） | 已交付（6.7 实机） |
+| 36 | 后台重试不导航也不重发执行 | `u6-partial-result-closure.test.ts › 不可读 → ownOnly 正常：重试后按原关联清理；全程零执行通道、不换选中项` + `u6-partial-result-closure.test.ts › 重试前草稿已推进新修订 ⇒ 不被删除（无关联/修订不匹配不猜草稿）` | 6.7 实机（两支：不可读首读 → ownOnly 正常重试清理 + 零执行/不导航；修订推进后 ownOnly 正常重试不清新修订） | 已交付（6.7 实机） |
 | 37 | 部分详情提示和恢复动作可达 | `u6-detail-ui-completeness.test.ts › 缺失 ID 以 break-all 呈现（窄窗/200% 下长 ID 换行不断版）` + `u6-detail-ui-completeness.test.ts › 复制动作是真按钮：带 aria-label（读屏可辨）且文案明确` | 6.8 实机（800/1024/1440 + 200% + 真键盘） | 待验证 |
 
 ### M1. 分支 run 展示解析后的完整轨迹（MODIFIED，10 场景）
