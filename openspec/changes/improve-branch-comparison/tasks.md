@@ -48,7 +48,7 @@
 - [x] 4.11 实现 system/user prompt 与 messages 的实际父请求取值和从头/单请求语义并测试（对应“直接父子展示真实编辑前后值”）。（`87fccd3`：原值 = 来源 run 自有首次 llm.call（leafSpanIds 过滤，反例钉住合并视图祖先调用不冒充）；role+字符串 content 判据与 draft-source/fork-runner 同款，缺证 START_CONTEXT_UNRECORDED；messages 取整份请求；verified 新增 semantics 分型 shared-prefix/from-scratch/single-request；4.1 注记的 FIELD_NOT_PROJECTED 改判在此兑现——prompt/messages 四分支的 4.1 期用例同步改判）
 - [ ] 4.12 实现编辑证据完整展开、复制与左右方向展示，消费 4.1/4.10/4.11 的结果（对应“直接父子展示真实编辑前后值”）。
 - [x] 4.13 接入隔离 v2 来源映射并验证 resume_after_step 整轮边界，不重写截断算法（对应“result 共享前缀保留真实边界”）。（`de617d5`+`a6455b8`：4.7 的 deriveV1ResultSourceMapping/notPlainV1 改判推广为 deriveResultSourceMapping/notResultChain——v2 result 跳接入段映射，v2 段边界 = resume_after_step 所指 step 的整段子树末尾（同轮兄弟工具保留在前缀段），只识别边界不重写截断（resolveWholeRound 仍是读取层唯一权威）；核验 step 恰好一次且是 agent.step、编辑点属该轮子树且≠step、子树视图内连续，违背 ⇒ unreliable；notResultChain 收窄为 fork 缺失防御分支——4.7 的「独立边界 ⇒ notPlainV1」用例同步改判为「重置视图单段映射」，两边留痕）
-- [ ] 4.14 消费两种来源映射实现前缀折叠/展开，保留编辑差异和完整调用访问（对应“result 共享前缀保留真实边界”）。
+- [x] 4.14 消费两种来源映射实现前缀折叠/展开，保留编辑差异和完整调用访问（对应“result 共享前缀保留真实边界”）。（`3e0f0df`：compare-steps 的 prefixSummaryOf/foldCatalogRows——折叠 = 摘要行（行数/来源去重/编辑清单）+ 自有行，展开 = 全部行原样不删不改；editMarker 标注边界行（被覆写值保留原值、差异不隐藏）；仅来源映射可靠且有前缀行的一侧可折，ownOnly/映射不可靠不压缩；store comparePrefixFolded 默认折叠 + toggle，复位口径与 4.8 镜像；视图渲染归 4.12）
 
 ## 5. 指标、实验门禁、文件与响应式
 
