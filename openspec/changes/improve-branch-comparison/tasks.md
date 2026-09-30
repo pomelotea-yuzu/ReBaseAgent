@@ -45,7 +45,7 @@
 - [ ] 4.8 实现独立步骤目录和复合定位，覆盖混合链，补相应单元/IPC/store/组件验证（对应“重复 span ID 与独立分支不强行对齐”）。
 - [ ] 4.9 接入 ownOnly 步骤限制与完整另一侧，补相应单元/IPC/store/组件验证（对应“缺父链仅显示自有步骤”）。
 - [x] 4.10 实现隔离 result 编辑证据，保留原始来源与本地整轮续跑边界并测试（对应“直接父子展示真实编辑前后值”）。（`08da068`：随 4.1 同轮交付——v2 分型 variant=isolated-v2，resume_after_step 在来源轨迹定位 agent.step（boundaryStep，未定位如实 null）；前后值提取与 v1 同源；整轮边界的视图呈现归 4.12）
-- [ ] 4.11 实现 system/user prompt 与 messages 的实际父请求取值和从头/单请求语义并测试（对应“直接父子展示真实编辑前后值”）。
+- [x] 4.11 实现 system/user prompt 与 messages 的实际父请求取值和从头/单请求语义并测试（对应“直接父子展示真实编辑前后值”）。（`87fccd3`：原值 = 来源 run 自有首次 llm.call（leafSpanIds 过滤，反例钉住合并视图祖先调用不冒充）；role+字符串 content 判据与 draft-source/fork-runner 同款，缺证 START_CONTEXT_UNRECORDED；messages 取整份请求；verified 新增 semantics 分型 shared-prefix/from-scratch/single-request；4.1 注记的 FIELD_NOT_PROJECTED 改判在此兑现——prompt/messages 四分支的 4.1 期用例同步改判）
 - [ ] 4.12 实现编辑证据完整展开、复制与左右方向展示，消费 4.1/4.10/4.11 的结果（对应“直接父子展示真实编辑前后值”）。
 - [ ] 4.13 接入隔离 v2 来源映射并验证 resume_after_step 整轮边界，不重写截断算法（对应“result 共享前缀保留真实边界”）。
 - [ ] 4.14 消费两种来源映射实现前缀折叠/展开，保留编辑差异和完整调用访问（对应“result 共享前缀保留真实边界”）。
