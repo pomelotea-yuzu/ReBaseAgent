@@ -592,3 +592,97 @@ function projectHopFork(
 function variantOfHop(hop: RunDetail["chain"][number]): EditEvidenceVariant {
   return hop.meta.format_version === FORMAT_VERSION ? "isolated-v2" : "plain-v1";
 }
+
+// ---------------------------------------------------------------------------
+// tasks 4.3：不同根只核对实际输入配置
+//
+// design D4：「不同根不制造编辑关系，只列两侧真实启动输入/记录模型参数的
+// 可核对差异，config_hash 不可反推完整配置。」
+// ---------------------------------------------------------------------------
+
+/** 单侧已记录的启动输入事实（全部取自该侧**自有**首次 llm.call 的实际请求） */
+export interface SideInputFacts {
+  readonly runId: string;
+  /** 实际记录的模型（请求原值）；该侧无自有 llm.call 时 unrecorded */
+  readonly model: EditValuePresence;
+  /** 实际记录的 system 消息 content；未记录如实 unrecorded，不补空串 */
+  readonly systemPrompt: EditValuePresence;
+  /** 实际记录的首条 user 消息 content；同上 */
+  readonly userMessage: EditValuePresence;
+  /** 实际记录的采样参数（整份原样）；请求未带 params 时 unrecorded */
+  readonly params: EditValuePresence;
+}
+
+export type DifferentRootComparison =
+  | {
+      readonly status: "facts";
+      /** 与输入同序（左/右对应调用方视角），逐侧只列已记录事实 */
+      readonly sides: readonly [SideInputFacts, SideInputFacts];
+    }
+  | { readonly status: "notApplicable"; readonly reason: string };
+
+/**
+ * 不同根（relation = unrelated）时列出两侧的实际启动输入事实。
+ *
+ * - 仅当两侧链完整且确无共同祖先时适用；否则 notApplicable（共同祖先未确认的
+ *   链不得按「不同根」呈现，那是 incomplete 的口径）；
+ * - 每侧事实来自该侧自有首次 llm.call（ownFirstLlmCall），role+字符串 content
+ *   判据与 4.11 同源；无自有调用 ⇒ 各项 unrecorded，不猜、不补空；
+ * - SHALL NOT 触碰 config_hash（不可反推完整 RunConfig），不生成编辑关系。
+ */
+export function deriveDifferentRootFacts(
+  left: CompareRunItem,
+  right: CompareRunItem,
+  relation: { readonly kind: "common" | "unrelated" | "incomplete" },
+): DifferentRootComparison {
+  if (relation.kind !== "unrelated") {
+    return {
+      status: "notApplicable",
+      reason:
+        relation.kind === "common"
+          ? "两侧有共同祖先：按逐跳编辑证据呈现，不按不同根核对"
+          : "共同祖先未确认（链不完整）：不得按不同根呈现",
+    };
+  }
+  if (left.status !== "ready" || right.status !== "ready") {
+    return {
+      status: "notApplicable",
+      reason: "不同根判定要求两侧均可读：存在不可读侧时不构成完整对照",
+    };
+  }
+  return {
+    status: "facts",
+    sides: [sideInputFactsOf(left.detail), sideInputFactsOf(right.detail)],
+  };
+}
+
+function sideInputFactsOf(detail: RunDetail): SideInputFacts {
+  const firstCall = ownFirstLlmCall(detail);
+  if (firstCall === null) {
+    const unrecorded: EditValuePresence = { kind: "unrecorded" };
+    return {
+      runId: detail.meta.id,
+      model: unrecorded,
+      systemPrompt: unrecorded,
+      userMessage: unrecorded,
+      params: unrecorded,
+    };
+  }
+  return {
+    runId: detail.meta.id,
+    model: { kind: "value", value: firstCall.request.model },
+    systemPrompt: recordedContentOf(firstCall, "system"),
+    userMessage: recordedContentOf(firstCall, "user"),
+    params: presenceOf(firstCall.request.params),
+  };
+}
+
+function recordedContentOf(
+  call: Extract<SpanLine, { kind: "llm.call" }>,
+  role: "system" | "user",
+): EditValuePresence {
+  const message = call.request.messages.find(
+    (m) => m.role === role && typeof m.content === "string",
+  );
+  return message === undefined ? { kind: "unrecorded" } : { kind: "value", value: message.content };
+}

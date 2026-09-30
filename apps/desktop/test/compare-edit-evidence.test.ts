@@ -1,6 +1,10 @@
 import type { Fork, SpanLine } from "@rebaseagent/trace-sdk/schema";
 import { describe, expect, it } from "vitest";
-import { deriveDirectEditEvidence, deriveHopChains } from "../src/shared/compare-edit-evidence";
+import {
+  deriveDifferentRootFacts,
+  deriveDirectEditEvidence,
+  deriveHopChains,
+} from "../src/shared/compare-edit-evidence";
 import type { CompareRunItem, RunDetail } from "../src/shared/ipc";
 
 /**
@@ -706,5 +710,88 @@ describe("U7 4.2 多跳/兄弟：逐跳编辑证据链", () => {
     if (sideChild?.hops[0]?.status === "verified") {
       expect(sideChild.hops[0].original).toEqual({ kind: "value", value: "原系统提示词" });
     }
+  });
+});
+
+describe("U7 4.3 不同根：只核对实际输入配置", () => {
+  function rootItem(
+    id: string,
+    opts: {
+      model?: string;
+      messages?: Array<{ role: string; content: string }>;
+      params?: Record<string, unknown>;
+    } = {},
+  ): Extract<CompareRunItem, { status: "ready" }> {
+    const msgs = opts.messages ?? [
+      { role: "system", content: `${id} 的系统提示词` },
+      { role: "user", content: `${id} 的用户消息` },
+    ];
+    const call = llmSpan("t_01", msgs);
+    const request = {
+      model: opts.model ?? "model-a",
+      messages: msgs,
+      ...(opts.params !== undefined ? { params: opts.params } : {}),
+    };
+    return {
+      status: "ready",
+      runId: id,
+      detail: detail(
+        id,
+        null,
+        null,
+        [stepSpan("t_step"), { ...call, request }],
+        [hop(id, null, null)],
+      ),
+      chainSummaries: [],
+    };
+  }
+
+  it("unrelated ⇒ 两侧事实并排：模型/启动输入/参数取各自实际请求", () => {
+    const left = rootItem("r_l", { model: "model-a", params: { temperature: 0.7 } });
+    const right = rootItem("r_r", { model: "model-b" });
+
+    const facts = deriveDifferentRootFacts(left, right, { kind: "unrelated" });
+    expect(facts.status).toBe("facts");
+    if (facts.status !== "facts") return;
+    const [l, r] = facts.sides;
+    expect(l).toMatchObject({ runId: "r_l" });
+    expect(l.model).toEqual({ kind: "value", value: "model-a" });
+    expect(l.systemPrompt).toEqual({ kind: "value", value: "r_l 的系统提示词" });
+    expect(l.params).toEqual({ kind: "value", value: { temperature: 0.7 } });
+    expect(r.model).toEqual({ kind: "value", value: "model-b" });
+    // 未带 params：unrecorded（不是空对象）
+    expect(r.params).toEqual({ kind: "unrecorded" });
+  });
+
+  it("无自有 llm.call 的侧：各项 unrecorded，不补空串", () => {
+    const left = rootItem("r_l");
+    const right = ready("r_r", null, null, [stepSpan("t_step")]); // 无 llm.call
+
+    const facts = deriveDifferentRootFacts(left, right, { kind: "unrelated" });
+    expect(facts.status).toBe("facts");
+    if (facts.status === "facts") {
+      const r = facts.sides[1];
+      expect(r?.model).toEqual({ kind: "unrecorded" });
+      expect(r?.systemPrompt).toEqual({ kind: "unrecorded" });
+      expect(r?.userMessage).toEqual({ kind: "unrecorded" });
+      expect(r?.params).toEqual({ kind: "unrecorded" });
+    }
+  });
+
+  it("relation 非 unrelated ⇒ notApplicable（共同祖先未确认不得按不同根呈现）", () => {
+    const left = rootItem("r_l");
+    const right = rootItem("r_r");
+    expect(deriveDifferentRootFacts(left, right, { kind: "common" })).toMatchObject({
+      status: "notApplicable",
+    });
+    expect(deriveDifferentRootFacts(left, right, { kind: "incomplete" })).toMatchObject({
+      status: "notApplicable",
+    });
+  });
+
+  it("存在不可读侧 ⇒ notApplicable（不构成完整对照）", () => {
+    const left = rootItem("r_l");
+    const facts = deriveDifferentRootFacts(left, unavailable("r_r"), { kind: "unrelated" });
+    expect(facts.status).toBe("notApplicable");
   });
 });
