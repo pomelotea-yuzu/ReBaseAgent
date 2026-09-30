@@ -155,7 +155,7 @@ function legitPair(opts: {
 describe("5.14 参数/首请求/config_hash 记录一致性", () => {
   it("合法臂：同源 hash + 首请求模型/参数自洽 ⇒ eligible", () => {
     const { arm, parent } = legitPair({});
-    expect(findModelParamsRecordViolation(arm, parent)).toEqual({
+    expect(findModelParamsRecordViolation(arm, parent.meta)).toEqual({
       status: "eligible",
       code: "OK",
       reason: "",
@@ -164,13 +164,13 @@ describe("5.14 参数/首请求/config_hash 记录一致性", () => {
 
   it("臂缺 config_hash（老文件）⇒ unverifiable（不冒充通过、不反推）", () => {
     const { arm, parent } = legitPair({ armHash: null });
-    const result = findModelParamsRecordViolation(arm, parent);
+    const result = findModelParamsRecordViolation(arm, parent.meta);
     expect(result).toMatchObject({ status: "unverifiable", code: "CONFIG_HASH_UNRECORDED" });
   });
 
   it("父本缺 config_hash ⇒ unverifiable", () => {
     const { arm, parent } = legitPair({ parentHash: null });
-    expect(findModelParamsRecordViolation(arm, parent)).toMatchObject({
+    expect(findModelParamsRecordViolation(arm, parent.meta)).toMatchObject({
       status: "unverifiable",
       code: "CONFIG_HASH_UNRECORDED",
     });
@@ -178,7 +178,7 @@ describe("5.14 参数/首请求/config_hash 记录一致性", () => {
 
   it("hash 不同源（工具表/system 被改过）⇒ ineligible（明确拒绝）", () => {
     const { arm, parent } = legitPair({ armHash: "sha256:bbbb" });
-    expect(findModelParamsRecordViolation(arm, parent)).toMatchObject({
+    expect(findModelParamsRecordViolation(arm, parent.meta)).toMatchObject({
       status: "ineligible",
       code: "CONFIG_HASH_MISMATCH",
     });
@@ -186,7 +186,7 @@ describe("5.14 参数/首请求/config_hash 记录一致性", () => {
 
   it("首请求模型与编辑值不一致 ⇒ ineligible", () => {
     const { arm, parent } = legitPair({ armModel: "m3" }); // 编辑值说 m2，请求却是 m3
-    expect(findModelParamsRecordViolation(arm, parent)).toMatchObject({
+    expect(findModelParamsRecordViolation(arm, parent.meta)).toMatchObject({
       status: "ineligible",
       code: "REQUEST_MODEL_MISMATCH",
     });
@@ -195,24 +195,26 @@ describe("5.14 参数/首请求/config_hash 记录一致性", () => {
   it("params 整体覆盖语义：编辑给 params ⇒ 与臂请求核对；未给 ⇒ 沿用父值", () => {
     // 编辑给了 { temperature: 0.9 }，臂请求也是 0.9 ⇒ eligible
     const given = legitPair({ editParams: { temperature: 0.9 }, armParams: { temperature: 0.9 } });
-    expect(findModelParamsRecordViolation(given.arm, given.parent).status).toBe("eligible");
+    expect(findModelParamsRecordViolation(given.arm, given.parent.meta).status).toBe("eligible");
 
     // 编辑给了 0.9 但请求还是 0.7 ⇒ mismatch
     const wrong = legitPair({ editParams: { temperature: 0.9 }, armParams: { temperature: 0.7 } });
-    expect(findModelParamsRecordViolation(wrong.arm, wrong.parent)).toMatchObject({
+    expect(findModelParamsRecordViolation(wrong.arm, wrong.parent.meta)).toMatchObject({
       status: "ineligible",
       code: "REQUEST_PARAMS_MISMATCH",
     });
 
     // 编辑未给 params ⇒ 沿用父值 0.7（臂请求 0.7 ⇒ eligible）
     const inherited = legitPair({ editParams: undefined, armParams: { temperature: 0.7 } });
-    expect(findModelParamsRecordViolation(inherited.arm, inherited.parent).status).toBe("eligible");
+    expect(findModelParamsRecordViolation(inherited.arm, inherited.parent.meta).status).toBe(
+      "eligible",
+    );
   });
 
   it("臂无自有 llm.call ⇒ unverifiable（首请求无从核对）", () => {
     const { arm, parent } = legitPair({});
     const empty: RunDetail = { ...arm, spans: [], leafSpanIds: [] };
-    expect(findModelParamsRecordViolation(empty, parent)).toMatchObject({
+    expect(findModelParamsRecordViolation(empty, parent.meta)).toMatchObject({
       status: "unverifiable",
       code: "START_REQUEST_UNRECORDED",
     });
@@ -227,7 +229,7 @@ describe("5.14 参数/首请求/config_hash 记录一致性", () => {
       [stepSpan("s_01", 1), llmSpan("c_01")],
       HASH,
     );
-    expect(findModelParamsRecordViolation(arm, parent)).toMatchObject({
+    expect(findModelParamsRecordViolation(arm, parent.meta)).toMatchObject({
       status: "ineligible",
       code: "NOT_MODEL_ARM",
     });
@@ -237,7 +239,7 @@ describe("5.14 参数/首请求/config_hash 记录一致性", () => {
 describe("5.16 工具表/副作用声明", () => {
   it("空工具表（两侧都无 tools 字段）⇒ eligible", () => {
     const { arm, parent } = legitPair({});
-    expect(findToolRecordViolation(arm, parent)).toEqual({
+    expect(findToolRecordViolation(arm, parent.meta)).toEqual({
       status: "eligible",
       code: "OK",
       reason: "",
@@ -247,7 +249,7 @@ describe("5.16 工具表/副作用声明", () => {
   it("无风险工具（sideEffect: false 显式标记）⇒ eligible，无需声明", () => {
     const safe = [{ name: "read_file", sideEffect: false }];
     const { arm, parent } = legitPair({ parentTools: safe, armTools: safe });
-    expect(findToolRecordViolation(arm, parent).status).toBe("eligible");
+    expect(findToolRecordViolation(arm, parent.meta).status).toBe("eligible");
   });
 
   it("风险工具（标记缺失按有副作用）+ 显式 allowSideEffects: true ⇒ eligible（留痕）", () => {
@@ -257,13 +259,13 @@ describe("5.16 工具表/副作用声明", () => {
       armTools: risky,
       allowSideEffects: true,
     });
-    expect(findToolRecordViolation(arm, parent).status).toBe("eligible");
+    expect(findToolRecordViolation(arm, parent.meta).status).toBe("eligible");
   });
 
   it("风险工具 + 未声明 ⇒ ineligible（SIDE_EFFECT_UNDECLARED，如实拒绝）", () => {
     const risky = [{ name: "write_file" }];
     const { arm, parent } = legitPair({ parentTools: risky, armTools: risky });
-    expect(findToolRecordViolation(arm, parent)).toMatchObject({
+    expect(findToolRecordViolation(arm, parent.meta)).toMatchObject({
       status: "ineligible",
       code: "SIDE_EFFECT_UNDECLARED",
     });
@@ -276,18 +278,22 @@ describe("5.16 工具表/副作用声明", () => {
       armTools: risky,
       allowSideEffects: false,
     });
-    expect(findToolRecordViolation(arm, parent)).toMatchObject({
+    expect(findToolRecordViolation(arm, parent.meta)).toMatchObject({
       status: "ineligible",
       code: "SIDE_EFFECT_CONTRADICTION",
     });
   });
 
-  it("工具表不一致 ⇒ ineligible；含 sideEffect 字段有无的差异（补标记被拒）", () => {
-    // 两侧都是 write_file，但父补了 sideEffect: false——「补齐缺失标记」即不同源
+  it("工具表不一致 ⇒ ineligible；含 sideEffect 字段有无的差异（补标记被拒）——hash 随之不同源", () => {
+    // 工具表差异必然伴随 config_hash 不同源（指纹输入含工具表逐字段）
     const parentTools = [{ name: "write_file", sideEffect: false }];
     const armTools = [{ name: "write_file" }];
-    const { arm, parent } = legitPair({ parentTools, armTools });
-    expect(findToolRecordViolation(arm, parent)).toMatchObject({
+    const { arm, parent } = legitPair({
+      parentTools,
+      armTools,
+      armHash: "sha256:cccc",
+    });
+    expect(findToolRecordViolation(arm, parent.meta)).toMatchObject({
       status: "ineligible",
       code: "TOOLS_MISMATCH",
     });
@@ -299,8 +305,9 @@ describe("5.16 工具表/副作用声明", () => {
         { name: "write_file", sideEffect: false },
         { name: "read_file", sideEffect: false },
       ],
+      armHash: "sha256:cccc",
     });
-    expect(findToolRecordViolation(more.arm, more.parent)).toMatchObject({
+    expect(findToolRecordViolation(more.arm, more.parent.meta)).toMatchObject({
       status: "ineligible",
       code: "TOOLS_MISMATCH",
     });
@@ -309,9 +316,199 @@ describe("5.16 工具表/副作用声明", () => {
   it("臂无自有 llm.call ⇒ unverifiable", () => {
     const { arm, parent } = legitPair({});
     const empty: RunDetail = { ...arm, spans: [], leafSpanIds: [] };
-    expect(findToolRecordViolation(empty, parent)).toMatchObject({
+    expect(findToolRecordViolation(empty, parent.meta)).toMatchObject({
       status: "unverifiable",
       code: "START_REQUEST_UNRECORDED",
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// tasks 5.11–5.13：选择集级实验门禁（deriveExperimentGate）
+// ---------------------------------------------------------------------------
+
+import { deriveExperimentGate } from "../src/shared/experiment-records";
+import type { CompareRunItem } from "../src/shared/ipc";
+
+function gateItem(
+  id: string,
+  parent: string | null,
+  fork: Fork | null,
+  opts: {
+    hash?: string;
+    parentHash?: string;
+    completeness?: "complete" | "ownOnly";
+    model?: string;
+    outcome?: "completed" | "error";
+  } = {},
+): CompareRunItem {
+  const parentMeta = meta(parent ?? "r_p_missing", null, null, opts.parentHash ?? HASH);
+  const armMeta = meta(id, parent, fork, opts.hash ?? HASH);
+  const armCall = llmSpan("c_01", { model: opts.model ?? "m2" });
+  const spans =
+    opts.outcome === "error"
+      ? [stepSpan("s_01"), { ...armCall, error: { message: "上游失败" } }]
+      : [stepSpan("s_01"), armCall];
+  const detail: RunDetail = {
+    meta: armMeta,
+    spans,
+    events: [
+      opts.outcome === "error"
+        ? { type: "run.event", event: "errored", reason: "error" }
+        : { type: "run.event", event: "stopped", reason: "completed" },
+    ],
+    status: "completed",
+    chain:
+      parent === null
+        ? [{ meta: armMeta, fork }]
+        : [
+            { meta: parentMeta, fork: null },
+            { meta: armMeta, fork },
+          ],
+    leafSpanIds: spans.map((span) => span.id),
+    completeness: opts.completeness ?? "complete",
+    spanScope: opts.completeness === "ownOnly" ? "own" : "own",
+    lineage:
+      opts.completeness === "ownOnly"
+        ? { status: "incomplete", reason: "ANCESTOR_NOT_FOUND", missingRunId: parent ?? "r_x" }
+        : { status: "complete" },
+  };
+  return { status: "ready", runId: id, detail, chainSummaries: [] };
+}
+
+/** 合法 model_params 臂（同父 r_p、hash 同源、无工具） */
+function armItem(
+  id: string,
+  opts: {
+    hash?: string;
+    parent?: string;
+    experimentId?: string;
+    model?: string;
+    outcome?: "completed" | "error";
+  } = {},
+) {
+  const editValue: Record<string, unknown> = {
+    model: opts.model ?? "m2",
+    ...(opts.experimentId !== undefined ? { experimentId: opts.experimentId } : {}),
+  };
+  const fork: Fork = { at_span: "c_01", edit: { field: "model_params", value: editValue } };
+  return gateItem(id, opts.parent ?? "r_p", fork, {
+    hash: opts.hash ?? HASH,
+    parentHash: HASH,
+    model: opts.model ?? "m2",
+    outcome: opts.outcome,
+  });
+}
+
+function normalItem(id: string): CompareRunItem {
+  const detail: RunDetail = {
+    meta: meta(id, null, null, HASH),
+    spans: [stepSpan("s_01"), llmSpan("c_01")],
+    events: [{ type: "run.event", event: "stopped", reason: "completed" }],
+    status: "completed",
+    chain: [hop2(id, null)],
+    leafSpanIds: ["s_01", "c_01"],
+    completeness: "complete",
+    spanScope: "own",
+    lineage: { status: "complete" },
+  };
+  return { status: "ready", runId: id, detail, chainSummaries: [] };
+}
+
+function hop2(id: string, parent: string | null): RunDetail["chain"][number] {
+  return { meta: meta(id, parent, null, HASH), fork: null };
+}
+
+describe("5.12/5.13 选择集级实验门禁", () => {
+  it("同父合法两臂 ⇒ eligible，批次身份保留各臂已记录 experimentId", () => {
+    const gate = deriveExperimentGate([
+      armItem("r_a1", { experimentId: "exp_1" }),
+      armItem("r_a2", { experimentId: "exp_2" }),
+    ]);
+    expect(gate.status).toBe("eligible");
+    if (gate.status === "eligible") {
+      expect(gate.batch).toEqual({
+        parentRunId: "r_p",
+        experimentIds: ["exp_1", "exp_2"],
+      });
+    }
+  });
+
+  it("无 model_params 臂 ⇒ notExperiment（普通比较路径）", () => {
+    const gate = deriveExperimentGate([normalItem("r_a"), normalItem("r_b")]);
+    expect(gate.status).toBe("notExperiment");
+  });
+
+  it("混入普通 run ⇒ ineligible MIXED_SELECTION（experimentId 相同也不能豁免）", () => {
+    const gate = deriveExperimentGate([
+      armItem("r_a", { experimentId: "exp_1" }),
+      normalItem("r_n"),
+    ]);
+    expect(gate).toMatchObject({ status: "ineligible", code: "MIXED_SELECTION" });
+  });
+
+  it("异父臂 ⇒ ineligible PARENT_DIFFERS；相同 experimentId 不能绕过", () => {
+    const gate = deriveExperimentGate([
+      armItem("r_a1", { experimentId: "exp_same" }),
+      armItem("r_a2", { parent: "r_other_p", experimentId: "exp_same" }),
+    ]);
+    expect(gate).toMatchObject({ status: "ineligible", code: "PARENT_DIFFERS" });
+  });
+
+  it("任一臂 ownOnly（父链不完整）⇒ ineligible CHAIN_INCOMPLETE", () => {
+    const ownOnlyFork: Fork = {
+      at_span: "c_01",
+      edit: { field: "model_params", value: { model: "m2" } },
+    };
+    const gate = deriveExperimentGate([
+      armItem("r_a1"),
+      gateItem("r_a2", "r_missing", ownOnlyFork, {
+        completeness: "ownOnly",
+        parentHash: "sha256:zzz",
+      }),
+    ]);
+    expect(gate).toMatchObject({ status: "ineligible", code: "CHAIN_INCOMPLETE" });
+  });
+
+  it("臂 hash 与父不同源 ⇒ ineligible CONFIG_HASH_MISMATCH", () => {
+    const gate = deriveExperimentGate([armItem("r_a1"), armItem("r_a2", { hash: "sha256:bbbb" })]);
+    expect(gate).toMatchObject({ status: "ineligible", code: "CONFIG_HASH_MISMATCH" });
+  });
+
+  it("存在不可读侧 ⇒ unverifiable RUN_UNREADABLE", () => {
+    const gate = deriveExperimentGate([
+      armItem("r_a1"),
+      { status: "unavailable", runId: "r_x", code: "RUN_UNREADABLE", reason: "读取失败" },
+    ]);
+    expect(gate).toMatchObject({ status: "unverifiable", code: "RUN_UNREADABLE" });
+  });
+
+  it("风险工具未声明 ⇒ ineligible SIDE_EFFECT_UNDECLARED（5.16 判据在选择集生效）", () => {
+    const risky = [{ name: "write_file" }];
+    const fork: Fork = { at_span: "c_01", edit: { field: "model_params", value: { model: "m2" } } };
+    const item = gateItem("r_a1", "r_p", fork, { hash: HASH, parentHash: HASH });
+    const withTools: RunDetail = {
+      ...item.detail,
+      spans: [
+        stepSpan("s_01"),
+        {
+          ...(item.detail.spans[1] as Extract<SpanLine, { kind: "llm.call" }>),
+          request: {
+            ...(item.detail.spans[1] as Extract<SpanLine, { kind: "llm.call" }>).request,
+            tools: risky,
+          },
+        },
+      ],
+    };
+    const gate = deriveExperimentGate([
+      item,
+      { status: "ready", runId: "r_a2", detail: withTools, chainSummaries: [] },
+    ]);
+    expect(gate).toMatchObject({ status: "ineligible", code: "SIDE_EFFECT_UNDECLARED" });
+  });
+
+  it("合法失败臂（error 结局）不因结局自动拒绝 ⇒ eligible（事实比较保留）", () => {
+    const gate = deriveExperimentGate([armItem("r_a1", { outcome: "error" }), armItem("r_a2")]);
+    expect(gate.status).toBe("eligible");
   });
 });

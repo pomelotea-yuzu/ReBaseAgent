@@ -1,5 +1,5 @@
 import type { SpanLine } from "@rebaseagent/trace-sdk/schema";
-import type { RunDetail } from "./ipc";
+import type { CompareRunItem, RunDetail } from "./ipc";
 
 /**
  * U7（improve-branch-comparison）tasks 5.14/5.16：**历史模型实验比较**的
@@ -116,7 +116,8 @@ function modelParamsValueOf(fork: NonNullable<RunDetail["meta"]["fork"]>): {
  */
 export function findModelParamsRecordViolation(
   arm: RunDetail,
-  parent: RunDetail,
+  /** 直接父的 meta（臂 chain 父跳即可；null = 父 meta 不可得，同源不可验证） */
+  parentMeta: RunDetail["meta"] | null,
 ): RecordCheckResult {
   const fork = arm.meta.fork;
   if (fork === null || fork.edit.field !== "model_params") {
@@ -137,7 +138,7 @@ export function findModelParamsRecordViolation(
 
   // 3. config_hash 同源（只比已记录值；绝不重算/反推）
   const armHash = arm.meta.config_hash;
-  const parentHash = parent.meta.config_hash;
+  const parentHash = parentMeta?.config_hash;
   if (armHash === undefined) {
     return {
       status: "unverifiable",
@@ -145,18 +146,25 @@ export function findModelParamsRecordViolation(
       reason: `run ${arm.meta.id} 未记录 config_hash（老文件）：无法证明与父本同源，资格不可验证`,
     };
   }
+  if (parentMeta === null) {
+    return {
+      status: "unverifiable",
+      code: "PARENT_META_UNAVAILABLE",
+      reason: `直接父本的 meta 不在本次已校验读取内：config_hash 同源无法核对，资格不可验证`,
+    };
+  }
   if (parentHash === undefined) {
     return {
       status: "unverifiable",
       code: "CONFIG_HASH_UNRECORDED",
-      reason: `父本 ${parent.meta.id} 未记录 config_hash（老文件）：无法证明同源，资格不可验证`,
+      reason: `父本 ${parentMeta.id} 未记录 config_hash（老文件）：无法证明同源，资格不可验证`,
     };
   }
   if (armHash !== parentHash) {
     return {
       status: "ineligible",
       code: "CONFIG_HASH_MISMATCH",
-      reason: `run ${arm.meta.id} 与父本 ${parent.meta.id} 的 config_hash 不同源：model_params 编辑只允许换 model/params，system prompt 与工具表必须逐字段一致`,
+      reason: `run ${arm.meta.id} 与父本 ${String(parentMeta?.id)} 的 config_hash 不同源：model_params 编辑只允许换 model/params，system prompt 与工具表必须逐字段一致`,
     };
   }
 
@@ -177,11 +185,12 @@ export function findModelParamsRecordViolation(
     };
   }
   const recordedParams = scalarParamsOf(firstCall.request.params);
-  const expectedParams =
-    value.params !== undefined
-      ? scalarParamsOf(value.params)
-      : scalarParamsOf(ownFirstLlmCall(parent)?.request.params);
-  if (stableJson(recordedParams) !== stableJson(expectedParams)) {
+  // 整体覆盖语义：编辑给了 params ⇒ 臂请求必须等于编辑值；未给 ⇒ 沿用父值——
+  // 父请求 params 在选择集内不可得（父 spans 不在响应），此时与
+  // config_hash 同源（已由上一步证明）共同承担「沿用父值」的自洽证据，
+  // 本核对只覆盖「编辑显式给了 params」的半边，不猜缺省半边的具体值。
+  const expectedParams = value.params !== undefined ? scalarParamsOf(value.params) : null;
+  if (expectedParams !== null && stableJson(recordedParams) !== stableJson(expectedParams)) {
     return {
       status: "ineligible",
       code: "REQUEST_PARAMS_MISMATCH",
@@ -219,29 +228,44 @@ export function riskyToolNames(tools: readonly Record<string, unknown>[] | undef
  *    显式 `allowSideEffects: true`（留痕）；显式 false 与风险工具并存 ⇒ 声明与
  *    记录矛盾。无风险工具 ⇒ 声明可有可无（合法）。
  */
-export function findToolRecordViolation(arm: RunDetail, parent: RunDetail): RecordCheckResult {
+export function findToolRecordViolation(
+  arm: RunDetail,
+  /** 直接父的 meta（臂 chain 父跳即可；null = 父 meta 不可得，同源不可验证） */
+  parentMeta: RunDetail["meta"] | null,
+): RecordCheckResult {
   const armCall = ownFirstLlmCall(arm);
-  const parentCall = ownFirstLlmCall(parent);
-  if (armCall === null || parentCall === null) {
+  if (armCall === null) {
     return {
       status: "unverifiable",
       code: "START_REQUEST_UNRECORDED",
-      reason: "臂或父本未记录自有 llm.call：无法核对工具表一致性",
+      reason: `run ${arm.meta.id} 未记录自有 llm.call：无法核对工具表与副作用声明`,
     };
   }
 
-  // 1. 工具表逐字段一致（键排序稳定 JSON；字段有无即差异）
-  const armTools = stableJson(armCall.request.tools ?? null);
-  const parentTools = stableJson(parentCall.request.tools ?? null);
-  if (armTools !== parentTools) {
+  // 1. 工具表一致性由 **config_hash 同源**承担（指纹的输入含 system prompt + 工具表
+  //    逐字段——含 sideEffect 字段的有无；相等 ⇒ 逐字段一致，不重算、不反推）。
+  //    父 spans 不在比较响应内，逐字段比对不可得 ⇒ 缺 hash 时如实 unverifiable。
+  const armHash = arm.meta.config_hash;
+  const parentHash = parentMeta?.config_hash;
+  if (parentMeta === null || armHash === undefined || parentHash === undefined) {
+    return {
+      status: "unverifiable",
+      code: parentMeta === null ? "PARENT_META_UNAVAILABLE" : "CONFIG_HASH_UNRECORDED",
+      reason:
+        parentMeta === null
+          ? "直接父本的 meta 不在本次已校验读取内：工具表同源无法核对，资格不可验证"
+          : `臂或父本 ${parentMeta.id} 未记录 config_hash（老文件）：工具表同源无法由指纹证明，资格不可验证`,
+    };
+  }
+  if (armHash !== parentHash) {
     return {
       status: "ineligible",
       code: "TOOLS_MISMATCH",
-      reason: `run ${arm.meta.id} 与父本 ${parent.meta.id} 录制的工具表不一致（含 sideEffect 字段的有无）：实验比较只允许同源工具表`,
+      reason: `run ${arm.meta.id} 与父本 ${parentMeta.id} 的 config_hash 不同源（工具表/system prompt 逐字段一致被破坏，含 sideEffect 字段的有无）`,
     };
   }
 
-  // 2. 副作用声明自洽
+  // 2. 副作用声明自洽（判据 = 臂自身首请求录制的工具表）
   const risky = riskyToolNames(armCall.request.tools);
   if (risky.length === 0) return eligible;
   const fork = arm.meta.fork;
@@ -261,5 +285,163 @@ export function findToolRecordViolation(arm: RunDetail, parent: RunDetail): Reco
     status: "ineligible",
     code: "SIDE_EFFECT_UNDECLARED",
     reason: `run ${arm.meta.id} 的工具表含未标记无副作用的工具（${risky.join("、")}）且未显式声明 allowSideEffects: true：多臂顺序执行会互相污染外部状态，历史比较如实拒绝`,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// tasks 5.11–5.13：选择集级实验门禁与批次身份
+//
+// design D5 / model-experiments delta：
+// - 含 model_params 的选择集**必须**走实验门禁：全部对象为 model_params 臂、
+//   直接 parent 相同、父链完整、记录校验通过才可实验比较；混入普通 run 或
+//   父本不能退回普通比较绕过（scenario「异父混选与相同实验标签不能绕过」）；
+// - experimentId 只用于真实分组：相同标签不能豁免父本/完整性校验，不同标签
+//   的合法同父臂可比较但**保留真实批次身份**（不伪造同批）；
+// - 已封存 ≠ 正常结束：合法失败臂（error/上限结局）不因结局自动拒绝——
+//   判据不读结局（outcome 与资格正交）；
+// - 任一臂 ownOnly（父链断裂）⇒ ineligible；读取失败 ⇒ unverifiable；
+//   config_hash/首请求/工具表/声明不自洽 ⇒ ineligible；证据缺失 ⇒ unverifiable
+//   （scenario「不完整未封存与前置缺证明确拒绝」）。
+// ---------------------------------------------------------------------------
+
+export type ExperimentGateStatus = "notExperiment" | "eligible" | "ineligible" | "unverifiable";
+
+/** 选择集级实验门禁结论 */
+export interface ExperimentGate {
+  readonly status: ExperimentGateStatus;
+  readonly code: string;
+  readonly reason: string;
+  /**
+   * eligible 时的批次身份：共同直接父 run id + 各臂**已记录** experimentId
+   * （原样保留，缺省为 null——不伪造同批、不合并不同标签）。
+   */
+  readonly batch: {
+    readonly parentRunId: string;
+    readonly experimentIds: readonly (string | null)[];
+  } | null;
+}
+
+/** 单个 ready 项是否 model_params 编辑臂 */
+function isModelParamsArm(detail: RunDetail): boolean {
+  return detail.meta.fork?.edit.field === "model_params";
+}
+
+/** 臂的直接父 meta：从 chain 倒数第二跳取（complete 链倒数第二跳即直接父） */
+function parentMetaOf(detail: RunDetail): RunDetail["meta"] | null {
+  if (detail.chain.length < 2) return null;
+  return detail.chain[detail.chain.length - 2]?.meta ?? null;
+}
+
+/**
+ * 选择集级实验门禁（输入 = 比较响应的全部 items，顺序即请求序）。
+ * 纯函数、恒可用；notExperiment 表示选择集不含 model_params 臂——
+ * 实验门禁不适用，调用方走普通比较呈现。
+ */
+export function deriveExperimentGate(items: readonly CompareRunItem[]): ExperimentGate {
+  const notExperiment: ExperimentGate = {
+    status: "notExperiment",
+    code: "NOT_EXPERIMENT",
+    reason: "选择集不含 model_params 编辑臂：按普通比较呈现",
+    batch: null,
+  };
+
+  const readyItems = items.filter(
+    (item): item is Extract<CompareRunItem, { status: "ready" }> => item.status === "ready",
+  );
+  if (readyItems.length === 0) return notExperiment;
+  const anyArm = readyItems.some((item) => isModelParamsArm(item.detail));
+  if (!anyArm) return notExperiment;
+
+  // 读取失败的侧：历史比较无从核对 ⇒ unverifiable（重试仅重新验证记录）
+  const unavailable = items.find((item) => item.status === "unavailable");
+  if (unavailable !== undefined) {
+    return {
+      status: "unverifiable",
+      code: "RUN_UNREADABLE",
+      reason:
+        unavailable.status === "unavailable"
+          ? `run ${unavailable.runId} 不可读（${unavailable.code}）：${unavailable.reason}——实验比较资格不可验证`
+          : "存在不可读侧",
+      batch: null,
+    };
+  }
+
+  // 混选：全部对象都必须是 model_params 臂（experimentId 恰相同不能豁免）
+  const mixed = readyItems.filter((item) => !isModelParamsArm(item.detail));
+  if (mixed.length > 0) {
+    return {
+      status: "ineligible",
+      code: "MIXED_SELECTION",
+      reason: `选择集混入非实验臂（${mixed
+        .map((item) => item.runId)
+        .join(
+          "、",
+        )}）：普通 run/父本与 model_params 臂不能同批比较，也不能退回普通比较绕过实验资格；各记录可单独打开`,
+      batch: null,
+    };
+  }
+
+  // 父链完整（ownOnly = 祖先缺失 ⇒ 链结论与祖先增量不可信）。⚠️ 先于「同父」
+  // 核对：ownOnly 臂的 parent 声明本身已不可信，不能拿它做异父判定。
+  const ownOnly = readyItems.filter((item) => item.detail.completeness === "ownOnly");
+  if (ownOnly.length > 0) {
+    return {
+      status: "ineligible",
+      code: "CHAIN_INCOMPLETE",
+      reason: `臂 ${ownOnly.map((item) => item.runId).join("、")} 父链不完整（ownOnly）：祖先增量与共同基线不可信，不生成实验比较`,
+      batch: null,
+    };
+  }
+
+  // 直接 parent 相同（experimentId 相同不能豁免本条）
+  const parentId = readyItems[0]?.detail.meta.parent ?? null;
+  const differing = readyItems.filter((item) => item.detail.meta.parent !== parentId);
+  if (parentId === null || differing.length > 0) {
+    return {
+      status: "ineligible",
+      code: "PARENT_DIFFERS",
+      reason:
+        parentId === null
+          ? "实验臂缺少直接父本（根 run 不是实验臂）：不构成同父实验比较"
+          : `臂的直接父本不一致（${differing
+              .map((item) => `${item.runId}→${String(item.detail.meta.parent)}`)
+              .join("、")}）：异父臂不可比，experimentId 标签相同也不能豁免`,
+      batch: null,
+    };
+  }
+
+  // 逐臂记录判据（5.14/5.16）：父 meta 取自臂 chain 父跳（比较响应内已校验事实）
+  const firstViolation = (() => {
+    for (const item of readyItems) {
+      const parentMeta = parentMetaOf(item.detail);
+      const modelCheck = findModelParamsRecordViolation(item.detail, parentMeta);
+      if (modelCheck.status !== "eligible") return modelCheck;
+      const toolCheck = findToolRecordViolation(item.detail, parentMeta);
+      if (toolCheck.status !== "eligible") return toolCheck;
+    }
+    return null;
+  })();
+  if (firstViolation !== null) {
+    return {
+      status: firstViolation.status,
+      code: firstViolation.code,
+      reason: firstViolation.reason,
+      batch: null,
+    };
+  }
+
+  // 批次身份：各臂已记录 experimentId 原样保留（缺省 null——不伪造同批）
+  const experimentIds = readyItems.map((item) => {
+    const fork = item.detail.meta.fork;
+    if (fork === null || fork.edit.field !== "model_params") return null;
+    const value = fork.edit.value as { experimentId?: unknown } | undefined;
+    const id = value?.experimentId;
+    return typeof id === "string" ? id : null;
+  });
+  return {
+    status: "eligible",
+    code: "OK",
+    reason: "全部对象为同父、父链完整且记录校验通过的 model_params 臂",
+    batch: { parentRunId: parentId ?? "", experimentIds },
   };
 }
