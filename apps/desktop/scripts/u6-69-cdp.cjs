@@ -57,7 +57,15 @@ const TAG_SCRIPT = {
   // isoRoot(TOOL,OK=2) + isoChild(TOOL,OK=2) + abParent(1) + 恢复后新 ID 重检执行(1) = 6；
   // 418 哨兵不被消费 ⇒「零模型调用」是数出来的
   "exec-gate-result": {
-    turns: [TOOL_TURN, OK_TURN, TOOL_TURN, OK_TURN, OK_TURN, OK_TURN, { mode: "fail", status: 418, content: "这个 tag 不该有多余模型调用" }],
+    turns: [
+      TOOL_TURN,
+      OK_TURN,
+      TOOL_TURN,
+      OK_TURN,
+      OK_TURN,
+      OK_TURN,
+      { mode: "fail", status: 418, content: "这个 tag 不该有多余模型调用" },
+    ],
   },
 };
 
@@ -552,7 +560,10 @@ const FLOWS = {
     ];
 
     // 隐藏 isoRoot ⇒ isoChild ownOnly
-    const inj = safeBeginLineageFault({ tracesDir: H.TRACES, childRunId: isoChild, ancestorRunId: isoRoot }, "ancestorMissing");
+    const inj = safeBeginLineageFault(
+      { tracesDir: H.TRACES, childRunId: isoChild, ancestorRunId: isoRoot },
+      "ancestorMissing",
+    );
     const op1 = freshUuid();
     const forkReq1 = {
       parentRunId: isoChild,
@@ -569,7 +580,10 @@ const FLOWS = {
     const rec1 = (st1?.data?.operations ?? []).find((o) => o.operationId === op1) ?? null;
     check(
       "#23 登记按 settled/rejected 收口且 runIds 空",
-      rec1 !== null && (rec1.state === "settled" || rec1.state === "rejected") && Array.isArray(rec1?.runIds) && rec1.runIds.length === 0,
+      rec1 !== null &&
+        (rec1.state === "settled" || rec1.state === "rejected") &&
+        Array.isArray(rec1?.runIds) &&
+        rec1.runIds.length === 0,
       { state: rec1?.state, runIds: rec1?.runIds },
     );
     check("#23 拒绝路径零模型调用", mock.served() === servedBase, mock.served());
@@ -591,7 +605,10 @@ const FLOWS = {
     check(
       "#25 零 trace 创建 + blobs 计数不变（无副本世界）",
       H.traceIds().size === tracesBefore && Object.keys(hashDir(BLOBS)).length === blobsBefore,
-      { traces: { before: tracesBefore, after: H.traceIds().size }, blobs: { before: blobsBefore, after: Object.keys(hashDir(BLOBS)).length } },
+      {
+        traces: { before: tracesBefore, after: H.traceIds().size },
+        blobs: { before: blobsBefore, after: Object.keys(hashDir(BLOBS)).length },
+      },
     );
 
     // #29 恢复父文件 ⇒ 同 ID 只命中判重不复活；新 ID 重检后可执行
@@ -600,7 +617,11 @@ const FLOWS = {
     await selectRunAnywhere(call, FX.normalRun);
     await selectRunAnywhere(call, isoChild);
     const icBack = await detailState(call);
-    check("#29 恢复后重读 ⇒ complete（全量重验）", icBack.completeness === "complete", icBack.completeness);
+    check(
+      "#29 恢复后重读 ⇒ complete（全量重验）",
+      icBack.completeness === "complete",
+      icBack.completeness,
+    );
     const env3 = await execRawId(call, "forkRun", forkReq1, op1);
     check(
       "#29 同 ID 再提交 ⇒ 判重不复活（OPERATION_DUPLICATED，零重读零执行）",
@@ -630,9 +651,21 @@ const FLOWS = {
       arms: ARMS,
       dryRun: true,
     });
-    check("#30 前置：完整父本的 dry-run 计划可用（零模型调用）", plan?.ok === true && mock.served() === servedBase + 1, plan?.error ?? plan?.data?.arms?.length);
-    const inj30 = safeBeginLineageFault({ tracesDir: H.TRACES, childRunId: abParent }, "currentMissing");
-    const env5 = await execRawId(call, "modelAb", { parentRunId: abParent, arms: ARMS }, freshUuid());
+    check(
+      "#30 前置：完整父本的 dry-run 计划可用（零模型调用）",
+      plan?.ok === true && mock.served() === servedBase + 1,
+      plan?.error ?? plan?.data?.arms?.length,
+    );
+    const inj30 = safeBeginLineageFault(
+      { tracesDir: H.TRACES, childRunId: abParent },
+      "currentMissing",
+    );
+    const env5 = await execRawId(
+      call,
+      "modelAb",
+      { parentRunId: abParent, arms: ARMS },
+      freshUuid(),
+    );
     check(
       "#30 预检后父链变化 ⇒ 真提交仍拒绝（当前 run 缺失 ⇒ RUN_DETAIL_UNREADABLE）",
       env5?.ok === false && env5?.error?.code === "RUN_DETAIL_UNREADABLE",
@@ -647,7 +680,8 @@ const FLOWS = {
   },
 
   /** U3/U5 草稿/结果流程回归（完整链 UI 提交路径）：成功清理 / 失败保留 / 设置往返保留 */
-  "draft-result-regression": async (call, mock) => {    // ── ① 成功子 run：UI 提交 → verified complete ⇒ 草稿按修订清理（U5 结果收尾回归）
+  "draft-result-regression": async (call, mock) => {
+    // ── ① 成功子 run：UI 提交 → verified complete ⇒ 草稿按修订清理（U5 结果收尾回归）
     await openPlainResultEditor(call);
     const text1 = `${MARK} 成功子 run 草稿`;
     await H.typeIntoEditableMonaco(call, text1);
