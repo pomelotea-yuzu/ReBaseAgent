@@ -72,10 +72,13 @@ function render(
       scope: over.scope ?? null,
       query: over.query ?? "",
       viewport: over.viewport ?? { zoom: 100, scrollLeft: 0, scrollTop: 0 },
+      mode: "graph",
       onArmSession: () => ({ scope: "all" as const, focusRunId: null }),
       onScopeChange: noop,
       onQueryChange: noop,
       onViewportChange: noop,
+      onModeChange: noop,
+      onOpenRun: noop,
     }),
   );
 }
