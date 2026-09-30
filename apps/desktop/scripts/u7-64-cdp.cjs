@@ -179,15 +179,15 @@ async function tableProbe(call, substr, timeoutMs = 15000) {
       `(() => {
          const t = document.querySelector('table');
          const ws = document.querySelector('[aria-label="比较工作区"]');
-         const btn = document.querySelector('[aria-label="查看指标对照表"]');
          return JSON.stringify({
            hasTable: t !== null,
-           text: t === null ? null : t.textContent,
+           // 关系注记（共同祖先…）在 <table> 之外的兄弟容器 ⇒ 读整个工作区文本
+           text: ws === null ? (t === null ? null : t.textContent) : ws.textContent,
            ths: t === null ? null : Array.from(t.querySelectorAll('thead th')).map(th => ({
              text: (th.textContent || '').trim(), w: th.offsetWidth })),
            hasWorkspace: ws !== null,
            wsText: ws === null ? null : ws.textContent.slice(0, 200),
-           hasTableBtn: btn !== null,
+           hasTableBtn: document.querySelector('[aria-label="查看指标对照表"]') !== null,
          });
        })()`,
     ).then(JSON.parse);
@@ -614,7 +614,11 @@ const FLOWS = {
       metrics2 !== null && !(metrics2.text || "").includes("再选一条"),
       null,
     );
-    await H.storeQ(call, `await s.openComparePair("u7c_p", "u7c_c"); return JSON.stringify("ok");`);
+    // openComparePair 要求两条都在对照集合内 ⇒ 先把父本加进集合（3 条 ≤ 上限）
+    await H.storeQ(
+      call,
+      `s.toggleCompare("u7c_p"); await s.openComparePair("u7c_p", "u7c_c"); return JSON.stringify("ok");`,
+    );
     await H.sleep(1200);
     await openTableMode(call);
     const metricsPC = await tableProbe(call, "共同祖先：u7c_p");
