@@ -150,7 +150,7 @@ export function findModelParamsRecordViolation(
     return {
       status: "unverifiable",
       code: "PARENT_META_UNAVAILABLE",
-      reason: `直接父本的 meta 不在本次已校验读取内：config_hash 同源无法核对，资格不可验证`,
+      reason: "直接父本的 meta 不在本次已校验读取内：config_hash 同源无法核对，资格不可验证",
     };
   }
   if (parentHash === undefined) {
