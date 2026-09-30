@@ -6,6 +6,7 @@ import type { OutcomeTone } from "@shared/outcome";
 import { deriveOwnConsumption } from "@shared/overview";
 import type { OwnConsumption } from "@shared/overview";
 import { formatDuration, formatTokens } from "./format";
+import { presentCacheCoverage } from "./overview-view";
 
 /**
  * U7（improve-branch-comparison）任务 5.2：宽幅指标表的**纯派生**。
@@ -286,6 +287,24 @@ export function deriveCompareMetricsTable(input: {
         return consumption !== null && consumption.durationMs === null
           ? "自有 spans 无已记录时间跨度：保持未知，不补 0"
           : undefined;
+      }),
+    },
+    // ---- 5.5：缓存覆盖范围（未记录 ≠ 零命中 ≠ 部分记录，三种解释可辨）----
+    {
+      label: "缓存",
+      values: columns.map((_column, index) => {
+        const consumption = consumptionOf(index);
+        if (consumption === null) return null;
+        const cache = presentCacheCoverage(consumption.cache);
+        if (cache.recorded === 0) {
+          // 未记录不显示成实际零：没有 cache_hit 字段 ⇒ 命中量未知
+          return cache.total === 0 ? "无自有模型调用" : "未记录（命中量未知）";
+        }
+        return `${cache.hitTotal}（已记录 ${cache.recorded} / ${cache.total} 次调用）`;
+      }),
+      titles: columns.map((_column, index) => {
+        const consumption = consumptionOf(index);
+        return consumption === null ? undefined : presentCacheCoverage(consumption.cache).note;
       }),
     },
     // ---- 5.4：沿链累计（各代自有值沿链求和；禁称总耗时/总成本）----

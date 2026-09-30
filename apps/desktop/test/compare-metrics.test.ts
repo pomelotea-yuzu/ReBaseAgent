@@ -54,7 +54,7 @@ function meta(id: string, parent: string | null, fork: Fork | null): RunDetail["
 
 function llmOwnSpan(
   id: string,
-  usage: { in: number; out: number },
+  usage: { in: number; out: number; cacheHit?: number },
   opts: { timing?: { started_at: string; ended_at: string } } = {},
 ): SpanLine {
   return {
@@ -67,7 +67,12 @@ function llmOwnSpan(
       content: null,
       reasoning_content: null,
       tool_calls: [],
-      usage: { in: usage.in, out: usage.out, cache_hit: 0 },
+      // cache_hit 字段缺省 = 未记录（与 0 = 记录下来的零命中是两回事）
+      usage: {
+        in: usage.in,
+        out: usage.out,
+        ...(usage.cacheHit !== undefined ? { cache_hit: usage.cacheHit } : {}),
+      },
       ttft_ms: 0,
     },
     ...(opts.timing !== undefined ? { timing: opts.timing } : {}),
@@ -385,5 +390,69 @@ describe("5.4 指标派生口径", () => {
     const singleRow = single.rows.find((r) => r.label === "相对祖先增量（tokens）");
     expect(singleRow?.values[0]).toBeNull();
     expect(singleRow?.titles?.[0]).toContain("不足两条");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// U7 5.5：缓存覆盖范围与失败占位（「缓存未知零部分和失败占位分开」）
+// ---------------------------------------------------------------------------
+
+describe("5.5 缓存与失败占位", () => {
+  function itemWithOwnSpans(
+    id: string,
+    spans: SpanLine[],
+  ): Extract<CompareRunItem, { status: "ready" }> {
+    return readyItem(id, [summary({ id })], {
+      spans: [
+        { type: "span", id: "s_01", parent: null, kind: "agent.step", n: 1 } as SpanLine,
+        ...spans,
+      ],
+      leafSpanIds: ["s_01", ...spans.map((span) => span.id)],
+    });
+  }
+
+  const items = [
+    // A：自有调用存在但均无 cache_hit 字段 ⇒ 未记录（不是实际零）
+    itemWithOwnSpans("r_a", [llmOwnSpan("c_a", { in: 10, out: 5 })]),
+    // B：记录了 0 命中 ⇒ 照常显示 0（0 是有值）
+    itemWithOwnSpans("r_b", [llmOwnSpan("c_b", { in: 10, out: 5, cacheHit: 0 })]),
+    // C：两次调用只有一次记录 ⇒ 部分记录（1 / 2，不构成整次命中率）
+    itemWithOwnSpans("r_c", [
+      llmOwnSpan("c_c1", { in: 10, out: 5, cacheHit: 7 }),
+      llmOwnSpan("c_c2", { in: 10, out: 5 }),
+    ]),
+    // D：失败占位零用量（in/out 全 0）⇒ 不称实际零消费
+    itemWithOwnSpans("r_d", [llmOwnSpan("c_d", { in: 0, out: 0, cacheHit: 0 })]),
+  ];
+  const shorts4 = computeShortIds(["r_a", "r_b", "r_c", "r_d"]);
+  const model = deriveCompareMetricsTable({ items, shortIds: shorts4 });
+  const cacheRow = model.rows.find((row) => row.label === "缓存");
+  const tokensRow = model.rows.find((row) => row.label === "自有 tokens（合计）");
+
+  it("未记录 / 零命中 / 部分记录三种缓存解释可辨", () => {
+    expect(cacheRow?.values[0]).toContain("未记录");
+    expect(cacheRow?.values[1]).toContain("0（已记录 1 / 1");
+    expect(cacheRow?.values[2]).toContain("7（已记录 1 / 2");
+    // 部分记录的口径说明在场
+    expect(cacheRow?.titles?.[2]).toContain("部分记录不构成整次命中率");
+  });
+
+  it("失败占位零 token 与「未记录缓存」分开：占位说明挂在 tokens 行，不称实际零消费", () => {
+    // D 的 tokens 记录值为 0，但解释明确是"可能是占位"
+    expect(tokensRow?.values[3]).toBe(formatTokens(0));
+    expect(tokensRow?.titles?.[3]).toContain("可能是失败调用的占位值");
+    expect(tokensRow?.titles?.[3]).toContain("不据此断言实际零消费");
+    // A 的未记录与 D 的占位是两件事：A 无占位说明（tokens 非 0）
+    expect(tokensRow?.titles?.[0]).toBeUndefined();
+  });
+
+  it("不输出金额、质量评分或模型胜负", () => {
+    // 行数据（标签+值+解释）里不得出现；scopeNote 的"不产出……胜出"是禁令文案，不算输出
+    const cellText = model.rows
+      .map((row) => [row.label, ...row.values, ...(row.titles ?? [])].join("|"))
+      .join("\n");
+    for (const banned of ["金额", "评分", "胜出", "最佳", "¥", "$"]) {
+      expect(cellText, banned).not.toContain(banned);
+    }
   });
 });
