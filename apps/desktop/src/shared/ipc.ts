@@ -340,6 +340,108 @@ export const ModelAbResultSchema = z.object({
 export type ModelAbResult = z.infer<typeof ModelAbResultSchema>;
 
 // ---------------------------------------------------------------------------
+// runs:compare —— 只读比较（U7 design D3）：1–4 个互异 run id 的一次受校验读取
+// ---------------------------------------------------------------------------
+
+/** 比较对象数量边界（与既有指标对照的上限一致；单条也允许，用于单侧自有事实阅读） */
+export const COMPARE_RUN_MIN = 1;
+export const COMPARE_RUN_MAX = 4;
+/** 逐项不可用结论的受控码长度上限（与 operations 的稳定码口径一致） */
+export const COMPARE_CODE_MAX = 64;
+/** 逐项不可用受控中文原因长度上限（不透传路径/errno/堆栈，有界防伪造超大载荷） */
+export const COMPARE_REASON_MAX = 512;
+
+/**
+ * 比较请求：数量 1–4、互异、非空。越界路径（穿越/绝对路径/分隔符）等非法 run 标识
+ * 的形状校验在 main 侧读取前拒绝（`findIllegalRunIdViolation`）——schema 只钉跨进程
+ * 结构，不复制路径判据。
+ */
+export const CompareRunsRequestSchema = z
+  .object({
+    runIds: z
+      .array(z.string().min(1, "run 标识不能为空"))
+      .min(COMPARE_RUN_MIN, `比较至少需要 ${COMPARE_RUN_MIN} 个运行`)
+      .max(COMPARE_RUN_MAX, `比较最多 ${COMPARE_RUN_MAX} 个运行`),
+  })
+  .strict()
+  .superRefine((request, ctx) => {
+    const seen = new Set<string>();
+    for (const id of request.runIds) {
+      if (seen.has(id)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `比较对象重复：${id}`,
+          path: ["runIds"],
+        });
+        return;
+      }
+      seen.add(id);
+    }
+  });
+export type CompareRunsRequest = z.infer<typeof CompareRunsRequestSchema>;
+
+/**
+ * 逐项结果：ready 携带与 runs:get 同一 schema 的已校验详情（完整性标签随 detail
+ * 自带，ownOnly 不在比较层二次降级）；unavailable 携带稳定码与受控中文原因——
+ * 该侧真实身份保留，不伪空文本、不借另一对象顶替。
+ */
+export const CompareRunItemSchema = z.discriminatedUnion("status", [
+  z
+    .object({
+      status: z.literal("ready"),
+      runId: z.string().min(1),
+      detail: RunDetailSchema,
+    })
+    .strict(),
+  z
+    .object({
+      status: z.literal("unavailable"),
+      runId: z.string().min(1),
+      code: z.string().min(1).max(COMPARE_CODE_MAX),
+      reason: z.string().min(1).max(COMPARE_REASON_MAX),
+    })
+    .strict(),
+]);
+export type CompareRunItem = z.infer<typeof CompareRunItemSchema>;
+
+export const CompareRunsResultSchema = z
+  .object({
+    items: z.array(CompareRunItemSchema).min(COMPARE_RUN_MIN).max(COMPARE_RUN_MAX),
+  })
+  .strict();
+export type CompareRunsResult = z.infer<typeof CompareRunsResultSchema>;
+
+/**
+ * 渲染层应用响应前的错配判定（场景「比较拒绝非法身份和错配载荷」的响应半边）：
+ * 逐项数量、顺序与 runId 必须与请求一一对应；响应内 runId 不得重复。
+ * 返回中文违规原因；null = 与请求相容，可以进渲染层。
+ */
+export function findCompareResponseMismatch(
+  requestIds: readonly string[],
+  result: CompareRunsResult,
+): string | null {
+  if (result.items.length !== requestIds.length) {
+    return `响应项数与请求不符：期望 ${requestIds.length}，实际 ${result.items.length}`;
+  }
+  const seen = new Set<string>();
+  for (let i = 0; i < result.items.length; i += 1) {
+    const item = result.items[i];
+    if (item === undefined) {
+      return `响应第 ${i + 1} 项缺失`;
+    }
+    if (seen.has(item.runId)) {
+      return `响应内 run 重复：${item.runId}`;
+    }
+    seen.add(item.runId);
+    const expected = requestIds[i];
+    if (item.runId !== expected) {
+      return `响应第 ${i + 1} 项身份与请求不符：期望 ${expected ?? "（无）"}，实际 ${item.runId}`;
+    }
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // settings —— 运行配置（apiKey 永不回传渲染层）
 // ---------------------------------------------------------------------------
 
@@ -673,8 +775,9 @@ export type DraftCloseRelease = z.infer<typeof DraftCloseReleaseSchema>;
  * - **主动执行**（`forkRun` / `promptFork` / `modelAb` / `createRun` / `proxyFork`）：
  *   请求是 `{operation:{epoch,operationId}, request}`，响应两个分支都带登记回执。
  *   main 在判重与占槽之后才开始任何副作用；缺身份、旧 epoch 或在途重复提交一律不执行。
- * - **只读与预览**（取数、`chooseSource` / `forkCapability`、`inspectWorkspace` /
- *   `readWorkspaceFile`、`modelAbPlan`、`getSettings` / `proxyStatus`、`operationsStatus`）：
+ * - **只读与预览**（取数、`compareRuns`（U7 只读比较）、`chooseSource` / `forkCapability` /
+ *   `inspectWorkspace` / `readWorkspaceFile`、`modelAbPlan`、`getSettings` / `proxyStatus`、
+ *   `operationsStatus`）：
  *   不带执行身份、不占主动槽、不消耗授权。
  *
  * A/B 的 dryRun 走 `modelAbPlan` —— `modelAb` 收到 `dryRun:true` 会被拒（两条分支不混用）。
@@ -683,6 +786,12 @@ export type DraftCloseRelease = z.infer<typeof DraftCloseReleaseSchema>;
 export interface WindowApi {
   listRuns(): Promise<Envelope<ListRunsData>>;
   getRun(id: string): Promise<Envelope<RunDetail>>;
+  /**
+   * 只读比较（U7 design D3）：一次带 1–4 个互异 run id，main 在单次读取上下文内
+   * 逐项回 ready/unavailable；不带执行身份、不占主动槽、不消耗授权。
+   * 请求形状非法走信封失败；单侧读取失败是数据状态，仍以 ok 信封逐项返回。
+   */
+  compareRuns(request: CompareRunsRequest): Promise<Envelope<CompareRunsResult>>;
   forkRun(request: ExecutedRequest<ForkRunRequest>): Promise<ExecutedResponse<ForkRunResult>>;
   promptFork(
     request: ExecutedRequest<PromptForkRequest>,

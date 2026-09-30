@@ -5,6 +5,10 @@
 export const CHANNELS = {
   listRuns: "runs:list",
   getRun: "runs:get",
+  // runs:compare —— U7 只读比较通道（design D3）：一次请求带 1–4 个互异 run id，
+  // main 单次读取上下文内逐项回 ready(detail)/unavailable(code, reason)；
+  // 无执行身份、不占主动槽、不消耗授权、不写 trace/blob/source
+  compareRuns: "runs:compare",
   forkRun: "runs:fork",
   promptFork: "runs:promptFork",
   modelAb: "runs:modelAb",

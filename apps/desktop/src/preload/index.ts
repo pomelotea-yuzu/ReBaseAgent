@@ -17,6 +17,9 @@ import type { WindowApi } from "../shared/ipc";
 const api: WindowApi = {
   listRuns: () => ipcRenderer.invoke(CHANNELS.listRuns),
   getRun: (id) => ipcRenderer.invoke(CHANNELS.getRun, id),
+  // runs:compare（U7 只读比较）：载荷原样透传——请求/响应 schema 校验在 main 侧，
+  // renderer 侧另有身份/顺序/完整性核对（design D3 双端验证）
+  compareRuns: (request) => ipcRenderer.invoke(CHANNELS.compareRuns, request),
   forkRun: (request) => ipcRenderer.invoke(CHANNELS.forkRun, request),
   promptFork: (request) => ipcRenderer.invoke(CHANNELS.promptFork, request),
   modelAb: (request) => ipcRenderer.invoke(CHANNELS.modelAb, request),
