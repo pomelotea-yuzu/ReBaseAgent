@@ -10,7 +10,7 @@
 > `.workbuddy/u6/u6-61/verify-scenario-checklist.cjs` 按点名的那个文件核（含 `--selftest` 反例：
 > 漏行 / 虚构场景 / 假用例名 / 假文件 / 标题真实但挂错文件 / 半截引用）。
 
-汇总口径：**47 条场景（37 ADDED / 10 MODIFIED）**，已交付 **40** 条、待验证 **7** 条、实机不成立 **0** 条
+汇总口径：**47 条场景（37 ADDED / 10 MODIFIED）**，已交付 **44** 条、待验证 **3** 条、实机不成立 **0** 条
 
 ### A1. 详情完整性在缺祖先文件时结构化降级（ADDED，22 场景）
 
@@ -43,14 +43,14 @@
 
 | n | 场景 | 用例 | 入口/批次 | 状态 |
 |---|---|---|---|---|
-| 23 | ownOnly result 不可重跑 | `u6-exec-source-gate.test.ts › 父文件消失 ⇒ RUN_LINEAGE_INCOMPLETE：settled/rejected 回执 + runIds 空 + 零模型调用 + 零新 trace` | 6.3 变异（摘 execForkRun 门禁须红）+ 6.4 实机 | 待验证 |
+| 23 | ownOnly result 不可重跑 | `u6-exec-source-gate.test.ts › 父文件消失 ⇒ RUN_LINEAGE_INCOMPLETE：settled/rejected 回执 + runIds 空 + 零模型调用 + 零新 trace` | 6.3 变异 + 6.9 实机（exec-gate-result：ownOnly 子直调 forkRun ⇒ RUN_LINEAGE_INCOMPLETE + settled 收口 runIds 空 + 418 哨兵证零调用） | 已交付（6.9 实机） |
 | 24 | ownOnly prompt、代理和实验臂不执行 | `u6-exec-source-gate.test.ts › ownOnly prompt 父本 ⇒ RUN_LINEAGE_INCOMPLETE，零模型调用` + `u6-exec-source-gate.test.ts › ownOnly 父本 ⇒ RUN_LINEAGE_INCOMPLETE，代理 fork 零调用` + `u6-exec-source-gate.test.ts › ownOnly 父本 ⇒ RUN_LINEAGE_INCOMPLETE：零臂身份、零模型调用` | 6.3 变异（摘 prompt/proxy/modelAb 门禁须红）+ 6.5 实机 | 已交付（6.5 实机） |
-| 25 | ownOnly 隔离 result 不消费副本授权 | `u6-exec-source-gate.test.ts › ownOnly 隔离父本 + 合法 allowFileWrites 请求 ⇒ RUN_LINEAGE_INCOMPLETE，无副本世界/trace 创建` | 6.3 变异 + 6.4 实机 | 待验证 |
+| 25 | ownOnly 隔离 result 不消费副本授权 | `u6-exec-source-gate.test.ts › ownOnly 隔离父本 + 合法 allowFileWrites 请求 ⇒ RUN_LINEAGE_INCOMPLETE，无副本世界/trace 创建` | 6.3 变异 + 6.9 实机（exec-gate-result：ownOnly 隔离父本 + allowFileWrites ⇒ RUN_LINEAGE_INCOMPLETE + 零 trace 创建 + workspace-blobs 计数不变） | 已交付（6.9 实机） |
 | 26 | ownOnly model_params dry-run 保持只读 | `u6-exec-source-gate.test.ts › ownOnly 父本 ⇒ RUN_LINEAGE_INCOMPLETE：无计划、零网络、登记仍为空` + `u6-exec-source-gate.test.ts › 正对照：完整父本的 dry-run 计划可用且不产生登记、零模型调用` | 6.3 变异 + 6.5 实机 | 已交付（6.5 实机） |
 | 27 | 读取重试与执行严格分离 | `u6-partial-result-closure.test.ts › 不可读 → ownOnly 正常：重试后按原关联清理；全程零执行通道、不换选中项` + `u6-partial-result-closure.test.ts › store：详情落地 ownOnly ⇒ canExecuteFromSource false；complete ⇒ true` | 6.7 实机（面板「重读」按钮 → 仅 runs:get：零执行/零新 trace/不换选中项；ownOnly ⇒ canExecuteFromSource false，complete 对照 true） | 已交付（6.7 实机） |
 | 28 | 详情加载失败在执行入口即拒绝 | `u6-exec-source-gate.test.ts › 当前文件损坏 ⇒ RUN_DETAIL_UNREADABLE（缺失不掩盖损坏，missingRunId 为 null）` + `u6-exec-source-gate.test.ts › 父文件损坏 ⇒ RUN_DETAIL_UNREADABLE（严格失败不降级）` | 6.3 变异 + 6.6 实机（注入=ancestorCorrupt） | 已交付（6.6 实机） |
-| 29 | 父链恢复不复活已拒绝操作 | `u6-exec-source-gate.test.ts › 5.10 来源拒绝后恢复父文件：同 ID 只命中判重不复活；新 ID 重检后可执行` | 6.3 + 6.6 实机 | 待验证 |
-| 30 | 预检后父链变化仍由 main 拒绝 | `u6-exec-source-gate.test.ts › 5.9 直调端点（绕过 UI）：main 现读磁盘——预检通过后父文件消失仍拒绝` + `u6-partial-result-closure.test.ts › 执行响应以来源类稳定码拒绝 ⇒ 撤销并清空确认；其他错误码不撤销` | 6.3 + 6.6 实机 | 待验证 |
+| 29 | 父链恢复不复活已拒绝操作 | `u6-exec-source-gate.test.ts › 5.10 来源拒绝后恢复父文件：同 ID 只命中判重不复活；新 ID 重检后可执行` | 6.3 + 6.9 实机（exec-gate-result：恢复父文件重读 complete ⇒ 同 ID 再提交 OPERATION_DUPLICATED 零执行；新 ID 隔离续跑重检执行 +1 调用） | 已交付（6.9 实机） |
+| 30 | 预检后父链变化仍由 main 拒绝 | `u6-exec-source-gate.test.ts › 5.9 直调端点（绕过 UI）：main 现读磁盘——预检通过后父文件消失仍拒绝` + `u6-partial-result-closure.test.ts › 执行响应以来源类稳定码拒绝 ⇒ 撤销并清空确认；其他错误码不撤销` | 6.3 + 6.9 实机（exec-gate-result：dry-run 预检通过后隐藏父本 ⇒ 真提交 RUN_DETAIL_UNREADABLE + 零网络） | 已交付（6.9 实机） |
 | 31 | 隔离 capability 对不完整来源明确拒绝 | `isolated-desktop-flows.test.ts › 根 trace 消失 ⇒ capability 以 RUN_LINEAGE_INCOMPLETE 拒绝（不授予许可、不写文件）` + `isolated-desktop-flows.test.ts › 正对照：根在场时二次分叉父本的 capability 照常给出` | 6.3 变异 + 6.5 实机 | 已交付（6.5 实机） |
 | 32 | 无父本创建和被动录制保持原契约 | `u6-exec-source-gate.test.ts › 5.11 无父本的普通 create 不受已存在的 ownOnly run 阻断` | 6.5 实机（ownOnly 在场时创建照常） | 已交付（6.5 实机） |
 
