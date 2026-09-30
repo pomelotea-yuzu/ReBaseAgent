@@ -1,6 +1,10 @@
 import type { Fork, SpanLine } from "@rebaseagent/trace-sdk/schema";
 import { describe, expect, it } from "vitest";
-import { deriveSideStepCatalog } from "../src/renderer/src/lib/compare-steps";
+import {
+  deriveSideStepCatalog,
+  foldCatalogRows,
+  prefixSummaryOf,
+} from "../src/renderer/src/lib/compare-steps";
 import type { RunDetail } from "../src/shared/ipc";
 
 /**
@@ -191,5 +195,74 @@ describe("deriveSideStepCatalog：ownOnly 前缀未知（4.9）", () => {
     expect(full.rows).toHaveLength(3);
     expect(orphan.prefixUnknown).toBe(true);
     expect(orphan.rows).toHaveLength(1);
+  });
+});
+
+describe("deriveSideStepCatalog 4.14：前缀折叠/展开", () => {
+  const foldedFixture = () => {
+    const view = [
+      stepSpan("a1"),
+      toolSpan("a2", "a1"),
+      stepSpan("b1", 1, "a2"),
+      toolSpan("b2", "b1"),
+    ];
+    const bFork: Fork = { at_span: "a2", edit: { field: "result", value: "B 的编辑" } };
+    return deriveSideStepCatalog(
+      detailOf("r_b", [hop("r_a", null, null), hop("r_b", "r_a", bFork)], view, {
+        leafSpanIds: ["b1", "b2"],
+      }),
+    );
+  };
+
+  it("折叠摘要：前缀行数、来源 run 去重、编辑清单（差异保留不隐藏）", () => {
+    const catalog = foldedFixture();
+    const summary = prefixSummaryOf(catalog);
+    expect(summary).toEqual({
+      rowCount: 2,
+      sourceRunIds: ["r_a"],
+      edits: [{ spanId: "a2", targetRunId: "r_b", field: "result" }],
+    });
+  });
+
+  it("折叠视图 = 摘要行 + 自有行；边界行收进摘要但记录不删（展开即恢复全部）", () => {
+    const catalog = foldedFixture();
+    const folded = foldCatalogRows(catalog, true);
+    expect(folded).toHaveLength(3); // 摘要 + b1 + b2
+    expect(folded[0]).toMatchObject({
+      rowKind: "prefix-summary",
+      summary: { rowCount: 2, edits: [{ spanId: "a2" }] },
+    });
+    expect(folded.slice(1).every((r) => r.rowKind === "span" && r.row.own)).toBe(true);
+
+    // 展开 = 全部 span 行原样（与目录逐字段相同，不删不改）
+    const expanded = foldCatalogRows(catalog, false);
+    expect(expanded).toHaveLength(4);
+    expect(expanded.every((r) => r.rowKind === "span")).toBe(true);
+    expect(expanded.map((r) => (r.rowKind === "span" ? r.row.spanId : ""))).toEqual([
+      "a1",
+      "a2",
+      "b1",
+      "b2",
+    ]);
+  });
+
+  it("无前缀（ownOnly/根）⇒ 无摘要可折，折叠态视图仍为全部行", () => {
+    const catalog = deriveSideStepCatalog(
+      detailOf("r_o", [hop("r_o", null, null)], [stepSpan("o1")], { spanScope: "own" }),
+    );
+    expect(prefixSummaryOf(catalog)).toBeNull();
+    expect(foldCatalogRows(catalog, true)).toHaveLength(1);
+  });
+
+  it("来源映射不可靠 ⇒ 不折叠（归属不明就不压缩，如实说明）", () => {
+    const bFork: Fork = { at_span: "a_missing", edit: { field: "result", value: "编辑" } };
+    const catalog = deriveSideStepCatalog(
+      detailOf("r_b", [hop("r_a", null, null), hop("r_b", "r_a", bFork)], [stepSpan("b1")], {
+        leafSpanIds: ["b1"],
+      }),
+    );
+    // 该 fixture 无前缀行（视图只有自有段）⇒ 本就无摘要；不可靠路径由 attribution 承载
+    expect(catalog.attribution).toMatchObject({ kind: "unavailable" });
+    expect(prefixSummaryOf(catalog)).toBeNull();
   });
 });

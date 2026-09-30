@@ -614,6 +614,14 @@ interface AppState {
   /** U7 任务 4.8：设置某一列的选中调用（null = 取消选中）；只动本侧。 */
   selectCompareStep: (side: "left" | "right", spanId: string | null) => void;
   /**
+   * U7 任务 4.14：每侧前缀的折叠态（默认折叠——共同执行部分收进摘要行，
+   * 可展开完整前缀）。复位口径与复合定位一致：换 pair 双侧回默认、
+   * 更换对象被换侧回默认、交换随 pair 对调。
+   */
+  comparePrefixFolded: { readonly left: boolean; readonly right: boolean };
+  /** U7 任务 4.14：切换某一侧的前缀折叠/展开（只动本侧）。 */
+  toggleComparePrefix: (side: "left" | "right") => void;
+  /**
    * U7 任务 2.3：比较页的来源位置引用（类型与创建页同形，捕获/恢复复用同一批
    * 判据）。一次性凭据：返回来源即用掉；经 `selectRun` 打开单侧时**保留**——
    * 「打开单侧 → 返回比较 → 再返回来源」的往返要靠它（setView 才清）。
@@ -1193,7 +1201,10 @@ async function enterCompareView(pair: ComparePair | null): Promise<void> {
       prevPair.leftRunId !== pair.leftRunId ||
       prevPair.rightRunId !== pair.rightRunId;
     if (changed) {
-      useAppStore.setState({ compareStepSelection: { left: null, right: null } });
+      useAppStore.setState({
+        compareStepSelection: { left: null, right: null },
+        comparePrefixFolded: { left: true, right: true },
+      });
     }
     await useAppStore.getState().enterCompareSelection([pair.leftRunId, pair.rightRunId]);
   }
@@ -1524,6 +1535,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   compareReturnLocation: null,
   // U7 任务 4.8：比较步骤复合定位（左右各一，身份 = 侧 + run + span）
   compareStepSelection: { left: null, right: null },
+  // U7 任务 4.14：每侧前缀折叠态（默认折叠；折叠不删记录，展开即恢复）
+  comparePrefixFolded: { left: true, right: true },
   // U7 任务 3.1–3.3：分支树的会话观察状态（范围/搜索/视口，不落盘）
   treeScope: null,
   treeQuery: "",
@@ -2305,6 +2318,10 @@ export const useAppStore = create<AppState>((set, get) => ({
         left: side === "left" ? null : get().compareStepSelection.left,
         right: side === "right" ? null : get().compareStepSelection.right,
       },
+      comparePrefixFolded: {
+        left: side === "left" ? true : get().comparePrefixFolded.left,
+        right: side === "right" ? true : get().comparePrefixFolded.right,
+      },
     });
     await get().enterCompareSelection([decision.pair.leftRunId, decision.pair.rightRunId]);
     return "replaced";
@@ -2318,7 +2335,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ comparePair: swapped });
     // U7 4.8：交换 = 左右内容对调 ⇒ 步骤选中随对象一起对调（不是清空）
     const selection = get().compareStepSelection;
-    set({ compareStepSelection: { left: selection.right, right: selection.left } });
+    const folded = get().comparePrefixFolded;
+    set({
+      compareStepSelection: { left: selection.right, right: selection.left },
+      comparePrefixFolded: { left: folded.right, right: folded.left },
+    });
     // 交换使旧序请求失效（design D3「快速替换、交换、移出或离开使旧请求失效」）
     await get().enterCompareSelection([swapped.leftRunId, swapped.rightRunId]);
     return "swapped";
@@ -2330,6 +2351,17 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({
       compareStepSelection:
         side === "left" ? { ...current, left: spanId } : { ...current, right: spanId },
+    });
+  },
+
+  toggleComparePrefix(side) {
+    // U7 4.14：折叠/展开只动本侧（折叠是视图压缩，记录不删——展开即恢复）
+    const current = get().comparePrefixFolded;
+    set({
+      comparePrefixFolded:
+        side === "left"
+          ? { ...current, left: !current.left }
+          : { ...current, right: !current.right },
     });
   },
 

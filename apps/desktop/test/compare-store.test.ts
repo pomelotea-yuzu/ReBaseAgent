@@ -145,8 +145,9 @@ beforeEach(() => {
   compareEnvelope = verifiedPayload("r_a");
   useAppStore.setState({
     compareRead: emptyCompareReadSession(),
-    // U7 4.8 复位表：复合定位状态不得跨用例残留
+    // U7 4.8/4.14 复位表：复合定位与折叠态不得跨用例残留
     compareStepSelection: { left: null, right: null },
+    comparePrefixFolded: { left: true, right: true },
   });
 });
 
@@ -409,5 +410,43 @@ describe("U7 4.8 复合定位：选左不改变右", () => {
     await useAppStore.getState().openCompareWorkspace();
     expect(useAppStore.getState().comparePair).toEqual({ leftRunId: "r_a", rightRunId: "r_c" });
     expect(useAppStore.getState().compareStepSelection).toEqual({ left: null, right: null });
+  });
+});
+
+describe("U7 4.14 前缀折叠态", () => {
+  it("toggleComparePrefix 只动本侧", () => {
+    useAppStore.setState({
+      comparePrefixFolded: { left: true, right: true },
+    } as never);
+    useAppStore.getState().toggleComparePrefix("left");
+    expect(useAppStore.getState().comparePrefixFolded).toEqual({ left: false, right: true });
+    useAppStore.getState().toggleComparePrefix("right");
+    expect(useAppStore.getState().comparePrefixFolded).toEqual({ left: false, right: false });
+  });
+
+  it("更换一侧对象：被换侧回默认折叠，另一侧保留展开态", async () => {
+    useAppStore.setState({
+      comparePair: { leftRunId: "r_a", rightRunId: "r_b" },
+      compareStepSelection: { left: "c_01", right: "c_02" },
+      comparePrefixFolded: { left: false, right: false },
+    } as never);
+
+    await useAppStore.getState().setCompareSide("left", "r_c");
+
+    expect(useAppStore.getState().comparePrefixFolded).toEqual({ left: true, right: false });
+  });
+
+  it("交换左右：折叠态随对象对调；换 pair 双侧回默认", async () => {
+    useAppStore.setState({
+      comparePair: { leftRunId: "r_a", rightRunId: "r_b" },
+      comparePrefixFolded: { left: false, right: true },
+    } as never);
+    await useAppStore.getState().swapCompareSides();
+    expect(useAppStore.getState().comparePrefixFolded).toEqual({ left: true, right: false });
+
+    // 换比较集 ⇒ 双侧回默认折叠
+    useAppStore.setState({ compareIds: ["r_a", "r_c"] } as never);
+    await useAppStore.getState().openCompareWorkspace();
+    expect(useAppStore.getState().comparePrefixFolded).toEqual({ left: true, right: true });
   });
 });
