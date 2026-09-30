@@ -170,6 +170,40 @@ const treeDetail = (call) =>
      })()`,
   ).then(JSON.parse);
 
+/** 指标表探测：等 <table> 出现（可选等子串在场），超时返回最后一次读数 */
+async function tableProbe(call, substr, timeoutMs = 15000) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const p = await H.ev(
+      call,
+      `(() => {
+         const t = document.querySelector('table');
+         if (t === null) return JSON.stringify(null);
+         const ths = Array.from(t.querySelectorAll('thead th')).map(th => ({
+           text: (th.textContent || '').trim(), w: th.offsetWidth }));
+         return JSON.stringify({ text: t.textContent, ths });
+       })()`,
+    ).then(JSON.parse);
+    if (p !== null && (substr === undefined || (p.text || "").includes(substr))) return p;
+    if (Date.now() > deadline) return p;
+    await H.sleep(500);
+  }
+}
+
+/** 详细比较头部切到指标表（pair 在场时默认详细比较模式，表是显式入口） */
+async function openTableMode(call) {
+  const r = await H.ev(
+    call,
+    `(() => {
+       const b = document.querySelector('[aria-label="查看指标对照表"]');
+       if (b) b.click();
+       return JSON.stringify(b ? 'clicked' : 'absent');
+     })()`,
+  );
+  await H.sleep(900);
+  return r;
+}
+
 // ---------------------------------------------------------------------------
 // tag：tree-geometry（主批——完整标本集）
 // ---------------------------------------------------------------------------
@@ -222,7 +256,7 @@ const FLOWS = {
       `(() => {
          const anchor = document.querySelector('[data-run-id="u7c_g"]');
          if (anchor === null) return JSON.stringify(null);
-         const svg = anchor.closest('section').querySelector('.overflow-auto svg');
+         const svg = anchor.parentElement.querySelector(':scope > svg');
          const labels = svg ? Array.from(svg.querySelectorAll('text')).map(t => t.textContent) : [];
          return JSON.stringify({ edgeLabels: labels, paths: svg ? svg.querySelectorAll('path').length : 0 });
        })()`,
@@ -272,7 +306,17 @@ const FLOWS = {
         detail.text.includes("标注来源文件与行号范围") &&
         detail.text.includes("便于后续人工复核") &&
         detail.copyIdBtn === true,
-      { hasText: detail?.text?.includes("标注来源"), copyIdBtn: detail?.copyIdBtn },
+      {
+        hasText: detail?.text?.includes("标注来源"),
+        copyIdBtn: detail?.copyIdBtn,
+        hasExpand: detail?.hasExpand,
+        textLen: (detail?.text || "").length,
+        around: (() => {
+          const t = detail?.text ?? "";
+          const i = t.indexOf("标注来源");
+          return i < 0 ? null : t.slice(Math.max(0, i - 30), i + 100);
+        })(),
+      },
     );
     await H.shot(call, SHOT_DIR, "tree-detail-long.png");
 
@@ -496,20 +540,42 @@ const FLOWS = {
         (listProbe.placeholder.text || "").includes("缺失"),
       listProbe?.placeholder,
     );
-    const groupIdx = listProbe.rows.indexOf("__GROUP__");
     const eaIdx = listProbe.rows.indexOf("u7c_ea");
     const ebIdx = listProbe.rows.indexOf("u7c_eb");
+    const groupPlacement = await H.ev(
+      call,
+      `(() => {
+         const list = document.querySelector('[data-tree-list="true"]');
+         const h = list.querySelector('[data-experiment-group="exp_u7_ab"]');
+         if (h === null) return JSON.stringify(null);
+         const next = h.nextElementSibling;
+         const g = list.querySelector('[data-run-id="u7c_g"]');
+         return JSON.stringify({
+           nextRunId: next !== null && next.hasAttribute('data-run-id')
+             ? next.getAttribute('data-run-id') : null,
+           untaggedInside: g === null ? null : g.closest('[data-experiment-group]') !== null,
+         });
+       })()`,
+    ).then(JSON.parse);
     check(
-      "#20 实验组头恰一次且在首臂前；无标签 run 不进组",
-      listProbe.groups.length === 1 &&
-        listProbe.groups[0] === "exp_u7_ab" &&
+      "#20 实验组头 exp_u7_ab 恰一次且紧邻首臂前；无标签 run 不进组",
+      listProbe.groups.filter((g) => g === "exp_u7_ab").length === 1 &&
         eaIdx > 0 &&
-        ebIdx === eaIdx + 1,
-      { groups: listProbe.groups, eaIdx, ebIdx },
+        ebIdx === eaIdx + 1 &&
+        groupPlacement !== null &&
+        groupPlacement.nextRunId === "u7c_ea" &&
+        groupPlacement.untaggedInside === false,
+      {
+        u7Groups: listProbe.groups.filter((g) => g === "exp_u7_ab"),
+        eaIdx,
+        ebIdx,
+        groupPlacement,
+      },
     );
     await H.shot(call, SHOT_DIR, "tree-list.png");
 
     // ── #8/#9/#11/#27/#10：对照集合与指标表 ──
+    // pair 在场时默认详细比较模式 ⇒ 点「查看指标对照表」切到宽幅表（真实用户路径）
     await H.storeQ(call, `s.clearCompare(); return JSON.stringify("ok");`);
     await H.storeQ(
       call,
@@ -522,22 +588,12 @@ const FLOWS = {
       st.compareIds,
     );
     await H.storeQ(call, `await s.openCompareWorkspace(); return JSON.stringify("ok");`);
-    await H.sleep(1500);
-    const metrics2 = await H.ev(
-      call,
-      `(() => {
-         const t = document.querySelector('table');
-         if (t === null) return JSON.stringify(null);
-         const headerCells = Array.from(t.querySelectorAll('thead th')).map(th => ({
-           text: (th.textContent || '').trim(), w: th.offsetWidth,
-         }));
-         return JSON.stringify({ text: t.textContent, headerCells });
-       })()`,
-    ).then(JSON.parse);
+    await openTableMode(call);
+    const metrics2 = await tableProbe(call, "共同祖先：u7c_p");
     check(
       "#8 兄弟两条：共同祖先 = 父（u7c_p）",
       metrics2 !== null && (metrics2.text || "").includes("共同祖先：u7c_p"),
-      (metrics2?.text || "").match(/共同祖先[^\n]{0,30}/)?.[0],
+      (metrics2?.text || "").match(/共同祖先[^;]{0,30}/)?.[0],
     );
     check(
       "#11 两条时不再显示「再选一条」",
@@ -545,18 +601,13 @@ const FLOWS = {
       null,
     );
     await H.storeQ(call, `await s.openComparePair("u7c_p", "u7c_c"); return JSON.stringify("ok");`);
-    await H.sleep(1500);
-    const metricsPC = await H.ev(
-      call,
-      `(() => {
-         const t = document.querySelector('table');
-         return JSON.stringify(t === null ? null : { text: t.textContent });
-       })()`,
-    ).then(JSON.parse);
+    await H.sleep(1200);
+    await openTableMode(call);
+    const metricsPC = await tableProbe(call, "共同祖先：u7c_p");
     check(
       "#9 直接父子：共同祖先取父 run（u7c_p），可判定关系",
       metricsPC !== null && (metricsPC.text || "").includes("共同祖先：u7c_p"),
-      (metricsPC?.text || "").match(/共同祖先[^\n]{0,30}/)?.[0],
+      (metricsPC?.text || "").match(/共同祖先[^;]{0,30}/)?.[0],
     );
     await H.shot(call, SHOT_DIR, "metrics-two.png");
 
@@ -578,17 +629,7 @@ const FLOWS = {
     await H.storeQ(call, `s.setView("trace"); return JSON.stringify("ok");`);
     await H.sleep(600);
     await H.storeQ(call, `await s.openCompareWorkspace(); return JSON.stringify("ok");`);
-    await H.sleep(1500);
-    const metrics4 = await H.ev(
-      call,
-      `(() => {
-         const t = document.querySelector('table');
-         if (t === null) return JSON.stringify(null);
-         const ths = Array.from(t.querySelectorAll('thead th')).map(th => ({
-           text: (th.textContent || '').trim(), w: th.offsetWidth }));
-         return JSON.stringify({ text: t.textContent, ths });
-       })()`,
-    ).then(JSON.parse);
+    const metrics4 = await tableProbe(call);
     check(
       "#27/#8 四条进入指标表：四列数据列 + 名称列全部可见（R8「名称列宽 0」复现消除）",
       metrics4 !== null && metrics4.ths.length >= 5 && metrics4.ths.every((c) => c.w > 0),
@@ -608,13 +649,7 @@ const FLOWS = {
       `s.clearCompare(); s.toggleCompare("u7c_g"); await s.openCompareWorkspace(); return JSON.stringify("ok");`,
     );
     await H.sleep(1200);
-    const metricsSingle = await H.ev(
-      call,
-      `(() => {
-         const t = document.querySelector('table');
-         return JSON.stringify(t === null ? null : { text: t.textContent });
-       })()`,
-    ).then(JSON.parse);
+    const metricsSingle = await tableProbe(call, "再选一条");
     check(
       "#11 单条 ⇒ 表 + 「再选一条即可对照」，不判定共同祖先",
       metricsSingle !== null &&
@@ -682,13 +717,14 @@ const FLOWS = {
       call,
       `(() => {
          const anchor = document.querySelector('[data-run-id]');
-         const scope = anchor === null ? document : anchor.closest('section') ?? document;
-         const nodes = scope.querySelectorAll('[data-run-id]');
-         const paths = scope.querySelectorAll('svg path');
          const body = document.body.textContent;
+         if (anchor === null) {
+           return JSON.stringify({ nodes: [], paths: -1, hasEmptyText: body.includes('还没有运行记录'), hasNoBranchHint: body.includes('无分支可用') });
+         }
+         const svg = anchor.parentElement.querySelector(':scope > svg');
          return JSON.stringify({
-           nodes: Array.from(nodes).map(n => n.getAttribute('data-run-id')),
-           paths: paths.length,
+           nodes: Array.from(anchor.parentElement.querySelectorAll(':scope > [data-run-id]')).map(n => n.getAttribute('data-run-id')),
+           paths: svg === null ? -1 : svg.querySelectorAll('path').length,
            hasEmptyText: body.includes('还没有运行记录'),
            hasNoBranchHint: body.includes('无分支可用'),
          });
