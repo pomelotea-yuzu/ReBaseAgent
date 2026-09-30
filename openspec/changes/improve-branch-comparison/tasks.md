@@ -52,16 +52,16 @@
 
 ## 5. 指标、实验门禁、文件与响应式
 
-- [ ] 5.1 复用会话短 ID 到树、选择栏和比较标题，补相应单元/IPC/store/组件验证（对应“碰撞短 ID 不随筛选交换改变身份”）。
-- [ ] 5.2 替换窄侧栏为宽幅指标表并固定名称列，补相应单元/IPC/store/组件验证（对应“四条指标名称始终可见”）。
-- [ ] 5.3 实现指标表选两条与集合上限、空态，补相应单元/IPC/store/组件验证（对应“三四条显式选两条阅读”）。
-- [ ] 5.4 复用自有与链路指标派生并标出口径，补相应单元/IPC/store/组件验证（对应“自有指标不重复计算继承前缀”）。
-- [ ] 5.5 接入缓存覆盖范围和失败占位解释，补相应单元/IPC/store/组件验证（对应“缓存未知零部分和失败占位分开”）。
-- [ ] 5.6 接线左右文件入口、U2 恢复与比较返回，补相应单元/IPC/store/组件验证（对应“分别打开文件并返回比较”）。
-- [ ] 5.7 实现文件能力与检查点身份门禁，补相应单元/IPC/store/组件验证（对应“非法文件目标与普通运行不造历史”）。
-- [ ] 5.8 实现内容宽度适配与导航状态恢复，补相应单元/IPC/store/组件验证（对应“窄窗和缩放仍能完整阅读”）。
-- [ ] 5.9 补齐比较键盘交互和异步焦点，补相应单元/IPC/store/组件验证（对应“键盘完成比较闭环”）。
-- [ ] 5.10 验证比较路径只接只读能力并覆盖写入反证，补相应单元/IPC/store/组件验证（对应“比较全程只读且不恢复许可”）。
+- [x] 5.1 复用会话短 ID 到树、选择栏和比较标题，补相应单元/IPC/store/组件验证（对应“碰撞短 ID 不随筛选交换改变身份”）。（`3a3456f`：BranchTree 改用 store 会话 ShortIdState（与 RunList 同一实例，长度只增不减），视图改吃 shortIds props；CompareWorkspaceView 侧标题/diff 说明行用短 ID；新增 ShortIdLabel（复制按钮可访问名称带完整 ID，复制目标恒为完整 id）；ComparePanel 身份列弃 slice(0,7)——组件随后在 5.2 被替换，判据由新表继承）
+- [x] 5.2 替换窄侧栏为宽幅指标表并固定名称列，补相应单元/IPC/store/组件验证（对应“四条指标名称始终可见”）。（`65f4b9f`：lib/compare-metrics.ts 纯派生——关系三态与标题事实全部来自本次已校验 chainSummaries（deriveVerifiedComparison），不回退列表缓存；CompareMetricsTable（sticky 名称列 min-w-[128px]、运行列 min-w-[220px]、横滚只在表格容器 overflow-auto 内）；树视图侧栏换 CompareSelectionBar（chips/移出/清空/进入按钮/上限提示/零态引导）；比较工作区加指标表模式（pair 为空或显式切回，详细比较只在结论与 pair 对齐时派生证据）；删除 ComparePanel（含旧列表缓存 deriveComparison 消费面）；openCompareWorkspace 无 pair 进入时对整集合发起一次只读读取；顺手清零此前 U7 提交遗留 9 条 biome 错误）
+- [x] 5.3 实现指标表选两条与集合上限、空态，补相应单元/IPC/store/组件验证（对应“三四条显式选两条阅读”）。（`50a57ee`：store 新增 openComparePair——两 id 互异且属当前集合才放行（同 ID 拒绝/集合外拒绝），页内换 pair 推进阅读代次，不改全局集合（D1）；指标表两步挑选条（设为左列/右列 + aria-pressed、两侧齐备才可打开、就地拒绝解释、清除），挑选状态为容器本地展示态、换 pair 即复位；第五条拒绝提示由既有 toggleCompare + store.test 承载；零/单条引导为 5.2 交付本轮回归）
+- [x] 5.4 复用自有与链路指标派生并标出口径，补相应单元/IPC/store/组件验证（对应“自有指标不重复计算继承前缀”）。（`4bd2cc7`：自有 tokens（入/出/合计）与自有已记录耗时由每侧 detail 的 leafSpanIds 经 deriveOwnConsumption 派生（与概览同一派生不重抄）；沿链累计与相对祖先增量（该侧累计 − 祖先累计）取自 deriveVerifiedComparison；未知不补零——自有无 timing/链上任一段耗时未知/祖先段耗时未知均产出 null + 逐列解释（判定不完整/无共同祖先/单条/祖先段未知分档）；scopeNote 补独立执行说明与「不是左右臂相减」）
+- [x] 5.5 接入缓存覆盖范围和失败占位解释，补相应单元/IPC/store/组件验证（对应“缓存未知零部分和失败占位分开”）。（`2912a3b`：缓存行复用 presentCacheCoverage——未记录（无 cache_hit 字段 ⇒ 命中量未知，不显示成实际零）/明确零命中（0 是有值照常显示）/部分记录（X / Y 且不构成整次命中率）三种解释可辨；失败占位零 token 说明挂自有 tokens 合计行（5.4 先行）与之分开；无自有调用列显示「无自有模型调用」；无金额/评分/胜负输出有负向断言）
+- [x] 5.6 接线左右文件入口、U2 恢复与比较返回，补相应单元/IPC/store/组件验证（对应“分别打开文件并返回比较”）。（`ae526be` 与 5.7 同提交：lib/compare-files.ts 单侧文件入口纯判据；store 新增 openCompareSideFiles——能力判据只用该侧已校验详情（不拿选中 run 冒充），落地后复核（详情读出/归属相符/能力仍成立/步骤在落地详情上重验）才写检查点，打开单侧保留 pair 与来源引用（2.3）；CompareWorkspaceView 侧标题区「打开左列/右列文件」按钮；App 页头常驻「返回比较」栏（ReturnToCompareBar，pair 在场才渲染；returnToCompare 同 pair 幂等不重读）；无跨运行文件 diff 页签）
+- [x] 5.7 实现文件能力与检查点身份门禁，补相应单元/IPC/store/组件验证（对应“非法文件目标与普通运行不造历史”）。（`ae526be`：能力门禁 = isIsolatedRun（v2 且带 meta.workspace）不满足 ⇒ unsupported 且不发任何 runs:get；步骤定位仅 leafSpanIds 内 agent.step 合法（validateCheckpointStepId 同源判据，落地后对**新鲜详情**复核 isOwnStepTarget 才写 setFileReading，复核不过不写、走 U2 已保存合法位置/默认检查点）；ownOnly 不封禁——检查点判据只看 leafSpanIds，不读 completeness）
+- [x] 5.8 实现内容宽度适配与导航状态恢复，补相应单元/IPC/store/组件验证（对应“窄窗和缩放仍能完整阅读”）。（`115e052`：COMPARE_STACK_THRESHOLD=960/decideCompareBodyLayout——并排或上下按**正文容器宽度**（扣除导航占位）判，不用整窗猜测；decideCompareNavVisible——比较页窄窗（narrow/single）默认收起导航、退出恢复用户原状态（纯显示决策不写偏好，与 U1 自动折叠同纪律）；CompareWorkspaceView stacked：上下排列 grid-cols-1 且对象标题随每列头部自然重复；App 的 navShowing 按视图分流（GlobalBar 与 RunList 同源）；名称列 sticky/容器内横滚为 5.2 交付本轮回归；真实几何归 §6.8 实机）
+- [x] 5.9 补齐比较键盘交互和异步焦点，补相应单元/IPC/store/组件验证（对应“键盘完成比较闭环”）。（`a438635`：比较全路径动作按钮补齐 focus-visible 焦点环（FOCUS_RING：diff/交换/返回/指标表/打开文件/打开失败调用/步骤行/折叠摘要/重试/设为左列右列/打开详细比较/清除/移出/进入/清空/复制/返回比较）——全部有中文可访问名称；异步焦点：返回比较后焦点落比较工作区主容器（data-compare-primary + requestAnimationFrame）不落页顶；在飞读取不卸载动作按钮有静态断言；真实焦点几何/键盘闭环归 §6.9 实机）
+- [x] 5.10 验证比较路径只接只读能力并覆盖写入反证，补相应单元/IPC/store/组件验证（对应“比较全程只读且不恢复许可”）。（`67917f0`+`9876b1b`+`08cdf26`：新增 compare-readonly.test.ts——全流程反证（选中/比较/重试/指标阅读/交换/返回/指标表选两条/单侧文件打开）：执行与写通道（runs:fork/promptFork/proxyFork/create/modelAb/modelAbPlan/workspaces:chooseSource/forkCapability/settings 写/proxy 切换）全挂调用记录桩，任何调用即红；全流程后 calls 恒等于只读集合（runs:compare/runs:get/workspaces:inspect/runs:list）；草稿与来源撤销逐字节不变、确认只减不增（清待用确认是 U5 4.4 既有 noteReadingChanged 语义非比较新增清权）、操作通道零调用 = 不生成操作身份不占执行槽；trace/blob/source 字节不变性由 preload 白名单通道形状保证，实机字节级核对归 §6.3/§6.9）
 - [x] 5.11 实现历史实验资格与合法失败臂的共用展示，补相应单元/IPC/store/组件验证（对应“合法同父实验臂展示事实”）。（`ec5befb`：比较工作区实验区——eligible 时批次身份（共同父+各臂 experimentId 原样）+ 相对父累计增量（deriveVerifiedComparison deltaFromAncestor，未知不估算）+ 副作用放行说明；失败臂不因结局拒（门禁不读 outcome）；输出/步骤区由 4.6/4.12 承载；宽幅指标表增量列归 5.2/5.4）
 - [x] 5.12 实现选择集级实验门禁与批次身份，补相应单元/IPC/store/组件验证（对应“异父混选与相同实验标签不能绕过”）。（`2e1dad3`：deriveExperimentGate(items)——全 model_params 臂 + 直接 parent 相同 + 父链完整 + 逐臂记录判据；混选 MIXED_SELECTION（标签相同不能豁免）、异父 PARENT_DIFFERS、ownOnly CHAIN_INCOMPLETE（先于同父核对）；批次身份保留各臂真实 experimentId 不伪造同批）
 - [x] 5.13 实现实验拒绝矩阵与受控原因，补相应单元/IPC/store/组件验证（对应“不完整未封存与前置缺证明确拒绝”）。（`2e1dad3`：三态拒绝矩阵——RUN_UNREADABLE/MIXED_SELECTION/PARENT_DIFFERS/CHAIN_INCOMPLETE/CONFIG_HASH_MISMATCH/REQUEST_MODEL·PARAMS_MISMATCH/TOOLS_MISMATCH/SIDE_EFFECT_UNDECLARED·CONTRADICTION + unverifiable（CONFIG_HASH_UNRECORDED/PARENT_META_UNAVAILABLE/START_REQUEST_UNRECORDED）——拒绝与不可验证分层，均不冒充通过；工作区呈现拒绝原因与单独打开入口（`ec5befb`）；重试仅重新验证记录（compare-state 既有只读重试））
