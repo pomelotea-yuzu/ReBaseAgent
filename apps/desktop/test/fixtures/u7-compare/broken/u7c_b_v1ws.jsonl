@@ -1,0 +1,4 @@
+{"type":"run.meta","id":"u7c_b_v1ws","format_version":1,"task":"U7 不同根标本：u7c_b_v1ws","model":"deepseek-chat","created_at":"2026-09-30T10:41:00.000Z","parent":null,"fork":null,"config_hash":"sha256:u7compare000000000000000000000000000000000000000000000000000000","workspace":{"world_id":"u7c_b_v1ws","origin":{"kind":"import"}}}
+{"type":"span","id":"s_01","parent":null,"timing":{"started_at":"2026-09-30T10:41:00.000Z","ended_at":"2026-09-30T10:41:01.200Z"},"kind":"agent.step","n":1}
+{"type":"span","id":"s_02","parent":"s_01","timing":{"started_at":"2026-09-30T10:41:00.000Z","ended_at":"2026-09-30T10:41:01.000Z"},"kind":"llm.call","request":{"model":"deepseek-chat","messages":[{"role":"system","content":"坏版本：v1 私带隔离字段"},{"role":"user","content":"任务：坏版本"}],"params":{"temperature":0.1}},"response":{"content":"不应被读到。","reasoning_content":null,"tool_calls":[],"usage":{"in":700,"out":20},"ttft_ms":120}}
+{"type":"run.event","event":"stopped","reason":"completed","at":1}

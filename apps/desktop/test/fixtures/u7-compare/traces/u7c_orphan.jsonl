@@ -1,0 +1,4 @@
+{"type":"run.meta","id":"u7c_orphan","format_version":1,"task":"U7 ownOnly 标本：父本已缺失的续跑","model":"deepseek-chat","created_at":"2026-09-30T10:30:00.000Z","parent":"u7c_gone_missing","fork":{"at_span":"s_03","edit":{"field":"result","value":"父本缺失后仍保留的编辑值"}},"config_hash":"sha256:u7compare000000000000000000000000000000000000000000000000000000"}
+{"type":"span","id":"s_01","parent":null,"timing":{"started_at":"2026-09-30T10:30:00.000Z","ended_at":"2026-09-30T10:30:01.300Z"},"kind":"agent.step","n":1}
+{"type":"span","id":"s_02","parent":"s_01","timing":{"started_at":"2026-09-30T10:30:00.000Z","ended_at":"2026-09-30T10:30:01.100Z"},"kind":"llm.call","request":{"model":"deepseek-chat","messages":[{"role":"user","content":"按既有观察收尾"}]},"response":{"content":"ownOnly 侧完成。","reasoning_content":null,"tool_calls":[],"usage":{"in":1100,"out":24},"ttft_ms":120}}
+{"type":"run.event","event":"stopped","reason":"completed","at":1}

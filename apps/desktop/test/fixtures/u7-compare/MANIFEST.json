@@ -1,0 +1,414 @@
+{
+  "生成器": "apps/desktop/scripts/gen-u7-compare-fixtures.cjs",
+  "说明": "U7 6.2 比较验收标本。isolated-* 为真实引擎产物（含绝对临时路径，不追求逐字节可重复）；手工组固定时间常量。实机批次注入：把 traces/*.jsonl 拷入数据目录 traces/，isolated-traces/*.jsonl 拷入 traces/、isolated-blobs/ 拷入 workspace-blobs/；批次结束按本清单文件名清除。生产数据目录（.rebaseagent）内既有文件不碰。",
+  "手工文件": [
+    "u7c_g.jsonl",
+    "u7c_p.jsonl",
+    "u7c_c.jsonl",
+    "u7c_s.jsonl",
+    "u7c_pp.jsonl",
+    "u7c_pc1.jsonl",
+    "u7c_pc2.jsonl",
+    "run_u7m1.jsonl",
+    "run_u7m2.jsonl",
+    "u7c_ep.jsonl",
+    "u7c_ea.jsonl",
+    "u7c_eb.jsonl",
+    "u7c_d1.jsonl",
+    "u7c_d2.jsonl",
+    "u7c_err.jsonl",
+    "u7c_l1.jsonl",
+    "u7c_l2.jsonl",
+    "u7c_orphan.jsonl",
+    "qqq7777aabbccdd.jsonl",
+    "ppp7777aabbccdd.jsonl",
+    "ooo7777aabbccdd.jsonl",
+    "7777aabbccdd.jsonl"
+  ],
+  "坏版本文件": [
+    "broken/u7c_b_future.jsonl",
+    "broken/u7c_b_v1ws.jsonl"
+  ],
+  "关系": {
+    "三跳result链": {
+      "g": "u7c_g",
+      "p": "u7c_p",
+      "c": "u7c_c",
+      "兄弟": "u7c_s",
+      "语义": "G→P→C 三跳纯 result 链（共享前缀逐跳合并）；S 与 C 同父同编辑点（s_07）、同自有 span id（s_09/s_10）",
+      "编辑点P": {
+        "at_span": "s_03",
+        "原值": "G 原始观察：README 内容 α",
+        "新值": "P 编辑后的观察：README 内容 β"
+      },
+      "编辑点C": {
+        "at_span": "s_08",
+        "原值": "P 工具结果：summary 已写入 v1",
+        "新值": "C 编辑后的观察：summary 内容 v2"
+      },
+      "编辑点S": {
+        "at_span": "s_08",
+        "原值": "P 工具结果：summary 已写入 v1",
+        "新值": "S 兄弟编辑后的观察：summary 内容 v2-alt"
+      }
+    },
+    "prompt": {
+      "parent": "u7c_pp",
+      "arms": [
+        "u7c_pc1",
+        "u7c_pc2"
+      ],
+      "语义": "独立执行（system_prompt / user_message 两类编辑）；两臂 own span 互为 s_01/s_02（第二组重复 ID）"
+    },
+    "proxy": {
+      "parent": "run_u7m1",
+      "child": "run_u7m2",
+      "语义": "代理分叉（改 messages）"
+    },
+    "model_params": {
+      "parent": "u7c_ep",
+      "arms": [
+        "u7c_ea",
+        "u7c_eb"
+      ],
+      "experimentId": "exp_u7_ab",
+      "语义": "同批 A/B 臂（同模型 / 换模型）"
+    },
+    "不同根": {
+      "left": "u7c_d1",
+      "right": "u7c_d2",
+      "语义": "模型/system/user/params 全不同（unrelated）"
+    },
+    "ownOnly": {
+      "id": "u7c_orphan",
+      "missingRunId": "u7c_gone_missing",
+      "语义": "父文件不存在 ⇒ 读取即 ownOnly；树上缺父占位"
+    },
+    "碰撞组": [
+      "qqq7777aabbccdd",
+      "ppp7777aabbccdd",
+      "ooo7777aabbccdd",
+      "7777aabbccdd"
+    ]
+  },
+  "缓存形态": {
+    "部分记录": "u7c_g（call1 cache_hit=800、call2 无字段）、u7c_l1（call1 无字段、call2 cache_hit=512）",
+    "零命中": "u7c_l2（两次 cache_hit=0）",
+    "未记录": "u7c_err 等其余标本（无 cache_hit 字段）",
+    "失败占位": "u7c_err（占位零用量 + error 详情）"
+  },
+  "错误标本": {
+    "id": "u7c_err",
+    "形状": "errored 事件 + 自有 llm.call(s_05) 带 error{status:401} + 占位零用量"
+  },
+  "长文本": {
+    "l1": "u7c_l1（输出 ~13KB，标记词：金苹果/银钥匙）",
+    "l2": "u7c_l2（输出 ~13KB，标记词：铜罗盘/铁齿轮；含 reasoning_content 侧样本）"
+  },
+  "隔离附件哈希": [
+    {
+      "name": "26b36ccb92b026c00fe9e787af2229f867bc1a87952c08264c4f48b818d9d918",
+      "sha256": "26b36ccb92b026c00fe9e787af2229f867bc1a87952c08264c4f48b818d9d918"
+    },
+    {
+      "name": "2d2616fba6ab13a8f354005ed4101a3c1bac9f1722d0c83d96e799de1750cd49",
+      "sha256": "2d2616fba6ab13a8f354005ed4101a3c1bac9f1722d0c83d96e799de1750cd49"
+    },
+    {
+      "name": "6ca7ea2feefc88ecb5ed6356ed963f47dc9137f82526fdd25d618ea626d0803f",
+      "sha256": "6ca7ea2feefc88ecb5ed6356ed963f47dc9137f82526fdd25d618ea626d0803f"
+    }
+  ],
+  "轨迹边界": {
+    "chain_g": {
+      "id": "u7c_g",
+      "自有spanIds": [
+        "s_01",
+        "s_02",
+        "s_03",
+        "s_04",
+        "s_05"
+      ],
+      "parent": null,
+      "fork字段": null,
+      "有configHash": true
+    },
+    "chain_p": {
+      "id": "u7c_p",
+      "自有spanIds": [
+        "s_06",
+        "s_07",
+        "s_08",
+        "s_09",
+        "s_10"
+      ],
+      "parent": "u7c_g",
+      "fork字段": "result",
+      "有configHash": true
+    },
+    "chain_c": {
+      "id": "u7c_c",
+      "自有spanIds": [
+        "s_11",
+        "s_12"
+      ],
+      "parent": "u7c_p",
+      "fork字段": "result",
+      "有configHash": true
+    },
+    "chain_s": {
+      "id": "u7c_s",
+      "自有spanIds": [
+        "s_11",
+        "s_12"
+      ],
+      "parent": "u7c_p",
+      "fork字段": "result",
+      "有configHash": true
+    },
+    "prompt_parent": {
+      "id": "u7c_pp",
+      "自有spanIds": [
+        "s_01",
+        "s_02"
+      ],
+      "parent": null,
+      "fork字段": null,
+      "有configHash": true
+    },
+    "prompt_arm1": {
+      "id": "u7c_pc1",
+      "自有spanIds": [
+        "s_01",
+        "s_02"
+      ],
+      "parent": "u7c_pp",
+      "fork字段": "system_prompt",
+      "有configHash": true
+    },
+    "prompt_arm2": {
+      "id": "u7c_pc2",
+      "自有spanIds": [
+        "s_01",
+        "s_02"
+      ],
+      "parent": "u7c_pp",
+      "fork字段": "user_message",
+      "有configHash": true
+    },
+    "proxy_parent": {
+      "id": "run_u7m1",
+      "自有spanIds": [
+        "s_01",
+        "s_02"
+      ],
+      "parent": null,
+      "fork字段": null,
+      "有configHash": false
+    },
+    "proxy_child": {
+      "id": "run_u7m2",
+      "自有spanIds": [
+        "s_09",
+        "s_10"
+      ],
+      "parent": "run_u7m1",
+      "fork字段": "messages",
+      "有configHash": false
+    },
+    "exp_parent": {
+      "id": "u7c_ep",
+      "自有spanIds": [
+        "s_01",
+        "s_02"
+      ],
+      "parent": null,
+      "fork字段": null,
+      "有configHash": true
+    },
+    "exp_arm_a": {
+      "id": "u7c_ea",
+      "自有spanIds": [
+        "s_01",
+        "s_02"
+      ],
+      "parent": "u7c_ep",
+      "fork字段": "model_params",
+      "有configHash": true
+    },
+    "exp_arm_b": {
+      "id": "u7c_eb",
+      "自有spanIds": [
+        "s_01",
+        "s_02"
+      ],
+      "parent": "u7c_ep",
+      "fork字段": "model_params",
+      "有configHash": true
+    },
+    "diff_root_1": {
+      "id": "u7c_d1",
+      "自有spanIds": [
+        "s_01",
+        "s_02"
+      ],
+      "parent": null,
+      "fork字段": null,
+      "有configHash": true
+    },
+    "diff_root_2": {
+      "id": "u7c_d2",
+      "自有spanIds": [
+        "s_01",
+        "s_02"
+      ],
+      "parent": null,
+      "fork字段": null,
+      "有configHash": true
+    },
+    "error": {
+      "id": "u7c_err",
+      "自有spanIds": [
+        "s_01",
+        "s_02",
+        "s_03",
+        "s_04",
+        "s_05"
+      ],
+      "parent": null,
+      "fork字段": null,
+      "有configHash": true
+    },
+    "long_1": {
+      "id": "u7c_l1",
+      "自有spanIds": [
+        "s_01",
+        "s_02",
+        "s_03",
+        "s_04"
+      ],
+      "parent": null,
+      "fork字段": null,
+      "有configHash": true
+    },
+    "long_2": {
+      "id": "u7c_l2",
+      "自有spanIds": [
+        "s_01",
+        "s_02",
+        "s_03",
+        "s_04"
+      ],
+      "parent": null,
+      "fork字段": null,
+      "有configHash": true
+    },
+    "ownonly": {
+      "id": "u7c_orphan",
+      "自有spanIds": [
+        "s_01",
+        "s_02"
+      ],
+      "parent": "u7c_gone_missing",
+      "fork字段": "result",
+      "有configHash": true
+    },
+    "collision_1": {
+      "id": "qqq7777aabbccdd",
+      "自有spanIds": [
+        "s_01",
+        "s_02"
+      ],
+      "parent": null,
+      "fork字段": null,
+      "有configHash": true
+    },
+    "collision_2": {
+      "id": "ppp7777aabbccdd",
+      "自有spanIds": [
+        "s_01",
+        "s_02"
+      ],
+      "parent": null,
+      "fork字段": null,
+      "有configHash": true
+    },
+    "collision_3": {
+      "id": "ooo7777aabbccdd",
+      "自有spanIds": [
+        "s_01",
+        "s_02"
+      ],
+      "parent": null,
+      "fork字段": null,
+      "有configHash": true
+    },
+    "collision_4": {
+      "id": "7777aabbccdd",
+      "自有spanIds": [
+        "s_01",
+        "s_02"
+      ],
+      "parent": null,
+      "fork字段": null,
+      "有configHash": true
+    },
+    "isolated_root": {
+      "id": "run_muo988yd_4btbgb",
+      "自有spanIds": [
+        "s_01",
+        "s_02",
+        "s_03",
+        "s_04",
+        "s_05",
+        "s_06",
+        "s_07",
+        "s_08"
+      ],
+      "parent": null,
+      "fork字段": null,
+      "resumeAfterStep": null,
+      "workspaceWorldId": "run_muo988yd_4btbgb",
+      "originKind": "import",
+      "步骤轮号": [
+        1,
+        2,
+        3
+      ]
+    },
+    "isolated_fork1": {
+      "id": "run_muo9892a_w2qj",
+      "自有spanIds": [
+        "s_09",
+        "s_10",
+        "s_11",
+        "s_12",
+        "s_13"
+      ],
+      "parent": "run_muo988yd_4btbgb",
+      "fork字段": "result",
+      "resumeAfterStep": "s_04",
+      "workspaceWorldId": "run_muo9892a_w2qj",
+      "originKind": "checkpoint",
+      "步骤轮号": [
+        1,
+        2
+      ]
+    },
+    "isolated_fork2": {
+      "id": "run_muo9892r_s1m3",
+      "自有spanIds": [
+        "s_14",
+        "s_15"
+      ],
+      "parent": "run_muo9892a_w2qj",
+      "fork字段": "result",
+      "resumeAfterStep": "s_09",
+      "workspaceWorldId": "run_muo9892r_s1m3",
+      "originKind": "checkpoint",
+      "步骤轮号": [
+        1
+      ]
+    }
+  }
+}

@@ -1,0 +1,4 @@
+{"type":"run.meta","id":"ppp7777aabbccdd","format_version":1,"task":"U7 碰撞标本：同名任务（四条同任务同模型同时间）","model":"deepseek-chat","created_at":"2026-09-30T10:35:00.000Z","parent":null,"fork":null,"config_hash":"sha256:u7compare000000000000000000000000000000000000000000000000000000"}
+{"type":"span","id":"s_01","parent":null,"timing":{"started_at":"2026-09-30T10:35:00.000Z","ended_at":"2026-09-30T10:35:00.902Z"},"kind":"agent.step","n":1}
+{"type":"span","id":"s_02","parent":"s_01","timing":{"started_at":"2026-09-30T10:35:00.000Z","ended_at":"2026-09-30T10:35:00.700Z"},"kind":"llm.call","request":{"model":"deepseek-chat","messages":[{"role":"user","content":"同名任务：整理构建产物"}]},"response":{"content":"第 2 次执行。","reasoning_content":null,"tool_calls":[],"usage":{"in":502,"out":12},"ttft_ms":120}}
+{"type":"run.event","event":"stopped","reason":"completed","at":1}

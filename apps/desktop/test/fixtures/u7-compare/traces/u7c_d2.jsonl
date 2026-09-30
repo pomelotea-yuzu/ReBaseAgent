@@ -1,0 +1,4 @@
+{"type":"run.meta","id":"u7c_d2","format_version":1,"task":"U7 不同根标本：u7c_d2","model":"deepseek-reasoner","created_at":"2026-09-30T10:23:00.000Z","parent":null,"fork":null,"config_hash":"sha256:u7compare000000000000000000000000000000000000000000000000000000"}
+{"type":"span","id":"s_01","parent":null,"timing":{"started_at":"2026-09-30T10:23:00.000Z","ended_at":"2026-09-30T10:23:01.200Z"},"kind":"agent.step","n":1}
+{"type":"span","id":"s_02","parent":"s_01","timing":{"started_at":"2026-09-30T10:23:00.000Z","ended_at":"2026-09-30T10:23:01.000Z"},"kind":"llm.call","request":{"model":"deepseek-reasoner","messages":[{"role":"system","content":"English assistant B (U7 different roots)"},{"role":"user","content":"Task D2: summarize build logs"}],"params":{"temperature":0.9,"top_p":0.95}},"response":{"content":"D2 done.","reasoning_content":null,"tool_calls":[],"usage":{"in":700,"out":20},"ttft_ms":120}}
+{"type":"run.event","event":"stopped","reason":"completed","at":1}
