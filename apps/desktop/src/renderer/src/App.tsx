@@ -2,6 +2,7 @@ import { PanelLeftOpen } from "lucide-react";
 import { useEffect, useState } from "react";
 import { BranchTree } from "./components/BranchTree";
 import { ComparePanel } from "./components/ComparePanel";
+import { CompareWorkspace } from "./components/CompareWorkspace";
 import { ConfirmDialogHost } from "./components/ConfirmDialog";
 import { CreateRunWorkspace } from "./components/CreateRunWorkspace";
 import { DetailPanel } from "./components/DetailPanel";
@@ -154,7 +155,11 @@ export default function App() {
                 onSelected={layout.navOpened ? layout.closeNav : undefined}
               />
             ) : null}
-            {navReplacesWorkspace ? null : view === "create" ? (
+            {navReplacesWorkspace ? null : view === "compare" ? (
+              // U7 任务 4.12：比较工作区（双运行 + 编辑证据 + 步骤目录）。
+              // 运行导航保留（与创建页同一纪律）；窄窗收起归 §5.8。
+              <CompareWorkspace />
+            ) : view === "create" ? (
               // 创建 = 主工作区的一个页面（不是覆盖模态）：切运行、去设置、读文件都不被它挡住。
               // 就近的「运行配置」入口复用 App 的开设置通道（组件不自建第二份设置状态）。
               <CreateRunWorkspace onOpenSettings={openSettings} />

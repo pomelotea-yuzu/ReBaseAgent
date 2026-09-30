@@ -12,7 +12,9 @@ export default defineConfig({
   esbuild: { jsx: "automatic" },
   test: {
     environment: "node",
-    include: ["test/**/*.test.ts"],
+    // U7 4.12：比较工作区的静态断言用例含 JSX（renderToStaticMarkup 喂 props），
+    // 放行 .test.tsx（esbuild.jsx 已配 automatic，扩展名决定 loader）
+    include: ["test/**/*.test.ts", "test/**/*.test.tsx"],
   },
   resolve: {
     alias: {
