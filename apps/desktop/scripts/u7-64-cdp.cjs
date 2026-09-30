@@ -113,7 +113,7 @@ const storeState = (call) =>
 
 /** 切到分支树视图并等树挂载（armTreeSession 在挂载 effect 里跑） */
 async function openTree(call) {
-  await H.storeQ(call, `s.setView("tree"); return "ok";`);
+  await H.storeQ(call, `s.setView("tree"); return JSON.stringify("ok");`);
   await H.sleep(900);
   for (let i = 0; i < 20; i++) {
     const mounted = await H.ev(
@@ -182,7 +182,7 @@ const FLOWS = {
     dump.runsN = st0.runsN;
 
     // ── #14/#3：R9 复现——选中深层链叶代进入树 ⇒ 范围=current、该节点滚进视野 ──
-    await H.storeQ(call, `await s.selectRun("u7c_c"); return "ok";`);
+    await H.storeQ(call, `await s.selectRun("u7c_c"); return JSON.stringify("ok");`);
     await H.sleep(1200);
     await openTree(call);
     let st = await storeState(call);
@@ -240,7 +240,7 @@ const FLOWS = {
         geomL1.title.includes("标注来源文件与行号范围"),
       geomL1?.title?.slice(0, 80),
     );
-    await H.storeQ(call, `await s.selectRun("u7c_l1"); return "ok";`);
+    await H.storeQ(call, `await s.selectRun("u7c_l1"); return JSON.stringify("ok");`);
     await H.sleep(1200);
     let detail = await treeDetail(call);
     check(
@@ -269,7 +269,7 @@ const FLOWS = {
     await H.shot(call, SHOT_DIR, "tree-detail-long.png");
 
     // ── #15：搜索（完整字段/范围外定位/空结果提示） ──
-    await H.storeQ(call, `s.setTreeQuery("标注来源文件与行号范围"); return "ok";`);
+    await H.storeQ(call, `s.setTreeQuery("标注来源文件与行号范围"); return JSON.stringify("ok");`);
     await H.sleep(600);
     const search1 = await H.ev(
       call,
@@ -313,7 +313,7 @@ const FLOWS = {
       st.treeScope === "all" && geomL1b !== null && geomL1b.inView === true,
       { scope: st.treeScope, inView: geomL1b?.inView },
     );
-    await H.storeQ(call, `s.setTreeQuery("zzz_no_such_run_zzz"); return "ok";`);
+    await H.storeQ(call, `s.setTreeQuery("zzz_no_such_run_zzz"); return JSON.stringify("ok");`);
     await H.sleep(600);
     const search2 = await H.ev(
       call,
@@ -328,15 +328,15 @@ const FLOWS = {
       search2 !== null && (search2.boxText || "").length > 0 && search2.nodes >= 27,
       { nodes: search2?.nodes, hint: (search2?.boxText || "").slice(0, 60) },
     );
-    await H.storeQ(call, `s.setTreeQuery(""); return "ok";`);
+    await H.storeQ(call, `s.setTreeQuery(""); return JSON.stringify("ok");`);
     await H.shot(call, SHOT_DIR, "tree-search.png");
 
     // ── #16：视口操作与返回保持 ──
     await H.storeQ(
       call,
-      `s.setTreeViewport({ zoom: 150, scrollLeft: 137, scrollTop: 219 }); return "ok";`,
+      `s.setTreeViewport({ zoom: 150, scrollLeft: 137, scrollTop: 219 }); return JSON.stringify("ok");`,
     );
-    await H.storeQ(call, `s.setView("trace"); return "ok";`);
+    await H.storeQ(call, `s.setView("trace"); return JSON.stringify("ok");`);
     await H.sleep(700);
     await openTree(call);
     st = await storeState(call);
@@ -422,7 +422,7 @@ const FLOWS = {
     );
 
     // ── #18：关系列表三动作分离 + 缺父占位 + 实验分组 ──
-    await H.storeQ(call, `s.setTreeMode("list"); return "ok";`);
+    await H.storeQ(call, `s.setTreeMode("list"); return JSON.stringify("ok");`);
     await H.sleep(700);
     const listProbe = await H.ev(
       call,
@@ -486,15 +486,18 @@ const FLOWS = {
     await H.shot(call, SHOT_DIR, "tree-list.png");
 
     // ── #8/#9/#11/#27/#10：对照集合与指标表 ──
-    await H.storeQ(call, `s.clearCompare(); return "ok";`);
-    await H.storeQ(call, `s.toggleCompare("u7c_c"); s.toggleCompare("u7c_s"); return "ok";`);
+    await H.storeQ(call, `s.clearCompare(); return JSON.stringify("ok");`);
+    await H.storeQ(
+      call,
+      `s.toggleCompare("u7c_c"); s.toggleCompare("u7c_s"); return JSON.stringify("ok");`,
+    );
     st = await storeState(call);
     check(
       "#8 兄弟两条进入对照集合",
       JSON.stringify(st.compareIds) === JSON.stringify(["u7c_c", "u7c_s"]),
       st.compareIds,
     );
-    await H.storeQ(call, `await s.openCompareWorkspace(); return "ok";`);
+    await H.storeQ(call, `await s.openCompareWorkspace(); return JSON.stringify("ok");`);
     await H.sleep(1500);
     const metrics2 = await H.ev(
       call,
@@ -517,7 +520,7 @@ const FLOWS = {
       metrics2 !== null && !(metrics2.text || "").includes("再选一条"),
       null,
     );
-    await H.storeQ(call, `await s.openComparePair("u7c_p", "u7c_c"); return "ok";`);
+    await H.storeQ(call, `await s.openComparePair("u7c_p", "u7c_c"); return JSON.stringify("ok");`);
     await H.sleep(1500);
     const metricsPC = await H.ev(
       call,
@@ -548,9 +551,9 @@ const FLOWS = {
         (st.compareNotice || "").includes("最多同时对照 4 条"),
       { ids: st.compareIds, notice: st.compareNotice },
     );
-    await H.storeQ(call, `s.setView("trace"); return "ok";`);
+    await H.storeQ(call, `s.setView("trace"); return JSON.stringify("ok");`);
     await H.sleep(600);
-    await H.storeQ(call, `await s.openCompareWorkspace(); return "ok";`);
+    await H.storeQ(call, `await s.openCompareWorkspace(); return JSON.stringify("ok");`);
     await H.sleep(1500);
     const metrics4 = await H.ev(
       call,
@@ -578,7 +581,7 @@ const FLOWS = {
     // #11 单条/空集
     await H.storeQ(
       call,
-      `s.clearCompare(); s.toggleCompare("u7c_g"); await s.openCompareWorkspace(); return "ok";`,
+      `s.clearCompare(); s.toggleCompare("u7c_g"); await s.openCompareWorkspace(); return JSON.stringify("ok");`,
     );
     await H.sleep(1200);
     const metricsSingle = await H.ev(
@@ -595,7 +598,10 @@ const FLOWS = {
         !(metricsSingle.text || "").includes("共同祖先："),
       (metricsSingle?.text || "").slice(0, 120),
     );
-    await H.storeQ(call, `s.clearCompare(); await s.openCompareWorkspace(); return "ok";`);
+    await H.storeQ(
+      call,
+      `s.clearCompare(); await s.openCompareWorkspace(); return JSON.stringify("ok");`,
+    );
     await H.sleep(1000);
     const metricsEmpty = await H.ev(
       call,
@@ -614,12 +620,12 @@ const FLOWS = {
     );
 
     // ── #24/#25/#26：视图切换不重载、选中跨视图保持 ──
-    await H.storeQ(call, `await s.selectRun("u7c_g"); return "ok";`);
+    await H.storeQ(call, `await s.selectRun("u7c_g"); return JSON.stringify("ok");`);
     await H.sleep(1000);
     const before = await storeState(call);
-    await H.storeQ(call, `s.setView("tree"); return "ok";`);
+    await H.storeQ(call, `s.setView("tree"); return JSON.stringify("ok");`);
     await H.sleep(600);
-    await H.storeQ(call, `s.setView("trace"); return "ok";`);
+    await H.storeQ(call, `s.setView("trace"); return JSON.stringify("ok");`);
     await H.sleep(600);
     const after = await storeState(call);
     check(
@@ -668,7 +674,7 @@ const FLOWS = {
 
     // 空目录半边：删掉唯一 run ⇒ 可操作说明
     rmSync(join(H.TRACES, "u7c_d1.jsonl"), { force: true });
-    await H.storeQ(call, `await s.loadRuns(); return "ok";`);
+    await H.storeQ(call, `await s.loadRuns(); return JSON.stringify("ok");`);
     await H.sleep(1000);
     const emptyProbe = await H.ev(
       call,
