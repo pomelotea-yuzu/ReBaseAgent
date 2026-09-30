@@ -22,7 +22,7 @@ function detailOf(id: string): RunDetail {
     id,
     parent: null,
     type: "run.meta" as const,
-    format_version: 1,
+    format_version: 1 as const,
     task: `任务 ${id}`,
     model: "controlled-model",
     created_at: T0,
