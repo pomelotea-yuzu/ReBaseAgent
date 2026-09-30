@@ -41,7 +41,7 @@
 - [x] 4.4 实现编辑证据三态、未知字段与空值边界，补相应单元/IPC/store/组件验证（对应“原值缺失未知字段不补空”）。（`5131d0c`：三态/未知字段/空值/未记录/祖先不可得判据已随 4.1（`08da068`）、4.10、4.11（`87fccd3`）模块与用例交付，本轮补齐最后三支边界——edit.value 字面 undefined ⇒ EDIT_VALUE_UNRECORDED、null+空串双真实值 verified、不可用结论恒带身份四元组与无路径受控原因；IPC 层无新通道；store/组件级验证归 4.12 接线同轮补）
 - [x] 4.5 复用输出/结局派生并实现单侧错误跳转，补相应单元/IPC/store/组件验证（对应“最终输出不借中间正文或祖先”）。（`e1ecf98`：shared/compare-output.ts deriveSideOutputFacts 薄组合 deriveOwnTerminalFacts + deriveOwnOutput，只补 failure.runId 侧身份；store 动作 openCompareSideError——落地判据 = 详情已读出且归属相符（selectRun 失败也落 selectedRunId，不能只看选中项），打开单侧保留 pair/来源引用；组件级呈现归 4.12）
 - [ ] 4.6 实现输出工具栏、只读 diff 与独立滚动，补相应单元/IPC/store/组件验证（对应“长输出独立阅读与合法文本差异”）。
-- [ ] 4.7 提取普通 v1 resolver 的只读来源映射，对照原完整轨迹验证 span 边界与被覆写值（对应“result 共享前缀保留真实边界”）。
+- [x] 4.7 提取普通 v1 resolver 的只读来源映射，对照原完整轨迹验证 span 边界与被覆写值（对应“result 共享前缀保留真实边界”）。（`4e2bd12`：shared/compare-source-map.ts deriveV1ResultSourceMapping——不做截断，从已校验投影视图 + chain 推导分段；边界须恰好出现一次且按链序递进，缺失/错序/重复 ⇒ unreliable 不折叠；段末 boundaryEdit 标注下一跳编辑、共同区被覆写值保留原值；spanScope=own ⇒ 单段归属叶子；独立边界/v2 ⇒ notPlainV1 归 4.8/4.13）
 - [ ] 4.8 实现独立步骤目录和复合定位，覆盖混合链，补相应单元/IPC/store/组件验证（对应“重复 span ID 与独立分支不强行对齐”）。
 - [ ] 4.9 接入 ownOnly 步骤限制与完整另一侧，补相应单元/IPC/store/组件验证（对应“缺父链仅显示自有步骤”）。
 - [x] 4.10 实现隔离 result 编辑证据，保留原始来源与本地整轮续跑边界并测试（对应“直接父子展示真实编辑前后值”）。（`08da068`：随 4.1 同轮交付——v2 分型 variant=isolated-v2，resume_after_step 在来源轨迹定位 agent.step（boundaryStep，未定位如实 null）；前后值提取与 v1 同源；整轮边界的视图呈现归 4.12）
