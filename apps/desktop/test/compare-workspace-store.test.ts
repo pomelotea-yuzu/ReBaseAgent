@@ -1,4 +1,5 @@
 import { ok } from "@shared/ipc";
+import type { SpanLine } from "@rebaseagent/trace-sdk";
 import type { CompareRunItem, Envelope, RunDetail, RunSummary, WindowApi } from "@shared/ipc";
 import { beforeEach, describe, expect, it } from "vitest";
 import { emptyCompareReadSession } from "../src/renderer/src/lib/compare-state";
@@ -19,7 +20,7 @@ const T0 = "2026-01-15T10:00:00.000Z";
 
 function detailOf(
   id: string,
-  opts: { parent?: string | null; forkField?: string } = {},
+  opts: { parent?: string | null; forkField?: string; isolated?: boolean; ownStep?: string } = {},
 ): RunDetail {
   const parent = opts.parent ?? null;
   const forkField = opts.forkField;
@@ -31,19 +32,36 @@ function detailOf(
     id,
     parent,
     type: "run.meta" as const,
-    format_version: 1 as const,
+    format_version: (opts.isolated === true ? 2 : 1) as 1 | 2,
     task: `任务 ${id}`,
     model: "controlled-model",
     created_at: T0,
     fork,
+    ...(opts.isolated === true
+      ? // 完整合法的 v2 隔离 meta（过 RunDetailSchema：world_id = 本 run id、根 run ⇒ import）
+        {
+          workspace: {
+            profile: "file-tools-v1" as const,
+            world_id: id,
+            write_authorized: true as const,
+            initial_snapshot: { id: "0".repeat(64), files: [] },
+            origin: { kind: "import" as const },
+          },
+        }
+      : {}),
   };
+  const ownStep = opts.ownStep ?? null;
+  const spans =
+    ownStep !== null
+      ? [{ type: "span", id: ownStep, parent: null, kind: "agent.step", n: 1 } as SpanLine]
+      : [];
   return {
     meta,
-    spans: [],
+    spans,
     events: [],
     status: "completed",
     chain: [{ meta, fork }],
-    leafSpanIds: [],
+    leafSpanIds: ownStep !== null ? [ownStep] : [],
     completeness: "complete",
     spanScope: "own",
     lineage: { status: "complete" },
@@ -105,6 +123,7 @@ const apiStub: Record<string, unknown> = {
   },
   getRun: async (id: string) => {
     calls.push(`runs:get:${id}`);
+    if (id === "r_iso") return ok(detailOf(id, { isolated: true, ownStep: "s_01" }));
     return ok(detailOf(id, { parent: id === "r_child" ? "r_parent" : null }));
   },
   compareRuns: async (request: { runIds: string[] }) => {
@@ -321,6 +340,110 @@ describe("U7 5.3 指标表显式选两条（openComparePair）", () => {
     const readsAfterOpen = calls.filter((call) => call.startsWith("runs:compare")).length;
     await useAppStore.getState().openComparePair("r_parent", "r_child");
     expect(calls.filter((call) => call.startsWith("runs:compare")).length).toBe(readsAfterOpen);
+  });
+});
+
+describe("U7 5.6/5.7 单侧文件入口（openCompareSideFiles）", () => {
+  it("普通运行 ⇒ unsupported：不发起 runs:get、不进文件页（不造文件历史）", async () => {
+    useAppStore.setState({
+      compareIds: [],
+      comparePair: { leftRunId: "r_plain", rightRunId: "r_other" },
+      compareRead: {
+        ...emptyCompareReadSession(),
+        selection: ["r_plain", "r_other"],
+        conclusion: {
+          generation: 1,
+          runIds: ["r_plain", "r_other"],
+          kind: "verified",
+          items: [
+            { status: "ready", runId: "r_plain", detail: detailOf("r_plain"), chainSummaries: [chainSummary("r_plain", null)] },
+            { status: "ready", runId: "r_other", detail: detailOf("r_other"), chainSummaries: [chainSummary("r_other", null)] },
+          ],
+        },
+      },
+    } as never);
+
+    const result = await useAppStore.getState().openCompareSideFiles("left");
+
+    expect(result).toBe("unsupported");
+    expect(calls.every((call) => !call.startsWith("runs:get"))).toBe(true);
+    expect(useAppStore.getState().view).toBe("trace");
+  });
+
+  it("隔离运行 + 自有完成步骤选中 ⇒ 打开文件页：检查点落在该自有步骤上，pair 与来源引用保留", async () => {
+    useAppStore.setState({
+      compareIds: [],
+      comparePair: { leftRunId: "r_iso", rightRunId: "r_other" },
+      compareReturnLocation: { view: "tree", runId: null },
+      compareRead: {
+        ...emptyCompareReadSession(),
+        selection: ["r_iso", "r_other"],
+        conclusion: {
+          generation: 1,
+          runIds: ["r_iso", "r_other"],
+          kind: "verified",
+          items: [
+            {
+              status: "ready",
+              runId: "r_iso",
+              detail: detailOf("r_iso", { isolated: true, ownStep: "s_01" }),
+              chainSummaries: [chainSummary("r_iso", null)],
+            },
+            { status: "ready", runId: "r_other", detail: detailOf("r_other"), chainSummaries: [chainSummary("r_other", null)] },
+          ],
+        },
+      },
+      compareStepSelection: { left: "s_01", right: null },
+    } as never);
+
+    const result = await useAppStore.getState().openCompareSideFiles("left");
+
+    expect(result).toBe("opened");
+    const state = useAppStore.getState();
+    expect(state.view).toBe("trace");
+    expect(state.selectedRunId).toBe("r_iso");
+    expect(state.readingByRun.r_iso?.tab).toBe("files");
+    // 5.7：检查点 = 该 run 的合法自有完成步骤（leafSpanIds 内 agent.step）
+    expect(state.readingByRun.r_iso?.files?.checkpoint).toBe("s_01");    // 2.3：打开单侧不清 pair 与来源引用 ⇒ 「返回比较」仍成立
+    expect(state.comparePair).toEqual({ leftRunId: "r_iso", rightRunId: "r_other" });
+    expect(state.compareReturnLocation).toEqual({ view: "tree", runId: null });
+  });
+
+  it("选中步骤是祖先/非自有 ⇒ 打开文件页但不写该检查点（走 U2 已保存/默认）", async () => {
+    useAppStore.setState({
+      readingByRun: {},
+      compareIds: [],
+      comparePair: { leftRunId: "r_iso", rightRunId: "r_other" },
+      compareRead: {
+        ...emptyCompareReadSession(),
+        selection: ["r_iso", "r_other"],
+        conclusion: {
+          generation: 1,
+          runIds: ["r_iso", "r_other"],
+          kind: "verified",
+          items: [
+            // 详情里没有自有步骤（leafSpanIds 为空）⇒ 任何选中都不能成为定位目标
+            {
+              status: "ready",
+              runId: "r_iso",
+              detail: detailOf("r_iso", { isolated: true }),
+              chainSummaries: [chainSummary("r_iso", null)],
+            },
+            { status: "ready", runId: "r_other", detail: detailOf("r_other"), chainSummaries: [chainSummary("r_other", null)] },
+          ],
+        },
+      },
+      compareStepSelection: { left: "s_ghost", right: null },
+    } as never);
+
+    const result = await useAppStore.getState().openCompareSideFiles("left");
+
+    expect(result).toBe("opened");
+    const state = useAppStore.getState();
+    expect(state.view).toBe("trace");
+    expect(state.readingByRun.r_iso?.tab).toBe("files");
+    // 未写检查点：仍处于「未进过文件页」语义，由 U2 默认规则接管
+    expect(state.readingByRun.r_iso?.files?.checkpoint).toBeUndefined();
   });
 });
 

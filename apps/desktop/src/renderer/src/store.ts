@@ -154,6 +154,8 @@ import {
   newlySettledOperations,
 } from "./lib/operation-session";
 import { resolveReading } from "./lib/reading-resolve";
+import { deriveCompareFileEntry, isOwnStepTarget } from "./lib/compare-files";
+import { isIsolatedRun } from "./lib/isolated-fork";
 import {
   defaultReadingState,
   fileReadingOf,
@@ -676,6 +678,16 @@ interface AppState {
    * 回退说明。打开单侧按 2.3 保留 pair 与来源引用 ⇒ 「返回比较」仍成立。
    */
   openCompareSideError: (runId: string, llmCallSpanId: string) => Promise<boolean>;
+  /**
+   * U7 任务 5.6/5.7：**分别打开左右侧文件页**（design D6）。
+   * - 能力判据用比较响应里该侧的**已校验详情**（isIsolatedRun），普通运行
+   *   ⇒ unsupported（不造文件历史、不借当前选中 run 冒充）；
+   * - 该侧若有选中的比较步骤，仅**合法自有完成步骤**（leafSpanIds 内 agent.step）
+   *   写成文件检查点定位目标，否则不写、走 U2 已保存位置/默认规则；
+   * - 落地判据与 `openCompareSideError` 同款（selectRun 后详情读出且归属相符）；
+   *   打开单侧保留 pair 与来源引用 ⇒ 「返回比较」仍成立（2.3）。
+   */
+  openCompareSideFiles: (side: "left" | "right") => Promise<"opened" | "unsupported" | "failed">;
 
   /**
    * U7 任务 3.1/3.2/3.3：分支树的**会话观察状态**（design D2——视口是观察参数，
@@ -2430,6 +2442,42 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (get().view === "compare") return;
     noteReadingChanged();
     set({ view: "compare" });
+  },
+
+  async openCompareSideFiles(side) {
+    const pair = get().comparePair;
+    if (pair === null) return "failed";
+    const runId = side === "left" ? pair.leftRunId : pair.rightRunId;
+    // 能力判据的**唯一输入** = 比较响应里该侧的已校验详情（不拿当前选中 run 冒充）
+    const conclusion = get().compareRead.conclusion;
+    const item =
+      conclusion?.kind === "verified"
+        ? conclusion.items.find((candidate) => candidate.runId === runId)
+        : undefined;
+    const detail = item?.status === "ready" ? item.detail : null;
+    const reading = readingStateOf(get().readingByRun, runId);
+    const entry = deriveCompareFileEntry({
+      detail,
+      selectedSpanId: side === "left" ? get().compareStepSelection.left : get().compareStepSelection.right,
+      savedTab: reading.files !== undefined ? "files" : undefined,
+    });
+    if (entry.kind !== "available") return "unsupported";
+
+    await get().selectRun(runId);
+    // 落地判据（同 openCompareSideError）：详情读出、归属相符、且能力仍成立
+    const live = get().detail;
+    if (get().selectedRunId !== runId || live === null || live.meta.id !== runId) return "failed";
+    if (!isIsolatedRun(live)) return "failed";
+    // 5.7：显式步骤定位目标必须在**落地后的详情**上复核为合法自有完成步骤
+    if (entry.targetCheckpointStepId !== null) {
+      if (isOwnStepTarget(live, entry.targetCheckpointStepId)) {
+        get().setFileReading(runId, { checkpoint: entry.targetCheckpointStepId });
+      }
+      // 复核不过 ⇒ 不写：走 U2 已保存合法位置或默认检查点（不提示成功也不伪造定位）
+    }
+    get().setReadingTab(runId, "files");
+    set({ view: "trace" });
+    return "opened";
   },
 
   armTreeSession() {

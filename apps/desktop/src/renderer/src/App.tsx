@@ -253,7 +253,13 @@ function WorkspaceShell({ onOpenSteps }: { onOpenSteps: (() => void) | null }) {
         setReadingTab(selectedRunId, next);
       }}
       isIsolated={isolated}
-      header={<RunHeader />}
+      header={
+        <>
+          {/* U7 5.6：比较打开单侧后（pair 保留在 store），页头给常驻「返回比较」入口 */}
+          <ReturnToCompareBar />
+          <RunHeader />
+        </>
+      }
     >
       {visible === "steps" && onOpenSteps !== null ? (
         // 目录被收起（窄窗口或用户显式收起）时，正文顶部给一个真实可用的重开入口
@@ -272,6 +278,34 @@ function WorkspaceShell({ onOpenSteps }: { onOpenSteps: (() => void) | null }) {
         <DetailPanel />
       )}
     </RunWorkspace>
+  );
+}
+
+/**
+ * 「返回比较」栏（U7 任务 5.6 · 场景「分别打开文件并返回比较」）。
+ *
+ * 比较打开单侧运行/调用/文件页后，pair 与来源引用都保留在 store（2.3 纪律）——
+ * 这里给一个**常驻可见**的回程入口，不依赖用户记得某个隐藏动作。
+ * returnToCompare 同 pair 幂等（不重读，会话结论与阅读位置保留）。
+ */
+export function ReturnToCompareBar() {
+  const comparePair = useAppStore((s) => s.comparePair);
+  const returnToCompare = useAppStore((s) => s.returnToCompare);
+  if (comparePair === null) return null;
+  return (
+    <div className="flex items-center gap-2 border-b border-gray-200 bg-sky-50 px-3 py-1">
+      <button
+        type="button"
+        aria-label="返回比较工作区"
+        onClick={() => returnToCompare()}
+        className={`rounded border border-sky-200 px-2 py-0.5 text-reading-meta text-sky-900 hover:bg-sky-100 ${FOCUS_RING}`}
+      >
+        返回比较
+      </button>
+      <span className="text-reading-meta text-gray-500">
+        比较对象已保留：左 {comparePair.leftRunId} → 右 {comparePair.rightRunId}
+      </span>
+    </div>
   );
 }
 

@@ -13,6 +13,7 @@ import type {
   EvidenceViewData,
 } from "../src/renderer/src/components/CompareWorkspaceView";
 import { deriveSideStepCatalog } from "../src/renderer/src/lib/compare-steps";
+import { deriveCompareFileEntry } from "../src/renderer/src/lib/compare-files";
 import { deriveSideOutputFacts } from "../src/shared/compare-output";
 import type { RunDetail } from "../src/shared/ipc";
 
@@ -112,6 +113,13 @@ function okSide(side: "left" | "right", runId: string, spans: SpanLine[]): Compa
     shortId: runId.slice(-8),
     facts: deriveSideOutputFacts(detail),
     unavailableReason: null,
+    // U7 5.6/5.7：文件入口判据（与容器同源派生）
+    fileEntry: deriveCompareFileEntry({
+      detail,
+      selectedSpanId: null,
+      savedTab: undefined,
+    }),
+    onOpenFiles: vi.fn(),
     catalog: deriveSideStepCatalog(detail),
     folded: false,
     selectedSpanId: null,
@@ -469,7 +477,8 @@ describe("CompareWorkspaceView：整体形态", () => {
     expect(html).toContain("交换左右");
     expect(html).toContain("返回来源");
     expect(html).toContain('aria-label="切换文本差异"');
-    expect(html).not.toContain('disabled=""');
+    // diff 门禁可用 ⇒ diff 按钮不禁用（普通 run 的「打开文件」禁用是 5.7 的预期行为）
+    expect(html.match(/aria-label="切换文本差异"[^>]*disabled=""/)).toBeNull();
   });
 
   it("门禁不可用 ⇒ diff 按钮禁用且原因可读； unavailable 侧不伪正文", () => {
@@ -558,6 +567,113 @@ describe("5.1 会话短 ID：比较标题与完整 ID 复制", () => {
       />,
     );
     expect(html).toContain("只读文本差异（左侧 ide_0001 → 右侧 ide_0002）");
+  });
+});
+
+describe("5.6/5.7 单侧文件入口", () => {
+  /** 隔离运行详情（meta 带 workspace ⇒ 有自有文件能力） */
+  function isolatedDetail(id: string): RunDetail {
+    const detail = completedDetail(id, [stepSpan("s_01"), stepSpan("s_02", 2, "s_01")]);
+    return {
+      ...detail,
+      meta: { ...detail.meta, workspace: { profile: "isolated" } } as RunDetail["meta"],
+    };
+  }
+
+  it("available：按钮可点，可访问名称 = 「打开左列文件/右列文件」", () => {
+    const html = renderToStaticMarkup(
+      <SideOutputSection
+        side="left"
+        facts={deriveSideOutputFacts(completedDetail("r_x", [stepSpan("s_01")]))}
+        unavailableReason={null}
+        onOpenError={vi.fn()}
+      />,
+    );
+    expect(html).toContain("左列");
+    // 真按钮断言打在整体形态用例里（见下）：这里先钉 available 判据本身
+    const entry = deriveCompareFileEntry({
+      detail: isolatedDetail("r_i"),
+      selectedSpanId: "s_02",
+      savedTab: undefined,
+    });
+    expect(entry).toEqual({
+      kind: "available",
+      targetCheckpointStepId: "s_02",
+      note: null,
+    });
+  });
+
+  it("not-isolated：普通运行入口禁用并给原因（不造文件历史）", () => {
+    const entry = deriveCompareFileEntry({
+      detail: completedDetail("r_plain", [stepSpan("s_01")]),
+      selectedSpanId: null,
+      savedTab: undefined,
+    });
+    expect(entry.kind).toBe("not-isolated");
+    if (entry.kind === "not-isolated") {
+      expect(entry.reason).toContain("不生成文件历史");
+    }
+  });
+
+  it("unavailable 侧：无入口按钮（fileEntry 为 null）", () => {
+    const html = renderToStaticMarkup(
+      <CompareWorkspaceView
+        pair={{ leftRunId: "r_l", rightRunId: "r_r" }}
+        loading={false}
+        left={okSide("left", "r_l", [stepSpan("s_01")])}
+        right={{
+          ...okSide("right", "r_r", [stepSpan("s_01")]),
+          facts: null,
+          unavailableReason: "祖先记录损坏（ANCESTOR_INVALID）",
+          fileEntry: null,
+        }}
+        diffGate={{ status: "unavailable", reason: "不可用" }}
+        diffMode={false}
+        onToggleDiffMode={vi.fn()}
+        onSwap={vi.fn()}
+        onReturn={vi.fn()}
+        onOpenRun={vi.fn()}
+        evidence={{ kind: "unavailable", reason: "尚无可核对两侧的比较结论" }}
+      />,
+    );
+    expect(html).toContain('aria-label="打开左列文件"');
+    expect(html).not.toContain('aria-label="打开右列文件"');
+  });
+
+  it("整体形态：available 侧按钮可点，not-isolated 侧按钮禁用带原因", () => {
+    const isolated = okSide("left", "r_l", [stepSpan("s_01")]);
+    const isolatedDetail = completedDetail("r_l", [stepSpan("s_01"), stepSpan("s_02", 2, "s_01")]);
+    const withWorkspace = {
+      ...isolatedDetail,
+      meta: { ...isolatedDetail.meta, workspace: { profile: "isolated" } } as RunDetail["meta"],
+    };
+    const html = renderToStaticMarkup(
+      <CompareWorkspaceView
+        pair={{ leftRunId: "r_l", rightRunId: "r_r" }}
+        loading={false}
+        left={{
+          ...isolated,
+          fileEntry: deriveCompareFileEntry({
+            detail: withWorkspace,
+            selectedSpanId: null,
+            savedTab: undefined,
+          }),
+        }}
+        right={okSide("right", "r_r", [stepSpan("s_01")])}
+        diffGate={{ status: "unavailable", reason: "不可用" }}
+        diffMode={false}
+        onToggleDiffMode={vi.fn()}
+        onSwap={vi.fn()}
+        onReturn={vi.fn()}
+        onOpenRun={vi.fn()}
+        evidence={{ kind: "unavailable", reason: "尚无可核对两侧的比较结论" }}
+      />,
+    );
+    expect(html).toContain('aria-label="打开左列文件"');
+    expect(html).not.toContain('disabled="" aria-label="打开左列文件"');
+    // 右侧普通 run ⇒ 禁用 + 原因可读
+    expect(html).toContain('aria-label="打开右列文件"');
+    expect(html).toContain("不生成文件历史");
   });
 });
 

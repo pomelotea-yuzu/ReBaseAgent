@@ -5,6 +5,7 @@ import type { ExperimentGate } from "@shared/experiment-records";
 import { outcomeBadgeClass } from "@shared/outcome";
 import { foldCatalogRows } from "../lib/compare-steps";
 import type { SideStepCatalog } from "../lib/compare-steps";
+import type { CompareFileEntry } from "../lib/compare-files";
 import { LongText } from "./LongText";
 import { MonacoDiffEditor } from "./MonacoEditor";
 import { ShortIdLabel } from "./ShortIdLabel";
@@ -43,6 +44,12 @@ export interface CompareSideViewData {
   readonly shortId: string;
   readonly facts: SideOutputFacts | null;
   readonly unavailableReason: string | null;
+  /**
+   * U7 5.6/5.7：单侧文件入口判据（能力门禁 + 步骤定位目标）。
+   * unavailable 侧为 null（连入口判据都没有）。
+   */
+  readonly fileEntry: CompareFileEntry | null;
+  readonly onOpenFiles: () => void;
   readonly catalog: SideStepCatalog | null;
   readonly folded: boolean;
   readonly selectedSpanId: string | null;
@@ -659,11 +666,29 @@ export function CompareWorkspaceView({
               className="flex min-w-0 flex-col overflow-hidden rounded border border-gray-200"
             >
               <div className="border-b border-gray-100 px-3 py-1.5">
-                <span className="text-[11px] text-gray-500">{SIDE_LABEL[side.side]}</span>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] text-gray-500">{SIDE_LABEL[side.side]}</span>
+                  {side.fileEntry !== null ? (
+                    <button
+                      type="button"
+                      aria-label={`打开${SIDE_LABEL[side.side]}文件`}
+                      onClick={side.onOpenFiles}
+                      disabled={side.fileEntry.kind !== "available"}
+                      title={
+                        side.fileEntry.kind === "available"
+                          ? (side.fileEntry.note ?? "进入该运行自己的 U2 文件页（保留比较对象）")
+                          : side.fileEntry.reason
+                      }
+                      className="rounded border border-gray-300 px-1.5 py-0.5 text-[10px] text-gray-600 enabled:hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400"
+                    >
+                      打开文件
+                    </button>
+                  ) : null}
+                </div>
                 {/* U7 5.1：比较标题复用会话稳定短 ID + 复制完整 ID（碰撞时延长且不缩短） */}
-                <span className="ml-2">
+                <div className="mt-0.5">
                   <ShortIdLabel id={side.runId} shortId={side.shortId} />
-                </span>
+                </div>
               </div>
               <div className="min-h-0 flex-1 overflow-y-auto">
                 {/* 两列正文各自独立滚动（design D4：默认各侧独立滚动） */}

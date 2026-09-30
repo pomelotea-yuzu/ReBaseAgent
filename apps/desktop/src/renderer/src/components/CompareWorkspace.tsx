@@ -10,10 +10,12 @@ import type { CompareDiffGate, SideOutputFacts } from "@shared/compare-output";
 import { deriveExperimentGate } from "@shared/experiment-records";
 import type { CompareRunItem } from "@shared/ipc";
 import { useEffect, useMemo, useState } from "react";
+import { deriveCompareFileEntry } from "../lib/compare-files";
 import { deriveCompareMetricsTable } from "../lib/compare-metrics";
 import { deriveSideStepCatalog } from "../lib/compare-steps";
 import type { SideStepCatalog } from "../lib/compare-steps";
 import { useAppStore } from "../store";
+import { readingStateOf } from "../lib/reading-state";
 import { CompareMetricsTable } from "./CompareMetricsTable";
 import { CompareWorkspaceView } from "./CompareWorkspaceView";
 import type { CompareSideViewData, EvidenceViewData } from "./CompareWorkspaceView";
@@ -45,6 +47,7 @@ export function CompareWorkspace() {
   const selectCompareStep = useAppStore((s) => s.selectCompareStep);
   const toggleComparePrefix = useAppStore((s) => s.toggleComparePrefix);
   const openCompareSideError = useAppStore((s) => s.openCompareSideError);
+  const openCompareSideFiles = useAppStore((s) => s.openCompareSideFiles);
   const selectRun = useAppStore((s) => s.selectRun);
   const retryCompareSelectionRead = useAppStore((s) => s.retryCompareSelectionRead);
   const enterCompareSelection = useAppStore((s) => s.enterCompareSelection);
@@ -221,12 +224,23 @@ export function CompareWorkspace() {
 
   const makeSide = (side: "left" | "right", runId: string): CompareSideViewData => {
     const detail = readyItems.find((item) => item.runId === runId)?.detail ?? null;
+    // U7 5.6/5.7：单侧文件入口判据（能力门禁 + 步骤定位目标），输入 = 该侧已校验详情
+    const reading = readingStateOf(useAppStore.getState().readingByRun, runId);
+    const fileEntry = deriveCompareFileEntry({
+      detail,
+      selectedSpanId: side === "left" ? stepSelection.left : stepSelection.right,
+      savedTab: reading.files !== undefined ? "files" : undefined,
+    });
     return {
       side,
       runId,
       shortId: shortIds.get(runId) ?? runId,
       facts: detail !== null ? deriveSideOutputFacts(detail) : null,
       unavailableReason: unavailableReasonOf(runId),
+      fileEntry,
+      onOpenFiles: () => {
+        void openCompareSideFiles(side);
+      },
       catalog: detail !== null ? deriveSideStepCatalog(detail) : null,
       folded: side === "left" ? prefixFolded.left : prefixFolded.right,
       selectedSpanId: side === "left" ? stepSelection.left : stepSelection.right,
