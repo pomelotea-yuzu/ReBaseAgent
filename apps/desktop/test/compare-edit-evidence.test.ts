@@ -57,13 +57,19 @@ function toolSpan(
   };
 }
 
-function llmSpan(id: string): Extract<SpanLine, { kind: "llm.call" }> {
+function llmSpan(
+  id: string,
+  messages: Array<{ role: string; content: string }> = [
+    { role: "system", content: "系统提示词" },
+    { role: "user", content: "用户消息" },
+  ],
+): Extract<SpanLine, { kind: "llm.call" }> {
   return {
     type: "span",
     id,
     parent: "t_step",
     kind: "llm.call",
-    request: { model: "m", messages: [] },
+    request: { model: "m", messages },
     response: {
       content: "正文",
       reasoning_content: null,
@@ -86,6 +92,7 @@ function detail(
   spans: SpanLine[],
   chain: RunDetail["chain"],
   formatVersion: 1 | 2 = 1,
+  leafSpanIds?: string[],
 ): RunDetail {
   return {
     meta: meta(id, parent, fork, formatVersion),
@@ -93,7 +100,7 @@ function detail(
     events: [{ type: "run.event", event: "stopped", reason: "completed" }],
     status: "completed",
     chain,
-    leafSpanIds: spans.map((span) => span.id),
+    leafSpanIds: leafSpanIds ?? spans.map((span) => span.id),
     completeness: "complete",
     spanScope: "resolved",
     lineage: { status: "complete" },
@@ -106,13 +113,14 @@ function ready(
   fork: Fork | null,
   spans: SpanLine[],
   formatVersion: 1 | 2 = 1,
+  leafSpanIds?: string[],
 ): Extract<CompareRunItem, { status: "ready" }> {
   const chain =
     parent === null ? [hop(id, null, fork)] : [hop(parent, null, null), hop(id, parent, fork)];
   return {
     status: "ready",
     runId: id,
-    detail: detail(id, parent, fork, spans, chain, formatVersion),
+    detail: detail(id, parent, fork, spans, chain, formatVersion, leafSpanIds),
     chainSummaries: [],
   };
 }
@@ -265,18 +273,21 @@ describe("U7 4.1 缺证与未知字段：不补空、不猜", () => {
     });
   });
 
-  it("prompt / messages / model_params 字段 ⇒ FIELD_NOT_PROJECTED（4.11 与 §5 分别改判）", () => {
+  it("model_params 字段 ⇒ FIELD_NOT_PROJECTED（§5 实验门禁承载，普通比较不投影）", () => {
     const parent = ready("r_p", null, P_FORK, [stepSpan("t_step"), llmSpan("t_01")]);
-    for (const field of ["system_prompt", "user_message", "messages", "model_params"] as const) {
-      const child = ready("r_c", "r_p", { at_span: "t_01", edit: { field, value: "新值" } }, []);
-      const evidence = deriveDirectEditEvidence(child, parent);
-      expect(evidence).toMatchObject({
-        status: "unavailable",
-        reasonCode: "FIELD_NOT_PROJECTED",
-        field,
-        updated: { kind: "value", value: "新值" },
-      });
-    }
+    const child = ready(
+      "r_c",
+      "r_p",
+      { at_span: "t_01", edit: { field: "model_params", value: "新值" } },
+      [],
+    );
+    const evidence = deriveDirectEditEvidence(child, parent);
+    expect(evidence).toMatchObject({
+      status: "unavailable",
+      reasonCode: "FIELD_NOT_PROJECTED",
+      field: "model_params",
+      updated: { kind: "value", value: "新值" },
+    });
   });
 
   it("来源侧不可读 ⇒ PARENT_UNREADABLE，子新值仍可见（祖先不可得不补空）", () => {
@@ -391,5 +402,146 @@ describe("U7 4.10 隔离（v2）result：同源取值 + 整轮边界", () => {
       expect(evidence.boundaryStep).toBeNull();
       expect(evidence.original).toEqual({ kind: "value", value: "原始工具结果" });
     }
+  });
+});
+
+describe("U7 4.11 system/user prompt 与 messages：实际父请求取值", () => {
+  const PARENT_SPANS = [
+    stepSpan("t_step"),
+    llmSpan("t_01", [
+      { role: "system", content: "原系统提示词" },
+      { role: "user", content: "原用户消息" },
+    ]),
+  ];
+
+  it("system_prompt verified：原值 = 父自有首次 llm.call 的 system content，语义 from-scratch", () => {
+    const parent = ready("r_p", null, P_FORK, PARENT_SPANS);
+    const child = ready(
+      "r_c",
+      "r_p",
+      { at_span: "t_01", edit: { field: "system_prompt", value: "新系统提示词" } },
+      [],
+    );
+
+    const evidence = deriveDirectEditEvidence(child, parent);
+    expect(evidence.status).toBe("verified");
+    if (evidence.status !== "verified") return;
+    expect(evidence).toMatchObject({
+      sourceRunId: "r_p",
+      targetRunId: "r_c",
+      field: "system_prompt",
+      atSpanId: "t_01",
+      semantics: "from-scratch",
+      tool: null,
+    });
+    expect(evidence.original).toEqual({ kind: "value", value: "原系统提示词" });
+    expect(evidence.updated).toEqual({ kind: "value", value: "新系统提示词" });
+  });
+
+  it("user_message verified：原值 = 首条 user 消息 content", () => {
+    const parent = ready("r_p", null, P_FORK, PARENT_SPANS);
+    const child = ready(
+      "r_c",
+      "r_p",
+      { at_span: "t_01", edit: { field: "user_message", value: "新用户消息" } },
+      [],
+    );
+
+    const evidence = deriveDirectEditEvidence(child, parent);
+    expect(evidence.status).toBe("verified");
+    if (evidence.status === "verified") {
+      expect(evidence.original).toEqual({ kind: "value", value: "原用户消息" });
+      expect(evidence.semantics).toBe("from-scratch");
+    }
+  });
+
+  it("messages verified：原值 = 父自有首次请求的整份 messages，语义 single-request", () => {
+    const parent = ready("r_p", null, P_FORK, PARENT_SPANS);
+    const child = ready(
+      "r_c",
+      "r_p",
+      { at_span: "t_01", edit: { field: "messages", value: [{ role: "user", content: "改写" }] } },
+      [],
+    );
+
+    const evidence = deriveDirectEditEvidence(child, parent);
+    expect(evidence.status).toBe("verified");
+    if (evidence.status !== "verified") return;
+    expect(evidence.semantics).toBe("single-request");
+    expect(evidence.original).toEqual({
+      kind: "value",
+      value: [
+        { role: "system", content: "原系统提示词" },
+        { role: "user", content: "原用户消息" },
+      ],
+    });
+  });
+
+  it("反例：父是 result 分叉（合并视图含祖先 llm.call）⇒ 取父自有首次调用，不取祖先请求", () => {
+    // 祖先 llm.call 在合并前缀里（system 内容是祖先的）；父自有调用在 leafSpanIds 内
+    const parentSpans = [
+      stepSpan("g_step"),
+      llmSpan("g_01", [{ role: "system", content: "祖先的系统提示词" }]),
+      stepSpan("p_step", 2),
+      llmSpan("p_01", [{ role: "system", content: "父本的系统提示词" }]),
+    ];
+    const parent = ready(
+      "r_p",
+      "r_g",
+      { at_span: "g_01", edit: { field: "result", value: "x" } },
+      parentSpans,
+      1,
+      ["p_step", "p_01"],
+    );
+    const child = ready(
+      "r_c",
+      "r_p",
+      { at_span: "p_01", edit: { field: "system_prompt", value: "新提示词" } },
+      [],
+    );
+
+    const evidence = deriveDirectEditEvidence(child, parent);
+    expect(evidence.status).toBe("verified");
+    if (evidence.status === "verified") {
+      expect(evidence.original).toEqual({ kind: "value", value: "父本的系统提示词" });
+    }
+  });
+
+  it("父无自有 llm.call ⇒ START_CONTEXT_UNRECORDED，不猜启动上下文", () => {
+    const parent = ready("r_p", null, P_FORK, [stepSpan("t_step"), toolSpan("t_01", "结果")]);
+    const child = ready(
+      "r_c",
+      "r_p",
+      { at_span: "t_01", edit: { field: "system_prompt", value: "新提示词" } },
+      [],
+    );
+
+    const evidence = deriveDirectEditEvidence(child, parent);
+    expect(evidence).toMatchObject({
+      status: "unavailable",
+      reasonCode: "START_CONTEXT_UNRECORDED",
+      original: { kind: "unrecorded" },
+      updated: { kind: "value", value: "新提示词" },
+    });
+  });
+
+  it("首次请求无 system 消息 ⇒ START_CONTEXT_UNRECORDED（不补空串）", () => {
+    const parent = ready("r_p", null, P_FORK, [
+      stepSpan("t_step"),
+      llmSpan("t_01", [{ role: "user", content: "用户消息" }]),
+    ]);
+    const child = ready(
+      "r_c",
+      "r_p",
+      { at_span: "t_01", edit: { field: "system_prompt", value: "新提示词" } },
+      [],
+    );
+
+    const evidence = deriveDirectEditEvidence(child, parent);
+    expect(evidence).toMatchObject({
+      status: "unavailable",
+      reasonCode: "START_CONTEXT_UNRECORDED",
+      original: { kind: "unrecorded" },
+    });
   });
 });
