@@ -13,7 +13,7 @@
 > `apps/desktop/test/` 下文件；含 `/` = 仓库相对路径）。由 `.workbuddy/u7/u7-61/verify-scenario-checklist.cjs`
 > 逐条核对（文件存在 + 用例名在场），含 `--selftest` 反例。
 
-汇总口径：**72 条场景（ADDED 41 / MODIFIED 31）**，已交付 **0** 条、待验证 **72** 条、实机不成立 **0** 条
+汇总口径：**72 条场景（ADDED 41 / MODIFIED 31）**，已交付 **21** 条、待验证 **51** 条、实机不成立 **0** 条
 
 ---
 
@@ -23,22 +23,22 @@
 
 | n | 场景 | 单元/契约证据 | 实机入口/批次 | 状态 |
 |---|---|---|---|---|
-| 1 | 多分支家庭呈现 | `branch-tree.test.ts › 一个根节点 + 两个平级子节点，三条节点都在图里` + `u7-tree-view.test.ts › 入边标注带分叉摘要与分叉点 span id（不推断编辑内容）` | 6.4 实机（普通父子树标本） | 待验证 |
-| 2 | 代理分叉的边标注 | `branch-tree.test.ts › messages 分叉标「改 messages」，与 tool_result 分叉在图上可区分` | 6.4 实机（proxy 分叉标本） | 待验证 |
-| 3 | 选中高亮共享前缀 | `branch-tree.test.ts › 选中 C（A → B → C）⇒ A/B/C 三个节点在链上，兄弟分支不在` + `u7-tree-view.test.ts › 树根判定：沿 parent 上溯；父缺失/成环 ⇒ 自身即根（与森林提根同口径）` | 6.4 实机（深层链标本） | 待验证 |
-| 4 | 无分支时退化呈现 | `branch-tree.test.ts › 只有一条根 run ⇒ 单节点、无分叉边、不提示「无分支可用」` + `branch-tree.test.ts › 完全没有 run ⇒ 给出可操作的说明，不画空图` | 6.4 实机（单 run 数据目录） | 待验证 |
-| 5 | 节点按封存运行的终止原因区分结局 | `branch-tree.test.ts › 五种 reason 分别给出正确文字与语义色（completed 不是「已完成」）` + `branch-tree.test.ts › error 是红的、限制是琥珀的——同一屏里可区分，不只靠文字` | 6.4 实机（五种 reason 标本） | 待验证 |
-| 6 | 节点对中断和未知原因诚实降级 | `branch-tree.test.ts › crashed ⇒ 「运行中断」+ 中性色，不伪造活跃执行` + `branch-tree.test.ts › 已封存但 reason 未知 ⇒ 「结束原因未知」，且原值可在 title 里查看` + `branch-tree.test.ts › completed 却完全没有 reason（数据异常）⇒ 同样归未知，不冒充已完成` | 6.4 实机（crashed/缺 reason 标本） | 待验证 |
-| 7 | 节点不把已恢复的工具错误当作终止失败 | `branch-tree.test.ts › toolErrors > 0 但 reason=completed ⇒ 仍显示「已结束」+ 正常色` + `branch-tree.test.ts › 也不得声称测试通过（封存 ≠ 质量已验证）` | 6.4 实机（工具错误+正常结束标本） | 待验证 |
+| 1 | 多分支家庭呈现 | `branch-tree.test.ts › 一个根节点 + 两个平级子节点，三条节点都在图里` + `u7-tree-view.test.ts › 入边标注带分叉摘要与分叉点 span id（不推断编辑内容）` | 6.4 实机（普通父子树标本） | 已交付（6.4 实机） |
+| 2 | 代理分叉的边标注 | `branch-tree.test.ts › messages 分叉标「改 messages」，与 tool_result 分叉在图上可区分` | 6.4 实机（proxy 分叉标本） | 已交付（6.4 实机） |
+| 3 | 选中高亮共享前缀 | `branch-tree.test.ts › 选中 C（A → B → C）⇒ A/B/C 三个节点在链上，兄弟分支不在` + `u7-tree-view.test.ts › 树根判定：沿 parent 上溯；父缺失/成环 ⇒ 自身即根（与森林提根同口径）` | 6.4 实机（深层链标本） | 已交付（6.4 实机） |
+| 4 | 无分支时退化呈现 | `branch-tree.test.ts › 只有一条根 run ⇒ 单节点、无分叉边、不提示「无分支可用」` + `branch-tree.test.ts › 完全没有 run ⇒ 给出可操作的说明，不画空图` | 6.4 实机（单 run 数据目录） | 已交付（6.4 实机） |
+| 5 | 节点按封存运行的终止原因区分结局 | `branch-tree.test.ts › 五种 reason 分别给出正确文字与语义色（completed 不是「已完成」）` + `branch-tree.test.ts › error 是红的、限制是琥珀的——同一屏里可区分，不只靠文字` | 6.4 实机（五种 reason 标本） | 已交付（6.4 实机） |
+| 6 | 节点对中断和未知原因诚实降级 | `branch-tree.test.ts › crashed ⇒ 「运行中断」+ 中性色，不伪造活跃执行` + `branch-tree.test.ts › 已封存但 reason 未知 ⇒ 「结束原因未知」，且原值可在 title 里查看` + `branch-tree.test.ts › completed 却完全没有 reason（数据异常）⇒ 同样归未知，不冒充已完成` | 6.4 实机（crashed 真机 ✓；reason 未知/completed 无 reason 被 trace schema 的 reason 枚举拒 ⇒ 真机不可达，单元承载） | 已交付（6.4 实机） |
+| 7 | 节点不把已恢复的工具错误当作终止失败 | `branch-tree.test.ts › toolErrors > 0 但 reason=completed ⇒ 仍显示「已结束」+ 正常色` + `branch-tree.test.ts › 也不得声称测试通过（封存 ≠ 质量已验证）` | 6.4 实机（工具错误+正常结束标本） | 已交付（6.4 实机） |
 
 ### B2. 多分支对照到 run 级指标与共同祖先（MODIFIED，6 场景）
 
 | n | 场景 | 单元/契约证据 | 实机入口/批次 | 状态 |
 |---|---|---|---|---|
-| 8 | 两条兄弟分支对照 | `compare-derive.test.ts › 两条兄弟分支：共同祖先 = 父，祖先差 = 各侧累计 − 祖先累计` + `compare-metrics.test.ts › 两条兄弟 ⇒ 共同祖先 = 父` | 6.4 实机 | 待验证 |
-| 9 | 对照中含祖先关系 | `compare-derive.test.ts › 直接父子：共同祖先取父 run，父侧相对自身增量为零` | 6.4 实机 | 待验证 |
-| 10 | 超出对照上限 | `store.test.ts › 对照上限 4：第 5 条被拒绝并给出提示，已选集合不变` + `compare-metrics-table.test.tsx › 上限提示如实呈现（store 写下的 compareNotice）` | 6.4 实机 | 待验证 |
-| 11 | 对照不足两条 | `compare-metrics.test.ts › 单条 ⇒ 表 + 「再选一条即可对照」，不判定共同祖先` + `compare-metrics.test.ts › 无结论 ⇒ empty + 空集引导` | 6.4 实机 | 待验证 |
+| 8 | 两条兄弟分支对照 | `compare-derive.test.ts › 两条兄弟分支：共同祖先 = 父，祖先差 = 各侧累计 − 祖先累计` + `compare-metrics.test.ts › 两条兄弟 ⇒ 共同祖先 = 父` | 6.4 实机 | 已交付（6.4 实机） |
+| 9 | 对照中含祖先关系 | `compare-derive.test.ts › 直接父子：共同祖先取父 run，父侧相对自身增量为零` | 6.4 实机 | 已交付（6.4 实机） |
+| 10 | 超出对照上限 | `store.test.ts › 对照上限 4：第 5 条被拒绝并给出提示，已选集合不变` + `compare-metrics-table.test.tsx › 上限提示如实呈现（store 写下的 compareNotice）` | 6.4 实机 | 已交付（6.4 实机） |
+| 11 | 对照不足两条 | `compare-metrics.test.ts › 单条 ⇒ 表 + 「再选一条即可对照」，不判定共同祖先` + `compare-metrics.test.ts › 无结论 ⇒ empty + 空集引导` | 6.4 实机 | 已交付（6.4 实机） |
 | 12 | 分属不同根 | `compare-derive.test.ts › 分属不同根：两侧链完整且无公共 id ⇒ unrelated；两侧累计各自可读、增量差不计算` + `compare-metrics.test.ts › 链完整但无公共祖先 ⇒ 无（分属不同根），不冒充共同祖先` | 6.5 实机（不同根标本） | 待验证 |
 | 13 | 父缺失导致判定不完整 | `compare-derive.test.ts › ownOnly 侧：链截断 ⇒ 判定不完整 + 该侧累计未知；完整另一侧累计照常可读` + `compare-metrics.test.ts › 父缺失 ⇒ 判定不完整（说明不是本来就不同源），不呈现为不同根` | 6.6 实机（ancestorMissing 注入） | 待验证 |
 
@@ -46,18 +46,18 @@
 
 | n | 场景 | 单元/契约证据 | 实机入口/批次 | 状态 |
 |---|---|---|---|---|
-| 14 | 首次进入聚焦当前分支 | `u7-tree-view.test.ts › 有选中运行 ⇒ 当前树 + 焦点该节点；无选中 ⇒ 全部、无焦点` + `u7-tree-view.test.ts › 首次 arm：按选中运行决定初始范围；再次 arm 沿用且不再给焦点（不重复居中）` | 6.4 实机（R9 复现） | 待验证 |
-| 15 | 搜索完整字段定位范围外运行 | `u7-tree-view.test.ts › 匹配完整原值：查询落在被展示截断的中段也能命中` + `u7-tree-view.test.ts › 完整 ID 片段命中；每个命中携带其所属已知树的根（范围外定位依据）` + `u7-tree-view.test.ts › 空结果明确提示且保持原渲染（不丢节点）` | 6.4 实机 | 待验证 |
-| 16 | 视口操作与返回保持逻辑布局 | `u7-tree-view.test.ts › 首次 arm：按选中运行决定初始范围；再次 arm 沿用且不再给焦点（不重复居中）`（视口持久化判据；布局确定性另有 `derive.test.ts › 布局可复现：同输入两次输出逐字段一致`） | 6.4 实机（R9 复现 + 返回恢复视口） | 待验证 |
+| 14 | 首次进入聚焦当前分支 | `u7-tree-view.test.ts › 有选中运行 ⇒ 当前树 + 焦点该节点；无选中 ⇒ 全部、无焦点` + `u7-tree-view.test.ts › 首次 arm：按选中运行决定初始范围；再次 arm 沿用且不再给焦点（不重复居中）` | 6.4 实机（R9 复现） | 已交付（6.4 实机） |
+| 15 | 搜索完整字段定位范围外运行 | `u7-tree-view.test.ts › 匹配完整原值：查询落在被展示截断的中段也能命中` + `u7-tree-view.test.ts › 完整 ID 片段命中；每个命中携带其所属已知树的根（范围外定位依据）` + `u7-tree-view.test.ts › 空结果明确提示且保持原渲染（不丢节点）` | 6.4 实机 | 已交付（6.4 实机） |
+| 16 | 视口操作与返回保持逻辑布局 | `u7-tree-view.test.ts › 首次 arm：按选中运行决定初始范围；再次 arm 沿用且不再给焦点（不重复居中）`（视口持久化判据；布局确定性另有 `derive.test.ts › 布局可复现：同输入两次输出逐字段一致`） | 6.4 实机（R9 复现 + 返回恢复视口） | 已交付（6.4 实机） |
 
 ### B4. 分支节点与关系列表提供明确可访问动作（ADDED，4 场景）
 
 | n | 场景 | 单元/契约证据 | 实机入口/批次 | 状态 |
 |---|---|---|---|---|
-| 17 | 长节点字段完整可读 | `u7-tree-view.test.ts › 节点字段：短 ID、模型缺失标「未记录」；完整 ID 在 title 里可读可复制` + `u7-tree-view.test.ts › 完整 ID + 复制按钮；完整任务展开/复制（LongText 契约）；模型缺失标未记录` | 6.4 实机（长任务/长模型/长 ID 标本） | 待验证 |
-| 18 | 选中打开与加入对比分离 | `u7-tree-view.test.ts › 列表渲染同一数据：行带选中/打开/加入对照三动作（均为可 Tab 聚焦的 button）` + `u7-tree-view.test.ts › 对照状态同步：inCompare ⇒ aria-pressed 且文案为「移出对照」` | 6.4 实机 | 待验证 |
+| 17 | 长节点字段完整可读 | `u7-tree-view.test.ts › 节点字段：短 ID、模型缺失标「未记录」；完整 ID 在 title 里可读可复制` + `u7-tree-view.test.ts › 完整 ID + 复制按钮；完整任务展开/复制（LongText 契约）；模型缺失标未记录` | 6.4 实机（长任务/长模型/长 ID 标本） | 已交付（6.4 实机） |
+| 18 | 选中打开与加入对比分离 | `u7-tree-view.test.ts › 列表渲染同一数据：行带选中/打开/加入对照三动作（均为可 Tab 聚焦的 button）` + `u7-tree-view.test.ts › 对照状态同步：inCompare ⇒ aria-pressed 且文案为「移出对照」` | 6.4 实机 | 已交付（6.4 实机） |
 | 19 | 键盘关系列表与图同步 | `u7-tree-view.test.ts › 列表渲染同一数据：行带选中/打开/加入对照三动作（均为可 Tab 聚焦的 button）` + `u7-tree-view.test.ts › 选中与对比状态在列表可见（aria-pressed 同步）` | 6.9 实机（纯键盘闭环） | 待验证 |
-| 20 | 父缺失与实验分组不造记录 | `u7-tree-view.test.ts › 缺父占位只显示真实引用与不可用原因，无任何动作按钮；原 run 保留` + `u7-tree-view.test.ts › 实验分组只按记录 experimentId：组头在首臂前出现一次，无标签 run 不进组` + `derive.test.ts › parent 链成环：环上的 run 提为根并标 cycle，不死循环` | 6.4 实机（缺父/成环/实验组标本） | 待验证 |
+| 20 | 父缺失与实验分组不造记录 | `u7-tree-view.test.ts › 缺父占位只显示真实引用与不可用原因，无任何动作按钮；原 run 保留` + `u7-tree-view.test.ts › 实验分组只按记录 experimentId：组头在首臂前出现一次，无标签 run 不进组` + `derive.test.ts › parent 链成环：环上的 run 提为根并标 cycle，不死循环` | 6.4 实机（缺父/成环/实验组标本） | 已交付（6.4 实机） |
 
 ### B5. 对照身份与四列指标保持可辨（ADDED，3 场景）
 
@@ -75,10 +75,10 @@
 
 | n | 场景 | 单元/契约证据 | 实机入口/批次 | 状态 |
 |---|---|---|---|---|
-| 24 | 切到分支树 | `store.test.ts › 视图切换只改 view，不触发列表重新加载` | 6.4 实机 | 待验证 |
-| 25 | 选中状态跨视图保持 | `store.test.ts › 切换视图后选中的 run 保持不变（两视图共享选中状态）` | 6.4 实机 | 待验证 |
-| 26 | 切换不重载 | `store.test.ts › 切换不重载：setView 与 selectRun 都不触发列表请求` | 6.4 实机 | 待验证 |
-| 27 | 既有四条指标对照仍可使用 | `compare-metrics.test.ts › 状态/终止原因/创建时间/分叉点/实验组/步数/工具出错 各行与列对齐` + `compare-derive.test.ts › 两条兄弟分支：共同祖先 = 父，祖先差 = 各侧累计 − 祖先累计` | 6.4 实机（两条/四条进入指标表） | 待验证 |
+| 24 | 切到分支树 | `store.test.ts › 视图切换只改 view，不触发列表重新加载` | 6.4 实机 | 已交付（6.4 实机） |
+| 25 | 选中状态跨视图保持 | `store.test.ts › 切换视图后选中的 run 保持不变（两视图共享选中状态）` | 6.4 实机 | 已交付（6.4 实机） |
+| 26 | 切换不重载 | `store.test.ts › 切换不重载：setView 与 selectRun 都不触发列表请求` | 6.4 实机 | 已交付（6.4 实机） |
+| 27 | 既有四条指标对照仍可使用 | `compare-metrics.test.ts › 状态/终止原因/创建时间/分叉点/实验组/步数/工具出错 各行与列对齐` + `compare-derive.test.ts › 两条兄弟分支：共同祖先 = 父，祖先差 = 各侧累计 − 祖先累计` | 6.4 实机（两条/四条进入指标表） | 已交付（6.4 实机） |
 
 ### DU2. 运行概览呈现自有结果与消耗（MODIFIED，9 场景）
 
