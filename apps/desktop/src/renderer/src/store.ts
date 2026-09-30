@@ -53,6 +53,16 @@ import {
 } from "@shared/operations";
 import { create } from "zustand";
 import { api } from "./lib/api";
+import {
+  type CompareReadSession,
+  applyCompareResponse,
+  beginCompareRead,
+  destroyCompareRead,
+  emptyCompareReadSession,
+  findCompareSelectionViolation,
+  retryCompareRead as retryCompareReadState,
+  sameCompareSelection,
+} from "./lib/compare-state";
 import type { CreateReturnLocation, SourceView, WorkspaceView } from "./lib/create-workspace";
 import {
   decideCreateEntry,
@@ -553,6 +563,33 @@ interface AppState {
   retryResultRead: (identity: ResultReadIdentity) => Promise<ResultReadEntry>;
 
   /**
+   * U7 任务 1.4/1.5：比较选择集的**会话读取状态**（design D3 渲染层半边）。
+   * 只存 renderer 内存，不落盘、不进 URL/日志；不是执行真相源——比较全程只读。
+   * 选择集代次、在飞请求守卫与结论撤销见 `lib/compare-state.ts`。
+   */
+  compareRead: CompareReadSession;
+  /**
+   * U7 任务 1.4：进入/更换比较对象并读取。合法性与幂等判据：
+   * 非法（数量/重复/空 id）⇒ 不变；与当前选择集同序同 id ⇒ 幂等不重读（保留结论）；
+   * 换集 ⇒ 旧结论撤销 + 发起单次 `runs:compare`（旧在飞响应被代次淘汰）。
+   * 返回值供调用方与测试区分三分支。
+   */
+  enterCompareSelection: (
+    runIds: readonly string[],
+  ) => Promise<"started" | "unchanged" | "invalid">;
+  /**
+   * U7 任务 1.5：**显式只读重试**——同选择集全量重读（design D3：整组重验保持
+   * 共同基线一致）。旧结论先行撤销；无活动选择集时不可重试（返回 false）。
+   * 零执行通道调用。
+   */
+  retryCompareSelectionRead: () => Promise<boolean>;
+  /**
+   * U7 任务 1.4：离开比较（销毁守卫）。在飞请求作废、结论清空、代次递增——
+   * 迟到响应永不复活；不碰选择运行/草稿/操作事实。
+   */
+  leaveCompare: () => void;
+
+  /**
    * U5 任务 3.5：**用户明确打开某条可信结果**。
    *
    * 与 3.4 的自动导航分开：那条要过导航意图（离开过流程就不跳），这条**不过**——
@@ -1009,6 +1046,20 @@ async function readRunResult(
 }
 
 /**
+ * U7 任务 1.4/1.5：一次比较选择集的实际只读请求（design D3 渲染层半边）。
+ *
+ * 单一咽喉：进入与重试都汇到这里——发请求前记录当代代次，响应落地时把
+ * 代次 + 选择集 + 信封一起交给 `applyCompareResponse`（同代次同选择集才采信，
+ * 其余整份丢弃）。整条路径零执行通道、零列表刷新、零选择/滚动/焦点变更。
+ */
+async function requestCompareRead(runIds: readonly string[], generation: number): Promise<void> {
+  const envelope = await api.compareRuns({ runIds: [...runIds] });
+  useAppStore.setState((state) => ({
+    compareRead: applyCompareResponse(state.compareRead, generation, runIds, envelope),
+  }));
+}
+
+/**
  * 提交目标 → 草稿定位目标（U5 任务 3.5 的「返回草稿」）。
  *
  * 两套编码同源不同形：提交侧的 `DraftSubmitTarget` 用判别联合（A/B 没有 `field` 键，
@@ -1274,6 +1325,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   operations: initialSession(),
   // U5 任务 1.2：按可信身份读取的结果（会话内，与阅读状态和草稿都分开）
   resultReads: emptyResultReadStore(),
+  // U7 任务 1.4/1.5：比较选择集的会话读取状态（design D3 渲染层半边）
+  compareRead: emptyCompareReadSession(),
   // U5 任务 3.4：阅读代次 + 各提交的导航意图（同为会话内，不进任何持久化）
   navGeneration: 0,
   navIntents: emptyNavigationIntents(),
@@ -1978,6 +2031,35 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   async retryResultRead(identity) {
     return readRunResult(identity, true);
+  },
+
+  async enterCompareSelection(runIds) {
+    // U7 1.4：合法性判据与 IPC schema 同源（findCompareSelectionViolation 复用
+    // CompareRunsRequestSchema），非法请求连 state 都不动
+    const violation = findCompareSelectionViolation(runIds);
+    if (violation !== null) return "invalid";
+    const current = get().compareRead;
+    // 幂等：同序同 id 的重复进入不重读——保留在场结论与（后续 §2 的）阅读位置，
+    // 「不以每次开比较清空工作区状态换取简单实现」（design D1）
+    if (sameCompareSelection(current.selection, runIds)) return "unchanged";
+    const started = beginCompareRead(current, runIds);
+    set({ compareRead: started });
+    await requestCompareRead(started.selection as string[], started.generation);
+    return "started";
+  },
+
+  async retryCompareSelectionRead() {
+    // U7 1.5：同选择集全量重读；旧结论在 beginCompareRead 内先行撤销
+    const next = retryCompareReadState(get().compareRead);
+    if (next === null) return false;
+    set({ compareRead: next });
+    await requestCompareRead(next.selection as string[], next.generation);
+    return true;
+  },
+
+  leaveCompare() {
+    // U7 1.4：销毁守卫——在飞请求作废、结论清空；代次递增使迟到响应永不复活
+    set({ compareRead: destroyCompareRead(get().compareRead) });
   },
 
   async openOperationResult(identity) {
