@@ -62,11 +62,11 @@
 - [ ] 5.8 实现内容宽度适配与导航状态恢复，补相应单元/IPC/store/组件验证（对应“窄窗和缩放仍能完整阅读”）。
 - [ ] 5.9 补齐比较键盘交互和异步焦点，补相应单元/IPC/store/组件验证（对应“键盘完成比较闭环”）。
 - [ ] 5.10 验证比较路径只接只读能力并覆盖写入反证，补相应单元/IPC/store/组件验证（对应“比较全程只读且不恢复许可”）。
-- [ ] 5.11 实现历史实验资格与合法失败臂的共用展示，补相应单元/IPC/store/组件验证（对应“合法同父实验臂展示事实”）。
-- [ ] 5.12 实现选择集级实验门禁与批次身份，补相应单元/IPC/store/组件验证（对应“异父混选与相同实验标签不能绕过”）。
-- [ ] 5.13 实现实验拒绝矩阵与受控原因，补相应单元/IPC/store/组件验证（对应“不完整未封存与前置缺证明确拒绝”）。
+- [x] 5.11 实现历史实验资格与合法失败臂的共用展示，补相应单元/IPC/store/组件验证（对应“合法同父实验臂展示事实”）。（`ec5befb`：比较工作区实验区——eligible 时批次身份（共同父+各臂 experimentId 原样）+ 相对父累计增量（deriveVerifiedComparison deltaFromAncestor，未知不估算）+ 副作用放行说明；失败臂不因结局拒（门禁不读 outcome）；输出/步骤区由 4.6/4.12 承载；宽幅指标表增量列归 5.2/5.4）
+- [x] 5.12 实现选择集级实验门禁与批次身份，补相应单元/IPC/store/组件验证（对应“异父混选与相同实验标签不能绕过”）。（`2e1dad3`：deriveExperimentGate(items)——全 model_params 臂 + 直接 parent 相同 + 父链完整 + 逐臂记录判据；混选 MIXED_SELECTION（标签相同不能豁免）、异父 PARENT_DIFFERS、ownOnly CHAIN_INCOMPLETE（先于同父核对）；批次身份保留各臂真实 experimentId 不伪造同批）
+- [x] 5.13 实现实验拒绝矩阵与受控原因，补相应单元/IPC/store/组件验证（对应“不完整未封存与前置缺证明确拒绝”）。（`2e1dad3`：三态拒绝矩阵——RUN_UNREADABLE/MIXED_SELECTION/PARENT_DIFFERS/CHAIN_INCOMPLETE/CONFIG_HASH_MISMATCH/REQUEST_MODEL·PARAMS_MISMATCH/TOOLS_MISMATCH/SIDE_EFFECT_UNDECLARED·CONTRADICTION + unverifiable（CONFIG_HASH_UNRECORDED/PARENT_META_UNAVAILABLE/START_REQUEST_UNRECORDED）——拒绝与不可验证分层，均不冒充通过；工作区呈现拒绝原因与单独打开入口（`ec5befb`）；重试仅重新验证记录（compare-state 既有只读重试））
 - [x] 5.14 提取并复用参数、首请求和 config_hash 记录一致性纯校验，验证不反推完整 RunConfig（对应“历史比较不依赖当前密钥和预览”）。（`c9fbebe`：shared/experiment-records.ts findModelParamsRecordViolation——config_hash 只比已记录值（缺失 unverifiable 老文件、不等 ineligible），首请求自洽按整体覆盖语义核对；选择集级装配归 5.12）
-- [ ] 5.15 覆盖所有视图的实验结论限制和副作用说明，补相应单元/IPC/store/组件验证（对应“交换和四列均不产出实验臂间结论”）。
+- [x] 5.15 覆盖所有视图的实验结论限制和副作用说明，补相应单元/IPC/store/组件验证（对应“交换和四列均不产出实验臂间结论”）。（`ec5befb`：实验区恒定说明「不产出臂间差值、胜出臂或最佳模型结论——交换左右或改选两臂同样如此」；增量只按各臂相对父（deriveVerifiedComparison 单向），视图无左右相减代码路径；副作用放行说明保留顺序执行与外部状态影响；四列宽幅指标表的同等限制随 5.2/5.3 呈现时复用同区说明）
 - [x] 5.16 提取工具表/副作用声明纯校验并做既有执行门禁等价回归；历史比较不调用 handler 或当前配置的 dry-run（对应“历史比较不依赖当前密钥和预览”）。（`c9fbebe`：findToolRecordViolation——工具表逐字段一致含 sideEffect 字段有无（补标记即不同源）、风险工具=sideEffect!==false（执行门禁同款）、须显式 allowSideEffects:true 留痕、显式 false 判矛盾；等价回归=执行路径零改动（packages 零 diff）+ replay 既有套件 359 过、12 条失败与登记环境受阻构成一致；判据逐条以测试锚定执行门禁原文）
 
 本组实验任务先完成 5.14/5.16，再接 5.11–5.13/5.15；无法证明的前置条件保持不可验证，不能为通过验收放宽。
