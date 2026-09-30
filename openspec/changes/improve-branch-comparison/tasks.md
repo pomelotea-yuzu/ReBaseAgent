@@ -17,11 +17,11 @@
 
 ## 2. 比较导航与阅读状态
 
-- [ ] 2.1 接入概览和可信操作结果的父子入口，补相应单元/IPC/store/组件验证（对应“父子入口默认父左子右”）。
-- [ ] 2.2 实现独立 pair 状态、更换、交换与同 ID 拒绝，补相应单元/IPC/store/组件验证（对应“更换交换不改变侧栏选择”）。
-- [ ] 2.3 实现类型明确的返回位置与单侧往返，补相应单元/IPC/store/组件验证（对应“返回恢复来源与单侧阅读”）。
-- [ ] 2.4 将比较动作接入 U5 导航代次并回归草稿与设置，补相应单元/IPC/store/组件验证（对应“后台结束不抢比较页且草稿保留”）。
-- [ ] 2.5 验证手动集合按加入顺序确定左右，包含先子后父；与显式父子入口的父左子右分别验收（对应“手动两条比较按加入顺序确定左右”“父子入口默认父左子右”）。
+- [x] 2.1 接入概览和可信操作结果的父子入口，补相应单元/IPC/store/组件验证（对应“父子入口默认父左子右”）。（`2e12b8e`：decideCompareWithParent 三态 + SourceSection.compareWithParent + 概览「与父运行对比」按钮（available 才渲染，源码级接线契约）+ store.openCompareWithParent（详情归属不符不猜父本）。⚠️ 可信操作结果侧的入口待 ResultReadEntry 携带 parentRunId 后接（detail.meta.parent 未存读取项），归 §5/§4 消费面任务同轮补）
+- [x] 2.2 实现独立 pair 状态、更换、交换与同 ID 拒绝，补相应单元/IPC/store/组件验证（对应“更换交换不改变侧栏选择”）。（`2e12b8e`：comparePair 独立于侧栏选择与 compareIds；decidePairSideEdit 三态；setCompareSide/swapCompareSides 不调 selectRun；交换按新序重读使旧序请求失效）
+- [x] 2.3 实现类型明确的返回位置与单侧往返，补相应单元/IPC/store/组件验证（对应“返回恢复来源与单侧阅读”）。（`2e12b8e`：CompareReturnLocation 复用创建页类型；compareReturnLocation 一次性凭据，但 selectRun 打开单侧保留——返回比较→再返回来源成立；restoreReadingLocation 共用提取；setView 才清；树视口恢复字段随 §3.3 扩展）
+- [x] 2.4 将比较动作接入 U5 导航代次并回归草稿与设置，补相应单元/IPC/store/组件验证（对应“后台结束不抢比较页且草稿保留”）。（`2e12b8e`：进入/更换/交换/返回全部 noteReadingChanged 推进 navGeneration（store 测试断言）；代次单调 ⇒ 在途自动导航资格被撤销；全链实机验证归 §6.9。草稿/设置不因比较动作变更——比较动作不触碰 draft/execution-confirmation 状态面）
+- [x] 2.5 验证手动集合按加入顺序确定左右，包含先子后父；与显式父子入口的父左子右分别验收（对应“手动两条比较按加入顺序确定左右”“父子入口默认父左子右”）。（`2e12b8e`：decideManualPair（两条按序/三条 explicit-select/单条 needs-two）+ store 用例先子后父 ⇒ 子左父右并按该序读取；与 decideCompareWithParent 的父左子右分别锁定）
 
 ## 3. 分支定位与可访问关系
 
