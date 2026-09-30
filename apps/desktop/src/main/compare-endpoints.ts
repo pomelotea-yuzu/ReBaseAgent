@@ -64,7 +64,8 @@ export function compareRunsEndpoint(
   const context = new RunReadContext(deps.tracesDir);
   const items = runIds.map((runId) => {
     try {
-      return { status: "ready" as const, runId, detail: context.detailOf(runId) };
+      const { detail, chainSummaries } = context.readOf(runId);
+      return { status: "ready" as const, runId, detail, chainSummaries };
     } catch (e) {
       const code =
         e instanceof RunDetailReadError

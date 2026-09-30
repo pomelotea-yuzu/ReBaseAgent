@@ -1,7 +1,8 @@
 import { readRun, resolveBranch } from "@rebaseagent/trace-sdk";
 import type { RunRecord, SpanLine } from "@rebaseagent/trace-sdk";
+import { deriveRunSummary } from "../shared/derive";
 import { RunDetailSchema } from "../shared/ipc";
-import type { RunDetail } from "../shared/ipc";
+import type { RunDetail, RunSummary } from "../shared/ipc";
 import { isPlainResultChain, projectMixedChainSpans } from "./run-detail-project";
 import { readRunLineage } from "./run-lineage-read";
 import type { RunLineageDiagnostic, RunLineageOutcome } from "./run-lineage-read";
@@ -52,15 +53,34 @@ export class RunReadContext {
   ) {}
 
   /**
-   * 读取单个 run 详情；语义与 `RunRepository.getRun` 完全一致——
-   * 严格失败（当前 run 缺失/损坏/版本/成环等）抛受控中文 Error，
-   * 祖先 ENOENT 之外的一切祖先失败同样严格失败，唯独结构化缺失走 ownOnly。
+   * 读取单个 run 详情 + 沿链各物理 run 的**自有摘要**（U7 1.7：共同祖先/累计
+   * 派生的输入）。语义与 `RunRepository.getRun` 完全一致——严格失败（当前 run
+   * 缺失/损坏/版本/成环等）抛受控中文 Error，祖先 ENOENT 之外的一切祖先失败
+   * 同样严格失败，唯独结构化缺失走 ownOnly。
+   *
+   * `chainSummaries` 根→叶有序、含当前 run 自身；每条由对应物理记录（只含自有
+   * spans）现算，禁用列表缓存——链在缺失点截断时它也随之截断，下游
+   * `deriveChainTotals`/`findCommonAncestor` 由此自然判 incomplete。
    */
+  readOf(id: string): { detail: RunDetail; chainSummaries: RunSummary[] } {
+    const outcome = this.lineageOf(id);
+    if (!outcome.ok) {
+      throw new RunDetailReadError(outcome.diagnostic, outcome.message);
+    }
+    const chainSummaries = outcome.records.map((record) => deriveRunSummary(record));
+    return { detail: this.projectDetail(id, outcome), chainSummaries };
+  }
+
+  /** 兼容入口：只要详情（U6 getRun 语义，行为零变化） */
   detailOf(id: string): RunDetail {
     const outcome = this.lineageOf(id);
     if (!outcome.ok) {
       throw new RunDetailReadError(outcome.diagnostic, outcome.message);
     }
+    return this.projectDetail(id, outcome);
+  }
+
+  private projectDetail(id: string, outcome: Extract<RunLineageOutcome, { ok: true }>): RunDetail {
     // 叶子 run = 连续可读链的最后一跳（complete 与 incomplete 两形态同构）
     const record = outcome.records[outcome.records.length - 1];
     if (record === undefined) {

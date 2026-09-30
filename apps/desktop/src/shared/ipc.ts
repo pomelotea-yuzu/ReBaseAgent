@@ -382,8 +382,10 @@ export type CompareRunsRequest = z.infer<typeof CompareRunsRequestSchema>;
 
 /**
  * 逐项结果：ready 携带与 runs:get 同一 schema 的已校验详情（完整性标签随 detail
- * 自带，ownOnly 不在比较层二次降级）；unavailable 携带稳定码与受控中文原因——
- * 该侧真实身份保留，不伪空文本、不借另一对象顶替。
+ * 自带，ownOnly 不在比较层二次降级）+ 沿链各物理 run 的**自有摘要**（根→叶有序、
+ * 含当前 run；每条由对应物理记录现算——共同祖先/累计派生的唯一合法输入，
+ * 禁止回退列表缓存）；unavailable 携带稳定码与受控中文原因——该侧真实身份保留，
+ * 不伪空文本、不借另一对象顶替。
  */
 export const CompareRunItemSchema = z.discriminatedUnion("status", [
   z
@@ -391,6 +393,7 @@ export const CompareRunItemSchema = z.discriminatedUnion("status", [
       status: z.literal("ready"),
       runId: z.string().min(1),
       detail: RunDetailSchema,
+      chainSummaries: z.array(RunSummarySchema),
     })
     .strict(),
   z

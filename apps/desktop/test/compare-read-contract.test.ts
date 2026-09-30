@@ -11,6 +11,7 @@ import type {
   CompareRunsRequest,
   CompareRunsResult,
   RunDetail,
+  RunSummary,
 } from "../src/shared/ipc";
 
 /**
@@ -55,8 +56,37 @@ function validRootDetail(id: string): RunDetail {
   };
 }
 
+/** 该 run 的自有摘要（根→叶有序、含自身；U7 1.7 起为 ready 项必填） */
+function ownSummaries(id: string, parent: string | null = null): RunSummary[] {
+  return [
+    {
+      id,
+      task: `任务 ${id}`,
+      model: "controlled-model",
+      created_at: T0,
+      status: "completed",
+      parent,
+      reason: "completed",
+      fork: null,
+      steps: 1,
+      toolCalls: 0,
+      toolErrors: 0,
+      tokensIn: 10,
+      tokensOut: 5,
+      cacheHit: null,
+      durationMs: 100,
+      source: null,
+    },
+  ];
+}
+
 function readyItem(id: string): CompareRunItem {
-  return { status: "ready", runId: id, detail: validRootDetail(id) };
+  return {
+    status: "ready",
+    runId: id,
+    detail: validRootDetail(id),
+    chainSummaries: ownSummaries(id),
+  };
 }
 
 function unavailableItem(id: string): CompareRunItem {
@@ -124,7 +154,7 @@ describe("U7 1.1 比较请求契约：数量与唯一身份", () => {
 describe("U7 1.1 比较响应契约：逐项 ready/unavailable", () => {
   it("ready 项携带与 runs:get 同一 schema 的详情（完整性标签随 detail 自带）", () => {
     expect(parseResult([readyItem("r_a")]).success).toBe(true);
-    // ownOnly 详情同样是合法 ready 项——比较层不二次降级
+    // ownOnly 详情同样是合法 ready 项——比较层不二次降级；链摘要同步截断
     const ownOnly = validRootDetail("r_c");
     ownOnly.completeness = "ownOnly";
     ownOnly.spanScope = "own";
@@ -134,7 +164,28 @@ describe("U7 1.1 比较响应契约：逐项 ready/unavailable", () => {
       reason: "ANCESTOR_NOT_FOUND",
       missingRunId: "r_no",
     };
-    expect(parseResult([{ status: "ready", runId: "r_c", detail: ownOnly }]).success).toBe(true);
+    expect(
+      parseResult([
+        {
+          status: "ready",
+          runId: "r_c",
+          detail: ownOnly,
+          chainSummaries: [{ ...ownSummaries("r_c")[0]!, parent: "r_b" }],
+        },
+      ]).success,
+    ).toBe(true);
+  });
+
+  it("ready 项缺链摘要被拒：共同祖先/累计派生必须吃本次已校验自有摘要（1.7）", () => {
+    expect(
+      parseResult([
+        {
+          status: "ready",
+          runId: "r_a",
+          detail: validRootDetail("r_a"),
+        } as unknown as CompareRunItem,
+      ]).success,
+    ).toBe(false);
   });
 
   it("unavailable 项保留真实身份并携带有界受控码与原因", () => {
