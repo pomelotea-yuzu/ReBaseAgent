@@ -165,7 +165,7 @@ const treeDetail = (call) =>
          hasExpand: expandBtn !== null,
          expandLabel: expandBtn ? expandBtn.textContent : null,
          copyIdBtn: Array.from(d.querySelectorAll('button'))
-           .some(b => (b.getAttribute('aria-label') || '').startsWith('复制完整')),
+           .some(b => (b.textContent || '').includes('复制完整')),
        });
      })()`,
   ).then(JSON.parse);
@@ -210,31 +210,39 @@ const FLOWS = {
     );
     await H.shot(call, SHOT_DIR, "tree-focused.png");
 
-    // ── #1/#2：家庭呈现 + 代理边标注 ──
+    // ── 切「全部」范围：家庭/代理边/长文本/搜索都跨树 ⇒ 后续判据在全部范围下打 ──
+    await H.storeQ(call, `s.setTreeScope("all"); return JSON.stringify("ok");`);
+    await H.sleep(1000);
+    st = await storeState(call);
+    check("#1 前置：范围切到「全部」", st.treeScope === "all", st.treeScope);
+
+    // ── #1/#2：家庭呈现 + 代理边标注（svg 限定在树节点所在 section 内） ──
     const graphText = await H.ev(
       call,
       `(() => {
-         const svg = document.querySelector('svg');
+         const anchor = document.querySelector('[data-run-id="u7c_g"]');
+         if (anchor === null) return JSON.stringify(null);
+         const svg = anchor.closest('section').querySelector('svg');
          const labels = svg ? Array.from(svg.querySelectorAll('text')).map(t => t.textContent) : [];
          return JSON.stringify({ edgeLabels: labels, paths: svg ? svg.querySelectorAll('path').length : 0 });
        })()`,
     ).then(JSON.parse);
     check(
       "#1 图呈现：存在分叉连线（G→P、P→C、P→S 等）",
-      graphText.paths >= 5,
-      `paths=${graphText.paths}`,
+      graphText !== null && graphText.paths >= 5,
+      `paths=${graphText?.paths}`,
     );
     check(
       "#2 代理分叉边标注「改 messages」在图上",
-      graphText.edgeLabels.some((t) => (t ?? "").includes("改 messages")),
-      graphText.edgeLabels,
+      graphText !== null && graphText.edgeLabels.some((t) => (t ?? "").includes("改 messages")),
+      graphText?.edgeLabels,
     );
-    dump.edgeLabels = graphText.edgeLabels;
+    dump.edgeLabels = graphText?.edgeLabels;
 
     // ── #17：长节点字段完整可读 ──
     const geomL1 = await nodeGeom(call, "u7c_l1");
     check(
-      "#17 长任务标本在树中（title 带完整任务全文）",
+      "#17 长任务标本在树中（title 带完整任务全文，节点内正文截断但原值不丢）",
       geomL1 !== null &&
         typeof geomL1.title === "string" &&
         geomL1.title.includes("标注来源文件与行号范围"),
@@ -242,33 +250,25 @@ const FLOWS = {
     );
     await H.storeQ(call, `await s.selectRun("u7c_l1"); return JSON.stringify("ok");`);
     await H.sleep(1200);
-    let detail = await treeDetail(call);
+    const detail = await treeDetail(call);
     check(
-      "#17 详情面板：完整任务折叠摘要（带字符数）+ 完整 ID 复制按钮",
-      detail !== null && detail.hasExpand === true && detail.copyIdBtn === true,
-      detail,
+      "#17 详情面板：完整任务全文在场（R9「尾行被裁」以详情区完整承载）+ 完整 ID 可复制",
+      detail !== null &&
+        detail.text.includes("标注来源文件与行号范围") &&
+        detail.text.includes("便于后续人工复核") &&
+        detail.copyIdBtn === true,
+      { hasText: detail?.text?.includes("标注来源"), copyIdBtn: detail?.copyIdBtn },
     );
-    if (detail?.hasExpand) {
-      await H.ev(
-        call,
-        `(() => {
-           const d = document.querySelector('[data-tree-detail="true"]');
-           const b = Array.from(d.querySelectorAll('button'))
-             .find(x => (x.textContent || '').includes('点击展开完整内容'));
-           b.click(); return 'ok';
-         })()`,
-      );
-      await H.sleep(600);
-      detail = await treeDetail(call);
-      check(
-        "#17 展开后完整任务全文可读（R9「尾行被裁」以详情面板完整承载）",
-        detail.text.includes("标注来源文件与行号范围") && detail.text.includes("便于后续人工复核"),
-        null,
-      );
-    }
     await H.shot(call, SHOT_DIR, "tree-detail-long.png");
 
     // ── #15：搜索（完整字段/范围外定位/空结果提示） ──
+    // 范围外定位前提：范围=current 且选中在另一棵树（u7c_c），搜 u7c_l1 ⇒ 在外
+    await H.storeQ(
+      call,
+      `await s.selectRun("u7c_c"); s.setTreeScope("current"); return JSON.stringify("ok");`,
+    );
+    await H.sleep(1200);
+    const nodesBeforeSearch = await H.ev(call, `document.querySelectorAll('[data-run-id]').length`);
     await H.storeQ(call, `s.setTreeQuery("标注来源文件与行号范围"); return JSON.stringify("ok");`);
     await H.sleep(600);
     const search1 = await H.ev(
@@ -325,8 +325,14 @@ const FLOWS = {
     ).then(JSON.parse);
     check(
       "#15 空结果明确提示且保持原渲染（不丢节点）",
-      search2 !== null && (search2.boxText || "").length > 0 && search2.nodes >= 27,
-      { nodes: search2?.nodes, hint: (search2?.boxText || "").slice(0, 60) },
+      search2 !== null &&
+        (search2.boxText || "").includes("没有匹配") &&
+        search2.nodes === nodesBeforeSearch,
+      {
+        nodes: search2?.nodes,
+        before: nodesBeforeSearch,
+        hint: (search2?.boxText || "").slice(0, 60),
+      },
     );
     await H.storeQ(call, `s.setTreeQuery(""); return JSON.stringify("ok");`);
     await H.shot(call, SHOT_DIR, "tree-search.png");
@@ -645,14 +651,22 @@ const FLOWS = {
   // -------------------------------------------------------------------------
   async "tree-single"(call) {
     await dprSentinel(call);
+    // 等 store 就绪（reload 后 store 异步水合；paths 全局查询也可能扫到别处 svg ⇒ 限定 section）
+    for (let i = 0; i < 30; i++) {
+      const s = await storeState(call);
+      if (typeof s.runsN === "number" && s.runsN === 1) break;
+      await H.sleep(500);
+    }
     const st0 = await storeState(call);
     check("单 run 数据目录就位（恰好 1 条）", st0.runsN === 1, `runsN=${st0.runsN}`);
     await openTree(call);
     const probe = await H.ev(
       call,
       `(() => {
-         const nodes = document.querySelectorAll('[data-run-id]');
-         const paths = document.querySelectorAll('svg path');
+         const anchor = document.querySelector('[data-run-id]');
+         const scope = anchor === null ? document : anchor.closest('section') ?? document;
+         const nodes = scope.querySelectorAll('[data-run-id]');
+         const paths = scope.querySelectorAll('svg path');
          const body = document.body.textContent;
          return JSON.stringify({
            nodes: Array.from(nodes).map(n => n.getAttribute('data-run-id')),
@@ -709,8 +723,12 @@ async function main() {
   for (let i = 0; i < 40; i++) {
     await H.sleep(500);
     try {
+      // tree-single 允许空集（空目录半边在流程内自删文件）；等 store 水合完成即可
+      if (TAG === "tree-single") {
+        await H.runs(call);
+        break;
+      }
       if ((await H.runs(call)).length > 0) break;
-      if (TAG === "tree-single") break; // tree-single 的空目录半边 runs 可能为 0
     } catch {
       /* 重载瞬间 */
     }
