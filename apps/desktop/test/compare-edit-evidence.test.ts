@@ -795,3 +795,61 @@ describe("U7 4.3 不同根：只核对实际输入配置", () => {
     expect(facts.status).toBe("notApplicable");
   });
 });
+
+describe("U7 4.4 三态与空值边界收口", () => {
+  it("fork.edit.value 字面缺失（undefined）⇒ EDIT_VALUE_UNRECORDED，与真实空串分开", () => {
+    const parent = ready("r_p", null, P_FORK, [stepSpan("t_step"), toolSpan("t_01", "原值")]);
+    const child = ready(
+      "r_c",
+      "r_p",
+      { at_span: "t_01", edit: { field: "result", value: undefined } },
+      [],
+    );
+
+    const evidence = deriveDirectEditEvidence(child, parent);
+    expect(evidence).toMatchObject({
+      status: "unavailable",
+      reasonCode: "EDIT_VALUE_UNRECORDED",
+      original: { kind: "unrecorded" },
+      updated: { kind: "unrecorded" },
+    });
+  });
+
+  it("双真实空值并存：null 原值 + 空串新值 ⇒ verified（都是已记录值）", () => {
+    const parent = ready("r_p", null, P_FORK, [stepSpan("t_step"), toolSpan("t_01", null)]);
+    const child = ready(
+      "r_c",
+      "r_p",
+      { at_span: "t_01", edit: { field: "result", value: "" } },
+      [],
+    );
+
+    const evidence = deriveDirectEditEvidence(child, parent);
+    expect(evidence.status).toBe("verified");
+    if (evidence.status === "verified") {
+      expect(evidence.original).toEqual({ kind: "value", value: null });
+      expect(evidence.updated).toEqual({ kind: "value", value: "" });
+    }
+  });
+
+  it("不可用结论恒携带身份四元组与受控原因（不伪空文本、不借对侧顶替）", () => {
+    const parent = ready("r_p", null, P_FORK, [stepSpan("t_step")]);
+    const child = ready(
+      "r_c",
+      "r_p",
+      { at_span: "t_missing", edit: { field: "result", value: "新值" } },
+      [],
+    );
+
+    const evidence = deriveDirectEditEvidence(child, parent);
+    expect(evidence.status).toBe("unavailable");
+    if (evidence.status !== "unavailable") return;
+    expect(evidence.sourceRunId).toBe("r_p");
+    expect(evidence.targetRunId).toBe("r_c");
+    expect(evidence.field).toBe("result");
+    expect(evidence.atSpanId).toBe("t_missing");
+    expect(evidence.reason.length).toBeGreaterThan(0);
+    expect(evidence.reason).not.toContain("D:");
+    expect(evidence.reason).not.toContain("\\");
+  });
+});
