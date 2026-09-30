@@ -506,3 +506,61 @@ describe("CompareWorkspaceView：整体形态", () => {
     expect(html).toContain("同步滚动");
   });
 });
+
+describe("5.11/5.15 模型实验比较区", () => {
+  it("eligible：批次身份 + 相对父累计增量 + 无臂间结论恒定说明 + 副作用放行说明", () => {
+    const html = renderToStaticMarkup(
+      <EditEvidenceSection
+        onOpenRun={vi.fn()}
+        data={{
+          kind: "experiment",
+          gate: {
+            status: "eligible",
+            code: "OK",
+            reason: "同父合法臂",
+            batch: { parentRunId: "r_p", experimentIds: ["exp_1", null] },
+          },
+          deltas: [
+            { runId: "r_a1", tokens: 28, durationMs: 150 },
+            { runId: "r_a2", tokens: null, durationMs: null },
+          ],
+          sideEffectsDeclared: true,
+        }}
+      />,
+    );
+    expect(html).toContain("模型实验比较（历史记录）");
+    expect(html).toContain("r_p");
+    expect(html).toContain("exp_1");
+    expect(html).toContain("（未记录）");
+    expect(html).toContain("28 tokens");
+    expect(html).toContain("未知（不估算）");
+    expect(html).toContain("顺序执行");
+    expect(html).toContain("不产出臂间差值、胜出臂或最佳模型结论");
+  });
+
+  it("ineligible：受控原因 + 各记录单独打开入口（不恢复资格措辞）", () => {
+    const html = renderToStaticMarkup(
+      <EditEvidenceSection
+        onOpenRun={vi.fn()}
+        data={{
+          kind: "experiment",
+          gate: {
+            status: "ineligible",
+            code: "MIXED_SELECTION",
+            reason: "选择集混入非实验臂：不能退回普通比较绕过实验资格",
+            batch: null,
+          },
+          deltas: [
+            { runId: "r_a1", tokens: null, durationMs: null },
+            { runId: "r_n", tokens: null, durationMs: null },
+          ],
+          sideEffectsDeclared: false,
+        }}
+      />,
+    );
+    expect(html).toContain("MIXED_SELECTION");
+    expect(html).toContain("不能退回普通比较绕过实验资格");
+    expect(html).toContain('aria-label="打开记录 r_a1"');
+    expect(html).toContain("不恢复实验资格、不产生执行授权");
+  });
+});

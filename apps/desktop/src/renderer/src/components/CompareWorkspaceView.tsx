@@ -1,6 +1,7 @@
 import type { DirectEditEvidence, EditValuePresence } from "@shared/compare-edit-evidence";
 import type { DifferentRootComparison } from "@shared/compare-edit-evidence";
 import type { CompareDiffGate, SideOutputFacts } from "@shared/compare-output";
+import type { ExperimentGate } from "@shared/experiment-records";
 import { outcomeBadgeClass } from "@shared/outcome";
 import { foldCatalogRows } from "../lib/compare-steps";
 import type { SideStepCatalog } from "../lib/compare-steps";
@@ -64,7 +65,20 @@ export type EvidenceViewData =
       readonly facts: Extract<DifferentRootComparison, { status: "facts" }>;
     }
   | { readonly kind: "incomplete"; readonly reason: string }
-  | { readonly kind: "unavailable"; readonly reason: string };
+  | { readonly kind: "unavailable"; readonly reason: string }
+  | {
+      /** 5.11/5.15：模型实验比较（选择集含 model_params 臂且通过/未通过门禁） */
+      readonly kind: "experiment";
+      readonly gate: ExperimentGate;
+      /** gate eligible 时：各臂相对共同父的累计增量（沿链口径；未知为 null） */
+      readonly deltas: readonly {
+        runId: string;
+        tokens: number | null;
+        durationMs: number | null;
+      }[];
+      /** 任一臂记录了副作用放行 ⇒ 顺序执行与外部状态说明 */
+      readonly sideEffectsDeclared: boolean;
+    };
 
 export interface CompareWorkspaceViewProps {
   readonly pair: { readonly leftRunId: string; readonly rightRunId: string };
@@ -77,6 +91,8 @@ export interface CompareWorkspaceViewProps {
   readonly onToggleDiffMode: () => void;
   readonly onSwap: () => void;
   readonly onReturn: () => void;
+  /** 5.11：实验比较被拒时「单独打开记录」的入口（selectRun 通路，不恢复资格） */
+  readonly onOpenRun: (runId: string) => void;
   readonly evidence: EvidenceViewData;
 }
 
@@ -177,8 +193,107 @@ export function DirectEvidenceBlock({
   );
 }
 
+/**
+ * 5.11/5.15：模型实验比较区。
+ *
+ * - eligible：批次身份（共同父 + 各臂已记录 experimentId 原样）+ 各臂相对父的
+ *   累计增量（沿链口径）+ 副作用放行说明（已记录者保留顺序执行与外部状态影响）；
+ *   **恒定说明**：不产出臂间差值、胜出臂或最佳模型结论（5.15——交换与多列同样适用）；
+ * - ineligible / unverifiable：受控原因 + 「各记录可单独打开」入口（由容器接线）。
+ */
+function ExperimentEvidenceBlock({
+  gate,
+  deltas,
+  sideEffectsDeclared,
+  onOpenRun,
+}: {
+  gate: ExperimentGate;
+  deltas: readonly { runId: string; tokens: number | null; durationMs: number | null }[];
+  sideEffectsDeclared: boolean;
+  onOpenRun: (runId: string) => void;
+}) {
+  return (
+    <section className="border-t border-gray-200 px-4 py-3" aria-label="模型实验比较">
+      <h3 className="text-xs font-medium text-gray-700">模型实验比较（历史记录）</h3>
+      {gate.status === "eligible" ? (
+        <>
+          <div className="mt-1 text-[11px] text-gray-500">
+            批次父本 <span className="font-code">{gate.batch?.parentRunId}</span>
+            {gate.batch !== null && gate.batch.experimentIds.some((id) => id !== null) ? (
+              <span className="ml-2">
+                各臂批次标签：{gate.batch.experimentIds.map((id) => id ?? "（未记录）").join("、")}
+              </span>
+            ) : (
+              <span className="ml-2">各臂未记录批次标签（不伪造同批）</span>
+            )}
+          </div>
+          <dl className="mt-2 space-y-1 text-xs">
+            {deltas.map((delta) => (
+              <div key={delta.runId} className="flex items-center gap-2">
+                <dt className="font-code text-[11px] text-gray-500">{delta.runId}</dt>
+                <dd className="text-gray-700">
+                  相对父累计增量：
+                  {delta.tokens === null ? "未知（不估算）" : `${delta.tokens} tokens`}
+                  {delta.durationMs !== null ? ` · ${delta.durationMs} ms` : ""}
+                </dd>
+              </div>
+            ))}
+          </dl>
+          {sideEffectsDeclared ? (
+            <div className="mt-2 rounded bg-amber-50 px-2 py-1 text-[11px] text-amber-800">
+              已记录副作用放行：多臂按顺序执行，前一臂的外部状态可能影响后一臂的起点——比较结果按此口径阅读
+            </div>
+          ) : null}
+          <div className="mt-2 text-[11px] text-gray-500">
+            仅展示各臂事实与相对父 run
+            的累计增量（沿链求和口径）；不产出臂间差值、胜出臂或最佳模型结论——交换左右或改选两臂同样如此
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="mt-2 rounded bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            [{gate.code}] {gate.reason}
+          </div>
+          <div className="mt-1 text-[11px] text-gray-500">
+            各记录仍可单独打开（不恢复实验资格、不产生执行授权）：
+          </div>
+          <div className="mt-1 flex gap-2">
+            {deltas.map((delta) => (
+              <button
+                key={delta.runId}
+                type="button"
+                aria-label={`打开记录 ${delta.runId}`}
+                onClick={() => onOpenRun(delta.runId)}
+                className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
+              >
+                打开 {delta.runId}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
 /** 编辑证据区（容器按关系分型） */
-export function EditEvidenceSection({ data }: { data: EvidenceViewData }) {
+export function EditEvidenceSection({
+  data,
+  onOpenRun,
+}: {
+  data: EvidenceViewData;
+  onOpenRun: (runId: string) => void;
+}) {
+  if (data.kind === "experiment") {
+    return (
+      <ExperimentEvidenceBlock
+        gate={data.gate}
+        deltas={data.deltas}
+        sideEffectsDeclared={data.sideEffectsDeclared}
+        onOpenRun={onOpenRun}
+      />
+    );
+  }
   if (data.kind === "direct") {
     return (
       <section className="border-t border-gray-200 px-4 py-3" aria-label="修改证据">
@@ -457,6 +572,7 @@ export function CompareWorkspaceView({
   onToggleDiffMode,
   onSwap,
   onReturn,
+  onOpenRun,
   evidence,
 }: CompareWorkspaceViewProps) {
   const diffAvailable = diffGate.status === "available";
@@ -542,7 +658,7 @@ export function CompareWorkspaceView({
           ))}
         </div>
       )}
-      <EditEvidenceSection data={evidence} />
+      <EditEvidenceSection data={evidence} onOpenRun={onOpenRun} />
     </div>
   );
 }

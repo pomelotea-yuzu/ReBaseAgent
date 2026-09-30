@@ -7,6 +7,7 @@ import {
 import type { DirectEditEvidence } from "@shared/compare-edit-evidence";
 import { deriveCompareDiffGate, deriveSideOutputFacts } from "@shared/compare-output";
 import type { CompareDiffGate, SideOutputFacts } from "@shared/compare-output";
+import { deriveExperimentGate } from "@shared/experiment-records";
 import type { CompareRunItem } from "@shared/ipc";
 import { useEffect, useMemo, useState } from "react";
 import { deriveSideStepCatalog } from "../lib/compare-steps";
@@ -39,6 +40,7 @@ export function CompareWorkspace() {
   const selectCompareStep = useAppStore((s) => s.selectCompareStep);
   const toggleComparePrefix = useAppStore((s) => s.toggleComparePrefix);
   const openCompareSideError = useAppStore((s) => s.openCompareSideError);
+  const selectRun = useAppStore((s) => s.selectRun);
 
   // diff 模式是展示态（容器本地）；换 pair 即退出，避免旧门禁文本滞留新对象
   const [diffMode, setDiffMode] = useState(false);
@@ -99,6 +101,26 @@ export function CompareWorkspace() {
   const evidence: EvidenceViewData = useMemo(() => {
     if (acceptedItems === null || verified === null || readyItems.length < 2) {
       return { kind: "unavailable", reason: "尚无可核对两侧的比较结论" };
+    }
+    // 5.11/5.15：含 model_params 臂的选择集必须走实验门禁（优先于普通关系分型——
+    // 混选/异父不能退回普通不同根规则放行）
+    const gate = deriveExperimentGate(acceptedItems);
+    if (gate.status !== "notExperiment") {
+      const deltas = readyItems.map((item) => {
+        const side = verified.sides.find((candidate) => candidate.runId === item.runId);
+        return {
+          runId: item.runId,
+          tokens: side?.deltaFromAncestor?.tokens ?? null,
+          durationMs: side?.deltaFromAncestor?.durationMs ?? null,
+        };
+      });
+      const sideEffectsDeclared = readyItems.some((item) => {
+        const fork = item.detail.meta.fork;
+        if (fork === null || fork.edit.field !== "model_params") return false;
+        const value = fork.edit.value as { allowSideEffects?: unknown } | undefined;
+        return value?.allowSideEffects === true;
+      });
+      return { kind: "experiment", gate, deltas, sideEffectsDeclared };
     }
     const unavailableItem = acceptedItems.find((item) => item.status === "unavailable");
     if (unavailableItem !== undefined) {
@@ -180,6 +202,10 @@ export function CompareWorkspace() {
       }}
       onReturn={() => {
         void returnFromCompare();
+      }}
+      onOpenRun={(runId) => {
+        // 5.11：单独打开记录 = selectRun 既有通路（离开比较视图保留 pair；不恢复资格）
+        void selectRun(runId);
       }}
       evidence={evidence}
     />
