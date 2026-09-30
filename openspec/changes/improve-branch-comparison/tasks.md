@@ -37,7 +37,7 @@
 
 - [x] 4.1 实现普通 result 的父调用原值与子 fork 新值证据投影并测试（对应“直接父子展示真实编辑前后值”）。（`08da068`：shared/compare-edit-evidence.ts deriveDirectEditEvidence 三态；方向按 meta.parent 身份不按左右位置；v1 原值 = 父轨迹 at_span → tool.invoke.result，新值 = fork.edit.value 原样；真实空串/null 与未记录分开；未知字段原样保留 + UNKNOWN_EDIT_FIELD；prompt/messages/model_params 暂 FIELD_NOT_PROJECTED——4.11 与 §5 改判时须两边留痕）
 - [x] 4.2 实现逐跳编辑证据与来源链呈现，补相应单元/IPC/store/组件验证（对应“多跳兄弟展示逐跳修改链”）。（`2009a88`：deriveHopChains(items, ancestorId)——从已确认共同祖先（不含）到各 ready 侧逐跳，每跳核对直接父（CHAIN_BREAK 兜底）；值级证据尽力投影：result 跳在该侧 resolved 视图定位、context 跳在来源详情于对内时走实际请求、否则 SPAN_NOT_IN_VIEW；ancestorId=null ⇒ 空链不推断根。纯派生层交付；「呈现」归 4.12 视图消费）
-- [ ] 4.3 实现不同根事实对照及不适用状态，补相应单元/IPC/store/组件验证（对应“不同根只核对实际输入配置”）。
+- [x] 4.3 实现不同根事实对照及不适用状态，补相应单元/IPC/store/组件验证（对应“不同根只核对实际输入配置”）。（`7613e4b`：deriveDifferentRootFacts——relation=unrelated 且两侧 ready 时逐侧列出模型/system/user/params 实际记录值；relation 非 unrelated 或有不可读侧 ⇒ notApplicable（共同祖先未确认不得按不同根呈现）；不触 config_hash；视图呈现归 4.12）
 - [ ] 4.4 实现编辑证据三态、未知字段与空值边界，补相应单元/IPC/store/组件验证（对应“原值缺失未知字段不补空”）。
 - [ ] 4.5 复用输出/结局派生并实现单侧错误跳转，补相应单元/IPC/store/组件验证（对应“最终输出不借中间正文或祖先”）。
 - [ ] 4.6 实现输出工具栏、只读 diff 与独立滚动，补相应单元/IPC/store/组件验证（对应“长输出独立阅读与合法文本差异”）。
