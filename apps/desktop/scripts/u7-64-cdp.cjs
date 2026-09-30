@@ -175,7 +175,7 @@ const treeDetail = (call) =>
 // ---------------------------------------------------------------------------
 
 const FLOWS = {
-  async treeGeometry(call) {
+  async "tree-geometry"(call) {
     await dprSentinel(call);
     const st0 = await storeState(call);
     check("标本已注入且应用可见（≥27 条）", st0.runsN >= 27, `runsN=${st0.runsN}`);
@@ -637,7 +637,7 @@ const FLOWS = {
   // -------------------------------------------------------------------------
   // tag：tree-single（run-all 已把 traces 换成仅一条根 run）
   // -------------------------------------------------------------------------
-  async treeSingle(call) {
+  async "tree-single"(call) {
     await dprSentinel(call);
     const st0 = await storeState(call);
     check("单 run 数据目录就位（恰好 1 条）", st0.runsN === 1, `runsN=${st0.runsN}`);
