@@ -287,6 +287,43 @@ describe("U7 2.2/2.5 手动集合与 pair 编辑", () => {
   });
 });
 
+describe("U7 5.3 指标表显式选两条（openComparePair）", () => {
+  it("集合内互异两条 ⇒ 打开 pair 并按该序读取；全局集合纹丝不动", async () => {
+    useAppStore.setState({ compareIds: ["r_parent", "r_child", "r_other"] });
+    const generationBefore = useAppStore.getState().navGeneration;
+
+    const result = await useAppStore.getState().openComparePair("r_child", "r_other");
+
+    expect(result).toBe("opened");
+    expect(useAppStore.getState().comparePair).toEqual({
+      leftRunId: "r_child",
+      rightRunId: "r_other",
+    });
+    expect(useAppStore.getState().compareRead.selection).toEqual(["r_child", "r_other"]);
+    expect(calls).toContain("runs:compare:r_child,r_other");
+    // 显式选择不改全局集合（D1）
+    expect(useAppStore.getState().compareIds).toEqual(["r_parent", "r_child", "r_other"]);
+    // 页内换 pair = 显式换阅读对象 ⇒ 推进导航代次（2.4 同款）
+    expect(useAppStore.getState().navGeneration).toBeGreaterThan(generationBefore);
+  });
+
+  it("相同 ID ⇒ rejected（不进入、不读取）；集合外 id ⇒ rejected", async () => {
+    useAppStore.setState({ compareIds: ["r_parent", "r_child"] });
+    expect(await useAppStore.getState().openComparePair("r_child", "r_child")).toBe("rejected");
+    expect(await useAppStore.getState().openComparePair("r_child", "r_ghost")).toBe("rejected");
+    expect(useAppStore.getState().comparePair).toBeNull();
+    expect(calls.every((call) => !call.startsWith("runs:compare"))).toBe(true);
+  });
+
+  it("同 pair 重复提交幂等：不重读（enterCompareSelection 同集幂等）", async () => {
+    useAppStore.setState({ compareIds: ["r_parent", "r_child"] });
+    await useAppStore.getState().openComparePair("r_parent", "r_child");
+    const readsAfterOpen = calls.filter((call) => call.startsWith("runs:compare")).length;
+    await useAppStore.getState().openComparePair("r_parent", "r_child");
+    expect(calls.filter((call) => call.startsWith("runs:compare")).length).toBe(readsAfterOpen);
+  });
+});
+
 describe("U7 2.3 返回位置与单侧往返", () => {
   it("返回来源：恢复视图与阅读位置，凭据一次性用掉", async () => {
     await placeReadingChild();

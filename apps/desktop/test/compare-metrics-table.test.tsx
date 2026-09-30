@@ -147,6 +147,49 @@ describe("CompareMetricsTable：宽幅表结构", () => {
   });
 });
 
+describe("5.3 指标表显式选两条（挑选条与列头动作）", () => {
+  const shorts = computeShortIds(["r_a", "r_b", "r_c"]);
+
+  function model3() {
+    const items = ["r_a", "r_b", "r_c"].map((id) => readyItem(id, [summary({ id })]));
+    return deriveCompareMetricsTable({ items, shortIds: shorts });
+  }
+
+  function renderWithPick(pick: { left: string | null; right: string | null }) {
+    return renderToStaticMarkup(
+      <CompareMetricsTable
+        model={model3()}
+        loading={false}
+        rejected={null}
+        onRetry={vi.fn()}
+        pick={pick}
+        pickError={null}
+        onPickSide={vi.fn()}
+        onOpenPair={vi.fn()}
+        onClearPick={vi.fn()}
+      />,
+    );
+  }
+
+  it("列头提供「设为左列/右列」动作（aria-pressed 标注当前挑选）", () => {
+    const html = renderWithPick({ left: "r_a", right: null });
+    expect(html).toContain('aria-label="设为左列 r_a"');
+    expect(html).toContain('aria-label="设为右列 r_c"');
+    expect(html).toContain('aria-pressed="true"');
+  });
+
+  it("挑选条：两侧齐备才可打开详细比较（否则 disabled），未选侧显示（未选）", () => {
+    const pending = renderWithPick({ left: "r_a", right: null });
+    expect(pending).toContain("左 r_a · 右 （未选）");
+    expect(pending).toContain('aria-label="打开所选两条的详细比较"');
+    expect(pending).toContain('disabled=""');
+
+    const ready = renderWithPick({ left: "r_a", right: "r_c" });
+    expect(ready).not.toContain('disabled=""');
+    expect(ready).toContain('aria-label="清除挑选"');
+  });
+});
+
 describe("CompareSelectionBarView：选择栏", () => {
   const runs = [summary({ id: "r_a" }), summary({ id: "r_b" })];
   const shorts = computeShortIds(["r_a", "r_b"]);

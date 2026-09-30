@@ -18,6 +18,20 @@ export function CompareMetricsTable(props: {
   /** 请求级拒绝（信封失败 / 载荷不合法）；null = 无 */
   readonly rejected: { readonly code: string; readonly reason: string } | null;
   readonly onRetry: () => void;
+  /**
+   * U7 5.3：指标表内**显式选两条**的两步挑选状态（容器本地，pair 之外）。
+   * 提供时列头出现「设为左列/右列」按钮 + 顶部挑选条。
+   */
+  readonly pick?: {
+    readonly left: string | null;
+    readonly right: string | null;
+  };
+  readonly onPickSide?: (side: "left" | "right", runId: string) => void;
+  /** 两步挑选齐备后「打开详细比较」的提交动作 */
+  readonly onOpenPair?: () => void;
+  readonly onClearPick?: () => void;
+  /** 挑选提交被拒（同 ID / 集合外）时的就地解释 */
+  readonly pickError?: string | null;
 }) {
   const { model } = props;
 
@@ -69,6 +83,38 @@ export function CompareMetricsTable(props: {
         <div className="px-4 py-1 text-[11px] text-gray-500">正在读取比较对象…</div>
       ) : null}
 
+      {/* U7 5.3：两步挑选条——两侧齐备才可打开详细比较（相同 ID 由 store 拒绝） */}
+      {props.pick !== undefined && model.columns.length >= 2 ? (
+        <div className="flex flex-wrap items-center gap-2 border-b border-gray-100 px-4 py-1.5">
+          <span className="text-[11px] text-gray-500">
+            已选：左 {pickLabel(props.pick.left, model.columns) ?? "（未选）"} · 右{" "}
+            {pickLabel(props.pick.right, model.columns) ?? "（未选）"}
+          </span>
+          <button
+            type="button"
+            aria-label="打开所选两条的详细比较"
+            onClick={props.onOpenPair}
+            disabled={props.pick.left === null || props.pick.right === null}
+            className="rounded border border-gray-300 px-2 py-0.5 text-[11px] text-gray-700 enabled:hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            打开详细比较
+          </button>
+          {props.pick.left !== null || props.pick.right !== null ? (
+            <button
+              type="button"
+              aria-label="清除挑选"
+              onClick={props.onClearPick}
+              className="rounded px-1.5 py-0.5 text-[11px] text-gray-500 hover:bg-gray-100"
+            >
+              清除
+            </button>
+          ) : null}
+          {props.pickError !== null && props.pickError !== undefined ? (
+            <output className="text-[11px] text-amber-800">{props.pickError}</output>
+          ) : null}
+        </div>
+      ) : null}
+
       {/* 横滚只在表格容器内：名称列 sticky，运行列保持可读最小宽度 */}
       <div className="min-h-0 flex-1 overflow-auto">
         <table className="border-collapse text-xs">
@@ -108,6 +154,28 @@ export function CompareMetricsTable(props: {
                     {column.unavailableReason !== null ? (
                       <div className="mt-1 rounded bg-amber-50 px-1.5 py-1 text-[11px] text-amber-800">
                         不可读：{column.unavailableReason}
+                      </div>
+                    ) : null}
+                    {props.onPickSide !== undefined && column.unavailableReason === null ? (
+                      <div className="mt-1 flex gap-1">
+                        <button
+                          type="button"
+                          aria-label={`设为左列 ${column.runId}`}
+                          aria-pressed={props.pick?.left === column.runId}
+                          onClick={() => props.onPickSide?.("left", column.runId)}
+                          className="rounded border border-gray-300 px-1.5 py-0.5 text-[10px] text-gray-600 hover:bg-gray-50"
+                        >
+                          设为左列
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`设为右列 ${column.runId}`}
+                          aria-pressed={props.pick?.right === column.runId}
+                          onClick={() => props.onPickSide?.("right", column.runId)}
+                          className="rounded border border-gray-300 px-1.5 py-0.5 text-[10px] text-gray-600 hover:bg-gray-50"
+                        >
+                          设为右列
+                        </button>
                       </div>
                     ) : null}
                   </div>
@@ -152,6 +220,15 @@ function statusTextClass(tone: MetricsTableModel["columns"][number]["statusTone"
     default:
       return "text-gray-500";
   }
+}
+
+/** 挑选条里的短 ID 标签（查不到回退完整 id；null = 未选） */
+function pickLabel(
+  runId: string | null,
+  columns: MetricsTableModel["columns"],
+): string | null {
+  if (runId === null) return null;
+  return columns.find((column) => column.runId === runId)?.shortId ?? runId;
 }
 
 /** 指标行：sticky 名称格 + 逐列值（null = 该侧不可得，显示 —，不补 0） */

@@ -64,10 +64,33 @@ export function CompareWorkspace() {
   // U7 5.2：指标表模式（容器本地展示态）。pair 在场时也能切回宽幅指标表阅读
   // "既有四条指标对照"；换 pair 即退出，避免旧集合的表滞留新对象。
   const [tableMode, setTableMode] = useState(false);
+  // U7 5.3：指标表内显式选两条的两步挑选（容器本地；不动全局集合，D1）
+  const [tablePick, setTablePick] = useState<{ left: string | null; right: string | null }>({
+    left: null,
+    right: null,
+  });
+  const openComparePair = useAppStore((s) => s.openComparePair);
+  const [pickError, setPickError] = useState<string | null>(null);
   // biome-ignore lint/correctness/useExhaustiveDependencies: 展示态复位刻意只盯 pairKey（setState 稳定）
   useEffect(() => {
     setTableMode(false);
+    setTablePick({ left: null, right: null });
+    setPickError(null);
   }, [pairKey]);
+
+  /** 两步挑选的提交：两侧齐备才可发（store 侧仍拒绝同 ID / 集合外 id） */
+  const submitPick = (): void => {
+    if (tablePick.left === null || tablePick.right === null) return;
+    void openComparePair(tablePick.left, tablePick.right).then((result) => {
+      if (result === "opened") {
+        setTablePick({ left: null, right: null });
+        setPickError(null);
+        setTableMode(false);
+        return;
+      }
+      setPickError("无法打开：两条必须是集合内互异的有效运行（相同 ID 不构成两条比较）");
+    });
+  };
 
   /** 切回指标表：把读取对回整个对照集合（1–4 条；同集合幂等不重读） */
   const openMetricsTable = (): void => {
@@ -131,6 +154,17 @@ export function CompareWorkspace() {
           }
           onRetry={() => {
             void retryCompareSelectionRead();
+          }}
+          pick={tablePick}
+          pickError={pickError}
+          onPickSide={(side, runId) => {
+            setPickError(null);
+            setTablePick((prev) => ({ ...prev, [side]: runId }));
+          }}
+          onOpenPair={submitPick}
+          onClearPick={() => {
+            setTablePick({ left: null, right: null });
+            setPickError(null);
           }}
         />
       </div>

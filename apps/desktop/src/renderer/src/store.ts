@@ -634,6 +634,15 @@ interface AppState {
    */
   openCompareWithParent: (runId: string) => Promise<"opened" | "hidden" | "blocked">;
   /**
+   * U7 任务 5.3：从宽幅指标表**显式选择两条**进入详细比较（design D1）。
+   * - 两枚 runId 必须互异（相同 ID 不构成两条比较）且都属于当前对照集合
+   *   （表列只能来自集合，双保险）；
+   * - 显式选择**不改全局集合**（进入/交换不改集合，D1）；
+   * - 页内换 pair = 显式换阅读对象 ⇒ 推进阅读代次（2.4 同款）；
+   *   步骤选中/折叠随 pair 变更的清理在 `enterCompareView` 内完成。
+   */
+  openComparePair: (leftRunId: string, rightRunId: string) => Promise<"opened" | "rejected">;
+  /**
    * U7 任务 2.2/2.5：从全局对照集合进入比较工作区。恰好两条 ⇒ 按加入顺序
    * （先子在左也是子左父右）；三/四条 ⇒ 不自动选两条（§5.3 显式选择，这里如实
    * 提示后仍进工作区）；零/一条 ⇒ 无详细比较（引导态）。
@@ -2289,6 +2298,18 @@ export const useAppStore = create<AppState>((set, get) => ({
     const decision = decideCompareWithParent(detail);
     if (decision.kind !== "open") return decision.kind;
     await enterCompareView(decision.pair);
+    return "opened";
+  },
+
+  async openComparePair(leftRunId, rightRunId) {
+    // U7 5.3：显式选两条。相同 ID 不构成两条比较；两枚 id 都必须在当前对照集合内
+    //（指标表的列本来就来自集合——这里判集合而不是判结论，避免"结论未到就点不动"）
+    if (leftRunId === rightRunId) return "rejected";
+    const ids = get().compareIds;
+    if (!ids.includes(leftRunId) || !ids.includes(rightRunId)) return "rejected";
+    // 页内换 pair = 显式换阅读对象 ⇒ 推进代次（与 setCompareSide/swap 同款）
+    noteReadingChanged();
+    await enterCompareView({ leftRunId, rightRunId });
     return "opened";
   },
 
