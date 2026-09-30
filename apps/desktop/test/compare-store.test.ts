@@ -143,7 +143,11 @@ beforeEach(() => {
   calls.length = 0;
   compareGates = [];
   compareEnvelope = verifiedPayload("r_a");
-  useAppStore.setState({ compareRead: emptyCompareReadSession() });
+  useAppStore.setState({
+    compareRead: emptyCompareReadSession(),
+    // U7 4.8 复位表：复合定位状态不得跨用例残留
+    compareStepSelection: { left: null, right: null },
+  });
 });
 
 describe("U7 1.4 选择集代次与迟到响应守卫", () => {
@@ -342,5 +346,68 @@ describe("U7 4.5 单侧错误跳转", () => {
     // selectRun 已把界面切到该 run（读取失败原位可重试），但不做 span 定位
     expect(state.selectedRunId).toBe("r_x");
     expect(state.selectedSpanId).toBeNull();
+  });
+});
+
+describe("U7 4.8 复合定位：选左不改变右", () => {
+  it("selectCompareStep 只动本侧——两侧重复的 span id 各归各列", async () => {
+    useAppStore.setState({
+      comparePair: { leftRunId: "r_a", rightRunId: "r_b" },
+      compareStepSelection: { left: null, right: null },
+    } as never);
+
+    const store = useAppStore.getState();
+    store.selectCompareStep("left", "s_01");
+    expect(useAppStore.getState().compareStepSelection).toEqual({ left: "s_01", right: null });
+    // 右侧选同一个 id（两侧各自运行都有 s_01 是常态）：左侧不被波及
+    useAppStore.getState().selectCompareStep("right", "s_01");
+    expect(useAppStore.getState().compareStepSelection).toEqual({ left: "s_01", right: "s_01" });
+    // 取消选中也只动本侧
+    useAppStore.getState().selectCompareStep("left", null);
+    expect(useAppStore.getState().compareStepSelection).toEqual({ left: null, right: "s_01" });
+  });
+
+  it("更换一侧对象：被换侧选中清空，另一侧保留", async () => {
+    useAppStore.setState({
+      comparePair: { leftRunId: "r_a", rightRunId: "r_b" },
+      compareStepSelection: { left: "c_01", right: "c_02" },
+    } as never);
+
+    const result = await useAppStore.getState().setCompareSide("left", "r_c");
+
+    expect(result).toBe("replaced");
+    expect(useAppStore.getState().compareStepSelection).toEqual({ left: null, right: "c_02" });
+    expect(useAppStore.getState().comparePair).toEqual({ leftRunId: "r_c", rightRunId: "r_b" });
+  });
+
+  it("交换左右：步骤选中随对象一起对调（不是清空）", async () => {
+    useAppStore.setState({
+      comparePair: { leftRunId: "r_a", rightRunId: "r_b" },
+      compareStepSelection: { left: "c_01", right: "c_02" },
+    } as never);
+
+    const result = await useAppStore.getState().swapCompareSides();
+
+    expect(result).toBe("swapped");
+    expect(useAppStore.getState().compareStepSelection).toEqual({ left: "c_02", right: "c_01" });
+    expect(useAppStore.getState().comparePair).toEqual({ leftRunId: "r_b", rightRunId: "r_a" });
+  });
+
+  it("换了 pair（新比较集）⇒ 两侧全清；同 pair 幂等进入保留", async () => {
+    // 第一次进入：r_a / r_b
+    useAppStore.setState({ compareIds: ["r_a", "r_b"], view: "trace" } as never);
+    await useAppStore.getState().openCompareWorkspace();
+    useAppStore.getState().selectCompareStep("left", "c_01");
+    useAppStore.getState().selectCompareStep("right", "c_02");
+
+    // 同 pair 幂等进入：选中保留
+    await useAppStore.getState().openCompareWorkspace();
+    expect(useAppStore.getState().compareStepSelection).toEqual({ left: "c_01", right: "c_02" });
+
+    // 换比较集（经全局集合选出另一对）：两侧全清
+    useAppStore.setState({ compareIds: ["r_a", "r_c"] } as never);
+    await useAppStore.getState().openCompareWorkspace();
+    expect(useAppStore.getState().comparePair).toEqual({ leftRunId: "r_a", rightRunId: "r_c" });
+    expect(useAppStore.getState().compareStepSelection).toEqual({ left: null, right: null });
   });
 });

@@ -605,6 +605,15 @@ interface AppState {
    */
   comparePair: ComparePair | null;
   /**
+   * U7 任务 4.8：比较步骤的**复合定位**——左右两列各自的选中调用，身份 =
+   * 侧 + run + span。选左不改变右（scenario「重复 span ID 与独立分支不强行
+   * 对齐」：两侧重复的 s_01 各归各列）；更换对象清空被换侧，交换随 pair 对调，
+   * 换了 pair（新比较集）则两侧全清。
+   */
+  compareStepSelection: { readonly left: string | null; readonly right: string | null };
+  /** U7 任务 4.8：设置某一列的选中调用（null = 取消选中）；只动本侧。 */
+  selectCompareStep: (side: "left" | "right", spanId: string | null) => void;
+  /**
    * U7 任务 2.3：比较页的来源位置引用（类型与创建页同形，捕获/恢复复用同一批
    * 判据）。一次性凭据：返回来源即用掉；经 `selectRun` 打开单侧时**保留**——
    * 「打开单侧 → 返回比较 → 再返回来源」的往返要靠它（setView 才清）。
@@ -1157,6 +1166,8 @@ async function requestCompareRead(runIds: readonly string[], generation: number)
 async function enterCompareView(pair: ComparePair | null): Promise<void> {
   const state = useAppStore.getState();
   const alreadyInCompare = state.view === "compare";
+  // U7 4.8：prev pair 必须在 setState 前取——换了 pair（新比较集）两侧步骤选中全清
+  const prevPair = state.comparePair;
   let location: CompareReturnLocation | null = null;
   if (!alreadyInCompare) {
     const decision = decideCreateEntry({
@@ -1177,6 +1188,13 @@ async function enterCompareView(pair: ComparePair | null): Promise<void> {
     ...(pair !== null ? { comparePair: pair } : {}),
   });
   if (pair !== null) {
+    const changed =
+      prevPair === null ||
+      prevPair.leftRunId !== pair.leftRunId ||
+      prevPair.rightRunId !== pair.rightRunId;
+    if (changed) {
+      useAppStore.setState({ compareStepSelection: { left: null, right: null } });
+    }
     await useAppStore.getState().enterCompareSelection([pair.leftRunId, pair.rightRunId]);
   }
 }
@@ -1504,6 +1522,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   // U7 任务 2.2/2.3：详细比较 pair（独立于侧栏选择）与比较页来源引用（一次性凭据）
   comparePair: null,
   compareReturnLocation: null,
+  // U7 任务 4.8：比较步骤复合定位（左右各一，身份 = 侧 + run + span）
+  compareStepSelection: { left: null, right: null },
   // U7 任务 3.1–3.3：分支树的会话观察状态（范围/搜索/视口，不落盘）
   treeScope: null,
   treeQuery: "",
@@ -2279,6 +2299,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     // 与全局对照集合（scenario「更换交换不改变侧栏选择」）
     noteReadingChanged();
     set({ comparePair: decision.pair });
+    // U7 4.8：被换侧的步骤选中随旧对象失效；另一侧保留
+    set({
+      compareStepSelection: {
+        left: side === "left" ? null : get().compareStepSelection.left,
+        right: side === "right" ? null : get().compareStepSelection.right,
+      },
+    });
     await get().enterCompareSelection([decision.pair.leftRunId, decision.pair.rightRunId]);
     return "replaced";
   },
@@ -2289,9 +2316,21 @@ export const useAppStore = create<AppState>((set, get) => ({
     const swapped = swapComparePair(pair);
     noteReadingChanged();
     set({ comparePair: swapped });
+    // U7 4.8：交换 = 左右内容对调 ⇒ 步骤选中随对象一起对调（不是清空）
+    const selection = get().compareStepSelection;
+    set({ compareStepSelection: { left: selection.right, right: selection.left } });
     // 交换使旧序请求失效（design D3「快速替换、交换、移出或离开使旧请求失效」）
     await get().enterCompareSelection([swapped.leftRunId, swapped.rightRunId]);
     return "swapped";
+  },
+
+  selectCompareStep(side, spanId) {
+    // U7 4.8：复合定位只动本侧——选左不改变右（重复的 s_01 各归各列）
+    const current = get().compareStepSelection;
+    set({
+      compareStepSelection:
+        side === "left" ? { ...current, left: spanId } : { ...current, right: spanId },
+    });
   },
 
   async returnFromCompare() {
