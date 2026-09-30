@@ -4,7 +4,22 @@ import { RunDetailSchema } from "../shared/ipc";
 import type { RunDetail } from "../shared/ipc";
 import { isPlainResultChain, projectMixedChainSpans } from "./run-detail-project";
 import { readRunLineage } from "./run-lineage-read";
-import type { RunLineageOutcome } from "./run-lineage-read";
+import type { RunLineageDiagnostic, RunLineageOutcome } from "./run-lineage-read";
+
+/**
+ * 严格读取失败的结构化载体：message 是受控中文原因（与既有 getRun 抛错文本逐字
+ * 一致），diagnostic 携带 U6 的六分类（`null` = 当前 run 的普通严格失败）。
+ * 比较端点据此映射逐项 unavailable 的稳定码，不解析异常文本。
+ */
+export class RunDetailReadError extends Error {
+  constructor(
+    readonly diagnostic: RunLineageDiagnostic | null,
+    message: string,
+  ) {
+    super(message);
+    this.name = "RunDetailReadError";
+  }
+}
 
 /**
  * U7（improve-branch-comparison）design D3：按 run ID 缓存的**单次读取上下文**。
@@ -44,13 +59,13 @@ export class RunReadContext {
   detailOf(id: string): RunDetail {
     const outcome = this.lineageOf(id);
     if (!outcome.ok) {
-      throw new Error(outcome.message);
+      throw new RunDetailReadError(outcome.diagnostic, outcome.message);
     }
     // 叶子 run = 连续可读链的最后一跳（complete 与 incomplete 两形态同构）
     const record = outcome.records[outcome.records.length - 1];
     if (record === undefined) {
       // readRunLineage 的成功形态至少包含当前 run；此分支按不变量不可达
-      throw new Error(`run ${id} 读取结果为空`);
+      throw new RunDetailReadError(null, `run ${id} 读取结果为空`);
     }
     // 当前 run 自身新增的 span（分支 run 只记录这部分；合并轨迹其余为继承的祖先前缀）
     const leafSpanIds = record.spans.map((s) => s.id);
@@ -155,8 +170,11 @@ export class RunReadContext {
         });
       } catch (e) {
         // resolveBranch 的报错只含 run/span id（前缀级定位校验：v1 at_span、
-        // 完整链的前缀扫描），收敛为受控原因，不透传原始异常
-        throw new Error(`分支轨迹解析失败：${e instanceof Error ? e.message : String(e)}`);
+        // 完整链的前缀扫描），收敛为受控原因 + FORK_INVALID 诊断，不透传原始异常
+        throw new RunDetailReadError(
+          "FORK_INVALID",
+          `分支轨迹解析失败：${e instanceof Error ? e.message : String(e)}`,
+        );
       }
       return this.checkedDetail({
         meta: resolved.meta,
@@ -180,8 +198,11 @@ export class RunReadContext {
       }
       projectedSpans = projected.spans;
     } catch (e) {
-      // 投影/整轮截断的报错只含 run/span id，收敛为受控原因
-      throw new Error(`分支轨迹解析失败：${e instanceof Error ? e.message : String(e)}`);
+      // 投影/整轮截断的报错只含 run/span id，收敛为受控原因 + FORK_INVALID 诊断
+      throw new RunDetailReadError(
+        "FORK_INVALID",
+        `分支轨迹解析失败：${e instanceof Error ? e.message : String(e)}`,
+      );
     }
     return this.checkedDetail({
       meta: record.meta,

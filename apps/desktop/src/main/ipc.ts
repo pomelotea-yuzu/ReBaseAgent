@@ -27,6 +27,7 @@ import type {
   OperationStatusResult,
   ReconcileResult,
 } from "../shared/operations";
+import { compareRunsEndpoint } from "./compare-endpoints";
 import {
   type ConfigEndpointDeps,
   clearRunSettings,
@@ -153,6 +154,24 @@ export function registerIpc(deps: IpcDeps): void {
       } catch (e) {
         return fail("GET_RUN_FAILED", e);
       }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // runs:compare —— 只读比较（U7 design D3）：逐项 ready/unavailable，
+  // 请求级拒绝走信封失败；单侧读取失败是数据状态，仍以 ok 信封逐项返回
+  // -------------------------------------------------------------------------
+
+  ipcMain.handle(
+    CHANNELS.compareRuns,
+    (
+      _event,
+      request: unknown,
+    ): ReturnType<typeof ok<{ items: unknown[] }>> | ReturnType<typeof fail> => {
+      const outcome = compareRunsEndpoint({ tracesDir: repository.tracesDir }, request);
+      return outcome.ok
+        ? ok({ items: outcome.items })
+        : fail(outcome.code, new Error(outcome.message));
     },
   );
 
