@@ -603,7 +603,11 @@ const FLOWS = {
     check(
       "#8 兄弟两条：共同祖先 = 父（u7c_p）",
       metrics2 !== null && (metrics2.text || "").includes("共同祖先：u7c_p"),
-      (metrics2?.text || "").match(/共同祖先[^;]{0,30}/)?.[0],
+      JSON.stringify({
+        slice: (metrics2?.text || "").slice(0, 260),
+        ws: metrics2?.wsText ?? null,
+        hasTableBtn: metrics2?.hasTableBtn ?? null,
+      }),
     );
     check(
       "#11 两条时不再显示「再选一条」",
@@ -617,7 +621,11 @@ const FLOWS = {
     check(
       "#9 直接父子：共同祖先取父 run（u7c_p），可判定关系",
       metricsPC !== null && (metricsPC.text || "").includes("共同祖先：u7c_p"),
-      (metricsPC?.text || "").match(/共同祖先[^;]{0,30}/)?.[0],
+      JSON.stringify({
+        slice: (metricsPC?.text || "").slice(0, 260),
+        ws: metricsPC?.wsText ?? null,
+        hasTableBtn: metricsPC?.hasTableBtn ?? null,
+      }),
     );
     await H.shot(call, SHOT_DIR, "metrics-two.png");
 
@@ -642,7 +650,10 @@ const FLOWS = {
     const metrics4 = await tableProbe(call);
     check(
       "#27/#8 四条进入指标表：四列数据列 + 名称列全部可见（R8「名称列宽 0」复现消除）",
-      metrics4 !== null && metrics4.ths.length >= 5 && metrics4.ths.every((c) => c.w > 0),
+      metrics4 !== null &&
+        metrics4.ths !== null &&
+        metrics4.ths.length >= 5 &&
+        metrics4.ths.every((c) => c.w > 0),
       metrics4?.ths?.map((c) => `${c.text}:${c.w}`),
     );
     check(
