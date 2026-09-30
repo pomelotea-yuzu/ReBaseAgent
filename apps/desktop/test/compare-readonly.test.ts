@@ -290,7 +290,6 @@ describe("5.10 比较全程只读（写入反证）", () => {
       // @ts-expect-error 既有测试同款宽松种子（判据：比较动作对其零改动）
       drafts: seedDrafts,
       confirmations: seedConfirmations,
-      // @ts-expect-error 同上
       sourceRevocation: seedRevocation,
     } as never);
 
