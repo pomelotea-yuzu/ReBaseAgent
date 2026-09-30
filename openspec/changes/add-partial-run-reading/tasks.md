@@ -74,7 +74,7 @@
 
 ## 7. 工程门禁与逐场景收口
 
-- [ ] 7.1 运行 trace-sdk/replay/desktop 受影响用例、desktop typecheck/build，分开记录产品失败与环境受阻（对应“混合父链不跨独立边界拼接”、“详情加载失败在执行入口即拒绝”、“ownOnly 正常结果仍按原修订清理”）。
-- [ ] 7.2 运行 Biome、git diff --check 与 OpenSpec 全量 strict；核对所有 tasks 场景名、MODIFIED 基线差集和明确有意变更（对应“分支 run 的轨迹”、“详情完整性字段拒绝错配”）。
-- [ ] 7.3 逐行回查全量 evidence-index 的实际文件/测试标题/tag/结果，反查 repository/IPC/store/UI 消费点；未验证项与 U4/U5 历史限制单列，不自动归档发布（对应“读取重试与执行严格分离”、“后台重试不导航也不重发执行”、“无父本创建和被动录制保持原契约”）。
+- [x] 7.1 运行 trace-sdk/replay/desktop 受影响用例、desktop typecheck/build，分开记录产品失败与环境受阻（对应“混合父链不跨独立边界拼接”、“详情加载失败在执行入口即拒绝”、“ownOnly 正常结果仍按原修订清理”）。—— desktop `electron-vite build` ✓（20.5s）；desktop 全量 vitest singleFork 串行 **141 文件 / 2363 用例全绿**；`tsc -p tsconfig.node.json` 与 `-p tsconfig.web.json` 双 0；trace-sdk **12 文件 / 191 用例 / 0 errors**（⚠️ 并行 forks 会撞宿主 %TEMP% 代理 EPERM——用例数随机掉（191→172→157→140）+ Errors 行，**singleFork 串行即稳**，已登记为新坑）；replay **404 passed + 1 skipped + 12 环境受阻**（junction 探针 3 + model-ab CLI spawnSync EBUSY 9——与 U5 7.2 登记的构成逐项一致，packages 零 diff 非回归）。产品失败 0。
+- [x] 7.2 运行 Biome、git diff --check 与 OpenSpec 全量 strict；核对所有 tasks 场景名、MODIFIED 基线差集和明确有意变更（对应“分支 run 的轨迹”、“详情完整性字段拒绝错配”）。—— 根 biome **492 文件 0 错**（scripts/test 采集脚本 lint 归零：format + noUnusedTemplateLiteral/useLiteralKeys unsafe 修复 + u5-66 三处 noParameterAssign 改局部变量，全部 node --check 复验）；`git diff --check` 工作树与 U6 区间双 0；strict **13/13**；场景名核对 = 回查脚本 47 场景/91 引用全绿（--selftest 14 反例咬人）；MODIFIED 基线差集复核按 ENGINEERING「归档第二条路线」在合并时执行。
+- [x] 7.3 逐行回查全量 evidence-index 的实际文件/测试标题/tag/结果，反查 repository/IPC/store/UI 消费点；未验证项与 U4/U5 历史限制单列，不自动归档发布（对应“读取重试与执行严格分离”、“后台重试不导航也不重发执行”、“无父本创建和被动录制保持原契约”）。—— 回查脚本全绿（47 场景 / 91 用例引用逐字挂对文件 / 批次与注入剧本 id 真实 / 汇总口径一致）；消费点反查：checkRunSource 六端点（result/隔离/prompt/proxy/modelAb/dry-run）+ capability、store 执行咽喉 lineageIncomplete 注入、revokeSourceBoundPermissions 双触发口（selectRun 落地 ownOnly + submit 来源码拒绝）、LineageIncompleteNotice 组合进 DetailNotices、getRun 走 readRunLineage 单次上下文——全对上；**#18/#19/#21 判实机不成立**（无实机注入面：错配载荷桥接面只回真产出/桌面无路径伪造输入面/合法零 span 记录只能 fixture 构造），单元承载引用单列。最终口径：**44 已交付 + 3 实机不成立 + 0 待验证 = 47**。U4/U5 历史限制不随本 change 宣称（归档时随「U6 不宣称项」单列）。
 
