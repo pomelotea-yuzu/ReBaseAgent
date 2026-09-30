@@ -99,6 +99,11 @@ export interface CompareWorkspaceViewProps {
   readonly onReturn: () => void;
   /** 5.11：实验比较被拒时「单独打开记录」的入口（selectRun 通路，不恢复资格） */
   readonly onOpenRun: (runId: string) => void;
+  /**
+   * U7 5.2：切回宽幅指标表的入口（读取对回整个对照集合）。可选——
+   * 提供时头部渲染「指标表」按钮（「既有四条指标对照仍可使用」的工作区承载）。
+   */
+  readonly onOpenMetricsTable?: () => void;
   readonly evidence: EvidenceViewData;
 }
 
@@ -225,7 +230,7 @@ function ExperimentEvidenceBlock({
         <>
           <div className="mt-1 text-[11px] text-gray-500">
             批次父本 <span className="font-code">{gate.batch?.parentRunId}</span>
-            {gate.batch !== null && gate.batch.experimentIds.some((id) => id !== null) ? (
+            {gate.batch?.experimentIds.some((id) => id !== null) ? (
               <span className="ml-2">
                 各臂批次标签：{gate.batch.experimentIds.map((id) => id ?? "（未记录）").join("、")}
               </span>
@@ -514,6 +519,7 @@ export function SideStepsSection({
       <ul className="space-y-0.5" data-testid={`compare-steps-${catalog.runId}`}>
         {view.map((entry, index) =>
           entry.rowKind === "prefix-summary" ? (
+            // biome-ignore lint/suspicious/noArrayIndexKey: 摘要行每侧至多一条且位置稳定，index 仅为 key 唯一性兜底
             <li key={`prefix-summary:${index}`}>
               <button
                 type="button"
@@ -579,6 +585,7 @@ export function CompareWorkspaceView({
   onSwap,
   onReturn,
   onOpenRun,
+  onOpenMetricsTable,
   evidence,
 }: CompareWorkspaceViewProps) {
   const diffAvailable = diffGate.status === "available";
@@ -587,6 +594,16 @@ export function CompareWorkspaceView({
       <div className="flex items-center justify-between border-b border-gray-200 px-4 py-2">
         <h2 className="text-sm font-medium text-gray-800">比较</h2>
         <div className="flex items-center gap-2">
+          {onOpenMetricsTable !== undefined ? (
+            <button
+              type="button"
+              aria-label="查看指标对照表"
+              onClick={onOpenMetricsTable}
+              className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
+            >
+              指标表
+            </button>
+          ) : null}
           <button
             type="button"
             aria-label="切换文本差异"

@@ -218,6 +218,7 @@ export function BranchTreeView({
   };
 
   // 挂载：先 arm 会话（幂等）——首次进入把当前节点滚进视野；返回树恢复存储视口
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 刻意只在挂载时 arm/恢复（视口变化由 onViewportChange 显式上报，不走此 effect）
   useEffect(() => {
     const container = scrollRef.current;
     const armed = onArmSession();
@@ -274,6 +275,7 @@ export function BranchTreeView({
         ) : null}
 
         {/* U7 3.1：范围切换（当前树 / 全部）——只改可见性，不改逻辑坐标 */}
+        {/* biome-ignore lint/a11y/useSemanticElements: toolbar 式按钮组保持 div+role（fieldset 会引入表单语义与默认样式） */}
         <div role="group" aria-label="树范围" className="flex items-center gap-1 text-[11px]">
           <button
             type="button"
@@ -316,6 +318,7 @@ export function BranchTreeView({
         </label>
 
         {/* U7 3.6：呈现模式（图 / 关系列表）——同一份森林与身份，返回保留模式 */}
+        {/* biome-ignore lint/a11y/useSemanticElements: toolbar 式按钮组保持 div+role（fieldset 会引入表单语义与默认样式） */}
         <div role="group" aria-label="呈现模式" className="flex items-center gap-1 text-[11px]">
           <button
             type="button"

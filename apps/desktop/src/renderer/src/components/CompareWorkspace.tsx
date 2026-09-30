@@ -10,22 +10,27 @@ import type { CompareDiffGate, SideOutputFacts } from "@shared/compare-output";
 import { deriveExperimentGate } from "@shared/experiment-records";
 import type { CompareRunItem } from "@shared/ipc";
 import { useEffect, useMemo, useState } from "react";
+import { deriveCompareMetricsTable } from "../lib/compare-metrics";
 import { deriveSideStepCatalog } from "../lib/compare-steps";
 import type { SideStepCatalog } from "../lib/compare-steps";
 import { useAppStore } from "../store";
+import { CompareMetricsTable } from "./CompareMetricsTable";
 import { CompareWorkspaceView } from "./CompareWorkspaceView";
 import type { CompareSideViewData, EvidenceViewData } from "./CompareWorkspaceView";
 
 /**
- * U7（improve-branch-comparison）tasks 4.12：比较工作区的**容器**。
+ * U7（improve-branch-comparison）tasks 4.12 + 5.2：比较工作区的**容器**。
  *
  * 从 store 订阅比较会话（compareRead / comparePair / 复合定位 / 折叠态），
- * 把全部判据派生交给既有纯模块后喂给展示层（CompareWorkspaceView 只吃 props）：
+ * 把全部判据派生交给既有纯模块后喂给展示层（展示组件只吃 props）：
+ * - **指标表模式**（5.2）：pair 为空或用户切回"指标表"时渲染宽幅指标表——
+ *   对照集合（1–4 条）的消费面，数据来自当前已校验比较读取；
+ * - **详细比较模式**：双运行正文。只在本 side 结论与 pair **对齐**（runIds 恰为
+ *   左右两条且同序）时派生证据——指标表读取的集合尺寸结论不冒充 pair 结论；
  * - 关系分型 → 证据区：common + 直接父子 ⇒ 单条编辑证据；common + 多跳/兄弟 ⇒
  *   逐跳链；unrelated ⇒ 不同根事实对照；incomplete ⇒ 如实说明（不冒充不同根）；
- * - 每侧输出事实（4.5）+ diff 门禁（4.6）+ 步骤目录（4.8/4.9）；
  * - 动作接线：交换（2.2）、返回来源（2.3）、复合定位（4.8）、折叠（4.14）、
- *   打开单侧失败调用（4.5 的 openCompareSideError）。
+ *   打开单侧失败调用（4.5）、模式切换与重试（5.2）。
  *
  * 只读纪律：整条路径零执行通道、零草稿/授权变更（scenario「比较全程只读且
  * 不恢复许可」）；容器不消费比较结论做导航真相源——打开单侧走 runs:get。
@@ -41,6 +46,8 @@ export function CompareWorkspace() {
   const toggleComparePrefix = useAppStore((s) => s.toggleComparePrefix);
   const openCompareSideError = useAppStore((s) => s.openCompareSideError);
   const selectRun = useAppStore((s) => s.selectRun);
+  const retryCompareSelectionRead = useAppStore((s) => s.retryCompareSelectionRead);
+  const enterCompareSelection = useAppStore((s) => s.enterCompareSelection);
   // U7 5.1：比较标题复用全量已加载记录范围的会话稳定短 ID（与树/运行导航同一实例）
   const runs = useAppStore((s) => s.runs);
   const shortIdState = useAppStore((s) => s.shortIdState);
@@ -49,9 +56,33 @@ export function CompareWorkspace() {
   // diff 模式是展示态（容器本地）；换 pair 即退出，避免旧门禁文本滞留新对象
   const [diffMode, setDiffMode] = useState(false);
   const pairKey = comparePair === null ? "" : `${comparePair.leftRunId}\n${comparePair.rightRunId}`;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 展示态复位刻意只盯 pairKey（setState 稳定）
   useEffect(() => {
     setDiffMode(false);
   }, [pairKey]);
+
+  // U7 5.2：指标表模式（容器本地展示态）。pair 在场时也能切回宽幅指标表阅读
+  // "既有四条指标对照"；换 pair 即退出，避免旧集合的表滞留新对象。
+  const [tableMode, setTableMode] = useState(false);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 展示态复位刻意只盯 pairKey（setState 稳定）
+  useEffect(() => {
+    setTableMode(false);
+  }, [pairKey]);
+
+  /** 切回指标表：把读取对回整个对照集合（1–4 条；同集合幂等不重读） */
+  const openMetricsTable = (): void => {
+    setTableMode(true);
+    const ids = useAppStore.getState().compareIds;
+    if (ids.length >= 1) void enterCompareSelection(ids);
+  };
+
+  /** 从指标表回到详细比较：把读取对回 pair 两条（模式切换后的再对齐） */
+  const backToDetail = (): void => {
+    setTableMode(false);
+    if (comparePair !== null) {
+      void enterCompareSelection([comparePair.leftRunId, comparePair.rightRunId]);
+    }
+  };
 
   const conclusion = compareRead.conclusion;
   /** 已采信结论的逐项结果（仅 verified 形态携带 items；rejected 是请求级拒绝） */
@@ -59,21 +90,91 @@ export function CompareWorkspace() {
     () => (conclusion?.kind === "verified" ? conclusion.items : null),
     [conclusion],
   );
-  const readyItems = useMemo(
-    () =>
-      (acceptedItems ?? []).filter(
-        (item): item is Extract<CompareRunItem, { status: "ready" }> => item.status === "ready",
-      ),
-    [acceptedItems],
+
+  // U7 5.2：详细比较只消费与 pair 对齐的结论（恰好两条、同序同 id）——
+  // 指标表模式的整集合结论不在这里冒充 pair 证据
+  const pairAligned =
+    comparePair !== null &&
+    conclusion !== null &&
+    conclusion.kind === "verified" &&
+    conclusion.runIds.length === 2 &&
+    conclusion.runIds[0] === comparePair.leftRunId &&
+    conclusion.runIds[1] === comparePair.rightRunId;
+
+  // ---------- 指标表模式（pair 为空，或用户显式切回） ----------
+  if (comparePair === null || tableMode) {
+    const model = deriveCompareMetricsTable({ items: acceptedItems, shortIds });
+    return (
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden" aria-label="比较工作区">
+        {comparePair !== null ? (
+          <div className="flex items-center justify-between border-b border-gray-200 px-4 py-2">
+            <span className="text-[11px] text-gray-500">
+              详细比较对象：左 {comparePair.leftRunId} → 右 {comparePair.rightRunId}
+            </span>
+            <button
+              type="button"
+              aria-label="返回详细比较"
+              onClick={backToDetail}
+              className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
+            >
+              返回详细比较
+            </button>
+          </div>
+        ) : null}
+        <CompareMetricsTable
+          model={model}
+          loading={compareRead.request !== null}
+          rejected={
+            conclusion?.kind === "rejected"
+              ? { code: conclusion.code, reason: conclusion.reason }
+              : null
+          }
+          onRetry={() => {
+            void retryCompareSelectionRead();
+          }}
+        />
+      </div>
+    );
+  }
+
+  // ---------- 详细比较模式 ----------
+  if (!pairAligned) {
+    // 结论不在场 / 请求级拒绝 / 尚未按 pair 对齐：如实呈现，不冒充、不借旧结论
+    return (
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden" aria-label="比较工作区">
+        <div className="px-4 py-2 text-[11px] text-gray-500">正在读取详细比较对象…</div>
+        {conclusion?.kind === "rejected" ? (
+          <div className="px-4 py-2">
+            <div className="rounded bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              [{conclusion.code}] {conclusion.reason}
+            </div>
+            <button
+              type="button"
+              aria-label="重试详细比较读取"
+              onClick={() => {
+                void retryCompareSelectionRead();
+              }}
+              className="mt-2 rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
+            >
+              重试读取
+            </button>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  const readyItems = (acceptedItems ?? []).filter(
+    (item): item is Extract<CompareRunItem, { status: "ready" }> => item.status === "ready",
   );
 
   // 关系分型的唯一输入：本次已校验 chainSummaries（unavailable 侧不进输入）
-  const verified = useMemo(() => {
-    if (readyItems.length < 2) return null;
-    return deriveVerifiedComparison(
-      readyItems.map((item) => ({ runId: item.runId, chainSummaries: item.chainSummaries })),
-    );
-  }, [readyItems]);
+  const verified =
+    readyItems.length < 2
+      ? null
+      : deriveVerifiedComparison(
+          readyItems.map((item) => ({ runId: item.runId, chainSummaries: item.chainSummaries })),
+        );
 
   const unavailableReasonOf = (runId: string): string | null => {
     const hit = acceptedItems?.find(
@@ -103,7 +204,7 @@ export function CompareWorkspace() {
     };
   };
 
-  const evidence: EvidenceViewData = useMemo(() => {
+  const evidence: EvidenceViewData = (() => {
     if (acceptedItems === null || verified === null || readyItems.length < 2) {
       return { kind: "unavailable", reason: "尚无可核对两侧的比较结论" };
     }
@@ -172,17 +273,7 @@ export function CompareWorkspace() {
       kind: "hops",
       chains: deriveHopChains(acceptedItems, verified.relation.ancestorId),
     };
-  }, [acceptedItems, verified, readyItems, comparePair]);
-
-  if (comparePair === null) {
-    return (
-      <div className="flex min-w-0 flex-1 items-center justify-center" aria-label="比较工作区">
-        <div className="rounded bg-gray-50 px-4 py-3 text-xs text-gray-600">
-          尚未进入详细比较：从分支树选中详情或概览的「与父运行对比」进入，或在对照集合中加入恰好两条运行
-        </div>
-      </div>
-    );
-  }
+  })();
 
   const leftData = makeSide("left", comparePair.leftRunId);
   const rightData = makeSide("right", comparePair.rightRunId);
@@ -212,6 +303,7 @@ export function CompareWorkspace() {
         // 5.11：单独打开记录 = selectRun 既有通路（离开比较视图保留 pair；不恢复资格）
         void selectRun(runId);
       }}
+      onOpenMetricsTable={openMetricsTable}
       evidence={evidence}
     />
   );

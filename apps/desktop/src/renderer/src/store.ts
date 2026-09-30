@@ -289,7 +289,7 @@ interface AppState {
    * 纯 UI 状态，不进 IPC、不持久化（design D7）。
    */
   view: WorkspaceView;
-  /** 加入对照的 run id（上限 4，分支树的 ComparePanel 消费） */
+  /** 加入对照的 run id（上限 4，分支树的选择栏与比较工作区的指标表消费） */
   compareIds: string[];
   /** 对照集合的操作提示（超上限等），空则无提示 */
   compareNotice: string | null;
@@ -2293,13 +2293,19 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   async openCompareWorkspace() {
-    // U7 2.2/2.5：手动集合的进入路径。恰好两条 ⇒ 加入顺序定左右（先子后父不重排）；
-    // 三/四条 ⇒ 不自动选两条，如实提示后仍进工作区（宽幅指标表可见，§5.3 显式选择）
+    // U7 2.2/2.5 + 5.2：手动集合的进入路径。恰好两条 ⇒ 加入顺序定左右（先子后父不重排）；
+    // 三/四条 ⇒ 不自动选两条，如实提示后仍进工作区（宽幅指标表显式选择）；
+    // 零/一条 ⇒ 无 pair（指标表引导 / 单条自有指标）。
     const decision = decideManualPair(get().compareIds);
     if (decision.kind === "none" && decision.reason === "explicit-select") {
       set({ compareNotice: "已选三条及以上：请在指标表中显式选择两条进入详细比较" });
     }
     await enterCompareView(decision.kind === "pair" ? decision.pair : null);
+    // U7 5.2：无 pair 的进入也要让宽幅指标表有数据——对整个对照集合发起一次
+    // 只读比较读取（1–4 条均合法；零条无可读）。同集合幂等，不重复请求。
+    if (decision.kind === "none" && get().compareIds.length >= 1) {
+      await get().enterCompareSelection(get().compareIds);
+    }
   },
 
   async setCompareSide(side, runId) {

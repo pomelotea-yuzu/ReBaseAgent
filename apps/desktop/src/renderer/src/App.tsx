@@ -1,7 +1,7 @@
 import { PanelLeftOpen } from "lucide-react";
 import { useEffect, useState } from "react";
 import { BranchTree } from "./components/BranchTree";
-import { ComparePanel } from "./components/ComparePanel";
+import { CompareSelectionBar } from "./components/CompareSelectionBar";
 import { CompareWorkspace } from "./components/CompareWorkspace";
 import { ConfirmDialogHost } from "./components/ConfirmDialog";
 import { CreateRunWorkspace } from "./components/CreateRunWorkspace";
@@ -139,7 +139,9 @@ export default function App() {
         {view === "tree" ? (
           <>
             <BranchTree />
-            <ComparePanel />
+            {/* U7 5.2：树视图只保留**对照选择栏**（窄侧栏已替换）；指标对照与
+                双运行正文在完整工作区内打开（delta「界面提供分支树与轨迹两种视图」） */}
+            <CompareSelectionBar />
           </>
         ) : (
           <>
