@@ -1,12 +1,11 @@
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
-import { readRun, resolveBranch } from "@rebaseagent/trace-sdk";
-import type { RunRecord, SpanLine } from "@rebaseagent/trace-sdk";
+import { readRun } from "@rebaseagent/trace-sdk";
+import type { RunRecord } from "@rebaseagent/trace-sdk";
 import { deriveRunSummary } from "../shared/derive";
-import { RunDetailSchema } from "../shared/ipc";
 import type { ListRunsData, RunDetail, RunSummary } from "../shared/ipc";
-import { isPlainResultChain, projectMixedChainSpans } from "./run-detail-project";
-import { findIllegalRunIdViolation, readRunLineage } from "./run-lineage-read";
+import { findIllegalRunIdViolation } from "./run-lineage-read";
+import { RunReadContext } from "./run-read-context";
 
 /**
  * main 进程唯一持有 fs 的地方：扫描 traces 目录、读取并解析 trace 文件。
@@ -43,6 +42,8 @@ export class RunRepository {
    * 读取统一走 `readRunLineage` 单次读取上下文——祖先 ENOENT 之外的一切读取失败
    * 都是受控中文的严格失败（信封仍为 GET_RUN_FAILED）。
    *
+   * U7 1.2 起：详情构建委托给 `RunReadContext`（每次调用一个新上下文——单 run
+   * 读取没有可复用对象；比较通道才按请求建一个共享上下文）。行为逐字不变：
    * 完整性标签（U6 §2，main 依据已校验 fork 类型生成，renderer 不猜）：
    * - 根 / prompt / 代理 messages：spanScope=own（独立执行不是降级）；
    * - 普通/隔离 result（完整链）：spanScope=resolved（既有 resolveBranch 合并语义）；
@@ -51,174 +52,7 @@ export class RunRepository {
    * - 普通/隔离 result 缺祖先：保持 §1 的严格失败，ownOnly 详情信封归 §3。
    */
   getRun(id: string): RunDetail {
-    const outcome = readRunLineage(this.tracesDir, id);
-    if (!outcome.ok) {
-      throw new Error(outcome.message);
-    }
-    // 叶子 run = 连续可读链的最后一跳（complete 与 incomplete 两形态同构）
-    const record = outcome.records[outcome.records.length - 1];
-    if (record === undefined) {
-      // readRunLineage 的成功形态至少包含当前 run；此分支按不变量不可达
-      throw new Error(`run ${id} 读取结果为空`);
-    }
-    // 当前 run 自身新增的 span（分支 run 只记录这部分；合并轨迹其余为继承的祖先前缀）
-    const leafSpanIds = record.spans.map((s) => s.id);
-    // 连续可读链：complete 时是根到叶全链；incomplete 时是缺失点截断的可读前段
-    const chain = outcome.records.map((hop) => ({ meta: hop.meta, fork: hop.meta.fork }));
-    const ownLabels = {
-      completeness: outcome.complete ? ("complete" as const) : ("ownOnly" as const),
-      spanScope: "own" as const,
-      lineage: outcome.complete
-        ? ({ status: "complete" as const } as const)
-        : ({
-            status: "incomplete" as const,
-            reason: "ANCESTOR_NOT_FOUND" as const,
-            missingRunId: outcome.missingRunId,
-          } as const),
-    };
-
-    if (record.meta.parent === null) {
-      return this.checkedDetail({
-        meta: record.meta,
-        spans: record.spans,
-        events: record.events,
-        status: record.status,
-        chain,
-        leafSpanIds,
-        completeness: "complete",
-        spanScope: "own",
-        lineage: { status: "complete" },
-      });
-    }
-
-    const forkField = record.meta.fork?.edit.field;
-
-    // 代理分叉 run（fork.edit.field="messages"）：resolveBranch 的"共享前缀拼接"语义
-    // 不成立（编辑的是 messages，没有 replay 层应用它，拼接会混排出假时间线）——
-    // 降级为父链列表呈现：只返回自身 span，chain 沿 parent 链逐代列出
-    if (record.meta.source?.kind === "proxy") {
-      return this.checkedDetail({
-        meta: record.meta,
-        spans: record.spans,
-        events: record.events,
-        status: record.status,
-        chain,
-        leafSpanIds,
-        ...ownLabels,
-      });
-    }
-
-    // prompt fork run（fork.edit.field 为 system_prompt / user_message）与 model_params
-    // 实验臂（U6 §3.6：换 model/params 的 A/B 臂同为「从头重跑的独立执行」）——
-    // 所有 span 来自本次实际执行，禁止把父 run 的旧 spans 拼进时间线（model_params
-    // 不再误合并）；chain 仅作父级溯源（沿 parent 链逐代列出）
-    if (
-      forkField === "system_prompt" ||
-      forkField === "user_message" ||
-      forkField === "model_params"
-    ) {
-      return this.checkedDetail({
-        meta: record.meta,
-        spans: record.spans,
-        events: record.events,
-        status: record.status,
-        chain,
-        leafSpanIds,
-        ...ownLabels,
-      });
-    }
-
-    if (!outcome.complete) {
-      // U6 §3.2/3.3：祖先文件确实缺失 ⇒ 结构化 ownOnly：只返回当前 run 的已校验
-      // 自有 meta/spans/events/status，chain 在缺失点截断，missingRunId 来自最近
-      // 可读记录的 meta.parent。继承前缀与祖先增量为未知，不补零、不拼历史。
-      return this.checkedDetail({
-        meta: record.meta,
-        spans: record.spans,
-        events: record.events,
-        status: record.status,
-        chain,
-        leafSpanIds,
-        completeness: "ownOnly",
-        spanScope: "own",
-        lineage: {
-          status: "incomplete",
-          reason: "ANCESTOR_NOT_FOUND",
-          missingRunId: outcome.missingRunId,
-        },
-      });
-    }
-
-    // U6 §3.8：纯 result 链复用 resolveBranch（既有行为不变）；混合链（链上夹有
-    // prompt / messages / model_params 独立边界）走只读投影，不跨独立边界拼接。
-    if (isPlainResultChain(outcome.records)) {
-      const recordsById = new Map(outcome.records.map((r) => [r.meta.id, r]));
-      let resolved: ReturnType<typeof resolveBranch>;
-      try {
-        resolved = resolveBranch(id, (runId) => {
-          const hit = recordsById.get(runId);
-          if (hit === undefined) {
-            throw new Error(`run ${runId} 不在本次已读取的记录中`);
-          }
-          return hit;
-        });
-      } catch (e) {
-        // resolveBranch 的报错只含 run/span id（前缀级定位校验：v1 at_span、
-        // 完整链的前缀扫描），收敛为受控原因，不透传原始异常
-        throw new Error(`分支轨迹解析失败：${e instanceof Error ? e.message : String(e)}`);
-      }
-      return this.checkedDetail({
-        meta: resolved.meta,
-        spans: resolved.spans,
-        events: resolved.events,
-        // 分支 run 的结局以叶子 run 为准
-        status: record.status,
-        chain: resolved.chain.map((hop) => ({ meta: hop.meta, fork: hop.fork })),
-        leafSpanIds,
-        completeness: "complete",
-        spanScope: "resolved",
-        lineage: { status: "complete" },
-      });
-    }
-
-    let projectedSpans: SpanLine[];
-    try {
-      const projected = projectMixedChainSpans(outcome.records);
-      if (!projected.ok) {
-        throw new Error(projected.message);
-      }
-      projectedSpans = projected.spans;
-    } catch (e) {
-      // 投影/整轮截断的报错只含 run/span id，收敛为受控原因
-      throw new Error(`分支轨迹解析失败：${e instanceof Error ? e.message : String(e)}`);
-    }
-    return this.checkedDetail({
-      meta: record.meta,
-      spans: projectedSpans,
-      events: record.events,
-      status: record.status,
-      chain,
-      leafSpanIds,
-      completeness: "complete",
-      spanScope: "resolved",
-      lineage: { status: "complete" },
-    });
-  }
-
-  /**
-   * 返回前的 main 侧自检：main 生成的详情必须能通过自家 schema（含完整性一致性）。
-   * 这是"main 不产出错配载荷"的不变量守卫，不是对文件事实的二次校验。
-   */
-  private checkedDetail(detail: RunDetail): RunDetail {
-    const parsed = RunDetailSchema.safeParse(detail);
-    if (!parsed.success) {
-      throw new Error(
-        `详情载荷自检失败（内部错误，已阻止出站）：${parsed.error.issues
-          .map((issue) => issue.message)
-          .join("；")}`,
-      );
-    }
-    return detail;
+    return new RunReadContext(this.tracesDir).detailOf(id);
   }
 
   /**
