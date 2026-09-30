@@ -475,7 +475,11 @@ const FLOWS = {
     const before = H.traceIds();
     const servedBefore = mock.served();
     await previewAb(call);
-    check("预览后计划区在场（校验通过 · 执行计划）", (await bodyText(call)).includes("校验通过 · 执行计划"), null);
+    check(
+      "预览后计划区在场（校验通过 · 执行计划）",
+      (await bodyText(call)).includes("校验通过 · 执行计划"),
+      null,
+    );
     const sub = await executeAbBatch(call);
     check(
       "提交身份已登记（operationId 非空）",
@@ -515,7 +519,11 @@ const FLOWS = {
       reg?.experimentId != null && reg.experimentId === exps[0]?.exp,
       { reg: reg?.experimentId, trace: exps[0]?.exp },
     );
-    check("两臂父本都是夹具 run", exps.every((e) => e.parent === PARENT_RUN), exps.map((e) => e.parent));
+    check(
+      "两臂父本都是夹具 run",
+      exps.every((e) => e.parent === PARENT_RUN),
+      exps.map((e) => e.parent),
+    );
     const regIds = (reg.arms ?? []).map((a) => a.id).sort();
     check(
       "登记臂 id = 落盘 meta.id（逐臂身份三方一致）",
@@ -531,11 +539,7 @@ const FLOWS = {
       (await waitForAbDraftGone(call, 30000)) === true,
       null,
     );
-    check(
-      `每臂恰一次调用（served 增量 2）`,
-      mock.served() - servedBefore === 2,
-      mock.served(),
-    );
+    check("每臂恰一次调用（served 增量 2）", mock.served() - servedBefore === 2, mock.served());
     await H.shot(call, SHOT_DIR, `${TAG}-all-normal.png`);
   },
 
@@ -589,7 +593,11 @@ const FLOWS = {
       check(`核实落地（verified，${arm.id}）`, entry?.phase === "verified", entry?.phase);
     }
     const d1 = await abDraftOf(call);
-    check("部分失败 ⇒ 整批保留（批次草稿仍在）", d1 !== null && d1.rows.length === 2, d1?.rows?.length);
+    check(
+      "部分失败 ⇒ 整批保留（批次草稿仍在）",
+      d1 !== null && d1.rows.length === 2,
+      d1?.rows?.length,
+    );
     check(
       "草稿保留原文（两臂 model 原样）",
       d1?.rows?.[0]?.model === "U5-65-arm-a" && d1?.rows?.[1]?.model === "U5-65-arm-b",
@@ -628,17 +636,14 @@ const FLOWS = {
     // - normalRun 首调自带 params（temperature 0.7）⇒ 计划行渲染生效参数，"沿用父参数"字面量不在场。
     const phrases = disclosurePhrases("abDisclosure").filter(
       (p) =>
-        !p.startsWith("已放行") &&
-        !p.startsWith("未放行") &&
-        p !== "（沿用父 run 的采样参数）",
+        !p.startsWith("已放行") && !p.startsWith("未放行") && p !== "（沿用父 run 的采样参数）",
     );
     dump.abPhrases = phrases;
     const missing = phrases.filter((p) => !body.includes(p));
-    check(
-      "A/B 披露静态短语全部在场（lib 同源抽取）",
-      missing.length === 0,
-      { missing: missing.slice(0, 4), total: phrases.length },
-    );
+    check("A/B 披露静态短语全部在场（lib 同源抽取）", missing.length === 0, {
+      missing: missing.slice(0, 4),
+      total: phrases.length,
+    });
     check("无计划分支不在场（计划已取得）", !body.includes("尚未取得当前批次的计划"), null);
     const c1 = await abConfirmedOf(call);
     check("确认前未挂（基线）", c1?.confirmed === false, c1);
@@ -659,7 +664,11 @@ const FLOWS = {
       { conf, confAlt },
     );
     const exec = await findButton(call, "确认执行（");
-    check("改臂 ⇒ 执行按钮禁用（activePlan 已失效）", exec?.found === true && exec.disabled === true, exec);
+    check(
+      "改臂 ⇒ 执行按钮禁用（activePlan 已失效）",
+      exec?.found === true && exec.disabled === true,
+      exec,
+    );
     // 重新预览 ⇒ 新计划 fresh ⇒ 确认可重新挂上
     await previewAb(call);
     check("重新预览 ⇒ 新计划在场", (await bodyText(call)).includes("校验通过 · 执行计划"), null);
@@ -793,7 +802,7 @@ async function main() {
       mock = await H.prepare(call, TAG_SCRIPT[TAG]);
     } catch (e) {
       if (attempt > 0 || !String(e).includes("Failed to fetch")) throw e;
-      console.log(`[prepare] 模块加载失败，reload 后重试一次`);
+      console.log("[prepare] 模块加载失败，reload 后重试一次");
       await call("Page.reload", { ignoreCache: true });
       for (let i = 0; i < 40; i++) {
         await H.sleep(500);

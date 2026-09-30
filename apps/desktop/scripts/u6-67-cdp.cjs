@@ -27,7 +27,13 @@ const { join } = require("node:path");
 const H = require("./lib/u4-smoke-harness.cjs");
 const { beginReadFault, diffFingerprints } = require("./lib/u5-read-faults.cjs");
 
-const TAGS = ["ownonly-closure", "ownonly-failure", "rev-preserves", "ab-ownonly", "retry-position"];
+const TAGS = [
+  "ownonly-closure",
+  "ownonly-failure",
+  "rev-preserves",
+  "ab-ownonly",
+  "retry-position",
+];
 const arg = (name, dflt) => {
   const hit = process.argv.find((a) => a.startsWith(`--${name}=`));
   return hit ? hit.slice(name.length + 3) : dflt;
@@ -55,7 +61,11 @@ const DKEY = `({ runId: ${JSON.stringify(PARENT)}, spanId: ${JSON.stringify(PARE
 const AB_SUB_KEY = `${PARENT}|${PARENT_SPAN}|model_ab`;
 const forkKey = (field = "result") => `${PARENT}|${TOOL_SPAN}|${field}`;
 
-const OK_TURN = { content: `${MARK} 受控成功：一步答完。`, usage: { in: 120, out: 40 }, delayMs: 2500 };
+const OK_TURN = {
+  content: `${MARK} 受控成功：一步答完。`,
+  usage: { in: 120, out: 40 },
+  delayMs: 2500,
+};
 const OK_TURN_FAST = { content: `${MARK} 受控成功：一步答完。`, usage: { in: 120, out: 40 } };
 const FAIL_TURN = { mode: "fail", status: 503, content: "上游超时（受控失败）", delayMs: 2500 };
 
@@ -95,7 +105,11 @@ function check(name, ok, detail) {
 }
 function sha12(file) {
   try {
-    return require("node:crypto").createHash("sha256").update(readFileSync(file)).digest("hex").slice(0, 12);
+    return require("node:crypto")
+      .createHash("sha256")
+      .update(readFileSync(file))
+      .digest("hex")
+      .slice(0, 12);
   } catch {
     return "unknown";
   }
@@ -198,8 +212,12 @@ const callDraftRevision = async (call, runId, spanId, field) => {
   return d?.calls?.[runId]?.[spanId]?.[field]?.revision ?? null;
 };
 const closureOf = (call, epoch, operationId) =>
-  H.storeQ(call, `return JSON.stringify(s.draftSubmissions.closures[${JSON.stringify(`${epoch}|${operationId}`)}] ?? null);`);
-const abDraftOf = (call) => H.storeQ(call, `return JSON.stringify(s.modelAbDraftOf(${DKEY}) ?? null);`);
+  H.storeQ(
+    call,
+    `return JSON.stringify(s.draftSubmissions.closures[${JSON.stringify(`${epoch}|${operationId}`)}] ?? null);`,
+  );
+const abDraftOf = (call) =>
+  H.storeQ(call, `return JSON.stringify(s.modelAbDraftOf(${DKEY}) ?? null);`);
 const readingState = (call) =>
   H.storeQ(
     call,
@@ -208,9 +226,13 @@ const readingState = (call) =>
   );
 const readingOfRun = (call, runId) =>
   H.storeQ(call, `return JSON.stringify(s.readingOf(${JSON.stringify(runId)}) ?? null);`);
-const canExec = (call) => H.storeQ(call, "return JSON.stringify(s.canExecuteFromSource() === true);");
+const canExec = (call) =>
+  H.storeQ(call, "return JSON.stringify(s.canExecuteFromSource() === true);");
 const detailCompleteness = (call) =>
-  H.storeQ(call, "return JSON.stringify({ sel: s.selectedRunId, c: s.detail?.completeness ?? null });");
+  H.storeQ(
+    call,
+    "return JSON.stringify({ sel: s.selectedRunId, c: s.detail?.completeness ?? null });",
+  );
 const liveText = (call) =>
   H.ev(
     call,
@@ -428,7 +450,13 @@ function drainActive(why) {
  * 比「终态事件」触发窗口宽得多（从毫秒级放宽到整个在飞尾巴）；凑满 requiredNew 份后 onHide 一次并收尾。
  * hideTarget = "new"（隐藏新子 run 自己，造不可读首读）| "fixed"（隐藏 hideRunId，让核实读到 ownOnly）。
  */
-function startSpanWatcher({ requiredNew = 1, hideTarget, hideRunId, triggerMode = "span", timeoutMs = 120000 }) {
+function startSpanWatcher({
+  requiredNew = 1,
+  hideTarget,
+  hideRunId,
+  triggerMode = "span",
+  timeoutMs = 120000,
+}) {
   const before = new Set(H.fs.readdirSync(H.TRACES).filter((n) => n.endsWith(".jsonl")));
   const promise = new Promise((resolve) => {
     let settled = false;
@@ -492,7 +520,13 @@ function startSpanWatcher({ requiredNew = 1, hideTarget, hideRunId, triggerMode 
           } catch {
             trigLines = "read-fail";
           }
-          finish({ runIds: triggered.map((n) => n.slice(0, -6)), hidden: target, handle, triggerAt: Date.now(), trigLines });
+          finish({
+            runIds: triggered.map((n) => n.slice(0, -6)),
+            hidden: target,
+            handle,
+            triggerAt: Date.now(),
+            trigLines,
+          });
         }
       }
     };
@@ -505,7 +539,9 @@ function startSpanWatcher({ requiredNew = 1, hideTarget, hideRunId, triggerMode 
       }
     };
     const timer = setInterval(() => {
-      const names = H.fs.readdirSync(H.TRACES).filter((n) => n.endsWith(".jsonl") && !before.has(n));
+      const names = H.fs
+        .readdirSync(H.TRACES)
+        .filter((n) => n.endsWith(".jsonl") && !before.has(n));
       for (const name of names) tryName(name);
     }, 1);
     watcher.stop = () => clearInterval(timer);
@@ -545,14 +581,26 @@ const FLOWS = {
   "ownonly-closure": async (call, mock) => {
     const servedBase = mock.served();
     // ── 第一段：竞速隐藏父本 ⇒ 自动核实读到 ownOnly + 正常终止 ⇒ 按原修订清理
-    const race1 = startSpanWatcher({ requiredNew: 1, hideTarget: "fixed", hideRunId: PARENT, triggerMode: "exists" });
+    const race1 = startSpanWatcher({
+      requiredNew: 1,
+      hideTarget: "fixed",
+      hideRunId: PARENT,
+      triggerMode: "exists",
+    });
     const text1 = `${MARK} closure 正常子 run`;
     const sub1 = await forkFlow(call, text1);
     const r1 = await race1.done();
-    check("竞速注入得手（父本在子终态瞬间隐藏）", r1 !== null && !r1.error, r1?.error ?? (r1 === null ? "超时" : r1.hidden));
+    check(
+      "竞速注入得手（父本在子终态瞬间隐藏）",
+      r1 !== null && !r1.error,
+      r1?.error ?? (r1 === null ? "超时" : r1.hidden),
+    );
     if (r1 === null || r1.error) throw new Error("竞速注入失败");
     const rec1 = await waitRegistryRecordState(call, sub1.operationId, "settled", 30000);
-    check("登记收口且 runId 与竞速捕获一致", rec1?.runIds?.[0] === r1.runIds[0], { rec: rec1?.runIds ?? null, race: r1.runIds });
+    check("登记收口且 runId 与竞速捕获一致", rec1?.runIds?.[0] === r1.runIds[0], {
+      rec: rec1?.runIds ?? null,
+      race: r1.runIds,
+    });
     const entry1 = await waitForVerified(call, rec1.epoch, sub1.operationId, r1.runIds[0]);
     dump.entry1 = entrySummary(entry1);
     dump.timing1 = {
@@ -564,24 +612,43 @@ const FLOWS = {
       directGetRun: await (async () => {
         const env = await H.apiCall(call, "getRun", r1.runIds[0]);
         return env?.ok === true
-          ? { completeness: env.data?.completeness ?? null, missing: env.data?.lineage?.missingRunId ?? null }
+          ? {
+              completeness: env.data?.completeness ?? null,
+              missing: env.data?.lineage?.missingRunId ?? null,
+            }
           : { ok: false, err: env?.error?.code ?? null };
       })(),
     };
     check(
       "自动核实 verified 且 ownOnly（missingRunId=父本）",
-      entry1?.phase === "verified" && entry1?.lineage?.status === "incomplete" && entry1?.lineage?.missingRunId === PARENT,
+      entry1?.phase === "verified" &&
+        entry1?.lineage?.status === "incomplete" &&
+        entry1?.lineage?.missingRunId === PARENT,
       dump.entry1,
     );
-    check("ownOnly 正常终止 normalEnd=true（自有 stopped/completed）", entry1?.facts?.normalEnd === true, dump.entry1);
-    check("ownOnly 正常 ⇒ 按原修订清理（草稿删除）", (await callDraftText(call, PARENT, TOOL_SPAN, "result")) === null, null);
-    check("ownOnly 正常 ⇒ 收尾关联一并释放", (await closureOf(call, rec1.epoch, sub1.operationId)) === null, null);
+    check(
+      "ownOnly 正常终止 normalEnd=true（自有 stopped/completed）",
+      entry1?.facts?.normalEnd === true,
+      dump.entry1,
+    );
+    check(
+      "ownOnly 正常 ⇒ 按原修订清理（草稿删除）",
+      (await callDraftText(call, PARENT, TOOL_SPAN, "result")) === null,
+      null,
+    );
+    check(
+      "ownOnly 正常 ⇒ 收尾关联一并释放",
+      (await closureOf(call, rec1.epoch, sub1.operationId)) === null,
+      null,
+    );
     // 面板同一行：自有结局 + 来源警告（正常结束不被读成可重跑）
     await openOperationsPanel(call);
     const row1 = await rowRead(call, sub1.operationId);
     check(
       "面板行同屏显示自有结局与来源警告（不等于可以重跑 + 仅显示本运行记录）",
-      row1.text.includes("已结束") && row1.text.includes("不等于可以重跑") && row1.text.includes("仅显示本运行记录"),
+      row1.text.includes("已结束") &&
+        row1.text.includes("不等于可以重跑") &&
+        row1.text.includes("仅显示本运行记录"),
       row1.text.slice(0, 300),
     );
     await closeOperationsPanel(call);
@@ -594,15 +661,34 @@ const FLOWS = {
     const text2 = `${MARK} retry 可读性子 run`;
     const sub2 = await forkFlow(call, text2);
     const r2 = await race2.done();
-    check("竞速注入得手（子 run 终态瞬间隐藏自身）", r2 !== null && !r2.error, r2?.error ?? (r2 === null ? "超时" : r2.hidden));
+    check(
+      "竞速注入得手（子 run 终态瞬间隐藏自身）",
+      r2 !== null && !r2.error,
+      r2?.error ?? (r2 === null ? "超时" : r2.hidden),
+    );
     if (r2 === null || r2.error) throw new Error("竞速注入失败");
     const rec2 = await waitRegistryRecordState(call, sub2.operationId, "settled", 30000);
     const child2 = rec2?.runIds?.[0] ?? null;
-    check("登记收口且 runId 与被隐藏文件一致", child2 === r2.runIds[0], { rec: rec2?.runIds ?? null, race: r2.runIds });
+    check("登记收口且 runId 与被隐藏文件一致", child2 === r2.runIds[0], {
+      rec: rec2?.runIds ?? null,
+      race: r2.runIds,
+    });
     const auto2 = await waitForVerified(call, rec2.epoch, sub2.operationId, child2);
-    check("自动核实被注入挡下 ⇒ unreadable（草稿保留）", auto2?.phase === "unreadable", entrySummary(auto2));
-    check("首读不可读 ⇒ 草稿保留全文", (await callDraftText(call, PARENT, TOOL_SPAN, "result"))?.includes(text2.slice(-8)) === true, null);
-    check("首读不可读 ⇒ 收尾关联保留", (await closureOf(call, rec2.epoch, sub2.operationId)) !== null, null);
+    check(
+      "自动核实被注入挡下 ⇒ unreadable（草稿保留）",
+      auto2?.phase === "unreadable",
+      entrySummary(auto2),
+    );
+    check(
+      "首读不可读 ⇒ 草稿保留全文",
+      (await callDraftText(call, PARENT, TOOL_SPAN, "result"))?.includes(text2.slice(-8)) === true,
+      null,
+    );
+    check(
+      "首读不可读 ⇒ 收尾关联保留",
+      (await closureOf(call, rec2.epoch, sub2.operationId)) !== null,
+      null,
+    );
     endRace(r2, "子 run 隐藏(2)");
 
     // 父本隐藏 + 手动重读（面板「重读这条结果」按钮 → 仅 runs:get）
@@ -625,7 +711,8 @@ const FLOWS = {
       { ownOnly: execOwn, complete: execAway },
     );
     await openOperationsPanel(call);
-    const attemptBefore = (await resultReadFor(call, rec2.epoch, sub2.operationId, child2))?.attempt ?? 0;
+    const attemptBefore =
+      (await resultReadFor(call, rec2.epoch, sub2.operationId, child2))?.attempt ?? 0;
     const navRightBefore = await readingState(call);
     await clickRowAction(call, sub2.operationId, "重读这条结果");
     const retried = await waitForVerified(call, rec2.epoch, sub2.operationId, child2);
@@ -633,11 +720,21 @@ const FLOWS = {
     const navAfter = await readingState(call);
     check(
       "重读 ⇒ 同一可信 runId 落成 verified ownOnly（attempt+1）",
-      retried?.phase === "verified" && retried?.lineage?.missingRunId === PARENT && retried?.attempt === attemptBefore + 1,
+      retried?.phase === "verified" &&
+        retried?.lineage?.missingRunId === PARENT &&
+        retried?.attempt === attemptBefore + 1,
       dump.retried,
     );
-    check("重试读到 ownOnly 正常 ⇒ 按原关联清理（草稿删除）", (await callDraftText(call, PARENT, TOOL_SPAN, "result")) === null, null);
-    check("重试后收尾关联释放", (await closureOf(call, rec2.epoch, sub2.operationId)) === null, null);
+    check(
+      "重试读到 ownOnly 正常 ⇒ 按原关联清理（草稿删除）",
+      (await callDraftText(call, PARENT, TOOL_SPAN, "result")) === null,
+      null,
+    );
+    check(
+      "重试后收尾关联释放",
+      (await closureOf(call, rec2.epoch, sub2.operationId)) === null,
+      null,
+    );
     check(
       "重试全程不导航不换选中项（选中停在子 run、代次不推进）",
       navAfter.selectedRunId === child2 && navAfter.navGeneration === navRightBefore.navGeneration,
@@ -645,7 +742,11 @@ const FLOWS = {
     );
     check("重试全程零执行（模型调用数不变）", mock.served() - servedBase === 2, mock.served());
     const fpDiff = diffFingerprints(fpBefore, H.hashAllTraces());
-    check("重试全程零新 trace（重试不落盘）", fpDiff.added.length === 0 && fpDiff.changed.length === 0, fpDiff);
+    check(
+      "重试全程零新 trace（重试不落盘）",
+      fpDiff.added.length === 0 && fpDiff.changed.length === 0,
+      fpDiff,
+    );
     await closeOperationsPanel(call);
     const endHide = hideParent.end();
     check("父本隐藏(3) 注入逐字节还原", endHide.clean === true, endHide.diff);
@@ -655,20 +756,35 @@ const FLOWS = {
   /** #34 ownOnly 失败定位只使用自有调用：错误子 run + 父本隐藏 ⇒ 保留草稿、定位给自有失败调用 */
   "ownonly-failure": async (call, mock) => {
     const servedBase = mock.served();
-    const race = startSpanWatcher({ requiredNew: 1, hideTarget: "fixed", hideRunId: PARENT, triggerMode: "exists" });
+    const race = startSpanWatcher({
+      requiredNew: 1,
+      hideTarget: "fixed",
+      hideRunId: PARENT,
+      triggerMode: "exists",
+    });
     const text = `${MARK} failure 错误子 run`;
     const sub = await forkFlow(call, text);
     const r = await race.done();
-    check("竞速注入得手（父本隐藏）", r !== null && !r.error, r?.error ?? (r === null ? "超时" : r.hidden));
+    check(
+      "竞速注入得手（父本隐藏）",
+      r !== null && !r.error,
+      r?.error ?? (r === null ? "超时" : r.hidden),
+    );
     if (r === null || r.error) throw new Error("竞速注入失败");
     const rec = await waitRegistryRecordState(call, sub.operationId, "settled", 60000);
     const child = rec?.runIds?.[0] ?? null;
-    check("登记收口（失败 run 也 settled 且带 runId）", rec?.state === "settled" && typeof child === "string", rec?.state ?? null);
+    check(
+      "登记收口（失败 run 也 settled 且带 runId）",
+      rec?.state === "settled" && typeof child === "string",
+      rec?.state ?? null,
+    );
     const entry = await waitForVerified(call, rec.epoch, sub.operationId, child);
     dump.entry = entrySummary(entry);
     check(
       "ownOnly 错误终态核实落地（lineage incomplete + normalEnd=false）",
-      entry?.phase === "verified" && entry?.lineage?.missingRunId === PARENT && entry?.facts?.normalEnd === false,
+      entry?.phase === "verified" &&
+        entry?.lineage?.missingRunId === PARENT &&
+        entry?.facts?.normalEnd === false,
       dump.entry,
     );
     // 失败定位只认自有调用：与子 run 落盘的 llm.call span 比对（不取祖先）
@@ -676,15 +792,29 @@ const FLOWS = {
       .split(/\r?\n/)
       .filter(Boolean)
       .map((l) => JSON.parse(l));
-    const ownFailingLlm = childLines.filter((l) => l.type === "span" && l.kind === "llm.call" && l.error != null);
-    check("子 run 自有失败调用恰一个（受控 503）", ownFailingLlm.length === 1, ownFailingLlm.length);
+    const ownFailingLlm = childLines.filter(
+      (l) => l.type === "span" && l.kind === "llm.call" && l.error != null,
+    );
+    check(
+      "子 run 自有失败调用恰一个（受控 503）",
+      ownFailingLlm.length === 1,
+      ownFailingLlm.length,
+    );
     check(
       "定位 = 自有失败调用 span（不取祖先）",
       entry?.facts?.failure?.llmCallSpanId === ownFailingLlm[0]?.id,
       { entry: entry?.facts?.failure?.llmCallSpanId ?? null, own: ownFailingLlm[0]?.id ?? null },
     );
-    check("error 终止 ⇒ 草稿保留全文", (await callDraftText(call, PARENT, TOOL_SPAN, "result"))?.includes(text.slice(-8)) === true, null);
-    check("error 终止 ⇒ 收尾关联保留", (await closureOf(call, rec.epoch, sub.operationId)) !== null, null);
+    check(
+      "error 终止 ⇒ 草稿保留全文",
+      (await callDraftText(call, PARENT, TOOL_SPAN, "result"))?.includes(text.slice(-8)) === true,
+      null,
+    );
+    check(
+      "error 终止 ⇒ 收尾关联保留",
+      (await closureOf(call, rec.epoch, sub.operationId)) !== null,
+      null,
+    );
     // 面板：定位入口给自有调用，点击跳自有失败 span
     await openOperationsPanel(call);
     const row = await rowRead(call, sub.operationId);
@@ -695,7 +825,11 @@ const FLOWS = {
     );
     await clickRowAction(call, sub.operationId, "查看失败调用");
     const nav = await readingState(call);
-    check("点击定位 ⇒ 跳自有 run 的失败 span", nav.selectedRunId === child && nav.selectedSpanId === ownFailingLlm[0]?.id, nav);
+    check(
+      "点击定位 ⇒ 跳自有 run 的失败 span",
+      nav.selectedRunId === child && nav.selectedSpanId === ownFailingLlm[0]?.id,
+      nav,
+    );
     await closeOperationsPanel(call);
     endRace(r, "父本隐藏(failure)");
     check("恰一次模型调用", mock.served() - servedBase === 1, mock.served());
@@ -711,19 +845,31 @@ const FLOWS = {
     const text1 = `${MARK} rev 原始文本 v1`;
     const sub = await forkFlow(call, text1);
     const r = await race.done();
-    check("竞速注入得手（子 run 终态瞬间隐藏自身）", r !== null && !r.error, r?.error ?? (r === null ? "超时" : r.hidden));
+    check(
+      "竞速注入得手（子 run 终态瞬间隐藏自身）",
+      r !== null && !r.error,
+      r?.error ?? (r === null ? "超时" : r.hidden),
+    );
     if (r === null || r.error) throw new Error("竞速注入失败");
     const rec = await waitRegistryRecordState(call, sub.operationId, "settled", 30000);
     const child = rec?.runIds?.[0] ?? null;
     const auto = await waitForVerified(call, rec.epoch, sub.operationId, child);
-    check("自动核实 unreadable ⇒ 草稿保留（冻结解除）", auto?.phase === "unreadable", entrySummary(auto));
+    check(
+      "自动核实 unreadable ⇒ 草稿保留（冻结解除）",
+      auto?.phase === "unreadable",
+      entrySummary(auto),
+    );
     endRace(r, "子 run 隐藏(rev)");
     // 解冻后推进修订（键入追加；草稿初始值=原值，键入合并进行尾）
     await openPlainResultEditor(call);
     const suffix = " v2 修订追加";
     await H.typeIntoEditableMonaco(call, suffix);
     const revNow = await callDraftRevision(call, PARENT, TOOL_SPAN, "result");
-    check("解冻后修订推进（revision > 提交时修订）", typeof revNow === "number" && revNow > sub.revision, { rev: revNow, submitted: sub.revision });
+    check(
+      "解冻后修订推进（revision > 提交时修订）",
+      typeof revNow === "number" && revNow > sub.revision,
+      { rev: revNow, submitted: sub.revision },
+    );
     // 还原子 run + 隐藏父本 ⇒ 重读 ownOnly 正常，但修订不匹配 ⇒ 不删
     const fpBefore = H.hashAllTraces();
     const navBefore = await readingState(call);
@@ -732,12 +878,31 @@ const FLOWS = {
     await clickRowAction(call, sub.operationId, "重读这条结果");
     const retried = await waitForVerified(call, rec.epoch, sub.operationId, child);
     dump.retried = entrySummary(retried);
-    check("重读落地 ownOnly 正常（verified + normalEnd=true）", retried?.phase === "verified" && retried?.facts?.normalEnd === true && retried?.lineage?.missingRunId === PARENT, dump.retried);
+    check(
+      "重读落地 ownOnly 正常（verified + normalEnd=true）",
+      retried?.phase === "verified" &&
+        retried?.facts?.normalEnd === true &&
+        retried?.lineage?.missingRunId === PARENT,
+      dump.retried,
+    );
     const draftNow = await callDraftText(call, PARENT, TOOL_SPAN, "result");
-    check("修订推进 ⇒ 迟到的正常结果不清新修订（v2 文本保留）", typeof draftNow === "string" && draftNow.includes(suffix), draftNow?.slice(-40) ?? null);
-    check("修订推进 ⇒ 收尾关联保留（不释放）", (await closureOf(call, rec.epoch, sub.operationId)) !== null, null);
+    check(
+      "修订推进 ⇒ 迟到的正常结果不清新修订（v2 文本保留）",
+      typeof draftNow === "string" && draftNow.includes(suffix),
+      draftNow?.slice(-40) ?? null,
+    );
+    check(
+      "修订推进 ⇒ 收尾关联保留（不释放）",
+      (await closureOf(call, rec.epoch, sub.operationId)) !== null,
+      null,
+    );
     const navAfter = await readingState(call);
-    check("重试不导航（选中与代次不动）", navAfter.selectedRunId === navBefore.selectedRunId && navAfter.navGeneration === navBefore.navGeneration, { before: navBefore, after: navAfter });
+    check(
+      "重试不导航（选中与代次不动）",
+      navAfter.selectedRunId === navBefore.selectedRunId &&
+        navAfter.navGeneration === navBefore.navGeneration,
+      { before: navBefore, after: navAfter },
+    );
     check("重试零执行（恰一次模型调用）", mock.served() - servedBase === 1, mock.served());
     const fpDiff = diffFingerprints(fpBefore, H.hashAllTraces());
     check("重试零新 trace", fpDiff.added.length === 0 && fpDiff.changed.length === 0, fpDiff);
@@ -774,7 +939,8 @@ const FLOWS = {
         call,
         "return JSON.stringify({ run: s.selectedRunId, span: s.selectedSpanId });",
       );
-      if (sel.run !== PARENT || sel.span !== PARENT_SPAN) throw new Error(`选中态串台：${JSON.stringify(sel)}`);
+      if (sel.run !== PARENT || sel.span !== PARENT_SPAN)
+        throw new Error(`选中态串台：${JSON.stringify(sel)}`);
       await H.clickByTextChecked(call, "模型 A/B 实验（换 model / params 对比）", 3000);
       const deadline = Date.now() + 8000;
       for (;;) {
@@ -831,7 +997,8 @@ const FLOWS = {
             : JSON.stringify({ found: true, disabled: b.disabled }); })()`,
       );
       const st = JSON.parse(raw);
-      if (!(st.found && st.disabled === false)) throw new Error(`预览按钮不可点：${JSON.stringify(st)}`);
+      if (!(st.found && st.disabled === false))
+        throw new Error(`预览按钮不可点：${JSON.stringify(st)}`);
       await H.ev(
         call,
         `(() => { Array.from(document.querySelectorAll('button'))
@@ -866,22 +1033,37 @@ const FLOWS = {
     // ── 第一批：[ok, ok] ⇒ 两臂 ownOnly 正常 ⇒ 整批照常清理
     await openAbEditor();
     let d0 = await abDraftOf(call);
-    check("第一批：打开即有批次草稿（两臂）", d0 !== null && d0.rows.length === 2, d0?.rows?.length);
+    check(
+      "第一批：打开即有批次草稿（两臂）",
+      d0 !== null && d0.rows.length === 2,
+      d0?.rows?.length,
+    );
     await setArmInput(0, "U6-67-arm-a");
     await setArmInput(1, "U6-67-arm-b");
     await acknowledgeSideEffectsIfPresent();
     await previewAb();
     await confirmEditor(call);
-    const race1 = startSpanWatcher({ requiredNew: 2, hideTarget: "fixed", hideRunId: PARENT, triggerMode: "exists" });
+    const race1 = startSpanWatcher({
+      requiredNew: 2,
+      hideTarget: "fixed",
+      hideRunId: PARENT,
+      triggerMode: "exists",
+    });
     const sub1 = await submitAndCapture(call, "确认执行（", AB_SUB_KEY);
-    if (typeof sub1.operationId !== "string") throw new Error(`A/B 未登记：${JSON.stringify(sub1)}`);
+    if (typeof sub1.operationId !== "string")
+      throw new Error(`A/B 未登记：${JSON.stringify(sub1)}`);
     const r1 = await race1.done();
-    check("第一批竞速注入得手（两臂终态后隐藏父本）", r1 !== null && !r1.error, r1?.error ?? (r1 === null ? "超时" : r1.hidden));
+    check(
+      "第一批竞速注入得手（两臂终态后隐藏父本）",
+      r1 !== null && !r1.error,
+      r1?.error ?? (r1 === null ? "超时" : r1.hidden),
+    );
     if (r1 === null || r1.error) throw new Error("竞速注入失败");
     const rec1 = await waitForAbSettled(sub1.operationId, 2);
     check(
       "第一批登记收口：两臂 returned 且 id 非空",
-      rec1?.state === "settled" && (rec1.arms ?? []).every((a) => a.outcome === "returned" && a.id !== null),
+      rec1?.state === "settled" &&
+        (rec1.arms ?? []).every((a) => a.outcome === "returned" && a.id !== null),
       rec1 ? { state: rec1.state, arms: rec1.arms } : null,
     );
     const entries1 = [];
@@ -892,7 +1074,9 @@ const FLOWS = {
     dump.entries1 = entries1;
     check(
       "两臂核实均 verified ownOnly 正常（ownOnly 不另设门槛）",
-      entries1.every((e) => e.phase === "verified" && e.lineage?.missingRunId === PARENT && e.normalEnd === true),
+      entries1.every(
+        (e) => e.phase === "verified" && e.lineage?.missingRunId === PARENT && e.normalEnd === true,
+      ),
       entries1,
     );
     const deadline1 = Date.now() + 30000;
@@ -907,7 +1091,9 @@ const FLOWS = {
       if (Date.now() > deadline1) break;
       await H.sleep(500);
     }
-    check("两臂 ownOnly 正常 ⇒ 整批一次清干净（批次草稿 + 关联）", cleaned === true, { draft: await abDraftOf(call) !== null });
+    check("两臂 ownOnly 正常 ⇒ 整批一次清干净（批次草稿 + 关联）", cleaned === true, {
+      draft: (await abDraftOf(call)) !== null,
+    });
     check("第一批恰两次调用（每臂一次）", mock.served() - servedBase === 2, mock.served());
     endRace(r1, "父本隐藏(ab1)");
 
@@ -915,22 +1101,39 @@ const FLOWS = {
     await H.storeQ(call, "await s.loadRuns(); return JSON.stringify({ n: s.runs.length });");
     await openAbEditor();
     d0 = await abDraftOf(call);
-    check("第二批：上一批已清 ⇒ 全新两臂批次", d0 !== null && d0.rows.length === 2, d0?.rows?.length);
+    check(
+      "第二批：上一批已清 ⇒ 全新两臂批次",
+      d0 !== null && d0.rows.length === 2,
+      d0?.rows?.length,
+    );
     await setArmInput(0, "U6-67-arm-c");
     await setArmInput(1, "U6-67-arm-d");
     await acknowledgeSideEffectsIfPresent();
     await previewAb();
     await confirmEditor(call);
-    const race2 = startSpanWatcher({ requiredNew: 2, hideTarget: "fixed", hideRunId: PARENT, triggerMode: "exists" });
+    const race2 = startSpanWatcher({
+      requiredNew: 2,
+      hideTarget: "fixed",
+      hideRunId: PARENT,
+      triggerMode: "exists",
+    });
     const sub2 = await submitAndCapture(call, "确认执行（", AB_SUB_KEY);
-    if (typeof sub2.operationId !== "string") throw new Error(`A/B 未登记：${JSON.stringify(sub2)}`);
+    if (typeof sub2.operationId !== "string")
+      throw new Error(`A/B 未登记：${JSON.stringify(sub2)}`);
     const r2 = await race2.done();
-    check("第二批竞速注入得手", r2 !== null && !r2.error, r2?.error ?? (r2 === null ? "超时" : r2.hidden));
+    check(
+      "第二批竞速注入得手",
+      r2 !== null && !r2.error,
+      r2?.error ?? (r2 === null ? "超时" : r2.hidden),
+    );
     if (r2 === null || r2.error) throw new Error("竞速注入失败");
     const rec2 = await waitForAbSettled(sub2.operationId, 2);
     check(
       "第二批登记收口：臂 1 returned、臂 2 failed（逐臂诚实）",
-      rec2?.state === "settled" && rec2.arms?.[0]?.outcome === "returned" && rec2.arms?.[1]?.outcome === "failed" && rec2.arms.every((a) => a.id !== null),
+      rec2?.state === "settled" &&
+        rec2.arms?.[0]?.outcome === "returned" &&
+        rec2.arms?.[1]?.outcome === "failed" &&
+        rec2.arms.every((a) => a.id !== null),
       rec2 ? { state: rec2.state, arms: rec2.arms } : null,
     );
     const entries2 = [];
@@ -941,14 +1144,24 @@ const FLOWS = {
     dump.entries2 = entries2;
     check(
       "两臂核实均 ownOnly（missingRunId=父本），臂 2 normalEnd=false",
-      entries2.every((e) => e.phase === "verified" && e.lineage?.missingRunId === PARENT) && entries2[0].normalEnd === true && entries2[1].normalEnd === false,
+      entries2.every((e) => e.phase === "verified" && e.lineage?.missingRunId === PARENT) &&
+        entries2[0].normalEnd === true &&
+        entries2[1].normalEnd === false,
       entries2,
     );
     await H.sleep(2000);
     const d2 = await abDraftOf(call);
     const cl2 = await closureOf(call, rec2.epoch, sub2.operationId);
-    check("错误臂在场 ⇒ 整批保留（批次草稿仍在）", d2 !== null && d2.rows.length === 2, d2?.rows?.length);
-    check("错误臂在场 ⇒ 收尾关联保留（不推断胜出臂）", cl2 !== null, cl2 === null ? null : { targetKey: cl2.targetKey });
+    check(
+      "错误臂在场 ⇒ 整批保留（批次草稿仍在）",
+      d2 !== null && d2.rows.length === 2,
+      d2?.rows?.length,
+    );
+    check(
+      "错误臂在场 ⇒ 收尾关联保留（不推断胜出臂）",
+      cl2 !== null,
+      cl2 === null ? null : { targetKey: cl2.targetKey },
+    );
     await openOperationsPanel(call);
     const row2 = await rowRead(call, sub2.operationId);
     check(
@@ -970,17 +1183,34 @@ const FLOWS = {
    */
   "retry-position": async (call, mock) => {
     const servedBase = mock.served();
-    const race = startSpanWatcher({ requiredNew: 1, hideTarget: "fixed", hideRunId: PARENT, triggerMode: "exists" });
+    const race = startSpanWatcher({
+      requiredNew: 1,
+      hideTarget: "fixed",
+      hideRunId: PARENT,
+      triggerMode: "exists",
+    });
     const text = `${MARK} position 阅读位置子 run`;
     const sub = await forkFlow(call, text);
     const r = await race.done();
-    check("竞速注入得手（父本隐藏）", r !== null && !r.error, r?.error ?? (r === null ? "超时" : r.hidden));
+    check(
+      "竞速注入得手（父本隐藏）",
+      r !== null && !r.error,
+      r?.error ?? (r === null ? "超时" : r.hidden),
+    );
     if (r === null || r.error) throw new Error("竞速注入失败");
     const rec = await waitRegistryRecordState(call, sub.operationId, "settled", 30000);
     const child = rec?.runIds?.[0] ?? null;
     const entry = await waitForVerified(call, rec.epoch, sub.operationId, child);
-    check("ownOnly 正常核实落地", entry?.phase === "verified" && entry?.lineage?.missingRunId === PARENT, entrySummary(entry));
-    check("ownOnly 正常 ⇒ 草稿按原修订清理", (await callDraftText(call, PARENT, TOOL_SPAN, "result")) === null, null);
+    check(
+      "ownOnly 正常核实落地",
+      entry?.phase === "verified" && entry?.lineage?.missingRunId === PARENT,
+      entrySummary(entry),
+    );
+    check(
+      "ownOnly 正常 ⇒ 草稿按原修订清理",
+      (await callDraftText(call, PARENT, TOOL_SPAN, "result")) === null,
+      null,
+    );
 
     // 布置阅读位置：选中子 run → 选自有 span → 页签停在「步骤」
     // ⚠️ 此时父本仍在隐藏中（endRace 推迟到 ownOnly 重读之后）：还原过早会让重读拿到 complete（首跑坐实）
@@ -1006,7 +1236,9 @@ const FLOWS = {
     const posOf = (r) => (r === null ? null : { tab: r.tab, spanId: r.spanId });
     check(
       "ownOnly 重读落地 ⇒ 阅读位置保持（页签/span）",
-      afterOwn !== null && JSON.stringify(posOf(beforeOwn)) === JSON.stringify(posOf(afterOwn)) && posOf(beforeOwn).tab !== null,
+      afterOwn !== null &&
+        JSON.stringify(posOf(beforeOwn)) === JSON.stringify(posOf(afterOwn)) &&
+        posOf(beforeOwn).tab !== null,
       { before: posOf(beforeOwn), after: posOf(afterOwn) },
     );
     const sel2 = await detailCompleteness(call);
@@ -1016,7 +1248,7 @@ const FLOWS = {
     // （「恢复前 ownOnly 旧响应后到不覆盖 complete」的在飞交叠半边无延时注入面 ⇒ 单元承载；
     //   实机可验证的是「恢复后重读读到 complete 且位置不动」这一用户可见结果。）
     const endRaceResult = endRace(r, "父本隐藏(position)");
-        const navBefore = await readingState(call);
+    const navBefore = await readingState(call);
     // 父本已还原 ⇒ 切走切回触发全新读取
     await H.selectRun(call, AWAY);
     await H.sleep(900);
@@ -1025,9 +1257,16 @@ const FLOWS = {
     const sel3 = await detailCompleteness(call);
     check("父本恢复后重读 ⇒ 全量重验 complete（不缓存旧 ownOnly）", sel3.c === "complete", sel3);
     const afterComplete = await readingOfRun(call, child);
-    check("complete 落地 ⇒ 阅读位置仍保持", JSON.stringify(posOf(afterComplete)) === JSON.stringify(posOf(afterOwn)), { expect: posOf(afterOwn), now: posOf(afterComplete) });
+    check(
+      "complete 落地 ⇒ 阅读位置仍保持",
+      JSON.stringify(posOf(afterComplete)) === JSON.stringify(posOf(afterOwn)),
+      { expect: posOf(afterOwn), now: posOf(afterComplete) },
+    );
     const navAfter = await readingState(call);
-    check("全程选中 run 不变（重试不换阅读对象）", navAfter.selectedRunId === child, { before: navBefore.selectedRunId, after: navAfter.selectedRunId });
+    check("全程选中 run 不变（重试不换阅读对象）", navAfter.selectedRunId === child, {
+      before: navBefore.selectedRunId,
+      after: navAfter.selectedRunId,
+    });
     check("恰一次模型调用", mock.served() - servedBase === 1, mock.served());
     dump.layerNote =
       "「重试在飞期间选别的调用/换页签 ⇒ 落地不覆盖新位置」需详情读取可延时——真机无此注入面 ⇒ 由 u6-detail-refresh-guard 三例（store 集成）承载；实机交付 ownOnly→恢复→complete 三态切换的位置保持";

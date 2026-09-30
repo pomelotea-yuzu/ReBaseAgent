@@ -274,7 +274,8 @@ describe("U6 6.1 来源链注入：每种注入的实际读取形状（对着真
     expect(restore.clean).toBe(true);
   });
 
-  it("currentMissing ⇒ 读取直接失败（缺当前文件不返回 ownOnly）", async () => {    const { traces, repo } = tempTraces();
+  it("currentMissing ⇒ 读取直接失败（缺当前文件不返回 ownOnly）", async () => {
+    const { traces, repo } = tempTraces();
     const { fnResult, restore } = await lineageFaults.withLineageFault(
       { tracesDir: traces, childRunId: CHILD_ID },
       "currentMissing",

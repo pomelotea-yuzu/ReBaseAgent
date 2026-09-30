@@ -302,7 +302,7 @@ describe("U6 4.11：LineageIncompleteNoticeView 静态渲染——长 ID/警告/
     incomplete: true as const,
     text: "仅显示本运行记录，父链不完整",
     missingRunId: "run_a_very_long_missing_identifier_0123456789abcdef",
-    missingNote: `缺失的祖先运行：run_a_very_long_missing_identifier_0123456789abcdef`,
+    missingNote: "缺失的祖先运行：run_a_very_long_missing_identifier_0123456789abcdef",
     chainTruncated: true,
   };
 

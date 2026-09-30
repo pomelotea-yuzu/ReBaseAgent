@@ -481,8 +481,11 @@ const FLOWS = {
       body.includes("不执行外部") || body.includes("不恢复"),
       null,
     );
-    check("肯定分支的凭据事实在场（使用代理会话最近捕获的 key）",
-      body.includes("使用代理会话最近捕获的 key"), null);
+    check(
+      "肯定分支的凭据事实在场（使用代理会话最近捕获的 key）",
+      body.includes("使用代理会话最近捕获的 key"),
+      null,
+    );
     await confirmEditor(call);
     check("确认可挂上", true, null);
     const servedExpected = 1; // 捕获 POST 的转发恰一次
@@ -628,8 +631,7 @@ const FLOWS = {
     let reg = await recordOf(call, sub.operationId);
     if (reg.rec === null) {
       const st = await opsStatus(call);
-      const rec =
-        (st?.data?.operations ?? []).find((o) => (o.runIds ?? []).includes(id)) ?? null;
+      const rec = (st?.data?.operations ?? []).find((o) => (o.runIds ?? []).includes(id)) ?? null;
       reg = { rec, slot: st?.data?.activeOperationId ?? null, epoch: st?.data?.epoch ?? null };
     }
     const opId = reg.rec?.operationId ?? sub.operationId ?? null;
@@ -734,8 +736,11 @@ const FLOWS = {
       "就近资格原因在场（本会话未捕获到 key ⇒ 先把应用经代理跑一次）",
       typeof ineligibleReason === "string" &&
         (body.includes(ineligibleReason) || (gate.title ?? "").includes(ineligibleReason)),
-      { reason: ineligibleReason, inBody: body.includes(ineligibleReason ?? "\u0000"),
-        inTitle: (gate.title ?? "").includes(ineligibleReason ?? "\u0000") },
+      {
+        reason: ineligibleReason,
+        inBody: body.includes(ineligibleReason ?? "\u0000"),
+        inTitle: (gate.title ?? "").includes(ineligibleReason ?? "\u0000"),
+      },
     );
     // 编辑仍可写、门禁拦截不动草稿；全程零联网零新 trace
     const before = H.traceIds();
@@ -789,8 +794,8 @@ const FLOWS = {
     const probeExpr =
       `(() => { const all = Array.from(document.querySelectorAll('button'))` +
       `.filter(x => ((x.textContent||'').trim()) === '编辑 messages 重发');` +
-      `return JSON.stringify({ total: all.length,` +
-      ` visible: all.filter(x => x.offsetParent !== null).length }); })()`;
+      "return JSON.stringify({ total: all.length," +
+      " visible: all.filter(x => x.offsetParent !== null).length }); })()";
     let probe = { total: -1, visible: -1 };
     for (let i = 0; i < 6; i++) {
       probe = JSON.parse(await H.ev(call, probeExpr));
@@ -832,7 +837,7 @@ async function main() {
       mock = await H.prepare(call, TAG_SCRIPT[TAG]);
     } catch (e) {
       if (attempt > 0 || !String(e).includes("Failed to fetch")) throw e;
-      console.log(`[prepare] 模块加载失败，reload 后重试一次`);
+      console.log("[prepare] 模块加载失败，reload 后重试一次");
       await call("Page.reload", { ignoreCache: true });
       for (let i = 0; i < 40; i++) {
         await H.sleep(500);

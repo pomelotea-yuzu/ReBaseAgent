@@ -600,11 +600,15 @@ describe("5.9–5.11 服务端重读 / 同 ID 不复活 / 无父本路径回归"
     h.setScript([{ content: "父 run 一步完成。" }]);
     const parent = await h.makeParent();
     h.setScript(CHILD_SCRIPT);
-    const child = await execForkRun(h.deps, TRUSTED_SENDER, envelope(90, {
-      parentRunId: parent.parentId,
-      atSpanId: parent.atSpanId,
-      edit: { field: "result", value: "编辑后的结果" },
-    }));
+    const child = await execForkRun(
+      h.deps,
+      TRUSTED_SENDER,
+      envelope(90, {
+        parentRunId: parent.parentId,
+        atSpanId: parent.atSpanId,
+        edit: { field: "result", value: "编辑后的结果" },
+      }),
+    );
     if (!child.ok) throw new Error("正对照失败");
     const parentFile = join(h.traces, `${parent.parentId}.jsonl`);
     const parentContent = readFileSync(parentFile, "utf8");
@@ -632,11 +636,15 @@ describe("5.9–5.11 服务端重读 / 同 ID 不复活 / 无父本路径回归"
     // 预检之后、提交之前父文件消失：main 提交时**服务端重读**仍拒绝。
     // 父文件即当前 run ⇒ 严格失败形态（RUN_DETAIL_UNREADABLE，design D2「缺当前文件直接失败」）
     rmSync(join(h.traces, `${pureParent}.jsonl`));
-    const response = await execModelAb(h.deps, TRUSTED_SENDER, envelope(91, {
-      parentRunId: pureParent,
-      arms: [{ model: "m-a" }, { model: "m-b" }],
-      dryRun: false,
-    }));
+    const response = await execModelAb(
+      h.deps,
+      TRUSTED_SENDER,
+      envelope(91, {
+        parentRunId: pureParent,
+        arms: [{ model: "m-a" }, { model: "m-b" }],
+        dryRun: false,
+      }),
+    );
     expect(response.ok).toBe(false);
     if (response.ok) return;
     expect(response.error.code).toBe(RUN_SOURCE_REJECTION.unreadable);
@@ -648,11 +656,15 @@ describe("5.9–5.11 服务端重读 / 同 ID 不复活 / 无父本路径回归"
     const { childId, atSpanId, parentFile, parentContent } = await makeOwnOnlyChild();
 
     // 第一次提交：来源拒绝（settled/rejected）
-    const first = await execForkRun(h.deps, TRUSTED_SENDER, envelope(92, {
-      parentRunId: childId,
-      atSpanId,
-      edit: { field: "result", value: "恢复前的编辑" },
-    }));
+    const first = await execForkRun(
+      h.deps,
+      TRUSTED_SENDER,
+      envelope(92, {
+        parentRunId: childId,
+        atSpanId,
+        edit: { field: "result", value: "恢复前的编辑" },
+      }),
+    );
     expect(first.ok).toBe(false);
     if (first.ok) return;
     expect(first.error.code).toBe(RUN_SOURCE_REJECTION.incomplete);
@@ -661,11 +673,15 @@ describe("5.9–5.11 服务端重读 / 同 ID 不复活 / 无父本路径回归"
     writeFileSync(parentFile, parentContent);
     const filesBefore = h.traceFiles();
     const callsBefore = h.llmCalls();
-    const sameId = await execForkRun(h.deps, TRUSTED_SENDER, envelope(92, {
-      parentRunId: childId,
-      atSpanId,
-      edit: { field: "result", value: "恢复前的编辑" },
-    }));
+    const sameId = await execForkRun(
+      h.deps,
+      TRUSTED_SENDER,
+      envelope(92, {
+        parentRunId: childId,
+        atSpanId,
+        edit: { field: "result", value: "恢复前的编辑" },
+      }),
+    );
     expect(sameId.ok).toBe(false);
     if (sameId.ok) return;
     expect(sameId.error.code).toBe(OPERATION_ERROR.duplicated);
@@ -673,11 +689,15 @@ describe("5.9–5.11 服务端重读 / 同 ID 不复活 / 无父本路径回归"
     expect(h.traceFiles()).toEqual(filesBefore);
 
     // 新 ID 重新提交：通过重检（父链已恢复）⇒ 正常执行
-    const renewed = await execForkRun(h.deps, TRUSTED_SENDER, envelope(93, {
-      parentRunId: childId,
-      atSpanId,
-      edit: { field: "result", value: "恢复后的新提交" },
-    }));
+    const renewed = await execForkRun(
+      h.deps,
+      TRUSTED_SENDER,
+      envelope(93, {
+        parentRunId: childId,
+        atSpanId,
+        edit: { field: "result", value: "恢复后的新提交" },
+      }),
+    );
     expect(renewed.ok).toBe(true);
     expect(h.llmCalls()).toBeGreaterThan(callsBefore);
   });
@@ -686,10 +706,14 @@ describe("5.9–5.11 服务端重读 / 同 ID 不复活 / 无父本路径回归"
     h.configure();
     await makeOwnOnlyChild(); // 磁盘上存在 ownOnly run
     h.setScript(ONE_TURN);
-    const created = await execCreateRun(h.deps, TRUSTED_SENDER, envelope(94, {
-      systemPrompt: "你是简洁的问答助手。",
-      userMessage: "无父本创建照常工作。",
-    }));
+    const created = await execCreateRun(
+      h.deps,
+      TRUSTED_SENDER,
+      envelope(94, {
+        systemPrompt: "你是简洁的问答助手。",
+        userMessage: "无父本创建照常工作。",
+      }),
+    );
     expect(created.ok).toBe(true);
     if (created.ok) return;
   });

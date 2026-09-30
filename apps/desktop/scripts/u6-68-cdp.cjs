@@ -78,7 +78,11 @@ function check(name, ok, detail) {
 }
 function sha12(file) {
   try {
-    return require("node:crypto").createHash("sha256").update(readFileSync(file)).digest("hex").slice(0, 12);
+    return require("node:crypto")
+      .createHash("sha256")
+      .update(readFileSync(file))
+      .digest("hex")
+      .slice(0, 12);
   } catch {
     return "unknown";
   }
@@ -103,7 +107,9 @@ function finish(extraMeta = {}) {
     head: headShort(),
     node: process.version,
     scriptSha: {
-      "u6-lineage-faults.cjs": sha12(join(H.REPO, "apps/desktop/scripts/lib/u6-lineage-faults.cjs")),
+      "u6-lineage-faults.cjs": sha12(
+        join(H.REPO, "apps/desktop/scripts/lib/u6-lineage-faults.cjs"),
+      ),
       "ps-win.ps1": sha12(PS_WIN),
       "u3-65-input.ps1": sha12(INPUT_PS1),
       "u4-smoke-harness.cjs": sha12(join(H.REPO, "apps/desktop/scripts/lib/u4-smoke-harness.cjs")),
@@ -177,7 +183,8 @@ async function execRaw(call, path, request) {
   );
 }
 function execOfEnvelope(env) {
-  if (env?.ok !== true) throw new Error(`执行信封非 ok：${JSON.stringify(env?.error ?? env).slice(0, 300)}`);
+  if (env?.ok !== true)
+    throw new Error(`执行信封非 ok：${JSON.stringify(env?.error ?? env).slice(0, 300)}`);
   return env.data;
 }
 async function seedRun(call, { userMessage, workspace }) {
@@ -232,7 +239,11 @@ async function seedOwnOnlySpecimen(call) {
     if (Date.now() > deadline) throw new Error(`子 run ${child} 60s 未封存`);
     await H.sleep(500);
   }
-  const injection = safeBeginLineageFault({ tracesDir: H.TRACES, childRunId: child, ancestorRunId: FX.normalRun });
+  const injection = safeBeginLineageFault({
+    tracesDir: H.TRACES,
+    childRunId: child,
+    ancestorRunId: FX.normalRun,
+  });
   dump.specimen = { root: FX.normalRun, child };
   return { root: FX.normalRun, child, injection };
 }
@@ -305,7 +316,15 @@ function parseLines(text) {
 async function inputPs(action, extra = []) {
   PS_SEQ += 1;
   const outFile = join(OUT_DIR, `input-${process.pid}-${PS_SEQ}.txt`);
-  await runPs1(INPUT_PS1, ["-Action", action, "-ProcId", String(MAIN_PID), "-OutFile", outFile, ...extra]);
+  await runPs1(INPUT_PS1, [
+    "-Action",
+    action,
+    "-ProcId",
+    String(MAIN_PID),
+    "-OutFile",
+    outFile,
+    ...extra,
+  ]);
   let txt = "";
   try {
     txt = readFileSync(outFile, "utf8");
@@ -351,7 +370,7 @@ async function resolveMainPid() {
 }
 async function realKeys(tokens, { raise = "1", gapMs = 90 } = {}) {
   const info = await inputPs("keys", ["-Send", tokens, "-Raise", raise, "-GapMs", String(gapMs)]);
-  if (info["RESULT"] === undefined || !String(info["RESULT"]).includes("sent")) {
+  if (info.RESULT === undefined || !String(info.RESULT).includes("sent")) {
     throw new Error(`真键盘发送失败：${JSON.stringify(info).slice(0, 200)}`);
   }
   await H.sleep(500);
@@ -413,7 +432,9 @@ async function clickSpanScoped(call, titleFragment, spanId) {
     const sel = await H.storeQ(call, "return JSON.stringify({ span: s.selectedSpanId });");
     if (sel.span === spanId) return true;
   }
-  throw new Error(`span 选中未落地（${titleFragment}, 期望 ${spanId}）：${JSON.stringify(rows).slice(0, 200)}`);
+  throw new Error(
+    `span 选中未落地（${titleFragment}, 期望 ${spanId}）：${JSON.stringify(rows).slice(0, 200)}`,
+  );
 }
 /** 禁用原因行读数：选中子 run 的 llm span 后，就近资格原因须在场（5.12 的实机形状） */
 async function reasonLineVisible(call, child, llmSpan) {
@@ -457,7 +478,10 @@ async function reasonLineVisible(call, child, llmSpan) {
     if (body.includes(REASON_LINE)) return { ok: true, via: "body" };
     if (Date.now() > deadline) {
       dump[`reason-diag-${llmSpan}`] = {
-        sel: await H.storeQ(call, "return JSON.stringify({ sel: s.selectedRunId, span: s.selectedSpanId, c: s.detail?.completeness ?? null });").catch(() => null),
+        sel: await H.storeQ(
+          call,
+          "return JSON.stringify({ sel: s.selectedRunId, span: s.selectedSpanId, c: s.detail?.completeness ?? null });",
+        ).catch(() => null),
         treeCollapsed: await H.ev(
           call,
           `(() => { const b = Array.from(document.querySelectorAll('button'))
@@ -482,17 +506,31 @@ async function checkNoticeAt(call, label, { child, root, llmSpan }) {
   // 步骤页提示块
   await H.clickTabChecked(call, "步骤");
   await H.sleep(600);
-  let n = noticeParse(await noticeRead(call));
+  const n = noticeParse(await noticeRead(call));
   check(`[${label}] ownOnly 提示块在场（步骤页）`, n.present === true, n);
   if (n.present !== true) return;
-  check(`[${label}] 固定文案在场（未知/不补零口径）`, (n.text ?? "").includes("不补零") && (n.text ?? "").includes("未知"), n.text?.slice(0, 80));
-  check(`[${label}] 缺失 ID 文本 = 注入的祖先 run`, n.missingId === root, { got: n.missingId, want: root });
+  check(
+    `[${label}] 固定文案在场（未知/不补零口径）`,
+    (n.text ?? "").includes("不补零") && (n.text ?? "").includes("未知"),
+    n.text?.slice(0, 80),
+  );
+  check(`[${label}] 缺失 ID 文本 = 注入的祖先 run`, n.missingId === root, {
+    got: n.missingId,
+    want: root,
+  });
   check(`[${label}] 缺失 ID 走 break-all`, n.breakAll === true, n.breakAll);
-  check(`[${label}] 页面无横向溢出（不断版）`, (n.pageOverflowX ?? 99) <= 1, { page: n.pageOverflowX, block: n.blockOverflowX });
+  check(`[${label}] 页面无横向溢出（不断版）`, (n.pageOverflowX ?? 99) <= 1, {
+    page: n.pageOverflowX,
+    block: n.blockOverflowX,
+  });
   check(`[${label}] 提示块自身无横向溢出`, (n.blockOverflowX ?? 99) <= 1, n.blockOverflowX);
   check(
     `[${label}] 复制动作是真按钮（tag/aria/disabled/可见）`,
-    n.btn !== null && n.btn.tag === "BUTTON" && n.btn.disabled === false && n.btn.visible === true && n.btn.aria.includes(root),
+    n.btn !== null &&
+      n.btn.tag === "BUTTON" &&
+      n.btn.disabled === false &&
+      n.btn.visible === true &&
+      n.btn.aria.includes(root),
     n.btn,
   );
   await H.shot(call, SHOT_DIR, `${TAG}-${label}-steps.png`);
@@ -520,26 +558,37 @@ async function checkNoticeAt(call, label, { child, root, llmSpan }) {
   await H.clickTabChecked(call, "步骤");
   await H.sleep(600);
   const reason = await reasonLineVisible(call, child, llmSpan);
-  check(`[${label}] 禁用原因行可读（源记录不可用…）`, reason.ok === true, reason.ok ? null : dump[`reason-diag-${llmSpan}`]);
+  check(
+    `[${label}] 禁用原因行可读（源记录不可用…）`,
+    reason.ok === true,
+    reason.ok ? null : dump[`reason-diag-${llmSpan}`],
+  );
 
   // 重读在当前宽度可用：切走切回 ⇒ ownOnly 再落地（读取重试不改阅读位置）
   await selectRunAnywhere(call, child);
   await H.sleep(400);
   const posBefore = await H.storeQ(
     call,
-    `return JSON.stringify({ sel: s.selectedRunId, span: s.selectedSpanId, tab: s.readingOf(s.selectedRunId)?.tab ?? null });`,
+    "return JSON.stringify({ sel: s.selectedRunId, span: s.selectedSpanId, tab: s.readingOf(s.selectedRunId)?.tab ?? null });",
   );
-  const awayId = (await H.storeQ(call, "return JSON.stringify(s.runs.map(r => r.id).filter(id => id !== " + JSON.stringify(child) + ")[0] ?? null);")) ?? null;
+  const awayId =
+    (await H.storeQ(
+      call,
+      `return JSON.stringify(s.runs.map(r => r.id).filter(id => id !== ${JSON.stringify(child)})[0] ?? null);`,
+    )) ?? null;
   if (typeof awayId === "string") {
     await selectRunAnywhere(call, awayId);
     await H.sleep(900);
     await selectRunAnywhere(call, child);
     await H.sleep(1500);
   }
-  const landed = await H.storeQ(call, "return JSON.stringify({ c: s.detail?.completeness ?? null });");
+  const landed = await H.storeQ(
+    call,
+    "return JSON.stringify({ c: s.detail?.completeness ?? null });",
+  );
   const posAfter = await H.storeQ(
     call,
-    `return JSON.stringify({ sel: s.selectedRunId, span: s.selectedSpanId, tab: s.readingOf(s.selectedRunId)?.tab ?? null });`,
+    "return JSON.stringify({ sel: s.selectedRunId, span: s.selectedSpanId, tab: s.readingOf(s.selectedRunId)?.tab ?? null });",
   );
   check(`[${label}] 重读落地仍 ownOnly（恢复动作在此宽度可用）`, landed.c === "ownOnly", landed);
   check(
@@ -591,8 +640,8 @@ const FLOWS = {
     const resolved = await resolveMainPid();
     check("已唯一认定 dev 主进程 PID（真键盘通道前置）", resolved.pid > 0, resolved.info);
     const fg = await raiseForeground();
-    check("前置：主窗口真实在前台", String(fg["foreground"] ?? "").includes("same=True"), fg);
-    dump.ime = { hkl: fg["hkl"] ?? null, immOpen: fg["imm-open"] ?? null };
+    check("前置：主窗口真实在前台", String(fg.foreground ?? "").includes("same=True"), fg);
+    dump.ime = { hkl: fg.hkl ?? null, immOpen: fg["imm-open"] ?? null };
 
     // 诊断：fg 动作后的首个 storeQ 曾返回 undefined（appImport 非法 JSON）——捕获原始 CDP 回包
     try {
@@ -619,7 +668,7 @@ const FLOWS = {
     await H.sleep(1500);
     await H.clickTabChecked(call, "步骤");
     await H.sleep(800);
-    let n = noticeParse(await noticeRead(call));
+    const n = noticeParse(await noticeRead(call));
     check("前置：ownOnly 提示块在场", n.present === true, n);
     if (n.present !== true) throw new Error("提示块不在场，键盘判据无从谈起");
 
@@ -646,11 +695,18 @@ const FLOWS = {
     }
     check("真 Tab 可达复制按钮（有界步数内）", arrived !== null, arrived ?? "40 步未到达");
     if (arrived !== null) {
-      check("落点是真按钮且读屏可辨（aria 带缺失 ID）", arrived.tag === "BUTTON" && arrived.aria.includes(root), arrived);
+      check(
+        "落点是真按钮且读屏可辨（aria 带缺失 ID）",
+        arrived.tag === "BUTTON" && arrived.aria.includes(root),
+        arrived,
+      );
       const selBefore = await H.storeQ(call, "return JSON.stringify({ sel: s.selectedRunId });");
       await realKeys("ENTER", { raise: "0" });
       const selAfter = await H.storeQ(call, "return JSON.stringify({ sel: s.selectedRunId });");
-      check("真 Enter 激活复制（选中不变、无异常跳转）", selAfter.sel === selBefore.sel, { before: selBefore, after: selAfter });
+      check("真 Enter 激活复制（选中不变、无异常跳转）", selAfter.sel === selBefore.sel, {
+        before: selBefore,
+        after: selAfter,
+      });
       // 剪贴板回读（首跑坐实：Electron 渲染层 readText 在权限未决时**永不 resolve** ⇒
       // evAsync 挂死 600s 超时）⇒ 页内 Promise.race 限时 3s，读不到就如实降级
       try {
@@ -663,9 +719,12 @@ const FLOWS = {
         );
         const clip = typeof clipRaw === "string" ? JSON.parse(clipRaw) : clipRaw;
         if (clip?.ok === true) {
-          check("剪贴板内容 = 完整缺失 ID", clip.text === root, { clip: String(clip.text).slice(0, 40) });
+          check("剪贴板内容 = 完整缺失 ID", clip.text === root, {
+            clip: String(clip.text).slice(0, 40),
+          });
         } else {
-          dump.clipboard = "回读 3s 未决（权限）——复制判据以 focus+activation 为准，不冒充已验证剪贴板内容";
+          dump.clipboard =
+            "回读 3s 未决（权限）——复制判据以 focus+activation 为准，不冒充已验证剪贴板内容";
           console.log(`ℹ ${dump.clipboard}`);
         }
       } catch (e) {
@@ -681,7 +740,11 @@ const FLOWS = {
             : JSON.stringify({ aria: e.getAttribute('aria-label') ?? '' }); })()`,
       );
       const bp = typeof back === "string" ? JSON.parse(back) : back;
-      check("Shift+Tab 离开再 Tab 仍回到复制按钮（双向可达）", String(bp?.aria ?? "").startsWith("复制缺失祖先 run ID"), bp);
+      check(
+        "Shift+Tab 离开再 Tab 仍回到复制按钮（双向可达）",
+        String(bp?.aria ?? "").startsWith("复制缺失祖先 run ID"),
+        bp,
+      );
     }
     await H.shot(call, SHOT_DIR, `${TAG}-keyboard.png`);
     const end = injection.end();

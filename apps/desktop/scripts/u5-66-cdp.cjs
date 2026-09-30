@@ -80,9 +80,15 @@ const freshUuid = () => {
 
 /** 各 tag 的受控剧本（turns 顺序消费；fallback 供重启后的新会话使用） */
 const TAG_SCRIPT = {
-  "reload-timing": { turns: [{ content: `${MARK} 慢响应：计时窗口。`, delayMs: 6000 }], fallback: OK_TURN },
+  "reload-timing": {
+    turns: [{ content: `${MARK} 慢响应：计时窗口。`, delayMs: 6000 }],
+    fallback: OK_TURN,
+  },
   "stale-read": { turns: [OK_TURN, OK_TURN], fallback: OK_TURN },
-  "notice-only": { turns: [{ content: `${MARK} 慢响应：重载窗口。`, delayMs: 6000 }], fallback: OK_TURN },
+  "notice-only": {
+    turns: [{ content: `${MARK} 慢响应：重载窗口。`, delayMs: 6000 }],
+    fallback: OK_TURN,
+  },
   "limit-outcomes": {
     turns: [fixtureOf("budgetExceeded").script.turns[0]],
     fallback: fixtureOf("maxIterations").script.fallback,
@@ -147,7 +153,11 @@ function check(name, ok, detail) {
 }
 function sha12(file) {
   try {
-    return require("node:crypto").createHash("sha256").update(readFileSync(file)).digest("hex").slice(0, 12);
+    return require("node:crypto")
+      .createHash("sha256")
+      .update(readFileSync(file))
+      .digest("hex")
+      .slice(0, 12);
   } catch {
     return "unknown";
   }
@@ -523,7 +533,7 @@ async function discardCreateDraft(call) {
 
 /** 带「换文档自证」的重载（U4 6.6 纪律：reload 不换文档 ⇒ 一切"重载后"判据凭空成立） */
 async function reloadWithGuard(call, { waitRuns = true } = {}) {
-  await H.ev(call, `(() => { window.__u566Doc = (window.__u566Doc ?? 0) + 1; return true; })()`);
+  await H.ev(call, "(() => { window.__u566Doc = (window.__u566Doc ?? 0) + 1; return true; })()");
   await call("Page.reload", { ignoreCache: true });
   let swapped = false;
   for (let i = 0; i < 80; i++) {
@@ -616,8 +626,16 @@ async function installGatePoller(call) {
  * ⚠️ 不走 u2-dev-host --stop：那条链的内层 spawnSync(taskkill) 在本批环境必 EBUSY 静默失败
  * （看起来像"停了"实则没杀）⇒ 在 tag 进程内用**异步 spawn** 直发 taskkill（异步 spawn 全链可用）。
  */
-async function restartMain(call, why) {
-  const rec = { why, pidBefore: null, killOut: "", freedAfter: null, upAfter: null, reconnect: false };
+async function restartMain(call0, why) {
+  let call = call0;
+  const rec = {
+    why,
+    pidBefore: null,
+    killOut: "",
+    freedAfter: null,
+    upAfter: null,
+    reconnect: false,
+  };
   if (H.existsSync(PID_FILE)) {
     rec.pidBefore = H.readFileSync(PID_FILE, "utf8").trim();
     const { spawn } = require("node:child_process");
@@ -728,7 +746,9 @@ function startSettleWatcher(timeoutMs = 120000) {
       }
     };
     const timer = setInterval(() => {
-      const names = H.fs.readdirSync(H.TRACES).filter((n) => n.endsWith(".jsonl") && !before.has(n));
+      const names = H.fs
+        .readdirSync(H.TRACES)
+        .filter((n) => n.endsWith(".jsonl") && !before.has(n));
       for (const name of names) tryName(name);
     }, 1);
     watcher.stop = () => clearInterval(timer);
@@ -758,7 +778,11 @@ const FLOWS = {
     await fillUserMessage(call, task);
     await confirmSubmission(call);
     const sub = await submitCreateAndCapture(call);
-    check("提交登记在场（operationId/epoch/revision）", typeof sub.operationId === "string" && typeof sub.epoch === "string", sub);
+    check(
+      "提交登记在场（operationId/epoch/revision）",
+      typeof sub.operationId === "string" && typeof sub.epoch === "string",
+      sub,
+    );
     const pendingSnap = await H.storeQ(
       call,
       `const p = s.operations.pending.find(x => x.operationId === ${JSON.stringify(sub.operationId)}) ?? null;
@@ -784,8 +808,16 @@ const FLOWS = {
     );
     await openOperationsPanel(call);
     const t1 = await rowRead(call, sub.operationId);
-    check("运行中计时口径 = 自提交起（data-wait-basis=submitted）", t1.basis === "submitted" && t1.text.includes("自提交起已等待"), t1);
-    check("运行中文本写明等待时长语义、无「计时已停止」", t1.text.includes("等待时长") && !t1.text.includes("计时已停止"), t1.text.slice(0, 120));
+    check(
+      "运行中计时口径 = 自提交起（data-wait-basis=submitted）",
+      t1.basis === "submitted" && t1.text.includes("自提交起已等待"),
+      t1,
+    );
+    check(
+      "运行中文本写明等待时长语义、无「计时已停止」",
+      t1.text.includes("等待时长") && !t1.text.includes("计时已停止"),
+      t1.text.slice(0, 120),
+    );
     const settled = await waitForCreateSettled(call);
     check("慢响应收口（约 6s 真窗口）", settled === true, settled);
     const t2 = await rowRead(call, sub.operationId);
@@ -798,13 +830,24 @@ const FLOWS = {
     const tA = await rowRead(call, sub.operationId);
     await H.sleep(2200);
     const tB = await rowRead(call, sub.operationId);
-    check("终态后 2.2s 文本逐字不变（不增长）", tA.text === tB.text, { a: tA.text.slice(0, 90), b: tB.text.slice(0, 90) });
+    check("终态后 2.2s 文本逐字不变（不增长）", tA.text === tB.text, {
+      a: tA.text.slice(0, 90),
+      b: tB.text.slice(0, 90),
+    });
     const rec = (await recordOf(call, sub.operationId)).rec;
-    check("登记收口带 main 的 settledAt（时间事实来自 main）", rec?.state === "settled" && typeof rec?.settledAt === "string", rec?.state ?? null);
+    check(
+      "登记收口带 main 的 settledAt（时间事实来自 main）",
+      rec?.state === "settled" && typeof rec?.settledAt === "string",
+      rec?.state ?? null,
+    );
     await reloadWithGuard(call);
     await openOperationsPanel(call);
     const a1 = await rowRead(call, sub.operationId);
-    check("重载后口径仍「自接受起」（不把接受冒充提交，也不凭空换算出提交时刻）", a1.basis === "accepted" && !a1.text.includes("自提交起"), a1);
+    check(
+      "重载后口径仍「自接受起」（不把接受冒充提交，也不凭空换算出提交时刻）",
+      a1.basis === "accepted" && !a1.text.includes("自提交起"),
+      a1,
+    );
     check("重载后仍定格（计时已停止）", a1.text.includes("计时已停止"), a1.text.slice(0, 120));
     await H.sleep(2200);
     const a2 = await rowRead(call, sub.operationId);
@@ -818,15 +861,27 @@ const FLOWS = {
     const servedBefore = mock.served();
     const a = await runCreate(call, mock, `${MARK} stale-read 甲`);
     const b = await runCreate(call, mock, `${MARK} stale-read 乙`);
-    check("甲：自动核实 verified 且 attempt=1", a.entry.phase === "verified" && a.entry.attempt === 1, a.entry);
+    check(
+      "甲：自动核实 verified 且 attempt=1",
+      a.entry.phase === "verified" && a.entry.attempt === 1,
+      a.entry,
+    );
     const again = await reverify(call, a);
-    check("对已核实的身份重复核实不发第二次读取（attempt 仍 1）", again.phase === "verified" && again.attempt === 1, again);
+    check(
+      "对已核实的身份重复核实不发第二次读取（attempt 仍 1）",
+      again.phase === "verified" && again.attempt === 1,
+      again,
+    );
     const r1 = await retryRead(call, a);
     check("显式只读重试 attempt=2（绕过去重）", r1.phase === "verified" && r1.attempt === 2, r1);
     const r2 = await retryRead(call, a);
     check("连续第二次重试 attempt=3", r2.phase === "verified" && r2.attempt === 3, r2);
     const fin = await resultReadFor(call, a.epoch, a.operationId, a.runId);
-    check("最终条目认最大代次（attempt=3、verified）", fin?.attempt === 3 && fin?.phase === "verified", fin);
+    check(
+      "最终条目认最大代次（attempt=3、verified）",
+      fin?.attempt === 3 && fin?.phase === "verified",
+      fin,
+    );
     const bNow = await resultReadFor(call, b.epoch, b.operationId, b.runId);
     check("乙的读取项与甲的重试互不影响（attempt 仍 1）", bNow?.attempt === 1, bNow);
     check("恰两次模型调用（两次创建）", mock.served() - servedBefore === 2, mock.served());
@@ -856,7 +911,11 @@ const FLOWS = {
       typeof live1 === "string" && live1.includes("已有结果"),
       typeof live1 === "string" ? live1.slice(0, 120) : live1,
     );
-    check("通知文本不含等待计时字样（计时进通知 = 每秒重复通知）", !live1.includes("已等待") && !live1.includes("计时已停止"), null);
+    check(
+      "通知文本不含等待计时字样（计时进通知 = 每秒重复通知）",
+      !live1.includes("已等待") && !live1.includes("计时已停止"),
+      null,
+    );
     await H.sleep(1500);
     const live2 = await liveText(call);
     check("1.5s 后通知文本逐字相同（重复快照不重复播报）", live1 === live2, null);
@@ -864,12 +923,20 @@ const FLOWS = {
       call,
       "return JSON.stringify({ sel: s.selectedRunId, gen: s.navGeneration, view: s.view });",
     );
-    await retryRead(call, { epoch: settled.epoch, operationId: sub.operationId, runId: settled.runIds[0] });
+    await retryRead(call, {
+      epoch: settled.epoch,
+      operationId: sub.operationId,
+      runId: settled.runIds[0],
+    });
     const after = await H.storeQ(
       call,
       "return JSON.stringify({ sel: s.selectedRunId, gen: s.navGeneration, view: s.view });",
     );
-    check("手动只读重试不导航（选择/代次/视图都不动）", before.sel === after.sel && before.gen === after.gen && before.view === after.view, { before, after });
+    check(
+      "手动只读重试不导航（选择/代次/视图都不动）",
+      before.sel === after.sel && before.gen === after.gen && before.view === after.view,
+      { before, after },
+    );
     check("恰一次模型调用", mock.served() - servedBefore === 1, mock.served());
   },
 
@@ -893,9 +960,17 @@ const FLOWS = {
       { event: factsA.event, reason: factsA.reason },
     );
     const entryA = await waitForVerified(call, recA.epoch, subA.operationId, runA);
-    check("甲读取项 facts.normalEnd=false（限制中止不算正常结束）", entryA.phase === "verified" && entryA.facts?.normalEnd === false, entryA.facts);
+    check(
+      "甲读取项 facts.normalEnd=false（限制中止不算正常结束）",
+      entryA.phase === "verified" && entryA.facts?.normalEnd === false,
+      entryA.facts,
+    );
     const sessA = await createSession(call);
-    check("甲结算后创建草稿仍在（限制中止 ⇒ 不清理）", sessA.draft !== null && sessA.draft.userMessage === taskA, sessA.draft?.userMessage ?? null);
+    check(
+      "甲结算后创建草稿仍在（限制中止 ⇒ 不清理）",
+      sessA.draft !== null && sessA.draft.userMessage === taskA,
+      sessA.draft?.userMessage ?? null,
+    );
     // 乙：迭代上限
     await openCreate(call);
     const taskB = `${MARK} limit-maxiter 任务`;
@@ -906,25 +981,51 @@ const FLOWS = {
     check("乙（迭代上限）登记收口", recB?.state === "settled", recB?.state ?? null);
     const runB = recB.runIds[0];
     const factsB = traceFacts(runB);
-    check("乙自有终止 = stopped/max_iterations", factsB.event === "stopped" && factsB.reason === "max_iterations", { event: factsB.event, reason: factsB.reason });
-    check(`乙恰 ${MAX_ITERATIONS} 次 llm 调用（fallback 每轮回 tool_calls）`, factsB.llmCalls === maxFx.expectedCalls, factsB.llmCalls);
+    check(
+      "乙自有终止 = stopped/max_iterations",
+      factsB.event === "stopped" && factsB.reason === "max_iterations",
+      { event: factsB.event, reason: factsB.reason },
+    );
+    check(
+      `乙恰 ${MAX_ITERATIONS} 次 llm 调用（fallback 每轮回 tool_calls）`,
+      factsB.llmCalls === maxFx.expectedCalls,
+      factsB.llmCalls,
+    );
     const entryB = await waitForVerified(call, recB.epoch, subB.operationId, runB);
-    check("乙读取项 facts.normalEnd=false", entryB.phase === "verified" && entryB.facts?.normalEnd === false, entryB.facts);
+    check(
+      "乙读取项 facts.normalEnd=false",
+      entryB.phase === "verified" && entryB.facts?.normalEnd === false,
+      entryB.facts,
+    );
     const sessB = await createSession(call);
-    check("乙结算后草稿是乙的文本（乙也不清）", sessB.draft !== null && sessB.draft.userMessage === taskB, sessB.draft?.userMessage ?? null);
+    check(
+      "乙结算后草稿是乙的文本（乙也不清）",
+      sessB.draft !== null && sessB.draft.userMessage === taskB,
+      sessB.draft?.userMessage ?? null,
+    );
     // 丙：摘掉甲的末行 run.event ⇒ 读得出来但 crashed（真机唯一合法的"非正常已封存"）
     const handle = beginReadFault({ tracesDir: H.TRACES, runId: runA }, "noTerminalEvent");
-    const crashed = await retryRead(call, { epoch: recA.epoch, operationId: subA.operationId, runId: runA });
+    const crashed = await retryRead(call, {
+      epoch: recA.epoch,
+      operationId: subA.operationId,
+      runId: runA,
+    });
     check(
       "摘掉终止事件 ⇒ 重读成功但 event=null、normalEnd=false（运行中断，不猜结局）",
-      crashed.phase === "verified" && crashed.facts?.event === null && crashed.facts?.normalEnd === false,
+      crashed.phase === "verified" &&
+        crashed.facts?.event === null &&
+        crashed.facts?.normalEnd === false,
       crashed.facts,
     );
     const endC = handle.end();
     check("noTerminalEvent 注入逐字节还原", endC.clean === true, endC.diff);
     // 丁：非法 reason ⇒ 读取失败（RunEventSchema.reason 是枚举，不为显示未知而放宽）
     const handle2 = beginReadFault({ tracesDir: H.TRACES, runId: runB }, "unknownTerminalReason");
-    const bad = await retryRead(call, { epoch: recB.epoch, operationId: subB.operationId, runId: runB });
+    const bad = await retryRead(call, {
+      epoch: recB.epoch,
+      operationId: subB.operationId,
+      runId: runB,
+    });
     check(
       "非法终止原因 ⇒ 判不可读（main 侧 GET_RUN_FAILED / renderer 侧 schema，都不为显示未知而放宽）",
       bad.phase === "unreadable" && typeof bad.reason === "string" && bad.reason.length > 0,
@@ -946,7 +1047,11 @@ const FLOWS = {
     const servedBefore = mock.served();
     const a = await runCreate(call, mock, `${MARK} unreadable 任务`);
     const tracesBefore = H.traceIds().size;
-    check("基线：自动核实 verified attempt=1", a.entry.phase === "verified" && a.entry.attempt === 1, a.entry);
+    check(
+      "基线：自动核实 verified attempt=1",
+      a.entry.phase === "verified" && a.entry.attempt === 1,
+      a.entry,
+    );
     const rounds = ["fileMissing", "corruptTail", "unsupportedVersion"];
     let attempt = 1;
     for (const [index, kind] of rounds.entries()) {
@@ -956,7 +1061,10 @@ const FLOWS = {
       attempt += 1;
       check(
         `${kind}：显式重读判不可读（attempt=${attempt}，带诚实说明）`,
-        bad.phase === "unreadable" && bad.attempt === attempt && typeof bad.reason === "string" && bad.reason.length > 0,
+        bad.phase === "unreadable" &&
+          bad.attempt === attempt &&
+          typeof bad.reason === "string" &&
+          bad.reason.length > 0,
         bad,
       );
       const live = await liveText(call);
@@ -975,16 +1083,31 @@ const FLOWS = {
       }
       await openOperationsPanel(call);
       const row = await rowRead(call, a.operationId);
-      check(`${kind}：面板行保留同一条记录的重读说明`, row.text.includes("重读"), row.text.slice(0, 160));
+      check(
+        `${kind}：面板行保留同一条记录的重读说明`,
+        row.text.includes("重读"),
+        row.text.slice(0, 160),
+      );
       const end = handle.end();
       check(`${kind}：注入逐字节还原`, end.clean === true, end.diff);
       const good = await retryRead(call, a);
       attempt += 1;
-      check(`${kind}：还原后重读回到 verified`, good.phase === "verified" && good.attempt === attempt, good);
+      check(
+        `${kind}：还原后重读回到 verified`,
+        good.phase === "verified" && good.attempt === attempt,
+        good,
+      );
       await closeOperationsPanel(call);
-      check(`${kind}：零执行调用（重试不是重新执行）`, mock.served() === servedBefore + 1, mock.served());
+      check(
+        `${kind}：零执行调用（重试不是重新执行）`,
+        mock.served() === servedBefore + 1,
+        mock.served(),
+      );
     }
-    check("全程零新 trace（重试不落盘）", H.traceIds().size === tracesBefore, { before: tracesBefore, after: H.traceIds().size });
+    check("全程零新 trace（重试不落盘）", H.traceIds().size === tracesBefore, {
+      before: tracesBefore,
+      after: H.traceIds().size,
+    });
   },
 
   /** 「失败与读取恢复分别收尾」的半边（行 157）：自动核实被挡 ⇒ 保留；重试读到正常终止 ⇒ 当场收尾 */
@@ -1000,19 +1123,38 @@ const FLOWS = {
     check("竞速注入得手（终态落盘瞬间隐藏文件）", race !== null, race);
     if (race === null) throw new Error("竞速注入失败");
     const rec = await waitRegistryRecordState(call, sub.operationId, "settled", 30000);
-    check("登记收口且 runId 与被隐藏文件一致", rec?.runIds?.[0] === race.runId, { rec: rec?.runIds ?? null, race: race.runId });
+    check("登记收口且 runId 与被隐藏文件一致", rec?.runIds?.[0] === race.runId, {
+      rec: rec?.runIds ?? null,
+      race: race.runId,
+    });
     const auto = await resultReadFor(call, rec.epoch, sub.operationId, race.runId);
-    check("自动核实被注入挡下 ⇒ unreadable（清理闸先过不了）", auto !== null && auto.phase === "unreadable", auto);
+    check(
+      "自动核实被注入挡下 ⇒ unreadable（清理闸先过不了）",
+      auto !== null && auto.phase === "unreadable",
+      auto,
+    );
     const sess = await createSession(call);
-    check("自动读取失败 ⇒ 草稿保留（不等下一轮也不预删）", sess.draft !== null && sess.draft.userMessage === task, sess.draft?.userMessage ?? null);
+    check(
+      "自动读取失败 ⇒ 草稿保留（不等下一轮也不预删）",
+      sess.draft !== null && sess.draft.userMessage === task,
+      sess.draft?.userMessage ?? null,
+    );
     const end = race.handle.end();
     check("注入逐字节还原", end.clean === true, end.diff);
     await openOperationsPanel(call);
     await clickRowAction(call, sub.operationId, "重读这条结果");
     const retried = await waitForVerified(call, rec.epoch, sub.operationId, race.runId);
-    check("面板「重读」⇒ 同一可信 runId 落成 verified（attempt=2）", retried.phase === "verified" && retried.attempt === 2, retried);
+    check(
+      "面板「重读」⇒ 同一可信 runId 落成 verified（attempt=2）",
+      retried.phase === "verified" && retried.attempt === 2,
+      retried,
+    );
     const closed = await createSession(call);
-    check("重试读到正常终止 ⇒ 这条响应路径当场收尾（草稿被清理）", closed.draft === null, closed.draft?.userMessage ?? null);
+    check(
+      "重试读到正常终止 ⇒ 这条响应路径当场收尾（草稿被清理）",
+      closed.draft === null,
+      closed.draft?.userMessage ?? null,
+    );
     check("恰一次模型调用", mock.served() - servedBefore === 1, mock.served());
     await H.shot(call, SHOT_DIR, `${TAG}-after-cleanup.png`);
   },
@@ -1031,7 +1173,11 @@ const FLOWS = {
     if (race === null) throw new Error("竞速注入失败");
     const rec = await waitRegistryRecordState(call, sub.operationId, "settled", 30000);
     const auto = await resultReadFor(call, rec.epoch, sub.operationId, race.runId);
-    check("自动核实 unreadable（草稿保留在场）", auto !== null && auto.phase === "unreadable", auto);
+    check(
+      "自动核实 unreadable（草稿保留在场）",
+      auto !== null && auto.phase === "unreadable",
+      auto,
+    );
     const end = race.handle.end();
     check("注入逐字节还原", end.clean === true, end.diff);
     // 解冻后修改草稿（修订推进）
@@ -1039,23 +1185,46 @@ const FLOWS = {
     const v2 = `${MARK} rev 修订任务 v2`;
     await fillUserMessage(call, v2);
     const sess = await createSession(call);
-    check("解冻后修订推进（revision > 提交时修订）", sess.draft !== null && sess.draft.revision > sub.revision, { rev: sess.draft?.revision ?? null, submitted: sub.revision });
+    check(
+      "解冻后修订推进（revision > 提交时修订）",
+      sess.draft !== null && sess.draft.revision > sub.revision,
+      { rev: sess.draft?.revision ?? null, submitted: sub.revision },
+    );
     await openOperationsPanel(call);
     await clickRowAction(call, sub.operationId, "重读这条结果");
     const retried = await waitForVerified(call, rec.epoch, sub.operationId, race.runId);
     check("迟到的正常结果落地（verified）", retried.phase === "verified", retried);
     const after = await createSession(call);
-    check("修订推进 ⇒ 迟到的正常结果不清新修订（v2 文本保留）", after.draft !== null && after.draft.userMessage === v2, after.draft?.userMessage ?? null);
+    check(
+      "修订推进 ⇒ 迟到的正常结果不清新修订（v2 文本保留）",
+      after.draft !== null && after.draft.userMessage === v2,
+      after.draft?.userMessage ?? null,
+    );
     // 内容改回原样也不清：判据只看修订。第二次重读走 store 的显式重试动作
     // （与面板按钮同一入口；按钮此刻不可用是因为条目已 verified——动作按可用性给）。
-    await H.ev(call, "(() => { document.getElementById('operations-panel')?.querySelector('button[aria-label=\"关闭操作列表\"]')?.click(); return true; })()");
+    await H.ev(
+      call,
+      "(() => { document.getElementById('operations-panel')?.querySelector('button[aria-label=\"关闭操作列表\"]')?.click(); return true; })()",
+    );
     await H.sleep(600);
     await openCreate(call);
     await fillUserMessage(call, v1);
-    const retried2 = await retryRead(call, { epoch: rec.epoch, operationId: sub.operationId, runId: race.runId });
-    check("第二次重读 verified（attempt=3）", retried2.phase === "verified" && retried2.attempt === 3, retried2);
+    const retried2 = await retryRead(call, {
+      epoch: rec.epoch,
+      operationId: sub.operationId,
+      runId: race.runId,
+    });
+    check(
+      "第二次重读 verified（attempt=3）",
+      retried2.phase === "verified" && retried2.attempt === 3,
+      retried2,
+    );
     const after2 = await createSession(call);
-    check("内容改回原样也不清（判据只看修订，不看内容）", after2.draft !== null && after2.draft.userMessage === v1, after2.draft?.userMessage ?? null);
+    check(
+      "内容改回原样也不清（判据只看修订，不看内容）",
+      after2.draft !== null && after2.draft.userMessage === v1,
+      after2.draft?.userMessage ?? null,
+    );
     check("恰一次模型调用", mock.served() - servedBefore === 1, mock.served());
     await H.shot(call, SHOT_DIR, `${TAG}-rev-preserved.png`);
   },
@@ -1076,16 +1245,30 @@ const FLOWS = {
     const auto = await resultReadFor(call, recA.epoch, subA.operationId, race.runId);
     check("甲自动核实 unreadable ⇒ 草稿保留", auto !== null && auto.phase === "unreadable", auto);
     const closureIdA = `${recA.epoch}|${subA.operationId}`;
-    const cl1 = await H.storeQ(call, `return JSON.stringify(s.draftSubmissions.closures[${JSON.stringify(closureIdA)}] ?? null);`);
-    check("甲的收尾关联在场（读取失败不清）", cl1 !== null, cl1 === null ? null : { targetKey: cl1.targetKey });
+    const cl1 = await H.storeQ(
+      call,
+      `return JSON.stringify(s.draftSubmissions.closures[${JSON.stringify(closureIdA)}] ?? null);`,
+    );
+    check(
+      "甲的收尾关联在场（读取失败不清）",
+      cl1 !== null,
+      cl1 === null ? null : { targetKey: cl1.targetKey },
+    );
     const end = race.handle.end();
     check("注入逐字节还原", end.clean === true, end.diff);
     // 显式放弃（真模态）⇒ 关联一并释放
     await discardCreateDraft(call);
-    const cl2 = await H.storeQ(call, `return JSON.stringify(s.draftSubmissions.closures[${JSON.stringify(closureIdA)}] ?? null);`);
+    const cl2 = await H.storeQ(
+      call,
+      `return JSON.stringify(s.draftSubmissions.closures[${JSON.stringify(closureIdA)}] ?? null);`,
+    );
     check("显式放弃 ⇒ 甲的关联一并释放", cl2 === null, cl2);
     const afterDiscard = await createSession(call);
-    check("放弃后草稿复位（空表单新修订）", afterDiscard.draft === null || afterDiscard.draft.userMessage === "", afterDiscard.draft?.userMessage ?? null);
+    check(
+      "放弃后草稿复位（空表单新修订）",
+      afterDiscard.draft === null || afterDiscard.draft.userMessage === "",
+      afterDiscard.draft?.userMessage ?? null,
+    );
     // 重建同目标草稿并正常收口
     const taskB = `${MARK} idem 任务乙`;
     await openCreate(call);
@@ -1099,22 +1282,37 @@ const FLOWS = {
     const entryB = await waitForVerified(call, recB.epoch, subB.operationId, recB.runIds[0]);
     check("乙自动核实 verified", entryB.phase === "verified", entryB);
     const afterB = await createSession(call);
-    check("乙正常收尾 ⇒ 草稿清理（乙自己的正常结果）", afterB.draft === null, afterB.draft?.userMessage ?? null);
+    check(
+      "乙正常收尾 ⇒ 草稿清理（乙自己的正常结果）",
+      afterB.draft === null,
+      afterB.draft?.userMessage ?? null,
+    );
     // 甲的迟到结果：重试 verified，但关联已释放 ⇒ 不复活任何草稿
     await openOperationsPanel(call);
     await clickRowAction(call, subA.operationId, "重读这条结果");
     const retriedA = await waitForVerified(call, recA.epoch, subA.operationId, race.runId);
     check("甲迟到重读 verified", retriedA.phase === "verified" && retriedA.attempt === 2, retriedA);
     const finalSess = await createSession(call);
-    check("甲的迟到结果不复活已放弃/已清理的草稿", finalSess.draft === null, finalSess.draft?.userMessage ?? null);
+    check(
+      "甲的迟到结果不复活已放弃/已清理的草稿",
+      finalSess.draft === null,
+      finalSess.draft?.userMessage ?? null,
+    );
     // 幂等：重复重试不再产生第二次删除
     const before = await sessionSnapshot(call);
     await retryRead(call, { epoch: recA.epoch, operationId: subA.operationId, runId: race.runId });
-    await retryRead(call, { epoch: recB.epoch, operationId: subB.operationId, runId: recB.runIds[0] });
+    await retryRead(call, {
+      epoch: recB.epoch,
+      operationId: subB.operationId,
+      runId: recB.runIds[0],
+    });
     const after = await sessionSnapshot(call);
     const finalDraft = await createSession(call);
     check("草稿仍为空（未复活）", finalDraft.draft === null, finalDraft.draft?.userMessage ?? null);
-    check("关联键集不变", JSON.stringify(before.closures) === JSON.stringify(after.closures), { before: before.closures, after: after.closures });
+    check("关联键集不变", JSON.stringify(before.closures) === JSON.stringify(after.closures), {
+      before: before.closures,
+      after: after.closures,
+    });
     check("恰两次模型调用（甲乙各一次）", mock.served() - servedBefore === 2, mock.served());
   },
 
@@ -1140,7 +1338,11 @@ const FLOWS = {
     await H.selectRun(call, FX.normalRun);
     await openCreate(call);
     let st = await readLoc();
-    check("从轨迹工作区进入 ⇒ 来源引用记当前选择（运行/视图）", st.loc !== null && st.loc.view === "trace" && st.loc.runId === FX.normalRun, st.loc);
+    check(
+      "从轨迹工作区进入 ⇒ 来源引用记当前选择（运行/视图）",
+      st.loc !== null && st.loc.view === "trace" && st.loc.runId === FX.normalRun,
+      st.loc,
+    );
     const hasReturn = await H.ev(
       call,
       `(() => document.querySelector('section[aria-label="新建运行"] [data-return-to-source]') !== null)()`,
@@ -1157,7 +1359,11 @@ const FLOWS = {
       await H.selectRun(call, other);
       await openCreate(call);
       st = await readLoc();
-      check("换工作区再进创建 ⇒ 取新来源（旧引用不被继承）", st.loc !== null && st.loc.runId === other, st.loc);
+      check(
+        "换工作区再进创建 ⇒ 取新来源（旧引用不被继承）",
+        st.loc !== null && st.loc.runId === other,
+        st.loc,
+      );
       await clickReturn();
       st = await readLoc();
       check("再次返回落到新来源的运行", st.view === "trace" && st.sel === other, st);
@@ -1166,9 +1372,13 @@ const FLOWS = {
     await reloadWithGuard(call);
     const locAfterReload = await H.storeQ(
       call,
-      `return JSON.stringify({ loc: s.createReturnLocation, view: s.view });`,
+      "return JSON.stringify({ loc: s.createReturnLocation, view: s.view });",
     );
-    check("重载后来源引用清空（会话引用不落盘）", locAfterReload.loc === null && locAfterReload.view !== "create", locAfterReload);
+    check(
+      "重载后来源引用清空（会话引用不落盘）",
+      locAfterReload.loc === null && locAfterReload.view !== "create",
+      locAfterReload,
+    );
     await openCreate(call);
     st = await readLoc();
     check(
@@ -1178,8 +1388,16 @@ const FLOWS = {
     );
     await clickReturn();
     st = await readLoc();
-    check("重载后「返回来源」照常回轨迹工作区（引用已重取 ⇒ restore，不 crash 不伪造）", st.view === "trace", st);
-    check("全程零模型调用（418 剧本兜底：任何消费都会判红）", mock.served() - servedBefore === 0, mock.served());
+    check(
+      "重载后「返回来源」照常回轨迹工作区（引用已重取 ⇒ restore，不 crash 不伪造）",
+      st.view === "trace",
+      st,
+    );
+    check(
+      "全程零模型调用（418 剧本兜底：任何消费都会判红）",
+      mock.served() - servedBefore === 0,
+      mock.served(),
+    );
     dump.layerNote =
       "「no-location 时点返回 ⇒ fallback」这一支真机不可达（进入创建必然现取来源）⇒ 按 create-workspace 单测承载";
     await H.shot(call, SHOT_DIR, `${TAG}-fresh-location.png`);
@@ -1196,7 +1414,11 @@ const FLOWS = {
     const servedBefore = mock.served();
     // A：正常收口（自动核实 verified ⇒ 正常草稿清理）
     const a = await runCreate(call, mock, `${MARK} single-unfreeze 甲`);
-    check("甲收口并核实（正常结束 ⇒ 甲自己的草稿已按修订清理）", a.entry.phase === "verified" && a.entry.facts?.normalEnd === true, a.entry);
+    check(
+      "甲收口并核实（正常结束 ⇒ 甲自己的草稿已按修订清理）",
+      a.entry.phase === "verified" && a.entry.facts?.normalEnd === true,
+      a.entry,
+    );
     // B：慢响应（8s）——B 在飞时创建目标被 B 冻结
     const taskB = `${MARK} single-unfreeze 乙`;
     await openCreate(call);
@@ -1211,23 +1433,48 @@ const FLOWS = {
     await openOperationsPanel(call);
     await clickRowAction(call, a.operationId, "核对状态");
     const frozen2 = await createSession(call);
-    check("核对甲 ⇒ 乙仍冻结（解冻口只认匹配身份，核对别人的身份不解除当前在飞）", frozen2.frozen === true, frozen2.frozen);
+    check(
+      "核对甲 ⇒ 乙仍冻结（解冻口只认匹配身份，核对别人的身份不解除当前在飞）",
+      frozen2.frozen === true,
+      frozen2.frozen,
+    );
     // 乙收口：乙自己的正常结果清乙的草稿
     const recB = await waitRegistryRecordState(call, subB.operationId, "settled", 30000);
     const entryB = await waitForVerified(call, recB.epoch, subB.operationId, recB.runIds[0]);
     check("乙收口并核实", entryB.phase === "verified", entryB);
     const closedB = await createSession(call);
-    check("乙正常收尾 ⇒ 草稿清理（乙的修订、乙的清理）", closedB.draft === null, closedB.draft?.userMessage ?? null);
+    check(
+      "乙正常收尾 ⇒ 草稿清理（乙的修订、乙的清理）",
+      closedB.draft === null,
+      closedB.draft?.userMessage ?? null,
+    );
     // 甲的迟到重读（store 显式重试，与面板按钮同一动作入口）：不复活草稿、不动乙的关联
     const retriedA = await retryRead(call, a);
-    check("甲迟到重读 verified（attempt=2，重复核实不产生第二次删除）", retriedA.phase === "verified" && retriedA.attempt === 2, retriedA);
-    const c1 = await H.storeQ(call, "return JSON.stringify(Object.keys(s.draftSubmissions.closures).sort());");
+    check(
+      "甲迟到重读 verified（attempt=2，重复核实不产生第二次删除）",
+      retriedA.phase === "verified" && retriedA.attempt === 2,
+      retriedA,
+    );
+    const c1 = await H.storeQ(
+      call,
+      "return JSON.stringify(Object.keys(s.draftSubmissions.closures).sort());",
+    );
     await clickRowAction(call, a.operationId, "核对状态");
     await clickRowAction(call, a.operationId, "核对状态");
-    const c2 = await H.storeQ(call, "return JSON.stringify(Object.keys(s.draftSubmissions.closures).sort());");
-    check("重复核对不产生第二条关联（按身份幂等）", JSON.stringify(c1) === JSON.stringify(c2), { c1, c2 });
+    const c2 = await H.storeQ(
+      call,
+      "return JSON.stringify(Object.keys(s.draftSubmissions.closures).sort());",
+    );
+    check("重复核对不产生第二条关联（按身份幂等）", JSON.stringify(c1) === JSON.stringify(c2), {
+      c1,
+      c2,
+    });
     const finalDraft = await createSession(call);
-    check("草稿保持已清理态（不复活）", finalDraft.draft === null, finalDraft.draft?.userMessage ?? null);
+    check(
+      "草稿保持已清理态（不复活）",
+      finalDraft.draft === null,
+      finalDraft.draft?.userMessage ?? null,
+    );
     check("恰两次模型调用", mock.served() - servedBefore === 2, mock.served());
     dump.layerNote =
       "「两条同 epoch 在飞同时冻结」真机不可达（统一执行槽一次只放一个 ⇒ 第二次提交被拒）⇒ 只解冻对应修订的那条/另一条仍冻结按单元层承载";
@@ -1252,9 +1499,16 @@ const FLOWS = {
       r,
     );
     const sess = await sessionSnapshot(call);
-    check("读取项里一条结论都没有（不猜测结果）", sess.readKeys.every((k) => !k.includes(ghostId)), sess.readKeys.filter((k) => k.includes(ghostId)));
+    check(
+      "读取项里一条结论都没有（不猜测结果）",
+      sess.readKeys.every((k) => !k.includes(ghostId)),
+      sess.readKeys.filter((k) => k.includes(ghostId)),
+    );
     const gateAfter = await waitGateOpen(call);
-    check("封禁不占槽：门禁与核对前一致", gateAfter.gate === gateBefore.gate, { before: gateBefore, after: gateAfter });
+    check("封禁不占槽：门禁与核对前一致", gateAfter.gate === gateBefore.gate, {
+      before: gateBefore,
+      after: gateAfter,
+    });
     // 通知区（面板关着读）：诚实说明
     const live = await liveText(call);
     check(
@@ -1269,11 +1523,17 @@ const FLOWS = {
     const actions = await rowActions(call, ghostId);
     check(
       "未接受行没有任何结果动作（打开结果/查看失败/重读都不在）",
-      !actions.includes("打开结果") && !actions.includes("查看失败调用") && !actions.includes("重读这条结果"),
+      !actions.includes("打开结果") &&
+        !actions.includes("查看失败调用") &&
+        !actions.includes("重读这条结果"),
       actions,
     );
     const goodActions = await rowActions(call, a.operationId);
-    check("对照：正常 settled 行保留结果动作（同面板互不影响）", goodActions.includes("打开结果"), goodActions);
+    check(
+      "对照：正常 settled 行保留结果动作（同面板互不影响）",
+      goodActions.includes("打开结果"),
+      goodActions,
+    );
     check("恰一次模型调用", mock.served() - servedBefore === 1, mock.served());
     dump.layerNote =
       "「settled 且 runIds 为空」的真机不可达（main 收尾必带 ≥1 runId）⇒ 未定位呈现按 result-verification 单测承载";
@@ -1286,7 +1546,10 @@ const FLOWS = {
     const a = await runCreate(call, mock, `${MARK} no-nav 任务`);
     await H.selectRun(call, FX.normalRun);
     const readSel = () =>
-      H.storeQ(call, "return JSON.stringify({ sel: s.selectedRunId, span: s.selectedSpanId, gen: s.navGeneration, view: s.view });");
+      H.storeQ(
+        call,
+        "return JSON.stringify({ sel: s.selectedRunId, span: s.selectedSpanId, gen: s.navGeneration, view: s.view });",
+      );
     const before = await readSel();
     check("前置：选择在别的 run 上", before.sel === FX.normalRun, before);
     await openOperationsPanel(call);
@@ -1294,7 +1557,10 @@ const FLOWS = {
     const after = await readSel();
     check(
       "核对到达终态不导航（选择/页签/代次/视图都不动）",
-      after.sel === before.sel && after.span === before.span && after.gen === before.gen && after.view === before.view,
+      after.sel === before.sel &&
+        after.span === before.span &&
+        after.gen === before.gen &&
+        after.view === before.view,
       { before, after },
     );
     await clickRowAction(call, a.operationId, "打开结果");
@@ -1304,7 +1570,8 @@ const FLOWS = {
   },
 
   /** 「未知通信与新会话分开呈现」+「初始握手失败禁用主动入口」（行 133/263）：真 main 重启 */
-  "main-restart": async (call, mock) => {
+  "main-restart": async (callArg, mock) => {
+    let call = callArg;
     const servedBefore = mock.served();
     const epoch0 = (await opsStatus(call)).data?.epoch ?? null;
     check("前置：旧 main 会话 epoch 在场", typeof epoch0 === "string", epoch0);
@@ -1318,28 +1585,60 @@ const FLOWS = {
     await confirmSubmission(call);
     const sub2 = await submitCreateAndCapture(call);
     const flight = await waitRegistryRecordState(call, sub2.operationId, "running", 20000);
-    check("在飞确实 running（真在飞，不是假窗口）", flight?.state === "running", flight?.state ?? null);
+    check(
+      "在飞确实 running（真在飞，不是假窗口）",
+      flight?.state === "running",
+      flight?.state ?? null,
+    );
     const reached = await waitServedAtLeast(mock, servedBefore + 2, 30000);
-    check("在飞已把请求送到模型（打断点在中段）", reached === true && mock.served() === servedBefore + 2, mock.served());
+    check(
+      "在飞已把请求送到模型（打断点在中段）",
+      reached === true && mock.served() === servedBefore + 2,
+      mock.served(),
+    );
     const hashesAtKill = H.hashAllTraces();
     // 真重启
     const { rec, call: call2 } = await restartMain(call, "main-restart");
     call = call2;
     SESSION.call = call2;
-    check("真 main 重启：旧树真杀、9612 先空出再起新 dev 并重连", Number.isInteger(rec.freedAfter) && Number.isInteger(rec.upAfter) && rec.reconnect === true, rec);
+    check(
+      "真 main 重启：旧树真杀、9612 先空出再起新 dev 并重连",
+      Number.isInteger(rec.freedAfter) && Number.isInteger(rec.upAfter) && rec.reconnect === true,
+      rec,
+    );
     await installGatePoller(call);
     await reloadWithGuard(call);
-    const gateLog = JSON.parse(await H.ev(call, "(() => JSON.stringify(window.__u566GateLog ?? []))()"));
+    const gateLog = JSON.parse(
+      await H.ev(call, "(() => JSON.stringify(window.__u566GateLog ?? []))()"),
+    );
     dump.gateLog = gateLog;
     const notHandshaked = gateLog.filter((s) => s.epochNull === true);
-    check("采样到「未握手」首帧窗口（重启后必然存在）", notHandshaked.length > 0, { samples: gateLog.length, nh: notHandshaked.length });
-    check("未握手窗口的禁用原因都是 not_handshaked（不知握手，不是未知）", notHandshaked.every((s) => s.blocked === "not_handshaked"), notHandshaked.slice(0, 3));
+    check("采样到「未握手」首帧窗口（重启后必然存在）", notHandshaked.length > 0, {
+      samples: gateLog.length,
+      nh: notHandshaked.length,
+    });
+    check(
+      "未握手窗口的禁用原因都是 not_handshaked（不知握手，不是未知）",
+      notHandshaked.every((s) => s.blocked === "not_handshaked"),
+      notHandshaked.slice(0, 3),
+    );
     // 新会话语义
     const neu = await opsStatus(call);
-    check("新 main epoch 全新", typeof neu.data?.epoch === "string" && neu.data.epoch !== epoch0, { old: epoch0, new: neu.data?.epoch ?? null });
-    check("新会话登记为空（旧 running/settled 都不带过来）", (neu.data?.operations ?? []).length === 0, (neu.data?.operations ?? []).length);
+    check("新 main epoch 全新", typeof neu.data?.epoch === "string" && neu.data.epoch !== epoch0, {
+      old: epoch0,
+      new: neu.data?.epoch ?? null,
+    });
+    check(
+      "新会话登记为空（旧 running/settled 都不带过来）",
+      (neu.data?.operations ?? []).length === 0,
+      (neu.data?.operations ?? []).length,
+    );
     const sess = await sessionSnapshot(call);
-    check("新会话：pending 空、登记空、无未知锁（旧在飞身份不进新会话）", sess.pendingCount === 0 && sess.opsCount === 0 && sess.unknown === false, sess);
+    check(
+      "新会话：pending 空、登记空、无未知锁（旧在飞身份不进新会话）",
+      sess.pendingCount === 0 && sess.opsCount === 0 && sess.unknown === false,
+      sess,
+    );
     check("读取项不跨会话（resultReads 空）", sess.readKeys.length === 0, sess.readKeys.length);
     const gate = await waitGateOpen(call);
     check("新会话门禁开放（不被旧会话的未知结局锁死）", gate.gate === null, gate);
@@ -1353,17 +1652,26 @@ const FLOWS = {
        const rec = sess.operations.find(o => o.operationId === ${JSON.stringify(done.operationId)}) ?? null;
        return JSON.stringify(rec);`,
     );
-    check("旧 opId 在新会话核对 ⇒ notAccepted 封禁（不认领旧结局）", tomb?.state === "notAccepted", tomb);
+    check(
+      "旧 opId 在新会话核对 ⇒ notAccepted 封禁（不认领旧结局）",
+      tomb?.state === "notAccepted",
+      tomb,
+    );
     // 落盘不变
     const hashesAfter = H.hashAllTraces();
     const touched = Object.keys(hashesAtKill).filter((n) => hashesAtKill[n] !== hashesAfter[n]);
     check("杀进程时在场的 run 文件逐份哈希不变（新会话不改写历史）", touched.length === 0, touched);
-    check("恰三次模型调用（重启前两条 + 重启后一条）", mock.served() - servedBefore === 3, mock.served());
+    check(
+      "恰三次模型调用（重启前两条 + 重启后一条）",
+      mock.served() - servedBefore === 3,
+      mock.served(),
+    );
     await H.shot(call, SHOT_DIR, `${TAG}-fresh-session.png`);
   },
 
   /** 「迟到回调与未知状态不能错误解冻」（行 248）：旧 epoch 身份与新会话提交完全隔离 */
-  "late-callback": async (call, mock) => {
+  "late-callback": async (callArg, mock) => {
+    let call = callArg;
     const servedBefore = mock.served();
     const epoch0 = (await opsStatus(call)).data?.epoch ?? null;
     // A：在飞 → 杀 main（旧 epoch 的回执永远到不了任何会话）
@@ -1379,7 +1687,11 @@ const FLOWS = {
     const { rec, call: call2 } = await restartMain(call, "late-callback");
     call = call2;
     SESSION.call = call2;
-    check("真 main 重启完成", Number.isInteger(rec.freedAfter) && Number.isInteger(rec.upAfter) && rec.reconnect === true, rec);
+    check(
+      "真 main 重启完成",
+      Number.isInteger(rec.freedAfter) && Number.isInteger(rec.upAfter) && rec.reconnect === true,
+      rec,
+    );
     await installGatePoller(call);
     await reloadWithGuard(call);
     // 新会话：换新 epoch 新身份提交 B
@@ -1388,15 +1700,32 @@ const FLOWS = {
     const b = await runCreate(call, mock, `${MARK} 新会话的乙`);
     check("B 正常收口并核实（旧 epoch 的在飞不影响新会话）", b.entry.phase === "verified", b.entry);
     const sess = await sessionSnapshot(call);
-    check("A 的身份没有跨会话泄漏（登记/pending/读取项/关联都无 A）", sess.opIds.includes(subA.operationId) === false && sess.readKeys.every((k) => !k.includes(subA.operationId)) && sess.closures.every((k) => !k.includes(subA.operationId)), { opIds: sess.opIds.length, pendingSubs: sess.pendingSubs });
+    check(
+      "A 的身份没有跨会话泄漏（登记/pending/读取项/关联都无 A）",
+      sess.opIds.includes(subA.operationId) === false &&
+        sess.readKeys.every((k) => !k.includes(subA.operationId)) &&
+        sess.closures.every((k) => !k.includes(subA.operationId)),
+      { opIds: sess.opIds.length, pendingSubs: sess.pendingSubs },
+    );
     // 旧 epoch 直发：整份拒绝、零副作用
-    const staleReconcile = await H.apiCall(call, "operationsReconcile", { epoch: epoch0, operationId: subA.operationId });
-    check("旧 epoch 的核对被整份拒绝（OPERATION_STALE_EPOCH）", staleReconcile.ok === false && staleReconcile.error?.code === "OPERATION_STALE_EPOCH", staleReconcile.ok ? staleReconcile.data : staleReconcile.error);
+    const staleReconcile = await H.apiCall(call, "operationsReconcile", {
+      epoch: epoch0,
+      operationId: subA.operationId,
+    });
+    check(
+      "旧 epoch 的核对被整份拒绝（OPERATION_STALE_EPOCH）",
+      staleReconcile.ok === false && staleReconcile.error?.code === "OPERATION_STALE_EPOCH",
+      staleReconcile.ok ? staleReconcile.data : staleReconcile.error,
+    );
     const staleCreate = await H.apiCall(call, "createRun", {
       operation: { epoch: epoch0, operationId: freshUuid() },
       request: { systemPrompt: "U5-66 stale", userMessage: `${MARK} 拿旧 epoch 提交` },
     });
-    check("旧 epoch 的主动提交被拒", staleCreate.ok === false, staleCreate.ok ? staleCreate.data : staleCreate.error?.code ?? staleCreate.error);
+    check(
+      "旧 epoch 的主动提交被拒",
+      staleCreate.ok === false,
+      staleCreate.ok ? staleCreate.data : (staleCreate.error?.code ?? staleCreate.error),
+    );
     // 新会话对旧 ID 只有"没见过"
     const tomb = await H.storeQ(
       call,
@@ -1404,10 +1733,23 @@ const FLOWS = {
        const rec = sess.operations.find(o => o.operationId === ${JSON.stringify(subA.operationId)}) ?? null;
        return JSON.stringify(rec);`,
     );
-    check("旧 ID 在新会话核对 ⇒ notAccepted 封禁（无目标、无时间）", tomb?.state === "notAccepted" && tomb?.target === null && tomb?.startedAt === null, tomb);
+    check(
+      "旧 ID 在新会话核对 ⇒ notAccepted 封禁（无目标、无时间）",
+      tomb?.state === "notAccepted" && tomb?.target === null && tomb?.startedAt === null,
+      tomb,
+    );
     const finalSess = await sessionSnapshot(call);
-    check("B 的草稿已按正常清理（A 的任何迟到都不复活/不解冻任何东西）", (await createSession(call)).draft === null, null);
-    check("关联与读取项仍无 A 痕迹", finalSess.closures.every((k) => !k.includes(subA.operationId)) && finalSess.readKeys.every((k) => !k.includes(subA.operationId)), finalSess.closures);
+    check(
+      "B 的草稿已按正常清理（A 的任何迟到都不复活/不解冻任何东西）",
+      (await createSession(call)).draft === null,
+      null,
+    );
+    check(
+      "关联与读取项仍无 A 痕迹",
+      finalSess.closures.every((k) => !k.includes(subA.operationId)) &&
+        finalSess.readKeys.every((k) => !k.includes(subA.operationId)),
+      finalSess.closures,
+    );
     check("恰两次模型调用（A 一次 + B 一次）", mock.served() - servedBefore === 2, mock.served());
     dump.layerNote =
       "「同一会话内迟到回执/通道抛错保留冻结」需要 renderer 存活跨 main 死亡——真机不可达 ⇒ 按单元层承载；本 tag 钉的是跨会话隔离半边";
@@ -1418,7 +1760,7 @@ const FLOWS = {
 
 async function main() {
   const page = await H.cdpConnect(H.CDP_PORT);
-  let call = await H.makeDialogSession(page.webSocketDebuggerUrl);
+  const call = await H.makeDialogSession(page.webSocketDebuggerUrl);
   SESSION.call = call;
   await call("Page.enable");
   await call("Runtime.enable");

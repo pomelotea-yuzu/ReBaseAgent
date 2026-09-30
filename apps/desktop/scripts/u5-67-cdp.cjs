@@ -65,18 +65,29 @@ const FX = JSON.parse(readFileSync(MANIFEST, "utf8"));
 const OK_TURN = { content: `${MARK} 受控成功：一步答完。`, usage: { in: 120, out: 40 } };
 
 /** 各 tag 的受控剧本。零执行 tag 用 notConsumed 形状（任何一次消费都会留下 418 ⇒ 判据响亮地红） */
-const NOT_CONSUMED = { turns: [{ mode: "fail", status: 418, content: `${MARK} 这个 tag 不该有任何模型调用` }] };
+const NOT_CONSUMED = {
+  turns: [{ mode: "fail", status: 418, content: `${MARK} 这个 tag 不该有任何模型调用` }],
+};
 const TAG_SCRIPT = {
   "editor-settings-roundtrip": NOT_CONSUMED,
   "settings-roundtrip-confirm": NOT_CONSUMED,
   "settings-close-dirty": NOT_CONSUMED,
   "key-one-way": NOT_CONSUMED,
   "save-fail-shapes": NOT_CONSUMED,
-  "clear-confirm": { turns: [{ content: `${MARK} clear-confirm 慢响应：占槽窗口。`, delayMs: 8000 }], fallback: OK_TURN },
+  "clear-confirm": {
+    turns: [{ content: `${MARK} clear-confirm 慢响应：占槽窗口。`, delayMs: 8000 }],
+    fallback: OK_TURN,
+  },
   "recording-entry": NOT_CONSUMED,
   "esc-topmost": NOT_CONSUMED,
-  "quit-return": { turns: [{ content: `${MARK} quit-return 在飞`, delayMs: FLIGHT_MS }], fallback: OK_TURN },
-  "quit-executing": { turns: [{ content: `${MARK} quit-executing 在飞`, delayMs: FLIGHT_MS }], fallback: OK_TURN },
+  "quit-return": {
+    turns: [{ content: `${MARK} quit-return 在飞`, delayMs: FLIGHT_MS }],
+    fallback: OK_TURN,
+  },
+  "quit-executing": {
+    turns: [{ content: `${MARK} quit-executing 在飞`, delayMs: FLIGHT_MS }],
+    fallback: OK_TURN,
+  },
 };
 
 const EXPECTED_CALLS = {
@@ -110,7 +121,11 @@ function check(name, ok, detail) {
 }
 function sha12(file) {
   try {
-    return require("node:crypto").createHash("sha256").update(readFileSync(file)).digest("hex").slice(0, 12);
+    return require("node:crypto")
+      .createHash("sha256")
+      .update(readFileSync(file))
+      .digest("hex")
+      .slice(0, 12);
   } catch {
     return "unknown";
   }
@@ -224,7 +239,7 @@ const shaBuf = (raw) => H.createHash("sha256").update(String(raw)).digest("hex")
 const storeSettings = (call) =>
   H.storeQ(
     call,
-    `return JSON.stringify({ settings: s.settings, confirmKeys: Object.keys(s.confirmations?.byTargetKey ?? {}), error: s.error });`,
+    "return JSON.stringify({ settings: s.settings, confirmKeys: Object.keys(s.confirmations?.byTargetKey ?? {}), error: s.error });",
   );
 
 // ---------------------------------------------------------------------------
@@ -237,7 +252,8 @@ const SEL = {
   apiKey: 'input[type="password"]',
   model: 'input[placeholder="deepseek-chat"]',
 };
-const settingsOpen = (call) => H.ev(call, `(() => document.querySelector(${JSON.stringify(SETTINGS_DIALOG)}) !== null)()`);
+const settingsOpen = (call) =>
+  H.ev(call, `(() => document.querySelector(${JSON.stringify(SETTINGS_DIALOG)}) !== null)()`);
 /** 打开设置并把焦点给触发按钮（真实用户点击必然聚焦按钮 ⇒ 焦点恢复判据可比） */
 async function openSettingsViaBar(call) {
   const ok = await H.ev(
@@ -311,7 +327,8 @@ async function closeSettingsDiscarding(call) {
   await clickInSettings(call, "放弃修改并关闭", 1200);
   if ((await pageDialogCount(call)) !== 0) throw new Error("放弃修改并关闭后仍有对话框");
 }
-const pageDialogCount = (call) => H.ev(call, `(() => document.querySelectorAll('dialog[open]').length)()`);
+const pageDialogCount = (call) =>
+  H.ev(call, `(() => document.querySelectorAll('dialog[open]').length)()`);
 const lastDialogInfo = (call) =>
   H.ev(
     call,
@@ -353,7 +370,7 @@ async function openCreate(call) {
   await H.sleep(900);
   const st = await H.storeQ(
     call,
-    `return JSON.stringify({ view: s.view, draft: s.createRunDraftOf() === null ? null : { userMessage: s.createRunDraftOf().userMessage } });`,
+    "return JSON.stringify({ view: s.view, draft: s.createRunDraftOf() === null ? null : { userMessage: s.createRunDraftOf().userMessage } });",
   );
   if (st.view !== "create") throw new Error(`点「新建运行」后 view=${st.view}，不在创建工作区`);
   return st;
@@ -542,7 +559,11 @@ function startRereadRace() {
         const content = readFileSync(file, "utf8");
         saved = content;
         // 抢在 main 回读前改写：缺 apiKey ⇒ load() 抛「settings.json 内容不完整」
-        writeFileSync(file, JSON.stringify({ baseURL: "u567-race", model: "u567" }, null, 2), "utf8");
+        writeFileSync(
+          file,
+          JSON.stringify({ baseURL: "u567-race", model: "u567" }, null, 2),
+          "utf8",
+        );
         finish({ won: true, saved });
       } catch (e) {
         finish({ won: false, why: String(e).slice(0, 160) });
@@ -559,7 +580,8 @@ async function waitSaveOutcomeText(call, timeoutMs = 12000) {
   for (;;) {
     const d = await lastDialogInfo(call);
     if (d !== null && d.label === "运行配置") {
-      if (d.text.includes("已保存，但配置状态回读失败")) return { kind: "reread-failed", text: d.text };
+      if (d.text.includes("已保存，但配置状态回读失败"))
+        return { kind: "reread-failed", text: d.text };
       if (d.text.includes("已保存并回读到配置状态")) return { kind: "saved", text: d.text };
     }
     if (Date.now() > deadline) return { kind: "timeout", text: d?.text ?? null };
@@ -747,14 +769,23 @@ const FLOWS = {
       "return JSON.stringify({ sel: s.selectedRunId, span: s.selectedSpanId, view: s.view });",
     );
     const info1 = await H.monacoInfo(call);
-    const editorBefore = info1.editors.find((e) => e.visible === true && e.readOnly === false) ?? null;
-    check("前置：可编辑编辑器在场且含草稿", editorBefore !== null && String(editorBefore.value).includes(draftText), editorBefore?.value?.slice(0, 80) ?? null);
+    const editorBefore =
+      info1.editors.find((e) => e.visible === true && e.readOnly === false) ?? null;
+    check(
+      "前置：可编辑编辑器在场且含草稿",
+      editorBefore !== null && String(editorBefore.value).includes(draftText),
+      editorBefore?.value?.slice(0, 80) ?? null,
+    );
     // 设置往返（含真实保存：配置指纹变化）
     await openSettingsViaBar(call);
     await typeSettingsInput(call, SEL.model, "mock-model-c");
     await clickInSettings(call, "保存", 1500);
     const d1 = await lastDialogInfo(call);
-    check("设置内真实保存成功（不冒充连通的反馈在场）", d1?.text?.includes("已保存并回读到配置状态") === true, d1?.text?.slice(0, 120));
+    check(
+      "设置内真实保存成功（不冒充连通的反馈在场）",
+      d1?.text?.includes("已保存并回读到配置状态") === true,
+      d1?.text?.slice(0, 120),
+    );
     await closeSettingsViaBottom(call);
     const after = await H.storeQ(
       call,
@@ -766,13 +797,18 @@ const FLOWS = {
       { before, after },
     );
     const info2 = await H.monacoInfo(call);
-    const editorAfter = info2.editors.find((e) => e.visible === true && e.readOnly === false) ?? null;
+    const editorAfter =
+      info2.editors.find((e) => e.visible === true && e.readOnly === false) ?? null;
     check(
       "重跑编辑草稿跨设置往返逐字保留",
       editorAfter !== null && String(editorAfter.value).includes(draftText),
       editorAfter?.value?.slice(0, 80) ?? null,
     );
-    check("零模型调用（本 tag 不提交，418 兜底：任何消费都会判红）", mock.served() === servedBefore, mock.served());
+    check(
+      "零模型调用（本 tag 不提交，418 兜底：任何消费都会判红）",
+      mock.served() === servedBefore,
+      mock.served(),
+    );
     await H.shot(call, SHOT_DIR, `${TAG}-roundtrip.png`);
   },
 
@@ -802,28 +838,52 @@ const FLOWS = {
     void mock;
     const disk0 = readSettingsDisk();
     const saved0 = await storeSettings(call);
-    check("前置：已保存配置在场（dirty 对照的基线）", saved0.settings !== null, saved0.settings?.model ?? null);
+    check(
+      "前置：已保存配置在场（dirty 对照的基线）",
+      saved0.settings !== null,
+      saved0.settings?.model ?? null,
+    );
     await openSettingsViaBar(call);
     const typedKey = `sk-${MARK}-dirty-typed`;
     await typeSettingsInput(call, SEL.apiKey, typedKey);
     // 路 1：✕ → 真模态确认（初始焦点在「继续编辑」）
     await clickSettingsX(call);
     const dlg = await waitConfirmDialog(call, "运行配置有未保存修改");
-    check("✕ 触发未保存关闭确认（真模态，标题逐字）", dlg !== null && dlg.label === "运行配置有未保存修改", dlg?.label ?? null);
+    check(
+      "✕ 触发未保存关闭确认（真模态，标题逐字）",
+      dlg !== null && dlg.label === "运行配置有未保存修改",
+      dlg?.label ?? null,
+    );
     check(
       "确认文案点名密钥从未被写入（单向通道语义在场）",
-      dlg !== null && dlg.text.includes("从未被写入"),
+      dlg?.text.includes("从未被写入"),
       dlg?.text?.slice(0, 160),
     );
     const focus1 = await activeElInfo(call);
-    check("初始焦点在「继续编辑」（破坏性动作的安全缺省，U3 纪律）", focus1?.text === "继续编辑", focus1);
+    check(
+      "初始焦点在「继续编辑」（破坏性动作的安全缺省，U3 纪律）",
+      focus1?.text === "继续编辑",
+      focus1,
+    );
     await clickInSettings(call, "继续编辑", 900);
-    check("继续编辑 ⇒ 确认关闭、设置仍在", (await pageDialogCount(call)) === 1 && (await settingsOpen(call)) === true, null);
-    check("继续编辑逐字保留（密钥输入原样）", (await settingsInputValue(call, SEL.apiKey)) === typedKey, null);
+    check(
+      "继续编辑 ⇒ 确认关闭、设置仍在",
+      (await pageDialogCount(call)) === 1 && (await settingsOpen(call)) === true,
+      null,
+    );
+    check(
+      "继续编辑逐字保留（密钥输入原样）",
+      (await settingsInputValue(call, SEL.apiKey)) === typedKey,
+      null,
+    );
     // 路 2：Esc → 同一条确认
     await pressEscape(call);
     const dlg2 = await waitConfirmDialog(call, "运行配置有未保存修改");
-    check("Esc 同样先过未保存确认（三路同源）", dlg2 !== null && dlg2.label === "运行配置有未保存修改", dlg2?.label ?? null);
+    check(
+      "Esc 同样先过未保存确认（三路同源）",
+      dlg2 !== null && dlg2.label === "运行配置有未保存修改",
+      dlg2?.label ?? null,
+    );
     await clickInSettings(call, "继续编辑", 900);
     // 路 3：✕ → 放弃修改并关闭
     await clickSettingsX(call);
@@ -831,16 +891,36 @@ const FLOWS = {
     await clickInSettings(call, "放弃修改并关闭", 1200);
     check("放弃修改并关闭 ⇒ 设置关闭", (await pageDialogCount(call)) === 0, null);
     const focus2 = await activeElInfo(call);
-    check("关闭后焦点恢复到触发入口（全局栏「运行配置」）", focus2 !== null && String(focus2.title ?? "").includes("配置 LLM 接入"), focus2);
+    check(
+      "关闭后焦点恢复到触发入口（全局栏「运行配置」）",
+      focus2 !== null && String(focus2.title ?? "").includes("配置 LLM 接入"),
+      focus2,
+    );
     // 放弃只丢会话输入：已保存配置逐字不动、磁盘逐字节不动、打过的密钥从未落盘
     const saved1 = await storeSettings(call);
-    check("放弃不动已保存配置", JSON.stringify(saved1.settings) === JSON.stringify(saved0.settings), { before: saved0.settings, after: saved1.settings });
+    check(
+      "放弃不动已保存配置",
+      JSON.stringify(saved1.settings) === JSON.stringify(saved0.settings),
+      { before: saved0.settings, after: saved1.settings },
+    );
     const disk1 = readSettingsDisk();
-    check("放弃不动磁盘 settings.json（逐字节）", disk0.exists === disk1.exists && disk0.raw === disk1.raw, null);
-    check("打过的密钥从未落盘（单向通道）", disk1.exists === false || !disk1.raw.includes(typedKey), null);
+    check(
+      "放弃不动磁盘 settings.json（逐字节）",
+      disk0.exists === disk1.exists && disk0.raw === disk1.raw,
+      null,
+    );
+    check(
+      "打过的密钥从未落盘（单向通道）",
+      disk1.exists === false || !disk1.raw.includes(typedKey),
+      null,
+    );
     // 重开：密钥输入回到空（会话输入已丢）
     await openSettingsViaBar(call);
-    check("重开后密钥输入为空（放弃丢弃的是会话输入）", (await settingsInputValue(call, SEL.apiKey)) === "", null);
+    check(
+      "重开后密钥输入为空（放弃丢弃的是会话输入）",
+      (await settingsInputValue(call, SEL.apiKey)) === "",
+      null,
+    );
     await closeSettingsViaBottom(call);
     await H.shot(call, SHOT_DIR, `${TAG}-dirty-close.png`);
   },
@@ -862,7 +942,9 @@ const FLOWS = {
       encrypted
         ? "磁盘侧：密文存储（safeStorage）⇒ 落盘字节不含密钥明文"
         : "磁盘侧：明文降级（加密不可用）⇒ 落盘含明文并带 apiKeyEncrypted=false 标记",
-      encrypted ? !disk0.raw.includes(BASE_KEY) : disk0.raw.includes(BASE_KEY) && stored0.apiKeyEncrypted === false,
+      encrypted
+        ? !disk0.raw.includes(BASE_KEY)
+        : disk0.raw.includes(BASE_KEY) && stored0.apiKeyEncrypted === false,
       { encrypted: stored0?.apiKeyEncrypted ?? null },
     );
     const saved0 = await storeSettings(call);
@@ -877,11 +959,20 @@ const FLOWS = {
     const typedKey = `sk-${MARK}-typed-only-${rand()}`;
     await typeSettingsInput(call, SEL.apiKey, typedKey);
     const diskMid = readSettingsDisk();
-    check("打过字未保存 ⇒ 磁盘逐字节不动（密钥从未离开渲染层暂存）", diskMid.raw === disk0.raw, null);
+    check(
+      "打过字未保存 ⇒ 磁盘逐字节不动（密钥从未离开渲染层暂存）",
+      diskMid.raw === disk0.raw,
+      null,
+    );
     // 保存：密钥进 main（单向通道），反馈只称"已保存/已回读"，不冒充连通
     await clickInSettings(call, "保存", 1500);
     const d1 = await lastDialogInfo(call);
-    check("保存反馈只称已保存并回读（无连接测试/连接成功字样）", d1?.text?.includes("已保存并回读到配置状态") === true && d1.text.includes("未发起任何连接测试"), d1?.text?.slice(0, 140));
+    check(
+      "保存反馈只称已保存并回读（无连接测试/连接成功字样）",
+      d1?.text?.includes("已保存并回读到配置状态") === true &&
+        d1.text.includes("未发起任何连接测试"),
+      d1?.text?.slice(0, 140),
+    );
     const disk1 = readSettingsDisk();
     check("保存后磁盘更新", disk1.exists === true && disk1.raw !== disk0.raw, null);
     let stored1 = null;
@@ -892,15 +983,31 @@ const FLOWS = {
     }
     check(
       "新密钥按同一加密方式落盘（密文不含明文 / 明文带标记）",
-      encrypted ? !disk1.raw.includes(typedKey) : disk1.raw.includes(typedKey) && stored1?.apiKeyEncrypted === false,
+      encrypted
+        ? !disk1.raw.includes(typedKey)
+        : disk1.raw.includes(typedKey) && stored1?.apiKeyEncrypted === false,
       { encrypted: stored1?.apiKeyEncrypted ?? null },
     );
     const saved1 = await storeSettings(call);
-    check("保存后回读仍不含密钥（键集与载荷双面）", saved1.settings !== null && !Object.keys(saved1.settings).includes("apiKey") && !JSON.stringify(saved1.settings).includes(typedKey), null);
-    check("保存成功后密钥输入被清空（不回显）", (await settingsInputValue(call, SEL.apiKey)) === "", null);
+    check(
+      "保存后回读仍不含密钥（键集与载荷双面）",
+      saved1.settings !== null &&
+        !Object.keys(saved1.settings).includes("apiKey") &&
+        !JSON.stringify(saved1.settings).includes(typedKey),
+      null,
+    );
+    check(
+      "保存成功后密钥输入被清空（不回显）",
+      (await settingsInputValue(call, SEL.apiKey)) === "",
+      null,
+    );
     await closeSettingsViaBottom(call);
     await openSettingsViaBar(call);
-    check("重开对话框密钥输入仍为空（不回读明文到界面）", (await settingsInputValue(call, SEL.apiKey)) === "", null);
+    check(
+      "重开对话框密钥输入仍为空（不回读明文到界面）",
+      (await settingsInputValue(call, SEL.apiKey)) === "",
+      null,
+    );
     await closeSettingsViaBottom(call);
     await H.shot(call, SHOT_DIR, `${TAG}-one-way-key.png`);
   },
@@ -916,13 +1023,21 @@ const FLOWS = {
     // ⚠️ 走 store 动作（raw IPC 清 main 不动渲染层 store ⇒ settings 不会变 null，对照基线就错了）
     await H.storeQ(call, "await s.clearSettings(); return JSON.stringify({ ok: true });");
     const afterClear = await storeSettings(call);
-    check("前置：清除后 settings 为 null（save-failed 的对照基线）", afterClear.settings === null, null);
+    check(
+      "前置：清除后 settings 为 null（save-failed 的对照基线）",
+      afterClear.settings === null,
+      null,
+    );
     check("前置：settings.json 已从磁盘删除", readSettingsDisk().exists === false, null);
     await openSettingsViaBar(call);
     const bURL = H.MOCK_BASE;
     await typeSettingsInput(call, SEL.baseURL, bURL);
     await typeSettingsInput(call, SEL.model, "mock-model");
-    check("前置：apiKey 留空（未配置时空 key 必被 main 拒）", (await settingsInputValue(call, SEL.apiKey)) === "", null);
+    check(
+      "前置：apiKey 留空（未配置时空 key 必被 main 拒）",
+      (await settingsInputValue(call, SEL.apiKey)) === "",
+      null,
+    );
     await clickInSettings(call, "保存", 1500);
     const d1 = await lastDialogInfo(call);
     check(
@@ -930,14 +1045,31 @@ const FLOWS = {
       d1?.text?.includes("保存运行配置失败") === true && d1.text.includes("apiKey 不能为空"),
       d1?.text?.slice(0, 160),
     );
-    check("保存失败 ⇒ 输入逐字保留", (await settingsInputValue(call, SEL.baseURL)) === bURL && (await settingsInputValue(call, SEL.model)) === "mock-model", null);
+    check(
+      "保存失败 ⇒ 输入逐字保留",
+      (await settingsInputValue(call, SEL.baseURL)) === bURL &&
+        (await settingsInputValue(call, SEL.model)) === "mock-model",
+      null,
+    );
     const failed1 = await storeSettings(call);
-    check("保存失败 ⇒ settings 原样（没写进去也不该动事实）", failed1.settings === null, failed1.settings);
-    check("保存失败 ⇒ 磁盘仍无 settings.json（零字节都不写）", readSettingsDisk().exists === false, null);
+    check(
+      "保存失败 ⇒ settings 原样（没写进去也不该动事实）",
+      failed1.settings === null,
+      failed1.settings,
+    );
+    check(
+      "保存失败 ⇒ 磁盘仍无 settings.json（零字节都不写）",
+      readSettingsDisk().exists === false,
+      null,
+    );
     // 此刻输入仍是脏的（typed 值 ≠ saved null）⇒ 关闭必过「放弃修改并关闭」
     await closeSettingsDiscarding(call);
     // —— reread-failed：恢复配置后竞速注入 ——
-    await H.apiCall(call, "saveSettings", { baseURL: H.MOCK_BASE, apiKey: "sk-u363-controlled", model: "mock-model" });
+    await H.apiCall(call, "saveSettings", {
+      baseURL: H.MOCK_BASE,
+      apiKey: "sk-u363-controlled",
+      model: "mock-model",
+    });
     // main 已有新配置；渲染层 store 还停在 null ⇒ 先回读，对话框才有正确的预填基线
     await H.storeQ(call, "await s.loadSettings(); return JSON.stringify({ ok: true });");
     const rereadOutcome = await (async () => {
@@ -963,29 +1095,58 @@ const FLOWS = {
     if (rereadOutcome.won !== true) {
       dump.layerNote =
         "「保存成功但回读失败」的竞速窗口 5 次尝试未得手（main 保存与回读同在渲染层一个 await 链上，间隙毫秒级）⇒ reread-failed 分支按 settings-save-feedback 单测承载（tasks 6.7 预设口径）";
-      check("reread-failed 竞速未得手 ⇒ 按单元承载登记（save-failed 半边已实机坐实）", true, dump.layerNote);
+      check(
+        "reread-failed 竞速未得手 ⇒ 按单元承载登记（save-failed 半边已实机坐实）",
+        true,
+        dump.layerNote,
+      );
       return;
     }
-    check(`第 ${rereadOutcome.attempt} 次竞速得手：保存已落盘但回读被注入打断`, rereadOutcome.outcome.kind === "reread-failed", rereadOutcome.outcome.text?.slice(0, 140));
+    check(
+      `第 ${rereadOutcome.attempt} 次竞速得手：保存已落盘但回读被注入打断`,
+      rereadOutcome.outcome.kind === "reread-failed",
+      rereadOutcome.outcome.text?.slice(0, 140),
+    );
     const d2 = await lastDialogInfo(call);
     check(
       "回读失败 ⇒ 专属反馈在场（不把旧摘要当新配置事实）",
       d2?.text?.includes("已保存，但配置状态回读失败") === true && d2.text.includes("不会重新保存"),
       d2?.text?.slice(0, 180),
     );
-    const rereadBtn = await H.ev(call, `(() => document.querySelector('[data-reread-settings]') !== null)()`);
+    const rereadBtn = await H.ev(
+      call,
+      `(() => document.querySelector('[data-reread-settings]') !== null)()`,
+    );
     check("回读失败 ⇒ 只读重试按钮在场（走 settings:get，不重新保存）", rereadBtn === true, null);
     const mid = await storeSettings(call);
-    check("回读失败 ⇒ settings 清空（不拿旧摘要冒充配置事实）", mid.settings === null, mid.settings);
+    check(
+      "回读失败 ⇒ settings 清空（不拿旧摘要冒充配置事实）",
+      mid.settings === null,
+      mid.settings,
+    );
     // 还原磁盘 → 只读重试 → 回读核实
     writeFileSync(H.SETTINGS_FILE, rereadOutcome.savedContent, "utf8");
-    await H.ev(call, `(() => { document.querySelector('[data-reread-settings]')?.click(); return true; })()`);
+    await H.ev(
+      call,
+      `(() => { document.querySelector('[data-reread-settings]')?.click(); return true; })()`,
+    );
     await H.sleep(1500);
     const d3 = await lastDialogInfo(call);
-    check("还原后只读重试 ⇒ 配置状态已回读核实", d3?.text?.includes("配置状态已回读核实") === true, d3?.text?.slice(0, 120));
+    check(
+      "还原后只读重试 ⇒ 配置状态已回读核实",
+      d3?.text?.includes("配置状态已回读核实") === true,
+      d3?.text?.slice(0, 120),
+    );
     const fin = await storeSettings(call);
-    check("只读重试成功 ⇒ settings 恢复（回读通道不写盘）", fin.settings !== null && fin.settings.baseURL !== null, fin.settings?.baseURL ?? null);
-    const rereadBtnGone = await H.ev(call, `(() => document.querySelector('[data-reread-settings]') === null)()`);
+    check(
+      "只读重试成功 ⇒ settings 恢复（回读通道不写盘）",
+      fin.settings !== null && fin.settings.baseURL !== null,
+      fin.settings?.baseURL ?? null,
+    );
+    const rereadBtnGone = await H.ev(
+      call,
+      `(() => document.querySelector('[data-reread-settings]') === null)()`,
+    );
     check("回读成功 ⇒ 重试按钮退场", rereadBtnGone === true, null);
     await closeSettingsViaBottom(call);
     await H.shot(call, SHOT_DIR, `${TAG}-reread-failed.png`);
@@ -1003,7 +1164,10 @@ const FLOWS = {
     const flight = await waitRegistryRecordState(call, sub.operationId, "running", 20000);
     check("前置：在飞执行 running（真占槽）", flight?.state === "running", flight?.state ?? null);
     // configurationBusy 只随 main 快照进会话 ⇒ 显式刷一次 status（等价用户打开操作面板，U4 6.7 同做法）
-    await H.storeQ(call, "await s.refreshOperationStatus(); return JSON.stringify({ done: true });");
+    await H.storeQ(
+      call,
+      "await s.refreshOperationStatus(); return JSON.stringify({ done: true });",
+    );
     await openSettingsViaBar(call);
     const gateDisabled = await H.ev(
       call,
@@ -1018,7 +1182,9 @@ const FLOWS = {
     );
     check(
       "在飞期间清除与保存都被 U4 配置门禁禁用（且就近给门禁说明）",
-      gateDisabled?.clearDisabled === true && gateDisabled?.saveDisabled === true && gateDisabled?.notice !== null,
+      gateDisabled?.clearDisabled === true &&
+        gateDisabled?.saveDisabled === true &&
+        gateDisabled?.notice !== null,
       gateDisabled,
     );
     await closeSettingsViaBottom(call);
@@ -1030,20 +1196,28 @@ const FLOWS = {
     await openSettingsViaBar(call);
     await clickInSettings(call, "清除配置", 900);
     const dlg = await waitConfirmDialog(call, "清除运行配置");
-    check("清除先过真模态确认（标题逐字）", dlg !== null && dlg.label === "清除运行配置", dlg?.label ?? null);
+    check(
+      "清除先过真模态确认（标题逐字）",
+      dlg !== null && dlg.label === "清除运行配置",
+      dlg?.label ?? null,
+    );
     check(
       "确认文案点名保存凭据一并删除且不可恢复",
-      dlg !== null && dlg.text.includes("apiKey（保存的凭据）一并删除") && dlg.text.includes("不可恢复"),
+      dlg?.text.includes("apiKey（保存的凭据）一并删除") && dlg.text.includes("不可恢复"),
       dlg?.text?.slice(0, 200),
     );
     check(
       "确认文案写明调试草稿与已有运行不受影响",
-      dlg !== null && dlg.text.includes("调试草稿与已有运行不受影响"),
+      dlg?.text.includes("调试草稿与已有运行不受影响"),
       null,
     );
     // 取消一支：零清除调用
     await clickInSettings(call, "取消", 900);
-    check("取消 ⇒ 确认关闭、设置仍在", (await pageDialogCount(call)) === 1 && (await settingsOpen(call)) === true, null);
+    check(
+      "取消 ⇒ 确认关闭、设置仍在",
+      (await pageDialogCount(call)) === 1 && (await settingsOpen(call)) === true,
+      null,
+    );
     const diskAfterCancel = readSettingsDisk();
     check("取消 ⇒ 零清除调用（磁盘逐字节不动）", diskAfterCancel.raw === disk0.raw, null);
     const stAfterCancel = await storeSettings(call);
@@ -1053,7 +1227,11 @@ const FLOWS = {
     await waitConfirmDialog(call, "清除运行配置");
     await clickInSettings(call, "确认清除", 1500);
     const d2 = await lastDialogInfo(call);
-    check("确认清除 ⇒ 反馈「运行配置已清除。」", d2?.text?.includes("运行配置已清除。") === true, d2?.text?.slice(0, 120));
+    check(
+      "确认清除 ⇒ 反馈「运行配置已清除。」",
+      d2?.text?.includes("运行配置已清除。") === true,
+      d2?.text?.slice(0, 120),
+    );
     const stAfterClear = await storeSettings(call);
     check("确认清除 ⇒ settings 为 null", stAfterClear.settings === null, null);
     check("确认清除 ⇒ 磁盘 settings.json 已删除", readSettingsDisk().exists === false, null);
@@ -1064,7 +1242,11 @@ const FLOWS = {
         return { baseURL: d.querySelector('input[placeholder="https://api.deepseek.com/v1"]')?.value ?? null,
                  model: d.querySelector('input[placeholder="deepseek-chat"]')?.value ?? null }; })()`,
     );
-    check("清除后输入复位（不残留旧值冒充未配置）", inputsAfter?.baseURL === "" && inputsAfter?.model === "", inputsAfter);
+    check(
+      "清除后输入复位（不残留旧值冒充未配置）",
+      inputsAfter?.baseURL === "" && inputsAfter?.model === "",
+      inputsAfter,
+    );
     await closeSettingsViaBottom(call);
     check("恰一次模型调用（占槽任务）", mock.served() - servedBefore === 1, mock.served());
     await H.shot(call, SHOT_DIR, `${TAG}-clear-confirm.png`);
@@ -1089,7 +1271,10 @@ const FLOWS = {
         `(() => { const d = document.querySelector(${JSON.stringify(SETTINGS_DIALOG)});
           return d === null ? false : (d.innerText||'').includes('本地录制代理（零摩擦接入）'); })()`,
       );
-      const section = await H.storeQ(call, "return JSON.stringify({ section: s.settingsSection });");
+      const section = await H.storeQ(
+        call,
+        "return JSON.stringify({ section: s.settingsSection });",
+      );
       check(`${fromWhere}：录制入口打开的是既有设置模态`, open === true, null);
       check(`${fromWhere}：代理分区在场（不是另建一套录制界面）`, proxyVisible === true, null);
       check(
@@ -1097,7 +1282,11 @@ const FLOWS = {
         focus?.tag === "INPUT" && focus?.type === "checkbox",
         focus,
       );
-      check(`${fromWhere}：定位是动作不是常驻状态（settingsSection 用后即清）`, section.section === null, section);
+      check(
+        `${fromWhere}：定位是动作不是常驻状态（settingsSection 用后即清）`,
+        section.section === null,
+        section,
+      );
       await closeSettingsViaBottom(call);
     };
     await checkEntry("全局（轨迹工作区）");
@@ -1119,16 +1308,26 @@ const FLOWS = {
     // 非脏：Esc 直接关闭设置并恢复焦点
     await openSettingsViaBar(call);
     await pressEscape(call);
-    check("非脏 Esc ⇒ 设置关闭", (await pageDialogCount(call)) === 0, { stack: await stackState() });
+    check("非脏 Esc ⇒ 设置关闭", (await pageDialogCount(call)) === 0, {
+      stack: await stackState(),
+    });
     const focus1 = await activeElInfo(call);
-    check("非脏 Esc ⇒ 焦点恢复到触发入口", focus1 !== null && String(focus1.title ?? "").includes("配置 LLM 接入"), focus1);
+    check(
+      "非脏 Esc ⇒ 焦点恢复到触发入口",
+      focus1 !== null && String(focus1.title ?? "").includes("配置 LLM 接入"),
+      focus1,
+    );
     // 脏：第一层 Esc 先被"未保存确认"消费（设置不关）
     await openSettingsViaBar(call);
     const typedKey = `sk-${MARK}-esc-dirty`;
     await typeSettingsInput(call, SEL.apiKey, typedKey);
     await pressEscape(call);
     const dlg1 = await waitConfirmDialog(call, "运行配置有未保存修改");
-    check("脏态第一层 Esc ⇒ 未保存确认出现（设置仍在下层）", dlg1 !== null && (await pageDialogCount(call)) === 2, { stack: await stackState() });
+    check(
+      "脏态第一层 Esc ⇒ 未保存确认出现（设置仍在下层）",
+      dlg1 !== null && (await pageDialogCount(call)) === 2,
+      { stack: await stackState() },
+    );
     // 第二层 Esc：只关确认（修复后逐层成立；修复前两步关闭把底层设置也关了）
     await pressEscape(call);
     await H.sleep(600);
@@ -1139,15 +1338,25 @@ const FLOWS = {
       JSON.stringify(JSON.parse(stackAfterEsc2)) === JSON.stringify(["运行配置"]),
       stackAfterEsc2,
     );
-    check("确认被 Esc 取消后输入逐字保留", (await settingsInputValue(call, SEL.apiKey)) === typedKey, null);
+    check(
+      "确认被 Esc 取消后输入逐字保留",
+      (await settingsInputValue(call, SEL.apiKey)) === typedKey,
+      null,
+    );
     // 第三层 Esc：确认可再次唤起（合成路径不依赖原生 cancel 的第一次豁免）
     await pressEscape(call);
     const dlg2 = await waitConfirmDialog(call, "运行配置有未保存修改");
     check("第三层 Esc ⇒ 确认可再次唤起（不是一次性）", dlg2 !== null, dlg2?.label ?? null);
     await clickInSettings(call, "放弃修改并关闭", 1200);
-    check("放弃修改并关闭 ⇒ 全部关闭", (await pageDialogCount(call)) === 0, { stack: await stackState() });
+    check("放弃修改并关闭 ⇒ 全部关闭", (await pageDialogCount(call)) === 0, {
+      stack: await stackState(),
+    });
     const disk1 = readSettingsDisk();
-    check("整场 Esc 往返不动磁盘配置（逐字节）", disk0.exists === disk1.exists && disk0.raw === disk1.raw, null);
+    check(
+      "整场 Esc 往返不动磁盘配置（逐字节）",
+      disk0.exists === disk1.exists && disk0.raw === disk1.raw,
+      null,
+    );
     await H.shot(call, SHOT_DIR, `${TAG}-esc-topmost.png`);
   },
 
@@ -1174,10 +1383,17 @@ const FLOWS = {
     // —— 关闭详情半边：面板 ✕ 只关闭查看 ——
     await openOperationsPanel(call);
     await closeOperationsPanel(call);
-    const panelGone = await H.ev(call, `(() => document.getElementById('operations-panel') === null)()`);
+    const panelGone = await H.ev(
+      call,
+      `(() => document.getElementById('operations-panel') === null)()`,
+    );
     check("面板 ✕ 只关闭查看（面板退场）", panelGone === true, null);
     const mid = await recordOf(call, sub.operationId);
-    check("关闭详情不冒充停止：登记仍 running、槽仍指向它", mid.rec?.state === "running" && mid.slot === sub.operationId, { state: mid.rec?.state, slot: mid.slot });
+    check(
+      "关闭详情不冒充停止：登记仍 running、槽仍指向它",
+      mid.rec?.state === "running" && mid.slot === sub.operationId,
+      { state: mid.rec?.state, slot: mid.slot },
+    );
     await openOperationsPanel(call);
     const rowBack = await H.ev(
       call,
@@ -1194,7 +1410,11 @@ const FLOWS = {
     writeFileSync(QUIT_FLAG, "u567-quit-exec\n");
     const dlg = await waitDialog(25000);
     const kinds = classifyClose(dlg);
-    dump.quitDialog = { kinds, buttons: dlg?.buttons ?? null, texts: dlg?.texts?.slice(0, 300) ?? null };
+    dump.quitDialog = {
+      kinds,
+      buttons: dlg?.buttons ?? null,
+      texts: dlg?.texts?.slice(0, 300) ?? null,
+    };
     check(
       "退出前仍弹一次确认（活跃操作档；退出不会取消上游请求的措辞在场）",
       dlg !== null && kinds.active === true && dlg.texts.includes("退出不会取消上游请求"),
@@ -1231,9 +1451,14 @@ const FLOWS = {
         .filter((l) => l.trim().length > 0)
         .map((l) => JSON.parse(l));
       const last = lines[lines.length - 1];
-      check("未完成文件没有终态事件（不回填 completed、不认领结局）", last?.type !== "run.event", { lastType: last?.type ?? null });
+      check("未完成文件没有终态事件（不回填 completed、不认领结局）", last?.type !== "run.event", {
+        lastType: last?.type ?? null,
+      });
     }
-    check("被打断那次的请求只出过一次门（退出未重放）", mock.served() === servedBefore + 1, { served: mock.served(), servedBefore });
+    check("被打断那次的请求只出过一次门（退出未重放）", mock.served() === servedBefore + 1, {
+      served: mock.served(),
+      servedBefore,
+    });
     dump.servedAtExit = mock.served();
   },
 
@@ -1262,35 +1487,73 @@ const FLOWS = {
     writeFileSync(QUIT_FLAG, "u567-quit-return\n");
     const dlg = await waitDialog(25000);
     const kinds = classifyClose(dlg);
-    dump.quitDialog = { kinds, buttons: dlg?.buttons ?? null, texts: dlg?.texts?.slice(0, 300) ?? null };
-    check(
-      "创建忙碌 ⇒ 退出仍先过协商（活跃操作档在场）",
-      dlg !== null && kinds.active === true,
-      { kinds, texts: dlg?.texts?.slice(0, 200) },
-    );
+    dump.quitDialog = {
+      kinds,
+      buttons: dlg?.buttons ?? null,
+      texts: dlg?.texts?.slice(0, 300) ?? null,
+    };
+    check("创建忙碌 ⇒ 退出仍先过协商（活跃操作档在场）", dlg !== null && kinds.active === true, {
+      kinds,
+      texts: dlg?.texts?.slice(0, 200),
+    });
     const mid = await recordOf(call, sub.operationId);
-    check("询问期间 main 的 closing 在场且槽仍指向在飞那条", mid.slot === sub.operationId && (await opsStatus(call)).data?.closing === true, { slot: mid.slot, closing: (await opsStatus(call)).data?.closing });
+    check(
+      "询问期间 main 的 closing 在场且槽仍指向在飞那条",
+      mid.slot === sub.operationId && (await opsStatus(call)).data?.closing === true,
+      { slot: mid.slot, closing: (await opsStatus(call)).data?.closing },
+    );
     // 询问期间第二入口被 main 拒（closing 是 main 事实，不看界面置灰）
     const secondId = freshUuid();
-    const second = await bridgeCreate(call, s0.data?.epoch, secondId, `${MARK} 询问期间的第二入口 ${rand()}`);
+    const second = await bridgeCreate(
+      call,
+      s0.data?.epoch,
+      secondId,
+      `${MARK} 询问期间的第二入口 ${rand()}`,
+    );
     const secondRec = (await recordOf(call, secondId)).rec;
     check(
       "询问期间第二主动入口被 main 拒 ⇒ OPERATION_NOT_ACCEPTED 且登记 notAccepted",
-      second.ok === false && second.error?.code === "OPERATION_NOT_ACCEPTED" && secondRec?.state === "notAccepted",
+      second.ok === false &&
+        second.error?.code === "OPERATION_NOT_ACCEPTED" &&
+        secondRec?.state === "notAccepted",
       { code: second.error?.code, state: secondRec?.state },
     );
-    check("被拒那条零副作用：零模型请求、零新增文件", mock.served() === servedBefore + 1 && H.traceIds().size === idsAtFlight.size, { served: mock.served(), files: H.traceIds().size });
+    check(
+      "被拒那条零副作用：零模型请求、零新增文件",
+      mock.served() === servedBefore + 1 && H.traceIds().size === idsAtFlight.size,
+      { served: mock.served(), files: H.traceIds().size },
+    );
     // 返回：退出被阻止，原在飞照常收口（不自动执行被拒那条）
     const drained = await drainDialogs(0);
-    check("quit 协商可返回（点击-核对-重试排空）", drained.clean && drained.rounds.length >= 1, drained.rounds.map((r) => ({ h: r.hwnd, after: r.after })));
+    check(
+      "quit 协商可返回（点击-核对-重试排空）",
+      drained.clean && drained.rounds.length >= 1,
+      drained.rounds.map((r) => ({ h: r.hwnd, after: r.after })),
+    );
     const alive = await winops("alive");
-    check("用户选择返回 ⇒ 窗口仍在", String(parseLines(alive.lines).window ?? "").includes("iswindow=True"), parseLines(alive.lines).window ?? null);
+    check(
+      "用户选择返回 ⇒ 窗口仍在",
+      String(parseLines(alive.lines).window ?? "").includes("iswindow=True"),
+      parseLines(alive.lines).window ?? null,
+    );
     const after = await recordOf(call, sub.operationId);
-    check("返回解除 closing 但不释放执行槽：那条仍 running、槽仍指向它", after.slot === sub.operationId && after.rec?.state === "running", { slot: after.slot, state: after.rec?.state });
+    check(
+      "返回解除 closing 但不释放执行槽：那条仍 running、槽仍指向它",
+      after.slot === sub.operationId && after.rec?.state === "running",
+      { slot: after.slot, state: after.rec?.state },
+    );
     const secondRec2 = (await recordOf(call, secondId)).rec;
-    check("返回后被拒那条不自动执行：仍 notAccepted、零新文件", secondRec2?.state === "notAccepted" && H.traceIds().size === idsAtFlight.size, { state: secondRec2?.state, files: H.traceIds().size });
+    check(
+      "返回后被拒那条不自动执行：仍 notAccepted、零新文件",
+      secondRec2?.state === "notAccepted" && H.traceIds().size === idsAtFlight.size,
+      { state: secondRec2?.state, files: H.traceIds().size },
+    );
     const settled = await waitMainSettled(call, sub.operationId, 120000);
-    check("原在飞照常收口（返回不打断执行、也不重放）", settled?.state === "settled" && mock.served() === servedBefore + 1, { state: settled?.state, served: mock.served() });
+    check(
+      "原在飞照常收口（返回不打断执行、也不重放）",
+      settled?.state === "settled" && mock.served() === servedBefore + 1,
+      { state: settled?.state, served: mock.served() },
+    );
     const entry = await (async () => {
       const runId = settled?.runIds?.[0] ?? null;
       if (runId === null) return null;
@@ -1305,7 +1568,11 @@ const FLOWS = {
         await H.sleep(400);
       }
     })();
-    check("收口后结果按可信 ID 核实（verified / 正常结束）", entry !== null && entry.phase === "verified", entry?.phase ?? null);
+    check(
+      "收口后结果按可信 ID 核实（verified / 正常结束）",
+      entry !== null && entry.phase === "verified",
+      entry?.phase ?? null,
+    );
     await H.shot(call, SHOT_DIR, `${TAG}-quit-return.png`);
   },
 };
@@ -1314,14 +1581,14 @@ const FLOWS = {
 
 async function main() {
   const page = await H.cdpConnect(H.CDP_PORT);
-  let call = await H.makeDialogSession(page.webSocketDebuggerUrl);
+  const call = await H.makeDialogSession(page.webSocketDebuggerUrl);
   SESSION.call = call;
   await call("Page.enable");
   await call("Runtime.enable");
   await call("Page.bringToFront").catch(() => {});
   await call("Emulation.clearDeviceMetricsOverride").catch(() => {});
   // 带换文档自证的重载（U4 6.6 纪律：reload 不换文档 ⇒ 一切"重载后"判据凭空成立）
-  await H.ev(call, `(() => { window.__u567Doc = (window.__u567Doc ?? 0) + 1; return true; })()`);
+  await H.ev(call, "(() => { window.__u567Doc = (window.__u567Doc ?? 0) + 1; return true; })()");
   await call("Page.reload", { ignoreCache: true });
   let swapped = false;
   for (let i = 0; i < 80; i++) {
@@ -1357,7 +1624,7 @@ async function main() {
     } catch (e) {
       if (attempt > 0 || !String(e).includes("Failed to fetch")) throw e;
       console.log("[prepare] 模块加载失败，reload 后重试一次");
-      await H.ev(call, `(() => { location.reload(); return true; })()`);
+      await H.ev(call, "(() => { location.reload(); return true; })()");
       await H.sleep(4000);
     }
   }

@@ -60,7 +60,9 @@ const MARK = "U5-68";
 const OK_TURN = { content: `${MARK} 受控成功：一步答完。` };
 
 /** 各 tag 的受控剧本。零执行 tag 用 418 兜底（任何一次消费都会留下痕迹 ⇒ 判据响亮地红） */
-const NOT_CONSUMED = { turns: [{ mode: "fail", status: 418, content: `${MARK} 这个 tag 不该有任何模型调用` }] };
+const NOT_CONSUMED = {
+  turns: [{ mode: "fail", status: 418, content: `${MARK} 这个 tag 不该有任何模型调用` }],
+};
 const TAG_SCRIPT = {
   "real-keyboard": NOT_CONSUMED,
   "widths-1440-1210-1024-800": { turns: [OK_TURN], fallback: OK_TURN },
@@ -71,7 +73,7 @@ const TAG_SCRIPT = {
     turns: [OK_TURN, { mode: "fail", status: 503, content: `${MARK} 受控失败回合` }],
     fallback: OK_TURN,
   },
-  "zoom200": { turns: [OK_TURN], fallback: OK_TURN },
+  zoom200: { turns: [OK_TURN], fallback: OK_TURN },
 };
 const EXPECTED_CALLS = {
   "real-keyboard": 0,
@@ -79,7 +81,7 @@ const EXPECTED_CALLS = {
   "narrow-keyboard-panel": 1,
   "readonly-fingerprint": 1,
   "live-region-a11y": 2,
-  "zoom200": 1,
+  zoom200: 1,
 };
 
 // ---------------------------------------------------------------------------
@@ -99,7 +101,11 @@ function check(name, ok, detail) {
 }
 function sha12(file) {
   try {
-    return require("node:crypto").createHash("sha256").update(readFileSync(file)).digest("hex").slice(0, 12);
+    return require("node:crypto")
+      .createHash("sha256")
+      .update(readFileSync(file))
+      .digest("hex")
+      .slice(0, 12);
   } catch {
     return "unknown";
   }
@@ -434,9 +440,12 @@ async function inputPs(action, extra = []) {
   PS_SEQ_TRACK.n += 1;
   const outFile = join(OUT_DIR, `input-${process.pid}-${PS_SEQ_TRACK.n}.txt`);
   await runPs1(INPUT_PS1, [
-    "-Action", action,
-    "-ProcId", String(MAIN_PID),
-    "-OutFile", outFile,
+    "-Action",
+    action,
+    "-ProcId",
+    String(MAIN_PID),
+    "-OutFile",
+    outFile,
     ...extra,
   ]);
   let txt = "";
@@ -450,10 +459,7 @@ async function inputPs(action, extra = []) {
 }
 /** 把窗口外框设到给定尺寸；返回 ps-win 的 stdout 回报行（这个脚本走 stdout） */
 async function setWindowSize(outerW, outerH) {
-  return runPs1(PS_WIN, [
-    "-OuterWidth", String(outerW),
-    "-OuterHeight", String(outerH),
-  ]);
+  return runPs1(PS_WIN, ["-OuterWidth", String(outerW), "-OuterHeight", String(outerH)]);
 }
 /**
  * 改窗到目标 CSS 宽度：外框→CSS 是近似映射（DPR 2.1 下 ≈×1.41；200% zoom 下 ≈×2.82），
@@ -498,7 +504,7 @@ async function resolveMainPid() {
 /** 真键盘（keybd_event 系统级）：tokens 如 "TAB,TAB,ESC"；模态在场用 Raise=0 */
 async function realKeys(tokens, { raise = "1", gapMs = 90 } = {}) {
   const info = await inputPs("keys", ["-Send", tokens, "-Raise", raise, "-GapMs", String(gapMs)]);
-  if (info["RESULT"] === undefined || !String(info["RESULT"]).includes("sent")) {
+  if (info.RESULT === undefined || !String(info.RESULT).includes("sent")) {
     throw new Error(`真键盘发送失败：${JSON.stringify(info).slice(0, 200)}`);
   }
   await H.sleep(500);
@@ -537,10 +543,14 @@ const FLOWS = {
     const fg = await raiseForeground();
     check(
       "前置：主窗口真实在前台（keybd_event 的落点就是它）",
-      String(fg["foreground"] ?? "").includes("same=True"),
+      String(fg.foreground ?? "").includes("same=True"),
       fg,
     );
-    dump.ime = { hkl: fg["hkl"] ?? null, immOpen: fg["imm-open"] ?? null, immConv: fg["imm-conv"] ?? null };
+    dump.ime = {
+      hkl: fg.hkl ?? null,
+      immOpen: fg["imm-open"] ?? null,
+      immConv: fg["imm-conv"] ?? null,
+    };
     // —— 创建页：焦点可离开（不是模态禁闭） ——
     await openCreate(call);
     await H.ev(
@@ -552,7 +562,12 @@ const FLOWS = {
     for (let i = 0; i < 6; i++) {
       await realKeys("SHIFT+TAB", { raise: "0" });
       const a = await activeElInfo(call);
-      walk.push({ press: i + 1, inCreate: a?.inCreateSection ?? null, tag: a?.tag ?? null, text: a?.text ?? null });
+      walk.push({
+        press: i + 1,
+        inCreate: a?.inCreateSection ?? null,
+        tag: a?.tag ?? null,
+        text: a?.text ?? null,
+      });
       if (a !== null && a.inCreateSection === false) {
         leftSection = true;
         break;
@@ -564,7 +579,11 @@ const FLOWS = {
       leftSection === true,
       walk,
     );
-    check("创建页无模态在场（对照：离开时没有 top layer 拦着）", (await dialogStack(call)) === "[]", await dialogStack(call));
+    check(
+      "创建页无模态在场（对照：离开时没有 top layer 拦着）",
+      (await dialogStack(call)) === "[]",
+      await dialogStack(call),
+    );
     // —— 设置模态：Tab 禁闭（top layer 原生保证） ——
     await openSettingsViaBar(call);
     const confine = [];
@@ -589,7 +608,11 @@ const FLOWS = {
     const stack = await dialogStack(call);
     check("真 Esc ⇒ 设置关闭（合成路径在真键盘下同样成立）", stack === "[]", stack);
     const focus1 = await activeElInfo(call);
-    check("关闭后焦点恢复到触发入口（全局栏「运行配置」）", focus1 !== null && String(focus1.title ?? "").includes("配置 LLM 接入"), focus1);
+    check(
+      "关闭后焦点恢复到触发入口（全局栏「运行配置」）",
+      focus1 !== null && String(focus1.title ?? "").includes("配置 LLM 接入"),
+      focus1,
+    );
     await H.shot(call, SHOT_DIR, `${TAG}.png`);
   },
 
@@ -598,15 +621,30 @@ const FLOWS = {
    * 长任务文本/长 ID 不撑破横向布局、操作入口保持可点。
    */
   "widths-1440-1210-1024-800": async (call, mock) => {
-    const longTask = `${MARK} 长任务：D:\\projects\\very-long-path\\nested\\deep\\folder-structure\\with-a-very-long-file-name-example.txt 的一步步分析，含超长路径与超长任务描述文本`.repeat(3);
+    const longTask =
+      `${MARK} 长任务：D:\\projects\\very-long-path\\nested\\deep\\folder-structure\\with-a-very-long-file-name-example.txt 的一步步分析，含超长路径与超长任务描述文本`.repeat(
+        3,
+      );
     const created = await runCreate(call, mock, longTask);
-    check("前置：长任务创建收口且按可信 ID 核实", created.entry?.phase === "verified", created.entry?.phase ?? null);
+    check(
+      "前置：长任务创建收口且按可信 ID 核实",
+      created.entry?.phase === "verified",
+      created.entry?.phase ?? null,
+    );
     const widths = [];
     for (const target of [1440, 1210, 1024, 800]) {
       const r = await resizeToCssWidth(call, target);
-      check(`宽度 ${target}：改窗实测 CSS 宽度落点（±1px）`, r.settled === true && Math.abs(r.cssWidth - target) <= 1, { cssWidth: r.cssWidth, outer: r.outerWidth, ps: r.ps });
+      check(
+        `宽度 ${target}：改窗实测 CSS 宽度落点（±1px）`,
+        r.settled === true && Math.abs(r.cssWidth - target) <= 1,
+        { cssWidth: r.cssWidth, outer: r.outerWidth, ps: r.ps },
+      );
       const selected = await selectRunAnywhere(call, created.runId);
-      check(`宽度 ${target}：长任务 run 在场（store 级选中，窄档导航收起不走 DOM 行）`, selected === true, selected);
+      check(
+        `宽度 ${target}：长任务 run 在场（store 级选中，窄档导航收起不走 DOM 行）`,
+        selected === true,
+        selected,
+      );
       await openOperationsPanel(call);
       const geo = await H.ev(
         call,
@@ -632,13 +670,33 @@ const FLOWS = {
       const g = typeof geo === "string" ? JSON.parse(geo) : geo;
       const row = { target, cssWidth: r.cssWidth, ...g };
       widths.push(row);
-      check(`宽度 ${target}：面板受视口宽度约束（≤90vw）且不超视口高`, g.panelW <= g.innerW * 0.9 + 1 && g.panelH <= g.innerH + 1, row);
-      check(`宽度 ${target}：页面无横向溢出（长任务/长 ID 断行生效）`, g.pageScrollW <= g.pageClientW + 1, { scrollW: g.pageScrollW, clientW: g.pageClientW });
-      check(`宽度 ${target}：长操作 ID 完整在场（断行呈现，不是截断丢字）`, g.idShown === true, null);
-      check(`宽度 ${target}：操作入口可见且命中测试可点（长内容不遮挡操作）`, g.entryVisible === true && g.entryHit === true, row);
+      check(
+        `宽度 ${target}：面板受视口宽度约束（≤90vw）且不超视口高`,
+        g.panelW <= g.innerW * 0.9 + 1 && g.panelH <= g.innerH + 1,
+        row,
+      );
+      check(
+        `宽度 ${target}：页面无横向溢出（长任务/长 ID 断行生效）`,
+        g.pageScrollW <= g.pageClientW + 1,
+        { scrollW: g.pageScrollW, clientW: g.pageClientW },
+      );
+      check(
+        `宽度 ${target}：长操作 ID 完整在场（断行呈现，不是截断丢字）`,
+        g.idShown === true,
+        null,
+      );
+      check(
+        `宽度 ${target}：操作入口可见且命中测试可点（长内容不遮挡操作）`,
+        g.entryVisible === true && g.entryHit === true,
+        row,
+      );
       await closeOperationsPanel(call);
       const focus = await activeElInfo(call);
-      check(`宽度 ${target}：✕ 关闭后焦点回到触发入口`, focus !== null && focus.ariaControls === "operations-panel", focus?.ariaControls ?? null);
+      check(
+        `宽度 ${target}：✕ 关闭后焦点回到触发入口`,
+        focus !== null && focus.ariaControls === "operations-panel",
+        focus?.ariaControls ?? null,
+      );
     }
     dump.widths = widths;
     await H.shot(call, SHOT_DIR, `${TAG}-last-width.png`);
@@ -650,9 +708,17 @@ const FLOWS = {
     check("已唯一认定 dev 主进程 PID", resolved.pid > 0, resolved.info);
     const created = await runCreate(call, mock, `${MARK} 窄档键盘可达任务`);
     const r = await resizeToCssWidth(call, 800);
-    check("前置：改窗实测 CSS 800（±1px）", r.settled === true && Math.abs(r.cssWidth - 800) <= 1, { cssWidth: r.cssWidth, outer: r.outerWidth, ps: r.ps });
+    check("前置：改窗实测 CSS 800（±1px）", r.settled === true && Math.abs(r.cssWidth - 800) <= 1, {
+      cssWidth: r.cssWidth,
+      outer: r.outerWidth,
+      ps: r.ps,
+    });
     const fg = await raiseForeground();
-    check("前置：主窗口在前台（真键盘落点正确）", String(fg["foreground"] ?? "").includes("same=True"), fg);
+    check(
+      "前置：主窗口在前台（真键盘落点正确）",
+      String(fg.foreground ?? "").includes("same=True"),
+      fg,
+    );
     // 真键盘激活操作入口：CDP 只负责把焦点放上去，开合由真实 Enter 完成
     const focused = await H.ev(
       call,
@@ -665,11 +731,25 @@ const FLOWS = {
       `(() => { const b = document.querySelector('button[aria-controls="operations-panel"]');
         return b === null ? null : { expanded: b.getAttribute('aria-expanded'), controls: b.getAttribute('aria-controls') }; })()`,
     );
-    check("入口 aria 关系在场（aria-expanded / aria-controls）", aria?.expanded === "false" && aria?.controls === "operations-panel", aria);
+    check(
+      "入口 aria 关系在场（aria-expanded / aria-controls）",
+      aria?.expanded === "false" && aria?.controls === "operations-panel",
+      aria,
+    );
     await realKeys("ENTER", { raise: "0" });
-    const opened = await H.ev(call, `(() => document.getElementById('operations-panel') !== null)()`);
-    const expanded = await H.storeQ(call, `return JSON.stringify({ expanded: document.querySelector('button[aria-controls="operations-panel"]').getAttribute('aria-expanded') });`);
-    check("真 Enter ⇒ 面板打开（aria-expanded 翻 true）", opened === true && expanded.expanded === "true", { opened, expanded });
+    const opened = await H.ev(
+      call,
+      `(() => document.getElementById('operations-panel') !== null)()`,
+    );
+    const expanded = await H.storeQ(
+      call,
+      `return JSON.stringify({ expanded: document.querySelector('button[aria-controls="operations-panel"]').getAttribute('aria-expanded') });`,
+    );
+    check(
+      "真 Enter ⇒ 面板打开（aria-expanded 翻 true）",
+      opened === true && expanded.expanded === "true",
+      { opened, expanded },
+    );
     const geo = await H.ev(
       call,
       `(() => {
@@ -683,12 +763,25 @@ const FLOWS = {
     );
     const g = typeof geo === "string" ? JSON.parse(geo) : geo;
     check("800px：面板受视口宽度约束（≤90vw）", g.panelW <= g.innerW * 0.9 + 1, g);
-    check("800px：页面无横向溢出（长 ID 断行生效）", g.pageScrollW <= g.pageClientW + 1, { scrollW: g.pageScrollW, clientW: g.pageClientW });
+    check("800px：页面无横向溢出（长 ID 断行生效）", g.pageScrollW <= g.pageClientW + 1, {
+      scrollW: g.pageScrollW,
+      clientW: g.pageClientW,
+    });
     check("800px：长操作 ID 完整在场", g.idShown === true, null);
     await realKeys("ENTER", { raise: "0" });
-    const closed = await H.ev(call, `(() => document.getElementById('operations-panel') === null)()`);
-    const collapsed = await H.storeQ(call, `return JSON.stringify({ expanded: document.querySelector('button[aria-controls="operations-panel"]').getAttribute('aria-expanded') });`);
-    check("再按真 Enter ⇒ 面板收起（aria-expanded 回 false）", closed === true && collapsed.expanded === "false", { closed, collapsed });
+    const closed = await H.ev(
+      call,
+      `(() => document.getElementById('operations-panel') === null)()`,
+    );
+    const collapsed = await H.storeQ(
+      call,
+      `return JSON.stringify({ expanded: document.querySelector('button[aria-controls="operations-panel"]').getAttribute('aria-expanded') });`,
+    );
+    check(
+      "再按真 Enter ⇒ 面板收起（aria-expanded 回 false）",
+      closed === true && collapsed.expanded === "false",
+      { closed, collapsed },
+    );
     await H.shot(call, SHOT_DIR, `${TAG}-narrow.png`);
   },
 
@@ -706,41 +799,88 @@ const FLOWS = {
     await H.clickSpan(call, "read_file", "s_03");
     await openPlainResultEditor(call, FX.normalRun, "s_03");
     const editorWasOpen = await resultEditorOpen(call);
-    await H.ev(call, `(() => { document.activeElement?.blur?.(); return true; })()`);
-    await call("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 });
-    await call("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 });
+    await H.ev(call, "(() => { document.activeElement?.blur?.(); return true; })()");
+    await call("Input.dispatchKeyEvent", {
+      type: "keyDown",
+      key: "Escape",
+      code: "Escape",
+      windowsVirtualKeyCode: 27,
+      nativeVirtualKeyCode: 27,
+    });
+    await call("Input.dispatchKeyEvent", {
+      type: "keyUp",
+      key: "Escape",
+      code: "Escape",
+      windowsVirtualKeyCode: 27,
+      nativeVirtualKeyCode: 27,
+    });
     await H.sleep(700);
     const editorClosed = await resultEditorOpen(call);
-    check("编辑器开合正常（对照：只读动作真的发生了）", editorWasOpen === true && editorClosed === false, { editorWasOpen, editorClosed });
+    check(
+      "编辑器开合正常（对照：只读动作真的发生了）",
+      editorWasOpen === true && editorClosed === false,
+      { editorWasOpen, editorClosed },
+    );
     await H.clickTabChecked(call, "概览");
     await openOperationsPanel(call);
     await closeOperationsPanel(call);
-    let diff1 = {};
+    const diff1 = {};
     const after1 = H.hashAllTraces();
-    for (const [n, v] of Object.entries(after1)) if (base[n] !== v) diff1[n] = { before: base[n], after: v };
-    for (const n of Object.keys(base)) if (after1[n] === undefined) diff1[n] = { before: base[n], after: "deleted" };
-    check("只读动作一轮 ⇒ traces 逐文件 sha256 差集为空（零写入）", Object.keys(diff1).length === 0, diff1);
+    for (const [n, v] of Object.entries(after1))
+      if (base[n] !== v) diff1[n] = { before: base[n], after: v };
+    for (const n of Object.keys(base))
+      if (after1[n] === undefined) diff1[n] = { before: base[n], after: "deleted" };
+    check(
+      "只读动作一轮 ⇒ traces 逐文件 sha256 差集为空（零写入）",
+      Object.keys(diff1).length === 0,
+      diff1,
+    );
     // —— 对照支：一次真创建 ⇒ 恰 +1 份（判据有牙，不是"一律不变"的假判据） ——
     const created = await runCreate(call, mock, `${MARK} 指纹对照创建`);
     const after2 = H.hashAllTraces();
     const added = Object.keys(after2).filter((n) => base[n] === undefined);
-    check("对照：真创建 ⇒ 恰新增 1 份 trace（指纹判据有牙）", added.length === 1 && after2[`${created.runId}.jsonl`] !== undefined, added);
+    check(
+      "对照：真创建 ⇒ 恰新增 1 份 trace（指纹判据有牙）",
+      added.length === 1 && after2[`${created.runId}.jsonl`] !== undefined,
+      added,
+    );
     // —— 读取重试也零写入：注入 fileMissing ⇒ 重读 unreadable ⇒ 还原 ⇒ 重读 verified ——
     const fault = beginReadFault({ tracesDir: H.TRACES, runId: created.runId }, "fileMissing");
-    const bad = await retryRead(call, { epoch: created.epoch, operationId: created.operationId, runId: created.runId });
-    check("注入期间重读 ⇒ unreadable（attempt 递增）", bad.phase === "unreadable" && bad.attempt === 2, bad);
+    const bad = await retryRead(call, {
+      epoch: created.epoch,
+      operationId: created.operationId,
+      runId: created.runId,
+    });
+    check(
+      "注入期间重读 ⇒ unreadable（attempt 递增）",
+      bad.phase === "unreadable" && bad.attempt === 2,
+      bad,
+    );
     const midHash = H.hashAllTraces();
     const restore = fault.end();
-    check("注入还原逐字节核验通过（无残留）", restore.clean === true, { restoreError: restore.restoreError, diff: restore.diff });
-    const good = await retryRead(call, { epoch: created.epoch, operationId: created.operationId, runId: created.runId });
+    check("注入还原逐字节核验通过（无残留）", restore.clean === true, {
+      restoreError: restore.restoreError,
+      diff: restore.diff,
+    });
+    const good = await retryRead(call, {
+      epoch: created.epoch,
+      operationId: created.operationId,
+      runId: created.runId,
+    });
     check("还原后重读 ⇒ verified", good.phase === "verified", good);
     // ⚠️ 重试段的零写入基线必须是**注入前**的 after2：注入期间目标文件被隐藏本身就是一个
     // "差集"（midHash 里它不在场），拿 midHash 当基线会把还原误判成写入（首跑假红根因）
     const after3 = H.hashAllTraces();
     const diff3 = {};
-    for (const [n, v] of Object.entries(after3)) if (after2[n] !== v) diff3[n] = { before: after2[n], after: v };
-    for (const n of Object.keys(after2)) if (after3[n] === undefined) diff3[n] = { before: after2[n], after: "deleted" };
-    check("重试全程（unreadable ⇄ verified）零写入（差集为空，基线=注入前）", Object.keys(diff3).length === 0, diff3);
+    for (const [n, v] of Object.entries(after3))
+      if (after2[n] !== v) diff3[n] = { before: after2[n], after: v };
+    for (const n of Object.keys(after2))
+      if (after3[n] === undefined) diff3[n] = { before: after2[n], after: "deleted" };
+    check(
+      "重试全程（unreadable ⇄ verified）零写入（差集为空，基线=注入前）",
+      Object.keys(diff3).length === 0,
+      diff3,
+    );
     check("恰一次模型调用（对照创建）", mock.served() - servedBefore === 1, mock.served());
     await H.shot(call, SHOT_DIR, `${TAG}.png`);
   },
@@ -762,7 +902,8 @@ const FLOWS = {
       await fillUserMessage(call, task);
       await confirmSubmission(call);
       const sub = await submitCreateAndCapture(call);
-      if (typeof sub.operationId !== "string") throw new Error(`创建未登记：${JSON.stringify(sub)}`);
+      if (typeof sub.operationId !== "string")
+        throw new Error(`创建未登记：${JSON.stringify(sub)}`);
       await H.selectRun(call, FX.normalRun);
       const deadline = Date.now() + 60000;
       for (;;) {
@@ -771,7 +912,8 @@ const FLOWS = {
           const runId = rec.runIds[0] ?? null;
           if (runId === null) throw new Error("settled 无 runId");
           const entry = await waitForVerified(call, sub.epoch, sub.operationId, runId);
-          if (mock.served() - servedBefore !== 1) throw new Error(`创建调用数异常：${mock.served()}`);
+          if (mock.served() - servedBefore !== 1)
+            throw new Error(`创建调用数异常：${mock.served()}`);
           return { operationId: sub.operationId, epoch: sub.epoch, runId, entry };
         }
         if (Date.now() > deadline) throw new Error(`创建未收口：${task}`);
@@ -788,14 +930,30 @@ const FLOWS = {
                  text: (el.textContent || '').trim(),
                  focused: document.activeElement === el }; })()`,
     );
-    check("面板关闭态：live 区域恒渲染（空文本也不卸载）", live0 !== null && live0.rendered === true, live0);
-    check("live 区域是 aria-live=polite 的 output（隐式 role=status）", live0?.tag === "OUTPUT" && live0?.live === "polite", live0);
-    check("面板关闭态 live 区域不在焦点链上（不抢焦点、不弹模态）", live0?.focused === false, live0?.focused);
+    check(
+      "面板关闭态：live 区域恒渲染（空文本也不卸载）",
+      live0 !== null && live0.rendered === true,
+      live0,
+    );
+    check(
+      "live 区域是 aria-live=polite 的 output（隐式 role=status）",
+      live0?.tag === "OUTPUT" && live0?.live === "polite",
+      live0,
+    );
+    check(
+      "面板关闭态 live 区域不在焦点链上（不抢焦点、不弹模态）",
+      live0?.focused === false,
+      live0?.focused,
+    );
     // 面板 ✕ 焦点回位（A2.3 6.8 半边）
     await openOperationsPanel(call);
     await closeOperationsPanel(call);
     const focusAfterX = await activeElInfo(call);
-    check("面板 ✕ 关闭后焦点回到触发入口（triggerRef.focus()）", focusAfterX !== null && focusAfterX.ariaControls === "operations-panel", focusAfterX?.ariaControls ?? null);
+    check(
+      "面板 ✕ 关闭后焦点回到触发入口（triggerRef.focus()）",
+      focusAfterX !== null && focusAfterX.ariaControls === "operations-panel",
+      focusAfterX?.ariaControls ?? null,
+    );
     // 成功结局：面板关闭 + 用户已离页 ⇒ live 文本更新（真实结果变为可查看，通知保持未读）
     const created1 = await createAndLeave(`${MARK} 通知成功回合`);
     let text1 = null;
@@ -808,15 +966,22 @@ const FLOWS = {
     }
     check(
       "成功收口（面板关闭）⇒ live 文本更新：新建运行 + 可信 runId + 结局在场",
-      text1 !== null && text1.includes("新建运行") && text1.includes("已有结果") && text1.includes(created1.runId),
+      text1?.includes("新建运行") && text1.includes("已有结果") && text1.includes(created1.runId),
       text1,
     );
     const focusMid = await activeElInfo(call);
     await H.sleep(1600);
     const text1b = await liveText(call);
     const focusMid2 = await activeElInfo(call);
-    check("重复快照（1.6s 后）文本逐字不变（不重复播报）", text1b === text1, { before: text1, after: text1b });
-    check("等待期间焦点不变（live 区域不抢焦点）", JSON.stringify(focusMid) === JSON.stringify(focusMid2), { before: focusMid, after: focusMid2 });
+    check("重复快照（1.6s 后）文本逐字不变（不重复播报）", text1b === text1, {
+      before: text1,
+      after: text1b,
+    });
+    check(
+      "等待期间焦点不变（live 区域不抢焦点）",
+      JSON.stringify(focusMid) === JSON.stringify(focusMid2),
+      { before: focusMid, after: focusMid2 },
+    );
     // 失败结局：第二轮创建（受控 503，同样离页）⇒ live 文本随真实结局更新
     const created2 = await createAndLeave(`${MARK} 通知失败回合`);
     let text2 = null;
@@ -837,7 +1002,11 @@ const FLOWS = {
       `(() => { const el = document.getElementById('result-live');
         return el === null ? null : { live: el.getAttribute('aria-live'), rendered: el.getClientRects().length > 0 }; })()`,
     );
-    check("两轮之后 live 区域仍是 polite 且恒渲染", liveAttr?.live === "polite" && liveAttr?.rendered === true, liveAttr);
+    check(
+      "两轮之后 live 区域仍是 polite 且恒渲染",
+      liveAttr?.live === "polite" && liveAttr?.rendered === true,
+      liveAttr,
+    );
     await H.shot(call, SHOT_DIR, `${TAG}.png`);
   },
 
@@ -845,9 +1014,13 @@ const FLOWS = {
    * A7.1 / M7.4「独立 200% 缩放」：DPR > 3.5（真 zoom 金标准）下操作面板几何不破、
    * 设置模态受 85vh 钳制并内部滚动（长表单在框内滚，不撑破屏幕）。
    */
-  "zoom200": async (call, mock) => {
+  zoom200: async (call, mock) => {
     const dpr = await H.ev(call, "(() => window.devicePixelRatio)()");
-    check("前置：DPR > 3.5（独立 200% 缩放的真 zoom 金标准）", typeof dpr === "number" && dpr > 3.5, dpr);
+    check(
+      "前置：DPR > 3.5（独立 200% 缩放的真 zoom 金标准）",
+      typeof dpr === "number" && dpr > 3.5,
+      dpr,
+    );
     const r = await resizeToCssWidth(call, 908, 1400);
     dump.viewport = { cssWidth: r.cssWidth, dpr };
     const created = await runCreate(call, mock, `${MARK} 200% 缩放任务`);
@@ -869,8 +1042,15 @@ const FLOWS = {
       })()`,
     );
     const g = typeof geo === "string" ? JSON.parse(geo) : geo;
-    check("200%：面板受视口约束（≤90vw、不超视口高）", g.panelW <= g.innerW * 0.9 + 1 && g.panelH <= g.innerH + 1, g);
-    check("200%：页面无横向溢出（长 ID 断行）", g.pageScrollW <= g.pageClientW + 1, { scrollW: g.pageScrollW, clientW: g.pageClientW });
+    check(
+      "200%：面板受视口约束（≤90vw、不超视口高）",
+      g.panelW <= g.innerW * 0.9 + 1 && g.panelH <= g.innerH + 1,
+      g,
+    );
+    check("200%：页面无横向溢出（长 ID 断行）", g.pageScrollW <= g.pageClientW + 1, {
+      scrollW: g.pageScrollW,
+      clientW: g.pageClientW,
+    });
     check("200%：长操作 ID 完整在场 + 入口命中可点", g.idShown === true && g.entryHit === true, g);
     await closeOperationsPanel(call);
     // 设置模态 85vh 钳制 + 内部滚动
@@ -891,11 +1071,17 @@ const FLOWS = {
     );
     check(
       "200%：长表单在框内滚动（内容超出框高且 overflow-y 可滚），不撑破屏幕",
-      dlg !== null && dlg.scrollH > dlg.clientH + 20 && ["auto", "scroll", "overlay"].includes(String(dlg.overflowY)),
+      dlg !== null &&
+        dlg.scrollH > dlg.clientH + 20 &&
+        ["auto", "scroll", "overlay"].includes(String(dlg.overflowY)),
       dlg,
     );
     await H.clickInOpenDialog(call, "关闭", 900);
-    check("设置关闭（200% 往返无残留）", (await dialogStack(call)) === "[]", await dialogStack(call));
+    check(
+      "设置关闭（200% 往返无残留）",
+      (await dialogStack(call)) === "[]",
+      await dialogStack(call),
+    );
     await H.shot(call, SHOT_DIR, `${TAG}-zoom200.png`);
   },
 };
@@ -904,14 +1090,14 @@ const FLOWS = {
 
 async function main() {
   const page = await H.cdpConnect(H.CDP_PORT);
-  let call = await H.makeDialogSession(page.webSocketDebuggerUrl);
+  const call = await H.makeDialogSession(page.webSocketDebuggerUrl);
   SESSION.call = call;
   await call("Page.enable");
   await call("Runtime.enable");
   await call("Page.bringToFront").catch(() => {});
   await call("Emulation.clearDeviceMetricsOverride").catch(() => {});
   // 带换文档自证的重载（U4 6.6 纪律）
-  await H.ev(call, `(() => { window.__u568Doc = (window.__u568Doc ?? 0) + 1; return true; })()`);
+  await H.ev(call, "(() => { window.__u568Doc = (window.__u568Doc ?? 0) + 1; return true; })()");
   await call("Page.reload", { ignoreCache: true });
   let swapped = false;
   for (let i = 0; i < 80; i++) {
@@ -947,14 +1133,17 @@ async function main() {
     } catch (e) {
       if (attempt > 0 || !String(e).includes("Failed to fetch")) throw e;
       console.log("[prepare] 模块加载失败，reload 后重试一次");
-      await H.ev(call, `(() => { location.reload(); return true; })()`);
+      await H.ev(call, "(() => { location.reload(); return true; })()");
       await H.sleep(4000);
     }
   }
   try {
     await FLOWS[TAG](call, mock);
     const served = mock.served();
-    check("受控服务调用数 = 目录期望", served === EXPECTED_CALLS[TAG], { served, expected: EXPECTED_CALLS[TAG] });
+    check("受控服务调用数 = 目录期望", served === EXPECTED_CALLS[TAG], {
+      served,
+      expected: EXPECTED_CALLS[TAG],
+    });
   } catch (e) {
     check(`tag 执行异常：${String(e?.stack ?? e).slice(0, 600)}`, false);
   } finally {

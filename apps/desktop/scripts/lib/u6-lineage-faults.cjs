@@ -155,7 +155,9 @@ const LINEAGE_FAULTS = {
     apply(ctx) {
       editMetaLine(ctx.ancestorFile, (meta) => {
         if (meta.format_version !== 1)
-          throw new Error(`ancestorV1IsolationField 要求 v1 祖先，实际 format_version=${meta.format_version}`);
+          throw new Error(
+            `ancestorV1IsolationField 要求 v1 祖先，实际 format_version=${meta.format_version}`,
+          );
         // 值取 null / 空对象——守卫判"字段存在"而非"值有效"，null 也算违规（U6 §1.3 口径）
         meta.workspace = null;
         return meta;
@@ -173,7 +175,9 @@ const LINEAGE_FAULTS = {
     apply(ctx) {
       editMetaLine(ctx.ancestorFile, (meta) => {
         if (meta.parent === null || meta.parent === undefined)
-          throw new Error("ancestorForkMissing 要求祖先 parent 非空（根 run 带 fork 是另一种错误）");
+          throw new Error(
+            "ancestorForkMissing 要求祖先 parent 非空（根 run 带 fork 是另一种错误）",
+          );
         meta.fork = null;
         return meta;
       });

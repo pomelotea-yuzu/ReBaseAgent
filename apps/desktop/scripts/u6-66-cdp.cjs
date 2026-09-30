@@ -45,9 +45,32 @@ const TOOL_TURN = {
   toolCalls: [{ id: "c1", name: "read_file", args: '{"path":"a.txt"}' }],
 };
 const TAG_SCRIPT = {
-  "ancestor-error-gates": { turns: [{ content: "away" }, TOOL_TURN, { content: "隔离根最终回答" }, { content: "隔离子最终回答" }] },
-  "cycle-forkinvalid-overlay": { turns: [{ content: "away" }, TOOL_TURN, { content: "隔离根最终回答" }, TOOL_TURN, { content: "中层 fork 最终回答" }, { content: "孙代 fork 最终回答" }] },
-  "restore-corrupt": { turns: [{ content: "away" }, TOOL_TURN, { content: "隔离根最终回答" }, { content: "隔离子最终回答" }] },
+  "ancestor-error-gates": {
+    turns: [
+      { content: "away" },
+      TOOL_TURN,
+      { content: "隔离根最终回答" },
+      { content: "隔离子最终回答" },
+    ],
+  },
+  "cycle-forkinvalid-overlay": {
+    turns: [
+      { content: "away" },
+      TOOL_TURN,
+      { content: "隔离根最终回答" },
+      TOOL_TURN,
+      { content: "中层 fork 最终回答" },
+      { content: "孙代 fork 最终回答" },
+    ],
+  },
+  "restore-corrupt": {
+    turns: [
+      { content: "away" },
+      TOOL_TURN,
+      { content: "隔离根最终回答" },
+      { content: "隔离子最终回答" },
+    ],
+  },
 };
 
 const checks = [];
@@ -77,7 +100,17 @@ function finish(extraMeta = {}) {
   const failed = checks.filter((c) => !c.ok);
   writeFileSync(
     join(OUT_DIR, `${TAG}-measurements.json`),
-    JSON.stringify({ tag: TAG, meta: { head: headShort(), tracesCount: H.traceIds().size, ...extraMeta }, checks, failed: failed.length, dump }, null, 2),
+    JSON.stringify(
+      {
+        tag: TAG,
+        meta: { head: headShort(), tracesCount: H.traceIds().size, ...extraMeta },
+        checks,
+        failed: failed.length,
+        dump,
+      },
+      null,
+      2,
+    ),
   );
   console.log(`检查 ${checks.length} 条，失败 ${failed.length} 条`);
   clearTimeout(watchdog);
@@ -113,7 +146,8 @@ async function execRaw(call, path, request) {
   );
 }
 function execOfEnvelope(env) {
-  if (env?.ok !== true) throw new Error(`执行信封非 ok：${JSON.stringify(env?.error ?? env).slice(0, 300)}`);
+  if (env?.ok !== true)
+    throw new Error(`执行信封非 ok：${JSON.stringify(env?.error ?? env).slice(0, 300)}`);
   return env.data;
 }
 async function seedRun(call, { userMessage, workspace }) {
@@ -146,7 +180,10 @@ function toolSpanOf(id) {
   return span.id;
 }
 const selectViaStore = (call, id) =>
-  H.storeQ(call, `await s.selectRun(${JSON.stringify(id)}); return JSON.stringify({ sel: s.selectedRunId });`);
+  H.storeQ(
+    call,
+    `await s.selectRun(${JSON.stringify(id)}); return JSON.stringify({ sel: s.selectedRunId });`,
+  );
 /** 详情状态（成功态） */
 const detailState = (call) =>
   H.storeQ(
@@ -170,7 +207,10 @@ async function reReadEither(call, awayId, targetId) {
       `return JSON.stringify({ sel: s.selectedRunId, detailNull: s.detail === null,
          completeness: s.detail?.completeness ?? null, error: s.error });`,
     );
-    if (st.sel === targetId && (st.completeness !== null || (st.error ?? "").includes("读取 run 失败")))
+    if (
+      st.sel === targetId &&
+      (st.completeness !== null || (st.error ?? "").includes("读取 run 失败"))
+    )
       return st;
     if (Date.now() > deadline)
       throw new Error(`切回 ${targetId} 后 15s 详情未收束：${JSON.stringify(st).slice(0, 200)}`);
@@ -181,7 +221,8 @@ const bodyText = (call) => H.ev(call, "(() => document.body.innerText)()");
 
 /** 造隔离链：root(v2, 带 tool span) + child(隔离 fork) */
 async function seedIsolatedChain(call) {
-  if (!existsSync(join(OUT_DIR, "src-fixture"))) mkdirSync(join(OUT_DIR, "src-fixture"), { recursive: true });
+  if (!existsSync(join(OUT_DIR, "src-fixture")))
+    mkdirSync(join(OUT_DIR, "src-fixture"), { recursive: true });
   const token = (await envOf(call, "chooseSource", null)).sourceToken;
   const root = await seedRun(call, {
     userMessage: `${MARK} 隔离根任务`,
@@ -212,52 +253,108 @@ const FLOWS = {
     await selectViaStore(call, child);
     await H.sleep(1200);
     const before = await detailState(call);
-    check("正对照：完整隔离链 ⇒ complete/resolved", before.completeness === "complete" && before.spanScope === "resolved", before);
+    check(
+      "正对照：完整隔离链 ⇒ complete/resolved",
+      before.completeness === "complete" && before.spanScope === "resolved",
+      before,
+    );
 
     const fpBefore = H.hashAllTraces();
     const servedBase = mock.served();
 
     // ── ancestorCorrupt：祖先损坏 ⇒ 严格失败（UI + IPC + 执行门禁三面）
-    const h1 = faults.beginLineageFault({ tracesDir: H.TRACES, childRunId: child, ancestorRunId: root }, "ancestorCorrupt");
+    const h1 = faults.beginLineageFault(
+      { tracesDir: H.TRACES, childRunId: child, ancestorRunId: root },
+      "ancestorCorrupt",
+    );
     const env1 = await rawCall(call, "getRun", child);
-    check("祖先损坏 ⇒ getRun ok:false（受控中文）", env1?.ok === false && typeof env1?.error?.message === "string", env1?.error);
-    check("损坏诊断不透传路径/盘符", !(env1?.error?.message ?? "").includes(":\\") && !(env1?.error?.message ?? "").includes("traces"), env1?.error?.message);
+    check(
+      "祖先损坏 ⇒ getRun ok:false（受控中文）",
+      env1?.ok === false && typeof env1?.error?.message === "string",
+      env1?.error,
+    );
+    check(
+      "损坏诊断不透传路径/盘符",
+      !(env1?.error?.message ?? "").includes(":\\") &&
+        !(env1?.error?.message ?? "").includes("traces"),
+      env1?.error?.message,
+    );
     const ui1 = await reReadEither(call, away, child);
-    check("UI：详情读取失败横幅（读取 run 失败）", (ui1.error ?? "").includes("读取 run 失败") === true, ui1.error);
+    check(
+      "UI：详情读取失败横幅（读取 run 失败）",
+      (ui1.error ?? "").includes("读取 run 失败") === true,
+      ui1.error,
+    );
     check("UI 失败文案不泄漏盘符", !(ui1.error ?? "").includes(":\\"), ui1.error);
     const servedBeforeExec = mock.served();
     const exec1 = await execRaw(call, "promptFork", {
       parentRunId: child,
       edit: { field: "user_message", value: `${MARK} 损坏祖先上的执行尝试` },
     });
-    check("祖先损坏 ⇒ 执行入口 RUN_DETAIL_UNREADABLE", exec1?.ok === false && exec1?.error?.code === "RUN_DETAIL_UNREADABLE", exec1?.error);
+    check(
+      "祖先损坏 ⇒ 执行入口 RUN_DETAIL_UNREADABLE",
+      exec1?.ok === false && exec1?.error?.code === "RUN_DETAIL_UNREADABLE",
+      exec1?.error,
+    );
     const st1 = await H.apiCall(call, "operationsStatus", null);
     const rec1 = (st1?.data?.operations ?? []).slice(-1)[0] ?? null;
-    check("登记收口、runIds 空", rec1?.state === "settled" && Array.isArray(rec1?.runIds) && rec1.runIds.length === 0, { state: rec1?.state, runIds: rec1?.runIds });
+    check(
+      "登记收口、runIds 空",
+      rec1?.state === "settled" && Array.isArray(rec1?.runIds) && rec1.runIds.length === 0,
+      { state: rec1?.state, runIds: rec1?.runIds },
+    );
     check("拒绝路径零模型调用", mock.served() - servedBeforeExec === 0, mock.served());
     await H.shot(call, SHOT_DIR, `${TAG}-corrupt.png`);
     const e1 = h1.end();
     check("corrupt 注入逐字节还原", e1.clean === true, e1);
 
     // ── ancestorFutureVersion：版本守卫拒绝（点名版本值）
-    const h2 = faults.beginLineageFault({ tracesDir: H.TRACES, childRunId: child, ancestorRunId: root }, "ancestorFutureVersion");
+    const h2 = faults.beginLineageFault(
+      { tracesDir: H.TRACES, childRunId: child, ancestorRunId: root },
+      "ancestorFutureVersion",
+    );
     const env2 = await rawCall(call, "getRun", child);
-    check("未来版本祖先 ⇒ getRun ok:false 且点名版本值", env2?.ok === false && (env2?.error?.message ?? "").includes("99") === true, env2?.error);
+    check(
+      "未来版本祖先 ⇒ getRun ok:false 且点名版本值",
+      env2?.ok === false && (env2?.error?.message ?? "").includes("99") === true,
+      env2?.error,
+    );
     const ui2 = await reReadEither(call, away, child);
-    check("UI：版本失败同样进入读取失败横幅", (ui2.error ?? "").includes("读取 run 失败") === true, ui2.error);
+    check(
+      "UI：版本失败同样进入读取失败横幅",
+      (ui2.error ?? "").includes("读取 run 失败") === true,
+      ui2.error,
+    );
     const e2 = h2.end();
     check("version 注入逐字节还原", e2.clean === true, e2);
 
     // ── currentMissing：当前文件缺失 ⇒ 读取直接失败（不返回 ownOnly）
-    const h3 = faults.beginLineageFault({ tracesDir: H.TRACES, childRunId: child }, "currentMissing");
+    const h3 = faults.beginLineageFault(
+      { tracesDir: H.TRACES, childRunId: child },
+      "currentMissing",
+    );
     const env3 = await rawCall(call, "getRun", child);
-    check("当前文件缺失 ⇒ ok:false 且文案含「不存在」", env3?.ok === false && (env3?.error?.message ?? "").includes("不存在") === true, env3?.error);
+    check(
+      "当前文件缺失 ⇒ ok:false 且文案含「不存在」",
+      env3?.ok === false && (env3?.error?.message ?? "").includes("不存在") === true,
+      env3?.error,
+    );
     const e3 = h3.end();
     check("currentMissing 注入逐字节还原", e3.clean === true, e3);
 
-    check("全程零模型调用（读失败与拒绝都不碰受控服务）", mock.served() === servedBase, { servedBase, now: mock.served() });
-    const fpDiff = require("./lib/u5-read-faults.cjs").diffFingerprints(fpBefore, H.hashAllTraces());
-    check("全程 traces 逐字节不变", fpDiff.added.length === 0 && fpDiff.removed.length === 0 && fpDiff.changed.length === 0, fpDiff);
+    check("全程零模型调用（读失败与拒绝都不碰受控服务）", mock.served() === servedBase, {
+      servedBase,
+      now: mock.served(),
+    });
+    const fpDiff = require("./lib/u5-read-faults.cjs").diffFingerprints(
+      fpBefore,
+      H.hashAllTraces(),
+    );
+    check(
+      "全程 traces 逐字节不变",
+      fpDiff.added.length === 0 && fpDiff.removed.length === 0 && fpDiff.changed.length === 0,
+      fpDiff,
+    );
   },
 
   /** #14/#15/#20：成环 / 定位非法 / 可读祖先结构非法 + 更早缺失叠加 ⇒ FORK_INVALID 优先 */
@@ -290,7 +387,11 @@ const FLOWS = {
     await selectViaStore(call, grand);
     await H.sleep(1200);
     const before = await detailState(call);
-    check("正对照：三代完整链 ⇒ complete、chain 三跳", before.completeness === "complete" && before.chainLen === 3, before);
+    check(
+      "正对照：三代完整链 ⇒ complete、chain 三跳",
+      before.completeness === "complete" && before.chainLen === 3,
+      before,
+    );
 
     const fpBefore = H.hashAllTraces();
 
@@ -298,9 +399,16 @@ const FLOWS = {
     //    ⚠️ 实测形状：隔离根是 v2，补的 v1 形状 fork 先于成环判定被版本/结构校验拒 ⇒
     //    落 ANCESTOR_UNREADABLE（仍是严格失败、不降级 ownOnly）；LINEAGE_CYCLE 的专项
     //    判据（补齐合法 fork 后到达成环）由 u6-lineage-read 1.5 单测承载。
-    const h1 = faults.beginLineageFault({ tracesDir: H.TRACES, childRunId: mid, ancestorRunId: root }, "lineageCycle");
+    const h1 = faults.beginLineageFault(
+      { tracesDir: H.TRACES, childRunId: mid, ancestorRunId: root },
+      "lineageCycle",
+    );
     const env1 = await rawCall(call, "getRun", grand);
-    check("父链成环注入 ⇒ ok:false 严格失败（不降级 ownOnly、不死循环）", env1?.ok === false && typeof env1?.error?.message === "string", env1?.error);
+    check(
+      "父链成环注入 ⇒ ok:false 严格失败（不降级 ownOnly、不死循环）",
+      env1?.ok === false && typeof env1?.error?.message === "string",
+      env1?.error,
+    );
     const e1 = h1.end();
     check("cycle 注入逐字节还原", e1.clean === true, e1);
 
@@ -308,32 +416,64 @@ const FLOWS = {
     //    ⚠️ 实测形状：v2 链的边界检查在 walk 层拒绝（「fork.at_span … 不在直接父 … 的自有记录中」）。
     const h2 = faults.beginLineageFault({ tracesDir: H.TRACES, childRunId: grand }, "forkInvalid");
     const env2 = await rawCall(call, "getRun", grand);
-    check("at_span 不属于父轨迹 ⇒ ok:false（定位非法）", env2?.ok === false && (env2?.error?.message ?? "").includes("at_span") === true, env2?.error);
+    check(
+      "at_span 不属于父轨迹 ⇒ ok:false（定位非法）",
+      env2?.ok === false && (env2?.error?.message ?? "").includes("at_span") === true,
+      env2?.error,
+    );
     const e2 = h2.end();
     check("forkInvalid 注入逐字节还原", e2.clean === true, e2);
 
     // ── 叠加（#20）：可读祖先 mid 缺 fork（结构非法）+ 更早 root 缺失 ⇒ FORK_INVALID 优先于缺失
-    const h3a = faults.beginLineageFault({ tracesDir: H.TRACES, childRunId: grand, ancestorRunId: mid }, "ancestorForkMissing");
-    const h3b = faults.beginLineageFault({ tracesDir: H.TRACES, childRunId: mid, ancestorRunId: root }, "ancestorMissing");
+    const h3a = faults.beginLineageFault(
+      { tracesDir: H.TRACES, childRunId: grand, ancestorRunId: mid },
+      "ancestorForkMissing",
+    );
+    const h3b = faults.beginLineageFault(
+      { tracesDir: H.TRACES, childRunId: mid, ancestorRunId: root },
+      "ancestorMissing",
+    );
     const env3 = await rawCall(call, "getRun", grand);
-    check("叠加 ⇒ 结构非法优先于缺失（不截成 ownOnly）", env3?.ok === false && (env3?.error?.message ?? "").includes("fork") === true, env3?.error ?? null);
+    check(
+      "叠加 ⇒ 结构非法优先于缺失（不截成 ownOnly）",
+      env3?.ok === false && (env3?.error?.message ?? "").includes("fork") === true,
+      env3?.error ?? null,
+    );
     const e3b = h3b.end();
     const e3a = h3a.end();
     check("叠加注入逐字节还原", e3a.clean === true && e3b.clean === true, { a: e3a, b: e3b });
 
     // ── 对照：单独 root 缺失 ⇒ grand ownOnly（缺失本身合法，叠加非法才严格失败）
-    const h4 = faults.beginLineageFault({ tracesDir: H.TRACES, childRunId: grand, ancestorRunId: root }, "ancestorMissing");
+    const h4 = faults.beginLineageFault(
+      { tracesDir: H.TRACES, childRunId: grand, ancestorRunId: root },
+      "ancestorMissing",
+    );
     const ui4 = await reReadEither(call, away, grand);
     const after4 = await detailState(call);
-    check("对照：单独隔代缺失 ⇒ 结构化 ownOnly（missingRunId=root）", after4.completeness === "ownOnly" && after4.lineage?.missingRunId === root, after4);
+    check(
+      "对照：单独隔代缺失 ⇒ 结构化 ownOnly（missingRunId=root）",
+      after4.completeness === "ownOnly" && after4.lineage?.missingRunId === root,
+      after4,
+    );
     void ui4;
     const e4 = h4.end();
     check("missing 注入逐字节还原", e4.clean === true, e4);
     await reReadEither(call, away, grand);
     const restored = await detailState(call);
-    check("恢复 ⇒ 重验 complete、chain 三跳", restored.completeness === "complete" && restored.chainLen === 3, restored);
-    const fpDiff = require("./lib/u5-read-faults.cjs").diffFingerprints(fpBefore, H.hashAllTraces());
-    check("全程 traces 逐字节不变", fpDiff.added.length === 0 && fpDiff.removed.length === 0 && fpDiff.changed.length === 0, fpDiff);
+    check(
+      "恢复 ⇒ 重验 complete、chain 三跳",
+      restored.completeness === "complete" && restored.chainLen === 3,
+      restored,
+    );
+    const fpDiff = require("./lib/u5-read-faults.cjs").diffFingerprints(
+      fpBefore,
+      H.hashAllTraces(),
+    );
+    check(
+      "全程 traces 逐字节不变",
+      fpDiff.added.length === 0 && fpDiff.removed.length === 0 && fpDiff.changed.length === 0,
+      fpDiff,
+    );
   },
 
   /** #16：ownOnly → 恢复成损坏文件 ⇒ 仍失败（不缓存旧结论）→ 恢复合法文件 ⇒ complete */
@@ -346,28 +486,55 @@ const FLOWS = {
     const fpBefore = H.hashAllTraces();
 
     // 第一步：祖先缺失 ⇒ ownOnly
-    const h1 = faults.beginLineageFault({ tracesDir: H.TRACES, childRunId: child, ancestorRunId: root }, "ancestorMissing");
+    const h1 = faults.beginLineageFault(
+      { tracesDir: H.TRACES, childRunId: child, ancestorRunId: root },
+      "ancestorMissing",
+    );
     const st1 = await reReadEither(call, away, child);
     const d1 = await detailState(call);
-    check("祖先缺失 ⇒ ownOnly（结构化降级在场）", d1.completeness === "ownOnly" && d1.lineage?.missingRunId === root, d1);
+    check(
+      "祖先缺失 ⇒ ownOnly（结构化降级在场）",
+      d1.completeness === "ownOnly" && d1.lineage?.missingRunId === root,
+      d1,
+    );
     void st1;
     const e1 = h1.end();
     check("缺失注入还原", e1.clean === true, e1);
 
     // 第二步：恢复的是**损坏文件** ⇒ 重读仍失败（不缓存旧 ownOnly、不局部拼接）
-    const h2 = faults.beginLineageFault({ tracesDir: H.TRACES, childRunId: child, ancestorRunId: root }, "ancestorCorrupt");
+    const h2 = faults.beginLineageFault(
+      { tracesDir: H.TRACES, childRunId: child, ancestorRunId: root },
+      "ancestorCorrupt",
+    );
     const st2 = await reReadEither(call, away, child);
-    check("恢复成损坏文件 ⇒ 重读仍失败（不缓存旧结论）", (st2.error ?? "").includes("读取 run 失败") === true && st2.detailNull === true, st2);
+    check(
+      "恢复成损坏文件 ⇒ 重读仍失败（不缓存旧结论）",
+      (st2.error ?? "").includes("读取 run 失败") === true && st2.detailNull === true,
+      st2,
+    );
     const e2 = h2.end();
     check("损坏注入还原", e2.clean === true, e2);
 
     // 第三步：恢复合法文件 ⇒ 全量重验 complete
     const st3 = await reReadEither(call, away, child);
     const d3 = await detailState(call);
-    check("恢复合法文件 ⇒ 全量重验 complete/resolved", st3.completeness === "complete" && d3.completeness === "complete" && d3.spanScope === "resolved", d3);
+    check(
+      "恢复合法文件 ⇒ 全量重验 complete/resolved",
+      st3.completeness === "complete" &&
+        d3.completeness === "complete" &&
+        d3.spanScope === "resolved",
+      d3,
+    );
     await H.shot(call, SHOT_DIR, `${TAG}-restored.png`);
-    const fpDiff = require("./lib/u5-read-faults.cjs").diffFingerprints(fpBefore, H.hashAllTraces());
-    check("全程 traces 逐字节不变", fpDiff.added.length === 0 && fpDiff.removed.length === 0 && fpDiff.changed.length === 0, fpDiff);
+    const fpDiff = require("./lib/u5-read-faults.cjs").diffFingerprints(
+      fpBefore,
+      H.hashAllTraces(),
+    );
+    check(
+      "全程 traces 逐字节不变",
+      fpDiff.added.length === 0 && fpDiff.removed.length === 0 && fpDiff.changed.length === 0,
+      fpDiff,
+    );
   },
 };
 
