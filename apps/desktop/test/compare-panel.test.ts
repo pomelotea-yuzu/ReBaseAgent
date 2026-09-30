@@ -1,4 +1,5 @@
 import type { RunSummary } from "@shared/ipc";
+import { computeShortIds } from "@shared/nav";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
@@ -67,6 +68,8 @@ function render(
       runs,
       compareIds,
       compareNotice: over.compareNotice ?? null,
+      // U7 5.1：身份列吃会话短 ID（测试里按同一算法现算）
+      shortIds: computeShortIds(runs.map((run) => run.id)),
       onToggleCompare: noop,
       onClear: noop,
       maxCompare: over.maxCompare ?? 4,
@@ -292,6 +295,22 @@ describe("负向义务：不产出臂间差值、胜出结论或未实现的输�
 
   it("不引入基线臂概念（无「以…为基准」这类需要用户挑基线的措辞）", () => {
     expect(markup()).not.toContain("为基准");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// U7 5.1：对照身份 = 会话稳定短 ID + 完整 ID 可复制
+// ---------------------------------------------------------------------------
+
+describe("5.1 对照身份列", () => {
+  it("run id 行显示传入的会话短 ID，复制按钮可访问名称携带完整 ID", () => {
+    const longRuns = [run({ id: "aaaaaaaa-first-0001" }), run({ id: "aaaaaaaa-second-0002" })];
+    const markup = render(longRuns, ["aaaaaaaa-first-0001", "aaaaaaaa-second-0002"]);
+    // 短 ID（末 8 位，算法不碰撞）在场；碰撞/延长语义由 nav.ts 的用例承载
+    expect(markup).toContain("rst-0001");
+    expect(markup).toContain("nd-0002");
+    expect(markup).toContain('aria-label="复制完整 ID aaaaaaaa-first-0001"');
+    expect(markup).toContain('aria-label="复制完整 ID aaaaaaaa-second-0002"');
   });
 });
 

@@ -1,4 +1,5 @@
 import type { RunSummary } from "@shared/ipc";
+import { computeShortIds } from "@shared/nav";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
@@ -64,6 +65,8 @@ function render(
   return renderToStaticMarkup(
     createElement(BranchTreeView, {
       runs,
+      // U7 5.1：视图吃容器传入的会话短 ID（测试里按同一算法现算）
+      shortIds: computeShortIds(runs.map((run) => run.id)),
       selectedRunId: over.selectedRunId ?? null,
       compareIds: over.compareIds ?? [],
       onSelect: noop,

@@ -108,6 +108,8 @@ function okSide(side: "left" | "right", runId: string, spans: SpanLine[]): Compa
   return {
     side,
     runId,
+    // U7 5.1：标题短 ID（测试里手工给一个与完整 id 不同的值以断言展示来源）
+    shortId: runId.slice(-8),
     facts: deriveSideOutputFacts(detail),
     unavailableReason: null,
     catalog: deriveSideStepCatalog(detail),
@@ -504,6 +506,58 @@ describe("CompareWorkspaceView：整体形态", () => {
     expect(html).toContain('data-testid="compare-diff-panel"');
     expect(html).toContain("compare-diff-editor");
     expect(html).toContain("同步滚动");
+  });
+});
+
+describe("5.1 会话短 ID：比较标题与完整 ID 复制", () => {
+  const left = okSide("left", "r_left_side_0001", [stepSpan("s_01")]);
+  const right = okSide("right", "r_right_side_0002", [stepSpan("s_01")]);
+  const baseProps = {
+    pair: { leftRunId: "r_left_side_0001", rightRunId: "r_right_side_0002" },
+    loading: false,
+    left,
+    right,
+    diffMode: false,
+    onToggleDiffMode: vi.fn(),
+    onSwap: vi.fn(),
+    onReturn: vi.fn(),
+    onOpenRun: vi.fn(),
+    evidence: {
+      kind: "unavailable",
+      reason: "尚无可核对两侧的比较结论",
+    } as EvidenceViewData,
+  };
+
+  it("两侧标题显示短 ID，复制按钮的可访问名称携带完整 ID", () => {
+    const html = renderToStaticMarkup(
+      <CompareWorkspaceView
+        {...baseProps}
+        diffGate={{ status: "unavailable", reason: "不可用" }}
+      />,
+    );
+    // 短 ID 在场（测试里取末 8 位）
+    expect(html).toContain("ide_0001");
+    expect(html).toContain("ide_0002");
+    // 复制目标 = 完整 ID（可证伪契约：改成短后缀应有用例变红）
+    expect(html).toContain('aria-label="复制完整 ID r_left_side_0001"');
+    expect(html).toContain('aria-label="复制完整 ID r_right_side_0002"');
+  });
+
+  it("diff 说明行用短 ID 标识两侧（完整 ID 悬停/复制仍在标题区）", () => {
+    const html = renderToStaticMarkup(
+      <CompareWorkspaceView
+        {...baseProps}
+        diffMode={true}
+        diffGate={{
+          status: "available",
+          leftText: "左",
+          rightText: "右",
+          leftSpanId: "c_01",
+          rightSpanId: "c_01",
+        }}
+      />,
+    );
+    expect(html).toContain("只读文本差异（左侧 ide_0001 → 右侧 ide_0002）");
   });
 });
 

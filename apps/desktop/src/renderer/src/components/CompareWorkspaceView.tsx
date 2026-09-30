@@ -7,6 +7,7 @@ import { foldCatalogRows } from "../lib/compare-steps";
 import type { SideStepCatalog } from "../lib/compare-steps";
 import { LongText } from "./LongText";
 import { MonacoDiffEditor } from "./MonacoEditor";
+import { ShortIdLabel } from "./ShortIdLabel";
 
 /**
  * U7（improve-branch-comparison）tasks 4.6/4.12：比较工作区的**展示层**。
@@ -35,6 +36,11 @@ import { MonacoDiffEditor } from "./MonacoEditor";
 export interface CompareSideViewData {
   readonly side: "left" | "right";
   readonly runId: string;
+  /**
+   * U7 5.1：会话稳定短 ID（容器从 store 的 ShortIdState 现算）。
+   * 标题显示短 ID、「复制」按钮复制完整 ID——左右编号随位置更新但不改变 run 身份。
+   */
+  readonly shortId: string;
   readonly facts: SideOutputFacts | null;
   readonly unavailableReason: string | null;
   readonly catalog: SideStepCatalog | null;
@@ -623,9 +629,10 @@ export function CompareWorkspaceView({
             data-testid="compare-diff-editor"
           />
           <div className="px-1 pt-1 text-[11px] text-gray-500">
-            只读文本差异（左侧 {pair.leftRunId} → 右侧 {pair.rightRunId}
+            {/* U7 5.1：差异标题用会话短 ID（完整 ID 悬停/复制在两侧标题区） */}
+            只读文本差异（左侧 {left.shortId} → 右侧 {right.shortId}
             ）：仅双方均有已记录最终输出时可用
-          </div>
+          </div>{" "}
         </div>
       ) : (
         <div className="grid flex-1 grid-cols-2 gap-2 overflow-hidden p-2">
@@ -636,7 +643,10 @@ export function CompareWorkspaceView({
             >
               <div className="border-b border-gray-100 px-3 py-1.5">
                 <span className="text-[11px] text-gray-500">{SIDE_LABEL[side.side]}</span>
-                <span className="ml-2 font-code text-xs text-gray-700">{side.runId}</span>
+                {/* U7 5.1：比较标题复用会话稳定短 ID + 复制完整 ID（碰撞时延长且不缩短） */}
+                <span className="ml-2">
+                  <ShortIdLabel id={side.runId} shortId={side.shortId} />
+                </span>
               </div>
               <div className="min-h-0 flex-1 overflow-y-auto">
                 {/* 两列正文各自独立滚动（design D4：默认各侧独立滚动） */}

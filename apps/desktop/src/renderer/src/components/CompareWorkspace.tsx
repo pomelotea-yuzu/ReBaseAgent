@@ -41,6 +41,10 @@ export function CompareWorkspace() {
   const toggleComparePrefix = useAppStore((s) => s.toggleComparePrefix);
   const openCompareSideError = useAppStore((s) => s.openCompareSideError);
   const selectRun = useAppStore((s) => s.selectRun);
+  // U7 5.1：比较标题复用全量已加载记录范围的会话稳定短 ID（与树/运行导航同一实例）
+  const runs = useAppStore((s) => s.runs);
+  const shortIdState = useAppStore((s) => s.shortIdState);
+  const shortIds = shortIdState.update(runs.map((run) => run.id));
 
   // diff 模式是展示态（容器本地）；换 pair 即退出，避免旧门禁文本滞留新对象
   const [diffMode, setDiffMode] = useState(false);
@@ -85,6 +89,7 @@ export function CompareWorkspace() {
     return {
       side,
       runId,
+      shortId: shortIds.get(runId) ?? runId,
       facts: detail !== null ? deriveSideOutputFacts(detail) : null,
       unavailableReason: unavailableReasonOf(runId),
       catalog: detail !== null ? deriveSideStepCatalog(detail) : null,

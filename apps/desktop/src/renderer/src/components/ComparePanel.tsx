@@ -5,6 +5,7 @@ import { classifyOutcome, outcomeTextClass } from "@shared/outcome";
 import { useMemo } from "react";
 import { formatDuration, formatTime, formatTokens } from "../lib/format";
 import { MAX_COMPARE, useAppStore } from "../store";
+import { ShortIdLabel } from "./ShortIdLabel";
 
 /**
  * 多分支对照面板（U1 任务 6.3 回归）。
@@ -143,12 +144,17 @@ export function ComparePanel() {
   const toggleCompare = useAppStore((s) => s.toggleCompare);
   const clearCompare = useAppStore((s) => s.clearCompare);
   const compareNotice = useAppStore((s) => s.compareNotice);
+  // U7 5.1：对照身份复用全量已加载记录范围的会话稳定短 ID（与树/运行导航同一实例），
+  // 替换原先可能碰撞的 `slice(0, 7)` 前缀
+  const shortIdState = useAppStore((s) => s.shortIdState);
+  const shortIds = shortIdState.update(runs.map((run) => run.id));
 
   return (
     <ComparePanelView
       runs={runs}
       compareIds={compareIds}
       compareNotice={compareNotice}
+      shortIds={shortIds}
       onToggleCompare={toggleCompare}
       onClear={clearCompare}
       maxCompare={MAX_COMPARE}
@@ -161,6 +167,7 @@ export function ComparePanelView({
   runs,
   compareIds,
   compareNotice,
+  shortIds,
   onToggleCompare,
   onClear,
   maxCompare = MAX_COMPARE,
@@ -168,6 +175,11 @@ export function ComparePanelView({
   runs: ReadonlyArray<RunSummary>;
   compareIds: ReadonlyArray<string>;
   compareNotice: string | null;
+  /**
+   * U7 5.1：会话稳定短 ID（容器从 ShortIdState 现算后传入）。
+   * 对照的 run 身份列不再用可能碰撞的 7 字符前缀；「复制」按钮复制完整 ID。
+   */
+  shortIds: ReadonlyMap<string, string>;
   onToggleCompare: (id: string) => void;
   onClear: () => void;
   maxCompare?: number;
@@ -233,11 +245,21 @@ export function ComparePanelView({
               ))}
             </div>
 
-            <Row
-              keys={entryKeys}
-              label="run id"
-              values={comparison.entries.map((entry) => entry.run.id.slice(0, 7))}
-            />
+            {/*
+             * U7 5.1：run 身份列 = 会话稳定短 ID + 复制完整 ID（碰撞时延长且会话内
+             * 不缩短；左右编号随位置更新但不改变 run 身份）。不再用 slice(0,7) 前缀。
+             */}
+            <div className="flex items-center gap-1 py-0.5">
+              <span className="min-w-0 flex-1 truncate text-[11px] text-gray-500">run id</span>
+              {comparison.entries.map((entry) => (
+                <span key={entry.run.id} className="w-14 shrink-0 text-right">
+                  <ShortIdLabel
+                    id={entry.run.id}
+                    shortId={shortIds.get(entry.run.id) ?? entry.run.id}
+                  />
+                </span>
+              ))}
+            </div>
             {/*
              * 状态与终止原因：与列表/概览/树**同一判据**（`classifyOutcome`）。
              * 6.3 之前这里用 `reasonLabel` ⇒ completed 显示「已完成」（其余视图是「已结束」）。

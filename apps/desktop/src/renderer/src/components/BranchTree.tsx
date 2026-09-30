@@ -7,7 +7,6 @@ import {
   layoutRunTree,
 } from "@shared/derive";
 import type { RunSummary } from "@shared/ipc";
-import { computeShortIds } from "@shared/nav";
 import { ArrowRight, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { deriveRelationEntries, experimentGroupsOf } from "../lib/branch-relations";
@@ -77,10 +76,16 @@ export function BranchTree() {
   const setTreeQuery = useAppStore((s) => s.setTreeQuery);
   const setTreeViewport = useAppStore((s) => s.setTreeViewport);
   const setTreeMode = useAppStore((s) => s.setTreeMode);
+  // U7 5.1：树复用**会话**稳定短 ID（与运行导航同一个 ShortIdState 实例）——
+  // 碰撞时延长且同会话不缩短；筛选/刷新/交换不改变已算出的短 ID（delta
+  // 「碰撞短 ID 不随筛选交换改变身份」）。与 RunList 相同的 update-in-render 模式。
+  const shortIdState = useAppStore((s) => s.shortIdState);
+  const shortIds = shortIdState.update(runs.map((run) => run.id));
 
   return (
     <BranchTreeView
       runs={runs}
+      shortIds={shortIds}
       selectedRunId={selectedRunId}
       compareIds={compareIds}
       onSelect={(id) => {
@@ -111,6 +116,7 @@ export function BranchTree() {
 /** 纯展示层：树只是既有列表数据的一次投影，不新增 IPC、不读文件 */
 export function BranchTreeView({
   runs,
+  shortIds,
   selectedRunId,
   compareIds,
   onSelect,
@@ -128,6 +134,12 @@ export function BranchTreeView({
   onModeChange,
 }: {
   runs: ReadonlyArray<RunSummary>;
+  /**
+   * U7 5.1：会话稳定短 ID（容器从 store 的 ShortIdState 现算后传入）。
+   * 视图不自己重算——短 ID 的「碰撞延长、会话不缩短」记忆属于全应用同一份状态，
+   * 树/选择栏/比较标题必须共用同一映射（delta「对照身份与四列指标保持可辨」）。
+   */
+  shortIds: ReadonlyMap<string, string>;
   selectedRunId: string | null;
   compareIds: ReadonlyArray<string>;
   onSelect: (id: string) => void;
@@ -156,7 +168,6 @@ export function BranchTreeView({
     () => (selectedRunId === null ? new Set<string>() : deriveAncestorIds(byId, selectedRunId)),
     [byId, selectedRunId],
   );
-  const shortIds = useMemo(() => computeShortIds(runs.map((run) => run.id)), [runs]);
   const hits = useMemo(() => searchTreeNodes(runs, query), [runs, query]);
   const selectedRun = selectedRunId === null ? undefined : byId.get(selectedRunId);
 
