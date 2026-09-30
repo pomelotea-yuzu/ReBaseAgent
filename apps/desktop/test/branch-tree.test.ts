@@ -2,6 +2,7 @@ import type { RunSummary } from "@shared/ipc";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import type { TreeScope, TreeViewport } from "../src/renderer/src/lib/tree-view";
 
 // BranchTree 的 store 薄壳在 import 时就会触到 `window.api` ⇒ 桩必须先就位；
 // ESM 静态 import 会被提升，故用动态 import（同 run-workspace.test.ts）。
@@ -54,6 +55,10 @@ function render(
     selectedRunId: string | null;
     compareIds: string[];
     onOpenDetail: () => void;
+    /** U7 3.1–3.3：载体改判——范围/搜索/视口改为 store 会话状态经 props 传入 */
+    scope: TreeScope | null;
+    query: string;
+    viewport: TreeViewport | null;
   }> = {},
 ): string {
   return renderToStaticMarkup(
@@ -64,8 +69,13 @@ function render(
       onSelect: noop,
       onToggleCompare: noop,
       onOpenDetail: over.onOpenDetail ?? noop,
-      zoom: 100,
-      onZoom: noop,
+      scope: over.scope ?? null,
+      query: over.query ?? "",
+      viewport: over.viewport ?? { zoom: 100, scrollLeft: 0, scrollTop: 0 },
+      onArmSession: () => ({ scope: "all" as const, focusRunId: null }),
+      onScopeChange: noop,
+      onQueryChange: noop,
+      onViewportChange: noop,
     }),
   );
 }

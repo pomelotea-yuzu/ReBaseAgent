@@ -181,6 +181,7 @@ import {
   verifyResultPayload,
 } from "./lib/result-verification";
 import type { SettingsSaveOutcome } from "./lib/settings-form";
+import { type TreeScope, type TreeViewport, decideTreeInitialFocus } from "./lib/tree-view";
 import {
   resolveExecutionGate,
   resolveFilterVisibility,
@@ -642,6 +643,25 @@ interface AppState {
    * 同 pair 幂等：`enterCompareSelection` 不重读，会话结论与阅读位置保留。
    */
   returnToCompare: () => void;
+
+  /**
+   * U7 任务 3.1/3.2/3.3：分支树的**会话观察状态**（design D2——视口是观察参数，
+   * 逻辑布局永不在 store 里重排）。null = 本会话尚未进入过树（首次进入由
+   * `decideTreeInitialFocus` 决定初始范围与焦点）。
+   */
+  treeScope: TreeScope | null;
+  /** U7 3.2：树内搜索词（完整 ID/任务匹配在渲染层复用 matchesSearch；空串 = 未搜索） */
+  treeQuery: string;
+  /** U7 3.3：会话视口（缩放档 + 滚动位置）；返回树恢复，显式定位才改写 */
+  treeViewport: TreeViewport | null;
+  /** U7 3.1：首次进入时对初始范围的处置（幂等：已初始化则沿用，不重复居中） */
+  armTreeSession: () => { scope: TreeScope; focusRunId: string | null };
+  /** U7 3.1/3.2：显式切换范围（当前树/全部）——观察参数变化，不推进阅读代次 */
+  setTreeScope: (scope: TreeScope) => void;
+  /** U7 3.2：更新搜索词（不丢原选择；空结果在渲染层明确提示） */
+  setTreeQuery: (query: string) => void;
+  /** U7 3.3：记录视口（滚动/缩放/适应画布/定位都落这里，返回树据此恢复） */
+  setTreeViewport: (viewport: TreeViewport) => void;
 
   /**
    * U5 任务 3.5：**用户明确打开某条可信结果**。
@@ -1471,6 +1491,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   // U7 任务 2.2/2.3：详细比较 pair（独立于侧栏选择）与比较页来源引用（一次性凭据）
   comparePair: null,
   compareReturnLocation: null,
+  // U7 任务 3.1–3.3：分支树的会话观察状态（范围/搜索/视口，不落盘）
+  treeScope: null,
+  treeQuery: "",
+  treeViewport: null,
   // U5 任务 3.4：阅读代次 + 各提交的导航意图（同为会话内，不进任何持久化）
   navGeneration: 0,
   navIntents: emptyNavigationIntents(),
@@ -2277,6 +2301,33 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (get().view === "compare") return;
     noteReadingChanged();
     set({ view: "compare" });
+  },
+
+  armTreeSession() {
+    // U7 3.1：首次进入的初始范围与焦点。幂等：已有会话范围就原样沿用（返回树
+    // 恢复视口、不重复强制居中——显式定位才再次居中，D2）
+    const existing = get().treeScope;
+    if (existing !== null) {
+      return { scope: existing, focusRunId: null };
+    }
+    const decision = decideTreeInitialFocus(get().selectedRunId);
+    set({ treeScope: decision.scope });
+    return { scope: decision.scope, focusRunId: decision.focusRunId };
+  },
+
+  setTreeScope(scope) {
+    // U7 3.1：显式范围切换（观察参数；不影响选中运行与阅读位置）
+    set({ treeScope: scope });
+  },
+
+  setTreeQuery(query) {
+    // U7 3.2：搜索词只进会话状态；无命中时渲染层明确提示，不丢原选择
+    set({ treeQuery: query });
+  },
+
+  setTreeViewport(viewport) {
+    // U7 3.3：视口落会话（缩放/平移/定位/适应画布都汇到这里）；返回树恢复
+    set({ treeViewport: viewport });
   },
 
   async openOperationResult(identity) {
