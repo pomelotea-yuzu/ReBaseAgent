@@ -1,6 +1,6 @@
 import type { Fork, SpanLine } from "@rebaseagent/trace-sdk/schema";
 import { describe, expect, it } from "vitest";
-import { deriveV1ResultSourceMapping } from "../src/shared/compare-source-map";
+import { deriveResultSourceMapping } from "../src/shared/compare-source-map";
 import type { RunDetail } from "../src/shared/ipc";
 
 /**
@@ -87,19 +87,14 @@ function detailOf(
   };
 }
 
-describe("deriveV1ResultSourceMapping：纯 v1 链分段", () => {
+describe("deriveResultSourceMapping：纯 v1 链分段", () => {
   it("双跳链 A→B：两段——A 段止于 B.at_span（带编辑标注），B 段为自有", () => {
     // A.spans = a1(step) a2(tool)；B fork at a2，B.spans = b1(step) b2(tool)
-    const view = [
-      stepSpan("a1"),
-      toolSpan("a2", "a1"),
-      stepSpan("b1", 1, "a2"),
-      toolSpan("b2", "b1"),
-    ];
+    const view = [stepSpan("a1"), toolSpan("a2", "a1"), stepSpan("b1"), toolSpan("b2", "b1")];
     const bFork: Fork = { at_span: "a2", edit: { field: "result", value: "B 的编辑" } };
     const detail = detailOf("r_b", [hop("r_a", null, null), hop("r_b", "r_a", bFork)], view);
 
-    const mapping = deriveV1ResultSourceMapping(detail);
+    const mapping = deriveResultSourceMapping(detail);
     expect(mapping.status).toBe("mapped");
     if (mapping.status !== "mapped") return;
 
@@ -118,9 +113,9 @@ describe("deriveV1ResultSourceMapping：纯 v1 链分段", () => {
     const view = [
       stepSpan("a1"),
       toolSpan("a2", "a1"),
-      stepSpan("b1", 1, "a2"),
+      stepSpan("b1"),
       toolSpan("b2", "b1"),
-      stepSpan("c1", 1, "b2"),
+      stepSpan("c1"),
       toolSpan("c2", "c1"),
     ];
     const bFork: Fork = { at_span: "a2", edit: { field: "result", value: "B 的编辑" } };
@@ -131,7 +126,7 @@ describe("deriveV1ResultSourceMapping：纯 v1 链分段", () => {
       view,
     );
 
-    const mapping = deriveV1ResultSourceMapping(detail);
+    const mapping = deriveResultSourceMapping(detail);
     expect(mapping.status).toBe("mapped");
     if (mapping.status !== "mapped") return;
 
@@ -151,7 +146,7 @@ describe("deriveV1ResultSourceMapping：纯 v1 链分段", () => {
       [stepSpan("a1"), toolSpan("a2", "a1")],
     );
 
-    const mapping = deriveV1ResultSourceMapping(detail);
+    const mapping = deriveResultSourceMapping(detail);
     expect(mapping).toEqual({
       status: "mapped",
       segments: [{ sourceRunId: "r_a", spanIds: ["a1", "a2"], boundaryEdit: null }],
@@ -159,13 +154,13 @@ describe("deriveV1ResultSourceMapping：纯 v1 链分段", () => {
   });
 });
 
-describe("deriveV1ResultSourceMapping：边界核验（不可靠不折叠）", () => {
+describe("deriveResultSourceMapping：边界核验（不可靠不折叠）", () => {
   it("边界 span 缺失于视图 ⇒ unreliable（对照链结构验证失败）", () => {
-    const view = [stepSpan("a1"), toolSpan("a2", "a1"), stepSpan("b1", 1, "a2")];
+    const view = [stepSpan("a1"), toolSpan("a2", "a1"), stepSpan("b1")];
     const bFork: Fork = { at_span: "a_missing", edit: { field: "result", value: "B 的编辑" } };
     const detail = detailOf("r_b", [hop("r_a", null, null), hop("r_b", "r_a", bFork)], view);
 
-    const mapping = deriveV1ResultSourceMapping(detail);
+    const mapping = deriveResultSourceMapping(detail);
     expect(mapping).toMatchObject({ status: "unreliable" });
     if (mapping.status === "unreliable") {
       expect(mapping.reason).toContain("a_missing");
@@ -177,13 +172,13 @@ describe("deriveV1ResultSourceMapping：边界核验（不可靠不折叠）", (
     const view = [
       stepSpan("a1"),
       toolSpan("a2", "a1"),
-      stepSpan("b1", 1, "a2"),
+      stepSpan("b1"),
       toolSpan("a2", "b1"), // 同名 id 再次出现
     ];
     const bFork: Fork = { at_span: "a2", edit: { field: "result", value: "B 的编辑" } };
     const detail = detailOf("r_b", [hop("r_a", null, null), hop("r_b", "r_a", bFork)], view);
 
-    const mapping = deriveV1ResultSourceMapping(detail);
+    const mapping = deriveResultSourceMapping(detail);
     expect(mapping).toMatchObject({ status: "unreliable" });
     if (mapping.status === "unreliable") {
       expect(mapping.reason).toContain("2 次");
@@ -191,30 +186,32 @@ describe("deriveV1ResultSourceMapping：边界核验（不可靠不折叠）", (
   });
 });
 
-describe("deriveV1ResultSourceMapping：不越界（非 v1 纯链）", () => {
-  it("链含独立边界跳（system_prompt）⇒ notPlainV1，由步骤目录承载", () => {
+describe("deriveResultSourceMapping：独立边界与防御分支", () => {
+  it("独立边界叶子（system_prompt，4.13 改判）：视图即重置后自有段 ⇒ 单段映射成立", () => {
+    // 4.7 期该用例断言 notPlainV1；4.13 推广后重置视图本就可映射（真实数据该叶子
+    // spanScope=own，走单段分支）——改判留痕见 tasks 4.13 注记
     const view = [stepSpan("p1")];
     const pFork: Fork = { at_span: "a1", edit: { field: "system_prompt", value: "新提示词" } };
     const detail = detailOf("r_p", [hop("r_a", null, null), hop("r_p", "r_a", pFork)], view);
 
-    const mapping = deriveV1ResultSourceMapping(detail);
-    expect(mapping).toMatchObject({ status: "notPlainV1" });
-    if (mapping.status === "notPlainV1") {
-      expect(mapping.reason).toContain("system_prompt");
+    const mapping = deriveResultSourceMapping(detail);
+    expect(mapping.status).toBe("mapped");
+    if (mapping.status === "mapped") {
+      expect(mapping.segments).toEqual([
+        { sourceRunId: "r_p", spanIds: ["p1"], boundaryEdit: null },
+      ]);
     }
   });
 
-  it("链含 v2 隔离跳（format_version=2）⇒ notPlainV1，由 4.13 的 v2 映射承载", () => {
-    const view = [stepSpan("a1"), toolSpan("a2", "a1"), stepSpan("w1", 1, "a2")];
-    const bFork: Fork = {
-      at_span: "a2",
-      resume_after_step: "a1",
-      edit: { field: "result", value: "隔离续跑" },
-    };
-    const detail = detailOf("r_b", [hop("r_a", null, null), hop("r_b", "r_a", bFork, 2)], view);
+  it("链中 hop 缺 fork 元数据（防御分支）⇒ notResultChain，不猜", () => {
+    const view = [stepSpan("a1")];
+    const detail = detailOf("r_b", [hop("r_a", null, null), hop("r_b", "r_a", null)], view);
 
-    const mapping = deriveV1ResultSourceMapping(detail);
-    expect(mapping).toMatchObject({ status: "notPlainV1" });
+    const mapping = deriveResultSourceMapping(detail);
+    expect(mapping).toMatchObject({ status: "notResultChain" });
+    if (mapping.status === "notResultChain") {
+      expect(mapping.reason).toContain("无 fork 元数据");
+    }
   });
 
   it("spanScope=own（ownOnly / 独立执行叶子）⇒ 单段全归属叶子，无前缀可折叠", () => {
@@ -225,10 +222,136 @@ describe("deriveV1ResultSourceMapping：不越界（非 v1 纯链）", () => {
       { spanScope: "own" },
     );
 
-    const mapping = deriveV1ResultSourceMapping(detail);
+    const mapping = deriveResultSourceMapping(detail);
     expect(mapping).toEqual({
       status: "mapped",
       segments: [{ sourceRunId: "r_o", spanIds: ["o1", "o2"], boundaryEdit: null }],
     });
+  });
+});
+
+describe("deriveResultSourceMapping 4.13：隔离 v2 整轮边界", () => {
+  it("v2 双段：父段止于 resume_after_step 子树末尾（同轮兄弟工具保留在前缀段），boundaryEdit 标注", () => {
+    // A：step a1 内两个工具 a2、a3（a2 被编辑，a3 是同轮兄弟）；B 隔离续跑自 a1 整轮之后
+    const view = [
+      stepSpan("a1"),
+      toolSpan("a2", "a1"), // 被编辑点（在子树内）
+      toolSpan("a3", "a1"), // 同轮兄弟（整轮边界 ⇒ 保留）
+      stepSpan("b1"),
+      toolSpan("b2", "b1"),
+    ];
+    const bFork: Fork = {
+      at_span: "a2",
+      resume_after_step: "a1",
+      edit: { field: "result", value: "隔离续跑的编辑" },
+    };
+    const detail = detailOf("r_b", [hop("r_a", null, null), hop("r_b", "r_a", bFork, 2)], view);
+
+    const mapping = deriveResultSourceMapping(detail);
+    expect(mapping.status).toBe("mapped");
+    if (mapping.status !== "mapped") return;
+    expect(mapping.segments).toEqual([
+      {
+        sourceRunId: "r_a",
+        spanIds: ["a1", "a2", "a3"], // 整轮：a3 不被 v1 式截断丢掉
+        boundaryEdit: { targetRunId: "r_b", field: "result" },
+      },
+      { sourceRunId: "r_b", spanIds: ["b1", "b2"], boundaryEdit: null },
+    ]);
+  });
+
+  it("编辑点不属于 resume_after_step 那一轮 ⇒ unreliable（拒绝而不猜）", () => {
+    const view = [
+      stepSpan("a1"),
+      toolSpan("a2", "a1"),
+      stepSpan("a9", 2), // 另一轮（不在 a1 子树）
+      toolSpan("a8", "a9"), // 编辑点声明在 a9 轮内 —— 与 resume_after_step=a1 冲突
+    ];
+    const bFork: Fork = {
+      at_span: "a8",
+      resume_after_step: "a1",
+      edit: { field: "result", value: "编辑" },
+    };
+    const detail = detailOf("r_b", [hop("r_a", null, null), hop("r_b", "r_a", bFork, 2)], view);
+
+    const mapping = deriveResultSourceMapping(detail);
+    expect(mapping).toMatchObject({ status: "unreliable" });
+    if (mapping.status === "unreliable") {
+      expect(mapping.reason).toContain("不属于整轮边界");
+    }
+  });
+
+  it("resume_after_step 不在视图中 ⇒ unreliable", () => {
+    const view = [stepSpan("a1"), toolSpan("a2", "a1"), toolSpan("b2", "a2")];
+    const bFork: Fork = {
+      at_span: "a2",
+      resume_after_step: "step_missing",
+      edit: { field: "result", value: "编辑" },
+    };
+    const detail = detailOf("r_b", [hop("r_a", null, null), hop("r_b", "r_a", bFork, 2)], view);
+
+    const mapping = deriveResultSourceMapping(detail);
+    expect(mapping).toMatchObject({ status: "unreliable" });
+  });
+
+  it("混合链 A(v1)→B(v2)→C(v1)：三段连续，v2 与 v1 边界各自核验", () => {
+    // A: a1(step)+a2(tool)；B 隔离续跑自 a1 整轮后，自有 b1(step)+b2(tool)；
+    // C 从 B 的 b2 之后 fork（v1）
+    const view = [
+      stepSpan("a1"),
+      toolSpan("a2", "a1"),
+      stepSpan("b1"),
+      toolSpan("b2", "b1"),
+      stepSpan("c1"),
+      toolSpan("c2", "c1"),
+    ];
+    const bFork: Fork = {
+      at_span: "a2",
+      resume_after_step: "a1",
+      edit: { field: "result", value: "B 的隔离编辑" },
+    };
+    const cFork: Fork = { at_span: "b2", edit: { field: "result", value: "C 的编辑" } };
+    const detail = detailOf(
+      "r_c",
+      [hop("r_a", null, null), hop("r_b", "r_a", bFork, 2), hop("r_c", "r_b", cFork)],
+      view,
+    );
+
+    const mapping = deriveResultSourceMapping(detail);
+    expect(mapping.status).toBe("mapped");
+    if (mapping.status !== "mapped") return;
+    expect(mapping.segments.map((seg) => seg.sourceRunId)).toEqual(["r_a", "r_b", "r_c"]);
+    expect(mapping.segments[0]?.spanIds).toEqual(["a1", "a2"]);
+    expect(mapping.segments[1]?.spanIds).toEqual(["b1", "b2"]);
+    expect(mapping.segments[1]?.boundaryEdit).toEqual({ targetRunId: "r_c", field: "result" });
+    expect(mapping.segments[2]?.spanIds).toEqual(["c1", "c2"]);
+  });
+
+  it("独立边界之后接 v2：重置 hop 为首段来源，v2 子树边界在其后核验", () => {
+    // A → P(system_prompt，独立边界，视图重置) → B(v2 隔离续跑自 p1 整轮后)
+    const view = [stepSpan("p1"), toolSpan("p2", "p1"), stepSpan("b1"), toolSpan("b2", "b1")];
+    const pFork: Fork = { at_span: "a1", edit: { field: "system_prompt", value: "新提示词" } };
+    const bFork: Fork = {
+      at_span: "p2",
+      resume_after_step: "p1",
+      edit: { field: "result", value: "隔离续跑" },
+    };
+    const detail = detailOf(
+      "r_b",
+      [hop("r_a", null, null), hop("r_p", "r_a", pFork), hop("r_b", "r_p", bFork, 2)],
+      view,
+    );
+
+    const mapping = deriveResultSourceMapping(detail);
+    expect(mapping.status).toBe("mapped");
+    if (mapping.status !== "mapped") return;
+    expect(mapping.segments).toEqual([
+      {
+        sourceRunId: "r_p",
+        spanIds: ["p1", "p2"],
+        boundaryEdit: { targetRunId: "r_b", field: "result" },
+      },
+      { sourceRunId: "r_b", spanIds: ["b1", "b2"], boundaryEdit: null },
+    ]);
   });
 });
