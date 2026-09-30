@@ -411,6 +411,44 @@ describe("SourceSectionView：静态结构", () => {
     expect(markup).toContain("轮末检查点");
     expect(markup).not.toContain("修改了源文件");
   });
+
+  it("U7 2.1：available 且给了动作 ⇒ 渲染「与父运行对比」按钮（父左子右语义在判据层）", () => {
+    if (!hasTrace("u1r_child")) return;
+    const meta = metaOf(TRACES, "u1r_child");
+    const markup = html(
+      createElement(SourceSectionView, {
+        section: presentSource({ meta, chain: [{ meta }] }),
+        onOpenParent: () => {},
+        onCompareWithParent: () => {},
+      }),
+    );
+    expect(markup).toContain("与父运行对比");
+    expect(markup).toContain("父左子右");
+  });
+
+  it("U7 2.1：未给动作或入口不可用 ⇒ 不渲染按钮（不摆点不动的入口）", () => {
+    if (!hasTrace("u1r_child")) return;
+    const meta = metaOf(TRACES, "u1r_child");
+    // available 但调用方没接动作（缺省）⇒ 不渲染
+    const withoutAction = html(
+      createElement(SourceSectionView, {
+        section: presentSource({ meta, chain: [{ meta }] }),
+        onOpenParent: () => {},
+      }),
+    );
+    expect(withoutAction).not.toContain("与父运行对比");
+    // 根 run（hidden）⇒ 永不渲染
+    if (!hasTrace("u1r_parent")) return;
+    const rootMeta = metaOf(TRACES, "u1r_parent");
+    const rootMarkup = html(
+      createElement(SourceSectionView, {
+        section: presentSource({ meta: rootMeta, chain: [{ meta: rootMeta }] }),
+        onOpenParent: () => {},
+        onCompareWithParent: () => {},
+      }),
+    );
+    expect(rootMarkup).not.toContain("与父运行对比");
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -443,5 +481,11 @@ describe("概览接线：6 个分区组件都在 OverviewResultView 里（源码
 
   it("「返回父记录」接的是 store 的 selectRun（不自己拼部分状态）", () => {
     expect(PANEL).toMatch(/onOpenParent=\{\(runId\)[\s\S]{0,200}selectRun\(runId\)/);
+  });
+
+  it("U7 2.1：「与父运行对比」接的是 store 的 openCompareWithParent（不自己判可用性）", () => {
+    expect(PANEL).toMatch(
+      /onCompareWithParent=\{\(\)[\s\S]{0,200}openCompareWithParent\(selectedRunId\)/,
+    );
   });
 });

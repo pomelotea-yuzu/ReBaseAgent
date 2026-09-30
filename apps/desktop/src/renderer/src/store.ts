@@ -54,6 +54,14 @@ import {
 import { create } from "zustand";
 import { api } from "./lib/api";
 import {
+  type ComparePair,
+  type CompareReturnLocation,
+  decideCompareWithParent,
+  decideManualPair,
+  decidePairSideEdit,
+  swapComparePair,
+} from "./lib/compare-navigation";
+import {
   type CompareReadSession,
   applyCompareResponse,
   beginCompareRead,
@@ -590,6 +598,52 @@ interface AppState {
   leaveCompare: () => void;
 
   /**
+   * U7 任务 2.2：详细比较的**独立 pair**（父左子右 / 手动加入顺序）。与侧栏
+   * 选中项、`compareIds` 全局集合互不决定（D1）；null = 比较工作区无详细比较
+   * （单条自有指标 / 引导态）。只存 renderer 会话。
+   */
+  comparePair: ComparePair | null;
+  /**
+   * U7 任务 2.3：比较页的来源位置引用（类型与创建页同形，捕获/恢复复用同一批
+   * 判据）。一次性凭据：返回来源即用掉；经 `selectRun` 打开单侧时**保留**——
+   * 「打开单侧 → 返回比较 → 再返回来源」的往返要靠它（setView 才清）。
+   */
+  compareReturnLocation: CompareReturnLocation | null;
+  /**
+   * U7 任务 2.1/2.5：概览/可信结果的「与父运行对比」入口。父左子右恒定；
+   * 无 parent ⇒ hidden（入口不显示），model_params 臂 ⇒ blocked（实验门禁，
+   * 不提供普通旁路）。返回值供调用方与测试区分分支。
+   */
+  openCompareWithParent: (runId: string) => Promise<"opened" | "hidden" | "blocked">;
+  /**
+   * U7 任务 2.2/2.5：从全局对照集合进入比较工作区。恰好两条 ⇒ 按加入顺序
+   * （先子在左也是子左父右）；三/四条 ⇒ 不自动选两条（§5.3 显式选择，这里如实
+   * 提示后仍进工作区）；零/一条 ⇒ 无详细比较（引导态）。
+   */
+  openCompareWorkspace: () => Promise<void>;
+  /**
+   * U7 任务 2.2：更换 pair 的一侧。同 ID 拒绝（两枚 runId 必须互异）、同值幂等；
+   * 换成功 ⇒ 推进阅读代次并按新序重读。**不**调 `selectRun`、不动侧栏选择
+   * 与全局集合（scenario「更换交换不改变侧栏选择」）。
+   */
+  setCompareSide: (
+    side: "left" | "right",
+    runId: string,
+  ) => Promise<"replaced" | "unchanged" | "rejected">;
+  /** U7 任务 2.2：交换左右。方向、标题、每侧内容随序号同步；推进阅读代次并重读。 */
+  swapCompareSides: () => Promise<"swapped" | "none">;
+  /**
+   * U7 任务 2.3：返回比较的来源页（一次性凭据，恢复/回退都算用掉）。
+   * 来源不可用（no-location / run-missing）⇒ 回退到仍有效的来源视图，不选同名运行。
+   */
+  returnFromCompare: () => Promise<void>;
+  /**
+   * U7 任务 2.3：从单侧运行/调用回到比较页（打开单侧**不清**来源引用与 pair）。
+   * 同 pair 幂等：`enterCompareSelection` 不重读，会话结论与阅读位置保留。
+   */
+  returnToCompare: () => void;
+
+  /**
    * U5 任务 3.5：**用户明确打开某条可信结果**。
    *
    * 与 3.4 的自动导航分开：那条要过导航意图（离开过流程就不跳），这条**不过**——
@@ -1060,6 +1114,93 @@ async function requestCompareRead(runIds: readonly string[], generation: number)
 }
 
 /**
+ * U7 2.3：进入比较视图的公共落点（父子入口 / 手动集合共用）。
+ *
+ * - 页内重复进入：来源沿用、代次不推进（与创建页同一纪律——设置往返/重复点击
+ *   不该把本次流程的导航资格撤销掉）；
+ * - 跨视图进入：现记来源位置 + 推进阅读代次（显式阅读意图，D1）；
+ * - pair 非空时按新序触发 `enterCompareSelection`（换集重读 / 同集幂等都在那里判）。
+ */
+async function enterCompareView(pair: ComparePair | null): Promise<void> {
+  const state = useAppStore.getState();
+  const alreadyInCompare = state.view === "compare";
+  let location: CompareReturnLocation | null = null;
+  if (!alreadyInCompare) {
+    const decision = decideCreateEntry({
+      view: state.view,
+      selectedRunId: state.selectedRunId,
+      reading:
+        state.view === "trace" && state.selectedRunId !== null
+          ? readingStateOf(state.readingByRun, state.selectedRunId)
+          : null,
+    });
+    // decideCompareEntry 的 keep 分支已在上面判掉；这里只可能是 capture
+    if (decision.kind === "capture") location = decision.location;
+    noteReadingChanged();
+  }
+  useAppStore.setState({
+    view: "compare",
+    ...(alreadyInCompare ? {} : { compareReturnLocation: location }),
+    ...(pair !== null ? { comparePair: pair } : {}),
+  });
+  if (pair !== null) {
+    await useAppStore.getState().enterCompareSelection([pair.leftRunId, pair.rightRunId]);
+  }
+}
+
+/**
+ * U7 2.3：按来源引用恢复阅读位置（创建页与比较页的"返回来源"共用——不抄第二份）。
+ *
+ * 该 run 本来就选中 ⇒ 用既有阅读动作当场对齐（页签/调用/文件定位）；
+ * 换运行 ⇒ 先把位置写成该 run 的会话阅读状态，再走 `selectRun`——它自带
+ * "按详情校验 + 失效回退"，这里不重复判有效性（判了也不认）。
+ */
+async function restoreReadingLocation(location: CreateReturnLocation): Promise<void> {
+  const { runId } = location;
+  // 无运行可恢复（来源视图不承载单运行位置）⇒ 视图已恢复，无事可做
+  if (runId === null) return;
+  if (useAppStore.getState().selectedRunId === runId) {
+    // 该 run 本来就选中：没有"恢复"这一步可借，直接用既有的阅读动作当场对齐
+    if (
+      location.tab !== null &&
+      readingStateOf(useAppStore.getState().readingByRun, runId).tab !== location.tab
+    ) {
+      useAppStore.getState().setReadingTab(runId, location.tab);
+    }
+    const liveSpan = liveSpanOfLocation(
+      location,
+      (useAppStore.getState().detail?.spans ?? []).map((span) => span.id),
+    );
+    if (liveSpan !== null && useAppStore.getState().selectedSpanId !== liveSpan) {
+      useAppStore.getState().selectSpan(liveSpan);
+    }
+    const filePatch = filePatchOfLocation(location);
+    const liveFile = fileReadingOf(readingStateOf(useAppStore.getState().readingByRun, runId));
+    if (
+      filePatch !== null &&
+      (liveFile.checkpoint !== filePatch.checkpoint || liveFile.path !== filePatch.path)
+    ) {
+      useAppStore.getState().setFileReading(runId, filePatch);
+    }
+    return;
+  }
+  // 换运行：先把位置写成该 run 的会话阅读状态，再走 `selectRun`（判据同上）
+  const readingPatch = readingPatchOfLocation(location);
+  if (Object.keys(readingPatch).length > 0) {
+    useAppStore.setState((current) => ({
+      readingByRun: patchReadingState(current.readingByRun, runId, readingPatch),
+    }));
+  }
+  const filePatch = filePatchOfLocation(location);
+  if (filePatch !== null) {
+    useAppStore.setState((current) => ({
+      readingByRun: patchFileReading(current.readingByRun, runId, filePatch),
+    }));
+  }
+  await useAppStore.getState().selectRun(runId);
+}
+
+/**
  * 提交目标 → 草稿定位目标（U5 任务 3.5 的「返回草稿」）。
  *
  * 两套编码同源不同形：提交侧的 `DraftSubmitTarget` 用判别联合（A/B 没有 `field` 键，
@@ -1327,6 +1468,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   resultReads: emptyResultReadStore(),
   // U7 任务 1.4/1.5：比较选择集的会话读取状态（design D3 渲染层半边）
   compareRead: emptyCompareReadSession(),
+  // U7 任务 2.2/2.3：详细比较 pair（独立于侧栏选择）与比较页来源引用（一次性凭据）
+  comparePair: null,
+  compareReturnLocation: null,
   // U5 任务 3.4：阅读代次 + 各提交的导航意图（同为会话内，不进任何持久化）
   navGeneration: 0,
   navIntents: emptyNavigationIntents(),
@@ -1454,6 +1598,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     // U5 任务 4.1：创建页在场时"要看某条运行"就是离开创建去读它。放在同 ID 短路**之前**——
     // 否则在创建页里"打开结果"（结果恰是上一条选中的运行）会被短路成什么都不发生。
     if (get().view === "create") set({ view: "trace", createReturnLocation: null });
+    // U7 2.3：比较页在场时"打开单侧运行"也离开比较视图——但**保留** comparePair
+    // 与 compareReturnLocation（「打开单侧 → 返回比较 → 再返回来源」的往返靠它们；
+    // 与创建页的一次性凭据不同，来源引用只在真正返回/换视图时用掉）
+    if (get().view === "compare") set({ view: "trace" });
     if (get().selectedRunId === id) return;
     // U5 3.4：换"在看哪条 run"= 改变阅读对象 ⇒ 撤销在飞的自动导航资格。
     // 放在同 ID 短路**之后**：自动导航自己调用它时不会把代次白推进一次。
@@ -2062,6 +2210,75 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ compareRead: destroyCompareRead(get().compareRead) });
   },
 
+  async openCompareWithParent(runId) {
+    // U7 2.1：入口判据必须喂「当前正读的那条」的已校验详情——detail 归属不符
+    // （迟到响应/串号）时按无入口处理，绝不从列表或操作登记猜父本
+    const detail = get().detail;
+    if (detail === null || detail.meta.id !== runId) return "hidden";
+    const decision = decideCompareWithParent(detail);
+    if (decision.kind !== "open") return decision.kind;
+    await enterCompareView(decision.pair);
+    return "opened";
+  },
+
+  async openCompareWorkspace() {
+    // U7 2.2/2.5：手动集合的进入路径。恰好两条 ⇒ 加入顺序定左右（先子后父不重排）；
+    // 三/四条 ⇒ 不自动选两条，如实提示后仍进工作区（宽幅指标表可见，§5.3 显式选择）
+    const decision = decideManualPair(get().compareIds);
+    if (decision.kind === "none" && decision.reason === "explicit-select") {
+      set({ compareNotice: "已选三条及以上：请在指标表中显式选择两条进入详细比较" });
+    }
+    await enterCompareView(decision.kind === "pair" ? decision.pair : null);
+  },
+
+  async setCompareSide(side, runId) {
+    const pair = get().comparePair;
+    if (pair === null) return "rejected";
+    const decision = decidePairSideEdit(pair, side, runId);
+    if (decision.kind === "unchanged") return "unchanged";
+    if (decision.kind === "rejected") return "rejected";
+    // 更换对象 = 显式换阅读对象 ⇒ 推进阅读代次；**不**调 selectRun、不动侧栏选择
+    // 与全局对照集合（scenario「更换交换不改变侧栏选择」）
+    noteReadingChanged();
+    set({ comparePair: decision.pair });
+    await get().enterCompareSelection([decision.pair.leftRunId, decision.pair.rightRunId]);
+    return "replaced";
+  },
+
+  async swapCompareSides() {
+    const pair = get().comparePair;
+    if (pair === null) return "none";
+    const swapped = swapComparePair(pair);
+    noteReadingChanged();
+    set({ comparePair: swapped });
+    // 交换使旧序请求失效（design D3「快速替换、交换、移出或离开使旧请求失效」）
+    await get().enterCompareSelection([swapped.leftRunId, swapped.rightRunId]);
+    return "swapped";
+  },
+
+  async returnFromCompare() {
+    const state = get();
+    const decision = decideCreateReturn({
+      location: state.compareReturnLocation,
+      knownRunIds: state.runs.map((run) => run.id),
+    });
+    // 一次性凭据：恢复与回退都算用掉（与创建页同纪律）
+    set({ compareReturnLocation: null });
+    const target = decision.kind === "restore" ? decision.location.view : decision.view;
+    noteReadingChanged();
+    set({ view: target });
+    if (decision.kind !== "restore" || decision.location.runId === null) return;
+    await restoreReadingLocation(decision.location);
+  },
+
+  returnToCompare() {
+    // U7 2.3：单侧往返的回程。pair 与 compareRead 会话都在（打开单侧不清它们）；
+    // 同 pair 下 enterCompareSelection 幂等 ⇒ 这里只切视图，不重读
+    if (get().view === "compare") return;
+    noteReadingChanged();
+    set({ view: "compare" });
+  },
+
   async openOperationResult(identity) {
     // 3.5：用户主动 ⇒ 不经导航意图；但只走既有选择动作，落地口径与手动切运行完全一致
     get().markNoticesSeen([resultReadKeyOf(identity)]);
@@ -2389,7 +2606,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     noteReadingChanged();
     // U5 4.1：从创建页切去别的工作区 = 本次来源用掉（下次进入按新位置重记）。
     // ⚠️ 刻意**不清**创建草稿——离开创建保留它是 U3 的既有语义。
-    set({ view, createReturnLocation: null });
+    // U7 2.3：比较页的来源引用同纪律（经 setView 离开 = 用掉；selectRun 打开单侧
+    // 时保留，那是比较自己的往返流）
+    set({ view, createReturnLocation: null, compareReturnLocation: null });
   },
 
   openCreateWorkspace() {
@@ -2424,44 +2643,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     noteReadingChanged();
     set({ view: target });
     if (decision.kind !== "restore" || decision.location.runId === null) return;
-
-    const { runId } = decision.location;
-    if (get().selectedRunId === runId) {
-      // 该 run 本来就选中：没有"恢复"这一步可借，直接用既有的阅读动作当场对齐
-      const recorded = decision.location;
-      if (recorded.tab !== null && readingStateOf(get().readingByRun, runId).tab !== recorded.tab) {
-        get().setReadingTab(runId, recorded.tab);
-      }
-      const liveSpan = liveSpanOfLocation(
-        recorded,
-        (get().detail?.spans ?? []).map((span) => span.id),
-      );
-      if (liveSpan !== null && get().selectedSpanId !== liveSpan) get().selectSpan(liveSpan);
-      const filePatch = filePatchOfLocation(recorded);
-      const liveFile = fileReadingOf(readingStateOf(get().readingByRun, runId));
-      if (
-        filePatch !== null &&
-        (liveFile.checkpoint !== filePatch.checkpoint || liveFile.path !== filePatch.path)
-      ) {
-        get().setFileReading(runId, filePatch);
-      }
-      return;
-    }
-    // 换运行：先把位置写成该 run 的会话阅读状态，再走 `selectRun`——
-    // 它自带"按详情校验 + 失效回退"，这里不重复判一遍有效性（判了也不认）。
-    const readingPatch = readingPatchOfLocation(decision.location);
-    if (Object.keys(readingPatch).length > 0) {
-      set((current) => ({
-        readingByRun: patchReadingState(current.readingByRun, runId, readingPatch),
-      }));
-    }
-    const filePatch = filePatchOfLocation(decision.location);
-    if (filePatch !== null) {
-      set((current) => ({
-        readingByRun: patchFileReading(current.readingByRun, runId, filePatch),
-      }));
-    }
-    await get().selectRun(runId);
+    await restoreReadingLocation(decision.location);
   },
 
   setSettingsSection(section) {

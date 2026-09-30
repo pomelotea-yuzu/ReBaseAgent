@@ -326,9 +326,12 @@ export function CacheCoverageView({ section }: { section: CacheSection }) {
 export function SourceSectionView({
   section,
   onOpenParent,
+  onCompareWithParent,
 }: {
   section: SourceSection;
   onOpenParent: (runId: string) => void;
+  /** U7 2.1：「与父运行对比」（父左子右）；只在 available 时渲染，不给点不动的按钮 */
+  onCompareWithParent?: () => void;
 }) {
   return (
     <section className="border-t border-gray-200 px-4 py-3" aria-label="来源">
@@ -348,6 +351,16 @@ export function SourceSectionView({
               className="rounded border border-sky-400 px-1.5 py-0.5 text-sky-800 hover:bg-sky-50"
             >
               返回父记录
+            </button>
+          ) : null}
+          {section.compareWithParent === "available" && onCompareWithParent !== undefined ? (
+            <button
+              type="button"
+              onClick={onCompareWithParent}
+              aria-label="与父运行对比（父左子右）"
+              className="rounded border border-sky-400 px-1.5 py-0.5 text-sky-800 hover:bg-sky-50"
+            >
+              与父运行对比
             </button>
           ) : null}
         </div>
@@ -391,6 +404,7 @@ export function OverviewResultView({
   onToggleExpanded,
   onOpenCall,
   onOpenParent,
+  onCompareWithParent,
 }: {
   detail: Pick<
     RunDetail,
@@ -401,6 +415,8 @@ export function OverviewResultView({
   onToggleExpanded: (key: string) => void;
   onOpenCall: (target: { spanId: string; stepSpanId: string | null }) => void;
   onOpenParent: (runId: string) => void;
+  /** U7 2.1：「与父运行对比」动作（父左子右）；缺省 = 不渲染该按钮 */
+  onCompareWithParent?: () => void;
 }) {
   // 终止原因走**唯一来源** `deriveTerminalReason`（任务 6.2 提取）：原先本组件内联推导了
   // **两处**，而运行页头干脆传 `reason={null}`、分支树另有一套 ⇒ 四个视图口径分叉。
@@ -554,7 +570,11 @@ export function OverviewResultView({
       {/* 5. 本次消耗 + 缓存覆盖：只算自有段，未知不补零 */}
       <ConsumptionSectionView section={consumption} />
       {/* 6. 来源：真实父本 / 修改字段 / 隔离边界（执行语义按 fork 字段分流） */}
-      <SourceSectionView section={source} onOpenParent={onOpenParent} />
+      <SourceSectionView
+        section={source}
+        onOpenParent={onOpenParent}
+        onCompareWithParent={onCompareWithParent}
+      />
     </div>
   );
 }
@@ -605,6 +625,10 @@ export function OverviewPanel() {
         // 走到父记录：既有 selectRun 会按新 run 身份重置阅读位置（读表由 store 管），
         // 这里不自己拼部分状态——让 selectRun 走它已有的加载/校验路径。
         void selectRun(runId);
+      }}
+      onCompareWithParent={() => {
+        if (selectedRunId === null) return;
+        void useAppStore.getState().openCompareWithParent(selectedRunId);
       }}
     />
   );

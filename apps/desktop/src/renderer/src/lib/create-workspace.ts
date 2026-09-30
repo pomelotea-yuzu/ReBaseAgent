@@ -24,8 +24,13 @@ import type { RunReadingState } from "./reading-state";
  * token + name/path），与这里的"来源位置"毫无关系，别混用。
  */
 
-/** 主工作区视图：轨迹 / 分支树 / 创建（U5 4.1 起创建是一种视图，不是模态） */
-export type WorkspaceView = "trace" | "tree" | "create";
+/**
+ * 主工作区视图：轨迹 / 分支树 / 创建 / 比较。
+ * U5 4.1 起创建是一种视图；U7（improve-branch-comparison）起比较也是。
+ * ⚠️ `SourceView`（创建页的合法来源）随之包含 compare——从比较页进创建、返回时
+ * 回到比较页（pair 仍在 store 会话里，恢复即还原对象）。
+ */
+export type WorkspaceView = "trace" | "tree" | "create" | "compare";
 
 /** 可以充当"来源"的两种视图（创建页自身不是来源） */
 export type SourceView = Exclude<WorkspaceView, "create">;

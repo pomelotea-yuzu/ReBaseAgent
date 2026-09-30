@@ -37,6 +37,7 @@ import type {
   OwnOutput,
   ToolErrorTarget,
 } from "@shared/overview";
+import { decideCompareWithParent } from "./compare-navigation";
 import { LINEAGE_INCOMPLETE_TEXT, LINEAGE_METRICS_UNKNOWN_TEXT } from "./detail-completeness";
 
 /** 结果区的内容形态（互斥，供渲染分支与测试一一对应） */
@@ -398,6 +399,14 @@ export interface SourceSection {
   isolationNote: string | null;
   /** 是否提供「返回父记录」入口（有直接父时才给） */
   canOpenParent: boolean;
+  /**
+   * U7 任务 2.1：「与父运行对比」入口的可用性（判据唯一来源
+   * `decideCompareWithParent`）：
+   * - `"available"`：有真实直接父且非 model_params 臂——父左子右打开；
+   * - `"blocked-model-params"`：模型实验臂走实验门禁（design D5），不渲染普通入口；
+   * - `null`：无 parent 引用（根 run），入口不显示。
+   */
+  compareWithParent: "available" | "blocked-model-params" | null;
 }
 
 /**
@@ -455,6 +464,8 @@ export function presentSource(detail: {
         ? "隔离文件运行：文件读写只发生在独立世界里，源目录不会被修改。"
         : null,
       canOpenParent: false,
+      // 根 run：无 parent 引用 ⇒ 比较入口不显示（scenario「无 parent 不显示入口」）
+      compareWithParent: null,
     };
   }
 
@@ -501,6 +512,18 @@ export function presentSource(detail: {
         : "隔离文件运行：文件读写只发生在独立世界里，源目录不会被修改。"
       : null,
     canOpenParent: parent !== null,
+    // U7 2.1：父子比较入口判据唯一来源在 compare-navigation（父左子右 / 实验门禁）
+    compareWithParent: (() => {
+      const decision = decideCompareWithParent(detail);
+      switch (decision.kind) {
+        case "open":
+          return "available" as const;
+        case "blocked":
+          return "blocked-model-params" as const;
+        case "hidden":
+          return null;
+      }
+    })(),
   };
 }
 
