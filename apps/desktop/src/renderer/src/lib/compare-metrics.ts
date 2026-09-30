@@ -3,6 +3,9 @@ import type { CompareRunItem } from "@shared/ipc";
 import { taskSummary } from "@shared/nav";
 import { classifyOutcome } from "@shared/outcome";
 import type { OutcomeTone } from "@shared/outcome";
+import { deriveOwnConsumption } from "@shared/overview";
+import type { OwnConsumption } from "@shared/overview";
+import { formatDuration, formatTokens } from "./format";
 
 /**
  * U7（improve-branch-comparison）任务 5.2：宽幅指标表的**纯派生**。
@@ -146,12 +149,40 @@ export function deriveCompareMetricsTable(input: {
                 "无法确认更深的共同祖先；不是「本来就不同源」，祖先增量不计算",
             };
 
-  // 5.2 范围的行：状态 / 终止原因 / 创建时间 / 分叉点 / 实验组 / 本 run 步数 / 工具与出错。
-  // 消耗（tokens/耗时/缓存）与沿链累计行归 5.4/5.5 同表扩展。
+  // 5.2/5.4：行 = 身份与结局（状态/终止原因/创建时间/分叉点/实验组）+
+  // 自有消耗（仅 leaf spans）+ 沿链累计与相对祖先增量（沿链求和口径，单列标注）。
   const ownOf = (index: number) => {
     const item = items[index];
     if (item === undefined || item.status !== "ready") return null;
     return item.chainSummaries[item.chainSummaries.length - 1] ?? null;
+  };
+
+  // 5.4：自有消耗由每侧 detail 的 leafSpanIds 派生（复用概览同一派生，不重抄）；
+  // unavailable 侧无 detail ⇒ null。
+  const consumptionOf = (index: number): OwnConsumption | null => {
+    const item = items[index];
+    if (item === undefined || item.status !== "ready") return null;
+    return deriveOwnConsumption({ spans: item.detail.spans, leafSpanIds: item.detail.leafSpanIds });
+  };
+
+  // 5.4：沿链累计 / 相对祖先增量（verified 侧序 = ready 侧序，按 runId 对位）
+  const sideOf = (runId: string) =>
+    verified?.sides.find((side) => side.runId === runId) ?? null;
+  const totalsOf = (index: number) => sideOf(items[index]?.runId ?? "")?.totals ?? null;
+  const deltaOf = (index: number) => sideOf(items[index]?.runId ?? "")?.deltaFromAncestor ?? null;
+
+  /** 祖先增量不可得时的逐列解释（按三态与该侧累计可得性区分，不冒充 0） */
+  const deltaUnavailableNote = (index: number): string | undefined => {
+    if (items[index]?.status !== "ready") return undefined;
+    if (verified === null) return "可读侧不足两条：不判定共同祖先，不计算祖先增量";
+    if (verified.relation.kind === "incomplete") {
+      return "共同祖先判定不完整（存在父缺失）：祖先增量不计算";
+    }
+    if (verified.relation.kind === "unrelated") {
+      return "无共同祖先（分属不同根）：没有可比基线，祖先增量不计算";
+    }
+    if (totalsOf(index) === null) return "该侧沿链累计不可得（链上有段未知）：祖先增量不计算";
+    return undefined;
   };
 
   const rows: MetricsRow[] = [
@@ -202,6 +233,113 @@ export function deriveCompareMetricsTable(input: {
       }),
       titles: columns.map(() => "工具调用次数 / 其中出错次数"),
     },
+    // ---- 5.4：自有消耗（leaf spans；未知不补零）----
+    {
+      label: "自有 tokens（输入）",
+      values: columns.map((_column, index) => {
+        const consumption = consumptionOf(index);
+        return consumption === null ? null : formatTokens(consumption.tokensIn);
+      }),
+      titles: columns.map((_column, index) => {
+        const consumption = consumptionOf(index);
+        return consumption === null
+          ? undefined
+          : "仅本运行自有调用（leaf spans）的已记录值；祖先共享前缀不计入，缺失不补零";
+      }),
+    },
+    {
+      label: "自有 tokens（输出）",
+      values: columns.map((_column, index) => {
+        const consumption = consumptionOf(index);
+        return consumption === null ? null : formatTokens(consumption.tokensOut);
+      }),
+    },
+    {
+      label: "自有 tokens（合计）",
+      values: columns.map((_column, index) => {
+        const consumption = consumptionOf(index);
+        return consumption === null
+          ? null
+          : formatTokens(consumption.tokensIn + consumption.tokensOut);
+      }),
+      titles: columns.map((_column, index) => {
+        const consumption = consumptionOf(index);
+        // 失败调用的占位零用量不称实际零消费（5.5 同源判据，随行先行）
+        return consumption !== null &&
+          consumption.tokensIn === 0 &&
+          consumption.tokensOut === 0
+          ? "记录用量为 0——可能是失败调用的占位值，不据此断言实际零消费"
+          : undefined;
+      }),
+    },
+    {
+      label: "自有已记录耗时",
+      values: columns.map((_column, index) => {
+        const consumption = consumptionOf(index);
+        // null（未知）交给组件层显示 —；不在派生层用字符串冒充值
+        return consumption === null || consumption.durationMs === null
+          ? null
+          : formatDuration(consumption.durationMs);
+      }),
+      titles: columns.map((_column, index) => {
+        const consumption = consumptionOf(index);
+        return consumption !== null && consumption.durationMs === null
+          ? "自有 spans 无已记录时间跨度：保持未知，不补 0"
+          : undefined;
+      }),
+    },
+    // ---- 5.4：沿链累计（各代自有值沿链求和；禁称总耗时/总成本）----
+    {
+      label: "累计增量（步数）",
+      values: columns.map((_column, index) => {
+        const totals = totalsOf(index);
+        return totals === null ? null : String(totals.steps);
+      }),
+      titles: columns.map(() => "沿 parent 链对各代自有值求和"),
+    },
+    {
+      label: "累计增量（tokens）",
+      values: columns.map((_column, index) => {
+        const totals = totalsOf(index);
+        return totals === null ? null : formatTokens(totals.tokens);
+      }),
+      titles: columns.map(() => "沿 parent 链对各代自有值求和；不等于从头连续跑一次的消耗"),
+    },
+    {
+      label: "累计增量（耗时）",
+      values: columns.map((_column, index) => {
+        const totals = totalsOf(index);
+        return totals === null || totals.durationMs === null ? null : formatDuration(totals.durationMs);
+      }),
+      titles: columns.map(() => "各段已记录耗时之和（任一段未知即整体未知）；禁称「总耗时」"),
+    },
+    // ---- 5.4：相对共同祖先增量（= 该侧累计 − 祖先累计；不是左右臂相减）----
+    {
+      label: "相对祖先增量（tokens）",
+      values: columns.map((_column, index) => {
+        const delta = deltaOf(index);
+        return delta === null ? null : formatTokens(delta.tokens);
+      }),
+      titles: columns.map((_column, index) =>
+        deltaOf(index) === null
+          ? deltaUnavailableNote(index)
+          : "该侧沿链累计 − 共同祖先沿链累计（同口径相减）；不是左右两侧互差",
+      ),
+    },
+    {
+      label: "相对祖先增量（耗时）",
+      values: columns.map((_column, index) => {
+        const delta = deltaOf(index);
+        return delta === null || delta.durationMs === null ? null : formatDuration(delta.durationMs);
+      }),
+      titles: columns.map((_column, index) =>
+        deltaOf(index)?.durationMs === null
+          ? "祖先段耗时未知：增量保持未知，不补 0"
+          : deltaOf(index) === null
+            ? deltaUnavailableNote(index)
+            : "该侧沿链累计 − 共同祖先沿链累计（同口径相减）",
+      ),
+    },
   ];
 
   const hint =
@@ -219,6 +357,9 @@ export function deriveCompareMetricsTable(input: {
     relation,
     scopeNote:
       "指标来自本次已校验比较读取（不可读侧如实呈现原因，不用列表缓存补齐）；" +
+      "自有值仅统计本运行自有调用（leaf spans）；沿链累计为各代自有值沿链求和" +
+      "（prompt / messages / model_params 为独立执行，各代自有值照记、不当作共享前缀），" +
+      "禁称「总耗时 / 总成本」；相对祖先增量 = 该侧累计 − 祖先累计（同口径相减，不是左右臂相减）。" +
       "对照只呈现各运行事实与其相对共同祖先的增量，不产出运行之间的互差、胜出或最佳结论。",
   };
 }

@@ -1,6 +1,7 @@
 import type { Fork, SpanLine } from "@rebaseagent/trace-sdk/schema";
 import { describe, expect, it } from "vitest";
 import { deriveCompareMetricsTable } from "../src/renderer/src/lib/compare-metrics";
+import { formatDuration, formatTokens } from "../src/renderer/src/lib/format";
 import type { CompareRunItem, RunDetail, RunSummary } from "../src/shared/ipc";
 import { computeShortIds } from "../src/shared/nav";
 
@@ -51,18 +52,48 @@ function meta(id: string, parent: string | null, fork: Fork | null): RunDetail["
   };
 }
 
+function llmOwnSpan(
+  id: string,
+  usage: { in: number; out: number },
+  opts: { timing?: { started_at: string; ended_at: string } } = {},
+): SpanLine {
+  return {
+    type: "span",
+    id,
+    parent: "s_01",
+    kind: "llm.call",
+    request: { model: "controlled-model", messages: [] },
+    response: {
+      content: null,
+      reasoning_content: null,
+      tool_calls: [],
+      usage: { in: usage.in, out: usage.out, cache_hit: 0 },
+      ttft_ms: 0,
+    },
+    ...(opts.timing !== undefined ? { timing: opts.timing } : {}),
+  } as SpanLine;
+}
+
 function readyItem(
   runId: string,
   chain: RunSummary[],
+  opts: {
+    /** 默认一个 agent.step（自有）；自定义时须连 leafSpanIds 一起给 */
+    spans?: SpanLine[];
+    leafSpanIds?: string[];
+  } = {},
 ): Extract<CompareRunItem, { status: "ready" }> {
+  const spans = (opts.spans ?? [
+    { type: "span", id: "s_01", parent: null, kind: "agent.step", n: 1 },
+  ]) as SpanLine[];
   const detail: RunDetail = {
     meta: meta(runId, chain.length > 1 ? (chain[chain.length - 2]?.id ?? null) : null, null),
-    spans: [{ type: "span", id: "s_01", parent: null, kind: "agent.step", n: 1 }] as SpanLine[],
+    spans,
     events: [{ type: "run.event", event: "stopped", reason: "completed" }],
     status: "completed",
     // 链 hop 的 fork 形状与本测试无关（lib 只读 chainSummaries），统一 null
     chain: chain.map((entry) => ({ meta: meta(entry.id, entry.parent, null), fork: null })),
-    leafSpanIds: ["s_01"],
+    leafSpanIds: opts.leafSpanIds ?? ["s_01"],
     completeness: "complete",
     spanScope: "own",
     lineage: { status: "complete" },
@@ -236,7 +267,123 @@ describe("deriveCompareMetricsTable：列标题与指标行", () => {
     });
     expect(model.scopeNote).toContain("本次已校验比较读取");
     expect(model.scopeNote).toContain("不产出运行之间的互差、胜出或最佳结论");
-    expect(model.scopeNote).not.toContain("总耗时");
-    expect(model.scopeNote).not.toContain("总成本");
+    // 行标签不出现「总耗时 / 总成本」这类被禁口径名（scopeNote 里的引用性提及除外）
+    const labels = model.rows.map((row) => row.label);
+    expect(labels).not.toContain("总耗时");
+    expect(labels).not.toContain("总成本");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// U7 5.4：自有 / 沿链 / 相对祖先增量三口径（「自有指标不重复计算继承前缀」）
+// ---------------------------------------------------------------------------
+
+describe("5.4 指标派生口径", () => {
+  const shorts2 = computeShortIds(["r_a", "r_b"]);
+
+  /** 父 r_a（祖先，自有 500/40，耗时 5000）→ 子 r_b（自有 100/20，耗时未记录） */
+  function lineage() {
+    const ancestor = readyItem(
+      "r_a",
+      [summary({ id: "r_a", tokensIn: 500, tokensOut: 40, durationMs: 5000, steps: 3 })],
+      {
+        spans: [
+          { type: "span", id: "s_01", parent: null, kind: "agent.step", n: 1 },
+          llmOwnSpan("c_a", { in: 500, out: 40 }, {
+            timing: { started_at: "2026-09-30T09:00:00Z", ended_at: "2026-09-30T09:00:05Z" },
+          }),
+        ],
+        leafSpanIds: ["s_01", "c_a"],
+      },
+    );
+    const child = readyItem("r_b", [
+      summary({ id: "r_a", tokensIn: 500, tokensOut: 40, durationMs: 5000, steps: 3 }),
+      summary({
+        id: "r_b",
+        parent: "r_a",
+        tokensIn: 100,
+        tokensOut: 20,
+        durationMs: null,
+        steps: 5,
+      }),
+    ], {
+      spans: [
+        { type: "span", id: "s_01", parent: null, kind: "agent.step", n: 1 },
+        // 继承前缀的祖先调用（在合并轨迹里，但不属于本 run 自有）
+        llmOwnSpan("c_prefix", { in: 500, out: 40 }, {
+          timing: { started_at: "2026-09-30T10:00:00Z", ended_at: "2026-09-30T10:00:05Z" },
+        }),
+        // 本 run 自有调用：无 timing ⇒ 时间未知
+        llmOwnSpan("c_own", { in: 100, out: 20 }),
+      ],
+      leafSpanIds: ["s_01", "c_own"],
+    });
+    return [ancestor, child];
+  }
+
+  it("自有 tokens 只统计 leaf spans：继承前缀的调用不重复计入", () => {
+    const model = deriveCompareMetricsTable({ items: lineage(), shortIds: shorts2 });
+    const rowOf = (label: string) => model.rows.find((row) => row.label === label);
+    // 子的自有合计 = 100 + 20 = 120（不是 120 + 前缀 540）
+    expect(rowOf("自有 tokens（合计）")?.values[1]).toBe(formatTokens(120));
+    // 祖先自身自有合计 = 540
+    expect(rowOf("自有 tokens（合计）")?.values[0]).toBe(formatTokens(540));
+  });
+
+  it("沿链累计 = 各代自有值沿链求和（含 prompt/messages/model_params 独立执行段）", () => {
+    const model = deriveCompareMetricsTable({ items: lineage(), shortIds: shorts2 });
+    const rowOf = (label: string) => model.rows.find((row) => row.label === label);
+    // 子链累计 = 500+40（父代）+ 100+20（子代）= 660
+    expect(rowOf("累计增量（tokens）")?.values[1]).toBe(formatTokens(660));
+    expect(rowOf("累计增量（步数）")?.values[1]).toBe("8");
+    // 口径说明在场：独立执行段照各代自有值计入、禁称总耗时/总成本
+    const tokensRow = rowOf("累计增量（tokens）");
+    expect(tokensRow?.titles?.[1]).toContain("沿 parent 链");
+    expect(model.scopeNote).toContain("独立执行");
+  });
+
+  it("相对祖先增量 = 该侧累计 − 祖先累计（同口径相减，不是左右臂相减）", () => {
+    const model = deriveCompareMetricsTable({ items: lineage(), shortIds: shorts2 });
+    const rowOf = (label: string) => model.rows.find((row) => row.label === label);
+    // 子：660 − 540 = 120；祖先：540 − 540 = 0
+    expect(rowOf("相对祖先增量（tokens）")?.values[1]).toBe(formatTokens(120));
+    expect(rowOf("相对祖先增量（tokens）")?.values[0]).toBe(formatTokens(0));
+    expect(rowOf("相对祖先增量（tokens）")?.titles?.[1]).toContain("不是左右两侧互差");
+  });
+
+  it("未知耗时保持未知：自有无 timing ⇒ 自有耗时 null；链上任一段未知 ⇒ 累计与祖先耗时增量 null", () => {
+    const model = deriveCompareMetricsTable({ items: lineage(), shortIds: shorts2 });
+    const rowOf = (label: string) => model.rows.find((row) => row.label === label);
+    // 子自有 spans 无 timing ⇒ 自有耗时未知（不补 0）
+    expect(rowOf("自有已记录耗时")?.values[1]).toBeNull();
+    expect(rowOf("自有已记录耗时")?.titles?.[1]).toContain("保持未知");
+    // 子代 durationMs = null ⇒ 沿链累计耗时整体未知；祖先增量耗时同样未知
+    expect(rowOf("累计增量（耗时）")?.values[1]).toBeNull();
+    expect(rowOf("相对祖先增量（耗时）")?.values[1]).toBeNull();
+    // 祖先自有耗时正常可读
+    expect(rowOf("自有已记录耗时")?.values[0]).toBe(formatDuration(5000));
+  });
+
+  it("祖先增量不可得时逐列说明（判定不完整 / 无共同祖先 / 单条），不补 0", () => {
+    // 判定不完整
+    const incomplete = deriveCompareMetricsTable({
+      items: [
+        readyItem("r_c1", [summary({ id: "r_c1", parent: "r_ghost" })]),
+        readyItem("r_c2", [summary({ id: "r_c2", parent: "r_ghost" })]),
+      ],
+      shortIds: shorts,
+    });
+    const row = incomplete.rows.find((r) => r.label === "相对祖先增量（tokens）");
+    expect(row?.values.every((value) => value === null)).toBe(true);
+    expect(row?.titles?.[0]).toContain("判定不完整");
+
+    // 单条：不判定祖先，不计算增量
+    const single = deriveCompareMetricsTable({
+      items: [readyItem("r_a", [summary({ id: "r_a" })])],
+      shortIds: shorts,
+    });
+    const singleRow = single.rows.find((r) => r.label === "相对祖先增量（tokens）");
+    expect(singleRow?.values[0]).toBeNull();
+    expect(singleRow?.titles?.[0]).toContain("不足两条");
   });
 });
