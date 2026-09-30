@@ -57,3 +57,76 @@ export function deriveSideOutputFacts(detail: RunDetail): SideOutputFacts {
     failure: { ...terminal.failure, runId: detail.meta.id },
   };
 }
+
+// ---------------------------------------------------------------------------
+// tasks 4.6（纯派生半边）：只读文本 diff 的门禁
+//
+// delta 判据：「只有两侧均为已记录最终文本时才能进入文本 diff；错误、未记录、
+// reasoning-only 不能作为空文本参与 diff」——门禁不可用时不产生伪空 diff，
+// 并如实说明缺的是哪一侧、缺成什么样。
+// ---------------------------------------------------------------------------
+
+/** diff 门禁结论：可用（双方最终文本就绪）或不可用（各侧真实状态如实说明） */
+export type CompareDiffGate =
+  | {
+      readonly status: "available";
+      /** 左右最终正文（已记录最终输出，非空字符串） */
+      readonly leftText: string;
+      readonly rightText: string;
+      /** 各自产出 span（供「打开该调用」） */
+      readonly leftSpanId: string;
+      readonly rightSpanId: string;
+    }
+  | {
+      readonly status: "unavailable";
+      /** 受控中文原因（指出哪一侧、缺成什么型），不生成伪空 diff */
+      readonly reason: string;
+    };
+
+const MISSING_TEXT: Record<NonNullable<OwnOutput["missingReason"]> | "aborted", string> = {
+  "no-llm-call": "未记录任何自有模型调用",
+  "empty-content": "最终调用无正文",
+  "has-error": "最终调用带错误",
+  "pending-tool-calls": "有待执行的工具调用（循环未竟）",
+  aborted: "非正常终止且无正文",
+};
+
+/**
+ * 只读文本 diff 门禁：两侧 `deriveSideOutputFacts` 就绪后调用。
+ * 双方均有已记录最终输出（非空正文 + 正常结束 + 无错误 + 无待执行工具）
+ * 才可用；任一侧缺失 ⇒ unavailable，绝不用中间正文/空串顶替。
+ */
+export function deriveCompareDiffGate(
+  left: SideOutputFacts,
+  right: SideOutputFacts,
+): CompareDiffGate {
+  const sides: readonly [SideOutputFacts, SideOutputFacts] = [left, right];
+  for (let i = 0; i < sides.length; i++) {
+    const side = sides[i];
+    if (side === undefined) continue;
+    const label = i === 0 ? "左侧" : "右侧";
+    const { finalOutput } = side.output;
+    if (finalOutput === null) {
+      const detail =
+        side.output.missingReason !== null
+          ? MISSING_TEXT[side.output.missingReason]
+          : "未记录最终输出";
+      return {
+        status: "unavailable",
+        reason: `${label}（${side.runId}）${detail}：不能作为空文本参与 diff`,
+      };
+    }
+  }
+  const leftOut = left.output.finalOutput;
+  const rightOut = right.output.finalOutput;
+  if (leftOut === null || rightOut === null) {
+    return { status: "unavailable", reason: "最终输出未就绪" };
+  }
+  return {
+    status: "available",
+    leftText: leftOut.content,
+    rightText: rightOut.content,
+    leftSpanId: leftOut.spanId,
+    rightSpanId: rightOut.spanId,
+  };
+}

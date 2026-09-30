@@ -1,6 +1,7 @@
 import type { SpanLine } from "@rebaseagent/trace-sdk/schema";
 import { describe, expect, it } from "vitest";
-import { deriveSideOutputFacts } from "../src/shared/compare-output";
+import { deriveCompareDiffGate, deriveSideOutputFacts } from "../src/shared/compare-output";
+import type { SideOutputFacts } from "../src/shared/compare-output";
 import type { RunDetail } from "../src/shared/ipc";
 
 /**
@@ -223,5 +224,67 @@ describe("deriveSideOutputFacts：失败与受限侧", () => {
     expect(facts.outcome).toMatchObject({ kind: "interrupted", normalEnd: false });
     expect(facts.output.finalOutput).toBeNull();
     expect(facts.failure.llmCallSpanId).toBeNull();
+  });
+});
+
+describe("deriveCompareDiffGate 4.6：只读文本 diff 门禁", () => {
+  const readySide = (id: string, content: string): SideOutputFacts =>
+    deriveSideOutputFacts(
+      detailOf(id, {
+        reason: "completed",
+        spans: [stepSpan("s_01"), llmSpan("c_01", { content })],
+      }),
+    );
+  const failedSide = (id: string): SideOutputFacts =>
+    deriveSideOutputFacts(
+      detailOf(id, {
+        reason: "error",
+        spans: [stepSpan("s_01"), llmSpan("c_01", { error: { message: "上游 500" } })],
+      }),
+    );
+
+  it("双方最终文本就绪 ⇒ available，携带左右正文与产出 span", () => {
+    const gate = deriveCompareDiffGate(readySide("r_l", "左侧正文"), readySide("r_r", "右侧正文"));
+    expect(gate).toEqual({
+      status: "available",
+      leftText: "左侧正文",
+      rightText: "右侧正文",
+      leftSpanId: "c_01",
+      rightSpanId: "c_01",
+    });
+  });
+
+  it("一侧 error 终止 ⇒ unavailable（错误不作为空文本参与 diff）", () => {
+    const gate = deriveCompareDiffGate(readySide("r_l", "左侧正文"), failedSide("r_r"));
+    expect(gate).toMatchObject({
+      status: "unavailable",
+    });
+    if (gate.status === "unavailable") {
+      expect(gate.reason).toContain("右侧");
+      expect(gate.reason).toContain("带错误");
+    }
+  });
+
+  it("一侧仅思维链 ⇒ unavailable（reasoning-only 不参与伪空比较）", () => {
+    const reasoningSide = deriveSideOutputFacts(
+      detailOf("r_r", {
+        reason: "completed",
+        spans: [stepSpan("s_01"), llmSpan("c_01", { reasoning: "思维链" })],
+      }),
+    );
+    const gate = deriveCompareDiffGate(readySide("r_l", "左侧正文"), reasoningSide);
+    expect(gate.status).toBe("unavailable");
+    if (gate.status === "unavailable") {
+      expect(gate.reason).toContain("无正文");
+    }
+  });
+
+  it("一侧无自有调用 ⇒ unavailable（未记录不顶替）", () => {
+    const emptySide = deriveSideOutputFacts(detailOf("r_r", { spans: [stepSpan("s_01")] }));
+    const gate = deriveCompareDiffGate(readySide("r_l", "左侧正文"), emptySide);
+    expect(gate.status).toBe("unavailable");
+    if (gate.status === "unavailable") {
+      expect(gate.reason).toContain("未记录任何自有模型调用");
+    }
   });
 });
