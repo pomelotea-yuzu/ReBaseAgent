@@ -145,3 +145,42 @@ export function decideManualPair(compareIds: readonly string[]): ManualPairDecis
   if (compareIds.length >= 3) return { kind: "none", reason: "explicit-select" };
   return { kind: "none", reason: "needs-two" };
 }
+
+// ---------------------------------------------------------------------------
+// U7 任务 5.8：宽度适配与导航状态恢复（design D6）
+// ---------------------------------------------------------------------------
+
+/**
+ * 双运行正文并排阈值（CSS px，按**正文容器**宽度判，不是整窗）。
+ * design D6：初始实现常量，可依实测调整，但须满足相同可达性判据。
+ */
+export const COMPARE_STACK_THRESHOLD = 960;
+
+export type CompareBodyLayout = "side-by-side" | "stacked";
+
+/**
+ * 双运行正文并排还是上下排列：容器宽度 ≥ 阈值 ⇒ 并排；
+ * 否则上下排列（对象标题随每列头部自然重复）。
+ */
+export function decideCompareBodyLayout(
+  containerWidth: number,
+  threshold: number = COMPARE_STACK_THRESHOLD,
+): CompareBodyLayout {
+  return containerWidth >= threshold ? "side-by-side" : "stacked";
+}
+
+/**
+ * 比较页的导航可见性：**窄窗**（narrow/single 档）首次进入默认收起，退出恢复
+ * 用户原状态——通过纯显示决策实现，**不写回偏好**（与 U1 自动折叠同一纪律：
+ * 偏好没被改过，宽度回来自然恢复）。wide/medium 档沿用用户当前状态。
+ */
+export function decideCompareNavVisible(input: {
+  view: WorkspaceView;
+  breakpoint: "wide" | "medium" | "narrow" | "single";
+  navVisible: boolean;
+}): boolean {
+  if (input.view !== "compare") return input.navVisible;
+  return input.breakpoint === "wide" || input.breakpoint === "medium"
+    ? input.navVisible
+    : false;
+}

@@ -17,8 +17,13 @@ import { SettingsDialog } from "./components/SettingsDialog";
 import { SpanTree } from "./components/SpanTree";
 import { WorkspaceFilesPanel } from "./components/WorkspaceFilesPanel";
 import { isIsolatedRun } from "./lib/isolated-fork";
+import {
+  COMPARE_STACK_THRESHOLD,
+  decideCompareBodyLayout,
+  decideCompareNavVisible,
+} from "./lib/compare-navigation";
 import { useDraftCloseGuard } from "./lib/use-draft-close-guard";
-import { useLayoutState } from "./lib/use-layout";
+import { useContentWidth, useLayoutState } from "./lib/use-layout";
 import { useAppStore } from "./store";
 
 export default function App() {
@@ -39,6 +44,7 @@ export default function App() {
 
   // 外壳布局（任务 4.3）：断点、宽度偏好、自动折叠。**自动折叠不写回偏好**。
   const layout = useLayoutState({ tab, editing: false });
+  const contentWidth = useContentWidth();
   const navReplacesWorkspace =
     layout.navVisible && (layout.breakpoint === "narrow" || layout.breakpoint === "single");
   // U5 任务 4.1：创建工作区自带正文，不参与"步骤目录占满工作区"的形态
@@ -48,6 +54,16 @@ export default function App() {
     layout.stepsVisible &&
     layout.stepsFullWidth &&
     !navReplacesWorkspace;
+  // U7 5.8：比较页的导航可见性（窄窗默认收起、退出恢复——纯显示决策，不写偏好）
+  const navShowing =
+    view === "compare"
+      ? decideCompareNavVisible({ view, breakpoint: layout.breakpoint, navVisible: layout.navVisible })
+      : layout.navVisible && !stepsReplaceWorkspace;
+  // U7 5.8：双运行正文的容器宽度（导航占位扣除后）决定并排/上下排列
+  const compareBodyLayout = decideCompareBodyLayout(
+    contentWidth - (navShowing ? layout.navWidth : 0),
+    COMPARE_STACK_THRESHOLD,
+  );
 
   // Replacing the workspace must also move keyboard focus into the visible pane.
   useEffect(() => {
@@ -104,9 +120,8 @@ export default function App() {
         navigation={
           view !== "tree"
             ? {
-                visible: layout.navVisible && !stepsReplaceWorkspace,
-                onToggle:
-                  layout.navVisible && !stepsReplaceWorkspace ? layout.closeNav : layout.openNav,
+                visible: navShowing,
+                onToggle: navShowing ? layout.closeNav : layout.openNav,
               }
             : undefined
         }
@@ -146,8 +161,9 @@ export default function App() {
         ) : (
           <>
             {/* 运行导航（任务 4.3）：宽度可调 220–360；自动折叠只在显示层生效。
-                U5 任务 4.1：创建工作区同样**保留**它（delta「主工作区显示单列表单且运行导航保留」） */}
-            {layout.navVisible && !stepsReplaceWorkspace ? (
+                U5 任务 4.1：创建工作区同样**保留**它（delta「主工作区显示单列表单且运行导航保留」）。
+                U7 5.8：比较页窄窗默认收起（navShowing 已按视图分流）。 */}
+            {navShowing ? (
               <RunList
                 width={layout.navWidth}
                 onWidth={layout.setNavWidth}
@@ -158,9 +174,9 @@ export default function App() {
               />
             ) : null}
             {navReplacesWorkspace ? null : view === "compare" ? (
-              // U7 任务 4.12：比较工作区（双运行 + 编辑证据 + 步骤目录）。
-              // 运行导航保留（与创建页同一纪律）；窄窗收起归 §5.8。
-              <CompareWorkspace />
+              // U7 任务 4.12：比较工作区（双运行 + 编辑证据 + 步骤目录 + 指标表）。
+              // U7 5.8：正文容器宽度决定并排/上下排列（窄窗上下排列且标题重复）。
+              <CompareWorkspace stacked={compareBodyLayout === "stacked"} />
             ) : view === "create" ? (
               // 创建 = 主工作区的一个页面（不是覆盖模态）：切运行、去设置、读文件都不被它挡住。
               // 就近的「运行配置」入口复用 App 的开设置通道（组件不自建第二份设置状态）。

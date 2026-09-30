@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  COMPARE_STACK_THRESHOLD,
   type ComparePair,
+  decideCompareBodyLayout,
+  decideCompareNavVisible,
   decideCompareWithParent,
   decideManualPair,
   decidePairSideEdit,
@@ -97,5 +100,41 @@ describe("U7 2.5 手动集合的加入顺序", () => {
     });
     expect(decideManualPair([])).toEqual({ kind: "none", reason: "needs-two" });
     expect(decideManualPair(["a"])).toEqual({ kind: "none", reason: "needs-two" });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// U7 任务 5.8：宽度适配与导航状态恢复（design D6）
+// ---------------------------------------------------------------------------
+
+describe("5.8 正文宽度适配与比较页导航可见性", () => {
+  it("正文容器 ≥ 960 ⇒ 并排；< 960 ⇒ 上下排列（阈值按容器宽度，不是整窗）", () => {
+    expect(decideCompareBodyLayout(960)).toBe("side-by-side");
+    expect(decideCompareBodyLayout(959)).toBe("stacked");
+    expect(COMPARE_STACK_THRESHOLD).toBe(960);
+  });
+
+  it("比较页窄窗（narrow/single）默认收起导航；wide/medium 沿用用户当前状态", () => {
+    expect(
+      decideCompareNavVisible({ view: "compare", breakpoint: "narrow", navVisible: true }),
+    ).toBe(false);
+    expect(
+      decideCompareNavVisible({ view: "compare", breakpoint: "single", navVisible: true }),
+    ).toBe(false);
+    expect(
+      decideCompareNavVisible({ view: "compare", breakpoint: "wide", navVisible: true }),
+    ).toBe(true);
+    expect(
+      decideCompareNavVisible({ view: "compare", breakpoint: "medium", navVisible: false }),
+    ).toBe(false);
+  });
+
+  it("非比较视图原样透传（退出比较即恢复用户原导航状态，不改偏好）", () => {
+    expect(decideCompareNavVisible({ view: "trace", breakpoint: "narrow", navVisible: true })).toBe(
+      true,
+    );
+    expect(decideCompareNavVisible({ view: "create", breakpoint: "wide", navVisible: false })).toBe(
+      false,
+    );
   });
 });

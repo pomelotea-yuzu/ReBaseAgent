@@ -96,6 +96,11 @@ export type EvidenceViewData =
 export interface CompareWorkspaceViewProps {
   readonly pair: { readonly leftRunId: string; readonly rightRunId: string };
   readonly loading: boolean;
+  /**
+   * U7 5.8：正文容器宽度不足阈值 ⇒ 上下排列（对象标题随每列头部自然重复）；
+   * 足够 ⇒ 并排两列独立滚动。判据由容器/外壳按**正文容器宽度**算（design D6）。
+   */
+  readonly stacked: boolean;
   readonly left: CompareSideViewData;
   readonly right: CompareSideViewData;
   /** 容器派生的只读 diff 门禁（deriveCompareDiffGate） */
@@ -584,6 +589,7 @@ export function SideStepsSection({
 export function CompareWorkspaceView({
   pair,
   loading,
+  stacked,
   left,
   right,
   diffGate,
@@ -659,7 +665,12 @@ export function CompareWorkspaceView({
           </div>{" "}
         </div>
       ) : (
-        <div className="grid flex-1 grid-cols-2 gap-2 overflow-hidden p-2">
+        <div
+          className={`grid flex-1 gap-2 overflow-hidden p-2 ${
+            stacked ? "grid-cols-1" : "grid-cols-2"
+          }`}
+          data-stacked={stacked ? "true" : undefined}
+        >
           {[left, right].map((side) => (
             <div
               key={side.side}

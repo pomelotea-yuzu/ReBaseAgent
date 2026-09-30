@@ -37,7 +37,7 @@ import type { CompareSideViewData, EvidenceViewData } from "./CompareWorkspaceVi
  * 只读纪律：整条路径零执行通道、零草稿/授权变更（scenario「比较全程只读且
  * 不恢复许可」）；容器不消费比较结论做导航真相源——打开单侧走 runs:get。
  */
-export function CompareWorkspace() {
+export function CompareWorkspace({ stacked = false }: { stacked?: boolean } = {}) {
   const comparePair = useAppStore((s) => s.comparePair);
   const compareRead = useAppStore((s) => s.compareRead);
   const stepSelection = useAppStore((s) => s.compareStepSelection);
@@ -336,6 +336,7 @@ export function CompareWorkspace() {
     <CompareWorkspaceView
       pair={comparePair}
       loading={compareRead.request !== null}
+      stacked={stacked}
       left={leftData}
       right={rightData}
       diffGate={diffGate}

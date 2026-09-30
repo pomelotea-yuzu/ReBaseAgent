@@ -447,6 +447,7 @@ describe("CompareWorkspaceView：整体形态", () => {
   const baseProps = {
     pair: { leftRunId: "r_l", rightRunId: "r_r" },
     loading: false,
+    stacked: false,
     left,
     right,
     diffMode: false,
@@ -524,6 +525,7 @@ describe("5.1 会话短 ID：比较标题与完整 ID 复制", () => {
   const baseProps = {
     pair: { leftRunId: "r_left_side_0001", rightRunId: "r_right_side_0002" },
     loading: false,
+    stacked: false,
     left,
     right,
     diffMode: false,
@@ -632,6 +634,7 @@ describe("5.6/5.7 单侧文件入口", () => {
         onToggleDiffMode={vi.fn()}
         onSwap={vi.fn()}
         onReturn={vi.fn()}
+        stacked={false}
         onOpenRun={vi.fn()}
         evidence={{ kind: "unavailable", reason: "尚无可核对两侧的比较结论" }}
       />,
@@ -665,6 +668,7 @@ describe("5.6/5.7 单侧文件入口", () => {
         onToggleDiffMode={vi.fn()}
         onSwap={vi.fn()}
         onReturn={vi.fn()}
+        stacked={false}
         onOpenRun={vi.fn()}
         evidence={{ kind: "unavailable", reason: "尚无可核对两侧的比较结论" }}
       />,
@@ -681,6 +685,7 @@ describe("5.11/5.15 模型实验比较区", () => {
   it("eligible：批次身份 + 相对父累计增量 + 无臂间结论恒定说明 + 副作用放行说明", () => {
     const html = renderToStaticMarkup(
       <EditEvidenceSection
+        stacked={false}
         onOpenRun={vi.fn()}
         data={{
           kind: "experiment",
@@ -711,6 +716,7 @@ describe("5.11/5.15 模型实验比较区", () => {
   it("ineligible：受控原因 + 各记录单独打开入口（不恢复资格措辞）", () => {
     const html = renderToStaticMarkup(
       <EditEvidenceSection
+        stacked={false}
         onOpenRun={vi.fn()}
         data={{
           kind: "experiment",
@@ -732,5 +738,58 @@ describe("5.11/5.15 模型实验比较区", () => {
     expect(html).toContain("不能退回普通比较绕过实验资格");
     expect(html).toContain('aria-label="打开记录 r_a1"');
     expect(html).toContain("不恢复实验资格、不产生执行授权");
+  });
+});
+
+describe("5.8 宽度适配：并排 / 上下排列", () => {
+  const left = okSide("left", "r_l", [stepSpan("s_01"), llmSpan("c_01", { content: "左侧正文" })]);
+  const right = okSide("right", "r_r", [
+    stepSpan("s_01"),
+    llmSpan("c_01", { content: "右侧正文" }),
+  ]);
+  const props = {
+    pair: { leftRunId: "r_l", rightRunId: "r_r" },
+    loading: false,
+    stacked: false,
+    left,
+    right,
+    diffMode: false,
+    onToggleDiffMode: vi.fn(),
+    onSwap: vi.fn(),
+    onReturn: vi.fn(),
+    onOpenRun: vi.fn(),
+    evidence: {
+      kind: "unavailable",
+      reason: "尚无可核对两侧的比较结论",
+    } as EvidenceViewData,
+  };
+
+  it("宽容器 ⇒ 并排两列（grid-cols-2）", () => {
+    const html = renderToStaticMarkup(
+      <CompareWorkspaceView
+        {...props}
+        stacked={false}
+        diffGate={{ status: "unavailable", reason: "不可用" }}
+      />,
+    );
+    expect(html).toContain("grid-cols-2");
+    expect(html).not.toContain('data-stacked="true"');
+  });
+
+  it("窄容器 ⇒ 上下排列（grid-cols-1）且对象标题重复（每列自带标题区）", () => {
+    const html = renderToStaticMarkup(
+      <CompareWorkspaceView
+        {...props}
+        stacked={true}
+        diffGate={{ status: "unavailable", reason: "不可用" }}
+      />,
+    );
+    expect(html).toContain("grid-cols-1");
+    expect(html).toContain('data-stacked="true"');
+    // 上下排列时标题随每列头部重复：左右两侧的标题区与身份都在
+    expect(html).toContain("左列");
+    expect(html).toContain("右列");
+    expect(html).toContain('aria-label="复制完整 ID r_l"');
+    expect(html).toContain('aria-label="复制完整 ID r_r"');
   });
 });
