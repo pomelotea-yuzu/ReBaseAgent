@@ -84,7 +84,15 @@ function RecordingWorkspaceConnected({
         applying={applying}
         applyError={applyError}
         onField={writeRecordingDraftFields}
-        onApply={() => void applyRecordingDraft()}
+        onApply={() => {
+          void applyRecordingDraft().then(() => {
+            // U8 6.11 实机坐实：应用在飞期间按钮禁用 ⇒ 焦点落 body 且完成后不自动回位
+            // （键盘流程「所有步骤有可见焦点」断点）——完成后回焦应用按钮（幂等无害）。
+            requestAnimationFrame(() => {
+              document.querySelector<HTMLElement>("[data-recording-apply]")?.focus();
+            });
+          });
+        }}
         onDiscard={(expectedRevision) => {
           const snapshot = useAppStore.getState().recordingDraft;
           if (snapshot === null) return;

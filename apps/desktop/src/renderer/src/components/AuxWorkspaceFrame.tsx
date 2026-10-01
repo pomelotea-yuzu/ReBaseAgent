@@ -31,7 +31,14 @@ export function AuxWorkspaceFrame({
   readonly children: ReactNode;
 }): ReactNode {
   return (
-    <section className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-y-auto bg-white">
+    <section
+      className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-y-auto bg-white"
+      // U8 6.11 实机坐实（场景「键盘完成录制到重发闭环」THEN「返回有效来源焦点」）：
+      // 「返回来源」后焦点落回本容器（不落 body）——store 的 returnToAuxSource 统一回焦，
+      // 锚点即此属性（U7 5.9 返回比较的 data-compare-primary 同款）。
+      data-aux-frame="true"
+      tabIndex={-1}
+    >
       <div className="border-b border-gray-200 px-4 py-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h1 className="text-reading-body font-semibold text-gray-900">{title}</h1>

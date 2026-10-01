@@ -3170,6 +3170,15 @@ export const useAppStore = create<AppState>((set, get) => ({
     const target = decision.kind === "restore" ? decision.location.view : decision.view;
     noteReadingChanged();
     set({ view: target });
+    // U8 6.11 实机坐实：辅助工作区「返回来源」后焦点落回工作区主容器（不落 body）——
+    // 场景 THEN「返回有效来源焦点」；U7 5.9「返回比较」的 data-compare-primary 同款。
+    // 返回目标是主工作区视图（trace 等）时落回 main（App 侧 tabIndex=-1）。
+    requestAnimationFrame(() => {
+      (
+        document.querySelector<HTMLElement>("[data-aux-frame]") ??
+        document.querySelector<HTMLElement>("main")
+      )?.focus();
+    });
     if (decision.kind !== "restore" || decision.location.runId === null) return;
     await restoreReadingLocation(decision.location);
   },

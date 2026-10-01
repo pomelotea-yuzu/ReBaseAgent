@@ -182,3 +182,56 @@ describe("U8 1.4：外壳接线契约（源码级——组件测试覆盖不到�
     expect(APP_SRC).toContain("<RunActionsBar />");
   });
 });
+
+describe("U8 6.11：键盘闭环的焦点回位接线（实机坐实补齐）", () => {
+  const FRAME_SRC = stripComments(
+    readFileSync(
+      resolve(import.meta.dirname, "../src/renderer/src/components/AuxWorkspaceFrame.tsx"),
+      "utf8",
+    ),
+  );
+  const STORE_SRC = stripComments(
+    readFileSync(resolve(import.meta.dirname, "../src/renderer/src/store.ts"), "utf8"),
+  );
+  const RECORDING_SRC = stripComments(
+    readFileSync(
+      resolve(import.meta.dirname, "../src/renderer/src/components/RecordingWorkspace.tsx"),
+      "utf8",
+    ),
+  );
+
+  it("辅助工作区主容器带 data-aux-frame 焦点锚点（真实可聚焦容器，不是说明文字）", () => {
+    const html = renderToStaticMarkup(
+      <AuxWorkspaceFrame
+        title="录制接入"
+        description="d"
+        targetLine={null}
+        returnAvailable={true}
+        onReturn={() => {}}
+      >
+        body
+      </AuxWorkspaceFrame>,
+    );
+    expect(html).toContain('data-aux-frame="true"');
+    expect(html).toContain('tabindex="-1"');
+  });
+
+  it("returnToAuxSource 返回后焦点落回辅助工作区主容器（场景「返回有效来源焦点」）", () => {
+    const start = STORE_SRC.indexOf("async returnToAuxSource(");
+    expect(start).toBeGreaterThan(-1);
+    const body = STORE_SRC.slice(start, STORE_SRC.indexOf("\n  },", start));
+    expect(body).toContain('document.querySelector<HTMLElement>("[data-aux-frame]")');
+    expect(body).toContain('document.querySelector<HTMLElement>("main")');
+    expect(body).toContain("?.focus()");
+  });
+
+  it("录制应用完成后焦点回到应用按钮（应用在飞禁用期焦点落 body 的回位）", () => {
+    const start = RECORDING_SRC.indexOf("onApply={() => {");
+    expect(start).toBeGreaterThan(-1);
+    const body = RECORDING_SRC.slice(start, RECORDING_SRC.indexOf("}}", start));
+    expect(body).toContain("applyRecordingDraft()");
+    expect(body).toContain(
+      'document.querySelector<HTMLElement>("[data-recording-apply]")?.focus()',
+    );
+  });
+});

@@ -146,6 +146,9 @@ export default function App() {
           不把 <main> 撑高 → 左列表不再随右侧详情一起整页移动 */}
       <main
         className="relative flex min-h-0 flex-1 overflow-hidden"
+        // U8 6.11：返回来源的目标是主工作区视图（trace 等）时，焦点落回 main 容器
+        // （不落 body——场景「返回有效来源焦点」）；辅助工作区目标由 data-aux-frame 承接。
+        tabIndex={-1}
         onKeyDown={(event) => {
           if (event.key !== "Escape" || event.defaultPrevented) return;
           if (navReplacesWorkspace) {
