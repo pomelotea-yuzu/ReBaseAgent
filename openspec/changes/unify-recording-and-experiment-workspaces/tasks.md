@@ -48,11 +48,11 @@
 
 ## 5. messages 工作区
 
-- [ ] 5.1 提取完整 JSON 编辑器和原值阅读到主工作区，保持精确草稿键/原始文本/Monaco 加载，以对应场景的定向状态/组件测试验证（对应“messages 工作区恢复完整非法文本”“未修改禁用”“SDK run 无此入口”）。
-- [ ] 5.2 接运行、来源和凭据重验及就近录制入口，覆盖停止但 hasKey=true 与 main 重启，不回读或借用模型 key，以对应场景的定向状态/组件测试验证（对应“缺凭据转录制再返回精确编辑”“停用代理仍有凭据不能重发”“未捕获 key”“重启后凭据失效历史仍可读”）。
-- [ ] 5.3 接已有检查/费用确认/提交身份，明确单请求而非外部工具续跑，实际请求仍由 main 裁决，以对应场景的定向状态/组件测试验证（对应“messages 确认仍是单请求”“编辑并重发成功”）。
-- [ ] 5.4 接结果打开/失败定位/只读重试和返回编辑，失败或 unknown 保留输入，源 trace 不变，以对应场景的定向状态/组件测试验证（对应“messages 失败定位与返回不丢草稿”）。
-- [ ] 5.5 回归主动重发与被动录制交错及录制写入失败，不借外部请求 ID；确认迁移未增加执行通道，以对应场景的定向状态/组件测试验证（对应“主动重发结果不借被动记录”）。
+- [x] 5.1 提取完整 JSON 编辑器和原值阅读到主工作区，保持精确草稿键/原始文本/Monaco 加载，以对应场景的定向状态/组件测试验证（对应“messages 工作区恢复完整非法文本”“未修改禁用”“SDK run 无此入口”）。（注记 2026-10-01：5.1a MessagesForkEditor 逐字提取独立文件（脚本切取+自证）；5.1b messagesSource 四态 + readMessagesSource（与 experimentSource 同判据）+ MessagesWorkspace 挂载（目标 span 缺席如实呈现/只读重试）；DetailPanel 挂载点移除改入口按钮（canResend=proxy 来源+自有调用+已封存 ⇒ SDK run 无此入口）；编辑器增 sourceExecutable 覆盖与 alwaysOpen 形态；顺手修复 3.1a 遗留破洞：prompt-messages-editor-draft 的 PROMPT 切片终点锚 ArmPlanRow 迁出后失效，改用 LlmCallDetail 锚并留痕）
+- [x] 5.2 接运行、来源和凭据重验及就近录制入口，覆盖停止但 hasKey=true 与 main 重启，不回读或借用模型 key，以对应场景的定向状态/组件测试验证（对应“缺凭据转录制再返回精确编辑”“停用代理仍有凭据不能重发”“未捕获 key”“重启后凭据失效历史仍可读”）。（注记 2026-10-01：资格链提取为纯判据 lib/messages-eligibility.ts（源 → 重验 → 监听 → key → 槽，顺序即语义；running=null 状态未知不放行）；凭据/监听类原因就近给「打开录制工作区」入口（data-messages-recording-entry；进录制再返回，草稿与目标原样保留——store 路径由 aux-workspace-store 既有用例承载）；「不借用模型 key」是结构性的：判据输入无 settings；改判留痕：execution-confirmation-store 的确认面载体拆四文件计数（3.1a/5.1a 迁出后定向回归没跑到、本轮修复）+ 资格文案迁 messages-eligibility）
+- [x] 5.3 接已有检查/费用确认/提交身份，明确单请求而非外部工具续跑，实际请求仍由 main 裁决，以对应场景的定向状态/组件测试验证（对应“messages 确认仍是单请求”“编辑并重发成功”）。（注记 2026-10-01：源码级判据——提交只走登记（channel messages + 确认凭据 + 提交快照解析）+ proxy:fork；forkAt/replayRun/modelReplayRun 零出现；单请求边界措辞出自 lib/messagesDisclosure（execution-confirmation.test.ts 既有判据承载「只重发这一个请求/不执行任何外部 Agent 的工具」）；登记口执法（assoc null ⇒ 零 IPC）；编辑并重发成功的 store 行为由 proxy-ab-entry-closure（messages 通道序列同形）/draft-closure-store（messages 收尾）既有用例承载）
+- [x] 5.4 接结果打开/失败定位/只读重试和返回编辑，失败或 unknown 保留输入，源 trace 不变，以对应场景的定向状态/组件测试验证（对应“messages 失败定位与返回不丢草稿”）。（注记 2026-10-01：新 lib/messages-results.ts（deriveMessagesResults 按 target.kind=proxy + run/span 逐字匹配圈定提交，复用 deriveOperationResultView/requestFactsLineOf）+ 纯视图 MessagesResults.tsx（逐条结果动作 + 草稿在场给「返回编辑」+ 诚实空态）+ MessagesWorkspace 挂载（动作走既有 store 口，容器零执行/写调用）；store 反证：失败提交 ⇒ 不可读只给重试、返回编辑保留）
+- [x] 5.5 回归主动重发与被动录制交错及录制写入失败，不借外部请求 ID；确认迁移未增加执行通道，以对应场景的定向状态/组件测试验证（对应“主动重发结果不借被动记录”）。（注记 2026-10-01：deriveMessagesResults 只按登记 target 圈定 ⇒ 被动记录结构上进不了结果区；store 反证：被动录制与重发新 run 并存 ⇒ 只呈现登记可信 ID；迁移未增加执行通道——容器源码级断言 proxyFork/forkRun/createRun/modelAb/proxyToggle 零出现；main 侧「录制写入失败不借被动 run」由 exec-prompt-proxy 既有两支承载）
 
 ## 6. 证据与实机
 

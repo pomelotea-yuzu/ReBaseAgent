@@ -38,11 +38,11 @@
 | n | 场景 | 保留/新 | 任务 | 单元/契约证据 | 实机入口/批次 | 状态 |
 |---|---|---|---|---|---|---|
 | 8 | 编辑并重发成功 | 保留 | 5.3 | `exec-prompt-proxy.test.ts › 成功：登记身份 = 本次 fork 返回的 id，目标只带定位事实不带 messages` + `controlled-proxy.test.ts › 外部非流式请求 JSON 直通 + 编辑 messages 分叉按 stream:true 重发：受控日志两种模式、fork run 落盘、父不改写` | 6.9 实机 | 待验证 |
-| 9 | 未修改禁用 | 保留 | 5.1 | `exec-prompt-proxy.test.ts › PROXY_* 拒绝（未捕获 key / 空 fork）：settled + 原稳定码 + 零身份，且重复不重试消费`（main 空 fork 防线）；渲染层禁用判据 5.1 落地后补 | 6.9 实机 | 待验证 |
-| 10 | 未捕获 key | 保留 | 5.2 | `exec-prompt-proxy.test.ts › PROXY_* 拒绝（未捕获 key / 空 fork）：settled + 原稳定码 + 零身份，且重复不重试消费` | 6.9 实机 | 待验证 |
-| 11 | SDK run 无此入口 | 保留 | 1.4, 5.1 | 1.4/5.1 落地后补（入口接线源码级契约） | 6.12 实机 | 待验证 |
-| 12 | 停用代理仍有凭据不能重发 | 新 | 5.2, 6.5 | main 事实：`fork` 以 lastKey 与 handler 双条件拒绝（proxy-manager.ts L169–176，review 已核实）；5.2 落地后补 UI 判据 | 6.5 反证 + 6.9 实机 | 待验证 |
-| 13 | 主动重发结果不借被动记录 | 新 | 5.5, 6.2, 6.9 | `exec-prompt-proxy.test.ts › 重发等待期间被动录制落盘 ⇒ 登记只认本次 fork 的 id，不借用被动 run` + `exec-prompt-proxy.test.ts › 本次录制写入失败 ⇒ 明确失败且不借用在场被动 run 的 id` | 6.2 标本 + 6.9 实机 | 待验证 |
+| 9 | 未修改禁用 | 保留 | 5.1 | `exec-prompt-proxy.test.ts › PROXY_* 拒绝（未捕获 key / 空 fork）：settled + 原稳定码 + 零身份，且重复不重试消费`（main 空 fork 防线） + `prompt-messages-editor-draft.test.ts › U8 5.1b：工作区形态参数在场（目标作用域源可用性覆盖 + 常开无收起）`（unchanged 禁用判据随编辑器迁工作区原样继承） | 6.9 实机 | 待验证 |
+| 10 | 未捕获 key | 保留 | 5.2 | `exec-prompt-proxy.test.ts › PROXY_* 拒绝（未捕获 key / 空 fork）：settled + 原稳定码 + 零身份，且重复不重试消费` + `messages-eligibility.test.ts › 「未捕获 key」：running 正常但 hasKey=false ⇒ 提示先把应用经代理跑一次` + `execution-confirmation.test.ts › messages 未捕获 key ⇒ 事实里就写「本次无法重发」，不等提交才发现` | 6.9 实机 | 待验证 |
+| 11 | SDK run 无此入口 | 保留 | 1.4, 5.1 | `prompt-messages-editor-draft.test.ts › DetailPanel 不再挂载编辑器；入口按 canResend 给出（SDK run 无此入口）`——canResend = proxy 来源 + 自有调用 + 已封存 | 6.12 实机 | 待验证 |
+| 12 | 停用代理仍有凭据不能重发 | 新 | 5.2, 6.5 | main 事实：`fork` 以 lastKey 与 handler 双条件拒绝（proxy-manager.ts L169–176，review 已核实） + `messages-eligibility.test.ts › 「停用代理仍有凭据不能重发」：running=false 且 hasKey=true ⇒ 仍被监听检查挡住（顺序有牙）` + `messages-eligibility.test.ts › 状态未知（running=null）不能按「可能在跑」放行` | 6.5 反证 + 6.9 实机 | 待验证 |
+| 13 | 主动重发结果不借被动记录 | 新 | 5.5, 6.2, 6.9 | `exec-prompt-proxy.test.ts › 重发等待期间被动录制落盘 ⇒ 登记只认本次 fork 的 id，不借用被动 run` + `exec-prompt-proxy.test.ts › 本次录制写入失败 ⇒ 明确失败且不借用在场被动 run 的 id` + `messages-results.test.ts › 列表里被动录制与重发的新 run 并存 ⇒ 结果区只呈现登记的可信 ID（不从列表/目录猜）`（工作区层：deriveMessagesResults 只按 target.kind=proxy + run/span 逐字匹配圈定） + `messages-results.test.ts › 结果区不自建执行/写通道；呈现层不摸草稿正文与凭据` | 6.2 标本 + 6.9 实机 | 待验证 |
 
 ### DU3. 设置往返保留编辑并真实反馈配置结果（MODIFIED，8 场景）
 
@@ -73,7 +73,7 @@
 |---|---|---|---|---|---|---|
 | 27 | 查看代理记录保留选择和搜索 | 新 | 2.9 | 2.9 落地后补 | 6.6 实机 | 待验证 |
 | 28 | 录制刷新只读且错误可重试 | 新 | 2.9, 6.6 | adjacent：`entry-gate.test.ts › 读取、关闭与回读不被门禁锁掉（spec：settings:get / proxy:status 仍可用）`；2.9 落地后补 | 6.6 实机 | 待验证 |
-| 29 | 重启后凭据失效历史仍可读 | 新 | 5.2 | main 事实：代理 key 仅内存暂存（重启即失）；5.2 落地后补 | 6.9 实机 | 待验证 |
+| 29 | 重启后凭据失效历史仍可读 | 新 | 5.2 | main 事实：代理 key 仅内存暂存（重启即失） + `aux-workspace-store.test.ts › 只读 runs:get：读到目标详情，不改选中项、不切视图、不动阅读代次`（源读取与历史阅读不依赖凭据；重发资格由 messages-eligibility 的 running/hasKey 判据单独挡） | 6.9 实机 | 待验证 |
 | 30 | 录制状态不冒充接入验证 | 新 | 2.8 | ProxyState 契约事实：仅 enabled/running/port/upstreamBaseUrl/hasKey 五字段（shared/ipc.ts L474–483，review 已核实）；2.8 落地后补 | 6.6 实机 | 待验证 |
 | 31 | 停止服务不称取消运行 | 新 | 2.7 | 2.7 落地后补 | 6.6 实机 | 待验证 |
 
@@ -102,10 +102,10 @@
 
 | n | 场景 | 保留/新 | 任务 | 单元/契约证据 | 实机入口/批次 | 状态 |
 |---|---|---|---|---|---|---|
-| 43 | messages 工作区恢复完整非法文本 | 新 | 1.5, 5.1 | `prompt-messages-editor-draft.test.ts › messages 草稿：非法 JSON 与空输入原样暂存（不 format / 不 trim / 不替换）` + `debugging-drafts.test.ts › 空串、仅空白、末尾空白与换行逐字保留（不 trim）`（迁移后复核） | 6.9 实机 | 待验证 |
-| 44 | 缺凭据转录制再返回精确编辑 | 新 | 1.3, 5.2, 6.9 | 5.2 落地后补（录制↔messages 返回路径为新接线） | 6.9 实机 | 待验证 |
-| 45 | messages 确认仍是单请求 | 新 | 5.3, 6.9 | `proxy.test.ts › 全链路：经代理录制 → key 捕获 → 编辑 messages 分叉 → fork run 落盘` + `exec-prompt-proxy.test.ts › 同 ID 重复 ⇒ 代理只被调用一次；running 期间的重复只等不二次调用` | 6.9 实机 | 待验证 |
-| 46 | messages 失败定位与返回不丢草稿 | 新 | 5.4, 6.9 | `draft-closure-store.test.ts › 运行 error / 中止 / 不可读 ⇒ 草稿逐字保留，关联留着等下一次核实` | 6.9 实机 | 待验证 |
+| 43 | messages 工作区恢复完整非法文本 | 新 | 1.5, 5.1 | `prompt-messages-editor-draft.test.ts › messages 草稿：非法 JSON 与空输入原样暂存（不 format / 不 trim / 不替换）` + `debugging-drafts.test.ts › 空串、仅空白、末尾空白与换行逐字保留（不 trim）` + `aux-workspace-store.test.ts › messages 草稿 ⇒ 进入 messages 工作区；草稿正文原样留在仓库（路由不触碰内容）`（迁移后复核） | 6.9 实机 | 待验证 |
+| 44 | 缺凭据转录制再返回精确编辑 | 新 | 1.3, 5.2, 6.9 | `aux-workspace-store.test.ts › 从 messages 进录制 ⇒ 录制来源记 messages 视图；返回录制来源 ⇒ 回到 messages`（store 路径） + `messages-eligibility.test.ts › 「未捕获 key」：running 正常但 hasKey=false ⇒ 提示先把应用经代理跑一次`（recordingEntry=true ⇒ 就近「打开录制工作区」入口，源码级 `data-messages-recording-entry` 在 MessagesForkEditor） | 6.9 实机 | 待验证 |
+| 45 | messages 确认仍是单请求 | 新 | 5.3, 6.9 | `proxy.test.ts › 全链路：经代理录制 → key 捕获 → 编辑 messages 分叉 → fork run 落盘` + `exec-prompt-proxy.test.ts › 同 ID 重复 ⇒ 代理只被调用一次；running 期间的重复只等不二次调用` + `execution-confirmation.test.ts › messages：只重发这一个请求，不执行外部工具、不恢复其工作区` + `prompt-messages-editor-draft.test.ts › U8 5.3：提交只走登记 + proxy:fork；确认凭据绑定提交；无第二执行通道` | 6.9 实机 | 待验证 |
+| 46 | messages 失败定位与返回不丢草稿 | 新 | 5.4, 6.9 | `draft-closure-store.test.ts › 运行 error / 中止 / 不可读 ⇒ 草稿逐字保留，关联留着等下一次核实` + `messages-results.test.ts › 提交失败后读取项不可读只给重试，草稿在场 ⇒ 返回编辑入口保留（失败不丢输入）` + `messages-results.test.ts › MessagesWorkspace 接线：deriveMessagesResults 按目标圈定，动作走既有 store 口` | 6.9 实机 | 待验证 |
 
 ### DU9. 辅助工作区在窄窗与键盘下保持连续流程（ADDED，5 场景）
 
