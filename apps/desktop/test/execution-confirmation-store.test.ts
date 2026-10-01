@@ -179,7 +179,15 @@ describe("4.4 接线契约：确认判据只有一份", () => {
     // 缺陷形状：组件只订阅了 ready/arm 的**函数引用**（useAppStore((s) => s.executionConfirmationReady)），
     // armExecutionConfirmation 落库后不触发重渲染 ⇒ 五个入口的确认按钮永远停在未确认态。
     // 修正形状：confirmed 一律在 useAppStore 选择器内现算（订阅返回的布尔值本身）。
-    for (const name of ["components/CreateRunWorkspace.tsx", "components/DetailPanel.tsx"]) {
+    // ⚠️ U8 5.1a 改判留痕（2026-10-01）：确认面随载体迁移拆到四个文件——
+    // result/prompt 仍在 DetailPanel；A-B 自 3.1a 起在 ModelAbEditor.tsx；
+    // messages 自 5.1a 起在 MessagesForkEditor.tsx。判据不变：每个入口的选择器内现算。
+    for (const name of [
+      "components/CreateRunWorkspace.tsx",
+      "components/DetailPanel.tsx",
+      "components/ModelAbEditor.tsx",
+      "components/MessagesForkEditor.tsx",
+    ]) {
       const flat = read(name).replace(/\s+/g, " ");
       // 旧写法（只订阅函数引用）不得复活
       expect(flat).not.toContain("useAppStore((s) => s.executionConfirmationReady);");
@@ -187,11 +195,14 @@ describe("4.4 接线契约：确认判据只有一份", () => {
     }
     const create = read("components/CreateRunWorkspace.tsx").replace(/\s+/g, " ");
     expect(create).toContain("s.executionConfirmationReady(confirmation)");
-    // DetailPanel 四处（result / prompt / messages / A-B）同修
     const panel = read("components/DetailPanel.tsx").replace(/\s+/g, " ");
-    for (const binding of ["promptBinding", "abBinding", "messagesBinding", "executionBinding"]) {
+    for (const binding of ["promptBinding", "executionBinding"]) {
       expect(panel).toContain(`s.executionConfirmationReady(${binding})`);
     }
+    const modelAbEditor = read("components/ModelAbEditor.tsx").replace(/\s+/g, " ");
+    expect(modelAbEditor).toContain("s.executionConfirmationReady(abBinding)");
+    const messagesEditor = read("components/MessagesForkEditor.tsx").replace(/\s+/g, " ");
+    expect(messagesEditor).toContain("s.executionConfirmationReady(messagesBinding)");
   });
 
   it("披露内容全部来自 lib（组件不自己拼「这次会怎样」的句子）", () => {
@@ -215,10 +226,16 @@ describe("4.4 接线契约：确认判据只有一份", () => {
 
   it("五个入口各有一处就地确认（不共用一个按钮、也不漏接）", () => {
     // U5 4.7 起 A/B 也接入：口径 4 → 5（result 普通 / result 隔离 / prompt / messages / A-B）
+    // ⚠️ U8 5.1a 改判留痕：载体迁移后按文件计数——result 两个在 DetailPanel，
+    // A-B 在 ModelAbEditor、messages 在 MessagesForkEditor、创建在 CreateRunWorkspace。
     const panel = read("components/DetailPanel.tsx");
     const create = read("components/CreateRunWorkspace.tsx");
-    expect(panel.match(/data-confirm-execution/g)?.length).toBe(5);
+    const modelAbEditor = read("components/ModelAbEditor.tsx");
+    const messagesEditor = read("components/MessagesForkEditor.tsx");
+    expect(panel.match(/data-confirm-execution/g)?.length).toBe(3);
     expect(create.match(/data-confirm-execution/g)?.length).toBe(1);
+    expect(modelAbEditor.match(/data-confirm-execution/g)?.length).toBe(1);
+    expect(messagesEditor.match(/data-confirm-execution/g)?.length).toBe(1);
   });
 
   it("隔离侧的确认按钮要求预检结论与本次授权都在场（无预检就不给确认）", () => {
@@ -255,12 +272,16 @@ describe("4.4 接线契约：确认判据只有一份", () => {
     expect(panel.slice(promptAt, panel.indexOf("</dl>", promptAt) + 900)).toContain(
       "!promptConfirmed && submitBlocked !== null",
     );
-    // messages：按"源 → 重验 → 代理 → key → 槽"顺序算出的 ineligible 直接显示
-    const msgAt = panel.indexOf("已核对，确认本次重发");
-    expect(msgAt).toBeGreaterThan(promptAt);
-    expect(panel.slice(msgAt, panel.indexOf("</dl>", msgAt) + 900)).toContain(
+    // ⚠️ U8 5.1a/5.2 改判留痕：messages 编辑器迁 MessagesForkEditor.tsx，资格原因
+    // 提取为 lib/messages-eligibility.ts 纯判据（顺序判定可单独定向测试）。
+    const msgEditor = read("components/MessagesForkEditor.tsx");
+    const msgAt = msgEditor.indexOf("已核对，确认本次重发");
+    expect(msgAt).toBeGreaterThan(-1);
+    expect(msgEditor.slice(msgAt, msgEditor.indexOf("</dl>", msgAt) + 900)).toContain(
       "!messagesConfirmed && ineligible !== null",
     );
-    expect(panel).toContain("本会话未捕获到 key：先把你的应用经代理跑一次");
+    const eligibility = read("lib/messages-eligibility.ts");
+    expect(eligibility).toContain("本会话未捕获到 key：先把你的应用经代理跑一次");
+    expect(msgEditor).toContain("deriveMessagesIneligibility({");
   });
 });

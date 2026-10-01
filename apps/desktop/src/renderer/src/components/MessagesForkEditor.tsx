@@ -6,11 +6,13 @@ import { captureCallDraftSource, revalidateCallDraftSource } from "../lib/draft-
 import { deriveEntryGate } from "../lib/entry-gate";
 import { disclosureLines, messagesDisclosure } from "../lib/execution-confirmation";
 import { prettyJson } from "../lib/format";
+import { deriveMessagesIneligibility } from "../lib/messages-eligibility";
 import { useEscapeClose } from "../lib/use-escape-close";
 import { useAppStore } from "../store";
 import { requestConfirm } from "./ConfirmDialog";
 import { DraftSourceBanner } from "./DraftSourceBanner";
 import { EntryGateNotice } from "./EntryGateNotice";
+import { FOCUS_RING } from "./IconButton";
 import { MonacoCodeEditor } from "./MonacoEditor";
 
 /**
@@ -115,20 +117,20 @@ export function MessagesForkEditor({
   const sourceBlocked = sourceVerdict?.kind === "blocked" ? sourceVerdict : null;
 
   /**
-   * U5 任务 4.6：messages 的资格原因（就近显示，不只靠禁用与悬停）。
-   * 顺序 = 谁先挡住这次重发：源记录 → 恢复重验 → 代理是否在跑 → 是否捕获到 key → 统一槽门禁。
+   * U5 任务 4.6 → U8 5.2：messages 的资格原因（就近显示，不只靠禁用与悬停）。
+   * 顺序判据提取为纯函数（lib/messages-eligibility.ts）——源记录 → 恢复重验 →
+   * 代理是否在跑 → 是否捕获到 key → 统一槽门禁；`recordingEntry` 标记该原因能否
+   * 由「打开录制工作区」就地化解（代理启停/凭据接入都在录制页完成）。
    */
-  const ineligible = !sourceExecutable
-    ? "源记录不可用：重新读取并校验通过前不能重发"
-    : sourceBlocked !== null
-      ? `来源失效，已禁止重发：${sourceBlocked.reason}`
-      : proxy?.running !== true
-        ? "本地录制代理未运行：没有可重发的 upstream"
-        : proxy?.hasKey !== true
-          ? "本会话未捕获到 key：先把你的应用经代理跑一次，再回来重发"
-          : gate.canSubmit
-            ? null
-            : gate.notice;
+  const openRecordingWorkspace = useAppStore((s) => s.openRecordingWorkspace);
+  const ineligible = deriveMessagesIneligibility({
+    sourceExecutable,
+    sourceBlockedReason: sourceBlocked?.reason ?? null,
+    proxyRunning: proxy?.running ?? null,
+    hasKey: proxy?.hasKey === true,
+    gateNotice: gate.canSubmit ? null : gate.notice,
+  });
+  const ineligibleReason = ineligible?.reason ?? null;
   const messagesBinding = currentConfirmationBinding("messages", draftKey);
   const messagesConfirmed = useAppStore((s) => s.executionConfirmationReady(messagesBinding));
 
@@ -362,7 +364,7 @@ export function MessagesForkEditor({
               modelSummary: span.request.model,
               keyCaptured: proxy?.hasKey === true,
               upstream: proxy?.running === true ? proxy.upstreamBaseUrl : null,
-              ineligible,
+              ineligible: ineligibleReason,
             }),
           ).map((row) => (
             <div key={`${row.label}-${row.value}`} className="col-span-2 grid grid-cols-subgrid">
@@ -373,7 +375,24 @@ export function MessagesForkEditor({
         </dl>
         {!messagesConfirmed && ineligible !== null ? (
           <div className="border-t border-gray-100 px-2 py-1.5 text-[11px] leading-4 text-amber-800">
-            {ineligible}
+            {ineligible.reason}
+            {/* U8 5.2：凭据/监听类原因给就近录制入口——进录制再返回，草稿与目标原样保留
+                （返回路径与目标保留由 store 的辅助工作区往返承担；旧确认不恢复） */}
+            {ineligible.recordingEntry ? (
+              <div className="mt-1">
+                <button
+                  type="button"
+                  data-messages-recording-entry
+                  onClick={openRecordingWorkspace}
+                  className={`rounded border border-sky-300 bg-sky-50 px-2 py-0.5 text-[11px] text-sky-800 hover:bg-sky-100 ${FOCUS_RING}`}
+                >
+                  打开录制工作区（启用代理 / 接入凭据）
+                </button>
+                <span className="ml-2 text-[10px] text-gray-500">
+                  返回后这份编辑草稿与目标原样保留；旧确认不恢复
+                </span>
+              </div>
+            ) : null}
           </div>
         ) : null}
       </div>
