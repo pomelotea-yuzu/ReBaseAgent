@@ -15,7 +15,7 @@
 > 逐条核对（文件存在 + 用例名在场 + 场景名逐字在 delta + 任务引用真实），含 `--selftest` 反例。
 > 标注「2.x 落地后补」的行 = 该行为尚不存在、无既有证据可引（诚实留白，不造弱用例凑数）。
 
-汇总口径：**67 条场景（保留 20 / 新 47）**，已交付 **0** 条、待验证 **67** 条、实机不成立 **0** 条（1.1 建立索引，全部待验证）
+汇总口径：**67 条场景（保留 20 / 新 47）**，已交付 **13** 条、待验证 **53** 条、实机不成立 **1** 条（行 6；6.6 实机批交付上述 13 行，2 tag / 31 检查全绿）
 
 ---
 
@@ -25,12 +25,12 @@
 
 | n | 场景 | 保留/新 | 任务 | 单元/契约证据 | 实机入口/批次 | 状态 |
 |---|---|---|---|---|---|---|
-| 1 | 启用代理 | 保留 | 1.4, 6.6 | `settings.test.ts › 无文件 → loadProxy 返回默认值；saveProxy 后可读回`（main 侧持久化；UI 迁工作区后 2.7/2.10 复核） | 6.6 实机 | 待验证 |
-| 2 | 端口占用可见 | 保留 | 2.5, 6.1, 6.6 | main 事实：`toggle` 先保存后启停、启动失败可 enabled=true/running=false（源码锚点 proxy-manager.ts L98–106，review 已核实）；2.5 落地后补分层呈现判据 | 6.1 注入 + 6.6 实机 | 待验证 |
-| 3 | key 捕获状态 | 保留 | 2.7 | `controlled-proxy.test.ts › 未捕获 key 时分叉 → PROXY_NO_KEY，且受控服务零请求（门禁在联网之前）`；2.7 落地后补状态区判据 | 6.6 实机 | 待验证 |
-| 4 | 接入地址只来自已核实监听 | 新 | 2.8, 6.3 | main 构造地址事实（proxy-manager.ts L124，review 已核实）；2.8 落地后补可复制门禁判据 | 6.3 反证 + 6.6 实机 | 待验证 |
-| 5 | 停止或未知状态撤销地址 | 新 | 2.7 | 2.7 落地后补（现无任何地址呈现代码） | 6.6 实机 | 待验证 |
-| 6 | 应用失败回读也失败保留输入 | 新 | 2.5, 6.1, 6.6 | 2.5 落地后补；main 非事务事实见 n2 | 6.1 注入 + 6.6 实机 | 待验证 |
+| 1 | 启用代理 | 保留 | 1.4, 6.6 | `settings.test.ts › 无文件 → loadProxy 返回默认值；saveProxy 后可读回`（main 侧持久化；UI 迁工作区后 2.7/2.10 复核） | 6.6 实机 | 已交付（6.6 实机） |
+| 2 | 端口占用可见 | 保留 | 2.5, 6.1, 6.6 | main 事实：`toggle` 先保存后启停、启动失败可 enabled=true/running=false（源码锚点 proxy-manager.ts L98–106，review 已核实）；2.5 落地后补分层呈现判据 | 6.1 注入 + 6.6 实机 | 已交付（6.3 反证 + 6.6 实机：PROXY_START_FAILED 分层呈现） |
+| 3 | key 捕获状态 | 保留 | 2.7 | `controlled-proxy.test.ts › 未捕获 key 时分叉 → PROXY_NO_KEY，且受控服务零请求（门禁在联网之前）`；2.7 落地后补状态区判据 | 6.6 实机 | 已交付（6.6 实机） |
+| 4 | 接入地址只来自已核实监听 | 新 | 2.8, 6.3 | main 构造地址事实（proxy-manager.ts L124，review 已核实）；2.8 落地后补可复制门禁判据 | 6.3 反证 + 6.6 实机 | 已交付（6.3 反证 + 6.6 实机） |
+| 5 | 停止或未知状态撤销地址 | 新 | 2.7 | 2.7 落地后补（现无任何地址呈现代码） | 6.6 实机 | 已交付（6.6 实机） |
+| 6 | 应用失败回读也失败保留输入 | 新 | 2.5, 6.1, 6.6 | 2.5 落地后补；main 非事务事实见 n2 | 6.1 注入 + 6.6 实机 | 实机不成立（6.1 探明：proxy:status handler 恒 ok + loadProxy 全容错 ⇒ 错误信封真机不可达；按 recording-draft-store 单元承载，6.6 探针登记） |
 | 7 | 代理应用沿用配置互斥 | 新 | 2.4, 6.6 | `config-gate.test.ts › 主动操作占槽时：save/clear 被拒、配置文件字节不变、registry 不被写入` + `entry-gate.test.ts › deriveConfigGate 与提交门禁同源：空闲放行、有操作在跑/未握手/未知都拒写` | 6.6 实机 | 待验证 |
 
 ### DU2. 代理 run 的 llm.call 可编辑 messages 重发（MODIFIED，6 场景）
@@ -54,15 +54,15 @@
 | 17 | 单向密钥与保存反馈不冒充连通 | 保留 | 6.12 | `settings-save-feedback.test.ts › 单向 key：apiKey 只要打过字就算未保存输入（它从未离开渲染层暂存）` + `settings-save-feedback.test.ts › SettingsState 的键集里**没有** apiKey：回读只含配置状态` + `settings.test.ts › 明文落盘 + apiKeyEncrypted false + encrypted false（UI 据此明示风险）` | 6.12 实机 | 待验证 |
 | 18 | 保存失败和保存后回读失败区分 | 保留 | 6.12 | `settings-save-feedback.test.ts › 「保存失败和保存后回读失败区分」：回读失败 ⇒ reread-failed，且**不把旧摘要当新配置事实**（settings 清空）` + `settings-save-feedback.test.ts › 保存失败 ⇒ save-failed，错误入 store，settings 原样（没写进去也不该动事实）` | 6.12 实机 | 待验证 |
 | 19 | 清除确认包含凭据且受槽约束 | 保留 | 6.12 | `settings-clear-confirm.test.ts › 确认文案点名保存凭据一并删除且不可恢复；走 requestConfirm 真模态` + `settings-clear-confirm.test.ts › 清除按钮受 U4 配置门禁（busy 防重入 + configGate），而「关闭/✕」不吃这把锁（查看返回可用）` | 6.12 实机 | 待验证 |
-| 20 | 录制入口保持现有代理区可达 | 保留 | 1.4, 2.10 | `settings-roundtrip-invalidate.test.ts › 「录制入口保持现有代理区可达」：全局/空态的录制入口打开独立录制工作区` + `settings-roundtrip-invalidate.test.ts › 录制入口的 GlobalBar 一跳必须走不清 section 的专用开器（6.7 实机缺陷的契约）`（⚠️ 前者在 1.4 有意改判：旧判据「定位设置代理分区、禁止 RecordingWorkspace」翻转为「打开独立录制工作区」，两边留痕；后者仍成立——录制入口不经 openSettings） | 6.6 实机 | 待验证 |
-| 21 | 设置跳转录制先处理未保存模型字段 | 新 | 2.10 | adjacent：`settings-save-feedback.test.ts › 模型字段任何一项偏离 ⇒ 脏`（dirty 判据基础；⚠️ 2.10 有意改判：代理表单已移除，"代理字段"分支删除并留痕）；`settings-roundtrip.test.ts` 的跳转先处理 dirty 用例承载就近确认 | 6.6 实机 | 待验证 |
+| 20 | 录制入口保持现有代理区可达 | 保留 | 1.4, 2.10 | `settings-roundtrip-invalidate.test.ts › 「录制入口保持现有代理区可达」：全局/空态的录制入口打开独立录制工作区` + `settings-roundtrip-invalidate.test.ts › 录制入口的 GlobalBar 一跳必须走不清 section 的专用开器（6.7 实机缺陷的契约）`（⚠️ 前者在 1.4 有意改判：旧判据「定位设置代理分区、禁止 RecordingWorkspace」翻转为「打开独立录制工作区」，两边留痕；后者仍成立——录制入口不经 openSettings） | 6.6 实机 | 已交付（6.6 实机） |
+| 21 | 设置跳转录制先处理未保存模型字段 | 新 | 2.10 | adjacent：`settings-save-feedback.test.ts › 模型字段任何一项偏离 ⇒ 脏`（dirty 判据基础；⚠️ 2.10 有意改判：代理表单已移除，"代理字段"分支删除并留痕）；`settings-roundtrip.test.ts` 的跳转先处理 dirty 用例承载就近确认 | 6.6 实机 | 已交付（6.6 实机） |
 
 ### DU4. 录制配置草稿在会话内保留并参与关闭保护（ADDED，5 场景）
 
 | n | 场景 | 保留/新 | 任务 | 单元/契约证据 | 实机入口/批次 | 状态 |
 |---|---|---|---|---|---|---|
-| 22 | 录制配置跨页恢复原始输入 | 新 | 2.1, 6.6 | adjacent：`debugging-drafts.test.ts › 非法 JSON 原样保留，不被格式化或替换为原值`（原文保留纪律）；2.1 落地后补 | 6.6 实机 | 待验证 |
-| 23 | 录制端口校验不接受部分整数 | 新 | 2.4 | main schema 事实：zod 端口 int min(1) max(65535)（review 观察项 1）；2.4 落地后补（判据核心 = 零配置写调用） | 6.6 实机 | 待验证 |
+| 22 | 录制配置跨页恢复原始输入 | 新 | 2.1, 6.6 | adjacent：`debugging-drafts.test.ts › 非法 JSON 原样保留，不被格式化或替换为原值`（原文保留纪律）；2.1 落地后补 | 6.6 实机 | 已交付（6.6 实机） |
+| 23 | 录制端口校验不接受部分整数 | 新 | 2.4 | main schema 事实：zod 端口 int min(1) max(65535)（review 观察项 1）；2.4 落地后补（判据核心 = 零配置写调用） | 6.6 实机 | 已交付（6.6 实机：UI 门禁 + 字段错误 + 原文保留；零写调用机器判据按单元） |
 | 24 | 录制放弃取消及修订竞争 | 新 | 2.2, 6.11 | adjacent（CAS 纪律同源）：`debugging-drafts.test.ts › 旧放弃确认不能删除新修订：确认后内容又变 ⇒ 拒绝删除，重新核对后才可放弃`；2.2 落地后补 | 6.11 实机 | 待验证 |
 | 25 | 录制未应用修改参与退出保护 | 新 | 2.3, 6.11, 7.1 | adjacent：`draft-close-client.test.ts › 调用类 + A/B 批次 + 创建表单的 dirty 条目计数，clean 条目不计` + `draft-close-guard.test.ts › 旧会话 dirty ⇒ 轮换置遗留标志；新会话 clean 上报不能抹掉它（空仓库不消音）`；2.3 落地后补 | 6.11 实机 | 待验证 |
 | 26 | 录制应用收尾不覆盖后来输入 | 新 | 2.6, 6.3 | adjacent（代次守卫同型）：`result-verification.test.ts › 旧代次的迟到响应整份丢弃：不覆盖新读取，也不碰其他键`；2.6 落地后补 | 6.3 反证 | 待验证 |
@@ -71,11 +71,11 @@
 
 | n | 场景 | 保留/新 | 任务 | 单元/契约证据 | 实机入口/批次 | 状态 |
 |---|---|---|---|---|---|---|
-| 27 | 查看代理记录保留选择和搜索 | 新 | 2.9 | 2.9 落地后补 | 6.6 实机 | 待验证 |
-| 28 | 录制刷新只读且错误可重试 | 新 | 2.9, 6.6 | adjacent：`entry-gate.test.ts › 读取、关闭与回读不被门禁锁掉（spec：settings:get / proxy:status 仍可用）`；2.9 落地后补 | 6.6 实机 | 待验证 |
+| 27 | 查看代理记录保留选择和搜索 | 新 | 2.9 | 2.9 落地后补 | 6.6 实机 | 已交付（6.6 实机） |
+| 28 | 录制刷新只读且错误可重试 | 新 | 2.9, 6.6 | adjacent：`entry-gate.test.ts › 读取、关闭与回读不被门禁锁掉（spec：settings:get / proxy:status 仍可用）`；2.9 落地后补 | 6.6 实机 | 已交付（6.6 只读半边；错误呈现半边实机不成立⇒单元承载） |
 | 29 | 重启后凭据失效历史仍可读 | 新 | 5.2 | main 事实：代理 key 仅内存暂存（重启即失） + `aux-workspace-store.test.ts › 只读 runs:get：读到目标详情，不改选中项、不切视图、不动阅读代次`（源读取与历史阅读不依赖凭据；重发资格由 messages-eligibility 的 running/hasKey 判据单独挡） | 6.9 实机 | 待验证 |
-| 30 | 录制状态不冒充接入验证 | 新 | 2.8 | ProxyState 契约事实：仅 enabled/running/port/upstreamBaseUrl/hasKey 五字段（shared/ipc.ts L474–483，review 已核实）；2.8 落地后补 | 6.6 实机 | 待验证 |
-| 31 | 停止服务不称取消运行 | 新 | 2.7 | 2.7 落地后补 | 6.6 实机 | 待验证 |
+| 30 | 录制状态不冒充接入验证 | 新 | 2.8 | ProxyState 契约事实：仅 enabled/running/port/upstreamBaseUrl/hasKey 五字段（shared/ipc.ts L474–483，review 已核实）；2.8 落地后补 | 6.6 实机 | 已交付（6.6 实机：状态区仅意图/监听/凭据三分事实行，无连通测试/速率字段） |
+| 31 | 停止服务不称取消运行 | 新 | 2.7 | 2.7 落地后补 | 6.6 实机 | 已交付（6.6 实机） |
 
 ### DU6. 模型实验工作区绑定父本和完整批次草稿（ADDED，5 场景）
 
