@@ -5,6 +5,7 @@ import { ok } from "@shared/ipc";
 import type { Envelope, ListRunsData, RunDetail, WindowApi } from "@shared/ipc";
 import type { OperationRecord } from "@shared/operations";
 import { beforeEach, describe, expect, it } from "vitest";
+import { deriveExperimentBatches } from "../src/renderer/src/lib/experiment-results";
 import { initialSession } from "../src/renderer/src/lib/operation-session";
 import { emptyResultReadStore, resultReadKeyOf } from "../src/renderer/src/lib/result-verification";
 import { FAKE_EPOCH, statusSnapshot } from "./helpers/operation-channels";
@@ -275,5 +276,54 @@ describe("4.5 从实验结果进入共用比较：只读往返，批次事实不
     // 实验目标没有被返回动作改写/清除（批次编辑现场不动）
     expect(after.experimentReturnLocation).toBe(locBefore);
     expect(executionChannelCalls()).toBe(0);
+  });
+});
+
+describe("4.6 跨页结束与重载恢复实验结果", () => {
+  it("重载后由登记快照恢复：批次呈现恢复、结果读取可重建、内存草稿与待定提交零补造", async () => {
+    // beforeEach 已模拟重载后的首次握手（登记快照采纳 + 自动核实）；这里核对恢复口径
+    const state = useAppStore.getState();
+    const batches = deriveExperimentBatches({
+      targetRunId: PARENT,
+      operations: state.operations.operations,
+      reads: state.resultReads,
+    });
+    expect(batches.length).toBe(1);
+    expect(batches[0]!.view.statusLabel).toBe("已收口");
+    // 重载后读取项从零开始（beforeEach 已清空）——结果读取**可重建**：显式核实即恢复
+    for (const runId of [ARM_A, ARM_B]) {
+      const entry = await useAppStore.getState().verifyRunResult({
+        epoch: FAKE_EPOCH,
+        operationId: OP_ID,
+        runId,
+      });
+      expect(entry.phase).toBe("verified");
+    }
+    expect(executionChannelCalls()).toBe(0);
+    // 不补造内存草稿：登记里有批次 ⇒ 草稿仓库的 model_ab 区仍为空；待定/收尾关联为空
+    expect(Object.keys(state.drafts.modelAb).length).toBe(0);
+    expect(Object.keys(state.draftSubmissions.byId).length).toBe(0);
+  });
+
+  it("后台结束不抢页：采纳已收口批次快照时，人在别的页面就留在别的页面（A/B 意图恒 drop）", async () => {
+    // 干净会话 + 用户摆在录制页（无选中运行）
+    useAppStore.setState({
+      operations: initialSession(),
+      resultReads: emptyResultReadStore(),
+      view: "recording",
+      selectedRunId: null,
+    });
+    calls.length = 0;
+    await useAppStore.getState().refreshOperationStatus();
+    const after = useAppStore.getState();
+    expect(after.view).toBe("recording");
+    expect(after.selectedRunId).toBeNull();
+    // 批次事实照常恢复（登记在场、臂读取项落地），只是零抢焦点零自动跳转
+    expect(after.operations.operations.some((r) => r.operationId === OP_ID)).toBe(true);
+    expect(
+      after.resultReads.byKey[
+        resultReadKeyOf({ epoch: FAKE_EPOCH, operationId: OP_ID, runId: ARM_A })
+      ]?.phase,
+    ).toBe("verified");
   });
 });
