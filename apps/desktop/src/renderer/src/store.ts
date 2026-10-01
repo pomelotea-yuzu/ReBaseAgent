@@ -2701,6 +2701,22 @@ export const useAppStore = create<AppState>((set, get) => ({
       get().openCreateWorkspace();
       return;
     }
+    // U8 任务 1.5：A/B 批次草稿的定位 = 进入实验工作区并按草稿键**显式绑定目标**
+    // （精确身份来自条目本身，不跟随侧栏选择；全局「返回草稿」经 draftLocatorOf 走同一分支）。
+    // pending 不再交给详情内的旧编辑器（§3.1 提取后工作区编辑器直接读草稿仓库）
+    if (target.field === "model_ab") {
+      set({ pendingDraftTarget: null });
+      if (target.spanId === null) return;
+      get().openExperimentWorkspace({ runId: target.runId, spanId: target.spanId });
+      return;
+    }
+    // U8 任务 1.5：messages 草稿的定位 = 进入 messages 编辑工作区（同上口径）
+    if (target.field === "messages") {
+      set({ pendingDraftTarget: null });
+      if (target.spanId === null) return;
+      get().openMessagesWorkspace({ runId: target.runId, spanId: target.spanId });
+      return;
+    }
     set({ pendingDraftTarget: target });
     if (get().selectedRunId !== target.runId) {
       await get().selectRun(target.runId);

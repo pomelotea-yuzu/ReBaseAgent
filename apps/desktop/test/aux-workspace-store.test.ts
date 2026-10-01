@@ -5,6 +5,7 @@ import type { RunRecord } from "@rebaseagent/trace-sdk";
 import { ok } from "@shared/ipc";
 import type { Envelope, ListRunsData, RunDetail, WindowApi } from "@shared/ipc";
 import { beforeEach, describe, expect, it } from "vitest";
+import { emptyCompareReadSession } from "../src/renderer/src/lib/compare-state";
 import * as draftLib from "../src/renderer/src/lib/debugging-drafts";
 import { initialSession } from "../src/renderer/src/lib/operation-session";
 import type { RunReadingState } from "../src/renderer/src/lib/reading-state";
@@ -61,6 +62,12 @@ const READING_DEFAULT: RunReadingState = {
 const calls: string[] = [];
 
 const apiStub: Record<string, unknown> = {
+  compareRuns: async (): Promise<Envelope<never>> =>
+    // 1.6 只测导航与批次事实不变式，不测比较结论：给受控失败信封即可（结论 rejected 无碍导航）
+    ({
+      ok: false,
+      error: { code: "UNUSED", message: "比较结论不在本文件断言范围" },
+    }) as unknown as Envelope<never>,
   listRuns: async (): Promise<Envelope<ListRunsData>> => {
     calls.push("runs:list");
     return ok({
@@ -113,6 +120,13 @@ beforeEach(async () => {
     messagesReturnLocation: null,
     experimentTarget: null,
     messagesTarget: null,
+    // U7 比较族复位（1.6 往返用例的现场不得跨 describe 渗漏）
+    compareIds: [],
+    compareNotice: null,
+    compareRead: emptyCompareReadSession(),
+    comparePair: null,
+    compareStepSelection: { left: null, right: null },
+    comparePrefixFolded: { left: true, right: true },
     settingsSection: null,
   });
   await useAppStore.getState().loadRuns();
@@ -306,6 +320,94 @@ describe("U8 1.3：messages→录制→返回（缺凭据转录制再返回精�
     const first = stateOf().recordingReturnLocation;
     useAppStore.getState().openRecordingWorkspace();
     expect(stateOf().recordingReturnLocation).toBe(first);
+  });
+});
+
+describe("U8 1.5：草稿定位路由到新工作区（openDraftAt）", () => {
+  it("A/B 批次草稿 ⇒ 进入实验工作区并按草稿键绑定目标；不切全局选中、不登记 pending", async () => {
+    useAppStore.setState({ selectedRunId: SOURCE });
+    await useAppStore.getState().openDraftAt({ runId: SOURCE, spanId: "s_01", field: "model_ab" });
+
+    const state = stateOf();
+    expect(state.view).toBe("experiment");
+    expect(state.experimentTarget).toEqual({ runId: SOURCE, spanId: "s_01" });
+    expect(state.pendingDraftTarget).toBeNull();
+    expect(state.selectedRunId).toBe(SOURCE);
+  });
+
+  it("messages 草稿 ⇒ 进入 messages 工作区；草稿正文原样留在仓库（路由不触碰内容）", async () => {
+    useAppStore.setState({
+      drafts: draftLib.ensureCallDraft(
+        draftLib.emptyDraftRepo(),
+        { runId: SOURCE, spanId: "s_02", field: "messages" },
+        "{ 非法 JSON 原样 }",
+      ).repo,
+    });
+    await useAppStore.getState().openDraftAt({ runId: SOURCE, spanId: "s_02", field: "messages" });
+
+    const state = stateOf();
+    expect(state.view).toBe("messages");
+    expect(state.messagesTarget).toEqual({ runId: SOURCE, spanId: "s_02" });
+    // 精确身份的正文仍在（「messages 工作区恢复完整非法文本」的仓库半边）
+    const entry = draftLib.callDraftOf(state.drafts, {
+      runId: SOURCE,
+      spanId: "s_02",
+      field: "messages",
+    });
+    expect(entry?.text).toBe("{ 非法 JSON 原样 }");
+  });
+
+  it("result/system_prompt 的定位行为不变（仍走详情内编辑器的 pending 通道）", async () => {
+    let selectedWith: string | null = null;
+    useAppStore.setState({
+      selectRun: async (id: string) => {
+        selectedWith = id;
+        useAppStore.setState({ selectedRunId: id });
+      },
+    });
+    await useAppStore
+      .getState()
+      .openDraftAt({ runId: SOURCE, spanId: "s_03", field: "system_prompt" });
+
+    expect(selectedWith).toBe(SOURCE);
+    expect(stateOf().pendingDraftTarget).toEqual({
+      runId: SOURCE,
+      spanId: "s_03",
+      field: "system_prompt",
+    });
+    expect(stateOf().view).toBe("trace");
+  });
+});
+
+describe("U8 1.6：实验工作区与比较的往返（比较拒绝和返回实验不改批次事实）", () => {
+  it("从实验进入比较 ⇒ 来源记 experiment、目标原样；返回 ⇒ 回到实验，目标与对照集合不动", async () => {
+    useAppStore.setState({
+      selectedRunId: SOURCE,
+      compareIds: [SOURCE, ELSEWHERE],
+    });
+    useAppStore.getState().openExperimentWorkspace({ runId: SOURCE, spanId: "s_01" });
+    const target = stateOf().experimentTarget;
+
+    await useAppStore.getState().openCompareWorkspace();
+
+    expect(stateOf().view).toBe("compare");
+    // 来源引用记下实验工作区（进入比较不改结果/批次事实：目标原样、集合原样）
+    expect(stateOf().compareReturnLocation).toEqual({
+      view: "experiment",
+      runId: null,
+      tab: null,
+      spanId: null,
+      file: null,
+    });
+    expect(stateOf().experimentTarget).toBe(target);
+    expect(stateOf().compareIds).toEqual([SOURCE, ELSEWHERE]);
+
+    await useAppStore.getState().returnFromCompare();
+
+    expect(stateOf().view).toBe("experiment");
+    expect(stateOf().compareReturnLocation).toBeNull();
+    expect(stateOf().experimentTarget).toBe(target);
+    expect(stateOf().compareIds).toEqual([SOURCE, ELSEWHERE]);
   });
 });
 
