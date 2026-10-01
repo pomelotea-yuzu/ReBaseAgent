@@ -13,7 +13,7 @@
 > `apps/desktop/test/` 下文件；含 `/` = 仓库相对路径）。由 `.workbuddy/u7/u7-61/verify-scenario-checklist.cjs`
 > 逐条核对（文件存在 + 用例名在场），含 `--selftest` 反例。
 
-汇总口径：**72 条场景（ADDED 41 / MODIFIED 31）**，已交付 **41** 条、待验证 **31** 条、实机不成立 **0** 条（6.4 实机 20 条 + 6.5 实机 20 条）
+汇总口径：**72 条场景（ADDED 41 / MODIFIED 31）**，已交付 **52** 条、待验证 **20** 条、实机不成立 **0** 条（6.4 实机 20 条 + 6.5 实机 20 条 + 6.6 实机 11 条 + 6.3 反证 1 条）
 
 ---
 
@@ -40,7 +40,7 @@
 | 10 | 超出对照上限 | `store.test.ts › 对照上限 4：第 5 条被拒绝并给出提示，已选集合不变` + `compare-metrics-table.test.tsx › 上限提示如实呈现（store 写下的 compareNotice）` | 6.4 实机 | 已交付（6.4 实机） |
 | 11 | 对照不足两条 | `compare-metrics.test.ts › 单条 ⇒ 表 + 「再选一条即可对照」，不判定共同祖先` + `compare-metrics.test.ts › 无结论 ⇒ empty + 空集引导` | 6.4 实机 | 已交付（6.4 实机） |
 | 12 | 分属不同根 | `compare-derive.test.ts › 分属不同根：两侧链完整且无公共 id ⇒ unrelated；两侧累计各自可读、增量差不计算` + `compare-metrics.test.ts › 链完整但无公共祖先 ⇒ 无（分属不同根），不冒充共同祖先` | 6.5 实机（不同根标本） | 已交付（6.5 实机） |
-| 13 | 父缺失导致判定不完整 | `compare-derive.test.ts › ownOnly 侧：链截断 ⇒ 判定不完整 + 该侧累计未知；完整另一侧累计照常可读` + `compare-metrics.test.ts › 父缺失 ⇒ 判定不完整（说明不是本来就不同源），不呈现为不同根` | 6.6 实机（ancestorMissing 注入） | 待验证 |
+| 13 | 父缺失导致判定不完整 | `compare-derive.test.ts › ownOnly 侧：链截断 ⇒ 判定不完整 + 该侧累计未知；完整另一侧累计照常可读` + `compare-metrics.test.ts › 父缺失 ⇒ 判定不完整（说明不是本来就不同源），不呈现为不同根` | 6.6 实机（ancestorMissing 注入） | 已交付（6.6 实机） |
 
 ### B3. 分支视口可定位当前运行并恢复阅读（ADDED，3 场景）
 
@@ -91,8 +91,8 @@
 | 32 | 无最终正文不借用祖先补全 | `overview-result.test.ts › u1-fork-child：子 run 零自有 llm.call ⇒ 不借用祖先正文（祖先的输出一个字都不出现）` + `overview.test.ts › 祖先有正文、自有段无正文 ⇒ 不借用祖先当最终输出或中间输出` | 6.5 实机 | 已交付（6.5 实机） |
 | 33 | 本次指标不累计共享前缀 | `overview-consumption-source.test.ts › 自有 span 无 timing ⇒ durationMs 为 null 保留为未知（不当成 0）` + `overview-consumption-source.test.ts › 自有 token 全为 0 ⇒ 给占位零说明，不声称实际零消费` + `overview-consumption-source.test.ts › 祖先共享前缀的 token 不进本次消耗（展示层继承 2.3 的自有过滤）` | 6.5 实机 | 已交付（6.5 实机） |
 | 34 | 来源和隔离边界保持真实 | `overview-consumption-source.test.ts › prompt fork ⇒ relation=independent，**禁止**说「共享前缀」（判据有牙）` + `overview-consumption-source.test.ts › 隔离续跑 ⇒ isolationNote 指向真实 origin.run_id 与轮末检查点，不声称改了文件` | 6.5 实机（四类分叉标本） | 已交付（6.5 实机） |
-| 35 | 非法详情不被概览绕过 | `u7-overview-ancestor-cases.test.ts › 损坏 JSON：严格失败（非 ownOnly），不产出任何可渲染载荷` + `u7-overview-ancestor-cases.test.ts › 未来版本：读取层拒绝，不降级 ownOnly` + `u7-overview-ancestor-cases.test.ts › 成环：LINEAGE_CYCLE 诊断，绝无部分概览载荷` | 6.6 实机（ancestorCorrupt/未来版本注入） | 待验证 |
-| 36 | 缺祖先概览沿用已校验自有事实 | `u7-overview-ancestor-cases.test.ts › 固定提示 + 缺失 ID：措辞唯一来源不改写，缺失祖先可点认` + `u7-overview-ancestor-cases.test.ts › 自有结局可读：stopped/completed 正常结束（不因祖先缺失变 unknown）` + `u7-overview-ancestor-cases.test.ts › 自有消耗可读且口径说明在场：沿链祖先指标未知，不补零、不推算` | 6.6 实机（ancestorMissing 注入） | 待验证 |
+| 35 | 非法详情不被概览绕过 | `u7-overview-ancestor-cases.test.ts › 损坏 JSON：严格失败（非 ownOnly），不产出任何可渲染载荷` + `u7-overview-ancestor-cases.test.ts › 未来版本：读取层拒绝，不降级 ownOnly` + `u7-overview-ancestor-cases.test.ts › 成环：LINEAGE_CYCLE 诊断，绝无部分概览载荷` | 6.6 实机（ancestorCorrupt/未来版本注入） | 已交付（6.6 实机） |
+| 36 | 缺祖先概览沿用已校验自有事实 | `u7-overview-ancestor-cases.test.ts › 固定提示 + 缺失 ID：措辞唯一来源不改写，缺失祖先可点认` + `u7-overview-ancestor-cases.test.ts › 自有结局可读：stopped/completed 正常结束（不因祖先缺失变 unknown）` + `u7-overview-ancestor-cases.test.ts › 自有消耗可读且口径说明在场：沿链祖先指标未知，不补零、不推算` | 6.6 实机（ancestorMissing 注入） | 已交付（6.6 实机） |
 
 ### DU3. 执行流程在窄窗口与键盘下连续可用（MODIFIED，3 场景）
 
@@ -100,7 +100,7 @@
 |---|---|---|---|---|
 | 37 | 长任务路径模型与结果不遮挡操作 | `focus-escape-responsive.test.ts › 操作面板 max-h 按视口比例钳制 + 横向不超 90vw` + `focus-escape-responsive.test.ts › 设置模态受 85vh 钳制并内部滚动（长表单/200% 缩放在框内滚，不撑破屏幕）` | 6.8 实机（五档宽度 + 200% 缩放） | 待验证 |
 | 38 | 创建页面键盘可离开而模态约束焦点 | `focus-escape-responsive.test.ts › 面板走共享 useEscapeClose(open, closePanel)；✕ 与 Esc 同一关闭动作`（模态约束键盘归 U5/U3 已交付实机批次；本轮 6.9 回归） | 6.9 实机（回归） | 待验证 |
-| 39 | 只读反馈和读取重试保持数据边界 | `compare-readonly.test.ts › 选中→比较→重试→指标阅读→交换→返回：只产生 runs:compare，执行/写通道零调用` + `compare-readonly.test.ts › 不清草稿、不恢复授权：比较动作零新增确认、零改动草稿与来源撤销（许可状态面）` | 6.6 实机（只读计数/哈希核对） | 待验证 |
+| 39 | 只读反馈和读取重试保持数据边界 | `compare-readonly.test.ts › 选中→比较→重试→指标阅读→交换→返回：只产生 runs:compare，执行/写通道零调用` + `compare-readonly.test.ts › 不清草稿、不恢复授权：比较动作零新增确认、零改动草稿与来源撤销（许可状态面）` | 6.6 实机（只读计数/哈希核对） | 已交付（6.6 实机） |
 
 ### DU4. 双运行工作区保留比较对象和返回位置（ADDED，5 场景）
 
@@ -116,11 +116,11 @@
 
 | n | 场景 | 单元/契约证据 | 实机入口/批次 | 状态 |
 |---|---|---|---|---|
-| 45 | 比较拒绝非法身份和错配载荷 | `compare-endpoint.test.ts › 非法 run 标识（目录穿越）整体拒绝，合法侧也一并拒绝且不建读取上下文` + `compare-endpoint.test.ts › schema 形状非法（超上限/重复/空 id/多余字段）走 INVALID_ARGUMENT 且受控文案` + `compare-read-contract.test.ts › 顺序不符拒绝：不把另一对象内容放到当前标题下` + `compare-state.test.ts › 响应与请求错配（缺一项）⇒ rejected 结论点明错配，不半截采信` | 6.3 反证（错配/越界变异）+ 6.6 实机 | 待验证 |
-| 46 | 列表完整但比较读取缺祖先 | `compare-endpoint.test.ts › 祖先缺失（ownOnly 语义）在比较中也是 ready 项：detail 自带 ownOnly 标签` + `compare-read-context.test.ts › 祖先 ENOENT 走结构化 ownOnly，detailOf 不抛；getRun 与上下文逐字同源` | 6.6 实机（ancestorMissing 注入） | 待验证 |
-| 47 | 一侧不可读保留另一侧 | `compare-endpoint.test.ts › 单侧失败不拖垮合法侧：损坏祖先与成环都逐项 unavailable，合法侧完整返回` + `compare-metrics.test.ts › 不可读列：标题只给身份与受控原因，行值显示 —（不借列表补齐、不补 0）` | 6.6 实机（ancestorCorrupt 注入） | 待验证 |
-| 48 | 快速更换交换移出不串内容 | `compare-state.test.ts › 无在飞请求时响应整份丢弃（离场/替换后的迟到响应无处落地）` + `compare-store.test.ts › 快速更换：旧响应在飞期间换对象 ⇒ 旧响应整份丢弃，不覆盖新选择集` + `compare-state.test.ts › 销毁清空全部在场事实但代次仍单调（迟到响应永不复活）` | 6.6 实机（延时注入竞速） | 待验证 |
-| 49 | 比较重试恢复必须全量重验 | `compare-store.test.ts › 重试先撤销旧结论再读取：成功后旧成功不被当成本次成功（代次单调）` + `compare-store.test.ts › 重试读到成功（祖先文件恢复）：整组重验后恢复 verified` | 6.6 实机（ancestorMissing → 恢复 → 重试） | 待验证 |
+| 45 | 比较拒绝非法身份和错配载荷 | `compare-endpoint.test.ts › 非法 run 标识（目录穿越）整体拒绝，合法侧也一并拒绝且不建读取上下文` + `compare-endpoint.test.ts › schema 形状非法（超上限/重复/空 id/多余字段）走 INVALID_ARGUMENT 且受控文案` + `compare-read-contract.test.ts › 顺序不符拒绝：不把另一对象内容放到当前标题下` + `compare-state.test.ts › 响应与请求错配（缺一项）⇒ rejected 结论点明错配，不半截采信` | 6.3 反证（错配/越界变异）+ 6.6 实机 | 已交付（6.6 实机） |
+| 46 | 列表完整但比较读取缺祖先 | `compare-endpoint.test.ts › 祖先缺失（ownOnly 语义）在比较中也是 ready 项：detail 自带 ownOnly 标签` + `compare-read-context.test.ts › 祖先 ENOENT 走结构化 ownOnly，detailOf 不抛；getRun 与上下文逐字同源` | 6.6 实机（ancestorMissing 注入） | 已交付（6.6 实机） |
+| 47 | 一侧不可读保留另一侧 | `compare-endpoint.test.ts › 单侧失败不拖垮合法侧：损坏祖先与成环都逐项 unavailable，合法侧完整返回` + `compare-metrics.test.ts › 不可读列：标题只给身份与受控原因，行值显示 —（不借列表补齐、不补 0）` | 6.6 实机（ancestorCorrupt 注入） | 已交付（6.6 实机） |
+| 48 | 快速更换交换移出不串内容 | `compare-state.test.ts › 无在飞请求时响应整份丢弃（离场/替换后的迟到响应无处落地）` + `compare-store.test.ts › 快速更换：旧响应在飞期间换对象 ⇒ 旧响应整份丢弃，不覆盖新选择集` + `compare-state.test.ts › 销毁清空全部在场事实但代次仍单调（迟到响应永不复活）` | 6.6 实机（延时注入竞速） | 已交付（6.6 实机） |
+| 49 | 比较重试恢复必须全量重验 | `compare-store.test.ts › 重试先撤销旧结论再读取：成功后旧成功不被当成本次成功（代次单调）` + `compare-store.test.ts › 重试读到成功（祖先文件恢复）：整组重验后恢复 verified` | 6.6 实机（ancestorMissing → 恢复 → 重试） | 已交付（6.6 实机） |
 
 ### DU6. 修改比较只展示可核实编辑证据（ADDED，4 场景）
 
@@ -144,7 +144,7 @@
 |---|---|---|---|---|
 | 56 | result 共享前缀保留真实边界 | `compare-source-map.test.ts › 双跳链 A→B：两段——A 段止于 B.at_span（带编辑标注），B 段为自有` + `compare-source-map.test.ts › v2 双段：父段止于 resume_after_step 子树末尾（同轮兄弟工具保留在前缀段），boundaryEdit 标注` + `compare-steps.test.ts › 折叠摘要：前缀行数、来源 run 去重、编辑清单（差异保留不隐藏）` | 6.5 实机 | 已交付（6.5 实机） |
 | 57 | 重复 span ID 与独立分支不强行对齐 | `compare-steps.test.ts › 两侧重复的 s_01 / 相同轮号：各自目录独立成行，不对齐不合并（身份 = run + span）` + `compare-store.test.ts › selectCompareStep 只动本侧——两侧重复的 span id 各归各列` | 6.5 实机（重复 ID 标本） | 已交付（6.5 实机） |
-| 58 | 缺父链仅显示自有步骤 | `compare-steps.test.ts › ownOnly 侧：prefixUnknown 如实标注，目录只含自有步骤；不推断根、不折叠未知祖先` + `compare-steps.test.ts › ownOnly 侧与完整另一侧互不影响：完整侧照常带前缀目录` | 6.6 实机（ancestorMissing 注入） | 待验证 |
+| 58 | 缺父链仅显示自有步骤 | `compare-steps.test.ts › ownOnly 侧：prefixUnknown 如实标注，目录只含自有步骤；不推断根、不折叠未知祖先` + `compare-steps.test.ts › ownOnly 侧与完整另一侧互不影响：完整侧照常带前缀目录` | 6.6 实机（ancestorMissing 注入） | 已交付（6.6 实机） |
 
 ### DU9. 比较消耗区分自有累计和未知（ADDED，2 场景）
 
@@ -166,7 +166,7 @@
 |---|---|---|---|---|
 | 63 | 窄窗和缩放仍能完整阅读 | `compare-workspace-view.test.tsx › 宽容器 ⇒ 并排两列（grid-cols-2）` + `compare-workspace-view.test.tsx › 窄容器 ⇒ 上下排列（grid-cols-1）且对象标题重复（每列自带标题区）` + `compare-navigation.test.ts › 正文容器 ≥ 960 ⇒ 并排；< 960 ⇒ 上下排列（阈值按容器宽度，不是整窗）` | 6.8 实机（1440/1360/1024/800 + 200% 缩放） | 待验证 |
 | 64 | 键盘完成比较闭环 | `compare-workspace-view.test.tsx › 动作按钮全部带 focus-visible 焦点环（键盘焦点可见）` + `compare-workspace-view.test.tsx › 在飞读取不卸载动作按钮（交换/加载/重试不把焦点甩回页顶的静态前提）` + `u7-tree-view.test.ts › 列表渲染同一数据：行带选中/打开/加入对照三动作（均为可 Tab 聚焦的 button）` | 6.9 实机（纯键盘闭环） | 待验证 |
-| 65 | 比较全程只读且不恢复许可 | `compare-readonly.test.ts › 选中→比较→重试→指标阅读→交换→返回：只产生 runs:compare，执行/写通道零调用` + `compare-readonly.test.ts › 指标表选两条（openComparePair）与更换/交换：同样零执行通道` + `compare-readonly.test.ts › 不清草稿、不恢复授权：比较动作零新增确认、零改动草稿与来源撤销（许可状态面）` | 6.3 反证（变异：任一执行通道被调用即红）+ 6.6 实机（计数/哈希） | 待验证 |
+| 65 | 比较全程只读且不恢复许可 | `compare-readonly.test.ts › 选中→比较→重试→指标阅读→交换→返回：只产生 runs:compare，执行/写通道零调用` + `compare-readonly.test.ts › 指标表选两条（openComparePair）与更换/交换：同样零执行通道` + `compare-readonly.test.ts › 不清草稿、不恢复授权：比较动作零新增确认、零改动草稿与来源撤销（许可状态面）` | 6.3 反证（变异：任一执行通道被调用即红）+ 6.6 实机（计数/哈希） | 已交付（6.6 实机） |
 
 ---
 
