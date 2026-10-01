@@ -1,3 +1,4 @@
+import type { RunDetail } from "@shared/ipc";
 import type {
   CreateReturnLocation,
   FileLocationRef,
@@ -6,6 +7,7 @@ import type {
   WorkspaceView,
 } from "./create-workspace";
 import { decideCreateEntry, decideCreateReturn } from "./create-workspace";
+import { isIsolatedRun } from "./isolated-fork";
 
 /**
  * U8（unify-recording-and-experiment-workspaces）任务 1.2：**辅助工作区目标与会话来源引用**
@@ -54,6 +56,36 @@ export function sameExperimentTarget(a: ExperimentTarget, b: ExperimentTarget): 
 
 export function sameMessagesTarget(a: MessagesTarget, b: MessagesTarget): boolean {
   return a.runId === b.runId && a.spanId === b.spanId;
+}
+
+/**
+ * 运行级「模型实验」入口的决策（U8 任务 1.4 · delta「运行入口打开明确实验目标」）。
+ *
+ * 目标 = 父 runId + **首次自有 llm.call** spanId（`detail.spans` 是自有段，第一个
+ * llm.call 就是草稿键语义里的那一次——与 `draft-source.ts` 恢复重验的「重推首次调用」
+ * 同一口径，不得跳过首次调用改用后续调用）。
+ *
+ * 三类就地禁用（给出可读理由，不给灰按钮无解释）：
+ * - 详情尚未读取（no-detail）；
+ * - 隔离运行（isolated）：与 `isIsolatedRun` 同一判据——实验门禁在 main/内核同样拒绝
+ *   隔离父本，界面只是把这件事提前说清楚，不提供降级旁路；
+ * - 无自有 llm.call（no-own-llm-call）：没有可绑定的首次调用，目标无从建立。
+ * 完整资格（非隔离、已封存、父链完整、首次 system、config/工具表）仍由 §3.2 的
+ * 来源重验与后端门禁裁决——入口可用不等于执行许可。
+ */
+export type ExperimentEntryDecision =
+  | { readonly kind: "open"; readonly target: ExperimentTarget }
+  | {
+      readonly kind: "disabled";
+      readonly reason: "no-detail" | "isolated" | "no-own-llm-call";
+    };
+
+export function decideExperimentEntry(detail: RunDetail | null): ExperimentEntryDecision {
+  if (detail === null) return { kind: "disabled", reason: "no-detail" };
+  if (isIsolatedRun(detail)) return { kind: "disabled", reason: "isolated" };
+  const firstLlm = detail.spans.find((span) => span.kind === "llm.call");
+  if (firstLlm === undefined) return { kind: "disabled", reason: "no-own-llm-call" };
+  return { kind: "open", target: { runId: detail.meta.id, spanId: firstLlm.id } };
 }
 
 /**

@@ -160,16 +160,19 @@ describe("5.3 容器接线（源码级契约）", () => {
     expect(src).toContain("revokeRef.current()");
   });
 
-  it("「录制入口保持现有代理区可达」：全局/空态的录制入口定位既有代理分区", () => {
+  it("「录制入口保持现有代理区可达」：全局/空态的录制入口打开独立录制工作区", () => {
+    // ⚠️ U8（unify-recording-and-experiment-workspaces）1.4 有意改判（2026-10-01）：
+    // 本用例旧判据是「openRecording 走 setSettingsSection("proxy") 开设置定位代理分区」，
+    // 且禁止 RecordingWorkspace 存在。delta 把本场景的 THEN 改为「打开独立录制工作区，
+    // 设置不保留第二份代理配置表单」，故判据随 1.4 翻转；设置侧跳转与移除代理表单归 2.10。
     const app = read("../src/renderer/src/App.tsx");
     const at = app.indexOf("const openRecording");
     expect(at).toBeGreaterThan(-1);
     const block = app.slice(at, at + 160);
-    expect(block).toContain('setSettingsSection("proxy")');
-    expect(block).toContain("setSettingsOpen(true)");
-    // 走的是**既有设置模态的代理分区**，不是新开的工作区/假页面
-    expect(app).not.toContain("ProxyWorkspace");
-    expect(app).not.toContain("RecordingWorkspace");
+    expect(block).toContain("openRecordingWorkspace()");
+    // 走的是**独立录制工作区**（新形态），不再定位设置模态的代理分区
+    expect(app).toContain("RecordingWorkspace");
+    expect(block).not.toContain('setSettingsSection("proxy")');
   });
 
   // U5 6.7 实机坐实的接线缺陷（「接线少一支」家族）：GlobalBar 的录制入口此前只拿到

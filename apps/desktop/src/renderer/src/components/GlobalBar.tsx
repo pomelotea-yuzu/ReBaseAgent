@@ -220,14 +220,14 @@ export function GlobalBar({
   navigation,
 }: {
   onOpenSettings: () => void;
-  /** 录制入口专用开器：**不清** `settingsSection`（常规开器会清，定位标记就到不了设置模态） */
+  /** 录制入口（U8 1.4 起）：打开**独立录制工作区**（不再是"开设置定位代理分区"） */
   onOpenRecording: () => void;
   navigation?: { visible: boolean; onToggle: () => void };
 }) {
   const openCreateWorkspace = useAppStore((s) => s.openCreateWorkspace);
   const detail = useAppStore((s) => s.detail);
 
-  /** 录制接入 = 打开设置并定位代理分区（不另建录制界面） */
+  /** 录制接入 = 打开独立录制工作区（U8 1.4；配置/状态随 §2 落地） */
   const openRecording = (): void => {
     onOpenRecording();
   };
@@ -275,7 +275,7 @@ export function GlobalBar({
         <button
           type="button"
           onClick={openRecording}
-          title="打开设置里的录制代理分区，把现有 Agent 的 base_url 指过来即可录制"
+          title="打开录制工作区，把现有 Agent 的 base_url 指过来即可录制"
           className={`inline-flex cursor-pointer items-center gap-1.5 rounded border border-gray-300 px-2 py-0.5 text-reading-meta text-gray-700 hover:bg-gray-50 ${FOCUS_RING}`}
         >
           <Waypoints size={12} aria-hidden="true" focusable="false" role="presentation" />

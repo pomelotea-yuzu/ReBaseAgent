@@ -1726,6 +1726,8 @@ function MessagesForkEditor({
     [run.meta.id, span.id],
   );
   const draftEntry = useAppStore((s) => s.callDraftOf(draftKey));
+  // U8 任务 1.4：messages 编辑工作区入口（同一草稿键；§5.1 提取编辑器到工作区）
+  const openMessagesWorkspace = useAppStore((s) => s.openMessagesWorkspace);
   // U3 任务 3.4：待定提交冻结该草稿（store 侧同时拒绝写入/放弃）
   const draftFrozen = useAppStore((s) => s.isDraftFrozen(draftKey));
   const beginDraftSubmission = useAppStore((s) => s.beginDraftSubmission);
@@ -1816,6 +1818,16 @@ function MessagesForkEditor({
           className="rounded bg-sky-600 px-2 py-1 text-[11px] text-white hover:bg-sky-700"
         >
           编辑 messages 重发
+        </button>
+        {/* U8 任务 1.4：就地编辑器之外的第二扇门通向 messages 编辑工作区（同一草稿键，
+            不是第二份表单状态）；编辑器本体随 §5.1 提取到工作区后，就地这份随之移除 */}
+        <button
+          type="button"
+          data-messages-workspace-entry
+          onClick={() => openMessagesWorkspace({ runId: run.meta.id, spanId: span.id })}
+          className="ml-2 rounded border border-sky-200 bg-sky-50 px-2 py-1 text-[11px] text-sky-900 hover:bg-sky-100"
+        >
+          在编辑工作区打开
         </button>
       </div>
     );

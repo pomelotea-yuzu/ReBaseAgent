@@ -7,10 +7,14 @@ import { ConfirmDialogHost } from "./components/ConfirmDialog";
 import { CreateRunWorkspace } from "./components/CreateRunWorkspace";
 import { DetailPanel } from "./components/DetailPanel";
 import { DraftCloseLockOverlay } from "./components/DraftCloseLockOverlay";
+import { ExperimentWorkspace } from "./components/ExperimentWorkspace";
 import { GlobalBar } from "./components/GlobalBar";
 import { FOCUS_RING } from "./components/IconButton";
+import { MessagesWorkspace } from "./components/MessagesWorkspace";
 import { OverviewPanel } from "./components/OverviewPanel";
+import { RecordingWorkspace } from "./components/RecordingWorkspace";
 import { ResultLiveRegion } from "./components/ResultLiveRegion";
+import { RunActionsBar } from "./components/RunActionsBar";
 import { RunList } from "./components/RunList";
 import { NoRunsEmpty, RunHeader, RunWorkspace, resolveVisibleTab } from "./components/RunWorkspace";
 import { SettingsDialog } from "./components/SettingsDialog";
@@ -100,10 +104,9 @@ export default function App() {
     void useAppStore.getState().ensureOperationStatusPolling();
   }, []);
 
-  /** 录制入口（全局栏 / 空态共用）：打开设置并定位到代理分区 */
+  /** 录制入口（全局栏 / 空态共用）：打开**独立录制工作区**（U8 任务 1.4；设置仅跳转归 2.10） */
   const openRecording = (): void => {
-    setSettingsSection("proxy");
-    setSettingsOpen(true);
+    useAppStore.getState().openRecordingWorkspace();
   };
 
   const openSettings = (): void => {
@@ -117,9 +120,8 @@ export default function App() {
     <div className="flex h-full flex-col">
       <GlobalBar
         onOpenSettings={openSettings}
-        // U5 6.7 实机坐实的接线缺陷修复：录制入口必须走**不清 settingsSection** 的开器——
-        // 此前 GlobalBar 只拿到 openSettings（先清 section 再开）⇒ "proxy" 标记在挂载前
-        // 就被清掉，设置模态的定位效果（滚到代理分区 + 聚焦首控件）从不发生
+        // U8 1.4：录制入口改开**独立录制工作区**（delta「代理设置…独立全局工作区，设置仅提供跳转」）；
+        // 旧实现（开设置定位代理分区）随 2.10 移除设置代理表单时一并收尾
         onOpenRecording={openRecording}
         navigation={
           view !== "tree"
@@ -185,6 +187,15 @@ export default function App() {
               // 创建 = 主工作区的一个页面（不是覆盖模态）：切运行、去设置、读文件都不被它挡住。
               // 就近的「运行配置」入口复用 App 的开设置通道（组件不自建第二份设置状态）。
               <CreateRunWorkspace onOpenSettings={openSettings} />
+            ) : view === "recording" ? (
+              // U8 任务 1.4：录制工作区（全局页；配置/状态随 §2 落地）
+              <RecordingWorkspace />
+            ) : view === "experiment" ? (
+              // U8 任务 1.4：实验工作区（目标显式绑定；臂编辑/计划随 §3 落地）
+              <ExperimentWorkspace />
+            ) : view === "messages" ? (
+              // U8 任务 1.4：messages 编辑工作区（编辑器/重发随 §5 落地）
+              <MessagesWorkspace />
             ) : empty ? (
               // 无运行时：主工作区给两个**真实可用**的入口（delta「首次打开与无运行入口」），
               // 不是展示性欢迎页。步骤目录此时本就没有内容，一并卸下。
@@ -278,6 +289,8 @@ function WorkspaceShell({ onOpenSteps }: { onOpenSteps: (() => void) | null }) {
           {/* U7 5.6：比较打开单侧后（pair 保留在 store），页头给常驻「返回比较」入口 */}
           <ReturnToCompareBar />
           <RunHeader />
+          {/* U8 任务 1.4：运行级「模型实验」入口（design D1「运行级更多操作」；资格由门禁裁决） */}
+          <RunActionsBar />
         </>
       }
     >
