@@ -151,14 +151,16 @@ export function decideCreateReturn(input: {
  * 来源引用里没有记录，也就不该被返回动作抹掉。
  */
 export function readingPatchOfLocation(
-  location: CreateReturnLocation,
+  location: Pick<CreateReturnLocation, "tab" | "spanId">,
 ): Partial<Pick<RunReadingState, "tab" | "spanId">> {
   if (location.tab === null) return {};
   return { tab: location.tab, spanId: location.spanId };
 }
 
 /** 来源位置里的文件定位片段（不是文件页来源 ⇒ null = 不补） */
-export function filePatchOfLocation(location: CreateReturnLocation): FileLocationRef | null {
+export function filePatchOfLocation(
+  location: Pick<CreateReturnLocation, "tab" | "file">,
+): FileLocationRef | null {
   if (location.tab !== "files") return null;
   return location.file;
 }
@@ -170,7 +172,7 @@ export function filePatchOfLocation(location: CreateReturnLocation): FileLocatio
  * 换了对象时不能拿它去高亮一个不属于这里的 span。
  */
 export function liveSpanOfLocation(
-  location: CreateReturnLocation,
+  location: Pick<CreateReturnLocation, "spanId">,
   detailSpanIds: readonly string[],
 ): string | null {
   if (location.spanId === null) return null;

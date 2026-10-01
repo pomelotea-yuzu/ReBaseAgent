@@ -53,6 +53,13 @@ import {
 } from "@shared/operations";
 import { create } from "zustand";
 import { api } from "./lib/api";
+import type {
+  AuxReturnLocation,
+  AuxWorkspaceView,
+  ExperimentTarget,
+  MessagesTarget,
+} from "./lib/aux-workspace";
+import { decideAuxEntry, decideAuxReturn } from "./lib/aux-workspace";
 import { deriveCompareFileEntry, isOwnStepTarget } from "./lib/compare-files";
 import {
   type ComparePair,
@@ -72,7 +79,12 @@ import {
   retryCompareRead as retryCompareReadState,
   sameCompareSelection,
 } from "./lib/compare-state";
-import type { CreateReturnLocation, SourceView, WorkspaceView } from "./lib/create-workspace";
+import type {
+  CreateReturnLocation,
+  ReadingLocationSnapshot,
+  SourceView,
+  WorkspaceView,
+} from "./lib/create-workspace";
 import {
   decideCreateEntry,
   decideCreateReturn,
@@ -315,6 +327,27 @@ interface AppState {
   createReturnLocation: CreateReturnLocation | null;
   /** 「录制接入」跳转后要高亮的设置分区（null = 常规打开设置） */
   settingsSection: "proxy" | null;
+
+  /**
+   * U8（unify-recording-and-experiment-workspaces）任务 1.2/1.3：三个辅助工作区的
+   * **来源位置引用**（判据在 `lib/aux-workspace.ts`，语义同 `createReturnLocation`）：
+   * - 只含会话内可核对的阅读位置，不含草稿正文 / 目标 / 凭据 / 授权；
+   * - 页内重复进入与设置往返（视图未变）沿用；跨视图进入重记；经 setView 离开 = 用掉；
+   * - `selectRun` 离开辅助页时**保留**（与比较页同一纪律：返回动作才消费引用）。
+   * recording 是全局页面，也留来源（可从 messages 缺凭据提示进入，返回要回得去）。
+   */
+  recordingReturnLocation: AuxReturnLocation | null;
+  experimentReturnLocation: AuxReturnLocation | null;
+  messagesReturnLocation: AuxReturnLocation | null;
+
+  /**
+   * U8 任务 1.2/1.3：辅助工作区的**显式目标**（与 U3 草稿键同形：runId + spanId）。
+   * 目标只由明确的进入动作写入（运行级菜单 / 自有代理调用入口 / 草稿列表返回）；
+   * `selectRun`（侧栏选择）**永不改写**目标——「切运行不更换实验父本」。
+   * 切换目标只有一个途径：用户对另一目标做显式进入动作。目标失效的来源重验归 3.2/5.2。
+   */
+  experimentTarget: ExperimentTarget | null;
+  messagesTarget: MessagesTarget | null;
 
   /**
    * 会话内的短 ID 长度记忆（任务 4.4）。
@@ -899,6 +932,24 @@ interface AppState {
    * 与创建草稿无关：返回不动输入内容，也不解任何冻结。
    */
   returnToCreateSource: () => Promise<void>;
+  /**
+   * U8 任务 1.3：打开录制工作区（全局页，无运行目标；空态 / 全局栏 / 设置 / 缺凭据提示共用）。
+   * 进入/沿用语义与创建页一致；已在录制页 ⇒ 什么都不动。
+   */
+  openRecordingWorkspace: () => void;
+  /**
+   * U8 任务 1.3：打开实验工作区并**显式绑定目标**（父 runId + 首次自有 llm.call spanId）。
+   * 已在实验页 ⇒ 来源沿用；换目标只能经显式进入动作（含页内对另一目标的入口点击），
+   * 侧栏选择/切运行不改目标、不换页面的编辑对象。
+   */
+  openExperimentWorkspace: (target: ExperimentTarget) => void;
+  /** U8 任务 1.3：打开 messages 工作区并显式绑定目标（代理 runId + 自有 llm.call spanId）。 */
+  openMessagesWorkspace: (target: MessagesTarget) => void;
+  /**
+   * U8 任务 1.3：返回某辅助工作区的来源位置（一次性凭据，恢复与回退都算用掉）。
+   * 来源失效（重载 / 运行已不在列表）⇒ 回退已有可用工作区并保留草稿，不伪造旧位置。
+   */
+  returnToAuxSource: (view: AuxWorkspaceView) => Promise<void>;
   /** 打开设置并定位到某分区（全局栏「录制接入」用），null = 常规打开 */
   setSettingsSection: (section: "proxy" | null) => void;
   /** 勾选/取消对照（上限 4，超出不加入并给出提示） */
@@ -1241,7 +1292,9 @@ async function enterCompareView(pair: ComparePair | null): Promise<void> {
  * 换运行 ⇒ 先把位置写成该 run 的会话阅读状态，再走 `selectRun`——它自带
  * "按详情校验 + 失效回退"，这里不重复判有效性（判了也不认）。
  */
-async function restoreReadingLocation(location: CreateReturnLocation): Promise<void> {
+async function restoreReadingLocation(
+  location: Pick<CreateReturnLocation, "runId" | "tab" | "spanId" | "file">,
+): Promise<void> {
   const { runId } = location;
   // 无运行可恢复（来源视图不承载单运行位置）⇒ 视图已恢复，无事可做
   if (runId === null) return;
@@ -1284,6 +1337,65 @@ async function restoreReadingLocation(location: CreateReturnLocation): Promise<v
     }));
   }
   await useAppStore.getState().selectRun(runId);
+}
+
+/**
+ * U8 任务 1.3：从 store 现场构造辅助工作区进入判据的快照
+ * （与 `enterCompareView` / `openCreateWorkspace` 的现场取法同一形状，不抄第二份字段挑选）。
+ */
+function auxEntrySnapshot(): ReadingLocationSnapshot {
+  const state = useAppStore.getState();
+  return {
+    view: state.view,
+    selectedRunId: state.selectedRunId,
+    reading:
+      state.view === "trace" && state.selectedRunId !== null
+        ? readingStateOf(state.readingByRun, state.selectedRunId)
+        : null,
+  };
+}
+
+/** 三个辅助工作区的来源引用与视图的对应（唯一映射，open/return 两处共用） */
+function auxLocationKey(
+  view: AuxWorkspaceView,
+): "recordingReturnLocation" | "experimentReturnLocation" | "messagesReturnLocation" {
+  return view === "recording"
+    ? "recordingReturnLocation"
+    : view === "experiment"
+      ? "experimentReturnLocation"
+      : "messagesReturnLocation";
+}
+
+/** 实验页/messages 页各自的目标状态键（recording 无目标，不进此映射） */
+function auxTargetKey(view: AuxWorkspaceView): "experimentTarget" | "messagesTarget" | null {
+  return view === "experiment" ? "experimentTarget" : view === "messages" ? "messagesTarget" : null;
+}
+
+/**
+ * U8 任务 1.3：进入辅助工作区的公共落点（录制 / 实验 / messages 共用）。
+ * - 页内重复进入：来源沿用、代次不推进（设置往返视图未变 ⇒ 同一判据覆盖）；
+ *   目标仍按本次显式请求写入（同一目标幂等；不同目标 = 用户显式换目标）；
+ * - 跨视图进入：现记来源位置 + 推进阅读代次 + 显式绑定目标；
+ * - recording 无目标：目标状态永不触碰。
+ */
+function enterAuxWorkspace(
+  view: AuxWorkspaceView,
+  target: ExperimentTarget | MessagesTarget | null,
+): void {
+  const decision = decideAuxEntry(view, auxEntrySnapshot());
+  const targetKey = auxTargetKey(view);
+  const targetPatch = target === null || targetKey === null ? {} : { [targetKey]: target };
+  if (decision.kind === "keep") {
+    useAppStore.setState(targetPatch);
+    return;
+  }
+  // 进入辅助页 = 离开原来在看的那条运行 ⇒ 撤销在飞的自动导航资格
+  noteReadingChanged();
+  useAppStore.setState({
+    view,
+    [auxLocationKey(view)]: decision.location,
+    ...targetPatch,
+  });
 }
 
 /**
@@ -1594,6 +1706,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   compareIds: [],
   compareNotice: null,
   createReturnLocation: null,
+  recordingReturnLocation: null,
+  experimentReturnLocation: null,
+  messagesReturnLocation: null,
+  experimentTarget: null,
+  messagesTarget: null,
   settingsSection: null,
   shortIdState: new ShortIdState(),
   // U3 任务 3.4：提交关联仓库（与草稿仓库分开的生命周期，见 draft-submission.ts）
@@ -1697,6 +1814,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     // 与 compareReturnLocation（「打开单侧 → 返回比较 → 再返回来源」的往返靠它们；
     // 与创建页的一次性凭据不同，来源引用只在真正返回/换视图时用掉）
     if (get().view === "compare") set({ view: "trace" });
+    // U8 1.3：辅助工作区同比较页口径——离开页面但**保留**来源引用与显式目标
+    // （「切运行不更换实验父本」：目标只能被显式进入动作替换，侧栏选择动不了它）
+    if (get().view === "recording" || get().view === "experiment" || get().view === "messages") {
+      set({ view: "trace" });
+    }
     if (get().selectedRunId === id) return;
     // U5 3.4：换"在看哪条 run"= 改变阅读对象 ⇒ 撤销在飞的自动导航资格。
     // 放在同 ID 短路**之后**：自动导航自己调用它时不会把代次白推进一次。
@@ -1837,7 +1959,12 @@ export const useAppStore = create<AppState>((set, get) => ({
       listLoaded: get().listLoaded,
       attempted: get().initialSelectionAttempted,
       // U5 任务 4.1：用户已经走进创建工作区 ⇒ 迟到的首次读取不能把他从创建页拽出来
-      userWorkspace: get().view === "create",
+      // U8 任务 1.3：三个辅助工作区同口径（迟到的自动选择不得把用户从录制/实验/messages 拽走）
+      userWorkspace:
+        get().view === "create" ||
+        get().view === "recording" ||
+        get().view === "experiment" ||
+        get().view === "messages",
     });
     if (decision.runId === null) return;
     // 先落守卫再发起请求：详情失败时 selectRun 会把错误留在该 run 上（原位可重试），
@@ -2845,7 +2972,16 @@ export const useAppStore = create<AppState>((set, get) => ({
     // ⚠️ 刻意**不清**创建草稿——离开创建保留它是 U3 的既有语义。
     // U7 2.3：比较页的来源引用同纪律（经 setView 离开 = 用掉；selectRun 打开单侧
     // 时保留，那是比较自己的往返流）
-    set({ view, createReturnLocation: null, compareReturnLocation: null });
+    // U8 1.3：三个辅助工作区的来源引用同一纪律（经 setView 离开 = 用掉；
+    // selectRun 离开时保留——目标是显式凭据，不随视图切换被抹）
+    set({
+      view,
+      createReturnLocation: null,
+      compareReturnLocation: null,
+      recordingReturnLocation: null,
+      experimentReturnLocation: null,
+      messagesReturnLocation: null,
+    });
   },
 
   openCreateWorkspace() {
@@ -2876,6 +3012,34 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
     // 一次性凭据：恢复与回退都算用掉，不存在"回到创建页再按一次返回来源"的旧位置复活
     set({ createReturnLocation: null });
+    const target = decision.kind === "restore" ? decision.location.view : decision.view;
+    noteReadingChanged();
+    set({ view: target });
+    if (decision.kind !== "restore" || decision.location.runId === null) return;
+    await restoreReadingLocation(decision.location);
+  },
+
+  openRecordingWorkspace() {
+    enterAuxWorkspace("recording", null);
+  },
+
+  openExperimentWorkspace(target) {
+    enterAuxWorkspace("experiment", target);
+  },
+
+  openMessagesWorkspace(target) {
+    enterAuxWorkspace("messages", target);
+  },
+
+  async returnToAuxSource(view) {
+    const state = get();
+    const location = state[auxLocationKey(view)];
+    const decision = decideAuxReturn({
+      location,
+      knownRunIds: state.runs.map((run) => run.id),
+    });
+    // 一次性凭据：恢复与回退都算用掉（与创建页同一纪律，旧位置不复活）
+    useAppStore.setState({ [auxLocationKey(view)]: null });
     const target = decision.kind === "restore" ? decision.location.view : decision.view;
     noteReadingChanged();
     set({ view: target });
