@@ -25,12 +25,20 @@ import type { RunReadingState } from "./reading-state";
  */
 
 /**
- * 主工作区视图：轨迹 / 分支树 / 创建 / 比较。
- * U5 4.1 起创建是一种视图；U7（improve-branch-comparison）起比较也是。
- * ⚠️ `SourceView`（创建页的合法来源）随之包含 compare——从比较页进创建、返回时
- * 回到比较页（pair 仍在 store 会话里，恢复即还原对象）。
+ * 主工作区视图：轨迹 / 分支树 / 创建 / 比较，以及 U8（unify-recording-and-experiment-workspaces）
+ * 的三个辅助工作区：录制 / 实验 / messages。
+ * U5 4.1 起创建是一种视图；U7（improve-branch-comparison）起比较也是；U8 起三个辅助工作区同为主工作区页面。
+ * ⚠️ `SourceView`（创建页的合法来源）随之包含 compare 与三个辅助视图——从它们进创建、返回时回到原页
+ * （pair / 目标 / 草稿仍在 store 会话里，恢复即还原对象）。
  */
-export type WorkspaceView = "trace" | "tree" | "create" | "compare";
+export type WorkspaceView =
+  | "trace"
+  | "tree"
+  | "create"
+  | "compare"
+  | "recording"
+  | "experiment"
+  | "messages";
 
 /** 可以充当"来源"的两种视图（创建页自身不是来源） */
 export type SourceView = Exclude<WorkspaceView, "create">;
