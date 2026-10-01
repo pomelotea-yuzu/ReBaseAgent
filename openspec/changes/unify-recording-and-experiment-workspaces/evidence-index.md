@@ -1,0 +1,180 @@
+# U8 evidence-index：场景 → 证据逐行索引
+
+> **范围**：两份 delta（`specs/desktop-ui/spec.md` 51 条、`specs/model-experiments/spec.md` 16 条）
+> 全量 **67 条场景（保留旧场景 20 / 新场景 47；MODIFIED 块内 31 + ADDED 36）**，
+> 覆盖 12 条 requirement（desktop-ui 3 MODIFIED + 6 ADDED；model-experiments 2 MODIFIED + 1 ADDED）。
+> 逐行列出：任务映射、既有单元/契约证据引用、实机入口（批次）、当前状态。
+>
+> **状态口径**：`待验证`（1.1 建立索引时的诚实起点——即便引用了既有单元证据，对应实机批次尚未执行、
+> 迁移后形态尚未回归）→ `已交付`（对应批次的判据真的跑过且绿）→ `实机不成立`
+> （真机无注入面，按单元/集成层承载并注明）。状态翻转发生在 6.3–6.11 各批；本索引随 change 归档。
+> **未知不得填已完成。** 既有用例被迁移合法改判时，两边留痕（测试注释 + tasks 注记）。
+>
+> **引用格式**：`` `文件 › 用例名` `` —— 用例名逐字取自 `it(...)` 第一参数（无斜杠前缀 =
+> `apps/desktop/test/` 下文件；含 `/` = 仓库相对路径）。由 `.workbuddy/u8/u8-11/verify-scenario-checklist.cjs`
+> 逐条核对（文件存在 + 用例名在场 + 场景名逐字在 delta + 任务引用真实），含 `--selftest` 反例。
+> 标注「2.x 落地后补」的行 = 该行为尚不存在、无既有证据可引（诚实留白，不造弱用例凑数）。
+
+汇总口径：**67 条场景（保留 20 / 新 47）**，已交付 **0** 条、待验证 **67** 条、实机不成立 **0** 条（1.1 建立索引，全部待验证）
+
+---
+
+## 一、desktop-ui delta（51 条）
+
+### DU1. 代理设置与运行状态可观测可控（MODIFIED，7 场景）
+
+| n | 场景 | 保留/新 | 任务 | 单元/契约证据 | 实机入口/批次 | 状态 |
+|---|---|---|---|---|---|---|
+| 1 | 启用代理 | 保留 | 1.4, 6.6 | `settings.test.ts › 无文件 → loadProxy 返回默认值；saveProxy 后可读回`（main 侧持久化；UI 迁工作区后 2.7/2.10 复核） | 6.6 实机 | 待验证 |
+| 2 | 端口占用可见 | 保留 | 2.5, 6.1, 6.6 | main 事实：`toggle` 先保存后启停、启动失败可 enabled=true/running=false（源码锚点 proxy-manager.ts L98–106，review 已核实）；2.5 落地后补分层呈现判据 | 6.1 注入 + 6.6 实机 | 待验证 |
+| 3 | key 捕获状态 | 保留 | 2.7 | `controlled-proxy.test.ts › 未捕获 key 时分叉 → PROXY_NO_KEY，且受控服务零请求（门禁在联网之前）`；2.7 落地后补状态区判据 | 6.6 实机 | 待验证 |
+| 4 | 接入地址只来自已核实监听 | 新 | 2.8, 6.3 | main 构造地址事实（proxy-manager.ts L124，review 已核实）；2.8 落地后补可复制门禁判据 | 6.3 反证 + 6.6 实机 | 待验证 |
+| 5 | 停止或未知状态撤销地址 | 新 | 2.7 | 2.7 落地后补（现无任何地址呈现代码） | 6.6 实机 | 待验证 |
+| 6 | 应用失败回读也失败保留输入 | 新 | 2.5, 6.1, 6.6 | 2.5 落地后补；main 非事务事实见 n2 | 6.1 注入 + 6.6 实机 | 待验证 |
+| 7 | 代理应用沿用配置互斥 | 新 | 2.4, 6.6 | `config-gate.test.ts › 主动操作占槽时：save/clear 被拒、配置文件字节不变、registry 不被写入` + `entry-gate.test.ts › deriveConfigGate 与提交门禁同源：空闲放行、有操作在跑/未握手/未知都拒写` | 6.6 实机 | 待验证 |
+
+### DU2. 代理 run 的 llm.call 可编辑 messages 重发（MODIFIED，6 场景）
+
+| n | 场景 | 保留/新 | 任务 | 单元/契约证据 | 实机入口/批次 | 状态 |
+|---|---|---|---|---|---|---|
+| 8 | 编辑并重发成功 | 保留 | 5.3 | `exec-prompt-proxy.test.ts › 成功：登记身份 = 本次 fork 返回的 id，目标只带定位事实不带 messages` + `controlled-proxy.test.ts › 外部非流式请求 JSON 直通 + 编辑 messages 分叉按 stream:true 重发：受控日志两种模式、fork run 落盘、父不改写` | 6.9 实机 | 待验证 |
+| 9 | 未修改禁用 | 保留 | 5.1 | `exec-prompt-proxy.test.ts › PROXY_* 拒绝（未捕获 key / 空 fork）：settled + 原稳定码 + 零身份，且重复不重试消费`（main 空 fork 防线）；渲染层禁用判据 5.1 落地后补 | 6.9 实机 | 待验证 |
+| 10 | 未捕获 key | 保留 | 5.2 | `exec-prompt-proxy.test.ts › PROXY_* 拒绝（未捕获 key / 空 fork）：settled + 原稳定码 + 零身份，且重复不重试消费` | 6.9 实机 | 待验证 |
+| 11 | SDK run 无此入口 | 保留 | 1.4, 5.1 | 1.4/5.1 落地后补（入口接线源码级契约） | 6.12 实机 | 待验证 |
+| 12 | 停用代理仍有凭据不能重发 | 新 | 5.2, 6.5 | main 事实：`fork` 以 lastKey 与 handler 双条件拒绝（proxy-manager.ts L169–176，review 已核实）；5.2 落地后补 UI 判据 | 6.5 反证 + 6.9 实机 | 待验证 |
+| 13 | 主动重发结果不借被动记录 | 新 | 5.5, 6.2, 6.9 | `exec-prompt-proxy.test.ts › 重发等待期间被动录制落盘 ⇒ 登记只认本次 fork 的 id，不借用被动 run` + `exec-prompt-proxy.test.ts › 本次录制写入失败 ⇒ 明确失败且不借用在场被动 run 的 id` | 6.2 标本 + 6.9 实机 | 待验证 |
+
+### DU3. 设置往返保留编辑并真实反馈配置结果（MODIFIED，8 场景）
+
+| n | 场景 | 保留/新 | 任务 | 单元/契约证据 | 实机入口/批次 | 状态 |
+|---|---|---|---|---|---|---|
+| 14 | 两模式配置后返回任务 | 保留 | 6.12 | `settings-roundtrip-invalidate.test.ts › 隔离 result 与创建页：配置指纹变化 ⇒ 本次副本授权作废；目录引用/模式照旧保留` + `settings-roundtrip-invalidate.test.ts › 设置往返改了配置 ⇒ config-stale，且**优先于**修订变化（先说打到哪变了）` | 6.12 实机 | 待验证 |
+| 15 | 重跑编辑配置往返保持阅读 | 保留 | 1.3, 6.12 | `fork-editor-draft.test.ts › 打开 → 编辑 → 切页签/切运行（其他状态翻动）→ 重开：草稿逐字恢复` + `settings-roundtrip-invalidate.test.ts › ModelAbEditor：计划安装同时记录配置指纹；activePlan 只认 fresh；失效措辞分两种`（⚠️ messages/A-B 编辑器迁工作区后往返起终点改变，1.3 改判时两边留痕） | 6.12 实机 | 待验证 |
+| 16 | 未保存设置关闭可继续或放弃 | 保留 | 2.10 | `settings-save-feedback.test.ts › 与已保存/已应用值逐项相同 ⇒ 不脏（trim 同值也没改）` + `settings-save-feedback.test.ts › 设置对话框不冒充连通、不清调试草稿、防重入双保险、只读重试走读通道` | 6.12 实机 | 待验证 |
+| 17 | 单向密钥与保存反馈不冒充连通 | 保留 | 6.12 | `settings-save-feedback.test.ts › 单向 key：apiKey 只要打过字就算未保存输入（它从未离开渲染层暂存）` + `settings-save-feedback.test.ts › SettingsState 的键集里**没有** apiKey：回读只含配置状态` + `settings.test.ts › 明文落盘 + apiKeyEncrypted false + encrypted false（UI 据此明示风险）` | 6.12 实机 | 待验证 |
+| 18 | 保存失败和保存后回读失败区分 | 保留 | 6.12 | `settings-save-feedback.test.ts › 「保存失败和保存后回读失败区分」：回读失败 ⇒ reread-failed，且**不把旧摘要当新配置事实**（settings 清空）` + `settings-save-feedback.test.ts › 保存失败 ⇒ save-failed，错误入 store，settings 原样（没写进去也不该动事实）` | 6.12 实机 | 待验证 |
+| 19 | 清除确认包含凭据且受槽约束 | 保留 | 6.12 | `settings-clear-confirm.test.ts › 确认文案点名保存凭据一并删除且不可恢复；走 requestConfirm 真模态` + `settings-clear-confirm.test.ts › 清除按钮受 U4 配置门禁（busy 防重入 + configGate），而「关闭/✕」不吃这把锁（查看返回可用）` | 6.12 实机 | 待验证 |
+| 20 | 录制入口保持现有代理区可达 | 保留 | 2.10 | `settings-roundtrip-invalidate.test.ts › 「录制入口保持现有代理区可达」：全局/空态的录制入口定位既有代理分区` + `settings-roundtrip-invalidate.test.ts › 录制入口的 GlobalBar 一跳必须走不清 section 的专用开器（6.7 实机缺陷的契约）`（⚠️ 本 delta 将落点改判为独立录制工作区、设置不留第二份表单——既有两条用例随 2.10 改判，两边留痕） | 6.6 实机 | 待验证 |
+| 21 | 设置跳转录制先处理未保存模型字段 | 新 | 2.10 | adjacent：`settings-save-feedback.test.ts › 模型字段或代理字段任何一项偏离 ⇒ 脏`（dirty 判据基础）；2.10 落地后补 | 6.6 实机 | 待验证 |
+
+### DU4. 录制配置草稿在会话内保留并参与关闭保护（ADDED，5 场景）
+
+| n | 场景 | 保留/新 | 任务 | 单元/契约证据 | 实机入口/批次 | 状态 |
+|---|---|---|---|---|---|---|
+| 22 | 录制配置跨页恢复原始输入 | 新 | 2.1, 6.6 | adjacent：`debugging-drafts.test.ts › 非法 JSON 原样保留，不被格式化或替换为原值`（原文保留纪律）；2.1 落地后补 | 6.6 实机 | 待验证 |
+| 23 | 录制端口校验不接受部分整数 | 新 | 2.4 | main schema 事实：zod 端口 int min(1) max(65535)（review 观察项 1）；2.4 落地后补（判据核心 = 零配置写调用） | 6.6 实机 | 待验证 |
+| 24 | 录制放弃取消及修订竞争 | 新 | 2.2, 6.11 | adjacent（CAS 纪律同源）：`debugging-drafts.test.ts › 旧放弃确认不能删除新修订：确认后内容又变 ⇒ 拒绝删除，重新核对后才可放弃`；2.2 落地后补 | 6.11 实机 | 待验证 |
+| 25 | 录制未应用修改参与退出保护 | 新 | 2.3, 6.11, 7.1 | adjacent：`draft-close-client.test.ts › 调用类 + A/B 批次 + 创建表单的 dirty 条目计数，clean 条目不计` + `draft-close-guard.test.ts › 旧会话 dirty ⇒ 轮换置遗留标志；新会话 clean 上报不能抹掉它（空仓库不消音）`；2.3 落地后补 | 6.11 实机 | 待验证 |
+| 26 | 录制应用收尾不覆盖后来输入 | 新 | 2.6, 6.3 | adjacent（代次守卫同型）：`result-verification.test.ts › 旧代次的迟到响应整份丢弃：不覆盖新读取，也不碰其他键`；2.6 落地后补 | 6.3 反证 | 待验证 |
+
+### DU5. 录制工作区提供真实接入提示和只读记录入口（ADDED，5 场景）
+
+| n | 场景 | 保留/新 | 任务 | 单元/契约证据 | 实机入口/批次 | 状态 |
+|---|---|---|---|---|---|---|
+| 27 | 查看代理记录保留选择和搜索 | 新 | 2.9 | 2.9 落地后补 | 6.6 实机 | 待验证 |
+| 28 | 录制刷新只读且错误可重试 | 新 | 2.9, 6.6 | adjacent：`entry-gate.test.ts › 读取、关闭与回读不被门禁锁掉（spec：settings:get / proxy:status 仍可用）`；2.9 落地后补 | 6.6 实机 | 待验证 |
+| 29 | 重启后凭据失效历史仍可读 | 新 | 5.2 | main 事实：代理 key 仅内存暂存（重启即失）；5.2 落地后补 | 6.9 实机 | 待验证 |
+| 30 | 录制状态不冒充接入验证 | 新 | 2.8 | ProxyState 契约事实：仅 enabled/running/port/upstreamBaseUrl/hasKey 五字段（shared/ipc.ts L474–483，review 已核实）；2.8 落地后补 | 6.6 实机 | 待验证 |
+| 31 | 停止服务不称取消运行 | 新 | 2.7 | 2.7 落地后补 | 6.6 实机 | 待验证 |
+
+### DU6. 模型实验工作区绑定父本和完整批次草稿（ADDED，5 场景）
+
+| n | 场景 | 保留/新 | 任务 | 单元/契约证据 | 实机入口/批次 | 状态 |
+|---|---|---|---|---|---|---|
+| 32 | 运行入口打开明确实验目标 | 新 | 1.2, 1.4, 3.1 | adjacent：`model-ab.test.ts › 未配置运行参数 → 拦截`（门禁沿用）；1.2/1.4/3.1 落地后补 | 6.7 实机 | 待验证 |
+| 33 | 切运行不更换实验父本 | 新 | 1.2, 1.5, 3.1 | adjacent（目标定位既有模式）：`draft-list.test.ts › 调用类目标：切运行（需要时）+ 步骤页签 + 选中 span + 登记 pending`；1.2/1.5 落地后补 | 6.7 实机 | 待验证 |
+| 34 | 实验空参数与显式空对象区分 | 新 | 3.3, 6.7 | `model-ab.test.ts › 空串 = 沿用父 run params（undefined）` + `model-ab.test.ts › params 的空对象等价沿用父值：model 也相同则仍判空 fork` + `model-ab-guard-parity.test.ts › 逐臂空 fork 判据与内核 sameParams 逐例对照（矩阵）` | 6.7 实机 | 待验证 |
+| 35 | 实验来源失效仍能返回草稿 | 新 | 3.2 | adjacent：`model-ab-editor-draft.test.ts › 打开即清理临时计划与许可（授权不随草稿恢复）；放弃只经失效视图 CAS，预览/执行不隐式清理批次`；3.2 落地后补 | 6.7 实机 | 待验证 |
+| 36 | 离开实验恢复不带计划许可 | 新 | 1.3, 3.10 | `model-ab-editor-draft.test.ts › 内容变化作废副作用许可；恢复/离开后计划与许可均须重来（组件局部态）` + `execution-confirmation-ab.test.ts › 重新预览推进检查代次 ⇒ 那份确认作废，登记口当场拒绝`（迁移后复核） | 6.7 实机 | 待验证 |
+
+### DU7. 实验结果工作区消费可信完整批次并连接比较（ADDED，6 场景）
+
+| n | 场景 | 保留/新 | 任务 | 单元/契约证据 | 实机入口/批次 | 状态 |
+|---|---|---|---|---|---|---|
+| 37 | 成功臂集合不隐去失败臂 | 新 | 4.1, 6.2, 6.5, 6.8 | `exec-model-ab.test.ts › A-B 部分失败：失败臂带真实 id 与 failed 结局，ids 只含成功臂，批次不冒充全臂成功` + `operation-request-facts.test.ts › 「实验缺臂部分失败」逐臂诚实：登记短于 armCount 也不从信封多报的 id 凑` + `draft-closure-store.test.ts › 执行信封把 ids 全带回来，但登记与核实未跟上 ⇒ 整批保留` | 6.2 标本 + 6.5 反证 + 6.8 实机 | 待验证 |
+| 38 | 实验结果不可读仅重试读取 | 新 | 4.3, 6.8 | `operation-request-facts.test.ts › 不可读臂只给同一 ID 的重读动作；渲染后不出现臂间差值/胜出臂结论，也无` + `result-verification.test.ts › 已在读 / 已核实 ⇒ 视为已处理；不可读 ⇒ 不算（只能显式只读重试）` + `draft-closure-store.test.ts › 一条臂结果不可读 ⇒ 整批保留（部分成功不冒充全臂成功）` | 6.8 实机 | 待验证 |
+| 39 | 全臂核实才按提交修订清理 | 新 | 4.4, 6.8 | `draft-closure-store.test.ts › 两条预期臂各自核实正常结束 ⇒ 整批一次清干净（不逐臂删配置）` + `draft-closure-store.test.ts › 缺臂 / null ID / 失败臂 ⇒ 整批配置与关联都保留` | 6.8 实机 | 待验证 |
+| 40 | 实验结果选两到四条进入共用比较 | 新 | 4.5, 6.9 | `store.test.ts › 对照上限 4：第 5 条被拒绝并给出提示，已选集合不变` + `compare-metrics.test.ts › 三条 ⇒ 提示显式选两条；四条同口径（列数与集合一致）` + `experiment-records.test.ts › 同父合法两臂 ⇒ eligible，批次身份保留各臂已记录 experimentId` | 6.9 实机 | 待验证 |
+| 41 | 比较拒绝和返回实验不改批次事实 | 新 | 1.6, 4.5, 6.9 | `experiment-records.test.ts › 异父臂 ⇒ ineligible PARENT_DIFFERS；相同 experimentId 不能绕过` + `compare-workspace-store.test.ts › 返回来源：恢复视图与阅读位置，凭据一次性用掉`（返回位置扩展到实验工作区随 1.6 落地后补） | 6.9 实机 | 待验证 |
+| 42 | 跨页结束与重载恢复实验结果 | 新 | 4.6, 6.8 | `navigation-intent.test.ts › A/B 批次 ⇒ drop：永不自动聚焦，由用户挑臂` + `navigation-intent.test.ts › 本会话没提交过（重载恢复）⇒ none：不凭「结果可读」就跳` | 6.8 实机 | 待验证 |
+
+### DU8. messages 编辑工作区保留单请求来源与返回路径（ADDED，4 场景）
+
+| n | 场景 | 保留/新 | 任务 | 单元/契约证据 | 实机入口/批次 | 状态 |
+|---|---|---|---|---|---|---|
+| 43 | messages 工作区恢复完整非法文本 | 新 | 1.5, 5.1 | `prompt-messages-editor-draft.test.ts › messages 草稿：非法 JSON 与空输入原样暂存（不 format / 不 trim / 不替换）` + `debugging-drafts.test.ts › 空串、仅空白、末尾空白与换行逐字保留（不 trim）`（迁移后复核） | 6.9 实机 | 待验证 |
+| 44 | 缺凭据转录制再返回精确编辑 | 新 | 1.3, 5.2, 6.9 | 5.2 落地后补（录制↔messages 返回路径为新接线） | 6.9 实机 | 待验证 |
+| 45 | messages 确认仍是单请求 | 新 | 5.3, 6.9 | `proxy.test.ts › 全链路：经代理录制 → key 捕获 → 编辑 messages 分叉 → fork run 落盘` + `exec-prompt-proxy.test.ts › 同 ID 重复 ⇒ 代理只被调用一次；running 期间的重复只等不二次调用` | 6.9 实机 | 待验证 |
+| 46 | messages 失败定位与返回不丢草稿 | 新 | 5.4, 6.9 | `draft-closure-store.test.ts › 运行 error / 中止 / 不可读 ⇒ 草稿逐字保留，关联留着等下一次核实` | 6.9 实机 | 待验证 |
+
+### DU9. 辅助工作区在窄窗与键盘下保持连续流程（ADDED，5 场景）
+
+| n | 场景 | 保留/新 | 任务 | 单元/契约证据 | 实机入口/批次 | 状态 |
+|---|---|---|---|---|---|---|
+| 47 | 辅助页面窄窗和缩放完整可用 | 新 | 6.10 | adjacent：`focus-escape-responsive.test.ts › 设置模态受 85vh 钳制并内部滚动（长表单/200% 缩放在框内滚，不撑破屏幕）` | 6.10 实机 | 待验证 |
+| 48 | 长模型上游和告警可完整核对 | 新 | 3.4, 6.10 | adjacent：`draft-list.test.ts › copyText 完整不截断；preview 截断且换行可见化（正文不丢）`（LongText 契约） | 6.10 实机 | 待验证 |
+| 49 | 键盘完成录制到重发闭环 | 新 | 6.11 | 6.11 落地后补（真键盘归系统级 keybd_event 实机） | 6.11 实机 | 待验证 |
+| 50 | 键盘完成实验到比较闭环 | 新 | 6.11 | 6.11 落地后补 | 6.11 实机 | 待验证 |
+| 51 | 辅助页面不改变已有主流程 | 新 | 6.12, 7.1 | `store.test.ts › 切换不重载：setView 与 selectRun 都不触发列表请求` + `compare-store.test.ts › 进入、重试、离开全程只有 runs:compare 调用，零执行通道、零列表刷新` | 6.12 实机 | 待验证 |
+
+---
+
+## 二、model-experiments delta（16 条）
+
+### ME1. 同一批实验必须可分组（MODIFIED，4 场景）
+
+| n | 场景 | 保留/新 | 任务 | 单元/契约证据 | 实机入口/批次 | 状态 |
+|---|---|---|---|---|---|---|
+| 52 | 同批 arm 自动配对 | 保留 | 4.2 | `experiment-records.test.ts › 同父合法两臂 ⇒ eligible，批次身份保留各臂已记录 experimentId` + `compare-metrics.test.ts › 三条 ⇒ 提示显式选两条；四条同口径（列数与集合一致）` | 6.7 实机 | 待验证 |
+| 53 | 多批实验共存 | 保留 | 4.2 | adjacent：`experiment-records.test.ts › 异父臂 ⇒ ineligible PARENT_DIFFERS；相同 experimentId 不能绕过`；4.2 落地后补 | 6.7 实机 | 待验证 |
+| 54 | 预览标签不充当真实批次身份 | 新 | 4.2 | main 事实：dry-run experimentId 与真实执行各自生成、不可复用（fork-runner.ts L58–71，review 已核实）；4.2 落地后补 | 6.7 实机 | 待验证 |
+| 55 | 同父同模型仍按真实批次分组 | 新 | 4.2 | 4.2 落地后补 | 6.7 实机 | 待验证 |
+
+### ME2. 成本确认和 dry-run 必须显式（MODIFIED，6 场景）
+
+| n | 场景 | 保留/新 | 任务 | 单元/契约证据 | 实机入口/批次 | 状态 |
+|---|---|---|---|---|---|---|
+| 56 | 未确认时阻断真实调用 | 保留 | 3.9 | `execution-confirmation-ab.test.ts › 执行按钮受确认约束，且原因就近给出（不是只禁不给话）` + `execution-confirmation-ab.test.ts › 确认成立 ⇒ 登记成功并一次性消费：第二次执行要重新确认` | 6.7 实机 | 待验证 |
+| 57 | dry-run 无密钥 | 保留 | 3.5 | `controlled-proxy.test.ts › 经受控服务创建父本后：dry-run 零请求；真实执行每臂恰一次（请求日志证明）` + `exec-model-ab.test.ts › 批次占槽期间预览照常可用：零模型调用、零文件、不产生登记`（旧场景「不读写 trace」按 delta 修正为「不改写 trace、不创建运行」——事实修正非放松） | 6.7 实机 | 待验证 |
+| 58 | dry-run 暴露整体替换的代价 | 保留 | 3.4 | `fork-runner.test.ts › dry-run 返回 plan，含 params / overridden / added / discarded / warnings` | 6.7 实机 | 待验证 |
+| 59 | dry-run 每臂三段固定展示 | 保留 | 3.4 | `fork-runner.test.ts › Ollama baseURL + num_ctx → 告警经 IPC 到渲染层；非 Ollama 不告警` + `fork-runner.test.ts › dry-run 返回 plan，含 params / overridden / added / discarded / warnings` | 6.7 实机 | 待验证 |
+| 60 | 桌面预览沿用配置前置且零执行 | 新 | 3.5 | `exec-model-ab.test.ts › 批次占槽期间预览照常可用：零模型调用、零文件、不产生登记` + `exec-model-ab.test.ts › 预览的四类拒绝都在副作用之前：非 dryRun / 臂数不足 / 非法形状 / 伪造 sender` | 6.7 实机 | 待验证 |
+| 61 | 费用确认区分臂数和请求数 | 新 | 3.9 | adjacent：`execution-confirmation-ab.test.ts › 披露喂的是 activePlan：属于旧修订的计划不进确认`；3.9 落地后补臂数措辞判据 | 6.7 实机 | 待验证 |
+
+### ME3. 桌面实验计划绑定当前编辑与来源并拒绝迟到恢复（ADDED，6 场景）
+
+| n | 场景 | 保留/新 | 任务 | 单元/契约证据 | 实机入口/批次 | 状态 |
+|---|---|---|---|---|---|---|
+| 62 | 计划直接展示生效覆盖新增丢弃告警 | 新 | 3.4, 6.7 | `fork-runner.test.ts › dry-run 返回 plan，含 params / overridden / added / discarded / warnings`；3.4 落地后补四字段直读渲染判据 | 6.7 实机 | 待验证 |
+| 63 | 修改臂再改回不恢复计划 | 新 | 3.6, 6.7 | `model-ab-editor-draft.test.ts › 计划与当前批次修订同源：修订推进即失效，改走又改回也不复活` + `execution-confirmation-ab.test.ts › 绑定取的是**整批**修订：改任一臂即作废（不是只认第一次写入的那一版）` | 6.7 实机 | 待验证 |
+| 64 | 配置轮换与来源撤销作废计划 | 新 | 3.7, 6.4, 6.7 | adjacent（现行分规则基线）：`settings-roundtrip-invalidate.test.ts › 与 settingsStampOf 分离：代理启停/凭据波动**不该**作废 A/B 计划（delta 明文分规则）`——⚠️ U8 有意契约变更：已核实保存/清除（含仅轮换 key）推进配置变化代次；与既有「代理启停不作废」并存的是**代理状态刷新**路径，3.7 落地时两路判据都要有 | 6.4 反证 + 6.7 实机 | 待验证 |
+| 65 | 迟到和乱序预览不能安装旧计划 | 新 | 3.8, 6.4 | `model-ab-editor-draft.test.ts › 预览发起时记录批次修订；迟到响应按它校验，且先守卫后安装` + `model-ab-editor-draft.test.ts › 批次修订随语义变化推进：迟到响应因此拿不到旧修订（守卫判据有效）` | 6.4 反证 | 待验证 |
+| 66 | 无有效计划和确认不提交实验 | 新 | 3.10, 6.7 | `execution-confirmation-ab.test.ts › 没有生效计划就不给确认按钮（确认的必须先是被校验的那一份）` + `execution-confirmation-ab.test.ts › 重新预览 = 重启检查：先推进代次再发只读请求，且只在资格齐备时` | 6.7 实机 | 待验证 |
+| 67 | 副作用声明不承诺公平隔离 | 新 | 3.9, 6.7 | `model-ab.test.ts › 带副作用工具且未确认 → 拦截；勾选后放行，且声明展开到每一臂` + `experiment-records.test.ts › 风险工具 + 未声明 ⇒ ineligible（SIDE_EFFECT_UNDECLARED，如实拒绝）` | 6.7 实机 | 待验证 |
+
+---
+
+## 三、U7 基线与历史未验证限制（1.1 登记）
+
+- **基线**：U7 `improve-branch-comparison` 已归档（`d53b7d0`，2026-10-01）；U8 起草 `371c0be`、复审修订 `53936ee`。
+  主 spec 现状：desktop-ui **70 req / 351 scen**、branch-tree 11/34、model-experiments **13/43**、llm-proxy 6/19。
+  U8 delta 差集：5 MODIFIED + 7 ADDED、67 场景（20 保留 + 47 新），已由
+  `.workbuddy/u8/u8-11/extract-scenarios.cjs` 机器核对（未引用场景 0、重名 0、MODIFIED 名与主 spec 逐字匹配）。
+- **U4 归档后仍属事实的四条欠账**（U8 不自动清零，触及才处理）：
+  ① 真机 IPC 往返与满载诊断体积未测；② `configurationBusy` 合并档关闭确认文案未实机诱发；
+  ③ 跨 epoch 的**在飞**关联真机无前提；④ 🔴 `ProxyManager` 层「被动录制同窗落盘 ⇒ 主动身份不变」无有牙反证（端点层有）。
+- **两条待与用户定口径**（改契约须回 proposal，不在实现里静默改）：
+  隔离父本守卫无稳定业务码；「响应已转发、录制写盘失败」记成 `rejected` 的字面歧义。
+- **窄窗 N1**（`<Dialog>` 系缺 `max-width`，1/2/3 节点窄窗横向溢出）= 用户未定口径的独立欠账，与 U8 无关；
+  U8 新工作区不用模态承载正文（design D8），不受其影响但不修它。
+- **U7 归档遗留待定三项**：① 6.2 手工臂 ea/eb 标本现实性缺口（REQUEST_PARAMS_MISMATCH 实证）是否修标本；
+  ② `setCompareSide` 无 renderer UI 消费是否补入口；③ 操作结果侧父子入口待 ResultReadEntry 携带 parentRunId
+  （U8 4.5 结果区选两条进比较不依赖该入口，如触及如实登记）。
+- **desktop 测试目录 tsc 既有噪声**：`compare-ipc.test.ts` 2 条（1.6 遗留）、`call-detail-view.test.ts` 6+2 条、
+  `controlled-isolated/controlled-service/create-run-dialog/reading-scroll-restore/operation-session-store/store.test.ts` 各若干、
+  `monaco-bootstrap` `?worker` 2 条 ⇒ `.rebaseagent/tsconfig.desktop-test.json` 只作"看自己改的文件"的辅助工具，
+  真正 src 门禁是 `tsc -p tsconfig.node.json` / `-p tsconfig.web.json` 双 0。
+- **已知 flake 名单**（并行端口紧邻起停）：`controlled-proxy` / `proxy` / `proxy-fork-identity` / `controlled-service` /
+  `controlled-entrances` ⇒ 单跑复现、单跑全绿即 flake；环境阻塞与产品真实失败分开登记。
+- **replay 环境受阻基线**：12 条（model-ab-cli 9 = 沙箱 spawn EBUSY + symlink 3 = 沙箱伪造 symlink），
+  与 U5/U6/U7 登记构成一致；packages 侧本轮若零改动则以 U7 归档基线（404 过 + 12 受阻 + trace-sdk 191/191）为准。
