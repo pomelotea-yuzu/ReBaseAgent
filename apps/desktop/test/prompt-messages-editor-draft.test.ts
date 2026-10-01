@@ -123,6 +123,52 @@ describe("接线契约：MessagesForkEditor 接入 messages 草稿（任务 2.2�
     expect(code).toContain("grid-cols-1 gap-2 xl:grid-cols-2");
     expect(code).toContain("readOnly: true");
   });
+
+  it("U8 5.1b：工作区形态参数在场（目标作用域源可用性覆盖 + 常开无收起）", () => {
+    const code = src();
+    // 目标作用域覆盖：缺省仍用全局选中门禁，工作区传入按目标计算的可用性
+    expect(code).toContain("sourceExecutable: sourceExecutableOverride");
+    expect(code).toContain("sourceExecutableOverride ?? sourceExecutableFromSelection");
+    // 常开形态：初始展开、Esc 不收起（收起语义只属于步骤页内联形态）
+    expect(code).toContain("useState(alwaysOpen)");
+    expect(code).toContain("open && !alwaysOpen && !inProgress");
+    expect(code).toContain("{alwaysOpen ? null : \"取消\"}");
+  });
+});
+
+describe("U8 5.1b 源码级：编辑器唯一消费面在 messages 工作区，详情页只留入口", () => {
+  const read = (rel: string): string =>
+    readFileSync(resolve(import.meta.dirname, rel), "utf8");
+
+  it("MessagesWorkspace 挂载编辑器：目标作用域源读取 + 目标门禁 + 常开", () => {
+    const code = read("../src/renderer/src/components/MessagesWorkspace.tsx");
+    expect(code).toContain("readMessagesSource");
+    expect(code).toContain("s.messagesSource");
+    expect(code).toContain("<MessagesForkEditor");
+    expect(code).toContain("sourceExecutable={targetExecutable}");
+    expect(code).toContain("alwaysOpen={true}");
+    // 目标 span 缺席 ⇒ 如实说明（不拿别的 span 顶上），草稿保留、入口不可用
+    expect(code).toContain("data-messages-source-span-missing");
+    expect(code).toContain("编辑草稿保留，重发入口不可用");
+    // 读取失败 ⇒ 只读重试（不重新读取执行通道）
+    expect(code).toContain("data-messages-source-failed");
+  });
+
+  it("DetailPanel 不再挂载编辑器；入口按 canResend 给出（SDK run 无此入口）", () => {
+    const code = read("../src/renderer/src/components/DetailPanel.tsx");
+    // 编辑器本体已迁工作区：详情页不再 import / 挂载
+    expect(code).not.toContain('from "./MessagesForkEditor"');
+    expect(code).not.toContain("<MessagesForkEditor");
+    // 入口按钮在场，且只在 canResend（proxy 来源 + 自有调用 + 已封存）时渲染
+    expect(code).toContain("data-messages-workspace-entry");
+    expect(code).toContain("canResend && run !== null");
+    // canResend 判据保留 proxy 来源门槛（SDK run 无此入口）+ 已封存 + 自有调用
+    expect(code).toContain(
+      'const canResend = isProxy === true && leafOwned && run?.status === "completed";',
+    );
+    // 崩溃 run 的诚实说明保留
+    expect(code).toContain("该 run 运行中断（未封存），不允许作为重发起点。");
+  });
 });
 
 // ---------------------------------------------------------------------------

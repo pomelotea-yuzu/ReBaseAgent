@@ -23,13 +23,23 @@ import { MonacoCodeEditor } from "./MonacoEditor";
  * 代理 run 的"编辑 messages 重发"（单请求级最小分叉，方案 a）：
  * 编辑 request.messages → 经代理用暂存 key 重发 → 新 fork run。
  * 与 runs:fork（tool.result 编辑重跑）完全独立，走 proxy:fork 通道。
+ *
+ * U8 5.1b（2026-10-01）：新增两个工作区形态参数（镜像 ModelAbEditor 同名参数）——
+ * - `sourceExecutable`：目标作用域的源可用性覆盖。缺省（undefined）= 沿用全局选中详情
+ *   的门禁；messages 工作区传入**按目标 runId 计算**的可用性——目标不跟随侧栏选择，
+ *   全局门禁在这里会看错对象。
+ * - `alwaysOpen`：工作区形态常开（初始即展开、无「取消」收起、Esc 不收起；草稿照常保留）。
  */
 export function MessagesForkEditor({
   span,
   run,
+  sourceExecutable: sourceExecutableOverride,
+  alwaysOpen = false,
 }: {
   span: Extract<SpanLine, { kind: "llm.call" }>;
   run: RunDetail;
+  readonly sourceExecutable?: boolean;
+  readonly alwaysOpen?: boolean;
 }) {
   const forking = useAppStore((s) => s.forking);
   const forkError = useAppStore((s) => s.forkError);
@@ -39,7 +49,7 @@ export function MessagesForkEditor({
   const ensureCallDraft = useAppStore((s) => s.ensureCallDraft);
   const writeCallDraftText = useAppStore((s) => s.writeCallDraftText);
   const proxy = useAppStore((s) => s.proxy);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(alwaysOpen);
   /**
    * U3 任务 2.2：messages 草稿（无损字符串——非法 JSON / 空串原样暂存，解析只在提交边界）。
    * 打开经 ensure 登记基线（重开不覆盖已有输入）；关闭/设置往返不删草稿。
@@ -59,8 +69,9 @@ export function MessagesForkEditor({
   const currentConfirmationBinding = useAppStore((s) => s.currentConfirmationBinding);
   const armExecutionConfirmation = useAppStore((s) => s.armExecutionConfirmation);
   const [parseError, setParseError] = useState<string | null>(null);
-  // 源记录不可用时禁用依赖它的执行（任务 3.5）
-  const sourceExecutable = useAppStore((s) => s.canExecuteFromSource)();
+  // 源记录不可用时禁用依赖它的执行（任务 3.5）；工作区传入目标作用域覆盖（U8 5.1b）
+  const sourceExecutableFromSelection = useAppStore((s) => s.canExecuteFromSource)();
+  const sourceExecutable = sourceExecutableOverride ?? sourceExecutableFromSelection;
 
   // U3 任务 3.4：待定提交期间视同进行中——输入、放弃、关闭、提交一并禁用
   const inProgress = forking === "in_progress" || draftFrozen;
@@ -121,8 +132,9 @@ export function MessagesForkEditor({
   const messagesBinding = currentConfirmationBinding("messages", draftKey);
   const messagesConfirmed = useAppStore((s) => s.executionConfirmationReady(messagesBinding));
 
-  // U3 任务 6.10（design D7）：Esc 收起与「取消」按钮同动作（保留草稿）
-  useEscapeClose(open && !inProgress, () => {
+  // U3 任务 6.10（design D7）：Esc 收起与「取消」按钮同动作（保留草稿）。
+  // U8 5.1b：工作区形态常开 ⇒ Esc 不收起（收起语义只属于步骤页内联形态）。
+  useEscapeClose(open && !alwaysOpen && !inProgress, () => {
     resetFork();
     setOpen(false);
   });
@@ -394,7 +406,8 @@ export function MessagesForkEditor({
           disabled={inProgress}
           className="rounded border border-gray-300 px-2 py-1 text-[11px] text-gray-600 hover:bg-gray-50 disabled:opacity-40"
         >
-          取消
+          {/* U8 5.1b：工作区形态无「取消」收起（编辑器常开；收起语义只属于步骤页内联形态） */}
+          {alwaysOpen ? null : "取消"}
         </button>
         <button
           type="button"

@@ -1000,6 +1000,13 @@ interface AppState {
    */
   experimentSource: ExperimentSourceState;
   readExperimentSource: () => Promise<void>;
+  /**
+   * U8 任务 5.1b：messages 工作区目标的**源读取**（只读 `runs:get`），判据与
+   * experimentSource 同形——目标不跟随侧栏选择 ⇒ 工作区不能借用全局 `detail`；
+   * 本读取不改选中项、不切页、不碰阅读状态；失败保留旧读取项并允许只读重试。
+   */
+  messagesSource: ExperimentSourceState;
+  readMessagesSource: () => Promise<void>;
   /** 打开设置并定位到某分区（全局栏「录制接入」用），null = 常规打开 */
   setSettingsSection: (section: "proxy" | null) => void;
   /** 勾选/取消对照（上限 4，超出不加入并给出提示） */
@@ -1774,6 +1781,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   experimentTarget: null,
   messagesTarget: null,
   experimentSource: idleExperimentSource(),
+  messagesSource: idleExperimentSource(),
   recordingDraft: null,
   recordingApply: null,
   recordingApplyError: null,
@@ -3146,6 +3154,8 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   openMessagesWorkspace(target) {
     enterAuxWorkspace("messages", target);
+    // U8 5.1b：换目标 ⇒ 源回到待读取（容器按目标发起只读读取；旧目标的详情不残留）
+    useAppStore.setState({ messagesSource: idleExperimentSource() });
   },
 
   async returnToAuxSource(view) {
@@ -3239,6 +3249,33 @@ export const useAppStore = create<AppState>((set, get) => ({
       return;
     }
     set({ experimentSource: { phase: "ready", detail: parsed.data, errorMessage: null } });
+  },
+
+  async readMessagesSource() {
+    // U8 5.1b：与 readExperimentSource 同判据（只读 runs:get，不改选中/视图/代次），
+    // 只是目标换成 messagesTarget——不抄第二份状态形状，复用 ExperimentSourceState。
+    const target = get().messagesTarget;
+    if (target === null) return;
+    set({ messagesSource: { phase: "reading", detail: null, errorMessage: null } });
+    const envelope = await api.getRun(target.runId);
+    if (!envelope.ok) {
+      set({
+        messagesSource: { phase: "failed", detail: null, errorMessage: envelope.error.message },
+      });
+      return;
+    }
+    const parsed = RunDetailSchema.safeParse(envelope.data);
+    if (!parsed.success) {
+      set({
+        messagesSource: {
+          phase: "failed",
+          detail: null,
+          errorMessage: `源详情数据结构校验失败：${describeZodError(parsed.error)}`,
+        },
+      });
+      return;
+    }
+    set({ messagesSource: { phase: "ready", detail: parsed.data, errorMessage: null } });
   },
 
   setSettingsSection(section) {

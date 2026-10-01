@@ -61,7 +61,6 @@ import { DraftSourceBanner } from "./DraftSourceBanner";
 import { EntryGateNotice } from "./EntryGateNotice";
 import { FOCUS_RING } from "./IconButton";
 import { LongText, isLongTextExpanded, toggleLongTextExpanded } from "./LongText";
-import { MessagesForkEditor } from "./MessagesForkEditor";
 import { MonacoCodeEditor } from "./MonacoEditor";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -673,6 +672,9 @@ function LlmCallDetail({
   const leafOwned = run?.leafSpanIds.includes(span.id) ?? false;
   const isProxy = run?.meta.source?.kind === "proxy";
   const canResend = isProxy === true && leafOwned && run?.status === "completed";
+  // U8 5.1b：就地编辑器已迁 messages 工作区——步骤页只留**入口**（同一草稿键、
+  // 同一目标身份，不是第二份表单状态）；SDK run / 未封存 / 非自有调用不给入口。
+  const openMessagesWorkspace = useAppStore((s) => s.openMessagesWorkspace);
 
   /**
    * 长文本块的展开状态按 run + 调用隔离存会话（任务 3.6）。
@@ -784,7 +786,22 @@ function LlmCallDetail({
       })()}
 
       {canResend && run !== null ? (
-        <MessagesForkEditor key={span.id} span={span} run={run} />
+        /* U8 5.1b：MessagesForkEditor 已迁 messages 编辑工作区（design D1：原详情
+            不另养一份编辑器）。入口按钮打开工作区并显式绑定目标（runId + spanId）；
+            「SDK run 无此入口」由 canResend 的 source.kind 门槛承担。 */
+        <div className="border-t border-sky-100 px-4 py-2">
+          <button
+            type="button"
+            data-messages-workspace-entry
+            onClick={() => openMessagesWorkspace({ runId: run.meta.id, spanId: span.id })}
+            className="rounded bg-sky-600 px-2 py-1 text-[11px] text-white hover:bg-sky-700"
+          >
+            编辑 messages 重发
+          </button>
+          <div className="mt-1 text-[11px] text-gray-400">
+            在 messages 编辑工作区打开：单请求级分叉 · 源 run 不会被修改 · 重发使用最近捕获的 key
+          </div>
+        </div>
       ) : isProxy && run !== null && run.status === "crashed" ? (
         <div className="border-t border-gray-100 px-4 py-2 text-[11px] text-gray-400">
           该 run 运行中断（未封存），不允许作为重发起点。
