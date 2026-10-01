@@ -99,7 +99,9 @@ function mockReset(script) {
       },
       (res) => {
         let data = "";
-        res.on("data", (d) => (data += d));
+        res.on("data", (d) => {
+          data += d;
+        });
         res.on("end", () => resolve(JSON.parse(data)));
       },
     );
@@ -117,7 +119,9 @@ function mockServed() {
     http
       .get("http://127.0.0.1:18799/__log", (res) => {
         let body = "";
-        res.on("data", (d) => (body += d));
+        res.on("data", (d) => {
+          body += d;
+        });
         res.on("end", () => resolve(JSON.parse(body).served));
       })
       .on("error", reject);
@@ -139,7 +143,9 @@ function externalRequest(messages) {
       },
       (res) => {
         let data = "";
-        res.on("data", (d) => (data += d));
+        res.on("data", (d) => {
+          data += d;
+        });
         res.on("end", () => resolve({ status: res.status }));
       },
     );
@@ -470,7 +476,7 @@ async function waitAutoNav(call, expectRunId, timeoutMs = 20000) {
   for (;;) {
     const st = await H.storeQ(
       call,
-      `return JSON.stringify({ view: s.view, sel: s.selectedRunId });`,
+      "return JSON.stringify({ view: s.view, sel: s.selectedRunId });",
     );
     if (st.view === "trace" && st.sel === expectRunId) return st;
     if (Date.now() > deadline) return st;
@@ -505,7 +511,7 @@ async function main() {
   await call("Page.reload", { ignoreCache: true });
   await waitRuns(call);
   await H.sleep(900);
-  const sentinel = await H.ev(call, `window.__u871Doc ?? null`).catch(() => null);
+  const sentinel = await H.ev(call, "window.__u871Doc ?? null").catch(() => null);
   if (sentinel === "sentinel") {
     await call("Page.reload", { ignoreCache: true });
     await H.sleep(3000);
@@ -550,7 +556,7 @@ async function tagKeyboardFlows(call) {
   check("#49 起点：全局栏「录制接入」可聚焦", fRec === "focused", fRec);
   await pressEnter(call);
   await H.sleep(1200);
-  const viewRec = await H.storeQ(call, `return JSON.stringify({ view: s.view });`);
+  const viewRec = await H.storeQ(call, "return JSON.stringify({ view: s.view });");
   check("#49 真键 ENTER 进入录制工作区", viewRec.view === "recording", viewRec);
   const qRec = await focusQuality(call);
   check("#49 焦点可见且有可访问名称（进入录制后）", qRec.ok === true, qRec);
@@ -575,7 +581,7 @@ async function tagKeyboardFlows(call) {
   const deadlineRunning = Date.now() + 20000;
   let proxyNow = null;
   for (;;) {
-    proxyNow = await H.storeQ(call, `return JSON.stringify(s.proxy);`);
+    proxyNow = await H.storeQ(call, "return JSON.stringify(s.proxy);");
     if (proxyNow.running === true) break;
     if (Date.now() > deadlineRunning)
       throw new Error(`键盘应用后 20s 未监听：${JSON.stringify(proxyNow)}`);
@@ -622,7 +628,7 @@ async function tagKeyboardFlows(call) {
   await H.sleep(1500);
   const recState = await H.storeQ(
     call,
-    `return JSON.stringify({ view: s.view, filter: s.sourceFilter });`,
+    "return JSON.stringify({ view: s.view, filter: s.sourceFilter });",
   );
   check(
     "#49 真键 ENTER 查看代理记录 ⇒ 轨迹视图 + 代理来源筛选",
@@ -645,7 +651,7 @@ async function tagKeyboardFlows(call) {
   await H.sleep(2000);
   const wsState = await H.storeQ(
     call,
-    `return JSON.stringify({ view: s.view, target: s.messagesTarget });`,
+    "return JSON.stringify({ view: s.view, target: s.messagesTarget });",
   );
   check(
     "#49 真键 ENTER 打开 messages 工作区（目标显式绑定）",
@@ -727,7 +733,7 @@ async function tagKeyboardFlows(call) {
   if (fEntry2 !== "focused") throw new Error("重进入口不可聚焦");
   await pressEnter(call);
   await H.sleep(1800);
-  const reState = await H.storeQ(call, `return JSON.stringify({ view: s.view });`);
+  const reState = await H.storeQ(call, "return JSON.stringify({ view: s.view });");
   check("#49 真键重进 messages 工作区", reState.view === "messages", reState);
   // 不困焦点：从工作区头部 TAB 有界步进可达全局栏（页头）
   const fHead = await focusEl(
@@ -950,7 +956,7 @@ async function tagKeyboardFlows(call) {
   if (fCmp2 !== "focused") throw new Error("第二条「加入对照」不可聚焦");
   await pressEnter(call);
   await H.sleep(600);
-  const selState = await H.storeQ(call, `return JSON.stringify({ ids: s.compareIds });`);
+  const selState = await H.storeQ(call, "return JSON.stringify({ ids: s.compareIds });");
   check("#50 真键选两条：对照集合 = 两臂", selState.ids.length === 2, selState);
   const fEnter = await focusEl(call, `document.querySelector('[data-experiment-enter-compare]')`);
   if (fEnter !== "focused") throw new Error("进入比较不可聚焦");
@@ -979,7 +985,7 @@ async function tagKeyboardFlows(call) {
   await H.sleep(1800);
   const back50 = await H.storeQ(
     call,
-    `return JSON.stringify({ view: s.view, target: s.experimentTarget });`,
+    "return JSON.stringify({ view: s.view, target: s.experimentTarget });",
   );
   check(
     "#50 真键返回 ⇒ 回到原实验目标（比较返回到原实验目标）",
@@ -1108,7 +1114,7 @@ async function tagRecordingDirty(call) {
   if (fConfirm !== "focused") throw new Error("确认放弃按钮不可聚焦");
   const proxyBefore = await H.storeQ(
     call,
-    `return JSON.stringify({ running: s.proxy.running, enabled: s.proxy.enabled });`,
+    "return JSON.stringify({ running: s.proxy.running, enabled: s.proxy.enabled });",
   );
   await pressEnter(call);
   await H.sleep(900);
@@ -1122,7 +1128,7 @@ async function tagRecordingDirty(call) {
   ).then(JSON.parse);
   const proxyAfter = await H.storeQ(
     call,
-    `return JSON.stringify({ running: s.proxy.running, enabled: s.proxy.enabled });`,
+    "return JSON.stringify({ running: s.proxy.running, enabled: s.proxy.enabled });",
   );
   check(
     "#24 匹配修订确认放弃：恢复已核实配置基线（端口回到已保存值）、dirty 消失",

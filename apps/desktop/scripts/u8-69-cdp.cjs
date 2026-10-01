@@ -100,7 +100,9 @@ function mockReset(script) {
       },
       (res) => {
         let data = "";
-        res.on("data", (d) => (data += d));
+        res.on("data", (d) => {
+          data += d;
+        });
         res.on("end", () => resolve(JSON.parse(data)));
       },
     );
@@ -118,7 +120,9 @@ function mockServed() {
     http
       .get("http://127.0.0.1:18799/__log", (res) => {
         let body = "";
-        res.on("data", (d) => (body += d));
+        res.on("data", (d) => {
+          body += d;
+        });
         res.on("end", () => resolve(JSON.parse(body).served));
       })
       .on("error", reject);
@@ -141,7 +145,9 @@ function externalRequest(messages, { stream = false, key = "Bearer sk-u8-69-exte
       },
       (res) => {
         let data = "";
-        res.on("data", (d) => (data += d));
+        res.on("data", (d) => {
+          data += d;
+        });
         res.on("end", () => resolve({ status: res.status, bytes: data.length }));
       },
     );
@@ -213,7 +219,7 @@ async function waitAutoNav(call, expectRunId, timeoutMs = 20000) {
   for (;;) {
     const st = await H.storeQ(
       call,
-      `return JSON.stringify({ view: s.view, sel: s.selectedRunId });`,
+      "return JSON.stringify({ view: s.view, sel: s.selectedRunId });",
     );
     if (st.view === "trace" && st.sel === expectRunId) return st;
     if (Date.now() > deadline) return st;
@@ -595,7 +601,7 @@ async function main() {
   }
   await H.sleep(900);
   // reload 未换文档哨兵（U4 6.6 坑）
-  const sentinel = await H.ev(call, `window.__u869Doc ?? null`).catch(() => null);
+  const sentinel = await H.ev(call, "window.__u869Doc ?? null").catch(() => null);
   if (sentinel === "sentinel") {
     await call("Page.reload", { ignoreCache: true });
     await H.sleep(3000);
@@ -723,7 +729,7 @@ async function tagCompareExperiment(call) {
   // ── #40 两条：按选择顺序进详细比较 ──
   await toggleArmCompare(call, rec1.operationId, 0);
   await toggleArmCompare(call, rec1.operationId, 1);
-  const sel2 = await H.storeQ(call, `return JSON.stringify({ ids: s.compareIds, view: s.view });`);
+  const sel2 = await H.storeQ(call, "return JSON.stringify({ ids: s.compareIds, view: s.view });");
   check("#40 选两条：对照集合 = 两臂按点击顺序", sel2.ids.length === 2, sel2);
   await clickEnterCompare(call);
   const cmp2Concl = await waitCompareConclusion(call);
@@ -780,7 +786,7 @@ async function tagCompareExperiment(call) {
   const cmp3Concl = await waitCompareConclusion(call);
   const cmp3 = await H.storeQ(
     call,
-    `return JSON.stringify({ view: s.view, pair: s.comparePair, notice: s.compareNotice });`,
+    "return JSON.stringify({ view: s.view, pair: s.comparePair, notice: s.compareNotice });",
   );
   check(
     "#40 三条 ⇒ 指标表模式（无 pair、提示显式选两条、整集合只读读取 verified）",
@@ -798,7 +804,7 @@ async function tagCompareExperiment(call) {
   const cmp4Concl = await waitCompareConclusion(call);
   const cmp4 = await H.storeQ(
     call,
-    `return JSON.stringify({ view: s.view, pair: s.comparePair });`,
+    "return JSON.stringify({ view: s.view, pair: s.comparePair });",
   );
   check(
     "#40 四条 ⇒ 同口径（无 pair、4 项结论 verified）",
@@ -814,7 +820,7 @@ async function tagCompareExperiment(call) {
   await H.storeQ(call, `s.toggleCompare(${JSON.stringify(parent1)}); return JSON.stringify("ok");`);
   const over = await H.storeQ(
     call,
-    `return JSON.stringify({ ids: s.compareIds, notice: s.compareNotice });`,
+    "return JSON.stringify({ ids: s.compareIds, notice: s.compareNotice });",
   );
   check(
     "#40 第 5 条被拒绝：提示在场、集合仍为 4 条不变",
@@ -827,7 +833,7 @@ async function tagCompareExperiment(call) {
 
   // ── #41 不可比：异父混选 ⇒ [PARENT_DIFFERS]，返回实验事实原样 ──
   // 集合缩到父本 1 的一条臂（其余移出；上限拒绝未入集合，无需回退）
-  const idsNow = await H.storeQ(call, `return JSON.stringify(s.compareIds);`);
+  const idsNow = await H.storeQ(call, "return JSON.stringify(s.compareIds);");
   for (const runId of idsNow) {
     if (runId !== rec1.arms[0].id) {
       await H.storeQ(
@@ -858,7 +864,7 @@ async function tagCompareExperiment(call) {
     if (pdText === true || Date.now() > pdDeadline) break;
     await H.sleep(500);
   }
-  const cmpGate = await H.storeQ(call, `return JSON.stringify({ view: s.view });`);
+  const cmpGate = await H.storeQ(call, "return JSON.stringify({ view: s.view });");
   check(
     "#41 不可比结果进入 U7：异父混选读取 verified 但实验门禁 [PARENT_DIFFERS] 就近呈现",
     cmpGate.view === "compare" && cmpGateConcl.kind === "verified" && pdText === true,
@@ -868,7 +874,7 @@ async function tagCompareExperiment(call) {
   await clickReturnSource(call);
   const back2 = await H.storeQ(
     call,
-    `return JSON.stringify({ view: s.view, ids: s.compareIds, target: s.experimentTarget });`,
+    "return JSON.stringify({ view: s.view, ids: s.compareIds, target: s.experimentTarget });",
   );
   check(
     "#41 比较拒绝后返回实验：视图/目标/对照集合保留（返回不改批次事实）",
@@ -922,7 +928,7 @@ async function tagMessagesLive(call) {
     `await s.toggleProxy(JSON.parse(${JSON.stringify(JSON.stringify({ enabled: true, port: PROXY_PORT, upstreamBaseUrl: UPSTREAM }))}));
      return JSON.stringify(s.proxy);`,
   );
-  let proxyState = await H.storeQ(call, `return JSON.stringify(s.proxy);`);
+  let proxyState = await H.storeQ(call, "return JSON.stringify(s.proxy);");
   check(
     "#10 前置：代理运行中且未捕获 key（真实启用、零流量）",
     proxyState.running === true && proxyState.hasKey === false && proxyState.port === PROXY_PORT,
@@ -936,7 +942,7 @@ async function tagMessagesLive(call) {
   // key 捕获发生在 main 的 keyStore（外部请求不经过渲染层）⇒ 必须显式回读状态
   await H.storeQ(call, `await s.loadProxyStatus(); return JSON.stringify("ok");`);
   const served1 = await mockServed();
-  proxyState = await H.storeQ(call, `return JSON.stringify(s.proxy);`);
+  proxyState = await H.storeQ(call, "return JSON.stringify(s.proxy);");
   check(
     "#8 前置：外部请求经代理录为 run 且 key 已捕获（真实转发 + 真实 keyStore）",
     typeof proxyRunId === "string" && served1 === 1 && proxyState.hasKey === true,
@@ -993,7 +999,7 @@ async function tagMessagesLive(call) {
   // ── #43 非法原文跨页逐字恢复 ──
   await H.setEditableMonaco(call, "{invalid");
   await clickReturnSource(call); // messages → 返回来源（trace）
-  const viewAfterLeave = await H.storeQ(call, `return JSON.stringify({ view: s.view });`);
+  const viewAfterLeave = await H.storeQ(call, "return JSON.stringify({ view: s.view });");
   await openLlmCallDetail(call, proxyRunId, "s_02");
   await clickMessagesEntry(call);
   const mono1 = await waitMonaco(call, 2);
@@ -1186,7 +1192,7 @@ async function tagMessagesLive(call) {
     `await s.toggleProxy(JSON.parse(${JSON.stringify(JSON.stringify({ enabled: false, port: PROXY_PORT, upstreamBaseUrl: UPSTREAM }))}));
      return JSON.stringify(s.proxy);`,
   );
-  const stoppedState = await H.storeQ(call, `return JSON.stringify(s.proxy);`);
+  const stoppedState = await H.storeQ(call, "return JSON.stringify(s.proxy);");
   const reason12 = await bodyHas(call, "本地录制代理未运行：没有可重发的 upstream");
   const resend12 = await resendButtonState(call);
   check(
@@ -1227,7 +1233,7 @@ async function tagMessagesRestart(call) {
 
   // ── #29 前置：重启后 autoStart 运行中、key 失效 ──
   await H.storeQ(call, `await s.loadProxyStatus(); return JSON.stringify("ok");`);
-  const proxyState = await H.storeQ(call, `return JSON.stringify(s.proxy);`);
+  const proxyState = await H.storeQ(call, "return JSON.stringify(s.proxy);");
   check(
     "#29 前置：dev 重启后代理 autoStart 运行中且凭据失效（key 仅内存暂存）",
     proxyState.running === true && proxyState.hasKey === false,
@@ -1298,7 +1304,7 @@ async function tagMessagesRestart(call) {
   await H.storeQ(call, `await s.loadProxyStatus(); return JSON.stringify("ok");`);
   const hasKeyNow = await H.storeQ(
     call,
-    `return JSON.stringify({ hasKey: s.proxy.hasKey, running: s.proxy.running });`,
+    "return JSON.stringify({ hasKey: s.proxy.hasKey, running: s.proxy.running });",
   );
   check(
     "#44 录制页捕获凭据：外部请求经代理 → hasKey 翻真",

@@ -68,7 +68,11 @@ function finish(extraMeta = {}) {
   const failed = checks.filter((c) => !c.ok && !c.note);
   writeFileSync(
     join(OUT_DIR, `${TAG}-measurements.json`),
-    JSON.stringify({ tag: TAG, meta: { head: headShort(), ...extraMeta }, checks, failed: failed.length, dump }, null, 2),
+    JSON.stringify(
+      { tag: TAG, meta: { head: headShort(), ...extraMeta }, checks, failed: failed.length, dump },
+      null,
+      2,
+    ),
   );
   console.log(`检查 ${checks.filter((c) => !c.note).length} 条，失败 ${failed.length} 条`);
   clearTimeout(watchdog);
@@ -85,7 +89,9 @@ function mockServed() {
   return new Promise((resolve, reject) => {
     const req = http.get("http://127.0.0.1:18799/__log", (res) => {
       let body = "";
-      res.on("data", (d) => (body += d));
+      res.on("data", (d) => {
+        body += d;
+      });
       res.on("end", () => {
         try {
           resolve(JSON.parse(body).served);
@@ -211,7 +217,8 @@ async function openSettingsAndSaveKey(call, newKey) {
   await H.sleep(900);
   // 改 key（input[type=password]）+ 保存
   const edited = await H.typeIntoDom(call, 'dialog[open] input[type="password"]', newKey);
-  if (!String(edited?.value ?? "").includes(newKey)) throw new Error(`key 输入未生效：${JSON.stringify(edited)}`);
+  if (!String(edited?.value ?? "").includes(newKey))
+    throw new Error(`key 输入未生效：${JSON.stringify(edited)}`);
   await H.clickInOpenDialog(call, "保存", 1200);
   // 关闭设置：Esc（ModalDialog 最上层合成关闭）⇒ 轮询 dialog 消失
   await H.ev(
@@ -220,7 +227,10 @@ async function openSettingsAndSaveKey(call, newKey) {
   );
   const deadline = Date.now() + 8000;
   for (;;) {
-    const n = await H.ev(call, `JSON.stringify(document.querySelectorAll('dialog[open]').length)`).then(JSON.parse);
+    const n = await H.ev(
+      call,
+      `JSON.stringify(document.querySelectorAll('dialog[open]').length)`,
+    ).then(JSON.parse);
     if (n === 0) break;
     if (Date.now() > deadline) throw new Error("设置模态未关闭");
     await H.sleep(400);
@@ -265,10 +275,11 @@ async function main() {
     await H.sleep(1200);
     const createView = await H.storeQ(
       call,
-      `return JSON.stringify({ view: s.view, runsN: s.runs.length });`,
+      "return JSON.stringify({ view: s.view, runsN: s.runs.length });",
     );
     dump.createView = createView;
-    if (createView.view !== "create") throw new Error(`创建页未打开：${JSON.stringify(createView)}`);
+    if (createView.view !== "create")
+      throw new Error(`创建页未打开：${JSON.stringify(createView)}`);
     // systemPrompt 在高级区内（折叠不可见 ⇒ 先展开，否则 offsetParent=null 拒聚焦）
     const advanced = await H.ev(
       call,
@@ -285,7 +296,8 @@ async function main() {
        })()`,
     ).then(JSON.parse);
     dump.createProbe = advanced;
-    if (!advanced.found || !advanced.visible) throw new Error(`高级区探测失败：${JSON.stringify(advanced)}`);
+    if (!advanced.found || !advanced.visible)
+      throw new Error(`高级区探测失败：${JSON.stringify(advanced)}`);
     if (advanced.expanded === "false") {
       await H.ev(
         call,
@@ -303,10 +315,14 @@ async function main() {
       'textarea[placeholder^="要交给模型的任务"]',
       "U8 实验父本：解释这段代码的作用",
     );
-    check("创建表单已填（system + user）", String(sys?.value ?? "").length > 5 && String(user?.value ?? "").length > 5, {
-      sys: sys?.value,
-      user: user?.value,
-    });
+    check(
+      "创建表单已填（system + user）",
+      String(sys?.value ?? "").length > 5 && String(user?.value ?? "").length > 5,
+      {
+        sys: sys?.value,
+        user: user?.value,
+      },
+    );
     // 确认 → 创建（ready 异步生效 ⇒ 点击后延时读 aria-pressed，不能同步读）
     const confirmClick = await H.ev(
       call,
@@ -329,7 +345,9 @@ async function main() {
     ).then(JSON.parse);
     dump.confirmClick = { click: confirmClick, after: confirmState };
     if (confirmState.pressed !== "true") {
-      throw new Error(`创建确认未挂上：${JSON.stringify({ click: confirmClick, after: confirmState })}`);
+      throw new Error(
+        `创建确认未挂上：${JSON.stringify({ click: confirmClick, after: confirmState })}`,
+      );
     }
     await H.sleep(300);
     const createBtn = await H.ev(
@@ -388,7 +406,10 @@ async function main() {
     dump.parentRunId = parentId;
 
     // ── 打开实验工作区（运行页头「模型实验」入口）──
-    await H.storeQ(call, `await s.selectRun(${JSON.stringify(parentId)}); return JSON.stringify("ok");`);
+    await H.storeQ(
+      call,
+      `await s.selectRun(${JSON.stringify(parentId)}); return JSON.stringify("ok");`,
+    );
     await H.sleep(1200);
     await H.ev(
       call,
@@ -415,7 +436,9 @@ async function main() {
       dom?.previewDisabled === true,
       dom,
     );
-    note("#34 拦截文案的措辞机器判据由 model-ab guard 单元承载（空文本=沿用父、显式 {} 等价空），实机呈现为预览 disabled。");
+    note(
+      "#34 拦截文案的措辞机器判据由 model-ab guard 单元承载（空文本=沿用父、显式 {} 等价空），实机呈现为预览 disabled。",
+    );
 
     // ── 非法值：臂 1 非法 JSON ⇒ 同样拦截 ──
     await setArm(call, 0, "deepseek-chat", "{ temperature: }");
@@ -426,7 +449,11 @@ async function main() {
     // ── 合法态：臂 1 覆盖参数（新增形态）、臂 2 显式 {} + 不同 model ──
     await setArm(call, 0, "deepseek-chat", '{"temperature":0.2}');
     dom = await abDom(call);
-    check("合法态：预览可用（空文本/显式 {} /非法值三态区分）", dom?.previewDisabled === false, dom);
+    check(
+      "合法态：预览可用（空文本/显式 {} /非法值三态区分）",
+      dom?.previewDisabled === false,
+      dom,
+    );
 
     // ── 预览 → 三段计划 + 零调用零落盘 ──
     const { servedBefore } = await clickPreviewAndWait(call);
@@ -435,7 +462,10 @@ async function main() {
     check(
       "#57/#61 dry-run 零调用（served 不变）、零落盘（traces 只含父本）",
       servedAfterPreview === servedBefore && H.traceIds().size === tracesBaseline.size,
-      { served: [servedBefore, servedAfterPreview], traces: [tracesBaseline.size, H.traceIds().size] },
+      {
+        served: [servedBefore, servedAfterPreview],
+        traces: [tracesBaseline.size, H.traceIds().size],
+      },
     );
     check(
       "#58/#62 三段计划呈现：生效 params（新增标签）+ 臂 2 显式空 = 沿用父 params",
@@ -483,20 +513,27 @@ async function main() {
     dump.dom63 = dom;
     check(
       "#63 修改臂再改回 ⇒ 批次修订推进（改走又改回不回到预览时修订）",
-      revAfter.revision !== null && revBefore.revision !== null && revAfter.revision > revBefore.revision,
+      revAfter.revision !== null &&
+        revBefore.revision !== null &&
+        revAfter.revision > revBefore.revision,
       { before: revBefore, after: revAfter },
     );
     check(
       "#63 修改臂再改回 ⇒ 计划失效（确认/执行禁用 + 计划区消失 = 「不恢复」的完整行为呈现）",
-      dom?.confirmDisabled === true &&
-        dom?.execDisabled === true &&
-        dom?.planText === null,
-      { planText: dom?.planText === null ? "已消失" : dom?.planText?.slice(0, 80),
-        confirmDisabled: dom?.confirmDisabled, execDisabled: dom?.execDisabled },
+      dom?.confirmDisabled === true && dom?.execDisabled === true && dom?.planText === null,
+      {
+        planText: dom?.planText === null ? "已消失" : dom?.planText?.slice(0, 80),
+        confirmDisabled: dom?.confirmDisabled,
+        execDisabled: dom?.execDisabled,
+      },
     );
     await clickPreviewAndWait(call);
     dom = await abDom(call);
-    check("#63 重新校验 ⇒ 计划恢复（确认按钮可点）", dom?.confirmDisabled === false, dom?.confirmDisabled);
+    check(
+      "#63 重新校验 ⇒ 计划恢复（确认按钮可点）",
+      dom?.confirmDisabled === false,
+      dom?.confirmDisabled,
+    );
 
     // ── #64 设置往返不误杀 → 仅换 key 作废 ──
     await openSettingsAndSaveKey(call, "sk-u8-67-rotated");
@@ -505,12 +542,19 @@ async function main() {
     check(
       "#64 已核实仅换 key 保存 ⇒ 计画作废（指纹不变、代次推进：确认禁用 + 计划区消失）",
       dom?.confirmDisabled === true && dom?.planText === null && st2.view === "experiment",
-      { planText: dom?.planText === null ? "已消失" : dom?.planText?.slice(0, 80),
-        confirmDisabled: dom?.confirmDisabled, view: st2.view },
+      {
+        planText: dom?.planText === null ? "已消失" : dom?.planText?.slice(0, 80),
+        confirmDisabled: dom?.confirmDisabled,
+        view: st2.view,
+      },
     );
     await clickPreviewAndWait(call);
     dom = await abDom(call);
-    check("#64 重新校验 ⇒ 计划恢复（代次已对齐）", dom?.confirmDisabled === false, dom?.confirmDisabled);
+    check(
+      "#64 重新校验 ⇒ 计划恢复（代次已对齐）",
+      dom?.confirmDisabled === false,
+      dom?.confirmDisabled,
+    );
 
     // ── #56/#61 确认与披露（不真实执行）──
     await H.ev(
@@ -532,21 +576,25 @@ async function main() {
       dom?.disclosure?.slice(0, 260),
     );
     const servedFinal = await mockServed();
-    check(
-      "#57 全程零执行（mock 计数 = 父本 1 次 + 预览 0 次）",
-      servedFinal === served0 + 1,
-      { served: [served0, servedFinal] },
-    );
-    check(
-      "#57 全程零落盘（traces 与父本创建后一致）",
-      H.traceIds().size === tracesBaseline.size,
-      { traces: [tracesBaseline.size, H.traceIds().size] },
-    );
+    check("#57 全程零执行（mock 计数 = 父本 1 次 + 预览 0 次）", servedFinal === served0 + 1, {
+      served: [served0, servedFinal],
+    });
+    check("#57 全程零落盘（traces 与父本创建后一致）", H.traceIds().size === tracesBaseline.size, {
+      traces: [tracesBaseline.size, H.traceIds().size],
+    });
     await H.shot(call, SHOT_DIR, "experiment-plan.png");
-    note("#67 副作用声明路径需带风险工具父本（纯对话父本 risky=[] ⇒ 复选框不出现）⇒ 声明路径按 U5 6.5 实机（旧载体）+ 3.4/3.9 迁移判据承载。");
-    note("overridden/丢弃父录值形态需父 run 录有 params（CreateRunRequest 无 params 字段）⇒ 字段渲染同一条 ArmPlanRow，覆盖/丢弃由 fork-runner CLI 单元承载。");
-    note("#33 切运行不更换实验父本的实机半边（切运行后目标保持）随 6.8 真实执行批次复核（本批单父本单工作区）。");
-    note("🔴 planStaleText/config-stale 失效说明文案当前不可达：commitRows（L314）与 useRevokeOnConfigChange（L222）都先 setPlan(null) ⇒ planStale 恒 false，而文案渲染条件要求 plan!==null——L234 注释「后两种要就近说清楚」的设计意图未接上；实际呈现 = 计划区整体消失 + 按钮禁用（行为安全，缺一句为什么）。是否补呈现或删死代码归定口径。");
+    note(
+      "#67 副作用声明路径需带风险工具父本（纯对话父本 risky=[] ⇒ 复选框不出现）⇒ 声明路径按 U5 6.5 实机（旧载体）+ 3.4/3.9 迁移判据承载。",
+    );
+    note(
+      "overridden/丢弃父录值形态需父 run 录有 params（CreateRunRequest 无 params 字段）⇒ 字段渲染同一条 ArmPlanRow，覆盖/丢弃由 fork-runner CLI 单元承载。",
+    );
+    note(
+      "#33 切运行不更换实验父本的实机半边（切运行后目标保持）随 6.8 真实执行批次复核（本批单父本单工作区）。",
+    );
+    note(
+      "🔴 planStaleText/config-stale 失效说明文案当前不可达：commitRows（L314）与 useRevokeOnConfigChange（L222）都先 setPlan(null) ⇒ planStale 恒 false，而文案渲染条件要求 plan!==null——L234 注释「后两种要就近说清楚」的设计意图未接上；实际呈现 = 计划区整体消失 + 按钮禁用（行为安全，缺一句为什么）。是否补呈现或删死代码归定口径。",
+    );
   } catch (e) {
     check(`tag 执行异常：${String(e?.message ?? e).slice(0, 300)}`, false);
   }

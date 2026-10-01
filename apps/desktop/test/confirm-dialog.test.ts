@@ -62,12 +62,25 @@ describe("U3 5.2 接线契约（源码级）：放弃确认迁出 window.confirm
     resolve(import.meta.dirname, "../src/renderer/src/components/GlobalBar.tsx"),
     "utf8",
   );
+  // U8 3.1a/5.1a：A/B 与 messages 编辑器迁独立工作区组件（DetailPanel 只留入口），
+  // 放弃确认调用点随载体迁移——本用例计数从「DetailPanel 9 处」改判为三文件合计（两边留痕）。
+  const modelAbEditor = readFileSync(
+    resolve(import.meta.dirname, "../src/renderer/src/components/ModelAbEditor.tsx"),
+    "utf8",
+  );
+  const messagesEditor = readFileSync(
+    resolve(import.meta.dirname, "../src/renderer/src/components/MessagesForkEditor.tsx"),
+    "utf8",
+  );
 
-  it("放弃确认全部经 requestConfirm（DetailPanel 9 处 + 创建 1 处）", () => {
-    // 列表1 + prompt 字段/横幅2 + result 字段/横幅2 + messages 字段/横幅2 + A/B 整批/横幅2
+  it("放弃确认全部经 requestConfirm（DetailPanel 5 + A/B 2 + messages 2 + 创建 1）", () => {
+    // DetailPanel：列表1 + prompt 字段/横幅2 + result 字段/横幅2（messages/A-B 两对随 U8 迁出）
     expect(detail).toContain("void requestConfirm({");
     const detailCount = (detail.match(/requestConfirm\(\{/g) ?? []).length;
-    expect(detailCount).toBe(9);
+    expect(detailCount).toBe(5);
+    // A/B 整批/横幅 2 处在 ModelAbEditor；messages 字段/横幅 2 处在 MessagesForkEditor
+    expect((modelAbEditor.match(/requestConfirm\(\{/g) ?? []).length).toBe(2);
+    expect((messagesEditor.match(/requestConfirm\(\{/g) ?? []).length).toBe(2);
     expect(create).toContain("void requestConfirm({");
     // 全会话入口（GlobalBar）的放弃点同样迁移
     expect(globalBar).toContain("void requestConfirm({");
@@ -93,9 +106,10 @@ describe("U3 5.2 接线契约（源码级）：放弃确认迁出 window.confirm
 
   it("异步确认后 CAS 仍按快照修订校验（旧确认不能删新修订）", () => {
     // 每个放弃执行点必须用快照 revision 而非实时 revision 调 discard
+    // （U8 3.1a：A/B 编辑器迁 ModelAbEditor ⇒ 第三条锚点随载体改判，两边留痕）
     expect(detail).toContain("discardCallDraft(draftKeyOf(field), snapshot.revision)");
     expect(detail).toContain("discardCallDraft(draftKey, snapshot.revision)");
-    expect(detail).toContain("discardModelAbDraft(draftKey, snapshot.revision)");
+    expect(modelAbEditor).toContain("discardModelAbDraft(draftKey, snapshot.revision)");
     expect(create).toContain("discardCreateRunDraft(current.revision)");
   });
 });

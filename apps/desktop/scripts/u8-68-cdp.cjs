@@ -65,7 +65,11 @@ function finish(extraMeta = {}) {
   const failed = checks.filter((c) => !c.ok && !c.note);
   writeFileSync(
     join(OUT_DIR, `${TAG}-measurements.json`),
-    JSON.stringify({ tag: TAG, meta: { head: headShort(), ...extraMeta }, checks, failed: failed.length, dump }, null, 2),
+    JSON.stringify(
+      { tag: TAG, meta: { head: headShort(), ...extraMeta }, checks, failed: failed.length, dump },
+      null,
+      2,
+    ),
   );
   console.log(`检查 ${checks.filter((c) => !c.note).length} 条，失败 ${failed.length} 条`);
   clearTimeout(watchdog);
@@ -83,10 +87,15 @@ function mockReset(script) {
     const body = JSON.stringify({ script });
     const req = http.request(
       "http://127.0.0.1:18799/__reset",
-      { method: "POST", headers: { "content-type": "application/json", "content-length": Buffer.byteLength(body) } },
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", "content-length": Buffer.byteLength(body) },
+      },
       (res) => {
         let data = "";
-        res.on("data", (d) => (data += d));
+        res.on("data", (d) => {
+          data += d;
+        });
         res.on("end", () => resolve(JSON.parse(data)));
       },
     );
@@ -101,11 +110,15 @@ function mockReset(script) {
 }
 function mockServed() {
   return new Promise((resolve, reject) => {
-    http.get("http://127.0.0.1:18799/__log", (res) => {
-      let body = "";
-      res.on("data", (d) => (body += d));
-      res.on("end", () => resolve(JSON.parse(body).served));
-    }).on("error", reject);
+    http
+      .get("http://127.0.0.1:18799/__log", (res) => {
+        let body = "";
+        res.on("data", (d) => {
+          body += d;
+        });
+        res.on("end", () => resolve(JSON.parse(body).served));
+      })
+      .on("error", reject);
   });
 }
 
@@ -129,7 +142,11 @@ async function createParent(call, tag) {
   ).then(JSON.parse);
   if (adv.found !== true) throw new Error(`高级区探测失败：${JSON.stringify(adv)}`);
   await H.sleep(600);
-  await H.typeIntoDom(call, 'textarea[placeholder^="例如：你是一个简洁的问答助手"]', "你是通用文件助手。");
+  await H.typeIntoDom(
+    call,
+    'textarea[placeholder^="例如：你是一个简洁的问答助手"]',
+    "你是通用文件助手。",
+  );
   await H.typeIntoDom(call, 'textarea[placeholder^="要交给模型的任务"]', `U8 ${tag} 实验父本`);
   const confirm = await H.ev(
     call,
@@ -141,7 +158,8 @@ async function createParent(call, tag) {
     call,
     `JSON.stringify(document.querySelector('[data-confirm-execution]')?.getAttribute('aria-pressed'))`,
   ).then(JSON.parse);
-  if (pressed !== "true") throw new Error(`创建确认未挂上：${JSON.stringify({ confirm, pressed })}`);
+  if (pressed !== "true")
+    throw new Error(`创建确认未挂上：${JSON.stringify({ confirm, pressed })}`);
   const runsBefore = await H.runs(call);
   await H.ev(
     call,
@@ -162,7 +180,10 @@ async function createParent(call, tag) {
 }
 
 async function openExperimentFor(call, parentId) {
-  await H.storeQ(call, `await s.selectRun(${JSON.stringify(parentId)}); return JSON.stringify("ok");`);
+  await H.storeQ(
+    call,
+    `await s.selectRun(${JSON.stringify(parentId)}); return JSON.stringify("ok");`,
+  );
   await H.sleep(1200);
   const r = await H.ev(
     call,
@@ -360,10 +381,14 @@ async function main() {
     await mockReset({ turns: [SCRIPT_PLAIN_TURN], fallback: { content: "（剧本耗尽）" } });
     const parentId = await createParent(call, "6.8");
     const servedAfterParent = await mockServed();
-    check("父本现造成功（mock 恰 1 次调用）", typeof parentId === "string" && servedAfterParent === 1, {
-      parentId,
-      served: servedAfterParent,
-    });
+    check(
+      "父本现造成功（mock 恰 1 次调用）",
+      typeof parentId === "string" && servedAfterParent === 1,
+      {
+        parentId,
+        served: servedAfterParent,
+      },
+    );
     const tracesBaseline = H.traceIds().size; // 基线取创建后
 
     // ── 批次 1：部分失败（臂 1 ok + 臂 2 fail503）──
@@ -398,7 +423,10 @@ async function main() {
     // ── 后台离开：执行期间切页，收口不抢导航（A/B 意图恒 drop）──
     await H.storeQ(call, `s.setView("trace"); return JSON.stringify("ok");`);
     await H.sleep(600);
-    const viewDuring = await H.storeQ(call, `return JSON.stringify({ view: s.view, sel: s.selectedRunId });`);
+    const viewDuring = await H.storeQ(
+      call,
+      "return JSON.stringify({ view: s.view, sel: s.selectedRunId });",
+    );
     check(
       "#42 执行期间离开实验页（view=trace、选择不动）",
       viewDuring.view === "trace" && viewDuring.sel === parentId,
@@ -418,18 +446,16 @@ async function main() {
       if (Date.now() > deadline1) throw new Error(`批次 1 收口 60s 未到：${JSON.stringify(recs)}`);
       await H.sleep(800);
     }
-    const viewAfter = await H.storeQ(call, `return JSON.stringify({ view: s.view });`);
+    const viewAfter = await H.storeQ(call, "return JSON.stringify({ view: s.view });");
     check(
       "#42 收口后不抢导航（仍在 trace 视图，A/B 意图恒 drop）",
       viewAfter.view === "trace",
       viewAfter,
     );
     const servedBatch1 = await mockServed();
-    check(
-      "#57 批次 1 恰 2 次调用（臂 1 ok + 臂 2 fail503 都算 served）",
-      servedBatch1 === 2,
-      { served: servedBatch1 },
-    );
+    check("#57 批次 1 恰 2 次调用（臂 1 ok + 臂 2 fail503 都算 served）", servedBatch1 === 2, {
+      served: servedBatch1,
+    });
     check(
       "#37 登记逐臂诚实：arms 覆盖两臂 [returned, failed]；runIds 含全部臂 id（逐臂核实的可信身份；信封 ids 只含成功臂的契约按 exec-model-ab 单元承载）",
       rec1.armCount === 2 &&
@@ -450,7 +476,9 @@ async function main() {
 
     // 落盘核对：臂 2 文件带顶层 error + errored 终态（node 侧直读）
     const arm2File = join(H.REPO, ".rebaseagent", "traces", `${arm2Id}.jsonl`);
-    const arm2Lines = readFileSync(arm2File, "utf8").split("\n").filter((l) => l.trim());
+    const arm2Lines = readFileSync(arm2File, "utf8")
+      .split("\n")
+      .filter((l) => l.trim());
     const arm2Meta = JSON.parse(arm2Lines[0]);
     const arm2Call = arm2Lines.map((l) => JSON.parse(l)).find((o) => o.kind === "llm.call");
     const arm2Event = JSON.parse(arm2Lines[arm2Lines.length - 1]);
@@ -459,11 +487,17 @@ async function main() {
       arm2Call?.error?.message?.includes("503") === true &&
         arm2Event.event === "errored" &&
         arm2Meta.fork?.edit?.value?.experimentId === rec1.experimentId,
-      { error: arm2Call?.error?.message, event: `${arm2Event.event}/${arm2Event.reason}`, exp: arm2Meta.fork?.edit?.value?.experimentId },
+      {
+        error: arm2Call?.error?.message,
+        event: `${arm2Event.event}/${arm2Event.reason}`,
+        exp: arm2Meta.fork?.edit?.value?.experimentId,
+      },
     );
     const arm1Id = rec1.arms[0].id;
     const arm1File = join(H.REPO, ".rebaseagent", "traces", `${arm1Id}.jsonl`);
-    const arm1Lines = readFileSync(arm1File, "utf8").split("\n").filter((l) => l.trim());
+    const arm1Lines = readFileSync(arm1File, "utf8")
+      .split("\n")
+      .filter((l) => l.trim());
     const arm1Event = JSON.parse(arm1Lines[arm1Lines.length - 1]);
     check(
       "#37 成功臂落盘：stopped/completed、无 error、同批 experimentId",
@@ -537,7 +571,7 @@ async function main() {
     }
     await H.sleep(900);
     // reload 未换文档哨兵（U4 6.6 坑：它会绿）——读不到哨兵即已换文档
-    const sentinel = await H.ev(call, `window.__u868Doc ?? null`).catch(() => null);
+    const sentinel = await H.ev(call, "window.__u868Doc ?? null").catch(() => null);
     if (sentinel === "sentinel") {
       await call("Page.reload", { ignoreCache: true });
       await H.sleep(3000);
@@ -633,19 +667,21 @@ async function main() {
     // ── 总核对：mock 分段计数（每次 /__reset 清零 ⇒ 按段断言）与 traces ──
     // 批次 1 收口时 served 应为 2（臂 1 ok + 臂 2 fail503 都算 served）——已在 waitSettled 前记录；
     const servedFinal = await mockServed();
-    check(
-      "#57 批次 2 恰 2 次调用（[ok, ok] 两臂；reset 后计数从零起）",
-      servedFinal === 2,
-      { served: servedFinal },
+    check("#57 批次 2 恰 2 次调用（[ok, ok] 两臂；reset 后计数从零起）", servedFinal === 2, {
+      served: servedFinal,
+    });
+    check("#37/#39 落盘恰 +4（两批各两臂 run），无补造", H.traceIds().size === tracesBaseline + 4, {
+      traces: [tracesBaseline, H.traceIds().size],
+    });
+    note(
+      "缺臂/未知形态真机不可达（执行收口必带全量 armFacts；「settled 且 runIds 为空」不可达）⇒ 按 draft-closure-store 单元承载。",
     );
-    check(
-      "#37/#39 落盘恰 +4（两批各两臂 run），无补造",
-      H.traceIds().size === tracesBaseline + 4,
-      { traces: [tracesBaseline, H.traceIds().size] },
+    note(
+      "#33 切运行不更换实验父本：本批经 openExperimentFor 重开验证目标显式绑定（target.runId=parentId），跨页选择切换由 6.6/6.7 的 store 判据与 aux-workspace-store 单元承载。",
     );
-    note("缺臂/未知形态真机不可达（执行收口必带全量 armFacts；「settled 且 runIds 为空」不可达）⇒ 按 draft-closure-store 单元承载。");
-    note("#33 切运行不更换实验父本：本批经 openExperimentFor 重开验证目标显式绑定（target.runId=parentId），跨页选择切换由 6.6/6.7 的 store 判据与 aux-workspace-store 单元承载。");
-    note("#35 实验来源失效仍能返回草稿：来源失效路径（文件手术父本）在本批未触发（只读父本稳定），由 3.2 的 revalidateModelAbDraftSource 单元 + DraftSourceBanner 判据承载。");
+    note(
+      "#35 实验来源失效仍能返回草稿：来源失效路径（文件手术父本）在本批未触发（只读父本稳定），由 3.2 的 revalidateModelAbDraftSource 单元 + DraftSourceBanner 判据承载。",
+    );
   } catch (e) {
     check(`tag 执行异常：${String(e?.message ?? e).slice(0, 300)}`, false);
   } finally {

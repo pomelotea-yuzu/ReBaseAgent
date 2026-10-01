@@ -13,6 +13,12 @@ import { emptyResultReadStore } from "../src/renderer/src/lib/result-verificatio
 import { deriveRunSummary } from "../src/shared/derive";
 import { installOperationChannels } from "./helpers/operation-channels";
 
+// U8 6.11 起 returnToAuxSource 用 requestAnimationFrame 回焦（4fdcc96）；本文件是裸 node
+// 环境（无 DOM），焦点恢复契约由 aux-workspace-entries（组件层）承载 ⇒ 这里给**永不触发**
+// 的桩，只为不抛 ReferenceError——回调不执行，store 导航判据不受影响。
+(globalThis as { requestAnimationFrame?: (cb: () => void) => number }).requestAnimationFrame ??=
+  () => 0;
+
 /**
  * U8（unify-recording-and-experiment-workspaces）任务 1.3 的 **store 接线**：
  * 辅助工作区进入 / 返回 / 重复进入守卫。

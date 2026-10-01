@@ -101,7 +101,9 @@ function mockReset(script) {
       },
       (res) => {
         let data = "";
-        res.on("data", (d) => (data += d));
+        res.on("data", (d) => {
+          data += d;
+        });
         res.on("end", () => resolve(JSON.parse(data)));
       },
     );
@@ -119,7 +121,9 @@ function mockServed() {
     http
       .get("http://127.0.0.1:18799/__log", (res) => {
         let body = "";
-        res.on("data", (d) => (body += d));
+        res.on("data", (d) => {
+          body += d;
+        });
         res.on("end", () => resolve(JSON.parse(body).served));
       })
       .on("error", reject);
@@ -142,7 +146,9 @@ function externalRequest(messages) {
       },
       (res) => {
         let data = "";
-        res.on("data", (d) => (data += d));
+        res.on("data", (d) => {
+          data += d;
+        });
         res.on("end", () => resolve({ status: res.status }));
       },
     );
@@ -169,7 +175,7 @@ const bodyHas = (call, text) =>
 const overflowOf = (call) =>
   H.ev(
     call,
-    `JSON.stringify({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth })`,
+    "JSON.stringify({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth })",
   ).then(JSON.parse);
 
 const rectOfButton = (call, text) =>
@@ -347,7 +353,7 @@ async function main() {
   await call("Page.reload", { ignoreCache: true });
   await waitRuns(call);
   await H.sleep(900);
-  const sentinel = await H.ev(call, `window.__u870Doc ?? null`).catch(() => null);
+  const sentinel = await H.ev(call, "window.__u870Doc ?? null").catch(() => null);
   if (sentinel === "sentinel") {
     await call("Page.reload", { ignoreCache: true });
     await H.sleep(3000);
@@ -507,7 +513,7 @@ async function tagPlanGeometry(call) {
   try {
     clipboardFull = await H.ev(
       call,
-      `(async () => { try { return JSON.stringify(await navigator.clipboard.readText()); } catch (e) { return JSON.stringify({ unreadable: String(e).slice(0, 80) }); } })()`,
+      "(async () => { try { return JSON.stringify(await navigator.clipboard.readText()); } catch (e) { return JSON.stringify({ unreadable: String(e).slice(0, 80) }); } })()",
       undefined,
     );
   } catch {

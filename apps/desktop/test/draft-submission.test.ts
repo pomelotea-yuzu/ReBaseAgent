@@ -34,6 +34,16 @@ const CREATE_WORKSPACE = readFileSync(
   resolve(import.meta.dirname, "../src/renderer/src/components/CreateRunWorkspace.tsx"),
   "utf8",
 );
+// U8 3.1a/5.1a：A/B 与 messages 编辑器迁独立工作区组件（DetailPanel 只留入口），
+// 源码级接线契约的锚点随载体迁移（两边留痕，判据语义不变）。
+const MODEL_AB_EDITOR = readFileSync(
+  resolve(import.meta.dirname, "../src/renderer/src/components/ModelAbEditor.tsx"),
+  "utf8",
+);
+const MESSAGES_EDITOR = readFileSync(
+  resolve(import.meta.dirname, "../src/renderer/src/components/MessagesForkEditor.tsx"),
+  "utf8",
+);
 const STORE_SRC = readFileSync(
   resolve(import.meta.dirname, "../src/renderer/src/store.ts"),
   "utf8",
@@ -497,43 +507,61 @@ describe("接线契约：五类提交走快照并受冻结约束（任务 3.4/3.
   it("调用类三编辑器：先登记关联，提交值取自快照而非渲染局部值", () => {
     // 折叠空白后再找：4.4 起 result 的登记调用带上了确认参数（多行写法），
     // 判据是"经 beginDraftSubmission 登记"，不是"写成一行"
+    // U8 5.1a：messages 编辑器迁 MessagesForkEditor ⇒ messages 通道锚点随载体改判（两边留痕）
     const flatPanel = DETAIL_PANEL.replace(/\s+/g, " ");
-    for (const channel of ["result", "prompt", "messages"] as const) {
+    for (const channel of ["result", "prompt"] as const) {
       expect(flatPanel).toContain(`beginDraftSubmission({ channel: "${channel}", target:`);
     }
-    // 每个通道都从关联里取提交值
-    expect(DETAIL_PANEL.match(/assoc\.submittedText/g)?.length).toBeGreaterThanOrEqual(3);
+    expect(MESSAGES_EDITOR.replace(/\s+/g, " ")).toContain(
+      'beginDraftSubmission({ channel: "messages", target:',
+    );
+    // 每个通道都从关联里取提交值（DetailPanel 两处 + messages 编辑器一处）
+    const submittedUses =
+      (DETAIL_PANEL.match(/assoc\.submittedText/g) ?? []).length +
+      (MESSAGES_EDITOR.match(/assoc\.submittedText/g) ?? []).length;
+    expect(submittedUses).toBeGreaterThanOrEqual(3);
     // 旧的"直接提交渲染值"形态已消失（否则快照绑定是假的）
     expect(DETAIL_PANEL).not.toContain("forkAt(run.meta.id, span.id, value");
     expect(DETAIL_PANEL).not.toContain("promptFork(run.meta.id, { field, value });");
-    expect(DETAIL_PANEL).not.toContain(
+    expect(MESSAGES_EDITOR).not.toContain(
       "proxyFork(run.meta.id, span.id, messages as Record<string, unknown>[]);",
     );
   });
 
   it("A/B 执行：登记整批关联后才发请求；预览不带关联", () => {
-    const execute = slice(DETAIL_PANEL, "const doExecute = ", "return (");
+    // U8 3.1a：A/B 编辑器迁 ModelAbEditor ⇒ 切片随载体改判（两边留痕）
+    const execute = slice(MODEL_AB_EDITOR, "const doExecute = ", "return (");
     // U5 任务 4.7：登记时带上当下的确认凭据（缺确认 ⇒ store 侧直接拒绝，不发请求）
     expect(flat(execute)).toContain(
       'beginDraftSubmission({ channel: "model_ab", target: draftKey, confirmation: abBinding',
     );
     expect(execute).toContain("modelAb(run.meta.id, guard.arms, false, assoc)");
     // 预览（dry-run）不是提交：不得登记关联
-    const preview = slice(DETAIL_PANEL, "const doPreview = ", "const doExecute = ");
+    const preview = slice(MODEL_AB_EDITOR, "const doPreview = ", "const doExecute = ");
     expect(preview).not.toContain("beginDraftSubmission");
     expect(preview).toContain("modelAb(run.meta.id, guard.arms, true)");
   });
 
   it("冻结即视为进行中：五个编辑器都禁用输入/放弃/提交并给出待处理说明", () => {
-    // 调用类三编辑器共用同一形态：forking 进行中 ∨ 冻结
+    // 调用类编辑器共用同一形态：forking 进行中 ∨ 冻结
+    // U8 5.1a：messages 编辑器迁出 ⇒ DetailPanel 两处（result/prompt），messages 在自己的文件
     expect(
       DETAIL_PANEL.match(/const inProgress = forking === "in_progress" \|\| draftFrozen;/g)?.length,
-    ).toBe(3);
-    expect(DETAIL_PANEL).toContain("const inProgress = modelAbInFlight || draftFrozen;");
-    // 四个编辑器各查一次冻结（三调用类 + A/B），创建工作区在另一文件
-    expect(DETAIL_PANEL.match(/isDraftFrozen\(/g)?.length).toBe(4);
-    expect(DETAIL_PANEL.match(/本次提交待处理/g)?.length).toBe(3);
-    expect(DETAIL_PANEL).toContain("本次执行待处理");
+    ).toBe(2);
+    expect(
+      MESSAGES_EDITOR.match(/const inProgress = forking === "in_progress" \|\| draftFrozen;/g)
+        ?.length,
+    ).toBe(1);
+    // U8 3.1a：A/B 的 inProgress 形态（modelAbInFlight）随载体迁 ModelAbEditor
+    expect(MODEL_AB_EDITOR).toContain("const inProgress = modelAbInFlight || draftFrozen;");
+    // 冻结判据逐编辑器各查一次（result/prompt 在 DetailPanel，messages/A-B 在各自工作区组件）
+    expect(DETAIL_PANEL.match(/isDraftFrozen\(/g)?.length).toBe(2);
+    expect(MESSAGES_EDITOR.match(/isDraftFrozen\(/g)?.length).toBe(1);
+    expect(MODEL_AB_EDITOR.match(/isDraftFrozen\(/g)?.length).toBe(1);
+    expect(DETAIL_PANEL.match(/本次提交待处理/g)?.length).toBe(2);
+    expect(DETAIL_PANEL).not.toContain("本次执行待处理");
+    // A/B 的整批冻结说明随载体迁 ModelAbEditor
+    expect(MODEL_AB_EDITOR).toContain("本次执行待处理");
 
     expect(CREATE_WORKSPACE).toContain("isDraftFrozen(CREATE_SUBMIT_TARGET)");
     expect(CREATE_WORKSPACE).toContain("const formLocked = busy || pickingSource || draftFrozen;");
@@ -562,7 +590,8 @@ describe("接线契约：五类提交走快照并受冻结约束（任务 3.4/3.
   });
 
   it("messages 在本地校验拒绝时收尾；取消确认改为登记前 ⇒ 不留待定关联", () => {
-    const resend = slice(DETAIL_PANEL, "const doResend = ", "const discardCurrent = ");
+    // U8 5.1a：编辑器迁 MessagesForkEditor ⇒ 切片随载体改判（两边留痕）
+    const resend = slice(MESSAGES_EDITOR, "const doResend = ", "const discardCurrent = ");
     expect(resend).toContain("JSON.parse(assoc.submittedText)");
     // U5 4.6：两处本地校验（JSON 非法 / 非空数组）各收尾一次；
     // 旧的第三处"原生 confirm 取消"已消失——确认不成立时根本不会登记关联

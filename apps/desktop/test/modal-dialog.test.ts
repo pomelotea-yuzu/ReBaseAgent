@@ -165,15 +165,28 @@ describe("U3 5.1 接线契约（源码级）", () => {
   });
 
   it("U3 6.10：四个编辑区都接 useEscapeClose，且与收起按钮同动作（保留草稿）", () => {
+    // U8 3.1a/5.1a：messages 与 A/B 编辑器迁独立工作区组件 ⇒ 锚点随载体改判（两边留痕）：
+    // DetailPanel 两处（result/prompt，形态不变）+ ModelAbEditor / MessagesForkEditor 各一处
+    // （alwaysOpen 形态下不挂 Esc——工作区常开没有"收起"语义）。
     const panel = R("../src/renderer/src/components/DetailPanel.tsx");
+    const modelAbEditor = R("../src/renderer/src/components/ModelAbEditor.tsx");
+    const messagesEditor = R("../src/renderer/src/components/MessagesForkEditor.tsx");
     const hook = R("../src/renderer/src/lib/use-escape-close.ts");
-    // 四编辑器各一处（result / prompt / messages / A-B）
-    expect(panel.match(/useEscapeClose\(open && !inProgress/g)?.length).toBe(4);
+    // 编辑区各一处（result / prompt 在 DetailPanel；messages / A-B 在各自工作区组件）
+    expect(panel.match(/useEscapeClose\(open && !inProgress/g)?.length).toBe(2);
+    expect(modelAbEditor.match(/useEscapeClose\(open && !alwaysOpen && !inProgress/g)?.length).toBe(
+      1,
+    );
+    expect(
+      messagesEditor.match(/useEscapeClose\(open && !alwaysOpen && !inProgress/g)?.length,
+    ).toBe(1);
     // 收起动作与按钮一致：不触碰 discard/删除草稿的 store 动作
     const escBlocks = panel.match(
       /useEscapeClose\(open && !inProgress, \(\) => \{\s*reset[A-Za-z]+\(\);\s*setOpen\(false\);\s*\}\);/g,
     );
-    expect(escBlocks?.length).toBe(4);
+    expect(escBlocks?.length).toBe(2);
+    expect(modelAbEditor).toContain("resetModelAb();\n    setOpen(false);");
+    expect(messagesEditor).toContain("resetFork();\n    setOpen(false);");
     expect(panel).toContain('import { useEscapeClose } from "../lib/use-escape-close";');
     // 层级判据齐备：模态在场不消费、defaultPrevented 让位、栈顶才消费
     expect(hook).toContain('ctx.key === "Escape"');

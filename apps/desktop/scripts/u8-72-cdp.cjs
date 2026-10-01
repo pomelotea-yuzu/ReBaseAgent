@@ -106,7 +106,9 @@ function mockReset(script) {
       },
       (res) => {
         let data = "";
-        res.on("data", (d) => (data += d));
+        res.on("data", (d) => {
+          data += d;
+        });
         res.on("end", () => resolve(JSON.parse(data)));
       },
     );
@@ -124,7 +126,9 @@ function mockServed() {
     require("node:http")
       .get("http://127.0.0.1:18799/__log", (res) => {
         let body = "";
-        res.on("data", (d) => (body += d));
+        res.on("data", (d) => {
+          body += d;
+        });
         res.on("end", () => resolve(JSON.parse(body).served));
       })
       .on("error", reject);
@@ -168,7 +172,9 @@ async function openSettingsFromCreate(call) {
 }
 
 async function dialogCount(call) {
-  return H.ev(call, `JSON.stringify(document.querySelectorAll('dialog[open]').length)`).then(JSON.parse);
+  return H.ev(call, `JSON.stringify(document.querySelectorAll('dialog[open]').length)`).then(
+    JSON.parse,
+  );
 }
 
 /** 关闭设置：Esc；若脏确认出现则「放弃修改并关闭」。返回是否出现了放弃确认。 */
@@ -421,7 +427,11 @@ async function tagSettingsEntries(call) {
     'textarea[placeholder^="要交给模型的任务"]',
     "U8612 两模式配置往返的任务文本（#14 保留判据）",
   );
-  check("#14 任务文本已填", String(task?.value ?? "").includes("U8612 两模式配置往返"), task?.value?.slice(0, 40));
+  check(
+    "#14 任务文本已填",
+    String(task?.value ?? "").includes("U8612 两模式配置往返"),
+    task?.value?.slice(0, 40),
+  );
 
   // ── #14a：就近「运行配置…」进设置 ──
   await openSettingsFromCreate(call);
@@ -429,8 +439,16 @@ async function tagSettingsEntries(call) {
   check("#14 从创建页就近入口打开设置", dlgOpen === true, dlgOpen);
 
   // ── #16：脏 model 字段 → 关闭先确认 → 继续编辑逐字保留 ──
-  const modelDirty = await H.typeIntoDom(call, 'dialog[open] input[placeholder="deepseek-chat"]', "deepseek-chat-dirty");
-  check("#16 model 字段已改脏", String(modelDirty?.value ?? "") === "deepseek-chat-dirty", modelDirty?.value);
+  const modelDirty = await H.typeIntoDom(
+    call,
+    'dialog[open] input[placeholder="deepseek-chat"]',
+    "deepseek-chat-dirty",
+  );
+  check(
+    "#16 model 字段已改脏",
+    String(modelDirty?.value ?? "") === "deepseek-chat-dirty",
+    modelDirty?.value,
+  );
   await H.ev(
     call,
     `(() => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); return true; })()`,
@@ -444,7 +462,11 @@ async function tagSettingsEntries(call) {
     `(() => { const i = document.querySelector('dialog[open] input[placeholder="deepseek-chat"]');
        return i === null ? null : i.value; })()`,
   );
-  check("#16 继续编辑 ⇒ 输入逐字保留", modelAfterContinue === "deepseek-chat-dirty", modelAfterContinue);
+  check(
+    "#16 继续编辑 ⇒ 输入逐字保留",
+    modelAfterContinue === "deepseek-chat-dirty",
+    modelAfterContinue,
+  );
   // 再关一次并放弃
   await H.ev(
     call,
@@ -466,7 +488,11 @@ async function tagSettingsEntries(call) {
     `(() => { const i = document.querySelector('textarea[placeholder^="要交给模型的任务"]');
        return i === null ? null : i.value; })()`,
   );
-  check("#16 放弃设置不清调试草稿（创建任务文本原样）", String(taskAfter ?? "").includes("U8612 两模式配置往返"), taskAfter?.slice(0, 40));
+  check(
+    "#16 放弃设置不清调试草稿（创建任务文本原样）",
+    String(taskAfter ?? "").includes("U8612 两模式配置往返"),
+    taskAfter?.slice(0, 40),
+  );
 
   // ── #18：保存失败（无已存密钥 + 空 apiKey 表单）⇒ save-failed ──
   // main 语义：apiKey 空串 = 保持原值 ⇒ 只有盘上无密钥时空值保存才被拒（settings.ts:101）。
@@ -503,7 +529,9 @@ async function tagSettingsEntries(call) {
        return i === null ? null : i.value; })()`,
   );
   check("#18 保存失败 ⇒ 输入逐字保留", modelAfterFail === "deepseek-chat", modelAfterFail);
-  note("#18 「保存已确认成功但配置状态回读失败」（reread-failed）的实机半边：注入面 = 保存落盘瞬间竞速改写 settings.json，U5 6.7 已实测得手（窗口毫秒级）；本批不重建竞速，按该实测结论 + recording/settings 单元承载（分层登记）。");
+  note(
+    "#18 「保存已确认成功但配置状态回读失败」（reread-failed）的实机半边：注入面 = 保存落盘瞬间竞速改写 settings.json，U5 6.7 已实测得手（窗口毫秒级）；本批不重建竞速，按该实测结论 + recording/settings 单元承载（分层登记）。",
+  );
   // 恢复受控配置（U5 6.7 配方：raw IPC 写回 + store loadSettings），对话框本地输入不受影响
   await H.apiCall(call, "saveSettings", {
     baseURL: H.MOCK_BASE,
@@ -519,23 +547,37 @@ async function tagSettingsEntries(call) {
       if (disk === null) return false;
       try {
         const j = JSON.parse(disk);
-        return j.baseURL === "http://127.0.0.1:18799/v1" && typeof j.apiKey === "string" && j.apiKey.length > 0;
+        return (
+          j.baseURL === "http://127.0.0.1:18799/v1" &&
+          typeof j.apiKey === "string" &&
+          j.apiKey.length > 0
+        );
       } catch {
         return false;
       }
     })() === true,
-    { encryptedAtRest: (() => {
+    {
+      encryptedAtRest: (() => {
         try {
           return JSON.parse(settingsBytes()).apiKeyEncrypted === true;
         } catch {
           return false;
         }
-      })() },
+      })(),
+    },
   );
 
   // ── #17：单向密钥（对话框仍开着，本地输入 = 恢复后的配置）──
-  const keyTyped = await H.typeIntoDom(call, 'dialog[open] input[type="password"]', "sk-u8612-oneway");
-  check("#17 apiKey 已打字（渲染层暂存）", String(keyTyped?.value ?? "").includes("sk-u8612-oneway"), "typed");
+  const keyTyped = await H.typeIntoDom(
+    call,
+    'dialog[open] input[type="password"]',
+    "sk-u8612-oneway",
+  );
+  check(
+    "#17 apiKey 已打字（渲染层暂存）",
+    String(keyTyped?.value ?? "").includes("sk-u8612-oneway"),
+    "typed",
+  );
   const bytesBeforeType = settingsBytes();
   await H.clickInOpenDialog(call, "保存", 1500);
   const savedMsg = await H.ev(
@@ -565,21 +607,29 @@ async function tagSettingsEntries(call) {
   } catch {
     diskWritten = false;
   }
-  check("#17 单向密钥保存真写盘（字节变化 + apiKey 字段在场；密文或明文按 cipher 事实）", diskWritten === true, {
-    changed: bytesAfterSave !== bytesBeforeType,
-    encryptedAtRest: (() => {
-      try {
-        return JSON.parse(bytesAfterSave).apiKeyEncrypted === true;
-      } catch {
-        return false;
-      }
-    })(),
-  });
+  check(
+    "#17 单向密钥保存真写盘（字节变化 + apiKey 字段在场；密文或明文按 cipher 事实）",
+    diskWritten === true,
+    {
+      changed: bytesAfterSave !== bytesBeforeType,
+      encryptedAtRest: (() => {
+        try {
+          return JSON.parse(bytesAfterSave).apiKeyEncrypted === true;
+        } catch {
+          return false;
+        }
+      })(),
+    },
+  );
   const settingsKeys = await H.storeQ(
     call,
-    `const st = s.settings; return JSON.stringify(st ? Object.keys(st) : null);`,
+    "const st = s.settings; return JSON.stringify(st ? Object.keys(st) : null);",
   );
-  check("#17 回读状态键集不含 apiKey（只含配置状态）", Array.isArray(settingsKeys) && !settingsKeys.includes("apiKey"), settingsKeys);
+  check(
+    "#17 回读状态键集不含 apiKey（只含配置状态）",
+    Array.isArray(settingsKeys) && !settingsKeys.includes("apiKey"),
+    settingsKeys,
+  );
 
   // ── #19：清除确认（取消零清除调用）──
   const bytesBeforeClear = settingsBytes();
@@ -605,17 +655,18 @@ async function tagSettingsEntries(call) {
 
   // ── #14a 返回：设置关闭 → 回创建页，任务/模式/摘要保留 ──
   await closeSettingsRobust(call);
-  const st1 = await H.storeQ(
-    call,
-    `return JSON.stringify({ view: s.view });`,
-  );
+  const st1 = await H.storeQ(call, "return JSON.stringify({ view: s.view });");
   check("#14 设置往返后回到创建页（视图=create）", st1.view === "create", st1);
   const taskBack = await H.ev(
     call,
     `(() => { const i = document.querySelector('textarea[placeholder^="要交给模型的任务"]');
        return i === null ? null : i.value; })()`,
   );
-  check("#14 返回后任务文本逐字保留", String(taskBack ?? "").includes("U8612 两模式配置往返"), taskBack?.slice(0, 40));
+  check(
+    "#14 返回后任务文本逐字保留",
+    String(taskBack ?? "").includes("U8612 两模式配置往返"),
+    taskBack?.slice(0, 40),
+  );
   const summaryText = await H.ev(
     call,
     `(() => {
@@ -625,7 +676,8 @@ async function tagSettingsEntries(call) {
   ).then(JSON.parse);
   check(
     "#14 摘要显示已核实保存状态（现算自回读事实，含 model 名）",
-    String(summaryText ?? "").includes("deepseek-chat") && !String(summaryText ?? "").includes("运行配置尚未读取"),
+    String(summaryText ?? "").includes("deepseek-chat") &&
+      !String(summaryText ?? "").includes("运行配置尚未读取"),
     String(summaryText ?? "").slice(0, 160),
   );
 
@@ -672,7 +724,11 @@ async function tagSettingsEntries(call) {
       return JSON.stringify(b ? b.getAttribute('aria-pressed') : null); })()`,
   ).then(JSON.parse);
   st2.isolatedPressed = modePressed;
-  check("#14 返回后模式保留（隔离按钮 aria-pressed）", st2.view === "create" && st2.isolatedPressed === "true", st2);
+  check(
+    "#14 返回后模式保留（隔离按钮 aria-pressed）",
+    st2.view === "create" && st2.isolatedPressed === "true",
+    st2,
+  );
   check("#14 有效目录引用保留", st2.hasSourceRef === true, st2);
   const licenseAfter = await H.ev(
     call,
@@ -682,7 +738,11 @@ async function tagSettingsEntries(call) {
       const cb = l.querySelector('input[type=checkbox]');
       return JSON.stringify({ present: true, checked: cb ? cb.checked : null }); })()`,
   ).then(JSON.parse);
-  check("#14 配置往返 ⇒ 本次副本授权作废（复选框复位为未勾选）", licenseAfter.present === true && licenseAfter.checked === false, licenseAfter);
+  check(
+    "#14 配置往返 ⇒ 本次副本授权作废（复选框复位为未勾选）",
+    licenseAfter.present === true && licenseAfter.checked === false,
+    licenseAfter,
+  );
   const summary2 = await H.ev(
     call,
     `(() => {
@@ -693,7 +753,9 @@ async function tagSettingsEntries(call) {
   check("#14 摘要按新配置事实呈现（deepseek-chat2 在场）", summary2 === true, summary2);
 
   const servedFinal = await mockServed();
-  check("本 tag 零模型调用（两模式往返均未提交创建）", servedFinal === served0, { served: [served0, servedFinal] });
+  check("本 tag 零模型调用（两模式往返均未提交创建）", servedFinal === served0, {
+    served: [served0, servedFinal],
+  });
   await H.shot(call, SHOT_DIR, "settings-entries.png");
   finish({ served: [served0, servedFinal] });
 }
@@ -711,7 +773,10 @@ async function tagAuxRegression(call) {
   const tracesBefore = H.traceIds().size;
 
   // ── 现造父本（UI 创建：纯对话 + 字符串 system ⇒ A/B 合法父本；mock 恰 1 次）──
-  await mockReset({ turns: [{ content: "父本响应：6.12 父本" }], fallback: { content: "（耗尽）" } });
+  await mockReset({
+    turns: [{ content: "父本响应：6.12 父本" }],
+    fallback: { content: "（耗尽）" },
+  });
   await H.storeQ(call, `s.openCreateWorkspace(); return JSON.stringify("ok");`);
   await H.sleep(1200);
   const advanced = await H.ev(
@@ -722,13 +787,25 @@ async function tagAuxRegression(call) {
          expanded: b ? b.getAttribute('aria-expanded') : null });
      })()`,
   ).then(JSON.parse);
-  if (!advanced.found || !advanced.visible) throw new Error(`高级区探测失败：${JSON.stringify(advanced)}`);
+  if (!advanced.found || !advanced.visible)
+    throw new Error(`高级区探测失败：${JSON.stringify(advanced)}`);
   if (advanced.expanded === "false") {
-    await H.ev(call, `(() => { document.querySelector('[data-advanced-toggle]').click(); return true; })()`);
+    await H.ev(
+      call,
+      `(() => { document.querySelector('[data-advanced-toggle]').click(); return true; })()`,
+    );
     await H.sleep(700);
   }
-  await H.typeIntoDom(call, 'textarea[placeholder^="例如：你是一个简洁的问答助手"]', "你是通用文件助手。");
-  await H.typeIntoDom(call, 'textarea[placeholder^="要交给模型的任务"]', "U8612 跨入口回归父本：解释这段代码的作用");
+  await H.typeIntoDom(
+    call,
+    'textarea[placeholder^="例如：你是一个简洁的问答助手"]',
+    "你是通用文件助手。",
+  );
+  await H.typeIntoDom(
+    call,
+    'textarea[placeholder^="要交给模型的任务"]',
+    "U8612 跨入口回归父本：解释这段代码的作用",
+  );
   const runsBeforeCreate = await H.runs(call);
   await H.ev(
     call,
@@ -768,11 +845,18 @@ async function tagAuxRegression(call) {
   }
   if (parentId === null) throw new Error("创建 40s 未出现新 run");
   const servedAfterCreate = await mockServed();
-  check("父本现造成功（新 run 在列表 + mock 恰 1 次）", typeof parentId === "string" && servedAfterCreate === served0 + 1, {
-    parentId,
-    served: [served0, servedAfterCreate],
-  });
-  await H.storeQ(call, `await s.selectRun(${JSON.stringify(parentId)}); return JSON.stringify("ok");`);
+  check(
+    "父本现造成功（新 run 在列表 + mock 恰 1 次）",
+    typeof parentId === "string" && servedAfterCreate === served0 + 1,
+    {
+      parentId,
+      served: [served0, servedAfterCreate],
+    },
+  );
+  await H.storeQ(
+    call,
+    `await s.selectRun(${JSON.stringify(parentId)}); return JSON.stringify("ok");`,
+  );
   await H.sleep(1500);
 
   // ── #11：SDK run 无 messages 重发入口；prompt 入口行为不变 ──
@@ -783,7 +867,8 @@ async function tagAuxRegression(call) {
      const llm = d.spans.find(x => x.kind === 'llm.call');
      return JSON.stringify({ llmId: llm ? llm.id : null, total: d.spans.length });`,
   );
-  if (spanInfo.err || spanInfo.llmId === null) throw new Error(`父本详情无 llm.call span：${JSON.stringify(spanInfo)}`);
+  if (spanInfo.err || spanInfo.llmId === null)
+    throw new Error(`父本详情无 llm.call span：${JSON.stringify(spanInfo)}`);
   // 步骤页签 + 真点 span 行（程序化 selectSpan 不切页签 ⇒ span 详情区不渲染、入口探针全假）；
   // 行形状 = title 是固定标签「LLM 调用」（span id 只在 store selectedSpanId，双证落地）
   await H.clickTabChecked(call, "步骤");
@@ -802,7 +887,11 @@ async function tagAuxRegression(call) {
     entryProbe.msgsEntry === false,
     entryProbe,
   );
-  check("#11 既有 prompt fork 入口行为不变（入口在场）", entryProbe.promptEntry === true, entryProbe);
+  check(
+    "#11 既有 prompt fork 入口行为不变（入口在场）",
+    entryProbe.promptEntry === true,
+    entryProbe,
+  );
 
   // ── #15：prompt 编辑 → 设置往返 → 阅读/草稿/选中恢复 ──
   const marker = "U8612-PROMPT-MARKER-往返保持";
@@ -818,26 +907,35 @@ async function tagAuxRegression(call) {
   await H.typeIntoEditableMonaco(call, marker);
   const selBefore = await H.storeQ(
     call,
-    `return JSON.stringify({ run: s.selectedRunId, span: s.selectedSpanId });`,
+    "return JSON.stringify({ run: s.selectedRunId, span: s.selectedSpanId });",
   );
   await openSettingsViaGlobalBar(call);
   await closeSettingsRobust(call);
   const selAfter = await H.storeQ(
     call,
-    `return JSON.stringify({ run: s.selectedRunId, span: s.selectedSpanId });`,
+    "return JSON.stringify({ run: s.selectedRunId, span: s.selectedSpanId });",
   );
-  check("#15 设置往返后原运行/调用选中恢复", selAfter.run === selBefore.run && selAfter.span === selBefore.span, {
-    before: selBefore,
-    after: selAfter,
-  });
+  check(
+    "#15 设置往返后原运行/调用选中恢复",
+    selAfter.run === selBefore.run && selAfter.span === selBefore.span,
+    {
+      before: selBefore,
+      after: selAfter,
+    },
+  );
   const monacoAfter = await H.monacoInfo(call);
-  const editorValue = (monacoAfter.editors ?? []).map((e) => e.value ?? "").find((v) => v.includes(marker));
+  const editorValue = (monacoAfter.editors ?? [])
+    .map((e) => e.value ?? "")
+    .find((v) => v.includes(marker));
   check("#15 编辑输入经设置往返逐字保留（草稿不丢）", editorValue !== undefined, {
     found: editorValue !== undefined,
   });
 
   // ── 打开实验工作区（运行页头「模型实验」）──
-  await H.storeQ(call, `await s.selectRun(${JSON.stringify(parentId)}); return JSON.stringify("ok");`);
+  await H.storeQ(
+    call,
+    `await s.selectRun(${JSON.stringify(parentId)}); return JSON.stringify("ok");`,
+  );
   await H.sleep(1500);
   await H.ev(
     call,
@@ -857,15 +955,24 @@ async function tagAuxRegression(call) {
   // ── #33：改臂为非法原文 → 切运行 → 草稿定位返回 ──
   await setArm(call, 0, "mock-model-a", "{bad json");
   const draftDirty = await abDraft(call);
-  check("#33 非法参数原文已入草稿", JSON.stringify(draftDirty.rows ?? []).includes("{bad json"), draftDirty);
+  check(
+    "#33 非法参数原文已入草稿",
+    JSON.stringify(draftDirty.rows ?? []).includes("{bad json"),
+    draftDirty,
+  );
   const otherRunId = (await H.runs(call)).find((id) => id !== parentId);
   if (otherRunId === undefined) throw new Error("列表中没有第二个 run 可切");
-  await H.storeQ(call, `await s.selectRun(${JSON.stringify(otherRunId)}); return JSON.stringify("ok");`);
+  await H.storeQ(
+    call,
+    `await s.selectRun(${JSON.stringify(otherRunId)}); return JSON.stringify("ok");`,
+  );
   await H.sleep(1500);
   const stSwitched = await abState(call);
   check(
     "#33 切运行 ⇒ 离开实验页但目标与来源引用原样保留",
-    stSwitched.view === "trace" && stSwitched.target !== null && stSwitched.target.runId === parentId,
+    stSwitched.view === "trace" &&
+      stSwitched.target !== null &&
+      stSwitched.target.runId === parentId,
     stSwitched,
   );
   await locateAbDraft(call, parentId);
@@ -886,12 +993,19 @@ async function tagAuxRegression(call) {
   await setArm(call, 1, "mock-model-b", "");
   await clickPreviewAndWait(call);
   const planInstalled = await abDom(call);
-  check("#36 重新校验后计划在场（预览合法）", (planInstalled?.planText ?? "").includes("校验通过 · 执行计划"), {
-    hasPlan: planInstalled?.planText !== null,
-  });
+  check(
+    "#36 重新校验后计划在场（预览合法）",
+    (planInstalled?.planText ?? "").includes("校验通过 · 执行计划"),
+    {
+      hasPlan: planInstalled?.planText !== null,
+    },
+  );
   // 离开实验页（切走 ⇒ 编辑器组件卸载 ⇒ 组件局部态的计划/许可必然不在场）——经草稿定位返回。
   // ⚠️ 设置是模态、不卸载工作区，走设置往返测不到这条（预览后开设置计划仍在 = 预期行为）。
-  await H.storeQ(call, `await s.selectRun(${JSON.stringify(otherRunId)}); return JSON.stringify("ok");`);
+  await H.storeQ(
+    call,
+    `await s.selectRun(${JSON.stringify(otherRunId)}); return JSON.stringify("ok");`,
+  );
   await H.sleep(1500);
   await locateAbDraft(call, parentId);
   const dom36 = await abDom(call);
@@ -904,7 +1018,11 @@ async function tagAuxRegression(call) {
   check(
     "#36 旧计划与费用确认不恢复（计划区消失 + 确认未挂）",
     dom36?.planText === null && dom36?.confirmPressed !== "true" && dom36?.execDisabled === true,
-    { plan: dom36?.planText !== null, pressed: dom36?.confirmPressed, execDisabled: dom36?.execDisabled },
+    {
+      plan: dom36?.planText !== null,
+      pressed: dom36?.confirmPressed,
+      execDisabled: dom36?.execDisabled,
+    },
   );
   check(
     "#36 副作用许可不复现（纯对话父本无风险工具 ⇒ 声明复选框本就不出现）",
@@ -923,7 +1041,7 @@ async function tagAuxRegression(call) {
   await H.sleep(1600);
   const srcFailed = await H.storeQ(
     call,
-    `return JSON.stringify({ phase: s.experimentSource.phase, err: s.experimentSource.errorMessage });`,
+    "return JSON.stringify({ phase: s.experimentSource.phase, err: s.experimentSource.errorMessage });",
   );
   check(
     "#35 父本缺失 ⇒ 来源读取失败态 + 明确原因（不以旧完整详情放行）",
@@ -931,19 +1049,26 @@ async function tagAuxRegression(call) {
     srcFailed,
   );
   const draft35 = await abDraft(call);
-  check("#35 来源失效 ⇒ 批次输入保留（臂原文在场）", JSON.stringify(draft35.rows ?? []).includes("mock-model-a"), draft35);
+  check(
+    "#35 来源失效 ⇒ 批次输入保留（臂原文在场）",
+    JSON.stringify(draft35.rows ?? []).includes("mock-model-a"),
+    draft35,
+  );
   const fr35 = fault35.end();
   check("#35 注入还原逐字节核验", fr35.clean === true, fr35);
   await H.storeQ(call, `await s.readExperimentSource(); return JSON.stringify("ok");`);
   await H.sleep(1600);
   const srcBack = await H.storeQ(
     call,
-    `return JSON.stringify({ phase: s.experimentSource.phase });`,
+    "return JSON.stringify({ phase: s.experimentSource.phase });",
   );
   check("#35 来源恢复 ⇒ 重新读取 ready（可继续预览）", srcBack.phase === "ready", srcBack);
 
   // ── 重新预览 → 确认 → 执行（mock 15s 在飞：#7/#19 的在飞判据序列 ≈8-10s，须留足窗口）──
-  await mockReset({ turns: [{ content: "臂1响应", delayMs: 15000 }, { content: "臂2响应" }], fallback: { content: "（耗尽）" } });
+  await mockReset({
+    turns: [{ content: "臂1响应", delayMs: 15000 }, { content: "臂2响应" }],
+    fallback: { content: "（耗尽）" },
+  });
   const servedSeg2 = await mockServed();
   await clickPreviewAndWait(call);
   await H.ev(
@@ -997,12 +1122,12 @@ async function tagAuxRegression(call) {
   // 在飞期 DOM 点全局栏入口在本环境不稳定，判据核心是应用拒绝而非入口点击）
   await H.storeQ(call, `await s.openRecordingWorkspace(); return JSON.stringify("ok");`);
   await H.sleep(1500);
-  const recView = await H.storeQ(call, `return JSON.stringify({ view: s.view });`);
+  const recView = await H.storeQ(call, "return JSON.stringify({ view: s.view });");
   check("#7 打开录制工作区（历史阅读路径不受槽影响）", recView.view === "recording", recView);
   for (let i = 0; i < 12; i++) {
     const has = await H.storeQ(
       call,
-      `return JSON.stringify({ has: s.recordingDraft !== null, revision: s.recordingDraft ? s.recordingDraft.revision : null });`,
+      "return JSON.stringify({ has: s.recordingDraft !== null, revision: s.recordingDraft ? s.recordingDraft.revision : null });",
     );
     if (has.has === true) break;
     await H.sleep(500);
@@ -1021,7 +1146,7 @@ async function tagAuxRegression(call) {
   await H.sleep(500);
   const dirtyBefore = await H.storeQ(
     call,
-    `const d = s.recordingDraft; return JSON.stringify({ dirty: d ? d.portText : null });`,
+    "const d = s.recordingDraft; return JSON.stringify({ dirty: d ? d.portText : null });",
   );
   check("#7 录制草稿已脏（端口 19002）", dirtyBefore.dirty === "19002", dirtyBefore);
   await H.ev(
@@ -1043,17 +1168,31 @@ async function tagAuxRegression(call) {
     String(rejectProbe.err ?? "").includes("配置变更被拒绝") && rejectProbe.apply === null,
     rejectProbe,
   );
-  check("#7 不新建主动操作、不改监听事实（enabled/running 原样）", rejectProbe.proxyEnabled === false && rejectProbe.proxyRunning === false, rejectProbe);
+  check(
+    "#7 不新建主动操作、不改监听事实（enabled/running 原样）",
+    rejectProbe.proxyEnabled === false && rejectProbe.proxyRunning === false,
+    rejectProbe,
+  );
   const portAfterReject = await H.storeQ(
     call,
-    `const d = s.recordingDraft; return JSON.stringify({ portText: d ? d.portText : null });`,
+    "const d = s.recordingDraft; return JSON.stringify({ portText: d ? d.portText : null });",
   );
-  check("#7 配置输入不清（草稿端口文本原样保留）", portAfterReject.portText === "19002", portAfterReject);
-  check("#7 settings 字节不变（拒绝路径零写盘）", settingsBytes() === bytes0, { same: settingsBytes() === bytes0 });
-  const listReadable = await H.runs(call);
-  check("#7 状态读取/历史记录阅读保持可用（run 列表可读）", Array.isArray(listReadable) && listReadable.length > 0, {
-    runs: listReadable.length,
+  check(
+    "#7 配置输入不清（草稿端口文本原样保留）",
+    portAfterReject.portText === "19002",
+    portAfterReject,
+  );
+  check("#7 settings 字节不变（拒绝路径零写盘）", settingsBytes() === bytes0, {
+    same: settingsBytes() === bytes0,
   });
+  const listReadable = await H.runs(call);
+  check(
+    "#7 状态读取/历史记录阅读保持可用（run 列表可读）",
+    Array.isArray(listReadable) && listReadable.length > 0,
+    {
+      runs: listReadable.length,
+    },
+  );
 
   // ── #19 槽约束半边：设置门禁（notice + 保存/清除禁用）──
   // U5 6.7 配方：槽约束只随 main 快照进会话 ⇒ 在飞判据先 refreshOperationStatus()
@@ -1114,7 +1253,11 @@ async function tagAuxRegression(call) {
     }
     await H.sleep(1000);
   }
-  check("批次收口（settled，两臂 returned）", rec !== null && String(rec.arms) === String(["returned", "returned"]), rec);
+  check(
+    "批次收口（settled，两臂 returned）",
+    rec !== null && String(rec.arms) === String(["returned", "returned"]),
+    rec,
+  );
   const servedFinalArms = await mockServed();
   check("mock 计数恰 +2（两臂各一次，预览零调用）", servedFinalArms === servedSeg2 + 2, {
     served: [servedSeg2, servedFinalArms],
@@ -1122,7 +1265,10 @@ async function tagAuxRegression(call) {
 
   // ── #51：结果区 → 选两条进比较 → 返回实验 → 返回来源 → 录制往返 ──
   // 批完整成功 ⇒ 草稿已按修订清理（臂行消失）⇒ 经运行入口重进实验工作区（重挂）
-  await H.storeQ(call, `await s.selectRun(${JSON.stringify(parentId)}); return JSON.stringify("ok");`);
+  await H.storeQ(
+    call,
+    `await s.selectRun(${JSON.stringify(parentId)}); return JSON.stringify("ok");`,
+  );
   await H.sleep(1500);
   await H.ev(
     call,
@@ -1142,7 +1288,11 @@ async function tagAuxRegression(call) {
        return JSON.stringify({ joinCount: join.length, enterPresent: enter !== undefined, batchHint: batchText });
      })()`,
   ).then(JSON.parse);
-  check("#51 结果区呈现收口批次（两条可加入对照 + 进入比较入口）", resultsProbe.joinCount >= 2 && resultsProbe.enterPresent === true, resultsProbe);
+  check(
+    "#51 结果区呈现收口批次（两条可加入对照 + 进入比较入口）",
+    resultsProbe.joinCount >= 2 && resultsProbe.enterPresent === true,
+    resultsProbe,
+  );
   await H.ev(
     call,
     `(() => { const btns = Array.from(document.querySelectorAll('button')).filter(b => b.offsetParent !== null && ((b.textContent || '').trim()) === '加入对照');
@@ -1157,7 +1307,7 @@ async function tagAuxRegression(call) {
   await H.sleep(700);
   const cmpSel = await H.storeQ(
     call,
-    `return JSON.stringify({ compareIds: (s.compareIds ?? []).length });`,
+    "return JSON.stringify({ compareIds: (s.compareIds ?? []).length });",
   );
   check("#51 两条按加入顺序进对照集合", cmpSel.compareIds === 2, cmpSel);
   await H.ev(
@@ -1175,7 +1325,11 @@ async function tagAuxRegression(call) {
      return JSON.stringify({ view: s.view,
        pair: p ? [p.leftRunId, p.rightRunId] : null });`,
   );
-  check("#51 比较工作区打开（pair=两臂，U7 通道回归）", cmpView.view === "compare" && cmpView.pair !== null && cmpView.pair.every((x) => x !== null), cmpView);
+  check(
+    "#51 比较工作区打开（pair=两臂，U7 通道回归）",
+    cmpView.view === "compare" && cmpView.pair !== null && cmpView.pair.every((x) => x !== null),
+    cmpView,
+  );
   await H.ev(
     call,
     `(() => { const b = document.querySelector('button[aria-label="返回来源"]');
@@ -1187,12 +1341,14 @@ async function tagAuxRegression(call) {
   const backToExp = await abState(call);
   check(
     "#51 比较返回实验（视图/目标恢复，对照集合保留）",
-    backToExp.view === "experiment" && backToExp.target !== null && backToExp.target.runId === parentId,
+    backToExp.view === "experiment" &&
+      backToExp.target !== null &&
+      backToExp.target.runId === parentId,
     backToExp,
   );
   const cmpAfterBack = await H.storeQ(
     call,
-    `return JSON.stringify({ compareIds: (s.compareIds ?? []).length });`,
+    "return JSON.stringify({ compareIds: (s.compareIds ?? []).length });",
   );
   check("#51 返回实验后对照集合原样", cmpAfterBack.compareIds === 2, cmpAfterBack);
   await H.ev(
@@ -1205,9 +1361,13 @@ async function tagAuxRegression(call) {
   await H.sleep(1400);
   const backToTrace = await H.storeQ(
     call,
-    `return JSON.stringify({ view: s.view, run: s.selectedRunId });`,
+    "return JSON.stringify({ view: s.view, run: s.selectedRunId });",
   );
-  check("#51 实验返回来源 ⇒ 回轨迹视图且选中原 run", backToTrace.view === "trace" && backToTrace.run === parentId, backToTrace);
+  check(
+    "#51 实验返回来源 ⇒ 回轨迹视图且选中原 run",
+    backToTrace.view === "trace" && backToTrace.run === parentId,
+    backToTrace,
+  );
 
   // 录制往返（再入再返）
   await H.ev(
@@ -1224,9 +1384,13 @@ async function tagAuxRegression(call) {
   await H.sleep(1300);
   const recRoundTrip = await H.storeQ(
     call,
-    `return JSON.stringify({ view: s.view, run: s.selectedRunId });`,
+    "return JSON.stringify({ view: s.view, run: s.selectedRunId });",
   );
-  check("#51 录制往返不改变主流程（trace 视图 + 选中不变）", recRoundTrip.view === "trace" && recRoundTrip.run === parentId, recRoundTrip);
+  check(
+    "#51 录制往返不改变主流程（trace 视图 + 选中不变）",
+    recRoundTrip.view === "trace" && recRoundTrip.run === parentId,
+    recRoundTrip,
+  );
 
   // ── #51 隔离 run 文件页往返（条件：盘上存在隔离 run）──
   let isoId = null;
@@ -1245,7 +1409,10 @@ async function tagAuxRegression(call) {
     /* 扫描失败按无隔离 run 处理 */
   }
   if (isoId !== null) {
-    await H.storeQ(call, `await s.selectRun(${JSON.stringify(isoId)}); return JSON.stringify("ok");`);
+    await H.storeQ(
+      call,
+      `await s.selectRun(${JSON.stringify(isoId)}); return JSON.stringify("ok");`,
+    );
     await H.sleep(1600);
     await H.clickTabChecked(call, "文件");
     await H.sleep(1400);
@@ -1255,7 +1422,11 @@ async function tagAuxRegression(call) {
       `const r = s.readingByRun[${JSON.stringify(isoId)}];
        return JSON.stringify({ tab: r ? r.tab : null });`,
     );
-    check("#51 隔离 run 文件页打开（U2 通道回归，tab=files）", filesView.tab === "files", filesView);
+    check(
+      "#51 隔离 run 文件页打开（U2 通道回归，tab=files）",
+      filesView.tab === "files",
+      filesView,
+    );
     await H.storeQ(call, `await s.openRecordingWorkspace(); return JSON.stringify("ok");`);
     await H.sleep(1300);
     await H.ev(
@@ -1269,9 +1440,15 @@ async function tagAuxRegression(call) {
       `return JSON.stringify({ run: s.selectedRunId,
          tab: s.readingByRun[${JSON.stringify(isoId)}] ? s.readingByRun[${JSON.stringify(isoId)}].tab : null });`,
     );
-    check("#51 文件页往返：录制返回后文件视图与运行恢复", filesBack.run === isoId && filesBack.tab === "files", filesBack);
+    check(
+      "#51 文件页往返：录制返回后文件视图与运行恢复",
+      filesBack.run === isoId && filesBack.tab === "files",
+      filesBack,
+    );
   } else {
-    note("#51 文件页往返半边：盘上无隔离 run 标本 ⇒ 按分层登记（U8 零改动文件视图 + U2/U7 既有实机证据承载）。");
+    note(
+      "#51 文件页往返半边：盘上无隔离 run 标本 ⇒ 按分层登记（U8 零改动文件视图 + U2/U7 既有实机证据承载）。",
+    );
   }
 
   // ── #51 全局操作面板 ──
@@ -1291,14 +1468,20 @@ async function tagAuxRegression(call) {
     `const rows = s.operations.operations; return JSON.stringify({ total: rows.length,
        hasModelAb: rows.some(o => o.target && o.target.kind === 'modelAb') });`,
   );
-  check("#51 全局操作面板可用（登记记录在场，含 modelAb 批次）", opsPanel.total >= 1 && opsPanel.hasModelAb === true, opsPanel);
+  check(
+    "#51 全局操作面板可用（登记记录在场，含 modelAb 批次）",
+    opsPanel.total >= 1 && opsPanel.hasModelAb === true,
+    opsPanel,
+  );
 
   const tracesAfter = H.traceIds().size;
   check("traces 恰 +3（父本 + 两臂）", tracesAfter === tracesBefore + 3, {
     traces: [tracesBefore, tracesAfter],
   });
   await H.shot(call, SHOT_DIR, "aux-regression.png");
-  note("#18 reread-failed 实机半边 = U5 6.7 竞速注入实测 + 单元（分层登记，见 settings-entries tag）。");
+  note(
+    "#18 reread-failed 实机半边 = U5 6.7 竞速注入实测 + 单元（分层登记，见 settings-entries tag）。",
+  );
   finish({ served: [served0, servedFinalArms], traces: [tracesBefore, tracesAfter], parentId });
 }
 

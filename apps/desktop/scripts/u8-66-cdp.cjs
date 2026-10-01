@@ -183,7 +183,8 @@ async function openRecordingViaGlobalBar(call) {
 /** 改端口输入（原生 setter + input 事件；React onChange 同步 store） */
 async function setPortText(call, text) {
   const r = await H.typeIntoDom(call, "[data-recording-port]", text);
-  if (!String(r?.value ?? "").includes(text)) throw new Error(`端口输入未生效：${JSON.stringify(r)}`);
+  if (!String(r?.value ?? "").includes(text))
+    throw new Error(`端口输入未生效：${JSON.stringify(r)}`);
 }
 
 /** 勾选/取消「启用录制代理」复选框 */
@@ -210,7 +211,7 @@ async function applyAndWait(call, timeoutMs = 20000) {
   if (ok !== true) throw new Error("「保存并应用」不可点（disabled）");
   await waitForStore(
     call,
-    `return JSON.stringify(s.recordingApply === null);`,
+    "return JSON.stringify(s.recordingApply === null);",
     timeoutMs,
     "应用收尾（recordingApply 清空）",
   );
@@ -227,7 +228,11 @@ const FLOWS = {
     const dpr = await H.ev(call, "window.devicePixelRatio");
     check("DPR ≈ 2.1（无 zoom 残留）", Math.abs(dpr - 2.1) < 0.15, `实测 ${dpr}`);
     const runs0 = await H.runs(call);
-    check("u8e_p1 注入标本在列表（查看代理记录的选择目标）", runs0.includes("u8e_p1"), runs0.join(","));
+    check(
+      "u8e_p1 注入标本在列表（查看代理记录的选择目标）",
+      runs0.includes("u8e_p1"),
+      runs0.join(","),
+    );
 
     // 初始：App 挂载已自动 loadProxyStatus ⇒ 受控 settings 的 proxy 可核实
     const init = await proxyOf(call);
@@ -257,7 +262,11 @@ const FLOWS = {
 
     // #3/#5 状态三分 + 地址不可复制（未监听）
     let dom = await domProbe(call);
-    check("录制工作区挂载（四个分区）", dom.mounted === true && dom.sections.length === 4, dom.sections);
+    check(
+      "录制工作区挂载（四个分区）",
+      dom.mounted === true && dom.sections.length === 4,
+      dom.sections,
+    );
     let lines = await statusLines(call);
     check(
       "#3 状态三分：未启用 / 未监听 / 尚未捕获 key",
@@ -399,10 +408,7 @@ const FLOWS = {
     );
 
     // #27 查看代理记录：保留选择与搜索
-    await H.storeQ(
-      call,
-      `await s.selectRun("u8e_p1"); return JSON.stringify("ok");`,
-    );
+    await H.storeQ(call, `await s.selectRun("u8e_p1"); return JSON.stringify("ok");`);
     await H.storeQ(call, `s.setSearchQuery("U8"); return JSON.stringify("ok");`);
     await H.sleep(600);
     await openRecordingViaGlobalBar(call);
@@ -432,8 +438,12 @@ const FLOWS = {
       `s.setSourceFilter("all"); s.setSearchQuery(""); return JSON.stringify("ok");`,
     );
     await H.shot(call, SHOT_DIR, "recording-records.png");
-    note("「应用失败回读也失败保留输入」实机不成立（6.1 探明：proxy:status handler 恒 ok + loadProxy 全容错）⇒ 按 recording-draft-store 单元承载。");
-    note("「代理应用沿用配置互斥」的占槽半边需真实执行会话（main 端点判锁）⇒ 归 6.8；本批已验 UI 门禁半边（见 recording-entries）。");
+    note(
+      "「应用失败回读也失败保留输入」实机不成立（6.1 探明：proxy:status handler 恒 ok + loadProxy 全容错）⇒ 按 recording-draft-store 单元承载。",
+    );
+    note(
+      "「代理应用沿用配置互斥」的占槽半边需真实执行会话（main 端点判锁）⇒ 归 6.8；本批已验 UI 门禁半边（见 recording-entries）。",
+    );
   },
 
   // -------------------------------------------------------------------------
@@ -445,7 +455,11 @@ const FLOWS = {
     check("列表就绪（同一 dev 会话，tag1 已停用代理）", runs0.includes("u8e_p1"), runs0.join(","));
     await openRecordingViaGlobalBar(call);
     const st0 = await proxyOf(call);
-    check("初始干净：代理未启用未监听（tag1 收尾态）", st0.proxy?.running === false && st0.proxy?.enabled === false, st0.proxy);
+    check(
+      "初始干净：代理未启用未监听（tag1 收尾态）",
+      st0.proxy?.running === false && st0.proxy?.enabled === false,
+      st0.proxy,
+    );
 
     // 2.4 UI 门禁半边：非法端口 ⇒ 应用逐控件 disabled + 字段错误（邻接序列判据，防 className 假阳）
     await setPortText(call, "19002abc");
@@ -465,10 +479,14 @@ const FLOWS = {
     ).then(JSON.parse);
     check(
       "2.4 UI 门禁：非法端口 ⇒ 应用 disabled + 字段错误就近 + 原文保留",
-      gate.applyDisabled === true && (gate.portError ?? "").includes("完整整数") && gate.kept === "19002abc",
+      gate.applyDisabled === true &&
+        (gate.portError ?? "").includes("完整整数") &&
+        gate.kept === "19002abc",
       gate,
     );
-    note("「非法端口零配置写调用」的机器判据 = 定向测试（store 纵深 + 视图 disabled）；实机呈现层已由上一条覆盖。");
+    note(
+      "「非法端口零配置写调用」的机器判据 = 定向测试（store 纵深 + 视图 disabled）；实机呈现层已由上一条覆盖。",
+    );
     await setPortText(call, "19001");
 
     // #28 重读只读：点重读 → 状态照常（值同）、不启停服务
@@ -491,7 +509,9 @@ const FLOWS = {
         (refreshTitle ?? "").includes("不重新应用"),
       { before: beforeRead.proxy, after: afterRead.proxy, title: refreshTitle },
     );
-    note("「录制刷新只读且错误可重试」的错误半边（recordingStatusReadFailed 呈现）真机无注入面（6.1 探明）⇒ 喂 props 判据由 recording-workspace-view 单元承载。");
+    note(
+      "「录制刷新只读且错误可重试」的错误半边（recordingStatusReadFailed 呈现）真机无注入面（6.1 探明）⇒ 喂 props 判据由 recording-workspace-view 单元承载。",
+    );
 
     // #21 设置跳转先处理未保存模型字段
     // ⚠️ 先离开录制页（setView trace）：否则「放弃并跳转 ⇒ 进录制工作区」的 view 断言无牙
@@ -511,7 +531,11 @@ const FLOWS = {
       'dialog[open] input[placeholder="deepseek-chat"]',
       "deepseek-chat-edited",
     );
-    check("设置 model 字段已改（dirty 前提）", String(modelEdit?.value ?? "").includes("edited"), modelEdit);
+    check(
+      "设置 model 字段已改（dirty 前提）",
+      String(modelEdit?.value ?? "").includes("edited"),
+      modelEdit,
+    );
     // 点跳转 → 真模态确认在场
     await H.ev(
       call,

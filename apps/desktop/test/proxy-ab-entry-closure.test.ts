@@ -371,6 +371,11 @@ describe("3.3 接线契约：messages 与 A/B 的局部分支不得复活", () =
     resolve(import.meta.dirname, "../src/renderer/src/components/DetailPanel.tsx"),
     "utf8",
   );
+  // U8 5.1a：messages 编辑器迁 MessagesForkEditor ⇒ 其源码级锚点随载体改判（两边留痕）
+  const MSG_EDITOR = readFileSync(
+    resolve(import.meta.dirname, "../src/renderer/src/components/MessagesForkEditor.tsx"),
+    "utf8",
+  );
 
   it("proxyFork 与 modelAb 体内不刷列表、不选中新 run、不碰草稿仓库", () => {
     for (const [start, end] of [
@@ -398,13 +403,14 @@ describe("3.3 接线契约：messages 与 A/B 的局部分支不得复活", () =
   });
 
   it("「未修改禁用」与「未捕获 key」：提交按钮判据仍含两者（门禁不由响应替代）", () => {
-    const at = PANEL.indexOf("onClick={doResend}");
-    const disabled = PANEL.slice(at, PANEL.indexOf("title={", at + 1));
+    // U8 5.1a：编辑器迁 MessagesForkEditor ⇒ PANEL 改 MSG_EDITOR（两边留痕）
+    const at = MSG_EDITOR.indexOf("onClick={doResend}");
+    const disabled = MSG_EDITOR.slice(at, MSG_EDITOR.indexOf("title={", at + 1));
     expect(at).toBeGreaterThan(-1);
     expect(disabled).toContain("unchanged ||");
     expect(disabled).toContain("proxy?.running !== true");
-    expect(PANEL).toContain("const unchanged = value === messagesBaseline;");
+    expect(MSG_EDITOR).toContain("const unchanged = value === messagesBaseline;");
     // 拒绝码的就近指引仍在（未捕获 key ⇒ 说清"先把应用经代理跑一次"）
-    expect(PANEL).toContain('forkErrorCode === "PROXY_NO_KEY"');
+    expect(MSG_EDITOR).toContain('forkErrorCode === "PROXY_NO_KEY"');
   });
 });
