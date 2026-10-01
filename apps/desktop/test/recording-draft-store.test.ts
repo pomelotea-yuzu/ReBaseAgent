@@ -236,6 +236,38 @@ describe("U8 2.4/2.5：应用收尾与真实状态回读", () => {
     expect(d.upstreamText).not.toBe(d.baseline?.upstreamBaseUrl);
   });
 
+  it("「迟到守卫」在回读失败半边也有牙：toggle 成功 + 回读失败 + 在飞后来输入 ⇒ baseline 不被旧响应抬回", async () => {
+    // U8 6.3 反证补牙：回读成功路径上提交值与回读值同源（stale 守卫与回读冗余），
+    // 守卫的真实行为差异在「回读失败 + 修订已推进」——旧响应不得把 baseline 从
+    // 「待读取（null）」抬回提交值（design D2「响应只更新匹配的修订」）。
+    useAppStore.setState({ proxy: proxyState() });
+    useAppStore.getState().openRecordingWorkspace();
+    stateOf().writeRecordingDraftFields({ enabled: true, portText: "20000" });
+    let releaseToggle!: (value: Envelope<ProxyState>) => void;
+    const gate = new Promise<Envelope<ProxyState>>((resolve) => {
+      releaseToggle = resolve;
+    });
+    toggleQueue = [
+      { delay: gate, envelope: ok(proxyState({ enabled: true, running: true, port: 20000 })) },
+    ];
+    const applying = stateOf().applyRecordingDraft();
+    expect(stateOf().recordingApply).not.toBeNull();
+    // 在飞期间继续输入（修订推进）
+    stateOf().writeRecordingDraftFields({ upstreamText: "https://changed-later" });
+
+    releaseToggle(ok(proxyState({ enabled: true, running: true, port: 20000 })));
+    statusQueue = [{ ok: false, error: { code: "X", message: "状态读取失败" } }];
+    expect(await applying).toBe("applied");
+
+    // 回读失败 ⇒ baseline 撤到「待读取」；修订已推进 ⇒ 旧响应不得按提交值抬回
+    expect(stateOf().recordingDraft?.baseline).toBeNull();
+    expect(stateOf().recordingStatusReadFailed).toBe(true);
+    // 后来输入原样保留；toggle 成功 ⇒ 无启动失败诊断；在飞标记解除
+    expect(stateOf().recordingDraft?.upstreamText).toBe("https://changed-later");
+    expect(stateOf().recordingApplyError).toBeNull();
+    expect(stateOf().recordingApply).toBeNull();
+  });
+
   it("在飞期间拒绝重复应用（busy）", async () => {
     useAppStore.setState({ proxy: proxyState() });
     useAppStore.getState().openRecordingWorkspace();
@@ -263,11 +295,6 @@ describe("U8 2.3：录制未应用修改参与退出保护（sessionDirtyCountOf
     expect(sessionDirtyCountOf(stateOf().drafts, null)).toBe(1);
 
     useAppStore.getState().openRecordingWorkspace();
-    console.log(
-      "PROBE drafts=",
-      typeof stateOf().drafts,
-      JSON.stringify(stateOf().drafts).slice(0, 80),
-    );
     // 默认表单（baseline 未读）不误报
     expect(sessionDirtyCountOf(stateOf().drafts, stateOf().recordingDraft)).toBe(1);
 
