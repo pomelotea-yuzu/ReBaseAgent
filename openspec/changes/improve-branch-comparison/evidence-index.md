@@ -13,7 +13,7 @@
 > `apps/desktop/test/` 下文件；含 `/` = 仓库相对路径）。由 `.workbuddy/u7/u7-61/verify-scenario-checklist.cjs`
 > 逐条核对（文件存在 + 用例名在场），含 `--selftest` 反例。
 
-汇总口径：**72 条场景（ADDED 41 / MODIFIED 31）**，已交付 **59** 条、待验证 **13** 条、实机不成立 **0** 条（6.4 实机 20 条 + 6.5 实机 20 条 + 6.6 实机 11 条 + 6.7 实机 7 条 + 6.3 反证 1 条）
+汇总口径：**72 条场景（ADDED 41 / MODIFIED 31）**，已交付 **64** 条、待验证 **8** 条、实机不成立 **0** 条（6.4 实机 20 条 + 6.5 实机 20 条 + 6.6 实机 11 条 + 6.7 实机 7 条 + 6.8 实机 5 条 + 6.3 反证 1 条）
 
 ---
 
@@ -63,9 +63,9 @@
 
 | n | 场景 | 单元/契约证据 | 实机入口/批次 | 状态 |
 |---|---|---|---|---|
-| 21 | 碰撞短 ID 不随筛选交换改变身份 | `nav.test.ts › 碰撞后延长，删除碰撞项后不缩短` + `nav.test.ts › 筛选不重编号：子集计算后已记录长度保持（用 update 全量后取子集）` | 6.8 实机（R8 碰撞标本） | 待验证 |
-| 22 | 四条指标名称始终可见 | `compare-metrics-table.test.tsx › 名称列 sticky（th sticky left-0）；横滚容器只包表格；运行列有最小宽度` + `compare-metrics.test.ts › 三条 ⇒ 提示显式选两条；四条同口径（列数与集合一致）` | 6.8 实机（四条 + 窄窗） | 待验证 |
-| 23 | 三四条显式选两条阅读 | `compare-metrics.test.ts › 三条 ⇒ 提示显式选两条；四条同口径（列数与集合一致）` + `compare-workspace-store.test.ts › 集合内互异两条 ⇒ 打开 pair 并按该序读取；全局集合纹丝不动` + `compare-metrics-table.test.tsx › 挑选条：两侧齐备才可打开详细比较（否则 disabled），未选侧显示（未选）` | 6.8 实机 | 待验证 |
+| 21 | 碰撞短 ID 不随筛选交换改变身份 | `nav.test.ts › 碰撞后延长，删除碰撞项后不缩短` + `nav.test.ts › 筛选不重编号：子集计算后已记录长度保持（用 update 全量后取子集）` | 6.8 实机（R8 碰撞标本） | 已交付（6.8 实机） |
+| 22 | 四条指标名称始终可见 | `compare-metrics-table.test.tsx › 名称列 sticky（th sticky left-0）；横滚容器只包表格；运行列有最小宽度` + `compare-metrics.test.ts › 三条 ⇒ 提示显式选两条；四条同口径（列数与集合一致）` | 6.8 实机（四条 + 窄窗） | 已交付（6.8 实机） |
+| 23 | 三四条显式选两条阅读 | `compare-metrics.test.ts › 三条 ⇒ 提示显式选两条；四条同口径（列数与集合一致）` + `compare-workspace-store.test.ts › 集合内互异两条 ⇒ 打开 pair 并按该序读取；全局集合纹丝不动` + `compare-metrics-table.test.tsx › 挑选条：两侧齐备才可打开详细比较（否则 disabled），未选侧显示（未选）` | 6.8 实机 | 已交付（6.8 实机） |
 
 ---
 
@@ -98,7 +98,7 @@
 
 | n | 场景 | 单元/契约证据 | 实机入口/批次 | 状态 |
 |---|---|---|---|---|
-| 37 | 长任务路径模型与结果不遮挡操作 | `focus-escape-responsive.test.ts › 操作面板 max-h 按视口比例钳制 + 横向不超 90vw` + `focus-escape-responsive.test.ts › 设置模态受 85vh 钳制并内部滚动（长表单/200% 缩放在框内滚，不撑破屏幕）` | 6.8 实机（五档宽度 + 200% 缩放） | 待验证 |
+| 37 | 长任务路径模型与结果不遮挡操作 | `focus-escape-responsive.test.ts › 操作面板 max-h 按视口比例钳制 + 横向不超 90vw` + `focus-escape-responsive.test.ts › 设置模态受 85vh 钳制并内部滚动（长表单/200% 缩放在框内滚，不撑破屏幕）` | 6.8 实机（五档宽度 + 200% 缩放） | 已交付（6.8 实机） |
 | 38 | 创建页面键盘可离开而模态约束焦点 | `focus-escape-responsive.test.ts › 面板走共享 useEscapeClose(open, closePanel)；✕ 与 Esc 同一关闭动作`（模态约束键盘归 U5/U3 已交付实机批次；本轮 6.9 回归） | 6.9 实机（回归） | 待验证 |
 | 39 | 只读反馈和读取重试保持数据边界 | `compare-readonly.test.ts › 选中→比较→重试→指标阅读→交换→返回：只产生 runs:compare，执行/写通道零调用` + `compare-readonly.test.ts › 不清草稿、不恢复授权：比较动作零新增确认、零改动草稿与来源撤销（许可状态面）` | 6.6 实机（只读计数/哈希核对） | 已交付（6.6 实机） |
 
@@ -164,7 +164,7 @@
 
 | n | 场景 | 单元/契约证据 | 实机入口/批次 | 状态 |
 |---|---|---|---|---|
-| 63 | 窄窗和缩放仍能完整阅读 | `compare-workspace-view.test.tsx › 宽容器 ⇒ 并排两列（grid-cols-2）` + `compare-workspace-view.test.tsx › 窄容器 ⇒ 上下排列（grid-cols-1）且对象标题重复（每列自带标题区）` + `compare-navigation.test.ts › 正文容器 ≥ 960 ⇒ 并排；< 960 ⇒ 上下排列（阈值按容器宽度，不是整窗）` | 6.8 实机（1440/1360/1024/800 + 200% 缩放） | 待验证 |
+| 63 | 窄窗和缩放仍能完整阅读 | `compare-workspace-view.test.tsx › 宽容器 ⇒ 并排两列（grid-cols-2）` + `compare-workspace-view.test.tsx › 窄容器 ⇒ 上下排列（grid-cols-1）且对象标题重复（每列自带标题区）` + `compare-navigation.test.ts › 正文容器 ≥ 960 ⇒ 并排；< 960 ⇒ 上下排列（阈值按容器宽度，不是整窗）` | 6.8 实机（1440/1360/1024/800 + 200% 缩放） | 已交付（6.8 实机） |
 | 64 | 键盘完成比较闭环 | `compare-workspace-view.test.tsx › 动作按钮全部带 focus-visible 焦点环（键盘焦点可见）` + `compare-workspace-view.test.tsx › 在飞读取不卸载动作按钮（交换/加载/重试不把焦点甩回页顶的静态前提）` + `u7-tree-view.test.ts › 列表渲染同一数据：行带选中/打开/加入对照三动作（均为可 Tab 聚焦的 button）` | 6.9 实机（纯键盘闭环） | 待验证 |
 | 65 | 比较全程只读且不恢复许可 | `compare-readonly.test.ts › 选中→比较→重试→指标阅读→交换→返回：只产生 runs:compare，执行/写通道零调用` + `compare-readonly.test.ts › 指标表选两条（openComparePair）与更换/交换：同样零执行通道` + `compare-readonly.test.ts › 不清草稿、不恢复授权：比较动作零新增确认、零改动草稿与来源撤销（许可状态面）` | 6.3 反证（变异：任一执行通道被调用即红）+ 6.6 实机（计数/哈希） | 已交付（6.6 实机） |
 
