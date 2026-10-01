@@ -1,0 +1,48 @@
+{
+  "生成器": "apps/desktop/scripts/gen-u8-recording-fixtures.cjs",
+  "说明": "U8 6.2 实验标本。实机批次注入：把 traces/ 内点名的 u8e_*.jsonl 拷入数据目录 traces/（组 C 只拷 u8e_o1，u8e_p3 留在 fixtures ⇒ ownOnly）；批次结束按本清单文件名清除，生产数据目录内既有文件不碰。手工标本无 main 操作登记 ⇒ 结果区不显示，比较门禁/打开结果/读取呈现按本组验证；结果区「成功臂集合不隐去失败臂」的主路径 = 6.8 受控真实执行。",
+  "手工文件": [
+    "broken/u8e_broken.jsonl",
+    "u8e_a1.jsonl",
+    "u8e_a2.jsonl",
+    "u8e_b1.jsonl",
+    "u8e_b2.jsonl",
+    "u8e_o1.jsonl",
+    "u8e_p1.jsonl",
+    "u8e_p2.jsonl",
+    "u8e_p3.jsonl",
+    "u8e_x1.jsonl"
+  ],
+  "关系": {
+    "组A_完整成功批": {
+      "父": "u8e_p1",
+      "臂": [
+        "u8e_a1",
+        "u8e_a2"
+      ],
+      "experimentId": "exp_u8_full"
+    },
+    "组B_部分失败批": {
+      "父": "u8e_p2",
+      "成功臂": "u8e_b1",
+      "失败臂": "u8e_b2（errored/error + 顶层 llm.call.error + 占位零用量）",
+      "experimentId": "exp_u8_partial"
+    },
+    "组C_ownOnly": {
+      "父": "u8e_p3（注入时缺席）",
+      "臂": "u8e_o1",
+      "experimentId": "exp_u8_orphan"
+    },
+    "组D_异父同标签": {
+      "臂": "u8e_x1（parent=u8e_p3）",
+      "experimentId": "exp_u8_full"
+    },
+    "组E_非法": "broken/u8e_broken.jsonl（读取被拒对照）"
+  },
+  "自洽口径": "全部臂首请求 model/params 与 fork.edit.value 逐字一致（整体覆盖语义，experiment-records findModelParamsRecordViolation 4 号判据）；config_hash 臂父同值（占位 hash 只满足「已记录且相等」，不可作 replay 父本）；无工具表 ⇒ 副作用判据不触发。",
+  "messages_mock_手法": {
+    "凭据": "批首新 dev 会话 keyStore 空 =「未捕获 key」；受控 upstream 真实请求一场 ⇒ hasKey=true；toggle(false) ⇒ hasKey=true/running=false =「停用代理仍有凭据不能重发」（顺序即语义）。",
+    "写入失败": "proxy:fork 在飞（受控 upstream 带 delayMs 造窗口）期间把数据目录 traces/ rename 走 ⇒ recorder.write 抛 ⇒ PROXY_RECORDING_WRITE_FAILED（明确失败且不借用被动 run id）。",
+    "被动交错": "重发等待期间受控 upstream 另收一场被动请求 ⇒ 两 run 并存落盘 ⇒ 结果区只呈现登记可信 ID（deriveMessagesResults 按 target 圈定）。"
+  }
+}

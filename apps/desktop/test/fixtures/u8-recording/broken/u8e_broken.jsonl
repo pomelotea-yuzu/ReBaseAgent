@@ -1,0 +1,2 @@
+{"type":"run.meta","id":"u8e_broken","format_version":1,"task":"U8 非法标本","model":"deepseek-chat","created_at":"2026-10-01T12:10:00.000Z","parent":null,"fork":null,"config_hash":"sha256:u8rec0000000000000000000000000000000000000000000000000000000000"}
+{ 这不是合法 JSON 行
