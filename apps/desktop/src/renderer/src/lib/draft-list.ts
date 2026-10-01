@@ -4,6 +4,8 @@ import {
   isCreateRunDraftDirty,
   isModelAbDraftDirty,
 } from "./debugging-drafts";
+import type { RecordingDraft } from "./recording-draft";
+import { isRecordingDraftDirty } from "./recording-draft";
 
 /**
  * U3（preserve-debugging-drafts）任务 2.5：草稿列表与调用旁标记的**纯逻辑**。
@@ -150,6 +152,20 @@ export function deriveDraftList(
  */
 export function dirtyCountOf(repo: DraftRepo): number {
   return deriveDraftList(repo).filter((item) => item.dirty).length;
+}
+
+/**
+ * U8 任务 2.3：会话 dirty 计数（关闭协商上报口径）——**草稿仓库 + 录制配置草稿**合计。
+ * 录制未应用修改单独算一条（「只有录制草稿未应用」也要触发退出保护）；
+ * baseline 未读时 isRecordingDraftDirty 已判不 dirty（默认表单不误报）。
+ */
+export function sessionDirtyCountOf(
+  repo: DraftRepo,
+  recordingDraft: RecordingDraft | null,
+): number {
+  return (
+    dirtyCountOf(repo) + (recordingDraft !== null && isRecordingDraftDirty(recordingDraft) ? 1 : 0)
+  );
 }
 
 /** 调用旁草稿标记（llm.call / tool.invoke 头部小徽章）；null = 该调用无草稿 */

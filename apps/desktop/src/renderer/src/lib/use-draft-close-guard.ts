@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useAppStore } from "../store";
 import { api } from "./api";
 import { DraftCloseClient } from "./draft-close-client";
-import { dirtyCountOf } from "./draft-list";
+import { sessionDirtyCountOf } from "./draft-list";
 
 /**
  * U3 任务 4.2 / 4.3：关闭协商的 React 接线。
@@ -28,7 +28,11 @@ export function useDraftCloseGuard(): boolean {
   if (clientRef.current === null) {
     clientRef.current = new DraftCloseClient({
       api,
-      getDirtyCount: () => dirtyCountOf(useAppStore.getState().drafts),
+      // U8 任务 2.3：录制配置草稿的未应用修改一并计入关闭协商（单独一条 dirty）
+      getDirtyCount: () => {
+        const state = useAppStore.getState();
+        return sessionDirtyCountOf(state.drafts, state.recordingDraft);
+      },
       flushInputs: () => {
         // 变更事件已同步（见文件头注释）；组合中已进入 model 的文字同在 store
       },

@@ -182,6 +182,15 @@ import type {
   ReadingStateByRun,
   RunReadingState,
 } from "./lib/reading-state";
+import type { RecordingDraft, RecordingDraftPatch } from "./lib/recording-draft";
+import {
+  applyRecordingBaseline,
+  discardRecordingDraft as discardRecordingDraftState,
+  ensureRecordingDraft,
+  recordingApplyRequest,
+  recordingBaselineOf,
+  writeRecordingDraft,
+} from "./lib/recording-draft";
 import {
   type ResultReadEntry,
   type ResultReadIdentity,
@@ -348,6 +357,23 @@ interface AppState {
    */
   experimentTarget: ExperimentTarget | null;
   messagesTarget: MessagesTarget | null;
+
+  /**
+   * U8 任务 2.1：录制配置草稿（结构/判据在 `lib/recording-draft.ts`，独立于草稿仓库）。
+   * 会话内保留；baseline = 最近可核实的代理配置（null = 状态待读取）；不含凭据/许可/计划。
+   */
+  recordingDraft: RecordingDraft | null;
+  /**
+   * U8 任务 2.5/2.6：在飞应用的**提交修订**（null = 无在飞）。应用+回读全程防重复提交；
+   * 响应只有与当前草稿修订匹配才更新基线（「录制应用收尾不覆盖后来输入」）。
+   */
+  recordingApply: number | null;
+  /** 最近一次应用的启动失败诊断（成功即清；「已保存意图 vs 监听事实」的分层呈现归视图） */
+  recordingApplyError: string | null;
+  /** 最近一次状态回读失败（2.5：失败也允许只读重试；重试即 loadProxyStatus，不重新 toggle） */
+  recordingStatusReadFailed: boolean;
+  /** U8 任务 2.6：状态读取代次（每次 loadProxyStatus 推进；守卫的锚点之一） */
+  proxyReadGeneration: number;
 
   /**
    * 会话内的短 ID 长度记忆（任务 4.4）。
@@ -950,6 +976,16 @@ interface AppState {
    * 来源失效（重载 / 运行已不在列表）⇒ 回退已有可用工作区并保留草稿，不伪造旧位置。
    */
   returnToAuxSource: (view: AuxWorkspaceView) => Promise<void>;
+  /** U8 任务 2.1：写入录制草稿字段（原始文本无损；修订按实际变化推进） */
+  writeRecordingDraftFields: (patch: RecordingDraftPatch) => void;
+  /** U8 任务 2.2：按修订 CAS 明确放弃录制草稿（旧确认不能删除新输入；零配置写调用） */
+  discardRecordingDraftConfirmed: (expectedRevision: number) => boolean;
+  /**
+   * U8 任务 2.5：保存并应用（toggle）→ 随后**一律回读**真实状态（toggle 非事务：
+   * 可能已保存但监听失败——不伪造回滚）。非法字段不接受（纵深防御，组件判据同源）；
+   * 在飞期间拒绝重复应用；响应只在修订匹配时更新基线（2.6）。
+   */
+  applyRecordingDraft: () => Promise<"applied" | "start-failed" | "invalid" | "busy" | "no-draft">;
   /** 打开设置并定位到某分区（全局栏「录制接入」用），null = 常规打开 */
   setSettingsSection: (section: "proxy" | null) => void;
   /** 勾选/取消对照（上限 4，超出不加入并给出提示） */
@@ -1711,6 +1747,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   messagesReturnLocation: null,
   experimentTarget: null,
   messagesTarget: null,
+  recordingDraft: null,
+  recordingApply: null,
+  recordingApplyError: null,
+  recordingStatusReadFailed: false,
+  proxyReadGeneration: 0,
   settingsSection: null,
   shortIdState: new ShortIdState(),
   // U3 任务 3.4：提交关联仓库（与草稿仓库分开的生命周期，见 draft-submission.ts）
@@ -2949,8 +2990,18 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   async loadProxyStatus() {
     const envelope = await api.proxyStatus();
+    // U8 任务 2.6：每次读取推进状态代次（守卫锚点；读取本身零写通道）
+    set({ proxyReadGeneration: get().proxyReadGeneration + 1 });
     if (!envelope.ok) {
-      set({ proxy: null, error: `读取代理状态失败：${envelope.error.message}` });
+      set({
+        proxy: null,
+        error: `读取代理状态失败：${envelope.error.message}`,
+        // U8 任务 2.5：回读失败如实呈现「状态待读取」，允许只读重试（不重新 toggle）
+        recordingStatusReadFailed: true,
+      });
+      // 草稿在场 ⇒ baseline 撤到 null（没有可核实的当前应用值；输入原样保留）
+      const draft = get().recordingDraft;
+      if (draft !== null) set({ recordingDraft: applyRecordingBaseline(draft, null) });
       return;
     }
     const parsed = ProxyStateSchema.safeParse(envelope.data);
@@ -2958,7 +3009,11 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ proxy: null, error: `代理状态数据结构校验失败：${describeZodError(parsed.error)}` });
       return;
     }
-    set({ proxy: parsed.data });
+    set({ proxy: parsed.data, recordingStatusReadFailed: false });
+    // U8 任务 2.1：草稿在场 ⇒ baseline 跟随最近可核实事实（输入原样，dirty 随之重算）
+    const draft = get().recordingDraft;
+    if (draft !== null)
+      set({ recordingDraft: applyRecordingBaseline(draft, recordingBaselineOf(parsed.data)) });
   },
 
   async toggleProxy(input) {
@@ -3037,6 +3092,14 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   openRecordingWorkspace() {
     enterAuxWorkspace("recording", null);
+    // U8 任务 2.1：进录制页即确保草稿在场（从当前已核实状态初始化；已有草稿原样保留）
+    const state = get();
+    useAppStore.setState({
+      recordingDraft: ensureRecordingDraft(
+        state.recordingDraft,
+        state.proxy !== null ? recordingBaselineOf(state.proxy) : null,
+      ),
+    });
   },
 
   openExperimentWorkspace(target) {
@@ -3061,6 +3124,57 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ view: target });
     if (decision.kind !== "restore" || decision.location.runId === null) return;
     await restoreReadingLocation(decision.location);
+  },
+
+  writeRecordingDraftFields(patch) {
+    const draft = get().recordingDraft;
+    if (draft === null) return;
+    useAppStore.setState({ recordingDraft: writeRecordingDraft(draft, patch) });
+  },
+
+  discardRecordingDraftConfirmed(expectedRevision) {
+    const draft = get().recordingDraft;
+    if (draft === null) return false;
+    const result = discardRecordingDraftState(draft, expectedRevision);
+    if (!result.discarded) return false;
+    set({ recordingDraft: result.draft });
+    return true;
+  },
+
+  async applyRecordingDraft() {
+    const draft = get().recordingDraft;
+    if (draft === null) return "no-draft";
+    if (get().recordingApply !== null) return "busy";
+    const request = recordingApplyRequest(draft);
+    // 纵深防御：组件判据同源，但这里再拦一次——非法字段连在飞标记都不该出现
+    if (!request.ok) return "invalid";
+    const submittedRevision = draft.revision;
+    set({ recordingApply: submittedRevision, recordingApplyError: null });
+    const envelope = await api.proxyToggle(request.input);
+    // toggle 非事务（design D2）：无论启动成败都回读真实状态——成功确认「已保存意图」，
+    // 回读给出「监听事实」；回读失败 ⇒ 状态待读取，两层诊断分别呈现
+    const startOk = envelope.ok;
+    const startMessage = envelope.ok ? "" : envelope.error.message;
+    await get().loadProxyStatus();
+    const current = get();
+    // U8 任务 2.6：响应只在「与当前草稿修订匹配」时更新基线——在飞期间的后来输入
+    // 不被旧响应覆写；诊断照报（它属于真实发生过的那次应用）
+    const stale =
+      current.recordingDraft === null || current.recordingDraft.revision !== submittedRevision;
+    const patch: {
+      recordingApply: number | null;
+      recordingApplyError: string | null;
+      recordingDraft?: RecordingDraft;
+    } = { recordingApply: null, recordingApplyError: startOk ? null : startMessage };
+    if (startOk && !stale && current.recordingDraft !== null) {
+      patch.recordingDraft = applyRecordingBaseline(current.recordingDraft, {
+        enabled: request.input.enabled,
+        port: request.input.port,
+        upstreamBaseUrl: request.input.upstreamBaseUrl,
+      });
+    }
+    set(patch);
+    return startOk ? "applied" : "start-failed";
   },
 
   setSettingsSection(section) {

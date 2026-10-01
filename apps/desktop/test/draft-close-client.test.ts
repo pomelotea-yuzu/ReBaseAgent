@@ -310,8 +310,10 @@ describe("U3 4.2 App 接线契约（源码级）", () => {
     expect(HOOK).toContain("prevFocus.focus()");
     // hook 必须订阅 store 驱动 dirty 上报（不是轮询）
     expect(HOOK).toContain("useAppStore.subscribe");
-    // hook 的 dirty 计数必须来自 dirtyCountOf（与列表同一口径）
-    expect(HOOK).toContain("dirtyCountOf");
+    // hook 的 dirty 计数必须来自 draft-list 的同一口径函数
+    // （⚠️ U8 2.3 有意改判：dirtyCountOf → sessionDirtyCountOf——录制配置草稿的未应用
+    // 修改一并计入关闭协商，计数函数随之更名；口径仍是「与列表同一来源」）
+    expect(HOOK).toContain("sessionDirtyCountOf");
   });
 
   it("任务 4.3：组合跟踪 + 尾随收尾放行（只拦可取消事件）+ isInputSettled 接线", () => {
