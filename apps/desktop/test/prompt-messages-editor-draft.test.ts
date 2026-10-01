@@ -124,6 +124,18 @@ describe("接线契约：MessagesForkEditor 接入 messages 草稿（任务 2.2�
     expect(code).toContain("readOnly: true");
   });
 
+  it("U8 6.9 实机坐实：工作区形态（alwaysOpen）挂载即登记基线草稿（首输不丢）", () => {
+    // 缺口形态：常开不走「展开按钮 / pending 定位」两条 ensure 路径 ⇒ 草稿条目不存在，
+    // 而 writeCallDraftText 对不存在的条目 no-op ⇒ 工作区里的首次编辑被静默丢弃。
+    const code = src();
+    const effectStart = code.indexOf("if (!alwaysOpen) return;");
+    expect(effectStart).toBeGreaterThan(-1);
+    const effectBody = code.slice(effectStart, code.indexOf("}, [alwaysOpen", effectStart));
+    expect(effectBody).toContain(
+      "ensureCallDraft(draftKey, messagesBaseline, captureCallDraftSource(run, span))",
+    );
+  });
+
   it("U8 5.1b：工作区形态参数在场（目标作用域源可用性覆盖 + 常开无收起）", () => {
     const code = src();
     // 目标作用域覆盖：缺省仍用全局选中门禁，工作区传入按目标计算的可用性
@@ -132,7 +144,7 @@ describe("接线契约：MessagesForkEditor 接入 messages 草稿（任务 2.2�
     // 常开形态：初始展开、Esc 不收起（收起语义只属于步骤页内联形态）
     expect(code).toContain("useState(alwaysOpen)");
     expect(code).toContain("open && !alwaysOpen && !inProgress");
-    expect(code).toContain("{alwaysOpen ? null : \"取消\"}");
+    expect(code).toContain('{alwaysOpen ? null : "取消"}');
   });
 
   it("U8 5.3：提交只走登记 + proxy:fork；确认凭据绑定提交；无第二执行通道", () => {
@@ -155,8 +167,7 @@ describe("接线契约：MessagesForkEditor 接入 messages 草稿（任务 2.2�
 });
 
 describe("U8 5.1b 源码级：编辑器唯一消费面在 messages 工作区，详情页只留入口", () => {
-  const read = (rel: string): string =>
-    readFileSync(resolve(import.meta.dirname, rel), "utf8");
+  const read = (rel: string): string => readFileSync(resolve(import.meta.dirname, rel), "utf8");
 
   it("MessagesWorkspace 挂载编辑器：目标作用域源读取 + 目标门禁 + 常开", () => {
     const code = read("../src/renderer/src/components/MessagesWorkspace.tsx");

@@ -102,6 +102,16 @@ export function MessagesForkEditor({
     consumeDraftTarget();
   }, [pending, consumeDraftTarget, ensureCallDraft, draftKey, run, span, messagesBaseline]);
 
+  // U8 6.9 实机坐实的接线缺口（2026-10-01，同 6.7 的 ModelAbEditor 家族）：工作区形态
+  // （alwaysOpen）不走「折叠态展开按钮」与「草稿定位 pending」两条 ensure 路径 ⇒ 挂载时
+  // 草稿条目不存在，而 writeCallDraftText 对不存在的条目 no-op（debugging-drafts 契约）
+  // ⇒ 工作区里的首次编辑被静默丢弃、编辑完全失效。修复：挂载即登记基线草稿（ensure
+  // 幂等——已存在条目原样保留，重挂载/换目标重挂都不覆盖用户输入）。
+  useEffect(() => {
+    if (!alwaysOpen) return;
+    ensureCallDraft(draftKey, messagesBaseline, captureCallDraftSource(run, span));
+  }, [alwaysOpen, ensureCallDraft, draftKey, run, span, messagesBaseline]);
+
   // U3 任务 2.5/1.4：恢复重验——源缺失/损坏/改变/资格失效 ⇒ 保留草稿、禁止执行
   const sourceVerdict =
     draftEntry === undefined
