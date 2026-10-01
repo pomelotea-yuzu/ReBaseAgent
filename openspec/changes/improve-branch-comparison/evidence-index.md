@@ -13,7 +13,7 @@
 > `apps/desktop/test/` 下文件；含 `/` = 仓库相对路径）。由 `.workbuddy/u7/u7-61/verify-scenario-checklist.cjs`
 > 逐条核对（文件存在 + 用例名在场），含 `--selftest` 反例。
 
-汇总口径：**72 条场景（ADDED 41 / MODIFIED 31）**，已交付 **52** 条、待验证 **20** 条、实机不成立 **0** 条（6.4 实机 20 条 + 6.5 实机 20 条 + 6.6 实机 11 条 + 6.3 反证 1 条）
+汇总口径：**72 条场景（ADDED 41 / MODIFIED 31）**，已交付 **59** 条、待验证 **13** 条、实机不成立 **0** 条（6.4 实机 20 条 + 6.5 实机 20 条 + 6.6 实机 11 条 + 6.7 实机 7 条 + 6.3 反证 1 条）
 
 ---
 
@@ -176,15 +176,15 @@
 
 | n | 场景 | 单元/契约证据 | 实机入口/批次 | 状态 |
 |---|---|---|---|---|
-| 66 | 共同祖先可比 | `experiment-records.test.ts › 合法臂：同源 hash + 首请求模型/参数自洽 ⇒ eligible` + `experiment-records.test.ts › 同父合法两臂 ⇒ eligible，批次身份保留各臂已记录 experimentId` + `compare-workspace-view.test.tsx › eligible：批次身份 + 相对父累计增量 + 无臂间结论恒定说明 + 副作用放行说明` | 6.7 实机 | 待验证 |
-| 67 | 父链缺失或结果未封存 | `experiment-records.test.ts › 任一臂 ownOnly（父链不完整）⇒ ineligible CHAIN_INCOMPLETE` + `experiment-records.test.ts › 存在不可读侧 ⇒ unverifiable RUN_UNREADABLE` + `compare-workspace-view.test.tsx › ineligible：受控原因 + 各记录单独打开入口（不恢复资格措辞）` | 6.7 实机 | 待验证 |
+| 66 | 共同祖先可比 | `experiment-records.test.ts › 合法臂：同源 hash + 首请求模型/参数自洽 ⇒ eligible` + `experiment-records.test.ts › 同父合法两臂 ⇒ eligible，批次身份保留各臂已记录 experimentId` + `compare-workspace-view.test.tsx › eligible：批次身份 + 相对父累计增量 + 无臂间结论恒定说明 + 副作用放行说明` | 6.7 实机 | 已交付（6.7 实机） |
+| 67 | 父链缺失或结果未封存 | `experiment-records.test.ts › 任一臂 ownOnly（父链不完整）⇒ ineligible CHAIN_INCOMPLETE` + `experiment-records.test.ts › 存在不可读侧 ⇒ unverifiable RUN_UNREADABLE` + `compare-workspace-view.test.tsx › ineligible：受控原因 + 各记录单独打开入口（不恢复资格措辞）` | 6.7 实机 | 已交付（6.7 实机） |
 
 ### ME2. 共用工作区不能绕过实验比较资格（ADDED，5 场景）
 
 | n | 场景 | 单元/契约证据 | 实机入口/批次 | 状态 |
 |---|---|---|---|---|
-| 68 | 合法同父实验臂展示事实 | `experiment-records.test.ts › 风险工具（标记缺失按有副作用）+ 显式 allowSideEffects: true ⇒ eligible（留痕）` + `compare-workspace-view.test.tsx › eligible：批次身份 + 相对父累计增量 + 无臂间结论恒定说明 + 副作用放行说明` | 6.7 实机（合法臂含 error/上限结局） | 待验证 |
-| 69 | 异父混选与相同实验标签不能绕过 | `experiment-records.test.ts › 异父臂 ⇒ ineligible PARENT_DIFFERS；相同 experimentId 不能绕过` + `experiment-records.test.ts › 混入普通 run ⇒ ineligible MIXED_SELECTION（experimentId 相同也不能豁免）` | 6.7 实机（异父/混选标本） | 待验证 |
-| 70 | 不完整未封存与前置缺证明确拒绝 | `experiment-records.test.ts › 臂缺 config_hash（老文件）⇒ unverifiable（不冒充通过、不反推）` + `experiment-records.test.ts › hash 不同源（工具表/system 被改过）⇒ ineligible（明确拒绝）` + `experiment-records.test.ts › 首请求模型与编辑值不一致 ⇒ ineligible` | 6.7 实机 | 待验证 |
-| 71 | 历史比较不依赖当前密钥和预览 | `experiment-records.test.ts › 合法臂：同源 hash + 首请求模型/参数自洽 ⇒ eligible`（deriveExperimentGate 为纯函数只吃已校验记录：全部判据用例均不读 settings/不联网/不预览——实机核对重启与清密钥后资格不变） | 6.7 实机（清除配置后历史读取） | 待验证 |
-| 72 | 交换和四列均不产出实验臂间结论 | `compare-metrics.test.ts › scopeNote 恒定在场：只呈现事实与相对祖先增量，无互差/胜出/最佳结论` + `compare-metrics.test.ts › 不输出金额、质量评分或模型胜负` | 6.7 实机（交换/改选/四臂） | 待验证 |
+| 68 | 合法同父实验臂展示事实 | `experiment-records.test.ts › 风险工具（标记缺失按有副作用）+ 显式 allowSideEffects: true ⇒ eligible（留痕）` + `compare-workspace-view.test.tsx › eligible：批次身份 + 相对父累计增量 + 无臂间结论恒定说明 + 副作用放行说明` | 6.7 实机（合法臂含 error/上限结局） | 已交付（6.7 实机） |
+| 69 | 异父混选与相同实验标签不能绕过 | `experiment-records.test.ts › 异父臂 ⇒ ineligible PARENT_DIFFERS；相同 experimentId 不能绕过` + `experiment-records.test.ts › 混入普通 run ⇒ ineligible MIXED_SELECTION（experimentId 相同也不能豁免）` | 6.7 实机（异父/混选标本） | 已交付（6.7 实机） |
+| 70 | 不完整未封存与前置缺证明确拒绝 | `experiment-records.test.ts › 臂缺 config_hash（老文件）⇒ unverifiable（不冒充通过、不反推）` + `experiment-records.test.ts › hash 不同源（工具表/system 被改过）⇒ ineligible（明确拒绝）` + `experiment-records.test.ts › 首请求模型与编辑值不一致 ⇒ ineligible` | 6.7 实机 | 已交付（6.7 实机） |
+| 71 | 历史比较不依赖当前密钥和预览 | `experiment-records.test.ts › 合法臂：同源 hash + 首请求模型/参数自洽 ⇒ eligible`（deriveExperimentGate 为纯函数只吃已校验记录：全部判据用例均不读 settings/不联网/不预览——实机核对重启与清密钥后资格不变） | 6.7 实机（清除配置后历史读取） | 已交付（6.7 实机） |
+| 72 | 交换和四列均不产出实验臂间结论 | `compare-metrics.test.ts › scopeNote 恒定在场：只呈现事实与相对祖先增量，无互差/胜出/最佳结论` + `compare-metrics.test.ts › 不输出金额、质量评分或模型胜负` | 6.7 实机（交换/改选/四臂） | 已交付（6.7 实机） |
