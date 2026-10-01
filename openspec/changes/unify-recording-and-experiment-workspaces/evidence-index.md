@@ -15,7 +15,7 @@
 > 逐条核对（文件存在 + 用例名在场 + 场景名逐字在 delta + 任务引用真实），含 `--selftest` 反例。
 > 标注「2.x 落地后补」的行 = 该行为尚不存在、无既有证据可引（诚实留白，不造弱用例凑数）。
 
-汇总口径：**67 条场景（保留 20 / 新 47）**，已交付 **24** 条、待验证 **42** 条、实机不成立 **1** 条（行 6；6.6 实机批交付 13 行、6.7 实机批交付 11 行）
+汇总口径：**67 条场景（保留 20 / 新 47）**，已交付 **28** 条、待验证 **38** 条、实机不成立 **1** 条（行 6；6.6 交付 13 行、6.7 交付 11 行、6.8 交付 4 行）
 
 ---
 
@@ -91,12 +91,12 @@
 
 | n | 场景 | 保留/新 | 任务 | 单元/契约证据 | 实机入口/批次 | 状态 |
 |---|---|---|---|---|---|---|
-| 37 | 成功臂集合不隐去失败臂 | 新 | 4.1, 6.2, 6.5, 6.8 | `exec-model-ab.test.ts › A-B 部分失败：失败臂带真实 id 与 failed 结局，ids 只含成功臂，批次不冒充全臂成功` + `operation-request-facts.test.ts › 「实验缺臂部分失败」逐臂诚实：登记短于 armCount 也不从信封多报的 id 凑` + `draft-closure-store.test.ts › 执行信封把 ids 全带回来，但登记与核实未跟上 ⇒ 整批保留` + `experiment-results.test.ts › experimentId 缺席如实呈现为 null；逐臂呈现复用 deriveAbBatchResult（armCount 基准）`（工作区层） | 6.2 标本 + 6.5 反证 + 6.8 实机 | 待验证 |
-| 38 | 实验结果不可读仅重试读取 | 新 | 4.3, 6.8 | `operation-request-facts.test.ts › 不可读臂只给同一 ID 的重读动作；渲染后不出现臂间差值/胜出臂结论，也无` + `result-verification.test.ts › 已在读 / 已核实 ⇒ 视为已处理；不可读 ⇒ 不算（只能显式只读重试）` + `draft-closure-store.test.ts › 一条臂结果不可读 ⇒ 整批保留（部分成功不冒充全臂成功）` + `experiment-results-actions.test.ts › 不可读臂只按同一条可信 ID 重试：文件依旧坏 ⇒ 诊断保留、仍不换 id 不触发执行` + `experiment-results.test.ts › 4.3 未关联臂零动作：全部臂都无可信 ID ⇒ 整个结果区没有一个可点的按钮（只留诚实说明）` | 6.8 实机 | 待验证 |
-| 39 | 全臂核实才按提交修订清理 | 新 | 4.4, 6.8 | `draft-closure-store.test.ts › 两条预期臂各自核实正常结束 ⇒ 整批一次清干净（不逐臂删配置）` + `draft-closure-store.test.ts › 缺臂 / null ID / 失败臂 ⇒ 整批配置与关联都保留` + `experiment-results.test.ts › 4.4 清理只归 U5：结果区容器不自建第二套收尾/清理/执行路径`（源码级反证） | 6.8 实机 | 待验证 |
+| 37 | 成功臂集合不隐去失败臂 | 新 | 4.1, 6.2, 6.5, 6.8 | `exec-model-ab.test.ts › A-B 部分失败：失败臂带真实 id 与 failed 结局，ids 只含成功臂，批次不冒充全臂成功` + `operation-request-facts.test.ts › 「实验缺臂部分失败」逐臂诚实：登记短于 armCount 也不从信封多报的 id 凑` + `draft-closure-store.test.ts › 执行信封把 ids 全带回来，但登记与核实未跟上 ⇒ 整批保留` + `experiment-results.test.ts › experimentId 缺席如实呈现为 null；逐臂呈现复用 deriveAbBatchResult（armCount 基准）`（工作区层） | 6.2 标本 + 6.5 反证 + 6.8 实机 | 已交付（6.2 标本 + 6.5 反证 + 6.8 实机：部分失败批逐臂 [returned, failed]、失败臂真实 id/顶层 error/errored 终态、结果区按目标圈定） |
+| 38 | 实验结果不可读仅重试读取 | 新 | 4.3, 6.8 | `operation-request-facts.test.ts › 不可读臂只给同一 ID 的重读动作；渲染后不出现臂间差值/胜出臂结论，也无` + `result-verification.test.ts › 已在读 / 已核实 ⇒ 视为已处理；不可读 ⇒ 不算（只能显式只读重试）` + `draft-closure-store.test.ts › 一条臂结果不可读 ⇒ 整批保留（部分成功不冒充全臂成功）` + `experiment-results-actions.test.ts › 不可读臂只按同一条可信 ID 重试：文件依旧坏 ⇒ 诊断保留、仍不换 id 不触发执行` + `experiment-results.test.ts › 4.3 未关联臂零动作：全部臂都无可信 ID ⇒ 整个结果区没有一个可点的按钮（只留诚实说明）` | 6.8 实机 | 已交付（6.8 实机：fileMissing 注入 ⇒ unreadable 只给重读动作；同 ID 重试；还原后恢复 verified；零新建文件） |
+| 39 | 全臂核实才按提交修订清理 | 新 | 4.4, 6.8 | `draft-closure-store.test.ts › 两条预期臂各自核实正常结束 ⇒ 整批一次清干净（不逐臂删配置）` + `draft-closure-store.test.ts › 缺臂 / null ID / 失败臂 ⇒ 整批配置与关联都保留` + `experiment-results.test.ts › 4.4 清理只归 U5：结果区容器不自建第二套收尾/清理/执行路径`（源码级反证） | 6.8 实机 | 已交付（6.8 实机：[ok,ok] 批与部分失败批并存——失败批整批保留；清理/缺臂形态由 draft-closure-store 单元承载） |
 | 40 | 实验结果选两到四条进入共用比较 | 新 | 4.5, 6.9 | `store.test.ts › 对照上限 4：第 5 条被拒绝并给出提示，已选集合不变` + `compare-metrics.test.ts › 三条 ⇒ 提示显式选两条；四条同口径（列数与集合一致）` + `experiment-records.test.ts › 同父合法两臂 ⇒ eligible，批次身份保留各臂已记录 experimentId` + `experiment-results-actions.test.ts › 两条按选择顺序进入详细比较；比较入口只读——登记/读取项引用原样` + `experiment-results.test.ts › 4.5 进入比较按钮：少于两条禁用；两条启用给顺序说明；store 提示（超上限）原样呈现` | 6.9 实机 | 待验证 |
 | 41 | 比较拒绝和返回实验不改批次事实 | 新 | 1.6, 4.5, 6.9 | `experiment-records.test.ts › 异父臂 ⇒ ineligible PARENT_DIFFERS；相同 experimentId 不能绕过` + `compare-workspace-store.test.ts › 返回来源：恢复视图与阅读位置，凭据一次性用掉` + `experiment-results-actions.test.ts › 比较读取被拒绝（信封错误）后返回实验：视图恢复、对照集合保留、批次事实仍原样`（1.6 落地的返回位置扩展已被该用例覆盖） | 6.9 实机 | 待验证 |
-| 42 | 跨页结束与重载恢复实验结果 | 新 | 4.6, 6.8 | `navigation-intent.test.ts › A/B 批次 ⇒ drop：永不自动聚焦，由用户挑臂` + `navigation-intent.test.ts › 本会话没提交过（重载恢复）⇒ none：不凭「结果可读」就跳` + `experiment-results-actions.test.ts › 重载后由登记快照恢复：批次呈现恢复、结果读取可重建、内存草稿与待定提交零补造` + `experiment-results-actions.test.ts › 后台结束不抢页：采纳已收口批次快照时，人在别的页面就留在别的页面（A/B 意图恒 drop）` | 6.8 实机 | 待验证 |
+| 42 | 跨页结束与重载恢复实验结果 | 新 | 4.6, 6.8 | `navigation-intent.test.ts › A/B 批次 ⇒ drop：永不自动聚焦，由用户挑臂` + `navigation-intent.test.ts › 本会话没提交过（重载恢复）⇒ none：不凭「结果可读」就跳` + `experiment-results-actions.test.ts › 重载后由登记快照恢复：批次呈现恢复、结果读取可重建、内存草稿与待定提交零补造` + `experiment-results-actions.test.ts › 后台结束不抢页：采纳已收口批次快照时，人在别的页面就留在别的页面（A/B 意图恒 drop）` | 6.8 实机 | 已交付（6.8 实机：执行期切页不抢导航（A/B drop）+ 重载后登记快照恢复两批呈现，零补造） |
 
 ### DU8. messages 编辑工作区保留单请求来源与返回路径（ADDED，4 场景）
 
