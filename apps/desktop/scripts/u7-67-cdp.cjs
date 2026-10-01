@@ -18,7 +18,14 @@
  * 用法：`node apps/desktop/scripts/u7-67-cdp.cjs --tag=compare-experiment`
  */
 "use strict";
-const { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync } = require("node:fs");
+const {
+  existsSync,
+  readFileSync,
+  writeFileSync,
+  mkdirSync,
+  rmSync,
+  readdirSync,
+} = require("node:fs");
 const { join } = require("node:path");
 const { createHash } = require("node:crypto");
 const H = require("./lib/u4-smoke-harness.cjs");
@@ -88,8 +95,24 @@ const watchdog = setTimeout(() => {
 // fixtures 现算期望值
 // ---------------------------------------------------------------------------
 
-const FIXTURE_TRACES_SRC = join(H.REPO, "apps", "desktop", "test", "fixtures", "u7-compare", "traces");
-const FIXTURE_ISOLATED_SRC = join(H.REPO, "apps", "desktop", "test", "fixtures", "u7-compare", "isolated-traces");
+const FIXTURE_TRACES_SRC = join(
+  H.REPO,
+  "apps",
+  "desktop",
+  "test",
+  "fixtures",
+  "u7-compare",
+  "traces",
+);
+const FIXTURE_ISOLATED_SRC = join(
+  H.REPO,
+  "apps",
+  "desktop",
+  "test",
+  "fixtures",
+  "u7-compare",
+  "isolated-traces",
+);
 
 function ownTotalOf(fixtureDir, id) {
   const lines = readFileSync(join(fixtureDir, `${id}.jsonl`), "utf8")
@@ -127,7 +150,10 @@ function restoreAll() {
   for (const [name, buf] of backups) {
     const p = join(H.TRACES, name);
     writeFileSync(p, buf);
-    if (createHash("md5").update(readFileSync(p)).digest("hex") !== createHash("md5").update(buf).digest("hex")) {
+    if (
+      createHash("md5").update(readFileSync(p)).digest("hex") !==
+      createHash("md5").update(buf).digest("hex")
+    ) {
       ok = false;
     }
   }
@@ -137,10 +163,14 @@ function restoreAll() {
 function dirFingerprint() {
   const map = {};
   for (const name of readdirSync(H.TRACES).filter((n) => n.endsWith(".jsonl"))) {
-    map[name] = createHash("md5").update(readFileSync(join(H.TRACES, name))).digest("hex");
+    map[name] = createHash("md5")
+      .update(readFileSync(join(H.TRACES, name)))
+      .digest("hex");
   }
   const settingsPath = join(H.REPO, ".rebaseagent", "settings.json");
-  map["<settings>"] = existsSync(settingsPath) ? createHash("md5").update(readFileSync(settingsPath)).digest("hex") : "absent";
+  map["<settings>"] = existsSync(settingsPath)
+    ? createHash("md5").update(readFileSync(settingsPath)).digest("hex")
+    : "absent";
   return map;
 }
 
@@ -184,7 +214,7 @@ async function waitDetail(call, timeoutMs = 20000) {
          });
        })()`,
     ).then(JSON.parse);
-    if (p !== null && p.hasLeft && !p.loading) return p;
+    if (p?.hasLeft && !p.loading) return p;
     if (Date.now() > deadline) return p;
     await H.sleep(400);
   }
@@ -227,7 +257,12 @@ const experimentText = (call) =>
 /** 实验区无臂间结论的负判据：胜出/最佳只允许出现在恒定说明句里（不允许冒号式结论） */
 function noInterArmConclusion(text) {
   const t = text || "";
-  return !/胜出[:：]/.test(t) && !/最佳[:：]/.test(t) && !/互差[:：]\s*\d/.test(t) && !/更优|优于另一臂/.test(t);
+  return (
+    !/胜出[:：]/.test(t) &&
+    !/最佳[:：]/.test(t) &&
+    !/互差[:：]\s*\d/.test(t) &&
+    !/更优|优于另一臂/.test(t)
+  );
 }
 
 const sideText = (call, side) =>
@@ -259,7 +294,7 @@ async function openMetrics(call) {
          return JSON.stringify({ hasTable: t !== null, wsText: ws === null ? null : ws.textContent });
        })()`,
     ).then(JSON.parse);
-    if (p !== null && p.hasTable) return p;
+    if (p?.hasTable) return p;
     if (Date.now() > deadline) return p;
     await H.sleep(400);
   }
@@ -280,7 +315,7 @@ const metricsRows = (call) =>
      })()`,
   ).then(JSON.parse);
 function rowOf(rows, label) {
-  return rows === null ? null : rows.find((r) => r.label === label) ?? null;
+  return rows === null ? null : (rows.find((r) => r.label === label) ?? null);
 }
 
 // ---------------------------------------------------------------------------
@@ -297,7 +332,8 @@ const FLOWS = {
         EXPECTED_IDS.push(String(meta.id));
       }
     }
-    for (const id of ["u7g_a1", "u7g_e1", "u7g_s1", "u7g_p1", "u7g_d1", "u7g_n1"]) EXPECTED_IDS.push(id);
+    for (const id of ["u7g_a1", "u7g_e1", "u7g_s1", "u7g_p1", "u7g_d1", "u7g_n1"])
+      EXPECTED_IDS.push(id);
     let st0 = null;
     const injectedCount = (s) => EXPECTED_IDS.filter((id) => s.runIds.includes(id)).length;
     for (let i = 0; i < 30; i++) {
@@ -328,7 +364,7 @@ const FLOWS = {
     );
     check(
       "#66 各臂相对父累计增量（沿链口径；期望值由 fixtures 现算）",
-      (exp.text || "").includes(`u7g_a1`) &&
+      (exp.text || "").includes("u7g_a1") &&
         (exp.text || "").includes(`相对父累计增量：${DELTA_A1} tokens`) &&
         (exp.text || "").includes(`相对父累计增量：${DELTA_E1} tokens`),
       { expected: [DELTA_A1, DELTA_E1], text: (exp.text || "").slice(0, 300) },
@@ -357,7 +393,11 @@ const FLOWS = {
       exp.present === true && (exp.text || "").includes("已记录副作用放行"),
       (exp.text || "").slice(0, 200),
     );
-    check("#68 副作用对仍 eligible（恒定说明照常）", (exp.text || "").includes("不产出臂间差值、胜出臂或最佳模型结论"), null);
+    check(
+      "#68 副作用对仍 eligible（恒定说明照常）",
+      (exp.text || "").includes("不产出臂间差值、胜出臂或最佳模型结论"),
+      null,
+    );
 
     // ── #72 交换后仍无臂间结论（eligible 对上真实点击交换） ──
     await H.ev(
@@ -424,7 +464,9 @@ const FLOWS = {
     exp = await experimentText(call);
     check(
       "#72 四列中显式选两臂 ⇒ eligible 照常（批次身份 + 恒定说明）",
-      detail !== null && detail.hasLeft === true && exp.present === true &&
+      detail !== null &&
+        detail.hasLeft === true &&
+        exp.present === true &&
         (exp.text || "").includes("exp_u7_ab") &&
         noInterArmConclusion(exp.text),
       null,
@@ -481,7 +523,8 @@ const FLOWS = {
     exp = await experimentText(call);
     check(
       "#70 首请求参数与编辑值不一致（整体覆盖语义）：[REQUEST_PARAMS_MISMATCH]（6.2 手工臂标本被真 gate 坐实不自洽——登记为标本现实性缺口，非产品缺陷）",
-      exp.present === true && (exp.text || "").includes("[REQUEST_PARAMS_MISMATCH]") &&
+      exp.present === true &&
+        (exp.text || "").includes("[REQUEST_PARAMS_MISMATCH]") &&
         (exp.text || "").includes("u7c_ea"),
       (exp.text || "").slice(0, 220),
     );

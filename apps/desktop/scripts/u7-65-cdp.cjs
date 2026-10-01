@@ -86,15 +86,7 @@ const watchdog = setTimeout(() => {
 // fixtures 现算期望值（不硬编码数字；判据 = 真实 trace 文件实读）
 // ---------------------------------------------------------------------------
 
-const FIXTURE_TRACES = join(
-  H.REPO,
-  "apps",
-  "desktop",
-  "test",
-  "fixtures",
-  "u7-compare",
-  "traces",
-);
+const FIXTURE_TRACES = join(H.REPO, "apps", "desktop", "test", "fixtures", "u7-compare", "traces");
 
 function readFixture(id) {
   const p = join(FIXTURE_TRACES, `${id}.jsonl`);
@@ -241,7 +233,7 @@ async function waitDetail(call, timeoutMs = 20000) {
          });
        })()`,
     ).then(JSON.parse);
-    if (p !== null && p.hasLeft && !p.loading) return p;
+    if (p?.hasLeft && !p.loading) return p;
     if (Date.now() > deadline) return p;
     await H.sleep(400);
   }
@@ -311,7 +303,7 @@ async function openMetrics(call) {
          return JSON.stringify({ hasTable: t !== null, wsText: ws === null ? null : ws.textContent });
        })()`,
     ).then(JSON.parse);
-    if (p !== null && p.hasTable) return p;
+    if (p?.hasTable) return p;
     if (Date.now() > deadline) return p;
     await H.sleep(400);
   }
@@ -470,9 +462,7 @@ const FLOWS = {
       "#12 两侧累计各自可读（累计增量 tokens 行两列均有数字）",
       (() => {
         const r = rowOf(rows12, "累计增量（tokens）");
-        return (
-          r !== null && r.cells.length >= 2 && r.cells.every((c) => /\d/.test(c))
-        );
+        return r !== null && r.cells.length >= 2 && r.cells.every((c) => /\d/.test(c));
       })(),
       rowOf(rows12, "累计增量（tokens）"),
     );
@@ -606,7 +596,11 @@ const FLOWS = {
        })()`,
     );
     await H.sleep(700);
-    check("#55 长文本折叠态有展开入口（summary 摘要行带字符数）", expanded === '"clicked"', expanded);
+    check(
+      "#55 长文本折叠态有展开入口（summary 摘要行带字符数）",
+      expanded === '"clicked"',
+      expanded,
+    );
     // 两列独立滚动：滚左列不影响右列（展开后列内容远超视口）
     const scrollProbe = await H.ev(
       call,
@@ -687,7 +681,11 @@ const FLOWS = {
              monacoEditors, diffEditor, wsText: ws === null ? null : ws.textContent });
          })()`,
       ).then(JSON.parse);
-      if (monacoDetail !== null && monacoDetail.monacoEditors >= 2 && monacoDetail.diffEditor >= 1) {
+      if (
+        monacoDetail !== null &&
+        monacoDetail.monacoEditors >= 2 &&
+        monacoDetail.diffEditor >= 1
+      ) {
         monacoOk = true;
         break;
       }
@@ -698,7 +696,11 @@ const FLOWS = {
       monacoOk === true && monacoDetail.panel === true,
       monacoDetail === null
         ? null
-        : { panel: monacoDetail.panel, monacoEditors: monacoDetail.monacoEditors, diffEditor: monacoDetail.diffEditor },
+        : {
+            panel: monacoDetail.panel,
+            monacoEditors: monacoDetail.monacoEditors,
+            diffEditor: monacoDetail.diffEditor,
+          },
     );
     check(
       "#55 diff 标注（左侧 → 右侧 + 仅双方均有已记录最终输出时可用）",
@@ -720,7 +722,11 @@ const FLOWS = {
          panel: document.querySelector('[data-testid="compare-diff-panel"]') !== null,
          left: document.querySelector('[aria-label="左列输出"]') !== null }))()`,
     ).then(JSON.parse);
-    check("#55 退出 diff：回两列独立滚动（diff 面板卸载）", backCols.panel === false && backCols.left === true, backCols);
+    check(
+      "#55 退出 diff：回两列独立滚动（diff 面板卸载）",
+      backCols.panel === false && backCols.left === true,
+      backCols,
+    );
 
     // ── #56 共享前缀边界（g × c：C 侧目录折叠/展开）+ #51 逐跳链 ──
     // ⚠️ resolveBranch 前缀语义 = **截至 fork 点（含）**：C 的合并视图前缀 =
@@ -801,11 +807,10 @@ const FLOWS = {
     );
     const catC = await catalogOf(call, "u7c_c");
     const catS = await catalogOf(call, "u7c_s");
-    check(
-      "#57 两侧目录独立挂载（data-testid 按 runId 区分）",
-      catC !== null && catS !== null,
-      { c: catC !== null, s: catS !== null },
-    );
+    check("#57 两侧目录独立挂载（data-testid 按 runId 区分）", catC !== null && catS !== null, {
+      c: catC !== null,
+      s: catS !== null,
+    });
     // ⚠️ span id 在 aria-label（选中 s_NN）而非行文本；按 aria-label 数行数
     const spanRowsOf = (cat) =>
       cat === null ? 0 : (cat.labels || []).filter((l) => /^选中 s_/.test(l ?? "")).length;
@@ -876,9 +881,7 @@ const FLOWS = {
     const ownRow = rowOf(rows59, "自有 tokens（合计）");
     check(
       "#59 自有 tokens 合计：左列 = G 自有，右列 = C 自有（继承前缀不重复计入；表内数字为缩写格式）",
-      ownRow !== null &&
-        ownRow.cells[0] === EXP.fmtOwnG &&
-        ownRow.cells[1] === EXP.fmtOwnC,
+      ownRow !== null && ownRow.cells[0] === EXP.fmtOwnG && ownRow.cells[1] === EXP.fmtOwnC,
       { expected: [EXP.fmtOwnG, EXP.fmtOwnC], got: ownRow?.cells },
     );
     const chainRow = rowOf(rows59, "累计增量（tokens）");
@@ -956,7 +959,10 @@ const FLOWS = {
     );
     await H.sleep(900);
     detail = await waitDetail(call);
-    check("#41 前置：pair(g,c) 详情模式（已退出表模式）", detail !== null && detail.hasLeft === true);
+    check(
+      "#41 前置：pair(g,c) 详情模式（已退出表模式）",
+      detail !== null && detail.hasLeft === true,
+    );
     // 先给左列一个步骤选中（交换后应跑到右列）
     await H.ev(
       call,
@@ -1076,9 +1082,7 @@ const FLOWS = {
     st = await storeState(call);
     check(
       "#43 返回来源：view=trace + 选中回到 u7c_d1 + 凭据已清（一次性）",
-      st.view === "trace" &&
-        st.selectedRunId === "u7c_d1" &&
-        st.compareReturnLocation === null,
+      st.view === "trace" && st.selectedRunId === "u7c_d1" && st.compareReturnLocation === null,
       { view: st.view, sel: st.selectedRunId, loc: st.compareReturnLocation },
     );
     await H.shot(call, SHOT_DIR, "return-source.png");
@@ -1212,7 +1216,9 @@ const FLOWS = {
     check(
       "#34 prompt fork：独立执行说明 + 不出现「共享前缀」字样",
       ov !== null &&
-        (ov.source || "").includes("prompt fork（从头重跑）：本 run 是独立执行，不共享父轨迹前缀") &&
+        (ov.source || "").includes(
+          "prompt fork（从头重跑）：本 run 是独立执行，不共享父轨迹前缀",
+        ) &&
         !(ov.source || "").includes("共享前缀"),
       (ov?.source || "").slice(0, 180),
     );

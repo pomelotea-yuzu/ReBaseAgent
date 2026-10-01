@@ -98,10 +98,7 @@ async function setViewport(call, width, height, dsf) {
     mobile: false,
   });
   await H.sleep(500);
-  await H.ev(
-    call,
-    `(() => { window.dispatchEvent(new Event('resize')); return 'ok'; })()`,
-  );
+  await H.ev(call, `(() => { window.dispatchEvent(new Event('resize')); return 'ok'; })()`);
   await H.sleep(500);
 }
 
@@ -110,7 +107,7 @@ async function waitForWidth(call, targetOuter, timeoutMs = 8000) {
   const deadline = Date.now() + timeoutMs;
   let last = -1;
   for (;;) {
-    const w = await H.ev(call, `window.innerWidth`);
+    const w = await H.ev(call, "window.innerWidth");
     if (typeof w === "number" && Math.abs(w - last) <= 1) {
       // 连续两次读数一致 ⇒ 布局收敛
       return w;
@@ -167,8 +164,24 @@ const FLOWS = {
     check("DPR ≈ 2.1（无 zoom 残留）", Math.abs(dpr0 - 2.1) < 0.15, `实测 ${dpr0}`);
 
     // 注入 id 全集在场
-    const FIXTURE_TRACES_SRC = join(H.REPO, "apps", "desktop", "test", "fixtures", "u7-compare", "traces");
-    const FIXTURE_ISOLATED_SRC = join(H.REPO, "apps", "desktop", "test", "fixtures", "u7-compare", "isolated-traces");
+    const FIXTURE_TRACES_SRC = join(
+      H.REPO,
+      "apps",
+      "desktop",
+      "test",
+      "fixtures",
+      "u7-compare",
+      "traces",
+    );
+    const FIXTURE_ISOLATED_SRC = join(
+      H.REPO,
+      "apps",
+      "desktop",
+      "test",
+      "fixtures",
+      "u7-compare",
+      "isolated-traces",
+    );
     const EXPECTED_IDS = [];
     for (const dir of [FIXTURE_TRACES_SRC, FIXTURE_ISOLATED_SRC]) {
       for (const name of readdirSync(dir).filter((n) => n.endsWith(".jsonl"))) {
@@ -199,8 +212,8 @@ const FLOWS = {
        return JSON.stringify("ok");`,
     );
     await H.sleep(1500);
-    let m = await openMetrics(call);
-    let p = await tableProbe(call);
+    const m = await openMetrics(call);
+    const p = await tableProbe(call);
     check(
       "R8 四条进表：表头 ≥5 列全部有宽（名称列可见）",
       p !== null && p.thCount >= 5 && p.nameVisible === true,
@@ -276,13 +289,17 @@ const FLOWS = {
          return JSON.stringify({ openDisabled: open === null ? null : open.disabled });
        })()`,
     ).then(JSON.parse);
-    check("#23 两侧齐备 ⇒ 打开按钮 enabled", pickFull !== null && pickFull.openDisabled === false, pickFull);
+    check(
+      "#23 两侧齐备 ⇒ 打开按钮 enabled",
+      pickFull !== null && pickFull.openDisabled === false,
+      pickFull,
+    );
     await H.ev(
       call,
       `(() => { const b = document.querySelector('[aria-label="打开所选两条的详细比较"]'); if (b) b.click(); return 'ok'; })()`,
     );
     await H.sleep(1500);
-    let st = await storeState(call);
+    const st = await storeState(call);
     check(
       "#23 打开后：pair=挑选的两条 + 全局集合三条纹丝不动",
       st.comparePair !== null &&
@@ -314,8 +331,8 @@ const FLOWS = {
     ).then(JSON.parse);
     check(
       "#21 交换后短 ID 对位不变（工作区只渲染 pair 两条；跟随 run 身份，不随位置重编号）",
-      afterSwap["qqq7777aabbccdd"] === shortIdSnapshot["qqq7777aabbccdd"] &&
-        afterSwap["ppp7777aabbccdd"] === shortIdSnapshot["ppp7777aabbccdd"],
+      afterSwap.qqq7777aabbccdd === shortIdSnapshot.qqq7777aabbccdd &&
+        afterSwap.ppp7777aabbccdd === shortIdSnapshot.ppp7777aabbccdd,
       { afterSwap, snapshot: shortIdSnapshot },
     );
     // 集合变动：回四条表，移出 ooo 再加回 ⇒ 快照逐字一致（长度只增不减）
@@ -372,8 +389,7 @@ const FLOWS = {
         await H.sleep(400);
         const p2 = await tableProbe(call);
         stickyHolds =
-          p2 !== null &&
-          Math.abs((p2.nameRectLeft ?? 0) - (p2.scrollerRectLeft ?? 0)) <= 2;
+          p2 !== null && Math.abs((p2.nameRectLeft ?? 0) - (p2.scrollerRectLeft ?? 0)) <= 2;
       }
       widthResults.push({
         w,
@@ -390,23 +406,28 @@ const FLOWS = {
         probe !== null &&
           Math.abs((probe.innerW ?? 0) - w) <= 1 &&
           probe.nameVisible === true &&
-          probe.nameSticky?.position === 'sticky' &&
+          probe.nameSticky?.position === "sticky" &&
           ids.every((id) => probe.cols[id] === shortIdSnapshot[id]) &&
-          (probe.bodyScrollW <= probe.innerW + 2),
+          probe.bodyScrollW <= probe.innerW + 2,
         widthResults[widthResults.length - 1],
       );
     }
     check(
-      '#22 窄档出现表格内横滚（800 必现；1024 记录取实测）——内部滚动承载，不撑破页面',
+      "#22 窄档出现表格内横滚（800 必现；1024 记录取实测）——内部滚动承载，不撑破页面",
       widthResults[3].hScroll === true,
-      { w1440: widthResults[0].hScroll, w1360: widthResults[1].hScroll, w1024: widthResults[2].hScroll, w800: widthResults[3].hScroll },
+      {
+        w1440: widthResults[0].hScroll,
+        w1360: widthResults[1].hScroll,
+        w1024: widthResults[2].hScroll,
+        w800: widthResults[3].hScroll,
+      },
     );
     check(
-      '#22 横滚时名称列钉住（sticky 左缘贴容器，滚动后仍可见）',
+      "#22 横滚时名称列钉住（sticky 左缘贴容器，滚动后仍可见）",
       widthResults.every((r) => r.stickyHolds === null || r.stickyHolds === true),
       widthResults.map((r) => ({ w: r.w, sticky: r.stickyHolds })),
     );
-    await H.shot(call, SHOT_DIR, 'width-800.png');
+    await H.shot(call, SHOT_DIR, "width-800.png");
 
     // ── #63 详细比较的 stacked 排列（阈值按正文容器宽度 960，不是整窗） ──
     // 800px 档（<960）⇒ 上下排列（每列自带标题区）；1440 档 ⇒ 并排两列。
@@ -429,21 +450,21 @@ const FLOWS = {
        })()`,
     ).then(JSON.parse);
     check(
-      '#63 800px 档（<960）：详细比较上下排列（stacked，每列自带标题）',
+      "#63 800px 档（<960）：详细比较上下排列（stacked，每列自带标题）",
       stacked800.stacked === true && stacked800.grid1 === true,
       stacked800,
     );
     // #37 @800：设置模态钳制（85vh + 内滚层）+ 操作面板钳制（70vh/24rem + 90vw）
     const clamp800 = await measureClamps(call);
     check(
-      '#37 800px 档：设置模态受 85vh 钳制 + 内滚层在场（不撑破屏幕）',
+      "#37 800px 档：设置模态受 85vh 钳制 + 内滚层在场（不撑破屏幕）",
       clamp800.dialog.present === true &&
         clamp800.dialog.heightRatio <= 0.86 &&
         clamp800.dialog.scrollable === true,
       clamp800.dialog,
     );
     check(
-      '#37 800px 档：操作面板 max-h 钳制 + 横向不超 90vw',
+      "#37 800px 档：操作面板 max-h 钳制 + 横向不超 90vw",
       clamp800.opsPanel.present === true &&
         clamp800.opsPanel.heightRatio <= 0.72 &&
         clamp800.opsPanel.widthRatio <= 0.92,
@@ -467,7 +488,7 @@ const FLOWS = {
        })()`,
     ).then(JSON.parse);
     check(
-      '#63 1440px 档（≥960）：详细比较并排两列（不 stacked）',
+      "#63 1440px 档（≥960）：详细比较并排两列（不 stacked）",
       stacked1440.stacked === false,
       stacked1440,
     );
@@ -478,16 +499,20 @@ const FLOWS = {
     await openMetrics(call);
     const zoomProbe = await tableProbe(call);
     check(
-      '#22 200% 缩放档：DPR≈4.2 + CSS 视口 ≈605（窄于最窄真窗档）',
+      "#22 200% 缩放档：DPR≈4.2 + CSS 视口 ≈605（窄于最窄真窗档）",
       zoomProbe !== null && Math.abs(zoomProbe.dpr - 4.2) < 0.15 && zoomProbe.innerW <= 640,
       { dpr: zoomProbe?.dpr, innerW: zoomProbe?.innerW },
     );
     check(
-      '#22 200% 缩放档：名称列仍可见 + sticky + 表格内横滚（正文宽度和内部滚动由横滚容器承载）',
+      "#22 200% 缩放档：名称列仍可见 + sticky + 表格内横滚（正文宽度和内部滚动由横滚容器承载）",
       zoomProbe.nameVisible === true &&
-        zoomProbe.nameSticky?.position === 'sticky' &&
+        zoomProbe.nameSticky?.position === "sticky" &&
         zoomProbe.scrollW > zoomProbe.clientW,
-      { nameVisible: zoomProbe?.nameVisible, scrollW: zoomProbe?.scrollW, clientW: zoomProbe?.clientW },
+      {
+        nameVisible: zoomProbe?.nameVisible,
+        scrollW: zoomProbe?.scrollW,
+        clientW: zoomProbe?.clientW,
+      },
     );
     // 横滚后 sticky 仍钉住 + 在场列短 ID 对位（override 后表只含当前选择集的两列）
     await H.ev(
@@ -496,15 +521,21 @@ const FLOWS = {
     );
     await H.sleep(400);
     const zoomSticky = await tableProbe(call);
-    const zoomPresentCols = ids.filter((id) => zoomSticky?.cols?.[id] !== null && zoomSticky?.cols?.[id] !== undefined);
+    const zoomPresentCols = ids.filter(
+      (id) => zoomSticky?.cols?.[id] !== null && zoomSticky?.cols?.[id] !== undefined,
+    );
     check(
-      '#22 200% 缩放档：横滚后名称列钉住 + 在场列短 ID 逐字对位',
+      "#22 200% 缩放档：横滚后名称列钉住 + 在场列短 ID 逐字对位",
       Math.abs((zoomSticky.nameRectLeft ?? 0) - (zoomSticky.scrollerRectLeft ?? 0)) <= 2 &&
         zoomPresentCols.length >= 2 &&
         zoomPresentCols.every((id) => zoomSticky.cols[id] === shortIdSnapshot[id]),
-      { stickyLeft: zoomSticky?.nameRectLeft, scrollerLeft: zoomSticky?.scrollerRectLeft, cols: zoomSticky?.cols },
+      {
+        stickyLeft: zoomSticky?.nameRectLeft,
+        scrollerLeft: zoomSticky?.scrollerRectLeft,
+        cols: zoomSticky?.cols,
+      },
     );
-    await H.shot(call, SHOT_DIR, 'zoom200.png');
+    await H.shot(call, SHOT_DIR, "zoom200.png");
     // #37 @zoom200：操作面板钳制（max-h + 横向不超 90vw）。
     // ⚠️ 登记分层：zoom override 下 CDP 对 React 布局状态的传导不完整——
     // stacked（605<960 应上下排列）与设置模态打开在 override 后不翻转/不可达，
@@ -520,17 +551,17 @@ const FLOWS = {
     await waitDetail(call);
     const clampZoom = await measureClamps(call);
     check(
-      '#37 200% 缩放档：操作面板钳制在场（max-h + 横向不超 90vw）',
+      "#37 200% 缩放档：操作面板钳制在场（max-h + 横向不超 90vw）",
       clampZoom.opsPanel.present === true &&
         clampZoom.opsPanel.heightRatio <= 0.72 &&
         clampZoom.opsPanel.widthRatio <= 0.92,
       clampZoom.opsPanel,
     );
-    await H.shot(call, SHOT_DIR, 'zoom200-clamps.png');
-    await call('Emulation.clearDeviceMetricsOverride').catch(() => {});
+    await H.shot(call, SHOT_DIR, "zoom200-clamps.png");
+    await call("Emulation.clearDeviceMetricsOverride").catch(() => {});
     await H.sleep(600);
-    const dprBack = await H.ev(call, 'window.devicePixelRatio');
-    check('缩放档清除：DPR 回 ≈2.1（不留残留）', Math.abs(dprBack - 2.1) < 0.15, `实测 ${dprBack}`);
+    const dprBack = await H.ev(call, "window.devicePixelRatio");
+    check("缩放档清除：DPR 回 ≈2.1（不留残留）", Math.abs(dprBack - 2.1) < 0.15, `实测 ${dprBack}`);
   },
 };
 
@@ -561,7 +592,7 @@ async function waitDetail(call, timeoutMs = 20000) {
          });
        })()`,
     ).then(JSON.parse);
-    if (p !== null && p.hasLeft && !p.loading) return p;
+    if (p?.hasLeft && !p.loading) return p;
     if (Date.now() > deadline) return p;
     await H.sleep(400);
   }
@@ -583,7 +614,7 @@ async function openMetrics(call) {
          return JSON.stringify({ hasTable: t !== null, wsText: ws === null ? null : ws.textContent });
        })()`,
     ).then(JSON.parse);
-    if (p !== null && p.hasTable) return p;
+    if (p?.hasTable) return p;
     if (Date.now() > deadline) return p;
     await H.sleep(400);
   }

@@ -53,6 +53,7 @@ import {
 } from "@shared/operations";
 import { create } from "zustand";
 import { api } from "./lib/api";
+import { deriveCompareFileEntry, isOwnStepTarget } from "./lib/compare-files";
 import {
   type ComparePair,
   type CompareReturnLocation,
@@ -118,6 +119,7 @@ import {
   releaseConfirmation,
   settingsStampOf,
 } from "./lib/execution-confirmation";
+import { isIsolatedRun } from "./lib/isolated-fork";
 import {
   type NavigationIntentStore,
   type NavigationTrigger,
@@ -154,8 +156,6 @@ import {
   newlySettledOperations,
 } from "./lib/operation-session";
 import { resolveReading } from "./lib/reading-resolve";
-import { deriveCompareFileEntry, isOwnStepTarget } from "./lib/compare-files";
-import { isIsolatedRun } from "./lib/isolated-fork";
 import {
   defaultReadingState,
   fileReadingOf,
@@ -2461,7 +2461,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     const reading = readingStateOf(get().readingByRun, runId);
     const entry = deriveCompareFileEntry({
       detail,
-      selectedSpanId: side === "left" ? get().compareStepSelection.left : get().compareStepSelection.right,
+      selectedSpanId:
+        side === "left" ? get().compareStepSelection.left : get().compareStepSelection.right,
       savedTab: reading.files !== undefined ? "files" : undefined,
     });
     if (entry.kind !== "available") return "unsupported";

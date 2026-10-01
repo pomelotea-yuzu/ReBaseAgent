@@ -167,8 +167,7 @@ export function deriveCompareMetricsTable(input: {
   };
 
   // 5.4：沿链累计 / 相对祖先增量（verified 侧序 = ready 侧序，按 runId 对位）
-  const sideOf = (runId: string) =>
-    verified?.sides.find((side) => side.runId === runId) ?? null;
+  const sideOf = (runId: string) => verified?.sides.find((side) => side.runId === runId) ?? null;
   const totalsOf = (index: number) => sideOf(items[index]?.runId ?? "")?.totals ?? null;
   const deltaOf = (index: number) => sideOf(items[index]?.runId ?? "")?.deltaFromAncestor ?? null;
 
@@ -266,9 +265,7 @@ export function deriveCompareMetricsTable(input: {
       titles: columns.map((_column, index) => {
         const consumption = consumptionOf(index);
         // 失败调用的占位零用量不称实际零消费（5.5 同源判据，随行先行）
-        return consumption !== null &&
-          consumption.tokensIn === 0 &&
-          consumption.tokensOut === 0
+        return consumption !== null && consumption.tokensIn === 0 && consumption.tokensOut === 0
           ? "记录用量为 0——可能是失败调用的占位值，不据此断言实际零消费"
           : undefined;
       }),
@@ -328,7 +325,9 @@ export function deriveCompareMetricsTable(input: {
       label: "累计增量（耗时）",
       values: columns.map((_column, index) => {
         const totals = totalsOf(index);
-        return totals === null || totals.durationMs === null ? null : formatDuration(totals.durationMs);
+        return totals === null || totals.durationMs === null
+          ? null
+          : formatDuration(totals.durationMs);
       }),
       titles: columns.map(() => "各段已记录耗时之和（任一段未知即整体未知）；禁称「总耗时」"),
     },
@@ -349,7 +348,9 @@ export function deriveCompareMetricsTable(input: {
       label: "相对祖先增量（耗时）",
       values: columns.map((_column, index) => {
         const delta = deltaOf(index);
-        return delta === null || delta.durationMs === null ? null : formatDuration(delta.durationMs);
+        return delta === null || delta.durationMs === null
+          ? null
+          : formatDuration(delta.durationMs);
       }),
       titles: columns.map((_column, index) =>
         deltaOf(index)?.durationMs === null

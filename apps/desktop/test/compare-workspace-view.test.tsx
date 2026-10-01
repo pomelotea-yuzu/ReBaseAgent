@@ -12,8 +12,8 @@ import type {
   CompareSideViewData,
   EvidenceViewData,
 } from "../src/renderer/src/components/CompareWorkspaceView";
-import { deriveSideStepCatalog } from "../src/renderer/src/lib/compare-steps";
 import { deriveCompareFileEntry } from "../src/renderer/src/lib/compare-files";
+import { deriveSideStepCatalog } from "../src/renderer/src/lib/compare-steps";
 import { deriveSideOutputFacts } from "../src/shared/compare-output";
 import type { RunDetail } from "../src/shared/ipc";
 

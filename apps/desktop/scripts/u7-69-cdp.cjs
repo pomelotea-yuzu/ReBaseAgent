@@ -245,7 +245,7 @@ async function waitDetail(call, timeoutMs = 20000) {
          });
        })()`,
     ).then(JSON.parse);
-    if (p !== null && p.hasLeft && !p.loading) return p;
+    if (p?.hasLeft && !p.loading) return p;
     if (Date.now() > deadline) return p;
     await H.sleep(400);
   }
@@ -269,17 +269,40 @@ async function setPair(call, l, r) {
 // ---------------------------------------------------------------------------
 
 const FLOWS = {
-  async "keyboard-entries"(call) {    // 系统级真键盘前置：唯一认定 dev 主进程 PID + 窗口置前台
+  async "keyboard-entries"(call) {
+    // 系统级真键盘前置：唯一认定 dev 主进程 PID + 窗口置前台
     const resolved = await resolveMainPid();
     check("真键盘通道前置：dev 主进程 PID 认定", resolved.pid > 0, resolved.info);
     const fg = await raiseForeground();
-    check("真键盘通道前置：主窗口真实在前台", String(fg.foreground ?? "").includes("same=True"), fg);
+    check(
+      "真键盘通道前置：主窗口真实在前台",
+      String(fg.foreground ?? "").includes("same=True"),
+      fg,
+    );
     await dprSentinel(call);
-    const FIXTURE_TRACES_SRC = join(H.REPO, "apps", "desktop", "test", "fixtures", "u7-compare", "traces");
-    const FIXTURE_ISOLATED_SRC = join(H.REPO, "apps", "desktop", "test", "fixtures", "u7-compare", "isolated-traces");
+    const FIXTURE_TRACES_SRC = join(
+      H.REPO,
+      "apps",
+      "desktop",
+      "test",
+      "fixtures",
+      "u7-compare",
+      "traces",
+    );
+    const FIXTURE_ISOLATED_SRC = join(
+      H.REPO,
+      "apps",
+      "desktop",
+      "test",
+      "fixtures",
+      "u7-compare",
+      "isolated-traces",
+    );
     const EXPECTED_IDS = [];
     for (const dir of [FIXTURE_TRACES_SRC, FIXTURE_ISOLATED_SRC]) {
-      for (const name of require("node:fs").readdirSync(dir).filter((n) => n.endsWith(".jsonl"))) {
+      for (const name of require("node:fs")
+        .readdirSync(dir)
+        .filter((n) => n.endsWith(".jsonl"))) {
         const meta = JSON.parse(readFileSync(join(dir, name), "utf8").split("\n")[0]);
         EXPECTED_IDS.push(String(meta.id));
       }
@@ -372,10 +395,7 @@ const FLOWS = {
     st = await storeState(call);
     check("#64 键盘两条进集合", st.compareIds.length === 2, st.compareIds);
     // 选择栏「进入对照与比较工作区」：程序化 focus + 真 Enter
-    const f3 = await focusEl(
-      call,
-      `document.querySelector('[aria-label="进入对照与比较工作区"]')`,
-    );
+    const f3 = await focusEl(call, `document.querySelector('[aria-label="进入对照与比较工作区"]')`);
     check("#64 前置：选择栏进入按钮可聚焦", f3 === "focused", f3);
     await pressEnter(call);
     await H.sleep(1500);
@@ -433,16 +453,22 @@ const FLOWS = {
 
     // ── #40 父子入口默认父左子右 + model_params 臂无普通旁路 ──
     // ⚠️ 概览属 trace 视图（上一段键盘闭环返回来源后 view=tree）⇒ 先切 trace
-    await H.storeQ(call, `s.setView("trace"); await s.selectRun("u7c_c"); return JSON.stringify("ok");`);
+    await H.storeQ(
+      call,
+      `s.setView("trace"); await s.selectRun("u7c_c"); return JSON.stringify("ok");`,
+    );
     await H.sleep(1200);
     // 轮询等概览按钮出现（selectRun 后详情读取是异步的）
     let btn40 = false;
     for (let i = 0; i < 20; i++) {
-      btn40 = await H.ev(call, `document.querySelector('[aria-label="与父运行对比（父左子右）"') !== null`);
+      btn40 = await H.ev(
+        call,
+        `document.querySelector('[aria-label="与父运行对比（父左子右）"') !== null`,
+      );
       if (btn40 === true) break;
       await H.sleep(400);
     }
-    check('#40 前置：概览「与父运行对比」按钮在场', btn40 === true, btn40);
+    check("#40 前置：概览「与父运行对比」按钮在场", btn40 === true, btn40);
     await H.ev(
       call,
       `(() => {
@@ -497,7 +523,10 @@ const FLOWS = {
 
     // ── #62 普通运行文件入口 unsupported（不造文件历史） ──
     detail = await setPair(call, "run_muo988yd_4btbgb", "u7c_g");
-    check("#62 前置：pair(isolated_root, u7c_g) 详情对齐", detail !== null && detail.hasLeft === true);
+    check(
+      "#62 前置：pair(isolated_root, u7c_g) 详情对齐",
+      detail !== null && detail.hasLeft === true,
+    );
     const fileBtns62 = await H.ev(
       call,
       `(() => {
@@ -527,8 +556,8 @@ const FLOWS = {
     check(
       "#62 普通侧点击无效：view 仍 compare、u7c_g 无文件页历史",
       st.view === "compare" &&
-        (st.filesByRun["u7c_g"] === undefined || st.filesByRun["u7c_g"].hasFiles === false),
-      { view: st.view, files: st.filesByRun["u7c_g"] ?? null },
+        (st.filesByRun.u7c_g === undefined || st.filesByRun.u7c_g.hasFiles === false),
+      { view: st.view, files: st.filesByRun.u7c_g ?? null },
     );
 
     // ── #61 分别打开文件并返回比较（隔离 pair 两侧各自检查点） ──
@@ -566,7 +595,7 @@ const FLOWS = {
       view: st.view,
       sel: st.selectedRunId,
       pairKept: st.comparePair !== null,
-      files: st.filesByRun["run_muo988yd_4btbgb"] ?? null,
+      files: st.filesByRun.run_muo988yd_4btbgb ?? null,
     };
     check(
       "#61 打开左列文件：进入该 run 文件页（检查点=所选自有步骤）+ pair 保留",
@@ -590,12 +619,12 @@ const FLOWS = {
     const rightOpen = {
       sel: st.selectedRunId,
       pairKept: st.comparePair !== null,
-      files: st.filesByRun["run_muo9892a_w2qj"] ?? null,
+      files: st.filesByRun.run_muo9892a_w2qj ?? null,
     };
     check(
       "#61 打开右列文件：各自检查点（与左侧不同）+ pair 保留",
       rightOpen.files !== null && rightOpen.files.hasFiles === true && rightOpen.pairKept === true,
-      { rightOpen, leftFiles: st.filesByRun["run_muo988yd_4btbgb"] },
+      { rightOpen, leftFiles: st.filesByRun.run_muo988yd_4btbgb },
     );
     // 返回比较 ⇒ 结论恢复
     await H.ev(
@@ -607,7 +636,10 @@ const FLOWS = {
     st = await storeState(call);
     check(
       "#61 分别打开并返回：比较恢复（pair 对齐 + 结论在场）",
-      st.view === "compare" && detail !== null && detail.hasLeft === true && st.readSel.kind === "verified",
+      st.view === "compare" &&
+        detail !== null &&
+        detail.hasLeft === true &&
+        st.readSel.kind === "verified",
       { view: st.view, readSel: st.readSel },
     );
     await H.shot(call, SHOT_DIR, "files-roundtrip.png");

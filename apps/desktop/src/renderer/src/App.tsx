@@ -16,12 +16,12 @@ import { NoRunsEmpty, RunHeader, RunWorkspace, resolveVisibleTab } from "./compo
 import { SettingsDialog } from "./components/SettingsDialog";
 import { SpanTree } from "./components/SpanTree";
 import { WorkspaceFilesPanel } from "./components/WorkspaceFilesPanel";
-import { isIsolatedRun } from "./lib/isolated-fork";
 import {
   COMPARE_STACK_THRESHOLD,
   decideCompareBodyLayout,
   decideCompareNavVisible,
 } from "./lib/compare-navigation";
+import { isIsolatedRun } from "./lib/isolated-fork";
 import { useDraftCloseGuard } from "./lib/use-draft-close-guard";
 import { useContentWidth, useLayoutState } from "./lib/use-layout";
 import { useAppStore } from "./store";
@@ -57,7 +57,11 @@ export default function App() {
   // U7 5.8：比较页的导航可见性（窄窗默认收起、退出恢复——纯显示决策，不写偏好）
   const navShowing =
     view === "compare"
-      ? decideCompareNavVisible({ view, breakpoint: layout.breakpoint, navVisible: layout.navVisible })
+      ? decideCompareNavVisible({
+          view,
+          breakpoint: layout.breakpoint,
+          navVisible: layout.navVisible,
+        })
       : layout.navVisible && !stepsReplaceWorkspace;
   // U7 5.8：双运行正文的容器宽度（导航占位扣除后）决定并排/上下排列
   const compareBodyLayout = decideCompareBodyLayout(

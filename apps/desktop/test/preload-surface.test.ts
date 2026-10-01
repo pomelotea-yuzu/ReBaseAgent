@@ -44,6 +44,8 @@ describe("4.9 预加载桥接面：不含文件能力", () => {
     expect([...new Set(keys)].sort()).toEqual([
       "chooseSource",
       "clearSettings",
+      // U7 只读比较通道（design D3）：取数面，不带任何写/执行能力
+      "compareRuns",
       "createRun",
       "draftCloseAnswer",
       "draftCloseHandshake",

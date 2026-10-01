@@ -121,9 +121,9 @@ describe("5.8 正文宽度适配与比较页导航可见性", () => {
     expect(
       decideCompareNavVisible({ view: "compare", breakpoint: "single", navVisible: true }),
     ).toBe(false);
-    expect(
-      decideCompareNavVisible({ view: "compare", breakpoint: "wide", navVisible: true }),
-    ).toBe(true);
+    expect(decideCompareNavVisible({ view: "compare", breakpoint: "wide", navVisible: true })).toBe(
+      true,
+    );
     expect(
       decideCompareNavVisible({ view: "compare", breakpoint: "medium", navVisible: false }),
     ).toBe(false);

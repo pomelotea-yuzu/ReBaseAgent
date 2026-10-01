@@ -183,6 +183,9 @@ function render(
   type Props = Parameters<typeof BranchTreeView>[0];
   const props: Props = {
     runs,
+    // U7 5.1 改造后视图不再自算短 ID：与生产薄壳同款，从 store 同一会话
+    // ShortIdState 现算传入（碰撞延长、会话不缩短的记忆留在 store）。
+    shortIds: useAppStore.getState().shortIdState.update(runs.map((r) => r.id)),
     selectedRunId: over.selectedRunId ?? null,
     compareIds: [],
     onSelect: () => {},
@@ -314,6 +317,8 @@ describe("U7 3.6 关系列表（图同步 + 键盘动作）", () => {
     return renderToStaticMarkup(
       createElement(BranchTreeView, {
         runs,
+        // U7 5.1：视图短 ID 由 store 同一会话 ShortIdState 现算传入（同 render()）
+        shortIds: useAppStore.getState().shortIdState.update(runs.map((r) => r.id)),
         selectedRunId: over.selectedRunId ?? null,
         compareIds: over.compareIds ?? [],
         onSelect: () => {},
@@ -355,6 +360,7 @@ describe("U7 3.7 缺父占位与实验分组（不造记录）", () => {
     const markup = renderToStaticMarkup(
       createElement(BranchTreeView, {
         runs,
+        shortIds: useAppStore.getState().shortIdState.update(runs.map((r) => r.id)),
         selectedRunId: null,
         compareIds: [],
         onSelect: () => {},
@@ -396,6 +402,7 @@ describe("U7 3.7 缺父占位与实验分组（不造记录）", () => {
     const markup = renderToStaticMarkup(
       createElement(BranchTreeView, {
         runs,
+        shortIds: useAppStore.getState().shortIdState.update(runs.map((r) => r.id)),
         selectedRunId: null,
         compareIds: [],
         onSelect: () => {},

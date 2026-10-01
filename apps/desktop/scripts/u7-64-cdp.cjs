@@ -191,7 +191,7 @@ async function tableProbe(call, substr, timeoutMs = 15000) {
          });
        })()`,
     ).then(JSON.parse);
-    if (p !== null && p.hasTable && (substr === undefined || (p.text || "").includes(substr))) {
+    if (p?.hasTable && (substr === undefined || (p.text || "").includes(substr))) {
       return p;
     }
     if (Date.now() > deadline) return p;
@@ -246,7 +246,7 @@ const FLOWS = {
       geomG?.onPath === "true" && geomP?.onPath === "true" && geomS?.onPath === "false",
       { g: geomG?.onPath, p: geomP?.onPath, s: geomS?.onPath },
     );
-    const arm2 = await H.storeQ(call, `const r = s.armTreeSession(); return JSON.stringify(r);`);
+    const arm2 = await H.storeQ(call, "const r = s.armTreeSession(); return JSON.stringify(r);");
     check(
       "#14/#16 再次 arm 幂等：不重复给焦点（不重复居中）",
       arm2.focusRunId === null && arm2.scope === "current",
@@ -278,7 +278,7 @@ const FLOWS = {
     );
     check(
       "#2 代理分叉边标注「改 messages」在图上",
-      graphText !== null && graphText.edgeLabels.some((t) => (t ?? "").includes("改 messages")),
+      graphText?.edgeLabels.some((t) => (t ?? "").includes("改 messages")),
       graphText?.edgeLabels,
     );
     dump.edgeLabels = graphText?.edgeLabels;
@@ -312,8 +312,7 @@ const FLOWS = {
     }
     check(
       "#17 详情面板：完整任务全文在场（R9「尾行被裁」以详情区完整承载）+ 完整 ID 可复制",
-      detail !== null &&
-        detail.text.includes("标注来源文件与行号范围") &&
+      detail?.text.includes("标注来源文件与行号范围") &&
         detail.text.includes("以便后续人工复核") &&
         detail.copyIdBtn === true,
       {
@@ -354,13 +353,12 @@ const FLOWS = {
     ).then(JSON.parse);
     check(
       "#15 搜索命中被展示截断的中段（完整原值匹配）",
-      search1 !== null && search1.hits.some((h) => h.text.includes("u7c_l1")),
+      search1?.hits.some((h) => h.text.includes("u7c_l1")),
       search1?.hits?.map((h) => h.text),
     );
     check(
       "#15 范围外命中标注所属树根（当前范围=树 u7c_c，u7c_l1 在外）",
-      search1 !== null &&
-        search1.hits.some((h) => h.title.includes("所属树根") && h.title.includes("范围之外")),
+      search1?.hits.some((h) => h.title.includes("所属树根") && h.title.includes("范围之外")),
       search1?.hits?.map((h) => h.title),
     );
     // 点击范围外命中 → 定位其树（切全部 + 滚到中央）

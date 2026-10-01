@@ -180,7 +180,5 @@ export function decideCompareNavVisible(input: {
   navVisible: boolean;
 }): boolean {
   if (input.view !== "compare") return input.navVisible;
-  return input.breakpoint === "wide" || input.breakpoint === "medium"
-    ? input.navVisible
-    : false;
+  return input.breakpoint === "wide" || input.breakpoint === "medium" ? input.navVisible : false;
 }

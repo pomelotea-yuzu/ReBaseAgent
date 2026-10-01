@@ -18,7 +18,14 @@
  * 前置：dev 已由 run-all 起（CDP 9612），完整标本集已注入。
  */
 "use strict";
-const { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync } = require("node:fs");
+const {
+  existsSync,
+  readFileSync,
+  writeFileSync,
+  mkdirSync,
+  rmSync,
+  readdirSync,
+} = require("node:fs");
 const { join } = require("node:path");
 const { createHash } = require("node:crypto");
 const H = require("./lib/u4-smoke-harness.cjs");
@@ -217,7 +224,7 @@ async function waitDetail(call, timeoutMs = 20000) {
          });
        })()`,
     ).then(JSON.parse);
-    if (p !== null && p.hasLeft && !p.loading) return p;
+    if (p?.hasLeft && !p.loading) return p;
     if (Date.now() > deadline) return p;
     await H.sleep(400);
   }
@@ -281,7 +288,7 @@ async function openMetrics(call) {
          return JSON.stringify({ hasTable: t !== null, wsText: ws === null ? null : ws.textContent });
        })()`,
     ).then(JSON.parse);
-    if (p !== null && p.hasTable) return p;
+    if (p?.hasTable) return p;
     if (Date.now() > deadline) return p;
     await H.sleep(400);
   }
@@ -302,7 +309,7 @@ const metricsRows = (call) =>
      })()`,
   ).then(JSON.parse);
 function rowOf(rows, label) {
-  return rows === null ? null : rows.find((r) => r.label === label) ?? null;
+  return rows === null ? null : (rows.find((r) => r.label === label) ?? null);
 }
 
 /** 概览读数（选中 run 后等 [aria-label="运行概览"]） */
@@ -381,7 +388,10 @@ const FLOWS = {
       "#36 自有输出可读（ownOnly 侧完成。）+ 消耗口径说明在场（未知不补零）",
       (ovOrphan?.result || "").includes("ownOnly 侧完成。") &&
         (ovOrphan?.consumption || "").includes("未知"),
-      { result: (ovOrphan?.result || "").slice(0, 80), cons: (ovOrphan?.consumption || "").slice(0, 160) },
+      {
+        result: (ovOrphan?.result || "").slice(0, 80),
+        cons: (ovOrphan?.consumption || "").slice(0, 160),
+      },
     );
     await H.shot(call, SHOT_DIR, "overview-ownonly.png");
 
@@ -400,10 +410,12 @@ const FLOWS = {
     st = await storeState(call);
     check(
       "#46 列表完整但比较读取缺祖先：列表仍有 p/c、g 消失（不拖垮列表）",
-      st.runIds.includes("u7c_p") &&
-        st.runIds.includes("u7c_c") &&
-        !st.runIds.includes("u7c_g"),
-      { runsN: st.runIds.length, hasP: st.runIds.includes("u7c_p"), hasC: st.runIds.includes("u7c_c") },
+      st.runIds.includes("u7c_p") && st.runIds.includes("u7c_c") && !st.runIds.includes("u7c_g"),
+      {
+        runsN: st.runIds.length,
+        hasP: st.runIds.includes("u7c_p"),
+        hasC: st.runIds.includes("u7c_c"),
+      },
     );
     await H.storeQ(call, `await s.retryCompareSelectionRead(); return JSON.stringify("ok");`);
     await H.sleep(1500);
@@ -415,11 +427,7 @@ const FLOWS = {
         (st.readSel.itemStatus || []).every((it) => it.status === "ready"),
       st.readSel,
     );
-    check(
-      "#46 缺祖先详情对齐（不白屏不崩）",
-      detail !== null && detail.hasLeft === true,
-      null,
-    );
+    check("#46 缺祖先详情对齐（不白屏不崩）", detail !== null && detail.hasLeft === true, null);
     // #13/#58：判定不完整呈现
     ev = await evidenceText(call);
     check(
@@ -447,8 +455,7 @@ const FLOWS = {
     const m46 = await openMetrics(call);
     check(
       "#13 指标表：判定不完整（说明不是本来就不同根）+ 祖先增量不计算",
-      (m46?.wsText || "").includes("判定不完整") &&
-        !(m46?.wsText || "").includes("分属不同根"),
+      (m46?.wsText || "").includes("判定不完整") && !(m46?.wsText || "").includes("分属不同根"),
       (m46?.wsText || "").match(/[^。]{0,60}判定不完整[^。]{0,60}/)?.[0] ?? null,
     );
     // 回详细比较（供后续恢复重试在同一会话里看结论翻转）
@@ -476,8 +483,7 @@ const FLOWS = {
     ev = await evidenceText(call);
     check(
       "#49 恢复重试：证据回直接父子（s_08 在场，不残留「判定不完整」）",
-      (ev.text || "").includes("s_08") &&
-        !(ev.text || "").includes("共同祖先判定不完整"),
+      (ev.text || "").includes("s_08") && !(ev.text || "").includes("共同祖先判定不完整"),
       (ev.text || "").slice(0, 120),
     );
     const catC49 = await catalogOf(call, "u7c_c");
@@ -522,7 +528,10 @@ const FLOWS = {
         chain13 !== null &&
         /\d/.test(chain13.cells[1] ?? "") &&
         (chain13.cells[0] === "—" || chain13.cells[0] === "" || chain13.cells[0].includes("—")),
-      { cells: chain13?.cells, note: (m13?.wsText || "").match(/[^。]{0,40}判定不完整[^。]{0,40}/)?.[0] },
+      {
+        cells: chain13?.cells,
+        note: (m13?.wsText || "").match(/[^。]{0,40}判定不完整[^。]{0,40}/)?.[0],
+      },
     );
     await H.shot(call, SHOT_DIR, "ownonly-vs-complete.png");
 
@@ -539,7 +548,9 @@ const FLOWS = {
     check(
       "#47 损坏侧 unavailable + 合法侧 ready（结论仍 verified，单侧失败不拖垮）",
       st.readSel.kind === "verified" &&
-        (st.readSel.itemStatus || []).some((it) => it.runId === "u7c_d1" && it.status === "unavailable") &&
+        (st.readSel.itemStatus || []).some(
+          (it) => it.runId === "u7c_d1" && it.status === "unavailable",
+        ) &&
         (st.readSel.itemStatus || []).some((it) => it.runId === "u7c_d2" && it.status === "ready"),
       st.readSel,
     );
@@ -656,7 +667,8 @@ const FLOWS = {
       "#45 重复 id（形状非法）：renderer 同源校验 ⇒ invalid，代次与选择集逐字不变",
       rDup === "invalid" &&
         stAfterDup.readSel.generation === stBefore45.readSel.generation &&
-        JSON.stringify(stAfterDup.readSel.selection) === JSON.stringify(stBefore45.readSel.selection),
+        JSON.stringify(stAfterDup.readSel.selection) ===
+          JSON.stringify(stBefore45.readSel.selection),
       { rDup, before: stBefore45.readSel, after: stAfterDup.readSel },
     );
     const rTrav = await H.storeQ(
@@ -688,9 +700,9 @@ const FLOWS = {
     ).then(JSON.parse);
     check(
       "#45 拒绝呈现：受控错误码文本 + 重试读取按钮在场",
-      rejectView.hasRetry === true &&
+      (rejectView.hasRetry === true &&
         (rejectView.text || "").includes("[") &&
-        (rejectView.text || "").includes("拒绝") ||
+        (rejectView.text || "").includes("拒绝")) ||
         (rejectView.text || "").includes("非法"),
       { hasRetry: rejectView.hasRetry, text: (rejectView.text || "").slice(0, 200) },
     );
@@ -744,11 +756,11 @@ const FLOWS = {
         fpDiff.push(n);
       }
     }
-    check(
-      "#66 全程只读哈希：traces + settings 批首批尾逐字节一致",
-      fpSame === true,
-      { diff: fpDiff.slice(0, 5), startN: Object.keys(fpStart).length, endN: Object.keys(fpEnd).length },
-    );
+    check("#66 全程只读哈希：traces + settings 批首批尾逐字节一致", fpSame === true, {
+      diff: fpDiff.slice(0, 5),
+      startN: Object.keys(fpStart).length,
+      endN: Object.keys(fpEnd).length,
+    });
     await H.shot(call, SHOT_DIR, "final-state.png");
   },
 };

@@ -294,35 +294,47 @@ describe("5.4 指标派生口径", () => {
       {
         spans: [
           { type: "span", id: "s_01", parent: null, kind: "agent.step", n: 1 },
-          llmOwnSpan("c_a", { in: 500, out: 40 }, {
-            timing: { started_at: "2026-09-30T09:00:00Z", ended_at: "2026-09-30T09:00:05Z" },
-          }),
+          llmOwnSpan(
+            "c_a",
+            { in: 500, out: 40 },
+            {
+              timing: { started_at: "2026-09-30T09:00:00Z", ended_at: "2026-09-30T09:00:05Z" },
+            },
+          ),
         ],
         leafSpanIds: ["s_01", "c_a"],
       },
     );
-    const child = readyItem("r_b", [
-      summary({ id: "r_a", tokensIn: 500, tokensOut: 40, durationMs: 5000, steps: 3 }),
-      summary({
-        id: "r_b",
-        parent: "r_a",
-        tokensIn: 100,
-        tokensOut: 20,
-        durationMs: null,
-        steps: 5,
-      }),
-    ], {
-      spans: [
-        { type: "span", id: "s_01", parent: null, kind: "agent.step", n: 1 },
-        // 继承前缀的祖先调用（在合并轨迹里，但不属于本 run 自有）
-        llmOwnSpan("c_prefix", { in: 500, out: 40 }, {
-          timing: { started_at: "2026-09-30T10:00:00Z", ended_at: "2026-09-30T10:00:05Z" },
+    const child = readyItem(
+      "r_b",
+      [
+        summary({ id: "r_a", tokensIn: 500, tokensOut: 40, durationMs: 5000, steps: 3 }),
+        summary({
+          id: "r_b",
+          parent: "r_a",
+          tokensIn: 100,
+          tokensOut: 20,
+          durationMs: null,
+          steps: 5,
         }),
-        // 本 run 自有调用：无 timing ⇒ 时间未知
-        llmOwnSpan("c_own", { in: 100, out: 20 }),
       ],
-      leafSpanIds: ["s_01", "c_own"],
-    });
+      {
+        spans: [
+          { type: "span", id: "s_01", parent: null, kind: "agent.step", n: 1 },
+          // 继承前缀的祖先调用（在合并轨迹里，但不属于本 run 自有）
+          llmOwnSpan(
+            "c_prefix",
+            { in: 500, out: 40 },
+            {
+              timing: { started_at: "2026-09-30T10:00:00Z", ended_at: "2026-09-30T10:00:05Z" },
+            },
+          ),
+          // 本 run 自有调用：无 timing ⇒ 时间未知
+          llmOwnSpan("c_own", { in: 100, out: 20 }),
+        ],
+        leafSpanIds: ["s_01", "c_own"],
+      },
+    );
     return [ancestor, child];
   }
 

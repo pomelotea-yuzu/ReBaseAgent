@@ -224,10 +224,7 @@ function statusTextClass(tone: MetricsTableModel["columns"][number]["statusTone"
 }
 
 /** 挑选条里的短 ID 标签（查不到回退完整 id；null = 未选） */
-function pickLabel(
-  runId: string | null,
-  columns: MetricsTableModel["columns"],
-): string | null {
+function pickLabel(runId: string | null, columns: MetricsTableModel["columns"]): string | null {
   if (runId === null) return null;
   return columns.find((column) => column.runId === runId)?.shortId ?? runId;
 }

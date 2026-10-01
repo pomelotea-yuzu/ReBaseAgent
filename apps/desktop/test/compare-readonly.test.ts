@@ -115,7 +115,9 @@ const apiStub: Record<string, unknown> = {
   },
   getRun: async (id: string) => {
     calls.push(`runs:get:${id}`);
-    return ok(detailOf(id, { isolated: id === "r_iso", ownStep: id === "r_iso" ? "s_01" : undefined }));
+    return ok(
+      detailOf(id, { isolated: id === "r_iso", ownStep: id === "r_iso" ? "s_01" : undefined }),
+    );
   },
   compareRuns: async (request: { runIds: string[] }) => {
     calls.push(`runs:compare:${request.runIds.join(",")}`);
@@ -160,7 +162,10 @@ const apiStub: Record<string, unknown> = {
     ok({ enabled: false, running: false, port: 18787, upstreamBaseUrl: "", hasKey: false }),
   proxyToggle: executionStub("proxy:toggle"),
   operationsStatus: async () => ({ ok: false as const, error: { code: "UNUSED", message: "桩" } }),
-  operationsReconcile: async () => ({ ok: false as const, error: { code: "UNUSED", message: "桩" } }),
+  operationsReconcile: async () => ({
+    ok: false as const,
+    error: { code: "UNUSED", message: "桩" },
+  }),
 };
 
 (globalThis as Record<string, unknown>).window = { api: apiStub as unknown as WindowApi };
@@ -221,7 +226,10 @@ describe("5.10 比较全程只读（写入反证）", () => {
     expect(calls.length).toBeGreaterThan(0);
     expect(readOnlyCalls().length).toBe(calls.length);
     for (const marker of EXECUTION_OR_WRITE_MARKERS) {
-      expect(calls.some((call) => call.startsWith(marker)), marker).toBe(false);
+      expect(
+        calls.some((call) => call.startsWith(marker)),
+        marker,
+      ).toBe(false);
     }
   });
 
@@ -234,7 +242,10 @@ describe("5.10 比较全程只读（写入反证）", () => {
 
     expect(calls.length).toBe(calls.filter((call) => call.startsWith("runs:compare")).length);
     for (const marker of EXECUTION_OR_WRITE_MARKERS) {
-      expect(calls.some((call) => call.startsWith(marker)), marker).toBe(false);
+      expect(
+        calls.some((call) => call.startsWith(marker)),
+        marker,
+      ).toBe(false);
     }
   });
 
@@ -274,7 +285,10 @@ describe("5.10 比较全程只读（写入反证）", () => {
 
     expect(calls.length).toBe(readOnlyCalls().length);
     for (const marker of EXECUTION_OR_WRITE_MARKERS) {
-      expect(calls.some((call) => call.startsWith(marker)), marker).toBe(false);
+      expect(
+        calls.some((call) => call.startsWith(marker)),
+        marker,
+      ).toBe(false);
     }
     // pair 保留（返回比较成立）
     expect(useAppStore.getState().comparePair).toEqual({ leftRunId: "r_iso", rightRunId: "r_b" });

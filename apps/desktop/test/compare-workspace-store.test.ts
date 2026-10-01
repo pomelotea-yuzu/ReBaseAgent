@@ -1,5 +1,5 @@
-import { ok } from "@shared/ipc";
 import type { SpanLine } from "@rebaseagent/trace-sdk";
+import { ok } from "@shared/ipc";
 import type { CompareRunItem, Envelope, RunDetail, RunSummary, WindowApi } from "@shared/ipc";
 import { beforeEach, describe, expect, it } from "vitest";
 import { emptyCompareReadSession } from "../src/renderer/src/lib/compare-state";
@@ -370,8 +370,18 @@ describe("U7 5.6/5.7 单侧文件入口（openCompareSideFiles）", () => {
           runIds: ["r_plain", "r_other"],
           kind: "verified",
           items: [
-            { status: "ready", runId: "r_plain", detail: detailOf("r_plain"), chainSummaries: [chainSummary("r_plain", null)] },
-            { status: "ready", runId: "r_other", detail: detailOf("r_other"), chainSummaries: [chainSummary("r_other", null)] },
+            {
+              status: "ready",
+              runId: "r_plain",
+              detail: detailOf("r_plain"),
+              chainSummaries: [chainSummary("r_plain", null)],
+            },
+            {
+              status: "ready",
+              runId: "r_other",
+              detail: detailOf("r_other"),
+              chainSummaries: [chainSummary("r_other", null)],
+            },
           ],
         },
       },
@@ -403,7 +413,12 @@ describe("U7 5.6/5.7 单侧文件入口（openCompareSideFiles）", () => {
               detail: detailOf("r_iso", { isolated: true, ownStep: "s_01" }),
               chainSummaries: [chainSummary("r_iso", null)],
             },
-            { status: "ready", runId: "r_other", detail: detailOf("r_other"), chainSummaries: [chainSummary("r_other", null)] },
+            {
+              status: "ready",
+              runId: "r_other",
+              detail: detailOf("r_other"),
+              chainSummaries: [chainSummary("r_other", null)],
+            },
           ],
         },
       },
@@ -418,7 +433,7 @@ describe("U7 5.6/5.7 单侧文件入口（openCompareSideFiles）", () => {
     expect(state.selectedRunId).toBe("r_iso");
     expect(state.readingByRun.r_iso?.tab).toBe("files");
     // 5.7：检查点 = 该 run 的合法自有完成步骤（leafSpanIds 内 agent.step）
-    expect(state.readingByRun.r_iso?.files?.checkpoint).toBe("s_01");    // 2.3：打开单侧不清 pair 与来源引用 ⇒ 「返回比较」仍成立
+    expect(state.readingByRun.r_iso?.files?.checkpoint).toBe("s_01"); // 2.3：打开单侧不清 pair 与来源引用 ⇒ 「返回比较」仍成立
     expect(state.comparePair).toEqual({ leftRunId: "r_iso", rightRunId: "r_other" });
     expect(state.compareReturnLocation).toEqual({ view: "tree", runId: null });
   });
@@ -443,7 +458,12 @@ describe("U7 5.6/5.7 单侧文件入口（openCompareSideFiles）", () => {
               detail: detailOf("r_iso", { isolated: true }),
               chainSummaries: [chainSummary("r_iso", null)],
             },
-            { status: "ready", runId: "r_other", detail: detailOf("r_other"), chainSummaries: [chainSummary("r_other", null)] },
+            {
+              status: "ready",
+              runId: "r_other",
+              detail: detailOf("r_other"),
+              chainSummaries: [chainSummary("r_other", null)],
+            },
           ],
         },
       },
