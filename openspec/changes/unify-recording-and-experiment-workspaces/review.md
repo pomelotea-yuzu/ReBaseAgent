@@ -46,3 +46,57 @@
 - `git diff --check` 通过；未跟踪文档额外检查空白和冲突标记，提交前再检查 staged diff。
 
 本轮未运行产品测试、构建或 Electron，未产生功能交付证据。evidence-index 在任务 1.1 建立，所有实现与实机场景仍待验证；历史 U4/U5/U7 环境限制及欠账不在本次文档阶段自动清零。归档与发布另按实施后的真实证据决定。
+
+## 独立复审（2026-10-01，对话侧）
+
+独立复读四件套、主 spec 与现状源码，结论：**U8 起草稿可作为实施基线**，发现 1 项 P2（任务映射纪律）与 2 项不阻塞观察项。
+
+### 已核实事实
+
+- 数量复核（脚本独立解析）：主 spec 基线 desktop-ui **70 / 351**、model-experiments **13 / 43**、llm-proxy **6 / 19**，与 proposal/review 记载一致；基线 HEAD `d53b7d0` 为 U7 归档提交，U8 起草提交 `371c0be`。
+- Delta 差集：**5 MODIFIED + 7 ADDED、67 scenarios（MODIFIED 内 31 + ADDED 36）**；5 个 MODIFIED 名称与主 spec 精确匹配、20 个旧场景名零丢失、ADDED 与主 spec 零重名、delta 内零重复场景名。desktop-ui 51 = 14 保留 + 37 新、model-experiments 16 = 6 + 10，与自检表格逐格一致。
+- 任务映射：52 条任务全部未勾选；**47 个新场景均有精确任务引用、零悬空引用**（见下方 P2-1 的例外说明）。
+- `openspec validate --all --strict --no-interactive` 复跑：**13 passed / 0 failed**，仅既有超长 requirement INFO。
+
+### 源码锚点抽查（全部属实）
+
+1. `proxy-manager.ts` `toggle`（L98–106）：先 `saveProxy` 再停旧服务/启新服务；`startServer` 抛错时已保存 enabled=true、running=false——与 D2「不伪造回滚、失败后回读真实状态」及场景「端口占用可见」的分层表述一致。
+2. `shared/ipc.ts` `ProxyStateSchema`（L474–483）：仅 enabled/running/port/upstreamBaseUrl/hasKey，无地址/连通/最近请求契约；接入地址 `http://127.0.0.1:${port}/v1` 由 main 构造（proxy-manager.ts L124）。
+3. `proxy-manager.ts` `fork`（L169–176）：`lastKey === undefined || handler === null` 双条件拒绝——停止后 hasKey=true 仍不可重发，支撑场景「停用代理仍有凭据不能重发」。
+4. `config-endpoints.ts` `toggleProxy`（L116–137）：判锁与 `beginConfigurationChange` 之间无 await，配置互斥 + 执行槽门禁、不登记主动 operation，与 D2「防重复提交」和场景「代理应用沿用配置互斥」一致。
+5. `exec-endpoints.ts` `execModelAbPlan`（L526–580）：只读通道、强制 dryRun:true、SETTINGS_NOT_CONFIGURED 前置、`checkRunSource` 拒绝 ownOnly/不可读父本、不占主动槽——支撑场景「桌面预览沿用配置前置且零执行」；dry-run 需读父本导出 plan，故将旧场景「不读写 trace」修正为「不改写 trace、不创建运行」是**事实修正**而非放松。
+6. `fork-runner.ts`（L58–71）：`ModelAbResult.ids` 只含成功臂，失败/未开始臂身份在 `armFacts`（index/id 可为 null/outcome）——支撑「成功臂集合不隐去失败臂」与「预览标签不充当真实批次身份」（dry-run 的 experimentId 与后续真实执行各自生成，不可复用）。
+7. U7 现状：ComparePanel 已被 CompareSelectionBar + 指标表取代；主 spec「既有四条指标对照仍可使用」明载两条进详细比较、三四条先入指标表再选两条、第五条拒绝——delta「实验结果选两至四条进入共用比较」与 model-experiments MODIFIED 去掉 ComparePanel 组件绑定均与 U7 归档现实对齐。
+
+### 发现与处置建议
+
+| 级别 | 问题 | 建议 |
+|---|---|---|
+| P2 | MODIFIED「设置往返保留编辑并真实反馈配置结果」下 5 个逐字保留的旧场景（两模式配置后返回任务 / 重跑编辑配置往返保持阅读 / 单向密钥与保存反馈不冒充连通 / 保存失败和保存后回读失败区分 / 清除确认包含凭据且受槽约束）**无精确任务引用**，仅由 6.12「两份 delta 全部场景」与 7.2 兜底。其中「重跑编辑配置往返保持阅读」的 WHEN 明确以「从 result、prompt、**messages 或 A/B 编辑**进入设置再返回」为入口——这两个编辑器恰是 U8 迁移对象，往返起终点实际改变，比其余四个更需要显式锚点。U6 收口纪律为「未被任务引用的场景 0」 | 为「重跑编辑配置往返保持阅读」补精确引用（最自然落点：1.3 设置往返不覆盖原来源，或 6.12 跨入口回归显式列出）；其余四个纯设置侧行为未受 U8 触及，可接受 6.12 兜底，但若维持 U6 纪律应一并补齐 |
+
+不阻塞观察项：
+
+1. 「录制端口校验不接受部分整数」的 renderer 字段级拒绝严于 main schema（zod 对 number 类型本就拒绝 18787abc/小数，且 int().min(1).max(65535) 拒 0/65536/空）——属纵深防御，无冲突；实施时单测应以「零配置写调用」为断言核心而非仅校 UI 提示。
+2. design D4「计划 binding 含运行配置变化代次，涵盖仅轮换 key 的成功保存」与场景「配置轮换与来源撤销作废计划」措辞已一致（U6 曾出现「撤销/失效」混用，本轮未复现）；实施时注意该代次由**已核实保存/清除**推进，不要让普通 `proxy:status` 刷新误触发计划失效。
+
+### 复审边界
+
+本轮为文档与源码核对，未实施、未跑产品测试/Electron；不改变 52 条任务全部未勾选的状态，不构成归档放行。P2-1 落实后即可进入实施。
+
+## 复审修订闭环（2026-10-01）
+
+按复审意见修改 tasks 与 design，保留上方复审原文作为历史记录；本节为修订自检，不宣称再次独立复审或功能验收通过。
+
+| 复审项 | 修订落点 | 验证要求 |
+|---|---|---|
+| P2-1：5 个设置旧场景缺精确任务引用 | 1.3 明确引用“重跑编辑配置往返保持阅读”，锁定 messages/A-B 新工作区与设置往返；6.12 显式引用全部 5 个旧场景并逐项验证；7.2 要求全部 delta 场景都有精确任务引用 | 全部 67 个场景均能定位到任务复选项，未引用场景 0、悬空引用 0 |
+| 观察项 1：端口拒绝不能只看提示 | design D2 与任务 2.4 明确验证原始输入保留、可见字段错误及零配置写调用 | 非法端口不调用配置写通道，不能只用提示文本证明拒绝 |
+| 观察项 2：配置代次不能被代理刷新误推进 | design D4 与任务 3.7 明确覆盖已核实保存/清除的失效路径及普通 proxy:status 刷新的保持路径 | 仅轮换 key 的成功保存或保存后回读失败撤销旧计划；普通状态刷新不推进配置代次、不误使有效计划失效 |
+
+修订后检查：
+
+- Delta 数量保持 5 MODIFIED + 7 ADDED、67 场景（20 保留 + 47 新）；52 条任务均未勾选，proposal 和 spec delta 无内容变更。
+- 场景映射核对从“只检查新增场景”加强为“检查全部场景，且引用必须出现在任务复选项内”，67/67 精确引用通过；基线匹配、旧场景保留、重名、链接、空白及冲突标记通过。
+- OpenSpec 全量 strict 13 passed / 0 failed；git diff --check 通过。
+
+P2-1 的文档修订已落实，两项观察已进入明确实施判据。本轮仍未实施产品代码或运行产品测试/Electron，所有功能验收留在未勾选任务中。
