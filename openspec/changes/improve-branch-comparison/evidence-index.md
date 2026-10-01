@@ -13,7 +13,7 @@
 > `apps/desktop/test/` 下文件；含 `/` = 仓库相对路径）。由 `.workbuddy/u7/u7-61/verify-scenario-checklist.cjs`
 > 逐条核对（文件存在 + 用例名在场），含 `--selftest` 反例。
 
-汇总口径：**72 条场景（ADDED 41 / MODIFIED 31）**，已交付 **21** 条、待验证 **51** 条、实机不成立 **0** 条
+汇总口径：**72 条场景（ADDED 41 / MODIFIED 31）**，已交付 **41** 条、待验证 **31** 条、实机不成立 **0** 条（6.4 实机 20 条 + 6.5 实机 20 条）
 
 ---
 
@@ -39,7 +39,7 @@
 | 9 | 对照中含祖先关系 | `compare-derive.test.ts › 直接父子：共同祖先取父 run，父侧相对自身增量为零` | 6.4 实机 | 已交付（6.4 实机） |
 | 10 | 超出对照上限 | `store.test.ts › 对照上限 4：第 5 条被拒绝并给出提示，已选集合不变` + `compare-metrics-table.test.tsx › 上限提示如实呈现（store 写下的 compareNotice）` | 6.4 实机 | 已交付（6.4 实机） |
 | 11 | 对照不足两条 | `compare-metrics.test.ts › 单条 ⇒ 表 + 「再选一条即可对照」，不判定共同祖先` + `compare-metrics.test.ts › 无结论 ⇒ empty + 空集引导` | 6.4 实机 | 已交付（6.4 实机） |
-| 12 | 分属不同根 | `compare-derive.test.ts › 分属不同根：两侧链完整且无公共 id ⇒ unrelated；两侧累计各自可读、增量差不计算` + `compare-metrics.test.ts › 链完整但无公共祖先 ⇒ 无（分属不同根），不冒充共同祖先` | 6.5 实机（不同根标本） | 待验证 |
+| 12 | 分属不同根 | `compare-derive.test.ts › 分属不同根：两侧链完整且无公共 id ⇒ unrelated；两侧累计各自可读、增量差不计算` + `compare-metrics.test.ts › 链完整但无公共祖先 ⇒ 无（分属不同根），不冒充共同祖先` | 6.5 实机（不同根标本） | 已交付（6.5 实机） |
 | 13 | 父缺失导致判定不完整 | `compare-derive.test.ts › ownOnly 侧：链截断 ⇒ 判定不完整 + 该侧累计未知；完整另一侧累计照常可读` + `compare-metrics.test.ts › 父缺失 ⇒ 判定不完整（说明不是本来就不同源），不呈现为不同根` | 6.6 实机（ancestorMissing 注入） | 待验证 |
 
 ### B3. 分支视口可定位当前运行并恢复阅读（ADDED，3 场景）
@@ -84,13 +84,13 @@
 
 | n | 场景 | 单元/契约证据 | 实机入口/批次 | 状态 |
 |---|---|---|---|---|
-| 28 | 正常结束直接看到最终输出 | `overview-result.test.ts › u1-ok：四条件齐备 ⇒ 结果区给最终输出与可定位调用` + `overview.test.ts › 正常终止 + 非空正文 + 无 error + 无待执行 tool_calls ⇒ 最终输出` | 6.5 实机（回归既有概览） | 待验证 |
-| 29 | 失败概览定位真实自有调用 | `overview-error.test.ts › u1-error-detail：有带 error 的自有 llm.call ⇒ 给可定位目标与错误正文` + `overview.test.ts › u1-error-detail：直读解析出的失败调用与派生目标一致` | 6.5 实机 | 待验证 |
-| 30 | 旧失败记录没有错误详情 | `overview-error.test.ts › u1-error-legacy：error 终止但自有 LLM 无错误详情 ⇒ missing，绝不虚构入口` + `overview.test.ts › 祖先带 error、自有成功 ⇒ 不把祖先错误当本次原因（missingDetail 为 true）` | 6.5 实机 | 待验证 |
-| 31 | 限制中止与中断如实展示 | `overview-error.test.ts › u1-crashed：无终止事件 ⇒ 运行中断，不标为正常成功或仍在执行` + `overview-error.test.ts › max_iterations / budget_exceeded：各自的限制说明互不冒充` + `overview-error.test.ts › u1-aborted：中止 ⇒ 明说「不是正常结束」，且已记录内容保留` | 6.5 实机 | 待验证 |
-| 32 | 无最终正文不借用祖先补全 | `overview-result.test.ts › u1-fork-child：子 run 零自有 llm.call ⇒ 不借用祖先正文（祖先的输出一个字都不出现）` + `overview.test.ts › 祖先有正文、自有段无正文 ⇒ 不借用祖先当最终输出或中间输出` | 6.5 实机 | 待验证 |
-| 33 | 本次指标不累计共享前缀 | `overview-consumption-source.test.ts › 自有 span 无 timing ⇒ durationMs 为 null 保留为未知（不当成 0）` + `overview-consumption-source.test.ts › 自有 token 全为 0 ⇒ 给占位零说明，不声称实际零消费` + `overview-consumption-source.test.ts › 祖先共享前缀的 token 不进本次消耗（展示层继承 2.3 的自有过滤）` | 6.5 实机 | 待验证 |
-| 34 | 来源和隔离边界保持真实 | `overview-consumption-source.test.ts › prompt fork ⇒ relation=independent，**禁止**说「共享前缀」（判据有牙）` + `overview-consumption-source.test.ts › 隔离续跑 ⇒ isolationNote 指向真实 origin.run_id 与轮末检查点，不声称改了文件` | 6.5 实机（四类分叉标本） | 待验证 |
+| 28 | 正常结束直接看到最终输出 | `overview-result.test.ts › u1-ok：四条件齐备 ⇒ 结果区给最终输出与可定位调用` + `overview.test.ts › 正常终止 + 非空正文 + 无 error + 无待执行 tool_calls ⇒ 最终输出` | 6.5 实机（回归既有概览） | 已交付（6.5 实机） |
+| 29 | 失败概览定位真实自有调用 | `overview-error.test.ts › u1-error-detail：有带 error 的自有 llm.call ⇒ 给可定位目标与错误正文` + `overview.test.ts › u1-error-detail：直读解析出的失败调用与派生目标一致` | 6.5 实机 | 已交付（6.5 实机） |
+| 30 | 旧失败记录没有错误详情 | `overview-error.test.ts › u1-error-legacy：error 终止但自有 LLM 无错误详情 ⇒ missing，绝不虚构入口` + `overview.test.ts › 祖先带 error、自有成功 ⇒ 不把祖先错误当本次原因（missingDetail 为 true）` | 6.5 实机 | 已交付（6.5 实机） |
+| 31 | 限制中止与中断如实展示 | `overview-error.test.ts › u1-crashed：无终止事件 ⇒ 运行中断，不标为正常成功或仍在执行` + `overview-error.test.ts › max_iterations / budget_exceeded：各自的限制说明互不冒充` + `overview-error.test.ts › u1-aborted：中止 ⇒ 明说「不是正常结束」，且已记录内容保留` | 6.5 实机 | 已交付（6.5 实机） |
+| 32 | 无最终正文不借用祖先补全 | `overview-result.test.ts › u1-fork-child：子 run 零自有 llm.call ⇒ 不借用祖先正文（祖先的输出一个字都不出现）` + `overview.test.ts › 祖先有正文、自有段无正文 ⇒ 不借用祖先当最终输出或中间输出` | 6.5 实机 | 已交付（6.5 实机） |
+| 33 | 本次指标不累计共享前缀 | `overview-consumption-source.test.ts › 自有 span 无 timing ⇒ durationMs 为 null 保留为未知（不当成 0）` + `overview-consumption-source.test.ts › 自有 token 全为 0 ⇒ 给占位零说明，不声称实际零消费` + `overview-consumption-source.test.ts › 祖先共享前缀的 token 不进本次消耗（展示层继承 2.3 的自有过滤）` | 6.5 实机 | 已交付（6.5 实机） |
+| 34 | 来源和隔离边界保持真实 | `overview-consumption-source.test.ts › prompt fork ⇒ relation=independent，**禁止**说「共享前缀」（判据有牙）` + `overview-consumption-source.test.ts › 隔离续跑 ⇒ isolationNote 指向真实 origin.run_id 与轮末检查点，不声称改了文件` | 6.5 实机（四类分叉标本） | 已交付（6.5 实机） |
 | 35 | 非法详情不被概览绕过 | `u7-overview-ancestor-cases.test.ts › 损坏 JSON：严格失败（非 ownOnly），不产出任何可渲染载荷` + `u7-overview-ancestor-cases.test.ts › 未来版本：读取层拒绝，不降级 ownOnly` + `u7-overview-ancestor-cases.test.ts › 成环：LINEAGE_CYCLE 诊断，绝无部分概览载荷` | 6.6 实机（ancestorCorrupt/未来版本注入） | 待验证 |
 | 36 | 缺祖先概览沿用已校验自有事实 | `u7-overview-ancestor-cases.test.ts › 固定提示 + 缺失 ID：措辞唯一来源不改写，缺失祖先可点认` + `u7-overview-ancestor-cases.test.ts › 自有结局可读：stopped/completed 正常结束（不因祖先缺失变 unknown）` + `u7-overview-ancestor-cases.test.ts › 自有消耗可读且口径说明在场：沿链祖先指标未知，不补零、不推算` | 6.6 实机（ancestorMissing 注入） | 待验证 |
 
@@ -107,9 +107,9 @@
 | n | 场景 | 单元/契约证据 | 实机入口/批次 | 状态 |
 |---|---|---|---|---|
 | 40 | 父子入口默认父左子右 | `compare-workspace-store.test.ts › 打开即父左子右：视图切比较、选中项与全局集合不动、读取按新序发起` + `compare-navigation.test.ts › 有真实直接父 ⇒ 打开，左=父、右=当前运行` + `compare-navigation.test.ts › model_params 臂 ⇒ 被实验门禁挡住，不提供普通比较旁路` | 6.9 实机 | 待验证 |
-| 41 | 更换交换不改变侧栏选择 | `compare-workspace-store.test.ts › 更换一侧：pair 更新并按新序重读；侧栏选择不动；同 ID 拒绝、同值幂等` + `compare-workspace-store.test.ts › 交换左右：pair 反转并按新序重读；侧栏选择不动` | 6.5 实机 | 待验证 |
+| 41 | 更换交换不改变侧栏选择 | `compare-workspace-store.test.ts › 更换一侧：pair 更新并按新序重读；侧栏选择不动；同 ID 拒绝、同值幂等` + `compare-workspace-store.test.ts › 交换左右：pair 反转并按新序重读；侧栏选择不动` | 6.5 实机 | 已交付（6.5 实机） |
 | 42 | 手动两条比较按加入顺序确定左右 | `compare-workspace-store.test.ts › 恰好两条（先子后父）⇒ 加入顺序定左右：子左父右，并按该序读取（2.5）` + `compare-navigation.test.ts › 恰好两条 ⇒ 按加入顺序定左右：先子后父也是子左父右（不自动重排）` | 6.9 实机 | 待验证 |
-| 43 | 返回恢复来源与单侧阅读 | `compare-workspace-store.test.ts › 返回来源：恢复视图与阅读位置，凭据一次性用掉` + `compare-workspace-store.test.ts › 打开单侧不清凭据：selectRun 离开比较 → 返回比较 → 来源引用仍在` | 6.5 实机 | 待验证 |
+| 43 | 返回恢复来源与单侧阅读 | `compare-workspace-store.test.ts › 返回来源：恢复视图与阅读位置，凭据一次性用掉` + `compare-workspace-store.test.ts › 打开单侧不清凭据：selectRun 离开比较 → 返回比较 → 来源引用仍在` | 6.5 实机 | 已交付（6.5 实机） |
 | 44 | 后台结束不抢比较页且草稿保留 | `compare-readonly.test.ts › 不清草稿、不恢复授权：比较动作零新增确认、零改动草稿与来源撤销（许可状态面）` + `u6-partial-result-closure.test.ts › 不可读 → ownOnly 正常：重试后按原关联清理；全程零执行通道、不换选中项` | 6.9 实机（后台操作收尾 + 比较页在场） | 待验证 |
 
 ### DU5. 比较读取验证身份完整性并隔离迟到响应（ADDED，5 场景）
@@ -126,32 +126,32 @@
 
 | n | 场景 | 单元/契约证据 | 实机入口/批次 | 状态 |
 |---|---|---|---|---|
-| 50 | 直接父子展示真实编辑前后值 | `compare-edit-evidence.test.ts › verified：原值 = 父 tool.invoke.result，新值 = 子 fork.edit.value，工具名保留` + `compare-edit-evidence.test.ts › v2 verified：variant/边界字段就位，resume_after_step 在父轨迹定位到 agent.step` + `compare-workspace-view.test.tsx › verified：方向标注（左列 → 右列）、语义标签、前后值、工具结果措辞` | 6.5 实机 | 待验证 |
-| 51 | 多跳兄弟展示逐跳修改链 | `compare-edit-evidence.test.ts › 兄弟两臂：各侧从共同祖先逐跳列出，跳数 = 链长（不压缩成一次编辑）` + `compare-edit-evidence.test.ts › 多跳链：C 侧两跳身份连续（A→B→C），每跳直接父核对通过，值从该侧投影视图取` + `compare-workspace-view.test.tsx › 逐跳链：每跳 source→target 独立成行（不压缩）` | 6.5 实机（多跳/兄弟标本） | 待验证 |
-| 52 | 不同根只核对实际输入配置 | `compare-edit-evidence.test.ts › unrelated ⇒ 两侧事实并排：模型/启动输入/参数取各自实际请求` + `compare-workspace-view.test.tsx › 不同根：两列事实并排，未记录如实标注` | 6.5 实机 | 待验证 |
-| 53 | 原值缺失未知字段不补空 | `compare-edit-evidence.test.ts › 来源侧不可读 ⇒ PARENT_UNREADABLE，子新值仍可见（祖先不可得不补空）` + `compare-edit-evidence.test.ts › fork.edit.value 字面缺失（undefined）⇒ EDIT_VALUE_UNRECORDED，与真实空串分开` + `compare-edit-evidence.test.ts › 真实空串新值是 value 不是未记录（不生成伪空 diff 的前提）` | 6.5 实机 | 待验证 |
+| 50 | 直接父子展示真实编辑前后值 | `compare-edit-evidence.test.ts › verified：原值 = 父 tool.invoke.result，新值 = 子 fork.edit.value，工具名保留` + `compare-edit-evidence.test.ts › v2 verified：variant/边界字段就位，resume_after_step 在父轨迹定位到 agent.step` + `compare-workspace-view.test.tsx › verified：方向标注（左列 → 右列）、语义标签、前后值、工具结果措辞` | 6.5 实机 | 已交付（6.5 实机） |
+| 51 | 多跳兄弟展示逐跳修改链 | `compare-edit-evidence.test.ts › 兄弟两臂：各侧从共同祖先逐跳列出，跳数 = 链长（不压缩成一次编辑）` + `compare-edit-evidence.test.ts › 多跳链：C 侧两跳身份连续（A→B→C），每跳直接父核对通过，值从该侧投影视图取` + `compare-workspace-view.test.tsx › 逐跳链：每跳 source→target 独立成行（不压缩）` | 6.5 实机（多跳/兄弟标本） | 已交付（6.5 实机） |
+| 52 | 不同根只核对实际输入配置 | `compare-edit-evidence.test.ts › unrelated ⇒ 两侧事实并排：模型/启动输入/参数取各自实际请求` + `compare-workspace-view.test.tsx › 不同根：两列事实并排，未记录如实标注` | 6.5 实机 | 已交付（6.5 实机） |
+| 53 | 原值缺失未知字段不补空 | `compare-edit-evidence.test.ts › 来源侧不可读 ⇒ PARENT_UNREADABLE，子新值仍可见（祖先不可得不补空）` + `compare-edit-evidence.test.ts › fork.edit.value 字面缺失（undefined）⇒ EDIT_VALUE_UNRECORDED，与真实空串分开` + `compare-edit-evidence.test.ts › 真实空串新值是 value 不是未记录（不生成伪空 diff 的前提）` | 6.5 实机 | 已交付（6.5 实机） |
 
 ### DU7. 双运行输出沿用自有结局且完整可读（ADDED，2 场景）
 
 | n | 场景 | 单元/契约证据 | 实机入口/批次 | 状态 |
 |---|---|---|---|---|
-| 54 | 最终输出不借中间正文或祖先 | `compare-output.test.ts › 最终输出 = 最后自有调用正文，结局 completed，无错误目标` + `compare-output.test.ts › 一侧 error 终止 ⇒ unavailable（错误不作为空文本参与 diff）` + `compare-workspace-view.test.tsx › 失败侧：未记录最终输出说明 + 中间正文（不冒充最终结果）+ 打开失败调用按钮` | 6.5 实机 | 待验证 |
-| 55 | 长输出独立阅读与合法文本差异 | `compare-output.test.ts › 双方最终文本就绪 ⇒ available，携带左右正文与产出 span` + `compare-output.test.ts › 一侧仅思维链 ⇒ unavailable（reasoning-only 不参与伪空比较）` + `compare-workspace-view.test.tsx › diff 模式（门禁可用）⇒ 只读 DiffEditor 面板就位` | 6.5 实机（长文本标本 + 复制/查找） | 待验证 |
+| 54 | 最终输出不借中间正文或祖先 | `compare-output.test.ts › 最终输出 = 最后自有调用正文，结局 completed，无错误目标` + `compare-output.test.ts › 一侧 error 终止 ⇒ unavailable（错误不作为空文本参与 diff）` + `compare-workspace-view.test.tsx › 失败侧：未记录最终输出说明 + 中间正文（不冒充最终结果）+ 打开失败调用按钮` | 6.5 实机 | 已交付（6.5 实机） |
+| 55 | 长输出独立阅读与合法文本差异 | `compare-output.test.ts › 双方最终文本就绪 ⇒ available，携带左右正文与产出 span` + `compare-output.test.ts › 一侧仅思维链 ⇒ unavailable（reasoning-only 不参与伪空比较）` + `compare-workspace-view.test.tsx › diff 模式（门禁可用）⇒ 只读 DiffEditor 面板就位` | 6.5 实机（长文本标本 + 复制/查找） | 已交付（6.5 实机） |
 
 ### DU8. 比较步骤按真实来源识别共享前缀（ADDED，3 场景）
 
 | n | 场景 | 单元/契约证据 | 实机入口/批次 | 状态 |
 |---|---|---|---|---|
-| 56 | result 共享前缀保留真实边界 | `compare-source-map.test.ts › 双跳链 A→B：两段——A 段止于 B.at_span（带编辑标注），B 段为自有` + `compare-source-map.test.ts › v2 双段：父段止于 resume_after_step 子树末尾（同轮兄弟工具保留在前缀段），boundaryEdit 标注` + `compare-steps.test.ts › 折叠摘要：前缀行数、来源 run 去重、编辑清单（差异保留不隐藏）` | 6.5 实机 | 待验证 |
-| 57 | 重复 span ID 与独立分支不强行对齐 | `compare-steps.test.ts › 两侧重复的 s_01 / 相同轮号：各自目录独立成行，不对齐不合并（身份 = run + span）` + `compare-store.test.ts › selectCompareStep 只动本侧——两侧重复的 span id 各归各列` | 6.5 实机（重复 ID 标本） | 待验证 |
+| 56 | result 共享前缀保留真实边界 | `compare-source-map.test.ts › 双跳链 A→B：两段——A 段止于 B.at_span（带编辑标注），B 段为自有` + `compare-source-map.test.ts › v2 双段：父段止于 resume_after_step 子树末尾（同轮兄弟工具保留在前缀段），boundaryEdit 标注` + `compare-steps.test.ts › 折叠摘要：前缀行数、来源 run 去重、编辑清单（差异保留不隐藏）` | 6.5 实机 | 已交付（6.5 实机） |
+| 57 | 重复 span ID 与独立分支不强行对齐 | `compare-steps.test.ts › 两侧重复的 s_01 / 相同轮号：各自目录独立成行，不对齐不合并（身份 = run + span）` + `compare-store.test.ts › selectCompareStep 只动本侧——两侧重复的 span id 各归各列` | 6.5 实机（重复 ID 标本） | 已交付（6.5 实机） |
 | 58 | 缺父链仅显示自有步骤 | `compare-steps.test.ts › ownOnly 侧：prefixUnknown 如实标注，目录只含自有步骤；不推断根、不折叠未知祖先` + `compare-steps.test.ts › ownOnly 侧与完整另一侧互不影响：完整侧照常带前缀目录` | 6.6 实机（ancestorMissing 注入） | 待验证 |
 
 ### DU9. 比较消耗区分自有累计和未知（ADDED，2 场景）
 
 | n | 场景 | 单元/契约证据 | 实机入口/批次 | 状态 |
 |---|---|---|---|---|
-| 59 | 自有指标不重复计算继承前缀 | `compare-metrics.test.ts › 自有 tokens 只统计 leaf spans：继承前缀的调用不重复计入` + `compare-metrics.test.ts › 沿链累计 = 各代自有值沿链求和（含 prompt/messages/model_params 独立执行段）` + `compare-metrics.test.ts › 未知耗时保持未知：自有无 timing ⇒ 自有耗时 null；链上任一段未知 ⇒ 累计与祖先耗时增量 null` | 6.5 实机（继承前缀 + prompt 独立执行标本） | 待验证 |
-| 60 | 缓存未知零部分和失败占位分开 | `compare-metrics.test.ts › 未记录 / 零命中 / 部分记录三种缓存解释可辨` + `compare-metrics.test.ts › 失败占位零 token 与「未记录缓存」分开：占位说明挂在 tokens 行，不称实际零消费` | 6.5 实机（四种缓存/占位标本） | 待验证 |
+| 59 | 自有指标不重复计算继承前缀 | `compare-metrics.test.ts › 自有 tokens 只统计 leaf spans：继承前缀的调用不重复计入` + `compare-metrics.test.ts › 沿链累计 = 各代自有值沿链求和（含 prompt/messages/model_params 独立执行段）` + `compare-metrics.test.ts › 未知耗时保持未知：自有无 timing ⇒ 自有耗时 null；链上任一段未知 ⇒ 累计与祖先耗时增量 null` | 6.5 实机（继承前缀 + prompt 独立执行标本） | 已交付（6.5 实机） |
+| 60 | 缓存未知零部分和失败占位分开 | `compare-metrics.test.ts › 未记录 / 零命中 / 部分记录三种缓存解释可辨` + `compare-metrics.test.ts › 失败占位零 token 与「未记录缓存」分开：占位说明挂在 tokens 行，不称实际零消费` | 6.5 实机（四种缓存/占位标本） | 已交付（6.5 实机） |
 
 ### DU10. 比较文件入口保持单运行合法检查点（ADDED，2 场景）
 
