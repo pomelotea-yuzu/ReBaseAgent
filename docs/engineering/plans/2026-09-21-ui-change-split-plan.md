@@ -1,7 +1,7 @@
 # UI 可用性 change 拆分计划
 
 > 日期：2026-09-21
-> 状态（2026-09-30 更新）：U1 [refactor-run-workspace](../../../openspec/changes/archive/2026-09-23-refactor-run-workspace/proposal.md)、U2 [improve-workspace-file-reading](../../../openspec/changes/archive/2026-09-24-improve-workspace-file-reading/proposal.md)、U3 [preserve-debugging-drafts](../../../openspec/changes/archive/2026-09-26-preserve-debugging-drafts/proposal.md)、U4 [add-desktop-operation-tracking](../../../openspec/changes/archive/2026-09-27-add-desktop-operation-tracking/proposal.md)、U5 [unify-run-execution-workflow](../../../openspec/changes/archive/2026-09-29-unify-run-execution-workflow/proposal.md) 均已完成并归档；U6 [add-partial-run-reading](../../../openspec/changes/archive/2026-09-30-add-partial-run-reading/proposal.md) 已于 2026-09-30 完成并归档，U7 [improve-branch-comparison](../../../openspec/changes/improve-branch-comparison/proposal.md) 已起草、待实施，U8 仍为候选。
+> 状态（2026-10-01 更新）：U1 [refactor-run-workspace](../../../openspec/changes/archive/2026-09-23-refactor-run-workspace/proposal.md)、U2 [improve-workspace-file-reading](../../../openspec/changes/archive/2026-09-24-improve-workspace-file-reading/proposal.md)、U3 [preserve-debugging-drafts](../../../openspec/changes/archive/2026-09-26-preserve-debugging-drafts/proposal.md)、U4 [add-desktop-operation-tracking](../../../openspec/changes/archive/2026-09-27-add-desktop-operation-tracking/proposal.md)、U5 [unify-run-execution-workflow](../../../openspec/changes/archive/2026-09-29-unify-run-execution-workflow/proposal.md)、U6 [add-partial-run-reading](../../../openspec/changes/archive/2026-09-30-add-partial-run-reading/proposal.md) 均已完成并归档；U7 [improve-branch-comparison](../../../openspec/changes/archive/2026-10-01-improve-branch-comparison/proposal.md) 已于 2026-10-01 完成并归档（`d53b7d0`），U8 [unify-recording-and-experiment-workspaces](../../../openspec/changes/unify-recording-and-experiment-workspaces/proposal.md) 已起草、待实施。
 > 基线：拆分时 A3-A/B/C 全部归档，U1–U4 均已合入主 spec（`desktop-ui` 现 52 requirements / 236 scenarios，`replay` 8/22、`prompt-replay` 6/15、`model-experiments` 12/38）。依据 [UI 方案 V0.2](2026-09-19-ui-layout-discussion.md)与[实际走查 R1–R11](../../reviews/2026-09-21-ui-usability-walkthrough.md)。
 > 文档职责：本文件维护 U 的工程拆分和实施依赖；UI 方案维护界面行为，[可用性规划](2026-09-15-usability-improvement-plan.md)维护 P0–P3 流程，[路线](2026-09-16-isolated-rerun-roadmap.md)维护产品顺序和打包。U1–U8 是 change 编号，不是新的产品阶段。
 
@@ -22,11 +22,11 @@
 | U3 | [`preserve-debugging-drafts`](../../../openspec/changes/archive/2026-09-26-preserve-debugging-drafts/proposal.md)（已归档） | 切步骤、运行、设置或关闭编辑区后保留草稿，明确放弃 | U1 | R2，R3 草稿部分，R10/R11 |
 | U4 | [`add-desktop-operation-tracking`](../../../openspec/changes/archive/2026-09-27-add-desktop-operation-tracking/proposal.md)（已归档） | 所有主动执行受 main 登记/去重/执行槽约束，可信关联运行和核对未知状态 | 已归档基线 | R3/R4/R5 的契约基础，V0.1 自审 P2-2 |
 | U5 | [`unify-run-execution-workflow`](../../../openspec/changes/archive/2026-09-29-unify-run-execution-workflow/proposal.md)（已归档） | 创建与重跑可跨页查看状态、核实结果、定位失败、返回配置且不丢草稿 | U1 + U3 + U4 | R3/R4/R5/R10/R11 |
-| U6 | [`add-partial-run-reading`](../../../openspec/changes/archive/2026-09-30-add-partial-run-reading/proposal.md) | 缺祖先文件时可读当前运行的已校验自有记录，仍拒绝不安全执行 | U1 | V0.1 自审 P2-3、V0.2 §18.4 |
-| U7 | [`improve-branch-comparison`](../../../openspec/changes/improve-branch-comparison/proposal.md)（已起草） | 定位并打开分支、比较两次修改/输出，四条指标仍可读可辨 | U1 + U2 + U6 | R8/R9 |
-| U8 | `unify-recording-and-experiment-workspaces` | 录制接入与已有模型实验使用统一工作区、草稿、操作与结果入口 | U5 + U7 | V0.2 §11/§15.4/§16 的完整设计范围 |
+| U6 | [`add-partial-run-reading`](../../../openspec/changes/archive/2026-09-30-add-partial-run-reading/proposal.md)（已归档） | 缺祖先文件时可读当前运行的已校验自有记录，仍拒绝不安全执行 | U1 | V0.1 自审 P2-3、V0.2 §18.4 |
+| U7 | [`improve-branch-comparison`](../../../openspec/changes/archive/2026-10-01-improve-branch-comparison/proposal.md)（已归档） | 定位并打开分支、比较两次修改/输出，四条指标仍可读可辨 | U1 + U2 + U6 | R8/R9 |
+| U8 | [`unify-recording-and-experiment-workspaces`](../../../openspec/changes/unify-recording-and-experiment-workspaces/proposal.md)（已起草） | 录制接入与已有模型实验使用统一工作区、草稿、操作与结果入口 | U5 + U7 | V0.2 §11/§15.4/§16 的完整设计范围 |
 
-U1–U6 均已归档并有 evidence-index；U7 四件套已起草，任务尚未实施，以 U6 归档后的 `desktop-ui` 62 requirements / 324 scenarios 为基线；U8 仍为候选标识。U8 是完整方案的收尾，未把未实测的代理/实验执行问题写成新发现的缺陷。
+U1–U7 均已归档并有 evidence-index；U7 共 62 条任务完成、72 条 delta 场景有交付证据。U8 四件套已起草，任务尚未实施，以 U7 归档后的 `desktop-ui` 70 requirements / 351 scenarios、`model-experiments` 13 / 43 为基线。U8 是完整方案的收尾，未把未实测的代理/实验执行问题写成新发现的缺陷。归档不代表已进入发行包。
 
 2026-09-26 补充核对：U1 原归档并非没有缺口，evidence-index 当时为 61/62，且导航折叠后重开入口与调节柄交互未闭合。已先完成 [U1 补齐与实机回归](../../reviews/2026-09-26-u1-completion/README.md)，累计覆盖更新为 62/62，保留原归档历史；100%/200% 导航及 U2 文件状态、U3 草稿恢复通过。当时 U4 尚未实施；09/27 已归档，见页首状态。
 
@@ -217,6 +217,6 @@ U1 的新概览/导航、U3 的会话草稿、U5 的统一结果流程应各有�
 
 **U4 `add-desktop-operation-tracking`** 已完成实施与实机验收，**2026-09-27 已归档**（`archive/2026-09-27-add-desktop-operation-tracking/`）。tasks **48/48**，验收与证据见 [U4 evidence-index](../../../openspec/changes/archive/2026-09-27-add-desktop-operation-tracking/evidence-index.md)（12 requirement / 63 场景逐条机器回查）。四条 delta 已合入主 spec：`desktop-ui` 47→52 requirements / 200→236 scenarios（5 ADDED + 4 MODIFIED 整段替换，既有场景零丢失），`replay` 7→8、`prompt-replay` 5→6、`model-experiments` 11→12 各 +1 requirement。归档后差集复核脚本 `.workbuddy/u4/u4-7-archive/post-archive-diff.cjs`（基线取归档前的主 spec，两道反证咬住）。
 
-U6 `add-partial-run-reading` 已于 2026-09-30 实施完成并归档（六批受控实机 + 7.1–7.3 收口，详见其 archive 的 tasks/evidence-index）；下一主线为 **U7 `improve-branch-comparison`**。
+U6 `add-partial-run-reading` 已于 2026-09-30 实施完成并归档（六批受控实机 + 7.1–7.3 收口，详见其 archive 的 tasks/evidence-index）。U7 `improve-branch-comparison` 已于 2026-10-01 完成并归档（`d53b7d0`），验收见 [U7 evidence-index](../../../openspec/changes/archive/2026-10-01-improve-branch-comparison/evidence-index.md)。
 
-U7–U8 先按本计划保留候选，前置契约稳定后逐个展开正式四件套。U6 已固定“祖先不存在”诊断来源、部分读取边界和执行拒绝契约；tasks 仍须在实施中用 fixture、单测、Electron 场景和 evidence-index 逐项验收。每次生成正式 change 时回填本表状态和链接，再按依赖实施、验收和归档。
+下一主线为 **U8 [unify-recording-and-experiment-workspaces](../../../openspec/changes/unify-recording-and-experiment-workspaces/proposal.md)**，proposal/design/tasks 与 `desktop-ui`、`model-experiments` delta 已起草，尚未实施。复用 U5 操作/结果与 U7 比较；任务须用 fixture、单测、Electron 场景和 evidence-index 逐项验收，不把文档通过当功能完成，也不自动打包发布。
