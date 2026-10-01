@@ -118,7 +118,14 @@ describe("4.3 接线契约：create 与 result 都从同一份会话派生", () 
   });
 
   it("禁用理由真的渲染出来（不是只改 disabled 的死按钮）", () => {
-    expect(panel).toContain("gate.notice !== null");
+    // ⚠️ U8 3.1a 改判留痕：EntryGateNotice 提取为独立文件（随 ModelAbEditor 迁出），
+    // 该判据改读新文件；DetailPanel 经 import 继续渲染同一组件
+    const notice = readFileSync(
+      resolve(import.meta.dirname, "../src/renderer/src/components/EntryGateNotice.tsx"),
+      "utf8",
+    );
+    expect(notice).toContain("gate.notice !== null");
+    expect(panel).toContain('from "./EntryGateNotice"');
     expect(dialog).toContain("blockedReason");
     // create 侧（U5 4.2 起）：门禁文案走"表单级说明位"，字段级拒绝走各自的槽——
     // 两条都在同一份判据的输出里，组件不自己拼第二套理由
@@ -132,17 +139,25 @@ describe("4.3 接线契约：create 与 result 都从同一份会话派生", () 
 describe("4.4 接线契约：prompt / messages / A-B 也接同一份会话", () => {
   const panel = readFileSync(PANEL, "utf8");
 
+  // ⚠️ U8 3.1a 改判留痕（2026-10-01）：ModelAbEditor 提取为独立文件
+  // components/ModelAbEditor.tsx（逐字搬出、零行为变化），其源码级断言改读新文件；
+  // scalarText/ArmPlanRow 随迁后 DetailPanel 里 PROMPT 切片的终点锚改为 LlmCallDetail。
+  const EDITOR_FILE = readFileSync(
+    resolve(import.meta.dirname, "../src/renderer/src/components/ModelAbEditor.tsx"),
+    "utf8",
+  );
+
   /** 切出某个编辑器（从声明到下一个顶层声明），避免"文件里某处出现过"式的假绿 */
-  function editorBody(start: string, end: string): string {
-    const from = panel.indexOf(start);
-    const to = panel.indexOf(end, from + start.length);
+  function editorBody(start: string, end: string, source: string = panel): string {
+    const from = source.indexOf(start);
+    const to = source.indexOf(end, from + start.length);
     if (from < 0 || to < 0) throw new Error(`unreachable：切不出 ${start}`);
-    return panel.slice(from, to);
+    return source.slice(from, to);
   }
 
-  const PROMPT = editorBody("function PromptForkEditor({", "function scalarText(");
+  const PROMPT = editorBody("function PromptForkEditor({", "function LlmCallDetail(");
   const MESSAGES = editorBody("function MessagesForkEditor({", "function toolMessageText(");
-  const MODEL_AB = editorBody("function ModelAbEditor({", "function LlmCallDetail(");
+  const MODEL_AB = EDITOR_FILE;
 
   /** 归一空白：biome 会把长表达式换行，跨行断言不该依赖排版 */
   const flat = (body: string): string => body.replace(/\s+/g, " ");

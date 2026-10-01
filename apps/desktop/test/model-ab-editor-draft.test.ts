@@ -25,20 +25,16 @@ import { executedFail, installOperationChannels } from "./helpers/operation-chan
 // 源码级接线契约
 // ---------------------------------------------------------------------------
 
-const DETAIL_PANEL = readFileSync(
-  resolve(import.meta.dirname, "../src/renderer/src/components/DetailPanel.tsx"),
+// ⚠️ U8 3.1a 改判留痕（2026-10-01）：ModelAbEditor 提取为独立文件
+// components/ModelAbEditor.tsx（逐字搬出、零行为变化），源码级断言整文件改读新文件
+// （不再需要切片——该文件只承载这一个组件与它的两个展示助手）。
+const MODEL_AB_EDITOR = readFileSync(
+  resolve(import.meta.dirname, "../src/renderer/src/components/ModelAbEditor.tsx"),
   "utf8",
 );
 
-function sliceBetween(startMarker: string, endMarker: string): string {
-  const start = DETAIL_PANEL.indexOf(startMarker);
-  const end = DETAIL_PANEL.indexOf(endMarker, start + 1);
-  if (start < 0 || end < 0 || end <= start) throw new Error(`切片失败：${startMarker}`);
-  return DETAIL_PANEL.slice(start, end);
-}
-
 describe("接线契约：ModelAbEditor 批次草稿（任务 2.4）", () => {
-  const src = () => sliceBetween("function ModelAbEditor(", "/** llm.call 详情");
+  const src = () => MODEL_AB_EDITOR;
 
   it("打开经 ensureModelAbDraft 登记基线臂与源基线；行来自草稿条目", () => {
     const code = src();
@@ -217,7 +213,7 @@ describe("store 行为：A/B 批次草稿的增删行与恢复（ModelAbEditor �
 // ---------------------------------------------------------------------------
 
 describe("接线契约：A/B 预览修订绑定与迟到守卫（任务 3.3）", () => {
-  const src = () => sliceBetween("function ModelAbEditor(", "/** llm.call 详情");
+  const src = () => MODEL_AB_EDITOR;
 
   it("预览发起时记录批次修订；迟到响应按它校验，且先守卫后安装", () => {
     const code = src();
@@ -257,7 +253,11 @@ describe("接线契约：A/B 预览修订绑定与迟到守卫（任务 3.3）",
   it("内容变化作废副作用许可；恢复/离开后计划与许可均须重来（组件局部态）", () => {
     const code = src();
     // commitRows 是唯一行写入路径：改行既清计划也清授权（切片进函数体，避免被别处的复位序列糊过去）
-    const commit = sliceBetween("const commitRows = ", "const updateArm = ");
+    const commit = (() => {
+      const a = MODEL_AB_EDITOR.indexOf("const commitRows = ");
+      const b = MODEL_AB_EDITOR.indexOf("const updateArm = ", a);
+      return MODEL_AB_EDITOR.slice(a, b);
+    })();
     expect(commit).toContain("setPlan(null);");
     expect(commit).toContain("setAllowSideEffects(false);");
     // 计划修订与副作用许可都是组件局部态 ⇒ 重挂载即重置，恢复后必须重新预览并重新勾选

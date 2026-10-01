@@ -176,12 +176,11 @@ describe("4.7 A/B 确认绑整批修订与检查代次", () => {
 });
 
 describe("4.7 接线契约：确认对象是当前预览计划而非草稿", () => {
-  const panel = readFileSync(
-    resolve(import.meta.dirname, "../src/renderer/src/components/DetailPanel.tsx"),
+  // ⚠️ U8 3.1a 改判留痕：ModelAbEditor 提取为独立文件（逐字搬出），源码级断言改读新文件
+  const ab = readFileSync(
+    resolve(import.meta.dirname, "../src/renderer/src/components/ModelAbEditor.tsx"),
     "utf8",
   );
-  const at = panel.indexOf("function ModelAbEditor({");
-  const ab = panel.slice(at, panel.indexOf("function LlmCallDetail(", at));
   const flat = (src: string): string => src.replace(/\s+/g, " ");
 
   /** 某个控件（以其标签文本定位）自己的 disabled 清单——表达式在标签之前 */
