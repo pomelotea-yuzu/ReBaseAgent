@@ -134,6 +134,24 @@ describe("接线契约：MessagesForkEditor 接入 messages 草稿（任务 2.2�
     expect(code).toContain("open && !alwaysOpen && !inProgress");
     expect(code).toContain("{alwaysOpen ? null : \"取消\"}");
   });
+
+  it("U8 5.3：提交只走登记 + proxy:fork；确认凭据绑定提交；无第二执行通道", () => {
+    const code = src();
+    // 单请求重发的登记路径：channel messages + 确认凭据 + 提交快照解析（证据链同 U5 4.6）
+    expect(code).toContain('channel: "messages"');
+    expect(code).toContain("confirmation: messagesBinding");
+    expect(code).toContain("JSON.parse(assoc.submittedText)");
+    expect(code).toContain("proxyFork(run.meta.id, span.id");
+    // 明确不碰的通道：result/prompt 的 forkAt 与任何 replay —— 单请求不是外部工具续跑
+    expect(code).not.toContain("forkAt(");
+    expect(code).not.toContain("replayRun");
+    expect(code).not.toContain("modelReplayRun");
+    // 单请求边界措辞出自 lib 的 messagesDisclosure（组件不自己拼「这次会怎样」的句子），
+    // 「只重发这一个请求 / 不执行任何外部 Agent 的工具」的判据由 execution-confirmation.test.ts 承载
+    expect(code).toContain("messagesDisclosure({");
+    // 实际请求仍由 main 裁决：登记口执法（不成立 ⇒ null ⇒ 一次 IPC 都不发）
+    expect(code).toContain("if (assoc === null) return;");
+  });
 });
 
 describe("U8 5.1b 源码级：编辑器唯一消费面在 messages 工作区，详情页只留入口", () => {
