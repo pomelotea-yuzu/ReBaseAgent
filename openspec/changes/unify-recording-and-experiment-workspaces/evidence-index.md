@@ -54,8 +54,8 @@
 | 17 | 单向密钥与保存反馈不冒充连通 | 保留 | 6.12 | `settings-save-feedback.test.ts › 单向 key：apiKey 只要打过字就算未保存输入（它从未离开渲染层暂存）` + `settings-save-feedback.test.ts › SettingsState 的键集里**没有** apiKey：回读只含配置状态` + `settings.test.ts › 明文落盘 + apiKeyEncrypted false + encrypted false（UI 据此明示风险）` | 6.12 实机 | 待验证 |
 | 18 | 保存失败和保存后回读失败区分 | 保留 | 6.12 | `settings-save-feedback.test.ts › 「保存失败和保存后回读失败区分」：回读失败 ⇒ reread-failed，且**不把旧摘要当新配置事实**（settings 清空）` + `settings-save-feedback.test.ts › 保存失败 ⇒ save-failed，错误入 store，settings 原样（没写进去也不该动事实）` | 6.12 实机 | 待验证 |
 | 19 | 清除确认包含凭据且受槽约束 | 保留 | 6.12 | `settings-clear-confirm.test.ts › 确认文案点名保存凭据一并删除且不可恢复；走 requestConfirm 真模态` + `settings-clear-confirm.test.ts › 清除按钮受 U4 配置门禁（busy 防重入 + configGate），而「关闭/✕」不吃这把锁（查看返回可用）` | 6.12 实机 | 待验证 |
-| 20 | 录制入口保持现有代理区可达 | 保留 | 2.10 | `settings-roundtrip-invalidate.test.ts › 「录制入口保持现有代理区可达」：全局/空态的录制入口打开独立录制工作区` + `settings-roundtrip-invalidate.test.ts › 录制入口的 GlobalBar 一跳必须走不清 section 的专用开器（6.7 实机缺陷的契约）`（⚠️ 前者在 1.4 有意改判：旧判据「定位设置代理分区、禁止 RecordingWorkspace」翻转为「打开独立录制工作区」，两边留痕；后者仍成立——录制入口不经 openSettings） | 6.6 实机 | 待验证 |
-| 21 | 设置跳转录制先处理未保存模型字段 | 新 | 2.10 | adjacent：`settings-save-feedback.test.ts › 模型字段或代理字段任何一项偏离 ⇒ 脏`（dirty 判据基础）；2.10 落地后补 | 6.6 实机 | 待验证 |
+| 20 | 录制入口保持现有代理区可达 | 保留 | 1.4, 2.10 | `settings-roundtrip-invalidate.test.ts › 「录制入口保持现有代理区可达」：全局/空态的录制入口打开独立录制工作区` + `settings-roundtrip-invalidate.test.ts › 录制入口的 GlobalBar 一跳必须走不清 section 的专用开器（6.7 实机缺陷的契约）`（⚠️ 前者在 1.4 有意改判：旧判据「定位设置代理分区、禁止 RecordingWorkspace」翻转为「打开独立录制工作区」，两边留痕；后者仍成立——录制入口不经 openSettings） | 6.6 实机 | 待验证 |
+| 21 | 设置跳转录制先处理未保存模型字段 | 新 | 2.10 | adjacent：`settings-save-feedback.test.ts › 模型字段任何一项偏离 ⇒ 脏`（dirty 判据基础；⚠️ 2.10 有意改判：代理表单已移除，"代理字段"分支删除并留痕）；`settings-roundtrip.test.ts` 的跳转先处理 dirty 用例承载就近确认 | 6.6 实机 | 待验证 |
 
 ### DU4. 录制配置草稿在会话内保留并参与关闭保护（ADDED，5 场景）
 
@@ -91,12 +91,12 @@
 
 | n | 场景 | 保留/新 | 任务 | 单元/契约证据 | 实机入口/批次 | 状态 |
 |---|---|---|---|---|---|---|
-| 37 | 成功臂集合不隐去失败臂 | 新 | 4.1, 6.2, 6.5, 6.8 | `exec-model-ab.test.ts › A-B 部分失败：失败臂带真实 id 与 failed 结局，ids 只含成功臂，批次不冒充全臂成功` + `operation-request-facts.test.ts › 「实验缺臂部分失败」逐臂诚实：登记短于 armCount 也不从信封多报的 id 凑` + `draft-closure-store.test.ts › 执行信封把 ids 全带回来，但登记与核实未跟上 ⇒ 整批保留` | 6.2 标本 + 6.5 反证 + 6.8 实机 | 待验证 |
-| 38 | 实验结果不可读仅重试读取 | 新 | 4.3, 6.8 | `operation-request-facts.test.ts › 不可读臂只给同一 ID 的重读动作；渲染后不出现臂间差值/胜出臂结论，也无` + `result-verification.test.ts › 已在读 / 已核实 ⇒ 视为已处理；不可读 ⇒ 不算（只能显式只读重试）` + `draft-closure-store.test.ts › 一条臂结果不可读 ⇒ 整批保留（部分成功不冒充全臂成功）` | 6.8 实机 | 待验证 |
-| 39 | 全臂核实才按提交修订清理 | 新 | 4.4, 6.8 | `draft-closure-store.test.ts › 两条预期臂各自核实正常结束 ⇒ 整批一次清干净（不逐臂删配置）` + `draft-closure-store.test.ts › 缺臂 / null ID / 失败臂 ⇒ 整批配置与关联都保留` | 6.8 实机 | 待验证 |
-| 40 | 实验结果选两到四条进入共用比较 | 新 | 4.5, 6.9 | `store.test.ts › 对照上限 4：第 5 条被拒绝并给出提示，已选集合不变` + `compare-metrics.test.ts › 三条 ⇒ 提示显式选两条；四条同口径（列数与集合一致）` + `experiment-records.test.ts › 同父合法两臂 ⇒ eligible，批次身份保留各臂已记录 experimentId` | 6.9 实机 | 待验证 |
-| 41 | 比较拒绝和返回实验不改批次事实 | 新 | 1.6, 4.5, 6.9 | `experiment-records.test.ts › 异父臂 ⇒ ineligible PARENT_DIFFERS；相同 experimentId 不能绕过` + `compare-workspace-store.test.ts › 返回来源：恢复视图与阅读位置，凭据一次性用掉`（返回位置扩展到实验工作区随 1.6 落地后补） | 6.9 实机 | 待验证 |
-| 42 | 跨页结束与重载恢复实验结果 | 新 | 4.6, 6.8 | `navigation-intent.test.ts › A/B 批次 ⇒ drop：永不自动聚焦，由用户挑臂` + `navigation-intent.test.ts › 本会话没提交过（重载恢复）⇒ none：不凭「结果可读」就跳` | 6.8 实机 | 待验证 |
+| 37 | 成功臂集合不隐去失败臂 | 新 | 4.1, 6.2, 6.5, 6.8 | `exec-model-ab.test.ts › A-B 部分失败：失败臂带真实 id 与 failed 结局，ids 只含成功臂，批次不冒充全臂成功` + `operation-request-facts.test.ts › 「实验缺臂部分失败」逐臂诚实：登记短于 armCount 也不从信封多报的 id 凑` + `draft-closure-store.test.ts › 执行信封把 ids 全带回来，但登记与核实未跟上 ⇒ 整批保留` + `experiment-results.test.ts › experimentId 缺席如实呈现为 null；逐臂呈现复用 deriveAbBatchResult（armCount 基准）`（工作区层） | 6.2 标本 + 6.5 反证 + 6.8 实机 | 待验证 |
+| 38 | 实验结果不可读仅重试读取 | 新 | 4.3, 6.8 | `operation-request-facts.test.ts › 不可读臂只给同一 ID 的重读动作；渲染后不出现臂间差值/胜出臂结论，也无` + `result-verification.test.ts › 已在读 / 已核实 ⇒ 视为已处理；不可读 ⇒ 不算（只能显式只读重试）` + `draft-closure-store.test.ts › 一条臂结果不可读 ⇒ 整批保留（部分成功不冒充全臂成功）` + `experiment-results-actions.test.ts › 不可读臂只按同一条可信 ID 重试：文件依旧坏 ⇒ 诊断保留、仍不换 id 不触发执行` + `experiment-results.test.ts › 4.3 未关联臂零动作：全部臂都无可信 ID ⇒ 整个结果区没有一个可点的按钮（只留诚实说明）` | 6.8 实机 | 待验证 |
+| 39 | 全臂核实才按提交修订清理 | 新 | 4.4, 6.8 | `draft-closure-store.test.ts › 两条预期臂各自核实正常结束 ⇒ 整批一次清干净（不逐臂删配置）` + `draft-closure-store.test.ts › 缺臂 / null ID / 失败臂 ⇒ 整批配置与关联都保留` + `experiment-results.test.ts › 4.4 清理只归 U5：结果区容器不自建第二套收尾/清理/执行路径`（源码级反证） | 6.8 实机 | 待验证 |
+| 40 | 实验结果选两到四条进入共用比较 | 新 | 4.5, 6.9 | `store.test.ts › 对照上限 4：第 5 条被拒绝并给出提示，已选集合不变` + `compare-metrics.test.ts › 三条 ⇒ 提示显式选两条；四条同口径（列数与集合一致）` + `experiment-records.test.ts › 同父合法两臂 ⇒ eligible，批次身份保留各臂已记录 experimentId` + `experiment-results-actions.test.ts › 两条按选择顺序进入详细比较；比较入口只读——登记/读取项引用原样` + `experiment-results.test.ts › 4.5 进入比较按钮：少于两条禁用；两条启用给顺序说明；store 提示（超上限）原样呈现` | 6.9 实机 | 待验证 |
+| 41 | 比较拒绝和返回实验不改批次事实 | 新 | 1.6, 4.5, 6.9 | `experiment-records.test.ts › 异父臂 ⇒ ineligible PARENT_DIFFERS；相同 experimentId 不能绕过` + `compare-workspace-store.test.ts › 返回来源：恢复视图与阅读位置，凭据一次性用掉` + `experiment-results-actions.test.ts › 比较读取被拒绝（信封错误）后返回实验：视图恢复、对照集合保留、批次事实仍原样`（1.6 落地的返回位置扩展已被该用例覆盖） | 6.9 实机 | 待验证 |
+| 42 | 跨页结束与重载恢复实验结果 | 新 | 4.6, 6.8 | `navigation-intent.test.ts › A/B 批次 ⇒ drop：永不自动聚焦，由用户挑臂` + `navigation-intent.test.ts › 本会话没提交过（重载恢复）⇒ none：不凭「结果可读」就跳` + `experiment-results-actions.test.ts › 重载后由登记快照恢复：批次呈现恢复、结果读取可重建、内存草稿与待定提交零补造` + `experiment-results-actions.test.ts › 后台结束不抢页：采纳已收口批次快照时，人在别的页面就留在别的页面（A/B 意图恒 drop）` | 6.8 实机 | 待验证 |
 
 ### DU8. messages 编辑工作区保留单请求来源与返回路径（ADDED，4 场景）
 
@@ -125,10 +125,10 @@
 
 | n | 场景 | 保留/新 | 任务 | 单元/契约证据 | 实机入口/批次 | 状态 |
 |---|---|---|---|---|---|---|
-| 52 | 同批 arm 自动配对 | 保留 | 4.2 | `experiment-records.test.ts › 同父合法两臂 ⇒ eligible，批次身份保留各臂已记录 experimentId` + `compare-metrics.test.ts › 三条 ⇒ 提示显式选两条；四条同口径（列数与集合一致）` | 6.7 实机 | 待验证 |
-| 53 | 多批实验共存 | 保留 | 4.2 | adjacent：`experiment-records.test.ts › 异父臂 ⇒ ineligible PARENT_DIFFERS；相同 experimentId 不能绕过`；4.2 落地后补 | 6.7 实机 | 待验证 |
-| 54 | 预览标签不充当真实批次身份 | 新 | 4.2 | main 事实：dry-run experimentId 与真实执行各自生成、不可复用（fork-runner.ts L58–71，review 已核实）；4.2 落地后补 | 6.7 实机 | 待验证 |
-| 55 | 同父同模型仍按真实批次分组 | 新 | 4.2 | 4.2 落地后补 | 6.7 实机 | 待验证 |
+| 52 | 同批 arm 自动配对 | 保留 | 4.2 | `experiment-records.test.ts › 同父合法两臂 ⇒ eligible，批次身份保留各臂已记录 experimentId` + `compare-metrics.test.ts › 三条 ⇒ 提示显式选两条；四条同口径（列数与集合一致）` + `experiment-results.test.ts › 每批独立成块：批次 operationId 与实验组标签（main 登记）逐字在场`（同批同组标签逐字呈现） | 6.7 实机 | 待验证 |
+| 53 | 多批实验共存 | 保留 | 4.2 | adjacent：`experiment-records.test.ts › 异父臂 ⇒ ineligible PARENT_DIFFERS；相同 experimentId 不能绕过` + `experiment-results.test.ts › 多批共存：同父两批各自成组，按 startedAt + operationId 确定排序` | 6.7 实机 | 待验证 |
+| 54 | 预览标签不充当真实批次身份 | 新 | 4.2 | main 事实：dry-run experimentId 与真实执行各自生成、不可复用（fork-runner.ts L58–71，review 已核实） + `experiment-results.test.ts › 呈现层纯度：结果区组件与派生层不摸草稿正文/授权/计划/凭据`（结果区派生输入无计划 ⇒ 预览标签结构上进不了结果区） + `experiment-results.test.ts › experimentId 缺席如实呈现为 null；逐臂呈现复用 deriveAbBatchResult（armCount 基准）` | 6.7 实机 | 待验证 |
+| 55 | 同父同模型仍按真实批次分组 | 新 | 4.2 | `experiment-results.test.ts › 同父同模型仍按真实批次分组：experimentId 相同也不合并， operationId 才是分组键` | 6.7 实机 | 待验证 |
 
 ### ME2. 成本确认和 dry-run 必须显式（MODIFIED，6 场景）
 
