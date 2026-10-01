@@ -13,7 +13,7 @@
 > `apps/desktop/test/` 下文件；含 `/` = 仓库相对路径）。由 `.workbuddy/u7/u7-61/verify-scenario-checklist.cjs`
 > 逐条核对（文件存在 + 用例名在场），含 `--selftest` 反例。
 
-汇总口径：**72 条场景（ADDED 41 / MODIFIED 31）**，已交付 **64** 条、待验证 **8** 条、实机不成立 **0** 条（6.4 实机 20 条 + 6.5 实机 20 条 + 6.6 实机 11 条 + 6.7 实机 7 条 + 6.8 实机 5 条 + 6.3 反证 1 条）
+汇总口径：**72 条场景（ADDED 41 / MODIFIED 31）**，已交付 **72** 条、待验证 **0** 条、实机不成立 **0** 条（6.4 实机 20 条 + 6.5 实机 20 条 + 6.6 实机 11 条 + 6.7 实机 7 条 + 6.8 实机 5 条 + 6.9 实机 8 条 + 6.3 反证 1 条）——三份 delta 全量 72 条场景全部实机交付，无遗留待验证
 
 ---
 
@@ -56,7 +56,7 @@
 |---|---|---|---|---|
 | 17 | 长节点字段完整可读 | `u7-tree-view.test.ts › 节点字段：短 ID、模型缺失标「未记录」；完整 ID 在 title 里可读可复制` + `u7-tree-view.test.ts › 完整 ID + 复制按钮；完整任务展开/复制（LongText 契约）；模型缺失标未记录` | 6.4 实机（长任务/长模型/长 ID 标本） | 已交付（6.4 实机） |
 | 18 | 选中打开与加入对比分离 | `u7-tree-view.test.ts › 列表渲染同一数据：行带选中/打开/加入对照三动作（均为可 Tab 聚焦的 button）` + `u7-tree-view.test.ts › 对照状态同步：inCompare ⇒ aria-pressed 且文案为「移出对照」` | 6.4 实机 | 已交付（6.4 实机） |
-| 19 | 键盘关系列表与图同步 | `u7-tree-view.test.ts › 列表渲染同一数据：行带选中/打开/加入对照三动作（均为可 Tab 聚焦的 button）` + `u7-tree-view.test.ts › 选中与对比状态在列表可见（aria-pressed 同步）` | 6.9 实机（纯键盘闭环） | 待验证 |
+| 19 | 键盘关系列表与图同步 | `u7-tree-view.test.ts › 列表渲染同一数据：行带选中/打开/加入对照三动作（均为可 Tab 聚焦的 button）` + `u7-tree-view.test.ts › 选中与对比状态在列表可见（aria-pressed 同步）` | 6.9 实机（纯键盘闭环） | 已交付（6.9 实机） |
 | 20 | 父缺失与实验分组不造记录 | `u7-tree-view.test.ts › 缺父占位只显示真实引用与不可用原因，无任何动作按钮；原 run 保留` + `u7-tree-view.test.ts › 实验分组只按记录 experimentId：组头在首臂前出现一次，无标签 run 不进组` + `derive.test.ts › parent 链成环：环上的 run 提为根并标 cycle，不死循环` | 6.4 实机（缺父/成环/实验组标本） | 已交付（6.4 实机） |
 
 ### B5. 对照身份与四列指标保持可辨（ADDED，3 场景）
@@ -99,18 +99,18 @@
 | n | 场景 | 单元/契约证据 | 实机入口/批次 | 状态 |
 |---|---|---|---|---|
 | 37 | 长任务路径模型与结果不遮挡操作 | `focus-escape-responsive.test.ts › 操作面板 max-h 按视口比例钳制 + 横向不超 90vw` + `focus-escape-responsive.test.ts › 设置模态受 85vh 钳制并内部滚动（长表单/200% 缩放在框内滚，不撑破屏幕）` | 6.8 实机（五档宽度 + 200% 缩放） | 已交付（6.8 实机） |
-| 38 | 创建页面键盘可离开而模态约束焦点 | `focus-escape-responsive.test.ts › 面板走共享 useEscapeClose(open, closePanel)；✕ 与 Esc 同一关闭动作`（模态约束键盘归 U5/U3 已交付实机批次；本轮 6.9 回归） | 6.9 实机（回归） | 待验证 |
+| 38 | 创建页面键盘可离开而模态约束焦点 | `focus-escape-responsive.test.ts › 面板走共享 useEscapeClose(open, closePanel)；✕ 与 Esc 同一关闭动作`（模态约束键盘归 U5/U3 已交付实机批次；本轮 6.9 回归） | 6.9 实机（回归） | 已交付（6.9 实机） |
 | 39 | 只读反馈和读取重试保持数据边界 | `compare-readonly.test.ts › 选中→比较→重试→指标阅读→交换→返回：只产生 runs:compare，执行/写通道零调用` + `compare-readonly.test.ts › 不清草稿、不恢复授权：比较动作零新增确认、零改动草稿与来源撤销（许可状态面）` | 6.6 实机（只读计数/哈希核对） | 已交付（6.6 实机） |
 
 ### DU4. 双运行工作区保留比较对象和返回位置（ADDED，5 场景）
 
 | n | 场景 | 单元/契约证据 | 实机入口/批次 | 状态 |
 |---|---|---|---|---|
-| 40 | 父子入口默认父左子右 | `compare-workspace-store.test.ts › 打开即父左子右：视图切比较、选中项与全局集合不动、读取按新序发起` + `compare-navigation.test.ts › 有真实直接父 ⇒ 打开，左=父、右=当前运行` + `compare-navigation.test.ts › model_params 臂 ⇒ 被实验门禁挡住，不提供普通比较旁路` | 6.9 实机 | 待验证 |
+| 40 | 父子入口默认父左子右 | `compare-workspace-store.test.ts › 打开即父左子右：视图切比较、选中项与全局集合不动、读取按新序发起` + `compare-navigation.test.ts › 有真实直接父 ⇒ 打开，左=父、右=当前运行` + `compare-navigation.test.ts › model_params 臂 ⇒ 被实验门禁挡住，不提供普通比较旁路` | 6.9 实机 | 已交付（6.9 实机） |
 | 41 | 更换交换不改变侧栏选择 | `compare-workspace-store.test.ts › 更换一侧：pair 更新并按新序重读；侧栏选择不动；同 ID 拒绝、同值幂等` + `compare-workspace-store.test.ts › 交换左右：pair 反转并按新序重读；侧栏选择不动` | 6.5 实机 | 已交付（6.5 实机） |
-| 42 | 手动两条比较按加入顺序确定左右 | `compare-workspace-store.test.ts › 恰好两条（先子后父）⇒ 加入顺序定左右：子左父右，并按该序读取（2.5）` + `compare-navigation.test.ts › 恰好两条 ⇒ 按加入顺序定左右：先子后父也是子左父右（不自动重排）` | 6.9 实机 | 待验证 |
+| 42 | 手动两条比较按加入顺序确定左右 | `compare-workspace-store.test.ts › 恰好两条（先子后父）⇒ 加入顺序定左右：子左父右，并按该序读取（2.5）` + `compare-navigation.test.ts › 恰好两条 ⇒ 按加入顺序定左右：先子后父也是子左父右（不自动重排）` | 6.9 实机 | 已交付（6.9 实机） |
 | 43 | 返回恢复来源与单侧阅读 | `compare-workspace-store.test.ts › 返回来源：恢复视图与阅读位置，凭据一次性用掉` + `compare-workspace-store.test.ts › 打开单侧不清凭据：selectRun 离开比较 → 返回比较 → 来源引用仍在` | 6.5 实机 | 已交付（6.5 实机） |
-| 44 | 后台结束不抢比较页且草稿保留 | `compare-readonly.test.ts › 不清草稿、不恢复授权：比较动作零新增确认、零改动草稿与来源撤销（许可状态面）` + `u6-partial-result-closure.test.ts › 不可读 → ownOnly 正常：重试后按原关联清理；全程零执行通道、不换选中项` | 6.9 实机（后台操作收尾 + 比较页在场） | 待验证 |
+| 44 | 后台结束不抢比较页且草稿保留 | `compare-readonly.test.ts › 不清草稿、不恢复授权：比较动作零新增确认、零改动草稿与来源撤销（许可状态面）` + `u6-partial-result-closure.test.ts › 不可读 → ownOnly 正常：重试后按原关联清理；全程零执行通道、不换选中项` | 6.9 实机（后台操作收尾 + 比较页在场） | 已交付（6.9 实机） |
 
 ### DU5. 比较读取验证身份完整性并隔离迟到响应（ADDED，5 场景）
 
@@ -157,15 +157,15 @@
 
 | n | 场景 | 单元/契约证据 | 实机入口/批次 | 状态 |
 |---|---|---|---|---|
-| 61 | 分别打开文件并返回比较 | `compare-workspace-store.test.ts › 隔离运行 + 自有完成步骤选中 ⇒ 打开文件页：检查点落在该自有步骤上，pair 与来源引用保留` + `compare-readonly.test.ts › 单侧文件打开（隔离 run）→ 返回比较：只走 runs:get + 文件清单只读，不碰执行通道` | 6.9 实机（两侧隔离 run 各保存不同检查点/path） | 待验证 |
-| 62 | 非法文件目标与普通运行不造历史 | `compare-workspace-store.test.ts › 普通运行 ⇒ unsupported：不发起 runs:get、不进文件页（不造文件历史）` + `compare-workspace-store.test.ts › 选中步骤是祖先/非自有 ⇒ 打开文件页但不写该检查点（走 U2 已保存/默认）` + `compare-workspace-view.test.tsx › not-isolated：普通运行入口禁用并给原因（不造文件历史）` | 6.9 实机 | 待验证 |
+| 61 | 分别打开文件并返回比较 | `compare-workspace-store.test.ts › 隔离运行 + 自有完成步骤选中 ⇒ 打开文件页：检查点落在该自有步骤上，pair 与来源引用保留` + `compare-readonly.test.ts › 单侧文件打开（隔离 run）→ 返回比较：只走 runs:get + 文件清单只读，不碰执行通道` | 6.9 实机（两侧隔离 run 各保存不同检查点/path） | 已交付（6.9 实机） |
+| 62 | 非法文件目标与普通运行不造历史 | `compare-workspace-store.test.ts › 普通运行 ⇒ unsupported：不发起 runs:get、不进文件页（不造文件历史）` + `compare-workspace-store.test.ts › 选中步骤是祖先/非自有 ⇒ 打开文件页但不写该检查点（走 U2 已保存/默认）` + `compare-workspace-view.test.tsx › not-isolated：普通运行入口禁用并给原因（不造文件历史）` | 6.9 实机 | 已交付（6.9 实机） |
 
 ### DU11. 比较工作区在窄窗口与只读操作下连续可用（ADDED，3 场景）
 
 | n | 场景 | 单元/契约证据 | 实机入口/批次 | 状态 |
 |---|---|---|---|---|
 | 63 | 窄窗和缩放仍能完整阅读 | `compare-workspace-view.test.tsx › 宽容器 ⇒ 并排两列（grid-cols-2）` + `compare-workspace-view.test.tsx › 窄容器 ⇒ 上下排列（grid-cols-1）且对象标题重复（每列自带标题区）` + `compare-navigation.test.ts › 正文容器 ≥ 960 ⇒ 并排；< 960 ⇒ 上下排列（阈值按容器宽度，不是整窗）` | 6.8 实机（1440/1360/1024/800 + 200% 缩放） | 已交付（6.8 实机） |
-| 64 | 键盘完成比较闭环 | `compare-workspace-view.test.tsx › 动作按钮全部带 focus-visible 焦点环（键盘焦点可见）` + `compare-workspace-view.test.tsx › 在飞读取不卸载动作按钮（交换/加载/重试不把焦点甩回页顶的静态前提）` + `u7-tree-view.test.ts › 列表渲染同一数据：行带选中/打开/加入对照三动作（均为可 Tab 聚焦的 button）` | 6.9 实机（纯键盘闭环） | 待验证 |
+| 64 | 键盘完成比较闭环 | `compare-workspace-view.test.tsx › 动作按钮全部带 focus-visible 焦点环（键盘焦点可见）` + `compare-workspace-view.test.tsx › 在飞读取不卸载动作按钮（交换/加载/重试不把焦点甩回页顶的静态前提）` + `u7-tree-view.test.ts › 列表渲染同一数据：行带选中/打开/加入对照三动作（均为可 Tab 聚焦的 button）` | 6.9 实机（纯键盘闭环） | 已交付（6.9 实机） |
 | 65 | 比较全程只读且不恢复许可 | `compare-readonly.test.ts › 选中→比较→重试→指标阅读→交换→返回：只产生 runs:compare，执行/写通道零调用` + `compare-readonly.test.ts › 指标表选两条（openComparePair）与更换/交换：同样零执行通道` + `compare-readonly.test.ts › 不清草稿、不恢复授权：比较动作零新增确认、零改动草稿与来源撤销（许可状态面）` | 6.3 反证（变异：任一执行通道被调用即红）+ 6.6 实机（计数/哈希） | 已交付（6.6 实机） |
 
 ---
