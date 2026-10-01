@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  type RecordingBaseline,
+  type RecordingDraft,
   applyRecordingBaseline,
   discardRecordingDraft,
   ensureRecordingDraft,
@@ -8,8 +10,6 @@ import {
   recordingPortError,
   recordingUpstreamError,
   writeRecordingDraft,
-  type RecordingBaseline,
-  type RecordingDraft,
 } from "../src/renderer/src/lib/recording-draft";
 
 const baseline: RecordingBaseline = {
@@ -55,7 +55,11 @@ describe("U8 2.1：录制草稿的 ensure 与基线", () => {
 
   it("状态回读落地只更新 baseline，不动用户输入；相同 baseline 返回原引用", () => {
     const edited = writeRecordingDraft(ensureRecordingDraft(null, baseline), { portText: "20000" });
-    const next = applyRecordingBaseline(edited, { enabled: false, port: 19000, upstreamBaseUrl: "https://x" });
+    const next = applyRecordingBaseline(edited, {
+      enabled: false,
+      port: 19000,
+      upstreamBaseUrl: "https://x",
+    });
     expect(next.portText).toBe("20000");
     expect(next.baseline?.port).toBe(19000);
     expect(applyRecordingBaseline(edited, baseline)).toBe(edited);
@@ -92,7 +96,10 @@ describe("U8 2.1：写入修订与 dirty", () => {
 
 describe("U8 2.2：放弃（CAS，不调用配置写通道）", () => {
   it("修订一致 ⇒ 恢复 baseline 值且拿新修订（防 ABA 复用旧确认）", () => {
-    const d1 = writeRecordingDraft(ensureRecordingDraft(null, baseline), { portText: "1", enabled: true });
+    const d1 = writeRecordingDraft(ensureRecordingDraft(null, baseline), {
+      portText: "1",
+      enabled: true,
+    });
     const result = discardRecordingDraft(d1, d1.revision);
     expect(result.discarded).toBe(true);
     expect(result.draft?.portText).toBe("18787");

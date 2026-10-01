@@ -63,7 +63,6 @@ import { DraftSourceBanner } from "./DraftSourceBanner";
 import { EntryGateNotice } from "./EntryGateNotice";
 import { FOCUS_RING } from "./IconButton";
 import { LongText, isLongTextExpanded, toggleLongTextExpanded } from "./LongText";
-import { ModelAbEditor } from "./ModelAbEditor";
 import { MonacoCodeEditor } from "./MonacoEditor";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -771,7 +770,9 @@ function LlmCallDetail({
           return (
             <>
               <PromptForkEditor key={span.id} span={span} run={run} />
-              <ModelAbEditor key={`ab-${span.id}`} span={span} run={run} />
+              {/* U8 3.1b：模型 A/B 编辑器迁往实验工作区（运行级「更多操作」入口进入；
+                  步骤页不再挂第二份编辑表单——同一草稿键、同一执行通道，不存在两份配置真相）。
+                  隔离 notice 的文案里保留 A/B 字样（门禁事实不变）。 */}
             </>
           );
         }

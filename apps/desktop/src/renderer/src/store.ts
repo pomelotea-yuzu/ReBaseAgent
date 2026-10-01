@@ -986,6 +986,13 @@ interface AppState {
    * 在飞期间拒绝重复应用；响应只在修订匹配时更新基线（2.6）。
    */
   applyRecordingDraft: () => Promise<"applied" | "start-failed" | "invalid" | "busy" | "no-draft">;
+  /**
+   * U8 任务 3.1b：实验目标的**父本源读取**（只读 `runs:get`）。
+   * 目标不跟随侧栏选择 ⇒ 工作区不能借用全局 `detail`；本读取不改选中项、
+   * 不切页、不碰阅读状态——失败保留旧读取项并允许只读重试。
+   */
+  experimentSource: ExperimentSourceState;
+  readExperimentSource: () => Promise<void>;
   /** 打开设置并定位到某分区（全局栏「录制接入」用），null = 常规打开 */
   setSettingsSection: (section: "proxy" | null) => void;
   /** 勾选/取消对照（上限 4，超出不加入并给出提示） */
@@ -1434,6 +1441,18 @@ function enterAuxWorkspace(
   });
 }
 
+/** U8 3.1b：实验目标父本源的四态（idle = 换目标后待读取） */
+export interface ExperimentSourceState {
+  readonly phase: "idle" | "reading" | "ready" | "failed";
+  readonly detail: RunDetail | null;
+  readonly errorMessage: string | null;
+}
+
+/** U8 3.1b：初值（换目标/复位共用同一形状） */
+export function idleExperimentSource(): ExperimentSourceState {
+  return { phase: "idle", detail: null, errorMessage: null };
+}
+
 /**
  * 提交目标 → 草稿定位目标（U5 任务 3.5 的「返回草稿」）。
  *
@@ -1747,6 +1766,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   messagesReturnLocation: null,
   experimentTarget: null,
   messagesTarget: null,
+  experimentSource: idleExperimentSource(),
   recordingDraft: null,
   recordingApply: null,
   recordingApplyError: null,
@@ -3104,6 +3124,8 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   openExperimentWorkspace(target) {
     enterAuxWorkspace("experiment", target);
+    // U8 3.1b：换目标 ⇒ 父本源回到待读取（容器按目标发起只读读取；旧目标的详情不残留）
+    useAppStore.setState({ experimentSource: idleExperimentSource() });
   },
 
   openMessagesWorkspace(target) {
@@ -3175,6 +3197,32 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
     set(patch);
     return startOk ? "applied" : "start-failed";
+  },
+
+  async readExperimentSource() {
+    const target = get().experimentTarget;
+    if (target === null) return;
+    // 只读 runs:get：不改选中项、不切视图、不碰阅读状态（design D1「后台核实不切页」）
+    set({ experimentSource: { phase: "reading", detail: null, errorMessage: null } });
+    const envelope = await api.getRun(target.runId);
+    if (!envelope.ok) {
+      set({
+        experimentSource: { phase: "failed", detail: null, errorMessage: envelope.error.message },
+      });
+      return;
+    }
+    const parsed = RunDetailSchema.safeParse(envelope.data);
+    if (!parsed.success) {
+      set({
+        experimentSource: {
+          phase: "failed",
+          detail: null,
+          errorMessage: `父本详情数据结构校验失败：${describeZodError(parsed.error)}`,
+        },
+      });
+      return;
+    }
+    set({ experimentSource: { phase: "ready", detail: parsed.data, errorMessage: null } });
   },
 
   setSettingsSection(section) {

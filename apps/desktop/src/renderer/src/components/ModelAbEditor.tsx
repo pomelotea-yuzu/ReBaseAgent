@@ -107,9 +107,19 @@ function ArmPlanRow({ arm }: { arm: ModelArmPlan }) {
 export function ModelAbEditor({
   span,
   run,
+  sourceExecutable: sourceExecutableOverride,
+  alwaysOpen = false,
 }: {
   span: Extract<SpanLine, { kind: "llm.call" }>;
   run: RunDetail;
+  /**
+   * U8 3.1b：目标作用域的源可用性覆盖。缺省（undefined）= 沿用全局选中详情的门禁
+   * （DetailPanel 步骤页语义：编辑器就在当前选中 run 上）；实验工作区传入
+   * **按目标 runId 计算**的可用性——目标不跟随侧栏选择，全局门禁在这里会看错对象。
+   */
+  readonly sourceExecutable?: boolean;
+  /** U8 3.1b：工作区形态常开（初始即展开、无「收起」按钮、Esc 不收起；草稿照常保留） */
+  readonly alwaysOpen?: boolean;
 }) {
   const modelAbInFlight = useAppStore((s) => s.modelAbInFlight);
   const modelAbError = useAppStore((s) => s.modelAbError);
@@ -119,14 +129,15 @@ export function ModelAbEditor({
   const resetModelAb = useAppStore((s) => s.resetModelAb);
   const ensureModelAbDraft = useAppStore((s) => s.ensureModelAbDraft);
   const writeRows = useAppStore((s) => s.setModelAbRows);
-  // 源记录不可用时禁用依赖它的执行（任务 3.5）
-  const sourceExecutable = useAppStore((s) => s.canExecuteFromSource)();
+  // 源记录不可用时禁用依赖它的执行（任务 3.5）；工作区传入目标作用域覆盖（3.1b）
+  const sourceExecutableFromSelection = useAppStore((s) => s.canExecuteFromSource)();
+  const sourceExecutable = sourceExecutableOverride ?? sourceExecutableFromSelection;
 
   const parentModel = span.request.model;
   const parentParams = useMemo(() => scalarRequestParams(span.request.params), [span]);
   const risky = useMemo(() => riskyToolNames(span.request.tools), [span]);
 
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(alwaysOpen);
   const [allowSideEffects, setAllowSideEffects] = useState(false);
   const [plan, setPlan] = useState<ModelAbResult | null>(null);
   // U3 任务 3.3：计划所绑定的批次修订（预览时的请求代次）——见下方 activePlan
@@ -307,8 +318,9 @@ export function ModelAbEditor({
     );
   };
 
-  // U3 任务 6.10（design D7）：Esc 收起与「收起」按钮同动作（保留批次草稿）
-  useEscapeClose(open && !inProgress, () => {
+  // U3 任务 6.10（design D7）：Esc 收起与「收起」按钮同动作（保留批次草稿）。
+  // U8 3.1b：工作区形态常开 ⇒ Esc 不收起（收起语义只属于步骤页内联形态）。
+  useEscapeClose(open && !alwaysOpen && !inProgress, () => {
     resetModelAb();
     setOpen(false);
   });
@@ -410,17 +422,19 @@ export function ModelAbEditor({
         <span className="text-[11px] font-semibold text-sky-900">
           模型 A/B 实验 · 同上下文多臂对比
         </span>
-        <button
-          type="button"
-          onClick={() => {
-            resetModelAb();
-            setOpen(false);
-          }}
-          disabled={inProgress}
-          className="rounded border border-gray-300 px-2 py-0.5 text-[11px] text-gray-600 hover:bg-gray-50 disabled:opacity-40"
-        >
-          收起
-        </button>
+        {alwaysOpen ? null : (
+          <button
+            type="button"
+            onClick={() => {
+              resetModelAb();
+              setOpen(false);
+            }}
+            disabled={inProgress}
+            className="rounded border border-gray-300 px-2 py-0.5 text-[11px] text-gray-600 hover:bg-gray-50 disabled:opacity-40"
+          >
+            收起
+          </button>
+        )}
       </div>
 
       <div className="space-y-2">

@@ -49,7 +49,9 @@ function view(
 
 describe("U8 2.7：真实状态三分（意图 / 监听 / 凭据）", () => {
   it("running+hasKey ⇒ 三层事实分行可辨；未监听 ⇒ 明说启用不等于监听成功", () => {
-    expect(recordingStatusLines(proxyState({ enabled: true, running: true, hasKey: true }), false)).toEqual([
+    expect(
+      recordingStatusLines(proxyState({ enabled: true, running: true, hasKey: true }), false),
+    ).toEqual([
       { label: "保存的启用意图", value: "已启用（配置已保存）" },
       { label: "本地监听", value: "运行中 · 端口 18787" },
       { label: "本会话凭据", value: "已捕获（本会话有请求经过）" },
@@ -133,7 +135,7 @@ describe("U8 2.4：字段校验就近呈现 + 应用门禁（非法零请求的�
 
   it("合法字段 ⇒ 应用按钮可用（对照支：disabled 不在场）", () => {
     const html = view({}, { portText: "20000" });
-    expect(html).not.toContain('data-recording-apply[^>]* disabled');
+    expect(html).not.toContain("data-recording-apply[^>]* disabled");
     expect(html).not.toMatch(/data-recording-apply[^>]* disabled=""/);
   });
 

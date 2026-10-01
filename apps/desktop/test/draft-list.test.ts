@@ -235,13 +235,22 @@ const LIST_PANEL = readFileSync(
 );
 
 describe("接线契约：草稿入口与失效视图（任务 2.5）", () => {
+  // ⚠️ U8 3.1b 改判留痕：ModelAbEditor 迁往独立文件（步骤页不再挂载它），
+  // 四编辑器重验闸门的判据改为「DetailPanel 内三个 + ModelAbEditor.tsx 一个」分文件计数。
+  const MODEL_AB_EDITOR = readFileSync(
+    resolve(import.meta.dirname, "../src/renderer/src/components/ModelAbEditor.tsx"),
+    "utf8",
+  );
   it("DetailPanel 挂载本运行草稿列表 + 失效横幅；视图组件共享", () => {
     expect(DETAIL_PANEL).toContain("<RunDraftListSection runId={selectedRunId} />");
     expect(DETAIL_PANEL).toContain("deriveDraftList(drafts, { runId })");
     expect(DETAIL_PANEL).toContain("<DraftListPanel");
     expect(DETAIL_PANEL).toContain("DraftSourceBanner");
     // 四个编辑器都叠加重验闸门（恢复重验通过才恢复执行资格）
-    expect(DETAIL_PANEL.match(/sourceBlocked === null/g)?.length ?? 0).toBeGreaterThanOrEqual(4);
+    const gates =
+      (DETAIL_PANEL.match(/sourceBlocked === null/g)?.length ?? 0) +
+      (MODEL_AB_EDITOR.match(/sourceBlocked === null/g)?.length ?? 0);
+    expect(gates).toBeGreaterThanOrEqual(4);
   });
 
   it("GlobalBar 挂载全会话入口：同一面板组件、不按 run 过滤", () => {

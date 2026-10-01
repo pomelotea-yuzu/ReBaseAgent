@@ -120,6 +120,7 @@ beforeEach(async () => {
     messagesReturnLocation: null,
     experimentTarget: null,
     messagesTarget: null,
+    experimentSource: { phase: "idle", detail: null, errorMessage: null },
     // U7 比较族复位（1.6 往返用例的现场不得跨 describe 渗漏）
     compareIds: [],
     compareNotice: null,
@@ -408,6 +409,56 @@ describe("U8 1.6：实验工作区与比较的往返（比较拒绝和返回实�
     expect(stateOf().compareReturnLocation).toBeNull();
     expect(stateOf().experimentTarget).toBe(target);
     expect(stateOf().compareIds).toEqual([SOURCE, ELSEWHERE]);
+  });
+});
+
+describe("U8 3.1b：实验目标的父本源读取（readExperimentSource）", () => {
+  it("只读 runs:get：读到目标详情，不改选中项、不切视图、不动阅读代次", async () => {
+    useAppStore.setState({ selectedRunId: SOURCE, view: "experiment" });
+    useAppStore.getState().openExperimentWorkspace({ runId: SOURCE, spanId: "s_01" });
+    const generation = stateOf().navGeneration;
+    const selectedBefore = stateOf().selectedRunId;
+
+    await useAppStore.getState().readExperimentSource();
+
+    const source = stateOf().experimentSource;
+    expect(source.phase).toBe("ready");
+    expect(source.detail?.meta.id).toBe(SOURCE);
+    expect(stateOf().selectedRunId).toBe(selectedBefore);
+    expect(stateOf().view).toBe("experiment");
+    expect(stateOf().navGeneration).toBe(generation);
+    expect(calls.filter((c) => c.startsWith("runs:get:"))).toEqual([`runs:get:${SOURCE}`]);
+  });
+
+  it("读取失败 ⇒ phase failed + 错误保留（允许只读重试，不动草稿）", async () => {
+    useAppStore.getState().openExperimentWorkspace({ runId: SOURCE, spanId: "s_01" });
+    // 复位后重打桩：getRun 失败
+    const failing = async (): Promise<Envelope<RunDetail>> => ({
+      ok: false,
+      error: { code: "NOT_FOUND", message: "父本已不在" },
+    });
+    useAppStore.setState({
+      experimentSource: { phase: "idle", detail: null, errorMessage: null },
+    });
+    const api = (globalThis as { window: { api: Record<string, unknown> } }).window.api;
+    const original = api.getRun;
+    api.getRun = failing;
+    try {
+      await useAppStore.getState().readExperimentSource();
+    } finally {
+      api.getRun = original;
+    }
+    expect(stateOf().experimentSource.phase).toBe("failed");
+    expect(stateOf().experimentSource.errorMessage).toContain("父本已不在");
+  });
+
+  it("换目标 ⇒ 源回到 idle（旧目标的详情不残留）", () => {
+    useAppStore.setState({
+      experimentSource: { phase: "ready", detail: null, errorMessage: null },
+    });
+    useAppStore.getState().openExperimentWorkspace({ runId: ELSEWHERE, spanId: "s_01" });
+    expect(stateOf().experimentSource.phase).toBe("idle");
+    expect(stateOf().experimentTarget).toEqual({ runId: ELSEWHERE, spanId: "s_01" });
   });
 });
 
