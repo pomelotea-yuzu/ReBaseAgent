@@ -194,6 +194,10 @@ export function ModelAbEditor({
   // （dry-run 结论要打到的是"当时那台上游"）；代理启停/凭据波动不参与（modelConfigStampOf 的口径）
   const currentConfigStamp = modelConfigStampOf(settings);
   const [planConfigStamp, setPlanConfigStamp] = useState<string | null>(null);
+  // U8 任务 3.7：计划还绑着**预览时的已核实配置变化代次**——仅轮换 key 的成功保存
+  // （指纹不变）同样作废旧计划；普通 proxy:status 刷新不推进代次、不作废计划。
+  const settingsChangeGeneration = useAppStore((s) => s.settingsChangeGeneration);
+  const [planSettingsGeneration, setPlanSettingsGeneration] = useState<number | null>(null);
   // U6 任务 4.10：来源撤销令牌——详情重读为 ownOnly、或 main 以来源类稳定码拒绝后，
   // 旧计划与本次副作用许可作废，恢复须重新预览并重新确认（批次草稿正文保留）。
   const sourceRevocation = useAppStore((s) => s.sourceRevocation);
@@ -206,6 +210,8 @@ export function ModelAbEditor({
     draftRevision,
     planConfigStamp,
     currentConfigStamp,
+    planSettingsGeneration,
+    currentSettingsGeneration: settingsChangeGeneration,
   });
   const activePlan = plan !== null && planFreshness === "fresh" ? plan : null;
   // 计划不见了的原因分三种：还没预览、预览所绑的批次修订已推进（改臂/改参数）、配置变了。
@@ -386,6 +392,7 @@ export function ModelAbEditor({
     // U5 任务 5.3：同一时刻的模型配置指纹一并记录（在飞期间改了设置也不装新计划）
     const requestedRevision = draftRevision;
     const requestedStamp = currentConfigStamp;
+    const requestedSettingsGeneration = settingsChangeGeneration;
     void modelAb(run.meta.id, guard.arms, true).then((result) => {
       if (result === null) return;
       // U3 任务 3.3：守卫迟到预览——响应到达时批次修订已推进（或批次已被放弃）
@@ -395,6 +402,7 @@ export function ModelAbEditor({
       setPlan(result);
       setPlanRevision(requestedRevision);
       setPlanConfigStamp(requestedStamp);
+      setPlanSettingsGeneration(requestedSettingsGeneration);
     });
   };
 
@@ -718,7 +726,9 @@ export function ModelAbEditor({
                 : undefined
           }
         >
-          确认执行（{activePlan?.plan.length ?? rows.length} 次真实调用）
+          {/* U8 3.7/3.9：措辞只称「臂」——臂数不是准确 API 请求数（每臂 loop 可多次调用），
+              delta「费用确认区分臂数和请求数」禁止把臂数宣称为请求次数 */}
+          确认执行（{activePlan?.plan.length ?? rows.length} 臂）
         </button>
       </div>
     </div>

@@ -236,8 +236,10 @@ describe("接线契约：A/B 预览修订绑定与迟到守卫（任务 3.3）",
     // （行为单测在 `settings-roundtrip-invalidate.test.ts` 的 decidePlanFreshness 节；
     //  配置指纹一并进同一判据）。这里钉"组件把两份修订都交给了它、activePlan 只认 fresh"。
     expect(code).toContain('plan !== null && planFreshness === "fresh" ? plan : null');
+    // U8 3.7 扩展（两边留痕）：新鲜度判据再带上**已核实配置变化代次**（仅轮换 key 的
+    // 保存也作废旧计划；proxy:status 刷新不推进代次）——判据调用多两个实参
     expect(code.replace(/\s+/g, " ")).toContain(
-      "decidePlanFreshness({ planRevision, draftRevision, planConfigStamp, currentConfigStamp, })",
+      "decidePlanFreshness({ planRevision, draftRevision, planConfigStamp, currentConfigStamp, planSettingsGeneration, currentSettingsGeneration: settingsChangeGeneration, })",
     );
     // 渲染/执行只认派生计划，不直接读原始局部态（否则旧计划仍会被展示/执行）
     expect(code).not.toContain("{plan !== null ?");

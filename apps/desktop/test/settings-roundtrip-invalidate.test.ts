@@ -77,6 +77,44 @@ describe("5.3 decidePlanFreshness：修订与配置是两种要分开的失效",
     ).toBe("fresh");
   });
 
+  // U8 任务 3.7：已核实配置变化代次（仅轮换 key 的保存——指纹不变——也作废旧计划）
+  it("代次推进 ⇒ config-stale（仅轮换 key：指纹相同、代次不同）", () => {
+    expect(
+      decidePlanFreshness({
+        planRevision: 7,
+        draftRevision: 7,
+        planConfigStamp: current,
+        currentConfigStamp: current,
+        planSettingsGeneration: 3,
+        currentSettingsGeneration: 4,
+      }),
+    ).toBe("config-stale");
+  });
+
+  it("代次未推进（普通 proxy:status 刷新场景）⇒ 不误使有效计划失效", () => {
+    expect(
+      decidePlanFreshness({
+        planRevision: 7,
+        draftRevision: 7,
+        planConfigStamp: current,
+        currentConfigStamp: current,
+        planSettingsGeneration: 4,
+        currentSettingsGeneration: 4,
+      }),
+    ).toBe("fresh");
+  });
+
+  it("未接代次的旧调用方（字段缺省）⇒ 行为不变", () => {
+    expect(
+      decidePlanFreshness({
+        planRevision: 7,
+        draftRevision: 7,
+        planConfigStamp: current,
+        currentConfigStamp: current,
+      }),
+    ).toBe("fresh");
+  });
+
   it("批次修订推进 ⇒ revision-stale（U3 3.3 原判据不回归）", () => {
     expect(
       decidePlanFreshness({
@@ -121,7 +159,8 @@ describe("5.3 容器接线（源码级契约）", () => {
       .join("\n");
 
   it("ModelAbEditor：计划安装同时记录配置指纹；activePlan 只认 fresh；失效措辞分两种", () => {
-    const src = read("../src/renderer/src/components/DetailPanel.tsx");
+    // ⚠️ U8 3.1a 改判留痕：ModelAbEditor 提取为独立文件，源码级断言改读新文件
+    const src = read("../src/renderer/src/components/ModelAbEditor.tsx");
     expect(src).toContain("setPlanConfigStamp(requestedStamp)");
     expect(src).toContain('plan !== null && planFreshness === "fresh" ? plan : null');
     expect(src).toContain("预览之后运行配置已改变");

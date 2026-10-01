@@ -163,10 +163,24 @@ export function decidePlanFreshness(input: {
   /** 预览成功时记录的模型配置指纹；null = 还没预览 */
   readonly planConfigStamp: string | null;
   readonly currentConfigStamp: string;
+  /**
+   * U8 3.7：预览成功时记录的**已核实配置变化代次**；null/缺省 = 未接入（旧调用方不变）。
+   * 已核实保存（含仅轮换 key——model/baseURL 相同、指纹不变的那次保存）与已核实清除
+   * 都推进代次 ⇒ 计划作废；普通 `proxy:status` 刷新不推进。回读失败（已保存但状态未知）
+   * 同样推进——不能拿"可能还是那台上游"的猜测保住旧计划。
+   */
+  readonly planSettingsGeneration?: number | null;
+  readonly currentSettingsGeneration?: number;
 }): PlanFreshness {
   if (input.planConfigStamp === null || input.planRevision === null) return "revision-stale";
   // 配置先判：它是"这次计划要打到哪儿"的前提，比修订更值得先说
   if (input.planConfigStamp !== input.currentConfigStamp) return "config-stale";
+  if (
+    input.planSettingsGeneration != null &&
+    input.planSettingsGeneration !== input.currentSettingsGeneration
+  ) {
+    return "config-stale";
+  }
   if (input.planRevision !== input.draftRevision) return "revision-stale";
   return "fresh";
 }

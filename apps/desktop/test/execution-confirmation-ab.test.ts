@@ -237,3 +237,19 @@ describe("4.7 接线契约：确认对象是当前预览计划而非草稿", () 
     );
   });
 });
+
+// U8 任务 3.7：计划绑定**已核实配置变化代次**（仅轮换 key 的保存也作废旧计划）
+describe("U8 3.7 接线契约：预览记录配置代次并传入新鲜度判据（源码级）", () => {
+  // ⚠️ 上面的 `ab` 是 4.7 describe 的局部常量——这里自读同一文件
+  const ab37 = readFileSync(
+    resolve(import.meta.dirname, "../src/renderer/src/components/ModelAbEditor.tsx"),
+    "utf8",
+  );
+  it("订阅代次、预览时记录、新鲜度判据消费", () => {
+    expect(ab37).toContain(
+      "const settingsChangeGeneration = useAppStore((s) => s.settingsChangeGeneration);",
+    );
+    expect(ab37).toContain("setPlanSettingsGeneration(requestedSettingsGeneration);");
+    expect(ab37).toContain("currentSettingsGeneration: settingsChangeGeneration");
+  });
+});

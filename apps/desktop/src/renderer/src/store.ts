@@ -374,6 +374,13 @@ interface AppState {
   recordingStatusReadFailed: boolean;
   /** U8 任务 2.6：状态读取代次（每次 loadProxyStatus 推进；守卫的锚点之一） */
   proxyReadGeneration: number;
+  /**
+   * U8 任务 3.7：**已核实的运行配置变化代次**——已核实保存（含仅轮换 key：model/baseURL
+   * 相同、指纹不变的那次）与已核实清除推进；保存失败不推进；已保存但回读失败**也推进**
+   * （状态未知 ⇒ 撤销旧计划，不拿猜测保住结论）；普通 proxy:status 刷新**不**推进。
+   * 只记次数，零密钥值传播。
+   */
+  settingsChangeGeneration: number;
 
   /**
    * 会话内的短 ID 长度记忆（任务 4.4）。
@@ -1772,6 +1779,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   recordingApplyError: null,
   recordingStatusReadFailed: false,
   proxyReadGeneration: 0,
+  settingsChangeGeneration: 0,
   settingsSection: null,
   shortIdState: new ShortIdState(),
   // U3 任务 3.4：提交关联仓库（与草稿仓库分开的生命周期，见 draft-submission.ts）
@@ -2995,7 +3003,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
     // U5 任务 5.4：保存与回读是**两个结论**——回读失败不否定"已保存"，
     // 但也绝不把旧摘要当新配置事实（loadSettings 失败路径已把 settings 置 null）。
-    return (await get().loadSettings()) ? "saved" : "reread-failed";
+    // U8 任务 3.7：两种成功结局都推进已核实配置变化代次（含仅轮换 key 的保存；
+    // 回读失败=已保存但状态未知，同样撤销实验旧计划）；保存失败不推进。
+    const outcome = (await get().loadSettings()) ? "saved" : "reread-failed";
+    if (outcome === "saved" || outcome === "reread-failed") {
+      set({ settingsChangeGeneration: get().settingsChangeGeneration + 1 });
+    }
+    return outcome;
   },
 
   async clearSettings() {
@@ -3005,6 +3019,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       return false;
     }
     set({ settings: null });
+    // U8 任务 3.7：已核实清除推进配置变化代次（实验旧计划随之作废）
+    set({ settingsChangeGeneration: get().settingsChangeGeneration + 1 });
     return true;
   },
 

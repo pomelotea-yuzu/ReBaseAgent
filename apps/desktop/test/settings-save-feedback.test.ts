@@ -142,6 +142,68 @@ describe("5.4 store.saveSettings：保存与回读是两个结论", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// U8 任务 3.7：已核实配置变化代次（保存/清除推进；失败与 status 刷新不推进）
+// ---------------------------------------------------------------------------
+
+describe("3.7 settingsChangeGeneration：已核实保存/清除推进，失败与只读不推进", () => {
+  beforeEach(() => {
+    useAppStore.setState({ error: null, settings: saved, settingsChangeGeneration: 0 });
+  });
+
+  it("已核实保存（含仅轮换 key：model/baseURL 相同的那次）推进代次", async () => {
+    // apiKey 传空串 = 保持原 key；model/baseURL 与已保存值相同 ⇒ 指纹不变的「仅轮换 key」保存
+    const result = await runSave({ save: ok({ configured: true as const }), reread: ok(saved) });
+    expect(result.outcome).toBe("saved");
+    expect(useAppStore.getState().settingsChangeGeneration).toBe(1);
+  });
+
+  it("保存失败 ⇒ 代次不推进", async () => {
+    const result = await runSave({
+      save: { ok: false, error: { code: "SETTINGS_SAVE_FAILED", message: "写盘失败" } },
+      reread: ok(saved),
+    });
+    expect(result.outcome).toBe("save-failed");
+    expect(useAppStore.getState().settingsChangeGeneration).toBe(0);
+  });
+
+  it("「已保存但回读失败」也推进代次（状态未知 ⇒ 撤销实验旧计划）", async () => {
+    const result = await runSave({
+      save: ok({ configured: true as const }),
+      reread: { ok: false, error: { code: "SETTINGS_READ_FAILED", message: "读取失败" } },
+    });
+    expect(result.outcome).toBe("reread-failed");
+    expect(useAppStore.getState().settingsChangeGeneration).toBe(1);
+  });
+
+  it("已核实清除推进代次；清除失败不推进", async () => {
+    apiStub.clearSettings = async () => ok(undefined);
+    expect(await useAppStore.getState().clearSettings()).toBe(true);
+    expect(useAppStore.getState().settingsChangeGeneration).toBe(1);
+
+    useAppStore.setState({ settingsChangeGeneration: 0, settings: saved });
+    apiStub.clearSettings = async () => ({
+      ok: false,
+      error: { code: "SETTINGS_CLEAR_FAILED", message: "删除失败" },
+    });
+    expect(await useAppStore.getState().clearSettings()).toBe(false);
+    expect(useAppStore.getState().settingsChangeGeneration).toBe(0);
+  });
+
+  it("普通 proxy:status 刷新不推进该代次（不作废有效计划）", async () => {
+    apiStub.proxyStatus = async () =>
+      ok({
+        enabled: true,
+        running: true,
+        port: 18787,
+        upstreamBaseUrl: "https://api.deepseek.com",
+        hasKey: true,
+      });
+    await useAppStore.getState().loadProxyStatus();
+    expect(useAppStore.getState().settingsChangeGeneration).toBe(0);
+  });
+});
+
 describe("5.4 单向 key 与不冒充连通（结构判据）", () => {
   it("SettingsState 的键集里**没有** apiKey：回读只含配置状态", () => {
     expect(Object.keys(SettingsStateSchema.shape)).not.toContain("apiKey");
