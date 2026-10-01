@@ -213,6 +213,29 @@ describe("4.1/4.2 批次结果区视图：登记身份 + 逐批分块", () => {
     expect(markup).toContain("同父同模型的两批不合并");
   });
 
+  it("4.3 未关联臂零动作：全部臂都无可信 ID ⇒ 整个结果区没有一个可点的按钮（只留诚实说明）", () => {
+    const batches = deriveExperimentBatches({
+      targetRunId: PARENT,
+      operations: [
+        abRecord({
+          runIds: [],
+          arms: [
+            { index: 0, id: null, outcome: null },
+            { index: 1, id: null, outcome: null },
+          ],
+        }),
+      ],
+      reads: emptyResultReadStore(),
+    });
+    const markup = renderToStaticMarkup(
+      createElement(ExperimentResultsSection, { batches, onArmAction: noop }),
+    );
+    // 没有可信 ID ⇒ 没有动作按钮（打开/失败定位/重读都不给），不生成伪链接
+    expect(markup).not.toContain("<button");
+    // 但诚实说明必须可读
+    expect(markup).toContain("不生成结果链接");
+  });
+
   it("零批次 ⇒ 引导语（预览不产生批次），不渲染任何批次块", () => {
     const markup = renderToStaticMarkup(
       createElement(ExperimentResultsSection, { batches: [], onArmAction: noop }),
