@@ -303,4 +303,26 @@ describe("4.1/4.2 源码级：结果区迁到工作区，编辑器/详情不再�
       }
     }
   });
+
+  it("4.4 清理只归 U5：结果区容器不自建第二套收尾/清理/执行路径", () => {
+    // 结果读取与草稿清理的唯一汇合点 = store 的 consumeSettledOperations（U5 §3）；
+    // 工作区只呈现登记事实与动作，不得出现任何收尾/清理调用（否则 4.1 的迁移
+    // 就悄悄长出了第二条清理路径）。核对行为判据由 draft-closure-store 既有两支承载
+    // （全臂正常才清 / 缺臂失败不可读整批保留）。
+    const code = read("../src/renderer/src/components/ExperimentWorkspace.tsx");
+    for (const forbidden of [
+      "consumeSettledOperations",
+      "settleDraft",
+      "discardModelAbDraft",
+      "discardRecordingDraft",
+      "finishDraftSubmission",
+      "beginDraftSubmission",
+    ]) {
+      expect(code, forbidden).not.toContain(forbidden);
+    }
+    const view = read("../src/renderer/src/components/ExperimentResults.tsx");
+    for (const forbidden of ["consumeSettledOperations", "settleDraft", "discard"]) {
+      expect(view, forbidden).not.toContain(forbidden);
+    }
+  });
 });
