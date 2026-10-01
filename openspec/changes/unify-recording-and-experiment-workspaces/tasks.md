@@ -56,7 +56,7 @@
 
 ## 6. 证据与实机
 
-- [ ] 6.1 准备受控录制 fixtures/mock：端口占用、状态读取失败与配置应用中断，维护注入清单/指纹还原，禁止覆盖生产凭据（对应“端口占用可见”“应用失败回读也失败保留输入”）。
+- [x] 6.1 准备受控录制 fixtures/mock：端口占用、状态读取失败与配置应用中断，维护注入清单/指纹还原，禁止覆盖生产凭据（对应“端口占用可见”“应用失败回读也失败保留输入”）。（注记 2026-10-01：`apps/desktop/scripts/lib/u8-recording-fixtures.cjs`——两种注入：occupyPort（真实 socket 占位，127.0.0.1 同 host ⇒ startProxyServer 必撞 EADDRINUSE，server.ts:74-76 → PROXY_START_FAILED 信封 = 端口占用可见 + 配置应用中断的唯一真实诱发面）+ writeProxySection（只替换 settings.json 的 proxy 字段、运行配置含 apiKey 密文逐字节不动 = 禁止覆盖生产凭据的机械保证；批尾 restoreFile 逐字节核验，失败落 U8-RESTORE-NEEDED.txt）。🔴 探明事实：「状态读取失败」（proxy:status 错误信封）真机没有注入面——main handler 恒 ok（ipc.ts:387）+ loadProxy 全容错（settings.ts:140，settings.test.ts 坐实）+ invoke reject 收不到 envelope ⇒ 「应用失败回读也失败」半边由 recording-draft-store 单元承载，6.6 批验证「端口占用→应用失败→回读成功」分层路径并如实登记。自检 test/controlled-recording-fixtures.test.ts 5 条（含还原失败反证——顺带修掉核验阶段不容错的库破洞；稳定码/文案源码级锚防漂移）。测试 5/5 + 邻居 recording-draft-store 10 + settings 10 单跑各绿；tsc 双 0；biome 0；desktop-test tsc 本文件 0 错。）
 - [ ] 6.2 准备自洽 JSONL 实验完整/部分失败/缺臂/ownOnly/非法标本与 messages 凭据/写入失败 mock，逐份读取确认不被前置校验意外拒绝（对应“成功臂集合不隐去失败臂”“主动重发结果不借被动记录”）。
 - [ ] 6.3 录制行为反证：去掉迟到守卫、用草稿端口复制，记录定向测试判红与还原复绿，不在注入脚本内 spawn 测试（对应“录制应用收尾不覆盖后来输入”“接入地址只来自已核实监听”）。
 - [ ] 6.4 实验计划反证：复用旧计划、仅按 model/baseURL 判配置不变，记录判红与还原复绿（对应“迟到和乱序预览不能安装旧计划”“配置轮换与来源撤销作废计划”）。
