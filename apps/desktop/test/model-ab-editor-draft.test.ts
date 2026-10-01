@@ -49,6 +49,19 @@ describe("接线契约：ModelAbEditor 批次草稿（任务 2.4）", () => {
     ).toEqual([]);
   });
 
+  it("U8 6.7 实机坐实：工作区形态（alwaysOpen）挂载即登记基线草稿（运行入口直达可编辑）", () => {
+    const code = src();
+    // 「接线少一支」家族（2026-10-01）：alwaysOpen 恒展开 ⇒ 不走折叠态展开按钮的
+    // ensure 路径 ⇒ 运行入口打开的工作区没有草稿，臂行不渲染。钉住挂载 effect 的
+    // 接线：条件、调用与幂等语义（ensure 已存在批次原样保留）三段缺一不可。
+    const effectStart = code.indexOf("if (!alwaysOpen) return;");
+    expect(effectStart).toBeGreaterThan(-1);
+    const effectBody = code.slice(effectStart, code.indexOf("}, [alwaysOpen", effectStart));
+    expect(effectBody).toContain(
+      "ensureModelAbDraft(draftKey, baselineArms, captureCallDraftSource(run, span))",
+    );
+  });
+
   it("增删行/改参数统一经 setModelAbRows 落 store；行变更作废已校验计划", () => {
     const code = src();
     // store 动作在组件里别名为 writeRows（选择器处可见真实通道名）

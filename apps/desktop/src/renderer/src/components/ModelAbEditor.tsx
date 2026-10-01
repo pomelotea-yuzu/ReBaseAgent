@@ -276,6 +276,16 @@ export function ModelAbEditor({
     consumeDraftTarget();
   }, [pending, consumeDraftTarget, ensureModelAbDraft, draftKey, run, span, baselineArms]);
 
+  // U8 6.7 实机坐实的接线缺口（2026-10-01）：工作区形态（alwaysOpen）恒展开，不走
+  // 「折叠态展开按钮」的 ensure 路径 ⇒ 运行入口打开的工作区没有基线草稿，臂行不渲染、
+  // 无法编辑（旧载体 DetailPanel 时代「点展开按钮即 ensure」的语义在迁移中丢失——
+  // 「接线少一支」家族）。修复：挂载即登记基线草稿（ensure 幂等——已存在批次原样
+  // 保留，重挂载/换目标重挂都不覆盖用户输入）。
+  useEffect(() => {
+    if (!alwaysOpen) return;
+    ensureModelAbDraft(draftKey, baselineArms, captureCallDraftSource(run, span));
+  }, [alwaysOpen, ensureModelAbDraft, draftKey, run, span, baselineArms]);
+
   // U3 任务 2.5/1.4：恢复重验——源缺失/损坏/改变/资格失效 ⇒ 保留批次、禁止执行
   const sourceVerdict =
     draftEntry === undefined
