@@ -85,6 +85,6 @@
 
 ## 7. 回归与收口
 
-- [ ] 7.1 检查新增 store 状态/API 桩在所有手写复位表中完整复位；运行 desktop 定向与全量测试、node/web typecheck、构建；包层有提取时先构建包再跑受影响 replay/trace-sdk 回归，失败/环境限制逐项记账（对应“result 共享前缀保留真实边界”“历史比较不依赖当前密钥和预览”及既有执行回归）。
-- [ ] 7.2 运行 Biome、git diff --check 与 OpenSpec 全量 strict；核对三个 capability 的 MODIFIED 原场景均保留，内容变更只属于 design 列出的有意修改，任务场景名与索引逐项对上（对应全部 delta 场景）。
-- [ ] 7.3 逐行回查 evidence-index 的实际测试、实机 tag、文件、结果与消费点，未验证项单列；检查无空入口、无 U8/跨运行文件 diff/执行扩权，不把文档通过或历史 U4/U5 欠账写成已交付，不自动归档发布（对应“比较全程只读且不恢复许可”及全部 delta 场景）。
+- [x] 7.1 检查新增 store 状态/API 桩在所有手写复位表中完整复位；运行 desktop 定向与全量测试、node/web typecheck、构建；包层有提取时先构建包再跑受影响 replay/trace-sdk 回归，失败/环境限制逐项记账（对应“result 共享前缀保留真实边界”“历史比较不依赖当前密钥和预览”及既有执行回归）。
+- [x] 7.2 运行 Biome、git diff --check 与 OpenSpec 全量 strict；核对三个 capability 的 MODIFIED 原场景均保留，内容变更只属于 design 列出的有意修改，任务场景名与索引逐项对上（对应全部 delta 场景）。
+- [x] 7.3 逐行回查 evidence-index 的实际测试、实机 tag、文件、结果与消费点，未验证项单列；检查无空入口、无 U8/跨运行文件 diff/执行扩权，不把文档通过或历史 U4/U5 欠账写成已交付，不自动归档发布（对应“比较全程只读且不恢复许可”及全部 delta 场景）。
