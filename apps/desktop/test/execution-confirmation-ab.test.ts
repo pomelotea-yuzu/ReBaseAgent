@@ -240,7 +240,7 @@ describe("4.7 接线契约：确认对象是当前预览计划而非草稿", () 
 
 // U8 任务 3.7：计划绑定**已核实配置变化代次**（仅轮换 key 的保存也作废旧计划）
 describe("U8 3.7 接线契约：预览记录配置代次并传入新鲜度判据（源码级）", () => {
-  // ⚠️ 上面的 `ab` 是 4.7 describe 的局部常量——这里自读同一文件
+  // ⚠️ `ab` 是上一个 describe 的局部常量，这里自读同一文件
   const ab37 = readFileSync(
     resolve(import.meta.dirname, "../src/renderer/src/components/ModelAbEditor.tsx"),
     "utf8",
@@ -251,5 +251,24 @@ describe("U8 3.7 接线契约：预览记录配置代次并传入新鲜度判据
     );
     expect(ab37).toContain("setPlanSettingsGeneration(requestedSettingsGeneration);");
     expect(ab37).toContain("currentSettingsGeneration: settingsChangeGeneration");
+  });
+});
+
+// U8 任务 3.5：预览的**独立请求状态**（只读 dry-run 自己的在飞标记；防重复不靠按钮单打独斗）
+describe("U8 3.5 接线契约：预览独立请求状态（源码级）", () => {
+  // 同 3.7：`ab` 在别的 describe 内部——这里自读同一文件
+  const ab35 = readFileSync(
+    resolve(import.meta.dirname, "../src/renderer/src/components/ModelAbEditor.tsx"),
+    "utf8",
+  );
+  it("previewing 状态、就地防重入、finally 解除、独立呈现", () => {
+    expect(ab35).toContain("const [previewing, setPreviewing] = useState(false);");
+    // 就地防重入（提交口兜底，不只靠按钮 disabled）
+    expect(ab35).toContain("if (!canSubmit || previewing) return;");
+    // 无论安装与否都解除自己的标记
+    expect(ab35).toContain("setPreviewing(false);");
+    // 独立呈现：只读通道的在飞文案与执行 busy 分开
+    expect(ab35).toContain("data-ab-previewing");
+    expect(ab35).toContain("只读 dry-run：不联网、不写文件");
   });
 });

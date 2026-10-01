@@ -1,5 +1,6 @@
 import type { SpanLine } from "@rebaseagent/trace-sdk";
 import type { ModelAbResult, ModelArmPlan, RunDetail } from "@shared/ipc";
+import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { isModelAbDraftDirty, newArmRowKey } from "../lib/debugging-drafts";
 import type { ModelAbDraftKey } from "../lib/debugging-drafts";
@@ -21,6 +22,7 @@ import { AbBatchResultSection } from "./AbBatchResult";
 import { requestConfirm } from "./ConfirmDialog";
 import { DraftSourceBanner } from "./DraftSourceBanner";
 import { EntryGateNotice } from "./EntryGateNotice";
+import { LongText, shouldCollapse } from "./LongText";
 
 /**
  * 模型 A/B 实验编辑器（runs:modelAb 写通道）：同一启动上下文跑 2+ 臂（model / params
@@ -42,16 +44,25 @@ function scalarText(value: Scalar): string {
  * 单臂计划（design §4 三段格式，与 CLI `printArmPlan` 字段语义一致）：
  * 生效 params（覆盖/新增/继承）→ 丢弃父录值（整体替换不合并）→ ⚠ 告警。
  * 三个字段全部读自编排层算好的 plan 条目，此处不重算。
+ *
+ * U8 任务 3.4（delta「长模型上游和告警可完整核对」）：超长值经 `LongText` 呈现——
+ * 默认折叠（带真实字符数）、可展开为完整原文、可复制原文；短值保持原内联形态不变
+ * （阈值判据复用 `shouldCollapse`，不造第二份）。
  */
-function ArmPlanRow({ arm }: { arm: ModelArmPlan }) {
+export function ArmPlanRow({ arm }: { arm: ModelArmPlan }) {
   const entries = Object.entries(arm.params) as Array<[string, Scalar]>;
   const discarded = Object.entries(arm.discarded) as Array<[string, Scalar]>;
+  /** 超长值走 LongText（折叠/展开/复制原文）；短值保持原内联形态 */
+  const longOr = (text: string, label: string): React.ReactNode =>
+    shouldCollapse(text) ? <LongText text={text} label={label} /> : <span>{text}</span>;
   return (
     <div className="border-b border-sky-50 py-1 last:border-b-0">
       <div className="flex items-baseline gap-2 text-[11px]">
         <span className="w-8 shrink-0 text-gray-400">臂 {arm.index + 1}</span>
-        <span className="font-code text-gray-800">{arm.model}</span>
-        <span className="ml-auto text-[10px] text-gray-400">
+        <span className="min-w-0 flex-1 font-code text-gray-800">
+          {longOr(arm.model, `臂 ${arm.index + 1} model`)}
+        </span>
+        <span className="ml-auto shrink-0 text-[10px] text-gray-400">
           {arm.changed.length > 0 ? `改变：${arm.changed.join("、")}` : "与父相同"}
         </span>
       </div>
@@ -67,9 +78,10 @@ function ArmPlanRow({ arm }: { arm: ModelArmPlan }) {
                 : arm.added.includes(k)
                   ? "（新增）"
                   : "（继承）";
+              const text = scalarText(v);
               return (
                 <span key={k} className="mr-2 font-code">
-                  {k}={scalarText(v)}
+                  {k}={longOr(text, `臂 ${arm.index + 1} 参数 ${k}`)}
                   <span className="text-gray-400">{tag}</span>
                 </span>
               );
@@ -79,18 +91,21 @@ function ArmPlanRow({ arm }: { arm: ModelArmPlan }) {
         {discarded.length > 0 ? (
           <div className="text-amber-700">
             <span className="text-gray-400">丢弃父录值：</span>
-            {discarded.map(([k, v]) => (
-              <span key={k} className="mr-2 font-code">
-                {k}={scalarText(v)}
-              </span>
-            ))}
+            {discarded.map(([k, v]) => {
+              const text = scalarText(v);
+              return (
+                <span key={k} className="mr-2 font-code">
+                  {k}={longOr(text, `臂 ${arm.index + 1} 丢弃值 ${k}`)}
+                </span>
+              );
+            })}
             <span className="text-gray-400">← 整体替换不合并，此项不会进入请求</span>
           </div>
         ) : null}
         {arm.warnings.map((w) => (
           <div key={w.key} className="text-amber-700">
-            ⚠ {w.key}：{w.reason}
-            <div className="text-gray-500">绕行：{w.workaround}</div>
+            ⚠ {w.key}：{longOr(w.reason, `告警 ${w.key}`)}
+            <div className="text-gray-500">绕行：{longOr(w.workaround, `告警 ${w.key} 绕行`)}</div>
           </div>
         ))}
       </div>
@@ -145,6 +160,10 @@ export function ModelAbEditor({
   // U5 任务 5.1：批次结果区改吃**登记 + 独立核实**——这里只留提交身份当指针，
   // 信封 `ModelAbResult` 是请求事实（ids 计数会冒充臂结局），不再进面板。
   const [executedOperationId, setExecutedOperationId] = useState<string | null>(null);
+  // U8 任务 3.5：预览的**独立请求状态**——只读 dry-run 有自己的在飞标记与呈现，
+  // 不与真实执行的 busy 共用一条文案；重复点击被就地拒绝（不靠按钮禁用单打独斗）。
+  // previewing 只描述预览请求本身；执行按钮的禁用仍由 plan/确认/槽门禁决定。
+  const [previewing, setPreviewing] = useState(false);
 
   /**
    * U3 任务 2.4：批次行改由**批次草稿**驱动（稳定行 ID；design D1/D4）。
@@ -224,6 +243,7 @@ export function ModelAbEditor({
 
   // U3 任务 3.3/3.5：待定执行期间视同进行中（预览与执行都禁用），且整批已冻结
   const inProgress = modelAbInFlight || draftFrozen;
+  // previewing 只描述预览请求本身；执行按钮的禁用仍由 plan/确认/槽门禁决定
   // U4 任务 4.4：A/B 只有**真实执行**受统一槽约束；"校验并预览计划"走只读通道
   // （runs:modelAbPlan），占槽期间照常可用——把预览一起禁用就是拿门禁当业务判据。
   const operationsSession = useAppStore((s) => s.operations);
@@ -384,7 +404,8 @@ export function ModelAbEditor({
   };
 
   const doPreview = (): void => {
-    if (!canSubmit) return;
+    if (!canSubmit || previewing) return;
+    setPreviewing(true);
     // U5 任务 4.7：一次预览 = 一次新的检查 ⇒ 检查代次推进，旧确认作废（旧响应也不能装回）
     restartExecutionCheck(draftKey);
     setExecutedOperationId(null);
@@ -393,17 +414,22 @@ export function ModelAbEditor({
     const requestedRevision = draftRevision;
     const requestedStamp = currentConfigStamp;
     const requestedSettingsGeneration = settingsChangeGeneration;
-    void modelAb(run.meta.id, guard.arms, true).then((result) => {
-      if (result === null) return;
-      // U3 任务 3.3：守卫迟到预览——响应到达时批次修订已推进（或批次已被放弃）
-      // ⇒ 不安装旧计划（不给修改后的批次安装旧校验结论）。
-      const currentRevision = useAppStore.getState().modelAbDraftOf(draftKey)?.revision ?? null;
-      if (currentRevision !== requestedRevision) return;
-      setPlan(result);
-      setPlanRevision(requestedRevision);
-      setPlanConfigStamp(requestedStamp);
-      setPlanSettingsGeneration(requestedSettingsGeneration);
-    });
+    void modelAb(run.meta.id, guard.arms, true)
+      .then((result) => {
+        if (result === null) return;
+        // U3 任务 3.3：守卫迟到预览——响应到达时批次修订已推进（或批次已被放弃）
+        // ⇒ 不安装旧计划（不给修改后的批次安装旧校验结论）。
+        const currentRevision = useAppStore.getState().modelAbDraftOf(draftKey)?.revision ?? null;
+        if (currentRevision !== requestedRevision) return;
+        setPlan(result);
+        setPlanRevision(requestedRevision);
+        setPlanConfigStamp(requestedStamp);
+        setPlanSettingsGeneration(requestedSettingsGeneration);
+      })
+      .finally(() => {
+        // U8 3.5：无论安装与否都解除预览的独立在飞标记
+        setPreviewing(false);
+      });
   };
 
   const doExecute = (): void => {
@@ -586,6 +612,12 @@ export function ModelAbEditor({
       ) : null}
 
       {modelAbInFlight ? <div className="mt-2 text-[11px] text-sky-600">处理中…</div> : null}
+      {/* U8 3.5：预览的独立请求状态（只读通道自己的在飞呈现，不冒充执行 busy） */}
+      {previewing ? (
+        <div className="mt-2 text-[11px] text-sky-600" data-ab-previewing>
+          正在校验计划（只读 dry-run：不联网、不写文件）…
+        </div>
+      ) : null}
       {modelAbError !== null ? (
         <div className="mt-2 text-[11px] text-red-700">
           {modelAbError}
@@ -706,10 +738,10 @@ export function ModelAbEditor({
         <button
           type="button"
           onClick={doPreview}
-          disabled={inProgress || !canSubmit}
+          disabled={inProgress || !canSubmit || previewing}
           className="rounded border border-sky-500 px-2 py-1 text-[11px] text-sky-700 hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          {activePlan !== null ? "重新校验" : "校验并预览计划"}
+          {previewing ? "校验中…" : activePlan !== null ? "重新校验" : "校验并预览计划"}
         </button>
         <button
           type="button"
