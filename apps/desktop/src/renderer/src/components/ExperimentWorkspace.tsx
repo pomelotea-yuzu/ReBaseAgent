@@ -1,8 +1,11 @@
 import type { SpanLine } from "@rebaseagent/trace-sdk";
+import type { ReactNode } from "react";
 import { useEffect } from "react";
+import { deriveExperimentBatches } from "../lib/experiment-results";
 import { resolveExecutionGate } from "../lib/workspace-selection";
 import { useAppStore } from "../store";
 import { AuxWorkspaceFrame } from "./AuxWorkspaceFrame";
+import { ExperimentResultsSection } from "./ExperimentResults";
 import { ModelAbEditor } from "./ModelAbEditor";
 
 /**
@@ -48,7 +51,7 @@ export function ExperimentWorkspace() {
         ) ?? null)
       : null;
 
-  let body;
+  let body: ReactNode;
   if (target === null) {
     body = (
       <div className="text-reading-meta text-gray-500">
@@ -98,6 +101,50 @@ export function ExperimentWorkspace() {
       onReturn={() => void returnToAuxSource("experiment")}
     >
       {body}
+      {target !== null ? <ExperimentResults targetRunId={target.runId} /> : null}
     </AuxWorkspaceFrame>
+  );
+}
+
+/**
+ * U8 任务 4.1：批次结果区（目标作用域）——容器半边。
+ *
+ * 逐臂结果从编辑器的组件局部指针迁到**工作区级派生**（design D5：结果面板绑定明确
+ * 批次）：事实源 = main 登记快照（`operations.operations`）+ 独立核实（`resultReads`），
+ * 按 `target.parentRunId` 圈定本目标的批次。因此：
+ * - 执行中切到别的页面再回来，结果区仍按登记呈现（不依赖编辑器挂载与否）；
+ * - 同 main 重载后登记快照恢复 ⇒ 结果区恢复（内存草稿/计划/确认不恢复，那是 U5 边界）；
+ * - 逐臂动作走与操作面板同一批 store 口（打开/失败定位/只读重试），本容器不自建第二套。
+ */
+function ExperimentResults({ targetRunId }: { readonly targetRunId: string }) {
+  const operations = useAppStore((s) => s.operations);
+  const resultReads = useAppStore((s) => s.resultReads);
+  const openOperationResult = useAppStore((s) => s.openOperationResult);
+  const openOperationFailure = useAppStore((s) => s.openOperationFailure);
+  const retryResultRead = useAppStore((s) => s.retryResultRead);
+
+  const batches = deriveExperimentBatches({
+    targetRunId,
+    operations: operations.operations,
+    reads: resultReads,
+  });
+  return (
+    <ExperimentResultsSection
+      batches={batches}
+      onArmAction={(action, identity) => {
+        if (action === "open-result") {
+          void openOperationResult(identity);
+          return;
+        }
+        if (action === "view-failure") {
+          void openOperationFailure(identity);
+          return;
+        }
+        if (action === "retry-read") {
+          void retryResultRead(identity);
+        }
+        // "return-draft" 不在臂级出现（草稿返回是记录级动作，走操作面板）
+      }}
+    />
   );
 }

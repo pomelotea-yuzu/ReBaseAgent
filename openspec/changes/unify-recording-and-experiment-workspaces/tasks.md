@@ -32,15 +32,15 @@
 - [x] 3.4 提取逐臂计划展示，直接读 params/overridden/added/discarded/warnings，长字段可展开复制，以对应场景的定向状态/组件测试验证（对应“计划直接展示生效覆盖新增丢弃告警”“长模型上游和告警可完整核对”“dry-run 暴露整体替换的代价”“dry-run 每臂三段固定展示”）。（注记 2026-10-01：ArmPlanRow 超长值（model/参数/丢弃值/告警）经 LongText 呈现：折叠带字符数、展开完整原文、复制原文（阈值复用 shouldCollapse；短值内联形态不变）；能力断言 model-ab-plan-row 4 条）
 - [x] 3.5 接只读预览通道及独立请求状态，桌面沿用配置前置；未冻结批次在别的操作占槽时仍可预览，以对应场景的定向状态/组件测试验证（对应“桌面预览沿用配置前置且零执行”“dry-run 无密钥”）。（注记 2026-10-01：预览独立请求状态：previewing 局部态 + 就地防重入 + finally 解除 + 独立呈现（只读 dry-run 文案与执行 busy 分开）；不登记操作、不占主动槽（gate 只绑执行））
 - [x] 3.6 用修订/工具声明绑定计划新鲜度，修改再改回仍失效，重排和副作用声明变化也需重验，以对应场景的定向状态/组件测试验证（对应“修改臂再改回不恢复计划”）。（注记 2026-10-01：decidePlanFreshness 修订绑定 + 声明变化 setPlan(null) 原样继承；3.7 代次扩展后复跑绿）
-- [ ] 3.7 接已核实配置变化/回读失败和来源撤销，覆盖仅轮换 key 而 model/baseURL 相同，不传播 key 值；定向状态/组件测试断言已核实保存/清除推进配置变化代次并撤销计划，普通 proxy:status 刷新不推进该代次或误使有效计划失效，已保存但回读失败仍撤销旧计划（对应“配置轮换与来源撤销作废计划”）。
+- [x] 3.7 接已核实配置变化/回读失败和来源撤销，覆盖仅轮换 key 而 model/baseURL 相同，不传播 key 值；定向状态/组件测试断言已核实保存/清除推进配置变化代次并撤销计划，普通 proxy:status 刷新不推进该代次或误使有效计划失效，已保存但回读失败仍撤销旧计划（对应“配置轮换与来源撤销作废计划”）。（注记 2026-10-01：工作已随提交 `d8c81ee` 交付——settingsChangeGeneration（已核实保存含仅轮换 key/清除推进、save-failed 不推进、reread-failed 也推进、proxy:status 刷新不推进）+ decidePlanFreshness 代次扩展 + settings-save-feedback +5 / settings-roundtrip +3 / execution-confirmation-ab +1；本勾选为漏勾补记。）
 - [x] 3.8 实现目标、修订、检查代次、配置和声明的在飞守卫，覆盖乱序/离开/放弃重建，复用 U5 代次，以对应场景的定向状态/组件测试验证（对应“迟到和乱序预览不能安装旧计划”）。（注记 2026-10-01：迟到预览守卫（requestedRevision/requestedStamp/requestedSettingsGeneration 三重）原样继承；定向测试（预览发起时记录/修订推进即失效）复跑绿）
 - [x] 3.9 接当前计划的费用/工具确认及取消，说明臂数并非准确请求数、费用未知、顺序副作用边界，以对应场景的定向状态/组件测试验证（对应“费用确认区分臂数和请求数”“副作用声明不承诺公平隔离”“未确认时阻断真实调用”）。（注记 2026-10-01：⚠️ 措辞修正：执行按钮「N 次真实调用」→「N 臂」（臂数≠准确请求数，delta 明令）；abDisclosure 既有臂数/费用 unknown/副作用边界措辞继承）
 - [x] 3.10 接计划无效拒绝、离开恢复撤销、最终提交重验及 submittedRevision/operation 关联，沿用单槽和批次冻结，以对应场景的定向状态/组件测试验证（对应“无有效计划和确认不提交实验”“离开实验恢复不带计划许可”）。（注记 2026-10-01：beginDraftSubmission 提交重验 + 整批冻结 + main 最终裁决原样继承（draft-closure-store/exec-model-ab 既有测试承载））
 
 ## 4. 批次结果与比较
 
-- [ ] 4.1 将逐臂结果展示移到独立工作区，按登记 target.armCount/arms 展示全部预期位置，不用成功臂 ids 补清单，以对应场景的定向状态/组件测试验证（对应“成功臂集合不隐去失败臂”）。
-- [ ] 4.2 显示真实 experimentId/父本分组，区分预览和执行身份，不按模型/时间猜批次，以对应场景的定向状态/组件测试验证（对应“预览标签不充当真实批次身份”“同父同模型仍按真实批次分组”“同批 arm 自动配对”“多批实验共存”）。
+- [x] 4.1 将逐臂结果展示移到独立工作区，按登记 target.armCount/arms 展示全部预期位置，不用成功臂 ids 补清单，以对应场景的定向状态/组件测试验证（对应“成功臂集合不隐去失败臂”）。（注记 2026-10-01：结果区从编辑器组件局部指针迁到工作区级——新纯派生 lib/experiment-results.ts deriveExperimentBatches（按 target.parentRunId 圈定本目标 modelAb 登记，复用 deriveAbBatchResult 的 armCount 基准）+ 纯视图 ExperimentResults.tsx + ExperimentWorkspace 容器挂载（事实源 = operations 登记 + resultReads）；ModelAbEditor 移除 executedOperationId 指针与结果区渲染、DetailPanel 死导入删除。有意改判两处两边留痕：operation-request-facts 源码级接线判据换载体（DetailPanel→ExperimentWorkspace/ExperimentResults）、model-ab-editor-draft 的 setExecutedOperationId 断言移除（指针随迁移删除）。测试 experiment-results.test.ts 11 条 + 邻居 aux-workspace-store 20 / execution-confirmation-ab 13 复跑绿；tsc 双 0；biome 0。）
+- [x] 4.2 显示真实 experimentId/父本分组，区分预览和执行身份，不按模型/时间猜批次，以对应场景的定向状态/组件测试验证（对应“预览标签不充当真实批次身份”“同父同模型仍按真实批次分组”“同批 arm 自动配对”“多批实验共存”）。（注记 2026-10-01：分组键 = main 登记的 operationId，experimentId 只作随组展示标签（null 如实呈现"未登记"）；dry-run 预览的 experimentId 是编辑器局部态，deriveExperimentBatches 输入里没有计划 ⇒ 预览标签结构上进不了结果区（呈现层纯度源码级断言钉住：结果区组件/派生不摸 execution-confirmation/debugging-drafts/model-ab）。多批共存与同 experimentId 不合并、确定排序（startedAt+operationId）均有定向测试。）
 - [ ] 4.3 接单臂打开、失败定位、可信 ID 只读重试，未关联/不可读不补造文件或触发执行，以对应场景的定向状态/组件测试验证（对应“实验结果不可读仅重试读取”）。
 - [ ] 4.4 将结果读取与清理继续交给 U5，核对全部预期臂、提交修订匹配和新草稿保护，以对应场景的定向状态/组件测试验证（对应“全臂核实才按提交修订清理”）。
 - [ ] 4.5 接结果选择两至四条进入 U7，复用上限、顺序、指标表/详细页分流与已有实验资格，以对应场景的定向状态/组件测试验证（对应“实验结果选两到四条进入共用比较”“比较拒绝和返回实验不改批次事实”）。

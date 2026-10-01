@@ -44,7 +44,6 @@ import {
 } from "../lib/isolated-fork";
 import { modelAbGuard, riskyToolNames, scalarRequestParams } from "../lib/model-ab";
 import type { ArmDraft, Scalar } from "../lib/model-ab";
-import { deriveAbBatchResult } from "../lib/operation-result-view";
 import { promptForkGuard } from "../lib/prompt-fork";
 import type { PromptForkField } from "../lib/prompt-fork";
 import { decideRestore, initialRestoreState, restoreIdentity } from "../lib/restore-gate";
@@ -54,7 +53,6 @@ import { useRevokeOnConfigChange } from "../lib/use-revoke-on-config-change";
 import { validateCheckpointStepId } from "../lib/workspace-files";
 import { readingScrollOf } from "../lib/workspace-selection";
 import { useAppStore } from "../store";
-import { AbBatchResultSection } from "./AbBatchResult";
 import { BudgetMap } from "./BudgetMap";
 import { requestConfirm } from "./ConfirmDialog";
 import { DetailNotices } from "./DetailNotices";

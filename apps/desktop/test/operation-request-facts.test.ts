@@ -392,16 +392,24 @@ describe("5.1 A/B 批次结果区：逐臂读取状态，基准是登记不是�
     expect(markup).not.toContain("成功 1 臂");
   });
 
-  it("DetailPanel 接线（源码级）：批次面板只吃 deriveAbBatchResult，信封 ModelAbResult 不再进面板", () => {
-    const src = readFileSync(
-      resolve(import.meta.dirname, "../src/renderer/src/components/DetailPanel.tsx"),
+  it("接线（源码级）：批次面板只吃 deriveAbBatchResult，信封 ModelAbResult 不再进面板", () => {
+    // U8 4.1 改判留痕（2026-10-01）：批次结果区从 DetailPanel（当时经 ModelAbEditor）
+    // 迁到实验工作区（ExperimentWorkspace + ExperimentResults）——判据不变，消费点换载体；
+    // DetailPanel 的死导入已删（新判据在 experiment-results.test.ts）。
+    const workspace = readFileSync(
+      resolve(import.meta.dirname, "../src/renderer/src/components/ExperimentWorkspace.tsx"),
       "utf8",
     );
-    expect(src).toContain("deriveAbBatchResult");
-    expect(src).toContain("<AbBatchResultSection");
-    // 请求事实仍由 store 的 modelAbError/ErrorCode 单独呈现；面板不再消费执行信封的返回值
-    for (const forbidden of ["setExecuted(", "实验完成", "ids.length", "executed.ids"]) {
-      expect(src, forbidden).not.toContain(forbidden);
+    expect(workspace).toContain("deriveExperimentBatches");
+    const results = readFileSync(
+      resolve(import.meta.dirname, "../src/renderer/src/components/ExperimentResults.tsx"),
+      "utf8",
+    );
+    expect(results).toContain("<AbBatchResultSection");
+    // 请求事实由派生层单独呈现；面板不消费执行信封的返回值
+    for (const forbidden of ["实验完成", "ids.length", "executed.ids"]) {
+      expect(results, forbidden).not.toContain(forbidden);
+      expect(workspace, forbidden).not.toContain(forbidden);
     }
   });
 });

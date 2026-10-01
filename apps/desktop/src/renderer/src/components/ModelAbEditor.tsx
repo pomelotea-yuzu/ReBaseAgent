@@ -14,11 +14,9 @@ import {
 } from "../lib/execution-confirmation";
 import { modelAbGuard, riskyToolNames, scalarRequestParams } from "../lib/model-ab";
 import type { ArmDraft, Scalar } from "../lib/model-ab";
-import { deriveAbBatchResult } from "../lib/operation-result-view";
 import { useEscapeClose } from "../lib/use-escape-close";
 import { useRevokeOnConfigChange } from "../lib/use-revoke-on-config-change";
 import { useAppStore } from "../store";
-import { AbBatchResultSection } from "./AbBatchResult";
 import { requestConfirm } from "./ConfirmDialog";
 import { DraftSourceBanner } from "./DraftSourceBanner";
 import { EntryGateNotice } from "./EntryGateNotice";
@@ -157,9 +155,9 @@ export function ModelAbEditor({
   const [plan, setPlan] = useState<ModelAbResult | null>(null);
   // U3 任务 3.3：计划所绑定的批次修订（预览时的请求代次）——见下方 activePlan
   const [planRevision, setPlanRevision] = useState<number | null>(null);
-  // U5 任务 5.1：批次结果区改吃**登记 + 独立核实**——这里只留提交身份当指针，
-  // 信封 `ModelAbResult` 是请求事实（ids 计数会冒充臂结局），不再进面板。
-  const [executedOperationId, setExecutedOperationId] = useState<string | null>(null);
+  // U8 任务 4.1（2026-10-01）：批次结果区迁到实验工作区（ExperimentResults，按 main
+  // 登记快照派生）——编辑器不再持有提交身份指针，信封返回值与逐臂呈现都在工作区
+  // 结果区消费（U5 5.1 的判据原样，载体变更两边留痕）。
   // U8 任务 3.5：预览的**独立请求状态**——只读 dry-run 有自己的在飞标记与呈现，
   // 不与真实执行的 busy 共用一条文案；重复点击被就地拒绝（不靠按钮禁用单打独斗）。
   // previewing 只描述预览请求本身；执行按钮的禁用仍由 plan/确认/槽门禁决定。
@@ -171,8 +169,8 @@ export function ModelAbEditor({
    *   ——增删行/非法参数文本经 `setModelAbRows` 落 store，往返逐字恢复；
    * - 临时计划与副作用许可是**本次编辑会话**的本地状态：不进草稿、恢复时清理
    *   （打开即复位——计划须重新校验、授权须重新勾选）；
-   * - 预览 / 执行 / 实验结果**不隐式清理批次**（只动本地 plan / executedOperationId——
-   *   U5 5.1 后批次呈现改吃登记快照，指针清空即撤面板）；
+   * - 预览 / 执行 / 实验结果**不隐式清理批次**（只动本地 plan 与许可——
+   *   U8 4.1 后批次呈现归实验工作区按登记快照派生，编辑器不再持提交身份指针）；
    * - U3 任务 3.3：计划绑定**预览时的批次修订**（请求代次）——任何内容变化或恢复后
    *   即失效，必须重新预览并重新确认副作用；迟到预览响应不安装旧计划（同 3.1 守卫）；
    * - 放弃整个批次归任务 2.6（CAS 确认）。
@@ -257,24 +255,6 @@ export function ModelAbEditor({
   const abBinding = currentConfirmationBinding("model_ab", draftKey);
   const abConfirmed = useAppStore((s) => s.executionConfirmationReady(abBinding));
 
-  // U5 任务 5.1：批次结果区的**唯一事实来源是登记快照 + 读取项**（现算派生，不缓存）。
-  // 提交身份是指针：登记还没到场（提交在飞/快照未采纳）时 deriveAbBatchResult 只报等待，
-  // 不预告结局；到达后逐臂按 target.armCount 呈现，动作走与操作面板同一批 store 口。
-  const resultReads = useAppStore((s) => s.resultReads);
-  const openOperationResult = useAppStore((s) => s.openOperationResult);
-  const openOperationFailure = useAppStore((s) => s.openOperationFailure);
-  const retryResultRead = useAppStore((s) => s.retryResultRead);
-  const abBatchView =
-    executedOperationId === null
-      ? null
-      : deriveAbBatchResult({
-          operationId: executedOperationId,
-          record:
-            operationsSession.operations.find((one) => one.operationId === executedOperationId) ??
-            null,
-          reads: resultReads,
-        });
-
   // U3 任务 2.5：草稿列表的定位目标到达即打开（ensure 幂等；重开不覆盖已有批次；
   // 临时计划/许可照旧清理——授权与计划不随草稿恢复）
   const pending = useAppStore((s) => s.pendingDraftTarget);
@@ -290,7 +270,6 @@ export function ModelAbEditor({
       return;
     }
     ensureModelAbDraft(draftKey, baselineArms, captureCallDraftSource(run, span));
-    setExecutedOperationId(null);
     setPlan(null);
     setAllowSideEffects(false);
     setOpen(true);
@@ -359,7 +338,6 @@ export function ModelAbEditor({
           onClick={() => {
             resetModelAb();
             // 恢复/打开即清理临时计划与许可（design D4：授权与计划不随草稿恢复）
-            setExecutedOperationId(null);
             setPlan(null);
             setAllowSideEffects(false);
             ensureModelAbDraft(draftKey, baselineArms, captureCallDraftSource(run, span));
@@ -408,7 +386,6 @@ export function ModelAbEditor({
     setPreviewing(true);
     // U5 任务 4.7：一次预览 = 一次新的检查 ⇒ 检查代次推进，旧确认作废（旧响应也不能装回）
     restartExecutionCheck(draftKey);
-    setExecutedOperationId(null);
     // U3 任务 3.3：记录**发起预览时的批次修订**（请求代次）——响应按它校验；
     // U5 任务 5.3：同一时刻的模型配置指纹一并记录（在飞期间改了设置也不装新计划）
     const requestedRevision = draftRevision;
@@ -444,9 +421,8 @@ export function ModelAbEditor({
       confirmation: abBinding,
     });
     if (assoc === null) return;
-    // U5 任务 5.1：批次结果区从登记快照逐臂呈现——信封返回值不再进面板
-    // （modelAb 仍返回 `ModelAbResult` 供请求事实行使用，但"哪条臂成了"只认登记与核实）。
-    setExecutedOperationId(assoc.operationId);
+    // U8 任务 4.1：批次呈现改由工作区结果区按登记快照派生——这里不再记提交身份
+    // 指针（登记记录进入 operations 会话后结果区自动出现，页面级不依赖编辑器）。
     void modelAb(run.meta.id, guard.arms, false, assoc);
   };
 
@@ -648,28 +624,9 @@ export function ModelAbEditor({
       ) : null}
 
       {/*
-       * U5 任务 5.1：批次结果区改**逐臂读取状态 + 可信 ID 动作**（原绿色通报框拿
-       * 信封 ModelAbResult 的 ids 数组长度计臂数——那是请求事实，缺臂/失败臂会被计成"成功"）。
+       * U8 任务 4.1：批次结果区已迁到实验工作区（ExperimentResults，按 main 登记
+       * 快照 + 独立核实派生）——编辑器只负责臂编辑、计划预览与执行发起。
        */}
-      {abBatchView !== null ? (
-        <AbBatchResultSection
-          view={abBatchView}
-          onAct={(action, identity) => {
-            if (action === "open-result") {
-              void openOperationResult(identity);
-              return;
-            }
-            if (action === "view-failure") {
-              void openOperationFailure(identity);
-              return;
-            }
-            if (action === "retry-read") {
-              void retryResultRead(identity);
-            }
-            // "return-draft" 不在臂级出现（草稿返回是记录级动作，走操作面板）
-          }}
-        />
-      ) : null}
 
       {/*
        * U5 任务 4.7：核对本次实验。事实取自**当前生效的 dry-run 计划**（各臂实际执行的
