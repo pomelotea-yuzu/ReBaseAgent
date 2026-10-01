@@ -156,7 +156,12 @@ describe("4.4 接线契约：prompt / messages / A-B 也接同一份会话", () 
   }
 
   const PROMPT = editorBody("function PromptForkEditor({", "function LlmCallDetail(");
-  const MESSAGES = editorBody("function MessagesForkEditor({", "function toolMessageText(");
+  // ⚠️ U8 5.1a 改判留痕（2026-10-01）：MessagesForkEditor 提取为独立文件
+  // components/MessagesForkEditor.tsx（逐字搬出、零行为变化），切片断言改读新文件。
+  const MESSAGES = readFileSync(
+    resolve(import.meta.dirname, "../src/renderer/src/components/MessagesForkEditor.tsx"),
+    "utf8",
+  );
   const MODEL_AB = EDITOR_FILE;
 
   /** 归一空白：biome 会把长表达式换行，跨行断言不该依赖排版 */

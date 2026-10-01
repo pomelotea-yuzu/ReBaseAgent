@@ -37,7 +37,11 @@ function sliceBetween(startMarker: string, endMarker: string): string {
 }
 
 describe("接线契约：PromptForkEditor 两字段独立草稿（任务 2.2）", () => {
-  const src = () => sliceBetween("function PromptForkEditor(", "function ArmPlanRow");
+  // ⚠️ U8 5.1a 修复留痕（2026-10-01）：终点锚 "function ArmPlanRow" 自 3.1a 把
+  // ArmPlanRow 迁进 ModelAbEditor.tsx 后就不在 DetailPanel 里了——该 describe 从那时起
+  // 一直切不出来（定向回归没跑到这套件，§7 全量会咬）。终点锚改用 LlmCallDetail（与
+  // entry-gate.test.ts 同款），判据本身不动。
+  const src = () => sliceBetween("function PromptForkEditor(", "function LlmCallDetail(");
 
   it("两个 prompt 字段各自独立键（draftKeyOf(field)），激活值从对应草稿派生", () => {
     const code = src();
@@ -84,7 +88,14 @@ describe("接线契约：PromptForkEditor 两字段独立草稿（任务 2.2）"
 });
 
 describe("接线契约：MessagesForkEditor 接入 messages 草稿（任务 2.2）", () => {
-  const src = () => sliceBetween("function MessagesForkEditor(", "function toolMessageText(");
+  // ⚠️ U8 5.1a 改判留痕（2026-10-01）：MessagesForkEditor 提取为独立文件
+  // components/MessagesForkEditor.tsx（逐字搬出、零行为变化），切片断言改读新文件
+  // （不再需要切片——该文件只承载这一个组件）。
+  const src = () =>
+    readFileSync(
+      resolve(import.meta.dirname, "../src/renderer/src/components/MessagesForkEditor.tsx"),
+      "utf8",
+    );
 
   it("messages 字段独立键 + 打开 ensure + 源基线捕获；onChange 同步写 store", () => {
     const code = src();
