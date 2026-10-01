@@ -15,7 +15,7 @@
 > 逐条核对（文件存在 + 用例名在场 + 场景名逐字在 delta + 任务引用真实），含 `--selftest` 反例。
 > 标注「2.x 落地后补」的行 = 该行为尚不存在、无既有证据可引（诚实留白，不造弱用例凑数）。
 
-汇总口径：**67 条场景（保留 20 / 新 47）**，已交付 **13** 条、待验证 **53** 条、实机不成立 **1** 条（行 6；6.6 实机批交付上述 13 行，2 tag / 31 检查全绿）
+汇总口径：**67 条场景（保留 20 / 新 47）**，已交付 **24** 条、待验证 **42** 条、实机不成立 **1** 条（行 6；6.6 实机批交付 13 行、6.7 实机批交付 11 行）
 
 ---
 
@@ -81,9 +81,9 @@
 
 | n | 场景 | 保留/新 | 任务 | 单元/契约证据 | 实机入口/批次 | 状态 |
 |---|---|---|---|---|---|---|
-| 32 | 运行入口打开明确实验目标 | 新 | 1.2, 1.4, 3.1 | adjacent：`model-ab.test.ts › 未配置运行参数 → 拦截`（门禁沿用）；1.2/1.4/3.1 落地后补 | 6.7 实机 | 待验证 |
+| 32 | 运行入口打开明确实验目标 | 新 | 1.2, 1.4, 3.1 | adjacent：`model-ab.test.ts › 未配置运行参数 → 拦截`（门禁沿用）；1.2/1.4/3.1 落地后补 | 6.7 实机 | 已交付（6.7 实机） |
 | 33 | 切运行不更换实验父本 | 新 | 1.2, 1.5, 3.1 | adjacent（目标定位既有模式）：`draft-list.test.ts › 调用类目标：切运行（需要时）+ 步骤页签 + 选中 span + 登记 pending`；1.2/1.5 落地后补 | 6.7 实机 | 待验证 |
-| 34 | 实验空参数与显式空对象区分 | 新 | 3.3, 6.7 | `model-ab.test.ts › 空串 = 沿用父 run params（undefined）` + `model-ab.test.ts › params 的空对象等价沿用父值：model 也相同则仍判空 fork` + `model-ab-guard-parity.test.ts › 逐臂空 fork 判据与内核 sameParams 逐例对照（矩阵）` | 6.7 实机 | 待验证 |
+| 34 | 实验空参数与显式空对象区分 | 新 | 3.3, 6.7 | `model-ab.test.ts › 空串 = 沿用父 run params（undefined）` + `model-ab.test.ts › params 的空对象等价沿用父值：model 也相同则仍判空 fork` + `model-ab-guard-parity.test.ts › 逐臂空 fork 判据与内核 sameParams 逐例对照（矩阵）` | 6.7 实机 | 已交付（6.7 实机：空 fork 拦截/显式 {} 沿用父/非法原文三态） |
 | 35 | 实验来源失效仍能返回草稿 | 新 | 3.2 | adjacent：`model-ab-editor-draft.test.ts › 打开即清理临时计划与许可（授权不随草稿恢复）；放弃只经失效视图 CAS，预览/执行不隐式清理批次`；3.2 落地后补 | 6.7 实机 | 待验证 |
 | 36 | 离开实验恢复不带计划许可 | 新 | 1.3, 3.10 | `model-ab-editor-draft.test.ts › 内容变化作废副作用许可；恢复/离开后计划与许可均须重来（组件局部态）` + `execution-confirmation-ab.test.ts › 重新预览推进检查代次 ⇒ 那份确认作废，登记口当场拒绝`（迁移后复核） | 6.7 实机 | 待验证 |
 
@@ -134,22 +134,22 @@
 
 | n | 场景 | 保留/新 | 任务 | 单元/契约证据 | 实机入口/批次 | 状态 |
 |---|---|---|---|---|---|---|
-| 56 | 未确认时阻断真实调用 | 保留 | 3.9 | `execution-confirmation-ab.test.ts › 执行按钮受确认约束，且原因就近给出（不是只禁不给话）` + `execution-confirmation-ab.test.ts › 确认成立 ⇒ 登记成功并一次性消费：第二次执行要重新确认` | 6.7 实机 | 待验证 |
-| 57 | dry-run 无密钥 | 保留 | 3.5 | `controlled-proxy.test.ts › 经受控服务创建父本后：dry-run 零请求；真实执行每臂恰一次（请求日志证明）` + `exec-model-ab.test.ts › 批次占槽期间预览照常可用：零模型调用、零文件、不产生登记`（旧场景「不读写 trace」按 delta 修正为「不改写 trace、不创建运行」——事实修正非放松） | 6.7 实机 | 待验证 |
-| 58 | dry-run 暴露整体替换的代价 | 保留 | 3.4 | `fork-runner.test.ts › dry-run 返回 plan，含 params / overridden / added / discarded / warnings` | 6.7 实机 | 待验证 |
-| 59 | dry-run 每臂三段固定展示 | 保留 | 3.4 | `fork-runner.test.ts › Ollama baseURL + num_ctx → 告警经 IPC 到渲染层；非 Ollama 不告警` + `fork-runner.test.ts › dry-run 返回 plan，含 params / overridden / added / discarded / warnings` | 6.7 实机 | 待验证 |
+| 56 | 未确认时阻断真实调用 | 保留 | 3.9 | `execution-confirmation-ab.test.ts › 执行按钮受确认约束，且原因就近给出（不是只禁不给话）` + `execution-confirmation-ab.test.ts › 确认成立 ⇒ 登记成功并一次性消费：第二次执行要重新确认` | 6.7 实机 | 已交付（6.7 实机：确认前执行禁用；本批零执行纪律） |
+| 57 | dry-run 无密钥 | 保留 | 3.5 | `controlled-proxy.test.ts › 经受控服务创建父本后：dry-run 零请求；真实执行每臂恰一次（请求日志证明）` + `exec-model-ab.test.ts › 批次占槽期间预览照常可用：零模型调用、零文件、不产生登记`（旧场景「不读写 trace」按 delta 修正为「不改写 trace、不创建运行」——事实修正非放松） | 6.7 实机 | 已交付（6.7 实机：served 计数不变 + traces 零新增） |
+| 58 | dry-run 暴露整体替换的代价 | 保留 | 3.4 | `fork-runner.test.ts › dry-run 返回 plan，含 params / overridden / added / discarded / warnings` | 6.7 实机 | 已交付（6.7 实机：三段计划；覆盖/丢弃形态按 fork-runner 单元分层） |
+| 59 | dry-run 每臂三段固定展示 | 保留 | 3.4 | `fork-runner.test.ts › Ollama baseURL + num_ctx → 告警经 IPC 到渲染层；非 Ollama 不告警` + `fork-runner.test.ts › dry-run 返回 plan，含 params / overridden / added / discarded / warnings` | 6.7 实机 | 已交付（6.7 实机） |
 | 60 | 桌面预览沿用配置前置且零执行 | 新 | 3.5 | `exec-model-ab.test.ts › 批次占槽期间预览照常可用：零模型调用、零文件、不产生登记` + `exec-model-ab.test.ts › 预览的四类拒绝都在副作用之前：非 dryRun / 臂数不足 / 非法形状 / 伪造 sender` | 6.7 实机 | 待验证 |
-| 61 | 费用确认区分臂数和请求数 | 新 | 3.9 | adjacent：`execution-confirmation-ab.test.ts › 披露喂的是 activePlan：属于旧修订的计划不进确认`；3.9 落地后补臂数措辞判据 | 6.7 实机 | 待验证 |
+| 61 | 费用确认区分臂数和请求数 | 新 | 3.9 | adjacent：`execution-confirmation-ab.test.ts › 披露喂的是 activePlan：属于旧修订的计划不进确认`；3.9 落地后补臂数措辞判据 | 6.7 实机 | 已交付（6.7 实机：「2 臂」措辞、无「次真实调用」宣称） |
 
 ### ME3. 桌面实验计划绑定当前编辑与来源并拒绝迟到恢复（ADDED，6 场景）
 
 | n | 场景 | 保留/新 | 任务 | 单元/契约证据 | 实机入口/批次 | 状态 |
 |---|---|---|---|---|---|---|
-| 62 | 计划直接展示生效覆盖新增丢弃告警 | 新 | 3.4, 6.7 | `fork-runner.test.ts › dry-run 返回 plan，含 params / overridden / added / discarded / warnings`；3.4 落地后补四字段直读渲染判据 | 6.7 实机 | 待验证 |
-| 63 | 修改臂再改回不恢复计划 | 新 | 3.6, 6.7 | `model-ab-editor-draft.test.ts › 计划与当前批次修订同源：修订推进即失效，改走又改回也不复活` + `execution-confirmation-ab.test.ts › 绑定取的是**整批**修订：改任一臂即作废（不是只认第一次写入的那一版）` | 6.7 实机 | 待验证 |
-| 64 | 配置轮换与来源撤销作废计划 | 新 | 3.7, 6.4, 6.7 | adjacent（现行分规则基线）：`settings-roundtrip-invalidate.test.ts › 与 settingsStampOf 分离：代理启停/凭据波动**不该**作废 A/B 计划（delta 明文分规则）`——⚠️ U8 有意契约变更：已核实保存/清除（含仅轮换 key）推进配置变化代次；与既有「代理启停不作废」并存的是**代理状态刷新**路径，3.7 落地时两路判据都要有 | 6.4 反证 + 6.7 实机 | 待验证 |
+| 62 | 计划直接展示生效覆盖新增丢弃告警 | 新 | 3.4, 6.7 | `fork-runner.test.ts › dry-run 返回 plan，含 params / overridden / added / discarded / warnings`；3.4 落地后补四字段直读渲染判据 | 6.7 实机 | 已交付（6.7 实机：新增形态直读渲染；覆盖/丢弃分层登记） |
+| 63 | 修改臂再改回不恢复计划 | 新 | 3.6, 6.7 | `model-ab-editor-draft.test.ts › 计划与当前批次修订同源：修订推进即失效，改走又改回也不复活` + `execution-confirmation-ab.test.ts › 绑定取的是**整批**修订：改任一臂即作废（不是只认第一次写入的那一版）` | 6.7 实机 | 已交付（6.7 实机：修订推进 + 计划区消失 + 按钮禁用 + 重新校验恢复） |
+| 64 | 配置轮换与来源撤销作废计划 | 新 | 3.7, 6.4, 6.7 | adjacent（现行分规则基线）：`settings-roundtrip-invalidate.test.ts › 与 settingsStampOf 分离：代理启停/凭据波动**不该**作废 A/B 计划（delta 明文分规则）`——⚠️ U8 有意契约变更：已核实保存/清除（含仅轮换 key）推进配置变化代次；与既有「代理启停不作废」并存的是**代理状态刷新**路径，3.7 落地时两路判据都要有 | 6.4 反证 + 6.7 实机 | 已交付（6.4 反证 + 6.7 实机：仅换 key 保存作废、proxy 刷新不误杀由单元） |
 | 65 | 迟到和乱序预览不能安装旧计划 | 新 | 3.8, 6.4 | `model-ab-editor-draft.test.ts › 预览发起时记录批次修订；迟到响应按它校验，且先守卫后安装` + `model-ab-editor-draft.test.ts › 批次修订随语义变化推进：迟到响应因此拿不到旧修订（守卫判据有效）` | 6.4 反证 | 待验证 |
-| 66 | 无有效计划和确认不提交实验 | 新 | 3.10, 6.7 | `execution-confirmation-ab.test.ts › 没有生效计划就不给确认按钮（确认的必须先是被校验的那一份）` + `execution-confirmation-ab.test.ts › 重新预览 = 重启检查：先推进代次再发只读请求，且只在资格齐备时` | 6.7 实机 | 待验证 |
+| 66 | 无有效计划和确认不提交实验 | 新 | 3.10, 6.7 | `execution-confirmation-ab.test.ts › 没有生效计划就不给确认按钮（确认的必须先是被校验的那一份）` + `execution-confirmation-ab.test.ts › 重新预览 = 重启检查：先推进代次再发只读请求，且只在资格齐备时` | 6.7 实机 | 已交付（6.7 实机：无计划/未确认双态执行禁用） |
 | 67 | 副作用声明不承诺公平隔离 | 新 | 3.9, 6.7 | `model-ab.test.ts › 带副作用工具且未确认 → 拦截；勾选后放行，且声明展开到每一臂` + `experiment-records.test.ts › 风险工具 + 未声明 ⇒ ineligible（SIDE_EFFECT_UNDECLARED，如实拒绝）` | 6.7 实机 | 待验证 |
 
 ---
