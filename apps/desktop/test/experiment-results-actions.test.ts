@@ -110,6 +110,14 @@ const apiStub: Record<string, unknown> = {
     calls.push("runs:modelAbPlan");
     return ok({ experimentId: "exp", ids: [], ok: true, plan: [], sideEffectsAllowed: false });
   },
+  // U8 4.5：比较读取是只读通道；这里给错误信封，顺带承载"比较拒绝不改批次事实"
+  compareRuns: async (request: { runIds: readonly string[] }) => {
+    calls.push(`compareRuns:${request.runIds.join(",")}`);
+    return {
+      ok: false as const,
+      error: { code: "COMPARE_STUB", message: "比较读取失败（桩）" },
+    };
+  },
   forkCapability: async () => ({
     ok: false as const,
     error: { code: "UNUSED", message: "默认桩" },
@@ -137,7 +145,9 @@ const { useAppStore } = await import("../src/renderer/src/store");
 
 /** 执行/预览/创建/分支/代理通道的调用次数（4.3 的反证判据：全程必须为 0） */
 function executionChannelCalls(): number {
-  return calls.filter((one) => one !== "runs:list" && !one.startsWith("runs:get")).length;
+  return calls.filter(
+    (one) => one !== "runs:list" && !one.startsWith("runs:get") && !one.startsWith("compareRuns"),
+  ).length;
 }
 
 beforeEach(async () => {
@@ -215,5 +225,55 @@ describe("4.3 工作区逐臂动作：只读核实，零执行通道", () => {
     });
     expect(landed).toBe(false);
     expect(calls).toEqual([]);
+  });
+});
+
+describe("4.5 从实验结果进入共用比较：只读往返，批次事实不变", () => {
+  let opsBefore: ReturnType<typeof useAppStore.getState>["operations"];
+  let readsBefore: ReturnType<typeof useAppStore.getState>["resultReads"];
+  let locBefore: ReturnType<typeof useAppStore.getState>["experimentReturnLocation"];
+
+  async function enterCompareFromExperiment(): Promise<void> {
+    useAppStore.setState({
+      view: "experiment",
+      compareIds: [ARM_A, ARM_B],
+      compareNotice: null,
+    });
+    opsBefore = useAppStore.getState().operations;
+    readsBefore = useAppStore.getState().resultReads;
+    locBefore = useAppStore.getState().experimentReturnLocation;
+    await useAppStore.getState().openCompareWorkspace();
+  }
+
+  it("两条按选择顺序进入详细比较；比较入口只读——登记/读取项引用原样", async () => {
+    await enterCompareFromExperiment();
+    const after = useAppStore.getState();
+    expect(after.view).toBe("compare");
+    expect(after.compareRead.selection).toEqual([ARM_A, ARM_B]);
+    expect(after.comparePair).toEqual({ leftRunId: ARM_A, rightRunId: ARM_B });
+    // 来源引用记的是实验工作区（返回要回得去）
+    expect(after.compareReturnLocation?.view).toBe("experiment");
+    // 只读反证：比较入口不改批次登记与结果读取（引用相等 = 零改写）
+    expect(after.operations).toBe(opsBefore);
+    expect(after.resultReads).toBe(readsBefore);
+    // 比较读取走了只读通道；执行/创建/分支/代理通道零调用
+    expect(calls.filter((one) => one.startsWith("compareRuns"))).toEqual([
+      `compareRuns:${ARM_A},${ARM_B}`,
+    ]);
+    expect(executionChannelCalls()).toBe(0);
+  });
+
+  it("比较读取被拒绝（信封错误）后返回实验：视图恢复、对照集合保留、批次事实仍原样", async () => {
+    await enterCompareFromExperiment();
+    // 比较结论是错误（桩返回 error 信封）——拒绝呈现归比较工作区，这里钉"返回不改批次事实"
+    await useAppStore.getState().returnFromCompare();
+    const after = useAppStore.getState();
+    expect(after.view).toBe("experiment");
+    expect(after.compareIds).toEqual([ARM_A, ARM_B]);
+    expect(after.operations).toBe(opsBefore);
+    expect(after.resultReads).toBe(readsBefore);
+    // 实验目标没有被返回动作改写/清除（批次编辑现场不动）
+    expect(after.experimentReturnLocation).toBe(locBefore);
+    expect(executionChannelCalls()).toBe(0);
   });
 });

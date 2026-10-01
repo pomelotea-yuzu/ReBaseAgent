@@ -1,4 +1,5 @@
 import type { RequestOutcome } from "@shared/operations";
+import type { ExperimentArmSelectability } from "../lib/experiment-results";
 import type {
   AbArmResultView,
   AbBatchResultView,
@@ -21,8 +22,22 @@ import { ACTION_LABELS, TONE_STYLES } from "./OperationsEntry";
  *    `itemViewOf` 派生（lib/operation-result-view），动作可用性也同源；
  * 3. **不产出臂间差值 / 胜出臂**（V3b 纪律）：底部说明行把这条写死在界面上。
  *
- * 本组件只吃 props（本包无 jsdom）：派生由 `deriveAbBatchResult` 完成，接线在 DetailPanel。
+ * U8 任务 4.5：可选的**对照选择**（`selection`）——有可信 ID 的臂可加入/移出全局
+ * 对照集合（上限与提示由 store 的 `toggleCompare` 承担）；未关联臂禁用选择并给就近
+ * 原因，但**不隐藏**（ownOnly/不可读/未封存的臂仍可选中，由 U7 呈现拒绝——结果页
+ * 不把它们过滤成"比较成功"）。
+ *
+ * 本组件只吃 props（本包无 jsdom）：派生由 `deriveAbBatchResult` 完成，接线在工作区容器。
  */
+
+/** U8 4.5：对照选择的注入面（全部由容器从 store 现取，本组件不订阅） */
+export interface ArmCompareSelection {
+  /** 该可信 ID 是否已在全局对照集合里 */
+  readonly isSelectedOf: (runId: string) => boolean;
+  /** 选择资格（未关联 ID ⇒ 不可选 + 就近原因） */
+  readonly selectabilityOf: (arm: AbArmResultView) => ExperimentArmSelectability;
+  readonly onToggle: (runId: string) => void;
+}
 
 const ARM_OUTCOME_SHORT: Record<RequestOutcome, string> = {
   returned: "返回",
@@ -59,17 +74,55 @@ function ArmActionButton({
   );
 }
 
+/** U8 4.5：对照选择按钮（有 ID 可切换；未关联禁用并给原因） */
+function ArmCompareToggle({
+  arm,
+  selection,
+}: {
+  arm: AbArmResultView;
+  selection: ArmCompareSelection;
+}) {
+  const selectability = selection.selectabilityOf(arm);
+  const selected = arm.runId !== null && selection.isSelectedOf(arm.runId);
+  return (
+    <button
+      type="button"
+      aria-pressed={selected ? "true" : "false"}
+      disabled={!selectability.selectable}
+      title={
+        !selectability.selectable
+          ? (selectability.reason ?? "不能进入对照")
+          : selected
+            ? "从全局对照集合移出这条臂"
+            : "加入全局对照集合（两至四条；从实验结果进入共用比较）"
+      }
+      onClick={() => {
+        if (arm.runId !== null && selectability.selectable) selection.onToggle(arm.runId);
+      }}
+      className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] disabled:cursor-not-allowed disabled:opacity-40 ${FOCUS_RING} ${
+        selected
+          ? "border-sky-500 bg-sky-50 text-sky-800"
+          : "border-gray-300 text-gray-700 hover:bg-gray-50"
+      }`}
+    >
+      {selected ? "移出对照" : "加入对照"}
+    </button>
+  );
+}
+
 /** 一条臂：有可信 ID ⇒ 复用逐条呈现（状态 + 动作）；无 ID ⇒ 只有诚实说明，零动作零链接 */
 function ArmRow({
   arm,
   epoch,
   operationId,
   onAct,
+  selection,
 }: {
   arm: AbArmResultView;
   epoch: string | null;
   operationId: string;
   onAct: (action: ResultAction, identity: ResultReadIdentity) => void;
+  selection: ArmCompareSelection | null;
 }) {
   const runId = arm.runId;
   const item = arm.item;
@@ -77,11 +130,19 @@ function ArmRow({
     <li className="flex flex-wrap items-center gap-x-2 gap-y-0.5 rounded border border-gray-100 bg-gray-50/60 px-1.5 py-1">
       <span className="shrink-0 text-[10px] font-semibold text-gray-700">臂 {arm.index + 1}</span>
       {runId === null || item === null ? (
-        <span className="min-w-0 break-all text-[10px] leading-4 text-gray-500">
-          {runId === null
-            ? arm.note
-            : "该臂已登记可信 ID，但批次呈现未拿到逐条事实（只保留身份，不造状态）"}
-        </span>
+        <>
+          <span className="min-w-0 break-all text-[10px] leading-4 text-gray-500">
+            {runId === null
+              ? arm.note
+              : "该臂已登记可信 ID，但批次呈现未拿到逐条事实（只保留身份，不造状态）"}
+          </span>
+          {/* U8 4.5：未关联臂的选择按钮禁用在场（原因就近可读），但不隐藏不冒充 */}
+          {selection !== null ? (
+            <div className="ml-auto flex shrink-0 items-center gap-1">
+              <ArmCompareToggle arm={arm} selection={selection} />
+            </div>
+          ) : null}
+        </>
       ) : (
         <>
           <span className="min-w-0 break-all font-code text-[10px] text-gray-700">{runId}</span>
@@ -106,6 +167,7 @@ function ArmRow({
                   />
                 ))
               : null}
+            {selection !== null ? <ArmCompareToggle arm={arm} selection={selection} /> : null}
           </div>
           {item.detail !== null ? (
             <div className="w-full break-all text-[10px] leading-4 text-gray-500">
@@ -133,9 +195,12 @@ function ArmRow({
 export function AbBatchResultSection({
   view,
   onAct,
+  selection = null,
 }: {
   view: AbBatchResultView;
   onAct: (action: ResultAction, identity: ResultReadIdentity) => void;
+  /** U8 4.5：对照选择（缺省 null = 不提供选择面，操作面板等旧消费方不受影响） */
+  selection?: ArmCompareSelection | null;
 }) {
   return (
     <div
@@ -167,6 +232,7 @@ export function AbBatchResultSection({
               epoch={view.epoch}
               operationId={view.operationId}
               onAct={onAct}
+              selection={selection}
             />
           ))}
         </ul>

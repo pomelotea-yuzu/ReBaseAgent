@@ -236,6 +236,78 @@ describe("4.1/4.2 批次结果区视图：登记身份 + 逐批分块", () => {
     expect(markup).toContain("不生成结果链接");
   });
 
+  it("4.5 对照选择：可信臂可切换（选中态 aria-pressed），未关联臂禁用且原因在 title", () => {
+    const batches = deriveExperimentBatches({
+      targetRunId: PARENT,
+      operations: [abRecord()],
+      reads: emptyResultReadStore(),
+    });
+    const selected = renderToStaticMarkup(
+      createElement(ExperimentResultsSection, {
+        batches,
+        onArmAction: noop,
+        compareIds: [ARM_A],
+        onToggleCompare: noop,
+        onEnterCompare: noop,
+      }),
+    );
+    // 已选臂：移出对照 + aria-pressed=true
+    expect(selected).toContain("移出对照");
+    expect(selected).toContain('aria-pressed="true"');
+    // 未关联臂：按钮禁用在场，原因就近可读（不隐藏、不冒充可比）
+    expect(selected).toContain("加入对照");
+    expect(selected).toContain("disabled");
+    expect(selected).toContain("不能进入比较");
+  });
+
+  it("4.5 进入比较按钮：少于两条禁用；两条启用给顺序说明；store 提示（超上限）原样呈现", () => {
+    const batches = deriveExperimentBatches({
+      targetRunId: PARENT,
+      operations: [abRecord()],
+      reads: emptyResultReadStore(),
+    });
+    const fewer = renderToStaticMarkup(
+      createElement(ExperimentResultsSection, {
+        batches,
+        onArmAction: noop,
+        compareIds: [ARM_A],
+        onToggleCompare: noop,
+        onEnterCompare: noop,
+      }),
+    );
+    expect(fewer).toContain("进入比较（已选 1/4）");
+    // 不足两条：进入按钮自身禁用（disabled="" 落在该按钮上）
+    expect(fewer).toContain('data-experiment-enter-compare="true" disabled=""');
+    expect(fewer).toContain("选择两条即可进入详细比较");
+
+    const two = renderToStaticMarkup(
+      createElement(ExperimentResultsSection, {
+        batches,
+        onArmAction: noop,
+        compareIds: [ARM_A, ARM_B],
+        onToggleCompare: noop,
+        onEnterCompare: noop,
+      }),
+    );
+    expect(two).toContain("进入比较（已选 2/4）");
+    expect(two).toContain("按选择顺序作为详细比较的左右两侧");
+    // 两条齐备：进入按钮不禁用（disabled 与 title 不同时出现在该按钮上）
+    expect(two).toContain('data-experiment-enter-compare="true" title=');
+    expect(two).not.toContain('data-experiment-enter-compare="true" disabled');
+
+    const noticed = renderToStaticMarkup(
+      createElement(ExperimentResultsSection, {
+        batches,
+        onArmAction: noop,
+        compareIds: [ARM_A, ARM_B],
+        compareNotice: "最多同时对照 4 条运行",
+        onToggleCompare: noop,
+        onEnterCompare: noop,
+      }),
+    );
+    expect(noticed).toContain("最多同时对照 4 条运行");
+  });
+
   it("零批次 ⇒ 引导语（预览不产生批次），不渲染任何批次块", () => {
     const markup = renderToStaticMarkup(
       createElement(ExperimentResultsSection, { batches: [], onArmAction: noop }),

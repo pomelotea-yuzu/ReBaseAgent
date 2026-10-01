@@ -122,6 +122,11 @@ function ExperimentResults({ targetRunId }: { readonly targetRunId: string }) {
   const openOperationResult = useAppStore((s) => s.openOperationResult);
   const openOperationFailure = useAppStore((s) => s.openOperationFailure);
   const retryResultRead = useAppStore((s) => s.retryResultRead);
+  // U8 4.5：对照集合与进入比较（与分支树选择栏共用同一集合与上限判据）
+  const compareIds = useAppStore((s) => s.compareIds);
+  const compareNotice = useAppStore((s) => s.compareNotice);
+  const toggleCompare = useAppStore((s) => s.toggleCompare);
+  const openCompareWorkspace = useAppStore((s) => s.openCompareWorkspace);
 
   const batches = deriveExperimentBatches({
     targetRunId,
@@ -131,6 +136,12 @@ function ExperimentResults({ targetRunId }: { readonly targetRunId: string }) {
   return (
     <ExperimentResultsSection
       batches={batches}
+      compareIds={compareIds}
+      compareNotice={compareNotice}
+      onToggleCompare={toggleCompare}
+      onEnterCompare={() => {
+        void openCompareWorkspace();
+      }}
       onArmAction={(action, identity) => {
         if (action === "open-result") {
           void openOperationResult(identity);
