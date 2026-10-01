@@ -194,4 +194,22 @@ describe("5.3 容器接线（源码级契约）", () => {
     const recBlock = app.slice(at, app.indexOf("const openSettings", at));
     expect(recBlock).not.toContain("setSettingsSection(null)");
   });
+
+  it("「设置跳转录制先处理未保存模型字段」：设置内跳转 = 先 dirty 确认，再进录制工作区（源码级接线契约）", () => {
+    // ⚠️ U8 2.10：设置不再保留代理表单，本分区只剩真实监听摘要 + 跳转按钮
+    const dialog = read("../src/renderer/src/components/SettingsDialog.tsx");
+    // 跳转入口是真实按钮，且落在录制分区
+    expect(dialog).toContain("data-settings-recording-jump");
+    expect(dialog).toContain("openRecordingFromSettings");
+    // dirty 时先真模态确认（可取消）；取消 = 零跳转零代理调用（回调里没有 openRecordingWorkspace）
+    const jumpAt = dialog.indexOf("const openRecordingFromSettings");
+    const jumpBlock = dialog.slice(jumpAt, dialog.indexOf("const plain", jumpAt));
+    expect(jumpBlock).toContain("requestConfirm(");
+    expect(jumpBlock).toContain("if (!discard) return;");
+    expect(jumpBlock).toContain('setApiKey("")');
+    expect(jumpBlock).toContain("openRecordingWorkspace()");
+    // 设置里不再有第二份代理配置表单（唯一的配置写通道在录制工作区）
+    expect(dialog).not.toContain("doProxyApply");
+    expect(dialog).not.toContain("proxyCheckboxRef");
+  });
 });

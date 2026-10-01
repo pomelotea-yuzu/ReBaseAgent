@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { SettingsStateSchema, ok } from "@shared/ipc";
-import type { Envelope, ProxyState, SettingsState } from "@shared/ipc";
+import type { Envelope, SettingsState } from "@shared/ipc";
 import { beforeEach, describe, expect, it } from "vitest";
 import { settingsDraftDirty } from "../src/renderer/src/lib/settings-form";
 
@@ -22,23 +22,9 @@ const saved: SettingsState = {
   model: "deepseek-chat",
   encryption: "safe",
 };
-const proxyState: ProxyState = {
-  enabled: true,
-  running: true,
-  port: 18787,
-  upstreamBaseUrl: "https://api.deepseek.com",
-  hasKey: false,
-};
-
 const cleanDraft = {
   draft: { baseURL: saved.baseURL ?? "", model: saved.model ?? "", apiKey: "" },
-  proxyDraft: {
-    enabled: proxyState.enabled,
-    portText: String(proxyState.port),
-    upstream: proxyState.upstreamBaseUrl,
-  },
   saved,
-  proxy: proxyState,
 };
 
 describe("5.4 settingsDraftDirty：什么算未保存修改", () => {
@@ -52,21 +38,15 @@ describe("5.4 settingsDraftDirty：什么算未保存修改", () => {
     ).toBe(false);
   });
 
-  it("模型字段或代理字段任何一项偏离 ⇒ 脏", () => {
+  // ⚠️ U8 2.10 有意改判（2026-10-01）：本用例旧判据是「模型字段或代理字段任何一项偏离
+  // ⇒ 脏」；delta 把代理未应用字段从设置里移除（独立录制工作区有自己的草稿与退出保护，
+  // 见 lib/recording-draft.ts），故代理偏离分支删除，判据只剩模型三件。
+  it("模型字段任何一项偏离 ⇒ 脏", () => {
     expect(settingsDraftDirty({ ...cleanDraft, draft: { ...cleanDraft.draft, model: "x" } })).toBe(
       true,
     );
     expect(
-      settingsDraftDirty({
-        ...cleanDraft,
-        proxyDraft: { ...cleanDraft.proxyDraft, portText: "18999" },
-      }),
-    ).toBe(true);
-    expect(
-      settingsDraftDirty({
-        ...cleanDraft,
-        proxyDraft: { ...cleanDraft.proxyDraft, enabled: false },
-      }),
+      settingsDraftDirty({ ...cleanDraft, draft: { ...cleanDraft.draft, baseURL: "https://x" } }),
     ).toBe(true);
   });
 
@@ -76,22 +56,10 @@ describe("5.4 settingsDraftDirty：什么算未保存修改", () => {
     ).toBe(true);
   });
 
-  it("代理状态未读到 ⇒ 不把代理字段算作修改（没有可比的「当前应用值」）", () => {
-    expect(
-      settingsDraftDirty({
-        ...cleanDraft,
-        proxy: null,
-        proxyDraft: { enabled: false, portText: "9999", upstream: "https://elsewhere" },
-      }),
-    ).toBe(false);
-  });
-
   it("设置尚未配置（saved null）⇒ 空表单不脏、填了才脏", () => {
     const none = {
       draft: { baseURL: "", model: "", apiKey: "" },
-      proxyDraft: { enabled: false, portText: "18787", upstream: "" },
       saved: null,
-      proxy: null,
     };
     expect(settingsDraftDirty(none)).toBe(false);
     expect(settingsDraftDirty({ ...none, draft: { ...none.draft, model: "m" } })).toBe(true);

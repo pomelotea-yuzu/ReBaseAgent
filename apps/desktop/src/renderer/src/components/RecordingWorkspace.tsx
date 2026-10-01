@@ -1,7 +1,7 @@
-import { requestConfirm } from "./ConfirmDialog";
-import { AuxWorkspaceFrame } from "./AuxWorkspaceFrame";
-import { RecordingWorkspaceView } from "./RecordingWorkspaceView";
 import { useAppStore } from "../store";
+import { AuxWorkspaceFrame } from "./AuxWorkspaceFrame";
+import { requestConfirm } from "./ConfirmDialog";
+import { RecordingWorkspaceView } from "./RecordingWorkspaceView";
 
 /**
  * U8 任务 2.7–2.9：录制工作区容器（订阅 store 并转发动作；判据在纯视图与

@@ -221,7 +221,10 @@ describe("4.8 接线契约：配置写入口绑同一门禁，读取与关闭不
       "const canSave = missing.length === 0 && !busy && configGate.canChange",
     );
     expect(settings).toContain("disabled={!configured || busy || !configGate.canChange}");
-    expect(settings).toContain("disabled={proxyBusy || !configGate.canChange}");
+    // ⚠️ U8 2.10 有意改判（2026-10-01）：设置里的第三个写动作（代理启停）已随代理表单
+    // 迁往独立录制工作区——其门禁由 main 配置锁承担（config-endpoints 原样），设置内
+    // 只剩保存/清除两个写动作。旧的 `disabled={proxyBusy || …}` 断言随之删除。
+    expect(settings).not.toContain("proxyBusy");
     expect(settings).toContain('data-testid="config-gate-notice"');
   });
 

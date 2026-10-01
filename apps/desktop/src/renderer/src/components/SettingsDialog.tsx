@@ -21,11 +21,11 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const settings = useAppStore((s) => s.settings);
   const configured = settings?.configured ?? false;
   const proxy = useAppStore((s) => s.proxy);
-  const toggleProxy = useAppStore((s) => s.toggleProxy);
   const settingsSection = useAppStore((s) => s.settingsSection);
   const setSettingsSection = useAppStore((s) => s.setSettingsSection);
+  const openRecordingWorkspace = useAppStore((s) => s.openRecordingWorkspace);
   const proxySectionRef = useRef<HTMLDivElement | null>(null);
-  const proxyCheckboxRef = useRef<HTMLInputElement | null>(null);
+  const recordingJumpRef = useRef<HTMLButtonElement | null>(null);
 
   // 打开时以已保存值预填（apiKey 留空 = 保持原值）
   const [baseURL, setBaseURL] = useState(settings?.baseURL ?? "");
@@ -36,21 +36,13 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   // U5 任务 5.4："已保存但回读失败"的专属态——驱动只读重试按钮
   const [rereadFailed, setRereadFailed] = useState(false);
 
-  // 代理区（启停即保存；状态从 main 回读）
-  const [proxyEnabled, setProxyEnabled] = useState(proxy?.enabled ?? false);
-  const [proxyPort, setProxyPort] = useState(String(proxy?.port ?? 18787));
-  const [proxyUpstream, setProxyUpstream] = useState(
-    proxy?.upstreamBaseUrl ?? "https://api.deepseek.com",
-  );
-  const [proxyBusy, setProxyBusy] = useState(false);
-  const [proxyMessage, setProxyMessage] = useState<string | null>(null);
-
   const saveSettings = useAppStore((s) => s.saveSettings);
   const loadSettings = useAppStore((s) => s.loadSettings);
   const clearSettings = useAppStore((s) => s.clearSettings);
-  // U4 任务 4.8：三个**写**动作（保存/清除/代理启停）绑统一门禁。
-  // ⚠️ 只绑写通道：`settings:get` / `proxy:status` 的读取与"关闭"按钮不受门禁影响
+  // U4 任务 4.8：写动作（保存/清除）绑统一门禁。
+  // ⚠️ 只绑写通道：`settings:get` 的读取与"关闭"按钮不受门禁影响
   // （spec「直接 IPC 不能绕过配置锁」的 THEN 句要求读取照常可用），main 判锁仍是最后防线。
+  // U8 2.10：代理应用已迁独立录制工作区，设置里不再有第三个写动作。
   const configGate = deriveConfigGate(useAppStore((s) => s.operations));
 
   const trimmed = {
@@ -68,12 +60,11 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
    * U5 任务 5.4（「未保存设置关闭可继续或放弃」）：有未保存修改时，关闭/Esc 先过
    * 真模态确认。"放弃"只丢弃**会话输入**（打过的密钥从未离开渲染层的暂存，单向通道
    * 只在保存成功时写入）；已保存配置、运行阅读与调试草稿一概不动；"继续编辑"逐字保留。
+   * U8 2.10：代理字段已迁录制工作区（它有自己的草稿与关闭协商），这里只剩模型三件。
    */
   const dirty = settingsDraftDirty({
     draft: { baseURL, model, apiKey },
-    proxyDraft: { enabled: proxyEnabled, portText: proxyPort, upstream: proxyUpstream },
     saved: settings,
-    proxy,
   });
   const requestClose = (): void => {
     if (!dirty) {
@@ -83,7 +74,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
     void requestConfirm({
       title: "运行配置有未保存修改",
       message:
-        "baseURL / apiKey / model 或代理字段有未保存的修改。\n\n放弃会丢失这些未保存输入（含打过的密钥——它从未被写入）；已保存的配置与调试草稿不受影响。",
+        "baseURL / apiKey / model 有未保存的修改。\n\n放弃会丢失这些未保存输入（含打过的密钥——它从未被写入）；已保存的配置、录制配置草稿与调试草稿不受影响。",
       confirmLabel: "放弃修改并关闭",
       cancelLabel: "继续编辑",
     }).then((discard) => {
@@ -159,41 +150,41 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
     setBusy(false);
   };
 
-  /** 代理保存并应用：启停即保存，端口占用等错误可见 */
-  const doProxyApply = async (): Promise<void> => {
-    const port = Number.parseInt(proxyPort, 10);
-    if (!Number.isInteger(port) || port < 1 || port > 65535) {
-      setProxyMessage("端口必须是 1–65535 的整数");
-      return;
-    }
-    setProxyBusy(true);
-    setProxyMessage(null);
-    const nextState = await toggleProxy({
-      enabled: proxyEnabled,
-      port,
-      upstreamBaseUrl: proxyUpstream.trim(),
-    });
-    if (nextState === null) {
-      setProxyMessage(useAppStore.getState().error ?? "代理操作失败");
-    } else {
-      setProxyMessage(
-        nextState.running
-          ? `代理已运行：http://127.0.0.1:${nextState.port}/v1——把你的应用 base_url 改成这个地址即可录制。`
-          : "代理已停止。",
-      );
-    }
-    setProxyBusy(false);
-  };
-
   const plain = settings?.encryption === "plain";
 
-  // 「录制接入」定位：滚到代理分区并把焦点放到第一个控件。只在显式要求时执行一次，
-  // 执行后清掉标记——否则用户手动收起后又被拉回去。jsdom/静态渲染无布局能力，
-  // 只有真实 DOM 才逐项调用，故先判方法存在。
+  /**
+   * U8 任务 2.10：设置内跳转录制工作区。设置内有未保存模型字段/密钥时**先处理**：
+   * 继续编辑 = 取消跳转（零代理应用调用）；确认放弃 = 清未保存密钥输入并进入录制，
+   * 原调试草稿保留（scenario「设置跳转录制先处理未保存模型字段」）。
+   */
+  const openRecordingFromSettings = (): void => {
+    if (dirty) {
+      void requestConfirm({
+        title: "设置有未保存修改",
+        message:
+          "baseURL / apiKey / model 有未保存的修改，跳转录制前需要先处理。\n\n「继续编辑」留在设置（不发生任何代理应用调用）；「放弃并跳转」丢弃未保存输入（含打过的密钥——它从未被写入）并打开录制工作区；已保存配置与调试草稿不受影响。",
+        confirmLabel: "放弃并跳转录制",
+        cancelLabel: "继续编辑",
+      }).then((discard) => {
+        if (!discard) return;
+        setApiKey("");
+        setSettingsSection(null);
+        onClose();
+        openRecordingWorkspace();
+      });
+      return;
+    }
+    setSettingsSection(null);
+    onClose();
+    openRecordingWorkspace();
+  };
+
+  // 「录制接入」定位：滚到录制跳转分区并把焦点放到跳转按钮。只在显式要求时执行一次，
+  // 执行后清掉标记。jsdom/静态渲染无布局能力，只有真实 DOM 才逐项调用，故先判方法存在。
   useEffect(() => {
     if (settingsSection !== "proxy") return;
     proxySectionRef.current?.scrollIntoView?.({ block: "start" });
-    proxyCheckboxRef.current?.focus?.();
+    recordingJumpRef.current?.focus?.();
     setSettingsSection(null);
   }, [settingsSection, setSettingsSection]);
 
@@ -335,12 +326,12 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
       </div>
 
       {/* ---------------------------------------------------------------
-            本地录制代理：零摩擦接入（key 留在你的应用里，ReBaseAgent 不保管）
-            全局栏「录制接入」即定位到本分区（任务 4.2）
+            本地录制代理（U8 2.10）：设置**不再保留**第二份代理配置表单——
+            配置/启停/地址都在独立录制工作区。本分区只剩真实监听摘要与跳转。
             --------------------------------------------------------------- */}
       <div ref={proxySectionRef} className="mt-4 border-t border-gray-200 pt-3">
         <div className="mb-1 flex items-center justify-between">
-          <div className="text-sm font-semibold text-gray-800">本地录制代理（零摩擦接入）</div>
+          <div className="text-sm font-semibold text-gray-800">本地录制代理</div>
           <span
             className={`inline-flex items-center gap-1 text-[11px] ${
               proxy?.running === true ? "text-emerald-700" : "text-gray-400"
@@ -355,68 +346,17 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
           </span>
         </div>
         <div className="mb-2 text-[11px] leading-4 text-gray-500">
-          把你的 Agent 应用 base_url 改为{" "}
-          <span className="font-code">http://127.0.0.1:&lt;端口&gt;/v1</span>， key
-          一字不动即可录制每次 LLM 调用。录制/查看不需要任何配置；key
-          仅在本会话内存中暂存用于「编辑重发」。
+          代理配置与启停在录制工作区内操作（上面的摘要只是真实状态回显，不是可编辑表单）。
         </div>
-
-        <div className="space-y-2">
-          <label className="flex items-center gap-2 text-[11px] text-gray-700">
-            <input
-              ref={proxyCheckboxRef}
-              type="checkbox"
-              checked={proxyEnabled}
-              onChange={(e) => setProxyEnabled(e.target.checked)}
-              className="h-3.5 w-3.5"
-            />
-            启用代理
-          </label>
-          <div className="flex gap-2">
-            <label className="block w-24">
-              <span className="mb-0.5 block text-[11px] font-medium text-gray-600">端口</span>
-              <input
-                type="number"
-                min={1}
-                max={65535}
-                value={proxyPort}
-                onChange={(e) => setProxyPort(e.target.value)}
-                spellCheck={false}
-                className="w-full rounded border border-gray-300 px-2 py-1 font-code text-xs outline-none focus:border-blue-400"
-              />
-            </label>
-            <label className="block flex-1">
-              <span className="mb-0.5 block text-[11px] font-medium text-gray-600">
-                upstream（转发目标，不进 trace）
-              </span>
-              <input
-                type="url"
-                value={proxyUpstream}
-                onChange={(e) => setProxyUpstream(e.target.value)}
-                placeholder="https://api.deepseek.com"
-                spellCheck={false}
-                className="w-full rounded border border-gray-300 px-2 py-1 font-code text-xs outline-none focus:border-blue-400"
-              />
-            </label>
-          </div>
-        </div>
-
-        {proxyMessage !== null ? (
-          <div className="mt-2 text-[11px] leading-4 text-gray-600">{proxyMessage}</div>
-        ) : null}
-
-        <div className="mt-2 flex justify-end">
-          <button
-            type="button"
-            onClick={() => {
-              void doProxyApply();
-            }}
-            disabled={proxyBusy || !configGate.canChange}
-            className="rounded bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {proxyBusy ? "应用中…" : "保存并应用"}
-          </button>
-        </div>
+        <button
+          ref={recordingJumpRef}
+          type="button"
+          data-settings-recording-jump
+          onClick={openRecordingFromSettings}
+          className="rounded border border-gray-300 px-3 py-1 text-xs text-gray-700 hover:bg-gray-50"
+        >
+          打开录制工作区
+        </button>
       </div>
     </ModalDialog>
   );

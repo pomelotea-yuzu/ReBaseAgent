@@ -194,8 +194,12 @@ export function RecordingWorkspaceView({
             ) : null}
           </div>
           {applyError !== null ? (
-            <p className="rounded bg-red-50 px-2 py-1 text-reading-meta text-red-800" data-recording-apply-error>
-              应用失败：{applyError}。配置可能已保存但监听未启动（以下方真实状态为准）；重新应用须再次点击。
+            <p
+              className="rounded bg-red-50 px-2 py-1 text-reading-meta text-red-800"
+              data-recording-apply-error
+            >
+              应用失败：{applyError}
+              。配置可能已保存但监听未启动（以下方真实状态为准）；重新应用须再次点击。
             </p>
           ) : null}
         </div>
@@ -204,7 +208,9 @@ export function RecordingWorkspaceView({
       {/* —— 状态区（意图 / 监听 / 凭据三层；未知显式呈现 + 只读重试）—— */}
       <section className="rounded border border-gray-200" aria-label="录制真实状态">
         <div className="flex items-center justify-between border-b border-gray-100 px-4 py-2">
-          <span className="text-reading-meta font-medium text-gray-700">真实状态（与配置输入无关）</span>
+          <span className="text-reading-meta font-medium text-gray-700">
+            真实状态（与配置输入无关）
+          </span>
           <button
             type="button"
             data-recording-refresh-status

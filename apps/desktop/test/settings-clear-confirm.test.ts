@@ -54,7 +54,9 @@ describe("5.5 清除确认：点名凭据、取消零调用、受槽约束、查
   it("确认文案点名保存凭据一并删除且不可恢复；走 requestConfirm 真模态", () => {
     const at = dialog.indexOf("const doClear");
     expect(at).toBeGreaterThan(-1);
-    const block = dialog.slice(at, dialog.indexOf("const doProxyApply"));
+    // ⚠️ U8 2.10 改判留痕：切片锚点由 `const doProxyApply`（已随设置代理表单移除）
+    // 改为 `const plain`（doClear 之后第一个声明）
+    const block = dialog.slice(at, dialog.indexOf("const plain"));
     expect(block).toContain("requestConfirm(");
     expect(block).toContain("apiKey（保存的凭据）一并删除，不可恢复");
     expect(block).toContain("调试草稿与已有运行不受影响");
@@ -63,7 +65,9 @@ describe("5.5 清除确认：点名凭据、取消零调用、受槽约束、查
   it("取消 ⇒ 清除通道一次都不碰；确认之后的复位只动配置输入，不越界清草稿", () => {
     const block = dialog.slice(
       dialog.indexOf("const doClear"),
-      dialog.indexOf("const doProxyApply"),
+      // ⚠️ U8 2.10 改判留痕：旧锚点 `const doProxyApply` 随设置代理表单移除而消失，
+      // 切片改到其后第一个声明（`const plain`）——判据本身不变（doClear 块内无草稿通道）
+      dialog.indexOf("const plain"),
     );
     // 顺序判据：`if (!confirmed) return;` 必须挡在 clearSettings 调用之前
     expect(block.indexOf("if (!confirmed) return;")).toBeGreaterThan(-1);

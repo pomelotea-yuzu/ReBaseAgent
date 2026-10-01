@@ -1,4 +1,4 @@
-import type { ProxyToggleInput, ProxyState } from "@shared/ipc";
+import type { ProxyState, ProxyToggleInput } from "@shared/ipc";
 
 /**
  * U8 任务 2.1–2.4：**录制配置草稿**（design D2）。
@@ -78,11 +78,18 @@ export interface RecordingDraftPatch {
 }
 
 /** 字段写入：任一字段实际变化推进修订；零变化返回原引用（相同写入不换引用） */
-export function writeRecordingDraft(draft: RecordingDraft, patch: RecordingDraftPatch): RecordingDraft {
+export function writeRecordingDraft(
+  draft: RecordingDraft,
+  patch: RecordingDraftPatch,
+): RecordingDraft {
   const enabled = patch.enabled ?? draft.enabled;
   const portText = patch.portText ?? draft.portText;
   const upstreamText = patch.upstreamText ?? draft.upstreamText;
-  if (enabled === draft.enabled && portText === draft.portText && upstreamText === draft.upstreamText) {
+  if (
+    enabled === draft.enabled &&
+    portText === draft.portText &&
+    upstreamText === draft.upstreamText
+  ) {
     return draft;
   }
   return { ...draft, enabled, portText, upstreamText, revision: draft.revision + 1 };
