@@ -38,7 +38,7 @@
 | n | 场景 | 保留/新 | 任务 | 单元/契约证据 | 实机入口/批次 | 状态 |
 |---|---|---|---|---|---|---|
 | 8 | 编辑并重发成功 | 保留 | 5.3 | `exec-prompt-proxy.test.ts › 成功：登记身份 = 本次 fork 返回的 id，目标只带定位事实不带 messages` + `controlled-proxy.test.ts › 外部非流式请求 JSON 直通 + 编辑 messages 分叉按 stream:true 重发：受控日志两种模式、fork run 落盘、父不改写` | 6.9 实机 | 已交付（6.9 实机） |
-| 9 | 未修改禁用 | 保留 | 5.1, 6.9 | `exec-prompt-proxy.test.ts › PROXY_* 拒绝（未捕获 key / 空 fork）：settled + 原稳定码 + 零身份，且重复不重试消费`（main 空 fork 防线） + `prompt-messages-editor-draft.test.ts › U8 5.1b：工作区形态参数在场（目标作用域源可用性覆盖 + 常开无收起）`（unchanged 禁用判据随编辑器迁工作区原样继承） | 6.9 实机 | 已交付（6.9 实机） |
+| 9 | 未修改禁用 | 保留 | 5.1, 6.9, 7.1 | `exec-prompt-proxy.test.ts › PROXY_* 拒绝（未捕获 key / 空 fork）：settled + 原稳定码 + 零身份，且重复不重试消费`（main 空 fork 防线） + `prompt-messages-editor-draft.test.ts › U8 5.1b：工作区形态参数在场（目标作用域源可用性覆盖 + 常开无收起）`（unchanged 禁用判据随编辑器迁工作区原样继承） | 6.9 实机 | 已交付（6.9 实机） |
 | 10 | 未捕获 key | 保留 | 5.2, 6.9 | `exec-prompt-proxy.test.ts › PROXY_* 拒绝（未捕获 key / 空 fork）：settled + 原稳定码 + 零身份，且重复不重试消费` + `messages-eligibility.test.ts › 「未捕获 key」：running 正常但 hasKey=false ⇒ 提示先把应用经代理跑一次` + `execution-confirmation.test.ts › messages 未捕获 key ⇒ 事实里就写「本次无法重发」，不等提交才发现` | 6.9 实机 | 已交付（6.9 实机：重启段正面呈现） |
 | 11 | SDK run 无此入口 | 保留 | 1.4, 5.1, 6.9 | `prompt-messages-editor-draft.test.ts › DetailPanel 不再挂载编辑器；入口按 canResend 给出（SDK run 无此入口）`——canResend = proxy 来源 + 自有调用 + 已封存 | 6.12 实机 | 已交付（6.12 实机：SDK run 的 llm.call 无 messages 重发入口 + prompt fork 入口在场（6.9 正面 + 本批负面补齐）） |
 | 12 | 停用代理仍有凭据不能重发 | 新 | 5.2, 6.5 | main 事实：`fork` 以 lastKey 与 handler 双条件拒绝（proxy-manager.ts L169–176，review 已核实） + `messages-eligibility.test.ts › 「停用代理仍有凭据不能重发」：running=false 且 hasKey=true ⇒ 仍被监听检查挡住（顺序有牙）` + `messages-eligibility.test.ts › 状态未知（running=null）不能按「可能在跑」放行` | 6.5 反证 + 6.9 实机 | 已交付（6.5 反证 + 6.9 实机） |
