@@ -1,10 +1,13 @@
 import type { SpanLine } from "@rebaseagent/trace-sdk";
 import type { ReactNode } from "react";
 import { useEffect } from "react";
+import { deriveMessagesResults } from "../lib/messages-results";
+import type { ResultAction } from "../lib/operation-result-view";
 import { resolveExecutionGate } from "../lib/workspace-selection";
 import { useAppStore } from "../store";
 import { AuxWorkspaceFrame } from "./AuxWorkspaceFrame";
 import { MessagesForkEditor } from "./MessagesForkEditor";
+import { MessagesResultsSection } from "./MessagesResults";
 
 /**
  * U8 任务 5.1b：messages 编辑工作区容器——**目标作用域**的源读取与编辑器挂载
@@ -100,6 +103,66 @@ export function MessagesWorkspace() {
       onReturn={() => void returnToAuxSource("messages")}
     >
       {body}
+      {target !== null ? (
+        <MessagesResults targetRunId={target.runId} targetSpanId={target.spanId} />
+      ) : null}
     </AuxWorkspaceFrame>
+  );
+}
+
+/**
+ * U8 任务 5.4：重发结果区（目标作用域）——容器半边。
+ *
+ * 事实源 = main 登记快照（只取 `target.kind === "proxy"` 且父 run / 调用逐字匹配的
+ * 提交）+ 独立核实（`resultReads`）；动作走与操作面板同一批 store 口
+ * （打开 / 失败定位 / 只读重试 / 返回草稿），本容器不自建第二套。
+ */
+function MessagesResults({
+  targetRunId,
+  targetSpanId,
+}: {
+  readonly targetRunId: string;
+  readonly targetSpanId: string;
+}) {
+  const operations = useAppStore((s) => s.operations);
+  const resultReads = useAppStore((s) => s.resultReads);
+  const isOperationDraftPresent = useAppStore((s) => s.isOperationDraftPresent);
+  const openOperationResult = useAppStore((s) => s.openOperationResult);
+  const openOperationFailure = useAppStore((s) => s.openOperationFailure);
+  const retryResultRead = useAppStore((s) => s.retryResultRead);
+  const returnOperationDraft = useAppStore((s) => s.returnOperationDraft);
+
+  const results = deriveMessagesResults({
+    targetRunId,
+    targetSpanId,
+    operations: operations.operations,
+    reads: resultReads,
+    draftPresentOf: (record) =>
+      isOperationDraftPresent({ epoch: record.epoch, operationId: record.operationId }),
+  });
+  return (
+    <MessagesResultsSection
+      results={results}
+      onAction={(action: ResultAction | "return-draft", identity) => {
+        if (action === "open-result") {
+          void openOperationResult(identity);
+          return;
+        }
+        if (action === "view-failure") {
+          void openOperationFailure(identity);
+          return;
+        }
+        if (action === "retry-read") {
+          void retryResultRead(identity);
+          return;
+        }
+        if (action === "return-draft") {
+          void returnOperationDraft({
+            epoch: identity.epoch,
+            operationId: identity.operationId,
+          });
+        }
+      }}
+    />
   );
 }
