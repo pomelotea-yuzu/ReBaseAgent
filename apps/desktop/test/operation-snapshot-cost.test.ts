@@ -1,4 +1,4 @@
-import { writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { cpus, totalmem } from "node:os";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -140,8 +140,10 @@ describe("4.5 受限操作快照的成本实测（含 1000 条高负载）", () 
       );
     }
     console.log(`[4.5] 环境：${ENV}`);
+    const outDir = resolve(import.meta.dirname, "../../../.workbuddy");
+    mkdirSync(outDir, { recursive: true });
     writeFileSync(
-      resolve(import.meta.dirname, "../../../.workbuddy/u4-45-measurements.json"),
+      resolve(outDir, "u4-45-measurements.json"),
       `${JSON.stringify({ env: ENV, samples: [light, heavy] }, null, 2)}\n`,
     );
 
