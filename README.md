@@ -10,7 +10,7 @@
 
 **Windows x64 便携版（约 95 MB，<100 MB，免安装）** → [GitHub Releases](https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.4.0-rc.1) / [Gitee Releases](https://gitee.com/yuzu-tea-duck/re-base-agent/releases/tag/v0.4.0-rc.1)
 
-最新打包为 **0.4.0-rc.1**（发行候选）：单文件体积 `95,541,997` bytes，SHA-256 前缀 `62d69b48c12ad39e`，低于 Gitee 单附件 100 MB 上限。双击运行，无需安装；应用数据保存在 exe 旁的 `data/` 目录，迁移时同时携带该目录。便携启动器会使用临时解包目录，不能将便携理解为“不产生临时文件”。
+最新打包为 **0.4.0-rc.1**（发行候选，人工实机验收已通过）：单文件体积 `95,542,495` bytes，SHA-256 前缀 `50a1a9cf7ac61ec3`，低于 Gitee 单附件 100 MB 上限。双击运行，无需安装；应用数据保存在 exe 旁的 `data/` 目录，迁移时同时携带该目录。便携启动器会使用临时解包目录，不能将便携理解为“不产生临时文件”。
 
 > 0.4.0-rc.1 包含隔离文件 A/B/C 与 U1–U8 全部归档内容。上传 GitHub/Gitee Releases 属独立步骤，完成前上述链接暂不可用；版本、哈希与发布依据见[项目状态](docs/development/project-status.md)。历史正式版 [v0.2.0](https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.2.0) 不代表长期维护承诺，支持范围见 [SECURITY.md](SECURITY.md)。
 

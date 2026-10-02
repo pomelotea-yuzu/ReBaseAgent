@@ -132,7 +132,7 @@ export function CompareWorkspace({ stacked = false }: { stacked?: boolean } = {}
     const model = deriveCompareMetricsTable({ items: acceptedItems, shortIds });
     return (
       <div
-        className="flex min-w-0 flex-1 flex-col overflow-hidden outline-none"
+        className="flex min-w-0 flex-1 flex-col overflow-hidden bg-white outline-none"
         aria-label="比较工作区"
         // U7 5.9：程序化焦点落点（指标表模式同理）
         data-compare-primary="true"
@@ -185,7 +185,7 @@ export function CompareWorkspace({ stacked = false }: { stacked?: boolean } = {}
     // 结论不在场 / 请求级拒绝 / 尚未按 pair 对齐：如实呈现，不冒充、不借旧结论
     return (
       <div
-        className="flex min-w-0 flex-1 flex-col overflow-hidden outline-none"
+        className="flex min-w-0 flex-1 flex-col overflow-hidden bg-white outline-none"
         aria-label="比较工作区"
         data-compare-primary="true"
         tabIndex={-1}

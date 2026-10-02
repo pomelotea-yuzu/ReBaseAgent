@@ -605,7 +605,7 @@ export function CompareWorkspaceView({
   const diffAvailable = diffGate.status === "available";
   return (
     <div
-      className="flex min-w-0 flex-1 flex-col overflow-hidden outline-none"
+      className="flex min-w-0 flex-1 flex-col overflow-hidden bg-white outline-none"
       aria-label="比较工作区"
       // U7 5.9：程序化焦点落点——从单侧运行「返回比较」后焦点回到比较头部（不落页顶）
       data-compare-primary="true"
