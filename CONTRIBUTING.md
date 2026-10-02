@@ -17,8 +17,8 @@
 
 ```bash
 pnpm install --frozen-lockfile
-pnpm dev            # 启动桌面应用
 pnpm check:build    # 先构建库包，避免缺少 dist 使 CLI 用例跳过
+pnpm dev            # 启动桌面应用
 pnpm test           # vitest（全部 mock 注入，零 API 消耗）
 pnpm check:ci       # 质量门禁：build → typecheck → test → lint → spec
 ```
@@ -34,9 +34,9 @@ pnpm check:ci       # 质量门禁：build → typecheck → test → lint → s
 1. 从 `main` 创建分支，一个 PR 聚焦一件事；开始前查看关联 Issue/PR 和活动 change，避免重复修改正在处理的内容。
 2. 涉及能力语义的变更先提交 [OpenSpec](https://github.com/Fission-AI/OpenSpec) proposal（`openspec/changes/`），说明兼容性和验收条件。文档勘误不需要新建 change。
 3. 说明问题、改动、关联 Issue/change、验证结果和剩余限制。未完成的改动可先提交草稿 PR；草稿不等于可合入。
-4. 申请合入代码或构建配置前运行 `pnpm check:ci`；涉及界面、打包或真实执行的变更另附对应验证。纯文档改动检查事实、相对链接和格式即可，不为文字修改启动桌面或真实模型请求。
+4. 申请合入代码或构建配置前运行 `pnpm check:ci`；涉及界面、打包或真实执行的变更另附对应验证。界面改动覆盖实际点击、键盘和受影响布局，OpenSpec 场景逐项关联测试或实机证据；源码结构断言不替代实际交互验收。纯文档改动检查事实、相对链接和格式即可，不为文字修改启动桌面或真实模型请求。
 5. 环境限制导致检查未运行时，写明命令、阻碍和未覆盖范围，不勾选通过；由维护者补验或保持待验证。修改后更新受影响的检查结果，旧提交的绿灯不能代替新提交验证。
-6. 用户可见行为变化同步 README、使用文档与限制；公开能力说明须区分 `main`、候选包和已发布版本。提交信息用一句话说清改动。
+6. 用户可见行为变化同步 README、使用文档与限制；公开能力说明须区分 `main`、候选包和已发布版本。提交标题描述具体功能或工程改动，例如 `docs: 同步工作区进度与使用边界`；背景、用途和验证细节写在正文。
 
 ## 审阅与反馈
 
@@ -56,7 +56,7 @@ pnpm check:ci       # 质量门禁：build → typecheck → test → lint → s
 
 ## 报告问题
 
-用 [Issue 模板](.github/ISSUE_TEMPLATE/bug_report.yml)，附运行方式、版本或源码提交、操作系统、最少复现步骤、预期与实际结果。无法稳定复现时说明发生条件，不必提供无关的完整工程。
+用 [GitHub Issue 模板](.github/ISSUE_TEMPLATE/bug_report.yml)或 [Gitee Issue 模板](.gitee/ISSUE_TEMPLATE.zh-CN.md)，附运行方式、发行文件名/版本或确切源码提交、操作系统、最少复现步骤、预期与实际结果；自行构建的包可补充产物 SHA-256。`package.json` 版本号不能单独证明使用的是哪次构建或已发布版本。无法稳定复现时说明发生条件，不必提供无关的完整工程。
 
 只附脱敏后的必要日志或示例。trace、模型消息、文件附件和截图都可能包含密钥、业务数据或个人信息；不要直接上传整个 `data/` 目录。若问题涉及泄露、路径逃逸等安全影响，改走下述私密流程。
 

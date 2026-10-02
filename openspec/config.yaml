@@ -3,45 +3,58 @@ schema: spec-driven
 context: |
   项目：ReBaseAgent — Agent 的时间旅行调试器（本地优先的 Electron 桌面应用）
 
-  定位句：不止回放 Agent 做了什么，而是让你改变它做了什么。本地运行，数据不出你的机器。
+  定位句：不止回放 Agent 做了什么，而是让你改变它做了什么。
+  本地保存轨迹与文件快照；真实模型请求按用户配置发送给服务商。
 
   概念内核：上下文是 Agent 行为的程序（Context is the program）。
   产品 = 给这门"语言"的调试器。此概念只作透镜统一命名，不扩大工程范围。
 
-  核心创新（时间旅行）：拖回第 N 步 → 编辑该步的 tool_result / prompt →
-  沙箱副本中从该步重跑。前缀零 API 调用（查表式回退），分支点后真调用。
+  目标用户：自研 Agent loop、需要录制与调试模型调用的开发者，中文用户为主。
+  模型接入以 OpenAI 兼容协议为准，不限定服务商或模型品牌。
+  原生创建无需接入外部项目；外部 Agent 可接 trace-sdk，或修改 base_url 使用录制代理。
+  不承诺任何外部 CLI/IDE/框架的官方适配；导入/格式转换按实际需求另立 change。
 
-  技术栈（已定稿，勿在 spec 中重新发明）：
+  当前技术栈（以源码与依赖清单为准）：
   - TypeScript strict + electron-vite + pnpm workspaces（monorepo）
-  - packages/：agent-loop（纯 TS 库，零 Electron 依赖）、trace-sdk、replay、store
-  - apps/：desktop（Electron 壳，唯一碰 Electron 的包）、examples（标本 agent）
+  - packages/：agent-loop（纯 TS 库，零 Electron 依赖）、trace-sdk、llm-proxy、replay、trace-test
+  - apps/desktop：Electron 壳，消费包层能力
   - UI：React + Tailwind + zustand；可视化：ECharts + Monaco（懒加载）
-  - 存储：JSONL 为唯一事实源（一 run 一文件，append-only）；SQLite 仅为桌面端可弃索引
-  - 模型接入：OpenAI 兼容协议直连（fetch + SSE，eventsource-parser），默认 DeepSeek，备用 GLM-Flash
-  - 质量：Biome + vitest + Playwright；打包：electron-builder（portable + NSIS）
-  - 密钥：Electron safeStorage；IPC/trace 校验：zod
+  - 存储：JSONL 为轨迹事实源（一 run 一文件，append-only）；隔离文件附件按内容寻址
+  - 模型接入：OpenAI 兼容协议直连（fetch + SSE，eventsource-parser）
+  - 质量：Biome + vitest + TypeScript + OpenSpec；桌面交互另附 Electron/CDP 实机证据
+  - 打包：electron-builder，当前配置为 Windows x64 portable；其他平台与安装包未交付
+  - 校验：zod；模型设置密钥优先用 Electron safeStorage，加密不可用时明文降级并提示
 
   关键架构不变量（所有 spec 必须遵守）：
-  - Loop 纯函数四不变量：输入只有 config+messages；运行中可变状态仅 messages（追加）；
-    计数/成本从 messages 派生，禁止自增累积；无模块级可变状态
-  - 错误是数据不是异常：工具失败→带 error 的 tool_result；loop 只抛自身 bug
-  - JSONL 文件不可变（run 完成后封存）；只从已完成的 run 分支；删除有子分支的 run 需保护
-  - 便携数据策略：数据只存 <数据目录>/（exe 旁 portable.marker 或用户指定），永不写 AppData/注册表
-  - 时间旅行边界：仅 loop 内状态；副作用工具标保真度分级；外部状态源（RAG/记忆/DB）不承诺
+  - Loop 通过 config/messages、tracer 和注入的 tools/llm 执行；messages 只追加；
+    计数与成本从 messages 派生，无模块级可变状态。具体输入与终止语义以 agent-loop 主 spec 为准
+  - 工具失败记录为带 error 的 tool_result；模型请求失败记录 llm.call.error 并以 errored 收尾
+  - JSONL 轨迹在终止事件写入后封存；分叉只创建新轨迹，不改写父本；有子分支的删除需保护
+  - 便携版业务数据落 exe 旁 data/ 或用户指定的数据目录；启动器可能产生临时解包文件
+  - 代理捕获的 key 仅在 main 内存中使用，不落盘、不回传 renderer；不能用模型设置 key 替代
+  - IPC 与 trace 均须校验；来源缺失、损坏或未知状态不能被 UI 猜测补造为可信事实
 
-  目标用户：自研 Agent loop 的开发者（dogfood：作者本人是第一个用户）。
-  不做任何外部工具（CLI/IDE/框架）的官方适配；零摩擦接入以本地 LLM 录制代理为主线（v-next），导入/格式转换仅按需后置、不做官方适配。
+  时间旅行与执行边界：
+  - 普通 tool_result 续跑复用分叉前消息（零模型调用），分叉后真实调用模型与工具，不恢复外部状态
+  - prompt fork 修改启动上下文后从头执行；代理 messages 只重发一个模型请求，不执行外部工具
+  - 隔离 tool_result 续跑从编辑点所在整轮的轮末文件快照副本继续；编辑观察不撤销同轮写入
+  - 隔离只保真受控普通文件的路径与字节，保护父本、源目录和兄弟分支；不是操作系统权限沙箱
+  - 不承诺恢复网络、RAG、记忆、数据库或任意外部 API；隔离父本的 prompt/模型实验仍不支持
+  - 主动操作统一由 main 登记、去重并占单个执行槽；未知先核对，按可信 ID 只读核实结果
+  - 草稿正文与阅读位置只在 renderer 会话内恢复；执行授权与实验计划绑定当前提交和配置
 
-  增长策略：国产模型生态优先 + 中文一等公民 + 教程式 build in public（掘金/V2EX）。
-  MIT 协议，仓库 day 1 公开。
-
-  路线图：MVP（查看+上下文预算地图+时间旅行最小切片）→ v2 完整时间旅行 →
-  v3 Trace-as-Test / 模型 A/B。
+  当前进度（2026-10-02 校准）：MVP/v2、Trace-as-Test、模型 A/B、隔离 A/B/C 与 U1–U8 已归档。
+  最近有发布记录的 K1 仅含隔离 A/B/C 与 U1/U2，U3–U8 尚未进入该发行包。
+  导出（R2.1）、Shell/真实测试（R3）、真正取消/实时步骤、跨 main 重启任务恢复、
+  跨运行文件 diff、隔离 prompt/模型实验等仍属后续范围，不得显示为已交付。
+  当前能力查 openspec/specs/ 与源码；归档证据查 openspec/changes/archive/；
+  进度与发行范围查 docs/development/project-status.md，未来范围查 UI 拆分计划。
+  项目许可为 MIT，第三方内容沿用其适用许可。
 
 rules:
   proposal:
     - 每份 proposal 必须含 "Non-goals" 章节，明确列出本次不做的事
-    - 涉及时间旅行/replay 的能力，必须声明保真度边界（哪些工具 pure、哪些 best-effort）
+    - 涉及时间旅行/replay 的能力，必须声明消息复用、文件快照与工具副作用的保真度边界
     - 不引入已定稿技术栈之外的新依赖，除非 proposal 显式说明理由
   tasks:
     - 任务粒度控制在 2 小时以内
@@ -53,4 +66,5 @@ operations:
       - 实现时若发现 spec 设计有误，先回 proposal 修订再继续，勿静默偏离
   archive:
     guidance:
-      - 归档时核对所有 scenario 是否有对应测试或 fixture 覆盖
+      - 归档时逐项核对 scenario 与测试/fixture/实机证据；未覆盖或实机不成立的项目如实记录
+      - 合并 delta 后核对既有 requirement/scenario 无遗漏；同步受影响的当前文档与归档链接，归档不等于发行

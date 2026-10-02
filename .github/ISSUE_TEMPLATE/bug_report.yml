@@ -7,6 +7,7 @@ body:
       value: |
         提交前请先搜索已有 issue。涉及 API key 等敏感信息请先脱敏——
         日志里只需保留报错形态，不要贴完整凭据。
+        涉及凭据泄露、路径逃逸等安全问题，请按仓库 SECURITY.md 私下报告。
   - type: textarea
     id: problem
     attributes:
@@ -18,7 +19,7 @@ body:
     id: repro
     attributes:
       label: 复现步骤
-      description: 编号列出最少复现路径；涉及界面的请附截图。
+      description: 编号列出最少复现路径；涉及界面时可附脱敏截图，不必上传完整工程。
       placeholder: |
         1. …
         2. …
@@ -51,8 +52,8 @@ body:
   - type: input
     id: version
     attributes:
-      label: ReBaseAgent 版本
-      description: exe 文件名（如 ReBaseAgent-0.3.0-k0-win-x64-portable.exe）或 package.json 的 version。
+      label: 发行文件名 / 版本或源码提交
+      description: 发行包请附 exe 文件名（如 ReBaseAgent-0.3.0-k1-win-x64-portable.exe）；源码运行或自行构建请附确切提交，可补充产物 SHA-256。package.json 版本号不能单独定位构建。
     validations:
       required: true
   - type: input
@@ -71,4 +72,4 @@ body:
     id: logs
     attributes:
       label: 日志或截图（可选）
-      description: 便携版日志在 exe 同级 data/ 目录；可粘贴关键报错片段。
+      description: 可附必要的脱敏报错或 trace 片段；便携版轨迹位于 exe 同级 data/traces/。不要上传整个 data/、完整模型消息或文件附件目录。
