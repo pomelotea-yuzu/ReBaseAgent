@@ -1,25 +1,22 @@
 # ReBaseAgent
 
-> **Agent 写错了文件，改掉那一步，让它从那里重新跑。**
-> 本地保存轨迹与文件快照；真实模型请求按用户配置发送给服务商。
-
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Release](https://img.shields.io/badge/Release-v0.4.0--rc.1-green.svg)](https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.4.0-rc.1)
 
-![工作台：运行列表、轨迹与详情三栏](docs/readme-shots/hero.png)
+![ReBaseAgent 工作台：运行列表、轨迹与详情三栏](docs/readme-shots/hero.png)
 
 ## 这是什么
 
-Agent 调试多轮文件任务时有个具体的困难：**恢复了历史消息，后续工具却读到了当前目录的文件**，导致续跑起点无法解释。已有的调试器大多能看到"它做了什么"，但改不了。
+调试多轮文件任务时有个具体的困难：**恢复了历史消息，后续工具却读到了当前目录的文件**，导致续跑起点无法解释。
 
 ReBaseAgent 在本项目的执行循环与受控 `read_file` / `write_file` 工具范围内，把工具观察的编辑点对应到**整轮结束的文件快照**，从独立分支继续执行。编辑工具结果只改变模型看到的观察，不撤销该轮写入，也不重新执行被编辑的工具。
 
-| 传统调试 | ReBaseAgent |
-|---|---|
-| Profiler | 上下文预算地图（token 花在哪了） |
-| 改一行代码重跑 | 编辑某步 tool_result，从该步重跑 |
-| 回归测试 | Trace-as-Test 轨迹回放 |
-| git diff | 两次运行的分叉点定位 |
+| 传统调试     | ReBaseAgent            |
+| -------- | ---------------------- |
+| Profiler | 上下文预算地图（token 花在哪了）    |
+| 改一行代码重跑  | 编辑某步 tool_result，从该步重跑 |
+| 回归测试     | Trace-as-Test 轨迹回放     |
+| git diff | 两次运行的分叉点定位             |
 
 对比 LangGraph 的检查点分叉、Langfuse / Phoenix 的提示词实验与重试能力，本项目的技术说明集中在**消息与文件状态的对齐、分支隔离和失败拒绝边界**。同类方案与本项目的对照见[方案调研](docs/research/2026-09-27-agent-debugging-landscape.md)与[机制说明](docs/architecture/replay-state-consistency.md)。跨产品的性能与使用效果尚待同任务验证。
 
@@ -35,7 +32,7 @@ ReBaseAgent 在本项目的执行循环与受控 `read_file` / `write_file` 工�
 
 ## 它能做什么
 
-![改一步工具结果，从那一步重跑](docs/readme-shots/rerun.png)
+![改掉某一步的工具结果，只读预检通过后才能重跑](docs/readme-shots/rerun.png)
 
 **改一步，从那一步重跑** — 停在想改的那一步，改掉模型当时看到的工具结果，从该步继续执行。分叉点之前的上下文在本地拼接复用（零 API 调用），只有分支点之后才真调模型；重发的前缀可能命中服务商的前缀缓存。实测（3 次调用的 run 改最后一步）：只发 **1 次**请求、484 输入 tokens **命中 256**，全价口径消耗为父 run 的 **21%~40%**。
 
@@ -60,6 +57,7 @@ ReBaseAgent 在本项目的执行循环与受控 `read_file` / `write_file` 工�
 **父链缺失时仍能阅读** — 仅在确认祖先文件不存在时，展示已校验的当前运行记录，并明确父链不完整、继承内容未知；损坏或非法版本继续拒绝读取。
 
 <details>
+
 <summary>完整能力清单（源码视角，含边界与限制）</summary>
 
 ### 桌面端
@@ -99,13 +97,13 @@ prompt fork = 编辑首次 llm.call 的启动上下文（system prompt / 首条 
 
 ### 三种"重跑"的区别
 
-|                | 普通重跑 / prompt fork | **隔离文件重跑** | Trace-as-Test 卡带   |
-| -------------- | ----------------- | ------------------ | ----------------- |
-| 文件从哪来          | 宿主磁盘（`exec.cwd`）  | 快照的**副本世界**        | 不涉及文件             |
-| 工具怎么执行         | 调用方传入的 handler     | 固定 `file-tools-v1` | 不执行，逐条消费录制结果      |
-| 文件状态能回退吗| ❌ 不承诺             | ✅ 回到分叉那一轮的轮末状态     | —                 |
-| 会真调 LLM        | 普通续跑从分叉后；prompt fork 从头 | 是（分支点之后）           | 否（零网络、零费用）        |
-| 适合             | 纯对话 / 只读工具        | **带写工具的 run**      | 已封存 trace 当回归用例   |
+|          | 普通重跑 / prompt fork      | **隔离文件重跑**         | Trace-as-Test 卡带 |
+| -------- | ----------------------- | ------------------ | ---------------- |
+| 文件从哪来    | 宿主磁盘（`exec.cwd`）        | 快照的**副本世界**        | 不涉及文件            |
+| 工具怎么执行   | 调用方传入的 handler          | 固定 `file-tools-v1` | 不执行，逐条消费录制结果     |
+| 文件状态能回退吗 | ❌ 不承诺                   | ✅ 回到分叉那一轮的轮末状态     | —                |
+| 会真调 LLM  | 普通续跑从分叉后；prompt fork 从头 | 是（分支点之后）           | 否（零网络、零费用）       |
+| 适合       | 纯对话 / 只读工具              | **带写工具的 run**      | 已封存 trace 当回归用例  |
 
 > 隔离重跑只保真**受控普通文件的内容**（逻辑路径 + 原始字节）；文件权限、时间戳、符号链接身份、网络与数据库**不在**保真范围内。
 
@@ -131,11 +129,11 @@ prompt fork = 编辑首次 llm.call 的启动上下文（system prompt / 首条 
 
 三条路，按你手上有什么选一条：
 
-| 你想做的事 | 走哪条 |
-|---|---|
-| 先看看它能干什么 | [跑一个纯对话 run](#跑一个纯对话-run) |
+| 你想做的事           | 走哪条                         |
+| --------------- | --------------------------- |
+| 先看看它能干什么        | [跑一个纯对话 run](#跑一个纯对话-run)   |
 | 调试一个会改文件的 Agent | [隔离文件运行](#用带写工具的-run隔离文件运行) |
-| 调试你自己已有的 Agent | [SDK 埋点](#只想调试现成的-agent) |
+| 调试你自己已有的 Agent  | [SDK 埋点](#只想调试现成的-agent)    |
 
 ### 跑一个纯对话 run
 
@@ -240,6 +238,9 @@ apps/
   desktop      Electron 桌面调试台（唯一依赖 Electron 的包，可替换）
 ```
 
+
+````
+
 - **存储**：JSONL 是唯一事实源，一 run 一文件、append-only；终止事件写入后封存，任何路径不得修改
 - **模型接入**：OpenAI 兼容协议直连，零厂商 SDK
 - **数据策略**：便携优先——所有数据在应用目录旁的 `data/`，永不写 AppData / 注册表
@@ -259,7 +260,7 @@ pnpm build          # 构建所有包（含 desktop 前端资源）
 pnpm check:ci       # = check:build → check:typecheck → check:test → check:lint → check:spec
 
 pnpm --filter @rebaseagent/desktop dist   # 打包 Windows portable exe
-```
+````
 
 两条构建命令的分工：`pnpm check:build`（`check:ci` 的第一步）只构建 `packages/*` 的库产物，供测试与跨包消费使用；`pnpm build` 是完整构建，额外包含 desktop 的 `electron-vite` 前端打包，供开发者本地使用。二者不可互相替代。
 
