@@ -4,15 +4,15 @@
 > 本地保存轨迹与文件快照；真实模型请求按用户配置发送给服务商。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Release](https://img.shields.io/badge/Release-v0.3.0--k1-green.svg)](https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.3.0-k1)
+[![Release](https://img.shields.io/badge/Release-v0.4.0--rc.1-green.svg)](https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.4.0-rc.1)
 
 ## 下载
 
-**Windows x64 便携版（约 95 MB，<100 MB，免安装）** → [GitHub Releases](https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.3.0-k1) / [Gitee Releases](https://gitee.com/yuzu-tea-duck/re-base-agent/releases/tag/v0.3.0-k1)
+**Windows x64 便携版（约 95 MB，<100 MB，免安装）** → [GitHub Releases](https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.4.0-rc.1) / [Gitee Releases](https://gitee.com/yuzu-tea-duck/re-base-agent/releases/tag/v0.4.0-rc.1)
 
-最近有发布记录的预览版为 **0.3.0-k1**：记录中的单文件体积为 `95,439,340` bytes，低于 Gitee 单附件 100 MB 上限。双击运行，无需安装；应用数据保存在 exe 旁的 `data/` 目录，迁移时同时携带该目录。便携启动器会使用临时解包目录，不能将便携理解为“不产生临时文件”。
+最新打包为 **0.4.0-rc.1**（发行候选）：单文件体积 `95,541,997` bytes，SHA-256 前缀 `62d69b48c12ad39e`，低于 Gitee 单附件 100 MB 上限。双击运行，无需安装；应用数据保存在 exe 旁的 `data/` 目录，迁移时同时携带该目录。便携启动器会使用临时解包目录，不能将便携理解为“不产生临时文件”。
 
-> K1 包含隔离文件 A/B/C 与 U1/U2，不含 U3–U8。U1–U8 已在 `main` 完成归档，归档不代表已有对应下载包。版本、哈希与发布依据见[项目状态](docs/development/project-status.md)；2026-10-02 文档同步未重新核验线上下载。历史正式版 [v0.2.0](https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.2.0) 不代表长期维护承诺，支持范围见 [SECURITY.md](SECURITY.md)。
+> 0.4.0-rc.1 包含隔离文件 A/B/C 与 U1–U8 全部归档内容。上传 GitHub/Gitee Releases 属独立步骤，完成前上述链接暂不可用；版本、哈希与发布依据见[项目状态](docs/development/project-status.md)。历史正式版 [v0.2.0](https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.2.0) 不代表长期维护承诺，支持范围见 [SECURITY.md](SECURITY.md)。
 
 > 首次运行会有 Windows SmartScreen 的"未知发布者"提示（本项目尚未购买代码签名证书），点「更多信息 → 仍要运行」即可。
 
@@ -202,8 +202,8 @@ DeepSeek / GLM / Qwen / Kimi 等 OpenAI 兼容端点开箱即用。
 - ✅ **工作台外壳重构（U1 · `refactor-run-workspace`）** — 文件页进入主工作区（概览 / 文件 / 详情三视图分流）、三栏宽度可调、运行状态徽标与短 ID 显示口径统一、空态成因分流、Monaco 编辑器懒加载（主 chunk 零静态引用）
 - ✅ **文件阅读与状态恢复（U2 · `improve-workspace-file-reading`）** — 文件页按正文容器宽度自适应布局、检查点与阅读位置在会话内往返恢复、路径搜索与「全部 / 有变化」筛选、复制路径 / 查找 / 换行 / 差异导航控件，加载失败 / 不存在 / 零字节 / 二进制 / 附件缺失 / 损坏分别表达而非误渲染
 - **v0.3.0-k1（09/25 有发布记录）** — 隔离 A/B/C 与 U1/U2 已进入便携包；产物与发布依据见[项目状态](docs/development/project-status.md)。
-- ✅ **U3/U4/U5（已归档，未进入 K1）** — 调试草稿保护、桌面操作追踪、创建与重跑的执行/结果闭环。
-- ✅ **U6/U7/U8（已归档，未进入 K1）** — 父链缺失时的安全只读、分支定位与运行比较、独立录制/messages/实验工作区；逐项证据见[项目状态](docs/development/project-status.md)。
+- ✅ **v0.4.0-rc.1（发行候选 · 2026-10-02 打包）** — U1–U8 全部归档内容进入便携包（六段门禁 + release:verify + 打包后离线冒烟 12 项全过）；SHA-256 与发布依据见[项目状态](docs/development/project-status.md)。
+- 📋 **U3–U8 明细** — 调试草稿保护、桌面操作追踪、创建与重跑的执行/结果闭环、父链缺失时的安全只读、分支定位与运行比较、独立录制/messages/实验工作区；逐项证据见[项目状态](docs/development/project-status.md)。
 - 📋 **后续规划** — trace 包导出（R2.1）、Shell/真实测试（R3）、隔离 prompt/模型实验、macOS/Linux 打包等仍待实现，范围与边界见[拆分计划](docs/engineering/plans/2026-09-21-ui-change-split-plan.md)。U1–U8 的源码归档也不代替后续完整工作区版本的打包与发行验收。
 
 ## 架构
