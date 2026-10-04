@@ -1,6 +1,7 @@
 import {
   existsSync,
   linkSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -32,10 +33,20 @@ afterEach(cleanupTempDirs);
 const tempDir = (): string => makeTempDir("replay-src-");
 
 /**
+ * 判定"这个路径确实是一条链接（symlink 或 junction）"。
+ *
+ * ⚠️ **不能用 `existsSync`**：它跟随链接，对**悬空**链接返回 false（把"建出来了但目标
+ * 不存在"误判成"没建成"），而且对"目标是目录"与"目标是文件"不做区分——探针要证明的
+ * 恰恰是"条目本身是链接"这件事本身。实现侧判链接用的正是 `lstat().isSymbolicLink()`
+ * （`src/workspace/import-source.ts`），探针与被测口径必须一致。
+ */
+const isLinkAt = (path: string): boolean => lstatSync(path).isSymbolicLink();
+
+/**
  * 本机能否**真的**创建出文件符号链接。
  *
  * Windows 未开开发者模式 / 无特权时，`symlinkSync` 可能既不抛错也不建出条目（实测如此），
- * 所以判定要回查条目是否存在。不可创建时相关用例显示为 **skipped**（不伪装成通过）——
+ * 所以判定要回查条目本身是不是链接。不可创建时相关用例显示为 **skipped**（不伪装成通过）——
  * 与任务 7.5 的"缺创建权限须记录未验证"一致。
  */
 const FILE_SYMLINK_AVAILABLE = (() => {
@@ -49,7 +60,7 @@ const FILE_SYMLINK_AVAILABLE = (() => {
     } catch {
       return false;
     }
-    return existsSync(link);
+    return isLinkAt(link);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -207,7 +218,7 @@ describe("源根与树内的链接形态（7.5 真机 junction/symlink）", () =
     writeTree(real, { "a.txt": "a" });
     const link = join(holder, "dir-link");
     symlinkSync(real, link, "dir");
-    expect(existsSync(link)).toBe(true);
+    expect(isLinkAt(link)).toBe(true);
 
     const result = validateSourceRoot({ source: link, dataDir: join(tempDir(), "data") });
     expect(result.ok).toBe(true);
@@ -219,7 +230,7 @@ describe("源根与树内的链接形态（7.5 真机 junction/symlink）", () =
     const link = join(holder, "to-disk-root");
     const diskRoot = parse(process.cwd()).root; // 例如 "D:\"
     symlinkSync(diskRoot, link, "junction");
-    expect(existsSync(link)).toBe(true);
+    expect(isLinkAt(link)).toBe(true);
 
     const result = validateSourceRoot({ source: link, dataDir: join(tempDir(), "data") });
     expect(result.ok).toBe(false);
@@ -248,7 +259,7 @@ describe("源根与树内的链接形态（7.5 真机 junction/symlink）", () =
     writeFileSync(file, "x");
     const link = join(holder, "file-link");
     symlinkSync(file, link, "file");
-    expect(existsSync(link)).toBe(true);
+    expect(isLinkAt(link)).toBe(true);
 
     // 字面既不是磁盘根也不是 UNC，但 realpath 后是一个普通文件 ⇒ 不是目录
     expect(validateSourceRoot({ source: link, dataDir: join(tempDir(), "data") })).toMatchObject({
@@ -263,7 +274,7 @@ describe("源根与树内的链接形态（7.5 真机 junction/symlink）", () =
     writeTree(outside, { "leak.txt": "不该被采到" });
     const link = join(source, "dir-link");
     symlinkSync(outside, link, "dir");
-    expect(existsSync(link)).toBe(true);
+    expect(isLinkAt(link)).toBe(true);
 
     const result = await collectSourceFiles({ source, dataDir: join(tempDir(), "data") });
     expect(result.ok).toBe(false);
@@ -283,7 +294,7 @@ describe("源根与树内的链接形态（7.5 真机 junction/symlink）", () =
       let created = false;
       try {
         symlinkSync(target, link, "file");
-        created = existsSync(link);
+        created = isLinkAt(link);
       } catch {
         created = false;
       }
@@ -399,12 +410,13 @@ describe("普通文件采集：拒绝链接与不合适的名字", () => {
   });
 
   // ⚠️ 实测本机（Windows 无创建符号链接权限）`symlinkSync` 既不抛错、链接也没真的建出来，
-  // 因此探针必须回查条目是否存在；否则会把"没建成"当成"建成后被放行"。无权限时本用例
-  // 显示 **skipped**（不是通过）——见 `itWithSymlink` 的说明。
+  // 因此用例内先回查条目本身是链接再谈拒绝；否则"没建成"会被读成"建成后被放行"。
+  // 能力探针说不可创建时本用例显示 **skipped**（不是通过）——见 `itWithSymlink` 的说明。
   itWithSymlink("文件符号链接被拒（树内，file 类型）", async () => {
     const source = tempDir();
     writeTree(source, { "a.txt": "a" });
     symlinkSync(join(source, "a.txt"), join(source, "link.txt"), "file");
+    expect(isLinkAt(join(source, "link.txt"))).toBe(true);
 
     const result = await collectSourceFiles({ source, dataDir: join(tempDir(), "data") });
     expect(result.ok).toBe(false);
