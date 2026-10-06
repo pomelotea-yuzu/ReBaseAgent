@@ -1,0 +1,54 @@
+# 验收证据索引（待实施）
+
+现有输入为实测反馈与 [实机问题记录](../../../docs/reviews/2026-10-06-ui-density-review.md)，它们只证明问题基线。编辑器原路径尚待复现，须登记可见宿主/祖先与活动实例；隐藏 0×0 helper 不作为塌缩证据，Emulation 与真实窗口分开记录。
+
+每个 delta scenario 单独登记。实施后在最后一列填测试名/日志或截图路径、真实宿主尺寸、限制与结果；当前所有证据均待实施，文档校验不等同功能通过。
+
+| Capability / Requirement | Scenario | 任务 | 计划检查与证据 | 证据路径 / 结果 |
+| --- | --- | --- | --- | --- |
+| [llm-proxy](specs/llm-proxy/spec.md) / 每个请求录制为一个 run | 非流式请求录制 | [3.3](tasks.md) | 本地 mock 成功非流式；核对 meta、平铺 params、完整 response、ttft=0 与终止事件 | 待实施 |
+| [llm-proxy](specs/llm-proxy/spec.md) / 每个请求录制为一个 run | 流式请求录制 | [3.3](tasks.md) | 流式 mock 与逐 chunk wire 比较；核对聚合正文、usage:null 容错及占位说明 | 待实施 |
+| [llm-proxy](specs/llm-proxy/spec.md) / 每个请求录制为一个 run | upstream 失败 | [3.2](tasks.md)、[3.3](tasks.md)、[3.5a](tasks.md) | 401/503 mock；客户端字节比较、reader 往返及自有失败 request/error/终止事件 | 待实施 |
+| [llm-proxy](specs/llm-proxy/spec.md) / 每个请求录制为一个 run | 客户端中途断连 | [3.3](tasks.md) | 主动断开流式客户端；核对实际已转发内容、完整已落盘行及无终止事件 | 待实施 |
+| [llm-proxy](specs/llm-proxy/spec.md) / 每个请求录制为一个 run | 连接失败不伪造上游状态码 | [3.2](tasks.md)、[3.5a](tasks.md) | 连接失败 mock；客户端本地 502 与 trace 无 error.status 分别断言 | 待实施 |
+| [llm-proxy](specs/llm-proxy/spec.md) / 每个请求录制为一个 run | 错误摘要在落盘前脱敏限长 | [3.1a](tasks.md)、[3.1b](tasks.md)、[3.5a](tasks.md) | 已知 secret/Bearer/Authorization/URL-userinfo 边界输入；脱敏后含标记不超 1024，日志/IPC 扫描及 wire 原字节比对 | 待实施 |
+| [llm-proxy](specs/llm-proxy/spec.md) / 每个请求录制为一个 run | 错误正文为空或无法解析 | [3.1a](tasks.md)、[3.5a](tasks.md) | 空体、文本、非 JSON 与解码失败 mock；断言非空受控 fallback、实际 status、无完整体/异常对象 | 待实施 |
+| [llm-proxy](specs/llm-proxy/spec.md) / 单请求级最小分叉（方案 a） | 编辑脏消息后重发 | [3.6a](tasks.md) | 成功父本编辑重发；请求计数=1、model/tools/params 不变、parent/fork 与自有 span 核对 | 待实施 |
+| [llm-proxy](specs/llm-proxy/spec.md) / 单请求级最小分叉（方案 a） | 未修改拒绝重发 | [3.6b](tasks.md) | 成功/失败父本 messages 原样及仅换凭据；副作用前拒绝、计数=0、无新 run | 待实施 |
+| [llm-proxy](specs/llm-proxy/spec.md) / 单请求级最小分叉（方案 a） | 分叉产物可再分叉 | [3.6a](tasks.md) | 三代代理记录 resolveBranch；每代独立确认、单请求、正确 parent 与无外部工具 | 待实施 |
+| [llm-proxy](specs/llm-proxy/spec.md) / 单请求级最小分叉（方案 a） | 失败父本编辑重发成功 | [3.6a](tasks.md) | 失败父本+本次成功 mock；当前凭据、正确子 run 身份及父本 SHA 前后比对 | 待实施 |
+| [llm-proxy](specs/llm-proxy/spec.md) / 单请求级最小分叉（方案 a） | 失败父本重发再次失败 | [3.6a](tasks.md) | 失败父本+本次 401/503；自有新 error、可信 ID、草稿保留、父本 SHA 不变与无自动再请求 | 待实施 |
+| [llm-proxy](specs/llm-proxy/spec.md) / 单请求级最小分叉（方案 a） | 历史无调用失败父本不可重发 | [3.6b](tasks.md) | 旧 meta+stopped/error fixture；拒绝原因、无补写、计数=0 与原文件 SHA | 待实施 |
+| [llm-proxy](specs/llm-proxy/spec.md) / 单请求级最小分叉（方案 a） | 未封存或损坏失败父本不可重发 | [3.6b](tasks.md) | crashed/缺来源/损坏请求 fixtures；副作用前拒绝、完整草稿及无子 run | 待实施 |
+| [llm-proxy](specs/llm-proxy/spec.md) / 代理变化通知不属于主动执行 | 通知只包含受控元信息 | [1.1](tasks.md)、[1.4](tasks.md) | shared schema 与 preload 清理测试；事件/回读字段白名单、secret 扫描、主动登记和自动请求计数=0 | 待实施 |
+| [llm-proxy](specs/llm-proxy/spec.md) / 代理变化通知不属于主动执行 | 写入失败不报告新记录 | [1.2](tasks.md)、[1.4](tasks.md)、[3.5b](tasks.md) | recorder.write 失败注入及主动/被动交错；revision 不推进、客户端响应保真、PROXY_RECORDING_WRITE_FAILED、草稿保留且无借用 ID | 待实施 |
+| [llm-proxy](specs/llm-proxy/spec.md) / 代理变化通知不属于主动执行 | 凭据捕获与更换可观测 | [1.2](tasks.md) | hasKey 已为 true 时再捕获；版本推进、通知与内存范围核对，不回传凭据值 | 待实施 |
+| [llm-proxy](specs/llm-proxy/spec.md) / 保存的监听意图在启动时恢复且失败可诊断 | 保存启用后重启恢复监听 | [2.3a](tasks.md)、[2.4](tasks.md) | 保存 enabled 后重启；真实端口监听探测、状态快照与新会话 hasKey=false | 待实施 |
+| [llm-proxy](specs/llm-proxy/spec.md) / 保存的监听意图在启动时恢复且失败可诊断 | 重启恢复失败可见且可重试 | [2.3a](tasks.md)、[2.4](tasks.md) | 占用端口启动与释放后显式应用；enabled/running/诊断快照、只读回读零启动及上游计数=0 | 待实施 |
+| [llm-proxy](specs/llm-proxy/spec.md) / 保存的监听意图在启动时恢复且失败可诊断 | 保存停用不启动代理 | [2.3a](tasks.md) | saved.enabled=false 重启；监听尝试计数=0、停止状态和无上游调用 | 待实施 |
+| [desktop-ui](specs/desktop-ui/spec.md) / 被动代理录制自动更新列表并保留阅读 | 空闲 main 的被动录制自动可见 | [1.2](tasks.md)、[1.3](tasks.md) | Electron 外部请求；无需手动刷新匹配筛选出现新 ID、当前详情/选择保持、零主动登记 | 待实施 |
+| [desktop-ui](specs/desktop-ui/spec.md) / 被动代理录制自动更新列表并保留阅读 | 并发录制保留筛选和当前阅读 | [1.3](tasks.md)、[1.4](tasks.md) | 读取在飞 burst；最大单一读取、尾随刷新、最终 ID 集合及筛选/草稿/滚动指纹 | 待实施 |
+| [desktop-ui](specs/desktop-ui/spec.md) / 被动代理录制自动更新列表并保留阅读 | 订阅前与失焦期间的变化可补读 | [1.1](tasks.md)、[1.3](tasks.md) | 初读/订阅竞争与失焦恢复；epoch/revision 乱序测试、最终列表集合与无自动重发 | 待实施 |
+| [desktop-ui](specs/desktop-ui/spec.md) / 重发门禁使用当前代理事实且隔离迟到读取 | 打开重发即核对当前状态 | [2.1](tasks.md)、[5.3](tasks.md) | 旧 hasKey 缓存打开 messages；核对中/完成截图、实际门禁与独立确认仍必需 | 待实施 |
+| [desktop-ui](specs/desktop-ui/spec.md) / 重发门禁使用当前代理事实且隔离迟到读取 | 捕获通知更新已打开编辑器 | [2.2a](tasks.md)、[5.3](tasks.md) | 编辑器已打开后外部首次捕获；门禁回读、草稿指纹及模型计数不因通知增加 | 待实施 |
+| [desktop-ui](specs/desktop-ui/spec.md) / 重发门禁使用当前代理事实且隔离迟到读取 | 凭据轮换撤销旧确认 | [2.2a](tasks.md)、[5.3](tasks.md) | 捕获版本、监听及配置变化分别注入；旧许可失效、目标/正文保持与重新核对 | 待实施 |
+| [desktop-ui](specs/desktop-ui/spec.md) / 重发门禁使用当前代理事实且隔离迟到读取 | 提交前版本变化由 main 拒绝 | [2.2b](tasks.md)、[5.3](tasks.md) | 确认到提交间 main 轮换竞争；严格快照拒绝、上游计数=0、无 run、草稿保留 | 待实施 |
+| [desktop-ui](specs/desktop-ui/spec.md) / 重发门禁使用当前代理事实且隔离迟到读取 | 重复只读核对不撤销未变化的确认 | [2.2a](tasks.md) | 同会话重复相同语义/捕获版本回读；确认保留、请求合并与无执行 | 待实施 |
+| [desktop-ui](specs/desktop-ui/spec.md) / 重发门禁使用当前代理事实且隔离迟到读取 | 迟到读取不能覆盖新事实 | [2.1](tasks.md)、[2.4](tasks.md) | 旧响应晚到、会话变化及最新核对失败；旧事实不覆盖、未知门禁与只读重试 | 待实施 |
+| [desktop-ui](specs/desktop-ui/spec.md) / 代理启动恢复结果就近可见 | 恢复中到监听成功同步呈现 | [2.3b](tasks.md)、[2.4](tasks.md) | 恢复延迟注入及真实监听探测；顶栏/录制页阶段截图、hasKey 和历史阅读 | 待实施 |
+| [desktop-ui](specs/desktop-ui/spec.md) / 代理启动恢复结果就近可见 | 恢复失败显示意图与实际状态 | [2.3b](tasks.md)、[2.4](tasks.md) | 端口占用重启；顶栏入口、已启用但未监听与受控原因截图 | 待实施 |
+| [desktop-ui](specs/desktop-ui/spec.md) / 代理启动恢复结果就近可见 | 状态重读与显式应用重试区分 | [2.3b](tasks.md)、[2.4](tasks.md) | 真实录制页先重读再显式应用；监听尝试计数、最终状态、零模型调用及无旧许可恢复 | 待实施 |
+| [desktop-ui](specs/desktop-ui/spec.md) / 代理失败概览只使用自有已记录诊断 | 新代理失败在概览可诊断 | [3.4](tasks.md)、[3.5b](tasks.md) | 自有 401 fixture/Electron 截图；定位失败调用、完整请求及 usage/ttft 占位说明 | 待实施 |
+| [desktop-ui](specs/desktop-ui/spec.md) / 代理失败概览只使用自有已记录诊断 | 网络失败不展示伪造状态码 | [3.4](tasks.md)、[3.5b](tasks.md) | 无 status 网络失败 fixture；连接原因/未知成本截图，无伪造上游码 | 待实施 |
+| [desktop-ui](specs/desktop-ui/spec.md) / 代理失败概览只使用自有已记录诊断 | 旧代理失败仍提示详情未记录 | [3.4](tasks.md)、[3.5b](tasks.md) | 旧失败、叶无诊断但祖先有错 fixtures；诚实缺失提示与文件 SHA 不变 | 待实施 |
+| [desktop-ui](specs/desktop-ui/spec.md) / 可见消息编辑器可恢复且不丢草稿 | 可见宿主恢复非零尺寸 | [4.1](tasks.md)、[4.2](tasks.md)、[4.3](tasks.md)、[5.3](tasks.md) | 真实窗口调整/最小化/面板往返；活动宿主祖先几何、可输入与完整草稿/目标指纹，登记原路径复现结论 | 待实施 |
+| [desktop-ui](specs/desktop-ui/spec.md) / 可见消息编辑器可恢复且不丢草稿 | 恢复失败可见且能就地重试 | [4.2](tasks.md)、[4.3](tasks.md)、[5.3](tasks.md) | 加载/布局失败注入；失败占位、本地重试、草稿/model/view state 与模型计数=0 | 待实施 |
+| [desktop-ui](specs/desktop-ui/spec.md) / 可见消息编辑器可恢复且不丢草稿 | 隐藏 Monaco 节点不误报 | [4.1](tasks.md)、[4.3](tasks.md) | 隐藏 helper 与可见实例并存；活动归属/宿主尺寸证据及无虚假错误 | 待实施 |
+
+## 补充验收
+
+| 检查 | 任务 | 计划检查与证据 | 证据路径 / 结果 |
+| --- | --- | --- | --- |
+| 诊断常量双源一致性 | [3.1b](tasks.md) | 集成测试同时导入两处导出常量，断言相等且为 1024，同组输入锁定脱敏后限长边界；依赖清单确认 llm-proxy 无 agent-loop 运行时依赖 | 待实施 |
+| 与工作区布局 change 的双向合并回归 | [5.3](tasks.md) | 无论合入顺序，最终组合重跑可见恢复、当前凭据、轮换与 main 副作用前拒绝；登记草稿/目标指纹与无自动调用 | 待实施 |
+| Electron 端到端与质量检查 | [5.1](tasks.md)、[5.2](tasks.md) | 外部录制→自动列表→门禁→重发及重启/失败概览；受影响测试/typecheck/build/Biome/OpenSpec strict 日志，不把原路径未复现记为已修复 | 待实施 |
