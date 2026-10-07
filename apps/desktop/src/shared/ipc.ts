@@ -508,6 +508,30 @@ export const ProxyStateSchema = z.object({
    * 它也**不持久化**：重启后 main 不恢复 key，捕获版本回到 0 是事实而非回退。
    */
   keyCaptureRevision: z.number().int().min(0),
+  /**
+   * 启动恢复阶段（design D3 / tasks 2.3a）：`stopped` / `recovering` / `failed`。
+   *
+   * ⚠️ 它**不是** `enabled` 的同义词：`enabled` 是保存的意图，`running` 是真实监听，
+   * 两者之间还夹着这个阶段——「已启用但正在恢复」「已启用但恢复失败」都不是
+   * 「已停用」。渲染层要区分这三者，否则会把"还没恢复完"显示成"用户关了代理"。
+   */
+  recovery: z.enum(["stopped", "recovering", "failed"]),
+  /**
+   * 恢复失败的**受控诊断**（脱敏 + 限长，tasks 2.3a）：只保留稳定错误类别与可读原因。
+   * - `null` = 当前没有失败事实（未恢复过/ 已恢复成功 / 未尝试）；
+   * - 只含脱敏限长文本与类别，**不含** stack、异常对象、headers 或 upstream 地址。
+   *
+   * 失败**不伪造 enabled 回滚**：`enabled` 保持用户保存的意图，由渲染层把
+   * 「已启用但未监听」如实呈现（delta「不把失败说成已停用」）。
+   */
+  recoveryFailure: z
+    .object({
+      /** 稳定错误类别（跨平台可比，不含本地化文案） */
+      code: z.enum(["PORT_UNAVAILABLE", "LISTEN_FAILED", "UNKNOWN"]),
+      /** 脱敏限长后的可读原因 */
+      message: z.string().min(1),
+    })
+    .nullable(),
 });
 export type ProxyState = z.infer<typeof ProxyStateSchema>;
 

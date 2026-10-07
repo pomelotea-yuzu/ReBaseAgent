@@ -226,6 +226,8 @@ describe("通知载荷只包含受控元信息", () => {
       "keyCaptureRevision",
       "port",
       "recordsRevision",
+      "recovery",
+      "recoveryFailure",
       "revision",
       "running",
       "upstreamBaseUrl",

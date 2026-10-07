@@ -221,3 +221,60 @@ typecheck 双 0 绿；`biome check apps packages scripts` 587 文件 0 错；`gi
 desktop 全量 **181 文件 / 2881 用例**（2.2a 基线 180/2884，2.2b 新增 `proxy-fork-version-race`
 6 条并把 `proxy.test.ts` 等 7 处调用点补齐预期字段）。变异验证：拿掉捕获版本 ⇒ 精确 1 条红；
 拿掉两道 main 侧版本核对 ⇒ 5 条红、只剩「正常路径」那条。
+
+## D10. 实施期核实结论（task 2.3a，2026-10-07）
+
+### 1. 🔴 端口占用的错误文案是中文 ⇒ 只按`EADDRINUSE` 归类会把最常见的失败错判
+
+`packages/llm-proxy/src/server.ts:75` 收到 `EADDRINUSE` 后**把错误码翻成中文**再抛：
+
+```
+端口 11609 已被占用，无法启动录制代理（可在设置中换端口）
+```
+
+错误码到这里已经丢失。`classifyRecoveryFailure` 第一版只认英文
+（`EADDRINUSE` / `address already in use`），于是端口占用被判成 `LISTEN_FAILED`，
+界面会给出一句"启动失败"却不说"换端口"——恰好丢掉用户唯一能做的事。
+定案：正则同时保留英文错误码措辞与中文译法（`已被占用` / `端口占用` / `端口已被使用`）。
+
+这条不是"顺手兼容一下"：**文案翻译层会吃掉错误码**，凡是跨层做失败归类的判据，
+都必须按**实际抛出的字符串**写，不能按上游的 `code` 想当然地写。这是通用教训。
+
+### 2. `autoStart` 与 `toggle` 必须共用一份 `attemptListen`
+
+第一版给两者各写了一份"起监听 + 记阶段"，结果"恢复失败有诊断、显式重试没诊断"。
+语义上这两件事**是同一件**：按当前保存的配置试一次监听。合并成 `attemptListen` 后，
+界面才能对「启动恢复」与「应用配置重试」用同一套阶段呈现，不会出现两套措辞。
+
+顺带定死两条：`toggle` 里**必须 `await`**（返回契约是"返回时监听已就绪"，漏 await 会让
+调用方拿着 `status().port` 去连而实际还没 listen ⇒ ECONNREFUSED，且失败重抛变成无人
+处理的 rejection）；`autoStart` **刻意吞掉**异常（恢复失败不阻断应用启动），
+但阶段与诊断由 `attemptListen` 落好，界面不需要靠 catch 分支拼文案。
+
+### 3. 🔴 `saveProxy({port: 0})` 会被 `loadProxy()` 归一成默认 18787
+
+`settings.ts:152` 要求端口落在 1..65535，非法值回退 `PROXY_DEFAULTS.port = 18787`。
+所以测试里**不能**用 `port: 0` 表达"随便给个端口"——`autoStart` 走的是
+`loadProxy()` 读回来的值，每条用例会去抢同一个固定端口 18787。这解释了本轮第一批
+失败里"保存停用"那条为何诡异地拿到了 200：它其实连的是 18787 上别的东西。
+定案：需要"应有端口可用"的用例统一走 `freePort()`（借一个系统分配的端口再放掉）。
+
+配套的第二条本机事实：本机 `HTTP_PROXY=http://127.0.0.1:9088` **穿透 localhost**，
+`fetch` 到无人监听的端口也可能被代理接管并返回响应体（实测拿到过 400 JSON）。
+因此判"端口到底有没有人监听"必须用 `node:net` 直连看 ECONNREFUSED，**不能用 `fetch`**。
+（既有的 `proxy-change-notify.test.ts` 用 `fetch` 打真实监听端口是可以的——那里要验的是
+"代理转发是否成功"，不是"端口是否被占用"。）
+
+### 4. 恢复阶段刻意不持久化
+
+`recovery` / `recoveryFailure` 只描述"本次 main 生命周期内那次启动尝试"。持久化它会在
+下次启动显示一个属于上一次进程的失败原因——那正是"过期诊断"，比不显示更糟。
+阶段每次启动从 `stopped` 重走一遍。同理**失败不改`enabled`**：`enabled` 是用户保存的
+意图，把它改成 false 等于把"我想开着"悄悄换成"用户关了"。变异验证已钉住这条。
+
+### 5. 本轮质量基线
+
+typecheck 双 0绿；`biome check apps packages scripts` 588 文件 0 错；
+desktop 全量 **182 文件 / 2900 用例**全绿、0 未处理错误（2.2b 基线 181/2890，
+新增 `proxy-recovery-lifecycle.test.ts` 10 条）。变异验证三处：失败分类恒 false ⇒ 1 条红；
+失败时不写诊断 ⇒ 4 条红；失败回滚 `enabled` ⇒ 1 条红。

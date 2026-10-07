@@ -34,6 +34,10 @@ export function proxyStateFixture(overrides?: Partial<ProxyState>): ProxyState {
     revision: DEFAULT_PROXY_REVISION,
     recordsRevision: DEFAULT_PROXY_RECORDS_REVISION,
     keyCaptureRevision: DEFAULT_KEY_CAPTURE_REVISION,
+    // tasks 2.3a：默认「没有恢复失败、阶段已稳定」——多数用例不关心恢复，
+    // 关心恢复的用例显式覆盖这两个字段。
+    recovery: "stopped",
+    recoveryFailure: null,
     ...overrides,
   };
 }

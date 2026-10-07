@@ -262,6 +262,8 @@ describe("夹具自检：本文件用的状态夹具确实过 schema", () => {
       "keyCaptureRevision",
       "port",
       "recordsRevision",
+      "recovery",
+      "recoveryFailure",
       "revision",
       "running",
       "upstreamBaseUrl",

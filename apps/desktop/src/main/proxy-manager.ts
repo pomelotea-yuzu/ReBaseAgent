@@ -1,3 +1,4 @@
+import { sanitizeDiagnosticText } from "@rebaseagent/agent-loop";
 import type { ProxyForkMeta, ProxyHandler, ProxyRecording } from "@rebaseagent/llm-proxy";
 import {
   EmptyForkError,
@@ -123,6 +124,18 @@ export class ProxyManager {
    */
   private keyCaptureRevision = 0;
   /**
+   * 启动恢复阶段（design D3 / tasks 2.3a）。
+   *
+   * ⚠️ 刻意**不持久化**：它描述的是"本次 main 生命周期内那次启动尝试"，
+   * 下次启动重新走一遍 autoStart，阶段自然从 stopped 起步。
+   */
+  private recovery: "stopped" | "recovering" | "failed" = "stopped";
+  /** 恢复失败的受控诊断；非 null 时 `recovery` 必为 `failed` */
+  private recoveryFailure: {
+    code: "PORT_UNAVAILABLE" | "LISTEN_FAILED" | "UNKNOWN";
+    message: string;
+  } | null = null;
+  /**
    * 变化通知订阅者。载荷是**不可变快照**，订阅者拿到后无法回写内部状态。
    * 通知本身不抛错（订阅者出错只吞掉自己那一份），更不能影响转发路径。
    */
@@ -200,10 +213,21 @@ export class ProxyManager {
       revision: this.revision,
       recordsRevision: this.recordsRevision,
       keyCaptureRevision: this.keyCaptureRevision,
+      recovery: this.recovery,
+      recoveryFailure: this.recoveryFailure,
     };
   }
 
-  /** 启停即保存（端口/upstream 一并持久化）；已在运行时先停再按新配置启 */
+  /**
+   * 启停即保存（端口/upstream 一并持久化）；已在运行时先停再按新配置启。
+   *
+   * `enabled=true` 这条路径同时是恢复失败后的**显式重试**入口（delta「端口释放后
+   * 显式应用配置可重试」）：与 `autoStart` 走同一个 `attemptListen`，成功与失败都留下
+   * 同样的阶段与诊断，界面因此能对「恢复」与「重试」用同一套呈现。
+   *
+   * ⚠️ 失败**不吞**：异常原样抛给调用方（既有 `proxy:toggle` 语义），但状态里的
+   * `recoveryFailure` 已经记好，界面不需要靠 catch 分支拼文案。
+   */
   async toggle(input: {
     enabled: boolean;
     port: number;
@@ -217,30 +241,103 @@ export class ProxyManager {
       await this.stopServer();
     }
     if (input.enabled) {
-      await this.startServer(input.port, input.upstreamBaseUrl);
+      // ⚠️ 这里必须 await：`toggle` 的返回契约是"返回时监听已就绪"（既有语义）。
+      //   漏 await 会让调用方拿到 status().port 就去连，实际还没 listen ⇒ ECONNREFUSED，
+      //   且失败时的重抛会变成无人处理的 rejection。
+      await this.attemptListen(input.port, input.upstreamBaseUrl);
+    } else {
+      // 显式停用：阶段与诊断一并复位（与 autoStart 的停用分支同口径）
+      this.recovery = "stopped";
+      this.recoveryFailure = null;
     }
     this.notifyStatus();
     return this.status();
   }
 
   /**
-   * 应用启动时按 settings 自动恢复。
+   * 应用启动时按 settings 自动恢复（design D3 / tasks 2.3a）。
    *
-   * 成功与失败**都**推进状态 revision（design D3）：renderer 不能停留在启动前的
-   * stopped 事实里。失败仍不阻断应用启动，历史阅读不受影响。
-   * ⚠️ 恢复阶段（recovering）与受控失败诊断属于 2.3a 的范围；此处只保证
-   * "恢复这件事发生过"这一事实可被只读核对看见。
+   * 四条纪律：
+   * - **只尝试一次**，不加后台重试（多实例抢端口属于可见失败，不是该悄悄重试的事）；
+   * - **失败不阻断应用启动**，历史阅读不受影响；
+   * - **失败不伪造 enabled 回滚**：`enabled` 保持用户保存的意图，阶段记`failed`
+   *   并留下受控诊断，让渲染层能说清"已启用但未监听"；
+   * - **成功与失败都推进状态 revision**：renderer 不能停留在启动前的 stopped 事实里。
+   *
+   * ⚠️ 状态**回读**（`status()`）绝不触发监听，也不验证上游——回读是只读的。
    */
   async autoStart(): Promise<void> {
     const saved = this.deps.settings.loadProxy();
-    if (saved.enabled) {
-      try {
-        await this.startServer(saved.port, saved.upstreamBaseUrl);
-      } catch {
-        // 启动失败不阻断应用启动；状态查询可见，用户可在设置里重试
-      }
+    if (!saved.enabled) {
+      // 保存停用 ⇒ 不尝试监听（delta「保存停用不启动代理」）
+      this.recovery = "stopped";
+      this.recoveryFailure = null;
+      this.notifyStatus();
+      return;
     }
+    this.recovery = "recovering";
+    this.recoveryFailure = null;
+    // 「进入恢复中」本身是可观察事实：renderer 首次读状态可能正好落在这段窗口里
     this.notifyStatus();
+    // `attemptListen` 失败会重抛；autoStart **刻意吞掉**：恢复失败不阻断应用启动。
+    await this.attemptListen(saved.port, saved.upstreamBaseUrl).catch(() => undefined);
+    this.notifyStatus();
+  }
+
+  /**
+   * 尝试监听并记录阶段终态（`autoStart` 与 `toggle(enabled=true)` 共用）。
+   *
+   * 抽出来的理由：恢复与「显式保存并应用」重试在语义上**是同一件事**——
+   * 都是"按当前保存的配置试一次监听"。共用一份实现，界面才能对两者用同一套
+   * 阶段呈现，不会出现"恢复有诊断、重试没有"的不一致。
+   *
+   * 🔴 失败时**不伪造 enabled 回滚**：`enabled` 是用户保存的意图，改它等于
+   * 把"用户想开着"悄悄改成"用户关了"（delta「不把失败说成已停用」）。
+   */
+  private async attemptListen(port: number, upstreamBaseUrl: string): Promise<void> {
+    this.recovery = "recovering";
+    this.recoveryFailure = null;
+    try {
+      await this.startServer(port, upstreamBaseUrl);
+      this.recovery = "stopped";
+      this.recoveryFailure = null;
+    } catch (error) {
+      this.recovery = "failed";
+      this.recoveryFailure = this.classifyRecoveryFailure(error, port);
+      throw error;
+    }
+  }
+
+  /**
+   * 把启动异常归成**稳定类别 + 脱敏限长文案**（design D3 / delta「受控失败原因」）。
+   *
+   * ⚠️ 诊断会显示在界面上，因此必须先脱敏再限长：异常 message 可能带上游地址、
+   * 端口占用方的路径，甚至本会话捕获到的 key（若错误链里带了请求头）。
+   * 这里把当前暂存的 key 当作 secret 传进去，与 agent-loop 的诊断口径一致。
+   *
+   * 🔴 归类要同时认**错误码措辞与 llm-proxy 的中文译法**：`startProxyServer` 收到
+   * `EADDRINUSE` 后会把错误码翻成「端口 N 已被占用，无法启动录制代理」再抛
+   * （packages/llm-proxy/src/server.ts），错误码到这里已经丢失。只按英文
+   * `EADDRINUSE`/`address already in use` 匹配会把最常见的端口占用错判成
+   * 一般监听失败，界面就会给出"换端口"以外的无用提示。中文与英文都留。
+   *
+   * 只保留三类别：端口不可用、监听失败、其他。不回传 stack/异常对象/headers。
+   */
+  private classifyRecoveryFailure(
+    error: unknown,
+    port: number,
+  ): { code: "PORT_UNAVAILABLE" | "LISTEN_FAILED" | "UNKNOWN"; message: string } {
+    const raw = error instanceof Error ? error.message : String(error);
+    const secrets = this.keyStore.lastKey === undefined ? [] : [this.keyStore.lastKey];
+    // 剥掉可能的 "Error: " 前缀，避免和界面自己拼的前缀叠成"Error: Error: …"
+    const text = raw.replace(/^(?:Error|TypeError|SystemError):\s*/u, "");
+    const available = /\bEADDRINUSE\b|address already in use|端口占用|已被占用|端口已被使用/iu.test(
+      text,
+    );
+    return {
+      code: available ? "PORT_UNAVAILABLE" : "LISTEN_FAILED",
+      message: sanitizeDiagnosticText(`端口 ${port} 启动监听失败：${text}`, secrets),
+    };
   }
 
   private async startServer(port: number, upstreamBaseUrl: string): Promise<void> {
