@@ -439,6 +439,64 @@ describe("LlmCallDetailView：场景「推理模型的思维链」与字段完�
     expect(markup).not.toContain("思维链");
   });
 
+  // -------------------------------------------------------------------------
+  // tasks 3.4：失败调用的 usage/ttft 是**占位**，不能被呈现成"零消耗/零延迟"
+  // -------------------------------------------------------------------------
+  describe("失败调用（span.error 存在）的占位措辞", () => {
+    const failedProps = {
+      io: "output" as const,
+      onIo: noop,
+      emptyContentHint: "",
+      longTextProps: () => ({ expanded: false, onToggle: noop }),
+    };
+
+    it("🔴 有 error ⇒ 不印 usage 数字，改说占位（否则 0 会被读成『这次没花钱』）", () => {
+      const span = llm("l1", "s1", {
+        content: null,
+        in: 0,
+        out: 0,
+        ttft: 0,
+        error: { message: "upstream 请求失败：ECONNREFUSED" },
+      }) as Extract<SpanLine, { kind: "llm.call" }>;
+      const markup = html(createElement(LlmCallDetailView, { span, ...failedProps }));
+      expect(markup).toContain("未获得（失败调用占位）");
+      // 首 token 延迟不显示 0ms —— 没有正文抵达，不是"延迟为零"
+      expect(markup).toContain("不适用（失败调用无正文抵达）");
+      //🔴 不得出现把占位说成实测零的行
+      expect(markup).not.toContain("0ms");
+      expect(markup).not.toMatch(/输入 tokens[^\d]*0/);
+      expect(markup).not.toMatch(/输出 tokens[^\d]*0/);
+    });
+
+    it("有 error ⇒ 工具调用数不显示为真实计数", () => {
+      const span = llm("l1", "s1", {
+        content: null,
+        in: 0,
+        out: 0,
+        toolCalls: [{ id: "c1" }],
+        error: { message: "boom", status: 503 },
+      }) as Extract<SpanLine, { kind: "llm.call" }>;
+      const markup = html(createElement(LlmCallDetailView, { span, ...failedProps }));
+      expect(markup).toContain("不适用（失败调用）");
+    });
+
+    // ⚠️ 这里**刻意不断言**"失败时缓存命中率行不出现"：`presentCacheHit({in:0,out:0})`
+    // 本就返回 null，那行在任何情况下都不渲染 ⇒ 断言它是**假门**（已变异验证：
+    // 把实现改成无条件渲染 CacheHitRow，68 条用例仍全绿）。真正被钉住的是上面
+    // 三条：占位措辞必须出现、0ms 不得出现、成功路径不得被占位措辞污染。
+
+    it("对照：无 error 的成功调用仍照常印实测 usage 与延迟（别把占位措辞溢出到成功路径）", () => {
+      const span = llm("l1", "s1", { in: 10, out: 5, ttft: 42 }) as Extract<
+        SpanLine,
+        { kind: "llm.call" }
+      >;
+      const markup = html(createElement(LlmCallDetailView, { span, ...failedProps }));
+      expect(markup).toContain("42ms");
+      expect(markup).not.toContain("失败调用占位");
+      expect(markup).not.toContain("不适用（失败调用");
+    });
+  });
+
   it("输入/输出切换条恒在，且当前半 aria-pressed=true（可切是硬要求）", () => {
     const span = llm("l1", "s1") as Extract<SpanLine, { kind: "llm.call" }>;
     const markup = html(

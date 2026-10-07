@@ -88,14 +88,74 @@ describe("ProxyRunRecorder：三种 outcome 的 JSONL 形态", () => {
     expect(record.events).toEqual([{ type: "run.event", event: "stopped", reason: "completed" }]);
   });
 
-  it("error：只落 meta + 终止事件，不写任何 span", () => {
+  // ⚠️ 本条在 tasks 3.3 被**合法改判**（留痕）：旧口径「error 只落 meta + 终止事件、
+  // 不写任何 span」被 llm-proxy delta「HTTP 非 2xx 与连接失败 SHALL 记录失败 llm.call」
+  // 取代。新的断言不是放宽而是加密——它开始检查 request 内容、response 占位与顶层
+  // error 三件事，而旧断言只检查 span 数为 0。
+  it("error：写失败 llm.call（完整 request + 空占位 response + 顶层 error）+ 终止事件", () => {
     const dir = tempDir("proxy-rec-");
     const recorder = new ProxyRunRecorder(dir);
-    const id = recorder.write(fakeRecording({ response: null, outcome: "error" }));
+    const id = recorder.write(
+      fakeRecording({
+        response: {
+          content: null,
+          reasoning_content: null,
+          tool_calls: [],
+          usage: { in: 0, out: 0 },
+          ttft_ms: 0,
+        },
+        outcome: "error",
+        error: { message: "Invalid API key", status: 401 },
+      }),
+    );
     const record = new RunRepository(dir).loadRunRecord(id);
+    // 已封存（status=completed 指有终止记录，不代表模型请求成功）
     expect(record.status).toBe("completed");
-    expect(record.spans).toHaveLength(0);
+    expect(record.spans).toHaveLength(2);
     expect(record.events).toEqual([{ type: "run.event", event: "stopped", reason: "error" }]);
+    const call = record.spans[1];
+    expect(call?.kind).toBe("llm.call");
+    if (call?.kind !== "llm.call") throw new Error("span kind 断言失败");
+    // request 完整（失败父本据此可编辑重发）：夹具是 system + user 两条
+    expect(call.request.messages).toHaveLength(2);
+    expect(call.request.model).toBe("deepseek-chat");
+    // response 为失败空占位：usage/ttft 是**占位**，不是实测零消耗/零延迟
+    expect(call.response.content).toBeNull();
+    expect(call.response.tool_calls).toEqual([]);
+    expect(call.response.usage).toEqual({ in: 0, out: 0 });
+    // 顶层 error 承载真实状态码与受控摘要
+    expect(call.error).toEqual({ message: "Invalid API key", status: 401 });
+  });
+
+  it("error：无 status（连接失败）⇒ error 只有 message，status 字段不出现", () => {
+    const dir = tempDir("proxy-rec-");
+    const recorder = new ProxyRunRecorder(dir);
+    const id = recorder.write(
+      fakeRecording({
+        response: {
+          content: null,
+          reasoning_content: null,
+          tool_calls: [],
+          usage: { in: 0, out: 0 },
+          ttft_ms: 0,
+        },
+        outcome: "error",
+        error: { message: "upstream 请求失败：ECONNREFUSED" },
+      }),
+    );
+    const call = new RunRepository(dir).loadRunRecord(id).spans[1];
+    if (call?.kind !== "llm.call") throw new Error("span kind 断言失败");
+    expect(call.error).toEqual({ message: "upstream 请求失败：ECONNREFUSED" });
+    expect("status" in (call.error ?? {})).toBe(false);
+  });
+
+  it("completed：省略 error 字段（缺省 ≠ 成功：渲染层靠字段存在与否判失败）", () => {
+    const dir = tempDir("proxy-rec-");
+    const recorder = new ProxyRunRecorder(dir);
+    const id = recorder.write(fakeRecording());
+    const call = new RunRepository(dir).loadRunRecord(id).spans[1];
+    if (call?.kind !== "llm.call") throw new Error("span kind 断言失败");
+    expect(call.error).toBeUndefined();
   });
 
   it("crashed：无终止事件（读取器识别为运行中断）", () => {
@@ -205,10 +265,23 @@ describe("ProxyRunRecorder：三种 outcome 的 JSONL 形态", () => {
   it("error outcome：请求快照可派生即写 hash（与是否有 llm.call span 无关）", () => {
     const dir = tempDir("proxy-rec-");
     const recorder = new ProxyRunRecorder(dir);
-    const id = recorder.write(fakeRecording({ response: null, outcome: "error" }));
+    const id = recorder.write(
+      fakeRecording({
+        response: {
+          content: null,
+          reasoning_content: null,
+          tool_calls: [],
+          usage: { in: 0, out: 0 },
+          ttft_ms: 0,
+        },
+        outcome: "error",
+        error: { message: "boom", status: 503 },
+      }),
+    );
     const record = new RunRepository(dir).loadRunRecord(id);
     expect(record.meta.config_hash).toBe(configHash("你是文件助手。", []));
-    expect(record.spans).toHaveLength(0);
+    // tasks 3.3 后失败 run 也有自有 llm.call（hash 派生与 span 写入仍是两件事）
+    expect(record.spans).toHaveLength(2);
   });
 });
 

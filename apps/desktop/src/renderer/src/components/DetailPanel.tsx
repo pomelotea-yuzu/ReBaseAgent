@@ -844,23 +844,29 @@ export function LlmCallDetailView({
   children?: React.ReactNode;
 }) {
   const { request, response, error } = span;
+  // 🔴 失败调用的 usage/ttft 是**占位**（代理录制的失败 llm.call 写 `{in:0,out:0}`
+  // 与 ttft_ms=0 表示"没有正文抵达"，不是实测零消耗/零延迟）。delta「代理失败概览
+  // 只使用自有已记录诊断」要求：详情展示请求与**占位解释**，不能宣称零成本或成功输出。
+  // 所以失败时这三项显示占位文案而不是数字——把 0 印成"0 tokens"会被读成"这次没花钱"。
+  const failed = error !== undefined;
   return (
     <>
       <Section title="概要">
         <KeyValue
           items={[
             ["模型", request.model],
-            ["输入 tokens", String(response.usage.in)],
-            ["输出 tokens", String(response.usage.out)],
-            ["首 token 延迟", `${response.ttft_ms}ms`],
+            ["输入 tokens", failed ? "未获得（失败调用占位）" : String(response.usage.in)],
+            ["输出 tokens", failed ? "未获得（失败调用占位）" : String(response.usage.out)],
+            ["首 token 延迟", failed ? "不适用（失败调用无正文抵达）" : `${response.ttft_ms}ms`],
             ["耗时", formatDuration(spanDurationMs(span))],
-            ["工具调用", String(response.tool_calls.length)],
+            ["工具调用", failed ? "不适用（失败调用）" : String(response.tool_calls.length)],
             ...(draftBadge !== null && draftBadge !== undefined
               ? ([["草稿", draftBadge.label]] as Array<[string, string]>)
               : []),
           ]}
         />
-        <CacheHitRow usage={response.usage} />
+        {/* 🔴 缓存命中率同样依赖真实 usage：占位零会让命中率算出一个漂亮的假数字 */}
+        {failed ? null : <CacheHitRow usage={response.usage} />}
       </Section>
 
       {/* 输入/输出切换（任务 5.5）：两半各自完整，切换只是换看哪半 */}
