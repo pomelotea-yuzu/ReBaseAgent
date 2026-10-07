@@ -71,6 +71,8 @@ export function findIllegalRunIdViolation(id: string): string | null {
  * 每个 hop 的结构检查（身份、span 唯一性、fork/parent 自洽、封存、v2 边界）
  * 都在尝试读取更早祖先**之前**完成 ⇒ 更早祖先缺失不可能遮蔽已可证明的错误。
  * `readFile` 仅供测试注入 errno 形状的故障；生产调用方使用默认 `readRun`。
+ *
+ * ⚠️ 返回的 `records` 顺序是**根 → 叶**（不是提问时那个 run 在前）。
  */
 export function readRunLineage(
   tracesDir: string,
@@ -82,7 +84,9 @@ export function readRunLineage(
     return { ok: false, diagnostic: null, message: `run 标识非法：${illegal}` };
   }
 
-  // 叶 → 根顺序收集；walked[walked.length - 1] 恒为「当前 hop 的直接子 hop」
+  // 内部按**叶 → 根**顺序收集（`walked[walked.length - 1]` 恒为「当前 hop 的直接
+  // 子 hop」，这是循环里判自环/环的依据）；返回时 `reverse()` ⇒ **对外是根 → 叶**。
+  // 下方注释与对外契约都按根 → 叶 写，别照着中间变量顺序理解。
   const walked: RunRecord[] = [];
   const seen = new Set<string>([id]);
   let currentId = id;
