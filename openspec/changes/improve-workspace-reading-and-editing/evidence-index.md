@@ -1,6 +1,6 @@
 # 验收证据索引（待实施）
 
-问题基线为 [实机问题记录](../../../docs/reviews/2026-10-06-ui-density-review.md) 与 `output/ui-density-review-2026-10-06/` 的 01–10 截图/几何。验收必须用真实窗口及真实 200% 缩放；Emulation 不替代比例、输入与恢复证据。宿主不可达项单列限制，不宣称全矩阵通过。
+问题基线为 [实机问题记录](../../../docs/reviews/2026-10-06-ui-density-review.md) 与其引用的几何基线 [`docs/reviews/2026-10-06-ui-density-geometry-baseline.json`](../../../docs/reviews/2026-10-06-ui-density-geometry-baseline.json)（原 `output/ui-density-review-2026-10-06/` 的逐页几何读数已提炼入库；截图与 DOM 全文转储为本地过程产物，按 `.gitignore` 的 `output/` 规则不入库）。验收必须用真实窗口及真实 200% 缩放；Emulation 不替代比例、输入与恢复证据。宿主不可达项单列限制，不宣称全矩阵通过。
 
 每个 delta scenario 单独登记。实施后在最后一列填测试名/日志或截图路径、真实宿主尺寸、限制与结果；当前所有证据均待实施，文档校验不等同功能通过。
 

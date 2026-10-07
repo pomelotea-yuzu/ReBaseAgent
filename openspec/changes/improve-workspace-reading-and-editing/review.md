@@ -10,7 +10,7 @@
 
 - 主 spec：`desktop-ui` 76 requirements。重点核对：L915「工作区在窄窗口和键盘操作下可读」、L994「文件目录和差异按内容容器宽度适配」、L1015「文件阅读工具操作完整原文且保持只读」、L1118「编辑核对与明确放弃区分于收起」、L1290「保留模态框约束焦点并正确恢复」、L877「会话内按运行恢复阅读位置」、L936「文件阅读在会话内按运行恢复并校验定位」。
 - 源码锚点：`execution-confirmation.ts:461`（字面 `**`）、`MessagesForkEditor.tsx:305`（空 fork 文案）、`DetailPanel.tsx:1252/1268`（时间旅行双称呼）。
-- 基线核对：`openspec validate improve-workspace-reading-and-editing --strict` 通过；`docs/reviews/2026-10-06-ui-density-review.md` 与 `output/ui-density-review-2026-10-06/` 均存在（1210×713 实测基线、y≈509、16×16 箭头等数字与 proposal 一致）。
+- 基线核对：`openspec validate improve-workspace-reading-and-editing --strict` 通过；`docs/reviews/2026-10-06-ui-density-review.md` 存在，几何读数已提炼为 `docs/reviews/2026-10-06-ui-density-geometry-baseline.json` 并入库（1210×713 实测基线、16.1×16.0 箭头、y≈951.7 的视口外按钮等数字可逐条回溯，与 proposal 一致；原 `output/` 截图与 DOM 全文转储按忽略规则不入库）。
 - 注意：change 目录当前**未提交**（untracked），提交时随本 review 一并入库。
 
 ## 已核实事实（全部属实）

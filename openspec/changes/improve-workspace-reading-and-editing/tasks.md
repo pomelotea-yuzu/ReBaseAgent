@@ -1,6 +1,6 @@
 # 实施任务
 
-> 起草状态：全部待实施，每项控制在 2 小时内，超时拆分。括号引用 delta 场景。截图基线位于 output/ui-density-review-2026-10-06，不作为优化已通过证据。
+> 起草状态：全部待实施，每项控制在 2 小时内，超时拆分。括号引用 delta 场景。几何基线见 `docs/reviews/2026-10-06-ui-density-geometry-baseline.json`（原 output/ 截图未入库），不作为优化已通过证据。
 
 ## 1. 折叠控制与信息分层
 

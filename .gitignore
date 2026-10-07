@@ -41,5 +41,17 @@ vitest.config.ts.bak
 .workbuddy/
 _tmp_*
 
+# 文档流水线产物与实机探针输出（可重跑或体积大，不入库）
+# 有价值的手写内容必须先归档进 docs/ 再排除整个目录 ——
+# output/ 曾长期是"随手放"的默认去处，2026-10-07 起其中的手写稿已迁至
+# docs/competition/（参赛文档）与 docs/reviews/（实机几何基线）。
+output/
+
+# 参赛材料工作区（2026-10-07 用户定口径：本地工作区，不进仓库）
+# figures/：drawio 源与导出的 PNG/pdf/docx 成品、体积大且由源文件可再生
+# submission-2026/：填报稿与排版/图表指引，提交前的工作稿
+docs/competition/figures/
+docs/competition/submission-2026/
+
 # docs/reviews 过程截图默认不入库（验收证据目录需要时用 git add -f 显式加入）
 docs/reviews/**/*.png
