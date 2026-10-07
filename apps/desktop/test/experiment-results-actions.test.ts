@@ -9,6 +9,7 @@ import { deriveExperimentBatches } from "../src/renderer/src/lib/experiment-resu
 import { initialSession } from "../src/renderer/src/lib/operation-session";
 import { emptyResultReadStore, resultReadKeyOf } from "../src/renderer/src/lib/result-verification";
 import { FAKE_EPOCH, statusSnapshot } from "./helpers/operation-channels";
+import { proxyStatusOk } from "./helpers/proxy-state-fixture";
 
 /**
  * U8（unify-recording-and-experiment-workspaces）任务 4.3：**实验工作区逐臂动作的
@@ -134,10 +135,8 @@ const apiStub: Record<string, unknown> = {
   settingsGet: async () => ok({ configured: true, baseURL: null, model: null, encryption: "safe" }),
   saveSettings: async () => ok(undefined),
   clearSettings: async () => ok(undefined),
-  proxyStatus: async () =>
-    ok({ enabled: false, running: false, port: 18787, upstreamBaseUrl: "", hasKey: false }),
-  proxyToggle: async () =>
-    ok({ enabled: false, running: false, port: 18787, upstreamBaseUrl: "", hasKey: false }),
+  proxyStatus: async () => proxyStatusOk(),
+  proxyToggle: async () => proxyStatusOk(),
 };
 
 (globalThis as Record<string, unknown>).window = { api: apiStub as unknown as WindowApi };

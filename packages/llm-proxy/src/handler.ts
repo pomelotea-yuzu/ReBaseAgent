@@ -37,6 +37,22 @@ export interface ProxyHandlerOptions {
   recorder: ProxyRecorder;
   keyStore: ProxyKeyStore;
   fetchImpl?: FetchLike;
+  /**
+   * 捕获到**非空** Authorization 时的只读回调（design D1）。
+   *
+   * 为什么需要它：key 的写入发生在本包内（`keyStore.lastKey = auth`），
+   * 注入方拿不到"何时发生了捕获"这个事实——而桌面侧必须据此推进捕获版本、
+   * 让已打开的编辑器的旧确认失效（`llm-proxy` delta「凭据捕获与更换可观测」）。
+   * 两种替代方案被否掉：① 让注入方用 `Object.defineProperty` 陷阱监视属性写入
+   * （隐式契约、无法在类型上看出来）；② 把 keyStore 换成回调式（会改既有注入面）。
+   *
+   * 纪律：
+   * - **每次捕获都调用**，即使 `lastKey` 的字面量与上次相同（"是否换 key"不是本回调的判据，
+   *   那是桌面侧捕获版本与 renderer 确认绑定的事）；未捕获到凭据的请求不调用。
+   * - 参数是原始 Authorization 字符串，**只传给注入方**：本包不记录、不转发、日志不打印。
+   * - 回调抛错不得影响转发（与 recorder 同纪律）；此时捕获仍已写入 keyStore。
+   */
+  onAuthorizationCaptured?: (authorization: string) => void;
 }
 
 export interface ProxyResult {
@@ -135,6 +151,12 @@ export function createProxyHandler(options: ProxyHandlerOptions): ProxyHandler {
       const auth = ctx.headers.authorization;
       if (typeof auth === "string" && auth.length > 0) {
         options.keyStore.lastKey = auth;
+        // 捕获事实通知注入方（design D1）。回调异常不得影响转发，也不回滚已写入的 key。
+        try {
+          options.onAuthorizationCaptured?.(auth);
+        } catch {
+          // 注入方的记账/通知失败不改变"凭据已捕获"这一事实
+        }
       }
 
       // 4. 录制请求快照：messages/model/tools 原样；顶层其余字段平铺进 params

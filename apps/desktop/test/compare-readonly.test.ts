@@ -3,6 +3,7 @@ import { ok } from "@shared/ipc";
 import type { CompareRunItem, Envelope, RunDetail, RunSummary, WindowApi } from "@shared/ipc";
 import { beforeEach, describe, expect, it } from "vitest";
 import { emptyCompareReadSession } from "../src/renderer/src/lib/compare-state";
+import { proxyStatusOk } from "./helpers/proxy-state-fixture";
 
 /**
  * U7（improve-branch-comparison）任务 5.10：比较路径**只读反证**。
@@ -158,8 +159,7 @@ const apiStub: Record<string, unknown> = {
   getSettings: async () => ok({ configured: true, baseURL: null, model: null, encryption: "safe" }),
   saveSettings: executionStub("settings:save"),
   clearSettings: executionStub("settings:clear"),
-  proxyStatus: async () =>
-    ok({ enabled: false, running: false, port: 18787, upstreamBaseUrl: "", hasKey: false }),
+  proxyStatus: async () => proxyStatusOk(),
   proxyToggle: executionStub("proxy:toggle"),
   operationsStatus: async () => ({ ok: false as const, error: { code: "UNUSED", message: "桩" } }),
   operationsReconcile: async () => ({

@@ -14,6 +14,7 @@ import {
 import type { Deferred } from "./helpers/deterministic-schedule";
 import { deferred } from "./helpers/deterministic-schedule";
 import { FAKE_EPOCH, statusSnapshot } from "./helpers/operation-channels";
+import { proxyStatusOk } from "./helpers/proxy-state-fixture";
 
 /**
  * U5（unify-run-execution-workflow）任务 1.2 的 **store 接线半边**：
@@ -115,10 +116,8 @@ const apiStub: Record<string, unknown> = {
   settingsGet: async () => ok({ configured: true, baseURL: null, model: null, encryption: "safe" }),
   saveSettings: async () => ok(undefined),
   clearSettings: async () => ok(undefined),
-  proxyStatus: async () =>
-    ok({ enabled: false, running: false, port: 18787, upstreamBaseUrl: "", hasKey: false }),
-  proxyToggle: async () =>
-    ok({ enabled: false, running: false, port: 18787, upstreamBaseUrl: "", hasKey: false }),
+  proxyStatus: async () => proxyStatusOk(),
+  proxyToggle: async () => proxyStatusOk(),
 };
 
 /** 已登记的可信终态：执行信封失败（业务拒绝）不影响"这条 run 已经产生"这一事实 */

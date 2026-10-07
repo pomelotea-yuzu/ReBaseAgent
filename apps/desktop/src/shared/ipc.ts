@@ -480,8 +480,51 @@ export const ProxyStateSchema = z.object({
   upstreamBaseUrl: z.string(),
   /** 本会话是否捕获到 key（值本身永不出 main） */
   hasKey: z.boolean(),
+  /**
+   * main 会话 epoch（design D1）。与 `operations:status` 的 epoch 同源，
+   * 用途是**新旧会话判别**：renderer 不得用旧 main 的 revision 拒绝新 main 的事实。
+   * ⚠️ 它不是凭据、不是指纹，只是一个会话标识。
+   */
+  epoch: z.string().min(1),
+  /**
+   * 状态 revision：凭据捕获/更换、监听启停、恢复完成或失败时单调推进。
+   * 「同样 hasKey=true 的 key 更换」也推进（见 design D2 的捕获版本语义）。
+   */
+  revision: z.number().int().min(0),
+  /**
+   * 记录 revision：**仅成功落盘**推进（recorder.write 失败不推进，见 design D4）。
+   * renderer 用它判断"订阅前/失焦期间是否漏了记录"，进而补读列表。
+   */
+  recordsRevision: z.number().int().min(0),
 });
 export type ProxyState = z.infer<typeof ProxyStateSchema>;
+
+/**
+ * 代理变化类别（design D1）。刻意只有两项：受控元信息，不携带载荷。
+ * - `records`：有 run 成功落盘（被动外部请求或主动重发）
+ * - `status`：凭据捕获/更换、监听启停、恢复阶段变化
+ */
+export const PROXY_CHANGE_KINDS = ["records", "status"] as const;
+export type ProxyChangeKind = (typeof PROXY_CHANGE_KINDS)[number];
+
+/**
+ * `proxy:changed` 的载荷：**只有**会话 epoch、单调 revision 与变化类别。
+ *
+ * 纪律（design D1 + llm-proxy delta「通知只包含受控元信息」）：
+ * - 不含 key、key 指纹、headers、messages、错误体或任何原始异常；
+ * - 不创建 operation、不占主动执行槽、不触发模型调用；
+ * - `changes` 至少一项——空通知没有意义，main 不该发。
+ *
+ * `recordsRevision` 一并回传，让 renderer 能在**不额外读状态**的前提下判断
+ * "这次通知是否含新的成功落盘"（失焦期间漏读后的补读判据）。
+ */
+export const ProxyChangeEventSchema = z.object({
+  epoch: z.string().min(1),
+  revision: z.number().int().min(0),
+  recordsRevision: z.number().int().min(0),
+  changes: z.array(z.enum(PROXY_CHANGE_KINDS)).min(1),
+});
+export type ProxyChangeEvent = z.infer<typeof ProxyChangeEventSchema>;
 
 /** 启停即保存：toggle 同时持久化端口与 upstream（免第四个通道） */
 export const ProxyToggleInputSchema = z.object({
@@ -821,6 +864,14 @@ export interface WindowApi {
   proxyStatus(): Promise<Envelope<ProxyState>>;
   proxyToggle(input: ProxyToggleInput): Promise<Envelope<ProxyState>>;
   proxyFork(request: ExecutedRequest<ProxyForkRequest>): Promise<ExecutedResponse<ProxyForkResult>>;
+  /**
+   * 订阅代理事实变化（design D1）：成功落盘、凭据捕获/更换、监听启停、恢复结果。
+   *
+   * 载荷只含 epoch/revision/recordsRevision 与受控类别（见 `ProxyChangeEventSchema`），
+   * **不含** key、headers、messages 或错误体；订阅本身不创建 operation、不占执行槽。
+   * 返回解绑函数（renderer 卸载时必须调用，否则监听器泄漏）。
+   */
+  onProxyChanged(listener: (event: ProxyChangeEvent) => void): () => void;
   /* ---- U3 关闭协商（design D6）：受限报告与订阅/解绑，不暴露 ipcRenderer ---- */
   /**
    * 关闭协商握手：renderer 挂载后调用，取当前文档会话 id；

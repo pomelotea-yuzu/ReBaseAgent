@@ -31,6 +31,11 @@ export const CHANNELS = {
   proxyStatus: "proxy:status",
   proxyToggle: "proxy:toggle",
   proxyFork: "proxy:fork",
+  // proxy:changed —— 被动代理事实变化的**单向只读通知**（design D1）。
+  // 只携带 main 会话 epoch、单调 revision 与受控变化类别（records/status），
+  // 不含 key、headers、messages 或错误体；不创建 operation、不占主动执行槽。
+  // 载荷严格校验在 main 侧，preload 原样透传（sandbox 下不引入 zod）。
+  proxyChanged: "proxy:changed",
   // operations:* —— U4 操作登记（design D4）：两条通道都**只读或不执行业务**，
   // status 无参返回自洽快照，reconcile 只按身份返回事实或建立内存封禁（notAccepted），
   // 都不调用模型/工具、不写 trace/blob/source、不消费授权

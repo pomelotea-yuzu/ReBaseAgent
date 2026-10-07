@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { emptyCompareReadSession } from "../src/renderer/src/lib/compare-state";
 import type { Deferred } from "./helpers/deterministic-schedule";
 import { deferred } from "./helpers/deterministic-schedule";
+import { proxyStatusOk } from "./helpers/proxy-state-fixture";
 
 /**
  * U7（improve-branch-comparison）任务 2.1/2.2/2.3/2.5 的 **store 接线半边**：
@@ -145,10 +146,8 @@ const apiStub: Record<string, unknown> = {
   getSettings: async () => ok({ configured: true, baseURL: null, model: null, encryption: "safe" }),
   saveSettings: async () => ok({ configured: true }),
   clearSettings: async () => ok({ configured: false }),
-  proxyStatus: async () =>
-    ok({ enabled: false, running: false, port: 18787, upstreamBaseUrl: "", hasKey: false }),
-  proxyToggle: async () =>
-    ok({ enabled: false, running: false, port: 18787, upstreamBaseUrl: "", hasKey: false }),
+  proxyStatus: async () => proxyStatusOk(),
+  proxyToggle: async () => proxyStatusOk(),
   operationsStatus: async () => ({ ok: false as const, error: { code: "UNUSED", message: "桩" } }),
   operationsReconcile: async () => ({
     ok: false as const,

@@ -14,6 +14,7 @@ import { type DraftCloseGuardHandle, attachDraftCloseGuard } from "./draft-close
 import { registerIpc } from "./ipc";
 import type { TrustedSender } from "./operation-endpoints";
 import { OperationRegistry } from "./operation-registry";
+import { attachProxyChangeBroadcast } from "./proxy-change-broadcast";
 import { ProxyManager } from "./proxy-manager";
 import { RunRepository } from "./run-repository";
 import { SettingsStore } from "./settings";
@@ -237,7 +238,11 @@ async function bootstrap(): Promise<void> {
    * 代理按 settings 自恢复（端口占用等失败不阻断应用启动，状态可见）。
    * U4（tasks 3.6）：启动恢复同样持「配置变更中」标记——它也要 `await` 换监听器，
    * 不能允许新窗口在这期间提交主动执行或改配置。失败/完成都在 finally 释放。
+   *
+   * 代理变化广播**先于** autoStart 挂上（design D1）：否则恢复期间发生的状态变化
+   * 会因为还没有订阅者而丢失，只能等 renderer 首次读状态时才被补齐。
    */
+  attachProxyChangeBroadcast(proxy);
   operations.beginConfigurationChange();
   void proxy.autoStart().finally(() => {
     operations.endConfigurationChange();

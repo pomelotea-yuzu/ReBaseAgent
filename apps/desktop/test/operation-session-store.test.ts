@@ -11,6 +11,7 @@ import { ok } from "../src/shared/ipc";
 import type { Envelope, WindowApi } from "../src/shared/ipc";
 import type { OperationRecord, OperationStatusResult } from "../src/shared/operations";
 import { FAKE_EPOCH, installOperationChannels, statusSnapshot } from "./helpers/operation-channels";
+import { proxyStatusOk } from "./helpers/proxy-state-fixture";
 
 /**
  * U4 任务 4.1 的 **store 接线半边**：门禁真的接在提交路径上（不是只测纯 reducer）。
@@ -98,8 +99,7 @@ const apiStub: Record<string, unknown> = {
   settingsGet: async () => ok({ configured: true, baseURL: null, model: null, encryption: "safe" }),
   saveSettings: async () => ok(undefined),
   clearSettings: async () => ok(undefined),
-  proxyStatus: async () =>
-    ok({ enabled: false, running: false, port: 18787, upstreamBaseUrl: "", hasKey: false }),
+  proxyStatus: async () => proxyStatusOk(),
 };
 installOperationChannels(apiStub);
 (globalThis as Record<string, unknown>).window = { api: apiStub as unknown as WindowApi };

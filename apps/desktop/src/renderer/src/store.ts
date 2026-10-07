@@ -30,6 +30,7 @@ import {
   ChooseSourceResultSchema,
   ForkCapabilityResultSchema,
   ListRunsDataSchema,
+  ProxyChangeEventSchema,
   ProxyStateSchema,
   RunDetailSchema,
   SettingsStateSchema,
@@ -167,6 +168,13 @@ import {
   markUnknown,
   newlySettledOperations,
 } from "./lib/operation-session";
+import type { ProxyFactCursor } from "./lib/proxy-changes";
+import {
+  cursorFromStatus,
+  initialProxyFactCursor,
+  shouldApplyChange,
+  shouldReconcileOnActivate,
+} from "./lib/proxy-changes";
 import { resolveReading } from "./lib/reading-resolve";
 import {
   defaultReadingState,
@@ -212,7 +220,6 @@ import {
   resolveSourceAvailability,
 } from "./lib/workspace-selection";
 import type { FilterVisibility, SourceAvailability } from "./lib/workspace-selection";
-
 /**
  * UI 状态：只存选择状态与原始数据。
  * 聚合数字一律在组件里用 shared/derive 的纯函数现算，不进 store、不落缓存。
@@ -401,6 +408,29 @@ interface AppState {
   listRefreshPending: number;
   /** 单次列表读取（合并调度内部使用；失败保留旧记录） */
   refreshRunsOnce: () => Promise<void>;
+  /**
+   * 订阅 main 的代理变化通知（design D1，tasks 1.3）。**幂等**：重复调用只保留
+   * 一个订阅（挂载 effect 在 StrictMode 下会跑两次）。
+   *
+   * ⚠️ 必须在首次 `loadProxyStatus` **之前**调用：订阅与首读之间落盘的记录，
+   * 两边都看不到（通知没发生、首读已结束）。顺序反过来则由
+   * `shouldReconcileOnActivate` 在激活时补齐。
+   */
+  ensureProxyChangeSubscription: () => void;
+  /** 解除订阅（renderer 卸载时必须调用，否则监听器泄漏） */
+  releaseProxyChangeSubscription: () => void;
+  /**
+   * 已采纳的代理事实版本游标（`proxy-changes.ts` 的判据输入）。
+   * 只存 epoch 与两个计数器——**没有任何凭据、指纹或载荷**。
+   */
+  proxyFactCursor: ProxyFactCursor;
+  /**
+   * 只读核对当前代理事实版本（design D1 的补读路径）。
+   * 供窗口重新激活时调用：读到更新的 `recordsRevision` 才补刷列表。
+   * 它**只读**：不启动监听、不调上游、不产生模型请求（design D3）。
+   */
+  reconcileProxyFacts: () => Promise<void>;
+
   selectRun: (id: string) => Promise<void>;
   /** 按同一 runId 重新读取详情（spec「结果不可读不重执行」的重试口）；不产生任何主动执行 */
   reopenRun: (id: string) => Promise<void>;
@@ -1716,6 +1746,17 @@ function closeRemainingClosures(): void {
   }
 }
 
+/**
+ * 代理变化订阅的解绑句柄（design D1，tasks 1.3）。
+ *
+ * 为什么放模块作用域而不是 store 字段：它是**资源句柄**不是 UI 状态
+ * （放 state 会让它进渲染依赖，且 StrictMode 双挂载时两次 set 的时序反而更脆）。
+ * `null` = 当前没有订阅，`ensureProxyChangeSubscription` 借它做幂等。
+ * ⚠️ 测试用 `releaseProxyChangeSubscription` 复位——跨用例残留订阅会让
+ * "一条通知触发几次读取"的断言互相污染。
+ */
+let proxyChangeUnsubscribe: (() => void) | null = null;
+
 export const useAppStore = create<AppState>((set, get) => ({
   runs: [],
   failed: [],
@@ -1754,6 +1795,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   seenNoticeKeys: {},
   listRefreshInFlight: 0,
   listRefreshPending: 0,
+  proxyFactCursor: initialProxyFactCursor,
 
   forking: "idle",
   forkError: null,
@@ -1818,6 +1860,61 @@ export const useAppStore = create<AppState>((set, get) => ({
       // 在途数，否则补发的这次请求无人递减计数，计数器永久残留。
       if (settled.shouldRefire) await get().loadRuns();
     }
+  },
+
+  /**
+   * 订阅 main 的代理变化通知（design D1，tasks 1.3）。**幂等**。
+   *
+   * 三条纪律：
+   * - **零主动登记**：这条订阅不碰 `operations:status`、不占执行槽、不发任何请求
+   *   （delta「通知只包含受控元信息」的 renderer 半边：证明没有自动请求/自动重发）；
+   * - **先订阅后首读**：调用方必须在本方法之后才 `loadProxyStatus`，
+   *   否则订阅与首读之间落盘的记录两边都看不到；
+   * - **载荷过 schema 才采纳**：非法载荷整条丢弃（不按"看起来像"的部分字段处理），
+   *   否则一个坏载荷能把 hasKey 之类的门禁事实带歪。
+   */
+  ensureProxyChangeSubscription() {
+    // 幂等：StrictMode 下挂载 effect 会跑两次，重复订阅会让一次落盘触发两次刷新
+    if (proxyChangeUnsubscribe !== null) return;
+    proxyChangeUnsubscribe = api.onProxyChanged((payload) => {
+      const parsed = ProxyChangeEventSchema.safeParse(payload);
+      if (!parsed.success) return;
+      const plan = shouldApplyChange(get().proxyFactCursor, parsed.data);
+      // 规则 4：`records` 才刷列表。刷新一律走 loadRuns（自带在途合并 + 尾随补发），
+      // **不**旁路 refreshRunsOnce —— 旁路那次请求无人递减在途计数，计数器永久残留。
+      if (plan.reloadRuns) void get().loadRuns();
+      if (plan.reloadStatus) void get().loadProxyStatus();
+      // 游标在**发起读取之前**推进：读到的是异步结果，若推进放在后面，
+      // 同一 tick 里的第二条通知会因游标未动而被当成新变化，重复触发读取。
+      set({ proxyFactCursor: plan.cursor });
+    });
+  },
+
+  releaseProxyChangeSubscription() {
+    proxyChangeUnsubscribe?.();
+    proxyChangeUnsubscribe = null;
+  },
+
+  /**
+   * 只读核对代理事实版本（失焦/激活补读，design D1）。
+   *
+   * 失焦期间可能错过任意多条通知；重新激活时读一次状态，
+   * 只有 `recordsRevision` 确实落后才补刷列表——否则每次点回窗口都白读全量 traces。
+   * **只读**：不启动监听、不调上游、不产生模型请求。
+   */
+  async reconcileProxyFacts() {
+    const before = get().proxyFactCursor;
+    await get().loadProxyStatus();
+    const readOk = get().proxy !== null;
+    const after = get().proxyFactCursor;
+    // 读取失败/载荷非法时 loadProxyStatus 把 proxy 置 null 且**游标不前进**
+    // （见上面的 `loadProxyStatus`）。⚠️ 这时**不能**直接把 `after` 当"已核实版本"：
+    // 游标没动 ⇒ epoch 仍与 `before` 相同 ⇒ `shouldReconcileOnActivate` 会走
+    // "无落后"分支返回 false，正好把"这次什么都没读到"误判成"没有变化"，
+    // 于是失焦期间漏掉的落盘永远补不上。故此处把 epoch 置 null 显式表达
+    // "本次未取得任何版本事实"，由判据一律要求补刷。
+    const observed: ProxyFactCursor = readOk ? after : { ...after, epoch: null };
+    if (shouldReconcileOnActivate(before, observed).reloadRuns) await get().loadRuns();
   },
 
   /**
@@ -3043,6 +3140,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         // U8 任务 2.5：回读失败如实呈现「状态待读取」，允许只读重试（不重新 toggle）
         recordingStatusReadFailed: true,
       });
+      // ⚠️ 游标**不前进**：状态未知时不能断言"版本没变"——
+      // 否则失焦期间漏掉的落盘会被这次失败读取"确认"成没有变化（design D1）。
       // 草稿在场 ⇒ baseline 撤到 null（没有可核实的当前应用值；输入原样保留）
       const draft = get().recordingDraft;
       if (draft !== null) set({ recordingDraft: applyRecordingBaseline(draft, null) });
@@ -3054,6 +3153,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       return;
     }
     set({ proxy: parsed.data, recordingStatusReadFailed: false });
+    // 已核实的版本事实推进游标（乱序守卫在 cursorFromStatus 内部：只前进不回退）
+    set({ proxyFactCursor: cursorFromStatus(get().proxyFactCursor, parsed.data) });
     // U8 任务 2.1：草稿在场 ⇒ baseline 跟随最近可核实事实（输入原样，dirty 随之重算）
     const draft = get().recordingDraft;
     if (draft !== null)

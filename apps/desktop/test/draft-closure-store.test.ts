@@ -13,6 +13,7 @@ import { initialSession } from "../src/renderer/src/lib/operation-session";
 import { stripComments } from "../src/renderer/src/lib/overview-view";
 import { emptyResultReadStore, resultReadKeyOf } from "../src/renderer/src/lib/result-verification";
 import { FAKE_EPOCH, statusSnapshot, toExecuted } from "./helpers/operation-channels";
+import { proxyStatusOk } from "./helpers/proxy-state-fixture";
 
 /**
  * U5（unify-run-execution-workflow）任务 2.2 的 **store 接线**：
@@ -131,10 +132,8 @@ const apiStub: Record<string, unknown> = {
   settingsGet: async () => ok({ configured: true, baseURL: null, model: null, encryption: "safe" }),
   saveSettings: async () => ok(undefined),
   clearSettings: async () => ok(undefined),
-  proxyStatus: async () =>
-    ok({ enabled: false, running: false, port: 18787, upstreamBaseUrl: "", hasKey: false }),
-  proxyToggle: async () =>
-    ok({ enabled: false, running: false, port: 18787, upstreamBaseUrl: "", hasKey: false }),
+  proxyStatus: async () => proxyStatusOk(),
+  proxyToggle: async () => proxyStatusOk(),
 };
 
 (globalThis as Record<string, unknown>).window = { api: apiStub as unknown as WindowApi };

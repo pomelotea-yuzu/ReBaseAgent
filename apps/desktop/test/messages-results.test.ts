@@ -13,6 +13,7 @@ import {
   setResultRead,
 } from "../src/renderer/src/lib/result-verification";
 import { FAKE_EPOCH, statusSnapshot } from "./helpers/operation-channels";
+import { proxyStatusOk } from "./helpers/proxy-state-fixture";
 
 /**
  * U8 任务 5.4：**messages 工作区的重发结果区**（delta「messages 失败定位与返回不丢草稿」）。
@@ -51,10 +52,8 @@ const apiStub: Record<string, unknown> = {
     ok: false as const,
     error: { code: "NOT_STUBBED", message: "本桩未实现核对" },
   }),
-  proxyToggle: async () =>
-    ok({ enabled: false, running: false, port: 18787, upstreamBaseUrl: "", hasKey: false }),
-  proxyStatus: async () =>
-    ok({ enabled: false, running: false, port: 18787, upstreamBaseUrl: "", hasKey: false }),
+  proxyToggle: async () => proxyStatusOk(),
+  proxyStatus: async () => proxyStatusOk(),
   settingsGet: async () => ok({ configured: true, baseURL: null, model: null, encryption: "safe" }),
   saveSettings: async () => ok(undefined),
   clearSettings: async () => ok(undefined),

@@ -49,3 +49,66 @@ recorder.write 失败时，被动转发仍保护客户端响应，但不发送�
 ## D6. 风险与实施顺序
 
 通知突发会导致 IO 风暴，靠 revision、在途合并和尾随刷新控制；IPC 迟到会覆盖最新凭据事实，靠会话与请求代次控制。新失败 span 改变调用数投影，需验证指标不会把占位解读为实测零。先实现同步与状态，随后失败录制与展示，再定位恢复问题并留回归。另一 change 只新增界面要求，不替换本 change 的 requirement；两者可以独立验收，但修改同一组件时须复核合并。
+
+⚠️ 上面「IO 风暴靠 revision、在途合并和尾随刷新控制」的实现归属已经核实并钉住：
+**三道防线全在 renderer 侧**，main 侧不做同tick 合并。N 条通知的代价是至多
+「一次在飞 + 一次尾随」列表读取（`loadRuns` 的既有语义），而不是 N 次全量 traces 扫描；
+main 侧再加一层微任务合并并不会让列表读取更少，却会让"落盘即通知"多一个事件循环的
+延迟，并把 `changes` 的语义从"这次变了什么"变成"这一 tick 变了什么"。
+
+## D7.实施期核实结论（tasks 1.1–1.4，2026-10-07）
+
+提案是假设，代码是事实。以下每条都用真实代码核实过，实现按此落地；**与提案不一致处已标注**。
+
+### 已核实的签名事实
+
+- `ProxyState` 原先只有 5 个字段（`enabled`/`running`/`port`/`upstreamBaseUrl`/`hasKey`）。
+- `ProxyStateSchema` 只有 store 两处消费，**无** `.extend()` / `.partial()` 消费者 ⇒
+  加三个必填版本字段是安全的，不会连带打断其他构造点。
+- `ProxyManager.status()` 是**同步**方法（读settings + 内存字段），可安全当作补读快照。
+- `ProxyManager.autoStart()` 原先是 `catch {}` 静默吞掉启动失败。
+- `preload-surface.test.ts` 的桥接面是**封闭白名单** ⇒ 新增 `onProxyChanged`
+  必须显式登记，否则该测试必然红（这是预期的强制点，不是回归）。
+- `loadRuns` 已有在途合并 + 尾随补发，**无需重写**；刷新一律走它，不得旁路 `refreshRunsOnce`
+  （旁路那次请求无人递减在途计数，计数器永久残留）。
+- `App.tsx` 挂载时 `loadRuns` 与 `loadProxyStatus` 并行且**原本无订阅**。
+
+### 与提案不一致 / 提案未覆盖之处（已按代码事实定案）
+
+1. **🔴 提案未覆盖的实现缺口**：key 的写入发生在 `llm-proxy` 包内
+   （`keyStore.lastKey = auth`），main侧拿不到"何时发生了捕获"这一事实。
+   D1 要求的"捕获后推进状态 revision"因此**无法只靠桌面侧实现**。
+   定案：在 `ProxyHandlerOptions` 新增可选回调 `onAuthorizationCaptured`，
+   捕获点调用；回调抛错被包内try/catch 隔离（不改"凭据已捕获"这一事实、不回滚已写入的 key）。
+2. **合并窗口的归属**：D6 的IO 风暴防线按 renderer 侧实现（见 D6 末尾补记），
+   `onChange` 的文档注释已按此改写（原注释承诺了不存在的"同 tick 合并"）。
+3. **🔴 读失败时"保守补刷"的实现坑**：`loadProxyStatus` 失败时游标**不前进**，
+   于是 epoch 仍与失焦前相同 ⇒ 若直接把游标交给 `shouldReconcileOnActivate`，
+   它会走"无落后"分支返回 `false`，把"这次什么都没读到"误判成"没有变化"，
+   **失焦期间漏掉的落盘永远补不上**。定案：`reconcileProxyFacts` 在读取失败时
+   把交给判据的 epoch 置 `null`，显式表达"本次未取得任何版本事实"。
+   该行为由 `proxy-change-store.test.ts` 的「状态读取失败 ⇒ 保守补刷」钉住。
+4. **首次列表读取失败不标"未更新"**：`resolveRefreshFailure` 的口径是"有过成功加载才标
+   stale"。测试断言"刷新失败沿用旧列表"必须先造一次成功加载，否则测的是首次失败分支。
+
+### 测试基础设施的两条硬约束（本轮实际踩到）
+
+- **测试目录不在 tsconfig `include` 内** ⇒ `pnpm typecheck` 绿**不覆盖** `apps/desktop/test/`。
+  `ProxyStateSchema` 加必填字段后，27 处手写 `{...}` 夹具**静默**过不了 schema，
+  症状是 `proxy` 被置 `null`、`recordingStatusReadFailed` 变 true——离病因很远。
+  定案：新增 `test/helpers/proxy-state-fixture.ts` 共享工厂，新增 `ProxyState` 字段时只改那里。
+- **`RunSummarySchema` 有 14 个必填字段**，少一个就被 `ListRunsDataSchema.safeParse` 静默拒掉
+  （症状同样是 `runs` 变空+ 校验失败文案）。本轮新增的列表夹具集中在测试文件内的
+  `runSummary()` 一处，同理不得散落字面量。
+
+### 审阅项 → 处理对照
+
+| 审阅项 | 处理 | 落点 |
+| --- | --- | --- |
+| 通知只含受控元信息 | 载荷 schema 键集合封闭；测试断言通知文本不含 key/messages/系统提示 | `proxy-change-notify.test.ts`、`proxy-change-decisions.test.ts` |
+| 写入失败不报告新记录 | `recorder.write` 抛错分支不推进 `recordsRevision`、不发 records 通知，原样抛出由包层保护转发 | `proxy-manager.ts:248`；变异验证（故意加 `notifyRecord()` ⇒ 2 条用例红） |
+| 零主动登记 / 零自动请求 | 通知路径不碰 `operations:status`/`proxy:fork`/`runs:create`/`model:ab`；不改动 operation 会话对象 | `proxy-change-store.test.ts`「零主动登记 / 零自动请求」 |
+| 订阅先于首读 | `App.tsx` 挂载 effect 首行 `ensureProxyChangeSubscription()`；广播装配先于 `autoStart` | `App.tsx:97`、`main/index.ts` |
+| 突发 IO | renderer 侧三道防线（游标去重 + `loadRuns` 在途合并 + 尾随补发），实测 N 条通知 ⇒ 2 次列表读取 | `proxy-change-store.test.ts`「在飞期间的 N 条通知」 |
+| 失焦补读 | 窗口 `focus` ⇒ `reconcileProxyFacts`；读取失败按 D7.3 保守补刷 | `App.tsx:122`、`store.ts` |
+| 订阅泄漏 | `releaseProxyChangeSubscription` 幂等复位；测试 `beforeEach` 强制复位防跨用例污染 | `store.ts`、`proxy-change-store.test.ts` |

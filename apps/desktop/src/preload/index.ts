@@ -38,6 +38,10 @@ const api: WindowApi = {
   proxyStatus: () => ipcRenderer.invoke(CHANNELS.proxyStatus),
   proxyToggle: (input) => ipcRenderer.invoke(CHANNELS.proxyToggle, input),
   proxyFork: (request) => ipcRenderer.invoke(CHANNELS.proxyFork, request),
+  // proxy:changed（design D1）：被动事实变化的单向只读通知。载荷原样透传，
+  // 严格 schema 校验在 main 侧（sandbox preload 不引入 zod）；只含 epoch/revision
+  // 与受控类别，不含 key/headers/messages。返回解绑函数供 renderer 卸载时清理。
+  onProxyChanged: (listener) => onMainEvent(CHANNELS.proxyChanged, listener),
   // draft-close:*（U3 关闭协商，design D6）：只暴露受限报告与订阅/解绑接口。
   // 载荷原样透传——schema 严格校验在 main 侧（sandbox preload 不引入 zod）
   draftCloseHandshake: () => ipcRenderer.invoke(CHANNELS.draftCloseHandshake),

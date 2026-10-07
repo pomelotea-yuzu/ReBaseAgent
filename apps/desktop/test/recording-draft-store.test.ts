@@ -7,6 +7,7 @@ import { sessionDirtyCountOf } from "../src/renderer/src/lib/draft-list";
 import { initialSession } from "../src/renderer/src/lib/operation-session";
 import { emptyResultReadStore } from "../src/renderer/src/lib/result-verification";
 import { installOperationChannels } from "./helpers/operation-channels";
+import { proxyStateFixture } from "./helpers/proxy-state-fixture";
 
 /**
  * U8 任务 2.2/2.3/2.5/2.6 的 **store 接线**：录制草稿写入 / CAS 放弃 / 应用收尾 / 代次守卫。
@@ -20,15 +21,12 @@ import { installOperationChannels } from "./helpers/operation-channels";
  * - 「录制未应用修改参与退出保护」（sessionDirtyCountOf 计入录制一条）。
  */
 
+// 代理状态夹具走共享工厂（test/helpers/proxy-state-fixture.ts）：
+// 本文件原先的本地字面量漏了 design D1 新增的 epoch/revision/recordsRevision，
+// 且用 `as ProxyState` 把类型错误压掉了——schema 校验静默失败后
+// `proxy` 被置 null，症状（草稿 baseline 撤 null、状态待读取）离病因很远。
 const proxyState = (overrides: Partial<ProxyState> = {}): ProxyState =>
-  ({
-    enabled: false,
-    running: false,
-    port: 18787,
-    upstreamBaseUrl: "https://api.deepseek.com",
-    hasKey: false,
-    ...overrides,
-  }) as ProxyState;
+  proxyStateFixture({ upstreamBaseUrl: "https://api.deepseek.com", ...overrides });
 
 const calls: string[] = [];
 /** proxyStatus 桩的应答队列（空 ⇒ 恒返回「旧状态」） */

@@ -91,6 +91,10 @@ export default function App() {
 
   // 挂载时加载一次列表与运行配置。只读工具，不做文件监听——目录内容变化后重新打开即可
   useEffect(() => {
+    // 代理变化订阅**必须先于**首次状态读取（design D1 的规则 1）：
+    // 反过来的话，"订阅建立"与"首读完成"之间落盘的外部录制两边都看不到
+    // ——通知尚未发生、首读已经结束，这条记录要等用户手动刷新才出现。
+    useAppStore.getState().ensureProxyChangeSubscription();
     void (async () => {
       await useAppStore.getState().loadRuns();
       // 首次自动选择（任务 3.5）：列表首次成功加载且尚无选中项时，尝试最近可读摘要
@@ -102,6 +106,27 @@ export default function App() {
     // U4 任务 4.5：挂载即与 main 握手一次并"接着核对"——同 main 重载要恢复在跑的操作与
     // 已有终态/封禁（不重发、不以空草稿仓库解除活跃锁）；空闲会话不会因此持续打 IPC。
     void useAppStore.getState().ensureOperationStatusPolling();
+    return () => {
+      // 卸载即解绑：残留订阅会在下次挂载时与新订阅叠加，一次落盘触发两轮读取
+      useAppStore.getState().releaseProxyChangeSubscription();
+    };
+  }, []);
+
+  /**
+   * 窗口重新激活时的**只读补读**（design D1 的失焦补偿）。
+   *
+   * 失焦期间 renderer 收不到通知（webContents 仍活着，但窗口不在前台时
+   * 用户看不到任何刷新）。回到窗口时读一次代理状态版本，只有确实落后才补刷列表。
+   * 这条路径**只读**：不启动监听、不调上游、不产生模型请求。
+   */
+  useEffect(() => {
+    const onActivate = (): void => {
+      void useAppStore.getState().reconcileProxyFacts();
+    };
+    window.addEventListener("focus", onActivate);
+    return () => {
+      window.removeEventListener("focus", onActivate);
+    };
   }, []);
 
   /** 录制入口（全局栏 / 空态共用）：打开**独立录制工作区**（U8 任务 1.4；设置仅跳转归 2.10） */

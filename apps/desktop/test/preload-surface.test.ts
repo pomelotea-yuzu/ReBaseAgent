@@ -61,6 +61,9 @@ describe("4.9 预加载桥接面：不含文件能力", () => {
       "onDraftCloseQuery",
       "onDraftCloseRelease",
       "onDraftCloseSession",
+      // 代理事实变化的只读订阅（design D1）：只推 epoch/revision/受控类别，
+      // 不含 key/headers/messages，也不创建 operation
+      "onProxyChanged",
       "operationsReconcile",
       "operationsStatus",
       "promptFork",

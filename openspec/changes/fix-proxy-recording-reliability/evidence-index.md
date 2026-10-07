@@ -1,8 +1,13 @@
-# 验收证据索引（待实施）
+# 验收证据索引（实施中）
 
 现有输入为实测反馈与 [实机问题记录](../../../docs/reviews/2026-10-06-ui-density-review.md)，它们只证明问题基线。编辑器原路径尚待复现，须登记可见宿主/祖先与活动实例；隐藏 0×0 helper 不作为塌缩证据，Emulation 与真实窗口分开记录。
 
-每个 delta scenario 单独登记。实施后在最后一列填测试名/日志或截图路径、真实宿主尺寸、限制与结果；当前所有证据均待实施，文档校验不等同功能通过。
+> **当前进度：tasks 1.1–1.4 已实施**（25 项中4 项）。下表 6 个 scenario 已有测试级证据，
+> 其余仍为「待实施」。**✅ 只表示测试级证据成立**，标⏳ 的行说明该 scenario 尚有未覆盖的
+> 任务分片；标「实机」的说明仍缺 Electron 真机截图——文档校验与单元测试都不等同功能通过。
+> tasks 1.x 的证据只覆盖接线与记账语义，实机验收统一在 tasks 5.x 补齐。
+
+每个 delta scenario 单独登记。实施后在最后一列填测试名/日志或截图路径、真实宿主尺寸、限制与结果；文档校验与单元测试都不等同功能通过。
 
 | Capability / Requirement | Scenario | 任务 | 计划检查与证据 | 证据路径 / 结果 |
 | --- | --- | --- | --- | --- |
@@ -20,15 +25,15 @@
 | [llm-proxy](specs/llm-proxy/spec.md) / 单请求级最小分叉（方案 a） | 失败父本重发再次失败 | [3.6a](tasks.md) | 失败父本+本次 401/503；自有新 error、可信 ID、草稿保留、父本 SHA 不变与无自动再请求 | 待实施 |
 | [llm-proxy](specs/llm-proxy/spec.md) / 单请求级最小分叉（方案 a） | 历史无调用失败父本不可重发 | [3.6b](tasks.md) | 旧 meta+stopped/error fixture；拒绝原因、无补写、计数=0 与原文件 SHA | 待实施 |
 | [llm-proxy](specs/llm-proxy/spec.md) / 单请求级最小分叉（方案 a） | 未封存或损坏失败父本不可重发 | [3.6b](tasks.md) | crashed/缺来源/损坏请求 fixtures；副作用前拒绝、完整草稿及无子 run | 待实施 |
-| [llm-proxy](specs/llm-proxy/spec.md) / 代理变化通知不属于主动执行 | 通知只包含受控元信息 | [1.1](tasks.md)、[1.4](tasks.md) | shared schema 与 preload 清理测试；事件/回读字段白名单、secret 扫描、主动登记和自动请求计数=0 | 待实施 |
-| [llm-proxy](specs/llm-proxy/spec.md) / 代理变化通知不属于主动执行 | 写入失败不报告新记录 | [1.2](tasks.md)、[1.4](tasks.md)、[3.5b](tasks.md) | recorder.write 失败注入及主动/被动交错；revision 不推进、客户端响应保真、PROXY_RECORDING_WRITE_FAILED、草稿保留且无借用 ID | 待实施 |
-| [llm-proxy](specs/llm-proxy/spec.md) / 代理变化通知不属于主动执行 | 凭据捕获与更换可观测 | [1.2](tasks.md) | hasKey 已为 true 时再捕获；版本推进、通知与内存范围核对，不回传凭据值 | 待实施 |
+| [llm-proxy](specs/llm-proxy/spec.md) / 代理变化通知不属于主动执行 | 通知只包含受控元信息 | [1.1](tasks.md)、[1.4](tasks.md) | shared schema 与 preload 清理测试；事件/回读字段白名单、secret 扫描、主动登记和自动请求计数=0 | ✅ `test/proxy-change-notify.test.ts`「通知载荷只包含受控元信息」+「凭据捕获推状态 revision」；`test/proxy-change-decisions.test.ts`「载荷校验」；`test/preload-surface.test.ts` 封闭白名单已登记 `onProxyChanged`。载荷键集合封闭为 `epoch/revision/recordsRevision/changes`；通知序列化文本断言不含 key/Bearer/系统提示/用户输入正文；`status()` 键集合封闭为 8 项（`hasKey` 仅布尔）。renderer 侧零主动登记/零自动请求见 `test/proxy-change-store.test.ts`「零主动登记 / 零自动请求」（`proxy:fork`/`runs:create`/`model:ab` 计数=0，允许通道仅 `runs:list`+`proxy:status`；operation 会话对象引用不变） |
+| [llm-proxy](specs/llm-proxy/spec.md) / 代理变化通知不属于主动执行 | 写入失败不报告新记录 | [1.2](tasks.md)、[1.4](tasks.md)、[3.5b](tasks.md) | recorder.write 失败注入及主动/被动交错；revision 不推进、客户端响应保真、PROXY_RECORDING_WRITE_FAILED、草稿保留且无借用 ID | ✅ 被动侧：`test/proxy-change-notify.test.ts`「落盘失败 ⇒ 不推进 recordsRevision、不发 records 通知，但响应仍送达客户端」（recorder 注入面制造失败，客户端仍收 200、`upstreamCalls=1`）+「先失败后成功 ⇒ 只在成功那次前进」。**变异验证**：故意在失败分支加 `notifyRecord()` ⇒ 恰 2 条用例红。⏳ 主动重发侧（`PROXY_RECORDING_WRITE_FAILED`、草稿保留、不借用ID）属 tasks 3.5b，未实施 |
+| [llm-proxy](specs/llm-proxy/spec.md) / 代理变化通知不属于主动执行 | 凭据捕获与更换可观测 | [1.2](tasks.md) | hasKey 已为 true 时再捕获；版本推进、通知与内存范围核对，不回传凭据值 | ⏳ 部分：捕获回调接线与版本推进已实测（`onAuthorizationCaptured` → `notifyStatus`；一次请求的通知序列为 status(启停)/status(捕获)/records(落盘) 三条，见 `proxy-change-notify.test.ts`「捕获 key 发 status 通知」）。hasKey 已为 true 时的**更换**场景与内存范围核对属 tasks 2.2a，未实施 |
 | [llm-proxy](specs/llm-proxy/spec.md) / 保存的监听意图在启动时恢复且失败可诊断 | 保存启用后重启恢复监听 | [2.3a](tasks.md)、[2.4](tasks.md) | 保存 enabled 后重启；真实端口监听探测、状态快照与新会话 hasKey=false | 待实施 |
 | [llm-proxy](specs/llm-proxy/spec.md) / 保存的监听意图在启动时恢复且失败可诊断 | 重启恢复失败可见且可重试 | [2.3a](tasks.md)、[2.4](tasks.md) | 占用端口启动与释放后显式应用；enabled/running/诊断快照、只读回读零启动及上游计数=0 | 待实施 |
 | [llm-proxy](specs/llm-proxy/spec.md) / 保存的监听意图在启动时恢复且失败可诊断 | 保存停用不启动代理 | [2.3a](tasks.md) | saved.enabled=false 重启；监听尝试计数=0、停止状态和无上游调用 | 待实施 |
-| [desktop-ui](specs/desktop-ui/spec.md) / 被动代理录制自动更新列表并保留阅读 | 空闲 main 的被动录制自动可见 | [1.2](tasks.md)、[1.3](tasks.md) | Electron 外部请求；无需手动刷新匹配筛选出现新 ID、当前详情/选择保持、零主动登记 | 待实施 |
-| [desktop-ui](specs/desktop-ui/spec.md) / 被动代理录制自动更新列表并保留阅读 | 并发录制保留筛选和当前阅读 | [1.3](tasks.md)、[1.4](tasks.md) | 读取在飞 burst；最大单一读取、尾随刷新、最终 ID 集合及筛选/草稿/滚动指纹 | 待实施 |
-| [desktop-ui](specs/desktop-ui/spec.md) / 被动代理录制自动更新列表并保留阅读 | 订阅前与失焦期间的变化可补读 | [1.1](tasks.md)、[1.3](tasks.md) | 初读/订阅竞争与失焦恢复；epoch/revision 乱序测试、最终列表集合与无自动重发 | 待实施 |
+| [desktop-ui](specs/desktop-ui/spec.md) / 被动代理录制自动更新列表并保留阅读 | 空闲 main 的被动录制自动可见 | [1.2](tasks.md)、[1.3](tasks.md) | Electron 外部请求；无需手动刷新匹配筛选出现新 ID、当前详情/选择保持、零主动登记 | ⏳ 接线层已绿（`proxy-change-store.test.ts`「空闲 main 的被动录制自动可见」：一条 records 通知 ⇒ 恰好 1 次 `runs:list`+1 次 `proxy:status`，游标推进；选中/详情/筛选/搜索词/阅读位置原样），但**缺 Electron 实机证据**（外部应用发请求、界面自动出现新 ID 的截图）。待 tasks 5.x 补 |
+| [desktop-ui](specs/desktop-ui/spec.md) / 被动代理录制自动更新列表并保留阅读 | 并发录制保留筛选和当前阅读 | [1.3](tasks.md)、[1.4](tasks.md) | 读取在飞 burst；最大单一读取、尾随刷新、最终 ID 集合及筛选/草稿/滚动指纹 | ✅ `test/proxy-change-store.test.ts`「在飞期间的 N 条通知 ⇒ 至多一个在飞 + 一次尾随」：读取卡在闸门上时投3 条通知，`listCalls` 停在 1；释放后尾随补发，`listCalls=2` 且最终可见 `run_new_0/1/2` 全部新 ID；筛选/搜索词/详情/阅读位置断言原样。⚠️ 草稿与滚动指纹的实机部分待 tasks 5.x 补 |
+| [desktop-ui](specs/desktop-ui/spec.md) / 被动代理录制自动更新列表并保留阅读 | 订阅前与失焦期间的变化可补读 | [1.1](tasks.md)、[1.3](tasks.md) | 初读/订阅竞争与失焦恢复；epoch/revision 乱序测试、最终列表集合与无自动重发 | ✅ `test/proxy-change-store.test.ts`「订阅前与失焦期间的变化可补读」相关 6 条：订阅幂等（StrictMode 双挂载只 1 个监听器）、卸载即解绑（release 后通知零读取且可重订阅）、旧 epoch 通知零读取且游标不动、非法载荷（缺字段/未知类别/空类别）整条丢弃、迟到 `proxyStatus` 旧响应不回退游标、失焦补刷（落后则刷/未落后不刷/读取失败保守刷）。⚠️ 实现期发现并修复一处真实缺陷：`loadProxyStatus` 失败时游标不推进 ⇒ epoch 仍相同 ⇒ `shouldReconcileOnActivate` 误判「无变化」导致漏掉的落盘永远补不上；定案为读取失败时把交给判据的 epoch 置 `null`（design D7.3），**变异验证**：回退该修复 ⇒ 对应用例红 |
 | [desktop-ui](specs/desktop-ui/spec.md) / 重发门禁使用当前代理事实且隔离迟到读取 | 打开重发即核对当前状态 | [2.1](tasks.md)、[5.3](tasks.md) | 旧 hasKey 缓存打开 messages；核对中/完成截图、实际门禁与独立确认仍必需 | 待实施 |
 | [desktop-ui](specs/desktop-ui/spec.md) / 重发门禁使用当前代理事实且隔离迟到读取 | 捕获通知更新已打开编辑器 | [2.2a](tasks.md)、[5.3](tasks.md) | 编辑器已打开后外部首次捕获；门禁回读、草稿指纹及模型计数不因通知增加 | 待实施 |
 | [desktop-ui](specs/desktop-ui/spec.md) / 重发门禁使用当前代理事实且隔离迟到读取 | 凭据轮换撤销旧确认 | [2.2a](tasks.md)、[5.3](tasks.md) | 捕获版本、监听及配置变化分别注入；旧许可失效、目标/正文保持与重新核对 | 待实施 |
