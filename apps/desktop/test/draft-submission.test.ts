@@ -337,6 +337,33 @@ describe("store 行为：调用类提交冻结与收尾（任务 3.4）", () => 
     expect(useAppStore.getState().callDraftOf(MESSAGES_KEY)!.text).toBe('[{"role":"user"}]');
   });
 
+  // 3.5b：写失败这一类尤其要保住草稿——响应已转发出去、重发其实"成过"，
+  // 只有录制没落盘。界面若把草稿清掉，用户就再也无法比对这次编辑了。
+  it("录制写失败（PROXY_RECORDING_WRITE_FAILED）⇒ 草稿完整保留、解冻、不选中新 run", async () => {
+    useAppStore.getState().ensureCallDraft(MESSAGES_KEY, "[]", CALL_SOURCE);
+    const edited = '[{"role":"user","content":"改一版"}]';
+    useAppStore.getState().writeCallDraftText(MESSAGES_KEY, edited);
+    const assoc = useAppStore
+      .getState()
+      .beginDraftSubmission({ channel: "messages", target: MESSAGES_KEY })!;
+    const revisionAtSubmit = useAppStore.getState().callDraftOf(MESSAGES_KEY)!.revision;
+
+    api.proxyFork = executedFail(
+      "PROXY_RECORDING_WRITE_FAILED",
+      "分叉响应已由代理转发，但本次录制写入失败：目标路径不可写",
+    );
+    // 返回 false = 明确失败（不是成功）
+    expect(await useAppStore.getState().proxyFork("r_01", "s_02", [], assoc)).toBe(false);
+
+    // 草稿原样保留，且可继续编辑（未被清空、未被冻结）
+    expect(useAppStore.getState().isDraftFrozen(MESSAGES_KEY)).toBe(false);
+    const entry = useAppStore.getState().callDraftOf(MESSAGES_KEY);
+    expect(entry?.text).toBe(edited);
+    expect(entry?.revision).toBe(revisionAtSubmit);
+    // 不标本次录制成功 ⇒ 不选中新 run（选中态是"成功"的呈现）
+    expect(useAppStore.getState().selectedRunId).not.toBe("run_proxy_forked");
+  });
+
   it("迟到回调不解冻新提交；通道抛错（状态未知）保留冻结", async () => {
     const first = openAndSubmitEdit("第一次");
     useAppStore.getState().settleDraftSubmission(first);
