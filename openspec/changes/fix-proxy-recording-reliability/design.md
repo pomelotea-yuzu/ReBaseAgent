@@ -112,3 +112,67 @@ main 侧再加一层微任务合并并不会让列表读取更少，却会让"�
 | 突发 IO | renderer 侧三道防线（游标去重 + `loadRuns` 在途合并 + 尾随补发），实测 N 条通知 ⇒ 2 次列表读取 | `proxy-change-store.test.ts`「在飞期间的 N 条通知」 |
 | 失焦补读 | 窗口 `focus` ⇒ `reconcileProxyFacts`；读取失败按 D7.3 保守补刷 | `App.tsx:122`、`store.ts` |
 | 订阅泄漏 | `releaseProxyChangeSubscription` 幂等复位；测试 `beforeEach` 强制复位防跨用例污染 | `store.ts`、`proxy-change-store.test.ts` |
+
+## D8. 实施期核实结论（task 2.1，2026-10-07）
+
+D2 写了「状态回读合并在途请求」和「按会话及请求代次守卫迟到响应」。前半句可直接实现；
+**后半句拆开后只有一半成立**，以下按代码事实定案。
+
+### 1. 🔴 「请求代次守卫」是死代码，已移除
+
+先按字面实现了 `isLatestStatusRead(state, token)`（token 不匹配 ⇒ 拒绝采纳）。**变异验证把它
+替换成 `if (false)` 后，`proxy-status-store.test.ts` 14 条用例全部仍然通过** —— 证明在合并
+调度已经存在的前提下，任一时刻至多一个读取在飞，这个守卫从未拒绝过任何响应。
+
+定案：**删除** `isLatestStatusRead` 及其测试块；`ProxyStatusReadState.generation` 保留，但它的
+作用降级为「可诊断的读取代次锚点」，不是并发防线。两道真实防线是：
+
+| 防线 | 拦什么 | 落点 |
+| --- | --- | --- |
+| 在途合并（`beginStatusRead`/`settleStatusRead`） | 同一时刻多个并发 `proxy:status` 读取 | `lib/proxy-status-read.ts` |
+| 快照新旧守卫（`acceptProxySnapshot`） | 响应乱序：旧 revision/recordsRevision 晚到 | 同上 |
+
+`acceptProxySnapshot` 的守卫条件是 `revision` **与** `recordsRevision` 两个维度都比。当前 main
+总是同时推进两者，只比 `revision` 时「recordsRevision 单独落后」这一路会漏过（首轮测试真的红了）。
+额外一个维度当前成本为零，挡住的是「将来某一侧被单独重置」这类静默回退，故保留。
+
+### 2. 合并带来语义破裂，必须配一道「静默门」
+
+合并的直接后果是：`await loadProxyStatus()` 返回时**可能什么都没读**（被合并的调用立即返回）。
+对「读到最新事实才判门禁」的调用方，这等于假成功。定案：模块级 `settledProxyStatusRead()`
+等待者集合 + `notifyProxyStatusSettled()`，仅在**没有尾随补发**时唤醒（有待发则等下一次结算）。
+`reconcileProxyFacts`（判是否补刷列表）与新增的 `reconcileProxyGate`（只刷门禁事实）都过这道门。
+`ProxyStatusReadState.inFlight > 0` 供 UI 派生「核对中」。
+
+两个动作刻意分开：`reconcileProxyFacts` 会连带触发列表刷新，`reconcileProxyGate` 只读状态。
+打开 messages 用后者 —— 打开编辑器不该顺带重扫列表。
+
+### 3. 🔴 fire-and-forget 遇通道抛错 ⇒ 8 处未处理拒绝
+
+接线到 `openMessagesWorkspace` / `returnToAuxSource` 后，全量测试冒出 8 处
+`TypeError: api.proxyStatus is not a function`。这不是测试脚手架问题：`loadProxyStatus` 只处理
+「通道返回失败信封」，没处理**通道自身抛错**，而调用点是 `void get().reconcileProxyGate()` ——
+抛出去即未处理拒绝。定案：内层 `try/catch` 把异常转成
+`{ ok: false, error: { code: "PROXY_STATUS_UNAVAILABLE", message } }`，与「读到失败信封」走**完全相同**
+的失败路径（`proxy=null`、`recordingStatusReadFailed=true`、游标不前进），并补回归用例钉住。
+先修生产代码而不是给夹具打桩。
+
+### 4. 「核对中」与「状态未知」必须分措辞
+
+spec 要求「回读期间显示核对中……不把未知判为未捕获」。实现上这是**两个不同分支**：
+`proxyRunning === undefined` 且 `inFlight > 0` ⇒ 「正在核对代理当前状态…」；`inFlight === 0`
+⇒ 「代理状态未知（尚未读取或读取失败）」。两者都返回 `recordingEntry: true` 阻止重发，但都不能说成
+「未捕获」——那会把「还没读」和「读过且确实没有」混为一谈。`MessagesForkEditor` 另有可见提示
+（`data-messages-proxy-checking`）。
+
+### 5. 测试脚手架的两处顺序约束（本轮实际踩到）
+
+- **`stallStatus()` 必须最后调用**：它包装当前 `proxyStatusImpl`；先调用再改实现会把包装器连同
+  捕获的旧实现一起覆盖掉，制造出并不存在的响应乱序。
+- **store 在导入时即捕获 `api` 引用**：事后替换 `window.api` 无效。要断言「状态读取被合并时
+  列表读取不受影响」，必须引入可变 `listRunsImpl` 间接层，不能直接改 `window.api.runs.list`。
+
+### 6. 本轮质量基线
+
+typecheck 双0 绿；`biome check apps packages scripts` 584 文件 0 错；`git diff --check` 绿；
+desktop 全量 **178 文件 / 2866 用例全绿、0 未处理错误**（基线 176/2835，+2 文件 +31 用例）。

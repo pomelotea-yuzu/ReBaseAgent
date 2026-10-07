@@ -48,6 +48,43 @@ describe("5.2 messages 资格顺序判据：源 → 重验 → 监听 → 凭据
     expect(unknown?.recordingEntry).toBe(true);
   });
 
+  it("任务 2.1：「核对中」与「状态未知」是两句话，但都不放行", () => {
+    const checking = deriveMessagesIneligibility({
+      ...base,
+      proxyRunning: null,
+      proxyChecking: true,
+    });
+    // 说"正在核对"而不是"状态未知"：前者几毫秒后就有结论，不是需要用户处理的长期占位
+    expect(checking?.reason).toContain("正在核对");
+    expect(checking?.reason).not.toContain("状态未知");
+    // 仍然不放行：依赖当前事实的动作不能拿"正在读"当许可
+    expect(checking).not.toBeNull();
+    expect(checking?.recordingEntry).toBe(true);
+
+    // 未标记核对中 ⇒ 退回"状态未知"措辞（不因为新增字段就说成正在核对）
+    const unknown = deriveMessagesIneligibility({ ...base, proxyRunning: null });
+    expect(unknown?.reason).toContain("状态未知");
+  });
+
+  it("核对中不掩盖更早的硬事实：源不可用仍先由源挡住", () => {
+    const blocked = deriveMessagesIneligibility({
+      ...base,
+      sourceExecutable: false,
+      proxyRunning: null,
+      proxyChecking: true,
+    });
+    expect(blocked?.reason).toContain("源记录不可用");
+  });
+
+  it("running=false 时不说「正在核对」——那是停用事实，不是未知", () => {
+    const stopped = deriveMessagesIneligibility({
+      ...base,
+      proxyRunning: false,
+      proxyChecking: true,
+    });
+    expect(stopped?.reason).toContain("未运行");
+  });
+
   it("「未捕获 key」：running 正常但 hasKey=false ⇒ 提示先把应用经代理跑一次", () => {
     const noKey = deriveMessagesIneligibility({ ...base, hasKey: false });
     expect(noKey?.reason).toBe("本会话未捕获到 key：先把你的应用经代理跑一次，再回来重发");

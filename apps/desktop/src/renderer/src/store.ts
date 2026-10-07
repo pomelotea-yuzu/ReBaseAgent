@@ -170,11 +170,17 @@ import {
 } from "./lib/operation-session";
 import type { ProxyFactCursor } from "./lib/proxy-changes";
 import {
-  cursorFromStatus,
   initialProxyFactCursor,
   shouldApplyChange,
   shouldReconcileOnActivate,
 } from "./lib/proxy-changes";
+import type { ProxyStatusReadState } from "./lib/proxy-status-read";
+import {
+  acceptProxySnapshot,
+  beginStatusRead,
+  initialProxyStatusReadState,
+  settleStatusRead,
+} from "./lib/proxy-status-read";
 import { resolveReading } from "./lib/reading-resolve";
 import {
   defaultReadingState,
@@ -382,6 +388,14 @@ interface AppState {
   /** U8 任务 2.6：状态读取代次（每次 loadProxyStatus 推进；守卫的锚点之一） */
   proxyReadGeneration: number;
   /**
+   * 任务 2.1：代理状态读取的**在途合并与代次守卫**（`lib/proxy-status-read.ts` 判据）。
+   * 与列表读取的 `listRefreshInFlight/Pending` 是**两套独立计数**——守卫锚点不同
+   * （列表锚阅读位置，状态锚门禁事实），合并不许互相影响。
+   *
+   * ⚠️ 不参与渲染；UI 要「核对中」请派生 `proxyStatusChecking`（避免订阅整对象）。
+   */
+  proxyStatusRead: ProxyStatusReadState;
+  /**
    * U8 任务 3.7：**已核实的运行配置变化代次**——已核实保存（含仅轮换 key：model/baseURL
    * 相同、指纹不变的那次）与已核实清除推进；保存失败不推进；已保存但回读失败**也推进**
    * （状态未知 ⇒ 撤销旧计划，不拿猜测保住结论）；普通 proxy:status 刷新**不**推进。
@@ -430,6 +444,16 @@ interface AppState {
    * 它**只读**：不启动监听、不调上游、不产生模型请求（design D3）。
    */
   reconcileProxyFacts: () => Promise<void>;
+  /**
+   * tasks 2.1：**门禁用**的只读核对（messages 打开 / 从录制返回时）。
+   *
+   * 与 `reconcileProxyFacts` 的分工：后者判"要不要补刷列表"（比对 recordsRevision），
+   * 本者只保证"读到的事实是最新的"——**不刷列表**（打开编辑器不该白读一遍全量 traces）。
+   * 同样只读：不启动监听、不调上游、不产生模型请求。
+   *
+   * ⚠️ 内部**等静默**：合并调度下被合并的那次调用会立即返回，不等就等于没读。
+   */
+  reconcileProxyGate: () => Promise<void>;
 
   selectRun: (id: string) => Promise<void>;
   /** 按同一 runId 重新读取详情（spec「结果不可读不重执行」的重试口）；不产生任何主动执行 */
@@ -1757,6 +1781,39 @@ function closeRemainingClosures(): void {
  */
 let proxyChangeUnsubscribe: (() => void) | null = null;
 
+/**
+ * 代理状态读取的**静默等待者**（tasks 2.1）。
+ *
+ * 合并调度让 `loadProxyStatus` 在"已有读取在飞"时立即返回（只登记尾随），
+ * 于是"await 完就能拿到新事实"这个旧前提对**被合并的那次调用**不再成立。
+ * 需要"读到最新事实再判据"的调用方（`reconcileProxyFacts`、messages 打开时的
+ * 门禁核对）必须先过这道静默门，否则会把"没读到"当成"没有变化"。
+ *
+ * 与订阅句柄同理放模块作用域：它是**在飞资源的等待队列**，不是 UI 状态。
+ */
+const proxyStatusReadWaiters = new Set<() => void>();
+
+/**
+ * 等到状态读取完全静默（在途 0 且无尾随）为止。
+ *
+ * ⚠️ 必须在每次 `settleStatusRead` 之后调用（store 的 `loadProxyStatus` finally 里
+ * 已接上）。补发的那次读取会重新置起在途计数，因此**先结算、后唤醒**的顺序很关键：
+ * 若在 `shouldRefire` 分支之前唤醒，等待者会在补发还在飞时就返回。
+ */
+function notifyProxyStatusSettled(): void {
+  if (proxyStatusReadWaiters.size === 0) return;
+  for (const wake of [...proxyStatusReadWaiters]) wake();
+}
+
+/** 已静默则立即 resolve；否则排在 `notifyProxyStatusSettled` 队列里。 */
+function settledProxyStatusRead(): Promise<void> {
+  const read = useAppStore.getState().proxyStatusRead;
+  if (read.inFlight === 0 && read.pending === 0) return Promise.resolve();
+  return new Promise<void>((resolve) => {
+    proxyStatusReadWaiters.add(resolve);
+  });
+}
+
 export const useAppStore = create<AppState>((set, get) => ({
   runs: [],
   failed: [],
@@ -1829,6 +1886,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   recordingApplyError: null,
   recordingStatusReadFailed: false,
   proxyReadGeneration: 0,
+  proxyStatusRead: initialProxyStatusReadState,
   settingsChangeGeneration: 0,
   settingsSection: null,
   shortIdState: new ShortIdState(),
@@ -1901,10 +1959,15 @@ export const useAppStore = create<AppState>((set, get) => ({
    * 失焦期间可能错过任意多条通知；重新激活时读一次状态，
    * 只有 `recordsRevision` 确实落后才补刷列表——否则每次点回窗口都白读全量 traces。
    * **只读**：不启动监听、不调上游、不产生模型请求。
+   *
+   * ⚠️ 这里**必须等状态读取静默**（tasks 2.1）：`loadProxyStatus` 在飞时会把本次意图
+   * 合并成尾随并**立即返回**，此时游标一个字都没动。若不等待就拿游标做判据，
+   * "没读到" 又会被误判成"没有变化"，失焦期间漏掉的落盘永远补不上。
    */
   async reconcileProxyFacts() {
     const before = get().proxyFactCursor;
     await get().loadProxyStatus();
+    await settledProxyStatusRead();
     const readOk = get().proxy !== null;
     const after = get().proxyFactCursor;
     // 读取失败/载荷非法时 loadProxyStatus 把 proxy 置 null 且**游标不前进**
@@ -1915,6 +1978,18 @@ export const useAppStore = create<AppState>((set, get) => ({
     // "本次未取得任何版本事实"，由判据一律要求补刷。
     const observed: ProxyFactCursor = readOk ? after : { ...after, epoch: null };
     if (shouldReconcileOnActivate(before, observed).reloadRuns) await get().loadRuns();
+  },
+
+  /**
+   * 门禁事实的只读核对（tasks 2.1）。
+   *
+   * 与 `reconcileProxyFacts` 刻意分开：那个判"要不要补刷列表"，这个只刷新门禁事实。
+   * 分开的理由是**代价不对称**——打开 messages 编辑器时补刷一次全量 traces 是白读，
+   * 而窗口激活时漏掉一次落盘补读是事实缺失（delta 两条场景各自点名）。
+   */
+  async reconcileProxyGate() {
+    await get().loadProxyStatus();
+    await settledProxyStatusRead();
   },
 
   /**
@@ -3129,36 +3204,93 @@ export const useAppStore = create<AppState>((set, get) => ({
     return true;
   },
 
+  /**
+   * 只读读一次代理状态（tasks 2.1：**合并 + 代次守卫 + 快照新旧守卫**）。
+   *
+   * 三个触发源会叠出并发读取（通知 / messages 打开的核对 / 窗口激活补读），
+   * 两条守卫各自挡一种"旧事实覆盖新事实"：
+   * - **合并**：在飞时不并发发射，只登记尾随，结束后补发恰好一次；
+   * - **快照新旧**：读回的载荷可能比已采纳的事实更旧（请求在途期间又发生了一次变更），
+   *   同 epoch 且任一版本维度落后 ⇒ 整份丢弃，一个字节都不写。
+   *
+   * ⚠️ **为什么没有第三道「代次守卫」**（变异验证的结论，别照着旧注释再加回去）：
+   * 合并已经保证同时至多一个读取在飞，因此"响应对不上自己那次请求"在这条链路上
+   * **不可达**。曾加过一道 `isLatestStatusRead` 断言，变异测试（改成 `if (false)`）
+   * 显示 14 条 store 用例全绿——它从未真正拒绝过任何响应。留着它等于挂一个永不
+   * 触发的"保险"，读代码的人会以为并发防护靠它。故移除；真正的并发防线是合并，
+   * 真正的乱序防线是快照新旧守卫（变异后 3 条用例变红，见 proxy-status-read.test.ts）。
+   *
+   * ⚠️ 失败时游标**不前进**：状态未知时不能断言"版本没变"——否则失焦期间漏掉的落盘
+   * 会被这次失败读取"确认"成没有变化（design D1）。
+   */
   async loadProxyStatus() {
-    const envelope = await api.proxyStatus();
-    // U8 任务 2.6：每次读取推进状态代次（守卫锚点；读取本身零写通道）
-    set({ proxyReadGeneration: get().proxyReadGeneration + 1 });
-    if (!envelope.ok) {
-      set({
-        proxy: null,
-        error: `读取代理状态失败：${envelope.error.message}`,
-        // U8 任务 2.5：回读失败如实呈现「状态待读取」，允许只读重试（不重新 toggle）
-        recordingStatusReadFailed: true,
-      });
-      // ⚠️ 游标**不前进**：状态未知时不能断言"版本没变"——
-      // 否则失焦期间漏掉的落盘会被这次失败读取"确认"成没有变化（design D1）。
-      // 草稿在场 ⇒ baseline 撤到 null（没有可核实的当前应用值；输入原样保留）
+    const decision = beginStatusRead(get().proxyStatusRead);
+    set({ proxyStatusRead: decision.state });
+    if (decision.action === "deferred") {
+      // 刷新意图已受理：不发射、不返回事实。尾随补发由在飞那次收尾时完成。
+      return;
+    }
+    try {
+      // ⚠️ **通道本身抛错也必须被吞进失败分支**（tasks 2.1 实施期坐实）：本方法被
+      // `openMessagesWorkspace` / `returnToAuxSource` 以 `void` 方式发起（fire-and-forget），
+      // 一旦这里把异常抛出去就变成**未处理拒绝**——既没有可重试入口，也不会有人看见。
+      // 实测：`aux-workspace-store.test.ts` 的 api 桩没有 proxyStatus，8 处未处理错误
+      // 全部来自这一条路径。读通道失败与"读到一个失败信封"是同一件事：状态未知。
+      let envelope: Awaited<ReturnType<typeof api.proxyStatus>>;
+      try {
+        envelope = await api.proxyStatus();
+      } catch (e) {
+        envelope = {
+          ok: false as const,
+          error: { code: "PROXY_STATUS_UNAVAILABLE", message: (e as Error).message },
+        };
+      }
+      // U8 任务 2.6：每次真正发射的读取推进状态代次（守卫锚点；读取本身零写通道）
+      set({ proxyReadGeneration: get().proxyReadGeneration + 1 });
+      if (!envelope.ok) {
+        set({
+          proxy: null,
+          error: `读取代理状态失败：${envelope.error.message}`,
+          // U8 任务 2.5：回读失败如实呈现「状态待读取」，允许只读重试（不重新 toggle）
+          recordingStatusReadFailed: true,
+        });
+        // ⚠️ 游标**不前进**（理由见上方注释）
+        // 草稿在场 ⇒ baseline 撤到 null（没有可核实的当前应用值；输入原样保留）
+        const draft = get().recordingDraft;
+        if (draft !== null) set({ recordingDraft: applyRecordingBaseline(draft, null) });
+        return;
+      }
+      const parsed = ProxyStateSchema.safeParse(envelope.data);
+      if (!parsed.success) {
+        set({ proxy: null, error: `代理状态数据结构校验失败：${describeZodError(parsed.error)}` });
+        return;
+      }
+      // 规则 3（快照新旧）：载荷比已采纳事实更旧 ⇒ 整份丢弃。
+      // ⚠️ 这一条**不能**由 cursorFromStatus 兜住：它只保证游标数字不回退，
+      // 而 `proxy` 状态对象仍会被这份旧载荷写下去（hasKey 由 true 按回 false）。
+      const ruling = acceptProxySnapshot(get().proxyFactCursor, parsed.data);
+      if (!ruling.accept) return;
+      set({ proxy: parsed.data, recordingStatusReadFailed: false, proxyFactCursor: ruling.cursor });
+      // U8 任务 2.1：草稿在场 ⇒ baseline 跟随最近可核实事实（输入原样，dirty 随之重算）
       const draft = get().recordingDraft;
-      if (draft !== null) set({ recordingDraft: applyRecordingBaseline(draft, null) });
-      return;
+      if (draft !== null)
+        set({ recordingDraft: applyRecordingBaseline(draft, recordingBaselineOf(parsed.data)) });
+    } finally {
+      const settled = settleStatusRead(get().proxyStatusRead);
+      set({ proxyStatusRead: settled.state });
+      // 尾随补发走本方法自身（由它登记在途数）——旁路直发 IPC 会让补发那次
+      // 无人递减计数，此后所有读取都被"合并"成尾随而永不发射。
+      //
+      // ⚠️ 这里**不写 `return`**：`finally` 里的 return 会吞掉 try 块的控制流，
+      // 且 Biome 直接把它标成错误（`noUnsafeFinally`）。改成 if/else 让两条路径互斥。
+      if (settled.shouldRefire) {
+        await get().loadProxyStatus();
+      } else {
+        // 只在**不再补发**时唤醒等待者：补发会在上面的 await 里重新置起在途计数，
+        // 先唤醒会让"等静默"的调用方在补发还在飞时就拿到判断依据。
+        notifyProxyStatusSettled();
+      }
     }
-    const parsed = ProxyStateSchema.safeParse(envelope.data);
-    if (!parsed.success) {
-      set({ proxy: null, error: `代理状态数据结构校验失败：${describeZodError(parsed.error)}` });
-      return;
-    }
-    set({ proxy: parsed.data, recordingStatusReadFailed: false });
-    // 已核实的版本事实推进游标（乱序守卫在 cursorFromStatus 内部：只前进不回退）
-    set({ proxyFactCursor: cursorFromStatus(get().proxyFactCursor, parsed.data) });
-    // U8 任务 2.1：草稿在场 ⇒ baseline 跟随最近可核实事实（输入原样，dirty 随之重算）
-    const draft = get().recordingDraft;
-    if (draft !== null)
-      set({ recordingDraft: applyRecordingBaseline(draft, recordingBaselineOf(parsed.data)) });
   },
 
   async toggleProxy(input) {
@@ -3257,6 +3389,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     enterAuxWorkspace("messages", target);
     // U8 5.1b：换目标 ⇒ 源回到待读取（容器按目标发起只读读取；旧目标的详情不残留）
     useAppStore.setState({ messagesSource: idleExperimentSource() });
+    // 任务 2.1：打开 messages 即核对当前代理事实（design D2「messages 初次打开…
+    // 均可核对」）。场景「打开重发即核对当前状态」：store 里可能还留着旧的
+    // hasKey=false，用户不必先去录制页手动重读。
+    void get().reconcileProxyGate();
   },
 
   async returnToAuxSource(view) {
@@ -3271,6 +3407,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     const target = decision.kind === "restore" ? decision.location.view : decision.view;
     noteReadingChanged();
     set({ view: target });
+    // 任务 2.1：从录制页返回 messages ⇒ 代理启停/凭据接入的**结果**要立刻进 gate。
+    // 场景「打开重发即核对当前状态」的另一半：刚在录制页启用了代理，回来就重发
+    // 时不能还拿着启停之前的门禁事实。⚠️ 只在落到 messages 时核对——
+    // 落到 trace/tree 时读状态是白读一次 IPC。
+    if (target === "messages") void get().reconcileProxyGate();
     // U8 6.11 实机坐实：辅助工作区「返回来源」后焦点落回工作区主容器（不落 body）——
     // 场景 THEN「返回有效来源焦点」；U7 5.9「返回比较」的 data-compare-primary 同款。
     // 返回目标是主工作区视图（trace 等）时落回 main（App 侧 tabIndex=-1）。

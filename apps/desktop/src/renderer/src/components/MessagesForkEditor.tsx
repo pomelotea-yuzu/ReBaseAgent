@@ -7,6 +7,7 @@ import { deriveEntryGate } from "../lib/entry-gate";
 import { disclosureLines, messagesDisclosure } from "../lib/execution-confirmation";
 import { prettyJson } from "../lib/format";
 import { deriveMessagesIneligibility } from "../lib/messages-eligibility";
+import { isStatusReadChecking } from "../lib/proxy-status-read";
 import { useEscapeClose } from "../lib/use-escape-close";
 import { useAppStore } from "../store";
 import { requestConfirm } from "./ConfirmDialog";
@@ -51,6 +52,10 @@ export function MessagesForkEditor({
   const ensureCallDraft = useAppStore((s) => s.ensureCallDraft);
   const writeCallDraftText = useAppStore((s) => s.writeCallDraftText);
   const proxy = useAppStore((s) => s.proxy);
+  // 任务 2.1：代理状态读取在飞 = 「核对中」。判据来自 lib（与 store 的合并语义同源），
+  // 这里派生布尔而不是订阅整份读取代次对象——对象每次收尾都换引用，拿它当依赖会在
+  // inFlight 没变时也唤醒一次。
+  const proxyChecking = useAppStore((s) => isStatusReadChecking(s.proxyStatusRead));
   const [open, setOpen] = useState(alwaysOpen);
   /**
    * U3 任务 2.2：messages 草稿（无损字符串——非法 JSON / 空串原样暂存，解析只在提交边界）。
@@ -137,6 +142,8 @@ export function MessagesForkEditor({
     sourceExecutable,
     sourceBlockedReason: sourceBlocked?.reason ?? null,
     proxyRunning: proxy?.running ?? null,
+    // 任务 2.1：核对中如实说"正在核对"，不谎报未捕获（delta「读取期间显示核对中」）
+    proxyChecking,
     hasKey: proxy?.hasKey === true,
     gateNotice: gate.canSubmit ? null : gate.notice,
   });
@@ -295,6 +302,17 @@ export function MessagesForkEditor({
       <div className="mt-1.5 text-[10px] leading-4 text-sky-600">
         编辑任意一条消息后重发：model / 工具表 / 采样参数与源 run 一致，仅 messages 使用编辑后的值。
       </div>
+
+      {/*
+       * 任务 2.1：核对中如实说"正在核对当前状态"（delta「读取期间显示核对中……
+       * 禁用依赖当前事实的提交，不谎报未捕获」）。它与"状态未知"是两回事：
+       * 后者是长期占位、需要用户去处理，这里几毫秒后就有结论，所以不共用一句话。
+       */}
+      {proxyChecking ? (
+        <div className="mt-1 text-[11px] text-sky-700" data-messages-proxy-checking>
+          正在核对代理当前状态（监听与凭据）…核对完成前不按旧事实放行重发。
+        </div>
+      ) : null}
 
       {parseError !== null ? (
         <div className="mt-1 text-[11px] text-red-700">{parseError}</div>

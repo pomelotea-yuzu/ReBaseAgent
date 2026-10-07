@@ -26,6 +26,17 @@ export interface MessagesEligibilityInput {
    * 状态未知同样不能放行——「不知道在不在跑」不是「在跑」。
    */
   readonly proxyRunning: boolean | null;
+  /**
+   * tasks 2.1：代理事实**正在核对中**（读取在飞）。
+   *
+   * ⚠️ 与 `proxyRunning === null` 是**两回事**，措辞也必须分开：
+   * - `null` = 状态未知（没读到 / 读失败）⇒ 长期占位，需要用户去核对；
+   * - `checking` = 正在读，几毫秒后就有结论 ⇒ 说成「未知」会让每次打开编辑器
+   *   都先闪一句恐吓话（delta：「读取期间显示核对中……不谎报未捕获」）。
+   *
+   * 两者都**不放行**提交：依赖当前事实的动作不能拿"正在读"当许可。
+   */
+  readonly proxyChecking?: boolean;
   /** 代理会话是否捕获过 key（ProxyState.hasKey；与 settings 密钥无关） */
   readonly hasKey: boolean;
   /** 统一执行槽门禁的就近说明（gate.canSubmit = false 时的 notice）；null = 槽可用 */
@@ -52,7 +63,9 @@ export function deriveMessagesIneligibility(
       reason:
         input.proxyRunning === false
           ? "本地录制代理未运行：没有可重发的 upstream（停用状态下即使本会话捕获过 key 也不能重发）"
-          : "代理状态未知（尚未读取或读取失败）：不能按「可能在跑」放行重发",
+          : input.proxyChecking === true
+            ? "正在核对代理当前状态…（读到最新事实前不能按「可能在跑」放行重发）"
+            : "代理状态未知（尚未读取或读取失败）：不能按「可能在跑」放行重发",
       recordingEntry: true,
     };
   }
