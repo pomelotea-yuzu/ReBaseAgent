@@ -7,7 +7,7 @@ import {
   createProxyHandler,
   startProxyServer,
 } from "@rebaseagent/llm-proxy";
-import type { ProxyHandlerOptions } from "@rebaseagent/llm-proxy";
+import type { ProxyHandlerOptions, ProxyServer } from "@rebaseagent/llm-proxy";
 import type { ProxyChangeKind, ProxyState } from "../shared/ipc";
 import { ProxyRunRecorder } from "./proxy-recorder";
 import type { RunRepository } from "./run-repository";
@@ -233,25 +233,60 @@ export class ProxyManager {
     port: number;
     upstreamBaseUrl: string;
   }): Promise<ProxyState> {
-    this.deps.settings.saveProxy(input);
-    if (this.server !== null) {
-      // 中间那次"先停"**不单独通知**：它不是用户可观察的稳态（同一 IPC 调用内立刻
-      // 重新启或落到停止），发两次通知只会让 renderer 多做一轮无意义刷新。
-      // 终态由本方法末尾统一推进一次。
-      await this.stopServer();
-    }
-    if (input.enabled) {
-      // ⚠️ 这里必须 await：`toggle` 的返回契约是"返回时监听已就绪"（既有语义）。
-      //   漏 await 会让调用方拿到 status().port 就去连，实际还没 listen ⇒ ECONNREFUSED，
-      //   且失败时的重抛会变成无人处理的 rejection。
-      await this.attemptListen(input.port, input.upstreamBaseUrl);
-    } else {
-      // 显式停用：阶段与诊断一并复位（与 autoStart 的停用分支同口径）
-      this.recovery = "stopped";
-      this.recoveryFailure = null;
-    }
-    this.notifyStatus();
-    return this.status();
+    // 🔴 启停**串行化**（tasks 2.4 实测）：启动恢复是 fire-and-forget
+    // （`main/index.ts` 不 `await` `autoStart`），所以"恢复窗口里用户点了停用/
+    // 换端口"与"两次 autoStart 撞上"都是真实时序。第一版让两者直接交错，
+    // 结果是较晚 resolve 的 `startServer` 覆盖较新的用户意图——点了停用代理
+    // 却又活过来；两次等价 autoStart 则互相把对方作废，最后端口上没人监听。
+    //
+    // 定案用**互斥队列**而不是代次打补丁：这两个操作的语义本就是"按顺序启停"，
+    // 排队即可得到正确终态（后到者在先到者之后再完整执行一次），
+    // 且不必猜测"谁作废谁"。代次方案对两次**等价**调用会误判，必须再叠一层幂等，
+    // 而并发下那层幂等读到的仍是旧状态——治不好。
+    return this.enqueueListen(async () => {
+      this.deps.settings.saveProxy(input);
+      if (this.server !== null) {
+        // 中间那次"先停"**不单独通知**：它不是用户可观察的稳态（同一 IPC 调用内立刻
+        // 重新启或落到停止），发两次通知只会让 renderer 多做一轮无意义刷新。
+        // 终态由本方法末尾统一推进一次。
+        await this.stopServer();
+      }
+      if (input.enabled) {
+        // ⚠️ 这里必须 await：`toggle` 的返回契约是"返回时监听已就绪"（既有语义）。
+        //   漏 await 会让调用方拿到 status().port 就去连，实际还没 listen ⇒ ECONNREFUSED，
+        //   且失败时的重抛会变成无人处理的 rejection。
+        await this.attemptListen(input.port, input.upstreamBaseUrl);
+      } else {
+        // 显式停用：阶段与诊断一并复位（与 autoStart 的停用分支同口径）
+        this.recovery = "stopped";
+        this.recoveryFailure = null;
+      }
+      this.notifyStatus();
+      return this.status();
+    });
+  }
+
+  /**
+   * 把一次启停排进串行队列（tasks 2.4）。
+   *
+   * 为什么是队列而不是代次作废：启停的语义本就是"按顺序生效"，排队直接得到
+   * 正确终态（后到者在先到者之后完整执行一次）。代次方案要额外回答"谁作废谁"，
+   * 而两次**等价**调用（两次 autoStart）根本不该互相作废——那才是死路。
+   *
+   * ⚠️ 失败**不吞**给调用方（既有 `proxy:toggle` 语义），但队列必须继续跑后续
+   * 操作：否则一次端口占用会把队列卡死，之后用户再点"保存并应用"也没反应。
+   * 失败事实已由 `attemptListen` 落进状态，不需要在这里重复表达。
+   */
+  private listenQueue: Promise<unknown> = Promise.resolve();
+
+  private enqueueListen<T>(operation: () => Promise<T>): Promise<T> {
+    // 无论前一个成功还是失败，后一个都要执行（then 的两个回调都给同一个 operation）
+    const result = this.listenQueue.then(operation, operation);
+    this.listenQueue = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
   }
 
   /**
@@ -275,17 +310,37 @@ export class ProxyManager {
       this.notifyStatus();
       return;
     }
+    // 「进入恢复中」必须在**入队之前**就可见：它表达的是"本次启动打算尝试恢复"
+    // 这个即时意图，而排队可能因为前面还有操作而延后。若等排到才置位，
+    // renderer 在这段窗口里读到的仍是 stopped——正好停在用户最该知道真相的时刻。
     this.recovery = "recovering";
     this.recoveryFailure = null;
-    // 「进入恢复中」本身是可观察事实：renderer 首次读状态可能正好落在这段窗口里
     this.notifyStatus();
-    // `attemptListen` 失败会重抛；autoStart **刻意吞掉**：恢复失败不阻断应用启动。
-    await this.attemptListen(saved.port, saved.upstreamBaseUrl).catch(() => undefined);
-    this.notifyStatus();
+    // 🔴 与 `toggle` 走同一条队列（tasks 2.4）：恢复是 fire-and-forget，
+    // 与用户的启停操作天然并发。排队后"恢复 → 用户停用"得到停用，
+    // "用户换端口 → 恢复"得到新端口，两次 autoStart 也只是顺序执行两次。
+    await this.enqueueListen(async () => {
+      // 幂等：队列跑到这里时可能已经有一次成功的监听了（两次 autoStart、
+      // 或恢复与重试撞上）。目标未变就不重复起，也避免把自己起的 server 收摊。
+      // 判据用 `status()` 的**实际监听端口**而不是保存值（保存值可能是 0=系统分配）。
+      const current = this.status();
+      if (this.server !== null && current.running && current.port === saved.port) {
+        this.recovery = "stopped";
+        this.recoveryFailure = null;
+        this.notifyStatus();
+        return;
+      }
+      // 阶段已在上方（入队前）置为 recovering；`attemptListen` 会再置一次，
+      // 那一次贴着真实尝试，语义更准，不算重复。
+      // `attemptListen` 失败会重抛；autoStart **刻意吞掉**：恢复失败不阻断应用启动。
+      await this.attemptListen(saved.port, saved.upstreamBaseUrl).catch(() => undefined);
+      this.notifyStatus();
+    });
   }
 
   /**
-   * 尝试监听并记录阶段终态（`autoStart` 与 `toggle(enabled=true)` 共用）。
+   * 尝试监听并记录阶段终态（`autoStart` 与 `toggle(enabled=true)` 共用，
+   * 且两者都在 `listenQueue` 内**串行**执行）。
    *
    * 抽出来的理由：恢复与「显式保存并应用」重试在语义上**是同一件事**——
    * 都是"按当前保存的配置试一次监听"。共用一份实现，界面才能对两者用同一套
@@ -293,12 +348,24 @@ export class ProxyManager {
    *
    * 🔴 失败时**不伪造 enabled 回滚**：`enabled` 是用户保存的意图，改它等于
    * 把"用户想开着"悄悄改成"用户关了"（delta「不把失败说成已停用」）。
+   *
+   * 🔴 竞态（tasks 2.4 实测）：启动恢复是 fire-and-forget（`main/index.ts` 不
+   * `await` `autoStart`），所以"恢复窗口里用户点了停用/换端口"是真实时序。
+   * 修法是**让启停整体串行**（见 `enqueueListen`），不是给尝试加代次：
+   * 代次对两次**等价**调用会误判（第二次把第一次作废，而作废的语义是
+   * "停掉自己起的 server"，于是端口上没人监听、状态却说 stopped）。
+   *
+   * ⚠️ 本方法**只在队列内**被调用，且已 `await` 到 server 真正起来。
+   * `startServer` 刻意返回 server 而不写 `this.server`——采纳与否必须由
+   * 同一处判断，否则"起了但没采纳"会泄漏端口、并让 `running` 说谎。
    */
   private async attemptListen(port: number, upstreamBaseUrl: string): Promise<void> {
     this.recovery = "recovering";
     this.recoveryFailure = null;
     try {
-      await this.startServer(port, upstreamBaseUrl);
+      const started = await this.startServer(port, upstreamBaseUrl);
+      this.server = started.server;
+      this.handler = started.handler;
       this.recovery = "stopped";
       this.recoveryFailure = null;
     } catch (error) {
@@ -340,12 +407,22 @@ export class ProxyManager {
     };
   }
 
-  private async startServer(port: number, upstreamBaseUrl: string): Promise<void> {
+  /**
+   * 起一个监听，**返回** server + handler 而不写 `this.server`。
+   *
+   * ⚠️ 刻意不写字段：谁采纳这次监听由 `attemptListen` 按代次决定（作废的那次
+   * 必须能自己把 server 停掉）。若在这里直接赋值，作废分支就够不着它，
+   * 端口会被泄漏，而 `status().running` 也会说谎。
+   */
+  private async startServer(
+    port: number,
+    upstreamBaseUrl: string,
+  ): Promise<{ server: ProxyServer; handler: ProxyHandler }> {
     const recorder = (this.deps.newRecorder ?? ((dir: string) => new ProxyRunRecorder(dir)))(
       this.deps.tracesDir,
     );
     const proxyBaseUrl = `http://127.0.0.1:${port}/v1`;
-    this.handler = createProxyHandler({
+    const handler = createProxyHandler({
       upstreamBaseUrl,
       proxyBaseUrl,
       keyStore: this.keyStore,
@@ -386,7 +463,8 @@ export class ProxyManager {
       },
       ...(this.deps.fetchImpl !== undefined ? { fetchImpl: this.deps.fetchImpl } : {}),
     });
-    this.server = await startProxyServer({ port, handler: this.handler });
+    const server = await startProxyServer({ port, handler });
+    return { server, handler };
   }
 
   private async stopServer(): Promise<void> {

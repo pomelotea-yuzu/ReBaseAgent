@@ -331,3 +331,60 @@ typecheck 双 0 绿；`biome check apps packages scripts` 591 文件 0 错；`gi
 desktop 全量 **184 文件 / 2922 用例**全绿、0 未处理错误（2.3a 基线 182/2900，
 新增 `proxy-recovery-view.test.tsx` 14 条 + `global-bar-recovery-wiring.test.ts` 8 条）。
 变异验证：顶栏脱离共用判据 ⇒ 接线契约红（第一版断言假绿已修正并复验）。
+
+## D12. 实施期核实结论（task 2.4，2026-10-07）
+
+### 1. 🔴 真实缺陷：恢复是 fire-and-forget ⇒ 用户操作会被恢复反手覆盖
+
+`main/index.ts:247` 是 `void proxy.autoStart()`，**不 await**。所以"启动恢复窗口里用户
+点了停用 / 换端口"是真实时序，不是理论风险。2.3a 的测试全部 `await` 到底，
+恰好把这段窗口绕开了——**这是 2.3a 的覆盖盲区，2.4 第一条测试就复现了**：
+
+- 用户点停用（`toggle(enabled=false)` 先跑完，状态置 stopped）
+- 稍后 `startServer` 才 resolve ⇒ **代理被恢复反手拉起**，用户明明点了停用；
+- 同理"恢复中换端口"会让旧端口的监听迟到生效，把新端口顶掉。
+
+`startProxyServer` 返回的 `port` 在保存值为 0 时是系统分配的实际端口，也解释了
+为什么这类 bug 在手动测试里很难稳定复现——你得在几百毫秒的窗口里精确操作。
+
+### 2. 定案：**串行队列**，不是代次作废
+
+第一版修法是"代次"：每次尝试持 `listenGeneration`，`toggle` 开头推进，
+在飞的尝试 resolve 时发现自己过期就把自己起的 server 停掉。
+**它治不好两次等价调用**：`Promise.all([autoStart(), autoStart()])` 里第二次会把
+第一次作废，而"作废"的语义是"停掉自己起的 server" ⇒ 两次互相收摊，
+最后端口上没人监听、状态却说 `stopped`（实测复现：3 条红）。
+
+叠一层幂等也治不好：并发下第二次读到的仍是 `server === null`（第一次还没起来），
+幂等分支进不去。
+
+定案用**互斥队列** `enqueueListen`：`toggle` 与 `autoStart` 的启停体整体排队，
+语义本就是"按顺序生效"，后到者在先到者之后完整执行一次。
+顺带把"失败会不会卡死队列"也定死：失败原样抛给调用方（既有 `proxy:toggle` 语义），
+但队列链必须继续跑后续操作——否则一次端口占用会让代理彻底卡死，
+之后用户再点"保存并应用"也没反应。
+
+`startServer` 因此改成**返回** `{server, handler}` 而不写 `this.server`：
+采纳与否必须在同一处判断，否则"起了但没采纳"会泄漏端口、并让 `running` 说谎。
+
+### 3. 🔴 `recovering` 必须在**入队之前**置位
+
+改为串行后踩到第二个坑：`recovering` 若在队列体内才置位，排队等待期间
+`status()` 读到的仍是 `stopped`——**正好停在用户最该知道真相的时刻**
+（启动那几秒）。定案：`autoStart` 在 `loadProxy` 判定enabled 之后**立刻**置
+`recovering` + `notifyStatus()`，再入队。理由是它表达的是"本次启动打算尝试恢复"
+这个**即时意图**，不该被队列延迟。`attemptListen` 里那次重复置位保留
+（贴着真实尝试，语义更准）。
+
+### 4. 2.4 的定位：跨层回归，不是重复 2.1/2.3a/2.3b
+
+三个前序任务各自钉住自己那层，2.4 钉**交界处**才暴露的东西：
+main 的阶段事实经渲染层 `proxyRecoveryView` 派生后会不会说错话、
+fire-and-forget 的时序、重启后 `hasKey=false` 与 `enabled/running=true`
+并存时门禁与呈现是否一致。11 条用例按这四类分组。
+
+### 5. 本轮质量基线
+
+typecheck 双 0 绿；`biome check apps packages scripts` 592 文件 0 错；
+desktop 全量 **185 文件 / 2933 用例**全绿（2.3b 基线 184/2922，新增
+`proxy-recovery-races.test.ts` 11 条）。变异验证：拿掉串行队列 ⇒ 3 条红。
