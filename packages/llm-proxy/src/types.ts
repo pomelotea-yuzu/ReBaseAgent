@@ -28,9 +28,23 @@ export interface ProxyResponseSnapshot {
   ttft_ms: number;
 }
 
+/**
+ * 失败调用的结构化诊断（可选；与 trace-format 的 `llm.call.error` 同构）。
+ *
+ * 纪律（delta「每个请求录制为一个 run」）：
+ * - `message` 已在**包层**脱敏并限长（非空），只含受控文本；
+ * - `status` **仅在真的拿到上游状态码时**写。fetch 连接异常时省略该字段——
+ *   代理本地产生的 502 不是上游状态码，写上去等于伪造事实；
+ * - 不存 headers / 完整错误体 / stack / 异常对象 / upstream 地址。
+ */
+export interface ProxyRecordingError {
+  message: string;
+  status?: number;
+}
+
 /** 录制结果。outcome：
  *  - completed：upstream 成功且客户端完整送达
- *  - error：upstream 非 2xx（response 为 null，不写 llm.call span）
+ *  - error：upstream 非 2xx 或连接失败（`response` 为失败空占位，顶层 `error` 表达诊断）
  *  - crashed：流式转发中客户端断连 / 流异常（response 尽力聚合，可能截断） */
 export interface ProxyRecording {
   meta: {
@@ -43,6 +57,8 @@ export interface ProxyRecording {
   request: ProxyRequestSnapshot;
   response: ProxyResponseSnapshot | null;
   outcome: "completed" | "error" | "crashed";
+  /** 失败诊断；成功录制省略（缺省 ≠ 成功，见 trace-format 同名注释） */
+  error?: ProxyRecordingError;
 }
 
 /** 代理分叉元数据（desktop 写 run.meta 的 parent/fork 用） */

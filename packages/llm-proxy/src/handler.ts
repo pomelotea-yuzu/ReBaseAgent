@@ -1,9 +1,17 @@
 import { createParser } from "eventsource-parser";
+import {
+  GENERIC_PROXY_FAILURE,
+  credentialLiteralsOf,
+  extractUpstreamErrorMessage,
+  normalizeProxyFailureText,
+  sanitizeProxyDiagnosticText,
+} from "./diagnostic.js";
 import type {
   ProxyForkMeta,
   ProxyKeyStore,
   ProxyRecorder,
   ProxyRecording,
+  ProxyRecordingError,
   ProxyRequestContext,
   ProxyRequestSnapshot,
   ProxyResponseSnapshot,
@@ -109,6 +117,42 @@ export function createProxyHandler(options: ProxyHandlerOptions): ProxyHandler {
       .catch(() => null);
   }
 
+  /**
+   * 构造失败录制的诊断（design D4）。
+   *
+   * `status` 只在**真的拿到上游状态码**时写。fetch 抛异常、或空 body 这类
+   * "代理自己生成了 502"的场景一律省略——把本地 502 记成上游状态码，
+   * 等于在 trace 里伪造一次从没发生过的上游响应。
+   *
+   * secrets 三个来源（delta「已知凭据和通用凭据形式」）：本请求 Authorization
+   * 头值、从它剥出的裸 token、以及当时 keyStore 里最近捕获的凭据。前两者治
+   * "本次请求回显"，第三者治"上游拿着上一次请求的 key 报错"。
+   */
+  function buildError(
+    rawText: string,
+    requestAuthorization: string | undefined,
+    status?: number,
+  ): ProxyRecordingError {
+    const secrets = [
+      ...credentialLiteralsOf(requestAuthorization),
+      ...credentialLiteralsOf(options.keyStore.lastKey),
+    ];
+    const message = sanitizeProxyDiagnosticText(normalizeProxyFailureText(rawText), secrets);
+    return status === undefined ? { message } : { message, status };
+  }
+
+  /** 失败 llm.call 的 response 空占位（design D4） */
+  function failurePlaceholderResponse(): ProxyResponseSnapshot {
+    return {
+      content: null,
+      reasoning_content: null,
+      tool_calls: [],
+      usage: { in: 0, out: 0 },
+      // 无 TTFT 概念（没有正文抵达）；0 在这里是**占位**，UI 不得解读为实测延迟
+      ttft_ms: 0,
+    };
+  }
+
   return {
     async handle(ctx: ProxyRequestContext, fork?: ProxyForkMeta): Promise<ProxyResult> {
       const startedAt = new Date().toISOString();
@@ -172,6 +216,11 @@ export function createProxyHandler(options: ProxyHandlerOptions): ProxyHandler {
       if (typeof authorization === "string") {
         forwardHeaders.authorization = authorization;
       }
+      // 诊断脱敏用的凭据来源（收窄成 `string | undefined`）：本请求实际携带的
+      // Authorization 头。数组形态（重复头）不当作凭据——node 会把它折叠成数组，
+      // 这里取首个元素即可，宁可漏脱敏一个不常见的形态，也不让类型退化成联合。
+      const requestAuthorization =
+        typeof authorization === "string" ? authorization : authorization?.[0];
 
       let upstream: Response;
       try {
@@ -181,14 +230,17 @@ export function createProxyHandler(options: ProxyHandlerOptions): ProxyHandler {
           body: ctx.rawBody,
         });
       } catch (e) {
-        // upstream 连接失败等价于 upstream 不可用：原样语义给客户端 502，录制为 error
+        // upstream 连接失败等价于 upstream 不可用：原样语义给客户端 502，录制为 error。
+        // 🔴 **不写 status**：502 是代理本地生成的，不是上游的状态码（delta「连接失败不伪造
+        // 上游状态码」）。客户端仍拿到明确的 502，但 trace 里没有这次不存在的上游响应。
         const recording = buildRecording(
           requestSnapshot,
-          null,
+          failurePlaceholderResponse(),
           "error",
           options.proxyBaseUrl,
           model,
           startedAt,
+          buildError(`upstream 请求失败：${(e as Error).message}`, requestAuthorization),
         );
         return {
           ...jsonResult(502, { error: { message: `upstream 请求失败：${(e as Error).message}` } }),
@@ -197,15 +249,20 @@ export function createProxyHandler(options: ProxyHandlerOptions): ProxyHandler {
       }
 
       if (!upstream.ok) {
-        // upstream 非 2xx：错误响应原样回传；run 只落 meta + stopped/error，不写 llm.call span
+        // upstream 非 2xx：错误响应原样回传；录制失败 llm.call（request 完整 + 顶层 error）
         const bytes = Buffer.from(await upstream.arrayBuffer());
         const recording = buildRecording(
           requestSnapshot,
-          null,
+          failurePlaceholderResponse(),
           "error",
           options.proxyBaseUrl,
           model,
           startedAt,
+          buildError(
+            upstreamErrorMessage(bytes) ?? GENERIC_PROXY_FAILURE,
+            requestAuthorization,
+            upstream.status,
+          ),
         );
         return {
           status: upstream.status,
@@ -243,13 +300,16 @@ export function createProxyHandler(options: ProxyHandlerOptions): ProxyHandler {
 
       // 流式：tee 出聚合分支，边收边转发（不缓冲整响应）
       if (upstream.body === null) {
+        // 上游回了 200 但没有 body：客户端拿到的是**代理本地**生成的 502，
+        // 同连接失败一样不写 status（那个 200 不代表这次调用成功）。
         const recording = buildRecording(
           requestSnapshot,
-          null,
+          failurePlaceholderResponse(),
           "error",
           options.proxyBaseUrl,
           model,
           startedAt,
+          buildError("upstream 返回空 body", requestAuthorization),
         );
         return {
           ...jsonResult(502, { error: { message: "upstream 返回空 body" } }),
@@ -315,6 +375,7 @@ function buildRecording(
   proxyBaseUrl: string,
   model: string,
   startedAt: string,
+  error?: ProxyRecordingError,
 ): ProxyRecording {
   return {
     meta: { task: "(llm-proxy)", model, source: { kind: "proxy", base_url: proxyBaseUrl } },
@@ -322,7 +383,23 @@ function buildRecording(
     request,
     response,
     outcome,
+    ...(error !== undefined ? { error } : {}),
   };
+}
+
+/**
+ * 从非 2xx 响应体抽摘要（delta「错误正文为空或无法解析」）。
+ *
+ * ⚠️ **解码失败不抛**：整段包在 try 里，任何意外都退到 `null`，由调用方
+ * 落固定兜底文案——「有个非空可读的诊断」比「诊断解码成功」重要。
+ * 抽不出时用 `GENERIC_PROXY_FAILURE` 兜底，绝不把完整响应体塞进 trace。
+ */
+function upstreamErrorMessage(bytes: Buffer): string | null {
+  try {
+    return extractUpstreamErrorMessage(bytes.toString("utf8"));
+  } catch {
+    return null;
+  }
 }
 
 /** 响应头白名单（content-type 必须保留；其余由 node 重算，避免 chunked/长度矛盾） */

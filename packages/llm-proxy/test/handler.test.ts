@@ -214,7 +214,12 @@ describe("非流式转发与录制", () => {
     expect(recordings).toHaveLength(1);
   });
 
-  it("upstream 500：错误响应原样回传、录制 error（response 为 null）", async () => {
+  // ⚠️ 本区块两条断言在 tasks 3.1a/3.2 被**合法改判**（留痕，勿读成证据被削弱）：
+  // 旧口径「error 时 response 为 null、不写 llm.call span」被 llm-proxy delta
+  // 「HTTP 非 2xx 与连接失败 SHALL 记录失败 llm.call……response SHALL 使用失败空占位」
+  // 取代。改的是**契约本身**，不是为了让断言通过——新的两条断言比旧的更严：
+  // 旧断言只验 outcome 与 response，现在额外验真实 status、真实摘要、空占位不臆造。
+  it("upstream 500：错误响应原样回传、录制失败 llm.call（实际 status + 空占位）", async () => {
     const { recordings, recorder } = makeRecorder();
     const errBody = JSON.stringify({ error: { message: "limit" } });
     const handler = createProxyHandler({
@@ -231,11 +236,23 @@ describe("非流式转发与录制", () => {
     expect(clientBytes.toString("utf8")).toBe(errBody);
     const rec = await result.recording;
     expect(rec?.outcome).toBe("error");
-    expect(rec?.response).toBeNull();
+    // 失败空占位：正文/推理/工具调用皆空，usage 与 ttft 是**占位**不是实测零
+    expect(rec?.response).toEqual({
+      content: null,
+      reasoning_content: null,
+      tool_calls: [],
+      usage: { in: 0, out: 0 },
+      ttft_ms: 0,
+    });
+    // 真实上游状态码 + provider 的 error.message 摘要（非空、受控）
+    expect(rec?.error?.status).toBe(500);
+    expect(rec?.error?.message).toBe("limit");
+    // 诊断不进入可续跑上下文
+    expect(rec?.response?.content).toBeNull();
     expect(recordings).toHaveLength(1);
   });
 
-  it("upstream 连接失败：502 + 录制 error", async () => {
+  it("upstream 连接失败：502 + 录制 error（**不写 status**，本地 502 不冒充上游码）", async () => {
     const { recordings, recorder } = makeRecorder();
     const handler = createProxyHandler({
       upstreamBaseUrl: UPSTREAM,
@@ -250,7 +267,11 @@ describe("非流式转发与录制", () => {
     expect(result.status).toBe(502);
     const rec = await result.recording;
     expect(rec?.outcome).toBe("error");
-    expect(rec?.response).toBeNull();
+    expect(rec?.response).not.toBeNull();
+    // 🔴 契约核心：没拿到上游 Response ⇒ 没有 status 字段（不是 502，也不是 0）
+    expect(rec?.error?.status).toBeUndefined();
+    expect(rec?.error?.message).toContain("ECONNREFUSED");
+    expect(recordings).toHaveLength(1);
   });
 });
 
