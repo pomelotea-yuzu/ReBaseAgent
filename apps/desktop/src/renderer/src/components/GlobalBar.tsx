@@ -28,6 +28,7 @@ import {
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 import { deriveDraftList } from "../lib/draft-list";
+import { proxyPhaseDotClass, proxyRecoveryView } from "../lib/proxy-recovery-view";
 import { useAppStore } from "../store";
 import { requestConfirm } from "./ConfirmDialog";
 import { DraftListPanel } from "./DraftListPanel";
@@ -81,31 +82,74 @@ function ViewToggle() {
   );
 }
 
-/** 代理/配置状态指示（点开即设置；带文字，不只靠小圆点） */
-function StatusIndicators({ onOpenSettings }: { onOpenSettings: () => void }): ReactNode {
+/**
+ * 代理/配置状态指示（点开即设置；带文字，不只靠小圆点）。
+ *
+ * tasks 2.3b（delta「代理启动恢复结果就近可见」）：代理这一项按**恢复阶段**呈现，
+ * 不再只有"运行/已停"两态。恢复中与恢复失败各自显式说明，并给出去录制工作区的
+ * 入口——这两态用户都需要"为什么/ 怎么办"，顶栏是唯一always在的地方。
+ * 文案与圆点颜色全部来自 `proxyRecoveryView`（顶栏与录制页共用一份判据），
+ * 这里不做任何自己的措辞判断。
+ */
+function StatusIndicators({
+  onOpenSettings,
+  onOpenRecording,
+}: {
+  onOpenSettings: () => void;
+  onOpenRecording: () => void;
+}): ReactNode {
   const proxy = useAppStore((s) => s.proxy);
+  const statusReadFailed = useAppStore((s) => s.recordingStatusReadFailed);
   const settingsConfigured = useAppStore((s) => s.settings?.configured);
+  const view = proxyRecoveryView(proxy, statusReadFailed);
 
   return (
     <div className="flex items-center gap-2 text-reading-meta">
-      {proxy !== null ? (
+      {proxy !== null || statusReadFailed ? (
         <button
           type="button"
           onClick={onOpenSettings}
-          className={`inline-flex cursor-pointer items-center gap-1.5 rounded border border-gray-300 px-2 py-0.5 text-gray-600 hover:bg-gray-50 ${FOCUS_RING}`}
+          className={`inline-flex cursor-pointer items-center gap-1.5 rounded border px-2 py-0.5 hover:bg-gray-50 ${FOCUS_RING} ${
+            view.phase === "failed"
+              ? "border-red-300 text-red-800"
+              : view.phase === "recovering"
+                ? "border-amber-300 text-amber-800"
+                : "border-gray-300 text-gray-600"
+          }`}
           title="本地录制代理：把你的 Agent 应用 base_url 指到 http://127.0.0.1:<端口>/v1，key 一字不动即可录制"
         >
           <Radio size={12} aria-hidden="true" focusable="false" role="presentation" />
           <span
             aria-hidden="true"
-            className={`inline-block h-1.5 w-1.5 rounded-full ${
-              proxy.running ? "bg-emerald-500" : "bg-gray-300"
-            }`}
+            data-proxy-phase-dot
+            data-proxy-phase={view.phase}
+            className={`inline-block h-1.5 w-1.5 rounded-full ${proxyPhaseDotClass(view.phase)}`}
           />
-          代理{proxy.running ? ` :${proxy.port}` : " 已停"}
-          {proxy.running && !proxy.hasKey ? (
+          <span data-proxy-phase-label>{view.headline}</span>
+          {/* delta：「本会话尚未捕获凭据时如实显示未捕获」——只在真的在监听时说 */}
+          {view.phase === "listening" && proxy?.hasKey !== true ? (
             <span className="text-amber-600">未捕获 key</span>
           ) : null}
+        </button>
+      ) : null}
+      {/*恢复中 / 失败：顶栏给就近入口去看受控原因与重试（delta「顶栏保留简短异常与录制页入口」） */}
+      {view.needsRecordingEntry ? (
+        <button
+          type="button"
+          data-proxy-open-recording
+          onClick={onOpenRecording}
+          title={
+            view.phase === "failed"
+              ? "打开录制工作区查看受控原因、重读状态或重新保存并应用"
+              : "打开录制工作区查看本次启动恢复的进行情况"
+          }
+          className={`inline-flex cursor-pointer items-center gap-1 rounded border px-2 py-0.5 hover:bg-gray-50 ${FOCUS_RING} ${
+            view.phase === "failed"
+              ? "border-red-300 text-red-800"
+              : "border-amber-300 text-amber-800"
+          }`}
+        >
+          {view.phase === "failed" ? "去录制页处理" : "恢复中…"}
         </button>
       ) : null}
       <button
@@ -281,7 +325,7 @@ export function GlobalBar({
           <Waypoints size={12} aria-hidden="true" focusable="false" role="presentation" />
           录制接入
         </button>
-        <StatusIndicators onOpenSettings={onOpenSettings} />
+        <StatusIndicators onOpenSettings={onOpenSettings} onOpenRecording={openRecording} />
       </div>
     </header>
   );

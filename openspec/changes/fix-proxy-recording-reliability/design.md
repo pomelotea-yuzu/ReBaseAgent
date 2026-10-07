@@ -278,3 +278,56 @@ typecheck 双 0绿；`biome check apps packages scripts` 588 文件 0 错；
 desktop 全量 **182 文件 / 2900 用例**全绿、0 未处理错误（2.2b 基线 181/2890，
 新增 `proxy-recovery-lifecycle.test.ts` 10 条）。变异验证三处：失败分类恒 false ⇒ 1 条红；
 失败时不写诊断 ⇒ 4 条红；失败回滚 `enabled` ⇒ 1 条红。
+
+## D11. 实施期核实结论（task 2.3b，2026-10-07）
+
+### 1. 🔴 源码级接线断言钉「符号出现」必然假绿，必须钉「数据流」
+
+U1 已经吃过三次"组件测得绿但没挂上"的亏，所以 2.3b 的顶栏接线走了源码级契约
+（`global-bar-recovery-wiring.test.ts`）。第一版断言写成"源码里出现了
+`proxyRecoveryView` / `needsRecordingEntry` 这些字面量"——**变异验证时把整个调用
+换成内联字面量`{ phase: …, needsRecordingEntry: false }`，6 条全绿**。
+函数名还留在 import 与类型位置上，实现却已经与判据脱钩。
+
+定案：源码级断言要钉**结果被谁消费**，不钉符号是否出现。实际用的三条：
+- `const view = proxyRecoveryView(...)` 的返回值被渲染消费；
+- `{view.needsRecordingEntry ? (` —— 入口的存在条件读这个变量；
+- `proxyPhaseDotClass(view.phase)` 与 `view.phase === "failed" → border-red-300`
+  —— 颜色与边框跟随同一个变量。换成内联字面量这三条同时红。
+
+推论：**凡是"某处必须用某个共享判据"的断言，"文件里提到过它"不构成证据**。
+
+### 2. 顶栏与录制页必须共用一份措辞源
+
+原先录制页自己写 `proxy.running ? … : "未监听（启用不等于监听成功）"`、顶栏自己写
+`代理 已停`。两处各写一套，恢复失败时必然出现"顶栏说失败、录制页说未监听但不说原因"，
+而用户正是靠这两处判断要不要改端口。定案：新增 `lib/proxy-recovery-view.ts`
+作为唯一派生点（`proxyRecoveryView` + `proxyPhaseDotClass`），两边都从它取值。
+
+四条措辞判据（写进该文件头注释，因为它们是"为什么不是另一句话"的根据）：
+1. 保存启用 ≠ 真实监听：失败时两行分别说"已启用"与"未监听"，不混成一句；
+2. 失败不说成已停用：2.3a 刻意不回滚 `enabled`，文案若说"已停用"就是撒谎；
+3. 恢复中不是停止：否则启动那几秒界面会闪一个"已停"，正好停在用户最该知道真相的时刻；
+4. 诊断只在有诊断时出现，没有就明说"未留下受控诊断"，不编一个。
+
+### 3. 失败处置区：两个按钮并排，且各带作用说明
+
+delta 要求「状态重读与显式应用重试区分」。做法不是靠按钮位置或颜色，而是让两个
+按钮的 `title` 各自写明作用：「重读状态」= 不启动监听；「保存并应用」= 再次尝试监听。
+用户点完"重读"发现代理没起来时，才不会以为按钮坏了。
+恢复中**不给**应用按钮（正在起，等它自己出结果），只给只读重读。
+
+### 4. 既有测试的字面量工厂要跟着补字段
+
+`recording-workspace-view.test.tsx` 的 `proxyState` 是手写字面量 + `as ProxyState`
+断言。`recovery` / `recoveryFailure` 漏掉时它们是 `undefined`，于是
+`recovery === "recovering"` 静默为 false——**判据被绕过而测试仍绿**。
+已在该文件头写明这条纪律。凡是手写字面量 + 类型断言的测试工厂，新增 `ProxyState`
+字段时都要显式补上。
+
+### 5. 本轮质量基线
+
+typecheck 双 0 绿；`biome check apps packages scripts` 591 文件 0 错；`git diff --check` 绿；
+desktop 全量 **184 文件 / 2922 用例**全绿、0 未处理错误（2.3a 基线 182/2900，
+新增 `proxy-recovery-view.test.tsx` 14 条 + `global-bar-recovery-wiring.test.ts` 8 条）。
+变异验证：顶栏脱离共用判据 ⇒ 接线契约红（第一版断言假绿已修正并复验）。

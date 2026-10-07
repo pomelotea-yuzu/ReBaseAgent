@@ -1,6 +1,7 @@
 import type { ProxyState } from "@shared/ipc";
 import { useState } from "react";
 import type { ReactNode } from "react";
+import { proxyRecoveryView } from "../lib/proxy-recovery-view";
 import type { RecordingDraft, RecordingDraftPatch } from "../lib/recording-draft";
 import { isRecordingDraftDirty, recordingApplyRequest } from "../lib/recording-draft";
 import { FOCUS_RING } from "./IconButton";
@@ -21,14 +22,30 @@ import { copyPayload } from "./LongText";
  * 输入在**变更事件**同步 store（关闭协商 D6 顺序，无 debounce）。
  */
 
-/** 已核实监听地址：仅 running=true 时由 port 构造；其余情形 null（不可复制） */
+/**
+ * 已核实监听地址：仅 running=true 时由 port 构造；其余情形 null（不可复制）。
+ *
+ * ⚠️ tasks 2.3b：**恢复中也不给地址**。此刻 `running` 必为 false，本函数已经返回
+ * null；这里额外写明是因为将来若有人想"给个预测端口"，那就是把配置草稿
+ * 冒充成已核实事实。
+ */
 export function verifiedProxyAddress(proxy: ProxyState | null, applying: boolean): string | null {
   if (applying) return null;
   if (proxy === null || proxy.running !== true) return null;
   return `http://127.0.0.1:${proxy.port}/v1`;
 }
 
-/** 状态区的三层事实行（意图 / 监听 / 凭据），未知显式呈现 */
+/**
+ * 状态区的三层事实行（意图 / 监听 / 凭据）+ 恢复阶段行。
+ *
+ * tasks 2.3b：本地监听与凭据两行改从 `proxyRecoveryView` 取值，顶栏与本页共用
+ * 一份判据（原先这里自己写 `proxy.running ? … : "未监听…"`，会与顶栏的阶段文案
+ * 出现"一边说失败一边说已停"的自相矛盾）。
+ *
+ * 四行固定顺序：启用意图 → 本地监听 → 恢复原因（仅有诊断时） → 本会话凭据。
+ * 凭据行**始终保留**：delta 要求「本会话尚未捕获凭据时如实显示未捕获」，
+ * 恢复成功也不能因为"看起来一切正常"就省掉它。
+ */
 export function recordingStatusLines(
   proxy: ProxyState | null,
   statusReadFailed: boolean,
@@ -36,20 +53,23 @@ export function recordingStatusLines(
   if (statusReadFailed || proxy === null) {
     return [{ label: "真实状态", value: "状态待读取（读取失败或尚未读到；可只读重试）" }];
   }
-  return [
+  const view = proxyRecoveryView(proxy, statusReadFailed);
+  const lines: Array<{ label: string; value: string }> = [
     {
       label: "保存的启用意图",
       value: proxy.enabled ? "已启用（配置已保存）" : "未启用",
     },
-    {
-      label: "本地监听",
-      value: proxy.running ? `运行中 · 端口 ${proxy.port}` : "未监听（启用不等于监听成功）",
-    },
-    {
-      label: "本会话凭据",
-      value: proxy.hasKey ? "已捕获（本会话有请求经过）" : "尚未捕获 key（重发预期不可用）",
-    },
+    { label: "本地监听", value: view.listenLine },
   ];
+  // 受控原因只在真的有诊断时占一行：没有就不占位，避免出现空承诺的行
+  if (view.reason !== null) {
+    lines.push({ label: "恢复失败原因", value: view.reason });
+  }
+  lines.push({
+    label: "本会话凭据",
+    value: proxy.hasKey ? "已捕获（本会话有请求经过）" : "尚未捕获 key（重发预期不可用）",
+  });
+  return lines;
 }
 
 export function RecordingWorkspaceView({
@@ -82,6 +102,10 @@ export function RecordingWorkspaceView({
   const dirty = isRecordingDraftDirty(draft);
   const address = verifiedProxyAddress(proxy, applying);
   const statusLines = recordingStatusLines(proxy, statusReadFailed);
+  // 仅在恢复中 / 恢复失败时非 null：正常监听/停止不占用这一块，也不显示重试按钮
+  const recoveryView = proxyRecoveryView(proxy, statusReadFailed);
+  const recovery =
+    recoveryView.phase === "recovering" || recoveryView.phase === "failed" ? recoveryView : null;
   const [copyFeedback, setCopyFeedback] = useState<"copied" | "unavailable" | null>(null);
 
   const copyAddress = (): void => {
@@ -229,6 +253,66 @@ export function RecordingWorkspaceView({
             </div>
           ))}
         </dl>
+        {/*
+          tasks 2.3b：失败/恢复中的**就近处置区**（delta「录制页展示受控原因、状态重读
+          和显式『保存并应用』重试」「状态重读与显式应用重试区分」）。
+
+          两个按钮的差别是这一节的重点，不是文案差别：
+          - 「重读状态」= 只读核对，永远不会启动监听；
+          - 「保存并应用」= 唯一会再次尝试监听的通道。
+          把它们并排放、且各带 title 说明，用户才知道"再点一次重读"不会让代理
+          自己起来。恢复中不给应用按钮（正在起，等它自己出结果）。
+        */}
+        {recovery !== null ? (
+          <div
+            className={`flex flex-wrap items-center gap-2 border-t px-4 py-2 ${
+              recovery.phase === "failed"
+                ? "border-red-100 bg-red-50"
+                : "border-amber-100 bg-amber-50"
+            }`}
+            data-recording-recovery
+            data-recovery-phase={recovery.phase}
+          >
+            <span
+              className={`text-reading-meta ${
+                recovery.phase === "failed" ? "text-red-800" : "text-amber-800"
+              }`}
+            >
+              {recovery.phase === "failed"
+                ? "启动恢复失败：已保存的启用意图仍然保留，处理后用「保存并应用」重试"
+                : "正在恢复本地监听…完成后本区会显示本次结果"}
+            </span>
+            <button
+              type="button"
+              data-recording-recovery-refresh
+              onClick={onRefreshStatus}
+              title="只读重读状态：只核对当前事实，不启动监听、不调用模型"
+              className={`rounded border border-gray-300 bg-white px-2 py-0.5 text-reading-meta text-gray-700 hover:bg-gray-50 ${FOCUS_RING}`}
+            >
+              重读状态
+            </button>
+            {recovery.phase === "failed" ? (
+              <button
+                type="button"
+                data-recording-recovery-apply
+                onClick={onApply}
+                disabled={!request.ok || applying}
+                title={
+                  request.ok
+                    ? "显式重试：按当前保存的配置再次尝试监听（本次成功或失败都会如实呈现）"
+                    : "配置字段未通过校验：请先在上方修正端口与 upstream"
+                }
+                className={
+                  request.ok && !applying
+                    ? `cursor-pointer rounded bg-sky-600 px-2 py-0.5 text-reading-meta text-white hover:bg-sky-700 ${FOCUS_RING}`
+                    : `cursor-not-allowed rounded bg-gray-200 px-2 py-0.5 text-reading-meta text-gray-400 ${FOCUS_RING}`
+                }
+              >
+                保存并应用
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         <p className="border-t border-gray-100 px-4 py-2 text-reading-meta text-gray-500">
           停用只停止本地接入服务；不承诺取消外部 Agent 或在途请求。
         </p>

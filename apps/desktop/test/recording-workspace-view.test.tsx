@@ -14,6 +14,12 @@ import { ensureRecordingDraft, writeRecordingDraft } from "../src/renderer/src/l
  * 且配对照（可复制时按钮在场）。
  */
 
+/**
+ * ⚠️ 纪律：这里必须显式写出 `recovery` / `recoveryFailure`（tasks 2.3b）。
+ * 用 `as ProxyState` 断言字面量时，漏掉的必填字段会是 `undefined`，
+ * 于是 `recovery === "recovering"` 之类的比较静默为 false——判据被绕过而测试仍绿。
+ * 新增 `ProxyState` 字段时，这个工厂要跟着补。
+ */
 const proxyState = (overrides: Partial<ProxyState> = {}): ProxyState =>
   ({
     enabled: false,
@@ -21,6 +27,8 @@ const proxyState = (overrides: Partial<ProxyState> = {}): ProxyState =>
     port: 18787,
     upstreamBaseUrl: "https://api.deepseek.com",
     hasKey: false,
+    recovery: "stopped",
+    recoveryFailure: null,
     ...overrides,
   }) as ProxyState;
 

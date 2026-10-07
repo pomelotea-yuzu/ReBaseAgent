@@ -2,14 +2,14 @@
 
 现有输入为实测反馈与 [实机问题记录](../../../docs/reviews/2026-10-06-ui-density-review.md)，它们只证明问题基线。编辑器原路径尚待复现，须登记可见宿主/祖先与活动实例；隐藏 0×0 helper 不作为塌缩证据，Emulation 与真实窗口分开记录。
 
-> **当前进度：tasks 1.1–1.4、2.1、2.2a、2.2b、2.3a 已实施**（25 项中 8 项）。下表 14 个 scenario 已有测试级证据，
+> **当前进度：tasks 1.1–1.4、2.1、2.2a、2.2b、2.3a、2.3b 已实施**（25 项中 9 项）。下表 17 个 scenario 已有测试级证据，
 > 其余仍为「待实施」。**✅ 只表示测试级证据成立**，标⏳ 的行说明该 scenario 尚有未覆盖的
 > 任务分片；标「实机」的说明仍缺 Electron 真机截图——文档校验与单元测试都不等同功能通过。
 > tasks 1.x 的证据只覆盖接线与记账语义，实机验收统一在 tasks 5.x 补齐。
 > tasks 2.x 的证据覆盖判据层与 store/main 接线层（合并调度 + 快照新旧守卫 + messages
-> 三处挂载 + 确认绑定捕获版本 + 提交前main 侧拒绝 + 启动恢复阶段机与受控诊断），实机
-> 「核对中/核对完成」「恢复失败的就近原因与应用配置入口」「已打开编辑器在外部捕获后门禁
-> 就地翻转」截图同样待 tasks 5.3 补。
+> 三处挂载 + 确认绑定捕获版本 + 提交前main 侧拒绝 + 启动恢复阶段机/受控诊断 + 顶栏与
+> 录制页就近呈现），实机「核对中/核对完成」「恢复失败的就近原因与应用配置入口」
+> 「已打开编辑器在外部捕获后门禁就地翻转」截图同样待 tasks 5.3 补。
 
 每个 delta scenario 单独登记。实施后在最后一列填测试名/日志或截图路径、真实宿主尺寸、限制与结果；文档校验与单元测试都不等同功能通过。
 
@@ -44,9 +44,9 @@
 | [desktop-ui](specs/desktop-ui/spec.md) / 重发门禁使用当前代理事实且隔离迟到读取 | 提交前版本变化由 main 拒绝 | [2.2b](tasks.md)、[5.3](tasks.md) | 确认到提交间main 轮换竞争；严格快照拒绝、上游计数=0、无 run、草稿保留 | ✅ `test/proxy-fork-version-race.test.ts` 6 条（真实回环代理 + stub upstream）：凭据轮换⇒`PROXY_CREDENTIAL_CHANGED`、上游/端口变化⇒`PROXY_CONFIG_CHANGED`，两条都断言**零新run + 父本逐字不变**；「版本与配置都一致 ⇒ 正常重发」（确认门没堵死正常路径）；拒绝文案不含 messages 正文与 key。**变异验证**：两道核对改成 `if (false)` ⇒ 5 条红、只剩正常路径那条。实现期修正一处真实设计错误：曾拿`settings.loadProxy()` 的**保存端口**比对，而 `status().port` 运行中返回**实际监听端口**（保存值可能是 0=系统分配）⇒ 每次正常重发都会被误判失配；定案改比 `this.status()`。失配检查位置在**读父本之前**（不泄露父本是否存在） |
 | [desktop-ui](specs/desktop-ui/spec.md) / 重发门禁使用当前代理事实且隔离迟到读取 | 重复只读核对不撤销未变化的确认 | [2.2a](tasks.md) | 同会话重复相同语义/捕获版本回读；确认保留、请求合并与无执行 | ✅ 接线层`test/capture-confirmation-store.test.ts`「相同语义状态与捕获版本的重复回读 ⇒ 确认保留、无额外副作用」（连读三次，`proxy:fork`=0）「重复 arm 同一现场不换引用」「旧会话的通知不撤销当前确认」；判据层另有「反复读同一事实指纹逐字相同」「状态未读≠任何已读现场」。**变异靶**：指纹只能用语义值——`proxy:status` 每次返回同一组事实，任何读取次数/代次型字段都不在这条路径上变化 |
 | [desktop-ui](specs/desktop-ui/spec.md) / 重发门禁使用当前代理事实且隔离迟到读取 | 迟到读取不能覆盖新事实 | [2.1](tasks.md)、[2.4](tasks.md) | 旧响应晚到、会话变化及最新核对失败；旧事实不覆盖、未知门禁与只读重试 | ⏳ 判据层已绿：`test/proxy-status-read.test.ts` 13 条（快照新旧守卫 6 条：revision 落后/ recordsRevision 单独落后 / 相同 / 前进 / 跨epoch / epoch=null；合并调度与派生）。store 层已绿：`test/proxy-status-store.test.ts`「较旧快照整份丢弃（一个字节都不写）」「飞行中的旧响应不采纳」「**迟到的失败响应不覆盖新事实**」「读取失败标待读取且可重试」。实现期发现并修复真实缺陷：IPC 通道自身抛错（`api.proxyStatus is not a function`）时 `loadProxyStatus` 会把异常抛给 fire-and-forget 调用方 ⇒ **8 处未处理拒绝**；改为内层 try/catch 转成 `PROXY_STATUS_UNAVAILABLE` 失败信封走同一条失败路径，并补回归用例。⏳ **提交前版本变化由main 拒绝**（严格快照 + 预期捕获/配置版本）属 tasks 2.2b，未实施；只读重试的场景级回归属 tasks 2.4 |
-| [desktop-ui](specs/desktop-ui/spec.md) / 代理启动恢复结果就近可见 | 恢复中到监听成功同步呈现 | [2.3b](tasks.md)、[2.4](tasks.md) | 恢复延迟注入及真实监听探测；顶栏/录制页阶段截图、hasKey 和历史阅读 | 待实施 |
-| [desktop-ui](specs/desktop-ui/spec.md) / 代理启动恢复结果就近可见 | 恢复失败显示意图与实际状态 | [2.3b](tasks.md)、[2.4](tasks.md) | 端口占用重启；顶栏入口、已启用但未监听与受控原因截图 | 待实施 |
-| [desktop-ui](specs/desktop-ui/spec.md) / 代理启动恢复结果就近可见 | 状态重读与显式应用重试区分 | [2.3b](tasks.md)、[2.4](tasks.md) | 真实录制页先重读再显式应用；监听尝试计数、最终状态、零模型调用及无旧许可恢复 | 待实施 |
+| [desktop-ui](specs/desktop-ui/spec.md) / 代理启动恢复结果就近可见 | 恢复中到监听成功同步呈现 | [2.3b](tasks.md)、[2.4](tasks.md) | 恢复延迟注入及真实监听探测；顶栏/录制页阶段截图、hasKey 和历史阅读 | ⏳ 接线层已绿：`test/proxy-recovery-view.test.tsx`「🔴 变异靶：恢复中不得显示成「已停/未监听」」（判据层 phase=recovering 且headline 不含"已停"；呈现层含 `data-recovery-phase="recovering"` 且无"代理已停"）「恢复成功后呈现已监听，且本会话未捕获凭据如实显示」「恢复成功后接入地址可复制（历史阅读入口不受恢复影响）」「恢复期间接入地址不可复制（不提供预测端口）」；判据层↔呈现层由 `proxyRecoveryView` 唯一派生。⚠️ 缺 Electron 实机证据（恢复中→已监听的顶栏/录制页截图），待 tasks 5.x 补 |
+| [desktop-ui](specs/desktop-ui/spec.md) / 代理启动恢复结果就近可见 | 恢复失败显示意图与实际状态 | [2.3b](tasks.md)、[2.4](tasks.md) | 端口占用重启；顶栏入口、已启用但未监听与受控原因截图 | ⏳ 接线层已绿：`test/proxy-recovery-view.test.tsx` 5 条——状态行同时给「已启用」+「未监听」且全文**不含**"未启用/已停用"（不把失败说成已停用）；凭据行照旧呈现"尚未捕获 key"（不因"看起来已启用"就说凭据可用）；受控原因原样透出；`recoveryFailure=null` 时明说"未留下受控诊断"并给可行动作、不静默；状态未知不沿用上次恢复事实。顶栏接线见 `test/global-bar-recovery-wiring.test.ts`（恢复中/失败都有 `data-proxy-open-recording` 入口、阶段以 `data-proxy-phase` 外露）。⚠️ 缺实机证据（重启后顶栏红色失败态 + 录制页受控原因截图），待 tasks 5.x 补 |
+| [desktop-ui](specs/desktop-ui/spec.md) / 代理启动恢复结果就近可见 | 状态重读与显式应用重试区分 | [2.3b](tasks.md)、[2.4](tasks.md) | 真实录制页先重读再显式应用；监听尝试计数、最终状态、零模型调用及无旧许可恢复 | ⏳ 接线层已绿：`test/proxy-recovery-view.test.tsx`「失败处置区：只读重读与显式应用两个入口都在场且各有说明」（`data-recording-recovery-refresh` + `data-recording-recovery-apply`，title 分别写"不启动监听"与"再次尝试监听"—— 用户点重读发现代理没起来才知道按钮没坏）「🔴 变异靶：恢复中不给「保存并应用」重试」「显式应用按钮沿用配置校验门禁：字段非法时不放行」（逐控件判 `disabled=""`）。只读语义的上游证据在 `proxy-recovery-lifecycle.test.ts`（回读 5 次不推进 revision、零上游调用）。⚠️ 缺实机证据（重读与应用的真实点击序列），待 tasks 5.x 补 |
 | [desktop-ui](specs/desktop-ui/spec.md) / 代理失败概览只使用自有已记录诊断 | 新代理失败在概览可诊断 | [3.4](tasks.md)、[3.5b](tasks.md) | 自有 401 fixture/Electron 截图；定位失败调用、完整请求及 usage/ttft 占位说明 | 待实施 |
 | [desktop-ui](specs/desktop-ui/spec.md) / 代理失败概览只使用自有已记录诊断 | 网络失败不展示伪造状态码 | [3.4](tasks.md)、[3.5b](tasks.md) | 无 status 网络失败 fixture；连接原因/未知成本截图，无伪造上游码 | 待实施 |
 | [desktop-ui](specs/desktop-ui/spec.md) / 代理失败概览只使用自有已记录诊断 | 旧代理失败仍提示详情未记录 | [3.4](tasks.md)、[3.5b](tasks.md) | 旧失败、叶无诊断但祖先有错 fixtures；诚实缺失提示与文件 SHA 不变 | 待实施 |
