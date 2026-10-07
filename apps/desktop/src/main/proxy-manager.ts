@@ -29,7 +29,18 @@ export class ProxyForkError extends Error {
       | "PROXY_EMPTY_FORK"
       | "PROXY_FORK_FAILED"
       /** 响应已转发，但**本次**重发的录制写入失败：不借用别的 run id 报成功 */
-      | "PROXY_RECORDING_WRITE_FAILED",
+      | "PROXY_RECORDING_WRITE_FAILED"
+      /**
+       * 提交携带的**预期凭据捕获版本**与 main 当前值不符（tasks 2.2b）。
+       * 语义：确认到提交之间又发生过捕获（含同 hasKey 的 key 更换）。
+       * 副作用前拒绝 ⇒ 无上游调用、无新 run，草稿保留并要求重新核对。
+       */
+      | "PROXY_CREDENTIAL_CHANGED"
+      /**
+       * 提交携带的**预期代理目标**（upstream/端口）与当前保存的配置不符。
+       * 语义：核对时看到的是这台上游，提交前配置变了 ⇒ 费用归属需要重新核对。
+       */
+      | "PROXY_CONFIG_CHANGED",
     message: string,
   ) {
     super(message);
@@ -296,8 +307,36 @@ export class ProxyManager {
     parentRunId: string;
     atSpanId: string;
     messages: Record<string, unknown>[];
+    expectedKeyCaptureRevision: number;
+    expectedUpstreamBaseUrl: string;
+    expectedPort: number;
   }): Promise<{ id: string }> {
-    // 0. 前置条件：本会话捕获过 key 且代理处理器可用（不落盘 → 重启后自然失效）
+    // 0. 提交版本失配 ⇒ 副作用前拒绝（tasks 2.2b / delta「提交前版本变化由 main 拒绝」）。
+    //    位置刻意在**读父本之前**：这一条是纯内存比较，不碰磁盘也不碰上游，
+    //    「确认到提交之间捕获了新凭据 / 改了代理配置」时不留下任何新 run。
+    //    renderer 的禁用只是 UX；这里才是边界。
+    if (request.expectedKeyCaptureRevision !== this.keyCaptureRevision) {
+      throw new ProxyForkError(
+        "PROXY_CREDENTIAL_CHANGED",
+        "凭据在核对之后又变过了：请重新核对当前这次重发（草稿与目标已保留）",
+      );
+    }
+    // 🔴 比的是**当前运行事实**而不是 `settings.loadProxy()` 的保存值：
+    // `status().port` 在运行中返回的是**实际监听端口**，而保存值可能是 0（由系统分配）
+    // 或旧端口——两者在正常运行时就不相等，拿保存值比会把每一次正常重发都误判成失配。
+    // renderer 提交的是它 `proxy:status` 读到的值，所以这里必须用同一个来源。
+    const current = this.status();
+    if (
+      request.expectedUpstreamBaseUrl !== current.upstreamBaseUrl ||
+      request.expectedPort !== current.port
+    ) {
+      throw new ProxyForkError(
+        "PROXY_CONFIG_CHANGED",
+        "代理配置在核对之后又变过了：请重新核对当前这次重发（草稿与目标已保留）",
+      );
+    }
+
+    // 1. 前置条件：本会话捕获过 key 且代理处理器可用（不落盘 → 重启后自然失效）
     const authorization = this.keyStore.lastKey;
     if (authorization === undefined || this.handler === null) {
       throw new ProxyForkError(
@@ -306,7 +345,7 @@ export class ProxyManager {
       );
     }
 
-    // 1. 父 run 必须是已封存的代理 run
+    // 2. 父 run 必须是已封存的代理 run
     let record: ReturnType<RunRepository["loadRunRecord"]>;
     try {
       record = this.deps.repository.loadRunRecord(request.parentRunId);
@@ -326,7 +365,7 @@ export class ProxyManager {
       );
     }
 
-    // 2. 分叉点必须是当前 run 自身段的 llm.call
+    // 3. 分叉点必须是当前 run 自身段的 llm.call
     const span = record.spans.find((s) => s.id === request.atSpanId);
     if (span === undefined || span.kind !== "llm.call") {
       throw new ProxyForkError(
@@ -335,7 +374,7 @@ export class ProxyManager {
       );
     }
 
-    // 3. 空 fork 防线（main 复核一次；渲染层禁用只是 UX）
+    // 4. 空 fork 防线（main 复核一次；渲染层禁用只是 UX）
     try {
       buildForkRequest(span.request, request.messages);
     } catch (e) {
@@ -345,7 +384,7 @@ export class ProxyManager {
       throw e;
     }
 
-    // 4. 构造分叉请求经代理内部路径发起（走同一转发+录制路径，自动录为 fork run）。
+    // 5. 构造分叉请求经代理内部路径发起（走同一转发+录制路径，自动录为 fork run）。
     //    身份只认**本次 forkMeta 对象**匹配到的上下文——等待返回期间到达的被动录制
     //    既不进这张表，也不能改写它的结论。
     const { body } = buildForkRequest(span.request, request.messages);

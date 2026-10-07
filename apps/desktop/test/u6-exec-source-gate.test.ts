@@ -454,6 +454,10 @@ describe("5.5 proxy 端点：发请求/录制之前拒绝", () => {
         parentRunId: child.data.id,
         atSpanId: toolSpanIdOf(h, child.data.id),
         messages: [{ role: "user", content: "编辑后的 messages" }],
+        // tasks 2.2b：预期代理事实（harness 的 proxy.fork 是桩，只为过 schema）
+        expectedKeyCaptureRevision: 0,
+        expectedUpstreamBaseUrl: "https://upstream.test/v1",
+        expectedPort: 18787,
       }),
     );
     expect(okCase.ok).toBe(true);
@@ -467,6 +471,9 @@ describe("5.5 proxy 端点：发请求/录制之前拒绝", () => {
         parentRunId: child.data.id,
         atSpanId: toolSpanIdOf(h, child.data.id),
         messages: [{ role: "user", content: "ownOnly 父本上的编辑" }],
+        expectedKeyCaptureRevision: 0,
+        expectedUpstreamBaseUrl: "https://upstream.test/v1",
+        expectedPort: 18787,
       }),
     );
     expect(response.ok).toBe(false);

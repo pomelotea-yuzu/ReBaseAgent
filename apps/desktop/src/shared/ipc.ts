@@ -552,6 +552,23 @@ export const ProxyForkRequestSchema = z.object({
   atSpanId: z.string().min(1),
   /** 编辑后的完整 messages 数组（原样作为请求体 messages） */
   messages: z.array(z.record(z.string(), z.unknown())).min(1),
+  /**
+   * 提交这一刻 renderer 看到的**凭据捕获版本**（design D2/tasks 2.2b）。
+   *
+   * ⚠️ 这是「预期」而不是「事实」：renderer 的 fresh 状态**不替代** main 的检查。
+   * 确认到提交之间 main 可能又捕获了新 key（外部应用随时会经过代理），此时
+   * main 在**任何副作用之前**（不发上游、不写run）拒绝，要求重新核对。
+   * 只传计数，不传凭据本身或任何指纹。
+   */
+  expectedKeyCaptureRevision: z.number().int().min(0),
+  /**
+   * 提交这一刻 renderer 看到的代理目标（`upstreamBaseUrl` 与 `port`）。
+   *
+   * 同上：用户核对时看到的是这台上游，提交前若配置变了（设置往返、
+   * 另一个窗口改了代理），这次重发就打去别处 ⇒ 必须重新核对费用归属。
+   */
+  expectedUpstreamBaseUrl: z.string(),
+  expectedPort: z.number().int().min(1).max(65535),
 });
 export type ProxyForkRequest = z.infer<typeof ProxyForkRequestSchema>;
 

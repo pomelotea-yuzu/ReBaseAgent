@@ -132,10 +132,15 @@ describe("6.6 受控服务回归：代理设置/messages 重发（llm-proxy 通�
       const llmSpan = parent.spans.find((s) => s.kind === "llm.call");
       const atSpanId = llmSpan?.kind === "llm.call" ? llmSpan.id : "s_02";
       const edited = [{ role: "user", content: "编辑后的消息" }];
+      // tasks 2.2b：提交携带这一刻的真实代理事实（不硬编数字，取自 status()）
+      const facts = manager.status();
       const { id: forkId } = await manager.fork({
         parentRunId: parent.meta.id,
         atSpanId,
         messages: edited,
+        expectedKeyCaptureRevision: facts.keyCaptureRevision,
+        expectedUpstreamBaseUrl: facts.upstreamBaseUrl,
+        expectedPort: facts.port,
       });
 
       // 受控日志 entry[1]：stream:true + SSE（buildForkRequest 恒设 stream:true）
@@ -166,11 +171,19 @@ describe("6.6 受控服务回归：代理设置/messages 重发（llm-proxy 通�
       const { manager } = proxyTowards(h);
       await manager.toggle({ enabled: true, port: 0, upstreamBaseUrl: h.baseURL });
 
+      // 本会话一次都没捕获过 key ⇒ 捕获版本为 0，代理事实取自status()。
+      // 注意失配检查排在 PROXY_NO_KEY **之前**（tasks 2.2b），所以这里的预期值
+      // 必须与当前事实一致，否则会先被版本失配拦下、测不到 NO_KEY 这一层。
+      const facts = manager.status();
+      expect(facts.hasKey).toBe(false);
       const err = await manager
         .fork({
           parentRunId: "run_x",
           atSpanId: "s_02",
           messages: [{ role: "user", content: "a" }],
+          expectedKeyCaptureRevision: facts.keyCaptureRevision,
+          expectedUpstreamBaseUrl: facts.upstreamBaseUrl,
+          expectedPort: facts.port,
         })
         .catch((e: unknown) => e);
       expect(err).toBeInstanceOf(ProxyForkError);

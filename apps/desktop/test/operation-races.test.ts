@@ -132,6 +132,10 @@ const ENTRIES: Record<EntryLabel, Entry> = {
       parentRunId: "run_p",
       atSpanId: "s_1",
       messages: [{ role: "user", content: "重发的 messages" }],
+      // tasks 2.2b：预期代理事实三项必填（值为固定桩，只为让夹具过 schema）
+      expectedKeyCaptureRevision: 0,
+      expectedUpstreamBaseUrl: "https://upstream.test/v1",
+      expectedPort: 18787,
     },
     { kind: "proxy", parentRunId: "run_p", atSpanId: "s_1" },
   ),

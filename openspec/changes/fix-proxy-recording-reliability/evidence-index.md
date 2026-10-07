@@ -2,12 +2,13 @@
 
 现有输入为实测反馈与 [实机问题记录](../../../docs/reviews/2026-10-06-ui-density-review.md)，它们只证明问题基线。编辑器原路径尚待复现，须登记可见宿主/祖先与活动实例；隐藏 0×0 helper 不作为塌缩证据，Emulation 与真实窗口分开记录。
 
-> **当前进度：tasks 1.1–1.4 与 2.1 已实施**（25 项中 5 项）。下表 8 个 scenario 已有测试级证据，
+> **当前进度：tasks 1.1–1.4、2.1、2.2a、2.2b 已实施**（25 项中 7 项）。下表 11 个 scenario 已有测试级证据，
 > 其余仍为「待实施」。**✅ 只表示测试级证据成立**，标⏳ 的行说明该 scenario 尚有未覆盖的
 > 任务分片；标「实机」的说明仍缺 Electron 真机截图——文档校验与单元测试都不等同功能通过。
 > tasks 1.x 的证据只覆盖接线与记账语义，实机验收统一在 tasks 5.x 补齐。
-> tasks 2.1 的证据覆盖判据层与 store 接线层（合并调度 + 快照新旧守卫 + messages 三处挂载），
-> 实机「核对中/核对完成」截图同样待 tasks 5.3 补。
+> tasks 2.x 的证据覆盖判据层与 store/main 接线层（合并调度 + 快照新旧守卫 + messages
+> 三处挂载 + 确认绑定捕获版本 + 提交前main 侧拒绝），实机「核对中/核对完成」与
+> 「已打开编辑器在外部捕获后门禁就地翻转」截图同样待 tasks 5.3 补。
 
 每个 delta scenario 单独登记。实施后在最后一列填测试名/日志或截图路径、真实宿主尺寸、限制与结果；文档校验与单元测试都不等同功能通过。
 
@@ -37,10 +38,10 @@
 | [desktop-ui](specs/desktop-ui/spec.md) / 被动代理录制自动更新列表并保留阅读 | 并发录制保留筛选和当前阅读 | [1.3](tasks.md)、[1.4](tasks.md) | 读取在飞 burst；最大单一读取、尾随刷新、最终 ID 集合及筛选/草稿/滚动指纹 | ✅ `test/proxy-change-store.test.ts`「在飞期间的 N 条通知 ⇒ 至多一个在飞 + 一次尾随」：读取卡在闸门上时投3 条通知，`listCalls` 停在 1；释放后尾随补发，`listCalls=2` 且最终可见 `run_new_0/1/2` 全部新 ID；筛选/搜索词/详情/阅读位置断言原样。⚠️ 草稿与滚动指纹的实机部分待 tasks 5.x 补 |
 | [desktop-ui](specs/desktop-ui/spec.md) / 被动代理录制自动更新列表并保留阅读 | 订阅前与失焦期间的变化可补读 | [1.1](tasks.md)、[1.3](tasks.md) | 初读/订阅竞争与失焦恢复；epoch/revision 乱序测试、最终列表集合与无自动重发 | ✅ `test/proxy-change-store.test.ts`「订阅前与失焦期间的变化可补读」相关 6 条：订阅幂等（StrictMode 双挂载只 1 个监听器）、卸载即解绑（release 后通知零读取且可重订阅）、旧 epoch 通知零读取且游标不动、非法载荷（缺字段/未知类别/空类别）整条丢弃、迟到 `proxyStatus` 旧响应不回退游标、失焦补刷（落后则刷/未落后不刷/读取失败保守刷）。⚠️ 实现期发现并修复一处真实缺陷：`loadProxyStatus` 失败时游标不推进 ⇒ epoch 仍相同 ⇒ `shouldReconcileOnActivate` 误判「无变化」导致漏掉的落盘永远补不上；定案为读取失败时把交给判据的 epoch 置 `null`（design D7.3），**变异验证**：回退该修复 ⇒ 对应用例红 |
 | [desktop-ui](specs/desktop-ui/spec.md) / 重发门禁使用当前代理事实且隔离迟到读取 | 打开重发即核对当前状态 | [2.1](tasks.md)、[5.3](tasks.md) | 旧 hasKey 缓存打开 messages；核对中/完成截图、实际门禁与独立确认仍必需 | ⏳ 接线层已绿：`test/proxy-status-store.test.ts` 15 条——打开 messages 即触发核对且**只调`proxy:status`（零 `proxy:fork`/`runs:create`）**、换目标重核、从录制返回 messages 重核、返回 trace 等非 messages 视图**不白读**、`reconcileProxyGate` 等静默。合并语义：`proxy-status-read.test.ts`「尾随补发恰好一次」「burst 收敛为一个在飞 + 一次尾随」。措辞分离：`messages-eligibility.test.ts`「核对中」与「状态未知」是两句话但都不放行重发（4 条新增）。**变异验证**：删掉 `acceptProxySnapshot` 守卫 ⇒ 判据层 2 条 + store 1 条红。⚠️ 缺Electron 实机证据（打开编辑器前后「核对中→已完成」截图、真实门禁拦截与「独立确认仍必需」），待 tasks 5.3 补 |
-| [desktop-ui](specs/desktop-ui/spec.md) / 重发门禁使用当前代理事实且隔离迟到读取 | 捕获通知更新已打开编辑器 | [2.2a](tasks.md)、[5.3](tasks.md) | 编辑器已打开后外部首次捕获；门禁回读、草稿指纹及模型计数不因通知增加 | 待实施 |
-| [desktop-ui](specs/desktop-ui/spec.md) / 重发门禁使用当前代理事实且隔离迟到读取 | 凭据轮换撤销旧确认 | [2.2a](tasks.md)、[5.3](tasks.md) | 捕获版本、监听及配置变化分别注入；旧许可失效、目标/正文保持与重新核对 | 待实施 |
-| [desktop-ui](specs/desktop-ui/spec.md) / 重发门禁使用当前代理事实且隔离迟到读取 | 提交前版本变化由 main 拒绝 | [2.2b](tasks.md)、[5.3](tasks.md) | 确认到提交间 main 轮换竞争；严格快照拒绝、上游计数=0、无 run、草稿保留 | 待实施 |
-| [desktop-ui](specs/desktop-ui/spec.md) / 重发门禁使用当前代理事实且隔离迟到读取 | 重复只读核对不撤销未变化的确认 | [2.2a](tasks.md) | 同会话重复相同语义/捕获版本回读；确认保留、请求合并与无执行 | 待实施 |
+| [desktop-ui](specs/desktop-ui/spec.md) / 重发门禁使用当前代理事实且隔离迟到读取 | 捕获通知更新已打开编辑器 | [2.2a](tasks.md)、[5.3](tasks.md) | 编辑器已打开后外部首次捕获；门禁回读、草稿指纹及模型计数不因通知增加 | ⏳ 接线层已绿：`test/capture-confirmation-store.test.ts`「外部首次捕获 ⇒ 已 arm 的确认失效、门禁读到 hasKey=true、草稿不变、零自动重发」（`proxy:fork` 计数=0）。判据层 `test/confirmation-binding-capture.test.ts` 12 条。**变异验证**：拿掉捕获版本 ⇒ 精确 1 条红（凭据轮换那条）。⚠️ 缺Electron 实机证据（已打开编辑器在外部捕获后门禁就地翻转的截图），待 tasks 5.3 补 |
+| [desktop-ui](specs/desktop-ui/spec.md) / 重发门禁使用当前代理事实且隔离迟到读取 | 凭据轮换撤销旧确认 | [2.2a](tasks.md)、[5.3](tasks.md) | 捕获版本、监听及配置变化分别注入；旧许可失效、目标/正文保持与重新核对 | ⏳ 接线层已绿：「凭据轮换（hasKey 仍为 true、捕获版本推进）⇒ 确认失效」「监听停掉 / 上游换地址 ⇒ 确认各自失效」。判据层另有 4 条（未捕获→有key、端口变化等）。`keyCaptureRevision` 为**仅内存捕获次数**，不含 key material、不持久化。⚠️ 缺实机证据，待 tasks 5.3 补 |
+| [desktop-ui](specs/desktop-ui/spec.md) / 重发门禁使用当前代理事实且隔离迟到读取 | 提交前版本变化由 main 拒绝 | [2.2b](tasks.md)、[5.3](tasks.md) | 确认到提交间main 轮换竞争；严格快照拒绝、上游计数=0、无 run、草稿保留 | ✅ `test/proxy-fork-version-race.test.ts` 6 条（真实回环代理 + stub upstream）：凭据轮换⇒`PROXY_CREDENTIAL_CHANGED`、上游/端口变化⇒`PROXY_CONFIG_CHANGED`，两条都断言**零新run + 父本逐字不变**；「版本与配置都一致 ⇒ 正常重发」（确认门没堵死正常路径）；拒绝文案不含 messages 正文与 key。**变异验证**：两道核对改成 `if (false)` ⇒ 5 条红、只剩正常路径那条。实现期修正一处真实设计错误：曾拿`settings.loadProxy()` 的**保存端口**比对，而 `status().port` 运行中返回**实际监听端口**（保存值可能是 0=系统分配）⇒ 每次正常重发都会被误判失配；定案改比 `this.status()`。失配检查位置在**读父本之前**（不泄露父本是否存在） |
+| [desktop-ui](specs/desktop-ui/spec.md) / 重发门禁使用当前代理事实且隔离迟到读取 | 重复只读核对不撤销未变化的确认 | [2.2a](tasks.md) | 同会话重复相同语义/捕获版本回读；确认保留、请求合并与无执行 | ✅ 接线层`test/capture-confirmation-store.test.ts`「相同语义状态与捕获版本的重复回读 ⇒ 确认保留、无额外副作用」（连读三次，`proxy:fork`=0）「重复 arm 同一现场不换引用」「旧会话的通知不撤销当前确认」；判据层另有「反复读同一事实指纹逐字相同」「状态未读≠任何已读现场」。**变异靶**：指纹只能用语义值——`proxy:status` 每次返回同一组事实，任何读取次数/代次型字段都不在这条路径上变化 |
 | [desktop-ui](specs/desktop-ui/spec.md) / 重发门禁使用当前代理事实且隔离迟到读取 | 迟到读取不能覆盖新事实 | [2.1](tasks.md)、[2.4](tasks.md) | 旧响应晚到、会话变化及最新核对失败；旧事实不覆盖、未知门禁与只读重试 | ⏳ 判据层已绿：`test/proxy-status-read.test.ts` 13 条（快照新旧守卫 6 条：revision 落后/ recordsRevision 单独落后 / 相同 / 前进 / 跨epoch / epoch=null；合并调度与派生）。store 层已绿：`test/proxy-status-store.test.ts`「较旧快照整份丢弃（一个字节都不写）」「飞行中的旧响应不采纳」「**迟到的失败响应不覆盖新事实**」「读取失败标待读取且可重试」。实现期发现并修复真实缺陷：IPC 通道自身抛错（`api.proxyStatus is not a function`）时 `loadProxyStatus` 会把异常抛给 fire-and-forget 调用方 ⇒ **8 处未处理拒绝**；改为内层 try/catch 转成 `PROXY_STATUS_UNAVAILABLE` 失败信封走同一条失败路径，并补回归用例。⏳ **提交前版本变化由main 拒绝**（严格快照 + 预期捕获/配置版本）属 tasks 2.2b，未实施；只读重试的场景级回归属 tasks 2.4 |
 | [desktop-ui](specs/desktop-ui/spec.md) / 代理启动恢复结果就近可见 | 恢复中到监听成功同步呈现 | [2.3b](tasks.md)、[2.4](tasks.md) | 恢复延迟注入及真实监听探测；顶栏/录制页阶段截图、hasKey 和历史阅读 | 待实施 |
 | [desktop-ui](specs/desktop-ui/spec.md) / 代理启动恢复结果就近可见 | 恢复失败显示意图与实际状态 | [2.3b](tasks.md)、[2.4](tasks.md) | 端口占用重启；顶栏入口、已启用但未监听与受控原因截图 | 待实施 |

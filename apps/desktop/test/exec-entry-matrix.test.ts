@@ -407,7 +407,20 @@ async function prepareProxyFork(): Promise<PreparedChannel> {
     seen.push(request as Record<string, unknown>);
     return { id: "run_matrix_proxy" };
   });
-  const request = { parentRunId: parent.parentId, atSpanId: parent.atSpanId, messages };
+  // tasks 2.2b：预期代理事实三项。harness 的 proxy.fork 是可控桩、不做版本核对，
+  // 这三项只为过 schema；`equivalent`/`divergent` 必须带上**同样**的值，否则
+  // 「等价改写」会被新的必填字段差异误判成业务差异（这正是本矩阵要测的东西）。
+  const expectedFacts = {
+    expectedKeyCaptureRevision: 0,
+    expectedUpstreamBaseUrl: "https://upstream.test/v1",
+    expectedPort: 18787,
+  };
+  const request = {
+    parentRunId: parent.parentId,
+    atSpanId: parent.atSpanId,
+    messages,
+    ...expectedFacts,
+  };
   return {
     request,
     // 消息对象**内部**的键序变化是同一请求（规范化递归排序）
@@ -415,12 +428,14 @@ async function prepareProxyFork(): Promise<PreparedChannel> {
       messages: messages.map(({ role, content }) => ({ content, role })),
       atSpanId: parent.atSpanId,
       parentRunId: parent.parentId,
+      ...expectedFacts,
     },
     // 消息**顺序**变化是业务差异
     divergent: {
       parentRunId: parent.parentId,
       atSpanId: parent.atSpanId,
       messages: [messages[1], messages[0], messages[2]],
+      ...expectedFacts,
     },
     invalid: { parentRunId: parent.parentId, atSpanId: parent.atSpanId, messages: [] },
     effects: { llm: 0, files: 0, tokens: 0, proxy: 1 },

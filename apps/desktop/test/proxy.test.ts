@@ -236,11 +236,30 @@ describe("ProxyManager：端到端（回环 + stub upstream）", () => {
     return { repository, settings, manager };
   }
 
+  /**
+   * tasks 2.2b：提交这一刻的真实代理事实。失配检查排在所有其他门禁**之前**
+   * （含 PROXY_NO_KEY / PROXY_PARENT_INVALID），所以每处 fork 调用都必须带上
+   * 与当前状态一致的预期值，否则测到的会是版本失配而不是本用例想测的那一层。
+   */
+  const factsOf = (manager: ProxyManager) => {
+    const f = manager.status();
+    return {
+      expectedKeyCaptureRevision: f.keyCaptureRevision,
+      expectedUpstreamBaseUrl: f.upstreamBaseUrl,
+      expectedPort: f.port,
+    };
+  };
+
   it("无 key 时分叉 → PROXY_NO_KEY", async () => {
     const { manager } = setup();
     await manager.toggle({ enabled: true, port: 0, upstreamBaseUrl: "https://upstream.test" });
     const err1 = await manager
-      .fork({ parentRunId: "run_x", atSpanId: "s_02", messages: [{ role: "user", content: "a" }] })
+      .fork({
+        parentRunId: "run_x",
+        atSpanId: "s_02",
+        messages: [{ role: "user", content: "a" }],
+        ...factsOf(manager),
+      })
       .catch((e: unknown) => e);
     expect(err1).toBeInstanceOf(ProxyForkError);
     expect((err1 as ProxyForkError).code).toBe("PROXY_NO_KEY");
@@ -267,6 +286,7 @@ describe("ProxyManager：端到端（回环 + stub upstream）", () => {
         parentRunId: "run_missing",
         atSpanId: "s_02",
         messages: [{ role: "user", content: "a" }],
+        ...factsOf(manager),
       })
       .catch((e: unknown) => e);
     expect(err2).toBeInstanceOf(ProxyForkError);
@@ -318,6 +338,7 @@ describe("ProxyManager：端到端（回环 + stub upstream）", () => {
       parentRunId: parent.meta.id,
       atSpanId: "s_02",
       messages: edited,
+      ...factsOf(manager),
     });
     const forkRun = repository.loadRunRecord(forkId);
     expect(forkRun.meta.parent).toBe(parent.meta.id);
@@ -339,6 +360,7 @@ describe("ProxyManager：端到端（回环 + stub upstream）", () => {
         parentRunId: parent.meta.id,
         atSpanId: "s_02",
         messages: parent.spans.find((s) => s.kind === "llm.call")?.request.messages ?? [],
+        ...factsOf(manager),
       })
       .catch((e: unknown) => e);
     expect(err3).toBeInstanceOf(ProxyForkError);

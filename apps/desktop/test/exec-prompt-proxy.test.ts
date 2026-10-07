@@ -83,6 +83,11 @@ function proxyRequest(parentId: string, atSpanId: string) {
     parentRunId: parentId,
     atSpanId,
     messages: [{ role: "user", content: "编辑后的重发消息" }],
+    // tasks 2.2b：提交携带这一刻的预期代理事实。这里用的是**与 main 一致的假事实**
+    // （harness 的 proxy.fork 是可控桩，不做版本核对），值本身只用于过 schema。
+    expectedKeyCaptureRevision: 0,
+    expectedUpstreamBaseUrl: "https://upstream.test/v1",
+    expectedPort: 18787,
   };
 }
 

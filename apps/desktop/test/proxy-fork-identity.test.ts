@@ -152,6 +152,12 @@ async function withParent(): Promise<{
   port: number;
   parentId: string;
   atSpanId: string;
+  /** 提交这一刻的真实代理事实（tasks 2.2b 的 expected* 三项） */
+  expected: {
+    expectedKeyCaptureRevision: number;
+    expectedUpstreamBaseUrl: string;
+    expectedPort: number;
+  };
   edited: Record<string, unknown>[];
 }> {
   const context = setup();
@@ -184,11 +190,19 @@ async function withParent(): Promise<{
   context.behavior.passiveIds.length = 0;
   context.behavior.forkWriteCalls = 0;
   context.behavior.forkIds.length = 0;
+  // tasks 2.2b：fork 请求必须携带**提交这一刻**的预期捕获版本与代理目标，
+  // 由 main 在副作用前核对。测试从 manager.status() 取真值，不硬编数字。
+  const facts = context.manager.status();
   return {
     ...context,
     port: state.port,
     parentId: runs[0].id,
     atSpanId: llmSpan?.id ?? "s_02",
+    expected: {
+      expectedKeyCaptureRevision: facts.keyCaptureRevision,
+      expectedUpstreamBaseUrl: facts.upstreamBaseUrl,
+      expectedPort: facts.port,
+    },
     edited: [
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: "编辑后的秘密消息正文" },
@@ -211,6 +225,7 @@ describe("U4 2.10 主动重发的请求局部身份", () => {
       parentRunId: fixture.parentId,
       atSpanId: fixture.atSpanId,
       messages: fixture.edited,
+      ...fixture.expected,
     });
     const { id } = await forkPromise;
     await new Promise((resolve) => setTimeout(resolve, 30));
@@ -242,18 +257,22 @@ describe("U4 2.10 主动重发的请求局部身份", () => {
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: "B 支线的编辑内容" },
     ];
-    const [a, b] = await Promise.all([
-      fixture.manager.fork({
+    // ⚠️ 两笔**真并发**发起，但每笔都在自己fork 的那一刻重取代理事实：
+    // fork 走的是同一条转发+录制路径，会再次捕获 Authorization ⇒ 推进捕获版本。
+    // 拿同一个旧预期提交第二笔会被 2.2b 的失配门禁按预期拒掉——那是正确行为，
+    // 但本用例要测的是"身份互不串"，所以必须让两笔各自带当刻事实。
+    const forkWithFreshFacts = (messages: Record<string, unknown>[]) => {
+      const f = fixture.manager.status();
+      return fixture.manager.fork({
         parentRunId: fixture.parentId,
         atSpanId: fixture.atSpanId,
-        messages: editedA,
-      }),
-      fixture.manager.fork({
-        parentRunId: fixture.parentId,
-        atSpanId: fixture.atSpanId,
-        messages: editedB,
-      }),
-    ]);
+        messages,
+        expectedKeyCaptureRevision: f.keyCaptureRevision,
+        expectedUpstreamBaseUrl: f.upstreamBaseUrl,
+        expectedPort: f.port,
+      });
+    };
+    const [a, b] = await Promise.all([forkWithFreshFacts(editedA), forkWithFreshFacts(editedB)]);
     expect(a.id).not.toBe(b.id);
     expect(fixture.behavior.forkWriteCalls).toBe(2);
     const recordA = fixture.repository.loadRunRecord(a.id);
@@ -273,6 +292,7 @@ describe("U4 2.10 主动重发的请求局部身份", () => {
         parentRunId: fixture.parentId,
         atSpanId: fixture.atSpanId,
         messages: fixture.edited,
+        ...fixture.expected,
       })
       .catch((e: unknown) => e);
     expect(error).toBeInstanceOf(ProxyForkError);
@@ -298,10 +318,16 @@ describe("U4 2.10 主动重发的请求局部身份", () => {
     await res.text();
     await new Promise((resolve) => setTimeout(resolve, 30));
 
+    // 上面那次被动请求又捕获了一次 Authorization ⇒ 捕获版本已推进，
+    // 提交必须带**当刻**事实（withParent 时取的那份已经旧了）。
+    const facts = fixture.manager.status();
     const { id } = await fixture.manager.fork({
       parentRunId: fixture.parentId,
       atSpanId: fixture.atSpanId,
       messages: fixture.edited,
+      expectedKeyCaptureRevision: facts.keyCaptureRevision,
+      expectedUpstreamBaseUrl: facts.upstreamBaseUrl,
+      expectedPort: facts.port,
     });
     expect(id).toBe(fixture.behavior.forkIds[0]);
     expect(fixture.repository.loadRunRecord(id).meta.parent).toBe(fixture.parentId);

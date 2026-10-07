@@ -176,3 +176,48 @@ spec 要求「回读期间显示核对中……不把未知判为未捕获」。
 
 typecheck 双0 绿；`biome check apps packages scripts` 584 文件 0 错；`git diff --check` 绿；
 desktop 全量 **178 文件 / 2866 用例全绿、0 未处理错误**（基线 176/2835，+2 文件 +31 用例）。
+
+## D9. 实施期核实结论（tasks 2.2a–2.2b，2026-10-07）
+
+D2 写了「确认绑定监听/上游配置、凭据捕获版本…」。落地时有三处与提案字面不同。
+
+### 1. 🔴 「捕获版本」不能复用 `revision`，必须是独立的 `keyCaptureRevision`
+
+`revision` 在**监听启停、恢复完成/失败**时也推进。若拿它当凭据判据，「开关一次代理」会
+作废所有执行确认——而凭据压根没变。定案：新增 `ProxyState.keyCaptureRevision`（仅内存的
+捕获次数，捕获/更换时推进），`revision` 保持原义。它**不是 key 指纹、不含 key material、
+不持久化**（重启后 main 不恢复 key，`hasKey` 同时为 false，版本回 0 是事实而非静默回退）。
+
+`settingsStampOf` 相应新增两个维度：代理目标（`upstreamBaseUrl#port`）与捕获版本。
+
+### 2. 🔴 版本核对必须比 `status()` 而不是 `settings.loadProxy()`
+
+`status().port` 在运行中返回**实际监听端口**，而保存值可能是 `0`（由系统分配）或旧端口
+——两者在**正常运行时就不相等**。第一版拿保存值比，结果每一次正常重发都被误判成
+`PROXY_CONFIG_CHANGED`（测试直接红）。定案：与 renderer 同源，比 `this.status()`。
+
+失配检查的位置也定死了：放在**读父本之前**。它是纯内存比较，不碰磁盘也不碰上游，
+顺带不泄露父本 id 是否存在。代价是它排在 `PROXY_NO_KEY` / `PROXY_PARENT_INVALID`
+**之前**，所以测试这些门禁的用例必须带上与当刻一致的预期值，否则测到的会是版本失配
+而不是想测的那一层（这条已写进 `proxy.test.ts` 与 `controlled-proxy.test.ts` 的注释）。
+
+### 3. 🔴 fork 自身会推进捕获版本 ⇒ 同一个预期不能用于两笔并发提交
+
+`proxy:fork` 走的是与被动录制**同一条**转发+录制路径，会再次捕获 Authorization ⇒
+推进捕获版本。于是「两笔真并发 fork 都拿 `withParent` 时取的同一份预期」里，第二笔会被
+正确地拒掉。`proxy-fork-identity.test.ts` 的并发用例因此改为**每笔在发起那一刻重取事实**——
+那两条要测的是身份隔离，不是版本竞争。这不是绕过门禁，是把两件事分开测。
+
+### 4. 测试夹具的一条硬约束（2.2a踩到）
+
+伪造 main 事实时，`revision` 与 `keyCaptureRevision` 必须**自洽**。第一版只推进捕获版本、
+把 `revision` 留在 0，于是通知声明 `revision=9` 而状态响应 `revision=0` —— 2.1 的快照
+新旧守卫**正确地**把它判成"迟到的旧快照"整份丢弃，症状是"确认怎么没被撤销"。
+拦住你的不是 bug，是你自己造的矛盾。
+
+### 5. 本轮质量基线
+
+typecheck 双 0 绿；`biome check apps packages scripts` 587 文件 0 错；`git diff --check` 绿；
+desktop 全量 **181 文件 / 2881 用例**（2.2a 基线 180/2884，2.2b 新增 `proxy-fork-version-race`
+6 条并把 `proxy.test.ts` 等 7 处调用点补齐预期字段）。变异验证：拿掉捕获版本 ⇒ 精确 1 条红；
+拿掉两道 main 侧版本核对 ⇒ 5 条红、只剩「正常路径」那条。

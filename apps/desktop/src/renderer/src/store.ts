@@ -3560,9 +3560,21 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   async proxyFork(parentRunId, atSpanId, messages, submission) {
     set({ forking: "in_progress", forkError: null, forkErrorCode: null });
+    // tasks 2.2b：把**提交这一刻**看到的代理事实随请求带上，供main 在副作用前核对。
+    // renderer 的门禁只是 UX：确认到提交之间外部应用随时可能经过代理捕获新 key，
+    // 也可能有人改了代理配置——那两种都必须由 main 拒绝，而不是靠这里"应该已经不旧了"。
+    // ⚠️ 状态未知（proxy=null）时不编造版本：交0/空串让main 拒绝，这比"猜一个放行"安全。
+    const proxy = get().proxy;
     const envelope = await submitActive(
       api.proxyFork,
-      { parentRunId, atSpanId, messages },
+      {
+        parentRunId,
+        atSpanId,
+        messages,
+        expectedKeyCaptureRevision: proxy?.keyCaptureRevision ?? 0,
+        expectedUpstreamBaseUrl: proxy?.upstreamBaseUrl ?? "",
+        expectedPort: proxy?.port ?? 0,
+      },
       submission,
     );
     // U3 任务 3.4：已明确返回即收尾本次提交关联（草稿保留，见 design D5）

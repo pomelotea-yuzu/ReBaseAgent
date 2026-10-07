@@ -168,6 +168,11 @@ describe("U4 1.3 一次 parse 的不可变业务快照", () => {
       parentRunId: "run_p",
       atSpanId: "s1",
       messages: [{ role: "user", content: "原话" }],
+      // tasks 2.2b：预期代理事实三项必填。它们在末尾被一并篡改/改写，
+      // 用来证明"整棵输入的快照都不受原始 payload 事后改写影响"。
+      expectedKeyCaptureRevision: 0,
+      expectedUpstreamBaseUrl: "https://upstream.test/v1",
+      expectedPort: 18787,
     };
     const parsed = parseBusinessRequest(
       fingerprinter(),
@@ -183,6 +188,7 @@ describe("U4 1.3 一次 parse 的不可变业务快照", () => {
     if (firstMessage === undefined) throw new Error("unreachable：构造的 messages 必有首项");
     firstMessage.content = "事后篡改";
     raw.parentRunId = "run_other";
+    raw.expectedKeyCaptureRevision = 99;
     expect(parsed.request.fingerprint).toBe(before);
     expect(parsed.request.value).toEqual(snapshotValue);
     // 同一份快照重算指纹 ⇒ 与登记时一致（指纹与执行同源）
