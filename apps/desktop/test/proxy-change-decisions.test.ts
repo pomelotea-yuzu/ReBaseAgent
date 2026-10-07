@@ -259,6 +259,7 @@ describe("夹具自检：本文件用的状态夹具确实过 schema", () => {
       "enabled",
       "epoch",
       "hasKey",
+      "keyCaptureRevision",
       "port",
       "recordsRevision",
       "revision",

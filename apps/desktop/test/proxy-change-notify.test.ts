@@ -223,6 +223,7 @@ describe("通知载荷只包含受控元信息", () => {
       "enabled",
       "epoch",
       "hasKey",
+      "keyCaptureRevision",
       "port",
       "recordsRevision",
       "revision",

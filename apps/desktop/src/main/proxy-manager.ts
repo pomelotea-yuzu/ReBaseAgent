@@ -101,6 +101,17 @@ export class ProxyManager {
   /** 记录 revision：**仅成功落盘**推进（recorder.write 抛错时不推进，design D4） */
   private recordsRevision = 0;
   /**
+   * 凭据捕获版本（design D2）：**仅内存的捕获次数**，捕获/更换 key 时推进。
+   *
+   * ⚠️ 刻意与 `revision` 分开成两个字段：`revision` 也在监听启停、恢复完成时推进，
+   * 把它当"凭据换过了"的判据会让**开关代理**作废执行确认（凭据其实没变）。
+   * 捕获版本只回答"key 换没换过"——这正是「用谁的钱重发」这一项。
+   *
+   * 不持久化：重启后 main 不恢复 key，版本回到 0 是事实（`hasKey` 同时为 false），
+   * 不是"静默回退"。
+   */
+  private keyCaptureRevision = 0;
+  /**
    * 变化通知订阅者。载荷是**不可变快照**，订阅者拿到后无法回写内部状态。
    * 通知本身不抛错（订阅者出错只吞掉自己那一份），更不能影响转发路径。
    */
@@ -177,6 +188,7 @@ export class ProxyManager {
       epoch: this.epoch,
       revision: this.revision,
       recordsRevision: this.recordsRevision,
+      keyCaptureRevision: this.keyCaptureRevision,
     };
   }
 
@@ -234,6 +246,10 @@ export class ProxyManager {
       // 因为"是否换 key"由桌面侧的捕获版本与 renderer 确认绑定负责判断，
       // 这里只负责"发生过捕获"这一事实。
       onAuthorizationCaptured: () => {
+        // 捕获版本与状态 revision 同时推进：前者回答"key 换没换过"，
+        // 后者回答"有没有事实变化"。两者都推进才能让 renderer 既刷新门禁
+        // 又作废绑在旧凭据上的执行确认（design D2）。
+        this.keyCaptureRevision += 1;
         this.notifyStatus();
       },
       recorder: {

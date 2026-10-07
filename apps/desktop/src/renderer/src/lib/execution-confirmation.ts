@@ -100,7 +100,10 @@ export function decideConfirmation(
     return { kind: "stale", reason: "检查已重新进行：那份响应属于上一次检查，不能沿用" };
   }
   if (stored.settingsStamp !== binding.settingsStamp) {
-    return { kind: "stale", reason: "运行配置已变化：模型、地址或代理凭据与确认时不同" };
+    return {
+      kind: "stale",
+      reason: "运行配置或凭据已变化：模型、地址、代理目标或捕获的凭据与确认时不同",
+    };
   }
   if (stored.revision !== binding.revision) {
     return { kind: "stale", reason: "输入已修改：确认绑的是当时那份修订" };
@@ -119,11 +122,26 @@ function sameBinding(a: ConfirmationBinding, b: ConfirmationBinding): boolean {
 }
 
 /**
- * 设置快照指纹：确认信息里出现过的**运行配置**变了，确认就作废。
+ * 运行配置快照指纹：确认信息里出现过的**运行配置**变了，确认就作废。
  *
  * 只取会影响"这次会打到哪儿、花谁的钱"的字段：模型、baseURL、是否已配置、
- * 代理是否在跑与是否已捕获 key。**刻意不含** apiKey 与加密状态——指纹会进日志风险面，
- * 而且"key 换了"在渲染层不可观察（单向存储，读不回明文）。
+ * 代理是否在跑、代理打到哪里（upstream/端口）、以及**凭据捕获版本**。
+ *
+ * ⚠️ 刻意不含 apiKey 与加密状态——指纹会进日志风险面。tasks 2.2a 之后
+ * "key 换了"**在渲染层可观察**了，但观察到的也只是**捕获次数**：
+ * `keyCaptureRevision` 是 main 内存里的计数（design D2），不含 key material。
+ *
+ * 🔴 为什么必须绑 `keyCaptureRevision`（2.2a 的实质修复）：`hasKey` 是布尔，
+ * `true → true` 的**凭据更换**在指纹上完全不可见——于是"用旧 key 核对过"这条
+ * 确认会一直有效，而这次重发实际花的是新 key 的钱。只绑 `hasKey` 等于
+ * 没绑"花谁的钱"。
+ *
+ * ⚠️ 为什么**不能**用 `revision` 代替它：`revision` 也在监听启停/恢复完成时推进，
+ * 拿它当凭据判据会让"开关一次代理"作废所有执行确认（凭据压根没变）。
+ *
+ * ⚠️ 为什么也不能用 epoch/revision 判断"重复读取"：`proxy:status` 每读一次
+ * 都返回同一组语义值，纯函数算出的指纹因此逐字相同 ⇒ **重复只读核对不会撤销
+ * 确认**（delta「重复只读核对不撤销未变化的确认」）。
  */
 export function settingsStampOf(input: {
   settings: SettingsState | null;
@@ -135,7 +153,12 @@ export function settingsStampOf(input: {
     settings?.model ?? "-",
     settings?.baseURL ?? "-",
     proxy === null ? "proxy-unread" : proxy.running ? "proxy-on" : "proxy-off",
+    // 代理目标（2.2a）：running 相同但 upstream/端口换了，重发就打去别处 ⇒ 必须作废。
+    // 未运行时这两项无意义（没有可打的upstream），但照样纳入：读到的就是读到的。
+    proxy === null ? "-" : `${proxy.upstreamBaseUrl}#${proxy.port}`,
     proxy?.hasKey === true ? "key" : "nokey",
+    // 凭据捕获版本（2.2a）：`hasKey` 之外的第二维，同样 true 的 key 更换靠它。
+    proxy === null ? "cap-unread" : `cap${proxy.keyCaptureRevision}`,
   ].join("|");
 }
 

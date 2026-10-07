@@ -496,6 +496,18 @@ export const ProxyStateSchema = z.object({
    * renderer 用它判断"订阅前/失焦期间是否漏了记录"，进而补读列表。
    */
   recordsRevision: z.number().int().min(0),
+  /**
+   * 凭据捕获版本：**仅内存的捕获次数**（design D2），捕获/更换 key 时单调推进。
+   *
+   * ⚠️ 它**不是** key 指纹、不是凭据值：渲染层拿到它只能知道"凭据又换过"，
+   * 无法反推任何 key  material（llm-proxy delta「状态回读只含 hasKey 与捕获
+   * 版本，不含 key、headers、messages」）。
+   *
+   * 存在的理由：`hasKey` 是布尔，同样 `hasKey=true` 的**更换**不会改变它——
+   * 而"用哪个 key 重发"直接决定这次花谁的钱，执行确认必须能因此失效。
+   * 它也**不持久化**：重启后 main 不恢复 key，捕获版本回到 0 是事实而非回退。
+   */
+  keyCaptureRevision: z.number().int().min(0),
 });
 export type ProxyState = z.infer<typeof ProxyStateSchema>;
 

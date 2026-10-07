@@ -20,6 +20,8 @@ export const FAKE_PROXY_EPOCH = "proxy-epoch-0001";
 /** 默认版本事实：尚未捕获凭据、无落盘记录 */
 export const DEFAULT_PROXY_REVISION = 0;
 export const DEFAULT_PROXY_RECORDS_REVISION = 0;
+/** 默认捕获版本：一次都没捕获过凭据 */
+export const DEFAULT_KEY_CAPTURE_REVISION = 0;
 
 export function proxyStateFixture(overrides?: Partial<ProxyState>): ProxyState {
   return {
@@ -31,6 +33,7 @@ export function proxyStateFixture(overrides?: Partial<ProxyState>): ProxyState {
     epoch: FAKE_PROXY_EPOCH,
     revision: DEFAULT_PROXY_REVISION,
     recordsRevision: DEFAULT_PROXY_RECORDS_REVISION,
+    keyCaptureRevision: DEFAULT_KEY_CAPTURE_REVISION,
     ...overrides,
   };
 }
