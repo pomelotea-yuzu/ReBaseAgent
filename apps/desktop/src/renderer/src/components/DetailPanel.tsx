@@ -463,6 +463,8 @@ function PromptForkEditor({
           <div className="mb-0.5 text-[10px] font-medium text-gray-500">原值（只读）</div>
           <MonacoCodeEditor
             height="140px"
+            data-monaco-host="prompt-original"
+            data-monaco-target={`${run.meta.id}:${span.id}:${field}`}
             language="plaintext"
             value={original ?? ""}
             options={{
@@ -483,6 +485,8 @@ function PromptForkEditor({
           <div className="mb-0.5 text-[10px] font-medium text-emerald-700">草稿（可编辑）</div>
           <MonacoCodeEditor
             height="140px"
+            data-monaco-host="prompt-draft"
+            data-monaco-target={`${run.meta.id}:${span.id}:${field}`}
             language="plaintext"
             value={value}
             onChange={(next) => writeCallDraftText(draftKeyOf(field), next ?? "")}
@@ -1286,6 +1290,8 @@ function ForkEditor({
           <div className="mb-0.5 text-[10px] font-medium text-gray-500">原值（只读）</div>
           <MonacoCodeEditor
             height="140px"
+            data-monaco-host="tool-result-original"
+            data-monaco-target={`${run.meta.id}:${span.id}:tool_result`}
             language={language}
             value={original}
             options={{
@@ -1306,6 +1312,8 @@ function ForkEditor({
           <div className="mb-0.5 text-[10px] font-medium text-violet-700">草稿（可编辑）</div>
           <MonacoCodeEditor
             height="140px"
+            data-monaco-host="tool-result-draft"
+            data-monaco-target={`${run.meta.id}:${span.id}:tool_result`}
             language={language}
             value={value}
             onChange={(next) => {

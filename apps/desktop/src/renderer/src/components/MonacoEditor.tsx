@@ -17,8 +17,9 @@
  *    （source 级）与 `MonacoFallback` 的静态渲染；真实加载时机归 7.x CDP。
  */
 
-import { createElement, lazy, useEffect, useState } from "react";
+import { createElement, lazy, useCallback, useEffect, useRef, useState } from "react";
 import type { ComponentProps } from "react";
+import { classifyHost, layoutRecoveryAction, recoveryNotice } from "../lib/editor-recovery";
 
 /**
  * 加载中/失败时显示的占位（不含任何 monaco 依赖）。
@@ -97,57 +98,197 @@ let editors: ReturnType<typeof lazy<EditorsModule["CodeEditor"]>> | null = null;
  *    `loaded === false` 时直接渲染占位，在 `useEffect` 里 import 成功后置位。静态渲染下
  *    useEffect 不跑 ⇒ 稳定得到占位，结构断言可预测；真实运行下加载完成后正常渲染编辑器。
  */
-export function MonacoCodeEditor(props: CodeEditorProps) {
-  const [loaded, setLoaded] = useState(false);
+/**
+ * 懒 chunk 的加载态机：`loading | ready | failed`。
+ *
+ * 🔴 **本轮（任务 4.2）修掉的真实缺陷**：原实现只有 `loaded: boolean` 且
+ * `import("./MonacoEditors").then()` **没有 `.catch`** ⇒ chunk 加载失败（离线资源缺失、
+ * 路径改名、chunk 404）会永远停在 `MonacoFallback` 的「正在加载编辑器…」，
+ * 用户看到的字面是"还在加载"，唯一出口是重启应用——**直接违反 spec**
+ * 「加载/恢复失败 SHALL 有明确占位与本地恢复动作，不以重启为唯一出口」。
+ *
+ * 重试语义（design D5）：**只重试这一个编辑器**——重跑 chunk import，不动草稿、
+ * 不恢复旧确认许可、不调用模型、不重挂整棵子树。
+ */
+type LoadState = "loading" | "ready" | "failed";
+
+function useLazyEditors(loader: () => Promise<unknown>): [LoadState, () => void] {
+  const [state, setState] = useState<LoadState>("loading");
+  // 每次重试递增；effect 依赖它 ⇒ 重试即重跑 import
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let alive = true;
-    void import("./MonacoEditors").then(() => {
-      if (alive) setLoaded(true);
-    });
+    setState("loading");
+    loader().then(
+      () => {
+        if (alive) setState("ready");
+      },
+      (e: unknown) => {
+        if (alive) setState("failed");
+        // 失败原因落进控制台便于真机取证；**不弹窗、不写盘**（诊断走既有日志通道）
+        console.error("[monaco] 编辑器懒加载失败", e);
+      },
+    );
     return () => {
       alive = false;
     };
-  }, []);
-  if (!loaded)
-    return (
-      <MonacoFallback
-        height={props.height}
-        testId={(props as Record<string, string>)["data-testid"]}
-        extra={editorAttrs(props as Record<string, unknown>)}
-      />
-    );
-  return createElement(LazyCodeEditor(), {
-    ...props,
+  }, [loader, attempt]);
+
+  const retry = useCallback(() => setAttempt((n) => n + 1), []);
+  return [state, retry];
+}
+
+/** 加载失败的占位 + 就地重试入口（spec「恢复失败可见且能就地重试」）。 */
+function MonacoLoadFailure({
+  testId,
+  extra,
+  height,
+  onRetry,
+}: {
+  readonly height?: number | string;
+  readonly testId?: string;
+  readonly extra?: Record<string, unknown>;
+  readonly onRetry: () => void;
+}) {
+  const notice = recoveryNotice("编辑器资源未能加载");
+  return (
+    <div
+      {...extra}
+      data-testid={testId}
+      data-monaco-failed="true"
+      className="flex flex-col items-start justify-center gap-1 rounded border border-amber-300 bg-amber-50 p-2 text-[11px] text-amber-900"
+      style={{ height: height ?? 160 }}
+    >
+      <span className="font-medium">{notice.title}</span>
+      <span className="leading-4">{notice.detail}</span>
+      <button
+        type="button"
+        data-monaco-retry="true"
+        onClick={onRetry}
+        className="mt-0.5 rounded border border-amber-400 bg-white px-2 py-0.5 text-amber-900 hover:bg-amber-100"
+      >
+        {notice.action}
+      </button>
+    </div>
+  );
+}
+
+/**
+ * 把调用方给的可寻址身份（`data-monaco-host` / `data-monaco-target`）透出。
+ *
+ * 🔴 **为什么必须有锚点**（评审 2026-10-06 的原话）：
+ * 「单凭选择器命中某个零尺寸节点不能确认可见编辑器塌缩」。monaco 0.56 在页面里
+ * 合法存在 0×0 节点（inline diff 的隐藏侧、EditContext 隐藏输入面），
+ * 全页扫 `.monaco-editor` 必然误报。锚点让"哪个编辑器属于哪个目标"可判定。
+ */
+function hostIdentity(props: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const key of ["data-monaco-host", "data-monaco-target"]) {
+    const v = props[key];
+    if (typeof v === "string") out[key] = v;
+  }
+  return out;
+}
+
+/**
+ * 尺寸恢复接线（design D5）。
+ *
+ * 观察**锚点宿主自身**的边框盒；只在"从零尺寸恢复到有空间"那一刻调一次
+ * `editor.layout()`。两点纪律：
+ *   - `layoutRecoveryAction` 在空间未真正回来时返回 null ⇒ 观察回调不自激，
+ *     避免"每帧 layout"的重建风暴；
+ *   - cleanup 必须 `disconnect()`（design D5 点名"清理 observer，不循环重建"）。
+ *
+ * ⚠️ 观察的是**我们的宿主 div**，不是 monaco 内部节点：观察 `.monaco-editor`
+ * 会命中 0.56 的 0×0 尺寸探针（伪值）。
+ */
+function useSizeRecovery(
+  hostRef: React.RefObject<HTMLDivElement | null>,
+  editorRef: React.RefObject<{ layout: () => void } | null>,
+): void {
+  const last = useRef<{ offsetW: number; offsetH: number }>({ offsetW: 0, offsetH: 0 });
+  useEffect(() => {
+    const el = hostRef.current;
+    if (el === null) return;
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => {
+      const before = last.current;
+      const after = { offsetW: el.offsetWidth, offsetH: el.offsetHeight };
+      last.current = after;
+      if (layoutRecoveryAction(before, after) === "relayout") {
+        editorRef.current?.layout();
+      }
+    });
+    observer.observe(el);
+    // 初始尺寸记一次：否则首次挂载就有空间时，"折叠再展开"会被误当成
+    // "从零恢复"而多调一次 layout
+    last.current = { offsetW: el.offsetWidth, offsetH: el.offsetHeight };
+    return () => observer.disconnect();
+  }, [hostRef, editorRef]);
+}
+
+export function MonacoCodeEditor(props: CodeEditorProps) {
+  const [state, retry] = useLazyEditors(useCallback(() => import("./MonacoEditors"), []));
+  const hostRef = useRef<HTMLDivElement | null>(null);
+  const editorRef = useRef<{ layout: () => void } | null>(null);
+  useSizeRecovery(hostRef, editorRef);
+
+  const testId = (props as Record<string, string>)["data-testid"];
+  const attrs = {
     ...editorAttrs(props as Record<string, unknown>),
-    ...behaviorProps(props as Record<string, unknown>),
-  });
+    ...hostIdentity(props as Record<string, unknown>),
+  };
+
+  if (state === "failed")
+    return <MonacoLoadFailure height={props.height} testId={testId} extra={attrs} onRetry={retry} />;
+  if (state === "loading")
+    return <MonacoFallback height={props.height} testId={testId} extra={attrs} />;
+
+  // 就绪态：外层 div 是**锚点宿主**（承载尺寸观察 + 身份锚点），编辑器在里面。
+  // ⚠️ 不能省掉这层 div——没有稳定宿主就既无法观察尺寸也无法判定可见性。
+  return createElement(
+    "div",
+    {
+      ref: hostRef,
+      className: (props as Record<string, string>).className,
+      style: { height: props.height ?? 160 },
+      ...attrs,
+    },
+    createElement(LazyCodeEditor(), {
+      ...props,
+      ...attrs,
+      ...behaviorProps(props as Record<string, unknown>),
+      // 尺寸恢复需要 editor 实例；同时**保留调用方的 onMount**（U2 4.5 的接线契约：
+      // 差异导航/查找靠它拿实例，漏掉就是"纯逻辑写好、接线少一支"）
+      onMount: (editor: unknown, monaco: unknown) => {
+        editorRef.current = editor as { layout: () => void };
+        const upstream = (props as Record<string, unknown>).onMount;
+        if (typeof upstream === "function") {
+          (upstream as (e: unknown, m: unknown) => void)(editor, monaco);
+        }
+      },
+    }),
+  );
 }
 
 let diffEditors: ReturnType<typeof lazy<EditorsModule["DiffCodeEditor"]>> | null = null;
 
 /** 懒加载的 `<DiffEditor>` 直替，同上。 */
 export function MonacoDiffEditor(props: DiffCodeEditorProps) {
-  const [loaded, setLoaded] = useState(false);
-  useEffect(() => {
-    let alive = true;
-    void import("./MonacoEditors").then(() => {
-      if (alive) setLoaded(true);
-    });
-    return () => {
-      alive = false;
-    };
-  }, []);
-  if (!loaded)
-    return (
-      <MonacoFallback
-        height={props.height}
-        testId={(props as Record<string, string>)["data-testid"]}
-        extra={editorAttrs(props as Record<string, unknown>)}
-      />
-    );
+  const [state, retry] = useLazyEditors(useCallback(() => import("./MonacoEditors"), []));
+  const testId = (props as Record<string, string>)["data-testid"];
+  const attrs = {
+    ...editorAttrs(props as Record<string, unknown>),
+    ...hostIdentity(props as Record<string, unknown>),
+  };
+
+  if (state === "failed")
+    return <MonacoLoadFailure height={props.height} testId={testId} extra={attrs} onRetry={retry} />;
+  if (state === "loading") return <MonacoFallback height={props.height} testId={testId} extra={attrs} />;
+
   return createElement(LazyDiffEditor(), {
     ...props,
-    ...editorAttrs(props as Record<string, unknown>),
+    ...attrs,
     ...behaviorProps(props as Record<string, unknown>),
   });
 }

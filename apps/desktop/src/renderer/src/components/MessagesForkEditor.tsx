@@ -261,6 +261,8 @@ export function MessagesForkEditor({
           <div className="mb-0.5 text-[10px] font-medium text-gray-500">原值（只读）</div>
           <MonacoCodeEditor
             height="200px"
+            data-monaco-host="messages-original"
+            data-monaco-target={`${run.meta.id}:${span.id}:messages`}
             language="json"
             value={messagesBaseline}
             options={{
@@ -281,6 +283,8 @@ export function MessagesForkEditor({
           <div className="mb-0.5 text-[10px] font-medium text-sky-700">草稿（可编辑）</div>
           <MonacoCodeEditor
             height="200px"
+            data-monaco-host="messages-draft"
+            data-monaco-target={`${run.meta.id}:${span.id}:messages`}
             language="json"
             value={value}
             onChange={(next) => writeCallDraftText(draftKey, next ?? "")}

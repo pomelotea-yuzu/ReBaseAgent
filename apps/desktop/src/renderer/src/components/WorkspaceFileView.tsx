@@ -1556,6 +1556,7 @@ function FileContent({
         >
           <MonacoCodeEditor
             height="min(60vh, 640px)"
+            data-monaco-host="file-single-side"
             language={detectFileLanguage(readableSide === "left" ? sides.left : sides.right)}
             value={(readableSide === "left" ? sides.left : sides.right) ?? ""}
             onMount={onSingleSideMount}
@@ -1703,6 +1704,7 @@ function FileContent({
       <div className="mx-4 mb-4 overflow-hidden rounded border border-gray-200">
         <MonacoDiffEditor
           data-testid="diff-editor"
+          data-monaco-host="file-diff"
           height="min(60vh, 640px)"
           language={detectFileLanguage(sides.right ?? sides.left)}
           original={leftMissing ? "" : (sides.left ?? "")}

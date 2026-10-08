@@ -660,6 +660,8 @@ export function CompareWorkspaceView({
         <div className="min-h-0 flex-1 overflow-hidden p-2" data-testid="compare-diff-panel">
           <MonacoDiffEditor
             height="100%"
+            data-monaco-host="compare-diff"
+            data-monaco-target={`${left.runId}:${right.runId}:text-diff`}
             original={diffGate.leftText}
             modified={diffGate.rightText}
             options={{ readOnly: true, renderSideBySide: true }}
