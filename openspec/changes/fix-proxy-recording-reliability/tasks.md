@@ -46,6 +46,20 @@
 
 ## 5. 验收与归档准备
 
-- [ ] 5.1 Electron 实机跑外部录制→自动列表→当前凭据→重发编辑、成功/失败重启与错误概览链路，更新 evidence-index。（本 change 全部场景）
-- [ ] 5.2 跑受影响包/desktop 测试、typecheck、build、Biome 与 OpenSpec strict；核对全部场景映射和当前文档，不把草案或未复现项写成已发布。（本 change 全部场景）
+- [x] 5.1 Electron 实机跑外部录制→自动列表→当前凭据→重发编辑、成功/失败重启与错误概览链路，更新 evidence-index。（本 change 全部场景）
+- [x] 5.2 跑受影响包/desktop 测试、typecheck、build、Biome 与 OpenSpec strict；核对全部场景映射和当前文档，不把草案或未复现项写成已发布。（本 change 全部场景）
 - [ ] 5.3 与 improve-workspace-reading-and-editing 合并后重跑可见编辑器恢复、当前凭据门禁、轮换/main 拒绝及确认失效；无论哪份 change 先合入，均登记最终组合的回归证据。（可见宿主恢复非零尺寸；恢复失败可见且能就地重试；打开重发即核对当前状态；捕获通知更新已打开编辑器；凭据轮换撤销旧确认；提交前版本变化由 main 拒绝）
+
+> **5.1/5.2 留痕（2026-10-08）**：
+> - **5.1 实机四段全绿**（`apps/desktop/scripts/proxy-51-cdp.cjs` + `.workbuddy/proxy-51/run-all.cjs`，
+>   4 tag / **64 条检查全过**，截图 8 张）：`chain`（S1–S8 代理链路）+ `restart-success` /
+>   `restart-failure` / `restart-off`（三段各一次**真重启**，覆盖恢复成功/失败/停用）。
+> - **5.2 门禁**：`check:build` ✓、typecheck 双 0 ✓、desktop 全量 **190 文件 / 3002 用例全绿**
+>   （singleFork 独占；首跑 2 条 `controlled-sse-fixtures` 红，单包复跑 11/11 绿、二次独占全量全绿
+>   ⇒ 时序 flake，与本轮零源码改动无关）、Biome **604 文件** 0 错、`diff --check` 绿、
+>   **OpenSpec strict 3/3**（全局 CLI `1.13.1` 终于可用，解掉 §4 欠的 strict 复核）。
+> - **5.3 客观阻塞（非本轮可解）**：`improve-workspace-reading-and-editing` 仍 **0/20** 任务实施
+>   （已按 `[x]`/`[ ]` 计数核实）⇒ "合并后重跑"没有可合并的另一侧。其 tasks 4.4 承载的是
+>   **单向**依赖（"合入可靠性 change 后重跑"），而 `review.md:39` 指出本 change 缺对称任务——
+>   5.3 就是那个对称任务，**触发条件 = 另一 change 落地后**，届时按本轮同一 harness 重跑。
+>   ⚠️ 不得据此声称"已合并验证"。

@@ -455,3 +455,63 @@ desktop 全量 **190 文件 / 3001 用例**全绿（§3 基线 188/2965，新增
 `editor-recovery.test.ts` 19 条 + `editor-load-failure.test.tsx` 18 条）。
 变异验证五处全被咬住：零尺寸判 failed ⇒ 2 红；去掉祖先塌断点判据 ⇒ 1 红；
 空间未回来也 relayout ⇒ 2 红；删掉 `setState("failed")` ⇒ 2 红；依赖数组加回 `loader` ⇒ 2 红。
+
+## D13. 实施期核实结论（tasks 5.1–5.2，2026-10-08）
+
+### 1. 本轮**零产品缺陷**：三次红全部是探针自身的 bug，且每一个都先被误读成"产品坏了"
+
+5.1 首跑 97 条检查里 3 条红。逐个核实后**全部是探针错**，产品行为是对的——
+这本身就是最该记的一条：**探针红不等于产品红，先定位是谁的错再动代码**。
+
+| 现象 | 真实原因（已核实） | 修法 |
+| --- | --- | --- |
+| 「代理没真监听」：`toggleProxy` 后读到的 `enabled:false`/`running:false` | 🔴 `storeQ` 在表达式开头做 `const s = getState()`，那是**快照对象**；`toggleProxy` 的 `set({proxy})` 换上的是**新对象** ⇒ 之后读 `s.proxy` 拿到的仍是调用前的旧值 | await 之后**重新** `getState()` |
+| 外部请求 `resp.status` 是 `undefined` | Node 的 `IncomingMessage` **没有 `status` 属性**（那是 fetch `Response` 的），只有 `statusCode` | 读 `res.statusCode` |
+| 「旧形态失败不给诚实缺失提示」 | 🔴 **判据分层错**：`ErrorDetailNotice`（"错误详情未记录"横幅）只挂在**步骤页/文件页**（`DetailPanel.tsx:2008` / `WorkspaceFilesPanel.tsx:102`），**概览页根本没有它**；概览走的是 `presentLlmError` 的 `missing` 分支 | 拆成两条判据：概览查 missing 说明 + 无定位入口；步骤页查横幅 |
+
+第二条与 UI-VERIFY 记的「store 在导入时即捕获 `api` 引用」同族，但**换的是状态对象本身**，
+更隐蔽：`s.proxy` 不报错、不 undefined，只是**安静地旧着**。
+
+### 2. 实机唯一不可注入的两处，写死边界（别再试）
+
+① **`proxy:status` 的失败信封无注入面**：main handler 是纯读函数（`() => ok(proxy.status())`），
+无 fail 路径；`loadProxy` 全容错；真实乱序也无法在毫秒级 IPC 上稳定制造
+⇒ 「迟到读取不能覆盖新事实」的实机半边**不存在**，只到判据层 + store 层。
+② **「核对中」/「恢复中」两个中间态采不到**：都是毫秒级窗口，无延迟注入面。
+实机只验**终态 + 就地翻转**（这才是用户可观测的那半），中间态由
+`proxy-status-store` / `messages-eligibility` / `proxy-recovery-view` 三组用例承载。
+
+### 3. 实机编排的三条手法（下次直接抄）
+
+- **真重启才能验恢复**：`restart-success`/`restart-failure`/`restart-off` 三段各自
+  **停 dev → 改/留 settings → 起 dev**（`stopDevVerified()` 以「9612 真空出」为唯一判据——
+  `stop exit=0` 是假成功信号）。段间靠 settings 的 `enabled` 传递前提，**不靠内存**。
+- **跨进程资源释放用握手**：端口占位 server 在编排进程内，探针（子进程）无法直接释放
+  ⇒ 探针写 `release-port.request`，编排每 400ms 轮询释放后写 `done`，探针等 `done`。
+  这比让探针 spawn 占位更简单，也避免两个进程抢同一端口。
+- **注入面只走真实上游剧本**：失败场景一律用 `mock-llm` 的 `mode:"fail"` + `status`，
+  **不做页内 hook**（编辑器那半已证实被 vite `__vitePreload` 绕过，见 D8.4）。
+
+### 4. 🔴 openspec CLI 终于可用 ⇒ §4 欠的 strict 复核已补
+
+`/d/npm-global/openspec.cmd`（**1.13.1**）可直接跑 `validate --changes --strict --no-interactive`，
+输出逐 change ✓ 与 `Totals: N passed, M failed`。本轮 **3/3 全过**，解掉 10-08 之前
+"npx 缓存里的 `bin/openspec.js` 已不在 ⇒ strict 尚欠"这条欠账。
+⚠️ `package.json` 的 `check:spec` 仍写 `npx -y @fission-ai/openspec@1.12.0`（走网络、版本落后），
+本机门禁直接用全局 `.cmd`；这条脚本口径归后续清理。
+
+### 5. 全量测试的时序 flake（别当回归）
+
+首跑 desktop 全量 190 文件里有 **2 条** `controlled-sse-fixtures` 红（`served` 期望 10 得 0）。
+单包复跑 **11/11 绿**、二次独占全量 **3002 全绿**，且本轮**零源码改动**
+⇒ 时序 flake（该文件含 `delayedInFlight` 的 5s 延迟断言 + 60s 用例预算，
+190 文件 singleFork 串行下超时/时序敏感）。**判据：先单包复跑再下"回归"结论。**
+
+### 6. 本轮质量基线（5.1/5.2）
+
+`pnpm check:build` ✓（4 包）；`pnpm check:typecheck` **双 0** ✓；
+desktop 全量 **190 文件 / 3002 用例全绿、0 失败**（singleFork 独占）；
+`biome check apps packages scripts` **604 文件** 0 错（§4 基线 603，+1 = 新探针脚本）；
+`git diff --check` 绿；**OpenSpec strict 3/3**。
+实机 **4 tag / 64 条检查全过**、截图 8 张；`settings.json` 的 `proxy` 节与 `Preferences`
+**sha256 逐字节还原**，fixture 已清、端口全部真空出。
