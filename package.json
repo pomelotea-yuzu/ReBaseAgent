@@ -23,7 +23,7 @@
     "check:typecheck": "pnpm --filter @rebaseagent/desktop typecheck",
     "check:test": "pnpm -r test",
     "check:lint": "biome check .",
-    "check:spec": "npx -y @fission-ai/openspec@1.12.0 validate --all --strict",
+    "check:spec": "node scripts/check-spec.mjs",
     "check:ci": "pnpm check:build && pnpm check:typecheck && pnpm check:test && pnpm check:lint && pnpm check:spec",
     "service:start": "node scripts/quiet-spawn-service.mjs ollama",
     "service:stop": "node scripts/quiet-spawn-service.mjs ollama --stop"

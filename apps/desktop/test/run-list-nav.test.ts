@@ -227,6 +227,14 @@ describe("接线：既有指标字段一个不删，源标签同步", () => {
     expect(src).toContain("run.cacheHit > 0");
   });
 
+  it("非正常结束且记录用量为 0 时，列表给出占位说明", () => {
+    const src = read("src/renderer/src/components/RunList.tsx");
+    expect(src).toContain('import { classifyOutcome } from "@shared/outcome"');
+    expect(src).toContain("!outcome.normalEnd");
+    expect(src).toContain("（可能为失败占位）");
+    expect(src).toContain("不据此断言实际零消费");
+  });
+
   it("产品源码与当前测试里没有遗留旧标签「本地直录 / 仅代理」", () => {
     for (const rel of [
       "src/renderer/src/components/RunList.tsx",

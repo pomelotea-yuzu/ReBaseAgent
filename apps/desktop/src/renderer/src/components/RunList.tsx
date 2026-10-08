@@ -1,4 +1,5 @@
 import { deriveNavLabel, filterRuns } from "@shared/nav";
+import { classifyOutcome } from "@shared/outcome";
 import { useEffect, useRef, useState } from "react";
 import { formatDuration, formatTime, formatTokens } from "../lib/format";
 import { NAV_MAX, NAV_MIN } from "../lib/layout";
@@ -236,6 +237,9 @@ export function RunList({
             time: formatTime(run.created_at),
             source: run.source === "proxy" ? "代理录制" : "本地记录",
           });
+          const outcome = classifyOutcome({ status: run.status, reason: run.reason });
+          const zeroUsageNeedsExplanation =
+            !outcome.normalEnd && run.tokensIn === 0 && run.tokensOut === 0;
           return (
             <div
               key={run.id}
@@ -297,7 +301,16 @@ export function RunList({
                   {run.toolErrors > 0 ? (
                     <span className="text-red-600">{run.toolErrors} 出错</span>
                   ) : null}
-                  <span>{formatTokens(run.tokensIn + run.tokensOut)} tokens</span>
+                  <span
+                    title={
+                      zeroUsageNeedsExplanation
+                        ? "记录用量为 0；这可能是失败调用的占位值，不据此断言实际零消费"
+                        : undefined
+                    }
+                  >
+                    {formatTokens(run.tokensIn + run.tokensOut)} tokens
+                    {zeroUsageNeedsExplanation ? "（可能为失败占位）" : ""}
+                  </span>
                   {/* run 级累计缓存命中：null = 无数据（未知，不显示）；0 = 实测零命中（照常显示） */}
                   {run.cacheHit === null ? null : (
                     <span
