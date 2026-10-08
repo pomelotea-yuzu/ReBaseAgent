@@ -112,14 +112,30 @@ let editors: ReturnType<typeof lazy<EditorsModule["CodeEditor"]>> | null = null;
  */
 type LoadState = "loading" | "ready" | "failed";
 
-function useLazyEditors(loader: () => Promise<unknown>): [LoadState, () => void] {
+/**
+ * 懒 chunk 的加载态机。
+ *
+ * ⚠️ 导出仅为可测：node 环境（本包无 jsdom）跑不了 effect 驱动的挂载，
+ * 状态机的三条分支（loading/ready/failed）与重试语义由测试直接驱动本 hook 验证；
+ * 组件层用 `renderToStaticMarkup` 断言失败占位的 DOM 契约。
+ * 生产路径不使用导出。
+ */
+export function useLazyEditors(loader: () => Promise<unknown>): [LoadState, () => void] {
   const [state, setState] = useState<LoadState>("loading");
   // 每次重试递增；effect 依赖它 ⇒ 重试即重跑 import
   const [attempt, setAttempt] = useState(0);
+  // ⚠️ `loader` 是**外部传入**的函数，把它放进 effect 依赖等于让"调用方每次渲染
+  // 新建函数"变成无限重载（父组件重渲染 ⇒ 新 loader 身份 ⇒ 重跑 import ⇒ 再重渲染…）。
+  // 生产调用点都用 `useCallback(() => import(...), [])` 稳定身份，但契约不该建立在
+  // "调用方记得包 useCallback"上 ⇒ 在此用 ref 固定**首次**那个 loader，身份变化不重载。
+  const loaderRef = useRef(loader);
+  // `attempt` 是**刻意的重跑触发器**：它不在 effect 体内被读取，唯一作用是让依赖变化
+  // 从而重跑一次 chunk import（= 就地重试）。按 lint 建议删掉会让重试按钮变成空操作。
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 见上（重跑触发器，非读取）
   useEffect(() => {
     let alive = true;
     setState("loading");
-    loader().then(
+    loaderRef.current().then(
       () => {
         if (alive) setState("ready");
       },
@@ -132,14 +148,18 @@ function useLazyEditors(loader: () => Promise<unknown>): [LoadState, () => void]
     return () => {
       alive = false;
     };
-  }, [loader, attempt]);
+  }, [attempt]);
 
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
   return [state, retry];
 }
 
-/** 加载失败的占位 + 就地重试入口（spec「恢复失败可见且能就地重试」）。 */
-function MonacoLoadFailure({
+/**
+ * 加载失败的占位 + 就地重试入口（spec「恢复失败可见且能就地重试」）。
+ *
+ * ⚠️ 导出仅为可测（理由同 `useLazyEditors`）：静态渲染即可断言它的 DOM 契约。
+ */
+export function MonacoLoadFailure({
   testId,
   extra,
   height,
@@ -240,7 +260,9 @@ export function MonacoCodeEditor(props: CodeEditorProps) {
   };
 
   if (state === "failed")
-    return <MonacoLoadFailure height={props.height} testId={testId} extra={attrs} onRetry={retry} />;
+    return (
+      <MonacoLoadFailure height={props.height} testId={testId} extra={attrs} onRetry={retry} />
+    );
   if (state === "loading")
     return <MonacoFallback height={props.height} testId={testId} extra={attrs} />;
 
@@ -283,8 +305,11 @@ export function MonacoDiffEditor(props: DiffCodeEditorProps) {
   };
 
   if (state === "failed")
-    return <MonacoLoadFailure height={props.height} testId={testId} extra={attrs} onRetry={retry} />;
-  if (state === "loading") return <MonacoFallback height={props.height} testId={testId} extra={attrs} />;
+    return (
+      <MonacoLoadFailure height={props.height} testId={testId} extra={attrs} onRetry={retry} />
+    );
+  if (state === "loading")
+    return <MonacoFallback height={props.height} testId={testId} extra={attrs} />;
 
   return createElement(LazyDiffEditor(), {
     ...props,

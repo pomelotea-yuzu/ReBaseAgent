@@ -388,3 +388,70 @@ fire-and-forget 的时序、重启后 `hasKey=false` 与 `enabled/running=true`
 typecheck 双 0 绿；`biome check apps packages scripts` 592 文件 0 错；
 desktop 全量 **185 文件 / 2933 用例**全绿（2.3b 基线 184/2922，新增
 `proxy-recovery-races.test.ts` 11 条）。变异验证：拿掉串行队列 ⇒ 3 条红。
+
+## D8. 实施期核实结论（tasks 4.1–4.3，2026-10-08）
+
+### 1. 原路径未复现，交付的是「恢复契约 + 可寻址判据」
+
+评审 2026-10-06 写「本次正常浏览未复现 messages 编辑器容器塌缩……单凭选择器命中某个
+零尺寸节点不能确认可见编辑器塌缩」。本轮实机三档往返（1207→800→1207）同样**未观察到
+可见塌缩**。据此把 4.2 的落点从「修某个已定位的原因」调整为**建立契约与判据**：
+
+- **`data-monaco-host` / `data-monaco-target` 锚点**打满 8 处调用点。设计依据是
+  monaco 0.56 在页面里**合法存在** 0×0 节点（inline diff 的隐藏侧、EditContext 隐藏输入面），
+  所以「全页扫 `.monaco-editor` 看宽度」在原理上就不可能对。锚点让「哪个编辑器属于哪个
+  目标」可判定，这是 spec 场景三（隐藏节点不误报）能被验证的前提。
+- **判据抽成纯函数** `lib/editor-recovery.ts`：`classifyHost` 的**顺序即语义**——
+  宿主自身零尺寸 ⇒ `pending-space`（折叠/最小化/面板关闭），**不是** `failed`。判成 failed
+  就会在用户收起面板时弹「加载失败」，这与 04/07 那个假缺陷同族。实机三档实测
+  `ancestorBreak` 全程 null、`hostOk` 全程 true，正是这条判据的正向证据。
+
+### 2. 修掉的两个真实缺陷（都不是"塌缩"，但都违反本 requirement）
+
+① **懒加载失败永久停在「正在加载编辑器…」**：`MonacoCodeEditor`/`MonacoDiffEditor` 的
+   `import("./MonacoEditors").then()` **没有拒绝分支**。chunk 取不到（离线资源缺失、
+   路径改名、404）时状态机永不变，用户看到的字面是"还在加载"，唯一出口是重启应用——
+   直接违反「加载/恢复失败 SHALL 有明确占位与本地恢复动作，不以重启为唯一出口」。
+   改为 `loading｜ready｜failed` 三态 + `MonacoLoadFailure`（带 `data-monaco-failed` /
+   `data-monaco-retry` 锚点）。重试语义按 D5 收窄：**只重跑 chunk import**，不动草稿、
+   不恢复旧许可、不调模型、不重挂子树（`preservedOnRecovery` 是该契约的单一出处）。
+
+② **加载器身份泄漏进 effect 依赖**：`useEffect(..., [loader, attempt])` 里 `loader` 是
+   **调用方传入**的函数。生产调用点都包了 `useCallback`，但契约不该建立在"调用方记得包
+   useCallback"上——一旦漏包就是「重渲染 ⇒ 新 loader 身份 ⇒ 重跑 import ⇒ 再 setState ⇒
+   再重渲染」的无限重载。改为 `useRef` 固定首次 loader，依赖数组只留 `attempt`。
+   （这条由 biome 的 `useExhaustiveDependencies` 报出，属**工具给了正确信号**的一例。）
+
+### 3. 实机环境的三条硬事实（本轮踩到，写下来免得下次重踩）
+
+- **改窗不能从 Bash 调**：`u2-cdp-util` 的 `setWindowOuter` 走子进程调 ps 脚本，而本机宿主
+  禁止从 Bash 发起的 PowerShell 调用 ⇒ 它**静默返回空串、窗口纹丝不动**。一度被读成
+  "改窗无效的产品缺陷"。正解是用 PowerShell 工具直接调 `ps-dbg.ps1`（按类名枚举，
+  不受标题变体影响）。副作用：**一次运行只能采一个档位**，往返三档必须显式合并。
+- **`ps-win.ps1` 不可用**：它要求窗口标题**恰为** `ReBaseAgent`，dev 下标题带变体 ⇒
+  枚举不到。`ps-dbg.ps1` 按类名枚举且逐步落盘 `ps-dbg-steps.txt`，可自证走到第几步。
+- **CDP 必须走 `node:http` 直连**：本机 `HTTP_PROXY=http://127.0.0.1:12020` 劫持
+  `fetch`（报 `TypeError: fetch failed`）。与 `UI-VERIFY.md` 的 localhost 代理坑同源。
+
+### 4. 失败注入在实机不可达（诚实边界，不当"已验证"引用）
+
+两条注入面都不成立：① CDP `Fetch` 域拦 `*MonacoEditor*` 并 `failRequest` ⇒
+`Fetch.requestPaused` **0 次**（dev 下该 chunk 已在浏览器 HTTP 缓存里，收起/重开工作区
+不再发请求）；② 页内 hook `import()` ⇒ vite 把动态 import 编译成 `__vitePreload(() =>
+import(url))`，拦不到。**失败态因此由单测承载**（`test/editor-load-failure.test.tsx`，
+变异删掉 `setState("failed")` ⇒ 2 红；依赖数组加回 `loader` ⇒ 2 红）。生产/packaged 环境的
+同场景归 5.x 离线冒烟。
+
+⚠️ 由此得一条测试纪律：本包**无 jsdom、无 react-test-renderer**（`react-dom/test-utils`
+在但没有 renderer），跑不了 effect ⇒ 行为断言只能"镜像"一份状态转移逻辑，而**镜像会连同
+真实缺陷一起放过**（第一版就这样：删掉实现的 `setState("failed")` 后测试仍全绿）。改为
+**源码结构断言**（直接咬实现的拒绝分支、依赖数组、disconnect、两处 `state === "failed"`），
+且断言按**语义**写而不钉字面（`loader()` 与 `loaderRef.current()` 这类正当重构不该假红）。
+
+### 5. 本轮质量基线（4.x）
+
+typecheck 双 0 绿；`biome check apps packages scripts` **603 文件** 0 错（§2/§3 基线 592）；
+desktop 全量 **190 文件 / 3001 用例**全绿（§3 基线 188/2965，新增
+`editor-recovery.test.ts` 19 条 + `editor-load-failure.test.tsx` 18 条）。
+变异验证五处全被咬住：零尺寸判 failed ⇒ 2 红；去掉祖先塌断点判据 ⇒ 1 红；
+空间未回来也 relayout ⇒ 2 红；删掉 `setState("failed")` ⇒ 2 红；依赖数组加回 `loader` ⇒ 2 红。

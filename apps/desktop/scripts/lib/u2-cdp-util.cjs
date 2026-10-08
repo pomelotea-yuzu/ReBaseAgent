@@ -21,7 +21,10 @@ const { join } = require("node:path");
 
 // __dirname = <repo>/apps/desktop/scripts/lib ⇒ 需回退四层才是仓库根
 const REPO = join(__dirname, "..", "..", "..", "..");
-const WIN_PS1 = join(REPO, ".workbuddy", "ps-win.ps1");
+// ⚠️ 用 ps-dbg.ps1 而不是 ps-win.ps1（2026-10-08 实测）：ps-win 要求窗口标题**恰为**
+//    `ReBaseAgent`，而 dev 下标题带变体 ⇒ 枚举不到、返回空串（静默无操作）。
+//    ps-dbg 按类名枚举且逐步落盘 ps-dbg-steps.txt，改窗后可自证走到第几步。
+const WIN_PS1 = join(REPO, ".workbuddy", "ps-dbg.ps1");
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 

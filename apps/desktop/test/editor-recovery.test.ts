@@ -112,7 +112,9 @@ describe("layoutRecoveryAction · 只在空间真正回来时动一次", () => {
   });
 
   it("一直有空间（普通 resize）⇒ null，不做额外 layout", () => {
-    expect(layoutRecoveryAction({ offsetW: 800, offsetH: 200 }, { offsetW: 900, offsetH: 200 })).toBeNull();
+    expect(
+      layoutRecoveryAction({ offsetW: 800, offsetH: 200 }, { offsetW: 900, offsetH: 200 }),
+    ).toBeNull();
   });
 });
 

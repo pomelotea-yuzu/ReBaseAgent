@@ -62,7 +62,9 @@ function listPageTarget(port = CDP_PORT) {
   return new Promise((resolve, reject) => {
     const req = http.get({ host: "127.0.0.1", port, path: "/json/list" }, (res) => {
       let body = "";
-      res.on("data", (c) => (body += c));
+      res.on("data", (c) => {
+        body += c;
+      });
       res.on("end", () => {
         try {
           const page = JSON.parse(body).find((p) => p.type === "page");
@@ -188,7 +190,8 @@ const COLLECTOR = `(() => {
 /** 采一份快照（传入 u2-cdp-util 的 call）。 */
 async function collect(call) {
   const r = await call("Runtime.evaluate", { expression: COLLECTOR, returnByValue: true });
-  if (r?.exceptionDetails) throw new Error(`probe eval failed: ${JSON.stringify(r.exceptionDetails)}`);
+  if (r?.exceptionDetails)
+    throw new Error(`probe eval failed: ${JSON.stringify(r.exceptionDetails)}`);
   return r?.result?.value;
 }
 
@@ -208,9 +211,11 @@ function summarize(snap) {
   const vis = snap.editors.filter((e) => e.visible).length;
   const hostless = snap.editors.filter((e) => !e.hostOk).length;
   const empty = snap.editors.filter((e) => e.visibleButEmpty).length;
-  return `viewport=${snap.viewportSource} ${snap.viewport.innerW}x${snap.viewport.innerH}` +
+  return (
+    `viewport=${snap.viewportSource} ${snap.viewport.innerW}x${snap.viewport.innerH}` +
     ` anchors=${snap.anchorCount} visible=${vis} hostless=${hostless} visibleButEmpty=${empty}` +
-    ` hiddenHelpers=${snap.hiddenHelpers.length} monacoNodes=${snap.monacoEditorNodeCount}`;
+    ` hiddenHelpers=${snap.hiddenHelpers.length} monacoNodes=${snap.monacoEditorNodeCount}`
+  );
 }
 
 module.exports = { COLLECTOR, collect, markEmulation, summarize, listPageTarget };
