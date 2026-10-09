@@ -29,6 +29,7 @@ import { useRevokeOnConfigChange } from "../lib/use-revoke-on-config-change";
 import { useAppStore } from "../store";
 import { requestConfirm } from "./ConfirmDialog";
 import { ConfirmationBlock } from "./ConfirmationBlock";
+import { Disclosure } from "./Disclosure";
 import { FOCUS_RING } from "./IconButton";
 
 /**
@@ -145,6 +146,8 @@ export function CreateRunWorkspaceView(props: CreateRunFormViewProps) {
     headingRef,
   } = props;
   const isolated = mode === "isolated_files";
+  // 3.4（design D5）：v1/v2、config_hash 等工程口径收进详情——可查但不占主文案位
+  const [techOpen, setTechOpen] = useState(false);
 
   return (
     <section aria-label="新建运行" className="flex min-w-0 flex-1 flex-col bg-white">
@@ -335,8 +338,8 @@ export function CreateRunWorkspaceView(props: CreateRunFormViewProps) {
                 />
                 {systemPrompt.trim().length === 0 ? (
                   <span className="mt-0.5 block text-[11px] text-gray-500">
-                    留空也可以：此时 config_hash 按空 system 计算
-                    {isolated ? "（按空 system + 固定工具组）" : ""}，仍可作为分叉与 A/B 的父本。
+                    留空也可以：此时运行配置的校验标识按空 system 计算
+                    {isolated ? "（空 system + 固定工具组）" : ""}，仍可作为分叉与 A/B 的父本。
                   </span>
                 ) : null}
               </div>
@@ -350,6 +353,19 @@ export function CreateRunWorkspaceView(props: CreateRunFormViewProps) {
               {scopeFacts.execution}
             </div>
             <div className="mt-0.5 text-gray-500">{scopeFacts.cost}</div>
+            <Disclosure
+              summary="技术说明"
+              expanded={techOpen}
+              onToggle={() => setTechOpen((prev) => !prev)}
+              controlsId="create-tech-details"
+              className="mt-0.5"
+            >
+              <div className="px-1 pb-0.5 text-[10px] leading-4 text-gray-500">
+                纯对话产出 v1 根 run；隔离文件运行产出 v2 根 run（带检查点与初始快照，
+                第二轮起可续跑）。config_hash 是运行配置的校验标识，按 system 与工具表计算，
+                改动会使其变化。
+              </div>
+            </Disclosure>
           </div>
 
           {/* 核对本次提交（U5 4.4）：就地展开，不再新增阻断阅读的大模态；确认后才放行提交。
@@ -544,12 +560,12 @@ export function CreateRunWorkspace({ onOpenSettings }: { onOpenSettings: () => v
 
   const scopeFacts = isolated
     ? {
-        execution: `隔离文件运行：只读采集所选目录，按固定 ${ISOLATED_TOOL_PROFILE_LABEL} 工具组（${ISOLATED_TOOL_NAMES.join(" / ")}）执行，副本写入需本次显式勾选；产出带检查点的 v2 根 run。`,
+        execution: `隔离文件运行：只读采集所选目录，按固定 ${ISOLATED_TOOL_PROFILE_LABEL} 工具组（${ISOLATED_TOOL_NAMES.join(" / ")}）执行，副本写入需本次显式勾选；产出带检查点的隔离运行（第二轮起可作续跑与对照的父本）。`,
         cost: "一次提交 = 一次真实模型调用（按实际用量计费），采集到的文本会进入你配置的模型请求。",
       }
     : {
         execution:
-          "纯对话：空工具表，模型只产出文本；config_hash 按 system + 空工具表计算，产出 v1 根 run。",
+          "纯对话：不启用工具，模型只产出文本；运行配置的校验标识按 system 与工具表（此处为空）计算。",
         cost: "一次提交 = 一次真实模型调用（按实际用量计费）。",
       };
 

@@ -176,7 +176,7 @@ export function modelAbGuard(input: ModelAbGuardInput): ModelAbGuardResult {
     // 会被界面放行、提交才整批被拒。粒度必须与内核一致。
     if (sameAsParent(arm, input.parentModel, input.parentParams)) {
       reasons.push(
-        `${label}：与父 run 完全相同（model 与采样参数都未变）= 空 fork，内核会整批拒绝；请修改该臂的 model 或 params`,
+        `${label}：与父 run 完全相同（model 与采样参数都未变）——与父完全相同的臂会让整批被拒，请修改该臂的 model 或 params`,
       );
       return;
     }

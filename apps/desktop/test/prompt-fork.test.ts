@@ -141,7 +141,7 @@ describe("promptForkGuard：提交前本地拦截", () => {
   it("空 fork（编辑前后相同）→ 拦截", () => {
     const result = promptForkGuard({ ...base, unchanged: true });
     expect(result.canSubmit).toBe(false);
-    expect(result.reason).toContain("空 fork");
+    expect(result.reason).toContain("与原值相同");
   });
 });
 

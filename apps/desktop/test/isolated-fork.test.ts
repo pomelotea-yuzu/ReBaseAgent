@@ -269,7 +269,7 @@ describe("2.2 声明与判据（纯逻辑）", () => {
       writesAuthorized: true,
     });
     expect(unchanged.ok).toBe(false);
-    expect(unchanged.ok ? "" : unchanged.reason).toContain("空 fork");
+    expect(unchanged.ok ? "" : unchanged.reason).toContain("与原始结果相同");
 
     // 未授权：不是"降级成普通分叉"，而是直接拒绝
     const unauthorized = resolveIsolatedForkSubmission({

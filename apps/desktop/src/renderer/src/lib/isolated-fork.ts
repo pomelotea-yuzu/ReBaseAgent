@@ -185,7 +185,10 @@ export function resolveCapabilityCheck(input: CapabilityCheckInput): CapabilityC
     };
   }
   if (input.unchanged) {
-    return { ok: false, reason: "编辑值与原始结果相同（空 fork 会被拒绝），请修改后再校验" };
+    return {
+      ok: false,
+      reason: "与原始结果相同，请修改后再校验；未做修改的续跑会被原样拒绝。",
+    };
   }
   return {
     ok: true,
@@ -221,7 +224,10 @@ export function resolveIsolatedForkSubmission(
     };
   }
   if (input.unchanged) {
-    return { ok: false, reason: "编辑值与原始结果相同（空 fork 会被拒绝），请修改后再重跑" };
+    return {
+      ok: false,
+      reason: "与原始结果相同，请修改后再重跑；未做修改的续跑会被原样拒绝。",
+    };
   }
   if (input.capability === null) {
     return { ok: false, reason: "请先点击「校验续跑条件」完成只读预检（确定检查点与轮末边界）" };

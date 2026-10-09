@@ -188,22 +188,23 @@ describe("5.4 结果区视图：登记身份 + 诚实空态 + 返回编辑", () 
     const markup = renderToStaticMarkup(
       createElement(MessagesResultsSection, { results, onAction: noop }),
     );
-    expect(markup).toContain("重发结果（按 main 登记提交）");
+    // 3.4：标题去实现术语；技术说明收进 Disclosure（收起态不在标记里）
+    expect(markup).toContain("重发结果");
+    expect(markup).not.toContain("main 登记");
     expect(markup).toContain("2 次");
     expect(markup).toContain(`data-messages-result="${OP_2}"`);
     expect(markup).toContain(`data-messages-return-draft="${OP_2}"`);
     expect(markup).toContain("返回编辑");
-    // 诚实说明行：失败/未知保留输入、不借被动记录、源 trace 不改写
-    expect(markup).toContain("不用被动录制补结果");
-    expect(markup).toContain("源 trace 不会被改写");
+    expect(markup).toContain('aria-controls="messages-results-details"');
+    expect(markup).not.toContain("不用被动录制补结果");
+    expect(markup).not.toContain("源 trace 不会被改写");
   });
 
-  it("零提交 ⇒ 引导语（被动录制不会出现在这里），不渲染任何结果块", () => {
+  it("零提交 ⇒ 引导语（尚未提交重发），不渲染任何结果块", () => {
     const markup = renderToStaticMarkup(
       createElement(MessagesResultsSection, { results: [], onAction: noop }),
     );
-    expect(markup).toContain("本目标还没有重发提交登记");
-    expect(markup).toContain("被动录制不会");
+    expect(markup).toContain("尚未提交重发");
     expect(markup).not.toContain("data-messages-result=");
   });
 });

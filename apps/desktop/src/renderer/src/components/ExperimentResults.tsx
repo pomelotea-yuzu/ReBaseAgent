@@ -1,9 +1,11 @@
 import type { ReactNode } from "react";
+import { useState } from "react";
 import type { ExperimentArmSelectability, ExperimentBatchView } from "../lib/experiment-results";
 import { experimentArmSelectabilityOf, experimentCompareHintOf } from "../lib/experiment-results";
 import type { AbArmResultView, ResultAction } from "../lib/operation-result-view";
 import type { ResultReadIdentity } from "../lib/result-verification";
 import { AbBatchResultSection } from "./AbBatchResult";
+import { Disclosure } from "./Disclosure";
 import { FOCUS_RING } from "./IconButton";
 
 /**
@@ -50,19 +52,19 @@ export function ExperimentResultsSection({
           onToggle: onToggleCompare,
         };
   const hint = onEnterCompare === undefined ? null : experimentCompareHintOf(compareIds.length);
+  // 3.4（design D5）：技术说明收进 Disclosure——主文案用户语言，细节"可查但不占位"
+  const [detailsOpen, setDetailsOpen] = useState(false);
   return (
     <div className="mt-3" data-experiment-results>
       <div className="mb-1 flex items-baseline gap-2">
-        <span className="text-[11px] font-semibold text-gray-700">
-          实验结果（按 main 登记批次）
-        </span>
+        <span className="text-[11px] font-semibold text-gray-700">实验结果</span>
         {batches.length > 0 ? (
           <span className="text-[10px] text-gray-400">{batches.length} 批</span>
         ) : null}
       </div>
       {batches.length === 0 ? (
         <div className="rounded border border-gray-100 bg-gray-50/60 px-2 py-1.5 text-[11px] leading-4 text-gray-500">
-          本目标还没有实验批次登记：真实执行提交后，批次会按登记身份出现在这里（预览不产生批次）。
+          尚未执行实验：确认执行后，各臂的结果会按批次出现在这里。
         </div>
       ) : (
         <div className="space-y-2">
@@ -79,12 +81,10 @@ export function ExperimentResultsSection({
                 </span>
                 {batch.experimentId !== null ? (
                   <span className="break-all font-code text-[10px] text-gray-400">
-                    实验组 {batch.experimentId}（main 登记）
+                    实验组 {batch.experimentId}
                   </span>
                 ) : (
-                  <span className="text-[10px] text-gray-400">
-                    实验组身份未登记（main 未给出；预览标签不是批次身份）
-                  </span>
+                  <span className="text-[10px] text-gray-400">实验组身份未登记</span>
                 )}
               </div>
               <AbBatchResultSection view={batch.view} onAct={onArmAction} selection={selection} />
@@ -116,10 +116,18 @@ export function ExperimentResultsSection({
           {compareNotice}
         </output>
       ) : null}
-      <div className="mt-1 text-[10px] leading-4 text-gray-400">
-        分组只按 main 登记的批次身份：同父同模型的两批不合并，不同批的臂不混成一组；逐臂事实与
-        动作同操作面板口径。
-      </div>
+      <Disclosure
+        summary="结果说明"
+        expanded={detailsOpen}
+        onToggle={() => setDetailsOpen((prev) => !prev)}
+        controlsId="experiment-results-details"
+        className="mt-1"
+      >
+        <div className="px-1 pb-1 text-[10px] leading-4 text-gray-500">
+          批次按这次执行的登记身份分组：同父同模型的两批不合并，不同批的臂不混成一组；
+          逐臂事实与动作同操作面板口径。预览（dry-run）不产生批次，预览标签也不充当批次身份。
+        </div>
+      </Disclosure>
     </div>
   );
 }

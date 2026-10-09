@@ -124,7 +124,7 @@ describe("modelAbGuard：提交前本地拦截", () => {
     expect(allSame.canSubmit).toBe(false);
     expect(allSame.reason).toContain("第 1 臂");
     expect(allSame.reason).toContain("第 2 臂");
-    expect(allSame.reason).toContain("空 fork");
+    expect(allSame.reason).toContain("与父 run 完全相同");
 
     // 回归点（2026-09-17 K0 验收暴露）：臂 1 改了、臂 2 沿用父 —— 界面曾放行，
     // 提交后内核逐臂 derive 判出空 fork、整批 INVALID_ARM。此处必须拦在第 2 臂。
@@ -159,7 +159,7 @@ describe("modelAbGuard：提交前本地拦截", () => {
       ),
     });
     expect(sameScalar.canSubmit).toBe(false);
-    expect(sameScalar.reason).toContain("空 fork");
+    expect(sameScalar.reason).toContain("与父 run 完全相同");
 
     // 两个字符串臂都与父不同 → 放行
     const differsScalar = modelAbGuard({
@@ -221,7 +221,7 @@ describe("modelAbGuard：提交前本地拦截", () => {
       ),
     });
     expect(result.canSubmit).toBe(false);
-    expect(result.reason).toContain("空 fork");
+    expect(result.reason).toContain("与父 run 完全相同");
 
     // 换成 model 后放行，且 `{}` 被规整成"沿用父值"（不下发空 params 覆盖父录值）
     const withModel = modelAbGuard({

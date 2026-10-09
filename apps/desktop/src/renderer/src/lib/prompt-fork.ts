@@ -47,7 +47,10 @@ export function promptForkGuard(input: PromptForkGuardInput): PromptForkGuardRes
     };
   }
   if (input.unchanged) {
-    return { canSubmit: false, reason: "编辑值与原值相同（空 fork 被拒绝），请修改后再提交" };
+    return {
+      canSubmit: false,
+      reason: "与原值相同，请修改后再提交；未做修改的请求会被原样拒绝。",
+    };
   }
   return { canSubmit: true, reason: null };
 }

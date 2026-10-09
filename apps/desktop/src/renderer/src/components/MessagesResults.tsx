@@ -1,7 +1,9 @@
 import type { ReactNode } from "react";
+import { useState } from "react";
 import type { MessagesResultView } from "../lib/messages-results";
 import type { ResultAction } from "../lib/operation-result-view";
 import type { ResultReadIdentity } from "../lib/result-verification";
+import { Disclosure } from "./Disclosure";
 import { FOCUS_RING } from "./IconButton";
 import { ACTION_LABELS, TONE_STYLES } from "./OperationsEntry";
 
@@ -22,19 +24,19 @@ export function MessagesResultsSection({
   readonly results: readonly MessagesResultView[];
   readonly onAction: (action: ResultAction | "return-draft", identity: ResultReadIdentity) => void;
 }): ReactNode {
+  // 3.4（design D5）：技术说明收进 Disclosure——主文案用户语言，细节"可查但不占位"
+  const [detailsOpen, setDetailsOpen] = useState(false);
   return (
     <div className="mt-3" data-messages-results>
       <div className="mb-1 flex items-baseline gap-2">
-        <span className="text-[11px] font-semibold text-gray-700">
-          重发结果（按 main 登记提交）
-        </span>
+        <span className="text-[11px] font-semibold text-gray-700">重发结果</span>
         {results.length > 0 ? (
           <span className="text-[10px] text-gray-400">{results.length} 次</span>
         ) : null}
       </div>
       {results.length === 0 ? (
         <div className="rounded border border-gray-100 bg-gray-50/60 px-2 py-1.5 text-[11px] leading-4 text-gray-500">
-          本目标还没有重发提交登记：确认重发后，登记与结果会出现在这里（被动录制不会）。
+          尚未提交重发：确认重发后，结果会出现在这里。
         </div>
       ) : (
         <div className="space-y-2">
@@ -138,10 +140,18 @@ export function MessagesResultsSection({
           ))}
         </div>
       )}
-      <div className="mt-1 text-[10px] leading-4 text-gray-400">
-        结果只按 main 登记的提交身份呈现：失败或未知都保留编辑输入，不用被动录制补结果；源 trace
-        不会被改写。
-      </div>
+      <Disclosure
+        summary="结果说明"
+        expanded={detailsOpen}
+        onToggle={() => setDetailsOpen((prev) => !prev)}
+        controlsId="messages-results-details"
+        className="mt-1"
+      >
+        <div className="px-1 pb-1 text-[10px] leading-4 text-gray-500">
+          结果只按这次提交的登记身份呈现：失败或未知都保留编辑输入，不用被动录制补结果；源 trace
+          不会被改写。
+        </div>
+      </Disclosure>
     </div>
   );
 }

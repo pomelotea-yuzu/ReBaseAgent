@@ -202,18 +202,20 @@ describe("4.1/4.2 批次结果区视图：登记身份 + 逐批分块", () => {
     const markup = renderToStaticMarkup(
       createElement(ExperimentResultsSection, { batches, onArmAction: noop }),
     );
-    expect(markup).toContain("实验结果（按 main 登记批次）");
+    // 3.4：标题与组头去实现术语；分组技术说明收进 Disclosure（收起态不在标记里）
+    expect(markup).toContain("实验结果");
     expect(markup).toContain("2 批");
     expect(markup).toContain(`data-experiment-batch="${OP_1}"`);
     expect(markup).toContain(`data-experiment-batch="${OP_2}"`);
-    expect(markup).toContain("实验组 exp_real_1（main 登记）");
-    // 未登记的实验组身份：如实说明，不用预览标签补
-    expect(markup).toContain("实验组身份未登记（main 未给出；预览标签不是批次身份）");
-    // 同父同模型不合并的诚实说明行
-    expect(markup).toContain("同父同模型的两批不合并");
+    expect(markup).toContain("实验组 exp_real_1");
+    expect(markup).not.toContain("（main 登记）");
+    // 未登记的实验组身份：如实说明（技术上"预览标签不是批次身份"收进详情）
+    expect(markup).toContain("实验组身份未登记");
+    expect(markup).toContain('aria-controls="experiment-results-details"');
+    expect(markup).not.toContain("同父同模型的两批不合并");
   });
 
-  it("4.3 未关联臂零动作：全部臂都无可信 ID ⇒ 整个结果区没有一个可点的按钮（只留诚实说明）", () => {
+  it("4.3 未关联臂零动作：全部臂都无可信 ID ⇒ 除详情开关外没有任何可点的按钮（只留诚实说明）", () => {
     const batches = deriveExperimentBatches({
       targetRunId: PARENT,
       operations: [
@@ -230,8 +232,10 @@ describe("4.1/4.2 批次结果区视图：登记身份 + 逐批分块", () => {
     const markup = renderToStaticMarkup(
       createElement(ExperimentResultsSection, { batches, onArmAction: noop }),
     );
-    // 没有可信 ID ⇒ 没有动作按钮（打开/失败定位/重读都不给），不生成伪链接
-    expect(markup).not.toContain("<button");
+    // 没有可信 ID ⇒ 没有动作按钮（打开/失败定位/重读都不给），不生成伪链接；
+    // 3.4 起唯一的按钮是收起的「结果说明」Disclosure 开关（不产结果动作）
+    expect(markup.match(/<button/g)?.length).toBe(1);
+    expect(markup).not.toContain("打开结果");
     // 但诚实说明必须可读
     expect(markup).toContain("不生成结果链接");
   });
@@ -308,12 +312,11 @@ describe("4.1/4.2 批次结果区视图：登记身份 + 逐批分块", () => {
     expect(noticed).toContain("最多同时对照 4 条运行");
   });
 
-  it("零批次 ⇒ 引导语（预览不产生批次），不渲染任何批次块", () => {
+  it("零批次 ⇒ 引导语（尚未执行实验），不渲染任何批次块", () => {
     const markup = renderToStaticMarkup(
       createElement(ExperimentResultsSection, { batches: [], onArmAction: noop }),
     );
-    expect(markup).toContain("本目标还没有实验批次登记");
-    expect(markup).toContain("预览不产生批次");
+    expect(markup).toContain("尚未执行实验");
     expect(markup).not.toContain("data-experiment-batch=");
   });
 });
