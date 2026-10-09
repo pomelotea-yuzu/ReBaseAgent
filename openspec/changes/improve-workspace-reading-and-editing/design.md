@@ -49,3 +49,14 @@ Monaco 布局变化调用 layout，避免因 React key 变化反复销毁模型�
 ## D7. 证据与风险
 
 风险是正文放大后必要提示不可见、sticky 遮挡、observer 循环、专注状态串目标和切换丢 Monaco view state。必须同时记录实际正文可见高度、操作可达、目标/原始草稿指纹、手动偏好前后值和模型调用计数。沿用真实窗口截图，不用 Emulation 假几何满足比例；宿主不能达到的宽档单独标限制并以其他可用环境补齐，不宣称全矩阵通过。
+
+## D8. §1 实施核对记录（2026-10-09，apply 时对回真实代码的结论）
+
+| 提案假设 | 核实结果 | 处理 |
+| --- | --- | --- |
+| RunHeader 与 DetailNotices 同屏重复同一段隔离说明 | 属实：两者都渲染 `isolatedRunNotice(detail)` 全文（RunWorkspace.tsx 页头 + DetailNotices.IsolatedRunNotice） | 拆 `isolatedRunNoticeView`（compact/detail/tech 三层）；页头只留 compact，完整边界进共享 Disclosure |
+| 「来源与技术详情」与 D5 工程说明共用一个机制 | 先建 `components/Disclosure.tsx`（DisclosureButton + Disclosure，全部受控）；D5 落地（3.4）时复用同一组件，不再造第二套 | 已共用；DetailPanel 的隔离父本「不适用」原因同机制接线 |
+| 展开状态按 run 阅读键保存 | `RunReadingState` 已有 `overviewExpanded`/`calls[].expanded` 两个 string[] 先例；新增可选 `noticesExpanded?`（键为静态 UI 键，reconcile 不清理），通用 toggle 收敛到 `lib/reading-state.ts`（LongText 委托） | `toggleNoticeExpanded(runId, key)` 单点写路径 |
+| 比较证据收起态的存储 | 与 `comparePrefixFolded` 同口径：store 会话级字段、换 pair 复位、交换不复位 | `compareEvidenceExpanded`（默认 false=收起）+ `setCompareEvidenceExpanded` |
+| 文件目录开关「靠近目录标题」 | 目录列此前无标题行、常驻收起按钮在页头检查点行（离目录远） | 目录列新增 sticky 标题行（「目录」+ 收起按钮）；非驻留 pane 条按钮补 aria-expanded |
+| 证据区收起不得藏异常 | `DirectEditEvidence` notApplicable 变体只有 reason（无前后值/方向字段），incomplete/unavailable 分型整体即异常 | `evidenceCollapsible` 只放行 verified/direct-hops/different-roots；不可收起分型保持原 heading 措辞（既有用例钉住「不同根」框架不丢） |

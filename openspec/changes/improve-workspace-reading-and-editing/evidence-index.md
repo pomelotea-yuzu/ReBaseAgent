@@ -6,12 +6,12 @@
 
 | Capability / Requirement | Scenario | 任务 | 计划检查与证据 | 证据路径 / 结果 |
 | --- | --- | --- | --- | --- |
-| [desktop-ui](specs/desktop-ui/spec.md) / 工作区折叠控制一致且可发现 | 列表和步骤控制可发现且可恢复 | [1.1](tasks.md) | 真实控制截图与至少 28 CSS px 命中区；收起/展开后选中与手动宽度前后值 | 待实施 |
-| [desktop-ui](specs/desktop-ui/spec.md) / 工作区折叠控制一致且可发现 | 目录与长文本折叠不丢位置 | [1.2](tasks.md)、[1.5](tasks.md) | run/span 目标往返；就近恢复入口、完整文本/选择/滚动指纹及其他目标隔离 | 待实施 |
-| [desktop-ui](specs/desktop-ui/spec.md) / 工作区折叠控制一致且可发现 | 键盘折叠显示当前状态 | [1.1](tasks.md)、[1.2](tasks.md)、[4.3](tasks.md) | Tab、Enter/Space 实际操作；可见焦点、名称/aria-expanded/aria-controls 与恢复入口 | 待实施 |
-| [desktop-ui](specs/desktop-ui/spec.md) / 工作区说明分层去重且异常不隐藏 | 隔离文件页不重复同一说明 | [1.3](tasks.md) | 根/分支文件页真实截图；同屏隔离说明唯一、轮次/来源/只读身份及完整保真边界可达 | 待实施 |
-| [desktop-ui](specs/desktop-ui/spec.md) / 工作区说明分层去重且异常不隐藏 | 技术元信息按需完整阅读 | [1.3](tasks.md)、[1.5](tasks.md) | 来源/工程详情共用组件核对；键盘/aria、目标隔离、完整原值/原因阅读与复制 | 待实施 |
-| [desktop-ui](specs/desktop-ui/spec.md) / 工作区说明分层去重且异常不隐藏 | 异常摘要始终可见 | [1.4](tasks.md)、[1.5](tasks.md)、[2.4a](tasks.md) | 缺来源/读取失败/未知/门禁 fixtures；折叠与专注截图、处理动作可达、提交仍拒绝 | 待实施 |
+| [desktop-ui](specs/desktop-ui/spec.md) / 工作区折叠控制一致且可发现 | 列表和步骤控制可发现且可恢复 | [1.1](tasks.md) | 真实控制截图与至少 28 CSS px 命中区；收起/展开后选中与手动宽度前后值 | 静态已过（2026-10-09）：`apps/desktop/test/panel-collapse-headers.test.tsx`「运行列表 / 步骤目录：标题行折叠开关」+ `disclosure.test.tsx`（min-h-[28px]/aria/方向）；实机截图与命中区实测待 4.1/4.3 |
+| [desktop-ui](specs/desktop-ui/spec.md) / 工作区折叠控制一致且可发现 | 目录与长文本折叠不丢位置 | [1.2](tasks.md)、[1.5](tasks.md) | run/span 目标往返；就近恢复入口、完整文本/选择/滚动指纹及其他目标隔离 | 静态已过（2026-10-09）：`panel-collapse-headers.test.tsx`「LongText」组 + 会话状态机制未改（readingByRun 既有）；实机往返指纹待 4.3 |
+| [desktop-ui](specs/desktop-ui/spec.md) / 工作区折叠控制一致且可发现 | 键盘折叠显示当前状态 | [1.1](tasks.md)、[1.2](tasks.md)、[4.3](tasks.md) | Tab、Enter/Space 实际操作；可见焦点、名称/aria-expanded/aria-controls 与恢复入口 | 静态已过（2026-10-09）：`disclosure.test.tsx`（aria-expanded 与状态一致/aria-controls/焦点环）；真实键盘操作待 4.3 |
+| [desktop-ui](specs/desktop-ui/spec.md) / 工作区说明分层去重且异常不隐藏 | 隔离文件页不重复同一说明 | [1.3](tasks.md) | 根/分支文件页真实截图；同屏隔离说明唯一、轮次/来源/只读身份及完整保真边界可达 | 静态已过（2026-10-09）：`notice-disclosure.test.tsx`「RunHeaderView：页头只留紧凑摘要」组（同屏长段事实句 0 次/展开后恰 1 次）；真实截图待 4.1 |
+| [desktop-ui](specs/desktop-ui/spec.md) / 工作区说明分层去重且异常不隐藏 | 技术元信息按需完整阅读 | [1.3](tasks.md)、[1.5](tasks.md) | 来源/工程详情共用组件核对；键盘/aria、目标隔离、完整原值/原因阅读与复制 | 静态已过（2026-10-09）：`notice-disclosure.test.tsx`（共享 Disclosure、per-run 展开键、DetailPanel 不适用原因源码契约）；复制入口沿用 LongText 既有契约；实机键盘待 4.3 |
+| [desktop-ui](specs/desktop-ui/spec.md) / 工作区说明分层去重且异常不隐藏 | 异常摘要始终可见 | [1.4](tasks.md)、[1.5](tasks.md)、[2.4a](tasks.md) | 缺来源/读取失败/未知/门禁 fixtures；折叠与专注截图、处理动作可达、提交仍拒绝 | 部分覆盖（2026-10-09）：`compare-evidence-collapse.test.tsx`（证据区 incomplete/unavailable/notApplicable 与逐跳异常行常驻）；专注模式半边归 2.4a；门禁 fixtures 截图待 4.x |
 | [desktop-ui](specs/desktop-ui/spec.md) / 编辑与差异获得实际可用空间 | 普通文件页正文获得可见高度 | [2.1](tasks.md)、[4.1](tasks.md) | 真实 1210×713 文件 config.json diff 及比较返回；可见正文≥约 357px、左右/checkpoint 身份与基线对照 | 待实施 |
 | [desktop-ui](specs/desktop-ui/spec.md) / 编辑与差异获得实际可用空间 | 原值与草稿按容器适配 | [2.2](tasks.md)、[2.3](tasks.md) | 真实宽高变化与拖拽/键盘调整；每侧约 320px 判据、并排/上下、剩余空间和完整滚动 | 待实施 |
 | [desktop-ui](specs/desktop-ui/spec.md) / 编辑与差异获得实际可用空间 | 原值收起后仍可恢复核对 | [2.2](tasks.md) | 真实输入后收起/展开原值；草稿空间、恢复入口、全文与只读身份 | 待实施 |
@@ -20,7 +20,7 @@
 | [desktop-ui](specs/desktop-ui/spec.md) / 专注模式保留目标草稿与阅读偏好 | 专注模式保留身份并恢复布局 | [2.4a](tasks.md)、[2.4b](tasks.md)、[4.2](tasks.md) | 手动宽度/折叠前后值、空间变化时退出；目标/恢复操作与有效阅读位置，不用旧快照覆盖 | 待实施 |
 | [desktop-ui](specs/desktop-ui/spec.md) / 专注模式保留目标草稿与阅读偏好 | 专注切换目标与主动调整有明确归属 | [2.4b](tasks.md)、[4.3](tasks.md) | run/span/字段/有方向 pair 切换、卸载往返与主动调宽/折叠；旧专注立即解除、不重入、不回滚新偏好、无草稿/阅读并行 store | 待实施 |
 | [desktop-ui](specs/desktop-ui/spec.md) / 专注模式保留目标草稿与阅读偏好 | 长草稿切换不丢输入和目标 | [2.3](tasks.md)、[2.5](tasks.md)、[4.3](tasks.md)、[4.4](tasks.md) | messages/prompt/result/A/B 非法 JSON、多行、空串/尾随空白；折叠/专注/往返后逐字草稿、目标、光标/滚动与实际输入 | 待实施 |
-| [desktop-ui](specs/desktop-ui/spec.md) / 比较修改证据可收起且身份始终可辨 | 修改证据收起释放输出空间 | [1.4](tasks.md)、[4.1](tasks.md) | 收起前后 diff 可见高度；摘要/方向/身份、关系未知与展开后完整证据/定位 | 待实施 |
+| [desktop-ui](specs/desktop-ui/spec.md) / 比较修改证据可收起且身份始终可辨 | 修改证据收起释放输出空间 | [1.4](tasks.md)、[4.1](tasks.md) | 收起前后 diff 可见高度；摘要/方向/身份、关系未知与展开后完整证据/定位 | 静态已过（2026-10-09）：`compare-evidence-collapse.test.tsx`（收起态摘要/恢复入口/值不渲染、展开态完整证据、异常行常驻、store 默认收起）；高度实测待 4.1 |
 | [desktop-ui](specs/desktop-ui/spec.md) / 核对与提交相邻且绑定纪律不变 | 确认和提交在同一操作区 | [3.1](tasks.md)、[3.2](tasks.md)、[4.1](tasks.md) | 各模式真实操作区与纯键盘核对→提交；窄窗上下相邻，sticky 不遮挡正文焦点/摘要 | 待实施 |
 | [desktop-ui](specs/desktop-ui/spec.md) / 核对与提交相邻且绑定纪律不变 | 核对后的编辑撤销旧许可 | [3.1](tasks.md)、[4.4](tasks.md) | 核对后改变草稿/目标/配置/参数/凭据及离开返回；旧许可拒绝、输入保持与折叠/专注无旁路 | 待实施 |
 | [desktop-ui](specs/desktop-ui/spec.md) / 核对与提交相邻且绑定纪律不变 | 详细边界可读但不能跳过核对 | [3.2](tasks.md) | 普通/隔离创建、result/prompt/messages/A/B；折叠细节后费用/副作用摘要、预检/计划与两段确认仍必需 | 待实施 |

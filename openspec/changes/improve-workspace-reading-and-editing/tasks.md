@@ -4,11 +4,16 @@
 
 ## 1. 折叠控制与信息分层
 
-- [ ] 1.1 设计并实现统一可访问标题行/开关样式，接线列表与步骤目录，保持自动/手动偏好区别。（列表和步骤控制可发现且可恢复；键盘折叠显示当前状态）
-- [ ] 1.2 文件目录开关就近呈现，长文本和说明使用同一交互语义并保存会话阅读状态。（目录与长文本折叠不丢位置；键盘折叠显示当前状态）
-- [ ] 1.3 运行/文件页去重隔离说明，来源元信息与工程说明共用同一受控可访问 disclosure 组件；按原阅读目标键接线展开状态，不适用动作原因可查询。（隔离文件页不重复同一说明；技术元信息按需完整阅读）
-- [ ] 1.4 比较修改证据可折叠，diff 身份紧凑常驻；缺证据/不完整原因仍可见。（修改证据收起释放输出空间；异常摘要始终可见）
-- [ ] 1.5 说明分层与共享详情状态保存做针对性回归，验证键盘/aria、完整阅读/复制、目标隔离、未丢原文及没有新写通道或授权旁路。（技术元信息按需完整阅读；异常摘要始终可见；目录与长文本折叠不丢位置）
+- [x] 1.1 设计并实现统一可访问标题行/开关样式，接线列表与步骤目录，保持自动/手动偏好区别。（列表和步骤控制可发现且可恢复；键盘折叠显示当前状态）
+  - 2026-10-09：新增共享 `Disclosure`/`DisclosureButton`（aria-expanded/aria-controls、min-h-[28px]、方向箭头、FOCUS_RING，单点产生）；RunList/SpanTree 页头改标题整行开关（写偏好仍走外壳 closeNav/toggleStepsCollapsed 唯一路径）；裸 `‹` 箭头退场（审计函数钉住）。
+- [x] 1.2 文件目录开关就近呈现，长文本和说明使用同一交互语义并保存会话阅读状态。（目录与长文本折叠不丢位置；键盘折叠显示当前状态）
+  - 2026-10-09：目录收起入口移入目录列标题行（sticky，与搜索同容器）；pane 切换条按钮补 aria-expanded/min-h；LongText summary 补方向箭头与 28px 命中区（`<details>` 原生展开语义保留）；会话阅读状态沿用 readingByRun 既有机制（未新增存储）。
+- [x] 1.3 运行/文件页去重隔离说明，来源元信息与工程说明共用同一受控可访问 disclosure 组件；按原阅读目标键接线展开状态，不适用动作原因可查询。（隔离文件页不重复同一说明；技术元信息按需完整阅读）
+  - 2026-10-09：`isolatedRunNotice` 拆为 compact/detail/tech 分层视图（isolatedRunNoticeView）；RunHeaderView 只留紧凑一行，完整边界+技术值进 DetailNotices 的「来源与技术详情」Disclosure；展开态存 `readingByRun[runId].noticesExpanded`（静态 UI 键）；DetailPanel 隔离父本「不适用」原因同机制可展开（IsolatedParentUnsupportedNotice）。
+- [x] 1.4 比较修改证据可折叠，diff 身份紧凑常驻；缺证据/不完整原因仍可见。（修改证据收起释放输出空间；异常摘要始终可见）
+  - 2026-10-09：EditEvidenceSection 收起态 = 「修改证据 · 字段/修改数 · 展开」摘要行；incomplete/unavailable/notApplicable 分型与逐跳异常原因行常驻不可收起；store 增加 compareEvidenceExpanded（默认收起、换 pair 复位，与 comparePrefixFolded 同口径）；diff 两侧身份栏沿用既有 ShortIdLabel（未动）。
+- [x] 1.5 说明分层与共享详情状态保存做针对性回归，验证键盘/aria、完整阅读/复制、目标隔离、未丢原文及没有新写通道或授权旁路。（技术元信息按需完整阅读；异常摘要始终可见；目录与长文本折叠不丢位置）
+  - 2026-10-09：新增 4 个测试文件 34 条（disclosure / notice-disclosure / compare-evidence-collapse / panel-collapse-headers）；aria 与结构静态断言 + 源码接线契约（auditForbiddenTokens 剥注释）；desktop 全量 194 文件/3037 用例绿；真实键盘焦点流转与命中区实测归 4.3。
 
 ## 2. 编辑/diff 空间
 
