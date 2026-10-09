@@ -26,6 +26,7 @@ import {
   decideCompareNavVisible,
 } from "./lib/compare-navigation";
 import { isIsolatedRun } from "./lib/isolated-fork";
+import { focusActiveFor, workspaceKeyOf } from "./lib/layout";
 import { useDraftCloseGuard } from "./lib/use-draft-close-guard";
 import { useContentWidth, useLayoutState } from "./lib/use-layout";
 import { useAppStore } from "./store";
@@ -38,6 +39,8 @@ export default function App() {
   const openCreateWorkspace = useAppStore((s) => s.openCreateWorkspace);
   const setSettingsSection = useAppStore((s) => s.setSettingsSection);
   const view = useAppStore((s) => s.view);
+  const selectedRunId = useAppStore((s) => s.selectedRunId);
+  const selectedSpanId = useAppStore((s) => s.selectedSpanId);
   const tab = useAppStore((s) =>
     s.selectedRunId === null ? "overview" : s.readingOf(s.selectedRunId).tab,
   );
@@ -49,6 +52,26 @@ export default function App() {
   // 外壳布局（任务 4.3）：断点、宽度偏好、自动折叠。**自动折叠不写回偏好**。
   const layout = useLayoutState({ tab, editing: false });
   const contentWidth = useContentWidth();
+
+  // UI 密度 2.4（design D3）：专注模式的有效性按**当前工作区身份**即时比对——
+  // 目标（run/span/tab/view）一变覆盖层立即失效，不等 effect。
+  const workspaceKey = workspaceKeyOf({
+    view,
+    tab,
+    runId: selectedRunId,
+    spanId: selectedSpanId,
+  });
+  const focusActive = focusActiveFor(layout.focus, workspaceKey);
+
+  // 2.4b：目标变化/离开/卸载即**清空** focus（不只是判定失效——不清的话返回同一
+  // 目标会自动重入，违反 spec「返回不自动重入」）。仅窗口尺寸变化不动 workspaceKey，
+  // focus 保持。
+  useEffect(() => {
+    if (layout.focus !== null && layout.focus.workspaceKey !== workspaceKey) {
+      layout.exitFocus();
+    }
+  }, [workspaceKey, layout]);
+
   const navReplacesWorkspace =
     layout.navVisible && (layout.breakpoint === "narrow" || layout.breakpoint === "single");
   // U5 任务 4.1：创建工作区自带正文，不参与"步骤目录占满工作区"的形态
@@ -56,11 +79,14 @@ export default function App() {
     view === "trace" &&
     tab === "steps" &&
     layout.stepsVisible &&
+    !focusActive &&
     layout.stepsFullWidth &&
     !navReplacesWorkspace;
   // U7 5.8：比较页的导航可见性（窄窗默认收起、退出恢复——纯显示决策，不写偏好）
-  const navShowing =
-    view === "compare"
+  // UI 密度 2.4：专注生效时导航按**显示层**收起（decideFocusLayout 派生，不写偏好）
+  const navShowing = focusActive
+    ? false
+    : view === "compare"
       ? decideCompareNavVisible({
           view,
           breakpoint: layout.breakpoint,
@@ -242,7 +268,7 @@ export default function App() {
                  *   4. 目录卸下时**当前调用身份不丢**（`selectedSpanId` 在 store，
                  *      见 delta「窄窗口收起目录后保留当前调用身份」）。
                  */}
-                {tab === "steps" && layout.stepsVisible ? (
+                {tab === "steps" && layout.stepsVisible && !focusActive ? (
                   <SpanTree
                     width={layout.stepsWidth}
                     onWidth={layout.setStepsWidth}
@@ -261,6 +287,10 @@ export default function App() {
                         ? () => layout.setStepsOpened(true)
                         : null
                     }
+                    // UI 密度 2.4：专注态与进入/退出动作（目标身份已按当前工作区比对）
+                    focusActive={focusActive}
+                    onEnterFocus={(mode) => layout.enterFocus(mode, workspaceKey)}
+                    onExitFocus={layout.exitFocus}
                   />
                 ) : null}
               </>
@@ -293,7 +323,18 @@ export default function App() {
  *   - **步骤目录由 App 在 `tab === "steps"` 时挂载**（任务 5.4）：本壳只承载正文，
  *     以及目录被收起时的「重新打开步骤目录」入口（`onOpenSteps`；null = 不显示入口）
  */
-function WorkspaceShell({ onOpenSteps }: { onOpenSteps: (() => void) | null }) {
+function WorkspaceShell({
+  onOpenSteps,
+  focusActive = false,
+  onEnterFocus,
+  onExitFocus,
+}: {
+  onOpenSteps: (() => void) | null;
+  /** UI 密度 2.4：专注态（App 已按当前工作区身份比对生效） */
+  readonly focusActive?: boolean;
+  readonly onEnterFocus?: (mode: "edit" | "diff") => void;
+  readonly onExitFocus?: () => void;
+}) {
   const detail = useAppStore((s) => s.detail);
   const selectedRunId = useAppStore((s) => s.selectedRunId);
   const tab = useAppStore((s) =>
@@ -334,9 +375,17 @@ function WorkspaceShell({ onOpenSteps }: { onOpenSteps: (() => void) | null }) {
       {visible === "overview" ? (
         <OverviewPanel />
       ) : visible === "files" ? (
-        <WorkspaceFilesPanel />
+        <WorkspaceFilesPanel
+          focusActive={focusActive}
+          onEnterFocus={onEnterFocus}
+          onExitFocus={onExitFocus}
+        />
       ) : (
-        <DetailPanel />
+        <DetailPanel
+          focusActive={focusActive}
+          onEnterFocus={onEnterFocus}
+          onExitFocus={onExitFocus}
+        />
       )}
     </RunWorkspace>
   );

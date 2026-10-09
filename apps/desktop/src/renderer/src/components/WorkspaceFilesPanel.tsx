@@ -31,7 +31,16 @@ import { WorkspaceFileView } from "./WorkspaceFileView";
  *    "数据 → 视图"抽成纯展示组件，测试才能直接喂 `detail` 钉住"详情就绪时**真的**挂上
  *    文件视图"（源码字符串断言做不到这件事）。
  */
-export function WorkspaceFilesPanel() {
+export function WorkspaceFilesPanel({
+  focusActive = false,
+  onEnterFocus,
+  onExitFocus,
+}: {
+  /** UI 密度 2.4：专注差异态（App 层按当前工作区身份比对生效；显示覆盖，不写偏好） */
+  readonly focusActive?: boolean;
+  readonly onEnterFocus?: (mode: "edit" | "diff") => void;
+  readonly onExitFocus?: () => void;
+}) {
   const detail = useAppStore((s) => s.detail);
   const loadingDetail = useAppStore((s) => s.loadingDetail);
   const runId = useAppStore((s) => s.selectedRunId);
@@ -84,21 +93,75 @@ export function WorkspaceFilesPanel() {
     useAppStore.setState({ pendingFileTarget: null });
   }, [pendingTarget, detailId, setFileReading]);
 
-  return <WorkspaceFilesPanelView detail={detail} loadingDetail={loadingDetail} runId={runId} />;
+  return (
+    <WorkspaceFilesPanelView
+      detail={detail}
+      loadingDetail={loadingDetail}
+      runId={runId}
+      focusActive={focusActive}
+      onEnterFocus={onEnterFocus}
+      onExitFocus={onExitFocus}
+    />
+  );
 }
 
-/** 纯展示层：详情就绪挂文件视图，否则如实说明"正在读"还是"还没选"（不留白、不假装有文件） */
+/**
+ * 纯展示层：详情就绪挂文件视图，否则如实说明"正在读"还是"还没选"（不留白、不假装有文件）。
+ *
+ * UI 密度 2.4：专注差异时顶部渲染专注栏（目标说明 + 退出入口常驻；spec「专注中
+ * 目标和恢复操作可见」）；未专注时给「专注差异」进入入口。DetailNotices
+ * （异常摘要）**保留**——专注折叠的是辅助区，异常与门禁摘要不随专注隐藏
+ * （spec「异常摘要始终可见」）。
+ */
 export function WorkspaceFilesPanelView({
   detail,
   loadingDetail,
+  focusActive = false,
+  onEnterFocus,
+  onExitFocus,
 }: {
   detail: RunDetail | null;
   loadingDetail: boolean;
   /** U2：当前 run id（保留入参以便后续接线；本层不消费） */
   runId?: string | null;
+  readonly focusActive?: boolean;
+  readonly onEnterFocus?: (mode: "edit" | "diff") => void;
+  readonly onExitFocus?: () => void;
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col bg-white">
+      {focusActive ? (
+        <div
+          className="flex shrink-0 items-center gap-2 border-b border-violet-200 bg-violet-50 px-3 py-1"
+          data-focus-bar="files-diff"
+        >
+          <span className="text-[11px] font-medium text-violet-900">
+            专注差异 · 辅助列表与步骤目录已临时收起（目标与阅读状态不变，退出后按原偏好恢复）
+          </span>
+          <button
+            type="button"
+            data-exit-focus="true"
+            onClick={onExitFocus}
+            className="ml-auto rounded border border-violet-300 bg-white px-2 py-0.5 text-[11px] text-violet-900 hover:bg-violet-100"
+          >
+            退出专注
+          </button>
+        </div>
+      ) : null}
+      {!focusActive && onEnterFocus !== undefined ? (
+        <div className="shrink-0 border-b border-gray-100 px-3 py-1">
+          <button
+            type="button"
+            data-enter-focus="diff"
+            onClick={() => onEnterFocus("diff")}
+            title="临时收起运行列表与步骤目录，把空间让给文件差异（退出后按原偏好恢复）"
+            className="rounded border border-gray-300 px-2 py-0.5 text-[11px] text-gray-600 hover:bg-gray-50"
+          >
+            专注差异
+          </button>
+        </div>
+      ) : null}
+      {/* 异常摘要**始终可见**（不随专注隐藏——spec「异常摘要始终可见」；2.4 改造时误删，回归钉住） */}
       <DetailNotices />
       <div className="min-h-0 flex-1">
         {detail !== null ? (

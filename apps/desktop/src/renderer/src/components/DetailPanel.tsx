@@ -1949,7 +1949,16 @@ function shortSpanId(id: string): string {
   return id.length <= 10 ? id : `${id.slice(0, 8)}…`;
 }
 
-export function DetailPanel() {
+export function DetailPanel({
+  focusActive = false,
+  onEnterFocus,
+  onExitFocus,
+}: {
+  /** UI 密度 2.4：专注编辑态（App 层按当前工作区身份比对生效；显示覆盖，不写偏好） */
+  readonly focusActive?: boolean;
+  readonly onEnterFocus?: (mode: "edit" | "diff") => void;
+  readonly onExitFocus?: () => void;
+}) {
   const detail = useAppStore((s) => s.detail);
   const selectedSpanId = useAppStore((s) => s.selectedSpanId);
   const selectedRunId = useAppStore((s) => s.selectedRunId);
@@ -2051,11 +2060,47 @@ export function DetailPanel() {
   //    「文件」页签时这里仍是 trajectory，文件视图根本不出现（只读阅读路径断裂）。
   return (
     <section className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-white">
+      {/* 2.4 专注编辑：显示覆盖（收起草稿列表与消耗图），不写偏好、目标变化由 App 层清空 */}
+      {focusActive ? (
+        <div
+          className="flex shrink-0 items-center gap-2 border-b border-violet-200 bg-violet-50 px-3 py-1"
+          data-focus-bar="edit"
+        >
+          <span className="text-[11px] font-medium text-violet-900">
+            专注编辑 · 草稿列表与消耗图已临时收起（选择与阅读状态不变，退出后按原布局恢复）
+          </span>
+          <button
+            type="button"
+            data-exit-focus="true"
+            onClick={onExitFocus}
+            className="ml-auto rounded border border-violet-300 bg-white px-2 py-0.5 text-[11px] text-violet-900 hover:bg-violet-100"
+          >
+            退出专注
+          </button>
+        </div>
+      ) : null}
+      {!focusActive && onEnterFocus !== undefined ? (
+        <div className="shrink-0 border-b border-gray-100 px-3 py-1">
+          <button
+            type="button"
+            data-enter-focus="edit"
+            onClick={() => onEnterFocus("edit")}
+            title="临时收起草稿列表与消耗图，把空间让给编辑区（退出后按原布局恢复）"
+            className="rounded border border-gray-300 px-2 py-0.5 text-[11px] text-gray-600 hover:bg-gray-50"
+          >
+            专注编辑
+          </button>
+        </div>
+      ) : null}
       <DetailNotices />
-      {selectedRunId !== null ? <RunDraftListSection runId={selectedRunId} /> : null}
+      {!focusActive && selectedRunId !== null ? (
+        <RunDraftListSection runId={selectedRunId} />
+      ) : null}
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto pb-8" onScroll={handleScroll}>
-        {detail !== null ? <BudgetMap key={detail.meta.id} detail={detail} /> : null}
+        {!focusActive && detail !== null ? (
+          <BudgetMap key={detail.meta.id} detail={detail} />
+        ) : null}
         {span === null ? (
           <div className="px-4 py-6 text-xs text-gray-500">
             {detail === null ? "尚未选择运行。" : "尚未选择 span。"}

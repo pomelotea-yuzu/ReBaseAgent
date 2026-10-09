@@ -203,3 +203,59 @@ export function readContentWidth(): number {
   if (typeof document === "undefined") return 1280;
   return document.documentElement.clientWidth;
 }
+
+// ---------------------------------------------------------------------------
+// 专注模式（UI 密度 change 任务 2.4 · design D3）
+// ---------------------------------------------------------------------------
+
+/**
+ * 专注模式的临时显示覆盖（**仅会话有效**，不持久化、不写偏好）。
+ *
+ * `mode` 区分编辑/差异；`workspaceKey` 是目标身份——由 App 按当前
+ * view/tab/run/span 派生（`workspaceKeyOf`），**目标变化即失效**（身份比对立即
+ * 判定，不等迟到 effect）。草稿/阅读状态/许可继续由既有目标机制持有，本状态
+ * 只描述"此刻该不该收起辅助区"。
+ */
+export interface WorkspaceFocus {
+  mode: "edit" | "diff";
+  workspaceKey: string;
+}
+
+/** 当前工作区身份（focus 生效判定的"现在"侧）。trace 视图细化到 run/span。 */
+export function workspaceKeyOf(input: {
+  view: string;
+  tab?: string;
+  runId?: string | null;
+  spanId?: string | null;
+}): string {
+  if (input.view === "trace") {
+    return `trace:${input.tab ?? ""}:${input.runId ?? ""}:${input.spanId ?? ""}`;
+  }
+  return input.view;
+}
+
+/** focus 是否对当前目标生效：**身份比对**，目标一变立即 false（不靠 effect 解除）。 */
+export function focusActiveFor(focus: WorkspaceFocus | null, workspaceKey: string | null): boolean {
+  return focus !== null && workspaceKey !== null && focus.workspaceKey === workspaceKey;
+}
+
+/**
+ * 专注下的有效布局（design D3：从现有 prefs/阅读状态**派生**，不复制不写回）。
+ *
+ * 生效时导航与步骤目录按**显示层**收起——`LayoutPrefs` 原封不动，宽度回到窗口
+ * 后自动还原；退出（或目标变化失效）即移除覆盖，按当前容器恢复有效偏好。
+ * 仅窗口尺寸变化不改 `workspaceKey` ⇒ focus 保持（spec 明文）。
+ */
+export function decideFocusLayout(input: {
+  focus: WorkspaceFocus | null;
+  workspaceKey: string | null;
+  navVisible: boolean;
+  stepsVisible: boolean;
+}): { active: boolean; navVisible: boolean; stepsVisible: boolean } {
+  const active = focusActiveFor(input.focus, input.workspaceKey);
+  return {
+    active,
+    navVisible: active ? false : input.navVisible,
+    stepsVisible: active ? false : input.stepsVisible,
+  };
+}

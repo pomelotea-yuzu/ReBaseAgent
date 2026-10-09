@@ -443,11 +443,13 @@ describe("接线契约：概览页确实挂到工作区概览页签上", () => {
   it("三支链结构完整：概览→OverviewPanel、文件→WorkspaceFilesPanel、其余→DetailPanel", () => {
     // 6.1 把二选一扩成三支（文件页独立承载）。若链被改坏（如删掉 files 支、
     // 或把某支错指到别的组件），组件级测试打不到 ⇒ 此处按**分支 → 组件**逐一钉住。
-    expect(APP_SOURCE).toMatch(/visible\s*===\s*"files"\s*\?\s*\(\s*<WorkspaceFilesPanel\s*\/>/);
+    // ⚠️ UI 密度 2.4 起文件页/步骤页挂载带 focus props ⇒ 只钉"分支起点是哪个组件"，
+    // 不再钉自闭合裸写法（`\s*\/>` 会把带 props 的挂载误判成链断了）。
+    expect(APP_SOURCE).toMatch(/visible\s*===\s*"files"\s*\?\s*\(\s*<WorkspaceFilesPanel\b/);
     // 文件页**不得**退回 DetailPanel（那正是"工作区文件页签点不动"的旧缺陷根因）
-    expect(APP_SOURCE).not.toMatch(/visible\s*===\s*"files"\s*\?\s*\(\s*<DetailPanel\s*\/>/);
+    expect(APP_SOURCE).not.toMatch(/visible\s*===\s*"files"\s*\?\s*\(\s*<DetailPanel\b/);
     // 兜底支仍是 DetailPanel（步骤页），且它是链上最后一个组件
-    expect(APP_SOURCE).toMatch(/\)\s*:\s*\(\s*<DetailPanel\s*\/>\s*\)/);
+    expect(APP_SOURCE).toMatch(/\)\s*:\s*\(\s*<DetailPanel\b/);
   });
 
   it("App 用 resolveVisibleTab 判定可见页签（不自己再写一份回退规则）", () => {

@@ -21,6 +21,7 @@ import {
   STEPS_DEFAULT,
   STEPS_MAX,
   STEPS_MIN,
+  type WorkspaceFocus,
   breakpointOf,
   clampNavWidth,
   clampStepsWidth,
@@ -75,6 +76,12 @@ export interface LayoutState {
   handleStepsKey: (key: string) => boolean;
   navWidth: number;
   stepsWidth: number;
+  /** 专注模式（UI 密度 2.4）：仅会话有效的临时显示覆盖；null = 未专注 */
+  focus: WorkspaceFocus | null;
+  /** 进入专注（目标身份由调用方按当前工作区派生） */
+  enterFocus: (mode: "edit" | "diff", workspaceKey: string) => void;
+  /** 退出专注（目标变化/离开的清空在 App 层 effect；这里只做显式退出） */
+  exitFocus: () => void;
 }
 
 /**
@@ -92,8 +99,23 @@ export function useLayoutState(input: {
   const [navOpened, setNavOpened] = useState(false);
   const [stepsOpened, setStepsOpened] = useState(false);
   const [auxPane, setAuxPane] = useState<AuxPane>("main");
+  /**
+   * 专注模式（UI 密度 2.4 · design D3）：仅会话有效的临时显示覆盖。
+   *
+   * 纪律：进入/缩放/退出都**不写回** `LayoutPrefs`；专注中用户显式调整宽度或
+   * 展开/收起辅助区时，**先退出专注再写偏好**（下方所有写偏好的入口都先
+   * `setFocus(null)`）——该调整成为新偏好，之后退出不回滚。
+   */
+  const [focus, setFocus] = useState<WorkspaceFocus | null>(null);
 
   const breakpoint = breakpointOf(contentWidth);
+
+  const enterFocus = useCallback((mode: "edit" | "diff", workspaceKey: string): void => {
+    setFocus({ mode, workspaceKey });
+  }, []);
+  const exitFocus = useCallback((): void => {
+    setFocus(null);
+  }, []);
 
   // ⚠️ 断点变化时清掉临时打开：720–959 打开的导航在回到 ≥1280 后没有意义，
   //    留着会让"临时"变成"常驻"（偏好没变但看着像变了）
@@ -120,20 +142,27 @@ export function useLayoutState(input: {
     stepsOpened,
   });
 
+  // ⚠️ 以下每个**写偏好**的入口都先退出专注（2.4b：主动调整先退出再写，
+  // 调整成为新偏好、退出不回滚）。纯显示决策（navOpened/stepsOpened）不在此列。
+
   const setNavWidth = useCallback((width: number) => {
+    setFocus(null);
     setPrefs((prev) => ({ ...prev, navWidth: clampNavWidth(width) }));
   }, []);
 
   const setStepsWidth = useCallback((width: number) => {
+    setFocus(null);
     setPrefs((prev) => ({ ...prev, stepsWidth: clampStepsWidth(width) }));
   }, []);
 
   const toggleNavCollapsed = useCallback(() => {
+    setFocus(null);
     setNavOpened(false);
     setPrefs((prev) => ({ ...prev, navUserCollapsed: !prev.navUserCollapsed }));
   }, []);
 
   const openNav = useCallback(() => {
+    setFocus(null);
     setStepsOpened(false);
     if (
       breakpoint === "wide" ||
@@ -147,7 +176,10 @@ export function useLayoutState(input: {
 
   const closeNav = useCallback(() => {
     setNavOpened(false);
-    if (!navOpened) setPrefs((prev) => ({ ...prev, navUserCollapsed: true }));
+    if (!navOpened) {
+      setFocus(null);
+      setPrefs((prev) => ({ ...prev, navUserCollapsed: true }));
+    }
   }, [navOpened]);
 
   const toggleStepsCollapsed = useCallback(() => {
@@ -155,11 +187,13 @@ export function useLayoutState(input: {
       setStepsOpened(false);
       return;
     }
+    setFocus(null);
     setPrefs((prev) => ({ ...prev, stepsUserCollapsed: !prev.stepsUserCollapsed }));
   }, [stepsOpened]);
 
   const handleNavKey = useCallback((key: string): boolean => {
     if (stepWidth(NAV_MIN, key, NAV_MIN, NAV_MAX) === null) return false;
+    setFocus(null);
     setPrefs((prev) => ({
       ...prev,
       navWidth: stepWidth(prev.navWidth, key, NAV_MIN, NAV_MAX) ?? prev.navWidth,
@@ -169,6 +203,7 @@ export function useLayoutState(input: {
 
   const handleStepsKey = useCallback((key: string): boolean => {
     if (stepWidth(STEPS_MIN, key, STEPS_MIN, STEPS_MAX) === null) return false;
+    setFocus(null);
     setPrefs((prev) => ({
       ...prev,
       stepsWidth: stepWidth(prev.stepsWidth, key, STEPS_MIN, STEPS_MAX) ?? prev.stepsWidth,
@@ -203,6 +238,9 @@ export function useLayoutState(input: {
     handleStepsKey,
     navWidth: prefs.navWidth,
     stepsWidth: prefs.stepsWidth,
+    focus,
+    enterFocus,
+    exitFocus,
   };
 }
 
