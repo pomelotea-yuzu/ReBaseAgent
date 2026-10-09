@@ -472,10 +472,7 @@ export function ModelAbEditor({
           original={
             <div className="rounded border border-gray-200 bg-white px-2 py-1.5">
               {baselineRows.map(({ id, no, arm }) => (
-                <div
-                  key={id}
-                  className="font-code break-all text-[11px] leading-4 text-gray-600"
-                >
+                <div key={id} className="font-code break-all text-[11px] leading-4 text-gray-600">
                   臂 {no}：{arm.model}
                   {arm.paramsText === "" ? "（沿用父 params）" : ` · ${arm.paramsText}`}
                 </div>
@@ -485,10 +482,7 @@ export function ModelAbEditor({
           draft={
             <div className="rounded border border-sky-200 bg-white px-2 py-1.5">
               {rows.map(({ key, arm }, index) => (
-                <div
-                  key={key}
-                  className="font-code break-all text-[11px] leading-4 text-gray-700"
-                >
+                <div key={key} className="font-code break-all text-[11px] leading-4 text-gray-700">
                   臂 {index + 1}：{arm.model}
                   {arm.paramsText === "" ? "（沿用父 params）" : ` · ${arm.paramsText}`}
                 </div>

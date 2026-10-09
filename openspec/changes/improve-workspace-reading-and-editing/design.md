@@ -60,3 +60,17 @@ Monaco 布局变化调用 layout，避免因 React key 变化反复销毁模型�
 | 比较证据收起态的存储 | 与 `comparePrefixFolded` 同口径：store 会话级字段、换 pair 复位、交换不复位 | `compareEvidenceExpanded`（默认 false=收起）+ `setCompareEvidenceExpanded` |
 | 文件目录开关「靠近目录标题」 | 目录列此前无标题行、常驻收起按钮在页头检查点行（离目录远） | 目录列新增 sticky 标题行（「目录」+ 收起按钮）；非驻留 pane 条按钮补 aria-expanded |
 | 证据区收起不得藏异常 | `DirectEditEvidence` notApplicable 变体只有 reason（无前后值/方向字段），incomplete/unavailable 分型整体即异常 | `evidenceCollapsible` 只放行 verified/direct-hops/different-roots；不可收起分型保持原 heading 措辞（既有用例钉住「不同根」框架不丢） |
+
+## D9. §2 实施核对记录（2026-10-09，apply 时对回真实代码的结论）
+
+| 设计假设 | 核实结果 | 处理 |
+| --- | --- | --- |
+| 2.1 高度链的挤压退路 | toolbar 换行可把 `flex-1` 正文吃穿到 0（flex 内部溢出） | 根容器自身 `overflow-y-auto` + diff 容器 `min-h-[200px]`：正文保 200px 下限、根滚动兜底；异常分支保留普通流（`min(60vh,640px)` 计数=1 由回归钉住） |
+| 2.2/2.3 并排判据的归属 | 既有 `xl:grid-cols-2` 吃**窗口**断点，spec 要求按**容器**实测宽决策 | 新共享层 `DraftCompareGrid`：`useContainerWidth(720)` 实测 + `(w-8)/2≥320` 判据（`lib/editor-space.ts`）；xl 断点在四处接线中全部退场（DetailPanel 只读 args/result 展示的 `xl:grid-cols-2` 不在范围，回归计数钉住） |
+| 2.2 原值收起的恢复入口 | 收起后若无常驻入口，「恢复核对」场景断裂 | 收起/恢复按钮同位常驻（`aria-expanded` 可判）；收起态高度让给草稿 |
+| 2.4 focus 生效判定 | effect 异步解除会有「返回同目标自动重入」窗口 | **身份比对即时判定**（`focusActiveFor` 同步 false）+ effect 清状态（防重入）；`workspaceKey` 单值承载 view/tab/run/span 两级身份（span 入 key，专注编辑入口不绑字段） |
+| 2.4b 主动调整的归属 | 专注中调宽/折叠若回滚，调整丢失；若不退出直接写，退出后又像覆盖 | 全部 8 个写偏好入口**先 `setFocus(null)` 再写**——调整成为新偏好、退出不回滚（use-layout 源码契约逐入口钉住） |
+| 2.4 专注收起范围 | DetailPanel 内 RunDraftListSection/BudgetMap 与 nav/steps 不同层 | nav/steps 在 App 层（显示层派生）；DetailPanel 收草稿列表 + 消耗图；DetailNotices（异常摘要）按 spec 保留——2.4 改造中 WorkspaceFilesPanel 的 DetailNotices 被误删一次，由 workspace-file-view 既有契约当场钉回 |
+| 2.5 view state 的键与范围 | file diff 已有 U2 4.3 滚动恢复通道，两套恢复会打架 | 键 = `data-monaco-host|data-monaco-target` **同时**存在才启用 ⇒ file diff（无 target）天然不参与，调用方零排除动作；草稿编辑器/compare-diff 按既有寻址身份自动启用，零新 prop |
+| 2.5 恢复时机的竞态 | monaco 实例由 loader 异步创建，挂载 effect 跑时 ref 常为 null | 恢复放 onMount 合成内（实例创建那一刻，调用方 onMount **之后**最后落笔）；保存放 effect cleanup（卸载时实例必然在 ref），键经 ref 取离开前最新值 |
+| 2.5 observer 纪律 | design D7 风险点名「observer 循环」 | diff 编辑器**复用**单编辑器的 `useSizeRecovery`（`layoutRecoveryAction` 未真正恢复返回 null ⇒ 不自激；`new ResizeObserver` 全文件唯一，回归钉住） |

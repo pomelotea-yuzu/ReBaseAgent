@@ -17,12 +17,18 @@
 
 ## 2. 编辑/diff 空间
 
-- [ ] 2.1 文件页建立可用高度链，diff 占剩余空间并在内部滚动，去除与外层滚动冲突的固定 vh。（普通文件页正文获得可见高度；只读差异保持只读）
-- [ ] 2.2 messages/prompt 编辑器按容器宽高适配原值/草稿，可收起原值并调整比例。（原值与草稿按容器适配；原值收起后仍可恢复核对）
-- [ ] 2.3 result/A/B 主要编辑器沿用相同空间策略，保持既有预检/实验计划语义。（原值与草稿按容器适配；长草稿切换不丢输入和目标）
-- [ ] 2.4a 在现有 useLayoutState 加入目标绑定的临时 focus 模式，由原 prefs/阅读状态派生有效布局；不复制偏好/草稿，不写回专注折叠，保留来源/两侧身份和阻断提示。（专注模式保留身份并恢复布局；异常摘要始终可见）
-- [ ] 2.4b 接线目标变化/离开/卸载重置与主动调整先退出再写偏好；验证退出不回滚主动调整，缩放只改有效布局，返回不重入且不恢复许可。（专注切换目标与主动调整有明确归属；专注模式保留身份并恢复布局）
-- [ ] 2.5 接线 Monaco layout/view state 与可见恢复机制，补尺寸变化、非法 JSON、光标/滚动及无重复 observer 回归。（长草稿切换不丢输入和目标；只读差异保持只读）
+- [x] 2.1 文件页建立可用高度链，diff 占剩余空间并在内部滚动，去除与外层滚动冲突的固定 vh。（普通文件页正文获得可见高度；只读差异保持只读）
+  - 2026-10-09：主 diff 分支自建高度链（`data-file-diff-chain` 锚点）：`h-full min-h-0 flex-col` + header/toolbar/身份行 shrink-0，diff 容器 `min-h-[200px] flex-1 overflow-hidden` 吃全部剩余高度，编辑器 `height="100%"` 内部滚动；根容器 `overflow-y-auto` 兜底（toolbar 换行挤压时 diff 保 200px 下限，不压缩到 0）；异常分支（状态卡/单侧视图）保留普通流。回归 `file-diff-height-chain.test.ts` 3 条；1210×713 实测 ≥357px 归 4.1。
+- [x] 2.2 messages/prompt 编辑器按容器宽高适配原值/草稿，可收起原值并调整比例。（原值与草稿按容器适配；原值收起后仍可恢复核对）
+  - 2026-10-09：新增共享布局层 `DraftCompareGrid`（`useContainerWidth` 实测容器宽；`(w-8)/2 ≥ 320` 才并排——判据 `lib/editor-space.ts`，不吃 xl 窗口断点；原值收起/「显示原值」恢复按钮常驻、aria-expanded 状态可判；pointer capture 拖拽 resizer 调比例、ArrowUp/Down/Home/End 键盘步进 ±24px）；编辑器高度 `clamp` 视口相对（原值 32vh / 草稿 44vh / 展开 64vh），固定 200px/140px 退场。回归 `draft-compare-grid.test.tsx` 8 条 + 既有 4 处接线断言更新。
+- [x] 2.3 result/A/B 主要编辑器沿用相同空间策略，保持既有预检/实验计划语义。（原值与草稿按容器适配；长草稿切换不丢输入和目标）
+  - 2026-10-09：prompt（emerald）/tool-result（violet）经 DetailPanel、messages（sky）经 MessagesForkEditor、model_ab 经 ModelAbEditor 全部换用 DraftCompareGrid；A/B 侧 `fixedHeight={false}` + `resizable={false}`（保持实验计划行的既有空间语义）、原值标签改「原值（父本基线臂 · 只读）」显式只读身份。预检/计划逻辑零改动（编辑器仅换布局容器）。
+- [x] 2.4a 在现有 useLayoutState 加入目标绑定的临时 focus 模式，由原 prefs/阅读状态派生有效布局；不复制偏好/草稿，不写回专注折叠，保留来源/两侧身份和阻断提示。（专注模式保留身份并恢复布局；异常摘要始终可见）
+  - 2026-10-09：`lib/layout.ts` 增 `WorkspaceFocus{mode,workspaceKey}` + `workspaceKeyOf`（trace 细化到 `tab:run:span`）/`focusActiveFor`（身份即时比对，不等 effect）/`decideFocusLayout`（生效时 nav/steps 按**显示层**收起，LayoutPrefs 原封不动）；App 装配 focusActive 并经 WorkspaceShell 下传两条承载；文件页「专注差异」/步骤页「专注编辑」入口 + 顶部专注栏（目标说明 + 退出按钮常驻）；DetailNotices（异常摘要）不随专注隐藏；不新增草稿/阅读存储。
+- [x] 2.4b 接线目标变化/离开/卸载重置与主动调整先退出再写偏好；验证退出不回滚主动调整，缩放只改有效布局，返回不重入且不恢复许可。（专注切换目标与主动调整有明确归属；专注模式保留身份并恢复布局）
+  - 2026-10-09：use-layout focus 为会话级 state；**8 个写偏好入口**（setNavWidth/setStepsWidth/toggleNavCollapsed/openNav/closeNav/toggleStepsCollapsed/handleNavKey/handleStepsKey）先 `setFocus(null)` 再写——调整成为新偏好、退出不回滚；App effect 目标变化即清空 focus（不止判定失效——返回同目标不自动重入）；仅窗口尺寸变化不动 workspaceKey ⇒ focus 保持。回归 `workspace-focus-mode.test.ts` 21 条。修复 2.4 改造误删的 WorkspaceFilesPanel DetailNotices 渲染（既有契约钉回）；overview-result 三分支断言放宽为分支起点匹配（挂载自此带 focus props）。
+- [x] 2.5 接线 Monaco layout/view state 与可见恢复机制，补尺寸变化、非法 JSON、光标/滚动及无重复 observer 回归。（长草稿切换不丢输入和目标；只读差异保持只读）
+  - 2026-10-09：MonacoDiffEditor 就绪态补锚点宿主 div + `useSizeRecovery`（**复用**可靠性 change 的尺寸恢复机制，`new ResizeObserver` 全文件唯一——无重复 observer）；新增 `lib/editor-view-state.ts` 会话级视图状态仓库（键 = `data-monaco-host|data-monaco-target` 既有寻址身份，值为 saveViewState 的 JSON 快照；非法 JSON/循环引用双向容错不抛）；卸载保存（effect cleanup）+ mount 恢复（调用方 onMount 先行、restore 最后落笔）；file diff 无 target 天然不参与——其滚动恢复仍由 U2 4.3 专属通道唯一权威承载。回归 `monaco-view-state.test.ts` 18 条；真实光标/滚动语义归 4.3 实机。
 
 ## 3. 操作与文案
 
