@@ -56,6 +56,7 @@ import { readingScrollOf } from "../lib/workspace-selection";
 import { useAppStore } from "../store";
 import { BudgetMap } from "./BudgetMap";
 import { requestConfirm } from "./ConfirmDialog";
+import { ConfirmationBlock } from "./ConfirmationBlock";
 import { DetailNotices } from "./DetailNotices";
 import { Disclosure } from "./Disclosure";
 import { DraftCompareGrid } from "./DraftCompareGrid";
@@ -608,67 +609,50 @@ function PromptForkEditor({
 
       <EntryGateNotice gate={gate} />
 
-      <div className="mt-2 flex items-center justify-end gap-2">
-        {/*
-         * U5 任务 4.6：prompt 的**核对本次从头重跑**。措辞由 `promptDisclosure` 给：
-         * 从头执行、不共享父前缀、一次只改一个启动字段、父 run 只作对照。
-         * 资格不足时（未配置 / 源不可用 / 恢复重验未过）把原因显示在确认区里，
-         * 不是只把按钮禁掉让人猜。
-         */}
-        <div className="mt-2 rounded border border-emerald-200 bg-white">
-          <div className="flex items-center justify-between gap-2 px-2 py-1.5">
-            <span className="text-[11px] font-medium text-gray-600">核对本次从头重跑</span>
-            <button
-              type="button"
-              data-confirm-execution
-              aria-pressed={promptConfirmed ? "true" : undefined}
-              disabled={
-                inProgress ||
-                promptConfirmed ||
-                !guard.canSubmit ||
-                !sourceExecutable ||
-                sourceBlocked !== null ||
-                !gate.canSubmit
-              }
-              onClick={() => armExecutionConfirmation(promptBinding)}
-              className={`shrink-0 rounded border px-2 py-0.5 text-[11px] disabled:cursor-not-allowed disabled:opacity-40 ${
-                promptConfirmed
-                  ? "border-emerald-300 bg-emerald-50 text-emerald-800"
-                  : "border-gray-300 text-gray-700 hover:bg-gray-50"
-              }`}
-            >
-              {promptConfirmed ? "已确认从头重跑" : "已核对，确认从头重跑"}
-            </button>
-          </div>
-          <dl className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 border-t border-gray-100 px-2 py-1.5 text-[11px] leading-4">
-            {disclosureLines(
-              promptDisclosure({
-                parentRunId: run.meta.id,
-                fieldLabel:
-                  field === "system_prompt"
-                    ? "System Prompt（启动 system 消息）"
-                    : "首个 user 消息",
-                oldValue: original ?? "",
-                newValue: value,
-                modelSummary: `${settings?.model ?? "（未配置模型）"}${
-                  settings?.baseURL ? ` @ ${settings.baseURL}` : ""
-                }`,
-                rebuildable: originalSystem !== null,
-              }),
-            ).map((row) => (
-              <div key={`${row.label}-${row.value}`} className="col-span-2 grid grid-cols-subgrid">
-                <dt className="text-gray-500">{row.label}</dt>
-                <dd className="min-w-0 break-words text-gray-700">{row.value}</dd>
-              </div>
-            ))}
-          </dl>
-          {!promptConfirmed && submitBlocked !== null ? (
-            <div className="border-t border-gray-100 px-2 py-1.5 text-[11px] leading-4 text-amber-800">
-              {submitBlocked}
-            </div>
-          ) : null}
-        </div>
+      {/*
+       * U5 任务 4.6：prompt 的**核对本次从头重跑**。措辞由 `promptDisclosure` 给：
+       * 从头执行、不共享父前缀、一次只改一个启动字段、父 run 只作对照。
+       * 资格不足时（未配置 / 源不可用 / 恢复重验未过）把原因显示在确认区里，
+       * 不是只把按钮禁掉让人猜。
+       * UI 密度 3.1（design D4）：核对块此前嵌在按钮 flex 行里横排挤压——改为
+       * 共享确认块（关键摘要收起时仍可见、详细边界可展开），提交按钮行紧随其下。
+       */}
+      {(() => {
+        const disclosure = promptDisclosure({
+          parentRunId: run.meta.id,
+          fieldLabel:
+            field === "system_prompt" ? "System Prompt（启动 system 消息）" : "首个 user 消息",
+          oldValue: original ?? "",
+          newValue: value,
+          modelSummary: `${settings?.model ?? "（未配置模型）"}${
+            settings?.baseURL ? ` @ ${settings.baseURL}` : ""
+          }`,
+          rebuildable: originalSystem !== null,
+        });
+        return (
+          <ConfirmationBlock
+            title="核对本次从头重跑"
+            tone="emerald"
+            summary={disclosure.summary}
+            rows={disclosureLines(disclosure)}
+            confirmed={promptConfirmed}
+            confirmDisabled={
+              inProgress ||
+              !guard.canSubmit ||
+              !sourceExecutable ||
+              sourceBlocked !== null ||
+              !gate.canSubmit
+            }
+            onConfirm={() => armExecutionConfirmation(promptBinding)}
+            confirmLabel="已核对，确认从头重跑"
+            confirmedLabel="已确认从头重跑"
+            blocked={promptConfirmed ? null : submitBlocked}
+            controlsId={`prompt-confirm-details-${run.meta.id}-${span.id}`}
+          />
+        );
+      })()}
 
+      <div className="mt-2 flex items-center justify-end gap-2">
         {inProgress ? (
           <span className="text-[11px] text-emerald-600">重跑中…（真实 LLM 调用，可能耗时）</span>
         ) : null}
@@ -1510,6 +1494,8 @@ function ForkEditor({
            * "这次到底做过哪些检查"与"本次执行的边界"（不重做本轮其余工具、不撤销原写入、
            * 副本授权只本次有效）。确认按钮要求**预检结论 + 本次授权**都在场——
            * 没有预检就没有边界可核对，界面上也不假称检查过。
+           * UI 密度 3.1（design D4）：换共享确认块——关键摘要收起仍可见、详细边界
+           * 默认收进详情；缺预检结论的原因就近显示。
            *（"事实"与"结论"两处都由 `lib/execution-confirmation.ts` 生成，顺序与措辞不同处不写第二份。）
            */}
           {(() => {
@@ -1534,49 +1520,34 @@ function ForkEditor({
                     },
             });
             return (
-              <div className="mt-1.5 border-t border-violet-100 pt-1.5">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[10px] font-semibold text-violet-900">核对本次续跑</span>
-                  <button
-                    type="button"
-                    data-confirm-execution
-                    aria-pressed={executionConfirmed ? "true" : undefined}
-                    disabled={
-                      inProgress ||
-                      executionConfirmed ||
-                      capability === null ||
-                      !writesAuthorized ||
-                      !canSubmit ||
-                      !sourceExecutable ||
-                      sourceBlocked !== null ||
-                      !gate.canSubmit
-                    }
-                    onClick={() =>
-                      armExecutionConfirmation(currentConfirmationBinding("result", draftKey))
-                    }
-                    className={`shrink-0 rounded border px-2 py-0.5 text-[10px] disabled:cursor-not-allowed disabled:opacity-40 ${
-                      executionConfirmed
-                        ? "border-emerald-300 bg-emerald-50 text-emerald-800"
-                        : "border-violet-400 text-violet-700 hover:bg-violet-50"
-                    }`}
-                  >
-                    {executionConfirmed ? "已确认本次续跑" : "已核对，确认本次续跑"}
-                  </button>
-                </div>
-                {capability === null ? (
-                  <div className="mt-1 text-[11px] leading-4 text-amber-700">
-                    还没拿到只读预检结论：先点上方「校验续跑条件」，确认要核对的就是那份结论。
-                  </div>
-                ) : null}
-                <ul className="mt-1 space-y-0.5 text-[11px] leading-4 text-gray-600">
-                  {isolatedDisclosure.checks.map((one) => (
-                    <li key={`check-${one}`}>已做的检查：{one}</li>
-                  ))}
-                  {isolatedDisclosure.limits.map((one) => (
-                    <li key={`limit-${one}`}>本次边界：{one}</li>
-                  ))}
-                </ul>
-              </div>
+              <ConfirmationBlock
+                title="核对本次续跑"
+                tone="violet"
+                summary={isolatedDisclosure.summary}
+                rows={disclosureLines(isolatedDisclosure)}
+                confirmed={executionConfirmed}
+                confirmDisabled={
+                  inProgress ||
+                  executionConfirmed ||
+                  capability === null ||
+                  !writesAuthorized ||
+                  !canSubmit ||
+                  !sourceExecutable ||
+                  sourceBlocked !== null ||
+                  !gate.canSubmit
+                }
+                onConfirm={() =>
+                  armExecutionConfirmation(currentConfirmationBinding("result", draftKey))
+                }
+                confirmLabel="已核对，确认本次续跑"
+                confirmedLabel="已确认本次续跑"
+                blocked={
+                  executionConfirmed || capability !== null
+                    ? null
+                    : "还没拿到只读预检结论：先点上方「校验续跑条件」，确认要核对的就是那份结论。"
+                }
+                controlsId={`result-isolated-confirm-details-${run.meta.id}-${span.id}`}
+              />
             );
           })()}
         </div>
@@ -1586,59 +1557,50 @@ function ForkEditor({
         <div className="mt-1 text-[11px] leading-4 text-amber-700">{submission.reason}</div>
       ) : null}
 
-      {!isolated ? (
-        /*
-         * U5 任务 4.4：普通 result 的**核对本次重跑**（就地展开，不再叠一层大模态）。
-         * 内容全部来自 `resultPlainDisclosure`：本次目标、原/新值、模型与前缀，
-         * 以及"确实做过哪些检查 / 这次执行的边界"；没有独立预检接口这件事直说。
-         */
-        <div className="mt-2 rounded border border-gray-200 bg-white">
-          <div className="flex items-center justify-between gap-2 px-2 py-1.5">
-            <span className="text-[11px] font-medium text-gray-600">核对本次重跑</span>
-            <button
-              type="button"
-              data-confirm-execution
-              aria-pressed={executionConfirmed ? "true" : undefined}
-              disabled={
-                inProgress ||
-                executionConfirmed ||
-                !canSubmit ||
-                !sourceExecutable ||
-                sourceBlocked !== null ||
-                !gate.canSubmit
-              }
-              onClick={() =>
-                armExecutionConfirmation(currentConfirmationBinding("result", draftKey))
-              }
-              className={`shrink-0 rounded border px-2 py-1 text-[11px] disabled:cursor-not-allowed disabled:opacity-40 ${
-                executionConfirmed
-                  ? "border-emerald-300 bg-emerald-50 text-emerald-800"
-                  : "border-gray-300 text-gray-700 hover:bg-gray-50"
-              }`}
-            >
-              {executionConfirmed ? "已确认本次重跑" : "已核对，确认本次重跑"}
-            </button>
-          </div>
-          <dl className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 border-t border-gray-100 px-2 py-1.5 text-[11px] leading-4">
-            {disclosureLines(
-              resultPlainDisclosure({
-                parentRunId: run.meta.id,
-                atSpanId: span.id,
-                toolName: span.tool,
-                oldValue: original,
-                newValue: value,
-                parentModel,
-                configModel,
-              }),
-            ).map((row) => (
-              <div key={`${row.label}-${row.value}`} className="col-span-2 grid grid-cols-subgrid">
-                <dt className="text-gray-500">{row.label}</dt>
-                <dd className="min-w-0 break-words text-gray-700">{row.value}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
-      ) : null}
+      {!isolated
+        ? /*
+           * U5 任务 4.4：普通 result 的**核对本次重跑**（就地展开，不再叠一层大模态）。
+           * 内容全部来自 `resultPlainDisclosure`：本次目标、原/新值、模型与前缀，
+           * 以及"确实做过哪些检查 / 这次执行的边界"；没有独立预检接口这件事直说。
+           * UI 密度 3.1（design D4）：换共享确认块——关键摘要收起仍可见，
+           * facts/checks/limits 全表默认收进详情。
+           */
+          (() => {
+            const plainDisclosure = resultPlainDisclosure({
+              parentRunId: run.meta.id,
+              atSpanId: span.id,
+              toolName: span.tool,
+              oldValue: original,
+              newValue: value,
+              parentModel,
+              configModel,
+            });
+            return (
+              <ConfirmationBlock
+                title="核对本次重跑"
+                tone="gray"
+                summary={plainDisclosure.summary}
+                rows={disclosureLines(plainDisclosure)}
+                confirmed={executionConfirmed}
+                confirmDisabled={
+                  inProgress ||
+                  executionConfirmed ||
+                  !canSubmit ||
+                  !sourceExecutable ||
+                  sourceBlocked !== null ||
+                  !gate.canSubmit
+                }
+                onConfirm={() =>
+                  armExecutionConfirmation(currentConfirmationBinding("result", draftKey))
+                }
+                confirmLabel="已核对，确认本次重跑"
+                confirmedLabel="已确认本次重跑"
+                blocked={null}
+                controlsId={`result-plain-confirm-details-${run.meta.id}-${span.id}`}
+              />
+            );
+          })()
+        : null}
 
       <EntryGateNotice gate={gate} />
 

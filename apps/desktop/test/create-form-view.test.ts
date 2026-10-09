@@ -67,6 +67,7 @@ function props(over: Partial<CreateRunFormViewProps> = {}): CreateRunFormViewPro
     scopeFacts: { execution: "纯对话：空工具表", cost: "一次提交 = 一次真实模型调用。" },
     confirmation: {
       ready: true,
+      summary: "纯对话 · 一次真实模型调用（按实际用量计费）",
       rows: [{ label: "任务（User Message）", value: "用一句话解释时间旅行调试" }],
       blocked: null,
     },
@@ -278,10 +279,11 @@ describe("4.4 创建页的核对与确认：未确认就没有提交这条路", 
     return markup.slice(markup.lastIndexOf("<button", at), markup.indexOf(">", at) + 1);
   }
 
-  it("未确认 ⇒ 披露逐行可读、确认按钮可点、提交按钮仍被挡住", () => {
+  it("收起态：关键摘要常驻可见、详细边界默认收起、确认按钮可点、提交仍被挡住", () => {
     const markup = html({
       confirmation: {
         ready: false,
+        summary: "纯对话 · 一次真实模型调用（按实际用量计费）",
         rows: [
           { label: "任务（User Message）", value: "解释一下时间旅行调试" },
           { label: "已做的检查", value: "本地字段检查：必填项、模式与授权条件" },
@@ -291,17 +293,35 @@ describe("4.4 创建页的核对与确认：未确认就没有提交这条路", 
       },
       lock: { ...IDLE_LOCK, canSubmit: false },
     });
-    expect(markup).toContain("解释一下时间旅行调试");
-    expect(markup).toContain("本地字段检查");
-    expect(markup).toContain("没有独立的模型连通性预检");
+    // 收起态唯一的内容行是关键摘要（3.1：费用/模式边界摘要与详情，摘要这半边）
+    expect(markup).toContain("data-confirm-summary");
+    expect(markup).toContain("一次真实模型调用（按实际用量计费）");
+    // 详细边界默认收起：Disclosure 摘要行在（aria-expanded=false），全表不在标记里
+    expect(markup).toContain("详细边界");
+    expect(markup).toContain('aria-expanded="false"');
+    expect(markup).not.toContain("本地字段检查");
+    expect(markup).not.toContain("没有独立的模型连通性预检");
     expect(markup).toContain("已核对，确认本次提交");
     expect(confirmTag(markup)).not.toContain('disabled=""');
     expect(markup).toMatch(/disabled=""[^>]*>创建<\/button>/);
   });
 
+  it("详细边界全表接的是 props.rows（静态渲染测不到展开态，接线在源码级钉住）", () => {
+    const src = readFileSync(
+      resolve(import.meta.dirname, "../src/renderer/src/components/CreateRunWorkspace.tsx"),
+      "utf8",
+    );
+    expect(src).toContain("rows={props.confirmation.rows}");
+  });
+
   it("已确认 ⇒ 确认按钮变状态标识且不可重复点，提交才可能放行", () => {
     const markup = html({
-      confirmation: { ready: true, rows: [{ label: "任务", value: "t" }], blocked: null },
+      confirmation: {
+        ready: true,
+        summary: "纯对话 · 一次真实模型调用（按实际用量计费）",
+        rows: [{ label: "任务", value: "t" }],
+        blocked: null,
+      },
     });
     expect(markup).toContain("已确认本次提交");
     expect(markup).toContain('aria-pressed="true"');
@@ -312,6 +332,7 @@ describe("4.4 创建页的核对与确认：未确认就没有提交这条路", 
     const markup = html({
       confirmation: {
         ready: false,
+        summary: "纯对话 · 一次真实模型调用（按实际用量计费）",
         rows: [{ label: "任务", value: "t" }],
         blocked: "先补齐必填输入，再核对本次提交",
       },

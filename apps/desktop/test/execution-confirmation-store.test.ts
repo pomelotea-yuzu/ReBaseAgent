@@ -228,25 +228,31 @@ describe("4.4 接线契约：确认判据只有一份", () => {
     // U5 4.7 起 A/B 也接入：口径 4 → 5（result 普通 / result 隔离 / prompt / messages / A-B）
     // ⚠️ U8 5.1a 改判留痕：载体迁移后按文件计数——result 两个在 DetailPanel，
     // A-B 在 ModelAbEditor、messages 在 MessagesForkEditor、创建在 CreateRunWorkspace。
+    // ⚠️ UI 密度 3.1 改判留痕：确认按钮统一由共享 ConfirmationBlock 渲染
+    // （data-confirm-execution 只在组件内部出现一次），各入口按 <ConfirmationBlock 用法计数。
     const panel = read("components/DetailPanel.tsx");
     const create = read("components/CreateRunWorkspace.tsx");
     const modelAbEditor = read("components/ModelAbEditor.tsx");
     const messagesEditor = read("components/MessagesForkEditor.tsx");
-    expect(panel.match(/data-confirm-execution/g)?.length).toBe(3);
-    expect(create.match(/data-confirm-execution/g)?.length).toBe(1);
-    expect(modelAbEditor.match(/data-confirm-execution/g)?.length).toBe(1);
-    expect(messagesEditor.match(/data-confirm-execution/g)?.length).toBe(1);
+    const block = read("components/ConfirmationBlock.tsx");
+    expect(panel.match(/<ConfirmationBlock/g)?.length).toBe(3);
+    expect(create.match(/<ConfirmationBlock/g)?.length).toBe(1);
+    expect(modelAbEditor.match(/<ConfirmationBlock/g)?.length).toBe(1);
+    expect(messagesEditor.match(/<ConfirmationBlock/g)?.length).toBe(1);
+    // 按钮渲染点唯一：五个入口共用同一个 data-confirm-execution 出口
+    expect(block.match(/data-confirm-execution/g)?.length).toBe(1);
   });
 
   it("隔离侧的确认按钮要求预检结论与本次授权都在场（无预检就不给确认）", () => {
     const panel = read("components/DetailPanel.tsx");
     const at = panel.indexOf("已核对，确认本次续跑");
     expect(at).toBeGreaterThan(-1);
-    // 按钮的 disabled 写在标签之前：往回切出这一支的禁用清单
+    // 3.1 起确认按钮在共享 ConfirmationBlock 里，判据经 confirmDisabled 传入（写在标签之前）：
+    // 往回切出这一支的禁用清单
     const gate = panel
       .slice(
-        panel.lastIndexOf("disabled={", at),
-        panel.indexOf("}", panel.lastIndexOf("disabled={", at)),
+        panel.lastIndexOf("confirmDisabled={", at),
+        panel.indexOf("}", panel.lastIndexOf("confirmDisabled={", at)),
       )
       .replace(/\s+/g, " ");
     expect(gate).toContain("capability === null ||");
@@ -266,19 +272,20 @@ describe("4.4 接线契约：确认判据只有一份", () => {
 
   it("prompt 与 messages 的资格原因就近显示（不是只把按钮禁掉）", () => {
     const panel = read("components/DetailPanel.tsx");
-    // prompt：门禁 / 源不可用 / 恢复重验三类原因进确认区（钉**判据形状**：
-    // 只写"出现过 submitBlocked"是假门 —— 反向条件也满足它）
+    // 3.1 起确认块换共享 ConfirmationBlock：原因经 blocked prop 传入（钉**判据形状**：
+    // 只写"出现过 submitBlocked"是假门 —— 反向条件也满足它；确认后原因必须收起）
     const promptAt = panel.indexOf("已核对，确认从头重跑");
-    expect(panel.slice(promptAt, panel.indexOf("</dl>", promptAt) + 900)).toContain(
-      "!promptConfirmed && submitBlocked !== null",
+    expect(promptAt).toBeGreaterThan(-1);
+    expect(panel.slice(promptAt, promptAt + 400)).toContain(
+      "blocked={promptConfirmed ? null : submitBlocked}",
     );
     // ⚠️ U8 5.1a/5.2 改判留痕：messages 编辑器迁 MessagesForkEditor.tsx，资格原因
     // 提取为 lib/messages-eligibility.ts 纯判据（顺序判定可单独定向测试）。
     const msgEditor = read("components/MessagesForkEditor.tsx");
     const msgAt = msgEditor.indexOf("已核对，确认本次重发");
     expect(msgAt).toBeGreaterThan(-1);
-    expect(msgEditor.slice(msgAt, msgEditor.indexOf("</dl>", msgAt) + 900)).toContain(
-      "!messagesConfirmed && ineligible !== null",
+    expect(msgEditor.slice(msgAt, msgAt + 400)).toContain(
+      "blocked={messagesConfirmed ? null : (ineligible?.reason ?? null)}",
     );
     const eligibility = read("lib/messages-eligibility.ts");
     expect(eligibility).toContain("本会话未捕获到 key：先把你的应用经代理跑一次");

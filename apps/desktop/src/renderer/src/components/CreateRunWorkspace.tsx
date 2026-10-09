@@ -28,6 +28,7 @@ import type { ConfirmationRow } from "../lib/execution-confirmation";
 import { useRevokeOnConfigChange } from "../lib/use-revoke-on-config-change";
 import { useAppStore } from "../store";
 import { requestConfirm } from "./ConfirmDialog";
+import { ConfirmationBlock } from "./ConfirmationBlock";
 import { FOCUS_RING } from "./IconButton";
 
 /**
@@ -91,6 +92,8 @@ export interface CreateRunFormViewProps {
    */
   readonly confirmation: {
     readonly ready: boolean;
+    /** 收起态仍可见的关键摘要（费用 / 模式 / 文件副作用一句话，3.1 design D4） */
+    readonly summary: string;
     readonly rows: readonly ConfirmationRow[];
     /** 还不能确认的原因（输入判据没过 / 门禁挡住）；null = 现在就能确认 */
     readonly blocked: string | null;
@@ -349,47 +352,26 @@ export function CreateRunWorkspaceView(props: CreateRunFormViewProps) {
             <div className="mt-0.5 text-gray-500">{scopeFacts.cost}</div>
           </div>
 
-          {/* 核对本次提交（U5 4.4）：就地展开，不再新增阻断阅读的大模态；确认后才放行提交 */}
-          <div className="rounded border border-gray-200 bg-white">
-            <div className="flex items-start justify-between gap-2 px-2 py-1.5">
-              <div className="min-w-0">
-                <span className="block text-[11px] font-medium text-gray-600">核对本次提交</span>
-                <span className="mt-0.5 block text-[11px] leading-4 text-gray-500">
-                  确认后才会放行创建；改任何输入、换配置或去别的页面看一眼，都要重新确认。
-                </span>
-              </div>
-              <button
-                type="button"
-                data-confirm-execution
-                aria-pressed={props.confirmation.ready ? "true" : undefined}
-                disabled={props.confirmation.blocked !== null || props.confirmation.ready}
-                onClick={props.onConfirm}
-                className={`shrink-0 rounded border px-2 py-1 text-[11px] disabled:cursor-not-allowed disabled:opacity-40 ${
-                  props.confirmation.ready
-                    ? "border-emerald-300 bg-emerald-50 text-emerald-800"
-                    : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
-                } ${FOCUS_RING}`}
-              >
-                {props.confirmation.ready ? "已确认本次提交" : "已核对，确认本次提交"}
-              </button>
+          {/* 核对本次提交（U5 4.4）：就地展开，不再新增阻断阅读的大模态；确认后才放行提交。
+              UI 密度 3.1/3.2（design D4）：换共享确认块——关键摘要收起仍可见、
+              详细边界默认收起；确认行为提醒保留在块内。 */}
+          <ConfirmationBlock
+            title="核对本次提交"
+            tone="gray"
+            summary={props.confirmation.summary}
+            rows={props.confirmation.rows}
+            confirmed={props.confirmation.ready}
+            confirmDisabled={props.confirmation.blocked !== null}
+            onConfirm={props.onConfirm}
+            confirmLabel="已核对，确认本次提交"
+            confirmedLabel="已确认本次提交"
+            blocked={props.confirmation.blocked}
+            controlsId="create-confirm-details"
+          >
+            <div className="border-t border-gray-100 px-2 py-1.5 text-[11px] leading-4 text-gray-500">
+              确认后才会放行创建；改任何输入、换配置或去别的页面看一眼，都要重新确认。
             </div>
-            <dl className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 border-t border-gray-100 px-2 py-1.5 text-[11px] leading-4">
-              {props.confirmation.rows.map((row) => (
-                <div
-                  key={`${row.label}-${row.value}`}
-                  className="col-span-2 grid grid-cols-subgrid"
-                >
-                  <dt className="text-gray-500">{row.label}</dt>
-                  <dd className="min-w-0 break-words text-gray-700">{row.value}</dd>
-                </div>
-              ))}
-            </dl>
-            {props.confirmation.blocked !== null ? (
-              <div className="border-t border-gray-100 px-2 py-1.5 text-[11px] leading-4 text-gray-500">
-                {props.confirmation.blocked}
-              </div>
-            ) : null}
-          </div>
+          </ConfirmationBlock>
 
           {/* 表单级说明：不属于某个字段的拒绝（门禁 / 执行中） */}
           {errors.form !== null && !lock.busy ? (
@@ -572,16 +554,15 @@ export function CreateRunWorkspace({ onOpenSettings }: { onOpenSettings: () => v
       };
 
   /** 确认区展示的内容：全部由事实拼出（`lib/execution-confirmation.ts`），组件不写第二套话术 */
-  const confirmationRows = disclosureLines(
-    createDisclosure({
-      mode: form.mode,
-      systemPrompt,
-      userMessage,
-      modelSummary: settingsSummary,
-      sourcePath: form.source?.path ?? null,
-      writesAuthorized: form.writesAuthorized,
-    }),
-  );
+  const confirmationDisclosure = createDisclosure({
+    mode: form.mode,
+    systemPrompt,
+    userMessage,
+    modelSummary: settingsSummary,
+    sourcePath: form.source?.path ?? null,
+    writesAuthorized: form.writesAuthorized,
+  });
+  const confirmationRows = disclosureLines(confirmationDisclosure);
   const confirmBlocked = confirmed
     ? null
     : !submission.ok
@@ -685,7 +666,12 @@ export function CreateRunWorkspace({ onOpenSettings }: { onOpenSettings: () => v
         settingsSummary={settingsSummary}
         settingsMissing={settingsMissing}
         scopeFacts={scopeFacts}
-        confirmation={{ ready: confirmed, rows: confirmationRows, blocked: confirmBlocked }}
+        confirmation={{
+          ready: confirmed,
+          summary: confirmationDisclosure.summary,
+          rows: confirmationRows,
+          blocked: confirmBlocked,
+        }}
         lock={{
           fields: formLocked,
           draftFrozen,

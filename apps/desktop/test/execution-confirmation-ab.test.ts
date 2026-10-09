@@ -191,6 +191,17 @@ describe("4.7 接线契约：确认对象是当前预览计划而非草稿", () 
     return flat(ab.slice(start, ab.indexOf("}", start)));
   }
 
+  /**
+   * 确认按钮的判据清单（UI 密度 3.1：按钮移入共享 ConfirmationBlock，
+   * 判据经 `confirmDisabled` prop 传入——同样写在标签之前）。
+   */
+  function confirmDisabledOf(label: string): string {
+    const labelAt = ab.indexOf(label);
+    expect(labelAt, label).toBeGreaterThan(-1);
+    const start = ab.lastIndexOf("confirmDisabled={", labelAt);
+    return flat(ab.slice(start, ab.indexOf("}", start)));
+  }
+
   it("披露喂的是 activePlan：属于旧修订的计划不进确认", () => {
     expect(ab).toContain("核对本次实验");
     expect(flat(ab)).toContain("abDisclosure({");
@@ -200,7 +211,7 @@ describe("4.7 接线契约：确认对象是当前预览计划而非草稿", () 
   });
 
   it("没有生效计划就不给确认按钮（确认的必须先是被校验的那一份）", () => {
-    const confirmDisabled = disabledOf("已核对，确认执行实验");
+    const confirmDisabled = confirmDisabledOf("已核对，确认执行实验");
     expect(confirmDisabled).toContain("activePlan === null ||");
     expect(confirmDisabled).toContain("!canSubmit");
     expect(confirmDisabled).toContain("!gate.canSubmit");

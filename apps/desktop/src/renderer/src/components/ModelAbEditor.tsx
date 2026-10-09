@@ -18,6 +18,7 @@ import { useEscapeClose } from "../lib/use-escape-close";
 import { useRevokeOnConfigChange } from "../lib/use-revoke-on-config-change";
 import { useAppStore } from "../store";
 import { requestConfirm } from "./ConfirmDialog";
+import { ConfirmationBlock } from "./ConfirmationBlock";
 import { DraftCompareGrid } from "./DraftCompareGrid";
 import { DraftSourceBanner } from "./DraftSourceBanner";
 import { EntryGateNotice } from "./EntryGateNotice";
@@ -652,48 +653,40 @@ export function ModelAbEditor({
        * model/params、被丢弃的父录值、静默忽略告警、实验组 ID）；没有计划时只说缺什么，
        * 不把未校验的草稿文本摊开冒充计划。确认与其余入口同一份凭据、同一个执法点。
        */}
-      <div className="mt-2 rounded border border-sky-200 bg-white">
-        <div className="flex items-center justify-between gap-2 px-2 py-1.5">
-          <span className="text-[11px] font-medium text-gray-600">核对本次实验</span>
-          <button
-            type="button"
-            data-confirm-execution
-            aria-pressed={abConfirmed ? "true" : undefined}
-            disabled={
+      {(() => {
+        const abConfirmDisclosure = abDisclosure({
+          parentRunId: run.meta.id,
+          atSpanId: span.id,
+          provider: settings?.baseURL ?? "（未配置 baseURL）",
+          armCount: rows.length,
+          plan: activePlan,
+        });
+        return (
+          <ConfirmationBlock
+            title="核对本次实验"
+            tone="sky"
+            summary={abConfirmDisclosure.summary}
+            rows={disclosureLines(abConfirmDisclosure)}
+            confirmed={abConfirmed}
+            confirmDisabled={
               inProgress || abConfirmed || activePlan === null || !canSubmit || !gate.canSubmit
             }
-            onClick={() => armExecutionConfirmation(abBinding)}
-            className={`shrink-0 rounded border px-2 py-0.5 text-[11px] disabled:cursor-not-allowed disabled:opacity-40 ${
+            onConfirm={() => armExecutionConfirmation(abBinding)}
+            confirmLabel="已核对，确认执行实验"
+            confirmedLabel="已确认执行实验"
+            blocked={
               abConfirmed
-                ? "border-emerald-300 bg-emerald-50 text-emerald-800"
-                : "border-gray-300 text-gray-700 hover:bg-gray-50"
-            }`}
-          >
-            {abConfirmed ? "已确认执行实验" : "已核对，确认执行实验"}
-          </button>
-        </div>
-        <dl className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 border-t border-gray-100 px-2 py-1.5 text-[11px] leading-4">
-          {disclosureLines(
-            abDisclosure({
-              parentRunId: run.meta.id,
-              atSpanId: span.id,
-              provider: settings?.baseURL ?? "（未配置 baseURL）",
-              armCount: rows.length,
-              plan: activePlan,
-            }),
-          ).map((row) => (
-            <div key={`${row.label}-${row.value}`} className="col-span-2 grid grid-cols-subgrid">
-              <dt className="text-gray-500">{row.label}</dt>
-              <dd className="min-w-0 break-words text-gray-700">{row.value}</dd>
-            </div>
-          ))}
-        </dl>
-        {!abConfirmed && (planStale || submitBlocked !== null) ? (
-          <div className="border-t border-gray-100 px-2 py-1.5 text-[11px] leading-4 text-amber-800">
-            {submitBlocked !== null ? submitBlocked : planStaleText}
-          </div>
-        ) : null}
-      </div>
+                ? null
+                : submitBlocked !== null
+                  ? submitBlocked
+                  : planStale
+                    ? planStaleText
+                    : null
+            }
+            controlsId={`ab-confirm-details-${run.meta.id}-${span.id}`}
+          />
+        );
+      })()}
 
       <EntryGateNotice gate={gate} />
 

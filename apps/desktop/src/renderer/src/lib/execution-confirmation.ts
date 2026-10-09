@@ -223,6 +223,11 @@ export interface ConfirmationRow {
  * `limits` 是这次执行边界的诚实说明（含"本入口没有独立预检接口"这一类）。
  */
 export interface ConfirmationDisclosure {
+  /**
+   * 收起态仍可见的关键摘要（UI 密度 3.1/3.2 · design D4）：一句话说清本次的
+   * 费用与工具/文件副作用——详细边界收进可展开区域后，摘要不能跟着消失。
+   */
+  readonly summary: string;
   readonly facts: readonly ConfirmationRow[];
   readonly checks: readonly string[];
   readonly limits: readonly string[];
@@ -243,7 +248,7 @@ const LOCAL_FIELD_CHECK = "本地字段检查：必填项、模式与授权条�
  * 在渲染层确实做过的事，所以计划缺失时它也要显示。
  */
 const AB_LOCAL_CHECK =
-  "本地批次检查：运行配置已填、至少两臂、每臂 model 非空、参数 JSON 可解析、逐臂与父不同（空 fork 整批会被拒）";
+  "本地批次检查：运行配置已填、至少两臂、每臂 model 非空、参数 JSON 可解析、逐臂与父 run 不同（与父完全相同的臂会让整批被拒）";
 
 export interface CreateDisclosureInput {
   readonly mode: "chat" | "isolated_files";
@@ -258,6 +263,9 @@ export interface CreateDisclosureInput {
 export function createDisclosure(input: CreateDisclosureInput): ConfirmationDisclosure {
   const isolated = input.mode === "isolated_files";
   return {
+    summary: isolated
+      ? "隔离采集只读源目录 · 副本写入须本次勾选 · 真实调用按用量计费"
+      : "一次真实模型调用 · 按实际用量计费 · 纯对话不调用工具",
     facts: [
       { label: "任务（User Message）", value: preview(input.userMessage) },
       {
@@ -278,7 +286,7 @@ export function createDisclosure(input: CreateDisclosureInput): ConfirmationDisc
     checks: [LOCAL_FIELD_CHECK],
     limits: isolated
       ? [
-          "没有目录采集预览接口：文件数量、体积与是否被拒绝**要到提交后**才可知，这里不预告。",
+          "没有目录采集预览接口：文件数量、体积与是否被拒绝，要到提交后才可知，这里不预告。",
           "隔离运行按固定工具组执行，采集到的文本会进入模型请求；副本写入只落到数据目录的不可变附件。",
         ]
       : [
@@ -314,6 +322,7 @@ export function resultPlainDisclosure(input: ResultDisclosureInput): Confirmatio
     configModel: input.configModel,
   });
   return {
+    summary: "普通续跑 · 后续新发起的工具调用会真实执行 · 父 run 不会被修改",
     facts: [
       { label: "父运行", value: input.parentRunId },
       {
@@ -334,7 +343,7 @@ export function resultPlainDisclosure(input: ResultDisclosureInput): Confirmatio
     ],
     checks: [LOCAL_FIELD_CHECK],
     limits: [
-      "世界不隔离：这是普通 replay 续跑——默认不复执行工具（把录下的结果喂回模型），但**后续**由模型新发起的工具调用会真的执行，可能有外部副作用。",
+      "世界不隔离：这是普通 replay 续跑——默认不复执行工具（把录下的结果喂回模型），但后续由模型新发起的工具调用会真的执行，可能有外部副作用。",
       "没有独立的续跑条件预检接口（隔离路径才有）：这里的条件由提交时 main 复核。",
       "父运行与其后的步骤不会被修改；重跑产出的是一条新 run。",
     ],
@@ -376,6 +385,7 @@ export function resultIsolatedDisclosure(
 ): ConfirmationDisclosure {
   const pre = input.precheck;
   return {
+    summary: "整轮续跑 · 本轮其余工具不重做 · 副本写入须本次勾选",
     facts: [
       {
         label: "被改的调用",
@@ -406,7 +416,7 @@ export function resultIsolatedDisclosure(
         ? [LOCAL_FIELD_CHECK]
         : [LOCAL_FIELD_CHECK, "只读预检 `runs:forkCapability`：不创建运行、不写文件、不请求模型"],
     limits: [
-      "整轮续跑：这一轮的其余工具**不重做**（它们在子运行的前缀里各出现一次），编辑点之后的步骤由模型重新生成。",
+      "整轮续跑：这一轮的其余工具不重做（它们在子运行的前缀里各出现一次），编辑点之后的步骤由模型重新生成。",
       "不撤销已经发生的写入：源目录与父 trace 都不会被改动，写入只落在本副本映射里；父 trace 上的历史授权标注不构成本次授权。",
       "副本写入需要本次显式勾选；重新打开编辑或换目录都要重新勾选，不从历史记录补授权。",
     ],
@@ -430,6 +440,7 @@ export interface PromptDisclosureInput {
  */
 export function promptDisclosure(input: PromptDisclosureInput): ConfirmationDisclosure {
   return {
+    summary: "从头执行新轨迹 · 真实调用模型并计费 · 父 run 只作对照",
     facts: [
       { label: "父运行（只作对照）", value: input.parentRunId },
       { label: "改动的启动字段", value: input.fieldLabel },
@@ -466,6 +477,7 @@ export interface MessagesDisclosureInput {
  */
 export function messagesDisclosure(input: MessagesDisclosureInput): ConfirmationDisclosure {
   return {
+    summary: "只重发这一个请求 · 不执行外部工具 · 凭据用代理会话最近捕获的 key",
     facts: [
       { label: "目标 run · 调用", value: `${input.parentRunId} · ${input.atSpanId}` },
       { label: "本次请求的 messages", value: `${input.messageCount} 条（完整替换发送，不截断）` },
@@ -481,7 +493,7 @@ export function messagesDisclosure(input: MessagesDisclosureInput): Confirmation
     ],
     limits: [
       "只重发这一个请求：不执行任何外部 Agent 的工具，也不恢复它的工作区或后续步骤。",
-      "凭据是代理会话**最近捕获**的那一个，可能与该 run 录制当时不同（也可能没有 ⇒ 会被拒）。",
+      "凭据是代理会话最近捕获的那一个，可能与该 run 录制当时不同（也可能没有 ⇒ 会被拒）。",
       "被动录制的 run 没有自有 config_hash：它仍是可对照的轨迹，但这条路径不产生父子续跑。",
     ],
   };
@@ -508,6 +520,12 @@ export interface AbDisclosureInput {
 export function abDisclosure(input: AbDisclosureInput): ConfirmationDisclosure {
   const plan = input.plan;
   return {
+    summary:
+      plan === null
+        ? `尚未取得当前批次的计划（${input.armCount} 臂）：先校验并预览`
+        : `${plan.plan.length} 次真实模型调用 · 按臂数计费${
+            plan.sideEffectsAllowed ? " · 副作用工具将真实执行" : ""
+          }`,
     facts:
       plan === null
         ? [

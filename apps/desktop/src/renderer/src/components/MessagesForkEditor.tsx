@@ -11,6 +11,7 @@ import { isStatusReadChecking } from "../lib/proxy-status-read";
 import { useEscapeClose } from "../lib/use-escape-close";
 import { useAppStore } from "../store";
 import { requestConfirm } from "./ConfirmDialog";
+import { ConfirmationBlock } from "./ConfirmationBlock";
 import { DraftCompareGrid } from "./DraftCompareGrid";
 import { DraftSourceBanner } from "./DraftSourceBanner";
 import { EntryGateNotice } from "./EntryGateNotice";
@@ -327,7 +328,7 @@ export function MessagesForkEditor({
 
       {unchanged ? (
         <div className="mt-1 text-[11px] text-amber-700">
-          未做任何修改（空 fork 被拒绝），编辑后再重发。
+          与原值相同，请修改后再提交；未做修改的重发会被原样拒绝。
         </div>
       ) : null}
 
@@ -371,50 +372,37 @@ export function MessagesForkEditor({
        * U5 任务 4.6：messages 的**核对本次重发**。这条路径最容易被人读成"把那个 Agent
        * 接着跑完"，所以边界写死：只重发这一个请求、不执行外部工具、不恢复其工作区、
        * 用的是代理会话最近捕获的 key（可能与录制当时不同）。缺资格时原因就近显示。
+       * UI 密度 3.1（design D4）：改用共享确认块——关键摘要收起时仍可见，
+       * 详细边界（facts/checks/limits 全表）收进共享 Disclosure；提交按钮行紧随其下。
        */}
-      <div className="mt-2 rounded border border-sky-200 bg-white">
-        <div className="flex items-center justify-between gap-2 px-2 py-1.5">
-          <span className="text-[11px] font-medium text-gray-600">核对本次重发</span>
-          <button
-            type="button"
-            data-confirm-execution
-            aria-pressed={messagesConfirmed ? "true" : undefined}
-            disabled={inProgress || messagesConfirmed || ineligible !== null}
-            onClick={() => armExecutionConfirmation(messagesBinding)}
-            className={`shrink-0 rounded border px-2 py-0.5 text-[11px] disabled:cursor-not-allowed disabled:opacity-40 ${
-              messagesConfirmed
-                ? "border-emerald-300 bg-emerald-50 text-emerald-800"
-                : "border-gray-300 text-gray-700 hover:bg-gray-50"
-            }`}
+      {(() => {
+        const disclosure = messagesDisclosure({
+          parentRunId: run.meta.id,
+          atSpanId: span.id,
+          messageCount: span.request.messages.length,
+          modelSummary: span.request.model,
+          keyCaptured: proxy?.hasKey === true,
+          upstream: proxy?.running === true ? proxy.upstreamBaseUrl : null,
+          ineligible: ineligibleReason,
+        });
+        return (
+          <ConfirmationBlock
+            title="核对本次重发"
+            tone="sky"
+            summary={disclosure.summary}
+            rows={disclosureLines(disclosure)}
+            confirmed={messagesConfirmed}
+            confirmDisabled={inProgress || ineligible !== null}
+            onConfirm={() => armExecutionConfirmation(messagesBinding)}
+            confirmLabel="已核对，确认本次重发"
+            confirmedLabel="已确认重发"
+            blocked={messagesConfirmed ? null : (ineligible?.reason ?? null)}
+            controlsId={`messages-confirm-details-${run.meta.id}-${span.id}`}
           >
-            {messagesConfirmed ? "已确认重发" : "已核对，确认本次重发"}
-          </button>
-        </div>
-        <dl className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 border-t border-gray-100 px-2 py-1.5 text-[11px] leading-4">
-          {disclosureLines(
-            messagesDisclosure({
-              parentRunId: run.meta.id,
-              atSpanId: span.id,
-              messageCount: span.request.messages.length,
-              modelSummary: span.request.model,
-              keyCaptured: proxy?.hasKey === true,
-              upstream: proxy?.running === true ? proxy.upstreamBaseUrl : null,
-              ineligible: ineligibleReason,
-            }),
-          ).map((row) => (
-            <div key={`${row.label}-${row.value}`} className="col-span-2 grid grid-cols-subgrid">
-              <dt className="text-gray-500">{row.label}</dt>
-              <dd className="min-w-0 break-words text-gray-700">{row.value}</dd>
-            </div>
-          ))}
-        </dl>
-        {!messagesConfirmed && ineligible !== null ? (
-          <div className="border-t border-gray-100 px-2 py-1.5 text-[11px] leading-4 text-amber-800">
-            {ineligible.reason}
             {/* U8 5.2：凭据/监听类原因给就近录制入口——进录制再返回，草稿与目标原样保留
                 （返回路径与目标保留由 store 的辅助工作区往返承担；旧确认不恢复） */}
-            {ineligible.recordingEntry ? (
-              <div className="mt-1">
+            {!messagesConfirmed && ineligible?.recordingEntry ? (
+              <div className="border-t border-gray-100 px-2 py-1.5 text-[11px] leading-4 text-amber-800">
                 <button
                   type="button"
                   data-messages-recording-entry
@@ -428,9 +416,9 @@ export function MessagesForkEditor({
                 </span>
               </div>
             ) : null}
-          </div>
-        ) : null}
-      </div>
+          </ConfirmationBlock>
+        );
+      })()}
 
       <EntryGateNotice gate={gate} />
 
