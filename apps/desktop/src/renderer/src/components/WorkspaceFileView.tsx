@@ -1378,7 +1378,9 @@ function FileContent({
   const headerMeta: { bytes: number; sha256: string } | null = current ?? file;
 
   const header = (
-    <div className="border-b border-gray-200 px-4 py-2">
+    // §2.1（design D3）：header/toolbar 在主 diff 分支的高度链里 shrink-0——
+    // 正文（diff 容器 flex-1）吃掉全部剩余高度后，头两行按内容定高，不被压缩。
+    <div className="shrink-0 border-b border-gray-200 px-4 py-2">
       <div className="break-all font-code text-[11px] text-gray-800">{path}</div>
       <div className="mt-0.5 flex flex-wrap items-center gap-x-3 text-[10px] text-gray-500">
         {headerMeta === null ? null : (
@@ -1406,7 +1408,8 @@ function FileContent({
    * 禁用时用 `title` 说明原因。**没有**任何编辑/替换/回写入口。
    */
   const toolbar = (
-    <div className="flex flex-wrap items-center gap-1 border-b border-gray-100 px-4 py-1 text-[10px]">
+    // shrink-0：同 header（§2.1 高度链纪律）
+    <div className="flex shrink-0 flex-wrap items-center gap-1 border-b border-gray-100 px-4 py-1 text-[10px]">
       <button
         type="button"
         disabled={!tools.copyPath}
@@ -1698,10 +1701,27 @@ function FileContent({
     note === "not_found" ? "（该侧不存在）" : "";
 
   return (
-    <>
+    /*
+     * §2.1（design D3 / task 2.1）：**文件页 diff 的高度链**。
+     *
+     * 此前 diff 编辑器 `height="min(60vh, 640px)"` 固定高、坐在内容列的
+     * `overflow-y-auto` 滚动流里：视口矮时正文只有 60vh 的固定份额，且外层滚动与
+     * 编辑器内部滚动相互踩（基线截图 y≈509 的正文塌缩即此形态）。
+     *
+     * 现在主 diff 分支自建高度链：`h-full flex flex-col` 占满内容列，
+     * header/toolbar/身份行 shrink-0 按内容定高，diff 容器 `min-h-0 flex-1` 吃掉
+     * **全部剩余高度**，编辑器 `height="100%"` 只在自身内部滚动（外层不再滚动）。
+     * 1210×713 视口下正文可得约 400px+（验收目标 ≥357px）。异常分支（状态卡/单侧
+     * 视图）仍走普通流，由内容列的 overflow-y-auto 承载。
+     *
+     * 挤压退路：根容器自身 `overflow-y-auto`、diff 容器 `min-h-[200px]`——窄窗下
+     * toolbar 换行变高把剩余空间吃穿时，diff 保住 200px 下限、根容器兜底滚动，
+     * 而不是把正文压缩到 0（spec「低高度设备通过内部滚动保持操作可达」）。
+     */
+    <div className="flex h-full min-h-0 flex-col overflow-y-auto" data-file-diff-chain="true">
       {header}
       {toolbar}
-      <div className="px-4 py-1.5 text-[10px] text-gray-400">
+      <div className="shrink-0 px-4 py-1.5 text-[10px] text-gray-400">
         左：本 run 初始状态
         {sideNote(sides.leftNote)} · 右：{sides.rightLabel}
         {sideNote(sides.rightNote)}
@@ -1710,11 +1730,11 @@ function FileContent({
           <span className="ml-2 text-amber-700">{modeDecision.reason}</span>
         ) : null}
       </div>
-      <div className="mx-4 mb-4 overflow-hidden rounded border border-gray-200">
+      <div className="mx-4 mb-4 min-h-[200px] flex-1 overflow-hidden rounded border border-gray-200">
         <MonacoDiffEditor
           data-testid="diff-editor"
           data-monaco-host="file-diff"
-          height="min(60vh, 640px)"
+          height="100%"
           language={detectFileLanguage(sides.right ?? sides.left)}
           original={leftMissing ? "" : (sides.left ?? "")}
           modified={rightMissing ? "" : (sides.right ?? "")}
@@ -1746,15 +1766,15 @@ function FileContent({
         />
       </div>
       {leftMissing ? (
-        <div className="mx-4 mb-4 rounded border-l-2 border-amber-400 bg-amber-50 px-2 py-1.5 text-[10px] leading-4 text-amber-900">
+        <div className="mx-4 mb-4 shrink-0 rounded border-l-2 border-amber-400 bg-amber-50 px-2 py-1.5 text-[10px] leading-4 text-amber-900">
           初始快照里没有这条路径（本 run 新增的文件）；左侧标作不存在，未用空文本冒充。
         </div>
       ) : null}
       {rightMissing ? (
-        <div className="mx-4 mb-4 rounded border-l-2 border-amber-400 bg-amber-50 px-2 py-1.5 text-[10px] leading-4 text-amber-900">
+        <div className="mx-4 mb-4 shrink-0 rounded border-l-2 border-amber-400 bg-amber-50 px-2 py-1.5 text-[10px] leading-4 text-amber-900">
           所选检查点没有这条路径；右侧标作不存在（可能是初始有、后轮被移出世界）。
         </div>
       ) : null}
-    </>
+    </div>
   );
 }
