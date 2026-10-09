@@ -783,8 +783,10 @@ export function CompareWorkspaceView({
         <div className="px-4 py-1 text-[11px] text-gray-500">正在读取比较对象…</div>
       ) : null}
       {diffMode && diffGate.status === "available" ? (
-        // 只读文本 diff：同步滚动仅存在于本模式（design D4）；退出即回两列独立滚动
-        <div className="min-h-0 flex-1 overflow-hidden p-2" data-testid="compare-diff-panel">
+        // 只读文本 diff：同步滚动仅存在于本模式（design D4）；退出即回两列独立滚动。
+        // min-h-[200px]：与文件页 2.1 高度链同款挤压下限——zoom2（200% 缩放）档 flex 链
+        // `min-h-0 flex-1` 曾把编辑器压到 49.7px（4.2 实测），200px 兜底保证极端视口下正文仍可读。
+        <div className="min-h-[200px] flex-1 overflow-hidden p-2" data-testid="compare-diff-panel">
           <MonacoDiffEditor
             height="100%"
             data-monaco-host="compare-diff"

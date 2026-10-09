@@ -516,6 +516,8 @@ describe("CompareWorkspaceView：整体形态", () => {
     expect(html).toContain('data-testid="compare-diff-panel"');
     expect(html).toContain("compare-diff-editor");
     expect(html).toContain("同步滚动");
+    // 4.2 实测（zoom2 档编辑器塌至 49.7px）后的挤压下限：与文件页 2.1 高度链同款 min-h-[200px]
+    expect(html).toContain("min-h-[200px] flex-1 overflow-hidden p-2");
   });
 });
 
