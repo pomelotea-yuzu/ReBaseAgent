@@ -138,8 +138,11 @@ export function ModalDialog({
       ref={dialogRef}
       aria-label={ariaLabel}
       // top layer 居中由 UA `dialog:modal { margin:auto; position:fixed }` 完成；
-      // 遮罩用原生 ::backdrop（Tailwind backdrop: 变体）
-      className={`m-auto max-w-full rounded-lg border border-gray-200 bg-white shadow-xl backdrop:bg-black/20 ${className}`}
+      // 遮罩用原生 ::backdrop（Tailwind backdrop: 变体）。
+      // UI 密度 3.3（design D5「长确认可滚动且操作可达」）：默认限高 85vh 内滚动，
+      // 放弃确认（对比确认弹窗）以 40% 遮罩可辨——行为（showModal/cancel/Esc 合成/
+      // 关闭锁/焦点恢复）不变。
+      className={`m-auto max-h-[85vh] max-w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-xl backdrop:bg-black/40 ${className}`}
     >
       {children}
     </dialog>
