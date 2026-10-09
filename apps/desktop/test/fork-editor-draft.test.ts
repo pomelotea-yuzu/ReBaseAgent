@@ -80,14 +80,14 @@ describe("接线契约：原值/草稿核对与按修订放弃（任务 2.6）",
 
   it("原值（只读）/草稿（可编辑）就近核对：宽屏并排、窄屏上下，两侧完整可读", () => {
     const code = src();
-    // 可用内容宽度响应式：grid 单列起步、xl 并排（与 args/result 同一约定）
-    expect(code).toContain('data-draft-compare="tool-result"');
-    expect(code).toContain("grid-cols-1 gap-2 xl:grid-cols-2");
+    // UI 密度 2.3：并排/上下改由 DraftCompareGrid 按实测容器宽决策（xl 断点退场）；
+    // 「原值（只读）/草稿（可编辑）」标签与布局类都落在共享布局层里
+    expect(code).toContain('compareKey="tool-result"');
+    // 切片不含 import 区 ⇒ 断言 JSX 使用（import 在文件头，由 draft-compare-grid.test.tsx 钉）
+    expect(code).toContain("<DraftCompareGrid");
     // 原值只读 twin + 两侧都不截断正文（wordWrap）
     expect(code).toContain("readOnly: true");
     expect(code.match(/wordWrap: "on"/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
-    expect(code).toContain("原值（只读）");
-    expect(code).toContain("草稿（可编辑）");
   });
 
   it("放弃修改：确认核对当前内容、按渲染快照修订 CAS；取消逐字保留", () => {

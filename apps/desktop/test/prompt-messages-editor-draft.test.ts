@@ -78,9 +78,10 @@ describe("接线契约：PromptForkEditor 两字段独立草稿（任务 2.2）"
     // 确认文案明确目标与范围（只影响这一个字段——另一字段是独立草稿键）
     expect(code).toContain("只影响这一个字段");
     expect(code).toContain("discardCallDraft(draftKeyOf(field), snapshot.revision)");
-    // 核对网格：原值只读 + 草稿可编辑，宽屏并排窄屏上下
-    expect(code).toContain('data-draft-compare="prompt"');
-    expect(code).toContain("grid-cols-1 gap-2 xl:grid-cols-2");
+    // 核对网格：原值只读 + 草稿可编辑（UI 密度 2.2：布局进共享 DraftCompareGrid）
+    expect(code).toContain('compareKey="prompt"');
+    // 切片不含 import 区 ⇒ 断言 JSX 使用
+    expect(code).toContain("<DraftCompareGrid");
     expect(code).toContain("readOnly: true");
     // 放弃按钮：无修改（含空串改回基线）不可用
     expect(code).toContain("disabled={inProgress || unchanged}");
@@ -119,8 +120,9 @@ describe("接线契约：MessagesForkEditor 接入 messages 草稿（任务 2.2�
   it("任务 2.6：按修订放弃 + 原值/草稿核对网格（messages）", () => {
     const code = src();
     expect(code).toContain("discardCallDraft(draftKey, snapshot.revision)");
-    expect(code).toContain('data-draft-compare="messages"');
-    expect(code).toContain("grid-cols-1 gap-2 xl:grid-cols-2");
+    expect(code).toContain('compareKey="messages"');
+    // 切片不含 import 区 ⇒ 断言 JSX 使用
+    expect(code).toContain("<DraftCompareGrid");
     expect(code).toContain("readOnly: true");
   });
 

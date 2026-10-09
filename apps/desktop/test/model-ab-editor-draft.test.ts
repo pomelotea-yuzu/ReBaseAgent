@@ -95,9 +95,9 @@ describe("接线契约：ModelAbEditor 批次草稿（任务 2.4）", () => {
     expect(code).toContain("discardModelAbDraft(draftKey, snapshot.revision)");
     // 无修改（批次与基线一致）不可放弃
     expect(code).toContain("disabled={inProgress || !isBatchDirty}");
-    // 核对网格：父本基线臂只读 vs 批次草稿，宽屏并排窄屏上下
-    expect(code).toContain('data-draft-compare="model-ab"');
-    expect(code).toContain("grid-cols-1 gap-2 xl:grid-cols-2");
+    // 核对网格：父本基线臂只读 vs 批次草稿（UI 密度 2.3：布局进共享 DraftCompareGrid）
+    expect(code).toContain('compareKey="model-ab"');
+    expect(code).toContain('from "./DraftCompareGrid"');
     expect(code).toContain("原值（父本基线臂 · 只读）");
     // 6.9 实机缺陷：无空格 JSON 长拉丁串（`{"temperature":0.777…`）在窄盒不断行 ⇒
     // 两侧臂行绘制右溢 26~36px 截文 ⇒ 基线与草稿臂行一律 break-all 强制断行

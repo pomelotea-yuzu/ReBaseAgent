@@ -58,6 +58,7 @@ import { BudgetMap } from "./BudgetMap";
 import { requestConfirm } from "./ConfirmDialog";
 import { DetailNotices } from "./DetailNotices";
 import { Disclosure } from "./Disclosure";
+import { DraftCompareGrid } from "./DraftCompareGrid";
 import { DraftListPanel } from "./DraftListPanel";
 import { DraftSourceBanner } from "./DraftSourceBanner";
 import { EntryGateNotice } from "./EntryGateNotice";
@@ -505,12 +506,14 @@ function PromptForkEditor({
           ))}
         </div>
       </div>
-      {/* U3 任务 2.6：原值（只读）/草稿（可编辑）就近核对——宽屏并排、窄屏上下 */}
-      <div className="grid grid-cols-1 gap-2 xl:grid-cols-2" data-draft-compare="prompt">
-        <div className="min-w-0">
-          <div className="mb-0.5 text-[10px] font-medium text-gray-500">原值（只读）</div>
+      {/* U3 任务 2.6：原值（只读）/草稿（可编辑）就近核对。
+          UI 密度 2.2：并排/上下按实测容器宽决策，原值可收起且恢复入口常驻（DraftCompareGrid）。 */}
+      <DraftCompareGrid
+        compareKey="prompt"
+        draftTone="emerald"
+        original={
           <MonacoCodeEditor
-            height="140px"
+            height="100%"
             data-monaco-host="prompt-original"
             data-monaco-target={`${run.meta.id}:${span.id}:${field}`}
             language="plaintext"
@@ -528,11 +531,10 @@ function PromptForkEditor({
             }}
             className="overflow-hidden rounded border border-gray-200"
           />
-        </div>
-        <div className="min-w-0">
-          <div className="mb-0.5 text-[10px] font-medium text-emerald-700">草稿（可编辑）</div>
+        }
+        draft={
           <MonacoCodeEditor
-            height="140px"
+            height="100%"
             data-monaco-host="prompt-draft"
             data-monaco-target={`${run.meta.id}:${span.id}:${field}`}
             language="plaintext"
@@ -551,8 +553,8 @@ function PromptForkEditor({
             }}
             className="overflow-hidden rounded border border-emerald-200"
           />
-        </div>
-      </div>
+        }
+      />
       <div className="mt-1.5 text-[10px] leading-4 text-emerald-700">
         编辑值将替换首次 llm.call 请求中的
         {field === "system_prompt" ? " system prompt" : " 首条 user message"}
@@ -1326,13 +1328,15 @@ function ForkEditor({
             : "从该工具调用之后重跑 · 父 run 文件不会被修改"}
         </span>
       </div>
-      {/* U3 任务 2.6：原值（只读）/草稿（可编辑）就近核对——宽屏并排、窄屏上下，
-          两侧都完整可读（Monaco wordWrap 不截断），不为对比固定挤占窄窗 */}
-      <div className="grid grid-cols-1 gap-2 xl:grid-cols-2" data-draft-compare="tool-result">
-        <div className="min-w-0">
-          <div className="mb-0.5 text-[10px] font-medium text-gray-500">原值（只读）</div>
+      {/* U3 任务 2.6：原值（只读）/草稿（可编辑）就近核对——两侧都完整可读
+          （Monaco wordWrap 不截断），不为对比固定挤占窄窗。
+          UI 密度 2.3：result 编辑器沿用 2.2 同一空间策略（DraftCompareGrid）。 */}
+      <DraftCompareGrid
+        compareKey="tool-result"
+        draftTone="violet"
+        original={
           <MonacoCodeEditor
-            height="140px"
+            height="100%"
             data-monaco-host="tool-result-original"
             data-monaco-target={`${run.meta.id}:${span.id}:tool_result`}
             language={language}
@@ -1350,11 +1354,10 @@ function ForkEditor({
             }}
             className="overflow-hidden rounded border border-gray-200"
           />
-        </div>
-        <div className="min-w-0">
-          <div className="mb-0.5 text-[10px] font-medium text-violet-700">草稿（可编辑）</div>
+        }
+        draft={
           <MonacoCodeEditor
-            height="140px"
+            height="100%"
             data-monaco-host="tool-result-draft"
             data-monaco-target={`${run.meta.id}:${span.id}:tool_result`}
             language={language}
@@ -1382,8 +1385,8 @@ function ForkEditor({
             }}
             className="overflow-hidden rounded border border-violet-200"
           />
-        </div>
-      </div>
+        }
+      />
       <div className="mt-1.5 text-[10px] leading-4 text-violet-600">
         {isolated
           ? "以上文本将作为该工具的返回结果重新送入模型；其后的步骤由模型重新生成，文件世界从该轮轮末检查点继续。"

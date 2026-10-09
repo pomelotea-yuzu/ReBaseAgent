@@ -11,6 +11,7 @@ import { isStatusReadChecking } from "../lib/proxy-status-read";
 import { useEscapeClose } from "../lib/use-escape-close";
 import { useAppStore } from "../store";
 import { requestConfirm } from "./ConfirmDialog";
+import { DraftCompareGrid } from "./DraftCompareGrid";
 import { DraftSourceBanner } from "./DraftSourceBanner";
 import { EntryGateNotice } from "./EntryGateNotice";
 import { FOCUS_RING } from "./IconButton";
@@ -255,12 +256,15 @@ export function MessagesForkEditor({
           单请求级分叉 · 源 run 不会被修改 · 重发使用最近捕获的 key
         </span>
       </div>
-      {/* U3 任务 2.6：原值（只读）/草稿（可编辑）就近核对——宽屏并排、窄屏上下 */}
-      <div className="grid grid-cols-1 gap-2 xl:grid-cols-2" data-draft-compare="messages">
-        <div className="min-w-0">
-          <div className="mb-0.5 text-[10px] font-medium text-gray-500">原值（只读）</div>
+      {/* U3 任务 2.6：原值（只读）/草稿（可编辑）就近核对。
+          UI 密度 2.2：并排/上下按实测容器宽决策（每侧 ≥320px），原值可收起且恢复入口
+          常驻，高度视口相对——固定 200px 与 xl 断点退场（DraftCompareGrid 布局层）。 */}
+      <DraftCompareGrid
+        compareKey="messages"
+        draftTone="sky"
+        original={
           <MonacoCodeEditor
-            height="200px"
+            height="100%"
             data-monaco-host="messages-original"
             data-monaco-target={`${run.meta.id}:${span.id}:messages`}
             language="json"
@@ -278,11 +282,10 @@ export function MessagesForkEditor({
             }}
             className="overflow-hidden rounded border border-gray-200"
           />
-        </div>
-        <div className="min-w-0">
-          <div className="mb-0.5 text-[10px] font-medium text-sky-700">草稿（可编辑）</div>
+        }
+        draft={
           <MonacoCodeEditor
-            height="200px"
+            height="100%"
             data-monaco-host="messages-draft"
             data-monaco-target={`${run.meta.id}:${span.id}:messages`}
             language="json"
@@ -301,8 +304,8 @@ export function MessagesForkEditor({
             }}
             className="overflow-hidden rounded border border-sky-200"
           />
-        </div>
-      </div>
+        }
+      />
       <div className="mt-1.5 text-[10px] leading-4 text-sky-600">
         编辑任意一条消息后重发：model / 工具表 / 采样参数与源 run 一致，仅 messages 使用编辑后的值。
       </div>

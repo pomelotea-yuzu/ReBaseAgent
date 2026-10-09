@@ -18,6 +18,7 @@ import { useEscapeClose } from "../lib/use-escape-close";
 import { useRevokeOnConfigChange } from "../lib/use-revoke-on-config-change";
 import { useAppStore } from "../store";
 import { requestConfirm } from "./ConfirmDialog";
+import { DraftCompareGrid } from "./DraftCompareGrid";
 import { DraftSourceBanner } from "./DraftSourceBanner";
 import { EntryGateNotice } from "./EntryGateNotice";
 import { LongText, shouldCollapse } from "./LongText";
@@ -458,29 +459,43 @@ export function ModelAbEditor({
       </div>
 
       <div className="space-y-2">
-        {/* U3 任务 2.6：父本基线臂（只读）与批次草稿就近核对——宽屏并排、窄屏上下 */}
-        <div className="grid grid-cols-1 gap-2 xl:grid-cols-2" data-draft-compare="model-ab">
-          <div className="min-w-0 rounded border border-gray-200 bg-white px-2 py-1.5">
-            <div className="mb-1 text-[10px] font-medium text-gray-500">
-              原值（父本基线臂 · 只读）
+        {/* U3 任务 2.6：父本基线臂（只读）与批次草稿就近核对。
+            UI 密度 2.3：并排/上下按实测容器宽决策（与 messages/prompt/result 同一判据），
+            基线对照可收起且恢复入口常驻；文本卡自适应高度，不套高度包裹、无比例手柄。 */}
+        <DraftCompareGrid
+          compareKey="model-ab"
+          draftTone="sky"
+          draftLabel="草稿（可编辑批次）"
+          originalLabel="原值（父本基线臂 · 只读）"
+          fixedHeight={false}
+          resizable={false}
+          original={
+            <div className="rounded border border-gray-200 bg-white px-2 py-1.5">
+              {baselineRows.map(({ id, no, arm }) => (
+                <div
+                  key={id}
+                  className="font-code break-all text-[11px] leading-4 text-gray-600"
+                >
+                  臂 {no}：{arm.model}
+                  {arm.paramsText === "" ? "（沿用父 params）" : ` · ${arm.paramsText}`}
+                </div>
+              ))}
             </div>
-            {baselineRows.map(({ id, no, arm }) => (
-              <div key={id} className="font-code break-all text-[11px] leading-4 text-gray-600">
-                臂 {no}：{arm.model}
-                {arm.paramsText === "" ? "（沿用父 params）" : ` · ${arm.paramsText}`}
-              </div>
-            ))}
-          </div>
-          <div className="min-w-0 rounded border border-sky-200 bg-white px-2 py-1.5">
-            <div className="mb-1 text-[10px] font-medium text-sky-700">草稿（可编辑批次）</div>
-            {rows.map(({ key, arm }, index) => (
-              <div key={key} className="font-code break-all text-[11px] leading-4 text-gray-700">
-                臂 {index + 1}：{arm.model}
-                {arm.paramsText === "" ? "（沿用父 params）" : ` · ${arm.paramsText}`}
-              </div>
-            ))}
-          </div>
-        </div>
+          }
+          draft={
+            <div className="rounded border border-sky-200 bg-white px-2 py-1.5">
+              {rows.map(({ key, arm }, index) => (
+                <div
+                  key={key}
+                  className="font-code break-all text-[11px] leading-4 text-gray-700"
+                >
+                  臂 {index + 1}：{arm.model}
+                  {arm.paramsText === "" ? "（沿用父 params）" : ` · ${arm.paramsText}`}
+                </div>
+              ))}
+            </div>
+          }
+        />
         {rows.map(({ key, arm }, index) => (
           <div key={key} className="rounded border border-sky-200 bg-white px-2 py-1.5">
             <div className="mb-1 flex items-center gap-2">
