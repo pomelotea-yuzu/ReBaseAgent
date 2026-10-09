@@ -20,6 +20,12 @@
 import { createElement, lazy, useCallback, useEffect, useRef, useState } from "react";
 import type { ComponentProps } from "react";
 import { classifyHost, layoutRecoveryAction, recoveryNotice } from "../lib/editor-recovery";
+import {
+  type ViewStateEditorLike,
+  captureEditorViewState,
+  restoreEditorViewState,
+  viewStateKeyOf,
+} from "../lib/editor-view-state";
 
 /**
  * 加载中/失败时显示的占位（不含任何 monaco 依赖）。
@@ -211,6 +217,15 @@ function hostIdentity(props: Record<string, unknown>): Record<string, unknown> {
 }
 
 /**
+ * 视图状态/尺寸恢复共同依赖的编辑器实例结构子集。
+ *
+ * 单编辑器（IStandaloneCodeEditor）与 diff 编辑器（IStandaloneDiffEditor）都有
+ * `layout()` / `saveViewState()` / `restoreViewState()` —— 结构类型直收两方，
+ * 不引 monaco 类型依赖（本模块保持与 monaco 运行时解耦的懒边界纪律）。
+ */
+type EditorLike = ViewStateEditorLike & { layout: () => void };
+
+/**
  * 尺寸恢复接线（design D5）。
  *
  * 观察**锚点宿主自身**的边框盒；只在"从零尺寸恢复到有空间"那一刻调一次
@@ -247,11 +262,40 @@ function useSizeRecovery(
   }, [hostRef, editorRef]);
 }
 
+/**
+ * 卸载前保存视图状态（UI 密度 2.5 · design D3「视图状态按草稿键/比较身份保存」）。
+ *
+ * 保存时机 = effect cleanup（卸载那一刻实例必然还在 ref 里）；恢复时机在 onMount
+ * 合成内（实例创建的那一刻，早于任何 effect 可见点）——monaco 实例由 loader 异步
+ * 创建，挂载 effect 跑时 ref 往往还是 null，恢复交给 onMount 才能命中。
+ *
+ * `viewStateKey` 经 ref 读取最新值：键变化不重跑 effect（保存只在卸载发生一次），
+ * 卸载时存的就是**离开前**那个身份。
+ */
+function useCaptureViewStateOnUnmount(
+  viewStateKey: string | null,
+  editorRef: React.RefObject<EditorLike | null>,
+): void {
+  const keyRef = useRef(viewStateKey);
+  keyRef.current = viewStateKey;
+  useEffect(() => {
+    return () => {
+      captureEditorViewState(editorRef.current, keyRef.current);
+    };
+  }, [editorRef]);
+}
+
 export function MonacoCodeEditor(props: CodeEditorProps) {
   const [state, retry] = useLazyEditors(useCallback(() => import("./MonacoEditors"), []));
   const hostRef = useRef<HTMLDivElement | null>(null);
-  const editorRef = useRef<{ layout: () => void } | null>(null);
+  const editorRef = useRef<EditorLike | null>(null);
   useSizeRecovery(hostRef, editorRef);
+  // 2.5：视图状态键由既有寻址身份推导（host+target 都在才启用；file diff 无 target 不参与）
+  const viewStateKey = viewStateKeyOf(
+    (props as Record<string, unknown>)["data-monaco-host"],
+    (props as Record<string, unknown>)["data-monaco-target"],
+  );
+  useCaptureViewStateOnUnmount(viewStateKey, editorRef);
 
   const testId = (props as Record<string, string>)["data-testid"];
   const attrs = {
@@ -283,11 +327,15 @@ export function MonacoCodeEditor(props: CodeEditorProps) {
       // 尺寸恢复需要 editor 实例；同时**保留调用方的 onMount**（U2 4.5 的接线契约：
       // 差异导航/查找靠它拿实例，漏掉就是"纯逻辑写好、接线少一支"）
       onMount: (editor: unknown, monaco: unknown) => {
-        editorRef.current = editor as { layout: () => void };
+        editorRef.current = editor as EditorLike;
         const upstream = (props as Record<string, unknown>).onMount;
         if (typeof upstream === "function") {
           (upstream as (e: unknown, m: unknown) => void)(editor, monaco);
         }
+        // 2.5：视图状态恢复放在调用方 onMount **之后**（最后写入手——恢复的光标/
+        // 滚动不被调用方的实例设置覆盖）；file diff 无 target ⇒ 此处为 no-op，
+        // 其滚动恢复仍由 U2 4.3 的专属通道唯一权威承载
+        restoreEditorViewState(editorRef.current, viewStateKey);
       },
     }),
   );
@@ -298,6 +346,17 @@ let diffEditors: ReturnType<typeof lazy<EditorsModule["DiffCodeEditor"]>> | null
 /** 懒加载的 `<DiffEditor>` 直替，同上。 */
 export function MonacoDiffEditor(props: DiffCodeEditorProps) {
   const [state, retry] = useLazyEditors(useCallback(() => import("./MonacoEditors"), []));
+  // 2.5：与单编辑器对齐——就绪态外层 div 是**锚点宿主**，尺寸从零恢复时 relayout
+  // （复用可靠性 change 的 useSizeRecovery，不另造恢复通道/第二套 observer）
+  const hostRef = useRef<HTMLDivElement | null>(null);
+  const editorRef = useRef<EditorLike | null>(null);
+  useSizeRecovery(hostRef, editorRef);
+  const viewStateKey = viewStateKeyOf(
+    (props as Record<string, unknown>)["data-monaco-host"],
+    (props as Record<string, unknown>)["data-monaco-target"],
+  );
+  useCaptureViewStateOnUnmount(viewStateKey, editorRef);
+
   const testId = (props as Record<string, string>)["data-testid"];
   const attrs = {
     ...editorAttrs(props as Record<string, unknown>),
@@ -311,11 +370,32 @@ export function MonacoDiffEditor(props: DiffCodeEditorProps) {
   if (state === "loading")
     return <MonacoFallback height={props.height} testId={testId} extra={attrs} />;
 
-  return createElement(LazyDiffEditor(), {
-    ...props,
-    ...attrs,
-    ...behaviorProps(props as Record<string, unknown>),
-  });
+  return createElement(
+    "div",
+    {
+      ref: hostRef,
+      className: (props as Record<string, string>).className,
+      style: { height: props.height ?? 160 },
+      ...attrs,
+    },
+    createElement(LazyDiffEditor(), {
+      ...props,
+      ...attrs,
+      ...behaviorProps(props as Record<string, unknown>),
+      // 尺寸恢复 + 视图状态需要 diff editor 实例；调用方的 onMount（如 file diff 的
+      // 差异计数/滚动恢复）保持原语义先执行，视图状态恢复最后落笔（同单编辑器口径）
+      onMount: (editor: unknown, monaco: unknown) => {
+        editorRef.current = editor as EditorLike;
+        const upstream = (props as Record<string, unknown>).onMount;
+        if (typeof upstream === "function") {
+          (upstream as (e: unknown, m: unknown) => void)(editor, monaco);
+        }
+        // file diff 无 data-monaco-target ⇒ 键为 null ⇒ no-op（其滚动恢复由
+        // U2 4.3 专属通道唯一权威承载）；compare-diff 有 target ⇒ 按比较身份恢复
+        restoreEditorViewState(editorRef.current, viewStateKey);
+      },
+    }),
+  );
 }
 
 function LazyCodeEditor(): ReturnType<typeof lazy<EditorsModule["CodeEditor"]>> {
