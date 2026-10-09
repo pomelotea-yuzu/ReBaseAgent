@@ -21,7 +21,7 @@ import { deriveTerminalReason } from "@shared/derive";
 import type { RunSummary } from "@shared/ipc";
 import { FileCode2, LayoutDashboard, ListTree } from "lucide-react";
 import type { ReactNode } from "react";
-import { isIsolatedRun, isolatedRunNotice } from "../lib/isolated-fork";
+import { isIsolatedRun, isolatedRunNoticeView } from "../lib/isolated-fork";
 import { useAppStore } from "../store";
 import { FOCUS_RING } from "./IconButton";
 import { RunStatusBadge } from "./RunStatusBadge";
@@ -194,7 +194,10 @@ export function RunHeaderView({
   selectedRunId: string | null;
 }) {
   const isolated = isIsolatedRun(detail);
-  const notice = isolatedRunNotice(detail);
+  // UI 密度 change 1.3（design D2）：页头只留**紧凑来源摘要**一行——完整的隔离保真
+  // 边界由详情提示区（DetailNotices）的「来源与技术详情」disclosure 承载。
+  // 此前页头与文件区各自渲染同一段长说明 ⇒ 同屏重复（2026-10-06 实机评审抓到）。
+  const noticeView = isolatedRunNoticeView(detail);
 
   // 摘要可能还没刷出来（刚 fork 出的新 run）⇒ 用详情兜底，但**不**编造任务名
   const summary = runs.find((run) => run.id === selectedRunId) ?? null;
@@ -236,8 +239,13 @@ export function RunHeaderView({
           ) : null}
         </div>
       </div>
-      {notice !== null ? (
-        <div className="mt-1 text-reading-meta leading-5 text-violet-900">{notice}</div>
+      {noticeView !== null ? (
+        <div
+          className="mt-1 text-reading-meta leading-5 text-violet-900"
+          data-isolated-compact="true"
+        >
+          {noticeView.compact}
+        </div>
       ) : null}
     </div>
   );

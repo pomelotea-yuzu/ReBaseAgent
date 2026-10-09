@@ -17,8 +17,10 @@
  *     "第 n / m 个"提示。查找输入框只在展开后出现——折叠时连原文都看不到，查找无处可用。
  */
 
+import { ChevronDown } from "lucide-react";
 import { useState } from "react";
 import { findInText, splitByMatches, stepFind } from "../lib/call-detail-view";
+import { expandedKeysInclude, toggleExpandedKey } from "../lib/reading-state";
 
 /** 折叠阈值（字符数 = UTF-16 单元）：**严格大于**才折叠，正好等于不折叠 */
 export const COLLAPSE_THRESHOLD = 600;
@@ -38,23 +40,19 @@ export function collapsedLabel(text: string, label: string): string {
  *
  * `expanded` 为 `undefined`（该调用还没记录过分区状态）⇒ 未展开（默认折叠）；
  * 与 `CallReadingState.expanded` 的 `string[]` 口径一致——**只记已展开的键**，
- * 不把"没记过"当成"已展开"。
+ * 不把"没记过"当成"已展开"。判据委托 `lib/reading-state.ts` 的通用实现
+ * （UI 密度 change 1.3 起运行级说明复用同一语义，不写第二份）。
  */
 export function isLongTextExpanded(expanded: string[] | undefined, id: string): boolean {
-  // 显式 `!== undefined` 而非可选链：返回值必须是**布尔**不是 `boolean | undefined`
-  return expanded?.includes(id) === true;
+  return expandedKeysInclude(expanded, id);
 }
 
 /**
  * 切换某个长文本块的展开状态，返回新的 `CallReadingState.expanded`。
- *
- * 保持数组去重与稳定顺序（先出现的保持原序，新展开的追加在尾部）——顺序进测试断言，
- * 不依赖 Set 的迭代顺序实现细节。
+ * 判据同上：委托通用实现（去重 + 稳定顺序在 reading-state 的用例里钉住）。
  */
 export function toggleLongTextExpanded(expanded: string[] | undefined, id: string): string[] {
-  const current = expanded ?? [];
-  if (current.includes(id)) return current.filter((key) => key !== id);
-  return [...current, id];
+  return toggleExpandedKey(expanded, id);
 }
 
 /** 复制反馈文案（英文/中文各一份？不需要——统一中文，且**如实**区分成功与不可用） */
@@ -150,7 +148,20 @@ export function LongText({
         if (next !== isExpanded) handleToggle(next);
       }}
     >
-      <summary className="cursor-pointer select-none text-[11px] text-gray-500 hover:text-gray-700">
+      {/*
+       * UI 密度 change 1.2（design D1）：与页面其他折叠控制同一交互语义——
+       * 方向箭头（展开朝下/收起朝右）+ 标题（字段、字数与动作，见 collapsedLabel）
+       * + 至少 28 CSS px 命中区。原生 `<summary>` 自带展开语义与键盘激活
+       * （Enter/Space），不需要再造 aria-expanded。
+       */}
+      <summary className="inline-flex min-h-[28px] cursor-pointer list-none select-none items-center gap-1.5 py-0.5 text-[11px] text-gray-500 hover:text-gray-700 [&::-webkit-details-marker]:hidden">
+        <ChevronDown
+          size={13}
+          aria-hidden="true"
+          focusable={false}
+          role="presentation"
+          className={`shrink-0 transition-transform ${isExpanded ? "" : "-rotate-90"}`}
+        />
         {collapsedLabel(text, label)}
       </summary>
 

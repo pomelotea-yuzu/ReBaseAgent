@@ -761,23 +761,6 @@ export function WorkspaceFileViewBody({
               {inspectSummaryLine(inspect)}
             </span>
           ) : null}
-          {/*
-            U2 5.2 实机缺口修复（2026-09-23）：spec「手动布局偏好不被自动折叠覆盖」的 WHEN
-            含「用户……收起目录」，但「收起/展开目录」按钮原先只在目录非常驻时渲染
-            （pane 切换条内）⇒ 目录常驻（宽档）时用户**没有任何显式收起入口**，偏好
-            `dirUserCollapsed` 无法置真。补：目录常驻时在页头提供收起按钮；
-            非常驻时仍由 pane 切换条的「展开/收起目录」承载（显示相反动作）。
-          */}
-          {dirResident && onDirCollapsed !== undefined ? (
-            <button
-              type="button"
-              onClick={() => onDirCollapsed(true)}
-              title="收起文件目录（可随时重新展开）"
-              className="rounded border border-gray-300 px-2 py-0.5 text-[11px] text-gray-600 hover:bg-gray-50"
-            >
-              收起目录
-            </button>
-          ) : null}
         </div>
 
         {originNote !== null ? (
@@ -833,7 +816,9 @@ export function WorkspaceFileViewBody({
             <button
               type="button"
               onClick={() => onDirCollapsed(!dirCollapsed)}
-              className="ml-auto rounded border border-gray-300 px-2 py-0.5 text-[10px] text-gray-500"
+              aria-expanded={dirCollapsed ? "false" : "true"}
+              aria-label={dirCollapsed ? "展开文件目录" : "收起文件目录"}
+              className="ml-auto min-h-[28px] rounded border border-gray-300 px-2 py-0.5 text-[10px] text-gray-500 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-violet-400 focus-visible:outline-none"
             >
               {dirCollapsed ? "展开目录" : "收起目录"}
             </button>
@@ -870,42 +855,66 @@ export function WorkspaceFileViewBody({
           onScroll={onListScrollTop === undefined ? undefined : onListScroll}
           data-list-scroll-top={listScrollTop}
         >
-          {/* U2 任务 3.4：搜索框 + 变化筛选 */}
-          <div className="sticky top-0 z-10 border-b border-gray-100 bg-white px-2 py-1.5">
-            <input
-              type="search"
-              value={query}
-              onChange={(e) => onQuery?.(e.target.value)}
-              placeholder="按完整路径搜索"
-              aria-label="按完整路径搜索文件"
-              className="w-full rounded border border-gray-300 px-2 py-0.5 font-code text-[11px] text-gray-800"
-            />
-            <div className="mt-1 flex flex-wrap items-center gap-1">
-              {(
-                [
-                  ["auto", "自动"],
-                  ["all", "全部"],
-                  ["changed", "有变化"],
-                ] as const
-              ).map(([value, label]) => (
+          {/*
+            UI 密度 change 1.2（design D1）：目录列自带标题行，显式收起入口**就近**
+            放在标题旁——收起的是这一列，控制就该在这一列（此前放在页头检查点行，
+            离目录远且看不出控制对象）。标题行与搜索/筛选行同在一个 sticky 容器内
+            （避免两段 sticky 的偏移量互相踩）。收起后的「展开目录」由 pane 切换条
+            承载（显示相反动作 + aria-expanded）。
+          */}
+          <div className="sticky top-0 z-10 border-b border-gray-100 bg-white">
+            <div className="flex items-center justify-between gap-2 px-2 pb-1 pt-1.5">
+              <span className="text-[11px] font-semibold text-gray-500">目录</span>
+              {dirResident && onDirCollapsed !== undefined ? (
                 <button
-                  key={value}
                   type="button"
-                  onClick={() => onFilter?.(value)}
-                  className={`rounded px-1.5 py-0.5 text-[10px] ${
-                    filterPreference === value
-                      ? "bg-violet-600 text-white"
-                      : "border border-gray-300 text-gray-600 hover:bg-gray-50"
-                  }`}
+                  onClick={() => onDirCollapsed(true)}
+                  aria-expanded="false"
+                  aria-label="收起文件目录（可随时重新展开）"
+                  title="收起文件目录（可随时重新展开）"
+                  className="shrink-0 rounded border border-gray-300 px-2 py-0.5 text-[11px] text-gray-600 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-violet-400 focus-visible:outline-none"
                 >
-                  {label}
+                  收起目录
                 </button>
-              ))}
-              <span className="ml-auto text-[10px] text-gray-400">
-                {visibleCounts.filtered
-                  ? `筛出 ${visibleCounts.visible} / 共 ${visibleCounts.total}`
-                  : `共 ${visibleCounts.total} 个`}
-              </span>
+              ) : null}
+            </div>
+            {/* U2 任务 3.4：搜索框 + 变化筛选 */}
+            <div className="px-2 py-1.5">
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => onQuery?.(e.target.value)}
+                placeholder="按完整路径搜索"
+                aria-label="按完整路径搜索文件"
+                className="w-full rounded border border-gray-300 px-2 py-0.5 font-code text-[11px] text-gray-800"
+              />
+              <div className="mt-1 flex flex-wrap items-center gap-1">
+                {(
+                  [
+                    ["auto", "自动"],
+                    ["all", "全部"],
+                    ["changed", "有变化"],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => onFilter?.(value)}
+                    className={`rounded px-1.5 py-0.5 text-[10px] ${
+                      filterPreference === value
+                        ? "bg-violet-600 text-white"
+                        : "border border-gray-300 text-gray-600 hover:bg-gray-50"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+                <span className="ml-auto text-[10px] text-gray-400">
+                  {visibleCounts.filtered
+                    ? `筛出 ${visibleCounts.visible} / 共 ${visibleCounts.total}`
+                    : `共 ${visibleCounts.total} 个`}
+                </span>
+              </div>
             </div>
           </div>
 

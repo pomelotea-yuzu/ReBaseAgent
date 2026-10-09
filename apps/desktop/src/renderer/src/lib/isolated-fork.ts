@@ -53,6 +53,57 @@ export function isolatedRunNotice(run: RunDetail | null): string | null {
   return `隔离文件运行 · profile ${workspace.profile} · ${origin}。文件读写只发生在独立世界里：源目录、父分支与兄弟分支都不会被修改；页面不会把本 run 显示成"已恢复历史磁盘状态"。`;
 }
 
+/**
+ * 隔离说明的**分层视图**（UI 密度 change 任务 1.3 · design D2）。
+ *
+ * 为什么拆：`isolatedRunNotice` 的整段文字此前同时出现在运行页头（RunHeaderView）
+ * 与详情提示区（DetailNotices）⇒ 同屏重复同一长段落（2026-10-06 实机评审抓到的
+ * 「文件页重复显示隔离说明」）。分层后：
+ * - `compact`：页头/提示区**常驻一行**的紧凑摘要——身份 + 来源可辨（delta
+ *   「当前来源身份…SHALL 保持可见」的落点）；
+ * - `detail`：完整保真边界（只在「来源与技术详情」展开时渲染，同屏最多一份）；
+ * - `tech`：profile / world_id / 来源 run 等技术值（可完整阅读/复制，不铺在正文）。
+ *
+ * v1 老 trace（无 `meta.workspace`）返回 null——不得把老记录显示成隔离（既有纪律）。
+ */
+export interface IsolatedRunNoticeView {
+  /** 常驻紧凑摘要（一行）：身份 + 来源 */
+  readonly compact: string;
+  /** 完整保真边界（展开区内容；含 compact 未重复的只读承诺） */
+  readonly detail: string;
+  /** 技术值（展开区里逐项呈现，可复制原值） */
+  readonly tech: readonly { readonly label: string; readonly value: string }[];
+}
+
+export function isolatedRunNoticeView(run: RunDetail | null): IsolatedRunNoticeView | null {
+  const workspace = run?.meta.workspace;
+  if (workspace === undefined) return null;
+  const originCompact =
+    workspace.origin.kind === "import"
+      ? "由选定源目录采集的独立文件世界"
+      : `从运行 ${workspace.origin.run_id} 的检查点续跑`;
+  const originFull =
+    workspace.origin.kind === "import"
+      ? `独立文件世界（world_id ${workspace.world_id}），由选定源目录采集而来`
+      : `从运行 ${workspace.origin.run_id} 的检查点续跑而来`;
+  return {
+    compact: `隔离文件运行 · ${originCompact}`,
+    detail: `文件读写只发生在独立世界里：源目录、父分支与兄弟分支都不会被修改；页面不会把本 run 显示成"已恢复历史磁盘状态"。`,
+    tech: [
+      { label: "profile", value: workspace.profile },
+      { label: "world_id", value: workspace.world_id },
+      {
+        label: "origin",
+        value:
+          workspace.origin.kind === "import"
+            ? "import（源目录采集）"
+            : `checkpoint（源 run ${workspace.origin.run_id} · step ${workspace.origin.step_span}）`,
+      },
+      { label: "来源说明", value: originFull },
+    ],
+  };
+}
+
 /** 只读预检请求（与 `ForkCapabilityRequestSchema` 同形） */
 export function forkCapabilityRequest(
   parentRunId: string,

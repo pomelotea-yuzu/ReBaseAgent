@@ -10,6 +10,7 @@ import type { SpanRowView } from "../lib/span-tree-view";
 import { rowErrorKind, spanRowLabel, stepsEmptyCause } from "../lib/span-tree-view";
 import { readingScrollOf } from "../lib/workspace-selection";
 import { useAppStore } from "../store";
+import { DisclosureButton } from "./Disclosure";
 import { FOCUS_RING } from "./IconButton";
 import { ResizeGrip } from "./ResizeGrip";
 
@@ -323,16 +324,24 @@ export function SpanTree({
     >
       <div className="border-b border-gray-200 px-3 py-2">
         <div className="flex items-center justify-between gap-2">
-          <div className="text-sm font-semibold text-gray-800">轨迹</div>
-          <button
-            type="button"
-            onClick={onToggleCollapsed}
-            aria-label={fullWidth ? "返回当前调用" : "收起步骤目录"}
-            title="收起步骤目录（正文右侧会保留「重新打开步骤目录」入口，当前选中的调用不会丢失）"
-            className="shrink-0 rounded px-1.5 text-xs text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+          {/*
+           * UI 密度 change 1.1（design D1）：与运行列表同一套折叠开关——
+           * 标题整行可点、可见「收起」文字 + 方向 + aria-expanded/aria-controls +
+           * ≥28px 命中区。写偏好的唯一路径仍是外壳的 toggleStepsCollapsed。
+           */}
+          <DisclosureButton
+            expanded
+            onToggle={onToggleCollapsed}
+            label={fullWidth ? "返回当前调用（收起步骤目录）" : "收起步骤目录"}
+            controls="steps-navigation"
+            title="收起步骤目录（正文会保留「重新打开步骤目录」入口，当前选中的调用不会丢失）"
+            className="min-w-0 flex-1 justify-between px-1 hover:bg-gray-100"
           >
-            ‹
-          </button>
+            <span className="text-sm font-semibold text-gray-800">轨迹</span>
+            <span className="shrink-0 pl-2 text-[11px] text-gray-500">
+              {fullWidth ? "返回" : "收起"}
+            </span>
+          </DisclosureButton>
         </div>
         <div className="text-[11px] text-gray-500">{detail.spans.length} 个 span · 只读呈现</div>
       </div>

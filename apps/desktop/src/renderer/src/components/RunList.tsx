@@ -5,6 +5,7 @@ import { formatDuration, formatTime, formatTokens } from "../lib/format";
 import { NAV_MAX, NAV_MIN } from "../lib/layout";
 import { copyValueForRun, resolveEmptyCause, resolveNavListState } from "../lib/nav-notice";
 import { useAppStore } from "../store";
+import { DisclosureButton } from "./Disclosure";
 import { ResizeGrip } from "./ResizeGrip";
 import { RunStatusBadge } from "./RunStatusBadge";
 
@@ -105,26 +106,34 @@ export function RunList({
     >
       <div className="border-b border-gray-200 px-3 py-2">
         <div className="flex items-center justify-between gap-2">
-          <div className="text-sm font-semibold text-gray-800">运行记录</div>
-          <div className="flex shrink-0 items-center gap-1">
-            <button
-              type="button"
-              onClick={openCreateWorkspace}
-              title="直接在桌面端跑一个 run（纯对话，或隔离文件运行；不需代理、不需写代码）"
-              className="flex shrink-0 items-center gap-1.5 rounded border border-gray-300 px-2 py-0.5 text-[11px] text-gray-600 hover:bg-gray-50"
-            >
-              ＋ 新建运行
-            </button>
-            <button
-              type="button"
-              onClick={onToggleCollapsed}
-              aria-label={fullWidth ? "返回当前运行" : "收起运行列表"}
-              title={fullWidth ? "返回当前运行" : "收起运行列表"}
-              className="rounded px-1.5 text-xs text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-            >
-              ‹
-            </button>
-          </div>
+          {/*
+           * UI 密度 change 1.1（design D1）：标题**整行可点**的折叠开关——
+           * 可见「收起」文字 + 方向箭头 + aria-expanded/aria-controls + ≥28px 命中区。
+           * 此前的浅色 16px `‹` 箭头不再是唯一入口。fullWidth（窄窗替换工作区）时
+           * 动作是「返回当前运行」。与全局栏的同名入口（GlobalBar nav toggle）含义一致：
+           * 都描述"收起/打开运行列表"这一个动作，写偏好的唯一路径仍是外壳的 closeNav。
+           */}
+          <DisclosureButton
+            expanded
+            onToggle={onToggleCollapsed}
+            label={fullWidth ? "返回当前运行（收起运行列表）" : "收起运行列表"}
+            controls="run-navigation"
+            title={fullWidth ? "返回当前运行" : "收起运行列表（宽度偏好保留，可随时重新打开）"}
+            className="min-w-0 flex-1 justify-between px-1 hover:bg-gray-100"
+          >
+            <span className="text-sm font-semibold text-gray-800">运行记录</span>
+            <span className="shrink-0 pl-2 text-[11px] text-gray-500">
+              {fullWidth ? "返回" : "收起"}
+            </span>
+          </DisclosureButton>
+          <button
+            type="button"
+            onClick={openCreateWorkspace}
+            title="直接在桌面端跑一个 run（纯对话，或隔离文件运行；不需代理、不需写代码）"
+            className="flex shrink-0 items-center gap-1.5 rounded border border-gray-300 px-2 py-0.5 text-[11px] text-gray-600 hover:bg-gray-50"
+          >
+            ＋ 新建运行
+          </button>
         </div>
         <div className="text-[11px] text-gray-500">按创建时间倒序 · trace 只读</div>
       </div>

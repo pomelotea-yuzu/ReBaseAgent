@@ -84,6 +84,19 @@ export interface RunReadingState {
    * 混进去会被误清。这里只记一个"概览结果块是否展开"的短键，不随 span 失效而清。
    */
   overviewExpanded: string[];
+  /**
+   * 运行级说明/技术详情的已展开键（UI 密度 change 任务 1.3）。
+   *
+   * 与 `overviewExpanded` 同一套 `string[]` 语义：只记已展开的键，没记 = 折叠。
+   * 键是**静态 UI 键**（如 "isolated-source" / "isolated-parent-unsupported"），
+   * 不是 span id——因此 `reconcileReadingState` **不清理**它（键集不随轨迹内容变化）。
+   * 状态归属仍是当前 run：换 run 天然隔离，符合「展开状态按当前阅读目标隔离」。
+   *
+   * ⚠️ 刻意**可选**（与 `files?` 同一理由）：既有共享默认值与多个测试夹具都按旧形状
+   *    构造，可选字段让"没记过"天然是 `undefined`，读取端用 `expandedKeysInclude`
+   *    统一兜底，不必逐处补默认值。
+   */
+  noticesExpanded?: string[];
   /** 每次调用的分区阅读状态（按 spanId 键） */
   calls: Record<string, CallReadingState>;
   /**
@@ -239,4 +252,30 @@ export function reconcileReadingState(
 
   if (!invalidated) return { state, invalidated: false };
   return { state: { ...state, spanId, expandedSteps, calls, tab }, invalidated: true };
+}
+
+/**
+ * 通用「已展开键集合」的两个纯操作（UI 密度 change 任务 1.2/1.3）。
+ *
+ * 与 `CallReadingState.expanded` / `RunReadingState.noticesExpanded` 共用的语义：
+ * **只记已展开的键**，`undefined`（没记过）= 全部折叠。`LongText` 的
+ * `isLongTextExpanded` / `toggleLongTextExpanded` 从这里委托——判据只写一份，
+ * 调用方（调用详情 / 概览 / 运行级说明）各取所需。
+ */
+
+/** 某个键在会话里算不算"已展开"（`undefined` = 没记过 = 未展开） */
+export function expandedKeysInclude(keys: readonly string[] | undefined, key: string): boolean {
+  return keys?.includes(key) === true;
+}
+
+/**
+ * 切换某个键的展开状态，返回新的键集合。
+ *
+ * 保持数组去重与稳定顺序（先出现的保持原序，新展开的追加在尾部）——顺序进测试断言，
+ * 不依赖 Set 的迭代顺序实现细节。
+ */
+export function toggleExpandedKey(keys: readonly string[] | undefined, key: string): string[] {
+  const current = keys ?? [];
+  if (current.includes(key)) return current.filter((entry) => entry !== key);
+  return [...current, key];
 }

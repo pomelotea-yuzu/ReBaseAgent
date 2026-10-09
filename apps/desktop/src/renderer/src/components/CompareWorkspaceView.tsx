@@ -6,6 +6,7 @@ import { outcomeBadgeClass } from "@shared/outcome";
 import type { CompareFileEntry } from "../lib/compare-files";
 import { foldCatalogRows } from "../lib/compare-steps";
 import type { SideStepCatalog } from "../lib/compare-steps";
+import { Disclosure } from "./Disclosure";
 import { FOCUS_RING } from "./IconButton";
 import { LongText } from "./LongText";
 import { MonacoDiffEditor } from "./MonacoEditor";
@@ -118,6 +119,13 @@ export interface CompareWorkspaceViewProps {
    */
   readonly onOpenMetricsTable?: () => void;
   readonly evidence: EvidenceViewData;
+  /**
+   * UI 密度 change 1.4：修改证据区收起态（true = 收起；容器从 store 接线，
+   * 默认收起）。异常/关系未知摘要不受影响（见 EditEvidenceSection）。
+   */
+  readonly collapsed?: boolean;
+  /** 收起/展开回调（受控；提供时才渲染开关） */
+  readonly onToggleCollapsed?: () => void;
 }
 
 /** 任意编辑值的可读文本：字符串原样，其余 JSON 美化（不猜语义） */
@@ -300,13 +308,34 @@ function ExperimentEvidenceBlock({
   );
 }
 
-/** 编辑证据区（容器按关系分型） */
+/** 修改证据区的统一 id（aria-controls；同屏唯一——证据区只有一个） */
+const EVIDENCE_CONTROLS_ID = "compare-edit-evidence";
+
+/**
+ * 编辑证据区（容器按关系分型）。
+ *
+ * UI 密度 change 1.4（design D2）：verified 证据体**默认收起**，摘要行 =
+ * 「修改证据 · 字段/修改数 · 展开」（场景「修改证据收起释放输出空间」）；
+ * 收起只影响证据体，异常/关系未知摘要**始终可见**：
+ * - `incomplete` / `unavailable` 分型整体不可收起（evidenceCollapsible=false）；
+ * - 逐跳链里 unavailable/notApplicable 的原因行在收起时仍逐条渲染；
+ * - direct 的 unavailable/notApplicable 不走收起（整个块就是原因+已得值）。
+ *
+ * ⚠️ `collapsed`/`onToggleCollapsed` 可选且默认展开——省略时行为与改动前一致
+ *    （既有调用点与测试不受影响）；容器从 store 接线（默认收起）。
+ */
 export function EditEvidenceSection({
   data,
   onOpenRun,
+  collapsed = false,
+  onToggleCollapsed = undefined,
 }: {
   data: EvidenceViewData;
   onOpenRun: (runId: string) => void;
+  /** true = 收起证据体（仅对 evidenceCollapsible 的分型生效） */
+  collapsed?: boolean;
+  /** 提供时渲染展开/收起开关（受控；不提供 = 不可收起） */
+  onToggleCollapsed?: () => void;
 }) {
   if (data.kind === "experiment") {
     return (
@@ -318,56 +347,54 @@ export function EditEvidenceSection({
       />
     );
   }
-  if (data.kind === "direct") {
-    return (
-      <section className="border-t border-gray-200 px-4 py-3" aria-label="修改证据">
-        <h3 className="text-xs font-medium text-gray-700">修改证据</h3>
+  const collapsible = onToggleCollapsed !== undefined && evidenceCollapsible(data);
+  const showBody = !collapsible || !collapsed;
+
+  const body = (() => {
+    if (!showBody) return null;
+    if (data.kind === "direct") {
+      return (
         <div className="mt-2">
           <DirectEvidenceBlock evidence={data.evidence} direction={data.direction} />
         </div>
-      </section>
-    );
-  }
-  if (data.kind === "hops") {
-    return (
-      <section className="border-t border-gray-200 px-4 py-3" aria-label="修改证据">
-        <h3 className="text-xs font-medium text-gray-700">
-          修改证据（逐跳来源链，不压缩为一次编辑）
-        </h3>
-        {data.chains.map((chain) => (
-          <div key={chain.runId} className="mt-2">
-            <div className="text-[11px] text-gray-500">到 {chain.runId} 的来源路径</div>
-            <ol className="mt-1 space-y-1">
-              {chain.hops.map((hop, index) => (
-                <li key={`${chain.runId}:${hop.status}:${index}`} className="text-xs text-gray-700">
-                  {hop.status === "notApplicable" ? (
-                    <span className="text-gray-500">{hop.reason}</span>
-                  ) : (
-                    <span>
-                      {hop.sourceRunId} → {hop.targetRunId} · 字段「{hop.field}」 ·{" "}
-                      {hop.status === "verified" ? (
-                        <span className="text-emerald-700">已核对</span>
-                      ) : (
-                        <span className="text-amber-700">
-                          [{hop.reasonCode}] {hop.reason}
-                        </span>
-                      )}
-                    </span>
-                  )}
-                </li>
-              ))}
-            </ol>
-          </div>
-        ))}
-      </section>
-    );
-  }
-  if (data.kind === "different-roots") {
-    return (
-      <section className="border-t border-gray-200 px-4 py-3" aria-label="修改证据">
-        <h3 className="text-xs font-medium text-gray-700">
-          不同根：只核对两侧实际输入配置（不声称分叉修改或共同前缀）
-        </h3>
+      );
+    }
+    if (data.kind === "hops") {
+      return (
+        <>
+          {data.chains.map((chain) => (
+            <div key={chain.runId} className="mt-2">
+              <div className="text-[11px] text-gray-500">到 {chain.runId} 的来源路径</div>
+              <ol className="mt-1 space-y-1">
+                {chain.hops.map((hop, index) => (
+                  <li
+                    key={`${chain.runId}:${hop.status}:${index}`}
+                    className="text-xs text-gray-700"
+                  >
+                    {hop.status === "notApplicable" ? (
+                      <span className="text-gray-500">{hop.reason}</span>
+                    ) : (
+                      <span>
+                        {hop.sourceRunId} → {hop.targetRunId} · 字段「{hop.field}」 ·{" "}
+                        {hop.status === "verified" ? (
+                          <span className="text-emerald-700">已核对</span>
+                        ) : (
+                          <span className="text-amber-700">
+                            [{hop.reasonCode}] {hop.reason}
+                          </span>
+                        )}
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            </div>
+          ))}
+        </>
+      );
+    }
+    if (data.kind === "different-roots") {
+      return (
         <div className="mt-2 grid grid-cols-2 gap-3">
           {data.facts.sides.map((side) => (
             <div key={side.runId} className="rounded bg-gray-50 px-3 py-2 text-xs">
@@ -403,18 +430,116 @@ export function EditEvidenceSection({
             </div>
           ))}
         </div>
+      );
+    }
+    // incomplete / unavailable：原因就是本区块的全部内容，常驻
+    return (
+      <div className="mt-2 rounded bg-gray-50 px-3 py-2 text-xs text-gray-600">{data.reason}</div>
+    );
+  })();
+
+  // incomplete / unavailable：异常摘要常驻，不提供收起（设计 D2 明文）。
+  // 未接开关的分型保持**原有标题措辞**（诚实框架不因重构丢失——既有用例钉住）。
+  if (!collapsible) {
+    const heading =
+      data.kind === "incomplete"
+        ? "修改证据（关系判定不完整）"
+        : data.kind === "unavailable"
+          ? "修改证据（尚无可核对的完整结论）"
+          : data.kind === "direct"
+            ? "修改证据"
+            : data.kind === "hops"
+              ? "修改证据（逐跳来源链，不压缩为一次编辑）"
+              : "不同根：只核对两侧实际输入配置（不声称分叉修改或共同前缀）";
+    return (
+      <section className="border-t border-gray-200 px-4 py-3" aria-label="修改证据">
+        <h3 className="text-xs font-medium text-gray-700">{heading}</h3>
+        {body}
       </section>
     );
   }
+
+  const exceptions = data.kind === "hops" ? hopExceptionLines(data) : [];
   return (
-    <section className="border-t border-gray-200 px-4 py-3" aria-label="修改证据">
-      <h3 className="text-xs font-medium text-gray-700">修改证据</h3>
-      <div className="mt-2 rounded bg-gray-50 px-3 py-2 text-xs text-gray-600">{data.reason}</div>
+    <section className="border-t border-gray-200 px-4 py-2" aria-label="修改证据">
+      <Disclosure
+        summary="修改证据"
+        meta={evidenceSummaryText(data)}
+        expanded={!collapsed}
+        onToggle={() => onToggleCollapsed?.()}
+        controlsId={EVIDENCE_CONTROLS_ID}
+      >
+        {body}
+      </Disclosure>
+      {/* 收起时仍常驻的异常/关系未知摘要（设计 D2「缺证据/关系未知摘要仍常驻」） */}
+      {!showBody && exceptions.length > 0 ? (
+        <div className="mt-1 space-y-0.5 px-1" data-evidence-exceptions="true">
+          {exceptions.map((line, index) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: 原因行由同一分型派生、位置稳定
+            <div key={index} className="text-[11px] leading-4 text-amber-700">
+              {line}
+            </div>
+          ))}
+        </div>
+      ) : null}
     </section>
   );
 }
 
 const SIDE_LABEL: Record<"left" | "right", string> = { left: "左列", right: "右列" };
+
+/**
+ * UI 密度 change 1.4（design D2）：修改证据区的**收起判据与摘要文案**（纯函数）。
+ *
+ * - `evidenceCollapsible`：只有「有完整证据体可收」的分型才可收起（verified 直接
+ *   证据 / 逐跳链 / 不同根事实）。`incomplete` / `unavailable` / `notApplicable`
+ *   本身就是异常或关系未知摘要——**不可收起**（design D2「缺证据/关系未知摘要仍
+ *   常驻」，收起它们等于隐藏异常）。
+ * - `evidenceSummaryText`：收起时摘要行上的「字段/修改数」概况（场景 THEN
+ *   「字段/方向/修改概况及恢复入口可辨」）。
+ */
+export function evidenceCollapsible(data: EvidenceViewData): boolean {
+  if (data.kind === "direct") return data.evidence.status === "verified";
+  return data.kind === "hops" || data.kind === "different-roots";
+}
+
+export function evidenceSummaryText(data: EvidenceViewData): string {
+  switch (data.kind) {
+    case "direct":
+      // verified / unavailable 才有字段与方向（notApplicable 不可收起，摘要不会被用到）
+      return data.evidence.status === "verified" || data.evidence.status === "unavailable"
+        ? `字段「${data.evidence.field}」 · ${
+            data.direction === "left-to-right" ? "左列 → 右列" : "右列 → 左列"
+          }`
+        : "";
+    case "hops": {
+      const total = data.chains.reduce((sum, chain) => sum + chain.hops.length, 0);
+      return `${total} 处逐跳核对（不压缩为一次编辑）`;
+    }
+    case "different-roots":
+      return "两侧实际输入配置核对（不同根，不声称分叉修改）";
+    case "experiment":
+      return "模型实验（历史记录）";
+    default:
+      return "";
+  }
+}
+
+/** 逐跳链里收起时仍须常驻的异常/不适用原因行（verified 跳不产生原因行） */
+function hopExceptionLines(data: Extract<EvidenceViewData, { kind: "hops" }>): string[] {
+  const lines: string[] = [];
+  for (const chain of data.chains) {
+    for (const hop of chain.hops) {
+      if (hop.status === "notApplicable") {
+        // notApplicable 变体只有 reason（无前后 run 字段）
+        lines.push(hop.reason);
+      } else if (hop.status === "unavailable") {
+        lines.push(`${hop.sourceRunId} → ${hop.targetRunId} · [${hop.reasonCode}] ${hop.reason}`);
+      }
+    }
+  }
+  return lines;
+}
 
 /** 单侧输出区（结局 + 最终输出/中间正文 + 错误定位；不可读侧不伪正文） */
 export function SideOutputSection({
@@ -601,6 +726,8 @@ export function CompareWorkspaceView({
   onOpenRun,
   onOpenMetricsTable,
   evidence,
+  collapsed = false,
+  onToggleCollapsed = undefined,
 }: CompareWorkspaceViewProps) {
   const diffAvailable = diffGate.status === "available";
   return (
@@ -730,7 +857,12 @@ export function CompareWorkspaceView({
           ))}
         </div>
       )}
-      <EditEvidenceSection data={evidence} onOpenRun={onOpenRun} />
+      <EditEvidenceSection
+        data={evidence}
+        onOpenRun={onOpenRun}
+        collapsed={collapsed}
+        onToggleCollapsed={onToggleCollapsed}
+      />
     </div>
   );
 }

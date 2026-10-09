@@ -8,11 +8,14 @@ import {
 } from "../lib/detail-completeness";
 import { prettyJson } from "../lib/format";
 import {
+  type IsolatedRunNoticeView as IsolatedRunNoticeData,
   isolatedBranchBoundaryLabel,
-  isolatedRunNotice,
+  isolatedRunNoticeView,
   resumeBoundaryIteration,
 } from "../lib/isolated-fork";
+import { expandedKeysInclude, toggleExpandedKey } from "../lib/reading-state";
 import { useAppStore } from "../store";
+import { Disclosure } from "./Disclosure";
 import { FOCUS_RING } from "./IconButton";
 
 /**
@@ -294,18 +297,85 @@ function ErrorDetailNotice() {
 }
 
 /**
- * 隔离运行标注：明确标注"文件隔离"并说明世界来源。
- * v1 老 trace 没有 `meta.workspace` ⇒ 整块不出现（**不得**把老记录显示成"已恢复历史磁盘状态"）。
+ * 隔离运行标注（UI 密度 change 任务 1.3 · design D2）。
+ *
+ * 此前整段 `isolatedRunNotice` 直接平铺在这里 ⇒ 与运行页头同屏重复同一长段落，
+ * 且多层说明把文件页 diff 顶到首屏之外（2026-10-06 实机评审抓到）。现在：
+ * - 常驻一行紧凑摘要（身份 + 来源可辨，场景「隔离文件页不重复同一说明」）；
+ * - 完整保真边界与 profile/world_id/origin 技术值进**「来源与技术详情」disclosure**
+ *   ——与 D5 的工程说明共用同一 `Disclosure` 组件（不是第二套详情控件）；
+ * - 展开状态按当前 run 的阅读状态保存（`readingByRun[runId].noticesExpanded`），
+ *   换 run 天然隔离；步骤页与文件页同 run 共享（同一阅读目标，去重口径一致）。
  */
+
+/** 隔离说明展开键（静态 UI 键，不随轨迹内容变化 ⇒ reconcile 不清理） */
+export const ISOLATED_SOURCE_NOTICE_KEY = "isolated-source";
+
+/**
+ * 隔离说明的纯展示层（store 薄壳见 `IsolatedRunNotice`）。
+ *
+ * ⚠️ 本包无 jsdom ⇒ 纯视图单独导出供静态断言；`runId` 用于 aria-controls 唯一化。
+ */
+export function IsolatedRunNoticeView({
+  view,
+  runId,
+  expanded,
+  onToggle,
+}: {
+  view: IsolatedRunNoticeData;
+  runId: string;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div
+      data-isolated-notice="true"
+      className="border-b border-violet-200 bg-violet-50 px-4 py-1.5 text-[11px] leading-5 text-violet-900"
+    >
+      <Disclosure
+        summary="来源与技术详情"
+        meta={view.compact}
+        expanded={expanded}
+        onToggle={onToggle}
+        controlsId={`notice-isolated-source-${runId}`}
+      >
+        <div className="px-1 pb-1">{view.detail}</div>
+        <dl className="space-y-0.5 px-1 pb-1.5">
+          {view.tech.map((entry) => (
+            <div key={entry.label} className="flex min-w-0 flex-wrap items-baseline gap-1.5">
+              <dt className="shrink-0 text-gray-600">{entry.label}</dt>
+              <dd className="min-w-0 break-all font-code">{entry.value}</dd>
+            </div>
+          ))}
+        </dl>
+      </Disclosure>
+    </div>
+  );
+}
+
+/** store 薄壳：取当前详情派生分层视图，展开状态接 run 级阅读状态 */
 function IsolatedRunNotice() {
   const detail = useAppStore((s) => s.detail);
-  const notice = isolatedRunNotice(detail);
-  if (notice === null) return null;
-
+  const selectedRunId = useAppStore((s) => s.selectedRunId);
+  const view = useMemo(() => isolatedRunNoticeView(detail), [detail]);
+  const expanded = useAppStore((s) =>
+    selectedRunId === null
+      ? false
+      : expandedKeysInclude(
+          s.readingByRun[selectedRunId]?.noticesExpanded,
+          ISOLATED_SOURCE_NOTICE_KEY,
+        ),
+  );
+  if (view === null || selectedRunId === null) return null;
   return (
-    <div className="border-b border-violet-200 bg-violet-50 px-4 py-2 text-[11px] leading-5 text-violet-900">
-      {notice}
-    </div>
+    <IsolatedRunNoticeView
+      view={view}
+      runId={selectedRunId}
+      expanded={expanded}
+      onToggle={() => {
+        useAppStore.getState().toggleNoticeExpanded(selectedRunId, ISOLATED_SOURCE_NOTICE_KEY);
+      }}
+    />
   );
 }
 

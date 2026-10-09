@@ -46,6 +46,7 @@ import { modelAbGuard, riskyToolNames, scalarRequestParams } from "../lib/model-
 import type { ArmDraft, Scalar } from "../lib/model-ab";
 import { promptForkGuard } from "../lib/prompt-fork";
 import type { PromptForkField } from "../lib/prompt-fork";
+import { expandedKeysInclude } from "../lib/reading-state";
 import { decideRestore, initialRestoreState, restoreIdentity } from "../lib/restore-gate";
 import { resolveRestoreScrollTop, resolveScrollRestore } from "../lib/scroll-restore";
 import { useEscapeClose } from "../lib/use-escape-close";
@@ -56,6 +57,7 @@ import { useAppStore } from "../store";
 import { BudgetMap } from "./BudgetMap";
 import { requestConfirm } from "./ConfirmDialog";
 import { DetailNotices } from "./DetailNotices";
+import { Disclosure } from "./Disclosure";
 import { DraftListPanel } from "./DraftListPanel";
 import { DraftSourceBanner } from "./DraftSourceBanner";
 import { EntryGateNotice } from "./EntryGateNotice";
@@ -68,6 +70,52 @@ function Section({ title, children }: { title: string; children: React.ReactNode
     <div className="border-t border-gray-200 px-4 py-3">
       <div className="mb-1.5 text-[11px] font-semibold tracking-wide text-gray-500">{title}</div>
       {children}
+    </div>
+  );
+}
+
+/**
+ * 隔离父本上 prompt fork / 模型 A/B 的「不适用」说明（UI 密度 change 1.3）。
+ *
+ * 与运行页隔离说明共用同一 `Disclosure` 机制与同一 run 级阅读键
+ * （`noticesExpanded`；键 = `isolated-parent-unsupported`）——**不适用**这一事实
+ * 常驻一行，完整原因（为什么不支持/内核同样拒绝/可用方式是什么）展开后可查询，
+ * 场景「技术元信息按需完整阅读」的 WHEN「不适用能力」落在这一点。
+ */
+export const ISOLATED_PARENT_UNSUPPORTED_KEY = "isolated-parent-unsupported";
+
+export function IsolatedParentUnsupportedNotice({ run }: { run: RunDetail }) {
+  const reason = isolatedParentExecutionNotice(run);
+  const runId = useAppStore((s) => s.selectedRunId);
+  const expanded = useAppStore((s) =>
+    runId === null
+      ? false
+      : expandedKeysInclude(
+          s.readingByRun[runId]?.noticesExpanded,
+          ISOLATED_PARENT_UNSUPPORTED_KEY,
+        ),
+  );
+  if (reason === null || runId === null) return null;
+  return (
+    <div
+      data-isolated-parent-unsupported="true"
+      className="border-t border-violet-100 px-4 py-1.5 text-[11px] leading-5 text-violet-900"
+    >
+      <Disclosure
+        summary="不适用说明"
+        meta="prompt fork / 模型 A/B 在隔离父本上本期不支持"
+        expanded={expanded}
+        onToggle={() => {
+          useAppStore.getState().toggleNoticeExpanded(runId, ISOLATED_PARENT_UNSUPPORTED_KEY);
+        }}
+        controlsId={`notice-isolated-parent-${runId}`}
+      >
+        <div className="px-1 pb-1">
+          {reason}
+          <br />
+          可用的执行方式：在某个工具调用上使用「在此重跑（隔离续跑）」——它从该轮的轮末检查点继续。
+        </div>
+      </Disclosure>
     </div>
   );
 }
@@ -761,16 +809,11 @@ function LlmCallDetail({
         const firstLlmId = run?.spans.find((s) => s.kind === "llm.call")?.id;
         if (!forkEntriesAvailable || run === null) return null;
         if (firstLlmId === span.id) {
-          // 隔离父本：两个入口都禁用并说明原因（内核对同一批请求也拒绝，见 1.2 的用例）
-          const isolatedNotice = isolatedParentExecutionNotice(run);
-          if (isolatedNotice !== null) {
-            return (
-              <div className="border-t border-violet-100 px-4 py-2 text-[11px] leading-5 text-violet-900">
-                prompt fork / 模型 A/B 本期不支持：{isolatedNotice}
-                <br />
-                可用的执行方式：在某个工具调用上使用「在此重跑（隔离续跑）」——它从该轮的轮末检查点继续。
-              </div>
-            );
+          // 隔离父本：两个入口都禁用并说明原因（内核对同一批请求也拒绝，见 1.2 的用例）。
+          // UI 密度 change 1.3：原因改为「紧凑一行 + 可展开详情」——不适用这一事实常驻，
+          // 完整原因（为什么/内核同样拒绝/可用方式）收进共享 Disclosure 机制，可查询。
+          if (isolatedParentExecutionNotice(run) !== null) {
+            return <IsolatedParentUnsupportedNotice run={run} />;
           }
           return (
             <>

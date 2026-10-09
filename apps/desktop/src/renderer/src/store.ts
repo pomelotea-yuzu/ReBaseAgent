@@ -189,6 +189,7 @@ import {
   patchFileReading,
   patchReadingState,
   readingStateOf,
+  toggleExpandedKey,
 } from "./lib/reading-state";
 import type {
   CallReadingState,
@@ -486,6 +487,11 @@ interface AppState {
   setReadingScroll: (runId: string, where: "overview" | "steps", top: number) => void;
   /** 记录某 run 某次调用的分区阅读状态（io 切换/展开块/内部滚动） */
   setCallReading: (runId: string, spanId: string, patch: Partial<CallReadingState>) => void;
+  /**
+   * UI 密度 change 1.3：切换某 run 的说明/技术详情展开键
+   * （`readingByRun[runId].noticesExpanded`；键是静态 UI 键，按 run 隔离）。
+   */
+  toggleNoticeExpanded: (runId: string, key: string) => void;
 
   /**
    * U2 文件阅读状态（任务 2.1/2.4）：读取与不可变更新。
@@ -743,6 +749,15 @@ interface AppState {
   comparePrefixFolded: { readonly left: boolean; readonly right: boolean };
   /** U7 任务 4.14：切换某一侧的前缀折叠/展开（只动本侧）。 */
   toggleComparePrefix: (side: "left" | "right") => void;
+  /**
+   * UI 密度 change 1.4：比较修改证据区的展开态（**默认收起**——design D2
+   * 「比较页修改证据折为『修改证据 · 字段/修改数 · 展开』，收起释放输出阅读空间」；
+   * 缺证据/关系未知摘要不受它影响，始终可见）。复位口径与 comparePrefixFolded 一致：
+   * 换 pair 回默认收起；交换左右不改证据内容，保持现状。
+   */
+  compareEvidenceExpanded: boolean;
+  /** UI 密度 change 1.4：展开/收起修改证据区。 */
+  setCompareEvidenceExpanded: (expanded: boolean) => void;
   /**
    * U7 任务 2.3：比较页的来源位置引用（类型与创建页同形，捕获/恢复复用同一批
    * 判据）。一次性凭据：返回来源即用掉；经 `selectRun` 打开单侧时**保留**——
@@ -1390,6 +1405,8 @@ async function enterCompareView(pair: ComparePair | null): Promise<void> {
       useAppStore.setState({
         compareStepSelection: { left: null, right: null },
         comparePrefixFolded: { left: true, right: true },
+        // UI 密度 change 1.4：换 pair 回默认收起（旧 pair 的展开态不带到新对象）
+        compareEvidenceExpanded: false,
       });
     }
     await useAppStore.getState().enterCompareSelection([pair.leftRunId, pair.rightRunId]);
@@ -1840,6 +1857,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   compareStepSelection: { left: null, right: null },
   // U7 任务 4.14：每侧前缀折叠态（默认折叠；折叠不删记录，展开即恢复）
   comparePrefixFolded: { left: true, right: true },
+  // UI 密度 change 1.4：修改证据区默认收起（摘要常驻；展开态随 pair 变化复位）
+  compareEvidenceExpanded: false,
   // U7 任务 3.1–3.3：分支树的会话观察状态（范围/搜索/视口，不落盘）
   treeScope: null,
   treeQuery: "",
@@ -2279,6 +2298,15 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setCallReading(runId, spanId, patch) {
     set({ readingByRun: patchCallReading(get().readingByRun, runId, spanId, patch) });
+  },
+
+  toggleNoticeExpanded(runId, key) {
+    const current = readingStateOf(get().readingByRun, runId);
+    set({
+      readingByRun: patchReadingState(get().readingByRun, runId, {
+        noticesExpanded: toggleExpandedKey(current.noticesExpanded, key),
+      }),
+    });
   },
 
   fileReadingOf(runId) {
@@ -2781,6 +2809,11 @@ export const useAppStore = create<AppState>((set, get) => ({
           ? { ...current, left: !current.left }
           : { ...current, right: !current.right },
     });
+  },
+
+  setCompareEvidenceExpanded(expanded) {
+    // UI 密度 change 1.4：只动这一位（纯阅读状态，不触发读取、不动 pair）
+    set({ compareEvidenceExpanded: expanded });
   },
 
   async returnFromCompare() {

@@ -42,6 +42,9 @@ export function CompareWorkspace({ stacked = false }: { stacked?: boolean } = {}
   const compareRead = useAppStore((s) => s.compareRead);
   const stepSelection = useAppStore((s) => s.compareStepSelection);
   const prefixFolded = useAppStore((s) => s.comparePrefixFolded);
+  // UI 密度 change 1.4：修改证据区展开态（默认收起；摘要常驻）
+  const evidenceExpanded = useAppStore((s) => s.compareEvidenceExpanded);
+  const setCompareEvidenceExpanded = useAppStore((s) => s.setCompareEvidenceExpanded);
   const swapCompareSides = useAppStore((s) => s.swapCompareSides);
   const returnFromCompare = useAppStore((s) => s.returnFromCompare);
   const selectCompareStep = useAppStore((s) => s.selectCompareStep);
@@ -365,6 +368,10 @@ export function CompareWorkspace({ stacked = false }: { stacked?: boolean } = {}
       }}
       onOpenMetricsTable={openMetricsTable}
       evidence={evidence}
+      collapsed={!evidenceExpanded}
+      onToggleCollapsed={() => {
+        setCompareEvidenceExpanded(!evidenceExpanded);
+      }}
     />
   );
 }
