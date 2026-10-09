@@ -32,10 +32,14 @@
 
 ## 3. 操作与文案
 
-- [ ] 3.1 messages 与 prompt/result 核对/提交移到相邻操作区，保留费用/模式边界摘要与详情。（确认和提交在同一操作区；核对后的编辑撤销旧许可）
-- [ ] 3.2 创建与实验确认/提交沿用相邻规则，窄窗/键盘可达，计划与副作用授权不简化。（确认和提交在同一操作区；详细边界可读但不能跳过核对）
-- [ ] 3.3 ModalDialog 增强遮罩/居中/可用高度，保留 focus trap、Esc、关闭禁止与放弃 CAS。（放弃模态可辨且取消不丢草稿；长确认可滚动且操作可达；旧确认不能放弃新修订）
-- [ ] 3.4 主流程替换空 fork/main 登记等实现术语，工程解释复用 1.3 的详情机制，修复字面 **，补时间旅行与隔离续跑对应说明。（没有改动提示用中文且技术细节可查；时间旅行名称不扩大恢复承诺）
+- [x] 3.1 messages 与 prompt/result 核对/提交移到相邻操作区，保留费用/模式边界摘要与详情。（确认和提交在同一操作区；核对后的编辑撤销旧许可）
+  - 2026-10-09：新建共享 `ConfirmationBlock`（标题行 = 标题 + `data-confirm-summary` 关键摘要 + 确认按钮 `data-confirm-execution`/`aria-pressed`；facts/checks/limits 全表收进 1.1 的 `Disclosure` 默认收起；`blocked` 原因就近行；children 槽）；六个执行入口（messages / prompt / result 普通 / result 隔离 / 模型 A-B / 创建）全部换用，`data-confirm-execution` 渲染点唯一、判据逐字保留由调用方传入；lib 六个 disclosure 各加 `summary`（收起态费用/工具/文件副作用与门禁摘要仍可见）；prompt 核对块原先嵌在按钮 flex 行里横排挤压，现独立成块、提交按钮行紧随其下。
+- [x] 3.2 创建与实验确认/提交沿用相邻规则，窄窗/键盘可达，计划与副作用授权不简化。（确认和提交在同一操作区；详细边界可读但不能跳过核对）
+  - 2026-10-09：创建入口确认块换 ConfirmationBlock（确认行为提醒保留在块内 children）；A-B 确认块换 ConfirmationBlock（confirmDisabled 判据逐字保留 `activePlan === null` 门——没有生效计划不给确认；blocked = submitBlocked ?? planStaleText）；实验计划块（逐臂 dry-run 事实 + 副作用警示）与副本授权复选框原样保留未简化；创建页操作区固定在正文下方的既有语义不变，确认与提交之间不隔长说明。
+- [x] 3.3 ModalDialog 增强遮罩/居中/可用高度，保留 focus trap、Esc、关闭禁止与放弃 CAS。（放弃模态可辨且取消不丢草稿；长确认可滚动且操作可达；旧确认不能放弃新修订）
+  - 2026-10-09：基类加 `max-h-[85vh] overflow-y-auto`（长确认在框内滚动、操作可达，不撑破视口）；遮罩 `backdrop:bg-black/20`→`/40`（放弃确认与对比确认弹窗的遮罩可辨）；showModal / cancel / Esc 两步关闭合成 / keydown 捕获 / closeDisabled / 焦点恢复全部不变。
+- [x] 3.4 主流程替换空 fork/main 登记等实现术语，工程解释复用 1.3 的详情机制，修复字面 **，补时间旅行与隔离续跑对应说明。（没有改动提示用中文且技术细节可查；时间旅行名称不扩大恢复承诺）
+  - 2026-10-09：lib 理由改用户语言——prompt/isolated 的 unchanged（"与原值相同，请修改后再…；未做修改的会被原样拒绝"）、A-B 逐臂（"与父 run 完全相同——与父完全相同的臂会让整批被拒"）；四处字面 `**` 已随 3.1 在 lib 移除；MessagesResults / ExperimentResults 去"main 登记"（标题与组头），空态改"尚未提交重发 / 尚未执行实验"，技术说明（登记身份、被动录制边界、预览不产生批次、同父同模型不合并）收进「结果说明」Disclosure；创建页 config_hash / v1/v2 改中文主文案 + 新增「技术说明」Disclosure 承载版本细节；DetailPanel「在此重跑」入口给普通路径补时间旅行说明（不撤回外部调用、不回滚同轮写入），unchanged 提示同步改写；DetailPanel 1382 的"空 fork"括注改用户语言。
 
 ## 4. 实机与完整验收
 
