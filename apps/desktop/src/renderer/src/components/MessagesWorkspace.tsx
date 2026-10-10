@@ -97,7 +97,8 @@ export function MessagesWorkspace() {
   return (
     <AuxWorkspaceFrame
       title="编辑 messages 重发"
-      description="编辑一次代理录制的模型请求并作为单个真实请求重发（不执行外部工具）。重发使用本会话代理捕获的凭据。"
+      compactDescription="单请求重发 · 不执行外部工具 · 使用本会话最近捕获的凭据"
+      description="编辑一次代理录制的模型请求并作为单个真实请求重发（不执行外部工具）。源 run 不会被修改。重发使用本会话代理捕获的凭据。"
       targetLine={target === null ? null : `源 run ${target.runId} · 调用 ${target.spanId}`}
       returnAvailable={location !== null}
       onReturn={() => void returnToAuxSource("messages")}

@@ -28,6 +28,7 @@
       "**/.pnpm-store/**",
       "**/.rebaseagent/**",
       "**/.workbuddy/**",
+      "**/output/**",
       "**/release/**",
       "**/release-*/**",
       "**/*.timestamp-*.mjs",

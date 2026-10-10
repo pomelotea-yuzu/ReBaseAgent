@@ -33,11 +33,13 @@ import { WorkspaceFileView } from "./WorkspaceFileView";
  */
 export function WorkspaceFilesPanel({
   focusActive = false,
+  focusControlsInHeader = false,
   onEnterFocus,
   onExitFocus,
 }: {
   /** UI 密度 2.4：专注差异态（App 层按当前工作区身份比对生效；显示覆盖，不写偏好） */
   readonly focusActive?: boolean;
+  readonly focusControlsInHeader?: boolean;
   readonly onEnterFocus?: (mode: "edit" | "diff") => void;
   readonly onExitFocus?: () => void;
 }) {
@@ -99,6 +101,7 @@ export function WorkspaceFilesPanel({
       loadingDetail={loadingDetail}
       runId={runId}
       focusActive={focusActive}
+      focusControlsInHeader={focusControlsInHeader}
       onEnterFocus={onEnterFocus}
       onExitFocus={onExitFocus}
     />
@@ -117,6 +120,7 @@ export function WorkspaceFilesPanelView({
   detail,
   loadingDetail,
   focusActive = false,
+  focusControlsInHeader = false,
   onEnterFocus,
   onExitFocus,
 }: {
@@ -125,12 +129,13 @@ export function WorkspaceFilesPanelView({
   /** U2：当前 run id（保留入参以便后续接线；本层不消费） */
   runId?: string | null;
   readonly focusActive?: boolean;
+  readonly focusControlsInHeader?: boolean;
   readonly onEnterFocus?: (mode: "edit" | "diff") => void;
   readonly onExitFocus?: () => void;
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col bg-white">
-      {focusActive ? (
+      {focusActive && !focusControlsInHeader ? (
         <div
           className="flex shrink-0 items-center gap-2 border-b border-violet-200 bg-violet-50 px-3 py-1"
           data-focus-bar="files-diff"
@@ -148,7 +153,7 @@ export function WorkspaceFilesPanelView({
           </button>
         </div>
       ) : null}
-      {!focusActive && onEnterFocus !== undefined ? (
+      {!focusActive && !focusControlsInHeader && onEnterFocus !== undefined ? (
         <div className="shrink-0 border-b border-gray-100 px-3 py-1">
           <button
             type="button"

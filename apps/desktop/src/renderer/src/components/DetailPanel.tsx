@@ -66,6 +66,7 @@ import { EntryGateNotice } from "./EntryGateNotice";
 import { FOCUS_RING } from "./IconButton";
 import { LongText, isLongTextExpanded, toggleLongTextExpanded } from "./LongText";
 import { MonacoCodeEditor } from "./MonacoEditor";
+import { WorkspaceHeading } from "./WorkspaceHeading";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -200,6 +201,7 @@ export function ForkCacheHintView({ hint }: { hint: ForkCacheHint | null }) {
  * 同一个 `DraftListPanel` 视图；无草稿时整节不渲染（不加噪音）。
  */
 function RunDraftListSection({ runId }: { runId: string }) {
+  const [expanded, setExpanded] = useState(false);
   const drafts = useAppStore((s) => s.drafts);
   const openDraftAt = useAppStore((s) => s.openDraftAt);
   const discardCallDraft = useAppStore((s) => s.discardCallDraft);
@@ -209,44 +211,48 @@ function RunDraftListSection({ runId }: { runId: string }) {
   return (
     <section
       data-run-draft-list="true"
-      className="border-b border-gray-200 bg-gray-50/60 px-4 py-2"
+      className="border-b border-gray-200 bg-gray-50/60 px-4 py-1"
     >
-      <div className="mb-1 text-[11px] font-semibold text-gray-600">
-        本运行草稿（{items.length}）
-      </div>
-      <DraftListPanel
-        items={items}
-        emptyHint="本运行暂无草稿"
-        onOpen={(item) => {
-          void openDraftAt({ runId: item.runId, spanId: item.spanId, field: item.field });
-        }}
-        onCopy={(item) => {
-          void navigator.clipboard.writeText(item.copyText);
-        }}
-        onDiscard={(item) => {
-          if (item.field === "create") return; // 本运行列表不含创建草稿（防御）
-          // U3 5.2：放弃确认走真模态（异步）——CAS 按列表条目修订校验，
-          // 确认等待期间修订推进 ⇒ 旧确认不删新修订。
-          // field/runId/spanId 先捕获为 const：TS 收窄可以越过异步闭包保留
-          const field = item.field;
-          const runId = item.runId;
-          const spanId = item.spanId;
-          void requestConfirm({
-            title: "放弃草稿",
-            message: `放弃「${item.title}」的草稿？（run ${runId}${spanId !== null ? ` · ${spanId}` : ""}）\n内容将被删除，不可撤销。`,
-          }).then((confirmed) => {
-            if (!confirmed) return;
-            if (field === "model_ab") {
-              if (spanId !== null) {
-                discardModelAbDraft({ runId, spanId }, item.revision);
+      <Disclosure
+        summary={`本运行草稿（${items.length}）`}
+        expanded={expanded}
+        onToggle={() => setExpanded(!expanded)}
+        controlsId={`run-drafts-${runId}`}
+      >
+        <DraftListPanel
+          items={items}
+          emptyHint="本运行暂无草稿"
+          onOpen={(item) => {
+            void openDraftAt({ runId: item.runId, spanId: item.spanId, field: item.field });
+          }}
+          onCopy={(item) => {
+            void navigator.clipboard.writeText(item.copyText);
+          }}
+          onDiscard={(item) => {
+            if (item.field === "create") return; // 本运行列表不含创建草稿（防御）
+            // U3 5.2：放弃确认走真模态（异步）——CAS 按列表条目修订校验，
+            // 确认等待期间修订推进 ⇒ 旧确认不删新修订。
+            // field/runId/spanId 先捕获为 const：TS 收窄可以越过异步闭包保留
+            const field = item.field;
+            const runId = item.runId;
+            const spanId = item.spanId;
+            void requestConfirm({
+              title: "放弃草稿",
+              message: `放弃「${item.title}」的草稿？（run ${runId}${spanId !== null ? ` · ${spanId}` : ""}）\n内容将被删除，不可撤销。`,
+            }).then((confirmed) => {
+              if (!confirmed) return;
+              if (field === "model_ab") {
+                if (spanId !== null) {
+                  discardModelAbDraft({ runId, spanId }, item.revision);
+                }
+                return;
               }
-              return;
-            }
-            if (spanId === null) return;
-            discardCallDraft({ runId, spanId, field }, item.revision);
-          });
-        }}
-      />
+              if (spanId === null) return;
+              discardCallDraft({ runId, spanId, field }, item.revision);
+            });
+          }}
+        />
+      </Disclosure>
     </section>
   );
 }
@@ -1309,15 +1315,34 @@ function ForkEditor({
 
   return (
     <div className="border-t border-violet-100 bg-violet-50/60 px-4 py-3">
-      <div className="mb-1 flex items-center justify-between">
-        <span className="text-[11px] font-semibold text-violet-900">
-          {isolated ? "在此重跑 · 隔离续跑" : "在此重跑"}
-        </span>
-        <span className="text-[10px] text-violet-500">
-          {isolated
-            ? "从轮末检查点继续 · 父 run 与源目录不会被修改"
-            : "从该工具调用之后重跑 · 父 run 文件不会被修改"}
-        </span>
+      <div className="mb-1">
+        <WorkspaceHeading
+          title={
+            <span className="text-reading-meta text-violet-900">
+              {isolated ? "在此重跑 · 隔离续跑" : "在此重跑"}
+            </span>
+          }
+          target={
+            <span className="font-code">
+              {span.tool} · {span.id}
+            </span>
+          }
+          summary={
+            <span className="text-violet-600">
+              {isolated
+                ? "从轮末检查点继续 · 父 run 与源目录不会被修改"
+                : "从该工具调用之后重跑 · 父 run 文件不会被修改"}
+            </span>
+          }
+          detailsLabel="重跑说明"
+          details={
+            <p className="py-1 text-reading-meta leading-5 text-violet-600">
+              {isolated
+                ? "以上文本将作为该工具的返回结果重新送入模型；其后的步骤由模型重新生成，文件世界从该轮轮末检查点继续。"
+                : "以上文本将作为该工具的返回结果重新送入模型；其余上下文（prompt、工具表、此前步骤）与父 run 完全一致。"}
+            </p>
+          }
+        />
       </div>
       {/* U3 任务 2.6：原值（只读）/草稿（可编辑）就近核对——两侧都完整可读
           （Monaco wordWrap 不截断），不为对比固定挤占窄窗。
@@ -1378,11 +1403,6 @@ function ForkEditor({
           />
         }
       />
-      <div className="mt-1.5 text-[10px] leading-4 text-violet-600">
-        {isolated
-          ? "以上文本将作为该工具的返回结果重新送入模型；其后的步骤由模型重新生成，文件世界从该轮轮末检查点继续。"
-          : "以上文本将作为该工具的返回结果重新送入模型；其余上下文（prompt、工具表、此前步骤）与父 run 完全一致。"}
-      </div>
 
       {unchanged ? (
         <div className="mt-1 text-[11px] text-amber-700">
@@ -1729,7 +1749,12 @@ function ToolInvokeDetail({
   });
 
   return (
-    <ToolInvokeDetailView span={span} longTextProps={toolLongTextProps} draftBadge={toolDraftBadge}>
+    <ToolInvokeDetailView
+      span={span}
+      longTextProps={toolLongTextProps}
+      draftBadge={toolDraftBadge}
+      compact
+    >
       {canFork && run !== null ? (
         <ForkEditor span={span} run={run} />
       ) : span.kind === "tool.invoke" && run !== null && !leafOwned && run.chain.length > 1 ? (
@@ -1764,6 +1789,7 @@ export function ToolInvokeDetailView({
   longTextProps,
   draftBadge,
   children,
+  compact = false,
 }: {
   span: Extract<SpanLine, { kind: "tool.invoke" }>;
   longTextProps: (key: string) => { expanded: boolean; onToggle: (next: boolean) => void };
@@ -1771,21 +1797,51 @@ export function ToolInvokeDetailView({
   draftBadge?: { label: string; dirty: boolean } | null;
   /** fork / 重跑编辑器（由壳提供） */
   children?: React.ReactNode;
+  compact?: boolean;
 }) {
+  const recordedValues = (
+    <div className="grid grid-cols-1 gap-2 py-2 sm:grid-cols-2">
+      <div className="min-w-0">
+        <div className="mb-1 text-[11px] font-medium text-gray-600">入参</div>
+        <LongText text={prettyJson(span.args)} label="args" {...longTextProps("args")} />
+      </div>
+      <div className="min-w-0">
+        <div className="mb-1 text-[11px] font-medium text-gray-600">结果</div>
+        <LongText text={prettyJson(span.result)} label="result" {...longTextProps("result")} />
+      </div>
+    </div>
+  );
   return (
     <>
-      <Section title="概要">
-        <KeyValue
-          items={[
-            ["工具", span.tool],
-            ["执行耗时", `${span.dur_ms}ms`],
-            ["墙上耗时", formatDuration(spanDurationMs(span))],
-            ...(draftBadge !== null && draftBadge !== undefined
-              ? ([["草稿", draftBadge.label]] as Array<[string, string]>)
-              : []),
-          ]}
-        />
-      </Section>
+      {compact ? (
+        <div className="border-b border-gray-200 px-4 py-2">
+          <WorkspaceHeading
+            title={<span className="text-reading-body text-gray-800">{span.tool}</span>}
+            target={<span className="font-code">{span.id}</span>}
+            summary={
+              <span className="text-gray-500">
+                执行 {span.dur_ms}ms · 墙上耗时 {formatDuration(spanDurationMs(span))}
+                {draftBadge ? ` · ${draftBadge.label}` : ""}
+              </span>
+            }
+            detailsLabel="入参与结果"
+            details={recordedValues}
+          />
+        </div>
+      ) : (
+        <Section title="概要">
+          <KeyValue
+            items={[
+              ["工具", span.tool],
+              ["执行耗时", `${span.dur_ms}ms`],
+              ["墙上耗时", formatDuration(spanDurationMs(span))],
+              ...(draftBadge !== null && draftBadge !== undefined
+                ? ([["草稿", draftBadge.label]] as Array<[string, string]>)
+                : []),
+            ]}
+          />
+        </Section>
+      )}
 
       {span.error !== null ? (
         <Section title="错误（错误是数据不是异常）">
@@ -1796,18 +1852,24 @@ export function ToolInvokeDetailView({
       ) : null}
 
       {/* args / result 就近核对：并排（宽屏）→ 上下相邻（窄屏），中间不被其它栏目隔开 */}
-      <Section title="入参与结果">
-        <div className="grid grid-cols-1 gap-2 xl:grid-cols-2">
-          <div className="min-w-0">
-            <div className="mb-1 text-[11px] font-medium text-gray-600">入参</div>
-            <LongText text={prettyJson(span.args)} label="args" {...longTextProps("args")} />
+      {!compact ? (
+        <Section title="入参与结果">
+          <div className="grid grid-cols-1 gap-2 xl:grid-cols-2">
+            <div className="min-w-0">
+              <div className="mb-1 text-[11px] font-medium text-gray-600">入参</div>
+              <LongText text={prettyJson(span.args)} label="args" {...longTextProps("args")} />
+            </div>
+            <div className="min-w-0">
+              <div className="mb-1 text-[11px] font-medium text-gray-600">结果</div>
+              <LongText
+                text={prettyJson(span.result)}
+                label="result"
+                {...longTextProps("result")}
+              />
+            </div>
           </div>
-          <div className="min-w-0">
-            <div className="mb-1 text-[11px] font-medium text-gray-600">结果</div>
-            <LongText text={prettyJson(span.result)} label="result" {...longTextProps("result")} />
-          </div>
-        </div>
-      </Section>
+        </Section>
+      ) : null}
 
       {children}
     </>
@@ -1920,11 +1982,13 @@ function shortSpanId(id: string): string {
 
 export function DetailPanel({
   focusActive = false,
+  focusControlsInHeader = false,
   onEnterFocus,
   onExitFocus,
 }: {
   /** UI 密度 2.4：专注编辑态（App 层按当前工作区身份比对生效；显示覆盖，不写偏好） */
   readonly focusActive?: boolean;
+  readonly focusControlsInHeader?: boolean;
   readonly onEnterFocus?: (mode: "edit" | "diff") => void;
   readonly onExitFocus?: () => void;
 }) {
@@ -2030,7 +2094,7 @@ export function DetailPanel({
   return (
     <section className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-white">
       {/* 2.4 专注编辑：显示覆盖（收起草稿列表与消耗图），不写偏好、目标变化由 App 层清空 */}
-      {focusActive ? (
+      {focusActive && !focusControlsInHeader ? (
         <div
           className="flex shrink-0 items-center gap-2 border-b border-violet-200 bg-violet-50 px-3 py-1"
           data-focus-bar="edit"
@@ -2048,7 +2112,7 @@ export function DetailPanel({
           </button>
         </div>
       ) : null}
-      {!focusActive && onEnterFocus !== undefined ? (
+      {!focusActive && !focusControlsInHeader && onEnterFocus !== undefined ? (
         <div className="shrink-0 border-b border-gray-100 px-3 py-1">
           <button
             type="button"

@@ -58,6 +58,79 @@ body {
   font-family: "Cascadia Code", "JetBrains Mono", Consolas, "Courier New", monospace;
 }
 
+/* Use the available panel width; narrow panels wrap without shrinking controls. */
+.workspace-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 2px 16px;
+  container-type: inline-size;
+}
+.workspace-heading-object {
+  grid-column: 1;
+  grid-row: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  min-width: 0;
+}
+.workspace-heading-actions {
+  grid-column: 2;
+  grid-row: 1;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
+}
+.workspace-heading-summary {
+  grid-column: 1;
+  grid-row: 2;
+  min-width: 0;
+}
+.workspace-heading-disclosure {
+  grid-column: 2;
+  grid-row: 2;
+  justify-self: end;
+}
+.workspace-heading-details {
+  grid-column: 1 / -1;
+  grid-row: 3;
+}
+
+.file-content-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 16px;
+}
+.file-content-heading > :first-child {
+  flex: 1 1 180px;
+}
+.file-content-heading > :last-child {
+  flex: 1 1 400px;
+  margin-left: auto;
+}
+
+@container (max-width: 560px) {
+  .workspace-heading-object,
+  .workspace-heading-summary {
+    grid-column: 1 / -1;
+    grid-row: auto;
+  }
+  .workspace-heading-actions,
+  .workspace-heading-disclosure {
+    grid-column: 1 / -1;
+    grid-row: auto;
+    justify-self: end;
+  }
+  .workspace-heading-details {
+    grid-row: auto;
+  }
+}
+
 /**
  * 全局可见焦点兜底（场景「键盘导航及工具名称」）：键盘用户必须看得见焦点在哪。
  *

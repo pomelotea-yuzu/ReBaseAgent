@@ -357,16 +357,38 @@ function WorkspaceShell({
         <>
           {/* U7 5.6：比较打开单侧后（pair 保留在 store），页头给常驻「返回比较」入口 */}
           <ReturnToCompareBar />
-          <RunHeader />
+          <RunHeader showSourceSummary={visible === "overview"} />
           {/* U8 任务 1.4：运行级「模型实验」入口（design D1「运行级更多操作」；资格由门禁裁决） */}
-          <RunActionsBar />
+        </>
+      }
+      actions={
+        <>
+          {visible === "steps" && onOpenSteps !== null ? (
+            <StepsDirectoryEntry onOpen={onOpenSteps} compact />
+          ) : null}
+          <RunActionsBar compact />
+          {visible !== "overview" ? (
+            <button
+              type="button"
+              data-enter-focus={focusActive ? undefined : visible === "files" ? "diff" : "edit"}
+              data-exit-focus={focusActive ? "true" : undefined}
+              data-focus-bar={
+                focusActive ? (visible === "files" ? "files-diff" : "edit") : undefined
+              }
+              onClick={() =>
+                focusActive
+                  ? onExitFocus?.()
+                  : onEnterFocus?.(visible === "files" ? "diff" : "edit")
+              }
+              title="临时收起辅助区域，退出后恢复原布局与阅读状态"
+              className={`rounded border px-2 py-0.5 text-reading-meta ${focusActive ? "border-violet-300 bg-violet-50 text-violet-900" : "border-gray-300 text-gray-600 hover:bg-gray-50"} ${FOCUS_RING}`}
+            >
+              {focusActive ? "退出专注" : visible === "files" ? "专注差异" : "专注编辑"}
+            </button>
+          ) : null}
         </>
       }
     >
-      {visible === "steps" && onOpenSteps !== null ? (
-        // 目录被收起（窄窗口或用户显式收起）时，正文顶部给一个真实可用的重开入口
-        <StepsDirectoryEntry onOpen={onOpenSteps} />
-      ) : null}
       {/*
        * 三分支：概览（5.1）/ 文件（6.1）/ 步骤（其余）。
        * 文件页与概览同级、**都不经 DetailPanel**——DetailPanel 内部那个
@@ -376,12 +398,14 @@ function WorkspaceShell({
         <OverviewPanel />
       ) : visible === "files" ? (
         <WorkspaceFilesPanel
+          focusControlsInHeader
           focusActive={focusActive}
           onEnterFocus={onEnterFocus}
           onExitFocus={onExitFocus}
         />
       ) : (
         <DetailPanel
+          focusControlsInHeader
           focusActive={focusActive}
           onEnterFocus={onEnterFocus}
           onExitFocus={onExitFocus}
@@ -435,9 +459,12 @@ export function ReturnToCompareBar() {
  * ⚠️ 导出供测试直接渲染（本包无 jsdom，`renderToStaticMarkup` 只做静态结构断言）：
  *    入口必须是**真实可点的 button**，不是一段说明文字。
  */
-export function StepsDirectoryEntry({ onOpen }: { onOpen: () => void }) {
+export function StepsDirectoryEntry({
+  onOpen,
+  compact = false,
+}: { onOpen: () => void; compact?: boolean }) {
   return (
-    <div className="border-b border-gray-200 px-4 py-1.5">
+    <div className={compact ? "" : "border-b border-gray-200 px-4 py-1.5"}>
       <button
         data-open-steps
         type="button"

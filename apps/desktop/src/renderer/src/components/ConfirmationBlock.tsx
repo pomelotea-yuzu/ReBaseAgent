@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
 import type { ConfirmationRow } from "../lib/execution-confirmation";
-import { Disclosure } from "./Disclosure";
+import { DisclosureButton } from "./Disclosure";
 import { FOCUS_RING } from "./IconButton";
 
 /**
@@ -72,13 +72,9 @@ export function ConfirmationBlock({
           : "border-gray-200";
   return (
     <div className={`mt-2 rounded border bg-white ${borderClass}`}>
-      <div className="flex flex-wrap items-start justify-between gap-2 px-2 py-1.5">
-        <div className="min-w-0">
+      <div className="workspace-heading px-2 py-1.5">
+        <div className="workspace-heading-object">
           <span className="text-[11px] font-medium text-gray-600">{title}</span>
-          {/* 收起时唯一的内容行：关键摘要（3.1「保留费用/模式边界摘要与详情」的"摘要"半边） */}
-          <span data-confirm-summary className="mt-0.5 block text-[11px] leading-4 text-gray-500">
-            {summary}
-          </span>
         </div>
         <button
           type="button"
@@ -86,7 +82,7 @@ export function ConfirmationBlock({
           aria-pressed={confirmed ? "true" : undefined}
           disabled={confirmDisabled || confirmed}
           onClick={onConfirm}
-          className={`shrink-0 rounded border px-2 py-0.5 text-[11px] disabled:cursor-not-allowed disabled:opacity-40 ${FOCUS_RING} ${
+          className={`workspace-heading-actions shrink-0 rounded border px-2 py-0.5 text-[11px] disabled:cursor-not-allowed disabled:opacity-40 ${FOCUS_RING} ${
             confirmed
               ? "border-emerald-300 bg-emerald-50 text-emerald-800"
               : "border-gray-300 text-gray-700 hover:bg-gray-50"
@@ -94,26 +90,36 @@ export function ConfirmationBlock({
         >
           {confirmed ? confirmedLabel : confirmLabel}
         </button>
-      </div>
-      {/* 详细边界（facts/checks/limits 全表）收进共享 Disclosure：默认收起，展开即全量 */}
-      <div className="border-t border-gray-100 px-1">
-        <Disclosure
-          summary="详细边界"
-          meta={summary}
+        <span
+          data-confirm-summary
+          className="workspace-heading-summary text-[11px] leading-4 text-gray-500"
+        >
+          {summary}
+        </span>
+        <DisclosureButton
           expanded={detailsOpen}
           onToggle={() => setDetailsOpen((prev) => !prev)}
-          controlsId={controlsId}
-          className="px-1"
+          label={detailsOpen ? "收起详细边界" : "展开详细边界"}
+          controls={controlsId}
+          className="workspace-heading-disclosure px-1 text-[11px] text-gray-600 hover:bg-gray-50"
         >
-          <dl className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 px-1 pb-1.5 text-[11px] leading-4">
-            {rows.map((row) => (
-              <div key={`${row.label}-${row.value}`} className="col-span-2 grid grid-cols-subgrid">
-                <dt className="text-gray-500">{row.label}</dt>
-                <dd className="min-w-0 break-words text-gray-700">{row.value}</dd>
-              </div>
-            ))}
-          </dl>
-        </Disclosure>
+          详细边界
+        </DisclosureButton>
+        <div id={controlsId} className="workspace-heading-details" hidden={!detailsOpen}>
+          {detailsOpen ? (
+            <dl className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 px-1 pb-1.5 text-[11px] leading-4">
+              {rows.map((row) => (
+                <div
+                  key={`${row.label}-${row.value}`}
+                  className="col-span-2 grid grid-cols-subgrid"
+                >
+                  <dt className="text-gray-500">{row.label}</dt>
+                  <dd className="min-w-0 break-words text-gray-700">{row.value}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : null}
+        </div>
       </div>
       {!confirmed && blocked !== null ? (
         <div className="border-t border-gray-100 px-2 py-1.5 text-[11px] leading-4 text-amber-800">

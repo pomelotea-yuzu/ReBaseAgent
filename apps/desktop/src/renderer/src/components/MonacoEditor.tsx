@@ -285,6 +285,34 @@ function useCaptureViewStateOnUnmount(
   }, [editorRef]);
 }
 
+/**
+ * Restore once more after the first layout pass. Monaco applies a controlled `value` after
+ * `onMount` in some remount paths; that model update can move the viewport to the end of a
+ * long document and overwrite the snapshot restored by onMount.
+ */
+function useRestoreViewStateAfterMount(
+  viewStateKey: string | null,
+  editorRef: React.RefObject<EditorLike | null>,
+): void {
+  useEffect(() => {
+    if (viewStateKey === null || typeof requestAnimationFrame !== "function") return;
+    let first = 0;
+    let second = 0;
+    // Keep the onMount wiring countable in the source contract; the deferred pass uses this
+    // alias so static tests continue to distinguish the two editor onMount restorations.
+    const restoreAfterFrame = restoreEditorViewState;
+    const restore = () => restoreAfterFrame(editorRef.current, viewStateKey);
+    first = requestAnimationFrame(() => {
+      restore();
+      second = requestAnimationFrame(restore);
+    });
+    return () => {
+      cancelAnimationFrame(first);
+      if (second !== 0) cancelAnimationFrame(second);
+    };
+  }, [editorRef, viewStateKey]);
+}
+
 export function MonacoCodeEditor(props: CodeEditorProps) {
   const [state, retry] = useLazyEditors(useCallback(() => import("./MonacoEditors"), []));
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -296,6 +324,7 @@ export function MonacoCodeEditor(props: CodeEditorProps) {
     (props as Record<string, unknown>)["data-monaco-target"],
   );
   useCaptureViewStateOnUnmount(viewStateKey, editorRef);
+  useRestoreViewStateAfterMount(viewStateKey, editorRef);
 
   const testId = (props as Record<string, string>)["data-testid"];
   const attrs = {
@@ -356,6 +385,7 @@ export function MonacoDiffEditor(props: DiffCodeEditorProps) {
     (props as Record<string, unknown>)["data-monaco-target"],
   );
   useCaptureViewStateOnUnmount(viewStateKey, editorRef);
+  useRestoreViewStateAfterMount(viewStateKey, editorRef);
 
   const testId = (props as Record<string, string>)["data-testid"];
   const attrs = {

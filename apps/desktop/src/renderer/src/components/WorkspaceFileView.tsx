@@ -72,6 +72,7 @@ import {
 import type { CheckpointOption, DiffSides } from "../lib/workspace-files";
 import { useAppStore } from "../store";
 import { MonacoCodeEditor, MonacoDiffEditor } from "./MonacoEditor";
+import { WorkspaceHeading } from "./WorkspaceHeading";
 
 /**
  * 隔离文件检查点视图（C 任务 2.1/2.2；U2 任务 2.4/3.x/4.x）。
@@ -733,39 +734,53 @@ export function WorkspaceFileViewBody({
     >
       {/* 检查点选择器 + 来源说明 */}
       <div className="border-b border-gray-200 px-4 py-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[11px] font-semibold text-gray-500">文件检查点</span>
-          <div className="flex flex-wrap items-center gap-1">
-            {options.map((option) => (
-              <button
-                key={option.stepSpanId ?? "__initial__"}
-                type="button"
-                onClick={() => onSelect(option.stepSpanId)}
-                className={`rounded px-2 py-0.5 text-[11px] ${
-                  selection.stepSpanId === option.stepSpanId
-                    ? "bg-violet-600 text-white"
-                    : "border border-gray-300 text-gray-600 hover:bg-gray-50"
-                }`}
-                title={
-                  option.stepSpanId === null
-                    ? "本 run 的文件世界起点（导入快照或父 run 检查点）"
-                    : `检查点所属 step：${option.stepSpanId}`
-                }
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-          {inspect !== null ? (
-            <span className="ml-auto font-code text-[10px] text-gray-400">
-              {inspectSummaryLine(inspect)}
-            </span>
-          ) : null}
-        </div>
-
-        {originNote !== null ? (
-          <div className="mt-1 text-[11px] leading-4 text-violet-800">{originNote}</div>
-        ) : null}
+        <WorkspaceHeading
+          title={<span className="text-reading-meta text-gray-600">文件检查点</span>}
+          target={
+            <div className="flex flex-wrap items-center gap-1">
+              {options.map((option) => (
+                <button
+                  key={option.stepSpanId ?? "__initial__"}
+                  type="button"
+                  onClick={() => onSelect(option.stepSpanId)}
+                  className={`rounded px-2 py-0.5 text-[11px] ${
+                    selection.stepSpanId === option.stepSpanId
+                      ? "bg-violet-600 text-white"
+                      : "border border-gray-300 text-gray-600 hover:bg-gray-50"
+                  }`}
+                  title={
+                    option.stepSpanId === null
+                      ? "本 run 的文件世界起点（导入快照或父 run 检查点）"
+                      : `检查点所属 step：${option.stepSpanId}`
+                  }
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          }
+          actions={
+            inspect !== null ? (
+              <span className="text-reading-meta text-gray-500">{inspectSummaryLine(inspect)}</span>
+            ) : null
+          }
+          summary={<span className="text-violet-800">只读文件快照 · 相对本 run 初始状态比较</span>}
+          detailsLabel="检查点来源与说明"
+          details={
+            <div className="space-y-1 py-1 text-reading-meta leading-5 text-gray-500">
+              {originNote !== null ? <p className="text-violet-800">{originNote}</p> : null}
+              <p>
+                只读视图：仅按 trace
+                引用读取附件，不写文件、不补快照、不调用模型；没有任何回写源目录的入口。
+              </p>
+              {inspect !== null ? (
+                <p className="break-all font-code">
+                  快照 {inspect.snapshotId} · profile {inspect.profile}
+                </p>
+              ) : null}
+            </div>
+          }
+        />
         {checkpointInvalidated ? (
           <div className="mt-1 text-[11px] leading-4 text-amber-800">
             上次保存的检查点已不属于本
@@ -775,16 +790,6 @@ export function WorkspaceFileViewBody({
         {pathInvalidated ? (
           <div className="mt-1 text-[11px] leading-4 text-amber-800">
             上次阅读的文件不在所选清单里，已清空选择并显示列表（不会改选同名的其它路径）。
-          </div>
-        ) : null}
-        <div className="mt-1 text-[10px] leading-4 text-gray-400">
-          只读视图：仅按 trace
-          引用读取附件，不写文件、不补快照、不调用模型；没有任何回写源目录的入口。
-        </div>
-
-        {inspect !== null ? (
-          <div className="mt-1 font-code text-[10px] text-gray-400">
-            快照 {inspect.snapshotId.slice(0, 12)}… · profile {inspect.profile}
           </div>
         ) : null}
       </div>
@@ -1144,6 +1149,7 @@ function FileContent({
    *    `null` / `0`，判据必须能优雅退化（按钮禁用 + 诚实说明），不能崩。
    */
   const diffEditorRef = useRef<IStandaloneDiffEditor | null>(null);
+  const copyMenuRef = useRef<HTMLDetailsElement | null>(null);
   /**
    * U2 任务 5.4：**单侧只读视图**的编辑器实例。
    *
@@ -1340,6 +1346,8 @@ function FileContent({
 
   const doCopy = async (text: string | null, label: string): Promise<void> => {
     if (text === null) return;
+    copyMenuRef.current?.removeAttribute("open");
+    copyMenuRef.current?.querySelector<HTMLElement>("summary")?.focus();
     if (typeof navigator === "undefined" || navigator.clipboard === undefined) {
       setCopyFeedback({ kind: "fail", message: `${label}：当前环境不支持剪贴板` });
       return;
@@ -1380,8 +1388,8 @@ function FileContent({
   const header = (
     // §2.1（design D3）：header/toolbar 在主 diff 分支的高度链里 shrink-0——
     // 正文（diff 容器 flex-1）吃掉全部剩余高度后，头两行按内容定高，不被压缩。
-    <div className="shrink-0 border-b border-gray-200 px-4 py-2">
-      <div className="break-all font-code text-[11px] text-gray-800">{path}</div>
+    <div className="min-w-0">
+      <div className="break-all font-code text-reading-meta font-medium text-gray-800">{path}</div>
       <div className="mt-0.5 flex flex-wrap items-center gap-x-3 text-[10px] text-gray-500">
         {headerMeta === null ? null : (
           <>
@@ -1409,44 +1417,54 @@ function FileContent({
    */
   const toolbar = (
     // shrink-0：同 header（§2.1 高度链纪律）
-    <div className="flex shrink-0 flex-wrap items-center gap-1 border-b border-gray-100 px-4 py-1 text-[10px]">
-      <button
-        type="button"
-        disabled={!tools.copyPath}
-        onClick={() => void doCopy(path, "路径")}
-        title="复制完整逻辑路径"
-        className="rounded border border-gray-300 px-1.5 py-0.5 text-gray-600 disabled:opacity-40"
-      >
-        复制路径
-      </button>
-      <button
-        type="button"
-        disabled={!tools.copyLeftText}
-        onClick={() => void doCopy(lefts, "初始侧原文")}
-        title={tools.copyLeftText ? "复制初始快照侧完整原文" : "初始侧没有可复制的文本"}
-        className="rounded border border-gray-300 px-1.5 py-0.5 text-gray-600 disabled:opacity-40"
-      >
-        复制左侧原文
-      </button>
-      <button
-        type="button"
-        disabled={!tools.copyRightText}
-        onClick={() => void doCopy(rights, "所选侧原文")}
-        title={tools.copyRightText ? "复制所选检查点侧完整原文" : "所选侧没有可复制的文本"}
-        className="rounded border border-gray-300 px-1.5 py-0.5 text-gray-600 disabled:opacity-40"
-      >
-        复制右侧原文
-      </button>
-      {meta === null ? null : (
-        <button
-          type="button"
-          onClick={() => void doCopy(`${meta.bytes} B\n${meta.sha256}`, "元信息")}
-          title="复制真实大小与完整哈希"
-          className="rounded border border-gray-300 px-1.5 py-0.5 text-gray-600"
+    <div className="flex flex-wrap items-center justify-end gap-1 text-[10px]">
+      <details ref={copyMenuRef} className="relative">
+        <summary
+          title="展开复制菜单：完整路径、两侧原文和元信息"
+          className="min-h-[28px] cursor-pointer rounded border border-gray-300 px-1.5 py-0.5 text-gray-600 hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
         >
-          复制元信息
-        </button>
-      )}
+          复制
+        </summary>
+        <div className="absolute right-0 top-full z-20 mt-1 flex min-w-[160px] flex-col gap-1 rounded border border-gray-200 bg-white p-1.5 shadow-md">
+          <button
+            type="button"
+            disabled={!tools.copyPath}
+            onClick={() => void doCopy(path, "路径")}
+            title="复制完整逻辑路径"
+            className="rounded border border-gray-300 px-1.5 py-0.5 text-gray-600 disabled:opacity-40"
+          >
+            复制路径
+          </button>
+          <button
+            type="button"
+            disabled={!tools.copyLeftText}
+            onClick={() => void doCopy(lefts, "初始侧原文")}
+            title={tools.copyLeftText ? "复制初始快照侧完整原文" : "初始侧没有可复制的文本"}
+            className="rounded border border-gray-300 px-1.5 py-0.5 text-gray-600 disabled:opacity-40"
+          >
+            复制左侧原文
+          </button>
+          <button
+            type="button"
+            disabled={!tools.copyRightText}
+            onClick={() => void doCopy(rights, "所选侧原文")}
+            title={tools.copyRightText ? "复制所选检查点侧完整原文" : "所选侧没有可复制的文本"}
+            className="rounded border border-gray-300 px-1.5 py-0.5 text-gray-600 disabled:opacity-40"
+          >
+            复制右侧原文
+          </button>
+          {meta === null ? null : (
+            <button
+              type="button"
+              onClick={() => void doCopy(`${meta.bytes} B\n${meta.sha256}`, "元信息")}
+              title="复制真实大小与完整哈希"
+              className="rounded border border-gray-300 px-1.5 py-0.5 text-gray-600"
+            >
+              复制元信息
+            </button>
+          )}
+        </div>
+      </details>
       <button
         type="button"
         disabled={!tools.wordWrap}
@@ -1502,7 +1520,7 @@ function FileContent({
           type="button"
           onClick={() => onDiffPreference(diffPreference === "inline" ? "sideBySide" : "inline")}
           title="切换 inline / 并排"
-          className="ml-auto rounded border border-gray-300 px-1.5 py-0.5 text-gray-600"
+          className="rounded border border-gray-300 px-1.5 py-0.5 text-gray-600"
         >
           模式：
           {diffPreference === "auto" ? "自动" : diffPreference === "inline" ? "inline" : "并排"}
@@ -1515,6 +1533,13 @@ function FileContent({
           {copyFeedback.message}
         </span>
       )}
+    </div>
+  );
+
+  const fileHeader = (
+    <div className="file-content-heading shrink-0 border-b border-gray-200 px-4 py-2">
+      {header}
+      {toolbar}
     </div>
   );
 
@@ -1594,8 +1619,7 @@ function FileContent({
   if (current !== null && !comparability.ok) {
     return (
       <>
-        {header}
-        {toolbar}
+        {fileHeader}
         <div className="m-4 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-[11px] leading-5 text-gray-700">
           <div className="font-semibold text-gray-800">
             {current.status === "binary" ? "二进制文件" : "内容不可读"}
@@ -1647,8 +1671,7 @@ function FileContent({
   if (!diffEligibility.ok) {
     return (
       <>
-        {header}
-        {toolbar}
+        {fileHeader}
         <div className="m-4 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-[11px] leading-5 text-gray-700">
           <div className="font-semibold text-gray-800">不进入文本差异</div>
           <div className="mt-0.5">{diffEligibility.reason}</div>
@@ -1719,8 +1742,7 @@ function FileContent({
      * 而不是把正文压缩到 0（spec「低高度设备通过内部滚动保持操作可达」）。
      */
     <div className="flex h-full min-h-0 flex-col overflow-y-auto" data-file-diff-chain="true">
-      {header}
-      {toolbar}
+      {fileHeader}
       <div className="shrink-0 px-4 py-1.5 text-[10px] text-gray-400">
         左：本 run 初始状态
         {sideNote(sides.leftNote)} · 右：{sides.rightLabel}

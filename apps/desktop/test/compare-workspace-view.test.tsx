@@ -556,7 +556,7 @@ describe("5.1 会话短 ID：比较标题与完整 ID 复制", () => {
     expect(html).toContain('aria-label="复制完整 ID r_right_side_0002"');
   });
 
-  it("diff 说明行用短 ID 标识两侧（完整 ID 悬停/复制仍在标题区）", () => {
+  it("diff 页头用短 ID 标识两侧，并保留完整 ID 的悬停与复制入口", () => {
     const html = renderToStaticMarkup(
       <CompareWorkspaceView
         {...baseProps}
@@ -570,7 +570,12 @@ describe("5.1 会话短 ID：比较标题与完整 ID 复制", () => {
         }}
       />,
     );
-    expect(html).toContain("只读文本差异（左侧 ide_0001 → 右侧 ide_0002）");
+    expect(html).toContain("只读文本差异 · 最终输出 · 同步滚动");
+    expect(html).toMatch(/左侧[\s\S]*ide_0001[\s\S]*→[\s\S]*右侧[\s\S]*ide_0002/);
+    expect(html).toContain('title="r_left_side_0001"');
+    expect(html).toContain('title="r_right_side_0002"');
+    expect(html).toContain('aria-label="复制完整 ID r_left_side_0001"');
+    expect(html).toContain('aria-label="复制完整 ID r_right_side_0002"');
   });
 });
 

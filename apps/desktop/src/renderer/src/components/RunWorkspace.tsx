@@ -67,6 +67,7 @@ export function RunWorkspace({
   onTab,
   isIsolated,
   header,
+  actions,
   children,
 }: {
   tab: WorkspaceTab;
@@ -74,6 +75,7 @@ export function RunWorkspace({
   isIsolated: boolean;
   /** 页头内容（任务/状态/来源由调用方给，本组件不猜数据） */
   header: ReactNode;
+  actions?: ReactNode;
   children: ReactNode;
 }): ReactNode {
   const tabs = availableTabs(isIsolated);
@@ -83,34 +85,37 @@ export function RunWorkspace({
     <section className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-white">
       {header}
 
-      <div
-        className="flex items-center gap-1 border-b border-gray-200 px-3 py-1"
-        role="tablist"
-        aria-label="运行工作区页签"
-      >
-        {tabs.map((key) => {
-          const meta = TAB_META[key];
-          const Icon = meta.icon;
-          const selected = visible === key;
-          return (
-            <button
-              key={key}
-              type="button"
-              role="tab"
-              aria-selected={selected}
-              // 键盘切页签用原生 button 的 Tab 焦点 + aria-selected，不自行实现方向键
-              // （完整方向键导航归 4.3/7.3 的键盘实测）
-              title={meta.label}
-              onClick={() => onTab(key)}
-              className={`inline-flex cursor-pointer items-center gap-1.5 rounded px-2 py-1 text-reading-meta ${
-                selected ? "bg-sky-100 font-medium text-sky-900" : "text-gray-600 hover:bg-gray-100"
-              } ${FOCUS_RING}`}
-            >
-              <Icon size={13} aria-hidden="true" focusable="false" role="presentation" />
-              <span>{meta.label}</span>
-            </button>
-          );
-        })}
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-gray-200 px-3 py-1">
+        <div className="flex items-center gap-1" role="tablist" aria-label="运行工作区页签">
+          {tabs.map((key) => {
+            const meta = TAB_META[key];
+            const Icon = meta.icon;
+            const selected = visible === key;
+            return (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                // 键盘切页签用原生 button 的 Tab 焦点 + aria-selected，不自行实现方向键
+                // （完整方向键导航归 4.3/7.3 的键盘实测）
+                title={meta.label}
+                onClick={() => onTab(key)}
+                className={`inline-flex cursor-pointer items-center gap-1.5 rounded px-2 py-1 text-reading-meta ${
+                  selected
+                    ? "bg-sky-100 font-medium text-sky-900"
+                    : "text-gray-600 hover:bg-gray-100"
+                } ${FOCUS_RING}`}
+              >
+                <Icon size={13} aria-hidden="true" focusable="false" role="presentation" />
+                <span>{meta.label}</span>
+              </button>
+            );
+          })}
+        </div>
+        {actions ? (
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-2">{actions}</div>
+        ) : null}
       </div>
 
       <div className="min-h-0 flex-1">{children}</div>
@@ -176,11 +181,18 @@ export function NoRunsEmpty({
  *    组件测试喂不进状态。故把"数据 → 视图"这一段抽成纯展示组件，配 store 的
  *    薄壳只在真实应用里用。
  */
-export function RunHeader() {
+export function RunHeader({ showSourceSummary = true }: { showSourceSummary?: boolean } = {}) {
   const detail = useAppStore((s) => s.detail);
   const runs = useAppStore((s) => s.runs);
   const selectedRunId = useAppStore((s) => s.selectedRunId);
-  return <RunHeaderView detail={detail} runs={runs} selectedRunId={selectedRunId} />;
+  return (
+    <RunHeaderView
+      detail={detail}
+      runs={runs}
+      selectedRunId={selectedRunId}
+      showSourceSummary={showSourceSummary}
+    />
+  );
 }
 
 /** 页头展示组件（纯输入 → 输出，测试直接喂数据） */
@@ -188,10 +200,12 @@ export function RunHeaderView({
   detail,
   runs,
   selectedRunId,
+  showSourceSummary = true,
 }: {
   detail: RunDetailInput | null;
   runs: ReadonlyArray<RunSummary>;
   selectedRunId: string | null;
+  showSourceSummary?: boolean;
 }) {
   const isolated = isIsolatedRun(detail);
   // UI 密度 change 1.3（design D2）：页头只留**紧凑来源摘要**一行——完整的隔离保真
@@ -207,14 +221,14 @@ export function RunHeaderView({
 
   return (
     <div className="border-b border-gray-200 px-3 py-2">
-      <div className="min-w-0">
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-1">
         <div
-          className="truncate text-reading-body font-medium text-gray-900"
+          className="min-w-0 flex-1 basis-[260px] truncate text-reading-body font-medium text-gray-900"
           title={task ?? undefined}
         >
           {task ?? "尚未选择运行"}
         </div>
-        <div className="mt-0.5 flex flex-wrap items-center gap-2 text-reading-meta text-gray-500">
+        <div className="ml-auto flex flex-wrap items-center gap-2 text-reading-meta text-gray-500">
           {/*
            * 终止原因走**唯一来源** `deriveTerminalReason`（任务 6.2）。
            * 此前这里硬编码 `reason={null}` ⇒ 任何正常结束的 run 在页头都被显示成
@@ -237,9 +251,16 @@ export function RunHeaderView({
           {isolated ? (
             <span className="rounded bg-violet-100 px-1 text-violet-800">文件隔离</span>
           ) : null}
+          {!showSourceSummary && detail?.meta.workspace !== undefined ? (
+            <span className="text-violet-800" data-source-identity>
+              {detail.meta.workspace.origin.kind === "checkpoint"
+                ? `父运行 ${detail.meta.workspace.origin.run_id} · 检查点 ${detail.meta.workspace.origin.step_span}`
+                : "独立采集的文件世界"}
+            </span>
+          ) : null}
         </div>
       </div>
-      {noticeView !== null ? (
+      {showSourceSummary && noticeView !== null ? (
         <div
           className="mt-1 text-reading-meta leading-5 text-violet-900"
           data-isolated-compact="true"

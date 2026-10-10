@@ -1,6 +1,7 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useId, useState } from "react";
 import { type ExperimentEntryDecision, decideExperimentEntry } from "../lib/aux-workspace";
 import { useAppStore } from "../store";
+import { Disclosure } from "./Disclosure";
 import { FOCUS_RING } from "./IconButton";
 
 /**
@@ -28,13 +29,23 @@ export function experimentEntryReason(
 export function RunActionsBarView({
   decision,
   onOpen,
+  compact = false,
 }: {
   decision: ExperimentEntryDecision;
   onOpen: () => void;
+  compact?: boolean;
 }): ReactNode {
+  const [reasonExpanded, setReasonExpanded] = useState(false);
+  const reasonId = useId();
   const open = decision.kind === "open";
   return (
-    <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 px-3 py-1">
+    <div
+      className={
+        compact
+          ? "flex flex-wrap items-center justify-end gap-2"
+          : "flex flex-wrap items-center gap-2 border-b border-gray-200 px-3 py-1"
+      }
+    >
       <button
         type="button"
         data-experiment-entry
@@ -54,20 +65,35 @@ export function RunActionsBarView({
         模型实验
       </button>
       {!open ? (
-        <span className="text-reading-meta text-gray-500" data-experiment-entry-reason>
-          {experimentEntryReason(decision.reason)}
-        </span>
+        compact ? (
+          <Disclosure
+            summary="不可用原因"
+            expanded={reasonExpanded}
+            onToggle={() => setReasonExpanded(!reasonExpanded)}
+            controlsId={reasonId}
+            className="text-reading-meta text-gray-500"
+          >
+            <p className="max-w-sm py-1" data-experiment-entry-reason>
+              {experimentEntryReason(decision.reason)}
+            </p>
+          </Disclosure>
+        ) : (
+          <span className="text-reading-meta text-gray-500" data-experiment-entry-reason>
+            {experimentEntryReason(decision.reason)}
+          </span>
+        )
       ) : null}
     </div>
   );
 }
 
-export function RunActionsBar() {
+export function RunActionsBar({ compact = false }: { compact?: boolean } = {}) {
   const detail = useAppStore((s) => s.detail);
   const openExperimentWorkspace = useAppStore((s) => s.openExperimentWorkspace);
   const decision = decideExperimentEntry(detail);
   return (
     <RunActionsBarView
+      compact={compact}
       decision={decision}
       onOpen={() => {
         if (decision.kind === "open") openExperimentWorkspace(decision.target);

@@ -72,7 +72,7 @@ export function DraftCompareGrid({
   const dragRef = useRef<{ startY: number; startHeight: number } | null>(null);
 
   const originalLabelRow = (
-    <div className="flex items-center justify-between gap-2">
+    <div className="flex min-h-[28px] items-center justify-between gap-2">
       <div className="mb-0.5 text-[10px] font-medium text-gray-500">{originalLabel}</div>
       <button
         type="button"
@@ -88,7 +88,7 @@ export function DraftCompareGrid({
   );
 
   const draftLabelRow = (restoreEntry: boolean) => (
-    <div className="flex items-center justify-between gap-2">
+    <div className="flex min-h-[28px] items-center justify-between gap-2">
       <div className={`mb-0.5 text-[10px] font-medium ${DRAFT_TONE_LABEL[draftTone]}`}>
         {draftLabel}
       </div>
@@ -118,7 +118,7 @@ export function DraftCompareGrid({
     );
 
   const draftBox = (
-    <div className="min-w-0">
+    <div key="draft" className="min-w-0">
       {draftLabelRow(originalCollapsed)}
       {heightBox(originalCollapsed ? EXPANDED_DRAFT_EDITOR_HEIGHT : DRAFT_EDITOR_HEIGHT, draft)}
     </div>
@@ -147,7 +147,7 @@ export function DraftCompareGrid({
         data-draft-compare={compareKey}
         data-draft-layout="side-by-side"
       >
-        <div className="min-w-0">
+        <div key="original" className="min-w-0">
           {originalLabelRow}
           {heightBox(DRAFT_EDITOR_HEIGHT, original)}
         </div>
@@ -165,12 +165,13 @@ export function DraftCompareGrid({
       data-draft-compare={compareKey}
       data-draft-layout="stacked"
     >
-      <div className="min-w-0">
+      <div key="original" className="min-w-0">
         {originalLabelRow}
         <div id={controlsId}>{heightBox(originalHeight ?? ORIGINAL_EDITOR_HEIGHT, original)}</div>
       </div>
       {resizable ? (
         <div
+          key="original-resizer"
           role="separator"
           aria-orientation="horizontal"
           aria-label="调整原值区高度"

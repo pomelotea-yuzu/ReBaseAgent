@@ -179,7 +179,7 @@ describe("U8 1.4：外壳接线契约（源码级——组件测试覆盖不到�
   });
 
   it("运行页头挂 RunActionsBar（实验入口），旧形态（无入口）不得回来", () => {
-    expect(APP_SRC).toContain("<RunActionsBar />");
+    expect(APP_SRC).toContain("<RunActionsBar compact />");
   });
 });
 

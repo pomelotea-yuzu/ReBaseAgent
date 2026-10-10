@@ -251,12 +251,14 @@ export function MessagesForkEditor({
 
   return (
     <div className="border-t border-sky-100 bg-sky-50/60 px-4 py-3">
-      <div className="mb-1 flex items-center justify-between">
-        <span className="text-[11px] font-semibold text-sky-900">编辑 messages 重发</span>
-        <span className="text-[10px] text-sky-500">
-          单请求级分叉 · 源 run 不会被修改 · 重发使用最近捕获的 key
-        </span>
-      </div>
+      {!alwaysOpen ? (
+        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+          <span className="text-[11px] font-semibold text-sky-900">编辑 messages 重发</span>
+          <span className="text-[10px] text-sky-500">
+            单请求级分叉 · 源 run 不会被修改 · 重发使用最近捕获的 key
+          </span>
+        </div>
+      ) : null}
       {/* U3 任务 2.6：原值（只读）/草稿（可编辑）就近核对。
           UI 密度 2.2：并排/上下按实测容器宽决策（每侧 ≥320px），原值可收起且恢复入口
           常驻，高度视口相对——固定 200px 与 xl 断点退场（DraftCompareGrid 布局层）。 */}
@@ -439,18 +441,20 @@ export function MessagesForkEditor({
         >
           放弃修改
         </button>
-        <button
-          type="button"
-          onClick={() => {
-            resetFork();
-            setOpen(false);
-          }}
-          disabled={inProgress}
-          className="rounded border border-gray-300 px-2 py-1 text-[11px] text-gray-600 hover:bg-gray-50 disabled:opacity-40"
-        >
-          {/* U8 5.1b：工作区形态无「取消」收起（编辑器常开；收起语义只属于步骤页内联形态） */}
-          {alwaysOpen ? null : "取消"}
-        </button>
+        {!alwaysOpen ? (
+          <button
+            type="button"
+            onClick={() => {
+              resetFork();
+              setOpen(false);
+            }}
+            disabled={inProgress}
+            className="rounded border border-gray-300 px-2 py-1 text-[11px] text-gray-600 hover:bg-gray-50 disabled:opacity-40"
+          >
+            {/* U8 5.1b：工作区形态无「取消」收起（编辑器常开；收起语义只属于步骤页内联形态） */}
+            取消
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={doResend}

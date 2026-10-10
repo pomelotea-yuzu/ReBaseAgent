@@ -11,6 +11,7 @@ import { FOCUS_RING } from "./IconButton";
 import { LongText } from "./LongText";
 import { MonacoDiffEditor } from "./MonacoEditor";
 import { ShortIdLabel } from "./ShortIdLabel";
+import { WorkspaceHeading } from "./WorkspaceHeading";
 
 /**
  * U7（improve-branch-comparison）tasks 4.6/4.12：比较工作区的**展示层**。
@@ -738,46 +739,75 @@ export function CompareWorkspaceView({
       data-compare-primary="true"
       tabIndex={-1}
     >
-      <div className="flex items-center justify-between border-b border-gray-200 px-4 py-2">
-        <h2 className="text-sm font-medium text-gray-800">比较</h2>
-        <div className="flex items-center gap-2">
-          {onOpenMetricsTable !== undefined ? (
-            <button
-              type="button"
-              aria-label="查看指标对照表"
-              onClick={onOpenMetricsTable}
-              className={`rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 ${FOCUS_RING}`}
-            >
-              指标表
-            </button>
-          ) : null}
-          <button
-            type="button"
-            aria-label="切换文本差异"
-            onClick={onToggleDiffMode}
-            disabled={!diffAvailable}
-            title={diffAvailable ? "两侧独立滚动 ↔ 只读文本差异（同步滚动）" : diffGate.reason}
-            className={`rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 enabled:hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400 ${FOCUS_RING}`}
-          >
-            {diffMode ? "退出文本差异" : "文本差异"}
-          </button>
-          <button
-            type="button"
-            aria-label="交换左右"
-            onClick={onSwap}
-            className={`rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 ${FOCUS_RING}`}
-          >
-            交换左右
-          </button>
-          <button
-            type="button"
-            aria-label="返回来源"
-            onClick={onReturn}
-            className={`rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 ${FOCUS_RING}`}
-          >
-            返回来源
-          </button>
-        </div>
+      <div className="shrink-0 border-b border-gray-200 px-4 py-2">
+        <WorkspaceHeading
+          title={<h2 className="text-sm text-gray-800">比较</h2>}
+          target={
+            diffMode ? (
+              <span className="inline-flex flex-wrap items-center gap-2">
+                <span>
+                  左侧 <ShortIdLabel id={left.runId} shortId={left.shortId} />
+                </span>
+                <span>→</span>
+                <span>
+                  右侧 <ShortIdLabel id={right.runId} shortId={right.shortId} />
+                </span>
+              </span>
+            ) : undefined
+          }
+          summary={
+            diffMode ? (
+              <span className="text-gray-500">只读文本差异 · 最终输出 · 同步滚动</span>
+            ) : undefined
+          }
+          details={
+            diffMode ? (
+              <p className="py-1 text-reading-meta text-gray-500">
+                仅双方均有已记录最终输出时可用。退出文本差异后，两侧恢复独立滚动。
+              </p>
+            ) : undefined
+          }
+          actions={
+            <>
+              {onOpenMetricsTable !== undefined ? (
+                <button
+                  type="button"
+                  aria-label="查看指标对照表"
+                  onClick={onOpenMetricsTable}
+                  className={`rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 ${FOCUS_RING}`}
+                >
+                  指标表
+                </button>
+              ) : null}
+              <button
+                type="button"
+                aria-label="切换文本差异"
+                onClick={onToggleDiffMode}
+                disabled={!diffAvailable}
+                title={diffAvailable ? "两侧独立滚动 ↔ 只读文本差异（同步滚动）" : diffGate.reason}
+                className={`rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 enabled:hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400 ${FOCUS_RING}`}
+              >
+                {diffMode ? "退出文本差异" : "文本差异"}
+              </button>
+              <button
+                type="button"
+                aria-label="交换左右"
+                onClick={onSwap}
+                className={`rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 ${FOCUS_RING}`}
+              >
+                交换左右
+              </button>
+              <button
+                type="button"
+                aria-label="返回来源"
+                onClick={onReturn}
+                className={`rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 ${FOCUS_RING}`}
+              >
+                返回来源
+              </button>
+            </>
+          }
+        />
       </div>
       {loading ? (
         <div className="px-4 py-1 text-[11px] text-gray-500">正在读取比较对象…</div>
@@ -796,11 +826,6 @@ export function CompareWorkspaceView({
             options={{ readOnly: true, renderSideBySide: true }}
             data-testid="compare-diff-editor"
           />
-          <div className="px-1 pt-1 text-[11px] text-gray-500">
-            {/* U7 5.1：差异标题用会话短 ID（完整 ID 悬停/复制在两侧标题区） */}
-            只读文本差异（左侧 {left.shortId} → 右侧 {right.shortId}
-            ）：仅双方均有已记录最终输出时可用
-          </div>{" "}
         </div>
       ) : (
         <div

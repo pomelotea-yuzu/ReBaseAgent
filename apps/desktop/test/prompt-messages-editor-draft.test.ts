@@ -146,7 +146,10 @@ describe("接线契约：MessagesForkEditor 接入 messages 草稿（任务 2.2�
     // 常开形态：初始展开、Esc 不收起（收起语义只属于步骤页内联形态）
     expect(code).toContain("useState(alwaysOpen)");
     expect(code).toContain("open && !alwaysOpen && !inProgress");
-    expect(code).toContain('{alwaysOpen ? null : "取消"}');
+    // 常开形态完全不渲染取消按钮，避免留下无文字且能收起编辑器的控件。
+    expect(code).toMatch(
+      /\{!alwaysOpen \? \([\s\S]*?<button[\s\S]*?setOpen\(false\)[\s\S]*?取消[\s\S]*?<\/button>\s*\) : null\}/,
+    );
   });
 
   it("U8 5.3：提交只走登记 + proxy:fork；确认凭据绑定提交；无第二执行通道", () => {
