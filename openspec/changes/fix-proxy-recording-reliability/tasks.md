@@ -48,7 +48,8 @@
 
 - [x] 5.1 Electron 实机跑外部录制→自动列表→当前凭据→重发编辑、成功/失败重启与错误概览链路，更新 evidence-index。（本 change 全部场景）
 - [x] 5.2 跑受影响包/desktop 测试、typecheck、build、Biome 与 OpenSpec strict；核对全部场景映射和当前文档，不把草案或未复现项写成已发布。（本 change 全部场景）
-- [ ] 5.3 与 improve-workspace-reading-and-editing 合并后重跑可见编辑器恢复、当前凭据门禁、轮换/main 拒绝及确认失效；无论哪份 change 先合入，均登记最终组合的回归证据。（可见宿主恢复非零尺寸；恢复失败可见且能就地重试；打开重发即核对当前状态；捕获通知更新已打开编辑器；凭据轮换撤销旧确认；提交前版本变化由 main 拒绝）
+- [x] 5.3 与 improve-workspace-reading-and-editing 合并后重跑可见编辑器恢复、当前凭据门禁、轮换/main 拒绝及确认失效；无论哪份 change 先合入，均登记最终组合的回归证据。（可见宿主恢复非零尺寸；恢复失败可见且能就地重试；打开重发即核对当前状态；捕获通知更新已打开编辑器；凭据轮换撤销旧确认；提交前版本变化由 main 拒绝）
+  - 2026-10-10：组合重跑全部完成（双 change 代码同树，对方 change 已 20/20）。① `--tag=chain` 35/35（S3 当前凭据门禁/S4 轮换撤销确认在内）；② editor-recovery 宽/窄两档各 15/15；③ **最小化还原 4/4**（真实 ShowWindow，isIconic 实证，无 failed 误报、草稿逐字、可输入）；④ **面板往返 5/5**（键盘选 run 关闭 messages 工作区 → 重开恢复非零、草稿 fp 相等、零自动提交）；⑤ **main 拒绝实机 7/7**（renderer 门禁刻意绕过 + 正规 operation 信封直调 fork IPC：凭据轮换 ⇒ `PROXY_CREDENTIAL_CHANGED`、upstream 变化 ⇒ `PROXY_CONFIG_CHANGED`，副作用前拒绝——零新 run/父本字节不变/零额外上游调用，与 `proxy-fork-version-race.test.ts` 单测同向互证）。证据 ⇒ evidence-index 5.3 行；探针 `.workbuddy/u4x/kb53.cjs`。⚠️ 二次跑 chain 前复位 settings.proxy=stopped + 重启 dev（hasKey 会话态残留假红）+ traces 需 legacy fixture。
 
 > **5.1/5.2 留痕（2026-10-08）**：
 > - **5.1 实机四段全绿**（`apps/desktop/scripts/proxy-51-cdp.cjs` + `.workbuddy/proxy-51/run-all.cjs`，
