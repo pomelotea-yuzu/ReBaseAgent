@@ -60,6 +60,12 @@ export interface WriteRunSpec {
   readonly rounds: readonly RoundContent[];
   /** 分支 run：父 run 与续跑边界（同时决定 `origin=checkpoint` 与 `fork.resume_after_step`） */
   readonly parent?: { readonly runId: string; readonly stepSpanId: string };
+  /**
+   * span id 起始序号（透传 `JsonlTracer`）：分支 run 传父链最大序号，让自有 span id
+   * 在整条链上全局唯一（真实 fork 语义）。缺省 0 → 从 `s_01` 起号；两个 run 都缺省时
+   * 自有 span id 会跨 run 重复，"祖先步骤拒绝"类用例必须显式错开。
+   */
+  readonly spanSeqStart?: number;
 }
 
 export interface WrittenRun {
@@ -97,7 +103,7 @@ export async function writeIsolatedRun(spec: WriteRunSpec): Promise<WrittenRun> 
   // traces 目录由调用方（真实场景是桌面/编排层）准备，tracer 只负责写文件
   mkdirSync(join(spec.dataDir, "traces"), { recursive: true });
 
-  const tracer = new JsonlTracer(traceFile);
+  const tracer = new JsonlTracer(traceFile, { spanSeqStart: spec.spanSeqStart });
   tracer.startRun({
     id: spec.runId,
     format_version: 2,

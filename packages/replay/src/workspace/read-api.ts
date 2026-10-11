@@ -3,6 +3,7 @@ import { findLogicalPathViolation, readRun } from "@rebaseagent/trace-sdk";
 import type {
   RunRecord,
   WorkspaceFile,
+  WorkspaceMeta,
   WorkspaceOrigin,
   WorkspaceSnapshot,
 } from "@rebaseagent/trace-sdk";
@@ -111,38 +112,77 @@ export function workspaceTraceFile(dataDir: string, runId: string): string {
 }
 
 /**
- * 定位一份清单（本 run 的初始快照或某个自有完成步骤的检查点）。
+ * 一次读取得到的 run 记录与其 workspace 元数据。
  *
- * 同步：底层 `readRun` 就是同步的，异步只会让调用方多一层 `await`。
+ * 导出层（export-api）需要在**同一份读取时点**上同时拿「选定快照」和「初始快照」（补丁基线），
+ * 所以把"读文件 + 校验 workspace 存在"提取成独立步骤：调用方拿到 `record` 后自己定位，
+ * 绝不允许对同一 run 读两次文件再拼接——未封存的 run 可能正在追加，两次读取会跨越不同时点。
  */
-export function locateWorkspaceSnapshot(request: LocateWorkspaceRequest): LocateWorkspaceResult {
-  const invalidRunId = findRunIdViolation(request.runId);
+export interface WorkspaceRun {
+  readonly record: RunRecord;
+  readonly workspace: WorkspaceMeta;
+}
+
+export type ReadWorkspaceRunResult =
+  | { readonly ok: true; readonly value: WorkspaceRun }
+  | { readonly ok: false; readonly failure: WorkspaceLocateFailure };
+
+/** 读取并校验一个隔离 run 的自有记录（不定位具体快照；定位见 `locateSnapshotInRun`） */
+export function readWorkspaceRun(dataDir: string, runId: string): ReadWorkspaceRunResult {
+  const invalidRunId = findRunIdViolation(runId);
   if (invalidRunId !== null) {
-    return reject("invalid_request", invalidRunId);
+    return { ok: false, failure: { code: "invalid_request", reason: invalidRunId } };
   }
 
-  const file = workspaceTraceFile(request.dataDir, request.runId);
+  const file = workspaceTraceFile(dataDir, runId);
   let record: RunRecord;
   try {
     record = readRun(file);
   } catch (error) {
     if (isErrnoCode(error, "ENOENT")) {
-      return reject("run_not_found", `run 文件不存在：${file}`);
+      return {
+        ok: false,
+        failure: { code: "run_not_found", reason: `run 文件不存在：${file}` },
+      };
     }
     // 解析失败与完整性失败（如清单 id 与规范哈希不符）都落在这里，原始原因原样带出
-    return reject("trace_invalid", `run 文件无法解析或校验失败：${describeError(error)}`);
+    return {
+      ok: false,
+      failure: {
+        code: "trace_invalid",
+        reason: `run 文件无法解析或校验失败：${describeError(error)}`,
+      },
+    };
   }
 
   const workspace = record.meta.workspace;
   if (workspace === undefined) {
-    return reject("no_workspace", `该 run 不是隔离运行（无 run.meta.workspace）：${request.runId}`);
+    return {
+      ok: false,
+      failure: {
+        code: "no_workspace",
+        reason: `该 run 不是隔离运行（无 run.meta.workspace）：${runId}`,
+      },
+    };
   }
+  return { ok: true, value: { record, workspace } };
+}
 
-  if (request.stepSpanId === undefined) {
+/**
+ * 在**已读取**的 run 记录内定位清单：缺省步骤取初始快照，否则要求本 run 自有的、
+ * 带 `workspace_snapshot` 的 `agent.step`。不做任何文件读取——入参就是读取时点。
+ */
+export function locateSnapshotInRun(
+  runId: string,
+  workspace: WorkspaceMeta,
+  record: RunRecord,
+  stepSpanId?: string,
+): LocateWorkspaceResult {
+  if (stepSpanId === undefined) {
     return {
       ok: true,
       value: {
-        runId: request.runId,
+        runId,
         stepSpanId: null,
         snapshot: workspace.initial_snapshot,
         origin: workspace.origin,
@@ -150,35 +190,53 @@ export function locateWorkspaceSnapshot(request: LocateWorkspaceRequest): Locate
     };
   }
 
-  const step = record.spans.find((span) => span.id === request.stepSpanId);
+  const step = record.spans.find((span) => span.id === stepSpanId);
   if (step === undefined) {
     return reject(
       "step_not_found",
-      `step ${request.stepSpanId} 不在 ${request.runId} 的自有记录中（祖先步骤不能用来定位本 run 的文件）`,
+      `step ${stepSpanId} 不在 ${runId} 的自有记录中（祖先步骤不能用来定位本 run 的文件）`,
     );
   }
   if (step.kind !== "agent.step") {
     return reject(
       "step_not_found",
-      `${request.stepSpanId} 是 ${step.kind}，不是 agent.step，因此没有文件检查点`,
+      `${stepSpanId} 是 ${step.kind}，不是 agent.step，因此没有文件检查点`,
     );
   }
   const snapshot = step.workspace_snapshot;
   if (snapshot === undefined) {
     return reject(
       "step_not_found",
-      `${request.stepSpanId} 没有 workspace_snapshot（v2 已落盘的 agent.step 必然带检查点，读到缺失说明文件被改过）`,
+      `${stepSpanId} 没有 workspace_snapshot（v2 已落盘的 agent.step 必然带检查点，读到缺失说明文件被改过）`,
     );
   }
   return {
     ok: true,
     value: {
-      runId: request.runId,
+      runId,
       stepSpanId: step.id,
       snapshot,
       origin: workspace.origin,
     },
   };
+}
+
+/**
+ * 定位一份清单（本 run 的初始快照或某个自有完成步骤的检查点）。
+ *
+ * 同步：底层 `readRun` 就是同步的，异步只会让调用方多一层 `await`。
+ */
+export function locateWorkspaceSnapshot(request: LocateWorkspaceRequest): LocateWorkspaceResult {
+  const run = readWorkspaceRun(request.dataDir, request.runId);
+  if (!run.ok) {
+    return { ok: false, failure: run.failure };
+  }
+  return locateSnapshotInRun(
+    request.runId,
+    run.value.workspace,
+    run.value.record,
+    request.stepSpanId,
+  );
 }
 
 /**

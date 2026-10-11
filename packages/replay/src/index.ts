@@ -128,6 +128,23 @@ export type {
   WorkspaceReadRequest,
 } from "./workspace/read-api.js";
 export {
+  EXPORT_FILES_ROOT,
+  findExportMaterializationViolation,
+  resolveExportSnapshots,
+  validateExportTargetDir,
+  verifyExportAttachments,
+} from "./workspace/export-api.js";
+export type {
+  ExportStageResult,
+  ExportTargetValidationResult,
+  ExportVerifiedFile,
+  ExportWorkspaceSnapshotRequest,
+  ResolveExportSnapshotResult,
+  VerifyExportAttachmentsResult,
+  WorkspaceExportFailure,
+  WorkspaceExportFailureCode,
+} from "./workspace/export-api.js";
+export {
   FILE_TOOLS_V1_DEFINITIONS,
   FILE_TOOLS_V1_PROFILE,
   READ_FILE_TOOL_NAME,

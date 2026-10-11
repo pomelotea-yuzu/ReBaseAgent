@@ -4,10 +4,10 @@
 
 ## 1. 包层导出定位与契约
 
-- [ ] 1.1 复核 evidence-index 骨架与 delta 全场景映射；固定包层请求/结果、错误码、当前 trace/附件校验边界，不在包层新增父链检查或接受任意快照/物理附件字段。（对应：祖先、清单外路径和非法来源被拒绝；父文件缺失不否定包层自有快照）
-- [ ] 1.2 新增目标目录校验：存在、普通、为空，拒绝目标链接及与 dataDir 相同/互为祖先后代；按实际宿主规则预检物化路径，不静默改名。（对应：非空目标和取消选择不覆盖既有内容；目标排除数据目录及竞争写入）
-- [ ] 1.3 固定读取本次 run 初始/自有 step 的快照引用，禁止逐文件重新定位拼接不同清单；覆盖根、分支本地 step、失败/未封存 run 已落盘 step 和缺省 step。（对应：导出根 run 的初始检查点；导出本 run 自有完成步骤；父文件缺失不否定包层自有快照）
-- [ ] 1.4 实现逐文件附件读取、长度/哈希复核和来源失败映射；任一附件缺失、损坏或真实 I/O 错误都终止整次导出，不回读 source 或祖先。（对应：附件缺失或损坏不生成伪完整导出）
+- [x] 1.1 复核 evidence-index 骨架与 delta 全场景映射；固定包层请求/结果、错误码、当前 trace/附件校验边界，不在包层新增父链检查或接受任意快照/物理附件字段。（对应：祖先、清单外路径和非法来源被拒绝；父文件缺失不否定包层自有快照）——29 行场景映射核齐（17 workspace-isolation + 12 desktop-ui）；契约落 `export-api.ts`（请求/失败码/失败形状），前五个失败码与 read-api 同码同义
+- [x] 1.2 新增目标目录校验：存在、普通、为空，拒绝目标链接及与 dataDir 相同/互为祖先后代；按实际宿主规则预检物化路径，不静默改名。（对应：非空目标和取消选择不覆盖既有内容；目标排除数据目录及竞争写入）——`validateExportTargetDir`（lstat 拒链接、realpath 归一判关系、readdir 判空）+ `findExportMaterializationViolation`（宿主路径长度上限，拒绝而非改名）
+- [x] 1.3 固定读取本次 run 初始/自有 step 的快照引用，禁止逐文件重新定位拼接不同清单；覆盖根、分支本地 step、失败/未封存 run 已落盘 step 和缺省 step。（对应：导出根 run 的初始检查点；导出本 run 自有完成步骤；父文件缺失不否定包层自有快照）——read-api 提取 `readWorkspaceRun`/`locateSnapshotInRun`；`resolveExportSnapshots` 单次读取同时返回选定快照与初始快照引用
+- [x] 1.4 实现逐文件附件读取、长度/哈希复核和来源失败映射；任一附件缺失、损坏或真实 I/O 错误都终止整次导出，不回读 source 或祖先。（对应：附件缺失或损坏不生成伪完整导出）——`verifyExportAttachments`：missing/corrupt → `attachment_unavailable`（带 path），`WorkspaceBlobError(io)` → `io`；单测 23 例全绿（`workspace-export-api.test.ts`）
 
 ## 2. 文件物化与清理
 
