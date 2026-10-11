@@ -17,11 +17,15 @@
 
 ## 3. 清单与文本补丁
 
-- [ ] 3.1 定义 format_version:1 清单 schema，固定 files_root/status 和 patch 三状态、覆盖/排除清单；注入时钟，保证除 created_at 外字段及排序确定；不写源路径、凭据或 messages。（对应：清单时间与不变量可独立核验；空快照与初始无变化可以导出）
-- [ ] 3.2 实现补丁资格：可验证文本修改和清单证实的新增；binary/deletion 排除，基线附件不可用撤销整份补丁但不封禁完整选定文件导出。（对应：文本修改及新增有可证明的补丁；二进制和删除变化逐路径说明；初始附件不可用仅撤销补丁）
-- [ ] 3.3a 实现确定性 unified diff：三行上下文、a/b 文件头、新增 /dev/null、路径引用及末尾无换行；内容保留 LF/CRLF 和顺序，不新增依赖。（对应：文本修改及新增有可证明的补丁）
-- [ ] 3.3b 固定并测试补丁生成工作量上限，超限整份补丁不可用；实现补丁写入/哈希及无变化、全部排除状态。（对应：补丁超限保留完整文件导出；二进制和删除变化逐路径说明；空快照与初始无变化可以导出）
-- [ ] 3.4 清单六类状态固定为“未保留（原状态未知）”，不猜测历史；测试 files[].status 恒 exported、初始/选定 ID、自有 step 来源均正确。（对应：清单时间与不变量可独立核验；导出根 run 的初始检查点）
+- [x] 3.1 定义 format_version:1 清单 schema，固定 files_root/status 和 patch 三状态、覆盖/排除清单；注入时钟，保证除 created_at 外字段及排序确定；不写源路径、凭据或 messages。（对应：清单时间与不变量可独立核验；空快照与初始无变化可以导出）——`export-manifest.ts`：固定键序构造 + 2 空格缩进 + 末尾换行；files 按 UTF-16 码元序；`now` 可注入（`exportWorkspaceSnapshot` options）；单测钉死逐字节确定性与 created_at 排除比较
+- [x] 3.2 实现补丁资格：可验证文本修改和清单证实的新增；binary/deletion 排除，基线附件不可用撤销整份补丁但不封禁完整选定文件导出。（对应：文本修改及新增有可证明的补丁；二进制和删除变化逐路径说明；初始附件不可用仅撤销补丁）——`computeExportPatch`：同哈希跳过（不读基线）、修改须基线附件复核、新增以初始合法清单证明不存在、missing/corrupt/io → baseline_* 且整份 not_available；e2e 证明文件导出仍完整
+- [x] 3.3a 实现确定性 unified diff：三行上下文、a/b 文件头、新增 /dev/null、路径引用及末尾无换行；内容保留 LF/CRLF 和顺序，不新增依赖。（对应：文本修改及新增有可证明的补丁）——`export-diff.ts` 纯 TS LCS（后缀 DP + 固定平局回溯），控制行 LF、内容行逐字保留终止符、`\ No newline at end of file` 标准标记、git 风格路径引用（非安全字节八进制转义）
+- [x] 3.3b 固定并测试补丁生成工作量上限，超限整份补丁不可用；实现补丁写入/哈希及无变化、全部排除状态。（对应：补丁超限保留完整文件导出；二进制和删除变化逐路径说明；空快照与初始无变化可以导出）——`DEFAULT_MAX_DIFF_CELLS = 1_000_000`（格子数 = (旧行数+1)×(新行数+1)，可注入测试）；超限 → not_available + reason 说明，文件导出不受影响；no_text_changes / 仅排除项 not_available / written+bytes+sha256 三态齐备
+- [x] 3.4 清单六类状态固定为"未保留（原状态未知）"，不猜测历史；测试 files[].status 恒 exported、初始/选定 ID、自有 step 来源均正确。（对应：清单时间与不变量可独立核验；导出根 run 的初始检查点）——`UNPRESERVED_STATUSES` 六键固定文案与键序；e2e 验 source.run_id/step_span_id/snapshot_id/initial_snapshot_id 与 status=exported
+
+## 3.X 收口：包层编排器
+
+- [x] 3.5（并入 3.X 收口）`exportWorkspaceSnapshot`：定位（单次读取）→ 目标校验 → 附件复核 → 物化预检 → files/ 物化 → 补丁 → **清单最后写入** → 整树复核 → 成功；第 5 步起任何失败经同一写入会话逆序清理，前四步零写入返回空清理报告；成功返回 realpath 目标/files/ 文件数与字节（不含元信息）/补丁状态。端到端 10 例全绿（根初始/自有 step/空快照/同名元信息/基线缺失/超限/非空目标/附件失败/dataDir 指纹/祖先拒绝透传）
 
 ## 4. 包层测试与不变量
 

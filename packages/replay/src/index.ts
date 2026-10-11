@@ -157,6 +157,28 @@ export type {
   MaterializeExportFilesResult,
 } from "./workspace/export-materialize.js";
 export {
+  DEFAULT_MAX_DIFF_CELLS,
+  DIFF_CONTEXT_LINES,
+  ExportDiffError,
+  buildUnifiedDiff,
+  quoteDiffPath,
+} from "./workspace/export-diff.js";
+export { computeExportPatch } from "./workspace/export-patch.js";
+export type {
+  ComputeExportPatchInput,
+  ExportPatchExcludedEntry,
+  ExportPatchExcludedReason,
+  ExportPatchPlan,
+} from "./workspace/export-patch.js";
+export { UNPRESERVED_STATUSES, buildExportManifestJson } from "./workspace/export-manifest.js";
+export type { BuildExportManifestInput, ExportManifestFile } from "./workspace/export-manifest.js";
+export { exportWorkspaceSnapshot } from "./workspace/export-snapshot.js";
+export type {
+  ExportWorkspaceSnapshotOptions,
+  ExportWorkspaceSnapshotResult,
+  WorkspaceExportSuccess,
+} from "./workspace/export-snapshot.js";
+export {
   FILE_TOOLS_V1_DEFINITIONS,
   FILE_TOOLS_V1_PROFILE,
   READ_FILE_TOOL_NAME,

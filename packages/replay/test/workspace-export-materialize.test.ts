@@ -57,7 +57,7 @@ describe("导出文件物化（任务 2.1）", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.value.map((file) => file.path)).toEqual([
+    expect(result.value.files.map((file) => file.path)).toEqual([
       "a.txt",
       "src/deep/nested/x.ts",
       "empty.bin",
@@ -69,7 +69,7 @@ describe("导出文件物化（任务 2.1）", () => {
     );
     expect(readFileSync(join(target, "files", "empty.bin")).byteLength).toBe(0);
     expect(Array.from(readFileSync(join(target, "files", "bin.dat")))).toEqual(Array.from(BINARY));
-    for (const item of result.value) {
+    for (const item of result.value.files) {
       const bytes = readFileSync(join(target, "files", ...item.path.split("/")));
       expect(item.bytes).toBe(bytes.byteLength);
       expect(item.sha256).toBe(hashWorkspaceContent(bytes));
@@ -118,7 +118,7 @@ describe("导出文件物化（任务 2.1）", () => {
     const result = await materializeExportFiles(target, []);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.value).toEqual([]);
+    expect(result.value.files).toEqual([]);
     expect(readdirSync(target)).toEqual([EXPORT_FILES_ROOT]);
     expect(lstatSync(join(target, EXPORT_FILES_ROOT)).isDirectory()).toBe(true);
     expect(readdirSync(join(target, EXPORT_FILES_ROOT))).toEqual([]);

@@ -53,7 +53,14 @@ export interface ExportCleanupReport {
 }
 
 export type MaterializeExportFilesResult =
-  | { readonly ok: true; readonly value: readonly ExportMaterializedFile[] }
+  | {
+      readonly ok: true;
+      readonly value: {
+        readonly files: readonly ExportMaterializedFile[];
+        /** 同一写入会话：补丁/清单（3.x）必须续用它，共享登记与清理账本 */
+        readonly writer: WorkspaceExportWriter;
+      };
+    }
   | {
       readonly ok: false;
       readonly failure: WorkspaceExportFailure;
@@ -338,7 +345,7 @@ export async function materializeExportFiles(
       await writer.writeFile([EXPORT_FILES_ROOT, ...segments].join("/"), verified.data);
     }
     await writer.verifyAll();
-    return { ok: true, value: writer.materializedFiles() };
+    return { ok: true, value: { files: writer.materializedFiles(), writer } };
   } catch (error) {
     const failure = toExportFailure(error);
     const cleanup = await writer.cleanup();
