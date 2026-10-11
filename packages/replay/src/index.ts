@@ -145,6 +145,18 @@ export type {
   WorkspaceExportFailureCode,
 } from "./workspace/export-api.js";
 export {
+  ExportWriteError,
+  WorkspaceExportWriter,
+  materializeExportFiles,
+} from "./workspace/export-materialize.js";
+export type {
+  ExportCleanupReport,
+  ExportMaterializedFile,
+  ExportRelativePath,
+  ExportRetainedEntry,
+  MaterializeExportFilesResult,
+} from "./workspace/export-materialize.js";
+export {
   FILE_TOOLS_V1_DEFINITIONS,
   FILE_TOOLS_V1_PROFILE,
   READ_FILE_TOOL_NAME,

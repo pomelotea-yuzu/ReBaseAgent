@@ -8,15 +8,15 @@
 | 2 | workspace-isolation | 导出本 run 自有完成步骤 | 1.3、4.1 | 部分（1.X 包层单测） | 同上：自有 step 定位到该步检查点，initialSnapshot 仍为初始清单；物化待 2.x |
 | 3 | workspace-isolation | 祖先、清单外路径和非法来源被拒绝 | 1.1、4.2 | 部分（1.X 包层单测） | 祖先 step→`step_not_found`、非法 runId→`invalid_request`、无 workspace→`no_workspace`、坏 trace→`trace_invalid`、缺 step 检查点→`step_not_found`；清单外路径拒绝由 read-api 既有用例承载 |
 | 4 | workspace-isolation | 附件缺失或损坏不生成伪完整导出 | 1.4、4.3a | 部分（1.X 包层单测） | `workspace-export-api.test.ts`「导出附件复核」：missing/corrupt→`attachment_unavailable`+path、blob 位被换目录→`io`、多条失败按清单顺序报第一条；物化不落盘待 2.x 闭环 |
-| 5 | workspace-isolation | 二进制字节导出但不进入文本补丁 | 2.1、4.3a | 待实施 | — |
-| 6 | workspace-isolation | 非空目标和取消选择不覆盖既有内容 | 1.2、4.4a | 部分（1.X 包层单测） | 非空目标→`target_invalid`（理由含"非空"）；取消选择是桌面层（5.2a/6.3） |
-| 7 | workspace-isolation | 写入中失败只清理本次产物 | 2.2、2.3、4.4a、4.4b | 待实施 | — |
+| 5 | workspace-isolation | 二进制字节导出但不进入文本补丁 | 2.1、4.3a | 部分（2.1 包层单测） | `workspace-export-materialize.test.ts`：二进制字节逐字节落盘且哈希一致；进入补丁排除的断言待 3.2/4.3b |
+| 6 | workspace-isolation | 非空目标和取消选择不覆盖既有内容 | 1.2、4.4a | 部分（1.X/2.3 包层单测） | 非空目标→`target_invalid`；残留 `files/` 的中断目标同样按非空拒绝（2.3 用例）；取消选择是桌面层（5.2a/6.3） |
+| 7 | workspace-isolation | 写入中失败只清理本次产物 | 2.2、2.3、4.4a、4.4b | 部分（2.2/2.3 包层注入单测） | `workspace-export-materialize-injection.test.ts`：写中途故障→半成品即时移除+逆序清理回空；被替换条目所有权核对保留不删；清理失败（unlink EPERM）→retained 带相对路径；未知条目不递归删除 |
 | 8 | workspace-isolation | 父文件缺失不否定包层自有快照 | 1.1、1.3、4.2 | 部分（1.X 包层单测） | ghost 父链 fixture（父 trace 文件不存在）：自有 step 定位与附件复核全通过；桌面 main 拒绝语义待 5.2a |
-| 9 | workspace-isolation | 项目同名文件不覆盖导出元信息 | 2.1、4.1 | 待实施 | — |
+| 9 | workspace-isolation | 项目同名文件不覆盖导出元信息 | 2.1、4.1 | 部分（2.1 包层单测） | `rebaseagent-export.json`/`changes.patch`/`files` 作为逻辑路径全部进 files/，根部仅 `files/` 一个条目；完整清单核对待 3.x/4.1 |
 | 10 | workspace-isolation | 空快照与初始无变化可以导出 | 3.1、3.3b、4.1 | 待实施 | — |
-| 11 | workspace-isolation | 目标排除数据目录及竞争写入 | 1.2、2.2、4.4a | 部分（1.X 包层单测） | 目标=dataDir/内部/祖先→`target_conflicts_data_dir`（realpath 归一后判定）；目标链接拒绝；竞争写入待 2.x |
+| 11 | workspace-isolation | 目标排除数据目录及竞争写入 | 1.2、2.2、4.4a | 部分（1.X/2.X 包层单测） | 目标=dataDir/内部/祖先→`target_conflicts_data_dir`；目标链接拒绝；目录级与文件级竞争→`target_race` 且获胜者产物原样保留、失败方不清理他人内容（`workspace-export-materialize.test.ts`） |
 | 12 | workspace-isolation | 清单时间与不变量可独立核验 | 3.1、3.4、4.1 | 待实施 | — |
-| 13 | workspace-isolation | 中断残留不被当作成功结果 | 2.3、4.4b | 待实施 | — |
+| 13 | workspace-isolation | 中断残留不被当作成功结果 | 2.3、4.4b | 部分（2.3 包层单测） | 残留 `files/` 的目标按非空拒绝、不自动补写（引擎无回滚路径）；子进程真实中断模拟待 4.4b |
 | 14 | workspace-isolation | 文本修改及新增有可证明的补丁 | 3.2、3.3a、4.3b | 待实施 | — |
 | 15 | workspace-isolation | 二进制和删除变化逐路径说明 | 3.2、3.3b、4.3b | 待实施 | — |
 | 16 | workspace-isolation | 初始附件不可用仅撤销补丁 | 3.2、4.3b | 待实施 | — |

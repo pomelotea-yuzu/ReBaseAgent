@@ -47,16 +47,19 @@ export interface ExportWorkspaceSnapshotRequest {
 
 /**
  * 导出失败码。前五个与 read-api 的定位失败码**同码同义**（桌面 main 按既有稳定拒绝码映射）；
- * 后四个是导出语境新增：
+ * 其余是导出语境新增：
  * - `target_invalid`：目标不存在/不是普通目录/是链接/非空；
  * - `target_conflicts_data_dir`：目标与 dataDir 相同或互为祖先后代；
+ * - `target_race`：写入前目标已出现同名条目/目录（竞争写入），不覆盖竞争者内容；
  * - `attachment_unavailable`：选定快照的某条附件缺失或损坏（`path` 给出对应逻辑路径）；
- * - `io`：真实 I/O 故障（读目标/读附件），不是数据状态，不伪装成 `target_invalid`/`missing`。
+ * - `io`：真实 I/O 故障（读目标/读附件/写目标/目标字节复核不符），不是数据状态，
+ *   不伪装成 `target_invalid`/`missing`。
  */
 export type WorkspaceExportFailureCode =
   | WorkspaceLocateFailureCode
   | "target_invalid"
   | "target_conflicts_data_dir"
+  | "target_race"
   | "attachment_unavailable"
   | "io";
 
