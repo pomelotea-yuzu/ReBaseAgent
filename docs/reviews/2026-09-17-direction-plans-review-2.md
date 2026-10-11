@@ -2,7 +2,7 @@
 
 > 复核日期：2026-09-17
 > 复核对象：[审阅报告](2026-09-17-direction-plans-review.md) 所列 P1/P2 的落实情况
-> 被修订文件：`docs/engineering/plans/2026-09-16-isolated-rerun-roadmap.md`、`docs/engineering/plans/2026-09-15-usability-improvement-plan.md`、`docs/engineering/plans/2026-09-15-open-source-growth-plan.md`、`docs/engineering/plans/2026-09-16-a3-split-plan.md`，以及 `openspec/changes/add-sandboxed-rerun/{proposal,design,tasks}.md`
+> 被修订文件：`docs/product/evolution-roadmap.md`（原 `docs/engineering/plans/2026-09-16-isolated-rerun-roadmap.md`）、`docs/engineering/plans/2026-09-15-usability-improvement-plan.md`、`docs/engineering/plans/2026-09-15-open-source-growth-plan.md`、`docs/engineering/plans/2026-09-16-a3-split-plan.md`，以及 `openspec/changes/add-sandboxed-rerun/{proposal,design,tasks}.md`
 > 复核方法：逐条验收（非抽查）+ 对**新增内容**重新做可证伪核实 + 重跑规范校验
 
 ## 1. 结论

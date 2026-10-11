@@ -43,6 +43,7 @@ engineering / collab / competition / reviews），原 9 个并列目录归组；
 | [`product.md`](product/product.md) | 产品方向定稿：定位 / JTBD / 护城河 / 产品化缺口 / V3 形态 / 商业模式。**注意其路线图停在 09-05，已落后于 archive** |
 | [`direction-2026H2.md`](product/direction-2026H2.md) | AniPedia × ReBaseAgent 2026H2 方向规划（一审稿 v2.1，含一审/二审回执） |
 | [`2026-09-09-roadmap-gaps.md`](product/2026-09-09-roadmap-gaps.md) | 路线图与缺口清单（09-09） |
+| [`evolution-roadmap.md`](product/evolution-roadmap.md) | **产品演进路线（原隔离重跑演进路线，无日期前缀的长期文档）**：R0 MVP 基线 → R1–R5 能力阶段与 I/U 主线、§9.1 打包节点、§10 证据门槛；10/11 校准（U1–U8 收官、`0.4.0-rc.1` 已验收） |
 
 ### competition/ — 参赛规划与材料
 
@@ -64,7 +65,6 @@ engineering / collab / competition / reviews），原 9 个并列目录归组；
 | [`2026-09-15-usability-improvement-plan.md`](engineering/plans/2026-09-15-usability-improvement-plan.md) | **可用性完善规划**：独立推进定位、修改与双运行对比 |
 | [`2026-09-19-ui-layout-discussion.md`](engineering/plans/2026-09-19-ui-layout-discussion.md) | **UI 布局与交互设计 V0.1**：完整工作台及状态规范 |
 | [`2026-09-15-open-source-growth-plan.md`](engineering/plans/2026-09-15-open-source-growth-plan.md) | **开源传播与 Gitee 首轮推广规划（09/27 校准）**：已发布版本与后续试用安排分列，本轮仅修改文档 |
-| [`2026-09-16-isolated-rerun-roadmap.md`](engineering/plans/2026-09-16-isolated-rerun-roadmap.md) | **隔离重跑演进路线（09/27 校准）**：当前研发与版本进度、§9.1 打包节点；§10 实验保留为后续设计，不在本轮执行 |
 | `2026-09-16-a3-split-plan.md` | **A3 拆分方案**：A/B/C 三段任务迁移表与边界判据 |
 
 **reports/**（交付与执行报告）：

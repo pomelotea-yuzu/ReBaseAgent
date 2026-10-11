@@ -2,7 +2,7 @@
 
 > 日期：2026-09-21
 > 类型：**体验包**（自用 + 定向试用），不是正式发行，**未上传 Release**
-> 依据：`docs/engineering/plans/2026-09-16-isolated-rerun-roadmap.md` §9.1
+> 依据：`docs/product/evolution-roadmap.md` §9.1
 > 状态：**构建与自动化验收通过**；§9.1 第 5 项的**人工实机验收尚未执行**
 
 ## 1. 基线与范围

@@ -2,7 +2,7 @@
 
 > 审阅日期：2026-09-17
 > 审阅对象：
-> - `docs/engineering/plans/2026-09-16-isolated-rerun-roadmap.md`（主路线，2026-09-17 修订）
+> - `docs/product/evolution-roadmap.md`（原 `docs/engineering/plans/2026-09-16-isolated-rerun-roadmap.md`，主路线，2026-09-17 修订）
 > - `docs/engineering/plans/2026-09-15-usability-improvement-plan.md`（2026-09-17 目标补充）
 > - `docs/engineering/plans/2026-09-15-open-source-growth-plan.md`（2026-09-17 调整）
 > - 关联：`docs/README.md` 索引、`docs/engineering/plans/2026-09-16-a3-split-plan.md`

@@ -3,7 +3,7 @@
 > 日期：2026-09-21
 > 状态（2026-10-01 更新）：U1 [refactor-run-workspace](../../../openspec/changes/archive/2026-09-23-refactor-run-workspace/proposal.md)、U2 [improve-workspace-file-reading](../../../openspec/changes/archive/2026-09-24-improve-workspace-file-reading/proposal.md)、U3 [preserve-debugging-drafts](../../../openspec/changes/archive/2026-09-26-preserve-debugging-drafts/proposal.md)、U4 [add-desktop-operation-tracking](../../../openspec/changes/archive/2026-09-27-add-desktop-operation-tracking/proposal.md)、U5 [unify-run-execution-workflow](../../../openspec/changes/archive/2026-09-29-unify-run-execution-workflow/proposal.md)、U6 [add-partial-run-reading](../../../openspec/changes/archive/2026-09-30-add-partial-run-reading/proposal.md) 均已完成并归档；U7 [improve-branch-comparison](../../../openspec/changes/archive/2026-10-01-improve-branch-comparison/proposal.md) 已于 2026-10-01 完成并归档（`d53b7d0`），U8 [unify-recording-and-experiment-workspaces](../../../openspec/changes/archive/2026-10-02-unify-recording-and-experiment-workspaces/proposal.md) 已于 2026-10-01 完成（tasks 52/52）、2026-10-02 归档；U9 待起草。
 > 基线：拆分时 A3-A/B/C 全部归档，U1–U4 均已合入主 spec（`desktop-ui` 现 52 requirements / 236 scenarios，`replay` 8/22、`prompt-replay` 6/15、`model-experiments` 12/38）。依据 [UI 方案 V0.2](2026-09-19-ui-layout-discussion.md)与[实际走查 R1–R11](../../reviews/2026-09-21-ui-usability-walkthrough.md)。
-> 文档职责：本文件维护 U 的工程拆分和实施依赖；UI 方案维护界面行为，[可用性规划](2026-09-15-usability-improvement-plan.md)维护 P0–P3 流程，[路线](2026-09-16-isolated-rerun-roadmap.md)维护产品顺序和打包。U1–U8 是 change 编号，不是新的产品阶段。
+> 文档职责：本文件维护 U 的工程拆分和实施依赖；UI 方案维护界面行为，[可用性规划](2026-09-15-usability-improvement-plan.md)维护 P0–P3 流程，[产品演进路线](../../product/evolution-roadmap.md)维护产品顺序和打包。U1–U8 是 change 编号，不是新的产品阶段。
 
 ## 1. 拆分原则
 
