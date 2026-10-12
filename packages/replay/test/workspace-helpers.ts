@@ -66,6 +66,15 @@ export interface WriteRunSpec {
    * 自有 span id 会跨 run 重复，"祖先步骤拒绝"类用例必须显式错开。
    */
   readonly spanSeqStart?: number;
+  /**
+   * run 结束事件（缺省 `stopped/completed`）。导出用例需要"失败 run 已落盘 step"时传
+   * `{ event: "errored", reason: "error" }`——读取器只认自有步骤的检查点，不因结局拒绝。
+   */
+  readonly outcome?: {
+    readonly event: "stopped" | "aborted" | "errored";
+    readonly reason: "completed" | "max_iterations" | "budget_exceeded" | "aborted" | "error";
+    readonly at?: number;
+  };
 }
 
 export interface WrittenRun {
@@ -152,7 +161,9 @@ export async function writeIsolatedRun(spec: WriteRunSpec): Promise<WrittenRun> 
     toolSpanIds.push(tool);
   }
 
-  tracer.endRun({ event: "stopped", reason: "completed", at: spec.rounds.length - 1 });
+  tracer.endRun(
+    spec.outcome ?? { event: "stopped", reason: "completed", at: spec.rounds.length - 1 },
+  );
 
   return { runId: spec.runId, traceFile, roundFiles, stepSpanIds, toolSpanIds };
 }

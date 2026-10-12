@@ -4,23 +4,23 @@
 
 | 序号 | capability | 场景 | 精确任务 | 状态 | 证据与限制 |
 |---|---|---|---|---|---|
-| 1 | workspace-isolation | 导出根 run 的初始检查点 | 1.3、3.4、4.1 | 部分（1.X/3.X 包层单测） | `workspace-export-api.test.ts` 定位 + `workspace-export-snapshot.test.ts` 端到端（files/ 字节、清单 source/status、no_text_changes）；4.1 重型 fixture 与固定时钟全清单比较待 4.x 收口 |
-| 2 | workspace-isolation | 导出本 run 自有完成步骤 | 1.3、4.1 | 部分（1.X/3.X 包层单测） | 自有 step 定位 + e2e：files/ 为该步完整状态、清单记录 step_span_id/snapshot_id、补丁以初始快照为基线；4.1 待 |
-| 3 | workspace-isolation | 祖先、清单外路径和非法来源被拒绝 | 1.1、4.2 | 部分（1.X/3.X 包层单测） | 祖先 step/非法 runId/no_workspace/trace_invalid/缺检查点拒绝已测（含编排层透传零写入）；清单外路径拒绝由 read-api 既有用例承载 |
-| 4 | workspace-isolation | 附件缺失或损坏不生成伪完整导出 | 1.4、4.3a | 部分（1.X/3.X 包层单测） | 附件复核 missing/corrupt/io + 编排层 attachment_unavailable 目标零残留；4.3a fixture 待 |
-| 5 | workspace-isolation | 二进制字节导出但不进入文本补丁 | 2.1、4.3a | 部分（2.1/3.X 包层单测） | 二进制字节逐字节落盘且哈希一致；二进制变化 excluded(binary) 不进补丁（e2e）；4.3a 待 |
-| 6 | workspace-isolation | 非空目标和取消选择不覆盖既有内容 | 1.2、4.4a | 部分（1.X/2.3/3.X 包层单测） | 非空目标→target_invalid 零写入（单测+e2e）；中断残留 files/ 按非空拒绝；取消选择是桌面层（5.2a/6.3） |
-| 7 | workspace-isolation | 写入中失败只清理本次产物 | 2.2、2.3、4.4a、4.4b | 部分（2.2/2.3 包层注入单测） | 写中途故障→半成品即时移除+逆序清理回空；被替换条目所有权核对保留不删；清理失败→retained 带相对路径；未知条目不递归删除 |
-| 8 | workspace-isolation | 父文件缺失不否定包层自有快照 | 1.1、1.3、4.2 | 部分（1.X 包层单测） | ghost 父链 fixture：自有 step 定位与附件复核全通过；桌面 main 拒绝语义待 5.2a |
-| 9 | workspace-isolation | 项目同名文件不覆盖导出元信息 | 2.1、4.1 | 部分（2.1/3.X 包层单测） | 同名元信息路径全部进 files/、根部命名空间干净（单测+e2e）；4.1 待 |
-| 10 | workspace-isolation | 空快照与初始无变化可以导出 | 3.1、3.3b、4.1 | 部分（3.X 包层单测） | e2e：空快照→空 files/ + 空 files 数组 + no_text_changes；选定=初始 → 无变化不拒绝；4.1 待 |
-| 11 | workspace-isolation | 目标排除数据目录及竞争写入 | 1.2、2.2、4.4a | 部分（1.X/2.X 包层单测） | 目标=dataDir/内部/祖先→target_conflicts_data_dir；目录级与文件级竞争→target_race 且不碰获胜者产物；dataDir 指纹 e2e（成功导出零改动） |
-| 12 | workspace-isolation | 清单时间与不变量可独立核验 | 3.1、3.4、4.1 | 部分（3.X 包层单测） | 固定时钟整 JSON 逐字节一致；不同动作时间仅排除 created_at 后一致；status 恒 exported；4.1 待 |
-| 13 | workspace-isolation | 中断残留不被当作成功结果 | 2.3、4.4b | 部分（2.3 包层单测） | 残留 files/ 的目标按非空拒绝、不自动补写（引擎无回滚路径）；子进程真实中断模拟待 4.4b |
-| 14 | workspace-isolation | 文本修改及新增有可证明的补丁 | 3.2、3.3a、4.3b | 部分（3.X 包层单测） | diff 单测（修改/新增/CRLF/末尾无换行/引用/确定性）+ e2e written 补丁落盘且清单记录 bytes/sha256；4.3b fixture 待 |
-| 15 | workspace-isolation | 二进制和删除变化逐路径说明 | 3.2、3.3b、4.3b | 部分（3.X 包层单测） | excluded binary/deletion 逐路径（单测+e2e）；仅排除项→not_available；4.3b 待 |
-| 16 | workspace-isolation | 初始附件不可用仅撤销补丁 | 3.2、4.3b | 部分（3.X 包层单测） | baseline_missing/baseline_corrupt → 整份 not_available 且 covered=[]；文件导出完整成功、无 changes.patch 落盘（e2e）；4.3b 待 |
-| 17 | workspace-isolation | 补丁超限保留完整文件导出 | 3.3b、4.3b | 部分（3.X 包层单测） | maxDiffCells 注入超限 → not_available+reason 超限、文件树与哈希完整、无补丁文件落盘（e2e）；4.3b 待 |
+| 1 | workspace-isolation | 导出根 run 的初始检查点 | 1.3、3.4、4.1 | 包层完成（1.X–4.X） | 定位单测 + e2e（files/ 字节、清单 source/status、no_text_changes）+ `workspace-export-integration.test.ts`：固定时钟完整清单逐字节复算（测试手拼期望）、不同时间仅排除 created_at 一致 |
+| 2 | workspace-isolation | 导出本 run 自有完成步骤 | 1.3、4.1 | 包层完成（1.X–4.X） | 定位 + e2e + integration：真实父链分支 run 与失败 run（errored/error）自有 step 逐字节核对，initial_snapshot_id 由测试侧独立复算 |
+| 3 | workspace-isolation | 祖先、清单外路径和非法来源被拒绝 | 1.1、4.2 | 包层完成（1.X–4.X） | 祖先 step（真实父链）/非法 runId/no_workspace/trace_invalid/run_not_found 均在编排层拒绝且零写入+空清理报告；额外物理字段 @ts-expect-error 编译期钉死（运行时严格 schema 归 5.1）；清单外路径拒绝由 read-api 既有用例承载 |
+| 4 | workspace-isolation | 附件缺失或损坏不生成伪完整导出 | 1.4、4.3a | 包层完成（1.X–4.X） | 附件复核 missing/corrupt/io + 编排层 attachment_unavailable 目标零残留（缺失 e2e、损坏 integration 各一） |
+| 5 | workspace-isolation | 二进制字节导出但不进入文本补丁 | 2.1、4.3a | 包层完成（1.X–4.X） | 二进制字节逐字节落盘且哈希一致；二进制变化 excluded(binary) 不进补丁；外部 decoy 同名文件不可达 + dataDir 全域指纹不变（integration） |
+| 6 | workspace-isolation | 非空目标和取消选择不覆盖既有内容 | 1.2、4.4a | 包层完成（1.X–4.X，桌面取消归 5.2a/6.3） | 非空目标→target_invalid 零写入（单测+e2e）；中断残留按非空拒绝；目标链接/dataDir 关系单测 + 编排层透传零写入 |
+| 7 | workspace-isolation | 写入中失败只清理本次产物 | 2.2、2.3、4.4a、4.4b | 包层完成（2.X 注入 + 4.4a/4.4b 编排层注入） | 物化层注入（半成品即时移除/逆序清理/所有权核对/清理失败 retained）+ 编排层注入（补丁/清单写失败逆序回收、半成品移除失败 retained）+ 同目标并发败者零清理不碰胜者产物 |
+| 8 | workspace-isolation | 父文件缺失不否定包层自有快照 | 1.1、1.3、4.2 | 包层完成（1.X–4.X） | ghost 父链 fixture：定位/附件复核 + 编排层端到端导出成功；桌面 main 拒绝语义待 5.2a |
+| 9 | workspace-isolation | 项目同名文件不覆盖导出元信息 | 2.1、4.1 | 包层完成（2.X–4.X） | 同名元信息路径全部进 files/、根部命名空间干净（单测+e2e，4.1 复用既有证据） |
+| 10 | workspace-isolation | 空快照与初始无变化可以导出 | 3.1、3.3b、4.1 | 包层完成（3.X–4.X） | e2e：空快照→空 files/ + 空 files 数组 + no_text_changes；选定=初始 → 无变化不拒绝（4.1 复用既有证据） |
+| 11 | workspace-isolation | 目标排除数据目录及竞争写入 | 1.2、2.2、4.4a | 包层完成（1.X–4.X） | 目标=dataDir/内部/祖先→target_conflicts_data_dir（单测+编排层透传）；目录/文件级竞争→target_race 不碰获胜者产物；同目标 Promise.all 并发恰一个成功、胜者三件套完整（integration）；dataDir 指纹 e2e |
+| 12 | workspace-isolation | 清单时间与不变量可独立核验 | 3.1、3.4、4.1 | 包层完成（3.X–4.X） | 固定时钟完整清单**逐字节**复算（测试手拼期望文本，钉死键序/缩进/末尾换行）；不同动作时间仅排除 created_at 后一致；status 恒 exported |
+| 13 | workspace-isolation | 中断残留不被当作成功结果 | 2.3、4.4b | 包层完成（2.X/4.4b） | 残留目标按非空拒绝、零自动补写/清理（编排层注入文件承载中断契约面）；⚠️ 真实子进程中断单测不可稳定复现，实机归 7.1b |
+| 14 | workspace-isolation | 文本修改及新增有可证明的补丁 | 3.2、3.3a、4.3b | 包层完成（3.X–4.X） | diff 单测 + e2e + integration 逐段核对：CRLF 内容行逐字保留、末尾无换行 del/add 双侧标准标记、带空格路径 /dev/null + git 引用、清单记录 bytes/sha256 |
+| 15 | workspace-isolation | 二进制和删除变化逐路径说明 | 3.2、3.3b、4.3b | 包层完成（3.X–4.X） | excluded binary/deletion 逐路径（单测+e2e+integration）；deletion-only→not_available 且文件导出完整 |
+| 16 | workspace-isolation | 初始附件不可用仅撤销补丁 | 3.2、4.3b | 包层完成（3.X–4.X） | baseline_missing（e2e）/baseline_corrupt（字节篡改）/baseline_io（blob 位换目录）→ 整份 not_available；文件导出完整、无 changes.patch 落盘 |
+| 17 | workspace-isolation | 补丁超限保留完整文件导出 | 3.3b、4.3b | 包层完成（3.X–4.X） | maxDiffCells 注入超限 → not_available+reason 超限、文件树与哈希完整、无补丁文件落盘（e2e，4.3b 复用既有证据） |
 | 18 | desktop-ui | 复制路径原文及元信息 | 6.5、7.1b | 待实施 | — |
 | 19 | desktop-ui | 查找换行和差异定位使用当前文件 | 6.5、7.1b | 待实施 | — |
 | 20 | desktop-ui | 不可比较或未就绪时工具诚实禁用 | 6.1、6.5、7.1b | 待实施 | — |
