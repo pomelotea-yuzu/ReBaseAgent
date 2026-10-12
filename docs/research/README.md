@@ -7,6 +7,11 @@
 | 文档 | 要回答的问题 | 当前状态 |
 |---|---|---|
 | [Agent 调试方案调研](2026-09-27-agent-debugging-landscape.md) | 已有工具解决了什么，我们还应验证什么 | 已核查官方文档，未开展跨产品实测 |
+| [外部 Agent 会话导入探针](2026-10-11-external-agent-trace-import-findings.md) | 本地会话格式如何映射成原生 trace | 历史验证记录；部分价值判断已由 10/12 调研校准，未立项 |
+| [独创性方向、竞品与社区需求](2026-10-12-agent-differentiation-and-community-needs.md) | 已有先例、社区问题与候选增强方向 | 本轮调研已归档，尚未证明独创性或开展竞品实测；附[来源证据](2026-10-12-agent-differentiation-evidence.json) |
+| [跨品类 UI 组织逻辑](2026-10-12-ui-organization-patterns-and-rebaseagent.md) | 九种软件如何组织导航、对象、任务与状态 | 官方资料与本地源码分析；附[来源证据](2026-10-12-ui-organization-evidence.json) |
+| [UI 实机走查与整理方向](../reviews/2026-10-12-ui-live-walkthrough-and-refinement.md) | 当前界面哪些路径可保留，哪些内容带来混淆 | 已操作真实 Electron 窗口，未提交模型请求；整理建议待讨论 |
+| [R2.2 起的能力增强路线](../product/2026-10-12-capability-roadmap-from-r2-2.md) | 大方向不变时，每个后续能力阶段做什么 | 主线排序已同步正式路线；细化稿仍供设计参考，未启动实现 |
 | [重跑状态一致性机制](../architecture/replay-state-consistency.md) | 消息、工具轮次和文件快照如何保持边界一致 | 已对照规范和测试源码 |
 | [重跑一致性实验方案](2026-09-27-replay-consistency-experiment.md) | 如何验证正确性、代价与适用场景 | 待执行，不含实验结果 |
 | [治理与维护安排](../development/governance-and-maintenance.md) | 如何接收贡献、维护版本和逐步降低单人依赖 | 现状盘点与后续安排 |
@@ -23,3 +28,5 @@
 2026-09-27 本轮执行了依赖清单生成；未运行对比产品、真实模型实验、桌面验收或发行包构建。研究以提交 `41df2c0d1e6c36ed1ebe18b862733f6851ec691c` 为本地参考，后续行为变化需重新核查。文档工作不依赖当前桌面交互改造完成。
 
 新增调研应写明日期、输入版本、事实和推断的边界。竞争方案文档更新后，应重新确认对应结论，不能将旧页面的缺项解释为永久不支持。
+
+2026-10-12 按维护者要求结束本轮调研与测试，将相关文档从 `docs/drafts/` 归入 research、product 和 reviews。归档表示资料归位；候选能力、路线讨论和 UI 建议仍需后续设计与立项。源网页响应及过程截图保持既有本地保存口径。

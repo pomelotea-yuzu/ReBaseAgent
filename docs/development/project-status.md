@@ -1,6 +1,6 @@
 # 项目状态与版本依据
 
-校准日期：2026-10-02。依据 U8 归档提交 `87a73b3`、本地标签、归档 change 和既有发布记录；本轮只修订文档，没有联网核验下载或重跑功能验收。后续源码与发布变化应更新本页；历史记录保留其当时结论。
+校准日期：2026-10-12。依据 R2.1 归档提交 `ac8729e`、归档 change 与既有构建／发布记录；本轮只同步文档，没有联网核验下载或重跑功能验收。今日已归档的调研与 UI 走查另列依据；历史记录保留其当时结论。
 
 ## 研发与文档
 
@@ -12,7 +12,9 @@
 | U6 | 已归档：父链缺失时安全只读 | [场景证据](../../openspec/changes/archive/2026-09-30-add-partial-run-reading/evidence-index.md)；只对已确认的祖先文件缺失降级，来源不完整的父本不能执行 |
 | U7 | 已归档：分支定位与运行比较 | [场景证据](../../openspec/changes/archive/2026-10-01-improve-branch-comparison/evidence-index.md)；双运行工作区与两到四条指标表，未提供跨运行文件 diff |
 | U8 | 已归档：录制、messages 与实验工作区 | [场景证据](../../openspec/changes/archive/2026-10-02-unify-recording-and-experiment-workspaces/evidence-index.md)、[任务与门禁记录](../../openspec/changes/archive/2026-10-02-unify-recording-and-experiment-workspaces/tasks.md)；67 条场景为已交付 66 / 待验证 0 / 实机不成立 1，后一条按单元层承载，不称全部实机通过 |
-| 后续能力 | 尚未由 U1–U8 交付 | trace 包导出（R2.1）、Shell/真实测试（R3）、隔离 prompt/模型实验等见[拆分计划](../engineering/plans/2026-09-21-ui-change-split-plan.md)；目前无活动 change |
+| R2.1 结果导出 | 已归档（2026-10-12） | [任务与验收记录](../../openspec/changes/archive/2026-10-12-export-run-results/tasks.md)；选定检查点普通文件、来源清单与适用的文本补丁，不含 trace 分享包、自动应用或合并；未据此宣称已打包或发布 |
+| 后续能力 | 当前无活动 change；R2.2 为下一项新增能力 | 隔离 prompt 首版 → R3 首个受支持环境 → R2.3 完整扩展 → R4 → 按需 R5，见[正式路线](../product/evolution-roadmap.md)；R3 技术验证可并行，R2.3 最小双臂按案例需要，不构成 R3 门槛；跨运行文件 diff 与隔离实验仍待实现 |
+| UI 与能力调研 | 今日调研和走查已归档，建议尚未实现 | [能力细化讨论稿](../product/2026-10-12-capability-roadmap-from-r2-2.md)、[UI 实机走查](../reviews/2026-10-12-ui-live-walkthrough-and-refinement.md)；R2.2 桌面设计前先做有限整理，完整 UI 重组与独创性候选仍待验证 |
 | 开源治理文档 | 已补齐当前单维护者阶段规则 | [治理入口](governance-and-maintenance.md)、[维护政策](maintenance-policy.md)、[发布交接](release-and-handoff.md)、[第三方声明](third-party-notices.md)；远程配置、私密接收与最终发行物许可仍未在本轮核验 |
 | GitHub | 维护者确认账号已解封 | 不再以待解封作为开发或文档阻塞；具体链接和功能可用性独立核验 |
 | CI | Gitee Go 已有历史运行记录，GitHub Actions 本地配置已补 | 本轮未触发或确认线上流水线；不能把配置存在写成最新提交已通过 |
@@ -24,7 +26,9 @@
 | v0.2.0 | 标签与[发行说明](../engineering/reports/2026-09-07-v0.2.0-release-notes.md) | 历史正式版；安全维护范围另见根安全策略 |
 | v0.3.0-k0 | 标签与[构建验收记录](../engineering/reports/2026-09-17-k0-experience-build.md) | 已有发布记录的较早预览版，不含隔离文件能力 |
 | v0.3.0-k0-a3.1 | 本地标签、[构建记录](../engineering/reports/2026-09-21-a3-experience-build.md) | A/B/C 首次进入便携构建；原记录写明当时未上传和部分人工验收未完成。标签存在不单独证明下载或后续验收完成 |
-| v0.3.0-k1 | 标签指向 `047d1c7`；[09/25 发布正文存档](../engineering/reports/2026-09-25-k1-gitee-template.md)及[发布处理记录](../engineering/notes/2026-09-25-gitee-release-blocked.md) | 最近有发布记录的预览版，含隔离 A/B/C 与 U1/U2，不含 U3–U8；U1–U8 源码归档不等于完整工作区版本已发行 |
+| v0.3.0-k1 | 标签指向 `047d1c7`；[09/25 发布正文存档](../engineering/reports/2026-09-25-k1-gitee-template.md)及[发布处理记录](../engineering/notes/2026-09-25-gitee-release-blocked.md) | 已有发布记录的历史预览版，含隔离 A/B/C 与 U1/U2，不含 U3–U8；后续源码归档不等于进入该包 |
+| v0.4.0-rc.1 | [构建记录](../engineering/reports/2026-10-02-v0.4.0-rc.1-build-record.md)、[人工验收清单](../engineering/reports/2026-10-02-v0.4.0-rc.1-manual-acceptance-checklist.md) | 已有构建与验收记录，含 U1–U8，不含 10/12 归档的 R2.1；不作为本轮线上下载核验 |
+| v0.4.0-rc.2 | [10/11 构建记录](../engineering/reports/2026-10-11-v0.4.0-rc.2-build-record.md) | 记录基线为 `e1a5611`，不含 R2.1；打包、验收与上传状态按该记录分别核对，本轮未重验或查询线上发行 |
 
 K1 本地标签与发布正文存档一致的产物信息：
 

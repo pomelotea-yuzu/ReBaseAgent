@@ -1,0 +1,841 @@
+{
+    "schema_version":  1,
+    "research_date":  "2026-10-12",
+    "local_reference_commit":  "cbb5b7dab975088bd4c7d5a02d6ed60dba70c43f",
+    "scope":  "Official documentation and project README capability review; purposive sample of public GitHub issue bodies and metadata. No product benchmark, user interviews, or systematic novelty proof.",
+    "sampling":  "Issue keyword queries followed by title queries; comments-descending first five results per query, then manual relevance selection. Q13 is repository discovery. Counts and comments are not demand estimates.",
+    "snapshot_note":  "Hashes cover UTF-8 encoding of decoded response/body text, not raw HTTP bytes. Only excerpts and metadata are archived here. Full fetched responses remain in local output/agent-differentiation-research; reproduction of the same upstream bytes is not guaranteed.",
+    "official_sources":  [
+                             {
+                                 "id":  "S1",
+                                 "url":  "https://docs.langchain.com/oss/python/langgraph/use-time-travel.md",
+                                 "accessed_at_utc":  "2026-10-12T05:06:31.7275289Z",
+                                 "http_status":  200,
+                                 "decoded_utf8_sha256":  "16b9beebc967b3f486f5d08f838e3b4b274eaa4bb3fb19af961cd2e202598820",
+                                 "character_count":  13060,
+                                 "excerpt_selection":  "First 32 lines matching capability keywords, capped at 4500 characters. Excerpts are incomplete and do not replace full-page review.",
+                                 "excerpt_truncated":  false,
+                                 "excerpt":  "\u003e Replay past executions and fork to explore alternative paths in LangGraph\nLangGraph supports time travel through [checkpoints](/oss/python/langgraph/checkpointers#checkpoints):\n* **[Replay](#replay)**: Retry from a prior checkpoint.\n* **[Fork](#fork)**: Branch from a prior checkpoint with modified state to explore an alternative path.\nBoth work by resuming from a prior checkpoint. Nodes before the checkpoint are not re-executed (results are already saved). Nodes after the checkpoint re-execute, including any LLM calls, API requests, and [interrupts](/oss/python/langgraph/interrupts) (which may produce different results).\n## Replay\nInvoke the graph with a prior checkpoint\u0027s config to replay from that point.\n  Replay re-executes nodes—it doesn\u0027t just read from cache. LLM calls, API requests, and [interrupts](/oss/python/langgraph/interrupts) fire again and may return different results. Replaying from the final checkpoint (no `next` nodes) is a no-op.\n\u003cimg src=\"https://mintcdn.com/langchain-5e9cc07a/dL5Sn6Cmy9pwtY0V/oss/images/re_play.png?fit=max\u0026auto=format\u0026n=dL5Sn6Cmy9pwtY0V\u0026q=85\u0026s=d7b34b85c106e55d181ae1f4afb50251\" alt=\"Replay\" width=\"2276\" height=\"986\" data-path=\"oss/images/re_play.png\" /\u003e\nUse [`get_state_history`](https://reference.langchain.com/python/langgraph/graphs/#langgraph.graph.state.CompiledStateGraph.get_state_history) to find the checkpoint you want to replay from, then call [`invoke`](https://reference.langchain.com/python/langgraph/graphs/#langgraph.graph.state.CompiledStateGraph.invoke) with that checkpoint\u0027s config:\nfrom langgraph.graph import StateGraph, START\nfrom langgraph.checkpoint.memory import InMemorySaver\nfrom typing_extensions import TypedDict, NotRequired\nfrom langchain_core.utils.uuid import uuid7\ncheckpointer = InMemorySaver()\n    .compile(checkpointer=checkpointer)\n# Step 2: Find a checkpoint to replay from\n    print(f\"next={state.next}, checkpoint_id={state.config[\u0027configurable\u0027][\u0027checkpoint_id\u0027]}\")\n# Step 3: Replay from a specific checkpoint\n# Find the checkpoint before write_joke\nreplay_result = graph.invoke(None, before_joke.config)\n## Fork\nFork creates a new branch from a past checkpoint with modified state. Call [`update_state`](https://reference.langchain.com/python/langgraph/graphs/#langgraph.graph.state.CompiledStateGraph.update_state) on a prior checkpoint to create the fork, then [`invoke`](https://reference.langchain.com/python/langgraph/graphs/#langgraph.graph.state.CompiledStateGraph.invoke) with `None` to continue execution.\n\u003cimg src=\"https://mintcdn.com/langchain-5e9cc07a/-_xGPoyjhyiDWTPJ/oss/images/checkpoints_full_story.jpg?fit=max\u0026auto=format\u0026n=-_xGPoyjhyiDWTPJ\u0026q=85\u0026s=a52016b2c44b57bd395d6e1eac47aa36\" alt=\"Fork\" width=\"3705\" height=\"2598\" data-path=\"oss/images/checkpoints_full_story.jpg\" /\u003e\n  `update_state` does **not** roll back a thread. It creates a new checkpoint that branches from the specified point. The original execution history remains intact.\n# Find checkpoint before write_joke\n# Fork: update state to change the topic\nfork_config = graph.update_state(\n# Resume from the fork — write_joke re-executes with the new topic\nfork_result = graph.invoke(None, fork_config)\nprint(fork_result[\"joke\"])  # A joke about chickens, not socks\nWhen you call [`update_state`](https://reference.langchain.com/python/langgraph/graphs/#langgraph.graph.state.CompiledStateGraph.update_state), values are applied using the specified node\u0027s writers (including [reducers](/oss/python/langgraph/graph-api#reducers)). The checkpoint records that node as having produced the update, and execution resumes from that node\u0027s successors."
+                             },
+                             {
+                                 "id":  "S2",
+                                 "url":  "https://docs.langchain.com/langsmith/studio.md",
+                                 "accessed_at_utc":  "2026-10-12T05:06:33.0139262Z",
+                                 "http_status":  200,
+                                 "decoded_utf8_sha256":  "4c542f9bb199bef2ebadb215d879ac04bf388280e81fa86879088e6363872488",
+                                 "character_count":  3571,
+                                 "excerpt_selection":  "First 32 lines matching capability keywords, capped at 4500 characters. Excerpts are incomplete and do not replace full-page review.",
+                                 "excerpt_truncated":  false,
+                                 "excerpt":  "Studio is a specialized agent IDE that enables visualization, interaction, and debugging of agentic systems that implement the Agent Server API protocol. Studio also integrates with [tracing](/langsmith/observability-concepts), [evaluation](/langsmith/evaluation), and [prompt engineering](/langsmith/prompt-context-hub#prompts).\n* [Run experiments over a dataset](/langsmith/observability-studio#run-experiments-over-a-dataset)\nStudio works for graphs that are deployed on [LangSmith](/langsmith/deployment-quickstart) or for graphs that are running locally via the [Agent Server](/langsmith/local-dev-testing).\nGraph mode exposes the full feature-set and is useful when you would like as many details about the execution of your agent, including the nodes traversed, intermediate states, and LangSmith integrations (such as adding to datasets and playground).\nGo from [testing graphs locally](/langsmith/local-dev-testing) in Studio to deploying them on Langsmith Cloud in 1 Click, directly from Studio. You can use this to create a brand new deployment for quick prototyping or to redeploy an existing deployment.\n    [Connect these docs](/use-these-docs) to your agent of choice via MCP for real-time answers."
+                             },
+                             {
+                                 "id":  "S3",
+                                 "url":  "https://langfuse.com/docs/prompt-management/features/playground.md",
+                                 "accessed_at_utc":  "2026-10-12T05:06:33.6660415Z",
+                                 "http_status":  200,
+                                 "decoded_utf8_sha256":  "e28e15f79804766d4a9b749684ff4d4c46cecb1c79d992c945d8315968475c0d",
+                                 "character_count":  5642,
+                                 "excerpt_selection":  "First 32 lines matching capability keywords, capped at 4500 characters. Excerpts are incomplete and do not replace full-page review.",
+                                 "excerpt_truncated":  false,
+                                 "excerpt":  "title: Playground\nseoTitle: \"LLM Playground\"\ndescription: Test, iterate, and compare different prompts and models within the LLM Playground.\nsidebarTitle: Playground\n# LLM Playground\nTest and iterate on your prompts directly in the Langfuse Prompt Playground. Tweak the prompt and model parameters to see how different models respond to these input changes. This allows you to quickly iterate on your prompts and optimize them for the best results in your LLM app without having to switch between tools or use any code.\n![LLM Playground](/images/docs/playground-overview.png)\nCompare multiple prompt variants alongside each other. Execute them all at once or focus on a single variant. Each variant keeps its own LLM settings, variables, tool definitions, and placeholders so you can immediately see the impact of every change.\n### Open your prompt in the playground\nYou can open a prompt you created with [Langfuse Prompt Management](/docs/prompt-management/get-started) in the playground.\n### Open a generation in the playground\nYou can open a generation from [Langfuse Observability](/docs/observability) in the playground by clicking the `Open in Playground` button in the generation details page.\n### Tool calling and structured outputs\nThe Langfuse Playground supports tool calling and structured output schemas, enabling you to define, test, and validate LLM executions that rely on tool calls and enforce specific response formats.\n  Currently, Langfuse supports opening tool-type observations in the playground\n**Tool Calling**\n- Define custom tools with JSON schema definitions\n- Test prompts relying on tools in real-time by mocking tool responses\n- Save tool definitions to your project\n- Jump into the playground from your OpenAI generation using structured output\nYou can add prompt variables in the playground to simulate different inputs to your prompt.\n  ![Add prompt variables](/images/docs/playground-variables.png)\n### Use your favorite model\nYou can use your favorite model by adding the API key for the model you want to use in the Langfuse project settings. Learn how to [set up an LLM connection](/docs/administration/llm-connection).\n  ![Select the model you want to\n  use](/images/docs/playground-model-selection.png)\nOptionally, many LLM providers allow for additional parameters when invoking a model. You can pass these parameters in the playground when toggling \"Additional Options\" in the model selection dropdown. [Read this documentation about additional provider options](/docs/administration/llm-connection#advanced-configurations) for more information.\n- For structured regression testing of prompt and model variants on datasets, use [Experiments](/docs/evaluation/core-concepts#experiments).\nThis page is part of the [Langfuse](https://langfuse.com) documentation, published as plain Markdown for AI agents. Every page is available as Markdown by appending `.md` to its URL, or by sending an `Accept: text/markdown` header. This page: `https://langfuse.com/docs/prompt-management/features/playground.md`.\n  ```bash\n- **Install the [Langfuse Agent Skill](https://langfuse.com/docs/api-and-data-platform/features/agent-skill).** It encodes Langfuse\u0027s own best practices for instrumentation, prompt management, and evaluation, and materially improves results.\n- **Use the [Langfuse CLI](https://langfuse.com/docs/api-and-data-platform/features/cli)** (`npx @langfuse/cli api \u003cresource\u003e \u003caction\u003e`) to read or write traces, prompts, datasets, and scores from the terminal."
+                             },
+                             {
+                                 "id":  "S4",
+                                 "url":  "https://arize.com/docs/phoenix/prompt-engineering/overview-prompts/span-replay.md",
+                                 "accessed_at_utc":  "2026-10-12T05:06:33.9801662Z",
+                                 "http_status":  200,
+                                 "decoded_utf8_sha256":  "873c839d337ce08de6b67d0804c5025de5f925ddb73685092a61cf1dbf7e8df1",
+                                 "character_count":  1114,
+                                 "excerpt_selection":  "First 32 lines matching capability keywords, capped at 4500 characters. Excerpts are incomplete and do not replace full-page review.",
+                                 "excerpt_truncated":  false,
+                                 "excerpt":  "# Span Replay\n\u003e Replay LLM spans traced in your application directly in the playground\n\u003cFrame caption=\"Replay LLM spans traced in your application directly in the playground\"\u003e\n  \u003cimg src=\"https://storage.googleapis.com/arize-phoenix-assets/assets/images/span_replay.gif\" /\u003e\nHave you ever wanted to go back into a multi-step LLM chain and just replay one step to see if you could get a better outcome? Well you can with Phoenix\u0027s **Span Replay.** LLM spans that are stored within Phoenix can be loaded into the Prompt Playground and replayed. Replaying spans inside of Playground enables you to debug and improve the performance of your LLM systems by comparing LLM provider outputs, tweaking model parameters, changing prompt text, and more.\nChat completions generated inside of Playground are automatically instrumented, and the recorded spans are immediately available to be replayed inside of Playground."
+                             },
+                             {
+                                 "id":  "S5",
+                                 "url":  "https://raw.githubusercontent.com/promptfoo/promptfoo/main/README.md",
+                                 "accessed_at_utc":  "2026-10-12T05:06:34.8816019Z",
+                                 "http_status":  200,
+                                 "decoded_utf8_sha256":  "9419faaa9d56675b923462d5052a176b3da58f60bf66c84af23159bf3d63c270",
+                                 "character_count":  4592,
+                                 "excerpt_selection":  "First 32 lines matching capability keywords, capped at 4500 characters. Excerpts are incomplete and do not replace full-page review.",
+                                 "excerpt_truncated":  false,
+                                 "excerpt":  "# Promptfoo: LLM evals \u0026 red teaming\n  \u003ca href=\"https://github.com/promptfoo/promptfoo/actions/workflows/main.yml\"\u003e\u003cimg src=\"https://img.shields.io/github/actions/workflow/status/promptfoo/promptfoo/main.yml\" alt=\"GitHub Workflow Status\"\u003e\u003c/a\u003e\n  \u003ccode\u003epromptfoo\u003c/code\u003e is a CLI and library for evaluating and red-teaming LLM-based apps. Stop using trial-and-error... start shipping secure, reliable agents\nexport OPENAI_API_KEY=sk-abc123\nRun an eval and view results:\npromptfoo eval\n\u003e **See [Getting Started](https://www.promptfoo.dev/docs/getting-started/) (evals) or [Red Teaming](https://www.promptfoo.dev/docs/red-team/) (vulnerability scanning) for more!**\n- **Test your prompts and models** with [automated evaluations](https://www.promptfoo.dev/docs/getting-started/)\n- **Compare models** side-by-side (OpenAI, Anthropic, Azure, Bedrock, Ollama, and [more](https://www.promptfoo.dev/docs/providers/))\n\u003cimg src=\"site/static/img/claude-vs-gpt-example@2x.png\" alt=\"prompt evaluation matrix - web viewer\" width=\"700\"\u003e\n- **Private**: LLM evals run 100% locally - your prompts never leave your machine\n- [Supported Models](https://www.promptfoo.dev/docs/providers/)"
+                             },
+                             {
+                                 "id":  "S6",
+                                 "url":  "https://raw.githubusercontent.com/AgentOps-AI/agentops/main/README.md",
+                                 "accessed_at_utc":  "2026-10-12T05:06:38.7161599Z",
+                                 "http_status":  200,
+                                 "decoded_utf8_sha256":  "6cf775117207bfda15954e839da8a8cd64fa7f95325db682c2512ffad1d90c41",
+                                 "character_count":  31038,
+                                 "excerpt_selection":  "First 32 lines matching capability keywords, capped at 4500 characters. Excerpts are incomplete and do not replace full-page review.",
+                                 "excerpt_truncated":  false,
+                                 "excerpt":  "  \u003cem\u003eObservability and DevTool platform for AI Agents\u003c/em\u003e\n  \u003ca href=\"https://smithery.ai/server/@AgentOps-AI/agentops-mcp\"\u003e\n    \u003cimg src=\"https://smithery.ai/badge/@AgentOps-AI/agentops-mcp\"/\u003e\nAgentOps helps developers build, evaluate, and monitor AI agents. From prototype to production.\n| 📊 **Replay Analytics and Debugging** | Step-by-step agent execution graphs                           |\n| 💸 **LLM Cost Management**            | Track spend with LLM foundation model providers               |\n```bash\n#### Session replays in 2 lines of code\nimport agentops\nagentops.end_session(\u0027Success\u0027)\nAll your sessions can be viewed on the [AgentOps dashboard](https://app.agentops.ai?ref=gh)\n    \u003cimg src=\"docs/images/external/app_screenshots/session-drilldown-metadata.png\" style=\"width: 90%;\" alt=\"Agent Metadata\"/\u003e\n    \u003cimg src=\"docs/images/external/app_screenshots/session-drilldown-graphs.png\" style=\"width: 90%;\" alt=\"Event Graphs\"/\u003e\n  \u003csummary\u003eSession Replays\u003c/summary\u003e\n    \u003cimg src=\"docs/images/external/app_screenshots/session-replay.png\" style=\"width: 90%;\" alt=\"Session Replays\"/\u003e\nAdd powerful observability to your agents, tools, and functions with as little code as possible: one line at a time.\n# Create a session span (root for all other spans)\nfrom agentops.sdk.decorators import session\n@session\ndef my_workflow():\n    # Your session code here\nfrom agentops.sdk.decorators import agent\nfrom agentops.sdk.decorators import operation, task\n# Create workflow spans for tracking multi-operation workflows\nfrom agentops.sdk.decorators import workflow\n@workflow\ndef my_workflow(data):\n    # Workflow implementation\nfrom agentops.sdk.decorators import session, agent, operation\n@session\ndef my_session():\nBuild multi-agent systems with tools, handoffs, and guardrails. AgentOps natively integrates with the OpenAI Agents SDKs for both Python and TypeScript."
+                             },
+                             {
+                                 "id":  "S7",
+                                 "url":  "https://code.claude.com/docs/en/checkpointing.md",
+                                 "accessed_at_utc":  "2026-10-12T05:06:40.0261023Z",
+                                 "http_status":  200,
+                                 "decoded_utf8_sha256":  "017ae6da6be0ce9c1d58721e38fdfd0f0ee6eaea5a738426926f42711c824bc9",
+                                 "character_count":  8765,
+                                 "excerpt_selection":  "First 32 lines matching capability keywords, capped at 4500 characters. Excerpts are incomplete and do not replace full-page review.",
+                                 "excerpt_truncated":  false,
+                                 "excerpt":  "# Checkpointing\n\u003e Track, rewind, and summarize Claude\u0027s edits and conversation to manage session state.\nClaude Code automatically tracks Claude\u0027s file edits as you work, allowing you to quickly undo changes and rewind to previous states if anything gets off track.\n## How checkpoints work\nAs you work with Claude, checkpointing automatically captures the state of your code before each prompt you send that starts a turn.\nClaude Code tracks all changes made by its file editing tools:\n* Every prompt you send that starts a turn creates a new checkpoint\n* Claude Code keeps file snapshots for the 100 most recent checkpoints in a session. Discarding an older checkpoint deletes the snapshot files that no remaining checkpoint references, except each file\u0027s first snapshot, which the VS Code extension uses as the baseline for its session diffs.\n* Claude Code saves checkpoints with the conversation, so you can still run `/rewind` after you resume a session\n* Claude Code deletes a session\u0027s file snapshots in the [retention sweep](/docs/en/claude-directory#cleaned-up-automatically), by default about 30 days after the session last saved one. Rewinding to a checkpoint whose snapshots are gone can fail with [`No files were restored`](/docs/en/errors#no-files-were-restored). To keep snapshots longer, set [`cleanupPeriodDays`](/docs/en/settings-reference#cleanupperioddays).\n### Rewind and summarize\nRun `/rewind`, or press `Esc` twice when the prompt input is empty, to open the rewind menu.\n  If the prompt input contains text, double `Esc` clears it instead of opening the menu. The cleared text is saved to your input history, so press `Up` to recall it after you finish in the rewind menu.\nThe rewind menu lists the prompts you sent during the session. Select the point you want to act on, then choose an action:\n* **Restore code and conversation**: revert both code and conversation to that point\n* **Restore conversation**: rewind to that message while keeping current code\n* **Restore code**: revert file changes while keeping the conversation\n* **Summarize from here**: compress the conversation from this point forward into a summary, freeing context window space\n* **Summarize up to here**: compress the conversation before this point into a summary, keeping later messages intact\nThe two code restore options appear only when the selected checkpoint has tracked file changes to revert. If no file edits were captured after that point, the menu offers only **Restore conversation**, the summarize options, and **Never mind**.\nAfter restoring the conversation or choosing Summarize from here, the original prompt from the selected message is restored into the input field so you can re-send or edit it.\nChoosing Summarize up to here leaves you at the end of the conversation with the input empty. With either summarize option, a **Summarized conversation** marker appears in the conversation where the compressed messages were.\n#### Rewind past a cleared conversation\nIf you ran `/clear` earlier in the same Claude Code process, the rewind menu shows an additional entry at the top of the list labeled `/resume \u003csession-id\u003e (previous session)`. Select it to resume the conversation that was active before `/clear` ran. The entry is available until you exit Claude Code or resume a different session.\nSummarizing doesn\u0027t change files on disk, and the original messages stay in the session transcript, so Claude can still reference the details. To guide what the summary focuses on, highlight a **Summarize** option with the arrow keys and type instructions where the row reads **add context (optional)**, then press `Enter`. Selecting the option with its number key summarizes immediately without instructions.\n  Summarize keeps you in the same session and compresses context, like a targeted `/compact`. To branch off and try a different approach while preserving the original session intact, use [`/branch`](/docs/en/sessions#branch-a-session) or `claude --continue --fork-session` instead.\nCheckpoints are particularly useful when:\n* **Freeing context space**: summarize a verbose debugging session from the midpoint forward, keeping your initial instructions intact\n### Bash command changes not tracked\nCheckpointing does not track files modified by Bash commands. For example, if Claude Code runs:\n```bash theme={null}\nThese file modifications cannot be undone through rewind. Only direct file edits made through Claude\u0027s file editing tools are tracked."
+                             },
+                             {
+                                 "id":  "S8",
+                                 "url":  "https://raw.githubusercontent.com/d-kimuson/claude-code-viewer/main/README.md",
+                                 "accessed_at_utc":  "2026-10-12T05:06:42.6570817Z",
+                                 "http_status":  200,
+                                 "decoded_utf8_sha256":  "3a93463b108f3d2245e2c417cb86f4a94da68e68f746a019848e77d9e2f49ae9",
+                                 "character_count":  39178,
+                                 "excerpt_selection":  "First 32 lines matching capability keywords, capped at 4500 characters. Excerpts are incomplete and do not replace full-page review.",
+                                 "excerpt_truncated":  true,
+                                 "excerpt":  "[![CI](https://github.com/d-kimuson/claude-code-viewer/actions/workflows/ci.yml/badge.svg)](https://github.com/d-kimuson/claude-code-viewer/actions/workflows/ci.yml)\nA full-featured web-based Claude Code client that provides complete interactive functionality for managing Claude Code projects. Start new conversations, resume existing sessions, monitor running tasks in real-time, and browse your conversation history—all through a modern web interface.\n## Important Notice: Agent SDK and Subscription Usage\n\u003e In response, **chat sending, session resuming, permission approval, and `AskUserQuestion`** have been made opt-in.\n\u003e Note that real-time conversation log viewing, session history browsing, Git operations, and all other read-oriented features are implemented independently of the Agent SDK and remain fully available regardless of your authentication mode. You can start a Claude Code session from the CLI (or the built-in terminal) and watch it live in Claude Code Viewer without any restrictions.\n- **Subscription** — Opts out of Agent SDK chat features. The chat input switches to a copy mode: configure your session options in the form, then click the **Copy** button to get the equivalent `claude` CLI command with the corresponding arguments already set. Paste and run it in any terminal to start or resume your session. Once the session is running, Claude Code Viewer will display the conversation in real-time as usual.\nClaude Code Viewer is a web-based Claude Code client focused on **comprehensive session log analysis**. It preserves and organizes all conversation data through strict schema validation and a progressive disclosure UI that reveals details on demand.\n```bash\n```bash\nThe server will start on port 3400 (or the default port 3000). Open `http://localhost:3400` in your browser to access the interface.\n```bash\n  -h, --hostname \u003chostname\u003e        Hostname to listen on (default: localhost)\n   ```bash\nClaude Code Viewer is a **PWA (Progressive Web App)**. On mobile, tap \"Add to Home Screen\" to get an app-like experience with an optimized UI and push notifications when sessions complete.\n```bash\nThe base path accepts nested URL-safe segments such as `/tools/ccv`. Values containing traversal segments, backslashes, query strings, fragments, spaces, or percent-encoding are rejected.\n| `-h, --hostname \u003chostname\u003e`     | `HOSTNAME`                  | Hostname to listen on for remote access                                                                                                                                                                                                                                                                        | `localhost`   |\n| `--claude-dir \u003cclaude-dir\u003e`     | `CCV_GLOBAL_CLAUDE_DIR`     | Path to Claude directory where session logs are stored                                                                                                                                                                                                                                                         | `~/.claude`   |\n| `--terminal-shell \u003cpath\u003e`       | `CCV_TERMINAL_SHELL`        | Shell executable for terminal sessions (e.g. `/bin/zsh`)                                                                                                                                                                                                                                                       | (auto-detect) |\n| `--terminal-unrestricted`       | `CCV_TERMINAL_UNRESTRICTED` | When set to `1` (env) or when the flag is present (CLI), disables the restricted shell flags for bash                                                                                                                                                                                                          | (unset)       |\n| `--api-only`                    | `CCV_API_ONLY`              | Run in API-only mode. Disables Web UI, terminal WebSocket, and non-essential endpoints. Only core API routes (`/api/version`, `/api/config`, `/api/projects`, `/api/claude-code`, `/api/search`, `/api/sse`) are exposed. Useful for integrating with external tools like n8n                                  | (unset)       |\n1. **Session cookie**: Use the `/api/auth/login` endpoint to set the `ccv-session` cookie, then include it in subsequent requests.\n| Hide sessions without user messages  | true                         | Claude Code creates logs for operations lik"
+                             },
+                             {
+                                 "id":  "S9",
+                                 "url":  "https://raw.githubusercontent.com/daaain/claude-code-log/main/README.md",
+                                 "accessed_at_utc":  "2026-10-12T05:06:44.5395211Z",
+                                 "http_status":  200,
+                                 "decoded_utf8_sha256":  "ffab359dd2b14d27ef5752e3b32023bf2fc868d518e2224c01827da761428c3f",
+                                 "character_count":  18214,
+                                 "excerpt_selection":  "First 32 lines matching capability keywords, capped at 4500 characters. Excerpts are incomplete and do not replace full-page review.",
+                                 "excerpt_truncated":  false,
+                                 "excerpt":  "A Python CLI tool that converts Claude Code transcript JSONL files into readable HTML and Markdown (plus JSON for tooling).\n▶️ **[Feature walkthrough](https://daaain.github.io/claude-code-log/demos/)**: six short chapters on the archive index and search, reading a session, folding and filtering, agents and forks, and live sessions.\nThis tool generates clean, minimalist HTML pages showing user prompts and assistant responses chronologically. It\u0027s designed to create a readable log of your Claude Code interactions with support for both individual files and entire project hierarchies.\n\u003e Experimental provider support is now available for single-session exports from\n\u003e `--provider agy|codex --session-id \u003cid\u003e`; these integrations may change as the\n- **Interactive TUI (Terminal User Interface)**: Browse and manage Claude Code sessions with real-time navigation, summaries, and quick actions for HTML export and session resuming\n- **Watch Mode**: `claude-code-log watch` re-converts as a session is written, so Markdown in an editor or Obsidian stays current; `claude-code-log serve --watch` makes an open session page grow as messages arrive, keeping your scroll position and folded sections\n- **Individual Session Files**: Generate separate HTML files for each session with navigation links\n- **Single File or Directory Processing**: Convert individual JSONL files or specific directories\n- **Session Navigation**: Interactive table of contents with session summaries and quick navigation\n- **Token Usage Tracking**: Display token consumption for individual messages and session totals\n- **Runtime Message Filtering**: JavaScript-powered filtering to show/hide message types (user, assistant, system, tool use, etc.)\n- **Chronological Ordering**: All messages sorted by timestamp across sessions\n- **Interactive timeline**: Generate an interactive, zoomable timeline grouped by message times to navigate conversations visually\n- **Themes**: `--theme minimal` gives a compact light/dark page where sub-agents and rewind forks are branches you can fold away, interleave with the main conversation or open side by side in columns (see [Choosing a Theme](#choosing-a-theme))\n- **Cross-Session Summary Matching**: Properly match async-generated summaries to their original sessions\n- **Rich Message Types**: Support for user/assistant messages, tool use/results, thinking content, images\n- **Archive Search**: `claude-code-log serve` serves the archive over loopback with full-text search across every project and session (see the [archive search guide](https://daaain.github.io/claude-code-log/archive-search/)); every generated page also has in-page search\n- **Depth Levels \u0026 Compact Mode**: `--depth session|user|assistant|agent|tool|hook` sets how deep into the message hierarchy to render and `--compact` merges repeated section headings — pairs well with `--format md` to feed past conversations back to an LLM for analysis or experience building\n- **CLI Interface**: Simple command-line tool using Click\nThis tool helps you answer questions like:\n- **\"How can I review all my Claude Code conversations?\"**\n- **\"How many tokens are my Claude Code sessions using?\"**\n- **\"What tools did Claude use in this project?\"**\n- **\"How can I share my Claude Code conversation with others?\"**\n- **\"How can I feed a past session back to an LLM for analysis or experience building?\"**\nThe TUI provides an interactive interface for browsing and managing Claude Code sessions with real-time navigation, session summaries, and quick actions.\n```bash\n- **Session Listing**: Interactive table showing session IDs, summaries, timestamps, message counts, and token usage\n- **Smart Summaries**: Prioritizes Claude-generated summaries over first user messages for better session identification\n  - `h`: Generate and open session HTML in browser\n  - `m`: Generate and open session Markdown in browser"
+                             },
+                             {
+                                 "id":  "S13",
+                                 "url":  "https://raw.githubusercontent.com/ccusage/ccusage/main/apps/ccusage/README.md",
+                                 "accessed_at_utc":  "2026-10-12T05:09:16.1435368Z",
+                                 "http_status":  200,
+                                 "decoded_utf8_sha256":  "71d127c0fc785511a3d686ec77eb7fb944e80b79385cfd26bf77a32944941cf6",
+                                 "character_count":  13689,
+                                 "excerpt_selection":  "First 32 lines matching capability keywords, capped at 4500 characters. Excerpts are incomplete and do not replace full-page review.",
+                                 "excerpt_truncated":  false,
+                                 "excerpt":  "\u003e Analyze coding (agent) CLI token usage and costs from local data.\n```bash\nccusage reads local usage data from coding agent CLIs and turns it into daily, weekly, monthly, and session reports.\nUse `ccusage daily`, `ccusage weekly`, `ccusage monthly`, or `ccusage session` to include every detected source in one report.\n```bash\n```bash\nbunx ccusage session  # All detected sources by session\nbunx ccusage amp session\nbunx ccusage pi daily --pi-path /path/to/sessions\nbunx ccusage pi daily --pi-path /path/to/sessions,/archive/pi/sessions\nbunx ccusage daily --sections daily,monthly,session --json\n- 💬 **Session Report**: View usage grouped by conversation sessions\n- 🤖 **Model Tracking**: See which models are used across supported sources\n- 📊 **Model Breakdown**: View per-model cost breakdown with `--breakdown` flag\n- 📁 **Custom Paths**: Support for custom local data directory locations\n- 📋 **Enhanced Model Display**: Model names shown as bulleted lists for better readability\n- 📄 **JSON Output**: Export data in structured JSON format with `--json`\n- 💰 **Cost Tracking**: Shows costs in USD for each day/month/session\n- 🧩 **Custom Pricing Overrides**: Override token pricing per raw model name in `ccusage.json` without rebuilding\nContributor setup uses the Nix flake development environment with [nix-direnv](https://github.com/nix-community/nix-direnv) for pinned tools, and `just` for everyday development tasks. Install [Nix](https://nixos.org/) with the `nix-command` and `flakes` experimental features enabled, then let nix-direnv load the dev shell automatically when you enter the directory:\n# Allow direnv to load the Nix dev shell\nThe dev shell provides the pinned `pnpm`, Rust toolchain, GitHub CLI, git hooks, generated local agent skills, package tooling, and project utilities from `flake.nix`. Run `pnpm install --frozen-lockfile` only when a task needs workspace `node_modules`.\n```bash\nThe scheduled `update pricing` workflow runs the same update and validation, then opens a PR when the pricing snapshot changes."
+                             },
+                             {
+                                 "id":  "S14",
+                                 "url":  "https://raw.githubusercontent.com/HizTam/codex-history-viewer/main/README.md",
+                                 "accessed_at_utc":  "2026-10-12T05:09:17.2487396Z",
+                                 "http_status":  200,
+                                 "decoded_utf8_sha256":  "3a387146e247c5c7fa6b392c8f338619d5a3d685121eea4fb6eb911055900a9c",
+                                 "character_count":  48014,
+                                 "excerpt_selection":  "First 32 lines matching capability keywords, capped at 4500 characters. Excerpts are incomplete and do not replace full-page review.",
+                                 "excerpt_truncated":  true,
+                                 "excerpt":  "Browse, search, organize, and resume past Codex CLI / Claude Code sessions through the official VS Code extensions or prepared CLI commands.\nCodex and Claude Code sessions can become hard to revisit once they are no longer active in the editor. Codex History Viewer keeps those local session files useful by presenting them in a searchable session history browser inside VS Code.\nUse it to find past prompts, reuse useful answers, inspect file changes, organize sessions with tags and notes, resume same-source sessions, and prepare handoff context for other AI tools.\n- **Revisit past Codex CLI and Claude Code sessions** that are no longer easy to access from the active editor flow.\n- Browse sessions in a year / month / day tree, a sortable session list, or project views with related project groups.\n- Open History Insights to review activity, token usage, file changes, and breakdowns by source, model, project, and tool.\n- Optionally include Codex `archived_sessions`, hide sessions without changing provider files, and switch among active, archived, and hidden display targets.\n- Optionally read compressed Codex histories (`.jsonl.zst`) in History, Search, the Session Viewer, History Insights, and File AI Change History. (Experimental; disabled by default.)\n- Show valid cached History and Pinned data immediately at startup while local session files refresh in the background.\n- Search across prompts, responses, tool output, tags, notes, and attachment metadata, with shared search history.\n- View sessions in the Session Viewer with Markdown, including individually copyable tables, GFM task lists, Mermaid diagrams, code highlighting, math rendering, tool cards, and file-change diffs.\n- Enable an opt-in turn timeline for Codex and Claude Code sessions to see turn boundaries, turn summaries, completed-turn folding, and running state in live mode.\n- Use Agent Runs to distinguish Codex and Claude Code sub-agent sessions and inspect parent, sibling, and descendant relationships in a right-side tree. (Disabled by default.)\n- Use Branch Navigation to inspect and switch between locally forked Codex histories, histories before and after Codex prompt edits, and Claude Code **Fork conversation** histories in their respective session views. (Disabled by default.)\n- Identify commands entered in Claude Code\u0027s shell mode with a **Terminal input** badge and view their results in **Terminal output** cards.\n- Read progress updates and expandable thinking text saved in Claude Code histories, with search, bookmarks, copying, and Markdown export.\n- View files sent by Claude Code with their names, descriptions, and delivery status, and open local files from their names.\n- Open File AI Change History for a workspace file, including directly from a Session Viewer diff card, to review Codex / Claude Code diffs that touched that file.\n- Bookmark important history cards and use date-guide markers to revisit them quickly.\n- Keep open session tabs up to date with header-controlled auto-refresh modes.\n- Switch an open Session Viewer between a dedicated tab and a temporary tab from its header.\n- Show supported image attachments, Claude Code documents, and file references from Codex / Claude Code sessions as compact cards.\n- Organize sessions with pins, tags, notes, custom titles, project aliases, project associations, saved searches, search history, display modes, and filters.\n- Experimental opt-in restoration for session tabs, File AI Change History, History Insights, and the dedicated settings page after Reload Window or VS Code restart.\n- Resume past sessions through the official Codex and Claude Code VS Code extensions or prepare commands for resuming them with the CLI.\n- Copy session IDs and session file paths from the Session Viewer or tree context menus, and reveal session files in their containing folders.\n- Export and restore original session data together with extension-managed metadata such as tags, notes, custom titles, hidden state, pins, and timeline bookmarks.\n- Create handoff files and prompts when moving work to another AI tool, and copy the handoff file path directly.\n2. Use **Control** for global actions such as opening settings, importing sessions, configuring default search roles, rebuilding the cache, and emptying the trash. **Open Settings** opens the categorized settings page; use its **Maintenance** page for settings backups and access to the standard VS Code settings.\n3. Browse sessions under **History**. Use the pane\u0027s **...** menu "
+                             },
+                             {
+                                 "id":  "S15",
+                                 "url":  "https://raw.githubusercontent.com/prime-radiant-inc/claude-session-viewer/main/README.md",
+                                 "accessed_at_utc":  "2026-10-12T05:09:18.4289919Z",
+                                 "http_status":  200,
+                                 "decoded_utf8_sha256":  "15942d5991174c28eb7e3d9ab0c86d0ecb173c12c0923fc44eaa6149daec0dc4",
+                                 "character_count":  272,
+                                 "excerpt_selection":  "First 32 lines matching capability keywords, capped at 4500 characters. Excerpts are incomplete and do not replace full-page review.",
+                                 "excerpt_truncated":  false,
+                                 "excerpt":  "# Session Explorer\nA local web app for browsing Claude Code and OpenAI Codex CLI session histories.\nMulti-agent session viewing and Codex format support inspired by [Wes McKinney\u0027s agent-session-viewer](https://github.com/wesm/agent-session-viewer)."
+                             },
+                             {
+                                 "id":  "S16",
+                                 "url":  "https://raw.githubusercontent.com/thevibeworks/ccx/main/README.md",
+                                 "accessed_at_utc":  "2026-10-12T05:09:18.8703948Z",
+                                 "http_status":  200,
+                                 "decoded_utf8_sha256":  "4c81cb21373d1a5d88e41d30880da3c1ac82677736d3cefb280593b265400189",
+                                 "character_count":  6921,
+                                 "excerpt_selection":  "First 32 lines matching capability keywords, capped at 4500 characters. Excerpts are incomplete and do not replace full-page review.",
+                                 "excerpt_truncated":  false,
+                                 "excerpt":  "**Session viewer for coding agents** — Browse, search, and export conversations from Claude Code, Codex, and Grok.\nOpens a browser at `localhost:8080`. That\u0027s it.\n![Session Info](screenshots/ccx-session-info.jpeg)\n![Export](screenshots/ccx-export.jpg)\nccx reads session files from `~/.claude/`, `~/.codex/`, and `~/.grok/` and gives you a fast, keyboard-driven interface to browse them.\n- **Multi-provider** — Claude Code + Codex + Grok sessions merged by project, with provider badges\n- **Two-panel navigation** — Projects → Sessions → Conversation tree\n- **Global sessions** — `/sessions` lists every session across projects; filter by text/provider/project/model/date, group by project/day/provider/model, sort by recency/messages/prompts/tokens\n- **Live tail** — Watch active sessions update in real-time\n- **In-session search** — Filter by User, Response, Tools, Agents, Thinking\n- **Export shapes** — HTML, Markdown, Org-mode; `--shape brief` strips tool noise, `--shape human` emits only the human\u0027s numbered, citable turns\n- **Turn evidence** — per-turn review panel in the web UI (steps, tools, edited files, failed calls, cost) numbered identically to `ccx trace`, with `?turn=N` deep links\n- **Runner bridge** — `ccx run \u003cskill\u003e --agent claude|codex|grok` executes a bundled skill through your installed agent CLI, with `--dry-run` disclosure and a session receipt\n- **Context trace** — `ccx trace` emits evidence for Context Folding\n- **Time-sliced logs** — `ccx log` cuts through long-running session JSONL by timestamp\n- **Window digest** — `ccx insight` answers \"what was worked on this week, everywhere\": per session the human\u0027s prompts, the agent\u0027s final answer, edits, commits, interventions and cost (with coverage), rolled up by workspace, day, provider and model; JSON for skills, HTML cockpit for humans\nSingle binary, zero dependencies, read-only. Never touches your session files.\n```bash\ncurl -fsSL https://raw.githubusercontent.com/thevibeworks/ccx/main/install.sh | bash\n```bash\n```bash\n```bash\nccx sessions                     # List recent sessions for this workspace\nccx sessions --all               # List recent sessions across all projects\nccx sessions --provider=cx       # Codex sessions in this workspace\nccx sessions --after=2026-03-01  # Date filtered\nccx sessions --scope yesterday --tz +8 --all --json # Session containers by end time\nccx view [session]               # View in terminal\nccx view [session] --at MSG_ID   # Around one cited message (search --hits / trace message_id)\nccx export --shape brief         # Export conversation-only HTML\nccx export --shape human         # Only the human\u0027s turns, citable\nccx trace [session] -o trace.json # Extract evidence for context folding"
+                             },
+                             {
+                                 "id":  "S17",
+                                 "url":  "https://raw.githubusercontent.com/aDragon0707/sacp/main/README.md",
+                                 "accessed_at_utc":  "2026-10-12T05:09:19.3707268Z",
+                                 "http_status":  200,
+                                 "decoded_utf8_sha256":  "330c74f4eed65c90ca3f501a60688dd226f238e462aa5103dea90692a7c18aeb",
+                                 "character_count":  11031,
+                                 "excerpt_selection":  "First 32 lines matching capability keywords, capped at 4500 characters. Excerpts are incomplete and do not replace full-page review.",
+                                 "excerpt_truncated":  false,
+                                 "excerpt":  "\u003e No receipt, no trust.\nAs agents move from single replies to tool use, memory, delegation, and multi-step workflows, final-answer evaluation is no longer enough. SACP makes the intermediate work auditable: what was claimed, what evidence supports it, who owns the next step, whether memory was promoted safely, and where human approval is required.\nIt does not replace LangGraph, MCP, A2A, OpenClaw, or agent SDKs. It adds a small audit layer:\nWhen an agent says \"done\", it should produce a checkable work receipt.\nAgentOps Doctor is the first reference tool in this repo. Paste in messy agent output, and it returns a status code, claim findings, missing evidence, next owner, required fix, and a translated SACP receipt.\n- a model claims tests passed without showing command output;\n- a tool result is summarized without preserving evidence;\nSACP turns these failures into auditable work records. The protocol is intentionally small: Markdown/YAML packets, local validators, dirty-run cases, and example receipts that can be inspected by humans and tools.\n    A[Agent claim: done] --\u003e B{Evidence attached?}\n    B -- No --\u003e C[Missing evidence]\n    E -- No --\u003e G[Derive receipt]\nSACP does not decide whether the underlying task is true by itself. It makes the claim, evidence, approval boundary, current status, and next owner visible enough for a human or trusted system to check.\n## Why OpenAI Models And Codex Matter\nSACP is model-agnostic, but OpenAI models and Codex are a natural testbed because coding agents already perform long-horizon work: reading files, editing code, running tests, delegating subtasks, and reporting completion. API credits would be used to turn this repo into a stronger open-source evaluation harness:\n- run GPT-based agent workflows and translate them into SACP receipts;\n- test failure modes such as memory drift, delegated task drift, missing evidence, and tool-use audit gaps;\n- compare baseline agent outputs against SACP-instrumented workflows;\n```bash\npython agentops-doctor-skill/agentops_doctor.py agentops-doctor-skill/examples/done_but_no_receipt.md\nreceipt_completeness\ntranslated_receipt\nTry a missing-evidence example:\n```bash\n```bash\n```bash\n## Receipt Chain For Long-Running Agent Work\nReceipt Chain is an optional SACP profile for long-running work, multi-module work, multi-agent handoff, and cross-model continuation. It does not schedule agents. It preserves auditable work state between them.\nRead: [SACP_RECEIPT_CHAIN.md](./SACP_RECEIPT_CHAIN.md), [Chinese version](./SACP_RECEIPT_CHAIN.zh-CN.md), [multi-agent project example](./examples/receipt_chain_multi_agent_project.yaml), and [research publish example](./examples/receipt_chain_research_publish.yaml).\n## Local Demo Page\nOpen [sacp-demo.html](./sacp-demo.html) directly in a browser to see a static explanation of what SACP changes: raw completion claims become auditable receipts with evidence, next owner, and human decision boundaries.\n```bash\n- Did it claim completion without a receipt?"
+                             }
+                         ],
+    "community_issues":  [
+                             {
+                                 "id":  "C1",
+                                 "url":  "https://github.com/langchain-ai/langgraph/issues/7417",
+                                 "title":  "Long tool calls (~180s+) silently re-executed from checkpoint on LangGraph Cloud",
+                                 "state_at_access":  "open",
+                                 "created_at":  "2026-04-05T09:43:38Z",
+                                 "updated_at":  "2026-10-05T23:15:37Z",
+                                 "accessed_at_utc":  "2026-10-12T05:06:29.8722963Z",
+                                 "comments_at_access":  85,
+                                 "author_association":  "NONE",
+                                 "source_query":  "Q1",
+                                 "issue_body_decoded_utf8_sha256":  "8741cc8070faadffa45391c25a6a3cede7446b0369580d7dcde111956514f426",
+                                 "body_excerpt":  "### Problem\n\nWhen a tool call takes longer than ~3 minutes on LangGraph Cloud, it gets silently re-dispatched from the last checkpoint while the original is still running. Both the original and the duplicate complete successfully, resulting in 2-3x redundant work and cost.\n\nWe\u0027re using deepagents\u0027 `SubAgentMiddleware`, where the main agent dispatches sub-agents via a `task()` tool that internally calls `subagent.ainvoke()`. These sub-agents are standard LangGraph agents making multiple sequential LLM + tool calls, and they routinely take 3-10 minutes.\n\n### What we observe\n\nAt ~180s after a long tool call starts, duplicate runs appear in the trace with:\n- Identical tool call arguments (same content hash)\n- Their own `tools` node but **no preceding `model` node** — so they\u0027re not triggered by an LLM decision\n- Both original and duplicate complete successfully\n- The pattern is consistent across langgraph 1.1.3 through 1.1.6, EU Cloud, Plus tier\n\n### What we tried (no effect)\n\n| Setting | Result |\n|---------|--------|\n| `BG_JOB_SHUTDOWN_GRACE_PERIOD_SECS=900` | Still re-executes at ~180s |\n| `BG_JOB_ISOLATED_LOOPS=true` | No change |\n| `asyncio.to_thread()` wrapping the long call | Interval doubled to ~360s but still re-executes |\n\n### What we found in the source\n\nWe looked at the installed `langgraph-api` (v0.7.28 and v0.7.96) to understand the mechanism:\n\n- `BG_JOB_HEARTBEAT = 120` is hardcoded in `config/__init__.py` (not configurable via env var)\n- The queue sweep runs every `BG_JOB_HEARTBEAT * 2` (240s) and calls `Runs.Sweep()` on the Go persistence server\n- `Runs.enter()` opens a gRPC stream that \"starts heartbeat and Redis cancellation listening on the server\"\n- The `listen_for_signals` task runs as a parallel `asyncio.Task`, so the gRPC stream should remain open during a long `await ainvoke()`\n- `CancelledError` is explicitly retriable (`ALL_RETRIABLE_EXCEPTIONS`), so swept runs go back to `pending` and get re-dispatched\n\nWe also noticed that the Helm chart sets `terminationGracePeriodSeconds: 30` while `BG_JOB_SHUTDOWN_GRACE_PERIOD_SECS` defaults to 180s — but we\u0027re not sure if this applies to managed Cloud.\n\n### What we don\u0027t understand\n\nWe can\u0027t inspect the Go server, so we don\u0027t know what criteria `Runs.Sweep()` uses to mark a run as stale. The gRPC stream from `Runs.enter()` appears to stay open (the listener task is async and should run concurrently), yet the run still gets swept.\n\nCould you help us understand:\n\n1. What does the Go server consider a \"stale\" run? Is it based on the gRPC stream health, a timer, checkpoint activity, or something else?\n2. Is there anything we can do from the Python side to signal liveness during a long `await` inside a tool call?\n3. Is `BG_JOB_HEARTBEAT` related to the stale detection, or is it only used for th",
+                                 "body_excerpt_truncated":  true,
+                                 "discussion_comments_read":  false,
+                                 "reproduced":  false
+                             },
+                             {
+                                 "id":  "C2",
+                                 "url":  "https://github.com/anthropics/claude-code/issues/353",
+                                 "title":  "Undo/Checkpoint Feature for Correcting AI-Generated Code",
+                                 "state_at_access":  "closed",
+                                 "created_at":  "2025-03-05T22:00:59Z",
+                                 "updated_at":  "2025-10-10T14:06:58Z",
+                                 "accessed_at_utc":  "2026-10-12T05:06:33.9893029Z",
+                                 "comments_at_access":  83,
+                                 "author_association":  "NONE",
+                                 "source_query":  "Q5",
+                                 "issue_body_decoded_utf8_sha256":  "2dbbaeec14bbb65a874b643565899ab39d77ea11c3035d606f06b694021a9fca",
+                                 "body_excerpt":  "**Bug Description**\nNEED AN UNDO OR CHECKPOINT FEATURE SO USERS CAN GO BACK AND REVERSE CODE OR MISTAKES THAT CLAUDE MAKES\n\n**Environment Info**\n- Platform: macos\n- Terminal: ghostty\n- Version: 0.2.32\n- Feedback ID: 175ac8be-c9ab-4955-8051-086d22413551\n",
+                                 "body_excerpt_truncated":  false,
+                                 "discussion_comments_read":  false,
+                                 "reproduced":  false
+                             },
+                             {
+                                 "id":  "C3",
+                                 "url":  "https://github.com/anthropics/claude-code/issues/8850",
+                                 "title":  "[BUG] /rewind not working properly",
+                                 "state_at_access":  "closed",
+                                 "created_at":  "2025-10-03T14:18:05Z",
+                                 "updated_at":  "2025-10-28T14:07:56Z",
+                                 "accessed_at_utc":  "2026-10-12T05:08:12.7423282Z",
+                                 "comments_at_access":  20,
+                                 "author_association":  "NONE",
+                                 "source_query":  "Q10",
+                                 "issue_body_decoded_utf8_sha256":  "4d11f068655e8e69555c7e59b6423b5ea1f6819a516964f3ce4d0e39cca1b4dd",
+                                 "body_excerpt":  "### Preflight Checklist\n\n- [x] I have searched [existing issues](https://github.com/anthropics/claude-code/issues?q=is%3Aissue%20state%3Aopen%20label%3Abug) and this hasn\u0027t been reported yet\n- [x] This is a single bug report (please file separate reports for different bugs)\n- [x] I am using the latest version of Claude Code\n\n### What\u0027s Wrong?\n\nWhen I use the `/rewind` command and pick a point in the conversation history to go back to, I choose the \u0027code and conversation\u0027 option, but it seems the code is not rewinding. Also, all of my history is showing no code changes, even though I know that code changes obviously happened. but conversation is definately reverted tho\n\n### What Should Happen?\n\n/rewind command should recover my previous conversation and code changes.\n\n### Error Messages/Logs\n\n```shell\n\n```\n\n### Steps to Reproduce\n\n1. executing /rewind command\n2. choosing one of any available chat history \n3. choosing code and conversation option.\n4. enter\n\n\n\n### Claude Model\n\nSonnet (default)\n\n### Is this a regression?\n\nYes, this worked in a previous version\n\n### Last Working Version\n\n_No response_\n\n### Claude Code Version\n\n2.0.5\n\n### Platform\n\nOther\n\n### Operating System\n\nmacOS\n\n### Terminal/Shell\n\niTerm2\n\n### Additional Information\n\n_No response_",
+                                 "body_excerpt_truncated":  false,
+                                 "discussion_comments_read":  false,
+                                 "reproduced":  false
+                             },
+                             {
+                                 "id":  "C4",
+                                 "url":  "https://github.com/Arize-ai/phoenix/issues/7844",
+                                 "title":  "[playground] format for messages is overly strict",
+                                 "state_at_access":  "closed",
+                                 "created_at":  "2025-05-30T23:13:39Z",
+                                 "updated_at":  "2025-12-19T16:08:48Z",
+                                 "accessed_at_utc":  "2026-10-12T05:06:32.8074367Z",
+                                 "comments_at_access":  14,
+                                 "author_association":  "CONTRIBUTOR",
+                                 "source_query":  "Q4",
+                                 "issue_body_decoded_utf8_sha256":  "c1078dd647486b0eb53355f17f742cbd09c38e43d06c7d872f886ff7a8e5402d",
+                                 "body_excerpt":  "\n### Discussed in https://github.com/Arize-ai/phoenix/discussions/7813\n\n\u003cdiv type=\u0027discussions-op-text\u0027\u003e\n\n\u003csup\u003eOriginally posted by **sanin17** May 30, 2025\u003c/sup\u003e\nHi,\r\n\r\nI am working on a project using browser-use with Azure Open AI (via langchain library in python) to do some automation.  I\u0027m using a self-hosted Phoenix to trace and improve the prompts.  I can see the traces just fine, but when I click on the \"Playground\" button to work with the prompt, I get the error \"Unable to parse span input messages, expected messages which include a role and content\".  \r\n\r\nA little more info - the only way I am able to see the raw JSON is to click the \"Add to Dataset\" button which shows the json input.  In it, I see some of the json objects in the messages array to only contain role, but no content.  An example:\r\n\r\n`{ \"role\" : \"assistant\" }, { \"role\": \"tool\" }, {\"role\" : \"user\", \"content\": \"Action Result: Scrolled to Text\" }`\r\n\r\nBecause some of the roles don\u0027t have a \"content\", it cannot parse it into the playground.  My Gemini based research shows that Langchain Azure Open AI library will omit the \"content\" field if the string is empty, but it\u0027s still valid for there to be a role without content because the assistant may trigger a tool, like the example above.  (The above example is just a portion of the messages array, there\u0027s tools array that follows as well)\r\n\r\nIs this a known issue on your end?  Somewhere the standard is not being adhered to and I\u0027m wondering if Phoenix could be a bit more resilient here to replay a trace if this situation exists.\u003c/div\u003e",
+                                 "body_excerpt_truncated":  false,
+                                 "discussion_comments_read":  false,
+                                 "reproduced":  false
+                             },
+                             {
+                                 "id":  "C5",
+                                 "url":  "https://github.com/anthropics/claude-code/issues/39587",
+                                 "title":  "[FEATURE] Save conversation to local file (markdown/JSON export)",
+                                 "state_at_access":  "closed",
+                                 "created_at":  "2026-03-26T22:57:22Z",
+                                 "updated_at":  "2026-09-14T14:13:32Z",
+                                 "accessed_at_utc":  "2026-10-12T05:08:11.4722561Z",
+                                 "comments_at_access":  10,
+                                 "author_association":  "NONE",
+                                 "source_query":  "Q9",
+                                 "issue_body_decoded_utf8_sha256":  "cbaa514b8fa33e28d7996a0b9d90bef87bf8aa98f5ad85b22ce3d6e85a36fe81",
+                                 "body_excerpt":  "### Preflight Checklist\n\n- [x] I have searched [existing requests](https://github.com/anthropics/claude-code/issues?q=is%3Aissue%20label%3Aenhancement) and this feature hasn\u0027t been requested yet\n- [x] This is a single feature request (not multiple features)\n\n### Problem Statement\n\nConversations in the Claude desktop app (Chat and Cowork) are stored in a binary IndexedDB database that cannot be read or searched outside the app. There is no way to export, archive, or auto-save conversations as readable files. This makes it impossible to keep a personal archive, reference past chats in other tools, or move context between Claude Code, Chat, and Cowork.\n\n### Proposed Solution\n\nAdd an option in Settings to auto-save conversations as local files (markdown or JSON) to a user-specified folder. Ideally this would happen automatically when a conversation ends. A manual \"Save conversation\" button would also be helpful. This would apply to Chat, Cowork, and Claude Code so conversations can be accessed, searched, and shared across all three environments.\n\n### Alternative Solutions\n\nI set up a workaround using Claude Code hooks and a Python script to save Claude Code sessions automatically. However there is no equivalent hook system for the Claude desktop app (Chat/Cowork) since it is a protected Windows app with no plugin system.\n\n### Priority\n\nCritical - Blocking my work\n\n### Feature Category\n\nCLI commands and flags\n\n### Use Case Example\n\n_No response_\n\n### Additional Context\n\n_No response_",
+                                 "body_excerpt_truncated":  false,
+                                 "discussion_comments_read":  false,
+                                 "reproduced":  false
+                             },
+                             {
+                                 "id":  "C6",
+                                 "url":  "https://github.com/anthropics/claude-code/issues/45996",
+                                 "title":  "[BUG] /export produces 0-byte files and empty clipboard — rendering pipeline returns empty string",
+                                 "state_at_access":  "closed",
+                                 "created_at":  "2026-04-10T01:15:36Z",
+                                 "updated_at":  "2026-04-26T14:34:22Z",
+                                 "accessed_at_utc":  "2026-10-12T05:08:11.4722561Z",
+                                 "comments_at_access":  13,
+                                 "author_association":  "NONE",
+                                 "source_query":  "Q9",
+                                 "issue_body_decoded_utf8_sha256":  "a75ea2786212dfc3917bf35e9cb9852205e6e4217babdad4e7732e46b30c1d27",
+                                 "body_excerpt":  "### Preflight Checklist\n\n- [x] I have searched [existing issues](https://github.com/anthropics/claude-code/issues?q=is%3Aissue%20state%3Aopen%20label%3Abug) and this hasn\u0027t been reported yet\n- [x] This is a single bug report\n- [x] I am using the latest version of Claude Code\n\n### What\u0027s Wrong?\n\n`/export` consistently produces empty output. Both the file and clipboard paths generate 0 bytes of content. The command appears to succeed — the \"Conversation exported to: ...\" message is displayed — but the resulting file is 0 bytes. Clipboard export similarly reports success while the clipboard is empty. This occurs regardless of conversation length, including long sessions with hundreds of messages.\n\n### What Should Happen?\n\n`/export test-output` should produce a non-empty file containing the conversation transcript. `/export` → \"Copy to clipboard\" should place the conversation text on the system clipboard.\n\n### Error Messages/Logs\n\n```\nNo error is displayed. The success message shows normally:\n  \"Conversation exported to: test-output.txt\"\nBut:\n  $ ls -la test-output.txt\n  -rw-r--r--  1 user  staff  0 Apr  9 19:30 test-output.txt\n```\n\n### Steps to Reproduce\n\n1. Start a Claude Code session (CLI, Homebrew cask binary)\n2. Have any conversation (even a single exchange works)\n3. Run `/export test-output`\n4. Check file size: `ls -la test-output.txt` → 0 bytes\n5. Or: run `/export`, select \"Copy to clipboard\", paste → empty\n\n### Claude Model\n\nOpus\n\n### Is this a regression?\n\nYes; `/export` worked in previous versions.\n\n### Claude Code Version\n\n2.1.98 (Claude Code)\n\n### Platform\n\nAnthropic API\n\n### Operating System\n\nMultiple: macOS, also confirmed on Fedora Linux by @Cianidos \n\n### Terminal/Shell\n\niTerm2\n\n### Additional Information\n\nI traced through the minified source in the npm package (`cli.js` from `@anthropic-ai/claude-code@2.1.98`). The rendering pipeline for `/export` is:\n\n```\n/export → agY() → ogY() → zi8() → igY() → c58()\n```\n\n**Root cause: `c58` (render-to-string) returns empty, and `igY` has no recovery path.**\n\n`c58` renders the transcript via Ink to a `PassThrough` stream. It captures only the **first** `data` event:\n\n```js\nasync function c58(q, K) {\n    let _ = \"\", z = false, Y = new PassThrough();\n    if (K !== undefined) Y.columns = K;\n    return Y.on(\"data\", (O) =\u003e {\n        if (z) return;\n        z = true;\n        _ = O.toString();\n    }),\n    await (await XB(createElement(FkY, null, q), \n           { stdout: Y, patchConsole: false })).waitUntilExit(),\n    _;\n}\n```\n\nThe `PassThrough` has no `columns`/`rows`/`isTTY` properties (the Ink renderer defaults to `80×24`, so dimensions aren\u0027t the direct cause). The `FkY` wrapper exits via `setTimeout(exit, 0)` after one render frame.\n\nThen `igY` breaks on the first empty chunk with no fallback:\n\n```js\nfor",
+                                 "body_excerpt_truncated":  true,
+                                 "discussion_comments_read":  false,
+                                 "reproduced":  false
+                             },
+                             {
+                                 "id":  "C7",
+                                 "url":  "https://github.com/anthropics/claude-code/issues/15405",
+                                 "title":  "[FEATURE] Pre-compaction checkpoint dialog",
+                                 "state_at_access":  "closed",
+                                 "created_at":  "2025-12-26T05:45:11Z",
+                                 "updated_at":  "2026-03-28T14:21:13Z",
+                                 "accessed_at_utc":  "2026-10-12T05:08:14.1027758Z",
+                                 "comments_at_access":  10,
+                                 "author_association":  "NONE",
+                                 "source_query":  "Q12",
+                                 "issue_body_decoded_utf8_sha256":  "3faaa90b7932515700593fb3c808e76063d05e82b5c8426e9acadb7e8f0ec0d7",
+                                 "body_excerpt":  "### Preflight Checklist\n\n- [x] I have searched [existing requests](https://github.com/anthropics/claude-code/issues?q=is%3Aissue%20label%3Aenhancement) and this feature hasn\u0027t been requested yet\n- [x] This is a single feature request (not multiple features)\n\n### Problem Statement\n\nDuring long agentic sessions, Claude Code\u0027s context compaction triggers silently and drops information unpredictably. \n\nI was implementing a Logs tab feature for my embedded toolkit - JSON endpoint, parsing, display, filtering. Mid-task, compaction happened. The agent delivered a working feature - impressive given what it retained - but the filtering functionality got lost.\n\nThe problem: I had zero visibility into what was about to be dropped, and no opportunity to say \"filtering is the critical part, prioritize that.\" The agent performed perfectly within its constraints, but I only discovered the gap when the task was \"done.\"\n\nThis makes long-context agentic work feel like a gamble rather than a collaboration.\n\n### Proposed Solution\n\nBefore compaction, show an interactive checkpoint prompt:\n\n```\n⚠️ Context reaching capacity. Compaction needed.\n\nI plan to retain:\n- Log tab basic implementation ✓\n- JSON endpoint structure ✓\n\nLikely to lose detail on:\n- Filtering feature\n- Auto-refresh polling\n\nWhat\u0027s critical to preserve? [user input]\n```\n\nThis lets the user make an informed tradeoff. If something\u0027s missing afterward, it\u0027s a decision they made, not a silent loss they discover later.\n\n### Alternative Solutions\n\nCurrent workarounds:\n- Overstuffing CLAUDE.md with context (pollutes every session)\n- Manually re-explaining lost context after compaction (wastes tokens, breaks flow)\n- Keeping sessions artificially short (defeats the purpose of agentic work)\n- Accepting the loss and fixing gaps manually (current reality)\n\nNone of these address the core issue: lack of user agency in the compaction decision.\n\n### Priority\n\nHigh - Significant impact on productivity\n\n### Feature Category\n\nInteractive mode (TUI)\n\n### Use Case Example\n\n1. Working on ESP32 embedded project with custom logging system\n2. Ask Claude Code to implement a Logs tab in my dev toolkit\n3. Task involves: firmware-side JSON endpoint, Go API bridge, frontend tab with display + filtering\n4. Context fills up mid-implementation\n5. WITH THIS FEATURE: Claude shows me it\u0027s about to drop \"filtering\" details, I say \"keep filtering, drop the API bridge details, I can re-explain that part\"\n6. Compaction happens with my priorities preserved\n7. Feature ships complete, no silent gaps\n\n### Additional Context\n\nThis transforms compaction from \"silent information loss\" into \"tactical retreat you authorized.\"\n\nThe current experience feels like a soldier dying mid-mission - you only find out when objectives aren\u0027t fully met. The proposed ",
+                                 "body_excerpt_truncated":  true,
+                                 "discussion_comments_read":  false,
+                                 "reproduced":  false
+                             },
+                             {
+                                 "id":  "C8",
+                                 "url":  "https://github.com/langfuse/langfuse/issues/18030",
+                                 "title":  "feat(in-app-agent): unbounded conversation context growth — no token-budget handling on replay",
+                                 "state_at_access":  "open",
+                                 "created_at":  "2026-09-29T07:46:33Z",
+                                 "updated_at":  "2026-10-06T10:03:28Z",
+                                 "accessed_at_utc":  "2026-10-12T05:08:13.4649775Z",
+                                 "comments_at_access":  5,
+                                 "author_association":  "NONE",
+                                 "source_query":  "Q11",
+                                 "issue_body_decoded_utf8_sha256":  "cbbe69842366430db6ae553b5a6ebbc3db52e8749dccaef17192388f33e11a54",
+                                 "body_excerpt":  "### Problem\n\nThe in-app agent\u0027s conversation context grows without bound. Conversation history is event-sourced in `in_app_agent_events` and replayed into model messages on every step, and as far as I can tell there is no token-limit handling anywhere on that path — no truncation, no rolling window, no summarization:\n\n- Replay: `getConversationMessagesForReplay` → `sanitizeConversationMessagesForReplay` in `packages/shared/src/in-app-agent/server/persistence.ts` only drops reasoning messages, redirect tool results, and unpaired tool calls — a syntax-level cleanup, not a budget.\n- The only length-related mechanisms I found are storage-side (`compactPersistedEventDeltas` in `eventCompaction.ts` merges text/reasoning deltas) and the opt-in \"silent MCP output\" convention (`redactSilentToolMessages`, full results persisted to `/workspace/tool_calls` in the sandbox), which depends on the model choosing to pass `silent`.\n\nSo a long-running conversation eventually exceeds the model\u0027s context window and the run fails, with no graceful degradation.\n\n### Proposed direction\n\nA token-budget layer when building replay messages:\n\n1. Estimate the replay payload against a configurable budget (tunable alongside the existing `IN_APP_AGENT_*` tunables).\n2. When over budget, replace the oldest tool-result blocks with a short reference to the already-persisted full output (the `/workspace/tool_calls` convention already gives the agent a way to re-read them via the sandbox), or with a summary placeholder event.\n3. Only trim from the tail of the history so the cache-stable prefix (system prompt compiled per run, volatile context appended as a trailing user message by `TrailingContextProcessor`) is preserved — mirroring the existing prompt-cache design.\n4. Keep the three projections consistent: compaction happens at replay derivation, so `in_app_agent_events` stays the lossless source of truth and the display projection is unaffected.\n\n### Scope / questions\n\n- MVP could be tool-result-redaction only (no LLM summarization), which is deterministic and cheap to reason about; summarization could be a second step behind a tunable.\n- Is this already on your roadmap for the assistant, or would a PR along these lines be welcome? Happy to write this up in more detail or start with a design sketch — the constraint I\u0027d want maintainer input on is whether compaction should live in `sanitizeConversationMessagesForReplay` (shared) or in the worker-side runtime where the model call happens.\n",
+                                 "body_excerpt_truncated":  false,
+                                 "discussion_comments_read":  false,
+                                 "reproduced":  false
+                             },
+                             {
+                                 "id":  "C9",
+                                 "url":  "https://github.com/promptfoo/promptfoo/issues/9700",
+                                 "title":  "Per-test-case `repeat` option to control how many times individual tests run",
+                                 "state_at_access":  "open",
+                                 "created_at":  "2026-06-11T14:43:53Z",
+                                 "updated_at":  "2026-06-17T13:58:16Z",
+                                 "accessed_at_utc":  "2026-10-12T05:06:38.9933395Z",
+                                 "comments_at_access":  3,
+                                 "author_association":  "NONE",
+                                 "source_query":  "Q7",
+                                 "issue_body_decoded_utf8_sha256":  "1887b9afbb4134beae855818350ffbfa3934afd2faebe8637eb791a0614b2ef6",
+                                 "body_excerpt":  "**Is your feature request related to a problem? Please describe.**\n\nWhen evaluating LLM outputs, I want to run negative test cases (e.g., assertions that check the model does NOT produce a certain output) multiple times to verify consistency — since a model might pass once by chance. For positive test cases, a single run is sufficient. Currently, `repeat` is only configurable globally via `evaluateOptions.repeat`, which forces all test cases to run the same number of times. This means I either over-run positive tests (wasting cost/time) or under-run negative tests (risking false confidence).\n\n**Describe the solution you\u0027d like**\n\nAllow `repeat` to be set at the individual test case level via the `options` field, for example:\n\n```yaml\ntests:\n  - description: \"Should tell a joke\"\n    assert:\n      - type: contains\n        value: \"laugh\"\n    options:\n      repeat: 1  # positive test, once is enough\n\n  - description: \"Should not hallucinate\"\n    assert:\n      - type: not-contains\n        value: \"I don\u0027t know\"\n    options:\n      repeat: 5  # negative test, run multiple times to verify consistency\n```\n\nWhen `options.repeat` is set on a test case, it should override the global `evaluateOptions.repeat` for that specific test case only.\n\n**Describe alternatives you\u0027ve considered**\n\n- **Manually duplicating test cases in YAML:** Verbose and hard to maintain. Duplicated entries also make results harder to read in the output table.\n- **Using `evaluateOptions.repeat` globally:** Forces all tests to run the same number of times, which wastes API calls and cost for positive test cases that don\u0027t need repeated sampling.\n\n**Additional context**\n\nThis is especially useful for:\n- **Consistency/flakiness testing:** Negative assertions (e.g., `not-contains`, `not-icontains`, `javascript` guards) benefit from multiple runs to catch non-deterministic failures.\n- **Cost control:** Positive sanity-check tests don\u0027t need to be repeated, so per-test `repeat` avoids unnecessary API calls.\n\nThe change would likely be small — the `TestCaseSchema` in `src/types/index.ts` would need a `repeat` field added to the `options` object, and `src/evaluator.ts` (around line 2270) would need to prefer `testCase.options.repeat` over the global `options.repeat` when present.\n",
+                                 "body_excerpt_truncated":  false,
+                                 "discussion_comments_read":  false,
+                                 "reproduced":  false
+                             },
+                             {
+                                 "id":  "C10",
+                                 "url":  "https://github.com/promptfoo/promptfoo/issues/7077",
+                                 "title":  "[Feature Request] Native auto-retry configuration for Google AI provider (Gemini) due to frequent 503/Overloaded errors",
+                                 "state_at_access":  "open",
+                                 "created_at":  "2026-01-15T19:56:26Z",
+                                 "updated_at":  "2026-03-09T22:30:33Z",
+                                 "accessed_at_utc":  "2026-10-12T05:06:38.9933395Z",
+                                 "comments_at_access":  3,
+                                 "author_association":  "NONE",
+                                 "source_query":  "Q7",
+                                 "issue_body_decoded_utf8_sha256":  "39ac9c815806ca8b8af071a3889a12071f0e686a9aa110d49b8ad8d2a89e3045",
+                                 "body_excerpt":  "**Is your feature request related to a problem? Please describe.**\nYes, I am experiencing frequent instability when using the Google AI (Gemini) provider. The API often fails with transient errors, which causes test suites to flake significantly.\n\nCommon errors include:\n1. `Error: No output found in response: {\"content\":{},\"finishReason\":\"STOP\",\"index\":0}`\n2. `Error: No candidates returned in API response.`\n3. `Got response: {\"error\":{\"code\":503,\"message\":\"The model is overloaded. Please try again later.\",\"status\":\"UNAVAILABLE\"}}`\n\nThis is particularly problematic when these errors occur inside **LLMRubrics (graders)**. Instead of throwing an error that might trigger a global retry or simply mark the test as an error, the grader often fails to evaluate, resulting in a `FAIL` status (score 0) rather than an `ERROR`. This significantly skews the evaluation results/statistics, making the prompt look worse than it is due to API instability.\n\n**Describe the solution you\u0027d like**\nI would like to have a provider-specific configuration option for Google AI to enable auto-retries for specific transient errors (like 503 or empty responses).\n\nIdeally, I could configure it in `promptfooconfig.yaml` like this:\n\n```yaml\nproviders:\n  - id: \"google:gemini-3-pro-preview\"\n    config:\n      maxRetries: 3 # or \u0027retry: 3\u0027\n      retryDelay: 1000 # optional\n```\n\nIf the API returns a 503 Overloaded status or an empty candidate list, the provider should automatically retry the request `N` times before returning a final error to the promptfoo core.\n\n**Describe alternatives you\u0027ve considered**\nI considered using the global CLI flag `--retry-errors` (or `retryErrors` config), but this is not ideal for my use case because:\n\n1.  **Rubric Failures:** As mentioned, when an LLM grader fails due to these API glitches, it sometimes results in a failing grade (affecting the score) rather than a thrown Error that the global retry mechanism catches.\n2.  **Granularity:** I specifically want to target the unstable Google provider without forcing retries on every other part of the system or other providers.\n3.  **Data Injection:** My specific workflow for data injection makes using the global retry loop difficult/incompatible. I need the retry logic to happen at the provider execution level (encapsulated within the Google provider adapter).\n\n**Additional context**\nGoogle\u0027s Gemini API has been throwing `503 The model is overloaded` very frequently recently. Having a built-in backoff/retry mechanism specifically for this provider (similar to how some OpenAI client wrappers handle rate limits) would greatly improve the reliability of test runs in CI/CD pipelines.",
+                                 "body_excerpt_truncated":  false,
+                                 "discussion_comments_read":  false,
+                                 "reproduced":  false
+                             },
+                             {
+                                 "id":  "C11",
+                                 "url":  "https://github.com/Arize-ai/phoenix/issues/13173",
+                                 "title":  "[agents] investigate clientside tracing for external tools",
+                                 "state_at_access":  "open",
+                                 "created_at":  "2026-05-12T02:26:14Z",
+                                 "updated_at":  "2026-09-29T08:24:06Z",
+                                 "accessed_at_utc":  "2026-10-12T05:06:32.8074367Z",
+                                 "comments_at_access":  5,
+                                 "author_association":  "CONTRIBUTOR",
+                                 "source_query":  "Q4",
+                                 "issue_body_decoded_utf8_sha256":  "ab2a52eb66b0c3b66e2feb8633c2c659ef8ee110132c817e815a14c5afabc7c1",
+                                 "body_excerpt":  "## Context\n\nTracked under #11598.\n\nWhen commit 71ceeb3fa6 ripped the v1 `/chat` route, we lost backend TOOL spans for tools that the AI SDK / browser executes (the pydantic-ai `ExternalToolset` tools: `bash`, `ask_user`, `set_time_range`, `read_prompt`, `edit_prompt`, `clone_prompt_instance`, `set_spans_filter`).\n\nThe new instrumentation in `OpenInferenceToolsetWrapper` only fires when pydantic-ai actually invokes `call_tool` server-side. `ExternalToolset.call_tool` raises `NotImplementedError` — pydantic-ai surfaces a `DeferredToolRequests` and the frontend executes the tool, so no backend `call_tool` ever happens for these tools.\n\n## Short-term workaround (already landed)\n\n`OpenInferenceAgentWrapper` backfills synthetic TOOL spans on the next turn by scanning the trailing `ToolReturnPart`s in the inbound `message_history` and emitting them as children of the AGENT span. This restores trace coverage but has structural problems:\n\n- The TOOL span lives in turn N+1\u0027s trace, not the turn N trace where the model actually requested the tool.\n- Span timestamps are synthetic (set at backfill time, not at actual tool execution time).\n- We can\u0027t capture errors that happen client-side without piping more metadata back through the next request.\n\n## Goal\n\nInvestigate emitting TOOL spans from the **client** at actual execution time, so:\n\n- The TOOL span sits in the same trace as the LLM call that requested it.\n- Span timing reflects real client-side execution duration.\n- Client-side tool errors are captured natively.\n\nLikely shape: extend the AI SDK tool-execution path on the frontend to start an OTel span around each external tool invocation, parented to the trace ID emitted in that turn\u0027s `message-metadata` chunk, and ship it to the same `/v1/traces` ingestion endpoint.\n\n## Open questions\n\n- How does the frontend currently get a tracer / OTel context? (We expose trace IDs via `AssistantMessageMetadata.trace`, but no tracer SDK is wired up yet.)\n- Do we want tools to be timed end-to-end including UI-side approval prompts (e.g. `ask_user`), or just the execution portion?\n- Schema: do client TOOL spans get emitted alongside server spans in the same trace, or as a sibling trace linked by `trace.id`?\n\n## Done when\n\n- A short design doc / spike result is captured here describing the chosen approach.\n- A follow-up implementation issue is filed.\n- The backfill workaround in `OpenInferenceAgentWrapper._emit_resolved_external_tool_spans` is removed.",
+                                 "body_excerpt_truncated":  false,
+                                 "discussion_comments_read":  false,
+                                 "reproduced":  false
+                             },
+                             {
+                                 "id":  "C12",
+                                 "url":  "https://github.com/langchain-ai/langgraph/issues/7844",
+                                 "title":  "Docs safety guidance: auditable final-state receipts for agent completion claims?",
+                                 "state_at_access":  "open",
+                                 "created_at":  "2026-05-17T11:53:00Z",
+                                 "updated_at":  "2026-10-10T12:05:34Z",
+                                 "accessed_at_utc":  "2026-10-12T05:06:29.8722963Z",
+                                 "comments_at_access":  75,
+                                 "author_association":  "NONE",
+                                 "source_query":  "Q1",
+                                 "issue_body_decoded_utf8_sha256":  "368966f4f035d87a7237853a9f1d7d116dfdee332153fc59c993e6d95a7f2434",
+                                 "body_excerpt":  "Hi, I maintain SACP, a small text-first receipt layer for AI agent work:\nhttps://github.com/aDragon0707/sacp\n\nI noticed LangGraph emphasizes durable execution, human-in-the-loop review, stateful agents, and long-running workflows. That seems like a natural place for guidance on auditable final-state receipts.\n\nI also saw that this repo\u0027s `examples/` directory is archived and points users to the consolidated LangChain docs, so I am opening an issue instead of sending a docs PR to the wrong place.\n\nWould LangGraph docs accept a small safety-oriented section or example about final completion receipts?\n\nThe pattern would document:\n\n- what the agent claimed\n- what evidence supports each claim\n- who owns the next step\n- whether human approval is required before publishing, deploying, writing memory, or taking another external action\n\nConcrete failure mode:\n\n```text\nDone. All tests passed. Ready to publish.\n```\n\nThis final output contains completion, test, and external-action claims, but it may not attach command output, trace evidence, or human approval.\n\nNo runtime dependency, no behavior change, and no framework replacement. The goal is just safety guidance for auditing final agent state.\r\n",
+                                 "body_excerpt_truncated":  false,
+                                 "discussion_comments_read":  false,
+                                 "reproduced":  false
+                             }
+                         ],
+    "search_queries":  [
+                           {
+                               "id":  "Q1",
+                               "url":  "https://api.github.com/search/issues?q=repo%3Alangchain-ai%2Flanggraph%20is%3Aissue%20replay%20side%20effects%20created%3A%3C2026-10-13\u0026sort=comments\u0026order=desc\u0026per_page=5",
+                               "accessed_at_utc":  "2026-10-12T05:06:29.8722963Z",
+                               "total_count":  25,
+                               "returned_count":  5,
+                               "response_decoded_utf8_sha256":  "4b74ec8691272cd61303574e211d9311be4d0e75e200cf993b2c516353797e2d",
+                               "results":  [
+                                               {
+                                                   "url":  "https://github.com/langchain-ai/langgraph/issues/7417",
+                                                   "title":  "Long tool calls (~180s+) silently re-executed from checkpoint on LangGraph Cloud",
+                                                   "description":  null
+                                               },
+                                               {
+                                                   "url":  "https://github.com/langchain-ai/langgraph/issues/4973",
+                                                   "title":  "🚧 LangGraph v1 roadmap – feedback wanted!",
+                                                   "description":  null
+                                               },
+                                               {
+                                                   "url":  "https://github.com/langchain-ai/langgraph/issues/7844",
+                                                   "title":  "Docs safety guidance: auditable final-state receipts for agent completion claims?",
+                                                   "description":  null
+                                               },
+                                               {
+                                                   "url":  "https://github.com/langchain-ai/langgraph/issues/8026",
+                                                   "title":  "[Feature Request]: Add a high-level ApprovalNode for Human-in-the-Loop workflows",
+                                                   "description":  null
+                                               },
+                                               {
+                                                   "url":  "https://github.com/langchain-ai/langgraph/issues/3716",
+                                                   "title":  "langgraph-checkpoint-postgres (psycopg.OperationalError: sending query and params failed: SSL error: bad length) encountered across multiple version",
+                                                   "description":  null
+                                               }
+                                           ]
+                           },
+                           {
+                               "id":  "Q2",
+                               "url":  "https://api.github.com/search/issues?q=repo%3Alangchain-ai%2Flanggraph%20is%3Aissue%20checkpoint%20tools%20created%3A%3C2026-10-13\u0026sort=comments\u0026order=desc\u0026per_page=5",
+                               "accessed_at_utc":  "2026-10-12T05:06:31.2065510Z",
+                               "total_count":  296,
+                               "returned_count":  5,
+                               "response_decoded_utf8_sha256":  "81f56dc1c0ac1f43e9d58b3ab21572264f88e1f2abf0406f4504e4d1d0ec32a8",
+                               "results":  [
+                                               {
+                                                   "url":  "https://github.com/langchain-ai/langgraph/issues/7417",
+                                                   "title":  "Long tool calls (~180s+) silently re-executed from checkpoint on LangGraph Cloud",
+                                                   "description":  null
+                                               },
+                                               {
+                                                   "url":  "https://github.com/langchain-ai/langgraph/issues/4973",
+                                                   "title":  "🚧 LangGraph v1 roadmap – feedback wanted!",
+                                                   "description":  null
+                                               },
+                                               {
+                                                   "url":  "https://github.com/langchain-ai/langgraph/issues/7844",
+                                                   "title":  "Docs safety guidance: auditable final-state receipts for agent completion claims?",
+                                                   "description":  null
+                                               },
+                                               {
+                                                   "url":  "https://github.com/langchain-ai/langgraph/issues/8026",
+                                                   "title":  "[Feature Request]: Add a high-level ApprovalNode for Human-in-the-Loop workflows",
+                                                   "description":  null
+                                               },
+                                               {
+                                                   "url":  "https://github.com/langchain-ai/langgraph/issues/3716",
+                                                   "title":  "langgraph-checkpoint-postgres (psycopg.OperationalError: sending query and params failed: SSL error: bad length) encountered across multiple version",
+                                                   "description":  null
+                                               }
+                                           ]
+                           },
+                           {
+                               "id":  "Q3",
+                               "url":  "https://api.github.com/search/issues?q=repo%3Alangfuse%2Flangfuse%20is%3Aissue%20replay%20created%3A%3C2026-10-13\u0026sort=comments\u0026order=desc\u0026per_page=5",
+                               "accessed_at_utc":  "2026-10-12T05:06:31.8860295Z",
+                               "total_count":  30,
+                               "returned_count":  5,
+                               "response_decoded_utf8_sha256":  "d41494ba1712d15648e1830c837fdcd2b04d1a438feca1bdb723b7d84ea65055",
+                               "results":  [
+                                               {
+                                                   "url":  "https://github.com/langfuse/langfuse/issues/10430",
+                                                   "title":  "bug: Last span with `trace_id` in `trace_context` ovewrites the trace name",
+                                                   "description":  null
+                                               },
+                                               {
+                                                   "url":  "https://github.com/langfuse/langfuse/issues/11789",
+                                                   "title":  "bug: Multiple replicas have different webpack bundle hashes causing 404 errors",
+                                                   "description":  null
+                                               },
+                                               {
+                                                   "url":  "https://github.com/langfuse/langfuse/issues/11603",
+                                                   "title":  "bug: S3 will upload a large number of small json files, resulting in 100% inode usage. How should it be configured?",
+                                                   "description":  null
+                                               },
+                                               {
+                                                   "url":  "https://github.com/langfuse/langfuse/issues/12184",
+                                                   "title":  "bug: Model Token Costs Should Back Calculate Properly Based on Start Date",
+                                                   "description":  null
+                                               },
+                                               {
+                                                   "url":  "https://github.com/langfuse/langfuse/issues/6380",
+                                                   "title":  "bug: Trace ingestion fails during ClickHouse downtime and data is not recovered after restart",
+                                                   "description":  null
+                                               }
+                                           ]
+                           },
+                           {
+                               "id":  "Q4",
+                               "url":  "https://api.github.com/search/issues?q=repo%3AArize-ai%2Fphoenix%20is%3Aissue%20replay%20created%3A%3C2026-10-13\u0026sort=comments\u0026order=desc\u0026per_page=5",
+                               "accessed_at_utc":  "2026-10-12T05:06:32.8074367Z",
+                               "total_count":  35,
+                               "returned_count":  5,
+                               "response_decoded_utf8_sha256":  "9ceb752b8cbfdbfd625c2eee5160d72bff6f0101eb53c2c515b19d79c455852c",
+                               "results":  [
+                                               {
+                                                   "url":  "https://github.com/Arize-ai/phoenix/issues/7844",
+                                                   "title":  "[playground] format for messages is overly strict",
+                                                   "description":  null
+                                               },
+                                               {
+                                                   "url":  "https://github.com/Arize-ai/phoenix/issues/7031",
+                                                   "title":  "[ENHANCEMENT] Add image support to playground",
+                                                   "description":  null
+                                               },
+                                               {
+                                                   "url":  "https://github.com/Arize-ai/phoenix/issues/11129",
+                                                   "title":  "[BUG] \"add to dataset\" with error for parent_span",
+                                                   "description":  null
+                                               },
+                                               {
+                                                   "url":  "https://github.com/Arize-ai/phoenix/issues/13173",
+                                                   "title":  "[agents] investigate clientside tracing for external tools",
+                                                   "description":  null
+                                               },
+                                               {
+                                                   "url":  "https://github.com/Arize-ai/phoenix/issues/12693",
+                                                   "title":  "[BUG]: Playground fails with all Gemini models — UniqueViolationError on trace ingestion",
+                                                   "description":  null
+                                               }
+                                           ]
+                           },
+                           {
+                               "id":  "Q5",
+                               "url":  "https://api.github.com/search/issues?q=repo%3Aanthropics%2Fclaude-code%20is%3Aissue%20rewind%20checkpoint%20created%3A%3C2026-10-13\u0026sort=comments\u0026order=desc\u0026per_page=5",
+                               "accessed_at_utc":  "2026-10-12T05:06:33.9893029Z",
+                               "total_count":  149,
+                               "returned_count":  5,
+                               "response_decoded_utf8_sha256":  "a2c673075401d22e78a41ed5a7b68e64b6779b39dd2abccd158efdc643374783",
+                               "results":  [
+                                               {
+                                                   "url":  "https://github.com/anthropics/claude-code/issues/8763",
+                                                   "title":  "API Error: 400 due to tool use concurrency issues. Run /rewind to recover the conversation. - [Bug] Anthropic API Error: Unexpected 400 Bad Request Response",
+                                                   "description":  null
+                                               },
+                                               {
+                                                   "url":  "https://github.com/anthropics/claude-code/issues/46987",
+                                                   "title":  "[BUG]  API Error: Stream idle timeout - partial response received - multiple time today",
+                                                   "description":  null
+                                               },
+                                               {
+                                                   "url":  "https://github.com/anthropics/claude-code/issues/9002",
+                                                   "title":  "[Bug] Anthropic API Error: Tool Use Concurrency Limitation",
+                                                   "description":  null
+                                               },
+                                               {
+                                                   "url":  "https://github.com/anthropics/claude-code/issues/10199",
+                                                   "title":  "[BUG] API Error 400 - Thinking Block Modification Error",
+                                                   "description":  null
+                                               },
+                                               {
+                                                   "url":  "https://github.com/anthropics/claude-code/issues/353",
+                                                   "title":  "Undo/Checkpoint Feature for Correcting AI-Generated Code",
+                                                   "description":  null
+                                               }
+                                           ]
+                           },
+                           {
+                               "id":  "Q6",
+                               "url":  "https://api.github.com/search/issues?q=repo%3Aanthropics%2Fclaude-code%20is%3Aissue%20session%20export%20created%3A%3C2026-10-13\u0026sort=comments\u0026order=desc\u0026per_page=5",
+                               "accessed_at_utc":  "2026-10-12T05:06:35.4094494Z",
+                               "total_count":  2312,
+                               "returned_count":  5,
+                               "response_decoded_utf8_sha256":  "dd45e36dc2a4dce2be157f1ce7319e359a82f22f278d33e2070238e1ca572815",
+                               "results":  [
+                                               {
+                                                   "url":  "https://github.com/anthropics/claude-code/issues/16157",
+                                                   "title":  "[BUG] Instantly hitting usage limits with Max subscription",
+                                                   "description":  null
+                                               },
+                                               {
+                                                   "url":  "https://github.com/anthropics/claude-code/issues/38335",
+                                                   "title":  "[BUG] Claude Max plan session limits exhausted abnormally fast since March 23, 2026 (CLI usage)",
+                                                   "description":  null
+                                               },
+                                               {
+                                                   "url":  "https://github.com/anthropics/claude-code/issues/42796",
+                                                   "title":  "[MODEL] Claude Code is unusable for complex engineering tasks with the Feb updates",
+                                                   "description":  null
+                                               },
+                                               {
+                                                   "url":  "https://github.com/anthropics/claude-code/issues/6235",
+                                                   "title":  "Feature Request: Support AGENTS.md.",
+                                                   "description":  null
+                                               },
+                                               {
+                                                   "url":  "https://github.com/anthropics/claude-code/issues/3648",
+                                                   "title":  "Terminal Scrolling Uncontrollably During Claude Code Interaction",
+                                                   "description":  null
+                                               }
+                                           ]
+                           },
+                           {
+                               "id":  "Q7",
+                               "url":  "https://api.github.com/search/issues?q=repo%3Apromptfoo%2Fpromptfoo%20is%3Aissue%20flaky%20created%3A%3C2026-10-13\u0026sort=comments\u0026order=desc\u0026per_page=5",
+                               "accessed_at_utc":  "2026-10-12T05:06:38.9933395Z",
+                               "total_count":  5,
+                               "returned_count":  5,
+                               "response_decoded_utf8_sha256":  "efbd74b98df9f4919133a77c47b46fd1f8bcd01aa029a6af2f75bb4e458029c3",
+                               "results":  [
+                                               {
+                                                   "url":  "https://github.com/promptfoo/promptfoo/issues/7077",
+                                                   "title":  "[Feature Request] Native auto-retry configuration for Google AI provider (Gemini) due to frequent 503/Overloaded errors",
+                                                   "description":  null
+                                               },
+                                               {
+                                                   "url":  "https://github.com/promptfoo/promptfoo/issues/10164",
+                                                   "title":  "eval --watch: tests file changes never trigger re-run (scalar tests: never watched; watcher never ready on macOS)",
+                                                   "description":  null
+                                               },
+                                               {
+                                                   "url":  "https://github.com/promptfoo/promptfoo/issues/9700",
+                                                   "title":  "Per-test-case `repeat` option to control how many times individual tests run",
+                                                   "description":  null
+                                               },
+                                               {
+                                                   "url":  "https://github.com/promptfoo/promptfoo/issues/45",
+                                                   "title":  "ReliableGPT",
+                                                   "description":  null
+                                               },
+                                               {
+                                                   "url":  "https://github.com/promptfoo/promptfoo/issues/10928",
+                                                   "title":  "Python provider hangs or exits without output after worker crashes or a timeout",
+                                                   "description":  null
+                                               }
+                                           ]
+                           },
+                           {
+                               "id":  "Q8",
+                               "url":  "https://api.github.com/search/issues?q=repo%3Alangfuse%2Flangfuse%20is%3Aissue%20offline%20created%3A%3C2026-10-13\u0026sort=comments\u0026order=desc\u0026per_page=5",
+                               "accessed_at_utc":  "2026-10-12T05:06:40.5582115Z",
+                               "total_count":  17,
+                               "returned_count":  5,
+                               "response_decoded_utf8_sha256":  "af3d62afbea76fe7b5468ecd9fc14bd122449ac5386a52a1859ae407d5359d1a",
+                               "results":  [
+                                               {
+                                                   "url":  "https://github.com/langfuse/langfuse/issues/3673",
+                                                   "title":  "bug: Web App not loading any traces / any data",
+                                                   "description":  null
+                                               },
+                                               {
+                                                   "url":  "https://github.com/langfuse/langfuse/issues/12041",
+                                                   "title":  "bug: Unable to setup LLM-as-a-Judge for Live Observations",
+                                                   "description":  null
+                                               },
+                                               {
+                                                   "url":  "https://github.com/langfuse/langfuse/issues/7930",
+                                                   "title":  "bug: Failed to export batch code: 401, reason: {\"message\":\"No authorization header\"}",
+                                                   "description":  null
+                                               },
+                                               {
+                                                   "url":  "https://github.com/langfuse/langfuse/issues/5919",
+                                                   "title":  "bug: dataset run auto evaluations sometimes don\u0027t show",
+                                                   "description":  null
+                                               },
+                                               {
+                                                   "url":  "https://github.com/langfuse/langfuse/issues/15637",
+                                                   "title":  "bug: web container logs continuous \u0027All sentinels are unreachable\u0027 with Redis Sentinel + TLS, while worker on identical config is unaffected",
+                                                   "description":  null
+                                               }
+                                           ]
+                           },
+                           {
+                               "id":  "Q9",
+                               "url":  "https://api.github.com/search/issues?q=repo%3Aanthropics%2Fclaude-code+is%3Aissue+export+in%3Atitle+created%3A%3C2026-10-13\u0026sort=comments\u0026order=desc\u0026per_page=5",
+                               "accessed_at_utc":  "2026-10-12T05:08:11.4722561Z",
+                               "total_count":  211,
+                               "returned_count":  5,
+                               "response_decoded_utf8_sha256":  "462c8dbfb1708ac3bacbf2f20267db9af0101afa95f65c46af987a85e800ac7d",
+                               "results":  [
+                                               {
+                                                   "url":  "https://github.com/anthropics/claude-code/issues/72671",
+                                                   "title":  "[BUG] OTLP logs export regressed from Content-Length to Transfer-Encoding: chunked in 2.1.191 — breaks Content-Length-requiring OTLP/HTTP endpoints",
+                                                   "description":  null
+                                               },
+                                               {
+                                                   "url":  "https://github.com/anthropics/claude-code/issues/45996",
+                                                   "title":  "[BUG] /export produces 0-byte files and empty clipboard — rendering pipeline returns empty string",
+                                                   "description":  null
+                                               },
+                                               {
+                                                   "url":  "https://github.com/anthropics/claude-code/issues/34377",
+                                                   "title":  "[BUG] PATH exports in shell config files ignored by Claude Code VS Code extension",
+                                                   "description":  null
+                                               },
+                                               {
+                                                   "url":  "https://github.com/anthropics/claude-code/issues/15873",
+                                                   "title":  "[Feature Request] Add timestamp to /export filename to prevent overwrites",
+                                                   "description":  null
+                                               },
+                                               {
+                                                   "url":  "https://github.com/anthropics/claude-code/issues/39587",
+                                                   "title":  "[FEATURE] Save conversation to local file (markdown/JSON export)",
+                                                   "description":  null
+                                               }
+                                           ]
+                           },
+                           {
+                               "id":  "Q10",
+                               "url":  "https://api.github.com/search/issues?q=repo%3Aanthropics%2Fclaude-code+is%3Aissue+rewind+in%3Atitle+created%3A%3C2026-10-13\u0026sort=comments\u0026order=desc\u0026per_page=5",
+                               "accessed_at_utc":  "2026-10-12T05:08:12.7423282Z",
+                               "total_count":  177,
+                               "returned_count":  5,
+                               "response_decoded_utf8_sha256":  "36a5ac33d5e8dd626624b6dc8d94160080914bde2ec0fad8ed7bc420a7546bb7",
+                               "results":  [
+                                               {
+                                                   "url":  "https://github.com/anthropics/claude-code/issues/8763",
+                                                   "title":  "API Error: 400 due to tool use concurrency issues. Run /rewind to recover the conversation. - [Bug] Anthropic API Error: Unexpected 400 Bad Request Response",
+                                                   "description":  null
+                                               },
+                                               {
+                                                   "url":  "https://github.com/anthropics/claude-code/issues/4851",
+                                                   "title":  "[BUG] Terminal Scrollback Buffer Rewind Lag in Claude Code + Tmux + Visual Studio Code After Extended Use",
+                                                   "description":  null
+                                               },
+                                               {
+                                                   "url":  "https://github.com/anthropics/claude-code/issues/8850",
+                                                   "title":  "[BUG] /rewind not working properly",
+                                                   "description":  null
+                                               },
+                                               {
+                                                   "url":  "https://github.com/anthropics/claude-code/issues/52209",
+                                                   "title":  "[Bug] Rewind functionality causes terminal freeze, unable to exit or navigate",
+                                                   "description":  null
+                                               },
+                                               {
+                                                   "url":  "https://github.com/anthropics/claude-code/issues/9433",
+                                                   "title":  "[BUG]  API Error: 400 due to tool use concurrency issues. Run /rewind to recover the conversation.",
+                                                   "description":  null
+                                               }
+                                           ]
+                           },
+                           {
+                               "id":  "Q11",
+                               "url":  "https://api.github.com/search/issues?q=repo%3Alangfuse%2Flangfuse+is%3Aissue+replay+in%3Atitle+created%3A%3C2026-10-13\u0026sort=comments\u0026order=desc\u0026per_page=5",
+                               "accessed_at_utc":  "2026-10-12T05:08:13.4649775Z",
+                               "total_count":  2,
+                               "returned_count":  2,
+                               "response_decoded_utf8_sha256":  "7db75e6735092095a484520c748e4fbe2c32f1fdaa098e91aab40bc0cbac7b70",
+                               "results":  [
+                                               {
+                                                   "url":  "https://github.com/langfuse/langfuse/issues/18030",
+                                                   "title":  "feat(in-app-agent): unbounded conversation context growth — no token-budget handling on replay",
+                                                   "description":  null
+                                               },
+                                               {
+                                                   "url":  "https://github.com/langfuse/langfuse/issues/14427",
+                                                   "title":  "OTEL ingestion replay fails when LANGFUSE_S3_EVENT_UPLOAD_PREFIX is set — observations cannot be recovered from S3",
+                                                   "description":  null
+                                               }
+                                           ]
+                           },
+                           {
+                               "id":  "Q12",
+                               "url":  "https://api.github.com/search/issues?q=repo%3Aanthropics%2Fclaude-code+is%3Aissue+checkpoint+in%3Atitle+created%3A%3C2026-10-13\u0026sort=comments\u0026order=desc\u0026per_page=5",
+                               "accessed_at_utc":  "2026-10-12T05:08:14.1027758Z",
+                               "total_count":  76,
+                               "returned_count":  5,
+                               "response_decoded_utf8_sha256":  "226df620b8dea780283c8653635b843bb1bb148c508c374e83c04f1151b63e0b",
+                               "results":  [
+                                               {
+                                                   "url":  "https://github.com/anthropics/claude-code/issues/353",
+                                                   "title":  "Undo/Checkpoint Feature for Correcting AI-Generated Code",
+                                                   "description":  null
+                                               },
+                                               {
+                                                   "url":  "https://github.com/anthropics/claude-code/issues/15405",
+                                                   "title":  "[FEATURE] Pre-compaction checkpoint dialog",
+                                                   "description":  null
+                                               },
+                                               {
+                                                   "url":  "https://github.com/anthropics/claude-code/issues/10352",
+                                                   "title":  "[FEATURE] Migrate checkpoint/rollback functionality to VSCode extension",
+                                                   "description":  null
+                                               },
+                                               {
+                                                   "url":  "https://github.com/anthropics/claude-code/issues/10856",
+                                                   "title":  "[Bug] Resumable agents fork from checkpoint instead of accumulating context",
+                                                   "description":  null
+                                               },
+                                               {
+                                                   "url":  "https://github.com/anthropics/claude-code/issues/68315",
+                                                   "title":  "[Bug] File checkpointing silently stashes and hard-resets working tree, destroying uncommitted edits",
+                                                   "description":  null
+                                               }
+                                           ]
+                           },
+                           {
+                               "id":  "Q13",
+                               "url":  "https://api.github.com/search/repositories?q=codex+claude+session+viewer\u0026sort=stars\u0026order=desc\u0026per_page=5",
+                               "accessed_at_utc":  "2026-10-12T05:08:14.9306208Z",
+                               "total_count":  50,
+                               "returned_count":  5,
+                               "response_decoded_utf8_sha256":  "d2d422e169d3c469593b5a11a7157d52a8645bac02a1de8fb7c1d8ef6f34011b",
+                               "results":  [
+                                               {
+                                                   "url":  "https://github.com/dliedke/ClaudeCodeExtension",
+                                                   "title":  null,
+                                                   "description":  "Visual Studio .NET extension that provides a better interface for Claude Code, Codex, Cursor Agent, Open Code, Devin, PI, Antigravity and Reasonix. Image/file paste, diff viewer, actions when AI ends work, usage tracking, session history and much more!"
+                                               },
+                                               {
+                                                   "url":  "https://github.com/HizTam/codex-history-viewer",
+                                                   "title":  null,
+                                                   "description":  "A VS Code extension to browse, search, tag, import/export, and manage local Codex CLI / Claude Code session history, then resume selected sessions directly in the related VS Code extension. "
+                                               },
+                                               {
+                                                   "url":  "https://github.com/prime-radiant-inc/claude-session-viewer",
+                                                   "title":  null,
+                                                   "description":  "Session Explorer: a local web app for browsing Claude Code and OpenAI Codex CLI session histories, built with React Router, Express, and SQLite."
+                                               },
+                                               {
+                                                   "url":  "https://github.com/thevibeworks/ccx",
+                                                   "title":  null,
+                                                   "description":  "Session viewer for coding agents — browse, search, trace, and export Claude Code, Codex, and Grok conversations"
+                                               },
+                                               {
+                                                   "url":  "https://github.com/dotneet/agent-session-view",
+                                                   "title":  null,
+                                                   "description":  "A coding agent session viewer for browsing, viewing, and exporting conversation history from Claude Code and Codex CLI. Available as both a web interface and a terminal UI."
+                                               }
+                                           ]
+                           }
+                       ],
+    "unused_or_failed_sources":  [
+                                     {
+                                         "id":  "S10",
+                                         "url":  "https://raw.githubusercontent.com/ryoppippi/ccusage/main/README.md",
+                                         "accessed_at_utc":  "2026-10-12T05:06:45.7744705Z",
+                                         "status":  200,
+                                         "error":  null,
+                                         "content_if_short":  "./apps/ccusage/README.md",
+                                         "used_as_capability_evidence":  false
+                                     },
+                                     {
+                                         "id":  "S11",
+                                         "url":  "https://raw.githubusercontent.com/ryoppippi/ccusage/main/README.md",
+                                         "accessed_at_utc":  "2026-10-12T05:08:15.7930778Z",
+                                         "status":  "failed",
+                                         "error":  "The operation has timed out.",
+                                         "content_if_short":  null,
+                                         "used_as_capability_evidence":  false
+                                     },
+                                     {
+                                         "id":  "S12",
+                                         "url":  "https://raw.githubusercontent.com/ccusage/ccusage/main/README.md",
+                                         "accessed_at_utc":  "2026-10-12T05:08:35.8329100Z",
+                                         "status":  200,
+                                         "error":  null,
+                                         "content_if_short":  "./apps/ccusage/README.md",
+                                         "used_as_capability_evidence":  false
+                                     }
+                                 ]
+}

@@ -1,7 +1,7 @@
 # docs/ · 文档地图与索引
 
 > 本目录分两层：**面向使用者的文档**（guide / architecture / development）与**工程过程资产**
-> （product / competition / engineering / collab / reviews）——后者是探讨、审阅、规划、会话
+> （research / product / competition / engineering / collab / reviews）——后者是调研、探讨、审阅、规划、会话
 > 记录与对外通信，不是代码。权威性排序：**源码 / `openspec/changes/archive/` > 本目录**；
 > 判断项目状态以源码与归档 change 为准。
 
@@ -25,7 +25,7 @@ engineering / collab / competition / reviews），原 9 个并列目录归组；
 
 | 入口 | 内容 |
 |---|---|
-| [`project-status.md`](development/project-status.md) | **09/27 项目状态与版本依据**：U1–U4 已归档、U5 实施中；K1 发布记录、产物哈希及源码/发行包边界 |
+| [`project-status.md`](development/project-status.md) | **10/12 项目状态与版本依据**：R1、U1–U8 与 R2.1 已归档，当前无活动 change；后续能力、历史构建与发行范围分列 |
 | [`research/`](research/README.md) | Agent 调试方案对照、来源记录、重跑一致性实验设计 |
 | [`replay-state-consistency.md`](architecture/replay-state-consistency.md) | 工具观察编辑、整轮文件快照与分支隔离的机制和边界 |
 | [`governance-and-maintenance.md`](development/governance-and-maintenance.md) | 维护职责、Issue 状态与响应、PR 复审、贡献许可、发布与交接规则；未落实事项单列 |
@@ -43,7 +43,8 @@ engineering / collab / competition / reviews），原 9 个并列目录归组；
 | [`product.md`](product/product.md) | 产品方向定稿：定位 / JTBD / 护城河 / 产品化缺口 / V3 形态 / 商业模式。**注意其路线图停在 09-05，已落后于 archive** |
 | [`direction-2026H2.md`](product/direction-2026H2.md) | AniPedia × ReBaseAgent 2026H2 方向规划（一审稿 v2.1，含一审/二审回执） |
 | [`2026-09-09-roadmap-gaps.md`](product/2026-09-09-roadmap-gaps.md) | 路线图与缺口清单（09-09） |
-| [`evolution-roadmap.md`](product/evolution-roadmap.md) | **产品演进路线（原隔离重跑演进路线，无日期前缀的长期文档）**：R0 MVP 基线 → R1–R5 能力阶段与 I/U 主线、§9.1 打包节点、§10 证据门槛；10/11 校准（U1–U8 收官、`0.4.0-rc.1` 已验收） |
+| [`evolution-roadmap.md`](product/evolution-roadmap.md) | **产品演进路线（原隔离重跑演进路线，无日期前缀的长期文档）**：R0–R5 能力阶段与 I/U 主线、打包节点及证据门槛；10/12 校准 R2.1 已归档，新增主线从 R2.2 开始，桌面设计前先梳理 UI |
+| [`2026-10-12-capability-roadmap-from-r2-2.md`](product/2026-10-12-capability-roadmap-from-r2-2.md) | **R2.2 起的能力增强路线讨论稿存档**：主线排序已同步正式路线，详细任务与技术方案仍待设计、立项；不重开已完成阶段，未启动实现 |
 
 ### competition/ — 参赛规划与材料
 
@@ -83,6 +84,8 @@ engineering / collab / competition / reviews），原 9 个并列目录归组；
 
 **notes/**（功能说明与工作流约定）：`2026-09-08-v3a-trace-as-test-notes.md`、[`model-collaboration-workflow.md`](engineering/notes/model-collaboration-workflow.md)、[`2026-09-25-gitee-release-blocked.md`](engineering/notes/2026-09-25-gitee-release-blocked.md)（Gitee `v0.3.0-k1` release 被自动审核拦截的完整取证与结案：触发源锁定为发布稿第 5–8 行「演进宣告段」，删除即通过；含排除项、时间线与人工复核申诉文案）、[`2026-09-26-u4-snapshot-cost.md`](engineering/notes/2026-09-26-u4-snapshot-cost.md)（U4 任务 4.5 的操作快照成本实测：100/1000 条的 main 构造、payload 字节数、renderer 校验三段口径与中位数 ⇒ 校准 1 秒轮询初值、确认不裁剪终态与封禁、并写明真机 IPC 往返与满载诊断两项**未测**）
 
+- [`2026-10-12-zip-usage-copy.txt`](engineering/notes/2026-10-12-zip-usage-copy.txt)：ZIP 随包使用说明的原文存档，供文案追溯；未核验为当前发行说明，使用指南见 `guide/`。
+
 ### collab/ — 跨项目通信与过程叙事
 
 **anipedia/**（与 AniPedia 侧双侧通信，按时间序往来；**对方**的信在 `D:\AniPedia\.workbuddy\reply-N-to-rebaseagent.md`）：
@@ -100,6 +103,7 @@ engineering / collab / competition / reviews），原 9 个并列目录归组；
   各原型目录的 `README.md` / `index.html` / `measurements.json` 入库，其 `screenshots/*.png` 留本地。
 - **留本地**（约 42 MB 截图）：`2026-09-15-usability-assets/`、`2026-09-21-u1-prototype/screenshots/`、
   `2026-09-21-ui-walkthrough-assets/`、`2026-09-22-u1-71…74/`、`2026-09-23-u2-file-prototype/screenshots/`。
+- [2026-10-12 UI 实机走查与整理方向](reviews/2026-10-12-ui-live-walkthrough-and-refinement.md)：概览、错误定位、文件、编辑、实验与比较路径；[选取证据](reviews/2026-10-12-ui-live-walkthrough/README.md)含 DOM 记录和截图索引，过程截图留本地；尚未改动 UI 或 spec。
 
 ---
 
@@ -111,6 +115,7 @@ engineering / collab / competition / reviews），原 9 个并列目录归组；
 
 ## 路径变更记录
 
+- **2026-10-12 草稿归档**：竞品／社区、跨品类 UI、外部会话导入记录及来源 JSON → `research/`；R2.2 后能力路线讨论稿 → `product/`；实机走查及选取证据 → `reviews/`；ZIP 使用说明原文 → `engineering/notes/`。候选方案仍未立项，跨文档引用已随迁移更新。
 - **2026-09-24 分层归组**：`direction/` → `product/`；`plans|reports|briefs|notes/` → `engineering/<原名>/`；`anipedia|sessions/` → `collab/<原名>/`；`competition/`、`reviews/` 原位。全仓引用已同步修正。
 - 2026-09-17 归位：仓库根 `AniPedia_ReBaseAgent_方案审阅.md` → `reviews/2026-09-10-anipedia-rebaseagent-plan-review.md`。
 - 2026-09-10 归类：原 docs 根平铺的 dogfood 方案 / anipedia 通信归入对应子目录。

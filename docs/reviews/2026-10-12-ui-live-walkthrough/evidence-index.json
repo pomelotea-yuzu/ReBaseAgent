@@ -1,0 +1,59 @@
+{
+  "date": "2026-10-12",
+  "scope": "Selected evidence for UI walkthrough; no model execution, usability benchmark or release acceptance.",
+  "original_output": "output/ui-walkthrough-2026-10-12",
+  "files": [
+    {
+      "file": "18-comparison.png",
+      "sha256": "fc159a008853c953e17f040878e949e709d5a87d8fbc57b025c71a775d74d7ba",
+      "bytes": 121175,
+      "storage": "local-only (docs/reviews/**/*.png ignored)",
+      "pixel_width": 2562,
+      "pixel_height": 1519
+    },
+    {
+      "file": "07-error-detail.png",
+      "sha256": "8e1f3e9cba592164f3591418f3f0ac44d98eb4b4d835d73cf11825770239f9d2",
+      "bytes": 243813,
+      "storage": "local-only (docs/reviews/**/*.png ignored)",
+      "pixel_width": 2541,
+      "pixel_height": 1498
+    },
+    {
+      "file": "04-normal.png",
+      "sha256": "906f68b2c887d58b40b400dd172718deb744a2160fa96441f72609453f7ec7b5",
+      "bytes": 392863,
+      "storage": "local-only (docs/reviews/**/*.png ignored)",
+      "pixel_width": 2541,
+      "pixel_height": 1498
+    },
+    {
+      "file": "08-model-experiment.png",
+      "sha256": "bd3377d677c2be813b774ce12edf396ece6c1e31238b331401299084d3a37eab",
+      "bytes": 446651,
+      "storage": "local-only (docs/reviews/**/*.png ignored)",
+      "pixel_width": 2541,
+      "pixel_height": 1498
+    },
+    {
+      "file": "25-create.png",
+      "sha256": "14dfceaa98289cd4acf0af798ea4a11d7e4c45070761fa4bab1968e4bc57e490",
+      "bytes": 292839,
+      "storage": "local-only (docs/reviews/**/*.png ignored)",
+      "pixel_width": 2562,
+      "pixel_height": 1519
+    },
+    {
+      "file": "22-session-drafts.json",
+      "sha256": "f2a0be5ac526f236a42983188929d18992d0548549b419187e8798f23de0ae28",
+      "bytes": 19660,
+      "storage": "repository document evidence"
+    },
+    {
+      "file": "24-recording-return.json",
+      "sha256": "60f72ec31b6f27f16f1be82fd5f23b875feb3f048b6294c09015951b49be0afe",
+      "bytes": 17332,
+      "storage": "repository document evidence"
+    }
+  ]
+}
