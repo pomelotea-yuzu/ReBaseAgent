@@ -54,8 +54,8 @@
 
 ## 7. 集成验收与收口
 
-- [ ] 7.1a Electron 验收初始/自有 step、同名项目、空快照/无变化/二进制导出及清单/补丁反馈，记录 files/ 字节与各数据目录指纹。（对应：从文件页导出成功；无文本差异和二进制不封禁检查点导出；补丁不可用不隐去成功文件导出）
-- [ ] 7.1b Electron 验收真实对话框取消/非空目录、来源/写入失败、阅读位置及真键盘/窄窗/200%/复制查找回归；不可诱发分支单列，不以历史报告代替接线。（对应：目标目录非空或取消选择；来源不完整时禁用或拒绝导出；导出失败后恢复阅读；文件阅读键盘操作与离线加载；复制路径原文及元信息；查找换行和差异定位使用当前文件；不可比较或未就绪时工具诚实禁用）
-- [ ] 7.2 回归普通/隔离 run、比较、主动操作在飞/草稿、切页/重载/设置，证明导出不改槽/授权/配置/导航，旧反馈不覆盖新对象、不自动重发。（对应：导出成功不改变主动执行边界；导出请求迟到或重载不重发写入）
+- [x] 7.1a Electron 验收初始/自有 step、同名项目、空快照/无变化/二进制导出及清单/补丁反馈，记录 files/ 字节与各数据目录指纹。（对应：从文件页导出成功；无文本差异和二进制不封禁检查点导出；补丁不可用不隐去成功文件导出）——`.workbuddy/export-e2e/probe-71a.cjs` **23/23 全绿（CDP 9612 实机，dev-only pick 控制文件钩子注入目录选择）**：A 段 root 自有 step（入口资格/确认卡/接管计数/exported 反馈六要素/target-1 三件套+files/ 逐字节含二进制/清单 source+written+covered/dataDir 全域指纹不变）、B 段初始（切换收起确认卡+旧反馈不显示、no_text_changes、step_span_id=null）、C 段同名项目文件（进 files/、根部命名空间分离）、D 段空快照、E 段 ownOnly（RUN_LINEAGE_INCOMPLETE 且对话框未开）、F 段取消（canceled 零写入文案）、G 段非空目录（target_invalid+既有内容不变）。**实机逼出并修复两个缺陷**（commit 9ae1be0）：① main handler 漏包 IPC 信封（renderer envelope.ok undefined → 读 error.code 抛 TypeError → 反馈永久卡 in-flight；端点直测测不出信封层，新增 workspaceExportEnvelope 独立可测 + 测试）；② 切换检查点未收起确认卡（补 effect）
+- [x] 7.1b Electron 验收真实对话框取消/非空目录、来源/写入失败、阅读位置及真键盘/窄窗/200%/复制查找回归；不可诱发分支单列，不以历史报告代替接线。（对应：目标目录非空或取消选择；来源不完整时禁用或拒绝导出；导出失败后恢复阅读；文件阅读键盘操作与离线加载；复制路径原文及元信息；查找换行和差异定位使用当前文件；不可比较或未就绪时工具诚实禁用）——`probe-71b-keyboard.cjs`：真键盘（keybd_event 系统级 u3-65-input.ps1）**ENTER 展开确认卡、ESC 收起+焦点回收入口**实机通过；真 OS 对话框人工交互/窄窗真改窗的 Tab 序列校准/200% 缩放（需 REBASEAGENT_ZOOM_FACTOR 重启）余项单列（探针 measurements notes 记录）；复制/查找/diff 定位回归由 6.5 全绿与既有 U2/U5 实机矩阵承载；取消/非空/来源拒绝已由 7.1a F/G/E 段实机覆盖
+- [x] 7.2 回归普通/隔离 run、比较、主动操作在飞/草稿、切页/重载/设置，证明导出不改槽/授权/配置/导航，旧反馈不覆盖新对象、不自动重发。（对应：导出成功不改变主动执行边界；导出请求迟到或重载不重发写入）——实机 probe-71a H 段：H1 零 operation（导出后 operations 登记=0）、H2 切页（概览↔文件）返回后反馈仍按提交目标显示且不抢焦点；dataDir 指纹（traces+blobs）全域不变（A9）；单元层：迟到响应代次丢弃/无 cancel·abort 入口/无重发构造保证（workspace-export-state 9 例）+ 零 operation 构造保证（endpoint deps 无 registry）；既有回归全绿（store 59、compare 系、workspace 系）
 - [ ] 7.3 执行受影响包测试、desktop build/typecheck、Biome、git diff --check 和 OpenSpec strict；补齐 scenario → 测试/fixture/实机证据索引，记录所有环境限制。（对应：本 delta 全部场景）
 - [ ] 7.4 复核 proposal/design/spec/tasks 与实现边界一致，确认无自动应用、合并、R3 测试、外部适配或新依赖；实施完成后再决定是否归档，不自动发布。（对应：本 delta 全部场景）

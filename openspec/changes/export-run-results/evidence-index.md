@@ -24,14 +24,14 @@
 | 18 | desktop-ui | 复制路径原文及元信息 | 6.5、7.1b | 待实施 | — |
 | 19 | desktop-ui | 查找换行和差异定位使用当前文件 | 6.5、7.1b | 待实施 | — |
 | 20 | desktop-ui | 不可比较或未就绪时工具诚实禁用 | 6.1、6.5、7.1b | 部分（回归绿） | 既有工具资格回归全绿（file-tools/file-view 等）；导出面板独立区块不改变原资格；实机 7.1b |
-| 21 | desktop-ui | 文件阅读键盘操作与离线加载 | 6.4、7.1b | 部分（结构层完成） | 导出面板流内渲染无浮层、Esc 收起+焦点回收、focus-visible；真键盘/窄窗/200% 实机归 7.1b |
-| 22 | desktop-ui | 从文件页导出成功 | 6.1、6.2、7.1a | 部分（UI 层完成） | 入口/确认卡/提交接线/成功反馈（目标/数量/字节/补丁三态/未保留）结构断言齐；真实对话框与端到端归 7.1a |
-| 23 | desktop-ui | 目标目录非空或取消选择 | 5.2a、5.4、6.3、7.1b | 部分（main+UI 层完成） | 取消→canceled 零写入、包层未调用；非空目标→target_invalid；canceled/failed 反馈结构断言（零写入文案/残留警示）；实机 7.1b |
-| 24 | desktop-ui | 来源不完整时禁用或拒绝导出 | 5.1、5.2a、5.4、6.1、7.1b | 部分（main 侧完成） | ownOnly→RUN_LINEAGE_INCOMPLETE、损坏 trace→RUN_DETAIL_UNREADABLE，对话框前早期拒绝 + 目录返回后写入前重验（对话框期间父链变化用例）；strict schema 拒绝额外物理键；UI 禁用资格（6.1）待 |
+| 21 | desktop-ui | 文件阅读键盘操作与离线加载 | 6.4、7.1b | 大部分完成 | 结构断言 + 实机真键盘（keybd_event）：ENTER 展开确认卡、ESC 收起+焦点回收入口均通过；余项：窄窗真改窗 Tab 序列校准、200% 缩放（需 zoom env 重启），单列于探针 notes |
+| 22 | desktop-ui | 从文件页导出成功 | 6.1、6.2、7.1a | 完成（实机 7.1a） | probe-71a A–D 段：自有 step/初始/同名/空快照端到端导出成功，目标三件套+files/ 逐字节核对、清单字段核对、真键盘提交闭环（71b K4 部分） |
+| 23 | desktop-ui | 目标目录非空或取消选择 | 5.2a、5.4、6.3、7.1b | 完成（实机 7.1a F/G 段） | 取消→canceled 反馈（零写入文案）实机验证；非空目录→target_invalid 且既有内容逐字节不变（G 段）；真 OS 对话框本体人工交互余项单列 |
+| 24 | desktop-ui | 来源不完整时禁用或拒绝导出 | 5.1、5.2a、5.4、6.1、7.1b | 完成（实机 7.1a E 段） | ownOnly→RUN_LINEAGE_INCOMPLETE 实机验证（E 段，对话框未开）；损坏 trace→RUN_DETAIL_UNREADABLE（端点测试）；早期拒绝+写入前重验；strict schema 拒绝额外物理键 |
 | 25 | desktop-ui | 导出失败后恢复阅读 | 5.3、6.3、7.1b | 部分（数据+UI 层完成） | store 反馈按提交 run/step/代次保存 + failed 反馈渲染（码/原因/retained 警示、阅读状态未改写）；实机 7.1b |
 | 26 | desktop-ui | 导出成功不改变主动执行边界 | 5.2b、5.4、7.2 | 部分（main 构造保证） | 端点 deps 不含 OperationRegistry/sourceToken（零 operation/零授权由构造保证）；在飞保护独立于执行槽；7.2 回归待 |
-| 27 | desktop-ui | 无文本差异和二进制不封禁检查点导出 | 6.1、7.1a | 部分（UI 层完成） | 资格判据与 Monaco/选中文件/diff/二进制解耦（结构断言）；二进制检查点可导出由包层 e2e 承载；实机 7.1a |
-| 28 | desktop-ui | 补丁不可用不隐去成功文件导出 | 6.2、7.1a | 部分（UI 层完成） | not_available 反馈明说「文件导出不受影响」并逐路径列排除原因，文件数/字节仍显示（结构断言）；实机 7.1a |
+| 27 | desktop-ui | 无文本差异和二进制不封禁检查点导出 | 6.1、7.1a | 完成（实机 7.1a） | B 段初始（无变化）导出成功、A 段含二进制文件照常导出（字节逐项核对）；资格解耦结构断言 |
+| 28 | desktop-ui | 补丁不可用不隐去成功文件导出 | 6.2、7.1a | 完成（UI+单元层） | not_available 反馈渲染「文件导出不受影响」+逐路径排除（结构断言）；实机 A 段 written 场景+包层 not_available e2e（baseline corrupt/io/deletion-only）承载；实机 not_available 交互余项单列 |
 | 29 | desktop-ui | 导出请求迟到或重载不重发写入 | 5.2b、5.3、5.4、7.2 | main+renderer 完成 | main 闭包在飞保护（重复请求立即拒绝且不开第二个对话框、结束释放、重载不解除）+ renderer 代次守卫（迟到响应整包丢弃返回 null、无 cancel/abort 入口、重载后无重发）；UI 显示结果未知归 6.2/6.3 |
 
 保留旧场景同样需要本轮接线回归证据。实机不成立、环境受阻或仅单元层承载均单列，不将规划完成等同功能完成。
