@@ -25,7 +25,7 @@ engineering / collab / competition / reviews），原 9 个并列目录归组；
 
 | 入口 | 内容 |
 |---|---|
-| [`project-status.md`](development/project-status.md) | **10/12 项目状态与版本依据**：R1、U1–U8 与 R2.1 已归档，当前无活动 change；后续能力、历史构建与发行范围分列 |
+| [`project-status.md`](development/project-status.md) | **10/12 项目状态与版本依据**：R1、U1–U8 与 R2.1 已归档，UI 整理 change 已建立规划初稿；后续能力、历史构建与发行范围分列 |
 | [`research/`](research/README.md) | Agent 调试方案对照、来源记录、重跑一致性实验设计 |
 | [`replay-state-consistency.md`](architecture/replay-state-consistency.md) | 工具观察编辑、整轮文件快照与分支隔离的机制和边界 |
 | [`governance-and-maintenance.md`](development/governance-and-maintenance.md) | 维护职责、Issue 状态与响应、PR 复审、贡献许可、发布与交接规则；未落实事项单列 |

@@ -13,7 +13,8 @@
 | U7 | 已归档：分支定位与运行比较 | [场景证据](../../openspec/changes/archive/2026-10-01-improve-branch-comparison/evidence-index.md)；双运行工作区与两到四条指标表，未提供跨运行文件 diff |
 | U8 | 已归档：录制、messages 与实验工作区 | [场景证据](../../openspec/changes/archive/2026-10-02-unify-recording-and-experiment-workspaces/evidence-index.md)、[任务与门禁记录](../../openspec/changes/archive/2026-10-02-unify-recording-and-experiment-workspaces/tasks.md)；67 条场景为已交付 66 / 待验证 0 / 实机不成立 1，后一条按单元层承载，不称全部实机通过 |
 | R2.1 结果导出 | 已归档（2026-10-12） | [任务与验收记录](../../openspec/changes/archive/2026-10-12-export-run-results/tasks.md)；选定检查点普通文件、来源清单与适用的文本补丁，不含 trace 分享包、自动应用或合并；未据此宣称已打包或发布 |
-| 后续能力 | 当前无活动 change；R2.2 为下一项新增能力 | 隔离 prompt 首版 → R3 首个受支持环境 → R2.3 完整扩展 → R4 → 按需 R5，见[正式路线](../product/evolution-roadmap.md)；R3 技术验证可并行，R2.3 最小双臂按案例需要，不构成 R3 门槛；跨运行文件 diff 与隔离实验仍待实现 |
+| 当前活动 change | UI 整理已建立规划初稿，尚未实现 | [提案](../../openspec/changes/refine-ui-for-community-release/proposal.md)、[设计](../../openspec/changes/refine-ui-for-community-release/design.md)、[任务](../../openspec/changes/refine-ui-for-community-release/tasks.md)；先完成 UI 与验收，再安排包含 R2.1 的候选包和第二轮社区材料，打包／实际宣发尚未执行 |
+| 后续能力 | R2.2 为本轮 UI 与发行工作之后的下一项新增能力 | 隔离 prompt 首版 → R3 首个受支持环境 → R2.3 完整扩展 → R4 → 按需 R5，见[正式路线](../product/evolution-roadmap.md)；R3 技术验证可并行，R2.3 最小双臂按案例需要，不构成 R3 门槛；跨运行文件 diff 与隔离实验仍待实现 |
 | UI 与能力调研 | 今日调研和走查已归档，建议尚未实现 | [能力细化讨论稿](../product/2026-10-12-capability-roadmap-from-r2-2.md)、[UI 实机走查](../reviews/2026-10-12-ui-live-walkthrough-and-refinement.md)；R2.2 桌面设计前先做有限整理，完整 UI 重组与独创性候选仍待验证 |
 | 开源治理文档 | 已补齐当前单维护者阶段规则 | [治理入口](governance-and-maintenance.md)、[维护政策](maintenance-policy.md)、[发布交接](release-and-handoff.md)、[第三方声明](third-party-notices.md)；远程配置、私密接收与最终发行物许可仍未在本轮核验 |
 | GitHub | 维护者确认账号已解封 | 不再以待解封作为开发或文档阻塞；具体链接和功能可用性独立核验 |
