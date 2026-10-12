@@ -55,6 +55,8 @@ import {
 import { decideRestore, initialRestoreState } from "../lib/restore-gate";
 import { resolveRestoreScrollTop, resolveScrollRestore } from "../lib/scroll-restore";
 import { useContainerWidth } from "../lib/use-file-layout";
+import { workspaceExportKey } from "../lib/workspace-export-state";
+import type { WorkspaceExportFeedback } from "../lib/workspace-export-state";
 import {
   availabilityLabel,
   canCompareText,
@@ -72,6 +74,7 @@ import {
 import type { CheckpointOption, DiffSides } from "../lib/workspace-files";
 import { useAppStore } from "../store";
 import { MonacoCodeEditor, MonacoDiffEditor } from "./MonacoEditor";
+import { WorkspaceExportPanel } from "./WorkspaceExportPanel";
 import { WorkspaceHeading } from "./WorkspaceHeading";
 
 /**
@@ -353,6 +356,27 @@ export function WorkspaceFileView({ run }: { run: RunDetail }) {
   const initialResult = sideResult(initialState);
 
   /**
+   * R2.1 任务 6.1：**导出选定检查点**的接线。
+   *
+   * 资格判据只取「清单已核实 + 全部附件可用」——与 Monaco 挂载、选中文件、diff、
+   * 二进制完全解耦（初始/空快照/无变化/纯二进制都可导出）；已知附件失败 ⇒ 禁用并
+   * 说明（main 提交时仍会复验全部附件，这里的资格只是入口引导，不是安全边界）。
+   * 反馈按提交 run/step 绑定（5.3 会话状态）：切换检查点后旧反馈不再显示、确认卡收起。
+   */
+  const exportCheckpoint = useAppStore((s) => s.exportCheckpoint);
+  const exportFeedback =
+    useAppStore((s) => s.workspaceExports[workspaceExportKey(run.meta.id, effectiveStepSpanId)]) ??
+    null;
+  const [exportExpanded, setExportExpanded] = useState(false);
+  const exportEligible = inspect !== null && inspect.unavailableCount === 0;
+  const exportIneligibleReason =
+    inspect === null
+      ? "检查点清单尚未读取，暂不可导出"
+      : inspect.unavailableCount > 0
+        ? `有 ${inspect.unavailableCount} 个附件缺失或损坏；导出要求全部附件可验证`
+        : null;
+
+  /**
    * U2 任务 3.4：筛选偏好 `auto` 在**连接层**解析（初始检查点看全部、完成步骤看有变化），
    * 展示层只吃解析后的 `all | changed`（不把 auto 下传）。
    */
@@ -408,6 +432,21 @@ export function WorkspaceFileView({ run }: { run: RunDetail }) {
       onRetryInitial={() => setInitialRetry((n) => n + 1)}
       checkpointInvalidated={checkpointInvalidated || invalidNotice.checkpoint}
       pathInvalidated={pathInvalidated || invalidNotice.path}
+      exportPanel={{
+        eligible: exportEligible,
+        ineligibleReason: exportIneligibleReason,
+        feedback: exportFeedback,
+        expanded: exportExpanded,
+        onToggleExpanded: () => setExportExpanded((v) => !v),
+        onConfirm: () => {
+          // 提交后反馈由 store 会话状态承载（绑定本次 run/step）；返回值不在此消费
+          void exportCheckpoint(
+            effectiveStepSpanId === null
+              ? { runId: run.meta.id }
+              : { runId: run.meta.id, stepSpanId: effectiveStepSpanId },
+          );
+        },
+      }}
     />
   );
 }
@@ -478,6 +517,15 @@ export interface WorkspaceFileViewBodyProps {
   readonly checkpointInvalidated?: boolean;
   /** U2：保存的路径在所选清单里已不存在 */
   readonly pathInvalidated?: boolean;
+  /** R2.1 任务 6.1：导出选定检查点面板（资格/确认/反馈全部由连接层提供） */
+  readonly exportPanel?: {
+    readonly eligible: boolean;
+    readonly ineligibleReason: string | null;
+    readonly feedback: WorkspaceExportFeedback | null;
+    readonly expanded: boolean;
+    readonly onToggleExpanded: () => void;
+    readonly onConfirm: () => void;
+  };
 }
 
 export function WorkspaceFileViewBody({
@@ -525,6 +573,7 @@ export function WorkspaceFileViewBody({
   onRetryInitial,
   checkpointInvalidated = false,
   pathInvalidated = false,
+  exportPanel,
 }: WorkspaceFileViewBodyProps) {
   const selectedFile = inspect?.files.find((f) => f.path === selectedPath) ?? null;
 
@@ -792,6 +841,19 @@ export function WorkspaceFileViewBody({
             上次阅读的文件不在所选清单里，已清空选择并显示列表（不会改选同名的其它路径）。
           </div>
         ) : null}
+        {exportPanel === undefined ? null : (
+          <WorkspaceExportPanel
+            runId={run.meta.id}
+            stepSpanId={selection.stepSpanId}
+            checkpointLabel={checkpointLabel(options, selection.stepSpanId)}
+            eligible={exportPanel.eligible}
+            ineligibleReason={exportPanel.ineligibleReason}
+            feedback={exportPanel.feedback}
+            expanded={exportPanel.expanded}
+            onToggleExpanded={exportPanel.onToggleExpanded}
+            onConfirm={exportPanel.onConfirm}
+          />
+        )}
       </div>
 
       {/* 目录/内容切换：目录非常驻时才需要（常驻时两者并排） */}
