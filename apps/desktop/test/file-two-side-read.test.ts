@@ -555,13 +555,16 @@ describe("U2 3.1 接线契约：代次守卫，不退回 cancelled 布尔", () =
   });
 
   it("**不得有任何写入通道**（阅读重试只读）：无 readFile 之外的 IPC、无 write/import/apply 调用", () => {
-    // 组件只应调用 inspectWorkspace / readWorkspaceFile 两个只读动作
+    // 组件只应调用 inspectWorkspace / readWorkspaceFile 两个只读动作，
+    // 以及 R2.1 的 exportCheckpoint（唯一受控写通道：目标目录由 main 对话框决定，
+    // 请求只带 runId/stepSpanId——见 workspace-export-endpoint 的 strict schema 与 7.1a 实机验收）
     const calls = SRC.match(/useAppStore\(\(s\) => s\.(\w+)\)/g) ?? [];
     const names = calls.map((c) => c.replace(/.*s\./, "").replace(/\)$/, ""));
     for (const name of names) {
       expect([
         "inspectWorkspace",
         "readWorkspaceFile",
+        "exportCheckpoint",
         "fileReadingOf",
         "setFileReading",
       ]).toContain(name);
