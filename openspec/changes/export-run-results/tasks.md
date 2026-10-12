@@ -38,11 +38,10 @@
 
 ## 5. Desktop IPC 与 main 编排
 
-- [ ] 5.1 注册 workspaces:export 的严格请求/结果 schema，只接 runId/stepSpanId 并拒绝额外物理路径键；更新封闭 preload 白名单。（对应：来源不完整时禁用或拒绝导出）
-- [ ] 5.2a main 接原生目录选择/取消及目录返回后的 readRunLineage 重验，映射既有来源错误码为导出语境，不改变 checkRunSource 的执行语义。（对应：目标目录非空或取消选择；来源不完整时禁用或拒绝导出）
-- [ ] 5.2b main 接包层导出与独立在飞保护，renderer 重载不解除；不登记 operation、不占/释放执行槽、不消费授权，不自动重发未知写入。（对应：导出成功不改变主动执行边界；导出请求迟到或重载不重发写入）
-- [ ] 5.3 为提交 run/step/请求代次保存导出反馈，旧成功/失败/finally 不覆盖新对象，切页不中止 main 写入，返回定位反馈而不抢焦点。（对应：导出失败后恢复阅读；导出请求迟到或重载不重发写入）
-- [ ] 5.4 IPC 集成测试覆盖恶意额外字段、ownOnly 及目录对话框期间父链变化、目录取消、同 main 在飞重复/重载、零 operation 与数据指纹。（对应：来源不完整时禁用或拒绝导出；目标目录非空或取消选择；导出成功不改变主动执行边界；导出请求迟到或重载不重发写入）
+- [x] 5.1 注册 workspaces:export 的严格请求/结果 schema，只接 runId/stepSpanId 并拒绝额外物理路径键；更新封闭 preload 白名单。（对应：来源不完整时禁用或拒绝导出）——`channels.ts` 增 `exportCheckpoint: "workspaces:export"`；`shared/ipc.ts` 增 `WorkspaceExportRequestSchema`（`.strict()`，额外 dataDir/source/blob/targetDir 键一律拒绝）、`WorkspaceExportOutcomeSchema`（canceled/exported/failed 三态判别式，patch 三态与六类未保留状态钉死）、`WorkspaceExportPatchSchema`；preload 增 `exportCheckpoint` 透传，`preload-surface.test.ts` 封闭白名单同步（唯一显式写通道注释钉明：目标路径入口只在 main 对话框）
+- [x] 5.2a main 接原生目录选择/取消及目录返回后的 readRunLineage 重验，映射既有来源错误码为导出语境，不改变 checkRunSource 的执行语义。（对应：目标目录非空或取消选择；来源不完整时禁用或拒绝导出）——`workspace-export-endpoint.ts`：对话框**前**早期来源检查（不完整直接拒绝，不弹对话框省用户白选）+ 目录返回后、一切写入前**再验**（`readRunLineage` 单次读取上下文）；ownOnly→`RUN_LINEAGE_INCOMPLETE`、其余读取失败→`RUN_DETAIL_UNREADABLE`，文案为导出语境受控中文，不复用/不修改 `checkRunSource`
+- [x] 5.2b main 接包层导出与独立在飞保护，renderer 重载不解除；不登记 operation、不占/释放执行槽、不消费授权，不自动重发未知写入。（对应：导出成功不改变主动执行边界；导出请求迟到或重载不重发写入）——main 会话闭包 `exportInFlight` test-and-set（renderer 重载不解除），在飞重复请求立即 `WORKSPACE_EXPORT_IN_FLIGHT` 拒绝且不开第二个对话框；端点 deps **不含** OperationRegistry（零 operation 由构造保证）、不触碰 sourceToken/执行槽；canceled/exported/failed 全部 finally 释放
+- [ ] 5.4 IPC 集成测试覆盖恶意额外字段、ownOnly 及目录对话框期间父链变化、目录取消、同 main 在飞重复/重载、零 operation 与数据指纹。（对应：来源不完整时禁用或拒绝导出；目标目录非空或取消选择；导出成功不改变主动执行边界；导出请求迟到或重载不重发写入）——`workspace-export-endpoint.test.ts` 11 例已落：恶意额外字段/形状非法零副作用、ownOnly 与损坏 trace 早期拒绝（对话框未开）、no_workspace 经包层拒绝（main 不重复校验）、目录取消零写入、对话框期间祖先被删→重验 RUN_LINEAGE_INCOMPLETE、成功导出 outcome 过严格 schema+dataDir 指纹、在飞重复/槽位释放、包层失败透传（稳定码+retained 相对路径）、意外异常收敛 WORKSPACE_EXPORT_FAILED；⚠️ 余项：renderer 重载不自动重发的回执守卫随 5.3 落地后补断言，届时再勾
 
 ## 6. 文件工作区 UI
 

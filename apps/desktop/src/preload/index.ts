@@ -10,6 +10,7 @@ import type { WindowApi } from "../shared/ipc";
  * - 写通道：forkRun / promptFork / modelAb / createRun（都只新建 run 文件）
  * - 只读辅助：chooseSource（目录选择签发会话 token）/ forkCapability（隔离分叉预检）
  *   / inspectWorkspace / readWorkspaceFile（文件清单与内容，C 1.1）
+ *   / exportCheckpoint（导出选定检查点，R2.1：目标目录由 main 对话框取得）
  * - 运行配置三件套：getSettings 只读状态（不含 apiKey）；saveSettings 单向写入；
  *   clearSettings 删除配置
  * 本文件在 sandbox 下运行，因此不引入任何第三方依赖（连通道常量都来自零依赖模块）。
@@ -32,6 +33,10 @@ const api: WindowApi = {
   // workspaces:*（C 1.1）：文件清单与内容只读通道——不写 trace/blob、不调 LLM/工具
   inspectWorkspace: (request) => ipcRenderer.invoke(CHANNELS.inspect, request),
   readWorkspaceFile: (request) => ipcRenderer.invoke(CHANNELS.readFile, request),
+  // workspaces:export（R2.1）：导出选定检查点。请求只带 runId/可选 stepSpanId，
+  // 目标目录由 main 的原生对话框取得；成功/取消/失败都以 ok 信封的判别式
+  // outcome 返回，载荷原样透传（schema 校验在 main 侧）
+  exportCheckpoint: (request) => ipcRenderer.invoke(CHANNELS.exportCheckpoint, request),
   getSettings: () => ipcRenderer.invoke(CHANNELS.settingsGet),
   saveSettings: (input) => ipcRenderer.invoke(CHANNELS.settingsSave, input),
   clearSettings: () => ipcRenderer.invoke(CHANNELS.settingsClear),

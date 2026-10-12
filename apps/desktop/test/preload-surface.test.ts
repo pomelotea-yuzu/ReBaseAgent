@@ -40,6 +40,8 @@ describe("4.9 预加载桥接面：不含文件能力", () => {
     // 桥接面是**封闭清单**：多一个方法就是多一个攻击面，所以按白名单整表核对。
     // 清单里只有"取数 / 主动执行（经 main 登记）/ 只读辅助 / 配置与代理 / 关闭协商"，
     // **没有任何文件写入、删除、执行外部命令的能力**——文件读写只发生在 main 侧。
+    // exportCheckpoint（R2.1）是唯一的显式写通道：renderer 只传 runId/stepSpanId，
+    // 目标物理路径由 main 的原生对话框取得，preload 上没有路径入口。
     const keys = [...PRELOAD.matchAll(/^ {2}([a-zA-Z]+):/gm)].map((match) => match[1] as string);
     expect([...new Set(keys)].sort()).toEqual([
       "chooseSource",
@@ -50,6 +52,8 @@ describe("4.9 预加载桥接面：不含文件能力", () => {
       "draftCloseAnswer",
       "draftCloseHandshake",
       "draftCloseReport",
+      // R2.1 导出选定检查点：写目标由 main 对话框决定，请求里没有物理路径键
+      "exportCheckpoint",
       "forkCapability",
       "forkRun",
       "getRun",

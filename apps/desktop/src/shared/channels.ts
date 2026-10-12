@@ -25,6 +25,11 @@ export const CHANNELS = {
   // 不写 trace/blob、不调 LLM/工具、不接受任意物理路径
   inspect: "workspaces:inspect",
   readFile: "workspaces:readFile",
+  // workspaces:export（R2.1）：导出选定检查点到用户经原生对话框选定的空目录。
+  // 请求只带 runId/可选 stepSpanId——目标物理路径只能来自 main 的原生对话框；
+  // 不登记 operation、不占主动执行槽、不消费授权；成功/失败/取消都以 ok 信封的
+  // 判别式 outcome 返回，信封失败只留给请求形状非法等程序性错误
+  exportCheckpoint: "workspaces:export",
   settingsGet: "settings:get",
   settingsSave: "settings:save",
   settingsClear: "settings:clear",

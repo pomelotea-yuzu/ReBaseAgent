@@ -57,6 +57,8 @@ import type { RunRepository } from "./run-repository";
 import { RunSourceRejection } from "./run-source-gate";
 import type { SettingsStore } from "./settings";
 import { SourceTokenStore } from "./source-token";
+import { exportWorkspaceEndpoint } from "./workspace-export-endpoint";
+import type { WorkspaceExportEndpointDeps } from "./workspace-export-endpoint";
 import { inspectWorkspace, readWorkspaceFileForView } from "./workspace-view";
 
 /**
@@ -298,6 +300,33 @@ export function registerIpc(deps: IpcDeps): void {
         return fail("WORKSPACE_READ_FAILED", e);
       }
     },
+  );
+
+  // -------------------------------------------------------------------------
+  // workspaces:export —— 导出选定检查点（R2.1）：唯一显式写目标目录的
+  // workspaces 通道。目标目录只能来自 main 的原生对话框；目录返回后、写入前
+  // 重验完整父链；不登记 operation、不占主动槽、不消费授权。同 main 的在飞
+  // 保护是闭包变量——renderer 重载不解除（design D5）。结局以判别式 outcome
+  // 成功返回，信封失败只留给请求形状非法（端点内部收敛，见 endpoint 模块）。
+  // -------------------------------------------------------------------------
+
+  let exportInFlight = false;
+  const exportDeps: WorkspaceExportEndpointDeps = {
+    dataDir,
+    tracesDir: repository.tracesDir,
+    pickDirectory,
+    acquireSlot: () => {
+      if (exportInFlight) return false;
+      exportInFlight = true;
+      return true;
+    },
+    releaseSlot: () => {
+      exportInFlight = false;
+    },
+  };
+
+  ipcMain.handle(CHANNELS.exportCheckpoint, (_event, request: unknown) =>
+    exportWorkspaceEndpoint(exportDeps, request),
   );
 
   // -------------------------------------------------------------------------

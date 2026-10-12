@@ -801,6 +801,121 @@ export const WorkspaceReadFileResultSchema = z.discriminatedUnion("status", [
 ]);
 export type WorkspaceReadFileResult = z.infer<typeof WorkspaceReadFileResultSchema>;
 
+// ---------------------------------------------------------------------------
+// workspaces:export —— 导出选定检查点（R2.1；唯一显式写目标目录的 workspaces 通道）
+// ---------------------------------------------------------------------------
+
+/**
+ * 导出请求：只接 `runId` 与可选 `stepSpanId`（省略 = 本 run 初始快照）。
+ * `.strict()` 钉死封闭形状——dataDir/source/blob/targetDir 等物理路径键一律拒绝：
+ * 目标目录只能由 main 的原生对话框取得，renderer 永不写物理路径。
+ */
+export const WorkspaceExportRequestSchema = z
+  .object({
+    runId: z.string().min(1),
+    stepSpanId: z.string().min(1).optional(),
+  })
+  .strict();
+export type WorkspaceExportRequest = z.infer<typeof WorkspaceExportRequestSchema>;
+
+/** 补丁逐路径排除原因（与包层 ExportPatchExcludedReason 同枚举，跨进程钉死） */
+export const WORKSPACE_EXPORT_EXCLUDED_REASONS = [
+  "binary",
+  "deletion",
+  "baseline_missing",
+  "baseline_corrupt",
+  "baseline_io",
+] as const;
+
+/** 补丁三态（包层 ExportPatchPlan 的跨进程裁剪：只有 written 携带补丁文件事实） */
+export const WorkspaceExportPatchSchema = z.discriminatedUnion("status", [
+  z.object({
+    status: z.literal("written"),
+    file: z.literal("changes.patch"),
+    bytes: z.number().int().nonnegative(),
+    sha256: z.string().regex(/^[0-9a-f]{64}$/),
+    /** 补丁覆盖的逻辑路径（UTF-16 码元序） */
+    covered: z.array(z.string().min(1)),
+    /** 未覆盖变化（二进制/删除等）逐路径原因 */
+    excluded: z.array(
+      z.object({
+        path: z.string().min(1),
+        reason: z.enum(WORKSPACE_EXPORT_EXCLUDED_REASONS),
+      }),
+    ),
+  }),
+  z.object({
+    status: z.literal("no_text_changes"),
+    covered: z.array(z.string().min(1)),
+    excluded: z.array(
+      z.object({
+        path: z.string().min(1),
+        reason: z.enum(WORKSPACE_EXPORT_EXCLUDED_REASONS),
+      }),
+    ),
+  }),
+  z.object({
+    status: z.literal("not_available"),
+    covered: z.array(z.string().min(1)),
+    excluded: z.array(
+      z.object({
+        path: z.string().min(1),
+        reason: z.enum(WORKSPACE_EXPORT_EXCLUDED_REASONS),
+      }),
+    ),
+    /** not_available 的整体原因（超限/基线不可用）；仅有排除项时为 null */
+    reason: z.string().min(1).nullable(),
+  }),
+]);
+export type WorkspaceExportPatch = z.infer<typeof WorkspaceExportPatchSchema>;
+
+/** 六类未保留状态：文案由包层固定（"未保留（原状态未知）"），schema 钉死六键 */
+export const WorkspaceUnpreservedSchema = z.object({
+  permissions: z.string().min(1),
+  executable_bit: z.string().min(1),
+  timestamps: z.string().min(1),
+  links: z.string().min(1),
+  empty_directories: z.string().min(1),
+  external_services: z.string().min(1),
+});
+export type WorkspaceUnpreserved = z.infer<typeof WorkspaceUnpreservedSchema>;
+
+/**
+ * 导出结局（判别式，永不让异常跨越进程边界）：
+ * - `canceled`：用户取消目录选择，零写入；
+ * - `exported`：完整导出成功（目标/files/、数量/字节、补丁三态、未保留说明）；
+ * - `failed`：业务拒绝或写入失败。`code` 是稳定码：来源检查用 main 既有
+ *   `RUN_LINEAGE_INCOMPLETE` / `RUN_DETAIL_UNREADABLE`，其余透传包层失败码
+ *   （target_invalid / target_conflicts_data_dir / target_race / attachment_unavailable /
+ *   io / step_not_found / no_workspace / invalid_request / run_not_found / trace_invalid）；
+ *   main 在飞保护用 `WORKSPACE_EXPORT_IN_FLIGHT`；兜底 `WORKSPACE_EXPORT_FAILED`。
+ *   `retained` 是清理未完成时的残留相对路径（相对目标目录），完整清理为空数组。
+ */
+export const WorkspaceExportOutcomeSchema = z.discriminatedUnion("status", [
+  z.object({ status: z.literal("canceled") }),
+  z.object({
+    status: z.literal("exported"),
+    /** 实际目标目录（main 侧 realpath 归一后的绝对路径） */
+    targetDir: z.string().min(1),
+    filesRoot: z.string().min(1),
+    fileCount: z.number().int().nonnegative(),
+    /** 全部文件字节数（不含清单/补丁等元信息） */
+    totalFileBytes: z.number().nonnegative(),
+    snapshotId: z.string().regex(/^[0-9a-f]{64}$/),
+    /** null = 初始快照 */
+    stepSpanId: z.string().min(1).nullable(),
+    patch: WorkspaceExportPatchSchema,
+    unpreserved: WorkspaceUnpreservedSchema,
+  }),
+  z.object({
+    status: z.literal("failed"),
+    code: z.string().min(1),
+    reason: z.string().min(1),
+    retained: z.array(z.string().min(1)),
+  }),
+]);
+export type WorkspaceExportOutcome = z.infer<typeof WorkspaceExportOutcomeSchema>;
+
 /* ------------------------------------------------------------------ *
  * U3 关闭协商协议（design D6）：main 持有决策，renderer 只报告元数据。
  *
@@ -911,6 +1026,12 @@ export interface WindowApi {
   inspectWorkspace(request: WorkspaceInspectRequest): Promise<Envelope<WorkspaceInspectResult>>;
   /** 读取清单内某条逻辑路径的文本（只读）：二进制/不存在/缺失/损坏各自可辨认 */
   readWorkspaceFile(request: WorkspaceReadFileRequest): Promise<Envelope<WorkspaceReadFileResult>>;
+  /**
+   * 导出选定检查点（R2.1）：请求只带 runId/可选 stepSpanId，目标目录由 main 的原生
+   * 对话框取得。成功/取消/失败都以 ok 信封里的判别式 outcome 返回；信封失败只留给
+   * 请求形状非法。不登记 operation、不占主动槽、不消费授权。
+   */
+  exportCheckpoint(request: WorkspaceExportRequest): Promise<Envelope<WorkspaceExportOutcome>>;
   getSettings(): Promise<Envelope<SettingsState>>;
   saveSettings(input: SettingsInput): Promise<Envelope<{ configured: true }>>;
   clearSettings(): Promise<Envelope<{ configured: false }>>;
