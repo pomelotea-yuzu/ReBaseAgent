@@ -20,6 +20,8 @@ import type {
   RunSummary,
   SettingsInput,
   SettingsState,
+  WorkspaceExportOutcome,
+  WorkspaceExportRequest,
   WorkspaceInspectRequest,
   WorkspaceInspectResult,
   WorkspaceReadFileRequest,
@@ -34,6 +36,7 @@ import {
   ProxyStateSchema,
   RunDetailSchema,
   SettingsStateSchema,
+  WorkspaceExportOutcomeSchema,
   WorkspaceInspectResultSchema,
   WorkspaceReadFileResultSchema,
 } from "@shared/ipc";
@@ -220,6 +223,8 @@ import {
 } from "./lib/result-verification";
 import type { SettingsSaveOutcome } from "./lib/settings-form";
 import { type TreeScope, type TreeViewport, decideTreeInitialFocus } from "./lib/tree-view";
+import { feedbackFromOutcome, workspaceExportKey } from "./lib/workspace-export-state";
+import type { WorkspaceExportFeedback } from "./lib/workspace-export-state";
 import {
   resolveExecutionGate,
   resolveFilterVisibility,
@@ -1010,6 +1015,22 @@ interface AppState {
   ) => Promise<
     { ok: true; data: WorkspaceReadFileResult } | { ok: false; code: string; message: string }
   >;
+
+  /**
+   * R2.1 任务 5.3：按提交 run/step 保存的**导出反馈会话状态**（离开文件页仍存活）。
+   * - 键 = `workspaceExportKey(runId, stepSpanId)`，值带提交时代次；
+   * - 同 key 旧响应（A→B→A 往返、连续重试）按代次丢弃，旧成功/失败/收尾都**不覆盖**
+   *   新对象；不同 key 互不影响；
+   * - 切页不中止 main 写入：没有任何取消通道，迟到响应仍按 key 落库，返回可查看；
+   * - renderer 重载后本状态为空 = 结果未知——UI 必须如实说明并指引检查目标清单，
+   *   不自动重发（本动作也不提供重发入口）。
+   * 返回本次 outcome（代次被更新的提交顶掉时返回 null——反馈已不归本次所有）。
+   */
+  exportCheckpoint: (request: WorkspaceExportRequest) => Promise<WorkspaceExportOutcome | null>;
+  /** 导出反馈（按提交 run/step 键控；重载后为空 = 结果未知，不自动重发） */
+  workspaceExports: Record<string, WorkspaceExportFeedback>;
+  /** 每个 key 最近一次提交的请求代次（旧响应按代次丢弃的判据） */
+  workspaceExportGenerations: Record<string, number>;
 
   loadSettings: () => Promise<boolean>;
   saveSettings: (input: SettingsInput) => Promise<SettingsSaveOutcome>;
@@ -1840,6 +1861,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   expandedSteps: {},
   readingByRun: {},
   readingInvalidated: false,
+  // R2.1 任务 5.3：导出反馈的会话状态（离开文件页仍存活；重载后为空 = 结果未知）
+  workspaceExports: {},
+  workspaceExportGenerations: {},
   loadingList: false,
   loadingDetail: false,
   listLoaded: false,
@@ -3097,6 +3121,65 @@ export const useAppStore = create<AppState>((set, get) => ({
       };
     }
     return { ok: true, data: parsed.data };
+  },
+
+  async exportCheckpoint(request) {
+    const key = workspaceExportKey(request.runId, request.stepSpanId ?? null);
+    // 请求代次：同 key 的每次提交都递增——旧响应（A→B→A、连续重试）回来时
+    // 代次对不上就整包丢弃，旧成功/失败/收尾都不会覆盖新提交的状态。
+    const generation = (get().workspaceExportGenerations[key] ?? 0) + 1;
+    set((state) => ({
+      workspaceExportGenerations: { ...state.workspaceExportGenerations, [key]: generation },
+      workspaceExports: {
+        ...state.workspaceExports,
+        [key]: {
+          kind: "in-flight",
+          runId: request.runId,
+          stepSpanId: request.stepSpanId ?? null,
+          generation,
+        },
+      },
+    }));
+
+    // 切页不中止：没有取消通道，await 期间导航离开不影响这次调用；响应仍按 key 落库
+    const envelope = await api.exportCheckpoint(request);
+    // 跨进程数据不可信：信封失败与 schema 不合法都折成可展示的 failed（受控码）
+    let outcome: WorkspaceExportOutcome;
+    if (!envelope.ok) {
+      outcome = {
+        status: "failed",
+        code: envelope.error.code,
+        reason: envelope.error.message,
+        retained: [],
+      };
+    } else {
+      const parsed = WorkspaceExportOutcomeSchema.safeParse(envelope.data);
+      if (!parsed.success) {
+        outcome = {
+          status: "failed",
+          code: "EXPORT_SCHEMA_INVALID",
+          reason: `导出结果结构校验失败：${describeZodError(parsed.error)}`,
+          retained: [],
+        };
+      } else {
+        outcome = parsed.data;
+      }
+    }
+
+    // 代次守卫：不是最新一代提交 ⇒ 一个字节都不写，反馈已归新提交所有
+    if (get().workspaceExportGenerations[key] !== generation) return null;
+    const identity = {
+      runId: request.runId,
+      stepSpanId: request.stepSpanId ?? null,
+      generation,
+    };
+    set((state) => ({
+      workspaceExports: {
+        ...state.workspaceExports,
+        [key]: feedbackFromOutcome(identity, outcome),
+      },
+    }));
+    return outcome;
   },
 
   async createRun(request, submission) {

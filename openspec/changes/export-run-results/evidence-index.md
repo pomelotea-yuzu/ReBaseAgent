@@ -28,10 +28,10 @@
 | 22 | desktop-ui | 从文件页导出成功 | 6.1、6.2、7.1a | 待实施 | — |
 | 23 | desktop-ui | 目标目录非空或取消选择 | 5.2a、5.4、6.3、7.1b | 部分（main 侧完成） | 取消→canceled 零写入、包层未调用；非空目标→target_invalid（包层 e2e）；端点测试含取消/失败透传；UI 反馈（6.3）待 |
 | 24 | desktop-ui | 来源不完整时禁用或拒绝导出 | 5.1、5.2a、5.4、6.1、7.1b | 部分（main 侧完成） | ownOnly→RUN_LINEAGE_INCOMPLETE、损坏 trace→RUN_DETAIL_UNREADABLE，对话框前早期拒绝 + 目录返回后写入前重验（对话框期间父链变化用例）；strict schema 拒绝额外物理键；UI 禁用资格（6.1）待 |
-| 25 | desktop-ui | 导出失败后恢复阅读 | 5.3、6.3、7.1b | 待实施 | — |
+| 25 | desktop-ui | 导出失败后恢复阅读 | 5.3、6.3、7.1b | 部分（数据层完成） | store 反馈按提交 run/step/代次保存：失败/清理残留（retained）可按键读取，切页不中止、返回可查看；UI 呈现（不抢焦点/保持阅读位置）归 6.3 |
 | 26 | desktop-ui | 导出成功不改变主动执行边界 | 5.2b、5.4、7.2 | 部分（main 构造保证） | 端点 deps 不含 OperationRegistry/sourceToken（零 operation/零授权由构造保证）；在飞保护独立于执行槽；7.2 回归待 |
 | 27 | desktop-ui | 无文本差异和二进制不封禁检查点导出 | 6.1、7.1a | 待实施 | — |
 | 28 | desktop-ui | 补丁不可用不隐去成功文件导出 | 6.2、7.1a | 待实施 | — |
-| 29 | desktop-ui | 导出请求迟到或重载不重发写入 | 5.2b、5.3、5.4、7.2 | 部分（main 侧完成） | main 闭包在飞保护：重复请求立即 WORKSPACE_EXPORT_IN_FLIGHT 且不开第二个对话框，结束释放，renderer 重载不解除；renderer 回执守卫随 5.3 落地 |
+| 29 | desktop-ui | 导出请求迟到或重载不重发写入 | 5.2b、5.3、5.4、7.2 | main+renderer 完成 | main 闭包在飞保护（重复请求立即拒绝且不开第二个对话框、结束释放、重载不解除）+ renderer 代次守卫（迟到响应整包丢弃返回 null、无 cancel/abort 入口、重载后无重发）；UI 显示结果未知归 6.2/6.3 |
 
 保留旧场景同样需要本轮接线回归证据。实机不成立、环境受阻或仅单元层承载均单列，不将规划完成等同功能完成。
