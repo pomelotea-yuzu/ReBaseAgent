@@ -368,6 +368,10 @@ export function WorkspaceFileView({ run }: { run: RunDetail }) {
     useAppStore((s) => s.workspaceExports[workspaceExportKey(run.meta.id, effectiveStepSpanId)]) ??
     null;
   const [exportExpanded, setExportExpanded] = useState(false);
+  // 确认对象绑定检查点：切换检查点即收起确认卡（用户重看新目标的确认说明再提交）
+  useEffect(() => {
+    setExportExpanded(false);
+  }, [effectiveStepSpanId]);
   const exportEligible = inspect !== null && inspect.unavailableCount === 0;
   const exportIneligibleReason =
     inspect === null

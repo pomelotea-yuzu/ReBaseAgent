@@ -1,4 +1,5 @@
-import { dialog, ipcMain } from "electron";
+import { appendFileSync, readFileSync } from "node:fs";
+import { app, dialog, ipcMain } from "electron";
 import {
   CHANNELS,
   ForkCapabilityRequestSchema,
@@ -57,7 +58,7 @@ import type { RunRepository } from "./run-repository";
 import { RunSourceRejection } from "./run-source-gate";
 import type { SettingsStore } from "./settings";
 import { SourceTokenStore } from "./source-token";
-import { exportWorkspaceEndpoint } from "./workspace-export-endpoint";
+import { exportWorkspaceEndpoint, workspaceExportEnvelope } from "./workspace-export-endpoint";
 import type { WorkspaceExportEndpointDeps } from "./workspace-export-endpoint";
 import { inspectWorkspace, readWorkspaceFileForView } from "./workspace-view";
 
@@ -129,6 +130,26 @@ export function registerIpc(deps: IpcDeps): void {
   const pickDirectory =
     deps.pickDirectory ??
     (async (): Promise<string | null> => {
+      // 实机验收钩子（仅 dev；与 REBASEAGENT_ZOOM_FACTOR 同一先例）：OS 原生目录对话框
+      // 无法被 CDP 自动化，导出链路的端到端验收用**控制文件**注入目录选择结果——
+      // env REBASEAGENT_PICK_DIRECTORY_FILE 指向一个文本文件，每次目录选择时读取：
+      //   `__cancel__` → 模拟用户取消（null）；空/缺失/`__real__` → 真原生对话框；
+      //   其余非空行 → 作为用户选定的目标路径返回（校验全部照常走）。
+      // 每次接管都会向 `<file>.calls.log` 追加一行时间戳（验收可断言"对话框未被打开"）。
+      // 打包版永不读取该变量。
+      const pickFile = app.isPackaged ? undefined : process.env.REBASEAGENT_PICK_DIRECTORY_FILE;
+      if (pickFile !== undefined) {
+        let instruction: string | null = null;
+        try {
+          instruction = readFileSync(pickFile, "utf8").trim();
+        } catch {
+          instruction = null; // 文件缺失 → 真对话框
+        }
+        if (instruction !== null && instruction !== "__real__") {
+          appendFileSync(`${pickFile}.calls.log`, `${new Date().toISOString()}\n`);
+          return instruction === "__cancel__" ? null : instruction;
+        }
+      }
       const result = await dialog.showOpenDialog({ properties: ["openDirectory"] });
       if (result.canceled || result.filePaths.length === 0) return null;
       return result.filePaths[0] ?? null;
@@ -325,9 +346,11 @@ export function registerIpc(deps: IpcDeps): void {
     },
   };
 
-  ipcMain.handle(CHANNELS.exportCheckpoint, (_event, request: unknown) =>
-    exportWorkspaceEndpoint(exportDeps, request),
-  );
+  ipcMain.handle(CHANNELS.exportCheckpoint, async (_event, request: unknown) => {
+    const result = await exportWorkspaceEndpoint(exportDeps, request);
+    // 端点结果 → IPC 信封（renderer 只认 Envelope；漏包会让反馈永久卡 in-flight）
+    return workspaceExportEnvelope(result);
+  });
 
   // -------------------------------------------------------------------------
   // runs:promptFork —— 编辑启动上下文从头重跑（与 runs:fork 语义正交的写通道）

@@ -9,6 +9,7 @@ import {
   WORKSPACE_EXPORT_FAILED,
   WORKSPACE_EXPORT_IN_FLIGHT,
   exportWorkspaceEndpoint,
+  workspaceExportEnvelope,
 } from "../src/main/workspace-export-endpoint";
 import type { WorkspaceExportEndpointDeps } from "../src/main/workspace-export-endpoint";
 import { WorkspaceExportOutcomeSchema, WorkspaceExportRequestSchema } from "../src/shared/ipc";
@@ -460,5 +461,44 @@ describe("workspaces:export 端点（任务 5.1/5.2a/5.2b/5.4）", () => {
     if (outcome.status !== "failed") return;
     expect(outcome.code).toBe(WORKSPACE_EXPORT_FAILED);
     expect(outcome.reason).toContain("意外的崩溃");
+  });
+
+  it("信封包装：端点结果必须包成 Envelope（漏包会让 renderer 读 envelope.ok 为 undefined）", async () => {
+    // outcome 分支 → ok 信封
+    const depsOk = makeDeps({
+      exportSnapshot: (async () => ({
+        ok: true as const,
+        value: {
+          targetDir: "D:/out/t",
+          filesRoot: "files",
+          fileCount: 0,
+          totalFileBytes: 0,
+          snapshotId: "a".repeat(64),
+          stepSpanId: null,
+          patch: {
+            status: "no_text_changes" as const,
+            file: null,
+            bytes: null,
+            sha256: null,
+            covered: [],
+            excluded: [],
+            reason: null,
+          },
+        },
+      })) as unknown as typeof exportWorkspaceSnapshot,
+    });
+    const okResult = await exportWorkspaceEndpoint(depsOk, { runId: ROOT_RUN });
+    const okEnvelope = workspaceExportEnvelope(okResult);
+    expect(okEnvelope.ok).toBe(true);
+    if (!okEnvelope.ok) return;
+    expect(WorkspaceExportOutcomeSchema.parse(okEnvelope.data).status).toBe("exported");
+
+    // envelope-failure 分支 → fail 信封（code/message 形状）
+    const badResult = await exportWorkspaceEndpoint(makeDeps(), { targetDir: "D:/evil" });
+    const failEnvelope = workspaceExportEnvelope(badResult);
+    expect(failEnvelope.ok).toBe(false);
+    if (failEnvelope.ok) return;
+    expect(failEnvelope.error.code).toBe("INVALID_ARGUMENT");
+    expect(typeof failEnvelope.error.message).toBe("string");
   });
 });

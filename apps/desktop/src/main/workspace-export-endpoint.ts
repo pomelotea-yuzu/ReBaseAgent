@@ -1,11 +1,16 @@
 import { UNPRESERVED_STATUSES, exportWorkspaceSnapshot } from "@rebaseagent/replay";
 import type { WorkspaceExportSuccess } from "@rebaseagent/replay";
 import type {
+  Envelope,
   WorkspaceExportOutcome,
   WorkspaceExportPatch,
   WorkspaceExportRequest,
 } from "../shared/ipc";
-import { WorkspaceExportRequestSchema } from "../shared/ipc";
+import {
+  WorkspaceExportRequestSchema,
+  fail as failEnvelope,
+  ok as okEnvelope,
+} from "../shared/ipc";
 import { readRunLineage } from "./run-lineage-read";
 
 /**
@@ -51,6 +56,20 @@ export interface WorkspaceExportEndpointDeps {
 export type WorkspaceExportEndpointResult =
   | { readonly kind: "envelope-failure"; readonly code: string; readonly error: unknown }
   | { readonly kind: "outcome"; readonly outcome: WorkspaceExportOutcome };
+
+/**
+ * 端点结果 → IPC 信封（ipcMain.handle 的**唯一**出口形状）。renderer 侧 store 只认
+ * `Envelope`（`ok/data` 或 `ok:false/error`）——漏包信封会让 `envelope.ok` 为 undefined，
+ * 结算分支读到 `envelope.error.code` 直接抛 TypeError，反馈永久卡在 in-flight
+ * （2026-10-12 实机验收 A 段踩坑；端点直测测不出信封层，故此函数独立可测）。
+ */
+export function workspaceExportEnvelope(
+  result: WorkspaceExportEndpointResult,
+): Envelope<WorkspaceExportOutcome> {
+  return result.kind === "envelope-failure"
+    ? failEnvelope(result.code, result.error)
+    : okEnvelope(result.outcome);
+}
 
 /** 导出语境的在飞拒绝码（main 会话级，renderer 重载不解除） */
 export const WORKSPACE_EXPORT_IN_FLIGHT = "WORKSPACE_EXPORT_IN_FLIGHT";
