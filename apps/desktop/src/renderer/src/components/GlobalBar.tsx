@@ -4,10 +4,10 @@
  * 三个**真实可用**的入口（delta：「全局栏 SHALL 提供真实可用的新建运行、录制接入和设置入口」）：
  *   - 新建运行 → 与列表标题区**同一个**创建工作区（判据在 store 的 `openCreateWorkspace`，
  *     U5 任务 4.1 起它是主工作区的一个页面，不再是覆盖模态）
- *   - 录制接入 → 打开设置并**定位到代理分区**（不是另开一套录制 UI）
+ *   - 录制接入 → 打开**独立录制工作区**（U8 1.4 起；不是另开一套录制 UI）
  *   - 设置     → 常规打开设置
  *
- * 另有轨迹/分支树视图切换与状态指示。全部按钮带可访问名称与可见焦点
+ * 另有运行记录／分支关系视图切换与状态指示。全部按钮带可访问名称与可见焦点
  * （4.1 的 `FOCUS_RING` 与 `IconButton` 契约）。
  *
  * ⚠️ 图标 + 文字而非纯图标：这是首屏级入口，「图标悬停可辨用途」对它们不够，
@@ -35,7 +35,9 @@ import { DraftListPanel } from "./DraftListPanel";
 import { FOCUS_RING } from "./IconButton";
 import { OperationsEntry } from "./OperationsEntry";
 
-/** 视图切换按钮（轨迹 / 分支树）：两者互斥，用 aria-pressed 表达当前态 */
+/** 视图切换按钮（运行记录 / 分支关系）：两者互斥，用 aria-pressed 表达当前态。
+ * 面向用户的名称按 UI 整理 delta（MODIFIED「界面提供分支树与轨迹两种视图」）：
+ * 应用级两视图标为「运行记录」「分支关系」，不再把应用级视图统称「轨迹」。 */
 function ViewToggle() {
   const view = useAppStore((s) => s.view);
   const setView = useAppStore((s) => s.setView);
@@ -43,15 +45,15 @@ function ViewToggle() {
   const options = [
     {
       key: "trace" as const,
-      label: "轨迹",
+      label: "运行记录",
       icon: Activity,
-      hint: "三栏视图：运行列表 / 轨迹树 / 详情",
+      hint: "运行记录视图：运行列表与概览、步骤、文件页签",
     },
     {
       key: "tree" as const,
-      label: "分支树",
+      label: "分支关系",
       icon: GitBranch,
-      hint: "全宽分支树：节点为运行、连线为分叉，可勾选多条对照",
+      hint: "宽幅分支关系：节点为运行、连线为分叉，可勾选多条对照",
     },
   ];
 
