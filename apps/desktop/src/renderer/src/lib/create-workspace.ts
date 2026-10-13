@@ -157,13 +157,86 @@ export function readingPatchOfLocation(
   return { tab: location.tab, spanId: location.spanId };
 }
 
-/** 来源位置里的文件定位片段（不是文件页来源 ⇒ null = 不补） */
+/**
+ * 来源位置里的文件定位片段（不是文件页来源 ⇒ null = 不补） */
 export function filePatchOfLocation(
   location: Pick<CreateReturnLocation, "tab" | "file">,
 ): FileLocationRef | null {
   if (location.tab !== "files") return null;
   return location.file;
 }
+
+/**
+ * 工作区视图的面向用户名称（UI 整理 2.1/2.3）。
+ *
+ * 与视图切换术语同源：trace=运行记录、tree=分支关系（MODIFIED「界面提供分支树与
+ * 轨迹两种视图」的面向用户文案）；其余视图名与各工作区对象头一致。
+ * 判据型函数：switch 全覆盖，不查表字符串拼接。
+ */
+export function workspaceViewName(view: WorkspaceView): string {
+  switch (view) {
+    case "trace":
+      return "运行记录";
+    case "tree":
+      return "分支关系";
+    case "create":
+      return "新建运行";
+    case "compare":
+      return "比较";
+    case "recording":
+      return "录制";
+    case "experiment":
+      return "模型实验";
+    case "messages":
+      return "编辑 messages";
+  }
+}
+
+/** 页签的面向用户名称（与 RunWorkspace 页签文案一致） */
+function readingTabName(tab: ReadingTab): string {
+  switch (tab) {
+    case "overview":
+      return "概览";
+    case "steps":
+      return "调用步骤";
+    case "files":
+      return "文件";
+  }
+}
+
+/**
+ * 返回入口的实际目的地文案（UI 整理 2.3 · delta「返回入口 SHALL 使用可读目的地说明」）。
+ *
+ * 例：「返回运行概览」「返回运行记录 · 调用步骤」「返回比较」「返回编辑 messages」。
+ * 只用来源引用里**确实记下**的字段命名目的地——spanId 的"第 N 轮"渲染需要来源 run 的
+ * 详情，这里不冒充算不出的粒度（轮号由返回后的阅读状态恢复如实呈现）。
+ * view 收宽为 WorkspaceView：AuxReturnLocation 的来源可以是创建页/另一辅助页。
+ */
+export function describeReturnDestination(
+  location: Pick<CreateReturnLocation, "tab"> & { readonly view: WorkspaceView },
+): string {
+  const base = `返回${workspaceViewName(location.view)}`;
+  if (location.view !== "trace" || location.tab === null) return base;
+  return `${base} · ${readingTabName(location.tab)}`;
+}
+
+/**
+ * 返回来源失效的就近原因文案（UI 整理 2.3 · N03「显示真实原因和可达退路」）。
+ * 与 `decideCreateReturn`/`decideAuxReturn` 的 fallback reason 一一对应。
+ */
+export function describeReturnFallbackReason(reason: "no-location" | "run-missing"): string {
+  return reason === "no-location"
+    ? "本次会话没有记录来源位置（重载后来源失效），不能返回原页面。"
+    : "来源运行已不在列表里，不能返回原位置。";
+}
+
+/**
+ * 返回入口的呈现事实（UI 整理 2.3）：store 派生（`createReturnFactsOf`）、组件只吃文案——
+ * 来源引用与判据仍归 store/lib，组件不自算位置（create-workspace-store 的接线纪律）。
+ */
+export type CreateReturnFacts =
+  | { readonly kind: "restore"; readonly label: string }
+  | { readonly kind: "fallback"; readonly label: string; readonly reasonText: string };
 
 /**
  * 当场（该 run 已经是选中运行，不会再走 `selectRun`）要选中的调用。

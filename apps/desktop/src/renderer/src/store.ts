@@ -84,6 +84,7 @@ import {
   sameCompareSelection,
 } from "./lib/compare-state";
 import type {
+  CreateReturnFacts,
   CreateReturnLocation,
   ReadingLocationSnapshot,
   SourceView,
@@ -92,9 +93,12 @@ import type {
 import {
   decideCreateEntry,
   decideCreateReturn,
+  describeReturnDestination,
+  describeReturnFallbackReason,
   filePatchOfLocation,
   liveSpanOfLocation,
   readingPatchOfLocation,
+  workspaceViewName,
 } from "./lib/create-workspace";
 import type {
   CallDraftEntry,
@@ -1055,6 +1059,13 @@ interface AppState {
    * 与创建草稿无关：返回不动输入内容，也不解任何冻结。
    */
   returnToCreateSource: () => Promise<void>;
+  /**
+   * UI 整理 2.3（N02/N03）：返回入口的呈现事实（store 派生，组件只吃文案）。
+   * restore ⇒ label = 实际目的地（「返回运行概览」等）；fallback ⇒ label = 退路
+   * （「回到运行记录」）+ reasonText = 就近失效原因。判据仍是 lib 的
+   * decideCreateReturn（与 returnToCreateSource 同一事实，不另造第二份）。
+   */
+  createReturnFactsOf: () => CreateReturnFacts;
   /**
    * U8 任务 1.3：打开录制工作区（全局页，无运行目标；空态 / 全局栏 / 设置 / 缺凭据提示共用）。
    * 进入/沿用语义与创建页一致；已在录制页 ⇒ 什么都不动。
@@ -3481,6 +3492,22 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ view: target });
     if (decision.kind !== "restore" || decision.location.runId === null) return;
     await restoreReadingLocation(decision.location);
+  },
+
+  createReturnFactsOf() {
+    const state = get();
+    const decision = decideCreateReturn({
+      location: state.createReturnLocation,
+      knownRunIds: state.runs.map((run) => run.id),
+    });
+    if (decision.kind === "restore") {
+      return { kind: "restore", label: describeReturnDestination(decision.location) };
+    }
+    return {
+      kind: "fallback",
+      label: `回到${workspaceViewName(decision.view)}`,
+      reasonText: describeReturnFallbackReason(decision.reason),
+    };
   },
 
   openRecordingWorkspace() {

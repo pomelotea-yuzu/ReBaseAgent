@@ -1,6 +1,8 @@
 import type { SpanLine } from "@rebaseagent/trace-sdk";
 import type { ReactNode } from "react";
 import { useEffect } from "react";
+import { decideAuxReturn } from "../lib/aux-workspace";
+import { describeReturnDestination } from "../lib/create-workspace";
 import { deriveExperimentBatches } from "../lib/experiment-results";
 import { resolveExecutionGate } from "../lib/workspace-selection";
 import { useAppStore } from "../store";
@@ -37,6 +39,12 @@ export function ExperimentWorkspace() {
   }, [target, source.phase, readExperimentSource]);
 
   const targetInList = target !== null && runs.some((run) => run.id === target.runId);
+  // UI 整理 2.3（N03）：返回入口按同一判据分流——restore 显实际目的地，fallback 显
+  // 失效原因 + 退路（不冒充"返回来源"却落到别的对象）
+  const returnDecision = decideAuxReturn({
+    location,
+    knownRunIds: runs.map((run) => run.id),
+  });
   const targetExecutable = resolveExecutionGate({
     unavailable: !targetInList,
     reading: source.phase === "reading",
@@ -111,7 +119,17 @@ export function ExperimentWorkspace() {
           </>
         )
       }
-      returnAvailable={location !== null}
+      returnAvailable={returnDecision.kind === "restore"}
+      returnLabel={
+        returnDecision.kind === "restore"
+          ? describeReturnDestination(returnDecision.location)
+          : undefined
+      }
+      returnFallback={
+        returnDecision.kind === "fallback"
+          ? { reason: returnDecision.reason, fallbackView: returnDecision.view }
+          : null
+      }
       onReturn={() => void returnToAuxSource("experiment")}
     >
       {body}

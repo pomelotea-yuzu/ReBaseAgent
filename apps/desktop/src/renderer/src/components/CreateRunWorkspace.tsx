@@ -112,6 +112,13 @@ export interface CreateRunFormViewProps {
   readonly onDiscard: () => void;
   readonly onSubmit: () => void;
   readonly onReturn: () => void;
+  /**
+   * UI 整理 2.3：返回按钮的文案（restore ⇒ 实际目的地如「返回运行概览」；
+   * fallback ⇒ 退路如「回到运行记录」）。文案由 store 派生（createReturnFactsOf）传入。
+   */
+  readonly returnLabel: string;
+  /** fallback 时的就近失效原因（restore ⇒ null = 不渲染） */
+  readonly returnReasonText: string | null;
 }
 
 /** 就近错误条：文字表达（不只靠颜色），并由调用方用 aria-describedby 接到控件上 */
@@ -159,15 +166,22 @@ export function CreateRunWorkspaceView(props: CreateRunFormViewProps) {
           <div className="text-[11px] text-gray-500">
             从头执行一个 run（无父 run、不续跑既有轨迹）
           </div>
+          {props.returnReasonText !== null ? (
+            <div className="mt-0.5 text-[11px] text-amber-700" data-return-fallback-reason>
+              {props.returnReasonText}
+            </div>
+          ) : null}
         </div>
         <button
           type="button"
-          // 返回来源不挑时机：草稿与它的冻结一起留在会话里，回来仍是原样
+          // 返回来源不挑时机：草稿与它的冻结一起留在会话里，回来仍是原样。
+          // 文案是实际目的地（restore）或诚实的退路（fallback）——UI 整理 2.3。
           onClick={props.onReturn}
           data-return-to-source
+          aria-label={props.returnLabel}
           className={`shrink-0 rounded border border-gray-300 px-2 py-1 text-[11px] text-gray-600 hover:bg-gray-50 ${FOCUS_RING}`}
         >
-          返回来源
+          {props.returnLabel}
         </button>
       </div>
 
@@ -456,6 +470,9 @@ export function CreateRunWorkspace({ onOpenSettings }: { onOpenSettings: () => v
   const setCreateSourceRef = useAppStore((s) => s.setCreateSourceRef);
   const createRunErrorCode = useAppStore((s) => s.createRunErrorCode);
   const returnToCreateSource = useAppStore((s) => s.returnToCreateSource);
+  // UI 整理 2.3（N02/N03）：返回文案由 store 派生（createReturnFactsOf）——来源引用
+  // 与判据仍归 store/lib，组件不自算位置（接线纪律，见 create-workspace-store 判据）。
+  const returnFacts = useAppStore((s) => s.createReturnFactsOf());
   const [form, setForm] = useState<CreateRunFormState>(() =>
     restoreCreateForm({
       draftMode: useAppStore.getState().createRunDraftOf()?.mode,
@@ -517,6 +534,10 @@ export function CreateRunWorkspace({ onOpenSettings }: { onOpenSettings: () => v
 
   const busy = creatingRun === "in_progress";
   const isolated = form.mode === "isolated_files";
+
+  // 文案直接来自 store 派生事实（fallback 就近原因进页头）
+  const returnLabel = returnFacts.label;
+  const returnReasonText = returnFacts.kind === "fallback" ? returnFacts.reasonText : null;
   // U3 任务 3.5：待定提交冻结整份表单（store 侧同时拒绝写入与放弃）。
   // ⚠️ U5 4.1 起它**只冻结这份表单**，不再锁整窗：切运行/去设置/返回来源都照常可用，
   // 离开时这份草稿连同冻结一起留在会话里（判据在 draft-submission，不在组件）。
@@ -716,6 +737,8 @@ export function CreateRunWorkspace({ onOpenSettings }: { onOpenSettings: () => v
         onReturn={() => {
           void returnToCreateSource();
         }}
+        returnLabel={returnLabel}
+        returnReasonText={returnReasonText}
       />
       {/* 请求事实单独一行，与上面的"执行范围/结局说明"分开：错误信封只说明这次提交
           被怎样对待（D4：请求诊断与持久运行结局各自一行，互不覆盖） */}

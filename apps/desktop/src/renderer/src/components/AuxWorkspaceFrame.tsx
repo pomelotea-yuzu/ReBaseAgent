@@ -1,4 +1,9 @@
 import type { ReactNode } from "react";
+import {
+  type WorkspaceView,
+  describeReturnFallbackReason,
+  workspaceViewName,
+} from "../lib/create-workspace";
 import { FOCUS_RING } from "./IconButton";
 import { WorkspaceHeading } from "./WorkspaceHeading";
 
@@ -21,6 +26,8 @@ export function AuxWorkspaceFrame({
   compactDescription,
   targetLine,
   returnAvailable,
+  returnLabel,
+  returnFallback,
   onReturn,
   children,
 }: {
@@ -34,9 +41,68 @@ export function AuxWorkspaceFrame({
    */
   readonly targetLine: ReactNode | null;
   readonly returnAvailable: boolean;
+  /**
+   * UI 整理 2.3（delta「返回入口 SHALL 使用可读目的地说明」）：
+   * returnAvailable=true 时的入口文案（实际目的地，如「返回运行概览」）；缺省「返回来源」。
+   */
+  readonly returnLabel?: string;
+  /**
+   * UI 整理 2.3（N03「显示真实原因和可达退路」）：returnAvailable=false 时的失效原因
+   * 与退路视图。给了就**就近**渲染原因文字 + 「回到 X」可用退路按钮（走 onReturn，
+   * store 的返回动作本就实现 fallback）；不给则维持旧的禁用按钮形态。
+   */
+  readonly returnFallback?: {
+    readonly reason: "no-location" | "run-missing";
+    readonly fallbackView: WorkspaceView;
+  } | null;
   readonly onReturn: () => void;
   readonly children: ReactNode;
 }): ReactNode {
+  const returnButton = ((): ReactNode => {
+    if (returnAvailable) {
+      return (
+        <button
+          type="button"
+          aria-label={returnLabel ?? "返回来源"}
+          onClick={onReturn}
+          className={`rounded border border-sky-200 bg-sky-50 px-2 py-0.5 text-reading-meta text-sky-900 hover:bg-sky-100 ${FOCUS_RING}`}
+        >
+          {returnLabel ?? "返回来源"}
+        </button>
+      );
+    }
+    if (returnFallback !== undefined && returnFallback !== null) {
+      // 失效时按钮改为**诚实的退路**：文案说明落到哪，不冒充"返回来源"
+      return (
+        <button
+          type="button"
+          aria-label={`回到${workspaceViewName(returnFallback.fallbackView)}`}
+          onClick={onReturn}
+          title={describeReturnFallbackReason(returnFallback.reason)}
+          className={`rounded border border-gray-300 bg-gray-50 px-2 py-0.5 text-reading-meta text-gray-700 hover:bg-gray-100 ${FOCUS_RING}`}
+        >
+          回到{workspaceViewName(returnFallback.fallbackView)}
+        </button>
+      );
+    }
+    return (
+      <button
+        type="button"
+        aria-label="返回来源"
+        disabled
+        title="本次会话没有记录来源位置（重载后来源失效），不能返回"
+        className={`cursor-not-allowed rounded border border-gray-200 bg-gray-50 px-2 py-0.5 text-reading-meta text-gray-400 ${FOCUS_RING}`}
+      >
+        返回来源
+      </button>
+    );
+  })();
+  const fallbackReasonLine =
+    !returnAvailable && returnFallback !== undefined && returnFallback !== null ? (
+      <p className="mt-0.5 text-reading-meta leading-5 text-amber-700">
+        {describeReturnFallbackReason(returnFallback.reason)}
+      </p>
+    ) : null;
   return (
     <section
       className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-y-auto bg-white"
@@ -55,49 +121,16 @@ export function AuxWorkspaceFrame({
             details={
               <p className="py-1 text-reading-meta leading-5 text-gray-500">{description}</p>
             }
-            actions={
-              <button
-                type="button"
-                aria-label="返回来源"
-                onClick={onReturn}
-                disabled={!returnAvailable}
-                title={
-                  returnAvailable
-                    ? "返回来源"
-                    : "本次会话没有记录来源位置（重载后来源失效），不能返回"
-                }
-                className={`rounded border border-sky-200 bg-sky-50 px-2 py-0.5 text-reading-meta text-sky-900 hover:bg-sky-100 disabled:opacity-40 ${FOCUS_RING}`}
-              >
-                返回来源
-              </button>
-            }
+            actions={returnButton}
           />
         ) : (
           <>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h1 className="text-reading-body font-semibold text-gray-900">{title}</h1>
-              {returnAvailable ? (
-                <button
-                  type="button"
-                  aria-label="返回来源"
-                  onClick={onReturn}
-                  className={`rounded border border-sky-200 bg-sky-50 px-2 py-0.5 text-reading-meta text-sky-900 hover:bg-sky-100 ${FOCUS_RING}`}
-                >
-                  返回来源
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  aria-label="返回来源"
-                  disabled
-                  title="本次会话没有记录来源位置（重载后来源失效），不能返回"
-                  className={`cursor-not-allowed rounded border border-gray-200 bg-gray-50 px-2 py-0.5 text-reading-meta text-gray-400 ${FOCUS_RING}`}
-                >
-                  返回来源
-                </button>
-              )}
+              {returnButton}
             </div>
             <p className="mt-0.5 text-reading-meta leading-5 text-gray-500">{description}</p>
+            {fallbackReasonLine}
             {targetLine !== null ? (
               <p className="mt-1 break-all font-code text-reading-meta text-gray-600">
                 {targetLine}

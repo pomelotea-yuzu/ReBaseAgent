@@ -81,8 +81,11 @@ describe("接线契约：创建工作区读写创建草稿（任务 2.3）", () 
   it("来源与草稿分开：返回来源走 store 动作，页面不自算位置", () => {
     expect(WORKSPACE).toContain("s.returnToCreateSource");
     expect(WORKSPACE).toContain("returnToCreateSource()");
-    // 来源引用不进草稿、也不由组件读写（判据全在 lib/create-workspace.ts + store）
+    // 来源引用不进草稿、也不由组件读写（判据全在 lib/create-workspace.ts + store）。
+    // UI 整理 2.3 的返回文案同样由 store 派生（createReturnFactsOf），组件只吃文案。
     expect(WORKSPACE).not.toContain("createReturnLocation");
+    expect(WORKSPACE).not.toContain("decideCreateReturn");
+    expect(WORKSPACE).toContain("createReturnFactsOf");
   });
 });
 

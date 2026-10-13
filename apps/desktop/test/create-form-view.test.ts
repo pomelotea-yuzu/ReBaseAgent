@@ -84,6 +84,9 @@ function props(over: Partial<CreateRunFormViewProps> = {}): CreateRunFormViewPro
     onDiscard: () => {},
     onSubmit: () => {},
     onReturn: () => {},
+    // UI 整理 2.3：返回文案由容器喂（restore ⇒ 目的地 / fallback ⇒ 退路+原因）
+    returnLabel: "返回来源",
+    returnReasonText: null,
     ...over,
   };
 }

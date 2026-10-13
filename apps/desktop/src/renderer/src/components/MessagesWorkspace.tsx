@@ -1,6 +1,8 @@
 import type { SpanLine } from "@rebaseagent/trace-sdk";
 import type { ReactNode } from "react";
 import { useEffect } from "react";
+import { decideAuxReturn } from "../lib/aux-workspace";
+import { describeReturnDestination } from "../lib/create-workspace";
 import { deriveMessagesResults } from "../lib/messages-results";
 import type { ResultAction } from "../lib/operation-result-view";
 import { resolveExecutionGate } from "../lib/workspace-selection";
@@ -39,6 +41,11 @@ export function MessagesWorkspace() {
   }, [target, source.phase, readMessagesSource]);
 
   const targetInList = target !== null && runs.some((run) => run.id === target.runId);
+  // UI 整理 2.3（N03）：与实验容器同口径的返回分流（restore 显目的地 / fallback 显原因+退路）
+  const returnDecision = decideAuxReturn({
+    location,
+    knownRunIds: runs.map((run) => run.id),
+  });
   const targetExecutable = resolveExecutionGate({
     unavailable: !targetInList,
     reading: source.phase === "reading",
@@ -114,7 +121,17 @@ export function MessagesWorkspace() {
           </>
         )
       }
-      returnAvailable={location !== null}
+      returnAvailable={returnDecision.kind === "restore"}
+      returnLabel={
+        returnDecision.kind === "restore"
+          ? describeReturnDestination(returnDecision.location)
+          : undefined
+      }
+      returnFallback={
+        returnDecision.kind === "fallback"
+          ? { reason: returnDecision.reason, fallbackView: returnDecision.view }
+          : null
+      }
       onReturn={() => void returnToAuxSource("messages")}
     >
       {body}

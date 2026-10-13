@@ -1,3 +1,5 @@
+import { decideAuxReturn } from "../lib/aux-workspace";
+import { describeReturnDestination } from "../lib/create-workspace";
 import { useAppStore } from "../store";
 import { AuxWorkspaceFrame } from "./AuxWorkspaceFrame";
 import { requestConfirm } from "./ConfirmDialog";
@@ -17,6 +19,26 @@ export function RecordingWorkspace() {
   const draft = useAppStore((s) => s.recordingDraft);
   const location = useAppStore((s) => s.recordingReturnLocation);
   const returnToAuxSource = useAppStore((s) => s.returnToAuxSource);
+  const runs = useAppStore((s) => s.runs);
+  // UI 整理 2.3（N03）：返回入口按 decideAuxReturn 分流（restore 显目的地 / fallback 显原因+退路）
+  const returnDecision = decideAuxReturn({
+    location,
+    knownRunIds: runs.map((run) => run.id),
+  });
+  const returnProps = {
+    returnAvailable: returnDecision.kind === "restore",
+    returnLabel:
+      returnDecision.kind === "restore"
+        ? describeReturnDestination(returnDecision.location)
+        : undefined,
+    returnFallback:
+      returnDecision.kind === "fallback"
+        ? { reason: returnDecision.reason, fallbackView: returnDecision.view }
+        : null,
+    onReturn: (): void => {
+      void returnToAuxSource("recording");
+    },
+  };
 
   if (draft === null) {
     // 理论不可达（App 打开录制即 ensure）；重载后直接渲染本视图的兜底
@@ -25,8 +47,7 @@ export function RecordingWorkspace() {
         title="录制接入"
         description="录制配置在本工作区内操作。"
         targetLine={null}
-        returnAvailable={location !== null}
-        onReturn={() => void returnToAuxSource("recording")}
+        {...returnProps}
       >
         <button
           type="button"
@@ -39,22 +60,23 @@ export function RecordingWorkspace() {
     );
   }
 
-  return (
-    <RecordingWorkspaceConnected
-      draft={draft}
-      returnAvailable={location !== null}
-      onReturn={() => void returnToAuxSource("recording")}
-    />
-  );
+  return <RecordingWorkspaceConnected draft={draft} {...returnProps} />;
 }
 
 function RecordingWorkspaceConnected({
   draft,
   returnAvailable,
+  returnLabel,
+  returnFallback,
   onReturn,
 }: {
   draft: RecordingWorkspaceDraft;
   returnAvailable: boolean;
+  returnLabel?: string;
+  returnFallback?: {
+    readonly reason: "no-location" | "run-missing";
+    readonly fallbackView: import("../lib/create-workspace").WorkspaceView;
+  } | null;
   onReturn: () => void;
 }) {
   const proxy = useAppStore((s) => s.proxy);
@@ -75,6 +97,8 @@ function RecordingWorkspaceConnected({
       description="把现有 Agent 的 base_url 指到本地录制代理即可录制。配置、启停与真实监听状态在本工作区内操作。"
       targetLine={null}
       returnAvailable={returnAvailable}
+      returnLabel={returnLabel}
+      returnFallback={returnFallback}
       onReturn={onReturn}
     >
       <RecordingWorkspaceView
