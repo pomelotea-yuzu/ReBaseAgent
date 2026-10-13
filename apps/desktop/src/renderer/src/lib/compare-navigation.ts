@@ -173,12 +173,17 @@ export function decideCompareBodyLayout(
  * 比较页的导航可见性：**窄窗**（narrow/single 档）首次进入默认收起，退出恢复
  * 用户原状态——通过纯显示决策实现，**不写回偏好**（与 U1 自动折叠同一纪律：
  * 偏好没被改过，宽度回来自然恢复）。wide/medium 档沿用用户当前状态。
+ * UI 整理 3.1（N05）：narrow/single 档的恢复入口 = 全局栏「打开运行列表」
+ * （navOpened 临时打开）——此前 narrow 档恒 false 使恢复入口失效，属于缺口。
  */
 export function decideCompareNavVisible(input: {
   view: WorkspaceView;
   breakpoint: "wide" | "medium" | "narrow" | "single";
   navVisible: boolean;
+  /** narrow/single 档下用户经恢复入口临时打开导航；缺省 false = 默认收起 */
+  navOpened?: boolean;
 }): boolean {
   if (input.view !== "compare") return input.navVisible;
-  return input.breakpoint === "wide" || input.breakpoint === "medium" ? input.navVisible : false;
+  if (input.breakpoint === "wide" || input.breakpoint === "medium") return input.navVisible;
+  return input.navOpened === true;
 }

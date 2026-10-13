@@ -50,7 +50,14 @@ export default function App() {
   const draftCloseLocked = useDraftCloseGuard();
 
   // 外壳布局（任务 4.3）：断点、宽度偏好、自动折叠。**自动折叠不写回偏好**。
-  const layout = useLayoutState({ tab, editing: false });
+  // UI 整理 3.1（delta「任务布局覆盖不改写手动偏好」）：实验 / messages 是内容任务
+  // 工作区——medium 档临时收起导航（纯显示决策；恢复入口 = 全局栏「打开运行列表」），
+  // 离开任务自动按有效手动偏好恢复。创建页保持导航（U5 4.1 既有口径）。
+  const layout = useLayoutState({
+    tab,
+    editing: false,
+    taskAdaptNav: view === "experiment" || view === "messages",
+  });
   const contentWidth = useContentWidth();
 
   // UI 密度 2.4（design D3）：专注模式的有效性按**当前工作区身份**即时比对——
@@ -91,6 +98,8 @@ export default function App() {
           view,
           breakpoint: layout.breakpoint,
           navVisible: layout.navVisible,
+          // UI 整理 3.1（N05）：narrow/single 档的恢复入口——「打开运行列表」临时打开
+          navOpened: layout.navOpened,
         })
       : layout.navVisible && !stepsReplaceWorkspace;
   // U7 5.8：双运行正文的容器宽度（导航占位扣除后）决定并排/上下排列

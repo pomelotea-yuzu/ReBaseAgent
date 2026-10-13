@@ -152,6 +152,91 @@ describe("导航可见性：四档 + 用户偏好优先", () => {
     ).toBe(false);
   });
 
+  // UI 整理 3.1（delta「任务布局覆盖不改写手动偏好」· N05）
+  it("960–1279 内容任务工作区（实验/messages）暂时收起导航，恢复入口打开即显示", () => {
+    for (const taskAdaptNav of [true]) {
+      expect(
+        decideNavVisible({
+          breakpoint: "medium",
+          prefs: prefs(),
+          tab: "overview",
+          editing: false,
+          navOpened: false,
+          taskAdaptNav,
+        }),
+      ).toBe(false);
+      expect(
+        decideNavVisible({
+          breakpoint: "medium",
+          prefs: prefs(),
+          tab: "overview",
+          editing: false,
+          navOpened: true,
+          taskAdaptNav,
+        }),
+      ).toBe(true);
+    }
+  });
+
+  it("任务适配只在 medium 生效：wide 常驻、narrow 按临时打开（与文件页/编辑态同口径）", () => {
+    expect(
+      decideNavVisible({
+        breakpoint: "wide",
+        prefs: prefs(),
+        tab: "overview",
+        editing: false,
+        navOpened: false,
+        taskAdaptNav: true,
+      }),
+    ).toBe(true);
+    expect(
+      decideNavVisible({
+        breakpoint: "narrow",
+        prefs: prefs(),
+        tab: "overview",
+        editing: false,
+        navOpened: false,
+        taskAdaptNav: true,
+      }),
+    ).toBe(false);
+  });
+
+  it("用户显式收起压过任务适配（navUserCollapsed 优先，只有临时打开能盖）", () => {
+    expect(
+      decideNavVisible({
+        breakpoint: "medium",
+        prefs: { ...prefs(), navUserCollapsed: true },
+        tab: "overview",
+        editing: false,
+        navOpened: false,
+        taskAdaptNav: true,
+      }),
+    ).toBe(false);
+    expect(
+      decideNavVisible({
+        breakpoint: "medium",
+        prefs: { ...prefs(), navUserCollapsed: true },
+        tab: "overview",
+        editing: false,
+        navOpened: true,
+        taskAdaptNav: true,
+      }),
+    ).toBe(true);
+  });
+
+  it("任务适配是纯显示决策：调用后 prefs 对象原样（不写回偏好的断言点）", () => {
+    const before = { ...prefs(), navUserCollapsed: false };
+    decideNavVisible({
+      breakpoint: "medium",
+      prefs: before,
+      tab: "overview",
+      editing: false,
+      navOpened: false,
+      taskAdaptNav: true,
+    });
+    expect(before).toEqual(prefs());
+  });
+
   it("720–959 默认收起，临时打开才显示", () => {
     expect(
       decideNavVisible({

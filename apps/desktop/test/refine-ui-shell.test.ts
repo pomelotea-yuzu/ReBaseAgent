@@ -190,3 +190,17 @@ describe("运行列表：默认身份与结局清楚，次级指标按需展开�
     expect(auditForbiddenTokens(runList, ["getRun(", "runs:read", "loadRunDetails"])).toEqual([]);
   });
 });
+
+// —— 3.1：任务级临时导航适配（delta ADDED「任务布局覆盖不改写手动偏好」）——
+
+describe("任务级导航适配接线（App 外壳）", () => {
+  const app = read("../src/renderer/src/App.tsx");
+
+  it("实验 / messages 传入任务适配（创建页保持导航，U5 4.1 既有口径）", () => {
+    expect(app).toContain('taskAdaptNav: view === "experiment" || view === "messages"');
+  });
+
+  it("比较页恢复入口接线：decideCompareNavVisible 消费 navOpened", () => {
+    expect(app).toContain("navOpened: layout.navOpened");
+  });
+});

@@ -116,8 +116,15 @@ export function decideNavVisible(input: {
   editing: boolean;
   /** narrow/single 档下用户是否临时打开了导航 */
   navOpened: boolean;
+  /**
+   * UI 整理 3.1（delta「任务布局覆盖不改写手动偏好」）：当前是否处于**内容任务工作区**
+   * （实验 / messages 编辑）。medium 档与文件页/编辑态同口径临时收起导航——
+   * 纯显示决策，不写偏好；恢复入口 = 全局栏「打开运行列表」（navOpened）。
+   * wide 档空间充裕不适配；narrow/single 档本就默认收起。
+   */
+  taskAdaptNav?: boolean;
 }): boolean {
-  const { breakpoint, prefs, tab, editing, navOpened } = input;
+  const { breakpoint, prefs, tab, editing, navOpened, taskAdaptNav } = input;
   if (prefs.navUserCollapsed) {
     // 用户显式收起：即使宽窗口也不显示，只有临时打开能盖过去
     return navOpened;
@@ -126,8 +133,8 @@ export function decideNavVisible(input: {
     case "wide":
       return true;
     case "medium":
-      // 文件页或编辑态抢占宽度 ⇒ 暂时收起导航（用户偏好不变）
-      if (tab === "files" || editing) return navOpened;
+      // 文件页/编辑态/内容任务工作区抢占宽度 ⇒ 暂时收起导航（用户偏好不变）
+      if (tab === "files" || editing || taskAdaptNav === true) return navOpened;
       return true;
     case "narrow":
     case "single":

@@ -93,6 +93,8 @@ export interface LayoutState {
 export function useLayoutState(input: {
   tab: "overview" | "steps" | "files";
   editing: boolean;
+  /** UI 整理 3.1：当前是否处于内容任务工作区（实验 / messages）——medium 档临时收起导航 */
+  taskAdaptNav?: boolean;
 }): LayoutState {
   const contentWidth = useContentWidth();
   const [prefs, setPrefs] = useState<LayoutPrefs>(initialLayoutPrefs);
@@ -131,6 +133,7 @@ export function useLayoutState(input: {
     tab: input.tab,
     editing: input.editing,
     navOpened,
+    taskAdaptNav: input.taskAdaptNav,
   });
 
   const stepsVisible = decideStepsVisible({

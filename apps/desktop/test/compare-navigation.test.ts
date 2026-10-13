@@ -137,4 +137,37 @@ describe("5.8 正文宽度适配与比较页导航可见性", () => {
       false,
     );
   });
+
+  // UI 整理 3.1（N05）：窄窗默认收起 ≠ 恢复入口失效——「打开运行列表」临时打开必须可达
+  it("narrow/single 档经恢复入口（navOpened）可重新打开导航；缺省仍默认收起", () => {
+    expect(
+      decideCompareNavVisible({
+        view: "compare",
+        breakpoint: "narrow",
+        navVisible: true,
+        navOpened: true,
+      }),
+    ).toBe(true);
+    expect(
+      decideCompareNavVisible({
+        view: "compare",
+        breakpoint: "single",
+        navVisible: true,
+        navOpened: true,
+      }),
+    ).toBe(true);
+    // 缺省（不传 navOpened）保持既有判据：默认收起
+    expect(
+      decideCompareNavVisible({ view: "compare", breakpoint: "narrow", navVisible: true }),
+    ).toBe(false);
+    // medium 恢复入口不改变沿用语义
+    expect(
+      decideCompareNavVisible({
+        view: "compare",
+        breakpoint: "medium",
+        navVisible: false,
+        navOpened: true,
+      }),
+    ).toBe(false);
+  });
 });
