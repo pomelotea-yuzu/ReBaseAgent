@@ -27,8 +27,12 @@ export function AuxWorkspaceFrame({
   readonly title: string;
   readonly description: string;
   readonly compactDescription?: string;
-  /** 目标身份一行（如父 run + 首次调用）；null = 该页无运行目标（录制）或目标未绑定 */
-  readonly targetLine: string | null;
+  /**
+   * 目标身份一行（如父 run + 首次调用）；null = 该页无运行目标（录制）或目标未绑定。
+   * UI 整理 2.2（delta「对象完整 ID 可访问并复制」）：放宽为 ReactNode，
+   * 让调用方把 run ID 渲染成可复制的 ShortIdLabel（纯 string 无法承载复制按钮）。
+   */
+  readonly targetLine: ReactNode | null;
   readonly returnAvailable: boolean;
   readonly onReturn: () => void;
   readonly children: ReactNode;

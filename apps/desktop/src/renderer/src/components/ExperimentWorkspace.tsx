@@ -7,6 +7,7 @@ import { useAppStore } from "../store";
 import { AuxWorkspaceFrame } from "./AuxWorkspaceFrame";
 import { ExperimentResultsSection } from "./ExperimentResults";
 import { ModelAbEditor } from "./ModelAbEditor";
+import { ShortIdLabel } from "./ShortIdLabel";
 
 /**
  * U8 任务 3.1b：实验工作区容器——**目标作用域**的父本源读取与编辑器挂载。
@@ -26,6 +27,7 @@ export function ExperimentWorkspace() {
   const returnToAuxSource = useAppStore((s) => s.returnToAuxSource);
   const readExperimentSource = useAppStore((s) => s.readExperimentSource);
   const runs = useAppStore((s) => s.runs);
+  const shortIdState = useAppStore((s) => s.shortIdState);
 
   // 目标在场且尚未读到 ⇒ 发起只读读取（换目标后 openExperimentWorkspace 已回到 idle）
   useEffect(() => {
@@ -96,7 +98,19 @@ export function ExperimentWorkspace() {
     <AuxWorkspaceFrame
       title="模型实验"
       description="以一个普通运行及其首次模型调用为父本，编排多臂参数对比。资格由门禁与 main 裁决；臂编辑与计划预览在此完成。"
-      targetLine={target === null ? null : `父本 ${target.runId} · 首次模型调用 ${target.spanId}`}
+      targetLine={
+        target === null ? null : (
+          <>
+            父本{" "}
+            <ShortIdLabel
+              id={target.runId}
+              shortId={shortIdState.update([target.runId]).get(target.runId) ?? target.runId}
+              label="父本运行 ID"
+            />{" "}
+            · 首次模型调用 <span className="font-code">{target.spanId}</span>
+          </>
+        )
+      }
       returnAvailable={location !== null}
       onReturn={() => void returnToAuxSource("experiment")}
     >

@@ -8,6 +8,7 @@ import { useAppStore } from "../store";
 import { AuxWorkspaceFrame } from "./AuxWorkspaceFrame";
 import { MessagesForkEditor } from "./MessagesForkEditor";
 import { MessagesResultsSection } from "./MessagesResults";
+import { ShortIdLabel } from "./ShortIdLabel";
 
 /**
  * U8 任务 5.1b：messages 编辑工作区容器——**目标作用域**的源读取与编辑器挂载
@@ -28,6 +29,7 @@ export function MessagesWorkspace() {
   const returnToAuxSource = useAppStore((s) => s.returnToAuxSource);
   const readMessagesSource = useAppStore((s) => s.readMessagesSource);
   const runs = useAppStore((s) => s.runs);
+  const shortIdState = useAppStore((s) => s.shortIdState);
 
   // 目标在场且尚未读到 ⇒ 发起只读读取（换目标后 openMessagesWorkspace 已回到 idle）
   useEffect(() => {
@@ -99,7 +101,19 @@ export function MessagesWorkspace() {
       title="编辑 messages 重发"
       compactDescription="单请求重发 · 不执行外部工具 · 使用本会话最近捕获的凭据"
       description="编辑一次代理录制的模型请求并作为单个真实请求重发（不执行外部工具）。源 run 不会被修改。重发使用本会话代理捕获的凭据。"
-      targetLine={target === null ? null : `源 run ${target.runId} · 调用 ${target.spanId}`}
+      targetLine={
+        target === null ? null : (
+          <>
+            源 run{" "}
+            <ShortIdLabel
+              id={target.runId}
+              shortId={shortIdState.update([target.runId]).get(target.runId) ?? target.runId}
+              label="来源运行 ID"
+            />{" "}
+            · 调用 <span className="font-code">{target.spanId}</span>
+          </>
+        )
+      }
       returnAvailable={location !== null}
       onReturn={() => void returnToAuxSource("messages")}
     >

@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { ShortIdLabel } from "../src/renderer/src/components/ShortIdLabel";
 import { auditForbiddenTokens } from "../src/renderer/src/lib/overview-view";
 
 /**
@@ -59,5 +60,88 @@ describe("录制接入进入既有独立录制工作区（R07/N16 的规范对�
   it("按钮可见名称与提示指认独立录制工作区（面向用户文字与实现一致）", () => {
     expect(bar).toContain("录制接入");
     expect(bar).toContain("打开录制工作区");
+  });
+});
+
+// —— 2.2：对象头身份与完整 ID 可复制（delta ADDED「当前任务身份与返回目的地明确」）——
+
+// RunWorkspace 里的 store 薄壳 import 时会触到 window.api ⇒ 桩先就位再动态 import
+// （与 notice-disclosure.test.tsx 同法）。
+(globalThis as Record<string, unknown>).window = { api: {} };
+const { createElement } = await import("react");
+const { renderToStaticMarkup } = await import("react-dom/server");
+const { RunHeaderView } = await import("../src/renderer/src/components/RunWorkspace");
+const { AuxWorkspaceFrame } = await import("../src/renderer/src/components/AuxWorkspaceFrame");
+
+const renderHeader = (props: {
+  selectedRunId: string | null;
+  shortId?: string | null;
+}): string =>
+  renderToStaticMarkup(createElement(RunHeaderView, { detail: null, runs: [], ...props }));
+
+describe("全局栏不再冒充当前对象（2.2 移除 detail 身份展示）", () => {
+  it("GlobalBar 不订阅 detail、不渲染 meta.id；对象身份归各工作区对象头", () => {
+    expect(auditForbiddenTokens(bar, ["s.detail", "meta.id"])).toEqual([]);
+    // 全局栏其余入口不受影响
+    expect(bar).toContain("<OperationsEntry />");
+    expect(bar).toContain("<SessionDraftsEntry />");
+  });
+});
+
+describe("单运行对象头：完整 ID 可访问并复制（N04）", () => {
+  it("短 ID 展示 + 复制按钮的可访问名与复制目标都是完整原始 ID", () => {
+    const html = renderHeader({ selectedRunId: "r_full000123", shortId: "r_f1" });
+    expect(html).toContain("复制完整 运行 ID r_full000123");
+    expect(html).toContain('title="复制完整 ID：r_full000123"');
+    expect(html).toContain("r_f1");
+  });
+
+  it("缺省 shortId ⇒ 回退显示完整 ID，复制目标不变", () => {
+    const html = renderHeader({ selectedRunId: "r_full000123" });
+    expect(html).toContain("复制完整 运行 ID r_full000123");
+    expect(html).toContain("r_full000123");
+  });
+
+  it("未选择运行 ⇒ 占位 —，不渲染复制按钮", () => {
+    const html = renderHeader({ selectedRunId: null });
+    expect(html).not.toContain("复制完整");
+  });
+});
+
+describe("辅助工作区对象头：run ID 可复制（N04）", () => {
+  it("AuxWorkspaceFrame 的 targetLine 接受 ReactNode（string 承载不了复制按钮）", () => {
+    const html = renderToStaticMarkup(
+      createElement(
+        AuxWorkspaceFrame,
+        {
+          title: "模型实验",
+          description: "说明",
+          compactDescription: "摘要",
+          targetLine: createElement(ShortIdLabel, {
+            id: "r_parent000",
+            shortId: "r_p1",
+            label: "父本运行 ID",
+          }),
+          returnAvailable: false,
+          onReturn: () => {},
+        },
+        createElement("div", null, "正文"),
+      ),
+    );
+    expect(html).toContain("复制完整 父本运行 ID r_parent000");
+  });
+
+  it("实验与编辑容器的 targetLine 用 ShortIdLabel 承载目标 run ID（源码契约）", () => {
+    const exp = read("../src/renderer/src/components/ExperimentWorkspace.tsx");
+    const msg = read("../src/renderer/src/components/MessagesWorkspace.tsx");
+    expect(exp).toContain('label="父本运行 ID"');
+    expect(exp).toContain("id={target.runId}");
+    expect(msg).toContain('label="来源运行 ID"');
+    expect(msg).toContain("id={target.runId}");
+  });
+
+  it("AuxWorkspaceFrame 类型放宽为 ReactNode | null", () => {
+    const src = read("../src/renderer/src/components/AuxWorkspaceFrame.tsx");
+    expect(src).toContain("readonly targetLine: ReactNode | null;");
   });
 });

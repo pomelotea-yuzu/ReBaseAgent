@@ -271,7 +271,6 @@ export function GlobalBar({
   navigation?: { visible: boolean; onToggle: () => void };
 }) {
   const openCreateWorkspace = useAppStore((s) => s.openCreateWorkspace);
-  const detail = useAppStore((s) => s.detail);
 
   /** 录制接入 = 打开独立录制工作区（U8 1.4；配置/状态随 §2 落地） */
   const openRecording = (): void => {
@@ -302,11 +301,10 @@ export function GlobalBar({
       <ViewToggle />
 
       <div className="ml-auto flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5">
-        {detail !== null ? (
-          <span className="break-all font-code text-reading-meta text-gray-400">
-            {detail.meta.id}
-          </span>
-        ) : null}
+        {/* UI 整理 2.2（delta「当前任务身份与返回目的地明确」）：全局栏不再展示
+            侧栏最近选中 run 的 ID——它不随工作区变化，在比较/编辑/新建/录制页
+            会被读成"当前对象"。对象身份由各工作区自己的对象头呈现（RunHeaderView /
+            CompareWorkspaceView / AuxWorkspaceFrame），完整 ID 在那里可复制。 */}
         <OperationsEntry />
         <SessionDraftsEntry />
         <button

@@ -25,6 +25,7 @@ import { isIsolatedRun, isolatedRunNoticeView } from "../lib/isolated-fork";
 import { useAppStore } from "../store";
 import { FOCUS_RING } from "./IconButton";
 import { RunStatusBadge } from "./RunStatusBadge";
+import { ShortIdLabel } from "./ShortIdLabel";
 
 /** 页头需要的最小输入（与 RunDetail 结构相容，便于测试喂纯对象） */
 type RunDetailInput = Parameters<typeof isIsolatedRun>[0];
@@ -185,12 +186,19 @@ export function RunHeader({ showSourceSummary = true }: { showSourceSummary?: bo
   const detail = useAppStore((s) => s.detail);
   const runs = useAppStore((s) => s.runs);
   const selectedRunId = useAppStore((s) => s.selectedRunId);
+  const shortIdState = useAppStore((s) => s.shortIdState);
+  // 会话稳定短 ID（与 RunList 同一 ShortIdState 记忆，长度只增不减）；
+  // UI 整理 2.2（delta「对象完整 ID 可访问并复制」）：页头 ID 从纯文本升级为可复制。
+  const shortIds = selectedRunId === null ? null : shortIdState.update([selectedRunId]);
   return (
     <RunHeaderView
       detail={detail}
       runs={runs}
       selectedRunId={selectedRunId}
       showSourceSummary={showSourceSummary}
+      shortId={
+        selectedRunId === null || shortIds === null ? null : (shortIds.get(selectedRunId) ?? null)
+      }
     />
   );
 }
@@ -201,11 +209,14 @@ export function RunHeaderView({
   runs,
   selectedRunId,
   showSourceSummary = true,
+  shortId = null,
 }: {
   detail: RunDetailInput | null;
   runs: ReadonlyArray<RunSummary>;
   selectedRunId: string | null;
   showSourceSummary?: boolean;
+  /** 会话稳定短 ID（调用方从 ShortIdState 取）；缺省回退显示完整 ID，复制目标仍是完整 id */
+  shortId?: string | null;
 }) {
   const isolated = isIsolatedRun(detail);
   // UI 密度 change 1.3（design D2）：页头只留**紧凑来源摘要**一行——完整的隔离保真
@@ -242,9 +253,13 @@ export function RunHeaderView({
                 : deriveTerminalReason({ status: detail.status, events: detail.events })
             }
           />
-          <span className="font-code" title="运行 ID">
-            {id ?? "—"}
-          </span>
+          {id !== null ? (
+            <ShortIdLabel id={id} shortId={shortId ?? id} label="运行 ID" />
+          ) : (
+            <span className="font-code" title="运行 ID">
+              —
+            </span>
+          )}
           <span className="truncate" title={model ?? undefined}>
             {model ?? "—"}
           </span>
