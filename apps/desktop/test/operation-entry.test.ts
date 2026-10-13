@@ -73,7 +73,8 @@ function sessionWith(overrides: Partial<OperationSession>): OperationSession {
 }
 
 const ENTRY = resolve(import.meta.dirname, "../src/renderer/src/components/OperationsEntry.tsx");
-const BAR = resolve(import.meta.dirname, "../src/renderer/src/components/GlobalBar.tsx");
+const BAR = resolve(import.meta.dirname, "../src/renderer/src/App.tsx");
+const SESSION = resolve(import.meta.dirname, "../src/renderer/src/components/SessionActivity.tsx");
 
 describe("4.7 入口的数据派生（只报 main 给得出的事实）", () => {
   const rows = deriveOperationRows(
@@ -154,12 +155,13 @@ describe("4.7 入口的数据派生（只报 main 给得出的事实）", () => 
   });
 });
 
-describe("4.7 接线契约：入口挂在既有全局栏，且两种查询不混用", () => {
-  const entry = readFileSync(ENTRY, "utf8");
+describe("4.7 接线契约：入口挂会话活动条（UI 整理 3.3 迁址），且两种查询不混用", () => {
+  const entry = readFileSync(SESSION, "utf8");
   const bar = readFileSync(BAR, "utf8");
+  const rowView = readFileSync(ENTRY, "utf8");
 
-  it("挂在现有全局栏（不新开一处界面），数据源就是 operations 会话", () => {
-    expect(bar).toContain("<OperationsEntry />");
+  it("挂在 App 外壳的会话活动条（不新开一处界面），数据源就是 operations 会话", () => {
+    expect(bar).toContain("<SessionActivity />");
     expect(entry).toContain("useAppStore((s) => s.operations)");
     // 不另起一份登记状态
     expect(entry).not.toContain("useState<OperationRecord");
@@ -183,9 +185,12 @@ describe("4.7 接线契约：入口挂在既有全局栏，且两种查询不混
     expect(entry).not.toContain("selectRun(");
     expect(entry).not.toContain("reopenRun(");
     expect(entry).not.toContain("loadRuns(");
-    // 两个动作的入参类型不同名 ⇒ 想混用得改代码
-    expect(entry).toContain("onReconcile: (operationId: string) => void");
-    expect(entry).toContain("onAct: (action: ResultAction, identity: ResultReadIdentity) => void");
+    // 两个动作的入参类型不同名 ⇒ 想混用得改代码（签名在行视图 OperationRowView，
+    // UI 整理 3.3 后仍在 OperationsEntry.tsx 的共享呈现件里）
+    expect(rowView).toContain("onReconcile: (operationId: string) => void");
+    expect(rowView).toContain(
+      "onAct: (action: ResultAction, identity: ResultReadIdentity) => void",
+    );
   });
 
   it("不显示进度/百分比/停止按钮；核对与刷新都不收起面板、不切页面", () => {
@@ -200,10 +205,10 @@ describe("4.7 接线契约：入口挂在既有全局栏，且两种查询不混
     ]) {
       expect(entry, affordance).not.toContain(affordance);
     }
-    // 状态标签恰好四种，没有第五种"阶段"
-    const labels = entry.slice(
-      entry.indexOf("const PHASE_LABELS"),
-      entry.indexOf("const TONE_STYLES"),
+    // 状态标签恰好四种，没有第五种"阶段"（标签常量在 OperationsEntry.tsx 的共享呈现件）
+    const labels = rowView.slice(
+      rowView.indexOf("const PHASE_LABELS"),
+      rowView.indexOf("const TONE_STYLES"),
     );
     expect(labels.match(/: "/g)).toHaveLength(4);
     // 核对与"刷新"都不收起面板、不切页面（U5 3.4 之后"自动跳"另有判据，但绝不由核对触发）
@@ -228,8 +233,8 @@ describe("4.7 接线契约：入口挂在既有全局栏，且两种查询不混
     expect(entry).toContain("overflow-y-auto");
     expect(entry).toContain("break-all");
     expect(entry).toContain("aria-expanded");
-    expect(entry).toContain('aria-controls="operations-panel"');
-    expect(entry).toContain('id="operations-panel"');
+    expect(entry).toContain('aria-controls="session-activity-panel"');
+    expect(entry).toContain('id="session-activity-panel"');
     expect(entry).toContain("FOCUS_RING");
   });
 });

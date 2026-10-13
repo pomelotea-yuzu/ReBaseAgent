@@ -82,9 +82,9 @@ const renderHeader = (props: {
 describe("全局栏不再冒充当前对象（2.2 移除 detail 身份展示）", () => {
   it("GlobalBar 不订阅 detail、不渲染 meta.id；对象身份归各工作区对象头", () => {
     expect(auditForbiddenTokens(bar, ["s.detail", "meta.id"])).toEqual([]);
-    // 全局栏其余入口不受影响
-    expect(bar).toContain("<OperationsEntry />");
-    expect(bar).toContain("<SessionDraftsEntry />");
+    // UI 整理 3.3：草稿／操作入口统一迁往底部会话活动条（App 外壳），全局栏不再并存
+    expect(auditForbiddenTokens(bar, ["<OperationsEntry", "<SessionDraftsEntry"])).toEqual([]);
+    expect(read("../src/renderer/src/App.tsx")).toContain("<SessionActivity />");
   });
 });
 
@@ -202,5 +202,48 @@ describe("任务级导航适配接线（App 外壳）", () => {
 
   it("比较页恢复入口接线：decideCompareNavVisible 消费 navOpened", () => {
     expect(app).toContain("navOpened: layout.navOpened");
+  });
+});
+
+// —— 3.3/3.4：会话活动入口统一组织 + clean/dirty 分组 ——
+
+describe("会话活动入口（delta ADDED「会话活动区区分修改与清洁编辑会话」）", () => {
+  const activity = read("../src/renderer/src/components/SessionActivity.tsx");
+
+  it("一个入口三组计数：修改（含录制未应用）／操作／结果，不新增第四个并存入口", () => {
+    expect(activity).toContain("会话活动");
+    expect(activity).toContain("sessionDirtyCountOf(drafts, recordingDraft)");
+    expect(activity).toContain("修改 {dirtyCount}");
+    expect(activity).toContain("操作 {rows.length}");
+    expect(activity).toContain("结果 {notices.unreadCount}");
+    // 事实来源唯一：草稿 deriveDraftList、操作 deriveOperationRows、通知 deriveResultNotices
+    for (const fn of ["deriveDraftList(drafts)", "deriveOperationRows(", "deriveResultNotices("]) {
+      expect(activity, fn).toContain(fn);
+    }
+  });
+
+  it("组内分组：dirty 在前、clean 单独分组并标为未修改（N09）", () => {
+    expect(activity).toContain("draftItems.filter((item) => item.dirty)");
+    expect(activity).toContain("未修改的编辑会话");
+    // DraftListPanel 对 clean 条目给「未修改」标记（不冒充修改、不加退出保护）
+    const panel = read("../src/renderer/src/components/DraftListPanel.tsx");
+    expect(panel).toContain('data-draft-clean="true"');
+    expect(panel).toContain("未修改");
+  });
+
+  it("录制未应用修改纳入修改提示并有可达动作（去录制）", () => {
+    expect(activity).toContain("isRecordingDraftDirty(recordingDraft)");
+    expect(activity).toContain("录制配置有未应用的修改");
+    expect(activity).toContain("openRecordingWorkspace()");
+  });
+
+  it("面板语义沿用既有契约：打开即已看、polite live 不在此面板、Esc/✕ 同一关闭", () => {
+    expect(activity).toContain("markNoticesSeen(notices.notices.map((one) => one.key))");
+    expect(activity).toContain("useEscapeClose(open, closePanel)");
+    // polite live 区域仍在 App 外壳（不在本面板内）
+    expect(activity).not.toContain("aria-live");
+    const app = read("../src/renderer/src/App.tsx");
+    expect(app).toContain("<ResultLiveRegion />");
+    expect(app).toContain("<SessionActivity />");
   });
 });

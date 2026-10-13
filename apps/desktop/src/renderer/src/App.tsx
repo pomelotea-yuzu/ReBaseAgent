@@ -17,6 +17,7 @@ import { ResultLiveRegion } from "./components/ResultLiveRegion";
 import { RunActionsBar } from "./components/RunActionsBar";
 import { RunList } from "./components/RunList";
 import { NoRunsEmpty, RunHeader, RunWorkspace, resolveVisibleTab } from "./components/RunWorkspace";
+import { SessionActivity } from "./components/SessionActivity";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { SpanTree } from "./components/SpanTree";
 import { WorkspaceFilesPanel } from "./components/WorkspaceFilesPanel";
@@ -307,6 +308,11 @@ export default function App() {
           </>
         )}
       </main>
+
+      {/* UI 整理 3.3：底部会话活动条——草稿会话入口、全局操作入口与结果未读提示的
+          统一组织（原全局栏两个入口迁入；polite live 区域仍独立挂在外壳上）。
+          在所有工作区和窄窗中可达：它在 <main> 之外，不随视图/导航收起消失。 */}
+      <SessionActivity />
 
       {settingsOpen ? <SettingsDialog onClose={() => setSettingsOpen(false)} /> : null}
       {/* U5 任务 4.1：创建不再是 App 层的模态单例，而是主工作区的一个视图

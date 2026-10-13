@@ -37,7 +37,16 @@ export function DraftListPanel({
             <span className="text-[11px] font-semibold text-gray-800">{item.title}</span>
             {item.dirty ? (
               <span className="rounded bg-amber-100 px-1 text-[10px] text-amber-800">未放弃</span>
-            ) : null}
+            ) : (
+              // UI 整理 3.4（N09）：清洁编辑会话如实标为「未修改」——可定位、可找回，
+              // 不冒充修改也不冒充脏数据
+              <span
+                data-draft-clean="true"
+                className="rounded bg-gray-100 px-1 text-[10px] text-gray-500"
+              >
+                未修改
+              </span>
+            )}
             <span className="ml-auto truncate font-code text-[10px] text-gray-400">
               {item.field === "create"
                 ? "会话"

@@ -1,18 +1,13 @@
 import type { OperationDiagnostic } from "@shared/operations";
-import { Waypoints } from "lucide-react";
-import { useRef, useState } from "react";
 import type { OperationRow } from "../lib/operation-list";
-import { deriveOperationRows, hasWatchableOperation, operationBadge } from "../lib/operation-list";
 import type { ResultAction } from "../lib/operation-result-view";
-import { deriveResultNotices } from "../lib/result-notices";
 import type { ResultReadIdentity } from "../lib/result-verification";
-import { useEscapeClose } from "../lib/use-escape-close";
-import { useWaitClock } from "../lib/use-wait-clock";
-import { useAppStore } from "../store";
 import { FOCUS_RING } from "./IconButton";
 
 /**
- * U4 任务 4.7 + U5 任务 3.5 / 3.6 / 5.1：全局栏的操作入口。
+ * U4 任务 4.7 + U5 任务 3.5 / 3.6 / 5.1：操作行视图与样式（唯一来源）。
+ * UI 整理 3.3：原全局操作入口的触发按钮与面板已迁往 SessionActivity（底部
+ * 会话活动条），本文件只保留 OperationRowView / 色调 / 动作词等共享呈现件。
  *
  * 只呈现 main 与核实通道给得出的事实：类型、目标定位、running/settled/notAccepted/unknown、
  * 可信 runIds、**按身份核实到的结局**、**信封侧请求事实（5.1，与运行结局分层）**、
@@ -273,156 +268,5 @@ export function OperationRowView({
         </details>
       ) : null}
     </li>
-  );
-}
-
-export function OperationsEntry() {
-  const session = useAppStore((s) => s.operations);
-  const reads = useAppStore((s) => s.resultReads);
-  const reconcileOperation = useAppStore((s) => s.reconcileOperation);
-  const refreshOperationStatus = useAppStore((s) => s.refreshOperationStatus);
-  const openOperationResult = useAppStore((s) => s.openOperationResult);
-  const openOperationFailure = useAppStore((s) => s.openOperationFailure);
-  const returnOperationDraft = useAppStore((s) => s.returnOperationDraft);
-  const isOperationDraftPresent = useAppStore((s) => s.isOperationDraftPresent);
-  const retryResultRead = useAppStore((s) => s.retryResultRead);
-  const seenNoticeKeys = useAppStore((s) => s.seenNoticeKeys);
-  const markNoticesSeen = useAppStore((s) => s.markNoticesSeen);
-  const [open, setOpen] = useState(false);
-  const triggerRef = useRef<HTMLButtonElement | null>(null);
-  /**
-   * U5 任务 5.6：✕ 与 Esc 同一动作——**只关闭查看**，并把焦点还给触发入口
-   * （spec「关闭后恢复有效入口」「Esc 只处理最上层」：判据在 `useEscapeClose`，
-   * 有真模态在场时面板不消费）。不触达 main 登记、不重发、不核对。
-   */
-  const closePanel = (): void => {
-    setOpen(false);
-    triggerRef.current?.focus();
-  };
-
-  // U5 任务 5.2：**唯一时钟**——只在"面板开着 ∧ 会话里有在飞/未确认操作"时走秒；
-  // 时长与状态全部由 lib 派生（这里不复算一个判断）。
-  useEscapeClose(open, closePanel);
-  const nowMs = useWaitClock(open && hasWatchableOperation(session));
-  const rows = deriveOperationRows(
-    session,
-    {
-      reads,
-      draftPresentOf: (record) =>
-        isOperationDraftPresent({ epoch: record.epoch, operationId: record.operationId }),
-    },
-    { nowMs },
-  );
-  // 通知是现算派生（3.6）：只存"哪些键看过"，重复快照堆不出第二份
-  const notices = deriveResultNotices({
-    records: session.operations,
-    reads,
-    seenKeys: seenNoticeKeys,
-  });
-  const badge = operationBadge(rows, notices.unreadCount);
-
-  return (
-    <div className="relative">
-      <button
-        ref={triggerRef}
-        type="button"
-        aria-expanded={open ? "true" : "false"}
-        aria-controls="operations-panel"
-        onClick={() => {
-          // 打开即读一次当前状态（spec：查询可在握手、提交返回、窗口重新获得焦点与用户点击时触发）
-          if (!open) void refreshOperationStatus();
-          // 展开面板 = 用户此刻已经看到这些结果状态 ⇒ 标成已看（通知本身仍是现算派生）
-          markNoticesSeen(notices.notices.map((one) => one.key));
-          setOpen((prev) => !prev);
-        }}
-        title="本会话的主动操作登记（只存主进程内存；关闭应用即清空）"
-        className={`inline-flex cursor-pointer items-center gap-1.5 rounded border px-2 py-0.5 text-reading-meta ${
-          badge.attention
-            ? "border-sky-300 bg-sky-50 text-sky-800 hover:bg-sky-100"
-            : "border-gray-300 text-gray-700 hover:bg-gray-50"
-        } ${FOCUS_RING}`}
-      >
-        <Waypoints size={12} aria-hidden="true" focusable="false" role="presentation" />
-        {badge.label}
-      </button>
-      {open ? (
-        <div
-          id="operations-panel"
-          className="absolute right-0 top-full z-40 mt-1 max-h-[min(70vh,24rem)] w-96 max-w-[90vw] overflow-y-auto rounded border border-gray-200 bg-white p-2 shadow-xl"
-          aria-describedby="operations-panel-note"
-        >
-          <div className="mb-1 flex items-center justify-between gap-2">
-            <span className="text-[11px] font-semibold text-gray-700">本会话操作</span>
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => {
-                  void refreshOperationStatus();
-                }}
-                className={`rounded px-1.5 py-0.5 text-[11px] text-gray-600 hover:bg-gray-100 ${FOCUS_RING}`}
-                title="重新读取主进程的操作快照（只读）"
-              >
-                刷新
-              </button>
-              <button
-                type="button"
-                onClick={closePanel}
-                className={`rounded px-1 text-[11px] text-gray-400 hover:bg-gray-100 ${FOCUS_RING}`}
-                aria-label="关闭操作列表"
-              >
-                ✕
-              </button>
-            </div>
-          </div>
-          {rows.length === 0 ? (
-            <p className="px-1 py-2 text-[11px] leading-4 text-gray-500">
-              本会话还没有主动操作：新建运行、结果重跑、改提示词、代理重发或模型 A/B
-              提交后，会在这里显示真实状态与可信运行 ID。
-            </p>
-          ) : (
-            <ul>
-              {rows.map((row) => (
-                <OperationRowView
-                  key={row.key}
-                  row={row}
-                  onReconcile={(operationId) => {
-                    // 核对：只补这条操作的事实，不切页面、不读运行文件
-                    void reconcileOperation(operationId);
-                  }}
-                  onAct={(action, identity) => {
-                    if (action === "open-result") {
-                      setOpen(false);
-                      void openOperationResult(identity);
-                      return;
-                    }
-                    if (action === "view-failure") {
-                      // 拿不到自有失败调用时 store 返回 false ⇒ 面板留着，页面一点不动
-                      void openOperationFailure(identity).then((located) => {
-                        if (located) setOpen(false);
-                      });
-                      return;
-                    }
-                    if (action === "return-draft") {
-                      setOpen(false);
-                      void returnOperationDraft({
-                        epoch: identity.epoch,
-                        operationId: identity.operationId,
-                      });
-                      return;
-                    }
-                    // 只读重试：面板保持展开，让用户看到这一条从"不可读"变成结论
-                    void retryResultRead(identity);
-                  }}
-                />
-              ))}
-            </ul>
-          )}
-          <p id="operations-panel-note" className="mt-2 text-[10px] leading-4 text-gray-400">
-            「核对状态」只查操作登记（不读运行文件、不切页面）；结果状态由按可信运行 ID
-            的独立读取核实，要看内容请明确点「打开结果」。登记不显示进度或取消按钮——主进程没有这些事实。
-          </p>
-        </div>
-      ) : null}
-    </div>
   );
 }

@@ -305,8 +305,8 @@ describe("5.2 源码级：时钟受控、不驱动执行，判据不摸系统时
     }
   });
 
-  it("OperationsEntry 只有一个时钟调用点，且受「面板开 ∧ 有可盯操作」约束；组件自己不动系统时间", () => {
-    const src = codeOf("../src/renderer/src/components/OperationsEntry.tsx");
+  it("OperationsEntry 只有一个时钟调用点，且受「面板开 ∧ 有可盯操作」约束；组件自己不动系统时间（3.3 后时钟在 SessionActivity）", () => {
+    const src = codeOf("../src/renderer/src/components/SessionActivity.tsx");
     expect(src.match(/useWaitClock\(/g)?.length).toBe(1);
     expect(src).toContain("useWaitClock(open && hasWatchableOperation(session))");
     expect(src).not.toContain("Date.now(");

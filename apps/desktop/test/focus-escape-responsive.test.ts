@@ -34,7 +34,7 @@ const read = (rel: string): string =>
 
 describe("5.6 操作面板 Esc/✕：复用层级判据，不本地重造", () => {
   it("面板走共享 useEscapeClose(open, closePanel)；✕ 与 Esc 同一关闭动作", () => {
-    const src = read("../src/renderer/src/components/OperationsEntry.tsx");
+    const src = read("../src/renderer/src/components/SessionActivity.tsx");
     expect(src).toContain("useEscapeClose(open, closePanel)");
     expect(src.match(/onClick=\{closePanel\}/g)?.length).toBeGreaterThanOrEqual(1);
     // 层级判据不重造：组件里不出现 dialog:modal / Escape 的本地比较
@@ -45,7 +45,8 @@ describe("5.6 操作面板 Esc/✕：复用层级判据，不本地重造", () =
 
 describe("5.6 高度钳制：面板与设置模态不撑破视口", () => {
   it("操作面板 max-h 按视口比例钳制 + 横向不超 90vw", () => {
-    const src = read("../src/renderer/src/components/OperationsEntry.tsx");
+    // UI 整理 3.3：面板迁往 SessionActivity（同一钳制类原样保留）
+    const src = read("../src/renderer/src/components/SessionActivity.tsx");
     expect(src).toContain("max-h-[min(70vh,24rem)]");
     expect(src).toContain("max-w-[90vw]");
   });

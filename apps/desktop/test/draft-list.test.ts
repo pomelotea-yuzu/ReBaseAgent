@@ -253,10 +253,17 @@ describe("接线契约：草稿入口与失效视图（任务 2.5）", () => {
     expect(gates).toBeGreaterThanOrEqual(4);
   });
 
-  it("GlobalBar 挂载全会话入口：同一面板组件、不按 run 过滤", () => {
-    expect(GLOBAL_BAR).toContain("<SessionDraftsEntry />");
-    expect(GLOBAL_BAR).toContain("deriveDraftList(drafts)");
-    expect(GLOBAL_BAR).toContain("<DraftListPanel");
+  it("会话活动入口挂载全会话草稿：同一面板组件、不按 run 过滤（UI 整理 3.3 迁址）", () => {
+    // UI 整理 3.3：原全局栏 SessionDraftsEntry 迁往底部 SessionActivity，判据随迁
+    const activity = readFileSync(
+      resolve(import.meta.dirname, "../src/renderer/src/components/SessionActivity.tsx"),
+      "utf8",
+    );
+    expect(activity).toContain("deriveDraftList(drafts)");
+    expect(activity).toContain("<DraftListPanel");
+    // 全局栏不再并存第二份草稿入口（不新增第四个入口）
+    expect(GLOBAL_BAR).not.toContain("<SessionDraftsEntry />");
+    expect(GLOBAL_BAR).not.toContain("deriveDraftList");
   });
 
   it("DraftListPanel 提供定位/复制/放弃三个动作（失效视图在列表可达）", () => {

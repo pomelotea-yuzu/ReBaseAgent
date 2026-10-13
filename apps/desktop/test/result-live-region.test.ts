@@ -130,7 +130,7 @@ describe("5.2 全局 aria-live 区：独立于面板、只报派生通知", () =
 
 describe("5.2 关闭详情只关查看：不冒充停止、不触达登记", () => {
   it("面板✕只关闭查看：没有任何登记清理、重发或「停止执行」类动作", () => {
-    const src = codeOf("../src/renderer/src/components/OperationsEntry.tsx");
+    const src = codeOf("../src/renderer/src/components/SessionActivity.tsx");
     // U5 5.6 改判（两边留痕）：✕ 与 Esc 共用 closePanel（关闭后把焦点还给触发入口）。
     // "只关查看"的判据不变——close 路径依旧只动展示态，不触达任何操作通道。
     const closeBlock = src.slice(
@@ -149,7 +149,7 @@ describe("5.2 关闭详情只关查看：不冒充停止、不触达登记", () 
     ]) {
       expect(closeBlock, forbidden).not.toContain(forbidden);
     }
-    // 关闭按钮的标签是「关闭操作列表」，不是「停止/取消」
-    expect(src).toContain('aria-label="关闭操作列表"');
+    // 关闭按钮的标签不是「停止/取消」（UI 整理 3.3 后面板在 SessionActivity）
+    expect(src).toContain('aria-label="关闭会话活动面板"');
   });
 });
