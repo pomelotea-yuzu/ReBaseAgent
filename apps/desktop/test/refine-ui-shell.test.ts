@@ -145,3 +145,48 @@ describe("辅助工作区对象头：run ID 可复制（N04）", () => {
     expect(src).toContain("readonly targetLine: ReactNode | null;");
   });
 });
+
+// —— 2.4：运行列表任务优先、次级指标按需展开（delta ADDED「运行导航突出任务且详细事实可访问」）——
+
+const runList = read("../src/renderer/src/components/RunList.tsx");
+
+describe("运行列表：默认身份与结局清楚，次级指标按需展开（N15）", () => {
+  it("列表级「指标」开关存在且用 aria-pressed 表达当前态", () => {
+    expect(runList).toContain("const [metricsOpen, setMetricsOpen] = useState(false)");
+    expect(runList).toContain("aria-pressed={metricsOpen}");
+    expect(runList).toContain("展开每条记录的模型与消耗指标");
+  });
+
+  it("次级指标块由 metricsOpen 条件承载，字段与未知语义一个不删", () => {
+    expect(runList).toContain('data-run-metrics="true"');
+    // 次级：模型 / 步数 / 工具数 / tokens（含失败占位说明）/ 缓存命中 / 时长
+    for (const token of [
+      "run.steps",
+      "run.toolCalls",
+      "run.tokensIn + run.tokensOut",
+      "（可能为失败占位）",
+      "run.cacheHit === null ? null",
+      "run.durationMs",
+    ]) {
+      expect(runList, token).toContain(token);
+    }
+  });
+
+  it("默认可见区：任务、状态、短 ID、时间、「N 出错」在次级块之外（结局不过折叠）", () => {
+    // 时间与出错标必须在 metricsOpen 条件**之前**（默认行），模型在条件内
+    const metricsAt = runList.indexOf('data-run-metrics="true"');
+    expect(metricsAt).toBeGreaterThan(-1);
+    const timeAt = runList.indexOf("{formatTime(run.created_at)}</span>");
+    const errorsAt = runList.indexOf("{run.toolErrors > 0");
+    expect(timeAt).toBeGreaterThan(-1);
+    expect(errorsAt).toBeGreaterThan(-1);
+    expect(errorsAt).toBeLessThan(metricsAt);
+    expect(timeAt).toBeLessThan(metricsAt);
+    expect(runList).toContain('run.source === "proxy"');
+  });
+
+  it("展开态零逐条扫描：指标块只消费已在场的 RunSummary 字段，无新增读取", () => {
+    // 判据：RunList 不得为展开新增 IPC/读取调用（既有 loadRuns 之外）
+    expect(auditForbiddenTokens(runList, ["getRun(", "runs:read", "loadRunDetails"])).toEqual([]);
+  });
+});

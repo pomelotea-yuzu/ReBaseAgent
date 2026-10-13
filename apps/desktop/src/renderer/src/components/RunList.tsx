@@ -84,6 +84,12 @@ export function RunList({
     },
     [],
   );
+
+  // UI 整理 2.4（delta「运行导航突出任务且详细事实可访问」）：次级指标（模型、步数、
+  // 工具数、tokens、缓存命中、时长）默认收起，列表级「指标」开关按需展开——
+  // 优先呈现任务、结局、时间与短 ID；数据全部来自已在场的 RunSummary，零逐条详情扫描。
+  // 展开是列表级视图偏好（会话内临时态），不进 store、不持久化。
+  const [metricsOpen, setMetricsOpen] = useState(false);
   const copyRunId = async (runId: string): Promise<void> => {
     const value = copyValueForRun(runId);
     try {
@@ -167,6 +173,18 @@ export function RunList({
               {label}
             </button>
           ))}
+          {/* UI 整理 2.4：次级指标开关（aria-pressed 表达当前态；与来源筛选同一视觉族） */}
+          <button
+            type="button"
+            onClick={() => setMetricsOpen((prev) => !prev)}
+            aria-pressed={metricsOpen}
+            title="展开每条记录的模型与消耗指标（步数、工具、tokens、缓存命中、时长）"
+            className={`ml-auto rounded px-2 py-0.5 ${
+              metricsOpen ? "bg-blue-600 text-white" : "text-gray-600 hover:bg-gray-100"
+            }`}
+          >
+            指标
+          </button>
         </div>
       </div>
 
@@ -290,47 +308,54 @@ export function RunList({
                   </span>
                 </div>
 
-                {/* 第二行：短 ID + 分支 + 模型（缺失显「未记录」，不借当前配置） */}
+                {/* 第二行：短 ID + 分支 + 时间 + 结局错误（UI 整理 2.4：时间与「N 出错」
+                    是默认可辨的身份／结局事实；模型与消耗指标移入「指标」展开区） */}
                 <div className="mt-1 flex items-center gap-2 text-reading-meta text-gray-500">
                   {/* 短 ID 是界面标识；复制入口在**行右侧**（绝对定位的兄弟按钮，见下） */}
                   <span className="font-code" title={`完整 ID：${run.id}`}>
                     {shortIds.get(run.id) ?? run.id}
                   </span>
                   {run.parent !== null ? <span className="text-violet-600">分支</span> : null}
-                  <span className="truncate" title={label.model}>
-                    {label.model}
-                  </span>
+                  <span className="ml-auto">{formatTime(run.created_at)}</span>
+                  {run.toolErrors > 0 ? (
+                    <span className="shrink-0 text-red-600">{run.toolErrors} 出错</span>
+                  ) : null}
                 </div>
 
-                {/* 第三行：既有指标一个不删（steps/tools/errors/token/duration/cache） */}
-                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-reading-meta text-gray-500">
-                  <span>{formatTime(run.created_at)}</span>
-                  <span>{run.steps} 步</span>
-                  <span>{run.toolCalls} 工具</span>
-                  {run.toolErrors > 0 ? (
-                    <span className="text-red-600">{run.toolErrors} 出错</span>
-                  ) : null}
-                  <span
-                    title={
-                      zeroUsageNeedsExplanation
-                        ? "记录用量为 0；这可能是失败调用的占位值，不据此断言实际零消费"
-                        : undefined
-                    }
+                {/* 次级指标区（UI 整理 2.4）：「指标」开关展开后可见；既有指标一个不删
+                    （steps/tools/token/duration/cache + 未知语义说明原样保留） */}
+                {metricsOpen ? (
+                  <div
+                    className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-reading-meta text-gray-500"
+                    data-run-metrics="true"
                   >
-                    {formatTokens(run.tokensIn + run.tokensOut)} tokens
-                    {zeroUsageNeedsExplanation ? "（可能为失败占位）" : ""}
-                  </span>
-                  {/* run 级累计缓存命中：null = 无数据（未知，不显示）；0 = 实测零命中（照常显示） */}
-                  {run.cacheHit === null ? null : (
-                    <span
-                      className={run.cacheHit > 0 ? "text-emerald-600" : "text-amber-600"}
-                      title="本 run 自有 llm.call 的已记录命中量（不含祖先共享前缀，非全运行命中率）"
-                    >
-                      命中 {formatTokens(run.cacheHit)}
+                    <span className="break-all" title={label.model}>
+                      {label.model}
                     </span>
-                  )}
-                  <span>{formatDuration(run.durationMs)}</span>
-                </div>
+                    <span>{run.steps} 步</span>
+                    <span>{run.toolCalls} 工具</span>
+                    <span
+                      title={
+                        zeroUsageNeedsExplanation
+                          ? "记录用量为 0；这可能是失败调用的占位值，不据此断言实际零消费"
+                          : undefined
+                      }
+                    >
+                      {formatTokens(run.tokensIn + run.tokensOut)} tokens
+                      {zeroUsageNeedsExplanation ? "（可能为失败占位）" : ""}
+                    </span>
+                    {/* run 级累计缓存命中：null = 无数据（未知，不显示）；0 = 实测零命中（照常显示） */}
+                    {run.cacheHit === null ? null : (
+                      <span
+                        className={run.cacheHit > 0 ? "text-emerald-600" : "text-amber-600"}
+                        title="本 run 自有 llm.call 的已记录命中量（不含祖先共享前缀，非全运行命中率）"
+                      >
+                        命中 {formatTokens(run.cacheHit)}
+                      </span>
+                    )}
+                    <span>{formatDuration(run.durationMs)}</span>
+                  </div>
+                ) : null}
               </button>
 
               {/* 复制完整 ID（任务 4.5）：短 ID 是界面标识，复制**永远给完整值**
