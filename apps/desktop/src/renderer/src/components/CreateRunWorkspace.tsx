@@ -6,15 +6,20 @@ import {
   ISOLATED_TOOL_NAMES,
   ISOLATED_TOOL_PROFILE_LABEL,
   applyChosenSource,
-  fieldErrorsOf,
   initialCreateRunForm,
+  presentFieldErrorsOf,
   resolveCreateRunSubmission,
   restoreCreateForm,
   setWritesAuthorized,
   submitCreateRun,
   switchCreateRunMode,
 } from "../lib/create-run";
-import type { ChosenSource, CreateRunFieldErrors, CreateRunMode } from "../lib/create-run";
+import type {
+  ChosenSource,
+  CreateRunFailureField,
+  CreateRunFieldErrors,
+  CreateRunMode,
+} from "../lib/create-run";
 import type { CreateRunFormState } from "../lib/create-run";
 import { isCreateRunDraftDirty } from "../lib/debugging-drafts";
 import { CREATE_SUBMIT_TARGET } from "../lib/draft-submission";
@@ -98,6 +103,11 @@ export interface CreateRunFormViewProps {
     readonly rows: readonly ConfirmationRow[];
     /** 还不能确认的原因（输入判据没过 / 门禁挡住）；null = 现在就能确认 */
     readonly blocked: string | null;
+    /**
+     * 确认按钮是否禁用（UI 整理 4.1）：只有**执行性**原因（统一操作槽门禁）才禁用；
+     * 输入缺项不禁用——点了就是「尝试核对」，就近错误随即出现（design D5）。
+     */
+    readonly confirmDisabled: boolean;
   };
   readonly lock: CreateRunLock;
   readonly headingRef: RefObject<HTMLHeadingElement | null>;
@@ -391,7 +401,7 @@ export function CreateRunWorkspaceView(props: CreateRunFormViewProps) {
             summary={props.confirmation.summary}
             rows={props.confirmation.rows}
             confirmed={props.confirmation.ready}
-            confirmDisabled={props.confirmation.blocked !== null}
+            confirmDisabled={props.confirmation.confirmDisabled}
             onConfirm={props.onConfirm}
             confirmLabel="已核对，确认本次提交"
             confirmedLabel="已确认本次提交"
@@ -481,6 +491,16 @@ export function CreateRunWorkspace({ onOpenSettings }: { onOpenSettings: () => v
       sourceRef: useAppStore.getState().createSourceRef,
     }),
   );
+  /**
+   * UI 整理 4.1（design D5）：就近错误的呈现分层。初始空表单不铺红色必填错误，
+   * 字段编辑过或「尝试核对」（确认按钮点击但输入判据未过）后才就近显示。
+   * touched 只记渲染层的编辑事件；判据、disabled 与请求构造不在这里。
+   */
+  const [touched, setTouched] = useState<CreateRunFailureField[]>([]);
+  const [attempted, setAttempted] = useState(false);
+  const markTouched = (field: CreateRunFailureField): void => {
+    setTouched((prev) => (prev.includes(field) ? prev : [...prev, field]));
+  };
   /** 原生目录选择器是否正在打开（系统对话框阻塞期间不接收重复点击） */
   const [pickingSource, setPickingSource] = useState(false);
   /**
@@ -564,9 +584,10 @@ export function CreateRunWorkspace({ onOpenSettings }: { onOpenSettings: () => v
   const confirmed = useAppStore((s) => s.executionConfirmationReady(confirmation));
   const canCreate = submission.ok && !draftFrozen && gate.canSubmit && confirmed;
   const formLocked = busy || pickingSource || draftFrozen;
-  // 就近归属来自同一份判据；表单级说明位只在提交判据本身通过时补门禁文案
+  // 就近归属来自同一份判据；呈现时机按 4.1 分层（编辑过/尝试过才显示字段级问题，
+  // 表单级执行性事实恒显示）；表单级说明位只在提交判据本身通过时补门禁文案
   const blockedReason = submission.ok ? gate.notice : null;
-  const submissionErrors = fieldErrorsOf(submission);
+  const submissionErrors = presentFieldErrorsOf(submission, { touched, attempted });
   const errors: CreateRunFieldErrors =
     blockedReason === null ? submissionErrors : { ...submissionErrors, form: blockedReason };
 
@@ -600,6 +621,8 @@ export function CreateRunWorkspace({ onOpenSettings }: { onOpenSettings: () => v
     writesAuthorized: form.writesAuthorized,
   });
   const confirmationRows = disclosureLines(confirmationDisclosure);
+  // 4.1：确认按钮只在**执行性**原因下禁用（门禁）；输入缺项可点——点击即「尝试核对」，
+  // 就近错误随之出现（store 的登记口仍会拒绝不成立的确认，这里先行拦截保证零 IPC）。
   const confirmBlocked = confirmed
     ? null
     : !submission.ok
@@ -607,6 +630,7 @@ export function CreateRunWorkspace({ onOpenSettings }: { onOpenSettings: () => v
       : gate.canSubmit
         ? null
         : gate.notice;
+  const confirmDisabled = confirmed || (submission.ok && !gate.canSubmit);
 
   const submit = async (): Promise<void> => {
     // 判据不通过（含待定提交冻结）⇒ 一次 IPC 都不发、也不登记关联
@@ -685,6 +709,9 @@ export function CreateRunWorkspace({ onOpenSettings }: { onOpenSettings: () => v
       if (!discarded) return;
       setCreateSourceRef(null);
       setForm(initialCreateRunForm());
+      // 4.1：回到初始引导态（放弃 = 全部重置，就近错误一并清空）
+      setTouched([]);
+      setAttempted(false);
       // 立即重新登记空表单草稿（新修订），用户可继续输入
       ensureCreateRunDraft();
     });
@@ -708,6 +735,7 @@ export function CreateRunWorkspace({ onOpenSettings }: { onOpenSettings: () => v
           summary: confirmationDisclosure.summary,
           rows: confirmationRows,
           blocked: confirmBlocked,
+          confirmDisabled,
         }}
         lock={{
           fields: formLocked,
@@ -719,17 +747,29 @@ export function CreateRunWorkspace({ onOpenSettings }: { onOpenSettings: () => v
         }}
         headingRef={headingRef}
         onMode={switchMode}
-        onUserMessage={(text) => writeCreateRunDraft({ userMessage: text })}
+        onUserMessage={(text) => {
+          markTouched("userMessage");
+          writeCreateRunDraft({ userMessage: text });
+        }}
         onSystemPrompt={(text) => writeCreateRunDraft({ systemPrompt: text })}
         onPickSource={() => {
           void pickSource();
         }}
-        onWrites={(authorized) => setForm((prev) => setWritesAuthorized(prev, authorized))}
+        onWrites={(authorized) => {
+          markTouched("writesAuthorized");
+          setForm((prev) => setWritesAuthorized(prev, authorized));
+        }}
         onToggleAdvanced={() => setAdvancedOpen((prev) => !prev)}
         onOpenSettings={onOpenSettings}
-        onConfirm={() =>
-          armExecutionConfirmation(currentConfirmationBinding("create", CREATE_SUBMIT_TARGET))
-        }
+        onConfirm={() => {
+          // UI 整理 4.1：输入缺项时确认按钮仍可点——这一下就是「尝试核对」：
+          // 就近错误随即出现，不登记确认、不发请求（store 登记口同样会拒绝，双保险）。
+          if (!submission.ok) {
+            setAttempted(true);
+            return;
+          }
+          armExecutionConfirmation(currentConfirmationBinding("create", CREATE_SUBMIT_TARGET));
+        }}
         onDiscard={discardDraft}
         onSubmit={() => {
           void submit();

@@ -201,6 +201,44 @@ export function fieldErrorsOf(submission: CreateRunSubmission): CreateRunFieldEr
 }
 
 /**
+ * 就近错误的**呈现分层**（UI 整理 4.1，design D5）：判据仍是 `fieldErrorsOf` 这一份，
+ * 这里只决定**什么时候显示**——
+ * - 初始空表单不铺红色必填错误（填写引导由 placeholder / 字段说明 / 确认块的缺项
+ *   引导承担），字段交互（编辑过）或用户尝试核对后才就近显示；
+ * - `form` 槽（执行中 / 统一操作槽门禁）是**执行性事实**，不是输入校验 ⇒ 恒即时显示
+ *   （delta「真实异常不等待字段交互」）；
+ * - 只过滤呈现、不改变判据：提交按钮的 disabled 与请求构造仍出自
+ *   `resolveCreateRunSubmission`，非法输入照样不能提交。
+ */
+export interface CreateRunErrorPresentation {
+  /** 用户编辑过的字段（onChange 即算）；这些字段的校验问题即时就近显示 */
+  readonly touched: ReadonlyArray<CreateRunFailureField>;
+  /** 用户已尝试核对（确认按钮点击但输入判据未过）⇒ 全部就近问题显示 */
+  readonly attempted: boolean;
+}
+
+const PRESENTABLE_FIELDS = [
+  "userMessage",
+  "source",
+  "writesAuthorized",
+] as const satisfies readonly CreateRunFailureField[];
+
+export function presentFieldErrorsOf(
+  submission: CreateRunSubmission,
+  presentation: CreateRunErrorPresentation,
+): CreateRunFieldErrors {
+  const errors = fieldErrorsOf(submission);
+  if (presentation.attempted) return errors;
+  const hidden = { ...errors };
+  for (const field of PRESENTABLE_FIELDS) {
+    if (!presentation.touched.includes(field)) {
+      hidden[field] = null;
+    }
+  }
+  return hidden;
+}
+
+/**
  * 重新进入创建工作区时的表单底稿（U5 任务 4.3）。
  *
  * 三条规则各有一处判据，都在这个函数里（此前它们散在组件的 `useState` 初始化里，

@@ -33,6 +33,7 @@ const {
   CREATE_RUN_MODE_LABELS,
   ISOLATED_TOOL_PROFILE_LABEL,
   fieldErrorsOf,
+  presentFieldErrorsOf,
   resolveCreateRunSubmission,
 } = await import("../src/renderer/src/lib/create-run");
 import type { CreateRunFieldErrors } from "../src/renderer/src/lib/create-run";
@@ -70,6 +71,7 @@ function props(over: Partial<CreateRunFormViewProps> = {}): CreateRunFormViewPro
       summary: "纯对话 · 一次真实模型调用（按实际用量计费）",
       rows: [{ label: "任务（User Message）", value: "用一句话解释时间旅行调试" }],
       blocked: null,
+      confirmDisabled: false,
     },
     lock: IDLE_LOCK,
     headingRef: { current: null },
@@ -293,6 +295,7 @@ describe("4.4 创建页的核对与确认：未确认就没有提交这条路", 
           { label: "本次边界", value: "没有独立的模型连通性预检" },
         ],
         blocked: null,
+        confirmDisabled: false,
       },
       lock: { ...IDLE_LOCK, canSubmit: false },
     });
@@ -324,6 +327,7 @@ describe("4.4 创建页的核对与确认：未确认就没有提交这条路", 
         summary: "纯对话 · 一次真实模型调用（按实际用量计费）",
         rows: [{ label: "任务", value: "t" }],
         blocked: null,
+        confirmDisabled: true,
       },
     });
     expect(markup).toContain("已确认本次提交");
@@ -338,10 +342,28 @@ describe("4.4 创建页的核对与确认：未确认就没有提交这条路", 
         summary: "纯对话 · 一次真实模型调用（按实际用量计费）",
         rows: [{ label: "任务", value: "t" }],
         blocked: "先补齐必填输入，再核对本次提交",
+        confirmDisabled: true,
       },
     });
     expect(markup).toContain("先补齐必填输入，再核对本次提交");
     expect(confirmTag(markup)).toContain('disabled=""');
+  });
+
+  it("UI 整理 4.1：输入缺项时确认按钮不禁用（点了即「尝试核对」），原因文案就近显示", () => {
+    const markup = html({
+      confirmation: {
+        ready: false,
+        summary: "纯对话 · 一次真实模型调用（按实际用量计费）",
+        rows: [{ label: "任务", value: "t" }],
+        blocked: "先补齐必填输入，再核对本次提交",
+        confirmDisabled: false,
+      },
+      lock: { ...IDLE_LOCK, canSubmit: false },
+    });
+    expect(markup).toContain("先补齐必填输入，再核对本次提交");
+    expect(confirmTag(markup), "输入缺项不禁用确认按钮").not.toContain('disabled=""');
+    // 提交按钮的挡板不变：没确认照样不能提交（判据不放宽）
+    expect(markup).toMatch(/disabled=""[^>]*>创建<\/button>/);
   });
 });
 
@@ -404,5 +426,58 @@ describe("4.2 就近归属来自同一份提交判据（组件不重算）", () 
     ]) {
       expect(view, token).not.toContain(token);
     }
+  });
+});
+
+describe("4.1 呈现分层：presentFieldErrorsOf 只管显示时机，不改判据", () => {
+  const emptySubmission = resolveCreateRunSubmission(
+    { mode: "chat", source: null, writesAuthorized: false },
+    { systemPrompt: "", userMessage: "  ", busy: false },
+  );
+
+  it("初始未触碰且未尝试 ⇒ 字段级问题全部收起（不铺红色必填错误）", () => {
+    expect(presentFieldErrorsOf(emptySubmission, { touched: [], attempted: false })).toEqual({
+      userMessage: null,
+      source: null,
+      writesAuthorized: null,
+      form: null,
+    });
+  });
+
+  it("字段编辑过 ⇒ 该字段的就近问题即时显示；其余字段仍收起", () => {
+    const presented = presentFieldErrorsOf(emptySubmission, {
+      touched: ["userMessage"],
+      attempted: false,
+    });
+    expect(presented.userMessage).toContain("User Message 不能为空");
+    expect(presented.source).toBeNull();
+    expect(presented.writesAuthorized).toBeNull();
+  });
+
+  it("尝试核对过（attempted）⇒ 全部就近问题显示", () => {
+    const presented = presentFieldErrorsOf(emptySubmission, { touched: [], attempted: true });
+    expect(presented.userMessage).toContain("User Message 不能为空");
+  });
+
+  it("form 槽是执行性事实，恒即时显示（真实异常不等待字段交互）", () => {
+    const busySubmission = resolveCreateRunSubmission(
+      { mode: "chat", source: null, writesAuthorized: false },
+      { systemPrompt: "", userMessage: "任务", busy: true },
+    );
+    const presented = presentFieldErrorsOf(busySubmission, { touched: [], attempted: false });
+    expect(presented.form).toContain("执行中");
+  });
+
+  it("判据通过 ⇒ 无论呈现参数如何都没有错误（呈现层不制造问题）", () => {
+    const okSubmission = resolveCreateRunSubmission(
+      { mode: "chat", source: null, writesAuthorized: false },
+      { systemPrompt: "", userMessage: "任务", busy: false },
+    );
+    expect(presentFieldErrorsOf(okSubmission, { touched: [], attempted: false })).toEqual({
+      userMessage: null,
+      source: null,
+      writesAuthorized: null,
+      form: null,
+    });
   });
 });
