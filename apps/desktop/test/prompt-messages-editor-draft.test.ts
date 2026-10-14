@@ -307,3 +307,20 @@ describe("store 行为：prompt 两字段不串草稿、messages 非法输入原
     expect(useAppStore.getState().callDraftOf(userKey)?.text).toBe("user 改动");
   });
 });
+
+describe("UI 整理 4.3：prompt 编辑器原因主位置与说明去重（design D5）", () => {
+  const src = () => sliceBetween("function PromptForkEditor(", "function LlmCallDetail(");
+
+  it("确认块外的独立 submitBlocked 原因条已删除（主位置 = 确认块 blocked 行）", () => {
+    const code = src();
+    expect(code).not.toMatch(/\{submitBlocked !== null \?[\s\S]*?text-amber-700/);
+    // blocked 表达式保留（资格原因进确认块；被 execution-confirmation-store 钉形状）
+    expect(code).toContain("blocked={promptConfirmed ? null : submitBlocked}");
+  });
+
+  it("确认块外的两段重复说明已删除（summary 收起可见 + limits 展开可读，不长解释重复）", () => {
+    const code = src();
+    expect(code).not.toContain("从头重跑，将真实调用模型并计费 · 父 run 只作对照，不会被修改");
+    expect(code).not.toContain("编辑值将替换首次 llm.call 请求中的");
+  });
+});

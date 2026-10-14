@@ -562,19 +562,10 @@ function PromptForkEditor({
           />
         }
       />
-      <div className="mt-1.5 text-[10px] leading-4 text-emerald-700">
-        编辑值将替换首次 llm.call 请求中的
-        {field === "system_prompt" ? " system prompt" : " 首条 user message"}
-        ；新 run 从第 1 步完整执行并记录独立新轨迹。
-        {field === "system_prompt" ? "配置指纹（config_hash）将随新值变化。" : ""}
-      </div>
-      <div className="mt-1 text-[10px] leading-4 text-emerald-600">
-        从头重跑，将真实调用模型并计费 · 父 run 只作对照，不会被修改
-      </div>
-
-      {submitBlocked !== null ? (
-        <div className="mt-1 text-[11px] text-amber-700">{submitBlocked}</div>
-      ) : null}
+      {/* UI 整理 4.3（design D5）：确认块外的重复说明与独立原因条已收敛——
+          目标 / 改动字段 / 费用 / 边界的摘要收起仍可见（ConfirmationBlock summary），
+          详细边界展开可读（disclosureLines）；资格原因的主位置是确认块 blocked 行，
+          这里不再重复挂一条。 */}
 
       {sourceBlocked !== null && activeEntry !== undefined ? (
         <DraftSourceBanner
