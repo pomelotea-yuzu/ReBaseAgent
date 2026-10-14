@@ -13,7 +13,7 @@ import {
   modelConfigStampOf,
 } from "../lib/execution-confirmation";
 import { modelAbGuard, riskyToolNames, scalarRequestParams } from "../lib/model-ab";
-import type { ArmDraft, Scalar } from "../lib/model-ab";
+import type { ArmDraft, ModelAbGuardItem, Scalar } from "../lib/model-ab";
 import { useEscapeClose } from "../lib/use-escape-close";
 import { useRevokeOnConfigChange } from "../lib/use-revoke-on-config-change";
 import { useAppStore } from "../store";
@@ -308,14 +308,28 @@ export function ModelAbEditor({
     allowSideEffects,
     arms: rows.map((row) => row.arm),
   });
+  // UI 整理 4.2（design D5）：臂级原因就近归属到臂卡；批次级原因进确认块的主位置。
+  // 拆分只认 guard.items，不自己拆 reason 拼接串（判据单一来源）。
+  const guardArmItems = guard.items.filter(
+    (item): item is ModelAbGuardItem & { scope: { kind: "arm"; index: number } } =>
+      item.scope.kind === "arm",
+  );
+  const guardBatchReasons = guard.items
+    .filter((item) => item.scope.kind === "batch")
+    .map((item) => item.reason);
+  const guardBlockedText = guard.canSubmit
+    ? null
+    : [
+        ...guardBatchReasons,
+        ...(guardArmItems.length > 0
+          ? [
+              `${guardArmItems.length} 个臂的输入问题已就近标注在臂卡上（model 为空 / params 非法或与父相同）`,
+            ]
+          : []),
+      ].join("；") || null;
   // 提交闸门 = 既有 guard ∧ 源记录可用（dry-run 也依赖父记录，一并拦截）
   //           ∧ 恢复重验通过（U3 2.5：源缺失/损坏/改变/资格失效都拦）
   const canSubmit = guard.canSubmit && sourceExecutable && sourceBlocked === null;
-  const submitBlocked = !guard.canSubmit
-    ? guard.reason
-    : !sourceExecutable
-      ? "源记录不可用：重新读取并校验通过前不能发起新执行"
-      : null;
 
   /** 行变更统一落批次草稿（语义不变仅行 ID 变化不推进修订）；任何行变更作废已校验计划与副作用许可 */
   const commitRows = (next: Array<{ key: string; arm: ArmDraft }>): void => {
@@ -491,44 +505,61 @@ export function ModelAbEditor({
             </div>
           }
         />
-        {rows.map(({ key, arm }, index) => (
-          <div key={key} className="rounded border border-sky-200 bg-white px-2 py-1.5">
-            <div className="mb-1 flex items-center gap-2">
-              <span className="text-[10px] font-semibold text-sky-800">臂 {index + 1}</span>
+        {rows.map(({ key, arm }, index) => {
+          // UI 整理 4.2：该臂的输入问题（guard 臂级 items）就近显示在臂卡内；
+          // 去掉「第 N 臂：」前缀（臂卡本身就是归属），主体词保留（model/params 各自可辨）
+          const armReason = guardArmItems.find((item) => item.scope.index === index);
+          const armErrorId = `ab-arm-${index}-error`;
+          return (
+            <div key={key} className="rounded border border-sky-200 bg-white px-2 py-1.5">
+              <div className="mb-1 flex items-center gap-2">
+                <span className="text-[10px] font-semibold text-sky-800">臂 {index + 1}</span>
+                <input
+                  type="text"
+                  value={arm.model}
+                  onChange={(e) => updateArm(index, { model: e.target.value })}
+                  placeholder="model 名"
+                  disabled={inProgress}
+                  aria-describedby={armReason === undefined ? undefined : armErrorId}
+                  className="min-w-0 flex-1 rounded border border-gray-300 px-1.5 py-0.5 font-code text-[11px] focus:border-sky-400 focus:outline-none"
+                />
+                {rows.length > 2 ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      commitRows(rows.filter((_, i) => i !== index));
+                    }}
+                    disabled={inProgress}
+                    className="rounded px-1 text-[11px] text-gray-400 hover:bg-gray-100 disabled:opacity-40"
+                    title="移除该臂"
+                  >
+                    ✕
+                  </button>
+                ) : null}
+              </div>
               <input
                 type="text"
-                value={arm.model}
-                onChange={(e) => updateArm(index, { model: e.target.value })}
-                placeholder="model 名"
+                value={arm.paramsText}
+                onChange={(e) => updateArm(index, { paramsText: e.target.value })}
+                placeholder={`采样参数 JSON（留空 = 沿用父 run：${
+                  Object.keys(parentParams).length > 0 ? JSON.stringify(parentParams) : "无"
+                }）`}
                 disabled={inProgress}
-                className="min-w-0 flex-1 rounded border border-gray-300 px-1.5 py-0.5 font-code text-[11px] focus:border-sky-400 focus:outline-none"
+                aria-describedby={armReason === undefined ? undefined : armErrorId}
+                className="w-full rounded border border-gray-300 px-1.5 py-0.5 font-code text-[11px] focus:border-sky-400 focus:outline-none"
               />
-              {rows.length > 2 ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    commitRows(rows.filter((_, i) => i !== index));
-                  }}
-                  disabled={inProgress}
-                  className="rounded px-1 text-[11px] text-gray-400 hover:bg-gray-100 disabled:opacity-40"
-                  title="移除该臂"
+              {armReason !== undefined ? (
+                <p
+                  id={armErrorId}
+                  className="mt-1 text-[11px] leading-4 text-red-700"
+                  data-ab-arm-error={index}
                 >
-                  ✕
-                </button>
+                  {armReason.reason.replace(/^第 \d+ 臂：/, "")}
+                </p>
               ) : null}
             </div>
-            <input
-              type="text"
-              value={arm.paramsText}
-              onChange={(e) => updateArm(index, { paramsText: e.target.value })}
-              placeholder={`采样参数 JSON（留空 = 沿用父 run：${
-                Object.keys(parentParams).length > 0 ? JSON.stringify(parentParams) : "无"
-              }）`}
-              disabled={inProgress}
-              className="w-full rounded border border-gray-300 px-1.5 py-0.5 font-code text-[11px] focus:border-sky-400 focus:outline-none"
-            />
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <div className="mt-2 flex items-center gap-2">
@@ -572,9 +603,8 @@ export function ModelAbEditor({
         </label>
       ) : null}
 
-      {submitBlocked !== null ? (
-        <div className="mt-2 text-[11px] text-amber-700">{submitBlocked}</div>
-      ) : null}
+      {/* UI 整理 4.2/4.3：guard 的批次级原因不再单独挂条——主位置收敛到确认块的
+          blocked 行（下方）；臂级原因已就近标注在臂卡上，这里不重复全文。 */}
 
       {sourceBlocked !== null && draftEntry !== undefined ? (
         <DraftSourceBanner
@@ -677,11 +707,17 @@ export function ModelAbEditor({
             blocked={
               abConfirmed
                 ? null
-                : submitBlocked !== null
-                  ? submitBlocked
-                  : planStale
-                    ? planStaleText
-                    : null
+                : !guard.canSubmit
+                  ? guardBlockedText
+                  : !sourceExecutable
+                    ? "源记录不可用：重新读取并校验通过前不能发起新执行"
+                    : activePlan === null
+                      ? // UI 整理 4.2：初始引导（delta「空表单初始引导」）——没有计划时
+                        // 直说下一步，而不是只把确认按钮禁掉让人猜
+                        "先「校验并预览计划」：核对实际执行的计划（各臂 model / params）后再确认"
+                      : planStale
+                        ? planStaleText
+                        : null
             }
             controlsId={`ab-confirm-details-${run.meta.id}-${span.id}`}
           />

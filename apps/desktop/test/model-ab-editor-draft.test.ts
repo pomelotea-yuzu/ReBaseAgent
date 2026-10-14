@@ -356,3 +356,25 @@ describe("store 行为：A/B 预览不隐式清理批次（任务 3.3）", () =>
     expect(useAppStore.getState().modelAbDraftOf(key)?.revision ?? null).toBeNull();
   });
 });
+
+describe("UI 整理 4.2：guard 逐项原因就近归属（design D5）", () => {
+  const src = () => MODEL_AB_EDITOR;
+
+  it("臂级原因就近渲染在臂卡内（data-ab-arm-error），输入框接 aria-describedby", () => {
+    const code = src();
+    expect(code).toContain("data-ab-arm-error={index}");
+    // 就近归属只认 guard.items 拆出的臂级清单，不拆 reason 拼接串
+    expect(code).toContain("guardArmItems.find((item) => item.scope.index === index)");
+    expect(code.match(/aria-describedby=\{armReason === undefined/g)?.length).toBe(2);
+  });
+
+  it("批次级原因收敛到确认块 blocked（独立 submitBlocked 拼接条删除，不再重复）", () => {
+    const code = src();
+    expect(code).not.toMatch(/\{submitBlocked !== null \?[\s\S]*?text-amber-700/);
+    expect(code).not.toContain("const submitBlocked");
+    // blocked 链：guard 批次级（含臂级汇总指针）→ 源不可用 → 初始引导 → 计划过期
+    expect(code).toContain("guardBlockedText");
+    expect(code).toContain("先「校验并预览计划」：核对实际执行的计划（各臂 model / params）后再确认");
+    expect(code).toContain("个臂的输入问题已就近标注在臂卡上");
+  });
+});

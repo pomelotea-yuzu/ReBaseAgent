@@ -115,10 +115,24 @@ export interface ModelAbGuardResult {
   /** canSubmit = false 时的阻止原因（可直接展示；多项以"；"连接） */
   reason: string | null;
   /**
+   * UI 整理 4.2（design D5）：逐项原因与就近归属——批次级（配置/臂数/副作用声明）
+   * 与臂级（model 空 / params 非法 / 与父相同，按臂下标归属）。`reason` 仍是全部
+   * 项按顺序以"；"连接的拼接串（与既有展示逐字一致），组件要做就近呈现时以
+   * `items` 为准，不得自己拆 `reason`。
+   */
+  items: ReadonlyArray<ModelAbGuardItem>;
+  /**
    * canSubmit = true 时给出去重后的 arms。批次级的副作用确认在此**已展开为每臂**
    * `allowSideEffects: true`——内核只认每臂自己的声明，批次复选框只是渲染层的 UI 糖。
    */
   arms: ParsedArm[];
+}
+
+export type ModelAbGuardItemScope = { kind: "batch" } | { kind: "arm"; index: number };
+
+export interface ModelAbGuardItem {
+  scope: ModelAbGuardItemScope;
+  reason: string;
 }
 
 /**
@@ -142,30 +156,40 @@ function sameAsParent(
 }
 
 export function modelAbGuard(input: ModelAbGuardInput): ModelAbGuardResult {
-  const reasons: string[] = [];
+  const items: ModelAbGuardItem[] = [];
 
   if (!input.settingsConfigured) {
-    reasons.push("尚未配置运行参数（baseURL / apiKey / model），请先点击右上角“运行配置”");
+    items.push({
+      scope: { kind: "batch" },
+      reason: "尚未配置运行参数（baseURL / apiKey / model），请先点击右上角“运行配置”",
+    });
   }
   if (input.arms.length < 2) {
-    reasons.push("模型实验至少需要 2 个 arm；单臂请用 prompt fork");
+    items.push({
+      scope: { kind: "batch" },
+      reason: "模型实验至少需要 2 个 arm；单臂请用 prompt fork",
+    });
   }
   if (input.riskyTools.length > 0 && !input.allowSideEffects) {
-    reasons.push(
-      `工具 ${input.riskyTools.join("、")} 未标记 sideEffect: false，多臂顺序执行时前一臂的外部副作用会污染后一臂起点；确认接受请勾选副作用声明`,
-    );
+    items.push({
+      scope: { kind: "batch" },
+      reason: `工具 ${input.riskyTools.join("、")} 未标记 sideEffect: false，多臂顺序执行时前一臂的外部副作用会污染后一臂起点；确认接受请勾选副作用声明`,
+    });
   }
 
   const arms: ParsedArm[] = [];
   input.arms.forEach((draft, index) => {
     const label = `第 ${index + 1} 臂`;
     if (draft.model.trim().length === 0) {
-      reasons.push(`${label}：model 不能为空`);
+      items.push({ scope: { kind: "arm", index }, reason: `${label}：model 不能为空` });
       return;
     }
     const parsedParams = parseArmParams(draft.paramsText);
     if (!parsedParams.ok) {
-      reasons.push(`${label}：${parsedParams.reason}`);
+      items.push({
+        scope: { kind: "arm", index },
+        reason: `${label}：${parsedParams.reason}`,
+      });
       return;
     }
     const arm: ParsedArm = { model: draft.model.trim() };
@@ -175,9 +199,10 @@ export function modelAbGuard(input: ModelAbGuardInput): ModelAbGuardResult {
     // INVALID_ARM（零文件、零调用）。本层曾按"全部臂都相同"才拦，于是"臂 1 改、臂 2 沿用父"
     // 会被界面放行、提交才整批被拒。粒度必须与内核一致。
     if (sameAsParent(arm, input.parentModel, input.parentParams)) {
-      reasons.push(
-        `${label}：与父 run 完全相同（model 与采样参数都未变）——与父完全相同的臂会让整批被拒，请修改该臂的 model 或 params`,
-      );
+      items.push({
+        scope: { kind: "arm", index },
+        reason: `${label}：与父 run 完全相同（model 与采样参数都未变）——与父完全相同的臂会让整批被拒，请修改该臂的 model 或 params`,
+      });
       return;
     }
 
@@ -187,10 +212,11 @@ export function modelAbGuard(input: ModelAbGuardInput): ModelAbGuardResult {
     arms.push(arm);
   });
 
-  if (reasons.length > 0) {
-    return { canSubmit: false, reason: reasons.join("；"), arms: [] };
+  if (items.length > 0) {
+    const reason = items.map((item) => item.reason).join("；");
+    return { canSubmit: false, reason, items, arms: [] };
   }
-  return { canSubmit: true, reason: null, arms };
+  return { canSubmit: true, reason: null, items, arms };
 }
 
 /** 从首次 llm.call 录制的工具表提取"未显式标记 sideEffect: false"的工具名（与编排层判据同源） */

@@ -231,4 +231,35 @@ describe("modelAbGuard：提交前本地拦截", () => {
     expect(withModel.canSubmit).toBe(true);
     expect(withModel.arms).toEqual([{ model: "m-1" }, { model: "m-2" }]);
   });
+
+  // UI 整理 4.2（design D5）：逐项原因带就近归属——批次级 / 臂级（按臂下标）。
+  // reason 拼接串与 items 逐字一致（组件就近呈现只认 items，不拆 reason）。
+  it("items：批次级原因 scope.kind=batch，臂级原因 scope={kind:arm,index} 且逐字含于 reason", () => {
+    const result = modelAbGuard({
+      ...BASE,
+      settingsConfigured: false,
+      arms: arms({ model: "", paramsText: "" }, { model: "m2", paramsText: "{bad" }),
+    });
+    expect(result.canSubmit).toBe(false);
+    const batch = result.items.filter((item) => item.scope.kind === "batch");
+    const byArm = result.items.filter((item) => item.scope.kind === "arm");
+    expect(batch).toHaveLength(1);
+    expect(batch[0]?.reason).toContain("尚未配置运行参数");
+    expect(byArm).toHaveLength(2);
+    expect(byArm[0]?.scope).toEqual({ kind: "arm", index: 0 });
+    expect(byArm[1]?.scope).toEqual({ kind: "arm", index: 1 });
+    expect(byArm[0]?.reason).toContain("model 不能为空");
+    expect(byArm[1]?.reason).toContain("params 不是合法 JSON");
+    // 拼接串 = 全部 items 按顺序 join（既有展示逐字不变）
+    expect(result.reason).toBe(result.items.map((item) => item.reason).join("；"));
+  });
+
+  it("items：判据通过时为空数组（对照，不是 undefined）", () => {
+    const result = modelAbGuard({
+      ...BASE,
+      arms: arms({ model: "m1", paramsText: "" }, { model: "m2", paramsText: "" }),
+    });
+    expect(result.canSubmit).toBe(true);
+    expect(result.items).toEqual([]);
+  });
 });
