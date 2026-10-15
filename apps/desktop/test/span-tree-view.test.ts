@@ -429,6 +429,8 @@ describe("接线契约：步骤目录只在步骤页挂载，收起后正文有�
   });
 
   it("StepsDirectoryEntry 渲染成真实可点的 button（不是说明文字）", async () => {
+    // ⚠️ 动态 import 拉起整个 App 模块图——CI 冷收集远超 5s 默认门
+    //（对齐门禁基线的 --testTimeout=30000 纪律），本地热缓存不复现。
     const { StepsDirectoryEntry } = await import("../src/renderer/src/App");
     let clicked = 0;
     const markup = html(
@@ -442,7 +444,7 @@ describe("接线契约：步骤目录只在步骤页挂载，收起后正文有�
     expect(markup).toContain("重新打开步骤目录");
     // renderToStaticMarkup 不触发事件，这里只证明它是 button（静态渲染不点击）
     expect(clicked).toBe(0);
-  });
+  }, 30000);
 
   it("SpanTree 不再自带「重新打开目录」入口（避免与正文入口重复）", () => {
     // 判据是**没有那个入口 prop 与自渲染按钮**，而不是"文件里不许出现这几个字"

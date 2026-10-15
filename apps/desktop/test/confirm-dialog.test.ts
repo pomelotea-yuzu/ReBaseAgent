@@ -62,6 +62,13 @@ describe("U3 5.2 接线契约（源码级）：放弃确认迁出 window.confirm
     resolve(import.meta.dirname, "../src/renderer/src/components/GlobalBar.tsx"),
     "utf8",
   );
+  // refine-ui 3.3（双向变更留痕）：草稿放弃点随「会话活动」统一入口迁出 GlobalBar
+  //（App 外壳的底部会话活动条）——全会话入口的放弃确认调用点改判到 SessionActivity，
+  // GlobalBar 侧只保留「不得回退到同步原生确认」的禁用判据。
+  const sessionActivity = readFileSync(
+    resolve(import.meta.dirname, "../src/renderer/src/components/SessionActivity.tsx"),
+    "utf8",
+  );
   // U8 3.1a/5.1a：A/B 与 messages 编辑器迁独立工作区组件（DetailPanel 只留入口），
   // 放弃确认调用点随载体迁移——本用例计数从「DetailPanel 9 处」改判为三文件合计（两边留痕）。
   const modelAbEditor = readFileSync(
@@ -82,13 +89,14 @@ describe("U3 5.2 接线契约（源码级）：放弃确认迁出 window.confirm
     expect((modelAbEditor.match(/requestConfirm\(\{/g) ?? []).length).toBe(2);
     expect((messagesEditor.match(/requestConfirm\(\{/g) ?? []).length).toBe(2);
     expect(create).toContain("void requestConfirm({");
-    // 全会话入口（GlobalBar）的放弃点同样迁移
-    expect(globalBar).toContain("void requestConfirm({");
+    // 全会话入口的放弃点随 refine-ui 3.3 迁入「会话活动」统一入口（原 GlobalBar 承载）
+    expect(sessionActivity).toContain("void requestConfirm({");
     // 放弃类调用点不得再出现同步原生确认
     expect(detail).not.toContain('window.confirm("放弃');
     expect(detail).not.toContain("window.confirm(\n      `放弃");
     expect(create).not.toContain("window.confirm");
     expect(globalBar).not.toContain("window.confirm");
+    expect(sessionActivity).not.toContain("window.confirm");
   });
 
   it("执行确认不再有任何原生 window.confirm（U5 4.6/4.7 全部迁为就地核对）", () => {
