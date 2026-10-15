@@ -1831,6 +1831,20 @@ function closeRemainingClosures(): void {
 let proxyChangeUnsubscribe: (() => void) | null = null;
 
 /**
+ * `createReturnFactsOf` 的**按引用缓存**（zustand v5 getSnapshot 引用稳定纪律）。
+ *
+ * 该方法被 selector 直接消费；返回值只由 `createReturnLocation` 与 `runs`
+ * 两个引用决定 ⇒ 输入引用都没变就返回同一对象（2026-10-15 实机坐实：
+ * 不缓存会让 getSnapshot 恒新 ⇒ 无限重渲染 ⇒ 创建页整树卸载白屏）。
+ * 放模块作用域：它是派生缓存，不是 UI 状态。
+ */
+let createReturnFactsCache: {
+  location: CreateReturnLocation | null;
+  runs: RunSummary[];
+  facts: CreateReturnFacts;
+} | null = null;
+
+/**
  * 代理状态读取的**静默等待者**（tasks 2.1）。
  *
  * 合并调度让 `loadProxyStatus` 在"已有读取在飞"时立即返回（只登记尾随），
@@ -3496,18 +3510,34 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   createReturnFactsOf() {
     const state = get();
+    // ⚠️ 引用稳定（zustand v5 getSnapshot 纪律）：本方法被 selector 直接消费
+    // （CreateRunWorkspace「useAppStore((s) => s.createReturnFactsOf())」），
+    // 每次现造对象会让 getSnapshot 恒新 ⇒ "Maximum update depth exceeded"
+    // ⇒ 无 error boundary 整树卸载（2026-10-15 实机坐实：打开创建页即白屏）。
+    // 输入只有 createReturnLocation 与 runs 两个引用 ⇒ 按引用缓存，
+    // 两者任一变化才重建；判据本体（decideCreateReturn + 文案派生）不变。
+    const hit = createReturnFactsCache;
+    if (hit !== null && hit.location === state.createReturnLocation && hit.runs === state.runs) {
+      return hit.facts;
+    }
     const decision = decideCreateReturn({
       location: state.createReturnLocation,
       knownRunIds: state.runs.map((run) => run.id),
     });
-    if (decision.kind === "restore") {
-      return { kind: "restore", label: describeReturnDestination(decision.location) };
-    }
-    return {
-      kind: "fallback",
-      label: `回到${workspaceViewName(decision.view)}`,
-      reasonText: describeReturnFallbackReason(decision.reason),
+    const facts: CreateReturnFacts =
+      decision.kind === "restore"
+        ? { kind: "restore", label: describeReturnDestination(decision.location) }
+        : {
+            kind: "fallback",
+            label: `回到${workspaceViewName(decision.view)}`,
+            reasonText: describeReturnFallbackReason(decision.reason),
+          };
+    createReturnFactsCache = {
+      location: state.createReturnLocation,
+      runs: state.runs,
+      facts,
     };
+    return facts;
   },
 
   openRecordingWorkspace() {

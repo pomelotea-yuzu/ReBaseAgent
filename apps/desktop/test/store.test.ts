@@ -1297,3 +1297,58 @@ describe("U4 4.9 主动入口的执行身份", () => {
     expect(useAppStore.getState().forkErrorCode).toBe("MAIN_HANDSHAKE_REQUIRED");
   });
 });
+
+describe("createReturnFactsOf：selector 消费安全（getSnapshot 引用稳定）", () => {
+  // 2026-10-15 实机坐实的缺陷回归钉：本方法被
+  // useAppStore((s) => s.createReturnFactsOf()) 直接消费；若每次现造对象，
+  // zustand v5 的 getSnapshot 恒新 ⇒ 无限重渲染 ⇒ 创建页整树卸载（白屏）。
+  // 本包无 jsdom 跑不了 effect ⇒ 引用稳定性只能在 store 行为层钉住。
+
+  it("状态未变时两次调用返回同一引用", () => {
+    const a = useAppStore.getState().createReturnFactsOf();
+    const b = useAppStore.getState().createReturnFactsOf();
+    expect(a).toBe(b);
+  });
+
+  it("createReturnLocation 变化 ⇒ 缓存重建为新引用（restore 文案跟随）", () => {
+    useAppStore.setState({ createReturnLocation: null });
+    const baseline = useAppStore.getState().createReturnFactsOf();
+    useAppStore.setState({
+      createReturnLocation: {
+        view: "trace",
+        runId: rootSummary.id,
+        tab: "steps",
+        spanId: null,
+        file: null,
+      },
+      runs: [rootSummary],
+    });
+    const after = useAppStore.getState().createReturnFactsOf();
+    expect(after).not.toBe(baseline);
+    expect(after.kind).toBe("restore");
+    expect(after.label).toBe("返回运行记录 · 调用步骤");
+  });
+
+  it("knownRunIds 变化（来源 run 入列）⇒ 缓存重建，run-missing 翻为 restore", () => {
+    useAppStore.setState({
+      createReturnLocation: {
+        view: "trace",
+        runId: "run_not_loaded_yet",
+        tab: "overview",
+        spanId: null,
+        file: null,
+      },
+      runs: [],
+    });
+    const missing = useAppStore.getState().createReturnFactsOf();
+    expect(missing.kind).toBe("fallback");
+    useAppStore.setState({
+      runs: [{ ...rootSummary, id: "run_not_loaded_yet" }],
+    });
+    const loaded = useAppStore.getState().createReturnFactsOf();
+    expect(loaded).not.toBe(missing);
+    expect(loaded.kind).toBe("restore");
+    // 引用随后再次稳定（同输入同引用）
+    expect(useAppStore.getState().createReturnFactsOf()).toBe(loaded);
+  });
+});
