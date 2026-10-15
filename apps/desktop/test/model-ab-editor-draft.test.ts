@@ -374,7 +374,9 @@ describe("UI 整理 4.2：guard 逐项原因就近归属（design D5）", () => 
     expect(code).not.toContain("const submitBlocked");
     // blocked 链：guard 批次级（含臂级汇总指针）→ 源不可用 → 初始引导 → 计划过期
     expect(code).toContain("guardBlockedText");
-    expect(code).toContain("先「校验并预览计划」：核对实际执行的计划（各臂 model / params）后再确认");
+    expect(code).toContain(
+      "先「校验并预览计划」：核对实际执行的计划（各臂 model / params）后再确认",
+    );
     expect(code).toContain("个臂的输入问题已就近标注在臂卡上");
   });
 });
