@@ -1,6 +1,6 @@
 # 项目状态与版本依据
 
-校准日期：2026-10-12。依据 R2.1 归档提交 `ac8729e`、归档 change 与既有构建／发布记录；本轮只同步文档，没有联网核验下载或重跑功能验收。今日已归档的调研与 UI 走查另列依据；历史记录保留其当时结论。
+校准日期：2026-10-16。依据 R2.1 归档提交 `ac8729e`、refine-ui 归档提交 `00ecab6`、v0.5.0-rc.1 打包提交 `18ebb6f` 与既有构建／发布记录；本轮只同步文档，没有联网核验下载或重跑功能验收。历史记录保留其当时结论。
 
 ## 研发与文档
 
@@ -30,6 +30,7 @@
 | v0.3.0-k1 | 标签指向 `047d1c7`；[09/25 发布正文存档](../engineering/reports/2026-09-25-k1-gitee-template.md)及[发布处理记录](../engineering/notes/2026-09-25-gitee-release-blocked.md) | 已有发布记录的历史预览版，含隔离 A/B/C 与 U1/U2，不含 U3–U8；后续源码归档不等于进入该包 |
 | v0.4.0-rc.1 | [构建记录](../engineering/reports/2026-10-02-v0.4.0-rc.1-build-record.md)、[人工验收清单](../engineering/reports/2026-10-02-v0.4.0-rc.1-manual-acceptance-checklist.md) | 已有构建与验收记录，含 U1–U8，不含 10/12 归档的 R2.1；不作为本轮线上下载核验 |
 | v0.4.0-rc.2 | [10/11 构建记录](../engineering/reports/2026-10-11-v0.4.0-rc.2-build-record.md) | 记录基线为 `e1a5611`，不含 R2.1；打包、验收与上传状态按该记录分别核对，本轮未重验或查询线上发行 |
+| v0.5.0-rc.1 | [10/16 构建记录](../engineering/reports/2026-10-16-v0.5.0-rc.1-build-record.md)、[发行文案](../engineering/reports/2026-10-16-v0.5.0-rc.1-release-notes.md) | 基线 `00ecab6`，含 R2.1 结果导出与 refine-ui 界面重组；**首个只发 zip 口径的包**（zip 内 exe + SHA256SUMS.txt + 使用说明.txt）；本地 tag `v0.5.0-rc.1`，上传与人工实机验收未执行，按构建记录分别核对 |
 
 K1 本地标签与发布正文存档一致的产物信息：
 

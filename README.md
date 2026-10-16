@@ -1,60 +1,75 @@
+<div align="center">
+
+<img src="apps/desktop/build/icon.png" width="128" alt="ReBaseAgent logo"/>
+
 # ReBaseAgent
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Release](https://img.shields.io/badge/Release-v0.4.0--rc.1-green.svg)](https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.4.0-rc.1)
+🐟 **不止回放 Agent 做了什么，而是让它从跑歪的那一步重新跑。** ⏪✨
+
+<p>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"/></a>
+  <a href="https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.5.0-rc.1"><img src="https://img.shields.io/badge/Release-v0.5.0--rc.1-green.svg" alt="Release"/></a>
+  <a href="https://www.electronjs.org/"><img src="https://img.shields.io/badge/Electron-44-47848F?logo=electron&amp;logoColor=white" alt="Electron 44"/></a>
+  <a href="https://react.dev/"><img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&amp;logoColor=black" alt="React 19"/></a>
+  <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-5.6-3178C6?logo=typescript&amp;logoColor=white" alt="TypeScript 5.6"/></a>
+  <img src="https://img.shields.io/badge/Platform-Windows%20x64-0078D6?logo=windows&amp;logoColor=white" alt="Platform: Windows x64"/>
+  <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs welcome"/></a>
+</p>
+
+</div>
 
 ![ReBaseAgent 工作台：运行列表、轨迹与详情三栏](docs/readme-shots/hero.png)
 
-## 这是什么
+## 🧭 这是什么
 
 调试多轮文件任务时有个具体的困难：**恢复了历史消息，后续工具却读到了当前目录的文件**，导致续跑起点无法解释。
 
 ReBaseAgent 在本项目的执行循环与受控 `read_file` / `write_file` 工具范围内，把工具观察的编辑点对应到**整轮结束的文件快照**，从独立分支继续执行。编辑工具结果只改变模型看到的观察，不撤销该轮写入，也不重新执行被编辑的工具。
 
-| 传统调试     | ReBaseAgent            |
-| -------- | ---------------------- |
-| Profiler | 上下文预算地图（token 花在哪了）    |
-| 改一行代码重跑  | 编辑某步 tool_result，从该步重跑 |
-| 回归测试     | Trace-as-Test 轨迹回放     |
-| git diff | 两次运行的分叉点定位             |
+| 传统调试         | ReBaseAgent                      |
+| ---------------- | -------------------------------- |
+| 📊 Profiler      | 上下文预算地图（token 花在哪了） |
+| ✏️ 改一行代码重跑 | 编辑某步 tool_result，从该步重跑 |
+| 🔁 回归测试       | Trace-as-Test 轨迹回放           |
+| 🌿 git diff      | 两次运行的分叉点定位             |
 
 对比 LangGraph 的检查点分叉、Langfuse / Phoenix 的提示词实验与重试能力，本项目的技术说明集中在**消息与文件状态的对齐、分支隔离和失败拒绝边界**。同类方案与本项目的对照见[方案调研](docs/research/2026-09-27-agent-debugging-landscape.md)与[机制说明](docs/architecture/replay-state-consistency.md)。跨产品的性能与使用效果尚待同任务验证。
 
-## 下载
+## 📥 下载
 
-**Windows x64 便携版（约 95 MB，<100 MB，免安装）** → [GitHub Releases](https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.4.0-rc.1) / [Gitee Releases](https://gitee.com/yuzu-tea-duck/re-base-agent/releases/tag/v0.4.0-rc.1)
+**Windows x64 便携版** → [GitHub Releases](https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.5.0-rc.1) / [Gitee Releases](https://gitee.com/yuzu-tea-duck/re-base-agent/releases/tag/v0.5.0-rc.1)
 
-最新打包为 **0.4.0-rc.1**（发行候选，人工实机验收已通过）：单文件体积 `95,542,495` bytes，SHA-256 前缀 `50a1a9cf7ac61ec3`，低于 Gitee 单附件 100 MB 上限。双击运行，无需安装；应用数据保存在 exe 旁的 `data/` 目录，迁移时同时携带该目录。便携启动器会使用临时解包目录，不能将便携理解为"不产生临时文件"。
+最新打包为 **0.5.0-rc.1**（发行候选）：分发形态为 **zip 包**（`ReBaseAgent-0.5.0-rc.1-win-x64.zip`，`95,599,503` bytes，SHA-256 前缀 `0fb69c454e3d2bb3`），内含 `ReBaseAgent-0.5.0-rc.1-win-x64-portable.exe`（`95,591,303` bytes，SHA-256 见包内 `SHA256SUMS.txt`）、校验文件与使用说明。用 7-Zip / WinRAR 解压后双击 exe 运行，无需安装；应用数据保存在 exe 旁的 `data/` 目录，迁移时同时携带该目录。便携启动器会使用临时解包目录，不能将便携理解为"不产生临时文件"。
 
-> 0.4.0-rc.1 包含隔离文件重跑与全部已归档的桌面工作区能力。**上传 GitHub / Gitee Releases 属独立步骤，完成前上述链接暂不可用**；版本、哈希与发布依据见[项目状态](docs/development/project-status.md)。历史正式版 [v0.2.0](https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.2.0) 不代表长期维护承诺，支持范围见 [SECURITY.md](SECURITY.md)。
+> 0.5.0-rc.1 包含 R2.1 结果导出与全部已归档的桌面工作区能力（对象身份与界面经社区发行打磨）。**上传 GitHub / Gitee Releases 属独立步骤，完成前上述链接暂不可用**；本版自动化门禁与离线冒烟全绿，人工实机验收未执行（构建与验证依据见[构建记录](docs/engineering/reports/2026-10-16-v0.5.0-rc.1-build-record.md)）。历史正式版 [v0.2.0](https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.2.0) 不代表长期维护承诺，支持范围见 [SECURITY.md](SECURITY.md)。
 
-> 首次运行会有 Windows SmartScreen 的"未知发布者"提示（本项目尚未购买代码签名证书），点「更多信息 → 仍要运行」即可。
+> 建议用 7-Zip / WinRAR 解压：不会给文件打 Mark-of-the-Web 标记，可绕开 SmartScreen「未知发布者」首弹；用系统自带解压若遇提示，点「更多信息 → 仍要运行」即可（本项目尚未购买代码签名证书）。
 
-## 它能做什么
+## 🚀 它能做什么
 
 ![改掉某一步的工具结果，只读预检通过后才能重跑](docs/readme-shots/rerun.png)
 
-**改一步，从那一步重跑** — 停在想改的那一步，改掉模型当时看到的工具结果，从该步继续执行。分叉点之前的上下文在本地拼接复用（零 API 调用），只有分支点之后才真调模型；重发的前缀可能命中服务商的前缀缓存。实测（3 次调用的 run 改最后一步）：只发 **1 次**请求、484 输入 tokens **命中 256**，全价口径消耗为父 run 的 **21%~40%**。
+**⏪ 改一步，从那一步重跑** — 停在想改的那一步，改掉模型当时看到的工具结果，从该步继续执行。分叉点之前的上下文在本地拼接复用（零 API 调用），只有分支点之后才真调模型；重发的前缀可能命中服务商的前缀缓存。实测（3 次调用的 run 改最后一步）：只发 **1 次**请求、484 输入 tokens **命中 256**，全价口径消耗为父 run 的 **21%~40%**。
 
 ![文件状态可回退：初始快照与第 2 轮结束的文本 diff](docs/readme-shots/files.png)
 
-**带写工具的 run 也能安全地退回去重跑** — 这是与"只能看"的调试器最实际的差别。从一个目录创建带文件检查点的隔离 run，编辑某一步的工具结果后，从**那一轮的副本文件世界**续跑：父 run、源目录、兄弟分支逐字节不变，同轮兄弟工具的原效果保留且不重放。文件按内容寻址跨 run 共享，整个数据目录搬走后照样可读可分叉。
+**🛡️ 带写工具的 run 也能安全地退回去重跑** — 这是与"只能看"的调试器最实际的差别。从一个目录创建带文件检查点的隔离 run，编辑某一步的工具结果后，从**那一轮的副本文件世界**续跑：父 run、源目录、兄弟分支逐字节不变，同轮兄弟工具的原效果保留且不重放。文件按内容寻址跨 run 共享，整个数据目录搬走后照样可读可分叉。
 
-**改启动上下文，从头重跑** — 改 system prompt 或首条 user message 后完整重跑，独立记录新轨迹，父 run 只作溯源对照；多分支可并排比较新旧行为。启动上下文变了，前缀天然不复用，所以这是新实验而非同源回放。
+**🔀 改启动上下文，从头重跑** — 改 system prompt 或首条 user message 后完整重跑，独立记录新轨迹，父 run 只作溯源对照；多分支可并排比较新旧行为。启动上下文变了，前缀天然不复用，所以这是新实验而非同源回放。
 
 ![分支树与运行对照](docs/readme-shots/compare.png)
 
-**比两段行为** — 搜索与定位分支，两条运行可在完整比较工作区核对编辑、输出、步骤和指标，两到四条可看指标表。展示逐臂事实与相对父本的增量，不自动评出胜者。
+**⚖️ 比两段行为** — 搜索与定位分支，两条运行可在完整比较工作区核对编辑、输出、步骤和指标，两到四条可看指标表。展示逐臂事实与相对父本的增量，不自动评出胜者。
 
-**留一份可回放的记录** — 已封存 trace 当卡带，用你当前的 agent-loop 与工具声明本地重跑：零 API 消耗的 Agent 运行时回归测试，可进 CI（见 [`packages/trace-test`](packages/trace-test)）。命令行提供 `rebaseagent-trace-test` 与 `rebaseagent-model-ab`。
+**🧪 留一份可回放的记录** — 已封存 trace 当卡带，用你当前的 agent-loop 与工具声明本地重跑：零 API 消耗的 Agent 运行时回归测试，可进 CI（见 [`packages/trace-test`](packages/trace-test)）。命令行提供 `rebaseagent-trace-test` 与 `rebaseagent-model-ab`。
 
-**看清上下文预算** — token 花在哪了，按消息与工具分布可视化；`llm.call` 记录 `cache_hit` / `cache_miss`，run 列表直接显示"这次调用的前缀省没省"。
+**💰 看清上下文预算** — token 花在哪了，按消息与工具分布可视化；`llm.call` 记录 `cache_hit` / `cache_miss`，run 列表直接显示"这次调用的前缀省没省"。
 
-**失败原因可诊断** — 模型调用失败时记录脱敏并限长的 `error`（message + 已知时的 HTTP 状态码）：轨迹树标红该节点，详情直接给出原因与状态码，并声明 tokens / 延迟是占位零值；老 trace 缺该字段时显示「错误详情未记录」而不猜造原因。
+**🔍 失败原因可诊断** — 模型调用失败时记录脱敏并限长的 `error`（message + 已知时的 HTTP 状态码）：轨迹树标红该节点，详情直接给出原因与状态码，并声明 tokens / 延迟是占位零值；老 trace 缺该字段时显示「错误详情未记录」而不猜造原因。
 
-**调试草稿不丢** — 切步骤、运行、设置或关闭编辑区后，会话内按编辑目标保留原始文本（包括空串和非法 JSON），失败后可返回修改。
+**💾 调试草稿不丢** — 切步骤、运行、设置或关闭编辑区后，会话内按编辑目标保留原始文本（包括空串和非法 JSON），失败后可返回修改。
 
-**父链缺失时仍能阅读** — 仅在确认祖先文件不存在时，展示已校验的当前运行记录，并明确父链不完整、继承内容未知；损坏或非法版本继续拒绝读取。
+**📚 父链缺失时仍能阅读** — 仅在确认祖先文件不存在时，展示已校验的当前运行记录，并明确父链不完整、继承内容未知；损坏或非法版本继续拒绝读取。
 
 <details>
 
@@ -125,7 +140,7 @@ prompt fork = 编辑首次 llm.call 的启动上下文（system prompt / 首条 
 
 </details>
 
-## 快速开始
+## ⌨️ 快速开始
 
 三条路，按你手上有什么选一条：
 
@@ -212,20 +227,20 @@ const result = await runLoop(
 
 DeepSeek / GLM / Qwen / Kimi 等 OpenAI 兼容端点开箱即用。
 
-## 路线图
+## 🗺️ 路线图
 
 **已交付的能力**都在上面的「它能做什么」里。逐版本的迭代记录（含每个预览包的具体边界）见 [CHANGELOG.md](CHANGELOG.md)，当前版本与哈希依据见[项目状态](docs/development/project-status.md)。
 
 **下一步在做的事**：
 
-- trace 包导出（把轨迹带走）
+- trace 包导出（把整条轨迹带走；区别于已交付的文件快照导出）
 - Shell / 真实测试接入
 - 隔离父本上的 prompt fork 与模型 A/B（本期在界面与内核均禁用）
 - macOS / Linux 打包
 
 范围与边界见[拆分计划](docs/engineering/plans/2026-09-21-ui-change-split-plan.md)。
 
-## 架构
+## 🧱 架构
 
 ```text
 packages/
@@ -247,7 +262,7 @@ apps/
 
 模块与数据流的详细说明见 [docs/architecture/overview.md](docs/architecture/overview.md)；全部文档索引（产品 / 工程记录 / 实机验收证据）见 [docs/README.md](docs/README.md)。
 
-## 开发
+## 💻 开发
 
 ```bash
 pnpm install
@@ -268,7 +283,7 @@ CI 配置：**Gitee Go 与 GitHub Actions**（分别见 `.workflow/ci.yml` 与 `
 
 本项目使用 [OpenSpec](https://github.com/Fission-AI/OpenSpec) 做 Spec-Driven Development——每个能力先写 spec（proposal → 评审 → 实现 → 归档），见 `openspec/` 目录。
 
-## 贡献
+## 🤝 贡献
 
 欢迎 issue 与 PR：开发环境与流程见 [CONTRIBUTING.md](CONTRIBUTING.md)，
 质量门禁与 OpenSpec 工作流见 [docs/development/workflow.md](docs/development/workflow.md)。
@@ -277,6 +292,6 @@ CI 配置：**Gitee Go 与 GitHub Actions**（分别见 `.workflow/ci.yml` 与 `
 
 治理与职责见[治理说明](docs/development/governance-and-maintenance.md)，版本支持见[维护政策](docs/development/maintenance-policy.md)，发行与交接见[发布指南](docs/development/release-and-handoff.md)，依赖许可见[第三方声明](docs/development/third-party-notices.md)。
 
-## License
+## 📄 License
 
 MIT

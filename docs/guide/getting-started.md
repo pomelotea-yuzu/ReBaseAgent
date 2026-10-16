@@ -6,7 +6,7 @@
 
 两条路（Windows x64）：
 
-- **便携版（推荐）**：从 [GitHub](https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.3.0-k1) 或 [Gitee](https://gitee.com/yuzu-tea-duck/re-base-agent/releases/tag/v0.3.0-k1) 获取有发布记录的 `v0.3.0-k1` portable exe。K1 包含隔离文件运行与 U1/U2；后续源码功能不自动进入该包。哈希及记录边界见[项目状态](../development/project-status.md)。应用数据在 exe 旁的 `data/`，启动时会临时解包。
+- **便携版（推荐）**：从 [GitHub](https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.5.0-rc.1) 或 [Gitee](https://gitee.com/yuzu-tea-duck/re-base-agent/releases/tag/v0.5.0-rc.1) 获取 `v0.5.0-rc.1` zip 包，用 7-Zip / WinRAR 解压后双击 exe 运行。该候选包含 R2.1 结果导出与全部已归档桌面能力（对象身份经社区发行打磨）；**上传 Releases 属独立步骤，完成前链接暂不可用**，哈希与验收边界见[项目状态](../development/project-status.md)。应用数据在 exe 旁的 `data/`，启动时会临时解包。
 - **从源码运行**：
 
 ```bash
