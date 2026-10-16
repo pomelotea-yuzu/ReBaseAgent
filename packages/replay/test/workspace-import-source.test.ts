@@ -40,7 +40,15 @@ const tempDir = (): string => makeTempDir("replay-src-");
  * 恰恰是"条目本身是链接"这件事本身。实现侧判链接用的正是 `lstat().isSymbolicLink()`
  * （`src/workspace/import-source.ts`），探针与被测口径必须一致。
  */
-const isLinkAt = (path: string): boolean => lstatSync(path).isSymbolicLink();
+const isLinkAt = (path: string): boolean => {
+  try {
+    return lstatSync(path).isSymbolicLink();
+  } catch {
+    // ENOENT：无特权 Windows 上 symlinkSync 可能静默不建条目（见 FILE_SYMLINK_AVAILABLE 注释）
+    // ——lstat 必然 ENOENT，此时语义就是"条目不存在/不是链接"，返回 false 而非让模块顶层崩溃。
+    return false;
+  }
+};
 
 /**
  * 本机能否**真的**创建出文件符号链接。
