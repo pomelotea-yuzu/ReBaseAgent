@@ -172,7 +172,7 @@
 
 ## 4.2 销账记录（2026-10-17）
 
-迁移：store.ts 轮询整段（pollState/pollTimer/pollContextOf/applyPollStep/runStatusPoll/rescheduleStatusPoll/stopOperationStatusPolling + 节注释，原 L304–353）→ 新增 `store/runtime/operation-polling.ts`（唯一资源所有者，工厂 `createOperationPollingRuntime` 按实例组合一次；store 依赖经惰性回调 `getSession`/`refreshOperationStatus` 注入——本模块不导入 useAppStore、不在模块顶层缓存实例，符合 design D2/D3）。store.ts 保留原入口兼容导出 `stopOperationStatusPolling`（指向同一 runtime 实现）；store.ts 2880→2855 行。成员/函数逐字随迁（含 JSDoc 与任务 4.5/4.6 注释语义）。
+迁移：store.ts 轮询整段（pollState/pollTimer/pollContextOf/applyPollStep/runStatusPoll/rescheduleStatusPoll/stopOperationStatusPolling + 节注释，原 L304–353）→ 新增 `store/runtime/operation-polling.ts`（唯一资源所有者，工厂 `createOperationPollingRuntime` 按实例组合一次；store 依赖经惰性回调 `getSession`/`refreshOperationStatus` 注入——本模块不导入 useAppStore、不在模块顶层缓存实例，符合 design D2/D3）。store.ts 保留原入口兼容导出 `stopOperationStatusPolling`（指向同一 runtime 实现）；store.ts 2880→**2846** 行。成员/函数逐字随迁（含 JSDoc 与任务 4.5/4.6 注释语义）。
 
 **本阶段无需改读的静态断言**（逐模块核对结论）：轮询的行为验证全部经 store action + 动态导入承载（operation-polling 9 / operation-session-epoch 4 / operation-races 9 = 22 用例，假时钟判据），这些测试不读 store.ts 源码；全部测试文件中唯一锚定轮询符号的静态断言是 `navigation-intent-store.test.ts` 3.4 的切片边界 `indexOf("async ensureOperationStatusPolling")`——该 action 体本轮不动（阶段 5 才迁 slices/operations），边界仍有效。`stopOperationStatusPolling` 模块级导出在生产代码无直接导入方（仅 action 转发与测试经 `useAppStore.getState()` 消费），兼容导出保留即活证据。
 
@@ -196,4 +196,4 @@
 | refine-ui-return「创建页容器不自算」（store.ts 含 createReturnFactsOf + 两条 describe* 判据） | 不改读（判据体留在 store.ts） | 5.3 迁 navigation 分片时随载体改读 |
 | create-form-draft「WORKSPACE 含 createReturnFactsOf」接线 | 不改读 | action 名与消费点不变 |
 
-验证：tsc web/node 双 0；biome 改动 4 文件 0 错；定向 3 文件 91 用例全过（store.test 62 + refine-ui-return 14 + create-form-draft 15；EPERM 噪声分批单跑复核）；**全量 203 文件/3180 用例 0 失败（singleFork，与权威三元组一致，exit=0）**。**阶段 4 完成**：store.ts 2879→2836 行；runtime 三件（operation-polling 84 / proxy-coordination 88 / create-return-facts-cache 60 行）。
+验证：tsc web/node 双 0；biome 改动 4 文件 0 错；定向 3 文件 91 用例全过（store.test 62 + refine-ui-return 14 + create-form-draft 15；EPERM 噪声分批单跑复核）；**全量 203 文件/3180 用例 0 失败（singleFork，与权威三元组一致，exit=0）**。**阶段 4 完成**：store.ts 2879→**2821** 行；runtime 三件（operation-polling 85 / proxy-coordination 89 / create-return-facts-cache 51 行）。
