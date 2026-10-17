@@ -241,10 +241,18 @@ describe("接线契约：草稿入口与失效视图（任务 2.5）", () => {
     resolve(import.meta.dirname, "../src/renderer/src/components/ModelAbEditor.tsx"),
     "utf8",
   );
+  // refactor-renderer 2.1：RunDraftListSection 本体迁至 detail/DetailShared.tsx
+  const SHARED_SOURCE = readFileSync(
+    resolve(import.meta.dirname, "../src/renderer/src/components/detail/DetailShared.tsx"),
+    "utf8",
+  );
   it("DetailPanel 挂载本运行草稿列表 + 失效横幅；视图组件共享", () => {
     expect(DETAIL_PANEL).toContain("<RunDraftListSection runId={selectedRunId} />");
-    expect(DETAIL_PANEL).toContain("deriveDraftList(drafts, { runId })");
-    expect(DETAIL_PANEL).toContain("<DraftListPanel");
+    // refactor-renderer 2.1：列表派生与 DraftListPanel 视图随 RunDraftListSection
+    // 迁至 detail/DetailShared.tsx（挂载点留在容器）
+    expect(DETAIL_PANEL).toContain('from "./detail/DetailShared"');
+    expect(SHARED_SOURCE).toContain("deriveDraftList(drafts, { runId })");
+    expect(SHARED_SOURCE).toContain("<DraftListPanel");
     expect(DETAIL_PANEL).toContain("DraftSourceBanner");
     // 四个编辑器都叠加重验闸门（恢复重验通过才恢复执行资格）
     const gates =

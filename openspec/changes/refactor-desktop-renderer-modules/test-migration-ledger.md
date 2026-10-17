@@ -86,3 +86,19 @@
 3. 静态否定断言必须跟随实际实现迁移（**不能只查已搬空的原入口**）；跨文件计数注明原计数↔新计数的等价换算。
 4. 禁止：删除断言、改 `.skip`、整目录拼接字符串搜索、以注释命中证明接线；确需静态检查的用导入图/语法结构检查。
 5. 阶段完成后在本表「销账阶段」列回填实际提交；未迁移的保证在 7.1 复核时逐条点名，不得静默丢失。
+
+## 2.1 销账记录（2026-10-17）
+
+迁移：DetailPanel.tsx 2161→1595 行；新增 `detail/DetailShared.tsx`(203)/`detail/LlmCallDetail.tsx`(185)/`detail/ToolInvokeDetail.tsx`(113)/`detail/StepDetailView.tsx`(107)。原 8 个导出全部经 DetailPanel 兼容再导出指向同一实现；`Section`/`KeyValue`/`RunDraftListSection`（原非导出）入 DetailShared。壳（LlmCallDetail/ToolInvokeDetail/ForkEditor/PromptForkEditor）暂留容器，2.2–2.4 迁。
+
+| T | 迁移的断言 | 新承载 | 说明 |
+|---|---|---|---|
+| T03 cache-display | `<CacheHitRow usage={response.usage} />` 挂载断言 | 改读 `detail/LlmCallDetail.tsx`（真实挂载点） | presentCacheHit 判据断言改读 `detail/DetailShared.tsx`；ForkEditor 缓存提示接线部分仍在 DetailPanel（2.3 处理）。动态导入 LlmCallDetailView/ToolInvokeDetailView 继续从原入口（兼容导出活证据） |
+| T04 call-detail-view | `text={messageContentText(message)}` 接线 | 改读 `detail/LlmCallDetail.tsx` | 新增容器否定检查（DetailPanel 不再有消息渲染）；动态导入 LlmCallDetailView/ToolInvokeDetailView/StepDetailView 继续从原入口 |
+| T05 confirm-dialog | 放弃确认计数「DetailPanel 5」 | **DetailPanel 4 + DetailShared 1**（RunDraftListSection 的列表放弃点随迁） | 总保证不变（5 处），计数按实际载体重分；`void requestConfirm` 存在性与 window.confirm 否定断言保持 |
+| T27 notice-disclosure | `"isolated-parent-unsupported"` + `toggleNoticeExpanded` 展开键断言 | 改读 `detail/DetailShared.tsx` | 挂载点 `<IsolatedParentUnsupportedNotice run={run} />` 断言仍在 DetailPanel（壳在 2.4 前保留） |
+| T02 budget-reachability | 失败 LLM 错误区三断言（HTTP 状态/失败占位零值/解释文案） | 改读 `detail/LlmCallDetail.tsx` | Monaco 清单断言（325–338）本阶段未触及，DetailPanel 仍含编辑器（2.2/2.3 处理） |
+| T09 draft-compare-grid | `xl:grid-cols-2` 恰一处断言 | **DetailPanel 0 + detail/ToolInvokeDetail.tsx 1**（tool.invoke 只读 args/result 例外随迁） | 200/140px 禁用扫描扩至新模块；compareKey 挂载断言（prompt/tool-result）未变——ForkEditor/PromptForkEditor 仍在容器 |
+| T10 draft-list | `deriveDraftList(drafts, { runId })` + `<DraftListPanel` 断言 | 改读 `detail/DetailShared.tsx` | 挂载点 `<RunDraftListSection runId={selectedRunId} />` 断言仍在 DetailPanel；新增「容器经 detail/DetailShared 导入」接线断言 |
+
+验证：tsc web/node 0 错；biome 5 文件 0 错；受影响 8 个测试文件单包复跑全过（并行收集受沙箱 EPERM 噪声影响，单跑为准）；**全量 200 文件/2988 用例全过 0 失败**（3 条 Unhandled Errors 为已知沙箱 EPERM 噪声）。

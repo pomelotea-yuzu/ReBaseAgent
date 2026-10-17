@@ -199,8 +199,15 @@ describe("CacheHitRow：usage 区缓存命中行静态渲染", () => {
 // ---------------------------------------------------------------------------
 
 describe("接线契约：llm.call 详情确实挂上缓存命中行", () => {
+  // refactor-renderer 2.1：CacheHitRow 本体迁至 detail/DetailShared.tsx，
+  // 挂载点（LlmCallDetailView）迁至 detail/LlmCallDetail.tsx；原入口经 DetailPanel
+  // 兼容再导出指向同一实现（动态导入在文件头部已覆盖）。
   const SOURCE = readFileSync(
-    resolve(import.meta.dirname, "../src/renderer/src/components/DetailPanel.tsx"),
+    resolve(import.meta.dirname, "../src/renderer/src/components/detail/LlmCallDetail.tsx"),
+    "utf8",
+  );
+  const SHARED = readFileSync(
+    resolve(import.meta.dirname, "../src/renderer/src/components/detail/DetailShared.tsx"),
     "utf8",
   );
 
@@ -210,9 +217,9 @@ describe("接线契约：llm.call 详情确实挂上缓存命中行", () => {
   });
 
   it("缓存命中行只由纯判据驱动：必须调用 presentCacheHit（不得在 JSX 里另写一套判定）", () => {
-    expect(SOURCE).toContain("presentCacheHit(usage)");
+    expect(SHARED).toContain("presentCacheHit(usage)");
     // 组件内不得再出现裸 truthiness 判定（`if (hit)` 会把 0 吞掉）
-    expect(SOURCE).not.toContain("if (hit)");
+    expect(SHARED).not.toContain("if (hit)");
   });
 });
 

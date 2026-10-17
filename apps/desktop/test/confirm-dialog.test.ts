@@ -79,12 +79,21 @@ describe("U3 5.2 接线契约（源码级）：放弃确认迁出 window.confirm
     resolve(import.meta.dirname, "../src/renderer/src/components/MessagesForkEditor.tsx"),
     "utf8",
   );
+  // refactor-renderer 2.1：RunDraftListSection（本运行草稿列表的放弃点）迁至 detail/DetailShared
+  const detailShared = readFileSync(
+    resolve(import.meta.dirname, "../src/renderer/src/components/detail/DetailShared.tsx"),
+    "utf8",
+  );
 
-  it("放弃确认全部经 requestConfirm（DetailPanel 5 + A/B 2 + messages 2 + 创建 1）", () => {
-    // DetailPanel：列表1 + prompt 字段/横幅2 + result 字段/横幅2（messages/A-B 两对随 U8 迁出）
+  it("放弃确认全部经 requestConfirm（DetailPanel 4 + DetailShared 1 + A/B 2 + messages 2 + 创建 1）", () => {
+    // DetailPanel：prompt 字段/横幅2 + result 字段/横幅2（messages/A-B 两对随 U8 迁出）
+    // refactor-renderer 2.1：「列表 1」随 RunDraftListSection 迁至 detail/DetailShared.tsx
+    //（原 DetailPanel 5 = 现容器 4 + 承载模块 1，保证不变、计数按实际载体重分）
     expect(detail).toContain("void requestConfirm({");
     const detailCount = (detail.match(/requestConfirm\(\{/g) ?? []).length;
-    expect(detailCount).toBe(5);
+    expect(detailCount).toBe(4);
+    const sharedCount = (detailShared.match(/requestConfirm\(\{/g) ?? []).length;
+    expect(sharedCount).toBe(1);
     // A/B 整批/横幅 2 处在 ModelAbEditor；messages 字段/横幅 2 处在 MessagesForkEditor
     expect((modelAbEditor.match(/requestConfirm\(\{/g) ?? []).length).toBe(2);
     expect((messagesEditor.match(/requestConfirm\(\{/g) ?? []).length).toBe(2);

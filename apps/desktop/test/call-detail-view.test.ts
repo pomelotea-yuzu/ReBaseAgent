@@ -870,11 +870,19 @@ describe("消息内容永远是字符串（防整页空白回归）", () => {
     }
   });
 
-  it("接线：DetailPanel 的消息渲染走该函数（不再内联 prettyJson）", () => {
+  it("接线：消息渲染走该函数（不再内联 prettyJson）——承载模块为 detail/LlmCallDetail", () => {
+    // refactor-renderer 2.1：LlmCallDetailView 迁至 detail/LlmCallDetail.tsx，
+    // 原入口经 DetailPanel 兼容再导出指向同一实现（动态导入断言在本文件头部已覆盖）。
     const source = readFileSync(
-      resolve(import.meta.dirname, "../src/renderer/src/components/DetailPanel.tsx"),
+      resolve(import.meta.dirname, "../src/renderer/src/components/detail/LlmCallDetail.tsx"),
       "utf8",
     );
     expect(source).toContain("text={messageContentText(message)}");
+    // 容器不再保留第二份消息渲染（否定检查覆盖仍在容器内的壳层代码）
+    const panel = readFileSync(
+      resolve(import.meta.dirname, "../src/renderer/src/components/DetailPanel.tsx"),
+      "utf8",
+    );
+    expect(panel).not.toContain("text={messageContentText(message)}");
   });
 });

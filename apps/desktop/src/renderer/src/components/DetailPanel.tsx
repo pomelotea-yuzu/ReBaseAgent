@@ -3,17 +3,10 @@ import { buildSpanTree, findStepLlm, spanDurationMs } from "@shared/derive";
 import type { SpanNode } from "@shared/derive";
 import type { ForkCapabilityResult, ModelAbResult, ModelArmPlan, RunDetail } from "@shared/ipc";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { presentCacheHit, presentCacheMiss } from "../lib/cache-view";
-import type { IoView, StepDetailView as StepDetailViewData } from "../lib/call-detail-view";
-import {
-  messageContentText,
-  optionalSectionVisible,
-  presentStepDetail,
-  resolveIoView,
-} from "../lib/call-detail-view";
+import { presentStepDetail, resolveIoView } from "../lib/call-detail-view";
 import { isModelAbDraftDirty, newArmRowKey } from "../lib/debugging-drafts";
 import type { CallDraftField, CallDraftKey, ModelAbDraftKey } from "../lib/debugging-drafts";
-import { deriveDraftList, draftBadgeForSpan } from "../lib/draft-list";
+import { draftBadgeForSpan } from "../lib/draft-list";
 import {
   captureCallDraftSource,
   revalidateCallDraftSource,
@@ -46,7 +39,6 @@ import { modelAbGuard, riskyToolNames, scalarRequestParams } from "../lib/model-
 import type { ArmDraft, Scalar } from "../lib/model-ab";
 import { promptForkGuard } from "../lib/prompt-fork";
 import type { PromptForkField } from "../lib/prompt-fork";
-import { expandedKeysInclude } from "../lib/reading-state";
 import { decideRestore, initialRestoreState, restoreIdentity } from "../lib/restore-gate";
 import { resolveRestoreScrollTop, resolveScrollRestore } from "../lib/scroll-restore";
 import { useEscapeClose } from "../lib/use-escape-close";
@@ -58,204 +50,33 @@ import { BudgetMap } from "./BudgetMap";
 import { requestConfirm } from "./ConfirmDialog";
 import { ConfirmationBlock } from "./ConfirmationBlock";
 import { DetailNotices } from "./DetailNotices";
-import { Disclosure } from "./Disclosure";
 import { DraftCompareGrid } from "./DraftCompareGrid";
-import { DraftListPanel } from "./DraftListPanel";
 import { DraftSourceBanner } from "./DraftSourceBanner";
 import { EntryGateNotice } from "./EntryGateNotice";
-import { FOCUS_RING } from "./IconButton";
-import { LongText, isLongTextExpanded, toggleLongTextExpanded } from "./LongText";
+import { isLongTextExpanded, toggleLongTextExpanded } from "./LongText";
 import { MonacoCodeEditor } from "./MonacoEditor";
 import { WorkspaceHeading } from "./WorkspaceHeading";
+import {
+  ForkCacheHintView,
+  IsolatedParentUnsupportedNotice,
+  KeyValue,
+  RunDraftListSection,
+  Section,
+} from "./detail/DetailShared";
+import { LlmCallDetailView } from "./detail/LlmCallDetail";
+import { StepDetailView } from "./detail/StepDetailView";
+import { ToolInvokeDetailView } from "./detail/ToolInvokeDetail";
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="border-t border-gray-200 px-4 py-3">
-      <div className="mb-1.5 text-[11px] font-semibold tracking-wide text-gray-500">{title}</div>
-      {children}
-    </div>
-  );
-}
-
-/**
- * 隔离父本上 prompt fork / 模型 A/B 的「不适用」说明（UI 密度 change 1.3）。
- *
- * 与运行页隔离说明共用同一 `Disclosure` 机制与同一 run 级阅读键
- * （`noticesExpanded`；键 = `isolated-parent-unsupported`）——**不适用**这一事实
- * 常驻一行，完整原因（为什么不支持/内核同样拒绝/可用方式是什么）展开后可查询，
- * 场景「技术元信息按需完整阅读」的 WHEN「不适用能力」落在这一点。
- */
-export const ISOLATED_PARENT_UNSUPPORTED_KEY = "isolated-parent-unsupported";
-
-export function IsolatedParentUnsupportedNotice({ run }: { run: RunDetail }) {
-  const reason = isolatedParentExecutionNotice(run);
-  const runId = useAppStore((s) => s.selectedRunId);
-  const expanded = useAppStore((s) =>
-    runId === null
-      ? false
-      : expandedKeysInclude(
-          s.readingByRun[runId]?.noticesExpanded,
-          ISOLATED_PARENT_UNSUPPORTED_KEY,
-        ),
-  );
-  if (reason === null || runId === null) return null;
-  return (
-    <div
-      data-isolated-parent-unsupported="true"
-      className="border-t border-violet-100 px-4 py-1.5 text-[11px] leading-5 text-violet-900"
-    >
-      <Disclosure
-        summary="不适用说明"
-        meta="prompt fork / 模型 A/B 在隔离父本上本期不支持"
-        expanded={expanded}
-        onToggle={() => {
-          useAppStore.getState().toggleNoticeExpanded(runId, ISOLATED_PARENT_UNSUPPORTED_KEY);
-        }}
-        controlsId={`notice-isolated-parent-${runId}`}
-      >
-        <div className="px-1 pb-1">
-          {reason}
-          <br />
-          可用的执行方式：在某个工具调用上使用「在此重跑（隔离续跑）」——它从该轮的轮末检查点继续。
-        </div>
-      </Disclosure>
-    </div>
-  );
-}
-
-function KeyValue({ items }: { items: Array<[string, string]> }) {
-  return (
-    <div className="flex flex-wrap gap-x-6 gap-y-1 text-[11px] text-gray-700">
-      {items.map(([k, v]) => (
-        <span key={k}>
-          <span className="text-gray-400">{k}</span> <span className="font-code">{v}</span>
-        </span>
-      ))}
-    </div>
-  );
-}
-
-/**
- * 缓存命中行（前缀缓存生效与否的唯一可见证据）。
- *
- * 判据与文案全部来自 `lib/cache-view.ts` 的纯函数 `presentCacheHit`——组件只负责把
- * 结论摆成 DOM。这样做的原因：原先判据内联在组件里，本包无 jsdom ⇒ 改错打不红，
- * 等于没有判据（spec 明写存在性而非 truthiness、`in=0` 不做除法、少量命中不得称全量）。
- */
-export function CacheHitRow({
-  usage,
-}: { usage: Extract<SpanLine, { kind: "llm.call" }>["response"]["usage"] }) {
-  const view = presentCacheHit(usage);
-  if (view === null) return null;
-
-  const miss = presentCacheMiss(usage);
-  const effective = view.tone === "effective";
-
-  return (
-    <div
-      className={`mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] ${
-        effective ? "text-emerald-700" : "text-amber-700"
-      }`}
-      data-cache-tone={view.tone}
-    >
-      <span>缓存命中</span>
-      <span className="font-code">{view.shownHit}</span>
-      {view.percent === null ? null : (
-        <span>
-          / <span className="font-code">{view.input}</span>（{view.percent}%）
-        </span>
-      )}
-      {miss === null ? null : (
-        <span>
-          · miss <span className="font-code">{miss}</span>
-        </span>
-      )}
-      <span>{view.verdict}</span>
-      {view.abnormalNote === null ? null : (
-        <span className="text-red-600">{view.abnormalNote}</span>
-      )}
-    </div>
-  );
-}
-
-/**
- * tool_result 分叉编辑器的缓存提示块（纯展示）。
- *
- * 抽成独立导出组件的原因：原先这段是 `ForkEditor`（重度依赖 store）内部的一块 JSX，
- * 本包无 jsdom ⇒ 「提示到底渲染不渲染」在组件层断言不到（把分支改成永不渲染也不会红）。
- * 现在判据在 `lib/fork-cache-hint.ts`、渲染在这里，两层各自可单独喂数据。
- */
-export function ForkCacheHintView({ hint }: { hint: ForkCacheHint | null }) {
-  if (hint === null) return null;
-  return (
-    <div className="mt-1 text-[11px] leading-4 text-amber-700" data-fork-cache-hint="tool-result">
-      {hint.text}
-    </div>
-  );
-}
-
-/**
- * U3 任务 2.5：步骤页的「本运行草稿列表」（design D2）。
- *
- * 数据来自与全局会话入口**同一份**派生（`deriveDraftList` + runId 过滤）与
- * 同一个 `DraftListPanel` 视图；无草稿时整节不渲染（不加噪音）。
- */
-function RunDraftListSection({ runId }: { runId: string }) {
-  const [expanded, setExpanded] = useState(false);
-  const drafts = useAppStore((s) => s.drafts);
-  const openDraftAt = useAppStore((s) => s.openDraftAt);
-  const discardCallDraft = useAppStore((s) => s.discardCallDraft);
-  const discardModelAbDraft = useAppStore((s) => s.discardModelAbDraft);
-  const items = useMemo(() => deriveDraftList(drafts, { runId }), [drafts, runId]);
-  if (items.length === 0) return null;
-  return (
-    <section
-      data-run-draft-list="true"
-      className="border-b border-gray-200 bg-gray-50/60 px-4 py-1"
-    >
-      <Disclosure
-        summary={`本运行草稿（${items.length}）`}
-        expanded={expanded}
-        onToggle={() => setExpanded(!expanded)}
-        controlsId={`run-drafts-${runId}`}
-      >
-        <DraftListPanel
-          items={items}
-          emptyHint="本运行暂无草稿"
-          onOpen={(item) => {
-            void openDraftAt({ runId: item.runId, spanId: item.spanId, field: item.field });
-          }}
-          onCopy={(item) => {
-            void navigator.clipboard.writeText(item.copyText);
-          }}
-          onDiscard={(item) => {
-            if (item.field === "create") return; // 本运行列表不含创建草稿（防御）
-            // U3 5.2：放弃确认走真模态（异步）——CAS 按列表条目修订校验，
-            // 确认等待期间修订推进 ⇒ 旧确认不删新修订。
-            // field/runId/spanId 先捕获为 const：TS 收窄可以越过异步闭包保留
-            const field = item.field;
-            const runId = item.runId;
-            const spanId = item.spanId;
-            void requestConfirm({
-              title: "放弃草稿",
-              message: `放弃「${item.title}」的草稿？（run ${runId}${spanId !== null ? ` · ${spanId}` : ""}）\n内容将被删除，不可撤销。`,
-            }).then((confirmed) => {
-              if (!confirmed) return;
-              if (field === "model_ab") {
-                if (spanId !== null) {
-                  discardModelAbDraft({ runId, spanId }, item.revision);
-                }
-                return;
-              }
-              if (spanId === null) return;
-              discardCallDraft({ runId, spanId, field }, item.revision);
-            });
-          }}
-        />
-      </Disclosure>
-    </section>
-  );
-}
+// 兼容导出：原入口导出指向同一实现（design D1，S01）。新消费方应直接用 detail/* 模块。
+export {
+  CacheHitRow,
+  ForkCacheHintView,
+  ISOLATED_PARENT_UNSUPPORTED_KEY,
+  IsolatedParentUnsupportedNotice,
+} from "./detail/DetailShared";
+export { LlmCallDetailView } from "./detail/LlmCallDetail";
+export { StepDetailView } from "./detail/StepDetailView";
+export { ToolInvokeDetailView } from "./detail/ToolInvokeDetail";
 
 /** 从请求消息中取首条字符串 system / user 消息内容（与 replay 层定位规则同源） */
 function startupContents(messages: ReadonlyArray<{ role: unknown; content?: unknown }>): {
@@ -838,183 +659,6 @@ function LlmCallDetail({
         </div>
       ) : null}
     </LlmCallDetailView>
-  );
-}
-
-/**
- * llm.call 详情的**纯展示**部分（任务 5.5）。
- *
- * 与 store 壳 `LlmCallDetail` 分离的原因：本包无 jsdom、zustand v5 在静态渲染下走
- * `getServerSnapshot`（恒初始值）⇒ 壳喂不进状态。把"数据 → 视图"抽出来，测试才能直接喂
- * `io` / `expandedSections` 钉住「输入输出切换」「思维链与正文分区」这些判据。
- *
- * 两个必须守住的义务：
- *   1. **输入与输出是两半，切换只改看哪半、不丢字段**：输入 = messages/tools/params；
- *      输出 = content/reasoning/tool_calls。两半的分区并集覆盖 spec 点名的全部字段
- *      （`ioCoversAllFields` 把这条变成可断言的对象）。
- *   2. **思维链与正文分区样式不同**（琥珀底 vs 无底），两者内容都完整。
- */
-export function LlmCallDetailView({
-  span,
-  io,
-  onIo,
-  emptyContentHint,
-  longTextProps,
-  draftBadge,
-  children,
-}: {
-  span: Extract<SpanLine, { kind: "llm.call" }>;
-  io: IoView;
-  onIo: (next: IoView) => void;
-  emptyContentHint: string;
-  longTextProps: (key: string) => { expanded: boolean; onToggle: (next: boolean) => void };
-  /** U3 任务 2.5：该调用的会话草稿标记（null = 无草稿） */
-  draftBadge?: { label: string; dirty: boolean } | null;
-  /** fork / 重发编辑器（由壳提供；纯展示部分不碰它们） */
-  children?: React.ReactNode;
-}) {
-  const { request, response, error } = span;
-  // 🔴 失败调用的 usage/ttft 是**占位**（代理录制的失败 llm.call 写 `{in:0,out:0}`
-  // 与 ttft_ms=0 表示"没有正文抵达"，不是实测零消耗/零延迟）。delta「代理失败概览
-  // 只使用自有已记录诊断」要求：详情展示请求与**占位解释**，不能宣称零成本或成功输出。
-  // 所以失败时这三项显示占位文案而不是数字——把 0 印成"0 tokens"会被读成"这次没花钱"。
-  const failed = error !== undefined;
-  return (
-    <>
-      <Section title="概要">
-        <KeyValue
-          items={[
-            ["模型", request.model],
-            ["输入 tokens", failed ? "未获得（失败调用占位）" : String(response.usage.in)],
-            ["输出 tokens", failed ? "未获得（失败调用占位）" : String(response.usage.out)],
-            ["首 token 延迟", failed ? "不适用（失败调用无正文抵达）" : `${response.ttft_ms}ms`],
-            ["耗时", formatDuration(spanDurationMs(span))],
-            ["工具调用", failed ? "不适用（失败调用）" : String(response.tool_calls.length)],
-            ...(draftBadge !== null && draftBadge !== undefined
-              ? ([["草稿", draftBadge.label]] as Array<[string, string]>)
-              : []),
-          ]}
-        />
-        {/* 🔴 缓存命中率同样依赖真实 usage：占位零会让命中率算出一个漂亮的假数字 */}
-        {failed ? null : <CacheHitRow usage={response.usage} />}
-      </Section>
-
-      {/* 输入/输出切换（任务 5.5）：两半各自完整，切换只是换看哪半 */}
-      <div className="flex items-center gap-1 border-t border-gray-200 px-4 py-1.5">
-        <span className="mr-1 text-[11px] text-gray-500">查看</span>
-        {(["input", "output"] as const).map((key) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => onIo(key)}
-            aria-pressed={io === key}
-            className={`rounded px-2 py-0.5 text-[11px] ${
-              io === key ? "bg-sky-100 font-medium text-sky-900" : "text-gray-600 hover:bg-gray-100"
-            }`}
-          >
-            {key === "input" ? "输入" : "输出"}
-          </button>
-        ))}
-        <span className="ml-auto text-[10px] text-gray-400">两半内容都完整保留，切换不丢字段</span>
-      </div>
-
-      {error !== undefined ? (
-        <Section title="错误（调用失败，错误是数据）">
-          <div className="rounded border-l-2 border-red-400 bg-red-50 px-2 py-1.5">
-            <div className="mb-1 flex flex-wrap items-center gap-2 text-[11px] text-red-900">
-              <span>调用失败</span>
-              {error.status === undefined ? null : (
-                <span className="rounded bg-red-100 px-1 font-code">HTTP {error.status}</span>
-              )}
-            </div>
-            <LongText text={error.message} label="错误详情" {...longTextProps("error")} />
-            <div className="mt-1 text-[11px] leading-5 text-red-800">
-              这是记录于本次调用的失败原因。上列 tokens 与首 token 延迟是
-              <span className="font-medium">失败占位零值</span>
-              ，不代表实际零消耗或零延迟；请求内容仍可照常查看。
-            </div>
-          </div>
-        </Section>
-      ) : null}
-
-      {io === "output" ? (
-        <>
-          {response.reasoning_content !== null ? (
-            <Section title="思维链（reasoning_content）">
-              <div className="rounded border-l-2 border-amber-400 bg-amber-50 px-2 py-1.5">
-                <LongText
-                  text={response.reasoning_content}
-                  label="思维链"
-                  {...longTextProps("reasoning")}
-                />
-              </div>
-            </Section>
-          ) : null}
-
-          <Section title="响应正文">
-            {response.content === null || response.content === "" ? (
-              <div className="text-[11px] text-gray-400">{emptyContentHint}</div>
-            ) : (
-              <LongText text={response.content} label="正文" {...longTextProps("content")} />
-            )}
-          </Section>
-
-          {response.tool_calls.length > 0 ? (
-            <Section title={`工具调用（${response.tool_calls.length}）`}>
-              <LongText
-                text={prettyJson(response.tool_calls)}
-                label="tool_calls"
-                {...longTextProps("tool_calls")}
-              />
-            </Section>
-          ) : null}
-        </>
-      ) : (
-        <>
-          <Section title={`请求消息（${request.messages.length} 条）`}>
-            <div className="space-y-2">
-              {request.messages.map((message, index) => (
-                <div key={`${message.role}-${index}`} className="rounded bg-gray-50 px-2 py-1.5">
-                  <div className="mb-1 flex items-center gap-2 text-[10px] text-gray-500">
-                    <span className="rounded bg-gray-200 px-1 font-code">{message.role}</span>
-                    {typeof message.tool_call_id === "string" ? (
-                      <span className="font-code">tool_call_id: {message.tool_call_id}</span>
-                    ) : null}
-                  </div>
-                  <LongText
-                    text={messageContentText(message)}
-                    label="内容"
-                    {...longTextProps(`msg:${index}`)}
-                  />
-                </div>
-              ))}
-            </div>
-          </Section>
-
-          {optionalSectionVisible(span, "request.tools") ? (
-            <Section title={`工具表（${request.tools?.length ?? 0}）`}>
-              <LongText
-                text={prettyJson(request.tools)}
-                label="tools"
-                {...longTextProps("tools")}
-              />
-            </Section>
-          ) : null}
-
-          {optionalSectionVisible(span, "request.params") ? (
-            <Section title="采样参数">
-              <LongText
-                text={prettyJson(request.params)}
-                label="params"
-                {...longTextProps("params")}
-              />
-            </Section>
-          ) : null}
-        </>
-      )}
-
-      {children}
-    </>
   );
 }
 
@@ -1759,216 +1403,6 @@ function ToolInvokeDetail({
       ) : null}
     </ToolInvokeDetailView>
   );
-}
-
-/**
- * `tool.invoke` 详情的纯展示部分（U1 任务 5.5）。
- *
- * 与壳 `ToolInvokeDetail` 分离的同一理由：本包无 jsdom、zustand v5 静态渲染走
- * `getServerSnapshot`（恒初始值）⇒ 壳喂不进状态。抽出后测试可直接喂 span 钉住
- * 「args 与 result 就近核对」「error 非空显式呈现」「dur_ms 与墙钟耗时都在」。
- *
- * 三条义务：
- *   1. **args / result 就近核对**（spec 原文「工具 args/result SHALL 在同一详情中便于核对」）：
- *      两块**并排**（宽屏）或上下相邻（窄屏），中间只隔一个"结果"标题，不再被其它栏目冲散。
- *   2. **error 非空必须显式呈现**：`span.error !== null`（`null` = 成功，不是"没有错误字段"）。
- *   3. **耗时两个口径都在**：`dur_ms`（工具自身执行）与墙上耗时（`spanDurationMs`，含排队/传输）——
- *      两者不等恰是排查"工具快但整体慢"的关键，不能只留一个。
- */
-export function ToolInvokeDetailView({
-  span,
-  longTextProps,
-  draftBadge,
-  children,
-  compact = false,
-}: {
-  span: Extract<SpanLine, { kind: "tool.invoke" }>;
-  longTextProps: (key: string) => { expanded: boolean; onToggle: (next: boolean) => void };
-  /** U3 任务 2.5：该调用的会话草稿标记（null = 无草稿） */
-  draftBadge?: { label: string; dirty: boolean } | null;
-  /** fork / 重跑编辑器（由壳提供） */
-  children?: React.ReactNode;
-  compact?: boolean;
-}) {
-  const recordedValues = (
-    <div className="grid grid-cols-1 gap-2 py-2 sm:grid-cols-2">
-      <div className="min-w-0">
-        <div className="mb-1 text-[11px] font-medium text-gray-600">入参</div>
-        <LongText text={prettyJson(span.args)} label="args" {...longTextProps("args")} />
-      </div>
-      <div className="min-w-0">
-        <div className="mb-1 text-[11px] font-medium text-gray-600">结果</div>
-        <LongText text={prettyJson(span.result)} label="result" {...longTextProps("result")} />
-      </div>
-    </div>
-  );
-  return (
-    <>
-      {compact ? (
-        <div className="border-b border-gray-200 px-4 py-2">
-          <WorkspaceHeading
-            title={<span className="text-reading-body text-gray-800">{span.tool}</span>}
-            target={<span className="font-code">{span.id}</span>}
-            summary={
-              <span className="text-gray-500">
-                执行 {span.dur_ms}ms · 墙上耗时 {formatDuration(spanDurationMs(span))}
-                {draftBadge ? ` · ${draftBadge.label}` : ""}
-              </span>
-            }
-            detailsLabel="入参与结果"
-            details={recordedValues}
-          />
-        </div>
-      ) : (
-        <Section title="概要">
-          <KeyValue
-            items={[
-              ["工具", span.tool],
-              ["执行耗时", `${span.dur_ms}ms`],
-              ["墙上耗时", formatDuration(spanDurationMs(span))],
-              ...(draftBadge !== null && draftBadge !== undefined
-                ? ([["草稿", draftBadge.label]] as Array<[string, string]>)
-                : []),
-            ]}
-          />
-        </Section>
-      )}
-
-      {span.error !== null ? (
-        <Section title="错误（错误是数据不是异常）">
-          <div className="rounded border-l-2 border-red-400 bg-red-50 px-2 py-1.5">
-            <LongText text={span.error} label="错误信息" {...longTextProps("error")} />
-          </div>
-        </Section>
-      ) : null}
-
-      {/* args / result 就近核对：并排（宽屏）→ 上下相邻（窄屏），中间不被其它栏目隔开 */}
-      {!compact ? (
-        <Section title="入参与结果">
-          <div className="grid grid-cols-1 gap-2 xl:grid-cols-2">
-            <div className="min-w-0">
-              <div className="mb-1 text-[11px] font-medium text-gray-600">入参</div>
-              <LongText text={prettyJson(span.args)} label="args" {...longTextProps("args")} />
-            </div>
-            <div className="min-w-0">
-              <div className="mb-1 text-[11px] font-medium text-gray-600">结果</div>
-              <LongText
-                text={prettyJson(span.result)}
-                label="result"
-                {...longTextProps("result")}
-              />
-            </div>
-          </div>
-        </Section>
-      ) : null}
-
-      {children}
-    </>
-  );
-}
-
-/**
- * `agent.step` 详情的纯展示部分（U1 任务 5.5）。
- *
- * spec 原文：「选中 step 时 SHALL 展示其已记录调用、错误及派生消耗」，场景
- * 「长请求和原始字段完整可读」还要求「step 摘要仍可进入每个原始调用」。
- *
- * 三条义务：
- *   1. **三块都要在**（`STEP_FIELDS` = calls / errors / consumption），缺一块就等于
- *      把"有调用/有错误/有消耗"显示成"没有"。
- *   2. **消耗来自 `deriveStepStats`（既有轨迹口径）**：`presentStepDetail` 只做取用，
- *      不另算一遍——否则详情与预算地图必然分叉。
- *   3. **每条已记录调用都可点进原始调用**（`onOpenCall(spanId)`）：step 是目录不是终点，
- *      用户必须能从这里下钻到具体 llm.call / tool.invoke。
- *
- * ⚠️ `errorCount` 只合并**计数**不合并语义：llm 的 error 与 tool 的 error 口径不同
- *    （前者 `undefined` = 未记录，后者 `null` = 成功），此处仅计数用于一眼看"这步有没有出错"。
- */
-export function StepDetailView({
-  view,
-  onOpenCall,
-  onOpenStepFiles,
-}: {
-  view: StepDetailViewData;
-  onOpenCall: (spanId: string) => void;
-  /**
-   * U2 任务 2.3/5.3：**从该步骤打开本 run 这一轮的文件**（design D2「自有步骤的文件入口
-   * 提供明确轮末定位」）。`undefined` = 该步骤不是本 run 的自有完成步骤，**不渲染入口**
-   * —— 祖先步骤不得提供会"冒充当前运行检查点"的入口（delta 明文）。
-   */
-  onOpenStepFiles?: () => void;
-}) {
-  return (
-    <>
-      <Section title="步骤概要">
-        {onOpenStepFiles === undefined ? null : (
-          <div className="mb-1">
-            <button
-              type="button"
-              onClick={onOpenStepFiles}
-              className="rounded border border-violet-300 bg-violet-50 px-2 py-0.5 text-[11px] text-violet-800 hover:bg-violet-100"
-            >
-              打开该轮文件
-            </button>
-            <div className="mt-0.5 text-[10px] leading-4 text-gray-500">
-              定位到本 run 该轮结束的文件检查点（不是历史检查点，也不借用父 run 的快照）。
-            </div>
-          </div>
-        )}
-        <KeyValue
-          items={[
-            ["迭代序号", String(view.iteration)],
-            ["已记录调用", String(view.calls.length)],
-            ["其中错误", String(view.errorCount)],
-            ["耗时", formatDuration(view.durationMs)],
-            ["输入 tokens", String(view.tokensIn)],
-            ["输出 tokens", String(view.tokensOut)],
-            ["工具调用", String(view.toolCalls)],
-          ]}
-        />
-        <div className="mt-1 text-[11px] leading-5 text-gray-500">
-          下列消耗为该步骤子树的派生值（现有轨迹口径）。点任一条调用可打开其原始请求与响应。
-        </div>
-      </Section>
-
-      <Section title={`已记录调用（${view.calls.length}）`}>
-        {view.calls.length === 0 ? (
-          <div className="text-[11px] text-gray-400">
-            该步骤下没有直接记录的 LLM 调用或工具执行。
-          </div>
-        ) : (
-          <div className="space-y-1">
-            {view.calls.map((call) => (
-              <button
-                key={call.spanId}
-                type="button"
-                onClick={() => onOpenCall(call.spanId)}
-                className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-[11px] hover:bg-gray-100"
-              >
-                <span className="rounded bg-gray-200 px-1 font-code text-[10px] text-gray-600">
-                  {call.kind === "llm.call" ? "llm" : "tool"}
-                </span>
-                <span className="min-w-0 flex-1 truncate font-code text-gray-700">
-                  {call.label}
-                </span>
-                {call.errored ? (
-                  <span className="rounded bg-red-100 px-1 text-[10px] text-red-800">错误</span>
-                ) : null}
-                <span className="font-code text-[10px] text-gray-400">
-                  {shortSpanId(call.spanId)}
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
-      </Section>
-    </>
-  );
-}
-
-/** 短 ID（与 SpanTree 同一显示口径：只显示不影响复制，复制永远完整 ID） */
-function shortSpanId(id: string): string {
-  return id.length <= 10 ? id : `${id.slice(0, 8)}…`;
 }
 
 export function DetailPanel({

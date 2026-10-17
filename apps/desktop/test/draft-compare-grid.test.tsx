@@ -119,15 +119,18 @@ describe("四处调用点共用同一布局层（接线契约，任务 2.2/2.3�
       "components/MessagesForkEditor.tsx",
       "components/DetailPanel.tsx",
       "components/ModelAbEditor.tsx",
+      "components/detail/ToolInvokeDetail.tsx",
     ]) {
       expect(auditForbiddenTokens(rendererSrc(file), ['height="200px"', 'height="140px"'])).toEqual(
         [],
       );
     }
-    // 最后一处 xl:grid-cols-2 是 tool.invoke 的只读 args/result 长文本展示（非编辑器），
-    // 不在本任务范围；编辑器对照区不得再有窗口断点
+    // refactor-renderer 2.1：tool.invoke 只读 args/result 展示（唯一 xl:grid-cols-2 例外）
+    // 随 ToolInvokeDetailView 迁至 detail/ToolInvokeDetail.tsx —— 容器侧归零、承载侧恰一处
     const detail = rendererSrc("components/DetailPanel.tsx");
-    expect(detail.split("xl:grid-cols-2").length - 1).toBe(1);
+    expect(detail.split("xl:grid-cols-2").length - 1).toBe(0);
+    const toolView = rendererSrc("components/detail/ToolInvokeDetail.tsx");
+    expect(toolView.split("xl:grid-cols-2").length - 1).toBe(1);
   });
 
   it("A/B 对照卡：fixedHeight=false + resizable=false（自适应文本，不套高度包裹）", () => {

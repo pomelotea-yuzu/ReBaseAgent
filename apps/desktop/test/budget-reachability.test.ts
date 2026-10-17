@@ -245,6 +245,12 @@ describe("失败解释在步骤页可达（错误正文 / HTTP 状态 / 占位�
     resolve(import.meta.dirname, "../src/renderer/src/components/DetailPanel.tsx"),
     "utf8",
   );
+  // refactor-renderer 2.1：失败 LLM 错误区的展示（HTTP 状态/错误详情/占位零值解释）
+  // 随 LlmCallDetailView 迁至 detail/LlmCallDetail.tsx（容器经兼容导出指向同一实现）
+  const llmViewSource = readFileSync(
+    resolve(import.meta.dirname, "../src/renderer/src/components/detail/LlmCallDetail.tsx"),
+    "utf8",
+  );
 
   it("预算地图与调用详情同处步骤页正文（同一滚动容器，不藏在别的页签）", () => {
     // BudgetMap 与 LlmCallDetail/ToolInvokeDetail/StepDetailView 在同一个 return 的滚动区内
@@ -260,9 +266,9 @@ describe("失败解释在步骤页可达（错误正文 / HTTP 状态 / 占位�
 
   it("失败 LLM 的错误区渲染 HTTP 状态、错误详情与占位零值解释（静态可断言）", () => {
     // 5.5 已在 LlmCallDetailView 落这三样；此处确认它们在位（防被后续任务删掉）
-    expect(panelSource).toContain("HTTP {error.status}");
-    expect(panelSource).toContain("失败占位零值");
-    expect(panelSource).toContain("这是记录于本次调用的失败原因");
+    expect(llmViewSource).toContain("HTTP {error.status}");
+    expect(llmViewSource).toContain("失败占位零值");
+    expect(llmViewSource).toContain("这是记录于本次调用的失败原因");
   });
 });
 

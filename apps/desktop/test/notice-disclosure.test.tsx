@@ -172,19 +172,24 @@ describe("RunHeaderView：页头只留紧凑摘要（去重）", () => {
 describe("IsolatedParentUnsupportedNotice 接线（源码契约）", () => {
   // 组件读 store（renderToStaticMarkup 拿不到状态）⇒ 外壳接线用源码断言钉住：
   // ① 首次 llm.call 的不适用分支必须挂该组件；② 展开状态走 run 级共享键。
+  // refactor-renderer 2.1：组件本体迁至 detail/DetailShared.tsx（容器兼容再导出同一实现）。
   const src = readFileSync(
     resolve(import.meta.dirname, "../src/renderer/src/components/DetailPanel.tsx"),
+    "utf8",
+  );
+  const sharedSrc = readFileSync(
+    resolve(import.meta.dirname, "../src/renderer/src/components/detail/DetailShared.tsx"),
     "utf8",
   );
 
   it("不适用分支渲染 IsolatedParentUnsupportedNotice（不是平铺长文案）", () => {
     expect(src).toContain("<IsolatedParentUnsupportedNotice run={run} />");
-    expect(src).toContain("ISOLATED_PARENT_UNSUPPORTED_KEY");
+    expect(sharedSrc).toContain("ISOLATED_PARENT_UNSUPPORTED_KEY");
   });
 
   it("展开键是静态 UI 键、与隔离说明同一 noticesExpanded 通道", () => {
-    expect(src).toContain('"isolated-parent-unsupported"');
-    expect(src).toContain("toggleNoticeExpanded");
+    expect(sharedSrc).toContain('"isolated-parent-unsupported"');
+    expect(sharedSrc).toContain("toggleNoticeExpanded");
   });
 });
 
