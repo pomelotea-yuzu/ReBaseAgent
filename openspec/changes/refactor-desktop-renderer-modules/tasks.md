@@ -7,7 +7,7 @@
 - [x] 1.1 固定实施起点提交，枚举三个目标的全部导出/导入方及职责、物理行数；分别登记静态读源码和动态导入消费者。保存工作区状态与提交路径清单，后续按明确路径/差异暂存并核对 staged diff，发行文档、截图、脚本等无关修改不混入任务组提交。（原入口导出指向同一实现；最终源码重新通过质量门禁）→ [baseline-inventory](baseline-inventory.md)（2026-10-17，起点 `379b388`）
 - [x] 1.2 建立 AppState 全量字段/action 的唯一归属表，明确跨领域协调者及原子 set/await 边界；列出资源所有者和启动/停止/解绑时点。（分片组合不覆盖状态或动作；跨分片协调保持原子更新；资源重复启停保持原有纪律）→ [ownership-map](ownership-map.md)
 - [x] 1.3 从 [36 个静态测试文件基线](test-migration-baseline.md) 全量复核并记录实施起点差集，逐断言建立旧保证→新承载/实际消费者→新验证方式台账；点名 run-list-nav、budget-reachability 的固定清单及跨文件计数。另列动态导入测试，保留原入口消费与实例验证；先跑库构建再跑 desktop 基线，记录执行/跳过/已知失败，超 2h 按套件拆项。（测试迁移保留原有保证；最终源码重新通过质量门禁）→ [test-migration-ledger](test-migration-ledger.md)（差集=0；逐断言「新承载」列按台账方法随 2.x/3.x/5.x 分套件回填）
-- [ ] 1.4 固定无新增调用的初始化基线、selector 引用及关键 action 竞态证据；用现有受控 fixture 记录编辑恢复和文件路径的 Electron 基线，不直接改 store。（初始化和派生引用保持稳定；迟到读取不能污染当前目标；真实交互保持数据与执行边界）
+- [x] 1.4 固定无新增调用的初始化基线、selector 引用及关键 action 竞态证据；用现有受控 fixture 记录编辑恢复和文件路径的 Electron 基线，不直接改 store。（初始化和派生引用保持稳定；迟到读取不能污染当前目标；真实交互保持数据与执行边界）→ Electron 基线 `apps/desktop/scripts/rrm-14-baseline-cdp.cjs`（2026-10-17，9/9 通过，证据 `.workbuddy/rrm-14-baseline/evidence-*.json`；B1 prompt 草稿跨页签往返正文+revision 保持、B2 文件选中跨页签往返路径+几何保持）；初始化/selector/竞态证据由既有单测锚定（store.test.ts 引用稳定、operation-races/operation-polling/operation-session-epoch/proxy-recovery-races/wait-timing），阶段 4/5 迁移后用同一组合 store 复跑
 
 ## 2. 拆详情展示与编辑器
 
