@@ -226,6 +226,7 @@ import {
 } from "./lib/workspace-selection";
 import type { FilterVisibility, SourceAvailability } from "./lib/workspace-selection";
 import { createOperationPollingRuntime } from "./store/runtime/operation-polling";
+import { createProxyCoordinationRuntime } from "./store/runtime/proxy-coordination";
 // 兼容导出（4.1）：ExperimentSourceState/idleExperimentSource 迁 slices/navigation，指向同一实现
 import { idleExperimentSource } from "./store/slices/navigation";
 import type { AppState } from "./store/types";
@@ -875,15 +876,10 @@ function closeRemainingClosures(): void {
 }
 
 /**
- * 代理变化订阅的解绑句柄（design D1，tasks 1.3）。
- *
- * 为什么放模块作用域而不是 store 字段：它是**资源句柄**不是 UI 状态
- * （放 state 会让它进渲染依赖，且 StrictMode 双挂载时两次 set 的时序反而更脆）。
- * `null` = 当前没有订阅，`ensureProxyChangeSubscription` 借它做幂等。
- * ⚠️ 测试用 `releaseProxyChangeSubscription` 复位——跨用例残留订阅会让
- * "一条通知触发几次读取"的断言互相污染。
+ * 代理变化订阅的解绑句柄与状态读取静默等待者（refactor-renderer 4.3）：
+ * 订阅句柄、等待队列与"先结算、后唤醒"顺序整体迁 `store/runtime/proxy-coordination.ts`
+ * （唯一所有者，见文件尾组合）；这里的两个薄包装让既有调用点逐字保持。
  */
-let proxyChangeUnsubscribe: (() => void) | null = null;
 
 /**
  * `createReturnFactsOf` 的**按引用缓存**（zustand v5 getSnapshot 引用稳定纪律）。
@@ -891,7 +887,7 @@ let proxyChangeUnsubscribe: (() => void) | null = null;
  * 该方法被 selector 直接消费；返回值只由 `createReturnLocation` 与 `runs`
  * 两个引用决定 ⇒ 输入引用都没变就返回同一对象（2026-10-15 实机坐实：
  * 不缓存会让 getSnapshot 恒新 ⇒ 无限重渲染 ⇒ 创建页整树卸载白屏）。
- * 放模块作用域：它是派生缓存，不是 UI 状态。
+ * 放模块作用域：它是派生缓存，不是 UI 状态。（4.4 迁 runtime）
  */
 let createReturnFactsCache: {
   location: CreateReturnLocation | null;
@@ -899,37 +895,13 @@ let createReturnFactsCache: {
   facts: CreateReturnFacts;
 } | null = null;
 
-/**
- * 代理状态读取的**静默等待者**（tasks 2.1）。
- *
- * 合并调度让 `loadProxyStatus` 在"已有读取在飞"时立即返回（只登记尾随），
- * 于是"await 完就能拿到新事实"这个旧前提对**被合并的那次调用**不再成立。
- * 需要"读到最新事实再判据"的调用方（`reconcileProxyFacts`、messages 打开时的
- * 门禁核对）必须先过这道静默门，否则会把"没读到"当成"没有变化"。
- *
- * 与订阅句柄同理放模块作用域：它是**在飞资源的等待队列**，不是 UI 状态。
- */
-const proxyStatusReadWaiters = new Set<() => void>();
-
-/**
- * 等到状态读取完全静默（在途 0 且无尾随）为止。
- *
- * ⚠️ 必须在每次 `settleStatusRead` 之后调用（store 的 `loadProxyStatus` finally 里
- * 已接上）。补发的那次读取会重新置起在途计数，因此**先结算、后唤醒**的顺序很关键：
- * 若在 `shouldRefire` 分支之前唤醒，等待者会在补发还在飞时就返回。
- */
-function notifyProxyStatusSettled(): void {
-  if (proxyStatusReadWaiters.size === 0) return;
-  for (const wake of [...proxyStatusReadWaiters]) wake();
-}
-
 /** 已静默则立即 resolve；否则排在 `notifyProxyStatusSettled` 队列里。 */
 function settledProxyStatusRead(): Promise<void> {
-  const read = useAppStore.getState().proxyStatusRead;
-  if (read.inFlight === 0 && read.pending === 0) return Promise.resolve();
-  return new Promise<void>((resolve) => {
-    proxyStatusReadWaiters.add(resolve);
-  });
+  return proxyCoordination.settledProxyStatusRead();
+}
+
+function notifyProxyStatusSettled(): void {
+  proxyCoordination.notifyProxyStatusSettled();
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -1055,25 +1027,11 @@ export const useAppStore = create<AppState>((set, get) => ({
    *   否则一个坏载荷能把 hasKey 之类的门禁事实带歪。
    */
   ensureProxyChangeSubscription() {
-    // 幂等：StrictMode 下挂载 effect 会跑两次，重复订阅会让一次落盘触发两次刷新
-    if (proxyChangeUnsubscribe !== null) return;
-    proxyChangeUnsubscribe = api.onProxyChanged((payload) => {
-      const parsed = ProxyChangeEventSchema.safeParse(payload);
-      if (!parsed.success) return;
-      const plan = shouldApplyChange(get().proxyFactCursor, parsed.data);
-      // 规则 4：`records` 才刷列表。刷新一律走 loadRuns（自带在途合并 + 尾随补发），
-      // **不**旁路 refreshRunsOnce —— 旁路那次请求无人递减在途计数，计数器永久残留。
-      if (plan.reloadRuns) void get().loadRuns();
-      if (plan.reloadStatus) void get().loadProxyStatus();
-      // 游标在**发起读取之前**推进：读到的是异步结果，若推进放在后面，
-      // 同一 tick 里的第二条通知会因游标未动而被当成新变化，重复触发读取。
-      set({ proxyFactCursor: plan.cursor });
-    });
+    proxyCoordination.ensureSubscription();
   },
 
   releaseProxyChangeSubscription() {
-    proxyChangeUnsubscribe?.();
-    proxyChangeUnsubscribe = null;
+    proxyCoordination.releaseSubscription();
   },
 
   /**
@@ -2843,3 +2801,25 @@ function rescheduleStatusPoll(): void {
 export function stopOperationStatusPolling(): void {
   operationPolling.stopOperationStatusPolling();
 }
+
+// ---------------------------------------------------------------------------
+// 代理协调 runtime 组合（refactor-renderer 4.3）：订阅句柄与静默等待者的唯一
+// 所有者住在 `store/runtime/proxy-coordination.ts`，这里按 store 实例组合一次。
+// 通知处理体逐字随迁；store 依赖用惰性回调注入（调用时才 `getState()`）。
+// ---------------------------------------------------------------------------
+const proxyCoordination = createProxyCoordinationRuntime({
+  onProxyChanged: (handler) => api.onProxyChanged(handler),
+  handleEvent: (payload) => {
+    const parsed = ProxyChangeEventSchema.safeParse(payload);
+    if (!parsed.success) return;
+    const plan = shouldApplyChange(useAppStore.getState().proxyFactCursor, parsed.data);
+    // 规则 4：`records` 才刷列表。刷新一律走 loadRuns（自带在途合并 + 尾随补发），
+    // **不**旁路 refreshRunsOnce —— 旁路那次请求无人递减在途计数，计数器永久残留。
+    if (plan.reloadRuns) void useAppStore.getState().loadRuns();
+    if (plan.reloadStatus) void useAppStore.getState().loadProxyStatus();
+    // 游标在**发起读取之前**推进：读到的是异步结果，若推进放在后面，
+    // 同一 tick 里的第二条通知会因游标未动而被当成新变化，重复触发读取。
+    useAppStore.setState({ proxyFactCursor: plan.cursor });
+  },
+  getProxyStatusRead: () => useAppStore.getState().proxyStatusRead,
+});

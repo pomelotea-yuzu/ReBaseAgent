@@ -177,3 +177,11 @@
 **本阶段无需改读的静态断言**（逐模块核对结论）：轮询的行为验证全部经 store action + 动态导入承载（operation-polling 9 / operation-session-epoch 4 / operation-races 9 = 22 用例，假时钟判据），这些测试不读 store.ts 源码；全部测试文件中唯一锚定轮询符号的静态断言是 `navigation-intent-store.test.ts` 3.4 的切片边界 `indexOf("async ensureOperationStatusPolling")`——该 action 体本轮不动（阶段 5 才迁 slices/operations），边界仍有效。`stopOperationStatusPolling` 模块级导出在生产代码无直接导入方（仅 action 转发与测试经 `useAppStore.getState()` 消费），兼容导出保留即活证据。
 
 验证：tsc web/node 双 0；biome 改动 2 文件 0 错（全仓 check 的报错仅来自 2 个**未跟踪本地脚本** gen-readme-demo.cjs/readme-shots-cdp.cjs——从未入库、与本轮无关，跟踪树全净）；定向 3 文件 22 用例全过；**全量 203 文件/3180 用例 0 失败 0 Unhandled Errors（singleFork，与权威三元组一致，exit=0）**。
+
+## 4.3 销账记录（2026-10-17）
+
+迁移：store.ts 代理订阅句柄（proxyChangeUnsubscribe + JSDoc）与静默等待者（proxyStatusReadWaiters/notifyProxyStatusSettled/settledProxyStatusRead + 全部 JSDoc，含「先结算、后唤醒」顺序注释）→ 新增 `store/runtime/proxy-coordination.ts`（唯一所有者，工厂 `createProxyCoordinationRuntime` 按实例组合一次；通道入口/处理体/状态读取面经惰性回调注入）。通知处理体逐字随迁至 store.ts 文件尾组合处（过 ProxyChangeEventSchema→shouldApplyChange→loadRuns/loadProxyStatus→游标先推进，含「规则 4」「游标在发起读取之前推进」注释）；action 启动时点不变，`settledProxyStatusRead`/`notifyProxyStatusSettled` 薄包装保持 `reconcileProxyFacts`/`reconcileProxyGate`/`loadProxyStatus` finally 调用点逐字。⚠️ 4.3 编辑中曾误删 4.4 的 `createReturnFactsCache` 块，当场恢复（4.4 未提前迁移）。
+
+**本阶段无需改读的静态断言**（逐模块核对结论）：6 个相关测试文件（proxy-change-store 20 / proxy-status-store 15 / proxy-recovery-races 11 / proxy-change-decisions 17 / proxy-change-notify 15 / capture-confirmation-store 6 = 84 用例）全部经**真实 store action + window.api 桩**驱动（ensure/release + onProxyChanged 监听器捕获），无一读 store.ts 源码钉订阅/等待者内部符号；preload-surface.test.ts 的 onProxyChanged 锚点是 main/preload 桥接白名单，不受渲染层迁移影响。
+
+验证：tsc web/node 双 0；biome 改动 3 文件 0 错；定向 6 文件 84 用例全过（并行收集受沙箱 EPERM 随机噪声影响，分批单跑复核后全数收集）；**全量 203 文件/3180 用例 0 失败（singleFork，与权威三元组一致，exit=0）**。
