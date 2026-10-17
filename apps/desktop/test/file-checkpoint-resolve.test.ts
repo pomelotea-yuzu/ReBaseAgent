@@ -205,7 +205,13 @@ describe("U2 5.6：首次进入默认检查点的接线契约", () => {
       resolve(import.meta.dirname, "../src/renderer/src/store.ts"),
       "utf8",
     );
-    expect(store).toContain("fileReadingEntered: (runId: string) => boolean;");
+    // refactor-renderer 4.1：接口签名迁 slices/reading.ts（实现留在 store.ts）
+    expect(
+      readFileSync(
+        resolve(import.meta.dirname, "../src/renderer/src/store/slices/reading.ts"),
+        "utf8",
+      ),
+    ).toContain("fileReadingEntered: (runId: string) => boolean;");
     expect(store).toContain(
       "return readingStateOf(get().readingByRun, runId).files !== undefined;",
     );
