@@ -23,7 +23,6 @@ const DIALOG = resolve(
   import.meta.dirname,
   "../src/renderer/src/components/CreateRunWorkspace.tsx",
 );
-const PANEL = resolve(import.meta.dirname, "../src/renderer/src/components/DetailPanel.tsx");
 const SETTINGS = resolve(import.meta.dirname, "../src/renderer/src/components/SettingsDialog.tsx");
 
 function sessionWith(overrides: Partial<OperationSession>): OperationSession {
@@ -80,7 +79,12 @@ describe("4.3 入口门禁的派生（纯判据）", () => {
 
 describe("4.3 接线契约：create 与 result 都从同一份会话派生", () => {
   const dialog = readFileSync(DIALOG, "utf8");
-  const panel = readFileSync(PANEL, "utf8");
+  // refactor-renderer 2.3：result 编辑器（ForkEditor）迁 detail/ResultForkEditor.tsx——
+  // panel 变量改读新模块（原 DetailPanel 侧的 result 接线断言全部随载体）
+  const panel = readFileSync(
+    resolve(import.meta.dirname, "../src/renderer/src/components/detail/ResultForkEditor.tsx"),
+    "utf8",
+  );
 
   it("两个入口都读 s.operations 并经 deriveEntryGate 判定", () => {
     for (const [src, label] of [
@@ -125,7 +129,7 @@ describe("4.3 接线契约：create 与 result 都从同一份会话派生", () 
       "utf8",
     );
     expect(notice).toContain("gate.notice !== null");
-    expect(panel).toContain('from "./EntryGateNotice"');
+    expect(panel).toContain('from "../EntryGateNotice"');
     expect(dialog).toContain("blockedReason");
     // create 侧（U5 4.2 起）：门禁文案走"表单级说明位"，字段级拒绝走各自的槽——
     // 两条都在同一份判据的输出里，组件不自己拼第二套理由
@@ -137,7 +141,12 @@ describe("4.3 接线契约：create 与 result 都从同一份会话派生", () 
 });
 
 describe("4.4 接线契约：prompt / messages / A-B 也接同一份会话", () => {
-  const panel = readFileSync(PANEL, "utf8");
+  // refactor-renderer 2.3：result 编辑器（ForkEditor）迁 detail/ResultForkEditor.tsx——
+  // panel 变量改读新模块（原 DetailPanel 侧的 result 接线断言全部随载体）
+  const panel = readFileSync(
+    resolve(import.meta.dirname, "../src/renderer/src/components/detail/ResultForkEditor.tsx"),
+    "utf8",
+  );
 
   // ⚠️ U8 3.1a 改判留痕（2026-10-01）：ModelAbEditor 提取为独立文件
   // components/ModelAbEditor.tsx（逐字搬出、零行为变化），其源码级断言改读新文件；

@@ -170,7 +170,8 @@ describe("5.3 容器接线（源码级契约）", () => {
   });
 
   it("隔离 result 与创建页：配置指纹变化 ⇒ 本次副本授权作废；目录引用/模式照旧保留", () => {
-    const panel = read("../src/renderer/src/components/DetailPanel.tsx");
+    // refactor-renderer 2.3：隔离 result 的授权失效接线随 ForkEditor 迁 detail/ResultForkEditor.tsx
+    const panel = read("../src/renderer/src/components/detail/ResultForkEditor.tsx");
     expect(panel).toContain(
       "useRevokeOnConfigChange(modelConfigStampOf(settings), () => setWritesAuthorized(false));",
     );

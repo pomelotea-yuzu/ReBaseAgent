@@ -246,6 +246,11 @@ describe("接线契约：草稿入口与失效视图（任务 2.5）", () => {
     resolve(import.meta.dirname, "../src/renderer/src/components/detail/DetailShared.tsx"),
     "utf8",
   );
+  // refactor-renderer 2.3：ForkEditor（result 编辑器/失效横幅）迁 detail/ResultForkEditor.tsx
+  const RESULT_EDITOR = readFileSync(
+    resolve(import.meta.dirname, "../src/renderer/src/components/detail/ResultForkEditor.tsx"),
+    "utf8",
+  );
   it("DetailPanel 挂载本运行草稿列表 + 失效横幅；视图组件共享", () => {
     expect(DETAIL_PANEL).toContain("<RunDraftListSection runId={selectedRunId} />");
     // refactor-renderer 2.1：列表派生与 DraftListPanel 视图随 RunDraftListSection
@@ -253,7 +258,8 @@ describe("接线契约：草稿入口与失效视图（任务 2.5）", () => {
     expect(DETAIL_PANEL).toContain('from "./detail/DetailShared"');
     expect(SHARED_SOURCE).toContain("deriveDraftList(drafts, { runId })");
     expect(SHARED_SOURCE).toContain("<DraftListPanel");
-    expect(DETAIL_PANEL).toContain("DraftSourceBanner");
+    // refactor-renderer 2.3：失效横幅的挂载点随 ForkEditor 迁 ResultForkEditor
+    expect(RESULT_EDITOR).toContain("DraftSourceBanner");
     // 四个编辑器都叠加重验闸门（恢复重验通过才恢复执行资格）
     // refactor-renderer 2.2：prompt 闸门随 PromptForkEditor 迁独立模块（result 闸门留容器）
     const PROMPT_EDITOR = readFileSync(
@@ -261,8 +267,8 @@ describe("接线契约：草稿入口与失效视图（任务 2.5）", () => {
       "utf8",
     );
     const gates =
-      (DETAIL_PANEL.match(/sourceBlocked === null/g)?.length ?? 0) +
       (PROMPT_EDITOR.match(/sourceBlocked === null/g)?.length ?? 0) +
+      (RESULT_EDITOR.match(/sourceBlocked === null/g)?.length ?? 0) +
       (MODEL_AB_EDITOR.match(/sourceBlocked === null/g)?.length ?? 0);
     expect(gates).toBeGreaterThanOrEqual(4);
   });

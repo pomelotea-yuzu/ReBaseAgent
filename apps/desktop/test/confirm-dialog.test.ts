@@ -89,13 +89,17 @@ describe("U3 5.2 接线契约（源码级）：放弃确认迁出 window.confirm
     resolve(import.meta.dirname, "../src/renderer/src/components/detail/PromptForkEditor.tsx"),
     "utf8",
   );
+  // refactor-renderer 2.3：ForkEditor（result 放弃点）迁 detail/ResultForkEditor.tsx
+  const resultEditor = readFileSync(
+    resolve(import.meta.dirname, "../src/renderer/src/components/detail/ResultForkEditor.tsx"),
+    "utf8",
+  );
 
-  it("放弃确认全部经 requestConfirm（DetailPanel 2 + DetailShared 1 + PromptForkEditor 2 + A/B 2 + messages 2 + 创建 1）", () => {
-    // DetailPanel：result 字段/横幅 2（messages/A-B 两对随 U8 迁出；prompt 对随
-    // refactor-renderer 2.2 迁 PromptForkEditor）+ DetailShared 列表 1（2.1）
-    expect(detail).toContain("void requestConfirm({");
-    const detailCount = (detail.match(/requestConfirm\(\{/g) ?? []).length;
-    expect(detailCount).toBe(2);
+  it("放弃确认全部经 requestConfirm（DetailShared 1 + PromptForkEditor 2 + ResultForkEditor 2 + A/B 2 + messages 2 + 创建 1）", () => {
+    // refactor-renderer 2.2/2.3：prompt/result 两对放弃点分别迁 PromptForkEditor/ResultForkEditor
+    //（容器 DetailPanel 不再持有任何放弃确认调用点）；DetailShared 列表 1（2.1）
+    const resultEditorCount = (resultEditor.match(/requestConfirm\(\{/g) ?? []).length;
+    expect(resultEditorCount).toBe(2);
     const sharedCount = (detailShared.match(/requestConfirm\(\{/g) ?? []).length;
     expect(sharedCount).toBe(1);
     // PromptForkEditor：prompt 字段/横幅 2 处随 2.2 迁独立模块（同一放弃语义）
@@ -132,7 +136,7 @@ describe("U3 5.2 接线契约（源码级）：放弃确认迁出 window.confirm
     // （U8 3.1a：A/B 编辑器迁 ModelAbEditor ⇒ 第三条锚点随载体改判，两边留痕；
     //   refactor-renderer 2.2：prompt 的放弃点迁 PromptForkEditor，锚点第四次随载体改判）
     expect(promptEditor).toContain("discardCallDraft(draftKeyOf(field), snapshot.revision)");
-    expect(detail).toContain("discardCallDraft(draftKey, snapshot.revision)");
+    expect(resultEditor).toContain("discardCallDraft(draftKey, snapshot.revision)");
     expect(modelAbEditor).toContain("discardModelAbDraft(draftKey, snapshot.revision)");
     expect(create).toContain("discardCreateRunDraft(current.revision)");
   });

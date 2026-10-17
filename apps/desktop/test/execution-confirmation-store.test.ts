@@ -185,10 +185,10 @@ describe("4.4 接线契约：确认判据只有一份", () => {
     // 判据不变：每个入口的选择器内现算。
     for (const name of [
       "components/CreateRunWorkspace.tsx",
-      "components/DetailPanel.tsx",
       "components/ModelAbEditor.tsx",
       "components/MessagesForkEditor.tsx",
       "components/detail/PromptForkEditor.tsx",
+      "components/detail/ResultForkEditor.tsx",
     ]) {
       const flat = read(name).replace(/\s+/g, " ");
       // 旧写法（只订阅函数引用）不得复活
@@ -197,7 +197,7 @@ describe("4.4 接线契约：确认判据只有一份", () => {
     }
     const create = read("components/CreateRunWorkspace.tsx").replace(/\s+/g, " ");
     expect(create).toContain("s.executionConfirmationReady(confirmation)");
-    const panel = read("components/DetailPanel.tsx").replace(/\s+/g, " ");
+    const panel = read("components/detail/ResultForkEditor.tsx").replace(/\s+/g, " "); // 2.3 随载体
     expect(panel).toContain("s.executionConfirmationReady(executionBinding)");
     const promptEditor = read("components/detail/PromptForkEditor.tsx").replace(/\s+/g, " ");
     expect(promptEditor).toContain("s.executionConfirmationReady(promptBinding)");
@@ -209,7 +209,7 @@ describe("4.4 接线契约：确认判据只有一份", () => {
 
   it("披露内容全部来自 lib（组件不自己拼「这次会怎样」的句子）", () => {
     const create = read("components/CreateRunWorkspace.tsx");
-    const panel = read("components/DetailPanel.tsx");
+    const panel = read("components/detail/ResultForkEditor.tsx"); // refactor-renderer 2.3：result 确认面随载体
     expect(create).toContain("createDisclosure({");
     expect(panel).toContain("resultPlainDisclosure({");
     // U5 4.5：隔离侧的"已做的检查 / 本次边界"也出自同一模块
@@ -220,7 +220,7 @@ describe("4.4 接线契约：确认判据只有一份", () => {
   });
 
   it("两条 result 路径都把现场确认交给登记口（4.5 起隔离侧不再豁免）", () => {
-    const panel = read("components/DetailPanel.tsx");
+    const panel = read("components/detail/ResultForkEditor.tsx"); // refactor-renderer 2.3：result 确认面随载体
     const flat = panel.replace(/\s+/g, " ");
     expect(flat).toContain("confirmation: executionBinding,");
     expect(flat).not.toContain("isolated ? {} :");
@@ -232,15 +232,20 @@ describe("4.4 接线契约：确认判据只有一份", () => {
     // A-B 在 ModelAbEditor、messages 在 MessagesForkEditor、创建在 CreateRunWorkspace。
     // ⚠️ UI 密度 3.1 改判留痕：确认按钮统一由共享 ConfirmationBlock 渲染
     // （data-confirm-execution 只在组件内部出现一次），各入口按 <ConfirmationBlock 用法计数。
-    const panel = read("components/DetailPanel.tsx");
+    const panel = read("components/detail/ResultForkEditor.tsx"); // refactor-renderer 2.3：result 确认面随载体
     const promptEditor = read("components/detail/PromptForkEditor.tsx");
     const create = read("components/CreateRunWorkspace.tsx");
     const modelAbEditor = read("components/ModelAbEditor.tsx");
     const messagesEditor = read("components/MessagesForkEditor.tsx");
     const block = read("components/ConfirmationBlock.tsx");
-    // refactor-renderer 2.2：prompt 的确认块迁 PromptForkEditor（容器留 result 两个）
+    // refactor-renderer 2.2/2.3：prompt/result 的确认块分别迁 PromptForkEditor/ResultForkEditor
+    //（容器 DetailPanel 不再直接挂确认块）
+    // refactor-renderer 2.3：panel 即 ResultForkEditor（result 普通两路 = 2 个确认块）
     expect(panel.match(/<ConfirmationBlock/g)?.length).toBe(2);
     expect(promptEditor.match(/<ConfirmationBlock/g)?.length).toBe(1);
+    // 容器 DetailPanel 不再直接挂任何确认块
+    const detailPanel = read("components/DetailPanel.tsx");
+    expect(detailPanel.match(/<ConfirmationBlock/g)?.length ?? 0).toBe(0);
     expect(create.match(/<ConfirmationBlock/g)?.length).toBe(1);
     expect(modelAbEditor.match(/<ConfirmationBlock/g)?.length).toBe(1);
     expect(messagesEditor.match(/<ConfirmationBlock/g)?.length).toBe(1);
@@ -249,7 +254,7 @@ describe("4.4 接线契约：确认判据只有一份", () => {
   });
 
   it("隔离侧的确认按钮要求预检结论与本次授权都在场（无预检就不给确认）", () => {
-    const panel = read("components/DetailPanel.tsx");
+    const panel = read("components/detail/ResultForkEditor.tsx"); // refactor-renderer 2.3：result 确认面随载体
     const at = panel.indexOf("已核对，确认本次续跑");
     expect(at).toBeGreaterThan(-1);
     // 3.1 起确认按钮在共享 ConfirmationBlock 里，判据经 confirmDisabled 传入（写在标签之前）：

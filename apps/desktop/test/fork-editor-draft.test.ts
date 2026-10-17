@@ -27,17 +27,13 @@ import type { RunDetail } from "../src/shared/ipc";
 // 源码级接线契约
 // ---------------------------------------------------------------------------
 
-const DETAIL_PANEL = readFileSync(
-  resolve(import.meta.dirname, "../src/renderer/src/components/DetailPanel.tsx"),
-  "utf8",
-);
-
-/** 切出 ForkEditor 函数体（到下一个组件定义为止），使禁用型断言不误伤其他编辑器 */
+// refactor-renderer 2.3：ForkEditor 迁独立模块 detail/ResultForkEditor.tsx（容器经 import
+// 指向同一实现）——原「在 DetailPanel 里切函数体」改为整文件作用域，模块边界天然隔离。
 function forkEditorSource(): string {
-  const start = DETAIL_PANEL.indexOf("function ForkEditor(");
-  const end = DETAIL_PANEL.indexOf("/** tool.invoke 详情");
-  if (start < 0 || end < 0 || end <= start) throw new Error("DetailPanel.tsx 结构变化，切片失败");
-  return DETAIL_PANEL.slice(start, end);
+  return readFileSync(
+    resolve(import.meta.dirname, "../src/renderer/src/components/detail/ResultForkEditor.tsx"),
+    "utf8",
+  );
 }
 
 describe("接线契约：ForkEditor 读写 store 草稿（任务 2.1）", () => {

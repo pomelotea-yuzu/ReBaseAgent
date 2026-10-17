@@ -291,8 +291,9 @@ describe("ForkCacheHintView：提示块真的渲染出来", () => {
 // ---------------------------------------------------------------------------
 
 describe("接线契约：tool_result 分叉编辑器的提示来自 forkCacheHint", () => {
+  // refactor-renderer 2.3：ForkEditor 迁 detail/ResultForkEditor.tsx（容器经 import 指向同一实现）
   const SOURCE = readFileSync(
-    resolve(import.meta.dirname, "../src/renderer/src/components/DetailPanel.tsx"),
+    resolve(import.meta.dirname, "../src/renderer/src/components/detail/ResultForkEditor.tsx"),
     "utf8",
   );
 

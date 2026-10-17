@@ -49,6 +49,11 @@ const PROMPT_EDITOR = readFileSync(
   resolve(import.meta.dirname, "../src/renderer/src/components/detail/PromptForkEditor.tsx"),
   "utf8",
 );
+// refactor-renderer 2.3：result 编辑器迁 detail/ResultForkEditor.tsx（同上）
+const RESULT_EDITOR = readFileSync(
+  resolve(import.meta.dirname, "../src/renderer/src/components/detail/ResultForkEditor.tsx"),
+  "utf8",
+);
 const STORE_SRC = readFileSync(
   resolve(import.meta.dirname, "../src/renderer/src/store.ts"),
   "utf8",
@@ -543,21 +548,23 @@ describe("接线契约：五类提交走快照并受冻结约束（任务 3.4/3.
     // refactor-renderer 2.2：prompt 通道锚点随 PromptForkEditor 迁独立模块
     const flatPanel = DETAIL_PANEL.replace(/\s+/g, " ");
     const flatPrompt = PROMPT_EDITOR.replace(/\s+/g, " ");
+    const flatResult = RESULT_EDITOR.replace(/\s+/g, " ");
     expect(flatPrompt).toContain('beginDraftSubmission({ channel: "prompt", target:');
-    expect(flatPanel).toContain('beginDraftSubmission({ channel: "result", target:');
+    expect(flatResult).toContain('beginDraftSubmission({ channel: "result", target:');
     expect(MESSAGES_EDITOR.replace(/\s+/g, " ")).toContain(
       'beginDraftSubmission({ channel: "messages", target:',
     );
     // 每个通道都从关联里取提交值（DetailPanel(result) + prompt 编辑器 + messages 编辑器）
     const submittedUses =
-      (DETAIL_PANEL.match(/assoc\.submittedText/g) ?? []).length +
       (PROMPT_EDITOR.match(/assoc\.submittedText/g) ?? []).length +
+      (RESULT_EDITOR.match(/assoc\.submittedText/g) ?? []).length +
       (MESSAGES_EDITOR.match(/assoc\.submittedText/g) ?? []).length;
     expect(submittedUses).toBeGreaterThanOrEqual(3);
     // 旧的"直接提交渲染值"形态已消失（否则快照绑定是假的）
     expect(DETAIL_PANEL).not.toContain("forkAt(run.meta.id, span.id, value");
     expect(DETAIL_PANEL).not.toContain("promptFork(run.meta.id, { field, value });");
     expect(PROMPT_EDITOR).not.toContain("promptFork(run.meta.id, { field, value });");
+    expect(RESULT_EDITOR).not.toContain("forkAt(run.meta.id, span.id, value");
     expect(MESSAGES_EDITOR).not.toContain(
       "proxyFork(run.meta.id, span.id, messages as Record<string, unknown>[]);",
     );
@@ -582,10 +589,11 @@ describe("接线契约：五类提交走快照并受冻结约束（任务 3.4/3.
     // U8 5.1a：messages 编辑器迁出 ⇒ messages 在自己的文件；
     // refactor-renderer 2.2：prompt 编辑器迁出 ⇒ DetailPanel 仅 result 一处，prompt 在自己的文件
     expect(
-      DETAIL_PANEL.match(/const inProgress = forking === "in_progress" \|\| draftFrozen;/g)?.length,
+      PROMPT_EDITOR.match(/const inProgress = forking === "in_progress" \|\| draftFrozen;/g)
+        ?.length,
     ).toBe(1);
     expect(
-      PROMPT_EDITOR.match(/const inProgress = forking === "in_progress" \|\| draftFrozen;/g)
+      RESULT_EDITOR.match(/const inProgress = forking === "in_progress" \|\| draftFrozen;/g)
         ?.length,
     ).toBe(1);
     expect(
@@ -594,13 +602,13 @@ describe("接线契约：五类提交走快照并受冻结约束（任务 3.4/3.
     ).toBe(1);
     // U8 3.1a：A/B 的 inProgress 形态（modelAbInFlight）随载体迁 ModelAbEditor
     expect(MODEL_AB_EDITOR).toContain("const inProgress = modelAbInFlight || draftFrozen;");
-    // 冻结判据逐编辑器各查一次（result 在 DetailPanel；prompt/messages/A-B 在各自工作区组件）
-    expect(DETAIL_PANEL.match(/isDraftFrozen\(/g)?.length).toBe(1);
+    // 冻结判据逐编辑器各查一次（prompt/result/messages/A-B 在各自模块）
     expect(PROMPT_EDITOR.match(/isDraftFrozen\(/g)?.length).toBe(1);
+    expect(RESULT_EDITOR.match(/isDraftFrozen\(/g)?.length).toBe(1);
     expect(MESSAGES_EDITOR.match(/isDraftFrozen\(/g)?.length).toBe(1);
     expect(MODEL_AB_EDITOR.match(/isDraftFrozen\(/g)?.length).toBe(1);
-    expect(DETAIL_PANEL.match(/本次提交待处理/g)?.length).toBe(1);
     expect(PROMPT_EDITOR.match(/本次提交待处理/g)?.length).toBe(1);
+    expect(RESULT_EDITOR.match(/本次提交待处理/g)?.length).toBe(1);
     expect(DETAIL_PANEL).not.toContain("本次执行待处理");
     // A/B 的整批冻结说明随载体迁 ModelAbEditor
     expect(MODEL_AB_EDITOR).toContain("本次执行待处理");

@@ -67,7 +67,10 @@ describe("5.6 过渡注释销账", () => {
   });
 
   it("冻结通报改说现行判据：核实到正常结束 + 修订逐字相同才自动清理", () => {
-    const src = read("../src/renderer/src/components/DetailPanel.tsx");
-    expect(src).toContain("且草稿修订与提交时逐字相同，才自动清理");
+    // refactor-renderer 2.3：该判据文案在 result 冻结通报里（prompt 冻结通报无此句，
+    // 其保证由 prompt 编辑器的冻结块与 draft-closure 判据测试承载）
+    expect(read("../src/renderer/src/components/detail/ResultForkEditor.tsx")).toContain(
+      "且草稿修订与提交时逐字相同，才自动清理",
+    );
   });
 });

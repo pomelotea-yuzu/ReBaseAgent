@@ -106,7 +106,7 @@ describe("四处调用点共用同一布局层（接线契约，任务 2.2/2.3�
     const cases: Array<[string, string]> = [
       ["components/MessagesForkEditor.tsx", 'compareKey="messages"'],
       ["components/detail/PromptForkEditor.tsx", 'compareKey="prompt"'],
-      ["components/DetailPanel.tsx", 'compareKey="tool-result"'],
+      ["components/detail/ResultForkEditor.tsx", 'compareKey="tool-result"'],
       ["components/ModelAbEditor.tsx", 'compareKey="model-ab"'],
     ];
     for (const [file, anchor] of cases) {
@@ -121,6 +121,7 @@ describe("四处调用点共用同一布局层（接线契约，任务 2.2/2.3�
       "components/DetailPanel.tsx",
       "components/ModelAbEditor.tsx",
       "components/detail/PromptForkEditor.tsx",
+      "components/detail/ResultForkEditor.tsx",
       "components/detail/ToolInvokeDetail.tsx",
     ]) {
       expect(auditForbiddenTokens(rendererSrc(file), ['height="200px"', 'height="140px"'])).toEqual(

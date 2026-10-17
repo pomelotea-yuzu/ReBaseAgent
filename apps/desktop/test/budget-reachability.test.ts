@@ -339,8 +339,10 @@ describe("编辑器懒加载：纯浏览路径不加载编辑器资源", () => {
     }
   });
 
-  it("DetailPanel / WorkspaceFileView 的编辑器走懒包装组件", () => {
-    expect(read("components/DetailPanel.tsx")).toContain("MonacoCodeEditor");
+  it("详情/文件页的编辑器走懒包装组件", () => {
+    // refactor-renderer 2.2/2.3：详情编辑器迁 detail/ 模块（原 DetailPanel 不再持有编辑器）
+    expect(read("components/detail/PromptForkEditor.tsx")).toContain("MonacoCodeEditor");
+    expect(read("components/detail/ResultForkEditor.tsx")).toContain("MonacoCodeEditor");
     expect(read("components/WorkspaceFileView.tsx")).toContain("MonacoDiffEditor");
   });
 

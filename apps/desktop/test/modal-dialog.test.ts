@@ -173,9 +173,10 @@ describe("U3 5.1 接线契约（源码级）", () => {
     const modelAbEditor = R("../src/renderer/src/components/ModelAbEditor.tsx");
     const messagesEditor = R("../src/renderer/src/components/MessagesForkEditor.tsx");
     const hook = R("../src/renderer/src/lib/use-escape-close.ts");
-    // 编辑区各一处（result 在 DetailPanel；prompt/messages/A-B 在各自模块）
-    expect(panel.match(/useEscapeClose\(open && !inProgress/g)?.length).toBe(1);
+    // 编辑区各一处（prompt/result/messages/A-B 在各自模块；refactor-renderer 2.3 后容器无编辑器）
     expect(promptEditor.match(/useEscapeClose\(open && !inProgress/g)?.length).toBe(1);
+    const resultEditor = R("../src/renderer/src/components/detail/ResultForkEditor.tsx");
+    expect(resultEditor.match(/useEscapeClose\(open && !inProgress/g)?.length).toBe(1);
     expect(modelAbEditor.match(/useEscapeClose\(open && !alwaysOpen && !inProgress/g)?.length).toBe(
       1,
     );
@@ -183,17 +184,19 @@ describe("U3 5.1 接线契约（源码级）", () => {
       messagesEditor.match(/useEscapeClose\(open && !alwaysOpen && !inProgress/g)?.length,
     ).toBe(1);
     // 收起动作与按钮一致：不触碰 discard/删除草稿的 store 动作
-    const escBlocks = panel.match(
-      /useEscapeClose\(open && !inProgress, \(\) => \{\s*reset[A-Za-z]+\(\);\s*setOpen\(false\);\s*\}\);/g,
-    );
-    expect(escBlocks?.length).toBe(1);
     const promptEscBlocks = promptEditor.match(
       /useEscapeClose\(open && !inProgress, \(\) => \{\s*reset[A-Za-z]+\(\);\s*setOpen\(false\);\s*\}\);/g,
     );
     expect(promptEscBlocks?.length).toBe(1);
+    const resultEscBlocks = resultEditor.match(
+      /useEscapeClose\(open && !inProgress, \(\) => \{\s*reset[A-Za-z]+\(\);\s*setOpen\(false\);\s*\}\);/g,
+    );
+    expect(resultEscBlocks?.length).toBe(1);
     expect(modelAbEditor).toContain("resetModelAb();\n    setOpen(false);");
     expect(messagesEditor).toContain("resetFork();\n    setOpen(false);");
-    expect(panel).toContain('import { useEscapeClose } from "../lib/use-escape-close";');
+    // refactor-renderer 2.3：编辑器全部在 detail/ 模块（相对路径多一级）
+    expect(promptEditor).toContain('import { useEscapeClose } from "../../lib/use-escape-close";');
+    expect(resultEditor).toContain('import { useEscapeClose } from "../../lib/use-escape-close";');
     // 层级判据齐备：模态在场不消费、defaultPrevented 让位、栈顶才消费
     expect(hook).toContain('ctx.key === "Escape"');
     expect(hook).toContain("!ctx.defaultPrevented");

@@ -119,3 +119,24 @@
 | T24 modal-dialog | useEscapeClose 计数 2→**容器 1 + PFE 1**；收起动作 escBlocks 同步拆分 | 收起=保留草稿语义逐字保持 |
 
 验证：tsc web 0 错；biome 14 文件 0 错；8 个受影响测试文件单跑全过；**全量 200 文件/3030 用例全过 0 失败**（3 条 Unhandled Errors 为已知沙箱 EPERM 噪声）。
+
+## 2.3 销账记录（2026-10-17）
+
+迁移：ForkEditor（result 编辑器，含 toolMessageText/detectResultLanguage，684 行）DetailPanel→`detail/ResultForkEditor.tsx`（组件名保持 `ForkEditor`，文件名按 design D1）。DetailPanel 1155→**435 行**（只剩 LlmCallDetail/ToolInvokeDetail 两个壳 + DetailPanel 组合层）；死导入清空（模型库/隔离库/草稿源库等 12 处 import 只剩壳所需）。容器经 import 指向同一实现。
+
+| T | 迁移的断言 | 新承载 | 说明 |
+|---|---|---|---|
+| T22 fork-editor-draft | 10 条切片断言（草稿读写/预检修订绑定/授权生命周期/按修订放弃/对照网格） | `forkEditorSource()` 改读 `detail/ResultForkEditor.tsx` 整文件 | 原「DetailPanel 切 ForkEditor 函数体」→ 模块边界天然隔离 |
+| T02 budget-reachability | 「编辑器走懒包装」断言 | 改读 detail/PromptForkEditor + detail/ResultForkEditor（MonacoCodeEditor）+ WorkspaceFileView（MonacoDiffEditor） | 容器不再持有编辑器 |
+| T03 cache-display | forkCacheHint 判据 + ForkCacheHintView 渲染断言 | 改读 `detail/ResultForkEditor.tsx` | |
+| T05 confirm-dialog | requestConfirm 计数→**DetailShared 1 + PFE 2 + RFE 2**（容器归零）；CAS 锚点 `discardCallDraft(draftKey, snapshot.revision)` 改读 RFE | 放弃确认调用点全部在编辑器/列表模块 |
+| T09 draft-compare-grid | `compareKey="tool-result"` case 与禁用扫描扩 RFE | 四处对照区调用点全部落在各自模块 |
+| T10 draft-list | 闸门计数改 **PFE+RFE+ModelAb ≥ 4**（容器归零）；`DraftSourceBanner` 挂载断言改读 RFE | |
+| T11 draft-submission | result 通道锚点/`assoc.submittedText`/`inProgress`/`isDraftFrozen`/`本次提交待处理` 全部随迁 RFE（容器归零），新增 RFE 侧否定断言 | 快照绑定/冻结语义逐字保持 |
+| T12 entry-gate | 两个 describe 的 result 接线（deriveEntryGate/canFork 门禁/checkAllowed 不受槽/禁用理由/EntryGateNotice import 路径）改读 RFE | `deriveEntryGate(useAppStore((s) => s.operations))` 判据逐字保持 |
+| T13 execution-confirmation-store | `executionBinding` 订阅/确认块计数（容器 0 + RFE 2 + PFE 1）/result 披露来源/登记口绑定/隔离预检结论断言改读 RFE | 订阅现算文件清单更新 |
+| T21 focus-escape-responsive | 冻结通报判据文案断言改读 RFE（prompt 冻结通报无此句，原单断言即 result 侧） | |
+| T24 modal-dialog | useEscapeClose 计数改 PFE 1 + RFE 1（容器归零）；hook import 路径断言随迁 | 收起=保留草稿语义逐字保持 |
+| T34 settings-roundtrip-invalidate | `useRevokeOnConfigChange(modelConfigStampOf(settings), ...)` 授权失效接线改读 RFE | 配置指纹撤销语义逐字保持 |
+
+验证：tsc web 0 错；biome 208 文件 0 错；**全量 200 文件/3010 用例全过 0 失败**（3 条 Unhandled Errors 为已知沙箱 EPERM 噪声）。DetailPanel 至此只剩壳与组合层——2.4 收敛挂载选择逻辑。
