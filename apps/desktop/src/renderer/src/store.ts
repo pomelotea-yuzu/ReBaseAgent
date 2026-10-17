@@ -1,23 +1,13 @@
-import {
-  isCurrentDetailAttempt,
-  isCurrentDetailResponse,
-  isDetailPayloadForRun,
-  shouldApplyDetailFailure,
-} from "@shared/detail-request";
-import { findRunDetailVersionViolation } from "@shared/detail-version-guard";
 import type {
   ChooseSourceResult,
   CreateRunRequest,
   Envelope,
-  FailedFile,
   ForkCapabilityRequest,
   ForkCapabilityResult,
   IsolatedExecutionMode,
   ModelAbResult,
   ProxyState,
   ProxyToggleInput,
-  RunDetail,
-  RunSummary,
   SettingsInput,
   SettingsState,
   WorkspaceExportOutcome,
@@ -31,7 +21,6 @@ import type { ModelAbArm, PromptForkRequest } from "@shared/ipc";
 import {
   ChooseSourceResultSchema,
   ForkCapabilityResultSchema,
-  ListRunsDataSchema,
   ProxyChangeEventSchema,
   ProxyStateSchema,
   RunDetailSchema,
@@ -40,8 +29,6 @@ import {
   WorkspaceInspectResultSchema,
   WorkspaceReadFileResultSchema,
 } from "@shared/ipc";
-import { decideRefresh, resolveRefreshFailure, settleRefresh } from "@shared/list-refresh";
-import { ShortIdState } from "@shared/nav";
 import type {
   ExecutedRequest,
   ExecutedResponse,
@@ -176,21 +163,11 @@ import {
   initialProxyStatusReadState,
   settleStatusRead,
 } from "./lib/proxy-status-read";
-import { resolveReading } from "./lib/reading-resolve";
 import {
-  defaultReadingState,
   fileReadingOf,
-  patchCallReading,
   patchFileReading,
   patchReadingState,
   readingStateOf,
-  toggleExpandedKey,
-} from "./lib/reading-state";
-import type {
-  CallReadingState,
-  FileReadingState,
-  ReadingStateByRun,
-  RunReadingState,
 } from "./lib/reading-state";
 import type { RecordingDraft, RecordingDraftPatch } from "./lib/recording-draft";
 import {
@@ -217,18 +194,13 @@ import type { SettingsSaveOutcome } from "./lib/settings-form";
 import { type TreeScope, type TreeViewport, decideTreeInitialFocus } from "./lib/tree-view";
 import { feedbackFromOutcome, workspaceExportKey } from "./lib/workspace-export-state";
 import type { WorkspaceExportFeedback } from "./lib/workspace-export-state";
-import {
-  resolveExecutionGate,
-  resolveFilterVisibility,
-  resolveInitialSelection,
-  resolveSourceAvailability,
-} from "./lib/workspace-selection";
-import type { FilterVisibility, SourceAvailability } from "./lib/workspace-selection";
 import { createCreateReturnFactsCache } from "./store/runtime/create-return-facts-cache";
 import { createOperationPollingRuntime } from "./store/runtime/operation-polling";
 import { createProxyCoordinationRuntime } from "./store/runtime/proxy-coordination";
 // 兼容导出（4.1）：ExperimentSourceState/idleExperimentSource 迁 slices/navigation，指向同一实现
 import { idleExperimentSource } from "./store/slices/navigation";
+import { createDetailReadAttempts, createReadingSlice } from "./store/slices/reading";
+import { createRunsSlice } from "./store/slices/runs";
 import type { AppState } from "./store/types";
 export { idleExperimentSource };
 export type { ExperimentSourceState } from "./store/slices/navigation";
@@ -720,18 +692,6 @@ function noteReadingChanged(): void {
 }
 
 /**
- * U6 任务 4.5：详情读取的**代次**计数（每次实际发起 `getRun` 递增）。
- *
- * 与 U5 `resultReads` 的 `attempt` 同一思路，但那是"按可信 runId 的后台结果核实"，
- * 这是"当前选中详情"的读取——两个读写面各持各的代次，互不顶掉（同
- * `reading-request-guard.ts` 的分面纪律）。只增不减、不进渲染状态（不是 UI 状态）。
- * 归属判定（`shouldApplyDetailFailure` / `isCurrentDetailResponse`）挡不住
- * **同 run 的连续重试**——那正是"父文件恢复后重试全量重验"要覆盖的场景：
- * 恢复前的 ownOnly 响应若后到，会把恢复后的 complete 详情盖回去。
- */
-let detailReadAttempt = 0;
-
-/**
  * 撤销全部待用的执行确认（U5 任务 4.4，design D2「目标、修订、设置或流程代次变化 SHALL
  * 使旧检查与许可失效」里"离开现场"那一半）。
  *
@@ -895,23 +855,25 @@ function notifyProxyStatusSettled(): void {
   proxyCoordination.notifyProxyStatusSettled();
 }
 
+// 详情读取代次（5.1）：唯一持有者住在 slices/reading 的工厂；这里按 store 实例创建一次，
+// runs 分片经注入访问（分片之间无运行时互相导入，design D2）。
+const detailReadAttempts = createDetailReadAttempts();
+
 export const useAppStore = create<AppState>((set, get) => ({
-  runs: [],
-  failed: [],
-  detail: null,
-  selectedRunId: null,
-  selectedSpanId: null,
-  expandedSteps: {},
-  readingByRun: {},
-  readingInvalidated: false,
+  // --- 5.1 分片组合：runs/reading（实现迁 slices/；跨域协调者显式注入，design D2）---
+  ...createRunsSlice({
+    set,
+    get,
+    noteReadingChanged,
+    revokeSourceBoundPermissions,
+    describeZodError,
+    detailReadAttempts,
+  }),
+  ...createReadingSlice({ set, get, noteReadingChanged }),
+
   // R2.1 任务 5.3：导出反馈的会话状态（离开文件页仍存活；重载后为空 = 结果未知）
   workspaceExports: {},
   workspaceExportGenerations: {},
-  loadingList: false,
-  loadingDetail: false,
-  listLoaded: false,
-  listStale: false,
-  error: null,
   operations: initialSession(),
   // U5 任务 1.2：按可信身份读取的结果（会话内，与阅读状态和草稿都分开）
   resultReads: emptyResultReadStore(),
@@ -936,8 +898,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   navIntents: emptyNavigationIntents(),
   // U5 任务 3.6：已看过的结果通知键（通知本身由 deriveResultNotices 现算）
   seenNoticeKeys: {},
-  listRefreshInFlight: 0,
-  listRefreshPending: 0,
   proxyFactCursor: initialProxyFactCursor,
 
   forking: "idle",
@@ -951,11 +911,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   modelAbErrorCode: null,
   settings: null,
   proxy: null,
-  sourceFilter: "all",
-  searchQuery: "",
-  initialSelectionAttempted: false,
-  sourceUnavailable: false,
-  sourceUnavailableReason: "unknown",
   view: "trace",
   compareIds: [],
   compareNotice: null,
@@ -975,36 +930,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   proxyStatusRead: initialProxyStatusReadState,
   settingsChangeGeneration: 0,
   settingsSection: null,
-  shortIdState: new ShortIdState(),
   // U3 任务 3.4：提交关联仓库（与草稿仓库分开的生命周期，见 draft-submission.ts）
   draftSubmissions: submissionLib.emptySubmissionStore(),
-
-  async loadRuns() {
-    // 在途合并（任务 3.4）：重复刷新不并发发射。频繁触发（挂载 + 执行收尾 + 手动重试）
-    // 只登记一次尾随，当前请求结束后补发一次——既不丢新记录，也不形成请求雪崩。
-    const decision = decideRefresh(get().listRefreshInFlight, get().listRefreshPending);
-    if (decision.action === "deferred") {
-      set({
-        listRefreshInFlight: decision.inFlight,
-        listRefreshPending: decision.pending,
-        // 刷新意图已受理：让界面保持"正在刷新"的观感，而不是闪回静止
-        loadingList: get().listLoaded,
-      });
-      return;
-    }
-    set({ listRefreshInFlight: decision.inFlight, listRefreshPending: decision.pending });
-
-    try {
-      await get().refreshRunsOnce();
-    } finally {
-      const settled = settleRefresh(get().listRefreshInFlight, get().listRefreshPending);
-      set({ listRefreshInFlight: settled.inFlight, listRefreshPending: settled.pending });
-      // 尾随补发：执行收尾在请求在途时产生的新记录，必须能在这一轮之后可见。
-      // 走 loadRuns 自身（而非旁路 refreshRunsOnce）——由它按 decideRefresh 重新登记
-      // 在途数，否则补发的这次请求无人递减计数，计数器永久残留。
-      if (settled.shouldRefire) await get().loadRuns();
-    }
-  },
 
   /**
    * 订阅 main 的代理变化通知（design D1，tasks 1.3）。**幂等**。
@@ -1062,326 +989,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   async reconcileProxyGate() {
     await get().loadProxyStatus();
     await settledProxyStatusRead();
-  },
-
-  /**
-   * 单次列表读取（不含合并调度）。
-   * 失败时**保留旧记录**：刷新失败只标记「未更新」，不清空已成功加载的列表与阅读位置。
-   */
-  async refreshRunsOnce() {
-    const hadLoadedBefore = get().listLoaded;
-    set({ loadingList: true, error: null });
-    const envelope = await api.listRuns();
-    if (!envelope.ok) {
-      const failure = resolveRefreshFailure(hadLoadedBefore);
-      set({
-        loadingList: false,
-        // 失败不倒退：runs/failed 原样保留；仅标记未更新（首次失败不标）
-        listStale: failure.stale,
-        error: hadLoadedBefore
-          ? `刷新 run 列表失败（仍显示上次结果）：${envelope.error.message}`
-          : `读取 run 列表失败：${envelope.error.message}`,
-      });
-      return;
-    }
-    const parsed = ListRunsDataSchema.safeParse(envelope.data);
-    if (!parsed.success) {
-      const failure = resolveRefreshFailure(hadLoadedBefore);
-      set({
-        loadingList: false,
-        listStale: failure.stale,
-        error: hadLoadedBefore
-          ? `刷新 run 列表失败（仍显示上次结果）：列表数据结构校验失败：${describeZodError(parsed.error)}`
-          : `列表数据结构校验失败：${describeZodError(parsed.error)}`,
-      });
-      return;
-    }
-    // 成功落地：列表数据替换，但**不动** selectedRunId / detail / readingByRun
-    // ——单纯刷新不自动选择新记录，也不清空已成功加载的阅读位置。
-    set({
-      runs: parsed.data.runs,
-      failed: parsed.data.failed,
-      loadingList: false,
-      listLoaded: true,
-      listStale: false,
-    });
-    // 刷新后按**列表当前事实**重算源可用性（任务 3.5）：源文件被删/变不可读时
-    // 屏幕上的旧内容保留，但执行入口要禁用；重新出现即自动恢复。
-    const availability = resolveSourceAvailability({
-      runs: parsed.data.runs,
-      failed: parsed.data.failed,
-      selectedRunId: get().selectedRunId,
-      listLoaded: true,
-    });
-    set({
-      sourceUnavailable: availability.unavailable,
-      sourceUnavailableReason: availability.reason,
-    });
-  },
-
-  async reopenRun(id) {
-    // spec「结果不可读不重执行且不锁配置」要求"按同 ID 重试读取"。
-    // `selectRun` 对已选中的同一 ID 短路（切换标签不该白重读），那正好是重试的场景
-    // ⇒ 先清选中再走原详情通道。只重读，**不**触碰任何主动执行通道。
-    if (get().selectedRunId === id) set({ selectedRunId: null });
-    await get().selectRun(id);
-  },
-
-  async selectRun(id) {
-    // U5 任务 4.1：创建页在场时"要看某条运行"就是离开创建去读它。放在同 ID 短路**之前**——
-    // 否则在创建页里"打开结果"（结果恰是上一条选中的运行）会被短路成什么都不发生。
-    if (get().view === "create") set({ view: "trace", createReturnLocation: null });
-    // U7 2.3：比较页在场时"打开单侧运行"也离开比较视图——但**保留** comparePair
-    // 与 compareReturnLocation（「打开单侧 → 返回比较 → 再返回来源」的往返靠它们；
-    // 与创建页的一次性凭据不同，来源引用只在真正返回/换视图时用掉）
-    if (get().view === "compare") set({ view: "trace" });
-    // U8 1.3：辅助工作区同比较页口径——离开页面但**保留**来源引用与显式目标
-    // （「切运行不更换实验父本」：目标只能被显式进入动作替换，侧栏选择动不了它）
-    if (get().view === "recording" || get().view === "experiment" || get().view === "messages") {
-      set({ view: "trace" });
-    }
-    if (get().selectedRunId === id) return;
-    // U5 3.4：换"在看哪条 run"= 改变阅读对象 ⇒ 撤销在飞的自动导航资格。
-    // 放在同 ID 短路**之后**：自动导航自己调用它时不会把代次白推进一次。
-    noteReadingChanged();
-
-    // U6 任务 4.5：本次实际发起的读取代次——同 run 的连续重试全靠它区分新旧
-    const attemptAtRequest = ++detailReadAttempt;
-
-    // 切走前无需手动保存：selectSpan/toggleStep/滚动读写已逐步写入 readingByRun。
-    // 进入新 run 时**恢复**它自己的阅读状态（页签/选中/展开/滚动由该 run 记录决定），
-    // 但**不在**此处置 selectedSpanId——它要先经详情校验（失效对象安全回退，任务 3.2）。
-    const restored = readingStateOf(get().readingByRun, id);
-    set({
-      selectedRunId: id,
-      selectedSpanId: restored.spanId,
-      expandedSteps: restored.expandedSteps,
-      detail: null,
-      loadingDetail: true,
-      error: null,
-    });
-    // 请求归属（3.3）：记录**发出请求时**的选中 run。此后任何分支落地前都要与此比对，
-    // 否则 A 的慢响应 / A 的失败收尾会盖掉用户已经切到的 B。
-    const selectedAtRequest = get().selectedRunId;
-    const envelope = await api.getRun(id);
-    if (!envelope.ok) {
-      // 已切走 ⇒ 这次失败与当前界面无关，**不清** loadingDetail（那是新 run 的加载态）
-      if (!shouldApplyDetailFailure(selectedAtRequest, get().selectedRunId, id)) return;
-      // U6 4.5：旧代次的失败收尾一律不落地（不清 loadingDetail、不写 error）
-      if (!isCurrentDetailAttempt(attemptAtRequest, detailReadAttempt)) return;
-      set({ loadingDetail: false, error: `读取 run 失败：${envelope.error.message}` });
-      return;
-    }
-    // 跨进程数据不可信：先确认载荷自称的 run id 与请求一致（防 main 回错 / 信封串号），
-    // 再看目标 run 是否仍是当前选中——两道都过才允许落地。
-    if (!isDetailPayloadForRun(envelope.data, id)) {
-      if (!isCurrentDetailResponse(get().selectedRunId, id)) return;
-      if (!isCurrentDetailAttempt(attemptAtRequest, detailReadAttempt)) return;
-      set({
-        loadingDetail: false,
-        error: "轨迹数据归属校验失败（载荷与请求的 run 不一致）：拒绝加载",
-      });
-      return;
-    }
-    // 版本守卫先于 schema 转换：zod 会剥离未知键，"v1 载荷私带隔离字段"必须在此拒绝，
-    // 而不是被剥掉后当成合法 v1 继续渲染（B 任务 1.1）
-    const versionViolation = findRunDetailVersionViolation(envelope.data);
-    if (versionViolation !== null) {
-      if (!isCurrentDetailResponse(get().selectedRunId, id)) return;
-      if (!isCurrentDetailAttempt(attemptAtRequest, detailReadAttempt)) return;
-      set({
-        loadingDetail: false,
-        error: `轨迹数据版本校验失败（拒绝加载）：${versionViolation}`,
-      });
-      return;
-    }
-    const parsed = RunDetailSchema.safeParse(envelope.data);
-    if (!parsed.success) {
-      if (!isCurrentDetailResponse(get().selectedRunId, id)) return;
-      if (!isCurrentDetailAttempt(attemptAtRequest, detailReadAttempt)) return;
-      set({
-        loadingDetail: false,
-        error: `轨迹数据结构校验失败：${describeZodError(parsed.error)}`,
-      });
-      return;
-    }
-    // 所有校验通过后仍需确认"目标 run 还是当前选中 run"——校验期间用户可能又切走了
-    if (!isCurrentDetailResponse(get().selectedRunId, id)) return;
-    // U6 4.5：旧代次的响应整体丢弃——期间已有更新的读取发起（同 run 重试），
-    // 它的结论才是现状；这里什么都不写（不覆盖新读取的 loading/detail/error）。
-    if (!isCurrentDetailAttempt(attemptAtRequest, detailReadAttempt)) return;
-    // U6 4.5：落地时**现取**阅读历史——读取在飞期间用户的 selectSpan / toggleStep /
-    // 换页签都已写进 readingByRun，旧快照会把这些新位置覆盖回去（「读取重试不改变阅读位置」）。
-    const landed = readingStateOf(get().readingByRun, id);
-    // 默认展开全部 step，用户可折叠；但恢复的历史状态优先（用户折叠过的保持折叠）
-    const expandedSteps: Record<string, boolean> = {};
-    for (const span of parsed.data.spans) {
-      if (span.kind === "agent.step") expandedSteps[span.id] = true;
-    }
-    const mergedExpanded = { ...expandedSteps, ...landed.expandedSteps };
-    // 统一走优先级解析（任务 3.2/3.6 接线）：显式目标 > 有效历史 > 默认位置。
-    // 详情到手才做——此前 store 里可能还留着**另一个 run** 的未校验 spanId，
-    // 直接当选中项会导致"轨迹树高亮一个不属于本 run 的 span"。
-    const resolved = resolveReading({
-      detail: {
-        spans: parsed.data.spans,
-        leafSpanIds: parsed.data.leafSpanIds,
-        hasFiles: parsed.data.meta.workspace !== undefined,
-      },
-      history: { tab: landed.tab, spanId: landed.spanId },
-      target: null,
-      currentTab: landed.tab,
-    });
-    const readingByRun = patchReadingState(get().readingByRun, id, {
-      tab: resolved.tab,
-      spanId: resolved.spanId,
-      expandedSteps: mergedExpanded,
-    });
-    set({
-      detail: parsed.data,
-      expandedSteps: mergedExpanded,
-      selectedSpanId: resolved.spanId,
-      readingByRun,
-      loadingDetail: false,
-      // 失效回退只提示一次；成功后重新选中会清掉（见 selectSpan）
-      readingInvalidated: resolved.invalidated,
-    });
-    // U6 任务 4.10：落地的是 ownOnly ⇒ 当前父本来源已确认不完整，
-    // 撤销绑定它的检查代次/确认/A-B 计划/副本授权（草稿正文保留；恢复须重新检查）。
-    if (parsed.data.completeness === "ownOnly") revokeSourceBoundPermissions();
-  },
-
-  selectSpan(id) {
-    const runId = get().selectedRunId;
-    // U5 3.4：换"看哪一次调用"= 改变阅读对象 ⇒ 撤销在飞的自动导航资格
-    noteReadingChanged();
-    // 明确选择即"换到用户要看的位置"⇒ 失效提示作废（它说的是"原位置不可用，已回退"）
-    set({ selectedSpanId: id, readingInvalidated: false });
-    if (runId !== null) {
-      set({ readingByRun: patchReadingState(get().readingByRun, runId, { spanId: id }) });
-    }
-  },
-
-  toggleStep(id) {
-    const { expandedSteps, selectedRunId, readingByRun } = get();
-    const next = { ...expandedSteps, [id]: !expandedSteps[id] };
-    set({ expandedSteps: next });
-    if (selectedRunId !== null) {
-      set({
-        readingByRun: patchReadingState(readingByRun, selectedRunId, { expandedSteps: next }),
-      });
-    }
-  },
-
-  async autoSelectInitialRun() {
-    const decision = resolveInitialSelection({
-      runs: get().runs,
-      selectedRunId: get().selectedRunId,
-      listLoaded: get().listLoaded,
-      attempted: get().initialSelectionAttempted,
-      // U5 任务 4.1：用户已经走进创建工作区 ⇒ 迟到的首次读取不能把他从创建页拽出来
-      // U8 任务 1.3：三个辅助工作区同口径（迟到的自动选择不得把用户从录制/实验/messages 拽走）
-      userWorkspace:
-        get().view === "create" ||
-        get().view === "recording" ||
-        get().view === "experiment" ||
-        get().view === "messages",
-    });
-    if (decision.runId === null) return;
-    // 先落守卫再发起请求：详情失败时 selectRun 会把错误留在该 run 上（原位可重试），
-    // 而本守卫保证我们**不会**再去试下一条——失败就是失败，不静默遍历列表。
-    set({ initialSelectionAttempted: true });
-    await get().selectRun(decision.runId);
-  },
-
-  setSearchQuery(query) {
-    // 只改条件，不改选：筛选隐藏当前运行时主工作区照常显示（任务 3.5）
-    set({ searchQuery: query });
-  },
-
-  sourceAvailability() {
-    return resolveSourceAvailability({
-      runs: get().runs,
-      failed: get().failed,
-      selectedRunId: get().selectedRunId,
-      listLoaded: get().listLoaded,
-    });
-  },
-
-  filterVisibility() {
-    return resolveFilterVisibility({
-      runs: get().runs,
-      selectedRunId: get().selectedRunId,
-      query: get().searchQuery,
-      filter: get().sourceFilter,
-    });
-  },
-
-  canExecuteFromSource() {
-    const availability = get().sourceAvailability();
-    return resolveExecutionGate({
-      unavailable: availability.unavailable,
-      reading: get().loadingDetail,
-      listLoaded: get().listLoaded,
-      // U6 任务 5.12：详情为 ownOnly（父链不完整）⇒ 依赖父本的执行入口一并禁用，
-      // 就近原因沿用各编辑器既有的"源记录不可用"行；main 侧来源门禁仍是权威防线
-      lineageIncomplete: get().detail?.completeness === "ownOnly",
-    });
-  },
-
-  readingOf(runId) {
-    return readingStateOf(get().readingByRun, runId);
-  },
-
-  setReadingTab(runId, tab) {
-    // U5 3.4：换页签（概览 / 步骤 / 文件）= 改变阅读对象 ⇒ 撤销在飞的自动导航资格
-    noteReadingChanged();
-    set({ readingByRun: patchReadingState(get().readingByRun, runId, { tab }) });
-  },
-
-  setReadingScroll(runId, where, top) {
-    set({
-      readingByRun: patchReadingState(
-        get().readingByRun,
-        runId,
-        where === "overview" ? { overviewScrollTop: top } : { stepsScrollTop: top },
-      ),
-    });
-  },
-
-  setCallReading(runId, spanId, patch) {
-    set({ readingByRun: patchCallReading(get().readingByRun, runId, spanId, patch) });
-  },
-
-  toggleNoticeExpanded(runId, key) {
-    const current = readingStateOf(get().readingByRun, runId);
-    set({
-      readingByRun: patchReadingState(get().readingByRun, runId, {
-        noticesExpanded: toggleExpandedKey(current.noticesExpanded, key),
-      }),
-    });
-  },
-
-  fileReadingOf(runId) {
-    return fileReadingOf(readingStateOf(get().readingByRun, runId));
-  },
-
-  fileReadingEntered(runId) {
-    return readingStateOf(get().readingByRun, runId).files !== undefined;
-  },
-
-  setFileReading(runId, patch) {
-    set({ readingByRun: patchFileReading(get().readingByRun, runId, patch) });
-  },
-
-  pendingFileTarget: null,
-
-  openFileAt(runId, file) {
-    // 登记目标并切到该 run 的文件页；目标由文件页承载组件消费一次后清空
-    set({
-      pendingFileTarget: { runId, file },
-      readingByRun: patchReadingState(get().readingByRun, runId, { tab: "files" }),
-    });
   },
 
   drafts: draftLib.emptyDraftRepo(),
@@ -2452,10 +2059,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
     set({ proxy: parsed.data });
     return parsed.data;
-  },
-
-  setSourceFilter(filter) {
-    set({ sourceFilter: filter });
   },
 
   setView(view) {

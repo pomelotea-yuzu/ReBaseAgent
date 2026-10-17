@@ -33,7 +33,7 @@
 
 ## 5. 拆 store 功能分片
 
-- [ ] 5.1 迁移 runs/reading，保留列表调度、详情完整性/版本和阅读定位守卫，接回完整组合 store。（迟到读取不能污染当前目标；分片组合不覆盖状态或动作）
+- [x] 5.1 迁移 runs/reading，保留列表调度、详情完整性/版本和阅读定位守卫，接回完整组合 store。（迟到读取不能污染当前目标；分片组合不覆盖状态或动作）→ 2026-10-17：runs 17 字段+10 action 迁 `slices/runs.ts`（工厂 createRunsSlice，396 行）、reading 5 字段+11 action 迁 `slices/reading.ts`（createReadingSlice，189 行）+ 详情代次计数改 `createDetailReadAttempts()` 工厂（reading 持有、runs 经注入访问）；store.ts create 首部 spread 组合两分片，store.ts 2821→**2424 行**；types.ts 新增 SliceContext（与 create 回调 set/get 同型，StoreApi setState/getState）；跨域协调者（noteReadingChanged/revokeSourceBoundPermissions/describeZodError）由 store.ts 注入（5.5 迁出前）；selectRun 代次判据改 `detailReadAttempts.next()/.current()`（语义逐字等价）；4.1 遗留 JSDoc 错位归位（仅注释）；断言随载体改读 2 处（run-list-nav shortIdState、file-checkpoint-resolve 实现体），其余 9 个 store.ts 静态锚点逐个核对未受影响；验证 = 定向 12 文件 219 用例全过 + 全量 203 文件/3180 用例 0 失败，销账见 [台账 5.1](test-migration-ledger.md)
 - [ ] 5.2 迁移 drafts，保留修订、提交快照、冻结、确认和关闭协议；继续复用既有纯判据。（草稿修订和许可失效不被拆分改变；跨分片协调保持原子更新）
 - [ ] 5.3 迁移 navigation/compare，保留来源返回、pair 独立性、导航代次、比较读取和只读文件入口。（迟到读取不能污染当前目标；跨分片协调保持原子更新）
 - [ ] 5.4 整体迁移唯一提交适配器和 operations 连接，全部主动执行入口回接同一实现；验证非法回执、丢响应、旧 epoch 和本地门禁。（未知执行只核对且所有主动入口共用适配器；迟到读取不能污染当前目标）

@@ -197,3 +197,23 @@
 | create-form-draft「WORKSPACE 含 createReturnFactsOf」接线 | 不改读 | action 名与消费点不变 |
 
 验证：tsc web/node 双 0；biome 改动 4 文件 0 错；定向 3 文件 91 用例全过（store.test 62 + refine-ui-return 14 + create-form-draft 15；EPERM 噪声分批单跑复核）；**全量 203 文件/3180 用例 0 失败（singleFork，与权威三元组一致，exit=0）**。**阶段 4 完成**：store.ts 2879→**2821** 行；runtime 三件（operation-polling 85 / proxy-coordination 89 / create-return-facts-cache 51 行）。
+
+## 5.1 销账记录（2026-10-17）
+
+迁移：runs 17 字段 + 10 action（loadRuns/refreshRunsOnce/reopenRun/selectRun/autoSelectInitialRun/setSearchQuery/sourceAvailability/filterVisibility/canExecuteFromSource/setSourceFilter）→ `slices/runs.ts`（工厂 `createRunsSlice`，396 行）；reading 5 字段 + 11 action（readingOf/setReadingTab/setReadingScroll/setCallReading/toggleNoticeExpanded/toggleStep/selectSpan/fileReadingOf/fileReadingEntered/setFileReading/openFileAt + pendingFileTarget）→ `slices/reading.ts`（`createReadingSlice`，189 行）；模块级 `let detailReadAttempt` → `createDetailReadAttempts()` 工厂（**reading 分片持有**，runs 经注入访问——分片间无运行时互相导入）。store.ts create 首部 spread 组合两分片，**store.ts 2821→2424 行**；`store/types.ts` 新增 `SliceContext`（`StoreApi<AppState>` 的 setState/getState，与 create 回调 set/get 同型）。成员/函数逐字随迁（含 JSDoc）；4.1 遗留的跨域 JSDoc 错位（operations/view/drafts 注释挂在 runs/reading 成员上）顺手归位，仅注释、签名零变化。
+
+**拆分口径与等价改写（逐条）**：
+- selectRun 的代次判据：`++detailReadAttempt` → `detailReadAttempts.next()`；`isCurrentDetailAttempt(attempt, detailReadAttempt)` → `isCurrentDetailAttempt(attempt, detailReadAttempts.current())`（×5）——纯计数器访问器，语义逐字等价；
+- 跨域协调者 `noteReadingChanged` / `revokeSourceBoundPermissions` / 共享 helper `describeZodError` 由 store.ts **显式注入**（runs/reading 的 *SliceContext 扩展；results 域 5.5 迁出前暂住 store.ts，届时注入源切换）；
+- selectRun 写 navigation 字段（view/createReturnLocation）经完整类型 set 保持原子语义（design D2 允许）；
+- **4.4 口径的延伸说明**：`createReturnFactsOf` 判据派生体仍在 store.ts（refine-ui-return 钉住），5.3 迁 navigation 分片时随载体改读。
+
+**断言随载体改读（两边留痕）**：
+| 测试 | 旧断言 | 新承载 |
+|---|---|---|
+| run-list-nav「shortIdState 是 ShortIdState 实例」 | store.ts 含 `shortIdState: new ShortIdState()` + `import { ShortIdState } from "@shared/nav"` | 改读 `slices/runs.ts`（同两串，import 断言逐字保持——分片新 import 即用 @shared alias） |
+| file-checkpoint-resolve「store 必须暴露 fileReadingEntered」 | 接口断言（slices/reading.ts）+ 实现体断言（store.ts） | 接口断言不变；实现体断言改读 `slices/reading.ts`（接口与实现同文件，注释改「5.1 实现随载体同迁」） |
+
+**无需改读的静态锚点（逐个核对）**：create-entry-closure / fork-entry-closure / proxy-ab-entry-closure（切片锚点 createRun/forkAt/promptFork/proxyFork/modelAb 全是未迁 action，负向断言域不受迁出影响）；draft-closure-store（closeDraftClosureFor 计数在 store.ts，未迁）；operation-result-actions（results 域未迁）；navigation-intent（切片边界 `async ensureOperationStatusPolling` 未动）；create-workspace-store（attemptResultNavigation 未迁）；run-list-nav 256 的负向断言（`归入"本地直录"`）迁前迁后都是空匹配，正向锚在 RunList 未变。
+
+验证：tsc web/node 双 0；biome 改动 13 文件 0 错；定向 12 文件 219 用例全过（run-list-nav 25 + file-checkpoint-resolve 24 + store.test 62 + entry-closure 三件 26 + draft-closure 17 + operation-result 12 + navigation-intent 14 + create-workspace 21 + races 9 + polling 9；EPERM 分批单跑复核）；**全量 203 文件/3180 用例 0 失败（singleFork，与权威三元组一致，exit=0）**。

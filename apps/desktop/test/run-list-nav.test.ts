@@ -191,7 +191,8 @@ describe("接线：短 ID 长度记忆挂在 store（跨渲染存活）", () => 
   });
 
   it("store 里 shortIdState 是 ShortIdState 实例（类，非普通对象）", () => {
-    const src = read("src/renderer/src/store.ts");
+    // refactor-renderer 5.1：runs 分片实现迁 slices/runs.ts（store.ts 只剩组合），断言随载体改读
+    const src = read("src/renderer/src/store/slices/runs.ts");
     expect(src).toContain("shortIdState: new ShortIdState()");
     expect(src).toContain('import { ShortIdState } from "@shared/nav"');
   });
