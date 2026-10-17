@@ -185,3 +185,15 @@
 **本阶段无需改读的静态断言**（逐模块核对结论）：6 个相关测试文件（proxy-change-store 20 / proxy-status-store 15 / proxy-recovery-races 11 / proxy-change-decisions 17 / proxy-change-notify 15 / capture-confirmation-store 6 = 84 用例）全部经**真实 store action + window.api 桩**驱动（ensure/release + onProxyChanged 监听器捕获），无一读 store.ts 源码钉订阅/等待者内部符号；preload-surface.test.ts 的 onProxyChanged 锚点是 main/preload 桥接白名单，不受渲染层迁移影响。
 
 验证：tsc web/node 双 0；biome 改动 3 文件 0 错；定向 6 文件 84 用例全过（并行收集受沙箱 EPERM 随机噪声影响，分批单跑复核后全数收集）；**全量 203 文件/3180 用例 0 失败（singleFork，与权威三元组一致，exit=0）**。
+
+## 4.4 销账记录（2026-10-17）
+
+迁移：`createReturnFactsCache` 模块级变量（含 JSDoc）→ 新增 `store/runtime/create-return-facts-cache.ts`（唯一所有者，工厂 `createCreateReturnFactsCache`；命中判据 `location ===`/`runs ===` 浅比较逐字保持）。**拆分口径**：只迁**缓存资源**，判据派生体（decideCreateReturn + describeReturnDestination/describeReturnFallbackReason 文案）留在 `createReturnFactsOf` action 内的 compute 回调——`refine-ui-return.test.ts:164-167` 钉住 store.ts 必须含这两条派生判据（「store 是唯一派生点」接线纪律），本阶段改读会把派生与缓存一起搬而削弱该保证；派生体随 5.3（navigation 分片）再迁，届时该断言随载体改读并两边留痕。文件尾 runtime 组合收口：**轮询（4.2）+ 代理协调（4.3）+ 派生缓存（4.4）三资源**，全部工厂注入惰性回调、模块加载不启动任何资源、无第二 create——「runtime 组合」至此完成。
+
+| 断言 | 新承载 | 说明 |
+|---|---|---|
+| store.test.ts「createReturnFactsOf selector 消费安全」62 用例中的引用稳定组（Object.is/toBe 同一对象、runs 引用变化才重建、missing run 不缓存污染） | 经动态导入原入口消费组合 store，无需改读 | 缓存搬进 runtime 后行为逐字等价，全部直过 |
+| refine-ui-return「创建页容器不自算」（store.ts 含 createReturnFactsOf + 两条 describe* 判据） | 不改读（判据体留在 store.ts） | 5.3 迁 navigation 分片时随载体改读 |
+| create-form-draft「WORKSPACE 含 createReturnFactsOf」接线 | 不改读 | action 名与消费点不变 |
+
+验证：tsc web/node 双 0；biome 改动 4 文件 0 错；定向 3 文件 91 用例全过（store.test 62 + refine-ui-return 14 + create-form-draft 15；EPERM 噪声分批单跑复核）；**全量 203 文件/3180 用例 0 失败（singleFork，与权威三元组一致，exit=0）**。**阶段 4 完成**：store.ts 2879→2836 行；runtime 三件（operation-polling 84 / proxy-coordination 88 / create-return-facts-cache 60 行）。

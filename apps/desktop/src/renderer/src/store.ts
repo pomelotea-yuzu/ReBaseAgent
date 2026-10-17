@@ -84,7 +84,6 @@ import {
   sameCompareSelection,
 } from "./lib/compare-state";
 import type {
-  CreateReturnFacts,
   CreateReturnLocation,
   ReadingLocationSnapshot,
   SourceView,
@@ -225,6 +224,7 @@ import {
   resolveSourceAvailability,
 } from "./lib/workspace-selection";
 import type { FilterVisibility, SourceAvailability } from "./lib/workspace-selection";
+import { createCreateReturnFactsCache } from "./store/runtime/create-return-facts-cache";
 import { createOperationPollingRuntime } from "./store/runtime/operation-polling";
 import { createProxyCoordinationRuntime } from "./store/runtime/proxy-coordination";
 // 兼容导出（4.1）：ExperimentSourceState/idleExperimentSource 迁 slices/navigation，指向同一实现
@@ -882,18 +882,9 @@ function closeRemainingClosures(): void {
  */
 
 /**
- * `createReturnFactsOf` 的**按引用缓存**（zustand v5 getSnapshot 引用稳定纪律）。
- *
- * 该方法被 selector 直接消费；返回值只由 `createReturnLocation` 与 `runs`
- * 两个引用决定 ⇒ 输入引用都没变就返回同一对象（2026-10-15 实机坐实：
- * 不缓存会让 getSnapshot 恒新 ⇒ 无限重渲染 ⇒ 创建页整树卸载白屏）。
- * 放模块作用域：它是派生缓存，不是 UI 状态。（4.4 迁 runtime）
+ * `createReturnFactsOf` 的**按引用缓存**已迁 `store/runtime/create-return-facts-cache.ts`
+ * （refactor-renderer 4.4，唯一所有者，见文件尾组合）；action 只交输入引用与判据回调。
  */
-let createReturnFactsCache: {
-  location: CreateReturnLocation | null;
-  runs: RunSummary[];
-  facts: CreateReturnFacts;
-} | null = null;
 
 /** 已静默则立即 resolve；否则排在 `notifyProxyStatusSettled` 队列里。 */
 function settledProxyStatusRead(): Promise<void> {
@@ -2527,30 +2518,26 @@ export const useAppStore = create<AppState>((set, get) => ({
     // （CreateRunWorkspace「useAppStore((s) => s.createReturnFactsOf())」），
     // 每次现造对象会让 getSnapshot 恒新 ⇒ "Maximum update depth exceeded"
     // ⇒ 无 error boundary 整树卸载（2026-10-15 实机坐实：打开创建页即白屏）。
-    // 输入只有 createReturnLocation 与 runs 两个引用 ⇒ 按引用缓存，
-    // 两者任一变化才重建；判据本体（decideCreateReturn + 文案派生）不变。
-    const hit = createReturnFactsCache;
-    if (hit !== null && hit.location === state.createReturnLocation && hit.runs === state.runs) {
-      return hit.facts;
-    }
-    const decision = decideCreateReturn({
-      location: state.createReturnLocation,
-      knownRunIds: state.runs.map((run) => run.id),
-    });
-    const facts: CreateReturnFacts =
-      decision.kind === "restore"
-        ? { kind: "restore", label: describeReturnDestination(decision.location) }
-        : {
-            kind: "fallback",
-            label: `回到${workspaceViewName(decision.view)}`,
-            reasonText: describeReturnFallbackReason(decision.reason),
-          };
-    createReturnFactsCache = {
-      location: state.createReturnLocation,
-      runs: state.runs,
-      facts,
-    };
-    return facts;
+    // 输入只有 createReturnLocation 与 runs 两个引用 ⇒ 按引用缓存（4.4 迁
+    // runtime/create-return-facts-cache），两者任一变化才重建；判据本体
+    // （decideCreateReturn + 文案派生）留在 store：同一 decideCreateReturn 事实
+    // 喂返回动作与呈现文案。
+    return createReturnFactsRuntime.factsOf(
+      { location: state.createReturnLocation, runs: state.runs },
+      ({ location, runs }) => {
+        const decision = decideCreateReturn({
+          location,
+          knownRunIds: runs.map((run) => run.id),
+        });
+        return decision.kind === "restore"
+          ? { kind: "restore", label: describeReturnDestination(decision.location) }
+          : {
+              kind: "fallback",
+              label: `回到${workspaceViewName(decision.view)}`,
+              reasonText: describeReturnFallbackReason(decision.reason),
+            };
+      },
+    );
   },
 
   openRecordingWorkspace() {
@@ -2823,3 +2810,11 @@ const proxyCoordination = createProxyCoordinationRuntime({
   },
   getProxyStatusRead: () => useAppStore.getState().proxyStatusRead,
 });
+
+// ---------------------------------------------------------------------------
+// 派生缓存 runtime 组合（refactor-renderer 4.4）：`createReturnFactsOf` 按引用
+// 缓存的唯一所有者住在 `store/runtime/create-return-facts-cache.ts`，这里按
+// store 实例组合一次。判据回调留在 action（同一 decideCreateReturn 事实喂
+// 返回动作与呈现文案）；模块加载不预热缓存（惰性：首次 selector 消费才建）。
+// ---------------------------------------------------------------------------
+const createReturnFactsRuntime = createCreateReturnFactsCache();
