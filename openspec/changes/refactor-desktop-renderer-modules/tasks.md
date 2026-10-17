@@ -14,7 +14,7 @@
 - [x] 2.1 迁移公共展示、LLM/tool/step 展示与所需类型，保留原导出，子模块不回引 DetailPanel；迁移对应字段、缓存、错误与预算接线断言。（原入口导出指向同一实现；内部模块依赖有明确方向；调用详情完整展示与入口保持；测试迁移保留原有保证）→ 2026-10-17：新增 `detail/{DetailShared,LlmCallDetail,ToolInvokeDetail,StepDetailView}.tsx`（DetailPanel 2161→1595 行），8 个原导出全部兼容再导出指向同一实现；T02/T03/T04/T05/T09/T10/T27 断言迁移见 [台账 2.1 销账记录](test-migration-ledger.md)；全量 200 文件/2988 用例 0 失败
 - [x] 2.2 迁移 PromptForkEditor，保留 key、草稿来源、恢复和配置失效逻辑；核对普通 prompt 可执行、隔离父本仍拒绝。（prompt 和 result 编辑保持身份与提交边界；草稿修订和许可失效不被拆分改变）→ 2026-10-17：PromptForkEditor（含 startupContents）迁 `detail/PromptForkEditor.tsx`（~440 行，DetailPanel 1595→1155），8 文件 16 条接线断言随载体迁移（[台账 2.2 销账](test-migration-ledger.md)）；全量 200 文件/3030 用例 0 失败
 - [x] 2.3 迁移 ResultForkEditor，保留普通/隔离检查、轮末快照说明、确认绑定与每次授权，测试真实提交路径和草稿恢复。（prompt 和 result 编辑保持身份与提交边界；未知执行只核对且所有主动入口共用适配器）→ 2026-10-17：ForkEditor（含 toolMessageText/detectResultLanguage，684 行）迁 `detail/ResultForkEditor.tsx`（组件名保持，DetailPanel 1155→435 行只剩壳+组合层），12 文件断言随载体迁移（[台账 2.3 销账](test-migration-ledger.md)）；全量 200 文件/3010 用例 0 失败
-- [ ] 2.4 将 DetailPanel 收敛为选择/组合层，核对新增模块不改变 DOM/key；逐项迁移静态接线与确认次数测试，完成本阶段 desktop 专项回归。（调用详情完整展示与入口保持；prompt 和 result 编辑保持身份与提交边界；测试迁移保留原有保证）
+- [x] 2.4 将 DetailPanel 收敛为选择/组合层，核对新增模块不改变 DOM/key；逐项迁移静态接线与确认次数测试，完成本阶段 desktop 专项回归。（调用详情完整展示与入口保持；prompt 和 result 编辑保持身份与提交边界；测试迁移保留原有保证）→ 2026-10-17：两壳随视图迁入 detail/ 模块并导出，DetailPanel 收敛为 219 行纯选择/组合层（span kind 分发 + StepDetail/预算地图/草稿列表/滚动恢复），壳体逐字搬迁 DOM/key 零变化；4 文件壳接线断言随迁（[台账 2.4 销账](test-migration-ledger.md)）；全量 202 文件/3118 用例 0 失败 = 阶段专项回归
 
 ## 3. 拆文件连接、布局与内容
 

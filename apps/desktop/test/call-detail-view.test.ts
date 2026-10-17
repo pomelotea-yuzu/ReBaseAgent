@@ -817,8 +817,13 @@ describe("源码级接线契约：DetailPanel 的外壳接线", () => {
   });
 
   it("LlmCallDetailView 收到 resolveIoView 的结果与写入 io 的回调", () => {
-    expect(source).toContain("resolveIoView(span, ioState)");
-    expect(source).toContain("setCallReading(runId, span.id, { io: next })");
+    // refactor-renderer 2.4：壳（LlmCallDetail）随视图迁 detail/LlmCallDetail.tsx
+    const llmSource = readFileSync(
+      resolve(import.meta.dirname, "../src/renderer/src/components/detail/LlmCallDetail.tsx"),
+      "utf8",
+    );
+    expect(llmSource).toContain("resolveIoView(span, ioState)");
+    expect(llmSource).toContain("setCallReading(runId, span.id, { io: next })");
   });
 
   it("LongText 的复制调用点写的是 copyPayload(text)（不是摘要/截断串）", () => {

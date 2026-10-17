@@ -367,8 +367,9 @@ describe("3.3 接线契约：messages 与 A/B 的局部分支不得复活", () =
     resolve(import.meta.dirname, "../src/renderer/src/store.ts"),
     "utf8",
   );
+  // refactor-renderer 2.4：messages 入口与 canResend 判据随壳迁 detail/LlmCallDetail.tsx
   const PANEL = readFileSync(
-    resolve(import.meta.dirname, "../src/renderer/src/components/DetailPanel.tsx"),
+    resolve(import.meta.dirname, "../src/renderer/src/components/detail/LlmCallDetail.tsx"),
     "utf8",
   );
   // U8 5.1a：messages 编辑器迁 MessagesForkEditor ⇒ 其源码级锚点随载体改判（两边留痕）

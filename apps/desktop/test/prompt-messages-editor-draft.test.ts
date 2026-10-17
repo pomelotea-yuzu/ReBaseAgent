@@ -201,15 +201,17 @@ describe("U8 5.1b 源码级：编辑器唯一消费面在 messages 工作区，�
     // 编辑器本体已迁工作区：详情页不再 import / 挂载
     expect(code).not.toContain('from "./MessagesForkEditor"');
     expect(code).not.toContain("<MessagesForkEditor");
+    // refactor-renderer 2.4：入口按钮与 canResend 判据随壳迁 detail/LlmCallDetail.tsx
+    const shell = read("../src/renderer/src/components/detail/LlmCallDetail.tsx");
     // 入口按钮在场，且只在 canResend（proxy 来源 + 自有调用 + 已封存）时渲染
-    expect(code).toContain("data-messages-workspace-entry");
-    expect(code).toContain("canResend && run !== null");
+    expect(shell).toContain("data-messages-workspace-entry");
+    expect(shell).toContain("canResend && run !== null");
     // canResend 判据保留 proxy 来源门槛（SDK run 无此入口）+ 已封存 + 自有调用
-    expect(code).toContain(
+    expect(shell).toContain(
       'const canResend = isProxy === true && leafOwned && run?.status === "completed";',
     );
-    // 崩溃 run 的诚实说明保留
-    expect(code).toContain("该 run 运行中断（未封存），不允许作为重发起点。");
+    // 崩溃 run 的诚实说明保留（随壳迁 detail/LlmCallDetail.tsx）
+    expect(shell).toContain("该 run 运行中断（未封存），不允许作为重发起点。");
   });
 });
 

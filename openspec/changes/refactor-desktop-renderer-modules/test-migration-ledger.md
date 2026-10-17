@@ -140,3 +140,16 @@
 | T34 settings-roundtrip-invalidate | `useRevokeOnConfigChange(modelConfigStampOf(settings), ...)` 授权失效接线改读 RFE | 配置指纹撤销语义逐字保持 |
 
 验证：tsc web 0 错；biome 208 文件 0 错；**全量 200 文件/3010 用例全过 0 失败**（3 条 Unhandled Errors 为已知沙箱 EPERM 噪声）。DetailPanel 至此只剩壳与组合层——2.4 收敛挂载选择逻辑。
+
+## 2.4 销账记录（2026-10-17）
+
+迁移：LlmCallDetail/ToolInvokeDetail 两壳（142+57 行）随各自视图迁入 `detail/LlmCallDetail.tsx`/`detail/ToolInvokeDetail.tsx` 并导出；**DetailPanel 收敛为 219 行纯选择/组合层**（span kind → 详情模块分发 + StepDetailView 挂载 + 预算地图 + 草稿列表 + 滚动恢复），壳体逐字搬迁、DOM/key 零变化（call-detail-view 68 用例、fork-editor-draft 15 用例等组件级/静态契约全过佐证）。
+
+| 断言 | 新承载 | 说明 |
+|---|---|---|
+| call-detail-view「resolveIoView 结果与 io 回调」壳接线 | 改读 `detail/LlmCallDetail.tsx` | io 阅读位置接线随壳 |
+| notice-disclosure「不适用分支挂载」 | 改读 `detail/LlmCallDetail.tsx`（组件本体仍在 DetailShared） | 挂载点+展开键两半各归其位 |
+| prompt-messages-editor-draft「messages 入口/canResend/崩溃说明」 | 改读 `detail/LlmCallDetail.tsx`；容器侧否定断言（不再挂 MessagesForkEditor）保留 | 入口判据逐字随壳 |
+| proxy-ab-entry-closure「isProxy/canResend/入口条件」 | PANEL 改读 `detail/LlmCallDetail.tsx` | 「SDK run 无此入口」门槛逐字保持 |
+
+验证：tsc web 0 错；biome 全绿；**全量 202 文件/3118 用例全过 0 失败**（1 条 Unhandled Error 为沙箱 EPERM 噪声，本机收集最全一次）。**阶段 2 完成**：DetailPanel 2161→219 行，detail/ 七模块（DetailShared 203 / LlmCallDetail 338 / PromptForkEditor 458 / ResultForkEditor 718 / StepDetailView 107 / ToolInvokeDetail 176）。

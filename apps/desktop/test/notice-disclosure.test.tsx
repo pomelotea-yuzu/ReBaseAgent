@@ -183,7 +183,12 @@ describe("IsolatedParentUnsupportedNotice 接线（源码契约）", () => {
   );
 
   it("不适用分支渲染 IsolatedParentUnsupportedNotice（不是平铺长文案）", () => {
-    expect(src).toContain("<IsolatedParentUnsupportedNotice run={run} />");
+    // refactor-renderer 2.4：挂载点随壳迁 detail/LlmCallDetail.tsx（组件本体在 DetailShared）
+    const llmSrc = readFileSync(
+      resolve(import.meta.dirname, "../src/renderer/src/components/detail/LlmCallDetail.tsx"),
+      "utf8",
+    );
+    expect(llmSrc).toContain("<IsolatedParentUnsupportedNotice run={run} />");
     expect(sharedSrc).toContain("ISOLATED_PARENT_UNSUPPORTED_KEY");
   });
 

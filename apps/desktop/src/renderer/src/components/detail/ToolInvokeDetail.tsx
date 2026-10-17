@@ -1,10 +1,15 @@
 import type { SpanLine } from "@rebaseagent/trace-sdk";
 import { spanDurationMs } from "@shared/derive";
-import type { ReactNode } from "react";
+import type { RunDetail } from "@shared/ipc";
+import { type ReactNode, useMemo } from "react";
+import { draftBadgeForSpan } from "../../lib/draft-list";
 import { formatDuration, prettyJson } from "../../lib/format";
+import { useAppStore } from "../../store";
+import { isLongTextExpanded, toggleLongTextExpanded } from "../LongText";
 import { LongText } from "../LongText";
 import { WorkspaceHeading } from "../WorkspaceHeading";
 import { KeyValue, Section } from "./DetailShared";
+import { ForkEditor } from "./ResultForkEditor";
 
 /**
  * `tool.invoke` 详情的纯展示部分（U1 任务 5.5）。
@@ -109,5 +114,63 @@ export function ToolInvokeDetailView({
 
       {children}
     </>
+  );
+}
+
+/** tool.invoke 详情：入参、结果、错误（错误是数据，不改变 run 状态）＋ 分叉入口 */
+export function ToolInvokeDetail({
+  span,
+  run,
+}: {
+  span: Extract<SpanLine, { kind: "tool.invoke" }>;
+  run: RunDetail | null;
+}) {
+  const leafOwned = run?.leafSpanIds.includes(span.id) ?? false;
+  // 分叉点必须是当前 run 自身段的 tool.invoke，且 run 已封存（crashed 前缀不稳定）
+  const canFork = leafOwned && run?.status === "completed";
+
+  // 长文本展开状态按 run + 调用隔离存会话（任务 3.6，与 LlmCallDetail 同一口径）
+  const toolRunId = run?.meta.id ?? null;
+  const toolExpandedSections = useAppStore((s) =>
+    toolRunId === null || s.selectedRunId !== toolRunId
+      ? undefined
+      : s.readingOf(toolRunId).calls[span.id]?.expanded,
+  );
+  const setToolCallReading = useAppStore((s) => s.setCallReading);
+  // U3 任务 2.5：该调用的会话草稿标记（徽章数据从草稿仓库派生，useMemo 保引用稳定）
+  const drafts = useAppStore((s) => s.drafts);
+  const toolDraftBadge = useMemo(
+    () => (toolRunId === null ? null : draftBadgeForSpan(drafts, toolRunId, span.id)),
+    [drafts, toolRunId, span.id],
+  );
+  const toolLongTextProps = (key: string): { expanded: boolean; onToggle: () => void } => ({
+    expanded: isLongTextExpanded(toolExpandedSections, key),
+    onToggle: () => {
+      if (toolRunId === null) return;
+      setToolCallReading(toolRunId, span.id, {
+        expanded: toggleLongTextExpanded(toolExpandedSections, key),
+      });
+    },
+  });
+
+  return (
+    <ToolInvokeDetailView
+      span={span}
+      longTextProps={toolLongTextProps}
+      draftBadge={toolDraftBadge}
+      compact
+    >
+      {canFork && run !== null ? (
+        <ForkEditor span={span} run={run} />
+      ) : span.kind === "tool.invoke" && run !== null && !leafOwned && run.chain.length > 1 ? (
+        <div className="border-t border-gray-100 px-4 py-2 text-[11px] text-gray-400">
+          该调用位于祖先前缀（继承自父 run），不属于当前 run 自身段——打开其所属 run 才可在此重跑。
+        </div>
+      ) : run !== null && leafOwned && run.status === "crashed" ? (
+        <div className="border-t border-gray-100 px-4 py-2 text-[11px] text-gray-400">
+          该 run 运行中断（未封存），不允许作为分叉起点。
+        </div>
+      ) : null}
+    </ToolInvokeDetailView>
   );
 }
