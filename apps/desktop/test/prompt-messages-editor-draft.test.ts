@@ -28,12 +28,20 @@ const DETAIL_PANEL = readFileSync(
   "utf8",
 );
 
+// refactor-renderer 2.2：PromptForkEditor 迁独立模块 detail/PromptForkEditor.tsx
+//（容器经 import 指向同一实现）。原「在 DetailPanel 里切函数体」改为整文件作用域——
+// 禁用型断言的隔离目标就是该编辑器本身，模块边界天然隔离。
+const PROMPT_EDITOR = readFileSync(
+  resolve(import.meta.dirname, "../src/renderer/src/components/detail/PromptForkEditor.tsx"),
+  "utf8",
+);
+
 /** 切出组件函数体（到下一个顶层标记为止），使禁用型断言不误伤其他编辑器 */
 function sliceBetween(startMarker: string, endMarker: string): string {
-  const start = DETAIL_PANEL.indexOf(startMarker);
-  const end = DETAIL_PANEL.indexOf(endMarker, start + 1);
-  if (start < 0 || end < 0 || end <= start) throw new Error(`切片失败：${startMarker}`);
-  return DETAIL_PANEL.slice(start, end);
+  void endMarker; // 迁独立模块后终点标记不再需要（保留参数以维持调用点形状）
+  const start = PROMPT_EDITOR.indexOf(startMarker);
+  if (start < 0) throw new Error(`切片失败：${startMarker}`);
+  return PROMPT_EDITOR.slice(start);
 }
 
 describe("接线契约：PromptForkEditor 两字段独立草稿（任务 2.2）", () => {

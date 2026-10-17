@@ -84,16 +84,22 @@ describe("U3 5.2 接线契约（源码级）：放弃确认迁出 window.confirm
     resolve(import.meta.dirname, "../src/renderer/src/components/detail/DetailShared.tsx"),
     "utf8",
   );
+  // refactor-renderer 2.2：PromptForkEditor（prompt 字段/横幅放弃点）迁独立模块
+  const promptEditor = readFileSync(
+    resolve(import.meta.dirname, "../src/renderer/src/components/detail/PromptForkEditor.tsx"),
+    "utf8",
+  );
 
-  it("放弃确认全部经 requestConfirm（DetailPanel 4 + DetailShared 1 + A/B 2 + messages 2 + 创建 1）", () => {
-    // DetailPanel：prompt 字段/横幅2 + result 字段/横幅2（messages/A-B 两对随 U8 迁出）
-    // refactor-renderer 2.1：「列表 1」随 RunDraftListSection 迁至 detail/DetailShared.tsx
-    //（原 DetailPanel 5 = 现容器 4 + 承载模块 1，保证不变、计数按实际载体重分）
+  it("放弃确认全部经 requestConfirm（DetailPanel 2 + DetailShared 1 + PromptForkEditor 2 + A/B 2 + messages 2 + 创建 1）", () => {
+    // DetailPanel：result 字段/横幅 2（messages/A-B 两对随 U8 迁出；prompt 对随
+    // refactor-renderer 2.2 迁 PromptForkEditor）+ DetailShared 列表 1（2.1）
     expect(detail).toContain("void requestConfirm({");
     const detailCount = (detail.match(/requestConfirm\(\{/g) ?? []).length;
-    expect(detailCount).toBe(4);
+    expect(detailCount).toBe(2);
     const sharedCount = (detailShared.match(/requestConfirm\(\{/g) ?? []).length;
     expect(sharedCount).toBe(1);
+    // PromptForkEditor：prompt 字段/横幅 2 处随 2.2 迁独立模块（同一放弃语义）
+    expect((promptEditor.match(/requestConfirm\(\{/g) ?? []).length).toBe(2);
     // A/B 整批/横幅 2 处在 ModelAbEditor；messages 字段/横幅 2 处在 MessagesForkEditor
     expect((modelAbEditor.match(/requestConfirm\(\{/g) ?? []).length).toBe(2);
     expect((messagesEditor.match(/requestConfirm\(\{/g) ?? []).length).toBe(2);
@@ -123,8 +129,9 @@ describe("U3 5.2 接线契约（源码级）：放弃确认迁出 window.confirm
 
   it("异步确认后 CAS 仍按快照修订校验（旧确认不能删新修订）", () => {
     // 每个放弃执行点必须用快照 revision 而非实时 revision 调 discard
-    // （U8 3.1a：A/B 编辑器迁 ModelAbEditor ⇒ 第三条锚点随载体改判，两边留痕）
-    expect(detail).toContain("discardCallDraft(draftKeyOf(field), snapshot.revision)");
+    // （U8 3.1a：A/B 编辑器迁 ModelAbEditor ⇒ 第三条锚点随载体改判，两边留痕；
+    //   refactor-renderer 2.2：prompt 的放弃点迁 PromptForkEditor，锚点第四次随载体改判）
+    expect(promptEditor).toContain("discardCallDraft(draftKeyOf(field), snapshot.revision)");
     expect(detail).toContain("discardCallDraft(draftKey, snapshot.revision)");
     expect(modelAbEditor).toContain("discardModelAbDraft(draftKey, snapshot.revision)");
     expect(create).toContain("discardCreateRunDraft(current.revision)");

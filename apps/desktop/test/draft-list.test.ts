@@ -255,8 +255,14 @@ describe("接线契约：草稿入口与失效视图（任务 2.5）", () => {
     expect(SHARED_SOURCE).toContain("<DraftListPanel");
     expect(DETAIL_PANEL).toContain("DraftSourceBanner");
     // 四个编辑器都叠加重验闸门（恢复重验通过才恢复执行资格）
+    // refactor-renderer 2.2：prompt 闸门随 PromptForkEditor 迁独立模块（result 闸门留容器）
+    const PROMPT_EDITOR = readFileSync(
+      resolve(import.meta.dirname, "../src/renderer/src/components/detail/PromptForkEditor.tsx"),
+      "utf8",
+    );
     const gates =
       (DETAIL_PANEL.match(/sourceBlocked === null/g)?.length ?? 0) +
+      (PROMPT_EDITOR.match(/sourceBlocked === null/g)?.length ?? 0) +
       (MODEL_AB_EDITOR.match(/sourceBlocked === null/g)?.length ?? 0);
     expect(gates).toBeGreaterThanOrEqual(4);
   });

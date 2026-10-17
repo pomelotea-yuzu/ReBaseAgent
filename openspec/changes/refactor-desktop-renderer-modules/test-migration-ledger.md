@@ -102,3 +102,20 @@
 | T10 draft-list | `deriveDraftList(drafts, { runId })` + `<DraftListPanel` 断言 | 改读 `detail/DetailShared.tsx` | 挂载点 `<RunDraftListSection runId={selectedRunId} />` 断言仍在 DetailPanel；新增「容器经 detail/DetailShared 导入」接线断言 |
 
 验证：tsc web/node 0 错；biome 5 文件 0 错；受影响 8 个测试文件单包复跑全过（并行收集受沙箱 EPERM 噪声影响，单跑为准）；**全量 200 文件/2988 用例全过 0 失败**（3 条 Unhandled Errors 为已知沙箱 EPERM 噪声）。
+
+## 2.2 销账记录（2026-10-17）
+
+迁移：PromptForkEditor（含 startupContents）DetailPanel→`detail/PromptForkEditor.tsx`（~440 行，DetailPanel 1595→1155 行）。DetailPanel 经 import 指向同一实现（组件原非导出，无兼容再导出需求）。
+
+| T | 迁移的断言 | 新承载 | 说明 |
+|---|---|---|---|
+| T30 prompt-messages-editor-draft | 6 条 PFE 源码切片断言（sliceBetween 两字段独立键/失效 CAS/对照网格/4.3 去重） | 改读 `detail/PromptForkEditor.tsx` 整文件作用域 | 原容器内切片改为模块边界天然隔离；容器侧 messages 入口断言不变 |
+| T05 confirm-dialog | requestConfirm 计数 4→**DetailPanel 2 + PFE 2**；CAS 锚点 `discardCallDraft(draftKeyOf(field), snapshot.revision)` 改读 PFE | 计数按载体重分，总保证（prompt/result 字段+横幅 + 列表）不变 |
+| T09 draft-compare-grid | `compareKey="prompt"` case 改读 `detail/PromptForkEditor.tsx`；200/140px 禁用扫描扩至 PFE | compareKey=tool-result 仍在容器（ForkEditor 未迁） |
+| T10 draft-list | 重验闸门计数改 **DetailPanel + PromptForkEditor + ModelAbEditor ≥ 4** | prompt 闸门随迁 |
+| T11 draft-submission | `beginDraftSubmission({channel:"prompt"` 与 `assoc.submittedText`/`inProgress`/`isDraftFrozen`/`本次提交待处理` 计数拆到 PFE（各 1），容器留 result（各 1） | 快照绑定与冻结语义保证不变；新增 PFE 侧「不直接提交渲染值」否定断言 |
+| T12 entry-gate | PROMPT 切片改读 `detail/PromptForkEditor.tsx`（editorBody 切片函数随之删除） | 门禁/确认/按钮禁用三组断言逐字保持 |
+| T13 execution-confirmation-store | 订阅现算文件清单 +PFE；`promptBinding` 锚点改读 PFE；`<ConfirmationBlock` 计数 3→**容器 2 + PFE 1**；prompt 资格原因就近显示改读 PFE | messages/A-B 断言不变 |
+| T24 modal-dialog | useEscapeClose 计数 2→**容器 1 + PFE 1**；收起动作 escBlocks 同步拆分 | 收起=保留草稿语义逐字保持 |
+
+验证：tsc web 0 错；biome 14 文件 0 错；8 个受影响测试文件单跑全过；**全量 200 文件/3030 用例全过 0 失败**（3 条 Unhandled Errors 为已知沙箱 EPERM 噪声）。

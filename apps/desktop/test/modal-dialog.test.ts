@@ -166,14 +166,16 @@ describe("U3 5.1 接线契约（源码级）", () => {
 
   it("U3 6.10：四个编辑区都接 useEscapeClose，且与收起按钮同动作（保留草稿）", () => {
     // U8 3.1a/5.1a：messages 与 A/B 编辑器迁独立工作区组件 ⇒ 锚点随载体改判（两边留痕）：
-    // DetailPanel 两处（result/prompt，形态不变）+ ModelAbEditor / MessagesForkEditor 各一处
+    // refactor-renderer 2.2：prompt 编辑器迁 detail/PromptForkEditor.tsx ⇒ 容器仅 result 一处
     // （alwaysOpen 形态下不挂 Esc——工作区常开没有"收起"语义）。
     const panel = R("../src/renderer/src/components/DetailPanel.tsx");
+    const promptEditor = R("../src/renderer/src/components/detail/PromptForkEditor.tsx");
     const modelAbEditor = R("../src/renderer/src/components/ModelAbEditor.tsx");
     const messagesEditor = R("../src/renderer/src/components/MessagesForkEditor.tsx");
     const hook = R("../src/renderer/src/lib/use-escape-close.ts");
-    // 编辑区各一处（result / prompt 在 DetailPanel；messages / A-B 在各自工作区组件）
-    expect(panel.match(/useEscapeClose\(open && !inProgress/g)?.length).toBe(2);
+    // 编辑区各一处（result 在 DetailPanel；prompt/messages/A-B 在各自模块）
+    expect(panel.match(/useEscapeClose\(open && !inProgress/g)?.length).toBe(1);
+    expect(promptEditor.match(/useEscapeClose\(open && !inProgress/g)?.length).toBe(1);
     expect(modelAbEditor.match(/useEscapeClose\(open && !alwaysOpen && !inProgress/g)?.length).toBe(
       1,
     );
@@ -184,7 +186,11 @@ describe("U3 5.1 接线契约（源码级）", () => {
     const escBlocks = panel.match(
       /useEscapeClose\(open && !inProgress, \(\) => \{\s*reset[A-Za-z]+\(\);\s*setOpen\(false\);\s*\}\);/g,
     );
-    expect(escBlocks?.length).toBe(2);
+    expect(escBlocks?.length).toBe(1);
+    const promptEscBlocks = promptEditor.match(
+      /useEscapeClose\(open && !inProgress, \(\) => \{\s*reset[A-Za-z]+\(\);\s*setOpen\(false\);\s*\}\);/g,
+    );
+    expect(promptEscBlocks?.length).toBe(1);
     expect(modelAbEditor).toContain("resetModelAb();\n    setOpen(false);");
     expect(messagesEditor).toContain("resetFork();\n    setOpen(false);");
     expect(panel).toContain('import { useEscapeClose } from "../lib/use-escape-close";');

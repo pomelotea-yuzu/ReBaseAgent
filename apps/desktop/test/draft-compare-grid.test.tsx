@@ -102,9 +102,10 @@ describe("DraftCompareGrid 布局层（能力断言）", () => {
 
 describe("四处调用点共用同一布局层（接线契约，任务 2.2/2.3）", () => {
   it("messages / prompt / tool-result / model-ab 都走 DraftCompareGrid，编辑器 height=100%", () => {
+    // refactor-renderer 2.2：prompt 对照区随 PromptForkEditor 迁 detail/ 独立模块
     const cases: Array<[string, string]> = [
       ["components/MessagesForkEditor.tsx", 'compareKey="messages"'],
-      ["components/DetailPanel.tsx", 'compareKey="prompt"'],
+      ["components/detail/PromptForkEditor.tsx", 'compareKey="prompt"'],
       ["components/DetailPanel.tsx", 'compareKey="tool-result"'],
       ["components/ModelAbEditor.tsx", 'compareKey="model-ab"'],
     ];
@@ -119,6 +120,7 @@ describe("四处调用点共用同一布局层（接线契约，任务 2.2/2.3�
       "components/MessagesForkEditor.tsx",
       "components/DetailPanel.tsx",
       "components/ModelAbEditor.tsx",
+      "components/detail/PromptForkEditor.tsx",
       "components/detail/ToolInvokeDetail.tsx",
     ]) {
       expect(auditForbiddenTokens(rendererSrc(file), ['height="200px"', 'height="140px"'])).toEqual(

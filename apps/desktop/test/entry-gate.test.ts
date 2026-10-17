@@ -147,15 +147,12 @@ describe("4.4 接线契约：prompt / messages / A-B 也接同一份会话", () 
     "utf8",
   );
 
-  /** 切出某个编辑器（从声明到下一个顶层声明），避免"文件里某处出现过"式的假绿 */
-  function editorBody(start: string, end: string, source: string = panel): string {
-    const from = source.indexOf(start);
-    const to = source.indexOf(end, from + start.length);
-    if (from < 0 || to < 0) throw new Error(`unreachable：切不出 ${start}`);
-    return source.slice(from, to);
-  }
-
-  const PROMPT = editorBody("function PromptForkEditor({", "function LlmCallDetail(");
+  // refactor-renderer 2.2：PromptForkEditor 迁独立文件——PROMPT 改读新文件（整文件即编辑器，
+  // 与 U8 3.1a/5.1a 的 ModelAbEditor/MessagesForkEditor 迁移同一改判方式）
+  const PROMPT = readFileSync(
+    resolve(import.meta.dirname, "../src/renderer/src/components/detail/PromptForkEditor.tsx"),
+    "utf8",
+  );
   // ⚠️ U8 5.1a 改判留痕（2026-10-01）：MessagesForkEditor 提取为独立文件
   // components/MessagesForkEditor.tsx（逐字搬出、零行为变化），切片断言改读新文件。
   const MESSAGES = readFileSync(

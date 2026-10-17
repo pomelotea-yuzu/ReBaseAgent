@@ -180,13 +180,15 @@ describe("4.4 接线契约：确认判据只有一份", () => {
     // armExecutionConfirmation 落库后不触发重渲染 ⇒ 五个入口的确认按钮永远停在未确认态。
     // 修正形状：confirmed 一律在 useAppStore 选择器内现算（订阅返回的布尔值本身）。
     // ⚠️ U8 5.1a 改判留痕（2026-10-01）：确认面随载体迁移拆到四个文件——
-    // result/prompt 仍在 DetailPanel；A-B 自 3.1a 起在 ModelAbEditor.tsx；
-    // messages 自 5.1a 起在 MessagesForkEditor.tsx。判据不变：每个入口的选择器内现算。
+    // A-B 自 3.1a 起在 ModelAbEditor.tsx；messages 自 5.1a 起在 MessagesForkEditor.tsx。
+    // refactor-renderer 2.2：prompt 确认面随 PromptForkEditor 迁 detail/ 独立模块（result 留容器）。
+    // 判据不变：每个入口的选择器内现算。
     for (const name of [
       "components/CreateRunWorkspace.tsx",
       "components/DetailPanel.tsx",
       "components/ModelAbEditor.tsx",
       "components/MessagesForkEditor.tsx",
+      "components/detail/PromptForkEditor.tsx",
     ]) {
       const flat = read(name).replace(/\s+/g, " ");
       // 旧写法（只订阅函数引用）不得复活
@@ -196,9 +198,9 @@ describe("4.4 接线契约：确认判据只有一份", () => {
     const create = read("components/CreateRunWorkspace.tsx").replace(/\s+/g, " ");
     expect(create).toContain("s.executionConfirmationReady(confirmation)");
     const panel = read("components/DetailPanel.tsx").replace(/\s+/g, " ");
-    for (const binding of ["promptBinding", "executionBinding"]) {
-      expect(panel).toContain(`s.executionConfirmationReady(${binding})`);
-    }
+    expect(panel).toContain("s.executionConfirmationReady(executionBinding)");
+    const promptEditor = read("components/detail/PromptForkEditor.tsx").replace(/\s+/g, " ");
+    expect(promptEditor).toContain("s.executionConfirmationReady(promptBinding)");
     const modelAbEditor = read("components/ModelAbEditor.tsx").replace(/\s+/g, " ");
     expect(modelAbEditor).toContain("s.executionConfirmationReady(abBinding)");
     const messagesEditor = read("components/MessagesForkEditor.tsx").replace(/\s+/g, " ");
@@ -231,11 +233,14 @@ describe("4.4 接线契约：确认判据只有一份", () => {
     // ⚠️ UI 密度 3.1 改判留痕：确认按钮统一由共享 ConfirmationBlock 渲染
     // （data-confirm-execution 只在组件内部出现一次），各入口按 <ConfirmationBlock 用法计数。
     const panel = read("components/DetailPanel.tsx");
+    const promptEditor = read("components/detail/PromptForkEditor.tsx");
     const create = read("components/CreateRunWorkspace.tsx");
     const modelAbEditor = read("components/ModelAbEditor.tsx");
     const messagesEditor = read("components/MessagesForkEditor.tsx");
     const block = read("components/ConfirmationBlock.tsx");
-    expect(panel.match(/<ConfirmationBlock/g)?.length).toBe(3);
+    // refactor-renderer 2.2：prompt 的确认块迁 PromptForkEditor（容器留 result 两个）
+    expect(panel.match(/<ConfirmationBlock/g)?.length).toBe(2);
+    expect(promptEditor.match(/<ConfirmationBlock/g)?.length).toBe(1);
     expect(create.match(/<ConfirmationBlock/g)?.length).toBe(1);
     expect(modelAbEditor.match(/<ConfirmationBlock/g)?.length).toBe(1);
     expect(messagesEditor.match(/<ConfirmationBlock/g)?.length).toBe(1);
@@ -271,7 +276,8 @@ describe("4.4 接线契约：确认判据只有一份", () => {
   });
 
   it("prompt 与 messages 的资格原因就近显示（不是只把按钮禁掉）", () => {
-    const panel = read("components/DetailPanel.tsx");
+    // refactor-renderer 2.2：prompt 确认块迁 PromptForkEditor
+    const panel = read("components/detail/PromptForkEditor.tsx");
     // 3.1 起确认块换共享 ConfirmationBlock：原因经 blocked prop 传入（钉**判据形状**：
     // 只写"出现过 submitBlocked"是假门 —— 反向条件也满足它；确认后原因必须收起）
     const promptAt = panel.indexOf("已核对，确认从头重跑");
