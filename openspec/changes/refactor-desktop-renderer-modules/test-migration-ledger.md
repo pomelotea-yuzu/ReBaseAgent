@@ -169,3 +169,11 @@
 | T29 panel-collapse-headers | 目录收起开关断言 | 改读 Body | |
 
 验证：tsc web 0 错；biome 208 文件 0 错；**全量 203 文件/3180 用例全过 0 失败 0 Unhandled Errors——本机首次完整复现权威三元组**（exit=0）。3.4（长文件查找/复制/模式/滚动回归）由上述单测承载，3.5（导出实际 action 回归）由 workspace-export 系列测试 + 6.3.3 实机承担。
+
+## 4.2 销账记录（2026-10-17）
+
+迁移：store.ts 轮询整段（pollState/pollTimer/pollContextOf/applyPollStep/runStatusPoll/rescheduleStatusPoll/stopOperationStatusPolling + 节注释，原 L304–353）→ 新增 `store/runtime/operation-polling.ts`（唯一资源所有者，工厂 `createOperationPollingRuntime` 按实例组合一次；store 依赖经惰性回调 `getSession`/`refreshOperationStatus` 注入——本模块不导入 useAppStore、不在模块顶层缓存实例，符合 design D2/D3）。store.ts 保留原入口兼容导出 `stopOperationStatusPolling`（指向同一 runtime 实现）；store.ts 2880→2855 行。成员/函数逐字随迁（含 JSDoc 与任务 4.5/4.6 注释语义）。
+
+**本阶段无需改读的静态断言**（逐模块核对结论）：轮询的行为验证全部经 store action + 动态导入承载（operation-polling 9 / operation-session-epoch 4 / operation-races 9 = 22 用例，假时钟判据），这些测试不读 store.ts 源码；全部测试文件中唯一锚定轮询符号的静态断言是 `navigation-intent-store.test.ts` 3.4 的切片边界 `indexOf("async ensureOperationStatusPolling")`——该 action 体本轮不动（阶段 5 才迁 slices/operations），边界仍有效。`stopOperationStatusPolling` 模块级导出在生产代码无直接导入方（仅 action 转发与测试经 `useAppStore.getState()` 消费），兼容导出保留即活证据。
+
+验证：tsc web/node 双 0；biome 改动 2 文件 0 错（全仓 check 的报错仅来自 2 个**未跟踪本地脚本** gen-readme-demo.cjs/readme-shots-cdp.cjs——从未入库、与本轮无关，跟踪树全净）；定向 3 文件 22 用例全过；**全量 203 文件/3180 用例 0 失败 0 Unhandled Errors（singleFork，与权威三元组一致，exit=0）**。

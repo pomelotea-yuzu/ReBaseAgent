@@ -27,7 +27,7 @@
 ## 4. 拆 store 类型与资源管理
 
 - [x] 4.1 按归属表拆分 AppState 接口并聚合完整类型；定义带类型的 set/get/runtime 上下文，保留原字段/action 签名和入口导出，禁止 any/类型断言掩盖缺失实现。（原入口导出指向同一实现；分片组合不覆盖状态或动作）→ 2026-10-17：192 个成员按 [ownership-map](ownership-map.md) 拆入 store/slices/{runs,reading,drafts,operations,results,compare,navigation,configuration}.ts（成员逐字随迁、零 any），store/types.ts 交叉聚合 AppState；ExperimentSourceState/idleExperimentSource 随 navigation 域迁 slices 并经原入口兼容导出；唯一 create 不动，5 个原导出全部保留
-- [ ] 4.2 将轮询移到单一 runtime 所有者，保留停止导出和在飞守卫，假时钟验证重复 ensure、慢响应、停止后响应及未知不重放。（资源重复启停保持原有纪律；未知执行只核对且所有主动入口共用适配器）
+- [x] 4.2 将轮询移到单一 runtime 所有者，保留停止导出和在飞守卫，假时钟验证重复 ensure、慢响应、停止后响应及未知不重放。（资源重复启停保持原有纪律；未知执行只核对且所有主动入口共用适配器）→ 2026-10-17：轮询整段（pollState/pollTimer/pollContextOf/applyPollStep/runStatusPoll/rescheduleStatusPoll/stopOperationStatusPolling，含 JSDoc）迁 `store/runtime/operation-polling.ts` 唯一所有者；store.ts 在唯一 create 之后组合一次（惰性回调注入 getSession/refreshOperationStatus，本模块不导入 useAppStore、不在模块顶层缓存实例）；原入口兼容导出 `stopOperationStatusPolling` 指向同一实现；行为验证 = operation-polling/operation-session-epoch/operation-races 22 用例全过（假时钟判据），销账见 [台账 4.2](test-migration-ledger.md)；全量 203 文件/3180 用例 0 失败
 - [ ] 4.3 迁移代理订阅句柄与静默等待者，保留 action 启动时点、幂等释放、尾随结算后唤醒；受控 Promise 验证配置和消息入口交错。（资源重复启停保持原有纪律；代理事实和配置协调仍取最新有效读取）
 - [ ] 4.4 迁移派生缓存和 runtime 组合，惰性访问完整 state；验证导入/初始化不多发请求，返回事实引用不变且页面稳定，无第二 store。（初始化和派生引用保持稳定；分片组合不覆盖状态或动作）
 

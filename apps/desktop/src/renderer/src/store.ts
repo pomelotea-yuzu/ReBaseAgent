@@ -150,16 +150,6 @@ import {
   releaseNavigationIntent,
 } from "./lib/navigation-intent";
 import {
-  type PollContext,
-  type PollState,
-  type PollStep,
-  disarmPoll,
-  initialPollState,
-  onPollSettled,
-  onResponseSettled,
-  onTimerFired,
-} from "./lib/operation-polling";
-import {
   type OperationBlockedBy,
   type OperationSession,
   type PendingSubmission,
@@ -170,7 +160,6 @@ import {
   captureGeneration,
   deriveGate,
   endLocalSubmission,
-  hasSameEpochPending,
   initialSession,
   markUnknown,
   newlySettledOperations,
@@ -236,6 +225,7 @@ import {
   resolveSourceAvailability,
 } from "./lib/workspace-selection";
 import type { FilterVisibility, SourceAvailability } from "./lib/workspace-selection";
+import { createOperationPollingRuntime } from "./store/runtime/operation-polling";
 // 兼容导出（4.1）：ExperimentSourceState/idleExperimentSource 迁 slices/navigation，指向同一实现
 import { idleExperimentSource } from "./store/slices/navigation";
 import type { AppState } from "./store/types";
@@ -302,55 +292,10 @@ function inspectAck(
 }
 
 // ---------------------------------------------------------------------------
-// 单路有界轮询（任务 4.5）：判据在 `lib/operation-polling.ts`，这里只管那一个计时器。
+// 单路有界轮询（refactor-renderer 4.2）：判据在 `lib/operation-polling.ts`，
+// 计时器资源整体迁 `store/runtime/operation-polling.ts`（唯一所有者，见文件尾组合）。
 // 轮询**只读 status**，绝不重放业务 payload（重放等于自动重发，spec 明令禁止）。
 // ---------------------------------------------------------------------------
-
-let pollState: PollState = initialPollState();
-let pollTimer: ReturnType<typeof setTimeout> | null = null;
-
-function pollContextOf(session: OperationSession): PollContext {
-  return {
-    // 本地未确认终态的提交也算"还在跑"：回执丢失时正是需要核对的时候。
-    // 任务 4.6：只数**同 epoch** 的在飞身份——旧会话的未知历史该被核对，但不该永远锁住新会话。
-    hasActive: session.activeOperationId !== null || hasSameEpochPending(session),
-    unknown: session.unknown,
-  };
-}
-
-/** 任何一步都先清掉旧定时器 ⇒ 同一时刻至多一个待触发的轮询 */
-function applyPollStep(step: PollStep): void {
-  pollState = step.state;
-  if (pollTimer !== null) {
-    clearTimeout(pollTimer);
-    pollTimer = null;
-  }
-  if (step.action.type === "arm") {
-    const delay = step.action.delayMs;
-    pollTimer = setTimeout(() => {
-      pollTimer = null;
-      void runStatusPoll();
-    }, delay);
-  }
-}
-
-/** 停止自动轮询（保留在飞守卫；手动核对不受它限制） */
-export function stopOperationStatusPolling(): void {
-  applyPollStep({ state: disarmPoll(pollState), action: { type: "none" } });
-}
-
-async function runStatusPoll(): Promise<void> {
-  const step = onTimerFired(pollState, pollContextOf(useAppStore.getState().operations));
-  pollState = step.state;
-  if (step.action.type !== "poll") return;
-  const session = await useAppStore.getState().refreshOperationStatus();
-  applyPollStep(onPollSettled(pollState, pollContextOf(session), !session.unknown));
-}
-
-/** 可信响应/握手之后重新计时（计时起点是"响应完成"，慢响应不会堆积） */
-function rescheduleStatusPoll(): void {
-  applyPollStep(onResponseSettled(pollState, pollContextOf(useAppStore.getState().operations)));
-}
 
 /**
  * 主动执行的统一提交适配器（U4 design D6，tasks 4.1/4.2/4.3 的适配器半边）。
@@ -2877,3 +2822,24 @@ export const useAppStore = create<AppState>((set, get) => ({
     return true;
   },
 }));
+
+// ---------------------------------------------------------------------------
+// 轮询 runtime 组合（refactor-renderer 4.2）：单路有界轮询的唯一所有者住在
+// `store/runtime/operation-polling.ts`，这里按 store 实例组合一次（design D3）。
+// store 依赖用惰性回调注入（调用时才 `getState()`），与搬迁前逐字等价；
+// 模块加载不启动任何资源（轮询全部由 action/组件调用点惰性触发）。
+// ---------------------------------------------------------------------------
+const operationPolling = createOperationPollingRuntime({
+  getSession: () => useAppStore.getState().operations,
+  refreshOperationStatus: () => useAppStore.getState().refreshOperationStatus(),
+});
+
+/** 可信响应/握手之后重新计时（计时起点是"响应完成"，慢响应不会堆积） */
+function rescheduleStatusPoll(): void {
+  operationPolling.rescheduleStatusPoll();
+}
+
+/** 停止自动轮询（保留在飞守卫；手动核对不受它限制）——原入口兼容导出，指向同一 runtime 实现 */
+export function stopOperationStatusPolling(): void {
+  operationPolling.stopOperationStatusPolling();
+}
