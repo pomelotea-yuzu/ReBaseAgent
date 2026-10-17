@@ -180,7 +180,8 @@ describe("2.5 MonacoDiffEditor 对齐单编辑器的宿主/恢复/视图状态�
 });
 
 describe("2.5 file diff 不参与视图状态（U2 4.3 通道唯一权威）", () => {
-  const WFS = stripComments(read("components/WorkspaceFileView.tsx"));
+  // refactor-renderer 3.2：file diff 调用点随 FileContent 迁 workspace-file/FileContent.tsx
+  const WFS = stripComments(read("components/workspace-file/FileContent.tsx"));
 
   it("file diff 调用点只有 data-monaco-host，无 data-monaco-target", () => {
     const start = WFS.indexOf('data-monaco-host="file-diff"');

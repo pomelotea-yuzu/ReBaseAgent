@@ -35,9 +35,21 @@ vi.mock("@monaco-editor/react", () => ({
 const { WorkspaceFileViewBody } = await import("../src/renderer/src/components/WorkspaceFileView");
 const { deriveCheckpointOptions } = await import("../src/renderer/src/lib/workspace-files");
 
-/** 组件源码（能力断言 + 接线契约共用） */
-const SRC_BODY = readFileSync(
+// refactor-renderer 3.1/3.2：文件页拆三模块——连接层（原文件）、Body（布局）、FileContent（内容区）。
+// 断言按真实承载模块取源；「不得出现」类否定断言逐模块核对（不允许任何一处复活）。
+const CONN = readFileSync(
   resolve(import.meta.dirname, "../src/renderer/src/components/WorkspaceFileView.tsx"),
+  "utf8",
+);
+const BODY = readFileSync(
+  resolve(
+    import.meta.dirname,
+    "../src/renderer/src/components/workspace-file/WorkspaceFileViewBody.tsx",
+  ),
+  "utf8",
+);
+const FC = readFileSync(
+  resolve(import.meta.dirname, "../src/renderer/src/components/workspace-file/FileContent.tsx"),
   "utf8",
 );
 
@@ -197,10 +209,12 @@ describe("U2 3.2 两侧独立状态（能力断言）", () => {
 
   it("**旧粗暴分支必须消失**：不得出现「两侧都没有内容 ⇒ 不渲染编辑器」的合并判据", () => {
     // 旧形态：!sides.hasContent 一刀切（把"未读/失败"和"确实不存在"混为一谈）
-    expect(SRC_BODY).not.toContain("!sides.hasContent");
-    expect(SRC_BODY).not.toContain("初始与所选检查点在两侧都没有可显示的内容");
-    // 改为显式资格判定 canEnterTextDiff（U2 3.3）
-    expect(SRC_BODY).toContain("canEnterTextDiff(");
+    for (const carrier of [CONN, BODY, FC]) {
+      expect(carrier).not.toContain("!sides.hasContent");
+      expect(carrier).not.toContain("初始与所选检查点在两侧都没有可显示的内容");
+    }
+    // 改为显式资格判定 canEnterTextDiff（U2 3.3；承载在 FileContent）
+    expect(FC).toContain("canEnterTextDiff(");
   });
 
   it("一侧不可比较、另一侧真实文本 ⇒ **不进** diff 并标出该侧具体成因（不置空侧）", () => {
@@ -478,7 +492,7 @@ describe("U2 3.4 目录搜索与变化筛选（能力断言）", () => {
 // ---------------------------------------------------------------------------
 
 describe("U2 3.1 接线契约：代次守卫，不退回 cancelled 布尔", () => {
-  const SRC = SRC_BODY;
+  const SRC = CONN;
 
   it("三个请求面各持一个 RequestGuard 实例", () => {
     expect(SRC).toContain("new RequestGuard()");
@@ -518,13 +532,13 @@ describe("U2 3.1 接线契约：代次守卫，不退回 cancelled 布尔", () =
   });
 
   it("**FileContent 不得自己拉初始侧**（未读=不存在的根因，须由连接层独立维持）", () => {
-    // FileContent 函数体内不得出现 readWorkspaceFile / fetchInitial 的调用
-    const fileContentStart = SRC.indexOf("function FileContent(");
-    expect(fileContentStart).toBeGreaterThan(-1);
-    const body = SRC.slice(fileContentStart);
-    expect(body).not.toContain("useEffect(");
-    expect(body).not.toContain("fetchInitial(null");
-    expect(body).not.toContain("useState<WorkspaceReadFileResult");
+    // refactor-renderer 3.2：FileContent 是独立模块——整个文件不得出现拉取调用/拉取态
+    expect(FC).not.toContain("readWorkspaceFile");
+    expect(FC).not.toContain("fetchInitial(null");
+    expect(FC).not.toContain("useState<WorkspaceReadFileResult");
+    // 拉取职责仍在连接层（原 WorkspaceFileView）：readWorkspaceFile 动作只在这里消费
+    expect(CONN).toContain("useAppStore((s) => s.readWorkspaceFile)");
+    expect(CONN).toContain("void readWorkspaceFile(");
   });
 
   it("两侧读取**互不为前置条件**：初始侧 effect 不依赖所选侧结果", () => {
@@ -573,14 +587,15 @@ describe("U2 3.1 接线契约：代次守卫，不退回 cancelled 布尔", () =
 });
 
 describe("U2 3.4 接线契约：搜索/筛选/空态/计数走纯派生层", () => {
-  const SRC = SRC_BODY;
+  const SRC = CONN;
 
   it("三个派生全部来自 lib/file-directory（组件不自己 filter 一遍）", () => {
-    expect(SRC).toContain("filterFiles(");
-    expect(SRC).toContain("deriveDirectoryEmptyReason(");
-    expect(SRC).toContain("directoryCounts(");
+    // refactor-renderer 3.1：目录派生随 Body 迁 workspace-file/WorkspaceFileViewBody.tsx
+    expect(BODY).toContain("filterFiles(");
+    expect(BODY).toContain("deriveDirectoryEmptyReason(");
+    expect(BODY).toContain("directoryCounts(");
     // 不得在 Body 内自造过滤（例如直接 inspect.files.filter(…change===)）
-    expect(SRC).not.toMatch(/inspect\.files\.filter\(/);
+    expect(BODY).not.toMatch(/inspect\.files\.filter\(/);
   });
 
   it("auto 落地走 resolveChangeFilter（连接层算好再传），而非组件内联三元", () => {
@@ -598,9 +613,10 @@ describe("U2 3.4 接线契约：搜索/筛选/空态/计数走纯派生层", () 
   it("搜索词与筛选都接入展示层（缺一个按钮/输入就永不出现）", () => {
     expect(SRC).toContain("query={");
     expect(SRC).toContain("onQuery={");
-    expect(SRC).toContain("按完整路径搜索");
-    expect(SRC).toContain("查看全部");
-    expect(SRC).toContain("清空搜索");
+    // 搜索/空态文案的承载在 Body（refactor-renderer 3.1）
+    expect(BODY).toContain("按完整路径搜索");
+    expect(BODY).toContain("查看全部");
+    expect(BODY).toContain("清空搜索");
   });
 });
 
@@ -722,27 +738,31 @@ describe("U2 第4组 容器布局与阅读工具（能力断言）", () => {
 // ---------------------------------------------------------------------------
 
 describe("U2 第4组 接线契约：容器测量与布局判据", () => {
-  const SRC = SRC_BODY;
+  const SRC = BODY;
 
   it("容器宽度由 ResizeObserver 实测（不是窗口断点），并驱动布局判据", () => {
-    expect(SRC).toContain("useContainerWidth");
-    expect(SRC).toContain("decideDirResident(");
-    expect(SRC).toContain("decideDiffMode(");
-    expect(SRC).toContain("resolveFilePaneVisibility(");
-    // 不得用 window.innerWidth / matchMedia 之类的窗口断点判宽
-    expect(SRC).not.toContain("window.innerWidth");
-    expect(SRC).not.toContain("matchMedia");
+    // refactor-renderer 3.1/3.2：useContainerWidth/目录常驻/侧栏可见在 Body；diff 模式在 FileContent
+    expect(BODY).toContain("useContainerWidth");
+    expect(BODY).toContain("decideDirResident(");
+    expect(BODY).toContain("resolveFilePaneVisibility(");
+    expect(FC).toContain("decideDiffMode(");
+    // 不得用 window.innerWidth / matchMedia 之类的窗口断点判宽（逐模块核对）
+    for (const carrier of [CONN, BODY, FC]) {
+      expect(carrier).not.toContain("window.innerWidth");
+      expect(carrier).not.toContain("matchMedia");
+    }
   });
 
   it("目录宽/收起/diff 偏好/换行/滚动**全部**读写会话状态（不是组件局部 state）", () => {
-    expect(SRC).toContain("onDirWidth={");
-    expect(SRC).toContain("onDirCollapsed={");
-    expect(SRC).toContain("onDiffPreference={");
-    expect(SRC).toContain("onWordWrap={");
-    expect(SRC).toContain("onListScrollTop={");
-    expect(SRC).toContain("setFileReading(run.meta.id, { directoryWidth:");
-    expect(SRC).toContain("setFileReading(run.meta.id, { diffPreference }");
-    expect(SRC).toContain("setFileReading(run.meta.id, { wordWrap }");
+    // refactor-renderer 3.1：回调 props 由连接层传入（Body 接住），写回动作全在连接层
+    expect(CONN).toContain("onDirWidth={");
+    expect(CONN).toContain("onDirCollapsed={");
+    expect(CONN).toContain("onDiffPreference={");
+    expect(CONN).toContain("onWordWrap={");
+    expect(CONN).toContain("onListScrollTop={");
+    expect(CONN).toContain("setFileReading(run.meta.id, { directoryWidth:");
+    expect(CONN).toContain("setFileReading(run.meta.id, { diffPreference }");
+    expect(CONN).toContain("setFileReading(run.meta.id, { wordWrap }");
   });
 
   it("**自动降级不写回偏好**：布局决策只读 prefs，不出现写回 dirWidth/diffPreference 的自动分支", () => {
@@ -752,13 +772,15 @@ describe("U2 第4组 接线契约：容器测量与布局判据", () => {
   });
 
   it("字体 ≥13px（不靠缩字号达标），换行开关接入 Monaco", () => {
-    expect(SRC).toContain("fontSize: 13");
-    expect(SRC).toMatch(/wordWrap:\s*wordWrap\s*\?\s*"on"\s*:\s*"off"/);
+    // refactor-renderer 3.2：编辑器选项承载在 FileContent
+    expect(FC).toContain("fontSize: 13");
+    expect(FC).toMatch(/wordWrap:\s*wordWrap\s*\?\s*"on"\s*:\s*"off"/);
   });
 
   it("复制走剪贴板并在失败时就近提示（不假报成功）", () => {
-    expect(SRC).toContain("clipboard.writeText(");
-    expect(SRC).toContain("copyFeedback");
+    // refactor-renderer 3.2：复制与就近提示承载在 FileContent
+    expect(FC).toContain("clipboard.writeText(");
+    expect(FC).toContain("copyFeedback");
   });
 });
 
@@ -770,7 +792,7 @@ describe("U2 第4组 接线契约：容器测量与布局判据", () => {
 // （死导入）——纯逻辑绿、功能却不存在。下面的契约专钉这一点。
 
 describe("U2 4.1 接线契约：目录宽可调整（拖拽 + 键盘）", () => {
-  const SRC = SRC_BODY;
+  const SRC = BODY;
 
   it("纯逻辑 `stepFileDirWidth` / `clampRestoredDirWidth` 真的被组件消费（不是死导入）", () => {
     expect(SRC).toContain("stepFileDirWidth(");
@@ -801,7 +823,7 @@ describe("U2 4.1 接线契约：目录宽可调整（拖拽 + 键盘）", () => 
 // `diffCount` 被写死为 1；测试只做字符串存在性 ⇒ 缺陷溜过。以下契约钉**接线**。
 
 describe("U2 4.5 接线契约：差异导航与查找必须接线", () => {
-  const SRC = SRC_BODY;
+  const SRC = FC;
 
   it("差异导航按钮有真实 onClick，调用 Monaco 的 `goToDiff`（不是装饰性按钮）", () => {
     expect(SRC).toContain("goToDiff(");
@@ -840,7 +862,7 @@ describe("U2 4.5 接线契约：差异导航与查找必须接线", () => {
 // ---------------------------------------------------------------------------
 
 describe("U2 4.6 接线契约：文件列表键盘导航与焦点", () => {
-  const SRC = SRC_BODY;
+  const SRC = BODY;
 
   it("文件列表处理方向键（ArrowUp/ArrowDown）与 Home/End", () => {
     expect(SRC).toContain("onKeyDown={onListKeyDown}");

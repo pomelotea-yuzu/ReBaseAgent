@@ -75,37 +75,42 @@ describe("U2 5.3 缺口③接线：入口真的接到 store.openFileAt（源码�
 });
 
 describe("U2 5.3 缺口①②：滚动位置真的会被**恢复**，不只是保存（源码级）", () => {
-  const SRC = read("components/WorkspaceFileView.tsx");
+  // refactor-renderer 3.1/3.2：下传在连接层；编辑器恢复/上报在 FileContent；列表读回在 Body
+  const CONN = read("components/WorkspaceFileView.tsx");
+  const FC = read("components/workspace-file/FileContent.tsx");
+  const BODY = read("components/workspace-file/WorkspaceFileViewBody.tsx");
 
   it("正文锚点：连接层下传 contentScroll 并写回 contentScroll", () => {
-    expect(SRC).toContain("contentAnchor={saved.contentScroll}");
-    expect(SRC).toContain("{ contentScroll }");
+    expect(CONN).toContain("contentAnchor={saved.contentScroll}");
+    expect(CONN).toContain("{ contentScroll }");
   });
 
   it("正文锚点：在编辑器 mount 时按 (step, path) 匹配后恢复，并订阅滚动上报", () => {
-    expect(SRC).toContain("anchorMatches(contentAnchor, stepSpanId, path)");
-    expect(SRC).toContain("resolveAnchorScrollTop(contentAnchor, {");
-    expect(SRC).toContain("modified.setScrollTop(top)");
-    expect(SRC).toContain("modified.onDidScrollChange(() => reportAnchor(modified))");
+    expect(FC).toContain("anchorMatches(contentAnchor, stepSpanId, path)");
+    expect(FC).toContain("resolveAnchorScrollTop(contentAnchor, {");
+    expect(FC).toContain("modified.setScrollTop(top)");
+    expect(FC).toContain("modified.onDidScrollChange(() => reportAnchor(modified))");
   });
 
   it("正文锚点：上报走 buildContentAnchor（记行号 + 偏移，不记裸像素）", () => {
-    expect(SRC).toContain("buildContentAnchor({");
-    expect(SRC).toContain("sameAnchor(anchor, lastAnchorRef.current)");
+    expect(FC).toContain("buildContentAnchor({");
+    expect(FC).toContain("sameAnchor(anchor, lastAnchorRef.current)");
   });
 
   it("列表：不只是写 store，还要**读回**（旧的只写不读形态必须消失）", () => {
-    expect(SRC).toContain("ref={listScrollRef}");
-    expect(SRC).toContain("resolveScrollRestore(listScrollTop, {");
-    expect(SRC).toContain("el.scrollTop = top;");
-    expect(SRC).toContain("decideRestore({");
+    expect(BODY).toContain("ref={listScrollRef}");
+    expect(BODY).toContain("resolveScrollRestore(listScrollTop, {");
+    expect(BODY).toContain("el.scrollTop = top;");
+    // 恢复资格判据（decideRestore）与上报收敛在 Body（refactor-renderer 3.1）
+    expect(BODY).toContain("decideRestore({");
     // 旧形态：行内 lambda 只上报（onScroll 只出不进）
-    expect(SRC).not.toContain("(e) => onListScrollTop(e.currentTarget.scrollTop)");
+    expect(BODY).not.toContain("(e) => onListScrollTop(e.currentTarget.scrollTop)");
   });
 
   it("列表：身份含检查点——换检查点后位置重新恢复，但不跨检查点复用一个偏移", () => {
-    expect(SRC).toContain("const listIdentity = `");
-    expect(SRC).toContain('selection.stepSpanId ?? "initial"');
+    // refactor-renderer 3.1：列表恢复身份随 Body 迁移
+    expect(BODY).toContain("const listIdentity = `");
+    expect(BODY).toContain('selection.stepSpanId ?? "initial"');
   });
 });
 

@@ -153,3 +153,19 @@
 | proxy-ab-entry-closure「isProxy/canResend/入口条件」 | PANEL 改读 `detail/LlmCallDetail.tsx` | 「SDK run 无此入口」门槛逐字保持 |
 
 验证：tsc web 0 错；biome 全绿；**全量 202 文件/3118 用例全过 0 失败**（1 条 Unhandled Error 为沙箱 EPERM 噪声，本机收集最全一次）。**阶段 2 完成**：DetailPanel 2161→219 行，detail/ 七模块（DetailShared 203 / LlmCallDetail 338 / PromptForkEditor 458 / ResultForkEditor 718 / StepDetailView 107 / ToolInvokeDetail 176）。
+
+## 3.1–3.3 销账记录（2026-10-17）
+
+迁移：WorkspaceFileView.tsx 1866→**402 行**（只剩连接层：RequestGuard×3 + 读取 effect + 失效清理 + Body 组装）；新增 `workspace-file/`：types.ts（19，Selected/Selection/checkpointLabel）、WorkspaceFileViewBody.tsx（711，目录/检查点/工具条/导出面板布局）、FileContent.tsx（766，两侧/单侧查看、diff 与编辑器生命周期）。原 3 个导出（WorkspaceFileView / WorkspaceFileViewBody / WorkspaceFileViewBodyProps）全部兼容（Body/Props 经再导出指向同一实现；file-* 系列 6 个动态导入测试继续从原入口消费）。3.3 的「读取连接层收敛」即拆分后的连接层本身——拉取/守卫/失效清理全部留在原文件，Body 纯 props、FileContent 零拉取（FC 无 readWorkspaceFile/useEffect）。
+
+| T | 迁移的断言 | 新承载 | 说明 |
+|---|---|---|---|
+| T02 budget-reachability | MonacoDiffEditor 懒包装断言 | 改读 `workspace-file/FileContent.tsx` | |
+| T16 file-diff-height-chain | 高度链三要素（vh 例外/file-diff 锚点/身份行） | 改读 FileContent | 剥注释计数逻辑不变 |
+| T17 file-single-side-view | 8 条单侧视图断言 | SRC 整体改读 FileContent | 早返回门控/只读锚点/工具判据逐字保持 |
+| T18 file-two-side-read | 34 条中 18 条 | 三常量 CONN/BODY/FC 按承载分派；否定断言（粗暴分支/窗口断点/写入通道）逐模块核对；「FileContent 不得自己拉初始侧」改为整文件负查 + CONN 正查 readWorkspaceFile | 守卫/收口/重试接线留在 CONN |
+| T19 file-view-scroll-wiring | 4 条 | 下传=CONN、编辑器恢复/上报=FC、列表读回/身份=BODY | |
+| T25 monaco-view-state | file diff 调用点切片 | 改读 FileContent | 通道唯一权威判据不变 |
+| T29 panel-collapse-headers | 目录收起开关断言 | 改读 Body | |
+
+验证：tsc web 0 错；biome 208 文件 0 错；**全量 203 文件/3180 用例全过 0 失败 0 Unhandled Errors——本机首次完整复现权威三元组**（exit=0）。3.4（长文件查找/复制/模式/滚动回归）由上述单测承载，3.5（导出实际 action 回归）由 workspace-export 系列测试 + 6.3.3 实机承担。

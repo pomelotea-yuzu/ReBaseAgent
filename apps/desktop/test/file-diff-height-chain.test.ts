@@ -30,9 +30,10 @@ vi.mock("@monaco-editor/react", () => ({
 
 const { WorkspaceFileViewBody } = await import("../src/renderer/src/components/WorkspaceFileView");
 
-/** 组件源码（接线契约共用） */
+// refactor-renderer 3.2：高度链三要素（单侧视图 vh 例外 / file-diff 锚点 / 身份行）
+// 全部随 FileContent 迁 workspace-file/FileContent.tsx
 const SRC = readFileSync(
-  resolve(import.meta.dirname, "../src/renderer/src/components/WorkspaceFileView.tsx"),
+  resolve(import.meta.dirname, "../src/renderer/src/components/workspace-file/FileContent.tsx"),
   "utf8",
 );
 

@@ -42,9 +42,9 @@ vi.mock("@monaco-editor/react", () => ({
 const { WorkspaceFileViewBody } = await import("../src/renderer/src/components/WorkspaceFileView");
 const { deriveCheckpointOptions } = await import("../src/renderer/src/lib/workspace-files");
 
-/** 组件源码（能力断言 + 接线契约共用） */
+// refactor-renderer 3.2：单侧视图机制随 FileContent 迁 workspace-file/FileContent.tsx
 const SRC = readFileSync(
-  resolve(import.meta.dirname, "../src/renderer/src/components/WorkspaceFileView.tsx"),
+  resolve(import.meta.dirname, "../src/renderer/src/components/workspace-file/FileContent.tsx"),
   "utf8",
 );
 
