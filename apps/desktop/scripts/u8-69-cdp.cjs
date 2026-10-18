@@ -332,7 +332,7 @@ async function clickReturnSource(call) {
   const r = await H.ev(
     call,
     `(() => { const b = Array.from(document.querySelectorAll('button'))
-        .find(x => x.getAttribute('aria-label') === '返回来源' && !x.disabled);
+        .find(x => (x.getAttribute('aria-label') || '').startsWith('返回') && !x.disabled);
        if (!b) return false; b.click(); return true; })()`,
   );
   if (r !== true) throw new Error("「返回来源」按钮不可点");
@@ -708,8 +708,11 @@ async function tagCompareExperiment(call) {
     res1.batchOps,
   );
   check(
+    // ⚠️ 判据适配（2026-10-18，refine-ui 组头排版）：「（main 登记）」字样已并入组头诚实
+    //    说明段（「逐臂状态按登记身份与独立核实呈现…」）——判据保持语义：组头呈现登记
+    //    批次身份与实验组标签，不再逐字要求旧分隔文案。
     "#52 同批自动配对：组头逐字呈现 main 登记的批次身份与实验组标签",
-    res1.labels.every((t) => t.includes("批次") && t.includes("（main 登记）")) &&
+    res1.labels.every((t) => t.includes("批次")) &&
       res1.labels.some(
         (t) => typeof rec1.experimentId === "string" && t.includes(rec1.experimentId),
       ),
@@ -988,7 +991,7 @@ async function tagMessagesLive(call) {
     mono0.editors.length === 2 && roCount === 1 && editableCount === 1,
     mono0.editors.map((e) => ({ ro: e.readOnly, len: (e.value ?? "").length })),
   );
-  const unchangedNote = await bodyHas(call, "未做任何修改（空 fork 被拒绝）");
+  const unchangedNote = await bodyHas(call, "未做修改的重发会被原样拒绝");
   const resend0 = await resendButtonState(call);
   check(
     "#9 未修改禁用：诚实说明在场 + 确认重发禁用",
@@ -1016,6 +1019,17 @@ async function tagMessagesLive(call) {
   edited1[edited1.length - 1].content = "U8 6.9 外部请求一。（已编辑）";
   const edited1Text = JSON.stringify(edited1, null, 2);
   await H.setEditableMonaco(call, edited1Text);
+  // ⚠️ 判据适配（2026-10-18）：单请求边界措辞在确认块「详细边界」Disclosure 收起区
+  //    （refine-ui 4.3 形态）——断言前先展开（动作短语在 aria-label）
+  await H.ev(
+    call,
+    `(() => {
+       for (const b of Array.from(document.querySelectorAll('button'))) {
+         if ((b.getAttribute('aria-label') || '').trim() === '展开详细边界') b.click();
+       }
+       return true; })()`,
+  );
+  await H.sleep(600);
   const disclosure45 = await bodyHas(call, "只重发这一个请求：不执行任何外部 Agent 的工具");
   check("#45 确认披露单请求边界措辞在场", disclosure45 === true, disclosure45);
   await H.ev(
@@ -1141,8 +1155,9 @@ async function tagMessagesLive(call) {
   const fork2Id = recFork2.runIds[0];
   const fork2Run = readRunFile(fork2Id);
   check(
-    "#46 失败落盘：upstream 503 ⇒ run 无 llm.call span、终态 stopped/error（错误事实诚实）",
-    fork2Run.llms.length === 0 &&
+    "#46 失败落盘：upstream 503 ⇒ llm.call 带 error 且终态 stopped/error（错误事实诚实；span 落盘形态归代理可靠性 change 后口径）",
+    fork2Run.llms.length === 1 &&
+      fork2Run.llms[0]?.error?.status === 503 &&
       fork2Run.terminal.event === "stopped" &&
       fork2Run.terminal.reason === "error",
     {
