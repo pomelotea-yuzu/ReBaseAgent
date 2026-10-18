@@ -132,6 +132,23 @@ function electronVersion() {
   }
 }
 
+/**
+ * 展开确认块的「详细边界」（refine-ui 后 facts/checks/limits 全表收进 Disclosure 收起区；
+ * 动作短语在 aria-label）。判据适配 2026-10-18：U5 时期话术常驻正文。
+ */
+async function expandBoundaries(call) {
+  await H.ev(
+    call,
+    `(() => {
+       for (const b of Array.from(document.querySelectorAll('button'))) {
+         if ((b.getAttribute('aria-label') || '').trim() === '展开详细边界') b.click();
+       }
+       return true; })()`,
+  );
+  await H.sleep(600);
+  return H.ev(call, "(() => document.body.innerText)()");
+}
+
 // ---------------------------------------------------------------------------
 // 披露短语自证：从 lib 源码抽指定函数体内的静态字面量（与组件同一来源）
 // ---------------------------------------------------------------------------
@@ -150,13 +167,31 @@ function disclosurePhrases(fnName) {
 }
 
 /** 从 DetailPanel 源码抽指定片段之后的第一个字符串字面量（判据与组件同源，不手抄第二份话术） */
-function panelLiteral(fragment) {
-  const src = readFileSync(PANEL_FILE, "utf8");
-  const at = src.indexOf(fragment);
-  if (at < 0) throw new Error(`DetailPanel 里找不到 ${fragment}`);
-  const m = src.slice(at).match(/"([^"]+)"/);
-  if (!m) throw new Error(`DetailPanel ${fragment} 之后没有字符串字面量`);
-  return m[1];
+// ⚠️ 判据适配（2026-10-18）：源码级字面量断言随渲染层拆分「随载体改读」——
+//    DetailPanel 已收敛为 219 行纯组合层，资格原因等字面量迁往 GlobalBar/detail/ 各模块；
+//    按 fragment 在候选文件里找首个命中者（与 test-migration「断言随载体改读」同口径）。
+const PANEL_FILES = [
+  join(H.REPO, "apps/desktop/src/renderer/src/components/DetailPanel.tsx"),
+  join(H.REPO, "apps/desktop/src/renderer/src/components/GlobalBar.tsx"),
+  join(H.REPO, "apps/desktop/src/renderer/src/components/detail/PromptForkEditor.tsx"),
+  join(H.REPO, "apps/desktop/src/renderer/src/components/detail/ResultForkEditor.tsx"),
+  join(H.REPO, "apps/desktop/src/renderer/src/components/detail/MessagesForkEditor.tsx"),
+  join(H.REPO, "apps/desktop/src/renderer/src/components/detail/DetailShared.tsx"),
+];
+function panelLiteral(fragment, skip = 0) {
+  for (const file of PANEL_FILES) {
+    const src = readFileSync(file, "utf8");
+    const at = src.indexOf(fragment);
+    if (at < 0) continue;
+    // 取 fragment 之后第 skip+1 个字面量：跳过 className 等 JS 字面量拿到展示文案
+    const rest = src.slice(at);
+    const re = /"([^"]+)"/g;
+    let m = null;
+    for (let i = 0; i <= skip; i++) m = re.exec(rest);
+    if (!m) throw new Error(`${file} 里 ${fragment} 之后没有第 ${skip + 1} 个字符串字面量`);
+    return m[1];
+  }
+  throw new Error(`所有候选文件都找不到 ${fragment}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -298,13 +333,13 @@ async function waitForForkSettled(call, key, timeoutMs = 60000) {
 async function openOpsPanel(call) {
   const expanded = await H.ev(
     call,
-    `(() => { const b = document.querySelector('button[aria-controls="operations-panel"]');
+    `(() => { const b = document.querySelector('button[aria-controls="session-activity-panel"]');
        return b === null ? null : b.getAttribute('aria-expanded'); })()`,
   );
   if (expanded !== "true") {
     await H.ev(
       call,
-      `(() => { document.querySelector('button[aria-controls="operations-panel"]').click(); return true; })()`,
+      `(() => { document.querySelector('button[aria-controls="session-activity-panel"]').click(); return true; })()`,
     );
     await H.sleep(900);
   }
@@ -313,7 +348,7 @@ async function rowActions(call, needle) {
   await openOpsPanel(call);
   const out = await H.ev(
     call,
-    `(() => { const li = Array.from(document.querySelectorAll('#operations-panel li'))
+    `(() => { const li = Array.from(document.querySelectorAll('#session-activity-panel [aria-label="主动操作"] li'))
         .find(x => (x.textContent||'').includes(${JSON.stringify(needle)}));
       if (li === undefined) return JSON.stringify({ found: false });
       const btns = Array.from(li.querySelectorAll('button')).map(b => (b.textContent||'').trim());
@@ -325,7 +360,7 @@ async function clickRowAction(call, needle, actionText) {
   await openOpsPanel(call);
   const out = await H.ev(
     call,
-    `(() => { const li = Array.from(document.querySelectorAll('#operations-panel li'))
+    `(() => { const li = Array.from(document.querySelectorAll('#session-activity-panel [aria-label="主动操作"] li'))
         .find(x => (x.textContent||'').includes(${JSON.stringify(needle)}));
       if (li === undefined) return JSON.stringify({ found: false });
       const b = Array.from(li.querySelectorAll('button'))
@@ -393,7 +428,7 @@ async function captureProxyRun(call, taskText) {
 async function openMessagesEditor(call, runId, spanId) {
   await H.selectRun(call, runId);
   await H.clickTabChecked(call, "步骤");
-  await H.clickSpan(call, "LLM", spanId);
+  await H.clickSpan(call, "LLM 调用", spanId);
   const entryExpr =
     "(() => { const b = Array.from(document.querySelectorAll('button'))" +
     ".filter(x => x.offsetParent !== null)" +
@@ -428,10 +463,10 @@ const FLOWS = {
   "prompt-confirm": async (call, mock) => {
     await H.selectRun(call, FX.normalRun);
     await H.clickTabChecked(call, "步骤");
-    await H.clickSpan(call, "LLM", "s_02");
+    await H.clickSpan(call, "LLM 调用", "s_02");
     await H.clickByTextChecked(call, "编辑 system prompt 重跑", 1200);
     await H.typeIntoEditableMonaco(call, `${MARK} prompt-confirm 披露核对`);
-    const body = await H.ev(call, "(() => document.body.innerText)()");
+    const body = await expandBoundaries(call);
     const phrases = disclosurePhrases("promptDisclosure").filter(
       (p) =>
         (p.length >= 12 && !p.includes("：") === false) ||
@@ -456,7 +491,7 @@ const FLOWS = {
     const cap = await captureProxyRun(call, `${MARK} messages-confirm 捕获`);
     await openMessagesEditor(call, cap.runId, cap.spanId);
     await H.sleep(600);
-    const body = await H.ev(call, "(() => document.body.innerText)()");
+    const body = await expandBoundaries(call);
     // 只断言**肯定分支**的静态短语（本 tag 代理运行且已捕获 key；
     // 否定分支「（代理未运行，无 upstream）」「未捕获 key：本次无法重发」归 messages-no-key 断言）
     const phrases = disclosurePhrases("messagesDisclosure").filter(
@@ -503,7 +538,7 @@ const FLOWS = {
     const before = H.traceIds();
     await H.selectRun(call, runId);
     await H.clickTabChecked(call, "步骤");
-    await H.clickSpan(call, "LLM", "s_02");
+    await H.clickSpan(call, "LLM 调用", "s_02");
     await H.clickByTextChecked(call, "编辑 system prompt 重跑", 1200);
     const text = `${MARK} prompt-cleanup 重跑文本`;
     await H.typeIntoEditableMonaco(call, text);
@@ -707,7 +742,7 @@ const FLOWS = {
     const spanId = lines.filter((l) => l.type === "span" && l.kind === "llm.call")[0].id;
     await openMessagesEditor(call, sourceRun, spanId);
     await H.sleep(600);
-    const body = await H.ev(call, "(() => document.body.innerText)()");
+    const body = await expandBoundaries(call);
     // 资格门禁的 UX 形状：确认按钮 disabled（ineligible !== null ⇒ 禁用），不可挂确认
     const gate = JSON.parse(
       await H.ev(
@@ -730,8 +765,18 @@ const FLOWS = {
       missing: missingNeg.slice(0, 4),
       total: neg.length,
     });
-    // 就近资格原因（判据与 DetailPanel 源码同源抽取；正文或按钮 title 任一在场即可）
-    const ineligibleReason = panelLiteral("proxy?.hasKey !== true");
+    // 就近资格原因（判据与载体源码同源；正文或按钮 title 任一在场即可）。
+    // ⚠️ 判据适配（2026-10-18）：资格原因「未捕获 key」随拆分/改版迁 GlobalBar 监听摘要
+    //    （DetailPanel 已收敛为纯组合层），且它是 **JSX 文本节点**——不在引号里，
+    //    字面量抽取（panelLiteral）抓不到 ⇒ 改为载体源码包含断言 + 页面在场断言。
+    const gbarSrc = readFileSync(
+      join(H.REPO, "apps/desktop/src/renderer/src/components/GlobalBar.tsx"),
+      "utf8",
+    );
+    const ineligibleReason =
+      gbarSrc.includes("proxy?.hasKey !== true") && gbarSrc.includes(">未捕获 key</span>")
+        ? "未捕获 key"
+        : null;
     check(
       "就近资格原因在场（本会话未捕获到 key ⇒ 先把应用经代理跑一次）",
       typeof ineligibleReason === "string" &&
@@ -780,7 +825,7 @@ const FLOWS = {
     }
     check("选中的是 SDK 夹具 run（防跨 run 串台）", sel?.run === FX.normalRun, sel);
     await H.clickTabChecked(call, "步骤");
-    await H.clickSpan(call, "LLM", "s_02");
+    await H.clickSpan(call, "LLM 调用", "s_02");
     const sel2 = await H.storeQ(
       call,
       "return JSON.stringify({ run: s.selectedRunId, span: s.selectedSpanId });",

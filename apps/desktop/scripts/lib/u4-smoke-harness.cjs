@@ -377,6 +377,22 @@ async function clickSpan(call, titleFragment, expectSpanId) {
     const sel = await storeQ(call, "return JSON.stringify({ sel: s.selectedSpanId });");
     if (sel.sel === expectSpanId) return true;
   }
+  // 诊断转储（2026-10-18）：失败时列出候选行 + 当前页签 + 页面形态，区分「无行/行不可见/选中不落」
+  const diag = await ev(
+    call,
+    `(() => ({
+       cands: Array.from(document.querySelectorAll('button'))
+         .filter(b => ((b.title||'').includes('${titleFragment}')))
+         .map(b => ({ t: b.title, vis: b.offsetParent !== null })).slice(0, 12),
+       tabs: Array.from(document.querySelectorAll('button'))
+         .filter(b => /^(概览|步骤|文件|比较)$/.test((b.textContent||'').trim()))
+         .map(b => (b.textContent||'').trim()),
+       hasSpanRows: document.querySelectorAll('button[title="LLM 调用"], button[title="第 1 轮"]').length,
+       bodyHead: (document.body.innerText||'').slice(0, 200),
+     }))()`,
+  );
+  const cur = await storeQ(call, "return JSON.stringify({ run: s.selectedRunId, sel: s.selectedSpanId, detailNull: s.detail === null });");
+  console.log(`  [clickSpan] 「${titleFragment}」诊断：${JSON.stringify(diag)}；store：${JSON.stringify(cur)}`);
   throw new Error(`未能选中 span ${expectSpanId}`);
 }
 async function clickByText(call, text, wait = 800) {
