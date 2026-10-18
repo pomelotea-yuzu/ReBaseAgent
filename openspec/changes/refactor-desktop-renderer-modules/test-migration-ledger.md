@@ -362,3 +362,33 @@
 | 原子更新与收尾 | draft-closure-store 17 / operation-result-consumption 13 / draft-submission 20 / run-list-nav 25 / create-workspace-store 21 | ✅ |
 
 验证：tsc web/node 双 0；biome 改动 3 文件 0 错；定向四类观察批全过（逐文件实收）；**全量 203 文件/3180 用例 0 失败（singleFork，与权威三元组一致，exit=0）**。**阶段 5 完成**：store.ts 3769→135 行，八分片 + 三 runtime + 一 lib helper，创建 → 收敛全程 12 批次零行为回归。
+
+## 阶段 6 实施记录（进行中，2026-10-18）
+
+### 6.1 实机（部分证据已取，未收口——判据五要素已覆盖三）
+
+**rrm-14 行为基线探针复跑（拆分前 1.4 基线 9/9 → 拆分后 5.8 `e96b264` 复跑 9/9 全过，逐判据）**：
+P0 连接成功且 runs 可枚举 ✓ / B1 详情已按 run 定位 ✓ / B1 选中 llm.call span ✓ / B1 草稿写入落 store（逐字）✓ / B1 往返后 run/选中保持 ✓ / B1 往返后草稿正文与 revision 保持 ✓ / B2 文件页有可选文件 ✓ / B2 文件选中生效（容器/查看器在场）✓ / B2 往返后文件选中与容器几何保持 ✓。
+证据：`.workbuddy/rrm-14-baseline/evidence-1792308343241.json`（复跑）；对比基线 `evidence-*.json`（1.4，`379b388` 期）。
+**实机探针坑（本轮实证，补 §三/§九 2）**：① u2-dev-host 的 detached+unref 进程在探针 Bash 调用结束后**仍被宿主回收**（ECONNREFUSED）——「start→probe→stop」必须**单次 Bash 调用内链式**；② 探针前台任务会被宿主 SIGTERM（起 dev 后 ~数分钟）——必须 `run_in_background` 且探针输出**落盘**（任务通知后读文件）；③ 探针与沙箱网络隔离——**探针必须非沙箱**（ECONNREFUSED 即使 dev 存活）。
+**待补**（6.1 剩余判据）：长原文、设置往返、放弃模态（rrm-14 覆盖详情/编辑恢复/焦点/文件几何）。
+
+### 6.7 生产构建（✅）
+
+`electron-vite build`（= `pnpm --filter @rebaseagent/desktop build` 同命令，cwd=apps/desktop，源码 = 5.8 `e96b264` 干净树）：✓ built in 20.49s；产物核对 `apps/desktop/dist/`：main/index.cjs + preload/index.cjs（CJS 形态 ✓）、renderer assets 含 **MonacoEditors-*.js 与 editor.api-*.js 懒加载 chunk**（Monaco 懒加载边界保持 ✓）。无发布打包（未跑 electron-builder）。
+
+### 6.6 check:ci（✅ 分阶段执行，退出码逐段记录）
+
+**完整 `pnpm check:ci` 在本机不可稳定 exit 0**（两轮分别倒在 llm-proxy/trace-sdk：`pnpm -r test` 对各包**用例全过**但 vitest 因宿主 fs-shim EPERM Unhandled Error 随机 exit 1——`node-brokered-fs-shim` 对本机全部 node 进程生效（非沙箱同样命中），CI 无 shim 故双平台历史全绿）。按 1.3/台账口径改**分阶段等价命令序列**逐段记录（check:build 与 check:typecheck 取自完整运行日志，其余单独跑，全部基于 `e96b264` 干净树，不用旧日志）：
+
+| 阶段 | 退出码 | 结果 |
+|---|---|---|
+| check:build（5 包） | 0 | ✓（完整运行日志前段） |
+| check:typecheck（web/node） | 0 | ✓（同上） |
+| check:test 逐包（--pool=forks） | 用例全过 | llm-proxy 27/27 ✓、trace-sdk 140/140 ✓、agent-loop 75/75 ✓、replay 398+5 skipped（symlink 特权用例按设计）✓、trace-test 67/67 ✓、desktop 203/3180 singleFork exit=0 ✓；**EPERM Unhandled Error 五包全命中（1–2 error/包），逐包 Errors 行归因 = `%TEMP%\ssr` 缓存写 EPERM（fs-shim），与测试逻辑无关** |
+| check:lint（biome check .） | exit 1（仅未跟踪脚本） | 676 files 扫描，**跟踪树 0 错**；5 errors 全部来自 2 个从未入库的未跟踪本地脚本（gen-readme-demo.cjs / readme-shots-cdp.cjs，`??` 未跟踪，4.2 已登记同口径） |
+| check:spec | 0 | ✓ 13 项全过 |
+
+**实施新坑（留痕）**：video-link junction **改名 ≠ 摘除**——Junction 改名后仍有效，biome 照扫进 `D:\ReBaseAgentVideo\data`（678 files / 13 errors 全来自外部 .cjs）；正确摘除 = 删除链接点（`.Delete()`/`rmdir`，目标目录不受影响，已验证 target-intact），lint 即回跟踪树口径（676 files、外部路径 0 命中）；跑完已重建 junction 恢复原状。修正 ENGINEERING 的「临时摘除」操作口径：**摘 = 删链接点，不是改名**。
+
+执行/跳过差异：无 skip 新增；replay 5 skipped 为 1.3 基线既有（symlink 特权用例按设计跳过）。

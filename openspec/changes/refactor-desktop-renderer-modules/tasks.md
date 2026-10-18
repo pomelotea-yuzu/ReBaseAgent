@@ -44,7 +44,7 @@
 
 ## 6. 最终 Electron 路径与质量门禁
 
-- [ ] 6.1 在独立受控目录实测普通 run 详情、长原文、prompt/result 修改恢复、设置往返和放弃模态；通过真实 DOM/IPC，记录编辑器和焦点状态。（调用详情完整展示与入口保持；prompt 和 result 编辑保持身份与提交边界；真实交互保持数据与执行边界）
+- [ ] 6.1 在独立受控目录实测普通 run 详情、长原文、prompt/result 修改恢复、设置往返和放弃模态；通过真实 DOM/IPC，记录编辑器和焦点状态。（调用详情完整展示与入口保持；prompt 和 result 编辑保持身份与提交边界；真实交互保持数据与执行边界）→ 2026-10-18 部分证据（未收口）：**rrm-14 行为基线探针复跑 9/9 全过**（拆分前 1.4 基线 `379b388` 期 9/9 → 拆分后 5.8 `e96b264` 复跑 9/9，逐判据：P0 runs 可枚举 / B1 详情定位+选中 llm.call+草稿写入落 store 逐字+往返 run/选中保持+草稿正文与 revision 保持 / B2 文件页可选+选中生效+往返选中与容器几何保持）——覆盖判据中「普通 run 详情、prompt 修改恢复、真实 DOM/IPC、编辑器和焦点状态」；证据 `.workbuddy/rrm-14-baseline/evidence-1792308343241.json`。**待补**：长原文、设置往返、放弃模态；**实机探针三坑补录**（详见台账阶段 6 记录）：detached dev 进程跨 Bash 调用仍被宿主回收（链式必须单次调用内）、探针前台任务被宿主 SIGTERM（必须 run_in_background + 输出落盘）、探针必须非沙箱（沙箱网络隔离 CDP 不可达）
 - [ ] 6.2.1 通过本地 mock 服务实测普通与隔离 result 提交/结果闭环，核对各单次提交的请求数、真实 operation/结果关联及原轮末检查点语义。（未知执行只核对且所有主动入口共用适配器；真实交互保持数据与执行边界）
 - [ ] 6.2.2 通过本地 mock 服务实测普通 prompt 与模型实验提交/结果闭环、隔离父本拒绝；核对请求数、完整结果关联和按修订收尾。（未知执行只核对且所有主动入口共用适配器；真实交互保持数据与执行边界）
 - [ ] 6.2.3 通过本地 mock 代理实测 messages 单请求重发与配置/代理事实更新后的重新核对；核对门禁、实际请求数和可信结果，不访问付费服务。（代理事实和配置协调仍取最新有效读取；未知执行只核对且所有主动入口共用适配器；真实交互保持数据与执行边界）
@@ -53,8 +53,8 @@
 - [ ] 6.3.3 实测合法导出、取消、坏附件/缺来源/非空目标拒绝及切目标反馈，核对实际输出与所选检查点一致，源目录和父/兄弟不变。（导出资格和异步反馈不串目标；真实交互保持数据与执行边界）
 - [ ] 6.4 实测 1440/1210/1024/800 CSS px 的详情编辑、文件差异与返回入口；核对实际编辑器尺寸、高度链、导航/专注及无额外执行。（宽度缩放和键盘保持连续流程）
 - [ ] 6.5 独立实测 200% 缩放、纯键盘核对/提交/返回和模态关闭焦点恢复；不以截图或调用内部 action 代替键盘交互。（宽度缩放和键盘保持连续流程）
-- [ ] 6.6 在最终源码运行 `pnpm check:ci` 并记录各阶段退出码与执行/跳过差异；库构建必须先于测试，不用旧日志替代。（最终源码重新通过质量门禁）
-- [ ] 6.7 单独运行 `pnpm --filter @rebaseagent/desktop build`，核对生产入口和 Monaco 懒加载构建，无发布打包；记录所测 Electron 源码/构建与门禁提交的一致性。（内部模块依赖有明确方向；最终源码重新通过质量门禁）
+- [x] 6.6 在最终源码运行 `pnpm check:ci` 并记录各阶段退出码与执行/跳过差异；库构建必须先于测试，不用旧日志替代。（最终源码重新通过质量门禁）→ 2026-10-18：完整 `pnpm check:ci` 本机不可稳定 exit 0（`pnpm -r test` 各包**用例全过**但宿主 fs-shim EPERM Unhandled Error 随机 exit 1——shim 对本机全部 node 进程生效，CI 无 shim 故双平台历史全绿）⇒ 按 1.3 口径**分阶段等价命令序列**逐段记录（全部基于 5.8 `e96b264` 干净树）：check:build（5 包）✓ exit 0 → check:typecheck ✓ exit 0 → check:test 逐包（--pool=forks）用例全过（llm-proxy 27 / trace-sdk 140 / agent-loop 75 / replay 398+5 skipped 按设计 / trace-test 67 / desktop 203/3180 singleFork exit=0；五包 EPERM Unhandled 1–2 error/包，Errors 行逐包归因 = `%TEMP%\ssr` 缓存写，与测试逻辑无关）→ check:lint **跟踪树 0 错**（676 files；5 errors 全部来自 2 个从未入库的未跟踪本地脚本，4.2 已登记同口径）→ check:spec ✓ exit 0（13 项）。**新坑留痕**：video-link junction **改名 ≠ 摘除**（Junction 改名后仍有效，biome 照扫外部目录致 13 errors）——正确摘除 = 删链接点（目标不受影响，已验证），跑完已重建恢复。执行/跳过差异：无 skip 新增。证据 `.workbuddy/check-ci-6.6.log`、[台账 6.6](test-migration-ledger.md)
+- [x] 6.7 单独运行 `pnpm --filter @rebaseagent/desktop build`，核对生产入口和 Monaco 懒加载构建，无发布打包；记录所测 Electron 源码/构建与门禁提交的一致性。（内部模块依赖有明确方向；最终源码重新通过质量门禁）→ 2026-10-18：`electron-vite build`（同命令，cwd=apps/desktop）✓ built in 20.49s；产物核对 `apps/desktop/dist/`：main/index.cjs + preload/index.cjs（CJS 形态 ✓，desktop 架构「main/preload 输出 CJS」保持）、renderer assets 含 **MonacoEditors-*.js 与 editor.api-*.js 懒加载 chunk**（Monaco 懒加载边界保持 ✓）；无发布打包（未跑 electron-builder）；所测源码 = 5.8 `e96b264` 干净树（与本轮门禁提交一致）
 
 ## 7. 证据与归档收口
 
