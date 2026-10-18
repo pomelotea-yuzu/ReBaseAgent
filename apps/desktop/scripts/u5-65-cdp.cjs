@@ -286,7 +286,16 @@ async function openAbEditor(call) {
   if (sel.run !== PARENT_RUN || sel.span !== PARENT_SPAN) {
     throw new Error(`选中态串台：${JSON.stringify(sel)}`);
   }
-  await H.clickByTextChecked(call, "模型 A/B 实验（换 model / params 对比）", 3000);
+  // ⚠️ 判据适配（2026-10-18，U8 3.1b）：A/B 编辑器迁往实验工作区——运行级「模型实验」
+  //    入口（[data-experiment-entry]）进入；步骤页不再挂编辑表单（u8-67 同款入口代码）。
+  await H.ev(
+    call,
+    `(() => { const b = document.querySelector('[data-experiment-entry]');
+       if (!b || b.disabled) return false; b.click(); return true; })()`,
+  ).then((r) => {
+    if (r !== true) throw new Error("「模型实验」入口不可点");
+  });
+  await H.sleep(1500);
   const deadline = Date.now() + 8000;
   for (;;) {
     const body = await bodyText(call);
@@ -628,6 +637,17 @@ const FLOWS = {
     // 父本首调带 write_file（sideEffect 未标 false）⇒ guard 要求副作用声明（6.4 的 acknowledge 同款）
     await acknowledgeSideEffectsIfPresent(call);
     await previewAb(call);
+    // ⚠️ 判据适配（2026-10-18）：facts/limits 全表在确认块「详细边界」Disclosure 收起区
+    //    （refine-ui 4.3 形态）——断言前先展开（动作短语在 aria-label）
+    await H.ev(
+      call,
+      `(() => {
+         for (const b of Array.from(document.querySelectorAll('button'))) {
+           if ((b.getAttribute('aria-label') || '').trim() === '展开详细边界') b.click();
+         }
+         return true; })()`,
+    );
+    await H.sleep(600);
     const body = await bodyText(call);
     check("预览后计划区在场（校验通过 · 执行计划）", body.includes("校验通过 · 执行计划"), null);
     check("计划区带实验组 ID", body.includes("实验组 "), null);
@@ -741,10 +761,29 @@ const FLOWS = {
       JSON.stringify(d1?.rows?.[1]?.paramsText),
     );
     // 收起（保留批次草稿）→ 重开
-    await H.clickByTextChecked(call, "收起", 2000);
-    const entry = await findButton(call, "模型 A/B 实验（");
-    check("收起后入口按钮回场", entry?.found === true, entry);
-    await clickAbButton(call, "模型 A/B 实验（");
+    // ⚠️ U8 3.1b 适配：实验编辑器在 aux 工作区，无「收起」控件——「离开」= 点工作区
+    //    返回入口（aria-label 以「返回」开头），批次草稿由 store 保留；重开 = 再点
+    //    运行级「模型实验」入口（[data-experiment-entry]）。
+    await H.ev(
+      call,
+      `(() => { const b = Array.from(document.querySelectorAll('button'))
+         .find(x => ((x.getAttribute('aria-label') || '').startsWith('返回')) && x.offsetParent !== null);
+         if (b == null) return 'no-back'; b.click(); return 'clicked'; })()`,
+    );
+    await H.sleep(1500);
+    // ⚠️ U8 3.1b 适配：收起后重开 = 再点运行级「模型实验」入口（[data-experiment-entry]）
+    const entry = await H.ev(
+      call,
+      `(() => { const b = document.querySelector('[data-experiment-entry]');
+         return b == null ? { found: false } : { found: true, disabled: b.disabled }; })()`,
+    );
+    check("收起后入口按钮回场", entry?.found === true && entry?.disabled === false, entry);
+    await H.ev(
+      call,
+      `(() => { const b = document.querySelector('[data-experiment-entry]');
+         b.click(); return true; })()`,
+    );
+    await H.sleep(1500);
     const d2 = await abDraftOf(call);
     check("重开不覆盖已有批次（仍 3 行）", d2?.rows?.length === 3, d2?.rows?.length);
     check(
