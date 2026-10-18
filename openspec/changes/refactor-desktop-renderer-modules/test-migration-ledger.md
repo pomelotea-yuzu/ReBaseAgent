@@ -217,3 +217,18 @@
 **无需改读的静态锚点（逐个核对）**：create-entry-closure / fork-entry-closure / proxy-ab-entry-closure（切片锚点 createRun/forkAt/promptFork/proxyFork/modelAb 全是未迁 action，负向断言域不受迁出影响）；draft-closure-store（closeDraftClosureFor 计数在 store.ts，未迁）；operation-result-actions（results 域未迁）；navigation-intent（切片边界 `async ensureOperationStatusPolling` 未动）；create-workspace-store（attemptResultNavigation 未迁）；run-list-nav 256 的负向断言（`归入"本地直录"`）迁前迁后都是空匹配，正向锚在 RunList 未变。
 
 验证：tsc web/node 双 0；biome 改动 13 文件 0 错；定向 12 文件 219 用例全过（run-list-nav 25 + file-checkpoint-resolve 24 + store.test 62 + entry-closure 三件 26 + draft-closure 17 + operation-result 12 + navigation-intent 14 + create-workspace 21 + races 9 + polling 9；EPERM 分批单跑复核）；**全量 203 文件/3180 用例 0 失败（singleFork，与权威三元组一致，exit=0）**。
+
+
+## 5.2 销账记录（2026-10-18）
+
+迁移：drafts 7 字段（drafts/draftSubmissions/confirmations/checkGenerations/sourceRevocation/createSourceRef/pendingDraftTarget）+ 26 action → `slices/drafts.ts`（工厂 `createDraftsSlice`，509 行）。**本域无跨域协调者注入**：模块级 discardClosureTarget 只被 drafts 三个 discard 调用 ⇒ 随域迁入（经注入 set 落盘）；openDraftAt 对 navigation（openCreateWorkspace/openExperimentWorkspace/openMessagesWorkspace）与 runs/reading（selectRun/setReadingTab/selectSpan）的调用一律走执行时 get() 的 action。beginDraftSubmission 经完整类型 set 原子写 draftSubmissions+navIntents+confirmations（design D2 允许的跨域单次提交）。**store.ts 2424→2071 行**；import 清理：draftLib/CREATE_SUBMIT_TARGET/armNavigationIntent/armConfirmation/confirmationTargetKey/decideConfirmation/settingsStampOf 及 debugging-drafts 类型块迁出（submissionLib/emptyConfirmationStore/releaseConfirmation/DraftSubmission/DraftSubmitTarget/DraftKind 留 store.ts——closeDraftClosureFor/submitActive/draftLocatorOf 等仍消费）。
+
+**断言随载体改读（两边留痕）**：
+| 测试 | 旧断言 | 新承载 |
+|---|---|---|
+| draft-submission「六处写入/放弃路径拦冻结」 | STORE_SRC 切片六个 drafts action（writeCallDraftText…discardModelAbDraft，end 标记 `createSourceRef: null,`） | 第一段循环改读 DRAFTS_SRC（slices/drafts.ts）；第二段五个执行函数（forkAt/promptFork/proxyFork/createRun/modelAb，operations 域 5.4 才迁）继续 STORE_SRC |
+| ⚠️ 工厂成员顺序照抄 store.ts 原布局 | `createSourceRef: null,` 是 discardModelAbDraft 体的结束标记 | 工厂 init 区不得提前集中该字段——否则 end<start 切片失败（本轮实测踩到，当场修正） |
+
+**无需改读的静态锚点（逐个核对）**：draft-closure-store（closeDraftClosureFor 计数在 store.ts，results 域 5.5 才迁）；create-entry-closure / fork-entry-closure / proxy-ab-entry-closure（锚点全在未迁 action）；navigation-intent（边界锚点 ensureOperationStatusPolling 未动）；operation-result-actions（results 域未迁）；create-workspace-store（attemptResultNavigation 未迁）；execution-confirmation-store（不读 store.ts，动态导入行为测试直过）。
+
+验证：tsc web/node 双 0；biome 改动文件 0 错；定向 11 文件 187 用例全过（draft-submission 20 / store.test 62 / draft-closure 17 / execution-confirmation 15 / create-entry 11 / fork-entry 6 / proxy-ab 9 / operation-result 12 / navigation-intent 14 / create-workspace 21）；**全量 203 文件/3180 用例 0 失败（singleFork，与权威三元组一致，exit=0）**。

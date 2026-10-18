@@ -651,6 +651,12 @@ describe("接线契约：五类提交走快照并受冻结约束（任务 3.4/3.
   });
 
   it("store：六处写入/放弃路径拦冻结；五个执行函数负责收尾", () => {
+    // refactor-renderer 5.2：drafts 分片实现迁 slices/drafts.ts（store.ts 只剩组合），
+    // 六处写入/放弃路径的切片源随载体改读；第二段五个执行函数仍属 operations（5.4 迁），继续读 store.ts。
+    const DRAFTS_SRC = readFileSync(
+      resolve(import.meta.dirname, "../src/renderer/src/store/slices/drafts.ts"),
+      "utf8",
+    );
     // 调用类、创建、A/B 三区各有一处写入与一处放弃
     for (const [start, end, ret] of [
       ["writeCallDraftText(key, text) {", "discardCallDraft(key, expectedRevision) {", "return;"],
@@ -660,7 +666,7 @@ describe("接线契约：五类提交走快照并受冻结约束（任务 3.4/3.
       ["setModelAbRows(key, rows) {", "discardModelAbDraft(key, expectedRevision) {", "return;"],
       ["discardModelAbDraft(key, expectedRevision) {", "createSourceRef: null,", "return false;"],
     ] as const) {
-      const body = slice(STORE_SRC, start, end);
+      const body = slice(DRAFTS_SRC, start, end);
       expect(body).toContain("submissionLib.submissionOf(get().draftSubmissions");
       expect(body).toContain(ret);
     }
