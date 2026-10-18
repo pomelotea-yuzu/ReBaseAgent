@@ -232,3 +232,23 @@
 **无需改读的静态锚点（逐个核对）**：draft-closure-store（closeDraftClosureFor 计数在 store.ts，results 域 5.5 才迁）；create-entry-closure / fork-entry-closure / proxy-ab-entry-closure（锚点全在未迁 action）；navigation-intent（边界锚点 ensureOperationStatusPolling 未动）；operation-result-actions（results 域未迁）；create-workspace-store（attemptResultNavigation 未迁）；execution-confirmation-store（不读 store.ts，动态导入行为测试直过）。
 
 验证：tsc web/node 双 0；biome 改动文件 0 错；定向 11 文件 187 用例全过（draft-submission 20 / store.test 62 / draft-closure 17 / execution-confirmation 15 / create-entry 11 / fork-entry 6 / proxy-ab 9 / operation-result 12 / navigation-intent 14 / create-workspace 21）；**全量 203 文件/3180 用例 0 失败（singleFork，与权威三元组一致，exit=0）**。
+
+
+## 5.3 销账记录（2026-10-18）
+
+迁移：compare 8 字段 + 17 action（enterCompareSelection…clearCompare）→ `slices/compare.ts`（工厂 `createCompareSlice`，469 行；域内协调者 requestCompareRead/enterCompareView 随域迁入闭包；**MAX_COMPARE 常量随域迁入**，store.ts 改 `export { MAX_COMPARE } from \"./store/slices/compare\"` 兼容再导出——CompareSelectionBar 从原入口 import 不变）；navigation 11 字段 + 15 action（setView…readMessagesSource）→ `slices/navigation.ts`（`createNavigationSlice`，477 行；域内协调者 auxEntrySnapshot/auxLocationKey/auxTargetKey/enterAuxWorkspace 随域迁入）。**createReturnFactsOf 判据派生体随本批迁 navigation**（4.4 口径兑现：refine-ui-return 钉的 describe* 判据串随载体改读）。注入协调者四件：noteReadingChanged（5.5 前）/restoreReadingLocation（留 store.ts——compare 的 returnFromCompare 也消费，归属收敛推迟到 5.7）/describeZodError/createReturnFactsRuntime。**store.ts 2071→1432 行**。
+
+**实施修正（三处，留痕）**：
+1. **TDZ**：createReturnFactsRuntime 原在文件尾组合（4.4），5.3 要把句柄注入 create 回调里的 navigation 分片 ⇒ create 时即读取 ⇒ 必须先于 create 初始化——组合点移到 create 前（与 detailReadAttempts 同区），台账 4.4 的「文件尾组合」就此修正为「create 前组合」。
+2. **夹层误删**：navigation actions 删除区间（setView→setSettingsSection）把夹在中间的 configuration 域三 action（writeRecordingDraftFields/discardRecordingDraftConfirmed/applyRecordingDraft，5.6 才迁）一并删掉，tsc 缺成员报错暴露，当场恢复。
+3. **块删除锚点纪律**：删除区间必须核对中间无其他域成员（区间 7 compare+tree 连续 ✓；区间 8 有夹层 ✗）——后续 5.4–5.6 的删除脚本先枚举区间内成员清单再动手。
+
+**断言随载体改读（两边留痕）**：
+| 测试 | 旧断言 | 新承载 |
+|---|---|---|
+| refine-ui-return「创建页容器不自算」 | store.ts 含 createReturnFactsOf + describeReturnDestination/describeReturnFallbackReason 两条判据串 | 改读 `slices/navigation.ts`（判据派生体随 5.3 迁，4.4/5.1 台账预告的落地） |
+| aux-workspace-entries「returnToAuxSource 返回后焦点落回」 | STORE_SRC 切片 `async returnToAuxSource(` → `\n  },` | 切片源改读 NAV_SLICE_SRC（slices/navigation.ts），结束标记适配工厂 4 空格缩进（`\n    },`） |
+
+**无需改读的静态锚点（逐个核对）**：create-entry-closure / fork-entry-closure（openCreateWorkspace 行为调用）；create-workspace-store（attemptResultNavigation 切片 + createDialogOpen 负向，均在未迁代码）；navigation-intent（边界锚点未动）；compare 系（compare-ipc/compare-state/compare-branch-nav 均 lib 级或行为级）。
+
+验证：tsc web/node 双 0；biome 改动文件 0 错；定向 14 文件约 300 用例全过（refine-ui-return 14 / aux-workspace-entries 15 / store.test 62 / create-workspace-store 21 / compare-state 7 / compare-ipc 5 / compare-branch-nav 14 / branch-tree 20 / navigation-intent 14 / create-entry 11 / fork-entry 6 / proxy-ab 9 / budget-map 6 / workspace-export-panel 14 / draft-submission 20；EPERM 分批单跑复核）；**全量 203 文件/3180 用例 0 失败（singleFork，与权威三元组一致，exit=0）**。

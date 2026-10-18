@@ -190,8 +190,12 @@ describe("U8 6.11：键盘闭环的焦点回位接线（实机坐实补齐）", 
       "utf8",
     ),
   );
-  const STORE_SRC = stripComments(
-    readFileSync(resolve(import.meta.dirname, "../src/renderer/src/store.ts"), "utf8"),
+  // refactor-renderer 5.3：navigation 分片实现迁 slices/navigation.ts（锚点随载体改读）
+  const NAV_SLICE_SRC = stripComments(
+    readFileSync(
+      resolve(import.meta.dirname, "../src/renderer/src/store/slices/navigation.ts"),
+      "utf8",
+    ),
   );
   const RECORDING_SRC = stripComments(
     readFileSync(
@@ -217,9 +221,11 @@ describe("U8 6.11：键盘闭环的焦点回位接线（实机坐实补齐）", 
   });
 
   it("returnToAuxSource 返回后焦点落回辅助工作区主容器（场景「返回有效来源焦点」）", () => {
-    const start = STORE_SRC.indexOf("async returnToAuxSource(");
+    // refactor-renderer 5.3：navigation 分片实现迁 slices/navigation.ts（工厂成员 4 空格缩进），
+    // 切片源随载体改读，结束标记同步适配缩进
+    const start = NAV_SLICE_SRC.indexOf("async returnToAuxSource(");
     expect(start).toBeGreaterThan(-1);
-    const body = STORE_SRC.slice(start, STORE_SRC.indexOf("\n  },", start));
+    const body = NAV_SLICE_SRC.slice(start, NAV_SLICE_SRC.indexOf("\n    },", start));
     expect(body).toContain('document.querySelector<HTMLElement>("[data-aux-frame]")');
     expect(body).toContain('document.querySelector<HTMLElement>("main")');
     expect(body).toContain("?.focus()");

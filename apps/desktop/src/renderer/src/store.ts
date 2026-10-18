@@ -44,47 +44,11 @@ import {
 } from "@shared/operations";
 import { create } from "zustand";
 import { api } from "./lib/api";
-import type {
-  AuxReturnLocation,
-  AuxWorkspaceView,
-  ExperimentTarget,
-  MessagesTarget,
-} from "./lib/aux-workspace";
-import { decideAuxEntry, decideAuxReturn } from "./lib/aux-workspace";
-import { deriveCompareFileEntry, isOwnStepTarget } from "./lib/compare-files";
+import type { CreateReturnLocation } from "./lib/create-workspace";
 import {
-  type ComparePair,
-  type CompareReturnLocation,
-  decideCompareWithParent,
-  decideManualPair,
-  decidePairSideEdit,
-  swapComparePair,
-} from "./lib/compare-navigation";
-import {
-  type CompareReadSession,
-  applyCompareResponse,
-  beginCompareRead,
-  destroyCompareRead,
-  emptyCompareReadSession,
-  findCompareSelectionViolation,
-  retryCompareRead as retryCompareReadState,
-  sameCompareSelection,
-} from "./lib/compare-state";
-import type {
-  CreateReturnLocation,
-  ReadingLocationSnapshot,
-  SourceView,
-  WorkspaceView,
-} from "./lib/create-workspace";
-import {
-  decideCreateEntry,
-  decideCreateReturn,
-  describeReturnDestination,
-  describeReturnFallbackReason,
   filePatchOfLocation,
   liveSpanOfLocation,
   readingPatchOfLocation,
-  workspaceViewName,
 } from "./lib/create-workspace";
 import { isLineageRejectionCode } from "./lib/detail-completeness";
 import {
@@ -98,7 +62,6 @@ import type { DraftKind } from "./lib/draft-list";
 import type { DraftSubmission, DraftSubmitTarget } from "./lib/draft-submission";
 import * as submissionLib from "./lib/draft-submission";
 import { emptyConfirmationStore, releaseConfirmation } from "./lib/execution-confirmation";
-import { isIsolatedRun } from "./lib/isolated-fork";
 import {
   type NavigationIntentStore,
   type NavigationTrigger,
@@ -145,7 +108,6 @@ import type { RecordingDraft, RecordingDraftPatch } from "./lib/recording-draft"
 import {
   applyRecordingBaseline,
   discardRecordingDraft as discardRecordingDraftState,
-  ensureRecordingDraft,
   recordingApplyRequest,
   recordingBaselineOf,
   writeRecordingDraft,
@@ -163,15 +125,16 @@ import {
   verifyResultPayload,
 } from "./lib/result-verification";
 import type { SettingsSaveOutcome } from "./lib/settings-form";
-import { type TreeScope, type TreeViewport, decideTreeInitialFocus } from "./lib/tree-view";
 import { feedbackFromOutcome, workspaceExportKey } from "./lib/workspace-export-state";
 import type { WorkspaceExportFeedback } from "./lib/workspace-export-state";
 import { createCreateReturnFactsCache } from "./store/runtime/create-return-facts-cache";
 import { createOperationPollingRuntime } from "./store/runtime/operation-polling";
 import { createProxyCoordinationRuntime } from "./store/runtime/proxy-coordination";
 // 兼容导出（4.1）：ExperimentSourceState/idleExperimentSource 迁 slices/navigation，指向同一实现
+import { createCompareSlice } from "./store/slices/compare";
 import { createDraftsSlice } from "./store/slices/drafts";
 import { idleExperimentSource } from "./store/slices/navigation";
+import { createNavigationSlice } from "./store/slices/navigation";
 import { createDetailReadAttempts, createReadingSlice } from "./store/slices/reading";
 import { createRunsSlice } from "./store/slices/runs";
 import type { AppState } from "./store/types";
@@ -182,8 +145,8 @@ export type { ExperimentSourceState } from "./store/slices/navigation";
  * 聚合数字一律在组件里用 shared/derive 的纯函数现算，不进 store、不落缓存。
  */
 
-/** 分支对照的条数上限：再多是界面放不下，也失去了"并排看"的意义 */
-export const MAX_COMPARE = 4;
+// MAX_COMPARE（5.3）随 compare 分片迁 slices/compare.ts；此处兼容再导出指向同一实现。
+export { MAX_COMPARE } from "./store/slices/compare";
 
 /** 跨进程数据不可信：统一用 schema 校验后再进状态 */
 function describeZodError(error: unknown): string {
@@ -393,72 +356,6 @@ async function readRunResult(
 }
 
 /**
- * U7 任务 1.4/1.5：一次比较选择集的实际只读请求（design D3 渲染层半边）。
- *
- * 单一咽喉：进入与重试都汇到这里——发请求前记录当代代次，响应落地时把
- * 代次 + 选择集 + 信封一起交给 `applyCompareResponse`（同代次同选择集才采信，
- * 其余整份丢弃）。整条路径零执行通道、零列表刷新、零选择/滚动/焦点变更。
- */
-async function requestCompareRead(runIds: readonly string[], generation: number): Promise<void> {
-  const envelope = await api.compareRuns({ runIds: [...runIds] });
-  useAppStore.setState((state) => ({
-    compareRead: applyCompareResponse(state.compareRead, generation, runIds, envelope),
-  }));
-}
-
-/**
- * U7 2.3：进入比较视图的公共落点（父子入口 / 手动集合共用）。
- *
- * - 页内重复进入：来源沿用、代次不推进（与创建页同一纪律——设置往返/重复点击
- *   不该把本次流程的导航资格撤销掉）；
- * - 跨视图进入：现记来源位置 + 推进阅读代次（显式阅读意图，D1）；
- * - pair 非空时按新序触发 `enterCompareSelection`（换集重读 / 同集幂等都在那里判）。
- */
-async function enterCompareView(pair: ComparePair | null): Promise<void> {
-  const state = useAppStore.getState();
-  const alreadyInCompare = state.view === "compare";
-  // U7 4.8：prev pair 必须在 setState 前取——换了 pair（新比较集）两侧步骤选中全清
-  const prevPair = state.comparePair;
-  let location: CompareReturnLocation | null = null;
-  if (!alreadyInCompare) {
-    const decision = decideCreateEntry({
-      view: state.view,
-      selectedRunId: state.selectedRunId,
-      reading:
-        state.view === "trace" && state.selectedRunId !== null
-          ? readingStateOf(state.readingByRun, state.selectedRunId)
-          : null,
-    });
-    // decideCompareEntry 的 keep 分支已在上面判掉；这里只可能是 capture
-    if (decision.kind === "capture") location = decision.location;
-    noteReadingChanged();
-  }
-  useAppStore.setState({
-    view: "compare",
-    ...(alreadyInCompare ? {} : { compareReturnLocation: location }),
-    // 6.4 实机坐实：集合进入（0/1/3/4 条）必须清 pair——pair 残留会让工作区卡在
-    // 「正在读取详细比较对象…」（结论 runIds 与残留 pair 永不对齐，重试也出不来）。
-    // design 2.2 的「无 pair」语义 = comparePair 置 null（指标表模式承载）。
-    comparePair: pair,
-  });
-  if (pair !== null) {
-    const changed =
-      prevPair === null ||
-      prevPair.leftRunId !== pair.leftRunId ||
-      prevPair.rightRunId !== pair.rightRunId;
-    if (changed) {
-      useAppStore.setState({
-        compareStepSelection: { left: null, right: null },
-        comparePrefixFolded: { left: true, right: true },
-        // UI 密度 change 1.4：换 pair 回默认收起（旧 pair 的展开态不带到新对象）
-        compareEvidenceExpanded: false,
-      });
-    }
-    await useAppStore.getState().enterCompareSelection([pair.leftRunId, pair.rightRunId]);
-  }
-}
-
-/**
  * U7 2.3：按来源引用恢复阅读位置（创建页与比较页的"返回来源"共用——不抄第二份）。
  *
  * 该 run 本来就选中 ⇒ 用既有阅读动作当场对齐（页签/调用/文件定位）；
@@ -510,65 +407,6 @@ async function restoreReadingLocation(
     }));
   }
   await useAppStore.getState().selectRun(runId);
-}
-
-/**
- * U8 任务 1.3：从 store 现场构造辅助工作区进入判据的快照
- * （与 `enterCompareView` / `openCreateWorkspace` 的现场取法同一形状，不抄第二份字段挑选）。
- */
-function auxEntrySnapshot(): ReadingLocationSnapshot {
-  const state = useAppStore.getState();
-  return {
-    view: state.view,
-    selectedRunId: state.selectedRunId,
-    reading:
-      state.view === "trace" && state.selectedRunId !== null
-        ? readingStateOf(state.readingByRun, state.selectedRunId)
-        : null,
-  };
-}
-
-/** 三个辅助工作区的来源引用与视图的对应（唯一映射，open/return 两处共用） */
-function auxLocationKey(
-  view: AuxWorkspaceView,
-): "recordingReturnLocation" | "experimentReturnLocation" | "messagesReturnLocation" {
-  return view === "recording"
-    ? "recordingReturnLocation"
-    : view === "experiment"
-      ? "experimentReturnLocation"
-      : "messagesReturnLocation";
-}
-
-/** 实验页/messages 页各自的目标状态键（recording 无目标，不进此映射） */
-function auxTargetKey(view: AuxWorkspaceView): "experimentTarget" | "messagesTarget" | null {
-  return view === "experiment" ? "experimentTarget" : view === "messages" ? "messagesTarget" : null;
-}
-
-/**
- * U8 任务 1.3：进入辅助工作区的公共落点（录制 / 实验 / messages 共用）。
- * - 页内重复进入：来源沿用、代次不推进（设置往返视图未变 ⇒ 同一判据覆盖）；
- *   目标仍按本次显式请求写入（同一目标幂等；不同目标 = 用户显式换目标）；
- * - 跨视图进入：现记来源位置 + 推进阅读代次 + 显式绑定目标；
- * - recording 无目标：目标状态永不触碰。
- */
-function enterAuxWorkspace(
-  view: AuxWorkspaceView,
-  target: ExperimentTarget | MessagesTarget | null,
-): void {
-  const decision = decideAuxEntry(view, auxEntrySnapshot());
-  const targetKey = auxTargetKey(view);
-  const targetPatch = target === null || targetKey === null ? {} : { [targetKey]: target };
-  if (decision.kind === "keep") {
-    useAppStore.setState(targetPatch);
-    return;
-  }
-  // 进入辅助页 = 离开原来在看的那条运行 ⇒ 撤销在飞的自动导航资格
-  noteReadingChanged();
-  useAppStore.setState({
-    view,
-    [auxLocationKey(view)]: decision.location,
-    ...targetPatch,
-  });
 }
 
 /**
@@ -818,6 +656,11 @@ function notifyProxyStatusSettled(): void {
 // runs 分片经注入访问（分片之间无运行时互相导入，design D2）。
 const detailReadAttempts = createDetailReadAttempts();
 
+// 派生缓存 runtime 组合（4.4/5.3）：`createReturnFactsOf` 按引用缓存的唯一所有者住在
+// `store/runtime/create-return-facts-cache.ts`，这里按 store 实例组合一次（create 回调
+// 需要把它注入 navigation 分片 ⇒ 必须先于 create 初始化；模块加载不预热缓存）。
+const createReturnFactsRuntime = createCreateReturnFactsCache();
+
 export const useAppStore = create<AppState>((set, get) => ({
   // --- 5.1 分片组合：runs/reading（实现迁 slices/；跨域协调者显式注入，design D2）---
   ...createRunsSlice({
@@ -831,6 +674,17 @@ export const useAppStore = create<AppState>((set, get) => ({
   ...createReadingSlice({ set, get, noteReadingChanged }),
   // 5.2：drafts 分片（草稿仓库/提交关联/执行确认；discardClosureTarget 随域迁入）
   ...createDraftsSlice({ set, get }),
+  // 5.3：compare/navigation 分片（域内协调者随域迁入；noteReadingChanged/
+  // restoreReadingLocation/describeZodError/createReturnFactsRuntime 注入）
+  ...createCompareSlice({ set, get, noteReadingChanged, restoreReadingLocation }),
+  ...createNavigationSlice({
+    set,
+    get,
+    noteReadingChanged,
+    restoreReadingLocation,
+    createReturnFactsRuntime,
+    describeZodError,
+  }),
 
   // R2.1 任务 5.3：导出反馈的会话状态（离开文件页仍存活；重载后为空 = 结果未知）
   workspaceExports: {},
@@ -838,22 +692,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   operations: initialSession(),
   // U5 任务 1.2：按可信身份读取的结果（会话内，与阅读状态和草稿都分开）
   resultReads: emptyResultReadStore(),
-  // U7 任务 1.4/1.5：比较选择集的会话读取状态（design D3 渲染层半边）
-  compareRead: emptyCompareReadSession(),
-  // U7 任务 2.2/2.3：详细比较 pair（独立于侧栏选择）与比较页来源引用（一次性凭据）
-  comparePair: null,
-  compareReturnLocation: null,
-  // U7 任务 4.8：比较步骤复合定位（左右各一，身份 = 侧 + run + span）
-  compareStepSelection: { left: null, right: null },
-  // U7 任务 4.14：每侧前缀折叠态（默认折叠；折叠不删记录，展开即恢复）
-  comparePrefixFolded: { left: true, right: true },
-  // UI 密度 change 1.4：修改证据区默认收起（摘要常驻；展开态随 pair 变化复位）
-  compareEvidenceExpanded: false,
-  // U7 任务 3.1–3.3：分支树的会话观察状态（范围/搜索/视口，不落盘）
-  treeScope: null,
-  treeQuery: "",
-  treeViewport: null,
-  treeMode: "graph",
   // U5 任务 3.4：阅读代次 + 各提交的导航意图（同为会话内，不进任何持久化）
   navGeneration: 0,
   navIntents: emptyNavigationIntents(),
@@ -872,17 +710,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   modelAbErrorCode: null,
   settings: null,
   proxy: null,
-  view: "trace",
-  compareIds: [],
-  compareNotice: null,
-  createReturnLocation: null,
-  recordingReturnLocation: null,
-  experimentReturnLocation: null,
-  messagesReturnLocation: null,
-  experimentTarget: null,
-  messagesTarget: null,
-  experimentSource: idleExperimentSource(),
-  messagesSource: idleExperimentSource(),
   recordingDraft: null,
   recordingApply: null,
   recordingApplyError: null,
@@ -1028,251 +855,6 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   async retryResultRead(identity) {
     return readRunResult(identity, true);
-  },
-
-  async enterCompareSelection(runIds) {
-    // U7 1.4：合法性判据与 IPC schema 同源（findCompareSelectionViolation 复用
-    // CompareRunsRequestSchema），非法请求连 state 都不动
-    const violation = findCompareSelectionViolation(runIds);
-    if (violation !== null) return "invalid";
-    const current = get().compareRead;
-    // 幂等：同序同 id 的重复进入不重读——保留在场结论与（后续 §2 的）阅读位置，
-    // 「不以每次开比较清空工作区状态换取简单实现」（design D1）
-    if (sameCompareSelection(current.selection, runIds)) return "unchanged";
-    const started = beginCompareRead(current, runIds);
-    set({ compareRead: started });
-    await requestCompareRead(started.selection as string[], started.generation);
-    return "started";
-  },
-
-  async retryCompareSelectionRead() {
-    // U7 1.5：同选择集全量重读；旧结论在 beginCompareRead 内先行撤销
-    const next = retryCompareReadState(get().compareRead);
-    if (next === null) return false;
-    set({ compareRead: next });
-    await requestCompareRead(next.selection as string[], next.generation);
-    return true;
-  },
-
-  leaveCompare() {
-    // U7 1.4：销毁守卫——在飞请求作废、结论清空；代次递增使迟到响应永不复活
-    set({ compareRead: destroyCompareRead(get().compareRead) });
-  },
-
-  async openCompareWithParent(runId) {
-    // U7 2.1：入口判据必须喂「当前正读的那条」的已校验详情——detail 归属不符
-    // （迟到响应/串号）时按无入口处理，绝不从列表或操作登记猜父本
-    const detail = get().detail;
-    if (detail === null || detail.meta.id !== runId) return "hidden";
-    const decision = decideCompareWithParent(detail);
-    if (decision.kind !== "open") return decision.kind;
-    await enterCompareView(decision.pair);
-    return "opened";
-  },
-
-  async openComparePair(leftRunId, rightRunId) {
-    // U7 5.3：显式选两条。相同 ID 不构成两条比较；两枚 id 都必须在当前对照集合内
-    //（指标表的列本来就来自集合——这里判集合而不是判结论，避免"结论未到就点不动"）
-    if (leftRunId === rightRunId) return "rejected";
-    const ids = get().compareIds;
-    if (!ids.includes(leftRunId) || !ids.includes(rightRunId)) return "rejected";
-    // 页内换 pair = 显式换阅读对象 ⇒ 推进代次（与 setCompareSide/swap 同款）
-    noteReadingChanged();
-    await enterCompareView({ leftRunId, rightRunId });
-    return "opened";
-  },
-
-  async openCompareWorkspace() {
-    // U7 2.2/2.5 + 5.2：手动集合的进入路径。恰好两条 ⇒ 加入顺序定左右（先子后父不重排）；
-    // 三/四条 ⇒ 不自动选两条，如实提示后仍进工作区（宽幅指标表显式选择）；
-    // 零/一条 ⇒ 无 pair（指标表引导 / 单条自有指标）。
-    const decision = decideManualPair(get().compareIds);
-    if (decision.kind === "none" && decision.reason === "explicit-select") {
-      set({ compareNotice: "已选三条及以上：请在指标表中显式选择两条进入详细比较" });
-    }
-    await enterCompareView(decision.kind === "pair" ? decision.pair : null);
-    // U7 5.2：无 pair 的进入也要让宽幅指标表有数据——对整个对照集合发起一次
-    // 只读比较读取（1–4 条均合法；零条无可读）。同集合幂等，不重复请求。
-    if (decision.kind === "none" && get().compareIds.length >= 1) {
-      await get().enterCompareSelection(get().compareIds);
-    }
-  },
-
-  async setCompareSide(side, runId) {
-    const pair = get().comparePair;
-    if (pair === null) return "rejected";
-    const decision = decidePairSideEdit(pair, side, runId);
-    if (decision.kind === "unchanged") return "unchanged";
-    if (decision.kind === "rejected") return "rejected";
-    // 更换对象 = 显式换阅读对象 ⇒ 推进阅读代次；**不**调 selectRun、不动侧栏选择
-    // 与全局对照集合（scenario「更换交换不改变侧栏选择」）
-    noteReadingChanged();
-    set({ comparePair: decision.pair });
-    // U7 4.8：被换侧的步骤选中随旧对象失效；另一侧保留
-    set({
-      compareStepSelection: {
-        left: side === "left" ? null : get().compareStepSelection.left,
-        right: side === "right" ? null : get().compareStepSelection.right,
-      },
-      comparePrefixFolded: {
-        left: side === "left" ? true : get().comparePrefixFolded.left,
-        right: side === "right" ? true : get().comparePrefixFolded.right,
-      },
-    });
-    await get().enterCompareSelection([decision.pair.leftRunId, decision.pair.rightRunId]);
-    return "replaced";
-  },
-
-  async swapCompareSides() {
-    const pair = get().comparePair;
-    if (pair === null) return "none";
-    const swapped = swapComparePair(pair);
-    noteReadingChanged();
-    set({ comparePair: swapped });
-    // U7 4.8：交换 = 左右内容对调 ⇒ 步骤选中随对象一起对调（不是清空）
-    const selection = get().compareStepSelection;
-    const folded = get().comparePrefixFolded;
-    set({
-      compareStepSelection: { left: selection.right, right: selection.left },
-      comparePrefixFolded: { left: folded.right, right: folded.left },
-    });
-    // 交换使旧序请求失效（design D3「快速替换、交换、移出或离开使旧请求失效」）
-    await get().enterCompareSelection([swapped.leftRunId, swapped.rightRunId]);
-    return "swapped";
-  },
-
-  selectCompareStep(side, spanId) {
-    // U7 4.8：复合定位只动本侧——选左不改变右（重复的 s_01 各归各列）
-    const current = get().compareStepSelection;
-    set({
-      compareStepSelection:
-        side === "left" ? { ...current, left: spanId } : { ...current, right: spanId },
-    });
-  },
-
-  toggleComparePrefix(side) {
-    // U7 4.14：折叠/展开只动本侧（折叠是视图压缩，记录不删——展开即恢复）
-    const current = get().comparePrefixFolded;
-    set({
-      comparePrefixFolded:
-        side === "left"
-          ? { ...current, left: !current.left }
-          : { ...current, right: !current.right },
-    });
-  },
-
-  setCompareEvidenceExpanded(expanded) {
-    // UI 密度 change 1.4：只动这一位（纯阅读状态，不触发读取、不动 pair）
-    set({ compareEvidenceExpanded: expanded });
-  },
-
-  async returnFromCompare() {
-    const state = get();
-    const decision = decideCreateReturn({
-      location: state.compareReturnLocation,
-      knownRunIds: state.runs.map((run) => run.id),
-    });
-    // 一次性凭据：恢复与回退都算用掉（与创建页同纪律）
-    set({ compareReturnLocation: null });
-    const target = decision.kind === "restore" ? decision.location.view : decision.view;
-    noteReadingChanged();
-    set({ view: target });
-    if (decision.kind !== "restore" || decision.location.runId === null) return;
-    await restoreReadingLocation(decision.location);
-  },
-
-  async openCompareSideError(runId, llmCallSpanId) {
-    // U7 4.5：单侧错误跳转 = 打开该侧运行并定位自有失败调用（同 openOperationFailure
-    // 的「先落地、再定位」次序——详情读不出来就不做任何定位）。
-    // selectRun 走既有读取通路：比较结论里的 detail 不复用为导航真相源；
-    // 2.3 纪律：离开比较视图但保留 pair 与来源引用 ⇒ 「返回比较」仍成立。
-    // ⚠️ selectRun 在读取失败时也会落 selectedRunId（原位可重试）——
-    // 「落地」判据必须是详情已读出且归属相符，不能只看 selectedRunId。
-    await get().selectRun(runId);
-    const detail = get().detail;
-    if (get().selectedRunId !== runId || detail === null || detail.meta.id !== runId) {
-      return false;
-    }
-    get().setReadingTab(runId, "steps");
-    get().selectSpan(llmCallSpanId);
-    return true;
-  },
-
-  returnToCompare() {
-    // U7 2.3：单侧往返的回程。pair 与 compareRead 会话都在（打开单侧不清它们）；
-    // 同 pair 下 enterCompareSelection 幂等 ⇒ 这里只切视图，不重读
-    if (get().view === "compare") return;
-    noteReadingChanged();
-    set({ view: "compare" });
-  },
-
-  async openCompareSideFiles(side) {
-    const pair = get().comparePair;
-    if (pair === null) return "failed";
-    const runId = side === "left" ? pair.leftRunId : pair.rightRunId;
-    // 能力判据的**唯一输入** = 比较响应里该侧的已校验详情（不拿当前选中 run 冒充）
-    const conclusion = get().compareRead.conclusion;
-    const item =
-      conclusion?.kind === "verified"
-        ? conclusion.items.find((candidate) => candidate.runId === runId)
-        : undefined;
-    const detail = item?.status === "ready" ? item.detail : null;
-    const reading = readingStateOf(get().readingByRun, runId);
-    const entry = deriveCompareFileEntry({
-      detail,
-      selectedSpanId:
-        side === "left" ? get().compareStepSelection.left : get().compareStepSelection.right,
-      savedTab: reading.files !== undefined ? "files" : undefined,
-    });
-    if (entry.kind !== "available") return "unsupported";
-
-    await get().selectRun(runId);
-    // 落地判据（同 openCompareSideError）：详情读出、归属相符、且能力仍成立
-    const live = get().detail;
-    if (get().selectedRunId !== runId || live === null || live.meta.id !== runId) return "failed";
-    if (!isIsolatedRun(live)) return "failed";
-    // 5.7：显式步骤定位目标必须在**落地后的详情**上复核为合法自有完成步骤
-    if (entry.targetCheckpointStepId !== null) {
-      if (isOwnStepTarget(live, entry.targetCheckpointStepId)) {
-        get().setFileReading(runId, { checkpoint: entry.targetCheckpointStepId });
-      }
-      // 复核不过 ⇒ 不写：走 U2 已保存合法位置或默认检查点（不提示成功也不伪造定位）
-    }
-    get().setReadingTab(runId, "files");
-    set({ view: "trace" });
-    return "opened";
-  },
-
-  armTreeSession() {
-    // U7 3.1：首次进入的初始范围与焦点。幂等：已有会话范围就原样沿用（返回树
-    // 恢复视口、不重复强制居中——显式定位才再次居中，D2）
-    const existing = get().treeScope;
-    if (existing !== null) {
-      return { scope: existing, focusRunId: null };
-    }
-    const decision = decideTreeInitialFocus(get().selectedRunId);
-    set({ treeScope: decision.scope });
-    return { scope: decision.scope, focusRunId: decision.focusRunId };
-  },
-
-  setTreeScope(scope) {
-    // U7 3.1：显式范围切换（观察参数；不影响选中运行与阅读位置）
-    set({ treeScope: scope });
-  },
-
-  setTreeQuery(query) {
-    // U7 3.2：搜索词只进会话状态；无命中时渲染层明确提示，不丢原选择
-    set({ treeQuery: query });
-  },
-
-  setTreeViewport(viewport) {
-    // U7 3.3：视口落会话（缩放/平移/定位/适应画布都汇到这里）；返回树恢复
-    set({ treeViewport: viewport });
-  },
-
-  setTreeMode(mode) {
-    // U7 3.6：呈现模式落会话（返回树保留来源模式）；不影响选中与对比集合
-    set({ treeMode: mode });
   },
 
   async openOperationResult(identity) {
@@ -1708,146 +1290,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     return parsed.data;
   },
 
-  setView(view) {
-    // U5 3.4：轨迹 / 分支树之间切换也是"换了在看的东西"⇒ 撤销在飞的自动导航资格
-    noteReadingChanged();
-    // U5 4.1：从创建页切去别的工作区 = 本次来源用掉（下次进入按新位置重记）。
-    // ⚠️ 刻意**不清**创建草稿——离开创建保留它是 U3 的既有语义。
-    // U7 2.3：比较页的来源引用同纪律（经 setView 离开 = 用掉；selectRun 打开单侧
-    // 时保留，那是比较自己的往返流）
-    // U8 1.3：三个辅助工作区的来源引用同一纪律（经 setView 离开 = 用掉；
-    // selectRun 离开时保留——目标是显式凭据，不随视图切换被抹）
-    set({
-      view,
-      createReturnLocation: null,
-      compareReturnLocation: null,
-      recordingReturnLocation: null,
-      experimentReturnLocation: null,
-      messagesReturnLocation: null,
-    });
-  },
-
-  openCreateWorkspace() {
-    const state = get();
-    const selected = state.selectedRunId;
-    const decision = decideCreateEntry({
-      view: state.view,
-      selectedRunId: selected,
-      // 文件定位由 `reading.files` 自己表达（undefined = 从未进入文件页）——
-      // 不在这里另传一份"进入过"布尔，两处判据会漂移
-      reading:
-        state.view === "trace" && selected !== null
-          ? readingStateOf(state.readingByRun, selected)
-          : null,
-    });
-    // 已经在创建页：来源沿用、代次不推进（重复点「新建」不该把这次流程的导航资格撤销掉）
-    if (decision.kind === "keep") return;
-    // 进入创建页 = 离开原来在看的那条运行 ⇒ 撤销在飞的自动导航资格
-    noteReadingChanged();
-    set({ view: "create", createReturnLocation: decision.location });
-  },
-
-  async returnToCreateSource() {
-    const state = get();
-    const decision = decideCreateReturn({
-      location: state.createReturnLocation,
-      knownRunIds: state.runs.map((run) => run.id),
-    });
-    // 一次性凭据：恢复与回退都算用掉，不存在"回到创建页再按一次返回来源"的旧位置复活
-    set({ createReturnLocation: null });
-    const target = decision.kind === "restore" ? decision.location.view : decision.view;
-    noteReadingChanged();
-    set({ view: target });
-    if (decision.kind !== "restore" || decision.location.runId === null) return;
-    await restoreReadingLocation(decision.location);
-  },
-
-  createReturnFactsOf() {
-    const state = get();
-    // ⚠️ 引用稳定（zustand v5 getSnapshot 纪律）：本方法被 selector 直接消费
-    // （CreateRunWorkspace「useAppStore((s) => s.createReturnFactsOf())」），
-    // 每次现造对象会让 getSnapshot 恒新 ⇒ "Maximum update depth exceeded"
-    // ⇒ 无 error boundary 整树卸载（2026-10-15 实机坐实：打开创建页即白屏）。
-    // 输入只有 createReturnLocation 与 runs 两个引用 ⇒ 按引用缓存（4.4 迁
-    // runtime/create-return-facts-cache），两者任一变化才重建；判据本体
-    // （decideCreateReturn + 文案派生）留在 store：同一 decideCreateReturn 事实
-    // 喂返回动作与呈现文案。
-    return createReturnFactsRuntime.factsOf(
-      { location: state.createReturnLocation, runs: state.runs },
-      ({ location, runs }) => {
-        const decision = decideCreateReturn({
-          location,
-          knownRunIds: runs.map((run) => run.id),
-        });
-        return decision.kind === "restore"
-          ? { kind: "restore", label: describeReturnDestination(decision.location) }
-          : {
-              kind: "fallback",
-              label: `回到${workspaceViewName(decision.view)}`,
-              reasonText: describeReturnFallbackReason(decision.reason),
-            };
-      },
-    );
-  },
-
-  openRecordingWorkspace() {
-    enterAuxWorkspace("recording", null);
-    // U8 任务 2.1：进录制页即确保草稿在场（从当前已核实状态初始化；已有草稿原样保留）
-    const state = get();
-    useAppStore.setState({
-      recordingDraft: ensureRecordingDraft(
-        state.recordingDraft,
-        state.proxy !== null ? recordingBaselineOf(state.proxy) : null,
-      ),
-    });
-  },
-
-  openExperimentWorkspace(target) {
-    enterAuxWorkspace("experiment", target);
-    // U8 3.1b：换目标 ⇒ 父本源回到待读取（容器按目标发起只读读取；旧目标的详情不残留）
-    useAppStore.setState({ experimentSource: idleExperimentSource() });
-  },
-
-  openMessagesWorkspace(target) {
-    enterAuxWorkspace("messages", target);
-    // U8 5.1b：换目标 ⇒ 源回到待读取（容器按目标发起只读读取；旧目标的详情不残留）
-    useAppStore.setState({ messagesSource: idleExperimentSource() });
-    // 任务 2.1：打开 messages 即核对当前代理事实（design D2「messages 初次打开…
-    // 均可核对」）。场景「打开重发即核对当前状态」：store 里可能还留着旧的
-    // hasKey=false，用户不必先去录制页手动重读。
-    void get().reconcileProxyGate();
-  },
-
-  async returnToAuxSource(view) {
-    const state = get();
-    const location = state[auxLocationKey(view)];
-    const decision = decideAuxReturn({
-      location,
-      knownRunIds: state.runs.map((run) => run.id),
-    });
-    // 一次性凭据：恢复与回退都算用掉（与创建页同一纪律，旧位置不复活）
-    useAppStore.setState({ [auxLocationKey(view)]: null });
-    const target = decision.kind === "restore" ? decision.location.view : decision.view;
-    noteReadingChanged();
-    set({ view: target });
-    // 任务 2.1：从录制页返回 messages ⇒ 代理启停/凭据接入的**结果**要立刻进 gate。
-    // 场景「打开重发即核对当前状态」的另一半：刚在录制页启用了代理，回来就重发
-    // 时不能还拿着启停之前的门禁事实。⚠️ 只在落到 messages 时核对——
-    // 落到 trace/tree 时读状态是白读一次 IPC。
-    if (target === "messages") void get().reconcileProxyGate();
-    // U8 6.11 实机坐实：辅助工作区「返回来源」后焦点落回工作区主容器（不落 body）——
-    // 场景 THEN「返回有效来源焦点」；U7 5.9「返回比较」的 data-compare-primary 同款。
-    // 返回目标是主工作区视图（trace 等）时落回 main（App 侧 tabIndex=-1）。
-    requestAnimationFrame(() => {
-      (
-        document.querySelector<HTMLElement>("[data-aux-frame]") ??
-        document.querySelector<HTMLElement>("main")
-      )?.focus();
-    });
-    if (decision.kind !== "restore" || decision.location.runId === null) return;
-    await restoreReadingLocation(decision.location);
-  },
-
   writeRecordingDraftFields(patch) {
     const draft = get().recordingDraft;
     if (draft === null) return;
@@ -1899,59 +1341,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     return startOk ? "applied" : "start-failed";
   },
 
-  async readExperimentSource() {
-    const target = get().experimentTarget;
-    if (target === null) return;
-    // 只读 runs:get：不改选中项、不切视图、不碰阅读状态（design D1「后台核实不切页」）
-    set({ experimentSource: { phase: "reading", detail: null, errorMessage: null } });
-    const envelope = await api.getRun(target.runId);
-    if (!envelope.ok) {
-      set({
-        experimentSource: { phase: "failed", detail: null, errorMessage: envelope.error.message },
-      });
-      return;
-    }
-    const parsed = RunDetailSchema.safeParse(envelope.data);
-    if (!parsed.success) {
-      set({
-        experimentSource: {
-          phase: "failed",
-          detail: null,
-          errorMessage: `父本详情数据结构校验失败：${describeZodError(parsed.error)}`,
-        },
-      });
-      return;
-    }
-    set({ experimentSource: { phase: "ready", detail: parsed.data, errorMessage: null } });
-  },
-
-  async readMessagesSource() {
-    // U8 5.1b：与 readExperimentSource 同判据（只读 runs:get，不改选中/视图/代次），
-    // 只是目标换成 messagesTarget——不抄第二份状态形状，复用 ExperimentSourceState。
-    const target = get().messagesTarget;
-    if (target === null) return;
-    set({ messagesSource: { phase: "reading", detail: null, errorMessage: null } });
-    const envelope = await api.getRun(target.runId);
-    if (!envelope.ok) {
-      set({
-        messagesSource: { phase: "failed", detail: null, errorMessage: envelope.error.message },
-      });
-      return;
-    }
-    const parsed = RunDetailSchema.safeParse(envelope.data);
-    if (!parsed.success) {
-      set({
-        messagesSource: {
-          phase: "failed",
-          detail: null,
-          errorMessage: `源详情数据结构校验失败：${describeZodError(parsed.error)}`,
-        },
-      });
-      return;
-    }
-    set({ messagesSource: { phase: "ready", detail: parsed.data, errorMessage: null } });
-  },
-
   setSettingsSection(section) {
     // U5 3.4：进设置 SHALL 撤销自动导航资格（delta「结果导航尊重用户当前阅读意图」）
     if (section !== null) noteReadingChanged();
@@ -1959,26 +1348,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     // 与回来后可能已经不是同一份配置了）
     else clearExecutionConfirmations();
     set({ settingsSection: section });
-  },
-
-  toggleCompare(runId) {
-    const { compareIds } = get();
-    if (compareIds.includes(runId)) {
-      set({
-        compareIds: compareIds.filter((id) => id !== runId),
-        compareNotice: null,
-      });
-      return;
-    }
-    if (compareIds.length >= MAX_COMPARE) {
-      set({ compareNotice: `最多同时对照 ${MAX_COMPARE} 条运行` });
-      return;
-    }
-    set({ compareIds: [...compareIds, runId], compareNotice: null });
-  },
-
-  clearCompare() {
-    set({ compareIds: [], compareNotice: null });
   },
 
   async proxyFork(parentRunId, atSpanId, messages, submission) {
@@ -2060,11 +1429,3 @@ const proxyCoordination = createProxyCoordinationRuntime({
   },
   getProxyStatusRead: () => useAppStore.getState().proxyStatusRead,
 });
-
-// ---------------------------------------------------------------------------
-// 派生缓存 runtime 组合（refactor-renderer 4.4）：`createReturnFactsOf` 按引用
-// 缓存的唯一所有者住在 `store/runtime/create-return-facts-cache.ts`，这里按
-// store 实例组合一次。判据回调留在 action（同一 decideCreateReturn 事实喂
-// 返回动作与呈现文案）；模块加载不预热缓存（惰性：首次 selector 消费才建）。
-// ---------------------------------------------------------------------------
-const createReturnFactsRuntime = createCreateReturnFactsCache();

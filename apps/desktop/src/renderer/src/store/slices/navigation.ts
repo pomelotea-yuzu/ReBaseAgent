@@ -1,41 +1,69 @@
-// AppState 分片：Navigation 域（refactor-renderer 4.1；成员逐字随迁，归属依据 change 的 ownership-map.md）
-import type {
-  AuxReturnLocation,
-  AuxWorkspaceView,
-  ExperimentTarget,
-  MessagesTarget,
+// AppState 分片：Navigation 域（refactor-renderer 4.1 接口 / 5.3 实现迁入；归属依据 change 的 ownership-map.md）
+// 工厂以完整 store 的 set/get 为上下文（design D2：无第二 create、不导入 useAppStore）；
+// auxEntrySnapshot/auxLocationKey/auxTargetKey/enterAuxWorkspace 域内协调者随域迁入（闭包持有）；
+// noteReadingChanged/restoreReadingLocation/createReturnFactsRuntime 由 store.ts 显式注入
+// （results 域 5.5 迁出前、restoreReadingLocation 归属收敛前的注入点）。
+import type { RunDetail } from "../../../../shared/ipc";
+import { RunDetailSchema } from "../../../../shared/ipc";
+import { api } from "../../lib/api";
+import {
+  type AuxReturnLocation,
+  type AuxWorkspaceView,
+  type ExperimentTarget,
+  type MessagesTarget,
+  decideAuxEntry,
+  decideAuxReturn,
 } from "../../lib/aux-workspace";
 import type {
   CreateReturnFacts,
   CreateReturnLocation,
+  ReadingLocationSnapshot,
   SourceView,
   WorkspaceView,
 } from "../../lib/create-workspace";
+import {
+  decideCreateEntry,
+  decideCreateReturn,
+  describeReturnDestination,
+  describeReturnFallbackReason,
+  workspaceViewName,
+} from "../../lib/create-workspace";
+import { readingStateOf } from "../../lib/reading-state";
+import { ensureRecordingDraft, recordingBaselineOf } from "../../lib/recording-draft";
 import type { TreeScope, TreeViewport } from "../../lib/tree-view";
-
-import type { RunDetail } from "../../../../shared/ipc";
+import { decideTreeInitialFocus } from "../../lib/tree-view";
+import type { CreateReturnFactsCacheRuntime } from "../runtime/create-return-facts-cache";
+import type { AppState, SliceContext } from "../types";
 
 export interface NavigationState {
   view: WorkspaceView;
-  /** 加入对照的 run id（上限 4，分支树的选择栏与比较工作区的指标表消费） */
+  /**
+   * 创建工作区（U5 任务 4.1）：**这次是从哪儿点进来创建的**。
+   *
+   * 「新建」不再是覆盖模态而是主工作区的一个页面（`view === "create"`），于是需要一个
+   * 与创建草稿**分开**的凭据来兑现"返回来源"（design D1 + delta 场景「创建工作区任务
+   * 优先且可返回来源」）。三条纪律：
+   * - 只含阅读位置（运行 / 页签 / 调用 / 文件定位），**不含**草稿正文、目录引用、授权、
+   *   凭据，也不含 main 操作登记的任何字段（判据与形状都在 `lib/create-workspace.ts`）；
+   * - 只存 renderer 会话：不落盘、不进 URL/日志/IPC ⇒ **重载后必然失效**，
+   *   返回时只能回退到已有可用工作区，不从草稿或登记反推旧位置；
+   * - 与草稿生命周期互不决定：草稿的恢复/放弃/正常结束清理都不动它；
+   *   从别的工作区进入创建重记，创建页内重复点击与设置往返沿用。
+   *
+   * ⚠️ 与 `createSourceRef`（隔离运行的**源目录**引用：main 签发的 token + name/path）
+   * 是两回事，别混用。
+   */
   createReturnLocation: CreateReturnLocation | null;
   /** 「录制接入」跳转后要高亮的设置分区（null = 常规打开设置） */
   recordingReturnLocation: AuxReturnLocation | null;
   experimentReturnLocation: AuxReturnLocation | null;
   messagesReturnLocation: AuxReturnLocation | null;
-
-  /**
-   * U8 任务 1.2/1.3：辅助工作区的**显式目标**（与 U3 草稿键同形：runId + spanId）。
-   * 目标只由明确的进入动作写入（运行级菜单 / 自有代理调用入口 / 草稿列表返回）；
-   * `selectRun`（侧栏选择）**永不改写**目标——「切运行不更换实验父本」。
-   * 切换目标只有一个途径：用户对另一目标做显式进入动作。目标失效的来源重验归 3.2/5.2。
-   */
   experimentTarget: ExperimentTarget | null;
   messagesTarget: MessagesTarget | null;
-
   /**
-   * U8 任务 2.1：录制配置草稿（结构/判据在 `lib/recording-draft.ts`，独立于草稿仓库）。
-   * 会话内保留；baseline = 最近可核实的代理配置（null = 状态待读取）；不含凭据/许可/计划。
+   * U7 任务 3.1/3.2/3.3：分支树的**会话观察状态**（design D2——视口是观察参数，
+   * 逻辑布局永不在 store 里重排）。null = 本会话尚未进入过树（首次进入由
+   * `decideTreeInitialFocus` 决定初始范围与焦点）。
    */
   treeScope: TreeScope | null;
   /** U7 3.2：树内搜索词（完整 ID/任务匹配在渲染层复用 matchesSearch；空串 = 未搜索） */
@@ -82,7 +110,7 @@ export interface NavigationState {
    * 来源失效（重载 / 运行已不在列表）⇒ 回退已有可用工作区并保留草稿，不伪造旧位置。
    */
   returnToAuxSource: (view: AuxWorkspaceView) => Promise<void>;
-  /** U8 任务 2.1：写入录制草稿字段（原始文本无损；修订按实际变化推进） */
+  /** U7 3.1：首次进入树时初始化范围与焦点（幂等：已初始化则沿用，不重复居中） */
   armTreeSession: () => { scope: TreeScope; focusRunId: string | null };
   /** U7 3.1/3.2：显式切换范围（当前树/全部）——观察参数变化，不推进阅读代次 */
   setTreeScope: (scope: TreeScope) => void;
@@ -95,15 +123,9 @@ export interface NavigationState {
    * 仍停留在列表模式（scenario「返回保留来源模式」）；与范围/搜索/视口一样不落盘。
    */
   setTreeMode: (mode: "graph" | "list") => void;
-
-  /**
-   * U5 任务 3.5：**用户明确打开某条可信结果**。
-   *
-   * 与 3.4 的自动导航分开：那条要过导航意图（离开过流程就不跳），这条**不过**——
-   * 用户点了就是要去看。仍走既有 `selectRun`（恢复该 run 自己的阅读状态），不另写落地逻辑。
-   * 顺带把该条通知标成已看（3.6 的去重）。
-   */
+  /** U8 任务 2.1：写入录制草稿字段（原始文本无损；修订按实际变化推进） */
   experimentSource: ExperimentSourceState;
+  /** U8 3.1b：实验目标的父本源只读读取（runs:get；不改选中/视图/阅读状态） */
   readExperimentSource: () => Promise<void>;
   /**
    * U8 任务 5.1b：messages 工作区目标的**源读取**（只读 `runs:get`），判据与
@@ -112,7 +134,6 @@ export interface NavigationState {
    */
   messagesSource: ExperimentSourceState;
   readMessagesSource: () => Promise<void>;
-  /** 打开设置并定位到某分区（全局栏「录制接入」用），null = 常规打开 */
 }
 
 /** U8 3.1b：实验目标父本源的四态（idle = 换目标后待读取） */
@@ -125,4 +146,331 @@ export interface ExperimentSourceState {
 /** U8 3.1b：初值（换目标/复位共用同一形状） */
 export function idleExperimentSource(): ExperimentSourceState {
   return { phase: "idle", detail: null, errorMessage: null };
+}
+
+/** navigation 分片工厂上下文：完整 set/get + 跨域协调者/资源的显式注入 */
+export interface NavigationSliceContext extends SliceContext {
+  /** results 域协调者（5.5 迁出前由 store.ts 注入）：换阅读对象 ⇒ 撤销在飞导航资格 */
+  noteReadingChanged: () => void;
+  /** navigation 域协调者（store.ts 注入）：「返回来源」的阅读位置恢复落点 */
+  restoreReadingLocation: (
+    location: Pick<CreateReturnLocation, "runId" | "tab" | "spanId" | "file">,
+  ) => Promise<void>;
+  /** 4.4 的按引用派生缓存句柄（store.ts 按实例组合一次，注入给 createReturnFactsOf） */
+  createReturnFactsRuntime: CreateReturnFactsCacheRuntime;
+  /** zod 错误统一描述（store.ts 本地 helper 下沉前的注入点） */
+  describeZodError: (error: unknown) => string;
+}
+
+export function createNavigationSlice({
+  set,
+  get,
+  noteReadingChanged,
+  restoreReadingLocation,
+  createReturnFactsRuntime,
+  describeZodError,
+}: NavigationSliceContext): NavigationState {
+  /**
+   * U8 任务 1.3：从 store 现场构造辅助工作区进入判据的快照
+   * （与 `enterCompareView` / `openCreateWorkspace` 的现场取法同一形状，不抄第二份字段挑选）。
+   */
+  function auxEntrySnapshot(): ReadingLocationSnapshot {
+    const state = get();
+    return {
+      view: state.view,
+      selectedRunId: state.selectedRunId,
+      reading:
+        state.view === "trace" && state.selectedRunId !== null
+          ? readingStateOf(state.readingByRun, state.selectedRunId)
+          : null,
+    };
+  }
+
+  /** 三个辅助工作区的来源引用与视图的对应（唯一映射，open/return 两处共用） */
+  function auxLocationKey(
+    view: AuxWorkspaceView,
+  ): "recordingReturnLocation" | "experimentReturnLocation" | "messagesReturnLocation" {
+    return view === "recording"
+      ? "recordingReturnLocation"
+      : view === "experiment"
+        ? "experimentReturnLocation"
+        : "messagesReturnLocation";
+  }
+
+  /** 实验页/messages 页各自的目标状态键（recording 无目标，不进此映射） */
+  function auxTargetKey(view: AuxWorkspaceView): "experimentTarget" | "messagesTarget" | null {
+    return view === "experiment"
+      ? "experimentTarget"
+      : view === "messages"
+        ? "messagesTarget"
+        : null;
+  }
+
+  /**
+   * U8 任务 1.3：进入辅助工作区的公共落点（录制 / 实验 / messages 共用）。
+   * - 页内重复进入：来源沿用、代次不推进（设置往返视图未变 ⇒ 同一判据覆盖）；
+   *   目标仍按本次显式请求写入（同一目标幂等；不同目标 = 用户显式换目标）；
+   * - 跨视图进入：现记来源位置 + 推进阅读代次 + 显式绑定目标；
+   * - recording 无目标：目标状态永不触碰。
+   */
+  function enterAuxWorkspace(
+    view: AuxWorkspaceView,
+    target: ExperimentTarget | MessagesTarget | null,
+  ): void {
+    const decision = decideAuxEntry(view, auxEntrySnapshot());
+    const targetKey = auxTargetKey(view);
+    const targetPatch = target === null || targetKey === null ? {} : { [targetKey]: target };
+    if (decision.kind === "keep") {
+      set(targetPatch);
+      return;
+    }
+    // 进入辅助页 = 离开原来在看的那条运行 ⇒ 撤销在飞的自动导航资格
+    noteReadingChanged();
+    set({
+      view,
+      [auxLocationKey(view)]: decision.location,
+      ...targetPatch,
+    });
+  }
+
+  return {
+    view: "trace",
+    createReturnLocation: null,
+    recordingReturnLocation: null,
+    experimentReturnLocation: null,
+    messagesReturnLocation: null,
+    experimentTarget: null,
+    messagesTarget: null,
+    treeScope: null,
+    treeQuery: "",
+    treeViewport: null,
+    treeMode: "graph",
+    experimentSource: idleExperimentSource(),
+    messagesSource: idleExperimentSource(),
+
+    setView(view) {
+      // U5 3.4：轨迹 / 分支树之间切换也是"换了在看的东西"⇒ 撤销在飞的自动导航资格
+      noteReadingChanged();
+      // U5 4.1：从创建页切去别的工作区 = 本次来源用掉（下次进入按新位置重记）。
+      // ⚠️ 刻意**不清**创建草稿——离开创建保留它是 U3 的既有语义。
+      // U7 2.3：比较页的来源引用同纪律（经 setView 离开 = 用掉；selectRun 打开单侧
+      // 时保留，那是比较自己的往返流）
+      // U8 1.3：三个辅助工作区的来源引用同一纪律（经 setView 离开 = 用掉；
+      // selectRun 离开时保留——目标是显式凭据，不随视图切换被抹）
+      set({
+        view,
+        createReturnLocation: null,
+        compareReturnLocation: null,
+        recordingReturnLocation: null,
+        experimentReturnLocation: null,
+        messagesReturnLocation: null,
+      });
+    },
+
+    openCreateWorkspace() {
+      const state = get();
+      const selected = state.selectedRunId;
+      const decision = decideCreateEntry({
+        view: state.view,
+        selectedRunId: selected,
+        // 文件定位由 `reading.files` 自己表达（undefined = 从未进入文件页）——
+        // 不在这里另传一份"进入过"布尔，两处判据会漂移
+        reading:
+          state.view === "trace" && selected !== null
+            ? readingStateOf(state.readingByRun, selected)
+            : null,
+      });
+      // 已经在创建页：来源沿用、代次不推进（重复点「新建」不该把这次流程的导航资格撤销掉）
+      if (decision.kind === "keep") return;
+      // 进入创建页 = 离开原来在看的那条运行 ⇒ 撤销在飞的自动导航资格
+      noteReadingChanged();
+      set({ view: "create", createReturnLocation: decision.location });
+    },
+
+    async returnToCreateSource() {
+      const state = get();
+      const decision = decideCreateReturn({
+        location: state.createReturnLocation,
+        knownRunIds: state.runs.map((run) => run.id),
+      });
+      // 一次性凭据：恢复与回退都算用掉，不存在"回到创建页再按一次返回来源"的旧位置复活
+      set({ createReturnLocation: null });
+      const target = decision.kind === "restore" ? decision.location.view : decision.view;
+      noteReadingChanged();
+      set({ view: target });
+      if (decision.kind !== "restore" || decision.location.runId === null) return;
+      await restoreReadingLocation(decision.location);
+    },
+
+    createReturnFactsOf() {
+      const state = get();
+      // ⚠️ 引用稳定（zustand v5 getSnapshot 纪律）：本方法被 selector 直接消费
+      // （CreateRunWorkspace「useAppStore((s) => s.createReturnFactsOf())」），
+      // 每次现造对象会让 getSnapshot 恒新 ⇒ "Maximum update depth exceeded"
+      // ⇒ 无 error boundary 整树卸载（2026-10-15 实机坐实：打开创建页即白屏）。
+      // 输入只有 createReturnLocation 与 runs 两个引用 ⇒ 按引用缓存（4.4 迁
+      // runtime/create-return-facts-cache，句柄经上下文注入），两者任一变化才重建；
+      // 判据本体（decideCreateReturn + 文案派生，5.3 随本分片迁入）：同一
+      // decideCreateReturn 事实喂返回动作与呈现文案。
+      return createReturnFactsRuntime.factsOf(
+        { location: state.createReturnLocation, runs: state.runs },
+        ({ location, runs }) => {
+          const decision = decideCreateReturn({
+            location,
+            knownRunIds: runs.map((run) => run.id),
+          });
+          return decision.kind === "restore"
+            ? { kind: "restore", label: describeReturnDestination(decision.location) }
+            : {
+                kind: "fallback",
+                label: `回到${workspaceViewName(decision.view)}`,
+                reasonText: describeReturnFallbackReason(decision.reason),
+              };
+        },
+      );
+    },
+
+    openRecordingWorkspace() {
+      enterAuxWorkspace("recording", null);
+      // U8 任务 2.1：进录制页即确保草稿在场（从当前已核实状态初始化；已有草稿原样保留）
+      const state = get();
+      set({
+        recordingDraft: ensureRecordingDraft(
+          state.recordingDraft,
+          state.proxy !== null ? recordingBaselineOf(state.proxy) : null,
+        ),
+      });
+    },
+
+    openExperimentWorkspace(target) {
+      enterAuxWorkspace("experiment", target);
+      // U8 3.1b：换目标 ⇒ 父本源回到待读取（容器按目标发起只读读取；旧目标的详情不残留）
+      set({ experimentSource: idleExperimentSource() });
+    },
+
+    openMessagesWorkspace(target) {
+      enterAuxWorkspace("messages", target);
+      // U8 5.1b：换目标 ⇒ 源回到待读取（容器按目标发起只读读取；旧目标的详情不残留）
+      set({ messagesSource: idleExperimentSource() });
+      // 任务 2.1：打开 messages 即核对当前代理事实（design D2「messages 初次打开…
+      // 均可核对」）。场景「打开重发即核对当前状态」：store 里可能还留着旧的
+      // hasKey=false，用户不必先去录制页手动重读。
+      void get().reconcileProxyGate();
+    },
+
+    async returnToAuxSource(view) {
+      const state = get();
+      const location = state[auxLocationKey(view)];
+      const decision = decideAuxReturn({
+        location,
+        knownRunIds: state.runs.map((run) => run.id),
+      });
+      // 一次性凭据：恢复与回退都算用掉（与创建页同一纪律，旧位置不复活）
+      set({ [auxLocationKey(view)]: null });
+      const target = decision.kind === "restore" ? decision.location.view : decision.view;
+      noteReadingChanged();
+      set({ view: target });
+      // 任务 2.1：从录制页返回 messages ⇒ 代理启停/凭据接入的**结果**要立刻进 gate。
+      // 场景「打开重发即核对当前状态」的另一半：刚在录制页启用了代理，回来就重发
+      // 时不能还拿着启停之前的门禁事实。⚠️ 只在落到 messages 时核对——
+      // 落到 trace/tree 时读状态是白读一次 IPC。
+      if (target === "messages") void get().reconcileProxyGate();
+      // U8 6.11 实机坐实：辅助工作区「返回来源」后焦点落回工作区主容器（不落 body）——
+      // 场景 THEN「返回有效来源焦点」；U7 5.9「返回比较」的 data-compare-primary 同款。
+      // 返回目标是主工作区视图（trace 等）时落回 main（App 侧 tabIndex=-1）。
+      requestAnimationFrame(() => {
+        (
+          document.querySelector<HTMLElement>("[data-aux-frame]") ??
+          document.querySelector<HTMLElement>("main")
+        )?.focus();
+      });
+      if (decision.kind !== "restore" || decision.location.runId === null) return;
+      await restoreReadingLocation(decision.location);
+    },
+
+    armTreeSession() {
+      // U7 3.1：首次进入的初始范围与焦点。幂等：已有会话范围就原样沿用（返回树
+      // 恢复视口、不重复强制居中——显式定位才再次居中，D2）
+      const existing = get().treeScope;
+      if (existing !== null) {
+        return { scope: existing, focusRunId: null };
+      }
+      const decision = decideTreeInitialFocus(get().selectedRunId);
+      set({ treeScope: decision.scope });
+      return { scope: decision.scope, focusRunId: decision.focusRunId };
+    },
+
+    setTreeScope(scope) {
+      // U7 3.1：显式范围切换（观察参数；不影响选中运行与阅读位置）
+      set({ treeScope: scope });
+    },
+
+    setTreeQuery(query) {
+      // U7 3.2：搜索词只进会话状态；无命中时渲染层明确提示，不丢原选择
+      set({ treeQuery: query });
+    },
+
+    setTreeViewport(viewport) {
+      // U7 3.3：视口落会话（缩放/平移/定位/适应画布都汇到这里）；返回树恢复
+      set({ treeViewport: viewport });
+    },
+
+    setTreeMode(mode) {
+      // U7 3.6：呈现模式落会话（返回树保留来源模式）；不影响选中与对比集合
+      set({ treeMode: mode });
+    },
+
+    async readExperimentSource() {
+      const target = get().experimentTarget;
+      if (target === null) return;
+      // 只读 runs:get：不改选中项、不切视图、不碰阅读状态（design D1「后台核实不切页」）
+      set({ experimentSource: { phase: "reading", detail: null, errorMessage: null } });
+      const envelope = await api.getRun(target.runId);
+      if (!envelope.ok) {
+        set({
+          experimentSource: { phase: "failed", detail: null, errorMessage: envelope.error.message },
+        });
+        return;
+      }
+      const parsed = RunDetailSchema.safeParse(envelope.data);
+      if (!parsed.success) {
+        set({
+          experimentSource: {
+            phase: "failed",
+            detail: null,
+            errorMessage: `父本详情数据结构校验失败：${describeZodError(parsed.error)}`,
+          },
+        });
+        return;
+      }
+      set({ experimentSource: { phase: "ready", detail: parsed.data, errorMessage: null } });
+    },
+
+    async readMessagesSource() {
+      // U8 5.1b：与 readExperimentSource 同判据（只读 runs:get，不改选中/视图/代次），
+      // 只是目标换成 messagesTarget——不抄第二份状态形状，复用 ExperimentSourceState。
+      const target = get().messagesTarget;
+      if (target === null) return;
+      set({ messagesSource: { phase: "reading", detail: null, errorMessage: null } });
+      const envelope = await api.getRun(target.runId);
+      if (!envelope.ok) {
+        set({
+          messagesSource: { phase: "failed", detail: null, errorMessage: envelope.error.message },
+        });
+        return;
+      }
+      const parsed = RunDetailSchema.safeParse(envelope.data);
+      if (!parsed.success) {
+        set({
+          messagesSource: {
+            phase: "failed",
+            detail: null,
+            errorMessage: `源详情数据结构校验失败：${describeZodError(parsed.error)}`,
+          },
+        });
+        return;
+      }
+      set({ messagesSource: { phase: "ready", detail: parsed.data, errorMessage: null } });
+    },
+  };
 }

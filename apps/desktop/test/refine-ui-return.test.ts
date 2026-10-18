@@ -160,8 +160,9 @@ describe("容器接线：三个辅助工作区与创建页共用同一批判据�
     expect(src).toContain("createReturnFactsOf");
     expect(src).toContain("returnLabel={returnLabel}");
     expect(src).toContain("returnReasonText={returnReasonText}");
-    // store 是唯一派生点：同一 decideCreateReturn 事实喂返回动作与呈现文案
-    const store = read("../src/renderer/src/store.ts");
+    // store 是唯一派生点：同一 decideCreateReturn 事实喂返回动作与呈现文案。
+    // refactor-renderer 5.3：navigation 分片实现迁 slices/navigation.ts，断言随载体改读。
+    const store = read("../src/renderer/src/store/slices/navigation.ts");
     expect(store).toContain("createReturnFactsOf");
     expect(store).toContain("describeReturnDestination(decision.location)");
     expect(store).toContain("describeReturnFallbackReason(decision.reason)");
