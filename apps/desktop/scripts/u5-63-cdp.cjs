@@ -335,9 +335,13 @@ async function waitForForkSettled(call, key, timeoutMs = 60000) {
 /** 操作面板某行的动作按钮集合 */
 async function rowActions(call, needle) {
   await openOpsPanel(call);
+  // ⚠️ 判据适配（2026-10-18，refine-ui 改版后）：操作登记呈现从 #operations-panel 面板
+  //    迁到 SessionActivity（aria-controls="session-activity-panel"，「主动操作」区）。
+  //    拆分链 379b388..HEAD 对呈现层零改动（git log/diff 为空）⇒ 旧选择器在拆分前同样红，
+  //    属探针判据过时而非行为回归。
   const out = await H.ev(
     call,
-    `(() => { const li = Array.from(document.querySelectorAll('#operations-panel li'))
+    `(() => { const li = Array.from(document.querySelectorAll('#session-activity-panel [aria-label="主动操作"] li'))
         .find(x => (x.textContent||'').includes(${JSON.stringify(needle)}));
       if (li === undefined) return JSON.stringify({ found: false });
       const btns = Array.from(li.querySelectorAll('button')).map(b => (b.textContent||'').trim());
@@ -348,13 +352,13 @@ async function rowActions(call, needle) {
 async function openOpsPanel(call) {
   const expanded = await H.ev(
     call,
-    `(() => { const b = document.querySelector('button[aria-controls="operations-panel"]');
+    `(() => { const b = document.querySelector('button[aria-controls="session-activity-panel"]');
        return b === null ? null : b.getAttribute('aria-expanded'); })()`,
   );
   if (expanded !== "true") {
     await H.ev(
       call,
-      `(() => { document.querySelector('button[aria-controls="operations-panel"]').click(); return true; })()`,
+      `(() => { document.querySelector('button[aria-controls="session-activity-panel"]').click(); return true; })()`,
     );
     await H.sleep(900);
   }
@@ -379,13 +383,32 @@ async function forkFlow(
 // 各 tag
 // ---------------------------------------------------------------------------
 
+/**
+ * 展开确认块的「详细边界」（UI 密度 4.3 / refine-ui：facts/checks/limits 全表收进
+ * Disclosure 收起区）。⚠️ 判据适配（2026-10-18）：U5 时期边界话术常驻正文，refine-ui 后
+ * 需先展开才能在 innerText 读到——拆分链 379b388..HEAD 对 ConfirmationBlock/文案零改动。
+ */
+async function expandBoundaries(call) {
+  await H.ev(
+    call,
+    `(() => {
+       for (const b of Array.from(document.querySelectorAll('button'))) {
+         // ⚠️ 动作短语在 aria-label（DisclosureButton 契约），textContent 只有「详细边界」
+         if ((b.getAttribute('aria-label') || '').trim() === '展开详细边界') b.click();
+       }
+       return true; })()`,
+  );
+  await H.sleep(600);
+  return H.ev(call, "(() => document.body.innerText)()");
+}
+
 const FLOWS = {
   /** A1.1「创建和普通重跑只声明已完成的检查」的 result 半边（剧本=successPlain，不提交） */
   "result-check": async (call, mock) => {
     await openPlainResultEditor(call, FX.normalRun, "s_03");
     const text = `${MARK} result-check 披露核对`;
     await H.typeIntoEditableMonaco(call, text);
-    const body = await H.ev(call, "(() => document.body.innerText)()");
+    const body = await expandBoundaries(call);
     check(
       "普通 result 的边界明说「世界不隔离」且后续工具真副作用",
       body.includes("世界不隔离：这是普通 replay 续跑") && body.includes("会真的执行"),
@@ -410,7 +433,7 @@ const FLOWS = {
   "result-plain-boundary": async (call, mock) => {
     await openPlainResultEditor(call, FX.normalRun, "s_03");
     await H.typeIntoEditableMonaco(call, `${MARK} plain-boundary 文本`);
-    const body = await H.ev(call, "(() => document.body.innerText)()");
+    const body = await expandBoundaries(call);
     check("普通侧：有「世界不隔离」", body.includes("世界不隔离"), null);
     check(
       "普通侧：无隔离专属话术（无「轮末检查点」、无「只读预检」）",
@@ -880,7 +903,7 @@ const FLOWS = {
     await openOpsPanel(call);
     await H.ev(
       call,
-      `(() => { const li = Array.from(document.querySelectorAll('#operations-panel li'))
+      `(() => { const li = Array.from(document.querySelectorAll('#session-activity-panel [aria-label="主动操作"] li'))
         .find(x => (x.textContent||'').includes(${JSON.stringify(subA.operationId)}));
       const b = li && Array.from(li.querySelectorAll('button'))
         .find(x => ((x.textContent||'').trim()) === '核对状态');

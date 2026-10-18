@@ -104,8 +104,25 @@ async function appImport(call, needles, body) {
     const rank = (n) => (n.includes('?t=') ? 0 : n.includes('/@fs/') ? 2 : 1);
     const urls = all.filter(n => ${JSON.stringify(needles)}.some(w => n.includes(w)))
       .sort((a, b) => rank(a) - rank(b));
-    if (urls.length === 0) return JSON.stringify({ error: 'module-url-not-found' });
-    const m = await import(urls[0]);
+    if (urls.length > 0) {
+      const m = await import(urls[0]);
+      ${body}
+    }
+    // ⚠️ 兜底（2026-10-18）：页面 reload/导航后 performance resource 时间线被清空 ⇒
+    //    needle 匹配落空。按 dev specifier 直连 import——renderer root=src/renderer ⇒
+    //    短路径（/src/store.ts）恒可达；长路径（/src/renderer/src/...）会被 SPA fallback
+    //    成 HTML，import 抛错 ⇒ 逆序逐个尝试，全败才报错。
+    let m = null;
+    let lastErr = "";
+    for (const u of ${JSON.stringify([...needles].reverse())}) {
+      try {
+        m = await import(u);
+        break;
+      } catch (e) {
+        lastErr = String((e && e.message) || e).slice(0, 140);
+      }
+    }
+    if (m === null) return JSON.stringify({ error: "module-import-failed: " + lastErr });
     ${body}
   })()`;
   const r = await call("Runtime.evaluate", {
