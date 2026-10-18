@@ -11,6 +11,7 @@ import type { RecordingDraft, RecordingDraftPatch } from "../../lib/recording-dr
 import type { SettingsSaveOutcome } from "../../lib/settings-form";
 
 export interface ConfigurationState {
+  /** 运行配置状态（不含 apiKey；null = 尚未加载成功） */
   settings: SettingsState | null;
 
   /** 本地录制代理状态（不含 key 值；null = 尚未加载） */

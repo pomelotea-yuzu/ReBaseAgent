@@ -7,6 +7,12 @@ import type {
 } from "../../lib/result-verification";
 
 export interface ResultsState {
+  /**
+   * U5 任务 1.2：按可信身份读取到的**结果读取项**（design D3）。
+   * 键为 `(epoch, operationId, runId)`；只存 renderer 会话内存，
+   * 不落盘、不进 URL/日志/操作 IPC，也**不是**第二套执行真相源——
+   * 它只说明"renderer 看到了哪条已校验的结局"。
+   */
   resultReads: ResultReadStore;
 
   /**

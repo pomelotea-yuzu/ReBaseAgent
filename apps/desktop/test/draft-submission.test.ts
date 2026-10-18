@@ -58,6 +58,11 @@ const STORE_SRC = readFileSync(
   resolve(import.meta.dirname, "../src/renderer/src/store.ts"),
   "utf8",
 );
+// refactor-renderer 5.4：operations 分片实现迁 slices/operations.ts（五个执行函数切片随载体改读）
+const OPERATIONS_SRC = readFileSync(
+  resolve(import.meta.dirname, "../src/renderer/src/store/slices/operations.ts"),
+  "utf8",
+);
 
 function slice(src: string, startMarker: string, endMarker: string): string {
   const start = src.indexOf(startMarker);
@@ -652,7 +657,8 @@ describe("接线契约：五类提交走快照并受冻结约束（任务 3.4/3.
 
   it("store：六处写入/放弃路径拦冻结；五个执行函数负责收尾", () => {
     // refactor-renderer 5.2：drafts 分片实现迁 slices/drafts.ts（store.ts 只剩组合），
-    // 六处写入/放弃路径的切片源随载体改读；第二段五个执行函数仍属 operations（5.4 迁），继续读 store.ts。
+    // 六处写入/放弃路径的切片源随载体改读；5.4：五个执行函数亦迁 slices/operations.ts，
+    // 第二段切片源随载体改读（见下）。
     const DRAFTS_SRC = readFileSync(
       resolve(import.meta.dirname, "../src/renderer/src/store/slices/drafts.ts"),
       "utf8",
@@ -674,14 +680,17 @@ describe("接线契约：五类提交走快照并受冻结约束（任务 3.4/3.
     // 五个执行函数：响应到达即**按身份**收尾（放在 await 之后、错误分支之前 ⇒ 成功与业务拒绝都覆盖）
     // U4 任务 4.2：收尾一律走 `finishDraftSubmission`（内部按 epoch/operationId 判解冻），
     // 不再无条件 `settleDraftSubmission(submission)`——那等于"任何响应都算结束"。
+    // refactor-renderer 5.4：五个执行函数迁 slices/operations.ts ⇒ 切片源随载体改读（两边留痕：
+    // 5.2 时第二段仍读 store.ts，当时五个执行函数未迁）；proxyFork 在工厂里是最后一个成员，
+    // 结束标记从 store.ts 的 `}));`（create 调用收尾）适配为工厂 return 对象收尾 `\n  };`。
     for (const [start, end] of [
       ["async forkAt(parentRunId, atSpanId, value, execution, submission) {", "resetFork() {"],
       ["async promptFork(parentRunId, edit, submission) {", "async modelAb("],
-      ["async proxyFork(parentRunId, atSpanId, messages, submission) {", "}));"],
+      ["async proxyFork(parentRunId, atSpanId, messages, submission) {", "\n  };"],
       ["async createRun(request, submission) {", "resetCreateRun() {"],
       ["async modelAb(parentRunId, arms, dryRun, submission) {", "resetModelAb() {"],
     ] as const) {
-      const body = slice(STORE_SRC, start, end);
+      const body = slice(OPERATIONS_SRC, start, end);
       const settleAt = body.indexOf("get().finishDraftSubmission(submission");
       expect(settleAt, start).toBeGreaterThan(body.indexOf("await submitActive("));
       expect(settleAt, start).toBeLessThan(body.indexOf("if (!envelope.ok)"));

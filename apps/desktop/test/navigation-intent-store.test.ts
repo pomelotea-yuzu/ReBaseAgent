@@ -461,6 +461,14 @@ describe("3.4 接线契约：导航只有一个调用点", () => {
     resolve(import.meta.dirname, "../src/renderer/src/store.ts"),
     "utf8",
   );
+  // refactor-renderer 5.4：refreshOperationStatus/reconcileOperation 实现迁 slices/operations.ts
+  // ⇒ 两段切片源随载体改读（两边留痕：本断言 5.1–5.3 时读 store.ts，当时两个 action 未迁）。
+  // reconcileOperation 的结束锚点从 `async verifyRunResult`（results 域，留在 store.ts）
+  // 改为工厂里紧随其后的下一个 operations 成员 `async forkAt(`。
+  const OPERATIONS_SRC = readFileSync(
+    resolve(import.meta.dirname, "../src/renderer/src/store/slices/operations.ts"),
+    "utf8",
+  );
 
   it("只有终态消费调协调器；reconcile 走「只通知」那条 trigger", () => {
     const attempts = STORE_SRC.match(/attemptResultNavigation\(/g) ?? [];
@@ -471,14 +479,14 @@ describe("3.4 接线契约：导航只有一个调用点", () => {
       STORE_SRC.indexOf("function closeRemainingClosures"),
     );
     expect(consume).toContain("attemptResultNavigation(record, trigger)");
-    const at = STORE_SRC.indexOf("async reconcileOperation(operationId) {");
-    const reconcile = STORE_SRC.slice(at, STORE_SRC.indexOf("async verifyRunResult", at));
+    const at = OPERATIONS_SRC.indexOf("async reconcileOperation(operationId) {");
+    const reconcile = OPERATIONS_SRC.slice(at, OPERATIONS_SRC.indexOf("async forkAt(", at));
     expect(reconcile).toContain('consumeSettledOperations(previous, "reconcile")');
     // status 那条路才允许自动导航
-    const statusAt = STORE_SRC.indexOf("async refreshOperationStatus() {");
-    const status = STORE_SRC.slice(
+    const statusAt = OPERATIONS_SRC.indexOf("async refreshOperationStatus() {");
+    const status = OPERATIONS_SRC.slice(
       statusAt,
-      STORE_SRC.indexOf("async ensureOperationStatusPolling"),
+      OPERATIONS_SRC.indexOf("async ensureOperationStatusPolling"),
     );
     expect(status).toContain('consumeSettledOperations(previous, "status")');
   });

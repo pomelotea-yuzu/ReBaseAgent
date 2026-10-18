@@ -1,47 +1,6 @@
-import type {
-  ChooseSourceResult,
-  CreateRunRequest,
-  Envelope,
-  ForkCapabilityRequest,
-  ForkCapabilityResult,
-  IsolatedExecutionMode,
-  ModelAbResult,
-  ProxyState,
-  ProxyToggleInput,
-  SettingsInput,
-  SettingsState,
-  WorkspaceExportOutcome,
-  WorkspaceExportRequest,
-  WorkspaceInspectRequest,
-  WorkspaceInspectResult,
-  WorkspaceReadFileRequest,
-  WorkspaceReadFileResult,
-} from "@shared/ipc";
-import type { ModelAbArm, PromptForkRequest } from "@shared/ipc";
-import {
-  ChooseSourceResultSchema,
-  ForkCapabilityResultSchema,
-  ProxyChangeEventSchema,
-  ProxyStateSchema,
-  RunDetailSchema,
-  SettingsStateSchema,
-  WorkspaceExportOutcomeSchema,
-  WorkspaceInspectResultSchema,
-  WorkspaceReadFileResultSchema,
-} from "@shared/ipc";
-import type {
-  ExecutedRequest,
-  ExecutedResponse,
-  OperationAck,
-  OperationRecord,
-  OperationStatusResult,
-} from "@shared/operations";
-import {
-  OPERATION_ERROR,
-  OperationAckSchema,
-  OperationStatusResultSchema,
-  ReconcileResultSchema,
-} from "@shared/operations";
+import type { ProxyState, SettingsState } from "@shared/ipc";
+import { ProxyChangeEventSchema, ProxyStateSchema, SettingsStateSchema } from "@shared/ipc";
+import type { OperationRecord } from "@shared/operations";
 import { create } from "zustand";
 import { api } from "./lib/api";
 import type { CreateReturnLocation } from "./lib/create-workspace";
@@ -50,7 +9,6 @@ import {
   liveSpanOfLocation,
   readingPatchOfLocation,
 } from "./lib/create-workspace";
-import { isLineageRejectionCode } from "./lib/detail-completeness";
 import {
   applyDraftClosure,
   decideDraftClosure,
@@ -59,32 +17,17 @@ import {
   verdictOfOperation,
 } from "./lib/draft-closure";
 import type { DraftKind } from "./lib/draft-list";
-import type { DraftSubmission, DraftSubmitTarget } from "./lib/draft-submission";
+import type { DraftSubmitTarget } from "./lib/draft-submission";
 import * as submissionLib from "./lib/draft-submission";
-import { emptyConfirmationStore, releaseConfirmation } from "./lib/execution-confirmation";
+import { emptyConfirmationStore } from "./lib/execution-confirmation";
 import {
-  type NavigationIntentStore,
   type NavigationTrigger,
   decideResultNavigation,
   emptyNavigationIntents,
   navigationIntentOf,
   releaseNavigationIntent,
 } from "./lib/navigation-intent";
-import {
-  type OperationBlockedBy,
-  type OperationSession,
-  type PendingSubmission,
-  applyReconcile,
-  applyStatus,
-  beginHandshake,
-  beginLocalSubmission,
-  captureGeneration,
-  deriveGate,
-  endLocalSubmission,
-  initialSession,
-  markUnknown,
-  newlySettledOperations,
-} from "./lib/operation-session";
+import { type OperationSession, newlySettledOperations } from "./lib/operation-session";
 import type { ProxyFactCursor } from "./lib/proxy-changes";
 import {
   initialProxyFactCursor,
@@ -115,7 +58,6 @@ import {
 import {
   type ResultReadEntry,
   type ResultReadIdentity,
-  type ResultReadStore,
   beginResultRead,
   emptyResultReadStore,
   finishResultRead,
@@ -125,8 +67,6 @@ import {
   verifyResultPayload,
 } from "./lib/result-verification";
 import type { SettingsSaveOutcome } from "./lib/settings-form";
-import { feedbackFromOutcome, workspaceExportKey } from "./lib/workspace-export-state";
-import type { WorkspaceExportFeedback } from "./lib/workspace-export-state";
 import { createCreateReturnFactsCache } from "./store/runtime/create-return-facts-cache";
 import { createOperationPollingRuntime } from "./store/runtime/operation-polling";
 import { createProxyCoordinationRuntime } from "./store/runtime/proxy-coordination";
@@ -135,6 +75,7 @@ import { createCompareSlice } from "./store/slices/compare";
 import { createDraftsSlice } from "./store/slices/drafts";
 import { idleExperimentSource } from "./store/slices/navigation";
 import { createNavigationSlice } from "./store/slices/navigation";
+import { createOperationsSlice } from "./store/slices/operations";
 import { createDetailReadAttempts, createReadingSlice } from "./store/slices/reading";
 import { createRunsSlice } from "./store/slices/runs";
 import type { AppState } from "./store/types";
@@ -152,178 +93,6 @@ export { MAX_COMPARE } from "./store/slices/compare";
 function describeZodError(error: unknown): string {
   if (error instanceof Error) return error.message;
   return String(error);
-}
-
-/** 门禁禁用原因 → 稳定码 + 中文文案（renderer 本地结论，请求一次都没发出） */
-const LOCAL_BLOCKED: Record<OperationBlockedBy, { code: string; message: string }> = {
-  not_handshaked: {
-    code: "MAIN_HANDSHAKE_REQUIRED",
-    message: "尚未与主进程完成操作握手，本次请求未发送；请重试或重新加载窗口",
-  },
-  communication_unknown: {
-    code: "OPERATION_STATE_UNKNOWN",
-    message: "操作状态未确认（状态通道失联或返回非法结构），本次请求未发送；请先核对状态",
-  },
-  closing: {
-    code: "OPERATION_CLOSING",
-    message: "应用正在退出协商，本次请求未发送",
-  },
-  configuration_busy: {
-    code: "OPERATION_CONFIGURATION_BUSY",
-    message: "运行配置或代理服务正在变更，本次请求未发送；请等变更完成后重试",
-  },
-  operation_running: {
-    code: "OPERATION_BUSY",
-    message: "已有操作在执行（或尚未确认结束），本次请求未发送；请等当前操作结束",
-  },
-};
-
-/**
- * 执行响应的回执核验（任务 4.1「非法操作响应不能解除门禁」的落点）：
- * `ok:true` 但没有可信回执、或回执身份不是我们刚发出的那一次 ⇒ 一律按**未知**处理，
- * 不部分采纳所谓成功字段（调用方因此不会解冻草稿、不会把本地锁当已释放）。
- */
-function inspectAck(
-  response: ExecutedResponse<unknown>,
-  identity: PendingSubmission,
-): { readonly ack: OperationAck | null; readonly problem: string | null } {
-  if (response.operation === null || response.operation === undefined) {
-    return { ack: null, problem: "响应缺少操作回执" };
-  }
-  const parsed = OperationAckSchema.safeParse(response.operation);
-  if (!parsed.success) {
-    return { ack: null, problem: `操作回执结构不合法：${describeZodError(parsed.error)}` };
-  }
-  if (parsed.data.epoch !== identity.epoch || parsed.data.operationId !== identity.operationId) {
-    return { ack: null, problem: "操作回执身份与本次提交不匹配" };
-  }
-  return { ack: parsed.data, problem: null };
-}
-
-// ---------------------------------------------------------------------------
-// 单路有界轮询（refactor-renderer 4.2）：判据在 `lib/operation-polling.ts`，
-// 计时器资源整体迁 `store/runtime/operation-polling.ts`（唯一所有者，见文件尾组合）。
-// 轮询**只读 status**，绝不重放业务 payload（重放等于自动重发，spec 明令禁止）。
-// ---------------------------------------------------------------------------
-
-/**
- * 主动执行的统一提交适配器（U4 design D6，tasks 4.1/4.2/4.3 的适配器半边）。
- *
- * 所有主动入口都走这里：读会话门禁 → 新生成 operationId → 包成 `{operation, request}` →
- * 交给对应通道。operationId **每次提交都新**（含失败重试——重试不复用被封禁/已结束的
- * 许可，见 spec「新执行 SHALL 使用新 ID」）。响应原样返回给调用方，由它按
- * 「身份 + 登记版本 + 状态」处理草稿冻结，而不是把裸 `ok/fail` 当操作结局。
- *
- * 门禁（任务 4.1）：
- * - 尚未握手 ⇒ 补一次握手，仍不可用就按**本地未发送**处理（不冻结草稿、不进 Unknown）；
- * - 通信未知 / 关闭协商 / 配置变更中 / 已有操作在飞（含本地尚未确认的提交）⇒ 同样本地拒发。
- *   main 返回 busy 仍是最后防线，界面不能靠"发不出去才报错"当门禁。
- * - 通道抛错 ⇒ 请求是否被 main 接受**不可知**：置 Unknown 并保留该在飞身份，
- *   绝不自动重发（下一次有效 status 才会确认）。
- */
-async function submitActive<TRequest, TResponse>(
-  call: (request: ExecutedRequest<TRequest>) => Promise<ExecutedResponse<TResponse>>,
-  business: TRequest,
-  /** U4 任务 4.2：带草稿关联的提交用**关联里已生成的** operationId（身份与快照同步定下） */
-  submission?: DraftSubmission,
-): Promise<ExecutedResponse<TResponse>> {
-  if (deriveGate(useAppStore.getState().operations).blockedBy === "not_handshaked") {
-    await useAppStore.getState().refreshOperationStatus();
-  }
-  const blocked = deriveGate(useAppStore.getState().operations).blockedBy;
-  if (blocked !== null) {
-    const { code, message } = LOCAL_BLOCKED[blocked];
-    return { ok: false, operation: null, error: { code, message } };
-  }
-  const epoch = useAppStore.getState().operations.epoch as string;
-  const identity: PendingSubmission = {
-    epoch,
-    // 关联里已生成的 operationId 就是本次提交的身份；没有关联（如 dryRun/预览）才另起
-    operationId: submission?.operationId ?? crypto.randomUUID(),
-    // U5 任务 5.2：本地提交时刻——等待计时的首选基准（会话内存，不进 IPC 信封）
-    submittedAt: Date.now(),
-  };
-  // 关联的 epoch 在真正发出的这一刻绑定（此前它可能是 null = 还没握上手）
-  if (submission !== undefined && submission.epoch !== epoch) {
-    useAppStore.setState((state) => ({
-      draftSubmissions: submissionLib.bindSubmissionEpoch(
-        state.draftSubmissions,
-        submission,
-        epoch,
-      ),
-    }));
-  }
-  useAppStore.setState((state) => ({
-    operations: beginLocalSubmission(state.operations, identity),
-  }));
-  let response: ExecutedResponse<TResponse>;
-  try {
-    // 信封 identity 只带契约里的两键（main 侧 OperationIdentitySchema 是 strict 的，
-    // 多一个 submittedAt 都会被判非法形状）——本地时间事实不跨进程外带。
-    response = await call({
-      operation: { epoch: identity.epoch, operationId: identity.operationId },
-      request: business,
-    });
-  } catch (error) {
-    // 未知：保留在飞身份并保守锁住（不重发、不解冻、不假装结束）
-    useAppStore.setState((state) => ({ operations: markUnknown(state.operations) }));
-    // 任务 4.5：失联 ⇒ 自动轮询停下（手动核对仍可用），不靠重试打爆通道
-    stopOperationStatusPolling();
-    throw error;
-  }
-  if (!response.ok && response.error.code === OPERATION_ERROR.staleEpoch) {
-    // 新 main 会话：旧 epoch 的响应不采纳。旧身份**不销账**——它的结局仍是未知（任务 4.6）
-    useAppStore.setState((state) => ({ operations: markUnknown(state.operations) }));
-    // 任务 4.5：状态未确认 ⇒ 停下自动轮询，等用户/下一次握手来核对
-    stopOperationStatusPolling();
-    return response;
-  }
-  // 任务 4.6：会话已经换过（epoch 与发出时不同）⇒ 这条迟到的旧响应不得解冻、不得导航、
-  // 也不得把会话状态回退。⚠️ 这里**不标通信未知**：新会话的状态刚由一次有效握手确认过，
-  // 未知的是"旧那次提交的结局"（永久未知）——把它标成通道失联会连带锁死新会话。
-  if (useAppStore.getState().operations.epoch !== identity.epoch) {
-    return {
-      ok: false,
-      operation: null,
-      error: {
-        code: "OPERATION_SESSION_SWITCHED",
-        message: "主进程会话已更换：这次提交（属旧会话）的结局未知，不会自动重发，也不会跳转结果",
-      },
-    };
-  }
-  // U6 任务 4.10：main 以来源类稳定码拒绝（父本 ownOnly / 详情不可读）⇒
-  // renderer 同步撤销绑定旧父本的可提交状态（检查代次推进 + 确认清空 + 撤销令牌 +1），
-  // 恢复必须重新检查；草稿正文不受影响（拒绝不等于放弃输入）。
-  if (!response.ok && isLineageRejectionCode(response.error.code)) {
-    revokeSourceBoundPermissions();
-  }
-  // 回执核验：可信回执才销账；缺回执 / 回执身份不匹配 ⇒ 未知（不部分采纳成功字段）
-  const { ack, problem } = inspectAck(response as ExecutedResponse<unknown>, identity);
-  if (problem !== null || ack === null) {
-    useAppStore.setState((state) => ({ operations: markUnknown(state.operations) }));
-    return {
-      ok: false,
-      operation: null,
-      error: {
-        code: "OPERATION_ACK_INVALID",
-        message: `执行响应的操作回执不可信（${problem}）：本次执行状态未确认，请核对状态`,
-      },
-    };
-  }
-  if (ack.state !== "running") {
-    useAppStore.setState((state) => ({
-      operations: endLocalSubmission(state.operations, identity.operationId),
-    }));
-    /**
-     * U5 任务 1.4：拿到**可信终态回执**就立刻取一次 status——`runIds` 只存在于登记快照里，
-     * 回执本身只说明"这条操作结束了"。刷新后由 `consumeSettledOperations` 统一收尾，
-     * 于是"响应到达"与"轮询/核对到达"走的是同一条核实路径（spec「所有入口实际使用同一适配器」）。
-     */
-    await useAppStore.getState().refreshOperationStatus();
-  }
-  // 任务 4.5：计时起点是"这次响应完成"——批次/长请求在飞期间不叠加定时请求
-  rescheduleStatusPoll();
-  return response;
 }
 
 /**
@@ -640,7 +409,7 @@ function closeRemainingClosures(): void {
 
 /**
  * `createReturnFactsOf` 的**按引用缓存**已迁 `store/runtime/create-return-facts-cache.ts`
- * （refactor-renderer 4.4，唯一所有者，见文件尾组合）；action 只交输入引用与判据回调。
+ * （refactor-renderer 4.4，唯一所有者；5.3 起组合点在 create 前）；action 只交输入引用与判据回调。
  */
 
 /** 已静默则立即 resolve；否则排在 `notifyProxyStatusSettled` 队列里。 */
@@ -660,6 +429,16 @@ const detailReadAttempts = createDetailReadAttempts();
 // `store/runtime/create-return-facts-cache.ts`，这里按 store 实例组合一次（create 回调
 // 需要把它注入 navigation 分片 ⇒ 必须先于 create 初始化；模块加载不预热缓存）。
 const createReturnFactsRuntime = createCreateReturnFactsCache();
+
+// 轮询 runtime 组合（4.2 组合 / 5.4 前移）：单路有界轮询的唯一所有者住在
+// `store/runtime/operation-polling.ts`，这里按 store 实例组合一次（design D3）。
+// store 依赖用惰性回调注入（调用时才 `getState()`），与搬迁前逐字等价；
+// ⚠️ 必须先于 create 组合：operations 分片工厂要把句柄注入 submitActive（TDZ 纪律同 5.3）；
+// 模块加载不启动任何资源（轮询全部由 action/组件调用点惰性触发）。
+const operationPolling = createOperationPollingRuntime({
+  getSession: () => useAppStore.getState().operations,
+  refreshOperationStatus: () => useAppStore.getState().refreshOperationStatus(),
+});
 
 export const useAppStore = create<AppState>((set, get) => ({
   // --- 5.1 分片组合：runs/reading（实现迁 slices/；跨域协调者显式注入，design D2）---
@@ -685,11 +464,18 @@ export const useAppStore = create<AppState>((set, get) => ({
     createReturnFactsRuntime,
     describeZodError,
   }),
+  // 5.4：operations 分片（操作会话/唯一提交适配器/执行与通道入口；submitActive 随域迁入
+  // 闭包；revokeSourceBoundPermissions/consumeSettledOperations（results 域 5.5 迁出前）、
+  // describeZodError 与轮询 runtime 句柄由 store.ts 注入）
+  ...createOperationsSlice({
+    set,
+    get,
+    revokeSourceBoundPermissions,
+    consumeSettledOperations,
+    describeZodError,
+    polling: operationPolling,
+  }),
 
-  // R2.1 任务 5.3：导出反馈的会话状态（离开文件页仍存活；重载后为空 = 结果未知）
-  workspaceExports: {},
-  workspaceExportGenerations: {},
-  operations: initialSession(),
   // U5 任务 1.2：按可信身份读取的结果（会话内，与阅读状态和草稿都分开）
   resultReads: emptyResultReadStore(),
   // U5 任务 3.4：阅读代次 + 各提交的导航意图（同为会话内，不进任何持久化）
@@ -699,15 +485,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   seenNoticeKeys: {},
   proxyFactCursor: initialProxyFactCursor,
 
-  forking: "idle",
-  forkError: null,
-  forkErrorCode: null,
-  creatingRun: "idle",
-  createRunError: null,
-  createRunErrorCode: null,
-  modelAbInFlight: false,
-  modelAbError: null,
-  modelAbErrorCode: null,
   settings: null,
   proxy: null,
   recordingDraft: null,
@@ -777,75 +554,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     await settledProxyStatusRead();
   },
 
-  async refreshOperationStatus() {
-    // 先记代次再发请求：期间若有新握手，本次响应整份丢弃（迟到响应不得覆盖新状态）
-    const previous = get().operations;
-    const issuing = beginHandshake(previous);
-    set({ operations: issuing });
-    let envelope: Awaited<ReturnType<typeof api.operationsStatus>>;
-    try {
-      envelope = await api.operationsStatus();
-    } catch {
-      // 通道失联 ⇒ 未知：保留既有事实与锁，等下一次有效 status 才清
-      set({ operations: markUnknown(get().operations) });
-      return get().operations;
-    }
-    // 快照不合契约（含不自洽的槽引用）就当未知，绝不部分采纳所谓成功字段
-    const parsed = envelope.ok ? OperationStatusResultSchema.safeParse(envelope.data) : null;
-    if (parsed === null || !parsed.success) {
-      set({ operations: markUnknown(get().operations) });
-      return get().operations;
-    }
-    const applied = applyStatus(get().operations, parsed.data, issuing.generation);
-    set({ operations: applied.session });
-    // U5 任务 1.4：只有**被采纳的**快照才驱动终态消费（失联/非法/迟到都不动任何收尾）
-    if (applied.applied) await consumeSettledOperations(previous, "status");
-    return get().operations;
-  },
-
-  async ensureOperationStatusPolling() {
-    // 挂载/重载入口：没握过手先握手一次，再按"当前有没有在跑的操作"决定要不要轮询。
-    // 已有定时器在排 ⇒ 不叠加（单路守卫在 `lib/operation-polling.ts`）。
-    const session =
-      get().operations.epoch === null ? await get().refreshOperationStatus() : get().operations;
-    rescheduleStatusPoll();
-    return session;
-  },
-
-  stopOperationStatusPolling() {
-    stopOperationStatusPolling();
-  },
-
-  async reconcileOperation(operationId) {
-    const epoch = get().operations.epoch;
-    if (epoch === null) return get().operations;
-    const generation = captureGeneration(get().operations);
-    let envelope: Awaited<ReturnType<typeof api.operationsReconcile>>;
-    try {
-      envelope = await api.operationsReconcile({ epoch, operationId });
-    } catch {
-      set({ operations: markUnknown(get().operations) });
-      return get().operations;
-    }
-    const parsed = envelope.ok ? ReconcileResultSchema.safeParse(envelope.data) : null;
-    if (parsed === null || !parsed.success) {
-      set({ operations: markUnknown(get().operations) });
-      return get().operations;
-    }
-    const previous = get().operations;
-    const applied = applyReconcile(previous, parsed.data, generation);
-    set({ operations: applied.session });
-    /**
-     * U4 任务 6.5 的接线在 U5 任务 1.4 里并入统一落点：spec 把「核对到 settled/notAccepted」
-     * 列为**唯一**能把待定关联解冻的合法入口（响应丢失时不自动重发、只能重新核对），
-     * 而解冻、单次列表刷新与按 ID 核实必须走同一条路——所以这里不再单独调
-     * `settleDraftByOperation`，交给 `consumeSettledOperations`（只处理本轮新进终态的记录）。
-     * U5 任务 3.4：显式核对到达的终态**只通知**——导航意图当场作废，不跳到结果概览。
-     */
-    if (applied.applied) await consumeSettledOperations(previous, "reconcile");
-    return get().operations;
-  },
-
   async verifyRunResult(identity) {
     // U5 任务 1.2/1.3：核实动作**只**读详情通道并写自己的读取项。
     // 不 selectRun / reopenRun（那会换选中项、恢复阅读状态、动 loadingDetail 与全局 error），
@@ -901,244 +609,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
       return changed ? { seenNoticeKeys: next } : {};
     });
-  },
-
-  async forkAt(parentRunId, atSpanId, value, execution, submission) {
-    set({ forking: "in_progress", forkError: null, forkErrorCode: null });
-    const envelope = await submitActive(
-      api.forkRun,
-      {
-        parentRunId,
-        atSpanId,
-        edit: { field: "result", value },
-        // 只在隔离父本时带上 execution：普通父本请求里不出现该键（语义清爽，且便于断言）
-        ...(execution === undefined ? {} : { execution }),
-      },
-      submission,
-    );
-    // U3 任务 3.4：已明确返回（成功或业务拒绝）⇒ 收尾本次提交关联、解除冻结；
-    // **任何响应都不删草稿**（design D5）。通道抛错不进这里，冻结保留（状态未知）。
-    if (submission !== undefined) get().finishDraftSubmission(submission, envelope);
-    if (!envelope.ok) {
-      set({
-        forking: "error",
-        forkError: envelope.error.message,
-        forkErrorCode: envelope.error.code,
-      });
-      return false;
-    }
-    // U5 任务 3.2：ok 只结束"这次请求在飞"的本地标记。旧实现在这里 `loadRuns()` +
-    // `selectRun(信封里的 id)`——把响应当成了结局（成功信封 + 运行 error 时照样跳过去）。
-    // 列表刷新、按可信 ID 核实与是否导航，与创建同一条路：全部归终态消费点与导航意图。
-    set({ forking: "idle" });
-    return true;
-  },
-
-  resetFork() {
-    set({ forking: "idle", forkError: null, forkErrorCode: null });
-  },
-
-  async loadForkCapability(request) {
-    const envelope = await api.forkCapability(request);
-    if (!envelope.ok) {
-      return { ok: false, code: envelope.error.code, message: envelope.error.message };
-    }
-    // 跨进程数据不可信：确认区会把这些数字原样展示给用户，必须先校验形状
-    const parsed = ForkCapabilityResultSchema.safeParse(envelope.data);
-    if (!parsed.success) {
-      return {
-        ok: false,
-        code: "CAPABILITY_SCHEMA_INVALID",
-        message: `续跑能力预检结果结构校验失败：${describeZodError(parsed.error)}`,
-      };
-    }
-    return { ok: true, data: parsed.data };
-  },
-
-  async inspectWorkspace(request) {
-    const envelope = await api.inspectWorkspace(request);
-    if (!envelope.ok) {
-      return { ok: false, code: envelope.error.code, message: envelope.error.message };
-    }
-    // 跨进程数据不可信：清单与数字会原样展示给用户，先校验形状
-    const parsed = WorkspaceInspectResultSchema.safeParse(envelope.data);
-    if (!parsed.success) {
-      return {
-        ok: false,
-        code: "INSPECT_SCHEMA_INVALID",
-        message: `文件清单结构校验失败：${describeZodError(parsed.error)}`,
-      };
-    }
-    return { ok: true, data: parsed.data };
-  },
-
-  async readWorkspaceFile(request) {
-    const envelope = await api.readWorkspaceFile(request);
-    if (!envelope.ok) {
-      return { ok: false, code: envelope.error.code, message: envelope.error.message };
-    }
-    const parsed = WorkspaceReadFileResultSchema.safeParse(envelope.data);
-    if (!parsed.success) {
-      return {
-        ok: false,
-        code: "READ_FILE_SCHEMA_INVALID",
-        message: `文件内容结构校验失败：${describeZodError(parsed.error)}`,
-      };
-    }
-    return { ok: true, data: parsed.data };
-  },
-
-  async exportCheckpoint(request) {
-    const key = workspaceExportKey(request.runId, request.stepSpanId ?? null);
-    // 请求代次：同 key 的每次提交都递增——旧响应（A→B→A、连续重试）回来时
-    // 代次对不上就整包丢弃，旧成功/失败/收尾都不会覆盖新提交的状态。
-    const generation = (get().workspaceExportGenerations[key] ?? 0) + 1;
-    set((state) => ({
-      workspaceExportGenerations: { ...state.workspaceExportGenerations, [key]: generation },
-      workspaceExports: {
-        ...state.workspaceExports,
-        [key]: {
-          kind: "in-flight",
-          runId: request.runId,
-          stepSpanId: request.stepSpanId ?? null,
-          generation,
-        },
-      },
-    }));
-
-    // 切页不中止：没有取消通道，await 期间导航离开不影响这次调用；响应仍按 key 落库
-    const envelope = await api.exportCheckpoint(request);
-    // 跨进程数据不可信：信封失败与 schema 不合法都折成可展示的 failed（受控码）
-    let outcome: WorkspaceExportOutcome;
-    if (!envelope.ok) {
-      outcome = {
-        status: "failed",
-        code: envelope.error.code,
-        reason: envelope.error.message,
-        retained: [],
-      };
-    } else {
-      const parsed = WorkspaceExportOutcomeSchema.safeParse(envelope.data);
-      if (!parsed.success) {
-        outcome = {
-          status: "failed",
-          code: "EXPORT_SCHEMA_INVALID",
-          reason: `导出结果结构校验失败：${describeZodError(parsed.error)}`,
-          retained: [],
-        };
-      } else {
-        outcome = parsed.data;
-      }
-    }
-
-    // 代次守卫：不是最新一代提交 ⇒ 一个字节都不写，反馈已归新提交所有
-    if (get().workspaceExportGenerations[key] !== generation) return null;
-    const identity = {
-      runId: request.runId,
-      stepSpanId: request.stepSpanId ?? null,
-      generation,
-    };
-    set((state) => ({
-      workspaceExports: {
-        ...state.workspaceExports,
-        [key]: feedbackFromOutcome(identity, outcome),
-      },
-    }));
-    return outcome;
-  },
-
-  async createRun(request, submission) {
-    set({ creatingRun: "in_progress", createRunError: null, createRunErrorCode: null });
-    const envelope = await submitActive(api.createRun, request, submission);
-    // U3 任务 3.5：已明确返回（成功或业务拒绝）⇒ 收尾本次提交关联、解除整份冻结；
-    // **任何响应都不删草稿**（design D5）。通道抛错不进这里，冻结保留（状态未知）。
-    if (submission !== undefined) get().finishDraftSubmission(submission, envelope);
-    if (!envelope.ok) {
-      // 请求事实单独留一行：错误信封说明"这次提交被怎样对待"，不替代运行结局。
-      // 失败运行若要可见走的是终态消费（main 已把 runId 挂到该操作上），不在这里刷列表。
-      set({
-        creatingRun: "error",
-        createRunError: envelope.error.message,
-        createRunErrorCode: envelope.error.code,
-      });
-      return false;
-    }
-    // U5 任务 3.1：ok 只结束"这次请求在飞"的本地标记；没有"success"，也没有导航。
-    set({ creatingRun: "idle" });
-    return true;
-  },
-
-  resetCreateRun() {
-    set({ creatingRun: "idle", createRunError: null, createRunErrorCode: null });
-  },
-
-  async chooseSource() {
-    const envelope = await api.chooseSource();
-    if (!envelope.ok) {
-      set({ error: `选择源目录失败：${envelope.error.message}` });
-      return null;
-    }
-    // 跨进程数据不可信：核验形状后再交给对话框（"取消"与"失败"必须可分辨）
-    const parsed = ChooseSourceResultSchema.safeParse(envelope.data);
-    if (!parsed.success) {
-      set({ error: `目录选择结果结构校验失败：${describeZodError(parsed.error)}` });
-      return null;
-    }
-    return parsed.data;
-  },
-
-  async promptFork(parentRunId, edit, submission) {
-    set({ forking: "in_progress", forkError: null, forkErrorCode: null });
-    const envelope = await submitActive(api.promptFork, { parentRunId, edit }, submission);
-    // U3 任务 3.4：已明确返回即收尾本次提交关联（草稿保留，见 design D5）
-    if (submission !== undefined) get().finishDraftSubmission(submission, envelope);
-    if (!envelope.ok) {
-      set({
-        forking: "error",
-        forkError: envelope.error.message,
-        forkErrorCode: envelope.error.code,
-      });
-      return false;
-    }
-    // U5 任务 3.2：与 forkAt 同形——响应不决定结局，也不产生导航（失败同样不产生伪 run：
-    // 那条 run 是否在列表里、结局如何，只看登记的可信 ID 与它自己的终止事件）。
-    set({ forking: "idle" });
-    return true;
-  },
-
-  async modelAb(parentRunId, arms, dryRun, submission) {
-    set({ modelAbInFlight: true, modelAbError: null, modelAbErrorCode: null });
-    // 两条分支彻底分开：预览走只读通道（不占主动槽、不需要执行身份、不登记关联），
-    // 真实执行走主动通道（整批一个槽，main 判重先于任何副作用）
-    type AbResponse = ExecutedResponse<ModelAbResult> | Envelope<ModelAbResult>;
-    let envelope: AbResponse;
-    if (dryRun === true) {
-      envelope = await api.modelAbPlan({ parentRunId, arms, dryRun: true });
-    } else {
-      const executed = await submitActive(api.modelAb, { parentRunId, arms }, submission);
-      // U3 任务 3.5 + U4 任务 4.2：真实执行的返回即按**身份**收尾整批关联
-      // （含"部分臂失败"——那仍是明确返回）；草稿与批次一律保留。
-      if (submission !== undefined) get().finishDraftSubmission(submission, executed);
-      envelope = executed;
-    }
-    if (!envelope.ok) {
-      set({
-        modelAbInFlight: false,
-        modelAbError: envelope.error.message,
-        modelAbErrorCode: envelope.error.code,
-      });
-      return null;
-    }
-    set({ modelAbInFlight: false });
-    if (dryRun) return envelope.data;
-    // U5 任务 3.3：真实执行也不在入口刷列表——各臂的新 run 由终态消费按**登记的 runIds**
-    // 刷一次、逐条核实；多臂从不自动聚焦（旧实现连 `selectRun` 都没有，只多刷了一次列表）。
-    // 返回的 `data`（信封 ids / 计划）只是请求事实，不是"哪条臂成功"的结论（design D4）。
-    return envelope.data;
-  },
-
-  resetModelAb() {
-    set({ modelAbInFlight: false, modelAbError: null, modelAbErrorCode: null });
   },
 
   async loadSettings() {
@@ -1349,59 +819,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     else clearExecutionConfirmations();
     set({ settingsSection: section });
   },
-
-  async proxyFork(parentRunId, atSpanId, messages, submission) {
-    set({ forking: "in_progress", forkError: null, forkErrorCode: null });
-    // tasks 2.2b：把**提交这一刻**看到的代理事实随请求带上，供main 在副作用前核对。
-    // renderer 的门禁只是 UX：确认到提交之间外部应用随时可能经过代理捕获新 key，
-    // 也可能有人改了代理配置——那两种都必须由 main 拒绝，而不是靠这里"应该已经不旧了"。
-    // ⚠️ 状态未知（proxy=null）时不编造版本：交0/空串让main 拒绝，这比"猜一个放行"安全。
-    const proxy = get().proxy;
-    const envelope = await submitActive(
-      api.proxyFork,
-      {
-        parentRunId,
-        atSpanId,
-        messages,
-        expectedKeyCaptureRevision: proxy?.keyCaptureRevision ?? 0,
-        expectedUpstreamBaseUrl: proxy?.upstreamBaseUrl ?? "",
-        expectedPort: proxy?.port ?? 0,
-      },
-      submission,
-    );
-    // U3 任务 3.4：已明确返回即收尾本次提交关联（草稿保留，见 design D5）
-    if (submission !== undefined) get().finishDraftSubmission(submission, envelope);
-    if (!envelope.ok) {
-      set({
-        forking: "error",
-        forkError: envelope.error.message,
-        forkErrorCode: envelope.error.code,
-      });
-      return false;
-    }
-    // U5 任务 3.3：messages 重发也不消费响应——旧实现 `forking: "success"` + `loadRuns()` +
-    // `selectRun(信封里的 id)`。delta 对这条入口的改判：执行结束 SHALL 刷新列表并按可信身份核实结果，
-    // 自动导航仅在本次流程意图仍有效时进行（任务 3.4），所以这里只把请求标记复位。
-    set({ forking: "idle" });
-    return true;
-  },
 }));
 
 // ---------------------------------------------------------------------------
-// 轮询 runtime 组合（refactor-renderer 4.2）：单路有界轮询的唯一所有者住在
-// `store/runtime/operation-polling.ts`，这里按 store 实例组合一次（design D3）。
-// store 依赖用惰性回调注入（调用时才 `getState()`），与搬迁前逐字等价；
-// 模块加载不启动任何资源（轮询全部由 action/组件调用点惰性触发）。
+// 轮询 runtime 组合（refactor-renderer 4.2 原在文件尾 / 5.4 前移到 create 前）：
+// 句柄已随 operations 分片注入 submitActive，这里只保留原入口兼容导出。
 // ---------------------------------------------------------------------------
-const operationPolling = createOperationPollingRuntime({
-  getSession: () => useAppStore.getState().operations,
-  refreshOperationStatus: () => useAppStore.getState().refreshOperationStatus(),
-});
-
-/** 可信响应/握手之后重新计时（计时起点是"响应完成"，慢响应不会堆积） */
-function rescheduleStatusPoll(): void {
-  operationPolling.rescheduleStatusPoll();
-}
 
 /** 停止自动轮询（保留在飞守卫；手动核对不受它限制）——原入口兼容导出，指向同一 runtime 实现 */
 export function stopOperationStatusPolling(): void {

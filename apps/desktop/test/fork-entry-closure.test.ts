@@ -338,8 +338,10 @@ describe("3.2 prompt 入口不再消费响应", () => {
 });
 
 describe("3.2 接线契约：result / prompt 的局部分支不得复活", () => {
-  const STORE_SRC = readFileSync(
-    resolve(import.meta.dirname, "../src/renderer/src/store.ts"),
+  // refactor-renderer 5.4：forkAt/promptFork 实现迁 slices/operations.ts ⇒ 切片源随载体改读
+  // （两边留痕：本断言 5.1/5.2 时读 store.ts，当时两个 action 未迁）
+  const OPERATIONS_SRC = readFileSync(
+    resolve(import.meta.dirname, "../src/renderer/src/store/slices/operations.ts"),
     "utf8",
   );
 
@@ -348,9 +350,9 @@ describe("3.2 接线契约：result / prompt 的局部分支不得复活", () =>
       ["async forkAt(parentRunId, atSpanId, value, execution, submission) {", "resetFork() {"],
       ["async promptFork(parentRunId, edit, submission) {", "async modelAb("],
     ] as const) {
-      const at = STORE_SRC.indexOf(start);
+      const at = OPERATIONS_SRC.indexOf(start);
       expect(at, start).toBeGreaterThan(-1);
-      const body = STORE_SRC.slice(at, STORE_SRC.indexOf(end, at + 1));
+      const body = OPERATIONS_SRC.slice(at, OPERATIONS_SRC.indexOf(end, at + 1));
       expect(body, start).not.toContain("get().loadRuns(");
       expect(body, start).not.toContain("get().selectRun(");
       // 收尾凭据只在消费点与关联转存处动：入口不碰草稿仓库

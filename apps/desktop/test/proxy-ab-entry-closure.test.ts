@@ -363,8 +363,11 @@ describe("3.3 dry-run 保持独立只读路径", () => {
 });
 
 describe("3.3 接线契约：messages 与 A/B 的局部分支不得复活", () => {
-  const STORE_SRC = readFileSync(
-    resolve(import.meta.dirname, "../src/renderer/src/store.ts"),
+  // refactor-renderer 5.4：proxyFork/modelAb 实现迁 slices/operations.ts ⇒ 切片源随载体改读
+  // （两边留痕：本断言 5.1/5.2 时读 store.ts，当时两个 action 未迁）；proxyFork 在工厂里是
+  // 最后一个成员，结束标记从 store.ts 的 `}));` 适配为工厂 return 对象收尾 `\n  };`
+  const OPERATIONS_SRC = readFileSync(
+    resolve(import.meta.dirname, "../src/renderer/src/store/slices/operations.ts"),
     "utf8",
   );
   // refactor-renderer 2.4：messages 入口与 canResend 判据随壳迁 detail/LlmCallDetail.tsx
@@ -380,19 +383,19 @@ describe("3.3 接线契约：messages 与 A/B 的局部分支不得复活", () =
 
   it("proxyFork 与 modelAb 体内不刷列表、不选中新 run、不碰草稿仓库", () => {
     for (const [start, end] of [
-      ["async proxyFork(parentRunId, atSpanId, messages, submission) {", "}));"],
+      ["async proxyFork(parentRunId, atSpanId, messages, submission) {", "\n  };"],
       ["async modelAb(parentRunId, arms, dryRun, submission) {", "resetModelAb() {"],
     ] as const) {
-      const at = STORE_SRC.indexOf(start);
+      const at = OPERATIONS_SRC.indexOf(start);
       expect(at, start).toBeGreaterThan(-1);
-      const body = STORE_SRC.slice(at, STORE_SRC.indexOf(end, at + 1));
+      const body = OPERATIONS_SRC.slice(at, OPERATIONS_SRC.indexOf(end, at + 1));
       expect(body, start).not.toContain("get().loadRuns(");
       expect(body, start).not.toContain("get().selectRun(");
       expect(body, start).not.toContain("drafts");
     }
-    // 五条通道的响应侧都不再写"成功"态
-    expect(STORE_SRC).not.toContain('forking: "idle" | "in_progress" | "success" | "error"');
-    expect(STORE_SRC).not.toContain('set({ forking: "success" })');
+    // 五条通道的响应侧都不再写"成功"态（断言源随 5.4 载体改读 slices/operations.ts）
+    expect(OPERATIONS_SRC).not.toContain('forking: "idle" | "in_progress" | "success" | "error"');
+    expect(OPERATIONS_SRC).not.toContain('set({ forking: "success" })');
   });
 
   it("「SDK run 无此入口」：messages 入口只给已封存代理 run 的自有 llm.call", () => {

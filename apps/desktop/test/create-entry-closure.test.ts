@@ -473,20 +473,24 @@ describe("3.1 隔离创建走同一条收尾（同一 store 动作）", () => {
 });
 
 describe("3.1 接线契约：旧局部分支不得复活", () => {
-  const STORE_SRC = readFileSync(
-    resolve(import.meta.dirname, "../src/renderer/src/store.ts"),
+  // refactor-renderer 5.4：createRun 实现迁 slices/operations.ts ⇒ 切片源随载体改读（两边留痕：
+  // 本断言 5.1/5.2 时读 store.ts，当时 createRun 未迁）
+  const OPERATIONS_SRC = readFileSync(
+    resolve(import.meta.dirname, "../src/renderer/src/store/slices/operations.ts"),
     "utf8",
   );
 
   it("createRun 函数体里没有列表刷新、没有 selectRun；状态机没有 success", () => {
-    const start = STORE_SRC.indexOf("async createRun(request, submission) {");
-    const end = STORE_SRC.indexOf("resetCreateRun() {", start + 1);
+    const start = OPERATIONS_SRC.indexOf("async createRun(request, submission) {");
+    const end = OPERATIONS_SRC.indexOf("resetCreateRun() {", start + 1);
     expect(start).toBeGreaterThan(-1);
-    const body = STORE_SRC.slice(start, end);
+    const body = OPERATIONS_SRC.slice(start, end);
     expect(body).not.toContain("get().loadRuns(");
     expect(body).not.toContain("get().selectRun(");
     // 清理凭据只在终态消费点与关联转存处释放：入口不碰草稿仓库
     expect(body).not.toContain("drafts");
-    expect(STORE_SRC).not.toContain('creatingRun: "idle" | "in_progress" | "success" | "error"');
+    expect(OPERATIONS_SRC).not.toContain(
+      'creatingRun: "idle" | "in_progress" | "success" | "error"',
+    );
   });
 });
