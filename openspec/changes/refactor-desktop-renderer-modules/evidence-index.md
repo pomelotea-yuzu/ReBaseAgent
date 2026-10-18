@@ -36,6 +36,7 @@
 
 - 实施起点：`379b388`（2026-10-17 固定，见 [baseline-inventory](baseline-inventory.md)）；阶段 1（1.1–1.4）已完成：基线清单 / 归属表 / 迁移台账（desktop 基线：check:build 绿，全量 201 文件/3098 用例，2 条失败单包复跑全过=沙箱并行假红，2 条 EPERM 既有噪声）/ Electron 行为基线（`rrm-14-baseline-cdp.cjs` 9/9：B1 prompt 草稿跨页签往返正文+revision 保持；B2 文件选中跨页签往返路径+几何保持；证据 `.workbuddy/rrm-14-baseline/evidence-1792216313496.json`，重构后同脚本对比）。
 - 实机通道事实（探针新增）：electron-vite dev 的 renderer root = `src/renderer` ⇒ 模块 specifier 是 `/src/monaco-bootstrap.ts`（`/src/renderer/src/...` 会被 SPA fallback 成 HTML）；prompt 草稿编辑器字段名为 `system_prompt`；孤儿 dev host 会占住 5173 导致后续 dev 静默换端口——探针前先 `u2-dev-host.cjs --stop`。
+- 6.1 收口（2026-10-18，21/21）：S11/S12/S18 的实机面 = rrm-14 复跑 9/9（详情/prompt 键入恢复/文件几何）+ 补探针三判据（长原文折叠/展开/查找/复制、放弃模态初始焦点/取消保留/确认清稿、设置往返预填/保存回读/落盘/重开保持），证据 `.workbuddy/rrm-61/evidence-1792316040979.json`（探针 `.workbuddy/rrm-61/probe-61-extra.cjs`，run-all 编排含 settings 备份还原）；🔴 通道坑：title 筛选 `'LLM'` 误中 GlobalBar「运行配置」⇒ 设置模态 inert 背景吞掉全部焦点/键入且选中判据假绿掩盖（必须精确「LLM 调用」+ 写前断言无 `dialog[open]`）；tool 行 title=工具名、compact tool 详情长原文在「入参与结果」Disclosure 内、折叠摘要字符数=prettyJson 显示长度。
 - 字段/action/资源归属、导出/依赖图、前后行数报告：归属表已建（[ownership-map](ownership-map.md)）；导出/依赖图与前后行数报告待最终源码（7.2）。
 - 旧断言迁移清单及基线/最终执行与跳过差异：台账骨架已建（[test-migration-ledger](test-migration-ledger.md)，36 文件/631 用例/动态导入 50 文件/固定清单点名）；逐断言回填与最终执行差异随各阶段与 7.1。
 - 最终全仓门禁、desktop build、Electron 数据目录/fixture/mock/构建：待填。
