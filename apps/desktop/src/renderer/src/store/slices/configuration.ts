@@ -2,12 +2,13 @@
 // 工厂以完整 store 的 set/get 为上下文（design D2：无第二 create、不导入 useAppStore）；
 // 代理订阅/静默等待者经注入的 ProxyCoordinationRuntime 句柄消费（唯一所有者住在
 // store/runtime/proxy-coordination，store.ts 在 create 后组合——句柄方法全是惰性调用，
-// 与 4.3 的薄包装语义逐字等价）；describeZodError 由 store.ts 注入（共享 helper）；
+// 与 4.3 的薄包装语义逐字等价）；describeZodError 自 lib/describe-zod-error 直连（5.7 归置）；
 // setSettingsSection 对 results.noteReadingChanged / drafts.clearExecutionConfirmations
 // 的调用走执行时 get()（跨域调用走 action，design D2）。
 import type { ProxyState, ProxyToggleInput, SettingsInput, SettingsState } from "@shared/ipc";
 import { ProxyStateSchema, SettingsStateSchema } from "@shared/ipc";
 import { api } from "../../lib/api";
+import { describeZodError } from "../../lib/describe-zod-error";
 import type { ProxyFactCursor } from "../../lib/proxy-changes";
 import { initialProxyFactCursor, shouldReconcileOnActivate } from "../../lib/proxy-changes";
 import type { ProxyStatusReadState } from "../../lib/proxy-status-read";
@@ -57,6 +58,7 @@ export interface ConfigurationState {
    * 只记次数，零密钥值传播。
    */
   settingsChangeGeneration: number;
+  /** 「录制接入」跳转后要高亮的设置分区（null = 常规打开设置） */
   settingsSection: "proxy" | null;
 
   recordingDraft: RecordingDraft | null;
@@ -108,18 +110,15 @@ export interface ConfigurationState {
   applyRecordingDraft: () => Promise<"applied" | "start-failed" | "invalid" | "busy" | "no-draft">;
 }
 
-/** configuration 分片工厂上下文：完整 set/get + 共享 helper 与代理协调句柄的显式注入 */
+/** configuration 分片工厂上下文：完整 set/get + 代理协调句柄的显式注入 */
 export interface ConfigurationSliceContext extends SliceContext {
-  /** zod 错误统一描述（store.ts 本地 helper 注入，runs/navigation/operations 分片同款） */
-  describeZodError: (error: unknown) => string;
-  /** 代理协调 runtime 句柄（唯一所有者在 store/runtime/proxy-coordination；store.ts create 后组合） */
+  /** 代理协调 runtime 句柄（唯一所有者在 store/runtime/proxy-coordination；store.ts create 前组合） */
   coordination: ProxyCoordinationRuntime;
 }
 
 export function createConfigurationSlice({
   set,
   get,
-  describeZodError,
   coordination,
 }: ConfigurationSliceContext): ConfigurationState {
   return {

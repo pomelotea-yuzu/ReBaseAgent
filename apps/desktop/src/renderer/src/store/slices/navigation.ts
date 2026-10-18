@@ -1,8 +1,10 @@
 // AppState 分片：Navigation 域（refactor-renderer 4.1 接口 / 5.3 实现迁入；归属依据 change 的 ownership-map.md）
 // 工厂以完整 store 的 set/get 为上下文（design D2：无第二 create、不导入 useAppStore）；
 // auxEntrySnapshot/auxLocationKey/auxTargetKey/enterAuxWorkspace 域内协调者随域迁入（闭包持有）；
-// noteReadingChanged/restoreReadingLocation/createReturnFactsRuntime 由 store.ts 显式注入
-// （results 域 5.5 迁出前、restoreReadingLocation 归属收敛前的注入点）。
+// noteReadingChanged/createReturnFactsRuntime 由 store.ts 注入（results 分片成员与 runtime 句柄）；
+// restoreReadingLocation（「返回来源」的阅读位置恢复落点，跨 navigation+reading 协调）
+// 5.7 自 store.ts 迁入本分片为公开成员（ownership-map：navigation 持有、只调 reading 的公开 action），
+// compare 分片经执行时 get() 消费。
 import type { RunDetail } from "../../../../shared/ipc";
 import { RunDetailSchema } from "../../../../shared/ipc";
 import { api } from "../../lib/api";
@@ -26,9 +28,18 @@ import {
   decideCreateReturn,
   describeReturnDestination,
   describeReturnFallbackReason,
+  filePatchOfLocation,
+  liveSpanOfLocation,
+  readingPatchOfLocation,
   workspaceViewName,
 } from "../../lib/create-workspace";
-import { readingStateOf } from "../../lib/reading-state";
+import { describeZodError } from "../../lib/describe-zod-error";
+import {
+  fileReadingOf,
+  patchFileReading,
+  patchReadingState,
+  readingStateOf,
+} from "../../lib/reading-state";
 import { ensureRecordingDraft, recordingBaselineOf } from "../../lib/recording-draft";
 import type { TreeScope, TreeViewport } from "../../lib/tree-view";
 import { decideTreeInitialFocus } from "../../lib/tree-view";
@@ -54,7 +65,6 @@ export interface NavigationState {
    * 是两回事，别混用。
    */
   createReturnLocation: CreateReturnLocation | null;
-  /** 「录制接入」跳转后要高亮的设置分区（null = 常规打开设置） */
   /**
    * U8（unify-recording-and-experiment-workspaces）任务 1.2/1.3：三个辅助工作区的
    * **来源位置引用**（判据在 `lib/aux-workspace.ts`，语义同 `createReturnLocation`）：
@@ -141,6 +151,18 @@ export interface NavigationState {
    */
   messagesSource: ExperimentSourceState;
   readMessagesSource: () => Promise<void>;
+  /**
+   * U7 2.3：按来源引用恢复阅读位置（创建页与比较页的"返回来源"共用——不抄第二份）。
+   *
+   * 该 run 本来就选中 ⇒ 用既有阅读动作当场对齐（页签/调用/文件定位）；
+   * 换运行 ⇒ 先把位置写成该 run 的会话阅读状态，再走 `selectRun`——它自带
+   * "按详情校验 + 失效回退"，这里不重复判有效性（判了也不认）。
+   * 5.7 自 store.ts 迁入本分片（ownership-map：navigation 持有、只调 reading 的公开 action）；
+   * compare 分片经执行时 get() 消费（design D2）。
+   */
+  restoreReadingLocation: (
+    location: Pick<CreateReturnLocation, "runId" | "tab" | "spanId" | "file">,
+  ) => Promise<void>;
 }
 
 /** U8 3.1b：实验目标父本源的四态（idle = 换目标后待读取） */
@@ -157,25 +179,17 @@ export function idleExperimentSource(): ExperimentSourceState {
 
 /** navigation 分片工厂上下文：完整 set/get + 跨域协调者/资源的显式注入 */
 export interface NavigationSliceContext extends SliceContext {
-  /** results 域协调者（5.5 迁出前由 store.ts 注入）：换阅读对象 ⇒ 撤销在飞导航资格 */
+  /** results 域协调者（results 分片公开成员，5.5 起注入源 = results 实例）：换阅读对象 ⇒ 撤销在飞导航资格 */
   noteReadingChanged: () => void;
-  /** navigation 域协调者（store.ts 注入）：「返回来源」的阅读位置恢复落点 */
-  restoreReadingLocation: (
-    location: Pick<CreateReturnLocation, "runId" | "tab" | "spanId" | "file">,
-  ) => Promise<void>;
   /** 4.4 的按引用派生缓存句柄（store.ts 按实例组合一次，注入给 createReturnFactsOf） */
   createReturnFactsRuntime: CreateReturnFactsCacheRuntime;
-  /** zod 错误统一描述（store.ts 本地 helper 下沉前的注入点） */
-  describeZodError: (error: unknown) => string;
 }
 
 export function createNavigationSlice({
   set,
   get,
   noteReadingChanged,
-  restoreReadingLocation,
   createReturnFactsRuntime,
-  describeZodError,
 }: NavigationSliceContext): NavigationState {
   /**
    * U8 任务 1.3：从 store 现场构造辅助工作区进入判据的快照
@@ -306,7 +320,7 @@ export function createNavigationSlice({
       noteReadingChanged();
       set({ view: target });
       if (decision.kind !== "restore" || decision.location.runId === null) return;
-      await restoreReadingLocation(decision.location);
+      await get().restoreReadingLocation(decision.location);
     },
 
     createReturnFactsOf() {
@@ -392,7 +406,7 @@ export function createNavigationSlice({
         )?.focus();
       });
       if (decision.kind !== "restore" || decision.location.runId === null) return;
-      await restoreReadingLocation(decision.location);
+      await get().restoreReadingLocation(decision.location);
     },
 
     armTreeSession() {
@@ -478,6 +492,51 @@ export function createNavigationSlice({
         return;
       }
       set({ messagesSource: { phase: "ready", detail: parsed.data, errorMessage: null } });
+    },
+
+    async restoreReadingLocation(location) {
+      const { runId } = location;
+      // 无运行可恢复（来源视图不承载单运行位置）⇒ 视图已恢复，无事可做
+      if (runId === null) return;
+      if (get().selectedRunId === runId) {
+        // 该 run 本来就选中：没有"恢复"这一步可借，直接用既有的阅读动作当场对齐
+        if (
+          location.tab !== null &&
+          readingStateOf(get().readingByRun, runId).tab !== location.tab
+        ) {
+          get().setReadingTab(runId, location.tab);
+        }
+        const liveSpan = liveSpanOfLocation(
+          location,
+          (get().detail?.spans ?? []).map((span) => span.id),
+        );
+        if (liveSpan !== null && get().selectedSpanId !== liveSpan) {
+          get().selectSpan(liveSpan);
+        }
+        const filePatch = filePatchOfLocation(location);
+        const liveFile = fileReadingOf(readingStateOf(get().readingByRun, runId));
+        if (
+          filePatch !== null &&
+          (liveFile.checkpoint !== filePatch.checkpoint || liveFile.path !== filePatch.path)
+        ) {
+          get().setFileReading(runId, filePatch);
+        }
+        return;
+      }
+      // 换运行：先把位置写成该 run 的会话阅读状态，再走 `selectRun`（判据同上）
+      const readingPatch = readingPatchOfLocation(location);
+      if (Object.keys(readingPatch).length > 0) {
+        set((current) => ({
+          readingByRun: patchReadingState(current.readingByRun, runId, readingPatch),
+        }));
+      }
+      const filePatch = filePatchOfLocation(location);
+      if (filePatch !== null) {
+        set((current) => ({
+          readingByRun: patchFileReading(current.readingByRun, runId, filePatch),
+        }));
+      }
+      await get().selectRun(runId);
     },
   };
 }

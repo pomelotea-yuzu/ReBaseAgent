@@ -301,3 +301,22 @@
 **断言随载体改读：本批零处**（逐个核对结论）：剩余读 store.ts 源码的测试只有三处——draft-submission 的 STORE_SRC 常量（5.4 后已无消费，空置）、create-workspace-store 的 createDialogOpen 负向断言（store.ts 迁前迁后都不含该串，保真）、run-list-nav 的旧标签负向扫描（空匹配）。configuration 行为测试（proxy-change-store/proxy-status-store/proxy-change-decisions/proxy-change-notify/capture-confirmation-store/recording-draft-store/settings-save-feedback/settings-clear-confirm/proxy-recovery-races/aux-workspace-store）全部经真实 store action + window.api 桩驱动，不读源码；组件侧锚点（settings-roundtrip-invalidate/settings-clear-confirm/entry-gate 的切片）全部读 SettingsDialog/App 组件，不读 store.ts。
 
 验证：tsc web/node 双 0；biome 改动 7 文件 0 错；定向 13 文件约 240 用例全过（proxy-change-store 20 / proxy-status-store 15 / recording-draft 11 / settings-save-feedback 15 / settings-clear-confirm 7 / store.test 62 / execution-confirmation-store 15 / capture-confirmation 6 / proxy-recovery-races 11 / aux-workspace 23 / proxy-change-decisions 17 / proxy-change-notify 15；EPERM 噪声分批单跑逐文件实收）；**全量 203 文件/3180 用例 0 失败（singleFork，与权威三元组一致，exit=0）**。
+
+## 5.7 销账记录（2026-10-18）
+
+**两项归置**：
+1. **describeZodError → `lib/describe-zod-error.ts`**（新 lib 纯函数模块，10 行）：runs/navigation/operations/configuration 四分片直连导入，四组 *SliceContext 注入管道拆除——纯函数无协调语义，design D2 的注入只用于跨域协调者与 runtime 句柄，helper 绕注入是管道噪音。store.ts 216→**135 行**。
+2. **restoreReadingLocation → navigation 分片公开成员**（ownership-map 归属"navigation 持有、只调 reading 公开 action"兑现）：navigation 内 returnToCreateSource/returnToAuxSource 两个调用点与 compare.returnFromCompare 共用落点；compare 改执行时 `get().restoreReadingLocation(...)`（compare 注入清空，CompareSliceContext 只剩 noteReadingChanged）。零测试锚点先行核对（aux-workspace-entries 的 returnToAuxSource 切片只断言 data-aux-frame/main/focus 焦点内容，调用形态变化安全）。
+
+**收敛终态**：store.ts 3769→**135 行** = imports + 文件头职责注记 + 四 runtime 组合（detailReadAttempts/createReturnFactsRuntime/operationPolling/proxyCoordination，全 create 前）+ create 块体（8 分片组合，results 先组合）+ 4 兼容导出（useAppStore/stopOperationStatusPolling/MAX_COMPARE/idleExperimentSource+ExperimentSourceState type）。
+
+**三项收敛审计（一次性脚本 `.workbuddy/audit-5.7.cjs`，AUDIT_PASS，机器回查证据）**：
+1. **键归属/实际初始化键集合**：8 分片 interface 成员 vs 工厂 return 键全 1:1（missing/extra/dup 全空）——compare 25 / configuration 24 / drafts 33 / navigation 29 / operations 29 / reading 16 / results 14 / runs 27，**并集 197 成员零跨分片重复**。较 4.1 基线 192 多 5 = 协调者成员化（noteReadingChanged/revokeSourceBoundPermissions/consumeSettledOperations/clearExecutionConfirmations/restoreReadingLocation），非新增业务状态。
+2. **可达导入图**：分片零 store 入口导入、零兄弟分片值导入；允许项仅 8×`../types` 类型导入 + runs→reading 的 type-only `DetailReadAttempts`（编译期擦除，无运行时边）；分片依赖方向全部为 slices→lib/@shared/runtime/types。
+3. **兼容导出**：4 件全部有真实 src 消费（MAX_COMPARE 2 文件 / idleExperimentSource 1 / ExperimentSourceState 1 / stopOperationStatusPolling 2），全部指向同一实现（S01 活证据持续成立）。
+
+**断言随载体改读：本批零处**（restoreReadingLocation/describeZodError 均无测试锚点，grep 先行核对）；顺手归位 navigation→configuration 的 settingsSection 悬置注释（仅注释）。
+
+**审计脚本实施留痕**：首版两处 bug——全局标志正则跨 match 的 lastIndex 污染捕获组（报"undefined 重复成员"）、工厂定位取全文首个 `return {` 撞上同文件前部辅助工厂（navigation 的 idleExperimentSource / reading 的 createDetailReadAttempts，报 factory=0）——修正为非全局正则 + 按 `create<StateName→Slice>` 精确定位后 AUDIT_PASS。教训：**同文件多工厂时，块提取锚点必须带工厂名**。
+
+验证：tsc web/node 双 0；biome 改动 9 文件 0 错；定向 6 文件约 150 用例全过（aux-workspace-entries 15 / compare-workspace-store 18 / refine-ui-return 14 / store.test 62 / aux-workspace-store 23 / create-workspace-store 21）；**全量 203 文件/3180 用例 0 失败（singleFork，与权威三元组一致，exit=0）**。

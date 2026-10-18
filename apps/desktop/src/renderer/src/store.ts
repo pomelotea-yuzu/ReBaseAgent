@@ -1,19 +1,7 @@
 import { ProxyChangeEventSchema } from "@shared/ipc";
 import { create } from "zustand";
 import { api } from "./lib/api";
-import type { CreateReturnLocation } from "./lib/create-workspace";
-import {
-  filePatchOfLocation,
-  liveSpanOfLocation,
-  readingPatchOfLocation,
-} from "./lib/create-workspace";
 import { shouldApplyChange } from "./lib/proxy-changes";
-import {
-  fileReadingOf,
-  patchFileReading,
-  patchReadingState,
-  readingStateOf,
-} from "./lib/reading-state";
 import { createCreateReturnFactsCache } from "./store/runtime/create-return-facts-cache";
 import { createOperationPollingRuntime } from "./store/runtime/operation-polling";
 import { createProxyCoordinationRuntime } from "./store/runtime/proxy-coordination";
@@ -33,78 +21,15 @@ export type { ExperimentSourceState } from "./store/slices/navigation";
 /**
  * UI 状态：只存选择状态与原始数据。
  * 聚合数字一律在组件里用 shared/derive 的纯函数现算，不进 store、不落缓存。
+ *
+ * refactor-renderer 5.7 收敛：本文件是**唯一 create/组合入口**——八分片实现全部住在
+ * `store/slices/*`（彼此无运行时导入，跨域调用走执行时 get() 的 action）、四个 runtime
+ * 资源住在 `store/runtime/*`（此处按实例组合一次）。键归属/兼容导出/可达导入图的
+ * 收敛核查记录见 change 目录 test-migration-ledger.md 的 5.7 销账。
  */
 
 // MAX_COMPARE（5.3）随 compare 分片迁 slices/compare.ts；此处兼容再导出指向同一实现。
 export { MAX_COMPARE } from "./store/slices/compare";
-
-/** 跨进程数据不可信：统一用 schema 校验后再进状态（注入 runs/navigation/operations/configuration 分片） */
-function describeZodError(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  return String(error);
-}
-
-/**
- * U7 2.3：按来源引用恢复阅读位置（创建页与比较页的"返回来源"共用——不抄第二份）。
- *
- * 该 run 本来就选中 ⇒ 用既有阅读动作当场对齐（页签/调用/文件定位）；
- * 换运行 ⇒ 先把位置写成该 run 的会话阅读状态，再走 `selectRun`——它自带
- * "按详情校验 + 失效回退"，这里不重复判有效性（判了也不认）。
- */
-async function restoreReadingLocation(
-  location: Pick<CreateReturnLocation, "runId" | "tab" | "spanId" | "file">,
-): Promise<void> {
-  const { runId } = location;
-  // 无运行可恢复（来源视图不承载单运行位置）⇒ 视图已恢复，无事可做
-  if (runId === null) return;
-  if (useAppStore.getState().selectedRunId === runId) {
-    // 该 run 本来就选中：没有"恢复"这一步可借，直接用既有的阅读动作当场对齐
-    if (
-      location.tab !== null &&
-      readingStateOf(useAppStore.getState().readingByRun, runId).tab !== location.tab
-    ) {
-      useAppStore.getState().setReadingTab(runId, location.tab);
-    }
-    const liveSpan = liveSpanOfLocation(
-      location,
-      (useAppStore.getState().detail?.spans ?? []).map((span) => span.id),
-    );
-    if (liveSpan !== null && useAppStore.getState().selectedSpanId !== liveSpan) {
-      useAppStore.getState().selectSpan(liveSpan);
-    }
-    const filePatch = filePatchOfLocation(location);
-    const liveFile = fileReadingOf(readingStateOf(useAppStore.getState().readingByRun, runId));
-    if (
-      filePatch !== null &&
-      (liveFile.checkpoint !== filePatch.checkpoint || liveFile.path !== filePatch.path)
-    ) {
-      useAppStore.getState().setFileReading(runId, filePatch);
-    }
-    return;
-  }
-  // 换运行：先把位置写成该 run 的会话阅读状态，再走 `selectRun`（判据同上）
-  const readingPatch = readingPatchOfLocation(location);
-  if (Object.keys(readingPatch).length > 0) {
-    useAppStore.setState((current) => ({
-      readingByRun: patchReadingState(current.readingByRun, runId, readingPatch),
-    }));
-  }
-  const filePatch = filePatchOfLocation(location);
-  if (filePatch !== null) {
-    useAppStore.setState((current) => ({
-      readingByRun: patchFileReading(current.readingByRun, runId, filePatch),
-    }));
-  }
-  await useAppStore.getState().selectRun(runId);
-}
-
-/**
- * `createReturnFactsOf` 的**按引用缓存**已迁 `store/runtime/create-return-facts-cache.ts`
- * （refactor-renderer 4.4，唯一所有者；5.3 起组合点在 create 前）；action 只交输入引用与判据回调。
- *
- * 代理协调的两个薄包装（settledProxyStatusRead/notifyProxyStatusSettled）随 5.6 configuration
- * 分片迁出而删除——configuration 工厂经注入的 ProxyCoordinationRuntime 句柄直调同实现。
- */
 
 // 详情读取代次（5.1）：唯一持有者住在 slices/reading 的工厂；这里按 store 实例创建一次，
 // runs 分片经注入访问（分片之间无运行时互相导入，design D2）。
@@ -160,37 +85,32 @@ export const useAppStore = create<AppState>((set, get) => {
       // 5.5 起注入源 = results 分片实例（results 域协调者迁出 store.ts）
       noteReadingChanged: results.noteReadingChanged,
       revokeSourceBoundPermissions: results.revokeSourceBoundPermissions,
-      describeZodError,
       detailReadAttempts,
     }),
     ...createReadingSlice({ set, get, noteReadingChanged: results.noteReadingChanged }),
     // 5.2：drafts 分片（草稿仓库/提交关联/执行确认；discardClosureTarget 随域迁入）
     ...createDraftsSlice({ set, get }),
-    // 5.3：compare/navigation 分片（域内协调者随域迁入；noteReadingChanged/
-    // restoreReadingLocation/describeZodError/createReturnFactsRuntime 注入）
+    // 5.3：compare/navigation 分片（域内协调者随域迁入；noteReadingChanged 注入；
+    // restoreReadingLocation 5.7 迁 navigation 为公开成员，compare 走 get() 消费）
     ...createCompareSlice({
       set,
       get,
       noteReadingChanged: results.noteReadingChanged,
-      restoreReadingLocation,
     }),
     ...createNavigationSlice({
       set,
       get,
       noteReadingChanged: results.noteReadingChanged,
-      restoreReadingLocation,
       createReturnFactsRuntime,
-      describeZodError,
     }),
     // 5.4：operations 分片（操作会话/唯一提交适配器/执行与通道入口；submitActive 随域迁入
-    // 闭包；revokeSourceBoundPermissions/consumeSettledOperations（5.5 起注入源 = results 分片）、
-    // describeZodError 与轮询 runtime 句柄由 store.ts 注入）
+    // 闭包；revokeSourceBoundPermissions/consumeSettledOperations（5.5 起注入源 = results 分片）
+    // 与轮询 runtime 句柄由 store.ts 注入）
     ...createOperationsSlice({
       set,
       get,
       revokeSourceBoundPermissions: results.revokeSourceBoundPermissions,
       consumeSettledOperations: results.consumeSettledOperations,
-      describeZodError,
       polling: operationPolling,
     }),
     // 5.5：results 分片（结果核实/导航代次/通知键 + 三个跨域协调者）
@@ -199,7 +119,6 @@ export const useAppStore = create<AppState>((set, get) => {
     ...createConfigurationSlice({
       set,
       get,
-      describeZodError,
       coordination: proxyCoordination,
     }),
   };

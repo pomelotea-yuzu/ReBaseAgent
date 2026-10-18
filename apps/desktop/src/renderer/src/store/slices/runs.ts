@@ -18,6 +18,7 @@ import {
 import { decideRefresh, resolveRefreshFailure, settleRefresh } from "@shared/list-refresh";
 import { ShortIdState } from "@shared/nav";
 import { api } from "../../lib/api";
+import { describeZodError } from "../../lib/describe-zod-error";
 import { resolveReading } from "../../lib/reading-resolve";
 import { patchReadingState, readingStateOf } from "../../lib/reading-state";
 import {
@@ -82,12 +83,10 @@ export interface RunsState {
 
 /** runs 分片工厂上下文：完整 set/get + 跨域协调者/共享 helper 的显式注入 */
 export interface RunsSliceContext extends SliceContext {
-  /** results 域协调者（5.5 迁出前由 store.ts 注入）：换阅读对象 ⇒ 撤销在飞导航资格 */
+  /** results 域协调者（results 分片公开成员，5.5 起注入源 = results 实例）：换阅读对象 ⇒ 撤销在飞导航资格 */
   noteReadingChanged: () => void;
-  /** results→drafts 协调者（5.5 迁出前由 store.ts 注入）：ownOnly 落地 ⇒ 撤销来源绑定许可 */
+  /** results→drafts 协调者（results 分片公开成员，5.5 起注入源 = results 实例）：ownOnly 落地 ⇒ 撤销来源绑定许可 */
   revokeSourceBoundPermissions: () => void;
-  /** zod 错误统一描述（store.ts 本地 helper 下沉前的注入点，operations 等域共用） */
-  describeZodError: (error: unknown) => string;
   /** 详情读取代次（唯一持有者在 reading 分片；selectRun 发起与迟到判据用） */
   detailReadAttempts: DetailReadAttempts;
 }
@@ -97,7 +96,6 @@ export function createRunsSlice({
   get,
   noteReadingChanged,
   revokeSourceBoundPermissions,
-  describeZodError,
   detailReadAttempts,
 }: RunsSliceContext): RunsState {
   return {

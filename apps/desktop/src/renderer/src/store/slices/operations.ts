@@ -35,6 +35,7 @@ import {
   ReconcileResultSchema,
 } from "@shared/operations";
 import { api } from "../../lib/api";
+import { describeZodError } from "../../lib/describe-zod-error";
 import { isLineageRejectionCode } from "../../lib/detail-completeness";
 import type { DraftSubmission } from "../../lib/draft-submission";
 import * as submissionLib from "../../lib/draft-submission";
@@ -231,15 +232,13 @@ export interface OperationsState {
 
 /** operations 分片工厂上下文：完整 set/get + 跨域协调者/共享 helper 的显式注入 */
 export interface OperationsSliceContext extends SliceContext {
-  /** results→drafts 协调者（5.5 迁出前由 store.ts 注入）：来源类拒绝 ⇒ 撤销来源绑定许可 */
+  /** results→drafts 协调者（results 分片公开成员，5.5 起注入源 = results 实例）：来源类拒绝 ⇒ 撤销来源绑定许可 */
   revokeSourceBoundPermissions: () => void;
-  /** results 域协调者（5.5 迁出前由 store.ts 注入）：有效快照/核对后的终态消费唯一落点 */
+  /** results 域协调者（results 分片公开成员，5.5 起注入源 = results 实例）：有效快照/核对后的终态消费唯一落点 */
   consumeSettledOperations: (
     previous: OperationSession,
     trigger: NavigationTrigger,
   ) => Promise<void>;
-  /** zod 错误统一描述（store.ts 本地 helper 注入，runs 分片同款） */
-  describeZodError: (error: unknown) => string;
   /** 轮询 runtime 句柄（唯一所有者在 store/runtime/operation-polling；store.ts create 前组合） */
   polling: OperationPollingRuntime;
 }
@@ -249,7 +248,6 @@ export function createOperationsSlice({
   get,
   revokeSourceBoundPermissions,
   consumeSettledOperations,
-  describeZodError,
   polling,
 }: OperationsSliceContext): OperationsState {
   /** 门禁禁用原因 → 稳定码 + 中文文案（renderer 本地结论，请求一次都没发出） */

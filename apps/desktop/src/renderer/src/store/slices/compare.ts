@@ -3,7 +3,8 @@ import { deriveCompareFileEntry, isOwnStepTarget } from "../../lib/compare-files
 // AppState 分片：Compare 域（refactor-renderer 4.1 接口 / 5.3 实现迁入；归属依据 change 的 ownership-map.md）
 // 工厂以完整 store 的 set/get 为上下文（design D2：无第二 create、不导入 useAppStore）；
 // requestCompareRead / enterCompareView 两个域内协调者随域迁入（闭包持有）；
-// noteReadingChanged / restoreReadingLocation 由 store.ts 显式注入（results/navigation 域迁出前）。
+// noteReadingChanged 由 store.ts 注入（results 分片公开成员，5.5 起注入源 = results 实例）；
+// restoreReadingLocation（navigation 分片公开成员，5.7 迁入）经执行时 get() 消费。
 import type { ComparePair, CompareReturnLocation } from "../../lib/compare-navigation";
 import {
   decideCompareWithParent,
@@ -21,11 +22,7 @@ import {
   retryCompareRead as retryCompareReadState,
   sameCompareSelection,
 } from "../../lib/compare-state";
-import {
-  type CreateReturnLocation,
-  decideCreateEntry,
-  decideCreateReturn,
-} from "../../lib/create-workspace";
+import { decideCreateEntry, decideCreateReturn } from "../../lib/create-workspace";
 import { isIsolatedRun } from "../../lib/isolated-fork";
 import { readingStateOf } from "../../lib/reading-state";
 import type { AppState, SliceContext } from "../types";
@@ -147,19 +144,14 @@ export interface CompareState {
 
 /** compare 分片工厂上下文：完整 set/get + 跨域协调者的显式注入 */
 export interface CompareSliceContext extends SliceContext {
-  /** results 域协调者（5.5 迁出前由 store.ts 注入）：换阅读对象 ⇒ 撤销在飞导航资格 */
+  /** results 域协调者（results 分片公开成员，5.5 起注入源 = results 实例）：换阅读对象 ⇒ 撤销在飞导航资格 */
   noteReadingChanged: () => void;
-  /** navigation 域协调者（store.ts 注入）：「返回来源」的阅读位置恢复落点 */
-  restoreReadingLocation: (
-    location: Pick<CreateReturnLocation, "runId" | "tab" | "spanId" | "file">,
-  ) => Promise<void>;
 }
 
 export function createCompareSlice({
   set,
   get,
   noteReadingChanged,
-  restoreReadingLocation,
 }: CompareSliceContext): CompareState {
   /**
    * U7 任务 1.4/1.5：一次比较选择集的实际只读请求（design D3 渲染层半边）。
@@ -385,7 +377,8 @@ export function createCompareSlice({
       noteReadingChanged();
       set({ view: target });
       if (decision.kind !== "restore" || decision.location.runId === null) return;
-      await restoreReadingLocation(decision.location);
+      // restoreReadingLocation 是 navigation 分片公开成员（5.7 迁入），经执行时 get() 消费
+      await get().restoreReadingLocation(decision.location);
     },
 
     async openCompareSideError(runId, llmCallSpanId) {
