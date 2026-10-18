@@ -471,10 +471,26 @@ describe("4.1 接线契约：来源判据只有一份", () => {
   });
 
   it("旧对话框通道不得复活：store 里没有 createDialogOpen / setCreateDialogOpen", () => {
-    const storeSrc = read("store.ts");
+    // refactor-renderer 5.8：store 实现已 8 分片全迁出——负向断言扩到组合入口 + 全部分片实现，
+    // 防"旧通道在分片里复活而组合层扫描空转"的假绿。
+    const storeSides = [
+      read("store.ts"),
+      ...[
+        "runs",
+        "reading",
+        "drafts",
+        "operations",
+        "results",
+        "compare",
+        "navigation",
+        "configuration",
+      ].map((name) => read(`store/slices/${name}.ts`)),
+    ];
     for (const rel of ["App.tsx", "components/GlobalBar.tsx", "components/RunList.tsx"]) {
       expect(read(rel), rel).not.toContain("createDialogOpen");
     }
-    expect(storeSrc).not.toContain("createDialogOpen");
+    for (const src of storeSides) {
+      expect(src).not.toContain("createDialogOpen");
+    }
   });
 });

@@ -237,10 +237,21 @@ describe("接线：既有指标字段一个不删，源标签同步", () => {
   });
 
   it("产品源码与当前测试里没有遗留旧标签「本地直录 / 仅代理」", () => {
+    // refactor-renderer 5.8：store 实现已 8 分片全迁出（store.ts 只剩组合）——旧标签若复活，
+    // 可能承载点是任一分片实现 ⇒ 清单中 store.ts 项扩展为 store.ts + 8 个分片文件
+    // （逐项列出、不扩大成整目录拼接搜索，维持 D6 固定清单纪律；其余项不变）。
     for (const rel of [
       "src/renderer/src/components/RunList.tsx",
       "src/renderer/src/components/GlobalBar.tsx",
       "src/renderer/src/store.ts",
+      "src/renderer/src/store/slices/runs.ts",
+      "src/renderer/src/store/slices/reading.ts",
+      "src/renderer/src/store/slices/drafts.ts",
+      "src/renderer/src/store/slices/operations.ts",
+      "src/renderer/src/store/slices/results.ts",
+      "src/renderer/src/store/slices/compare.ts",
+      "src/renderer/src/store/slices/navigation.ts",
+      "src/renderer/src/store/slices/configuration.ts",
       "test/run-workspace.test.ts",
       "test/run-create.test.ts",
       "test/plain-chat-regression.test.ts",
@@ -253,7 +264,23 @@ describe("接线：既有指标字段一个不删，源标签同步", () => {
   it("「本地记录」标签在列表侧在场；store 侧不再有旧标签", () => {
     // U5 任务 3.1：创建入口不再自己刷列表，原先钉在 store 成功分支里的那句注释一并消失——
     // 标签的真实出处在 RunList 的来源过滤与徽章文案，正向核对改指那里（旧标签的负向核对见上一支）。
+    // refactor-renderer 5.8：store 侧负向核对随 8 分片全迁出扩展到组合入口 + 全部分片实现。
+    const storeSides = [
+      read("src/renderer/src/store.ts"),
+      ...[
+        "runs",
+        "reading",
+        "drafts",
+        "operations",
+        "results",
+        "compare",
+        "navigation",
+        "configuration",
+      ].map((name) => read(`src/renderer/src/store/slices/${name}.ts`)),
+    ];
+    for (const src of storeSides) {
+      expect(src).not.toContain('归入"本地直录"');
+    }
     expect(read("src/renderer/src/components/RunList.tsx")).toContain('["local", "本地记录"]');
-    expect(read("src/renderer/src/store.ts")).not.toContain('归入"本地直录"');
   });
 });

@@ -45,12 +45,12 @@
 | T03 | cache-display.test.ts | 25 | D | detail/LlmCallDetail + DetailShared | 2.1 |
 | T04 | call-detail-view.test.ts | 68 | D | detail/LlmCallDetail·ToolInvokeDetail·StepDetail | 2.1 |
 | T05 | confirm-dialog.test.ts | 5 | D | detail/（放弃确认调用点） | 2.4 |
-| T06 | create-entry-closure.test.ts | 11 | S | navigation（创建） | 5.3 |
-| T07 | create-workspace-store.test.ts | 21 | S（相对名封装） | navigation（创建） | 5.3 |
+| T06 | create-entry-closure.test.ts | 11 | S | navigation（创建） | 5.3、5.4 |
+| T07 | create-workspace-store.test.ts | 21 | S（相对名封装） | navigation（创建） | 5.3、5.5 |
 | T08 | draft-closure-store.test.ts | 17 | S | results（收尾判据） | 5.5 |
 | T09 | draft-compare-grid.test.tsx | 8 | D | detail/ 对照区挂载 | 2.4 |
 | T10 | draft-list.test.ts | 11 | D | DetailShared（草稿列表） | 2.1 |
-| T11 | draft-submission.test.ts | 20 | D+S | drafts + detail/编辑器 | 5.2、2.2–2.3 |
+| T11 | draft-submission.test.ts | 20 | D+S | drafts + detail/编辑器 | 5.2、2.2–2.3、5.4 |
 | T12 | entry-gate.test.ts | 12 | D | detail/入口门禁 | 2.4 |
 | T13 | execution-confirmation-store.test.ts | 15 | D | drafts（确认）+ detail/编辑器 | 5.2、2.2–2.3 |
 | T14 | experiment-results.test.ts | 15 | D | detail/（批次挂载否定断言） | 2.4 |
@@ -65,14 +65,14 @@
 | T23 | fork-entry-closure.test.ts | 6 | S | operations（执行入口） | 5.4 |
 | T24 | modal-dialog.test.ts | 16 | D | detail/编辑器 Esc 规则 | 2.2–2.3 |
 | T25 | monaco-view-state.test.ts | 18 | W | workspace-file/FileContent | 3.2 |
-| T26 | navigation-intent-store.test.ts | 14 | S+D | results（navIntents）+ detail/ | 5.5、2.4 |
+| T26 | navigation-intent-store.test.ts | 14 | S+D | results（navIntents）+ detail/ | 5.5、2.4、5.4 |
 | T27 | notice-disclosure.test.tsx | 10 | D | DetailNotices 侧 + detail/ | 2.4 |
 | T28 | operation-result-actions.test.ts | 12 | S | results（结果定位跳转） | 5.5 |
 | T29 | panel-collapse-headers.test.tsx | 7 | W | workspace-file/Body | 3.1 |
 | T30 | prompt-messages-editor-draft.test.ts | 18 | D | detail/PromptForkEditor | 2.2 |
 | T31 | proxy-ab-entry-closure.test.ts | 9 | S+D | operations + detail/ | 5.4、2.3 |
 | T32 | refine-ui-return.test.ts | 14 | S | navigation（返回事实唯一派生） | 5.3 |
-| T33 | run-list-nav.test.ts | 24 | S（+动态导入 store） | runs + navigation（固定清单见上） | 5.1、5.3 |
+| T33 | run-list-nav.test.ts | 24 | S（+动态导入 store） | runs + navigation（固定清单见上） | 5.1、5.3、5.8 |
 | T34 | settings-roundtrip-invalidate.test.ts | 16 | D | configuration + detail/编辑器 | 5.6、2.3 |
 | T35 | workspace-file-view.test.ts | 26 | D（+动态导入 W） | navigation（页签）+ workspace-file/ | 5.3、3.1 |
 | T36 | workspace-focus-mode.test.ts | 21 | D（+动态导入 DetailPanel） | RunWorkspace 侧 + detail/ | 2.4 |
@@ -320,3 +320,45 @@
 **审计脚本实施留痕**：首版两处 bug——全局标志正则跨 match 的 lastIndex 污染捕获组（报"undefined 重复成员"）、工厂定位取全文首个 `return {` 撞上同文件前部辅助工厂（navigation 的 idleExperimentSource / reading 的 createDetailReadAttempts，报 factory=0）——修正为非全局正则 + 按 `create<StateName→Slice>` 精确定位后 AUDIT_PASS。教训：**同文件多工厂时，块提取锚点必须带工厂名**。
 
 验证：tsc web/node 双 0；biome 改动 9 文件 0 错；定向 6 文件约 150 用例全过（aux-workspace-entries 15 / compare-workspace-store 18 / refine-ui-return 14 / store.test 62 / aux-workspace-store 23 / create-workspace-store 21）；**全量 203 文件/3180 用例 0 失败（singleFork，与权威三元组一致，exit=0）**。
+
+## 5.8 销账记录（2026-10-18）——1.3 台账闭环核对 + 组合 store 观察测试
+
+### 36 文件销账闭环总表（逐行核对，全部有实际销账记录，零静默丢失）
+
+| 组 | T 文件 | 销账记录位置 | 闭环状态 |
+|---|---|---|---|
+| detail/ 七件（2.1–2.4） | T02/T03/T04/T05/T09/T10/T12/T13(part)/T14/T19(part)/T21/T22/T24/T27/T30/T34(part)/T36 | 台账 2.1/2.2/2.3/2.4 销账记录（8 文件断言逐条表） | ✅ 原入口兼容再导出 + 断言随载体改读 |
+| workspace-file/（3.1–3.4） | T15(part)/T16/T17/T18/T19(part)/T20/T25/T29/T35(part) | 台账 3.1–3.3 销账记录（CONN/BODY/FC 三常量分派） | ✅ 原入口兼容 + 6 个动态导入测试活证据 |
+| store 分片（4.2–4.4 + 5.1–5.7） | T01/T06/T07/T08/T11/T15(part)/T23/T26/T28/T31/T32/T33 | 台账 4.2–4.4 / 5.1 / 5.2 / 5.3 / 5.4 / 5.5 销账记录（各批「随载体改读」表 + 「无需改读」核对表） | ✅（T06/T07/T11/T26/T33 的实际销账批次较计划分散，已回填 T 表） |
+| settings（2.3 + 5.6 核对） | T34 | 台账 2.3（RFE 授权失效接线）+ 5.6（store 侧零锚点核对：组件切片全读 SettingsDialog/App，不读 store.ts） | ✅ |
+| 固定清单（5.8 增强） | T33（run-list-nav 6 文件清单）、T02（budget-reachability Monaco 清单）、T09（draft-compare-grid compareKey）、T13（execution-confirmation 计数） | 见下节 | ✅ |
+
+**计划 vs 实际偏差（已回填 T 表销账列）**：T06 实际 = 5.3 锚点核对 + 5.4 createRun 切片改读；T07 实际 = 5.3 attemptResultNavigation 切片核对 + 5.5 改读；T11 第二段五执行函数实际 5.4 迁；T26 reconcile/status 两段实际 5.4 改读 + attempt 计数/consume 切片 5.5 改读；T33 清单 5.8 扩展。偏差原因一致：ownership-map 的分片边界预估与实施期"协调者随域迁入/成员化"的落地顺序微调，每步均在对应批次销账记录中两边留痕，无保证削弱。
+
+### 固定清单与计数覆盖核对（D6 四项）
+
+1. **run-list-nav 6 文件清单**：store 实现已 8 分片全迁出 ⇒ 旧标签负向扫描扩展为 store.ts + 8 个分片文件（逐项列名，未扩大成整目录拼接；正向锚「本地记录」在 RunList 不变）。✅ 覆盖实际模块。
+2. **budget-reachability Monaco 清单（325–338）**：2.4/3.4 已改读实际编辑器承载模块（detail/PromptForkEditor + detail/ResultForkEditor 的 MonacoCodeEditor、workspace-file/FileContent 的 MonacoDiffEditor、DetailPanel 负向），本轮 grep 复核读取路径确认（BudgetMap/DetailPanel/detail/LlmCallDetail + 相对路径清单）。✅
+3. **draft-compare-grid compareKey 计数**：2.4 已改读 detail/ 四模块调用点（容器归零），本轮复核相对路径清单读取方式确认。✅
+4. **execution-confirmation-store 计数（167–274）**：2.2/2.3 已按载体重分（PFE 1 + RFE 2，容器归零），本轮复核相对路径清单确认。✅
+
+**否定断言复查汇总（防空入口假绿）**：5.4（create-entry/proxy-ab 负向断言改读 OPERATIONS_SRC）、5.5（attempt 计数/consume 切片改读 RESULTS_SRC）、5.6（零锚点 + 剩余负向全为空匹配核对）、5.8（run-list-nav 与 create-workspace-store 的 store 侧负向断言扩展到 8 分片）——全部否定断言的读取对象都是**实际承载模块**，无一处只查已搬空的 store.ts。
+
+### 测试增删/跳过差异记录
+
+- **测试文件零增删**：全量恒 203 文件；36 文件台账基线全部在场。
+- **用例数零变化**：5.1–5.8 全程 3180（2.x 迁移期 2988→3180 的变化已在 2.x 销账记录逐批说明，与 5.x 无关）。
+- **跳过零新增**：无新增 `.skip`/`it.skip`；既有 5 skipped = replay 包 symlink 特权用例按设计跳过（1.3 基线已登记，与本 change 无关）。
+- **断言随载体改读累计 12 文件**：run-list-nav、file-checkpoint-resolve（5.1）；draft-submission（5.2）；refine-ui-return、aux-workspace-entries（5.3）；draft-submission、create-entry-closure、fork-entry-closure、proxy-ab-entry-closure、navigation-intent-store（5.4）；navigation-intent-store、draft-closure-store、create-workspace-store、operation-result-actions（5.5）；5.6 零处；5.7 零处。
+- **5.8 代码面改动 3 处**：draft-submission 空置 STORE_SRC 常量删除（5.4 后无消费）；run-list-nav 固定清单扩展（+8 分片）；create-workspace-store createDialogOpen 负向扩展（+8 分片）。
+
+### 对最终组合 store 重跑观察测试（四类，EPERM 分批单跑逐文件实收）
+
+| 类 | 文件（用例） | 结果 |
+|---|---|---|
+| 资源重复启停 | operation-polling 9 / proxy-change-store 20 / proxy-status-store 15 / capture-confirmation 6 | ✅ |
+| 缓存引用稳定 | store.test 62（getSnapshot Object.is 引用稳定组） | ✅ |
+| 竞态与迟到 | operation-races 9 / operation-session-epoch 4 / proxy-recovery-races 11 / wait-timing 15 | ✅ |
+| 原子更新与收尾 | draft-closure-store 17 / operation-result-consumption 13 / draft-submission 20 / run-list-nav 25 / create-workspace-store 21 | ✅ |
+
+验证：tsc web/node 双 0；biome 改动 3 文件 0 错；定向四类观察批全过（逐文件实收）；**全量 203 文件/3180 用例 0 失败（singleFork，与权威三元组一致，exit=0）**。**阶段 5 完成**：store.ts 3769→135 行，八分片 + 三 runtime + 一 lib helper，创建 → 收敛全程 12 批次零行为回归。

@@ -54,15 +54,12 @@ const RESULT_EDITOR = readFileSync(
   resolve(import.meta.dirname, "../src/renderer/src/components/detail/ResultForkEditor.tsx"),
   "utf8",
 );
-const STORE_SRC = readFileSync(
-  resolve(import.meta.dirname, "../src/renderer/src/store.ts"),
-  "utf8",
-);
 // refactor-renderer 5.4：operations 分片实现迁 slices/operations.ts（五个执行函数切片随载体改读）
 const OPERATIONS_SRC = readFileSync(
   resolve(import.meta.dirname, "../src/renderer/src/store/slices/operations.ts"),
   "utf8",
 );
+// 5.8：原 STORE_SRC（store.ts）常量随 5.4 第二段切片改读 OPERATIONS_SRC 后已无消费，删除。
 
 function slice(src: string, startMarker: string, endMarker: string): string {
   const start = src.indexOf(startMarker);
