@@ -3,7 +3,8 @@
 // （放 store 字段会进渲染依赖，且 StrictMode 双挂载下句柄时序更脆）。
 //
 // store 实例依赖经惰性回调注入（design D2/D3）：本模块不导入 `useAppStore`、
-// 不在模块顶层缓存 store 实例；由 store.ts 在唯一 create 之后按实例组合一次。
+// 不在模块顶层缓存 store 实例；由 store.ts 按实例组合一次（4.3 原在 create 之后，
+// 5.6 起 configuration 分片工厂要把句柄注入代理订阅/静默入口 ⇒ 组合点前移到 create 前）。
 // ensure/release 的幂等性与"先结算、后唤醒"顺序逐字保持，不因拆分重新设计。
 import type { ProxyStatusReadState } from "../../lib/proxy-status-read";
 

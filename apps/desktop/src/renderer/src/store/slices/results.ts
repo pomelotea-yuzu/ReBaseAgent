@@ -6,7 +6,8 @@
 // "分片之间无运行时互相导入"），configuration 的 setSettingsSection 走执行时 get()。
 // 纯内部协调者 readRunResult / closeDraftClosureFor / closeRemainingClosures /
 // attemptResultNavigation / draftLocatorOf 迁工厂闭包（组件无从各写一套）；
-// clearExecutionConfirmations（drafts 域确认仓库的撤销出口）由 store.ts 注入（5.6/5.7 收敛）。
+// noteReadingChanged 对执行确认的撤销走执行时 get().clearExecutionConfirmations()
+// （5.6 起该出口是 drafts 分片公开成员，design D2 跨域调用走 action）。
 import type { OperationRecord } from "@shared/operations";
 import { api } from "../../lib/api";
 import {
@@ -154,17 +155,10 @@ export interface ResultsState {
   ) => Promise<void>;
 }
 
-/** results 分片工厂上下文：完整 set/get + 跨域协调者/共享 helper 的显式注入 */
-export interface ResultsSliceContext extends SliceContext {
-  /** drafts 域协调者（5.6/5.7 收敛前由 store.ts 注入）：撤销全部待用的执行确认 */
-  clearExecutionConfirmations: () => void;
-}
+/** results 分片工厂上下文：完整 set/get（5.6 起 clearExecutionConfirmations 改走 get() 跨域调用） */
+export interface ResultsSliceContext extends SliceContext {}
 
-export function createResultsSlice({
-  set,
-  get,
-  clearExecutionConfirmations,
-}: ResultsSliceContext): ResultsState {
+export function createResultsSlice({ set, get }: ResultsSliceContext): ResultsState {
   /**
    * 提交目标 → 草稿定位目标（U5 任务 3.5 的「返回草稿」）。
    *
@@ -381,8 +375,9 @@ export function createResultsSlice({
     noteReadingChanged() {
       set((state) => ({ navGeneration: state.navGeneration + 1 }));
       // U5 任务 4.4：离开现场同样撤销待用的执行确认（切运行 / 换页签 / 换调用 / 换视图 /
-      // 进创建页 —— 之前核对的目标已经不是现在要提交的目标）
-      clearExecutionConfirmations();
+      // 进创建页 —— 之前核对的目标已经不是现在要提交的目标）。
+      // 5.6：出口迁 drafts 分片，经执行时 get() 消费（跨域调用走 action，design D2）。
+      get().clearExecutionConfirmations();
     },
 
     revokeSourceBoundPermissions() {

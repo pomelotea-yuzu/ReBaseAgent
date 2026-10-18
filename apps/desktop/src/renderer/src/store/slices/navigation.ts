@@ -55,6 +55,14 @@ export interface NavigationState {
    */
   createReturnLocation: CreateReturnLocation | null;
   /** 「录制接入」跳转后要高亮的设置分区（null = 常规打开设置） */
+  /**
+   * U8（unify-recording-and-experiment-workspaces）任务 1.2/1.3：三个辅助工作区的
+   * **来源位置引用**（判据在 `lib/aux-workspace.ts`，语义同 `createReturnLocation`）：
+   * - 只含会话内可核对的阅读位置，不含草稿正文 / 目标 / 凭据 / 授权；
+   * - 页内重复进入与设置往返（视图未变）沿用；跨视图进入重记；经 setView 离开 = 用掉；
+   * - `selectRun` 离开辅助页时**保留**（与比较页同一纪律：返回动作才消费引用）。
+   * recording 是全局页面，也留来源（可从 messages 缺凭据提示进入，返回要回得去）。
+   */
   recordingReturnLocation: AuxReturnLocation | null;
   experimentReturnLocation: AuxReturnLocation | null;
   messagesReturnLocation: AuxReturnLocation | null;
@@ -123,7 +131,6 @@ export interface NavigationState {
    * 仍停留在列表模式（scenario「返回保留来源模式」）；与范围/搜索/视口一样不落盘。
    */
   setTreeMode: (mode: "graph" | "list") => void;
-  /** U8 任务 2.1：写入录制草稿字段（原始文本无损；修订按实际变化推进） */
   experimentSource: ExperimentSourceState;
   /** U8 3.1b：实验目标的父本源只读读取（runs:get；不改选中/视图/阅读状态） */
   readExperimentSource: () => Promise<void>;

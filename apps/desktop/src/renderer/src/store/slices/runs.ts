@@ -43,6 +43,7 @@ export interface RunsState {
   /** 列表刷新失败但旧记录仍在：界面据此提示「未更新」，不清空列表 */
   listStale: boolean;
   error: string | null;
+  /** run 列表来源过滤 */
   sourceFilter: "all" | "proxy" | "local";
   /** 列表搜索词（匹配完整 task/ID）；与来源条件求交集（任务 3.5） */
   searchQuery: string;

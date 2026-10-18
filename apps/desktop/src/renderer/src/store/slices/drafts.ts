@@ -151,6 +151,16 @@ export interface DraftsState {
   armExecutionConfirmation: (binding: ConfirmationBinding) => void;
   /** 撤销确认：返回编辑、切换对象、进入设置、重新执行、显式放弃都走这个出口 */
   releaseExecutionConfirmation: (target: DraftSubmitTarget) => void;
+  /**
+   * U5 任务 4.4：撤销**全部**待用的执行确认（design D2「目标、修订、设置或流程代次变化 SHALL
+   * 使旧检查与许可失效」里"离开现场"那一半）。
+   *
+   * 修订 / 设置 / 检查代次的变化由**现算比对**兜住，这里清的是比对看不出来的那种变化：
+   * 用户已经不在当初核对的那个现场了。没有确认时不改引用，避免无谓重渲染。
+   * 5.6 自 store.ts 迁入本分片（confirmations 的唯一 owner）；results.noteReadingChanged
+   * 与 configuration.setSettingsSection 经执行时 get() 消费（design D2 跨域调用走 action）。
+   */
+  clearExecutionConfirmations: () => void;
   /** 该现场现在还算不算已确认（现算，不缓存结论） */
   executionConfirmationReady: (binding: ConfirmationBinding) => boolean;
   /** 重新开始一次只读检查：推进代次并作废既有确认 */
@@ -446,6 +456,14 @@ export function createDraftsSlice({ set, get }: SliceContext): DraftsState {
         const next = releaseConfirmation(state.confirmations, target);
         return next === state.confirmations ? {} : { confirmations: next };
       });
+    },
+
+    clearExecutionConfirmations() {
+      set((state) =>
+        Object.keys(state.confirmations.byTargetKey).length === 0
+          ? {}
+          : { confirmations: emptyConfirmationStore() },
+      );
     },
 
     executionConfirmationReady(binding) {
