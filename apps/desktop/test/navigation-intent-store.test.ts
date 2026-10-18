@@ -457,26 +457,32 @@ describe("3.4 只通知不跳的三条路", () => {
 });
 
 describe("3.4 接线契约：导航只有一个调用点", () => {
-  const STORE_SRC = readFileSync(
-    resolve(import.meta.dirname, "../src/renderer/src/store.ts"),
-    "utf8",
-  );
   // refactor-renderer 5.4：refreshOperationStatus/reconcileOperation 实现迁 slices/operations.ts
-  // ⇒ 两段切片源随载体改读（两边留痕：本断言 5.1–5.3 时读 store.ts，当时两个 action 未迁）。
-  // reconcileOperation 的结束锚点从 `async verifyRunResult`（results 域，留在 store.ts）
-  // 改为工厂里紧随其后的下一个 operations 成员 `async forkAt(`。
+  // ⇒ 两段切片源随载体改读；reconcileOperation 的结束锚点从 `async verifyRunResult`
+  // （results 域）改为工厂里紧随其后的下一个 operations 成员 `async forkAt(`。
   const OPERATIONS_SRC = readFileSync(
     resolve(import.meta.dirname, "../src/renderer/src/store/slices/operations.ts"),
     "utf8",
   );
+  // refactor-renderer 5.5：results 协调者（attemptResultNavigation/consumeSettledOperations/
+  // closeRemainingClosures）迁 slices/results.ts ⇒ attemptResultNavigation 计数与终态消费
+  // 切片随载体改读（两边留痕：5.1–5.4 时读 store.ts）。
+  const RESULTS_SRC = readFileSync(
+    resolve(import.meta.dirname, "../src/renderer/src/store/slices/results.ts"),
+    "utf8",
+  );
 
   it("只有终态消费调协调器；reconcile 走「只通知」那条 trigger", () => {
-    const attempts = STORE_SRC.match(/attemptResultNavigation\(/g) ?? [];
+    const attempts = RESULTS_SRC.match(/attemptResultNavigation\(/g) ?? [];
     // 定义一次 + 终态消费里一次
     expect(attempts.length).toBe(2);
-    const consume = STORE_SRC.slice(
-      STORE_SRC.indexOf("async function consumeSettledOperations"),
-      STORE_SRC.indexOf("function closeRemainingClosures"),
+    const consume = RESULTS_SRC.slice(
+      // 5.5：consumeSettledOperations 在工厂里是方法形态（原 store.ts 为模块函数
+      // `async function consumeSettledOperations`），起锚点随之适配；它是返回对象最后一个
+      // 成员，结束标记为工厂 return 对象收尾 `\n  };`（closeRemainingClosures 闭包声明
+      // 在工厂前部，不能再当结束锚点）
+      RESULTS_SRC.indexOf("async consumeSettledOperations(previous, trigger)"),
+      RESULTS_SRC.indexOf("\n  };", RESULTS_SRC.indexOf("async consumeSettledOperations")),
     );
     expect(consume).toContain("attemptResultNavigation(record, trigger)");
     const at = OPERATIONS_SRC.indexOf("async reconcileOperation(operationId) {");

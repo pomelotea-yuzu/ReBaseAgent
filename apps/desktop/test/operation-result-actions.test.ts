@@ -418,13 +418,15 @@ describe("3.6 只通知路径：重复与后台读取都不放大", () => {
   });
 
   it("接线契约：跳转与定位的唯一入口是 store 动作，组件不自己拼", () => {
-    const storeSrc = readFileSync(
-      resolve(import.meta.dirname, "../src/renderer/src/store.ts"),
+    // refactor-renderer 5.5：results 域实现迁 slices/results.ts ⇒ 切片源随载体改读
+    // （两边留痕：5.1–5.4 时读 store.ts；工厂内成员顺序照抄原布局，邻接锚点逐字保持）
+    const resultsSrc = readFileSync(
+      resolve(import.meta.dirname, "../src/renderer/src/store/slices/results.ts"),
       "utf8",
     );
-    const failure = storeSrc.slice(
-      storeSrc.indexOf("async openOperationFailure(identity)"),
-      storeSrc.indexOf("async returnOperationDraft"),
+    const failure = resultsSrc.slice(
+      resultsSrc.indexOf("async openOperationFailure(identity)"),
+      resultsSrc.indexOf("async returnOperationDraft"),
     );
     // 失败定位只认 facts.failure.llmCallSpanId；不重新派生第二份判据
     expect(failure).toContain("facts?.failure.llmCallSpanId");
@@ -436,9 +438,9 @@ describe("3.6 只通知路径：重复与后台读取都不放大", () => {
       ["async openOperationFailure(identity)", "async returnOperationDraft"],
       ["async returnOperationDraft(", "  isOperationDraftPresent("],
     ] as const) {
-      const at = storeSrc.indexOf(start);
+      const at = resultsSrc.indexOf(start);
       expect(at, start).toBeGreaterThan(-1);
-      const body = storeSrc.slice(at, storeSrc.indexOf(end, at + 1));
+      const body = resultsSrc.slice(at, resultsSrc.indexOf(end, at + 1));
       expect(body, start).not.toContain("submitActive(");
       expect(body, start).not.toContain("loadRuns(");
     }

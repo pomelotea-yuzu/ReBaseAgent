@@ -271,3 +271,23 @@
 **无需改读的静态锚点（逐个核对）**：navigation-intent 的 `attemptResultNavigation(` 计数（=2：定义 + 终态消费调用，两者都留 store.ts）与 consumeSettledOperations 切片（留 store.ts，5.5 才迁）；draft-closure-store（closeDraftClosureFor 计数在 store.ts，results 域未迁）；operation-result-actions（openOperationFailure/openOperationResult/returnOperationDraft 等切片全在留 store.ts 的 results 域）；create-workspace-store（attemptResultNavigation 切片 + createDialogOpen 负向，均未迁）；run-list-nav 固定清单（store.ts 项为「本地直录/仅代理」旧标签扫描，文案在 RunList/configuration，与 operations 迁出无关）；workspace-export-state（行为测试 + setState 直驱，不读源码）；operation-polling/operation-races/operation-session-epoch/wait-timing/proxy-recovery-races（行为测试经组合 store + 假时钟/桩判据，不读 store.ts 源码）。
 
 验证：tsc web/node 双 0；biome 改动 9 文件 0 错；定向 15 文件约 300 用例全过（draft-submission 20 / create-entry 11 / fork-entry 6 / proxy-ab 9 / navigation-intent 14 / store.test 62 / operation-polling 9 / operation-races 9 / operation-session-epoch 4 / draft-closure 17 / operation-result 12 / workspace-export-state 9 / create-workspace 21 / wait-timing 15 / proxy-recovery-races 11；EPERM 收集噪声分批单跑复核，每文件都实收）；**全量 203 文件/3180 用例 0 失败（singleFork，与权威三元组一致，exit=0）**。
+
+## 5.5 销账记录（2026-10-18）
+
+迁移：results 域 4 字段（resultReads/navGeneration/navIntents/seenNoticeKeys）+ 7 action（verifyRunResult/retryResultRead/openOperationResult/openOperationFailure/returnOperationDraft/isOperationDraftPresent/markNoticesSeen）+ **七个模块级协调者** → `slices/results.ts`（工厂 `createResultsSlice`，435 行）。**注入方向首次反转**：noteReadingChanged/revokeSourceBoundPermissions/consumeSettledOperations 成为分片**公开成员**（ResultsState 接口显式声明 + JSDoc 标注"跨域协调者，组件不得直接调用"），store.ts create 回调改块体、results 实例先组合，五个分片的注入源从 store.ts 模块函数切换为 `results.*`（runs：noteReadingChanged+revokeSourceBoundPermissions；reading/compare/navigation：noteReadingChanged；operations：revokeSourceBoundPermissions+consumeSettledOperations）——5.1 台账预告的"届时注入源切换"兑现；configuration 的 setSettingsSection 改执行时 `get().noteReadingChanged()`（5.2 openDraftAt 同款跨域调用纪律）。纯内部协调者 readRunResult/closeDraftClosureFor/closeRemainingClosures/attemptResultNavigation/draftLocatorOf 迁工厂闭包（不出现在 state 上）；clearExecutionConfirmations（drafts 域确认仓库出口，setSettingsSection 仍消费）留 store.ts 经 context 注入。**store.ts 854→551 行**；import 清理：@shared/operations、draft-closure、draft-list、draft-submission（两行）、navigation-intent、operation-session、result-verification 七组随迁清空。4.1 遗留 JSDoc 错位归位：results 接口内 seenNoticeKeys/markNoticesSeen/openOperationResult 三处错位归位、尾部悬挂 U3 2.5 块删除；跨分片一处：U7 1.4/1.5 compareRead 语义块 → `slices/compare.ts`（仅注释）。
+
+**实施留痕（两处，均已当场修正）**：
+1. **夹层误删再犯**：区间删除（draftLocatorOf→closeRemainingClosures 连续块）把夹在 noteReadingChanged 与 revokeSourceBoundPermissions 之间的 **clearExecutionConfirmations**（drafts 域保留项）一并删掉——5.3 的"删除区间先枚举成员清单"纪律执行时枚举了但漏判该成员归属，当场恢复。区间枚举纪律升级：**枚举后逐成员判归属**，不是只数个数。
+2. **切片锚点次序**：navigation-intent 的 consumeSettledOperations 切片，原结束锚点 `function closeRemainingClosures` 在工厂里声明于前部闭包区（start 之前）⇒ 切片为空当场暴露——结束锚点改为 `\n  };`（返回对象收尾，consumeSettledOperations 是末位成员，operations 分片 proxyFork 同款）。
+
+**断言随载体改读（两边留痕）**：
+| 测试 | 旧断言 | 新承载 |
+|---|---|---|
+| navigation-intent「导航只有一个调用点」 | STORE_SRC 的 `attemptResultNavigation(` 计数（=2）+ consumeSettledOperations 切片 | 计数与切片都改读 RESULTS_SRC（results.ts 内计数仍=2：闭包定义 + consumeSettledOperations 调用）；起锚点适配方法形态 `async consumeSettledOperations(previous, trigger)`，结束锚点 `\n  };` |
+| draft-closure「清理判据只在 store 里被消费」 | storeSrc 的 `closeDraftClosureFor(` 计数 ≥3 | 改读 RESULTS_SRC（闭包定义 + readRunResult 调用 + closeRemainingClosures 调用 = 3，判据语义不变） |
+| create-workspace「覆盖模态判据不再引用创建视图」 | store.ts 的 attemptResultNavigation 切片（end=下一 `/**`） | 改读 RESULTS_SRC（切片与负向断言逐字保持，end=closeRemainingClosures 的 JSDoc `/**`） |
+| operation-result-actions「跳转与定位唯一入口」 | store.ts 四段切片（openOperationResult/openOperationFailure/returnOperationDraft 邻接锚点） | 改读 RESULTS_SRC；工厂成员顺序照抄原布局 ⇒ 全部邻接锚点逐字保持（含 `  isOperationDraftPresent(` 两空格前缀在四空格缩进下的子串命中） |
+
+**无需改读的静态锚点（逐个核对）**：experiment-results（组件文件负向断言，不读 store 源码）；refine-ui-shell/live-region（组件接线）；aux/compare/recording/execution-confirmation 各 store 测试（行为测试 + setState 部分态，不读源码）；workspace-export-state 的全 store 键枚举（过滤 `/cancel|abort/i`，新增协调者成员不命中）；run-list-nav 固定清单（store.ts 项为空匹配负向断言，与 results 迁出无关）；draft-submission/entry-closure 三件（5.4 已改读 OPERATIONS_SRC/DRAFTS_SRC，不受本批影响）。
+
+验证：tsc web/node 双 0；biome 改动 7 文件 0 错；定向 10 文件约 240 用例全过（navigation-intent 14 / draft-closure 17 / create-workspace 21 / operation-result 12 / store.test 62 / draft-submission 20 / draft-submission-identity 14 / result-verification 9 / operation-result-consumption 13 / experiment-results-actions 7 + aux 23 + compare-workspace 18 + recording-draft 11，分批单跑逐文件实收）；**全量 203 文件/3180 用例 0 失败（singleFork，与权威三元组一致，exit=0）**。

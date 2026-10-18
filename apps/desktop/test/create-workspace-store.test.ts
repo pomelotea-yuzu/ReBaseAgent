@@ -461,9 +461,11 @@ describe("4.1 接线契约：来源判据只有一份", () => {
   });
 
   it("覆盖模态判据不再引用创建视图（创建是页面）", () => {
-    const storeSrc = read("store.ts");
-    const at = storeSrc.indexOf("async function attemptResultNavigation");
-    const body = storeSrc.slice(at, storeSrc.indexOf("/**", at + 40));
+    // refactor-renderer 5.5：attemptResultNavigation 随 results 协调者迁 slices/results.ts
+    // ⇒ 切片源随载体改读（两边留痕：5.1–5.4 时读 store.ts）
+    const resultsSrc = read("store/slices/results.ts");
+    const at = resultsSrc.indexOf("async function attemptResultNavigation");
+    const body = resultsSrc.slice(at, resultsSrc.indexOf("/**", at + 40));
     expect(body).toContain("coveringModal: state.settingsSection !== null");
     expect(body).not.toContain('view === "create"');
   });

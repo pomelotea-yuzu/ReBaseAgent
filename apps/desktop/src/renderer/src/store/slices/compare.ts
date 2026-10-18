@@ -34,6 +34,11 @@ import type { AppState, SliceContext } from "../types";
 export const MAX_COMPARE = 4;
 
 export interface CompareState {
+  /**
+   * U7 任务 1.4/1.5：比较选择集的**会话读取状态**（design D3 渲染层半边）。
+   * 只存 renderer 内存，不落盘、不进 URL/日志；不是执行真相源——比较全程只读。
+   * 选择集代次、在飞请求守卫与结论撤销见 `lib/compare-state.ts`。
+   */
   compareRead: CompareReadSession;
   comparePair: ComparePair | null;
   compareStepSelection: { readonly left: string | null; readonly right: string | null };

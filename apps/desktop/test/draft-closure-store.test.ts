@@ -670,11 +670,16 @@ describe("2.5 读取恢复后清理：只读通道、组件无关", () => {
   });
 
   it("源码级接线契约：清理判据只在 store 里被消费，组件不复写第二份", () => {
-    const storeSrc = stripComments(
-      readFileSync(resolve(import.meta.dirname, "../src/renderer/src/store.ts"), "utf8"),
+    // refactor-renderer 5.5：closeDraftClosureFor 随 results 协调者迁 slices/results.ts
+    // ⇒ 消费计数源随载体改读（两边留痕：5.1–5.4 时读 store.ts）
+    const resultsSrc = stripComments(
+      readFileSync(
+        resolve(import.meta.dirname, "../src/renderer/src/store/slices/results.ts"),
+        "utf8",
+      ),
     );
     // 1) 读取结论落地后尝试收尾；终态消费末尾再补一轮 ⇒ 两处消费点
-    const consumers = storeSrc.match(/closeDraftClosureFor\(/g) ?? [];
+    const consumers = resultsSrc.match(/closeDraftClosureFor\(/g) ?? [];
     expect(consumers.length).toBeGreaterThanOrEqual(3); // 定义 + 两处调用
     // 2) 组件侧不得出现清理判据（否则"响应即清草稿"的旧分支会复活）
     const componentDir = resolve(import.meta.dirname, "../src/renderer/src/components");
