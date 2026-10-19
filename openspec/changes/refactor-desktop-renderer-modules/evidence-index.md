@@ -24,7 +24,7 @@
 | S16 | 测试迁移保留原有保证 | 1.3、2.1、2.4、3.4、5.8、7.1 | 从 36 个静态测试文件逐断言建账并核对起点差集；单列动态导入与固定清单/计数，旧保证→新模块/消费者→新断言位置；禁止空入口否定断言、整目录拼接搜索和新增跳过 | 待验证 |
 | S17 | 最终源码重新通过质量门禁 | 1.1、1.3、6.6、6.7、7.1、7.2、7.3 | 最终提交的 check:ci + desktop build、测试执行/跳过差异、职责/规模报告与暂存路径复核；主 spec 前后 requirement/带所属条款的 scenario 集合求差留档 | 待验证 |
 | S18 | 真实交互保持数据与执行边界 | 1.4、6.1、6.2.1–6.2.3、6.3.1–6.3.3、7.1 | 独立数据目录、现有受控 mock、真实 UI/IPC；纯阅读零调用/写入，执行计数与可信结果、父/源/兄弟指纹和导出内容 | 待验证 |
-| S19 | 宽度缩放和键盘保持连续流程 | 3.4、6.4、6.5 | 四档 CSS 宽度、独立 200% 缩放、真实键盘；DOM 尺寸/可达性、偏好/焦点恢复及编辑器高度链 | 待验证 |
+| S19 | 宽度缩放和键盘保持连续流程 | 3.4、6.4、6.5 | 四档 CSS 宽度、独立 200% 缩放、真实键盘；DOM 尺寸/可达性、偏好/焦点恢复及编辑器高度链 | ✅ 6.4+6.5：refine-55 widths 28/28 + zoom200 8/8 + refine-56 keyboard 30/30（`gates-64-widths.txt` / `gates-65-zoom200.txt` / `gates-65-keyboard.txt`） |
 
 ## 既有测试迁移台账（实施前补齐）
 
@@ -41,6 +41,7 @@
 - 6.3.1 收口（2026-10-19）：S13/S14/S18 的文件页实机面 = **拆分后树复跑 U2 文件页探针 64 判据零适配全绿**——u2-53:roundtrip 8/8（往返恢复模式+滚动+筛选+布局偏好）、u2-54:sides 9/9 + both-unreadable 5/5 + race-retry 12/12（两侧独立/失败不伪装/迟到代次）、tools-copy+tools-find 18/18（查找/复制/工具诚实禁用）、u2-55:readonly 12/12（**source/traces/blobs/夹具逐文件 SHA-256 前后一致 + 零新增 + 零模型工具调用**，S18 纯阅读指纹承载）；证据 `.workbuddy/rrm-63/`（gates-631-main/supplement.txt + readonly-measurements.json，编排器 run-all-631.cjs 单次调用内 start→probe→stop + settings 备份还原）。**夹具更换留痕**：侧夹具重装后引擎原生 run id 变化 ⇒ `u2-54-cdp.cjs` 改读 SIDE-MANIFEST.json（不再硬编码 run id）。
 - 6.3.2 收口（2026-10-19）：S07/S18 的比较→文件页实机面 = **拆分后树复跑 u7-69 keyboard-entries 34/34 全绿**（#64 键盘比较闭环 + #61/#62 比较→隔离文件页往返各自检查点 + #40 父子入口 + #44 设置往返保留会话；全程只读指纹自核）；证据 `.workbuddy/rrm-63/gates-632.txt`。**判据适配一笔**（#38 页头可达：refine-ui R01 语义 `<header>` → WorkspaceHeading div + returnLabel 动态化「返回」前缀匹配）；**首轮 4 条失败为真键盘通道瞬态**（复跑未改判据全绿，与 refine-55「同 dev 复跑劣化」同族登记）。
 - 6.3.3 收口（2026-10-19）：S15/S18 的导出实机面 = **拆分后树复跑 refine-54 28/28 + refine-62 8/8 全绿**（R08 纯阅读指纹 10 判据 + 导出全链 18 判据 + 坏附件导出禁用 8 判据；含 3.5 全部场景：成功/取消/缺来源/非空/坏附件/切目标反馈隔离/pick 恰 4 次）；证据 `.workbuddy/rrm-63/gates-633-refine54.txt`（首轮 `gates-633-first-run.txt` 留痕：缺 REBASEAGENT_PICK_DIRECTORY_FILE env ⇒ E4 接管 delta=0，编排器已修并留痕）。
+- 6.4/6.5 收口（2026-10-19）：S19 实机面 = **refine-55 widths 28/28 + zoom200 8/8 + refine-56 keyboard 30/30 全绿零判据适配**（`gates-64-widths.txt` / `gates-65-zoom200.txt` / `gates-65-keyboard.txt`）。两项环境事实登记：① zoom200 首轮「查看器渲染文本」失败 = Monaco 懒加载计时型瞬态（复跑全绿）；② 默认 dev 外框 1360 骑在 narrow/medium 断点线（≈963 CSS）⇒ 键盘批须前置改窗 wide 档（run-all-650 内建收敛），真键盘通道对前台归属敏感（抢焦点即步进游走，复跑恢复）。
 - 字段/action/资源归属、导出/依赖图、前后行数报告：归属表已建（[ownership-map](ownership-map.md)）；导出/依赖图与前后行数报告待最终源码（7.2）。
 - 旧断言迁移清单及基线/最终执行与跳过差异：台账骨架已建（[test-migration-ledger](test-migration-ledger.md)，36 文件/631 用例/动态导入 50 文件/固定清单点名）；逐断言回填与最终执行差异随各阶段与 7.1。
 - 最终全仓门禁、desktop build、Electron 数据目录/fixture/mock/构建：待填。
