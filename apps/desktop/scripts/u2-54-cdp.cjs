@@ -55,7 +55,12 @@ const arg = (name, dflt) => {
 const TAG = arg("tag", "probe");
 
 // —— 夹具（见 .rebaseagent/u2-file-fixtures/SIDE-MANIFEST.json 与 MANIFEST.json）——
-const SIDE_RUN = "run_mue9rvkh_i9oil7"; // 引擎原生：初始侧 binary / 所选侧 text
+// ⚠️ 引擎原生侧夹具的 run id 每次重跑生成器都会变化（2026-10-19 复跑重装后从
+//    run_mue9rvkh_i9oil7 变为 SIDE-MANIFEST 现值）⇒ 改为从清单读取，不再硬编码。
+const SIDE_MANIFEST = JSON.parse(
+  readFileSync(join(REPO, ".rebaseagent", "u2-file-fixtures", "SIDE-MANIFEST.json"), "utf8"),
+);
+const SIDE_RUN = SIDE_MANIFEST["引擎原生"].id; // 引擎原生：初始侧 binary / 所选侧 text
 const BROKEN_RUN = "u2side_mirror"; // 手工镜像：初始侧 text / 所选侧 binary（左右互换）
 const BINARY_FILE = "was-binary.dat"; // 第 2 轮末被写回文本
 const STEADY_FILE = "steady.txt";
