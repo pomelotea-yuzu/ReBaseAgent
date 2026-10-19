@@ -6,24 +6,24 @@
 
 | 编号 | 场景（逐字对应 delta） | 任务 | 计划证据与关键判据 | 状态 |
 |---|---|---|---|---|
-| S01 | 原入口导出指向同一实现 | 1.1、2.1、3.1、4.1、5.7、7.2 | 导出/消费者清单区分静态读取和动态导入；类型检查、原入口与具体模块引用身份，生产调用方继续消费兼容入口 | 待验证 |
-| S02 | 内部模块依赖有明确方向 | 2.1、3.1、5.7、6.7、7.2 | 可达运行时导入图无循环，分片不回引 store.ts，Monaco 仍走包装；desktop build | 待验证 |
-| S03 | 分片组合不覆盖状态或动作 | 1.2、4.1、4.4、5.1、5.7、7.2 | 全量类型/实际初始键与归属表比对；单次 create，所有消费者实例一致、组合键不重叠 | 待验证 |
-| S04 | 初始化和派生引用保持稳定 | 1.4、4.4、5.8 | 导入/初建请求计数基线、延迟 get、createReturnFactsOf 的 Object.is、创建页稳定渲染 | 待验证 |
-| S05 | 资源重复启停保持原有纪律 | 1.2、4.2、4.3、5.8 | operation-polling / proxy-change-store / proxy-status-store 等实际组合 action + 假时钟/受控 Promise；订阅/计时器数与等待唤醒时点 | 待验证 |
-| S06 | 跨分片协调保持原子更新 | 1.2、5.2、5.3、5.6、5.8 | 组合 store 订阅者观察更新序列，导航/提交/许可失效无新增中间状态；set/await 边界表 | 待验证 |
+| S01 | 原入口导出指向同一实现 | 1.1、2.1、3.1、4.1、5.7、7.2 | 导出/消费者清单区分静态读取和动态导入；类型检查、原入口与具体模块引用身份，生产调用方继续消费兼容入口 | ✅ 实施面收口（2026-10-19 回填）：DetailPanel 8 原导出 + WFV 6 个 file-* 动态导入测试继续从原入口消费（2.1–2.4/3.1 销账）+ store 4 兼容导出全部有真实消费、指向同一实现（audit-5.7 ③ PASS）；7.2 报告正式固化 |
+| S02 | 内部模块依赖有明确方向 | 2.1、3.1、5.7、6.7、7.2 | 可达运行时导入图无循环，分片不回引 store.ts，Monaco 仍走包装；desktop build | ✅ 实施面收口（2026-10-19 回填）：audit-5.7 ② 可达导入图 PASS（分片零入口导入、零兄弟值导入）+ 6.7 desktop build ✓（main/preload CJS + monaco 懒 chunk）；7.2 报告正式固化 |
+| S03 | 分片组合不覆盖状态或动作 | 1.2、4.1、4.4、5.1、5.7、7.2 | 全量类型/实际初始键与归属表比对；单次 create，所有消费者实例一致、组合键不重叠 | ✅ 实施面收口（2026-10-19 回填）：audit-5.7 ① 8 分片 interface↔工厂键 1:1（197 成员零重复零缺失）+ tsc 双 0 + 全量 3180 用例 0 失败；7.2 报告正式固化 |
+| S04 | 初始化和派生引用保持稳定 | 1.4、4.4、5.8 | 导入/初建请求计数基线、延迟 get、createReturnFactsOf 的 Object.is、创建页稳定渲染 | ✅ 5.8：store.test getSnapshot Object.is 62 用例 + refine-ui-return 14 + create-form-draft 15 全过（台账 5.8 组合 store 四类观察测试重跑） |
+| S05 | 资源重复启停保持原有纪律 | 1.2、4.2、4.3、5.8 | operation-polling / proxy-change-store / proxy-status-store 等实际组合 action + 假时钟/受控 Promise；订阅/计时器数与等待唤醒时点 | ✅ 5.8：资源 4 文件 50 用例全过（operation-polling 22 + proxy-change-store 20 + proxy-status-store 15 + proxy-recovery-races 11 等，台账 5.8） |
+| S06 | 跨分片协调保持原子更新 | 1.2、5.2、5.3、5.6、5.8 | 组合 store 订阅者观察更新序列，导航/提交/许可失效无新增中间状态；set/await 边界表 | ✅ 5.8：原子更新与收尾 5 文件 96 用例全过（draft-closure 17 / draft-submission 20 / draft-submission-identity 14 / result-verification 9 / operation-result-consumption 13 等，台账 5.8） |
 | S07 | 迟到读取不能污染当前目标 | 1.4、3.3、5.1、5.3、5.4、5.5、6.3.2 | store / reading-request-guard / compare-store / result-verification-store / operation-session-epoch 的旧目标/代次/epoch 竞态 | ✅ 6.3.2：u7-69 34/34（换边不串/迟到只认最新代次/文件往返身份保持，`gates-632.txt`）；其余侧由单测+6.2 各批承载 |
-| S08 | 草稿修订和许可失效不被拆分改变 | 2.2、5.2、5.5、5.6 | draft-submission / draft-closure-store / settings-roundtrip-invalidate / draft-close 系列；正文、revision、冻结及授权逐项比较 | 待验证 |
-| S09 | 未知执行只核对且所有主动入口共用适配器 | 2.3、4.2、5.4、5.5、6.2.1–6.2.3 | operation-races / operation-session-store / execution-confirmation / exec-entry-matrix + mock 服务实机；真实组合提交计数及未知核对，不重放 | 待验证 |
-| S10 | 代理事实和配置协调仍取最新有效读取 | 4.3、5.6、6.2.3 | proxy-status-store / proxy-recovery-races / proxy-change-store / messages-eligibility；尾随与配置交错、解绑后重订阅 | 待验证 |
-| S11 | 调用详情完整展示与入口保持 | 2.1、2.4、6.1 | call-detail-view / cache-display / budget-reachability + Electron；LLM/tool/step 字段、错误、原文工具及入口真实可达 | 待验证 |
-| S12 | prompt 和 result 编辑保持身份与提交边界 | 2.2、2.3、2.4、6.1 | prompt-messages-editor-draft / fork-editor-draft / execution-confirmation / isolated-fork + Electron；身份、恢复、确认/放弃和隔离拒绝 | 待验证 |
+| S08 | 草稿修订和许可失效不被拆分改变 | 2.2、5.2、5.5、5.6 | draft-submission / draft-closure-store / settings-roundtrip-invalidate / draft-close 系列；正文、revision、冻结及授权逐项比较 | ✅ 5.8：草稿域 5 文件约 100 用例全过（draft-submission 20 / draft-submission-identity 14 / draft-closure 17 / settings-roundtrip-invalidate / recording-draft 11，台账 5.8）+ 6.1 放弃模态/设置往返实机 21/21 |
+| S09 | 未知执行只核对且所有主动入口共用适配器 | 2.3、4.2、5.4、5.5、6.2.1–6.2.3 | operation-races / operation-session-store / execution-confirmation / exec-entry-matrix + mock 服务实机；真实组合提交计数及未知核对，不重放 | ✅ 6.2.1–6.2.3 实机 36 tag 全绿（u4-61 7/7 + u5-63 12/12 + u5-64 9/9 + u5-65 5/5 + u8-69 3/3）+ 5.8 竞态 4 文件 39 用例 |
+| S10 | 代理事实和配置协调仍取最新有效读取 | 4.3、5.6、6.2.3 | proxy-status-store / proxy-recovery-races / proxy-change-store / messages-eligibility；尾随与配置交错、解绑后重订阅 | ✅ 5.6/5.8：代理域 5 文件约 100 用例全过 + 6.2.3 u8-69 messages 真实代理重发/503 诚实/重启失效闭环 3/3 |
+| S11 | 调用详情完整展示与入口保持 | 2.1、2.4、6.1 | call-detail-view / cache-display / budget-reachability + Electron；LLM/tool/step 字段、错误、原文工具及入口真实可达 | ✅ 6.1：rrm-14 复跑 9/9 + 补探针 21/21（长原文折叠/展开/查找/复制等，evidence-1792316040979.json） |
+| S12 | prompt 和 result 编辑保持身份与提交边界 | 2.2、2.3、2.4、6.1 | prompt-messages-editor-draft / fork-editor-draft / execution-confirmation / isolated-fork + Electron；身份、恢复、确认/放弃和隔离拒绝 | ✅ 6.1：rrm-14 B1 prompt 草稿真实键入跨页签往返 9/9 + 补探针放弃模态三判据 + 6.2.1–6.2.2 隔离父本拒绝实机 |
 | S13 | 两侧读取独立且旧结果不串选择 | 3.2、3.3、6.3.1 | file-two-side-read / file-single-side-view / file-reading-state + 受控读取/实机；成功/失败/缺失、旧选择及独立重试 | ✅ 6.3.1：u2-54 sides 9/9 + both-unreadable 5/5 + race-retry 12/12（`gates-631-main.txt`） |
 | S14 | 编辑器资源和阅读位置按原身份恢复 | 3.2、3.4、6.3.1 | file-view-session-state / file-view-scroll-wiring / monaco-view-state / file-diff-height-chain + Electron 长文件；滚动、模式、监听释放 | ✅ 6.3.1：u2-53 roundtrip 8/8（模式+滚动按身份恢复）+ tools-copy/find 18/18（查找/复制/诚实禁用，`gates-631-main.txt`） |
 | S15 | 导出资格和异步反馈不串目标 | 3.1、3.5、6.3.3 | workspace-export-state / workspace-export-panel / workspace-export-endpoint + 实际 UI/IPC；成功/取消/拒绝、切目标和返回 | ✅ 6.3.3：refine-54 E1–E18 18/18 + refine-62 坏附件 8/8（`gates-633-refine54.txt`） |
-| S16 | 测试迁移保留原有保证 | 1.3、2.1、2.4、3.4、5.8、7.1 | 从 36 个静态测试文件逐断言建账并核对起点差集；单列动态导入与固定清单/计数，旧保证→新模块/消费者→新断言位置；禁止空入口否定断言、整目录拼接搜索和新增跳过 | 待验证 |
-| S17 | 最终源码重新通过质量门禁 | 1.1、1.3、6.6、6.7、7.1、7.2、7.3 | 最终提交的 check:ci + desktop build、测试执行/跳过差异、职责/规模报告与暂存路径复核；主 spec 前后 requirement/带所属条款的 scenario 集合求差留档 | 待验证 |
-| S18 | 真实交互保持数据与执行边界 | 1.4、6.1、6.2.1–6.2.3、6.3.1–6.3.3、7.1 | 独立数据目录、现有受控 mock、真实 UI/IPC；纯阅读零调用/写入，执行计数与可信结果、父/源/兄弟指纹和导出内容 | 待验证 |
+| S16 | 测试迁移保留原有保证 | 1.3、2.1、2.4、3.4、5.8、7.1 | 从 36 个静态测试文件逐断言建账并核对起点差集；单列动态导入与固定清单/计数，旧保证→新模块/消费者→新断言位置；禁止空入口否定断言、整目录拼接搜索和新增跳过 | ✅ 5.8：36 文件销账闭环总表零静默丢失、固定清单四项核对、否定断言全读实际承载模块、测试增删/跳过差异=零（台账 5.8）；7.1 终审随归档核对 |
+| S17 | 最终源码重新通过质量门禁 | 1.1、1.3、6.6、6.7、7.1、7.2、7.3 | 最终提交的 check:ci + desktop build、测试执行/跳过差异、职责/规模报告与暂存路径复核；主 spec 前后 requirement/带所属条款的 scenario 集合求差留档 | ✅ 6.6/6.7：分阶段等价命令序列全过（desktop 203/3180 singleFork exit=0、check:build 5 包、tsc 双 0、lint 跟踪树 0 错、spec 13 项）+ desktop build ✓；7.3 归档差集随归档执行 |
+| S18 | 真实交互保持数据与执行边界 | 1.4、6.1、6.2.1–6.2.3、6.3.1–6.3.3、7.1 | 独立数据目录、现有受控 mock、真实 UI/IPC；纯阅读零调用/写入，执行计数与可信结果、父/源/兄弟指纹和导出内容 | ✅ 全实机批收口（2026-10-19）：6.1 21/21 + 6.2 三批 36 tag + 6.3.1 文件页 64 判据（readonly 12/12 指纹）+ 6.3.2 34/34 指纹自核 + 6.3.3 refine-54 28/28（R08 指纹段 + 导出仅写选定显式路径 E17/E18） |
 | S19 | 宽度缩放和键盘保持连续流程 | 3.4、6.4、6.5 | 四档 CSS 宽度、独立 200% 缩放、真实键盘；DOM 尺寸/可达性、偏好/焦点恢复及编辑器高度链 | ✅ 6.4+6.5：refine-55 widths 28/28 + zoom200 8/8 + refine-56 keyboard 30/30（`gates-64-widths.txt` / `gates-65-zoom200.txt` / `gates-65-keyboard.txt`） |
 
 ## 既有测试迁移台账（实施前补齐）
