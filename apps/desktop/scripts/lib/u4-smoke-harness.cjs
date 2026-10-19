@@ -391,8 +391,13 @@ async function clickSpan(call, titleFragment, expectSpanId) {
        bodyHead: (document.body.innerText||'').slice(0, 200),
      }))()`,
   );
-  const cur = await storeQ(call, "return JSON.stringify({ run: s.selectedRunId, sel: s.selectedSpanId, detailNull: s.detail === null });");
-  console.log(`  [clickSpan] 「${titleFragment}」诊断：${JSON.stringify(diag)}；store：${JSON.stringify(cur)}`);
+  const cur = await storeQ(
+    call,
+    "return JSON.stringify({ run: s.selectedRunId, sel: s.selectedSpanId, detailNull: s.detail === null });",
+  );
+  console.log(
+    `  [clickSpan] 「${titleFragment}」诊断：${JSON.stringify(diag)}；store：${JSON.stringify(cur)}`,
+  );
   throw new Error(`未能选中 span ${expectSpanId}`);
 }
 async function clickByText(call, text, wait = 800) {
