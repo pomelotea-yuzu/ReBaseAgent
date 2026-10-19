@@ -43,9 +43,11 @@ context: |
   - 主动操作统一由 main 登记、去重并占单个执行槽；未知先核对，按可信 ID 只读核实结果
   - 草稿正文与阅读位置只在 renderer 会话内恢复；执行授权与实验计划绑定当前提交和配置
 
-  当前进度（2026-10-16 校准）：MVP/v2、Trace-as-Test、普通模型 A/B、隔离 A/B/C、U1–U8、R2.1 与 refine-ui 已归档。
+  当前进度（2026-10-19 校准）：MVP/v2、Trace-as-Test、普通模型 A/B、隔离 A/B/C、U1–U8、R2.1 与 refine-ui 已归档。
   R2.1 为选定检查点普通文件、来源清单与适用文本补丁导出，不含 trace 分享包或自动应用。
-  当前活动 change 为 refactor-desktop-renderer-modules，仅提案，尚未实现；整理详情、文件视图和单一 store 的内部模块。
+  refactor-desktop-renderer-modules（渲染层三大文件按职责拆分）实施、实机与门禁全部收口，归档中；
+  拆分后 store.ts/DetailPanel/WorkspaceFileView 为组合/连接层，内部分片见
+  docs/engineering/reports/2026-10-19-rrm-renderer-split-scale-report.md。
   历史 K1 仅含隔离 A/B/C 与 U1/U2；0.5.0-rc.1 已有 R2.1/refine-ui 构建记录，维护者 10/16 确认已打包上传。
   上传状态来自维护者确认，不代替独立下载或实包验收；重构不追溯为既有发行的前置条件。
   R2.2 仍为下一项新增能力，R3 技术验证可独立准备；本轮重构不新增产品能力。
