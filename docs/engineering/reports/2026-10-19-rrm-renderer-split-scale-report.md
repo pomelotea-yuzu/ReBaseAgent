@@ -1,7 +1,7 @@
 # 渲染层模块拆分（refactor-desktop-renderer-modules）前后对比报告
 
 > 任务 7.2 交付物（2026-10-19）。核对起点 `379b388`（2026-10-17 固定，见
-> [baseline-inventory](../../openspec/changes/refactor-desktop-renderer-modules/baseline-inventory.md)），
+> [baseline-inventory](../../openspec/changes/archive/2026-10-19-refactor-desktop-renderer-modules/baseline-inventory.md)），
 > 终点为本报告撰写时的 main HEAD。物理行数以 `wc -l` 实测。
 
 ## 一、三大目标文件：前 → 后
@@ -83,7 +83,7 @@ import 头、JSDoc 职责注释与工厂/注入接缝，无逻辑复制）。
 
 ## 五、测试迁移等价
 
-- 静态读源码断言：36 文件/631 用例逐断言建账（[test-migration-ledger](../../openspec/changes/refactor-desktop-renderer-modules/test-migration-ledger.md)），
+- 静态读源码断言：36 文件/631 用例逐断言建账（[test-migration-ledger](../../openspec/changes/archive/2026-10-19-refactor-desktop-renderer-modules/test-migration-ledger.md)），
   断言随载体改读 12 文件，**测试增删/跳过差异 = 零**（恒 203 文件/3180 用例）；
 - 否定断言全部读取实际承载模块，无一处只查已搬空的 store.ts；
 - 固定清单：run-list-nav 清单随 8 分片扩展、budget-reachability Monaco 清单、
