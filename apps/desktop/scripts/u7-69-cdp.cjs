@@ -657,7 +657,13 @@ const FLOWS = {
     const tabCreate = await tabUntil(
       call,
       40,
-      `el.closest && el.closest('header') !== null ? 'true' : 'false'`,
+      // refine-ui R01（38b7ccd）把各工作区语义 <header> 换成 WorkspaceHeading div ⇒
+      // 页头判据改为「WorkspaceHeading 容器内或页头返回钮（returnLabel 动态化，按
+      // 「返回」前缀匹配——u8-69 同款适配）」。拆分链对该文件零改动（git log 为空）。
+      `(() => { if (!el.closest) return 'false';
+         if (el.closest('header') !== null || el.closest('[data-workspace-heading]') !== null) return 'true';
+         const lb = el.getAttribute && el.getAttribute('aria-label');
+         return lb && lb.startsWith('返回') ? 'true' : 'false'; })()`,
     );
     check(
       "#38 创建页键盘可离开：TAB 步进可达页头（不被困在创建表单）",
