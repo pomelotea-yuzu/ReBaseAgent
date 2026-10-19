@@ -1,5 +1,7 @@
 # 产品演进路线
 
+> 2026-10-19 R2.2 提案补充：已创建 [add-isolated-prompt-experiments](../../openspec/changes/add-isolated-prompt-experiments/proposal.md)，覆盖根初始快照上的单项启动指令实验、轨迹 v3 兼容、跨运行文件比较与单侧 R2.1 导出闭环；[任务清单](../../openspec/changes/add-isolated-prompt-experiments/tasks.md)全部待实施。下文早期“尚未创建 change”表述保留当时范围，R2.2 当前设计状态以本提案为准，不代表功能或发行已完成；R3/R2.3/MCP 排序不变。
+
 > 最新修订：2026-10-19。新增 **MCP0–MCP3 服务接入体系**：R2.2 首版后安排只读 MCP，R3 后扩展测试证据，再按需开放受控执行，见 §3.3 与 [MCP 服务规划](mcp-service-roadmap.md)。**R0、R1、U1–U8、R2.1 与渲染层模块拆分均已归档**；R2.1 与 UI 整理已进入 `0.5.0-rc.1`，维护者于 10/16 确认已打包上传，本轮未独立核验下载。渲染层拆分为纯内部重构（[已归档](../../openspec/changes/archive/2026-10-19-refactor-desktop-renderer-modules/tasks.md)），不新增产品能力；R2.2 仍为下一项新增能力，R3 技术验证可独立准备。源码归档、打包、发布分别核对，详见[项目状态](../development/project-status.md)。主要面向中国大陆用户，以 Gitee 为材料主入口，GitHub 账号已解封。
 > 2026-09-27 排期（历史）：维护者选择 U8 完成并验收后录制正式参赛视频，争取 2026-10-07 完成全部参赛材料并实际提交，倒排见[比赛方案](../competition/2026-shanghai-os-contest-plan.md) §一（该内部目标日期已过，提交实际状态以比赛方案与维护者记录为准，本文不作已提交断言）。U2/K1 提前试用仍可按需开展，本轮不要求另办一轮公开试发；参赛目标不改变各 change 依赖、质量要求和 K3 实包验收条件。
 > 审阅后修订说明（2026-09-17）：依据[三份方向规划审阅](../reviews/2026-09-17-direction-plans-review.md)，补充文档权威关系、编号与可用性时点映射、A 兼容修改白名单、K0 能力核对、导出保真度及内部对照限制；同步另两份讨论稿和 A 的分工说明。保留已认可的方向与下述状态，新增细则仍须进入具体实施与验收；本次只修订文档。

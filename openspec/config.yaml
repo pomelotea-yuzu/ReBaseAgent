@@ -50,7 +50,9 @@ context: |
   docs/engineering/reports/2026-10-19-rrm-renderer-split-scale-report.md。
   历史 K1 仅含隔离 A/B/C 与 U1/U2；0.5.0-rc.1 已有 R2.1/refine-ui 构建记录，维护者 10/16 确认已打包上传。
   上传状态来自维护者确认，不代替独立下载或实包验收；重构不追溯为既有发行的前置条件。
-  R2.2 仍为下一项新增能力，R3 技术验证可独立准备；本轮重构不新增产品能力。
+  R2.2 已建立 add-isolated-prompt-experiments 提案（2026-10-19），尚未实施；
+  定义隔离根初始快照的单项指令实验、v3 兼容与跨运行文件比较，仍非已交付能力。
+  R3 技术验证可独立准备；本轮重构不新增产品能力。
   Shell/真实测试（R3）、真正取消/实时步骤、跨 main 重启任务恢复、
   跨运行文件 diff、隔离 prompt/模型实验等仍属后续范围，不得显示为已交付。
   当前能力查 openspec/specs/ 与源码；归档证据查 openspec/changes/archive/；
