@@ -47,11 +47,10 @@ _tmp_*
 # docs/competition/（参赛文档）与 docs/reviews/（实机几何基线）。
 output/
 
-# 参赛材料工作区（2026-10-07 用户定口径：本地工作区，不进仓库）
+# 参赛材料工作区（2026-10-19 用户定口径：整个目录不入库，仅存 git 历史）
 # figures/：drawio 源与导出的 PNG/pdf/docx 成品、体积大且由源文件可再生
 # submission-2026/：填报稿与排版/图表指引，提交前的工作稿
-docs/competition/figures/
-docs/competition/submission-2026/
+docs/competition/
 
 # docs/reviews 过程截图默认不入库（验收证据目录需要时用 git add -f 显式加入）
 docs/reviews/**/*.png
