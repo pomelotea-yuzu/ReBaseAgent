@@ -4,9 +4,12 @@
 
 ## 1. 基线与交互冻结
 
-- [ ] 1.1（1h）建立 config.json 受控案例及 fixture：初始 A/父最终 B/源目录 C、未知键保留判据、消息/profile/模型配置和兄弟分支指纹；记录原指令/新单项指令。验收：workspace「根初始状态与父最终及源目录分离」、prompt「单项改动与首次实际请求一致」。mock 与真实模型证据分列，fixture 不算 I/R3。
-- [ ] 1.2（1.5h）P0/P1 复核 prototype.md 的入口、非根返回、状态/许可、文件双 selector 与导出方向，记录现有 UI 对照和交互原型验证结果，修订后再接 UI。验收：desktop「根定位和核对有明确目标」「单份确认表达实际条件与未知」「真键盘完成实验比较导出闭环」的设计覆盖；实机完成仍待 7.1/7.2。
-- [ ] 1.3（1h）盘点 FORMAT_VERSION/workspace 判据、reader/branch/IPC/preload/trace-test/删除保护消费方及 v1/v2/v3 fixture 矩阵，记录兼容修改归属。验收：trace「三版本读取与写入职责分离」、replay「新版本不扩大普通执行和卡带权限」。
+- [x] 1.1（1h）建立 config.json 受控案例及 fixture：初始 A/父最终 B/源目录 C、未知键保留判据、消息/profile/模型配置和兄弟分支指纹；记录原指令/新单项指令。验收：workspace「根初始状态与父最终及源目录分离」、prompt「单项改动与首次实际请求一致」。mock 与真实模型证据分列，fixture 不算 I/R3。
+  （2026-10-20 ✅：`packages/replay/test/isolated-prompt-baseline-fixture.ts` + 验收测试 7/7 绿（`isolated-prompt-baseline-fixture.test.ts`，单包复跑 7/7、tsc 0 错、biome 0 错）；记录 = change 目录 `baseline-fixture.md`。三态分离/单项编辑一致/兄弟指纹可复现/空初始世界变体均断言。真实模型证据按口径留给 7.1。）
+- [x] 1.2（1.5h）P0/P1 复核 prototype.md 的入口、非根返回、状态/许可、文件双 selector 与导出方向，记录现有 UI 对照和交互原型验证结果，修订后再接 UI。验收：desktop「根定位和核对有明确目标」「单份确认表达实际条件与未知」「真键盘完成实验比较导出闭环」的设计覆盖；实机完成仍待 7.1/7.2。
+  （2026-10-20 ✅：对照记录 = change 目录 `prototype-review.md`（逐路径载体对照 / 状态表逐行 / 双 selector 与导出方向 / 三条验收 scenario 设计覆盖判定）；prototype.md 已按结论修订 3 处（路径 1 载体注记、路径 5 selector 不同构注记、状态表补「比较冻结期间新完成检查点」行）。文档层覆盖判定完成，实机归 7.1/7.2。）
+- [x] 1.3（1h）盘点 FORMAT_VERSION/workspace 判据、reader/branch/IPC/preload/trace-test/删除保护消费方及 v1/v2/v3 fixture 矩阵，记录兼容修改归属。验收：trace「三版本读取与写入职责分离」、replay「新版本不扩大普通执行和卡带权限」。
+  （2026-10-20 ✅：盘点 = change 目录 `compat-inventory.md`（trace-sdk/replay/trace-test/agent-loop/desktop 全清单 + 修改归属表 + v1/v2/v3 fixture 矩阵）。关键发现：① 隔离判据=workspace 存在性 ⇒ v3 自动命中；② 6 处 `=== FORMAT_VERSION` 等值二分（reader.ts:117、branch.ts:83、compare-edit-evidence.ts:377、compare-source-map.ts、run-lineage-read.ts、run-detail-project.ts）升版时必须改 `>=2`，否则存量 v2 静默降级 v1 语义；③ checkpoint-tracer.ts:95 写死 FORMAT_VERSION 是 v3 写入第一归属点；④ baddata-regression 等三处「未来版本」fixture 构造值 3 需翻转为 4+。）
 
 ## 2. 格式与独立执行边界
 
