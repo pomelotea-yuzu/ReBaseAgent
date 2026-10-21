@@ -1,18 +1,18 @@
 # R2.2 场景证据索引
 
-2026-10-19 提案骨架；23 条 requirement、76 条 scenario（含保留的既有场景），全部待实施。文档/strict 校验不代表功能通过。每行实施后填写测试文件/用例、fixture、实机批次、源码身份及限制；单元注入、mock、真实模型和原生 UI 证据分别标注。
+2026-10-19 提案骨架；23 条 requirement、76 条 scenario（含保留的既有场景）。2026-10-21 阶段 2 收口后已回填 1–9、27–29（其中 2/5/7/9/27/28/29 为部分交付，限制已写明），其余待实施。文档/strict 校验不代表功能通过。每行实施后填写测试文件/用例、fixture、实机批次、源码身份及限制；单元注入、mock、真实模型和原生 UI 证据分别标注。
 
 | 序号 | capability | requirement | scenario | 对应任务 | 状态 | 证据与限制 |
 |---|---|---|---|---|---|---|
-| 1 | trace-format | 格式带版本号 | 未来版本文件 | 1.3、2.2、2.4 | 待实施 | — |
-| 2 | trace-format | 格式带版本号 | 双版本与旧读取器 | 1.3、2.2、2.4 | 待实施 | — |
-| 3 | trace-format | 格式带版本号 | 版本与隔离字段不匹配 | 1.3、2.2、2.4 | 待实施 | — |
-| 4 | trace-format | 格式带版本号 | v1 禁字段与其他扩展区分 | 1.3、2.2、2.4 | 待实施 | — |
-| 5 | trace-format | 格式带版本号 | 三版本读取与写入职责分离 | 1.3、2.2、2.4 | 待实施 | — |
-| 6 | trace-format | 格式带版本号 | 新实验字段不能藏在旧版本中 | 1.3、2.2、2.4 | 待实施 | — |
-| 7 | trace-format | 隔离 prompt 实验记录初始来源与有效配置 | 初始来源与干预记录往返 | 2.1、2.3、3.3、5.1 | 待实施 | — |
-| 8 | trace-format | 隔离 prompt 实验记录初始来源与有效配置 | 矛盾的实验来源拒绝 | 2.1、2.3、3.3、5.1 | 待实施 | — |
-| 9 | trace-format | 隔离 prompt 实验记录初始来源与有效配置 | 缺父或附件不阻止自有轨迹阅读 | 2.1、2.3、3.3、5.1 | 待实施 | — |
+| 1 | trace-format | 格式带版本号 | 未来版本文件 | 1.3、2.2、2.4 | 已交付（2.2） | `packages/trace-sdk/test/reader.test.ts`「未来版本…4」、`version-guard.test.ts`「未来版本 4」、`experiment.test.ts`；desktop `baddata-regression.test.ts`/`run-repository.test.ts`（v4 进 failed）。限制：只证新读取器拒绝；不含旧读取器模拟。 |
+| 2 | trace-format | 格式带版本号 | 双版本与旧读取器 | 1.3、2.2、2.4 | 部分（2.2） | 新读取器 v1/v2 回归：`experiment.test.ts`「v1/v2 回归」、既有 reader/workspace-roundtrip 225 用例；普通 writer=v1（agent-loop）、隔离 writer=v2（replay checkpoint tracer 断言）。旧 v1 读取器拒绝 v2 沿用既有版本门禁，本批未新增旧 reader 模拟。 |
+| 3 | trace-format | 格式带版本号 | 版本与隔离字段不匹配 | 1.3、2.2、2.4 | 已交付（2.2） | `experiment.test.ts`：v1 workspace/resume_after_step、v2/v3 缺 workspace、v2 私带 prompt_experiment/initial origin、v3 缺 prompt_experiment、v3 已完成 step 缺 workspace_snapshot 均明确拒绝；`version-guard.test.ts` 原 v1/v2 用例保持。 |
+| 4 | trace-format | 格式带版本号 | v1 禁字段与其他扩展区分 | 1.3、2.2、2.4 | 已交付（2.2） | `version-guard.test.ts`：v1 workspace/resume_after_step/workspace_snapshot 存在性判定（含 null/false/空对象）；新增 prompt_experiment 禁字段；无关扩展字段仍放行（不递归、不 strict）。 |
+| 5 | trace-format | 格式带版本号 | 三版本读取与写入职责分离 | 1.3、2.2、2.4 | 部分（writer 3 归 3.4） | 已证 v1/v2 writer 不被最高读取版本带动：`agent-loop` 104 用例 + `workspace-checkpoint-tracer.test.ts` v2 断言；v3 schema/reader 往返见 `experiment.test.ts`。v3 实际 writer 与「1/2/2/3」端到端归 3.4/5.4。 |
+| 6 | trace-format | 格式带版本号 | 新实验字段不能藏在旧版本中 | 1.3、2.2、2.4 | 已交付（2.2） | `experiment.test.ts`「v3 版本守卫」：v1/v2 顶层 prompt_experiment=null/{} 在 strip 前拒绝；消息正文同名业务字段不递归拦截（沿用 version-guard 既有判据）。 |
+| 7 | trace-format | 隔离 prompt 实验记录初始来源与有效配置 | 初始来源与干预记录往返 | 2.1、2.3、3.3、5.1 | 部分（2.1/2.2） | `experiment.test.ts`：origin=initial、baseline/original_value/execution（含 params 缺省 vs {}）/假设/判据经 schema 与 parseRunText 完整往返；v3 子 world_id=自身 ID。真实首次请求与有效配置相符归 3.4 + 7.1。 |
+| 8 | trace-format | 隔离 prompt 实验记录初始来源与有效配置 | 矛盾的实验来源拒绝 | 2.1、2.3、3.3、5.1 | 已交付（2.1/2.3） | `experiment.test.ts`：缺 prompt_experiment、resume_after_step、model_params 编辑、parent/origin/baseline/span/snapshot ID 矛盾均拒绝；`findExperimentSourceViolation` 拒绝非根父、at_span≠父首次 llm.call、original_value 不符。完整来源读取依赖父可读；自有缺父仍可读。 |
+| 9 | trace-format | 隔离 prompt 实验记录初始来源与有效配置 | 缺父或附件不阻止自有轨迹阅读 | 2.1、2.3、3.3、5.1 | 部分（trace 层已证） | `experiment.test.ts`「v3 自有文件可独立读取」：父文件缺失时 parseRunText 仍通过；trace-sdk reader 不读附件。附件可用性门槛与桌面导出归 3.x/5.x/7.x 实测。 |
 | 10 | prompt-replay | 一次分叉只修改一个变量 | 同时修改两个字段 | 3.2、3.6 | 待实施 | — |
 | 11 | prompt-replay | 一次分叉只修改一个变量 | 连续 prompt fork | 3.2、3.6 | 待实施 | — |
 | 12 | prompt-replay | 一次分叉只修改一个变量 | 隔离编辑保留空串和空白的真实变化 | 3.2、3.6 | 待实施 | — |
@@ -30,9 +30,9 @@
 | 24 | prompt-replay | 隔离 prompt 固定可恢复配置并从头真实执行 | 不支持参数或配置漂移不能静默放行 | 1.1、3.2、3.3、3.4、3.5、5.2、7.1 | 待实施 | — |
 | 25 | prompt-replay | 隔离 prompt 固定可恢复配置并从头真实执行 | 历史未知条件与真实计费分别表达 | 1.1、3.2、3.3、3.4、3.5、5.2、7.1 | 待实施 | — |
 | 26 | prompt-replay | 隔离 prompt 固定可恢复配置并从头真实执行 | 当前写入授权和失败事实不可替代 | 1.1、3.2、3.3、3.4、3.5、5.2、7.1 | 待实施 | — |
-| 27 | replay | 隔离 prompt 构成独立执行边界且可继续 result 续跑 | v3 详情只呈现自有完整步骤 | 2.3、2.4、5.4 | 待实施 | — |
-| 28 | replay | 隔离 prompt 构成独立执行边界且可继续 result 续跑 | v3 后的 result 分支保留正确前缀 | 2.3、2.4、5.4 | 待实施 | — |
-| 29 | replay | 隔离 prompt 构成独立执行边界且可继续 result 续跑 | 新版本不扩大普通执行和卡带权限 | 2.3、2.4、5.4 | 待实施 | — |
+| 27 | replay | 隔离 prompt 构成独立执行边界且可继续 result 续跑 | v3 详情只呈现自有完整步骤 | 2.3、2.4、5.4 | 部分（trace-sdk 已证，端到端归 5.4） | `experiment.test.ts`「resolveBranch：v3 独立边界」：v3 叶子只返回自有 spans，父链仍溯源；同名 s_* 不进入子时间线。desktop 详情投影的 v3 端到端（spanScope/chain）随 5.4 真实 writer 落地后实测。 |
+| 28 | replay | 隔离 prompt 构成独立执行边界且可继续 result 续跑 | v3 后的 result 分支保留正确前缀 | 2.3、2.4、5.4 | 部分（trace-sdk 已证，真实续跑归 5.4） | `experiment.test.ts`：v3 父 + v2 result 子只保留 v3 第 1 轮整轮前缀（v_01..v_03），第 2 轮截断、根 s_* 不出现；result 子 schema 仍为 v2；`WorkspaceCheckpointTracer` 恒写 `ISOLATED_FORMAT_VERSION=2`。 |
+| 29 | replay | 隔离 prompt 构成独立执行边界且可继续 result 续跑 | 新版本不扩大普通执行和卡带权限 | 2.3、2.4、5.4 | 部分（卡带已证；执行门禁归 3.6/5.4） | `trace-test` 增 v3 卡带基线用例：父文件不存在仍可读可跑，重跑产出 v1、workspace/prompt_experiment 不复制，真实 handler 不执行。普通 replay/prompt 与隔离模型实验对 v3 的拒绝沿用 workspace 门禁，需在 3.6/5.4 用真实 v3 父本复跑。 |
 | 30 | workspace-isolation | 初始快照实验创建独立文件映射 | 根初始状态与父最终及源目录分离 | 1.1、3.4、7.1 | 待实施 | — |
 | 31 | workspace-isolation | 初始快照实验创建独立文件映射 | 空初始世界与后续超限遵守原配额 | 1.1、3.4、7.1 | 待实施 | — |
 | 32 | workspace-isolation | 跨运行检查点比较只读取明确的自有快照 | 两个自有检查点独立选择与路径并集 | 4.1、4.2、4.3、5.1、6.5 | 待实施 | — |

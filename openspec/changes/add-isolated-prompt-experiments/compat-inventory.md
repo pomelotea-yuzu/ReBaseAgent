@@ -2,6 +2,7 @@
 
 状态：2026-10-20 盘点完成（源码基线 = 拆分归档后 `a833269`；关键高危断言已逐处抽查源码核实）。
 本表是 2.x（v3 格式）与 5.x（main/shared）实施的**修改归属账本**：改一处勾一处，不允许清单外静默修改。
+2026-10-21 阶段 2 销账见文末「阶段 2 完成记录」。
 
 ## 0. 两个关键结论
 
@@ -108,3 +109,63 @@
 | v1/v2 私带 prompt_experiment（含 null） | 手工变体 | strip 前守卫拒绝 |
 | 未来版本（4+） | replace 构造 | reader 明确拒绝 |
 | v3 父 + v2 result 子 | v3 变体 + `writeIsolatedRun` 带 v3 父 | 子仍写 v2；前缀解析只继承 v3 整轮 |
+
+## 9. 阶段 2 完成记录（2026-10-21）
+
+源码基线 = `1281077` + 本批工作区改动。以下逐项销账，未列出的行维持「零修改」或留给 3.x/5.x。
+
+### trace-sdk
+
+- ✅ `FORMAT_VERSION` 2→3（= `PROMPT_EXPERIMENT_FORMAT_VERSION`）；新增
+  `ISOLATED_FORMAT_VERSION=2`（既有隔离 writer）与 `PROMPT_EXPERIMENT_FORMAT_VERSION=3`；
+  `FormatVersionSchema` 三版本 union。
+- ✅ `WorkspaceOriginSchema` 增 `initial{run_id,snapshot_id}`；`WorkspaceMetaSchema` 文档口径扩 v3。
+- ✅ `PromptExperimentSchema` / `PromptExperimentExecutionSchema` /
+  `PROMPT_EXPERIMENT_TEXT_MAX_LENGTH=4000`；`RunMetaObjectSchema.prompt_experiment`。
+- ✅ `RunMetaSchema.superRefine`：v2 resume_after_step 必填判据改用 `ISOLATED_FORMAT_VERSION`；
+  v3 自洽（parent/fork、禁 resume、edit 字段与类型、baseline/origin/snapshot/span ID）；
+  v1/v2 直带 prompt_experiment、v2 initial origin 在 schema 层也拒绝（守卫之外的纵深）。
+- ✅ `version-guard.ts`：v1 禁 prompt_experiment；v2 禁 prompt_experiment + initial origin；
+  v3 必带 workspace+prompt_experiment+initial origin、禁 resume_after_step。
+- ✅ `reader.ts:117` 跨行快照判据改 `fileVersion >= ISOLATED_FORMAT_VERSION`（`FORMAT_VERSION` 等值二分已消除）。
+- ✅ `branch.ts:83`：v2 走整轮；v3 走独立边界（只取自有 spans）并新增
+  `findExperimentSourceViolation`（父根身份/首次调用/第 1 步/原值/初始快照）。
+- ✅ `workspace-snapshot.ts`：`findWorkspaceOriginViolation` 放行分支 `initial`（run_id 必须指直接父）。
+- ✅ `index.ts`：导出新常量、PromptExperiment schema/类型、`findExperimentSourceViolation`。
+- ✅ 零修改已复核：`tracer.ts`（随共用守卫自动生效）、`memory-tracer.ts`、`jsonl-tracer.ts`、
+  `workspace-hash.ts`、`guards.ts`。
+
+### replay / trace-test / agent-loop
+
+- ✅ `workspace/checkpoint-tracer.ts:95`：写 `ISOLATED_FORMAT_VERSION`（不再随最高读取版本升到 3）。
+- ✅ `isolated-run.ts`/`preflight.ts`/`read-api.ts`/`export-*`/`isolated-guard.ts`/`fork-parent.ts`：
+  阶段 2 零行为修改（workspace 存在性判据自动命中 v3）；v3 专属预检/编排/比较留 3.x/4.x。
+- ✅ `trace-test`：`loadTrace` 经 trace-sdk 自动读 v3；新增 v3 卡带基线用例
+  （父文件不存在仍可读可跑、产出 v1、真实 handler 不执行）。
+- ✅ `agent-loop/src/run-loop.ts:82` 注释「现为 2」→ 3；writer 行为零修改。
+
+### apps/desktop
+
+- ✅ `shared/ipc.ts`：`WorkspaceInspectResultSchema.origin` 增 `initial{runId,snapshotId}`。
+- ✅ `shared/compare-edit-evidence.ts:377/592`：等值二分改版本集合（v3→`isolated-v3`，
+  v2→`isolated-v2`，v1→`plain-v1`）。
+- ✅ `shared/compare-source-map.ts:71`：`>= ISOLATED_FORMAT_VERSION` 才按整轮边界。
+- ✅ `main/run-lineage-read.ts:222`：v2 边界校验改 `=== ISOLATED_FORMAT_VERSION`；
+  新增 v3 完整来源校验（复用 `findExperimentSourceViolation`）。
+- ✅ `main/run-detail-project.ts:57`：result hop 改 `>= ISOLATED_FORMAT_VERSION`。
+- ✅ `main/workspace-view.ts:58`：`projectOrigin` 增 initial 投影。
+- ✅ renderer origin 文案：`lib/isolated-fork.ts` 三处、`lib/overview-view.ts`、
+  `lib/workspace-files.ts`、`components/RunWorkspace.tsx` 各增 initial 臂。
+- ✅ 未来版本 fixture 3→4：`test/baddata-regression.test.ts`、`test/run-repository.test.ts`、
+  `scripts/gen-u1-lineage-fixtures.cjs`、`scripts/gen-u7-compare-fixtures.cjs`、
+  `test/fixtures/u1-lineage/broken/u1b_future.jsonl`、`test/fixtures/u7-compare/broken/u7c_b_future.jsonl`。
+- ✅ 零修改已复核：`run-repository.ts`/`run-read-context.ts`/`fork-runner.ts`/`proxy-recorder.ts`/
+  `preload/index.ts`（新 IPC 在 5.x）、`lib/compare-files.ts`、`store/slices/{runs,navigation}.ts`、
+  `lib/result-verification.ts`、`main/run-create.ts`（v3 根新入口在 3.x）。
+
+### fixture 矩阵落地情况
+
+- ✅ 已覆盖：v1 普通、v2 隔离根、v2 隔离分支、v3 实验根、v3 矛盾、v1/v2 私带 prompt_experiment、
+  未来版本 4、v3 父 + v2 result 子。
+- ⏳ 未覆盖：`replay/test/workspace-helpers.ts` 的 v3 变体参数与 `isolated-prompt-baseline-fixture`
+  的 v3 写出变体（随 3.4 真实 v3 writer 落地）；旧读取器模拟（沿用既有 A 段版本门禁，不在本批新增）。

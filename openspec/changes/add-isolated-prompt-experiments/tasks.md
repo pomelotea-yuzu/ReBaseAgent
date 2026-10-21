@@ -13,10 +13,14 @@
 
 ## 2. 格式与独立执行边界
 
-- [ ] 2.1（1.5h）新增 v3 schema、initial origin、prompt_experiment 和明确 writer 版本常量，校验重复 ID、空串/可选 params、假设长度和禁用字段。验收：trace「初始来源与干预记录往返」「矛盾的实验来源拒绝」。
-- [ ] 2.2（1.5h）更新 strip 前版本守卫、reader/BaseTracer/MemoryTracer 与跨行快照校验，增加旧版本禁字段和未来版本 fixture。验收：trace「未来版本文件」「版本与隔离字段不匹配」「v1 禁字段与其他扩展区分」「新实验字段不能藏在旧版本中」。
-- [ ] 2.3（1.5h）更新 branch/来源读取的独立边界及完整父根对应校验，保留 ownOnly 自有读取和缺附件阅读。验收：replay「v3 详情只呈现自有完整步骤」、trace「缺父或附件不阻止自有轨迹阅读」「矛盾的实验来源拒绝」。
-- [ ] 2.4（1.5h）更新其余版本消费方/包导出，验证 v3 父 result 子仍写 v2，卡带/模型实验/删除保护门禁保持。验收：trace「双版本与旧读取器」「三版本读取与写入职责分离」、replay「v3 后的 result 分支保留正确前缀」「新版本不扩大普通执行和卡带权限」。
+- [x] 2.1（1.5h）新增 v3 schema、initial origin、prompt_experiment 和明确 writer 版本常量，校验重复 ID、空串/可选 params、假设长度和禁用字段。验收：trace「初始来源与干预记录往返」「矛盾的实验来源拒绝」。
+  （2026-10-21 ✅：`FORMAT_VERSION=3`（= `PROMPT_EXPERIMENT_FORMAT_VERSION`），新增 `ISOLATED_FORMAT_VERSION=2` 写入常量；`WorkspaceOriginSchema` 增 `initial{run_id,snapshot_id}`；新增 `PromptExperimentSchema`（execution.model/可选 params/去凭据 endpoint/max_iterations/budget/config_fingerprint，original_value 允许空串，hypothesis/acceptance ≤4000）。`RunMetaSchema` v3 自洽：parent/fork 必填、禁 resume_after_step、edit 仅两个 prompt 字段且 value 为字符串、baseline/origin/snapshot/span ID 一致；v1/v2 直带 prompt_experiment 与 v2 initial origin 也拒绝。测试 `packages/trace-sdk/test/experiment.test.ts` 34 项全绿（含 params 缺省 vs 显式 `{}`、嵌套/数组/null 拒绝）。）
+- [x] 2.2（1.5h）更新 strip 前版本守卫、reader/BaseTracer/MemoryTracer 与跨行快照校验，增加旧版本禁字段和未来版本 fixture。验收：trace「未来版本文件」「版本与隔离字段不匹配」「v1 禁字段与其他扩展区分」「新实验字段不能藏在旧版本中」。
+  （2026-10-21 ✅：version-guard 增 v3 分支（必带 workspace+prompt_experiment+initial origin、禁 resume_after_step），v2 禁 prompt_experiment/initial origin，v1 禁 prompt_experiment；reader 跨行 step 快照判据改 `version >= ISOLATED_FORMAT_VERSION`（防存量 v2 掉 v1 语义），未来版本改为 4。BaseTracer/MemoryTracer 经同一守卫与 schema 自动往返（v3 meta 事件流覆盖）。trace-sdk 13 文件/225 用例全绿。）
+- [x] 2.3（1.5h）更新 branch/来源读取的独立边界及完整父根对应校验，保留 ownOnly 自有读取和缺附件阅读。验收：replay「v3 详情只呈现自有完整步骤」、trace「缺父或附件不阻止自有轨迹阅读」「矛盾的实验来源拒绝」。
+  （2026-10-21 ✅：新增导出 `findExperimentSourceViolation(child,parent)`——父必须为 import 隔离根、at_span 必须为父自有首次 llm.call 且位于第 1 步、original_value 与父请求对应 role 的首条字符串一致、父初始快照/origin.snapshot_id/experiment.initial_snapshot_id 三者一致；`resolveBranch` 对 v3 只取自有 spans（父链仅溯源），v2 result 子挂 v3 父仍走 `resolveWholeRound` 且前缀截止 v3 自身整轮。`readRun` 自有读取不依赖父文件。测试覆盖 v3 自身、v3→v2 result 子、at_span/原值/非根父矛盾与缺父自有读取。）
+- [x] 2.4（1.5h）更新其余版本消费方/包导出，验证 v3 父 result 子仍写 v2，卡带/模型实验/删除保护门禁保持。验收：trace「双版本与旧读取器」「三版本读取与写入职责分离」、replay「v3 后的 result 分支保留正确前缀」「新版本不扩大普通执行和卡带权限」。
+  （2026-10-21 ✅：replay `WorkspaceCheckpointTracer` 写 `ISOLATED_FORMAT_VERSION=2`（升最高读取版本不升既有 writer）；trace-sdk 主出口导出新常量/schema/类型与来源校验；desktop 6 处 `=== FORMAT_VERSION` 二分改 `>= v2`（compare-edit-evidence 增 `isolated-v3` 分型、compare-source-map、run-lineage-read v3 完整来源校验、run-detail-project ≥2）；`WorkspaceInspectResultSchema`/`workspace-view`/文件页/隔离说明/RunWorkspace 增 initial origin 文案与投影。trace-test 增 v3 卡带基线用例（父文件不存在仍可读可跑、新轨迹写 v1）。未来版本 fixture 3→4（baddata/run-repository/gen-u1/gen-u7/u1b_future/u7c_b_future）。门禁：trace-sdk 225、agent-loop 104、replay 508(+5 skip)、trace-test 78、llm-proxy 45、desktop 203 文件/3182 全绿；desktop node+web tsc 0 错；biome 143 文件 0 错。）
 
 ## 3. 隔离 prompt 包层
 
