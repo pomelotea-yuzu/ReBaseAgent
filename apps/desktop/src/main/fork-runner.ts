@@ -21,6 +21,7 @@ import type {
   ModelAbRequest,
   ModelAbResult,
 } from "../shared/ipc";
+import { MAIN_EXECUTION_LIMITS } from "./execution-config-state";
 import type { RunRepository } from "./run-repository";
 import { checkRunSource } from "./run-source-gate";
 import type { RunSettings } from "./settings";
@@ -150,8 +151,8 @@ export async function runFork(
     tools: toolDefs,
     params: sanitizeParams(stepLlm.request.params),
     exec: { cwd: execCwd, signal: null },
-    maxIterations: 10,
-    budget: { maxTotalTokens: 100_000 },
+    maxIterations: MAIN_EXECUTION_LIMITS.maxIterations,
+    budget: { ...MAIN_EXECUTION_LIMITS.budget },
   };
 
   // 5. replayRun：config_hash 一致（重建自录制应天然相等；异源会在此被拒）、
@@ -236,8 +237,8 @@ function buildForkConfig(
       tools: toolDefs,
       params: sanitizeParams(firstLlm.request.params),
       exec: { cwd: execCwd, signal: null },
-      maxIterations: 10,
-      budget: { maxTotalTokens: 100_000 },
+      maxIterations: MAIN_EXECUTION_LIMITS.maxIterations,
+      budget: { ...MAIN_EXECUTION_LIMITS.budget },
     },
     tools,
   };

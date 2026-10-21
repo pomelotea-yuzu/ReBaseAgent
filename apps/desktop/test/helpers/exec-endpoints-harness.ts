@@ -22,6 +22,7 @@ import {
   sampleTools,
 } from "../../../../packages/agent-loop/test/helpers";
 import type { ExecEndpointDeps } from "../../src/main/exec-endpoints";
+import { ExecutionConfigState } from "../../src/main/execution-config-state";
 import type { TrustedSender } from "../../src/main/operation-endpoints";
 import { OperationRegistry } from "../../src/main/operation-registry";
 import { RequestFingerprinter } from "../../src/main/operation-request";
@@ -93,6 +94,7 @@ export function envelope<TRequest>(n: number, request: TRequest, epoch = EXEC_EP
 export interface ExecHarness {
   readonly deps: ExecEndpointDeps;
   readonly registry: OperationRegistry;
+  readonly executionConfig: ExecutionConfigState;
   readonly epoch: string;
   readonly sender: TrustedSender;
   /** 仓库 traces 目录（数文件用） */
@@ -183,6 +185,20 @@ export function openExecHarness(): ExecHarness {
     now: () => Date.parse("2026-09-26T00:00:00.000Z"),
   });
 
+  const settingsSource = {
+    load: (): RunSettings | null => {
+      counts.settings += 1;
+      if (!existsSync(settingsFile)) return null;
+      const stored = JSON.parse(readFileSync(settingsFile, "utf8")) as Record<string, string>;
+      return {
+        baseURL: stored.baseURL as string,
+        model: stored.model as string,
+        apiKey: stored.apiKey as string,
+        encrypted: stored.apiKeyEncrypted !== "false",
+      };
+    },
+  };
+  const executionConfig = new ExecutionConfigState(settingsSource);
   const deps: ExecEndpointDeps = {
     registry,
     fingerprinter: new RequestFingerprinter(Buffer.from("exec-harness-session-secret")),
@@ -190,19 +206,8 @@ export function openExecHarness(): ExecHarness {
       sender.webContentsId === TRUSTED_SENDER.webContentsId &&
       sender.frameRoutingId === TRUSTED_SENDER.frameRoutingId,
     repository: new RunRepository(traces),
-    settings: {
-      load: () => {
-        counts.settings += 1;
-        if (!existsSync(settingsFile)) return null;
-        const stored = JSON.parse(readFileSync(settingsFile, "utf8")) as Record<string, string>;
-        return {
-          baseURL: stored.baseURL as string,
-          model: stored.model as string,
-          apiKey: stored.apiKey as string,
-          encrypted: stored.apiKeyEncrypted !== "false",
-        };
-      },
-    },
+    settings: settingsSource,
+    configState: executionConfig,
     execCwd: work,
     dataDir,
     proxy: {
@@ -225,6 +230,7 @@ export function openExecHarness(): ExecHarness {
   return {
     deps,
     registry,
+    executionConfig,
     epoch: EXEC_EPOCH,
     sender: TRUSTED_SENDER,
     traces,

@@ -10,6 +10,7 @@ import {
 import type { OnRunIdentified } from "@rebaseagent/replay";
 import { JsonlTracer, readRun } from "@rebaseagent/trace-sdk";
 import type { IsolatedWorkspaceSelection } from "../shared/ipc";
+import { MAIN_EXECUTION_LIMITS } from "./execution-config-state";
 import type { RunRepository } from "./run-repository";
 import type { RunSettings } from "./settings";
 
@@ -71,10 +72,6 @@ export class CreateRunError extends Error {
   }
 }
 
-/** 与既有 fork 编排的硬编码值保持一致（避免两套口径分叉；可配置留作后续扩展） */
-const MAX_ITERATIONS = 10;
-const MAX_TOTAL_TOKENS = 100_000;
-
 export async function runCreate(
   options: RunCreateOptions,
   request: RunCreateRequest,
@@ -90,8 +87,8 @@ export async function runCreate(
     systemPrompt: request.systemPrompt,
     tools: [],
     exec: { cwd: execCwd, signal: null },
-    maxIterations: MAX_ITERATIONS,
-    budget: { maxTotalTokens: MAX_TOTAL_TOKENS },
+    maxIterations: MAIN_EXECUTION_LIMITS.maxIterations,
+    budget: { ...MAIN_EXECUTION_LIMITS.budget },
   };
 
   // 2. 初始消息：system 恒存在（内容可为空串）——prompt fork 的门禁要求首次
@@ -209,8 +206,8 @@ export async function runCreateIsolated(
     tools: [...FILE_TOOLS_V1_DEFINITIONS],
     params: undefined,
     exec: { cwd: dataDir, signal: null },
-    maxIterations: MAX_ITERATIONS,
-    budget: { maxTotalTokens: MAX_TOTAL_TOKENS },
+    maxIterations: MAIN_EXECUTION_LIMITS.maxIterations,
+    budget: { ...MAIN_EXECUTION_LIMITS.budget },
   };
 
   /** 包层回调给的是**最终世界身份**（checkpoint tracer 替换后）；预检拒绝时不会被调用 */

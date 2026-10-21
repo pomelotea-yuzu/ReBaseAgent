@@ -30,6 +30,16 @@ export const CHANNELS = {
   // 不登记 operation、不占主动执行槽、不消费授权；成功/失败/取消都以 ok 信封的
   // 判别式 outcome 返回，信封失败只留给请求形状非法等程序性错误
   exportCheckpoint: "workspaces:export",
+  // workspaces:isolatedPromptCapability（R2.2）：隔离 prompt 实验的只读能力预检。
+  // 不写 trace/blob、不建运行、不登记 operation、不占槽、不调模型；返回基线/编辑/
+  // 初始清单规模/有效模型与参数/端点/限制/计划指纹/配置修订。领域拒绝以 ok 信封的
+  // status=unavailable 返回（含可导航 rootId），信封失败只留给请求形状/配置读取问题。
+  isolatedPromptCapability: "workspaces:isolatedPromptCapability",
+  // workspaces:compareSnapshots / compareFile（R2.2）：两个逐侧 selector 的只读比较。
+  // 清单通道只读记录与清单引用；正文通道按 path 延迟核验字节，expectedSnapshotIds
+  // 防止旧清单与新正文拼接。两者都不登记 operation、不占槽、不消费授权、不写文件。
+  compareSnapshots: "workspaces:compareSnapshots",
+  compareFile: "workspaces:compareFile",
   settingsGet: "settings:get",
   settingsSave: "settings:save",
   settingsClear: "settings:clear",

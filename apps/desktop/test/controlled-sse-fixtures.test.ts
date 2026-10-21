@@ -197,14 +197,20 @@ describe("U5 6.1 受控剧本目录：结构与被引用的 delta 场景", () =>
     }
   });
 
-  it("剧本额度常量与 main 硬编码同值（常量漂移时剧本会失效，先判红）", () => {
+  it("剧本额度常量与 main 唯一拥有者同值（常量漂移时剧本会失效，先判红）", () => {
+    const limits = readFileSync(
+      resolve(import.meta.dirname, "../src/main/execution-config-state.ts"),
+      "utf8",
+    );
     const create = readFileSync(resolve(import.meta.dirname, "../src/main/run-create.ts"), "utf8");
-    expect(create.includes(`const MAX_ITERATIONS = ${catalog.MAX_ITERATIONS};`)).toBe(true);
+    expect(limits.includes(`maxIterations: ${catalog.MAX_ITERATIONS}`)).toBe(true);
     expect(
-      create.includes(
-        `const MAX_TOTAL_TOKENS = ${catalog.MAX_TOTAL_TOKENS.toLocaleString("en-US").replace(/,/g, "_")};`,
+      limits.includes(
+        `maxTotalTokens: ${catalog.MAX_TOTAL_TOKENS.toLocaleString("en-US").replace(/,/g, "_")}`,
       ),
     ).toBe(true);
+    // 所有运行入口必须消费同一常量，不得再各自硬编码一套
+    expect(create).toContain("MAIN_EXECUTION_LIMITS");
   });
 
   it("未知剧本 id 直接抛，不静默退回默认剧本", () => {

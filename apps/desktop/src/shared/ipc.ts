@@ -251,17 +251,52 @@ export type CreateRunResult = z.infer<typeof CreateRunResultSchema>;
 // ---------------------------------------------------------------------------
 
 /**
- * prompt fork 请求：编辑父 run 首次 llm.call 启动上下文中的一项。
+ * 普通 prompt fork 请求：编辑父 run 首次 llm.call 启动上下文中的一项。
  * 与 runs:fork（tool_result 编辑，共享父前缀）语义正交：prompt fork
  * 从头重跑、不共享前缀；一次只允许修改 system_prompt 或 user_message 其一。
+ *
+ * 隔离 prompt 实验是**显式**的第二分支（`executionMode:"isolated"`）：必须携带
+ * 计划指纹与配置修订；缺 mode 的隔离请求不会落到普通分支（两个分支都 strict，
+ * 多余/缺失键直接 shape 失败）。普通载荷保持兼容。
  */
-export const PromptForkRequestSchema = z.object({
-  parentRunId: z.string().min(1),
-  edit: z.object({
+/** 单项启动指令编辑（一次只允许一个字段；strict 拒绝组合修改与多余键） */
+export const IsolatedPromptEditSchema = z
+  .object({
     field: z.enum(["system_prompt", "user_message"]),
     value: z.string(),
-  }),
-});
+  })
+  .strict();
+export type IsolatedPromptEdit = z.infer<typeof IsolatedPromptEditSchema>;
+
+export const PlainPromptForkRequestSchema = z
+  .object({
+    parentRunId: z.string().min(1),
+    edit: IsolatedPromptEditSchema,
+  })
+  .strict();
+export type PlainPromptForkRequest = z.infer<typeof PlainPromptForkRequestSchema>;
+
+export const IsolatedPromptForkRequestSchema = z
+  .object({
+    executionMode: z.literal("isolated"),
+    parentRunId: z.string().min(1),
+    edit: IsolatedPromptEditSchema,
+    /** 本次请求的副本写入授权：字面量 true，不继承父 trace 的审计标注 */
+    allowFileWrites: z.literal(true),
+    /** capability 返回的 opaque 配置修订；main 与当前实际配置比较 */
+    expectedConfigRevision: z.string().min(1),
+    /** capability 返回的计划指纹；提交时重验完整来源/计划 */
+    expectedPlanFingerprint: z.string().min(1),
+    hypothesis: z.string().max(4000).optional(),
+    acceptanceCriterion: z.string().max(4000).optional(),
+  })
+  .strict();
+export type IsolatedPromptForkRequest = z.infer<typeof IsolatedPromptForkRequestSchema>;
+
+export const PromptForkRequestSchema = z.union([
+  IsolatedPromptForkRequestSchema,
+  PlainPromptForkRequestSchema,
+]);
 export type PromptForkRequest = z.infer<typeof PromptForkRequestSchema>;
 
 /** runs:promptFork 成功结果：新 fork run 的 id */
@@ -667,6 +702,343 @@ export const ForkCapabilityResultSchema = z.object({
 export type ForkCapabilityResult = z.infer<typeof ForkCapabilityResultSchema>;
 
 // ---------------------------------------------------------------------------
+// workspaces:isolatedPromptCapability —— 隔离 prompt 实验只读能力预检（R2.2）
+// ---------------------------------------------------------------------------
+
+/** 领域预检失败码（与 replay 包层稳定码一一对应；外层信封失败码另见 handler） */
+export const ISOLATED_PROMPT_ERROR_CODES = [
+  "invalid_request",
+  "parent_not_root",
+  "parent_chain_invalid",
+  "parent_not_forkable",
+  "parent_not_isolated",
+  "startup_unavailable",
+  "profile_mismatch",
+  "source_changed",
+  "invalid_edit",
+  "empty_edit",
+  "config_unreconstructable",
+  "initial_snapshot_invalid",
+  "attachment_missing",
+  "attachment_corrupt",
+  "storage_io",
+] as const;
+export type IsolatedPromptErrorCode = (typeof ISOLATED_PROMPT_ERROR_CODES)[number];
+
+/** 对中文原因的跨进程上限（不透传异常栈/物理路径，有界防伪造超大载荷） */
+export const ISOLATED_PROMPT_REASON_MAX = 512;
+
+/**
+ * 能力预检请求（**严格只读**）：只接受根 id、一项编辑与可选说明。
+ * 刻意没有 model/config/handler/dataDir/allowFileWrites——模型与启动消息来自根事实，
+ * 端点/key/限制由 main 当前配置决定；副本写入授权只在正式提交时由当前请求声明。
+ */
+export const IsolatedPromptCapabilityRequestSchema = z
+  .object({
+    rootRunId: z.string().min(1),
+    edit: IsolatedPromptEditSchema,
+    hypothesis: z.string().max(4000).optional(),
+    acceptanceCriterion: z.string().max(4000).optional(),
+  })
+  .strict();
+export type IsolatedPromptCapabilityRequest = z.infer<typeof IsolatedPromptCapabilityRequestSchema>;
+
+/** 启动消息的 IPC 形状：首版只允许 system/user + 字符串 content + 可选 name */
+export const IsolatedPromptMessageSchema = z
+  .object({
+    role: z.enum(["system", "user"]),
+    content: z.string(),
+    name: z.string().optional(),
+  })
+  .strict();
+export type IsolatedPromptMessage = z.infer<typeof IsolatedPromptMessageSchema>;
+
+export const IsolatedPromptExecutionPlanSchema = z
+  .object({
+    model: z.string().min(1),
+    /** 根首次请求的无损标量参数；缺省与显式空对象保持区别 */
+    params: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional(),
+    providerEndpoint: z.string().min(1),
+    maxIterations: z.number().int().positive(),
+    budget: z
+      .object({
+        maxTotalTokens: z.number().int().positive(),
+        maxCost: z.number().positive().optional(),
+      })
+      .strict(),
+    tokenBudgetSource: z.enum(["recorded", "current"]),
+    historicalUnknowns: z.array(z.enum(["provider_backend", "max_iterations", "token_budget"])),
+  })
+  .strict();
+export type IsolatedPromptExecutionPlan = z.infer<typeof IsolatedPromptExecutionPlanSchema>;
+
+const IsolatedPromptSuccessSchema = z
+  .object({
+    status: z.literal("ok"),
+    rootId: z.string().min(1),
+    baselineLlmSpanId: z.string().min(1),
+    initialSnapshotId: z.string().regex(/^[0-9a-f]{64}$/),
+    fileCount: z.number().int().nonnegative(),
+    totalBytes: z.number().nonnegative(),
+    originalValue: z.string(),
+    editedValue: z.string(),
+    systemPrompt: z.string(),
+    messages: z.array(IsolatedPromptMessageSchema),
+    execution: IsolatedPromptExecutionPlanSchema,
+    configHash: z.string().min(1),
+    planFingerprint: z.string().min(1),
+    /** main 会话内 opaque 配置修订（不写 trace/operation，不是可重用授权） */
+    configRevision: z.string().min(1),
+    hypothesis: z.string().max(4000).optional(),
+    acceptanceCriterion: z.string().max(4000).optional(),
+    /** 执行前 usage/价格/缓存未知，不得用 0 冒充真实费用 */
+    billing: z
+      .object({
+        usage: z.literal("unknown_until_execution"),
+        price: z.literal("unknown"),
+        cache: z.literal("unknown"),
+      })
+      .strict(),
+  })
+  .strict();
+
+const IsolatedPromptUnavailableSchema = z
+  .object({
+    status: z.literal("unavailable"),
+    code: z.enum(ISOLATED_PROMPT_ERROR_CODES),
+    reason: z.string().min(1).max(ISOLATED_PROMPT_REASON_MAX),
+    /** 仅 parent_not_root 且父链完整可验证时出现：导航建议，不是执行授权 */
+    rootId: z.string().min(1).optional(),
+  })
+  .strict();
+
+/**
+ * capability 结果：领域拒绝是**数据状态**（ok 信封内的 status=unavailable），
+ * 请求形状非法/配置读取失败才走失败信封。这样 renderer 能拿到非根时的 rootId 导航建议。
+ */
+export const IsolatedPromptCapabilityResultSchema = z.discriminatedUnion("status", [
+  IsolatedPromptSuccessSchema,
+  IsolatedPromptUnavailableSchema,
+]);
+export type IsolatedPromptCapabilityResult = z.infer<typeof IsolatedPromptCapabilityResultSchema>;
+
+// ---------------------------------------------------------------------------
+// workspaces:compareSnapshots / compareFile —— 跨运行检查点比较（R2.2 4.x）
+// ---------------------------------------------------------------------------
+
+/** 比较侧 selector：缺省 stepSpanId = 初始快照（不是桌面"最近一步"） */
+export const CompareSideSelectorSchema = z
+  .object({
+    runId: z.string().min(1),
+    stepSpanId: z.string().min(1).optional(),
+  })
+  .strict();
+export type CompareSideSelector = z.infer<typeof CompareSideSelectorSchema>;
+
+export const CompareSideFailureCodeSchema = z.enum([
+  "invalid_request",
+  "run_not_found",
+  "trace_invalid",
+  "no_workspace",
+  "step_not_found",
+  "identity_mismatch",
+]);
+export type CompareSideFailureCode = z.infer<typeof CompareSideFailureCodeSchema>;
+
+export const CompareSideFailureSchema = z
+  .object({
+    code: CompareSideFailureCodeSchema,
+    reason: z.string().min(1).max(COMPARE_REASON_MAX),
+  })
+  .strict();
+export type CompareSideFailure = z.infer<typeof CompareSideFailureSchema>;
+
+export const CompareSideIdentitySchema = z
+  .object({
+    runId: z.string().min(1),
+    stepSpanId: z.string().min(1).nullable(),
+    snapshotId: z.string().regex(/^[0-9a-f]{64}$/),
+    initialSnapshotId: z.string().regex(/^[0-9a-f]{64}$/),
+  })
+  .strict();
+export type CompareSideIdentity = z.infer<typeof CompareSideIdentitySchema>;
+
+export const CompareSideResultSchema = z.discriminatedUnion("status", [
+  z
+    .object({
+      status: z.literal("ok"),
+      requestedRunId: z.string().min(1),
+      requestedStepSpanId: z.string().min(1).nullable(),
+      selected: CompareSideIdentitySchema,
+    })
+    .strict(),
+  z
+    .object({
+      status: z.literal("unavailable"),
+      requestedRunId: z.string().min(1),
+      requestedStepSpanId: z.string().min(1).nullable(),
+      failure: CompareSideFailureSchema,
+    })
+    .strict(),
+]);
+export type CompareSideResult = z.infer<typeof CompareSideResultSchema>;
+
+export const CompareFileReferenceSchema = z
+  .object({
+    path: z.string().min(1),
+    sha256: z.string().regex(/^[0-9a-f]{64}$/),
+    bytes: z.number().int().nonnegative(),
+  })
+  .strict();
+export type CompareFileReference = z.infer<typeof CompareFileReferenceSchema>;
+
+export const ComparePathEntrySchema = z
+  .object({
+    path: z.string().min(1),
+    presence: z.enum(["both", "left_only", "right_only"]),
+    left: CompareFileReferenceSchema.nullable(),
+    right: CompareFileReferenceSchema.nullable(),
+    reference: z.enum(["same", "different"]).nullable(),
+  })
+  .strict();
+export type ComparePathEntry = z.infer<typeof ComparePathEntrySchema>;
+
+export const CompareWorkspaceSnapshotsRequestSchema = z
+  .object({
+    left: CompareSideSelectorSchema,
+    right: CompareSideSelectorSchema,
+  })
+  .strict();
+export type CompareWorkspaceSnapshotsRequest = z.infer<
+  typeof CompareWorkspaceSnapshotsRequestSchema
+>;
+
+export const CompareWorkspaceSnapshotsResultSchema = z
+  .object({
+    left: CompareSideResultSchema,
+    right: CompareSideResultSchema,
+    unionComplete: z.boolean(),
+    entries: z.array(ComparePathEntrySchema),
+  })
+  .strict();
+export type CompareWorkspaceSnapshotsResult = z.infer<typeof CompareWorkspaceSnapshotsResultSchema>;
+
+export const ExpectedSnapshotIdsSchema = z
+  .object({
+    left: z.string().regex(/^[0-9a-f]{64}$/),
+    right: z.string().regex(/^[0-9a-f]{64}$/),
+  })
+  .strict();
+export type ExpectedSnapshotIds = z.infer<typeof ExpectedSnapshotIdsSchema>;
+
+export const CompareWorkspaceFileRequestSchema = z
+  .object({
+    left: CompareSideSelectorSchema,
+    right: CompareSideSelectorSchema,
+    path: z.string().min(1),
+    expectedSnapshotIds: ExpectedSnapshotIdsSchema,
+  })
+  .strict();
+export type CompareWorkspaceFileRequest = z.infer<typeof CompareWorkspaceFileRequestSchema>;
+
+const ComparedFileBase = {
+  path: z.string().min(1),
+} as const;
+
+export const ComparedFileSideSchema = z.discriminatedUnion("status", [
+  z
+    .object({
+      status: z.literal("text"),
+      ...ComparedFileBase,
+      file: CompareFileReferenceSchema,
+      text: z.string(),
+    })
+    .strict(),
+  z
+    .object({
+      status: z.literal("binary"),
+      ...ComparedFileBase,
+      /** 二进制只给哈希/大小，不跨进程传字节，也不生成文本 diff */
+      file: CompareFileReferenceSchema,
+    })
+    .strict(),
+  z
+    .object({
+      status: z.literal("not_found"),
+      ...ComparedFileBase,
+      reason: z.string().max(COMPARE_REASON_MAX),
+    })
+    .strict(),
+  z
+    .object({
+      status: z.literal("missing"),
+      ...ComparedFileBase,
+      file: CompareFileReferenceSchema,
+      reason: z.string().max(COMPARE_REASON_MAX),
+    })
+    .strict(),
+  z
+    .object({
+      status: z.literal("corrupt"),
+      ...ComparedFileBase,
+      file: CompareFileReferenceSchema,
+      reason: z.string().max(COMPARE_REASON_MAX),
+    })
+    .strict(),
+  z
+    .object({
+      status: z.literal("too_large"),
+      ...ComparedFileBase,
+      file: CompareFileReferenceSchema,
+      reason: z.string().max(COMPARE_REASON_MAX),
+    })
+    .strict(),
+  z
+    .object({
+      status: z.literal("io"),
+      ...ComparedFileBase,
+      file: CompareFileReferenceSchema,
+      reason: z.string().max(COMPARE_REASON_MAX),
+    })
+    .strict(),
+  z
+    .object({
+      status: z.literal("selection_changed"),
+      ...ComparedFileBase,
+      expectedSnapshotId: z.string().min(1),
+      actualSnapshotId: z.string().min(1),
+      reason: z.string().max(COMPARE_REASON_MAX),
+    })
+    .strict(),
+  z
+    .object({
+      status: z.literal("unavailable"),
+      ...ComparedFileBase,
+      failure: CompareSideFailureSchema,
+    })
+    .strict(),
+]);
+export type ComparedFileSide = z.infer<typeof ComparedFileSideSchema>;
+
+export const ComparedWorkspaceFileResultSchema = z
+  .object({
+    path: z.string().min(1),
+    left: ComparedFileSideSchema,
+    right: ComparedFileSideSchema,
+    conclusion: z.enum([
+      "same",
+      "different",
+      "left_only",
+      "right_only",
+      "not_found",
+      "unavailable",
+    ]),
+    textDiffEligible: z.boolean(),
+  })
+  .strict();
+export type ComparedWorkspaceFileResult = z.infer<typeof ComparedWorkspaceFileResultSchema>;
+
+// ---------------------------------------------------------------------------
 // workspaces:inspect / workspaces:readFile —— 文件检查点与差异（只读；C 1.1）
 // ---------------------------------------------------------------------------
 
@@ -1029,6 +1401,27 @@ export interface WindowApi {
    * 失败（历史 run 无检查点 / 附件不可用 / 非隔离父本等）返回可操作的错误信封。
    */
   forkCapability(request: ForkCapabilityRequest): Promise<Envelope<ForkCapabilityResult>>;
+  /**
+   * 隔离 prompt 实验的只读能力预检（R2.2）：不创建运行、不写文件、不请求模型、
+   * 不登记 operation。领域拒绝以 ok 信封里的 status=unavailable 返回（含 rootId 导航建议）。
+   */
+  isolatedPromptCapability(
+    request: IsolatedPromptCapabilityRequest,
+  ): Promise<Envelope<IsolatedPromptCapabilityResult>>;
+  /**
+   * 两个自有检查点的清单比较（只读）：缺省 stepSpanId=初始；单侧失败是数据状态，
+   * 两侧都可用时才给出完整路径并集与清单引用状态。
+   */
+  compareWorkspaceSnapshots(
+    request: CompareWorkspaceSnapshotsRequest,
+  ): Promise<Envelope<CompareWorkspaceSnapshotsResult>>;
+  /**
+   * 比较并集内某条路径的正文（只读）：按 path 延迟核验字节；
+   * expectedSnapshotIds 不符时逐侧 selection_changed，不拼旧清单与新正文。
+   */
+  readComparedWorkspaceFile(
+    request: CompareWorkspaceFileRequest,
+  ): Promise<Envelope<ComparedWorkspaceFileResult>>;
   /** 文件检查点清单（只读）：省略 stepSpanId 取本 run 初始快照；不写任何文件、不调 LLM */
   inspectWorkspace(request: WorkspaceInspectRequest): Promise<Envelope<WorkspaceInspectResult>>;
   /** 读取清单内某条逻辑路径的文本（只读）：二进制/不存在/缺失/损坏各自可辨认 */

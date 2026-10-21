@@ -44,7 +44,9 @@ import {
   execPromptFork,
   execProxyFork,
 } from "./exec-endpoints";
+import { ExecutionConfigState } from "./execution-config-state";
 import { ForkError, runForkCapability } from "./fork-runner";
+import { runIsolatedPromptCapability } from "./isolated-prompt-endpoints";
 import {
   type OperationEndpointDeps,
   type TrustedSender,
@@ -58,6 +60,10 @@ import type { RunRepository } from "./run-repository";
 import { RunSourceRejection } from "./run-source-gate";
 import type { SettingsStore } from "./settings";
 import { SourceTokenStore } from "./source-token";
+import {
+  compareWorkspaceSnapshotsEndpoint,
+  readComparedWorkspaceFileEndpoint,
+} from "./workspace-compare-endpoint";
 import { exportWorkspaceEndpoint, workspaceExportEnvelope } from "./workspace-export-endpoint";
 import type { WorkspaceExportEndpointDeps } from "./workspace-export-endpoint";
 import { inspectWorkspace, readWorkspaceFileForView } from "./workspace-view";
@@ -102,11 +108,17 @@ export interface IpcDeps {
 export function registerIpc(deps: IpcDeps): void {
   const { repository, settings, execCwd, dataDir, proxy, operations, isTrustedSender } = deps;
   const endpointDeps: OperationEndpointDeps = { registry: operations, isTrustedSender };
+  /**
+   * R2.2：执行配置修订的唯一拥有者（main 装配一次，注入配置写、预检与执行端点）。
+   * 只比较 main 内存里的实际值；密钥不离开 main，也不以 secret 哈希构造修订。
+   */
+  const configState = new ExecutionConfigState(settings);
   /** 配置写通道（settings 保存/清除、代理启停）共用同一份判据与锁（tasks 3.5/3.6） */
   const configDeps: ConfigEndpointDeps = {
     settings,
     proxy,
     registry: operations,
+    configState,
     isTrustedSender,
   };
   /**
@@ -126,6 +138,7 @@ export function registerIpc(deps: IpcDeps): void {
     dataDir,
     proxy,
     sourceTokens,
+    configState,
   };
   const pickDirectory =
     deps.pickDirectory ??
@@ -276,6 +289,30 @@ export function registerIpc(deps: IpcDeps): void {
         return fail("FORK_CAPABILITY_FAILED", e);
       }
     },
+  );
+
+  // -------------------------------------------------------------------------
+  // workspaces:isolatedPromptCapability —— 隔离 prompt 实验只读预检（R2.2）
+  // 领域拒绝以 ok 信封的 status=unavailable 返回（含 rootId 导航建议）；
+  // 不登记 operation、不占槽、不写文件、不调模型。
+  // -------------------------------------------------------------------------
+
+  ipcMain.handle(CHANNELS.isolatedPromptCapability, async (_event, request: unknown) =>
+    runIsolatedPromptCapability({ dataDir, configState }, request),
+  );
+
+  // -------------------------------------------------------------------------
+  // workspaces:compareSnapshots / compareFile —— 跨运行检查点比较（R2.2 4.x）
+  // 两条都只读：清单通道只给引用状态，正文通道按 path 延迟核验并在
+  // expectedSnapshotIds 不符时逐侧 selection_changed；不登记/不占槽/不消费授权。
+  // -------------------------------------------------------------------------
+
+  ipcMain.handle(CHANNELS.compareSnapshots, (_event, request: unknown) =>
+    compareWorkspaceSnapshotsEndpoint({ dataDir }, request),
+  );
+
+  ipcMain.handle(CHANNELS.compareFile, async (_event, request: unknown) =>
+    readComparedWorkspaceFileEndpoint({ dataDir }, request),
   );
 
   // -------------------------------------------------------------------------

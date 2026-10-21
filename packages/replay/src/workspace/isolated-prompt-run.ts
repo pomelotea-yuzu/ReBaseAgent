@@ -52,6 +52,11 @@ export interface PromptReplayIsolatedRunOptions {
   readonly authority: unknown;
   readonly hypothesis?: string;
   readonly acceptanceCriterion?: string;
+  /**
+   * 可选：调用方确认过的计划指纹（来自只读预检）。提交时重验结果不同即拒绝，
+   * 避免"确认后根/配置变化"仍按新计划执行。
+   */
+  readonly expectedPlanFingerprint?: string;
   /** LLM 客户端（测试注入 mock；缺省真调当前端点） */
   readonly llm?: LlmClient;
   /**
@@ -63,6 +68,7 @@ export interface PromptReplayIsolatedRunOptions {
 
 export type PromptReplayIsolatedRunFailureCode =
   | "missing_authority"
+  | "plan_changed"
   | "invalid_snapshot"
   | "run_not_landed"
   | IsolatedPromptPreflightFailureCode;
@@ -122,7 +128,18 @@ export async function promptReplayIsolatedRun(
   }
   const capability = preflight.value;
 
-  // ── 3. 新世界：起点 = 根 initial_snapshot（不读父最终状态/当前源目录）─────────────────
+  // 调用方确认过的计划必须与提交时重验结果一致；任何漂移都要重新确认。
+  if (
+    options.expectedPlanFingerprint !== undefined &&
+    capability.planFingerprint !== options.expectedPlanFingerprint
+  ) {
+    return fail(
+      "plan_changed",
+      `确认后的计划已变化（确认 ${options.expectedPlanFingerprint}，当前 ${capability.planFingerprint}）：请重新预检并确认，不能沿用旧许可`,
+    );
+  }
+
+  // ── 3. 新世界：起点 = root initial_snapshot（不读父最终状态/当前源目录）─────────────────
   const created = createWorkspaceWorld({
     dataDir,
     snapshot: capability.initialSnapshot,

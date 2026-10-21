@@ -1,5 +1,9 @@
 import type { LlmClient } from "@rebaseagent/agent-loop";
-import { ModelAbError } from "@rebaseagent/replay";
+import {
+  ModelAbError,
+  preflightIsolatedPromptReplay,
+  promptReplayIsolatedRun,
+} from "@rebaseagent/replay";
 import type { ChannelName } from "../shared/channels";
 import { CHANNELS } from "../shared/channels";
 import {
@@ -14,6 +18,7 @@ import type {
   CreateRunResult,
   ForkRunRequest,
   ForkRunResult,
+  IsolatedPromptForkRequest,
   ModelAbRequest,
   ModelAbResult,
   PromptForkRequest,
@@ -28,6 +33,7 @@ import {
   type OperationRecord,
   type RegistryVersion,
 } from "../shared/operations";
+import type { ExecutionConfigState } from "./execution-config-state";
 import {
   ForkError,
   type ModelAbRunResult,
@@ -36,6 +42,7 @@ import {
   runModelAb,
   runPromptFork,
 } from "./fork-runner";
+import { buildPromptExperimentConfig } from "./isolated-prompt-endpoints";
 import type { TrustedSender } from "./operation-endpoints";
 import type { OperationContext, OperationRunResult } from "./operation-registry";
 import { type RequestFingerprinter, parseBusinessRequest } from "./operation-request";
@@ -84,6 +91,11 @@ export interface ExecEndpointDeps {
   proxy: Pick<ProxyManager, "fork">;
   /** 目录选择令牌：只在**已被接受**的操作里消费（判重先于许可消费） */
   sourceTokens: Pick<SourceTokenStore, "consume">;
+  /**
+   * R2.2：执行配置修订的唯一拥有者。隔离 prompt 提交在已被接受之后读取当前配置，
+   * 与确认时的 `expectedConfigRevision` 比较；配置写入/清除会经同一实例刷新。
+   */
+  configState: Pick<ExecutionConfigState, "refresh">;
   /**
    * LLM 客户端（与各编排函数的 `llm` 选项同口径：缺省真实调用 settings.baseURL，
    * 测试注入 mock ⇒ 零真实 API，且"同 ID 重复请求只执行一次"能数到真实模型调用次数）。
@@ -380,6 +392,93 @@ export function execForkRun(
 // 3) runs:promptFork —— 编辑启动上下文从头重跑
 // ---------------------------------------------------------------------------
 
+/** 隔离 prompt 包层失败码 → IPC 稳定码（renderer 只按码分支） */
+function isolatedPromptErrorCode(code: string): string {
+  return `ISOLATED_PROMPT_${code.toUpperCase()}`;
+}
+
+/**
+ * 隔离 prompt 实验分支（R2.2 5.2/5.3）：必须显式 `executionMode:"isolated"`。
+ *
+ * 顺序（在 U4 已接受并占槽之后）：
+ * 配置修订核对（旧确认失效）→ 来源重读 → 重新预检（根/消息/params/配额/附件）
+ * → 计划指纹核对 → 当前写入授权 → 包层独立执行。
+ *
+ * 预检/权限拒绝发生在创建子 trace 与模型调用之前：操作 settled/rejected 且 runIds=[]；
+ * 模型失败属于已落盘事实：包层返回 id，身份由观察回调登记。
+ */
+async function runIsolatedPromptFork(
+  deps: ExecEndpointDeps,
+  business: IsolatedPromptForkRequest,
+  ctx: OperationContext,
+): Promise<PromptForkResult> {
+  const snapshot = deps.configState.refresh();
+  if (snapshot.loadError !== null) {
+    throw new ForkError("SETTINGS_LOAD_FAILED", "读取运行配置失败，请重新配置后再试");
+  }
+  if (snapshot.settings === null) {
+    throw new ForkError(
+      "SETTINGS_NOT_CONFIGURED",
+      "尚未配置运行参数（baseURL / apiKey / model），请先完成运行配置",
+    );
+  }
+  if (snapshot.revision !== business.expectedConfigRevision) {
+    throw new ForkError(
+      "ISOLATED_PROMPT_CONFIG_CHANGED",
+      "确认后的运行配置已变化（端点/凭据/模型/执行限制）：请重新预检并确认，不能沿用旧许可",
+    );
+  }
+
+  // U6 §5.4 同一判据：服务端重读来源；ownOnly/不可读父本在一切副作用之前拒绝。
+  checkRunSource(deps.repository.tracesDir, business.parentRunId);
+
+  const config = buildPromptExperimentConfig(snapshot.settings, deps.dataDir);
+  const preflight = await preflightIsolatedPromptReplay({
+    dataDir: deps.dataDir,
+    rootId: business.parentRunId,
+    edit: business.edit,
+    config,
+    ...(business.hypothesis === undefined ? {} : { hypothesis: business.hypothesis }),
+    ...(business.acceptanceCriterion === undefined
+      ? {}
+      : { acceptanceCriterion: business.acceptanceCriterion }),
+  });
+  if (!preflight.ok) {
+    throw new ForkError(
+      isolatedPromptErrorCode(preflight.failure.code),
+      `隔离 prompt 实验被拒绝（${preflight.failure.code}）：${preflight.failure.reason}`,
+    );
+  }
+  if (preflight.value.planFingerprint !== business.expectedPlanFingerprint) {
+    throw new ForkError(
+      "ISOLATED_PROMPT_PLAN_CHANGED",
+      "确认后的实验计划已变化：请重新预检并确认，不能沿用旧许可",
+    );
+  }
+
+  const result = await promptReplayIsolatedRun({
+    dataDir: deps.dataDir,
+    rootId: business.parentRunId,
+    edit: business.edit,
+    config,
+    authority: { allowFileWrites: business.allowFileWrites },
+    ...(business.hypothesis === undefined ? {} : { hypothesis: business.hypothesis }),
+    ...(business.acceptanceCriterion === undefined
+      ? {}
+      : { acceptanceCriterion: business.acceptanceCriterion }),
+    expectedPlanFingerprint: business.expectedPlanFingerprint,
+    ...(deps.llm === undefined ? {} : { llm: deps.llm }),
+    onRunIdentified: (id) => ctx.attachRunId(id),
+  });
+  if (!result.ok) {
+    throw new ForkError(
+      isolatedPromptErrorCode(result.failure.code),
+      `隔离 prompt 实验被拒绝（${result.failure.code}）：${result.failure.reason}`,
+    );
+  }
+  return { id: result.id };
+}
+
 const promptChannel: ActiveChannel<PromptForkRequest, PromptForkResult> = {
   channel: CHANNELS.promptFork,
   schema: PromptForkRequestSchema,
@@ -389,6 +488,9 @@ const promptChannel: ActiveChannel<PromptForkRequest, PromptForkResult> = {
     editField: business.edit.field,
   }),
   async run(deps, business, ctx) {
+    if ("executionMode" in business) {
+      return runIsolatedPromptFork(deps, business, ctx);
+    }
     const loaded = deps.settings.load();
     if (loaded === null) {
       throw new ForkError(

@@ -30,6 +30,12 @@ const api: WindowApi = {
   // workspaces:*（B 1.3/1.5）：目录选择签发 token、隔离分叉只读预检——都不产生 run 文件
   chooseSource: () => ipcRenderer.invoke(CHANNELS.chooseSource),
   forkCapability: (request) => ipcRenderer.invoke(CHANNELS.forkCapability, request),
+  // R2.2：隔离 prompt 只读能力预检；领域拒绝在 ok 信封的 status=unavailable 里
+  isolatedPromptCapability: (request) =>
+    ipcRenderer.invoke(CHANNELS.isolatedPromptCapability, request),
+  // R2.2：跨运行检查点比较——清单与正文两条只读通道
+  compareWorkspaceSnapshots: (request) => ipcRenderer.invoke(CHANNELS.compareSnapshots, request),
+  readComparedWorkspaceFile: (request) => ipcRenderer.invoke(CHANNELS.compareFile, request),
   // workspaces:*（C 1.1）：文件清单与内容只读通道——不写 trace/blob、不调 LLM/工具
   inspectWorkspace: (request) => ipcRenderer.invoke(CHANNELS.inspect, request),
   readWorkspaceFile: (request) => ipcRenderer.invoke(CHANNELS.readFile, request),

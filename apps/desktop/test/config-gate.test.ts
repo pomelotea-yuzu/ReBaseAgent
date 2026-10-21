@@ -8,6 +8,7 @@ import {
   toggleProxy,
   writeRunSettings,
 } from "../src/main/config-endpoints";
+import { ExecutionConfigState } from "../src/main/execution-config-state";
 import type { TrustedSender } from "../src/main/operation-endpoints";
 import { OperationRegistry } from "../src/main/operation-registry";
 import { SETTINGS_FILE_NAME, SettingsStore } from "../src/main/settings";
@@ -80,6 +81,7 @@ function setup(options?: {
     settings: SettingsStore;
     proxy: ProxyConfigWriter;
     registry: OperationRegistry;
+    configState: ExecutionConfigState;
     isTrustedSender: (s: TrustedSender) => boolean;
   };
   dataDir: string;
@@ -109,6 +111,7 @@ function setup(options?: {
       settings,
       proxy,
       registry,
+      configState: new ExecutionConfigState(settings),
       isTrustedSender: (sender) =>
         sender.webContentsId === SENDER.webContentsId &&
         sender.frameRoutingId === SENDER.frameRoutingId,
@@ -134,6 +137,39 @@ function expectFail(envelope: Envelope<unknown>, code: string): { message: strin
   expect(envelope.error.code).toBe(code);
   return envelope.error;
 }
+
+describe("R2.2 5.2：配置修订刷新", () => {
+  it("保存/清除后同步刷新；相同有效值不轮换；代理启停不误轮换", async () => {
+    const { deps } = setup();
+    const start = deps.configState.refresh().revision;
+
+    expect(writeRunSettings(deps, SENDER, validInput()).ok).toBe(true);
+    const configured = deps.configState.refresh().revision;
+    expect(configured).not.toBe(start);
+
+    expect(writeRunSettings(deps, SENDER, validInput()).ok).toBe(true);
+    expect(deps.configState.refresh().revision).toBe(configured);
+
+    await toggleProxy(deps, SENDER, {
+      enabled: true,
+      port: 18787,
+      upstreamBaseUrl: "https://upstream.test",
+    });
+    // 代理配置与运行配置解耦：只改代理字段不轮换运行配置修订
+    expect(deps.configState.refresh().revision).toBe(configured);
+
+    expect(writeRunSettings(deps, SENDER, validInput({ model: "changed-model" })).ok).toBe(true);
+    const modelChanged = deps.configState.refresh().revision;
+    expect(modelChanged).not.toBe(configured);
+
+    expect(clearRunSettings(deps, SENDER).ok).toBe(true);
+    const cleared = deps.configState.refresh().revision;
+    expect(cleared).not.toBe(modelChanged);
+
+    expect(writeRunSettings(deps, SENDER, validInput()).ok).toBe(true);
+    expect(deps.configState.refresh().revision).not.toBe(cleared);
+  });
+});
 
 describe("U4 3.5 settings 保存/清除的 main 锁", () => {
   it("无锁时正常写入；清除后读取仍可用（读取不受锁影响）", () => {

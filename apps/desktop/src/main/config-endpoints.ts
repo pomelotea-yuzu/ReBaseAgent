@@ -1,6 +1,7 @@
 import type { Envelope, ProxyState } from "../shared/ipc";
 import { ProxyToggleInputSchema, SettingsInputSchema, fail, ok } from "../shared/ipc";
 import { OPERATION_ERROR } from "../shared/operations";
+import type { ExecutionConfigState } from "./execution-config-state";
 import type { TrustedSender } from "./operation-endpoints";
 import type { OperationRegistry } from "./operation-registry";
 import type { SettingsStore } from "./settings";
@@ -34,6 +35,11 @@ export interface ConfigEndpointDeps {
   settings: SettingsStore;
   proxy: ProxyConfigWriter;
   registry: OperationRegistry;
+  /**
+   * 执行配置修订的唯一拥有者（R2.2 design D2）：成功写入后、响应前同步刷新。
+   * 写失败不改修订；失败写入若实际改变了后续可读状态，由下一次刷新识别。
+   */
+  configState: Pick<ExecutionConfigState, "refresh">;
   isTrustedSender: (sender: TrustedSender) => boolean;
 }
 
@@ -81,6 +87,8 @@ export function writeRunSettings(
   if (blocked !== null) return blocked;
   try {
     deps.settings.save(parsed.data);
+    // 成功写入 → 响应前刷新；相同有效值重复保存不会轮换修订。
+    deps.configState.refresh();
     return ok({ configured: true });
   } catch (error) {
     return fail(
@@ -101,6 +109,7 @@ export function clearRunSettings(
   if (blocked !== null) return blocked;
   try {
     deps.settings.clear();
+    deps.configState.refresh();
     return ok({ configured: false });
   } catch (error) {
     return fail("SETTINGS_CLEAR_FAILED", new Error(describeConfigFailure(error, "")));
@@ -129,7 +138,10 @@ export async function toggleProxy(
   // 判锁与占标记之间不留 await：否则"检查通过 → 别的请求插队占槽 → 我们仍去换处理器"
   deps.registry.beginConfigurationChange();
   try {
-    return ok(await deps.proxy.toggle(parsed.data));
+    const state = await deps.proxy.toggle(parsed.data);
+    // 代理配置与运行配置解耦：只有实际改变运行配置（baseURL/model/key/限制）才轮换。
+    deps.configState.refresh();
+    return ok(state);
   } catch (error) {
     return fail("PROXY_START_FAILED", new Error(describeConfigFailure(error, "")));
   } finally {

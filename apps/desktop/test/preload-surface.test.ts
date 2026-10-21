@@ -48,6 +48,8 @@ describe("4.9 预加载桥接面：不含文件能力", () => {
       "clearSettings",
       // U7 只读比较通道（design D3）：取数面，不带任何写/执行能力
       "compareRuns",
+      // R2.2 跨运行检查点比较（清单/正文）：只读，无路径/执行能力
+      "compareWorkspaceSnapshots",
       "createRun",
       "draftCloseAnswer",
       "draftCloseHandshake",
@@ -59,6 +61,8 @@ describe("4.9 预加载桥接面：不含文件能力", () => {
       "getRun",
       "getSettings",
       "inspectWorkspace",
+      // R2.2 隔离 prompt 只读预检：不建运行、不写文件
+      "isolatedPromptCapability",
       "listRuns",
       "modelAb",
       "modelAbPlan",
@@ -74,6 +78,7 @@ describe("4.9 预加载桥接面：不含文件能力", () => {
       "proxyFork",
       "proxyStatus",
       "proxyToggle",
+      "readComparedWorkspaceFile",
       "readWorkspaceFile",
       "saveSettings",
     ]);
