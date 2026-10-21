@@ -10,7 +10,7 @@ import type {
 } from "@rebaseagent/agent-loop";
 import { configHash, runLoop } from "@rebaseagent/agent-loop";
 import {
-  FORMAT_VERSION,
+  ISOLATED_FORMAT_VERSION,
   JsonlTracer,
   MemoryTracer,
   type RunEventLine,
@@ -185,9 +185,18 @@ export interface IsolatedCassetteFixture {
  */
 export function writeIsolatedCassetteTrace(
   dir: string,
-  options: { readonly runId?: string; readonly snapshotPath?: string } = {},
+  options: {
+    readonly runId?: string;
+    readonly snapshotPath?: string;
+    /** 2 = 既有隔离基线；3 = v3 隔离 prompt 实验（卡带同样只消费录制结果） */
+    readonly formatVersion?: 2 | 3;
+    /** v3 的基线根 id（父文件故意不必存在：卡带/自有读取不依赖父） */
+    readonly parentId?: string;
+  } = {},
 ): IsolatedCassetteFixture {
   const runId = options.runId ?? "run_isolated_cassette";
+  const formatVersion = options.formatVersion ?? ISOLATED_FORMAT_VERSION;
+  const parentId = options.parentId ?? "run_cassette_v3_root";
   const traceFile = join(dir, `${runId}.jsonl`);
   const snapshotPath = options.snapshotPath ?? "a.txt";
   const config = fakeConfig();
@@ -201,23 +210,57 @@ export function writeIsolatedCassetteTrace(
     },
   ]);
 
+  const editedSystemPrompt = "更明确的启动指令";
+  const startupMessages =
+    formatVersion === 3
+      ? initialMessages("读 a.txt 并总结").map((message) =>
+          message.role === "system" ? { ...message, content: editedSystemPrompt } : message,
+        )
+      : initialMessages("读 a.txt 并总结");
   const tracer = new JsonlTracer(traceFile);
   tracer.startRun({
     id: runId,
-    format_version: FORMAT_VERSION,
+    format_version: formatVersion,
     task: "隔离卡带基线",
     model: config.model,
     created_at: "2026-09-19T00:00:00.000Z",
-    parent: null,
-    fork: null,
-    config_hash: configHash(config.systemPrompt, config.tools),
+    parent: formatVersion === 3 ? parentId : null,
+    fork:
+      formatVersion === 3
+        ? { at_span: "s_02", edit: { field: "system_prompt", value: editedSystemPrompt } }
+        : null,
+    config_hash: configHash(
+      formatVersion === 3 ? editedSystemPrompt : config.systemPrompt,
+      config.tools,
+    ),
     workspace: {
       profile: "file-tools-v1",
       world_id: runId,
       write_authorized: true,
       initial_snapshot: snapshot,
-      origin: { kind: "import" },
+      origin:
+        formatVersion === 3
+          ? { kind: "initial", run_id: parentId, snapshot_id: snapshot.id }
+          : { kind: "import" },
     },
+    ...(formatVersion === 3
+      ? {
+          prompt_experiment: {
+            baseline_run_id: parentId,
+            baseline_llm_span_id: "s_02",
+            initial_snapshot_id: snapshot.id,
+            original_value: "你是文件助手。",
+            execution: {
+              model: config.model,
+              params: { temperature: 0.7 },
+              provider_endpoint: "http://127.0.0.1:18787/v1",
+              max_iterations: 20,
+              budget: 60000,
+              config_fingerprint: "sha256:cassette",
+            },
+          },
+        }
+      : {}),
   });
 
   // 行的落盘顺序 = endSpan 顺序（JsonlTracer 在 endSpan 时写 span 行），与真 loop 一致：
@@ -234,7 +277,7 @@ export function writeIsolatedCassetteTrace(
   const llm1 = tracer.startSpan({
     kind: "llm.call",
     parent: step1,
-    request: { model: config.model, messages: initialMessages("读 a.txt 并总结") },
+    request: { model: config.model, messages: startupMessages },
   });
   tracer.endSpan(llm1, {
     response: {
@@ -261,7 +304,7 @@ export function writeIsolatedCassetteTrace(
     request: {
       model: config.model,
       messages: [
-        ...initialMessages("读 a.txt 并总结"),
+        ...startupMessages,
         { role: "assistant", content: null, tool_calls: toolCalls },
         { role: "tool", tool_call_id: "c1", content: "内容(a.txt)" },
       ],

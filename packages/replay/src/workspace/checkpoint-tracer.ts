@@ -8,7 +8,7 @@ import type {
   Tracer,
   WorkspaceOrigin,
 } from "@rebaseagent/trace-sdk";
-import { FORMAT_VERSION } from "@rebaseagent/trace-sdk";
+import { ISOLATED_FORMAT_VERSION } from "@rebaseagent/trace-sdk";
 import { FILE_TOOLS_V1_PROFILE } from "./file-tools.js";
 import type { WorkspaceWorld } from "./world.js";
 
@@ -91,8 +91,9 @@ export class WorkspaceCheckpointTracer implements Tracer {
     const injected: RunMetaInput = {
       ...meta,
       id: this.runId,
-      // v2 = 隔离格式：让旧读取器明确拒绝（而不是静默剥掉 workspace 字段后降级执行同名 write_file）
-      format_version: FORMAT_VERSION,
+      // v2 = 既有隔离格式：让旧读取器明确拒绝（而不是静默剥掉 workspace 字段后降级执行同名 write_file）。
+      // 刻意不用 FORMAT_VERSION（现为 3）：最高读取版本升级不应让既有隔离 root/result writer 跟着升版。
+      format_version: ISOLATED_FORMAT_VERSION,
       workspace: {
         profile: FILE_TOOLS_V1_PROFILE,
         world_id: this.runId,

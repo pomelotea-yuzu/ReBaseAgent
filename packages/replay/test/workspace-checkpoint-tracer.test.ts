@@ -2,7 +2,12 @@ import { mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { runLoop } from "@rebaseagent/agent-loop";
 import type { Message, RunConfig, Tool } from "@rebaseagent/agent-loop";
-import { FORMAT_VERSION, JsonlTracer, MemoryTracer, readRun } from "@rebaseagent/trace-sdk";
+import {
+  ISOLATED_FORMAT_VERSION,
+  JsonlTracer,
+  MemoryTracer,
+  readRun,
+} from "@rebaseagent/trace-sdk";
 import type {
   EndSpanPatch,
   RunEventInput,
@@ -242,7 +247,7 @@ describe("包装器：根运行端到端（真 runLoop + 真世界 + JsonlTracer
     );
 
     // 版本被覆盖：loop 写的是 1（见 run-loop.ts 的字面量与注释），隔离格式必须是 2
-    expect(record.meta.format_version).toBe(FORMAT_VERSION);
+    expect(record.meta.format_version).toBe(ISOLATED_FORMAT_VERSION);
     // id 被覆盖：loop 自造 `run_<36 进制>`，这里必须是编排层给的
     expect(record.meta.id).toBe("run_isolated_root");
     // 其余 loop 写的字段原样保留（覆盖只针对 id/版本 + 注入 workspace）
@@ -606,7 +611,7 @@ describe("包装器：事件转发与 span kind 跟踪", () => {
 
     // 委托用的 MemoryTracer 直接拿到完整 span 流（本用例同时证明"包装器可委托任意 Tracer"）
     expect(delegate.metas).toHaveLength(1);
-    expect(delegate.metas[0]?.format_version).toBe(FORMAT_VERSION);
+    expect(delegate.metas[0]?.format_version).toBe(ISOLATED_FORMAT_VERSION);
 
     const readSpan = delegate.spans.find(
       (span) => span.kind === "tool.invoke" && span.tool === READ_FILE_TOOL_NAME,

@@ -52,6 +52,31 @@ function explodingTools(): Tool[] {
 }
 
 describe("4.6：隔离 trace 可作卡带基线", () => {
+  it("v3 隔离 prompt 实验基线可读可跑：卡带只消费录制结果，新轨迹仍写 v1", async () => {
+    const dir = makeTempDir();
+    const fixture = writeIsolatedCassetteTrace(dir, {
+      formatVersion: 3,
+      runId: "run_prompt_v3_cassette",
+    });
+
+    expect(fixture.record.meta.format_version).toBe(3);
+    expect(fixture.record.meta.prompt_experiment?.baseline_run_id).toBe("run_cassette_v3_root");
+    expect(fixture.record.meta.workspace?.origin.kind).toBe("initial");
+    // 父文件故意不存在：自有读取与卡带都不依赖父
+    expect(existsSync(join(dir, "run_cassette_v3_root.jsonl"))).toBe(false);
+
+    const result = await rerunWithCassette({
+      record: fixture.record,
+      config: fakeConfig({ systemPrompt: "更明确的启动指令" }),
+      tools: explodingTools(),
+    });
+
+    expect(result.alignment.aligned).toBe(true);
+    expect(result.record.meta.format_version).toBe(1);
+    expect(result.record.meta.workspace).toBeUndefined();
+    expect(result.record.meta.prompt_experiment).toBeUndefined();
+  });
+
   it("附件不可用 + handler 会抛：卡带重跑仍对齐通过，且产出普通 v1 轨迹", async () => {
     const dir = makeTempDir();
     const fixture = writeIsolatedCassetteTrace(dir);
