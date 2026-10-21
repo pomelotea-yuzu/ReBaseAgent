@@ -404,10 +404,14 @@ const checkThenEdit = (call, key, text) =>
       btn.click();
       let seenInFlight = false;
       let editedAtMs = null;
+      let editTrigger = null;
       let revisionAfterEdit = null;
       for (;;) {
-        if (!seenInFlight && ${checkLabelExpr}.includes('正在核对')) {
-          seenInFlight = true;
+        const labelNow = ${checkLabelExpr};
+        const inFlightNow = labelNow.includes('正在核对');
+        if (!seenInFlight && (inFlightNow || performance.now() - t0 > 10)) {
+          seenInFlight = inFlightNow;
+          editTrigger = inFlightNow ? "看见在飞文案" : "10ms 兜底（文案未采到，仍在同一任务链内早于任何 IPC 响应）";
           const m = await ${STORE_GETTER};
           const st = m.useAppStore.getState();
           const key = { runId: ${JSON.stringify(key.runId)}, spanId: ${JSON.stringify(key.spanId)},
@@ -416,11 +420,11 @@ const checkThenEdit = (call, key, text) =>
           revisionAfterEdit = st.callDraftOf(key).revision;
           editedAtMs = Math.round(performance.now() - t0);
         }
-        if (seenInFlight && !${checkLabelExpr}.includes('正在核对')) break;
+        if (editTrigger !== null && !${checkLabelExpr}.includes('正在核对')) break;
         if (performance.now() - t0 > 30000) break;
         await new Promise((res) => setTimeout(res, 3));
       }
-      return JSON.stringify({ ok: true, seenInFlight, editedAtMs, revisionAfterEdit,
+      return JSON.stringify({ ok: true, seenInFlight, editTrigger, editedAtMs, revisionAfterEdit,
         elapsedMs: Math.round(performance.now() - t0) });
     })()`,
   );
@@ -462,7 +466,18 @@ const compareState = (call) =>
           .map(b => ({ pressed: b.getAttribute('aria-pressed') === 'true',
                        text: (b.textContent||'').replace(/\\s+/g,' ').trim().slice(0,80) })),
        bodyLoading: (document.querySelector('[data-compare-files-view]')?.innerText || '').includes('正在按路径核验两侧正文'),
-       pathTitle: (document.querySelector('[data-compare-files-view] .font-code')?.textContent ?? '').trim(),
+       pathTitle: (() => { const c = document.querySelector('[data-compare-file-conclusion]');
+          const row = c === null ? null : c.parentElement;
+          const title = row === null || row === undefined ? null : row.previousElementSibling;
+          return title === null || title === undefined ? '' : (title.textContent ?? '').trim(); })(),
+       sideHeads: {
+          left: (document.querySelector('[data-compare-file-side="left"]')?.innerText ?? '').replace(/\\s+/g,' ').trim().slice(0,120),
+          right: (document.querySelector('[data-compare-file-side="right"]')?.innerText ?? '').replace(/\\s+/g,' ').trim().slice(0,120),
+        },
+       staleDefault: {
+          left: !!document.querySelector('[data-compare-file-use-default="left"]'),
+          right: !!document.querySelector('[data-compare-file-use-default="right"]'),
+        },
        conclusion: document.querySelector('[data-compare-file-conclusion]')?.getAttribute('data-compare-file-conclusion') ?? null,
        sideLabels: Array.from(document.querySelectorAll('[data-compare-files-view] [data-compare-file-side-body]'))
           .map(el => (el.innerText || '').replace(/\\s+/g,' ').trim().slice(0,120)),
@@ -492,6 +507,14 @@ const shot = (call, name) => {
 
 /** 比较文件视图：打开双运行比较并进入文件视图（默认各取最近自有完成步骤） */
 const openCompareFiles = async (call, leftRunId, rightRunId) => {
+  // openComparePair 判的是"两枚 id 都在全局对照集合内"⇒ 先按集合补齐，再显式定左右
+  const seeded = await H.storeQ(
+    call,
+    `const ids = s.compareIds;
+     if (!ids.includes(${JSON.stringify(leftRunId)})) s.toggleCompare(${JSON.stringify(leftRunId)});
+     if (!s.compareIds.includes(${JSON.stringify(rightRunId)})) s.toggleCompare(${JSON.stringify(rightRunId)});
+     return JSON.stringify({ before: ids.length, after: s.compareIds.length });`,
+  );
   const opened = await H.storeQ(
     call,
     `const r = await s.openComparePair(${JSON.stringify(leftRunId)}, ${JSON.stringify(rightRunId)});
@@ -501,8 +524,8 @@ const openCompareFiles = async (call, leftRunId, rightRunId) => {
   const deadline = Date.now() + 60000;
   for (;;) {
     const st = await compareState(call);
-    if (st.fileView === true && st.rows.length > 0) return { ...opened, st };
-    if (Date.now() > deadline) return { ...opened, st, timedOut: true };
+    if (st.fileView === true && st.rows.length > 0) return { ...seeded, ...opened, st };
+    if (Date.now() > deadline) return { ...seeded, ...opened, st, timedOut: true };
     await H.sleep(900);
   }
 };
@@ -641,6 +664,35 @@ const confirmAuthorizeSubmit = async (call, { authorize = true, submit = true } 
   return { fee, pressed, auth, sent };
 };
 
+/**
+ * 点提交并在**同一个页内循环**里抓到本次提交关联（含 U4 身份）。
+ * ⚠️ 不能提交后再用 node 往返读 store：受控服务毫秒级返回时关联已收口，读不到（7.3 首跑实测）。
+ */
+const submitAndCapture = (call, channel = "prompt_experiment") =>
+  jev(
+    call,
+    `(async () => {
+      const btn = document.querySelector('[data-isolated-prompt-submit-button]');
+      if (!btn) return JSON.stringify({ ok: false, why: 'no-submit' });
+      if (btn.disabled === true) return JSON.stringify({ ok: false, why: 'submit-disabled',
+        state: (document.querySelector('[data-isolated-prompt-submit-state]')?.textContent ?? '').trim().slice(0, 180) });
+      const t0 = performance.now();
+      btn.click();
+      const m = await ${STORE_GETTER};
+      for (;;) {
+        const st = m.useAppStore.getState();
+        const hit = Object.values(st.draftSubmissions.byId).find((v) => v.channel === ${JSON.stringify(channel)});
+        if (hit !== undefined) {
+          return JSON.stringify({ ok: true, capturedAtMs: Math.round(performance.now() - t0),
+            assoc: { key: hit.id, channel: hit.channel, submittedRevision: hit.submittedRevision,
+              submittedText: hit.submittedText, operationId: hit.operationId, epoch: hit.epoch } });
+        }
+        if (performance.now() - t0 > 8000) return JSON.stringify({ ok: true, capturedAtMs: null, assoc: null });
+        await new Promise((res) => setTimeout(res, 15));
+      }
+    })()`,
+  );
+
 /** 等正文读取落定（在飞文案消失），返回最终现场 */
 const waitBodySettled = async (call, timeoutMs = 45000) => {
   const deadline = Date.now() + timeoutMs;
@@ -711,6 +763,7 @@ module.exports = {
   waitBodySettled,
   setCheckpoint,
   confirmAuthorizeSubmit,
+  submitAndCapture,
   waitChildSealed,
   shot,
 };

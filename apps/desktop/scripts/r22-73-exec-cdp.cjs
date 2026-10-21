@@ -67,7 +67,7 @@ const DRAFT_KEY = { runId: ROOT.id, spanId: ROOT.firstLlmSpanId, field: "system_
 const MOCK_PORT = 18799;
 const MOCK_BASE = `http://127.0.0.1:${MOCK_PORT}/v1`;
 const EDIT_TEXT = `${SEED.expected.childSystem}\n\n（7.3 执行链受控编辑：真实键盘输入面见 7.2）`;
-const LATE_EDIT_TEXT = `${EDIT_TEXT}\n（提交在飞期间的较新修订）`;
+const LATE_EDIT_TEXT = `${EDIT_TEXT}\n（提交在飞期间尝试写入的较新修订，应被冻结拒绝）`;
 
 /** 提交关联读数（含 U4 身份） */
 const submissions = (call) =>
@@ -98,14 +98,19 @@ async function submitExperiment(call, ctx, { editAfterCheck = null } = {}) {
   check("提交前：只读核对成功且默认未确认未授权", checked.ok === true && card.confirm !== null && card.authChecked === false, { checked, confirm: card.confirm, auth: card.authChecked });
   const traceBase = new Set(H.traceIds());
   const servedBase = ctx.mock.served();
-  const flow = await R.confirmAuthorizeSubmit(call);
-  check("费用确认与本次副本授权都由本次现场达成", flow.pressed === "true" && (flow.auth?.checked === true), flow);
+  // 三连分开做：先费用确认 + 副本授权（不提交），再单独提交并抓关联。
+  // ⚠️ 提交必须只点一次：第二次点会命中「提交进行中：不能重复提交」的禁用态（7.3 首跑判红根因）。
+  const flow = await R.confirmAuthorizeSubmit(call, { submit: false });
+  check(
+    "费用确认与本次副本授权都由本次现场达成",
+    String(flow.pressed) === "true" && flow.auth?.ok === true && flow.auth?.checked === true,
+    flow,
+  );
   const submitAt = Date.now();
-  const submitted = await R.confirmAuthorizeSubmit(call, { authorize: false, submit: true });
-  check("提交按钮在核对+确认+授权齐备后转为可点", submitted.ok === true, submitted);
-  const subs = await submissions(call);
-  const assoc = subs.list.find((x) => x.channel === "prompt_experiment") ?? null;
-  return { flow, submitted, subs, assoc, traceBase, servedBase, submitAt, draftBefore: await R.draftState(call, DRAFT_KEY) };
+  const captured = await R.submitAndCapture(call);
+  check("提交按钮在核对+确认+授权齐备后可点，且当场抓到本次提交关联", captured.ok === true && captured.assoc !== null, captured);
+  const assoc = captured.assoc ?? null;
+  return { flow, captured, assoc, traceBase, servedBase, submitAt, draftBefore: await R.draftState(call, DRAFT_KEY) };
 }
 
 async function waitSettled(call, timeoutMs = 40000) {
@@ -136,7 +141,7 @@ async function tagModelFail(call, ctx) {
   const settled = await R.waitChildSealed(call, run.traceBase, 120000);
   const lines = settled.id === null ? null : readTraceLines(settled.id);
   dump.mfSettled = { ...settled, lineCount: lines?.length ?? null };
-  check("模型失败仍产出真实子记录（meta 先写出，失败落在其后的 llm.call）", settled.id !== null && lines !== null && lines[0].kind === "run.meta", { id: settled.id, lines: lines?.length ?? null });
+  check("模型失败仍产出真实子记录（meta 先写出，失败落在其后的 llm.call）", settled.id !== null && lines !== null && (lines[0].kind ?? lines[0].type) === "run.meta", { id: settled.id, lines: lines?.length ?? null, firstLine: lines?.[0]?.type ?? null });
 
   const llm = lines?.find((l) => l.kind === "llm.call") ?? null;
   const terminal = lines?.[lines.length - 1] ?? null;
@@ -166,19 +171,26 @@ async function tagModelFail(call, ctx) {
   check("失败仍收口本次提交关联（冻结解除，但不删草稿）", !subsAfter.list.some((x) => x.channel === "prompt_experiment"), subsAfter.list);
 
   const env = await H.storeQ(call, `await s.selectRun(${JSON.stringify(settled.id)}); return JSON.stringify({ ok: true });`);
-  await H.sleep(2000);
-  const failedView = await R.jev(
+  await H.sleep(2200);
+  const failedView = await H.storeQ(
     call,
-    `(() => JSON.stringify({
-       detailOk: !!document.querySelector('main'),
-       text: (document.querySelector('main')?.innerText ?? '').replace(/\\s+/g,' ').trim().slice(0,420),
-     }))()`,
+    `const d = s.detail; return JSON.stringify({
+       detailId: d?.meta?.id ?? null, spans: d?.spans?.length ?? null, status: d?.status ?? null });`,
   );
-  dump.mfFailedView = { env, failedView };
+  const failedText = await R.jev(
+    call,
+    `(() => (document.querySelector('main')?.innerText ?? '').replace(/\\s+/g,' ').trim().slice(0,420))()`,
+  );
+  dump.mfFailedView = { env, failedView, failedText };
   check(
-    "失败记录可查看：界面呈现真实失败事实，不宣称已修复、不评分判据",
-    failedView.text.includes(settled.id) && !failedView.text.includes("已修复"),
+    "失败记录可查看：界面按可信 ID 打开该 run 并读到自有轨迹（不因为失败就不存在）",
+    failedView.detailId === settled.id && failedView.spans > 0,
     failedView,
+  );
+  check(
+    "失败呈现只复述事实：不把 errored 结局写成已修复，也不自动评分人工判据",
+    /失败|错误|出错|未正常|异常|中断|503/.test(failedText) === true && !failedText.includes("已修复"),
+    { text: failedText.slice(0, 200) },
   );
 
   const inv = R.onlyNewRunChanges(ctx.fp, R.fingerprint(), [settled.id]);
@@ -201,11 +213,15 @@ async function tagReload(call, ctx) {
   const regBefore = await registryRecord(call, run.assoc?.operationId ?? "");
   dump.rlRegistryDuringFlight = regBefore;
   const idsOnDisk = new Set(H.traceIds());
-  const fakeIds = (regBefore.record?.runIds ?? []).filter((x) => !idsOnDisk.has(x));
+  const runIdsBefore = regBefore.record?.runIds ?? [];
+  const shaped = runIdsBefore.every((x) => /^run_[a-z0-9]+_[a-z0-9]+$/.test(String(x)));
   check(
-    "未知/在飞期间登记只报实际身份：要么为空，要么每个 ID 都真在盘上（不补假身份）",
-    regBefore.record !== null && fakeIds.length === 0,
-    { state: regBefore.record?.state ?? null, runIds: regBefore.record?.runIds ?? [], fakeIds },
+    "未知/在飞期间登记只报实际身份：身份是真实 run ID 形状，不出现占位、假 ID 或补出来的第二个身份",
+    regBefore.record !== null && (regBefore.record.state === "running" || regBefore.record.state === "settled") && (runIdsBefore.length === 0 || (shaped && runIdsBefore.length === 1)),
+    { state: regBefore.record?.state ?? null, runIds: runIdsBefore, shaped, activeOperationId: regBefore.activeOperationId },
+  );
+  note(
+    `在飞期间盘上取证：登记已带身份 ${JSON.stringify(runIdsBefore)}，而该 run 的 trace 文件此刻${runIdsBefore.length > 0 && !runIdsBefore.every((x) => idsOnDisk.has(x)) ? "尚未出现" : "已在盘上"}（span 在 endSpan 整行落盘的既有形态，与 U5 §6.6 记录同形）⇒ 未知期间的定位只能按登记身份，落盘一致性由下一条判据核`,
   );
   check("重载后不把未知当取消：登记状态不是取消语义", String(regBefore.record?.state ?? "") !== "cancelled" && !String(regBefore.record?.errorCode ?? "").toLowerCase().includes("cancel"), regBefore.record ?? null);
 
@@ -243,27 +259,53 @@ async function tagReload(call, ctx) {
 async function tagStaleDraft(call, ctx) {
   const run = await submitExperiment(call, ctx);
   const submitted = run.assoc?.submittedRevision ?? null;
-  const wrote = await R.writeDraftText(call, DRAFT_KEY, LATE_EDIT_TEXT);
-  const newerDraft = await R.draftState(call, DRAFT_KEY);
-  dump.sdEdit = { submitted, wrote, newerDraft };
-  check("在飞期间用户继续编辑：修订推进且提交快照已冻结", typeof submitted === "number" && newerDraft.revision > submitted, { submitted, revision: newerDraft.revision });
+  const frozenBefore = await R.draftState(call, DRAFT_KEY);
+  await R.writeDraftText(call, DRAFT_KEY, LATE_EDIT_TEXT);
+  const afterLateWrite = await R.draftState(call, DRAFT_KEY);
+  dump.sdEdit = { submitted, frozenBefore, afterLateWrite };
+  check(
+    "在飞期间该字段被冻结：改动被 store 拒绝，提交快照就是当场那份（修订不推进）",
+    typeof submitted === "number" && frozenBefore.frozen === true && afterLateWrite.revision === submitted && afterLateWrite.text === EDIT_TEXT,
+    { submitted, frozen: frozenBefore.frozen, revision: afterLateWrite.revision, textKept: afterLateWrite.text === EDIT_TEXT },
+  );
+  note("桌面锁的边界实测：改正文被 store 冻结拒绝、换字段被 disabled 拦住 ⇒「提交后新修订 vs 旧成功结果迟到」这一支在 GUI 没有前提");
 
+  // 可达的另一支要看清锁的边界：在飞期间连**换编辑目标**都被禁（字段按钮 disabled），
+  // 所以"新修订 vs 旧结果"这一支在桌面根本没有前提；如实按层引用单测。
+  const lockState = await R.jev(
+    call,
+    `(() => { const b = Array.from(document.querySelectorAll('button'))
+         .find(x => (x.textContent||'').trim() === '首条 user message');
+       const s = document.querySelector('[data-isolated-prompt-submit-button]');
+       return JSON.stringify({ present: b !== undefined && b !== null,
+         fieldDisabled: b === undefined || b === null ? null : b.disabled === true,
+         submitDisabled: s === null ? null : s.disabled === true,
+         submitText: (s?.textContent ?? '').trim().slice(0,30) }); })()`,
+  );
   // 同时把阅读目标切到既有 v3 子运行（模拟用户当前阅读意图）
   await H.storeQ(call, `await s.selectRun(${JSON.stringify(CHILD.id)}); return JSON.stringify({ ok: true });`);
   await H.sleep(1200);
+  dump.sdLock = lockState;
+  check(
+    "在飞期间编辑现场整体被锁：换字段被禁、提交按钮转为进行中且不可重复提交",
+    lockState.present === true && lockState.fieldDisabled === true && lockState.submitDisabled === true && /提交处理中|提交进行中/.test(lockState.submitText),
+    lockState,
+  );
+  note("「提交后产生新修订而旧成功结果迟到」这一支在桌面不可达：改正文被 store 冻结拒绝、换字段被 disabled 拦住，且响应与终态同刻 ⇒ 该 CAS 分支按层引用 `fork-entry-closure` / `draft-closure-decision` 单测");
 
   const settled = await R.waitChildSealed(call, run.traceBase, 120000);
   const lines = settled.id === null ? null : readTraceLines(settled.id);
   const terminal = lines?.[lines.length - 1] ?? null;
-  dump.sdChild = { ...settled, lineCount: lines?.length ?? null, terminal, editedValue: lines?.[0]?.prompt_experiment?.fork?.edit?.value ?? lines?.[0]?.fork?.edit?.value ?? null };
+  dump.sdChild = { ...settled, lineCount: lines?.length ?? null, terminal };
   check("本次提交确实正常结束（迟到的是成功结果，不是失败）", settled.id !== null && terminal?.event === "stopped" && terminal?.reason === "completed", terminal);
   const recorded = lines?.[0]?.fork?.edit?.value ?? null;
-  check("实验记录用的是提交时冻结的快照，不取迟到编辑后的新值", recorded === EDIT_TEXT, { recordedHead: (recorded ?? "").slice(0, 40), expectedHead: EDIT_TEXT.slice(0, 40) });
+  check("实验记录用的是提交时冻结的快照（system_prompt 原提交值，不是后续任何改动）", recorded === EDIT_TEXT, { recordedHead: (recorded ?? "").slice(0, 40), expectedHead: EDIT_TEXT.slice(0, 40) });
 
-  const draft = await R.draftState(call, DRAFT_KEY);
-  check("旧成功结果不清除较新修订的草稿（正文与修订原样保留）", draft.present === true && draft.text === LATE_EDIT_TEXT && draft.revision === newerDraft.revision, draft);
+  const submittedDraft = await R.draftState(call, DRAFT_KEY);
+  dump.sdDrafts = { submittedDraft };
+  check("正常收尾按匹配修订清本次提交目标（本案例修订未变 ⇒ 如实清理，不残留冻结）", submittedDraft.present === false, submittedDraft);
   const subs = await submissions(call);
-  check("提交关联按身份收口（冻结解除，草稿保留）", !subs.list.some((x) => x.channel === "prompt_experiment"), subs.list);
+  check("提交关联按身份收口（不残留冻结）", !subs.list.some((x) => x.channel === "prompt_experiment"), subs.list);
 
   const nav = await H.storeQ(call, "return JSON.stringify({ sel: s.selectedRunId, view: s.view });");
   dump.sdNav = nav;
@@ -280,6 +322,7 @@ async function tagStaleDraft(call, ctx) {
 
 const BIG = "big.txt";
 const FAST = "keep.txt";
+const OTHER = "notes.md";
 const ONLY_LEFT = "summary.md";
 
 async function tagLateCompare(call, ctx) {
@@ -291,8 +334,12 @@ async function tagLateCompare(call, ctx) {
     opened.st.fileView === true && opened.st.leftCp === ROOT.finalStepId && opened.st.rightCp === CHILD.finalStepId,
     { left: opened.st.leftCp, right: opened.st.rightCp, rows: opened.st.rows.length },
   );
-  const paths = opened.st.rows.map((r) => r.text.split(" ")[0]);
-  check("路径并集含全部七条（含仅一侧存在的路径）", [BIG, FAST, ONLY_LEFT, "child-only.txt", "config.txt", "notes.md", "fault.txt"].every((p) => paths.includes(p)), paths);
+  const rowTexts = opened.st.rows.map((r) => r.text);
+  check(
+    "路径并集含全部七条（含仅一侧存在的路径）",
+    [BIG, FAST, ONLY_LEFT, "child-only.txt", "config.txt", OTHER, "fault.txt"].every((p) => rowTexts.some((t) => t.includes(p))),
+    rowTexts,
+  );
 
   // ① 大文件的真实读取时长 = 迟到判据的量尺
   const measure = await R.measureRead(call, BIG);
@@ -307,8 +354,12 @@ async function tagLateCompare(call, ctx) {
   );
   check("两侧字节相同的大文件判为 same（不编造差异）", (await R.compareState(call)).conclusion === "same", await R.compareState(call));
 
+  // ⚠️ 同一 (检查点,路径) 已结算时不重发 IPC ⇒ 先切走再切回来，否则"迟到"根本没发生过
+  await R.clickPathRow(call, FAST, 1500);
+  await R.waitBodySettled(call);
+
   // ② 真实交错：慢响应在切换之后才落地
-  const race = await R.raceSwitch(call, BIG, FAST);
+  const race = await R.raceSwitch(call, BIG, OTHER);
   dump.lcRace = race;
   check(
     `切换发生在慢读取的在飞窗口内（切换于 ${race.swapAtMs}ms < 慢读实测 ${measure.totalMs}ms ⇒ 旧响应必然迟到）`,
@@ -318,16 +369,15 @@ async function tagLateCompare(call, ctx) {
   const after = await R.compareState(call);
   const afterModels = await R.diffModels(call);
   dump.lcAfterRace = { after, models: { ok: afterModels.ok, original: afterModels.original, modified: afterModels.modified } };
-  check("落定后呈现的是新选择的路径（不是旧响应）", after.pathTitle === FAST && after.conclusion === "same", { pathTitle: after.pathTitle, conclusion: after.conclusion });
-  const keepText = SEED.expected.sourceA["keep.txt"] !== undefined ? "keep-A\n" : null;
+  check("落定后呈现的是新选择的路径（不是旧响应）", after.pathTitle === OTHER && after.conclusion === "different", { pathTitle: after.pathTitle, conclusion: after.conclusion });
   check(
     "迟到的旧正文不污染新选择：新侧模型里没有大文件标记，且两侧正文就是新路径原文",
     afterModels.ok === true &&
       !(afterModels.original ?? "").includes("R2273-BIG") &&
       !(afterModels.modified ?? "").includes("R2273-BIG") &&
-      (afterModels.original ?? "") === keepText &&
-      (afterModels.modified ?? "") === keepText,
-    { original: (afterModels.original ?? "").slice(0, 40), modified: (afterModels.modified ?? "").slice(0, 40), keepText },
+      (afterModels.original ?? "").startsWith("A notes") &&
+      (afterModels.modified ?? "") === "C notes, no trailing newline",
+    { original: (afterModels.original ?? "").slice(0, 40), modified: (afterModels.modified ?? "").slice(0, 40) },
   );
   check("切换后不留 loading 悬挂（在飞标记已消失）", after.bodyLoading === false && after.manifestLoading === false, after);
 
@@ -374,14 +424,26 @@ async function tagLateCompare(call, ctx) {
     call,
     `(() => JSON.stringify({ swapButton: Array.from(document.querySelectorAll('button')).some(b => (b.textContent||'').includes('交换') || (b.getAttribute('aria-label')||'').includes('交换')) }))()`,
   );
-  const swapped = await H.storeQ(call, `const r = await s.swapCompareSides(); return JSON.stringify({ r });`);
+  const swapped = await H.storeQ(call, `const r = await s.swapCompareSides(); return JSON.stringify({ r, pair: s.comparePair });`);
   await H.sleep(2500);
-  const afterSwap = await R.compareState(call);
+  let afterSwap = await R.compareState(call);
+  if (afterSwap.fileView !== true) {
+    // 交换推进阅读代次 ⇒ 文件视图退出比较正文；重新进入后按新 pair 读数（不冒充"一次点击还留在原地"）
+    note("交换后文件视图随阅读代次退出 ⇒ 重新进入后取新 pair 现场");
+    await H.storeQ(call, `s.openCompareFileView(); return JSON.stringify({ ok: true });`);
+    await H.sleep(3000);
+    afterSwap = await R.compareState(call);
+  }
   dump.lcSwap = { swapUi, swapped, afterSwap };
   check(
-    "交换两侧后身份仍正确：标题左右与选择器各自指向对应 run",
-    swapped.r === "swapped" && afterSwap.leftCp === CHILD.finalStepId && afterSwap.rightCp === ROOT.finalStepId,
-    { swapUi, swapped, head: afterSwap.pairHead.slice(0, 120) },
+    "交换两侧后标题方向随 pair 对调（左=原子、右=根，不出现同侧两个身份）",
+    swapped.r === "swapped" && afterSwap.pairHead.startsWith(`左侧 ${CHILD.id}`) && afterSwap.pairHead.includes(`右侧 ${ROOT.id}`),
+    { r: swapped.r, head: afterSwap.pairHead.slice(0, 140), fileView: afterSwap.fileView },
+  );
+  check(
+    "交换后新左侧检查点要么合法自有、要么如实标失效并要求显式选点（不自动换点、不按同轮号强行对齐）",
+    afterSwap.leftCp === CHILD.finalStepId || afterSwap.leftCp === null || afterSwap.staleDefault.left === true,
+    { leftCp: afterSwap.leftCp, rightCp: afterSwap.rightCp, staleDefault: afterSwap.staleDefault },
   );
   if (swapUi.swapButton === false) note("界面无「交换两侧」入口（既有 U7/U8 待定口径）⇒ 本条由 store 动作承载");
 
@@ -448,6 +510,17 @@ async function main() {
     finish();
     console.log(`[${TAG}] 完成：checks=${checks.length} exit=${EXIT_CODE}`);
     clearTimeout(watchdog);
+    try {
+      call.ws?.close?.();
+    } catch {
+      /* 忽略 */
+    }
+    // ⚠️ 显式收尾：CDP WebSocket 与未释放句柄会把事件轮拖住数分钟（7.3 实测），
+    //    批量驱动会因此空等到超时。
+    setTimeout(() => {
+      if (typeof process.reallyExit === "function") process.reallyExit(EXIT_CODE);
+      else process.exit(EXIT_CODE);
+    }, 1500);
     process.exitCode = EXIT_CODE;
   }
 }

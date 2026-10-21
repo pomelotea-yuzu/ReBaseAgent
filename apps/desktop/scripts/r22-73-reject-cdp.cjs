@@ -480,7 +480,19 @@ async function tagIpcguard(call, ctx) {
   const planDelta = execDelta(ctx);
   check("只读预检无副作用：零调用零子记录、也不登记操作", planDelta.served === 0 && planDelta.traces.length === 0, planDelta);
 
-  const valid = (over = {}) => ({ ...isolatedRequest({ parentRunId: ROOT.id, editValue: EDIT_TEXT, planFingerprint: ctx.healthyPlan, configRevision: ctx.healthyRevision }), ...over });
+  // over 里的 editValue/planFingerprint/configRevision/parentRunId 是**构造入参**，
+  // 其余键当作顶层多余字段（伪造字段案就用这个）——两者不能混在一个展开里，
+  // 否则 editValue 会变成请求的多余键，strict schema 直接 unrecognized_keys（7.3 首跑判红根因）。
+  const valid = (over = {}) => {
+    const { editValue, planFingerprint, configRevision, parentRunId, ...extras } = over;
+    const req = isolatedRequest({
+      parentRunId: parentRunId ?? ROOT.id,
+      editValue: editValue ?? EDIT_TEXT,
+      planFingerprint: planFingerprint ?? ctx.healthyPlan,
+      configRevision: configRevision ?? ctx.healthyRevision,
+    });
+    return { ...req, ...extras };
+  };
   const drop = (key) => { const r = valid(); delete r[key]; return r; };
 
   await submitCase(call, ctx, "缺本次副本写入授权", { request: drop("allowFileWrites") }, { codeIncludes: "INVALID", preExecutionNull: true });
@@ -519,6 +531,22 @@ async function tagIpcguard(call, ctx) {
   const afterRecon = execDelta(ctx);
   dump.ipcGuardReconcile = { recon, afterRecon };
   check("未知操作只读核对：返回真实/封禁事实，不补身份、不新增执行", recon.ok === true && afterRecon.traces.length === dupDelta.traces.length, { code: recon.error?.code ?? null, data: recon.data?.operation ?? recon.data ?? null });
+
+  // ⑪ 迟到核对：响应落地时草稿修订已推进 ⇒ 旧结论只能是"失效提示"，不能安装成可执行卡
+  const LATE_TEXT = `${EDIT_TEXT}\n（核对在飞期间推进的修订）`;
+  const late = await R.checkThenEdit(call, DRAFT_KEY, LATE_TEXT);
+  const lateState = await waitSettledCheck(call);
+  dump.ipcGuardLateCheck = { late, lateState };
+  note(`迟到核对实测：看见在飞=${late.seenInFlight}，改动于 ${late.editedAtMs}ms（触发方式=${late.editTrigger}），核对往返 ${late.elapsedMs}ms`);
+  check(
+    "迟到核对不装旧计划：修订已推进时只给「需重新核对」的失效提示，费用确认/副本授权/提交都不在场",
+    lateState.stale === true && lateState.confirm === null && lateState.authPresent === false && (lateState.submitPresent === false || lateState.submitDisabled === true) && lateState.unavailableCard === "",
+    lateState,
+  );
+  await R.clickSelector(call, "[data-isolated-prompt-check-button]", 1500);
+  const recheckState = await waitSettledCheck(call);
+  dump.ipcGuardRecheck = recheckState;
+  check("对照：重新核对后卡恢复（证明上一条不是恒锁）", recheckState.confirm !== null && recheckState.stale === false, recheckState);
 
   const inv = R.onlyNewRunChanges(ctx.fp, R.fingerprint(), [dupChild]);
   dump.ipcGuardInvariant = inv;
@@ -580,6 +608,17 @@ async function main() {
     finish();
     console.log(`[${TAG}] 完成：checks=${checks.length} exit=${EXIT_CODE}`);
     clearTimeout(watchdog);
+    try {
+      call.ws?.close?.();
+    } catch {
+      /* 忽略 */
+    }
+    // ⚠️ 显式收尾：CDP WebSocket 与未释放句柄会把事件轮拖住数分钟，
+    //    批量驱动因此空等到超时（7.3 实测 parent 完成后 10+ 分钟不退出）。
+    setTimeout(() => {
+      if (typeof process.reallyExit === "function") process.reallyExit(EXIT_CODE);
+      else process.exit(EXIT_CODE);
+    }, 1500);
     process.exitCode = EXIT_CODE;
   }
 }
