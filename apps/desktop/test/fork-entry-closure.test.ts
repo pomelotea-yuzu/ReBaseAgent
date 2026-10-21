@@ -45,6 +45,16 @@ const PARENT = "u1_fork_parent";
 const SPAN = "s_03";
 const RESULT_KEY: CallDraftKey = { runId: PARENT, spanId: SPAN, field: "result" };
 const PROMPT_KEY: CallDraftKey = { runId: PARENT, spanId: "s_05", field: "system_prompt" };
+const ISOLATED_PROMPT_KEY: CallDraftKey = { ...PROMPT_KEY, mode: "isolated" };
+const ISOLATED_PROMPT_REQUEST = {
+  executionMode: "isolated" as const,
+  parentRunId: PARENT,
+  edit: { field: "system_prompt" as const, value: "隔离实验值" },
+  allowFileWrites: true as const,
+  expectedConfigRevision: "config-rev-1",
+  expectedPlanFingerprint: "plan-fp-1",
+  hypothesis: "多读一次配置",
+};
 
 const EXECUTION: IsolatedExecutionMode = {
   mode: "isolated_files",
@@ -334,6 +344,54 @@ describe("3.2 prompt 入口不再消费响应", () => {
     expect(subLib.closureOf(state.draftSubmissions, FAKE_EPOCH, assoc.operationId)).toBeDefined();
     // 失败也进概览（进的是失败概览），但跳的是登记的那条，不是信封 id
     expect(state.selectedRunId).toBe(REGISTERED_PROMPT);
+  });
+
+  it("R2.2 6.3：隔离 prompt 走同一主动通道，请求原样透传并按模式清理草稿", async () => {
+    details[REGISTERED_PROMPT] = ok(detailOf("u1-ok", REGISTERED_PROMPT));
+    const assoc = seed(ISOLATED_PROMPT_KEY, "prompt_experiment", "隔离实验值", {
+      target: PROMPT_TARGET,
+      runIds: [REGISTERED_PROMPT],
+    });
+    // 同 run/字段的普通草稿：不是本次提交目标，不得被清理
+    useAppStore.getState().ensureCallDraft(PROMPT_KEY, "普通原值");
+    useAppStore.getState().writeCallDraftText(PROMPT_KEY, "普通草稿");
+
+    const accepted = await useAppStore.getState().promptExperiment(ISOLATED_PROMPT_REQUEST, assoc);
+
+    expect(accepted).toBe(true);
+    expect(execRequests).toEqual([
+      { channel: "runs:promptFork", request: ISOLATED_PROMPT_REQUEST },
+    ]);
+    expect([...new Set(readCalls())]).toEqual([`runs:get:${REGISTERED_PROMPT}`]);
+    expect(calls).not.toContain(`runs:get:${ENVELOPE_PROMPT}`);
+    const state = useAppStore.getState();
+    expect(state.drafts.calls[PARENT]?.s_05?.["isolated:system_prompt"]).toBeUndefined();
+    expect(state.drafts.calls[PARENT]?.s_05?.system_prompt?.text).toBe("普通草稿");
+    expect(state.selectedRunId).toBe(REGISTERED_PROMPT);
+    expect(state.forking).toBe("idle");
+  });
+
+  it("R2.2 6.3：隔离 prompt 失败保留草稿与关联，只跳可信登记 ID", async () => {
+    details[REGISTERED_PROMPT] = ok(detailOf("u1-error-detail", REGISTERED_PROMPT));
+    const assoc = seed(ISOLATED_PROMPT_KEY, "prompt_experiment", "会失败的隔离实验", {
+      target: PROMPT_TARGET,
+      runIds: [REGISTERED_PROMPT],
+    });
+
+    await useAppStore
+      .getState()
+      .promptExperiment(
+        { ...ISOLATED_PROMPT_REQUEST, edit: { field: "system_prompt", value: "会失败的隔离实验" } },
+        assoc,
+      );
+
+    const state = useAppStore.getState();
+    expect(state.drafts.calls[PARENT]?.s_05?.["isolated:system_prompt"]?.text).toBe(
+      "会失败的隔离实验",
+    );
+    expect(subLib.closureOf(state.draftSubmissions, FAKE_EPOCH, assoc.operationId)).toBeDefined();
+    expect(state.selectedRunId).toBe(REGISTERED_PROMPT);
+    expect(calls).not.toContain(`runs:get:${ENVELOPE_PROMPT}`);
   });
 });
 

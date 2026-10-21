@@ -54,6 +54,24 @@ describe("隔离 prompt 入口接线", () => {
     expect(src).toContain("{isolated ? null : (");
   });
 
+  it("6.3：提交走独立 channel 与统一主动通道，响应按关联收尾", () => {
+    const src = read("components/detail/PromptForkEditor.tsx");
+    expect(src).toContain("resolveIsolatedPromptSubmission(");
+    expect(src).toContain('channel: "prompt_experiment"');
+    expect(src).toContain("confirmation: promptBinding");
+    expect(src).toContain("promptExperiment(isolatedSubmission.request, assoc)");
+    expect(src).toContain("data-isolated-prompt-submit-button");
+    const ops = read("store/slices/operations.ts");
+    expect(ops).toContain("async promptExperiment(request, submission)");
+    expect(ops).toContain("submitActive(api.promptFork, request, submission)");
+    // 与普通 prompt/result 同一收尾：明确响应之后才解除冻结，任何响应都不删草稿
+    const start = ops.indexOf("async promptExperiment(request, submission)");
+    const body = ops.slice(start, ops.indexOf("async modelAb(", start));
+    expect(body).toContain("get().finishDraftSubmission(submission, envelope)");
+    expect(body).not.toContain("loadRuns()");
+    expect(body).not.toContain("selectRun(");
+  });
+
   it("分支导航只采纳预检返回的 rootId：缺 rootId 时展示原因，不猜根", () => {
     const src = read("components/detail/IsolatedPromptEntry.tsx");
     expect(src).toContain("verifiedRootNavigation(response)");

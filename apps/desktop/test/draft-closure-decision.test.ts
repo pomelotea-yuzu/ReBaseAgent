@@ -374,6 +374,24 @@ describe("applyDraftClosure：只清匹配的那一份，其他草稿不动", ()
     expect(applied.repo.create?.userMessage).toBe("长任务");
   });
 
+  it("R2.2 6.3：隔离 prompt 草稿按模式清理，不误删同字段普通草稿", () => {
+    const isolatedKey: CallDraftKey = { ...keyA, mode: "isolated" };
+    let repo = draftLib.ensureCallDraft(draftLib.emptyDraftRepo(), keyA, "普通").repo;
+    repo = draftLib.ensureCallDraft(repo, isolatedKey, "隔离").repo;
+    const isolatedRevision = draftLib.callDraftOf(repo, isolatedKey)?.revision as number;
+    const closure = closureOf({
+      target: isolatedKey,
+      targetKey: "r_01|s_03|isolated:result",
+      channel: "prompt_experiment",
+      submittedRevision: isolatedRevision,
+    });
+    const applied = applyDraftClosure(repo, closure, { kind: "clean", reason: "测试" });
+    expect(applied.cleaned).toBe(true);
+    expect(draftLib.callDraftOf(applied.repo, isolatedKey)).toBeUndefined();
+    // 普通 prompt 的同字段草稿不是这次提交的目标，原样保留
+    expect(draftLib.callDraftOf(applied.repo, keyA)?.text).toBe("普通");
+  });
+
   it("修订不符时 CAS 拒绝删除：仓库引用不变", () => {
     const repo = repoWithDrafts();
     const applied = applyDraftClosure(repo, closureOf({ submittedRevision: 999 }), {

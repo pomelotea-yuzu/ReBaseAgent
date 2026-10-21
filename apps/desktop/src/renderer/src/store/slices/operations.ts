@@ -13,6 +13,7 @@ import type {
   IsolatedExecutionMode,
   IsolatedPromptCapabilityRequest,
   IsolatedPromptCapabilityResult,
+  IsolatedPromptForkRequest,
   ModelAbResult,
   WorkspaceExportOutcome,
   WorkspaceExportRequest,
@@ -129,6 +130,15 @@ export interface OperationsState {
     parentRunId: string,
     edit: PromptForkRequest["edit"],
     /** U3 任务 3.4：本次提交关联——执行函数负责收尾（任何响应都不清草稿） */
+    submission?: DraftSubmission,
+  ) => Promise<boolean>;
+  /**
+   * R2.2 6.3：隔离 prompt 实验的真实提交（runs:promptFork 的 executionMode=isolated 分支）。
+   * 请求由 `lib/isolated-prompt-card.ts` 的判据构造，必须带计划指纹、配置修订与本次授权；
+   * 与普通 prompt 共用 U4 身份/去重/单槽与 U5 结果收尾。
+   */
+  promptExperiment: (
+    request: IsolatedPromptForkRequest,
     submission?: DraftSubmission,
   ) => Promise<boolean>;
   /**
@@ -731,6 +741,23 @@ export function createOperationsSlice({
       }
       // U5 任务 3.2：与 forkAt 同形——响应不决定结局，也不产生导航（失败同样不产生伪 run：
       // 那条 run 是否在列表里、结局如何，只看登记的可信 ID 与它自己的终止事件）。
+      set({ forking: "idle" });
+      return true;
+    },
+
+    async promptExperiment(request, submission) {
+      set({ forking: "in_progress", forkError: null, forkErrorCode: null });
+      const envelope = await submitActive(api.promptFork, request, submission);
+      // 与普通 prompt/result 同一收尾口径：任何明确响应都不删草稿、不按信封 id 导航
+      if (submission !== undefined) get().finishDraftSubmission(submission, envelope);
+      if (!envelope.ok) {
+        set({
+          forking: "error",
+          forkError: envelope.error.message,
+          forkErrorCode: envelope.error.code,
+        });
+        return false;
+      }
       set({ forking: "idle" });
       return true;
     },

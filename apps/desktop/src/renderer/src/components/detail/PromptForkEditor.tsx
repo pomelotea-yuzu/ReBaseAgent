@@ -9,6 +9,7 @@ import { isolatedPromptGuard } from "../../lib/isolated-prompt";
 import {
   isolatedPromptCapabilityRequestOf,
   presentIsolatedPromptCard,
+  resolveIsolatedPromptSubmission,
 } from "../../lib/isolated-prompt-card";
 import { promptForkGuard } from "../../lib/prompt-fork";
 import type { PromptForkField } from "../../lib/prompt-fork";
@@ -63,6 +64,7 @@ export function PromptForkEditor({
   const forkErrorCode = useAppStore((s) => s.forkErrorCode);
   const settings = useAppStore((s) => s.settings);
   const promptFork = useAppStore((s) => s.promptFork);
+  const promptExperiment = useAppStore((s) => s.promptExperiment);
   const resetFork = useAppStore((s) => s.resetFork);
   const ensureCallDraft = useAppStore((s) => s.ensureCallDraft);
   const writeCallDraftText = useAppStore((s) => s.writeCallDraftText);
@@ -206,6 +208,24 @@ export function PromptForkEditor({
     capability === null ? null : presentIsolatedPromptCard(capability, toolNames);
   const canCheck =
     !inProgress && !checking && guard.canSubmit && sourceExecutable && sourceBlocked === null;
+  const isolatedSubmission = isolated
+    ? resolveIsolatedPromptSubmission({
+        rootRunId: run.meta.id,
+        edit: { field, value },
+        originalValue: original ?? "",
+        hypothesis,
+        acceptanceCriterion,
+        capability,
+        capabilityFresh: capability !== null,
+        feeConfirmed: promptConfirmed,
+        writesAuthorized,
+        checking,
+        inProgress,
+        gateBlockedReason: gate.canSubmit ? null : gate.notice,
+        guardCanSubmit: guard.canSubmit,
+        guardReason: guard.reason,
+      })
+    : null;
   const feeBlocked = !guard.canSubmit
     ? guard.reason
     : !sourceExecutable
@@ -266,6 +286,21 @@ export function PromptForkEditor({
       return;
     }
     setChecked({ key: requestKey, result: response.data });
+  };
+
+  /**
+   * 6.3 真实提交：先按 U3 原子登记提交关联（确认成立才继续，冻结本字段快照），
+   * 再走 U4 的统一主动通道。失败/拒绝不清草稿；正常结果由 U5 收尾关联按修订清理。
+   */
+  const doIsolatedSubmit = (): void => {
+    if (!isolated || isolatedSubmission === null || !isolatedSubmission.ok) return;
+    const assoc = beginDraftSubmission({
+      channel: "prompt_experiment",
+      target: draftKeyOf(field),
+      confirmation: promptBinding,
+    });
+    if (assoc === null) return;
+    void promptExperiment(isolatedSubmission.request, assoc);
   };
 
   const switchField = (next: PromptForkField): void => {
@@ -716,11 +751,28 @@ export function PromptForkEditor({
                 </span>
               </label>
               <div
-                className="rounded border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-[11px] leading-4 text-emerald-900"
-                data-isolated-prompt-submit-pending
+                className="flex flex-wrap items-center justify-end gap-2"
+                data-isolated-prompt-submit
               >
-                费用确认与副本授权默认都未选，且绑定当前正文/计划/配置。正式提交通道在 6.3
-                接入——当前核对与勾选不会调用模型、不写文件、不登记操作。
+                <span
+                  className={`mr-auto text-[11px] leading-4 ${
+                    isolatedSubmission?.ok ? "text-emerald-800" : "text-amber-800"
+                  }`}
+                  data-isolated-prompt-submit-state
+                >
+                  {isolatedSubmission?.ok
+                    ? "费用确认与本次副本授权已就绪；提交后会真实调用模型并写入独立文件世界。"
+                    : (isolatedSubmission?.reason ?? "")}
+                </span>
+                <button
+                  type="button"
+                  data-isolated-prompt-submit-button
+                  onClick={doIsolatedSubmit}
+                  disabled={inProgress || isolatedSubmission === null || !isolatedSubmission.ok}
+                  className="rounded bg-violet-700 px-3 py-1 text-[11px] text-white hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {inProgress ? "提交处理中…" : "确认开始实验（真实调用）"}
+                </button>
               </div>
             </>
           ) : null}
