@@ -169,3 +169,21 @@
   未来版本 4、v3 父 + v2 result 子。
 - ⏳ 未覆盖：`replay/test/workspace-helpers.ts` 的 v3 变体参数与 `isolated-prompt-baseline-fixture`
   的 v3 写出变体（随 3.4 真实 v3 writer 落地）；旧读取器模拟（沿用既有 A 段版本门禁，不在本批新增）。
+
+## 10. 阶段 3 完成记录（2026-10-21）
+
+- ✅ `workspace/checkpoint-tracer.ts`：`formatVersion` 参数化（缺省 2，v3=3）并接受
+  `promptExperiment`；构造期拒绝"v3 缺实验记录 / v2 带实验记录 / v3 非 initial origin"。
+- ✅ 新增 `workspace/isolated-prompt-state.ts`（纯派生：启动消息、单项编辑、params 恢复、
+  config_hash、端点规范化、计划指纹）。
+- ✅ 新增 `workspace/isolated-prompt-preflight.ts`（只读预检：根资格、来源、配额、全附件、
+  稳定的 15 类失败码；非根只给 rootId 导航建议）。
+- ✅ 新增 `workspace/isolated-prompt-run.ts`（v3 编排：授权→重验→初始快照建世界→固定工具→
+  v3 tracer→从第 1 步执行→归位）。
+- ✅ `src/index.ts`：导出上述 API/类型。
+- ✅ 测试：`isolated-prompt-state.test.ts` 34 项、`isolated-prompt-preflight.test.ts` 26 项、
+  `isolated-prompt-run.test.ts` 10 项、`isolated-prompt-trace-failure.test.ts` 3 项；
+  replay 全量 45 文件 / 581 通过（+5 skip）。
+- ⏳ 未做：desktop IPC/preload/操作适配器（5.x）；跨运行文件比较（4.x）；真实模型/Electron 实机（7.x）。
+- ⏳ fixture 矩阵补充：`workspace-helpers.writeIsolatedRun` 的 v3 变体未加——v3 根现在由真实
+  writer（`promptReplayIsolatedRun`）在测试中产出，手写 helper 变体留到需要纯构造的 5.x 用例。

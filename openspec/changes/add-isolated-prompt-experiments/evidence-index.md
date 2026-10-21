@@ -1,6 +1,6 @@
 # R2.2 场景证据索引
 
-2026-10-19 提案骨架；23 条 requirement、76 条 scenario（含保留的既有场景）。2026-10-21 阶段 2 收口后已回填 1–9、27–29（其中 2/5/7/9/27/28/29 为部分交付，限制已写明），其余待实施。文档/strict 校验不代表功能通过。每行实施后填写测试文件/用例、fixture、实机批次、源码身份及限制；单元注入、mock、真实模型和原生 UI 证据分别标注。
+2026-10-19 提案骨架；23 条 requirement、76 条 scenario（含保留的既有场景）。2026-10-21 阶段 2 收口后已回填 1–9、27–29；同日阶段 3 收口后再回填 20–31（部分交付项已写明剩余任务与证据层）。其余待实施。文档/strict 校验不代表功能通过。每行实施后填写测试文件/用例、fixture、实机批次、源码身份及限制；单元注入、mock、真实模型和原生 UI 证据分别标注。
 
 | 序号 | capability | requirement | scenario | 对应任务 | 状态 | 证据与限制 |
 |---|---|---|---|---|---|---|
@@ -23,18 +23,18 @@
 | 17 | prompt-replay | 启动上下文编排可观察真实运行身份 | prompt 身份在后续失败时仍可关联 | 3.5、5.3 | 待实施 | — |
 | 18 | prompt-replay | 启动上下文编排可观察真实运行身份 | prompt 前置拒绝不报告假身份 | 3.5、5.3 | 待实施 | — |
 | 19 | prompt-replay | 启动上下文编排可观察真实运行身份 | prompt 观察者兼容且释放 | 3.5、5.3 | 待实施 | — |
-| 20 | prompt-replay | 隔离 prompt 预检配对根启动输入与初始文件 | 合法根预检只读且提交重验 | 3.1、3.3、5.2、7.3 | 待实施 | — |
-| 21 | prompt-replay | 隔离 prompt 预检配对根启动输入与初始文件 | 中途分支只能显式返回根 | 3.1、3.3、5.2、7.3 | 待实施 | — |
-| 22 | prompt-replay | 隔离 prompt 预检配对根启动输入与初始文件 | 缺失或不可还原的启动条件拒绝 | 3.1、3.3、5.2、7.3 | 待实施 | — |
-| 23 | prompt-replay | 隔离 prompt 固定可恢复配置并从头真实执行 | 单项改动与首次实际请求一致 | 1.1、3.2、3.3、3.4、3.5、5.2、7.1 | 待实施 | — |
-| 24 | prompt-replay | 隔离 prompt 固定可恢复配置并从头真实执行 | 不支持参数或配置漂移不能静默放行 | 1.1、3.2、3.3、3.4、3.5、5.2、7.1 | 待实施 | — |
-| 25 | prompt-replay | 隔离 prompt 固定可恢复配置并从头真实执行 | 历史未知条件与真实计费分别表达 | 1.1、3.2、3.3、3.4、3.5、5.2、7.1 | 待实施 | — |
-| 26 | prompt-replay | 隔离 prompt 固定可恢复配置并从头真实执行 | 当前写入授权和失败事实不可替代 | 1.1、3.2、3.3、3.4、3.5、5.2、7.1 | 待实施 | — |
-| 27 | replay | 隔离 prompt 构成独立执行边界且可继续 result 续跑 | v3 详情只呈现自有完整步骤 | 2.3、2.4、5.4 | 部分（trace-sdk 已证，端到端归 5.4） | `experiment.test.ts`「resolveBranch：v3 独立边界」：v3 叶子只返回自有 spans，父链仍溯源；同名 s_* 不进入子时间线。desktop 详情投影的 v3 端到端（spanScope/chain）随 5.4 真实 writer 落地后实测。 |
-| 28 | replay | 隔离 prompt 构成独立执行边界且可继续 result 续跑 | v3 后的 result 分支保留正确前缀 | 2.3、2.4、5.4 | 部分（trace-sdk 已证，真实续跑归 5.4） | `experiment.test.ts`：v3 父 + v2 result 子只保留 v3 第 1 轮整轮前缀（v_01..v_03），第 2 轮截断、根 s_* 不出现；result 子 schema 仍为 v2；`WorkspaceCheckpointTracer` 恒写 `ISOLATED_FORMAT_VERSION=2`。 |
-| 29 | replay | 隔离 prompt 构成独立执行边界且可继续 result 续跑 | 新版本不扩大普通执行和卡带权限 | 2.3、2.4、5.4 | 部分（卡带已证；执行门禁归 3.6/5.4） | `trace-test` 增 v3 卡带基线用例：父文件不存在仍可读可跑，重跑产出 v1、workspace/prompt_experiment 不复制，真实 handler 不执行。普通 replay/prompt 与隔离模型实验对 v3 的拒绝沿用 workspace 门禁，需在 3.6/5.4 用真实 v3 父本复跑。 |
-| 30 | workspace-isolation | 初始快照实验创建独立文件映射 | 根初始状态与父最终及源目录分离 | 1.1、3.4、7.1 | 待实施 | — |
-| 31 | workspace-isolation | 初始快照实验创建独立文件映射 | 空初始世界与后续超限遵守原配额 | 1.1、3.4、7.1 | 待实施 | — |
+| 20 | prompt-replay | 隔离 prompt 预检配对根启动输入与初始文件 | 合法根预检只读且提交重验 | 3.1、3.3、5.2、7.3 | 部分（包层 3.1–3.4；配置修订绑定 5.2） | `isolated-prompt-preflight.test.ts`：预检前后目录指纹一致、相同输入重复预检指纹稳定、删除附件后再次预检 `attachment_missing`；`isolated-prompt-run.test.ts` 提交时重跑预检并对未授权/附件缺失零记录。桌面 `expectedConfigRevision`/当前设置轮换归 5.2。 |
+| 21 | prompt-replay | 隔离 prompt 预检配对根启动输入与初始文件 | 中途分支只能显式返回根 | 3.1、3.3、5.2、7.3 | 部分（包层已证；桌面导航 6.1） | `isolated-prompt-preflight.test.ts`：中途 result 分支返回 `parent_not_root` + 完整父链验证的 rootId，失败对象无计划/指纹；缺祖先返回 `parent_chain_invalid` 且无 rootId。桌面"前往根运行"显式导航与重新预检归 6.1。 |
+| 22 | prompt-replay | 隔离 prompt 预检配对根启动输入与初始文件 | 缺失或不可还原的启动条件拒绝 | 3.1、3.3、5.2、7.3 | 已交付（包层 3.1–3.3） | `isolated-prompt-preflight.test.ts`：缺根/缺祖先/未封存/v1 根/缺 user/首调用非第 1 步/空编辑/组合编辑/超长假设/工具表与 config_hash 漂移/结构化 params/预算不可接受/配额超限/附件缺失/损坏均返回稳定码；`isolated-prompt-state.test.ts` 覆盖消息形状矩阵。 |
+| 23 | prompt-replay | 隔离 prompt 固定可恢复配置并从头真实执行 | 单项改动与首次实际请求一致 | 1.1、3.2、3.3、3.4、3.5、5.2、7.1 | 部分（包层 mock 已证；真实模型 7.1） | `isolated-prompt-run.test.ts`：system 编辑后首次请求只改 system、模型/params 取根录制值（桌面 config 的 model/system/params 刻意不同仍被忽略）、第 1 步读到根初始 A。真实模型/服务端条件与人类判据归 7.1。 |
+| 24 | prompt-replay | 隔离 prompt 固定可恢复配置并从头真实执行 | 不支持参数或配置漂移不能静默放行 | 1.1、3.2、3.3、3.4、3.5、5.2、7.1 | 已交付（包层 3.2/3.3） | `isolated-prompt-state.test.ts`：嵌套/数组/null/NaN/Infinity/保留键 params 拒绝；`isolated-prompt-preflight.test.ts`：当前/父根工具表偏离 profile、config_hash 不符、历史预算超当前策略均明确拒绝，不静默截小。 |
+| 25 | prompt-replay | 隔离 prompt 固定可恢复配置并从头真实执行 | 历史未知条件与真实计费分别表达 | 1.1、3.2、3.3、3.4、3.5、5.2、7.1 | 部分（包层 capability 已证；UI 6.2） | `isolated-prompt-preflight.test.ts`：`historicalUnknowns` 分列 provider_backend/max_iterations/缺省 token_budget；`billing` 明确 usage/price/cache 执行前未知。桌面核对卡文案与真实 usage 呈现归 6.2/7.1。 |
+| 26 | prompt-replay | 隔离 prompt 固定可恢复配置并从头真实执行 | 当前写入授权和失败事实不可替代 | 1.1、3.2、3.3、3.4、3.5、5.2、7.1 | 已交付（包层 3.4/3.5） | `isolated-prompt-run.test.ts`：未授权零记录/零调用；模型失败 errored 落盘且身份可关联；`isolated-prompt-trace-failure.test.ts`：meta/step 写失败句柄释放、无虚假终止、已落盘事实与共享附件保留。桌面授权 UI/操作登记归 5.2/5.3。 |
+| 27 | replay | 隔离 prompt 构成独立执行边界且可继续 result 续跑 | v3 详情只呈现自有完整步骤 | 2.3、2.4、5.4 | 部分（包层已证；桌面详情 5.4） | `experiment.test.ts` + `isolated-prompt-run.test.ts`：v3 叶子解析只返回自有 spans，chain 仅根→v3 溯源；span id 跨 run 可重复，按 owner/消息内容区分。desktop 详情 `spanScope/chain` 投影归 5.4。 |
+| 28 | replay | 隔离 prompt 构成独立执行边界且可继续 result 续跑 | v3 后的 result 分支保留正确前缀 | 2.3、2.4、5.4 | 已交付（包层 2.3/3.6） | `isolated-prompt-run.test.ts` 端到端：真实 v3 父 + `replayIsolatedRun` 子仍写 v2、checkpoint origin/resume_after_step 正确；`resolveBranch` 前缀只含 v3 第 1 轮整轮（step+llm+tool），第 2 轮与实验根不进入，按首轮消息内容证明来源是 v3。 |
+| 29 | replay | 隔离 prompt 构成独立执行边界且可继续 result 续跑 | 新版本不扩大普通执行和卡带权限 | 2.3、2.4、5.4 | 部分（包层已证；桌面门禁 5.4） | `trace-test` v3 卡带基线可读可跑且产出 v1；`isolated-prompt-run.test.ts`：v3 父本经 `promptReplayRun` 明确拒绝、零 outDir/零调用；隔离模型实验沿用 workspace 门禁（`isolated-entry-guard.test.ts` 全绿）。桌面普通/模型入口的 v3 拒绝实机归 5.4/7.3。 |
+| 30 | workspace-isolation | 初始快照实验创建独立文件映射 | 根初始状态与父最终及源目录分离 | 1.1、3.4、7.1 | 部分（包层 mock 已证；真实模型 7.1） | `isolated-prompt-run.test.ts`：v3 首轮 `read_file` 返回根初始 A（≠ 父轮末 B ≠ 源目录 C）；父/兄弟 trace、源目录与既有 blob 字节/目录指纹不变。真实模型闭环与导出字节复核归 7.1。 |
+| 31 | workspace-isolation | 初始快照实验创建独立文件映射 | 空初始世界与后续超限遵守原配额 | 1.1、3.4、7.1 | 已交付（包层 3.4） | `isolated-prompt-run.test.ts`：空 initial_snapshot 可从头执行并写入新文件；8 MiB+1 单文件写入成为工具错误，检查点清单保持空、loop 继续完成；未回写父/源。 |
 | 32 | workspace-isolation | 跨运行检查点比较只读取明确的自有快照 | 两个自有检查点独立选择与路径并集 | 4.1、4.2、4.3、5.1、6.5 | 待实施 | — |
 | 33 | workspace-isolation | 跨运行检查点比较只读取明确的自有快照 | 未核验引用不冒充字节相同 | 4.1、4.2、4.3、5.1、6.5 | 待实施 | — |
 | 34 | workspace-isolation | 跨运行检查点比较只读取明确的自有快照 | 文本新增删除与原换行可核对 | 4.1、4.2、4.3、5.1、6.5、7.2 | 待实施 | — |

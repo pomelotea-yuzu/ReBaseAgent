@@ -262,3 +262,10 @@ export type {
   IsolatedPromptPreflightOptions,
   IsolatedPromptPreflightResult,
 } from "./workspace/isolated-prompt-preflight.js";
+export { promptReplayIsolatedRun } from "./workspace/isolated-prompt-run.js";
+export type {
+  PromptReplayIsolatedRunFailure,
+  PromptReplayIsolatedRunFailureCode,
+  PromptReplayIsolatedRunOptions,
+  PromptReplayIsolatedRunResult,
+} from "./workspace/isolated-prompt-run.js";

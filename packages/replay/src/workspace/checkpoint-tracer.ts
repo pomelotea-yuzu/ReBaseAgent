@@ -8,7 +8,8 @@ import type {
   Tracer,
   WorkspaceOrigin,
 } from "@rebaseagent/trace-sdk";
-import { ISOLATED_FORMAT_VERSION } from "@rebaseagent/trace-sdk";
+import { ISOLATED_FORMAT_VERSION, PROMPT_EXPERIMENT_FORMAT_VERSION } from "@rebaseagent/trace-sdk";
+import type { PromptExperiment } from "@rebaseagent/trace-sdk";
 import { FILE_TOOLS_V1_PROFILE } from "./file-tools.js";
 import type { WorkspaceWorld } from "./world.js";
 
@@ -51,8 +52,15 @@ export interface CheckpointTracerOptions {
   readonly world: WorkspaceWorld;
   /** 本 run 的 id（== `world_id`；根 run 由编排层生成） */
   readonly runId: string;
-  /** 初始快照的来源：根 run 为 `import`，分支为 `checkpoint` 指向直接父 */
+  /** 初始快照的来源：根 run 为 `import`，result 分支为 `checkpoint`，v3 实验为 `initial` */
   readonly origin: WorkspaceOrigin;
+  /**
+   * 写入版本：既有隔离 root/result 写 2（缺省）；隔离 prompt 实验写 3。
+   * **不得**用最高读取版本代替写入版本——v2/v3 的必需字段不同。
+   */
+  readonly formatVersion?: typeof ISOLATED_FORMAT_VERSION | typeof PROMPT_EXPERIMENT_FORMAT_VERSION;
+  /** v3 必填：本次实验的基线/干预/执行条件；v2 必须省略 */
+  readonly promptExperiment?: PromptExperiment;
 }
 
 /**
@@ -67,6 +75,10 @@ export class WorkspaceCheckpointTracer implements Tracer {
   private readonly world: WorkspaceWorld;
   private readonly runId: string;
   private readonly origin: WorkspaceOrigin;
+  private readonly formatVersion:
+    | typeof ISOLATED_FORMAT_VERSION
+    | typeof PROMPT_EXPERIMENT_FORMAT_VERSION;
+  private readonly promptExperiment: PromptExperiment | undefined;
   /** span id → kind。endSpan 的签名不带 kind，只能靠 startSpan 记 */
   private readonly spanKinds = new Map<string, SpanKind>();
   /** 本次 run 是否已经开始（防止在 startRun 之前 endSpan 到 agent.step 上误判） */
@@ -77,6 +89,19 @@ export class WorkspaceCheckpointTracer implements Tracer {
     this.world = options.world;
     this.runId = options.runId;
     this.origin = options.origin;
+    this.formatVersion = options.formatVersion ?? ISOLATED_FORMAT_VERSION;
+    this.promptExperiment = options.promptExperiment;
+
+    if (this.formatVersion === PROMPT_EXPERIMENT_FORMAT_VERSION) {
+      if (this.promptExperiment === undefined) {
+        throw new Error("v3 隔离 prompt 实验必须提供 promptExperiment（基线/干预/执行条件）");
+      }
+      if (this.origin.kind !== "initial") {
+        throw new Error('v3 隔离 prompt 实验的 workspace.origin 必须是 "initial"');
+      }
+    } else if (this.promptExperiment !== undefined) {
+      throw new Error("v2 隔离运行禁止携带 promptExperiment（实验记录只属于 v3）");
+    }
   }
 
   /**
@@ -91,9 +116,10 @@ export class WorkspaceCheckpointTracer implements Tracer {
     const injected: RunMetaInput = {
       ...meta,
       id: this.runId,
-      // v2 = 既有隔离格式：让旧读取器明确拒绝（而不是静默剥掉 workspace 字段后降级执行同名 write_file）。
-      // 刻意不用 FORMAT_VERSION（现为 3）：最高读取版本升级不应让既有隔离 root/result writer 跟着升版。
-      format_version: ISOLATED_FORMAT_VERSION,
+      // 写入版本由调用方显式指定：既有隔离 root/result = 2，v3 实验 = 3。
+      // 刻意不用 FORMAT_VERSION：最高读取版本升级不应让既有 writer 跟着升版。
+      format_version: this.formatVersion,
+      ...(this.promptExperiment === undefined ? {} : { prompt_experiment: this.promptExperiment }),
       workspace: {
         profile: FILE_TOOLS_V1_PROFILE,
         world_id: this.runId,
