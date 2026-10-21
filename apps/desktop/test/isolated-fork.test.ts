@@ -174,7 +174,7 @@ describe("2.2 声明与判据（纯逻辑）", () => {
     }
   });
 
-  it("隔离父本：prompt fork / 模型 A/B 给出禁用原因（普通父本对照不受影响）", async () => {
+  it("隔离父本：模型 A/B 给出禁用原因（prompt 启动指令实验改走根入口，普通父本对照不受影响）", async () => {
     const { dataDir, source, cleanup } = tempLayout();
     try {
       const isolatedId = await createIsolatedParent(dataDir, source, [{ content: "完成。" }]);
@@ -183,7 +183,9 @@ describe("2.2 声明与判据（纯逻辑）", () => {
 
       const isolatedNotice = isolatedParentExecutionNotice(isolated);
       expect(isolatedNotice).toContain("隔离文件运行");
-      expect(isolatedNotice).toContain("prompt fork 与模型 A/B");
+      // R2.2 6.1：提示只表达 A/B 仍不支持；prompt 已由隔离根入口支持，不能再合并禁用。
+      expect(isolatedNotice).toContain("模型 A/B");
+      expect(isolatedNotice).not.toContain("prompt fork 与模型 A/B");
       expect(isolatedNotice).toContain("main 与内核也会拒绝");
       expect(isolatedParentExecutionNotice(v1)).toBeNull();
     } finally {
@@ -191,13 +193,14 @@ describe("2.2 声明与判据（纯逻辑）", () => {
     }
   });
 
-  it("单向蕴含：界面说「不支持」时内核确实拒绝（不白禁；反方向由 1.2 的用例钉住）", async () => {
+  it("单向蕴含：界面说「A/B 不支持」时内核确实拒绝；普通 prompt handler 仍拒绝隔离父本", async () => {
     const { dataDir, source, cleanup } = tempLayout();
     try {
       const parentId = await createIsolatedParent(dataDir, source, [{ content: "完成。" }]);
       const repo = new RunRepository(join(dataDir, "traces"));
       const detail = repo.getRun(parentId);
-      // 界面：两个入口都给出"本期不支持"的原因（DetailPanel 用它替换编辑入口）
+      // R2.2 6.1：界面提示只承担 A/B 不适用；prompt 隔离实验走独立根入口，
+      // 但普通 prompt handler 仍必须拒绝隔离父本（不允许降级成普通分叉）。
       expect(isolatedParentExecutionNotice(detail)).not.toBeNull();
 
       const mock = new MockLlmClient([]);

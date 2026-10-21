@@ -50,7 +50,7 @@ export function IsolatedParentUnsupportedNotice({ run }: { run: RunDetail }) {
     >
       <Disclosure
         summary="不适用说明"
-        meta="prompt fork / 模型 A/B 在隔离父本上本期不支持"
+        meta="模型 A/B 在隔离父本上本期不支持"
         expanded={expanded}
         onToggle={() => {
           useAppStore.getState().toggleNoticeExpanded(runId, ISOLATED_PARENT_UNSUPPORTED_KEY);
@@ -60,7 +60,7 @@ export function IsolatedParentUnsupportedNotice({ run }: { run: RunDetail }) {
         <div className="px-1 pb-1">
           {reason}
           <br />
-          可用的执行方式：在某个工具调用上使用「在此重跑（隔离续跑）」——它从该轮的轮末检查点继续。
+          可用的执行方式：在某个工具调用上使用「在此重跑（隔离续跑）」；启动指令实验请从经验证的根运行进入。
         </div>
       </Disclosure>
     </div>
@@ -168,7 +168,12 @@ export function RunDraftListSection({ runId }: { runId: string }) {
           items={items}
           emptyHint="本运行暂无草稿"
           onOpen={(item) => {
-            void openDraftAt({ runId: item.runId, spanId: item.spanId, field: item.field });
+            void openDraftAt({
+              runId: item.runId,
+              spanId: item.spanId,
+              field: item.field,
+              ...(item.mode === undefined ? {} : { mode: item.mode }),
+            });
           }}
           onCopy={(item) => {
             void navigator.clipboard.writeText(item.copyText);
@@ -193,7 +198,15 @@ export function RunDraftListSection({ runId }: { runId: string }) {
                 return;
               }
               if (spanId === null) return;
-              discardCallDraft({ runId, spanId, field }, item.revision);
+              discardCallDraft(
+                {
+                  runId,
+                  spanId,
+                  field,
+                  ...(item.mode === undefined ? {} : { mode: item.mode }),
+                },
+                item.revision,
+              );
             });
           }}
         />

@@ -64,9 +64,10 @@ describe("接线契约：PromptForkEditor 两字段独立草稿（任务 2.2）"
     const code = src();
     // U3 2.5：ensureFieldDraft 用 useCallback 稳定化（biome 依赖纪律），键按字段内联构造
     expect(code).toContain("ensureFieldDraft = useCallback");
-    expect(code).toContain(
-      "ensureCallDraft({ runId: run.meta.id, spanId: span.id, field: f }, baseline, draftSource)",
-    );
+    // R2.2 6.1：键经 draftKeyOf 构造（带隔离模式）；普通 prompt 的键形态不变。
+    // 旧断言逐字钉未带模式的字面键，随「草稿身份增加执行模式」合法改判，实施记录见
+    // change tasks 6.1 注记。
+    expect(code).toContain("ensureCallDraft(draftKeyOf(f), baseline, draftSource)");
     expect(code).toContain("captureCallDraftSource(run, span)");
     // 旧根因：switchField / 打开按钮把值重置回原值 ⇒ 字段切换丢输入、重开覆盖
     expect(auditForbiddenTokens(code, ["setValue"])).toEqual([]);

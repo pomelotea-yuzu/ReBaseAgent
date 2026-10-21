@@ -31,15 +31,19 @@ export function isIsolatedRun(run: RunDetail | null): boolean {
 }
 
 /**
- * 隔离父本本期不支持的执行入口（prompt fork / 模型 A/B）的可展示原因。
- * 返回 null = 不是隔离父本（按既有可用性判据走）。
+ * 隔离父本本期的模型 A/B 门禁说明。
  *
- * 内核同样拒绝这类请求（`loadForkParent` 的隔离门禁，见 `isolated-parent-rejection.test.ts`），
- * 所以这是"把界面与内核对齐"，不是新增一条只有界面认的规则。
+ * R2.2 6.1 起 prompt 启动指令实验**已支持隔离根**（独立初始快照入口），
+ * 因此本说明只表达 A/B 仍不支持；prompt 的根/分支入口由
+ * `lib/isolated-prompt.ts` 单独裁决，不能再用一段“prompt 与 A/B 都不支持”的
+ * 合并文案把新能力一起禁掉。
+ *
+ * 内核同样拒绝这类请求（`loadForkParent` 的隔离门禁），所以这是"把界面与内核
+ * 对齐"，不是新增一条只有界面认的规则。
  */
 export function isolatedParentExecutionNotice(run: RunDetail | null): string | null {
   if (!isIsolatedRun(run)) return null;
-  return "该运行是隔离文件运行：它的续跑只能从工具结果的轮末检查点出发（下方「在此重跑」），prompt fork 与模型 A/B 本期不支持隔离父本——即使绕过界面发 IPC，main 与内核也会拒绝。";
+  return "该运行是隔离文件运行：模型 A/B 本期不支持隔离父本——即使绕过界面发 IPC，main 与内核也会拒绝。启动指令实验只能从经验证的根运行发起；分支只提供显式返回根的导航，不把分支自有消息当根启动上下文。";
 }
 
 /** 隔离运行的详情标注（明确标注"文件隔离"，并说明世界从哪来；v1 老 trace 返回 null） */

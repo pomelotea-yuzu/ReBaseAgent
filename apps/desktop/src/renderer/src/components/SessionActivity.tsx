@@ -102,7 +102,12 @@ export function SessionActivity() {
         return;
       }
       discardCallDraft(
-        { runId: item.runId, spanId: item.spanId, field: item.field },
+        {
+          runId: item.runId,
+          spanId: item.spanId,
+          field: item.field,
+          ...(item.mode === undefined ? {} : { mode: item.mode }),
+        },
         item.revision,
       );
     });
@@ -186,7 +191,12 @@ export function SessionActivity() {
               }
               onOpen={(item) => {
                 setOpen(false);
-                void openDraftAt({ runId: item.runId, spanId: item.spanId, field: item.field });
+                void openDraftAt({
+                  runId: item.runId,
+                  spanId: item.spanId,
+                  field: item.field,
+                  ...(item.mode === undefined ? {} : { mode: item.mode }),
+                });
               }}
               onCopy={(item) => {
                 void navigator.clipboard.writeText(item.copyText);
@@ -203,7 +213,12 @@ export function SessionActivity() {
                   emptyHint="没有未修改的编辑会话。"
                   onOpen={(item) => {
                     setOpen(false);
-                    void openDraftAt({ runId: item.runId, spanId: item.spanId, field: item.field });
+                    void openDraftAt({
+                      runId: item.runId,
+                      spanId: item.spanId,
+                      field: item.field,
+                      ...(item.mode === undefined ? {} : { mode: item.mode }),
+                    });
                   }}
                   onCopy={(item) => {
                     void navigator.clipboard.writeText(item.copyText);

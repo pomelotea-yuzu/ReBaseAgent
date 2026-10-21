@@ -7,6 +7,8 @@ import * as draftLib from "../../lib/debugging-drafts";
 import type {
   CallDraftEntry,
   CallDraftKey,
+  CallDraftMode,
+  CallDraftNotesPatch,
   CallDraftSource,
   CreateRunDraftEntry,
   CreateRunDraftPatch,
@@ -59,7 +61,13 @@ export interface DraftsState {
    * U2 任务 2.3：一次性显式草稿定位目标（「返回草稿」/列表定位）。
    * 与阅读历史分开存：历史是"上次读到哪"，目标是"这次要看哪"。由承载组件消费一次后清空。
    */
-  pendingDraftTarget: { runId: string; spanId: string | null; field: DraftKind } | null;
+  pendingDraftTarget: {
+    runId: string;
+    spanId: string | null;
+    field: DraftKind;
+    /** R2.2 6.1：隔离实验草稿定位带模式；普通条目缺省 */
+    mode?: CallDraftMode;
+  } | null;
   /** 读取某编辑目标的草稿条目（无则 undefined；返回仓库内对象，引用稳定） */
   callDraftOf: (key: CallDraftKey) => CallDraftEntry | undefined;
   /**
@@ -77,6 +85,10 @@ export interface DraftsState {
    * 实际内容变化才推进修订。须先 ensureCallDraft——未登记基线的目标不接收写入。
    */
   writeCallDraftText: (key: CallDraftKey, text: string) => void;
+  /**
+   * R2.2 6.1：写入隔离实验的假设/人工判据（与正文共用修订与冻结纪律）。
+   */
+  writeCallDraftNotes: (key: CallDraftKey, patch: CallDraftNotesPatch) => void;
   /**
    * U3 任务 1.2：按 key + revision 的放弃校验（CAS）。仅当目标修订与确认时一致才删除；
    * 确认等待期间内容已推进或条目不存在时不动仓库。返回是否真的放弃。
@@ -174,6 +186,7 @@ export interface DraftsState {
     runId: string;
     spanId: string | null;
     field: DraftKind;
+    mode?: CallDraftMode;
   }) => Promise<void>;
   /** 编辑器消费定位目标后清空（一次性；旧目标不抢新页面） */
   consumeDraftTarget: () => void;
@@ -222,6 +235,13 @@ export function createDraftsSlice({ set, get }: SliceContext): DraftsState {
       if (submissionLib.submissionOf(get().draftSubmissions, key) !== undefined) return;
       const next = draftLib.writeCallDraftText(get().drafts, key, text);
       // 相同文本 / 未 ensure：仓库引用不变，不推进修订
+      if (next !== get().drafts) set({ drafts: next });
+    },
+
+    writeCallDraftNotes(key, patch) {
+      // 与正文同一冻结纪律：待定提交期间草稿快照不可再变
+      if (submissionLib.submissionOf(get().draftSubmissions, key) !== undefined) return;
+      const next = draftLib.writeCallDraftNotes(get().drafts, key, patch);
       if (next !== get().drafts) set({ drafts: next });
     },
 

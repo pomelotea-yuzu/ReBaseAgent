@@ -109,6 +109,29 @@ describe("deriveDraftList（两个入口共用的同一派生）", () => {
       "r_a|s2|model_ab",
     ]);
   });
+
+  it("R2.2 6.1：隔离 prompt 草稿带独立 listKey/标题与模式，不与普通 prompt 合并", () => {
+    let repo = emptyDraftRepo();
+    repo = ensureCallDraft(
+      repo,
+      { runId: "r_root", spanId: "s1", field: "system_prompt" },
+      "a",
+    ).repo;
+    repo = ensureCallDraft(
+      repo,
+      { runId: "r_root", spanId: "s1", field: "system_prompt", mode: "isolated" },
+      "b",
+    ).repo;
+    const items = deriveDraftList(repo, { runId: "r_root" });
+    expect(items.map((i) => i.listKey).sort()).toEqual([
+      "r_root|s1|isolated:system_prompt",
+      "r_root|s1|system_prompt",
+    ]);
+    const isolated = items.find((i) => i.listKey === "r_root|s1|isolated:system_prompt")!;
+    expect(isolated.mode).toBe("isolated");
+    expect(isolated.title).toContain("隔离 prompt 实验");
+    expect(items.find((i) => i.listKey === "r_root|s1|system_prompt")!.mode).toBeUndefined();
+  });
 });
 
 describe("draftBadgeForSpan（调用旁草稿标记）", () => {

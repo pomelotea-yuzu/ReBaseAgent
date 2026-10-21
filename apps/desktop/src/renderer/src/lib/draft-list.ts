@@ -1,8 +1,10 @@
 import {
+  type CallDraftMode,
   type DraftRepo,
   isCallDraftDirty,
   isCreateRunDraftDirty,
   isModelAbDraftDirty,
+  parseCallDraftSlot,
 } from "./debugging-drafts";
 import type { RecordingDraft } from "./recording-draft";
 import { isRecordingDraftDirty } from "./recording-draft";
@@ -45,7 +47,9 @@ export interface DraftListItem {
   /** 创建草稿无 span 身份（null） */
   readonly spanId: string | null;
   readonly field: DraftKind;
-  /** 稳定列表 key（渲染 key 与测试定位用，不是编辑身份——编辑身份是 runId+spanId+field） */
+  /** 隔离实验草稿带模式；普通条目缺省（保持 U3 既有形态） */
+  readonly mode?: CallDraftMode;
+  /** 稳定列表 key（渲染 key 与测试定位用，不是编辑身份——编辑身份是 runId+spanId+field[+mode]） */
   readonly listKey: string;
   readonly title: string;
   /** 展示预览（截断、换行可见化；不做 trim/清洗） */
@@ -77,16 +81,20 @@ export function deriveDraftList(
 
   for (const [runId, spans] of Object.entries(repo.calls)) {
     if (onlyRun !== undefined && onlyRun !== null && runId !== onlyRun) continue;
-    for (const [spanId, fields] of Object.entries(spans)) {
-      for (const field of ["result", "system_prompt", "user_message", "messages"] as const) {
-        const entry = fields[field];
-        if (entry === undefined) continue;
+    for (const [spanId, slots] of Object.entries(spans)) {
+      for (const [slot, entry] of Object.entries(slots)) {
+        const identity = parseCallDraftSlot(slot);
+        if (identity === null) continue;
+        const isolated = identity.mode === "isolated";
         out.push({
           runId,
           spanId,
-          field,
-          listKey: `${runId}|${spanId}|${field}`,
-          title: DRAFT_KIND_LABELS[field],
+          field: identity.field,
+          ...(isolated ? { mode: "isolated" as const } : {}),
+          listKey: `${runId}|${spanId}|${isolated ? "isolated:" : ""}${identity.field}`,
+          title: isolated
+            ? `隔离 prompt 实验 · ${identity.field === "system_prompt" ? "system" : "user"}`
+            : DRAFT_KIND_LABELS[identity.field],
           preview: truncatePreview(entry.text),
           copyText: entry.text,
           dirty: isCallDraftDirty(entry),
@@ -180,10 +188,14 @@ export function draftBadgeForSpan(
   let dirty = false;
 
   if (fields !== undefined) {
-    for (const field of ["result", "system_prompt", "user_message", "messages"] as const) {
-      const entry = fields[field];
-      if (entry === undefined) continue;
-      labels.push(DRAFT_KIND_LABELS[field]);
+    for (const [slot, entry] of Object.entries(fields)) {
+      const identity = parseCallDraftSlot(slot);
+      if (identity === null) continue;
+      labels.push(
+        identity.mode === "isolated"
+          ? `隔离 prompt 实验 · ${identity.field === "system_prompt" ? "system" : "user"}`
+          : DRAFT_KIND_LABELS[identity.field],
+      );
       if (isCallDraftDirty(entry)) dirty = true;
     }
   }

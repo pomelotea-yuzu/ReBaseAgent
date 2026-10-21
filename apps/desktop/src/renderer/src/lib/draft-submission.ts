@@ -25,8 +25,14 @@ import type { CallDraftKey, ModelAbDraftKey } from "./debugging-drafts";
  * 不匹配的回执、没有回执但状态未知的码，都不能解除冻结。草稿正文仍永不因执行结果删除。
  */
 
-/** 提交通道：与既有执行入口一一对应（调用类三通道 + A/B 整批 + 创建整份） */
-export type DraftSubmitChannel = "result" | "prompt" | "messages" | "model_ab" | "create";
+/** 提交通道：与既有执行入口一一对应（调用类四通道 + A/B 整批 + 创建整份） */
+export type DraftSubmitChannel =
+  | "result"
+  | "prompt"
+  | "prompt_experiment"
+  | "messages"
+  | "model_ab"
+  | "create";
 
 /**
  * 提交目标（任务 3.5 泛化）：调用类 = runId + spanId + 字段；A/B = 父本 runId + 起始
@@ -129,7 +135,9 @@ export function submissionIdOf(target: DraftSubmitTarget): string {
   if (!("field" in target)) return `${target.runId}|${target.spanId}|model_ab`;
   // 创建草稿不属于任何运行：与列表的 "|create" 保持一致
   if (target.field === "create") return "|create";
-  return `${target.runId}|${target.spanId}|${target.field}`;
+  // R2.2 6.1：隔离实验与普通 prompt 是不同草稿身份（同根同字段也不得互相覆盖）
+  const mode = "mode" in target && target.mode === "isolated" ? "isolated:" : "";
+  return `${target.runId}|${target.spanId}|${mode}${target.field}`;
 }
 
 /** 读取某目标的待定提交；无则 undefined（= 未冻结） */

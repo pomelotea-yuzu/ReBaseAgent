@@ -696,4 +696,11 @@ describe("接线契约：五类提交走快照并受冻结约束（任务 3.4/3.
       expect(body, start).toContain(", submission)");
     }
   });
+
+  it("R2.2 6.1：隔离 prompt 草稿的提交目标键带模式，不与普通 prompt 抢占冻结/确认", () => {
+    const plain: CallDraftKey = { runId: "r_root", spanId: "s_first", field: "system_prompt" };
+    const isolated: CallDraftKey = { ...plain, mode: "isolated" };
+    expect(subLib.submissionIdOf(plain)).toBe("r_root|s_first|system_prompt");
+    expect(subLib.submissionIdOf(isolated)).toBe("r_root|s_first|isolated:system_prompt");
+  });
 });

@@ -242,7 +242,10 @@ describe("4.4 接线契约：确认判据只有一份", () => {
     //（容器 DetailPanel 不再直接挂确认块）
     // refactor-renderer 2.3：panel 即 ResultForkEditor（result 普通两路 = 2 个确认块）
     expect(panel.match(/<ConfirmationBlock/g)?.length).toBe(2);
-    expect(promptEditor.match(/<ConfirmationBlock/g)?.length).toBe(1);
+    // R2.2 6.2 改判留痕：PromptForkEditor 现在承载两条确认路径——
+    // 普通 prompt fork（1）+ 隔离 prompt 实验（1）；计数随新入口合法 +1，
+    // 两处仍各自绑定同一套 ConfirmationBinding 判据。
+    expect(promptEditor.match(/<ConfirmationBlock/g)?.length).toBe(2);
     // 容器 DetailPanel 不再直接挂任何确认块
     const detailPanel = read("components/DetailPanel.tsx");
     expect(detailPanel.match(/<ConfirmationBlock/g)?.length ?? 0).toBe(0);

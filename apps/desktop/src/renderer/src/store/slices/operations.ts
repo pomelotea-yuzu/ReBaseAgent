@@ -11,6 +11,8 @@ import type {
   ForkCapabilityRequest,
   ForkCapabilityResult,
   IsolatedExecutionMode,
+  IsolatedPromptCapabilityRequest,
+  IsolatedPromptCapabilityResult,
   ModelAbResult,
   WorkspaceExportOutcome,
   WorkspaceExportRequest,
@@ -23,6 +25,7 @@ import type { ModelAbArm, PromptForkRequest } from "@shared/ipc";
 import {
   ChooseSourceResultSchema,
   ForkCapabilityResultSchema,
+  IsolatedPromptCapabilityResultSchema,
   WorkspaceExportOutcomeSchema,
   WorkspaceInspectResultSchema,
   WorkspaceReadFileResultSchema,
@@ -173,6 +176,17 @@ export interface OperationsState {
   ) => Promise<boolean>;
   /** 打开新的分叉编辑前复位状态 */
   resetFork: () => void;
+  /**
+   * R2.2 6.1：隔离 prompt 实验的只读能力预检（workspaces:isolatedPromptCapability）。
+   * 只读：不占执行槽、不登记 operation、不写 trace、不调模型。
+   * 领域拒绝以 ok 信封的 status=unavailable 返回（含非根导航建议 rootId）。
+   */
+  loadIsolatedPromptCapability: (
+    request: IsolatedPromptCapabilityRequest,
+  ) => Promise<
+    | { readonly ok: true; readonly data: IsolatedPromptCapabilityResult }
+    | { readonly ok: false; readonly code: string; readonly message: string }
+  >;
   /** 打开新的 A/B 编辑前复位状态 */
   resetModelAb: () => void;
   /** 打开"新建运行"对话框前复位状态 */
@@ -548,6 +562,23 @@ export function createOperationsSlice({
           ok: false,
           code: "CAPABILITY_SCHEMA_INVALID",
           message: `续跑能力预检结果结构校验失败：${describeZodError(parsed.error)}`,
+        };
+      }
+      return { ok: true, data: parsed.data };
+    },
+
+    async loadIsolatedPromptCapability(request) {
+      const envelope = await api.isolatedPromptCapability(request);
+      if (!envelope.ok) {
+        return { ok: false, code: envelope.error.code, message: envelope.error.message };
+      }
+      // 确认卡会原样展示根/文件/模型/端点/费用未知项 ⇒ 先校验形状
+      const parsed = IsolatedPromptCapabilityResultSchema.safeParse(envelope.data);
+      if (!parsed.success) {
+        return {
+          ok: false,
+          code: "ISOLATED_PROMPT_CAPABILITY_SCHEMA_INVALID",
+          message: `隔离 prompt 能力预检结果结构校验失败：${describeZodError(parsed.error)}`,
         };
       }
       return { ok: true, data: parsed.data };

@@ -10,11 +10,12 @@ import {
 } from "../../lib/call-detail-view";
 import { draftBadgeForSpan } from "../../lib/draft-list";
 import { formatDuration, prettyJson } from "../../lib/format";
-import { isolatedParentExecutionNotice } from "../../lib/isolated-fork";
+import { isolatedPromptEntryOf } from "../../lib/isolated-prompt";
 import { useAppStore } from "../../store";
 import { isLongTextExpanded, toggleLongTextExpanded } from "../LongText";
 import { LongText } from "../LongText";
 import { CacheHitRow, IsolatedParentUnsupportedNotice, KeyValue, Section } from "./DetailShared";
+import { IsolatedPromptBranchNavigation } from "./IsolatedPromptEntry";
 import { PromptForkEditor } from "./PromptForkEditor";
 
 /**
@@ -288,18 +289,27 @@ export function LlmCallDetail({
         const firstLlmId = run?.spans.find((s) => s.kind === "llm.call")?.id;
         if (!forkEntriesAvailable || run === null) return null;
         if (firstLlmId === span.id) {
-          // 隔离父本：两个入口都禁用并说明原因（内核对同一批请求也拒绝，见 1.2 的用例）。
-          // UI 密度 change 1.3：原因改为「紧凑一行 + 可展开详情」——不适用这一事实常驻，
-          // 完整原因（为什么/内核同样拒绝/可用方式）收进共享 Disclosure 机制，可查询。
-          if (isolatedParentExecutionNotice(run) !== null) {
-            return <IsolatedParentUnsupportedNotice run={run} />;
-          }
+          // R2.2 6.1：隔离运行分两条入口路——根进入独立初始快照实验（复用本编辑器），
+          // 分支只给经验证根的显式导航。普通 run 的既有 prompt fork 完全不变。
+          const isolatedPrompt = isolatedPromptEntryOf(run);
           return (
             <>
-              <PromptForkEditor key={span.id} span={span} run={run} />
-              {/* U8 3.1b：模型 A/B 编辑器迁往实验工作区（运行级「更多操作」入口进入；
-                  步骤页不再挂第二份编辑表单——同一草稿键、同一执行通道，不存在两份配置真相）。
-                  隔离 notice 的文案里保留 A/B 字样（门禁事实不变）。 */}
+              {isolatedPrompt === null ? (
+                <PromptForkEditor key={span.id} span={span} run={run} />
+              ) : isolatedPrompt.kind === "root" ? (
+                <PromptForkEditor key={span.id} span={span} run={run} mode="isolated" />
+              ) : isolatedPrompt.kind === "branch" ? (
+                <IsolatedPromptBranchNavigation detail={run} reason={isolatedPrompt.reason} />
+              ) : (
+                <div
+                  className="border-t border-violet-100 px-4 py-2 text-[11px] leading-5 text-violet-900"
+                  data-isolated-prompt-unavailable
+                >
+                  {isolatedPrompt.reason}
+                </div>
+              )}
+              {/* 模型 A/B 仍不支持隔离父本（根与分支同一门禁；入口在运行级动作栏）。 */}
+              {isolatedPrompt === null ? null : <IsolatedParentUnsupportedNotice run={run} />}
             </>
           );
         }

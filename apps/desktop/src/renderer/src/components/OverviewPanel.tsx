@@ -27,7 +27,7 @@ import {
   deriveOwnToolErrors,
 } from "@shared/overview";
 import { Check, Copy } from "lucide-react";
-import { useMemo, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import { formatDuration, formatTokens } from "../lib/format";
 import type {
   CacheSection,
@@ -47,6 +47,7 @@ import {
 } from "../lib/overview-view";
 import { useAppStore } from "../store";
 import { LongText, isLongTextExpanded, toggleLongTextExpanded } from "./LongText";
+import { IsolatedPromptEntryAction } from "./detail/IsolatedPromptEntry";
 
 /**
  * 复制原文按钮（不复用 IconButton：本处需要"复制成功"的成功态反馈）。
@@ -405,6 +406,7 @@ export function OverviewResultView({
   onOpenCall,
   onOpenParent,
   onCompareWithParent,
+  startupPromptAction,
 }: {
   detail: Pick<
     RunDetail,
@@ -417,6 +419,8 @@ export function OverviewResultView({
   onOpenParent: (runId: string) => void;
   /** U7 2.1：「与父运行对比」动作（父左子右）；缺省 = 不渲染该按钮 */
   onCompareWithParent?: () => void;
+  /** R2.2 6.1：隔离根/分支的启动指令入口（普通运行不渲染） */
+  startupPromptAction?: ReactNode;
 }) {
   // 终止原因走**唯一来源** `deriveTerminalReason`（任务 6.2 提取）：原先本组件内联推导了
   // **两处**，而运行页头干脆传 `reason={null}`、分支树另有一套 ⇒ 四个视图口径分叉。
@@ -480,6 +484,8 @@ export function OverviewResultView({
     // 任务 7.1 布局修复：概览自带滚动容器（h-full + overflow-y-auto），内容超高时在
     // 自身内滚动，不把所在列撑高；bg-white 让滚动区底部与正文同色，避免露背景色块。
     <div className="h-full overflow-y-auto bg-white" aria-label="运行概览">
+      {/* 0. R2.2 6.1 → 隔离根/分支只在这里给显式入口；普通运行不渲染 */}
+      {startupPromptAction ?? null}
       {/* 1. 结束情况：这次运行为什么停了（结局的唯一判据来源是 classifyOutcome） */}
       <OutcomeSectionView status={detail.status} reason={ownReason} />
       {/* 2. 本次失败原因：自有 LLM 错误 + 定位入口；缺失时只给说明 */}
@@ -605,6 +611,7 @@ export function OverviewPanel() {
     <OverviewResultView
       detail={detail}
       expanded={expanded}
+      startupPromptAction={<IsolatedPromptEntryAction detail={detail} />}
       onToggleExpanded={(key) => {
         if (selectedRunId === null) return;
         setCallReading(selectedRunId, "__overview__", {

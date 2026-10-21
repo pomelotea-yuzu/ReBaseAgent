@@ -20,6 +20,7 @@ import {
   modelAbDraftOf,
   newArmRowKey,
   setModelAbRows,
+  writeCallDraftNotes,
   writeCallDraftText,
   writeCreateRunDraft,
 } from "../src/renderer/src/lib/debugging-drafts";
@@ -779,5 +780,59 @@ describe("任务 1.4：草稿存储与阅读缓存、详情/列表刷新分离",
     expect(useAppStore.getState().drafts).toBe(repoBefore);
     expect(useAppStore.getState().modelAbDraftOf(k)).toBeDefined();
     expect(useAppStore.getState().createRunDraftOf()?.userMessage).toBe("任务");
+  });
+});
+
+describe("R2.2 6.1：隔离 prompt 草稿身份（模式 + 根 + 字段）", () => {
+  const plain: CallDraftKey = { runId: "r_root", spanId: "s_first", field: "system_prompt" };
+  const isolated: CallDraftKey = { ...plain, mode: "isolated" };
+
+  it("同 run/span/field 的普通与隔离草稿互不覆盖", () => {
+    let repo = emptyDraftRepo();
+    repo = ensureCallDraft(repo, plain, "plain-base").repo;
+    repo = ensureCallDraft(repo, isolated, "isolated-base").repo;
+    repo = writeCallDraftText(repo, plain, "plain-edited");
+    repo = writeCallDraftText(repo, isolated, "isolated-edited");
+
+    expect(callDraftOf(repo, plain)?.text).toBe("plain-edited");
+    expect(callDraftOf(repo, isolated)?.text).toBe("isolated-edited");
+    // 两组修订独立推进
+    expect(callDraftOf(repo, plain)?.revision).not.toBe(callDraftOf(repo, isolated)?.revision);
+  });
+
+  it("假设/判据写入推进修订并参与 dirty；未登记目标不接收写入", () => {
+    let repo = ensureCallDraft(emptyDraftRepo(), isolated, "base").repo;
+    expect(isCallDraftDirty(callDraftOf(repo, isolated)!)).toBe(false);
+
+    repo = writeCallDraftNotes(repo, isolated, { hypothesis: "多读一次配置" });
+    const withNote = callDraftOf(repo, isolated)!;
+    expect(withNote.hypothesis).toBe("多读一次配置");
+    expect(withNote.acceptanceCriterion).toBeUndefined();
+    expect(isCallDraftDirty(withNote)).toBe(true);
+
+    const revision = withNote.revision;
+    repo = writeCallDraftNotes(repo, isolated, { acceptanceCriterion: "人工核对输出" });
+    expect(callDraftOf(repo, isolated)!.revision).toBeGreaterThan(revision);
+
+    // 未 ensure 的键不猜测创建（同正文写入纪律）
+    const before = repo;
+    repo = writeCallDraftNotes(repo, { ...isolated, field: "user_message" }, { hypothesis: "x" });
+    expect(repo).toBe(before);
+  });
+
+  it("放弃隔离草稿不删普通草稿；CAS 修订不符时不动仓库", () => {
+    let repo = emptyDraftRepo();
+    repo = ensureCallDraft(repo, plain, "plain-base").repo;
+    repo = ensureCallDraft(repo, isolated, "isolated-base").repo;
+    const isolatedRevision = callDraftOf(repo, isolated)!.revision;
+
+    const stale = discardCallDraft(repo, isolated, isolatedRevision - 1);
+    expect(stale.discarded).toBe(false);
+    expect(stale.repo).toBe(repo);
+
+    const discarded = discardCallDraft(repo, isolated, isolatedRevision);
+    expect(discarded.discarded).toBe(true);
+    expect(callDraftOf(discarded.repo, isolated)).toBeUndefined();
+    expect(callDraftOf(discarded.repo, plain)?.text).toBe("plain-base");
   });
 });

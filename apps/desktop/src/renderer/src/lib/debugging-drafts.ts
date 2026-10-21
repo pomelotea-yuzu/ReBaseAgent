@@ -88,11 +88,47 @@ export type CallDraftTargetFacts =
       readonly kind: "tool.invoke";
     };
 
-/** 编辑身份：当前父本 runId + 调用 spanId + 字段。相同 span ID 的不同 run 不串草稿 */
+/**
+ * 编辑模式（R2.2 6.1）：同一根 run 的普通 prompt fork 与隔离启动指令实验
+ * 是两份不同草稿，身份必须包含模式，否则会互相覆盖。
+ * 缺省（undefined）= plain，保持 U3 既有键与草稿列表编码不变。
+ */
+export type CallDraftMode = "plain" | "isolated";
+
+/** 编辑身份：当前父本 runId + 调用 spanId + 字段（+ 隔离实验模式）。相同 span ID 的不同 run 不串草稿 */
 export interface CallDraftKey {
   readonly runId: string;
   readonly spanId: string;
   readonly field: CallDraftField;
+  readonly mode?: CallDraftMode;
+}
+
+/** 槽位编码：隔离实验用前缀与普通字段并存于同一仓库，键不再可能是普通字段名 */
+const ISOLATED_SLOT_PREFIX = "isolated:";
+
+/** 某个编辑身份在 `calls[runId][spanId]` 下的实际槽位 */
+export function callDraftSlotOf(key: CallDraftKey): string {
+  return key.mode === "isolated" ? `${ISOLATED_SLOT_PREFIX}${key.field}` : key.field;
+}
+
+/** 槽位 → (field, mode)；非法槽位返回 null（列表派生不猜测未知字段） */
+export function parseCallDraftSlot(
+  slot: string,
+): { readonly field: CallDraftField; readonly mode: CallDraftMode } | null {
+  if (slot.startsWith(ISOLATED_SLOT_PREFIX)) {
+    const field = slot.slice(ISOLATED_SLOT_PREFIX.length);
+    return isCallDraftField(field) ? { field, mode: "isolated" } : null;
+  }
+  return isCallDraftField(slot) ? { field: slot, mode: "plain" } : null;
+}
+
+function isCallDraftField(value: string): value is CallDraftField {
+  return (
+    value === "result" ||
+    value === "system_prompt" ||
+    value === "user_message" ||
+    value === "messages"
+  );
 }
 
 /** 单个编辑目标的草稿条目 */
@@ -109,6 +145,12 @@ export interface CallDraftEntry {
    * 只在条目创建时写入；重开编辑**不覆盖**（与 baseline 同纪律）。
    */
   readonly source?: CallDraftSource;
+  /**
+   * R2.2 6.1：隔离实验的可选假设/人工判据。
+   * 只存在 renderer 会话草稿里，随提交显式携带；不参与执行许可，也不自动评分。
+   */
+  readonly hypothesis?: string;
+  readonly acceptanceCriterion?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -174,12 +216,12 @@ export function newArmRowKey(): string {
 // ---------------------------------------------------------------------------
 
 export interface DraftRepo {
-  /** 调用类草稿：runId → spanId → field → entry */
+  /**
+   * 调用类草稿：runId → spanId → 槽位 → entry。
+   * 普通字段槽位就是字段名；隔离实验槽位带 `isolated:` 前缀（见 `callDraftSlotOf`）。
+   */
   readonly calls: Readonly<
-    Record<
-      string,
-      Readonly<Record<string, Readonly<Partial<Record<CallDraftField, CallDraftEntry>>>>>
-    >
+    Record<string, Readonly<Record<string, Readonly<Record<string, CallDraftEntry>>>>>
   >;
   /** A/B 批次草稿：runId → spanId → entry */
   readonly modelAb: Readonly<Record<string, Readonly<Record<string, ModelAbDraftEntry>>>>;
@@ -200,7 +242,7 @@ export function emptyDraftRepo(): DraftRepo {
 
 /** 读取某编辑目标的草稿条目；不存在返回 undefined，不改动仓库 */
 export function callDraftOf(repo: DraftRepo, key: CallDraftKey): CallDraftEntry | undefined {
-  return repo.calls[key.runId]?.[key.spanId]?.[key.field];
+  return repo.calls[key.runId]?.[key.spanId]?.[callDraftSlotOf(key)];
 }
 
 export interface EnsureCallDraftResult {
@@ -246,6 +288,41 @@ export function writeCallDraftText(repo: DraftRepo, key: CallDraftKey, text: str
   );
 }
 
+/** 隔离实验的假设/判据补丁（undefined 键保持原值；空串是有效清空） */
+export interface CallDraftNotesPatch {
+  readonly hypothesis?: string;
+  readonly acceptanceCriterion?: string;
+}
+
+/**
+ * 写入隔离实验的假设/人工判据（R2.2 6.1）。
+ * 与正文同一套纪律：未 ensure 不猜测创建；实际变化才推进修订；清空也算变化。
+ */
+export function writeCallDraftNotes(
+  repo: DraftRepo,
+  key: CallDraftKey,
+  patch: CallDraftNotesPatch,
+): DraftRepo {
+  const existing = callDraftOf(repo, key);
+  if (existing === undefined) return repo;
+  const hypothesis = patch.hypothesis ?? existing.hypothesis;
+  const acceptanceCriterion = patch.acceptanceCriterion ?? existing.acceptanceCriterion;
+  if (hypothesis === existing.hypothesis && acceptanceCriterion === existing.acceptanceCriterion) {
+    return repo;
+  }
+  return putCallEntry(
+    repo,
+    key,
+    {
+      ...existing,
+      hypothesis,
+      acceptanceCriterion,
+      revision: repo.nextRevision,
+    },
+    repo.nextRevision + 1,
+  );
+}
+
 /**
  * dirty 派生：text !== baseline 即有未放弃的编辑。
  * - 打开未编辑（ensure）⇒ false，不产生虚假 dirty；
@@ -254,7 +331,11 @@ export function writeCallDraftText(repo: DraftRepo, key: CallDraftKey, text: str
  * dirty 只表示未放弃的编辑，不表示可提交或执行成功（能力门禁在既有流程）。
  */
 export function isCallDraftDirty(entry: CallDraftEntry): boolean {
-  return entry.text !== entry.baseline;
+  return (
+    entry.text !== entry.baseline ||
+    (entry.hypothesis ?? "") !== "" ||
+    (entry.acceptanceCriterion ?? "") !== ""
+  );
 }
 
 export interface DiscardResult {
@@ -283,7 +364,7 @@ export function discardCallDraft(
   const run = repo.calls[key.runId] ?? {};
   const span = run[key.spanId] ?? {};
   const nextSpan = { ...span };
-  delete nextSpan[key.field];
+  delete nextSpan[callDraftSlotOf(key)];
   const nextByRun = { ...repo.calls };
   if (Object.keys(nextSpan).length === 0) {
     const nextRun = { ...run };
@@ -312,7 +393,10 @@ function putCallEntry(
     ...repo,
     calls: {
       ...repo.calls,
-      [key.runId]: { ...run, [key.spanId]: { ...span, [key.field]: entry } },
+      [key.runId]: {
+        ...run,
+        [key.spanId]: { ...span, [callDraftSlotOf(key)]: entry },
+      },
     },
     nextRevision,
   };
