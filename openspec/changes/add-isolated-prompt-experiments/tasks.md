@@ -59,12 +59,20 @@
 
 ## 6. 桌面现有工作区接入
 
-- [ ] 6.1（1.5h）接根/非根入口及预检身份，扩展 prompt 草稿目标但保持单 store/分片职责，保存原文/假设/判据。验收：desktop「根定位和核对有明确目标」「往返恢复正文不恢复执行许可」「system prompt 不可还原」。
-- [ ] 6.2（1.5h）接单份核对卡/编辑 diff/有效模型与未知项/当前费用与副本确认，输入/设置变更撤销旧许可。验收：desktop「单份确认表达实际条件与未知」「修改或配置变化撤销旧许可」「编辑前确认真实计费」。
-- [ ] 6.3（1.5h）接提交、全局活动、结果核对/失败定位和 revision/token CAS 清理，保护未知/迟到/跨页阅读。验收：desktop「失败和旧结果不清除新草稿」「响应未知和模型失败只核对可信身份」，并回归已有草稿/操作/确认场景。
-- [ ] 6.4（1.5h）在双运行比较接文件视图、独立检查点与路径列表，保留原输出/修改/指标；桌面默认先解析为显式自有完成步骤 ID，无则选择初始，验证 IPC payload 不把“最近一步”误传为缺省，失效 selector 不自动改点。验收：desktop「两侧检查点独立且迟到结果不串页」「分别打开文件并返回比较」「非法文件目标与普通运行不造历史」。
-- [ ] 6.5（1.5h）接正文 diff/逐侧错误/只读工具及双 selector/snapshot/path/请求代次守卫。验收：desktop「文件差异诚实呈现未验证和不可用」、workspace「文本新增删除与原换行可核对」「选择快照变化不能拼出混合差异」。
-- [ ] 6.6（1.5h）接干预/假设/结果入口及明确单侧文件/导出/返回路径，保留 R2.1 补丁与来源语义。验收：desktop「比较到导出固定选中侧」「正常结束和输出变化不冒充修复证据」。
+- [x] 6.1（1.5h）接根/非根入口及预检身份，扩展 prompt 草稿目标但保持单 store/分片职责，保存原文/假设/判据。验收：desktop「根定位和核对有明确目标」「往返恢复正文不恢复执行许可」「system prompt 不可还原」。
+  （2026-10-21 ✅：新增 `lib/isolated-prompt.ts`（根/分支/不可用三态 + 隔离 guard + 根导航折算）与 `detail/IsolatedPromptEntry.tsx`（概览/首次 llm.call 入口；分支只经 capability 核实 rootId 后导航）；`PromptForkEditor` 增 `mode="isolated"`，复用同一编辑器与 Monaco 对照；草稿键加 `mode`（`calls[runId][spanId]["isolated:<field>"]`），假设/判据随条目保存并参与 dirty/修订 CAS；列表/定位/放弃/提交键全链带模式。system+user 缺任一条时两种编辑均禁用且不给补造。测试：`isolated-prompt.test.ts` 10、`isolated-prompt-entry.test.ts` 6、`debugging-drafts` 模式用例 3、`draft-list`/`draft-submission` 各 1。限制：无 jsdom，入口/编辑器为纯逻辑 + 源码接线；真机 7.2。）
+- [x] 6.2（1.5h）接单份核对卡/编辑 diff/有效模型与未知项/当前费用与副本确认，输入/设置变更撤销旧许可。验收：desktop「单份确认表达实际条件与未知」「修改或配置变化撤销旧许可」「编辑前确认真实计费」。
+  （2026-10-21 ✅：新增 `lib/isolated-prompt-card.ts`（capability 卡排版 + 请求/提交同源判据）；`PromptForkEditor` 调 `loadIsolatedPromptCapability` 只读核对，卡上列根/初始文件/固定工具/基线模型参数/端点/上限/预算/历史未知/计费未知；费用确认用既有 `ConfirmationBlock` 凭据（channel=prompt_experiment），副本授权绑定修订/设置快照/检查代次/计划指纹；设置变化推进检查代次并清空，切字段/收起/卸载释放确认。测试：`isolated-prompt-card.test.ts` 9、`execution-confirmation-store` 计数改判留痕、`isolated-prompt-entry` 接线断言。限制：卡上真实 usage 归 7.1；窄窗/键盘 7.2。）
+- [x] 6.3（1.5h）接提交、全局活动、结果核对/失败定位和 revision/token CAS 清理，保护未知/迟到/跨页阅读。验收：desktop「失败和旧结果不清除新草稿」「响应未知和模型失败只核对可信身份」，并回归已有草稿/操作/确认场景。
+  （2026-10-21 ✅：新增 `operations.promptExperiment`，复用 `submitActive(api.promptFork)`/U4 身份/去重/单槽与 `finishDraftSubmission`；组件按 `resolveIsolatedPromptSubmission` 提交 executionMode=isolated + 计划指纹 + 配置修订 + allowFileWrites + 假设/判据；`beginDraftSubmission` 用 prompt_experiment 通道与带模式目标；U5 收尾按模式 CAS 清理，失败/拒绝保留草稿与关联。测试：`fork-entry-closure` 新增 2（请求原样透传、成功只清隔离草稿、失败保留）、`draft-closure-decision` 1（模式清理）、`isolated-prompt-card` 提交判据 3。限制：全局活动沿用既有 promptFork 行（不新增 main target 字段）；真实重载/跨页在 7.3。）
+- [x] 6.4（1.5h）在双运行比较接文件视图、独立检查点与路径列表，保留原输出/修改/指标；桌面默认先解析为显式自有完成步骤 ID，无则选择初始，验证 IPC payload 不把“最近一步”误传为缺省，失效 selector 不自动改点。验收：desktop「两侧检查点独立且迟到结果不串页」「分别打开文件并返回比较」「非法文件目标与普通运行不造历史」。
+  （2026-10-21 ✅：新增 `lib/compare-file-view.ts`（显式默认解析、selector 只对 null 省略、stale 不改点、expectedSnapshotIds）与 `CompareFileWorkspace.tsx`；`CompareWorkspace` 增「文件」视图，`compareFileView` 状态跨打开单侧文件保留；独立 selector + UTF-16 并集路径列表 + 清单引用状态；`openCompareSideFilesAt` 固定比较检查点/路径。测试：`compare-file-view.test.ts` 11、`compare-file-wiring.test.ts` 6、`compare-store` 新增 3。限制：真实双运行实机 7.2；bin 目录/IPC 结构断言不替代实机。）
+- [x] 6.5（1.5h）接正文 diff/逐侧错误/只读工具及双 selector/snapshot/path/请求代次守卫。验收：desktop「文件差异诚实呈现未验证和不可用」、workspace「文本新增删除与原换行可核对」「选择快照变化不能拼出混合差异」。
+  （2026-10-21 ✅：`CompareFileWorkspace` 按 path 延迟 `readComparedWorkspaceFile`，请求带冻结 selectors + `expectedSnapshotIds`；manifest/file 双代次序号；文本原样进只读 Monaco diff，二进制/超限/缺失/selection_changed 逐侧状态且不造伪 diff；清单引用 same/different 与正文核验分列。测试：`compare-file-view` 文本/二进制/逐侧标签、`compare-file-wiring` 守卫断言。限制：200%/滚动/CRLF 视觉与真实路径归 7.2。）
+- [x] 6.6（1.5h）接干预/假设/结果入口及明确单侧文件/导出/返回路径，保留 R2.1 补丁与来源语义。验收：desktop「比较到导出固定选中侧」「正常结束和输出变化不冒充修复证据」。
+  （2026-10-21 ✅：新增 `lib/prompt-experiment-view.ts` 与概览「本次干预」区：基线/调用/初始快照/模型参数/端点/上限预算/原值新值/假设/人工判据；结局说明只复述事实，明确不自动判修复、不评分判据；「与基线运行比较」复用父左子右，文件/导出走本运行文件页 R2.1；比较文件视图增「导出该侧检查点」，仅该侧清单 ok 时可用。测试：`prompt-experiment-view.test.ts` 8、`compare-file-wiring` 导出断言。限制：真实导出字节/目录选择/单侧固定归 7.1/7.2。）
+
+**阶段 6 门禁（2026-10-21）**：desktop 全量 **214 文件/3272 用例通过**；tsc web/node 0；biome 变更文件 0；spec 13 项 ✓。6.1–6.6 只交付代码/单测/源码接线，真实模型、真实窗口/缩放/键盘与失败注入仍归 7.1–7.3。
 
 ## 7. 实机、证据与收口
 

@@ -215,3 +215,20 @@
   配置写刷新 1；desktop 全量 208 文件/3211 通过，replay 46 文件/596(+5 skip)。
 - ⏳ 未做：renderer 工作区/比较/草稿接线（6.x）、真实模型与 Electron 实机（7.x）。
 - 版本消费方：无新增改动（v3 字段沿用阶段 2 的 trace-sdk schema）。
+
+## 13. 阶段 6 完成记录（2026-10-21）
+
+- ✅ 6.1/6.2/6.3：`lib/isolated-prompt.ts`、`lib/isolated-prompt-card.ts`、
+  `detail/IsolatedPromptEntry.tsx`；`PromptForkEditor` 增 `mode="isolated"`；
+  草稿键加 `mode` 与假设/判据；capability 只读核对卡、费用确认与副本授权；
+  `operations.promptExperiment` 复用 `submitActive`/U4/U5 收尾。
+- ✅ 6.4/6.5：`lib/compare-file-view.ts`、`CompareFileWorkspace.tsx`；
+  `compareFileView` 会话状态、双 selector、显式默认检查点、路径并集、
+  `expectedSnapshotIds` 与 manifest/file 双代次守卫、只读 Monaco diff。
+- ✅ 6.6：`lib/prompt-experiment-view.ts` 与概览「本次干预」区；
+  与基线比较/本运行文件导出入口；比较文件视图「导出该侧检查点」。
+- ✅ 门禁：desktop 全量 **214 文件 / 3272 用例通过**（最终轮无失败）；
+  tsc web/node 0；biome 变更文件 0；`check-spec` 13 项 ✓。
+- ⏳ 未做：7.1 真实模型闭环、7.2 真实窗口/缩放/键盘、7.3 失败与未知路径实机；
+  本阶段只交付代码/单测/源码接线，不把单测当实机证据。
+- 版本/包层：本阶段零修改 trace-sdk/replay/main 契约；仅消费 5.x 端点与既有 U4/U5。
