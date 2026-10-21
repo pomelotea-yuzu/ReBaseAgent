@@ -1,6 +1,6 @@
 import { type ChainHop, assertForkable } from "./guards.js";
 import type { RunRecord } from "./reader.js";
-import { FORMAT_VERSION } from "./schema.js";
+import { ISOLATED_FORMAT_VERSION, PROMPT_EXPERIMENT_FORMAT_VERSION } from "./schema.js";
 import type { Fork, RunEventLine, RunMetaLine, SpanLine } from "./schema.js";
 
 /** 按 run id 加载一个 run 的完整记录（文件、内存索引等来源由调用方决定） */
@@ -22,10 +22,103 @@ export interface ResolvedRun {
 }
 
 /**
+ * v3 隔离 prompt 实验的**完整来源校验**（父根身份 + 首次调用 + 原值 + 初始快照）。
+ *
+ * 读取阶段先做本行自洽（`RunMetaSchema`），这里补跨行事实：
+ * - 直接父必须是**根**（parent=null）且是 import 来源的隔离文件世界；
+ * - `fork.at_span` 必须是父根**自有**首次 `llm.call`，且位于自有第 1 步；
+ * - `original_value` 必须等于该请求中对应 role 的首条字符串 content；
+ * - 父根 initial_snapshot、子 origin.snapshot_id、experiment.initial_snapshot_id 三者一致。
+ *
+ * 只在**完整来源读取**（resolveBranch / 桌面 lineage）调用；自有 JSONL 的
+ * `readRun` 不依赖父文件，缺父/缺附件不阻止阅读（U6 ownOnly）。
+ *
+ * @returns 违规原因（中文）；自洽返回 `null`。非 v3 记录直接放行。
+ */
+export function findExperimentSourceViolation(child: RunRecord, parent: RunRecord): string | null {
+  const meta = child.meta;
+  if (meta.format_version !== PROMPT_EXPERIMENT_FORMAT_VERSION) return null;
+  const fork = meta.fork;
+  const experiment = meta.prompt_experiment;
+  if (fork === null) {
+    return `v3 实验 run ${meta.id} 缺少 fork 元数据（parent 已指向 ${String(meta.parent)}）`;
+  }
+  if (experiment === undefined) {
+    return `v3 实验 run ${meta.id} 缺少 prompt_experiment（实验基线与执行条件）`;
+  }
+  if (meta.parent !== parent.meta.id) {
+    return `v3 实验 run ${meta.id} 的 parent（${String(meta.parent)}）与直接父记录 ${parent.meta.id} 不符`;
+  }
+  if (parent.meta.parent !== null) {
+    return `v3 实验 run ${meta.id} 的父 run ${parent.meta.id} 不是根（parent 指向 ${parent.meta.parent}）`;
+  }
+  if (parent.meta.workspace === undefined || parent.meta.workspace.origin.kind !== "import") {
+    return `v3 实验 run ${meta.id} 的父 run ${parent.meta.id} 不是隔离根（缺少 import 文件世界）`;
+  }
+  const workspace = meta.workspace;
+  if (workspace === undefined || workspace.origin.kind !== "initial") {
+    return `v3 实验 run ${meta.id} 的 workspace.origin.kind 必须是 "initial"`;
+  }
+
+  const rootSnapshotId = parent.meta.workspace.initial_snapshot.id;
+  if (workspace.initial_snapshot.id !== rootSnapshotId) {
+    return `v3 实验 run ${meta.id} 的初始快照与父根 ${parent.meta.id} 的 initial_snapshot 不一致`;
+  }
+  if (workspace.origin.snapshot_id !== rootSnapshotId) {
+    return `v3 实验 run ${meta.id} 的 origin.snapshot_id 与父根 ${parent.meta.id} 的 initial_snapshot 不一致`;
+  }
+  if (experiment.initial_snapshot_id !== rootSnapshotId) {
+    return `v3 实验 run ${meta.id} 的 prompt_experiment.initial_snapshot_id 与父根 ${parent.meta.id} 的 initial_snapshot 不一致`;
+  }
+  if (experiment.baseline_run_id !== parent.meta.id) {
+    return `v3 实验 run ${meta.id} 的 baseline_run_id（${experiment.baseline_run_id}）不是直接父根 ${parent.meta.id}`;
+  }
+
+  const firstLlm = parent.spans.find((span) => span.kind === "llm.call");
+  if (firstLlm === undefined || firstLlm.kind !== "llm.call") {
+    return `父根 ${parent.meta.id} 没有自有 llm.call 录制，无法核对启动指令原值`;
+  }
+  if (firstLlm.id !== fork.at_span) {
+    return `fork.at_span ${fork.at_span} 必须指向父根 ${parent.meta.id} 的首次 llm.call（实际为 ${firstLlm.id}）`;
+  }
+  if (experiment.baseline_llm_span_id !== firstLlm.id) {
+    return `prompt_experiment.baseline_llm_span_id（${experiment.baseline_llm_span_id}）与父根首次 llm.call（${firstLlm.id}）不一致`;
+  }
+
+  const step =
+    firstLlm.parent === null ? undefined : parent.spans.find((span) => span.id === firstLlm.parent);
+  if (step === undefined || step.kind !== "agent.step" || step.n !== 1) {
+    return `父根 ${parent.meta.id} 的首次 llm.call 必须位于自有第 1 步（agent.step.n=1）`;
+  }
+
+  const field = fork.edit.field;
+  if (field !== "system_prompt" && field !== "user_message") {
+    return `v3 实验 run ${meta.id} 的 fork.edit.field 只能是 system_prompt 或 user_message（实际 "${field}"）`;
+  }
+  if (typeof fork.edit.value !== "string") {
+    return `v3 实验 run ${meta.id} 的 fork.edit.value 必须是字符串`;
+  }
+  const role = field === "system_prompt" ? "system" : "user";
+  const message = firstLlm.request.messages.find(
+    (m) => m.role === role && typeof m.content === "string",
+  );
+  if (message === undefined) {
+    return `父根 ${parent.meta.id} 的首次请求没有字符串 ${role} 消息，无法核对原值`;
+  }
+  if (message.content !== experiment.original_value) {
+    return `prompt_experiment.original_value 与父根首次请求的 ${role} content 不一致`;
+  }
+
+  return null;
+}
+
+/**
  * 沿 parent 链拼接完整轨迹（copy-on-write：前缀经祖先共享）。
  *
- * - 每个 fork.at_span 定位其父轨迹中的分叉点，取"该 span 及之前"为前缀，
- *   后接本 run 新增的 span（fork 点 span 的编辑由 replay spec 应用，此处仅暴露元数据）
+ * - v1/v2 result 分叉：每个 fork.at_span 定位其父轨迹中的分叉点，取"该 span 及之前"
+ *   （v2 为整轮末尾）为前缀，后接本 run 新增的 span（编辑语义由 replay 层应用，
+ *   此处仅暴露元数据）
+ * - v3 隔离 prompt 实验：完整独立执行边界，父链仅溯源，不继承父 spans
  * - 环检测：parent 链出现重复 id 即报错
  * - 父文件缺失：报错指明缺失的 run id
  * - 祖先必须已封存（assertForkable）
@@ -80,7 +173,16 @@ export function resolveBranch(runId: string, load: RunLoader): ResolvedRun {
     // 直接用**直接父的自有记录**（而不是拼接后的前缀）做隔离校验：
     // 边界 step 必须来自直接父自己，不能从祖先猜。见 resolveWholeRound。
     const parentRecord = chain[i - 1];
-    if (record.meta.format_version === FORMAT_VERSION) {
+    if (record.meta.format_version === PROMPT_EXPERIMENT_FORMAT_VERSION) {
+      const violation = findExperimentSourceViolation(record, parentRecord);
+      if (violation !== null) {
+        throw new Error(violation);
+      }
+      // v3 是完整独立执行边界：父链仅溯源，不继承父 spans（也不拼入实验根）。
+      spans = record.spans.slice();
+      continue;
+    }
+    if (record.meta.format_version === ISOLATED_FORMAT_VERSION) {
       spans = resolveWholeRound(spans, parentRecord, fork, record);
       continue;
     }

@@ -231,12 +231,12 @@ describe("schema：缺字段/错类型被拒绝", () => {
     ).toThrow();
   });
 
-  it("format_version 为 3（未来版本，v1/v2 以外的版本一律拒绝）", () => {
+  it("format_version 为 4（未来版本，v1/v2/v3 以外的版本一律拒绝）", () => {
     expect(() =>
       RunMetaSchema.parse({
         type: "run.meta",
         id: "r_01",
-        format_version: 3,
+        format_version: 4,
         task: "t",
         model: "m",
         created_at: "2026-01-15T00:00:00Z",

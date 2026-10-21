@@ -132,8 +132,8 @@ describe("parseRunText：版本门禁与 v1/v2 往返", () => {
     expect(() => parseRunText(lines(v1Meta(), span))).toThrow(/workspace_snapshot/);
   });
 
-  it("未来版本 3 ⇒ 读取报「不支持的格式版本」，且不被禁字段检查抢先", () => {
-    expect(() => parseRunText(lines(v1Meta({ format_version: 3 })))).toThrow(/不支持的格式版本 3/);
+  it("未来版本 4 ⇒ 读取报「不支持的格式版本」，且不被禁字段检查抢先", () => {
+    expect(() => parseRunText(lines(v1Meta({ format_version: 4 })))).toThrow(/不支持的格式版本 4/);
   });
 
   it("v2 隔离文件可读：meta.workspace 与 step.workspace_snapshot 往返保留", () => {

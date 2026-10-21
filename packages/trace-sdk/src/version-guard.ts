@@ -1,4 +1,8 @@
-import { FORMAT_VERSION, PLAIN_FORMAT_VERSION } from "./schema.js";
+import {
+  ISOLATED_FORMAT_VERSION,
+  PLAIN_FORMAT_VERSION,
+  PROMPT_EXPERIMENT_FORMAT_VERSION,
+} from "./schema.js";
 
 /**
  * 版本与隔离字段的一致性检查（**纯函数，无 Node 依赖**）。
@@ -11,9 +15,10 @@ import { FORMAT_VERSION, PLAIN_FORMAT_VERSION } from "./schema.js";
  * reader 的原始行入口、BaseTracer 在 meta/span 被 zod 转换前的入口、
  * 以及 RunRecord/RunDetail IPC schema 的原始记录入口。
  *
- * 检查**只针对隔离字段的三个结构位置**（`run.meta.workspace`、`run.meta.fork.resume_after_step`、
- * `span.workspace_snapshot`），不递归搜索 messages / 工具 args / result 中的同名业务字段，
- * 也不对整个 v1 schema 加 `.strict()`——其他未知扩展字段仍按原有 strip/passthrough 行为处理。
+ * 检查**只针对隔离/实验字段的结构位置**（`run.meta.workspace`、
+ * `run.meta.fork.resume_after_step`、`run.meta.prompt_experiment`、`span.workspace_snapshot`），
+ * 不递归搜索 messages / 工具 args / result 中的同名业务字段，也不对整个 schema 加
+ * `.strict()`——其他未知扩展字段仍按原有 strip/passthrough 行为处理。
  */
 
 /** 存在性判定：`null` / `false` / 空对象（内存输入还包括显式 `undefined`）都算"存在" */
@@ -50,24 +55,56 @@ export function findVersionFieldViolation(
   if (version === PLAIN_FORMAT_VERSION) {
     if (type === "run.meta") {
       if (hasOwn(record, "workspace")) {
-        return "v1 禁止携带 workspace（隔离字段只属于 v2；旧读取器会剥离它并可能降级执行）";
+        return "v1 禁止携带 workspace（隔离字段只属于 v2/v3；旧读取器会剥离它并可能降级执行）";
       }
       const fork = asRecord(record.fork);
       if (fork !== null && hasOwn(fork, "resume_after_step")) {
         return "v1 禁止携带 fork.resume_after_step（整轮续跑边界只属于 v2）";
       }
+      if (hasOwn(record, "prompt_experiment")) {
+        return "v1 禁止携带 prompt_experiment（实验记录只属于 v3；旧读取器会剥离它后按普通执行）";
+      }
       return null;
     }
     if (type === "span" && hasOwn(record, "workspace_snapshot")) {
-      return "v1 禁止携带 workspace_snapshot（文件检查点只属于 v2）";
+      return "v1 禁止携带 workspace_snapshot（文件检查点只属于 v2/v3）";
     }
     return null;
   }
 
-  if (version === FORMAT_VERSION) {
+  if (version === ISOLATED_FORMAT_VERSION) {
+    if (type !== "run.meta") return null;
     // v2 的隔离契约：meta 必须声明文件世界（step 级"完整 step 必须有检查点"由 reader 跨行判定）
-    if (type === "run.meta" && !hasOwn(record, "workspace")) {
+    if (!hasOwn(record, "workspace")) {
       return "v2 必须携带 workspace（隔离运行的文件世界元数据）";
+    }
+    if (hasOwn(record, "prompt_experiment")) {
+      return "v2 禁止携带 prompt_experiment（实验记录只属于 v3；v2 是既有隔离续跑格式）";
+    }
+    const workspace = asRecord(record.workspace);
+    const origin = workspace === null ? null : asRecord(workspace.origin);
+    if (origin !== null && origin.kind === "initial") {
+      return 'v2 禁止使用 workspace.origin.kind="initial"（初始快照来源只属于 v3）';
+    }
+    return null;
+  }
+
+  if (version === PROMPT_EXPERIMENT_FORMAT_VERSION) {
+    if (type !== "run.meta") return null;
+    if (!hasOwn(record, "workspace")) {
+      return "v3 必须携带 workspace（隔离 prompt 实验的文件世界元数据）";
+    }
+    if (!hasOwn(record, "prompt_experiment")) {
+      return "v3 必须携带 prompt_experiment（实验基线与执行条件；缺失即矛盾记录）";
+    }
+    const workspace = asRecord(record.workspace);
+    const origin = workspace === null ? null : asRecord(workspace.origin);
+    if (origin === null || origin.kind !== "initial") {
+      return 'v3 的 workspace.origin.kind 必须是 "initial"（从直接父根的初始快照出发）';
+    }
+    const fork = asRecord(record.fork);
+    if (fork !== null && hasOwn(fork, "resume_after_step")) {
+      return "v3 禁止携带 fork.resume_after_step（v3 从第 1 步独立执行，不是轮末续跑）";
     }
     return null;
   }

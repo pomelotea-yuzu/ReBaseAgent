@@ -2,27 +2,44 @@ import { z } from "zod";
 import { findSnapshotFilesViolation, findWorkspaceOriginViolation } from "./workspace-snapshot.js";
 
 /**
- * 读取器**最高支持**的 trace 格式版本。
- * 读取器遇到更高版本必须显式报"不支持的格式版本"，不得静默降级解析。
- *
- * v2 新增隔离文件世界（`run.meta.workspace` / `agent.step.workspace_snapshot` /
- * `fork.resume_after_step`）；v1 是普通运行格式。见 `version-guard.ts`。
- */
-export const FORMAT_VERSION = 2;
-
-/**
  * **普通**运行写入的版本号（不含隔离字段的运行：runLoop 直录、代理录制、卡带）。
  *
  * ⚠️ 与 `FORMAT_VERSION` 分开是刻意的：把最高支持版本当作写入版本，会让所有普通
- * writer 一起跳到 v2——v2 的契约是"必须有 workspace"，普通运行并不满足。
+ * writer 一起跳版——v2 的契约是"必须有 workspace"，普通运行并不满足。
  * 隔离执行由 workspace Tracer 包装器另行覆盖 meta 的版本与 workspace 字段。
  */
 export const PLAIN_FORMAT_VERSION = 1;
 
-/** 支持的格式版本（当前 v1 / v2 双读） */
+/**
+ * **既有隔离**运行（隔离根、result 续跑及 result 续跑的 result 子运行）写入的版本号。
+ *
+ * ⚠️ 同样刻意与 `FORMAT_VERSION` 分开：最高读取版本升到 3 只为新增 v3 实验，
+ * 不能让既有隔离 writer 跟着写 3——v3 的契约是"必须有 prompt_experiment"，
+ * 普通隔离续跑并不满足。
+ */
+export const ISOLATED_FORMAT_VERSION = 2;
+
+/**
+ * **本次隔离 prompt 实验**写入的版本号（v3）。
+ * 只有 `promptReplayIsolatedRun` 这条新编排会写它；v1/v2 writer 行为不变。
+ */
+export const PROMPT_EXPERIMENT_FORMAT_VERSION = 3;
+
+/**
+ * 读取器**最高支持**的 trace 格式版本（= v3）。
+ * 读取器遇到更高版本必须显式报"不支持的格式版本"，不得静默降级解析。
+ *
+ * v2 新增隔离文件世界（`run.meta.workspace` / `agent.step.workspace_snapshot` /
+ * `fork.resume_after_step`）；v3 新增隔离 prompt 实验（`workspace.origin.kind="initial"`
+ * 与 `prompt_experiment`）；v1 是普通运行格式。见 `version-guard.ts`。
+ */
+export const FORMAT_VERSION = PROMPT_EXPERIMENT_FORMAT_VERSION;
+
+/** 支持的格式版本（当前 v1 / v2 / v3 三读） */
 export const FormatVersionSchema = z.union([
   z.literal(PLAIN_FORMAT_VERSION),
-  z.literal(FORMAT_VERSION),
+  z.literal(ISOLATED_FORMAT_VERSION),
+  z.literal(PROMPT_EXPERIMENT_FORMAT_VERSION),
 ]);
 
 // ---------------------------------------------------------------------------
@@ -119,7 +136,12 @@ export const WorkspaceSnapshotSchema = z
   });
 export type WorkspaceSnapshot = z.infer<typeof WorkspaceSnapshotSchema>;
 
-/** 世界来源：根运行来自导入，分支来自直接父 run 的某个检查点 */
+/**
+ * 世界来源：
+ * - 根运行来自导入（`import`）；
+ * - result 续跑来自直接父 run 的某个轮末检查点（`checkpoint`）；
+ * - v3 隔离 prompt 实验来自直接父根的**初始快照**（`initial`）。
+ */
 export const WorkspaceOriginSchema = z.union([
   z.object({ kind: z.literal("import") }),
   z.object({
@@ -127,11 +149,18 @@ export const WorkspaceOriginSchema = z.union([
     run_id: z.string().min(1),
     step_span: z.string().min(1),
   }),
+  z.object({
+    kind: z.literal("initial"),
+    /** 直接父/根基线 run id（与 meta.parent 一致） */
+    run_id: z.string().min(1),
+    /** 父根 initial_snapshot 的 id（与 workspace.initial_snapshot.id 一致） */
+    snapshot_id: z.string().regex(/^[0-9a-f]{64}$/),
+  }),
 ]);
 export type WorkspaceOrigin = z.infer<typeof WorkspaceOriginSchema>;
 
 /**
- * 隔离运行的 workspace 元数据（`run.meta.workspace`，**仅 v2**）。
+ * 隔离运行的 workspace 元数据（`run.meta.workspace`，v2 隔离续跑 / v3 隔离 prompt 实验）。
  *
  * ⚠️ `write_authorized: true` 是**审计标注**，不是权限判据：它只表示创建方声称该次运行
  * 经"允许副本内写入"确认，既不证明历史文件未被篡改，也不是可转移的凭证。真正的授权是
@@ -148,6 +177,54 @@ export const WorkspaceMetaSchema = z.object({
   origin: WorkspaceOriginSchema,
 });
 export type WorkspaceMeta = z.infer<typeof WorkspaceMetaSchema>;
+
+// ---------------------------------------------------------------------------
+// 隔离 prompt 实验记录（v3）
+// ---------------------------------------------------------------------------
+
+/** 假设/人工判据的单字段长度上限（与 proposal / design D3 一致） */
+export const PROMPT_EXPERIMENT_TEXT_MAX_LENGTH = 4000;
+
+/**
+ * 启动指令实验的执行条件（**非密钥**）。
+ *
+ * - `model` / `max_iterations` / `budget` 是本次达到第 1 步时**实际使用**的值：
+ *   根 meta 已录制 token budget 时复用，缺省时用 main 既有限制并如实记录；
+ * - `params` 可选：缺省表示根首次请求未录制 params，显式 `{}` 表示录制为空对象——
+ *   两者语义不同，不得互相冒充；只接受 JSON 标量，结构化参数由写入端在预检阶段拒绝；
+ * - `provider_endpoint` 是去掉 userinfo/query/fragment 的 origin+pathname；
+ * - `config_fingerprint` 覆盖基线身份、首次请求、初始快照、编辑与上述有效配置。
+ */
+export const PromptExperimentExecutionSchema = z.object({
+  model: z.string().min(1),
+  params: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional(),
+  provider_endpoint: z.string().min(1),
+  max_iterations: z.number().int().positive(),
+  budget: z.number().int().positive(),
+  config_fingerprint: z.string().min(1),
+});
+export type PromptExperimentExecution = z.infer<typeof PromptExperimentExecutionSchema>;
+
+/**
+ * v3 隔离 prompt 实验的干预记录（`run.meta.prompt_experiment`）。
+ *
+ * 只表达"从直接父根的初始快照出发、替换一条启动指令后从头执行"这一种实验：
+ * - `baseline_run_id` / `baseline_llm_span_id` / `initial_snapshot_id` 必须与
+ *   `parent` / `fork.at_span` / `workspace.initial_snapshot.id` 一致（本行自洽，
+ *   `RunMetaSchema` 判定；父根身份与原值/快照对应属完整来源读取）；
+ * - `original_value` 保存基线原始字符串（可为空串），`fork.edit.value` 保存新值；
+ * - 正文只进入本地 trace/详情，列表、operation 元数据与诊断不得携带。
+ */
+export const PromptExperimentSchema = z.object({
+  baseline_run_id: z.string().min(1),
+  baseline_llm_span_id: z.string().min(1),
+  initial_snapshot_id: z.string().regex(/^[0-9a-f]{64}$/),
+  original_value: z.string(),
+  execution: PromptExperimentExecutionSchema,
+  hypothesis: z.string().max(PROMPT_EXPERIMENT_TEXT_MAX_LENGTH).optional(),
+  acceptance_criterion: z.string().max(PROMPT_EXPERIMENT_TEXT_MAX_LENGTH).optional(),
+});
+export type PromptExperiment = z.infer<typeof PromptExperimentSchema>;
 
 // ---------------------------------------------------------------------------
 // run.meta 首行
@@ -223,41 +300,136 @@ const RunMetaObjectSchema = z.object({
   /** 录制来源（可选）：由代理录制时写入；SDK / agent-loop 直录省略 */
   source: SourceSchema.optional(),
   /**
-   * 隔离文件世界元数据（**仅 v2 隔离运行**）。
-   * 版本与字段的一致性（v2 必须有、v1 必须没有）由 `version-guard.ts` 在 schema
+   * 隔离文件世界元数据（v2 隔离运行 / v3 隔离 prompt 实验）。
+   * 版本与字段的一致性（v2/v3 必须有、v1 必须没有）由 `version-guard.ts` 在 schema
    * parse 前判定——zod object 默认**剥离**未知键，靠 schema 本身无法拒绝 v1 私带该字段。
+   * v2 用 checkpoint/import 来源；v3 用 initial 来源。
    */
   workspace: WorkspaceMetaSchema.optional(),
+  /**
+   * 隔离 prompt 实验记录（**仅 v3**）。
+   * 同上：v1/v2 私带该字段（含 null/空对象）由 `version-guard.ts` 在 strip 前拒绝。
+   */
+  prompt_experiment: PromptExperimentSchema.optional(),
 });
 
 /**
  * `run.meta` 行（字段形状 + 跨字段校验）。
  *
  * 校验的是**隔离元数据与运行关系的自洽**（规则详见 `findWorkspaceOriginViolation`）：
- * `world_id` 等于本 run id；根 run 的 origin 为 `import`；分支的 origin 为 `checkpoint`
- * 且指向**直接**父 run；给了 `fork.resume_after_step` 时必须与 `origin.step_span` 同指一个 step。
+ * `world_id` 等于本 run id；根 run 的 origin 为 `import`；result 分支的 origin 为
+ * `checkpoint` 且指向**直接**父 run；v3 实验分支的 origin 为 `initial` 指向直接父根；
+ * 给了 `fork.resume_after_step` 时必须与 `origin.step_span` 同指一个 step。
+ * v3 另外要求 prompt_experiment 与 parent/origin/fork/initial_snapshot 的 ID 自洽。
  *
  * `workspace` 缺省（普通 v1 / 代理录制 / 卡带）时整段跳过，不给既有数据引入新约束。
  * 这里只判**这一行内部**的自洽；跨行约束（step 快照与版本、v2 完整 step 必须有检查点）
  * 由 reader 负责。
  */
 export const RunMetaSchema = RunMetaObjectSchema.superRefine((meta, ctx) => {
+  const version = meta.format_version;
+  const isV2 = version === ISOLATED_FORMAT_VERSION;
+  const isV3 = version === PROMPT_EXPERIMENT_FORMAT_VERSION;
+  const issue = (message: string, path: (string | number)[]): void => {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message, path });
+  };
+
   // v2 隔离分支必须携带整轮续跑边界（v1 保持"截至 at_span"的旧规则，不带该字段）。
   // 缺了它，resolveBranch 就只能猜边界——而静默套用 v1 截断会漏掉同轮排在编辑点之后的兄弟工具。
-  if (
-    meta.format_version === FORMAT_VERSION &&
-    meta.fork !== null &&
-    meta.fork.resume_after_step === undefined
-  ) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: "v2 隔离分支必须携带 fork.resume_after_step（该轮整轮续跑边界）",
-      path: ["fork", "resume_after_step"],
-    });
+  if (isV2 && meta.fork !== null && meta.fork.resume_after_step === undefined) {
+    issue("v2 隔离分支必须携带 fork.resume_after_step（该轮整轮续跑边界）", [
+      "fork",
+      "resume_after_step",
+    ]);
+  }
+
+  if (!isV3 && meta.prompt_experiment !== undefined) {
+    issue(`v${version} 禁止携带 prompt_experiment（该字段只属于 v3 隔离 prompt 实验）`, [
+      "prompt_experiment",
+    ]);
+  }
+
+  if (isV3) {
+    // v3 = 从根初始快照出发的完整独立执行：有父、有本次干预、无轮末续跑边界。
+    if (meta.parent === null) {
+      issue("v3 隔离 prompt 实验必须是分支 run（parent 指向根基线）", ["parent"]);
+    }
+    if (meta.fork === null) {
+      issue("v3 隔离 prompt 实验必须携带 fork（基线首次调用与本次编辑）", ["fork"]);
+    } else {
+      if (meta.fork.resume_after_step !== undefined) {
+        issue("v3 禁止携带 fork.resume_after_step（从第 1 步独立执行，不是任何轮末续跑）", [
+          "fork",
+          "resume_after_step",
+        ]);
+      }
+      if (meta.fork.edit.field !== "system_prompt" && meta.fork.edit.field !== "user_message") {
+        issue("v3 的 fork.edit.field 只能是 system_prompt 或 user_message", [
+          "fork",
+          "edit",
+          "field",
+        ]);
+      }
+      if (typeof meta.fork.edit.value !== "string") {
+        issue("v3 的 fork.edit.value 必须是字符串（编辑后的启动指令）", ["fork", "edit", "value"]);
+      }
+    }
+
+    const experiment = meta.prompt_experiment;
+    if (experiment === undefined) {
+      issue("v3 必须携带 prompt_experiment（本次实验的基线与执行条件）", ["prompt_experiment"]);
+    } else {
+      if (meta.parent !== null && experiment.baseline_run_id !== meta.parent) {
+        issue(`prompt_experiment.baseline_run_id 必须等于 parent：期望 ${meta.parent}`, [
+          "prompt_experiment",
+          "baseline_run_id",
+        ]);
+      }
+      if (meta.fork !== null && experiment.baseline_llm_span_id !== meta.fork.at_span) {
+        issue("prompt_experiment.baseline_llm_span_id 必须等于 fork.at_span", [
+          "prompt_experiment",
+          "baseline_llm_span_id",
+        ]);
+      }
+      if (meta.workspace !== undefined) {
+        if (meta.workspace.origin.kind !== "initial") {
+          issue('v3 的 workspace.origin.kind 必须是 "initial"（父根的初始快照）', [
+            "workspace",
+            "origin",
+          ]);
+        } else {
+          if (meta.workspace.origin.snapshot_id !== meta.workspace.initial_snapshot.id) {
+            issue(
+              "workspace.origin.snapshot_id 必须等于 workspace.initial_snapshot.id（同一份初始清单）",
+              ["workspace", "origin", "snapshot_id"],
+            );
+          }
+          if (meta.parent !== null && meta.workspace.origin.run_id !== meta.parent) {
+            issue(`workspace.origin.run_id 必须等于 parent：期望 ${meta.parent}`, [
+              "workspace",
+              "origin",
+              "run_id",
+            ]);
+          }
+        }
+        if (experiment.initial_snapshot_id !== meta.workspace.initial_snapshot.id) {
+          issue("prompt_experiment.initial_snapshot_id 必须等于 workspace.initial_snapshot.id", [
+            "prompt_experiment",
+            "initial_snapshot_id",
+          ]);
+        }
+      }
+    }
   }
 
   if (meta.workspace === undefined) {
+    if (isV2 || isV3) {
+      issue(`v${version} 必须携带 workspace（隔离运行的文件世界元数据）`, ["workspace"]);
+    }
     return;
+  }
+  if (!isV3 && meta.workspace.origin.kind === "initial") {
+    issue('workspace.origin.kind="initial" 只属于 v3 隔离 prompt 实验', ["workspace", "origin"]);
   }
   const violation = findWorkspaceOriginViolation({
     id: meta.id,
@@ -310,8 +482,8 @@ export const AgentStepSpanSchema = z.object({
   /** 迭代序号，从 1 起 */
   n: z.number().int().positive(),
   /**
-   * 该轮**全部工具完成后**的完整文件清单（**仅 v2 隔离运行**，由 workspace Tracer
-   * 在 endSpan(step) 时注入）。它是"从这一轮结束后继续"的恢复点：隔离分叉读它，
+   * 该轮**全部工具完成后**的完整文件清单（**v2/v3 隔离运行**，由 workspace Tracer
+   * 在 endSpan(step) 时注入）。它是"从这一轮结束后继续"的恢复点：隔离 result 分叉读它，
    * 而不是重放这一轮的工具。版本一致性由 `version-guard.ts` 在 parse 前判定。
    */
   workspace_snapshot: WorkspaceSnapshotSchema.optional(),

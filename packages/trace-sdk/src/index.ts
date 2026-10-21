@@ -1,6 +1,9 @@
 export {
   FORMAT_VERSION,
   PLAIN_FORMAT_VERSION,
+  ISOLATED_FORMAT_VERSION,
+  PROMPT_EXPERIMENT_FORMAT_VERSION,
+  PROMPT_EXPERIMENT_TEXT_MAX_LENGTH,
   FormatVersionSchema,
   ChatMessageSchema,
   LlmParamsSchema,
@@ -10,6 +13,8 @@ export {
   WorkspaceSnapshotSchema,
   WorkspaceOriginSchema,
   WorkspaceMetaSchema,
+  PromptExperimentExecutionSchema,
+  PromptExperimentSchema,
   ForkSchema,
   SourceSchema,
   RunMetaSchema,
@@ -30,6 +35,8 @@ export type {
   WorkspaceSnapshot,
   WorkspaceOrigin,
   WorkspaceMeta,
+  PromptExperimentExecution,
+  PromptExperiment,
   Fork,
   Source,
   RunMetaLine,
@@ -75,7 +82,7 @@ export { MemoryTracer } from "./memory-tracer.js";
 export { toSemanticOrder } from "./semantic-order.js";
 export { readRun, parseRunText, TraceReadError } from "./reader.js";
 export type { RunRecord } from "./reader.js";
-export { resolveBranch, resolveWholeRound } from "./branch.js";
+export { resolveBranch, resolveWholeRound, findExperimentSourceViolation } from "./branch.js";
 export type { RunLoader, ResolvedRun } from "./branch.js";
 export { assertForkable, assertDeletable } from "./guards.js";
 export type { ChainHop } from "./guards.js";

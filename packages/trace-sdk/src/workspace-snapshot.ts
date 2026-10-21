@@ -112,8 +112,10 @@ export interface WorkspaceOriginContext {
  * 规则：
  * - `world_id` 必须等于本 run id——世界由创建它的 run 标识；
  * - 根 run（`parent === null`）的 origin 必须是 `import`（世界来自导入）；
- * - 分支 run 的 origin 必须是 `checkpoint` 且 `run_id` 指向**直接**父 run，
+ * - result 分支 run 的 origin 必须是 `checkpoint` 且 `run_id` 指向**直接**父 run，
  *   不能跨代指祖先（分层时直接用父的检查点，否则文件起点会与消息前缀错配）；
+ * - v3 隔离 prompt 实验的 origin 是 `initial`，`run_id` 同样必须指向直接父/根
+ *   （`snapshot_id` 与 `prompt_experiment` 的自洽由 schema 的 v3 规则判定）；
  * - `fork.resume_after_step` **存在时**必须等于 `origin.step_span`（两者都表示"该轮末尾"）。
  *
  * ⚠️ "隔离分支**必须**带 `resume_after_step`" 这条必填约束**不在本模块**——它属于任务 1.4
@@ -136,8 +138,16 @@ export function findWorkspaceOriginViolation(context: WorkspaceOriginContext): s
     return null;
   }
 
+  if (origin.kind === "initial") {
+    // v3 专属来源：父根的初始快照。版本归属由 RunMetaSchema 的 v3 规则与
+    // version-guard 判定；此处只保证"指向直接父"这条关系不矛盾。
+    if (origin.run_id !== parent) {
+      return `分支 workspace.origin.run_id 必须指向直接父 run：期望 ${parent}，实际 ${origin.run_id}`;
+    }
+    return null;
+  }
   if (origin.kind !== "checkpoint") {
-    return `分支 run 的 workspace.origin.kind 必须是 "checkpoint"，实际 "${origin.kind}"`;
+    return `分支 run 的 workspace.origin.kind 必须是 "checkpoint" 或 "initial"，实际 "${origin.kind}"`;
   }
   if (origin.run_id !== parent) {
     return `分支 workspace.origin.run_id 必须指向直接父 run：期望 ${parent}，实际 ${origin.run_id}`;
