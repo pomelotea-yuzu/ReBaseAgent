@@ -24,9 +24,12 @@
 
 ## 3. 隔离 prompt 包层
 
-- [ ] 3.1（1.5h）实现根/封存/来源和首次启动消息严格预检，非根返回经核实导航建议，不复用普通 workspace 拒绝函数放行。验收：prompt「中途分支只能显式返回根」「缺失或不可还原的启动条件拒绝」「父 run 未封存」。
-- [ ] 3.2（1.5h）实现单项内容派生、固定 profile/config_hash 和无损模型/params 恢复，禁止组合/空编辑与静默过滤。验收：prompt「同时修改两个字段」「隔离编辑保留空串和空白的真实变化」「单项改动与首次实际请求一致」「不支持参数或配置漂移不能静默放行」。
-- [ ] 3.3（1.5h）实现非密钥有效配置规范化/指纹及当前配置绑定、初始清单配额/全附件核验和稳定失败码。验收：prompt「合法根预检只读且提交重验」「缺失或不可还原的启动条件拒绝」「历史未知条件与真实计费分别表达」。
+- [x] 3.1（1.5h）实现根/封存/来源和首次启动消息严格预检，非根返回经核实导航建议，不复用普通 workspace 拒绝函数放行。验收：prompt「中途分支只能显式返回根」「缺失或不可还原的启动条件拒绝」「父 run 未封存」。
+  （2026-10-21 ✅：新增 `preflightIsolatedPromptReplay`（`workspace/isolated-prompt-preflight.ts`），独立于 result 预检/普通 handler。顺序：请求形状与安全 run ID → 父链（ENOENT/结构非法/成环=`parent_chain_invalid`，真实 I/O=`storage_io`）→ 已封存 → workspace/profile → 根（parent/fork null、origin import）→ 启动消息/编辑/params → 固定 profile+父根 config_hash → 当前预算/端点 → 初始配额 → 全附件。中途 result/v3 分支返回 `parent_not_root` + 经完整父链验证的 `rootId` 导航建议（失败对象不携带计划/指纹，非授权）；缺祖先不猜根。测试 26 项覆盖非根/缺根/缺祖先/未封存/v1 根/缺 user/首调用非第 1 步。）
+- [x] 3.2（1.5h）实现单项内容派生、固定 profile/config_hash 和无损模型/params 恢复，禁止组合/空编辑与静默过滤。验收：prompt「同时修改两个字段」「隔离编辑保留空串和空白的真实变化」「单项改动与首次实际请求一致」「不支持参数或配置漂移不能静默放行」。
+  （2026-10-21 ✅：新增纯内核 `isolated-prompt-state.ts`：编辑严格两键（额外键=组合修改拒绝），只替换首条对应 role 的字符串 content，非目标消息逐字段保留；空串/空白是真实变化，逐字相同=`empty_edit`；启动消息只接受 system/user+字符串 content+可选字符串 name、各至少一条，assistant/tool/tool_calls/多模态/未知字段=`startup_unavailable`。模型固定根首次请求；params 用 `restorePromptParams` 无损恢复（缺省 vs `{}` 区分，嵌套/数组/null/NaN/Infinity/保留键拒绝，不调 `scalarParams`）。新 config_hash 只吃有效 system+固定工具表。测试 34 项。）
+- [x] 3.3（1.5h）实现非密钥有效配置规范化/指纹及当前配置绑定、初始清单配额/全附件核验和稳定失败码。验收：prompt「合法根预检只读且提交重验」「缺失或不可还原的启动条件拒绝」「历史未知条件与真实计费分别表达」。
+  （2026-10-21 ✅：计划指纹=递归 UTF-16 键序规范 JSON 的 SHA-256，覆盖基线/首次 span/初始快照 ID/原值/编辑/有效消息/model/params（缺省省略、显式 `{}` 保留）/去凭据端点/max_iterations/budget/tool profile 与定义/config_hash。端点只留 origin+pathname（userinfo/query/fragment 丢弃）。预算优先根 meta 录制值；录制值大于当前上限时明确拒绝（不静默截小）；根未录制且当前无 token 预算也拒绝。capability 分列 `historicalUnknowns`（provider_backend/max_iterations/token_budget）与 `billing`（usage/价格/缓存执行前未知）。初始清单先判 2000/8MiB/64MiB 配额再逐附件 verify（missing/corrupt/storage_io 可分辨）。测试含目录指纹前后一致、重复预检同指纹、删附件后重验失败。）
 - [ ] 3.4（1.5h）实现独立世界/固定文件工具/v3 tracer/从第 1 步执行并通知真实身份，提交前重验及当前授权。验收：workspace「根初始状态与父最终及源目录分离」「空初始世界与后续超限遵守原配额」、prompt「当前写入授权和失败事实不可替代」。
 - [ ] 3.5（1.5h）补模型/存储故障、观察者抛错和资源释放集成测试，核对零子记录与真实失败记录边界。验收：prompt 三条「prompt 身份在后续失败时仍可关联」「prompt 前置拒绝不报告假身份」「prompt 观察者兼容且释放」及「当前写入授权和失败事实不可替代」。
 - [ ] 3.6（1h）回归普通 prompt、连续 fork、proxy 支持与普通隔离降级拒绝；普通父本缺 user 但有 system 时仍允许 system 编辑、仅拒绝 user 编辑，不套用隔离“至少各一条”规则；核对父/兄弟/源/既有 blob 指纹。验收：prompt「连续 prompt fork」「proxy run 拒绝」「含 config_hash 的 proxy run 放行」「隔离父本不能转普通 prompt fork」，普通输入兼容检查作为保留行为回归。

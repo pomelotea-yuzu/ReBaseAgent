@@ -236,3 +236,29 @@ export type {
   ReplayIsolatedRunOptions,
   ReplayIsolatedRunResult,
 } from "./workspace/isolated-replay.js";
+export {
+  computePlanFingerprint,
+  canonicalJsonForFingerprint,
+  deriveIsolatedPromptState,
+  findStartupMessagesViolation,
+  restorePromptParams,
+  sanitizeProviderEndpoint,
+  validateIsolatedPromptEdit,
+} from "./workspace/isolated-prompt-state.js";
+export type {
+  DerivedIsolatedPromptState,
+  IsolatedPromptDeriveFailure,
+  IsolatedPromptDeriveFailureCode,
+  IsolatedPromptDeriveResult,
+  IsolatedPromptEdit,
+  IsolatedPromptField,
+} from "./workspace/isolated-prompt-state.js";
+export { preflightIsolatedPromptReplay } from "./workspace/isolated-prompt-preflight.js";
+export type {
+  IsolatedPromptCapability,
+  IsolatedPromptExecutionPlan,
+  IsolatedPromptPreflightFailure,
+  IsolatedPromptPreflightFailureCode,
+  IsolatedPromptPreflightOptions,
+  IsolatedPromptPreflightResult,
+} from "./workspace/isolated-prompt-preflight.js";
