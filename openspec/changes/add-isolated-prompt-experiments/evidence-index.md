@@ -117,7 +117,10 @@
   `workspace-compare-api.test.ts` 承载；非法/失效文件目标与 stale 分支由 6.4 单测承载；失败/缺附件/缺父/旧响应注入归 7.3。
 - harness 限制（已下沉 `UI-VERIFY.md`）：抬前台与发键须同进程、`ShowWindow`/`SetActiveWindow` 会把窗口打成 occluded、
   Monaco 须 `editor.focus()`、`Get-Clipboard -Raw` 与真实粘贴的换行形态不对称（回读 LF、粘贴 CRLF）。
-- 人工判据：**待用户复核**（核对入口见 `compat-inventory.md` §15 与本节文件清单）。
+- 人工判据：**用户确认通过**（2026-10-21）。口径如实记录：认可依据是三批机器判据全绿与抽查结论，**未逐项复核截图/实机**；
+  「视觉可读性 / 字号是否偏小」一类主观项仍属未细看 ⇒ 发行前实机验收（路线图 §9.1 第 5 项）需要补，本轮不以此代替。
+- 人工复核入口（若要补看）：`shots/r2272-kb-k5-card.png`、`shots/r2272-kb-k13-diff-config.png`、
+  `export-keyboard/files/*`，或起 dev 后打开 `run_mvhsr8j6_ab0y` 的概览「本次干预」区。
 
 ## 证据收口规则
 
