@@ -16,6 +16,7 @@ import { deriveSideStepCatalog } from "../lib/compare-steps";
 import type { SideStepCatalog } from "../lib/compare-steps";
 import { readingStateOf } from "../lib/reading-state";
 import { useAppStore } from "../store";
+import { CompareFileWorkspace } from "./CompareFileWorkspace";
 import { CompareMetricsTable } from "./CompareMetricsTable";
 import { CompareWorkspaceView } from "./CompareWorkspaceView";
 import type { CompareSideViewData, EvidenceViewData } from "./CompareWorkspaceView";
@@ -40,6 +41,9 @@ import type { CompareSideViewData, EvidenceViewData } from "./CompareWorkspaceVi
 export function CompareWorkspace({ stacked = false }: { stacked?: boolean } = {}) {
   const comparePair = useAppStore((s) => s.comparePair);
   const compareRead = useAppStore((s) => s.compareRead);
+  const compareFileView = useAppStore((s) => s.compareFileView);
+  const openCompareFileView = useAppStore((s) => s.openCompareFileView);
+  const closeCompareFileView = useAppStore((s) => s.closeCompareFileView);
   const stepSelection = useAppStore((s) => s.compareStepSelection);
   const prefixFolded = useAppStore((s) => s.comparePrefixFolded);
   // UI 密度 change 1.4：修改证据区展开态（默认收起；摘要常驻）
@@ -341,6 +345,25 @@ export function CompareWorkspace({ stacked = false }: { stacked?: boolean } = {}
   const rightData = makeSide("right", comparePair.rightRunId);
   const leftFacts: SideOutputFacts | null = leftData.facts;
   const rightFacts: SideOutputFacts | null = rightData.facts;
+
+  // R2.2 6.4：文件视图沿用同一 pair；打开单侧文件后返回时仍回到这里（选择在 store）。
+  const pairKeyOf = `${comparePair.leftRunId}\n${comparePair.rightRunId}`;
+  if (compareFileView.open && compareFileView.pairKey === pairKeyOf) {
+    return (
+      <CompareFileWorkspace
+        pair={comparePair}
+        leftDetail={readyItems.find((item) => item.runId === comparePair.leftRunId)?.detail ?? null}
+        rightDetail={
+          readyItems.find((item) => item.runId === comparePair.rightRunId)?.detail ?? null
+        }
+        leftUnavailable={unavailableReasonOf(comparePair.leftRunId)}
+        rightUnavailable={unavailableReasonOf(comparePair.rightRunId)}
+        onBack={closeCompareFileView}
+        stacked={stacked}
+      />
+    );
+  }
+
   const diffGate: CompareDiffGate =
     leftFacts !== null && rightFacts !== null
       ? deriveCompareDiffGate(leftFacts, rightFacts)
@@ -356,6 +379,7 @@ export function CompareWorkspace({ stacked = false }: { stacked?: boolean } = {}
       diffGate={diffGate}
       diffMode={diffMode}
       onToggleDiffMode={() => setDiffMode((prev) => !prev)}
+      onOpenFilesView={openCompareFileView}
       onSwap={() => {
         void swapCompareSides();
       }}

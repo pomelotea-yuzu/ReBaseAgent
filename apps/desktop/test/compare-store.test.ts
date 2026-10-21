@@ -1,6 +1,7 @@
 import { ok } from "@shared/ipc";
 import type { CompareRunItem, Envelope, RunDetail, RunSummary, WindowApi } from "@shared/ipc";
 import { beforeEach, describe, expect, it } from "vitest";
+import { emptyCompareFileViewState } from "../src/renderer/src/lib/compare-file-view";
 import { emptyCompareReadSession } from "../src/renderer/src/lib/compare-state";
 import type { Deferred } from "./helpers/deterministic-schedule";
 import { deferred } from "./helpers/deterministic-schedule";
@@ -144,6 +145,7 @@ beforeEach(() => {
   compareEnvelope = verifiedPayload("r_a");
   useAppStore.setState({
     compareRead: emptyCompareReadSession(),
+    compareFileView: emptyCompareFileViewState(),
     // U7 4.8/4.14 复位表：复合定位与折叠态不得跨用例残留
     compareStepSelection: { left: null, right: null },
     comparePrefixFolded: { left: true, right: true },
@@ -447,5 +449,65 @@ describe("U7 4.14 前缀折叠态", () => {
     useAppStore.setState({ compareIds: ["r_a", "r_c"] } as never);
     await useAppStore.getState().openCompareWorkspace();
     expect(useAppStore.getState().comparePrefixFolded).toEqual({ left: true, right: true });
+  });
+});
+
+describe("R2.2 6.4：比较文件视图的检查点/路径会话状态", () => {
+  it("首次 ensure 写入显式默认；用户改过之后不再被默认覆盖", () => {
+    const store = useAppStore.getState();
+    store.openCompareFileView();
+    store.ensureCompareFileSelection({
+      pairKey: "r_a\nr_b",
+      leftStepSpanId: "s_left_default",
+      rightStepSpanId: null,
+    });
+    expect(useAppStore.getState().compareFileView).toEqual({
+      open: true,
+      pairKey: "r_a\nr_b",
+      leftStepSpanId: "s_left_default",
+      rightStepSpanId: null,
+      path: null,
+    });
+
+    store.setCompareFilePath("a.txt");
+    store.setCompareFileCheckpoint("left", "s_left_user");
+    // 换检查点同时清空旧路径
+    expect(useAppStore.getState().compareFileView.path).toBeNull();
+
+    store.setCompareFilePath("b.txt");
+    store.ensureCompareFileSelection({
+      pairKey: "r_a\nr_b",
+      leftStepSpanId: "s_should_not_override",
+      rightStepSpanId: "s_should_not_override",
+    });
+    const view = useAppStore.getState().compareFileView;
+    expect(view.leftStepSpanId).toBe("s_left_user");
+    expect(view.rightStepSpanId).toBeNull();
+    expect(view.path).toBe("b.txt");
+  });
+
+  it("首次打开文件视图时绑定当前 pair（否则 pair 匹配守卫会让视图挂不上）", () => {
+    useAppStore.setState({ comparePair: { leftRunId: "r_a", rightRunId: "r_b" } } as never);
+    useAppStore.getState().openCompareFileView();
+    expect(useAppStore.getState().compareFileView).toMatchObject({
+      open: true,
+      pairKey: "r_a\nr_b",
+    });
+  });
+
+  it("一侧换点不影响另一侧；关视图保留选择", () => {
+    const store = useAppStore.getState();
+    store.ensureCompareFileSelection({
+      pairKey: "r_a\nr_b",
+      leftStepSpanId: "s_l",
+      rightStepSpanId: "s_r",
+    });
+    store.setCompareFileCheckpoint("right", null);
+    expect(useAppStore.getState().compareFileView.leftStepSpanId).toBe("s_l");
+    expect(useAppStore.getState().compareFileView.rightStepSpanId).toBeNull();
+
+    store.closeCompareFileView();
+    expect(useAppStore.getState().compareFileView.open).toBe(false);
+    expect(useAppStore.getState().compareFileView.leftStepSpanId).toBe("s_l");
   });
 });

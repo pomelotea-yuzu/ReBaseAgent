@@ -45,6 +45,11 @@ import {
   presentSource,
   presentToolErrors,
 } from "../lib/overview-view";
+import {
+  type PromptExperimentView,
+  promptExperimentVerdictNote,
+  promptExperimentViewOf,
+} from "../lib/prompt-experiment-view";
 import { useAppStore } from "../store";
 import { LongText, isLongTextExpanded, toggleLongTextExpanded } from "./LongText";
 import { IsolatedPromptEntryAction } from "./detail/IsolatedPromptEntry";
@@ -399,6 +404,138 @@ export function SourceSectionView({
  * 不读 store、不发请求——`onOpenCall` 由调用方接上真实定位动作（选中 span + 展开 step
  * + 切到步骤页），本组件只负责把"用户点了这里"传出去。
  */
+/**
+ * R2.2 6.6：v3 隔离 prompt 实验的**干预记录**区。
+ *
+ * 只摆事实：基线/编辑/假设/判据/执行条件 + 实际结局说明。比较入口固定
+ * 父左子右（与既有「与父运行对比」同一动作）；导出走本运行文件页的 R2.1
+ * 既有确认，不在这里另造导出通道。
+ */
+export function PromptExperimentSectionView({
+  view,
+  status,
+  onCompareWithBaseline,
+  onOpenFiles,
+}: {
+  readonly view: PromptExperimentView;
+  readonly status: "completed" | "crashed";
+  readonly onCompareWithBaseline?: () => void;
+  readonly onOpenFiles?: () => void;
+}) {
+  return (
+    <section
+      className="border-t border-violet-200 bg-violet-50/40 px-4 py-3"
+      aria-label="隔离启动指令实验"
+      data-prompt-experiment-view="true"
+    >
+      <div className="mb-1.5 flex flex-wrap items-center gap-2">
+        <span className="text-reading-meta font-semibold tracking-wide text-violet-900">
+          本次干预 · 隔离启动指令实验
+        </span>
+        <span className="rounded bg-white px-1.5 py-0.5 text-reading-meta text-violet-800">
+          编辑 {view.fieldLabel}
+        </span>
+      </div>
+      <div className="grid gap-x-4 gap-y-1 text-reading-meta text-gray-700 sm:grid-cols-2">
+        <span>
+          <span className="text-gray-400">基线运行</span>{" "}
+          <span className="font-code">{view.baselineRunId}</span>
+        </span>
+        <span>
+          <span className="text-gray-400">基线调用</span>{" "}
+          <span className="font-code">{view.baselineLlmSpanId}</span>
+        </span>
+        <span>
+          <span className="text-gray-400">初始快照</span>{" "}
+          <span className="font-code">{view.initialSnapshotId.slice(0, 16)}…</span>
+        </span>
+        <span>
+          <span className="text-gray-400">执行模型</span>{" "}
+          <span className="font-code">{view.execution.model}</span>
+        </span>
+        <span>
+          <span className="text-gray-400">参数</span>{" "}
+          <span className="font-code">{view.execution.params}</span>
+        </span>
+        <span>
+          <span className="text-gray-400">端点</span>{" "}
+          <span className="break-all font-code">{view.execution.providerEndpoint}</span>
+        </span>
+        <span>
+          <span className="text-gray-400">上限 / 预算</span>{" "}
+          <span className="font-code">
+            {view.execution.maxIterations} 轮 / {view.execution.budget} tokens
+          </span>
+        </span>
+        <span>
+          <span className="text-gray-400">计划指纹</span>{" "}
+          <span className="font-code">{view.execution.configFingerprint.slice(0, 16)}…</span>
+        </span>
+      </div>
+      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+        <div>
+          <div className="text-[11px] text-gray-500">原值</div>
+          <LongText text={view.originalValue} label="实验原值" />
+        </div>
+        <div>
+          <div className="text-[11px] text-gray-500">新值</div>
+          <LongText text={view.editedValue} label="实验新值" />
+        </div>
+        <div>
+          <div className="text-[11px] text-gray-500">假设（用户填写）</div>
+          {view.hypothesis === null ? (
+            <div className="text-reading-meta italic text-gray-400">未填写</div>
+          ) : (
+            <LongText text={view.hypothesis} label="实验假设" />
+          )}
+        </div>
+        <div>
+          <div className="text-[11px] text-gray-500">人工判据（用户填写，不自动评分）</div>
+          {view.acceptanceCriterion === null ? (
+            <div className="text-reading-meta italic text-gray-400">未填写</div>
+          ) : (
+            <LongText text={view.acceptanceCriterion} label="人工判据" />
+          )}
+        </div>
+      </div>
+      <div
+        className="mt-2 rounded border border-violet-200 bg-white px-2 py-1.5 text-reading-meta leading-5 text-violet-900"
+        data-prompt-experiment-verdict
+      >
+        {promptExperimentVerdictNote({
+          status,
+          acceptanceCriterion: view.acceptanceCriterion,
+        })}
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        {onCompareWithBaseline !== undefined ? (
+          <button
+            type="button"
+            onClick={onCompareWithBaseline}
+            className="rounded border border-violet-400 bg-white px-2 py-0.5 text-reading-meta text-violet-800 hover:bg-violet-100"
+            data-prompt-experiment-compare
+          >
+            与基线运行比较
+          </button>
+        ) : null}
+        {onOpenFiles !== undefined ? (
+          <button
+            type="button"
+            onClick={onOpenFiles}
+            className="rounded border border-violet-400 bg-white px-2 py-0.5 text-reading-meta text-violet-800 hover:bg-violet-100"
+            data-prompt-experiment-files
+          >
+            查看本运行文件 / 导出
+          </button>
+        ) : null}
+        <span className="text-[10px] leading-4 text-violet-700">
+          比较默认父左子右；导出固定本运行的显式自有检查点，补丁相对该运行初始快照。
+        </span>
+      </div>
+    </section>
+  );
+}
+
 export function OverviewResultView({
   detail,
   expanded,
@@ -406,6 +543,7 @@ export function OverviewResultView({
   onOpenCall,
   onOpenParent,
   onCompareWithParent,
+  onOpenFiles,
   startupPromptAction,
 }: {
   detail: Pick<
@@ -419,6 +557,8 @@ export function OverviewResultView({
   onOpenParent: (runId: string) => void;
   /** U7 2.1：「与父运行对比」动作（父左子右）；缺省 = 不渲染该按钮 */
   onCompareWithParent?: () => void;
+  /** R2.2 6.6：打开本运行文件页（导出等既有入口的落点）；缺省 = 不渲染 */
+  onOpenFiles?: () => void;
   /** R2.2 6.1：隔离根/分支的启动指令入口（普通运行不渲染） */
   startupPromptAction?: ReactNode;
 }) {
@@ -479,6 +619,7 @@ export function OverviewResultView({
     [detail],
   );
   const source = useMemo(() => presentSource(detail), [detail]);
+  const promptExperiment = useMemo(() => promptExperimentViewOf(detail.meta), [detail.meta]);
 
   return (
     // 任务 7.1 布局修复：概览自带滚动容器（h-full + overflow-y-auto），内容超高时在
@@ -488,6 +629,15 @@ export function OverviewResultView({
       {startupPromptAction ?? null}
       {/* 1. 结束情况：这次运行为什么停了（结局的唯一判据来源是 classifyOutcome） */}
       <OutcomeSectionView status={detail.status} reason={ownReason} />
+      {/* R2.2 6.6：v3 隔离 prompt 实验的干预记录与人工判据（普通运行不渲染） */}
+      {promptExperiment !== null ? (
+        <PromptExperimentSectionView
+          view={promptExperiment}
+          status={detail.status}
+          onCompareWithBaseline={onCompareWithParent}
+          onOpenFiles={onOpenFiles}
+        />
+      ) : null}
       {/* 2. 本次失败原因：自有 LLM 错误 + 定位入口；缺失时只给说明 */}
       <LlmErrorSectionView section={errorSection} onOpenCall={onOpenCall} />
       {/* 3. 结果区 */}
@@ -612,6 +762,7 @@ export function OverviewPanel() {
       detail={detail}
       expanded={expanded}
       startupPromptAction={<IsolatedPromptEntryAction detail={detail} />}
+      onOpenFiles={selectedRunId === null ? undefined : () => setReadingTab(selectedRunId, "files")}
       onToggleExpanded={(key) => {
         if (selectedRunId === null) return;
         setCallReading(selectedRunId, "__overview__", {

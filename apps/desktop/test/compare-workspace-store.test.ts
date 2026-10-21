@@ -2,6 +2,7 @@ import type { SpanLine } from "@rebaseagent/trace-sdk";
 import { ok } from "@shared/ipc";
 import type { CompareRunItem, Envelope, RunDetail, RunSummary, WindowApi } from "@shared/ipc";
 import { beforeEach, describe, expect, it } from "vitest";
+import { emptyCompareFileViewState } from "../src/renderer/src/lib/compare-file-view";
 import { emptyCompareReadSession } from "../src/renderer/src/lib/compare-state";
 import type { Deferred } from "./helpers/deterministic-schedule";
 import { deferred } from "./helpers/deterministic-schedule";
@@ -182,6 +183,7 @@ beforeEach(() => {
   useAppStore.setState({
     compareRead: emptyCompareReadSession(),
     comparePair: null,
+    compareFileView: emptyCompareFileViewState(),
     compareReturnLocation: null,
     compareIds: [],
     compareNotice: null,

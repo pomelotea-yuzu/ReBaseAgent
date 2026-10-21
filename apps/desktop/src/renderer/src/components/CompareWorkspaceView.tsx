@@ -119,6 +119,8 @@ export interface CompareWorkspaceViewProps {
    * 提供时头部渲染「指标表」按钮（「既有四条指标对照仍可使用」的工作区承载）。
    */
   readonly onOpenMetricsTable?: () => void;
+  /** R2.2 6.4：进入双运行比较文件视图（两侧独立检查点 + 路径并集） */
+  readonly onOpenFilesView?: () => void;
   readonly evidence: EvidenceViewData;
   /**
    * UI 密度 change 1.4：修改证据区收起态（true = 收起；容器从 store 接线，
@@ -726,6 +728,7 @@ export function CompareWorkspaceView({
   onReturn,
   onOpenRun,
   onOpenMetricsTable,
+  onOpenFilesView,
   evidence,
   collapsed = false,
   onToggleCollapsed = undefined,
@@ -769,6 +772,16 @@ export function CompareWorkspaceView({
           }
           actions={
             <>
+              {onOpenFilesView !== undefined ? (
+                <button
+                  type="button"
+                  aria-label="查看比较文件视图"
+                  onClick={onOpenFilesView}
+                  className={`rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 ${FOCUS_RING}`}
+                >
+                  文件
+                </button>
+              ) : null}
               {onOpenMetricsTable !== undefined ? (
                 <button
                   type="button"

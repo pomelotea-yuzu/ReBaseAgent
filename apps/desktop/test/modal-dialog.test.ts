@@ -184,8 +184,14 @@ describe("U3 5.1 接线契约（源码级）", () => {
       messagesEditor.match(/useEscapeClose\(open && !alwaysOpen && !inProgress/g)?.length,
     ).toBe(1);
     // 收起动作与按钮一致：不触碰 discard/删除草稿的 store 动作
+    // R2.2 6.2 改判留痕：prompt 的 Esc 收起改为具名 closeEditor（隔离模式要同点释放
+    // 费用确认/副本授权）；判据从内联函数改成「同动作 + 不删草稿」两条。
+    expect(promptEditor).toContain("useEscapeClose(open && !inProgress, closeEditor);");
+    expect(promptEditor).toMatch(
+      /const closeEditor = \(\): void => \{[\s\S]*releaseExecutionConfirmation\(draftKeyOf\(field\)\);[\s\S]*resetFork\(\);\s*setOpen\(false\);\s*\};/,
+    );
     const promptEscBlocks = promptEditor.match(
-      /useEscapeClose\(open && !inProgress, \(\) => \{\s*reset[A-Za-z]+\(\);\s*setOpen\(false\);\s*\}\);/g,
+      /useEscapeClose\(open && !inProgress, closeEditor\)/g,
     );
     expect(promptEscBlocks?.length).toBe(1);
     const resultEscBlocks = resultEditor.match(

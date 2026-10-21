@@ -1,4 +1,15 @@
+import type {
+  CompareWorkspaceFileRequest,
+  CompareWorkspaceSnapshotsRequest,
+  CompareWorkspaceSnapshotsResult,
+  ComparedWorkspaceFileResult,
+} from "@shared/ipc";
+import {
+  CompareWorkspaceSnapshotsResultSchema,
+  ComparedWorkspaceFileResultSchema,
+} from "@shared/ipc";
 import { api } from "../../lib/api";
+import { type CompareFileViewState, emptyCompareFileViewState } from "../../lib/compare-file-view";
 import { deriveCompareFileEntry, isOwnStepTarget } from "../../lib/compare-files";
 // AppState 分片：Compare 域（refactor-renderer 4.1 接口 / 5.3 实现迁入；归属依据 change 的 ownership-map.md）
 // 工厂以完整 store 的 set/get 为上下文（design D2：无第二 create、不导入 useAppStore）；
@@ -23,12 +34,22 @@ import {
   sameCompareSelection,
 } from "../../lib/compare-state";
 import { decideCreateEntry, decideCreateReturn } from "../../lib/create-workspace";
+import { describeZodError } from "../../lib/describe-zod-error";
 import { isIsolatedRun } from "../../lib/isolated-fork";
 import { readingStateOf } from "../../lib/reading-state";
+import { validateCheckpointStepId } from "../../lib/workspace-files";
 import type { AppState, SliceContext } from "../types";
 
 /** 分支对照的条数上限：再多是界面放不下，也失去了"并排看"的意义（原 store.ts 常量随域迁入） */
 export const MAX_COMPARE = 4;
+
+/**
+ * R2.2 6.4：比较文件视图的会话状态由纯模块 `lib/compare-file-view.ts` 定义
+ * （store 只持有；无 window 的单测可直接导入判据/空态）。
+ */
+export type CompareFileLoadResult<T> =
+  | { readonly ok: true; readonly data: T }
+  | { readonly ok: false; readonly code: string; readonly message: string };
 
 export interface CompareState {
   /**
@@ -38,6 +59,8 @@ export interface CompareState {
    */
   compareRead: CompareReadSession;
   comparePair: ComparePair | null;
+  /** R2.2 6.4：比较文件视图的双方检查点/路径（跨打开单侧文件保留） */
+  compareFileView: CompareFileViewState;
   compareStepSelection: { readonly left: string | null; readonly right: string | null };
   comparePrefixFolded: { readonly left: boolean; readonly right: boolean };
   compareEvidenceExpanded: boolean;
@@ -136,6 +159,38 @@ export interface CompareState {
    *   打开单侧保留 pair 与来源引用 ⇒ 「返回比较」仍成立（2.3）。
    */
   openCompareSideFiles: (side: "left" | "right") => Promise<"opened" | "unsupported" | "failed">;
+  /**
+   * R2.2 6.4：从**比较文件视图**打开某一侧的显式检查点/路径。
+   * 不自动改点：检查点在落地详情上失效 ⇒ failed，由调用方显示原因。
+   */
+  openCompareSideFilesAt: (
+    side: "left" | "right",
+    stepSpanId: string | null,
+    path: string | null,
+  ) => Promise<"opened" | "unsupported" | "failed">;
+  /** 进入/退出比较文件视图（选择保留；换 pair 或离开比较时重置） */
+  openCompareFileView: () => void;
+  closeCompareFileView: () => void;
+  /**
+   * 首次打开某 pair 的文件视图：仅当两侧都尚未初始化时写入默认检查点。
+   * 默认由调用方从已校验详情显式解析（最近自有完成步骤，无则 null=初始）。
+   */
+  ensureCompareFileSelection: (input: {
+    readonly pairKey: string;
+    readonly leftStepSpanId: string | null;
+    readonly rightStepSpanId: string | null;
+  }) => void;
+  /** 显式更换某一侧检查点（清空路径，不自动改另一侧） */
+  setCompareFileCheckpoint: (side: "left" | "right", stepSpanId: string | null) => void;
+  setCompareFilePath: (path: string | null) => void;
+  /** 只读清单比较：IPC + schema 校验；不登记 operation、不占槽 */
+  loadCompareWorkspaceSnapshots: (
+    request: CompareWorkspaceSnapshotsRequest,
+  ) => Promise<CompareFileLoadResult<CompareWorkspaceSnapshotsResult>>;
+  /** 只读正文比较：按 path 延迟读取并逐侧核验 */
+  loadComparedWorkspaceFile: (
+    request: CompareWorkspaceFileRequest,
+  ) => Promise<CompareFileLoadResult<ComparedWorkspaceFileResult>>;
   /** 对照集合加入/移出一条（上限 MAX_COMPARE；加入或移出都清操作提示） */
   toggleCompare: (runId: string) => void;
   /** 清空对照集合与操作提示 */
@@ -213,6 +268,8 @@ export function createCompareSlice({
           comparePrefixFolded: { left: true, right: true },
           // UI 密度 change 1.4：换 pair 回默认收起（旧 pair 的展开态不带到新对象）
           compareEvidenceExpanded: false,
+          // R2.2 6.4：换 pair 必须退出文件视图并清掉旧检查点/路径（不串页）
+          compareFileView: emptyCompareFileViewState(),
         });
       }
       await get().enterCompareSelection([pair.leftRunId, pair.rightRunId]);
@@ -222,6 +279,7 @@ export function createCompareSlice({
   return {
     compareRead: emptyCompareReadSession(),
     comparePair: null,
+    compareFileView: emptyCompareFileViewState(),
     compareReturnLocation: null,
     compareStepSelection: { left: null, right: null },
     comparePrefixFolded: { left: true, right: true },
@@ -441,6 +499,123 @@ export function createCompareSlice({
       get().setReadingTab(runId, "files");
       set({ view: "trace" });
       return "opened";
+    },
+
+    async openCompareSideFilesAt(side, stepSpanId, path) {
+      const pair = get().comparePair;
+      if (pair === null) return "failed";
+      const runId = side === "left" ? pair.leftRunId : pair.rightRunId;
+      const conclusion = get().compareRead.conclusion;
+      const item =
+        conclusion?.kind === "verified"
+          ? conclusion.items.find((candidate) => candidate.runId === runId)
+          : undefined;
+      const detail = item?.status === "ready" ? item.detail : null;
+      if (detail === null || !isIsolatedRun(detail)) return "unsupported";
+      // 显式选择必须在比较详情上仍合法；失效不自动改点
+      if (validateCheckpointStepId(detail, stepSpanId) === "stale") return "failed";
+
+      await get().selectRun(runId);
+      const live = get().detail;
+      if (get().selectedRunId !== runId || live === null || live.meta.id !== runId) return "failed";
+      if (!isIsolatedRun(live)) return "failed";
+      if (validateCheckpointStepId(live, stepSpanId) === "stale") return "failed";
+      get().setFileReading(runId, {
+        checkpoint: stepSpanId,
+        path,
+        pane: path === null ? "list" : "content",
+        query: "",
+        filter: "all",
+      });
+      get().setReadingTab(runId, "files");
+      set({ view: "trace" });
+      return "opened";
+    },
+
+    openCompareFileView() {
+      const pair = get().comparePair;
+      const pairKey = pair === null ? "" : `${pair.leftRunId}\n${pair.rightRunId}`;
+      set((state) => ({
+        // 首次打开时 pairKey 可能还是空串：这里就绑定当前 pair，
+        // 否则 CompareWorkspace 的 pair 匹配守卫会让文件视图永远挂不上。
+        compareFileView: { ...state.compareFileView, open: true, pairKey },
+      }));
+    },
+
+    closeCompareFileView() {
+      set((state) => ({
+        compareFileView: { ...state.compareFileView, open: false },
+      }));
+    },
+
+    ensureCompareFileSelection(input) {
+      const current = get().compareFileView;
+      if (
+        current.pairKey === input.pairKey &&
+        current.leftStepSpanId !== undefined &&
+        current.rightStepSpanId !== undefined
+      ) {
+        return;
+      }
+      set({
+        compareFileView: {
+          ...current,
+          pairKey: input.pairKey,
+          leftStepSpanId: input.leftStepSpanId,
+          rightStepSpanId: input.rightStepSpanId,
+          path: null,
+        },
+      });
+    },
+
+    setCompareFileCheckpoint(side, stepSpanId) {
+      set((state) => ({
+        compareFileView: {
+          ...state.compareFileView,
+          [side === "left" ? "leftStepSpanId" : "rightStepSpanId"]: stepSpanId,
+          // 换检查点 = 新清单/新正文身份：旧路径不再继承
+          path: null,
+        },
+      }));
+    },
+
+    setCompareFilePath(path) {
+      set((state) => ({
+        compareFileView: { ...state.compareFileView, path },
+      }));
+    },
+
+    async loadCompareWorkspaceSnapshots(request) {
+      const envelope = await api.compareWorkspaceSnapshots(request);
+      if (!envelope.ok) {
+        return { ok: false, code: envelope.error.code, message: envelope.error.message };
+      }
+      // 跨进程数据不可信：清单会在 UI 上作为"存在/引用"证据展示，先校验形状
+      const parsed = CompareWorkspaceSnapshotsResultSchema.safeParse(envelope.data);
+      if (!parsed.success) {
+        return {
+          ok: false,
+          code: "COMPARE_SNAPSHOTS_SCHEMA_INVALID",
+          message: `比较清单结构校验失败：${describeZodError(parsed.error)}`,
+        };
+      }
+      return { ok: true, data: parsed.data };
+    },
+
+    async loadComparedWorkspaceFile(request) {
+      const envelope = await api.readComparedWorkspaceFile(request);
+      if (!envelope.ok) {
+        return { ok: false, code: envelope.error.code, message: envelope.error.message };
+      }
+      const parsed = ComparedWorkspaceFileResultSchema.safeParse(envelope.data);
+      if (!parsed.success) {
+        return {
+          ok: false,
+          code: "COMPARE_FILE_SCHEMA_INVALID",
+          message: `比较正文结构校验失败：${describeZodError(parsed.error)}`,
+        };
+      }
+      return { ok: true, data: parsed.data };
     },
 
     toggleCompare(runId) {
