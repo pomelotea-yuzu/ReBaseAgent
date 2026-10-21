@@ -1,4 +1,4 @@
-import { FORMAT_VERSION } from "@rebaseagent/trace-sdk/schema";
+import { ISOLATED_FORMAT_VERSION } from "@rebaseagent/trace-sdk/schema";
 import type { SpanLine } from "@rebaseagent/trace-sdk/schema";
 import type { RunDetail } from "./ipc";
 
@@ -71,8 +71,9 @@ type HopBoundary =
 function boundaryOfHop(hop: RunDetail["chain"][number]): HopBoundary | null {
   const fork = hop.fork;
   if (fork === null || fork.edit.field !== RESULT_FIELD) return null;
-  if (hop.meta.format_version === FORMAT_VERSION) {
-    // v2 隔离分支：schema 保证 resume_after_step 在场；缺失按不可靠处理（调用方兜底）
+  if (hop.meta.format_version >= ISOLATED_FORMAT_VERSION) {
+    // v2 隔离分支（v3 的 result 子仍写 v2）：schema 保证 resume_after_step 在场；
+    // 缺失按不可靠处理（调用方兜底）
     return fork.resume_after_step === undefined
       ? null
       : { kind: "v2", stepId: fork.resume_after_step, atSpan: fork.at_span };

@@ -190,6 +190,9 @@ export function checkpointOriginNote(
   if (origin.kind === "import") {
     return `独立文件世界（world_id ${inspect.worldId}），由选定源目录采集而来；本 run 的初始状态即该世界的起点。`;
   }
+  if (origin.kind === "initial") {
+    return `本 run 的文件世界从父运行 ${origin.runId} 的初始快照（${origin.snapshotId}）出发；这是隔离 prompt 实验的起点，不是任何轮末检查点。`;
+  }
   const iterationText =
     parentIteration === null
       ? `父运行 ${origin.runId} 的某一轮检查点（轮号未能在轨迹中解析，此处只报 step ${origin.stepSpanId}）`

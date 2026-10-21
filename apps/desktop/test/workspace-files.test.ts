@@ -135,6 +135,18 @@ describe("checkpointOriginNote —— 分支起点标父 run，不写成'本 run
     expect(note).toContain("源目录");
   });
 
+  it("v3 初始快照来源：写明父 run 初始快照，不冒充轮末检查点", () => {
+    const note = checkpointOriginNote(
+      inspectResult({
+        origin: { kind: "initial", runId: "run_root", snapshotId: "c".repeat(64) },
+      }),
+      null,
+    );
+    expect(note).toContain("初始快照");
+    expect(note).toContain("run_root");
+    expect(note).toContain("不是任何轮末检查点");
+  });
+
   it("分支 run：来源指父 run 的第 1 轮（不是本 run 第 4 轮）", () => {
     const note = checkpointOriginNote(
       inspectResult({

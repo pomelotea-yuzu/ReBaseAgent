@@ -1,6 +1,6 @@
 import { resolveWholeRound } from "@rebaseagent/trace-sdk";
 import type { RunRecord } from "@rebaseagent/trace-sdk";
-import { FORMAT_VERSION } from "@rebaseagent/trace-sdk/schema";
+import { ISOLATED_FORMAT_VERSION } from "@rebaseagent/trace-sdk/schema";
 import type { SpanLine } from "@rebaseagent/trace-sdk/schema";
 
 /**
@@ -55,7 +55,7 @@ export function projectMixedChainSpans(records: readonly RunRecord[]): ChainProj
     const parentId = record.meta.parent ?? "未知父";
 
     if (field === "result") {
-      if (record.meta.format_version === FORMAT_VERSION) {
+      if (record.meta.format_version >= ISOLATED_FORMAT_VERSION) {
         const parentRecord = records[i - 1];
         if (parentRecord === undefined) {
           return { ok: false, message: `隔离分支 ${record.meta.id} 缺少可用的直接父记录` };

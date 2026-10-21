@@ -509,7 +509,9 @@ export function presentSource(detail: {
     isolationNote: isolated
       ? detail.meta.workspace?.origin.kind === "checkpoint"
         ? `隔离续跑：从运行 ${detail.meta.workspace.origin.run_id ?? parent} 的轮末检查点出发，文件读写只发生在独立世界里。`
-        : "隔离文件运行：文件读写只发生在独立世界里，源目录不会被修改。"
+        : detail.meta.workspace?.origin.kind === "initial"
+          ? `隔离 prompt 实验：从运行 ${detail.meta.workspace.origin.run_id ?? parent} 的初始文件状态与启动指令出发，文件读写只发生在独立世界里。`
+          : "隔离文件运行：文件读写只发生在独立世界里，源目录不会被修改。"
       : null,
     canOpenParent: parent !== null,
     // U7 2.1：父子比较入口判据唯一来源在 compare-navigation（父左子右 / 实验门禁）

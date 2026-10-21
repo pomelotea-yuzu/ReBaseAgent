@@ -513,8 +513,8 @@ function fixtureLongTextRun(id, task, model, seq) {
 /** ⑦ 坏版本组：三份「读取必须失败」的文件（非法详情不得被概览绕过） */
 function fixtureFutureVersion() {
   const text = fixtureLongTextRun("u1b_future", "未来版本运行", MODEL, 1);
-  // v1/v2 双读 ⇒ 未来版本用 3
-  return text.replace('"format_version":1', '"format_version":3');
+  // v1/v2/v3 三读 ⇒ 未来版本用 4
+  return text.replace('"format_version":1', '"format_version":4');
 }
 
 function fixtureSchemaBroken() {

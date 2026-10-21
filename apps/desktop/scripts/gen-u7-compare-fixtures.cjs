@@ -819,8 +819,8 @@ function fixtureFutureVersion() {
     "不应被读到。",
     T0 + 2400_000,
   );
-  // v1/v2 双读 ⇒ 未来版本用 3
-  return text.replace('"format_version":1', '"format_version":3');
+  // v1/v2/v3 三读 ⇒ 未来版本用 4
+  return text.replace('"format_version":1', '"format_version":4');
 }
 
 /** v1 非法隔离字段：v1 的 meta 里私带 workspace（版本守卫在 parse 前判定） */

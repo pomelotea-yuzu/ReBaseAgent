@@ -96,6 +96,22 @@ describe("isolatedRunNoticeView：分层视图（纯判据）", () => {
     const origin = view?.tech.find((entry) => entry.label === "origin");
     expect(origin?.value).toContain("r_parent");
   });
+
+  it("initial 来源（v3）：compact 写初始快照重跑，tech 明确 initial，不写成检查点续跑", () => {
+    const view = isolatedRunNoticeView(
+      isolatedDetail({
+        kind: "initial",
+        run_id: "r_parent",
+        snapshot_id: "0".repeat(64),
+      }),
+    );
+    expect(view?.compact).toContain("初始快照");
+    expect(view?.compact).toContain("r_parent");
+    expect(view?.compact).not.toContain("检查点续跑");
+    const origin = view?.tech.find((entry) => entry.label === "origin")?.value ?? "";
+    expect(origin).toContain("initial");
+    expect(origin).toContain("r_parent");
+  });
 });
 
 describe("IsolatedRunNoticeView：共享 disclosure 的纯展示", () => {

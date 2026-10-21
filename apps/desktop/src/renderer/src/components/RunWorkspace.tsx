@@ -270,7 +270,9 @@ export function RunHeaderView({
             <span className="text-violet-800" data-source-identity>
               {detail.meta.workspace.origin.kind === "checkpoint"
                 ? `父运行 ${detail.meta.workspace.origin.run_id} · 检查点 ${detail.meta.workspace.origin.step_span}`
-                : "独立采集的文件世界"}
+                : detail.meta.workspace.origin.kind === "initial"
+                  ? `父运行 ${detail.meta.workspace.origin.run_id} · 初始快照`
+                  : "独立采集的文件世界"}
             </span>
           ) : null}
         </div>

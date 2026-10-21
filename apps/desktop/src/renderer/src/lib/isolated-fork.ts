@@ -49,7 +49,9 @@ export function isolatedRunNotice(run: RunDetail | null): string | null {
   const origin =
     workspace.origin.kind === "import"
       ? `独立文件世界（world_id ${workspace.world_id}），由选定源目录采集而来`
-      : `从运行 ${workspace.origin.run_id} 的检查点续跑而来`;
+      : workspace.origin.kind === "initial"
+        ? `从运行 ${workspace.origin.run_id} 的初始快照重跑而来`
+        : `从运行 ${workspace.origin.run_id} 的检查点续跑而来`;
   return `隔离文件运行 · profile ${workspace.profile} · ${origin}。文件读写只发生在独立世界里：源目录、父分支与兄弟分支都不会被修改；页面不会把本 run 显示成"已恢复历史磁盘状态"。`;
 }
 
@@ -81,11 +83,15 @@ export function isolatedRunNoticeView(run: RunDetail | null): IsolatedRunNoticeV
   const originCompact =
     workspace.origin.kind === "import"
       ? "由选定源目录采集的独立文件世界"
-      : `从运行 ${workspace.origin.run_id} 的检查点续跑`;
+      : workspace.origin.kind === "initial"
+        ? `从运行 ${workspace.origin.run_id} 的初始快照重跑`
+        : `从运行 ${workspace.origin.run_id} 的检查点续跑`;
   const originFull =
     workspace.origin.kind === "import"
       ? `独立文件世界（world_id ${workspace.world_id}），由选定源目录采集而来`
-      : `从运行 ${workspace.origin.run_id} 的检查点续跑而来`;
+      : workspace.origin.kind === "initial"
+        ? `从运行 ${workspace.origin.run_id} 的初始快照从头重跑而来`
+        : `从运行 ${workspace.origin.run_id} 的检查点续跑而来`;
   return {
     compact: `隔离文件运行 · ${originCompact}`,
     detail: `文件读写只发生在独立世界里：源目录、父分支与兄弟分支都不会被修改；页面不会把本 run 显示成"已恢复历史磁盘状态"。`,
@@ -97,7 +103,9 @@ export function isolatedRunNoticeView(run: RunDetail | null): IsolatedRunNoticeV
         value:
           workspace.origin.kind === "import"
             ? "import（源目录采集）"
-            : `checkpoint（源 run ${workspace.origin.run_id} · step ${workspace.origin.step_span}）`,
+            : workspace.origin.kind === "initial"
+              ? `initial（源 run ${workspace.origin.run_id} · 快照 ${workspace.origin.snapshot_id}）`
+              : `checkpoint（源 run ${workspace.origin.run_id} · step ${workspace.origin.step_span}）`,
       },
       { label: "来源说明", value: originFull },
     ],

@@ -1,4 +1,7 @@
-import { FORMAT_VERSION } from "@rebaseagent/trace-sdk/schema";
+import {
+  ISOLATED_FORMAT_VERSION,
+  PROMPT_EXPERIMENT_FORMAT_VERSION,
+} from "@rebaseagent/trace-sdk/schema";
 import type { SpanLine } from "@rebaseagent/trace-sdk/schema";
 import type { CompareRunItem } from "./ipc";
 import type { RunDetail } from "./ipc";
@@ -31,8 +34,8 @@ export type EditValuePresence =
   | { readonly kind: "value"; readonly value: unknown }
   | { readonly kind: "unrecorded" };
 
-/** 分叉版本分型：runLoop 直录恒 v1；仅隔离 CheckpointTracer 覆写 v2 */
-export type EditEvidenceVariant = "plain-v1" | "isolated-v2";
+/** 分叉版本分型：runLoop 直录恒 v1；隔离 CheckpointTracer 写 v2；隔离 prompt 实验写 v3 */
+export type EditEvidenceVariant = "plain-v1" | "isolated-v2" | "isolated-v3";
 
 /** 不可核对的稳定码（受控，供视图分层措辞与实机断言） */
 export type EditUnavailableCode =
@@ -375,7 +378,8 @@ function projectResultFork(
 }
 
 function variantOf(detail: RunDetail): EditEvidenceVariant {
-  return detail.meta.format_version === FORMAT_VERSION ? "isolated-v2" : "plain-v1";
+  if (detail.meta.format_version === PROMPT_EXPERIMENT_FORMAT_VERSION) return "isolated-v3";
+  return detail.meta.format_version >= ISOLATED_FORMAT_VERSION ? "isolated-v2" : "plain-v1";
 }
 
 function projectResultForkInView(
@@ -590,7 +594,8 @@ function projectHopFork(
 }
 
 function variantOfHop(hop: RunDetail["chain"][number]): EditEvidenceVariant {
-  return hop.meta.format_version === FORMAT_VERSION ? "isolated-v2" : "plain-v1";
+  if (hop.meta.format_version === PROMPT_EXPERIMENT_FORMAT_VERSION) return "isolated-v3";
+  return hop.meta.format_version >= ISOLATED_FORMAT_VERSION ? "isolated-v2" : "plain-v1";
 }
 
 // ---------------------------------------------------------------------------

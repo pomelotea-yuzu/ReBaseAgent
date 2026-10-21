@@ -70,7 +70,7 @@ describe("6.7 读取层回归：坏文件/未来版本/v1 非法隔离/缺祖先
     const { traces, repo, cleanup } = tempRepo();
     try {
       const { meta, rest, id } = seed();
-      const future = `${meta.replace('"format_version":1', '"format_version":3')}\n${rest}\n`;
+      const future = `${meta.replace('"format_version":1', '"format_version":4')}\n${rest}\n`;
       writeFileSync(join(traces, "r_future.jsonl"), future);
       writeFileSync(join(traces, `${id}.jsonl`), `${meta}\n${rest}\n`);
 

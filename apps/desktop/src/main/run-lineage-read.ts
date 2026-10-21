@@ -1,7 +1,10 @@
 import { isAbsolute, join } from "node:path";
-import { TraceReadError, readRun } from "@rebaseagent/trace-sdk";
+import { TraceReadError, findExperimentSourceViolation, readRun } from "@rebaseagent/trace-sdk";
 import type { Fork, RunRecord } from "@rebaseagent/trace-sdk";
-import { FORMAT_VERSION } from "@rebaseagent/trace-sdk/schema";
+import {
+  ISOLATED_FORMAT_VERSION,
+  PROMPT_EXPERIMENT_FORMAT_VERSION,
+} from "@rebaseagent/trace-sdk/schema";
 
 /**
  * U6（add-partial-run-reading）design D2：桌面读取适配层的**单次读取上下文**。
@@ -156,6 +159,14 @@ export function readRunLineage(
       if (boundary !== null) {
         return structuralFailure(boundary);
       }
+      // v3 隔离 prompt 实验：完整来源读取核对父确为根、首次调用/原值/初始快照对应。
+      // 自有读取（readRun）不依赖父文件；这里只处理「父已可读」的完整链。
+      if (child.meta.format_version === PROMPT_EXPERIMENT_FORMAT_VERSION) {
+        const sourceViolation = findExperimentSourceViolation(child, record);
+        if (sourceViolation !== null) {
+          return structuralFailure(sourceViolation);
+        }
+      }
     }
 
     walked.push(record);
@@ -220,7 +231,7 @@ function findDuplicateSpanIdViolation(record: RunRecord): string | null {
  * 保留显式分支作为运行期保险。
  */
 function findV2BoundaryViolation(child: RunRecord["meta"], parent: RunRecord): string | null {
-  if (child.format_version !== FORMAT_VERSION || child.fork === null) return null;
+  if (child.format_version !== ISOLATED_FORMAT_VERSION || child.fork === null) return null;
   const fork: Fork = child.fork;
   const stepId = fork.resume_after_step;
   if (stepId === undefined) {

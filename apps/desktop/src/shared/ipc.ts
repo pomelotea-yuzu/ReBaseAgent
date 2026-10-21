@@ -734,6 +734,13 @@ export const WorkspaceInspectResultSchema = z.object({
       /** 来源（父 run）那次检查点所在的 step span id */
       stepSpanId: z.string().min(1),
     }),
+    z.object({
+      kind: z.literal("initial"),
+      /** 直接父/根 run id（v3 隔离 prompt 实验的基线） */
+      runId: z.string().min(1),
+      /** 父根初始快照 id */
+      snapshotId: z.string().regex(/^[0-9a-f]{64}$/),
+    }),
   ]),
   files: z.array(WorkspaceInspectFileSchema),
   fileCount: z.number().int().nonnegative(),

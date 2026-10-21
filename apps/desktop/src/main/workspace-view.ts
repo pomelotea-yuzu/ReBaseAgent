@@ -57,9 +57,14 @@ function locateFailureToOutcome(failure: WorkspaceLocateFailure): WorkspaceInspe
 
 /** origin 从 A 包的联合类型裁剪成跨进程可传的形状（与 schema 同形） */
 function projectOrigin(origin: WorkspaceOrigin): WorkspaceInspectResult["origin"] {
-  return origin.kind === "import"
-    ? { kind: "import" }
-    : { kind: "checkpoint", runId: origin.run_id, stepSpanId: origin.step_span };
+  switch (origin.kind) {
+    case "import":
+      return { kind: "import" };
+    case "checkpoint":
+      return { kind: "checkpoint", runId: origin.run_id, stepSpanId: origin.step_span };
+    case "initial":
+      return { kind: "initial", runId: origin.run_id, snapshotId: origin.snapshot_id };
+  }
 }
 
 /** 相对初始快照的变更状态：只按「路径 + 内容哈希」判定，不使用 mtime */
