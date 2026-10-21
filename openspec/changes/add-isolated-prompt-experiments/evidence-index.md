@@ -165,6 +165,9 @@
 - 本批在 dev 数据目录新增的真实子 run：最终绿跑 4 条（`run_mvi6okvc_na5a`、`run_mvi67s4h_wwle`、
   `run_mvi683he_6508`、`run_mvi6kryt_civk`）+ 迭代排障遗留 4 条（`run_mvi52ffh_xqjp`、`run_mvi5oas6_ae9o`、
   `run_mvi5ojmy_1cq2`、`run_mvi68jmn_q53w`）；未改动任何既有 trace/blob（各 tag 不变式逐文件核对）。
-- 人工判据：**待用户复核**。可打开入口：`.workbuddy/r22-73/shots/r2273-attachment-restored.png`、
-  各 `<tag>-measurements.json` 的 `dump`（含界面原文读数：核对未通过原因、父链缺失原因、失败结局、逐侧状态标签），
-  或起 dev 后在 `.rebaseagent` 数据目录打开 `run_mvi67s4h_wwle`（失败案）与 `run_mvi2ckpz_f5fy`（分支案）核对。
+- 人工判据：人工判据已由用户确认通过（2026-10-21）。口径如实记录：认可依据＝**用户亲手做实机复现的「缺附件拒绝」一条**（现场翻转 blob → 界面给 attachment_missing 拒绝、费用确认/副本授权/提交整块不渲染、forking 仍 idle；留证 `.workbuddy/r22-73/live-repro-attachment.md` + `shots/r2273-live-attachment-missing.png`，还原后 sha256 逐字节一致）+ 其余各 tag 按 137 条判据全绿与核对表抽查认可；**未逐条走 12 项静态核对，也未亲手复现失败案/重载案**；视觉可读性/字号一类主观项仍未细看⇒ 发行前实机验收（路线图 §9.1 第 5 项）另补，本轮不以此代替。
+- 复核入口：`.workbuddy/r22-73/人工核对表.md`（12 项静态 + 2 项亲手复现，逐条锚定 delta spec 原文行号）、
+  `live-repro-attachment.md` + `shots/r2273-live-attachment-missing.png`（用户亲手复现的此刻读数与截图）、
+  `shots/r2273-attachment-restored.png`、各 `<tag>-measurements.json` 的 `dump`（界面原文读数：核对未通过原因、
+  父链缺失原因、失败结局、逐侧状态标签），或起 dev 后打开 `run_mvi67s4h_wwle`（失败案）与
+  `run_mvi2ckpz_f5fy`（分支案）核对。

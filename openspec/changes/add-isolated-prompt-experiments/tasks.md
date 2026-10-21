@@ -170,6 +170,6 @@
    失败案 `run_mvi67s4h_wwle`、重载案 `run_mvi683he_6508`、迟到案 `run_mvi6kryt_civk`），
    迭代排障过程中另留有 4 条早期尝试的子 run（`run_mvi52ffh_xqjp`/`run_mvi5oas6_ae9o`/`run_mvi5ojmy_1cq2`/
    `run_mvi68jmn_q53w`）——全部只被各自 tag 的不变式按 id 放行，**没有任何既有 trace/blob 被改动**；
-   ⑤ 机器 PASS ≠ 人工通过：7.3 人工判据待用户复核（核对入口见 `.workbuddy/r22-73/` 与 compat-inventory §16）。）
+   ⑤ 机器 PASS ≠ 人工通过：人工判据已由用户确认通过（2026-10-21）。口径如实记录：认可依据＝**用户亲手做实机复现的「缺附件拒绝」一条**（现场翻转 blob → 界面给 attachment_missing 拒绝、费用确认/副本授权/提交整块不渲染、forking 仍 idle；留证 `.workbuddy/r22-73/live-repro-attachment.md` + `shots/r2273-live-attachment-missing.png`，还原后 sha256 逐字节一致）+ 其余各 tag 按 137 条判据全绿与核对表抽查认可；**未逐条走 12 项静态核对，也未亲手复现失败案/重载案**；视觉可读性/字号一类主观项仍未细看⇒ 发行前实机验收（路线图 §9.1 第 5 项）另补，本轮不以此代替。）
 - [ ] 7.4（1.5h）按 evidence-index 逐项审计全部新增与保留场景，运行定向回归及全仓 check:build/typecheck/test/lint/spec、change strict，记录命令/exit code/最终源码身份；失败先修再收口。验收：全部 delta 场景都有实际证据或诚实未通过标注，文档通过不计功能通过。
 - [ ] 7.5（1h）实施通过后同步用户文档/路线/项目状态的实际能力与版本边界，复核 scenario 合并无遗漏后再归档；发行另行核对。验收：方案、主 spec 与源码无漂移，未验证项目不称已交付，不把归档当发布。
