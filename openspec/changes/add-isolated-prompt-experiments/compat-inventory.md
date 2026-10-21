@@ -270,3 +270,30 @@
 - 诚实边界：本批模型是本地受控服务（真实模型闭环与真实计费见 7.1）；二进制/超限逐侧状态桌面路径不可诱发，
   由 4.3 单元证据承载；机器 PASS 不等于人工判据通过——用户已确认通过（2026-10-21，
   口径＝按判据全绿与抽查结论认可，未逐项复核截图）。
+
+## 16. 阶段 7.3 完成记录（2026-10-21）
+
+- ✅ 失败与未知路径实机 8 个 tag 共 **137 条机器判据全绿**（entry 15 / attachment 16 / parent 13 /
+  ipcguard 30 / modelfail 16 / reload 13 / staledraft 13 / latecompare 21），另有 8 条如实登记（note）。
+  证据 `.workbuddy/r22-73/`（`gates-<组>.txt`、`<tag>-measurements.json`、`<tag>-probe.log`、`shots/`）；
+  脚本 `r22-73-seed.cjs` / `r22-73-reject-cdp.cjs` / `r22-73-exec-cdp.cjs` / `lib/r22-73-harness.cjs`；
+  驱动 `run-all-730.cjs`；清理 `cleanup.cjs`（按端口属主杀树 + 注入残留核对）。
+- ✅ 7.3 验收四项都有实机证据：prompt 前置拒绝（ipcguard 10 案，受理前/受理后两类登记形态分列）、
+  desktop「响应未知和模型失败只核对可信身份」（modelfail + reload）、「失败和旧结果不清除新草稿」
+  （modelfail + staledraft 的冻结快照与不抢导航）、「两侧检查点独立且迟到结果不串页」
+  （latecompare：带 68 ms/55 ms 量尺的真实交错 + 单侧故障不覆盖另一侧）。
+- ✅ 新出现的**跨层事实**（不改契约，已上浮 `UI-VERIFY.md`「R2.2 7.3 下沉」节）：
+  ① `u4-smoke-harness` 的 `ev` 不带 `awaitPromise` ⇒ 页内 async IIFE 被读成 `{}`（判据静默空转）；
+  ② `selectRun` 对已选中 run 不重读 detail ⇒ 隐藏文件后仍读到故障前缓存，差点误判成产品缺陷；
+  ③ 在飞期间桌面锁的边界：store 拒绝改正文 + 字段按钮 disabled ⇒「新修订 vs 旧结果迟到」在 GUI 没有前提；
+  ④ 在飞期间登记已带真实 run 身份，而 trace 文件可能尚未出现在盘（与 U5 §6.6 同形）；
+  ⑤ 探针进程不自退（CDP ws / 受控服务句柄拖住事件轮）⇒ 显式 `ws.close()` + `reallyExit`；
+     驱动逐块落 `<tag>-probe.log`；两个驱动并发互抢 9612/18799，表现为探针零输出。
+- ✅ 夹具纪律：故障注入目标（fault.txt / summary.md / big.txt）都是 7.3 私有内容或仅单侧存在的附件；
+  藏/改前后按 sha256 逐字节还原并核「无 `*.u73-hidden` 残留」；每个故障 tag 都配还原后的**成功对照**。
+- ⏳ 未做：7.4 全仓门禁与证据逐项审计——**含 evidence-index 行 10–19 仍标「待实施」的 prompt-replay 场景**
+  （阶段 3/5 已交付实现与测试，但该表从未回填用例名；7.4 须按 `文件 › it 标题` 逐字补并机器回查），
+  以及 7.5 文档同步与归档。
+- 诚实边界：本批模型是本地受控服务（真实模型闭环与真实计费见 7.1）；7.3 不重复 7.2 的键盘/几何面；
+  实机不可诱发的四类故障已按层引用并列明原因（见 evidence-index「7.3 实机证据」节）；
+  **机器 PASS ≠ 人工通过**：7.3 人工判据待用户复核。

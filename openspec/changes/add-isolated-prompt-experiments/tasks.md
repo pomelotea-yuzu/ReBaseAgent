@@ -113,6 +113,63 @@
   未知操作注入归 7.3；④ 真键盘通道存在偶发不落地，harness 已改为「按到生效为止并记账按键次数」
   （本轮 55 条判据各激活键均一次生效）。）
 
-- [ ] 7.3（1.5h）实测失败/缺附件/缺父/未知操作/旧响应/配置变更路径，回填各层证据和限制；测试注入与真实故障分列。验收：prompt 前置拒绝场景、desktop「响应未知和模型失败只核对可信身份」「失败和旧结果不清除新草稿」「两侧检查点独立且迟到结果不串页」。
+- [x] 7.3（1.5h）实测失败/缺附件/缺父/未知操作/旧响应/配置变更路径，回填各层证据和限制；测试注入与真实故障分列。验收：prompt 前置拒绝场景、desktop「响应未知和模型失败只核对可信身份」「失败和旧结果不清除新草稿」「两侧检查点独立且迟到结果不串页」。
+  （2026-10-21 ✅：Electron 实机 **8 个 tag 共 137 条机器判据全绿**（证据 `.workbuddy/r22-73/`：
+   `gates-<组>.txt` + `<tag>-measurements.json` + `<tag>-probe.log` + `shots/`）。夹具
+   `apps/desktop/scripts/r22-73-seed.cjs` + `seed.json`＝与 `MAIN_EXECUTION_LIMITS` 逐字段一致的隔离根
+   `run_mvi2ckn3_xfxw46`（final `s_10`、首次 `llm.call` `s_02`、初始快照 5 个文件含 1 352 000 B 的 big.txt
+   与唯一内容 fault.txt）+ v3 子 `run_mvi2ckpz_f5fy`（final `s_07`，同初始快照）。探针
+   `r22-73-reject-cdp.cjs`（entry/attachment/parent/ipcguard）与 `r22-73-exec-cdp.cjs`
+   （modelfail/reload/staledraft/latecompare），机制层 `lib/r22-73-harness.cjs`，驱动
+   `.workbuddy/r22-73/run-all-730.cjs`。**零新增主进程注入钩子**：真实故障＝磁盘（同卷 rename / 追加字节，
+   收尾逐字节还原并核 sha256）＋真实 HTTP（受控服务真返回 503、`delayMs` 造真在飞）；测试注入＝真 IPC 直调
+   伪造形状/旧修订/旧指纹（不经 store，读未加工信封）。
+   ① **entry 15**：隔离根入口与普通 prompt/A-B 分流；隔离父本的 A-B 显示"本期不支持"且真 IPC 在 main 侧同样被拒；
+   隔离父本不能转普通 prompt fork；v3 分支入口只有「前往根运行」（无根编辑按钮）且经只读预检核实后落到根、
+   零调用零子记录、不自动搬草稿；全局栏新建运行/设置旧入口仍可达；全程零写入。
+   ② **attachment 16**（真实磁盘故障）：藏起初始快照内 fault.txt 的 blob ⇒ 核对如实给
+   `attachment_missing`（"附件不存在：dc2d2e…"）并明说不能从当前源目录读取，费用确认/副本授权/提交整体不在场；
+   带着健康时的计划真 IPC 提交给 `ISOLATED_PROMPT_ATTACHMENT_MISSING`，登记 settled 且 runIds 为空；
+   逐字节还原后同一通道重新核对成功（对照，证明不是恒拒）；追加一字节的损坏给可区分的 `attachment_corrupt`
+   （"清单记录 39 字节，实际 56 字节"），还原后应用未覆盖共享内容；全程零模型调用零子记录、指纹零漂移。
+   ③ **parent 13**：隐藏父 trace ⇒ 子自有 8 个 spans 仍可读且 main 未加工读数给 `completeness=ownOnly` +
+   `lineage=incomplete` + `missingRunId=根`；点「前往根运行」如实报"父链 run … 的 trace 文件不存在
+   （不从当前目录或父最终状态补造）"、不换目标、不猜根；capability 对分支返回 unavailable 且**不给 rootId**；
+   还原后同一入口恢复显式导航（对照）。
+   ④ **ipcguard 30**（prompt 前置拒绝与旧许可）：合法根预检给 planFingerprint+configRevision 且零副作用；
+   缺 `allowFileWrites`／`false`／伪造 model/dataDir/sourcePath／一次改两个字段／旧 epoch ⇒
+   `INVALID_ARGUMENT`/`OPERATION_STALE_EPOCH` 且**受理前无登记**（operation 为 null）；
+   空编辑（与原值逐字相同）⇒ `ISOLATED_PROMPT_EMPTY_EDIT`、非根作根 ⇒ `PARENT_NOT_ROOT`、
+   旧配置修订 ⇒ `CONFIG_CHANGED`、旧计划指纹 ⇒ `PLAN_CHANGED`，四案都是**受理后拒绝**：有登记、runIds 为空、
+   零调用零子记录；同 operationId 同参重发 ⇒ `OPERATION_DUPLICATED` 不重复执行（只新增一次执行的子 run
+   `run_mvi6okvc_na5a`）；未知 operationId 的 reconcile 只读、不补身份；**迟到核对**实测在飞 16 ms 内推进修订 ⇒
+   旧结论只以"需重新核对"的失效提示存在，卡/确认/授权/提交都不在场，重新核对后恢复。
+   ⑤ **modelfail 16**（真实上游 503）：子 run `run_mvi67s4h_wwle` 如实落盘（meta → llm.call error
+   status 503 → run.event errored/reason error），模型调用**恰一次**（不重试不自动重发）且只产一条子记录；
+   登记 runIds = 落盘 meta.id = 信封 id 三方一致；草稿正文/假设/判据与修订原样保留（失败不清草稿）、
+   提交关联仍按身份收口；界面按可信 ID 打开该失败 run 并读到自有轨迹，结局文字只复述"出错终止"类事实、不含"已修复"。
+   ⑥ **reload 13**（响应未知）：提交后在飞（受控服务 9 s 延迟）做 `Page.reload` 并以哨兵自证换了文档 ⇒
+   重载后按原身份读 main 登记：state=running、身份是真实 run ID 形状（不补占位/假 ID、不报取消），
+   如实登记「身份已登记但 trace 尚未出现在盘」（span 在 endSpan 整行落盘的既有形态）；
+   落定后登记 runIds 与盘上 meta.id 一致（`run_mvi683he_6508`）；只读 reconcile 不复活不重复执行（调用数不变）。
+   ⑦ **staledraft 13**：在飞期间改正文被 store 按提交关联**拒绝写入**（修订不推进）、换编辑字段按钮 disabled、
+   提交按钮转"提交处理中…"不可重复点 ⇒「提交后产生新修订而旧成功结果迟到」这一支在 GUI **没有前提**，
+   按层引用 `fork-entry-closure` / `draft-closure-decision`；可实证的另一半全绿：实验记录用提交时冻结快照
+   （不是迟到改动后的值）、正常收尾按匹配修订清理、迟到的正常结果**不抢**用户当前阅读目标
+   （`run_mvi6kryt_civk` 落定后阅读仍在 `run_mvi2ckpz_f5fy`）。
+   ⑧ **latecompare 21**：两侧默认各取最近自有完成步骤、路径并集 7 条；先量出 big.txt 正文读取真实在飞时长
+   68 ms（loading 于 48 ms 采到），再切走→切回后打交错：切换发生在 55 ms < 68 ms ⇒ 旧响应必然迟到；
+   落定后呈现的是新选择 notes.md（different，原文逐侧 8 B/28 B），大文件标记在新侧模型里**不出现**且无 loading 悬挂；
+   只改左侧检查点右侧不被带动；藏起仅左侧存在的 summary.md 附件 ⇒ 左侧如实 `missing`、右侧仍由清单证明
+   `not_found`（不当空侧）、结论 unavailable 且不生成伪 diff，还原后同一读点回到 `left_only`（对照）；
+   交换两侧（store 动作，界面无入口已如实登记）后标题方向随 pair 对调；全程零调用零写入、指纹零漂移。
+   限制与诚实边界：① 本批模型为本地受控服务（真实模型闭环与真实计费见 7.1）；② 二进制/超限逐侧状态仍不可诱发
+   （`write_file` 只接受字符串、配额 8 MiB 与读取上限同值）⇒ 由 4.3 单元证据承载；③「篡改/丢弃 IPC 响应」类
+   在 dev 无注入面（`window.api` 属性 non-writable/non-configurable，U4 已记）⇒ 由 §4/6.4 store 用例承载；
+   ④ 7.2/7.3 的键盘与故障批共用 dev 数据目录：本批**最终绿跑**新增 4 条真实子 run（判重案 `run_mvi6okvc_na5a`、
+   失败案 `run_mvi67s4h_wwle`、重载案 `run_mvi683he_6508`、迟到案 `run_mvi6kryt_civk`），
+   迭代排障过程中另留有 4 条早期尝试的子 run（`run_mvi52ffh_xqjp`/`run_mvi5oas6_ae9o`/`run_mvi5ojmy_1cq2`/
+   `run_mvi68jmn_q53w`）——全部只被各自 tag 的不变式按 id 放行，**没有任何既有 trace/blob 被改动**；
+   ⑤ 机器 PASS ≠ 人工通过：7.3 人工判据待用户复核（核对入口见 `.workbuddy/r22-73/` 与 compat-inventory §16）。）
 - [ ] 7.4（1.5h）按 evidence-index 逐项审计全部新增与保留场景，运行定向回归及全仓 check:build/typecheck/test/lint/spec、change strict，记录命令/exit code/最终源码身份；失败先修再收口。验收：全部 delta 场景都有实际证据或诚实未通过标注，文档通过不计功能通过。
 - [ ] 7.5（1h）实施通过后同步用户文档/路线/项目状态的实际能力与版本边界，复核 scenario 合并无遗漏后再归档；发行另行核对。验收：方案、主 spec 与源码无漂移，未验证项目不称已交付，不把归档当发布。
