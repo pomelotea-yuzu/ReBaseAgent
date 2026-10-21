@@ -232,3 +232,18 @@
 - ⏳ 未做：7.1 真实模型闭环、7.2 真实窗口/缩放/键盘、7.3 失败与未知路径实机；
   本阶段只交付代码/单测/源码接线，不把单测当实机证据。
 - 版本/包层：本阶段零修改 trace-sdk/replay/main 契约；仅消费 5.x 端点与既有 U4/U5。
+
+## 14. 阶段 7.1 完成记录（2026-10-21）
+
+- ✅ 独立 dataDir `.workbuddy/r22-71/run-20261021-030856/data` 完成真实模型闭环：
+  provider `https://api.deepseek.com` / `deepseek-flash`；根 `run_mvhj9cq8_1y8519`
+  （初始 A → 最终 B+summary）、兄弟 `run_mvhj9h3y_72b7`（只读 keep-A）、
+  主实验 `run_mvhj9i9c_c22r`（单次 read_file → A，最终 config A、无 summary）。
+- ✅ 机器检查 19/19 PASS：初始快照同 A；根 B vs 子 A different；summary 仅根；
+  源/父 trace/兄弟 trace/既有 blob 指纹不变；单侧导出子 `s_04` 3 文件/33B，
+  sha256/manifest/来源逐项复核；导出 config=A。
+- ✅ 人工判据：用户已确认通过（2026-10-21 03:29 UTC）。
+- ✅ 报告：`.workbuddy/r22-71/run-20261021-030856/{report.md,report.json,export-child/}`。
+- ⏳ 未做：desktop GUI 实机（7.2）、失败/缺附件/缺父/未知响应（7.3）、全仓门禁与归档（7.4/7.5）。
+- 诚实边界：本批是 package-layer 真实模型闭环，不能写成 Electron GUI 已验收；
+  “正常结束”只证明终止事实，不自动等于修复成功。

@@ -76,7 +76,8 @@
 
 ## 7. 实机、证据与收口
 
-- [ ] 7.1（2h）独立测试 dataDir 下完成受控真实模型的根→单项编辑→实际子运行→输出/文件比较→单侧导出闭环，记录模型/配置、所有尝试、实际人工判据结果及源/父/兄弟/既有 blob 指纹；导出字节/清单独立复核。验收：desktop「比较到导出固定选中侧」「正常结束和输出变化不冒充修复证据」，workspace 首次读取不变量；不能把 mock/探针注入写为真实模型修复证据。
+- [x] 7.1（2h）独立测试 dataDir 下完成受控真实模型的根→单项编辑→实际子运行→输出/文件比较→单侧导出闭环，记录模型/配置、所有尝试、实际人工判据结果及源/父/兄弟/既有 blob 指纹；导出字节/清单独立复核。验收：desktop「比较到导出固定选中侧」「正常结束和输出变化不冒充修复证据」，workspace 首次读取不变量；不能把 mock/探针注入写为真实模型修复证据。
+  （2026-10-21 ✅：独立 dataDir `.workbuddy/r22-71/run-20261021-030856/data`；provider `https://api.deepseek.com` / `deepseek-flash`（key 仅内存解密，未打印/落盘）。真实模型 3 个运行全成功：根 `run_mvhj9cq8_1y8519`（5 LLM/4 tools，初始 A→最终 B+summary，usage 3819/326）、兄弟 `run_mvhj9h3y_72b7`（只读 keep-A，usage 1028/75）、主实验 `run_mvhj9i9c_c22r`（单次 read_file→A，最终 config A、无 summary，usage 1260/226）。19/19 机器检查 PASS：初始快照同 A、根 B vs 子 A different、summary 仅根、源/父/兄弟 trace/既有 blob 指纹不变、单侧导出 3 文件/33B 且 sha256/manifest/source 复核一致、导出 config=A。人工判据已由用户确认通过（2026-10-21 03:29 UTC）。证据 = `.workbuddy/r22-71/run-20261021-030856/{report.md,report.json,export-child/}`。诚实边界：这是 package-layer 真实模型闭环，不是 Electron GUI；desktop「比较到导出固定选中侧」的界面实机仍归 7.2，且不把正常结束表述为“修复成功”。）
 - [ ] 7.2（2h）真实 1440/1360/1024/800px 与 200% 缩放、真键盘全链、长文本/错误/焦点和返回阅读；核对 overflow-hidden/min-h-0 高度链、详情独立滚动与底部同色，逐项检查 CRLF/LF、空串、末尾换行及新增/删除方向可辨；记录实测视口/缩放和原生目录选择方式。验收：desktop「真键盘完成实验比较导出闭环」及修改/草稿/比较恢复场景、workspace「文本新增删除与原换行可核对」；不能实机诱发的故障明确引用单元证据。
 - [ ] 7.3（1.5h）实测失败/缺附件/缺父/未知操作/旧响应/配置变更路径，回填各层证据和限制；测试注入与真实故障分列。验收：prompt 前置拒绝场景、desktop「响应未知和模型失败只核对可信身份」「失败和旧结果不清除新草稿」「两侧检查点独立且迟到结果不串页」。
 - [ ] 7.4（1.5h）按 evidence-index 逐项审计全部新增与保留场景，运行定向回归及全仓 check:build/typecheck/test/lint/spec、change strict，记录命令/exit code/最终源码身份；失败先修再收口。验收：全部 delta 场景都有实际证据或诚实未通过标注，文档通过不计功能通过。
