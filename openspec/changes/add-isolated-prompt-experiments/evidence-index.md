@@ -37,23 +37,23 @@
 | 31 | workspace-isolation | 初始快照实验创建独立文件映射 | 空初始世界与后续超限遵守原配额 | 1.1、3.4、7.1 | 已交付（3.4） | `isolated-prompt-run.test.ts`：空 initial_snapshot 从头执行并写入；8 MiB+1 写入成为工具错误、检查点保持空、loop 继续；未回写父/源。 |
 | 32 | workspace-isolation | 跨运行检查点比较只读取明确的自有快照 | 两个自有检查点独立选择与路径并集 | 4.1、4.2、4.3、5.1、6.5、7.1 | 已交付（包层 4.x + 7.1 真实比较） | `workspace-compare-api.test.ts` 覆盖双 selector/并集/逐侧失败；7.1 实际比较根最终 `s_13` vs 子最终 `s_04`，`unionComplete=true`、路径并集含 config/keep/notes/summary，初始选择器两侧 snapshotId 相同。 |
 | 33 | workspace-isolation | 跨运行检查点比较只读取明确的自有快照 | 未核验引用不冒充字节相同 | 4.1、4.2、4.3、5.1、6.5 | 已交付（包层 4.1/4.2） | 清单层只给 `reference=same/different`，不读字节；`readComparedWorkspaceFile` 才逐侧 `readVerified` 并给结论。测试：列表 same 后删除共享 blob → 读取双侧 missing、结论 unavailable；损坏→corrupt、注入 I/O→io。 |
-| 34 | workspace-isolation | 跨运行检查点比较只读取明确的自有快照 | 文本新增删除与原换行可核对 | 4.1、4.2、4.3、5.1、6.5、7.1、7.2 | 部分（包层/7.1 已证；UI 7.2） | `workspace-compare-api.test.ts` CRLF/LF/空串；7.1 真实比较 `config.txt` 为 different（B vs A）、`summary.md` 为 left_only（根有、子无），原文逐字节保留。Monaco 滚动/焦点/200% 缩放归 7.2。 |
+| 34 | workspace-isolation | 跨运行检查点比较只读取明确的自有快照 | 文本新增删除与原换行可核对 | 4.1、4.2、4.3、5.1、6.5、7.1、7.2 | 已交付（包层 4.x + 7.1 真实比较 + 7.2 实机） | `workspace-compare-api.test.ts` CRLF/LF/空串；7.1 真实比较 config.txt different、summary.md left_only；**7.2 实机（widths + keyboard，共 6 条路径逐项）**：Monaco diff 两侧原文逐字（modified=`A: initial-config\r\nB-added-line\r\n`、original=`B: parent-final`）、notes.md 仅差末尾换行判 different、summary.md 右侧空串按「文本=空」呈现不冒充不存在、only-child.txt 左 not_found 诚实标注、keep.txt 判 same；真实行变更 + `.line-insert`/`.line-delete` 着色层在场证明新增/删除方向可辨；编辑器侧粘贴换行按 Windows CRLF 原样保留（K2）。窄档与 200% 档 diff 独立滚动与可达性见 widths/zoom200。 |
 | 35 | workspace-isolation | 跨运行检查点比较只读取明确的自有快照 | 二进制和读取错误保留逐侧状态 | 4.1、4.2、4.3、5.1、6.5 | 已交付（包层 4.2/4.3） | `workspace-compare-api.test.ts`：二进制返回原始字节、仅 same/different、不生成文本结论；corrupt/io/too_large 逐侧状态，另一侧仍可读；缺失/损坏不当 not_found。桌面逐侧展示归 6.5。 |
 | 36 | workspace-isolation | 跨运行检查点比较只读取明确的自有快照 | 选择快照变化不能拼出混合差异 | 4.1、4.2、4.3、5.1、6.5 | 部分（包层已证；桌面请求代次 6.5） | `workspace-compare-api.test.ts`：列表后替换同 id run 记录，旧 expectedSnapshotIds 读取→该侧 selection_changed 且无正文，另一侧仍可读、整体 unavailable。桌面 selector/path/请求代次丢弃旧反馈归 6.5。 |
-| 37 | desktop-ui | 调试台提供启动 prompt 的单变量编辑入口 | 编辑前确认真实计费 | 6.1、6.2、5.4 | 部分（UI 6.2；真实计费 7.1/7.2） | `isolated-prompt-card.test.ts`：费用确认/副本授权默认未选，缺一拒绝；卡上 usage/价格/缓存执行前未知。`execution-confirmation-store` 双确认块计数改判留痕。真实调用计费与窄窗确认归 7.1/7.2。 |
+| 37 | desktop-ui | 调试台提供启动 prompt 的单变量编辑入口 | 编辑前确认真实计费 | 6.1、6.2、5.4 | 已交付（6.2 代码 + 7.2 实机确认交互；真实用量见 7.1） | `isolated-prompt-card.test.ts` 双确认默认未选、缺一拒绝；**7.2 实机**：卡上分列本次端点/执行上限/预算/历史未知条件/真实计费未知，真键盘 ENTER 完成费用确认（`aria-pressed=true`）、SPACE 勾选副本授权，缺一提交按钮保持禁用；本批模型为本地受控服务（不产生真实计费），真实用量与计费用词由 7.1 package-layer 真实模型闭环承载。 |
 | 38 | desktop-ui | 调试台提供启动 prompt 的单变量编辑入口 | system prompt 不可还原 | 6.1、6.2、5.4 | 已交付（6.1 代码/单测） | `isolated-prompt.test.ts`/`isolated-prompt-entry.test.ts`：无字符串 system 时两种编辑均禁用，原因明说不以 config_hash/设置/空串补造；`PromptForkEditor` 入口谓词同源。实机禁用态归 7.2。 |
-| 39 | desktop-ui | 比较文件入口保持单运行合法检查点 | 分别打开文件并返回比较 | 6.4、6.6、7.2 | 部分（6.4/6.6 代码；实机 7.2） | `compare-file-wiring.test.ts`/`compare-store.test.ts`：`openCompareSideFilesAt` 固定比较检查点/路径，`compareFileView` 跨单侧打开保留；`compare-file-view.test.ts` 默认显式检查点。返程视觉/键位归 7.2。 |
-| 40 | desktop-ui | 比较文件入口保持单运行合法检查点 | 非法文件目标与普通运行不造历史 | 6.4、6.6、7.2 | 已交付（6.4 代码/单测） | `compare-file-view.test.ts`：普通运行 not-isolated、祖先/失效步骤 stale 且不自动改点、不可读侧不冒充；`openCompareSideFilesAt` stale→failed。实机归 7.2。 |
+| 39 | desktop-ui | 比较文件入口保持单运行合法检查点 | 分别打开文件并返回比较 | 6.4、6.6、7.2 | 已交付（6.4/6.6 代码 + 7.2 实机） | `compare-file-wiring.test.ts`/`compare-store.test.ts` 固定检查点与路径、`compareFileView` 跨单侧打开保留；**7.2 实机 K14/K16**：真键盘「打开右侧文件」→ 子运行文件页检查点固定为比较所选（`s_16`）且「返回比较」常驻 → 返回后 pair/两侧检查点/路径全部保留；再返回一次仍成立。 |
+| 40 | desktop-ui | 比较文件入口保持单运行合法检查点 | 非法文件目标与普通运行不造历史 | 6.4、6.6、7.2 | 已交付（6.4 代码/单测；实机未诱发） | `compare-file-view.test.ts`：普通运行 not-isolated、祖先/失效步骤 stale 且不自动改点、不可读侧不冒充；`openCompareSideFilesAt` stale→failed。**7.2 未诱发该故障**（需删改 trace/附件，属注入类）⇒ 非法目标与 stale 分支归 4.x/6.4 单元证据，实机注入留 7.3。 |
 | 41 | desktop-ui | 隔离执行边界在操作前可辨认 | 多工具轮次确认 | 5.2、5.4、6.2、7.3 | 部分（6.2 核对卡；实机 7.3） | 核对卡由 `presentIsolatedPromptCard` 排版根/初始文件/工具/模型/上限；多工具轮次仍由 5.2 result 预检承载。实机 7.3。 |
 | 42 | desktop-ui | 隔离执行边界在操作前可辨认 | 二次分叉轮号不沿链累加 | 5.2、5.4、6.2、7.3 | 部分（5.4 详情口径；实机 7.3） | 轮号口径沿用 `isolated-fork` 的本地 `agent.step.n`（5.4 回归）；6.2 核对卡不展示沿链轮号。实机 7.3。 |
 | 43 | desktop-ui | 隔离执行边界在操作前可辨认 | 历史运行和缺附件降级 | 5.2、5.4、6.2、7.3 | 部分（capability 拒绝 + 6.2 展示；实机 7.3） | `isolated-prompt-capability.test.ts` 的 attachment_* 稳定码由 6.2 原样展示；桌面禁用态与实机 7.3。 |
 | 44 | desktop-ui | 隔离执行边界在操作前可辨认 | 隔离父本的其他真执行入口 | 5.2、5.4、6.2、7.3 | 部分（6.1/6.2 代码；实机 7.3） | `isolated-fork.test.ts` 更新为只宣称 A/B 不支持；`isolated-prompt-entry` 分支只导航根；main/内核仍拒绝普通 prompt。实机 7.3。 |
 | 45 | desktop-ui | 隔离执行边界在操作前可辨认 | 每次桌面操作独立确认写入 | 5.2、5.4、6.2、7.3 | 部分（6.2 代码；实机 7.3） | 副本授权默认未选且绑定修订/设置/代次/计划指纹，不读父 trace 的 write_authorized；`isolated-prompt-card.test.ts` 缺授权拒绝。实机 7.3。 |
-| 46 | desktop-ui | 隔离执行边界在操作前可辨认 | 创建与确认在窄窗口可操作 | 5.2、5.4、6.2、7.3 | 待实施（7.2/7.3 实机） | 6.2 卡为可滚动/换行布局，但 800px/200% 实机未验证；归 7.2/7.3。 |
-| 47 | desktop-ui | 运行工作区按阅读任务组织 | 首次打开与无运行入口 | 1.2、5.4、6.1、7.2 | 已交付（5.4/6.1 代码；实机 7.2） | 既有 U1/U5 回归保持；6.1 只在隔离根概览加启动指令入口（`IsolatedPromptEntryAction`），不改首次选择。实机 7.2。 |
-| 48 | desktop-ui | 运行工作区按阅读任务组织 | 文件承载区不附带步骤目录 | 1.2、5.4、6.1、7.2 | 已交付（5.4 既有回归；实机 7.2） | 6.1 未改工作区页签/文件承载；full desktop 回归。实机 7.2。 |
-| 49 | desktop-ui | 运行工作区按阅读任务组织 | 旧创建设置及执行入口保持可达 | 1.2、5.4、6.1、7.2 | 已交付（5.4/6.1 代码；实机 7.2） | 普通 prompt/A-B/messages 入口保持；隔离根改为独立实验入口，非根只导航。full desktop 回归；实机 7.2。 |
-| 50 | desktop-ui | 运行工作区按阅读任务组织 | 阅读过程不修改已有数据 | 1.2、5.4、6.1、7.2 | 已交付（只读路径回归；实机 7.2） | 6.1/6.2/6.4 的比较/核对全走只读通道；`compare-readonly.test.ts` 与 full desktop 回归。实机 7.2。 |
+| 46 | desktop-ui | 隔离执行边界在操作前可辨认 | 创建与确认在窄窗口可操作 | 5.2、5.4、6.2、7.3 | 已交付（7.2 实机窄窗与 200%） | **7.2 实机**：CSS 800（narrow）与 1024（medium）档下核对卡、副本授权行、提交按钮均可滚可达且卡自身无横向溢出；200%（DPR 4.2，实测 CSS 923×582）档同样判据全绿，窄档运行列表按显示决策收起、「打开运行列表」恢复入口在场；未修改时入口给出就近 guard 原因（K1），不出现只有禁用无说明。 |
+| 47 | desktop-ui | 运行工作区按阅读任务组织 | 首次打开与无运行入口 | 1.2、5.4、6.1、7.2 | 已交付（5.4/6.1 代码 + 7.2 实机阅读面） | 6.1 只在隔离根概览加启动指令入口，不改首次选择；desktop 全量回归保持。7.2 实机侧：开局哨兵 reload 后首读、根/子运行选择与页签往返、真键盘 ENTER 打开根入口均成立；「首次打开无运行」分支本轮无空目录可验（dev 数据目录有夹具），以既有 U1/U5 回归与 6.1 单测承载。 |
+| 48 | desktop-ui | 运行工作区按阅读任务组织 | 文件承载区不附带步骤目录 | 1.2、5.4、6.1、7.2 | 已交付（5.4 既有回归 + 7.2 实机读数） | 6.1 未改工作区页签/文件承载。7.2 实机：文件页/比较文件视图正文区独立裁切（高度链锚点→main 贯通、main overflow-hidden），文件承载区未见附带步骤目录；比较文件视图正文列与路径列各自裁切。 |
+| 49 | desktop-ui | 运行工作区按阅读任务组织 | 旧创建设置及执行入口保持可达 | 1.2、5.4、6.1、7.2 | 部分（代码/全量回归已证；普通入口实机面留 7.3 批） | 普通 prompt/A-B/messages 入口由 desktop 全量 214 文件/3272 用例回归；6.1 把隔离根改为独立实验入口、非根只导航。7.2 本轮聚焦隔离实验链，未逐一口播普通创建/A-B/messages 入口 ⇒ 该场景实机面仍在 7.3/7.4 补，或不低于既有 U5/U8 证据口径。 |
+| 50 | desktop-ui | 运行工作区按阅读任务组织 | 阅读过程不修改已有数据 | 1.2、5.4、6.1、7.2 | 已交付（只读路径回归 + 7.2 实机指纹） | `compare-readonly.test.ts` 与 full desktop 回归；**7.2 实机**：widths/zoom200 全程 dev 数据目录逐文件（sha256+字节）指纹零变化；keyboard 批除本次子 run 与其新 blob 外，根/种子子/7.1 三 run 与既有 blob 全部逐字节不变（K17）；比较与核对全走只读通道，导出只写用户显式选定的空目录。 |
 | 51 | desktop-ui | 草稿恢复不恢复执行许可 | 隔离编辑恢复后重新预检授权 | 5.4、6.1、6.3、7.3 | 已交付（6.1/6.3 代码/单测；实机 7.3） | `debugging-drafts.test.ts` 隔离草稿恢复文本/假设；`PromptForkEditor` 切字段/收起/卸载释放确认，授权键需重新勾选；`fork-entry-closure` 提交走同一 CAS。实机 7.3。 |
 | 52 | desktop-ui | 草稿恢复不恢复执行许可 | sourceToken 在有效期内恢复但授权复位 | 5.4、6.1、6.3、7.3 | 已交付（既有 5.4 回归；实机 7.3） | 6.x 未改创建 sourceToken 路径；桌面全量回归保持。实机 7.3。 |
 | 53 | desktop-ui | 草稿恢复不恢复执行许可 | sourceToken 失效不清空任务 | 5.4、6.1、6.3、7.3 | 已交付（既有 5.4 回归；实机 7.3） | 同上；6.x 不改 token 生命周期。实机 7.3。 |
@@ -64,22 +64,22 @@
 | 58 | desktop-ui | 草稿交互保持既有执行和数据边界 | 原有执行入口和文件阅读继续可用 | 5.4、6.1、6.3 | 已交付（full desktop 回归；实机 7.3） | 214 文件/3272 用例全量跑全绿；普通 prompt/result/messages/A-B 入口保持。实机 7.3。 |
 | 59 | desktop-ui | 执行前检查和确认保持各入口真实语义 | 创建和普通重跑只声明已完成的检查 | 5.4、6.2、6.3 | 已交付（5.4 既有；隔离卡不虚构预检） | 6.2 卡只展示 capability 实际返回；普通入口未改。full desktop 回归。 |
 | 60 | desktop-ui | 执行前检查和确认保持各入口真实语义 | 普通结果与隔离结果确认边界不同 | 5.4、6.2、6.3 | 已交付（5.4/6.2 代码） | 隔离卡写明初始文件、单副本写入与真实模型计费；普通 result 路径未改。 |
-| 61 | desktop-ui | 执行前检查和确认保持各入口真实语义 | prompt 与 messages 不冒充续跑完整世界 | 5.4、6.2、6.3 | 部分（UI 6.2；实机 7.2） | 隔离编辑器标题/摘要明确“从初始文件与启动指令重跑”；messages 仍是单请求重发（既有）。实机 7.2。 |
+| 61 | desktop-ui | 执行前检查和确认保持各入口真实语义 | prompt 与 messages 不冒充续跑完整世界 | 5.4、6.2、6.3 | 已交付（6.2 代码 + 7.2 实机文案与卡） | 隔离编辑器标题「隔离 prompt 实验 · 从初始文件与启动指令重跑」、页头常驻根运行 ID + 启动调用 ID（K1/K5 实机读到）；核对卡明说从初始文件世界重跑与只读预检语义（「不调用模型、不写文件、不占执行槽；结论不是执行凭证」）。messages 单请求重发语义未变（既有）。 |
 | 62 | desktop-ui | 执行前检查和确认保持各入口真实语义 | 实验确认使用当前预览计划 | 5.4、6.2、6.3 | 已交付（6.2/6.3 代码/单测） | 提交判据要求 capability 当前（修订/设置/代次/计划指纹）并带 `expectedPlanFingerprint`；`isolated-prompt-card.test.ts` 核对失效拒绝。 |
 | 63 | desktop-ui | 执行前检查和确认保持各入口真实语义 | 返回修改与设置往返撤销旧确认 | 5.4、6.2、6.3 | 已交付（6.2/6.3 代码/单测） | 设置快照变化推进检查代次并清空；切字段/收起/卸载释放确认；输入变更修订失效。实机 7.3。 |
 | 64 | desktop-ui | 隔离 prompt 计划和主动提交严格分流 | 预检无副作用且非法模式拒绝 | 5.1、5.2、5.3、7.3 | 部分（main/包 5.1–5.3；UI 6.2） | `isolated-prompt-capability.test.ts` strict/只读；`isolated-prompt-fork-ipc.test.ts` 非法模式拒绝；6.2 卡只调只读通道。实机 7.3。 |
 | 65 | desktop-ui | 隔离 prompt 计划和主动提交严格分流 | 去重和单槽覆盖新隔离入口 | 5.1、5.2、5.3、7.3 | 已交付（5.3） | `isolated-prompt-fork-ipc.test.ts`：同 ID 同参 duplicate 不重复执行、异参 conflict、旧 epoch 零登记、单槽 busy 拒绝、reconcile tombstone 永久拒绝；operation 回执含状态/身份。 |
 | 66 | desktop-ui | 隔离 prompt 计划和主动提交严格分流 | 响应未知和模型失败只核对可信身份 | 5.1、5.2、5.3、7.3 | 部分（main/包 5.3；UI 6.3） | `isolated-prompt-fork-ipc.test.ts` 模型失败身份=真实 meta.id；`fork-entry-closure` 隔离 prompt 成功/失败均只读登记 ID、不读信封 ID、不清非目标草稿。实机重载 7.3。 |
-| 67 | desktop-ui | 隔离 prompt 工作区核对根起点与单项干预 | 根定位和核对有明确目标 | 1.2、6.1、6.2、7.2 | 已交付（6.1/6.2 代码/单测；实机 7.2） | `isolated-prompt.test.ts` 根/分支三态；`IsolatedPromptEntry` 根入口/分支导航；编辑器页头显示根 ID 与启动调用。实机 7.2。 |
-| 68 | desktop-ui | 隔离 prompt 工作区核对根起点与单项干预 | 单份确认表达实际条件与未知 | 1.2、6.1、6.2、7.2 | 已交付（6.2 代码/单测；实机 7.2） | `isolated-prompt-card.test.ts`：根/初始文件/工具/模型/参数/端点/上限/预算/历史未知/计费未知分列；卡 summary 明确真实计费。实机 7.2。 |
-| 69 | desktop-ui | 隔离 prompt 工作区核对根起点与单项干预 | 修改或配置变化撤销旧许可 | 1.2、6.1、6.2、7.2 | 已交付（6.2 代码/单测；实机 7.2） | 核对键绑定修订/设置快照/字段；设置变化推进代次并清空；授权键不匹配即未选；`isolated-prompt-card.test.ts` 逐条拒绝。实机 7.2。 |
+| 67 | desktop-ui | 隔离 prompt 工作区核对根起点与单项干预 | 根定位和核对有明确目标 | 1.2、6.1、6.2、7.2 | 已交付（6.1/6.2 代码 + 7.2 实机） | `isolated-prompt.test.ts` 三态 + `IsolatedPromptEntry` 根入口/分支导航；**7.2 实机**：根概览「修改启动指令」真键盘可达可激活，编辑器页头显示根运行 `run_mvhmwr6f_ia6xbg` 与启动调用 `s_02`，并明说返回原阅读用页签不自动跳转；7.1 根（预算不合规）被如实拒绝且给原因（见 7.2 widths 判据）。 |
+| 68 | desktop-ui | 隔离 prompt 工作区核对根起点与单项干预 | 单份确认表达实际条件与未知 | 1.2、6.1、6.2、7.2 | 已交付（6.2 代码 + 7.2 实机） | `isolated-prompt-card.test.ts` 逐条分列；**7.2 实机 K5**：展开「详细边界」后卡内可读到根运行/初始文件/固定工具/基线模型/根参数/本次端点/执行上限/token 预算/计划指纹/副本写入逐行；收起态关键摘要仍在场；计费与历史未知条件明确写「未知」。 |
+| 69 | desktop-ui | 隔离 prompt 工作区核对根起点与单项干预 | 修改或配置变化撤销旧许可 | 1.2、6.1、6.2、7.2 | 已交付（6.2 代码 + 7.2 实机两种形态） | `isolated-prompt-card.test.ts` 绑定修订/设置快照/检查代次；**7.2 实机 K6a/K6c**：改运行配置 ⇒ 核对卡连同费用确认与副本授权整体撤销（不留旧许可）；改输入 ⇒ 琥珀 stale 条 + 确认/授权复位，须重新核对才可确认。页签往返同样不恢复执行许可（K4）。 |
 | 70 | desktop-ui | 隔离 prompt 草稿和结果沿用提交修订纪律 | 失败和旧结果不清除新草稿 | 6.1、6.3、7.3 | 已交付（6.3 代码/单测；实机 7.3） | `fork-entry-closure`：隔离 prompt 失败保留草稿与关联；U5 `applyDraftClosure` 只在正常+修订匹配时清；`draft-closure-decision` 模式清理。实机 7.3。 |
 | 71 | desktop-ui | 隔离 prompt 草稿和结果沿用提交修订纪律 | 往返恢复正文不恢复执行许可 | 6.1、6.3、7.3 | 已交付（6.1/6.3 代码/单测；实机 7.3） | 草稿条目保存原文/假设/判据；确认与副本授权为组件/凭据态，切字段/收起/卸载释放；`debugging-drafts` 模式键隔离。实机 7.3。 |
-| 72 | desktop-ui | 比较文件视图保留两侧事实与只读身份 | 两侧检查点独立且迟到结果不串页 | 6.4、6.5、7.2、7.3 | 部分（6.4/6.5 代码/单测；实机 7.2/7.3） | `compare-file-view.test.ts` 选择 key/stale 独立；`CompareFileWorkspace` manifest/file 序号守卫；`compare-store` 一侧换点不影响另一侧。实机 7.2/7.3。 |
-| 73 | desktop-ui | 比较文件视图保留两侧事实与只读身份 | 文件差异诚实呈现未验证和不可用 | 6.4、6.5、7.2、7.3 | 部分（6.4/6.5 代码/单测；实机 7.2/7.3） | `referenceLabel` 区分清单引用与待核验；`comparedFileSideLabel` 逐侧错误；二进制/超限/缺失不生成 diff（`textDiffSidesOf` 仅 text/text 或 text+not_found）。实机 7.2/7.3。 |
-| 74 | desktop-ui | 修复结果连接单侧导出且不自动判定成功 | 比较到导出固定选中侧 | 6.6、7.1、7.2 | 部分（7.1 package-layer；UI 7.2） | 7.1 从根最终/子最终比较结果固定子侧导出 `s_04`：3 文件/33B，manifest `run_id`=子、`step_span_id=s_04`、`initial_snapshot_id`=子初始，逐文件 sha256/字节复核一致，导出 config=A；补丁基线为子初始（本次 no_text_changes）。desktop UI 入口实机归 7.2。 |
-| 75 | desktop-ui | 修复结果连接单侧导出且不自动判定成功 | 正常结束和输出变化不冒充修复证据 | 6.6、7.1、7.2 | 已交付（6.6 代码 + 7.1 真实模型；UI 7.2） | 7.1 子运行正常结束但没有写成“修复成功”；人工判据由用户确认（2026-10-21 03:29 UTC），报告明确正常结束只证明终止事实。UI 结果页文案与交互实机归 7.2。 |
-| 76 | desktop-ui | 隔离指令实验在窄窗和键盘下连续可用 | 真键盘完成实验比较导出闭环 | 1.2、7.1、7.2 | 待实施 | — |
+| 72 | desktop-ui | 比较文件视图保留两侧事实与只读身份 | 两侧检查点独立且迟到结果不串页 | 6.4、6.5、7.2、7.3 | 部分（6.4/6.5 代码 + 7.2 实机独立选择；迟到/串页留 7.3） | `compare-file-view.test.ts` 选择 key/stale 独立、manifest/file 双代次守卫、`compare-store` 一侧换点不影响另一侧；**7.2 实机**：两侧检查点默认各自最近自有完成步骤且互不影响、打开单侧文件返回后选择保留。「迟到结果不串页」需并发/延迟注入，实机面归 7.3。 |
+| 73 | desktop-ui | 比较文件视图保留两侧事实与只读身份 | 文件差异诚实呈现未验证和不可用 | 6.4、6.5、7.2、7.3 | 已交付（6.4/6.5 代码 + 7.2 实机） | `referenceLabel` 区分清单引用与待核验、`comparedFileSideLabel` 逐侧错误、`textDiffSidesOf` 仅 text/text 或 text+not_found；**7.2 实机 K13**：路径行标注「两侧清单引用不同（内容待核验）」与逐侧字节分列呈现；only-child.txt 缺失侧诚实标注；summary.md 空串不被当作不存在；含 NUL 正文按真实字节呈现。二进制/超限逐侧状态桌面路径不可诱发（`write_file` 只接受字符串 ⇒ 必为合法 UTF-8），由 4.3 单元证据承载。 |
+| 74 | desktop-ui | 修复结果连接单侧导出且不自动判定成功 | 比较到导出固定选中侧 | 6.6、7.1、7.2 | 已交付（7.1 package-layer + 7.2 GUI 实机） | 7.1 从根最终/子最终比较结果固定子侧导出并逐字节复核；**7.2 GUI 实机 K15**：在比较文件视图真键盘点「导出右侧检查点」→ 子运行文件页导出入口 → 确认卡 → 真 ENTER 提交，反馈 `exported`；清单 `source.run_id=run_mvhsr8j6_ab0y`、`step_span_id=s_16`（=比较所选右侧检查点）、`initial_snapshot_id`=子初始；6 文件/76 B + `changes.patch` 逐文件 sha256/字节复核一致；目录选择由 `REBASEAGENT_PICK_DIRECTORY_FILE` 控制文件接管恰 1 次且 `dialog[open]` 数为 0（原生框未被打开，记录选择方式）。 |
+| 75 | desktop-ui | 修复结果连接单侧导出且不自动判定成功 | 正常结束和输出变化不冒充修复证据 | 6.6、7.1、7.2 | 已交付（6.6 代码 + 7.1 真实模型 + 7.2 实机） | 7.1 子运行正常结束未写成「修复成功」，人工判据由用户确认；**7.2 实机 K11**：结局说明原文「本次运行正常结束。这只说明执行终止事实，不代表改动已达到目的，也不自动标为“已修复”。 请按你填写的人工判据自行核对；界面不会自动执行或评分该判据。」；干预区呈现原值/新值/假设/人工判据（用户填写，不自动评分），长输出折叠呈现且不改页面几何不变式。 |
+| 76 | desktop-ui | 隔离指令实验在窄窗和键盘下连续可用 | 真键盘完成实验比较导出闭环 | 1.2、7.1、7.2 | 已交付（7.2 实机真键盘全链） | **7.2 keyboard 批 55 条判据全绿**（`r22-72-keyboard-cdp.cjs` + `gates-keyboard.txt` + `keyboard-measurements.json`）：系统级 `keybd_event` 与真 OS 剪贴板完成「根入口 → 编辑 → 假设/判据 → 往返恢复 → 只读核对 → 撤销/重核对 → 费用确认 → 副本授权 → 提交 → 结果干预区 → 与基线比较 → 比较文件视图逐项换行核对 → 打开单侧并返回（选择保留）→ 导出固定本侧并逐字节复核 → Esc 焦点回收 → 再返回比较 → 数据不变式」。窄档/200% 的可达性由同批 widths/zoom200 承载。 |
 
 ## 7.1 真实模型闭环证据（2026-10-21）
 
@@ -88,7 +88,36 @@
 - 运行：根 `run_mvhj9cq8_1y8519`（5 LLM/4 tools，初始 A → 最终 B+summary，usage 3819/326）；兄弟 `run_mvhj9h3y_72b7`（只读 keep-A，1028/75）；主实验 `run_mvhj9i9c_c22r`（1 read_file → A，最终 config A、无 summary，1260/226）。
 - 机器检查 19/19 PASS；源/根 trace/兄弟 trace/既有 blob 指纹不变；单侧导出 3 文件/33B，sha256/清单/来源复核一致。
 - 人工判据：**用户已确认通过**（2026-10-21 03:29 UTC）。
-- 限制：package-layer 真实模型闭环，不是 Electron GUI；7.2 真实窗口/缩放/键盘、7.3 失败注入与未知路径仍未做。
+- 限制：package-layer 真实模型闭环，不是 Electron GUI；7.2 真实窗口/缩放/键盘已于同日完成（见下节），7.3 失败注入与未知路径仍未做。
+
+## 7.2 实机证据（2026-10-21，三批共 133 条机器判据全绿）
+
+- 探针与驱动：`apps/desktop/scripts/r22-72-geometry-cdp.cjs`（widths / zoom200）、
+  `apps/desktop/scripts/r22-72-keyboard-cdp.cjs`（keyboard）；批量驱动 `.workbuddy/r22-72/run-all-720.cjs`
+  （每组：备份 settings → 起 dev 带 CDP 9612 与本组 env → 跑探针 → 以「9612 真空出」为停机判据 → 无条件还原
+  settings / Preferences）。读数 `*-measurements.json`、日志 `gates-<tag>.txt`、截图 `shots/`。
+- 夹具：`apps/desktop/scripts/r22-72-seed.cjs` + `seed.json`——与 `MAIN_EXECUTION_LIMITS` 逐字段一致的隔离根
+  `run_mvhmwr6f_ia6xbg`（初始 A → 最终 B+summary，final `s_13`）与 v3 种子子 `run_mvhn8q64_c6ds`（final `s_16`），
+  模型为本地受控服务（127.0.0.1:18799）。真键盘批另产出 `run_mvhsr8j6_ab0y`。
+- widths **59/59**：实测 CSS 视口 1442 / 1362 / 1024 / 801（外框 2033 / 1920 / 1034 / 810，DPR 2.1），
+  逐档：无横溢、高度链锚点→main 贯通且 main `overflow-hidden`、详情列独立滚动只动容器、滚动区底部不露页面灰底、
+  核对卡+授权+提交可滚可达、比较文件视图默认检查点与 diff 高度链、config.txt CRLF 逐字进 Monaco；全程数据目录指纹零变化。
+- zoom200 **19/19**：DPR 4.2 真 zoom；实测 CSS 923×582（zoom2 外框→CSS ≈÷2.82，故记相对几何不打 ±2px 落点）；
+  窄档运行列表收起且「打开运行列表」恢复入口在场；同款几何/diff 判据全绿。
+- keyboard **55/55**：系统级 `keybd_event` + 真 OS 剪贴板走完实验→比较→导出全链；逐项换行核对
+  （CRLF 两行 + 新增、仅差末尾换行、右侧空串、仅本侧存在、两侧相同、含 NUL 正文）；
+  两种撤销旧许可形态（改配置＝整卡撤销 / 改输入＝stale 条）；页签往返恢复正文不恢复许可；
+  导出 `exported`：6 文件/76 B + `changes.patch`，清单身份 `run_mvhsr8j6_ab0y`/`s_16`/子初始；
+  原生目录框由 `REBASEAGENT_PICK_DIRECTORY_FILE` 控制文件接管恰 1 次且 `dialog[open]`=0；真 Esc 焦点回收到导出入口；
+  数据不变式：只新增本次子 run 与其 blob。
+- 附带实证（诚实拒绝）：7.1 package-layer 根录制预算 300000 > 桌面上限 100000 ⇒ GUI 预检返回
+  `config_unreconstructable` 且不给费用确认/副本授权/提交（不静默截小）——该拒绝本身是「不支持参数或配置漂移不能静默放行」
+  的实机证据，也正是本批需要重造合规根的原因。
+- 实机不可诱发项（注明测试层）：二进制/超限逐侧状态（`write_file` 只接受字符串 ⇒ 必为合法 UTF-8）由 4.3
+  `workspace-compare-api.test.ts` 承载；非法/失效文件目标与 stale 分支由 6.4 单测承载；失败/缺附件/缺父/旧响应注入归 7.3。
+- harness 限制（已下沉 `UI-VERIFY.md`）：抬前台与发键须同进程、`ShowWindow`/`SetActiveWindow` 会把窗口打成 occluded、
+  Monaco 须 `editor.focus()`、`Get-Clipboard -Raw` 与真实粘贴的换行形态不对称（回读 LF、粘贴 CRLF）。
+- 人工判据：**待用户复核**（核对入口见 `compat-inventory.md` §15 与本节文件清单）。
 
 ## 证据收口规则
 
