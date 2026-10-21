@@ -187,3 +187,13 @@
 - ⏳ 未做：desktop IPC/preload/操作适配器（5.x）；跨运行文件比较（4.x）；真实模型/Electron 实机（7.x）。
 - ⏳ fixture 矩阵补充：`workspace-helpers.writeIsolatedRun` 的 v3 变体未加——v3 根现在由真实
   writer（`promptReplayIsolatedRun`）在测试中产出，手写 helper 变体留到需要纯构造的 5.x 用例。
+
+## 11. 阶段 4 完成记录（2026-10-21）
+
+- ✅ 新增 `workspace/compare-api.ts`：`compareWorkspaceSnapshots`（双 selector 清单/引用/并集）
+  与 `readComparedWorkspaceFile`（按 path 延迟核验/expectedSnapshotIds 守卫/逐侧状态）。
+- ✅ `workspace/read-api.ts`：`readWorkspaceRun` 增可选 `readRecord`，供比较层保证同 run 单读。
+- ✅ `src/index.ts`：导出比较 API 与类型。
+- ✅ 测试 `workspace-compare-api.test.ts` 15 项；replay 全量 46 文件 / 596 通过（+5 skip）。
+- ⏳ 未做：desktop IPC/preload（5.1）、比较工作区接线（6.4/6.5）、实机 diff 换行/缩放（7.2）。
+- 版本/隔离 writer 消费方：本阶段零修改（比较只读，不写 trace/blob，不登记 operation）。

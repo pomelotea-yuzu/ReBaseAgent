@@ -127,8 +127,17 @@ export type ReadWorkspaceRunResult =
   | { readonly ok: true; readonly value: WorkspaceRun }
   | { readonly ok: false; readonly failure: WorkspaceLocateFailure };
 
-/** 读取并校验一个隔离 run 的自有记录（不定位具体快照；定位见 `locateSnapshotInRun`） */
-export function readWorkspaceRun(dataDir: string, runId: string): ReadWorkspaceRunResult {
+/**
+ * 读取并校验一个隔离 run 的自有记录（不定位具体快照；定位见 `locateSnapshotInRun`）。
+ *
+ * `readRecord` 仅供调用方复用同一读取时点/缓存（生产默认 `readRun`）；
+ * 跨运行比较用它保证"同 run 两 selector 只读一次记录"。
+ */
+export function readWorkspaceRun(
+  dataDir: string,
+  runId: string,
+  readRecord: (file: string) => RunRecord = readRun,
+): ReadWorkspaceRunResult {
   const invalidRunId = findRunIdViolation(runId);
   if (invalidRunId !== null) {
     return { ok: false, failure: { code: "invalid_request", reason: invalidRunId } };
@@ -137,7 +146,7 @@ export function readWorkspaceRun(dataDir: string, runId: string): ReadWorkspaceR
   const file = workspaceTraceFile(dataDir, runId);
   let record: RunRecord;
   try {
-    record = readRun(file);
+    record = readRecord(file);
   } catch (error) {
     if (isErrnoCode(error, "ENOENT")) {
       return {

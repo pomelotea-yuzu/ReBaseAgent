@@ -269,3 +269,23 @@ export type {
   PromptReplayIsolatedRunOptions,
   PromptReplayIsolatedRunResult,
 } from "./workspace/isolated-prompt-run.js";
+export {
+  compareWorkspaceSnapshots,
+  readComparedWorkspaceFile,
+} from "./workspace/compare-api.js";
+export type {
+  CompareFileReference,
+  ComparePathEntry,
+  CompareSideFailure,
+  CompareSideFailureCode,
+  CompareSideIdentity,
+  CompareSideResult,
+  CompareSideSelector,
+  CompareWorkspaceSnapshotsOptions,
+  CompareWorkspaceSnapshotsResult,
+  ComparedFileConclusion,
+  ComparedFileSide,
+  ComparedWorkspaceFileResult,
+  ExpectedSnapshotIds,
+  ReadComparedWorkspaceFileRequest,
+} from "./workspace/compare-api.js";

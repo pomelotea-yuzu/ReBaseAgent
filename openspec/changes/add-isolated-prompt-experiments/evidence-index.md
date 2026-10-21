@@ -1,6 +1,6 @@
 # R2.2 场景证据索引
 
-2026-10-19 提案骨架；23 条 requirement、76 条 scenario（含保留的既有场景）。2026-10-21 阶段 2 收口后已回填 1–9、27–29；同日阶段 3 收口后再回填 20–31（部分交付项已写明剩余任务与证据层）。其余待实施。文档/strict 校验不代表功能通过。每行实施后填写测试文件/用例、fixture、实机批次、源码身份及限制；单元注入、mock、真实模型和原生 UI 证据分别标注。
+2026-10-19 提案骨架；23 条 requirement、76 条 scenario（含保留的既有场景）。2026-10-21 阶段 2 收口后已回填 1–9、27–29；阶段 3 再回填 20–31；阶段 4 回填 32–36（部分交付项已写明剩余任务与证据层）。其余待实施。文档/strict 校验不代表功能通过。每行实施后填写测试文件/用例、fixture、实机批次、源码身份及限制；单元注入、mock、真实模型和原生 UI 证据分别标注。
 
 | 序号 | capability | requirement | scenario | 对应任务 | 状态 | 证据与限制 |
 |---|---|---|---|---|---|---|
@@ -35,11 +35,11 @@
 | 29 | replay | 隔离 prompt 构成独立执行边界且可继续 result 续跑 | 新版本不扩大普通执行和卡带权限 | 2.3、2.4、5.4 | 部分（包层已证；桌面门禁 5.4） | `trace-test` v3 卡带基线可读可跑且产出 v1；`isolated-prompt-run.test.ts`：v3 父本经 `promptReplayRun` 明确拒绝、零 outDir/零调用；隔离模型实验沿用 workspace 门禁（`isolated-entry-guard.test.ts` 全绿）。桌面普通/模型入口的 v3 拒绝实机归 5.4/7.3。 |
 | 30 | workspace-isolation | 初始快照实验创建独立文件映射 | 根初始状态与父最终及源目录分离 | 1.1、3.4、7.1 | 部分（包层 mock 已证；真实模型 7.1） | `isolated-prompt-run.test.ts`：v3 首轮 `read_file` 返回根初始 A（≠ 父轮末 B ≠ 源目录 C）；父/兄弟 trace、源目录与既有 blob 字节/目录指纹不变。真实模型闭环与导出字节复核归 7.1。 |
 | 31 | workspace-isolation | 初始快照实验创建独立文件映射 | 空初始世界与后续超限遵守原配额 | 1.1、3.4、7.1 | 已交付（包层 3.4） | `isolated-prompt-run.test.ts`：空 initial_snapshot 可从头执行并写入新文件；8 MiB+1 单文件写入成为工具错误，检查点清单保持空、loop 继续完成；未回写父/源。 |
-| 32 | workspace-isolation | 跨运行检查点比较只读取明确的自有快照 | 两个自有检查点独立选择与路径并集 | 4.1、4.2、4.3、5.1、6.5 | 待实施 | — |
-| 33 | workspace-isolation | 跨运行检查点比较只读取明确的自有快照 | 未核验引用不冒充字节相同 | 4.1、4.2、4.3、5.1、6.5 | 待实施 | — |
-| 34 | workspace-isolation | 跨运行检查点比较只读取明确的自有快照 | 文本新增删除与原换行可核对 | 4.1、4.2、4.3、5.1、6.5、7.2 | 待实施 | — |
-| 35 | workspace-isolation | 跨运行检查点比较只读取明确的自有快照 | 二进制和读取错误保留逐侧状态 | 4.1、4.2、4.3、5.1、6.5 | 待实施 | — |
-| 36 | workspace-isolation | 跨运行检查点比较只读取明确的自有快照 | 选择快照变化不能拼出混合差异 | 4.1、4.2、4.3、5.1、6.5 | 待实施 | — |
+| 32 | workspace-isolation | 跨运行检查点比较只读取明确的自有快照 | 两个自有检查点独立选择与路径并集 | 4.1、4.2、4.3、5.1、6.5 | 部分（包层 4.1；桌面 6.5） | `workspace-compare-api.test.ts`：不同根/同 run 初始 vs 完成步骤各自冻结；路径 UTF-16 并集（仅左/仅右/双方）；同 run 两 selector 注入读取器计数=1；共同祖先下两侧 initialSnapshotId 可不同；身份不符/祖先步骤/v1 无 workspace 逐侧失败且 unionComplete=false。IPC/桌面双列表/路径并集呈现归 5.1/6.5。 |
+| 33 | workspace-isolation | 跨运行检查点比较只读取明确的自有快照 | 未核验引用不冒充字节相同 | 4.1、4.2、4.3、5.1、6.5 | 已交付（包层 4.1/4.2） | 清单层只给 `reference=same/different`，不读字节；`readComparedWorkspaceFile` 才逐侧 `readVerified` 并给结论。测试：列表 same 后删除共享 blob → 读取双侧 missing、结论 unavailable；损坏→corrupt、注入 I/O→io。 |
+| 34 | workspace-isolation | 跨运行检查点比较只读取明确的自有快照 | 文本新增删除与原换行可核对 | 4.1、4.2、4.3、5.1、6.5、7.2 | 部分（包层已证；UI diff 6.5/7.2） | `workspace-compare-api.test.ts`：CRLF vs LF 原文逐字节保留；空串仅左→left_only；仅右→right_only；相同→same；两侧不存在→not_found；`textDiffEligible` 仅 text/text 或 text+not_found。Monaco diff、滚动/焦点与 200% 缩放归 6.5/7.2。 |
+| 35 | workspace-isolation | 跨运行检查点比较只读取明确的自有快照 | 二进制和读取错误保留逐侧状态 | 4.1、4.2、4.3、5.1、6.5 | 已交付（包层 4.2/4.3） | `workspace-compare-api.test.ts`：二进制返回原始字节、仅 same/different、不生成文本结论；corrupt/io/too_large 逐侧状态，另一侧仍可读；缺失/损坏不当 not_found。桌面逐侧展示归 6.5。 |
+| 36 | workspace-isolation | 跨运行检查点比较只读取明确的自有快照 | 选择快照变化不能拼出混合差异 | 4.1、4.2、4.3、5.1、6.5 | 部分（包层已证；桌面请求代次 6.5） | `workspace-compare-api.test.ts`：列表后替换同 id run 记录，旧 expectedSnapshotIds 读取→该侧 selection_changed 且无正文，另一侧仍可读、整体 unavailable。桌面 selector/path/请求代次丢弃旧反馈归 6.5。 |
 | 37 | desktop-ui | 调试台提供启动 prompt 的单变量编辑入口 | 编辑前确认真实计费 | 6.1、6.2、5.4 | 待实施 | — |
 | 38 | desktop-ui | 调试台提供启动 prompt 的单变量编辑入口 | system prompt 不可还原 | 6.1、6.2、5.4 | 待实施 | — |
 | 39 | desktop-ui | 比较文件入口保持单运行合法检查点 | 分别打开文件并返回比较 | 6.4、6.6、7.2 | 待实施 | — |

@@ -39,9 +39,12 @@
 
 ## 4. 跨运行文件比较包层
 
-- [ ] 4.1（1.5h）实现双 selector 清单读取/冻结、同 run 同时点、路径并集与逐侧失败，接口仅接受逻辑身份；包 API/IPC 注释明确缺省 stepSpanId=初始，不承担桌面“最近一步”解析。验收：workspace「两个自有检查点独立选择与路径并集」「二进制和读取错误保留逐侧状态」。
-- [ ] 4.2（1.5h）实现按 path 延迟字节核验、引用/内容状态区分及 expectedSnapshotIds 守卫。验收：workspace「未核验引用不冒充字节相同」「选择快照变化不能拼出混合差异」。
-- [ ] 4.3（1.5h）实现文本/不存在差异、二进制/超限/真实 I/O 行为及只读不变量测试。验收：workspace「文本新增删除与原换行可核对」「二进制和读取错误保留逐侧状态」，所有 compare API 零网络/工具/写入。
+- [x] 4.1（1.5h）实现双 selector 清单读取/冻结、同 run 同时点、路径并集与逐侧失败，接口仅接受逻辑身份；包 API/IPC 注释明确缺省 stepSpanId=初始，不承担桌面“最近一步”解析。验收：workspace「两个自有检查点独立选择与路径并集」「二进制和读取错误保留逐侧状态」。
+  （2026-10-21 ✅：新增 `workspace/compare-api.ts` 的 `compareWorkspaceSnapshots`：两侧独立 selector（缺省=初始）、每侧请求 id 必须等于 meta.id（否则 `identity_mismatch`）、同 run 按 id 缓存只读一次记录。双方可用时路径按 UTF-16 并集，逐路径给 presence 与清单引用 same/different（不读字节）；任一侧不可用时 `unionComplete=false`、entries 为空，保留该侧 run/step/snapshot/initial 身份与失败码。`readWorkspaceRun` 增可选读取器以复用同一时点。测试：不同根并集/仅左仅右/同 run 初始 vs 完成步骤单读/共同祖先不同 initialSnapshotId/身份不符/祖先步骤/v1 无 workspace。）
+- [x] 4.2（1.5h）实现按 path 延迟字节核验、引用/内容状态区分及 expectedSnapshotIds 守卫。验收：workspace「未核验引用不冒充字节相同」「选择快照变化不能拼出混合差异」。
+  （2026-10-21 ✅：新增 `readComparedWorkspaceFile`：按 path 逐侧延迟 `readVerified`（长度+SHA-256），区分 text/binary/not_found/missing/corrupt/too_large/io/selection_changed/unavailable。`expectedSnapshotIds` 必填（非空两 id）；任一侧实际 snapshot id 不符→该侧 `selection_changed` 且不读正文，另一侧仍可读，整体结论 unavailable。清单引用 same 不产生内容结论；测试中删除共享 blob 后读取逐侧 missing。`not_found` 只由合法清单证明，附件缺失/损坏不伪装成不存在。）
+- [x] 4.3（1.5h）实现文本/不存在差异、二进制/超限/真实 I/O 行为及只读不变量测试。验收：workspace「文本新增删除与原换行可核对」「二进制和读取错误保留逐侧状态」，所有 compare API 零网络/工具/写入。
+  （2026-10-21 ✅：文本返回原始 text（CRLF/LF、空串、尾随换行不规范化），结论 same/different/left_only/right_only/not_found；`textDiffEligible` 仅 text/text 或 text+清单证明 not_found。二进制返回原始 bytes，只给 same/different，不进文本 diff。超限（>8 MiB）不读附件即 `too_large`；I/O 故障逐侧 `io`，另一侧仍可读。只读不变量：清单+正文读取前后 dataDir 文件/大小/mtime 指纹不变。测试 15 项；replay 全量 46 文件/596 通过(+5 skip)。）
 
 ## 5. main / shared / preload
 
