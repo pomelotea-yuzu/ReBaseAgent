@@ -197,3 +197,21 @@
 - ✅ 测试 `workspace-compare-api.test.ts` 15 项；replay 全量 46 文件 / 596 通过（+5 skip）。
 - ⏳ 未做：desktop IPC/preload（5.1）、比较工作区接线（6.4/6.5）、实机 diff 换行/缩放（7.2）。
 - 版本/隔离 writer 消费方：本阶段零修改（比较只读，不写 trace/blob，不登记 operation）。
+
+## 12. 阶段 5 完成记录（2026-10-21）
+
+- ✅ shared：`channels.ts` 增 `workspaces:isolatedPromptCapability` / `compareSnapshots` /
+  `compareFile`；`ipc.ts` 增 strict capability / 比较 schema、`PromptForkRequestSchema`
+  普通/隔离 union、`WindowApi` 三方法。
+- ✅ main：`execution-config-state.ts`（单一配置修订 owner，main 常量为唯一限制来源）、
+  `isolated-prompt-endpoints.ts`（只读 capability）、`workspace-compare-endpoint.ts`
+  （比较清单/正文）、`config-endpoints.ts` 写后刷新、`exec-endpoints.ts` promptFork
+  隔离分流、`ipc.ts` 三条只读 handler。
+- ✅ preload 暴露三方法；封闭清单测试同步。
+- ✅ `run-create.ts` / `fork-runner.ts` 改用 `MAIN_EXECUTION_LIMITS`；受控剧本额度常量测试
+  改读同一 owner。
+- ✅ replay：`promptReplayIsolatedRun` 增可选 `expectedPlanFingerprint`，提交时重验计划。
+- ✅ 测试新增：配置修订 5、capability 6、隔离提交/U4 10、比较 IPC 4、v3 IPC 往返 3、
+  配置写刷新 1；desktop 全量 208 文件/3211 通过，replay 46 文件/596(+5 skip)。
+- ⏳ 未做：renderer 工作区/比较/草稿接线（6.x）、真实模型与 Electron 实机（7.x）。
+- 版本消费方：无新增改动（v3 字段沿用阶段 2 的 trace-sdk schema）。

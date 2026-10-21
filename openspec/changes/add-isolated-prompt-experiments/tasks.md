@@ -48,10 +48,14 @@
 
 ## 5. main / shared / preload
 
-- [ ] 5.1（1.5h）增加 v3 RunRecord/RunDetail 往返、严格只读 capability 和比较 schema/端点/preload，拒绝额外配置/物理字段。验收：trace「初始来源与干预记录往返」、desktop「预检无副作用且非法模式拒绝」、workspace「选择快照变化不能拼出混合差异」。
-- [ ] 5.2（2h）扩展 runs:promptFork 显式隔离分流，main 从基线重建模型/params，绑定计划指纹和单个 ExecutionConfigState 的配置修订；保存/清除成功及预检/提交读取均接同一刷新入口，覆盖端点隐藏部分、换 key、清除后重配、相同有效值不轮换及独立代理设置不误轮换，重验完整来源/授权。验收：desktop「预检无副作用且非法模式拒绝」「修改或配置变化撤销旧许可」、prompt「不支持参数或配置漂移不能静默放行」。
-- [ ] 5.3（1.5h）接 U4 操作适配器/真实 run ID 与拒绝/失败回执，覆盖同 ID/异参/单槽/旧 epoch/未知响应。验收：desktop「去重和单槽覆盖新隔离入口」「响应未知和模型失败只核对可信身份」。
-- [ ] 5.4（1.5h）回归普通 create/result/prompt/proxy/A-B、ownOnly 门禁、v3 自有文件/导出来源、卡带与删除子保护。验收：desktop 保留的历史场景、replay「新版本不扩大普通执行和卡带权限」、trace「三版本读取与写入职责分离」。
+- [x] 5.1（1.5h）增加 v3 RunRecord/RunDetail 往返、严格只读 capability 和比较 schema/端点/preload，拒绝额外配置/物理字段。验收：trace「初始来源与干预记录往返」、desktop「预检无副作用且非法模式拒绝」、workspace「选择快照变化不能拼出混合差异」。
+  （2026-10-21 ✅：新增 channels `workspaces:isolatedPromptCapability` / `compareSnapshots` / `compareFile`；shared IPC 增 capability/比较的 strict schema（编辑/请求/结果/逐侧状态），capability 领域拒绝用 ok 信封 status=unavailable（携带 rootId 导航建议）；新增 main `isolated-prompt-endpoints.ts`、`workspace-compare-endpoint.ts` 与 preload 三方法。`RunRecordSchema`/`RunDetailSchema` 直接复用 trace-sdk schema，v3 往返测试 3 项（含缺 prompt_experiment 的 strip 前拒绝）；比较端点测试 4 项（额外字段拒绝、二进制不跨进程、selection_changed 透传）。）
+- [x] 5.2（2h）扩展 runs:promptFork 显式隔离分流，main 从基线重建模型/params，绑定计划指纹和单个 ExecutionConfigState 的配置修订；保存/清除成功及预检/提交读取均接同一刷新入口，覆盖端点隐藏部分、换 key、清除后重配、相同有效值不轮换及独立代理设置不误轮换，重验完整来源/授权。验收：desktop「预检无副作用且非法模式拒绝」「修改或配置变化撤销旧许可」、prompt「不支持参数或配置漂移不能静默放行」。
+  （2026-10-21 ✅：新增 `main/execution-config-state.ts`（单一 owner，随机 opaque revision；比较 baseURL/model/apiKey/执行限制；相同值不轮换、清除/重配/换 key/隐藏端点轮换；不哈希密钥）；settings save/clear 与 proxy toggle 成功后同步 refresh；capability 返回 configRevision。`runs:promptFork` 改为 strict union：普通载荷兼容；隔离必须 `executionMode:"isolated"` + `allowFileWrites:true` + expectedConfigRevision + expectedPlanFingerprint，缺 mode/额外 config 不会落普通分支。提交时先核对修订→来源门禁→重新预检→核对计划指纹→授权→包层执行；`promptReplayIsolatedRun` 增可选 expectedPlanFingerprint。测试：配置修订 5 项、capability 6 项、配置写刷新 1 项。）
+- [x] 5.3（1.5h）接 U4 操作适配器/真实 run ID 与拒绝/失败回执，覆盖同 ID/异参/单槽/旧 epoch/未知响应。验收：desktop「去重和单槽覆盖新隔离入口」「响应未知和模型失败只核对可信身份」。
+  （2026-10-21 ✅：隔离分支复用 `submitActive`：epoch/信封/一次 parse/判重/单槽/回执全部沿用 U4；真实身份由 `promptReplayIsolatedRun.onRunIdentified` 经 ctx.attachRunId 登记。测试 10 项：合法提交身份=meta.id 且 operation 不含 prompt 正文；同 ID 同参只执行一次（duplicate）、异参冲突；旧 epoch 零登记；配置修订/计划漂移/非根 settled/rejected+runIds=[]；缺 mode/allowFileWrites=false/额外配置 shape 拒绝；单槽 busy；reconcile tombstone 后提交永久拒绝；模型失败 v3 errored 落盘但身份可信。）
+- [x] 5.4（1.5h）回归普通 create/result/prompt/proxy/A-B、ownOnly 门禁、v3 自有文件/导出来源、卡带与删除子保护。验收：desktop 保留的历史场景、replay「新版本不扩大普通执行和卡带权限」、trace「三版本读取与写入职责分离」。
+  （2026-10-21 ✅：desktop 全量 208 文件/3211 通过（含普通 create/result/prompt/proxy/A-B、ownOnly/来源门禁、设置/代理/操作历史场景）；replay 46 文件/596(+5 skip)。新增 v3 集成断言：`inspectWorkspace` 返回 origin=initial/初始快照 A、文件页读到 A；`exportWorkspaceSnapshot` 固定 v3 自有初始检查点；`assertDeletable` 正确阻止删除有 v3 子分支的根。卡带 v3 用例沿用阶段 2 `trace-test`。desktop node/web tsc 0 错；biome 206 文件 0 错。）
 
 ## 6. 桌面现有工作区接入
 
