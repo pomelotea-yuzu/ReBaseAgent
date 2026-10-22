@@ -171,5 +171,10 @@
    迭代排障过程中另留有 4 条早期尝试的子 run（`run_mvi52ffh_xqjp`/`run_mvi5oas6_ae9o`/`run_mvi5ojmy_1cq2`/
    `run_mvi68jmn_q53w`）——全部只被各自 tag 的不变式按 id 放行，**没有任何既有 trace/blob 被改动**；
    ⑤ 机器 PASS ≠ 人工通过：人工判据已由用户确认通过（2026-10-21）。口径如实记录：认可依据＝**用户亲手做实机复现的「缺附件拒绝」一条**（现场翻转 blob → 界面给 attachment_missing 拒绝、费用确认/副本授权/提交整块不渲染、forking 仍 idle；留证 `.workbuddy/r22-73/live-repro-attachment.md` + `shots/r2273-live-attachment-missing.png`，还原后 sha256 逐字节一致）+ 其余各 tag 按 137 条判据全绿与核对表抽查认可；**未逐条走 12 项静态核对，也未亲手复现失败案/重载案**；视觉可读性/字号一类主观项仍未细看⇒ 发行前实机验收（路线图 §9.1 第 5 项）另补，本轮不以此代替。）
-- [ ] 7.4（1.5h）按 evidence-index 逐项审计全部新增与保留场景，运行定向回归及全仓 check:build/typecheck/test/lint/spec、change strict，记录命令/exit code/最终源码身份；失败先修再收口。验收：全部 delta 场景都有实际证据或诚实未通过标注，文档通过不计功能通过。
+- [x] 7.4（1.5h）按 evidence-index 逐项审计全部新增与保留场景，运行定向回归及全仓 check:build/typecheck/test/lint/spec、change strict，记录命令/exit code/最终源码身份；失败先修再收口。验收：全部 delta 场景都有实际证据或诚实未通过标注，文档通过不计功能通过。
+  （2026-10-22 ✅：evidence-index **76/76 场景与 5 份 delta spec 一一对应**（无多/少/改名），回填行 10–19、纠偏 41/42/52–54/56/58/71 的空口「实机 7.3」，行 25/27/36/40 补限制或改判；机器审计 `.workbuddy/r22-74/audit-evidence.cjs` 全绿（42 处引用文件存在、行 10–19 标题逐字命中、5 条「部分」均有限制、7.3 声明均有具体 tag/读数）。
+  定向回归：replay 9 文件/122、trace-sdk 3/64、desktop 13/180 全过。新增执行证据 `isolated-prompt-run.test.ts`「空串/尾随空白编辑：正式请求逐字携带，不 trim、不合并其他字段」（replay 由 596→**597** 通过 +5 skip）。
+  全仓门禁（详见 evidence-index「7.4 门禁与审计证据」）：build 5 包 ✓、desktop 双 tsc 0 ✓、trace-sdk 13/225、agent-loop 8/104、trace-test 10/78、llm-proxy 2/45、replay 46/597(+5 skip)、desktop **214 文件/3272 用例**（singleFork）全过、biome **713 文件 0 错**（临时移出仓库外 video symlink 与两个未跟踪 README 脚本；未改其内容）、spec **13 passed/0 failed**、change strict valid、`git diff --check` 0。
+  🔴 本批修了 7.3 遗留的探针格式门禁：`r22-73-exec/reject/seed` 与 `lib/r22-73-harness` 经 biome 格式化，`exec` 两处无插值模板字面量改字符串；`node --check` 4/4、`verify-73.cjs` 回查全过（格式化不改行为）。
+  限制：`pnpm check:build/typecheck/test` 的脚本壳会调用 PATH 上的 pnpm 11 并被版本检查拦住，故用同一 pnpm 9 直调等价的 filter 命令；完整命令与 exit code 见 evidence-index 7.4 节。人工判据仍以 7.1/7.2/7.3 的用户确认为准，7.4 不代替发行前人工验收。）
 - [ ] 7.5（1h）实施通过后同步用户文档/路线/项目状态的实际能力与版本边界，复核 scenario 合并无遗漏后再归档；发行另行核对。验收：方案、主 spec 与源码无漂移，未验证项目不称已交付，不把归档当发布。

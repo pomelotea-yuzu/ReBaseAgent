@@ -24,6 +24,7 @@ import {
   NEW_SYSTEM_PROMPT,
   NEW_USER_INSTRUCTION,
   ORIGINAL_SYSTEM_PROMPT,
+  ORIGINAL_USER_INSTRUCTION,
   buildIsolatedPromptBaselineCase,
   deriveEditedMessages,
 } from "./isolated-prompt-baseline-fixture";
@@ -183,6 +184,33 @@ describe("promptReplayIsolatedRun：从根初始快照独立执行", () => {
     );
     expect(resolved.spans.map((span) => span.id)).toEqual(record.spans.map((span) => span.id));
     expect(resolved.chain.map((hop) => hop.meta.id)).toEqual([fixture.root.runId, result.id]);
+  });
+
+  it("空串/尾随空白编辑：正式请求逐字携带，不 trim、不合并其他字段", async () => {
+    for (const value of ["", `${ORIGINAL_USER_INSTRUCTION} `]) {
+      const { tmp, fixture } = await baseline();
+      const llm = new ScriptedLlm([{ content: "完成" }], tracesDir(tmp.dataDir));
+      const result = await promptReplayIsolatedRun({
+        dataDir: tmp.dataDir,
+        rootId: fixture.root.runId,
+        edit: { field: "user_message", value },
+        config: makeConfig(),
+        authority: { allowFileWrites: true },
+        llm: asLoopLlm(llm),
+      });
+      expect(result.ok, JSON.stringify(value)).toBe(true);
+      if (!result.ok) return;
+      const record = readRun(join(tracesDir(tmp.dataDir), `${result.id}.jsonl`));
+      const firstLlm = record.spans.find((span) => span.kind === "llm.call");
+      expect(firstLlm?.kind, JSON.stringify(value)).toBe("llm.call");
+      if (firstLlm?.kind !== "llm.call") return;
+      expect(firstLlm.request.messages, JSON.stringify(value)).toEqual(
+        deriveEditedMessages("user_message", value),
+      );
+      expect(record.meta.prompt_experiment?.original_value, JSON.stringify(value)).toBe(
+        ORIGINAL_USER_INSTRUCTION,
+      );
+    }
   });
 
   it("空初始世界：可合法从头执行并写入新文件", async () => {

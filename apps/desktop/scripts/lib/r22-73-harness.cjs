@@ -13,9 +13,15 @@
  */
 "use strict";
 const { createHash } = require("node:crypto");
-const { existsSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } = require(
-  "node:fs"
-);
+const {
+  existsSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} = require("node:fs");
 const { join } = require("node:path");
 const H = require("./u4-smoke-harness.cjs");
 
@@ -116,13 +122,22 @@ function makeHandle(kind, target, extra = {}) {
         if (existsSync(hidden)) throw new Error(`遗留隐藏副本：${hidden}`);
         const before = sha256File(target);
         renameSync(target, hidden);
-        handle.applied = { kind, before, hidden, existsNow: existsSync(target), hiddenNow: existsSync(hidden) };
+        handle.applied = {
+          kind,
+          before,
+          hidden,
+          existsNow: existsSync(target),
+          hiddenNow: existsSync(hidden),
+        };
         return handle.applied;
       }
       if (kind === "corruptBlob") {
         if (!existsSync(target)) throw new Error(`施加前目标就不在盘上：${target}`);
         const original = readFileSync(target);
-        writeFileSync(target, Buffer.concat([original, Buffer.from("\nR2273-CORRUPTED\n", "utf8")]));
+        writeFileSync(
+          target,
+          Buffer.concat([original, Buffer.from("\nR2273-CORRUPTED\n", "utf8")]),
+        );
         handle.applied = {
           kind,
           before: createHash("sha256").update(original).digest("hex"),
@@ -177,7 +192,8 @@ function hiddenResidue() {
   const out = [];
   for (const dir of [TRACES, BLOBS]) {
     if (!existsSync(dir)) continue;
-    for (const name of readdirSync(dir)) if (name.endsWith(HIDDEN_SUFFIX)) out.push(`${dir}/${name}`);
+    for (const name of readdirSync(dir))
+      if (name.endsWith(HIDDEN_SUFFIX)) out.push(`${dir}/${name}`);
   }
   return out;
 }
@@ -198,13 +214,18 @@ function hiddenResidue() {
 const EV_TIMEOUT_MS = 120_000;
 const jev = async (call, expression) => {
   const bounded = new Promise((_, reject) => {
-    setTimeout(() => reject(new Error(`jev 超过 ${EV_TIMEOUT_MS}ms 未 settle（页内或 ws 卡住）`)), EV_TIMEOUT_MS).unref?.();
+    setTimeout(
+      () => reject(new Error(`jev 超过 ${EV_TIMEOUT_MS}ms 未 settle（页内或 ws 卡住）`)),
+      EV_TIMEOUT_MS,
+    ).unref?.();
   });
   const sent = call("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true });
   const r = await Promise.race([sent, bounded]);
   if (r?.exceptionDetails) {
     const d = r.exceptionDetails;
-    throw new Error(`jev@${expression.slice(0, 80).replace(/\s+/g, " ")} → ${d.exception?.description ?? d.text}`);
+    throw new Error(
+      `jev@${expression.slice(0, 80).replace(/\s+/g, " ")} → ${d.exception?.description ?? d.text}`,
+    );
   }
   const v = r?.result?.value;
   if (typeof v !== "string") return v;
@@ -296,7 +317,10 @@ const currentEpoch = async (call) => {
 // ---------------------------------------------------------------------------
 
 const selectRunAndOverview = async (call, id) => {
-  await H.storeQ(call, `await s.selectRun(${JSON.stringify(id)}); return JSON.stringify({ ok: true });`);
+  await H.storeQ(
+    call,
+    `await s.selectRun(${JSON.stringify(id)}); return JSON.stringify({ ok: true });`,
+  );
   await H.storeQ(
     call,
     `s.setReadingTab(${JSON.stringify(id)}, "overview"); return JSON.stringify({ ok: true });`,
@@ -431,7 +455,9 @@ const checkThenEdit = (call, key, text) =>
 
 /** 哨兵 reload：证明文档真的换了（UI-VERIFY：Page.reload 偶发不换文档 ⇒ 判据会凭空成立） */
 const reloadWithProof = async (call, timeoutMs = 90000) => {
-  await call("Runtime.evaluate", { expression: "window.__r2273Doc = (window.__r2273Doc ?? 0) + 1;" });
+  await call("Runtime.evaluate", {
+    expression: "window.__r2273Doc = (window.__r2273Doc ?? 0) + 1;",
+  });
   await call("Page.addScriptToEvaluateOnNewDocument", {
     source: "window.__r2273Nav = Date.now();",
   });
@@ -444,10 +470,13 @@ const reloadWithProof = async (call, timeoutMs = 90000) => {
         runs: (document.body.innerText || '').length }))()`,
     ).catch(() => null);
     if (alive !== null && alive.nav != null && alive.docs === null) {
-      const n = await H.storeQ(call, "return JSON.stringify({ runs: s.runs.length });").catch(() => null);
+      const n = await H.storeQ(call, "return JSON.stringify({ runs: s.runs.length });").catch(
+        () => null,
+      );
       if (n !== null && n.runs > 0) return { ...alive, runs: n.runs };
     }
-    if (Date.now() > deadline) throw new Error(`reload 后 90s 未证明换文档：${JSON.stringify(alive)}`);
+    if (Date.now() > deadline)
+      throw new Error(`reload 后 90s 未证明换文档：${JSON.stringify(alive)}`);
     await H.sleep(800);
   }
 };
@@ -638,7 +667,10 @@ const setCheckpoint = (call, side, value) =>
 /** 费用确认 → 本次副本授权 → 提交（三连，全部真按钮点击） */
 const confirmAuthorizeSubmit = async (call, { authorize = true, submit = true } = {}) => {
   const fee = await clickSelector(call, "[data-confirm-execution]", 900);
-  const pressed = await jev(call, `(() => document.querySelector('[data-confirm-execution]')?.getAttribute('aria-pressed') ?? null)()`);
+  const pressed = await jev(
+    call,
+    `(() => document.querySelector('[data-confirm-execution]')?.getAttribute('aria-pressed') ?? null)()`,
+  );
   let auth = null;
   if (authorize) {
     auth = await jev(
@@ -714,7 +746,11 @@ const waitChildSealed = async (call, traceBase, timeoutMs = 120000) => {
     if (id !== null) {
       const file = join(TRACES, `${id}.jsonl`);
       if (existsSync(file)) {
-        const lines = readFileSync(file, "utf8").trim().split(/\r?\n/).filter(Boolean).map((l) => JSON.parse(l));
+        const lines = readFileSync(file, "utf8")
+          .trim()
+          .split(/\r?\n/)
+          .filter(Boolean)
+          .map((l) => JSON.parse(l));
         const terminal = lines.find((l) => l.type === "run.event" || l.event !== undefined);
         if (terminal !== undefined) return { id, lines, terminal, added };
       }

@@ -100,7 +100,13 @@ function writeSource() {
 function runRecord(readRun, id) {
   const file = join(DATA, "traces", `${id}.jsonl`);
   const record = readRun(file);
-  return { file, meta: record.meta, spans: record.spans, events: record.events ?? [], status: record.status };
+  return {
+    file,
+    meta: record.meta,
+    spans: record.spans,
+    events: record.events ?? [],
+    status: record.status,
+  };
 }
 
 function finalStepOf(record) {
@@ -183,9 +189,13 @@ async function main() {
       ],
     },
   ];
-  const CHILD_FINAL_TEXT = "已写出 notes.md（无末尾换行）与 child-only.txt；config.txt/big.txt/fault.txt 未改动。";
+  const CHILD_FINAL_TEXT =
+    "已写出 notes.md（无末尾换行）与 child-only.txt；config.txt/big.txt/fault.txt 未改动。";
 
-  const mock = await startMockLlmServer({ port: MOCK_PORT, script: { turns: rootTurns, fallback: { content: "DONE" } } });
+  const mock = await startMockLlmServer({
+    port: MOCK_PORT,
+    script: { turns: rootTurns, fallback: { content: "DONE" } },
+  });
   const report = {
     format_version: 1,
     task: "R2.2 7.3 失败与未知路径实机夹具（受控模型）",
@@ -291,11 +301,23 @@ async function main() {
     const childFinalByPath = Object.fromEntries(childFinalSnap.files.map((f) => [f.path, f]));
     report.blobs = {
       // 故障注入目标：① 初始快照里的 fault.txt（capability 附件校验）
-      initialFault: { sha256: initialByPath["fault.txt"].sha256, file: blobOf(initialByPath["fault.txt"].sha256), bytes: initialByPath["fault.txt"].bytes },
+      initialFault: {
+        sha256: initialByPath["fault.txt"].sha256,
+        file: blobOf(initialByPath["fault.txt"].sha256),
+        bytes: initialByPath["fault.txt"].bytes,
+      },
       // ② 仅根最终存在的 summary.md（单侧读取错误）
-      rootOnlySummary: { sha256: rootFinalByPath["summary.md"].sha256, file: blobOf(rootFinalByPath["summary.md"].sha256), bytes: rootFinalByPath["summary.md"].bytes },
+      rootOnlySummary: {
+        sha256: rootFinalByPath["summary.md"].sha256,
+        file: blobOf(rootFinalByPath["summary.md"].sha256),
+        bytes: rootFinalByPath["summary.md"].bytes,
+      },
       // ③ 两侧字节相同的大文件（迟到窗口）
-      big: { sha256: initialByPath["big.txt"].sha256, file: blobOf(initialByPath["big.txt"].sha256), bytes: initialByPath["big.txt"].bytes },
+      big: {
+        sha256: initialByPath["big.txt"].sha256,
+        file: blobOf(initialByPath["big.txt"].sha256),
+        bytes: initialByPath["big.txt"].bytes,
+      },
     };
     // blob 必须真在盘上，且与清单字节数一致
     for (const [name, entry] of Object.entries(report.blobs)) {
@@ -305,7 +327,12 @@ async function main() {
       }
     }
     report.expected = {
-      sourceA: Object.fromEntries(Object.entries(SOURCE_A).map(([k, v]) => [k, { bytes: Buffer.byteLength(v, "utf8"), sha256: sha256Text(v) }])),
+      sourceA: Object.fromEntries(
+        Object.entries(SOURCE_A).map(([k, v]) => [
+          k,
+          { bytes: Buffer.byteLength(v, "utf8"), sha256: sha256Text(v) },
+        ]),
+      ),
       rootSystem: ROOT_SYSTEM,
       childSystem: CHILD_SYSTEM,
       hypothesis: HYPOTHESIS,
@@ -323,7 +350,11 @@ async function main() {
         summaryRootFinal: "root summary B\n",
         childOnly: "child only\n",
         // 大文件只记形状（正文 1.3 MB 不写进证据文件，否则 seed.json 膨胀到 MB 级）
-        bigShape: { bytes: Buffer.byteLength(SOURCE_A["big.txt"], "utf8"), lines: 26_000, marker: "R2273-BIG" },
+        bigShape: {
+          bytes: Buffer.byteLength(SOURCE_A["big.txt"], "utf8"),
+          lines: 26_000,
+          marker: "R2273-BIG",
+        },
       },
     };
     report.mockServed = mock.served?.() ?? null;
