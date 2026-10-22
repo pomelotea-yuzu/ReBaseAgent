@@ -1,6 +1,6 @@
 # MCP0 / MCP1 实施任务
 
-状态（2026-10-22）：**1.1/1.2/1.3、2.1–2.7 已完成；2.8 起未实施**。
+状态（2026-10-22）：**1.1/1.2/1.3、2.1–2.8 已完成；2.9 起未实施**。
 每项预计不超过 2h；发现超过时先拆分任务。验收对应见 [evidence-index.md](evidence-index.md)；测试、客户端实机、人工接入和发行分别记录，不以文档校验替代功能通过。
 
 ## 1. MCP0：先验证支持路径
@@ -28,7 +28,8 @@
   - 2026-10-22：`detail-project` 新增 owner 跟踪投影 `projectMixedChainWithOwners`（原 `projectMixedChainSpans` 改为薄包装，行为逐字不变）；新增 `read/owner-index.ts`（`buildSpanOwnerIndex`/`resolveSpanOwner`）与 `RunReadContext.readWithOwners`（`readOf` 返回形状不变）。无 owner 重名 → `ambiguous`；显式 owner 被截断 → `truncated`；owner 不匹配 → `not_found`；索引与详情不一致 → `unreliable`。包级 owner 测试 3/3（result 链真实 owner+截断祖先、prompt 重置后的重名消歧、readOf 形状）；包级合计 **38/1 skip**；desktop 全量 **215/3275**（首跑 controlled-service 瞬时 fetch failed，单跑与复跑全绿）；tsc 双 0；biome 0。**Q09/Q10 的 MCP 协议面仍待 4.4**；v2 owner 映射复用 `resolveWholeRound`，4.4 的 v2 用例待补。
 - [x] 2.7（1.5h）迁移运行比较纯派生，逐侧失败、来源未知/独立边界保留。验收 Q11/Q12。
   - 2026-10-22：compare-derive/output/edit-evidence/source-map 与必要传递依赖（chain/outcome 分类/overview/terminal-facts）迁入 `run-query/facts`；desktop 旧路径逐项薄 re-export。`outcome.ts` 仅保留 Tailwind 视图类名，分类判据不再复制。包级 compare facts 测试 **6/6**（完整/缺父、共同祖先/相对增量、单侧截断、输出门禁、v1 来源映射、双侧不可读 notApplicable），包级合计 **44/1 skip**；desktop 旧比较/概览/结局/终端用例 **186/186**；全量 **215/3275**；tsc 双 0；biome 0。Q11/Q12 的 MCP 协议面仍待 4.5。
-- [ ] 2.8（1.5h）共享检查点查看与附件读取包装，保留自有/初始规则和全部文件状态。验收 Q13/Q14/Q16。
+- [x] 2.8（1.5h）共享检查点查看与附件读取包装，保留自有/初始规则和全部文件状态。验收 Q13/Q14/Q16。
+  - 2026-10-22：`read/workspace-view.ts` 迁入 run-query，repository 依赖收成 `RunRecordLoader` 最小接口；desktop 旧路径薄 re-export，replay 定位/哈希/附件读取不复制。初始/显式自有 step 不互换、六态文件结果与零源目录回读由既有 **workspace 用例 75/75**（含 `workspace-view` 20、`u2-file-fixtures` 39、ownOnly 6、隔离 prompt IPC 10）通过新实现继续钉住；包级冒烟 **2/2**（缺 run 清单与文件读取可辨认拒绝，元数据 loader 不越界调用）；desktop 全量 **215/3275**，tsc 双 0，biome 0。**Q13/Q14/Q16 的 MCP 工具面仍待 4.6/5.4**。
 - [ ] 2.9（1.5h）接入 replay 跨运行清单/内容比较，清单引用与字节结论分开。验收 Q14。
 
 ## 3. 桌面接线回归

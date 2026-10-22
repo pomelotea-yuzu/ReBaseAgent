@@ -7,3 +7,4 @@ export * from "./read/detail-project.js";
 export * from "./read/owner-index.js";
 export * from "./read/read-context.js";
 export * from "./read/repository.js";
+export * from "./read/workspace-view.js";
