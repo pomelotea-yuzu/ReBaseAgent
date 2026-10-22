@@ -29,6 +29,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@rebaseagent/trace-sdk": "workspace:*",
     "@types/node": "^20.14.0",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"

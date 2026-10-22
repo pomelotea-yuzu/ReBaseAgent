@@ -1,4 +1,4 @@
-import { readdirSync } from "node:fs";
+import { readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { readRun } from "@rebaseagent/trace-sdk";
 import type { RunRecord } from "@rebaseagent/trace-sdk";
@@ -23,6 +23,36 @@ export interface ListRunsDetailedData {
   readonly failed: RunListFailure[];
 }
 
+/**
+ * 带 trace 版本的列表条目（MCP 外部投影用）。
+ *
+ * `RunSummary` 刻意不含 `format_version`（旧 IPC 形状，D2 不得改动），但外部信封
+ * 的来源段要求给出每个物理 run 的版本——这里补的是**同一次扫描已经读到的**
+ * `meta.format_version`，不是第二次解析；`file` 同理（身份核验已通过，文件名与
+ * `meta.id` 一致，带上它让外部投影在拒绝某条目时仍能指名是哪个文件）。
+ */
+export interface IdentifiedRunSummary {
+  readonly file: string;
+  readonly summary: RunSummary;
+  readonly formatVersion: number;
+}
+
+export interface ListRunsWithIdentityData {
+  readonly runs: IdentifiedRunSummary[];
+  readonly failed: RunListFailure[];
+}
+
+/**
+ * 参与文件台账的一条：文件名 + 字节数 + 修改时刻（**不读字节**）。
+ * 外部投影用它做 readVersion 摘要；`bytes`/`mtimeMs` 为 null 表示 readdir 之后
+ * 这项已无法 stat（消失或不可达），仍要进摘要——「它变了」正是需要被发现的事实。
+ */
+export interface TraceFileEntry {
+  readonly file: string;
+  readonly bytes: number | null;
+  readonly mtimeMs: number | null;
+}
+
 interface ScannedRun {
   readonly file: string;
   readonly record: RunRecord;
@@ -35,8 +65,8 @@ interface ScannedRun {
  * 纪律：
  * - 单个文件读取失败必须被隔离——一个坏文件不得拖垮整个列表；
  * - 旧 `listRuns` 保持既有行为（文件名可任意，run id 取 `meta.id`）；
- * - MCP 外部投影用 `listRunsDetailed`：文件名必须等于 `meta.id`，错配是独立失败项，
- *   不冒充合法摘要。
+ * - MCP 外部投影用 `listRunsDetailed` / `listRunsWithIdentity`：文件名必须等于
+ *   `meta.id`，错配是独立失败项，不冒充合法摘要（后者只多带一个 `format_version`）。
  */
 export class RunRepository {
   constructor(readonly tracesDir: string) {}
@@ -51,8 +81,44 @@ export class RunRepository {
 
   /** 列表详细结果：身份错配 + 稳定码，供 MCP 外部投影 */
   listRunsDetailed(): ListRunsDetailedData {
+    const { runs, failed } = this.projectWithIdentity();
+    return { runs: runs.map((entry) => entry.summary), failed };
+  }
+
+  /**
+   * 列表 + 每条目的 trace 版本（外部投影的来源段所需）。
+   *
+   * 与 `listRunsDetailed` 共用同一次扫描与同一套身份判据：这里只是**多带一个字段**，
+   * 不重复解析、不改变排序，也不新增失败判定。
+   */
+  listRunsWithIdentity(): ListRunsWithIdentityData {
+    return this.projectWithIdentity();
+  }
+
+  /**
+   * 参与文件台账：`traces/` 下每个 `.jsonl` 的名称/字节/修改时刻，按文件名升序。
+   *
+   * 只 stat 不读字节——外部投影用它做 readVersion 摘要（design D4「参与文件字节与参数
+   * 的摘要」），代价与一次列表相当。文件名原样返回（调用方负责外发前的形状约束），
+   * stat 失败记 null：文件在两次读取之间消失同样要改变摘要。
+   */
+  traceFileLedger(): TraceFileEntry[] {
+    return readdirSync(this.tracesDir)
+      .filter((name) => name.endsWith(".jsonl"))
+      .sort()
+      .map((file) => {
+        try {
+          const stat = statSync(join(this.tracesDir, file));
+          return { file, bytes: stat.size, mtimeMs: stat.mtimeMs };
+        } catch {
+          return { file, bytes: null, mtimeMs: null };
+        }
+      });
+  }
+
+  private projectWithIdentity(): ListRunsWithIdentityData {
     const { scanned, failed } = this.scan();
-    const runs: RunSummary[] = [];
+    const runs: IdentifiedRunSummary[] = [];
     const allFailed = [...failed];
     for (const { file, record } of scanned) {
       const identity = findRunIdentityViolation(file.slice(0, -".jsonl".length), record.meta.id);
@@ -60,9 +126,13 @@ export class RunRepository {
         allFailed.push({ file, code: "IDENTITY_MISMATCH", error: identity });
         continue;
       }
-      runs.push(deriveRunSummary(record));
+      runs.push({
+        file,
+        summary: deriveRunSummary(record),
+        formatVersion: record.meta.format_version,
+      });
     }
-    runs.sort((a, b) => b.created_at.localeCompare(a.created_at));
+    runs.sort((a, b) => b.summary.created_at.localeCompare(a.summary.created_at));
     allFailed.sort((a, b) => a.file.localeCompare(b.file));
     return { runs, failed: allFailed };
   }

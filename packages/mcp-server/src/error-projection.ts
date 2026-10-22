@@ -1,6 +1,6 @@
 import { RunDetailReadError, classifyReadFailure } from "@rebaseagent/run-query";
 import type { RunQueryToolErrorCode } from "@rebaseagent/run-query";
-import type { z } from "zod";
+import { z } from "zod";
 
 /**
  * 业务错误投影（design D4 的错误域 + S06）。
@@ -36,6 +36,14 @@ const RETRYABLE_CODES: ReadonlySet<RunQueryToolErrorCode> = new Set<RunQueryTool
   "STORAGE_IO",
   "STALE_CURSOR",
 ]);
+
+/**
+ * 码表键的运行时枚举：外部投影里凡是带稳定码的字段都用它，码表增删自动跟随，
+ * 不存在「投影 schema 忘了同步某个新码」的第二份清单。
+ */
+export const ToolErrorCodeSchema = z.enum(
+  Object.keys(TOOL_ERROR_MESSAGES) as [RunQueryToolErrorCode, ...RunQueryToolErrorCode[]],
+);
 
 export interface ProjectedToolError {
   readonly code: RunQueryToolErrorCode;

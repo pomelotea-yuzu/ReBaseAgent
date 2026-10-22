@@ -8,6 +8,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { MCP_SERVER_NAME, MCP_SERVER_VERSION, QUERY_API_VERSION } from "../src/server.js";
 import { DATA_DIR_FLAG } from "../src/startup.js";
+import { READONLY_TOOLS } from "../src/tools.js";
 
 /**
  * MCP0 4.1（S01/S02）：真实 stdio 子进程的启动、通道与生命周期。
@@ -99,7 +100,7 @@ describe("S02 无效数据根：启动即失败", () => {
 });
 
 describe("S01 合法数据根：无桌面也能初始化", () => {
-  it("空 traces 也能完成协议初始化与工具发现；工具清单在 4.2 之前如实为空", async () => {
+  it("空 traces 也能完成协议初始化与工具发现；tools/list 发布的就是注册表那份", async () => {
     const transport = new StdioClientTransport({
       command: NODE,
       args: [CLI, DATA_DIR_FLAG, emptyRoot],
@@ -118,11 +119,23 @@ describe("S01 合法数据根：无桌面也能初始化", () => {
       });
       expect(client.getServerCapabilities()).toEqual({ tools: {} });
 
+      /**
+       * 4.1 当年钉的是「清单为空」，4.3 起登记了实现，判据改成**跟着注册表走**：
+       * - 子进程发出去的名称必须与注册表逐字一致（顺序也是发布顺序，D5）——
+       *   这条同时能咬住「dist 没重建就跑测试」（注册表读的是 src，工具来自 dist）；
+       * - 4.4–4.7 逐项登记时下面那行名称清单会随之变红，那是提醒改动者更新账本，
+       *   不是产品故障。
+       */
       const listed = await client.listTools();
-      expect(listed.tools).toEqual([]);
+      expect(listed.tools.map((tool) => tool.name)).toEqual(
+        READONLY_TOOLS.map((tool) => tool.name),
+      );
+      expect(listed.tools.map((tool) => tool.name)).toEqual(["list_runs", "get_run"]);
 
-      // 未注册的名字必须拒（S04 的前半段），且不因拒绝而改变服务边界
-      const call = (await client.callTool({ name: "list_runs", arguments: {} })) as {
+      // 未注册的名字必须拒（S04 的前半段），且不因拒绝而改变服务边界。
+      // 用「重跑并写入」这种**永远不会注册**的名字：拿 4.4 待实现的名字测，
+      // 等它登记完这条判据就悄悄失效了。
+      const call = (await client.callTool({ name: "rerun_and_write", arguments: {} })) as {
         isError?: boolean;
         content?: Array<{ type: string; text?: string }>;
       };

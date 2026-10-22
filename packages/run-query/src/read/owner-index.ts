@@ -19,6 +19,17 @@ export interface SpanOwnerIndex {
   readonly ownersBySpanId: ReadonlyMap<string, readonly string[]>;
   /** 可见的 (ownerRunId, spanId) 对 */
   readonly visibleOwnerSpanKeys: ReadonlySet<string>;
+  /**
+   * **投影序**的逐位置归属：与 `detail.spans` 同长同序，第 i 项就是第 i 个 span 的
+   * 真实 owner。重名 span 只能靠位置区分（按 id 查会得到多个候选），外部索引因此
+   * 一律用它标注归属，不由调用方重拼父链（design D5）。
+   */
+  readonly projectedOwners: readonly ProjectedSpanOwner[];
+}
+
+export interface ProjectedSpanOwner {
+  readonly spanId: string;
+  readonly ownerRunId: string;
 }
 
 export type SpanOwnerLookup =
@@ -38,6 +49,7 @@ function unreliable(reason: string): SpanOwnerIndex {
     reason,
     ownersBySpanId: new Map(),
     visibleOwnerSpanKeys: new Set(),
+    projectedOwners: [],
   };
 }
 
@@ -55,9 +67,11 @@ export function buildSpanOwnerIndex(
   }
 
   const visible = new Set<string>();
+  const projectedOwners: ProjectedSpanOwner[] = [];
   if (detail.spanScope === "own") {
     for (const span of detail.spans) {
       visible.add(pairKey(detail.meta.id, span.id));
+      projectedOwners.push({ spanId: span.id, ownerRunId: detail.meta.id });
     }
   } else {
     const projected = projectMixedChainWithOwners(records);
@@ -72,6 +86,7 @@ export function buildSpanOwnerIndex(
     }
     for (const item of projected.owned) {
       visible.add(pairKey(item.ownerRunId, item.span.id));
+      projectedOwners.push({ spanId: item.span.id, ownerRunId: item.ownerRunId });
     }
   }
 
@@ -79,7 +94,13 @@ export function buildSpanOwnerIndex(
   for (const [spanId, runIds] of owners) {
     ownersBySpanId.set(spanId, [...runIds]);
   }
-  return { status: "ok", reason: null, ownersBySpanId, visibleOwnerSpanKeys: visible };
+  return {
+    status: "ok",
+    reason: null,
+    ownersBySpanId,
+    visibleOwnerSpanKeys: visible,
+    projectedOwners,
+  };
 }
 
 export function resolveSpanOwner(

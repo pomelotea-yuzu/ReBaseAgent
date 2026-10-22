@@ -1,6 +1,6 @@
 # MCP0 / MCP1 实施任务
 
-状态（2026-10-22）：**阶段 1、2（2.1–2.9）、3（3.1–3.2）与 4.1–4.2 已完成；4.3 起未实施**。
+状态（2026-10-22）：**阶段 1、2（2.1–2.9）、3（3.1–3.2）与 4.1–4.3 已完成；4.4 起未实施**。
 每项预计不超过 2h；发现超过时先拆分任务。验收对应见 [evidence-index.md](evidence-index.md)；测试、客户端实机、人工接入和发行分别记录，不以文档校验替代功能通过。
 
 ## 1. MCP0：先验证支持路径
@@ -52,7 +52,56 @@
   - 测试 **50 用例**（新增 34）：`contracts.test.ts` 12（恰七且顺序、逐工具参数集与必填、所有对象节点 `additionalProperties:false`、禁用字段递归扫描不含 dataDir/root/cwd/url/handler/command/model/config/force 等、上限逐字段钉住、枚举封闭、声明自包含无 `$ref`、未知键与越界/错型逐条拒、比较不给数组入口）；`envelope.test.ts` 13（成功信封与 nextCursor⇒page+truncation 同步、自检挡住多余键与空 readVersion、limitation 造码被拒、码表覆盖 16 码且无路径形态、异常文本/堆栈/`C:\Users` 不外发、ENOENT⇒RUN_NOT_FOUND、`RunDetailReadError` 中文原因被替换、文案 512 码点有界、简述按码点截断）；`protocol.test.ts` 9（官方 SDK Client 与真 Server 对跑：唯一能力 `tools`、`listResources/listPrompts` 协议拒绝、tools/list 发布即契约、未知字段 INVALID_ARGUMENT 且不回显被拒取值、未知工具名有界回显、业务失败信封带 ref、缺陷只回一句受控文案且 stderr 不含秘密）。
   - 门禁：`pnpm test` 内建 tsc 后 **50/50**；`biome check packages/mcp-server` 0；7 包 build 通过；desktop tsc 双 0。
   - **S04/S06 的形状与投影半边已钉**（真实参数注入与逐工具故障注入仍随 4.3–4.8）；**S03/S05 未通过**：`READONLY_TOOLS` 仍为空清单，"恰七工具 + 按需正文 + 来源引用"要等 4.3–4.7 逐项登记实现。
-- [ ] 4.3（1.5h）实现 list_runs/get_run 的摘要、筛选、tagged item 索引/失败项。验收 S03、Q03/Q04。
+- [x] 4.3（1.5h）实现 list_runs/get_run 的摘要、筛选、tagged item 索引/失败项。验收 S03、Q03/Q04。
+  - 2026-10-22：`READONLY_TOOLS` 从空清单变成 `[list_runs, get_run]`（`tools.ts` 逐批登记，未实现的仍**不登记**——
+    空位是"能力不存在"，注册会抛错的占位工具是谎报可用）。新增 `src/query/`：
+    `read-version.ts`（readVersion = 工具名 + 已通过校验的入参 + `traces/` 逐文件「名称/字节/mtime」台账的 sha256；
+    只 stat 不重读字节，且不按参与链收窄——宁可多判一次过期；**同字节数且保留 mtime 的原地改写判不出**，
+    与 D3「不承诺抵御有权限并发替换」同口径）、`projection.ts`（安全文件标识、结局筛选映射、query 匹配、
+    白名单摘要条目、分页窗口、`created_at` 倒序 + runId **UTF-16 代码单元**升序）、
+    `list-runs.ts`、`get-run.ts`。`tool-contracts.ts` 加 `requireContract` 与 `ListRunsArgs`/`GetRunArgs`
+    类型导出（入参形状仍只有 zod 那一份）；`error-projection.ts` 加 `ToolErrorCodeSchema`（码表键派生的运行时枚举）。
+  - list_runs：一条线性序列 = 命中摘要段 + 不可读文件段，**筛选与搜索只作用成功摘要**，失败段恒在场并占页额度（Q03）；
+    失败项文案取自码表，共享层的中文异常文本与物理路径不过这一层；身份超出外部上限（>200）的记录在筛选**之前**
+    改判失败项（不冒充可请求摘要，也不随筛选蒸发）。
+  - get_run：`run` 段与列表共用同一份 `RunSummaryItemSchema`（两处「自有」不会漂）；`chain`/`provenance.runs`
+    逐物理 run 给身份与封存，轨迹范围与来源完整性只对被读叶子给出；`consumption.own` = `deriveOwnConsumption`、
+    `alongChain` = `deriveChainTotals`（缺父 ⇒ null，不补零）；索引 = span 投影序（继承项 owner 取
+    `projectedOwners` 的**逐位置归属**，重名标 `ambiguousOwner`）+ 检查点段（初始快照优先，再按自有记录序）；
+    未封存 ⇒ `TERMINATION_NOT_RECORDED`、缺父 ⇒ `ANCESTOR_NOT_FOUND`、有分叉/实验 ⇒ `BODY_NOT_EXPOSED` 指路。
+  - v3 实验只给**身份**（基线三 id + model/迭代/预算/指纹 + `paramsRecorded`），`original_value`、`hypothesis`、
+    `acceptance_criterion`、`fork.edit.value`、`provider_endpoint`、参数表全部不出门（D5/D7）。
+  - run-query 侧三处 additive 改动：`listRunsWithIdentity()`（同一次扫描多带 `format_version` 与 `file`，
+    `listRunsDetailed` 改为它的投影，排序与判据逐字不变）、`traceFileLedger()`、`SpanOwnerIndex.projectedOwners`。
+    旧 `listRuns`/`listRunsDetailed`/`getRun`/`readOf`/`readWithOwners` 行为不变 ⇒ desktop **216 文件/3301** 与
+    3.2 的 26 条双入口对照继续绿。
+  - **4.2 断言改判（两边留痕）**：`ProvenanceRunSchema` 的 `lineage`/`spanScope` 由必填改**可选**，语义是
+    「省略 = 本次未判定」。4.2 写成必填会迫使 `list_runs` 二选一：补一个没查过的 `complete`（把未知写成可信事实，
+    违反 D4）或整批失败。`envelope.test.ts` 补一条用例钉住「缺省合法且不被自动补全、错值仍拒」；
+    4.2 注记里「provenance{runs,refs}」的形状描述按此读。
+  - **4.1 断言改判（两边留痕）**：`lifecycle.test.ts` 原钉 `tools/list` 为空清单、`callTool("list_runs")` 回
+    「未知工具」。登记实现后该判据必然过时，改为**跟随注册表**（`tools/list` 名称序列 === `READONLY_TOOLS`，
+    并显式钉当前 `["list_runs","get_run"]`）；未知工具出口改用永远不会注册的 `rerun_and_write`
+    （拿 4.4 待实现的名字测，登记完判据就悄悄失效）。注册表读 src、工具来自 dist ⇒ 这条同时咬住
+    「忘记重建 dist」。4.1 的 S01 缺口口径不变（恰七工具仍待 4.4–4.7）。
+  - 分页口径：页宽默认 20 生效并如实 `truncated:true`，但**不发假游标**（`page`/`truncation.nextCursor` 缺席）；
+    带 `cursor` 的请求显式拒 `INVALID_ARGUMENT` + `ref:"cursor"`，不当首页重放。游标签发与续读核验仍归 5.2。
+  - 顺带修 4.2 的测试类型缺陷（本包测试原先不在任何 tsc 覆盖内，新建
+    `.rebaseagent/tsconfig.mcp-server-test.json` 才看得见）：`contracts.test.ts` 两处给 `expect` 传了第二个
+    「消息」参数（vitest 签名不接受，参数被无声丢弃）⇒ 改名为比较值的一部分。
+  - 测试：新增 `list-runs.test.ts` **22**、`get-run.test.ts` **21**、`query-fixtures.ts`（`JsonlTracer` 真写 +
+    `createWorkspaceSnapshot` 真算快照 id 的夹具：五种结局 + 无 llm + result 分叉 + 缺父 prompt 分叉 +
+    重名 span + 同刻对 + v2 隔离根 + v3 实验 + 损坏/身份错配/超长标识 + 抬过页宽的批量）、
+    `whitelist-assertions.ts`（按**对象键**递归判禁用字段——`editField:"result"` 的值含 "result"，子串搜会误判）；
+    mcp-server 合计 **94 passed**，run-query **47 passed/1 skip**，desktop **216/3301**（singleFork），
+    7 包 build、desktop tsc 双 0、本 change 路径 biome 0、`check-spec` 13/0、`openspec validate --strict` valid、
+    `git diff --check` 0。账本回查 `.workbuddy/mcp0-43/verify-43.cjs` 45 项全对（数字从 json 报告重算，
+    `--self-test` 三道反证咬住）。变异验证 3 组全部咬住后当场还原：编辑字段携带 `edit.value` ⇒ v3 白名单用例红；
+    同刻排序改 `localeCompare` ⇒ UTF-16 排序用例红；筛选时丢弃失败段 ⇒ Q03 用例红。
+  - **S03 未通过**：恰七工具要等 4.4–4.7 登记完，「先摘要后正文」的正文半边（section）还没有对象可查。
+    **Q03/Q04 未整场景通过**：本项闭合协议筛选面与「未知不补造」的投影面，跨页无重不漏与来源变化拒绝归 5.1/5.2，
+    端到端零写入字节复核归 5.4，真实客户端对照归 6.2。
+
 - [ ] 4.4（1.5h）实现 get_step section/owner 读取和结构正文规范 JSON 投影。验收 S03、Q09/Q10。
 - [ ] 4.5（1h）实现 compare_runs 双侧投影/引用/BODY_NOT_EXPOSED，按 D5 两侧对象 schema（与 compare_checkpoint_files 同形）。验收 Q11/Q12、S05。
 - [ ] 4.6（1.5h）实现 inspect_checkpoint/read_checkpoint_file，二进制仅元信息、文本原换行；工具缺省 stepSpanId=初始与桌面默认分层注释，不提供"最近一步"缺省语义。验收 Q13/Q14、S03。

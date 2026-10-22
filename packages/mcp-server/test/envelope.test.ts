@@ -5,6 +5,7 @@ import {
   ErrorEnvelopeSchema,
   LimitationSchema,
   ProvenanceRefSchema,
+  ProvenanceRunSchema,
   SuccessEnvelopeSchema,
   boundedHeadline,
   buildErrorEnvelope,
@@ -60,6 +61,33 @@ describe("成功信封", () => {
     expect(envelope.limitations).toHaveLength(1);
     expect(envelope.page).toBeUndefined();
     expect(envelope.truncation).toEqual({ truncated: false });
+  });
+
+  /**
+   * 4.3 的改判（留痕）：`list_runs` 只扫各自文件、没读父链，来源段必须能表达
+   * 「这一项本次未判定」。4.2 把 `lineage/spanScope` 写成必填，实现只能二选一——
+   * 要么补一个没查过的 `complete`（把未知写成可信事实，违反 D4），要么整批失败。
+   * 现在它们可选，且**省略不会被自动补成 complete**；给了就必须是真实判定。
+   */
+  it("来源段的完整性字段可缺省=未判定，缺省不自动补成可信事实", () => {
+    const envelope = buildSuccessEnvelope({
+      data: { runs: [] },
+      readVersion: "rv:abc",
+      runs: [{ runId: "run-1", formatVersion: 1, sealed: false }],
+      observedAt: "2026-10-22T00:00:00.000Z",
+    });
+    expect(envelope.provenance.runs).toEqual([{ runId: "run-1", formatVersion: 1, sealed: false }]);
+    expect(
+      ProvenanceRunSchema.safeParse({ runId: "r", formatVersion: 1, sealed: true }).success,
+    ).toBe(true);
+    expect(
+      ProvenanceRunSchema.safeParse({
+        runId: "r",
+        formatVersion: 1,
+        sealed: true,
+        lineage: "partial",
+      }).success,
+    ).toBe(false);
   });
 
   it("nextCursor 同时驱动 page 与 truncation（两处不一致就是谎报）", () => {

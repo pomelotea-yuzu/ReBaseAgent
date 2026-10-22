@@ -88,6 +88,8 @@ const ListRunsArgs = z
     limit: pageLimitField().optional(),
   })
   .strict();
+/** 实现层的入参类型：只从上面这份 zod 派生，不另写一份参数形状 */
+export type ListRunsArgs = z.infer<typeof ListRunsArgs>;
 
 const GetRunArgs = z
   .object({
@@ -96,6 +98,7 @@ const GetRunArgs = z
     limit: pageLimitField().optional(),
   })
   .strict();
+export type GetRunArgs = z.infer<typeof GetRunArgs>;
 
 const GetStepArgs = z
   .object({
@@ -196,4 +199,16 @@ export const TOOL_NAMES: readonly string[] = TOOL_CONTRACTS.map((item) => item.n
 
 export function contractOf(name: string): ToolContract | undefined {
   return TOOL_CONTRACTS.find((item) => item.name === name);
+}
+
+/**
+ * 登记实现时取契约：名字写错（契约里没有）是实现缺陷，宁可在模块加载时就炸，
+ * 也不要在客户端调用时才回一句含糊的「未知工具」。
+ */
+export function requireContract(name: string): ToolContract {
+  const contract = contractOf(name);
+  if (contract === undefined) {
+    throw new Error(`工具契约缺失：${name}`);
+  }
+  return contract;
 }

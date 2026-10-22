@@ -35,10 +35,14 @@ export const ProvenanceRunSchema = z
     formatVersion: z.number().int().positive(),
     /** 是否已封存（有终止事件）；未封存不等于仍在运行 */
     sealed: z.boolean(),
-    /** 父链完整性：ownOnly 截断即 incomplete */
-    lineage: z.enum(["complete", "incomplete"]),
-    /** 轨迹是合并前缀还是自有/独立执行 */
-    spanScope: z.enum(["resolved", "own"]),
+    /**
+     * 父链完整性：ownOnly 截断即 incomplete。
+     * **省略 = 本次读取没有判定这一项**（例如 `list_runs` 只扫各自文件、不读父链）——
+     * 补齐它等于把"没查过"写成"完整"，违反 design D4「未知保留未知」。
+     */
+    lineage: z.enum(["complete", "incomplete"]).optional(),
+    /** 轨迹是合并前缀还是自有/独立执行；同上，省略 = 未判定 */
+    spanScope: z.enum(["resolved", "own"]).optional(),
   })
   .strict();
 export type ProvenanceRunInput = z.infer<typeof ProvenanceRunSchema>;

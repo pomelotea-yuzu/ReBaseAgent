@@ -172,6 +172,53 @@ Q 属于 run-query，S 属于 mcp-service，D 属于 desktop-ui；标题须与 d
   - **S04/S06 只闭合形状与投影半边**（真实参数注入、逐工具故障与凭据过滤随 4.3–4.8）；
     **S03/S05 未通过**——恰七工具与"先摘要后正文 + 来源引用"要等 4.3–4.7 登记实现后才有对象可查。
 
+- 4.3：登记 `list_runs`/`get_run` 两个实现（`READONLY_TOOLS` 由空清单变两条；其余四个仍不登记）。
+  - 新增 `packages/mcp-server/src/query/{read-version,projection,list-runs,get-run}.ts`，
+    `tool-contracts.ts` 加 `requireContract` + `ListRunsArgs`/`GetRunArgs` 类型，`error-projection.ts`
+    加 `ToolErrorCodeSchema`（码表键派生，不再手抄第二份码清单）。run-query 三处 additive：
+    `listRunsWithIdentity()`（`listRunsDetailed` 改为其投影，排序/判据逐字不变）、`traceFileLedger()`、
+    `SpanOwnerIndex.projectedOwners`（投影序逐位置归属，重名 span 不靠 id 猜）。
+  - `packages/mcp-server/test/list-runs.test.ts` **22 用例**：摘要段+失败段的一条线性序列（失败段整体在尾、
+    与成功段共用页额度）；`created_at` 倒序 + **UTF-16 代码单元**升序（反证 `localeCompare` 给相反顺序）；
+    五类结局筛选互斥（Q03/Q04）；`termination_not_recorded` ⇒ `sealed=false` 且不带「仍在运行」暗示；
+    缺 `cache_hit` ⇒ `cacheHit:null` 不补 0；损坏/身份错配/超长标识三种失败各带稳定码且**筛选与搜索后仍在场**；
+    身份错配记录里的另一个 id 不被冒充成摘要；白名单按**对象键**递归判（`messages/role/content/args/value/result/`
+    `tool_calls/request/response/hypothesis/original_value/provider_endpoint/base_url/params/path/dataDir…`）
+    + `SENTINEL-*` 正文 canary 全扫 + 物理路径不外发；默认页宽 20 与 `limit` 生效、截断页 `truncated:true`
+    但 `page`/`nextCursor` 缺席、带游标请求拒 `INVALID_ARGUMENT`+`ref:"cursor"` 且不回显取值；
+    空 traces 合法空列表；查询前后 traces 逐文件指纹不变；readVersion 同参稳定、换参即变、新增 run 后变。
+  - `test/get-run.test.ts` **21 用例**：`run` 段与列表同一字段集且 `run.tokens == consumption.own`；
+    result 分叉子 chain 两跳、继承项 owner=父、自有项 owner=子、`alongChain.tokens=134`/`steps=2`
+    而 `own` 只有子那一步 10/4；缺父 prompt 分叉 ⇒ `ownOnly`+`lineage.incomplete`+`ANCESTOR_NOT_FOUND`
+    +`alongChain=null`（不补零）+链只剩一跳；未封存 ⇒ `TERMINATION_NOT_RECORDED` 且已落盘 step 仍可读；
+    实测 `cache_hit=0` 与未记录可分辨（`own.cache` 两种形态）；重名 span ⇒ `ambiguousOwner:true` 且归属取本 run；
+    v2 隔离根检查点段 = 初始快照（`worldOrigin:import`、2 文件/22 B）+ 自有完成步骤（2 文件/33 B），
+    `provenance.refs` 逐项给出 run/step/snapshotId；祖先检查点不充作自有（v1 分叉子 `checkpoints:0`）；
+    `limit` 只作用于索引、totals 仍报全量、不发明游标；v3 实验只给身份（基线三 id + model/8/100000/指纹 +
+    `paramsRecorded:true`），`provider_endpoint` 与正文 canary 全部不外发并带 `BODY_NOT_EXPOSED`；
+    错误面 RUN_NOT_FOUND / `../outside` 与超长 id ⇒ INVALID_ARGUMENT 且不回显、身份错配 ⇒ RUN_INVALID
+    不借另一记录替换、损坏文件 ⇒ 码表文案有界；五次详情读取后目录指纹不变、同 run 两次读取 `data` 逐字相同。
+  - **两处 4.x 断言改判（已两边留痕）**：4.2 的 `ProvenanceRunSchema.lineage/spanScope` 由必填改可选
+    （省略 = 本次未判定；`list_runs` 没读父链，补齐就是把未知写成可信事实），`envelope.test.ts` 补
+    「缺省合法、不自动补全、错值仍拒」一条；4.1 的 `lifecycle.test.ts` 由「tools/list 为空」改为
+    「跟随注册表 + 显式钉当前两条」，未知工具名改用永不注册的 `rerun_and_write`。
+  - 顺带：新建 `.rebaseagent/tsconfig.mcp-server-test.json` 后本包测试首次进入类型检查，发现并修掉
+    4.2 `contracts.test.ts` 两处 `expect(actual, message)`（vitest 不接受第二个消息参数，判据曾无声降级）。
+  - 变异验证 3 组（施加→定向跑→当场还原并核对内容 clean）：`editField` 改带 `fork.edit.value` ⇒
+    v3 白名单用例红；同刻排序改 `localeCompare` ⇒ UTF-16 排序用例红；筛选时丢弃失败段 ⇒ Q03 用例红。
+  - 门禁：mcp-server **94 passed**（`tsc` + 测试 tsconfig 双 0）、run-query **47 passed/1 skip**、
+    desktop **216 文件/3301 用例**（singleFork）、desktop tsc node/web 0、7 包 build、
+    `biome check packages/mcp-server packages/run-query` 0（59 文件）、`check-spec` 13/0、
+    `openspec validate --changes --strict` valid、`git diff --check` 0。新依赖：本包 devDependencies 增
+    `@rebaseagent/trace-sdk`（仅测试夹具用；workspace 链，锁文件随之更新，无外部新包）。
+  - 账本机器回查：`.workbuddy/mcp0-43/verify-43.cjs` **45 项全对**，数字全部从 vitest json 报告重算
+    （`.workbuddy/mcp0-43/{mcp-server,run-query,desktop}.json`），并逐条核对「判据原文在测试源码里在场」
+    （同刻排序的区域排序反证、默认页宽 20、身份错配稳定码、沿链 134 tokens、缺父 ⇒ null、
+    `ambiguousOwner:true`、缺父链只剩一跳）。`--self-test` 三道反证都咬住：用例数漂一个、
+    区域排序反证被抹走、注册表退回空清单。禁用型检查先剥注释再扫（`provider_endpoint` 只出现在文档注释里）。
+  - **S03 仍未通过**（恰七工具与 section 正文半边待 4.4–4.7）；**Q03/Q04 未整场景通过**
+    （跨页无重不漏与游标绑定归 5.1/5.2，端到端字节指纹与零执行计数归 5.4，真实客户端对照归 6.2）。
+
 ## 门禁与归档约束
 
 - 6.5 补实际命令、exit code、源码身份、包构建顺序和新依赖核验；不引用 R2.2 历史通过代替本次通过。

@@ -110,14 +110,15 @@ describe("TOOL_CONTRACTS：发布形状", () => {
   it("每个工具的参数集与必填项逐个钉住（多一个少一个都算契约变动）", () => {
     for (const item of TOOL_CONTRACTS) {
       const root = nodeOf(item.inputSchema);
-      expect(Object.keys(root.properties ?? {}).sort()).toEqual(
-        [...(EXPECTED_PROPERTIES[item.name] ?? [])].sort(),
-        item.name,
-      );
-      expect([...(root.required ?? [])].sort()).toEqual(
-        [...(EXPECTED_REQUIRED[item.name] ?? [])].sort(),
-        item.name,
-      );
+      // 逐个工具比对时把名字一起放进比较值：vitest 的 expect 不接受第二个「消息」参数
+      expect({ tool: item.name, keys: Object.keys(root.properties ?? {}).sort() }).toEqual({
+        tool: item.name,
+        keys: [...(EXPECTED_PROPERTIES[item.name] ?? [])].sort(),
+      });
+      expect({ tool: item.name, required: [...(root.required ?? [])].sort() }).toEqual({
+        tool: item.name,
+        required: [...(EXPECTED_REQUIRED[item.name] ?? [])].sort(),
+      });
     }
   });
 
