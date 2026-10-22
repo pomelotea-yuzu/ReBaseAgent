@@ -181,4 +181,4 @@
   （2026-10-22 ✅：文档同步——README 新增「隔离 prompt 实验」能力与版本边界（未打包）、更新限制与下一步；`docs/product/evolution-roadmap.md`、`docs/development/project-status.md`、`docs/README.md`、`openspec/config.yaml`、`CHANGELOG.md` 与拆分计划 §9 均改为「R2.2 已归档（源码、未打包），下一项 R3」。
   归档——`mv` 到 `openspec/changes/archive/2026-10-22-add-isolated-prompt-experiments`；全仓已无活动路径引用。
   合并——5 份 delta 合入主 spec：requirement **138→150**、scenario **589→625**（净增 +12 req / +36 scen；trace-format +5、prompt-replay +8、replay +3、workspace-isolation +7、desktop-ui +13 场景）。零丢失核对 `.workbuddy/r22-75/verify-merge.cjs` 全过：基线每个 requirement/scenario 仍在、delta 未点名的 requirement 逐字节不变、MODIFIED/ADDED 块与 delta 逐字一致、无 ADDED/MODIFIED 头；自测两道反证（抹既有 scenario、篡改 MODIFIED 正文）都被抓到。归档后 `node scripts/check-spec.mjs` = **12 passed / 0 failed**。
-  边界——R2.2 **未打包、未进入任何发行包**；最新候选仍为 `0.5.0-rc.1`。人工实机验收、视觉可读性、部分乱序注入与二进制/超限逐侧状态仍按 7.2/7.3/7.4 的说明分层承载；归档不等于发布。）
+  边界——R2.2 **未打包、未进入任何发行包**；最新候选仍为 `0.5.0-rc.1`。人工实机验收、视觉可读性、部分乱序注入与二进制/超限逐侧状态仍按 7.2/7.3/7.4 的说明分层承载；归档不等于发布。归档提交 `d613d06`。）
