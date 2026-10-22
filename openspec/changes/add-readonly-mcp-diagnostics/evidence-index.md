@@ -58,6 +58,10 @@ Q 属于 run-query，S 属于 mcp-service，D 属于 desktop-ui；标题须与 d
   desktop `shared/ipc.ts` 旧出口改为薄 re-export。包级 schema 测试 **9/9**（`packages/run-query/test/schema.test.ts`）、
   desktop 同源测试 **3/3**（`apps/desktop/test/run-query-schema-parity.test.ts`）、desktop 全量 **215 文件/3275 用例**、
   tsc 双配置 0 错、全包 build 通过。**Q01/D02 仍未通过**：需 2.2/2.3 的读取迁移与 3.2 的桌面同 fixture 对照。
+- 2.3：lineage/detail-project/read-context 与摘要事实迁入 run-query，旧路径薄 re-export。
+  包级读取测试 **5/5**（`packages/run-query/test/read-context.test.ts`：单请求缓存/新请求重读、缺父 ownOnly、
+  坏父 `ANCESTOR_INVALID`、非法 ID 读取前拒绝、混合链在 prompt 边界重置）；受影响 desktop 用例 **204/204**；
+  desktop 全量 **215/3275**；tsc 双 0。**Q02/Q07/Q08 仍未整场景通过**：3.2 的桌面/包层同 fixture 对照未做。
 
 ## 门禁与归档约束
 
