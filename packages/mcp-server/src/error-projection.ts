@@ -1,0 +1,75 @@
+import { RunDetailReadError, classifyReadFailure } from "@rebaseagent/run-query";
+import type { RunQueryToolErrorCode } from "@rebaseagent/run-query";
+import type { z } from "zod";
+
+/**
+ * 业务错误投影（design D4 的错误域 + S06）。
+ *
+ * 关键取舍：**消息来自码表，不来自异常文本**。共享层的中文原因是给桌面看的，
+ * 里面可能出现物理文件位置；MCP 只回"哪一类不成立"，物理路径、errno、堆栈
+ * 一律不过这一层。分类一律按结构（`RunDetailReadError.code` /
+ * `classifyReadFailure` 的 instanceof 与 code 判定），不解析文字。
+ */
+
+/** 每个稳定码一句受控文案（封闭集合：新增码必须同时新增文案） */
+export const TOOL_ERROR_MESSAGES: Readonly<Record<RunQueryToolErrorCode, string>> = {
+  INVALID_ARGUMENT: "参数不符合本工具的约束",
+  RUN_NOT_FOUND: "指定 run 不存在",
+  RUN_INVALID: "指定 run 的记录无法通过校验",
+  UNSUPPORTED_TRACE_VERSION: "该 run 的 trace 版本不受支持",
+  IDENTITY_MISMATCH: "文件名与记录内的 run 标识不一致",
+  ANCESTOR_INVALID: "该 run 的祖先记录无法通过校验",
+  ANCESTOR_UNREADABLE: "该 run 的祖先记录当前不可读",
+  LINEAGE_CYCLE: "该 run 的父链存在环",
+  FORK_INVALID: "该 run 的分叉声明不合法",
+  STEP_NOT_FOUND: "指定步骤不是本 run 的自有完成步骤",
+  SPAN_AMBIGUOUS: "该 span 标识在投影内不唯一，需要显式 owner",
+  NO_WORKSPACE: "该 run 不是隔离运行，没有文件检查点",
+  CHECKPOINT_NOT_FOUND: "指定检查点不存在",
+  STORAGE_IO: "存储读取失败，可稍后重试",
+  STALE_CURSOR: "续读游标已过期，请从首页重新查询",
+  RESPONSE_LIMIT: "单项结果无法容纳在响应预算内",
+} as const;
+
+/** 可重试码：只有"换个时点再来一次"有意义的才 true */
+const RETRYABLE_CODES: ReadonlySet<RunQueryToolErrorCode> = new Set<RunQueryToolErrorCode>([
+  "STORAGE_IO",
+  "STALE_CURSOR",
+]);
+
+export interface ProjectedToolError {
+  readonly code: RunQueryToolErrorCode;
+  readonly message: string;
+  readonly retryable: boolean;
+}
+
+export function retryableOf(code: RunQueryToolErrorCode): boolean {
+  return RETRYABLE_CODES.has(code);
+}
+
+/** 按结构分类异常，再查码表取文案（异常文本本身不进结果） */
+export function projectThrowable(error: unknown): ProjectedToolError {
+  const code = error instanceof RunDetailReadError ? error.code : classifyReadFailure(error);
+  return { code, message: TOOL_ERROR_MESSAGES[code], retryable: retryableOf(code) };
+}
+
+/** 参数校验失败：只回"哪个字段以哪一类方式不合"，不透传 zod issue 原文与取值 */
+export function projectArgumentError(
+  issues: readonly z.ZodIssue[],
+  maxIssues = 3,
+): ProjectedToolError {
+  const summary = issues
+    .slice(0, maxIssues)
+    .map((issue) => `${issue.path.join(".") || "(root)"}:${issue.code}`)
+    .join(",");
+  return {
+    code: "INVALID_ARGUMENT",
+    message: `参数不符合本工具的约束（${summary}）`,
+    retryable: false,
+  };
+}
+
+/** 已知码判定（实现里若出现码表外的码，宁可判为不可重试也不静默发送） */
+export function isKnownToolErrorCode(code: string): code is RunQueryToolErrorCode {
+  return Object.prototype.hasOwnProperty.call(TOOL_ERROR_MESSAGES, code);
+}

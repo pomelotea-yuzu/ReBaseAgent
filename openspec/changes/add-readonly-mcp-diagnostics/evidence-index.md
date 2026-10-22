@@ -146,6 +146,32 @@ Q 属于 run-query，S 属于 mcp-service，D 属于 desktop-ui；标题须与 d
     无权限目录，与 2.5 的文件 symlink 同口径，留人工判据）。**S01 未通过**：恰七工具与按需正文
     待 4.2–4.7，完整协商/取消/重连待 5.3，真实客户端待 6.2。
 
+- 4.2：定契约与信封，不实现工具（`READONLY_TOOLS` 仍为空清单）。
+  - 新增 `src/limits.ts`、`src/tool-contracts.ts`、`src/input-schema.ts`、`src/envelope.ts`、
+    `src/error-projection.ts`、`src/tool-definition.ts`。发布给客户端的 JSON Schema **由 zod
+    strict schema 派生**（`toJsonSchemaCompat`），故不存在可漂移的第二份声明；每字段用独立实例
+    以免转换器压成 `$ref`（测试钉住"声明自包含"）。
+  - `packages/mcp-server/test/contracts.test.ts` **12/12**：恰七工具与 D5 顺序、逐工具参数集与
+    必填项、所有对象节点 `additionalProperties:false`、递归扫描禁用字段（dataDir/tracesDir/root/
+    cwd/url/handler/command/shell/apiKey/token/model/params/config/force…）、上限逐字段钉住
+    （200/128/512/4096/limit≤100/maxChars≤8192）、筛选与 section 枚举封闭、未知键与超长/错型逐条拒、
+    比较工具不接受数组形状。
+  - `test/envelope.test.ts` **13/13**：成功信封（apiVersion/observedAt/readVersion/provenance/
+    limitations/truncation）、`nextCursor` 同步驱动 page 与 truncation、构造期自检拒多余键与空
+    readVersion、snapshotId 必须 64 位十六进制、limitation 造码被拒、16 个稳定码码表齐全且文案
+    不含路径形态、`retryable` 只给 STORAGE_IO/STALE_CURSOR、含物理路径/`C:\Users`/EPERM/堆栈的
+    异常投影后不外发、ENOENT ⇒ RUN_NOT_FOUND、`RunDetailReadError` 的中文原因被码表文案替换、
+    512 码点有界与按码点截断。
+  - `test/protocol.test.ts` **9/9**（官方 SDK `Client` + `InMemoryTransport` 与真 Server 对跑）：
+    `getServerCapabilities()` 恒为 `{tools:{}}`、`listResources()`/`listPrompts()` 协议层拒绝
+    （无 resources/prompts 旁路）、`tools/list` 发布即契约、未知字段 ⇒ `INVALID_ARGUMENT` 且被拒
+    取值（`D:/secret-root`、`dataDir`）不出现在结果里、未知工具名回显有界、`ToolFailure` 走稳定码
+    信封带 ref、实现内部缺陷只回一句受控文案且 stderr 不带秘密。
+  - 门禁：`packages/mcp-server` `pnpm test`（tsc + vitest）**50/50**；`biome check packages/mcp-server` 0；
+    7 包 build 通过；desktop tsc 双 0。
+  - **S04/S06 只闭合形状与投影半边**（真实参数注入、逐工具故障与凭据过滤随 4.3–4.8）；
+    **S03/S05 未通过**——恰七工具与"先摘要后正文 + 来源引用"要等 4.3–4.7 登记实现后才有对象可查。
+
 ## 门禁与归档约束
 
 - 6.5 补实际命令、exit code、源码身份、包构建顺序和新依赖核验；不引用 R2.2 历史通过代替本次通过。
