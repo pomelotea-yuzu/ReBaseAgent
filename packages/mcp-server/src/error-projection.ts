@@ -33,7 +33,6 @@ export const TOOL_ERROR_MESSAGES: Readonly<Record<RunQueryToolErrorCode, string>
   STEP_NOT_FOUND: "指定步骤或 span 在当前可读投影里不可定位",
   SPAN_AMBIGUOUS: "该 span 标识在投影内不唯一，需要显式 owner",
   NO_WORKSPACE: "该 run 不是隔离运行，没有文件检查点",
-  CHECKPOINT_NOT_FOUND: "指定检查点不存在",
   STORAGE_IO: "存储读取失败，可稍后重试",
   STALE_CURSOR: "续读游标已过期，请从首页重新查询",
   RESPONSE_LIMIT: "单项结果无法容纳在响应预算内",

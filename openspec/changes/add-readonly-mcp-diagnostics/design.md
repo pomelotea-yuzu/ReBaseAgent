@@ -60,7 +60,17 @@ observedAt 为 UTC ISO；readVersion 是参与文件字节与参数摘要，不�
 
 失败 `{apiVersion,ok:false,error:{code,message,ref?,retryable}}`，工具 isError=true；未知工具/协议错误沿 MCP 标准。已知工具非法业务参数映射统一信封，不透传 SDK/Zod 参数/异常。content 只给简短状态/定位，不复制整份正文；按选定 SDK 验证 outputSchema/structuredContent。
 
-稳定码：INVALID_ARGUMENT、DATA_DIR_INVALID、RUN_NOT_FOUND、RUN_INVALID、UNSUPPORTED_TRACE_VERSION、IDENTITY_MISMATCH、ANCESTOR_INVALID、ANCESTOR_UNREADABLE、LINEAGE_CYCLE、FORK_INVALID、STEP_NOT_FOUND、SPAN_AMBIGUOUS、NO_WORKSPACE、CHECKPOINT_NOT_FOUND、STORAGE_IO、STALE_CURSOR、RESPONSE_LIMIT。无法可靠细分解析错时用 RUN_INVALID，不按错误文字猜版本。缺父仅在确认祖先 ENOENT 时给 ANCESTOR_NOT_FOUND limitation；文件保留 text/binary/not_found/missing/corrupt/rejected。
+稳定码：INVALID_ARGUMENT、DATA_DIR_INVALID、RUN_NOT_FOUND、RUN_INVALID、UNSUPPORTED_TRACE_VERSION、IDENTITY_MISMATCH、ANCESTOR_INVALID、ANCESTOR_UNREADABLE、LINEAGE_CYCLE、FORK_INVALID、STEP_NOT_FOUND、SPAN_AMBIGUOUS、NO_WORKSPACE、STORAGE_IO、STALE_CURSOR、RESPONSE_LIMIT。无法可靠细分解析错时用 RUN_INVALID，不按错误文字猜版本。缺父仅在确认祖先 ENOENT 时给 ANCESTOR_NOT_FOUND limitation；文件保留 text/binary/not_found/missing/corrupt/rejected。
+
+> **D4 修订（2026-10-22，4.6 收口后经用户定夺）：删去 `CHECKPOINT_NOT_FOUND`，工具错误域 16→15。**
+> 判据是可达性而不是美观：trace-sdk 读取器对「v2/v3 已落盘的 `agent.step` 缺 `workspace_snapshot`」
+> 先判整份记录非法（`packages/trace-sdk/src/reader.ts:118-127`），而半途中断的 step 根本不落行，
+> 因此「step 定位得到、检查点却不存在」在只读路径上不成立；4.7 唯一可能挂靠的 `selection_changed`
+> （期望的那份快照不在了）按 D6 归 `STALE_CURSOR`——把它塞进本码就是把两种事实混成一条客户端分支。
+> 留一条永不发出的码，代价是投影层要写空分支、指南要多解释一行，比删掉更大。
+> 同批定夺的另一条：分叉子自有 span 与父重名时，共享层详情自检抛裸 Error（真实写入器一律以
+> `spanSeqStart = maxSpanSeq(父)` 起号，产不出该数据）⇒ **维持「内部缺陷」定性**，不在 MCP 侧补
+> 业务码：按异常文案猜码撞 §五 红线，单独分类又与桌面对同一条 `GET_RUN_FAILED` 的粗分类分叉。
 
 码命名空间分三类，实现和客户端按类分支，不得混用承载：
 

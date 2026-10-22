@@ -24,7 +24,6 @@ export type RunQueryToolErrorCode =
   | "STEP_NOT_FOUND"
   | "SPAN_AMBIGUOUS"
   | "NO_WORKSPACE"
-  | "CHECKPOINT_NOT_FOUND"
   | "STORAGE_IO"
   | "STALE_CURSOR"
   | "RESPONSE_LIMIT";

@@ -158,7 +158,7 @@ Q 属于 run-query，S 属于 mcp-service，D 属于 desktop-ui；标题须与 d
     比较工具不接受数组形状。
   - `test/envelope.test.ts` **13/13**：成功信封（apiVersion/observedAt/readVersion/provenance/
     limitations/truncation）、`nextCursor` 同步驱动 page 与 truncation、构造期自检拒多余键与空
-    readVersion、snapshotId 必须 64 位十六进制、limitation 造码被拒、16 个稳定码码表齐全且文案
+    readVersion、snapshotId 必须 64 位十六进制、limitation 造码被拒、**当时 16 个**稳定码码表齐全且文案
     不含路径形态、`retryable` 只给 STORAGE_IO/STALE_CURSOR、含物理路径/`C:\Users`/EPERM/堆栈的
     异常投影后不外发、ENOENT ⇒ RUN_NOT_FOUND、`RunDetailReadError` 的中文原因被码表文案替换、
     512 码点有界与按码点截断。
@@ -334,11 +334,17 @@ Q 属于 run-query，S 属于 mcp-service，D 属于 desktop-ui；标题须与 d
     「未动前沿」改钉尾项 6.6 ⇒ 43/44/45 重跑分别 45/43/41 项全对。
   - 变异验证 4 组全部咬住后当场还原并核对无残留：缺省 selector 改解析「最近自有完成步骤」⇒ 8 条红；
     去掉 `WORKSPACE_` 归一 ⇒ 4 条红；附件不可用伪装 `ok` ⇒ 2 条红；正文 CRLF 规范化 ⇒ 3 条红。
-  - ⚠️ **两条如实保留**：① `CHECKPOINT_NOT_FOUND` 本批无可达承载（读取器先拒「v2/v3 已落盘
-    `agent.step` 缺 `workspace_snapshot`」，半途中断的 step 没有行）⇒ 不造分支凑用它，留给 4.7
-    或按 D4 修订定夺；② 分叉子自有 span 与父重名时共享层详情自检抛裸 Error（`spans 存在重复 id`）
-    ⇒ MCP 落到服务层无稳定码兜底。曾据此把「自有」判据改成逐位置 owner，验证该形态不可达后
-    **改回 `leafSpanIds`**（提取为纯搬家，与 4.3 判据逐字相同）；定性归用户，见 HANDOFF §九 3。
+  - ✅ **两条定夺（2026-10-22 用户裁决，已落 code + design）**：① `CHECKPOINT_NOT_FOUND` 本批无可达承载
+    （读取器先拒「v2/v3 已落盘 `agent.step` 缺 `workspace_snapshot`」，半途中断的 step 没有行）
+    ⇒ **不造分支凑用它，而是按 D4 修订删码**：工具错误域 16→15（`design.md` D4 附修订说明 +
+    `run-query/read/errors.ts` 联合 + `mcp-server/error-projection.ts` 码表 + `envelope.test.ts`
+    的封闭集合断言）；4.7 唯一可能挂靠的 `selection_changed` 按 D6 归 `STALE_CURSOR`，不挪用本码。
+    ② 分叉子自有 span 与父重名时共享层详情自检抛裸 Error（`spans 存在重复 id`）⇒ MCP 落到服务层
+    无稳定码兜底。**维持「内部缺陷」定性**：真实写入器一律以 `spanSeqStart = maxSpanSeq(父)` 起号
+    （`replay-run.ts:109`、`isolated-replay.ts:167`）产不出该数据；按异常文案猜码撞 §五 红线，
+    单独分类又与桌面 `GET_RUN_FAILED` 的粗分类分叉。曾据此把「自有」判据改成逐位置 owner，
+    验证该形态不可达后**改回 `leafSpanIds`**（提取为纯搬家，与 4.3 判据逐字相同）。
+    限制本身写进 6.3 指南的错误一节，不当已验收能力引用。
   - **S03 仍未通过**（6/7 登记，`compare_checkpoint_files` 待 4.7）；**Q13/Q14 未整场景通过**
     （游标与来源变化归 5.2、64 KiB 预算归 5.1、两侧比较归 4.7、端到端零写入与 Q15/Q16 归 5.4、
     实机对照归 6.1/6.2）；**S05 的「指定历史文件」半边本轮闭合**（refs 带

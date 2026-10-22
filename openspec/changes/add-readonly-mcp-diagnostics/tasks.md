@@ -48,8 +48,9 @@
   - 2026-10-22：新建 `packages/mcp-server`（NodeNext/ESM，`bin.rebaseagent-mcp → dist/cli.js`，`engines.node>=20`；依赖 `@modelcontextprotocol/sdk` **1.32.1** + `@rebaseagent/run-query` workspace 链 + zod **3.25.76**，新增 62 个传递依赖已入锁）。四模块：`startup.ts` 按 D3 只接受一个显式已有的绝对目录并核验 `traces/`（缺参/缺值/相对/不存在/不是目录/无 traces/traces 不是目录一律 `DATA_DIR_INVALID` + 退出码 2，**不 mkdir、不换根、不回显路径**；空 `traces/` 合法）；`diagnostics.ts` 只写 stderr、`detail` 仅收标量（对象/数组压成 `type:<名称>`）、单值 120 码点与整行 600 码点截断、写失败不影响协议，src 内无 `console.*`；`server.ts` 用官方 SDK `Server`+`StdioServerTransport` 承担 initialize/协商/tools/list/tools/call，本层只做声明发布与分发（未知工具名拒并回受控文案，S04 前半段；工具内部异常只回一句受控文案 + stderr 事件名，不透传堆栈与原始参数），生命周期含 `oninitialized`/`onerror`/`onclose` 与 EOF 三路径落定（SDK onclose、stdin `close`、connect 后 `stdin.closed` 补判）；`tools.ts` 是七工具注册缝，**首版为空清单**——不注册占位工具也不假称可用（4.2–4.7 逐项登记）。测试 **16 用例**：`startup.test.ts` 9 项核验矩阵含"拒绝不留副作用"与"原因不含用户路径"；`lifecycle.test.ts` 7 项起**真实子进程**（`node dist/cli.js`）——坏根 exit=2 且 **stdout 零字节**、SDK 客户端完成初始化+`listTools`（空）+未知工具拒、写一帧 initialize 后 EOF ⇒ stdout 逐行都是 `jsonrpc:"2.0"` 帧、stderr 每行匹配 `<ts> <event> {json}` 且不含帧、EOF 后 exit=0 不挂住。门禁：7 个包 build 全通过、desktop tsc 双 0、desktop 单进程口径 **216/3301**、本 change 路径 biome 0、spec check 13/0、`openspec validate --strict` valid。
   - **S01 未通过**：工具清单为空，"恰七工具 + 按需读正文"待 4.2–4.7，完整协商/取消/重连待 5.3，真实客户端待 6.2。**S02 的场景判据已由 CLI 实跑覆盖**（含"不建目录/不进 stdout"），但"traces 不可读"子情形只有 `accessSync` 判据、未构造真实无权限目录（本机权限限制，与 2.5 的文件 symlink 同口径），留人工判据。
 - [x] 4.2（1.5h）定义七工具 strict schema/annotations、版本结果/错误 schema，禁止执行/资源旁路。验收 S03/S04/S05/S06。
-  - 2026-10-22：新增 `limits.ts`（runId 200 / spanId 128 / 逻辑路径 4096 / 游标 512 / 分页默认 20 上限 100 / 正文默认 4096 上限 8192 / 64 KiB 预算常量）、`tool-contracts.ts`（七工具契约，顺序同 D5；每字段独立 zod 实例，发布形状由 `input-schema.ts` 从 zod **派生**，不存在可漂移的第二份声明；annotations 统一只读四元组）、`envelope.ts`（成功/失败判别式 schema + 构造期自检：`apiVersion/observedAt/readVersion/data/provenance{runs,refs}/limitations/page?/truncation`；snapshotId 必须 64 位十六进制；limitation 码封闭四项）、`error-projection.ts`（16 个稳定码各有受控文案，`retryable` 只给 STORAGE_IO/STALE_CURSOR；`projectThrowable` 按结构分类、**文案取自码表不取自异常**；`projectArgumentError` 只回`字段:规则名`）、`tool-definition.ts`（校验→实现→信封；实现只以 `ToolFailure(码, ref)` 宣告业务失败，其余非受控异常继续上抛由服务层兜一句受控文案，不把程序缺陷伪装成业务码）。
-  - 测试 **50 用例**（新增 34）：`contracts.test.ts` 12（恰七且顺序、逐工具参数集与必填、所有对象节点 `additionalProperties:false`、禁用字段递归扫描不含 dataDir/root/cwd/url/handler/command/model/config/force 等、上限逐字段钉住、枚举封闭、声明自包含无 `$ref`、未知键与越界/错型逐条拒、比较不给数组入口）；`envelope.test.ts` 13（成功信封与 nextCursor⇒page+truncation 同步、自检挡住多余键与空 readVersion、limitation 造码被拒、码表覆盖 16 码且无路径形态、异常文本/堆栈/`C:\Users` 不外发、ENOENT⇒RUN_NOT_FOUND、`RunDetailReadError` 中文原因被替换、文案 512 码点有界、简述按码点截断）；`protocol.test.ts` 9（官方 SDK Client 与真 Server 对跑：唯一能力 `tools`、`listResources/listPrompts` 协议拒绝、tools/list 发布即契约、未知字段 INVALID_ARGUMENT 且不回显被拒取值、未知工具名有界回显、业务失败信封带 ref、缺陷只回一句受控文案且 stderr 不含秘密）。
+  - 2026-10-22：新增 `limits.ts`（runId 200 / spanId 128 / 逻辑路径 4096 / 游标 512 / 分页默认 20 上限 100 / 正文默认 4096 上限 8192 / 64 KiB 预算常量）、`tool-contracts.ts`（七工具契约，顺序同 D5；每字段独立 zod 实例，发布形状由 `input-schema.ts` 从 zod **派生**，不存在可漂移的第二份声明；annotations 统一只读四元组）、`envelope.ts`（成功/失败判别式 schema + 构造期自检：`apiVersion/observedAt/readVersion/data/provenance{runs,refs}/limitations/page?/truncation`；snapshotId 必须 64 位十六进制；limitation 码封闭四项）、`error-projection.ts`（**初版 16 个**稳定码各有受控文案——2026-10-22 D4 修订删去 `CHECKPOINT_NOT_FOUND`
+后为 15 个，见本节末「4.6 的两条定夺」；`retryable` 只给 STORAGE_IO/STALE_CURSOR；`projectThrowable` 按结构分类、**文案取自码表不取自异常**；`projectArgumentError` 只回`字段:规则名`）、`tool-definition.ts`（校验→实现→信封；实现只以 `ToolFailure(码, ref)` 宣告业务失败，其余非受控异常继续上抛由服务层兜一句受控文案，不把程序缺陷伪装成业务码）。
+  - 测试 **50 用例**（新增 34）：`contracts.test.ts` 12（恰七且顺序、逐工具参数集与必填、所有对象节点 `additionalProperties:false`、禁用字段递归扫描不含 dataDir/root/cwd/url/handler/command/model/config/force 等、上限逐字段钉住、枚举封闭、声明自包含无 `$ref`、未知键与越界/错型逐条拒、比较不给数组入口）；`envelope.test.ts` 13（成功信封与 nextCursor⇒page+truncation 同步、自检挡住多余键与空 readVersion、limitation 造码被拒、码表覆盖**当时 16 码**（D4 修订后 15 码，断言按封闭集合两侧同判 ⇒ 少一个或多一个都红）且无路径形态、异常文本/堆栈/`C:\Users` 不外发、ENOENT⇒RUN_NOT_FOUND、`RunDetailReadError` 中文原因被替换、文案 512 码点有界、简述按码点截断）；`protocol.test.ts` 9（官方 SDK Client 与真 Server 对跑：唯一能力 `tools`、`listResources/listPrompts` 协议拒绝、tools/list 发布即契约、未知字段 INVALID_ARGUMENT 且不回显被拒取值、未知工具名有界回显、业务失败信封带 ref、缺陷只回一句受控文案且 stderr 不含秘密）。
   - 门禁：`pnpm test` 内建 tsc 后 **50/50**；`biome check packages/mcp-server` 0；7 包 build 通过；desktop tsc 双 0。
   - **S04/S06 的形状与投影半边已钉**（真实参数注入与逐工具故障注入仍随 4.3–4.8）；**S03/S05 未通过**：`READONLY_TOOLS` 仍为空清单，"恰七工具 + 按需正文 + 来源引用"要等 4.3–4.7 逐项登记实现。
 - [x] 4.3（1.5h）实现 list_runs/get_run 的摘要、筛选、tagged item 索引/失败项。验收 S03、Q03/Q04。
@@ -251,14 +252,19 @@
   - 变异验证 4 组（施加→定向跑→Edit 反向还原→核对无残留）：缺省 selector 改解析「最近自有
     完成步骤」⇒ 8 条红（Q13 正面判据）；去掉 `WORKSPACE_` 前缀归一 ⇒ 4 条红（两种载体收敛）；
     附件不可用伪装成 `ok` ⇒ 2 条红；正文 CRLF 规范化 ⇒ 3 条红。全部当场还原后 172/172 绿。
-  - ⚠️ **两条如实保留（不改判据、不静默扩大）**：① `CHECKPOINT_NOT_FOUND` 在本批**无可达承载**
+  - ✅ **两条定夺（2026-10-22 用户裁决，本批已一并落地）**：① `CHECKPOINT_NOT_FOUND` 在本批**无可达承载**
     ——trace-sdk 读取器对 v2/v3「已落盘 `agent.step` 必带 `workspace_snapshot`」先拒
-    （`reader.ts:118-127`），半途中断的 step 根本没有行，故「step 在而检查点不存在」不成立；
-    该码留给 4.7 或由用户定夺是否回 D4 修订，本批**不造分支去凑用它**。
+    （`reader.ts:118-127`），半途中断的 step 根本没有行，故「step 在而检查点不存在」不成立
+    ⇒ **按 D4 修订删码**（工具错误域 16→15，`design.md` 附修订说明；`errors.ts` 联合、
+    `error-projection.ts` 码表、`envelope.test.ts` 的封闭集合断言同步）；4.7 的 `selection_changed`
+    按 D6 归 `STALE_CURSOR`，**不挪用本码**。
     ② 结果分叉子若自有 span 标识与父重名，共享层详情自检抛**裸 Error**
     （`spans 存在重复 id`）⇒ MCP 只能落到服务层那句无稳定码的兜底文案；曾据此把「自有」判据
     改成逐位置 owner，验证后发现该形态在读取层就被拒（不可达）⇒ **改回 `leafSpanIds`**
-    （与 4.3 的 get_run 判据逐字相同，本次提取是纯搬家）。属数据缺陷还是内部缺陷的定性归用户。
+    （与 4.3 的 get_run 判据逐字相同，本次提取是纯搬家）。**维持「内部缺陷」定性、不动共享层**：
+    真实写入器以 `spanSeqStart = maxSpanSeq(父)` 起号（`replay-run.ts:109`、`isolated-replay.ts:167`）
+    产不出该数据；按文案猜码违 §五 红线，单独分类又与桌面 `GET_RUN_FAILED` 粗分类分叉。
+    ⇒ 作为已知限制写进 6.3 指南的错误一节，不当已验收能力引用。
   - **S03 未通过**（七工具登记 6 条，`compare_checkpoint_files` 待 4.7；真实客户端整链待 6.2）。
     **Q13 未整场景通过**：协议面已闭合（初始↔显式不互换、祖先不充作自有、不代填），
     续读游标与来源变化归 5.2、端到端字节指纹与 Q15/Q16 归 5.4、桌面分层默认的实机对照归 6.1。

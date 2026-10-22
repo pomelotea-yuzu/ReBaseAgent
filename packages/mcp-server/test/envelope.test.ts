@@ -151,7 +151,6 @@ describe("失败信封与错误投影（S06）", () => {
       "STEP_NOT_FOUND",
       "SPAN_AMBIGUOUS",
       "NO_WORKSPACE",
-      "CHECKPOINT_NOT_FOUND",
       "STORAGE_IO",
       "STALE_CURSOR",
       "RESPONSE_LIMIT",
