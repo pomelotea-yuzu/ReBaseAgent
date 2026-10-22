@@ -122,7 +122,34 @@ describe("run-query 单次读取上下文", () => {
     }
     expect(caught).toBeInstanceOf(RunDetailReadError);
     expect((caught as RunDetailReadError).diagnostic).toBe("ANCESTOR_INVALID");
+    expect((caught as RunDetailReadError).code).toBe("ANCESTOR_INVALID");
     expect((caught as Error).message).toContain("祖先 run r_bad");
+  });
+
+  it("当前 run 缺失给 RUN_NOT_FOUND 稳定码", () => {
+    let caught: unknown;
+    try {
+      new RunReadContext(traces).detailOf("r_absent");
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(RunDetailReadError);
+    expect((caught as RunDetailReadError).diagnostic).toBe("CURRENT_RUN_NOT_FOUND");
+    expect((caught as RunDetailReadError).code).toBe("RUN_NOT_FOUND");
+  });
+
+  it("分支缺少 fork 元数据给 FORK_INVALID 稳定码", () => {
+    writeRun("r_root", [metaLine("r_root"), stepLine("root_s1"), STOP]);
+    writeRun("r_child", [metaLine("r_child", { parent: "r_root" }), stepLine("child_s1"), STOP]);
+    let caught: unknown;
+    try {
+      new RunReadContext(traces).detailOf("r_child");
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(RunDetailReadError);
+    expect((caught as RunDetailReadError).diagnostic).toBe("FORK_INVALID");
+    expect((caught as RunDetailReadError).code).toBe("FORK_INVALID");
   });
 
   it("非法 run 标识在读取前拒绝，不触碰文件系统", () => {

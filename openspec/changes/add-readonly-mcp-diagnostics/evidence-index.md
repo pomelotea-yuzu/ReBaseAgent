@@ -66,6 +66,10 @@ Q 属于 run-query，S 属于 mcp-service，D 属于 desktop-ui；标题须与 d
   包级 repository 测试 **9/9**（`packages/run-query/test/repository.test.ts`）；包级合计 **23/23**；
   受影响 desktop 用例 **54/54**；desktop 全量 **215/3275**；tsc 双 0。**Q03/Q04 仍未整场景通过**：
   4.3 的 MCP 筛选/失败项分页与 5.x 的未封存端到端未实施。
+- 2.4：新增输入安全校验与稳定错误码分类；`listRunsDetailed` 提供 `IDENTITY_MISMATCH`/`RUN_INVALID` 等
+  结构化失败项，`RunDetailReadError.code` 由 lineage 诊断映射。包级测试 **33/33**、desktop 全量 **215/3275**、
+  tsc 双 0。**Q05 包级证据已补；S06 的 MCP 错误投影仍待 4.2/4.8**。
+  旧 IPC 行为保持：超长 run id 仍走 desktop 比较端点旧语义；`listRuns` 仍允许文件名任意。
 
 ## 门禁与归档约束
 

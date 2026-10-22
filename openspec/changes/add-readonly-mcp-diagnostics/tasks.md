@@ -1,6 +1,6 @@
 # MCP0 / MCP1 实施任务
 
-状态（2026-10-22）：**1.1/1.2/1.3、2.1、2.2、2.3 已完成；2.4 起未实施**。
+状态（2026-10-22）：**1.1/1.2/1.3、2.1–2.4 已完成；2.5 起未实施**。
 每项预计不超过 2h；发现超过时先拆分任务。验收对应见 [evidence-index.md](evidence-index.md)；测试、客户端实机、人工接入和发行分别记录，不以文档校验替代功能通过。
 
 ## 1. MCP0：先验证支持路径
@@ -20,7 +20,8 @@
   - 2026-10-22：`read/repository.ts` 迁入 run-query（`RunRepository.listRuns/getRun/loadRunRecord`），desktop 旧路径改薄 re-export；摘要事实已在 2.3 随 read-context 依赖下沉。包级 repository 测试 **9/9**（列表倒序、坏文件独立失败、未来版本失败项、根/分支详情、缺父严格失败、无 llm 时 cacheHit/duration 未知、crashed 残留 reason 不采信、cache_hit=0 与字段缺失区分、实验组标签）；包级合计 **23/23**；受影响 desktop 54/54；desktop 全量 **215/3275**；tsc 双 0；biome 0。Q03 的 MCP 筛选面与 Q04 的未封存端到端仍待 4.3/5.x。
 - [x] 2.3（2h）迁移 lineage/read-context/project 与单请求缓存；回归 v1/v2/v3 和独立执行/混合链。验收 Q02/Q07/Q08。
   - 2026-10-22（先于 2.2 按依赖顺序执行）：`read/lineage.ts`、`read/detail-project.ts`、`read/read-context.ts` 迁入 run-query，desktop 旧路径改薄 re-export；`deriveRunSummary`/`deriveTerminalReason`/`deriveCacheHitTotal`/`RunLike` 一并下沉 `facts/summary.ts`（read-context 的依赖，归 2.2 记账）。包级读取测试 5/5（单请求缓存/新请求重读、缺父 ownOnly、坏父结构化失败、非法 ID 读取前拒绝、混合链独立边界重置）；受影响 desktop 用例 204/204；desktop 全量 **215 文件/3275 用例**；tsc 双 0；biome 0。Q02/Q07/Q08 的包级证据已补，完整 Q08 v1/v2/v3 混链对照仍由 3.2 收口。
-- [ ] 2.4（1.5h）统一 ID/路径/身份安全校验和结构化错误分类。验收 Q05、S06；不按错误文字猜码。
+- [x] 2.4（1.5h）统一 ID/路径/身份安全校验和结构化错误分类。验收 Q05、S06；不按错误文字猜码。
+  - 2026-10-22：新增 `read/validation.ts`（runId 路径形状 + 外部 200 上限、spanId 128、逻辑路径 4096/NUL + trace-sdk 语义、文件名/meta.id 身份）与 `read/errors.ts`（启动/工具/limitation 三类稳定码、lineage 诊断映射、按结构分类读取异常）。`RunDetailReadError` 增 `code`；`listRunsDetailed` 逐项给 `IDENTITY_MISMATCH`/`RUN_INVALID` 等码。**D2 冲突两处已按“旧行为不变”处理**：401 字符 run id 仍由 desktop 比较端点按旧语义处理（200 上限只用于 MCP 外部输入）；`listRuns` 仍允许文件名任意（身份错配只在 `listRunsDetailed` 成为失败项）。包级测试 **33/33**（validation 6 / read-context 7 / repository 11 / schema 9）；desktop 全量 **215/3275**；tsc 双 0；biome 0。Q05 包级证据已补；S06 的 MCP 错误投影仍待 4.2/4.8。
 - [ ] 2.5（1.5h）共享读取边界拒绝链接越界/目录替身，保留 I/O 原因分类。验收 Q06。
 - [ ] 2.6（2h）建立投影 span→owner 索引，支持重名消歧与被截断祖先拒绝。验收 Q09/Q10。
 - [ ] 2.7（1.5h）迁移运行比较纯派生，逐侧失败、来源未知/独立边界保留。验收 Q11/Q12。

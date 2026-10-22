@@ -1,10 +1,13 @@
-import { isAbsolute, join } from "node:path";
+import { join } from "node:path";
 import { TraceReadError, findExperimentSourceViolation, readRun } from "@rebaseagent/trace-sdk";
 import type { Fork, RunRecord } from "@rebaseagent/trace-sdk";
 import {
   ISOLATED_FORMAT_VERSION,
   PROMPT_EXPERIMENT_FORMAT_VERSION,
 } from "@rebaseagent/trace-sdk/schema";
+import { findIllegalRunIdViolation } from "./validation.js";
+
+export { findIllegalRunIdViolation } from "./validation.js";
 
 /**
  * U6（add-partial-run-reading）design D2：桌面读取适配层的**单次读取上下文**。
@@ -52,21 +55,6 @@ export type RunLineageOutcome =
       readonly missingRunId: string;
     }
   | RunLineageFailure;
-
-/**
- * 校验 run 标识是否可安全拼进 `<tracesDir>/<id>.jsonl`。
- * 返回违规原因（中文短语），合法返回 `null`。
- *
- * 无分隔符 + 无 `..` ⇒ 拼接结果必然落在 tracesDir 内，无需再做 resolve 包含性判断。
- */
-export function findIllegalRunIdViolation(id: string): string | null {
-  if (id.length === 0) return "不能为空";
-  if (id.includes("\0")) return "不能包含空字符";
-  if (id.includes("/") || id.includes("\\")) return "不能包含路径分隔符";
-  if (id.includes("..")) return "不能包含目录穿越片段";
-  if (isAbsolute(id) || /^[a-zA-Z]:/.test(id)) return "必须是相对文件标识";
-  return null;
-}
 
 /**
  * 读取一条父链：先完整校验当前 run，再逐 hop 向上。

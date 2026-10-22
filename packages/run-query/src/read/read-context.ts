@@ -4,6 +4,8 @@ import { deriveRunSummary } from "../facts/summary.js";
 import { RunDetailSchema } from "../schema.js";
 import type { RunDetail, RunSummary } from "../schema.js";
 import { isPlainResultChain, projectMixedChainSpans } from "./detail-project.js";
+import { classifyLineageDiagnostic } from "./errors.js";
+import type { RunQueryToolErrorCode } from "./errors.js";
 import { readRunLineage } from "./lineage.js";
 import type { RunLineageDiagnostic, RunLineageOutcome } from "./lineage.js";
 
@@ -13,12 +15,16 @@ import type { RunLineageDiagnostic, RunLineageOutcome } from "./lineage.js";
  * 比较端点据此映射逐项 unavailable 的稳定码，不解析异常文本。
  */
 export class RunDetailReadError extends Error {
+  /** 结构化工具错误码（design D4；不解析中文文本） */
+  readonly code: RunQueryToolErrorCode;
+
   constructor(
     readonly diagnostic: RunLineageDiagnostic | null,
     message: string,
   ) {
     super(message);
     this.name = "RunDetailReadError";
+    this.code = classifyLineageDiagnostic(diagnostic);
   }
 }
 

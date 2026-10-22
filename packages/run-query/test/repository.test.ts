@@ -62,6 +62,24 @@ describe("run-query RunRepository", () => {
     expect(entry?.error).toContain("不支持的格式版本");
   });
 
+  it("详细列表把身份错配作为独立失败项，详情读取仍拒绝", () => {
+    copyFileSync(join(FIXTURES, "normal.jsonl"), join(dir, "traces", "wrong_name.jsonl"));
+    const detailed = repo.listRunsDetailed();
+    const entry = detailed.failed.find((item) => item.file === "wrong_name.jsonl");
+    expect(entry?.code).toBe("IDENTITY_MISMATCH");
+    expect(entry?.error).toContain("meta.id");
+    // 旧 listRuns 行为不变：文件名可任意，不作为失败项
+    expect(repo.listRuns().failed.some((item) => item.file === "wrong_name.jsonl")).toBe(false);
+    expect(() => repo.getRun("wrong_name")).toThrow("身份不符");
+  });
+
+  it("坏文件在详细列表给 RUN_INVALID", () => {
+    const firstLine = firstTwoLinesOfNormal().split("\n")[0] ?? "";
+    writeFileSync(join(dir, "traces", "r_code_bad.jsonl"), `${firstLine}\n{"id":"s_01"}\n`);
+    const entry = repo.listRunsDetailed().failed.find((item) => item.file === "r_code_bad.jsonl");
+    expect(entry?.code).toBe("RUN_INVALID");
+  });
+
   it("根 run 详情与分支 run 投影保持既有行为", () => {
     const root = repo.getRun("r_01");
     expect(root.meta.id).toBe("r_01");
