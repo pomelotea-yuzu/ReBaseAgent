@@ -1,6 +1,6 @@
 # MCP0 / MCP1 实施任务
 
-状态（2026-10-22）：**阶段 1 与阶段 2（2.1–2.9）已完成；3.1 起未实施**。
+状态（2026-10-22）：**阶段 1、阶段 2（2.1–2.9）与 3.1 已完成；3.2 起未实施**。
 每项预计不超过 2h；发现超过时先拆分任务。验收对应见 [evidence-index.md](evidence-index.md)；测试、客户端实机、人工接入和发行分别记录，不以文档校验替代功能通过。
 
 ## 1. MCP0：先验证支持路径
@@ -35,7 +35,8 @@
 
 ## 3. 桌面接线回归
 
-- [ ] 3.1（1.5h）旧 IPC/类型出口接共享实现，保留执行和 renderer 职责边界。桌面默认检查点解析为显式 selector 再调共享层（共享层缺省=初始），接口注释各写明本层默认。验收 D01/D02。
+- [x] 3.1（1.5h）旧 IPC/类型出口接共享实现，保留执行和 renderer 职责边界。桌面默认检查点解析为显式 selector 再调共享层（共享层缺省=初始），接口注释各写明本层默认。验收 D01/D02。
+  - 2026-10-22：旧出口清点确认全部为薄 re-export，无第二份判据——15 个 desktop 文件引用 `@rebaseagent/run-query`：main 5（`run-repository`/`run-read-context`/`run-lineage-read`/`run-detail-project`/`workspace-view`）+ shared 10（`ipc` 领域 schema、`run-detail-integrity`、`derive`、`outcome`、`overview`、`terminal-facts`、`compare-derive`/`compare-output`/`compare-edit-evidence`/`compare-source-map`）；`outcome.ts` 只留 Tailwind 视图类名映射；`compare-endpoints.ts` 经旧出口（`run-lineage-read`/`run-read-context`）消费同一实现，不另写判据。职责边界：`main/ipc.ts` 的两个 workspaces 端点补注释写明**本层不解析桌面默认**，缺省 `stepSpanId` 只有共享层语义（本 run 初始快照），“最近自有完成步骤”由 renderer（`renderer/src/lib/workspace-files.ts`、`CompareFileWorkspace.tsx`）先解析成显式 selector 再调用；共享层不含执行与授权逻辑。定向测试 **52/52**（`workspace-view` 20 / `workspace-file-view` 26 / `compare-file-wiring` 6）；desktop tsc 双配置 0 错。**D01 仍未通过**：同 fixture 的 desktop/shared 数值对照归 3.2；D02 的实机回归归 6.1/6.2。
 - [ ] 3.2（1.5h）同 fixture 的 desktop/shared 对照：版本/缺父/坏父/usage/比较/检查点。验收 D01/D02、Q01。
 
 ## 4. stdio 服务与外部投影

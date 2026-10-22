@@ -330,6 +330,8 @@ export function registerIpc(deps: IpcDeps): void {
         return fail("INVALID_ARGUMENT", parsed.error);
       }
       try {
+        // 本层不解析"桌面默认"（最近自有完成步骤）：renderer 必须先把默认选择器解析成显式
+        // stepSpanId 再调用。请求缺省只等于共享层语义：本 run 的初始快照。
         const outcome = await inspectWorkspace({ dataDir, repository }, parsed.data);
         // 定位失败（非法 runId / 清单被篡改 / 非隔离 run / 祖先 step）是**可展示的拒绝**，
         // 不是异常：渲染层据此给出具体原因，不用"当前目录"或父 run 历史兜底
@@ -351,6 +353,7 @@ export function registerIpc(deps: IpcDeps): void {
         return fail("INVALID_ARGUMENT", parsed.error);
       }
       try {
+        // 缺省 stepSpanId = 初始快照（共享层语义）；桌面"最近自有完成步骤"由 renderer 先解析为显式 selector。
         // 数据状态（text/binary/not_found/missing/corrupt/rejected）一律**成功返回**：
         // 它们是"这条路径现在是什么"，不是 IPC 故障——渲染层必须能逐态区分展示
         return ok(await readWorkspaceFileForView({ dataDir, repository }, parsed.data));

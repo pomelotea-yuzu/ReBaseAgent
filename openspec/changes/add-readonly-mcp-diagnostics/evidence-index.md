@@ -89,6 +89,16 @@ Q 属于 run-query，S 属于 mcp-service，D 属于 desktop-ui；标题须与 d
   （与 replay 函数对象全等），合计 **48/1 skip**，build/tsc/biome 全绿。
   **Q14 的 MCP 工具面仍待 4.6/4.7**。
 
+## 3.x 进展（不构成场景通过）
+
+- 3.1：旧出口清点 **15 个** desktop 文件引用 `@rebaseagent/run-query`（main 5 + shared 10），
+  全部为薄 re-export；`shared/outcome.ts` 仅保留 Tailwind 类名映射，`compare-endpoints.ts` 经旧出口
+  消费同一实现。`main/ipc.ts` 两个 workspaces 端点补注释写明本层默认：缺省 `stepSpanId` = 共享层的
+  **初始快照**，桌面“最近自有完成步骤”由 renderer 先解析成显式 selector（`renderer/src/lib/workspace-files.ts`）
+  后再调用；共享层不含执行/授权。定向测试 **52/52**（`workspace-view` 20 / `workspace-file-view` 26 /
+  `compare-file-wiring` 6），desktop tsc 双配置 0 错。
+  **D01 未通过**（同 fixture 数值对照归 3.2）；**D02 未通过**（IPC/selector 的实机回归归 6.1/6.2）。
+
 ## 门禁与归档约束
 
 - 6.5 补实际命令、exit code、源码身份、包构建顺序和新依赖核验；不引用 R2.2 历史通过代替本次通过。
