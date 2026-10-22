@@ -1,8 +1,12 @@
 import { classifyOutcome } from "@rebaseagent/run-query";
-import type { OutcomeKind, RunSummary } from "@rebaseagent/run-query";
+import type { OutcomeKind, RunDetail, RunSummary } from "@rebaseagent/run-query";
 import { z } from "zod";
+import type { ProvenanceRunInput } from "../envelope.js";
 import { MESSAGE_MAX, PAGE_LIMIT_DEFAULT, RUN_ID_MAX } from "../limits.js";
 import type { RUN_STATUS_FILTERS } from "../tool-contracts.js";
+
+/** span 的行类型由共享层的详情派生（本包不直接依赖 trace-sdk 的类型出口） */
+export type ProjectedSpanInput = RunDetail["spans"][number];
 
 /**
  * 外部投影的共用件（design D5/D7 的白名单那一段）。
@@ -13,7 +17,7 @@ import type { RUN_STATUS_FILTERS } from "../tool-contracts.js";
  * - **正文一律不出门**：`fork.edit.value`、`llm.call.request.messages`、
  *   `llm.call.response.content/reasoning_content`、`tool.invoke.result/args`、
  *   `prompt_experiment.original_value/hypothesis/acceptance_criterion` 都不在本表的字段集里
- *   （读取正文走 get_step 的 section，4.4）。
+ *   都不在本表的字段集里（要正文只能走 get_step 的显式 section）。
  * - **视图事实不带出**：中文标签、语义色（`Outcome.label/tone`）留给桌面，外部只拿
  *   稳定的类别标识。
  */
@@ -224,4 +228,142 @@ export function compareSummaryOrder(
 export function compareFileOrder(a: { file: string }, b: { file: string }): number {
   if (a.file === b.file) return 0;
   return a.file < b.file ? -1 : 1;
+}
+
+// ---------------------------------------------------------------------------
+// span 索引项与来源段：get_run 的索引、get_step 的归属同一份形状（两处不漂）
+// ---------------------------------------------------------------------------
+
+const SpanTimingSchema = z
+  .object({ startedAt: z.string().min(1), endedAt: z.string().min(1) })
+  .strict();
+
+/**
+ * span 索引项的公共段。
+ *
+ * `ownerRunId` 取自共享投影的**逐位置归属**（不是按 id 猜）：重名 span 只能靠位置区分。
+ * `ambiguousOwner` 提前告诉客户端「这个 id 在链上还属于别的 run」，免得它拿同一个 id
+ * 去调 get_step 才被 SPAN_AMBIGUOUS 弹回来。
+ */
+const SpanItemCommon = {
+  kind: z.literal("span"),
+  spanId: z.string().min(1),
+  parentSpanId: z.string().min(1).nullable(),
+  ownerRunId: z.string().min(1),
+  /** true = 属于本次请求的 run；false = 继承自来源链 */
+  own: z.boolean(),
+  ambiguousOwner: z.boolean(),
+  /** null = 该 span 没录 timing（时间未知，不拿 created_at 凑） */
+  timing: SpanTimingSchema.nullable(),
+};
+
+export const SpanItemSchema = z.discriminatedUnion("spanKind", [
+  z
+    .object({
+      ...SpanItemCommon,
+      spanKind: z.literal("agent.step"),
+      /** 所属 run 自己的轮号，绝不按合并轨迹沿链累加 */
+      iteration: z.number().int().positive(),
+      hasWorkspaceSnapshot: z.boolean(),
+    })
+    .strict(),
+  z
+    .object({
+      ...SpanItemCommon,
+      spanKind: z.literal("llm.call"),
+      requestModel: z.string().min(1),
+      usage: z
+        .object({
+          in: z.number().int().nonnegative(),
+          out: z.number().int().nonnegative(),
+          /** null = 本次调用未录 cache_hit（未知）；0 = 实测零命中 */
+          cacheHit: z.number().int().nonnegative().nullable(),
+        })
+        .strict(),
+      /** 只说「有没有录到错误详情」；正文由 section=error 显式取 */
+      errorRecorded: z.boolean(),
+    })
+    .strict(),
+  z
+    .object({
+      ...SpanItemCommon,
+      spanKind: z.literal("tool.invoke"),
+      tool: z.string().min(1),
+      durationMs: z.number().nonnegative(),
+      /** 工具录有错误 ≠ 运行出错（design D5），两者各自呈现 */
+      errorRecorded: z.boolean(),
+    })
+    .strict(),
+]);
+export type SpanItem = z.infer<typeof SpanItemSchema>;
+
+/** 元数据投影：按 kind 只带结构性事实，一个正文字段都不碰 */
+export function projectSpanItem(
+  span: ProjectedSpanInput,
+  ownerRunId: string,
+  own: boolean,
+  ambiguousOwner: boolean,
+): SpanItem {
+  const base = {
+    kind: "span" as const,
+    spanId: span.id,
+    parentSpanId: span.parent,
+    ownerRunId,
+    own,
+    ambiguousOwner,
+    timing:
+      span.timing === undefined
+        ? null
+        : { startedAt: span.timing.started_at, endedAt: span.timing.ended_at },
+  };
+  switch (span.kind) {
+    case "agent.step":
+      return {
+        ...base,
+        spanKind: "agent.step",
+        iteration: span.n,
+        hasWorkspaceSnapshot: span.workspace_snapshot !== undefined,
+      };
+    case "llm.call":
+      return {
+        ...base,
+        spanKind: "llm.call",
+        requestModel: span.request.model,
+        usage: {
+          in: span.response.usage.in,
+          out: span.response.usage.out,
+          cacheHit: span.response.usage.cache_hit ?? null,
+        },
+        errorRecorded: span.error !== undefined,
+      };
+    case "tool.invoke":
+      return {
+        ...base,
+        spanKind: "tool.invoke",
+        tool: span.tool,
+        durationMs: span.dur_ms,
+        errorRecorded: span.error !== null,
+      };
+  }
+}
+
+/**
+ * 逐物理 run 的来源段：`sealed` 由各自记录判（不拿叶子状态往上套），
+ * 轨迹范围与来源完整性只对**本次读过轨迹的那个叶子**成立（其余留空 = 未判定）。
+ *
+ * `detail.chain` 与 `chainSummaries` 必须同长同序（同一个 `outcome.records` 派生）；
+ * 对不上就是投影异常，返回 null 由调用方拒绝，不按位置猜一个来源标签发出去。
+ */
+export function provenanceRunsOf(
+  detail: RunDetail,
+  chainSummaries: readonly RunSummary[],
+): ProvenanceRunInput[] | null {
+  if (chainSummaries.length !== detail.chain.length) return null;
+  const lastIndex = detail.chain.length - 1;
+  return detail.chain.map((hop, index) => ({
+    runId: hop.meta.id,
+    formatVersion: hop.meta.format_version,
+    sealed: chainSummaries[index]?.status === "completed",
+    ...(index === lastIndex ? { lineage: detail.lineage.status, spanScope: detail.spanScope } : {}),
+  }));
 }

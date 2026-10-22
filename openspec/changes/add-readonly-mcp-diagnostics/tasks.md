@@ -1,6 +1,6 @@
 # MCP0 / MCP1 实施任务
 
-状态（2026-10-22）：**阶段 1、2（2.1–2.9）、3（3.1–3.2）与 4.1–4.3 已完成；4.4 起未实施**。
+状态（2026-10-22）：**阶段 1、2（2.1–2.9）、3（3.1–3.2）与 4.1–4.4 已完成；4.5 起未实施**。
 每项预计不超过 2h；发现超过时先拆分任务。验收对应见 [evidence-index.md](evidence-index.md)；测试、客户端实机、人工接入和发行分别记录，不以文档校验替代功能通过。
 
 ## 1. MCP0：先验证支持路径
@@ -102,7 +102,44 @@
     **Q03/Q04 未整场景通过**：本项闭合协议筛选面与「未知不补造」的投影面，跨页无重不漏与来源变化拒绝归 5.1/5.2，
     端到端零写入字节复核归 5.4，真实客户端对照归 6.2。
 
-- [ ] 4.4（1.5h）实现 get_step section/owner 读取和结构正文规范 JSON 投影。验收 S03、Q09/Q10。
+- [x] 4.4（1.5h）实现 get_step section/owner 读取和结构正文规范 JSON 投影。验收 S03、Q09/Q10。
+  - 2026-10-22：新增 `src/query/get-step.ts`、`canonical-json.ts`（对象键按 UTF-16 升序、数组保持原序、
+    不缩进；值来自 `JSON.parse` ⇒ 不写循环/NaN 分支，只保留「整段是 undefined 就报错」这一条拒绝）、
+    `body-range.ts`（`Array.from` 按**码点**切片：`range{start,end,total,unit:"unicode-code-point"}` +
+    `truncated`/`remaining`，默认 4096、上限 8192）。`READONLY_TOOLS` 登记第三条 ⇒ `tools/list` 现 3 条。
+  - 归属只认当前投影（Q09/Q10）：`resolveSpanOwner` 的五分类逐条落地——重名不取首项，`SPAN_AMBIGUOUS`
+    把候选写进 `ref`（`owners:<a>,<b>`，数量与总长有界）；被投影截断的祖先 span **给了显式 owner 也拒**
+    （`STEP_NOT_FOUND` + `ref:span:<id>@owner:<runId>`）；投影里根本没有的 id 同码但 `ref` 不带 owner；
+    索引不可靠 ⇒ `RUN_INVALID`（不猜归属）。继承项可读并标 `ownerRunId`/`own:false`。
+    标识形状（runId/spanId/ownerRunId）在**任何读取之前**判 `INVALID_ARGUMENT` 并指出字段。
+  - 正文边界：不给 `section` ⇒ `body:null` + `BODY_NOT_EXPOSED`，只回元数据与三段 `recorded` 索引；
+    `agent.step` 是容器，三段全 false（不假装有正文）；`tool.invoke.error=null` 与 `llm.call.error` 缺省
+    都是**未记录**，录成空串照 `""` 发出去，`result:null` 与 `result` 字段缺失可分辨（三态各有用例）。
+  - 形状同源：span 元数据、`provenance.runs` 与 4.3 的索引共用 `projection.ts` 里的
+    `SpanItemSchema`/`projectSpanItem`/`provenanceRunsOf`（get-run.ts 的本地副本删除，改判为导入），
+    并用一条用例钉住「get_step 的 `span` 与 get_run 索引里同一条逐项相同」。
+  - **4.2 文案改判（两边留痕）**：`STEP_NOT_FOUND` 的受控文案由「指定步骤不是本 run 的自有完成步骤」
+    扩为「指定步骤或 span 在当前可读投影里不可定位」——同一码承载 4.6 的 selector 越界与 4.4 的
+    截断祖先，两者对外结论相同，具体哪一种由 `ref` 区分；**不新增码**（D4 码表封闭）。
+  - **4.1 注册表判据随之更新**：`lifecycle.test.ts` 显式钉的名称清单由两条变三条（该判据 4.3 就改成
+    了「跟随注册表」，这一行按设计变红提醒更新账本）。
+  - 测试：`test/query-fixtures.ts` 扩夹具（截断祖先父子对、`toolError`/`toolResultNull`/`omitResult`、
+    llm 失败详情带 503、5041 码点长正文且代理对起始位置导出为常量、工具 args 键序倒写）；
+    新增 `test/get-step.test.ts` **21 用例**；mcp-server 合计 **115 passed**（8 文件），
+    run-query **47 passed/1 skip**、desktop **216 文件/3301 用例**（singleFork）、7 包 build、
+    desktop tsc 双 0、`biome check packages/mcp-server packages/run-query` 0（63 文件）、
+    `check-spec` 13/0、`openspec validate --changes --strict` valid、`git diff --check` 0。
+  - 账本回查 `.workbuddy/mcp0-44/verify-44.cjs` **43 项全对**（`--self-test` 三道反证咬住）。
+    4.3 的 `verify-43.cjs` 重跑仍全对，但随批次放宽两处并留痕：注册表检查由「两条全等」改「以
+    `listRunsTool, getRunTool` 开头」，「未动前沿」由 4.4 改钉尾项 6.6（逐批前沿由该批脚本钉）。
+  - 变异验证 4 组（施加→定向跑→Edit 反向还原→核对无残留）：切片改回 UTF-16 `text.slice` ⇒ 11 条正文/代理对
+    用例红；`canonicalJson` 换成 `JSON.stringify` ⇒ 键序规范用例红；重名时默认取首个 owner ⇒
+    `SPAN_AMBIGUOUS` 用例红；不给 section 也发正文 ⇒ 「只有索引」与归属用例红。全部当场还原后 115/115 绿。
+  - **S03 未通过**：七工具登记了 3 条，比较/检查点两条链路（4.5–4.7）还没有对象可查；
+    真实客户端「先查运行再查指定 span」的整链归 6.2。**Q09/Q10 未整场景通过**：本项闭合协议面与
+    三态语义，正文**分段续读**（游标绑定、来源变化 ⇒ STALE_CURSOR）归 5.2，64 KiB 序列化预算归 5.1，
+    结构凭据过滤（`REDACTED`）按任务序归 4.8——当前 `section=input/output/error` 发的是记录的原文。
+
 - [ ] 4.5（1h）实现 compare_runs 双侧投影/引用/BODY_NOT_EXPOSED，按 D5 两侧对象 schema（与 compare_checkpoint_files 同形）。验收 Q11/Q12、S05。
 - [ ] 4.6（1.5h）实现 inspect_checkpoint/read_checkpoint_file，二进制仅元信息、文本原换行；工具缺省 stepSpanId=初始与桌面默认分层注释，不提供"最近一步"缺省语义。验收 Q13/Q14、S03。
 - [ ] 4.7（1.5h）实现 compare_checkpoint_files 的清单和 path 两种模式。验收 Q14、S03/S10。

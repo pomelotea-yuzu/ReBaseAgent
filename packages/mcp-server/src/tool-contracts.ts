@@ -111,6 +111,7 @@ const GetStepArgs = z
     maxChars: maxCharsField().optional(),
   })
   .strict();
+export type GetStepArgs = z.infer<typeof GetStepArgs>;
 
 /**
  * 左右两个对象而不是数组：左右恒定时"这一侧不可读"才有确定含义（D5）。

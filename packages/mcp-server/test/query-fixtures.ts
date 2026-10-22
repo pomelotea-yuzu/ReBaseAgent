@@ -42,7 +42,20 @@ export const SENTINELS = {
   originalValue: "SENTINEL-original-value",
   hypothesis: "SENTINEL-hypothesis",
   acceptanceCriterion: "SENTINEL-acceptance-criterion",
+  toolErrorBody: "SENTINEL-tool-error-body",
+  llmErrorBody: "SENTINEL-llm-error-message",
+  /** 长正文的前缀：既是 canary，也让「第 4020 码点正好落在代理对上」可算 */
+  longBodyPrefix: "SENTINEL-long-body-",
 } as const;
+
+/**
+ * 长正文：19 前缀 + 5000 个「甲」+ 3 个代理对 emoji + 19 个「乙」= 5041 码点（UTF-16 是 5044 单元）。
+ * 前缀本身是 canary（未请求正文时它必须不出现），emoji 的位置让「按码点切」与「按代码单元切」可分辨。
+ */
+export const LONG_BODY = `${SENTINELS.longBodyPrefix}${"甲".repeat(5000)}🙂🙂🙂${"乙".repeat(19)}`;
+
+/** 长正文里第一个代理对的起始码点位置（测试据此挑一个正好切在半个字符上的上限） */
+export const LONG_BODY_EMOJI_START = SENTINELS.longBodyPrefix.length + 5000;
 
 export interface QueryFixtureIds {
   readonly alpha: string;
@@ -57,6 +70,17 @@ export interface QueryFixtureIds {
   readonly ambiguousChild: string;
   readonly tieLower: string;
   readonly tieUpper: string;
+  /** 4.4：父有 s_01..s_03，子在 s_02 处分叉 ⇒ s_03 被投影截断 */
+  readonly cutParent: string;
+  readonly cutChild: string;
+  /** 4.4：工具错误正文 + 结果为 null + llm 失败详情（503） */
+  readonly bodies: string;
+  /** 4.4：连 result 字段都没写（未记录，与录了 null 不同） */
+  readonly sparse: string;
+  /** 4.4：工具错误录成空串（录了但为空，与未记录可分辨） */
+  readonly emptyError: string;
+  /** 4.4：超长正文（代理对正好落在切片边界附近） */
+  readonly bigBody: string;
   readonly workspaceRoot: string;
   readonly experiment: string;
   readonly corrupt: string;
@@ -132,6 +156,16 @@ interface V1RunOptions {
   readonly usage?: { readonly in: number; readonly out: number; readonly cache_hit?: number };
   /** 源配置声明的累计 token 预算（省略 = 未录，MCP 侧必须如实给 null） */
   readonly budgetMaxTotalTokens?: number;
+  /** 工具错误正文：`null` 与省略都是「未记录」，空串是「录了但为空」 */
+  readonly toolError?: string;
+  /** 工具结果正文（省略 = 用默认 canary 值） */
+  readonly toolResult?: unknown;
+  /** true = 结果录成 `null`（与"字段缺失"和"录了字符串"三态互斥） */
+  readonly toolResultNull?: boolean;
+  /** true = 连 `result` 字段都不写（未记录，与录了 null 不同） */
+  readonly omitResult?: boolean;
+  /** llm 调用失败详情（省略 = 未记录错误详情） */
+  readonly llmError?: { message: string; status?: number };
 }
 
 /** 写一个 v1 run：一步（可选一请求一工具），返回它的 span id 便于被分叉引用 */
@@ -189,6 +223,7 @@ function writeV1Run(
         usage: options.usage ?? { in: 10, out: 4 },
         ttft_ms: 3,
       },
+      ...(options.llmError === undefined ? {} : { error: options.llmError }),
     });
   }
   if (options.tool !== false) {
@@ -196,9 +231,18 @@ function writeV1Run(
       kind: "tool.invoke",
       parent: step,
       tool: "read_file",
-      args: { path: "a.txt", note: SENTINELS.toolArgs },
+      // 键序刻意倒着写：规范 JSON 必须把它排成 note 在前（外发正文的稳定性判据）
+      args: { zeta: 1, note: SENTINELS.toolArgs, alpha: { path: "a.txt" } },
     });
-    tracer.endSpan(tool, { result: SENTINELS.toolResult, dur_ms: 7, error: null });
+    tracer.endSpan(tool, {
+      result: options.omitResult
+        ? undefined
+        : options.toolResultNull
+          ? null
+          : (options.toolResult ?? SENTINELS.toolResult),
+      dur_ms: 7,
+      error: options.toolError ?? null,
+    });
   }
   tracer.endSpan(step);
   if (options.reason !== "none") {
@@ -296,6 +340,26 @@ export function buildQueryFixture(): QueryFixture {
   writeMinimalRun(tracesDir, "mcp0-tie-B", at(1));
   writeMinimalRun(tracesDir, "mcp0-tie-a", at(1));
 
+  // ---------------- 4.4：截断祖先与正文形态 ----------------
+  writeV1Run(tracesDir, "mcp0-cut-parent", { createdAt: at(-1) });
+  writeV1Run(tracesDir, "mcp0-cut-child", {
+    createdAt: at(-2),
+    parent: "mcp0-cut-parent",
+    forkField: "result",
+    // 分叉点落在父的 llm.call 上 ⇒ 父的工具 span s_03 被投影截断（Q10 的靶子）
+    forkAtSpan: "s_02",
+    spanSeqStart: 70,
+  });
+  writeV1Run(tracesDir, "mcp0-bodies", {
+    createdAt: at(-3),
+    toolError: SENTINELS.toolErrorBody,
+    toolResultNull: true,
+    llmError: { message: SENTINELS.llmErrorBody, status: 503 },
+  });
+  writeV1Run(tracesDir, "mcp0-sparse", { createdAt: at(-4), omitResult: true });
+  writeV1Run(tracesDir, "mcp0-emptyerr", { createdAt: at(-5), toolError: "" });
+  writeV1Run(tracesDir, "mcp0-bigbody", { createdAt: at(-6), toolResult: LONG_BODY });
+
   // 超过默认页宽的批量（同一时刻，彼此按标识升序）
   for (let index = 0; index < 12; index += 1) {
     const suffix = String(index + 1).padStart(2, "0");
@@ -359,6 +423,12 @@ export function buildQueryFixture(): QueryFixture {
       ambiguousChild: "mcp0-amb-child",
       tieLower: "mcp0-tie-a",
       tieUpper: "mcp0-tie-B",
+      cutParent: "mcp0-cut-parent",
+      cutChild: "mcp0-cut-child",
+      bodies: "mcp0-bodies",
+      sparse: "mcp0-sparse",
+      emptyError: "mcp0-emptyerr",
+      bigBody: "mcp0-bigbody",
       workspaceRoot: "mcp0-ws-root",
       experiment: "mcp0-ws-experiment",
       corrupt: "mcp0-corrupt",

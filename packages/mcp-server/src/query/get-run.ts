@@ -7,13 +7,21 @@ import {
   indexRunsById,
 } from "@rebaseagent/run-query";
 import { z } from "zod";
-import type { LimitationInput, ProvenanceRefInput, ProvenanceRunInput } from "../envelope.js";
+import type { LimitationInput, ProvenanceRefInput } from "../envelope.js";
 import { PAGE_LIMIT_DEFAULT } from "../limits.js";
 import type { ToolDefinition } from "../server.js";
 import type { DataRoot } from "../startup.js";
 import { type GetRunArgs, requireContract } from "../tool-contracts.js";
 import { ToolFailure, defineTool } from "../tool-definition.js";
-import { RunSummaryItemSchema, outcomeTagOf, projectRunSummary, takeWindow } from "./projection.js";
+import {
+  RunSummaryItemSchema,
+  SpanItemSchema,
+  outcomeTagOf,
+  projectRunSummary,
+  projectSpanItem,
+  provenanceRunsOf,
+  takeWindow,
+} from "./projection.js";
 import { computeReadVersion } from "./read-version.js";
 
 /**
@@ -56,67 +64,7 @@ const WorldOriginSchema = z.discriminatedUnion("kind", [
     .strict(),
 ]);
 
-const SpanTimingSchema = z
-  .object({ startedAt: z.string().min(1), endedAt: z.string().min(1) })
-  .strict();
-
-/**
- * span 索引项的公共段。
- *
- * `ownerRunId` 取自共享投影的**逐位置归属**（不是按 id 猜）：重名 span 只能靠位置区分。
- * `ambiguousOwner` 提前告诉客户端「这个 id 在链上还属于别的 run」，免得它拿同一个 id
- * 去调 get_step 才被 SPAN_AMBIGUOUS 弹回来。
- */
-const SpanItemCommon = {
-  kind: z.literal("span"),
-  spanId: z.string().min(1),
-  parentSpanId: z.string().min(1).nullable(),
-  ownerRunId: z.string().min(1),
-  /** true = 属于本次请求的 run；false = 继承自来源链 */
-  own: z.boolean(),
-  ambiguousOwner: z.boolean(),
-  /** null = 该 span 没录 timing（时间未知，不拿 created_at 凑） */
-  timing: SpanTimingSchema.nullable(),
-};
-
-const SpanItemSchema = z.discriminatedUnion("spanKind", [
-  z
-    .object({
-      ...SpanItemCommon,
-      spanKind: z.literal("agent.step"),
-      /** 所属 run 自己的轮号，绝不按合并轨迹沿链累加 */
-      iteration: z.number().int().positive(),
-      hasWorkspaceSnapshot: z.boolean(),
-    })
-    .strict(),
-  z
-    .object({
-      ...SpanItemCommon,
-      spanKind: z.literal("llm.call"),
-      requestModel: z.string().min(1),
-      usage: z
-        .object({
-          in: z.number().int().nonnegative(),
-          out: z.number().int().nonnegative(),
-          /** null = 本次调用未录 cache_hit（未知）；0 = 实测零命中 */
-          cacheHit: z.number().int().nonnegative().nullable(),
-        })
-        .strict(),
-      /** 只说「有没有录到错误详情」；正文与 HTTP 状态属 get_step 的 section=error */
-      errorRecorded: z.boolean(),
-    })
-    .strict(),
-  z
-    .object({
-      ...SpanItemCommon,
-      spanKind: z.literal("tool.invoke"),
-      tool: z.string().min(1),
-      durationMs: z.number().nonnegative(),
-      /** 工具录有错误 ≠ 运行出错（design D5），两者各自呈现 */
-      errorRecorded: z.boolean(),
-    })
-    .strict(),
-]);
+/** span 索引项的形状与元数据投影都在 `projection.ts`（get_run 与 get_step 共用同一份） */
 
 const CheckpointItemSchema = z
   .object({
@@ -323,49 +271,12 @@ export const getRunTool: ToolDefinition = defineTool(
         // 位置对不上就是投影异常：拒绝，不把归属写错
         throw new ToolFailure("RUN_INVALID", `run:${leafRunId}`);
       }
-      const owners = ownerIndex.ownersBySpanId.get(span.id) ?? [];
-      const timing =
-        span.timing === undefined
-          ? null
-          : { startedAt: span.timing.started_at, endedAt: span.timing.ended_at };
-      const base = {
-        kind: "span" as const,
-        spanId: span.id,
-        parentSpanId: span.parent,
-        ownerRunId: owner.ownerRunId,
-        own: ownSpanIds.has(span.id),
-        ambiguousOwner: owners.length > 1,
-        timing,
-      };
-      switch (span.kind) {
-        case "agent.step":
-          return {
-            ...base,
-            spanKind: "agent.step" as const,
-            iteration: span.n,
-            hasWorkspaceSnapshot: span.workspace_snapshot !== undefined,
-          };
-        case "llm.call":
-          return {
-            ...base,
-            spanKind: "llm.call" as const,
-            requestModel: span.request.model,
-            usage: {
-              in: span.response.usage.in,
-              out: span.response.usage.out,
-              cacheHit: span.response.usage.cache_hit ?? null,
-            },
-            errorRecorded: span.error !== undefined,
-          };
-        case "tool.invoke":
-          return {
-            ...base,
-            spanKind: "tool.invoke" as const,
-            tool: span.tool,
-            durationMs: span.dur_ms,
-            errorRecorded: span.error !== null,
-          };
-      }
+      return projectSpanItem(
+        span,
+        owner.ownerRunId,
+        ownSpanIds.has(span.id),
+        (ownerIndex.ownersBySpanId.get(span.id) ?? []).length > 1,
+      );
     });
 
     /**
@@ -510,17 +421,11 @@ export const getRunTool: ToolDefinition = defineTool(
         snapshotId: item.snapshotId,
       }));
 
-    const lastIndex = detail.chain.length - 1;
-    const runs: ProvenanceRunInput[] = detail.chain.map((hop, index) => ({
-      runId: hop.meta.id,
-      formatVersion: hop.meta.format_version,
-      // 每个物理 run 的封存与否由它自己的记录判，不拿叶子的状态往上套
-      sealed: chainSummaries[index]?.status === "completed",
-      // 来源完整性与轨迹范围只对「本次真正读过轨迹的那个 run」成立
-      ...(index === lastIndex
-        ? { lineage: detail.lineage.status, spanScope: detail.spanScope }
-        : {}),
-    }));
+    const runs = provenanceRunsOf(detail, chainSummaries);
+    if (runs === null) {
+      // 链与逐 run 摘要对不上：归属与版本都说不清，宁可拒绝也不按位置猜着发
+      throw new ToolFailure("RUN_INVALID", `run:${leafRunId}`);
+    }
 
     return {
       readVersion,

@@ -219,6 +219,43 @@ Q 属于 run-query，S 属于 mcp-service，D 属于 desktop-ui；标题须与 d
   - **S03 仍未通过**（恰七工具与 section 正文半边待 4.4–4.7）；**Q03/Q04 未整场景通过**
     （跨页无重不漏与游标绑定归 5.1/5.2，端到端字节指纹与零执行计数归 5.4，真实客户端对照归 6.2）。
 
+- 4.4：登记 `get_step`（`READONLY_TOOLS` 现 `[list_runs, get_run, get_step]`）。
+  - 新增 `src/query/get-step.ts`、`src/query/canonical-json.ts`、`src/query/body-range.ts`；
+    把 4.3 落在 `get-run.ts` 里的 `SpanItemSchema`/span 元数据投影/`provenance.runs` 构造
+    **上收到 `projection.ts`**（`projectSpanItem`/`provenanceRunsOf`），get_run 改导入 —— 两个工具对同一条
+    span 说的话由一处实现产出，并用用例钉住逐字相同。
+  - `test/get-step.test.ts` **21 用例**：不给 section ⇒ `body:null` + 三段 `recorded` 索引 +
+    `BODY_NOT_EXPOSED` + `assertNoSentinels`（正文一个字段都不出门）；`agent.step` 三段全 false；
+    `section=input` 才把请求正文发出去（canary 此时**应当**在场，证明"按需读正文"这一跳真的通）；
+    规范 JSON 键序（夹具 args 倒着写 `zeta/note/alpha` ⇒ 外发必须 `"alpha"…,"note"…,"zeta"`）；
+    正文三态可分辨（`result:null` ⇒ `recorded:true,text:"null"`；字段缺失 ⇒ `recorded:false`；
+    工具 `error:null` 与 llm 无 `error` ⇒ 未记录；`error:""` ⇒ `recorded:true,text:'""'`）；
+    llm 失败详情带 `status:503` 如实给出；5041 码点长正文默认切 4096 且 `remaining`/`truncated` 正确，
+    把上限取在代理对起始处 ⇒ 码点数与 UTF-16 单元数**不相等**且无孤立代理项（切半个字符直接判红）；
+    `maxChars>8192` 与 `cursor` 都在读取前拒（且不回显取值）；重名 ⇒ `SPAN_AMBIGUOUS` +
+    `ref:"owners:mcp0-amb-parent,mcp0-amb-child"`、显式合法 owner ⇒ 归属与事实同取、owner 指向被投影
+    重置掉的祖先 ⇒ `STEP_NOT_FOUND`；截断祖先 `s_03` 给不给 owner 都 `STEP_NOT_FOUND`；
+    继承项 `own:false` 且正文可读；`../outside`/超长/非法 ownerRunId ⇒ `INVALID_ARGUMENT` 且 `ref` 指字段、
+    缺失 run ⇒ `RUN_NOT_FOUND`；四种正文读取后 traces 目录逐文件指纹不变；结果里无宿主物理路径、
+    递归键名集合不含 `dataDir/tracesDir/path/sha256/file`。
+  - **两处改判（两边留痕）**：① 4.2 的 `STEP_NOT_FOUND` 受控文案扩为「指定步骤或 span 在当前可读投影里
+    不可定位」（同码承载 4.4 截断祖先与 4.6 selector 越界两种情形，靠 `ref` 区分，不新增码）；
+    ② 4.1 的 `lifecycle.test.ts` 名称清单由两条变三条（该判据本就设计为"登记新工具时变红提醒"）。
+  - 门禁：mcp-server **115 passed**（8 文件；src tsc 0 + 测试 tsconfig 0）、run-query **47 passed/1 skip**、
+    desktop **216 文件/3301 用例**（singleFork，0 failed 0 pending）、desktop tsc 双 0、7 包 build、
+    `biome check packages/mcp-server packages/run-query` 0（63 文件）、`check-spec` 13/0、
+    `openspec validate --changes --strict` valid、`git diff --check` 0。
+    回查脚本 `.workbuddy/mcp0-44/verify-44.cjs` **43 项全对**（数字从 `.workbuddy/mcp0-44/*.json` 重算 +
+    判据原文在场 + `--self-test` 三道反证：用例数漂一个、代理对判据两条全抹走、注册表退回两条）。
+    4.3 的 `.workbuddy/mcp0-43/verify-43.cjs` 重跑同样全对（45 项），但**两处判据随批次放宽并留痕**：
+    注册表检查由「两条全等」改「以 `listRunsTool, getRunTool` 开头」（4.4 登记第三条后全等必误报），
+    「未动前沿」由 4.4 改钉尾项 6.6；逐批前沿由该批自己的 verify 脚本钉。
+  - 变异验证 4 组全部咬住后当场还原并核对无残留：UTF-16 切片 ⇒ 11 条红；`JSON.stringify` 代规范 JSON ⇒
+    键序用例红；重名默认取首项 ⇒ `SPAN_AMBIGUOUS` 用例红；不给 section 也发正文 ⇒ 索引与归属用例红。
+  - **S03 仍未通过**（3/7 登记，比较与检查点链路待 4.5–4.7；真实客户端整链待 6.2）；
+    **Q09/Q10 未整场景通过**（协议面与三态语义已闭合；正文分段续读与来源变化归 5.2、
+    64 KiB 预算归 5.1、结构凭据过滤 `REDACTED` 按任务序归 4.8）。
+
 ## 门禁与归档约束
 
 - 6.5 补实际命令、exit code、源码身份、包构建顺序和新依赖核验；不引用 R2.2 历史通过代替本次通过。
