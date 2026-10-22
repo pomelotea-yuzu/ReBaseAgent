@@ -115,6 +115,37 @@ Q 属于 run-query，S 属于 mcp-service，D 属于 desktop-ui；标题须与 d
   **D01/Q01 仍未整场景通过**：只闭合「桌面↔共享包」半边，MCP 工具入口待 4.x，WorkBuddy 实机对照待 6.2；
   **D02** 的实机回归待 6.1。
 
+## 4.x 进展（不构成场景通过）
+
+- 4.1：新建 `packages/mcp-server`（NodeNext/ESM，`bin.rebaseagent-mcp → dist/cli.js`，
+  `engines.node>=20`，依赖 SDK **1.32.1** + run-query workspace 链 + zod **3.25.76**；
+  `pnpm install --filter` 新增 62 个传递依赖并写入 `pnpm-lock.yaml`）。
+  - `src/startup.ts`（D3 启动域）：`packages/mcp-server/test/startup.test.ts` **9/9** —
+    缺参/缺值/空值/相对/不存在/不是目录/无 `traces/`/`traces` 是文件/多余参数与第二个数据根
+    全部 `DATA_DIR_INVALID`；空 `traces/` 判合法；拒绝时不建目录（`readdirCount===0`）；
+    原因文本不回显调用方路径。
+  - `test/lifecycle.test.ts` **7/7**（真子进程 `node dist/cli.js`）：坏根 `exit=2` 且
+    **stdout 为 0 字节**、stderr 含固定码且无 `jsonrpc`；SDK 客户端连上后
+    `getServerVersion()={rebaseagent-mcp,0.1.0}`、`getServerCapabilities()={tools:{}}`、
+    `listTools()` 如实为空、`callTool("list_runs")` ⇒ `isError` + 「未知工具」；
+    写一帧 `initialize` 后 EOF ⇒ stdout **逐行**是 `jsonrpc:"2.0"` 响应帧、stderr 逐行匹配
+    `^\S+ [a-z_]+ \{.*\}$` 且不含帧；只断 stdin 不发帧 ⇒ `exit=0` 且 stderr 有 `server_ready`。
+  - `src/diagnostics.ts`：只写 stderr，`detail` 只接受标量（对象/数组压成 `type:<名称>`），
+    单值 120 码点、整行 600 码点截断，写失败吞掉不影响协议；`src/**` 无 `console.*`。
+  - `src/server.ts`/`src/tools.ts`：协议由官方 SDK 承担，本层只发布声明与分发调用；
+    七工具注册表**首版为空**（不注册占位工具），4.2–4.7 逐项登记。
+  - 门禁：`pnpm --filter "./packages/*" build` 7 包通过；desktop tsc 双 0；
+    desktop 全量 **216 文件/3301 用例**（`--pool=forks --poolOptions.forks.singleFork=true`）；
+    `biome check packages/mcp-server packages/run-query apps/desktop/test apps/desktop/src` 0 报错
+    （全仓 13 项报错都在本 change 之外的未跟踪 README 脚本与仓外 `ReBaseAgentVideo` 目录）；
+    `node scripts/check-spec.mjs` 13/0；`openspec validate --strict` valid。
+  - 并发口径记录：`pnpm -r test`（不带 singleFork）时 `proxy-failure-diagnostics` 出现过一次
+    `fetch failed / bad port`，单跑 15/15 与单进程全量均绿；与 2.6 的瞬时同类，属并发端口竞争，
+    本次未改相关代码。
+  - **S02 的场景判据由本项 CLI 实跑承载**（"不可读"子情形只有 `accessSync` 判据，未构造真实
+    无权限目录，与 2.5 的文件 symlink 同口径，留人工判据）。**S01 未通过**：恰七工具与按需正文
+    待 4.2–4.7，完整协商/取消/重连待 5.3，真实客户端待 6.2。
+
 ## 门禁与归档约束
 
 - 6.5 补实际命令、exit code、源码身份、包构建顺序和新依赖核验；不引用 R2.2 历史通过代替本次通过。

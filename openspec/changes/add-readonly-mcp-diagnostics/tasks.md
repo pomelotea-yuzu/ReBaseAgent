@@ -1,6 +1,6 @@
 # MCP0 / MCP1 实施任务
 
-状态（2026-10-22）：**阶段 1、阶段 2（2.1–2.9）与阶段 3（3.1–3.2）已完成；4.1 起未实施**。
+状态（2026-10-22）：**阶段 1、2（2.1–2.9）、3（3.1–3.2）与 4.1 已完成；4.2 起未实施**。
 每项预计不超过 2h；发现超过时先拆分任务。验收对应见 [evidence-index.md](evidence-index.md)；测试、客户端实机、人工接入和发行分别记录，不以文档校验替代功能通过。
 
 ## 1. MCP0：先验证支持路径
@@ -44,7 +44,9 @@
 
 ## 4. stdio 服务与外部投影
 
-- [ ] 4.1（1.5h）建立 MCP 包、CLI 显式数据根检查、stdout/stderr 纪律及 SDK 生命周期。验收 S01/S02。
+- [x] 4.1（1.5h）建立 MCP 包、CLI 显式数据根检查、stdout/stderr 纪律及 SDK 生命周期。验收 S01/S02。
+  - 2026-10-22：新建 `packages/mcp-server`（NodeNext/ESM，`bin.rebaseagent-mcp → dist/cli.js`，`engines.node>=20`；依赖 `@modelcontextprotocol/sdk` **1.32.1** + `@rebaseagent/run-query` workspace 链 + zod **3.25.76**，新增 62 个传递依赖已入锁）。四模块：`startup.ts` 按 D3 只接受一个显式已有的绝对目录并核验 `traces/`（缺参/缺值/相对/不存在/不是目录/无 traces/traces 不是目录一律 `DATA_DIR_INVALID` + 退出码 2，**不 mkdir、不换根、不回显路径**；空 `traces/` 合法）；`diagnostics.ts` 只写 stderr、`detail` 仅收标量（对象/数组压成 `type:<名称>`）、单值 120 码点与整行 600 码点截断、写失败不影响协议，src 内无 `console.*`；`server.ts` 用官方 SDK `Server`+`StdioServerTransport` 承担 initialize/协商/tools/list/tools/call，本层只做声明发布与分发（未知工具名拒并回受控文案，S04 前半段；工具内部异常只回一句受控文案 + stderr 事件名，不透传堆栈与原始参数），生命周期含 `oninitialized`/`onerror`/`onclose` 与 EOF 三路径落定（SDK onclose、stdin `close`、connect 后 `stdin.closed` 补判）；`tools.ts` 是七工具注册缝，**首版为空清单**——不注册占位工具也不假称可用（4.2–4.7 逐项登记）。测试 **16 用例**：`startup.test.ts` 9 项核验矩阵含"拒绝不留副作用"与"原因不含用户路径"；`lifecycle.test.ts` 7 项起**真实子进程**（`node dist/cli.js`）——坏根 exit=2 且 **stdout 零字节**、SDK 客户端完成初始化+`listTools`（空）+未知工具拒、写一帧 initialize 后 EOF ⇒ stdout 逐行都是 `jsonrpc:"2.0"` 帧、stderr 每行匹配 `<ts> <event> {json}` 且不含帧、EOF 后 exit=0 不挂住。门禁：7 个包 build 全通过、desktop tsc 双 0、desktop 单进程口径 **216/3301**、本 change 路径 biome 0、spec check 13/0、`openspec validate --strict` valid。
+  - **S01 未通过**：工具清单为空，"恰七工具 + 按需读正文"待 4.2–4.7，完整协商/取消/重连待 5.3，真实客户端待 6.2。**S02 的场景判据已由 CLI 实跑覆盖**（含"不建目录/不进 stdout"），但"traces 不可读"子情形只有 `accessSync` 判据、未构造真实无权限目录（本机权限限制，与 2.5 的文件 symlink 同口径），留人工判据。
 - [ ] 4.2（1.5h）定义七工具 strict schema/annotations、版本结果/错误 schema，禁止执行/资源旁路。验收 S03/S04/S05/S06。
 - [ ] 4.3（1.5h）实现 list_runs/get_run 的摘要、筛选、tagged item 索引/失败项。验收 S03、Q03/Q04。
 - [ ] 4.4（1.5h）实现 get_step section/owner 读取和结构正文规范 JSON 投影。验收 S03、Q09/Q10。

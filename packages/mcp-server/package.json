@@ -1,0 +1,36 @@
+{
+  "name": "@rebaseagent/mcp-server",
+  "version": "0.1.0",
+  "description": "ReBaseAgent 只读诊断 MCP 服务：stdio 子进程，显式数据根，零写入，事实与桌面同源",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "rebaseagent-mcp": "./dist/cli.js"
+  },
+  "files": ["dist"],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "tsc -p tsconfig.json && vitest run"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "@rebaseagent/run-query": "workspace:*",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}
