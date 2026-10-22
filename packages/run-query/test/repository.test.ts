@@ -1,4 +1,12 @@
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  copyFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -78,6 +86,54 @@ describe("run-query RunRepository", () => {
     writeFileSync(join(dir, "traces", "r_code_bad.jsonl"), `${firstLine}\n{"id":"s_01"}\n`);
     const entry = repo.listRunsDetailed().failed.find((item) => item.file === "r_code_bad.jsonl");
     expect(entry?.code).toBe("RUN_INVALID");
+  });
+
+  it("目录替身被共享边界拒绝，错误不含物理路径", () => {
+    mkdirSync(join(dir, "traces", "r_dir.jsonl"), { recursive: true });
+    const entry = repo.listRunsDetailed().failed.find((item) => item.file === "r_dir.jsonl");
+    expect(entry?.code).toBe("STORAGE_IO");
+    expect(entry?.error).toContain("不是普通文件");
+    expect(entry?.error).not.toContain(join(dir, "traces"));
+    expect(() => repo.getRun("r_dir")).toThrow();
+  });
+
+  it("符号链接指向根外被共享边界拒绝", (ctx) => {
+    copyFileSync(join(FIXTURES, "normal.jsonl"), join(dir, "outside.jsonl"));
+    try {
+      symlinkSync(join(dir, "outside.jsonl"), join(dir, "traces", "r_link.jsonl"));
+    } catch {
+      ctx.skip();
+      return;
+    }
+    const entry = repo.listRunsDetailed().failed.find((item) => item.file === "r_link.jsonl");
+    expect(entry?.code).toBe("STORAGE_IO");
+    expect(entry?.error).toContain("符号链接");
+    expect(entry?.error).not.toContain(join(dir, "outside.jsonl"));
+    expect(() => repo.getRun("r_link")).toThrow();
+  });
+
+  it("junction 指向根外目录被共享边界拒绝", (ctx) => {
+    if (process.platform !== "win32") {
+      ctx.skip();
+      return;
+    }
+    const outsideDir = mkdtempSync(join(tmpdir(), "run-query-junction-"));
+    try {
+      copyFileSync(join(FIXTURES, "normal.jsonl"), join(outsideDir, "normal.jsonl"));
+      try {
+        symlinkSync(outsideDir, join(dir, "traces", "r_junction.jsonl"), "junction");
+      } catch {
+        ctx.skip();
+        return;
+      }
+      const entry = repo.listRunsDetailed().failed.find((item) => item.file === "r_junction.jsonl");
+      expect(entry?.code).toBe("STORAGE_IO");
+      expect(entry?.error).toContain("junction");
+      expect(entry?.error).not.toContain(outsideDir);
+      expect(() => repo.getRun("r_junction")).toThrow();
+    } finally {
+      rmSync(outsideDir, { recursive: true, force: true });
+    }
   });
 
   it("根 run 详情与分支 run 投影保持既有行为", () => {

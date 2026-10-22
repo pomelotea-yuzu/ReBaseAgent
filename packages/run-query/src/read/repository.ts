@@ -2,6 +2,7 @@ import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import { readRun } from "@rebaseagent/trace-sdk";
 import type { RunRecord } from "@rebaseagent/trace-sdk";
+import { assertRegularFileWithinRoot } from "@rebaseagent/trace-sdk/fs-boundary";
 import { deriveRunSummary } from "../facts/summary.js";
 import type { ListRunsData, RunDetail, RunSummary } from "../schema.js";
 import { classifyReadFailure } from "./errors.js";
@@ -120,6 +121,7 @@ export class RunRepository {
   }
 
   private read(file: string): RunRecord {
+    assertRegularFileWithinRoot(this.tracesDir, file);
     return readRun(file);
   }
 }

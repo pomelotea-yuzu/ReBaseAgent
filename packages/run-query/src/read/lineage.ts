@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { TraceReadError, findExperimentSourceViolation, readRun } from "@rebaseagent/trace-sdk";
 import type { Fork, RunRecord } from "@rebaseagent/trace-sdk";
+import { FsBoundaryError, assertRegularFileWithinRoot } from "@rebaseagent/trace-sdk/fs-boundary";
 import {
   ISOLATED_FORMAT_VERSION,
   PROMPT_EXPERIMENT_FORMAT_VERSION,
@@ -68,12 +69,19 @@ export type RunLineageOutcome =
 export function readRunLineage(
   tracesDir: string,
   id: string,
-  readFile: (file: string) => RunRecord = readRun,
+  readFile?: (file: string) => RunRecord,
 ): RunLineageOutcome {
   const illegal = findIllegalRunIdViolation(id);
   if (illegal !== null) {
     return { ok: false, diagnostic: null, message: `run 标识非法：${illegal}` };
   }
+
+  const read =
+    readFile ??
+    ((file: string) => {
+      assertRegularFileWithinRoot(tracesDir, file);
+      return readRun(file);
+    });
 
   // 内部按**叶 → 根**顺序收集（`walked[walked.length - 1]` 恒为「当前 hop 的直接
   // 子 hop」，这是循环里判自环/环的依据）；返回时 `reverse()` ⇒ **对外是根 → 叶**。
@@ -85,7 +93,7 @@ export function readRunLineage(
   for (let isCurrent = true; ; isCurrent = false) {
     let record: RunRecord;
     try {
-      record = readFile(joinTraceFile(tracesDir, currentId));
+      record = read(joinTraceFile(tracesDir, currentId));
     } catch (e) {
       if (isMissingFileError(e)) {
         if (isCurrent) {
@@ -198,8 +206,9 @@ function structuralFailure(message: string): RunLineageFailure {
   return { ok: false, diagnostic: "FORK_INVALID", message };
 }
 
-/** 只把原生 ENOENT 判为「文件缺失」；按 errno code 结构化判定，不比较错误文本 */
+/** 只把原生 ENOENT 或边界判定的 not_found 判为「文件缺失」；按结构化 code，不比较文本 */
 function isMissingFileError(e: unknown): boolean {
+  if (e instanceof FsBoundaryError) return e.code === "not_found";
   return typeof e === "object" && e !== null && (e as NodeJS.ErrnoException).code === "ENOENT";
 }
 

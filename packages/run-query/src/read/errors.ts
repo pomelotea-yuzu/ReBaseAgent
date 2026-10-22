@@ -1,4 +1,5 @@
 import { TraceReadError } from "@rebaseagent/trace-sdk";
+import { FsBoundaryError } from "@rebaseagent/trace-sdk/fs-boundary";
 import type { RunLineageDiagnostic } from "./lineage.js";
 
 /**
@@ -65,6 +66,9 @@ export function classifyLineageDiagnostic(
  * 统一落 `RUN_INVALID`（design D4：无法可靠细分时用 RUN_INVALID）。
  */
 export function classifyReadFailure(error: unknown): RunQueryToolErrorCode {
+  if (error instanceof FsBoundaryError) {
+    return error.code === "not_found" ? "RUN_NOT_FOUND" : "STORAGE_IO";
+  }
   if (error instanceof TraceReadError) return "RUN_INVALID";
   const code =
     typeof error === "object" && error !== null ? (error as { code?: unknown }).code : undefined;

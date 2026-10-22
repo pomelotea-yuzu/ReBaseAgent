@@ -70,6 +70,10 @@ Q 属于 run-query，S 属于 mcp-service，D 属于 desktop-ui；标题须与 d
   结构化失败项，`RunDetailReadError.code` 由 lineage 诊断映射。包级测试 **33/33**、desktop 全量 **215/3275**、
   tsc 双 0。**Q05 包级证据已补；S06 的 MCP 错误投影仍待 4.2/4.8**。
   旧 IPC 行为保持：超长 run id 仍走 desktop 比较端点旧语义；`listRuns` 仍允许文件名任意。
+- 2.5：trace-sdk 新增共享读取边界；run-query trace 读取与 replay read-api/blob store 共用。
+  拒绝目录替身、junction/symlink、realpath 越根，错误不含物理路径。trace-sdk **231/1 skip**、
+  run-query **35/1 skip**、replay **597/6 skip**、desktop **215/3275**、tsc 双 0。
+  **Q06 的 Windows 真实文件系统证据为目录替身+junction**；文件 symlink 因本机无特权跳过（与既有口径一致）。
 
 ## 门禁与归档约束
 

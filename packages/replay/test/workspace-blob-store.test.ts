@@ -1,4 +1,13 @@
-import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
@@ -167,5 +176,30 @@ describe("blob store：读取与校验", () => {
     );
     expect(failure).toBeInstanceOf(WorkspaceBlobError);
     expect((failure as WorkspaceBlobError).code).toBe("io");
+  });
+
+  it("附件路径经符号链接指向根外 → io 拒绝，消息不含物理路径", async (ctx) => {
+    const { store } = newStore();
+    const content = utf8("secret");
+    const entry = { sha256: hashWorkspaceContent(content), bytes: content.byteLength };
+    const outside = mkdtempSync(join(tmpdir(), "blob-outside-"));
+    cleanups.push(() => rmSync(outside, { recursive: true, force: true }));
+    const target = join(outside, "secret");
+    writeFileSync(target, content);
+    mkdirSync(store.root, { recursive: true });
+    try {
+      symlinkSync(target, store.blobPath(entry.sha256));
+    } catch {
+      ctx.skip();
+      return;
+    }
+
+    const failure = await store.readVerified(entry).then(
+      () => null,
+      (error: unknown) => error,
+    );
+    expect(failure).toBeInstanceOf(WorkspaceBlobError);
+    expect((failure as WorkspaceBlobError).code).toBe("io");
+    expect((failure as Error).message).not.toContain(outside);
   });
 });

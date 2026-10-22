@@ -1,5 +1,6 @@
 import { readRun, resolveBranch } from "@rebaseagent/trace-sdk";
 import type { RunRecord, SpanLine } from "@rebaseagent/trace-sdk";
+import { assertRegularFileWithinRoot } from "@rebaseagent/trace-sdk/fs-boundary";
 import { deriveRunSummary } from "../facts/summary.js";
 import { RunDetailSchema } from "../schema.js";
 import type { RunDetail, RunSummary } from "../schema.js";
@@ -54,8 +55,11 @@ export class RunReadContext {
 
   constructor(
     private readonly tracesDir: string,
-    /** 仅供测试注入计数/故障；生产调用方使用默认 `readRun` */
-    private readonly readFile: (file: string) => RunRecord = readRun,
+    /** 仅供测试注入计数/故障；默认读取走共享边界校验 */
+    private readonly readFile: (file: string) => RunRecord = (file) => {
+      assertRegularFileWithinRoot(tracesDir, file);
+      return readRun(file);
+    },
   ) {}
 
   /**

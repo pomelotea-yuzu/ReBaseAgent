@@ -1,6 +1,6 @@
 # MCP0 / MCP1 实施任务
 
-状态（2026-10-22）：**1.1/1.2/1.3、2.1–2.4 已完成；2.5 起未实施**。
+状态（2026-10-22）：**1.1/1.2/1.3、2.1–2.5 已完成；2.6 起未实施**。
 每项预计不超过 2h；发现超过时先拆分任务。验收对应见 [evidence-index.md](evidence-index.md)；测试、客户端实机、人工接入和发行分别记录，不以文档校验替代功能通过。
 
 ## 1. MCP0：先验证支持路径
@@ -22,7 +22,8 @@
   - 2026-10-22（先于 2.2 按依赖顺序执行）：`read/lineage.ts`、`read/detail-project.ts`、`read/read-context.ts` 迁入 run-query，desktop 旧路径改薄 re-export；`deriveRunSummary`/`deriveTerminalReason`/`deriveCacheHitTotal`/`RunLike` 一并下沉 `facts/summary.ts`（read-context 的依赖，归 2.2 记账）。包级读取测试 5/5（单请求缓存/新请求重读、缺父 ownOnly、坏父结构化失败、非法 ID 读取前拒绝、混合链独立边界重置）；受影响 desktop 用例 204/204；desktop 全量 **215 文件/3275 用例**；tsc 双 0；biome 0。Q02/Q07/Q08 的包级证据已补，完整 Q08 v1/v2/v3 混链对照仍由 3.2 收口。
 - [x] 2.4（1.5h）统一 ID/路径/身份安全校验和结构化错误分类。验收 Q05、S06；不按错误文字猜码。
   - 2026-10-22：新增 `read/validation.ts`（runId 路径形状 + 外部 200 上限、spanId 128、逻辑路径 4096/NUL + trace-sdk 语义、文件名/meta.id 身份）与 `read/errors.ts`（启动/工具/limitation 三类稳定码、lineage 诊断映射、按结构分类读取异常）。`RunDetailReadError` 增 `code`；`listRunsDetailed` 逐项给 `IDENTITY_MISMATCH`/`RUN_INVALID` 等码。**D2 冲突两处已按“旧行为不变”处理**：401 字符 run id 仍由 desktop 比较端点按旧语义处理（200 上限只用于 MCP 外部输入）；`listRuns` 仍允许文件名任意（身份错配只在 `listRunsDetailed` 成为失败项）。包级测试 **33/33**（validation 6 / read-context 7 / repository 11 / schema 9）；desktop 全量 **215/3275**；tsc 双 0；biome 0。Q05 包级证据已补；S06 的 MCP 错误投影仍待 4.2/4.8。
-- [ ] 2.5（1.5h）共享读取边界拒绝链接越界/目录替身，保留 I/O 原因分类。验收 Q06。
+- [x] 2.5（1.5h）共享读取边界拒绝链接越界/目录替身，保留 I/O 原因分类。验收 Q06。
+  - 2026-10-22：新增 `@rebaseagent/trace-sdk/fs-boundary`（`checkRegularFileWithinRoot`/`assertRegularFileWithinRoot`），run-query 的 trace 读取、replay 的 `readWorkspaceRun` 与 blob store 共用：拒绝符号链接/junction、目录替身、realpath 越根；原因不含物理路径。缺失语义保持（边界 `not_found` 仍映射 run_not_found/ownOnly）。trace-sdk **231/1 skip**（fs-boundary 7；junction 实机通过、文件 symlink 因无特权跳过），run-query **35/1 skip**（目录替身+junction 实机通过），replay **597/6 skip**，desktop **215/3275**，tsc 双 0，biome 0。Q06 的 Windows 真实文件系统证据为目录替身+junction；真实文件 symlink 受本机权限限制，与既有 replay symlink 用例口径一致。
 - [ ] 2.6（2h）建立投影 span→owner 索引，支持重名消歧与被截断祖先拒绝。验收 Q09/Q10。
 - [ ] 2.7（1.5h）迁移运行比较纯派生，逐侧失败、来源未知/独立边界保留。验收 Q11/Q12。
 - [ ] 2.8（1.5h）共享检查点查看与附件读取包装，保留自有/初始规则和全部文件状态。验收 Q13/Q14/Q16。

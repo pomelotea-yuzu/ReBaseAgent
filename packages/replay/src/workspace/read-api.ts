@@ -7,6 +7,7 @@ import type {
   WorkspaceOrigin,
   WorkspaceSnapshot,
 } from "@rebaseagent/trace-sdk";
+import { FsBoundaryError, assertRegularFileWithinRoot } from "@rebaseagent/trace-sdk/fs-boundary";
 import { createWorkspaceBlobStore } from "./blob-store.js";
 import { tryDecodeUtf8 } from "./utf8.js";
 
@@ -136,19 +137,29 @@ export type ReadWorkspaceRunResult =
 export function readWorkspaceRun(
   dataDir: string,
   runId: string,
-  readRecord: (file: string) => RunRecord = readRun,
+  readRecord?: (file: string) => RunRecord,
 ): ReadWorkspaceRunResult {
   const invalidRunId = findRunIdViolation(runId);
   if (invalidRunId !== null) {
     return { ok: false, failure: { code: "invalid_request", reason: invalidRunId } };
   }
 
+  const read =
+    readRecord ??
+    ((file: string) => {
+      assertRegularFileWithinRoot(join(dataDir, WORKSPACE_TRACES_DIR_NAME), file);
+      return readRun(file);
+    });
+
   const file = workspaceTraceFile(dataDir, runId);
   let record: RunRecord;
   try {
-    record = readRecord(file);
+    record = read(file);
   } catch (error) {
-    if (isErrnoCode(error, "ENOENT")) {
+    if (
+      isErrnoCode(error, "ENOENT") ||
+      (error instanceof FsBoundaryError && error.code === "not_found")
+    ) {
       return {
         ok: false,
         failure: { code: "run_not_found", reason: `run 文件不存在：${file}` },

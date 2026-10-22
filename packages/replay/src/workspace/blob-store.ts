@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import { copyFile, link, mkdir, open, readFile, unlink } from "node:fs/promises";
 import { join } from "node:path";
+import { checkRegularFileWithinRoot } from "@rebaseagent/trace-sdk/fs-boundary";
 
 /**
  * 内容寻址附件存储（隔离文件世界的 blob store）。
@@ -155,6 +156,14 @@ export class WorkspaceBlobStore {
   /** 读取并校验附件；`missing` / `corrupt` 是可区分状态，真实 I/O 故障抛错 */
   async readVerified(entry: BlobEntry): Promise<BlobReadResult> {
     const path = this.blobPath(entry.sha256);
+
+    const boundary = checkRegularFileWithinRoot(this.root, path);
+    if (boundary !== null) {
+      if (boundary.code === "not_found") {
+        return { state: "missing", reason: `附件不存在：${entry.sha256}` };
+      }
+      throw new WorkspaceBlobError("io", `附件路径边界拒绝：${boundary.reason}`);
+    }
 
     let data: Uint8Array;
     try {

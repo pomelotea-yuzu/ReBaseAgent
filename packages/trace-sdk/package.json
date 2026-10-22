@@ -18,6 +18,10 @@
     "./workspace-hash": {
       "types": "./dist/workspace-hash.d.ts",
       "default": "./dist/workspace-hash.js"
+    },
+    "./fs-boundary": {
+      "types": "./dist/fs-boundary.d.ts",
+      "default": "./dist/fs-boundary.js"
     }
   },
   "files": ["dist", "fixtures"],
