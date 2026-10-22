@@ -74,6 +74,10 @@ Q 属于 run-query，S 属于 mcp-service，D 属于 desktop-ui；标题须与 d
   拒绝目录替身、junction/symlink、realpath 越根，错误不含物理路径。trace-sdk **231/1 skip**、
   run-query **35/1 skip**、replay **597/6 skip**、desktop **215/3275**、tsc 双 0。
   **Q06 的 Windows 真实文件系统证据为目录替身+junction**；文件 symlink 因本机无特权跳过（与既有口径一致）。
+- 2.6：owner 跟踪投影 + `SpanOwnerIndex` + `readWithOwners` 落地；重名返回 owner 候选，
+  截断祖先拒绝，显式 owner 必须可见。包级 owner 测试 **3/3**（`packages/run-query/test/owner-index.test.ts`）、
+  包级合计 **38/1 skip**、desktop 全量 **215/3275**、tsc 双 0。
+  **Q09/Q10 的 MCP 协议面仍待 4.4**；v2 owner 用例待补。
 
 ## 门禁与归档约束
 

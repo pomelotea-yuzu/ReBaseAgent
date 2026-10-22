@@ -30,18 +30,27 @@ export type ChainProjection =
   | { readonly ok: true; readonly spans: SpanLine[] }
   | { readonly ok: false; readonly message: string };
 
+export interface OwnedSpan {
+  readonly span: SpanLine;
+  readonly ownerRunId: string;
+}
+
+export type ChainOwnedProjection =
+  | { readonly ok: true; readonly owned: OwnedSpan[]; readonly spans: SpanLine[] }
+  | { readonly ok: false; readonly message: string };
+
 /**
- * 投影混合链的完整轨迹。`records` 必须是 root..leaf 的连续已校验记录
- * （`readRunLineage` 的 complete 形态）；结构校验（fork/parent 自洽、成环、封存）
- * 已由读取上下文完成，这里只做轨迹拼装与「可证明」的定位检查。
+ * 投影混合链并逐 span 记录**可见 owner**。拼接顺序与 `projectMixedChainSpans`
+ * 逐字一致；v2 整轮截断复用 `resolveWholeRound`（返回的是父前缀/子记录里的同一批
+ * span 对象，owner 按对象身份映射，不按 id 猜）。
  */
-export function projectMixedChainSpans(records: readonly RunRecord[]): ChainProjection {
+export function projectMixedChainWithOwners(records: readonly RunRecord[]): ChainOwnedProjection {
   const root = records[0];
   if (root === undefined) {
     return { ok: false, message: "投影输入为空：缺少根记录" };
   }
 
-  let spans: SpanLine[] = root.spans.slice();
+  let owned: OwnedSpan[] = root.spans.map((span) => ({ span, ownerRunId: root.meta.id }));
   for (let i = 1; i < records.length; i++) {
     const record = records[i];
     if (record === undefined) {
@@ -61,24 +70,44 @@ export function projectMixedChainSpans(records: readonly RunRecord[]): ChainProj
           return { ok: false, message: `隔离分支 ${record.meta.id} 缺少可用的直接父记录` };
         }
         // v2 整轮截断：与执行路径共用同一实现（含边界归属校验），拒绝而不猜
-        spans = resolveWholeRound(spans, parentRecord, fork, record);
+        const ownerBySpan = new Map<SpanLine, string>();
+        for (const item of owned) ownerBySpan.set(item.span, item.ownerRunId);
+        for (const span of record.spans) ownerBySpan.set(span, record.meta.id);
+        const spans = resolveWholeRound(
+          owned.map((item) => item.span),
+          parentRecord,
+          fork,
+          record,
+        );
+        const next: OwnedSpan[] = [];
+        for (const span of spans) {
+          const ownerRunId = ownerBySpan.get(span);
+          if (ownerRunId === undefined) {
+            return { ok: false, message: `整轮投影 owner 映射失败：${record.meta.id}` };
+          }
+          next.push({ span, ownerRunId });
+        }
+        owned = next;
         continue;
       }
       // v1：在已投影的父前缀中定位分叉点，截断其后，接上本次自有 spans（与 resolveBranch 一致）
-      const idx = spans.findIndex((span) => span.id === fork.at_span);
+      const idx = owned.findIndex((item) => item.span.id === fork.at_span);
       if (idx === -1) {
         return {
           ok: false,
           message: `fork 点 ${fork.at_span} 不存在于 ${parentId} 的轨迹前缀中`,
         };
       }
-      spans = [...spans.slice(0, idx + 1), ...record.spans];
+      owned = [
+        ...owned.slice(0, idx + 1),
+        ...record.spans.map((span) => ({ span, ownerRunId: record.meta.id })),
+      ];
       continue;
     }
 
     if (INDEPENDENT_FIELDS.has(field)) {
       // 独立执行边界：重置为该 hop 自有轨迹（不拼接边界另一侧）
-      spans = record.spans.slice();
+      owned = record.spans.map((span) => ({ span, ownerRunId: record.meta.id }));
       continue;
     }
 
@@ -87,7 +116,17 @@ export function projectMixedChainSpans(records: readonly RunRecord[]): ChainProj
       message: `run ${record.meta.id} 的分支字段「${field}」不受支持（不默认按 result 拼接）`,
     };
   }
-  return { ok: true, spans };
+  return { ok: true, owned, spans: owned.map((item) => item.span) };
+}
+
+/**
+ * 投影混合链的完整轨迹。`records` 必须是 root..leaf 的连续已校验记录
+ * （`readRunLineage` 的 complete 形态）；结构校验（fork/parent 自洽、成环、封存）
+ * 已由读取上下文完成，这里只做轨迹拼装与「可证明」的定位检查。
+ */
+export function projectMixedChainSpans(records: readonly RunRecord[]): ChainProjection {
+  const projected = projectMixedChainWithOwners(records);
+  return projected.ok ? { ok: true, spans: projected.spans } : projected;
 }
 
 /** 纯 result 链判定：root..leaf 除根外全部是 result 分叉（纯链继续走 resolveBranch） */

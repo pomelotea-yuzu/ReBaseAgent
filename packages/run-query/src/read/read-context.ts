@@ -9,6 +9,8 @@ import { classifyLineageDiagnostic } from "./errors.js";
 import type { RunQueryToolErrorCode } from "./errors.js";
 import { readRunLineage } from "./lineage.js";
 import type { RunLineageDiagnostic, RunLineageOutcome } from "./lineage.js";
+import { buildSpanOwnerIndex } from "./owner-index.js";
+import type { SpanOwnerIndex } from "./owner-index.js";
 
 /**
  * 严格读取失败的结构化载体：message 是受控中文原因（与既有 getRun 抛错文本逐字
@@ -73,21 +75,39 @@ export class RunReadContext {
    * `deriveChainTotals`/`findCommonAncestor` 由此自然判 incomplete。
    */
   readOf(id: string): { detail: RunDetail; chainSummaries: RunSummary[] } {
-    const outcome = this.lineageOf(id);
-    if (!outcome.ok) {
-      throw new RunDetailReadError(outcome.diagnostic, outcome.message);
-    }
-    const chainSummaries = outcome.records.map((record) => deriveRunSummary(record));
-    return { detail: this.projectDetail(id, outcome), chainSummaries };
+    const { detail, chainSummaries } = this.coreOf(id);
+    return { detail, chainSummaries };
+  }
+
+  /** 读取详情 + chain 摘要 + span→owner 索引（MCP get_step 使用） */
+  readWithOwners(id: string): {
+    detail: RunDetail;
+    chainSummaries: RunSummary[];
+    ownerIndex: SpanOwnerIndex;
+  } {
+    const { detail, chainSummaries, records } = this.coreOf(id);
+    return { detail, chainSummaries, ownerIndex: buildSpanOwnerIndex(detail, records) };
   }
 
   /** 兼容入口：只要详情（U6 getRun 语义，行为零变化） */
   detailOf(id: string): RunDetail {
+    return this.coreOf(id).detail;
+  }
+
+  private coreOf(id: string): {
+    detail: RunDetail;
+    chainSummaries: RunSummary[];
+    records: RunRecord[];
+  } {
     const outcome = this.lineageOf(id);
     if (!outcome.ok) {
       throw new RunDetailReadError(outcome.diagnostic, outcome.message);
     }
-    return this.projectDetail(id, outcome);
+    return {
+      detail: this.projectDetail(id, outcome),
+      chainSummaries: outcome.records.map((record) => deriveRunSummary(record)),
+      records: outcome.records,
+    };
   }
 
   private projectDetail(id: string, outcome: Extract<RunLineageOutcome, { ok: true }>): RunDetail {
