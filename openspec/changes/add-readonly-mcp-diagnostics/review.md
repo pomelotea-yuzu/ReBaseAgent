@@ -77,3 +77,9 @@
 - **零写入/零执行的验收方法具体可测**：文件集合 + SHA-256、模型/工具/导出计数为零、无 operation 登记，且覆盖「源目录存在同名新文件」的对照（Q15/Q16/S14）。
 - **与既有契约衔接有意识**：ownOnly/缺父语义、U6/U7/R2.2 前缀投影、desktop crashed 原状态保留、比较不判修复成功、错误不按文字猜码，均显式沿用而不重述为新发明。
 - **支持路径验证排在最前**（1.1 先验选定客户端的最小 stdio，失败先修支持路径再扩大客户端），风险暴露顺序正确。
+
+## 2026-10-22 口径修订
+
+用户确认本机未安装 Claude Desktop、已安装 WorkBuddy 5.9.0，首个验收客户端改为 WorkBuddy 5.9.0。
+proposal、design D1/D8、tasks 1.1/6.2、mcp-service delta 与 evidence-index S15 已同步；本审阅其余结论不变。
+1.1 已用 WorkBuddy 内置 CodeBuddy CLI 2.165.0 完成 `initialized` + `tools/list`，临时 `.mcp.json` 取证后删除。
