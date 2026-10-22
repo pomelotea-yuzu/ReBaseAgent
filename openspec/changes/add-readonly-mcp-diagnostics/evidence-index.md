@@ -85,6 +85,9 @@ Q 属于 run-query，S 属于 mcp-service，D 属于 desktop-ui；标题须与 d
 - 2.8：`workspace-view` 迁入 run-query（repository 改 `RunRecordLoader` 最小接口），desktop 旧路径薄 re-export；
   replay 仍负责定位/哈希/附件，不复制。desktop workspace 回归 **75/75**、全量 **215/3275**、
   包级冒烟 **2/2**、tsc 双 0。**Q13/Q14/Q16 的 MCP 工具面仍待 4.6/5.4**。
+- 2.9：`workspace-compare.ts` 以 re-export 接入 replay 跨运行清单/内容比较；包级同源测试 **1/1**
+  （与 replay 函数对象全等），合计 **48/1 skip**，build/tsc/biome 全绿。
+  **Q14 的 MCP 工具面仍待 4.6/4.7**。
 
 ## 门禁与归档约束
 
