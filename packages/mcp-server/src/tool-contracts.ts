@@ -124,6 +124,7 @@ const CompareRunsArgs = z
     right: z.object({ runId: runIdField() }).strict(),
   })
   .strict();
+export type CompareRunsArgs = z.infer<typeof CompareRunsArgs>;
 
 const InspectCheckpointArgs = z
   .object({

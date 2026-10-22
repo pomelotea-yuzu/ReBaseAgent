@@ -256,6 +256,44 @@ Q 属于 run-query，S 属于 mcp-service，D 属于 desktop-ui；标题须与 d
     **Q09/Q10 未整场景通过**（协议面与三态语义已闭合；正文分段续读与来源变化归 5.2、
     64 KiB 预算归 5.1、结构凭据过滤 `REDACTED` 按任务序归 4.8）。
 
+- 4.5：登记 `compare_runs`（`READONLY_TOOLS` 现四条，顺序同 D5）。
+  - `src/query/compare-runs.ts`：左侧在前、恰两格同序；只捕 `RunDetailReadError` 投影成该侧
+    `unavailable`（真实 runId + 稳定码 + 码表文案），其余异常继续上抛。
+  - Q11：坏侧在场、好侧照常——`alongChain.tokens=120` 与 `unavailable` 同屏；两侧都坏也是两格
+    （不合并、不冒充空运行）。
+  - Q12：关系三态复用共享层 `deriveVerifiedComparison`；**只有一侧读到时不判定关系**
+    （`not-determinable` + `deltaFromAncestor:null`），ownOnly 一侧判 `incomplete` 而非 `unrelated`
+    并带 `ANCESTOR_NOT_FOUND`，好侧累计不受污染；父子对的祖先差 = 子的自有增量 14 tokens、
+    祖先那一侧为 0；两个不同根判 `unrelated` 且两侧差都为 null。结果按键名集合反查无
+    `winner/better/fixed/passed/alignedSteps/stepPairs/diff` 等结论字段。
+  - S05 的比较半边：输出与错误定位只给 **span 引用 + 码点长度**（`provenance.refs` 可直接喂
+    `get_step(section=...)`），`BODY_NOT_EXPOSED` 在场；错误目标给 `llmCallSpanId/stepSpanId/
+    messageRecorded/status:503/missingDetail`，错误正文不出现在比较结果里；未记录最终输出按
+    `no-llm-call`/`has-error` 分型，不拿 `intermediate` 或空串冒充；
+    `assertNoSentinels` + 递归键名扫描（`content/leftText/rightText` 等一律不在场）。
+    来源段合并两侧物理 run，共享祖先一次、带来源标签那份胜出。
+  - 共用件上收：干预段与消耗段（`InterventionSchema`/`projectIntervention`/
+    `OwnConsumptionSchema`/`ChainTotalsSchema`/`AncestorDeltaSchema`）进 `projection.ts`，
+    `get-run.ts` 改导入（消除 4.3/4.4 的本地副本）；`projectRunSummary` 增加带 `formatVersion`
+    的重载，让读过记录的一侧在类型上不可能把版本写成 undefined。
+  - **4.3 断言随夹具改判（两边留痕）**：`mcp0-bodies` 为错误定位补成 error 终止 ⇒ 4.3
+    「errored 恰等于 [gamma]」的全等断言改为「本类代表在场 + 他类代表不在场」，
+    失败段条数断言不变。
+  - 门禁：mcp-server **129 passed / 9 文件**（新增 `compare-runs.test.ts` **14 用例**）、
+    run-query **47/1 skip**、desktop **216 文件/3301 用例**（singleFork）、desktop tsc 双 0、
+    7 包 build、`biome check packages/mcp-server packages/run-query` 0（65 文件）、`check-spec` 13/0、
+    `openspec validate --changes --strict` valid、`git diff --check` 0；回查
+    `.workbuddy/mcp0-45/verify-45.cjs` **41 项全对** + `--self-test` 三道反证
+    （数字漂 / 单侧不判定关系的判据被抹走 / 注册表退回三条）。
+    历史脚本随批次放宽（同一坑第二次：注册表判据依赖字面量与排版 ⇒ 一律先归一空白再比前缀）：
+    `verify-43` 改前缀匹配、`verify-44` 改前缀匹配且「未动前沿」改钉尾项 6.6；
+    重跑分别 **45 / 43 / 41 项全对**。逐批前沿与注册表全等只由该批自己的脚本钉。
+  - 变异验证 3 组全部咬住后还原：单侧也去求关系 ⇒ Q11 两条红；`incomplete` 写死 `unrelated` ⇒
+    Q12 红；输出正文塞进 `model` ⇒ S05 两条红。
+  - **S03 仍未通过**（4/7 登记）；**S05 未整场景通过**（「指定历史文件」那一半要 4.6/4.7，
+    真实客户端对照要 6.2）；**Q11/Q12 未整场景通过**（协议面已闭合；有界预览与预算归 5.1、
+    游标/来源变化归 5.2、端到端字节指纹归 5.4）。
+
 ## 门禁与归档约束
 
 - 6.5 补实际命令、exit code、源码身份、包构建顺序和新依赖核验；不引用 R2.2 历史通过代替本次通过。

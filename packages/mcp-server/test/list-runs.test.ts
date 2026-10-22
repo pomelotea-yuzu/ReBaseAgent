@@ -173,7 +173,17 @@ describe("list_runs：失败文件不因筛选消失（Q03）", () => {
     // 只筛「出错终止」也照样带着失败段——不伪造为空列表（Q03 的判据）
     const filtered = await okData({ status: "errored" });
     expect(failedItems(filtered.data)).toHaveLength(FAILURE_COUNT);
-    expect(runItems(filtered.data).map((item) => item.runId)).toEqual([fx.ids.gamma]);
+    /**
+     * 4.3 当年这里钉的是「恰等于 [gamma]」。4.4/4.5 为错误定位补了第二条以 error 终止的
+     * 夹具（`mcp0-bodies`）⇒ 全等断言随夹具过时，判据改回它本来要说的两件事：
+     * 这一类的代表在场、其他类别的代表一律不在场（互斥）。
+     */
+    const erroredIds = runItems(filtered.data).map((item) => item.runId);
+    expect(erroredIds).toContain(fx.ids.gamma);
+    expect(erroredIds).toContain(fx.ids.bodies);
+    for (const other of [fx.ids.alpha, fx.ids.beta, fx.ids.delta, fx.ids.epsilon]) {
+      expect(erroredIds).not.toContain(other);
+    }
     expect(filtered.data.totals.unreadableFiles).toBe(FAILURE_COUNT);
 
     // query 同样不影响失败段

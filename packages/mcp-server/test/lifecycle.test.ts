@@ -130,7 +130,12 @@ describe("S01 合法数据根：无桌面也能初始化", () => {
       expect(listed.tools.map((tool) => tool.name)).toEqual(
         READONLY_TOOLS.map((tool) => tool.name),
       );
-      expect(listed.tools.map((tool) => tool.name)).toEqual(["list_runs", "get_run", "get_step"]);
+      expect(listed.tools.map((tool) => tool.name)).toEqual([
+        "list_runs",
+        "get_run",
+        "get_step",
+        "compare_runs",
+      ]);
 
       // 未注册的名字必须拒（S04 的前半段），且不因拒绝而改变服务边界。
       // 用「重跑并写入」这种**永远不会注册**的名字：拿 4.4 待实现的名字测，

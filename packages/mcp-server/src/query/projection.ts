@@ -155,6 +155,18 @@ export const RunSummaryItemSchema = z
   .strict();
 export type RunSummaryItem = z.infer<typeof RunSummaryItemSchema>;
 
+/**
+ * 摘要 → 白名单条目。
+ *
+ * 带 `formatVersion` 的重载只为一件事：调用方**读过**记录（get_run/compare_runs 的详情侧）
+ * 时版本是已知事实，类型上就不该还能是 `undefined`；列表侧（list_runs）用的是同一次扫描
+ * 带来的版本，同样走这一支。省略参数 = 本次没把这个事实拿来，字段缺席而不是补 0。
+ */
+export function projectRunSummary(summary: RunSummary): RunSummaryItem;
+export function projectRunSummary(
+  summary: RunSummary,
+  formatVersion: number,
+): RunSummaryItem & { formatVersion: number };
 export function projectRunSummary(summary: RunSummary, formatVersion?: number): RunSummaryItem {
   const item: RunSummaryItem = {
     runId: summary.id,
@@ -223,6 +235,136 @@ export function compareSummaryOrder(
   if (a.runId === b.runId) return 0;
   return a.runId < b.runId ? -1 : 1;
 }
+
+// ---------------------------------------------------------------------------
+// 干预段：get_run 与 compare_runs 共用（「同一件事在两处说法不同」是本包最容易漂的地方）
+// ---------------------------------------------------------------------------
+
+const SnapshotIdSchema = z.string().regex(/^[0-9a-f]{64}$/, "快照标识必须是 64 位小写十六进制");
+
+export const InterventionSchema = z
+  .object({
+    fork: z
+      .object({
+        atSpan: z.string().min(1),
+        editField: z.string().min(1),
+        /** v1 分叉没有整轮边界字段 ⇒ null（不是"边界是空字符串"） */
+        resumeAfterStep: z.string().min(1).nullable(),
+        /** 实验组标签：仅 model_params 分叉有值，由共享层摘要派生，不碰 edit.value */
+        experimentId: z.string().min(1).nullable(),
+      })
+      .strict()
+      .nullable(),
+    /**
+     * v3 隔离 prompt 实验的**身份**。刻意不含：`original_value`（原值正文）、
+     * `hypothesis`/`acceptance_criterion`（假设与人工判据）、`execution.params` 表本身
+     * 与 `provider_endpoint`（端点面，design D7）——参数只说「录没录」，
+     * 因为「未录」与「录了空对象」是两种事实。
+     */
+    experiment: z
+      .object({
+        baselineRunId: z.string().min(1),
+        baselineLlmSpanId: z.string().min(1),
+        initialSnapshotId: SnapshotIdSchema,
+        execution: z
+          .object({
+            model: z.string().min(1),
+            maxIterations: z.number().int().positive(),
+            maxTotalTokens: z.number().int().positive(),
+            configFingerprint: z.string().min(1),
+            paramsRecorded: z.boolean(),
+          })
+          .strict(),
+      })
+      .strict()
+      .nullable(),
+  })
+  .strict();
+export type Intervention = z.infer<typeof InterventionSchema>;
+
+export function projectIntervention(detail: RunDetail, ownSummary: RunSummary): Intervention {
+  const fork = detail.meta.fork;
+  const experiment = detail.meta.prompt_experiment;
+  return {
+    fork:
+      fork === null
+        ? null
+        : {
+            atSpan: fork.at_span,
+            editField: fork.edit.field,
+            resumeAfterStep: fork.resume_after_step ?? null,
+            experimentId: projectRunSummary(ownSummary).fork?.experimentId ?? null,
+          },
+    experiment:
+      experiment === undefined
+        ? null
+        : {
+            baselineRunId: experiment.baseline_run_id,
+            baselineLlmSpanId: experiment.baseline_llm_span_id,
+            initialSnapshotId: experiment.initial_snapshot_id,
+            execution: {
+              model: experiment.execution.model,
+              maxIterations: experiment.execution.max_iterations,
+              maxTotalTokens: experiment.execution.budget,
+              configFingerprint: experiment.execution.config_fingerprint,
+              paramsRecorded: experiment.execution.params !== undefined,
+            },
+          },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// 消耗段：get_run 与 compare_runs 共用同一口径
+// ---------------------------------------------------------------------------
+
+/**
+ * 本次消耗（= 本 run **自有** spans 的聚合）。
+ *
+ * 缓存覆盖用 `{recorded,total,hitTotal}` 三件而非一个数字：`recorded<total` 说的是
+ * 「部分调用没录 cache_hit」，这时 `hitTotal` 只是**已录部分**的和，不能当全量命中读。
+ */
+export const OwnConsumptionSchema = z
+  .object({
+    tokensIn: z.number().int().nonnegative(),
+    tokensOut: z.number().int().nonnegative(),
+    durationMs: z.number().nonnegative().nullable(),
+    toolCalls: z.number().int().nonnegative(),
+    toolErrors: z.number().int().nonnegative(),
+    cache: z
+      .object({
+        recorded: z.number().int().nonnegative(),
+        total: z.number().int().nonnegative(),
+        /** null = 没有任何一次调用录了 cache_hit（未知）；0 = 实测零命中 */
+        hitTotal: z.number().int().nonnegative().nullable(),
+      })
+      .strict(),
+  })
+  .strict();
+
+/**
+ * 沿 parent 链求和的**累计增量**。措辞纪律：这是「沿链求和的累计增量」，
+ * 不是"总耗时/总成本"——它不代表从头连续跑一次会花多少（design D4/branch-tree 同源）。
+ * 链上任一段缺失或成环 ⇒ 整条为 null，不补 0、不估算。
+ */
+export const ChainTotalsSchema = z
+  .object({
+    steps: z.number().int().nonnegative(),
+    toolCalls: z.number().int().nonnegative(),
+    toolErrors: z.number().int().nonnegative(),
+    tokensIn: z.number().int().nonnegative(),
+    tokensOut: z.number().int().nonnegative(),
+    tokens: z.number().int().nonnegative(),
+    durationMs: z.number().nonnegative().nullable(),
+  })
+  .strict();
+
+/** 相对共同祖先的增量差 = 该侧累计 − 祖先累计；无可比基线时为 null */
+export const AncestorDeltaSchema = z
+  .object({
+    tokens: z.number().int(),
+    durationMs: z.number().nullable(),
+  })
+  .strict();
 
 /** 失败项按安全文件标识升序（同一序列里位置稳定，分页才无重不漏） */
 export function compareFileOrder(a: { file: string }, b: { file: string }): number {

@@ -1,6 +1,6 @@
 # MCP0 / MCP1 实施任务
 
-状态（2026-10-22）：**阶段 1、2（2.1–2.9）、3（3.1–3.2）与 4.1–4.4 已完成；4.5 起未实施**。
+状态（2026-10-22）：**阶段 1、2（2.1–2.9）、3（3.1–3.2）与 4.1–4.5 已完成；4.6 起未实施**。
 每项预计不超过 2h；发现超过时先拆分任务。验收对应见 [evidence-index.md](evidence-index.md)；测试、客户端实机、人工接入和发行分别记录，不以文档校验替代功能通过。
 
 ## 1. MCP0：先验证支持路径
@@ -140,7 +140,53 @@
     三态语义，正文**分段续读**（游标绑定、来源变化 ⇒ STALE_CURSOR）归 5.2，64 KiB 序列化预算归 5.1，
     结构凭据过滤（`REDACTED`）按任务序归 4.8——当前 `section=input/output/error` 发的是记录的原文。
 
-- [ ] 4.5（1h）实现 compare_runs 双侧投影/引用/BODY_NOT_EXPOSED，按 D5 两侧对象 schema（与 compare_checkpoint_files 同形）。验收 Q11/Q12、S05。
+- [x] 4.5（1h）实现 compare_runs 双侧投影/引用/BODY_NOT_EXPOSED，按 D5 两侧对象 schema（与 compare_checkpoint_files 同形）。验收 Q11/Q12、S05。
+  - 2026-10-22：新增 `src/query/compare-runs.ts`，`READONLY_TOOLS` 现四条。左侧在前、恰两格同序；
+    「恰两个不同运行」是语义约束（两条 zod 形状都合法），由实现层以 `INVALID_ARGUMENT` + `ref:"left/right"` 拒。
+  - 三条不猜：① **坏侧不冒充空运行**（Q11）——该侧 `unavailable` 带真实 runId、稳定码与码表文案
+    （只捕 `RunDetailReadError`，其余异常继续上抛，程序缺陷不伪装成业务码），另一侧事实照常；
+    ② **只有一侧读到时不判定关系**——`relation.kind = "not-determinable"`：拿单条链去求共同祖先
+    会得出它自己的根，那是把不知道说成结论，同时 `deltaFromAncestor` 只能为 null；
+    ③ **incomplete 不升格成 unrelated**（Q12）——关系三态直接复用共享层 `deriveVerifiedComparison`，
+    ownOnly 那一侧带 `ANCESTOR_NOT_FOUND` limitation，另一侧沿链累计照常。
+    结果里没有「谁更好 / 修复成功 / 第 N 步对第 N 步」任何字段（用例按键名集合反查）。
+  - 复用而非重抄：沿链累计用 `deriveChainTotals(indexRunsById(本次已校验链并集))`、关系与祖先差用
+    `deriveVerifiedComparison`、输出与错误定位用 `deriveSideOutputFacts`（内含 `deriveOwnOutput`
+    四条件与 `classifyOutcome`）、自有消耗用 `deriveOwnConsumption`；共享祖先在本次请求内只解析一次
+    （两侧同一个 `RunReadContext`，Q02 口径）。
+  - 正文边界（S05）：最终输出与错误定位只给 **span 引用 + 码点长度**（`provenance.refs` 里的引用可直接
+    交给 `get_step(section=...)`），并带一条 `BODY_NOT_EXPOSED`；错误目标给 `messageRecorded` 与 HTTP
+    状态，错误正文本身不在比较结果里。未记录最终输出的那一侧按共享层分型如实给
+    `missingReason`（`no-llm-call`/`has-error`…），不拿中间正文或空串冒充。
+  - 来源段合并两侧参与读取的物理 run：共享祖先只出现一次，且**带来源标签的那份胜出**
+    （左是右的祖先时，左边的叶子身份不能被祖先身份覆盖掉）。
+  - **共用件上收（4.3/4.4 的本地副本消除）**：干预段（`InterventionSchema` + `projectIntervention`）、
+    消耗段（`OwnConsumptionSchema`/`ChainTotalsSchema`/`AncestorDeltaSchema`）移进 `projection.ts`，
+    `get-run.ts` 改导入；`projectRunSummary` 加了带版本的重载，让「读过记录」的一侧类型上就不可能
+    把版本写成 `undefined`。
+  - **4.3 判据随夹具改判（两边留痕）**：`mcp0-bodies` 为 4.4/4.5 的错误定位补成以 error 终止 ⇒
+    4.3 `list-runs.test.ts` 里「errored 恰等于 [gamma]」的全等断言过时，改为该批判据本来的两件事
+    （本类代表在场 + 其他类别代表不在场），并保留失败段条数断言不变。
+  - 测试：`test/compare-runs.test.ts` **14 用例**（左坏右好两格同序、两侧都坏、父子关系与祖先差 14
+    tokens、两个不同根判 `unrelated`、ownOnly 判 `incomplete` 且不污染好侧、无结论字段反查、
+    输出只引用+码点且 canary 不外发、未记录输出分型、error 终止侧定位带 503 而无错误正文、
+    来源段合并、自比/穿越/数组形状读取前拒、四次比较目录指纹不变、同对结果逐字相同、
+    未封存侧给 `TERMINATION_NOT_RECORDED` 且不说「仍在运行」）。
+  - 门禁：mcp-server **129 passed**（9 文件）、run-query **47 passed/1 skip**、desktop **216/3301**
+    （singleFork；本批未改 run-query/desktop，仍复跑确认）、desktop tsc 双 0、7 包 build、
+    `biome check packages/mcp-server packages/run-query` 0（65 文件）、`check-spec` 13/0、
+    `openspec validate --changes --strict` valid、`git diff --check` 0；
+    回查 `.workbuddy/mcp0-45/verify-45.cjs` **41 项全对**（`--self-test` 三道反证）。
+    历史脚本随批次放宽（同一坑第二次出现，已归一空白再比形状）：`verify-43` 的注册表判据改前缀匹配、
+    `verify-44` 的注册表判据改前缀匹配且「未动前沿」改钉尾项 6.6 ⇒ 三者重跑分别 45/43/41 项全对。
+    ⚠️ 教训：**逐批"当前前沿"与"注册表全等"只能由该批自己的脚本钉**，历史脚本钉该批事实且
+    不依赖排版（biome 会把数组折行）。
+  - 变异验证 3 组（施加→定向跑→还原并核对无残留）：单侧也去求关系 ⇒ Q11 两条用例红；
+    `incomplete` 写死成 `unrelated` ⇒ Q12 用例红；把输出正文塞进 `model` 字段 ⇒ S05 两条用例红。
+  - **S03/S05 未整批通过**：七工具登记 4 条，检查点两条链路待 4.6/4.7；S05 的「指定历史文件」半边
+    与真实客户端对照待 4.6/6.2。**Q11/Q12 未整场景通过**：协议面与未知语义已闭合，
+    两侧正文的有界预览与 64 KiB 预算归 5.1、游标与来源变化归 5.2、端到端零写入字节复核归 5.4。
+
 - [ ] 4.6（1.5h）实现 inspect_checkpoint/read_checkpoint_file，二进制仅元信息、文本原换行；工具缺省 stepSpanId=初始与桌面默认分层注释，不提供"最近一步"缺省语义。验收 Q13/Q14、S03。
 - [ ] 4.7（1.5h）实现 compare_checkpoint_files 的清单和 path 两种模式。验收 Q14、S03/S10。
 - [ ] 4.8（1.5h）字段白名单/结构凭据过滤/安全错误/信任说明。验收 S06/S11/S12；不承诺自由文本去密。

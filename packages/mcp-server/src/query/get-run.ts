@@ -14,9 +14,13 @@ import type { DataRoot } from "../startup.js";
 import { type GetRunArgs, requireContract } from "../tool-contracts.js";
 import { ToolFailure, defineTool } from "../tool-definition.js";
 import {
+  ChainTotalsSchema,
+  InterventionSchema,
+  OwnConsumptionSchema,
   RunSummaryItemSchema,
   SpanItemSchema,
   outcomeTagOf,
+  projectIntervention,
   projectRunSummary,
   projectSpanItem,
   provenanceRunsOf,
@@ -122,72 +126,13 @@ const GetRunDataSchema = z
       })
       .strict(),
     chain: z.array(ChainHopItemSchema).min(1),
-    intervention: z
-      .object({
-        fork: z
-          .object({
-            atSpan: z.string().min(1),
-            editField: z.string().min(1),
-            resumeAfterStep: z.string().min(1).nullable(),
-            experimentId: z.string().min(1).nullable(),
-          })
-          .strict()
-          .nullable(),
-        /** v3 隔离 prompt 实验身份（不含原值/假设/判据/端点，见文件头边界说明） */
-        experiment: z
-          .object({
-            baselineRunId: z.string().min(1),
-            baselineLlmSpanId: z.string().min(1),
-            initialSnapshotId: SnapshotIdSchema,
-            execution: z
-              .object({
-                model: z.string().min(1),
-                maxIterations: z.number().int().positive(),
-                maxTotalTokens: z.number().int().positive(),
-                configFingerprint: z.string().min(1),
-                /**
-                 * 根首次请求有没有录采样参数：`false` = 未录，`true` = 录了（可能是显式空对象）。
-                 * 两者语义不同（源字段是可选的），所以分开说；参数表本身不外发。
-                 */
-                paramsRecorded: z.boolean(),
-              })
-              .strict(),
-          })
-          .strict()
-          .nullable(),
-      })
-      .strict(),
+    /** 与 compare_runs 同一份干预段（形状与判据都在 `projection.ts`） */
+    intervention: InterventionSchema,
     consumption: z
       .object({
-        own: z
-          .object({
-            tokensIn: z.number().int().nonnegative(),
-            tokensOut: z.number().int().nonnegative(),
-            durationMs: z.number().nonnegative().nullable(),
-            toolCalls: z.number().int().nonnegative(),
-            toolErrors: z.number().int().nonnegative(),
-            cache: z
-              .object({
-                recorded: z.number().int().nonnegative(),
-                total: z.number().int().nonnegative(),
-                hitTotal: z.number().int().nonnegative().nullable(),
-              })
-              .strict(),
-          })
-          .strict(),
+        own: OwnConsumptionSchema,
         /** 沿 parent 链求和的累计增量；链上有缺失/成环 ⇒ null（不补 0、不猜根） */
-        alongChain: z
-          .object({
-            steps: z.number().int().nonnegative(),
-            toolCalls: z.number().int().nonnegative(),
-            toolErrors: z.number().int().nonnegative(),
-            tokensIn: z.number().int().nonnegative(),
-            tokensOut: z.number().int().nonnegative(),
-            tokens: z.number().int().nonnegative(),
-            durationMs: z.number().nonnegative().nullable(),
-          })
-          .strict()
-          .nullable(),
+        alongChain: ChainTotalsSchema.nullable(),
       })
       .strict(),
     index: z
@@ -346,33 +291,7 @@ export const getRunTool: ToolDefinition = defineTool(
               },
         isSelf: hop.meta.id === leafRunId,
       })),
-      intervention: {
-        fork:
-          fork === null
-            ? null
-            : {
-                atSpan: fork.at_span,
-                editField: fork.edit.field,
-                resumeAfterStep: fork.resume_after_step ?? null,
-                // 实验组标签从摘要取（model_params 分叉才有值），不碰 edit.value
-                experimentId: projectRunSummary(summary).fork?.experimentId ?? null,
-              },
-        experiment:
-          experiment === undefined
-            ? null
-            : {
-                baselineRunId: experiment.baseline_run_id,
-                baselineLlmSpanId: experiment.baseline_llm_span_id,
-                initialSnapshotId: experiment.initial_snapshot_id,
-                execution: {
-                  model: experiment.execution.model,
-                  maxIterations: experiment.execution.max_iterations,
-                  maxTotalTokens: experiment.execution.budget,
-                  configFingerprint: experiment.execution.config_fingerprint,
-                  paramsRecorded: experiment.execution.params !== undefined,
-                },
-              },
-      },
+      intervention: projectIntervention(detail, summary),
       consumption: {
         own: deriveOwnConsumption({ spans: detail.spans, leafSpanIds: detail.leafSpanIds }),
         alongChain: deriveChainTotals(indexRunsById(chainSummaries), leafRunId),

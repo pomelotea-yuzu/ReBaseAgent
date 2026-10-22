@@ -352,6 +352,8 @@ export function buildQueryFixture(): QueryFixture {
   });
   writeV1Run(tracesDir, "mcp0-bodies", {
     createdAt: at(-3),
+    // 错误定位只对「以 error 终止」的 run 有意义（共享层同款纪律：非 error 终止不产生错误目标）
+    reason: "error",
     toolError: SENTINELS.toolErrorBody,
     toolResultNull: true,
     llmError: { message: SENTINELS.llmErrorBody, status: 503 },
