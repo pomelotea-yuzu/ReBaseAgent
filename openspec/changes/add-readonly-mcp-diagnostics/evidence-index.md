@@ -52,6 +52,13 @@ Q 属于 run-query，S 属于 mcp-service，D 属于 desktop-ui；标题须与 d
 - 1.2：SDK/依赖/构建审计 → `sdk-and-build-audit.md`；1.3：闭包清单 → `dependency-closure.md`。
   两者都是实施前提，不替代 Q01/Q02/D02 的功能证据。
 
+## 2.x 进展（不构成场景通过）
+
+- 2.1：`packages/run-query` 建立，运行/详情/比较/检查点领域 schema 与完整性判据逐字迁入；
+  desktop `shared/ipc.ts` 旧出口改为薄 re-export。包级 schema 测试 **9/9**（`packages/run-query/test/schema.test.ts`）、
+  desktop 同源测试 **3/3**（`apps/desktop/test/run-query-schema-parity.test.ts`）、desktop 全量 **215 文件/3275 用例**、
+  tsc 双配置 0 错、全包 build 通过。**Q01/D02 仍未通过**：需 2.2/2.3 的读取迁移与 3.2 的桌面同 fixture 对照。
+
 ## 门禁与归档约束
 
 - 6.5 补实际命令、exit code、源码身份、包构建顺序和新依赖核验；不引用 R2.2 历史通过代替本次通过。

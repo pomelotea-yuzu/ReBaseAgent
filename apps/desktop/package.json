@@ -20,6 +20,7 @@
     "@rebaseagent/agent-loop": "workspace:*",
     "@rebaseagent/llm-proxy": "workspace:*",
     "@rebaseagent/replay": "workspace:*",
+    "@rebaseagent/run-query": "workspace:*",
     "@rebaseagent/trace-sdk": "workspace:*",
     "echarts": "^6.1.0",
     "lucide-react": "^1.47.0",
