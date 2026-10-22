@@ -176,5 +176,5 @@
   定向回归：replay 9 文件/122、trace-sdk 3/64、desktop 13/180 全过。新增执行证据 `isolated-prompt-run.test.ts`「空串/尾随空白编辑：正式请求逐字携带，不 trim、不合并其他字段」（replay 由 596→**597** 通过 +5 skip）。
   全仓门禁（详见 evidence-index「7.4 门禁与审计证据」）：build 5 包 ✓、desktop 双 tsc 0 ✓、trace-sdk 13/225、agent-loop 8/104、trace-test 10/78、llm-proxy 2/45、replay 46/597(+5 skip)、desktop **214 文件/3272 用例**（singleFork）全过、biome **713 文件 0 错**（临时移出仓库外 video symlink 与两个未跟踪 README 脚本；未改其内容）、spec **13 passed/0 failed**、change strict valid、`git diff --check` 0。
   🔴 本批修了 7.3 遗留的探针格式门禁：`r22-73-exec/reject/seed` 与 `lib/r22-73-harness` 经 biome 格式化，`exec` 两处无插值模板字面量改字符串；`node --check` 4/4、`verify-73.cjs` 回查全过（格式化不改行为）。
-  限制：`pnpm check:build/typecheck/test` 的脚本壳会调用 PATH 上的 pnpm 11 并被版本检查拦住，故用同一 pnpm 9 直调等价的 filter 命令；完整命令与 exit code 见 evidence-index 7.4 节。人工判据仍以 7.1/7.2/7.3 的用户确认为准，7.4 不代替发行前人工验收。）
+  限制：`pnpm check:build/typecheck/test` 的脚本壳会调用 PATH 上的 pnpm 11 并被版本检查拦住，故用同一 pnpm 9 直调等价的 filter 命令；完整命令与 exit code 见 evidence-index 7.4 节。人工判据仍以 7.1/7.2/7.3 的用户确认为准，7.4 不代替发行前人工验收。收口提交 `0ccdf3d`。）
 - [ ] 7.5（1h）实施通过后同步用户文档/路线/项目状态的实际能力与版本边界，复核 scenario 合并无遗漏后再归档；发行另行核对。验收：方案、主 spec 与源码无漂移，未验证项目不称已交付，不把归档当发布。
