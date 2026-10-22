@@ -78,6 +78,10 @@ Q 属于 run-query，S 属于 mcp-service，D 属于 desktop-ui；标题须与 d
   截断祖先拒绝，显式 owner 必须可见。包级 owner 测试 **3/3**（`packages/run-query/test/owner-index.test.ts`）、
   包级合计 **38/1 skip**、desktop 全量 **215/3275**、tsc 双 0。
   **Q09/Q10 的 MCP 协议面仍待 4.4**；v2 owner 用例待补。
+- 2.7：compare-derive/output/edit-evidence/source-map + chain/overview/outcome 分类/terminal-facts
+  迁入 run-query facts；desktop 旧出口薄 re-export。包级 compare facts 测试 **6/6**、合计 **44/1 skip**；
+  desktop 受影响比较/概览/结局用例 **186/186**、全量 **215/3275**、tsc 双 0。
+  **Q11/Q12 的 MCP 协议面仍待 4.5**。
 
 ## 门禁与归档约束
 
