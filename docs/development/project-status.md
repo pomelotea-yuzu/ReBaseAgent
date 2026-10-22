@@ -1,6 +1,6 @@
 # 项目状态与版本依据
 
-校准日期：2026-10-19。本次在渲染层模块拆分收口状态基础上补充 R2.2 提案入口（尚未实施）；发行与既有能力仍依据 R2.1 归档提交 `ac8729e`、refine-ui 归档提交 `00ecab6`、v0.5.0-rc.1 打包提交 `18ebb6f` 与既有构建／发布记录，没有联网核验下载或重跑功能验收。历史记录保留其当时结论。
+校准日期：2026-10-22。本次在渲染层模块拆分收口状态基础上补充 R2.2 归档（源码已实现，未打包未发行）；发行与既有能力仍依据 R2.1 归档提交 `ac8729e`、refine-ui 归档提交 `00ecab6`、v0.5.0-rc.1 打包提交 `18ebb6f` 与既有构建／发布记录，没有联网核验下载或重跑功能验收。历史记录保留其当时结论。
 
 ## 研发与文档
 
@@ -14,8 +14,9 @@
 | U8 | 已归档：录制、messages 与实验工作区 | [场景证据](../../openspec/changes/archive/2026-10-02-unify-recording-and-experiment-workspaces/evidence-index.md)、[任务与门禁记录](../../openspec/changes/archive/2026-10-02-unify-recording-and-experiment-workspaces/tasks.md)；67 条场景为已交付 66 / 待验证 0 / 实机不成立 1，后一条按单元层承载，不称全部实机通过 |
 | R2.1 结果导出与 UI 整理 | 已归档，已进入 `0.5.0-rc.1` 构建；维护者 10/16 确认已打包上传 | [R2.1 验收](../../openspec/changes/archive/2026-10-12-export-run-results/tasks.md)、[UI 验收](../../openspec/changes/archive/2026-10-16-refine-ui-for-community-release/evidence-index.md)；导出不含 trace 分享包、自动应用或合并；上传采用维护者确认，本轮未独立下载核验 |
 | 渲染层模块拆分 | **已归档**（`2026-10-19-refactor-desktop-renderer-modules`）：实施、实机与门禁全部收口后归档；未进入任何发行包 | [归档](../../openspec/changes/archive/2026-10-19-refactor-desktop-renderer-modules/tasks.md)（38/39 任务 + 归档注记）、[设计](../../openspec/changes/archive/2026-10-19-refactor-desktop-renderer-modules/design.md)、[前后对比报告](../engineering/reports/2026-10-19-rrm-renderer-split-scale-report.md)；三大文件收敛为组合/连接层（store.ts 3769→135），行为面由 6.1–6.5 实机批（rrm-14 9/9、补探针 21/21、6.2 三批 36 tag、6.3.1–6.3.3、6.4/6.5）与全量门禁（desktop 203/3180 exit=0）背书；主 spec 合入差集 = 既有缺失 0、新增恰 5 requirement/19 scenario |
-| 后续能力 | R2.2 已建立提案 `add-isolated-prompt-experiments`，尚未实施，仍为下一项新增能力 | [提案](../../openspec/changes/add-isolated-prompt-experiments/proposal.md)、[设计](../../openspec/changes/add-isolated-prompt-experiments/design.md)、[任务](../../openspec/changes/add-isolated-prompt-experiments/tasks.md)；根初始文件的单项指令实验、v3 兼容、跨运行文件比较与 R2.1 导出闭环均待实施。排序仍为 R2.2 首版 → R3 首环境 → R2.3 完整扩展 → R4 → 按需 R5，见[正式路线](../product/evolution-roadmap.md)；R3 验证可独立准备 |
-| MCP 服务体系 | MCP0–MCP3 已纳入路线，尚未创建实施 change 或交付服务 | [正式路线 §3.3](../product/evolution-roadmap.md#33-mcp在已有-ai-工具中使用调试能力)、[服务规划](../product/mcp-service-roadmap.md)；MCP0 可先准备，MCP1 在 R2.2 首版后安排且不阻塞 R3，范围扩大时顺延；MCP2 在 R3 后查询测试证据，MCP3 按需独立设计受控执行，参数重做仍依赖 R4；不含内置 Agent 调用外部 MCP 工具 |
+| R2.2 隔离 prompt 实验 | **已归档（源码，2026-10-22）**：根初始快照上的单项启动指令实验、v3 记录、跨运行检查点／文件比较与单侧导出闭环；**未打包、未发行，不在 `0.5.0-rc.1` 包内** | [归档](../../openspec/changes/archive/2026-10-22-add-isolated-prompt-experiments/tasks.md)、[场景证据](../../openspec/changes/archive/2026-10-22-add-isolated-prompt-experiments/evidence-index.md)；7.1 package-layer 真实模型、7.2 Electron 几何／缩放／真键盘、7.3 失败与未知路径实机、7.4 全仓门禁；二进制／超限逐侧状态与部分乱序注入按单元层承载，视觉可读性待发行前人工验收 |
+| 后续能力 | R2.2 已归档；下一项为 R3 单环境测试，技术验证可独立准备 | [正式路线](../product/evolution-roadmap.md)；隔离父本／分支上的 prompt fork 与模型 A/B 仍禁用，R2.2 只开放隔离根初始快照上的 prompt 实验 |
+| MCP 服务体系 | MCP0–MCP3 已纳入路线，尚未创建实施 change 或交付服务 | [正式路线 §3.3](../product/evolution-roadmap.md#33-mcp在已有-ai-工具中使用调试能力)、[服务规划](../product/mcp-service-roadmap.md)；MCP0 可先准备，MCP1 在 R2.2 归档后可按路线安排且不阻塞 R3，范围扩大时顺延；MCP2 在 R3 后查询测试证据，MCP3 按需独立设计受控执行，参数重做仍依赖 R4；不含内置 Agent 调用外部 MCP 工具 |
 | UI 与能力调研 | 10/12 调研和走查已存档，有限 UI 整理已落地 | [能力细化讨论稿](../product/2026-10-12-capability-roadmap-from-r2-2.md)、[UI 实机走查](../reviews/2026-10-12-ui-live-walkthrough-and-refinement.md)、[本轮 UI 验收](../../openspec/changes/archive/2026-10-16-refine-ui-for-community-release/evidence-index.md)；后续能力技术方案及独创性候选仍待设计验证 |
 | 开源治理文档 | 已补齐当前单维护者阶段规则 | [治理入口](governance-and-maintenance.md)、[维护政策](maintenance-policy.md)、[发布交接](release-and-handoff.md)、[第三方声明](third-party-notices.md)；远程配置、私密接收与最终发行物许可仍未在本轮核验 |
 | GitHub | 维护者确认账号已解封 | 不再以待解封作为开发或文档阻塞；具体链接和功能可用性独立核验 |

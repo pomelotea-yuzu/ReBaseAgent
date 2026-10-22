@@ -43,7 +43,7 @@ engineering / collab / competition / reviews），原 9 个并列目录归组；
 | [`product.md`](product/product.md) | 产品方向定稿：定位 / JTBD / 护城河 / 产品化缺口 / V3 形态 / 商业模式。**注意其路线图停在 09-05，已落后于 archive** |
 | [`direction-2026H2.md`](product/direction-2026H2.md) | AniPedia × ReBaseAgent 2026H2 方向规划（一审稿 v2.1，含一审/二审回执） |
 | [`2026-09-09-roadmap-gaps.md`](product/2026-09-09-roadmap-gaps.md) | 路线图与缺口清单（09-09） |
-| [`evolution-roadmap.md`](product/evolution-roadmap.md) | **产品演进路线（原隔离重跑演进路线，无日期前缀的长期文档）**：R0–R5 能力阶段、I/U 主线、打包节点及证据门槛；10/18 增加 MCP0–MCP3 独立服务体系，R2.2／R3 核心排序不变 |
+| [`evolution-roadmap.md`](product/evolution-roadmap.md) | **产品演进路线（原隔离重跑演进路线，无日期前缀的长期文档）**：R0–R5 能力阶段、I/U 主线、打包节点及证据门槛；10/18 增加 MCP0–MCP3 独立服务体系；10/22 R2.2 已归档（源码、未打包），下一项为 R3 |
 | [`mcp-service-roadmap.md`](product/mcp-service-roadmap.md) | **MCP 服务演进规划**：接口准备 → R2.2 后只读诊断 → R3 后测试证据 → 按需受控执行；候选接口、共享读取边界与客户端验收，尚未实现 |
 | [`2026-10-12-capability-roadmap-from-r2-2.md`](product/2026-10-12-capability-roadmap-from-r2-2.md) | **R2.2 起的能力增强路线讨论稿存档**：主线排序已同步正式路线，10/18 附注补充 MCP 的 H1–H3 实施映射；详细任务与技术方案仍待设计、立项，不重开已完成阶段 |
 

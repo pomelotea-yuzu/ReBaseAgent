@@ -220,3 +220,5 @@ U1 的新概览/导航、U3 的会话草稿、U5 的统一结果流程应各有�
 U6 `add-partial-run-reading` 已于 2026-09-30 实施完成并归档（六批受控实机 + 7.1–7.3 收口，详见其 archive 的 tasks/evidence-index）。U7 `improve-branch-comparison` 已于 2026-10-01 完成并归档（`d53b7d0`），验收见 [U7 evidence-index](../../../openspec/changes/archive/2026-10-01-improve-branch-comparison/evidence-index.md)。
 
 下一主线为 **U9（待起草）**。U8 [unify-recording-and-experiment-workspaces](../../../openspec/changes/archive/2026-10-02-unify-recording-and-experiment-workspaces/proposal.md) 已完成并归档（2026-10-02，tasks 52/52：6.12 跨入口实机 76 检查全绿 + §7 门禁 desktop 172 文件/2775 用例绿、biome 576 文件 0 错、strict 13/13）。复用 U5 操作/结果与 U7 比较；后续任务仍须用 fixture、单测、Electron 场景和 evidence-index 逐项验收，不把文档通过当功能完成，也不自动打包发布。
+
+**2026-10-22 补充**：R2.2 能力线 [add-isolated-prompt-experiments](../../../openspec/changes/archive/2026-10-22-add-isolated-prompt-experiments/tasks.md) 已作为独立 change 完成并归档（[场景证据](../../../openspec/changes/archive/2026-10-22-add-isolated-prompt-experiments/evidence-index.md)），不属于 U1–U8，也不改变本计划的 U 依赖；U9 仍未起草，当前下一主线为 R3。

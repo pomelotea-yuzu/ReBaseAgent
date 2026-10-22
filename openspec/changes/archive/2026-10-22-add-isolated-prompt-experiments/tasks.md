@@ -177,4 +177,8 @@
   全仓门禁（详见 evidence-index「7.4 门禁与审计证据」）：build 5 包 ✓、desktop 双 tsc 0 ✓、trace-sdk 13/225、agent-loop 8/104、trace-test 10/78、llm-proxy 2/45、replay 46/597(+5 skip)、desktop **214 文件/3272 用例**（singleFork）全过、biome **713 文件 0 错**（临时移出仓库外 video symlink 与两个未跟踪 README 脚本；未改其内容）、spec **13 passed/0 failed**、change strict valid、`git diff --check` 0。
   🔴 本批修了 7.3 遗留的探针格式门禁：`r22-73-exec/reject/seed` 与 `lib/r22-73-harness` 经 biome 格式化，`exec` 两处无插值模板字面量改字符串；`node --check` 4/4、`verify-73.cjs` 回查全过（格式化不改行为）。
   限制：`pnpm check:build/typecheck/test` 的脚本壳会调用 PATH 上的 pnpm 11 并被版本检查拦住，故用同一 pnpm 9 直调等价的 filter 命令；完整命令与 exit code 见 evidence-index 7.4 节。人工判据仍以 7.1/7.2/7.3 的用户确认为准，7.4 不代替发行前人工验收。收口提交 `0ccdf3d`。）
-- [ ] 7.5（1h）实施通过后同步用户文档/路线/项目状态的实际能力与版本边界，复核 scenario 合并无遗漏后再归档；发行另行核对。验收：方案、主 spec 与源码无漂移，未验证项目不称已交付，不把归档当发布。
+- [x] 7.5（1h）实施通过后同步用户文档/路线/项目状态的实际能力与版本边界，复核 scenario 合并无遗漏后再归档；发行另行核对。验收：方案、主 spec 与源码无漂移，未验证项目不称已交付，不把归档当发布。
+  （2026-10-22 ✅：文档同步——README 新增「隔离 prompt 实验」能力与版本边界（未打包）、更新限制与下一步；`docs/product/evolution-roadmap.md`、`docs/development/project-status.md`、`docs/README.md`、`openspec/config.yaml`、`CHANGELOG.md` 与拆分计划 §9 均改为「R2.2 已归档（源码、未打包），下一项 R3」。
+  归档——`mv` 到 `openspec/changes/archive/2026-10-22-add-isolated-prompt-experiments`；全仓已无活动路径引用。
+  合并——5 份 delta 合入主 spec：requirement **138→150**、scenario **589→625**（净增 +12 req / +36 scen；trace-format +5、prompt-replay +8、replay +3、workspace-isolation +7、desktop-ui +13 场景）。零丢失核对 `.workbuddy/r22-75/verify-merge.cjs` 全过：基线每个 requirement/scenario 仍在、delta 未点名的 requirement 逐字节不变、MODIFIED/ADDED 块与 delta 逐字一致、无 ADDED/MODIFIED 头；自测两道反证（抹既有 scenario、篡改 MODIFIED 正文）都被抓到。归档后 `node scripts/check-spec.mjs` = **12 passed / 0 failed**。
+  边界——R2.2 **未打包、未进入任何发行包**；最新候选仍为 `0.5.0-rc.1`。人工实机验收、视觉可读性、部分乱序注入与二进制/超限逐侧状态仍按 7.2/7.3/7.4 的说明分层承载；归档不等于发布。）

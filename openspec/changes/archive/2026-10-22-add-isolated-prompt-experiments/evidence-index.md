@@ -1,6 +1,6 @@
 # R2.2 场景证据索引
 
-2026-10-19 提案骨架；23 条 requirement、76 条 scenario（含保留的既有场景）。2026-10-21 阶段 2 回填 1–9、27–29；阶段 3 回填 20–31；阶段 4 回填 32–36；阶段 5 增补 5/7/20/23–26/30–31/64–66；阶段 6 回填 37–75（代码/单测；实机 7.x 待做）；7.2 回填实机几何/缩放/真键盘面；**7.3 回填失败与未知路径的实机面与分层限制**；**7.4 全表审计、回填 10–19 与全仓门禁收口**。文档/strict 校验不代表功能通过。每行实施后填写测试文件/用例、fixture、实机批次、源码身份及限制；单元注入、mock、真实模型和原生 UI 证据分别标注。
+2026-10-19 提案骨架；23 条 requirement、76 条 scenario（含保留的既有场景）。2026-10-21 阶段 2 回填 1–9、27–29；阶段 3 回填 20–31；阶段 4 回填 32–36；阶段 5 增补 5/7/20/23–26/30–31/64–66；阶段 6 回填 37–75（代码/单测；实机 7.x 待做）；7.2 回填实机几何/缩放/真键盘面；**7.3 回填失败与未知路径的实机面与分层限制**；**7.4 全表审计、回填 10–19 与全仓门禁收口**；**7.5 文档同步与归档**（主 spec 合并 138→150 requirement / 589→625 scenario，归档后 spec 12 passed / 0 failed）。文档/strict 校验不代表功能通过。每行实施后填写测试文件/用例、fixture、实机批次、源码身份及限制；单元注入、mock、真实模型和原生 UI 证据分别标注。
 
 | 序号 | capability | requirement | scenario | 对应任务 | 状态 | 证据与限制 |
 |---|---|---|---|---|---|---|
@@ -198,3 +198,24 @@
 - 🔴 顺带修掉 7.3 遗留的 lint 门禁：`r22-73-exec-cdp.cjs`/`r22-73-reject-cdp.cjs`/`r22-73-seed.cjs`/`lib/r22-73-harness.cjs` 经 biome 格式化，`exec` 两处无插值模板字面量改为字符串；`node --check` 4/4、`verify-73.cjs` 全过（仅格式，无行为改动）。
 - 源码身份：父提交 `38a94c6`；本批源码/测试/探针改动的 staged diff SHA-256 = `f70f27b6442f530c0602ee5a9d0e0137493528fb78b08b94fdb1e3073c324196`（仅 `packages/replay/test/isolated-prompt-run.test.ts` + 4 个 `apps/desktop/scripts/r22-73-*` 文件；账本与 evidence-index 不计入该哈希）。7.4 收口提交 = `0ccdf3d`。
 - 限制：`pnpm check:build/typecheck/test` 的脚本壳在本机不可用（PATH 上的 pnpm 11 与仓库 `packageManager=9.15.9` 冲突），已用同版本 pnpm/包内 vitest 直调等价命令；lint 口径按仓库既有做法临时移出仓库外 symlink，两个未跟踪的 README 脚本不属本 change、未修改。人工判据仍以 7.1/7.2/7.3 的用户确认为准，7.4 不代替发行前人工验收。
+
+## 7.5 文档同步与归档证据（2026-10-22）
+
+- 文档同步：README 新增「隔离 prompt 实验」能力 subsection、限制与「R2.2 未打包」边界，并更新下一步为 R3；`docs/product/evolution-roadmap.md`、`docs/development/project-status.md`、`docs/README.md`、`openspec/config.yaml`、`CHANGELOG.md`、`docs/engineering/plans/2026-09-21-ui-change-split-plan.md` 均同步为「R2.2 已归档（源码、未打包），下一项 R3」。历史日期文档保留原状态，不改写旧结论。
+- 归档：`mv` 到 `openspec/changes/archive/2026-10-22-add-isolated-prompt-experiments`（`.openspec.yaml` 随目录）；全仓 grep 确认无 `changes/add-isolated-prompt-experiments` 活动路径残留。
+- 主 spec 合并（5 份 delta：MODIFIED 整段替换、ADDED 追加）：
+
+| capability | requirement | scenario | 场景净增 |
+|---|---|---|---|
+| trace-format | 16→17 | 40→45 | +5 |
+| prompt-replay | 6→8 | 15→23 | +8 |
+| replay | 8→9 | 22→25 | +3 |
+| workspace-isolation | 8→10 | 36→43 | +7 |
+| desktop-ui | 100→106 | 476→489 | +13 |
+| **合计** | **138→150（+12）** | **589→625（+36）** | **+36** |
+
+- 零丢失核对：`.workbuddy/r22-75/verify-merge.cjs` 全过——基线每个 requirement/scenario 仍在原 requirement 下；delta 未点名的 requirement 块与基线逐字节一致；MODIFIED/ADDED 块与 delta 逐字一致；无 ADDED/MODIFIED 头、无重复 requirement/scenario。基线副本在 `.workbuddy/r22-75/baseline/`。
+- 反证：`verify-merge.cjs --self-test` 两道都咬住——抹掉一条既有 scenario、篡改一条 MODIFIED 正文，均被核对判为失败。
+- 归档后校验：`node scripts/check-spec.mjs` = **12 passed / 0 failed**（活动 change 已清零，12 份主 spec 全过 strict）。
+- 版本边界：R2.2 **未打包、未进入任何发行包**；最新候选仍是 `0.5.0-rc.1`（不含本 change）。归档不等于发布；发行前人工实机验收、视觉可读性、部分乱序注入与二进制/超限逐侧状态仍按 7.2/7.3/7.4 的分层说明核对。
+- 收口提交：7.5 归档提交见 `git log -1`（账本回填提交紧随其后）。

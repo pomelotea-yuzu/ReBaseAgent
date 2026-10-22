@@ -43,18 +43,21 @@ context: |
   - 主动操作统一由 main 登记、去重并占单个执行槽；未知先核对，按可信 ID 只读核实结果
   - 草稿正文与阅读位置只在 renderer 会话内恢复；执行授权与实验计划绑定当前提交和配置
 
-  当前进度（2026-10-19 校准）：MVP/v2、Trace-as-Test、普通模型 A/B、隔离 A/B/C、U1–U8、R2.1、refine-ui 与
-  refactor-desktop-renderer-modules（渲染层三大文件按职责拆分，纯内部重构）均已归档。
+  当前进度（2026-10-22 校准）：MVP/v2、Trace-as-Test、普通模型 A/B、隔离 A/B/C、U1–U8、R2.1、refine-ui、
+  refactor-desktop-renderer-modules（渲染层三大文件按职责拆分，纯内部重构）与 R2.2
+  `add-isolated-prompt-experiments`（隔离根初始快照的单项启动指令实验、trace v3 兼容、跨运行检查点/文件比较、
+  单侧 R2.1 导出闭环）均已归档。R2.2 已在源码主线实现并通过 7.1 真实模型（package-layer）、
+  7.2/7.3 Electron 实机与 7.4 全仓门禁，**尚未打包、未进入任何发行包**；最新发行候选仍是 0.5.0-rc.1。
   R2.1 为选定检查点普通文件、来源清单与适用文本补丁导出，不含 trace 分享包或自动应用。
   拆分后 store.ts/DetailPanel/WorkspaceFileView 为组合/连接层，规模与归属见
   docs/engineering/reports/2026-10-19-rrm-renderer-split-scale-report.md。
   历史 K1 仅含隔离 A/B/C 与 U1/U2；0.5.0-rc.1 已有 R2.1/refine-ui 构建记录，维护者 10/16 确认已打包上传。
   上传状态来自维护者确认，不代替独立下载或实包验收；重构不追溯为既有发行的前置条件。
-  R2.2 已建立 add-isolated-prompt-experiments 提案（2026-10-19），尚未实施；
-  定义隔离根初始快照的单项指令实验、v3 兼容与跨运行文件比较，仍非已交付能力。
-  R3 技术验证可独立准备；本轮重构不新增产品能力。
-  Shell/真实测试（R3）、真正取消/实时步骤、跨 main 重启任务恢复、
-  跨运行文件 diff、隔离 prompt/模型实验等仍属后续范围，不得显示为已交付。
+  R2.2 的隔离 prompt 实验只接受合法根基线，中途分支只能导航回根；v3 父本不能转普通 prompt fork；
+  隔离父本/分支上的 prompt fork 与模型 A/B 仍不支持。跨运行文件比较只读、固定两侧自有检查点，
+  不自动换点、不写 trace/附件。R3 技术验证可独立准备；下一项新增能力为 R3。
+  Shell/真实测试（R3）、真正取消/实时步骤、跨 main 重启任务恢复、隔离父本/分支 prompt 与模型实验等
+  仍属后续范围，不得显示为已交付。
   当前能力查 openspec/specs/ 与源码；归档证据查 openspec/changes/archive/；
   进度与发行范围查 docs/development/project-status.md，未来范围与排序查 docs/product/evolution-roadmap.md。
   项目许可为 MIT，第三方内容沿用其适用许可。
