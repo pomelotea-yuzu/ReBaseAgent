@@ -62,6 +62,10 @@ Q 属于 run-query，S 属于 mcp-service，D 属于 desktop-ui；标题须与 d
   包级读取测试 **5/5**（`packages/run-query/test/read-context.test.ts`：单请求缓存/新请求重读、缺父 ownOnly、
   坏父 `ANCESTOR_INVALID`、非法 ID 读取前拒绝、混合链在 prompt 边界重置）；受影响 desktop 用例 **204/204**；
   desktop 全量 **215/3275**；tsc 双 0。**Q02/Q07/Q08 仍未整场景通过**：3.2 的桌面/包层同 fixture 对照未做。
+- 2.2：`RunRepository` 与列表摘要入口迁入 run-query，desktop 旧路径薄 re-export。
+  包级 repository 测试 **9/9**（`packages/run-query/test/repository.test.ts`）；包级合计 **23/23**；
+  受影响 desktop 用例 **54/54**；desktop 全量 **215/3275**；tsc 双 0。**Q03/Q04 仍未整场景通过**：
+  4.3 的 MCP 筛选/失败项分页与 5.x 的未封存端到端未实施。
 
 ## 门禁与归档约束
 

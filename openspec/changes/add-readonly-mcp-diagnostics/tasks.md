@@ -1,6 +1,6 @@
 # MCP0 / MCP1 实施任务
 
-状态（2026-10-22）：**1.1/1.2/1.3、2.1、2.3 已完成；2.2 进行中；2.4 起未实施**。
+状态（2026-10-22）：**1.1/1.2/1.3、2.1、2.2、2.3 已完成；2.4 起未实施**。
 每项预计不超过 2h；发现超过时先拆分任务。验收对应见 [evidence-index.md](evidence-index.md)；测试、客户端实机、人工接入和发行分别记录，不以文档校验替代功能通过。
 
 ## 1. MCP0：先验证支持路径
@@ -16,7 +16,8 @@
 
 - [x] 2.1（1.5h）建立 run-query 包与领域 schema，保留 desktop 兼容类型出口，不反向依赖 apps。验收 Q01、D02。
   - 2026-10-22：新建 `packages/run-query`（NodeNext/ESM，`. / ./schema` 两个出口；依赖 trace-sdk/replay/zod），领域 schema 与 `run-detail-integrity` 逐字迁入；desktop `shared/ipc.ts` 改为薄 re-export，旧 IPC 名/形状/校验消息不变。包级 schema 测试 9/9；desktop 同源测试 3/3（对象同一性 + 比较守卫）；desktop tsc 双配置 0 错；desktop 全量 **215 文件/3275 用例** 全绿；全包 build 通过。Q01/D02 的完整证据仍由 2.2/2.3 + 3.2 收口。
-- [ ] 2.2（1.5h）迁移 repository/摘要派生，保留坏文件独立项、终止/usage 未知语义。验收 Q03/Q04。
+- [x] 2.2（1.5h）迁移 repository/摘要派生，保留坏文件独立项、终止/usage 未知语义。验收 Q03/Q04。
+  - 2026-10-22：`read/repository.ts` 迁入 run-query（`RunRepository.listRuns/getRun/loadRunRecord`），desktop 旧路径改薄 re-export；摘要事实已在 2.3 随 read-context 依赖下沉。包级 repository 测试 **9/9**（列表倒序、坏文件独立失败、未来版本失败项、根/分支详情、缺父严格失败、无 llm 时 cacheHit/duration 未知、crashed 残留 reason 不采信、cache_hit=0 与字段缺失区分、实验组标签）；包级合计 **23/23**；受影响 desktop 54/54；desktop 全量 **215/3275**；tsc 双 0；biome 0。Q03 的 MCP 筛选面与 Q04 的未封存端到端仍待 4.3/5.x。
 - [x] 2.3（2h）迁移 lineage/read-context/project 与单请求缓存；回归 v1/v2/v3 和独立执行/混合链。验收 Q02/Q07/Q08。
   - 2026-10-22（先于 2.2 按依赖顺序执行）：`read/lineage.ts`、`read/detail-project.ts`、`read/read-context.ts` 迁入 run-query，desktop 旧路径改薄 re-export；`deriveRunSummary`/`deriveTerminalReason`/`deriveCacheHitTotal`/`RunLike` 一并下沉 `facts/summary.ts`（read-context 的依赖，归 2.2 记账）。包级读取测试 5/5（单请求缓存/新请求重读、缺父 ownOnly、坏父结构化失败、非法 ID 读取前拒绝、混合链独立边界重置）；受影响 desktop 用例 204/204；desktop 全量 **215 文件/3275 用例**；tsc 双 0；biome 0。Q02/Q07/Q08 的包级证据已补，完整 Q08 v1/v2/v3 混链对照仍由 3.2 收口。
 - [ ] 2.4（1.5h）统一 ID/路径/身份安全校验和结构化错误分类。验收 Q05、S06；不按错误文字猜码。
