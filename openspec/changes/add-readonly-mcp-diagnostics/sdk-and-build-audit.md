@@ -1,6 +1,6 @@
 # 1.2 MCP SDK、依赖与构建审计
 
-状态：审计与协议级验证完成（2026-10-22），**真实 WorkBuddy 客户端未验证**。
+状态：审计与协议级验证完成（2026-10-22）；**1.1 支持路径已用 WorkBuddy 5.9.0（内置 CLI 2.165.0）验证**，WorkBuddy GUI 代表任务归 6.2。
 基线 `2d39b1e`；隔离实验目录 `.workbuddy/mcp0-spike/`（不进入仓库依赖）。
 
 ## 决策
@@ -68,8 +68,9 @@ node packages/mcp-server/dist/cli.js --data-dir "D:/path/to/existing/data-dir"
 
 ## 未验证与风险
 
-- **真实 WorkBuddy 5.9.0 已安装并运行**（开始菜单与注册表可查），但尚未完成真实初始化/工具发现
-  与配置验证；1.1 进行中。
+- **真实 WorkBuddy 5.9.0 已完成支持路径验证**：项目级 `.mcp.json` 被内置 CodeBuddy CLI 2.165.0
+  识别为 `type: stdio`，`mcp get` 返回 `Status: ✓ Connected`，服务端账本记录 `initialized` 与
+  `tools/list`。客户端工具执行审批显示 `Needs approval`，实际 `list_runs` 调用与 GUI 代表任务归 6.2。
 - SDK 依赖树包含 HTTP/SSE/auth 传输依赖；首版只用 stdio，安装体积约 14.1 MiB。若后续需要缩小分发体积，
   再评估专用 stdio 入口或打包裁剪，不在本次范围。
 - 工作区当前 TypeScript 根版本 5.9.3，高于各包声明的 `^5.6.0`；SDK 类型在 NodeNext 下编译通过。

@@ -1,12 +1,12 @@
 # MCP0 / MCP1 实施任务
 
-状态（2026-10-22）：**1.2/1.3 已完成；1.1 协议级最小验证通过，WorkBuddy 5.9.0 项目级 MCP 配置已就位、等待客户端加载验证**；2.x 起未实施。
+状态（2026-10-22）：**1.1/1.2/1.3 已完成**；2.x 起未实施。
 每项预计不超过 2h；发现超过时先拆分任务。验收对应见 [evidence-index.md](evidence-index.md)；测试、客户端实机、人工接入和发行分别记录，不以文档校验替代功能通过。
 
 ## 1. MCP0：先验证支持路径
 
-- [ ] 1.1（1.5h）选定 Windows WorkBuddy 实际版本，以最小 stdio 服务验证初始化/工具发现；记录客户端、Node、SDK 精确版本与 zod 兼容。验收 S01；失败先修支持路径，不先扩大客户端。
-  - 2026-10-22：协议级最小验证通过（Node 24.19.0 / SDK 1.32.1 / zod 3.25.76；初始化、tools/list、空 traces、坏数据根退出码 2），证据 [mcp0-client-verification.md](mcp0-client-verification.md) 与 `.workbuddy/mcp0-spike/spike-result.json`。客户端口径 2026-10-22 经用户确认改为 **WorkBuddy 5.9.0**；项目级 `.mcp.json` 已写入临时 spike 入口，等待 WorkBuddy 新会话/重启加载后验证 `initialized`/工具发现/`list_runs`。**真实客户端未通过前不勾选。**
+- [x] 1.1（1.5h）选定 Windows WorkBuddy 实际版本，以最小 stdio 服务验证初始化/工具发现；记录客户端、Node、SDK 精确版本与 zod 兼容。验收 S01；失败先修支持路径，不先扩大客户端。
+  - 2026-10-22：WorkBuddy 5.9.0（内置 CodeBuddy CLI 2.165.0）项目级 `.mcp.json` → `Status: ✓ Connected`；服务端账本记录 `initialized` + `tools/list`。协议级补充：Node 24.19.0 / SDK 1.32.1 / zod 3.25.76，空 traces `runs: []`、坏数据根退出码 2。证据 [mcp0-client-verification.md](mcp0-client-verification.md) 与 `.workbuddy/mcp0-11/workbuddy-mcp-get.txt`。WorkBuddy GUI 的实际工具调用与代表任务归 6.2；S01 的完整场景由 4.1/5.3/6.2 收口。
 - [x] 1.2（1h）审计 SDK/传递依赖许可证、体积、Node/zod 约束，确定两个包构建与本地启动命令。验收 S01/S16 的接入前提；若需全仓升级先修 proposal。
   - 2026-10-22：SDK 1.32.1（MIT，Node >=18，peer zod ^3.25||^4.0）；生产 95 包/14,811,228 B，全部为 MIT/ISC/BSD；工作区 zod 3.25.76 已满足，无需全仓升级。构建 `tsc -p tsconfig.json`（NodeNext）与启动 `node dist/cli.js --data-dir <已有绝对路径>` 已在隔离目录验证。详见 [sdk-and-build-audit.md](sdk-and-build-audit.md)。
 - [x] 1.3（1h）审计 run-query 最小依赖闭包，列明迁移文件/schema/纯派生和旧出口，清单落为 change 制品；超范围按 design D2 四条硬触发先修订拆分。验收 Q01、D02。

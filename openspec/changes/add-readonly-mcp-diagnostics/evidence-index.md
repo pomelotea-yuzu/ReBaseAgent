@@ -42,6 +42,16 @@ Q 属于 run-query，S 属于 mcp-service，D 属于 desktop-ui；标题须与 d
 | D02 | 桌面默认检查点和旧 IPC 保持 | 1.3/2.1/3.1/3.2 | IPC/selector 回归 |
 | D03 | 只读流程交互回归 | 6.1 | 真实 Electron/窄窗/缩放/键盘 |
 
+## 1.x 前置证据（不构成场景通过）
+
+- 1.1 支持路径：WorkBuddy 5.9.0（内置 CodeBuddy CLI 2.165.0）以项目级 `.mcp.json` 启动 spike，
+  `mcp get` 返回 `Status: ✓ Connected`，服务端账本记录 `initialized` 与 `tools/list`；空 traces
+  的 `list_runs` 返回由官方 SDK 客户端验证。证据 `.workbuddy/mcp0-11/workbuddy-mcp-get.txt`+
+  `.workbuddy/mcp0-spike/spike-result.json`。**S01 仍未通过**：4.1/5.3 的真实 CLI、错误/取消/重连
+  与 6.2 的 WorkBuddy GUI 代表任务未实施。
+- 1.2：SDK/依赖/构建审计 → `sdk-and-build-audit.md`；1.3：闭包清单 → `dependency-closure.md`。
+  两者都是实施前提，不替代 Q01/Q02/D02 的功能证据。
+
 ## 门禁与归档约束
 
 - 6.5 补实际命令、exit code、源码身份、包构建顺序和新依赖核验；不引用 R2.2 历史通过代替本次通过。
