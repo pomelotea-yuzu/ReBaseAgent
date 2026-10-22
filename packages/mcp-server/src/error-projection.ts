@@ -1,6 +1,7 @@
 import { RunDetailReadError, classifyReadFailure } from "@rebaseagent/run-query";
 import type { RunQueryToolErrorCode } from "@rebaseagent/run-query";
 import { z } from "zod";
+import { MESSAGE_MAX } from "./limits.js";
 
 /**
  * 业务错误投影（design D4 的错误域 + S06）。
@@ -87,4 +88,16 @@ export function projectArgumentError(
 /** 已知码判定（实现里若出现码表外的码，宁可判为不可重试也不静默发送） */
 export function isKnownToolErrorCode(code: string): code is RunQueryToolErrorCode {
   return Object.prototype.hasOwnProperty.call(TOOL_ERROR_MESSAGES, code);
+}
+
+/**
+ * 受控文案的码点有界化（design D4/D6）。
+ *
+ * 两个来源共用这一条口径：码表文案本身，以及共享层带来的**状态原因**
+ * （附件不可用/清单缺失的中文说明）。后者是给桌面的展示文本，外发前同样要有界——
+ * 按码点截断而不是按 UTF-16 单元，代理对不会被切成半个字符。
+ */
+export function boundedMessage(text: string): string {
+  const chars = [...text];
+  return chars.length <= MESSAGE_MAX ? text : `${chars.slice(0, MESSAGE_MAX).join("")}…`;
 }

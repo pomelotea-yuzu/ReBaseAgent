@@ -129,16 +129,22 @@ export type CompareRunsArgs = z.infer<typeof CompareRunsArgs>;
 const InspectCheckpointArgs = z
   .object({
     runId: runIdField(),
-    /** 省略 = 本 run 初始快照；不给"最近一步"缺省语义（D5） */
+    /**
+     * 省略 = 本 run **初始快照**（共享层 `inspectWorkspace` 的缺省语义）。
+     * 桌面文件页那个「最近自有完成步骤」的默认留在 renderer（`main/ipc.ts` 同注释），
+     * MCP 不代填、也不换最近步骤（design D5/D8）。
+     */
     stepSpanId: spanIdField().optional(),
     cursor: cursorField().optional(),
     limit: pageLimitField().optional(),
   })
   .strict();
+export type InspectCheckpointArgs = z.infer<typeof InspectCheckpointArgs>;
 
 const ReadCheckpointFileArgs = z
   .object({
     runId: runIdField(),
+    /** 同上：省略 = 初始快照；显式只认本 run 自有的完成 `agent.step` */
     stepSpanId: spanIdField().optional(),
     /** 只有清单内的逻辑路径；物理位置永不出现在请求里 */
     path: logicalPathField(),
@@ -146,6 +152,7 @@ const ReadCheckpointFileArgs = z
     maxChars: maxCharsField().optional(),
   })
   .strict();
+export type ReadCheckpointFileArgs = z.infer<typeof ReadCheckpointFileArgs>;
 
 const CompareCheckpointFilesArgs = z
   .object({

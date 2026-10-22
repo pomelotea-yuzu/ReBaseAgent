@@ -10,6 +10,7 @@ import {
 } from "./envelope.js";
 import {
   TOOL_ERROR_MESSAGES,
+  boundedMessage,
   projectArgumentError,
   projectThrowable,
   retryableOf,
@@ -135,9 +136,4 @@ function failureResult(
     structuredContent: envelope,
     isError: true,
   };
-}
-
-function boundedMessage(text: string): string {
-  const chars = [...text];
-  return chars.length <= MESSAGE_MAX ? text : `${chars.slice(0, MESSAGE_MAX).join("")}…`;
 }

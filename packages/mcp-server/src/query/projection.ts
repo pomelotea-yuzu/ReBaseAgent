@@ -1,8 +1,17 @@
 import { classifyOutcome } from "@rebaseagent/run-query";
-import type { OutcomeKind, RunDetail, RunSummary } from "@rebaseagent/run-query";
+import type {
+  OutcomeKind,
+  RunDetail,
+  RunQueryToolErrorCode,
+  RunSummary,
+  WorkspaceInspectFile,
+  WorkspaceInspectResult,
+  WorkspaceLocateFailureCode,
+} from "@rebaseagent/run-query";
 import { z } from "zod";
 import type { ProvenanceRunInput } from "../envelope.js";
-import { MESSAGE_MAX, PAGE_LIMIT_DEFAULT, RUN_ID_MAX } from "../limits.js";
+import { boundedMessage } from "../error-projection.js";
+import { LOGICAL_PATH_MAX, MESSAGE_MAX, PAGE_LIMIT_DEFAULT, RUN_ID_MAX } from "../limits.js";
 import type { RUN_STATUS_FILTERS } from "../tool-contracts.js";
 
 /** span 的行类型由共享层的详情派生（本包不直接依赖 trace-sdk 的类型出口） */
@@ -508,4 +517,238 @@ export function provenanceRunsOf(
     sealed: chainSummaries[index]?.status === "completed",
     ...(index === lastIndex ? { lineage: detail.lineage.status, spanScope: detail.spanScope } : {}),
   }));
+}
+
+// ---------------------------------------------------------------------------
+// 检查点段：get_run 索引、inspect_checkpoint 清单、read_checkpoint_file 的 selector
+// 三处共用同一形状（4.6 上收；同一件事在三处说法不同是本包最容易漂的地方）
+// ---------------------------------------------------------------------------
+
+/** 世界来源：与共享层 `WorkspaceOrigin` 同形，只做跨进程改名（snake_case → camelCase） */
+export const WorldOriginSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("import") }).strict(),
+  z
+    .object({
+      kind: z.literal("checkpoint"),
+      runId: z.string().min(1),
+      stepSpanId: z.string().min(1),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("initial"),
+      runId: z.string().min(1),
+      snapshotId: SnapshotIdSchema,
+    })
+    .strict(),
+]);
+export type WorldOrigin = z.infer<typeof WorldOriginSchema>;
+
+export function projectWorldOrigin(
+  origin:
+    | { readonly kind: "import" }
+    | { readonly kind: "checkpoint"; readonly run_id: string; readonly step_span: string }
+    | { readonly kind: "initial"; readonly run_id: string; readonly snapshot_id: string },
+): WorldOrigin {
+  switch (origin.kind) {
+    case "import":
+      return { kind: "import" };
+    case "checkpoint":
+      return { kind: "checkpoint", runId: origin.run_id, stepSpanId: origin.step_span };
+    case "initial":
+      return { kind: "initial", runId: origin.run_id, snapshotId: origin.snapshot_id };
+  }
+}
+
+export const CheckpointItemSchema = z
+  .object({
+    kind: z.literal("checkpoint"),
+    /** null = 本 run 的初始快照（`inspect_checkpoint` 省略 stepSpanId 时的那一份） */
+    stepSpanId: z.string().min(1).nullable(),
+    /** 本 run 自己的轮号；初始快照恒为 null */
+    iteration: z.number().int().positive().nullable(),
+    snapshotId: SnapshotIdSchema,
+    fileCount: z.number().int().nonnegative(),
+    totalBytes: z.number().int().nonnegative(),
+    /** 只有初始快照带世界来源；自有 step 的检查点本来就属于本 run */
+    worldOrigin: WorldOriginSchema.nullable(),
+  })
+  .strict();
+export type CheckpointItem = z.infer<typeof CheckpointItemSchema>;
+
+function snapshotFileFacts(files: readonly { bytes: number }[]): {
+  fileCount: number;
+  totalBytes: number;
+} {
+  return {
+    fileCount: files.length,
+    totalBytes: files.reduce((sum, file) => sum + file.bytes, 0),
+  };
+}
+
+/**
+ * 本 run 的自有检查点索引：初始快照在前（省略 selector 时 `inspect_checkpoint` 给的就是它），
+ * 其后按本 run 自有记录序。**祖先步骤天然不在内**——不代填、不换最近步骤（Q13）。
+ *
+ * 「自有」用 `leafSpanIds`（= 本 run 文件里那些 span 的 id），与 `get_run` 检查点段 4.3 起
+ * 的判据逐字相同：提取共用件时不换判据。合并详情里出现重名 id 会在共享层的载荷自检就被拒
+ * （`spans 存在重复 id`），所以这里不存在「按 id 判自有会挑中祖先」的可达形态——
+ * 不为一支不可达的归属分支改写既有事实。
+ */
+export function ownCheckpointItems(
+  detail: RunDetail,
+  ownSpanIds: ReadonlySet<string>,
+): CheckpointItem[] {
+  const items: CheckpointItem[] = [];
+  const workspace = detail.meta.workspace;
+  if (workspace !== undefined) {
+    items.push({
+      kind: "checkpoint",
+      stepSpanId: null,
+      iteration: null,
+      snapshotId: workspace.initial_snapshot.id,
+      ...snapshotFileFacts(workspace.initial_snapshot.files),
+      worldOrigin: projectWorldOrigin(workspace.origin),
+    });
+  }
+  for (const span of detail.spans) {
+    if (span.kind !== "agent.step" || !ownSpanIds.has(span.id)) continue;
+    const snapshot = span.workspace_snapshot;
+    if (snapshot === undefined) continue;
+    items.push({
+      kind: "checkpoint",
+      stepSpanId: span.id,
+      iteration: span.n,
+      snapshotId: snapshot.id,
+      ...snapshotFileFacts(snapshot.files),
+      worldOrigin: null,
+    });
+  }
+  return items;
+}
+
+/**
+ * 按 selector 取本 run 自有检查点；`undefined` = 当前可读投影里没有这份自有检查点。
+ * `stepSpanId = null` 表示初始快照（与「没有这个 step」不是同一件事）。
+ */
+export function ownCheckpointOf(
+  items: readonly CheckpointItem[],
+  stepSpanId: string | null,
+): CheckpointItem | undefined {
+  return items.find((item) => item.stepSpanId === stepSpanId);
+}
+
+/**
+ * 清单里的一条文件（`inspect_checkpoint` 的分页条目）。
+ *
+ * `sha256`/`bytes` 属于**清单记录的完整历史文件**，不是任何片段的校验值（design D6/D7）；
+ * 正文一律不在这里——要内容只能显式走 `read_checkpoint_file` 的 `path`。
+ */
+export const CheckpointFileItemSchema = z
+  .object({
+    path: z.string().min(1).max(LOGICAL_PATH_MAX),
+    bytes: z.number().int().nonnegative(),
+    sha256: SnapshotIdSchema,
+    /** 相对**本 run 初始快照**的状态；判据只有「路径 + 哈希」，不使用 mtime */
+    change: z.enum(["added", "modified", "unchanged", "initial"]),
+    /** 三态必须可分辨：缺失/损坏不得渲染成空文件 */
+    availability: z.enum(["ok", "missing", "corrupt"]),
+    unavailableReason: z.string().min(1).max(MESSAGE_MAX).nullable(),
+  })
+  .strict();
+export type CheckpointFileItem = z.infer<typeof CheckpointFileItemSchema>;
+
+export function projectCheckpointFile(file: WorkspaceInspectFile): CheckpointFileItem {
+  return {
+    path: file.path,
+    bytes: file.bytes,
+    sha256: file.sha256,
+    change: file.change,
+    availability: file.availability,
+    unavailableReason:
+      file.unavailableReason === null ? null : boundedMessage(file.unavailableReason),
+  };
+}
+
+/** 检查点头：清单定位与汇总数字（逐项文件走分页，不在这里重复一遍） */
+export const CheckpointHeadSchema = z
+  .object({
+    runId: z.string().min(1),
+    ownerRunId: z.string().min(1),
+    /** null = 本次读的就是初始快照 */
+    stepSpanId: z.string().min(1).nullable(),
+    snapshotId: SnapshotIdSchema,
+    /** 本 run 的初始快照 id：分支 run 的「相对初始」是它自己的初始，不是父 run 的 */
+    initialSnapshotId: SnapshotIdSchema,
+    localIteration: z.number().int().positive().nullable(),
+    profile: z.string(),
+    worldId: z.string(),
+    worldOrigin: WorldOriginSchema,
+    fileCount: z.number().int().nonnegative(),
+    totalBytes: z.number().int().nonnegative(),
+    unavailableCount: z.number().int().nonnegative(),
+  })
+  .strict();
+export type CheckpointHead = z.infer<typeof CheckpointHeadSchema>;
+
+export function projectCheckpointHead(result: WorkspaceInspectResult): CheckpointHead {
+  return {
+    runId: result.runId,
+    ownerRunId: result.ownerRunId,
+    stepSpanId: result.stepSpanId,
+    snapshotId: result.snapshotId,
+    initialSnapshotId: result.initialSnapshotId,
+    localIteration: result.localIteration,
+    profile: result.profile,
+    worldId: result.worldId,
+    worldOrigin: result.origin,
+    fileCount: result.fileCount,
+    totalBytes: result.totalBytes,
+    unavailableCount: result.unavailableCount,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// 检查点定位失败 → 稳定码（design D4 的码表封闭）
+// ---------------------------------------------------------------------------
+
+/**
+ * 两种载体、一份映射：`inspectWorkspace` 的 `outcome.code` 是 `WORKSPACE_<大写码>`
+ * （桌面 IPC 沿用，D2 不得改），`readWorkspaceFileForView` 的 `rejected.code` 是裸码。
+ * 先归一成裸码再查表——两处各写一份映射才是漂移的起点。
+ */
+const CODE_BY_LOCATE: Readonly<Record<WorkspaceLocateFailureCode, RunQueryToolErrorCode>> = {
+  invalid_request: "INVALID_ARGUMENT",
+  run_not_found: "RUN_NOT_FOUND",
+  trace_invalid: "RUN_INVALID",
+  no_workspace: "NO_WORKSPACE",
+  step_not_found: "STEP_NOT_FOUND",
+};
+
+function isKnownLocateCode(code: string): code is WorkspaceLocateFailureCode {
+  return Object.prototype.hasOwnProperty.call(CODE_BY_LOCATE, code);
+}
+
+/**
+ * 定位失败码映射到封闭码表；表里没有的码一律落 `RUN_INVALID`（D4 的兜底口径：
+ * 无法可靠细分就按「记录无法通过校验」收口，不自行造码）。
+ *
+ * `STEP_NOT_FOUND` 与 `get_step` 同码不同景（4.4 已把该码文案扩为「在当前可读投影里
+ * 不可定位」）：这里承载「指定 step 不是本 run 自有完成步骤」，两种情形靠 `ref` 区分。
+ */
+export function toolCodeOfLocateFailure(code: string): RunQueryToolErrorCode {
+  const bare = code.startsWith("WORKSPACE_") ? code.slice("WORKSPACE_".length).toLowerCase() : code;
+  return isKnownLocateCode(bare) ? CODE_BY_LOCATE[bare] : "RUN_INVALID";
+}
+
+/** 失败定位只给结构（run / step / 逻辑路径），不给共享层的中文原因与任何物理路径 */
+export function locateRefOf(input: {
+  runId: string;
+  stepSpanId?: string | undefined;
+  path?: string | undefined;
+}): string {
+  const parts = [`run:${input.runId}`];
+  if (input.stepSpanId !== undefined) parts.push(`step:${input.stepSpanId}`);
+  if (input.path !== undefined) parts.push(`path:${boundedMessage(input.path)}`);
+  return parts.join("|");
 }

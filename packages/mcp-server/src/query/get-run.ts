@@ -15,11 +15,14 @@ import { type GetRunArgs, requireContract } from "../tool-contracts.js";
 import { ToolFailure, defineTool } from "../tool-definition.js";
 import {
   ChainTotalsSchema,
+  type CheckpointItem,
+  CheckpointItemSchema,
   InterventionSchema,
   OwnConsumptionSchema,
   RunSummaryItemSchema,
   SpanItemSchema,
   outcomeTagOf,
+  ownCheckpointItems,
   projectIntervention,
   projectRunSummary,
   projectSpanItem,
@@ -46,45 +49,6 @@ import { computeReadVersion } from "./read-version.js";
  * span 的定位就在 `data.index.items` 里，不再重复抄进 `provenance.refs`；
  * `refs` 只收本次页面给出的检查点（run + step + 快照 id 三元组，可回桌面逐项核对）。
  */
-
-const SnapshotIdSchema = z.string().regex(/^[0-9a-f]{64}$/, "快照标识必须是 64 位小写十六进制");
-
-/** 世界来源：与共享层 `WorkspaceOrigin` 同形，只做跨进程改名（snake_case → camelCase） */
-const WorldOriginSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("import") }).strict(),
-  z
-    .object({
-      kind: z.literal("checkpoint"),
-      runId: z.string().min(1),
-      stepSpanId: z.string().min(1),
-    })
-    .strict(),
-  z
-    .object({
-      kind: z.literal("initial"),
-      runId: z.string().min(1),
-      snapshotId: SnapshotIdSchema,
-    })
-    .strict(),
-]);
-
-/** span 索引项的形状与元数据投影都在 `projection.ts`（get_run 与 get_step 共用同一份） */
-
-const CheckpointItemSchema = z
-  .object({
-    kind: z.literal("checkpoint"),
-    /** null = 本 run 的初始快照（`inspect_checkpoint` 省略 stepSpanId 时的那一份） */
-    stepSpanId: z.string().min(1).nullable(),
-    /** 本 run 自己的轮号；初始快照恒为 null */
-    iteration: z.number().int().positive().nullable(),
-    snapshotId: SnapshotIdSchema,
-    fileCount: z.number().int().nonnegative(),
-    totalBytes: z.number().int().nonnegative(),
-    /** 只有初始快照带世界来源；自有 step 的检查点本来就属于本 run */
-    worldOrigin: WorldOriginSchema.nullable(),
-  })
-  .strict();
-type CheckpointItem = z.infer<typeof CheckpointItemSchema>;
 
 const ChainHopItemSchema = z
   .object({
@@ -153,32 +117,6 @@ const GetRunDataSchema = z
   .strict();
 export type GetRunData = z.infer<typeof GetRunDataSchema>;
 
-function snapshotFileFacts(files: readonly { bytes: number }[]): {
-  fileCount: number;
-  totalBytes: number;
-} {
-  return {
-    fileCount: files.length,
-    totalBytes: files.reduce((sum, file) => sum + file.bytes, 0),
-  };
-}
-
-function projectWorldOrigin(
-  origin:
-    | { readonly kind: "import" }
-    | { readonly kind: "checkpoint"; readonly run_id: string; readonly step_span: string }
-    | { readonly kind: "initial"; readonly run_id: string; readonly snapshot_id: string },
-): z.infer<typeof WorldOriginSchema> {
-  switch (origin.kind) {
-    case "import":
-      return { kind: "import" };
-    case "checkpoint":
-      return { kind: "checkpoint", runId: origin.run_id, stepSpanId: origin.step_span };
-    case "initial":
-      return { kind: "initial", runId: origin.run_id, snapshotId: origin.snapshot_id };
-  }
-}
-
 export const getRunTool: ToolDefinition = defineTool(
   requireContract("get_run"),
   async (args: GetRunArgs, root: DataRoot) => {
@@ -227,32 +165,10 @@ export const getRunTool: ToolDefinition = defineTool(
     /**
      * 检查点段：初始快照在前（省略 selector 时 `inspect_checkpoint` 给的就是它），
      * 其后按本 run 自有记录序。祖先步骤天然不在内——不代填、不换最近步骤。
+     * 形状与 `inspect_checkpoint` / `read_checkpoint_file` 完全同源（4.6 上收到
+     * `projection.ts`：三处「同一件事」由一处实现产出，不会各写一份再漂）。
      */
-    const checkpointItems: CheckpointItem[] = [];
-    const workspace = detail.meta.workspace;
-    if (workspace !== undefined) {
-      checkpointItems.push({
-        kind: "checkpoint",
-        stepSpanId: null,
-        iteration: null,
-        snapshotId: workspace.initial_snapshot.id,
-        ...snapshotFileFacts(workspace.initial_snapshot.files),
-        worldOrigin: projectWorldOrigin(workspace.origin),
-      });
-    }
-    for (const span of detail.spans) {
-      if (span.kind !== "agent.step" || !ownSpanIds.has(span.id)) continue;
-      const snapshot = span.workspace_snapshot;
-      if (snapshot === undefined) continue;
-      checkpointItems.push({
-        kind: "checkpoint",
-        stepSpanId: span.id,
-        iteration: span.n,
-        snapshotId: snapshot.id,
-        ...snapshotFileFacts(snapshot.files),
-        worldOrigin: null,
-      });
-    }
+    const checkpointItems = ownCheckpointItems(detail, ownSpanIds);
 
     const window = takeWindow([...spanItems, ...checkpointItems], args.limit);
     const summary = chainSummaries[chainSummaries.length - 1];

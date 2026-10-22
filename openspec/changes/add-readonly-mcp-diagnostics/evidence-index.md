@@ -294,6 +294,58 @@ Q 属于 run-query，S 属于 mcp-service，D 属于 desktop-ui；标题须与 d
     真实客户端对照要 6.2）；**Q11/Q12 未整场景通过**（协议面已闭合；有界预览与预算归 5.1、
     游标/来源变化归 5.2、端到端字节指纹归 5.4）。
 
+- 4.6：登记 `inspect_checkpoint` / `read_checkpoint_file`（`READONLY_TOOLS` 现六条，顺序同 D5）。
+  - 新增 `src/query/{inspect-checkpoint,read-checkpoint-file}.ts`；检查点段上收到 `projection.ts`
+    （`WorldOriginSchema`/`CheckpointItemSchema`/`ownCheckpointItems`/`CheckpointFileItemSchema`/
+    `CheckpointHeadSchema`/`toolCodeOfLocateFailure`/`locateRefOf`），`get-run.ts` 改导入（本地副本删除）
+    ⇒ get_run 索引、inspect 清单、read 的 selector 三处同源；`boundedMessage` 移进
+    `error-projection.ts`（投影层不反向依赖定义缝）。run-query 一处 additive：
+    `read/workspace-view.ts` 增 type-only 出口 `WorkspaceLocateFailure(Code)`，外部按封闭集合穷尽映射。
+  - Q13 协议面：省略 `stepSpanId` = 本 run 初始快照（共享层缺省），**正面**断言它不等于轮末那份；
+    桌面「最近自有完成步骤」的默认留在 renderer（本层与 `tool-contracts.ts` 注释都写明，不代填）；
+    祖先 step / 非 step 的 span / 未知 id ⇒ `STEP_NOT_FOUND` 且不退回初始；
+    分支 run 的「相对初始」= 它自己的初始（= 父轮末那份清单）且 `worldOrigin` 带父身份。
+  - 六态不合并：`rejected` 升稳定码（`no_workspace`⇒`NO_WORKSPACE`、`step_not_found`⇒`STEP_NOT_FOUND`、
+    `run_not_found`⇒`RUN_NOT_FOUND`、`trace_invalid`⇒`RUN_INVALID`、`invalid_request`⇒`INVALID_ARGUMENT`），
+    `not_found`/`missing`/`corrupt` 原样保留并绑 selector；定位码两种载体（`WORKSPACE_*` 与裸码）
+    **先归一再查同一张表**，表外码落 `RUN_INVALID` 不造新码。附件位置被目录顶替 ⇒ `STORAGE_IO` +
+    `retryable:true`，不伪装成文件状态（inspect 这一路也捕，逐项 verify 会抛）。
+  - Q14 单侧半边：正文只在显式 `path` 下出门（`encoding=utf8-text`，复用 4.4 的码点 `sliceBody`）；
+    CRLF/尾随换行/无尾换行/空串逐字保真；完整历史文件的 `bytes`/`sha256` 收在 `fullFile` 段，
+    与 `range.total` 分开放；二进制只给大小与哈希（无 `text`/`encoding`/`base64`/`data` 键、无 U+FFFD）；
+    `not_found` 无 `fullFile`；长度不符与哈希不符两句原因可分辨且不含物理路径；
+    当前目录里的同名新文件不参与补齐。清单侧零正文（键集合 + `SENTINEL-` 全扫 + `BODY_NOT_EXPOSED`）。
+  - 外部输入比桌面严：非法逻辑路径在任何读取前 `INVALID_ARGUMENT` + `ref:"path"`；
+    桌面对同样请求仍得 `not_found`（3.2 已钉）⇒ 不改共享层、不收紧旧 IPC（D2）。
+  - 夹具 `test/checkpoint-fixtures.ts` 独立数据目录（不动 4.3–4.5 夹具，避免历史批次钉的条目数随批次漂）：
+    真发布附件 ⇒ ok/missing/corrupt/I-O 故障都是磁盘事实；30 条初始清单（CRLF/空串/无尾换行/长文本/
+    二进制/缺失/长度不符/哈希不符 + 20 filler）、轮末清单（added/modified/unchanged）、v2 结果分叉子、
+    v2 未封存、v1 非隔离、目录顶替、身份错配、损坏、`current-source/gone.txt`。
+  - `test/inspect-checkpoint.test.ts` **24 用例**、`test/read-checkpoint-file.test.ts` **19 用例**；
+    mcp-server 合计 **172 passed / 11 文件**（+43）。4.1 的 `lifecycle.test.ts` 名称清单随批次由四条
+    变六条（该判据本就跟随注册表，变红即提醒更新账本）。
+  - 门禁：src tsc 0 + `.rebaseagent/tsconfig.mcp-server-test.json` 0（它抓到 3 处真问题：
+    `data.file.fullFile` 在 `not_found` 分支不存在、get_run 索引项本地类型缺 `fileCount`/`totalBytes`、
+    `not.toContain("")` 因非 ASCII 字面量被吞成空串——只跑 vitest 时是一条永远红的判据）、
+    run-query **47/1 skip**、desktop **216 文件/3301 用例**（singleFork）、7 包 build、desktop tsc 双 0、
+    biome **70 文件 0 错**、`check-spec` 13/0、`openspec validate --changes --strict` valid、
+    `git diff --check` 0；回查 `.workbuddy/mcp0-46/verify-46.cjs`（数字从 json 报告重算 +
+    `--self-test` 三道反证）。历史脚本随批次放宽并两边留痕：`verify-45` 的注册表判据改前缀匹配、
+    「未动前沿」改钉尾项 6.6 ⇒ 43/44/45 重跑分别 45/43/41 项全对。
+  - 变异验证 4 组全部咬住后当场还原并核对无残留：缺省 selector 改解析「最近自有完成步骤」⇒ 8 条红；
+    去掉 `WORKSPACE_` 归一 ⇒ 4 条红；附件不可用伪装 `ok` ⇒ 2 条红；正文 CRLF 规范化 ⇒ 3 条红。
+  - ⚠️ **两条如实保留**：① `CHECKPOINT_NOT_FOUND` 本批无可达承载（读取器先拒「v2/v3 已落盘
+    `agent.step` 缺 `workspace_snapshot`」，半途中断的 step 没有行）⇒ 不造分支凑用它，留给 4.7
+    或按 D4 修订定夺；② 分叉子自有 span 与父重名时共享层详情自检抛裸 Error（`spans 存在重复 id`）
+    ⇒ MCP 落到服务层无稳定码兜底。曾据此把「自有」判据改成逐位置 owner，验证该形态不可达后
+    **改回 `leafSpanIds`**（提取为纯搬家，与 4.3 判据逐字相同）；定性归用户，见 HANDOFF §九 3。
+  - **S03 仍未通过**（6/7 登记，`compare_checkpoint_files` 待 4.7）；**Q13/Q14 未整场景通过**
+    （游标与来源变化归 5.2、64 KiB 预算归 5.1、两侧比较归 4.7、端到端零写入与 Q15/Q16 归 5.4、
+    实机对照归 6.1/6.2）；**S05 的「指定历史文件」半边本轮闭合**（refs 带
+    `{runId, stepSpanId?, snapshotId, path}` 且与 inspect/get_run 逐项相同），真实客户端对照仍待 6.2。
+  - ⚠️ readVersion 材料仍只含 `traces/*.jsonl` 台账 ⇒ **附件 blob 变化不进摘要**，
+    续读的附件变化核验按 tasks 5.2 落地，本批不擅自扩材料口径。
+
 ## 门禁与归档约束
 
 - 6.5 补实际命令、exit code、源码身份、包构建顺序和新依赖核验；不引用 R2.2 历史通过代替本次通过。

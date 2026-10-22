@@ -36,6 +36,14 @@ export interface RunRecordLoader {
   loadRunRecord(id: string): RunRecord;
 }
 
+/**
+ * 定位失败码的**类型**出口（4.6 加，纯类型、无运行时改动）。
+ *
+ * 外部投影要把「哪一类请求不成立」逐条映射成稳定码，就得按这个封闭集合做穷尽映射；
+ * 让调用方自己抄一份码清单正是最容易漂的地方。值出口仍在 replay（本层不复制判据）。
+ */
+export type { WorkspaceLocateFailure, WorkspaceLocateFailureCode } from "@rebaseagent/replay";
+
 /** 服务入参：dataDir 与仓库读取器；run 定位与附件校验一律交给 replay 包层 */
 export interface WorkspaceViewDeps {
   /** 数据目录（main 按便携策略解析；trace 与附件都锚在这里） */
