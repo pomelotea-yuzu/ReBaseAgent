@@ -1,6 +1,6 @@
 # MCP0 / MCP1 实施任务
 
-状态（2026-10-22）：**阶段 1、阶段 2（2.1–2.9）与 3.1 已完成；3.2 起未实施**。
+状态（2026-10-22）：**阶段 1、阶段 2（2.1–2.9）与阶段 3（3.1–3.2）已完成；4.1 起未实施**。
 每项预计不超过 2h；发现超过时先拆分任务。验收对应见 [evidence-index.md](evidence-index.md)；测试、客户端实机、人工接入和发行分别记录，不以文档校验替代功能通过。
 
 ## 1. MCP0：先验证支持路径
@@ -37,7 +37,10 @@
 
 - [x] 3.1（1.5h）旧 IPC/类型出口接共享实现，保留执行和 renderer 职责边界。桌面默认检查点解析为显式 selector 再调共享层（共享层缺省=初始），接口注释各写明本层默认。验收 D01/D02。
   - 2026-10-22：旧出口清点确认全部为薄 re-export，无第二份判据——15 个 desktop 文件引用 `@rebaseagent/run-query`：main 5（`run-repository`/`run-read-context`/`run-lineage-read`/`run-detail-project`/`workspace-view`）+ shared 10（`ipc` 领域 schema、`run-detail-integrity`、`derive`、`outcome`、`overview`、`terminal-facts`、`compare-derive`/`compare-output`/`compare-edit-evidence`/`compare-source-map`）；`outcome.ts` 只留 Tailwind 视图类名映射；`compare-endpoints.ts` 经旧出口（`run-lineage-read`/`run-read-context`）消费同一实现，不另写判据。职责边界：`main/ipc.ts` 的两个 workspaces 端点补注释写明**本层不解析桌面默认**，缺省 `stepSpanId` 只有共享层语义（本 run 初始快照），“最近自有完成步骤”由 renderer（`renderer/src/lib/workspace-files.ts`、`CompareFileWorkspace.tsx`）先解析成显式 selector 再调用；共享层不含执行与授权逻辑。定向测试 **52/52**（`workspace-view` 20 / `workspace-file-view` 26 / `compare-file-wiring` 6）；desktop tsc 双配置 0 错。**D01 仍未通过**：同 fixture 的 desktop/shared 数值对照归 3.2；D02 的实机回归归 6.1/6.2。
-- [ ] 3.2（1.5h）同 fixture 的 desktop/shared 对照：版本/缺父/坏父/usage/比较/检查点。验收 D01/D02、Q01。
+- [x] 3.2（1.5h）同 fixture 的 desktop/shared 对照：版本/缺父/坏父/usage/比较/检查点。验收 D01/D02、Q01。
+  - 2026-10-22：新增 `apps/desktop/test/run-query-desktop-parity.test.ts` **26 用例**，一个临时数据目录内同时备齐 v1 根/v1 result 分叉子/缺父子/坏父（父文件次行非法）/完全损坏文件/身份错配文件/无 llm.call/轮内中断未封存，加真跑的 **v2 隔离根 + 合规 v2 result 分叉子 + v3 隔离 prompt 实验**。两入口＝desktop 旧出口（`src/main/*`、`src/shared/*`）与包出口（`@rebaseagent/run-query`）：先断言导出符号**对象全等**（同一实现，不是两份实现互相校对），再断言同 fixture 产出**深度全等**并钉死取值——三版本 `format_version` 1/2/3、缺父 `ownOnly`+`ANCESTOR_NOT_FOUND`、坏父 `ANCESTOR_INVALID`（不降级 ownOnly）、损坏文件在 `listRuns`/`listRunsDetailed` 以失败项在场且稳定码 `RUN_INVALID`、身份错配 `IDENTITY_MISMATCH` 而旧 `listRuns` 行为不变、无 llm 时 `cacheHit=null` 不补 0、未封存判「运行中断」、比较共同祖先与沿链求和（v2 子累计 348 tokens/相对祖先 188）、检查点清单与附件哈希逐项一致（含分支 run 的“相对初始=本 run 初始快照”、祖先 step `STEP_NOT_FOUND`、非隔离 run `WORKSPACE_NO_WORKSPACE`、穿越路径只是 `not_found` 且原因不含数据目录）、读取前后 traces 目录字节不变。分层默认（D02）：省略 `stepSpanId` 两入口都给初始快照，renderer 解析出的“最近自有完成步骤”作为显式 selector 另得一份清单，两者互不改写。门禁：desktop 全量 **216 文件/3301 用例**、tsc 双 0、biome 0、run-query **47 passed/1 skip**。
+  - 记录一处 fixture 事实：replay 的 `buildIsolatedPromptBaselineCase` 手工兄弟把 `at_span` 与 `resume_after_step` 写成同一个 step，读取层按 v2 契约如实拒绝（`fork.at_span 不能等于 resume_after_step`），因此对照夹具改用 `withSibling: false` 并自建合规 v2 分叉子——不改既有 fixture，也不放宽读取判据。
+  - **D01/Q01 未整场景通过**：本项只闭合“桌面↔共享包”这一半，MCP 工具入口的另一半待 4.x；WorkBuddy 实机对照待 6.2。**D02 的实机回归**待 6.1。
 
 ## 4. stdio 服务与外部投影
 

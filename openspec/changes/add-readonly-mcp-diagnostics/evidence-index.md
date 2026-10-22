@@ -98,6 +98,22 @@ Q 属于 run-query，S 属于 mcp-service，D 属于 desktop-ui；标题须与 d
   后再调用；共享层不含执行/授权。定向测试 **52/52**（`workspace-view` 20 / `workspace-file-view` 26 /
   `compare-file-wiring` 6），desktop tsc 双配置 0 错。
   **D01 未通过**（同 fixture 数值对照归 3.2）；**D02 未通过**（IPC/selector 的实机回归归 6.1/6.2）。
+- 3.2：新增 `apps/desktop/test/run-query-desktop-parity.test.ts`（**26 用例**）做同 fixture 双入口对照。
+  fixture 覆盖 v1 根/分叉子/缺父子/坏父/损坏文件/身份错配文件/无 llm.call/轮内中断未封存，以及
+  真跑的 v2 根 + 合规 v2 result 分叉子 + v3 隔离 prompt 实验。判据分三层：导出符号**对象全等**
+  （`RunRepository`/`RunReadContext`/`inspectWorkspace`/`deriveRunSummary`/`classifyOutcome`/
+  `deriveVerifiedComparison`/`findRunDetailIntegrityViolation` 与包出口同一对象）→ 同 fixture 产出
+  **深度全等** → 逐类**钉值**（三版本 `format_version`、缺父 `ownOnly`+`ANCESTOR_NOT_FOUND`、坏父
+  `ANCESTOR_INVALID`、损坏 `RUN_INVALID` 失败项在场、身份错配 `IDENTITY_MISMATCH` 且旧 `listRuns` 不变、
+  无 llm ⇒ `cacheHit=null`、未封存 ⇒「运行中断」、共同祖先与沿链求和 348/188 tokens、检查点清单与
+  附件 sha256 逐项一致、穿越路径只是 `not_found` 且原因不含数据目录、读取后 traces 字节不变）。
+  分层默认（D02 代码侧）：省略 `stepSpanId` 两入口同为初始快照，renderer 解析的最近自有完成步骤作显式
+  selector 另得一份清单，互不改写。门禁：desktop 全量 **216 文件/3301 用例**、tsc 双 0、biome 0、
+  run-query **47 passed/1 skip**。
+  fixture 事实记录：replay 基线夹具的手工兄弟 `at_span == resume_after_step`，按 v2 契约被读取层拒绝，
+  对照夹具改用 `withSibling:false` 并自建合规 v2 分叉子（不放宽判据）。
+  **D01/Q01 仍未整场景通过**：只闭合「桌面↔共享包」半边，MCP 工具入口待 4.x，WorkBuddy 实机对照待 6.2；
+  **D02** 的实机回归待 6.1。
 
 ## 门禁与归档约束
 
