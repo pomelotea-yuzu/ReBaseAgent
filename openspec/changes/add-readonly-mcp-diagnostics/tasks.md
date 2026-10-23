@@ -1,6 +1,6 @@
 # MCP0 / MCP1 实施任务
 
-状态（2026-10-23）：**阶段 1、2（2.1–2.9）、3（3.1–3.2）、4.1–4.8、5.1–5.3 已完成；5.4 起未实施**。
+状态（2026-10-23）：**阶段 1、2（2.1–2.9）、3（3.1–3.2）、4.1–4.8、5.1–5.4 已完成；6.1 起未实施**。
 每项预计不超过 2h；发现超过时先拆分任务。验收对应见 [evidence-index.md](evidence-index.md)；测试、客户端实机、人工接入和发行分别记录，不以文档校验替代功能通过。
 
 ## 1. MCP0：先验证支持路径
@@ -485,7 +485,61 @@
   - 未验证/失真清单：Windows 无法向 Node 子进程投递 POSIX 信号 ⇒ `SIGINT`/`SIGTERM` 的
     `signal_shutdown` 出口**未做实机复验**（代码路径在，判据无）；低层 `Server` 不强制
     "initialize 只一次"（实测第二条 initialize 仍被应答）——本 change 不承诺它，故只记录不修。
-- [ ] 5.4（1.5h）完整 fixture 查询前后文件集合/字节指纹与零执行计数，覆盖源目录变化及故障。验收 Q15/Q16、S14。
+- [x] 5.4（1.5h）完整 fixture 查询前后文件集合/字节指纹与零执行计数，覆盖源目录变化及故障。验收 Q15/Q16、S14。
+  - 2026-10-23：**判据是比出来的，不是声明出来的**。新增第 8 个独立数据根
+    `test/zero-write-fixtures.ts`（2 条普通 run + v2 工作区 run：`notes/binary/long` 发布附件、
+    `gone.txt` **只登记不发布**、同一根里放 `current-source/gone.txt` 承载"当前源目录同名新文件"
+    且内容带 `SENTINEL-` canary；另有一条坏尾行 run 作故障面），配套 `test/zero-write.test.ts` **8**
+    走真实 stdio 子进程：整根递归指纹（相对路径 + 内容 SHA-256 + 目录标记，复用 4.6 的
+    `dirFingerprintRecursive`）在 ①六个工具全部跑通后、②逐页翻到底 + 正文续读到
+    `truncated:false` 后、③三类故障各触发一次后、④取消在途查询后、⑤三次重启会话各跑一遍全链后，
+    都必须与基线**逐字相同**；结果事实（去掉时点/版本字段）三次会话逐字一致。
+  - **"零写入"钉成封闭白名单**而不是"看起来没多文件"：数据根里只允许 `traces/*.jsonl`、
+    `workspace-blobs/sha256/<64hex>`、`current-source/gone.txt` 三类条目，任何
+    index/lock/session/log/journal 类新产物都会落进 `unexpectedEntries` 判红；另单条用例钉
+    `traces/` 的文件名集合恒为夹具那四个 ⇒ **无新运行落盘**。
+  - **故障与取消同样零写入**：坏尾行 ⇒ `RUN_INVALID`（无 ref，与 4.x 同口径）、不存在 run ⇒
+    `RUN_NOT_FOUND`、附件目录替身 ⇒ `STORAGE_IO` + `retryable:true`（真实 I/O 故障不伪装成文件状态）、
+    v1 run 查检查点 ⇒ `NO_WORKSPACE`；基线指纹在**注入之后**取，目录替身是夹具的一部分、
+    不算查询产物。取消那半：5.3 的同批帧取消（该 id 零外发 + 不起跑）之后整根指纹与文件集合不变
+    ⇒ **S14 的行为半边补齐**。
+  - **Q16 源目录不兜底**：`read_checkpoint_file(gone.txt)` 回 `missing` 且带清单的
+    `fullFile.sha256/bytes`（描述完整历史文件）与 `reason`，不带正文；`inspect_checkpoint` 清单里
+    该项仍在场；`compare_checkpoint_files(path=gone.txt)` 逐侧 `missing`。stdout 全文经
+    `assertNoSentinels` + 显式 `not.toContain(ZW_SENTINEL_TEXT)` 双重判 ⇒ 既没拿当前源补齐，
+    也没把那份新版本外发；`current-source/gone.txt` 自身字节不变（含在整根指纹里），
+    旧快照也没被修写。
+  - **"模型/工具/导出/operation 计数为零"的结构半边**：新增 `test/closure.test.ts` **4**
+    （mcp-server）与 `packages/run-query/test/dependency-closure.test.ts` **4**（run-query），
+    扫**已构建工件**：dist 的外部依赖说明符必须恰等于实测封闭集（mcp-server 九个：
+    `@modelcontextprotocol/sdk` 四个子路径 + `@rebaseagent/run-query` + `node:crypto|fs|path` +
+    `zod`；run-query 七个），且 src/dist 里 13 个写盘 API 调用点为 **0**、12 个执行/出网符号
+    （`node:child_process`、`node:http|https|net|dgram|tls|worker_threads|vm|cluster`、`fetch(`、
+    `spawn(`、`execFile(`）与 8 个写能力导出名（`JsonlTracer`/`publishBlob`/`import-source`/
+    `createWorkspaceSnapshot`/`startRun`/`endRun`/`startSpan`/`endSpan`）出现次数为 **0**，
+    run-query 不反向依赖 desktop/Electron/MCP。数字来自 `.workbuddy/mcp0-54/probe-closure.cjs`
+    实跑，不凭印象。边界如实写：只扫本包工件与它的直接说明符，不递归进 SDK/replay/trace-sdk 内部。
+  - 顺带补一处门禁真空：run-query 此前**没有**测试类型检查配置 ⇒ 新增
+    `.rebaseagent/tsconfig.run-query-test.json`（Bundler 解析，含 src+test），首轮 0 错。
+    ⚠️ 如实：`.rebaseagent/` 在 `.gitignore` 里（第 12 行），这份配置**目前只在本机生效**；
+    要让 CI 与其他人也走这道门禁，需要单独提一次"把 `.rebaseagent/tsconfig.*-test.json` 纳入 git"
+    的决策，本批不擅自扩面。
+  - 测试：mcp-server **301 passed / 22 文件**（+12）、run-query **51 passed / 9 文件 / 1 skip**
+    （+4）、desktop **216 文件/3301 用例**、7 包 build、desktop tsc 双 0、两个包测试 tsconfig 均 0、
+    biome scoped **0**（96 文件）、`check-spec` 13/0、strict valid、`git diff --check` 0；
+    命令与 exit code ⇒ `.workbuddy/mcp0-54/gates/gates-54.txt`；回查
+    `.workbuddy/mcp0-54/verify-54.cjs`。
+  - 变异 4 组（每组**配套重建 dist**，否则真子进程读旧 dist 就是假变异）：启动时往数据根写
+    `mcp.lock` ⇒ **7 红**（指纹 + 封闭白名单 + 结构面一起守，两层互不顶替）；把当前源版本混进
+    `missing` 的 reason ⇒ **1 红**（Q16 canary 泄漏检测有牙）；引入一个 `fetch()` 调用面 ⇒
+    **1 红**（闭包白名单）；缺 `traces/` 时 `mkdirSync` 兜底 ⇒ **1 红**（4.1 的 S02 判据）。
+    全部还原、grep 无残留、重建后 301/301 绿。
+  - **场景口径**：Q15 通过（端到端零写入 + 无新运行 + 结构面无执行/写盘调用）、
+    Q16 通过（源目录同名新文件不补历史、不外发、不修写快照）、
+    **S14 整场景通过**（5.3 的取消行为 + 本批的既有文件哈希不变与零新运行/operation）。
+    真实客户端与 Electron 面仍归 6.2/6.1，不提前宣称发行或实机。
+  - 如实保留：`RUN_INVALID` 不带 `ref` 是 4.x 既有口径（不拼物理位置），本批照此钉住而不是"顺手补上"；
+    指纹按 UTF-8 文本取哈希（与 4.6 同一实现），二进制附件作为字节参与比较，但不解码。
 
 ## 6. 实机、指南与收口
 

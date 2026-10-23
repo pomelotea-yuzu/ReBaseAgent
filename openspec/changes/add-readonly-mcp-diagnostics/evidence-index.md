@@ -544,6 +544,45 @@ Q 属于 run-query，S 属于 mcp-service，D 属于 desktop-ui；标题须与 d
     本 change 不承诺它；③ 缺 `params.name` 的 `-32603` 文案由 SDK 生成（zod issue JSON），
     属协议域而非我们的信封，没有伪装成业务码；④ 取消不能中断已起跑的同步读取（该中间态不存在）。
 
+- 5.4：零写入 / 零执行端到端复核（Q15/Q16 + S14 整场景）。
+  - 新增第 8 个独立数据根 `test/zero-write-fixtures.ts`：v2 工作区 run 里 `notes/binary/long` 发布
+    附件、`gone.txt` **只登记不发布**（哈希按内容算出，字节永不进附件目录），同一根内
+    `current-source/gone.txt` 放"当前源目录同名新文件"（内容带 `SENTINEL-` canary），另备一条
+    坏尾行 run 作故障面。配套 `test/zero-write.test.ts` **8** 全部走真实 stdio 子进程。
+  - **端到端零写入判据（Q15）**：整根递归指纹（相对路径 + 内容 SHA-256 + 目录标记，复用 4.6 的
+    `dirFingerprintRecursive`）在五类查询之后逐字不变 —— 六工具全链、逐页翻到底 + 正文续读到
+    `truncated:false`、三类故障各触发、取消在途查询、三次重启会话各跑一遍全链；
+    且三次会话的**结果事实**（去掉时点/版本字段）逐字一致。
+  - **"零写入"钉成封闭白名单**：数据根只允许 `traces/*.jsonl`、`workspace-blobs/sha256/<64hex>`、
+    `current-source/gone.txt` 三类条目 ⇒ 任何 index/lock/session/log/journal 新产物都判红；
+    另一条用例钉 `traces/` 文件名集合恒为夹具那四个 ⇒ **无新运行落盘**。
+  - **故障面不伪装**：坏尾行 ⇒ `RUN_INVALID`（无 `ref`，与 4.x 既有口径一致）、缺 run ⇒
+    `RUN_NOT_FOUND`、附件目录替身 ⇒ `STORAGE_IO` + `retryable:true`、v1 run 查检查点 ⇒
+    `NO_WORKSPACE`；基线指纹在注入**之后**取，替身目录算夹具一部分而非查询产物。
+  - **Q16 源目录不兜底**：`read_checkpoint_file(gone.txt)` ⇒ `status:"missing"` 带
+    `fullFile.sha256/bytes`（描述完整历史文件）与 `reason`，无正文；`compare_checkpoint_files`
+    内容模式逐侧 `missing`；`inspect_checkpoint` 清单仍在场；stdout 经 `assertNoSentinels` 与
+    显式 `not.toContain(ZW_SENTINEL_TEXT)` 双重判 ⇒ 没读当前源、没外发那份新版本，
+    `current-source/gone.txt` 字节与旧快照都不动（含在整根指纹里）。
+  - **计数为零的结构半边**：`test/closure.test.ts` **4** + `packages/run-query/test/
+    dependency-closure.test.ts` **4** 扫已构建工件 —— dist 外部说明符恰等于实测封闭集
+    （mcp-server 九个 / run-query 七个），13 个写盘 API、12 个执行/出网符号、8 个写能力导出名
+    在 src+dist 出现次数全为 **0**，run-query 不反向依赖 desktop/Electron/MCP。
+    数字取自 `.workbuddy/mcp0-54/probe-closure.cjs`；边界如实：不递归进 SDK/replay/trace-sdk 内部。
+  - 门禁：mcp-server **301 passed / 22 文件**（+12）、run-query **51 passed / 9 文件 / 1 skip**
+    （+4）、desktop **216 文件/3301 用例**、7 包 build、desktop tsc 双 0、
+    mcp-server 与 run-query 测试 tsconfig 均 0（**本批新增** `.rebaseagent/tsconfig.run-query-test.json`，
+    补掉 run-query 测试无类型门禁的真空）、biome scoped **0**（96 文件）、`check-spec` 13/0、
+    strict valid、`git diff --check` 0 ⇒ `.workbuddy/mcp0-54/gates/gates-54.txt`；回查
+    `.workbuddy/mcp0-54/verify-54.cjs` **54 项全对** + `--self-test` 三道反证咬住
+    （指纹断言被换成恒真 / 报告塞一条失败 / 5.4 勾选被抹）。
+  - 变异 4 组（每组配套重建 dist）：启动写 `mcp.lock` ⇒ 7 红（行为 + 结构两层各自守住）；
+    当前源版本混进 `missing.reason` ⇒ 1 红；引入 `fetch()` 调用面 ⇒ 1 红；缺 `traces/` 时
+    `mkdirSync` 兜底 ⇒ 1 红（4.1 S02）。还原后 grep 无残留、301/301 绿。
+  - **Q15/Q16 通过；S14 整场景通过**（5.3 取消行为 + 本批哈希不变与零新运行/operation）。
+    ⚠️ 口径边界：S 系列的"零执行"是**只读服务不存在执行调用面**这一结构性事实 + 端到端指纹，
+    不是在 MCP 侧插桩计数；真实客户端（6.2）与 Electron 面（6.1）另计，不提前宣称。
+
 ## 门禁与归档约束
 
 - 6.5 补实际命令、exit code、源码身份、包构建顺序和新依赖核验；不引用 R2.2 历史通过代替本次通过。
