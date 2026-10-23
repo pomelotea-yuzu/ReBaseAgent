@@ -1,6 +1,6 @@
 # MCP0 / MCP1 实施任务
 
-状态（2026-10-22）：**阶段 1、2（2.1–2.9）、3（3.1–3.2）与 4.1–4.6 已完成；4.7 起未实施**。
+状态（2026-10-23）：**阶段 1、2（2.1–2.9）、3（3.1–3.2）与 4.1–4.7 已完成；4.8 起未实施**。
 每项预计不超过 2h；发现超过时先拆分任务。验收对应见 [evidence-index.md](evidence-index.md)；测试、客户端实机、人工接入和发行分别记录，不以文档校验替代功能通过。
 
 ## 1. MCP0：先验证支持路径
@@ -274,7 +274,79 @@
   - ⚠️ **readVersion 的已知限制（5.2 收口）**：摘要材料仍只含 `traces/*.jsonl` 台账，
     **附件 blob 的变化不进摘要**——检查点两工具已读到 blob，续读的附件变化核验按 tasks 5.2
     （「覆盖列表新增/失败项与附件变化」）落地，本批不擅自扩材料口径。
-- [ ] 4.7（1.5h）实现 compare_checkpoint_files 的清单和 path 两种模式。验收 Q14、S03/S10。
+- [x] 4.7（1.5h）实现 compare_checkpoint_files 的清单和 path 两种模式。验收 Q14、S03/S10。
+  - 2026-10-23：新增 `src/query/compare-checkpoint-files.ts`，`READONLY_TOOLS` **七条登记齐**（顺序同 D5）。
+    共用件再上收一处：逐侧 `unavailable` 格（`SideNameSchema`/`UnavailableSideSchema`/
+    `unavailableSideOf`/`unavailableSideOfCode`）从 `compare-runs.ts` 移进 `projection.ts`，
+    4.5 改导入 ⇒ 两种比较工具对「这一侧不可读」说同一句话；`ContentHashSchema` 导出，
+    快照 id 与附件哈希共用同一条正则（不出现第二份 64 位 hex 判据）。
+    run-query 侧一处 additive：`read/workspace-compare.ts` 增 type-only 出口
+    `CompareSideFailureCode`（= 定位码 + `identity_mismatch`），映射表按它做穷尽检查。
+  - **一次清单冻结、两种模式**：清单模式直接发并集分页与逐侧引用；内容模式把**本次**冻结的两侧
+    快照 id 作为 `expectedSnapshotIds` 交给 `readComparedWorkspaceFile`——就是桌面文件页的
+    「清单/正文双代次守卫」在同一次请求内完成，不把旧清单与新正文拼接（D3/D6）。
+  - **引用与内容分开（S10 的核心）**：清单 `reference:"same"` 只是哈希 + 字节数相同，带
+    `BODY_NOT_EXPOSED` 指路；内容结论一律取共享层按完整附件核验给出的 `conclusion`。
+    夹具专门造了一对**前 4096 码点完全相同、只差在尾部**的文件 ⇒ 外发两段一模一样而结论必须
+    `different`，按片段判相同的实现当场红（变异 M1 实证）。
+  - **坏侧不吞好侧 vs 缺侧不发半份结论**：清单模式两侧格子恒在且同序（左在前），任一侧坏 ⇒
+    `unionComplete:false` + `entries:[]` + 该侧稳定码，空清单不代表这些文件不存在（Q11 同口径）；
+    内容模式请求的对象是「这一条路径的两侧比对」，缺任一侧就按该侧稳定码整条失败
+    （与 `read_checkpoint_file` 同一口径）。两侧 selector 允许同一个 run 的两份检查点，
+    同一份自比在读之前拒 `INVALID_ARGUMENT` + `ref:"left/right"`。
+  - **逐侧状态不合并**：`text/binary/not_found/missing/corrupt/too_large/selection_changed` 原样
+    保留并绑 selector；`io` 一支改判 `unavailable{STORAGE_IO, retryable:true}` 且**不透传**
+    共享层 reason——那一支的 reason 是 Node errno 文本，可能含附件物理路径（D4/S06）。
+    `not_found` 一侧没有 `fullFile`，不把「该侧清单没有」写成零字节。
+  - 🔴 **自正一处 design 表述（两边留痕）**：D4 修订初稿把 `selection_changed` 写成「按 D6 归
+    `STALE_CURSOR`」；实现核对后改判为**逐侧数据状态**（它不是游标过期，本批还没有游标），
+    `STALE_CURSOR` 仍只由 5.2 的续读核验发出。`design.md` 已就地自正。
+  - 4.6 批次脚本随批次放宽（同一坑第四次）：`verify-46.cjs` 的注册表判据由「六条全等」改**前缀**
+    匹配，「第七条仍未登记」改判为「七条已齐」，「未动前沿 4.7」改钉**尾项 6.6**，反证三同步换
+    新形状 ⇒ 复跑 63 项全对 + 3/3 反证。
+  - 夹具 `test/compare-file-fixtures.ts`（第三个独立数据目录，理由同 4.6：各批事实由各批夹具钉）：
+    两侧清单刻意排成 `same`/`different`/`left_only`/`right_only`/二进制/`missing`/`corrupt`
+    /`too_large`（清单声明 8 MiB+1，**不真占磁盘**——共享层在读字节前先挡）/目录顶替
+    /正文 canary + 20 条 filler 把并集抬过默认页宽；另备 v1 非隔离、身份错配、缺失 run、
+    v2 未封存与跨运行分叉子。共用助手（`publishBlob`/`entry`/`contentSha`/递归指纹）从
+    4.6 夹具导出复用，不复制第二份。
+  - 测试 `test/compare-checkpoint-files.test.ts` **26 用例**：同 run 两 selector 的逐侧身份与
+    presence/reference 逐条、清单零正文（键集合 + `SENTINEL-` + 存储目录名全扫）+ `BODY_NOT_EXPOSED`、
+    默认页宽 20 不发游标 + `limit=1/100` + 带 cursor 拒且不回显、跨运行来源段两条 run 与 refs、
+    坏侧不吞好侧（`NO_WORKSPACE`/`IDENTITY_MISMATCH`/`STEP_NOT_FOUND`/`RUN_NOT_FOUND` 各按侧在场，
+    来源段不声称读过坏侧）、未封存侧带 `TERMINATION_NOT_RECORDED` 且不说「仍在运行」、
+    结果无步骤对齐/评判字段且逐侧键集合恰为身份五件、内容模式 same/`different`（片段相同反证）/
+    left_only/right_only/not_found/二进制/missing/corrupt/too_large/`STORAGE_IO`、`maxChars` 逐侧
+    独立（短的一侧不被补）、缺侧不发半份结论、正文只随显式 path 出门、自比拒而同 run 两点可、
+    逐侧字段级 `ref`（`left.runId`/`right.stepSpanId`/`path`）与契约级超长拦、数组形状拒、
+    同参两次逐字相同 + `readVersion` 随 path/limit 变、七次查询前后目录**递归**指纹不变。
+  - 4.1 注册表判据随批次更新：`lifecycle.test.ts` 名称清单六条变七条（该判据本就跟随注册表）。
+  - 门禁：mcp-server src tsc 0 + `.rebaseagent/tsconfig.mcp-server-test.json` 0（本轮它抓到 4 处
+    真问题：模块级常量引用 `beforeAll` 才赋值的夹具、union 上直取 `stepSpanId`/`snapshotId` 两处、
+    以及 `expect` 的第二参数同族的 `not.toContain("")`——U+FFFD 字面量又被吞成空串）、
+    mcp-server **198 passed / 12 文件**（+26）、run-query **47 passed/1 skip**、
+    desktop **216 文件/3301 用例**（singleFork）、7 包 build、desktop tsc 双 0、
+    `biome check packages/mcp-server packages/run-query` 0（73 文件）、`check-spec` 13/0、
+    `openspec validate --changes --strict` valid、`git diff --check` 0；
+    回查 `.workbuddy/mcp0-47/verify-47.cjs`（数字从 json 报告重算 + 三道反证），
+    历史脚本 43/44/45/46 复跑 45/43/41/63 项全对。命令与 exit code ⇒ `.workbuddy/mcp0-47/gates/`。
+  - 变异验证 5 组（施加→定向跑→Edit 反向还原→grep 核对无残留）：结论改由片段判 ⇒ 1 条红
+    （正是 S10 那条）；忘发 `BODY_NOT_EXPOSED` ⇒ 1 条红；逐侧 `io` 透传 errno 原文 ⇒ 1 条红；
+    `identity_mismatch` 映射指错 ⇒ 1 条红；左右两格写反 ⇒ 16 条红。全部还原后 198/198 绿。
+  - ⚠️ **两条如实保留**：① `selection_changed` 在 MCP 侧**无可达诱发路径**——本批两侧快照 id
+    由同一次清单冻结给出，要触发它得让文件在同一次请求的两次读取之间被改（D3 明言不承诺抵御
+    有权限的并发替换）⇒ 该状态的外发形状由本批 schema 承载并被类型穷尽检查覆盖，
+    行为判据按层引用 replay `workspace-compare-api.test.ts`（R2.2 4.x），不写假诱发的用例。
+    ② 内容模式一次请求会**重复解析**两侧 trace（清单冻结 + 正文读取各一次，另加本层为来源段
+    读一次摘要）：共享层只在**单次调用内**缓存同 run 读取，跨调用没有公开句柄可复用
+    （注入 `readRecord` 需在 MCP 侧重写 fs-boundary + `readRun` 那段管道，属复制判据）⇒
+    保持不注入，成本如实记在这里，收口需给共享层加「一次读取两次用」的公开入口，另批定夺。
+  - **S03 形状达成但未整批通过**：七工具已全部登记且逐条有实现，「恰七工具 + 先摘要后正文」的
+    协议面闭合；`tools/list` 的真实客户端往返、64 KiB 实际预算（5.1）、游标续读（5.2）、
+    结构凭据过滤（4.8）与 WorkBuddy 实机代表任务（6.2）仍在后面。
+    **Q14 未整场景通过**：两侧状态与原文保真已闭合，端到端零写入字节复核与 Q15/Q16 归 5.4，
+    真实客户端对照归 6.2；**S10 未整场景通过**：「两侧不同长度诚实返回」与「不凭片段判相同」已钉，
+    `RESPONSE_LIMIT`（单项元数据装不下）与 64 KiB 预算归 5.1，两侧独立游标归 5.2。
 - [ ] 4.8（1.5h）字段白名单/结构凭据过滤/安全错误/信任说明。验收 S06/S11/S12；不承诺自由文本去密。
 
 ## 5. 有界结果与故障协议

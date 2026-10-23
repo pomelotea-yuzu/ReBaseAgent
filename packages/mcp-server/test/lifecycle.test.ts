@@ -137,6 +137,7 @@ describe("S01 合法数据根：无桌面也能初始化", () => {
         "compare_runs",
         "inspect_checkpoint",
         "read_checkpoint_file",
+        "compare_checkpoint_files",
       ]);
 
       // 未注册的名字必须拒（S04 的前半段），且不因拒绝而改变服务边界。

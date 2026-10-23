@@ -66,8 +66,13 @@ observedAt 为 UTC ISO；readVersion 是参与文件字节与参数摘要，不�
 > 判据是可达性而不是美观：trace-sdk 读取器对「v2/v3 已落盘的 `agent.step` 缺 `workspace_snapshot`」
 > 先判整份记录非法（`packages/trace-sdk/src/reader.ts:118-127`），而半途中断的 step 根本不落行，
 > 因此「step 定位得到、检查点却不存在」在只读路径上不成立；4.7 唯一可能挂靠的 `selection_changed`
-> （期望的那份快照不在了）按 D6 归 `STALE_CURSOR`——把它塞进本码就是把两种事实混成一条客户端分支。
+> （期望的那份快照不在了）也不是「检查点不存在」——把它塞进本码就是把两种事实混成一条客户端分支。
 > 留一条永不发出的码，代价是投影层要写空分支、指南要多解释一行，比删掉更大。
+>
+> **随 4.7 实现自正一处表述**：本修订初稿把 `selection_changed` 写成「按 D6 归 `STALE_CURSOR`」。
+> 实现核对后改判：它不是游标过期（本批还没有游标），而是「本次冻结的清单与当前记录不符」，
+> 与 `missing`/`corrupt` 同级 ⇒ 作为**逐侧数据状态**返回（另一侧仍给事实、整体结论 `unavailable`），
+> `STALE_CURSOR` 仍只由 5.2 的续读核验发出。留痕见 tasks 4.7 注记。
 > 同批定夺的另一条：分叉子自有 span 与父重名时，共享层详情自检抛裸 Error（真实写入器一律以
 > `spanSeqStart = maxSpanSeq(父)` 起号，产不出该数据）⇒ **维持「内部缺陷」定性**，不在 MCP 侧补
 > 业务码：按异常文案猜码撞 §五 红线，单独分类又与桌面对同一条 `GET_RUN_FAILED` 的粗分类分叉。

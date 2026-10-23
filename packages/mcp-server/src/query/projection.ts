@@ -1,16 +1,22 @@
 import { classifyOutcome } from "@rebaseagent/run-query";
 import type {
+  CompareSideFailureCode,
   OutcomeKind,
   RunDetail,
   RunQueryToolErrorCode,
   RunSummary,
   WorkspaceInspectFile,
   WorkspaceInspectResult,
-  WorkspaceLocateFailureCode,
 } from "@rebaseagent/run-query";
 import { z } from "zod";
 import type { ProvenanceRunInput } from "../envelope.js";
-import { boundedMessage } from "../error-projection.js";
+import {
+  type ProjectedToolError,
+  TOOL_ERROR_MESSAGES,
+  ToolErrorCodeSchema,
+  boundedMessage,
+  retryableOf,
+} from "../error-projection.js";
 import { LOGICAL_PATH_MAX, MESSAGE_MAX, PAGE_LIMIT_DEFAULT, RUN_ID_MAX } from "../limits.js";
 import type { RUN_STATUS_FILTERS } from "../tool-contracts.js";
 
@@ -249,7 +255,15 @@ export function compareSummaryOrder(
 // 干预段：get_run 与 compare_runs 共用（「同一件事在两处说法不同」是本包最容易漂的地方）
 // ---------------------------------------------------------------------------
 
-const SnapshotIdSchema = z.string().regex(/^[0-9a-f]{64}$/, "快照标识必须是 64 位小写十六进制");
+/**
+ * 64 位小写十六进制内容哈希：快照 id 与附件哈希是同一形状（一处正则，两个语义名）。
+ * envelope 里 snapshotId 的自检判据与此一致。
+ */
+export const ContentHashSchema = z
+  .string()
+  .regex(/^[0-9a-f]{64}$/, "内容哈希必须是 64 位小写十六进制");
+
+const SnapshotIdSchema = ContentHashSchema;
 
 export const InterventionSchema = z
   .object({
@@ -714,18 +728,20 @@ export function projectCheckpointHead(result: WorkspaceInspectResult): Checkpoin
 
 /**
  * 两种载体、一份映射：`inspectWorkspace` 的 `outcome.code` 是 `WORKSPACE_<大写码>`
- * （桌面 IPC 沿用，D2 不得改），`readWorkspaceFileForView` 的 `rejected.code` 是裸码。
+ * （桌面 IPC 沿用，D2 不得改），`readWorkspaceFileForView` 的 `rejected.code` 与
+ * 比较层的 `failure.code` 是裸码（比较层多一码 `identity_mismatch`）。
  * 先归一成裸码再查表——两处各写一份映射才是漂移的起点。
  */
-const CODE_BY_LOCATE: Readonly<Record<WorkspaceLocateFailureCode, RunQueryToolErrorCode>> = {
+const CODE_BY_LOCATE: Readonly<Record<CompareSideFailureCode, RunQueryToolErrorCode>> = {
   invalid_request: "INVALID_ARGUMENT",
   run_not_found: "RUN_NOT_FOUND",
   trace_invalid: "RUN_INVALID",
   no_workspace: "NO_WORKSPACE",
   step_not_found: "STEP_NOT_FOUND",
+  identity_mismatch: "IDENTITY_MISMATCH",
 };
 
-function isKnownLocateCode(code: string): code is WorkspaceLocateFailureCode {
+function isKnownLocateCode(code: string): code is CompareSideFailureCode {
   return Object.prototype.hasOwnProperty.call(CODE_BY_LOCATE, code);
 }
 
@@ -751,4 +767,61 @@ export function locateRefOf(input: {
   if (input.stepSpanId !== undefined) parts.push(`step:${input.stepSpanId}`);
   if (input.path !== undefined) parts.push(`path:${boundedMessage(input.path)}`);
   return parts.join("|");
+}
+
+// ---------------------------------------------------------------------------
+// 逐侧形状：compare_runs（4.5）与 compare_checkpoint_files（4.7）共用同一种说法
+// ---------------------------------------------------------------------------
+
+/** 左右恒定的两侧名；「这一侧不可读」因此才有确定含义（design D5） */
+export const SideNameSchema = z.enum(["left", "right"]);
+export type SideName = z.infer<typeof SideNameSchema>;
+
+/**
+ * 坏侧的公开形状：**保留真实身份 + 稳定码 + 码表文案**，另一侧照常（Q11）。
+ * 一格都不会因为另一格坏了而被省掉，也不把坏侧当"空运行"。
+ */
+export const UnavailableSideSchema = z
+  .object({
+    side: SideNameSchema,
+    status: z.literal("unavailable"),
+    /** 该侧真实身份（不伪空、不借另一侧顶替） */
+    runId: z.string().min(1).max(RUN_ID_MAX),
+    code: ToolErrorCodeSchema,
+    message: z.string().min(1).max(MESSAGE_MAX),
+    retryable: z.boolean(),
+  })
+  .strict();
+export type UnavailableSide = z.infer<typeof UnavailableSideSchema>;
+
+/** 由投影后的错误造坏侧格（文案取自码表，不取自异常文本） */
+export function unavailableSideOf(
+  side: SideName,
+  runId: string,
+  error: ProjectedToolError,
+): UnavailableSide {
+  return {
+    side,
+    status: "unavailable",
+    runId,
+    code: error.code,
+    message: boundedMessage(error.message),
+    retryable: error.retryable,
+  };
+}
+
+/** 稳定码 → 坏侧格（比较层逐侧的定位失败走这一条，与 `ToolFailure` 同一张码表） */
+export function unavailableSideOfCode(
+  side: SideName,
+  runId: string,
+  code: RunQueryToolErrorCode,
+): UnavailableSide {
+  return {
+    side,
+    status: "unavailable",
+    runId,
+    code,
+    message: boundedMessage(TOOL_ERROR_MESSAGES[code]),
+    retryable: retryableOf(code),
+  };
 }

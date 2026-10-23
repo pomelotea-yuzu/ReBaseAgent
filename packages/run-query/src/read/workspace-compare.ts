@@ -11,6 +11,8 @@ export type {
   ComparedWorkspaceFileResult,
   CompareFileReference,
   ComparePathEntry,
+  /** 比较侧失败码（= 定位码 + `identity_mismatch`）；外部投影按它做穷尽映射，不手抄清单 */
+  CompareSideFailureCode,
   CompareSideFailure,
   CompareSideIdentity,
   CompareSideResult,

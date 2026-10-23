@@ -158,12 +158,14 @@ const CompareCheckpointFilesArgs = z
   .object({
     left: z.object({ runId: runIdField(), stepSpanId: spanIdField().optional() }).strict(),
     right: z.object({ runId: runIdField(), stepSpanId: spanIdField().optional() }).strict(),
+    /** 省略 = 清单模式（分页路径并集 + 引用）；给出 = 内容模式（逐侧核验正文） */
     path: logicalPathField().optional(),
     cursor: cursorField().optional(),
     limit: pageLimitField().optional(),
     maxChars: maxCharsField().optional(),
   })
   .strict();
+export type CompareCheckpointFilesArgs = z.infer<typeof CompareCheckpointFilesArgs>;
 
 /** 发布顺序即 tools/list 的顺序（与 D5 表一致） */
 export const TOOL_CONTRACTS: readonly ToolContract[] = [

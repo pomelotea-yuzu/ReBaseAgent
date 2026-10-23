@@ -12,9 +12,8 @@ import {
 import type { OutputBlock, RunDetail, RunSummary } from "@rebaseagent/run-query";
 import { z } from "zod";
 import type { LimitationInput, ProvenanceRefInput, ProvenanceRunInput } from "../envelope.js";
-import { ToolErrorCodeSchema, projectThrowable } from "../error-projection.js";
+import { projectThrowable } from "../error-projection.js";
 import type { ProjectedToolError } from "../error-projection.js";
-import { MESSAGE_MAX } from "../limits.js";
 import type { ToolDefinition } from "../server.js";
 import type { DataRoot } from "../startup.js";
 import { type CompareRunsArgs, requireContract } from "../tool-contracts.js";
@@ -25,10 +24,14 @@ import {
   InterventionSchema,
   OwnConsumptionSchema,
   RunSummaryItemSchema,
+  type SideName,
+  SideNameSchema,
+  UnavailableSideSchema,
   outcomeTagOf,
   projectIntervention,
   projectRunSummary,
   provenanceRunsOf,
+  unavailableSideOf,
 } from "./projection.js";
 import { computeReadVersion } from "./read-version.js";
 
@@ -52,8 +55,10 @@ import { computeReadVersion } from "./read-version.js";
  * `get_step(section=...)`），并带一条 `BODY_NOT_EXPOSED` 说明边界。
  */
 
-const SideNameSchema = z.enum(["left", "right"]);
-type SideName = z.infer<typeof SideNameSchema>;
+/**
+ * 左右两侧的公开形状与「坏侧保留身份 + 稳定码」这一格的说法都在 `projection.ts`
+ * （4.7 的 `compare_checkpoint_files` 共用同一份，两种比较工具不会各说一套）。
+ */
 
 const OutputBlockSchema = z
   .object({
@@ -119,18 +124,6 @@ const ReadySideSchema = z
   })
   .strict();
 
-const UnavailableSideSchema = z
-  .object({
-    side: SideNameSchema,
-    status: z.literal("unavailable"),
-    /** 该侧真实身份保留（不伪空、不借另一侧顶替） */
-    runId: z.string().min(1),
-    code: ToolErrorCodeSchema,
-    message: z.string().min(1).max(MESSAGE_MAX),
-    retryable: z.boolean(),
-  })
-  .strict();
-
 const SideSchema = z.discriminatedUnion("status", [ReadySideSchema, UnavailableSideSchema]);
 
 const CompareRunsDataSchema = z
@@ -161,13 +154,14 @@ type ReadySide = {
   readonly detail: RunDetail;
   readonly chainSummaries: readonly RunSummary[];
 };
-type UnavailableSide = {
+/** 内部侧模型：读取失败的那一侧带着投影后的错误，出站前才换成 `UnavailableSideSchema` 的形状 */
+type ErroredSide = {
   readonly side: SideName;
   readonly status: "unavailable";
   readonly runId: string;
   readonly error: ProjectedToolError;
 };
-type Side = ReadySide | UnavailableSide;
+type Side = ReadySide | ErroredSide;
 
 /**
  * 单侧读取：`RunDetailReadError` 按结构投影成该侧的失败（稳定码 + 码表文案）；
@@ -263,14 +257,7 @@ export const compareRunsTool: ToolDefinition = defineTool(
 
     const payloadSides = sides.map((item): z.infer<typeof SideSchema> => {
       if (item.status === "unavailable") {
-        return {
-          side: item.side,
-          status: "unavailable",
-          runId: item.runId,
-          code: item.error.code,
-          message: item.error.message,
-          retryable: item.error.retryable,
-        };
+        return unavailableSideOf(item.side, item.runId, item.error);
       }
       const own = ownSummaryOf(item);
       const facts = deriveSideOutputFacts(item.detail);

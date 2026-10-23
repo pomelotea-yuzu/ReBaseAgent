@@ -150,37 +150,41 @@ export function dirFingerprintRecursive(dir: string): string {
   return lines.join("\n");
 }
 
-function publish(blobsDir: string, bytes: Uint8Array): string {
+export function publishBlob(blobsDir: string, bytes: Uint8Array): string {
   const sha256 = createHash("sha256").update(bytes).digest("hex");
   writeFileSync(join(blobsDir, sha256), bytes);
   return sha256;
 }
 
-function entry(path: string, sha256: string, bytes: number) {
+export function entry(path: string, sha256: string, bytes: number) {
   return { path, sha256, bytes };
 }
 
 /** 初始清单：文本 / 二进制 / 缺失 / 长度不符 / 哈希不符 + 20 条 filler（把总数抬过默认页宽） */
 function buildInitialSnapshot(blobsDir: string): ReturnType<typeof createWorkspaceSnapshot> {
   const files = [
-    entry("empty.txt", publish(blobsDir, Buffer.alloc(0)), 0),
+    entry("empty.txt", publishBlob(blobsDir, Buffer.alloc(0)), 0),
     // 只写清单、不发布附件 ⇒ missing
     entry("gone.txt", contentSha(FILE_TEXTS.gone), contentBytes(FILE_TEXTS.gone)),
-    entry("long.txt", publish(blobsDir, Buffer.from(LONG_BODY, "utf8")), contentBytes(LONG_BODY)),
+    entry(
+      "long.txt",
+      publishBlob(blobsDir, Buffer.from(LONG_BODY, "utf8")),
+      contentBytes(LONG_BODY),
+    ),
     entry(
       "noeol.txt",
-      publish(blobsDir, Buffer.from(FILE_TEXTS.noeol, "utf8")),
+      publishBlob(blobsDir, Buffer.from(FILE_TEXTS.noeol, "utf8")),
       contentBytes(FILE_TEXTS.noeol),
     ),
     entry(
       "notes/crlf.txt",
-      publish(blobsDir, Buffer.from(FILE_TEXTS.crlf, "utf8")),
+      publishBlob(blobsDir, Buffer.from(FILE_TEXTS.crlf, "utf8")),
       contentBytes(FILE_TEXTS.crlf),
     ),
-    entry("picture.bin", publish(blobsDir, BINARY_BYTES), BINARY_BYTES.byteLength),
+    entry("picture.bin", publishBlob(blobsDir, BINARY_BYTES), BINARY_BYTES.byteLength),
     entry(
       "same.txt",
-      publish(blobsDir, Buffer.from(FILE_TEXTS.same, "utf8")),
+      publishBlob(blobsDir, Buffer.from(FILE_TEXTS.same, "utf8")),
       contentBytes(FILE_TEXTS.same),
     ),
     // 清单记的哈希属于 AAAAAAAA，附件名下放的是等长的 BBBBBBBB ⇒ 长度对、哈希不符
@@ -198,7 +202,7 @@ function buildInitialSnapshot(blobsDir: string): ReturnType<typeof createWorkspa
     // 正文 canary 文件：只在显式请求时才允许出门
     entry(
       "secret.txt",
-      publish(blobsDir, Buffer.from(FILE_TEXTS.fileBodyCanary, "utf8")),
+      publishBlob(blobsDir, Buffer.from(FILE_TEXTS.fileBodyCanary, "utf8")),
       contentBytes(FILE_TEXTS.fileBodyCanary),
     ),
   ];
@@ -226,23 +230,27 @@ function buildFinalSnapshot(blobsDir: string): ReturnType<typeof createWorkspace
   return createWorkspaceSnapshot([
     entry(
       "added.txt",
-      publish(blobsDir, Buffer.from(FILE_TEXTS.added, "utf8")),
+      publishBlob(blobsDir, Buffer.from(FILE_TEXTS.added, "utf8")),
       contentBytes(FILE_TEXTS.added),
     ),
-    entry("long.txt", publish(blobsDir, Buffer.from(LONG_BODY, "utf8")), contentBytes(LONG_BODY)),
+    entry(
+      "long.txt",
+      publishBlob(blobsDir, Buffer.from(LONG_BODY, "utf8")),
+      contentBytes(LONG_BODY),
+    ),
     entry(
       "notes/crlf.txt",
-      publish(blobsDir, Buffer.from(FILE_TEXTS.crlf, "utf8")),
+      publishBlob(blobsDir, Buffer.from(FILE_TEXTS.crlf, "utf8")),
       contentBytes(FILE_TEXTS.crlf),
     ),
     entry(
       "noeol.txt",
-      publish(blobsDir, Buffer.from(FILE_TEXTS.modified, "utf8")),
+      publishBlob(blobsDir, Buffer.from(FILE_TEXTS.modified, "utf8")),
       contentBytes(FILE_TEXTS.modified),
     ),
     entry(
       "same.txt",
-      publish(blobsDir, Buffer.from(FILE_TEXTS.same, "utf8")),
+      publishBlob(blobsDir, Buffer.from(FILE_TEXTS.same, "utf8")),
       contentBytes(FILE_TEXTS.same),
     ),
   ]);
@@ -261,7 +269,7 @@ function buildChildFinalSnapshot(
     entry("added.txt", unchanged.sha256, unchanged.bytes),
     entry(
       "child-only.txt",
-      publish(blobsDir, Buffer.from(FILE_TEXTS.childOnly, "utf8")),
+      publishBlob(blobsDir, Buffer.from(FILE_TEXTS.childOnly, "utf8")),
       contentBytes(FILE_TEXTS.childOnly),
     ),
   ]);

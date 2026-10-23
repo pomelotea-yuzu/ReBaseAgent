@@ -352,6 +352,51 @@ Q 属于 run-query，S 属于 mcp-service，D 属于 desktop-ui；标题须与 d
   - ⚠️ readVersion 材料仍只含 `traces/*.jsonl` 台账 ⇒ **附件 blob 变化不进摘要**，
     续读的附件变化核验按 tasks 5.2 落地，本批不擅自扩材料口径。
 
+- 4.7：登记 `compare_checkpoint_files`（`READONLY_TOOLS` **七条齐**，顺序同 D5）。
+  - 新增 `src/query/compare-checkpoint-files.ts`；逐侧 `unavailable` 格上收到 `projection.ts`
+    （`SideNameSchema`/`UnavailableSideSchema`/`unavailableSideOf`/`unavailableSideOfCode`），
+    `compare-runs.ts` 改导入 ⇒ 两种比较工具对「这一侧不可读」说同一句话；
+    `ContentHashSchema` 导出（快照 id 与附件哈希共用同一条 64 位 hex 正则）。
+    run-query 一处 additive：`read/workspace-compare.ts` 增 type-only 出口 `CompareSideFailureCode`
+    （= 定位码 + `identity_mismatch`），映射表按它穷尽。
+  - 一次清单冻结、两种模式：清单模式发并集分页 + 逐侧引用；内容模式把**本次**冻结的两侧快照 id
+    作为 `expectedSnapshotIds` 交给 `readComparedWorkspaceFile`（桌面「清单/正文双代次守卫」的
+    同请求版本，不把旧清单与新正文拼接）。
+  - S10 核心：**引用 ≠ 内容**。清单 `reference:"same"` 只是哈希 + 字节数，带 `BODY_NOT_EXPOSED`；
+    结论一律取共享层完整附件核验。夹具专门造了**前 4096 码点完全相同、只差尾部**的一对文件 ⇒
+    两段外发正文一样而结论必须 `different`（变异 M1「按片段判相同」被这一条咬住）。
+  - 坏侧不吞好侧（清单模式两格恒在同序 + `unionComplete:false` + 空 entries 不代表文件不存在）；
+    缺任一侧不发半份结论（内容模式按该侧稳定码整条失败，与 `read_checkpoint_file` 同口径）；
+    同 run 两份检查点可比、同一份自比读前拒 `left/right`。
+  - 逐侧状态不合并：`text/binary/not_found/missing/corrupt/too_large/selection_changed` 原样保留
+    （`not_found` 无 `fullFile`）；`io` 改判 `unavailable{STORAGE_IO, retryable:true}` 且不透传
+    共享层 errno reason（可能含附件物理路径）。
+  - 🔴 自正一处 design 表述并两边留痕：D4 修订初稿写「`selection_changed` 按 D6 归 `STALE_CURSOR`」，
+    实现核对后改判为**逐侧数据状态**（不是游标过期），`design.md` 已就地自正。
+  - 夹具 `test/compare-file-fixtures.ts`（第三个独立数据目录）：`same`/`different`/`left_only`/
+    `right_only`/二进制/missing/corrupt/`too_large`（清单声明 8 MiB+1，不真占磁盘）/目录顶替/
+    正文 canary + 20 filler；另备 v1 非隔离、身份错配、缺失 run、未封存与跨运行分叉子。
+  - `test/compare-checkpoint-files.test.ts` **26 用例**；mcp-server 合计 **198 passed / 12 文件**（+26）。
+    4.1 的 `lifecycle.test.ts` 名称清单随批次由六条变七条。
+  - 门禁：src tsc 0 + 测试 tsconfig 0（抓到 4 处：模块级常量读 `beforeAll` 的夹具、union 上直取
+    分支字段 ×2、`not.toContain("")`——U+FFFD 字面量第三次被吞）、run-query **47/1 skip**、
+    desktop **216 文件/3301 用例**（singleFork）、7 包 build、desktop tsc 双 0、biome **73 文件 0**、
+    `check-spec` 13/0、strict valid、`git diff --check` 0；回查
+    `.workbuddy/mcp0-47/verify-47.cjs`（数字从 json 报告重算 + 三道反证）；
+    历史脚本放宽后复跑 45/43/41/63 项全对（`verify-46` 的注册表判据改前缀、「第七条未登记」
+    改判「七条已齐」、反证三换新形状 —— 同一坑第四次，两边留痕于 tasks 4.7 注记）。
+  - 变异验证 5 组全部咬住后当场还原并 grep 核对无残留：结论凭片段 ⇒ 1 红；忘发 `BODY_NOT_EXPOSED`
+    ⇒ 1 红；逐侧 `io` 透传 errno ⇒ 1 红；`identity_mismatch` 映射指错 ⇒ 1 红；左右两格写反 ⇒ 16 红。
+  - ⚠️ 两条如实保留：① `selection_changed` 在 MCP 侧无可达诱发路径（需同请求内被并发替换，
+    D3 明言不承诺）⇒ 形状由本批 schema + 类型穷尽承载，行为判据按层引用 R2.2 replay
+    `workspace-compare-api.test.ts`，不写假诱发用例；② 内容模式一次请求会重复解析两侧 trace
+    （清单冻结 + 正文读取 + 摘要各一次）：共享层只在单次调用内缓存，跨调用无公开复用句柄，
+    注入 `readRecord` 需在 MCP 重写 boundary+readRun 管道（= 复制判据）⇒ 不注入，成本如实记录。
+  - **S03 形状达成但未整批通过**（七工具已全登记；真实客户端往返归 6.2、预算归 5.1、游标归 5.2、
+    凭据过滤归 4.8）；**Q14/S10 未整场景通过**（两侧状态与原文保真、不凭片段判已闭合；
+    端到端字节指纹与 Q15/Q16 归 5.4、`RESPONSE_LIMIT` 归 5.1、两侧独立游标归 5.2、
+    真实客户端对照归 6.2）。
+
 ## 门禁与归档约束
 
 - 6.5 补实际命令、exit code、源码身份、包构建顺序和新依赖核验；不引用 R2.2 历史通过代替本次通过。
