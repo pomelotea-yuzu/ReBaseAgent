@@ -31,8 +31,8 @@ const TAG = (() => {
   const hit = process.argv.find((a) => a.startsWith("--tag="));
   return hit ? hit.slice(6) : "";
 })();
-if (TAG !== "chain" && TAG !== "narrow") {
-  console.error("用法：--tag=<chain|narrow>");
+if (TAG !== "chain" && TAG !== "narrow" && TAG !== "zoom200") {
+  console.error("用法：--tag=<chain|narrow|zoom200>");
   process.exit(2);
 }
 
@@ -43,8 +43,8 @@ mkdirSync(SHOTS, { recursive: true });
 
 const PARENT = "run_mvhmwr6f_ia6xbg";
 const CHILD = "run_mvhn8q64_c6ds";
-const CSS_TARGET = TAG === "narrow" ? 800 : 1207;
-const TIER = TAG === "narrow" ? "窄档CSS800" : "宽档CSS1207";
+const CSS_TARGET = TAG === "narrow" ? 800 : TAG === "zoom200" ? 600 : 1207;
+const TIER = TAG === "narrow" ? "窄档CSS800" : TAG === "zoom200" ? "200%缩放档" : "宽档CSS1207";
 
 /** 数据根「零写入」封闭白名单（5.4 教训：只写"条数没变"会被"加一个 lock"糊过去） */
 const WRITE_WHITELIST = [
@@ -182,14 +182,18 @@ async function stableClientWidth(timeoutMs = 6000) {
 }
 
 async function resizeToCss(target, outerHeight) {
-  let w = target + 11;
+  // 反解只在 100% 档线性收敛；zoom 档 CSS=外层/2，读回值一旦很小就会把 w 放大到爆
+  //（本轮实测：目标 760 反解到 outer 197376、CSS 380）⇒ 每轮钳制 w 的取值范围。
+  const lo = Math.max(320, Math.round(target * 0.6));
+  const hi = Math.round(target * 2.4);
+  let w = Math.min(hi, target + 11);
   for (let round = 0; round < 8; round++) {
     await E(`(() => { window.resizeTo(${w}, ${outerHeight}); return true; })()`);
     await H.sleep(700);
     const cw = await stableClientWidth();
     if (typeof cw === "number" && Math.abs(cw - target) <= 2) return { css: cw, outer: w, settled: true };
     if (typeof cw !== "number" || cw <= 0) break;
-    w = Math.round(target * (w / cw));
+    w = Math.max(lo, Math.min(hi, Math.round(target * (w / cw))));
   }
   return { css: await stableClientWidth(), outer: w, settled: false };
 }
@@ -472,14 +476,24 @@ async function main() {
   must(`${TIER}：reload 后应用重新就绪（root 有内容且 store 可导入）`, alive2.ok, alive2.value);
 
   // 1) 真实改窗（映射表只是近似 ⇒ 判据只认实测 CSS 宽度回读）
-  const resized = await resizeToCss(CSS_TARGET, TAG === "narrow" ? 950 : 880);
+  const resized = await resizeToCss(CSS_TARGET, TAG === "narrow" ? 950 : TAG === "zoom200" ? 1000 : 880);
   const geo = await geometry();
   dump.viewport = geo;
-  must(
-    `${TIER}：实测视口收敛到目标档（±2px 且不骑 959/960 断点线）`,
-    resized.settled === true && Math.abs(resized.css - CSS_TARGET) <= 2 && ![959, 960].includes(geo.clientWidth),
-    { resized, clientWidth: geo.clientWidth }
-  );
+  if (TAG === "zoom200") {
+    // 真 zoom 的判据是 DPR（zoom2 ⇒ DPR≈4.2 = 基线 2.1×2）；CSS 宽度如实记录不打 ±2px
+    //（本机 zoom2 的外框→CSS 通道与 100% 档不同一套反解，refine-55/u5-68 已定版此口径）
+    check(
+      `${TIER}：真 zoom 生效（devicePixelRatio > 3.5）且视口可读`,
+      geo.dpr > 3.5 && typeof geo.clientWidth === "number" && geo.clientWidth >= 500,
+      { dpr: geo.dpr, clientWidth: geo.clientWidth, outer: `${geo.outerWidth}x${geo.outerHeight}`, resized }
+    );
+  } else {
+    must(
+      `${TIER}：实测视口收敛到目标档（±2px 且不骑 959/960 断点线）`,
+      resized.settled === true && Math.abs(resized.css - CSS_TARGET) <= 2 && ![959, 960].includes(geo.clientWidth),
+      { resized, clientWidth: geo.clientWidth }
+    );
+  }
   check(`${TIER}：页面无横向溢出`, geo.overflowX <= 1, geo);
 
   const versions = {};
@@ -531,10 +545,28 @@ async function main() {
   check(`${TIER}：store 导航/执行记录器已挂上`, true);
 
   // 3) 列表 → 详情（真点击运行行）
-  const clickedChild = await clickRunRow(CHILD);
+  //    窄/缩放档左列运行列表可能被导航收起 ⇒ 先经常驻入口打开再点，不静默改用 store 直调
+  let clickedChild = await clickRunRow(CHILD);
+  const openTries = [];
+  for (let i = 0; i < 3 && clickedChild.clicked !== true; i++) {
+    const opened = await J(
+      `(() => {
+         const t = document.querySelector("#run-navigation-toggle") ||
+           Array.from(document.querySelectorAll("button")).find(b => (b.textContent || "").trim() === "运行记录");
+         if (!t) return JSON.stringify({ clicked: false });
+         t.click();
+         return JSON.stringify({ clicked: true, kind: t.id || "globalbar-运行记录" });
+       })()`
+    );
+    openTries.push(opened);
+    await H.sleep(700);
+    clickedChild = await clickRunRow(CHILD);
+  }
+  if (openTries.length > 0) note(`${TIER}：运行列表初始收起，经常驻导航入口打开后再点（真实用户路径）`, openTries);
   const landed = await poll(snapshot, (v) => v.selectedRunId === CHILD && v.detailId === CHILD && v.loadingDetail === false, 25000, 200);
   must(`${TIER}：列表→详情真点击后选中并读出详情（view=trace）`, landed.ok && landed.value.view === "trace", {
     click: clickedChild,
+    openTries,
     snap: landed.value,
   });
 
@@ -544,16 +576,27 @@ async function main() {
 
   // 4a) 先在步骤目录里真点击选中一个 span：阅读位置必须钉在**同一个 span 的正文**上
   //     （正文高度随所选 span 变——先滚后选会把"换了内容的短正文"读成"阅读位置丢了"）
-  const pickStep = await J(
-    `(() => {
-       const rows = Array.from(document.querySelectorAll('#steps-navigation button'))
-         .filter(b => !b.getAttribute("aria-label") && (b.textContent || "").includes("步骤"));
-       if (rows.length === 0) return JSON.stringify({ clicked: false, texts: Array.from(document.querySelectorAll('#steps-navigation button')).map(b => (b.textContent || "").replace(/\\s+/g, " ").trim().slice(0, 20)).slice(0, 12) });
-       const target = rows[rows.length - 1];
-       target.click();
-       return JSON.stringify({ clicked: true, text: (target.textContent || "").replace(/\\s+/g, " ").trim().slice(0, 30) });
-     })()`
-  );
+  //     窄/缩放档步骤目录默认收起 ⇒ 走常驻入口「重新打开步骤目录」再点（真实用户路径）
+  const stepRowClick = () =>
+    J(
+      `(() => {
+         const rows = Array.from(document.querySelectorAll('#steps-navigation button'))
+           .filter(b => !b.getAttribute("aria-label") && (b.textContent || "").includes("步骤"));
+         if (rows.length === 0) return JSON.stringify({ clicked: false, texts: Array.from(document.querySelectorAll('#steps-navigation button')).map(b => (b.textContent || "").replace(/\\s+/g, " ").trim().slice(0, 20)).slice(0, 12) });
+         const target = rows[rows.length - 1];
+         target.click();
+         return JSON.stringify({ clicked: true, text: (target.textContent || "").replace(/\\s+/g, " ").trim().slice(0, 30) });
+       })()`
+    );
+  let pickStep = await stepRowClick();
+  const openStepTries = [];
+  for (let i = 0; i < 2 && pickStep.clicked !== true; i++) {
+    const opened = await clickSel("[data-open-steps]");
+    openStepTries.push(opened);
+    await H.sleep(600);
+    pickStep = await stepRowClick();
+  }
+  if (openStepTries.length > 0) note(`${TIER}：步骤目录初始收起，经「重新打开步骤目录」入口打开后再点`, openStepTries);
   const stepSpanSnap = await poll(snapshot, (v) => typeof v.selectedSpanId === "string" && EXPECT.child.includes(v.selectedSpanId), 12000);
   check(
     `${TIER}：步骤目录里真点击后选中的是该 run 自有步骤`,
