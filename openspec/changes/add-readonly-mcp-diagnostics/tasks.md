@@ -1,6 +1,6 @@
 # MCP0 / MCP1 实施任务
 
-状态（2026-10-23）：**阶段 1、2（2.1–2.9）、3（3.1–3.2）、4.1–4.8、5.1–5.2 已完成；5.3 起未实施**。
+状态（2026-10-23）：**阶段 1、2（2.1–2.9）、3（3.1–3.2）、4.1–4.8、5.1–5.3 已完成；5.4 起未实施**。
 每项预计不超过 2h；发现超过时先拆分任务。验收对应见 [evidence-index.md](evidence-index.md)；测试、客户端实机、人工接入和发行分别记录，不以文档校验替代功能通过。
 
 ## 1. MCP0：先验证支持路径
@@ -439,7 +439,52 @@
     忽略附件台账 ⇒ 4 红；全部当场还原并 grep 无残留）。
   - **S07/S08/S09/S10 包层/协议通过**：稳定数据逐页/逐段可重建、来源/附件变化与重启 STALE、
     篡改/异参 INVALID、两侧独立续读；真实客户端与 Electron 分别归 6.2/6.1，真实 stdio 重启复验归 5.3。
-- [ ] 5.3（1.5h）真实 stdio 子进程协议测试：协商/tools/schema/错误、取消、EOF、重连。验收 S01/S04/S13/S14。
+- [x] 5.3（1.5h）真实 stdio 子进程协议测试：协商/tools/schema/错误、取消、EOF、重连。验收 S01/S04/S13/S14。
+  - 2026-10-23：**先探针后写判据**。`.workbuddy/mcp0-53/probe-frames.cjs` 与 `probe-cancel2.cjs`
+    把 SDK 1.32.1 的线务行为实测钉住（三场景 ×6 轮稳定），再据此写断言；SDK 行为常量在测试里
+    写成字面量并注版本号，升级 SDK 会翻红 ⇒ 强制复审，不静默跟随。
+  - **源码只动一处**：`src/server.ts` 接上 SDK 的 `extra.signal`。取消落在读取起跑前 ⇒ 记
+    `tool_cancelled` 且**不起跑读取**，返回的 `cancelledPlaceholder` 由 SDK 丢弃（实测被取消的 id
+    在 stdout 上零字节）。SDK 把 cancelled 通知排在请求 handler **之前**一个微任务（请求侧多一层
+    `.then`），所以这条分支可达；本包读取全同步 ⇒ **不存在"读到一半被中断"的第三态**，如实写进边界。
+  - 新增三件测试件：`test/stdio-harness.ts`（裸 JSON-RPC 线务器：一批帧同一次 write 交出、
+    帧与诊断分流、退出时把残段记账、所有等待有上限）、`test/stdio-fixtures.ts`（**第 7 个独立
+    夹具目录**：24 条列表 run（> 默认页宽 20 才发得出游标）+ 9,002 码点大正文 + v2 工作区与附件
+    blob + 未封存 run + 第二个对照数据根 + 重启后新增的 run）、以及两个测试文件
+    `stdio-protocol.test.ts` **11** 与 `stdio-lifecycle.test.ts` **9**。
+  - 协商面（S01）：支持版本 `2024-11-05`/`2025-03-26`/`2025-06-18` 原样回显，不支持的版本落
+    `2025-11-25`；能力恰 `{tools:{}}`；`serverInfo` 与 `instructions` 逐字到达对端
+    （= `TRUST_INSTRUCTIONS`）；官方 SDK Client + StdioClientTransport 在**无桌面**下握手通过。
+  - tools/schema 面：`tools/list` 的 name/description/inputSchema/annotations 与契约**逐字相同**，
+    发布形状带着 `additionalProperties:false` 与 limit 100 / maxChars 8192 / runId 200 /
+    spanId 128 / cursor 512 上限，且不含 `$ref`；七个工具在无桌面的子进程里全部调通，
+    `provenance.runs` 只指向本根，stdout 不含第二个根的 id，也不含数据根物理路径。
+  - 协议拒绝面（S04/S06）：未知字段 `dataDir`/`handler` ⇒ `INVALID_ARGUMENT`，被拒字段名与取值
+    都不回显；超限参数（limit 0/101、maxChars 8193、runId 201 字符）在读取前拒；
+    重跑/写入类工具名一律"未知工具"拒绝且**不改服务范围**；`prompts/list`、`resources/list`、
+    `completion/complete`、`logging/setLevel` 得 `-32601`，`ping` 有应答；非 JSON 行与缺 `method`
+    的帧 ⇒ 不回任何帧、stderr 恰两条 `protocol_error`、会话继续；缺 `params.name` 的结构性违规
+    由 SDK 兜成 `-32603`（不进我们的信封，属协议域，如实记录）。
+  - 生命周期（S13/S14）：大正文请求写出后立刻 EOF ⇒ 退出码 0、stdout 每帧完整（约 30 KB）、
+    帧数固定不追加；半帧后 EOF ⇒ 不报错不落帧；**真实重启**后列表游标与正文游标都落
+    `STALE_CURSOR`（`ref:"cursor"`、`retryable:true`），新会话逐页翻完与单页 `limit:100`
+    的完整集合逐项相同；同会话内新增 run ⇒ 旧游标 STALE、随后首页头名换成新 run（Q02 线务面）；
+    迟到取消（响应已外发）与未知/重复 `requestId` 的取消被容忍，不追加帧、不重发、会话继续。
+  - 测试：mcp-server **289 passed / 20 文件**（+20）。`stdio-lifecycle` 连跑 **5 轮 9/9 全绿**
+    ⇒ 取消判据不吃时序。门禁：src tsc 0、测试 tsconfig 0、run-query **47 passed/1 skip**、
+    desktop **216 文件/3301 用例**、7 包 build、desktop tsc 双 0、biome scoped **0**（92 文件）、
+    `check-spec` 13/0、strict valid、`git diff --check` 0；命令与 exit code ⇒
+    `.workbuddy/mcp0-53/gates/gates-53.txt`。
+  - 变异 4 组（每组配套重建 dist，否则真子进程读旧 dist 就是假绿）：删取消起跑前分支 ⇒ **2 红**；
+    未知工具出口改成"已受理" ⇒ **1 红**；发布形状去掉 strict ⇒ **2 红**（stdio-protocol + contracts）；
+    诊断写进 stdout ⇒ **15 红**（stdio-lifecycle + 4.1 lifecycle）。全部当场还原并 grep 无残留。
+  - **场景口径**：S01 通过（真实子进程 + 真实客户端握手 + 只访问该根 + 空 traces 出空列表）；
+    S04 通过（线务拒绝 + 数据根文件集合逐字不变）；S13 通过（EOF 释放 + 重启旧游标不复用 +
+    新会话重新读盘）。**S14 只闭合取消半边**——完整的前后 SHA-256 字节指纹与零执行计数归 5.4，
+    整场景未通过，不提前宣称。
+  - 未验证/失真清单：Windows 无法向 Node 子进程投递 POSIX 信号 ⇒ `SIGINT`/`SIGTERM` 的
+    `signal_shutdown` 出口**未做实机复验**（代码路径在，判据无）；低层 `Server` 不强制
+    "initialize 只一次"（实测第二条 initialize 仍被应答）——本 change 不承诺它，故只记录不修。
 - [ ] 5.4（1.5h）完整 fixture 查询前后文件集合/字节指纹与零执行计数，覆盖源目录变化及故障。验收 Q15/Q16、S14。
 
 ## 6. 实机、指南与收口

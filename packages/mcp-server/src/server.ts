@@ -18,6 +18,8 @@ import type { DataRoot } from "./startup.js";
  * - **stdout 只走 SDK 的协议通道**：日志一律走 `DiagnosticLog`（stderr）。
  * - **异常不外泄**：工具内部抛错只回受控文案 + stderr 一条事件名，不透传堆栈
  *   也不透传原始参数（S06 的前提）。
+ * - **取消只停查询本身**（D8/S14）：被取消的请求其响应不再外发，stderr 记一条
+ *   `tool_cancelled` 审计行；本层没有也不打算有"停止执行"的入口（只读服务无执行体）。
  * - **EOF 即释放**：客户端关闭 stdin 后 `serve()` 落定，进程退出；不后台续发任务。
  */
 
@@ -104,24 +106,44 @@ export function createQueryServer(
     };
   });
 
-  server.setRequestHandler(CallToolRequestSchema, async (request): Promise<CallToolResult> => {
-    const name = request.params.name;
-    const tool = byName.get(name);
-    if (tool === undefined) {
-      // 未知工具：拒绝并如实报错，不改服务边界（S04）
-      log.event("tool_unknown", { name: boundedName(name) });
-      return errorContent(`未知工具：${boundedName(name)}（本服务只发布只读诊断工具）`);
-    }
-    const args = request.params.arguments ?? {};
-    log.event("tool_call", { name });
-    try {
-      return await tool.execute(args, root);
-    } catch (e) {
-      // 内部异常只留事件名：堆栈与原始参数都不外泄
-      log.event("tool_internal_error", { name, error: e instanceof Error ? e.name : "unknown" });
-      return errorContent(`工具 ${name} 本次未完成`);
-    }
-  });
+  server.setRequestHandler(
+    CallToolRequestSchema,
+    async (request, extra): Promise<CallToolResult> => {
+      const name = request.params.name;
+      const tool = byName.get(name);
+      if (tool === undefined) {
+        // 未知工具：拒绝并如实报错，不改服务边界（S04）
+        log.event("tool_unknown", { name: boundedName(name) });
+        return errorContent(`未知工具：${boundedName(name)}（本服务只发布只读诊断工具）`);
+      }
+      /**
+       * 取消（design D8/S14）的实测口径（`.workbuddy/mcp0-53/probe-cancel.cjs` 连跑 6/6 稳定）：
+       * SDK 把 `notifications/cancelled` 的分发排在**本请求 handler 之前一个微任务**
+       * （请求侧多一层 `.then`），所以同批到达的取消**一定**先看到 `signal.aborted`：
+       * - **不起跑读取**："只终止该查询的后续工作"在这里是可核对的——stderr 有
+       *   `tool_cancelled` 而没有对应的 `tool_call`；
+       * - **响应不外发**：SDK 在 `signal.aborted` 时丢弃这份结果（实测被取消的 id
+       *   一个字节都没回到 stdout），所以 `cancelledPlaceholder` 只是类型占位。
+       * 本包的读取路径全同步，因此不存在"读到一半被中断"的第三态：取消要么落在起跑前
+       * （走这条分支），要么落在响应已外发之后（SDK 的控制器已注销，迟到取消被容忍、不重发）。
+       * 除这两条之外不引入任何"执行取消"概念：只读服务没有执行体，把取消包装成执行控制
+       * 反而是在扩大服务范围。
+       */
+      if (extra.signal.aborted) {
+        log.event("tool_cancelled", { name, request_id: boundedRequestId(extra.requestId) });
+        return cancelledPlaceholder(name);
+      }
+      const args = request.params.arguments ?? {};
+      log.event("tool_call", { name });
+      try {
+        return await tool.execute(args, root);
+      } catch (e) {
+        // 内部异常只留事件名：堆栈与原始参数都不外泄
+        log.event("tool_internal_error", { name, error: e instanceof Error ? e.name : "unknown" });
+        return errorContent(`工具 ${name} 本次未完成`);
+      }
+    },
+  );
 
   server.oninitialized = () => {
     log.event("initialized", { tools: tools.length });
@@ -166,6 +188,23 @@ export function createQueryServer(
 
 function errorContent(text: string): CallToolResult {
   return { content: [{ type: "text", text }], isError: true };
+}
+
+/**
+ * 取消后的占位结果：SDK 在 `signal.aborted` 时不会把它外发（见 handler 上方注释），
+ * 存在只为满足 handler 的返回类型——不是给客户端的答复，也不参与预算与信封。
+ */
+function cancelledPlaceholder(name: string): CallToolResult {
+  return {
+    content: [{ type: "text", text: `工具 ${boundedName(name)} 的本次查询已取消` }],
+    isError: true,
+  };
+}
+
+/** 诊断行只带标量：请求 id 可能是字符串，先压成有界文本再入账 */
+function boundedRequestId(value: unknown): string | number {
+  if (typeof value === "number") return value;
+  return boundedName(String(value));
 }
 
 function boundedName(value: string): string {
