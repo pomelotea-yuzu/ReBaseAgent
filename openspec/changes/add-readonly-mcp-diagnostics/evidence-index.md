@@ -397,6 +397,45 @@ Q 属于 run-query，S 属于 mcp-service，D 属于 desktop-ui；标题须与 d
     端到端字节指纹与 Q15/Q16 归 5.4、`RESPONSE_LIMIT` 归 5.1、两侧独立游标归 5.2、
     真实客户端对照归 6.2）。
 
+- 4.8：结构正文凭据过滤、安全错误与信任说明（`REDACTED` 首次有承载点）。
+  - 新增 `src/query/redaction.ts`：`REDACTED_MARKER="[REDACTED]"`、归一字段封闭清单
+    （小写去 `-` `_` 空白）、递归整值替换、绝对 URL 只换 userinfo、`Object.fromEntries` 落键防原型污染。
+    `get-step.ts` 在**规范 JSON 之前**过滤并给 `REDACTED` limitation
+    （`span:<owner>:<spanId>/section:<name>`，文案含替换处数）⇒ `range`/`total` 描述过滤后的外发文本。
+    **刻意不解析**自由文本、`function.arguments`（JSON 编码在字符串里）与历史文件原文；文件仍由
+    4.6 的 `fullFile.bytes/sha256`（完整历史文件）与 `range`（外发片段）两分。
+  - `server.ts` 新增 `TRUST_INSTRUCTIONS` 并随 initialize 下发：只读/数据根固定/历史正文不可信/
+    已知凭据过滤有限/客户端外发与计费边界；6.3 复用。
+  - `test/exposure-fixtures.ts`（第四个独立数据目录）：真实 `JsonlTracer` 写入的凭据 canary
+    （Authorization / X-Api-Key / api_key / access_token / password / 端点 userinfo）分布在
+    消息附加字段、params、工具 args/result；同时放入**不应被改写**的自由文本凭据样式、
+    `function.arguments` JSON 字符串与注入 prompt。
+  - `test/redaction.test.ts` **14**：归一命中的十三种写法 / 非凭据键不误伤 / 嵌套数组 / 不改入参 /
+    URL userinfo / `__proto__` / 自由文本与 JSON 字符串边界；`get_step` 请求正文与工具 args/result
+    的逐项替换、limitation ref 与文案、过滤后范围。判据钉住 `"api_key":"[REDACTED]"` 与三个替换处数。
+  - `test/trust.test.ts` **6**：`getInstructions() === TRUST_INSTRUCTIONS` 且十条边界短语在场；
+    能力仍只有 `tools`；注入 prompt 作为数据返回且凭据仍被过滤；`write_file` 拒绝且数据目录
+    **递归逐字节不变**；`../outside` 在读前拒且不回显；`list_runs` 前后 `data` 深度相等。
+  - `test/safe-errors.test.ts` **7**：六工具非法标识 + `list_runs` 游标 ⇒ `INVALID_ARGUMENT`/字段 ref/
+    不回显取值；未知字段不回显 `dataDir`；v9 ⇒ `RUN_INVALID` 且不透传读取器原文；
+    缺 run ⇒ `RUN_NOT_FOUND`（比较工具逐侧 unavailable，内容模式整条失败）；
+    附件目录替身 ⇒ `STORAGE_IO` + `retryable:true` 且无 errno/物理路径。
+  - 门禁：mcp-server **225 passed / 15 文件**（+27）、src tsc 0、测试 tsconfig 0、
+    run-query **47 passed/1 skip**、desktop **216 文件/3301 用例**、7 包 build、desktop tsc 双 0、
+    biome scoped **0**、`check-spec` 13/0、strict valid、`git diff --check` 0；
+    命令与 exit code ⇒ `.workbuddy/mcp0-48/gates/gates-48.txt`；回查 `.workbuddy/mcp0-48/verify-48.cjs`
+    **48 项全对 + `--self-test` 三道反证咬住**（只钉本批事实 + 尾项 6.6）。
+  - 变异验证（施加 → 定向跑 → 反向还原 → grep 无残留）：字段归一失效 ⇒ 8 红、只发标记不发
+    limitation ⇒ 5 红、JSON 字符串被解析 ⇒ 2 红、URL userinfo 不替换 ⇒ 2 红；还原后 225/225 绿。
+  - **S11 通过（包层/协议）**：已知结构凭据不外发、过滤标记在场、`fullFile`/`range` 两分沿用 4.6。
+    **S06 通过（包层/协议）**：非法标识 / 不支持版本 / 真实存储故障三类都得到稳定码、定位与重试属性，
+    无原始参数/物理路径/堆栈。**S12 仅协议与行为半边通过**：`instructions` 与「历史指令不扩权」已钉，
+    接入指南文本与真实客户端代表任务分别归 6.3/6.2，不提前宣称整场景验收。
+  - ⚠️ 如实保留：① `UNSUPPORTED_TRACE_VERSION` 仍在封闭码表中但本批**可达不到**——读取器对
+    「版本 > 支持上限」只抛文本型 `TraceReadError`，D4 明言无法可靠细分时落 `RUN_INVALID`、
+    不按错误文字猜码；要让该码可达须改读取器/桌面分类，另批定夺。② URL 的 query/fragment 中
+    凭据不做参数级解析（属于字符串内容的通用解析）；自由文本/JSON 字符串/文件原文不在过滤承诺内。
+
 ## 门禁与归档约束
 
 - 6.5 补实际命令、exit code、源码身份、包构建顺序和新依赖核验；不引用 R2.2 历史通过代替本次通过。

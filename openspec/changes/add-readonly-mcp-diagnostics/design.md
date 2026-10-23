@@ -123,6 +123,13 @@ compare_runs 不默认完整最终文本，过长干预/输出给可用 get_step
 
 元数据白名单，不读/输出 SettingsStore、代理 key、Authorization/api-key headers、端点 userinfo/query/fragment、物理存储路径。步骤的结构正文中，已知凭据字段替换为标记并给 redacted limitation；历史文件原文不做通用解析/重写，以保留字节和换行语义。自由文本和文件仍可能有秘密/指令，不能保证脱敏。配置前说明客户端可能外发/自行计费；历史正文作为不可信记录，不可改变数据根/工具/过滤规则。
 
+**4.8 落地口径（实现细节，不新增 requirement）**：
+- **作用面只有 `get_step` 的结构正文**（`section=input/output/error` 的规范 JSON）。过滤发生在**规范 JSON 之前**，因此 `range`/`total` 描述过滤后的外发文本；每个被过滤的 section 发**一条** `REDACTED` limitation（ref=`span:<owner>:<spanId>/section:<name>`，文案含替换处数）。
+- **字段名封闭清单**（归一 = 小写并去掉 `-` `_` 与空白）：`authorization`、`proxyauthorization`、`apikey`、`xapikey`、`accesstoken`、`refreshtoken`、`idtoken`、`authtoken`、`token`、`password`、`passwd`、`secret`、`clientsecret`、`credential`、`credentials`、`privatekey`、`cookie`、`setcookie`。命中键的**整值**替换为 `[REDACTED]`；`max_tokens`/`tokens`/`author` 等不误伤。新增名字必须先改本节与 `redaction.ts`。
+- **端点凭据**：整串是绝对 URL 且 authority 含 userinfo 时，只把 userinfo 换成 `[REDACTED]`、保留 scheme/host/path；不解析 URL 的 query/fragment（那属于字符串内容的通用解析）。
+- **刻意不解析/不改写**：自由文本（消息正文、回复正文）、`function.arguments` 这类「JSON 编码在字符串里」的值、以及**历史文件原文**。这些位置仍可能含秘密，由信任说明与接入指南写明；文件仍只给 `fullFile.bytes/sha256`（描述完整历史文件）与 `range`（描述外发片段）两件分开的事实。
+- **信任说明**：服务在 initialize 的 `instructions` 中固定声明只读、数据根固定、历史正文不可信（不改变工具范围/数据根/过滤规则）、已知凭据过滤不等于彻底脱敏、客户端外发与计费边界。接入指南（6.3）复用同一口径，不另写一套。
+
 有过滤时原历史文件 hash 与外发片段分开。只发布七个工具，不提供 prompts/resources/templates 旁路；annotations 为 readOnlyHint=true/destructiveHint=false/idempotentHint=true/openWorldHint=false，但只读由代码/测试保证。
 
 ### D8. 生命周期与验收

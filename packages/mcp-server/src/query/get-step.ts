@@ -21,6 +21,7 @@ import {
   provenanceRunsOf,
 } from "./projection.js";
 import { computeReadVersion } from "./read-version.js";
+import { REDACTED_MARKER, redactStructuredValue } from "./redaction.js";
 
 /**
  * `get_step`（design D5 第三行；S03「先摘要后正文」的正文那一跳，Q09/Q10）。
@@ -35,6 +36,10 @@ import { computeReadVersion } from "./read-version.js";
  * 正文一律先规范 JSON（键序稳定，分段续读才拼得回原文），再按 **Unicode 码点**切片：
  * 代理对不会被切成半个字符。「空串 / null / 未记录」三者可分辨：`tool.invoke.error=null`
  * 与 `llm.call.error` 缺省都是**未记录**，录成空串就照空串发出去。
+ *
+ * 规范 JSON **之前**先过滤已知结构凭据（D7/S11）：命中字段替换为 `[REDACTED]` 并发
+ * `REDACTED` limitation；范围/总码点因此描述的是过滤后的外发文本。自由文本、
+ * JSON 字符串与检查点文件原文不在这里解析或重写。
  */
 
 const SectionNameSchema = z.enum(STEP_SECTIONS);
@@ -208,7 +213,8 @@ export const getStepTool: ToolDefinition = defineTool(
       if (value === undefined) {
         body = { recorded: false };
       } else {
-        const sliced = sliceBody(canonicalJson(value), args.maxChars);
+        const redacted = redactStructuredValue(value);
+        const sliced = sliceBody(canonicalJson(redacted.value), args.maxChars);
         body = {
           recorded: true,
           encoding: "canonical-json",
@@ -217,6 +223,13 @@ export const getStepTool: ToolDefinition = defineTool(
           truncated: sliced.truncated,
           remaining: sliced.remaining,
         };
+        if (redacted.redactedFields > 0) {
+          limitations.push({
+            code: "REDACTED",
+            ref: `span:${lookup.ownerRunId}:${args.spanId}/section:${args.section}`,
+            message: `已把 ${redacted.redactedFields} 处已知凭据（字段或端点 userinfo）替换为 ${REDACTED_MARKER}；自由文本与检查点文件原文仍可能含秘密`,
+          });
+        }
       }
     }
 

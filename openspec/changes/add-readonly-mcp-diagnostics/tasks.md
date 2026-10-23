@@ -1,6 +1,6 @@
 # MCP0 / MCP1 实施任务
 
-状态（2026-10-23）：**阶段 1、2（2.1–2.9）、3（3.1–3.2）与 4.1–4.7 已完成；4.8 起未实施**。
+状态（2026-10-23）：**阶段 1、2（2.1–2.9）、3（3.1–3.2）与 4.1–4.8 已完成；5.1 起未实施**。
 每项预计不超过 2h；发现超过时先拆分任务。验收对应见 [evidence-index.md](evidence-index.md)；测试、客户端实机、人工接入和发行分别记录，不以文档校验替代功能通过。
 
 ## 1. MCP0：先验证支持路径
@@ -347,7 +347,37 @@
     **Q14 未整场景通过**：两侧状态与原文保真已闭合，端到端零写入字节复核与 Q15/Q16 归 5.4，
     真实客户端对照归 6.2；**S10 未整场景通过**：「两侧不同长度诚实返回」与「不凭片段判相同」已钉，
     `RESPONSE_LIMIT`（单项元数据装不下）与 64 KiB 预算归 5.1，两侧独立游标归 5.2。
-- [ ] 4.8（1.5h）字段白名单/结构凭据过滤/安全错误/信任说明。验收 S06/S11/S12；不承诺自由文本去密。
+- [x] 4.8（1.5h）字段白名单/结构凭据过滤/安全错误/信任说明。验收 S06/S11/S12；不承诺自由文本去密。
+  - 2026-10-23：新增 `src/query/redaction.ts`（`REDACTED_MARKER`、归一字段清单、`redactStructuredValue`）。
+    **只作用于 `get_step` 的 `section` 结构正文，且在规范 JSON 之前**：命中键整值替换为 `[REDACTED]`，
+    整串绝对 URL 只换 userinfo；每个发生过滤的 section 发一条 `REDACTED` limitation
+    （`ref=span:<owner>:<spanId>/section:<name>`，文案含替换处数）。`range`/`total` 因此描述过滤后的
+    外发文本；正文 schema 未新增字段（客户端形状不变）。**刻意不解析**自由文本、`function.arguments`
+    这类 JSON 字符串与历史文件原文（D7）——文件仍走 4.6 的 `fullFile.bytes/sha256`（完整历史文件）与
+    `range`（外发片段）两件分开的事实。
+  - `server.ts` 新增 `TRUST_INSTRUCTIONS` 并随 initialize 下发：只读/数据根固定/历史正文不可信/
+    已知凭据过滤有限/客户端外发与计费边界；6.3 的接入指南复用同一口径，不另写一套。
+  - **4.8 的三条口径**：① 字段清单**封闭且归一**（小写去 `-` `_` 空白）：`authorization`/
+    `proxy-authorization`/`api-key`/`x-api-key`/`access-token`/`refresh-token`/`id-token`/`token`/
+    `password`/`passwd`/`secret`/`client-secret`/`credential(s)`/`private-key`/`cookie`/`set-cookie`；
+    `max_tokens`/`tokens`/`author` 等不误伤，新增名字必须先改 design 与模块。② **过滤标记 ≠ 彻底脱敏**：
+    消息正文、回复正文、`function.arguments`、文件原文不扫；信任说明与 limitation 文案都写明
+    「自由文本与检查点文件原文仍可能含秘密」。③ **不支持版本仍落 `RUN_INVALID`**：读取器只抛文本型
+    `TraceReadError`，D4 明言「无法可靠细分时用 RUN_INVALID、不按文字猜码」⇒ `UNSUPPORTED_TRACE_VERSION`
+    继续保留在码表中但本批不可达（不为让它可达去改读取器/桌面分类）。
+  - 测试：`redaction.test.ts` **14**（归一/不误伤/嵌套/不改入参/URL userinfo/原型安全/JSON 字符串边界 +
+    get_step 请求与工具 args/result 的逐项替换、limitation ref、过滤后范围）；`trust.test.ts` **6**
+    （instructions 十条边界、仅 tools 能力、注入 prompt 只作数据、写工具拒绝且目录逐字节不变、
+    越界 id 拒绝、list_runs 前后深度相等）；`safe-errors.test.ts` **7**（七工具非法标识 `INVALID_ARGUMENT`
+    不回显取值、未知字段不回显 dataDir、v9 ⇒ `RUN_INVALID` 且无读取器原文、缺 run ⇒ `RUN_NOT_FOUND`/
+    逐侧 unavailable、附件目录替身 ⇒ `STORAGE_IO`+retryable 且无 errno/路径）。mcp-server **225 passed / 15 文件**、
+    测试 tsconfig 0（2 处 `Client.callTool` 兼容联合由窄助手收口）、run-query **47 passed/1 skip**、
+    desktop **216 文件/3301 用例**、7 包 build、desktop tsc 双 0、biome scoped 0、`check-spec` 13/0、
+    strict valid、`git diff --check` 0；命令与 exit code ⇒ `.workbuddy/mcp0-48/gates/gates-48.txt`。
+    变异验证见同文件 §五（字段归一失效 ⇒ 8 红 / 只发标记不发 limitation ⇒ 5 红 /
+    JSON 字符串被解析 ⇒ 2 红 / URL userinfo 不替换 ⇒ 2 红；全部当场还原并 grep 无残留）。
+  - **S11 通过（包层/协议）**；**S06 通过（包层/协议）**；**S12 仅协议与行为半边通过**——指南文本归 6.3，
+    真实客户端注入/代表任务归 6.2，不提前宣称整场景验收。
 
 ## 5. 有界结果与故障协议
 
