@@ -1,6 +1,6 @@
 {
   "name": "@rebaseagent/desktop",
-  "version": "0.5.0-rc.1",
+  "version": "0.6.0-rc.1",
   "description": "ReBaseAgent 桌面调试台：本地查看 Agent 运行的完整轨迹（Electron 壳 + React）",
   "author": "ReBaseAgent contributors",
   "license": "MIT",

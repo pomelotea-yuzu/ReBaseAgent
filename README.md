@@ -8,7 +8,7 @@
 
 <p>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"/></a>
-  <a href="https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.5.0-rc.1"><img src="https://img.shields.io/badge/Release-v0.5.0--rc.1-green.svg" alt="Release"/></a>
+  <a href="https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.6.0-rc.1"><img src="https://img.shields.io/badge/Release-v0.6.0--rc.1-green.svg" alt="Release"/></a>
   <a href="https://www.electronjs.org/"><img src="https://img.shields.io/badge/Electron-44-47848F?logo=electron&amp;logoColor=white" alt="Electron 44"/></a>
   <a href="https://react.dev/"><img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&amp;logoColor=black" alt="React 19"/></a>
   <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-5.6-3178C6?logo=typescript&amp;logoColor=white" alt="TypeScript 5.6"/></a>
@@ -37,11 +37,11 @@ ReBaseAgent 在本项目的执行循环与受控 `read_file` / `write_file` 工�
 
 ## 📥 下载
 
-**Windows x64 便携版** → [GitHub Releases](https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.5.0-rc.1) / [Gitee Releases](https://gitee.com/yuzu-tea-duck/re-base-agent/releases/tag/v0.5.0-rc.1)
+**Windows x64 便携版** → [GitHub Releases](https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.6.0-rc.1) / [Gitee Releases](https://gitee.com/yuzu-tea-duck/re-base-agent/releases/tag/v0.6.0-rc.1)
 
-最新打包为 **0.5.0-rc.1**（发行候选）：分发形态为 **zip 包**（`ReBaseAgent-0.5.0-rc.1-win-x64.zip`，`95,599,503` bytes，SHA-256 前缀 `0fb69c454e3d2bb3`），内含 `ReBaseAgent-0.5.0-rc.1-win-x64-portable.exe`（`95,591,303` bytes，SHA-256 见包内 `SHA256SUMS.txt`）、校验文件与使用说明。用 7-Zip / WinRAR 解压后双击 exe 运行，无需安装；应用数据保存在 exe 旁的 `data/` 目录，迁移时同时携带该目录。便携启动器会使用临时解包目录，不能将便携理解为"不产生临时文件"。
+最新打包为 **0.6.0-rc.1**（发行候选）：分发形态为 **zip 包**（`ReBaseAgent-0.6.0-rc.1-win-x64.zip`，`100,291,623` bytes，SHA-256 前缀 `5e9ca670fc0a4cd0`），内含 `ReBaseAgent-0.6.0-rc.1-win-x64-portable.exe`（`95,004,894` bytes）、**`mcp/` 只读诊断目录**（v0.6.0 起附带，接入见[指南](docs/guide/mcp-readonly-diagnostics.md)）、逐文件 `SHA256SUMS.txt` 与使用说明。用 7-Zip / WinRAR 解压后双击 exe 运行，无需安装；应用数据保存在 exe 旁的 `data/` 目录，迁移时同时携带该目录。便携启动器会使用临时解包目录，不能将便携理解为"不产生临时文件"。
 
-> 0.5.0-rc.1 包含 R2.1 结果导出与全部已归档的桌面工作区能力（对象身份与界面经社区发行打磨）。**R2.2 隔离 prompt 实验与跨运行文件比较已在源码主线归档，尚未打包进任何发行包；本包不含这些能力。** **上传 GitHub / Gitee Releases 属独立步骤，完成前上述链接暂不可用**；本版自动化门禁与离线冒烟全绿，人工实机验收未执行（构建与验证依据见[构建记录](docs/engineering/reports/2026-10-16-v0.5.0-rc.1-build-record.md)）。历史正式版 [v0.2.0](https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.2.0) 不代表长期维护承诺，支持范围见 [SECURITY.md](SECURITY.md)。
+> 0.6.0-rc.1 在 0.5.0-rc.1 基础上纳入 **R2.2 隔离 prompt 实验**（跨运行检查点/文件比较、单侧导出）、渲染层模块拆分与 **MCP 只读诊断**（七只读工具，zip 附带 `mcp/` 目录，真实客户端两轮验收）。 **上传 GitHub / Gitee Releases 属独立步骤，完成前上述链接暂不可用**；本版自动化门禁与离线冒烟全绿，人工实机验收未执行（构建与验证依据见[构建记录](docs/engineering/reports/2026-10-16-v0.5.0-rc.1-build-record.md)）。历史正式版 [v0.2.0](https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.2.0) 不代表长期维护承诺，支持范围见 [SECURITY.md](SECURITY.md)。
 
 > 建议用 7-Zip / WinRAR 解压：不会给文件打 Mark-of-the-Web 标记，可绕开 SmartScreen「未知发布者」首弹；用系统自带解压若遇提示，点「更多信息 → 仍要运行」即可（本项目尚未购买代码签名证书）。
 
@@ -133,7 +133,7 @@ prompt fork = 编辑首次 llm.call 的启动上下文（system prompt / 首条 
 - **文件工作区的 diff 只对"文本且可读"的附件生效**：二进制附件只展示大小与哈希；附件在磁盘上缺失或与清单记录的哈希/长度不符时，界面明确标出「附件缺失 / 附件损坏」并拒绝展示内容（不会用空文本或源目录兜底）；两侧都没有内容时不渲染空编辑器。文件视图全程只读，**没有**"应用 / 回写到源目录"的入口
 - **隔离父本上的 prompt fork 与模型 A/B 不支持**：界面显示「本期不支持」并给出原因，绕过界面直接发 IPC 也会在 main / 内核被拒；普通父本不受影响。R2.2 开放的是**隔离根初始快照上的 prompt 实验**，不是隔离分支上的 prompt fork。
 - **隔离 prompt 实验只接受合法根基线**：根必须已封存、来源完整、固定 `file-tools-v1`，首次请求含字符串 system/user；中途 result/v3 分支只能导航回经验证的根。实验 run 写 v3 格式，v3 父本不能转普通 prompt fork；隔离模型 A/B 仍不支持。
-- **R2.2 尚未打包**：隔离 prompt 实验、v3 兼容与跨运行文件比较已在源码主线归档，最新发行候选仍是 `0.5.0-rc.1`，不含这些能力。失败／缺附件／缺父链／旧响应的验证中，二进制与超限逐侧状态仍由单元测试承载（`write_file` 只接受字符串，桌面路径不可自然诱发）；视觉可读性与字号等主观项仍待发行前人工验收。详见[归档场景证据](openspec/changes/archive/2026-10-22-add-isolated-prompt-experiments/evidence-index.md)。
+- R2.2 已随 `v0.6.0-rc.1` 进入发行包。失败／缺附件／缺父链／旧响应的验证中，二进制与超限逐侧状态仍由单元测试承载（`write_file` 只接受字符串，桌面路径不可自然诱发）；视觉可读性与字号等主观项仍待发行前人工验收。详见[归档场景证据](openspec/changes/archive/2026-10-22-add-isolated-prompt-experiments/evidence-index.md)。
 - 隔离能力**不是权限系统**：副本写入授权只表示"同意把写入落在副本上"，不改变源目录的访问权限，也不提供 shell、任意 handler、外部网络/数据库的隔离
 - **普通重跑**复用分叉点之前的消息，分叉点之后新产生的工具调用会按配置真实执行，可能产生外部副作用，不保证外部状态回退。需要历史文件状态的场景用**隔离文件重跑**；它只保真**受控普通文件的内容**，不承诺恢复 RAG、记忆、数据库或任意 API 的状态
 - 命令行模型 A/B 首期只接受**空工具表**的父 run（纯对话任务）；带工具的实验请用桌面端
@@ -178,7 +178,7 @@ prompt fork = 编辑首次 llm.call 的启动上下文（system prompt / 首条 
 
 ### 改一项启动指令，从初始快照重跑（隔离 prompt 实验）
 
-> **源码主线已实现并归档；尚未打包进任何发行包。** 当前 0.5.0-rc.1 包不含本能力。
+> **已随 `v0.6.0-rc.1` 进入发行包**：zip 附带自包含 `mcp/` 目录（`node mcp/dist/cli.js --data-dir <数据根>`），接入方法与边界见[指南](docs/guide/mcp-readonly-diagnostics.md)。
 
 在带文件的隔离根 run 的概览或首次 `llm.call` 详情里点「修改启动指令」，可以改 system prompt 或首条 user message，并从该根 run 的**初始文件快照**从头重跑：
 
@@ -253,6 +253,8 @@ DeepSeek / GLM / Qwen / Kimi 等 OpenAI 兼容端点开箱即用。
 - trace 包导出（把整条轨迹带走；区别于已交付的文件快照导出）
 - 隔离父本／分支上的 prompt fork 与模型 A/B（仍禁用；R2.2 只开放根初始快照上的隔离 prompt 实验）
 - macOS / Linux 打包
+
+**MCP 服务体系**：MCP0（接口与接入准备）与 MCP1（运行／步骤／比较与历史文件的**只读**查询，七工具）已实现并随 `v0.6.0-rc.1` 进入发行包（zip 附带 `mcp/` 目录，[接入指南](docs/guide/mcp-readonly-diagnostics.md)）；MCP2（R3 后测试证据查询）与 MCP3（按需受控执行）仍为规划；详见 [MCP 服务规划](docs/product/mcp-service-roadmap.md)与[正式路线](docs/product/evolution-roadmap.md)。
 
 范围与边界见[拆分计划](docs/engineering/plans/2026-09-21-ui-change-split-plan.md)。
 
