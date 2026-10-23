@@ -570,13 +570,22 @@
   - 实机 harness 三条硬事实（已下沉 `UI-VERIFY.md`，别再重踩）：文档未获焦时 Chromium 把 focus 事件挂
     延迟队列 ⇒ 焦点轨迹必须轮询 `activeElement`；后台窗口里程序化 `scrollTop` 的原生 `scroll` 事件不投递
     ⇒ 阅读位置判据要同步补派发；`resizeTo` 反解在 zoom 档会发散 ⇒ zoom 档判据只看 DPR。
-- [ ] 6.2（2h）在选定真实 WorkBuddy 5.9.0 完成代表任务并对照桌面，记录实际配置、版本、来源及数据不变性。验收 S15、D01；自制协议客户端不算通过。
+- [x] 6.2（2h）在选定真实 WorkBuddy 5.9.0 完成代表任务并对照桌面，记录实际配置、版本、来源及数据不变性。验收 S15、D01；自制协议客户端不算通过。
   - 2026-10-23 第一轮实跑判 **S15 未通过**（12 次调用只回一行 headline：该客户端不把
     structuredContent 交给模型）⇒ 摘要层 8 项数字与桌面基线逐字吻合可作回归锚点；
     记录与根因 ⇒ `evidence-index.md` 6.x 与 `.workbuddy/memory/MCP0.md` 第 13 条。
   - 2026-10-23 投影修订已落地（content 自足 + 正文只承载一次；design D4 修订注 + 三个
     `*DataSchema` 正文位改 `bodyIn:"content"` 指针；4.3/4.6/5.1/5.2/protocol 判据随改
-    两边留痕；mcp-server 307/307 绿）。**待真实客户端同模型重跑对照锚点后才可勾选**。
+    两边留痕；mcp-server 307/307 绿）。
+  - 2026-10-24 第二轮实跑（同 WorkBuddy 5.9.0 / 同模型 Step-5-Preview / 修订后 dist `4ca495e`）：
+    **S15 通过**——条目/路径/哈希/错误消息/正文全部随 content 到达模型并被逐字引用；
+    8 项锚点与第一轮逐字吻合；数据根指纹两轮间 830 文件零新增/零删除/零改动（
+    `mcp0-62/fingerprints/pre-client-run.json` → `post-client-run2.json`）。**D01 通过**
+    （第一轮摘要层 8 项对照 + 本轮 compare 明细：父 4 步 673/32 tokens、alongChain 705、
+    子 delta durationMs 17，与桌面基线一致）。记录 `mcp0-62/client-run2.txt`。
+    诚实边界（归 6.3 指南）：`nextCursor`/`limitations` 在信封层不进 data 投影 ⇒
+    真实客户端模型看不到续读游标（大文件只能读首段+range 事实）与 limitation 提示
+    （REDACTED 命中时正文内 `[REDACTED]` 标记仍可见）。
 - [ ] 6.3（1.5h）写构建/启动/数据范围/正文外发/费用/错误/游标/限制指南，明确现有发行包不含 MCP。验收 S12/S16；配置示例来自已通过路径。
 - [ ] 6.4（1.5h）另一位使用者按指南接入，回填实际结果；未完成保留待验收。验收 S16，不用维护者自验顶替。
 - [ ] 6.5（1.5h）记录较大 fixture 的读取耗时/内存/输出预算，运行定向回归和全仓 build/typecheck/test/lint/spec、change strict。验收全部场景；超出本项时拆任务，故障先修再收口。

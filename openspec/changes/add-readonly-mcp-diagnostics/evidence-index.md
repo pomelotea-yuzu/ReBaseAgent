@@ -636,8 +636,25 @@ Q 属于 run-query，S 属于 mcp-service，D 属于 desktop-ui；标题须与 d
   V2（bodyIn 位不展开正文）各红 5 条 ⇒ 判据有牙口。门禁：mcp-server **23 文件/307 用例全绿**
   （基线 22/301 ⇒ +1 文件/+6 用例）、包 tsc 与 `.rebaseagent/tsconfig.mcp-server-test.json`
   双 0、biome scoped 0、dist 已按修订后源码重建（真子进程批次不读旧 dist）。
-  **S15 仍未通过**：等真实客户端按同模型同任务重跑并对照 8 项锚点（正文/清单/哈希/错误消息
-  应随 content 到达模型）；本轮不勾 6.2。
+  **S15 通过（2026-10-24 第二轮实跑，同客户端同模型、修订后 dist `4ca495e`）**：
+  8 项回归锚点与第一轮逐字吻合（693/errored 66/不可读 0、2 span、5 文件、1,352,072 B、
+  config.txt 18、big.txt 1,352,000、different、祖先=父）；第一轮全部「未呈现」的内容本轮被
+  模型逐字引用——列表条目白名单字段全量、configHash、span 索引（spanKind/errorRecorded/
+  ambiguousOwner）、错误消息正文 92 码点全引（HTTP 503「R2273 受控 503：上游拒绝」）、
+  逐文件清单 5 条（path/bytes/sha256/change/availability）、文件正文（子 `"A: initial-config
+"` /
+  父 `"B: parent-final
+"`）、big.txt 前 4096 码点 + range/truncated/remaining、compare_runs
+  口径明细（alongChain/deltaFromAncestor/逐侧 steps 与 tokens/failure 定位）。错误码仅 1 次
+  `SPAN_AMBIGUOUS`（按文档补 ownerRunId 消歧，与第一轮同路径）；无 RESPONSE_LIMIT/stale。
+  **数据不变性**：指纹 `pre-client-run.json`（10-23T14:02Z）→ `post-client-run2.json`
+  （10-24T16:18Z）830 文件零新增/零删除/零改动、白名单外零条目。**D01 通过**（摘要层 8 项 +
+  compare 明细与桌面基线一致）。记录：`.workbuddy/mcp0-62/client-run2.txt`（含锚点对照表）。
+  诚实边界（不阻塞 S15，6.3 指南必须如实写、是否把游标投影进 content 归 owner 后续决策）：
+  `nextCursor` 与 `limitations` 在信封层（page/truncation/limitations 段）、不在 data ⇒
+  content 投影不含它们，真实客户端模型两轮都报告「无 cursor 字段」⇒ 真实客户端无法自主续读
+  大文件（只能首段 + maxChars 重发仍是同一段）；REDACTED 命中时正文内 `[REDACTED]` 标记
+  本身可见。**6.2 勾选**。
 
 ## 门禁与归档约束
 
