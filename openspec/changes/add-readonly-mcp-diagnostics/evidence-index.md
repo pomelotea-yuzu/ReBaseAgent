@@ -665,6 +665,18 @@ Q 属于 run-query，S 属于 mcp-service，D 属于 desktop-ui；标题须与 d
   **S12 整场景通过**（协议与行为半边 4.8 + 指南半边本项）。**S16 指南面交付**——实际接入
   记录归 6.4（另一位使用者，不用维护者自验顶替），S16 整场景仍欠。
 
+- 6.4 前置·维护者自验（2026-10-24，**不代 6.4/S16**）：指南 §3 同形状配置在 **Trae 3.4.4**
+  （Agent 会话，工具经 ToolSearch 延迟加载；模型 DeepSeek-V4.1-Flash；无批准弹窗、无报错）
+  上验证。**引用可回查成立**：runId `run_mvi67s4h_wwle`/父/fork(s_02·system_prompt)/错误消息
+  canonical-json 原文与解码版/HTTP 503/检查点五条清单（合计 1,352,072 自核）全部逐字引用；
+  模型从 `index.items[].ambiguousOwner: true` 主动补 ownerRunId（未撞 SPAN_AMBIGUOUS——
+  投影内消歧提示有效性的首个客户端实证）。**游标不可见（第二样本）**：big.txt maxChars=8192
+  拿满 0–8192（remaining 1,343,808），无 nextCursor；模型原话"Since the output is text-only,
+  no cursor"——Trae 与 WorkBuddy 同为「只把 content 文本交给模型、丢弃 structuredContent」类。
+  **预算收窄在真实客户端可见**：errored 过滤 limit=100 列 57/66 条，模型因无游标无法翻页，
+  用 limit=1 复核规避 ⇒ 边界影响从大文件正文扩展到清单翻页，指南 §8 已按两样本更新。
+  维护者自验按任务口径不顶替 6.4。
+
 ## 门禁与归档约束
 
 - 6.5 补实际命令、exit code、源码身份、包构建顺序和新依赖核验；不引用 R2.2 历史通过代替本次通过。

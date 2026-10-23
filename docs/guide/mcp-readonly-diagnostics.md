@@ -38,7 +38,8 @@ node packages/mcp-server/dist/cli.js --data-dir "D:/path/to/data-dir"
 ## 3. 客户端接入（示例来自已通过路径）
 
 以下配置在 **WorkBuddy 5.9.0 + 内置 CLI 2.165.0 + Node v22.22.2** 上实测通过
-（真实代表任务两轮实跑，见 change `add-readonly-mcp-diagnostics` 6.2）。
+（真实代表任务两轮实跑，见 change `add-readonly-mcp-diagnostics` 6.2）；
+同形状配置另在 **Trae 3.4.4**（Agent 会话 + ToolSearch 延迟加载工具）上验证通过（6.4 前置自验）。
 
 WorkBuddy 的 GUI 只读**用户级**配置，推荐用客户端自己的 CLI 登记（不手改它的 `mcp.json`）：
 
@@ -111,10 +112,12 @@ WorkBuddy 的 GUI 只读**用户级**配置，推荐用客户端自己的 CLI �
 
 - 认证游标（`mcpc1.*`）只签发给**走完整 `structuredContent` 的标准客户端**：分页与正文续读
   用 `truncation.nextCursor` 原样回传（`STALE_CURSOR` = 重启或来源已变，重新查询即可）。
-- ⚠️ **不把 `structuredContent` 交给模型的客户端（如 WorkBuddy 5.9.0）看不到游标**：
-  游标与 `limitations` 都在信封层、不进 `content` 投影 ⇒ 模型无法自主续读大文件
-  （`big.txt` 只能读到首段 + `range/remaining` 事实；重发同参会得到同一段）。这不是故障，
-  是 6.2 实机钉住的边界；这类客户端请把「读首段 + 清单事实」当作可用能力。
+- ⚠️ **不把 `structuredContent` 交给模型的客户端看不到游标**：游标与 `limitations` 都在信封层、
+  不进 `content` 投影。已实测两个此类客户端：**WorkBuddy 5.9.0** 与 **Trae 3.4.4**（后者把
+  工具结果以纯文本交给模型）。影响不止大文件正文——**清单页被预算收窄时同样无法翻页**
+  （Trae 实测：`errored` 过滤下 66 条命中只列 57 条，模型看不到续读游标，只能改用更窄的
+  `status`/`query`/`limit` 重新查询）。这不是故障，是实机钉住的边界；这类客户端请把
+  「首段正文 + 清单事实 + 收窄过滤」当作可用能力。
 - 取消（`notifications/cancelled`）只终止该次查询本身，零副作用；断开重连只是重新查询。
 
 ## 9. 限制与已知边界（如实清单）
