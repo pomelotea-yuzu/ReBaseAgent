@@ -12,7 +12,7 @@ import { PAGE_LIMIT_DEFAULT } from "../limits.js";
 import type { ToolDefinition } from "../server.js";
 import type { DataRoot } from "../startup.js";
 import { type GetRunArgs, requireContract } from "../tool-contracts.js";
-import { ToolFailure, defineTool } from "../tool-definition.js";
+import { ToolFailure, type ToolPayload, defineTool } from "../tool-definition.js";
 import {
   ChainTotalsSchema,
   type CheckpointItem,
@@ -170,7 +170,11 @@ export const getRunTool: ToolDefinition = defineTool(
      */
     const checkpointItems = ownCheckpointItems(detail, ownSpanIds);
 
-    const window = takeWindow([...spanItems, ...checkpointItems], args.limit);
+    const allItems: Array<z.infer<typeof SpanItemSchema> | CheckpointItem> = [
+      ...spanItems,
+      ...checkpointItems,
+    ];
+    const requestedLimit = args.limit ?? PAGE_LIMIT_DEFAULT;
     const summary = chainSummaries[chainSummaries.length - 1];
     if (summary === undefined) {
       throw new ToolFailure("RUN_INVALID", `run:${leafRunId}`);
@@ -179,7 +183,38 @@ export const getRunTool: ToolDefinition = defineTool(
     const experiment = detail.meta.prompt_experiment;
     const sealed = outcomeTagOf(summary).sealed;
 
-    const data = GetRunDataSchema.parse({
+    const limitations: LimitationInput[] = [];
+    if (!sealed) {
+      limitations.push({
+        code: "TERMINATION_NOT_RECORDED",
+        ref: `run:${leafRunId}`,
+        message: "没有终止事件：以上只到已落盘的记录为止，不能据此判断该运行仍在进行",
+      });
+    }
+    if (detail.lineage.status === "incomplete") {
+      limitations.push({
+        code: "ANCESTOR_NOT_FOUND",
+        ref: `run:${detail.lineage.missingRunId}`,
+        message: "祖先记录确实缺失：父链在缺失点截断，继承前缀与祖先增量为未知",
+      });
+    }
+    if (fork !== null || experiment !== undefined) {
+      limitations.push({
+        code: "BODY_NOT_EXPOSED",
+        ref: `run:${leafRunId}`,
+        message:
+          "分叉编辑正文与实验的原值/假设/判据不在本工具返回：按需用 get_step 读对应 span，或在桌面按完整 ID 查看",
+      });
+    }
+
+    const runs = provenanceRunsOf(detail, chainSummaries);
+    if (runs === null) {
+      // 链与逐 run 摘要对不上：归属与版本都说不清，宁可拒绝也不按位置猜着发
+      throw new ToolFailure("RUN_INVALID", `run:${leafRunId}`);
+    }
+
+    /** 与页无关的固定段只算一次；预算搜索只重建 index/refs/headline */
+    const baseData = {
       run: projectRunSummary(summary, detail.meta.format_version),
       record: {
         completeness: detail.completeness,
@@ -212,70 +247,59 @@ export const getRunTool: ToolDefinition = defineTool(
         own: deriveOwnConsumption({ spans: detail.spans, leafSpanIds: detail.leafSpanIds }),
         alongChain: deriveChainTotals(indexRunsById(chainSummaries), leafRunId),
       },
-      index: {
-        items: window.items,
-        totals: {
-          spans: spanItems.length,
-          checkpoints: checkpointItems.length,
-          listed: window.items.length,
-          remaining: window.remaining,
-          limit: args.limit ?? PAGE_LIMIT_DEFAULT,
+    };
+
+    const buildPayload = (pageSize: number): ToolPayload => {
+      const window = takeWindow(allItems, Math.min(pageSize, requestedLimit));
+      const data = GetRunDataSchema.parse({
+        ...baseData,
+        index: {
+          items: window.items,
+          totals: {
+            spans: spanItems.length,
+            checkpoints: checkpointItems.length,
+            listed: window.items.length,
+            remaining: window.remaining,
+            limit: requestedLimit,
+          },
         },
-      },
-    });
-
-    const limitations: LimitationInput[] = [];
-    if (!sealed) {
-      limitations.push({
-        code: "TERMINATION_NOT_RECORDED",
-        ref: `run:${leafRunId}`,
-        message: "没有终止事件：以上只到已落盘的记录为止，不能据此判断该运行仍在进行",
       });
-    }
-    if (detail.lineage.status === "incomplete") {
-      limitations.push({
-        code: "ANCESTOR_NOT_FOUND",
-        ref: `run:${detail.lineage.missingRunId}`,
-        message: "祖先记录确实缺失：父链在缺失点截断，继承前缀与祖先增量为未知",
-      });
-    }
-    if (fork !== null || experiment !== undefined) {
-      limitations.push({
-        code: "BODY_NOT_EXPOSED",
-        ref: `run:${leafRunId}`,
-        message:
-          "分叉编辑正文与实验的原值/假设/判据不在本工具返回：按需用 get_step 读对应 span，或在桌面按完整 ID 查看",
-      });
-    }
+      const refs: ProvenanceRefInput[] = window.items
+        .filter((item): item is CheckpointItem => item.kind === "checkpoint")
+        .map((item) => ({
+          runId: leafRunId,
+          ...(item.stepSpanId === null ? {} : { stepSpanId: item.stepSpanId }),
+          snapshotId: item.snapshotId,
+        }));
+      return {
+        readVersion,
+        data,
+        truncated: window.truncated,
+        runs,
+        refs,
+        limitations: [...limitations],
+        headline: [
+          `get_run：${spanItems.length} 个 span / ${checkpointItems.length} 个检查点`,
+          sealed ? "已封存" : "未封存",
+          window.truncated
+            ? `本页 ${window.items.length} 条，尚有 ${window.remaining} 条`
+            : "全部在本页",
+        ].join(" / "),
+      };
+    };
 
-    const refs: ProvenanceRefInput[] = window.items
-      .filter((item): item is CheckpointItem => item.kind === "checkpoint")
-      .map((item) => ({
-        runId: leafRunId,
-        ...(item.stepSpanId === null ? {} : { stepSpanId: item.stepSpanId }),
-        snapshotId: item.snapshotId,
-      }));
-
-    const runs = provenanceRunsOf(detail, chainSummaries);
-    if (runs === null) {
-      // 链与逐 run 摘要对不上：归属与版本都说不清，宁可拒绝也不按位置猜着发
-      throw new ToolFailure("RUN_INVALID", `run:${leafRunId}`);
-    }
-
+    const initial = buildPayload(requestedLimit);
+    const initialCount = Math.min(allItems.length, requestedLimit);
+    if (initialCount === 0) return initial;
     return {
-      readVersion,
-      data,
-      truncated: window.truncated,
-      runs,
-      refs,
-      limitations,
-      headline: [
-        `get_run：${spanItems.length} 个 span / ${checkpointItems.length} 个检查点`,
-        sealed ? "已封存" : "未封存",
-        window.truncated
-          ? `本页 ${window.items.length} 条，尚有 ${window.remaining} 条`
-          : "全部在本页",
-      ].join(" / "),
+      ...initial,
+      budget: {
+        kind: "items",
+        value: initialCount,
+        minimum: 1,
+        fit: (items) => buildPayload(Math.min(items, requestedLimit)),
+        limitRef: `run:${leafRunId}`,
+      },
     };
   },
 );

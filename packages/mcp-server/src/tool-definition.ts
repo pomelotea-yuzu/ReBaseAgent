@@ -1,5 +1,6 @@
 import type { RunQueryToolErrorCode } from "@rebaseagent/run-query";
 import { RunDetailReadError } from "@rebaseagent/run-query";
+import { type ToolBudget, fitWithinBudget } from "./budget.js";
 import {
   type LimitationInput,
   type ProvenanceRefInput,
@@ -60,6 +61,11 @@ export interface ToolPayload {
   readonly truncated?: boolean;
   /** 给 content 的一句话状态/定位（有界，不复制正文） */
   readonly headline: string;
+  /**
+   * 可选：完整结果超过 64 KiB 时，框架用更小的条目数/码点数重建。
+   * 实现只提供单旋钮与重建函数，测量与搜索由 `budget.ts` 统一做。
+   */
+  readonly budget?: ToolBudget;
 }
 
 export type ToolImplementation<Args> = (args: Args, root: DataRoot) => Promise<ToolPayload>;
@@ -86,20 +92,25 @@ export function defineTool<Args>(
       }
       try {
         const payload = await implement(parsed.data as Args, root);
-        const envelope = buildSuccessEnvelope({
-          data: payload.data,
-          readVersion: payload.readVersion,
-          runs: payload.runs,
-          ...(payload.refs === undefined ? {} : { refs: payload.refs }),
-          ...(payload.limitations === undefined ? {} : { limitations: payload.limitations }),
-          ...(payload.nextCursor === undefined ? {} : { nextCursor: payload.nextCursor }),
-          ...(payload.truncated === undefined ? {} : { truncated: payload.truncated }),
-          ...(options.observedAt === undefined ? {} : { observedAt: options.observedAt() }),
+        /** observedAt 在收窄前后必须一致：它参与字节测量，也参与同参结果稳定性 */
+        const observedAt =
+          options.observedAt === undefined ? new Date().toISOString() : options.observedAt();
+        const toResult = (candidate: ToolPayload): ToolResult => ({
+          content: [{ type: "text", text: boundedHeadline(candidate.headline) }],
+          structuredContent: buildSuccessEnvelope({
+            data: candidate.data,
+            readVersion: candidate.readVersion,
+            runs: candidate.runs,
+            ...(candidate.refs === undefined ? {} : { refs: candidate.refs }),
+            ...(candidate.limitations === undefined ? {} : { limitations: candidate.limitations }),
+            ...(candidate.nextCursor === undefined ? {} : { nextCursor: candidate.nextCursor }),
+            ...(candidate.truncated === undefined ? {} : { truncated: candidate.truncated }),
+            observedAt,
+          }),
         });
-        return {
-          content: [{ type: "text", text: boundedHeadline(payload.headline) }],
-          structuredContent: envelope,
-        };
+        const fitted = fitWithinBudget(payload, toResult, `tool:${contract.name}`);
+        if (!fitted.ok) throw new ToolFailure("RESPONSE_LIMIT", fitted.ref);
+        return fitted.result;
       } catch (e) {
         if (e instanceof ToolFailure) {
           return failureResult(

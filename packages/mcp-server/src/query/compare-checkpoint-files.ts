@@ -17,11 +17,16 @@ import {
   boundedMessage,
   retryableOf,
 } from "../error-projection.js";
-import { LOGICAL_PATH_MAX, MESSAGE_MAX, PAGE_LIMIT_DEFAULT } from "../limits.js";
+import {
+  BODY_CHARS_DEFAULT,
+  LOGICAL_PATH_MAX,
+  MESSAGE_MAX,
+  PAGE_LIMIT_DEFAULT,
+} from "../limits.js";
 import type { ToolDefinition } from "../server.js";
 import type { DataRoot } from "../startup.js";
 import { type CompareCheckpointFilesArgs, requireContract } from "../tool-contracts.js";
-import { ToolFailure, defineTool } from "../tool-definition.js";
+import { ToolFailure, type ToolPayload, defineTool } from "../tool-definition.js";
 import { sliceBody } from "./body-range.js";
 import {
   ContentHashSchema,
@@ -393,13 +398,14 @@ export const compareCheckpointFilesTool: ToolDefinition = defineTool(
 
     // ---------------- 内容模式 ----------------
     if (args.path !== undefined) {
+      const path = args.path;
       if (readySides.length !== 2) {
         // 缺任一侧就没有「两侧比对」这个对象 ⇒ 按那一侧的稳定码失败，不发半份结论
         const broken = sides.find((side) => side.status === "unavailable");
         if (broken === undefined || broken.status !== "unavailable") {
-          throw new ToolFailure("RUN_INVALID", `path:${boundedMessage(args.path)}`);
+          throw new ToolFailure("RUN_INVALID", `path:${boundedMessage(path)}`);
         }
-        throw new ToolFailure(broken.code, locateRefOf({ runId: broken.runId, path: args.path }));
+        throw new ToolFailure(broken.code, locateRefOf({ runId: broken.runId, path }));
       }
       const [leftSide, rightSide] = readySides as [ReadySide, ReadySide];
       let compared: Awaited<ReturnType<typeof readComparedWorkspaceFile>>;
@@ -416,87 +422,117 @@ export const compareCheckpointFilesTool: ToolDefinition = defineTool(
         });
       } catch (e) {
         // 共享层把可预期的数据状态都放在返回值里，抛出来的只剩意外故障 ⇒ 按结构分类成稳定码
-        throw new ToolFailure(
-          classifyReadFailure(e),
-          locateRefOf({ runId: leftSide.runId, path: args.path }),
-        );
+        throw new ToolFailure(classifyReadFailure(e), locateRefOf({ runId: leftSide.runId, path }));
       }
-      const left = projectComparedFile(compared.left, args.maxChars);
-      const right = projectComparedFile(compared.right, args.maxChars);
 
-      const data = CompareCheckpointFilesDataSchema.parse({
-        mode: "content",
-        sides: [leftSide, rightSide],
-        path: compared.path,
-        conclusion: compared.conclusion,
-        textDiffEligible: compared.textDiffEligible,
-        files: { left, right },
-      });
+      /** 两侧各按同一个码点上限切；一侧较短自然结束，不拿另一侧补（S10） */
+      const buildPayload = (chars: number): ToolPayload => {
+        const left = projectComparedFile(compared.left, chars);
+        const right = projectComparedFile(compared.right, chars);
+        const data = CompareCheckpointFilesDataSchema.parse({
+          mode: "content",
+          sides: [leftSide, rightSide],
+          path: compared.path,
+          conclusion: compared.conclusion,
+          textDiffEligible: compared.textDiffEligible,
+          files: { left, right },
+        });
+        return {
+          readVersion,
+          data,
+          truncated:
+            (left.status === "text" && left.truncated) ||
+            (right.status === "text" && right.truncated),
+          runs,
+          refs,
+          limitations: [...limitations],
+          headline: [
+            `compare_checkpoint_files：${compared.conclusion}`,
+            `可生成文本 diff ${compared.textDiffEligible ? "是" : "否"}`,
+            `左 ${left.status} / 右 ${right.status}`,
+          ].join(" / "),
+        };
+      };
 
+      const initialCap = args.maxChars ?? BODY_CHARS_DEFAULT;
       return {
-        readVersion,
-        data,
-        truncated:
-          (left.status === "text" && left.truncated) ||
-          (right.status === "text" && right.truncated),
-        runs,
-        refs,
-        limitations,
-        headline: [
-          `compare_checkpoint_files：${compared.conclusion}`,
-          `可生成文本 diff ${compared.textDiffEligible ? "是" : "否"}`,
-          `左 ${left.status} / 右 ${right.status}`,
-        ].join(" / "),
+        ...buildPayload(initialCap),
+        budget: {
+          kind: "chars",
+          value: initialCap,
+          minimum: 0,
+          fit: (chars) => buildPayload(Math.min(chars, initialCap)),
+          limitRef: `run:${leftSide.runId}`,
+        },
       };
     }
 
     // ---------------- 清单模式 ----------------
-    const window = takeWindow(manifest.entries, args.limit);
-    const entries = window.items.map((entry) => ({
-      path: entry.path,
-      presence: entry.presence,
-      left: entry.left === null ? null : { sha256: entry.left.sha256, bytes: entry.left.bytes },
-      right: entry.right === null ? null : { sha256: entry.right.sha256, bytes: entry.right.bytes },
-      reference: entry.reference,
-    }));
-    if (entries.some((entry) => entry.reference === "same")) {
-      limitations.push({
-        code: "BODY_NOT_EXPOSED",
-        ref: `compare:${readySides[0]?.snapshotId ?? "unavailable"}/${
-          readySides[1]?.snapshotId ?? "unavailable"
-        }`,
-        message:
-          "清单 reference=same 只表示哈希与字节数相同；内容结论需在请求里带上 path 取逐侧核验",
+    const requestedLimit = args.limit ?? PAGE_LIMIT_DEFAULT;
+    const pairRef = `compare:${readySides[0]?.snapshotId ?? "unavailable"}/${
+      readySides[1]?.snapshotId ?? "unavailable"
+    }`;
+
+    const buildPayload = (pageSize: number): ToolPayload => {
+      const window = takeWindow(manifest.entries, Math.min(pageSize, requestedLimit));
+      const entries = window.items.map((entry) => ({
+        path: entry.path,
+        presence: entry.presence,
+        left: entry.left === null ? null : { sha256: entry.left.sha256, bytes: entry.left.bytes },
+        right:
+          entry.right === null ? null : { sha256: entry.right.sha256, bytes: entry.right.bytes },
+        reference: entry.reference,
+      }));
+      const pageLimitations = [...limitations];
+      if (entries.some((entry) => entry.reference === "same")) {
+        pageLimitations.push({
+          code: "BODY_NOT_EXPOSED",
+          ref: pairRef,
+          message:
+            "清单 reference=same 只表示哈希与字节数相同；内容结论需在请求里带上 path 取逐侧核验",
+        });
+      }
+      const data = CompareCheckpointFilesDataSchema.parse({
+        mode: "manifest",
+        sides,
+        unionComplete: manifest.unionComplete,
+        entries,
+        totals: {
+          paths: manifest.entries.length,
+          listed: entries.length,
+          remaining: window.remaining,
+          limit: requestedLimit,
+        },
       });
-    }
+      return {
+        readVersion,
+        data,
+        truncated: window.truncated,
+        runs,
+        refs,
+        limitations: pageLimitations,
+        headline: [
+          "compare_checkpoint_files：清单模式",
+          manifest.unionComplete
+            ? `并集 ${manifest.entries.length} 条路径`
+            : "某侧检查点不可读：并集不完整，空清单不代表文件不存在",
+          window.truncated ? `本页 ${entries.length} 条，尚有 ${window.remaining} 条` : "已列全",
+        ].join(" / "),
+      };
+    };
 
-    const data = CompareCheckpointFilesDataSchema.parse({
-      mode: "manifest",
-      sides,
-      unionComplete: manifest.unionComplete,
-      entries,
-      totals: {
-        paths: manifest.entries.length,
-        listed: entries.length,
-        remaining: window.remaining,
-        limit: args.limit ?? PAGE_LIMIT_DEFAULT,
-      },
-    });
-
+    const initial = buildPayload(requestedLimit);
+    const initialCount = Math.min(manifest.entries.length, requestedLimit);
+    if (initialCount === 0) return initial;
     return {
-      readVersion,
-      data,
-      truncated: window.truncated,
-      runs,
-      refs,
-      limitations,
-      headline: [
-        "compare_checkpoint_files：清单模式",
-        manifest.unionComplete
-          ? `并集 ${manifest.entries.length} 条路径`
-          : "某侧检查点不可读：并集不完整，空清单不代表文件不存在",
-        window.truncated ? `本页 ${entries.length} 条，尚有 ${window.remaining} 条` : "已列全",
-      ].join(" / "),
+      ...initial,
+      budget: {
+        kind: "items",
+        value: initialCount,
+        minimum: 1,
+        fit: (items) => buildPayload(Math.min(items, requestedLimit)),
+        limitRef: pairRef,
+      },
     };
   },
 );

@@ -11,7 +11,7 @@ import { MESSAGE_MAX } from "../limits.js";
 import type { ToolDefinition } from "../server.js";
 import type { DataRoot } from "../startup.js";
 import { type GetStepArgs, STEP_SECTIONS, requireContract } from "../tool-contracts.js";
-import { ToolFailure, defineTool } from "../tool-definition.js";
+import { ToolFailure, type ToolPayload, defineTool } from "../tool-definition.js";
 import { sliceBody } from "./body-range.js";
 import { canonicalJson } from "./canonical-json.js";
 import {
@@ -201,7 +201,8 @@ export const getStepTool: ToolDefinition = defineTool(
     const sections = sectionsIndexOf(span);
 
     const limitations: LimitationInput[] = [];
-    let body: z.infer<typeof StepBodySchema> | null = null;
+    /** `null` = 本次没有正文源（未给 section，或该段未记录） */
+    let filteredText: string | null = null;
     if (args.section === undefined) {
       limitations.push({
         code: "BODY_NOT_EXPOSED",
@@ -210,19 +211,9 @@ export const getStepTool: ToolDefinition = defineTool(
       });
     } else {
       const value = bodyValueOf(span, args.section);
-      if (value === undefined) {
-        body = { recorded: false };
-      } else {
+      if (value !== undefined) {
         const redacted = redactStructuredValue(value);
-        const sliced = sliceBody(canonicalJson(redacted.value), args.maxChars);
-        body = {
-          recorded: true,
-          encoding: "canonical-json",
-          text: sliced.text,
-          range: sliced.range,
-          truncated: sliced.truncated,
-          remaining: sliced.remaining,
-        };
+        filteredText = canonicalJson(redacted.value);
         if (redacted.redactedFields > 0) {
           limitations.push({
             code: "REDACTED",
@@ -233,35 +224,70 @@ export const getStepTool: ToolDefinition = defineTool(
       }
     }
 
-    const data = GetStepDataSchema.parse({
-      span: item,
-      requestedSection: args.section ?? null,
-      sections,
-      body,
-    });
-
     const runs = provenanceRunsOf(detail, chainSummaries);
     if (runs === null) {
       throw new ToolFailure("RUN_INVALID", `run:${detail.meta.id}`);
     }
     const refs: ProvenanceRefInput[] = [{ runId: lookup.ownerRunId, spanId: args.spanId }];
 
+    /**
+     * 正文页按码点收窄；预算搜索只调这个上限，范围/剩余/简述随之重算。
+     * `filteredText = null` 时没有可缩旋钮，固定段装不下就由框架发 RESPONSE_LIMIT。
+     */
+    const buildPayload = (chars: number | undefined): ToolPayload => {
+      const body: z.infer<typeof StepBodySchema> | null =
+        args.section === undefined
+          ? null
+          : filteredText === null
+            ? { recorded: false }
+            : (() => {
+                const sliced = sliceBody(filteredText, chars);
+                return {
+                  recorded: true as const,
+                  encoding: "canonical-json" as const,
+                  text: sliced.text,
+                  range: sliced.range,
+                  truncated: sliced.truncated,
+                  remaining: sliced.remaining,
+                };
+              })();
+      const data = GetStepDataSchema.parse({
+        span: item,
+        requestedSection: args.section ?? null,
+        sections,
+        body,
+      });
+      return {
+        readVersion,
+        data,
+        truncated: body !== null && body.recorded === true ? body.truncated : false,
+        runs,
+        refs,
+        limitations: [...limitations],
+        headline: [
+          `get_step：${span.kind} 属于 ${lookup.ownerRunId}`,
+          item.own ? "本 run 自有" : "继承自来源链",
+          body === null
+            ? "未取正文"
+            : body.recorded
+              ? `${body.range.start}–${body.range.end} 码点（共 ${body.range.total}）`
+              : "该段未记录",
+        ].join(" / "),
+      };
+    };
+
+    const initial = buildPayload(args.maxChars);
+    if (filteredText === null) return initial;
+    const initialEnd = sliceBody(filteredText, args.maxChars).range.end;
     return {
-      readVersion,
-      data,
-      truncated: body !== null && body.recorded === true ? body.truncated : false,
-      runs,
-      refs,
-      limitations,
-      headline: [
-        `get_step：${span.kind} 属于 ${lookup.ownerRunId}`,
-        item.own ? "本 run 自有" : "继承自来源链",
-        body === null
-          ? "未取正文"
-          : body.recorded
-            ? `${body.range.start}–${body.range.end} 码点（共 ${body.range.total}）`
-            : "该段未记录",
-      ].join(" / "),
+      ...initial,
+      budget: {
+        kind: "chars",
+        value: initialEnd,
+        minimum: 0,
+        fit: (chars) => buildPayload(Math.min(chars, initialEnd)),
+        limitRef: `span:${lookup.ownerRunId}:${args.spanId}`,
+      },
     };
   },
 );

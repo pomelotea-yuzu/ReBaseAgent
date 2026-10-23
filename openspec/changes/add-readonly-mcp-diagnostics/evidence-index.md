@@ -436,6 +436,37 @@ Q 属于 run-query，S 属于 mcp-service，D 属于 desktop-ui；标题须与 d
     不按错误文字猜码；要让该码可达须改读取器/桌面分类，另批定夺。② URL 的 query/fragment 中
     凭据不做参数级解析（属于字符串内容的通用解析）；自由文本/JSON 字符串/文件原文不在过滤承诺内。
 
+- 5.1：完整 tool result 的 64 KiB 实测预算（`RESPONSE_LIMIT` 首次有承载点）。
+  - 新增 `src/budget.ts`：`toolResultBytes`（`content`+`structuredContent`+`isError` 的 UTF-8 JSON）、
+    `ToolBudget`（单旋钮 items/chars、fit 重建、limitRef）与 `fitWithinBudget`（超预算才二分，
+    最小规模仍超 ⇒ `{ok:false,ref}`）。`defineTool` 固定 `observedAt` 后统一收口；实现只提供
+    “怎么缩”，测量与搜索只有一处。
+  - 接线：`list_runs`/`get_run`/`inspect_checkpoint`/`compare_checkpoint_files(manifest)` 缩条目；
+    `get_step`/`read_checkpoint_file`/`compare_checkpoint_files(content)` 缩码点；
+    `compare_runs` 无旋钮 ⇒ 超预算只回 `RESPONSE_LIMIT`（`tool:compare_runs`）。
+    `truncated`/`remaining`/`range`/`totals.listed` 按实际外发量重算，页 `limit` 仍报请求上限。
+  - 夹具 `test/budget-fixtures.ts`（第五、六、七个独立目录）：
+    - 页：12×6,000 字 task（单条约 18 KB）+ 80,000 字单项超限靶子 + 60×4,000 字工具名 span；
+    - 工作区：102 文件（100 条 512 字长路径，单条清单项约 700 B）+ 3,000/12,000/12,001 码点 NUL 文本；
+    - 长链：160 层 prompt fork（run id 约 185 字）+ 8,192 emoji 叶子正文 ⇒ 来源段本身约 36 KB。
+  - `test/budget.test.ts` **17**：测试侧**独立**量完整结果（不复用 `toolResultBytes`）；覆盖
+    未超预算原样返回/最大可行规模（独立二分对照）/最小不可行 ⇒ `RESPONSE_LIMIT`；list_runs 页收窄、
+    get_run 60 span index 收窄、单项超限、compare_runs 无旋钮、inspect/compare 清单收窄；
+    read_checkpoint_file 码点范围；compare 两侧大正文同时收窄且结论仍取完整附件；两侧不同长度
+    短侧自然结束；长链挤占预算时 get_step 正文收窄（前缀/range/remaining/无孤立代理对）。
+  - 门禁：mcp-server **242 passed / 16 文件**（+17）、src tsc 0、测试 tsconfig 0、
+    run-query **47 passed/1 skip**、desktop **216 文件/3301 用例**、7 包 build、desktop tsc 双 0、
+    biome scoped **0**（81 文件）、`check-spec` 13/0、strict valid、`git diff --check` 0；
+    命令与 exit code ⇒ `.workbuddy/mcp0-51/gates/gates-51.txt`；回查
+    `.workbuddy/mcp0-51/verify-51.cjs` **38 项全对 + `--self-test` 三道反证咬住**
+    （只钉本批事实 + 尾项 6.6，不钉当前前沿）。
+  - 变异验证（施加 → 定向跑 → 反向还原 → grep 无残留）：完整结果只量 data ⇒ 7 红；
+    不缩直接发 ⇒ 13 红；只取最小规模 ⇒ 4 红；get_step 忽略 chars ⇒ 1 红；还原后 242/242 绿。
+  - **S09 预算半边通过**：完整结果 ≤64 KiB、长转义/Unicode/代理对字符完整、range/remaining 准确。
+    **S07/S10 部分通过**：页/正文边界、固定顺序、`RESPONSE_LIMIT`、两侧独立首段已钉；
+    **`nextCursor` 签发/认证与正文续读归 5.2**（本批仍拒 `cursor`，截断页 `truncated:true` 且
+    `nextCursor` 缺席）⇒ 完整分页/续读/两侧独立游标与整场景未通过。
+
 ## 门禁与归档约束
 
 - 6.5 补实际命令、exit code、源码身份、包构建顺序和新依赖核验；不引用 R2.2 历史通过代替本次通过。

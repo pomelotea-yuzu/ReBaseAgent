@@ -12,7 +12,7 @@ import { PAGE_LIMIT_DEFAULT } from "../limits.js";
 import type { ToolDefinition } from "../server.js";
 import type { DataRoot } from "../startup.js";
 import { type InspectCheckpointArgs, requireContract } from "../tool-contracts.js";
-import { ToolFailure, defineTool } from "../tool-definition.js";
+import { ToolFailure, type ToolPayload, defineTool } from "../tool-definition.js";
 import {
   CheckpointFileItemSchema,
   CheckpointHeadSchema,
@@ -132,45 +132,16 @@ export const inspectCheckpointTool: ToolDefinition = defineTool(
     }
 
     const checkpoint = projectCheckpointHead(located.result);
-    const window = takeWindow(located.result.files, args.limit);
-    const items = window.items.map(projectCheckpointFile);
+    const requestedLimit = args.limit ?? PAGE_LIMIT_DEFAULT;
     const summary = chainSummaries[chainSummaries.length - 1];
     if (summary === undefined) {
       throw new ToolFailure("RUN_INVALID", `run:${leafRunId}`);
     }
     const sealed = outcomeTagOf(summary).sealed;
 
-    const data = InspectCheckpointDataSchema.parse({
-      checkpoint,
-      files: items,
-      totals: {
-        files: checkpoint.fileCount,
-        listed: items.length,
-        remaining: window.remaining,
-        limit: args.limit ?? PAGE_LIMIT_DEFAULT,
-      },
-    });
-
     const runs = provenanceRunsOf(detail, chainSummaries);
     if (runs === null) {
       throw new ToolFailure("RUN_INVALID", `run:${leafRunId}`);
-    }
-
-    const limitations: LimitationInput[] = [];
-    if (items.length > 0) {
-      limitations.push({
-        code: "BODY_NOT_EXPOSED",
-        ref: `snapshot:${checkpoint.snapshotId}`,
-        message:
-          "清单只给路径、字节、哈希与附件可用性：正文需用 read_checkpoint_file 显式指定 path",
-      });
-    }
-    if (!sealed) {
-      limitations.push({
-        code: "TERMINATION_NOT_RECORDED",
-        ref: `run:${leafRunId}`,
-        message: "没有终止事件：清单只到已落盘的记录为止，不能据此判断该运行仍在进行",
-      });
     }
 
     const refs: ProvenanceRefInput[] = [
@@ -181,21 +152,65 @@ export const inspectCheckpointTool: ToolDefinition = defineTool(
       },
     ];
 
+    const buildPayload = (pageSize: number): ToolPayload => {
+      const window = takeWindow(located.result.files, Math.min(pageSize, requestedLimit));
+      const items = window.items.map(projectCheckpointFile);
+      const data = InspectCheckpointDataSchema.parse({
+        checkpoint,
+        files: items,
+        totals: {
+          files: checkpoint.fileCount,
+          listed: items.length,
+          remaining: window.remaining,
+          limit: requestedLimit,
+        },
+      });
+      const limitations: LimitationInput[] = [];
+      if (items.length > 0) {
+        limitations.push({
+          code: "BODY_NOT_EXPOSED",
+          ref: `snapshot:${checkpoint.snapshotId}`,
+          message:
+            "清单只给路径、字节、哈希与附件可用性：正文需用 read_checkpoint_file 显式指定 path",
+        });
+      }
+      if (!sealed) {
+        limitations.push({
+          code: "TERMINATION_NOT_RECORDED",
+          ref: `run:${leafRunId}`,
+          message: "没有终止事件：清单只到已落盘的记录为止，不能据此判断该运行仍在进行",
+        });
+      }
+      return {
+        readVersion,
+        data,
+        truncated: window.truncated,
+        runs,
+        refs,
+        limitations,
+        headline: [
+          `inspect_checkpoint：${checkpoint.stepSpanId === null ? "初始快照" : `步骤 ${checkpoint.stepSpanId}`}`,
+          `${checkpoint.fileCount} 个文件 / ${checkpoint.totalBytes} 字节`,
+          checkpoint.unavailableCount > 0
+            ? `${checkpoint.unavailableCount} 个附件不可用`
+            : "附件全部可用",
+          window.truncated ? `本页 ${items.length} 条，尚有 ${window.remaining} 条` : "清单已列全",
+        ].join(" / "),
+      };
+    };
+
+    const initial = buildPayload(requestedLimit);
+    const initialCount = Math.min(located.result.files.length, requestedLimit);
+    if (initialCount === 0) return initial;
     return {
-      readVersion,
-      data,
-      truncated: window.truncated,
-      runs,
-      refs,
-      limitations,
-      headline: [
-        `inspect_checkpoint：${checkpoint.stepSpanId === null ? "初始快照" : `步骤 ${checkpoint.stepSpanId}`}`,
-        `${checkpoint.fileCount} 个文件 / ${checkpoint.totalBytes} 字节`,
-        checkpoint.unavailableCount > 0
-          ? `${checkpoint.unavailableCount} 个附件不可用`
-          : "附件全部可用",
-        window.truncated ? `本页 ${items.length} 条，尚有 ${window.remaining} 条` : "清单已列全",
-      ].join(" / "),
+      ...initial,
+      budget: {
+        kind: "items",
+        value: initialCount,
+        minimum: 1,
+        fit: (items) => buildPayload(Math.min(items, requestedLimit)),
+        limitRef: `snapshot:${checkpoint.snapshotId}`,
+      },
     };
   },
 );

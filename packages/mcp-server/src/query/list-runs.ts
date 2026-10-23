@@ -8,7 +8,7 @@ import type { ToolDefinition } from "../server.js";
 import type { DataRoot } from "../startup.js";
 import { RUN_STATUS_FILTERS, requireContract } from "../tool-contracts.js";
 import type { ListRunsArgs } from "../tool-contracts.js";
-import { ToolFailure, defineTool } from "../tool-definition.js";
+import { ToolFailure, type ToolPayload, defineTool } from "../tool-definition.js";
 import {
   RunSummaryItemSchema,
   compareFileOrder,
@@ -151,35 +151,56 @@ export const listRunsTool: ToolDefinition = defineTool(
     ].sort(byFileAscending);
 
     const sequence: SequenceEntry[] = [...rows.map((row) => row.entry), ...failures];
-    const window = takeWindow(sequence, args.limit);
-    const limit = args.limit ?? PAGE_LIMIT_DEFAULT;
+    const requestedLimit = args.limit ?? PAGE_LIMIT_DEFAULT;
 
-    const data = ListRunsDataSchema.parse({
-      filter: { status, query: args.query ?? null },
-      items: window.items.map((entry) => entry.item),
-      totals: {
-        matchedRuns: rows.length,
-        unreadableFiles: failures.length,
-        listed: window.items.length,
-        remaining: window.remaining,
-        limit,
-      },
-    });
+    const buildPayload = (pageSize: number): ToolPayload => {
+      const window = takeWindow(sequence, Math.min(pageSize, requestedLimit));
+      const data = ListRunsDataSchema.parse({
+        filter: { status, query: args.query ?? null },
+        items: window.items.map((entry) => entry.item),
+        totals: {
+          matchedRuns: rows.length,
+          unreadableFiles: failures.length,
+          listed: window.items.length,
+          remaining: window.remaining,
+          limit: requestedLimit,
+        },
+      });
+      return {
+        readVersion,
+        data,
+        truncated: window.truncated,
+        runs: window.items
+          .map((entry) => entry.provenance)
+          .filter((run): run is ProvenanceRunInput => run !== null),
+        headline: [
+          `list_runs：命中 ${rows.length} 条摘要`,
+          `不可读文件 ${failures.length} 个`,
+          window.truncated
+            ? `本页 ${window.items.length} 条，尚有 ${window.remaining} 条`
+            : "全部在本页",
+        ].join(" / "),
+      };
+    };
 
+    const initial = buildPayload(requestedLimit);
+    const initialCount = Math.min(sequence.length, requestedLimit);
+    if (initialCount === 0) return initial;
     return {
-      readVersion,
-      data,
-      truncated: window.truncated,
-      runs: window.items
-        .map((entry) => entry.provenance)
-        .filter((run): run is ProvenanceRunInput => run !== null),
-      headline: [
-        `list_runs：命中 ${rows.length} 条摘要`,
-        `不可读文件 ${failures.length} 个`,
-        window.truncated
-          ? `本页 ${window.items.length} 条，尚有 ${window.remaining} 条`
-          : "全部在本页",
-      ].join(" / "),
+      ...initial,
+      budget: {
+        kind: "items",
+        value: initialCount,
+        minimum: 1,
+        fit: (items) => buildPayload(Math.min(items, requestedLimit)),
+        limitRef: limitRefOf(sequence[0]),
+      },
     };
   },
 );
+
+/** 最小页仍装不下时只指认首项（身份不进正文；失败项用安全文件标识） */
+function limitRefOf(entry: SequenceEntry | undefined): string {
+  if (entry === undefined) return "tool:list_runs";
+  return entry.item.kind === "run" ? `run:${entry.item.runId}` : `file:${entry.item.file}`;
+}

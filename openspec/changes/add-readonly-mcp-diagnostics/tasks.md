@@ -1,6 +1,6 @@
 # MCP0 / MCP1 实施任务
 
-状态（2026-10-23）：**阶段 1、2（2.1–2.9）、3（3.1–3.2）与 4.1–4.8 已完成；5.1 起未实施**。
+状态（2026-10-23）：**阶段 1、2（2.1–2.9）、3（3.1–3.2）、4.1–4.8 与 5.1 已完成；5.2 起未实施**。
 每项预计不超过 2h；发现超过时先拆分任务。验收对应见 [evidence-index.md](evidence-index.md)；测试、客户端实机、人工接入和发行分别记录，不以文档校验替代功能通过。
 
 ## 1. MCP0：先验证支持路径
@@ -381,7 +381,35 @@
 
 ## 5. 有界结果与故障协议
 
-- [ ] 5.1（2h）实现条目分页、正文码点范围与实际序列化 64 KiB 预算。验收 S07/S09/S10。
+- [x] 5.1（2h）实现条目分页、正文码点范围与实际序列化 64 KiB 预算。验收 S07/S09/S10。
+  - 2026-10-23：新增 `src/budget.ts`（`ToolBudget`/`ToolResult` 字节测量/`fitWithinBudget` 单旋钮二分）
+    并在 `defineTool` 收口：**量的是完整 tool result**（`content`+`structuredContent`+`isError`），
+    超预算才按实现提供的 `items` 或 `chars` 旋钮二分；最小规模仍超 ⇒ `RESPONSE_LIMIT`
+    （`list_runs`/`get_run` 指认 run、inspect 指认 snapshot、compare 清单指认比较对、无旋钮工具落
+    `tool:<name>`）。`observedAt` 在搜索前后固定，避免同一次请求因时间戳漂移。
+  - **接线六处**：`list_runs`/`get_run`/`inspect_checkpoint`/`compare_checkpoint_files(manifest)`
+    按条目收窄；`get_step`/`read_checkpoint_file`/`compare_checkpoint_files(content)` 按码点收窄，
+    两侧共用一个码点上限但各自结束、不互相补（S10）。`compare_runs` 无可缩旋钮 ⇒ 超预算只回
+    `RESPONSE_LIMIT`。`truncated`/`remaining`/`range` 一律按实际外发量重算；页 `limit` 仍报请求上限。
+  - **分阶段边界**：`nextCursor` 签发/认证与正文 `start` 续读归 5.2，本批仍显式拒 `cursor`；
+    预算截断页 `truncated:true` 且 `nextCursor` 缺席。⇒ S07/S09/S10 的预算/边界半边本批闭合，
+    「续读/独立游标」半边与整场景归 5.2，不提前宣称通过。
+  - 测试：新增 `test/budget-fixtures.ts`（页夹具：12×6,000 字 task + 80,000 字单项 + 60×4,000 字
+    工具名 span；工作区夹具：102 文件含 100 条 512 字长路径 + 3,000/12,000/12,001 码点 NUL 文本；
+    长链夹具：160 层 prompt fork + 8,192 emoji 叶子正文）与 `test/budget.test.ts` **17**：
+    完整结果字节/最大可行规模/最小不可行 ⇒ RESPONSE_LIMIT、list_runs 页收窄、get_run index 收窄、
+    单项超限、compare_runs 无旋钮、inspect/compare 清单收窄、单文件码点范围、两侧大正文收窄、
+    两侧不同长度独立结束、长链 provenance 挤占预算时 get_step 正文收窄。测试侧用**独立**字节计数，
+    不复用实现里的 `toolResultBytes`（避免同错同绿）。
+  - 门禁：mcp-server **242 passed / 16 文件**（+17）、src tsc 0、测试 tsconfig 0、
+    run-query **47 passed/1 skip**、desktop **216 文件/3301 用例**、7 包 build、desktop tsc 双 0、
+    biome scoped **0**（81 文件）、`check-spec` 13/0、strict valid、`git diff --check` 0；
+    命令与 exit code ⇒ `.workbuddy/mcp0-51/gates/gates-51.txt`。
+    变异验证见同文件 §五（完整结果只量 data ⇒ 7 红 / 不缩直接发 ⇒ 13 红 / 只取最小规模 ⇒ 4 红 /
+    get_step 忽略 chars ⇒ 1 红；全部当场还原并 grep 无残留）。
+  - **S09 预算半边通过**（完整结果 ≤64 KiB、Unicode/转义/代理对、range 准确）；
+    **S07/S10 部分通过**（页/正文边界、RESPONSE_LIMIT、两侧独立首段已钉；完整分页/续读/
+    两侧独立游标归 5.2）。
 - [ ] 5.2（2h）实现认证游标、参数/读取版本绑定和源变化拒绝，覆盖列表新增/失败项与附件变化。验收 S08、Q02。
 - [ ] 5.3（1.5h）真实 stdio 子进程协议测试：协商/tools/schema/错误、取消、EOF、重连。验收 S01/S04/S13/S14。
 - [ ] 5.4（1.5h）完整 fixture 查询前后文件集合/字节指纹与零执行计数，覆盖源目录变化及故障。验收 Q15/Q16、S14。

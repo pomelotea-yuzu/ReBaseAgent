@@ -14,7 +14,7 @@ import { LOGICAL_PATH_MAX, MESSAGE_MAX } from "../limits.js";
 import type { ToolDefinition } from "../server.js";
 import type { DataRoot } from "../startup.js";
 import { type ReadCheckpointFileArgs, requireContract } from "../tool-contracts.js";
-import { ToolFailure, defineTool } from "../tool-definition.js";
+import { ToolFailure, type ToolPayload, defineTool } from "../tool-definition.js";
 import { sliceBody } from "./body-range.js";
 import {
   locateRefOf,
@@ -202,18 +202,6 @@ export const readCheckpointFileTool: ToolDefinition = defineTool(
       );
     }
 
-    const file = projectFileBody(read, args.maxChars);
-    const data = ReadCheckpointFileDataSchema.parse({
-      selector: {
-        runId: leafRunId,
-        stepSpanId: selectorStep,
-        snapshotId: matched.snapshotId,
-        path: read.path,
-      },
-      checkpointTotals: { fileCount: matched.fileCount, totalBytes: matched.totalBytes },
-      file,
-    });
-
     const runs = provenanceRunsOf(detail, chainSummaries);
     if (runs === null) {
       throw new ToolFailure("RUN_INVALID", `run:${leafRunId}`);
@@ -241,20 +229,47 @@ export const readCheckpointFileTool: ToolDefinition = defineTool(
       },
     ];
 
+    const buildPayload = (chars: number | undefined): ToolPayload => {
+      const file = projectFileBody(read, chars);
+      const data = ReadCheckpointFileDataSchema.parse({
+        selector: {
+          runId: leafRunId,
+          stepSpanId: selectorStep,
+          snapshotId: matched.snapshotId,
+          path: read.path,
+        },
+        checkpointTotals: { fileCount: matched.fileCount, totalBytes: matched.totalBytes },
+        file,
+      });
+      return {
+        readVersion,
+        data,
+        truncated: file.status === "text" ? file.truncated : false,
+        runs,
+        refs,
+        limitations,
+        headline: [
+          `read_checkpoint_file：${file.status}`,
+          `检查点 ${matched.stepSpanId === null ? "初始快照" : `步骤 ${matched.stepSpanId}`}`,
+          file.status === "text"
+            ? `${file.range.start}–${file.range.end} 码点（共 ${file.range.total}）`
+            : "未外发正文",
+        ].join(" / "),
+      };
+    };
+
+    const initial = buildPayload(args.maxChars);
+    if (read.status !== "text") return initial;
+    const initialEnd = sliceBody(read.text, args.maxChars).range.end;
     return {
-      readVersion,
-      data,
-      truncated: file.status === "text" ? file.truncated : false,
-      runs,
-      refs,
-      limitations,
-      headline: [
-        `read_checkpoint_file：${file.status}`,
-        `检查点 ${matched.stepSpanId === null ? "初始快照" : `步骤 ${matched.stepSpanId}`}`,
-        file.status === "text"
-          ? `${file.range.start}–${file.range.end} 码点（共 ${file.range.total}）`
-          : "未外发正文",
-      ].join(" / "),
+      ...initial,
+      budget: {
+        kind: "chars",
+        value: initialEnd,
+        minimum: 0,
+        fit: (chars) => buildPayload(Math.min(chars, initialEnd)),
+        limitRef: `run:${leafRunId}`,
+      },
     };
   },
 );

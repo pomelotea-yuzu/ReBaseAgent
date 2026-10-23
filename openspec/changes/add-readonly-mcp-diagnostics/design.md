@@ -113,6 +113,8 @@ compare_runs 不默认完整最终文本，过长干预/输出给可用 get_step
 
 完整工具结果含 structuredContent/content/来源/错误，UTF-8 JSON 后最多 64 KiB。条目数是上限，实际预算不足提前结束页给 nextCursor；单项元数据仍无法容纳则 RESPONSE_LIMIT，不删身份假称完整。
 
+**5.1 落地口径（分阶段，勿当最终契约）**：本批实测**完整 tool result**（`content`+`structuredContent`+`isError`）的 UTF-8 字节，按页/正文各自的**单旋钮**（items/chars）二分收窄；最小规模仍超 ⇒ `RESPONSE_LIMIT`（定位 run/span/snapshot/比较对）。`truncated`/`remaining`/`range` 按实际外发量重算。**`nextCursor` 签发/认证与正文 `start` 续读仍归 5.2**：本批预算截断页如实 `truncated:true` 且 `nextCursor` 缺席，正文只给首段；带 `cursor` 的请求继续显式拒 `INVALID_ARGUMENT`。因此 S07/S09/S10 的“续读/独立游标”半边归 5.2，本批不宣称整场景通过。
+
 正文默认 4096、最大 8192 Unicode 码点，再按实际信封预算缩短，不拆代理对。结构正文先规范 JSON 后分文本段，encoding=canonical-json；文件 encoding=utf8-text。返回 `{text,range:{start,end,total,unit:"unicode-code-point"},truncated,nextCursor}`。范围针对过滤后外发文本；原文件 bytes/hash 明确属于完整历史文件，不充当片段哈希；换行不规范化。
 
 比较游标分别存左右 offset，一侧结束不拿另一侧补；内容结论依据完整附件校验/字节，不凭片段判断 same/different。清单 same 只表示引用相同。
