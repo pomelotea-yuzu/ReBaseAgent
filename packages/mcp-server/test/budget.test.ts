@@ -44,8 +44,8 @@ import {
  *   随实际外发量重算，顺序不重不漏（页是前缀）；
  * - **单项装不下就 RESPONSE_LIMIT**：不删身份、不截断任务正文冒充完整。
  *
- * 5.1 仍不发游标（认证游标/来源变化核验归 5.2）：截断页如实 `truncated:true` 且
- * `nextCursor` 缺席；这里不钉"续读成功"，只钉本页的真实边界。
+ * 5.1 负责预算收窄；5.2 起预算截断页/正文会签发认证游标（本文件只断言截断边界与
+ * `nextCursor` 在场，续读成功/来源变化由 cursor 测试覆盖）。
  */
 
 let pageFx: BudgetPageFixture;
@@ -244,7 +244,9 @@ describe("list_runs：长 task 页按预算收窄（S07/S09）", () => {
     expect(data.totals.remaining).toBe(totalRuns - data.items.length);
     expect(data.totals.limit).toBe(20);
     expect(envelope.truncation.truncated).toBe(true);
-    expect(envelope.truncation.nextCursor).toBeUndefined();
+    // 5.2 起预算截断页签发认证游标；5.1 的「nextCursor 缺席」判据在此合法改判
+    expect(envelope.truncation.nextCursor).toBeDefined();
+    expect(envelope.page?.nextCursor).toBe(envelope.truncation.nextCursor);
     // 页是固定序列的前缀：每条 task 都是长任务，且顺序仍按 created_at 倒序
     for (const item of data.items) {
       if (item.kind !== "run") throw new Error("本夹具不应有失败项");
@@ -275,7 +277,7 @@ describe("get_run：index 页预算与单项超限", () => {
     expect(data.index.totals.remaining).toBe(spans - data.index.items.length);
     expect(data.index.totals.limit).toBe(100);
     expect(envelope.truncation.truncated).toBe(true);
-    expect(envelope.truncation.nextCursor).toBeUndefined();
+    expect(envelope.truncation.nextCursor).toBeDefined();
   });
 
   it("单项摘要超预算 ⇒ RESPONSE_LIMIT", async () => {
@@ -455,7 +457,38 @@ describe("get_step：长来源链挤占预算时正文按码点收窄（S09）",
     expect(hasLoneSurrogate(data.body.text)).toBe(false);
     expect(envelope.provenance.runs).toHaveLength(chainFx.chainLength);
     expect(envelope.truncation.truncated).toBe(true);
-    expect(envelope.truncation.nextCursor).toBeUndefined();
+    expect(envelope.truncation.nextCursor).toBeDefined();
+  });
+
+  it("预算收窄后的正文可用游标续读到完整文本（S09）", async () => {
+    const full = canonicalJson("🙂".repeat(CHAIN_BODY_EMOJI));
+    let collected = "";
+    let expectedStart = 0;
+    let cursor: string | undefined;
+    let pages = 0;
+    do {
+      const result = await getStepTool.execute(
+        {
+          runId: chainFx.leafRunId,
+          spanId: chainFx.leafToolSpanId,
+          section: "output",
+          maxChars: 8192,
+          ...(cursor === undefined ? {} : { cursor }),
+        },
+        chainRoot,
+      );
+      assertBudget(result);
+      const { data, envelope } = okData<GetStepData>(result);
+      if (data.body === null || data.body.recorded !== true) throw new Error("正文应当在场");
+      expect(data.body.range.start).toBe(expectedStart);
+      collected += data.body.text;
+      expectedStart = data.body.range.end;
+      pages += 1;
+      cursor = envelope.truncation.nextCursor;
+    } while (cursor !== undefined);
+    expect(pages).toBeGreaterThan(1);
+    expect(expectedStart).toBe([...full].length);
+    expect(collected).toBe(full);
   });
 });
 

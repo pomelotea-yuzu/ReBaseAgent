@@ -153,7 +153,7 @@ describe("read_checkpoint_file：原文保真与码点范围（Q14）", () => {
     expect(text.remaining).toBe(5041 - (LONG_BODY_EMOJI_START + 1));
   });
 
-  it("maxChars 超上限由契约拒，且不回显取值（游标同样在读取前拒）", async () => {
+  it("maxChars 超上限由契约拒；无法验证的游标同样被拒且不回显取值", async () => {
     const tooBig = await failureOf(fx.ids.root, "long.txt", { maxChars: 8193 });
     expect(tooBig.code).toBe("INVALID_ARGUMENT");
     expect(JSON.stringify(tooBig)).not.toContain("8193");

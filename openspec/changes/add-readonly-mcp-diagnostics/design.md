@@ -113,7 +113,14 @@ compare_runs 不默认完整最终文本，过长干预/输出给可用 get_step
 
 完整工具结果含 structuredContent/content/来源/错误，UTF-8 JSON 后最多 64 KiB。条目数是上限，实际预算不足提前结束页给 nextCursor；单项元数据仍无法容纳则 RESPONSE_LIMIT，不删身份假称完整。
 
-**5.1 落地口径（分阶段，勿当最终契约）**：本批实测**完整 tool result**（`content`+`structuredContent`+`isError`）的 UTF-8 字节，按页/正文各自的**单旋钮**（items/chars）二分收窄；最小规模仍超 ⇒ `RESPONSE_LIMIT`（定位 run/span/snapshot/比较对）。`truncated`/`remaining`/`range` 按实际外发量重算。**`nextCursor` 签发/认证与正文 `start` 续读仍归 5.2**：本批预算截断页如实 `truncated:true` 且 `nextCursor` 缺席，正文只给首段；带 `cursor` 的请求继续显式拒 `INVALID_ARGUMENT`。因此 S07/S09/S10 的“续读/独立游标”半边归 5.2，本批不宣称整场景通过。
+**5.1 落地口径**：本批实测**完整 tool result**（`content`+`structuredContent`+`isError`）的 UTF-8 字节，按页/正文各自的**单旋钮**（items/chars）二分收窄；最小规模仍超 ⇒ `RESPONSE_LIMIT`（定位 run/span/snapshot/比较对）。`truncated`/`remaining`/`range` 按实际外发量重算。
+
+**5.2 落地口径（游标已实现，取代 5.1 的「nextCursor 缺席/正文只给首段」）**：
+- 形状 `mcpc1.<keyId>.<payloadB64url>.<macB64url>`；`keyId` 由**进程随机密钥**派生，`mac` 为 HMAC-SHA256。payload 只含 `v/tool/参数指纹/readVersion 指纹/kind/位置`，**不含路径、正文或 run 内容**。
+- 参数指纹 = 规范 JSON（去掉 `cursor`/undefined）的 SHA-256；readVersion 指纹 = 对当前 readVersion（含 trace 台账与附件 stat 台账）的 SHA-256。**先验参数再验版本**：改参数/换工具/换模式 ⇒ `INVALID_ARGUMENT`；同 keyId 的载荷篡改（MAC 不符）⇒ `INVALID_ARGUMENT`；readVersion 变化 ⇒ `STALE_CURSOR`；keyId 不同（重启/另一进程）⇒ `STALE_CURSOR`（与另一进程的游标密码学上不可区分）。
+- 位置：条目页 1 个 offset；单文件/单 span 正文 1 个码点 offset；两侧内容比较 `[left,right]` 两个 offset（一侧结束不补另一侧）。只有**有进展且仍有剩余**才签发下一游标；0 字符进展不签（避免原地打转）。
+- 附件 stat 台账 = 对 `workspace-blobs/sha256/<hash>` 做 `lstat`（kind/bytes/mtime，**不读字节**），inspect/read/compare 把所读快照/文件/并集的台账并入 readVersion；trace 台账之外再加这层，附件被删除/改写/目录顶替都会让续读 `STALE_CURSOR`。`readVersion` 标签升 `rv2`。
+- 续读不跨请求缓存：每个请求新建 `RunReadContext` 重新读盘（Q02）；失败项在列表序列里按 offset 只出现一次。
 
 正文默认 4096、最大 8192 Unicode 码点，再按实际信封预算缩短，不拆代理对。结构正文先规范 JSON 后分文本段，encoding=canonical-json；文件 encoding=utf8-text。返回 `{text,range:{start,end,total,unit:"unicode-code-point"},truncated,nextCursor}`。范围针对过滤后外发文本；原文件 bytes/hash 明确属于完整历史文件，不充当片段哈希；换行不规范化。
 

@@ -14,6 +14,7 @@ import { type GetStepArgs, STEP_SECTIONS, requireContract } from "../tool-contra
 import { ToolFailure, type ToolPayload, defineTool } from "../tool-definition.js";
 import { sliceBody } from "./body-range.js";
 import { canonicalJson } from "./canonical-json.js";
+import { issueCursor, requireCursorPosition, withoutCursor } from "./cursor-io.js";
 import {
   type ProjectedSpanInput,
   SpanItemSchema,
@@ -139,8 +140,8 @@ export const getStepTool: ToolDefinition = defineTool(
      * 形状校验一律在任何读取之前（design D3 + Q05）：这一层能给 `INVALID_ARGUMENT`
      * 并指出是哪个字段，共享层只能给「记录校验不通过」——让客户端去猜没意义。
      */
-    if (args.cursor !== undefined) {
-      // 正文续读的游标签发与绑定归 5.2：现在只能给首段范围，带游标就明确拒绝
+    if (args.cursor !== undefined && args.section === undefined) {
+      // 游标只来自正文续读；没有 section 的请求不可能有可续的正文
       throw new ToolFailure("INVALID_ARGUMENT", "cursor");
     }
     if (findIllegalExternalRunIdViolation(args.runId) !== null) {
@@ -157,7 +158,16 @@ export const getStepTool: ToolDefinition = defineTool(
     }
 
     const repository = new RunRepository(root.tracesDir);
-    const readVersion = computeReadVersion("get_step", args, repository);
+    const requestArgs = withoutCursor(args);
+    const readVersion = computeReadVersion("get_step", requestArgs, repository);
+    const [start] = requireCursorPosition({
+      cursor: args.cursor,
+      tool: "get_step",
+      params: requestArgs,
+      readVersion,
+      kind: "chars",
+      slots: 1,
+    });
     const { detail, chainSummaries, ownerIndex } = new RunReadContext(
       root.tracesDir,
     ).readWithOwners(args.runId);
@@ -224,6 +234,15 @@ export const getStepTool: ToolDefinition = defineTool(
       }
     }
 
+    if (filteredText === null) {
+      if (args.cursor !== undefined) throw new ToolFailure("INVALID_ARGUMENT", "cursor");
+    } else {
+      const total = [...filteredText].length;
+      if (start > total || (args.cursor !== undefined && start >= total)) {
+        throw new ToolFailure("INVALID_ARGUMENT", "cursor");
+      }
+    }
+
     const runs = provenanceRunsOf(detail, chainSummaries);
     if (runs === null) {
       throw new ToolFailure("RUN_INVALID", `run:${detail.meta.id}`);
@@ -241,7 +260,7 @@ export const getStepTool: ToolDefinition = defineTool(
           : filteredText === null
             ? { recorded: false }
             : (() => {
-                const sliced = sliceBody(filteredText, chars);
+                const sliced = sliceBody(filteredText, chars, start);
                 return {
                   recorded: true as const,
                   encoding: "canonical-json" as const,
@@ -257,10 +276,24 @@ export const getStepTool: ToolDefinition = defineTool(
         sections,
         body,
       });
+      const nextCursor =
+        body !== null &&
+        body.recorded === true &&
+        body.range.end > start &&
+        body.range.end < body.range.total
+          ? issueCursor({
+              tool: "get_step",
+              params: requestArgs,
+              readVersion,
+              kind: "chars",
+              position: [body.range.end],
+            })
+          : undefined;
       return {
         readVersion,
         data,
         truncated: body !== null && body.recorded === true ? body.truncated : false,
+        ...(nextCursor === undefined ? {} : { nextCursor }),
         runs,
         refs,
         limitations: [...limitations],
@@ -278,14 +311,16 @@ export const getStepTool: ToolDefinition = defineTool(
 
     const initial = buildPayload(args.maxChars);
     if (filteredText === null) return initial;
-    const initialEnd = sliceBody(filteredText, args.maxChars).range.end;
+    const initialEnd = sliceBody(filteredText, args.maxChars, start).range.end;
+    const initialEmitted = initialEnd - start;
+    if (initialEmitted <= 0) return initial;
     return {
       ...initial,
       budget: {
         kind: "chars",
-        value: initialEnd,
+        value: initialEmitted,
         minimum: 0,
-        fit: (chars) => buildPayload(Math.min(chars, initialEnd)),
+        fit: (chars) => buildPayload(Math.min(chars, initialEmitted)),
         limitRef: `span:${lookup.ownerRunId}:${args.spanId}`,
       },
     };

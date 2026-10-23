@@ -27,7 +27,9 @@ import type { ToolDefinition } from "../server.js";
 import type { DataRoot } from "../startup.js";
 import { type CompareCheckpointFilesArgs, requireContract } from "../tool-contracts.js";
 import { ToolFailure, type ToolPayload, defineTool } from "../tool-definition.js";
+import { attachmentLedger } from "./attachment-ledger.js";
 import { sliceBody } from "./body-range.js";
+import { issueCursor, requireCursorPosition, withoutCursor } from "./cursor-io.js";
 import {
   ContentHashSchema,
   type SideName,
@@ -240,10 +242,11 @@ function toSideCell(side: SideName, result: CompareSideResult) {
 function projectComparedFile(
   side: ComparedFileSide,
   maxChars: number | undefined,
+  start = 0,
 ): z.infer<typeof ComparedSideFileSchema> {
   switch (side.status) {
     case "text": {
-      const sliced = sliceBody(side.text, maxChars);
+      const sliced = sliceBody(side.text, maxChars, start);
       return {
         status: "text",
         fullFile: { bytes: side.file.bytes, sha256: side.file.sha256 },
@@ -299,10 +302,6 @@ function projectComparedFile(
 export const compareCheckpointFilesTool: ToolDefinition = defineTool(
   requireContract("compare_checkpoint_files"),
   async (args: CompareCheckpointFilesArgs, root: DataRoot) => {
-    if (args.cursor !== undefined) {
-      // 两侧游标（分别存左右 offset）归 5.2：本批两侧都只能给首段
-      throw new ToolFailure("INVALID_ARGUMENT", "cursor");
-    }
     for (const [name, selector] of [
       ["left", args.left],
       ["right", args.right],
@@ -332,7 +331,6 @@ export const compareCheckpointFilesTool: ToolDefinition = defineTool(
     }
 
     const repository = new RunRepository(root.tracesDir);
-    const readVersion = computeReadVersion("compare_checkpoint_files", args, repository);
     const selectors = {
       left: {
         runId: args.left.runId,
@@ -396,6 +394,38 @@ export const compareCheckpointFilesTool: ToolDefinition = defineTool(
       snapshotId: side.snapshotId,
     }));
 
+    const requestArgs = withoutCursor(args);
+    const extra = {
+      sides: sides.map((side) =>
+        side.status === "ready"
+          ? { side: side.side, status: "ready", runId: side.runId, snapshotId: side.snapshotId }
+          : { side: side.side, status: "unavailable", runId: side.runId, code: side.code },
+      ),
+      attachments: attachmentLedger(
+        root.dataDir,
+        manifest.entries.flatMap((entry) =>
+          [entry.left?.sha256, entry.right?.sha256].filter(
+            (hash): hash is string => typeof hash === "string",
+          ),
+        ),
+      ),
+    };
+    const readVersion = computeReadVersion(
+      "compare_checkpoint_files",
+      requestArgs,
+      repository,
+      extra,
+    );
+    const cursorKind = args.path === undefined ? "items" : "chars";
+    const position = requireCursorPosition({
+      cursor: args.cursor,
+      tool: "compare_checkpoint_files",
+      params: requestArgs,
+      readVersion,
+      kind: cursorKind,
+      slots: args.path === undefined ? 1 : 2,
+    });
+
     // ---------------- 内容模式 ----------------
     if (args.path !== undefined) {
       const path = args.path;
@@ -425,10 +455,41 @@ export const compareCheckpointFilesTool: ToolDefinition = defineTool(
         throw new ToolFailure(classifyReadFailure(e), locateRefOf({ runId: leftSide.runId, path }));
       }
 
+      const [leftStart, rightStart] = position;
+      const leftTotal = compared.left.status === "text" ? [...compared.left.text].length : 0;
+      const rightTotal = compared.right.status === "text" ? [...compared.right.text].length : 0;
+      if (args.cursor !== undefined) {
+        // 游标只来自 text/text 的两侧正文续读；任一侧变成非文本就没有可续的正文
+        if (compared.left.status !== "text" || compared.right.status !== "text") {
+          throw new ToolFailure("INVALID_ARGUMENT", "cursor");
+        }
+        if (leftStart >= leftTotal && rightStart >= rightTotal) {
+          throw new ToolFailure("INVALID_ARGUMENT", "cursor");
+        }
+      }
+      if (leftStart > leftTotal || rightStart > rightTotal) {
+        throw new ToolFailure("INVALID_ARGUMENT", "cursor");
+      }
+
       /** 两侧各按同一个码点上限切；一侧较短自然结束，不拿另一侧补（S10） */
       const buildPayload = (chars: number): ToolPayload => {
-        const left = projectComparedFile(compared.left, chars);
-        const right = projectComparedFile(compared.right, chars);
+        const left = projectComparedFile(compared.left, chars, leftStart);
+        const right = projectComparedFile(compared.right, chars, rightStart);
+        const bothText = left.status === "text" && right.status === "text";
+        const leftEnd = left.status === "text" ? left.range.end : leftStart;
+        const rightEnd = right.status === "text" ? right.range.end : rightStart;
+        const progress = bothText && (leftEnd > leftStart || rightEnd > rightStart);
+        const remaining = bothText && (leftEnd < leftTotal || rightEnd < rightTotal);
+        const nextCursor =
+          progress && remaining
+            ? issueCursor({
+                tool: "compare_checkpoint_files",
+                params: requestArgs,
+                readVersion,
+                kind: "chars",
+                position: [leftEnd, rightEnd],
+              })
+            : undefined;
         const data = CompareCheckpointFilesDataSchema.parse({
           mode: "content",
           sides: [leftSide, rightSide],
@@ -443,6 +504,7 @@ export const compareCheckpointFilesTool: ToolDefinition = defineTool(
           truncated:
             (left.status === "text" && left.truncated) ||
             (right.status === "text" && right.truncated),
+          ...(nextCursor === undefined ? {} : { nextCursor }),
           runs,
           refs,
           limitations: [...limitations],
@@ -472,9 +534,27 @@ export const compareCheckpointFilesTool: ToolDefinition = defineTool(
     const pairRef = `compare:${readySides[0]?.snapshotId ?? "unavailable"}/${
       readySides[1]?.snapshotId ?? "unavailable"
     }`;
+    const [start] = position;
+    if (
+      start > manifest.entries.length ||
+      (args.cursor !== undefined && start >= manifest.entries.length)
+    ) {
+      throw new ToolFailure("INVALID_ARGUMENT", "cursor");
+    }
 
     const buildPayload = (pageSize: number): ToolPayload => {
-      const window = takeWindow(manifest.entries, Math.min(pageSize, requestedLimit));
+      const window = takeWindow(manifest.entries.slice(start), Math.min(pageSize, requestedLimit));
+      const end = start + window.items.length;
+      const nextCursor =
+        end < manifest.entries.length
+          ? issueCursor({
+              tool: "compare_checkpoint_files",
+              params: requestArgs,
+              readVersion,
+              kind: "items",
+              position: [end],
+            })
+          : undefined;
       const entries = window.items.map((entry) => ({
         path: entry.path,
         presence: entry.presence,
@@ -508,6 +588,7 @@ export const compareCheckpointFilesTool: ToolDefinition = defineTool(
         readVersion,
         data,
         truncated: window.truncated,
+        ...(nextCursor === undefined ? {} : { nextCursor }),
         runs,
         refs,
         limitations: pageLimitations,
@@ -522,7 +603,7 @@ export const compareCheckpointFilesTool: ToolDefinition = defineTool(
     };
 
     const initial = buildPayload(requestedLimit);
-    const initialCount = Math.min(manifest.entries.length, requestedLimit);
+    const initialCount = Math.min(manifest.entries.length - start, requestedLimit);
     if (initialCount === 0) return initial;
     return {
       ...initial,

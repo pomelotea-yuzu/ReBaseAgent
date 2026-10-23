@@ -165,14 +165,14 @@ describe("compare_checkpoint_files：清单模式（引用与内容分开）", (
     ).toBe(true);
   });
 
-  it("默认页宽 20 生效、如实标 truncated，但不发游标（签发归 5.2）", async () => {
+  it("默认页宽 20 生效、如实标 truncated，并签发续读游标（5.2）", async () => {
     const { data, envelope } = await manifest(bothPoints().left, bothPoints().right);
     expect(data.entries).toHaveLength(20);
     expect(data.totals.limit).toBe(20);
     expect(data.totals.paths).toBe(fx.unionPathCount);
     expect(envelope.truncation.truncated).toBe(true);
-    expect(envelope.truncation.nextCursor).toBeUndefined();
-    expect(envelope.page).toBeUndefined();
+    expect(envelope.truncation.nextCursor).toBeDefined();
+    expect(envelope.page?.nextCursor).toBe(envelope.truncation.nextCursor);
 
     const one = await manifest(bothPoints().left, bothPoints().right, { limit: 1 });
     expect(one.data.entries).toHaveLength(1);

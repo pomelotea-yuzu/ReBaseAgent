@@ -13,12 +13,26 @@ import type { RunRepository } from "@rebaseagent/run-query";
  *   变化也会让游标过期。宁可多判一次 STALE_CURSOR 从头重查，也不把已变来源拼进续读。
  * - **入参直接进摘要**：改参数（含 limit/query/status）必然换 readVersion，游标绑定
  *   参数由此而来（5.2 负责签发与核验游标本身）。
+ * - **附件由调用方追加 `extra`**：检查点/文件类工具把所读快照的附件 stat 台账放进来，
+ *   这样「trace 没变、附件被删/换/顶成目录」也会换 readVersion ⇒ 续读 STALE_CURSOR。
+ *   摘要仍只 stat、不读附件字节（D6 的读取成本边界）。
  */
 
 /** 摘要前缀：形状变了要让旧游标一律判过期，而不是被读成「同一份数据」 */
-const READ_VERSION_TAG = "rv1";
+const READ_VERSION_TAG = "rv2";
 
-export function computeReadVersion(tool: string, args: unknown, repository: RunRepository): string {
-  const material = JSON.stringify([READ_VERSION_TAG, tool, args, repository.traceFileLedger()]);
+export function computeReadVersion(
+  tool: string,
+  args: unknown,
+  repository: RunRepository,
+  extra: unknown = null,
+): string {
+  const material = JSON.stringify([
+    READ_VERSION_TAG,
+    tool,
+    args,
+    repository.traceFileLedger(),
+    extra,
+  ]);
   return `${READ_VERSION_TAG}:${createHash("sha256").update(Buffer.from(material, "utf8")).digest("hex")}`;
 }

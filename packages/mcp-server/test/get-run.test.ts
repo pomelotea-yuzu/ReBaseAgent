@@ -227,13 +227,14 @@ describe("get_run：索引与检查点（S03 的可回查半边）", () => {
     ]);
   });
 
-  it("limit 只作用于索引，totals 仍报全量且不发明游标", async () => {
+  it("limit 只作用于索引，totals 仍报全量并签发续读游标", async () => {
     const { data, envelope } = await okRun(fx.ids.child, { limit: 2 });
     expect(data.index.items).toHaveLength(2);
     expect(data.index.totals).toMatchObject({ spans: 6, checkpoints: 0, listed: 2, limit: 2 });
     expect(data.index.totals.remaining).toBe(4);
-    expect(envelope.page).toBeUndefined();
-    expect(envelope.truncation).toEqual({ truncated: true });
+    expect(envelope.page?.nextCursor).toBeDefined();
+    expect(envelope.truncation).toMatchObject({ truncated: true });
+    expect(envelope.truncation.nextCursor).toBe(envelope.page?.nextCursor);
   });
 });
 
@@ -321,7 +322,7 @@ describe("get_run：错误面不泄露内部载荷（S06）", () => {
     expect(JSON.stringify(error)).not.toContain(fx.tracesDir);
   });
 
-  it("带游标的索引续读在 5.2 之前被显式拒绝", async () => {
+  it("无法验证的游标被显式拒绝（不回显取值）", async () => {
     const error = errorOf(await failureOf(fx.ids.alpha, { cursor: "c-again" }));
     expect(error.code).toBe("INVALID_ARGUMENT");
     expect(error.ref).toBe("cursor");

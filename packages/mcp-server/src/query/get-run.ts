@@ -13,6 +13,7 @@ import type { ToolDefinition } from "../server.js";
 import type { DataRoot } from "../startup.js";
 import { type GetRunArgs, requireContract } from "../tool-contracts.js";
 import { ToolFailure, type ToolPayload, defineTool } from "../tool-definition.js";
+import { issueCursor, requireCursorPosition, withoutCursor } from "./cursor-io.js";
 import {
   ChainTotalsSchema,
   type CheckpointItem,
@@ -121,13 +122,6 @@ export const getRunTool: ToolDefinition = defineTool(
   requireContract("get_run"),
   async (args: GetRunArgs, root: DataRoot) => {
     /**
-     * 游标签发与续读核验归 5.2：现在没有可发的游标，就不能把带游标的请求当首页重放
-     * （那会让客户端以为自己已经翻过页，实际反复拿到同一批条目）。
-     */
-    if (args.cursor !== undefined) {
-      throw new ToolFailure("INVALID_ARGUMENT", "cursor");
-    }
-    /**
      * 非法标识在任何读取之前按参数问题拒绝（design D3 + Q05）。共享层同样会在拼路径前
      * 挡住，但那层的分类是「记录校验不通过」；对调用方来说真正的原因是「你给的 ID
      * 不合规」——这一层判得更准，就不必让客户去猜。
@@ -137,7 +131,16 @@ export const getRunTool: ToolDefinition = defineTool(
     }
 
     const repository = new RunRepository(root.tracesDir);
-    const readVersion = computeReadVersion("get_run", args, repository);
+    const requestArgs = withoutCursor(args);
+    const readVersion = computeReadVersion("get_run", requestArgs, repository);
+    const [start] = requireCursorPosition({
+      cursor: args.cursor,
+      tool: "get_run",
+      params: requestArgs,
+      readVersion,
+      kind: "items",
+      slots: 1,
+    });
     /** 每请求一个新上下文：同一物理 run 本次最多解析一次，事实不跨请求缓存（Q02） */
     const context = new RunReadContext(root.tracesDir);
     const { detail, chainSummaries, ownerIndex } = context.readWithOwners(args.runId);
@@ -249,8 +252,23 @@ export const getRunTool: ToolDefinition = defineTool(
       },
     };
 
+    if (start > allItems.length || (args.cursor !== undefined && start >= allItems.length)) {
+      throw new ToolFailure("INVALID_ARGUMENT", "cursor");
+    }
+
     const buildPayload = (pageSize: number): ToolPayload => {
-      const window = takeWindow(allItems, Math.min(pageSize, requestedLimit));
+      const window = takeWindow(allItems.slice(start), Math.min(pageSize, requestedLimit));
+      const end = start + window.items.length;
+      const nextCursor =
+        end < allItems.length
+          ? issueCursor({
+              tool: "get_run",
+              params: requestArgs,
+              readVersion,
+              kind: "items",
+              position: [end],
+            })
+          : undefined;
       const data = GetRunDataSchema.parse({
         ...baseData,
         index: {
@@ -275,6 +293,7 @@ export const getRunTool: ToolDefinition = defineTool(
         readVersion,
         data,
         truncated: window.truncated,
+        ...(nextCursor === undefined ? {} : { nextCursor }),
         runs,
         refs,
         limitations: [...limitations],
@@ -289,7 +308,7 @@ export const getRunTool: ToolDefinition = defineTool(
     };
 
     const initial = buildPayload(requestedLimit);
-    const initialCount = Math.min(allItems.length, requestedLimit);
+    const initialCount = Math.min(allItems.length - start, requestedLimit);
     if (initialCount === 0) return initial;
     return {
       ...initial,

@@ -30,7 +30,7 @@ import { collectKeys } from "./whitelist-assertions.js";
  *   未知 id 一律 `STEP_NOT_FOUND`，不退回初始、不代填；
  * - 附件的 ok / missing / corrupt 三态与 `change` 四态各自可分辨，损坏不渲染成空文件；
  * - 清单**不出正文**：只有路径/字节/哈希/状态，带 `BODY_NOT_EXPOSED` 指路；
- * - 页宽生效但不发假游标（5.2 才签发），带 `cursor` 显式拒；
+ * - 页宽生效并签发认证游标（5.2）；无法验证/参数不符的 `cursor` 稳定拒；
  * - 真实 I/O 故障是 `STORAGE_IO`（可重试），不伪装成某个文件的状态。
  */
 
@@ -239,7 +239,7 @@ describe("inspect_checkpoint：清单、附件状态与正文边界", () => {
     expect(fileAt(data, "empty.txt").sha256).toBe(contentSha(""));
   });
 
-  it("默认页宽 20 生效并如实标 truncated，但不发游标（签发归 5.2）", async () => {
+  it("默认页宽 20 生效并如实标 truncated，并签发续读游标（5.2）", async () => {
     const { data, envelope } = await okInspect(fx.ids.root);
     expect(data.files).toHaveLength(20);
     expect(data.totals).toEqual({
@@ -249,11 +249,11 @@ describe("inspect_checkpoint：清单、附件状态与正文边界", () => {
       limit: 20,
     });
     expect(envelope.truncation.truncated).toBe(true);
-    expect(envelope.truncation.nextCursor).toBeUndefined();
-    expect(envelope.page).toBeUndefined();
+    expect(envelope.truncation.nextCursor).toBeDefined();
+    expect(envelope.page?.nextCursor).toBe(envelope.truncation.nextCursor);
   });
 
-  it("limit=1 只给一条，其余如实报剩余；带 cursor 的请求在读取前拒", async () => {
+  it("limit=1 只给一条，其余如实报剩余；无法验证的 cursor 被拒", async () => {
     const { data } = await okInspect(fx.ids.root, { limit: 1 });
     expect(data.files).toHaveLength(1);
     expect(data.totals.remaining).toBe(fx.initialFileCount - 1);
@@ -347,7 +347,7 @@ describe("inspect_checkpoint：来源、稳定映射与零写入", () => {
     expect(envelope.provenance.refs).toEqual([
       { runId: fx.ids.child, stepSpanId: fx.childStepSpanId, snapshotId: fx.childFinalSnapshotId },
     ]);
-    expect(envelope.readVersion).toMatch(/^rv1:/);
+    expect(envelope.readVersion).toMatch(/^rv2:/);
   });
 
   it("refs 里的 snapshotId 与 get_run 检查点段同一条逐项相同（三处说法一致）", async () => {

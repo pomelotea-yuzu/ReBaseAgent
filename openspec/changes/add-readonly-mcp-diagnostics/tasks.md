@@ -1,6 +1,6 @@
 # MCP0 / MCP1 实施任务
 
-状态（2026-10-23）：**阶段 1、2（2.1–2.9）、3（3.1–3.2）、4.1–4.8 与 5.1 已完成；5.2 起未实施**。
+状态（2026-10-23）：**阶段 1、2（2.1–2.9）、3（3.1–3.2）、4.1–4.8、5.1–5.2 已完成；5.3 起未实施**。
 每项预计不超过 2h；发现超过时先拆分任务。验收对应见 [evidence-index.md](evidence-index.md)；测试、客户端实机、人工接入和发行分别记录，不以文档校验替代功能通过。
 
 ## 1. MCP0：先验证支持路径
@@ -410,7 +410,35 @@
   - **S09 预算半边通过**（完整结果 ≤64 KiB、Unicode/转义/代理对、range 准确）；
     **S07/S10 部分通过**（页/正文边界、RESPONSE_LIMIT、两侧独立首段已钉；完整分页/续读/
     两侧独立游标归 5.2）。
-- [ ] 5.2（2h）实现认证游标、参数/读取版本绑定和源变化拒绝，覆盖列表新增/失败项与附件变化。验收 S08、Q02。
+- [x] 5.2（2h）实现认证游标、参数/读取版本绑定和源变化拒绝，覆盖列表新增/失败项与附件变化。验收 S08、Q02。
+  - 2026-10-23：新增 `src/query/cursor.ts`（`mcpc1.<keyId>.<payload>.<mac>`；进程随机密钥派生 keyId、
+    HMAC-SHA256；payload 只含 v/tool/参数指纹/readVersion 指纹/kind/位置）、`cursor-io.ts`
+    （`withoutCursor`/`requireCursorPosition`/`issueCursor`）与 `attachment-ledger.ts`
+    （附件 `lstat` 的 kind/bytes/mtime，不读字节）。
+  - **接线**：`list_runs`/`get_run`/`inspect_checkpoint`/`compare_checkpoint_files(manifest)` 用条目 offset；
+    `get_step`/`read_checkpoint_file` 用单码点 offset；`compare_checkpoint_files(content)` 用
+    `[left,right]` 双 offset（一侧结束不补另一侧）。只有**有进展且仍有剩余**才签发下一游标；
+    0 进展不签发（避免原地打转）。首页无 cursor = 0；预算收窄后的 `nextCursor` 指向**实际外发末端**。
+  - **绑定与分类**：参数指纹 = 去 cursor/undefined 的规范 JSON 的 SHA-256；readVersion 指纹 =
+    当前 readVersion（trace 台账 + 可选附件 stat 台账）的 SHA-256。**先参数后版本**：
+    改参数/换工具/换模式/同 keyId 篡改（MAC 不符）⇒ `INVALID_ARGUMENT`；readVersion 变化 ⇒
+    `STALE_CURSOR`；keyId 不同（重启/另一进程）⇒ `STALE_CURSOR`。附件台账覆盖
+    `workspace-blobs/sha256/<hash>` 的删除/改写/目录顶替；`readVersion` 标签升 `rv2`。
+  - **合法改判留痕**：4.3/4.4/4.6/4.7/5.1 的「截断页 nextCursor 缺席」「带 cursor 一律拒」判据，
+    随本批改为「有效 cursor 续读；无法验证/参数不符的 cursor 拒」。测试标题/注释已同步；
+    `rv1` 正则改 `rv2`。这是 5.2 的交付语义，不是削弱旧判据。
+  - 测试：`cursor.test.ts` **9**（往返/载荷不含路径正文/参数/工具/模式/槽数/版本/篡改/畸形 codec +
+    **真实 Node 子进程签发 → 本进程 STALE**）；`cursor-continuation.test.ts` **17**（列表/get_run/
+    inspect/manifest 逐页无重漏；get_step/read/compare 两侧正文续读拼接；篡改/参数/换工具；列表新增、
+    trace 改写、附件改写五路 STALE；Q02 新请求重读）；`budget.test.ts` 增 1 条预算收窄正文续读
+    （**18**）。mcp-server **269 passed / 18 文件**（+27）。
+  - 门禁：src tsc 0、测试 tsconfig 0、run-query **47 passed/1 skip**、desktop **216 文件/3301 用例**、
+    7 包 build、desktop tsc 双 0、biome scoped **0**（88 文件）、`check-spec` 13/0、strict valid、
+    `git diff --check` 0；命令与 exit code ⇒ `.workbuddy/mcp0-52/gates/gates-52.txt`。
+  - 变异验证见同文件 §五（跳过 MAC ⇒ 2 红 / 跳过 keyId ⇒ 2 红 / 跳过 readVersion ⇒ 8 红 /
+    忽略附件台账 ⇒ 4 红；全部当场还原并 grep 无残留）。
+  - **S07/S08/S09/S10 包层/协议通过**：稳定数据逐页/逐段可重建、来源/附件变化与重启 STALE、
+    篡改/异参 INVALID、两侧独立续读；真实客户端与 Electron 分别归 6.2/6.1，真实 stdio 重启复验归 5.3。
 - [ ] 5.3（1.5h）真实 stdio 子进程协议测试：协商/tools/schema/错误、取消、EOF、重连。验收 S01/S04/S13/S14。
 - [ ] 5.4（1.5h）完整 fixture 查询前后文件集合/字节指纹与零执行计数，覆盖源目录变化及故障。验收 Q15/Q16、S14。
 

@@ -15,7 +15,9 @@ import type { ToolDefinition } from "../server.js";
 import type { DataRoot } from "../startup.js";
 import { type ReadCheckpointFileArgs, requireContract } from "../tool-contracts.js";
 import { ToolFailure, type ToolPayload, defineTool } from "../tool-definition.js";
+import { attachmentLedger } from "./attachment-ledger.js";
 import { sliceBody } from "./body-range.js";
+import { issueCursor, requireCursorPosition, withoutCursor } from "./cursor-io.js";
 import {
   locateRefOf,
   outcomeTagOf,
@@ -130,10 +132,6 @@ export type ReadCheckpointFileData = z.infer<typeof ReadCheckpointFileDataSchema
 export const readCheckpointFileTool: ToolDefinition = defineTool(
   requireContract("read_checkpoint_file"),
   async (args: ReadCheckpointFileArgs, root: DataRoot) => {
-    if (args.cursor !== undefined) {
-      // 正文分段续读的游标签发与来源核验归 5.2：本次只能给首段范围
-      throw new ToolFailure("INVALID_ARGUMENT", "cursor");
-    }
     if (findIllegalExternalRunIdViolation(args.runId) !== null) {
       throw new ToolFailure("INVALID_ARGUMENT", "runId");
     }
@@ -149,7 +147,6 @@ export const readCheckpointFileTool: ToolDefinition = defineTool(
     }
 
     const repository = new RunRepository(root.tracesDir);
-    const readVersion = computeReadVersion("read_checkpoint_file", args, repository);
     const context = new RunReadContext(root.tracesDir);
     /** 检查点不涉及 span 归属（只认本 run 自有记录），因此不必建 owner 索引 */
     const { detail, chainSummaries } = context.readOf(args.runId);
@@ -229,8 +226,33 @@ export const readCheckpointFileTool: ToolDefinition = defineTool(
       },
     ];
 
+    const requestArgs = withoutCursor(args);
+    const extra = {
+      runId: leafRunId,
+      snapshotId: matched.snapshotId,
+      path: read.path,
+      attachments: read.status === "not_found" ? [] : attachmentLedger(root.dataDir, [read.sha256]),
+    };
+    const readVersion = computeReadVersion("read_checkpoint_file", requestArgs, repository, extra);
+    const [start] = requireCursorPosition({
+      cursor: args.cursor,
+      tool: "read_checkpoint_file",
+      params: requestArgs,
+      readVersion,
+      kind: "chars",
+      slots: 1,
+    });
+    if (read.status !== "text") {
+      if (args.cursor !== undefined) throw new ToolFailure("INVALID_ARGUMENT", "cursor");
+    } else {
+      const total = [...read.text].length;
+      if (start > total || (args.cursor !== undefined && start >= total)) {
+        throw new ToolFailure("INVALID_ARGUMENT", "cursor");
+      }
+    }
+
     const buildPayload = (chars: number | undefined): ToolPayload => {
-      const file = projectFileBody(read, chars);
+      const file = projectFileBody(read, chars, start);
       const data = ReadCheckpointFileDataSchema.parse({
         selector: {
           runId: leafRunId,
@@ -241,10 +263,21 @@ export const readCheckpointFileTool: ToolDefinition = defineTool(
         checkpointTotals: { fileCount: matched.fileCount, totalBytes: matched.totalBytes },
         file,
       });
+      const nextCursor =
+        file.status === "text" && file.range.end > start && file.range.end < file.range.total
+          ? issueCursor({
+              tool: "read_checkpoint_file",
+              params: requestArgs,
+              readVersion,
+              kind: "chars",
+              position: [file.range.end],
+            })
+          : undefined;
       return {
         readVersion,
         data,
         truncated: file.status === "text" ? file.truncated : false,
+        ...(nextCursor === undefined ? {} : { nextCursor }),
         runs,
         refs,
         limitations,
@@ -260,14 +293,16 @@ export const readCheckpointFileTool: ToolDefinition = defineTool(
 
     const initial = buildPayload(args.maxChars);
     if (read.status !== "text") return initial;
-    const initialEnd = sliceBody(read.text, args.maxChars).range.end;
+    const initialEnd = sliceBody(read.text, args.maxChars, start).range.end;
+    const initialEmitted = initialEnd - start;
+    if (initialEmitted <= 0) return initial;
     return {
       ...initial,
       budget: {
         kind: "chars",
-        value: initialEnd,
+        value: initialEmitted,
         minimum: 0,
-        fit: (chars) => buildPayload(Math.min(chars, initialEnd)),
+        fit: (chars) => buildPayload(Math.min(chars, initialEmitted)),
         limitRef: `run:${leafRunId}`,
       },
     };
@@ -280,10 +315,11 @@ type LocatedFileRead = Exclude<WorkspaceReadFileResult, { status: "rejected" }>;
 function projectFileBody(
   read: LocatedFileRead,
   maxChars: number | undefined,
+  start = 0,
 ): z.infer<typeof CheckpointFileBodySchema> {
   switch (read.status) {
     case "text": {
-      const sliced = sliceBody(read.text, maxChars);
+      const sliced = sliceBody(read.text, maxChars, start);
       return {
         status: "text",
         fullFile: { bytes: read.bytes, sha256: read.sha256 },

@@ -13,6 +13,8 @@ import type { ToolDefinition } from "../server.js";
 import type { DataRoot } from "../startup.js";
 import { type InspectCheckpointArgs, requireContract } from "../tool-contracts.js";
 import { ToolFailure, type ToolPayload, defineTool } from "../tool-definition.js";
+import { attachmentLedger } from "./attachment-ledger.js";
+import { issueCursor, requireCursorPosition, withoutCursor } from "./cursor-io.js";
 import {
   CheckpointFileItemSchema,
   CheckpointHeadSchema,
@@ -66,12 +68,9 @@ export const inspectCheckpointTool: ToolDefinition = defineTool(
   requireContract("inspect_checkpoint"),
   async (args: InspectCheckpointArgs, root: DataRoot) => {
     /**
-     * 形状校验在任何读取之前（design D3 + Q05）；游标签发与续读核验归 5.2，
-     * 现在带游标就明确拒绝，不当首页重放。
+     * 形状校验在任何读取之前（design D3 + Q05）。游标在定位到检查点后再核验：
+     * 它的 readVersion 必须包含本次快照的附件 stat 台账（S08 的附件变化）。
      */
-    if (args.cursor !== undefined) {
-      throw new ToolFailure("INVALID_ARGUMENT", "cursor");
-    }
     if (findIllegalExternalRunIdViolation(args.runId) !== null) {
       throw new ToolFailure("INVALID_ARGUMENT", "runId");
     }
@@ -80,7 +79,6 @@ export const inspectCheckpointTool: ToolDefinition = defineTool(
     }
 
     const repository = new RunRepository(root.tracesDir);
-    const readVersion = computeReadVersion("inspect_checkpoint", args, repository);
     /** 每请求一个新上下文：同一物理 run 本次最多解析一次，事实不跨请求缓存（Q02） */
     const context = new RunReadContext(root.tracesDir);
     /** 检查点段不涉及 span 归属（只认本 run 自有记录），因此不必建 owner 索引 */
@@ -152,9 +150,48 @@ export const inspectCheckpointTool: ToolDefinition = defineTool(
       },
     ];
 
+    const requestArgs = withoutCursor(args);
+    const extra = {
+      runId: leafRunId,
+      snapshotId: checkpoint.snapshotId,
+      attachments: attachmentLedger(
+        root.dataDir,
+        located.result.files.map((file) => file.sha256),
+      ),
+    };
+    const readVersion = computeReadVersion("inspect_checkpoint", requestArgs, repository, extra);
+    const [start] = requireCursorPosition({
+      cursor: args.cursor,
+      tool: "inspect_checkpoint",
+      params: requestArgs,
+      readVersion,
+      kind: "items",
+      slots: 1,
+    });
+    if (
+      start > located.result.files.length ||
+      (args.cursor !== undefined && start >= located.result.files.length)
+    ) {
+      throw new ToolFailure("INVALID_ARGUMENT", "cursor");
+    }
+
     const buildPayload = (pageSize: number): ToolPayload => {
-      const window = takeWindow(located.result.files, Math.min(pageSize, requestedLimit));
+      const window = takeWindow(
+        located.result.files.slice(start),
+        Math.min(pageSize, requestedLimit),
+      );
       const items = window.items.map(projectCheckpointFile);
+      const end = start + items.length;
+      const nextCursor =
+        end < located.result.files.length
+          ? issueCursor({
+              tool: "inspect_checkpoint",
+              params: requestArgs,
+              readVersion,
+              kind: "items",
+              position: [end],
+            })
+          : undefined;
       const data = InspectCheckpointDataSchema.parse({
         checkpoint,
         files: items,
@@ -185,6 +222,7 @@ export const inspectCheckpointTool: ToolDefinition = defineTool(
         readVersion,
         data,
         truncated: window.truncated,
+        ...(nextCursor === undefined ? {} : { nextCursor }),
         runs,
         refs,
         limitations,
@@ -200,7 +238,7 @@ export const inspectCheckpointTool: ToolDefinition = defineTool(
     };
 
     const initial = buildPayload(requestedLimit);
-    const initialCount = Math.min(located.result.files.length, requestedLimit);
+    const initialCount = Math.min(located.result.files.length - start, requestedLimit);
     if (initialCount === 0) return initial;
     return {
       ...initial,

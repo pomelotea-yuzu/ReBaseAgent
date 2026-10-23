@@ -9,6 +9,7 @@ import type { DataRoot } from "../startup.js";
 import { RUN_STATUS_FILTERS, requireContract } from "../tool-contracts.js";
 import type { ListRunsArgs } from "../tool-contracts.js";
 import { ToolFailure, type ToolPayload, defineTool } from "../tool-definition.js";
+import { issueCursor, requireCursorPosition, withoutCursor } from "./cursor-io.js";
 import {
   RunSummaryItemSchema,
   compareFileOrder,
@@ -100,16 +101,18 @@ function byFileAscending(a: SequenceEntry, b: SequenceEntry): number {
 export const listRunsTool: ToolDefinition = defineTool(
   requireContract("list_runs"),
   async (args: ListRunsArgs, root: DataRoot) => {
-    /**
-     * 游标签发与续读核验归 5.2。这里**不能**把带游标的请求当首页重放——
-     * 那会让客户端以为自己已经翻过页，实际反复拿到同一批条目。
-     */
-    if (args.cursor !== undefined) {
-      throw new ToolFailure("INVALID_ARGUMENT", "cursor");
-    }
-
     const repository = new RunRepository(root.tracesDir);
-    const readVersion = computeReadVersion("list_runs", args, repository);
+    const requestArgs = withoutCursor(args);
+    const readVersion = computeReadVersion("list_runs", requestArgs, repository);
+    /** 首页 = 0；续读位置由认证游标给出（参数/来源在 decode 内先核验） */
+    const [start] = requireCursorPosition({
+      cursor: args.cursor,
+      tool: "list_runs",
+      params: requestArgs,
+      readVersion,
+      kind: "items",
+      slots: 1,
+    });
     const { runs, failed } = repository.listRunsWithIdentity();
     const status = args.status ?? "all";
 
@@ -152,9 +155,23 @@ export const listRunsTool: ToolDefinition = defineTool(
 
     const sequence: SequenceEntry[] = [...rows.map((row) => row.entry), ...failures];
     const requestedLimit = args.limit ?? PAGE_LIMIT_DEFAULT;
+    if (start > sequence.length || (args.cursor !== undefined && start >= sequence.length)) {
+      throw new ToolFailure("INVALID_ARGUMENT", "cursor");
+    }
 
     const buildPayload = (pageSize: number): ToolPayload => {
-      const window = takeWindow(sequence, Math.min(pageSize, requestedLimit));
+      const window = takeWindow(sequence.slice(start), Math.min(pageSize, requestedLimit));
+      const end = start + window.items.length;
+      const nextCursor =
+        end < sequence.length
+          ? issueCursor({
+              tool: "list_runs",
+              params: requestArgs,
+              readVersion,
+              kind: "items",
+              position: [end],
+            })
+          : undefined;
       const data = ListRunsDataSchema.parse({
         filter: { status, query: args.query ?? null },
         items: window.items.map((entry) => entry.item),
@@ -170,6 +187,7 @@ export const listRunsTool: ToolDefinition = defineTool(
         readVersion,
         data,
         truncated: window.truncated,
+        ...(nextCursor === undefined ? {} : { nextCursor }),
         runs: window.items
           .map((entry) => entry.provenance)
           .filter((run): run is ProvenanceRunInput => run !== null),
@@ -184,7 +202,7 @@ export const listRunsTool: ToolDefinition = defineTool(
     };
 
     const initial = buildPayload(requestedLimit);
-    const initialCount = Math.min(sequence.length, requestedLimit);
+    const initialCount = Math.min(sequence.length - start, requestedLimit);
     if (initialCount === 0) return initial;
     return {
       ...initial,
@@ -193,7 +211,7 @@ export const listRunsTool: ToolDefinition = defineTool(
         value: initialCount,
         minimum: 1,
         fit: (items) => buildPayload(Math.min(items, requestedLimit)),
-        limitRef: limitRefOf(sequence[0]),
+        limitRef: limitRefOf(sequence[start]),
       },
     };
   },

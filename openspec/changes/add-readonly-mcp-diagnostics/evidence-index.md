@@ -467,6 +467,42 @@ Q 属于 run-query，S 属于 mcp-service，D 属于 desktop-ui；标题须与 d
     **`nextCursor` 签发/认证与正文续读归 5.2**（本批仍拒 `cursor`，截断页 `truncated:true` 且
     `nextCursor` 缺席）⇒ 完整分页/续读/两侧独立游标与整场景未通过。
 
+- 5.2：认证游标、参数/读取版本绑定与来源变化拒绝（`nextCursor`/正文 `start` 续读落地）。
+  - 新增 `src/query/cursor.ts`：`mcpc1.<keyId>.<payloadB64url>.<macB64url>`；keyId 由进程随机密钥
+    派生，MAC 为 HMAC-SHA256；payload 只含 v/tool/参数指纹/readVersion 指纹/kind/位置，不含路径/正文。
+    `cursor-io.ts` 统一「解出位置或抛稳定码」与签发；`attachment-ledger.ts` 对附件做 `lstat`
+    （kind/bytes/mtime，不读字节）。
+  - **绑定/分类**：参数指纹 = 去 cursor/undefined 的规范 JSON SHA-256；readVersion 指纹 = 当前
+    readVersion（trace 台账 + 可选附件台账）SHA-256。先参数后版本：参数/工具/模式/同 keyId 篡改 ⇒
+    `INVALID_ARGUMENT`；readVersion 变化 ⇒ `STALE_CURSOR`；keyId 不同（重启/另一进程）⇒ `STALE_CURSOR`。
+    `readVersion` 标签升 `rv2`；inspect/read/compare 把所读快照/文件/并集的附件 stat 台账并入。
+  - **位置**：条目页 1 offset；get_step/read 正文 1 码点 offset；compare 内容 `[left,right]` 双 offset
+    （一侧结束不补另一侧）。只有有进展且仍有剩余才签发；0 进展不签（避免原地打转）。预算收窄后的
+    `nextCursor` 指向实际外发末端（5.1 的“`nextCursor` 缺席/正文只给首段”由本批取代）。
+  - `test/cursor.test.ts` **9**：往返/长度 ≤512/载荷不含路径正文/参数/工具/模式/槽数/readVersion/
+    JSON 级篡改（MAC 不符）/畸形游标 + **另一个 Node 进程签发 → 本进程 STALE**（`cursor-child-encode.mjs`
+    走 `dist/query/cursor.js`，真跨进程）。
+  - `test/cursor-continuation.test.ts` **17**：列表/get_run/inspect/compare 清单逐页无重漏；
+    get_step/read_checkpoint_file/compare 内容逐段续读并拼回完整文本（两侧独立、短侧先结束）；
+    篡改/参数/换工具 INVALID；列表新增 run、trace 改写、附件改写（inspect/read/清单/内容四路）
+    STALE；Q02 新请求重读（新增 run 可见、改写 task 生效）。
+  - `test/budget.test.ts` 增 **1**（预算收窄的 8,192 emoji 正文用游标续读到完整规范 JSON，**18**）。
+  - **合法改判留痕**：4.3/4.4/4.6/4.7/5.1 的「截断页不发游标/带 cursor 必拒」断言随 5.2 改为
+    「有效 cursor 续读；无法验证/参数不符的 cursor 拒绝」；测试标题/注释同步，`rv1` 正则改 `rv2`。
+  - 门禁：mcp-server **269 passed / 18 文件**（+27）、src tsc 0、测试 tsconfig 0、
+    run-query **47 passed/1 skip**、desktop **216 文件/3301 用例**、7 包 build、desktop tsc 双 0、
+    biome scoped **0**（88 文件）、`check-spec` 13/0、strict valid、`git diff --check` 0；
+    命令与 exit code ⇒ `.workbuddy/mcp0-52/gates/gates-52.txt`；回查
+    `.workbuddy/mcp0-52/verify-52.cjs` **55 项全对 + `--self-test` 三道反证咬住**。
+  - 变异验证（施加 → 定向跑 → 反向还原 → grep 无残留）：跳过 MAC 校验 ⇒ 2 红；跳过 keyId ⇒
+    2 红；跳过 readVersion ⇒ 8 红；忽略附件台账 ⇒ 4 红；还原后 269/269 绿。
+  - **S07/S08/S09/S10 包层/协议通过**：稳定数据逐页/逐段可重建、失败项只出现一次；来源/附件变化
+    与跨进程重启 STALE；篡改/异参 INVALID；两侧不同长度独立续读。真实客户端/Electron/真实 stdio
+    重启分别归 6.2/6.1/5.3，不提前宣称发行或实机。
+  - ⚠️ 如实保留：① keyId 被改的游标与「另一个进程的游标」不可区分，统一 STALE（密码学边界）；
+    ② 附件台账只 stat，不读字节——同字节数且保留 mtime 的原地改写不可见（与 D3 并发替换同口径）；
+    ③ 0 字符进展不签发游标（宁可本页无游标，也不发原地打转的假指针）。
+
 ## 门禁与归档约束
 
 - 6.5 补实际命令、exit code、源码身份、包构建顺序和新依赖核验；不引用 R2.2 历史通过代替本次通过。

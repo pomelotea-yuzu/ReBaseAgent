@@ -186,7 +186,8 @@ describe("get_step：码点范围与代理对（design D6）", () => {
     });
     expect(data.body.truncated).toBe(true);
     expect(data.body.remaining).toBe(total - 4096);
-    expect(envelope.truncation).toEqual({ truncated: true });
+    expect(envelope.truncation).toMatchObject({ truncated: true });
+    expect(envelope.truncation.nextCursor).toBeDefined();
     expect([...data.body.text].length).toBe(4096);
     expect(hasLoneSurrogate(data.body.text)).toBe(false);
   });
@@ -205,7 +206,7 @@ describe("get_step：码点范围与代理对（design D6）", () => {
     expect(data.body.text).toContain("🙂");
   });
 
-  it("maxChars 越界（>8192）与 cursor 续读都在读取前拒绝", async () => {
+  it("maxChars 越界（>8192）与无法验证的 cursor 都在读取前拒绝", async () => {
     expect((await failureOf(fx.ids.bigBody, "s_03", { maxChars: 8193 })).code).toBe(
       "INVALID_ARGUMENT",
     );

@@ -22,8 +22,8 @@ import { FORBIDDEN_KEYS, assertNoSentinels, collectKeys } from "./whitelist-asse
  * - 摘要条目只有字段集里的键，正文类字段一个都不出门（用 SENTINEL 标记逐个搜）；
  * - 失败项构成序列末尾的固定段：**筛选只作用成功摘要**；
  * - 排序是 `created_at` 倒序 + 同刻 run 标识 UTF-16 代码单元升序（与区域排序可分辨）；
- * - 页宽生效但**不发假游标**：截断页如实 `truncated:true` 且没有 `nextCursor`，
- *   带游标的请求在 5.2 之前必须被显式拒绝，不能被当首页重放。
+ * - 页宽生效并签发**认证续读游标**（5.2）：截断页 `truncated:true` 且带 `nextCursor`；
+ *   无法验证/参数不符的游标稳定拒绝，不能被当首页重放。
  */
 
 let fx: QueryFixture;
@@ -257,18 +257,19 @@ describe("list_runs：白名单与正文边界（S03/S06）", () => {
     const result = await callListRuns({ limit: 3 });
     const envelope = SuccessEnvelopeSchema.parse(result.structuredContent);
     expect(envelope.observedAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
-    expect(envelope.readVersion).toMatch(/^rv1:[0-9a-f]{64}$/);
+    expect(envelope.readVersion).toMatch(/^rv2:[0-9a-f]{64}$/);
     const text = firstText(result);
     expect(text.startsWith("list_runs：命中 ")).toBe(true);
     expect(text).not.toContain("SENTINEL");
   });
 });
 
-describe("list_runs：分页窗口（页宽生效，游标归 5.2）", () => {
-  it("默认页宽 20：超出部分如实标注 truncated，且不发假游标", async () => {
+describe("list_runs：分页窗口（页宽生效 + 认证游标）", () => {
+  it("默认页宽 20：超出部分如实标注 truncated，并签发续读游标", async () => {
     const { data, envelope } = await okData();
-    expect(envelope.page).toBeUndefined();
-    expect(envelope.truncation).toEqual({ truncated: true });
+    expect(envelope.page?.nextCursor).toBeDefined();
+    expect(envelope.truncation).toMatchObject({ truncated: true });
+    expect(envelope.truncation.nextCursor).toBe(envelope.page?.nextCursor);
     expect(data.items).toHaveLength(20);
     expect(data.totals).toMatchObject({ listed: 20, limit: 20 });
     expect(data.totals.remaining).toBe(
@@ -291,7 +292,7 @@ describe("list_runs：分页窗口（页宽生效，游标归 5.2）", () => {
     expect(data.totals.remaining).toBe(0);
   });
 
-  it("带游标的请求被显式拒绝：不回显取值，也不静默重放首页", async () => {
+  it("无法验证的游标被拒绝：不回显取值，也不静默重放首页", async () => {
     const error = await failureOf({ cursor: "c-secret-token", limit: 2 });
     expect(error.code).toBe("INVALID_ARGUMENT");
     expect(error.ref).toBe("cursor");
