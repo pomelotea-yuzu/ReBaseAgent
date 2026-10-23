@@ -608,5 +608,18 @@
     （remaining 1,343,808 = 1,352,000 − 8192）；新观察：errored 过滤 limit=100 被预算收窄为
     57/66 条且因无游标无法翻页（模型用 limit=1 复核规避）⇒ 指南 §8 已更新为两样本 + 清单翻页
     同受限。无工具批准弹窗、无报错。**S16 仍欠真正的另一位使用者**。
-- [ ] 6.5（1.5h）记录较大 fixture 的读取耗时/内存/输出预算，运行定向回归和全仓 build/typecheck/test/lint/spec、change strict。验收全部场景；超出本项时拆任务，故障先修再收口。
+- [x] 6.5（1.5h）记录较大 fixture 的读取耗时/内存/输出预算，运行定向回归和全仓 build/typecheck/test/lint/spec、change strict。验收全部场景；超出本项时拆任务，故障先修再收口。
+  - 2026-10-24 全仓门禁全绿：四连 tsc 0（mcp-server 包 + 两份测试 tsconfig + desktop 双配置）、
+    7 包 build 0、mcp-server **23 文件/307 用例**（6.2 新基线，本批无新增判据，回归确认）、
+    run-query 9/51+1 pending、desktop 216/3301、biome scoped **99 文件 0**（+3 = 投影三新文件）、
+    check-spec 13/0、openspec strict 1/0、git diff --check 0。json 报告与命令清单
+    `.workbuddy/mcp0-65/gates-65.txt`。
+  - 性能读数（`perf-probe.mjs` → `perf.json`，数据根 = 真实 `.rebaseagent` 693 runs；口径：同进程
+    直调 dist、单轮、RSS 未强制 GC）：单对象查询 10.9–37.8 ms（get_run 12.2/get_step 17.8/
+    inspect 20.4/compare_runs 10.9/compare 内容 18.5/big.txt maxChars=8192 37.8 且 RSS +33 MB）；
+    列表类 list_runs errored 单页 537.7 ms/65,176 B（预算收窄为 57 条）、全量 693 翻页 8 页
+    6,465.4 ms/累计 749,172 B——每页 ~0.5–0.8 s 的主因是每请求重扫 traces/ 全目录（Q02 每请求
+    重读盘、不跨请求缓存的既定取舍，零写入/来源新鲜度的另一面），如实记录为设计行为非缺陷。
+  - 诚实边界：性能数字为量级参考（单轮、未强制 GC、无并发混跑压测）；6.4（S16 另一位使用者）
+    仍挂账不因本批通过而代勾。回查 `verify-65.cjs`（--self-test 三道反证）。
 - [ ] 6.6（1h）逐场景回填 evidence-index，核对源码/主 spec 差集，同步项目状态/MCP 路线/文档入口后归档。验收全部；归档不等于发行，不预填测试/实机通过。

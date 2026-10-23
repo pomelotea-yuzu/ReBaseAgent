@@ -677,6 +677,18 @@ Q 属于 run-query，S 属于 mcp-service，D 属于 desktop-ui；标题须与 d
   用 limit=1 复核规避 ⇒ 边界影响从大文件正文扩展到清单翻页，指南 §8 已按两样本更新。
   维护者自验按任务口径不顶替 6.4。
 
+- 6.5 全仓门禁与性能读数（2026-10-24）：四连 tsc 0（mcp-server 包 + 两份测试 tsconfig +
+  desktop 双配置）、7 包 build 0、mcp-server **23 文件/307 用例 0 失败**（6.2 新基线回归确认）、
+  run-query 9/51+1 pending、desktop 216/3301、biome scoped **99 文件 0**（+3 = 投影三新文件）、
+  check-spec 13/0、openspec strict 1/0、git diff --check 0。json 报告/命令/读数 ⇒
+  `.workbuddy/mcp0-65/gates-65.txt`，回查 `verify-65.cjs`（--self-test 反证 3/3）。
+  性能读数（`perf-probe.mjs` → `perf.json`，数据根 = 真实 `.rebaseagent` 693 runs；口径：同进程
+  直调 dist、单轮、RSS 未强制 GC）：单对象查询 10.9–37.8 ms；`big.txt` maxChars=8192 外发
+  10,985 B 且 RSS +33 MB；`list_runs` errored 单页 537.7 ms/65,176 B（预算收窄 57 条）、
+  全量 693 翻页 8 页 6,465.4 ms/累计 749,172 B——每页 ~0.5–0.8 s 主因是每请求重扫 traces/
+  全目录（Q02 每请求重读盘的既定取舍，零写入/来源新鲜度的另一面），记录为设计行为非缺陷。
+  诚实边界：性能数字为量级参考（单轮、未强制 GC、无并发混跑压测）；6.4（S16）仍挂账。
+
 ## 门禁与归档约束
 
 - 6.5 补实际命令、exit code、源码身份、包构建顺序和新依赖核验；不引用 R2.2 历史通过代替本次通过。
