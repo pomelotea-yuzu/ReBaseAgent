@@ -18,6 +18,7 @@ engineering / collab / competition / reviews），原 9 个并列目录归组；
 | 目录 | 内容 |
 |---|---|
 | [`guide/`](guide/getting-started.md) | **快速开始**：下载/源码运行、四条上手路径、核心概念 1 分钟 |
+| [`guide/mcp-readonly-diagnostics.md`](guide/mcp-readonly-diagnostics.md) | **MCP 只读诊断接入**：七工具构建/启动/客户端配置、正文外发与预算、信任口径、游标边界（发行包暂不含，须源码构建） |
 | [`architecture/`](architecture/overview.md) | **架构总览**：monorepo 包结构、数据流、设计原则 |
 | [`development/`](development/workflow.md) | **开发工作流**：质量门禁 `check:ci`、OpenSpec 流程、文档约定 |
 

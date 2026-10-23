@@ -656,6 +656,15 @@ Q 属于 run-query，S 属于 mcp-service，D 属于 desktop-ui；标题须与 d
   大文件（只能首段 + maxChars 重发仍是同一段）；REDACTED 命中时正文内 `[REDACTED]` 标记
   本身可见。**6.2 勾选**。
 
+- 6.3 指南（2026-10-24）：`docs/guide/mcp-readonly-diagnostics.md` + `docs/README.md` 使用者入口。
+  九节 = 任务列的全部要素（构建/启动/数据范围/正文外发/费用/错误/游标/限制 + 发行包不含 MCP
+  置顶）；配置示例取 6.2 已通过路径（WorkBuddy 5.9.0 用户级 `mcp add-json -s user` + 通用
+  stdio 形状，实测两轮）；信任口径逐字复用服务端 `TRUST_INSTRUCTIONS` 四条（任务 4.8 的
+  「复用同一口径，不另写一套」）；6.2 实机边界如实写入（游标/limitations 不进 content 投影）。
+  错误码表、码点/分页/预算数字与 `limits.ts`/`error-projection.ts` 实现逐项对齐。
+  **S12 整场景通过**（协议与行为半边 4.8 + 指南半边本项）。**S16 指南面交付**——实际接入
+  记录归 6.4（另一位使用者，不用维护者自验顶替），S16 整场景仍欠。
+
 ## 门禁与归档约束
 
 - 6.5 补实际命令、exit code、源码身份、包构建顺序和新依赖核验；不引用 R2.2 历史通过代替本次通过。
