@@ -131,7 +131,11 @@ const ComparedSideFileSchema = z.discriminatedUnion("status", [
       status: z.literal("text"),
       fullFile: FullFileSchema,
       encoding: z.literal("utf8-text"),
-      text: z.string(),
+      /**
+       * 6.2 修订（正文只承载一次）：正文本体只进 content 文本，此处是指针；
+       * `fullFile/range/truncated/remaining` 小事实保留。
+       */
+      bodyIn: z.literal("content"),
       range: RangeSchema,
       truncated: z.boolean(),
       remaining: z.number().int().nonnegative(),
@@ -238,62 +242,85 @@ function toSideCell(side: SideName, result: CompareSideResult) {
 
 /**
  * 逐侧正文状态：正文按**该侧自己的** `maxChars` 切（一侧结束不拿另一侧补，D6/S10）。
+ * 返回值两件套：`shape` 是 data 内的外发形状（text 分支带 `bodyIn:"content"` 指针），
+ * `bodyText` 是该侧正文本体（null = 无正文），只随 content 文本走（正文只承载一次）。
  */
 function projectComparedFile(
   side: ComparedFileSide,
   maxChars: number | undefined,
   start = 0,
-): z.infer<typeof ComparedSideFileSchema> {
+): {
+  shape: z.infer<typeof ComparedSideFileSchema>;
+  bodyText: string | null;
+} {
   switch (side.status) {
     case "text": {
       const sliced = sliceBody(side.text, maxChars, start);
       return {
-        status: "text",
-        fullFile: { bytes: side.file.bytes, sha256: side.file.sha256 },
-        encoding: "utf8-text",
-        text: sliced.text,
-        range: sliced.range,
-        truncated: sliced.truncated,
-        remaining: sliced.remaining,
+        shape: {
+          status: "text",
+          fullFile: { bytes: side.file.bytes, sha256: side.file.sha256 },
+          encoding: "utf8-text",
+          bodyIn: "content",
+          range: sliced.range,
+          truncated: sliced.truncated,
+          remaining: sliced.remaining,
+        },
+        bodyText: sliced.text,
       };
     }
     case "binary":
       return {
-        status: "binary",
-        fullFile: { bytes: side.file.bytes, sha256: side.file.sha256 },
+        shape: { status: "binary", fullFile: { bytes: side.file.bytes, sha256: side.file.sha256 } },
+        bodyText: null,
       };
     case "not_found":
-      return { status: "not_found", reason: boundedMessage(side.reason) };
+      return {
+        shape: { status: "not_found", reason: boundedMessage(side.reason) },
+        bodyText: null,
+      };
     case "missing":
     case "corrupt":
     case "too_large":
       return {
-        status: side.status,
-        fullFile: { bytes: side.file.bytes, sha256: side.file.sha256 },
-        reason: boundedMessage(side.reason),
+        shape: {
+          status: side.status,
+          fullFile: { bytes: side.file.bytes, sha256: side.file.sha256 },
+          reason: boundedMessage(side.reason),
+        },
+        bodyText: null,
       };
     case "selection_changed":
       return {
-        status: "selection_changed",
-        expectedSnapshotId: side.expectedSnapshotId,
-        actualSnapshotId: side.actualSnapshotId,
-        reason: boundedMessage(side.reason),
+        shape: {
+          status: "selection_changed",
+          expectedSnapshotId: side.expectedSnapshotId,
+          actualSnapshotId: side.actualSnapshotId,
+          reason: boundedMessage(side.reason),
+        },
+        bodyText: null,
       };
     case "io":
       // reason 是 Node errno 文本（可能含物理路径）⇒ 只留稳定码与码表文案
       return {
-        status: "unavailable",
-        code: "STORAGE_IO",
-        message: boundedMessage(TOOL_ERROR_MESSAGES.STORAGE_IO),
-        retryable: true,
+        shape: {
+          status: "unavailable",
+          code: "STORAGE_IO",
+          message: boundedMessage(TOOL_ERROR_MESSAGES.STORAGE_IO),
+          retryable: true,
+        },
+        bodyText: null,
       };
     case "unavailable": {
       const code = toolCodeOfLocateFailure(side.failure.code);
       return {
-        status: "unavailable",
-        code,
-        message: boundedMessage(TOOL_ERROR_MESSAGES[code]),
-        retryable: retryableOf(code),
+        shape: {
+          status: "unavailable",
+          code,
+          message: boundedMessage(TOOL_ERROR_MESSAGES[code]),
+          retryable: retryableOf(code),
+        },
+        bodyText: null,
       };
     }
   }
@@ -475,9 +502,9 @@ export const compareCheckpointFilesTool: ToolDefinition = defineTool(
       const buildPayload = (chars: number): ToolPayload => {
         const left = projectComparedFile(compared.left, chars, leftStart);
         const right = projectComparedFile(compared.right, chars, rightStart);
-        const bothText = left.status === "text" && right.status === "text";
-        const leftEnd = left.status === "text" ? left.range.end : leftStart;
-        const rightEnd = right.status === "text" ? right.range.end : rightStart;
+        const bothText = left.shape.status === "text" && right.shape.status === "text";
+        const leftEnd = left.shape.status === "text" ? left.shape.range.end : leftStart;
+        const rightEnd = right.shape.status === "text" ? right.shape.range.end : rightStart;
         const progress = bothText && (leftEnd > leftStart || rightEnd > rightStart);
         const remaining = bothText && (leftEnd < leftTotal || rightEnd < rightTotal);
         const nextCursor =
@@ -496,14 +523,20 @@ export const compareCheckpointFilesTool: ToolDefinition = defineTool(
           path: compared.path,
           conclusion: compared.conclusion,
           textDiffEligible: compared.textDiffEligible,
-          files: { left, right },
+          files: { left: left.shape, right: right.shape },
         });
+        /** 正文本体只随 content 走（data 内对应位是 bodyIn:"content" 指针） */
+        const contentBodies = [
+          ...(left.bodyText === null ? [] : [{ at: "files.left", text: left.bodyText }]),
+          ...(right.bodyText === null ? [] : [{ at: "files.right", text: right.bodyText }]),
+        ];
         return {
           readVersion,
           data,
+          ...(contentBodies.length === 0 ? {} : { contentBodies }),
           truncated:
-            (left.status === "text" && left.truncated) ||
-            (right.status === "text" && right.truncated),
+            (left.shape.status === "text" && left.shape.truncated) ||
+            (right.shape.status === "text" && right.shape.truncated),
           ...(nextCursor === undefined ? {} : { nextCursor }),
           runs,
           refs,
@@ -511,7 +544,7 @@ export const compareCheckpointFilesTool: ToolDefinition = defineTool(
           headline: [
             `compare_checkpoint_files：${compared.conclusion}`,
             `可生成文本 diff ${compared.textDiffEligible ? "是" : "否"}`,
-            `左 ${left.status} / 右 ${right.status}`,
+            `左 ${left.shape.status} / 右 ${right.shape.status}`,
           ].join(" / "),
         };
       };

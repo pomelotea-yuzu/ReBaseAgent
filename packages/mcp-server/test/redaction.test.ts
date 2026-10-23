@@ -3,7 +3,9 @@ import { SuccessEnvelopeSchema } from "../src/envelope.js";
 import type { GetStepData } from "../src/query/get-step.js";
 import { getStepTool } from "../src/query/get-step.js";
 import { REDACTED_MARKER, redactStructuredValue } from "../src/query/redaction.js";
+import type { ToolResult } from "../src/server.js";
 import type { DataRoot } from "../src/startup.js";
+import { contentBodyTexts } from "./content-bodies.js";
 import {
   EXPOSURE_SENTINELS,
   type ExposureFixture,
@@ -38,7 +40,7 @@ async function bodyOf(
   spanId: string,
   section: "input" | "output" | "error",
   extra: Record<string, unknown> = {},
-): Promise<{ data: GetStepData; limitations: string[]; envelope: unknown }> {
+): Promise<{ data: GetStepData; limitations: string[]; envelope: unknown; result: ToolResult }> {
   const result = await getStepTool.execute({ runId: fx.runId, spanId, section, ...extra }, root);
   expect(result.isError).not.toBe(true);
   const envelope = SuccessEnvelopeSchema.parse(result.structuredContent);
@@ -46,16 +48,18 @@ async function bodyOf(
     data: envelope.data as GetStepData,
     limitations: envelope.limitations.map((item) => item.code),
     envelope,
+    result,
   };
 }
 
-function textOf(data: GetStepData): string {
+/** 6.2 改判：正文本体只在 content 投影（data 内对应位是 bodyIn 指针） */
+function textOf(data: GetStepData, result: ToolResult): string {
   if (data.body === null || data.body.recorded === false) throw new Error("本次结果没有正文");
-  return data.body.text;
+  return contentBodyTexts(result)[0] ?? "";
 }
 
-function parsedBody(data: GetStepData): Record<string, unknown> {
-  return JSON.parse(textOf(data)) as Record<string, unknown>;
+function parsedBody(data: GetStepData, result: ToolResult): Record<string, unknown> {
+  return JSON.parse(textOf(data, result)) as Record<string, unknown>;
 }
 
 const CREDENTIAL_SENTINELS = [
@@ -172,8 +176,8 @@ describe("redactStructuredValue：字段名归一与封闭清单", () => {
 
 describe("get_step：请求正文的凭据过滤（S11）", () => {
   it("消息附加字段、params 与嵌套对象逐项替换，非凭据键保持原值", async () => {
-    const { data, limitations } = await bodyOf(fx.llmSpanId, "input");
-    const parsed = parsedBody(data) as {
+    const { data, limitations, result } = await bodyOf(fx.llmSpanId, "input");
+    const parsed = parsedBody(data, result) as {
       messages: Array<Record<string, unknown>>;
       params: Record<string, unknown>;
       model: string;
@@ -185,8 +189,8 @@ describe("get_step：请求正文的凭据过滤（S11）", () => {
     expect(parsed.messages[0]?.content).toBe(EXPOSURE_SENTINELS.injection);
     expect(parsed.messages[1]?.content).toBe(EXPOSURE_SENTINELS.visibleMessage);
     expect(limitations).toContain("REDACTED");
-    expect(leakedCredentials(textOf(data))).toEqual([]);
-    expect(textOf(data)).toContain(`"api_key":"${REDACTED_MARKER}"`);
+    expect(leakedCredentials(textOf(data, result))).toEqual([]);
+    expect(textOf(data, result)).toContain(`"api_key":"${REDACTED_MARKER}"`);
   });
 
   it("REDACTED 限制项带 span/section 定位，并写明自由文本边界", async () => {
@@ -201,9 +205,9 @@ describe("get_step：请求正文的凭据过滤（S11）", () => {
   });
 
   it("范围与总码点描述过滤后的外发文本，不冒充原文校验值", async () => {
-    const { data } = await bodyOf(fx.llmSpanId, "input");
+    const { data, result } = await bodyOf(fx.llmSpanId, "input");
     if (data.body?.recorded !== true) throw new Error("正文应当在场");
-    const chars = [...data.body.text];
+    const chars = [...textOf(data, result)];
     expect(data.body.range).toEqual({
       start: 0,
       end: chars.length,
@@ -219,8 +223,8 @@ describe("get_step：请求正文的凭据过滤（S11）", () => {
 
 describe("get_step：工具 args/result 的凭据过滤", () => {
   it("Authorization / X-Api-Key / password / 端点 userinfo 全部替换，普通参数保留", async () => {
-    const { data, limitations } = await bodyOf(fx.toolSpanId, "input");
-    const parsed = parsedBody(data) as {
+    const { data, limitations, result } = await bodyOf(fx.toolSpanId, "input");
+    const parsed = parsedBody(data, result) as {
       headers: Record<string, string>;
       endpoint: string;
       nested: Array<Record<string, string>>;
@@ -234,22 +238,22 @@ describe("get_step：工具 args/result 的凭据过滤", () => {
     expect(parsed.note).toBe(EXPOSURE_SENTINELS.visibleArgs);
     expect(parsed.max_tokens).toBe(32);
     expect(limitations).toContain("REDACTED");
-    expect(leakedCredentials(textOf(data))).toEqual([]);
+    expect(leakedCredentials(textOf(data, result))).toEqual([]);
   });
 
   it("工具 result 的 access_token 被替换，同对象的可见字段不受影响", async () => {
-    const { data, limitations } = await bodyOf(fx.toolSpanId, "output");
-    const parsed = parsedBody(data) as Record<string, unknown>;
+    const { data, limitations, result } = await bodyOf(fx.toolSpanId, "output");
+    const parsed = parsedBody(data, result) as Record<string, unknown>;
     expect(parsed.access_token).toBe(REDACTED_MARKER);
     expect(parsed.note).toBe(EXPOSURE_SENTINELS.visibleResult);
     expect(parsed.max_tokens).toBe(64);
     expect(limitations).toContain("REDACTED");
-    expect(leakedCredentials(textOf(data))).toEqual([]);
+    expect(leakedCredentials(textOf(data, result))).toEqual([]);
   });
 
   it("自由文本与 JSON 字符串不解析：回复正文与 function.arguments 原样保留", async () => {
-    const { data, limitations } = await bodyOf(fx.llmSpanId, "output");
-    const text = textOf(data);
+    const { data, limitations, result } = await bodyOf(fx.llmSpanId, "output");
+    const text = textOf(data, result);
     expect(text).toContain(EXPOSURE_SENTINELS.freeTextCredential);
     expect(text).toContain(EXPOSURE_SENTINELS.jsonStringCredential);
     expect(limitations).not.toContain("REDACTED");

@@ -15,6 +15,7 @@ import {
   contentSha,
   dirFingerprintRecursive,
 } from "./checkpoint-fixtures.js";
+import { contentBodyTexts } from "./content-bodies.js";
 import { LONG_BODY, LONG_BODY_EMOJI_START } from "./query-fixtures.js";
 import { collectKeys } from "./whitelist-assertions.js";
 
@@ -63,7 +64,7 @@ async function okRead(runId: string, path: string, args: Record<string, unknown>
   const result = await callRead(runId, path, args);
   expect(result.isError).not.toBe(true);
   const envelope = SuccessEnvelopeSchema.parse(result.structuredContent);
-  return { data: envelope.data as ReadCheckpointFileData, envelope };
+  return { data: envelope.data as ReadCheckpointFileData, envelope, result };
 }
 
 async function failureOf(runId: string, path: string, args: Record<string, unknown> = {}) {
@@ -72,12 +73,26 @@ async function failureOf(runId: string, path: string, args: Record<string, unkno
   return ErrorEnvelopeSchema.parse(result.structuredContent).error;
 }
 
-/** 文本态的窄类型：判据里直接取 text/range，非文本态当场编译不过 */
+/** 文本态的窄类型：判据里直接取 range/fullFile 等小事实，非文本态当场编译不过 */
 function asText(data: ReadCheckpointFileData) {
   if (data.file.status !== "text") {
     throw new Error(`期望 text 状态，实际是 ${data.file.status}`);
   }
   return data.file;
+}
+
+/**
+ * 6.2 改判：正文本体只在 content 投影里（data 内对应位是 `bodyIn:"content"` 指针）。
+ * 原文保真判据（CRLF/尾随换行/代理对）从 content 提取后逐字核对。
+ */
+function fileText(data: ReadCheckpointFileData, result: ToolResult): string {
+  const file = asText(data);
+  expect(file.bodyIn).toBe("content");
+  const bodies = contentBodyTexts(result);
+  if (bodies.length !== 1) {
+    throw new Error(`content 投影应有恰一段正文，实得 ${bodies.length}`);
+  }
+  return bodies[0] as string;
 }
 
 /** 二进制态的窄类型：这一支只有大小与哈希，编译器挡得住「顺手取正文」的写法 */
@@ -90,39 +105,40 @@ function asBinary(data: ReadCheckpointFileData) {
 
 describe("read_checkpoint_file：原文保真与码点范围（Q14）", () => {
   it("CRLF 与尾随换行逐字外发，不做任何规范化", async () => {
-    const { data } = await okRead(fx.ids.root, "notes/crlf.txt");
-    const text = asText(data);
-    expect(text.encoding).toBe("utf8-text");
-    expect(text.text).toBe(FILE_TEXTS.crlf);
-    expect(text.text).toContain("\r\n");
-    expect(text.text.endsWith("\r\n")).toBe(true);
-    expect(text.range).toEqual({
+    const { data, result } = await okRead(fx.ids.root, "notes/crlf.txt");
+    const text = fileText(data, result);
+    const file = asText(data);
+    expect(file.encoding).toBe("utf8-text");
+    expect(text).toBe(FILE_TEXTS.crlf);
+    expect(text).toContain("\r\n");
+    expect(text.endsWith("\r\n")).toBe(true);
+    expect(file.range).toEqual({
       start: 0,
       end: 10,
       total: 10,
       unit: "unicode-code-point",
     });
-    expect(text.truncated).toBe(false);
-    expect(text.remaining).toBe(0);
+    expect(file.truncated).toBe(false);
+    expect(file.remaining).toBe(0);
   });
 
   it("空文件是空串，不是「未找到」也不是 null", async () => {
-    const { data } = await okRead(fx.ids.root, "empty.txt");
+    const { data, result } = await okRead(fx.ids.root, "empty.txt");
     const text = asText(data);
-    expect(text.text).toBe("");
+    expect(fileText(data, result)).toBe("");
     expect(text.range).toEqual({ start: 0, end: 0, total: 0, unit: "unicode-code-point" });
     expect(text.fullFile).toEqual({ bytes: 0, sha256: contentSha("") });
   });
 
   it("无尾换行的文件不会被补上换行", async () => {
-    const { data } = await okRead(fx.ids.root, "noeol.txt");
-    const text = asText(data);
-    expect(text.text).toBe(FILE_TEXTS.noeol);
-    expect(text.text.endsWith("\n")).toBe(false);
+    const { data, result } = await okRead(fx.ids.root, "noeol.txt");
+    const text = fileText(data, result);
+    expect(text).toBe(FILE_TEXTS.noeol);
+    expect(text.endsWith("\n")).toBe(false);
   });
 
   it("长正文默认切 4096 码点，剩余与截断如实标注", async () => {
-    const { data, envelope } = await okRead(fx.ids.root, "long.txt");
+    const { data, envelope, result } = await okRead(fx.ids.root, "long.txt");
     const text = asText(data);
     expect(text.range).toEqual({
       start: 0,
@@ -138,19 +154,21 @@ describe("read_checkpoint_file：原文保真与码点范围（Q14）", () => {
       bytes: Buffer.byteLength(LONG_BODY, "utf8"),
       sha256: contentSha(LONG_BODY),
     });
-    expect([...text.text].length).toBe(4096);
+    expect([...fileText(data, result)].length).toBe(4096);
   });
 
   it("上限落在代理对中间时仍发完整码点：单元数与码点数不等且无半个字符", async () => {
-    const { data } = await okRead(fx.ids.root, "long.txt", { maxChars: LONG_BODY_EMOJI_START + 1 });
-    const text = asText(data);
+    const { data, result } = await okRead(fx.ids.root, "long.txt", {
+      maxChars: LONG_BODY_EMOJI_START + 1,
+    });
+    const text = fileText(data, result);
     // 5020 个码点里含一个代理对 ⇒ UTF-16 单元数比码点数多 1；按单元切的实现在这里会切断字符
-    expect([...text.text].length).toBe(LONG_BODY_EMOJI_START + 1);
-    expect(text.text.length).toBe(LONG_BODY_EMOJI_START + 2);
-    expect(text.text.endsWith("🙂")).toBe(true);
-    expect(text.text.charCodeAt(text.text.length - 1)).not.toBe(0xd83d);
-    expect(text.range.end).toBe(LONG_BODY_EMOJI_START + 1);
-    expect(text.remaining).toBe(5041 - (LONG_BODY_EMOJI_START + 1));
+    expect([...text].length).toBe(LONG_BODY_EMOJI_START + 1);
+    expect(text.length).toBe(LONG_BODY_EMOJI_START + 2);
+    expect(text.endsWith("🙂")).toBe(true);
+    expect(text.charCodeAt(text.length - 1)).not.toBe(0xd83d);
+    expect(asText(data).range.end).toBe(LONG_BODY_EMOJI_START + 1);
+    expect(asText(data).remaining).toBe(5041 - (LONG_BODY_EMOJI_START + 1));
   });
 
   it("maxChars 超上限由契约拒；无法验证的游标同样被拒且不回显取值", async () => {
@@ -218,8 +236,8 @@ describe("read_checkpoint_file：状态与 selector 绑定（Q13）", () => {
   it("省略与显式 selector 不互换：同一逻辑路径读到的是各自检查点的版本", async () => {
     const initial = await okRead(fx.ids.root, "noeol.txt");
     const stepped = await okRead(fx.ids.root, "noeol.txt", { stepSpanId: fx.rootStepSpanId });
-    expect(asText(initial.data).text).toBe(FILE_TEXTS.noeol);
-    expect(asText(stepped.data).text).toBe(FILE_TEXTS.modified);
+    expect(fileText(initial.data, initial.result)).toBe(FILE_TEXTS.noeol);
+    expect(fileText(stepped.data, stepped.result)).toBe(FILE_TEXTS.modified);
     expect(initial.data.selector.stepSpanId).toBeNull();
     expect(stepped.data.selector.stepSpanId).toBe(fx.rootStepSpanId);
     expect(initial.data.selector.snapshotId).toBe(fx.rootInitialSnapshotId);
@@ -230,7 +248,7 @@ describe("read_checkpoint_file：状态与 selector 绑定（Q13）", () => {
     const childInitial = await okRead(fx.ids.child, "added.txt");
     expect(childInitial.data.selector.snapshotId).toBe(fx.rootFinalSnapshotId);
     expect(childInitial.data.selector.stepSpanId).toBeNull();
-    expect(asText(childInitial.data).text).toBe(FILE_TEXTS.added);
+    expect(fileText(childInitial.data, childInitial.result)).toBe(FILE_TEXTS.added);
 
     const ancestor = await failureOf(fx.ids.child, "notes/crlf.txt", {
       stepSpanId: fx.rootStepSpanId,
@@ -294,10 +312,11 @@ describe("read_checkpoint_file：状态与 selector 绑定（Q13）", () => {
 
 describe("read_checkpoint_file：正文边界、来源与零写入", () => {
   it("正文只随显式 path 出门：同清单里别的文件一条字节都不带", async () => {
-    const { data, envelope } = await okRead(fx.ids.root, "notes/crlf.txt");
-    // 请求的那一条确实外发了（这是「按需读正文」真的通了，不是只挡住了）
-    expect(asText(data).text).toBe(FILE_TEXTS.crlf);
-    const serialized = JSON.stringify({ data, envelope });
+    const { data, envelope, result } = await okRead(fx.ids.root, "notes/crlf.txt");
+    // 请求的那一条确实外发了（这是「按需读正文」真的通了，不是只挡住了）——正文在 content
+    expect(fileText(data, result)).toBe(FILE_TEXTS.crlf);
+    // data/信封与 content 一起核对：别的文件一条字节都不带
+    const serialized = JSON.stringify({ data, envelope, content: result.content });
     expect(
       [
         FILE_TEXTS.fileBodyCanary,
@@ -335,8 +354,8 @@ describe("read_checkpoint_file：正文边界、来源与零写入", () => {
   });
 
   it("未封存 run：正文照常读出并带 TERMINATION_NOT_RECORDED，不暗示仍在运行", async () => {
-    const { data, envelope } = await okRead(fx.ids.open, "notes/crlf.txt");
-    expect(asText(data).text).toBe(FILE_TEXTS.crlf);
+    const { data, envelope, result } = await okRead(fx.ids.open, "notes/crlf.txt");
+    expect(fileText(data, result)).toBe(FILE_TEXTS.crlf);
     expect(envelope.limitations.some((item) => item.code === "TERMINATION_NOT_RECORDED")).toBe(
       true,
     );
@@ -350,6 +369,8 @@ describe("read_checkpoint_file：正文边界、来源与零写入", () => {
     expect(JSON.stringify({ ...second.envelope, observedAt: "fixed" })).toBe(
       JSON.stringify({ ...first.envelope, observedAt: "fixed" }),
     );
+    // content 投影同样必须确定：同参两次逐字相同（headline/正文/投影都不漂）
+    expect(JSON.stringify(second.result.content)).toBe(JSON.stringify(first.result.content));
     await okRead(fx.ids.root, "gone.txt");
     await okRead(fx.ids.child, "added.txt");
     await failureOf(fx.ids.ioRun, "weird.txt");

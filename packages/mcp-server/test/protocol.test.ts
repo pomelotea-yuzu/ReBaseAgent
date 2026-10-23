@@ -204,13 +204,18 @@ describe("协议面：拒绝与错误信封", () => {
 });
 
 describe("协议面：成功结果", () => {
-  it("structuredContent 是自检通过的成功信封，content 只一句状态", async () => {
+  it("structuredContent 是自检通过的成功信封；content = headline + data 投影（6.2 自足口径）", async () => {
     const h = await harness([stubTool("get_run", "ok")]);
     const result = (await h.client.callTool({
       name: "get_run",
       arguments: { runId: "run-7" },
     })) as { content?: Array<{ type: string; text?: string }>; structuredContent?: unknown };
-    expect(result.content?.[0]?.text).toBe("get_run ok");
+    /**
+     * 6.2 改判（原判据「content 只一句状态」）：真实客户端 WorkBuddy 5.9.0 实测
+     * 不把 structuredContent 交给模型 ⇒ headline 之外必须把 data 事实投影进 content，
+     * 否则「引用可回查」在真实链路上落空（MCP0.md 第 13 条）。
+     */
+    expect(result.content?.[0]?.text).toBe('get_run ok\nrunId: "run-7"\nsteps: null');
     const parsed = SuccessEnvelopeSchema.safeParse(result.structuredContent);
     expect(parsed.success).toBe(true);
     if (!parsed.success) return;

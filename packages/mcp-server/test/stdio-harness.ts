@@ -349,6 +349,21 @@ export class StdioSession {
  * 结果帧取出：协议错误帧（`error`）在这里直接判红——业务失败走的是 tool result，
  * 只有旁路/畸形请求才落到 JSON-RPC 错误域，两者混了就是判据失真。
  */
+/** 6.2 改判：正文本体只在 content 投影（data 内对应位是 bodyIn 指针），从帧的 tool result 提取 */
+export function frameBodyTexts(frame: WireFrame): string[] {
+  const result = resultOf(frame);
+  const content = result.content;
+  if (!Array.isArray(content)) throw new Error("帧的 tool result 没有 content");
+  const texts = [];
+  for (const line of (content[0]?.text ?? "").split("\n")) {
+    const match = /^\s*text: (.*)$/.exec(line);
+    if (match === null) continue;
+    const parsed = JSON.parse(match[1]);
+    if (typeof parsed === "string") texts.push(parsed);
+  }
+  return texts;
+}
+
 export function resultOf(frame: WireFrame): Record<string, unknown> {
   if (frame.error !== undefined) {
     throw new Error(`期望 tool result 帧，实得协议错误帧：${JSON.stringify(frame.error)}`);

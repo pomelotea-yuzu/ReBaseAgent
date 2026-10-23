@@ -1,6 +1,7 @@
 import type { RunQueryToolErrorCode } from "@rebaseagent/run-query";
 import { RunDetailReadError } from "@rebaseagent/run-query";
 import { type ToolBudget, fitWithinBudget } from "./budget.js";
+import { type ContentBodyInput, buildContentText } from "./content-text.js";
 import {
   type LimitationInput,
   type ProvenanceRefInput,
@@ -32,8 +33,10 @@ import type { ToolContract } from "./tool-contracts.js";
  * - **实现层**（4.3–4.7）负责把 `FsBoundaryError`/`TraceReadError` 之类结构化失败
  *   经 `classifyReadFailure` 转成 `ToolFailure`，不让原始异常越到这一层。
  *
- * 出参纪律：`content` 只有一句状态与定位（不复制正文）；完整结构走
- * `structuredContent`，且信封在发出前**自检**（形状不合宁可不发）。
+ * 出参纪律（6.2 修订，owner 2026-10-23 定稿）：`content` = headline + data 紧凑投影，
+ * 且**正文只承载一次**——正文本体只进 content 文本，`structuredContent.data` 对应位
+ * 是 `bodyIn:"content"` 指针。完整结构仍走 `structuredContent`，且信封在发出前**自检**
+ * （形状不合宁可不发）。预算量的是 content+structuredContent 整体，投影开销自然计入。
  */
 
 /** 实现层主动宣告的业务失败：只带稳定码与可选定位，不带自造文案 */
@@ -59,8 +62,13 @@ export interface ToolPayload {
   readonly limitations?: readonly LimitationInput[];
   readonly nextCursor?: string;
   readonly truncated?: boolean;
-  /** 给 content 的一句话状态/定位（有界，不复制正文） */
+  /** 给 content 的首行状态/定位（有界；其后紧跟 data 投影，见 buildContentText） */
   readonly headline: string;
+  /**
+   * 6.2（正文只承载一次）：data 内标 `bodyIn:"content"` 的正文本体，
+   * 只进 content 文本；`at` 是自 data 根起的定位路径（如 `body` / `file` / `files.left`）。
+   */
+  readonly contentBodies?: readonly ContentBodyInput[];
   /**
    * 可选：完整结果超过 64 KiB 时，框架用更小的条目数/码点数重建。
    * 实现只提供单旋钮与重建函数，测量与搜索由 `budget.ts` 统一做。
@@ -95,9 +103,8 @@ export function defineTool<Args>(
         /** observedAt 在收窄前后必须一致：它参与字节测量，也参与同参结果稳定性 */
         const observedAt =
           options.observedAt === undefined ? new Date().toISOString() : options.observedAt();
-        const toResult = (candidate: ToolPayload): ToolResult => ({
-          content: [{ type: "text", text: boundedHeadline(candidate.headline) }],
-          structuredContent: buildSuccessEnvelope({
+        const toResult = (candidate: ToolPayload): ToolResult => {
+          const structuredContent = buildSuccessEnvelope({
             data: candidate.data,
             readVersion: candidate.readVersion,
             runs: candidate.runs,
@@ -106,8 +113,21 @@ export function defineTool<Args>(
             ...(candidate.nextCursor === undefined ? {} : { nextCursor: candidate.nextCursor }),
             ...(candidate.truncated === undefined ? {} : { truncated: candidate.truncated }),
             observedAt,
-          }),
-        });
+          });
+          return {
+            content: [
+              {
+                type: "text",
+                text: buildContentText(
+                  boundedHeadline(candidate.headline),
+                  candidate.data,
+                  candidate.contentBodies ?? [],
+                ),
+              },
+            ],
+            structuredContent,
+          };
+        };
         const fitted = fitWithinBudget(payload, toResult, `tool:${contract.name}`);
         if (!fitted.ok) throw new ToolFailure("RESPONSE_LIMIT", fitted.ref);
         return fitted.result;

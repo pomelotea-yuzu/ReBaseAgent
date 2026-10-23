@@ -12,6 +12,7 @@ import {
   buildCompareFixture,
   cleanupCompareFixtures,
 } from "./compare-file-fixtures.js";
+import { contentBodyTexts } from "./content-bodies.js";
 import { collectKeys } from "./whitelist-assertions.js";
 
 /**
@@ -76,6 +77,14 @@ async function failure(left: Side, right: Side, extra: Record<string, unknown> =
   const result = await rawCall(left, right, extra);
   expect(result.isError).toBe(true);
   return ErrorEnvelopeSchema.parse(result.structuredContent).error;
+}
+
+/**
+ * 6.2 改判：正文本体只在 content 投影（data 内对应位是 `bodyIn:"content"` 指针）。
+ * 出现序 = 左、右；非 text 的侧没有正文段。
+ */
+function sideTexts(result: ToolResult): string[] {
+  return contentBodyTexts(result);
 }
 
 /** 那一侧必须是可读格：不可读时当场报错，而不是把 union 上的字段当存在 */
@@ -299,26 +308,29 @@ describe("compare_checkpoint_files：清单模式（引用与内容分开）", (
 
 describe("compare_checkpoint_files：内容模式（逐侧核验，不凭片段判）", () => {
   it("两侧同内容：结论 same、正文逐字、完整文件身份一致", async () => {
-    const { data } = await content(bothPoints().left, bothPoints().right, "shared.txt");
+    const { data, result } = await content(bothPoints().left, bothPoints().right, "shared.txt");
     expect(data.conclusion).toBe("same");
     expect(data.textDiffEligible).toBe(true);
     if (data.files.left.status !== "text" || data.files.right.status !== "text") {
       throw new Error("两侧都应是 text 状态");
     }
-    expect(data.files.left.text).toBe(CF_TEXTS.shared);
-    expect(data.files.right.text).toBe(CF_TEXTS.shared);
+    const texts = sideTexts(result);
+    expect(texts).toEqual([CF_TEXTS.shared, CF_TEXTS.shared]);
+    expect(data.files.left.bodyIn).toBe("content");
+    expect(data.files.right.bodyIn).toBe("content");
     expect(data.files.left.fullFile).toEqual(data.files.right.fullFile);
     expect(data.files.left.fullFile.sha256).toBe(contentSha(CF_TEXTS.shared));
     expect(data.files.left.range.total).toBe([...CF_TEXTS.shared].length);
   });
 
   it("首 4096 码点完全一样而结论仍须 different（不凭片段判相同）", async () => {
-    const { data } = await content(bothPoints().left, bothPoints().right, "late-diff.txt");
+    const { data, result } = await content(bothPoints().left, bothPoints().right, "late-diff.txt");
     if (data.files.left.status !== "text" || data.files.right.status !== "text") {
       throw new Error("两侧都应是 text 状态");
     }
     // 外发的两段一模一样……
-    expect(data.files.left.text).toBe(data.files.right.text);
+    const [leftText, rightText] = sideTexts(result);
+    expect(leftText).toBe(rightText);
     expect(data.files.left.range).toEqual({
       start: 0,
       end: 4096,
@@ -412,11 +424,12 @@ describe("compare_checkpoint_files：内容模式（逐侧核验，不凭片段�
   });
 
   it("maxChars 逐侧独立生效：短的一侧不被另一侧补", async () => {
-    const { data } = await content(bothPoints().left, bothPoints().right, "left-only.txt", {
+    const { data, result } = await content(bothPoints().left, bothPoints().right, "left-only.txt", {
       maxChars: 4,
     });
     if (data.files.left.status !== "text") throw new Error("左侧应是 text");
-    expect(data.files.left.text).toBe("只在初始");
+    // 右侧 not_found ⇒ content 只有左侧那一段正文
+    expect(sideTexts(result)).toEqual(["只在初始"]);
     expect(data.files.left.remaining).toBe([...CF_TEXTS.leftOnly].length - 4);
     expect(data.files.right.status).toBe("not_found");
     expect(["text", "remaining"].filter((key) => collectKeys(data.files.right).has(key))).toEqual(
@@ -432,11 +445,15 @@ describe("compare_checkpoint_files：内容模式（逐侧核验，不凭片段�
   });
 
   it("正文只随显式 path 出门：同清单里别的文件一条字节都不带", async () => {
-    const { data, envelope } = await content(bothPoints().left, bothPoints().right, "shared.txt");
+    const { data, envelope, result } = await content(
+      bothPoints().left,
+      bothPoints().right,
+      "shared.txt",
+    );
     if (data.files.left.status !== "text") throw new Error("请求的那一侧应是 text");
-    // 逐字判据走字段本身：JSON.stringify 会把换行转义，序列化子串判据会假红
-    expect(data.files.left.text).toBe(CF_TEXTS.shared);
-    const serialized = JSON.stringify({ data, envelope });
+    // 逐字判据走 content 提取的本体：JSON.stringify 会把换行转义，序列化子串判据会假红
+    expect(sideTexts(result)).toEqual([CF_TEXTS.shared, CF_TEXTS.shared]);
+    const serialized = JSON.stringify({ data, envelope, content: result.content });
     expect(
       [
         CF_TEXTS.secretBody,

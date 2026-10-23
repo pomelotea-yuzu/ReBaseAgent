@@ -69,7 +69,11 @@ const StepBodySchema = z.discriminatedUnion("recorded", [
       recorded: z.literal(true),
       /** 结构正文的编码：规范 JSON（design D6）；文件那一路才是 utf8-text */
       encoding: z.literal("canonical-json"),
-      text: z.string(),
+      /**
+       * 6.2 修订（正文只承载一次）：正文本体只进 content 文本，此处是指针；
+       * `range/truncated/remaining` 仍描述那段正文（范围按外发文本计）。
+       */
+      bodyIn: z.literal("content"),
       range: RangeSchema,
       truncated: z.boolean(),
       remaining: z.number().int().nonnegative(),
@@ -254,22 +258,23 @@ export const getStepTool: ToolDefinition = defineTool(
      * `filteredText = null` 时没有可缩旋钮，固定段装不下就由框架发 RESPONSE_LIMIT。
      */
     const buildPayload = (chars: number | undefined): ToolPayload => {
+      const sliced =
+        args.section === undefined || filteredText === null
+          ? null
+          : sliceBody(filteredText, chars, start);
       const body: z.infer<typeof StepBodySchema> | null =
         args.section === undefined
           ? null
-          : filteredText === null
+          : sliced === null
             ? { recorded: false }
-            : (() => {
-                const sliced = sliceBody(filteredText, chars, start);
-                return {
-                  recorded: true as const,
-                  encoding: "canonical-json" as const,
-                  text: sliced.text,
-                  range: sliced.range,
-                  truncated: sliced.truncated,
-                  remaining: sliced.remaining,
-                };
-              })();
+            : {
+                recorded: true as const,
+                encoding: "canonical-json" as const,
+                bodyIn: "content" as const,
+                range: sliced.range,
+                truncated: sliced.truncated,
+                remaining: sliced.remaining,
+              };
       const data = GetStepDataSchema.parse({
         span: item,
         requestedSection: args.section ?? null,
@@ -292,6 +297,8 @@ export const getStepTool: ToolDefinition = defineTool(
       return {
         readVersion,
         data,
+        /** 正文本体只随 content 走（data 内对应位是 bodyIn:"content" 指针） */
+        ...(sliced === null ? {} : { contentBodies: [{ at: "body", text: sliced.text }] }),
         truncated: body !== null && body.recorded === true ? body.truncated : false,
         ...(nextCursor === undefined ? {} : { nextCursor }),
         runs,

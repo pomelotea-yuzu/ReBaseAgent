@@ -81,7 +81,11 @@ const CheckpointFileBodySchema = z.discriminatedUnion("status", [
       fullFile: FullFileSchema,
       /** 文件那一路是原文本；结构正文那一路才是 canonical-json（design D6） */
       encoding: z.literal("utf8-text"),
-      text: z.string(),
+      /**
+       * 6.2 修订（正文只承载一次）：正文本体只进 content 文本，此处是指针；
+       * `fullFile/range/truncated/remaining` 小事实保留。
+       */
+      bodyIn: z.literal("content"),
       range: RangeSchema,
       truncated: z.boolean(),
       remaining: z.number().int().nonnegative(),
@@ -252,7 +256,7 @@ export const readCheckpointFileTool: ToolDefinition = defineTool(
     }
 
     const buildPayload = (chars: number | undefined): ToolPayload => {
-      const file = projectFileBody(read, chars, start);
+      const { file, bodyText } = projectFileBody(read, chars, start);
       const data = ReadCheckpointFileDataSchema.parse({
         selector: {
           runId: leafRunId,
@@ -276,6 +280,8 @@ export const readCheckpointFileTool: ToolDefinition = defineTool(
       return {
         readVersion,
         data,
+        /** 正文本体只随 content 走（data 内对应位是 bodyIn:"content" 指针） */
+        ...(bodyText === null ? {} : { contentBodies: [{ at: "file", text: bodyText }] }),
         truncated: file.status === "text" ? file.truncated : false,
         ...(nextCursor === undefined ? {} : { nextCursor }),
         runs,
@@ -312,39 +318,55 @@ export const readCheckpointFileTool: ToolDefinition = defineTool(
 /** 共享层状态 → 外发状态段：`rejected` 已由调用方升成稳定码，这里只落地五种数据状态 */
 type LocatedFileRead = Exclude<WorkspaceReadFileResult, { status: "rejected" }>;
 
+/**
+ * 返回值两件套：`file` 是 data 内的外发形状（text 分支带 `bodyIn:"content"` 指针），
+ * `bodyText` 是正文本体（null = 无正文），只随 content 文本走（正文只承载一次）。
+ */
 function projectFileBody(
   read: LocatedFileRead,
   maxChars: number | undefined,
   start = 0,
-): z.infer<typeof CheckpointFileBodySchema> {
+): { file: z.infer<typeof CheckpointFileBodySchema>; bodyText: string | null } {
   switch (read.status) {
     case "text": {
       const sliced = sliceBody(read.text, maxChars, start);
       return {
-        status: "text",
-        fullFile: { bytes: read.bytes, sha256: read.sha256 },
-        encoding: "utf8-text",
-        text: sliced.text,
-        range: sliced.range,
-        truncated: sliced.truncated,
-        remaining: sliced.remaining,
+        file: {
+          status: "text",
+          fullFile: { bytes: read.bytes, sha256: read.sha256 },
+          encoding: "utf8-text",
+          bodyIn: "content",
+          range: sliced.range,
+          truncated: sliced.truncated,
+          remaining: sliced.remaining,
+        },
+        bodyText: sliced.text,
       };
     }
     case "binary":
-      return { status: "binary", fullFile: { bytes: read.bytes, sha256: read.sha256 } };
+      return {
+        file: { status: "binary", fullFile: { bytes: read.bytes, sha256: read.sha256 } },
+        bodyText: null,
+      };
     case "not_found":
-      return { status: "not_found", reason: read.reason };
+      return { file: { status: "not_found", reason: read.reason }, bodyText: null };
     case "missing":
       return {
-        status: "missing",
-        fullFile: { bytes: read.bytes, sha256: read.sha256 },
-        reason: read.reason,
+        file: {
+          status: "missing",
+          fullFile: { bytes: read.bytes, sha256: read.sha256 },
+          reason: read.reason,
+        },
+        bodyText: null,
       };
     case "corrupt":
       return {
-        status: "corrupt",
-        fullFile: { bytes: read.bytes, sha256: read.sha256 },
-        reason: read.reason,
+        file: {
+          status: "corrupt",
+          fullFile: { bytes: read.bytes, sha256: read.sha256 },
+          reason: read.reason,
+        },
+        bodyText: null,
       };
   }
 }

@@ -34,6 +34,7 @@ import {
   buildBudgetWorkspaceFixture,
   cleanupBudgetFixtures,
 } from "./budget-fixtures.js";
+import { contentBodyTexts } from "./content-bodies.js";
 
 /**
  * MCP0 5.1（S07/S09/S10）：完整 tool result 的 64 KiB 预算。
@@ -365,7 +366,7 @@ describe("文件正文：码点范围与两侧独立预算（S09/S10）", () => 
     expect(data.file.remaining).toBe(wsFx.hugeLeftChars - 8192);
     expect(data.file.truncated).toBe(true);
     expect(data.file.fullFile.bytes).toBe(wsFx.hugeLeftChars);
-    expect(data.file.text.length).toBe(8192);
+    expect(contentBodyTexts(result)[0]?.length).toBe(8192);
   });
 
   it("两侧都是大正文：预算收窄两侧码点上限，结论仍取完整附件核验", async () => {
@@ -397,8 +398,9 @@ describe("文件正文：码点范围与两侧独立预算（S09/S10）", () => 
     expect(data.files.right.remaining).toBe(wsFx.hugeRightChars - data.files.right.range.end);
     expect(data.files.left.fullFile.bytes).toBe(wsFx.hugeLeftChars);
     expect(data.files.right.fullFile.bytes).toBe(wsFx.hugeRightChars);
-    expect(data.files.left.text.length).toBe(data.files.left.range.end);
-    expect(data.files.right.text.length).toBe(data.files.right.range.end);
+    const texts = contentBodyTexts(result);
+    expect(texts[0]?.length).toBe(data.files.left.range.end);
+    expect(texts[1]?.length).toBe(data.files.right.range.end);
   });
 
   it("两侧长度不同：短的一侧自然结束，不为长的一侧补空/补字符", async () => {
@@ -422,7 +424,7 @@ describe("文件正文：码点范围与两侧独立预算（S09/S10）", () => 
     expect(data.files.left.range.end).toBe(wsFx.shortLeftChars);
     expect(data.files.left.truncated).toBe(false);
     expect(data.files.left.remaining).toBe(0);
-    expect(data.files.left.text.length).toBe(wsFx.shortLeftChars);
+    expect(contentBodyTexts(result)[0]?.length).toBe(wsFx.shortLeftChars);
     expect(data.files.right.range.total).toBe(wsFx.shortRightChars);
     expect(data.files.right.range.end).toBeGreaterThan(0);
     expect(data.files.right.range.end).toBeLessThan(wsFx.shortRightChars);
@@ -453,8 +455,9 @@ describe("get_step：长来源链挤占预算时正文按码点收窄（S09）",
     expect(data.body.range.end).toBeLessThan(8192);
     expect(data.body.truncated).toBe(true);
     expect(data.body.remaining).toBe(total - data.body.range.end);
-    expect(data.body.text).toBe([...full].slice(0, data.body.range.end).join(""));
-    expect(hasLoneSurrogate(data.body.text)).toBe(false);
+    const bodyText = contentBodyTexts(result)[0] ?? "";
+    expect(bodyText).toBe([...full].slice(0, data.body.range.end).join(""));
+    expect(hasLoneSurrogate(bodyText)).toBe(false);
     expect(envelope.provenance.runs).toHaveLength(chainFx.chainLength);
     expect(envelope.truncation.truncated).toBe(true);
     expect(envelope.truncation.nextCursor).toBeDefined();
@@ -481,7 +484,7 @@ describe("get_step：长来源链挤占预算时正文按码点收窄（S09）",
       const { data, envelope } = okData<GetStepData>(result);
       if (data.body === null || data.body.recorded !== true) throw new Error("正文应当在场");
       expect(data.body.range.start).toBe(expectedStart);
-      collected += data.body.text;
+      collected += contentBodyTexts(result)[0] ?? "";
       expectedStart = data.body.range.end;
       pages += 1;
       cursor = envelope.truncation.nextCursor;

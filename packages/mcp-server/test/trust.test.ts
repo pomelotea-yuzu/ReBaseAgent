@@ -9,6 +9,7 @@ import { REDACTED_MARKER } from "../src/query/redaction.js";
 import { TRUST_INSTRUCTIONS, createQueryServer } from "../src/server.js";
 import type { DataRoot } from "../src/startup.js";
 import { READONLY_TOOLS } from "../src/tools.js";
+import { contentBodyTexts } from "./content-bodies.js";
 import {
   EXPOSURE_SENTINELS,
   type ExposureFixture,
@@ -129,13 +130,15 @@ describe("历史指令不扩展服务权限（S12）", () => {
     const envelope = SuccessEnvelopeSchema.parse(structuredOf(result));
     const data = envelope.data as GetStepData;
     if (data.body === null || data.body.recorded === false) throw new Error("正文应当在场");
-    const parsed = JSON.parse(data.body.text) as {
+    // 6.2 改判：正文本体只在 content 投影（data 内对应位是 bodyIn 指针）
+    const bodyText = contentBodyTexts(result)[0] ?? "";
+    const parsed = JSON.parse(bodyText) as {
       messages: Array<{ role: string; content: string }>;
     };
     // 注入文本原样作为数据返回（规范化 JSON 会转义反斜杠，按解析后的值核对）
     expect(parsed.messages[0]?.content).toBe(EXPOSURE_SENTINELS.injection);
-    expect(data.body.text).toContain(REDACTED_MARKER);
-    expect(data.body.text).not.toContain(EXPOSURE_SENTINELS.paramsApiKey);
+    expect(bodyText).toContain(REDACTED_MARKER);
+    expect(bodyText).not.toContain(EXPOSURE_SENTINELS.paramsApiKey);
     expect(envelope.limitations.map((item) => item.code)).toContain("REDACTED");
   });
 

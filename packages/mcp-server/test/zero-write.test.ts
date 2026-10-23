@@ -14,6 +14,7 @@ import {
   cancelFrame,
   envelopeOf,
   errorOf,
+  frameBodyTexts,
   initFrame,
   okData,
   resultOf,
@@ -195,10 +196,12 @@ describe("Q15 查询全链零写入", () => {
           ...(bodyCursor === undefined ? {} : { cursor: bodyCursor }),
         }),
       );
-      const { data, envelope } = okData<GetStepData>(await session.waitForFrame(id));
+      const frame = await session.waitForFrame(id);
+      const { data, envelope } = okData<GetStepData>(frame);
       const body = data.body;
       if (body === null || body.recorded !== true) throw new Error("正文应已记录");
-      text += body.text;
+      // 6.2 改判：正文本体只在 content 投影（data 内对应位是 bodyIn 指针）
+      text += frameBodyTexts(frame)[0] ?? "";
       bodyCursor = envelope.truncation.nextCursor;
       id += 1;
       if (bodyCursor === undefined) break;

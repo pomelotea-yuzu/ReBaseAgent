@@ -58,7 +58,21 @@
 
 observedAt 为 UTC ISO；readVersion 是参与文件字节与参数摘要，不代表目录事务。未知保留 null/limitation，不补零。引用只用真实运行、所属 span、自有检查点、逻辑路径；不输出宿主 URL、不新增 deep link。指南说明如何在桌面按完整 ID 定位。
 
-失败 `{apiVersion,ok:false,error:{code,message,ref?,retryable}}`，工具 isError=true；未知工具/协议错误沿 MCP 标准。已知工具非法业务参数映射统一信封，不透传 SDK/Zod 参数/异常。content 只给简短状态/定位，不复制整份正文；按选定 SDK 验证 outputSchema/structuredContent。
+失败 `{apiVersion,ok:false,error:{code,message,ref?,retryable}}`，工具 isError=true；未知工具/协议错误沿 MCP 标准。已知工具非法业务参数映射统一信封，不透传 SDK/Zod 参数/异常。content = headline + data 紧凑投影，**正文只承载一次**（正文本体只进 content，structuredContent.data 对应位为 `bodyIn:"content"` 指针并保留 range/truncated/remaining/sha256/status 等小事实）；按选定 SDK 验证 outputSchema/structuredContent。
+
+> **D4 content 口径修订（2026-10-23，owner 定稿，6.2 第一轮实跑后）**：原文是
+> 「content 只给简短状态/定位，不复制整份正文」。真实客户端 WorkBuddy 5.9.0 实测
+> **不把 structuredContent 交给模型**（initialize.instructions 同样不呈现）⇒ 模型连一条
+> 路径/哈希/错误消息都引用不出来，S15 的「引用可回查」落空——这不是配置错，是判据盲区。
+> 修订为「content 自足 + 正文只承载一次」。实测否掉的两版：整信封投影 ⇒ compare_runs 与
+> 长来源链三例 RESPONSE_LIMIT（6 红）；只投影 data 但正文两处都留 ⇒ 正文 8192→4860 码点、
+> 比较一侧 3000→2370 且 truncated、compare_runs 仍 RESPONSE_LIMIT（4 红）⇒ 双承载不可接受。
+> 落地：`content-text.ts` 只渲染 data（小事实全额；超长自由文本叶子截断并标注总量，
+> 全文仍在 structuredContent）、`tool-definition.ts` 组装、三个 `*DataSchema` 正文位
+> （get_step 的 body、read_checkpoint_file 的 file、compare_checkpoint_files 内容模式的
+> files.left/right）改指针形状。4.3/4.6/5.1/5.2 的「正文在 data 内」形状判据与
+> protocol「content 只一句状态」判据随本修订合法改判（tasks/evidence 两边留痕）。
+> 预算算法不变（本就量 content+structuredContent 整体）。
 
 稳定码：INVALID_ARGUMENT、DATA_DIR_INVALID、RUN_NOT_FOUND、RUN_INVALID、UNSUPPORTED_TRACE_VERSION、IDENTITY_MISMATCH、ANCESTOR_INVALID、ANCESTOR_UNREADABLE、LINEAGE_CYCLE、FORK_INVALID、STEP_NOT_FOUND、SPAN_AMBIGUOUS、NO_WORKSPACE、STORAGE_IO、STALE_CURSOR、RESPONSE_LIMIT。无法可靠细分解析错时用 RUN_INVALID，不按错误文字猜版本。缺父仅在确认祖先 ENOENT 时给 ANCESTOR_NOT_FOUND limitation；文件保留 text/binary/not_found/missing/corrupt/rejected。
 

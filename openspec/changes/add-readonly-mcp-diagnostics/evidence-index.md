@@ -610,6 +610,35 @@ Q 属于 run-query，S 属于 mcp-service，D 属于 desktop-ui；标题须与 d
   **D03 通过**；**D02 的实机回归闭合**（代码/包层半边在 3.1/3.2）。S15/S16/D01 与指南、另一位使用者、
   全仓门禁、归档仍归 6.2–6.6，本批不代勾也不代宣称。
 
+- 6.2 第一轮真实客户端实跑（2026-10-23，投影修订**前**）：WorkBuddy 5.9.0（内置
+  @genie/agent-cli 2.165.0）/ 模型 Step-5-Preview / 12 次工具调用。**S15 未通过**——
+  所有调用只回一行 headline，条目/白名单字段/错误消息/正文一次都没到模型；根因是该客户端
+  不把 structuredContent 交给模型（initialize.instructions 同样不呈现），而原判据从没钉过
+  「真实客户端能从 content 读到事实」。摘要层 8 项数字与桌面基线逐字吻合（693/errored 66/
+  不可读 0、2 span、5 文件、1,352,072 B、config.txt 18 码点、big.txt 1,352,000、两侧
+  config.txt different、祖先=父）⇒ 可作回归锚点。记录：`.workbuddy/mcp0-62/client-run.txt`、
+  夹具 `run_mvi67s4h_wwle`（errored，s_02=HTTP 503）与父 `run_mvi2ckn3_xfxw46`、
+  桌面基线 `.workbuddy/mcp0-62/desktop-baseline.json`。
+- 6.2 投影修订落地（2026-10-23，owner 定稿方案「content 自足 + 正文只承载一次」，详记于
+  design.md D4 修订注）：新增 `src/content-text.ts`（只渲染 data、小事实全额、超长自由文本
+  叶子截断并标注总量、正文位渲染本体不截、同输入同输出）+ `tool-definition.ts` 组装 +
+  ToolPayload.contentBodies；三个 `*DataSchema` 正文位（get_step body / read file /
+  compare files.left,right）由 `text` 改为 `bodyIn:"content"` 指针（range/truncated/
+  remaining/sha256/status 小事实保留）。**判据改判留痕**：4.3（get-step.test：bodyText 换
+  content 源、keys.has("text") 改判为 false）、4.6（read/compare 测试 text 断言换 content
+  提取）、5.1（budget 测试正文长度断言换 content 提取；compare_runs 预算用例在叶子截断下
+  保持绿=容量边界未收紧）、5.2（cursor-continuation 拼接换 content 源）、protocol
+  「content 只一句状态」改判为「headline + data 投影」并精确钉投影格式；4.8（redaction）、
+  5.3（stdio-lifecycle）、5.4（zero-write）的正文判据同步平移到 content 源，REDACTED/零写入
+  红线原样保留。新增判据 `content-projection.test.ts` 6 条（正文只承载一次：canary 在
+  structuredContent 逐字缺席；content 自足：标识/哈希/结论/range 数字可从 content 读回；
+  渲染器纪律：截断标注/确定性/缺本体防御），变异验证 V1（content 退回只 headline）与
+  V2（bodyIn 位不展开正文）各红 5 条 ⇒ 判据有牙口。门禁：mcp-server **23 文件/307 用例全绿**
+  （基线 22/301 ⇒ +1 文件/+6 用例）、包 tsc 与 `.rebaseagent/tsconfig.mcp-server-test.json`
+  双 0、biome scoped 0、dist 已按修订后源码重建（真子进程批次不读旧 dist）。
+  **S15 仍未通过**：等真实客户端按同模型同任务重跑并对照 8 项锚点（正文/清单/哈希/错误消息
+  应随 content 到达模型）；本轮不勾 6.2。
+
 ## 门禁与归档约束
 
 - 6.5 补实际命令、exit code、源码身份、包构建顺序和新依赖核验；不引用 R2.2 历史通过代替本次通过。

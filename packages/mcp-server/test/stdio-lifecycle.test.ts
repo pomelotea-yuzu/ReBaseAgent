@@ -18,6 +18,7 @@ import {
   callFrame,
   cancelFrame,
   errorOf,
+  frameBodyTexts,
   initFrame,
   okData,
   treeListing,
@@ -62,9 +63,9 @@ function cursorOf(envelope: SuccessEnvelope): string {
   return cursor;
 }
 
-/** `body` 是 `recorded` 判别式联合：先窄化再取 text/range，不靠 `?.` 蒙过去 */
+/** `body` 是 `recorded` 判别式联合：先窄化再取 range 等小事实（正文判据走 content 投影），不靠 `?.` 蒙过去 */
 function bodyOf(data: GetStepData): {
-  text: string;
+  bodyIn: "content";
   range: { start: number; end: number; total: number };
   truncated: boolean;
 } {
@@ -208,7 +209,8 @@ describe("S13 EOF 释放资源", () => {
     const body = bodyOf(data);
     // 结构正文是 canonical-json：字符串正文带首尾引号 ⇒ 外发总码点 = 原文码点 + 2
     expect(body.range.total).toBe(STDIO_BODY_CHARS + 2);
-    expect([...body.text].length).toBe(8_192);
+    // 6.2 改判：正文本体只在 content 投影，按码点数核对（不拆代理对）
+    expect([...(frameBodyTexts(session.frameFor(2))[0] ?? "")].length).toBe(8_192);
     // EOF 之后不再有任何外发：帧数固定为 2，也不会有后台续发的第三条
     expect(session.frames.length).toBe(2);
     expect(exit.stdout.split("\n").filter((line) => line.trim().length > 0)).toHaveLength(2);
@@ -272,9 +274,10 @@ describe("S13 重连只是重新查询", () => {
     };
     const session1 = await openSession(fx.dataDir);
     session1.writeFrames([initFrame(1), INITIALIZED_FRAME, callFrame(2, "get_step", args)]);
-    const first = okData<GetStepData>(await session1.waitForFrame(2));
+    const firstFrame = await session1.waitForFrame(2);
+    const first = okData<GetStepData>(firstFrame);
     const cursor = cursorOf(first.envelope);
-    expect([...bodyOf(first.data).text].length).toBe(64);
+    expect([...(frameBodyTexts(firstFrame)[0] ?? "")].length).toBe(64);
     await session1.end();
 
     const session2 = await openSession(fx.dataDir);

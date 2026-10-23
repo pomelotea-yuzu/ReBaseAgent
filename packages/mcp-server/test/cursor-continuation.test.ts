@@ -17,6 +17,7 @@ import type { ReadCheckpointFileData } from "../src/query/read-checkpoint-file.j
 import { readCheckpointFileTool } from "../src/query/read-checkpoint-file.js";
 import type { ToolResult } from "../src/server.js";
 import type { DataRoot } from "../src/startup.js";
+import { contentBodyTexts } from "./content-bodies.js";
 import {
   CURSOR_LONG_BODY,
   type CursorFixture,
@@ -49,10 +50,11 @@ afterEach(() => {
 function ok<T>(result: ToolResult): {
   data: T;
   envelope: ReturnType<typeof SuccessEnvelopeSchema.parse>;
+  result: ToolResult;
 } {
   expect(result.isError).not.toBe(true);
   const envelope = SuccessEnvelopeSchema.parse(result.structuredContent);
-  return { data: envelope.data as T, envelope };
+  return { data: envelope.data as T, envelope, result };
 }
 
 function failure(result: ToolResult): ReturnType<typeof ErrorEnvelopeSchema.parse>["error"] {
@@ -152,7 +154,8 @@ describe("get_run 索引分页与正文续读（S07/S09）", () => {
       }
       expect(page.data.body.range.start).toBe(expectedStart);
       expect(page.data.body.range.total).toBe(total);
-      collected += page.data.body.text;
+      // 6.2 改判：正文本体只在 content 投影（data 内对应位是 bodyIn 指针）
+      collected += contentBodyTexts(page.result)[0] ?? "";
       expectedStart = page.data.body.range.end;
       pages += 1;
       cursor = page.envelope.truncation.nextCursor;
@@ -183,7 +186,7 @@ describe("get_run 索引分页与正文续读（S07/S09）", () => {
       if (page.data.file.status !== "text") throw new Error("应当是文本");
       expect(page.data.file.range.start).toBe(expectedStart);
       expect(page.data.file.range.total).toBe(fx.longLeftChars);
-      collected += page.data.file.text;
+      collected += contentBodyTexts(page.result)[0] ?? "";
       expectedStart = page.data.file.range.end;
       cursor = page.envelope.truncation.nextCursor;
     } while (cursor !== undefined);
@@ -277,8 +280,9 @@ describe("检查点清单与比较正文续读（S07/S10）", () => {
       if (left.range.end === left.range.total && right.range.end < right.range.total) {
         sawLeftEndedFirst = true;
       }
-      leftText += left.text;
-      rightText += right.text;
+      const texts = contentBodyTexts(page.result);
+      leftText += texts[0] ?? "";
+      rightText += texts[1] ?? "";
       leftStart = left.range.end;
       rightStart = right.range.end;
       cursor = page.envelope.truncation.nextCursor;

@@ -6,6 +6,7 @@ import { getStepTool } from "../src/query/get-step.js";
 import type { GetStepData } from "../src/query/get-step.js";
 import type { ToolResult } from "../src/server.js";
 import type { DataRoot } from "../src/startup.js";
+import { contentBodyTexts } from "./content-bodies.js";
 import {
   LONG_BODY,
   LONG_BODY_EMOJI_START,
@@ -73,11 +74,19 @@ function sectionFlags(data: GetStepData): Record<string, boolean> {
   return Object.fromEntries(data.sections.map((item) => [item.name, item.recorded]));
 }
 
-function bodyText(data: GetStepData): string {
+/**
+ * 6.2 改判：正文本体只在 content 投影里（data 内对应位是 `bodyIn:"content"` 指针）。
+ * data 侧的 range/truncated/remaining 数字判据不动，正文判据从这里提取。
+ */
+function bodyText(data: GetStepData, result: ToolResult): string {
   if (data.body === null || data.body.recorded === false) {
     throw new Error("本次结果没有正文");
   }
-  return data.body.text;
+  const bodies = contentBodyTexts(result);
+  if (bodies.length !== 1) {
+    throw new Error(`content 投影应有恰一段正文，实得 ${bodies.length}`);
+  }
+  return bodies[0] as string;
 }
 
 /** 逐码点检查有没有孤立代理项（切坏半个字符的唯一直接证据） */
@@ -121,8 +130,8 @@ describe("get_step：不给 section 就只有索引（S03「先摘要后正文�
 
 describe("get_step：显式 section 才取正文", () => {
   it("section=input 给出请求正文（这是被显式要走的正文，canary 应当在场）", async () => {
-    const { data } = await okStep(fx.ids.alpha, "s_02", { section: "input" });
-    const text = bodyText(data);
+    const { data, result } = await okStep(fx.ids.alpha, "s_02", { section: "input" });
+    const text = bodyText(data, result);
     expect(text).toContain(SENTINELS.messageBody);
     expect(data.body?.recorded).toBe(true);
     if (data.body?.recorded !== true) return;
@@ -133,8 +142,8 @@ describe("get_step：显式 section 才取正文", () => {
   });
 
   it("结构正文先规范 JSON：对象键按升序重排，续读才拼得回同一份原文", async () => {
-    const { data } = await okStep(fx.ids.alpha, "s_03", { section: "input" });
-    expect(bodyText(data)).toBe(
+    const { data, result } = await okStep(fx.ids.alpha, "s_03", { section: "input" });
+    expect(bodyText(data, result)).toBe(
       `{"alpha":{"path":"a.txt"},"note":"${SENTINELS.toolArgs}","zeta":1}`,
     );
   });
@@ -142,7 +151,7 @@ describe("get_step：显式 section 才取正文", () => {
   it("工具 result 录成 null 与字段缺失可分辨：前者 recorded:true 发 null，后者未记录", async () => {
     const recordedNull = await okStep(fx.ids.bodies, "s_03", { section: "output" });
     expect(recordedNull.data.body?.recorded).toBe(true);
-    expect(bodyText(recordedNull.data)).toBe("null");
+    expect(bodyText(recordedNull.data, recordedNull.result)).toBe("null");
 
     const missing = await okStep(fx.ids.sparse, "s_03", { section: "output" });
     expect(missing.data.body).toEqual({ recorded: false });
@@ -151,11 +160,11 @@ describe("get_step：显式 section 才取正文", () => {
 
   it("错误正文三态：录有内容 / 录成空串 / 未记录", async () => {
     const recorded = await okStep(fx.ids.bodies, "s_03", { section: "error" });
-    expect(bodyText(recorded.data)).toBe(`"${SENTINELS.toolErrorBody}"`);
+    expect(bodyText(recorded.data, recorded.result)).toBe(`"${SENTINELS.toolErrorBody}"`);
 
     const empty = await okStep(fx.ids.emptyError, "s_03", { section: "error" });
     expect(empty.data.body?.recorded).toBe(true);
-    expect(bodyText(empty.data)).toBe('""');
+    expect(bodyText(empty.data, empty.result)).toBe('""');
 
     const none = await okStep(fx.ids.alpha, "s_03", { section: "error" });
     expect(none.data.body).toEqual({ recorded: false });
@@ -163,8 +172,8 @@ describe("get_step：显式 section 才取正文", () => {
   });
 
   it("llm 失败详情带 HTTP 状态时如实给出，未记录时不编造", async () => {
-    const { data } = await okStep(fx.ids.bodies, "s_02", { section: "error" });
-    expect(JSON.parse(bodyText(data))).toEqual({
+    const { data, result } = await okStep(fx.ids.bodies, "s_02", { section: "error" });
+    expect(JSON.parse(bodyText(data, result))).toEqual({
       message: SENTINELS.llmErrorBody,
       status: 503,
     });
@@ -175,7 +184,7 @@ describe("get_step：显式 section 才取正文", () => {
 
 describe("get_step：码点范围与代理对（design D6）", () => {
   it("默认 4096 码点截断长正文，且标注 remaining 与 truncated", async () => {
-    const { data, envelope } = await okStep(fx.ids.bigBody, "s_03", { section: "output" });
+    const { data, envelope, result } = await okStep(fx.ids.bigBody, "s_03", { section: "output" });
     if (data.body?.recorded !== true) throw new Error("正文应当在场");
     const total = [...LONG_BODY].length + 2; // 规范 JSON 的两个引号
     expect(data.body.range).toEqual({
@@ -186,24 +195,27 @@ describe("get_step：码点范围与代理对（design D6）", () => {
     });
     expect(data.body.truncated).toBe(true);
     expect(data.body.remaining).toBe(total - 4096);
+    expect(data.body.bodyIn).toBe("content");
     expect(envelope.truncation).toMatchObject({ truncated: true });
     expect(envelope.truncation.nextCursor).toBeDefined();
-    expect([...data.body.text].length).toBe(4096);
-    expect(hasLoneSurrogate(data.body.text)).toBe(false);
+    const text = bodyText(data, result);
+    expect([...text].length).toBe(4096);
+    expect(hasLoneSurrogate(text)).toBe(false);
   });
 
   it("切在代理对边界上也只按码点切：UTF-16 长度可比码点多，半个字符绝不发出去", async () => {
-    const { data } = await okStep(fx.ids.bigBody, "s_03", {
+    const { data, result } = await okStep(fx.ids.bigBody, "s_03", {
       section: "output",
       // 规范 JSON 前置一个引号 ⇒ 上限取「代理对起始码点 + 2」正好把第一个 emoji 整个吃下
       maxChars: LONG_BODY_EMOJI_START + 2,
     });
     if (data.body?.recorded !== true) throw new Error("正文应当在场");
+    const text = bodyText(data, result);
     expect(data.body.range.end).toBe(LONG_BODY_EMOJI_START + 2);
-    expect([...data.body.text].length).toBe(LONG_BODY_EMOJI_START + 2);
-    expect(data.body.text.length).toBeGreaterThan([...data.body.text].length);
-    expect(hasLoneSurrogate(data.body.text)).toBe(false);
-    expect(data.body.text).toContain("🙂");
+    expect([...text].length).toBe(LONG_BODY_EMOJI_START + 2);
+    expect(text.length).toBeGreaterThan([...text].length);
+    expect(hasLoneSurrogate(text)).toBe(false);
+    expect(text).toContain("🙂");
   });
 
   it("maxChars 越界（>8192）与无法验证的 cursor 都在读取前拒绝", async () => {
@@ -249,7 +261,7 @@ describe("get_step：重名消歧与截断祖先（Q09/Q10）", () => {
       ownerRunId: fx.ids.ambiguousChild,
       section: "output",
     });
-    expect(bodyText(body.data)).toContain(SENTINELS.responseContent);
+    expect(bodyText(body.data, body.result)).toContain(SENTINELS.responseContent);
   });
 
   it("把 owner 指向被投影重置掉的祖先同样拒绝（owner 不是通行证）", async () => {
@@ -271,9 +283,9 @@ describe("get_step：重名消歧与截断祖先（Q09/Q10）", () => {
   });
 
   it("继承项仍可读，并标出真实归属（own=false）", async () => {
-    const { data } = await okStep(fx.ids.cutChild, "s_02", { section: "input" });
+    const { data, result } = await okStep(fx.ids.cutChild, "s_02", { section: "input" });
     expect(data.span).toMatchObject({ ownerRunId: fx.ids.cutParent, own: false });
-    expect(bodyText(data)).toContain(SENTINELS.messageBody);
+    expect(bodyText(data, result)).toContain(SENTINELS.messageBody);
     expect(data.requestedSection).toBe("input");
   });
 
@@ -327,14 +339,17 @@ describe("get_step：与 get_run 同源、零写入", () => {
   });
 
   it("结果里不出现宿主路径与未请求的字段（键名递归核对）", async () => {
-    const { data, envelope } = await okStep(fx.ids.bodies, "s_03", { section: "output" });
-    const serialized = JSON.stringify({ data, envelope });
+    const { data, envelope, result } = await okStep(fx.ids.bodies, "s_03", { section: "output" });
+    const serialized = JSON.stringify({ data, envelope, content: result.content });
     expect(serialized).not.toContain(fx.tracesDir);
     expect(serialized).not.toContain(fx.dataDir);
     const keys = collectKeys({ data, envelope });
     for (const forbidden of ["dataDir", "tracesDir", "path", "sha256", "file"]) {
       expect(keys.has(forbidden)).toBe(false);
     }
-    expect(keys.has("text")).toBe(true);
+    // 6.2 改判：data/信封里的正文键换成 bodyIn:"content" 指针，本体只在 content 投影
+    expect(keys.has("text")).toBe(false);
+    expect(data.body?.recorded === true && data.body.bodyIn).toBe("content");
+    expect(contentBodyTexts(result)).toEqual(["null"]);
   });
 });
