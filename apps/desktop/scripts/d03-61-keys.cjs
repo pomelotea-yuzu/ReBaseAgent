@@ -1,16 +1,16 @@
 /* eslint-disable */
 /**
- * MCP0 任务 6.1 · D03 键盘档（真实 Electron，两条独立键盘通道）。
+ * MCP0 任务 6.1 · D03 键盘档（CDP 受信键通道）。
  *
  * spec 原文（specs/desktop-ui/spec.md:15-17）：
  *   WHEN …抽查窄窗/200%/键盘  THEN 阅读位置/焦点/可达性保持，无新导航、无执行登记，原数据不变
  *
- * 两个 tag：
- *   --tag=keys       CDP `Input.dispatchKeyEvent`（浏览器层受信事件，isTrusted=true）
- *                    做 Tab 步进 + Enter 激活。这是"键盘能走到并激活只读链"的下限证据。
- *   --tag=realkeys   OS 真键盘（keybd_event，经 .workbuddy/mcp0-61/ps-keys.ps1 抬窗+发键同进程）
- *                    同一件事的系统级证据；本机 spawn 被宿主拦时**如实记红并给出用户代跑命令**，
- *                    不降级成"没测也算过"。
+ * 只有一个 tag：`keys` —— CDP `Input.dispatchKeyEvent`（浏览器层受信事件）做 Tab 步进 +
+ * Enter 激活，是"键盘能走到并激活只读链"的下限证据。
+ * 🔴 OS 真键盘**不在这个脚本里**：`keybd_event`（node 侧与用户 PowerShell 侧各实测一次）本机
+ *    Windows 回显 `RESULT=sent` + `foreground same=True`，页面却零收键 —— 系统键盘投递进不到
+ *    该 Electron 窗口。真键盘证据改由 `d03-61-keys-manual.cjs`（人工按键、脚本只观察不注入）交付；
+ *    失败通道读数留在 .workbuddy/mcp0-61/d03-realkeys-measurements.json 与 keys-*.txt 回显。
  *
  * 前置：dev 带 CDP 9612 已起（100% 档）；跑法清代理：
  *   HTTP_PROXY= HTTPS_PROXY= http_proxy= https_proxy= node apps/desktop/scripts/d03-61-keys.cjs --tag=keys
@@ -27,8 +27,8 @@ const TAG = (() => {
   const hit = process.argv.find((a) => a.startsWith("--tag="));
   return hit ? hit.slice(6) : "";
 })();
-if (TAG !== "keys" && TAG !== "realkeys") {
-  console.error("用法：--tag=<keys|realkeys>");
+if (TAG !== "keys") {
+  console.error("用法：--tag=keys");
   process.exit(2);
 }
 
@@ -38,8 +38,7 @@ const SHOTS = join(OUT, "shots");
 mkdirSync(SHOTS, { recursive: true });
 const PARENT = "run_mvhmwr6f_ia6xbg";
 const CHILD = "run_mvhn8q64_c6ds";
-const TIER = TAG === "keys" ? "键盘档CDP" : "键盘档OS真键";
-const PS_KEYS = join(__dirname, "lib", "d03-keys.ps1");
+const TIER = "键盘档CDP";
 const PS_RAISE = join(__dirname, "lib", "d03-raise.ps1");
 
 const WRITE_WHITELIST = [
@@ -232,41 +231,6 @@ const focusButtonByAria = (aria) =>
      })()`
   );
 
-/** OS 真键盘：抬窗与发键同一进程（ps-keys.ps1），回显写 OutFile */
-function realKeys(tokens, pid, { gapMs = 110, preSleepMs = 400 } = {}) {
-  const outFile = join(OUT, `keys-${process.pid}-${tokens.length}-${Date.now()}.txt`);
-  const r = spawnSync(
-    "powershell.exe",
-    [
-      "-NoProfile",
-      "-ExecutionPolicy",
-      "Bypass",
-      "-File",
-      PS_KEYS,
-      "-ProcId",
-      String(pid),
-      "-Send",
-      tokens.join(","),
-      "-GapMs",
-      String(gapMs),
-      "-PreSleepMs",
-      String(preSleepMs),
-      "-OutFile",
-      outFile,
-    ],
-    { encoding: "utf8", windowsHide: true, timeout: 120000 }
-  );
-  const fileText = existsSync(outFile) ? readFileSync(outFile, "utf8").replace(/^﻿/, "") : null;
-  return {
-    status: r.status,
-    stdout: (r.stdout ?? "").trim().slice(0, 200),
-    stderr: (r.stderr ?? "").trim().slice(0, 200),
-    outFile,
-    fileText,
-    error: r.error ? String(r.error).slice(0, 200) : null,
-  };
-}
-
 function mainPid() {
   const r = spawnSync("netstat", ["-ano"], { encoding: "utf8" });
   const line = String(r.stdout ?? "")
@@ -393,25 +357,13 @@ async function main() {
   must(`${TIER}：运行行可获得焦点（focusable，键击目标就位）`, rowReady.ok, rowReady.value);
   await clearTrail();
 
-  if (TAG === "keys") {
-    dump.raises = [r0];
-    dump.raises.push(raise());
-    await cdpEnter();
-  } else {
-    const pid = mainPid();
-    const sent = realKeys(["ENTER"], pid, { gapMs: 120, preSleepMs: 500 });
-    dump.osChannel = sent;
-    must(
-      `${TIER}：OS 真键盘通道可用（ps-keys.ps1 回显 RESULT=sent 且前台归属 same=True）`,
-      sent.status === 0 && !!sent.fileText && /RESULT=sent/.test(sent.fileText) && /same=True/.test(sent.fileText),
-      { pid, stdout: sent.stdout, stderr: sent.stderr, error: sent.error, tail: (sent.fileText ?? "").split(/\r?\n/).slice(-4) }
-    );
-  }
+  dump.raises = [r0, raise()];
+  await cdpEnter();
 
   const activated = await poll(snapshot, (v) => v.selectedRunId === CHILD && v.detailId === CHILD, 20000);
   const clicks1 = await readClicks();
   check(
-    `${TIER}：Enter 在聚焦的运行行上产生 isTrusted 激活并读出详情`,
+    `${TIER}：Enter 在聚焦的运行行上产生受信激活并读出详情`,
     activated.ok && clicks1.some((c) => c.trusted === true),
     { snap: activated.value, clicks: clicks1.slice(0, 4) }
   );
@@ -424,15 +376,10 @@ async function main() {
   // 2) Tab 步进轨迹：从当前焦点起连续 Tab，检查落点全部在应用内且持续游走
   await clearTrail();
   const TABS = 14;
-  if (TAG === "keys") {
-    dump.raises.push(raise());
-    for (let i = 0; i < TABS; i++) {
-      await cdpTab();
-      await H.sleep(45);
-    }
-  } else {
-    const sent = realKeys(Array.from({ length: TABS }, () => "TAB"), mainPid(), { gapMs: 90, preSleepMs: 400 });
-    dump.osTabBatch = { status: sent.status, tail: (sent.fileText ?? "").split(/\r?\n/).slice(-3) };
+  dump.raises.push(raise());
+  for (let i = 0; i < TABS; i++) {
+    await cdpTab();
+    await H.sleep(45);
   }
   const trail = await readTrail();
   const distinct = new Set(trail.map((t) => `${t.tag}|${t.id ?? ""}|${t.aria ?? ""}|${t.text}`));
@@ -454,12 +401,13 @@ async function main() {
   const cmpFocus = await poll(() => focusButtonByAria("与父运行对比（父左子右）"), (v) => v.ok === true, 15000);
   must(`${TIER}：「与父运行对比」可被聚焦（键盘目标就位）`, cmpFocus.ok, cmpFocus.value);
   await clearTrail();
-  if (TAG === "keys") {
-    dump.raises.push(raise());
-    await cdpEnter();
-  } else realKeys(["ENTER"], mainPid(), { gapMs: 120, preSleepMs: 400 });
+  dump.raises.push(raise());
+  await cdpEnter();
   const inCompare = await poll(snapshot, (v) => v.view === "compare" && v.comparePair?.right === CHILD, 25000);
   const clicks2 = await readClicks();
+  // 本通道的激活证据是"受信 click + 紧随其后的 store 迁移"；
+  // ⚠️ 不用 detail===0：那是**人手键盘**的特征（人工批用它区分鼠标），
+  //    CDP 合成的 Enter 落进 Blink 后 detail 记为 1，写这条会永远红（本轮实测）。
   check(
     `${TIER}：Enter 激活「与父运行对比」进入比较（键击即导航，无需鼠标）`,
     inCompare.ok && clicks2.some((c) => c.trusted === true && (c.aria ?? "").startsWith("与父运行对比")),
@@ -468,10 +416,8 @@ async function main() {
 
   const backFocus = await poll(() => focusByText("返回来源"), (v) => v.ok === true, 15000);
   must(`${TIER}：「返回来源」可被聚焦`, backFocus.ok, backFocus.value);
-  if (TAG === "keys") {
-    dump.raises.push(raise());
-    await cdpEnter();
-  } else realKeys(["ENTER"], mainPid(), { gapMs: 120, preSleepMs: 400 });
+  dump.raises.push(raise());
+  await cdpEnter();
   const backOk = await poll(snapshot, (v) => v.view === "trace" && v.selectedRunId === CHILD, 25000);
   check(`${TIER}：Enter 激活「返回来源」回到运行记录（键盘可完成整条往返）`, backOk.ok, backOk.value);
 
