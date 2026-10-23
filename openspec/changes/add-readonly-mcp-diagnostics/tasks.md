@@ -543,7 +543,33 @@
 
 ## 6. 实机、指南与收口
 
-- [ ] 6.1（1.5h）真实 Electron 只读链与窄窗/200%/键盘抽查，记录尺寸/版本/阅读位置。验收 D03；源码接线测试不代替实机。
+- [x] 6.1（1.5h）真实 Electron 只读链与窄窗/200%/键盘抽查，记录尺寸/版本/阅读位置。验收 D03；源码接线测试不代替实机。
+  - 2026-10-23：真实 Electron（dev + CDP 9612，Electron/app 版本与 dpr 逐批记录）跑完整只读链
+    **列表→详情→比较→文件视图→返回**，五批全绿：宽档 `chain` **41/41**、窄档 `narrow`（实测 CSS 801，
+    目标 800 的 ±2px 内）**41/41**、200% `zoom200`（DPR 实测 4.2）**41/41**、键盘 CDP 通道 `keys`
+    **18/18**、键盘人工真键 `manual` **13/13**（判据与读数 `.workbuddy/mcp0-61/d03-*-measurements.json`，
+    回查 `.workbuddy/mcp0-61/verify-61.cjs`）。逐支钉住：正文/轨迹目录 `scrollTop` 复原到记录值
+    （按 `scroll-restore.ts` 的裁剪口径）、返回后焦点归属未漂移、三页签与路径行的 `role=tab`/
+    `aria-pressed`/`aria-current` 可达性锚点在场、`view` 迁移恰两次且无自动导航、
+    `confirmations/draftSubmissions/operations/currentConfirmationBinding` 摘要与基线全等、
+    `forking/creatingRun` 恒 `idle`、数据根 `traces/ + workspace-blobs/ + settings.json`
+    逐文件 SHA-256 与基线逐字相同且白名单外条目零增减。
+  - **D02 的实机回归已在 6.1 侧闭合**（其代码/包层半边在 3.1/3.2）：比较文件视图在用户未选步骤时两侧默认
+    = 各自**最近自有完成步骤**（父 `s_13` / 子 `s_16`，期望值取两个独立来源：本批直接解析 `traces/*.jsonl`
+    的 `agent.step` span + `.workbuddy/r22-72/seed.json` 的 `finalStepId`，一致 ⇒ 非自证）；检查点选项只给
+    「初始 + 该 run 自有步骤」；显式改成初始后默认标注消失、关掉再开文件视图仍是显式值（不被默认覆盖）；
+    旧 IPC `inspectWorkspace` 省略 `stepSpanId` 仍返回**初始快照**（`stepSpanId:null`、`origin.kind:"initial"`），
+    显式 selector 返回另一份快照 ⇒ MCP 的「省略=初始」没有改写桌面默认；`compareWorkspaceSnapshots`
+    逐侧 `status:"ok"` + `unionComplete:true` + `reference` 口径未收紧；并集外路径按数据出门
+    （逐侧 `not_found` + `conclusion:"not_found"`，响应不含数据根物理路径与堆栈）。
+  - **D03 通过**（真实 Electron 全链 + 窄窗 + 200% + 键盘两支）。键盘通道边界如实记录：`keybd_event`
+    在本机 Windows 回显 `RESULT=sent` + `foreground same=True` 而页面零收键（node 侧与用户 PowerShell 侧
+    各实测一次）⇒ OS 真键路径由 `d03-61-keys-manual.cjs`（人工按键、脚本只观察不注入）交付；
+    CDP `Input.dispatchKeyEvent` 需 `Emulation.setFocusEmulationEnabled` 才产生默认动作。两条通道都完成，
+    不再有"待用户代跑"欠账。
+  - 实机 harness 三条硬事实（已下沉 `UI-VERIFY.md`，别再重踩）：文档未获焦时 Chromium 把 focus 事件挂
+    延迟队列 ⇒ 焦点轨迹必须轮询 `activeElement`；后台窗口里程序化 `scrollTop` 的原生 `scroll` 事件不投递
+    ⇒ 阅读位置判据要同步补派发；`resizeTo` 反解在 zoom 档会发散 ⇒ zoom 档判据只看 DPR。
 - [ ] 6.2（2h）在选定真实 WorkBuddy 5.9.0 完成代表任务并对照桌面，记录实际配置、版本、来源及数据不变性。验收 S15、D01；自制协议客户端不算通过。
 - [ ] 6.3（1.5h）写构建/启动/数据范围/正文外发/费用/错误/游标/限制指南，明确现有发行包不含 MCP。验收 S12/S16；配置示例来自已通过路径。
 - [ ] 6.4（1.5h）另一位使用者按指南接入，回填实际结果；未完成保留待验收。验收 S16，不用维护者自验顶替。

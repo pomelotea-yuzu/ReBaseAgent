@@ -583,6 +583,33 @@ Q 属于 run-query，S 属于 mcp-service，D 属于 desktop-ui；标题须与 d
     ⚠️ 口径边界：S 系列的"零执行"是**只读服务不存在执行调用面**这一结构性事实 + 端到端指纹，
     不是在 MCP 侧插桩计数；真实客户端（6.2）与 Electron 面（6.1）另计，不提前宣称。
 
+## 6.x 进展（不构成场景通过）
+
+- 6.1：真实 Electron 只读链实机批（D03 验收，D02 的实机回归半边）。dev + CDP 9612 跑
+  **列表→详情→比较→文件视图→返回**，五批全绿且失败数均为 0：`chain` **41**（宽档 CSS1208）、
+  `narrow` **41**（CSS801，目标 800 的 ±2px 内）、`zoom200` **41**（DPR 4.2 真 zoom、CSS605）、
+  `keys` **18**（CDP 受信键 Tab 步进 + Enter 激活三次导航）、`manual` **13**（人手真键盘：
+  焦点轨迹 8 个落点、三次 `detail=0` 受信激活、view 迁移恰两次）。判据落点：
+  阅读位置 = `DetailPanel.tsx:182` 的 `div.flex-1.overflow-y-auto.pb-8`（store 键名 `overviewScrollTop`）
+  与 `#steps-navigation` 目录滚动（`stepsScrollTop`），复原口径按 `scroll-restore.ts:34-45` 裁剪；
+  无新导航 = store `subscribe` 记账的 `view` 序列；无执行登记 = `confirmations/draftSubmissions/
+  operations/currentConfirmationBinding` 的 JSON 摘要全等 + `forking/creatingRun` 恒 `idle`；
+  原数据不变 = `traces/ + workspace-blobs/ + settings.json` 逐文件 SHA-256 与基线逐字相同，
+  白名单（`traces/*.jsonl`、`traces/tmp-create-*.tmp`、`workspace-blobs/sha256/<hex>`、
+  `current-source/gone.txt`）外条目零增减（已知残留 `traces/tmp-measure-*.tmp` 来自
+  `measure-fork-cache.cjs`，逐字对齐基线而非放过）。
+  D02 实机面：未选步骤时两侧默认=最近自有完成步骤（父 `s_13`/子 `s_16`，期望值双独立来源一致：
+  本批解析 trace 的 `agent.step` span 与 `.workbuddy/r22-72/seed.json` 的 `finalStepId`）；
+  显式改初始后不被默认回落覆盖；旧 IPC 省略 `stepSpanId` 仍给初始快照（`origin.kind:"initial"`）、
+  显式给另一份快照 ⇒ MCP「省略=初始」未改写桌面默认；清单逐侧 `ok` + `unionComplete` + `reference`
+  口径未收紧；并集外路径按逐侧 `not_found` 出门且不含物理路径/堆栈。
+  证据：`.workbuddy/mcp0-61/d03-<tag>-measurements.json` + 回查 `verify-61.cjs`（含 `--self-test`
+  三道反证）；脚本 `apps/desktop/scripts/d03-61-cdp.cjs` / `d03-61-keys.cjs` / `d03-61-keys-manual.cjs`。
+  通道边界（不作已验收能力引用）：`keybd_event` 在本机页面零收键（`RESULT=sent` + `same=True` 亦无效），
+  真键盘证据走人工按键 + 脚本只观察；CDP 键需焦点模拟才产生默认动作。
+  **D03 通过**；**D02 的实机回归闭合**（代码/包层半边在 3.1/3.2）。S15/S16/D01 与指南、另一位使用者、
+  全仓门禁、归档仍归 6.2–6.6，本批不代勾也不代宣称。
+
 ## 门禁与归档约束
 
 - 6.5 补实际命令、exit code、源码身份、包构建顺序和新依赖核验；不引用 R2.2 历史通过代替本次通过。
