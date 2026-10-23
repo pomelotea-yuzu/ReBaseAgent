@@ -622,4 +622,14 @@
     重读盘、不跨请求缓存的既定取舍，零写入/来源新鲜度的另一面），如实记录为设计行为非缺陷。
   - 诚实边界：性能数字为量级参考（单轮、未强制 GC、无并发混跑压测）；6.4（S16 另一位使用者）
     仍挂账不因本批通过而代勾。回查 `verify-65.cjs`（--self-test 三道反证）。
-- [ ] 6.6（1h）逐场景回填 evidence-index，核对源码/主 spec 差集，同步项目状态/MCP 路线/文档入口后归档。验收全部；归档不等于发行，不预填测试/实机通过。
+- [x] 6.6（1h）逐场景回填 evidence-index，核对源码/主 spec 差集，同步项目状态/MCP 路线/文档入口后归档。验收全部；归档不等于发行，不预填测试/实机通过。
+  - 2026-10-24 回填与同步：evidence-index 新增「0. 逐场景最终状态」表（Q01–Q16 与 D01–D03 全部
+    通过；S01–S15 通过——S12/S14/S15 标注整场景/真实客户端层级；**S16 唯一挂账**：指南面已
+    交付 + 维护者自验两客户端样本，欠非维护者实测，不宣称通过）；project-status（校准 10-24 +
+    MCP 行改为已归档/未打包/S16 挂账）、mcp-service-roadmap（更新行：MCP0/MCP1 已交付）、
+    docs/README（路线行）同步。
+  - 主 spec 差集：归档前基线 desktop-ui **106 req / 489 scen**（`.workbuddy/mcp0-65/spec-diff-before.json`）；
+    delta = desktop-ui ADDED +1 req/+3 scen、**新建** run-query（8/16）与 mcp-service（8/16）
+    主 spec；归档后差集复核既有零丢失（spec-diff-after.json）。
+  - 归档执行：openspec archive --yes；归档不等于发行——MCP 未打包、不在 `0.5.0-rc.1` 内、
+    发行轮须另行打包与实包验收。
