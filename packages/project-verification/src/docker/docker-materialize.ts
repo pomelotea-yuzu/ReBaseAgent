@@ -124,10 +124,7 @@ export class DockerMaterializationBackend implements ContainerWriteBackend {
 
   async writeFile(containerRef: string, containerPath: string, bytes: Uint8Array): Promise<void> {
     // tee 以 argv 接路径、字节走 stdin；stdout 回显丢弃（4096 上限，截断无碍）
-    const result = await this.exec(
-      ["-i", containerRef, "tee", containerPath],
-      Buffer.from(bytes),
-    );
+    const result = await this.exec(["-i", containerRef, "tee", containerPath], Buffer.from(bytes));
     if (result.exitCode !== 0) {
       throw new Error(
         `tee 写入非零退出（exit ${String(result.exitCode)}）：${result.stderr.trim()}`,

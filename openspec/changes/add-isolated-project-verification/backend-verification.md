@@ -443,3 +443,49 @@ ENOENT/超时/管道连接失败形态（§1.6 错误文本族）⇒ `BACKEND_MI
   本节容器为探针自建，未走 3.7 登记流程。
 - 2000 文件/8 MiB 边界的容器内实测（大批量 tee 性能与 tmpfs ENOSPC 行为）归 6.2 回归；
   配额数字本身已在 replay 包测试与 §1.4 实测覆盖。
+
+## 3.4 固定命令执行（2026-10-25，验收 P11/P12/P13/P20 的 3.4 切片；实测机同阶段 1）
+
+落地：`packages/project-verification/src/execute/command-runner.ts`（解析/编排/分类/P12 门/
+事件构造）与 `src/docker/docker-exec-command.ts`（Docker 实现）。包内 12 新用例共 143 全绿；
+实机探针 `.workbuddy/r3-34/probe-3.4.cjs`（dogfood dist）。schema 增量：command_end 的
+stdout/stderr 增 `totalBytes`（全观测口径，P13 计数是证据）并提为具名
+`CommandStartEventSchema`/`CommandEndEventSchema`。
+
+### 机制
+
+- **命令只来自 manifest 查表**（`resolveFixedCommand`：commandId → 冻结 executable/argv/cwd），
+  调用方无命令/路径/参数入口（P08 执行侧）。
+- **执行形态**：`docker exec --workdir /work <ctr> /usr/local/bin/node /opt/r3/runner.mjs
+  <cmd>`——argv 数组不经 Shell；CLI 硬超时 = `commandTimeoutMs(120s)` + 10s 余量，
+  超时击杀 CLI 会话并以 timedOut 收尾（容器内子孙定向停止确认归 3.5）。
+- **双时钟**：UTC 起止（墙钟事实）+ `performance.now()` 单调耗时（design D6）。
+- **有界采集**（P13）：每流保留前 1 MiB（= limits 预算），超限**持续读取丢弃并计数**；
+  CliRunResult 增字节面（stdoutBytes/stderrBytes）与全观测计数（stdoutTotalBytes/
+  stderrTotalBytes）；command_end 事件双口径（byteLength/sha256=保留资产，totalBytes=全观测）；
+  总观测阈值 16 MiB 只是判定函数（`exceedsTotalOutputLimit`），触发停止的接线归 3.5。
+- **阶段分类**（P20）：执行级结局 = completed(0–125) / start_failed(126/127) /
+  process_failed(≥128，137=SIGKILL OOM 候选、143=SIGTERM) / timed_out；exit 1 的报告
+  照常产出（检查成败归编排层结合 TAP 门判定，基础设施故障不混入代码断言失败）；
+  signal 字段按 128+N 约定**推导**（呈现侧注明非观测）。
+
+### 实机探针读数
+
+1. **已知失败输入**（mul=a−b）→ test：exit 1，2,281 ms，TAP `not ok 2 / # tests 2 /
+   # pass 1 / # fail 1`，保留 1,014 B 全观测同值；command_end 事件过 schema
+   （exit=1，signal=null，stdout sha256 `815b9de6…`）。
+2. **修复输入**（mul=a×b，同容器重新物化覆盖）→ test：exit 0，1,850 ms，TAP
+   `# tests 2 / # pass 2`；包层 `validateTestReport` 精确门 ok（与镜像内 runner 门纵深）。
+3. **P11 机制切片**：两份报告独立并存（失败 stdout sha `815b9de6…` ≠ 修复 `b0e8c203…`），
+   互不覆盖；完整双验证记录回查归 6.1。
+4. **长输出**（容器内 node 生成 2 MiB stdout）：保留恰 1,048,576 B（=1 MiB 预算）、
+   全观测 2,097,152 B、truncated=true——丢弃量如实计数（P13）。
+5. **阈值判定**：totalObserved 汇总双流、对照 16 MiB 阈值布尔判定可用。
+
+### 3.4 未闭合项（如实）
+
+- 超时/输出限额触发的**停止接线**（owner 定向停止、全子孙确认、幂等）归 3.5；
+  本节 CLI 击杀只保证本地会话终止，容器内进程可能存留（阶段 1 §1.5 探针 O 形态）。
+- OOM(137)/PID 封顶等限额的实际 Enforcement 沿用 §1.4 实测；P20 的 OOM 分支在包内
+  以注入 runner 用例覆盖（exit 137 → process_failed + signal 推导），真机 OOM 复现归 6.2。
+- 受控 supervisor 作 PID 1 的容器结构归 3.5（P19）；本节容器以 sleep 保持存活（探针口径）。

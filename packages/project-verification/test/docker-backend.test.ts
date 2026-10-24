@@ -162,6 +162,10 @@ describe("后端预检（3.2，P01/P02）", () => {
         stdoutTruncated: false,
         stderrTruncated: false,
         timedOut: false,
+        stdoutBytes: new TextEncoder().encode(""),
+        stderrBytes: new TextEncoder().encode(""),
+        stdoutTotalBytes: 0,
+        stderrTotalBytes: 0,
         spawnError: { code: "ENOENT", message: "spawn ENOENT" },
       }),
     ]);
@@ -183,6 +187,10 @@ describe("后端预检（3.2，P01/P02）", () => {
         stdoutTruncated: false,
         stderrTruncated: false,
         timedOut: false,
+        stdoutBytes: new TextEncoder().encode(""),
+        stderrBytes: new TextEncoder().encode(""),
+        stdoutTotalBytes: 0,
+        stderrTotalBytes: 0,
         spawnError: null,
       }),
     ]);
@@ -206,6 +214,10 @@ describe("后端预检（3.2，P01/P02）", () => {
         stdoutTruncated: false,
         stderrTruncated: false,
         timedOut: false,
+        stdoutBytes: new TextEncoder().encode(""),
+        stderrBytes: new TextEncoder().encode(""),
+        stdoutTotalBytes: 0,
+        stderrTotalBytes: 0,
         spawnError: null,
       }),
     ]);
@@ -229,6 +241,10 @@ describe("后端预检（3.2，P01/P02）", () => {
           stdoutTruncated: false,
           stderrTruncated: false,
           timedOut: false,
+          stdoutBytes: new TextEncoder().encode(""),
+          stderrBytes: new TextEncoder().encode(""),
+          stdoutTotalBytes: 0,
+          stderrTotalBytes: 0,
           spawnError: null,
         };
       },
@@ -322,6 +338,10 @@ describe("DockerPreparationBackend（3.2，注入 runner 的编排测试）", ()
       stdoutTruncated: false,
       stderrTruncated: false,
       timedOut: false,
+      stdoutBytes: new TextEncoder().encode(""),
+      stderrBytes: new TextEncoder().encode(""),
+      stdoutTotalBytes: 0,
+      stderrTotalBytes: 0,
       spawnError: null,
     };
   }

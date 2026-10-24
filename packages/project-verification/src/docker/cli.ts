@@ -112,6 +112,15 @@ export interface CliRunResult {
   readonly timedOut: boolean;
   /** spawn 本身失败（ENOENT 等）时给出；正常退出（含非零）不设。 */
   readonly spawnError: { readonly code: string | undefined; readonly message: string } | null;
+  /** 保留区原始字节（= 截断前的捕获内容；哈希/资产发布用，P13）。 */
+  readonly stdoutBytes: Uint8Array;
+  readonly stderrBytes: Uint8Array;
+  /**
+   * 全部观测字节（保留 + 超限丢弃）——「持续读取丢弃并计数」的计数面（P13）；
+   * 总观测阈值（output_limit 触发判定）以此为输入。
+   */
+  readonly stdoutTotalBytes: number;
+  readonly stderrTotalBytes: number;
 }
 
 /**
@@ -127,25 +136,33 @@ export type CliRunner = (
 function captureStream(
   stream: NodeJS.ReadableStream,
   maxBytes: number,
-): { text: () => string; truncated: () => boolean } {
+): {
+  text: () => string;
+  bytes: () => Uint8Array;
+  truncated: () => boolean;
+  totalBytes: () => number;
+} {
   const chunks: Buffer[] = [];
-  let total = 0;
-  let truncated = false;
+  let retained = 0;
+  let dropped = 0;
   stream.on("data", (chunk: Buffer) => {
-    if (total >= maxBytes) {
-      truncated = true;
+    // 超限后**持续读取并丢弃计数**（不停读——停读会让子进程在满管道上阻塞，P13）
+    if (retained >= maxBytes) {
+      dropped += chunk.length;
       return;
     }
-    const take = chunk.subarray(0, maxBytes - total);
+    const take = chunk.subarray(0, maxBytes - retained);
     if (take.length < chunk.length) {
-      truncated = true;
+      dropped += chunk.length - take.length;
     }
     chunks.push(take);
-    total += take.length;
+    retained += take.length;
   });
   return {
     text: () => Buffer.concat(chunks).toString("utf8"),
-    truncated: () => truncated,
+    bytes: () => Buffer.concat(chunks),
+    truncated: () => dropped > 0,
+    totalBytes: () => retained + dropped,
   };
 }
 
@@ -182,6 +199,11 @@ export const defaultCliRunner: CliRunner = (exePath, args, options) =>
           stdoutTruncated: stdout.truncated(),
           stderrTruncated: stderr.truncated(),
           timedOut: false,
+          stdoutBytes: stdout.bytes(),
+          stderrBytes: stderr.bytes(),
+          stdoutTotalBytes: stdout.totalBytes(),
+          stderrTotalBytes: stderr.totalBytes(),
+
           spawnError: { code: error.code, message: `stdin 写入失败：${error.message}` },
         });
       });
@@ -196,6 +218,10 @@ export const defaultCliRunner: CliRunner = (exePath, args, options) =>
         stdoutTruncated: stdout.truncated(),
         stderrTruncated: stderr.truncated(),
         timedOut,
+        stdoutBytes: stdout.bytes(),
+        stderrBytes: stderr.bytes(),
+        stdoutTotalBytes: stdout.totalBytes(),
+        stderrTotalBytes: stderr.totalBytes(),
         spawnError: { code: error.code, message: error.message },
       });
     });
@@ -208,6 +234,10 @@ export const defaultCliRunner: CliRunner = (exePath, args, options) =>
         stdoutTruncated: stdout.truncated(),
         stderrTruncated: stderr.truncated(),
         timedOut,
+        stdoutBytes: stdout.bytes(),
+        stderrBytes: stderr.bytes(),
+        stdoutTotalBytes: stdout.totalBytes(),
+        stderrTotalBytes: stderr.totalBytes(),
         spawnError: null,
       });
     });

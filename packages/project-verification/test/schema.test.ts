@@ -216,8 +216,8 @@ describe("验证记录事件（P15：版本与形状）", () => {
       exitCode: null,
       signal: "SIGKILL",
       durationMs: 4800,
-      stdout: { byteLength: 3, sha256: "b".repeat(64), truncated: false },
-      stderr: { byteLength: 0, sha256: "c".repeat(64), truncated: false },
+      stdout: { byteLength: 3, totalBytes: 3, sha256: "b".repeat(64), truncated: false },
+      stderr: { byteLength: 0, totalBytes: 0, sha256: "c".repeat(64), truncated: false },
       endedAt: "2026-10-25T00:00:02.000Z",
     };
     const r = VerificationEventSchema.safeParse(killed);

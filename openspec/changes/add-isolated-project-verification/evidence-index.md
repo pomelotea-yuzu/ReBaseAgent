@@ -1,6 +1,6 @@
 # R3 逐场景证据索引
 
-状态：阶段 1 完成（1.1–1.6）+ **第 2 组完成（2.1–2.4）** + **3.1/3.2/3.3 完成（受限准备/Docker 受控后端/受控物化）**——阶段 1 各切片、2.1–2.4 各切片、P03/P04（编排切片）/P07（计划 token）/P08（资产完整性门）的 3.1 切片、P01/P02/P09/P10 的 3.2 切片、P05/P06/P09/W01/W02 的 3.3 切片已实测（backend-verification.md §1.x/§3.1–§3.3 + `packages/project-verification` 131 用例）；其余任务切片待验证；文档/strict 校验通过不代表功能、隔离或实机验收通过。
+状态：阶段 1 完成（1.1–1.6）+ **第 2 组完成（2.1–2.4）** + **3.1–3.4 完成（受限准备/Docker 受控后端/受控物化/固定命令执行）**——阶段 1 各切片、2.1–2.4 各切片、3.1（P03/P04 编排/P07/P08）、3.2（P01/P02/P09/P10）、3.3（P05/P06/P09/W01/W02）、3.4（P11/P12/P13/P20）各切片已实测（backend-verification.md §1.x/§3.1–§3.4 + `packages/project-verification` 143 用例）；其余任务切片待验证；文档/strict 校验通过不代表功能、隔离或实机验收通过。
 
 ## 新增场景
 
@@ -16,16 +16,16 @@
 | P08 | project-verification / 自定义命令和配置被拒绝 | 1.3、2.1、3.1 | 1.3 切片 + 2.1 schema 切片已实测（命令枚举、strict 对象拒绝多余键、路径/env/镜像无处传）；3.1 切片已实测（受信资产完整性门：篡改任一资产/缺配方文件拒绝并指名、篡改提交按 trusted_environment_drift 落 failed 记录；v2 配方固定锁文件+npm ci 实测镜像内哈希不变）；3.3 物化面待执行 |
 | P09 | project-verification / 越界和网络实际受限 | 1.2、3.2、3.3、6.2 | 1.2 切片已实测（2026-10-24，backend-verification.md §1.2：受限/对照双跑，非 root/cap/nnp/ro-rootfs/断网全生效）；3.2 切片已实测（§3.2：受控 CLI 静态面——可信绝对路径不扫 PATH、argv 数组不经 Shell、受控 env 零继承、旗标序列无任何挂载旗标（全等断言）+ 实容器 Tmpfs 仅 /work 与 /tmp、credential 助手经受信 bin PATH 的机制而非透传凭据）；3.3 切片已实测（§3.3：穿越负例零 exec 且容器内核查 escape 缺席/根目录无异常、tee 只建普通文件 find -type l=0）；执行期越界（宿主读写/socket 实际尝试）6.2 待执行 |
 | P10 | project-verification / 资源限额生效 | 1.4、3.2、3.5、6.2 | 1.4 切片已实测（2026-10-24，backend-verification.md §1.4：OOM 137/PID 62/ENOSPC/节流 50:50 含对照；PID1 信号陷阱与 tmpfs 计内存两发现）；3.2 切片已实测（§3.2：containerRunFlags manifest→旗标唯一映射（memory==memory-swap 无 swap、tmpfs 精确字节、restart no、log-driver none、不用 --init）+ 实容器 docker inspect 核验 Memory/MemorySwap/PidsLimit/NanoCpus/User/ReadonlyRootfs/CapDrop/NetworkMode/Tmpfs/LogDriver/RestartPolicy/SecurityOpt 12 项全生效；限额 Enforcement 实测仍以 §1.4 为准，执行期 3.5/6.2 待执行） |
-| P11 | project-verification / 已知失败和通过均可回查 | 1.3、2.2、3.4、6.1 | 1.3 切片 + 2.2 切片已实测（失败/通过两条独立记录并存、封存后字节不变、同 ID 重开拒绝）；3.4/6.1 待执行 |
-| P12 | project-verification / 零测试或不完整报告 | 1.3、3.4 | 1.3 切片已实测（零测试危害形态实测+精确匹配 gate 自检 6 例；发现 node 22.23「零用例文件=1 伪测试 exit 0」形态）；3.4 待执行 |
-| P13 | project-verification / 长输出与分页 | 1.4、2.3、3.4、5.3、6.2 | 1.4 读数 + 2.3 切片已实测（readLog 默认 32KiB/上限 64KiB 钳制、nextOffset/remaining/truncated 续读契约、附件篡改 ASSET_CORRUPT/缺失 ASSET_MISSING）；3.4/5.3/6.2 待执行 |
+| P11 | project-verification / 已知失败和通过均可回查 | 1.3、2.2、3.4、6.1 | 1.3 切片 + 2.2 切片已实测（失败/通过两条独立记录并存、封存后字节不变、同 ID 重开拒绝）；3.4 切片已实测（2026-10-25，§3.4：已知失败 exit 1（TAP not ok）与修复 exit 0（精确门 ok）两份报告独立并存、stdout 哈希互异不覆盖；完整双验证记录回查归 6.1） |
+| P12 | project-verification / 零测试或不完整报告 | 1.3、3.4 | 1.3 切片已实测（零测试危害形态实测+精确匹配 gate 自检 6 例；发现 node 22.23「零用例文件=1 伪测试 exit 0」形态）；3.4 切片已实测（validateTestReport 包层精确门：# tests/# pass 与 expectedTestCount 精确相等，零测试/超计数/垃圾输出/缺 pass 行全拒、多段 TAP 取末摘要——与镜像内 runner 门纵深） |
+| P13 | project-verification / 长输出与分页 | 1.4、2.3、3.4、5.3、6.2 | 1.4 读数 + 2.3 切片已实测（readLog 默认 32KiB/上限 64KiB 钳制、nextOffset/remaining/truncated 续读契约、附件篡改 ASSET_CORRUPT/缺失 ASSET_MISSING）；3.4 切片已实测（§3.4：保留 1 MiB + 超限持续读取丢弃并计数——2 MiB stdout 实测保留恰 1,048,576 B/全观测 2,097,152 B/truncated；command_end 双口径 byteLength+totalBytes；16 MiB 阈值判定函数）；触发停止接线归 3.5、日志读取 5.3、回归 6.2 待执行 |
 | P14 | project-verification / 验证与旧轨迹兼容 | 2.2、6.1 | 2.2 切片已实测（writer 只写验证目录，traces 哨兵逐字节不变、目录清单不变；独立 verificationId 记录）；6.1 待执行 |
 | P15 | project-verification / 损坏未知版本与迁移 | 2.1、2.2、2.3 | 2.1 schema 切片 + 2.2 writer 切片 + 2.3 reader 切片已实测（坏尾行号/未知版本/身份错配/terminated 非末行结构化降级；数据根 rename 后记录与附件凭相对引用仍可读）；6.1 回归待执行 |
 | P16 | project-verification / 来源删除和只读查询 | 2.3、4.3、5.3 | 2.3 切片已实测（list 只扫 verifications/、sourceStatus present/missing 精确目录名标注、来源缺失时记录仍可读、附件按自身哈希校验）；4.3/5.3 待执行 |
 | P17 | project-verification / 停止后采集稳定输出 | 1.5、3.6 | 1.5 切片已实测（静止双扫一致、产物仅在 /work、采集须在移除前）；3.6 待执行 |
 | P18 | project-verification / 写者未停或产物非法 | 1.5、3.6、6.2 | 1.5 切片已实测（孤儿子孙持续写入实证、输入哈希不变）；3.6/6.2 待执行 |
 | P19 | project-verification / 停止覆盖子孙进程 | 1.5、3.5、4.4、6.2 | 1.5 切片已实测（按 PID 杀后 2s 字节稳定；pkill -f 自杀反证 ⇒ PID 定向停止）；3.5/4.4/6.2 待执行 |
-| P20 | project-verification / 启动故障与进程异常 | 3.4、3.5、6.2 | 待验证；未执行 |
+| P20 | project-verification / 启动故障与进程异常 | 3.4、3.5、6.2 | 3.4 切片已实测（2026-10-25，§3.4：classifyExecutionReport 四分类——completed 0–125/start_failed 126·127/process_failed ≥128（137→SIGKILL 推导）/timed_out；exit 1 报告照常产出、基础设施失败=environment_failed 与断言失败分开；OOM 真机复现归 6.2） |
 | P21 | project-verification / 停止结果未知 | 1.6、3.5、4.4、6.2 | 1.6 切片已实测（断连错误形态可识别、重启窗口 unknown 语义）；3.5/4.4/6.2 待执行 |
 | P22 | project-verification / 创建响应丢失与 main 崩溃 | 1.6、3.7、4.5、6.2 | 1.6 切片已实测（丢弃 ID 后 label/名定位恢复；重启后容器 137 存留可清理；name 过滤为子串匹配的发现）；3.7/4.5/6.2 待执行 |
 | P23 | project-verification / 无法确认清理 | 1.6、3.7、4.5、6.2 | 1.6 切片已实测（label 清理不触碰陌生容器）；3.7/4.5/6.2 待执行 |

@@ -121,6 +121,9 @@ export const TrustedEnvironmentSchema = z.strictObject({
   expectedTestCount: z.number().int().positive(),
 });
 
+/** 资源限额类型（执行层签名使用）。 */
+export type ProfileLimits = z.infer<typeof ProfileLimitsSchema>;
+
 /** node-ts-v1 profile manifest（版本化入库，design D2）。 */
 export const ProfileManifestSchema = z
   .strictObject({
@@ -394,6 +397,45 @@ export const VerificationMetaEventSchema = z.strictObject({
   createdAt: Iso8601Schema,
 });
 
+/** command_start 事件（具名导出：执行层 3.4 直接构造并校验）。 */
+export const CommandStartEventSchema = z.strictObject({
+  type: z.literal("command_start"),
+  commandId: CommandIdSchema,
+  executable: z.string().min(1),
+  argv: z.array(z.string()),
+  cwd: z.string().min(1),
+  startedAt: Iso8601Schema,
+});
+
+/**
+ * command_end 事件（具名导出）。stdout/stderr 双口径：`byteLength`/`sha256` 描述
+ * **已保留资产**（内容寻址发布），`totalBytes` 为**全部观测字节**（保留 + 超限丢弃的
+ * 持续读取计数，P13——截断/丢弃量本身是证据，缺失会掩盖 output_limit 事实）。
+ */
+export const CommandEndEventSchema = z.strictObject({
+  type: z.literal("command_end"),
+  commandId: CommandIdSchema,
+  exitCode: z.number().int().nullable(),
+  signal: z.string().nullable(),
+  durationMs: z.number().int().nonnegative(),
+  stdout: z.strictObject({
+    byteLength: z.number().int().nonnegative(),
+    totalBytes: z.number().int().nonnegative(),
+    sha256: FileHashSchema,
+    truncated: z.boolean(),
+  }),
+  stderr: z.strictObject({
+    byteLength: z.number().int().nonnegative(),
+    totalBytes: z.number().int().nonnegative(),
+    sha256: FileHashSchema,
+    truncated: z.boolean(),
+  }),
+  endedAt: Iso8601Schema,
+});
+
+export type CommandStartEvent = z.infer<typeof CommandStartEventSchema>;
+export type CommandEndEvent = z.infer<typeof CommandEndEventSchema>;
+
 /** 正文事件：meta 之后、terminated 之前可多次追加。 */
 export const VerificationBodyEventSchema = z.discriminatedUnion("type", [
   z.strictObject({
@@ -401,32 +443,8 @@ export const VerificationBodyEventSchema = z.discriminatedUnion("type", [
     phase: z.enum(["materializing", "executing", "stopping", "collecting", "finalizing"]),
     at: Iso8601Schema,
   }),
-  z.strictObject({
-    type: z.literal("command_start"),
-    commandId: CommandIdSchema,
-    executable: z.string().min(1),
-    argv: z.array(z.string()),
-    cwd: z.string().min(1),
-    startedAt: Iso8601Schema,
-  }),
-  z.strictObject({
-    type: z.literal("command_end"),
-    commandId: CommandIdSchema,
-    exitCode: z.number().int().nullable(),
-    signal: z.string().nullable(),
-    durationMs: z.number().int().nonnegative(),
-    stdout: z.strictObject({
-      byteLength: z.number().int().nonnegative(),
-      sha256: FileHashSchema,
-      truncated: z.boolean(),
-    }),
-    stderr: z.strictObject({
-      byteLength: z.number().int().nonnegative(),
-      sha256: FileHashSchema,
-      truncated: z.boolean(),
-    }),
-    endedAt: Iso8601Schema,
-  }),
+  CommandStartEventSchema,
+  CommandEndEventSchema,
   z.strictObject({
     type: z.literal("stop_requested"),
     at: Iso8601Schema,
