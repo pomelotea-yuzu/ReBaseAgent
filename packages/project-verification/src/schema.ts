@@ -36,6 +36,9 @@ export const LocalBackendEndpointSchema = z.enum([
   "npipe:////./pipe/docker_engine",
 ]);
 
+/** 本机后端 endpoint 类型。 */
+export type LocalBackendEndpoint = z.infer<typeof LocalBackendEndpointSchema>;
+
 /**
  * 检查点选择器：必须**显式**选择「初始快照」或「某个自有完成步骤」。
  * 刻意不存在「最近完成步骤」等默认形态——桌面不得无声换点（P05 / design D1：

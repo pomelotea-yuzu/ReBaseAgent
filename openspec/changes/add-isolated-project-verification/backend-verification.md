@@ -325,3 +325,73 @@ package.json sha256 = `16db8849…39cb`。基础镜像 FROM 仍按 digest 钉死
 - 跨 registry digest 与官方源一致性核对仍未完成（§1.2 未闭合项延续；Hub 直连不可达）。
 - plan 预览/prepare 的 IPC 展示与当前授权接线归 4.2/4.3；真实后端的 P04 全场景
   （含失败路径实测）在 3.2 适配器落地后于 6.2 回归。
+
+## 3.2 Docker 受控后端适配器（2026-10-25，验收 P01/P02/P09/P10 的 3.2 切片；实测机同阶段 1）
+
+适配器落地：`packages/project-verification/src/docker/`（cli/preflight/container-flags/
+docker-backend），实现 3.1 的 `PreparationBackend` 端口。包内测试 docker-free（注入 runner，
+24 用例）；本节为实机证据（探针 `.workbuddy/r3-32/probe-3.2.cjs`，dogfood 包内 dist）。
+
+### 受控 CLI/env（P09 静态面 + P02）
+
+- **受信 CLI 解析**：只认两处候选绝对路径（用户级 `%LOCALAPPDATA%\Programs\DockerDesktop\
+  resources\bin\docker.exe` 命中 / 系统级 Program Files 兜底），不扫 PATH（P01 不隐式安装、
+  不回退宿主 Shell 的静态前提）。
+- **受控 env 完全替换**：实机注入敌意宿主 env（`DOCKER_HOST=tcp://127.0.0.1:2375`、
+  `HTTP_PROXY`、`SECRET_API_KEY`）后，适配器传给 CLI 的 env 仅 `PATH`（=CLI bin 目录，
+  credential 助手所在）、`SystemRoot`、`USERPROFILE` 三键——敌意变量不可达 CLI。
+- **未受控对照（P02 必要性反证）**：裸 `docker version` 继承 `DOCKER_HOST=tcp://…`（argv
+  不带 `--host`）⇒ CLI 被重定向到 tcp endpoint（`dial tcp 127.0.0.1:2375 … connectex`
+  连接失败，exit 1）——环境覆盖确可改变实际 endpoint，产品必须钉死（与 §1.2 结论一致）。
+- **钉死 endpoint**：`--host npipe:…` 进 argv + env 同值双保险；预检一次拿到
+  client/server 29.9.2、服务端 linux/amd64、api 1.56（实测读数）。
+- **不经 Shell**：全程 argv 数组 spawn（node spawn 无 MSYS 改写面）；输出逐流按字节
+  截断（默认 2 MiB/流，有界纪律）。
+
+### 预检分类（P01/P02）
+
+`preflightLocalBackend`：endpoint 枚举外 ⇒ `BACKEND_REMOTE_REFUSED`（不发起调用）；CLI
+ENOENT/超时/管道连接失败形态（§1.6 错误文本族）⇒ `BACKEND_MISSING`（reason 注明不可达）；
+服务端非 linux/amd64 ⇒ `BACKEND_DRIFT`。分类判据全部带包内用例（canned runner）。
+
+### 适配器全构建实机（P04 的产品路径切片）
+
+- `DockerPreparationBackend.buildTrustedEnvironment`（真实 runner）两次实跑成功：
+  1,911 ms（层全缓存）～7,855 ms；产物 ImageId `sha256:6f699f0b…3159` /
+  `sha256:a8862503…6b12`（**两次 digest 不同 = BuildKit 层时间戳差异，属预期**——
+  环境镜像身份按次登记进准备记录 `prepared.imageDigest`，运行期以其为准）。
+- **镜像内五文件哈希复核**（适配器构建产物 `docker cp` 出比对）：package-lock.json/
+  runner.mjs/tsconfig.json/package.tmpl.json/tests/smoke.test.mjs 全部与冻结 manifest
+  一致（3.1 的 v2 配方经产品适配器可复现）。
+- 工具链实测：node 22.23.4 / tsc 5.9.3（镜像内受限旗标下 `node --version` /
+  `tsc --version`）；实测 ≠ manifest ⇒ `BACKEND_DRIFT` 收紧为「一致才放行」（包内用例）。
+- `networkUsed=true` / `downloadedBytes=null`：准备是唯一联网阶段；构建是否命中缓存
+  不可测 ⇒ 如实记 true/null（测不得 ≠ 0）。
+
+### 实容器旗标核验（P10 静态→实映射）
+
+`containerRunFlags(NODE_TS_V1_PROFILE)`（唯一映射，包内全等断言旗标序列、无任何挂载旗标）
+经 `docker create`（不 start）+ `docker inspect` 核验实际生效：
+
+| 字段 | 实测 | 与 manifest 一致 |
+|---|---|---|
+| Memory / MemorySwap | 536870912 / 536870912（无 swap） | ✅ |
+| PidsLimit | 64 | ✅ |
+| NanoCpus（--cpus 1） | 1000000000 | ✅ |
+| User | 1000:1000 | ✅ |
+| ReadonlyRootfs | true | ✅ |
+| CapDrop / Privileged | ["ALL"] / false | ✅ |
+| NetworkMode | none | ✅ |
+| Tmpfs | /work:size=167772160,mode=1777；/tmp:size=33554432,mode=1777 | ✅ |
+| LogConfig.Type | none（禁 daemon 持久保存输出） | ✅ |
+| RestartPolicy.Name | no（显式禁自动重启；docker 规范化为 "no"） | ✅ |
+| SecurityOpt | ["no-new-privileges"] | ✅ |
+
+（限额的**实际 Enforcement**（OOM 137/PID 62/ENOSPC/节流）已在 §1.4 带对照实测；本节证
+明产品旗标映射与其同参。容器执行期边界（宿主读写/穿越/socket）归 3.3/6.2 实测。）
+
+### 3.2 未闭合项（如实）
+
+- 正式测试容器的创建/执行/停止/采集（supervisor 物化等）归 3.3–3.7；本节未执行项目。
+- `docker build` 缓存占用增长为已知行为（§1.4：build cache 271 MB 量级）；清理策略归 6.5 指南。
+- 跨 registry digest 与官方源一致性核对仍未闭合（§1.2 未闭合项延续）。
