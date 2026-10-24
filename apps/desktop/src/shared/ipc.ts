@@ -1121,6 +1121,22 @@ export interface WindowApi {
   verificationRun(
     request: ExecutedRequest<VerificationRunRequest>,
   ): Promise<ExecutedResponse<VerificationRunResult>>;
+  /** R3 计划预览与不可用原因（4.3 只读）：来源/已准备环境/引擎健康/计划 token 聚合 */
+  verificationCapability(
+    request: VerificationCapabilityRequest,
+  ): Promise<Envelope<VerificationCapabilityResult>>;
+  /** R3 固定准备计划预览（4.3 只读）：零下载零容器零模型（P03/D01） */
+  verificationPreparePlan(
+    request: VerificationPreparePlanRequest,
+  ): Promise<Envelope<VerificationPreparePlanResult>>;
+  /** R3 验证记录列表（4.3 只读）：只扫 verifications/，不碰 traces/ */
+  verificationList(): Promise<Envelope<VerificationListResult>>;
+  /** R3 单条验证记录读取（4.3 只读）：坏尾/未知版本结构化降级（P15） */
+  verificationGet(request: VerificationGetRequest): Promise<Envelope<VerificationGetResult>>;
+  /** R3 有界日志读取（4.3 只读）：默认 32 KiB/上限 64 KiB 切片（P16/D09） */
+  verificationReadLog(
+    request: VerificationReadLogRequest,
+  ): Promise<Envelope<VerificationReadLogResult>>;
   /** 原生目录选择：只签发会话 token，不导入、不写 trace/blob；取消返回 {canceled:true} */
   chooseSource(): Promise<Envelope<ChooseSourceResult>>;
   /**
@@ -1290,3 +1306,160 @@ export const VerificationRunResultSchema = z
   })
   .strict();
 export type VerificationRunResult = z.infer<typeof VerificationRunResultSchema>;
+
+// ---------------------------------------------------------------------------
+// verification:capability / preparePlan / list / get / readLog —— R3 只读端点（4.3）
+// ---------------------------------------------------------------------------
+
+/** R3 只读检查点定位（与执行请求同构；显式二选一，UI 不得无声换点） */
+const ReadonlyVerificationTargetSchema = z
+  .object({
+    runId: z.string().min(1),
+    checkpoint: VerificationCheckpointSchema,
+    profileId: z.literal("node-ts-v1"),
+    commandId: z.enum(["typecheck", "test"]),
+  })
+  .strict();
+
+/**
+ * verification:capability 请求（D01）：显式 runId/checkpoint/profile/command。
+ * main 侧聚合四类事实：来源预检、已准备环境、当前计划 token、引擎健康——
+ * 全部只读：不下载、不建容器、不写记录/附件、不占槽、不调模型。
+ */
+export const VerificationCapabilityRequestSchema = ReadonlyVerificationTargetSchema;
+export type VerificationCapabilityRequest = z.infer<typeof VerificationCapabilityRequestSchema>;
+
+/** 引擎健康（只读探测的受限投影：版本字符串可缺省；诊断只给码+文案，无原始 stderr） */
+const EngineHealthSchema = z
+  .object({
+    available: z.boolean(),
+    engineVersion: z.string().max(64).nullable(),
+    reason: z.string().min(1).max(256).nullable(),
+  })
+  .strict();
+
+export const VerificationCapabilityResultSchema = z
+  .object({
+    planToken: z.string().min(1),
+    prepared: z
+      .object({
+        preparationId: z.string().min(1),
+        imageDigest: z.string().min(1),
+        toolchain: z.object({ node: z.string().min(1), typescript: z.string().min(1) }).strict(),
+      })
+      .strict()
+      .nullable(),
+    engine: EngineHealthSchema,
+    source: z
+      .object({
+        snapshotId: z.string().min(1),
+        fileCount: z.number().int().nonnegative(),
+        totalBytes: z.number().int().nonnegative(),
+        stepSpanId: z.string().min(1).nullable(),
+      })
+      .strict()
+      .nullable(),
+    sourceFailure: z
+      .object({ code: z.string().min(1), reason: z.string().min(1) })
+      .strict()
+      .nullable(),
+  })
+  .strict();
+export type VerificationCapabilityResult = z.infer<typeof VerificationCapabilityResultSchema>;
+
+/** verification:preparePlan 请求（D01/P03）：只读固定计划预览——零下载零容器零模型 */
+export const VerificationPreparePlanRequestSchema = z
+  .object({ profileId: z.literal("node-ts-v1") })
+  .strict();
+export type VerificationPreparePlanRequest = z.infer<typeof VerificationPreparePlanRequestSchema>;
+
+export const VerificationPreparePlanResultSchema = z
+  .object({
+    planDigest: z.string().min(1),
+    planToken: z.string().min(1),
+    plan: z.unknown(),
+  })
+  .strict();
+export type VerificationPreparePlanResult = z.infer<typeof VerificationPreparePlanResultSchema>;
+
+/** verification:list 请求（无参；只扫 verifications/，不碰 traces/） */
+export const VerificationListRequestSchema = z.object({}).strict();
+export type VerificationListRequest = z.infer<typeof VerificationListRequestSchema>;
+
+export const VerificationListResultSchema = z
+  .object({
+    verifications: z.array(
+      z
+        .object({
+          verificationId: z.string().min(1),
+          status: z.enum(["sealed", "unterminated", "corrupt", "unsupported_version"]),
+          outcome: z
+            .enum([
+              "check_failed",
+              "passed",
+              "environment_failed",
+              "start_failed",
+              "process_failed",
+              "timed_out",
+              "output_limit",
+              "cancelled",
+              "artifact_invalid",
+              "evidence_incomplete",
+              "unknown",
+            ])
+            .nullable(),
+          runId: z.string().min(1).nullable(),
+          commandId: z.string().min(1).nullable(),
+          createdAt: z.string().min(1).nullable(),
+        })
+        .strict(),
+    ),
+  })
+  .strict();
+export type VerificationListResult = z.infer<typeof VerificationListResultSchema>;
+
+/** verification:get 请求：单条验证记录的受限读取（坏尾/未知版本/未封存结构化降级，P15） */
+export const VerificationGetRequestSchema = z
+  .object({ verificationId: z.string().min(1) })
+  .strict();
+export type VerificationGetRequest = z.infer<typeof VerificationGetRequestSchema>;
+
+export const VerificationGetResultSchema = z
+  .object({
+    verificationId: z.string().min(1),
+    status: z.enum(["sealed", "unterminated", "corrupt", "unsupported_version"]),
+    events: z.array(z.unknown()),
+    error: z
+      .object({ lineIndex: z.number().int().nonnegative(), reason: z.string().min(1) })
+      .strict()
+      .nullable(),
+  })
+  .strict();
+export type VerificationGetResult = z.infer<typeof VerificationGetResultSchema>;
+
+/**
+ * verification:readLog 请求（P16/D09）：按记录内 command_end 的内容寻址哈希读日志，
+ * 默认 32 KiB、上限 64 KiB 切片，返回 nextOffset/remaining/truncated。
+ * renderer 不传附件哈希——按 verificationId+commandId+stream 定位（防指错附件）。
+ */
+export const VerificationReadLogRequestSchema = z
+  .object({
+    verificationId: z.string().min(1),
+    commandId: z.enum(["typecheck", "test"]),
+    stream: z.enum(["stdout", "stderr"]),
+    offset: z.number().int().nonnegative().default(0),
+    maxLength: z.number().int().positive().max(65536).optional(),
+  })
+  .strict();
+export type VerificationReadLogRequest = z.infer<typeof VerificationReadLogRequestSchema>;
+
+export const VerificationReadLogResultSchema = z
+  .object({
+    text: z.string(),
+    totalBytes: z.number().int().nonnegative(),
+    nextOffset: z.number().int().nonnegative(),
+    remaining: z.number().int().nonnegative(),
+    truncated: z.boolean(),
+  })
+  .strict();
+export type VerificationReadLogResult = z.infer<typeof VerificationReadLogResultSchema>;

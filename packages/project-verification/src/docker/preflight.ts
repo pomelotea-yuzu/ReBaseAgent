@@ -175,3 +175,45 @@ export async function preflightLocalBackend(input: PreflightInput): Promise<Pref
     },
   };
 }
+
+// ---------------------------------------------------------------------------
+// 引擎健康只读子命令白名单（4.3 / design D3）：capability 的引擎健康只允许枚举的
+// 只读 docker 子命令（version/info 类），由本断言钉死——不透传任意参数。
+// ---------------------------------------------------------------------------
+
+/** 允许的只读子命令（version：版本事实；info：引擎形态事实——均无副作用） */
+export const ENGINE_HEALTH_READONLY_SUBCOMMANDS = ["version", "info"] as const;
+
+/** 允许的格式化旗标取值（仅机器可读 JSON 形态） */
+export const ENGINE_HEALTH_ALLOWED_FORMAT = "{{json .}}";
+
+/**
+ * 断言一组 docker argv 属于引擎健康白名单：首个非全局旗标参数必须是白名单子命令，
+ * `--format` 的取值必须是 {{json .}}。越界（任意子命令/任意格式串/多余参数）即抛。
+ */
+export function assertEngineHealthArgv(argv: readonly string[]): void {
+  const sub = argv.find((arg) => !arg.startsWith("--"));
+  if (sub === undefined || !ENGINE_HEALTH_READONLY_SUBCOMMANDS.includes(sub as never)) {
+    throw new Error(
+      `引擎健康白名单拒绝（子命令必须是 ${ENGINE_HEALTH_READONLY_SUBCOMMANDS.join("/")}）：${String(sub)}`,
+    );
+  }
+  const seen = new Set<string>();
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg === undefined) continue;
+    if (seen.has(arg)) {
+      throw new Error(`引擎健康白名单拒绝（重复参数）：${arg}`);
+    }
+    seen.add(arg);
+    if (arg === "--format") {
+      const value = argv[i + 1];
+      if (value !== ENGINE_HEALTH_ALLOWED_FORMAT) {
+        throw new Error(
+          `引擎健康白名单拒绝（--format 只允许 ${ENGINE_HEALTH_ALLOWED_FORMAT}）：${String(value)}`,
+        );
+      }
+      i += 1;
+    }
+  }
+}

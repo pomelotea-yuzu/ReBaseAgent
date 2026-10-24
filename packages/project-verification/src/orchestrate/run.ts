@@ -22,6 +22,7 @@ import {
   materializeVerificationSnapshot,
 } from "../materialize/materialize.js";
 import { currentPreparePlanToken } from "../prepare/plan.js";
+import { publishAsset } from "../records/assets.js";
 import { verificationRecordPath } from "../records/layout.js";
 import { VerificationRecordWriter } from "../records/writer.js";
 import { type RuntimeContainerCreatePort, createRegisteredContainer } from "../runtime/create.js";
@@ -341,6 +342,15 @@ export async function executeVerificationRun(
     const report = execution.report;
     writer.append(commandStartEvent(report));
     writer.append(commandEndEvent(report));
+    // 日志持久化（D4「日志内容寻址」）：双流保留字节发布为内容寻址附件——记录里的
+    // sha256 由此可回读（readLog 先整体验哈希再切片，P16）。发布失败不掩盖执行事实：
+    // 记录仍持有哈希，读取侧如实呈现 ASSET_MISSING（P16「附件缺失有明确状态」）。
+    try {
+      publishAsset(params.dataRoot, report.stdout.retainedBytes);
+      publishAsset(params.dataRoot, report.stderr.retainedBytes);
+    } catch {
+      /* 日志附件发布失败不改变结局；读取侧按缺附件状态呈现 */
+    }
     const classified = classifyExecutionReport(report);
 
     // ── 停止（3.5：owner 定向 + 双扫静止确认；不乐观宣布）────────────────────

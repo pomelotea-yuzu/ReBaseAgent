@@ -31,6 +31,13 @@ const api: WindowApi = {
   // 领域身份/计划 token 由 main 侧校验，renderer 不传命令/镜像/路径
   verificationPrepare: (request) => ipcRenderer.invoke(CHANNELS.verificationPrepare, request),
   verificationRun: (request) => ipcRenderer.invoke(CHANNELS.verificationRun, request),
+  // verification 只读面（4.3）：计划预览/记录读取/有界日志——零执行零占槽
+  verificationCapability: (request) => ipcRenderer.invoke(CHANNELS.verificationCapability, request),
+  verificationPreparePlan: (request) =>
+    ipcRenderer.invoke(CHANNELS.verificationPreparePlan, request),
+  verificationList: () => ipcRenderer.invoke(CHANNELS.verificationList),
+  verificationGet: (request) => ipcRenderer.invoke(CHANNELS.verificationGet, request),
+  verificationReadLog: (request) => ipcRenderer.invoke(CHANNELS.verificationReadLog, request),
   // workspaces:*（B 1.3/1.5）：目录选择签发 token、隔离分叉只读预检——都不产生 run 文件
   chooseSource: () => ipcRenderer.invoke(CHANNELS.chooseSource),
   forkCapability: (request) => ipcRenderer.invoke(CHANNELS.forkCapability, request),

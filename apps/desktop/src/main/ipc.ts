@@ -72,6 +72,14 @@ import type { SettingsStore } from "./settings";
 import { SourceTokenStore } from "./source-token";
 import { execVerificationPrepare, execVerificationRun } from "./verification-endpoints";
 import {
+  type VerificationReadonlyDeps,
+  verificationCapability,
+  verificationGet,
+  verificationList,
+  verificationPreparePlan,
+  verificationReadLog,
+} from "./verification-read-endpoints";
+import {
   compareWorkspaceSnapshotsEndpoint,
   readComparedWorkspaceFileEndpoint,
 } from "./workspace-compare-endpoint";
@@ -153,6 +161,13 @@ export function registerIpc(deps: IpcDeps): void {
     // R3 依赖（4.2）：Docker Desktop CLI 可信位置在场才装配；缺席 ⇒ R3 通道拒绝（P01：
     // 不隐式安装、不回退宿主 Shell）。endpoint 钉死本机管道（schema 枚举），不读 env。
     verification: assembleVerificationDeps(dataDir),
+  };
+  // R3 只读面依赖（4.3）：与执行面同根；CLI 缺席 ⇒ 引擎健康 available:false（P01）
+  const verificationReadonly: VerificationReadonlyDeps = {
+    dataRoot: dataDir,
+    dataDir,
+    docker: assembleVerificationDocker(),
+    isTrustedSender,
   };
   const pickDirectory =
     deps.pickDirectory ??
@@ -455,6 +470,22 @@ export function registerIpc(deps: IpcDeps): void {
   ipcMain.handle(CHANNELS.verificationRun, (event, request: unknown) =>
     execVerificationRun(execDeps, senderOf(event), request),
   );
+  // verification 只读面（4.3）：不登记 operation、不占槽、不执行/清理
+  ipcMain.handle(CHANNELS.verificationCapability, (event, request: unknown) =>
+    verificationCapability(verificationReadonly, senderOf(event), request as never),
+  );
+  ipcMain.handle(CHANNELS.verificationPreparePlan, (event, request: unknown) =>
+    verificationPreparePlan(verificationReadonly, senderOf(event), request as never),
+  );
+  ipcMain.handle(CHANNELS.verificationList, (event) =>
+    verificationList(verificationReadonly, senderOf(event), {}),
+  );
+  ipcMain.handle(CHANNELS.verificationGet, (event, request: unknown) =>
+    verificationGet(verificationReadonly, senderOf(event), request as never),
+  );
+  ipcMain.handle(CHANNELS.verificationReadLog, (event, request: unknown) =>
+    verificationReadLog(verificationReadonly, senderOf(event), request as never),
+  );
   ipcMain.handle(
     CHANNELS.settingsGet,
     (): ReturnType<typeof ok<SettingsState>> | ReturnType<typeof fail> => {
@@ -550,6 +581,21 @@ function senderOf(event: {
 }
 
 /**
+ * R3 只读面的 Docker 探测（4.3）：CLI 缺席 ⇒ null（引擎健康 available:false 呈现，
+ * 不抛错——只读面要把不可用原因讲清楚，D01）。
+ */
+function assembleVerificationDocker(): {
+  installation: import("@rebaseagent/project-verification").DockerCliInstallation;
+  endpoint: import("@rebaseagent/project-verification").LocalBackendEndpoint;
+} | null {
+  const installation = resolveDockerCli();
+  if (installation === null) {
+    return null;
+  }
+  return { installation, endpoint: "npipe:////./pipe/dockerDesktopLinuxEngine" as const };
+}
+
+/**
  * R3 依赖装配（4.2）：Docker Desktop CLI 可信绝对路径在场才返回依赖；CLI 缺席 ⇒
  * undefined（verification:* 通道以 R3_NOT_CONFIGURED 拒绝——P01：不隐式安装、不回退）。
  * endpoint 钉死本机管道枚举值（不读 DOCKER_HOST/env，受控 env 见 3.2）。
@@ -557,11 +603,11 @@ function senderOf(event: {
 function assembleVerificationDeps(
   dataDir: string,
 ): import("./verification-endpoints").VerificationEndpointDeps | undefined {
-  const installation = resolveDockerCli();
-  if (installation === null) {
+  const docker = assembleVerificationDocker();
+  if (docker === null) {
     return undefined;
   }
-  const endpoint: LocalBackendEndpoint = "npipe:////./pipe/dockerDesktopLinuxEngine";
+  const { installation, endpoint } = docker;
   const runtime = new DockerRuntimeBackend({ installation, endpoint });
   return {
     dataRoot: dataDir,

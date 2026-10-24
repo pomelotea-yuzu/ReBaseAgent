@@ -62,6 +62,14 @@ export const CHANNELS = {
   // run 登记 verification 目标并关联真实 verificationId（runIds 恒空——M01）。
   verificationPrepare: "verification:prepare",
   verificationRun: "verification:run",
+  // verification 只读面（4.3）：capability（计划预览+不可用原因，D01）、preparePlan
+  // （固定计划预览，P03 零下载零容器零模型）、list/get/readLog（有界只读，P15/P16/D09）。
+  // 全部不登记 operation、不占槽、不执行/清理；引擎健康仅枚举只读 docker 子命令（D3）。
+  verificationCapability: "verification:capability",
+  verificationPreparePlan: "verification:preparePlan",
+  verificationList: "verification:list",
+  verificationGet: "verification:get",
+  verificationReadLog: "verification:readLog",
   // draft-close:* —— U3 关闭协商（design D6）：main 持有关闭决策，renderer 只报告元数据。
   // 所有消息只传 sessionId/sequence/dirtyCount/requestId/inputSettled，
   // 不传草稿正文、run 内容、sourceToken、授权或凭据
