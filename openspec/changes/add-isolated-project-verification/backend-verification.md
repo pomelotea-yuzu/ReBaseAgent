@@ -68,7 +68,63 @@
 
 ### 状态与下一步
 
-- **1.1 完成**（缺失态记录）。1.2–1.6 全部依赖真实引擎 ⇒ **阻塞于用户安装 Docker Desktop**
-  （安装时选 WSL2 backend、首次启动接受协议、确认 Linux containers 模式）。
-- 安装完成后本节「未安装」结论作废，由 1.2 实测（实际版本/endpoint/image digest/边界探针）
-  覆盖，并记录实际版本与本节候选口径的差异。
+- **1.1 完成**（缺失态记录，后被安装事件覆盖：用户 2026-10-24 完成用户级安装并跳过登录，见 §1.2）。
+- 1.2 已执行（§1.2）；1.3–1.6 待续。
+
+## 1.2 安装落位与受限容器边界探针（2026-10-24，验收 P09 的 1.2 切片）
+
+### 安装落位（覆盖 §1.1「未安装」结论）
+
+- **用户级安装**：`C:\Users\28145\AppData\Local\Programs\DockerDesktop\`（非 `Program Files`、无系统
+  服务、无 HKLM 卸载项 ⇒ §1.1 的 #2/#3/#4 三路探测对用户级安装不敏感；可靠信号 = bin 目录 CLI、
+  docker-desktop WSL 发行版、docker named pipe——探测面据此修正）。
+- 版本/身份实测：client 29.9.2 (windows/amd64)、**Docker Desktop 4.96.3 (244472)**、engine 29.9.2
+  **linux/amd64**（OSType=linux，Linux containers 模式 ✓）、containerd v2.4.2、runc 1.5.2、
+  kernel 6.18.40.1-microsoft-standard-WSL2、overlayfs、cgroup v2（cgroupfs driver）、VM 内存
+  7.68 GB / 16 CPU、**containerd 镜像存储开启**（image Id = manifest digest）。
+- endpoint：活跃 context `desktop-linux` = `npipe:////./pipe/dockerDesktopLinuxEngine`
+  （SkipTLSVerify:false）；`DOCKER_HOST` 未设置。**远程拒绝必要性实证**：
+  `DOCKER_HOST=tcp://127.0.0.1:2375 docker version` 把 CLI 重定向到该 tcp endpoint（连接被拒）
+  ⇒ 环境变量确可改实际 endpoint，产品（3.2）必须显式钉死本机管道并拒绝 env/context 覆盖（P02）。
+- 凭证面：`~/.docker/config.json`（本次安装生成）`credsStore:"desktop"` ⇒ 任何 pull 都调用 bin
+  目录的 `docker-credential-desktop`（不在 PATH 时报错，已实测）⇒ 3.2 受控 CLI 调用需带可信 bin
+  PATH 或用独立 config（无 credsStore），不得透传宿主 PATH。
+
+### 镜像拉取通路（阶段 1 环境事实）
+
+- **Docker Hub 直连超时**（宿主 curl `registry-1.docker.io` → http=000 连接超时；引擎侧同）。
+  当下无代理客户端在跑、Windows 系统代理关闭。
+- **采用 DaoCloud 镜像源显式前缀拉取**（`docker.m.daocloud.io/library/…`）：零 daemon/客户端
+  配置改动、零环境覆盖。`alpine:3.22` 拉取成功，manifest digest
+  `sha256:2e0b81d60597f449baa56dc25d355367869d2dca4cd57e866f1e2b52af3eb55f`。
+- 口径：digest 内容寻址 ⇒ 同 digest 同字节；镜像源属「已说明的下载网络」变形，记入准备计划口径
+  （design D2 准备阶段允许联网）；跨 registry digest 与官方源一致性在 1.3 冻结基础镜像时核对
+  （当前官方源不可达，如实标注为未核对项）。
+
+### 受限容器边界探针（P09 的 1.2 切片；方法 = 同一组探针双跑）
+
+探针组 `.workbuddy/r3-12/battery.sh`（不入库），原始输出 `restricted.txt` / `control.txt` 同目录。
+受限侧旗标：`--user 1000:1000 --read-only --cap-drop ALL --security-opt no-new-privileges
+--network none --memory 512m --memory-swap 512m --pids-limit 64 --cpus 1`；对照侧为默认容器。
+
+| 边界 | 受限容器读数 | 对照容器读数 | 判定 |
+|---|---|---|---|
+| 非 root | uid=1000 | uid=0(root) | ✅ 生效 |
+| capabilities | CapInh/Prm/Eff/Bnd/Amb 全 0；Seccomp=2 | CapEff=a80425fb（非零默认集） | ✅ 生效 |
+| no-new-privileges | NoNewPrivs:1 | NoNewPrivs:0 | ✅ 生效 |
+| 只读 rootfs | `touch /` → Read-only file system（overlay 挂 ro） | 写成功 | ✅ 生效 |
+| mknod | 拒绝（ro fs + 无 CAP_MKNOD 双重） | 成功创建设备节点 | ✅ 生效 |
+| 网络 none | 仅 lo、路由表空、ping 报 Network unreachable、nc 失败 | eth0 + 默认路由、ping 223.5.5.5 通（8.77 ms）、nc 成功 | ✅ 生效 |
+| /proc/sys 写 | 拒绝（ro） | 同样拒绝 | ⚠️ 非本组旗标增益，属 docker 默认基线 |
+| docker socket | 缺席 | 同缺席 | ⚠️ 默认即不挂载；产品保证 = 编排永不挂载 + mounts 审计 |
+| 宿主路径挂载 | /proc/mounts 无宿主路径 | 同 | ⚠️ 同上（编排责任，3.2/3.3 落牙） |
+| 凭据/env | 仅 HOSTNAME/SHLVL/HOME/PATH/PWD 五项 | 同 | ⚠️ 同上（受控 env 构造） |
+
+诚实归因（判据假门纪律）：
+
+- `su root` 探针**不敏感**（alpine busybox su 非 suid，两侧同败）——nnp 判据以内核字段
+  `NoNewPrivs:1` 为准，不用 su 行为。
+- 「无宿主挂载 / 无 docker socket / env 无凭据」三项在对照侧同样阴性 ⇒ 不是本组旗标产生的差异，
+  而是 docker 默认基线 + 编排「永不添加」的责任（3.2/3.3 以 mounts 审计与受控 env 断言落牙）。
+- 结论：**P09 的 1.2 切片（非 root / 只读 rootfs / capabilities / 断网）全部实测通过且带对照组**；
+  物化与采集侧的越界覆盖留 3.3 / 6.2。

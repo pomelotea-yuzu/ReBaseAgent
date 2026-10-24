@@ -1,6 +1,6 @@
 # R3 逐场景证据索引
 
-状态：阶段 1 进行中——P01 的 1.1 缺失态子项已实测记录（backend-verification.md §1.1）；除该条外以下全部待验证；文档/strict 校验通过不代表功能、隔离或实机验收通过。
+状态：阶段 1 进行中——P01 的 1.1 缺失态子项与 P09 的 1.2 切片已实测（backend-verification.md §1.1/§1.2）；除已标注切片外以下待验证；文档/strict 校验通过不代表功能、隔离或实机验收通过。
 
 ## 新增场景
 
@@ -14,7 +14,7 @@
 | P06 | project-verification / 来源或附件不成立 | 2.4、3.3 | 待验证；未执行 |
 | P07 | project-verification / 计划或授权失效 | 2.4、3.1、4.2 | 待验证；未执行 |
 | P08 | project-verification / 自定义命令和配置被拒绝 | 1.3、2.1、3.1 | 待验证；未执行 |
-| P09 | project-verification / 越界和网络实际受限 | 1.2、3.2、3.3、6.2 | 待验证；未执行 |
+| P09 | project-verification / 越界和网络实际受限 | 1.2、3.2、3.3、6.2 | 1.2 切片已实测（2026-10-24，backend-verification.md §1.2：受限/对照双跑，非 root/cap/nnp/ro-rootfs/断网全生效）；3.2/3.3/6.2 待执行 |
 | P10 | project-verification / 资源限额生效 | 1.4、3.2、3.5、6.2 | 待验证；未执行 |
 | P11 | project-verification / 已知失败和通过均可回查 | 1.3、2.2、3.4、6.1 | 待验证；未执行 |
 | P12 | project-verification / 零测试或不完整报告 | 1.3、3.4 | 待验证；未执行 |

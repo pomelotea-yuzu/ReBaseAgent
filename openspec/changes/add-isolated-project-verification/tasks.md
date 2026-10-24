@@ -1,11 +1,11 @@
 # R3 实施与验收
 
-状态：阶段 1 进行中——1.1 已完成缺失态记录（backend-verification.md §1.1），1.2–1.6 阻塞于用户安装 Docker Desktop；其余功能、实机和真实项目任务均未执行。单项不超过 2 小时；超时须先拆分，不将探针/fixture 通过记成真实项目支持。阶段 1 是后续执行开放的硬门槛：1.1–1.6 的探针产物（backend-verification.md 与结论）作为独立提交节点尽早落库，任一门槛未过即冻结第 2–6 组并先修提案，不以零散本地记录代替。3.3/4.5/6.2 已预置拆分点（见各条），拆分不改编号与 evidence-index 映射。发现设计不成立先修 proposal/design/spec。
+状态：阶段 1 进行中——1.1、1.2 已完成（backend-verification.md §1.1/§1.2，2026-10-24 用户完成 Docker Desktop 用户级安装）；下一步 1.3（node-ts-v1 冻结）；其余功能、实机和真实项目任务均未执行。单项不超过 2 小时；超时须先拆分，不将探针/fixture 通过记成真实项目支持。阶段 1 是后续执行开放的硬门槛：1.1–1.6 的探针产物（backend-verification.md 与结论）作为独立提交节点尽早落库，任一门槛未过即冻结第 2–6 组并先修提案，不以零散本地记录代替。3.3/4.5/6.2 已预置拆分点（见各条），拆分不改编号与 evidence-index 映射。发现设计不成立先修 proposal/design/spec。
 
 ## 1. Windows 后端技术验证与 profile 冻结
 
 - [x] 1.1（1h）记录本机后端/版本/实际 endpoint、安装/许可和资源前提，建立 backend-verification.md；拒绝远程和宿主回退。验收 P01/P02/P26。（2026-10-24 完成缺失态记录：六路实测确认 Docker Desktop 未安装、许可/资源前提与远程拒绝口径落库，见 backend-verification.md §1.1；1.2–1.6 待用户安装后执行）
-- [ ] 1.2（2h）独立探针验证非 root/rootfs/capabilities、无宿主挂载/凭据、网络和越界实际限制。验收 P09；未通过不开放。
+- [x] 1.2（2h）独立探针验证非 root/rootfs/capabilities、无宿主挂载/凭据、网络和越界实际限制。验收 P09；未通过不开放。（2026-10-24 完成：battery.sh 受限/对照双跑，非 root/cap-drop/nnp/ro-rootfs/network-none 全部生效带对照；无挂载/凭据/socket 三项诚实归因为默认基线+编排责任，3.2/3.3 落牙；镜像经 DaoCloud 源（Hub 直连超时）；详见 backend-verification.md §1.2）
 - [ ] 1.3（2h）冻结 node-ts-v1 模板、准确 Node/TS/镜像 digest、lock/测试/runner 哈希和固定 argv，验证可信测试不可被项目替换、零测试不通过。验收 P04/P08/P11/P12。
 - [ ] 1.4（2h）验证 CPU/内存/PID/空间/时间/输出限制，记录实际读数及清理结果。验收 P10/P13。
 - [ ] 1.5（2h）验证非 root 字节物化、工作负载停止后仍可采集、全部子孙停止及输入/产物稳定性。验收 P05/P17/P18/P19。
