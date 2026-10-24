@@ -1,6 +1,7 @@
 # R3 阶段 1：Windows 后端技术验证记录
 
 > 本文件是 tasks 1.1–1.6 的探针事实源与销账依据：任一门槛未通过即冻结第 2–6 组并先修提案（tasks.md 状态段）。
+> 3.1 起的产品化后端事实也记于本文件（§3.1 起）：探针轮读数冻结候选，产品化落地后以实测覆盖。
 > 探测机为真实本机（非沙箱模拟）。系统实测（2026-10-24，powershell `Get-CimInstance` / `wsl --version` / `wsl -l -v`）：
 > Windows 11 专业版 build 26200（内核 26200.9445）；16 逻辑核；15.9 GB RAM；C: 可用 149.7 GB；
 > WSL 3.0.1.0（内核 6.18.401.1-1，WSLg 1.0.79），发行版仅 Ubuntu（Stopped，VERSION 2）。
@@ -278,3 +279,49 @@
   EXPECTED_TESTS 精确匹配门必要。
 - 未闭合项（如实）：跨 registry digest 与官方源一致性核对（Docker Hub 直连不可达，待可达时
   补）；探针版 runner/gate 的产品化与包层单测归 2.x/3.x。
+
+## 3.1 受信环境资产产品化构建（2026-10-25，验收 P04/P08 的 3.1 切片；实测机同阶段 1）
+
+### 产品化配方（v2）与探针版差异
+
+探针版（§1.3）依赖安装为镜像内 `npm install typescript@5.9.3`（锁文件**生成后**追认冻结）；
+产品化配方改为**入库固定锁文件 + `npm ci --ignore-scripts --no-audit --no-fund`**——锁文件
+字节为构建输入、完整性由锁内 integrity 字段校验、生命周期脚本禁用（design D2「固定锁文件
+和完整性校验、禁 lifecycle scripts」的本意）。锁文件与 package.json 自探针镜像 `r3/node-ts-v1:probe`
+逐字节提取（`docker cp`）：package-lock.json sha256 = `d41f6694…90c4`（= manifest 冻结值），
+package.json sha256 = `16db8849…39cb`。基础镜像 FROM 仍按 digest 钉死（DaoCloud 前缀不变）。
+
+### v2 构建实测（构建上下文与原始日志 `.workbuddy/r3-31/`，不入库）
+
+- **构建**：`docker build --platform linux/amd64` 成功；`npm ci` 实跑联网安装
+  （`added 1 package in 10s`，npmjs.org 直连，与 §1.3 结论一致）。
+- **镜像**：`r3/node-ts-v1:v2` ImageId（manifest list）
+  `sha256:f3a8b56dcff1f1c22ebf8eed8f2612f7706f61704c7830959e2181567a91f6bd`，
+  本地大小 270,824,228 B。
+- **镜像内哈希复核（六文件逐字节 `docker cp` 出比对）**：package-lock.json
+  `d41f6694…90c4`、runner.mjs `0edf7c21…d823`、tsconfig.json `a34da16b…91f6`、
+  package.tmpl.json `a5f4e90e…7b0e`、tests/smoke.test.mjs `aed08651…1030`、
+  package.json `16db8849…39cb`——**前五项与 manifest 冻结值逐项一致**
+  ⇒ `NODE_TS_V1_PROFILE` 哈希表不变、`manifestVersion` 维持 1（schema 注记已同步）。
+- **受限 profile 功能冒烟**（旗标同 §1.2 全套 + /work 160m、/tmp 32m tmpfs，uid 1000，
+  `--network none`，字节流物化无宿主挂载）：tsc 5.9.3；typecheck exit 0；test 2/2 pass
+  exit 0；物化文件 sha256 `fcb8adfb…280e` 与 §1.5 探针 M 宿主哈希一致。
+- **诚实备注**：tsc --version / 测试执行经 runner 依赖镜像内 /opt/r3——v2 镜像与探针镜像
+  功能等价；supervisor/物化/停止编排在 3.3–3.7 落牙，本节不预称。
+
+### 计划口径实测数字（buildPreparePlan 冻结常数的测量方式）
+
+- 基础镜像压缩传输体积：`docker manifest inspect` amd64 子清单 layers size 求和 =
+  **61,337,515 B**。
+- typescript@5.9.3 tarball：registry.npmjs.org Range 请求 Content-Range 总长 =
+  **4,377,468 B**（npmjs 直连可用）。
+- 磁盘占用估计（本地解压口径）：基础镜像 239,050,910 B + v2 环境镜像 270,824,228 B =
+  **509,875,138 B**（buildPreparePlan.spaceEstimateBytes）。
+
+### 3.1 未闭合项（如实）
+
+- 环境镜像构建尚未经**产品 Docker 适配器**（3.2）执行：本节构建为探针式直调 CLI
+  （同阶段 1 口径）；受控 CLI/env/endpoint 钉死与 digest 校验归 3.2。
+- 跨 registry digest 与官方源一致性核对仍未完成（§1.2 未闭合项延续；Hub 直连不可达）。
+- plan 预览/prepare 的 IPC 展示与当前授权接线归 4.2/4.3；真实后端的 P04 全场景
+  （含失败路径实测）在 3.2 适配器落地后于 6.2 回归。

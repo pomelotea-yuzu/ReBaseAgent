@@ -1,7 +1,7 @@
 {
   "name": "@rebaseagent/project-verification",
   "version": "0.1.0",
-  "description": "ReBaseAgent R3 项目验证：固定环境 manifest、验证计划/记录/结局 schema 与只读记录模块（执行器在后续任务接入）",
+  "description": "ReBaseAgent R3 项目验证：固定环境 manifest、验证计划/记录/结局 schema、只读记录模块、受信环境资产与受限准备编排（Docker 适配器在 3.2 接入）",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",

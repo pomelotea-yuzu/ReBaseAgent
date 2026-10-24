@@ -159,9 +159,10 @@ export const ProfileManifestSchema = z
 /**
  * `node-ts-v1` 冻结实例——数值与阶段 1 实测一致（backend-verification.md §1.3）。
  *
- * 哈希来自阶段 1 探针轮环境镜像 `r3/node-ts-v1:probe`（ImageId
- * sha256:540409fd…）；3.1 受控准备落地时将以正式构建产物重建并递增
- * `manifestVersion`，哈希随之更新（此处先承载冻结读数，保证 schema 与实例可互校）。
+ * 哈希锚定**镜像内文件字节**：3.1 产品化构建（固定锁文件 + npm ci 配方，镜像
+ * `r3/node-ts-v1:v2`，ImageId sha256:f3a8b56d…）已实测镜像内六文件哈希与探针版
+ * 逐项一致（backend-verification.md §3.1）⇒ `manifestVersion` 维持 1、本表不变；
+ * 受信环境**镜像自身的 digest 属准备期实测事实**（写入 prepared 事件），不冻结于此。
  * 基础镜像 digest 经 DaoCloud 源拉取；与官方源的一致性核对未完成（Hub 直连不可达，
  * 如实登记于 §1.2），registryNote 记录该事实。
  */
@@ -242,6 +243,9 @@ export const NODE_TS_V1_PROFILE: z.infer<typeof ProfileManifestSchema> = {
   },
 };
 
+/** node-ts-v1 profile manifest 类型（供准备层/计划层签名使用）。 */
+export type ProfileManifest = z.infer<typeof ProfileManifestSchema>;
+
 /**
  * 环境准备计划（只读预览，P03：查看计划不得有下载/构建副作用）。
  * 下载来源/体积/许可/网络范围在此明示，正式执行需另行当前授权（P04）。
@@ -263,6 +267,9 @@ export const PreparePlanSchema = z.strictObject({
   networkScopeNote: z.string().min(1),
   spaceEstimateBytes: z.number().int().positive(),
 });
+
+/** 环境准备计划类型。 */
+export type PreparePlan = z.infer<typeof PreparePlanSchema>;
 
 /**
  * 计划绑定（planToken 的输入摘要，P07：防漂移，不替代当前授权）。
@@ -346,6 +353,11 @@ export const VerificationErrorCodeSchema = z.enum([
   "PREPARE_NOT_ALLOWED",
   "EXECUTION_NOT_ALLOWED",
   "PREPARATION_REQUIRED",
+  /**
+   * 受信环境构建资产（runner/锁文件/模板/测试/Dockerfile）与冻结 manifest 不一致（P08
+   * 「项目更改固定 package/锁文件/配置和可信测试」在准备侧的落点）：构建前完整性门拒绝。
+   */
+  "TRUSTED_ENVIRONMENT_DRIFT",
   "RECORD_CORRUPT",
   "RECORD_UNSUPPORTED_VERSION",
   "RECORD_UNTERMINATED",
@@ -474,7 +486,11 @@ export const PreparationBodyEventSchema = z.discriminatedUnion("type", [
     imageDigest: ImageDigestSchema,
     toolchain: z.strictObject({ node: z.string().min(1), typescript: z.string().min(1) }),
     networkUsed: z.boolean(),
-    downloadedBytes: z.number().int().nonnegative(),
+    /**
+     * `null` = 后端无法给出可测字节（如实未知），禁止伪造成 0——「没有下载」与
+     * 「测不到下载量」是两个事实（P04 记录真实网络结果的口径）。
+     */
+    downloadedBytes: z.number().int().nonnegative().nullable(),
     at: Iso8601Schema,
   }),
   z.strictObject({

@@ -1,6 +1,6 @@
 # R3 逐场景证据索引
 
-状态：阶段 1 完成（1.1–1.6）+ **第 2 组完成（2.1–2.4）**——阶段 1 各切片、P02/P05/P08/P15 的 2.1、P11/P14/P15 的 2.2、P13/P15/P16 的 2.3、P05/P06/P07/W01/W02 的 2.4 切片已实测（backend-verification.md + `packages/project-verification` 65 用例）；其余任务切片待验证；文档/strict 校验通过不代表功能、隔离或实机验收通过。
+状态：阶段 1 完成（1.1–1.6）+ **第 2 组完成（2.1–2.4）** + **3.1 完成（受限准备）**——阶段 1 各切片、P02/P05/P08/P15 的 2.1、P11/P14/P15 的 2.2、P13/P15/P16 的 2.3、P05/P06/P07/W01/W02 的 2.4 切片、P03/P04（编排切片）/P07（计划 token）/P08（资产完整性门）的 3.1 切片已实测（backend-verification.md §1.x/§3.1 + `packages/project-verification` 79 用例）；其余任务切片待验证；文档/strict 校验通过不代表功能、隔离或实机验收通过。
 
 ## 新增场景
 
@@ -8,12 +8,12 @@
 |---|---|---|---|
 | P01 | project-verification / 后端缺失或未验收 | 1.1、3.2、6.5 | 1.1 缺失态已实测（2026-10-24，backend-verification.md §1.1：PATH/目录/服务/注册表/WSL 发行版/named pipe 六路，0 docker pipe）；3.2/6.5 待执行 |
 | P02 | project-verification / 拒绝远程或漂移环境 | 1.1、2.1、3.2 | 1.1 记录 + 2.1 schema 切片已实测（LocalBackendEndpoint 仅枚举本机 npipe，tcp/ssh/unix 无类型表示且用例拒绝）；3.2 待执行 |
-| P03 | project-verification / 只读计划不准备环境 | 3.1、4.3、6.5 | 待验证；未执行 |
-| P04 | project-verification / 授权准备成功或失败 | 1.3、3.1、6.5 | 1.3 切片已实测（2026-10-24，backend-verification.md §1.3：镜像构建内 npm install --ignore-scripts 成功、lock/受信文件哈希冻结）；3.1/6.5 待执行 |
+| P03 | project-verification / 只读计划不准备环境 | 3.1、4.3、6.5 | 3.1 切片已实测（2026-10-25：buildPreparePlan 纯函数产出完整计划（2 项下载来源/压缩体积/许可、网络范围注记、占用估计）且不触碰后端/不写盘——包内用例断言零调用零记录；4.3 IPC 预览/6.5 指南待执行） |
+| P04 | project-verification / 授权准备成功或失败 | 1.3、3.1、6.5 | 1.3 切片已实测（2026-10-24，backend-verification.md §1.3：镜像构建内 npm install --ignore-scripts 成功、lock/受信文件哈希冻结）；3.1 编排切片已实测（2026-10-25：allowPrepare 显式授权门、v2 产品化构建实测（§3.1：npm ci 联网安装 + 镜像内哈希逐项对回 + 受限冒烟 2/2）、fake 后端下成功/失败两路独立 preparationId 记录封存（失败≠测试失败）、downloadedBytes null=测不得语义）；真实后端全场景 3.2/6.2 待执行；6.5 待执行 |
+| P07 | project-verification / 计划或授权失效 | 2.4、3.1、4.2 | 2.4 切片已实测（snapshotId+attachmentsManifestDigest 双摘要、sourceFactsMatch 重核）；3.1 切片已实测（planToken=计划×策略×配方绑定：漂移 token 按 plan_stale 拒绝且零记录零调用、token 决定性/敏感性用例）；4.2 提交面待执行 |
 | P05 | project-verification / 精确选择初始或自有完成步骤 | 1.5、2.1、2.4、3.3 | 1.5 物化 + 2.1 schema + 2.4 预检切片已实测（真实隔离 run 上 initial/step 双通过、未知步骤拒绝、stepSpanId 回填）；3.3 待执行 |
 | P06 | project-verification / 来源或附件不成立 | 2.4、3.3 | 2.4 切片已实测（真实 run 定向破坏：未封存/附件缺失/附件篡改/模板不相容均副作用前拒绝并给原因）；3.3 待执行 |
-| P07 | project-verification / 计划或授权失效 | 2.4、3.1、4.2 | 2.4 切片已实测（snapshotId+attachmentsManifestDigest 双摘要、sourceFactsMatch 重核）；3.1/4.2 待执行 |
-| P08 | project-verification / 自定义命令和配置被拒绝 | 1.3、2.1、3.1 | 1.3 切片 + 2.1 schema 切片已实测（命令枚举、strict 对象拒绝多余键、路径/env/镜像无处传）；3.1 待执行 |
+| P08 | project-verification / 自定义命令和配置被拒绝 | 1.3、2.1、3.1 | 1.3 切片 + 2.1 schema 切片已实测（命令枚举、strict 对象拒绝多余键、路径/env/镜像无处传）；3.1 切片已实测（受信资产完整性门：篡改任一资产/缺配方文件拒绝并指名、篡改提交按 trusted_environment_drift 落 failed 记录；v2 配方固定锁文件+npm ci 实测镜像内哈希不变）；3.3 物化面待执行 |
 | P09 | project-verification / 越界和网络实际受限 | 1.2、3.2、3.3、6.2 | 1.2 切片已实测（2026-10-24，backend-verification.md §1.2：受限/对照双跑，非 root/cap/nnp/ro-rootfs/断网全生效）；3.2/3.3/6.2 待执行 |
 | P10 | project-verification / 资源限额生效 | 1.4、3.2、3.5、6.2 | 1.4 切片已实测（2026-10-24，backend-verification.md §1.4：OOM 137/PID 62/ENOSPC/节流 50:50 含对照；PID1 信号陷阱与 tmpfs 计内存两发现）；3.2/3.5/6.2 待执行 |
 | P11 | project-verification / 已知失败和通过均可回查 | 1.3、2.2、3.4、6.1 | 1.3 切片 + 2.2 切片已实测（失败/通过两条独立记录并存、封存后字节不变、同 ID 重开拒绝）；3.4/6.1 待执行 |

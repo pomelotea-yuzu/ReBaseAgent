@@ -1,0 +1,30 @@
+/**
+ * node-ts-v1 受信环境**构建资产**（包内资产，R3 tasks 3.1 产品化）。
+ *
+ * ⚠️ 本文件由脚本从构建上下文一次性生成（脚本与原始读数在 .workbuddy/r3-31/，不入库）；
+ * 任何手工改动都会破坏与冻结 manifest 的哈希对应——改资产必须走 manifest 版本化流程
+ * （重建镜像 → 复核镜像内哈希 → 更新 NODE_TS_V1_PROFILE → 重新生成）。
+ *
+ * 资产来源：阶段 1 探针轮 .workbuddy/r3-13/env/（runner/tsconfig/package.tmpl/测试，
+ * 字节原样）+ 探针镜像内提取的 package.json / package-lock.json（字节原样，
+ * 锁文件 sha256 = manifest 冻结值 d41f6694…90c4）；v2 配方将依赖安装改为
+ * 「入库固定锁文件 + npm ci --ignore-scripts」（design D2 固定锁文件与完整性校验）。
+ * 形态为**内嵌字符串常量**：不依赖文件系统相对路径与打包器资源规则，
+ * CJS main / ESM 包 / 打包产物下字节稳定（3.2 适配器从本表取字节构造构建上下文）。
+ */
+
+export const NODE_TS_V1_BUILD_ASSETS: Readonly<Record<string, string>> = {
+  Dockerfile:
+    "# R3 node-ts-v1 受信环境镜像（产品化配方；探针版见 backend-verification.md §1.3）\n# 变更：依赖改为「入库固定锁文件 + npm ci」——锁文件字节入库、完整性由锁内 integrity\n# 校验、生命周期脚本禁用（design D2「固定锁文件和完整性校验、禁 lifecycle scripts」）。\n# 基础镜像按 digest 钉死（DaoCloud 源前缀；§1.2 未闭合项不变）。\nFROM docker.m.daocloud.io/library/node:22-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914\nRUN mkdir -p /opt/r3/tests /work\nWORKDIR /opt/r3\nCOPY package.json package-lock.json /opt/r3/\nRUN npm ci --ignore-scripts --no-audit --no-fund \\\n && npm cache clean --force\nCOPY runner.mjs tsconfig.json package.tmpl.json /opt/r3/\nCOPY tests/ /opt/r3/tests/\n",
+  "package.json": '{"name":"r3-node-ts-v1","private":true,"dependencies":{"typescript":"^5.9.3"}}',
+  "package-lock.json":
+    '{\n  "name": "r3-node-ts-v1",\n  "lockfileVersion": 3,\n  "requires": true,\n  "packages": {\n    "": {\n      "name": "r3-node-ts-v1",\n      "dependencies": {\n        "typescript": "^5.9.3"\n      }\n    },\n    "node_modules/typescript": {\n      "version": "5.9.3",\n      "resolved": "https://registry.npmjs.org/typescript/-/typescript-5.9.3.tgz",\n      "integrity": "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==",\n      "license": "Apache-2.0",\n      "bin": {\n        "tsc": "bin/tsc",\n        "tsserver": "bin/tsserver"\n      },\n      "engines": {\n        "node": ">=14.17"\n      }\n    }\n  }\n}\n',
+  "runner.mjs":
+    '#!/usr/bin/env node\n// R3 node-ts-v1 受信 runner（阶段 1 探针版，1.3 冻结候选）\n// 固定命令：typecheck | test | selfcheck-gate\n// 设计口径（design D2）：命令仅枚举、argv 由本文件固定、可信测试只来自 /opt/r3/tests；\n// test 先编译再执行可信 Node 测试；零测试不得通过。\nimport { spawnSync } from "node:child_process";\nimport { copyFileSync, readdirSync } from "node:fs";\nimport { join } from "node:path";\n\nconst TEST_DIR = "/opt/r3/tests";\nconst TSC = "/opt/r3/node_modules/.bin/tsc";\n// 预期测试数（design D2「检查预期测试数和报告」）：与 /opt/r3/tests 同镜像冻结。\n// node 22.23 会把零用例文件计作 1 个通过的「模块加载」测试并 exit 0，故必须精确匹配而非 >0。\nconst EXPECTED_TESTS = 2;\n\nfunction fail(code, msg) {\n  console.error(`R3_RUNNER_FAIL(${code}): ${msg}`);\n  process.exit(code);\n}\n\nexport function checkTestGate(files, tapText, expected = EXPECTED_TESTS) {\n  if (!Array.isArray(files) || files.length === 0) {\n    return { ok: false, reason: "trusted test dir empty" };\n  }\n  const m = [...tapText.matchAll(/^# tests (\\d+)$/gm)].pop();\n  const total = m ? Number(m[1]) : -1;\n  if (total !== expected) {\n    return { ok: false, reason: `reported tests=${total} != expected ${expected}` };\n  }\n  return { ok: true, reason: `tests=${total}` };\n}\n\nfunction compile(emit) {\n  // 模板 tsconfig/package 从固定环境落位到 /work（同字节），再由 tsc 编译\n  copyFileSync("/opt/r3/tsconfig.json", "/work/tsconfig.json");\n  copyFileSync("/opt/r3/package.tmpl.json", "/work/package.json");\n  const args = emit ? ["-p", "/work/tsconfig.json"] : ["--noEmit", "-p", "/work/tsconfig.json"];\n  const r = spawnSync(TSC, args, { stdio: "inherit" });\n  if (r.error) fail(3, "tsc spawn failed: " + r.error.message);\n  if (r.status !== 0) fail(1, "typecheck failed (exit " + r.status + ")");\n}\n\nconst cmd = process.argv[2];\nif (cmd === "typecheck") {\n  compile(false);\n  process.exit(0);\n}\nif (cmd === "test") {\n  compile(true);\n  const files = readdirSync(TEST_DIR).filter((f) => f.endsWith(".test.mjs"));\n  if (files.length === 0) fail(2, "no trusted test files");\n  const r = spawnSync(\n    process.execPath,\n    ["--test", "--test-reporter=tap", ...files.map((f) => join(TEST_DIR, f))],\n    { encoding: "utf8", cwd: "/work" },\n  );\n  process.stdout.write(r.stdout || "");\n  process.stderr.write(r.stderr || "");\n  const gate = checkTestGate(files, (r.stdout || "") + (r.stderr || ""));\n  if (!gate.ok) fail(2, "test gate: " + gate.reason);\n  process.exit(r.status === null ? 3 : r.status);\n}\nif (cmd === "selfcheck-gate") {\n  const cases = [\n    [[], "", false],\n    [["a.test.mjs"], "# tests 0\\n# pass 0\\n", false],\n    [["a.test.mjs"], "# tests 2\\n# pass 2\\n", true],\n    [["a.test.mjs"], "garbage-no-summary", false],\n    [["a.test.mjs"], "# tests 1\\n# pass 1\\n", false], // 零用例文件的「模块加载伪测试」形态\n    [["a.test.mjs", "b.test.mjs"], "# tests 3\\n# pass 3\\n", false], // 超计数也拒绝\n  ];\n  let bad = 0;\n  for (const [files, tap, expect] of cases) {\n    const g = checkTestGate(files, tap);\n    if (g.ok !== expect) {\n      bad++;\n      console.error(`gate case wrong: files=${JSON.stringify(files)} tap=${JSON.stringify(tap)} => ${g.reason}`);\n    }\n  }\n  console.log(bad === 0 ? "GATE_SELFCHECK_PASS" : `GATE_SELFCHECK_FAIL(${bad})`);\n  process.exit(bad === 0 ? 0 : 2);\n}\nfail(2, "unknown command: " + cmd);\n',
+  "tsconfig.json":
+    '{\n  "compilerOptions": {\n    "target": "ES2022",\n    "module": "ES2022",\n    "moduleResolution": "Node10",\n    "strict": true,\n    "outDir": ".build",\n    "rootDir": ".",\n    "skipLibCheck": true,\n    "types": []\n  },\n  "include": ["src/**/*.ts"]\n}\n',
+  "package.tmpl.json":
+    '{\n  "name": "r3-probe-project",\n  "private": true,\n  "type": "module"\n}\n',
+  "tests/smoke.test.mjs":
+    'import { test } from "node:test";\nimport assert from "node:assert/strict";\nimport { add, mul } from "/work/.build/src/calc.js";\n\ntest("add(2,3)=5", () => assert.equal(add(2, 3), 5));\ntest("mul(2,3)=6", () => assert.equal(mul(2, 3), 6));\n',
+};
