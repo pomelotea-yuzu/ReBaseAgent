@@ -1,6 +1,6 @@
 # R3 逐场景证据索引
 
-状态：阶段 1 完成（1.1–1.6）+ **第 2 组完成（2.1–2.4）** + **3.1–3.5 完成（受限准备/Docker 受控后端/受控物化/固定命令执行/停止语义+supervisor）**——阶段 1 各切片、2.1–2.4 各切片、3.1（P03/P04 编排/P07/P08）、3.2（P01/P02/P09/P10）、3.3（P05/P06/P09/W01/W02）、3.4（P11/P12/P13/P20）、3.5（P10/P19/P21 + P20 停止接线）各切片已实测（backend-verification.md §1.x/§3.1–§3.5 + `packages/project-verification` 156 用例）；其余任务切片待验证；文档/strict 校验通过不代表功能、隔离或实机验收通过。
+状态：阶段 1 完成（1.1–1.6）+ **第 2 组完成（2.1–2.4）** + **3.1–3.6 完成（受限准备/Docker 受控后端/受控物化/固定命令执行/停止语义+supervisor/静止采集）**——阶段 1 各切片、2.1–2.4 各切片、3.1（P03/P04 编排/P07/P08）、3.2（P01/P02/P09/P10）、3.3（P05/P06/P09/W01/W02）、3.4（P11/P12/P13/P20）、3.5（P10/P19/P21 + P20 接线）、3.6（P17/P18/W01）各切片已实测（backend-verification.md §1.x/§3.1–§3.6 + `packages/project-verification` 168 用例）；其余任务切片待验证；文档/strict 校验通过不代表功能、隔离或实机验收通过。
 
 ## 新增场景
 
@@ -22,8 +22,8 @@
 | P14 | project-verification / 验证与旧轨迹兼容 | 2.2、6.1 | 2.2 切片已实测（writer 只写验证目录，traces 哨兵逐字节不变、目录清单不变；独立 verificationId 记录）；6.1 待执行 |
 | P15 | project-verification / 损坏未知版本与迁移 | 2.1、2.2、2.3 | 2.1 schema 切片 + 2.2 writer 切片 + 2.3 reader 切片已实测（坏尾行号/未知版本/身份错配/terminated 非末行结构化降级；数据根 rename 后记录与附件凭相对引用仍可读）；6.1 回归待执行 |
 | P16 | project-verification / 来源删除和只读查询 | 2.3、4.3、5.3 | 2.3 切片已实测（list 只扫 verifications/、sourceStatus present/missing 精确目录名标注、来源缺失时记录仍可读、附件按自身哈希校验）；4.3/5.3 待执行 |
-| P17 | project-verification / 停止后采集稳定输出 | 1.5、3.6 | 1.5 切片已实测（静止双扫一致、产物仅在 /work、采集须在移除前）；3.6 待执行 |
-| P18 | project-verification / 写者未停或产物非法 | 1.5、3.6、6.2 | 1.5 切片已实测（孤儿子孙持续写入实证、输入哈希不变）；3.6/6.2 待执行 |
+| P17 | project-verification / 停止后采集稳定输出 | 1.5、3.6 | 1.5 切片已实测（静止双扫一致、产物仅在 /work、采集须在移除前）；3.6 切片已实测（2026-10-25，§3.6：内容级双扫一致后 .build 编译产物发布——宿主落盘 verification-assets/sha256/<hash> 哈希复核一致、artifacts 事件过 schema、stray/exclude 如实计数不发布） |
+| P18 | project-verification / 写者未停或产物非法 | 1.5、3.6、6.2 | 1.5 切片已实测（孤儿子孙持续写入实证、输入哈希不变）；3.6 切片已实测（改源码冒充修复 ⇒ input_drifted、链接 ⇒ artifact_invalid 不静默跟随、双扫不一致 ⇒ artifact_invalid、宿主重读不符 ⇒ content_corrupt 拒发布、配额超限拒绝）；6.2 回归待执行 |
 | P19 | project-verification / 停止覆盖子孙进程 | 1.5、3.5、4.4、6.2 | 1.5 切片已实测（按 PID 杀后 2s 字节稳定；pkill -f 自杀反证 ⇒ PID 定向停止）；3.5 切片已实测（§3.5：supervisor 作 PID 1 结构落地（/proc/1/comm=sh）；孤儿写者（detached exec 后仍在写，双扫不一致实证）经受信 stop-workloads.sh 定向停止——stoppedPidCount=4/survivors=0/双扫一致 quiescent=true；supervisor TERM 快停 6,166ms）；桌面操作面 4.4/5.2 待执行 |
 | P20 | project-verification / 启动故障与进程异常 | 3.4、3.5、6.2 | 3.4 切片已实测（2026-10-25，§3.4：classifyExecutionReport 四分类——completed 0–125/start_failed 126·127/process_failed ≥128（137→SIGKILL 推导）/timed_out；exit 1 报告照常产出、基础设施失败=environment_failed 与断言失败分开；OOM 真机复现归 6.2） |
 | P21 | project-verification / 停止结果未知 | 1.6、3.5、4.4、6.2 | 1.6 切片已实测（断连错误形态可识别、重启窗口 unknown 语义）；3.5 切片已实测（stopWorkloadsAndConfirm：daemon 断开族 ⇒ kind=unknown 不声明已停止、只允许核对与再次定向停止；survivors>0 或双扫不一致 ⇒ quiescent=false 不乐观宣布；幂等复停安全）；桌面操作面 4.4/5.2 待执行 |
@@ -32,7 +32,7 @@
 | P24 | project-verification / 同条件失败到通过 | 5.4、6.1、7.2 | 待验证；未执行 |
 | P25 | project-verification / 条件变化或未知 | 5.4、6.5、7.2 | 待验证；未执行 |
 | P26 | project-verification / 模板成功的范围 | 1.1、6.5、7.1、7.2 | 待验证；未执行 |
-| W01 | workspace-isolation / 分支输入保持历史字节 | 2.4、3.3、3.6、6.1 | 2.4 切片已实测（宿主源文件改写+删除后预检摘要不变——只读历史清单/附件）；3.3 切片已实测（物化字节逐项=清单=冻结哈希 fcb8adfb，物化只读历史清单/附件字节、不回读宿主源目录）；3.6/6.1 待执行 |
+| W01 | workspace-isolation / 分支输入保持历史字节 | 2.4、3.3、3.6、6.1 | 2.4 切片已实测（宿主源文件改写+删除后预检摘要不变）；3.3 切片已实测（物化字节=清单=冻结哈希，只读历史附件）；3.6 切片已实测（采集时输入清单锚定哈希必须不变——workload 篡改源码 ⇒ input_drifted 拒发布；产物只属于 verification 不回写检查点）；6.1 待执行 |
 | W02 | workspace-isolation / 不扩展文件工具或状态承诺 | 2.4、3.3 | 2.4 切片已实测（受支持源码面精确判定：node_modules/点文件/额外入口/非 .ts 明确拒绝）；3.3 切片已实测（物化不另造标准：路径/碰撞/配额复用 trace-sdk/replay 同一权威函数与数字；链接/特殊对象结构性排除——清单 schema 无法表达 + tee 只建普通文件 + find -type l=0） |
 | W03 | workspace-isolation / 导出字节对应所测输入 | 5.5、6.1、7.2 | 待验证；未执行 |
 | W04 | workspace-isolation / 切换检查点或附件漂移 | 5.5 | 待验证；未执行 |

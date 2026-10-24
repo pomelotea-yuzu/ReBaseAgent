@@ -20,6 +20,8 @@ export * from "./prepare/prepare.js";
 export * from "./materialize/materialize.js";
 export * from "./execute/command-runner.js";
 export * from "./execute/stop.js";
+export * from "./collect/collect.js";
+export * from "./docker/docker-collect.js";
 export * from "./docker/cli.js";
 export * from "./docker/preflight.js";
 export * from "./docker/container-flags.js";

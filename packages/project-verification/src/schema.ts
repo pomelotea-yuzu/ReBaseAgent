@@ -154,6 +154,17 @@ export const ProfileManifestSchema = z
       .array(z.strictObject({ path: z.string().min(1), sha256: FileHashSchema }))
       .min(1),
     trustedEnvironment: TrustedEnvironmentSchema,
+    /**
+     * 产物采集规则（design D5.6，manifestVersion 3 起入表）：只收 include 命中且未被
+     * exclude 排除的普通文件；include 之外的对象不发布（stray 如实计数）。
+     * 首版仅支持两种 glob 形态：目录前缀后跟斜杠加双星（任意深度），以及双星加斜杠
+     * 引导的星点后缀；或精确路径（不引入通用 glob 引擎）。
+     * ⚠️ 注释不写出形态字面量——块注释里「双星斜杠」序列会提前关闭注释（2.4 老坑）。
+     */
+    artifacts: z.strictObject({
+      includeGlobs: z.array(z.string().min(1)).min(1),
+      excludeGlobs: z.array(z.string().min(1)),
+    }),
     commands: z.array(ProfileCommandSchema),
     limits: ProfileLimitsSchema,
     security: SecurityProfileSchema,
@@ -172,16 +183,17 @@ export const ProfileManifestSchema = z
 /**
  * `node-ts-v1` 冻结实例——数值与阶段 1/3.x 实测一致（backend-verification.md §1.3/§3.1/§3.5）。
  *
- * `manifestVersion: 2`：v3 环境镜像加入受控 supervisor 与 stop-workloads 两个受信脚本
- * （哈希冻结于此，trustedEnvironment 形状扩展 ⇒ 版本递增）；原 runner/锁/模板/测试五项
- * 字节未变（镜像内复核一致，§3.5）。受信环境**镜像自身的 digest 属准备期实测事实**
+ * `manifestVersion: 3`：v3 环境镜像加入受控 supervisor 与 stop-workloads 两个受信脚本
+ * （哈希冻结于此，trustedEnvironment 形状扩展 ⇒ 版本递增，§3.5）；artifacts 采集规则
+ * 入表（纯 manifest 数据，镜像字节不变，§3.6）。原 runner/锁/模板/测试五项字节未变
+ * （镜像内复核一致）。受信环境**镜像自身的 digest 属准备期实测事实**
  * （写入 prepared 事件），不冻结于此。
  * 基础镜像 digest 经 DaoCloud 源拉取；与官方源的一致性核对未完成（Hub 直连不可达，
  * 如实登记于 §1.2），registryNote 记录该事实。
  */
 export const NODE_TS_V1_PROFILE: z.infer<typeof ProfileManifestSchema> = {
   profileId: "node-ts-v1",
-  manifestVersion: 2,
+  manifestVersion: 3,
   platform: "linux/amd64",
   baseImage: {
     repository: "docker.m.daocloud.io/library/node",
@@ -225,6 +237,11 @@ export const NODE_TS_V1_PROFILE: z.infer<typeof ProfileManifestSchema> = {
       path: "/opt/r3/stop-workloads.sh",
       sha256: "74ea5c003120c261074900abaef8a71a8f7186ec522e21d705b8a5a31e09b1ff",
     },
+  },
+  artifacts: {
+    // runner 的 tsc outDir=.build（固定模板冻结）——编译产物是唯一发布面
+    includeGlobs: [".build/**"],
+    excludeGlobs: ["node_modules/**", "**/*.tmp"],
   },
   commands: [
     {

@@ -540,3 +540,43 @@ quiescent=false，调用方不得据此发布完成/取消结论（不乐观语�
 - supervisor 的 5s 固定宽限未做「轮询提前退出」优化（僵尸重父化使轮询不可靠；
   确定性优先）——实测 6.2s 仍显著优于 §1.4 裸 PID 1 基线。
 - P19/P21 的完整桌面操作面（用户停止请求 → cancelled 呈现）归 4.4/5.2。
+
+## 3.6 静止采集与产物发布（2026-10-25，验收 P17/P18/W01 的 3.6 切片；实测机同阶段 1）
+
+落地：`src/collect/collect.ts`（glob 匹配/采集编排/配额/发布）与
+`src/docker/docker-collect.ts`（find 双形态/sha256sum·stat 分批/cat 字节面）。
+manifestVersion 2→3：`artifacts` 采集规则入表（include `.build/**`、exclude
+`node_modules/**`+`*.tmp`——纯 manifest 数据，镜像字节不变）。包内 12 新用例共 168 全绿；
+探针 `.workbuddy/r3-36/probe-3.6.cjs`（dogfood dist）。
+
+### 机制（design D5.6 顺序固定）
+
+1. **非普通对象核查先行**：/work 下任何链接/特殊对象 ⇒ `artifact_invalid`（不静默跟随）；
+2. **内容级双扫**：全树 find+stat（清单+尺寸，分批）+ sha256sum（哈希）⇒ 规范快照，
+   间隔复扫（默认 2s）——两次不一致 ⇒ `artifact_invalid`（停止事实已知时的采集不稳定）；
+3. **逐文件分类**：输入清单锚定的文件必须哈希不变（workload 改源码 ⇒ `input_drifted`
+   ——「把测试改代码当成修复」的直接拒绝，P18/W01）；命中 include 且未被 exclude ⇒
+   产物；其余 ⇒ stray（如实计数、不发布——「只收 profile 允许的普通输出」）；
+4. **配额**：R1 文件集合配额复用 + 产物唯一内容 ≤ `artifactUniqueContentBudgetBytes`
+   （128 MiB，limits 冻结值）；
+5. **发布**：宿主逐文件重读（cat，上限=单文件配额）并复核哈希（与容器扫描不一致 ⇒
+   `content_corrupt` 拒发布）后 `publishAsset` 内容寻址发布（不可变/同哈希幂等）；
+   `artifactsRecordEvent` 构造记录事件（excludedPatterns=manifest 规则本身）。
+
+### 实机探针读数（v3 容器，test 编译后停止确认 → 采集）
+
+1. **正例**：entries=`.build/src/calc.js`（96 B，sha256 `d1a39589…b4c`）、scanStable=true、
+   总观测含 2 个 stray（tsconfig.json/package.json——runner 自拷模板，探针输入清单仅含
+   src/calc.ts，产品流由编排层并入输入清单后归输入面）；发布落盘
+   `verification-assets/sha256/d1a39589…` 宿主哈希复核一致；artifacts 事件过 schema
+   （excludedPatterns=规则本身）。
+2. **反例·改源码**：tee 覆写 src/calc.ts 后再采集 ⇒ `input_drifted`
+   （「采集哈希 ≠ 清单 fcb8adfb…——改代码不是修复」）。
+3. **反例·链接**：`ln -s` 后再采集 ⇒ `artifact_invalid`（指名 evil-link）。
+
+### 3.6 未闭合项（如实）
+
+- 采集后容器移除与「产物只属于 verification」的 R2.1 导出关联归编排层/5.5；
+- 大产物树（2000 文件 × 8 MiB）的容器内批量扫描耗时未压测（分批上限 200 条/批），
+  6.2 回归覆盖；
+- strays 的完整清单当前只计数不落记录（编排层可从 scan 快照取），如需审计面再扩展。
