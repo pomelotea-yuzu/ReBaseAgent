@@ -20,6 +20,7 @@ import { RunRepository } from "./run-repository";
 import { SettingsStore } from "./settings";
 import type { SettingsCipher } from "./settings";
 import { installSmokeEventHook } from "./smoke-event-hook";
+import { VerificationInFlightRegistry } from "./verification-endpoints";
 
 /**
  * 应用入口。数据目录解析 → 注册 IPC → 建窗口。
@@ -94,6 +95,8 @@ let draftClose: DraftCloseGuardHandle | null = null;
  * U4 5.1 起关闭协商也要消费它（closing 标记 + 活跃槽事实），故不再留在 bootstrap 局部。
  */
 const operations = new OperationRegistry();
+/** R3 在飞登记（4.5）：registerIpc 与关闭协商共享同一实例（main 生命周期一次） */
+const r3InFlight = new VerificationInFlightRegistry();
 /**
  * U4：本应用创建的窗口 → **主 frame** routingId 的取值函数。
  * 导航会更换 frame 实例，所以存的是取值函数而不是快照值；窗口销毁时移除。
@@ -133,7 +136,7 @@ function createWindow(): void {
   });
   // U3 关闭协商：装配受限协议（会话轮换 / 握手 / sender 校验）；销毁时自动解绑
   // U4 5.1：一并接进操作登记（协商期间 closing 封住主动执行与配置变更，clean 判定读活跃槽）
-  draftClose = attachDraftCloseGuard(win, operations);
+  draftClose = attachDraftCloseGuard(win, operations, r3InFlight);
 
   if (process.env.ELECTRON_RENDERER_URL) {
     void win.loadURL(process.env.ELECTRON_RENDERER_URL);
@@ -221,6 +224,7 @@ async function bootstrap(): Promise<void> {
    */
   const smokePickDir = process.env.REBASEAGENT_SMOKE_PICK_DIR;
   registerIpc({
+    r3InFlight,
     repository,
     settings,
     // 工具重跑的工作目录：数据目录（trace 不记录首次 cwd，桌面以数据目录为落点）

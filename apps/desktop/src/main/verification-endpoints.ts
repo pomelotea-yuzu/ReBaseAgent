@@ -57,6 +57,8 @@ export interface VerificationEndpointDeps {
   };
   /** 在飞验证登记（4.4 stop 的寻路面；main 会话内唯一实例） */
   readonly inFlight?: VerificationInFlightRegistry;
+  /** R3 可用性门（4.5：启动核查未完成/blocked ⇒ 执行面拒绝，分层可用性） */
+  readonly availability?: import("./verification-availability").R3Availability;
 }
 
 /**
@@ -87,6 +89,16 @@ export class VerificationInFlightRegistry {
 
   unregister(operationId: string): void {
     this.entries.delete(operationId);
+  }
+
+  /** 关闭协商开始时请求停止全部在飞 R3（4.5：正常关闭先停止 R3，等待真实收尾）。 */
+  requestStopAll(): number {
+    let count = 0;
+    for (const entry of this.entries.values()) {
+      entry.stopSignal.request();
+      count += 1;
+    }
+    return count;
   }
 
   lookup(
@@ -127,6 +139,10 @@ const prepareChannel: ActiveChannel<VerificationPrepareRequest, VerificationPrep
     ...checkpointSummary(business.target.checkpoint),
   }),
   async run(deps, business, ctx) {
+    const gate = deps.verification?.availability?.gate();
+    if (gate !== undefined && gate.ok === false) {
+      throw new VerificationEndpointError(gate.code, gate.reason);
+    }
     const verification = deps.verification;
     if (verification === undefined) {
       throw new VerificationEndpointError(
@@ -180,6 +196,10 @@ const runChannel: ActiveChannel<VerificationRunRequest, VerificationRunResult> =
     commandId: business.commandId,
   }),
   async run(deps, business, ctx) {
+    const gate = deps.verification?.availability?.gate();
+    if (gate !== undefined && gate.ok === false) {
+      throw new VerificationEndpointError(gate.code, gate.reason);
+    }
     const verification = deps.verification;
     if (verification === undefined) {
       throw new VerificationEndpointError(
@@ -255,6 +275,11 @@ export function execVerificationStop(
 ): Envelope<VerificationStopResult> {
   if (!deps.isTrustedSender(sender)) {
     return fail("R3_STOP_UNTRUSTED_SENDER", new Error("停止通道只接受本应用窗口主 frame 的调用"));
+  }
+  // 可用性门（4.5）：blocked/checking 时无在飞 R3 可停——先于身份核对拒绝
+  const stopGate = deps.verification?.availability?.gate();
+  if (stopGate !== undefined && stopGate.ok === false) {
+    return fail(stopGate.code, new Error(stopGate.reason));
   }
   if (request.epoch !== deps.registry.epoch) {
     return fail("R3_STOP_STALE_EPOCH", new Error("旧 main 会话的停止请求零副作用"));

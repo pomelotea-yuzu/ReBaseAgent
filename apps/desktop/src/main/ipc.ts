@@ -7,6 +7,7 @@ import {
   DockerRuntimeBackend,
   DockerStopBackend,
   type LocalBackendEndpoint,
+  reconcileStartupLeftovers,
   resolveDockerCli,
 } from "@rebaseagent/project-verification";
 import { app, dialog, ipcMain } from "electron";
@@ -70,6 +71,7 @@ import type { RunRepository } from "./run-repository";
 import { RunSourceRejection } from "./run-source-gate";
 import type { SettingsStore } from "./settings";
 import { SourceTokenStore } from "./source-token";
+import { R3Availability } from "./verification-availability";
 import {
   VerificationInFlightRegistry,
   execVerificationPrepare,
@@ -120,6 +122,8 @@ export interface IpcDeps {
    * 判重、占槽、状态快照都以它为准——renderer 的本地 busy 只是补空隙。
    */
   operations: OperationRegistry;
+  /** R3 在飞登记（4.5）：与关闭协商共享同一实例（可选；测试省略时内部自建） */
+  r3InFlight?: import("./verification-endpoints").VerificationInFlightRegistry;
   /**
    * U4：sender 可信度判据——「本应用创建的窗口的**主 frame**」才放行。
    * status/reconcile 与全部主动执行通道都在任何副作用之前过这一关（design D6）。
@@ -152,8 +156,10 @@ export function registerIpc(deps: IpcDeps): void {
    * 消费只发生在**已被接受**的操作里（判重先于许可消费）。
    */
   const sourceTokens = new SourceTokenStore();
-  /** R3 在飞验证登记（4.4 stop 寻路面；main 会话内唯一实例） */
-  const verificationInFlight = new VerificationInFlightRegistry();
+  /** R3 在飞验证登记（4.4/4.5；与关闭协商共享同一实例） */
+  const verificationInFlight = deps.r3InFlight ?? new VerificationInFlightRegistry();
+  /** R3 可用性（4.5：启动核查状态；执行面唯一门） */
+  const r3Availability = new R3Availability();
   const execDeps: ExecEndpointDeps = {
     registry: operations,
     fingerprinter: new RequestFingerprinter(),
@@ -167,8 +173,38 @@ export function registerIpc(deps: IpcDeps): void {
     configState,
     // R3 依赖（4.2）：Docker Desktop CLI 可信位置在场才装配；缺席 ⇒ R3 通道拒绝（P01：
     // 不隐式安装、不回退宿主 Shell）。endpoint 钉死本机管道（schema 枚举），不读 env。
-    verification: assembleVerificationDeps(dataDir, verificationInFlight),
+    verification: assembleVerificationDeps(dataDir, verificationInFlight, r3Availability),
   };
+  // 启动互斥区（4.5 / design D6）：残留核查先于 R3 开放——checking/blocked 期间
+  // prepare/run/stop 拒绝（可行动诊断），只读端点与旧能力按原门禁可用。fire-and-forget；
+  // 新 main 用新 epoch、不恢复旧 registry、不继续执行旧任务。
+  void (async () => {
+    const docker = assembleVerificationDocker();
+    if (docker === null) {
+      r3Availability.setBlocked(
+        "未发现可信 Docker Desktop CLI（P01：不隐式安装、不回退宿主 Shell）",
+      );
+      return;
+    }
+    try {
+      const outcome = await reconcileStartupLeftovers({
+        root: dataDir,
+        port: new DockerRuntimeBackend({
+          installation: docker.installation,
+          endpoint: docker.endpoint,
+        }),
+      });
+      if (outcome.ok) {
+        r3Availability.setAvailable();
+      } else {
+        r3Availability.setBlocked(outcome.reason);
+      }
+    } catch (error) {
+      r3Availability.setBlocked(
+        `启动残留核查异常：${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  })();
   // R3 只读面依赖（4.3）：与执行面同根；CLI 缺席 ⇒ 引擎健康 available:false（P01）
   const verificationReadonly: VerificationReadonlyDeps = {
     dataRoot: dataDir,
@@ -614,6 +650,7 @@ function assembleVerificationDocker(): {
 function assembleVerificationDeps(
   dataDir: string,
   inFlight: import("./verification-endpoints").VerificationInFlightRegistry,
+  availability: R3Availability,
 ): import("./verification-endpoints").VerificationEndpointDeps | undefined {
   const docker = assembleVerificationDocker();
   if (docker === null) {
@@ -624,6 +661,7 @@ function assembleVerificationDeps(
   return {
     dataRoot: dataDir,
     inFlight,
+    availability,
     backends: {
       preparation: new DockerPreparationBackend({ installation, endpoint }),
       run: {

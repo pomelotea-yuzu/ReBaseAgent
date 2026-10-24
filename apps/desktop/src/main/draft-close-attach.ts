@@ -65,6 +65,8 @@ async function showMergedConfirm(
 export function attachDraftCloseGuard(
   win: BrowserWindow,
   operations: OperationRegistry,
+  /** R3 在飞登记（4.5）：关闭协商开始时请求停止全部在飞 R3（可选；测试省略） */
+  r3InFlight?: { requestStopAll(): number },
 ): DraftCloseGuardHandle {
   let flow: DraftCloseFlow | null = null;
   const guard = new DraftCloseGuard({
@@ -117,6 +119,9 @@ export function attachDraftCloseGuard(
       // U4 5.1：closing 标记落在**操作真相源**上——协商期间 main 拒绝新主动执行与配置变更
       setClosing: (closing) => {
         operations.setClosing(closing);
+        // 4.5：正常关闭先停止 R3（不因协商而等待悬挂的验证执行——停止信号由
+        // 编排阶段边界收割，真实停止/收尾完成后活跃槽自然释放，clean 判定读活跃槽）
+        if (closing) r3InFlight?.requestStopAll();
       },
       readMainFacts: () => {
         const slot = operations.slotState();

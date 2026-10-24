@@ -823,7 +823,7 @@ describe("U4 5.4 closing 标记的取消与异常清理", () => {
     expect(attach).not.toContain("activeOperationId === null");
     const index = readFileSync(resolve(import.meta.dirname, "../src/main/index.ts"), "utf8");
     // 登记对象由 bootstrap 建一次并穿进 createWindow ⇒ 关闭协商与执行用同一个真相源
-    expect(index).toContain("attachDraftCloseGuard(win, operations)");
+    expect(index).toContain("attachDraftCloseGuard(win, operations, r3InFlight)");
     expect(index).toContain("const operations = new OperationRegistry()");
   });
 });
