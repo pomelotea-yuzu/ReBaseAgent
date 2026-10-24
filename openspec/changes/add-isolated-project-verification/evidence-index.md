@@ -1,6 +1,6 @@
 # R3 逐场景证据索引
 
-状态：阶段 1 完成（1.1–1.6）+ 2.1 已完成——P01/P09/P04/P08/P11/P12/P10/P13/P05/P17/P18/P19/P21/P22/P23 的阶段 1 切片与 P02/P05/P08/P15 的 2.1 切片已实测（backend-verification.md + `packages/project-verification`）；其余任务切片待验证；文档/strict 校验通过不代表功能、隔离或实机验收通过。
+状态：阶段 1 完成（1.1–1.6）+ 2.1/2.2 已完成——P01/P09/P04/P08/P11/P12/P10/P13/P05/P17/P18/P19/P21/P22/P23 的阶段 1 切片与 P02/P05/P08/P15 的 2.1 切片、P11/P14/P15 的 2.2 切片已实测（backend-verification.md + `packages/project-verification` 40 用例）；其余任务切片待验证；文档/strict 校验通过不代表功能、隔离或实机验收通过。
 
 ## 新增场景
 
@@ -16,11 +16,11 @@
 | P08 | project-verification / 自定义命令和配置被拒绝 | 1.3、2.1、3.1 | 1.3 切片 + 2.1 schema 切片已实测（命令枚举、strict 对象拒绝多余键、路径/env/镜像无处传）；3.1 待执行 |
 | P09 | project-verification / 越界和网络实际受限 | 1.2、3.2、3.3、6.2 | 1.2 切片已实测（2026-10-24，backend-verification.md §1.2：受限/对照双跑，非 root/cap/nnp/ro-rootfs/断网全生效）；3.2/3.3/6.2 待执行 |
 | P10 | project-verification / 资源限额生效 | 1.4、3.2、3.5、6.2 | 1.4 切片已实测（2026-10-24，backend-verification.md §1.4：OOM 137/PID 62/ENOSPC/节流 50:50 含对照；PID1 信号陷阱与 tmpfs 计内存两发现）；3.2/3.5/6.2 待执行 |
-| P11 | project-verification / 已知失败和通过均可回查 | 1.3、2.2、3.4、6.1 | 1.3 切片已实测（已知失败/修复双跑，真实断言与退出码）；2.2/3.4/6.1 待执行 |
+| P11 | project-verification / 已知失败和通过均可回查 | 1.3、2.2、3.4、6.1 | 1.3 切片 + 2.2 切片已实测（失败/通过两条独立记录并存、封存后字节不变、同 ID 重开拒绝）；3.4/6.1 待执行 |
 | P12 | project-verification / 零测试或不完整报告 | 1.3、3.4 | 1.3 切片已实测（零测试危害形态实测+精确匹配 gate 自检 6 例；发现 node 22.23「零用例文件=1 伪测试 exit 0」形态）；3.4 待执行 |
 | P13 | project-verification / 长输出与分页 | 1.4、2.3、3.4、5.3、6.2 | 1.4 切片已实测（2,099,200 B 全量返回、engine 不设界——有界读取为产品责任）；2.3/3.4/5.3/6.2 待执行 |
-| P14 | project-verification / 验证与旧轨迹兼容 | 2.2、6.1 | 待验证；未执行 |
-| P15 | project-verification / 损坏未知版本与迁移 | 2.1、2.2、2.3 | 2.1 schema 切片已实测（schemaVersion literal 1、版本 2 拒绝、结局/错误码闭集）；2.2/2.3 待执行 |
+| P14 | project-verification / 验证与旧轨迹兼容 | 2.2、6.1 | 2.2 切片已实测（writer 只写验证目录，traces 哨兵逐字节不变、目录清单不变；独立 verificationId 记录）；6.1 待执行 |
+| P15 | project-verification / 损坏未知版本与迁移 | 2.1、2.2、2.3 | 2.1 schema 切片（版本 literal 拒 2）+ 2.2 writer 切片（版本钉 1、未封存现场保留、封存后追加拒绝且文件字节不变）已实测；2.3 坏尾/迁移待执行 |
 | P16 | project-verification / 来源删除和只读查询 | 2.3、4.3、5.3 | 待验证；未执行 |
 | P17 | project-verification / 停止后采集稳定输出 | 1.5、3.6 | 1.5 切片已实测（静止双扫一致、产物仅在 /work、采集须在移除前）；3.6 待执行 |
 | P18 | project-verification / 写者未停或产物非法 | 1.5、3.6、6.2 | 1.5 切片已实测（孤儿子孙持续写入实证、输入哈希不变）；3.6/6.2 待执行 |

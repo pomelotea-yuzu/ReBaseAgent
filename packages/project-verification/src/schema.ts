@@ -347,25 +347,35 @@ export const VerificationErrorCodeSchema = z.enum([
   "ASSET_MISSING",
 ]);
 
-/** 验证记录事件（JSONL 逐行；唯一终止/顺序约束由读写器执行，schema 只定形状）。 */
-export const VerificationEventSchema = z.discriminatedUnion("type", [
-  z.strictObject({
-    type: z.literal("meta"),
-    schemaVersion: z.literal(VERIFICATION_RECORD_VERSION),
-    verificationId: z.string().min(1),
-    epoch: z.string().min(1),
-    operationId: z.string().min(1),
-    target: z.strictObject({
-      runId: z.string().min(1),
-      checkpoint: CheckpointSelectorSchema,
-      snapshotId: z.string().min(1),
-    }),
-    profileId: ProfileIdSchema,
-    manifestVersion: z.number().int().positive(),
-    commandId: CommandIdSchema,
-    planBindingDigest: FileHashSchema,
-    createdAt: Iso8601Schema,
+/**
+ * 验证记录事件（JSONL 逐行）。
+ *
+ * 按「meta 首行 / 正文可追加 / 唯一终止」拆成三段联合：writer 分段校验与封存，
+ * reader（2.3）逐行用 `VerificationEventSchema` 全量联合校验；顺序与唯一终止
+ * 由读写器执行，schema 只定形状。
+ */
+
+/** meta 事件：必为首行，携带记录身份（verificationId）、来源身份与计划摘要。 */
+export const VerificationMetaEventSchema = z.strictObject({
+  type: z.literal("meta"),
+  schemaVersion: z.literal(VERIFICATION_RECORD_VERSION),
+  verificationId: z.string().min(1),
+  epoch: z.string().min(1),
+  operationId: z.string().min(1),
+  target: z.strictObject({
+    runId: z.string().min(1),
+    checkpoint: CheckpointSelectorSchema,
+    snapshotId: z.string().min(1),
   }),
+  profileId: ProfileIdSchema,
+  manifestVersion: z.number().int().positive(),
+  commandId: CommandIdSchema,
+  planBindingDigest: FileHashSchema,
+  createdAt: Iso8601Schema,
+});
+
+/** 正文事件：meta 之后、terminated 之前可多次追加。 */
+export const VerificationBodyEventSchema = z.discriminatedUnion("type", [
   z.strictObject({
     type: z.literal("stage"),
     phase: z.enum(["materializing", "executing", "stopping", "collecting", "finalizing"]),
@@ -419,28 +429,41 @@ export const VerificationEventSchema = z.discriminatedUnion("type", [
     excludedPatterns: z.array(z.string().min(1)),
     totalBytes: z.number().int().nonnegative(),
   }),
-  z.strictObject({
-    type: z.literal("terminated"),
-    outcome: VerificationOutcomeSchema,
-    detail: z.string().min(1),
-    evidenceComplete: z.boolean(),
-    at: Iso8601Schema,
-  }),
 ]);
 
-/** 准备记录事件（`verification-environments/<preparationId>.jsonl`，与验证记录分开）。 */
-export const PreparationEventSchema = z.discriminatedUnion("type", [
-  z.strictObject({
-    type: z.literal("meta"),
-    schemaVersion: z.literal(VERIFICATION_RECORD_VERSION),
-    preparationId: z.string().min(1),
-    epoch: z.string().min(1),
-    operationId: z.string().min(1),
-    profileId: ProfileIdSchema,
-    manifestVersion: z.number().int().positive(),
-    planDigest: FileHashSchema,
-    createdAt: Iso8601Schema,
-  }),
+/** 终止事件：每个记录**恰一条**，写入即封存（append-only 到此为止）。 */
+export const VerificationTerminatedEventSchema = z.strictObject({
+  type: z.literal("terminated"),
+  outcome: VerificationOutcomeSchema,
+  detail: z.string().min(1),
+  evidenceComplete: z.boolean(),
+  at: Iso8601Schema,
+});
+
+/** 全量事件联合（读取侧逐行校验用）。 */
+export const VerificationEventSchema = z.union([
+  VerificationMetaEventSchema,
+  VerificationBodyEventSchema,
+  VerificationTerminatedEventSchema,
+]);
+
+/**
+ * 准备记录事件（`verification-environments/<preparationId>.jsonl`，与验证记录分开）。
+ * 同样按 meta / 正文 / 唯一终止拆分。
+ */
+export const PreparationMetaEventSchema = z.strictObject({
+  type: z.literal("meta"),
+  schemaVersion: z.literal(VERIFICATION_RECORD_VERSION),
+  preparationId: z.string().min(1),
+  epoch: z.string().min(1),
+  operationId: z.string().min(1),
+  profileId: ProfileIdSchema,
+  manifestVersion: z.number().int().positive(),
+  planDigest: FileHashSchema,
+  createdAt: Iso8601Schema,
+});
+
+export const PreparationBodyEventSchema = z.discriminatedUnion("type", [
   z.strictObject({
     type: z.literal("prepared"),
     imageDigest: ImageDigestSchema,
@@ -454,11 +477,18 @@ export const PreparationEventSchema = z.discriminatedUnion("type", [
     reason: z.string().min(1),
     at: Iso8601Schema,
   }),
-  z.strictObject({
-    type: z.literal("terminated"),
-    outcome: z.enum(["prepared", "failed"]),
-    at: Iso8601Schema,
-  }),
+]);
+
+export const PreparationTerminatedEventSchema = z.strictObject({
+  type: z.literal("terminated"),
+  outcome: z.enum(["prepared", "failed"]),
+  at: Iso8601Schema,
+});
+
+export const PreparationEventSchema = z.union([
+  PreparationMetaEventSchema,
+  PreparationBodyEventSchema,
+  PreparationTerminatedEventSchema,
 ]);
 
 /**
