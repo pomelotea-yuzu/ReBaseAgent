@@ -1,12 +1,12 @@
 # R3 逐场景证据索引
 
-状态：仅设计提案。以下全部待验证；文档/strict 校验通过不代表功能、隔离或实机验收通过。
+状态：阶段 1 进行中——P01 的 1.1 缺失态子项已实测记录（backend-verification.md §1.1）；除该条外以下全部待验证；文档/strict 校验通过不代表功能、隔离或实机验收通过。
 
 ## 新增场景
 
 | 编号 | capability / 场景 | 对应任务 | 状态与证据 |
 |---|---|---|---|
-| P01 | project-verification / 后端缺失或未验收 | 1.1、3.2、6.5 | 待验证；未执行 |
+| P01 | project-verification / 后端缺失或未验收 | 1.1、3.2、6.5 | 1.1 缺失态已实测（2026-10-24，backend-verification.md §1.1：PATH/目录/服务/注册表/WSL 发行版/named pipe 六路，0 docker pipe）；3.2/6.5 待执行 |
 | P02 | project-verification / 拒绝远程或漂移环境 | 1.1、2.1、3.2 | 待验证；未执行 |
 | P03 | project-verification / 只读计划不准备环境 | 3.1、4.3、6.5 | 待验证；未执行 |
 | P04 | project-verification / 授权准备成功或失败 | 1.3、3.1、6.5 | 待验证；未执行 |
