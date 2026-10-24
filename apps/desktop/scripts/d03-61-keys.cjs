@@ -18,7 +18,14 @@
 "use strict";
 const { spawnSync } = require("node:child_process");
 const { createHash } = require("node:crypto");
-const { existsSync, readFileSync, readdirSync, statSync, mkdirSync, writeFileSync } = require("node:fs");
+const {
+  existsSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+  mkdirSync,
+  writeFileSync,
+} = require("node:fs");
 const { join } = require("node:path");
 const H = require("./lib/u4-smoke-harness.cjs");
 const U = require("./lib/u2-cdp-util.cjs");
@@ -53,7 +60,9 @@ const checks = [];
 const dump = { tag: TAG, focusTrail: [], clicks: [], viewport: null, nav: [] };
 function check(name, ok, detail) {
   checks.push({ name, ok: ok === true, detail: detail ?? null });
-  console.log(`${ok === true ? "✓" : "✗"} ${name}${ok === true ? "" : ` — ${JSON.stringify(detail)}`}`);
+  console.log(
+    `${ok === true ? "✓" : "✗"} ${name}${ok === true ? "" : ` — ${JSON.stringify(detail)}`}`,
+  );
   return ok === true;
 }
 function must(name, ok, detail) {
@@ -67,7 +76,11 @@ function finish() {
   const failed = checks.filter((c) => !c.ok);
   writeFileSync(
     join(OUT, `d03-${TAG}-measurements.json`),
-    JSON.stringify({ tag: TAG, generatedAt: new Date().toISOString(), checks, failed: failed.length, dump }, null, 2)
+    JSON.stringify(
+      { tag: TAG, generatedAt: new Date().toISOString(), checks, failed: failed.length, dump },
+      null,
+      2,
+    ),
   );
   console.log(`检查 ${checks.length} 条，失败 ${failed.length} 条`);
   clearTimeout(watchdog);
@@ -94,10 +107,14 @@ function fingerprint() {
   const off = [];
   for (const r of files) {
     if (!WRITE_WHITELIST.some((re) => re.test(r))) off.push(r);
-    entries[r] = createHash("sha256").update(readFileSync(join(DATA, r))).digest("hex");
+    entries[r] = createHash("sha256")
+      .update(readFileSync(join(DATA, r)))
+      .digest("hex");
   }
   const settings = join(DATA, "settings.json");
-  entries["settings.json"] = existsSync(settings) ? createHash("sha256").update(readFileSync(settings)).digest("hex") : null;
+  entries["settings.json"] = existsSync(settings)
+    ? createHash("sha256").update(readFileSync(settings)).digest("hex")
+    : null;
   return { entries, off };
 }
 
@@ -141,7 +158,7 @@ const fnv1a = (text) => {
   let h2 = 0xcbf29ce4;
   for (let i = 0; i < text.length; i++) {
     h1 = Math.imul(h1 ^ text.charCodeAt(i), 16777619) >>> 0;
-    h2 = Math.imul((h2 + text.charCodeAt(i) * (i + 1)) >>> 0 ^ (h2 >>> 7), 2654435761) >>> 0;
+    h2 = Math.imul(((h2 + text.charCodeAt(i) * (i + 1)) >>> 0) ^ (h2 >>> 7), 2654435761) >>> 0;
   }
   return `${h1.toString(16)}${h2.toString(16)}`;
 };
@@ -188,12 +205,13 @@ async function installRecorders() {
            window.__k.clicks.push({ trusted: e.isTrusted, tag: t ? t.tagName.toLowerCase() : null, aria: t && t.getAttribute ? t.getAttribute("aria-label") : null, text: t ? (t.textContent || "").replace(/\\s+/g, " ").trim().slice(0, 26) : null });
        }, true);
        return true;
-     })()`
+     })()`,
   );
 }
-const readTrail = () => J(`(() => JSON.stringify(window.__k ? window.__k.focus : []))()`);
-const readClicks = () => J(`(() => JSON.stringify(window.__k ? window.__k.clicks : []))()`);
-const clearTrail = () => E(`(() => { window.__k.focus = []; window.__k.clicks = []; return true; })()`);
+const readTrail = () => J("(() => JSON.stringify(window.__k ? window.__k.focus : []))()");
+const readClicks = () => J("(() => JSON.stringify(window.__k ? window.__k.clicks : []))()");
+const clearTrail = () =>
+  E("(() => { window.__k.focus = []; window.__k.clicks = []; return true; })()");
 
 async function resizeToCss(target, outerHeight) {
   const lo = Math.max(320, Math.round(target * 0.6));
@@ -205,11 +223,16 @@ async function resizeToCss(target, outerHeight) {
     const a = await E("(() => document.documentElement.clientWidth)()");
     await H.sleep(250);
     const b = await E("(() => document.documentElement.clientWidth)()");
-    if (a === b && typeof a === "number" && Math.abs(a - target) <= 2) return { css: a, outer: w, settled: true };
+    if (a === b && typeof a === "number" && Math.abs(a - target) <= 2)
+      return { css: a, outer: w, settled: true };
     if (typeof b !== "number" || b <= 0) break;
     w = Math.max(lo, Math.min(hi, Math.round(target * (w / b))));
   }
-  return { css: await E("(() => document.documentElement.clientWidth)()"), outer: w, settled: false };
+  return {
+    css: await E("(() => document.documentElement.clientWidth)()"),
+    outer: w,
+    settled: false,
+  };
 }
 
 async function press(k, code, vk, text) {
@@ -228,7 +251,7 @@ const focusButtonByAria = (aria) =>
        if (!b) return JSON.stringify({ ok: false });
        b.focus();
        return JSON.stringify({ ok: true, focused: document.activeElement === b });
-     })()`
+     })()`,
   );
 
 function mainPid() {
@@ -249,11 +272,27 @@ function raise() {
   const outFile = join(OUT, `raise-${Date.now()}.txt`);
   const r = spawnSync(
     "powershell.exe",
-    ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", PS_RAISE, "-ProcId", String(pid), "-OutFile", outFile],
-    { encoding: "utf8", windowsHide: true, timeout: 60000 }
+    [
+      "-NoProfile",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-File",
+      PS_RAISE,
+      "-ProcId",
+      String(pid),
+      "-OutFile",
+      outFile,
+    ],
+    { encoding: "utf8", windowsHide: true, timeout: 60000 },
   );
   const text = existsSync(outFile) ? readFileSync(outFile, "utf8").replace(/^﻿/, "") : "";
-  return { pid, status: r.status, error: r.error ? String(r.error).slice(0, 160) : null, raised: /RESULT=raised same=True/.test(text), tail: text.split(/\r?\n/).slice(-3) };
+  return {
+    pid,
+    status: r.status,
+    error: r.error ? String(r.error).slice(0, 160) : null,
+    raised: /RESULT=raised same=True/.test(text),
+    tail: text.split(/\r?\n/).slice(-3),
+  };
 }
 
 async function main() {
@@ -271,7 +310,12 @@ async function main() {
   await call("Emulation.setFocusEmulationEnabled", { enabled: true });
   dump.focusEmulation = true;
 
-  const alive0 = await poll(() => E("(() => (document.getElementById('root')?.innerHTML.length ?? 0))()"), (v) => typeof v === "number" && v > 1000, 90000, 800);
+  const alive0 = await poll(
+    () => E("(() => (document.getElementById('root')?.innerHTML.length ?? 0))()"),
+    (v) => typeof v === "number" && v > 1000,
+    90000,
+    800,
+  );
   must(`${TIER}：CDP 已连且页面非空白`, alive0.ok, alive0.value);
   await call("Page.reload", { ignoreCache: false });
   const alive = await poll(
@@ -287,7 +331,7 @@ async function main() {
     },
     (v) => v.ready === true,
     90000,
-    800
+    800,
   );
   must(`${TIER}：reload 后应用重新就绪`, alive.ok, alive.value);
 
@@ -298,23 +342,29 @@ async function main() {
   await call("Page.bringToFront").catch(() => {});
   await H.sleep(400);
   const geo = await J(
-    `(() => JSON.stringify({ clientWidth: document.documentElement.clientWidth, dpr: window.devicePixelRatio, overflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth, visibility: document.visibilityState }))()`
+    "(() => JSON.stringify({ clientWidth: document.documentElement.clientWidth, dpr: window.devicePixelRatio, overflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth, visibility: document.visibilityState }))()",
   );
   dump.viewport = { ...geo, resized };
   check(
     `${TIER}：视口收敛到宽档 1207（±2px，不骑断点线）`,
     Math.abs(geo.clientWidth - 1207) <= 2 && ![959, 960].includes(geo.clientWidth),
-    { clientWidth: geo.clientWidth, resized }
+    { clientWidth: geo.clientWidth, resized },
   );
   // 键盘通道真正的前提是**前台归属**，不是 visibilityState 的字面值：
   // 实测抬前台后 CDP 键的默认动作（移焦点/激活）恢复生效，而 visibilityState 仍报 hidden。
   const r0 = raise();
   dump.raise = r0;
-  must(`${TIER}：抬前台通道可用（d03-raise.ps1 回显 RESULT=raised same=True）`, r0.raised === true, r0);
-  const pageRead = await J(`(() => JSON.stringify({ visibility: document.visibilityState, hasFocus: document.hasFocus() }))()`);
+  must(
+    `${TIER}：抬前台通道可用（d03-raise.ps1 回显 RESULT=raised same=True）`,
+    r0.raised === true,
+    r0,
+  );
+  const pageRead = await J(
+    "(() => JSON.stringify({ visibility: document.visibilityState, hasFocus: document.hasFocus() }))()",
+  );
   note(
     `${TIER}：抬前台后的页面读数 visibilityState=${pageRead.visibility} / hasFocus=${pageRead.hasFocus}（键击判据以"激活真的发生"为准，不以该字面值为准）`,
-    pageRead
+    pageRead,
   );
 
   await installRecorders();
@@ -332,11 +382,18 @@ async function main() {
 
   const fp0 = fingerprint();
   const x0 = await snapshot();
-  must(`${TIER}：基线无在飞执行且列表可读`, x0.forking === "idle" && x0.creatingRun === "idle" && x0.modelAbInFlight === false && x0.runs > 0, {
-    forking: x0.forking,
-    creatingRun: x0.creatingRun,
-    runs: x0.runs,
-  });
+  must(
+    `${TIER}：基线无在飞执行且列表可读`,
+    x0.forking === "idle" &&
+      x0.creatingRun === "idle" &&
+      x0.modelAbInFlight === false &&
+      x0.runs > 0,
+    {
+      forking: x0.forking,
+      creatingRun: x0.creatingRun,
+      runs: x0.runs,
+    },
+  );
 
   // 1) 键盘进详情：Tab 步进 + Enter 激活运行行（真点击由键击产生）
   const rowReady = await poll(
@@ -349,10 +406,10 @@ async function main() {
            btn.scrollIntoView({ block: "center" });
            btn.focus();
            return JSON.stringify({ ok: true, focused: document.activeElement === btn, tabIndex: btn.tabIndex });
-         })()`
+         })()`,
       ),
     (v) => v.ok === true,
-    20000
+    20000,
   );
   must(`${TIER}：运行行可获得焦点（focusable，键击目标就位）`, rowReady.ok, rowReady.value);
   await clearTrail();
@@ -360,17 +417,21 @@ async function main() {
   dump.raises = [r0, raise()];
   await cdpEnter();
 
-  const activated = await poll(snapshot, (v) => v.selectedRunId === CHILD && v.detailId === CHILD, 20000);
+  const activated = await poll(
+    snapshot,
+    (v) => v.selectedRunId === CHILD && v.detailId === CHILD,
+    20000,
+  );
   const clicks1 = await readClicks();
   check(
     `${TIER}：Enter 在聚焦的运行行上产生受信激活并读出详情`,
     activated.ok && clicks1.some((c) => c.trusted === true),
-    { snap: activated.value, clicks: clicks1.slice(0, 4) }
+    { snap: activated.value, clicks: clicks1.slice(0, 4) },
   );
   check(
     `${TIER}：键击激活的运行行带可辨认身份（记录 aria/text 供人工核对）`,
     clicks1.length > 0,
-    clicks1.slice(0, 3)
+    clicks1.slice(0, 3),
   );
 
   // 2) Tab 步进轨迹：从当前焦点起连续 Tab，检查落点全部在应用内且持续游走
@@ -387,59 +448,103 @@ async function main() {
   check(
     `${TIER}：Tab 步进产生轨迹（≥6 个不同落点，全部仍在文档内）`,
     trail.length >= 6 && distinct.size >= 6 && inApp === trail.length,
-    { trailLen: trail.length, distinct: distinct.size, inApp, tail: trail.slice(-4) }
+    { trailLen: trail.length, distinct: distinct.size, inApp, tail: trail.slice(-4) },
   );
-  const named = trail.filter((t) => (t.aria ?? "").length > 0 || (t.role ?? "").length > 0 || (t.id ?? "").length > 0);
+  const named = trail.filter(
+    (t) => (t.aria ?? "").length > 0 || (t.role ?? "").length > 0 || (t.id ?? "").length > 0,
+  );
   check(
     `${TIER}：Tab 轨迹上的落点带可播报语义（aria-label / role / id，屏读可用）`,
     named.length >= 3 && named.length / trail.length >= 0.3,
-    { named: named.length, of: trail.length, sample: named.slice(0, 5) }
+    { named: named.length, of: trail.length, sample: named.slice(0, 5) },
   );
   dump.focusTrail = trail;
 
   // 3) 键盘走比较链：Enter 激活「与父运行对比」→ 再 Enter 激活「返回来源」
-  const cmpFocus = await poll(() => focusButtonByAria("与父运行对比（父左子右）"), (v) => v.ok === true, 15000);
+  const cmpFocus = await poll(
+    () => focusButtonByAria("与父运行对比（父左子右）"),
+    (v) => v.ok === true,
+    15000,
+  );
   must(`${TIER}：「与父运行对比」可被聚焦（键盘目标就位）`, cmpFocus.ok, cmpFocus.value);
   await clearTrail();
   dump.raises.push(raise());
   await cdpEnter();
-  const inCompare = await poll(snapshot, (v) => v.view === "compare" && v.comparePair?.right === CHILD, 25000);
+  const inCompare = await poll(
+    snapshot,
+    (v) => v.view === "compare" && v.comparePair?.right === CHILD,
+    25000,
+  );
   const clicks2 = await readClicks();
   // 本通道的激活证据是"受信 click + 紧随其后的 store 迁移"；
   // ⚠️ 不用 detail===0：那是**人手键盘**的特征（人工批用它区分鼠标），
   //    CDP 合成的 Enter 落进 Blink 后 detail 记为 1，写这条会永远红（本轮实测）。
   check(
     `${TIER}：Enter 激活「与父运行对比」进入比较（键击即导航，无需鼠标）`,
-    inCompare.ok && clicks2.some((c) => c.trusted === true && (c.aria ?? "").startsWith("与父运行对比")),
-    { view: inCompare.value.view, pair: inCompare.value.comparePair, clicks: clicks2.slice(0, 4) }
+    inCompare.ok &&
+      clicks2.some((c) => c.trusted === true && (c.aria ?? "").startsWith("与父运行对比")),
+    { view: inCompare.value.view, pair: inCompare.value.comparePair, clicks: clicks2.slice(0, 4) },
   );
 
-  const backFocus = await poll(() => focusByText("返回来源"), (v) => v.ok === true, 15000);
+  const backFocus = await poll(
+    () => focusByText("返回来源"),
+    (v) => v.ok === true,
+    15000,
+  );
   must(`${TIER}：「返回来源」可被聚焦`, backFocus.ok, backFocus.value);
   dump.raises.push(raise());
   await cdpEnter();
-  const backOk = await poll(snapshot, (v) => v.view === "trace" && v.selectedRunId === CHILD, 25000);
-  check(`${TIER}：Enter 激活「返回来源」回到运行记录（键盘可完成整条往返）`, backOk.ok, backOk.value);
+  const backOk = await poll(
+    snapshot,
+    (v) => v.view === "trace" && v.selectedRunId === CHILD,
+    25000,
+  );
+  check(
+    `${TIER}：Enter 激活「返回来源」回到运行记录（键盘可完成整条往返）`,
+    backOk.ok,
+    backOk.value,
+  );
 
   // 4) 只读性复核
-  const nav = await J(`(() => JSON.stringify(window.__nav || []))()`);
+  const nav = await J("(() => JSON.stringify(window.__nav || []))()");
   dump.nav = nav;
   const viewSeq = nav.filter((x) => x.e === "view").map((x) => `${x.from}->${x.to}`);
   check(
     `${TIER}：键盘链的 view 迁移恰为两次（进比较 + 回来源），无多余导航`,
     viewSeq.length === 2 && viewSeq[0] === "trace->compare" && viewSeq[1] === "compare->trace",
-    { viewSeq, events: nav.map((x) => x.e) }
+    { viewSeq, events: nav.map((x) => x.e) },
   );
-  check(`${TIER}：键盘链没有执行哨兵（无 EXEC / SUBMISSION）`, nav.every((x) => x.e !== "EXEC" && x.e !== "SUBMISSION"), nav.filter((x) => x.e === "EXEC" || x.e === "SUBMISSION"));
+  check(
+    `${TIER}：键盘链没有执行哨兵（无 EXEC / SUBMISSION）`,
+    nav.every((x) => x.e !== "EXEC" && x.e !== "SUBMISSION"),
+    nav.filter((x) => x.e === "EXEC" || x.e === "SUBMISSION"),
+  );
   const x1 = await snapshot();
-  check(`${TIER}：执行登记面逐项不变（confirmations/draftSubmissions/operations/binding 摘要与基线全等）`, x1.execHash === x0.execHash, {
-    before: x0.execHash,
-    after: x1.execHash,
-    counts: [x0.confirmationCount, x1.confirmationCount, x0.submissionCount, x1.submissionCount, x0.operationCount, x1.operationCount],
-  });
+  check(
+    `${TIER}：执行登记面逐项不变（confirmations/draftSubmissions/operations/binding 摘要与基线全等）`,
+    x1.execHash === x0.execHash,
+    {
+      before: x0.execHash,
+      after: x1.execHash,
+      counts: [
+        x0.confirmationCount,
+        x1.confirmationCount,
+        x0.submissionCount,
+        x1.submissionCount,
+        x0.operationCount,
+        x1.operationCount,
+      ],
+    },
+  );
   const fp1 = fingerprint();
-  const diff = Object.keys(fp0.entries).filter((k) => fp1.entries[k] !== fp0.entries[k]).concat(Object.keys(fp1.entries).filter((k) => !(k in fp0.entries)));
-  check(`${TIER}：数据根逐文件指纹与基线逐字相同（键盘链零写入）`, diff.length === 0 && fp1.off.length === fp0.off.length, diff.slice(0, 6));
+  const diff = Object.keys(fp0.entries)
+    .filter((k) => fp1.entries[k] !== fp0.entries[k])
+    .concat(Object.keys(fp1.entries).filter((k) => !(k in fp0.entries)));
+  check(
+    `${TIER}：数据根逐文件指纹与基线逐字相同（键盘链零写入）`,
+    diff.length === 0 && fp1.off.length === fp0.off.length,
+    diff.slice(0, 6),
+  );
 
   await U.shot(call, SHOTS, `d03-${TAG}-final.png`).catch(() => note("截图失败（不影响判据）"));
   finish();
@@ -452,7 +557,7 @@ function focusByText(text) {
        if (!b) return JSON.stringify({ ok: false });
        b.focus();
        return JSON.stringify({ ok: true, focused: document.activeElement === b });
-     })()`
+     })()`,
   );
 }
 

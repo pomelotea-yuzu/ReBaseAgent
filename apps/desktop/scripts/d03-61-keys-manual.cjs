@@ -19,7 +19,14 @@
  */
 "use strict";
 const { createHash } = require("node:crypto");
-const { existsSync, readFileSync, readdirSync, statSync, mkdirSync, writeFileSync } = require("node:fs");
+const {
+  existsSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+  mkdirSync,
+  writeFileSync,
+} = require("node:fs");
 const { join } = require("node:path");
 const H = require("./lib/u4-smoke-harness.cjs");
 const U = require("./lib/u2-cdp-util.cjs");
@@ -38,10 +45,20 @@ const WRITE_WHITELIST = [
 ];
 
 const checks = [];
-const dump = { tag: "manual", rounds: [], trail: [], keys: [], clicks: [], nav: [], viewport: null };
+const dump = {
+  tag: "manual",
+  rounds: [],
+  trail: [],
+  keys: [],
+  clicks: [],
+  nav: [],
+  viewport: null,
+};
 function check(name, ok, detail) {
   checks.push({ name, ok: ok === true, detail: detail ?? null });
-  console.log(`${ok === true ? "✓" : "✗"} ${name}${ok === true ? "" : ` — ${JSON.stringify(detail)}`}`);
+  console.log(
+    `${ok === true ? "✓" : "✗"} ${name}${ok === true ? "" : ` — ${JSON.stringify(detail)}`}`,
+  );
   return ok === true;
 }
 function note(text, detail) {
@@ -51,7 +68,11 @@ function finish() {
   const failed = checks.filter((c) => !c.ok);
   writeFileSync(
     join(OUT, "d03-manual-measurements.json"),
-    JSON.stringify({ tag: "manual", generatedAt: new Date().toISOString(), checks, failed: failed.length, dump }, null, 2)
+    JSON.stringify(
+      { tag: "manual", generatedAt: new Date().toISOString(), checks, failed: failed.length, dump },
+      null,
+      2,
+    ),
   );
   console.log(`检查 ${checks.length} 条，失败 ${failed.length} 条`);
   clearTimeout(watchdog);
@@ -78,10 +99,14 @@ function fingerprint() {
   const off = [];
   for (const r of files) {
     if (!WRITE_WHITELIST.some((re) => re.test(r))) off.push(r);
-    entries[r] = createHash("sha256").update(readFileSync(join(DATA, r))).digest("hex");
+    entries[r] = createHash("sha256")
+      .update(readFileSync(join(DATA, r)))
+      .digest("hex");
   }
   const settings = join(DATA, "settings.json");
-  entries["settings.json"] = existsSync(settings) ? createHash("sha256").update(readFileSync(settings)).digest("hex") : null;
+  entries["settings.json"] = existsSync(settings)
+    ? createHash("sha256").update(readFileSync(settings)).digest("hex")
+    : null;
   return { entries, off };
 }
 
@@ -152,7 +177,7 @@ async function installRecorders() {
            });
        }, true);
        return true;
-     })()`
+     })()`,
   );
 }
 
@@ -173,9 +198,10 @@ const ACTIVE_DESC = `(() => {
   });
 })()`;
 
-const counts = () => J(`(() => JSON.stringify({ keys: window.__m.keys.length, clicks: window.__m.clicks.length }))()`);
-const readKeys = () => J(`(() => JSON.stringify(window.__m.keys))()`);
-const readClicks = () => J(`(() => JSON.stringify(window.__m.clicks))()`);
+const counts = () =>
+  J("(() => JSON.stringify({ keys: window.__m.keys.length, clicks: window.__m.clicks.length }))()");
+const readKeys = () => J("(() => JSON.stringify(window.__m.keys))()");
+const readClicks = () => J("(() => JSON.stringify(window.__m.clicks))()");
 
 /** setup：把焦点预放到指定控件（明确登记为非证据；本脚本从不发键） */
 const focusTabByLabel = (label) =>
@@ -185,7 +211,7 @@ const focusTabByLabel = (label) =>
        if (!t) return JSON.stringify({ ok: false, tabs: Array.from(document.querySelectorAll('[role="tab"]')).map(b => (b.textContent || "").trim()) });
        t.focus();
        return JSON.stringify({ ok: true, focused: document.activeElement === t, label: ${JSON.stringify(label)} });
-     })()`
+     })()`,
   );
 const focusByAria = (aria) =>
   J(
@@ -194,7 +220,7 @@ const focusByAria = (aria) =>
        if (!b) return JSON.stringify({ ok: false });
        b.focus();
        return JSON.stringify({ ok: true, focused: document.activeElement === b, aria: b.getAttribute("aria-label") });
-     })()`
+     })()`,
   );
 const focusByText = (text) =>
   J(
@@ -203,7 +229,7 @@ const focusByText = (text) =>
        if (!b) return JSON.stringify({ ok: false, sample: Array.from(document.querySelectorAll("button")).map(x => (x.textContent || "").trim().slice(0, 12)).filter(Boolean).slice(0, 18) });
        b.focus();
        return JSON.stringify({ ok: true, focused: document.activeElement === b, text: (b.textContent || "").replace(/\\s+/g, " ").trim().slice(0, 26) });
-     })()`
+     })()`,
   );
 
 /** setup：切工作区页签（click 属前置动作，不作键盘证据；聚焦不等于激活） */
@@ -214,7 +240,7 @@ const clickTabSetup = async (label) => {
        if (!t) return JSON.stringify({ ok: false, tabs: Array.from(document.querySelectorAll('[role="tab"]')).map(b => (b.textContent || "").trim()) });
        t.click();
        return JSON.stringify({ ok: true, label: ${JSON.stringify(label)} });
-     })()`
+     })()`,
   );
   await H.sleep(800);
   return r;
@@ -228,18 +254,25 @@ async function round(label, focusFn, timeoutMs = 75000) {
     check(`${label}：目标控件可被预聚焦（键盘目标就位）`, false, f);
     return null;
   }
-  console.log(`▶ ${label}：焦点已放在「${f.text || f.aria || f.label}」——请按一下 Enter（别碰鼠标）`);
+  console.log(
+    `▶ ${label}：焦点已放在「${f.text || f.aria || f.label}」——请按一下 Enter（别碰鼠标）`,
+  );
   const res = await poll(
     async () => {
       const c = await counts();
       const all = await readClicks();
       const fresh = all.slice(before.clicks).filter((x) => x.trusted === true);
       const kb = fresh.filter((x) => x.detail === 0);
-      return { c, fresh, kb, keys: (await readKeys()).slice(before.keys).filter((k) => k.trusted === true) };
+      return {
+        c,
+        fresh,
+        kb,
+        keys: (await readKeys()).slice(before.keys).filter((k) => k.trusted === true),
+      };
     },
     (v) => v.kb.length >= 1,
     timeoutMs,
-    250
+    250,
   );
   if (!res.ok) {
     check(`${label}：等到一次真键盘激活（受信 click 且 detail=0）`, false, {
@@ -262,7 +295,12 @@ async function main() {
   }
   call = await U.makeSession(page.webSocketDebuggerUrl);
   await call("Runtime.enable");
-  const alive = await poll(() => E("(() => (document.getElementById('root')?.innerHTML.length ?? 0))()"), (v) => typeof v === "number" && v > 1000, 60000, 500);
+  const alive = await poll(
+    () => E("(() => (document.getElementById('root')?.innerHTML.length ?? 0))()"),
+    (v) => typeof v === "number" && v > 1000,
+    60000,
+    500,
+  );
   if (!alive.ok) {
     console.error("页面未就绪");
     process.exit(2);
@@ -291,8 +329,11 @@ async function main() {
   const x0 = await snapshot();
   check(
     "基线：无在飞执行且列表可读",
-    x0.forking === "idle" && x0.creatingRun === "idle" && x0.modelAbInFlight === false && x0.runs > 0,
-    { forking: x0.forking, creatingRun: x0.creatingRun, runs: x0.runs }
+    x0.forking === "idle" &&
+      x0.creatingRun === "idle" &&
+      x0.modelAbInFlight === false &&
+      x0.runs > 0,
+    { forking: x0.forking, creatingRun: x0.creatingRun, runs: x0.runs },
   );
 
   // setup：确保选中夹具子 run（程序化点击只作前置，不进判据）
@@ -305,7 +346,7 @@ async function main() {
          btn.scrollIntoView({ block: "center" });
          btn.click();
          return JSON.stringify({ ok: true });
-       })()`
+       })()`,
     );
     await poll(snapshot, (v) => v.selectedRunId === CHILD, 20000);
     note("前置：已用程序化点击把阅读对象设成夹具子 run（不作为键盘证据）", prepared);
@@ -315,7 +356,9 @@ async function main() {
 
   console.log("");
   console.log("=== 轮到你（只按 Tab 和 Enter，全程别碰鼠标）===");
-  console.log("第 0 轮：先【Alt+Tab 或点窗口标题栏空白处】把 ReBaseAgent 切到前台，然后连按 Tab 10 次（每次约 0.3 秒）");
+  console.log(
+    "第 0 轮：先【Alt+Tab 或点窗口标题栏空白处】把 ReBaseAgent 切到前台，然后连按 Tab 10 次（每次约 0.3 秒）",
+  );
   console.log("");
 
   // 第 0 轮：Tab 步进轨迹（焦点轨迹靠轮询，不依赖 focus 事件）
@@ -334,24 +377,32 @@ async function main() {
     },
     (v) => v.trail >= 8 && v.keys >= 9,
     90000,
-    110
+    110,
   );
-  const tabRound = { trailLen: trail.length, keys: (await counts()).keys, elapsedMs: Date.now() - t0 };
+  const tabRound = {
+    trailLen: trail.length,
+    keys: (await counts()).keys,
+    elapsedMs: Date.now() - t0,
+  };
   dump.trail = trail;
   const inDoc = trail.filter((t) => t.inDoc === true);
   check(
     "可达性：真键盘 Tab 步进产生焦点轨迹（≥6 个不同落点且全部仍在文档内）",
     inDoc.length >= 6 && trail.length >= 6,
-    { trail: trail.length, inDoc: inDoc.length, head: trail.slice(0, 3), tail: trail.slice(-3) }
+    { trail: trail.length, inDoc: inDoc.length, head: trail.slice(0, 3), tail: trail.slice(-3) },
   );
-  const named = inDoc.filter((t) => (t.aria ?? "").length > 0 || (t.role ?? "").length > 0 || (t.id ?? "").length > 0);
+  const named = inDoc.filter(
+    (t) => (t.aria ?? "").length > 0 || (t.role ?? "").length > 0 || (t.id ?? "").length > 0,
+  );
   check(
     "可达性：Tab 轨迹落点带可播报语义（aria-label / role / id，屏读可用）",
     named.length >= 3 && named.length / Math.max(1, inDoc.length) >= 0.3,
-    { named: named.length, of: inDoc.length, sample: named.slice(0, 5) }
+    { named: named.length, of: inDoc.length, sample: named.slice(0, 5) },
   );
   const keys0 = (await readKeys()).filter((k) => k.trusted === true && k.key === "Tab");
-  check("真键盘：Tab 键击本身到达渲染进程（受信 keydown Tab ≥6）", keys0.length >= 6, { trustedTabs: keys0.length });
+  check("真键盘：Tab 键击本身到达渲染进程（受信 keydown Tab ≥6）", keys0.length >= 6, {
+    trustedTabs: keys0.length,
+  });
   note("第 0 轮读数", tabRound);
 
   // 第 1 轮：页签激活（只改阅读态）。前置先把页签放回「概览」，让「步骤」成为待激活目标
@@ -359,51 +410,87 @@ async function main() {
   const a1 = await round("第 1 轮 页签「步骤」", () => focusTabByLabel("步骤"));
   if (a1) {
     const after1 = await poll(snapshot, (v) => v.tab === "steps", 10000);
-    check("激活：真键盘 Enter 在页签上产生受信激活并切换阅读页签（tab=steps）", after1.ok, { activation: a1, tab: after1.value.tab });
+    check("激活：真键盘 Enter 在页签上产生受信激活并切换阅读页签（tab=steps）", after1.ok, {
+      activation: a1,
+      tab: after1.value.tab,
+    });
   }
 
   // 第 2 轮：进比较。「与父运行对比」只在**概览页**在场 ⇒ 必须先切回概览（聚焦不等于激活）
   note("前置：页签切回「概览」（与父运行对比按钮所在页）", await clickTabSetup("概览"));
   const a2 = await round("第 2 轮 与父运行对比", () => focusByAria("与父运行对比（父左子右）"));
   if (a2) {
-    const inCompare = await poll(snapshot, (v) => v.view === "compare" && v.comparePair?.right === CHILD && v.comparePair?.left === PARENT, 20000);
-    check("链：真键盘 Enter 激活「与父运行对比」进入比较（pair=父左/子右）", inCompare.ok, { activation: a2, snap: inCompare.value });
+    const inCompare = await poll(
+      snapshot,
+      (v) =>
+        v.view === "compare" && v.comparePair?.right === CHILD && v.comparePair?.left === PARENT,
+      20000,
+    );
+    check("链：真键盘 Enter 激活「与父运行对比」进入比较（pair=父左/子右）", inCompare.ok, {
+      activation: a2,
+      snap: inCompare.value,
+    });
   }
 
   // 第 3 轮：回来源
   await H.sleep(600);
   const a3 = await round("第 3 轮 返回来源", () => focusByAria("返回来源"));
   if (a3) {
-    const back = await poll(snapshot, (v) => v.view === "trace" && v.selectedRunId === CHILD, 20000);
-    check("链：真键盘 Enter 激活「返回来源」回到运行记录（整条只读往返键盘可完成）", back.ok, { activation: a3, snap: back.value });
+    const back = await poll(
+      snapshot,
+      (v) => v.view === "trace" && v.selectedRunId === CHILD,
+      20000,
+    );
+    check("链：真键盘 Enter 激活「返回来源」回到运行记录（整条只读往返键盘可完成）", back.ok, {
+      activation: a3,
+      snap: back.value,
+    });
   }
 
   // 只读性复核
   const keys = (await readKeys()).filter((k) => k.trusted === true);
-  const nav = await J(`(() => JSON.stringify(window.__mnav || []))()`);
+  const nav = await J("(() => JSON.stringify(window.__mnav || []))()");
   dump.keys = keys;
   dump.clicks = await readClicks();
   dump.nav = nav;
-  check("真键盘：全过程受信 keydown ≥12 次", keys.length >= 12, { keys: keys.length, tail: keys.slice(-6) });
+  check("真键盘：全过程受信 keydown ≥12 次", keys.length >= 12, {
+    keys: keys.length,
+    tail: keys.slice(-6),
+  });
   check(
     "无新导航：view 迁移恰为「进比较 + 回来源」两次，且无 EXEC/SUBMISSION 哨兵",
-    nav.filter((x) => x.e === "view").length === 2 && nav.filter((x) => x.e === "EXEC" || x.e === "SUBMISSION").length === 0,
-    { views: nav.filter((x) => x.e === "view").map((x) => `${x.from}->${x.to}`), events: nav.map((x) => x.e) }
+    nav.filter((x) => x.e === "view").length === 2 &&
+      nav.filter((x) => x.e === "EXEC" || x.e === "SUBMISSION").length === 0,
+    {
+      views: nav.filter((x) => x.e === "view").map((x) => `${x.from}->${x.to}`),
+      events: nav.map((x) => x.e),
+    },
   );
   const x1 = await snapshot();
-  check("无执行登记：confirmations/draftSubmissions/operations/binding 摘要与基线全等", x1.execHash === x0.execHash, {
-    before: x0.execHash,
-    after: x1.execHash,
-  });
+  check(
+    "无执行登记：confirmations/draftSubmissions/operations/binding 摘要与基线全等",
+    x1.execHash === x0.execHash,
+    {
+      before: x0.execHash,
+      after: x1.execHash,
+    },
+  );
   const fp1 = fingerprint();
   const diff = Object.keys(fp0.entries)
     .filter((k) => fp1.entries[k] !== fp0.entries[k])
     .concat(Object.keys(fp1.entries).filter((k) => !(k in fp0.entries)));
-  check("原数据不变：数据根逐文件指纹与基线逐字相同，白名单外条目数不变", diff.length === 0 && fp1.off.length === fp0.off.length, {
-    diff: diff.slice(0, 6),
-  });
+  check(
+    "原数据不变：数据根逐文件指纹与基线逐字相同，白名单外条目数不变",
+    diff.length === 0 && fp1.off.length === fp0.off.length,
+    {
+      diff: diff.slice(0, 6),
+    },
+  );
   const foreground = trail.filter((t) => t.vis === "visible" && t.hf === true).length;
-  check("投递前提：键击期间窗口出现过 visible + hasFocus=true", foreground >= 1, { foreground, of: trail.length });
+  check("投递前提：键击期间窗口出现过 visible + hasFocus=true", foreground >= 1, {
+    foreground,
+    of: trail.length,
+  });
 
   finish();
 }

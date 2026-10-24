@@ -23,6 +23,7 @@
   },
   "files": {
     "ignore": [
+      ".mcp.json",
       "**/dist/**",
       "**/node_modules/**",
       "**/.pnpm-store/**",

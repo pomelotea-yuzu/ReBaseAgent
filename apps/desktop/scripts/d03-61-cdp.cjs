@@ -60,10 +60,20 @@ const KNOWN_DEBRIS = [/^traces\/tmp-measure-[a-z0-9-]+\.tmp$/];
 // 台账
 // ---------------------------------------------------------------------------
 const checks = [];
-const dump = { tag: TAG, tier: TIER, fixture: { parent: PARENT, child: CHILD }, viewport: null, versions: null, nav: [], steps: {} };
+const dump = {
+  tag: TAG,
+  tier: TIER,
+  fixture: { parent: PARENT, child: CHILD },
+  viewport: null,
+  versions: null,
+  nav: [],
+  steps: {},
+};
 function check(name, ok, detail) {
   checks.push({ name, ok: ok === true, detail: detail ?? null });
-  console.log(`${ok === true ? "✓" : "✗"} ${name}${ok === true ? "" : ` — ${JSON.stringify(detail)}`}`);
+  console.log(
+    `${ok === true ? "✓" : "✗"} ${name}${ok === true ? "" : ` — ${JSON.stringify(detail)}`}`,
+  );
   return ok === true;
 }
 /** 前置性判据：红了就没必要往下走（后续判据全都依赖这个落点） */
@@ -78,7 +88,11 @@ function finish() {
   const failed = checks.filter((c) => !c.ok);
   writeFileSync(
     join(OUT, `d03-${TAG}-measurements.json`),
-    JSON.stringify({ tag: TAG, generatedAt: new Date().toISOString(), checks, failed: failed.length, dump }, null, 2)
+    JSON.stringify(
+      { tag: TAG, generatedAt: new Date().toISOString(), checks, failed: failed.length, dump },
+      null,
+      2,
+    ),
   );
   console.log(`检查 ${checks.length} 条，失败 ${failed.length} 条`);
   clearTimeout(watchdog);
@@ -119,8 +133,18 @@ const SEED2 = JSON.parse(readFileSync(join(H.REPO, ".workbuddy", "r22-72", "seed
 const CROSS = {
   sourceOfTruth1: "本脚本解析 .rebaseagent/traces/<id>.jsonl 的 agent.step span 行",
   sourceOfTruth2: ".workbuddy/r22-72/seed.json 的 finalStepId（7.2 夹具生成器写下）",
-  parent: { id: PARENT, stepsFromTrace: EXPECT.parent, last: EXPECT.parentLast, finalStepIdFromSeed: SEED2.root.finalStepId },
-  child: { id: CHILD, stepsFromTrace: EXPECT.child, last: EXPECT.childLast, finalStepIdFromSeed: SEED2.seedChild.finalStepId },
+  parent: {
+    id: PARENT,
+    stepsFromTrace: EXPECT.parent,
+    last: EXPECT.parentLast,
+    finalStepIdFromSeed: SEED2.root.finalStepId,
+  },
+  child: {
+    id: CHILD,
+    stepsFromTrace: EXPECT.child,
+    last: EXPECT.childLast,
+    finalStepIdFromSeed: SEED2.seedChild.finalStepId,
+  },
 };
 writeFileSync(join(OUT, "seed-cross-check.json"), JSON.stringify(CROSS, null, 2));
 
@@ -144,7 +168,9 @@ function fingerprint() {
   const offWhitelist = [];
   for (const r of files) {
     if (!WRITE_WHITELIST.some((re) => re.test(r))) offWhitelist.push(r);
-    entries[r] = createHash("sha256").update(readFileSync(join(DATA, r))).digest("hex");
+    entries[r] = createHash("sha256")
+      .update(readFileSync(join(DATA, r)))
+      .digest("hex");
   }
   const settings = join(DATA, "settings.json");
   entries["settings.json"] = existsSync(settings)
@@ -191,7 +217,8 @@ async function resizeToCss(target, outerHeight) {
     await E(`(() => { window.resizeTo(${w}, ${outerHeight}); return true; })()`);
     await H.sleep(700);
     const cw = await stableClientWidth();
-    if (typeof cw === "number" && Math.abs(cw - target) <= 2) return { css: cw, outer: w, settled: true };
+    if (typeof cw === "number" && Math.abs(cw - target) <= 2)
+      return { css: cw, outer: w, settled: true };
     if (typeof cw !== "number" || cw <= 0) break;
     w = Math.max(lo, Math.min(hi, Math.round(target * (w / cw))));
   }
@@ -267,7 +294,7 @@ const clickRunRow = (id) =>
        if (!btn) return JSON.stringify({ clicked: false });
        btn.click();
        return JSON.stringify({ clicked: true, row: (btn.textContent || "").replace(/\\s+/g, " ").trim().slice(0, 40) });
-     })()`
+     })()`,
   );
 
 const clickTab = (label) =>
@@ -278,7 +305,7 @@ const clickTab = (label) =>
        if (!t) return JSON.stringify({ clicked: false, tabs: tabs.map(b => (b.textContent || "").trim()) });
        t.click();
        return JSON.stringify({ clicked: true, selected: t.getAttribute("aria-selected") });
-     })()`
+     })()`,
   );
 
 const clickAria = (aria) =>
@@ -288,7 +315,7 @@ const clickAria = (aria) =>
        if (!b) return JSON.stringify({ clicked: false });
        b.click();
        return JSON.stringify({ clicked: true, disabled: b.disabled });
-     })()`
+     })()`,
   );
 
 const clickText = (text) =>
@@ -299,7 +326,7 @@ const clickText = (text) =>
        if (!b) return JSON.stringify({ clicked: false, sample: list.map(x => (x.textContent || "").trim().slice(0, 12)).filter(Boolean).slice(0, 20) });
        b.click();
        return JSON.stringify({ clicked: true });
-     })()`
+     })()`,
   );
 
 const clickSel = (sel) =>
@@ -309,7 +336,7 @@ const clickSel = (sel) =>
        if (!b) return JSON.stringify({ clicked: false });
        b.click();
        return JSON.stringify({ clicked: true });
-     })()`
+     })()`,
   );
 
 const scrollEl = (sel, top) =>
@@ -323,7 +350,7 @@ const scrollEl = (sel, top) =>
        //    让"滚动位被记住"这条判据打在真实处理函数上，而不是打在事件节流时序上。
        el.dispatchEvent(new Event("scroll", { bubbles: false }));
        return JSON.stringify({ ok: true, scrollTop: el.scrollTop, scrollHeight: el.scrollHeight, clientHeight: el.clientHeight });
-     })()`
+     })()`,
   );
 
 const readEl = (sel) =>
@@ -334,7 +361,7 @@ const readEl = (sel) =>
        const r = el.getBoundingClientRect();
        return JSON.stringify({ present: true, scrollTop: el.scrollTop, scrollHeight: el.scrollHeight,
          clientHeight: el.clientHeight, width: Math.round(r.width), x: Math.round(r.x) });
-     })()`
+     })()`,
   );
 
 const activeInfo = () =>
@@ -351,7 +378,7 @@ const activeInfo = () =>
          inMain: !!a.closest && !!a.closest("main"),
          focusable: !["BODY", "HTML"].includes(a.tagName),
        });
-     })()`
+     })()`,
   );
 
 const geometry = () =>
@@ -364,7 +391,7 @@ const geometry = () =>
          scrollWidth: de.scrollWidth, title: document.title, url: location.href.slice(0, 40),
          overflowX: de.scrollWidth - de.clientWidth,
        });
-     })()`
+     })()`,
   );
 
 const a11y = () =>
@@ -384,7 +411,7 @@ const a11y = () =>
          defaultNotes: q("[data-compare-file-default]").length,
          monaco: q(".monaco-editor").length,
        });
-     })()`
+     })()`,
   );
 
 const fileFacts = () =>
@@ -409,7 +436,7 @@ const fileFacts = () =>
          pressed: rows.filter(b => b.getAttribute("aria-pressed") === "true").map(b => (b.textContent || "").replace(/\\s+/g, " ").trim().slice(0, 40)),
          firstPath: rows.length ? (rows[0].textContent || "").replace(/\\s+/g, " ").trim().slice(0, 40) : null,
        });
-     })()`
+     })()`,
   );
 
 const setCheckpoint = (side, value) =>
@@ -423,7 +450,7 @@ const setCheckpoint = (side, value) =>
        setter.call(sel, ${JSON.stringify(value)});
        sel.dispatchEvent(new Event("change", { bubbles: true }));
        return JSON.stringify({ ok: true, value: sel.value });
-     })()`
+     })()`,
   );
 
 const monacoFacts = () =>
@@ -440,7 +467,7 @@ const monacoFacts = () =>
          monaco: view.querySelectorAll(".monaco-editor").length,
          textLen: lines.reduce((a, el) => a + (el.textContent || "").length, 0),
        });
-     })()`
+     })()`,
   );
 
 // ---------------------------------------------------------------------------
@@ -448,12 +475,18 @@ const monacoFacts = () =>
 // ---------------------------------------------------------------------------
 async function main() {
   const page = await U.cdpConnect(9612);
-  if (!page || !page.webSocketDebuggerUrl) throw new Error("拿不到 page target（dev 未起或端口不对）");
+  if (!page || !page.webSocketDebuggerUrl)
+    throw new Error("拿不到 page target（dev 未起或端口不对）");
   call = await U.makeSession(page.webSocketDebuggerUrl);
   await call("Runtime.enable");
   await call("Page.enable");
 
-  const alive = await poll(() => E("(() => (document.getElementById('root')?.innerHTML.length ?? 0))()"), (v) => typeof v === "number" && v > 1000, 60000, 500);
+  const alive = await poll(
+    () => E("(() => (document.getElementById('root')?.innerHTML.length ?? 0))()"),
+    (v) => typeof v === "number" && v > 1000,
+    60000,
+    500,
+  );
   must(`${TIER}：CDP 已连且页面非空白（#root 有内容）`, alive.ok, alive.value);
   // 🔴 先真 reload 清掉上一批留下的会话内存态（compareFileView 的显式检查点选择是 store 内存态，
   //    不复位就会把"上一批的显式选择"读成"本批的默认口径"——本轮首跑就是这么把 D02 读红的）
@@ -461,7 +494,9 @@ async function main() {
   const alive2 = await poll(
     async () => {
       try {
-        const rootLen = await E("(() => (document.getElementById('root')?.innerHTML.length ?? 0))()");
+        const rootLen = await E(
+          "(() => (document.getElementById('root')?.innerHTML.length ?? 0))()",
+        );
         if (!(typeof rootLen === "number" && rootLen > 1000)) return { ready: false, rootLen };
         const q = await Q("return JSON.stringify({ ok: true });");
         return { ready: q?.ok === true, rootLen };
@@ -471,12 +506,15 @@ async function main() {
     },
     (v) => v.ready === true,
     90000,
-    800
+    800,
   );
   must(`${TIER}：reload 后应用重新就绪（root 有内容且 store 可导入）`, alive2.ok, alive2.value);
 
   // 1) 真实改窗（映射表只是近似 ⇒ 判据只认实测 CSS 宽度回读）
-  const resized = await resizeToCss(CSS_TARGET, TAG === "narrow" ? 950 : TAG === "zoom200" ? 1000 : 880);
+  const resized = await resizeToCss(
+    CSS_TARGET,
+    TAG === "narrow" ? 950 : TAG === "zoom200" ? 1000 : 880,
+  );
   const geo = await geometry();
   dump.viewport = geo;
   if (TAG === "zoom200") {
@@ -485,28 +523,47 @@ async function main() {
     check(
       `${TIER}：真 zoom 生效（devicePixelRatio > 3.5）且视口可读`,
       geo.dpr > 3.5 && typeof geo.clientWidth === "number" && geo.clientWidth >= 500,
-      { dpr: geo.dpr, clientWidth: geo.clientWidth, outer: `${geo.outerWidth}x${geo.outerHeight}`, resized }
+      {
+        dpr: geo.dpr,
+        clientWidth: geo.clientWidth,
+        outer: `${geo.outerWidth}x${geo.outerHeight}`,
+        resized,
+      },
     );
   } else {
     must(
       `${TIER}：实测视口收敛到目标档（±2px 且不骑 959/960 断点线）`,
-      resized.settled === true && Math.abs(resized.css - CSS_TARGET) <= 2 && ![959, 960].includes(geo.clientWidth),
-      { resized, clientWidth: geo.clientWidth }
+      resized.settled === true &&
+        Math.abs(resized.css - CSS_TARGET) <= 2 &&
+        ![959, 960].includes(geo.clientWidth),
+      { resized, clientWidth: geo.clientWidth },
     );
   }
   check(`${TIER}：页面无横向溢出`, geo.overflowX <= 1, geo);
 
   const versions = {};
-  versions.electron = (geo ? await E("(() => (navigator.userAgent.match(/Electron\\/([\\d.]+)/)||[])[1]||null)()") : null);
+  versions.electron = geo
+    ? await E("(() => (navigator.userAgent.match(/Electron\\/([\\d.]+)/)||[])[1]||null)()")
+    : null;
   versions.dpr = geo.dpr;
-  versions.appVersion = JSON.parse(readFileSync(join(H.REPO, "apps/desktop/package.json"), "utf8")).version;
-  versions.mcpServerVersion = JSON.parse(readFileSync(join(H.REPO, "packages/mcp-server/package.json"), "utf8")).version;
-  versions.sdk = JSON.parse(readFileSync(join(H.REPO, "packages/mcp-server/package.json"), "utf8")).dependencies?.["@modelcontextprotocol/sdk"] ?? null;
+  versions.appVersion = JSON.parse(
+    readFileSync(join(H.REPO, "apps/desktop/package.json"), "utf8"),
+  ).version;
+  versions.mcpServerVersion = JSON.parse(
+    readFileSync(join(H.REPO, "packages/mcp-server/package.json"), "utf8"),
+  ).version;
+  versions.sdk =
+    JSON.parse(readFileSync(join(H.REPO, "packages/mcp-server/package.json"), "utf8"))
+      .dependencies?.["@modelcontextprotocol/sdk"] ?? null;
   versions.node = process.versions.node;
   versions.clientWidth = geo.clientWidth;
   versions.outer = `${geo.outerWidth}x${geo.outerHeight}`;
   dump.versions = versions;
-  check(`${TIER}：尺寸/版本已记录（Electron / app / SDK / dpr）`, Boolean(versions.electron && versions.appVersion), versions);
+  check(
+    `${TIER}：尺寸/版本已记录（Electron / app / SDK / dpr）`,
+    Boolean(versions.electron && versions.appVersion),
+    versions,
+  );
 
   // 2) 基线：数据根指纹 + 执行登记摘要 + 导航记录器
   const fp0 = fingerprint();
@@ -514,13 +571,26 @@ async function main() {
   check(
     `${TIER}：基线数据根条目只在零写入白名单内（白名单外只剩已知探针残留 traces/tmp-measure-*.tmp）`,
     offKnown.length === 0,
-    { fileCount: fp0.fileCount, offWhitelist: fp0.offWhitelist.slice(0, 8), 未知条目: offKnown.slice(0, 8) }
+    {
+      fileCount: fp0.fileCount,
+      offWhitelist: fp0.offWhitelist.slice(0, 8),
+      未知条目: offKnown.slice(0, 8),
+    },
   );
   const x0 = await snapshot();
   must(
     `${TIER}：基线无在飞执行且列表可读（forking/creatingRun=idle、modelAbInFlight=false）`,
-    x0.forking === "idle" && x0.creatingRun === "idle" && x0.modelAbInFlight === false && x0.runs > 0,
-    { forking: x0.forking, creatingRun: x0.creatingRun, modelAbInFlight: x0.modelAbInFlight, runs: x0.runs, failed: x0.failed }
+    x0.forking === "idle" &&
+      x0.creatingRun === "idle" &&
+      x0.modelAbInFlight === false &&
+      x0.runs > 0,
+    {
+      forking: x0.forking,
+      creatingRun: x0.creatingRun,
+      modelAbInFlight: x0.modelAbInFlight,
+      runs: x0.runs,
+      failed: x0.failed,
+    },
   );
   await Q(`
     window.__d03nav = [];
@@ -556,19 +626,29 @@ async function main() {
          if (!t) return JSON.stringify({ clicked: false });
          t.click();
          return JSON.stringify({ clicked: true, kind: t.id || "globalbar-运行记录" });
-       })()`
+       })()`,
     );
     openTries.push(opened);
     await H.sleep(700);
     clickedChild = await clickRunRow(CHILD);
   }
-  if (openTries.length > 0) note(`${TIER}：运行列表初始收起，经常驻导航入口打开后再点（真实用户路径）`, openTries);
-  const landed = await poll(snapshot, (v) => v.selectedRunId === CHILD && v.detailId === CHILD && v.loadingDetail === false, 25000, 200);
-  must(`${TIER}：列表→详情真点击后选中并读出详情（view=trace）`, landed.ok && landed.value.view === "trace", {
-    click: clickedChild,
-    openTries,
-    snap: landed.value,
-  });
+  if (openTries.length > 0)
+    note(`${TIER}：运行列表初始收起，经常驻导航入口打开后再点（真实用户路径）`, openTries);
+  const landed = await poll(
+    snapshot,
+    (v) => v.selectedRunId === CHILD && v.detailId === CHILD && v.loadingDetail === false,
+    25000,
+    200,
+  );
+  must(
+    `${TIER}：列表→详情真点击后选中并读出详情（view=trace）`,
+    landed.ok && landed.value.view === "trace",
+    {
+      click: clickedChild,
+      openTries,
+      snap: landed.value,
+    },
+  );
 
   // 4) 步骤页签 + 阅读位置
   const toSteps = await clickTab("步骤");
@@ -586,7 +666,7 @@ async function main() {
          const target = rows[rows.length - 1];
          target.click();
          return JSON.stringify({ clicked: true, text: (target.textContent || "").replace(/\\s+/g, " ").trim().slice(0, 30) });
-       })()`
+       })()`,
     );
   let pickStep = await stepRowClick();
   const openStepTries = [];
@@ -596,17 +676,31 @@ async function main() {
     await H.sleep(600);
     pickStep = await stepRowClick();
   }
-  if (openStepTries.length > 0) note(`${TIER}：步骤目录初始收起，经「重新打开步骤目录」入口打开后再点`, openStepTries);
-  const stepSpanSnap = await poll(snapshot, (v) => typeof v.selectedSpanId === "string" && EXPECT.child.includes(v.selectedSpanId), 12000);
+  if (openStepTries.length > 0)
+    note(`${TIER}：步骤目录初始收起，经「重新打开步骤目录」入口打开后再点`, openStepTries);
+  const stepSpanSnap = await poll(
+    snapshot,
+    (v) => typeof v.selectedSpanId === "string" && EXPECT.child.includes(v.selectedSpanId),
+    12000,
+  );
   check(
     `${TIER}：步骤目录里真点击后选中的是该 run 自有步骤`,
     pickStep.clicked === true && stepSpanSnap.ok && stepSpanSnap.value.detailId === CHILD,
-    { pickStep, picked: stepSpanSnap.value.selectedSpanId, ownSteps: EXPECT.child, detailId: stepSpanSnap.value.detailId }
+    {
+      pickStep,
+      picked: stepSpanSnap.value.selectedSpanId,
+      ownSteps: EXPECT.child,
+      detailId: stepSpanSnap.value.detailId,
+    },
   );
 
   // 4b) 找一个正文确实超高的 span（不超高就没有"位置"可复原，判据会空转）
   let chosenSpan = stepSpanSnap.value.selectedSpanId;
-  let panel = await poll(() => readEl(DETAIL_SEL), (v) => v.present === true && v.scrollHeight > v.clientHeight + 40, 4000);
+  let panel = await poll(
+    () => readEl(DETAIL_SEL),
+    (v) => v.present === true && v.scrollHeight > v.clientHeight + 40,
+    4000,
+  );
   if (!panel.ok) {
     const tried = [];
     for (let i = 0; i < 10 && !panel.ok; i++) {
@@ -619,12 +713,24 @@ async function main() {
            const next = rows[(idx + 1 + ${i}) % rows.length];
            next.click();
            return JSON.stringify({ ok: true, text: (next.textContent || "").replace(/\\s+/g, " ").trim().slice(0, 24) });
-         })()`
+         })()`,
       );
       if (!moved.ok) break;
-      const s2 = await poll(snapshot, (v) => typeof v.selectedSpanId === "string" && v.loadingDetail === false, 8000);
-      panel = await poll(() => readEl(DETAIL_SEL), (v) => v.present === true && v.scrollHeight > v.clientHeight + 40, 3500);
-      tried.push({ span: s2.value.selectedSpanId, sh: panel.value.scrollHeight, ch: panel.value.clientHeight });
+      const s2 = await poll(
+        snapshot,
+        (v) => typeof v.selectedSpanId === "string" && v.loadingDetail === false,
+        8000,
+      );
+      panel = await poll(
+        () => readEl(DETAIL_SEL),
+        (v) => v.present === true && v.scrollHeight > v.clientHeight + 40,
+        3500,
+      );
+      tried.push({
+        span: s2.value.selectedSpanId,
+        sh: panel.value.scrollHeight,
+        ch: panel.value.clientHeight,
+      });
       if (panel.ok) chosenSpan = s2.value.selectedSpanId;
     }
     dump.steps.triedForOverflow = tried;
@@ -640,15 +746,18 @@ async function main() {
     async () => {
       const a = await readEl(DETAIL_SEL);
       const b = await readEl(DETAIL_SEL);
-      return a.present && b.present && a.scrollHeight === b.scrollHeight && a.clientHeight === b.clientHeight
+      return a.present &&
+        b.present &&
+        a.scrollHeight === b.scrollHeight &&
+        a.clientHeight === b.clientHeight
         ? { ok: true, value: b }
         : { ok: false, value: b };
     },
     (v) => v.ok === true,
     12000,
-    400
+    400,
   );
-  const sized = stablePanel.value && stablePanel.value.scrollHeight ? stablePanel.value : panel.value;
+  const sized = stablePanel.value?.scrollHeight ? stablePanel.value : panel.value;
   const scrollTarget = Math.min(900, Math.max(80, sized.scrollHeight - sized.clientHeight - 60));
   const didScroll = await scrollEl(DETAIL_SEL, scrollTarget);
   // store 与 DOM 必须**同时刻**对齐（期间任何一次重排都可能把位置刷成别的值）
@@ -656,16 +765,23 @@ async function main() {
     async () => {
       const dom = await readEl(DETAIL_SEL);
       const st = await snapshot();
-      return { dom, store: st.overviewScrollTop, aligned: dom.present && st.overviewScrollTop > 0 && Math.abs(dom.scrollTop - st.overviewScrollTop) <= 2 };
+      return {
+        dom,
+        store: st.overviewScrollTop,
+        aligned:
+          dom.present &&
+          st.overviewScrollTop > 0 &&
+          Math.abs(dom.scrollTop - st.overviewScrollTop) <= 2,
+      };
     },
     (v) => v.aligned === true,
     12000,
-    250
+    250,
   );
   check(
-    `${TIER}：正文滚动位被记住（DOM scrollTop=${recorded.value && recorded.value.dom.scrollTop} 与 store readingByRun 同值且非 0）`,
+    `${TIER}：正文滚动位被记住（DOM scrollTop=${recorded.value?.dom.scrollTop} 与 store readingByRun 同值且非 0）`,
     didScroll.ok === true && recorded.ok,
-    { dom: didScroll, atRecord: recorded.value, sized }
+    { dom: didScroll, atRecord: recorded.value, sized },
   );
   const recordedStoreTop = recorded.value ? recorded.value.store : null;
   dump.steps.scrollDetail = { dom: didScroll, store: recordedStoreTop, sized };
@@ -679,13 +795,20 @@ async function main() {
       async () => {
         const dom = await readEl(TREE_SEL);
         const st = await snapshot();
-        return { dom, store: st.stepsScrollTop, aligned: st.stepsScrollTop > 0 && Math.abs(dom.scrollTop - st.stepsScrollTop) <= 2 };
+        return {
+          dom,
+          store: st.stepsScrollTop,
+          aligned: st.stepsScrollTop > 0 && Math.abs(dom.scrollTop - st.stepsScrollTop) <= 2,
+        };
       },
       (v) => v.aligned === true,
       12000,
-      250
+      250,
     );
-    check(`${TIER}：轨迹目录滚动位被记住（stepsScrollTop 同值）`, recTree.ok, { dom: didScrollTree, atRecord: recTree.value });
+    check(`${TIER}：轨迹目录滚动位被记住（stepsScrollTop 同值）`, recTree.ok, {
+      dom: didScrollTree,
+      atRecord: recTree.value,
+    });
     dump.steps.scrollTree = { dom: didScrollTree, store: recTree.value.store };
   } else {
     note(`${TIER}：轨迹目录未超高/不在场 ⇒ 滚动位判据只打正文`, tree);
@@ -699,24 +822,55 @@ async function main() {
 
   // 5) 详情 → 比较（概览页的「与父运行对比」）
   const toOverview = await clickTab("概览");
-  const overviewReady = await poll(() => readEl('[aria-label="运行概览"]'), (v) => v.present, 10000);
+  const overviewReady = await poll(
+    () => readEl('[aria-label="运行概览"]'),
+    (v) => v.present,
+    10000,
+  );
   const cmpBtn = await clickAria("与父运行对比（父左子右）");
-  const inCompare = await poll(snapshot, (v) => v.view === "compare" && v.comparePair && v.comparePair.left === PARENT && v.comparePair.right === CHILD, 25000);
-  must(`${TIER}：概览页「与父运行对比」真点击进入比较（pair=父左/子右）`, cmpBtn.clicked === true && inCompare.ok, {
-    toOverview,
-    overviewReady: overviewReady.value,
-    cmpBtn,
-    pair: inCompare.value.comparePair,
-  });
+  const inCompare = await poll(
+    snapshot,
+    (v) =>
+      v.view === "compare" &&
+      v.comparePair &&
+      v.comparePair.left === PARENT &&
+      v.comparePair.right === CHILD,
+    25000,
+  );
+  must(
+    `${TIER}：概览页「与父运行对比」真点击进入比较（pair=父左/子右）`,
+    cmpBtn.clicked === true && inCompare.ok,
+    {
+      toOverview,
+      overviewReady: overviewReady.value,
+      cmpBtn,
+      pair: inCompare.value.comparePair,
+    },
+  );
   const loc = inCompare.value.compareReturnLocation;
   check(
     `${TIER}：进入比较前记下来源位置（view=trace / run=子 / tab=overview / span=所选）`,
-    !!loc && loc.view === "trace" && loc.runId === CHILD && loc.tab === "overview" && loc.spanId === chosenSpan,
-    loc
+    !!loc &&
+      loc.view === "trace" &&
+      loc.runId === CHILD &&
+      loc.tab === "overview" &&
+      loc.spanId === chosenSpan,
+    loc,
   );
   dump.steps.returnLocation = loc;
-  const compareRead = await poll(() => Q(`return JSON.stringify({ notice: s.compareNotice ?? null, readKeys: s.compareRead ? Object.keys(s.compareRead).length : 0 });`), (v) => v.notice === null, 20000);
-  check(`${TIER}：详细比较读取落到无失败提示（compareNotice 为空）`, compareRead.ok, compareRead.value);
+  const compareRead = await poll(
+    () =>
+      Q(
+        "return JSON.stringify({ notice: s.compareNotice ?? null, readKeys: s.compareRead ? Object.keys(s.compareRead).length : 0 });",
+      ),
+    (v) => v.notice === null,
+    20000,
+  );
+  check(
+    `${TIER}：详细比较读取落到无失败提示（compareNotice 为空）`,
+    compareRead.ok,
+    compareRead.value,
+  );
 
   // 6) 比较 → 文件视图（D02：桌面默认检查点与旧 IPC 口径）
   //    默认标注只存在于「尚未显式化」的那一帧 ⇒ 先挂 MutationObserver 再点「文件」
@@ -739,15 +893,29 @@ async function main() {
        obs.observe(document.body, { childList: true, subtree: true });
        window.__d03defObs = obs;
        return true;
-     })()`
+     })()`,
   );
   const fileBtn = await clickAria("查看比较文件视图");
-  const viewUp = await poll(() => readEl("[data-compare-files-view]"), (v) => v.present, 20000);
-  must(`${TIER}：点「文件」进入比较文件视图（[data-compare-files-view] 在场）`, fileBtn.clicked === true && viewUp.ok, { fileBtn, view: viewUp.value });
+  const viewUp = await poll(
+    () => readEl("[data-compare-files-view]"),
+    (v) => v.present,
+    20000,
+  );
+  must(
+    `${TIER}：点「文件」进入比较文件视图（[data-compare-files-view] 在场）`,
+    fileBtn.clicked === true && viewUp.ok,
+    { fileBtn, view: viewUp.value },
+  );
 
-  const facts = await poll(fileFacts, (v) => v.sides.left.present && v.sides.right.present && v.pathRows > 0, 25000);
+  const facts = await poll(
+    fileFacts,
+    (v) => v.sides.left.present && v.sides.right.present && v.pathRows > 0,
+    25000,
+  );
   const fileStore = await poll(snapshot, (v) => !!v.compareFileView, 10000);
-  const defSeen = await J(`(() => { if (window.__d03defObs) window.__d03defObs.disconnect(); return JSON.stringify(window.__d03def || {}); })()`);
+  const defSeen = await J(
+    "(() => { if (window.__d03defObs) window.__d03defObs.disconnect(); return JSON.stringify(window.__d03def || {}); })()",
+  );
   dump.steps.defaultNoteObserved = defSeen;
   check(
     `${TIER}（D02）：用户未选步骤时两侧默认=各自最近自有完成步骤（父 ${EXPECT.parentLast} / 子 ${EXPECT.childLast}），select 与 store 同值`,
@@ -756,44 +924,66 @@ async function main() {
       facts.value.sides.right.value === EXPECT.childLast &&
       fileStore.value.compareFileView.leftStepSpanId === EXPECT.parentLast &&
       fileStore.value.compareFileView.rightStepSpanId === EXPECT.childLast,
-    { facts: facts.value.sides, store: fileStore.value.compareFileView, expect: { parentLast: EXPECT.parentLast, childLast: EXPECT.childLast } }
+    {
+      facts: facts.value.sides,
+      store: fileStore.value.compareFileView,
+      expect: { parentLast: EXPECT.parentLast, childLast: EXPECT.childLast },
+    },
   );
   check(
     `${TIER}（D02）：默认口径在界面上有明示（首帧 [data-compare-file-default] 标注或视图内静态说明，二者至少其一在场）`,
     (defSeen.left === true && defSeen.right === true) || defSeen.header === true,
-    defSeen
+    defSeen,
   );
   check(
     `${TIER}（D02）：检查点选项只给「初始 + 该 run 自有步骤」，不出现祖先步骤`,
     facts.ok &&
-      JSON.stringify(facts.value.sides.right.options) === JSON.stringify(["initial", ...EXPECT.child]) &&
-      JSON.stringify(facts.value.sides.left.options) === JSON.stringify(["initial", ...EXPECT.parent]),
-    { left: facts.value.sides.left.options, right: facts.value.sides.right.options, expect: EXPECT }
+      JSON.stringify(facts.value.sides.right.options) ===
+        JSON.stringify(["initial", ...EXPECT.child]) &&
+      JSON.stringify(facts.value.sides.left.options) ===
+        JSON.stringify(["initial", ...EXPECT.parent]),
+    {
+      left: facts.value.sides.left.options,
+      right: facts.value.sides.right.options,
+      expect: EXPECT,
+    },
   );
   check(
     `${TIER}（D02）：默认值与第二来源（7.2 seed.json）一致 ⇒ 非自证`,
-    CROSS.parent.finalStepIdFromSeed === CROSS.parent.last && CROSS.child.finalStepIdFromSeed === CROSS.child.last,
-    CROSS
+    CROSS.parent.finalStepIdFromSeed === CROSS.parent.last &&
+      CROSS.child.finalStepIdFromSeed === CROSS.child.last,
+    CROSS,
   );
 
   const omitEnv = await H.apiCall(call, "inspectWorkspace", { runId: CHILD });
-  const pickEnv = await H.apiCall(call, "inspectWorkspace", { runId: CHILD, stepSpanId: EXPECT.childLast });
+  const pickEnv = await H.apiCall(call, "inspectWorkspace", {
+    runId: CHILD,
+    stepSpanId: EXPECT.childLast,
+  });
   const omitData = omitEnv?.data ?? null;
   const pickData = pickEnv?.data ?? null;
   check(
     `${TIER}（D02）：旧 IPC 省略 selector=本 run 初始快照（stepSpanId=null、origin.kind=initial），信封过 zod 且 ok`,
     omitEnv?.ok === true && omitData?.stepSpanId === null && omitData?.origin?.kind === "initial",
-    { ok: omitEnv?.ok, code: omitEnv?.code ?? null, stepSpanId: omitData?.stepSpanId ?? null, origin: omitData?.origin ?? null }
+    {
+      ok: omitEnv?.ok,
+      code: omitEnv?.code ?? null,
+      stepSpanId: omitData?.stepSpanId ?? null,
+      origin: omitData?.origin ?? null,
+    },
   );
   check(
     `${TIER}（D02）：显式 selector 走桌面默认口径（s_16）且快照与初始不同 ⇒ MCP 的省略=初始规则没有改写桌面默认`,
-    pickEnv?.ok === true && pickData?.stepSpanId === EXPECT.childLast && !!pickData?.snapshotId && pickData.snapshotId !== omitData?.snapshotId,
+    pickEnv?.ok === true &&
+      pickData?.stepSpanId === EXPECT.childLast &&
+      !!pickData?.snapshotId &&
+      pickData.snapshotId !== omitData?.snapshotId,
     {
       omitSnapshot: omitData?.snapshotId ?? null,
       pickSnapshot: pickData?.snapshotId ?? null,
       pickStep: pickData?.stepSpanId ?? null,
       files: [Object.keys(omitData ?? {}).length, (pickData?.files ?? []).length],
-    }
+    },
   );
   const snaps = await H.apiCall(call, "compareWorkspaceSnapshots", {
     left: { runId: PARENT, stepSpanId: EXPECT.parentLast },
@@ -812,7 +1002,14 @@ async function main() {
       snaps?.data?.unionComplete === true &&
       !!leftSnap &&
       !!rightSnap,
-    { ok: snaps?.ok, left: snaps?.data?.left?.status ?? null, right: snaps?.data?.right?.status ?? null, unionComplete: snaps?.data?.unionComplete ?? null, leftSnap, rightSnap }
+    {
+      ok: snaps?.ok,
+      left: snaps?.data?.left?.status ?? null,
+      right: snaps?.data?.right?.status ?? null,
+      unionComplete: snaps?.data?.unionComplete ?? null,
+      leftSnap,
+      rightSnap,
+    },
   );
   check(
     `${TIER}（D02）：清单引用口径保持（keep.txt 两侧同哈希同字节 ⇒ reference=same；blob.bin 仅右侧在场）`,
@@ -822,7 +1019,7 @@ async function main() {
       blob?.presence === "right_only" &&
       blob?.left === null &&
       blob?.right?.bytes === 17,
-    { keep, blob }
+    { keep, blob },
   );
   const badFile = await H.apiCall(call, "readComparedWorkspaceFile", {
     left: { runId: PARENT, stepSpanId: EXPECT.parentLast },
@@ -840,7 +1037,12 @@ async function main() {
       badFile?.data?.text === undefined &&
       rawBad.indexOf(".rebaseagent") === -1 &&
       !/\bat\s+[\w.$]+\s*\(.*:\d+:\d+\)/.test(rawBad),
-    { ok: badFile?.ok ?? null, left: badFile?.data?.left ?? null, right: badFile?.data?.right ?? null, conclusion: badFile?.data?.conclusion ?? null }
+    {
+      ok: badFile?.ok ?? null,
+      left: badFile?.data?.left ?? null,
+      right: badFile?.data?.right ?? null,
+      conclusion: badFile?.data?.conclusion ?? null,
+    },
   );
 
   // 路径行必须挑**文本**那条：并集里第一条是 blob.bin（二进制镜像标本，本来就不出正文），
@@ -853,19 +1055,23 @@ async function main() {
          if (!r) return JSON.stringify({ clicked: false, rows: rows.map(b => (b.textContent || "").replace(/\\s+/g, " ").trim().slice(0, 24)) });
          r.click();
          return JSON.stringify({ clicked: true, text: (r.textContent || "").replace(/\\s+/g, " ").trim().slice(0, 40) });
-       })()`
+       })()`,
     );
   const textPathClick = facts.ok ? await clickPath("config.txt") : { clicked: false };
   const pressed = await poll(
     fileFacts,
     (v) => v.pressed.length === 1 && (v.pressed[0] || "").startsWith("config.txt"),
-    15000
+    15000,
   );
-  const mono = await poll(monacoFacts, (v) => v.viewPresent && v.monaco > 0 && v.textLen > 0, 25000);
+  const mono = await poll(
+    monacoFacts,
+    (v) => v.viewPresent && v.monaco > 0 && v.textLen > 0,
+    25000,
+  );
   check(
     `${TIER}：点文本路径行后该行 aria-pressed 唯一且正文视图挂载有文本`,
     textPathClick.clicked === true && pressed.ok && mono.ok,
-    { click: textPathClick, pressed: pressed.value.pressed, monaco: mono.value }
+    { click: textPathClick, pressed: pressed.value.pressed, monaco: mono.value },
   );
   dump.steps.monaco = mono.value;
 
@@ -874,50 +1080,85 @@ async function main() {
     async () => {
       const m = await monacoFacts();
       const leak = await E(
-        `(() => { const v = document.querySelector("[data-compare-files-view]"); return JSON.stringify(v ? String(v.textContent).includes(".rebaseagent") : null); })()`
+        `(() => { const v = document.querySelector("[data-compare-files-view]"); return JSON.stringify(v ? String(v.textContent).includes(".rebaseagent") : null); })()`,
       );
       return { m, leak: JSON.parse(leak) };
     },
     (v) => v.m.viewPresent === true && v.leak === false,
-    12000
+    12000,
   );
   check(
     `${TIER}：切到二进制/单侧路径时视图不崩、不出物理路径（正文仍只在显式路径下出门）`,
     binClick.clicked === true && binFacts.ok,
-    { click: binClick, monaco: binFacts.value.m, physicalPathInDom: binFacts.value.leak }
+    { click: binClick, monaco: binFacts.value.m, physicalPathInDom: binFacts.value.leak },
   );
 
   const explicit = await setCheckpoint("left", "initial");
-  const afterExplicit = await poll(fileFacts, (v) => v.sides.left.value === "initial" && v.sides.left.defaulted === false, 15000);
+  const afterExplicit = await poll(
+    fileFacts,
+    (v) => v.sides.left.value === "initial" && v.sides.left.defaulted === false,
+    15000,
+  );
   const storeExplicit = await snapshot();
   check(
     `${TIER}（D02）：显式改成初始检查点后默认标注消失、store 记为显式值（null=初始）`,
-    explicit.ok && afterExplicit.ok && storeExplicit.compareFileView && storeExplicit.compareFileView.leftStepSpanId === null,
-    { explicit, afterExplicit: afterExplicit.value, fileView: storeExplicit.compareFileView }
+    explicit.ok &&
+      afterExplicit.ok &&
+      storeExplicit.compareFileView &&
+      storeExplicit.compareFileView.leftStepSpanId === null,
+    { explicit, afterExplicit: afterExplicit.value, fileView: storeExplicit.compareFileView },
   );
 
   // 7) 返回：文件视图 → 比较 → 来源
   const backToFile = await clickSel("[data-compare-files-back]");
-  const fileClosed = await poll(snapshot, (v) => v.compareFileView && v.compareFileView.open === false, 15000);
-  const backGone = await poll(() => readEl("[data-compare-files-view]"), (v) => v.present === false, 10000);
+  const fileClosed = await poll(
+    snapshot,
+    (v) => v.compareFileView && v.compareFileView.open === false,
+    15000,
+  );
+  const backGone = await poll(
+    () => readEl("[data-compare-files-view]"),
+    (v) => v.present === false,
+    10000,
+  );
   check(
     `${TIER}：「返回详细比较」关掉文件视图并留在比较（view=compare、pair 保留）`,
-    backToFile.clicked === true && fileClosed.ok && backGone.ok && fileClosed.value.view === "compare" && fileClosed.value.comparePair?.right === CHILD,
-    { backToFile, view: fileClosed.value.view, pair: fileClosed.value.comparePair }
+    backToFile.clicked === true &&
+      fileClosed.ok &&
+      backGone.ok &&
+      fileClosed.value.view === "compare" &&
+      fileClosed.value.comparePair?.right === CHILD,
+    { backToFile, view: fileClosed.value.view, pair: fileClosed.value.comparePair },
   );
 
   const reopen = await clickAria("查看比较文件视图");
-  const reopened = await poll(fileFacts, (v) => v.sides.left.value === "initial" && v.sides.left.defaulted === false, 20000);
-  check(`${TIER}（D02）：重开文件视图仍是显式检查点（不回落默认）`, reopen.clicked === true && reopened.ok, reopened.value);
+  const reopened = await poll(
+    fileFacts,
+    (v) => v.sides.left.value === "initial" && v.sides.left.defaulted === false,
+    20000,
+  );
+  check(
+    `${TIER}（D02）：重开文件视图仍是显式检查点（不回落默认）`,
+    reopen.clicked === true && reopened.ok,
+    reopened.value,
+  );
   await clickSel("[data-compare-files-back]");
   await poll(snapshot, (v) => v.compareFileView && v.compareFileView.open === false, 10000);
 
   const backToSource = await clickText("返回来源");
-  const restored = await poll(snapshot, (v) => v.view === "trace" && v.selectedRunId === CHILD && v.tab === "overview" && v.selectedSpanId === chosenSpan, 25000);
+  const restored = await poll(
+    snapshot,
+    (v) =>
+      v.view === "trace" &&
+      v.selectedRunId === CHILD &&
+      v.tab === "overview" &&
+      v.selectedSpanId === chosenSpan,
+    25000,
+  );
   check(
     `${TIER}：「返回来源」回到 trace 并复原 run/tab/span`,
     backToSource.clicked === true && restored.ok,
-    { backToSource, snap: restored.value, expectSpan: chosenSpan }
+    { backToSource, snap: restored.value, expectSpan: chosenSpan },
   );
 
   const toStepsAgain = await clickTab("步骤");
@@ -927,15 +1168,24 @@ async function main() {
       const v = await readEl(DETAIL_SEL);
       const max = Math.max(0, v.scrollHeight - v.clientHeight);
       const exp = recordedStoreTop === null ? null : Math.min(recordedStoreTop, max);
-      return { v, exp, hit: v.present === true && exp !== null && exp > 0 && Math.abs(v.scrollTop - exp) <= 3 };
+      return {
+        v,
+        exp,
+        hit: v.present === true && exp !== null && exp > 0 && Math.abs(v.scrollTop - exp) <= 3,
+      };
     },
     (r) => r.hit === true,
-    20000
+    20000,
   );
   check(
     `${TIER}：回到步骤页签后正文阅读位置复原（复原 ${restoredScroll.value.v.scrollTop} ≈ 记下的 ${recordedStoreTop}，按当前内容高度裁剪到 ${restoredScroll.value.exp}）`,
     toStepsAgain.clicked === true && restoredScroll.ok && restoredScroll.value.v.scrollTop > 0,
-    { recordedStoreTop, before: didScroll, after: restoredScroll.value.v, sized: dump.steps.scrollDetail.sized }
+    {
+      recordedStoreTop,
+      before: didScroll,
+      after: restoredScroll.value.v,
+      sized: dump.steps.scrollDetail.sized,
+    },
   );
   if (dump.steps.scrollTree) {
     const treeTop = dump.steps.scrollTree.store;
@@ -944,22 +1194,31 @@ async function main() {
         const v = await readEl(TREE_SEL);
         const max = Math.max(0, v.scrollHeight - v.clientHeight);
         const exp = treeTop === null ? null : Math.min(treeTop, max);
-        return { v, exp, hit: v.present === true && exp !== null && Math.abs(v.scrollTop - exp) <= 3 };
+        return {
+          v,
+          exp,
+          hit: v.present === true && exp !== null && Math.abs(v.scrollTop - exp) <= 3,
+        };
       },
       (r) => r.hit === true,
-      15000
+      15000,
     );
-    check(`${TIER}：轨迹目录阅读位置复原`, treeAfter.ok, { recorded: treeTop, after: treeAfter.value.v });
+    check(`${TIER}：轨迹目录阅读位置复原`, treeAfter.ok, {
+      recorded: treeTop,
+      after: treeAfter.value.v,
+    });
   }
   const focusAfter = await activeInfo();
   dump.steps.focusAfter = focusAfter;
   check(
     `${TIER}：返回后焦点归属未漂移（与进入前同一宿主元素，且仍在文档内、未落到已卸载节点）`,
-    focusAfter.inDoc === true && focusAfter.tag === focusBefore.tag && focusAfter.id === focusBefore.id,
-    { before: focusBefore, after: focusAfter }
+    focusAfter.inDoc === true &&
+      focusAfter.tag === focusBefore.tag &&
+      focusAfter.id === focusBefore.id,
+    { before: focusBefore, after: focusAfter },
   );
   note(
-    `${TIER}：这条返回路径没有显式 focus() 复位（returnFromCompare 不调焦点）⇒ 焦点判据取"未漂移"，键盘可达性由 keyboard 批打`
+    `${TIER}：这条返回路径没有显式 focus() 复位（returnFromCompare 不调焦点）⇒ 焦点判据取"未漂移"，键盘可达性由 keyboard 批打`,
   );
 
   // 8) 无新导航 / 无执行登记 / 原数据不变
@@ -969,30 +1228,37 @@ async function main() {
   check(
     `${TIER}：view 迁移序列恰为「进入比较 + 返回来源」两次（无多余/自动导航）`,
     viewSeq.length === 2 && viewSeq[0] === "trace->compare" && viewSeq[1] === "compare->trace",
-    { viewSeq, events: navList.map((x) => x.e) }
+    { viewSeq, events: navList.map((x) => x.e) },
   );
   check(
     `${TIER}：导航流里没有执行哨兵（无 EXEC / SUBMISSION）`,
     navList.every((x) => x.e !== "EXEC" && x.e !== "SUBMISSION"),
-    navList.filter((x) => x.e === "EXEC" || x.e === "SUBMISSION")
+    navList.filter((x) => x.e === "EXEC" || x.e === "SUBMISSION"),
   );
 
   const x1 = await snapshot();
   check(
     `${TIER}：执行登记面逐项不变（confirmations/draftSubmissions/operations/binding 摘要与基线全等）`,
     x1.execHash === x0.execHash,
-    { before: x0.execHash, after: x1.execHash, confirmationCount: [x0.confirmationCount, x1.confirmationCount], submissionCount: [x0.submissionCount, x1.submissionCount], operationCount: [x0.operationCount, x1.operationCount] }
+    {
+      before: x0.execHash,
+      after: x1.execHash,
+      confirmationCount: [x0.confirmationCount, x1.confirmationCount],
+      submissionCount: [x0.submissionCount, x1.submissionCount],
+      operationCount: [x0.operationCount, x1.operationCount],
+    },
   );
   check(
     `${TIER}：全程无在飞执行（终态 forking/creatingRun=idle、modelAbInFlight=false）`,
     x1.forking === "idle" && x1.creatingRun === "idle" && x1.modelAbInFlight === false,
-    { forking: x1.forking, creatingRun: x1.creatingRun, modelAbInFlight: x1.modelAbInFlight }
+    { forking: x1.forking, creatingRun: x1.creatingRun, modelAbInFlight: x1.modelAbInFlight },
   );
 
   const fp1 = fingerprint();
   const changed = [];
   for (const key of Object.keys(fp0.entries)) {
-    if (fp1.entries[key] !== fp0.entries[key]) changed.push({ key, before: fp0.entries[key], after: fp1.entries[key] });
+    if (fp1.entries[key] !== fp0.entries[key])
+      changed.push({ key, before: fp0.entries[key], after: fp1.entries[key] });
   }
   for (const key of Object.keys(fp1.entries)) {
     if (!(key in fp0.entries)) changed.push({ key, before: null, after: fp1.entries[key] });
@@ -1000,31 +1266,42 @@ async function main() {
   check(
     `${TIER}：数据根逐文件指纹与基线逐字相同（${fp0.fileCount} 个条目 + settings.json）`,
     changed.length === 0,
-    changed.slice(0, 6)
+    changed.slice(0, 6),
   );
   check(
     `${TIER}：终态白名单外条目集合与基线逐字相同（既没多出 lock/日志，也没少掉残留）`,
     fp1.offWhitelist.slice().sort().join("|") === fp0.offWhitelist.slice().sort().join("|") &&
       fp1.offWhitelist.every((k) => KNOWN_DEBRIS.some((re) => re.test(k))),
-    { baseline: fp0.offWhitelist, final: fp1.offWhitelist }
+    { baseline: fp0.offWhitelist, final: fp1.offWhitelist },
   );
-  const names0 = Object.keys(fp0.entries).filter((k) => k.startsWith("traces/")).sort();
-  const names1 = Object.keys(fp1.entries).filter((k) => k.startsWith("traces/")).sort();
+  const names0 = Object.keys(fp0.entries)
+    .filter((k) => k.startsWith("traces/"))
+    .sort();
+  const names1 = Object.keys(fp1.entries)
+    .filter((k) => k.startsWith("traces/"))
+    .sort();
   check(
     `${TIER}：traces 文件名集合逐字恒定（无新 run / 无消失条目，${names0.length} 条）`,
     names0.length === names1.length && names0.every((k, i) => k === names1[i]),
-    { added: names1.filter((k) => !names0.includes(k)).slice(0, 5), removed: names0.filter((k) => !names1.includes(k)).slice(0, 5) }
+    {
+      added: names1.filter((k) => !names0.includes(k)).slice(0, 5),
+      removed: names0.filter((k) => !names1.includes(k)).slice(0, 5),
+    },
   );
 
   const aFinal = await a11y();
   dump.steps.a11yFinal = aFinal;
   check(
     `${TIER}：可达性锚点在场（三页签 role=tab 且恰一个 aria-selected、带 aria-label 的按钮存在）`,
-    aFinal.tabs.length === 3 && aFinal.tabs.filter((t) => t.sel === "true").length === 1 && aFinal.ariaButtons > 0,
-    aFinal
+    aFinal.tabs.length === 3 &&
+      aFinal.tabs.filter((t) => t.sel === "true").length === 1 &&
+      aFinal.ariaButtons > 0,
+    aFinal,
   );
 
-  await U.shot(call, SHOTS, `d03-${TAG}-final.png`).catch((e) => note("截图失败（不影响判据）", String(e).slice(0, 120)));
+  await U.shot(call, SHOTS, `d03-${TAG}-final.png`).catch((e) =>
+    note("截图失败（不影响判据）", String(e).slice(0, 120)),
+  );
   finish();
 }
 

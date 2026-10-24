@@ -20,8 +20,8 @@ const U = require("./lib/u2-cdp-util.cjs");
 
   // 1) store 顶层键 + 只读面相关字段（storeQ 自己就 JSON.parse 过了，别再包一层）
   out.storeKeys = await H.storeQ(
-      call,
-      `return JSON.stringify({
+    call,
+    `return JSON.stringify({
            keys: Object.keys(s).sort(),
            view: s.view,
            runId: s.runId ?? s.selectedRunId ?? null,

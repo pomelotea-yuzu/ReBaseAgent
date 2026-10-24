@@ -181,11 +181,12 @@ await new Promise((resolveProbe, rejectProbe) => {
   }, 30_000);
   child.stdout.on("data", (d) => {
     buf += d;
-    let idx;
-    while ((idx = buf.indexOf("\n")) >= 0) {
+    let idx = buf.indexOf("\n");
+    while (idx >= 0) {
       const line = buf.slice(0, idx);
       buf = buf.slice(idx + 1);
       if (line.trim()) frames.push(JSON.parse(line));
+      idx = buf.indexOf("\n");
     }
     finish();
   });
