@@ -61,7 +61,13 @@ export type RegisteredCreateOutcome =
       readonly registration: ResourceRegistration;
       readonly containerId: string;
     }
-  | { readonly ok: false; readonly kind: "stale-name" | "failed"; readonly reason: string }
+  | {
+      readonly ok: false;
+      readonly kind: "stale-name" | "failed";
+      readonly reason: string;
+      /** 已落盘的登记（phase=registered）——明确未创建 ⇒ 调用方可直接收尾。 */
+      readonly registration: ResourceRegistration;
+    }
   | {
       readonly ok: false;
       readonly kind: "unknown";
@@ -115,6 +121,7 @@ export async function createRegisteredContainer(
           ok: false,
           kind: "failed",
           reason: `create 结果未知，但按登记名未发现容器（判定未创建）：${error.message}`,
+          registration,
         };
       } catch (resolveError) {
         return {
@@ -129,6 +136,7 @@ export async function createRegisteredContainer(
       ok: false,
       kind: error instanceof RuntimeCreateStaleNameError ? "stale-name" : "failed",
       reason: error instanceof Error ? error.message : String(error),
+      registration,
     };
   }
 

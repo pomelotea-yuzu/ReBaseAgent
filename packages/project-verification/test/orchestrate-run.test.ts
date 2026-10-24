@@ -1,0 +1,491 @@
+import { createHash } from "node:crypto";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { FILE_TOOLS_V1_DEFINITIONS, createIsolatedRun } from "@rebaseagent/replay";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { ArtifactCollectionBackend } from "../src/collect/collect.js";
+import type { ContainerCommandBackend } from "../src/execute/command-runner.js";
+import type { WorkloadStopBackend } from "../src/execute/stop.js";
+import type { ContainerWriteBackend } from "../src/materialize/materialize.js";
+import {
+  type VerificationContainerLifecycle,
+  type VerificationRunPorts,
+  executeVerificationRun,
+} from "../src/orchestrate/run.js";
+import { currentPreparePlanToken } from "../src/prepare/plan.js";
+import { RuntimeCreateUnknownError } from "../src/runtime/create.js";
+import { NODE_TS_V1_PROFILE } from "../src/schema.js";
+
+/**
+ * 验证运行编排单测（4.2 包层底座）：来源用真实 createIsolatedRun 夹具（预检真读），
+ * 其余阶段全部 fake 端口——判据是编排层自己的门序、记录事件序列、结局映射与收尾。
+ */
+
+const CALC_TS = "export function add(a: number, b: number): number {\n  return a + b;\n}\n";
+const INPUT_HASH = createHash("sha256").update(CALC_TS).digest("hex");
+const PLAN_TOKEN = currentPreparePlanToken();
+const CONTAINER_ID = "a".repeat(64);
+
+interface Fixture {
+  dataDir: string;
+  dataRoot: string;
+  runId: string;
+}
+
+let fixture: Fixture;
+
+beforeAll(async () => {
+  const source = mkdtempSync(join(tmpdir(), "r3-orch-src-"));
+  mkdirSync(join(source, "src"), { recursive: true });
+  writeFileSync(join(source, "src", "calc.ts"), CALC_TS);
+  const dataDir = join(mkdtempSync(join(tmpdir(), "r3-orch-data-")), "data");
+  const created = await createIsolatedRun({
+    dataDir,
+    source,
+    config: {
+      baseURL: "https://api.deepseek.com/v1",
+      apiKey: "sk-test",
+      model: "deepseek-chat",
+      systemPrompt: "你是文件助手。",
+      tools: [...FILE_TOOLS_V1_DEFINITIONS],
+      params: undefined,
+      exec: { cwd: "D:/nope-not-a-real-dir", signal: null },
+      maxIterations: 10,
+      budget: { maxTotalTokens: 100000 },
+    },
+    userMessage: "R3 编排夹具",
+    authority: { allowFileWrites: true },
+    llm: {
+      complete: async () => ({
+        response: {
+          content: "done",
+          reasoningContent: null,
+          toolCalls: [],
+          usage: { in: 1, out: 1 },
+          ttftMs: 1,
+        },
+        requestBody: {},
+      }),
+    } as unknown as Parameters<typeof createIsolatedRun>[0]["llm"],
+  });
+  if (!created.ok) throw new Error(`夹具创建失败：${created.failure.code}`);
+  fixture = {
+    dataDir,
+    dataRoot: mkdtempSync(join(tmpdir(), "r3-orch-root-")),
+    runId: created.id,
+  };
+});
+
+afterAll(() => {
+  /* 夹具目录留给系统临时目录清理 */
+});
+
+function tapStdout(tests = 2, pass = 2): Uint8Array {
+  return Buffer.from(`# tests ${tests}\n# pass ${pass}\n`);
+}
+
+interface ScriptedPorts {
+  ports: VerificationRunPorts;
+  calls: {
+    created: string[];
+    started: string[];
+    removed: string[];
+  };
+  setCommandResult(result: {
+    exitCode: number | null;
+    timedOut?: boolean;
+    outputLimitHit?: boolean;
+    stdout?: Uint8Array;
+    stdoutTruncated?: boolean;
+  }): void;
+  setStopUnknown(reason: string): void;
+  setStopNotQuiescent(): void;
+  setCollectInputDrifted(): void;
+  setCollectInvalidObjects(): void;
+  setCreateUnknown(): void;
+}
+
+function makePorts(): ScriptedPorts {
+  const calls = {
+    created: [] as string[],
+    started: [] as string[],
+    removed: [] as string[],
+  };
+  let commandResult: {
+    exitCode: number | null;
+    timedOut: boolean;
+    outputLimitHit: boolean;
+    stdout: Uint8Array;
+    stdoutTruncated: boolean;
+  } = {
+    exitCode: 0,
+    timedOut: false,
+    outputLimitHit: false,
+    stdout: tapStdout(),
+    stdoutTruncated: false,
+  };
+  let stopUnknown: string | null = null;
+  let stopNotQuiescent = false;
+  let inputDrifted = false;
+  let collectInvalidObjects = false;
+  let createUnknown = false;
+  let stopScanRound = 0;
+
+  const lifecycle: VerificationContainerLifecycle = {
+    async listOwnedContainers() {
+      return [];
+    },
+    async stopContainer() {},
+    async confirmStopped() {},
+    async removeContainer(id) {
+      calls.removed.push(id);
+    },
+    async startContainer(id) {
+      calls.started.push(id);
+    },
+    async createContainer() {
+      if (createUnknown) {
+        throw new RuntimeCreateUnknownError("create 超时（请求可能已被引擎处理）");
+      }
+      calls.created.push(CONTAINER_ID);
+      return { containerId: CONTAINER_ID };
+    },
+    async resolveContainerByName() {
+      if (createUnknown) {
+        throw new Error("按名探查超时（引擎不可达）");
+      }
+      return null;
+    },
+  };
+  const materialize: ContainerWriteBackend = {
+    async mkdirAll() {},
+    async writeFile() {},
+    async sha256OfFiles(_ref, paths) {
+      const map = new Map<string, string>();
+      for (const p of paths) map.set(p, INPUT_HASH);
+      return map;
+    },
+  };
+  const command: ContainerCommandBackend = {
+    async runCommand() {
+      return {
+        exitCode: commandResult.exitCode,
+        timedOut: commandResult.timedOut,
+        outputLimitHit: commandResult.outputLimitHit,
+        stdout: {
+          retainedBytes: commandResult.stdout,
+          totalBytes: commandResult.stdout.length,
+          truncated: commandResult.stdoutTruncated,
+        },
+        stderr: {
+          retainedBytes: Buffer.from(""),
+          totalBytes: 0,
+          truncated: false,
+        },
+      };
+    },
+  };
+  const workloadStop: WorkloadStopBackend = {
+    async runStopWorkloads() {
+      if (stopUnknown !== null) {
+        throw new Error(stopUnknown);
+      }
+      return { termSent: 0, killEscalated: 0, survivors: 0 };
+    },
+    async scanWorkState() {
+      // 静止模拟：两次扫描返回不同快照 = /work 仍在变化（P19 反例）
+      stopScanRound += 1;
+      return stopNotQuiescent ? `snapshot-${String(stopScanRound)}` : "";
+    },
+  };
+  const collect: ArtifactCollectionBackend = {
+    async listNonRegularObjects() {
+      return collectInvalidObjects ? ["evil-link"] : [];
+    },
+    async listWorkFilesWithSizes() {
+      return [{ path: "src/calc.ts", size: Buffer.byteLength(CALC_TS) }];
+    },
+    async sha256OfFiles(_ref, paths) {
+      const map = new Map<string, string>();
+      for (const p of paths) map.set(p, inputDrifted ? "0".repeat(64) : INPUT_HASH);
+      return map;
+    },
+    async readFile() {
+      return Buffer.from(CALC_TS);
+    },
+  };
+  return {
+    calls,
+    ports: {
+      lifecycle,
+      materialize,
+      command,
+      workloadStop,
+      collect,
+      quiescenceIntervalMs: 10,
+      stabilityIntervalMs: 10,
+    },
+    setCommandResult(next) {
+      commandResult = { ...commandResult, ...next };
+    },
+    setStopUnknown(reason) {
+      stopUnknown = reason;
+    },
+    setStopNotQuiescent() {
+      stopNotQuiescent = true;
+    },
+    setCollectInputDrifted() {
+      inputDrifted = true;
+    },
+    setCollectInvalidObjects() {
+      collectInvalidObjects = true;
+    },
+    setCreateUnknown() {
+      createUnknown = true;
+    },
+  };
+}
+
+function runInput(overrides: Record<string, unknown> = {}): unknown {
+  return {
+    target: { runId: fixture.runId, checkpoint: { kind: "initial" } },
+    profileId: "node-ts-v1",
+    commandId: "test",
+    planToken: PLAN_TOKEN,
+    allowExecution: true,
+    ...overrides,
+  };
+}
+
+function params(ports: VerificationRunPorts, inputOverrides: Record<string, unknown> = {}) {
+  return {
+    dataRoot: fixture.dataRoot,
+    dataDir: fixture.dataDir,
+    ports,
+    epoch: "11111111-1111-4111-8111-111111111111",
+    operationId: "22222222-2222-4222-8222-222222222222",
+    preparation: { preparationId: "prep-1", imageDigest: "d".repeat(64) },
+    input: runInput(inputOverrides),
+  };
+}
+
+function readEvents(recordPath: string): Array<Record<string, unknown>> {
+  return readFileSync(recordPath, "utf8")
+    .split("\n")
+    .filter((line) => line.length > 0)
+    .map((line) => JSON.parse(line) as Record<string, unknown>);
+}
+
+/** 最新一条登记的 phase（按 mtime；夹具 dataRoot 跨用例共享 ⇒ 只看新条目）。 */
+function latestRegistrationPhase(): string | null {
+  const dir = join(fixture.dataRoot, "verification-runtime");
+  if (!existsSync(dir)) return null;
+  const files = readdirSync(dir)
+    .filter((f) => f.endsWith(".json"))
+    .map((f) => join(dir, f))
+    .sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs);
+  const first = files[0];
+  return first === undefined
+    ? null
+    : (JSON.parse(readFileSync(first, "utf8")) as { phase: string }).phase;
+}
+
+function dirFingerprint(root: string): string[] {
+  if (!existsSync(root)) return [];
+  const out: string[] = [];
+  const walk = (dir: string, prefix: string): void => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const rel = `${prefix}${entry.name}`;
+      if (entry.isDirectory()) {
+        walk(join(dir, entry.name), `${rel}/`);
+      } else {
+        out.push(rel);
+      }
+    }
+  };
+  walk(root, "");
+  return out.sort();
+}
+
+describe("门内零副作用（P07：授权/形状/计划漂移先于一切写盘）", () => {
+  it("缺 allowExecution:true ⇒ run_not_allowed，零记录零登记零容器调用", async () => {
+    const script = makePorts();
+    const before = dirFingerprint(fixture.dataRoot);
+    const result = await executeVerificationRun(
+      params(script.ports, { allowExecution: undefined }),
+    );
+    expect(result).toMatchObject({ ok: false, failure: { code: "run_not_allowed" } });
+    expect(result.verificationId).toBeNull();
+    expect(dirFingerprint(fixture.dataRoot)).toEqual(before);
+    expect(script.calls.created).toEqual([]);
+  });
+
+  it("形状非法（多余键）⇒ invalid_input，零副作用", async () => {
+    const script = makePorts();
+    const before = dirFingerprint(fixture.dataRoot);
+    const result = await executeVerificationRun(params(script.ports, { evil: 1 }));
+    expect(result).toMatchObject({ ok: false, failure: { code: "invalid_input" } });
+    expect(dirFingerprint(fixture.dataRoot)).toEqual(before);
+    expect(script.calls.created).toEqual([]);
+  });
+
+  it("planToken 漂移 ⇒ plan_stale（P07），零副作用", async () => {
+    const script = makePorts();
+    const before = dirFingerprint(fixture.dataRoot);
+    const result = await executeVerificationRun(params(script.ports, { planToken: "stale-token" }));
+    expect(result).toMatchObject({ ok: false, failure: { code: "plan_stale" } });
+    expect(dirFingerprint(fixture.dataRoot)).toEqual(before);
+    expect(script.calls.created).toEqual([]);
+  });
+});
+
+describe("passed 主路径：记录事件序列与收尾", () => {
+  it("exit 0 + TAP 匹配 ⇒ passed；事件序列完整；容器移除 + 登记收尾 removed", async () => {
+    const script = makePorts();
+    const result = await executeVerificationRun(params(script.ports));
+    expect(result).toMatchObject({ ok: true, outcome: "passed", evidenceComplete: true });
+    if (!result.ok) return;
+    const events = readEvents(result.recordPath);
+    expect(events.map((e) => e.type)).toEqual([
+      "meta",
+      "stage",
+      "stage",
+      "command_start",
+      "command_end",
+      "stage",
+      "stop_confirmed",
+      "stage",
+      "artifacts",
+      "terminated",
+    ]);
+    expect(events.at(-1)).toMatchObject({ type: "terminated", outcome: "passed" });
+    const stages = events
+      .filter((e) => e.type === "stage")
+      .map((e) => (e as { phase: string }).phase);
+    expect(stages).toEqual(["materializing", "executing", "stopping", "collecting"]);
+    expect(script.calls.created).toEqual([CONTAINER_ID]);
+    expect(script.calls.started).toEqual([CONTAINER_ID]);
+    expect(script.calls.removed).toEqual([CONTAINER_ID]);
+    expect(latestRegistrationPhase()).toBe("removed");
+  });
+
+  it("typecheck 命令 exit 0（无 TAP）⇒ passed", async () => {
+    const script = makePorts();
+    script.setCommandResult({ exitCode: 0, stdout: Buffer.from("tsc ok\n") });
+    const result = await executeVerificationRun(params(script.ports, { commandId: "typecheck" }));
+    expect(result).toMatchObject({ ok: true, outcome: "passed" });
+  });
+});
+
+describe("结局映射（D6 九行表）", () => {
+  it("test 命令 exit 0 但 TAP 不匹配 ⇒ check_failed（P12 精确门）", async () => {
+    const script = makePorts();
+    script.setCommandResult({ exitCode: 0, stdout: tapStdout(5, 4) });
+    const result = await executeVerificationRun(params(script.ports));
+    expect(result).toMatchObject({ ok: true, outcome: "check_failed" });
+  });
+
+  it("typecheck exit 1 ⇒ check_failed（completed 分类下按退出码判，保留真实 exit）", async () => {
+    const script = makePorts();
+    script.setCommandResult({ exitCode: 1, stdout: Buffer.from("error TS\n") });
+    const result = await executeVerificationRun(params(script.ports, { commandId: "typecheck" }));
+    expect(result).toMatchObject({ ok: true, outcome: "check_failed" });
+    if (result.ok) expect(result.detail).toContain("exit 1");
+  });
+
+  it("exit 127 ⇒ start_failed；exit 137 ⇒ process_failed", async () => {
+    const script = makePorts();
+    script.setCommandResult({ exitCode: 127, stdout: Buffer.from("") });
+    expect(await executeVerificationRun(params(script.ports))).toMatchObject({
+      ok: true,
+      outcome: "start_failed",
+    });
+    const script2 = makePorts();
+    script2.setCommandResult({ exitCode: 137, stdout: Buffer.from("") });
+    expect(await executeVerificationRun(params(script2.ports))).toMatchObject({
+      ok: true,
+      outcome: "process_failed",
+    });
+  });
+
+  it("timedOut ⇒ timed_out；outputLimitHit ⇒ output_limit", async () => {
+    const script = makePorts();
+    script.setCommandResult({ exitCode: null, timedOut: true, stdout: Buffer.from("") });
+    expect(await executeVerificationRun(params(script.ports))).toMatchObject({
+      ok: true,
+      outcome: "timed_out",
+    });
+    const script2 = makePorts();
+    script2.setCommandResult({ exitCode: null, outputLimitHit: true, stdout: Buffer.from("") });
+    expect(await executeVerificationRun(params(script2.ports))).toMatchObject({
+      ok: true,
+      outcome: "output_limit",
+    });
+  });
+
+  it("流截断 ⇒ evidence_incomplete（evidenceComplete=false，保留真实 exit）", async () => {
+    const script = makePorts();
+    script.setCommandResult({ exitCode: 0, stdoutTruncated: true });
+    const result = await executeVerificationRun(params(script.ports));
+    expect(result).toMatchObject({
+      ok: true,
+      outcome: "evidence_incomplete",
+      evidenceComplete: false,
+    });
+  });
+
+  it("停止结果未知 ⇒ unknown；容器不移除、登记保持 created（P21/P23）", async () => {
+    const script = makePorts();
+    script.setStopUnknown("failed to connect to the docker API");
+    const result = await executeVerificationRun(params(script.ports));
+    expect(result).toMatchObject({ ok: true, outcome: "unknown", evidenceComplete: false });
+    expect(script.calls.removed).toEqual([]);
+    expect(latestRegistrationPhase()).toBe("created");
+  });
+
+  it("静止确认失败（/work 仍在变）⇒ unknown，不发布结论（P19）", async () => {
+    const script = makePorts();
+    script.setStopNotQuiescent();
+    expect(await executeVerificationRun(params(script.ports))).toMatchObject({
+      ok: true,
+      outcome: "unknown",
+    });
+  });
+
+  it("输入被改（采集 input_drifted）⇒ artifact_invalid（W01：改代码不是修复）", async () => {
+    const script = makePorts();
+    script.setCollectInputDrifted();
+    expect(await executeVerificationRun(params(script.ports))).toMatchObject({
+      ok: true,
+      outcome: "artifact_invalid",
+    });
+  });
+
+  it("采集发现非普通对象 ⇒ artifact_invalid（不静默跟随）", async () => {
+    const script = makePorts();
+    script.setCollectInvalidObjects();
+    expect(await executeVerificationRun(params(script.ports))).toMatchObject({
+      ok: true,
+      outcome: "artifact_invalid",
+    });
+  });
+});
+
+describe("容器创建响应丢失窗口（P22 编排侧）", () => {
+  it("create unknown 不可消解 ⇒ environment_failed + 登记保持 registered 等核查", async () => {
+    const script = makePorts();
+    script.setCreateUnknown();
+    const result = await executeVerificationRun(params(script.ports));
+    expect(result).toMatchObject({ ok: true, outcome: "environment_failed" });
+    expect(latestRegistrationPhase()).toBe("registered");
+  });
+});

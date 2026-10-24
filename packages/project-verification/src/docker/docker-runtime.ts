@@ -146,7 +146,9 @@ export class DockerRuntimeBackend implements RuntimeResourcePort, RuntimeContain
       if (/no such/i.test(result.stderr)) {
         return null;
       }
-      throw new Error(`容器 inspect 失败（exit ${String(result.exitCode)}）：${result.stderr.trim().slice(0, 400)}`);
+      throw new Error(
+        `容器 inspect 失败（exit ${String(result.exitCode)}）：${result.stderr.trim().slice(0, 400)}`,
+      );
     }
     const line = result.stdout.trim().split("\n")[0] ?? "";
     // inspect 的主键字段是 `Id`（ps --format 才用 `ID`）；两者兼容
@@ -199,6 +201,19 @@ export class DockerRuntimeBackend implements RuntimeResourcePort, RuntimeContain
     if (result.exitCode !== 0) {
       throw new Error(
         `docker stop 非零退出（exit ${String(result.exitCode)}；${classifyStopFailure(result.stderr)} 类）：${result.stderr.trim().slice(0, 400)}`,
+      );
+    }
+  }
+
+  /** 启动已创建的容器（运行编排：物化/exec 都要求容器 running）。基础设施失败抛错。 */
+  async startContainer(containerId: string): Promise<void> {
+    const result = await this.run(
+      [...pinnedGlobalArgs(this.config.endpoint), "start", containerId],
+      "启动受控容器",
+    );
+    if (result.exitCode !== 0) {
+      throw new Error(
+        `docker start 非零退出（exit ${String(result.exitCode)}）：${result.stderr.trim().slice(0, 400)}`,
       );
     }
   }

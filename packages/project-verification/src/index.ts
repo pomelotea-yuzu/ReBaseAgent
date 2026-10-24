@@ -25,6 +25,7 @@ export * from "./collect/collect.js";
 export * from "./runtime/registration.js";
 export * from "./runtime/create.js";
 export * from "./runtime/reconcile.js";
+export * from "./orchestrate/run.js";
 export * from "./docker/docker-collect.js";
 export * from "./docker/cli.js";
 export * from "./docker/preflight.js";
