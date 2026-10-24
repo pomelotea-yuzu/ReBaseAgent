@@ -321,6 +321,9 @@ export const VerificationOutcomeSchema = z.enum([
   "unknown",
 ]);
 
+/** 结局类型（供记录层/展示侧共用）。 */
+export type VerificationOutcome = z.infer<typeof VerificationOutcomeSchema>;
+
 /**
  * 结构化错误码（IPC 信封错误侧；只放可展示元数据，不含正文/凭据）。
  * `BACKEND_REMOTE_REFUSED`/`BACKEND_DRIFT` 对应 P02；来源类对应 P06；
