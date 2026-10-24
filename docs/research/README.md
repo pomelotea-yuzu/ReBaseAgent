@@ -12,6 +12,8 @@
 | [跨品类 UI 组织逻辑](2026-10-12-ui-organization-patterns-and-rebaseagent.md) | 九种软件如何组织导航、对象、任务与状态 | 官方资料与本地源码分析；附[来源证据](2026-10-12-ui-organization-evidence.json) |
 | [UI 实机走查与整理方向](../reviews/2026-10-12-ui-live-walkthrough-and-refinement.md) | 当前界面哪些路径可保留，哪些内容带来混淆 | 已操作真实 Electron 窗口，未提交模型请求；整理建议待讨论 |
 | [R2.2 起的能力增强路线](../product/2026-10-12-capability-roadmap-from-r2-2.md) | 大方向不变时，每个后续能力阶段做什么 | 主线排序已同步正式路线；细化稿仍供设计参考，未启动实现 |
+| [长任务交接、上下文与调试产品](2026-10-17-context-handoff-and-debugging-products.md) | 自动 handoff、任务记忆与调试结合是否已有产品先例 | 已核查官方资料、发布记录与两项局部源码；未安装实测，未证明市场空位；附[来源证据](2026-10-17-context-handoff-evidence.json) |
+| [AI 与 Agent 的真实用途](2026-10-17-ai-and-agent-real-world-usage.md) | 大众与 agent 用户实际在做什么，哪些任务值得继续调查 | 已核对公开调查与使用研究，区分数据时间、样本和分母；附[来源证据](2026-10-17-ai-agent-usage-evidence.json)，未做原始访谈或产品验证 |
 | [重跑状态一致性机制](../architecture/replay-state-consistency.md) | 消息、工具轮次和文件快照如何保持边界一致 | 已对照规范和测试源码 |
 | [重跑一致性实验方案](2026-09-27-replay-consistency-experiment.md) | 如何验证正确性、代价与适用场景 | 待执行，不含实验结果 |
 | [治理与维护安排](../development/governance-and-maintenance.md) | 如何接收贡献、维护版本和逐步降低单人依赖 | 现状盘点与后续安排 |

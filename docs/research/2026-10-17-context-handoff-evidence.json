@@ -1,0 +1,944 @@
+{
+  "research_date": "2026-10-17",
+  "method": "Primary-source documentation and release inspection, two partial source reviews; purposive GitHub repository discovery, top 8 results per query. No installation, execution benchmark, adoption survey or novelty proof.",
+  "snapshot_root": "output/research-context-continuity-2026-10-17",
+  "hash_scope": "sha256 hashes cover exact HTTP response bytes saved by requests; decoded_content_sha256 covers base64-decoded GitHub Contents content. Local snapshots are reference artifacts and may be ignored by Git.",
+  "limitations": [
+    "Release metadata proves a published artifact exists, not successful installation or every documented behavior.",
+    "Documentation claims and partial source evidence are not execution results.",
+    "No competitor cost or reliability claim was independently reproduced.",
+    "Missing functionality in reviewed sources does not establish product-wide absence.",
+    "Main and release-tag sources are kept distinct.",
+    "Source instructions were treated as quoted data, not executed."
+  ],
+  "claims": [
+    {
+      "claim": "Automatic observation capture and progressive cross-session retrieval have direct precedents.",
+      "sources": [
+        "claude-mem-release-readme-api",
+        "claude-mem-architecture"
+      ]
+    },
+    {
+      "claim": "Tool-output context reduction and compact/resume recovery are described; fresh-session handoff is a distinct path.",
+      "sources": [
+        "context-mode-release-readme-api",
+        "context-mode-start-code-api"
+      ]
+    },
+    {
+      "claim": "The README <=2KB priority-snapshot statement differs from buildResumeSnapshot code: assemble all non-empty sections, no byte budget.",
+      "sources": [
+        "context-mode-release-readme-api",
+        "context-mode-snapshot-code-api"
+      ]
+    },
+    {
+      "claim": "Persistent dependency-aware agent task memory is an existing approach.",
+      "sources": [
+        "beads-release-readme-api"
+      ]
+    },
+    {
+      "claim": "Task briefs, durable decisions, evidence-bearing handoffs and stale source anchors have direct precedent; no automatic transcript capture is claimed.",
+      "sources": [
+        "weftgate-release-readme-api",
+        "weftgate-memory-code-api",
+        "weftgate-workflow-doc-api"
+      ]
+    },
+    {
+      "claim": "Desktop memory and cross-agent handoff have a downloadable Windows installer precedent.",
+      "sources": [
+        "vault-release-readme-api",
+        "vault-release"
+      ]
+    },
+    {
+      "claim": "Sessions, files, prompts and Git commits are linked and resumable; this does not prove context minimization.",
+      "sources": [
+        "entire-release-readme-api"
+      ]
+    },
+    {
+      "claim": "Memory plus time-travel intervention already exists in the LangGraph/Studio stack.",
+      "sources": [
+        "langgraph-memory",
+        "langgraph-time-travel",
+        "langsmith-studio"
+      ]
+    },
+    {
+      "claim": "Context composition, repeated reads and compaction diagnostics have a dedicated coding-agent tool precedent; visual replay is not execution replay.",
+      "sources": [
+        "anthropometer-release-readme-api"
+      ]
+    },
+    {
+      "claim": "Incremental background observation and reflection are described by Mastra.",
+      "sources": [
+        "mastra-memory"
+      ]
+    },
+    {
+      "claim": "Context Mode reports byte-size reduction on selected fixtures, not independently verified total task bill savings.",
+      "sources": [
+        "context-mode-benchmark-api"
+      ]
+    }
+  ],
+  "releases": {
+    "claude-mem-release": {
+      "tag_name": "v13.41.0",
+      "published_at": "2026-10-17T02:17:07Z",
+      "prerelease": false,
+      "draft": false,
+      "html_url": "https://github.com/thedotmack/claude-mem/releases/tag/v13.41.0",
+      "assets": []
+    },
+    "context-mode-release": {
+      "tag_name": "v1.0.169",
+      "published_at": "2026-06-29T18:18:53Z",
+      "prerelease": false,
+      "draft": false,
+      "html_url": "https://github.com/mksglu/context-mode/releases/tag/v1.0.169",
+      "assets": []
+    },
+    "beads-release": {
+      "tag_name": "v1.3.1",
+      "published_at": "2026-09-30T23:37:36Z",
+      "prerelease": false,
+      "draft": false,
+      "html_url": "https://github.com/gastownhall/beads/releases/tag/v1.3.1",
+      "assets": [
+        {
+          "name": "beads-v1.3.1.spdx.json",
+          "size": 1667457,
+          "url": "https://github.com/gastownhall/beads/releases/download/v1.3.1/beads-v1.3.1.spdx.json"
+        },
+        {
+          "name": "beads_1.3.1_android_arm64.tar.gz",
+          "size": 31370490,
+          "url": "https://github.com/gastownhall/beads/releases/download/v1.3.1/beads_1.3.1_android_arm64.tar.gz"
+        },
+        {
+          "name": "beads_1.3.1_contract_corpus.tar.gz",
+          "size": 4091,
+          "url": "https://github.com/gastownhall/beads/releases/download/v1.3.1/beads_1.3.1_contract_corpus.tar.gz"
+        },
+        {
+          "name": "beads_1.3.1_darwin_amd64.tar.gz",
+          "size": 53547867,
+          "url": "https://github.com/gastownhall/beads/releases/download/v1.3.1/beads_1.3.1_darwin_amd64.tar.gz"
+        },
+        {
+          "name": "beads_1.3.1_darwin_arm64.tar.gz",
+          "size": 48439442,
+          "url": "https://github.com/gastownhall/beads/releases/download/v1.3.1/beads_1.3.1_darwin_arm64.tar.gz"
+        },
+        {
+          "name": "beads_1.3.1_freebsd_amd64.tar.gz",
+          "size": 31970125,
+          "url": "https://github.com/gastownhall/beads/releases/download/v1.3.1/beads_1.3.1_freebsd_amd64.tar.gz"
+        },
+        {
+          "name": "beads_1.3.1_linux_amd64.tar.gz",
+          "size": 53304363,
+          "url": "https://github.com/gastownhall/beads/releases/download/v1.3.1/beads_1.3.1_linux_amd64.tar.gz"
+        },
+        {
+          "name": "beads_1.3.1_linux_arm64.tar.gz",
+          "size": 49394999,
+          "url": "https://github.com/gastownhall/beads/releases/download/v1.3.1/beads_1.3.1_linux_arm64.tar.gz"
+        },
+        {
+          "name": "beads_1.3.1_windows_amd64.zip",
+          "size": 54131010,
+          "url": "https://github.com/gastownhall/beads/releases/download/v1.3.1/beads_1.3.1_windows_amd64.zip"
+        },
+        {
+          "name": "beads_1.3.1_windows_arm64.zip",
+          "size": 30433155,
+          "url": "https://github.com/gastownhall/beads/releases/download/v1.3.1/beads_1.3.1_windows_arm64.zip"
+        },
+        {
+          "name": "checksums.txt",
+          "size": 881,
+          "url": "https://github.com/gastownhall/beads/releases/download/v1.3.1/checksums.txt"
+        }
+      ]
+    },
+    "entire-release": {
+      "tag_name": "v0.11.5",
+      "published_at": "2026-10-14T18:14:11Z",
+      "prerelease": false,
+      "draft": false,
+      "html_url": "https://github.com/entireio/cli/releases/tag/v0.11.5",
+      "assets": [
+        {
+          "name": "checksums.txt",
+          "size": 552,
+          "url": "https://github.com/entireio/cli/releases/download/v0.11.5/checksums.txt"
+        },
+        {
+          "name": "entire_darwin_amd64.tar.gz",
+          "size": 23220926,
+          "url": "https://github.com/entireio/cli/releases/download/v0.11.5/entire_darwin_amd64.tar.gz"
+        },
+        {
+          "name": "entire_darwin_arm64.tar.gz",
+          "size": 21140708,
+          "url": "https://github.com/entireio/cli/releases/download/v0.11.5/entire_darwin_arm64.tar.gz"
+        },
+        {
+          "name": "entire_linux_amd64.tar.gz",
+          "size": 22630488,
+          "url": "https://github.com/entireio/cli/releases/download/v0.11.5/entire_linux_amd64.tar.gz"
+        },
+        {
+          "name": "entire_linux_arm64.tar.gz",
+          "size": 20567263,
+          "url": "https://github.com/entireio/cli/releases/download/v0.11.5/entire_linux_arm64.tar.gz"
+        },
+        {
+          "name": "entire_windows_amd64.zip",
+          "size": 22869210,
+          "url": "https://github.com/entireio/cli/releases/download/v0.11.5/entire_windows_amd64.zip"
+        },
+        {
+          "name": "entire_windows_arm64.zip",
+          "size": 20528207,
+          "url": "https://github.com/entireio/cli/releases/download/v0.11.5/entire_windows_arm64.zip"
+        }
+      ]
+    },
+    "vault-release": {
+      "tag_name": "v0.6.7",
+      "published_at": "2026-10-10T09:25:55Z",
+      "prerelease": false,
+      "draft": false,
+      "html_url": "https://github.com/aliihsaad/the-vault/releases/tag/v0.6.7",
+      "assets": [
+        {
+          "name": "The-Vault-0.6.7-windows-x64.exe",
+          "size": 150897729,
+          "url": "https://github.com/aliihsaad/the-vault/releases/download/v0.6.7/The-Vault-0.6.7-windows-x64.exe"
+        },
+        {
+          "name": "The-Vault-0.6.7-windows-x64.exe.blockmap",
+          "size": 155641,
+          "url": "https://github.com/aliihsaad/the-vault/releases/download/v0.6.7/The-Vault-0.6.7-windows-x64.exe.blockmap"
+        },
+        {
+          "name": "The-Vault-0.6.7-windows-x64.exe.sha256",
+          "size": 97,
+          "url": "https://github.com/aliihsaad/the-vault/releases/download/v0.6.7/The-Vault-0.6.7-windows-x64.exe.sha256"
+        }
+      ]
+    },
+    "weftgate-release": {
+      "tag_name": "v0.3.0",
+      "published_at": "2026-09-13T08:12:12Z",
+      "prerelease": false,
+      "draft": false,
+      "html_url": "https://github.com/Avinash-Amudala/weftgate/releases/tag/v0.3.0",
+      "assets": [
+        {
+          "name": "captions.vtt",
+          "size": 688,
+          "url": "https://github.com/Avinash-Amudala/weftgate/releases/download/v0.3.0/captions.vtt"
+        },
+        {
+          "name": "weftgate-0.3.0-py3-none-any.whl",
+          "size": 142848,
+          "url": "https://github.com/Avinash-Amudala/weftgate/releases/download/v0.3.0/weftgate-0.3.0-py3-none-any.whl"
+        },
+        {
+          "name": "weftgate-0.3.0.tar.gz",
+          "size": 909306,
+          "url": "https://github.com/Avinash-Amudala/weftgate/releases/download/v0.3.0/weftgate-0.3.0.tar.gz"
+        },
+        {
+          "name": "weftgate-demo.mp4",
+          "size": 4825229,
+          "url": "https://github.com/Avinash-Amudala/weftgate/releases/download/v0.3.0/weftgate-demo.mp4"
+        },
+        {
+          "name": "weftgate-session-memory.mp4",
+          "size": 1920023,
+          "url": "https://github.com/Avinash-Amudala/weftgate/releases/download/v0.3.0/weftgate-session-memory.mp4"
+        }
+      ]
+    },
+    "anthropometer-release": {
+      "tag_name": "v0.7.0",
+      "published_at": "2026-10-15T16:15:29Z",
+      "prerelease": false,
+      "draft": false,
+      "html_url": "https://github.com/arian-shamaei/anthropometer/releases/tag/v0.7.0",
+      "assets": [
+        {
+          "name": "amtr-v0.7.0-aarch64-apple-darwin.tar.gz",
+          "size": 1110988,
+          "url": "https://github.com/arian-shamaei/anthropometer/releases/download/v0.7.0/amtr-v0.7.0-aarch64-apple-darwin.tar.gz"
+        },
+        {
+          "name": "amtr-v0.7.0-aarch64-unknown-linux-gnu.tar.gz",
+          "size": 1159331,
+          "url": "https://github.com/arian-shamaei/anthropometer/releases/download/v0.7.0/amtr-v0.7.0-aarch64-unknown-linux-gnu.tar.gz"
+        },
+        {
+          "name": "amtr-v0.7.0-x86_64-apple-darwin.tar.gz",
+          "size": 1154120,
+          "url": "https://github.com/arian-shamaei/anthropometer/releases/download/v0.7.0/amtr-v0.7.0-x86_64-apple-darwin.tar.gz"
+        },
+        {
+          "name": "amtr-v0.7.0-x86_64-unknown-linux-gnu.tar.gz",
+          "size": 1196014,
+          "url": "https://github.com/arian-shamaei/anthropometer/releases/download/v0.7.0/amtr-v0.7.0-x86_64-unknown-linux-gnu.tar.gz"
+        },
+        {
+          "name": "install.sh",
+          "size": 9068,
+          "url": "https://github.com/arian-shamaei/anthropometer/releases/download/v0.7.0/install.sh"
+        }
+      ]
+    }
+  },
+  "sources": [
+    {
+      "id": "claude-mem-readme",
+      "url": "https://raw.githubusercontent.com/thedotmack/claude-mem/main/README.md",
+      "accessed_at_utc": "2026-10-17T08:24:40.634604+00:00",
+      "status": 200,
+      "final_url": "https://raw.githubusercontent.com/thedotmack/claude-mem/main/README.md",
+      "snapshot": "claude-mem-readme.txt",
+      "bytes": 20025,
+      "sha256": "984c9814e0822570cb6d2cba79e91b77ee6bf14a5dfa107811c9d1f8558d28c7"
+    },
+    {
+      "id": "context-mode-readme",
+      "url": "https://raw.githubusercontent.com/mksglu/context-mode/main/README.md",
+      "accessed_at_utc": "2026-10-17T08:24:40.635532+00:00",
+      "status": 200,
+      "final_url": "https://raw.githubusercontent.com/mksglu/context-mode/main/README.md",
+      "snapshot": "context-mode-readme.txt",
+      "bytes": 94871,
+      "sha256": "9308e09043c4746340662e7a72e68de155fc28d70a1dd316f5ff292596076d04"
+    },
+    {
+      "id": "beads-readme",
+      "url": "https://raw.githubusercontent.com/steveyegge/beads/main/README.md",
+      "accessed_at_utc": "2026-10-17T08:24:40.635532+00:00",
+      "status": 200,
+      "final_url": "https://raw.githubusercontent.com/steveyegge/beads/main/README.md",
+      "snapshot": "beads-readme.txt",
+      "bytes": 18563,
+      "sha256": "0bc111bcf9cc9ca4f3ff90a25368cd6dc6d6185fa05a21e2a13329c9e74c4ef7"
+    },
+    {
+      "id": "entire-readme",
+      "url": "https://raw.githubusercontent.com/entireio/cli/main/README.md",
+      "accessed_at_utc": "2026-10-17T08:24:40.635532+00:00",
+      "status": 200,
+      "final_url": "https://raw.githubusercontent.com/entireio/cli/main/README.md",
+      "snapshot": "entire-readme.txt",
+      "bytes": 46426,
+      "sha256": "6a746b56d55a33d138872bfb90720a83975cea61497ce4753dfdc1fed7e7e2bf"
+    },
+    {
+      "id": "mastra-memory",
+      "url": "https://mastra.ai/docs/memory/observational-memory",
+      "accessed_at_utc": "2026-10-17T08:24:40.637235+00:00",
+      "status": 200,
+      "final_url": "https://mastra.ai/docs/memory/observational-memory",
+      "snapshot": "mastra-memory.txt",
+      "bytes": 278893,
+      "sha256": "5be47587cc09a8baa6c34b4855171bac0eca49732cab3007f11ee76e46191dad"
+    },
+    {
+      "id": "langgraph-memory",
+      "url": "https://docs.langchain.com/oss/python/langgraph/memory.md",
+      "accessed_at_utc": "2026-10-17T08:24:40.637235+00:00",
+      "status": 200,
+      "final_url": "https://docs.langchain.com/oss/python/concepts/memory.md",
+      "snapshot": "langgraph-memory.txt",
+      "bytes": 20243,
+      "sha256": "d9628175fc859aa5a25a8fb537ace30ba7ae45055bba2f88820a25efd9218e3b"
+    },
+    {
+      "id": "langgraph-time-travel",
+      "url": "https://docs.langchain.com/oss/python/langgraph/use-time-travel.md",
+      "accessed_at_utc": "2026-10-17T08:24:40.637842+00:00",
+      "status": 200,
+      "final_url": "https://docs.langchain.com/oss/python/langgraph/use-time-travel.md",
+      "snapshot": "langgraph-time-travel.txt",
+      "bytes": 13078,
+      "sha256": "16b9beebc967b3f486f5d08f838e3b4b274eaa4bb3fb19af961cd2e202598820"
+    },
+    {
+      "id": "langsmith-studio",
+      "url": "https://docs.langchain.com/langsmith/studio.md",
+      "accessed_at_utc": "2026-10-17T08:24:40.637842+00:00",
+      "status": 200,
+      "final_url": "https://docs.langchain.com/langsmith/studio.md",
+      "snapshot": "langsmith-studio.txt",
+      "bytes": 3571,
+      "sha256": "4c542f9bb199bef2ebadb215d879ac04bf388280e81fa86879088e6363872488"
+    },
+    {
+      "id": "claude-mem-commit",
+      "url": "https://api.github.com/repos/thedotmack/claude-mem/commits/main",
+      "accessed_at_utc": "2026-10-17T08:25:45.915446+00:00",
+      "status": 200,
+      "final_url": "https://api.github.com/repos/thedotmack/claude-mem/commits/main",
+      "snapshot": "claude-mem-commit.txt",
+      "bytes": 18157,
+      "sha256": "62b30e897385e9255c468b3f8cf99e5cdace1303d40a0f036edca981f57aaa1a"
+    },
+    {
+      "id": "context-mode-commit",
+      "url": "https://api.github.com/repos/mksglu/context-mode/commits/main",
+      "accessed_at_utc": "2026-10-17T08:25:45.915965+00:00",
+      "status": 200,
+      "final_url": "https://api.github.com/repos/mksglu/context-mode/commits/main",
+      "snapshot": "context-mode-commit.txt",
+      "bytes": 4464,
+      "sha256": "b8f4885b649d04e60ebacc45643eda34cd0553eb7ecce9bf16916b574d669b7f"
+    },
+    {
+      "id": "beads-commit",
+      "url": "https://api.github.com/repos/steveyegge/beads/commits/main",
+      "accessed_at_utc": "2026-10-17T08:25:45.915965+00:00",
+      "status": 200,
+      "final_url": "https://api.github.com/repositories/1074561042/commits/main",
+      "snapshot": "beads-commit.txt",
+      "bytes": 39225,
+      "sha256": "7057fe3e117358b18b342a3ed51a59d34322f0f61a3aef27262cf344949bd92f"
+    },
+    {
+      "id": "entire-commit",
+      "url": "https://api.github.com/repos/entireio/cli/commits/main",
+      "accessed_at_utc": "2026-10-17T08:25:45.915965+00:00",
+      "status": 200,
+      "final_url": "https://api.github.com/repos/entireio/cli/commits/main",
+      "snapshot": "entire-commit.txt",
+      "bytes": 22084,
+      "sha256": "a7d17724fe4166a0edbffd239153d7170958eb9e0e8ae9bd5167869f9f347bd9"
+    },
+    {
+      "id": "claude-mem-release",
+      "url": "https://api.github.com/repos/thedotmack/claude-mem/releases/latest",
+      "accessed_at_utc": "2026-10-17T08:25:45.915965+00:00",
+      "status": 200,
+      "final_url": "https://api.github.com/repos/thedotmack/claude-mem/releases/latest",
+      "snapshot": "claude-mem-release.txt",
+      "bytes": 3843,
+      "sha256": "bc5cc2a4f790edb4737af8ed912c83ad48c46f92ac7a27580f2787a7f6e041de"
+    },
+    {
+      "id": "context-mode-release",
+      "url": "https://api.github.com/repos/mksglu/context-mode/releases/latest",
+      "accessed_at_utc": "2026-10-17T08:25:45.915965+00:00",
+      "status": 200,
+      "final_url": "https://api.github.com/repos/mksglu/context-mode/releases/latest",
+      "snapshot": "context-mode-release.txt",
+      "bytes": 3041,
+      "sha256": "97c0af65d4aaae169d0f68f3805464740f4ff8a25ac7489dcfd6f706836e11f7"
+    },
+    {
+      "id": "beads-release",
+      "url": "https://api.github.com/repos/steveyegge/beads/releases/latest",
+      "accessed_at_utc": "2026-10-17T08:25:45.915965+00:00",
+      "status": 200,
+      "final_url": "https://api.github.com/repositories/1074561042/releases/latest",
+      "snapshot": "beads-release.txt",
+      "bytes": 47304,
+      "sha256": "5dd9d7f829ad701783b468ed639f826a5b277b225fafccd72ab8722f0f615507"
+    },
+    {
+      "id": "entire-release",
+      "url": "https://api.github.com/repos/entireio/cli/releases/latest",
+      "accessed_at_utc": "2026-10-17T08:25:45.915965+00:00",
+      "status": 200,
+      "final_url": "https://api.github.com/repos/entireio/cli/releases/latest",
+      "snapshot": "entire-release.txt",
+      "bytes": 25579,
+      "sha256": "2b510c87853d9fd4025d8b7d0c0684058e021e828939df51ab8ecb487c69d539"
+    },
+    {
+      "id": "context-mode-tree",
+      "url": "https://api.github.com/repos/mksglu/context-mode/git/trees/main?recursive=1",
+      "accessed_at_utc": "2026-10-17T08:25:47.247855+00:00",
+      "status": 200,
+      "final_url": "https://api.github.com/repos/mksglu/context-mode/git/trees/main?recursive=1",
+      "snapshot": "context-mode-tree.txt",
+      "bytes": 170250,
+      "sha256": "efb16c7f069ed2e687156e5bd870182f7ec5eb3daac912b4d02d71a84af27046"
+    },
+    {
+      "id": "claude-mem-architecture",
+      "url": "https://docs.claude-mem.ai/architecture/overview",
+      "accessed_at_utc": "2026-10-17T08:25:47.268176+00:00",
+      "status": 200,
+      "final_url": "https://docs.claude-mem.ai/architecture/overview",
+      "snapshot": "claude-mem-architecture.txt",
+      "bytes": 358816,
+      "sha256": "d6eee1f983c03b95ce91e46ce3c8d49369f9d7d44703b9866d59e81d402e208b"
+    },
+    {
+      "id": "mastra-studio",
+      "url": "https://mastra.ai/docs/studio",
+      "accessed_at_utc": "2026-10-17T08:25:47.602392+00:00",
+      "status": 404,
+      "final_url": "https://mastra.ai/docs/studio"
+    },
+    {
+      "id": "search-handoff",
+      "url": "https://api.github.com/search/repositories?q=agent+handoff+context+memory&sort=stars&per_page=8",
+      "accessed_at_utc": "2026-10-17T08:25:47.621323+00:00",
+      "status": 200,
+      "final_url": "https://api.github.com/search/repositories?q=agent+handoff+context+memory&sort=stars&per_page=8",
+      "snapshot": "search-handoff.txt",
+      "bytes": 44987,
+      "sha256": "61b6efd6c36fc03f843532838f50380d6b1f24fc8d8be68e26869ee2882c1286"
+    },
+    {
+      "id": "search-debug-memory",
+      "url": "https://api.github.com/search/repositories?q=agent+debugger+memory&sort=stars&per_page=8",
+      "accessed_at_utc": "2026-10-17T08:25:47.780616+00:00",
+      "status": 200,
+      "final_url": "https://api.github.com/search/repositories?q=agent+debugger+memory&sort=stars&per_page=8",
+      "snapshot": "search-debug-memory.txt",
+      "bytes": 275790,
+      "sha256": "54a4b7c94ce4180a26bf8b926286586738a7143eee207a2d63adad9927a8a347"
+    },
+    {
+      "id": "vault-readme",
+      "url": "https://raw.githubusercontent.com/aliihsaad/the-vault/main/README.md",
+      "accessed_at_utc": "2026-10-17T08:26:33.831625+00:00",
+      "error": "HTTPSConnectionPool(host='raw.githubusercontent.com', port=443): Read timed out."
+    },
+    {
+      "id": "contextmeld-readme",
+      "url": "https://raw.githubusercontent.com/Ste2027/ContextMeld/main/README.md",
+      "accessed_at_utc": "2026-10-17T08:26:33.833071+00:00",
+      "error": "HTTPSConnectionPool(host='raw.githubusercontent.com', port=443): Read timed out. (read timeout=22)"
+    },
+    {
+      "id": "weftgate-readme",
+      "url": "https://raw.githubusercontent.com/Avinash-Amudala/weftgate/main/README.md",
+      "accessed_at_utc": "2026-10-17T08:26:33.833071+00:00",
+      "error": "HTTPSConnectionPool(host='raw.githubusercontent.com', port=443): Read timed out. (read timeout=22)"
+    },
+    {
+      "id": "anthropometer-readme",
+      "url": "https://raw.githubusercontent.com/arian-shamaei/anthropometer/main/README.md",
+      "accessed_at_utc": "2026-10-17T08:26:33.833071+00:00",
+      "error": "HTTPSConnectionPool(host='raw.githubusercontent.com', port=443): Read timed out. (read timeout=22)"
+    },
+    {
+      "id": "context-mode-snapshot-code",
+      "url": "https://raw.githubusercontent.com/mksglu/context-mode/5f6298a9bdc480ebc7c88a29c9fbdf38ae2f8cb6/src/session/snapshot.ts",
+      "accessed_at_utc": "2026-10-17T08:26:33.834509+00:00",
+      "error": "HTTPSConnectionPool(host='raw.githubusercontent.com', port=443): Read timed out. (read timeout=22)"
+    },
+    {
+      "id": "context-mode-extract-code",
+      "url": "https://raw.githubusercontent.com/mksglu/context-mode/5f6298a9bdc480ebc7c88a29c9fbdf38ae2f8cb6/src/session/extract.ts",
+      "accessed_at_utc": "2026-10-17T08:26:33.834509+00:00",
+      "error": "HTTPSConnectionPool(host='raw.githubusercontent.com', port=443): Read timed out. (read timeout=22)"
+    },
+    {
+      "id": "context-mode-start-code",
+      "url": "https://raw.githubusercontent.com/mksglu/context-mode/5f6298a9bdc480ebc7c88a29c9fbdf38ae2f8cb6/hooks/sessionstart.mjs",
+      "accessed_at_utc": "2026-10-17T08:26:33.834509+00:00",
+      "error": "HTTPSConnectionPool(host='raw.githubusercontent.com', port=443): Read timed out. (read timeout=22)"
+    },
+    {
+      "id": "context-mode-release-readme",
+      "url": "https://raw.githubusercontent.com/mksglu/context-mode/v1.0.169/README.md",
+      "accessed_at_utc": "2026-10-17T08:26:33.834509+00:00",
+      "error": "HTTPSConnectionPool(host='raw.githubusercontent.com', port=443): Read timed out. (read timeout=22)"
+    },
+    {
+      "id": "claude-mem-release-readme",
+      "url": "https://raw.githubusercontent.com/thedotmack/claude-mem/v13.41.0/README.md",
+      "accessed_at_utc": "2026-10-17T08:26:56.280106+00:00",
+      "error": "HTTPSConnectionPool(host='raw.githubusercontent.com', port=443): Read timed out. (read timeout=22)"
+    },
+    {
+      "id": "beads-release-readme",
+      "url": "https://raw.githubusercontent.com/steveyegge/beads/v1.3.1/README.md",
+      "accessed_at_utc": "2026-10-17T08:26:56.280106+00:00",
+      "error": "HTTPSConnectionPool(host='raw.githubusercontent.com', port=443): Read timed out. (read timeout=22)"
+    },
+    {
+      "id": "entire-release-readme",
+      "url": "https://raw.githubusercontent.com/entireio/cli/v0.11.5/README.md",
+      "accessed_at_utc": "2026-10-17T08:26:56.295604+00:00",
+      "error": "HTTPSConnectionPool(host='raw.githubusercontent.com', port=443): Read timed out. (read timeout=22)"
+    },
+    {
+      "id": "context-mode-benchmark",
+      "url": "https://raw.githubusercontent.com/mksglu/context-mode/main/BENCHMARK.md",
+      "accessed_at_utc": "2026-10-17T08:26:56.295604+00:00",
+      "error": "HTTPSConnectionPool(host='raw.githubusercontent.com', port=443): Read timed out. (read timeout=22)"
+    },
+    {
+      "id": "vault-readme-api",
+      "url": "https://api.github.com/repos/aliihsaad/the-vault/contents/README.md?ref=main",
+      "accessed_at_utc": "2026-10-17T08:27:24.867119+00:00",
+      "status": 200,
+      "final_url": "https://api.github.com/repos/aliihsaad/the-vault/contents/README.md?ref=main",
+      "snapshot": "vault-readme-api.txt",
+      "bytes": 46880,
+      "sha256": "6c93b91e2b6b8cfb22e2bdcd644624176993b9efaf8a4152ac14bbef83dad262",
+      "github_blob_sha": "b3817ce939e1115cbcc937b4bd44a0811b09ca72",
+      "decoded_content_sha256": "34c5254e53ecad7a82bce101f1d24d00d339e7838f8ad2d97c45eee3ac494241",
+      "html_url": "https://github.com/aliihsaad/the-vault/blob/main/README.md"
+    },
+    {
+      "id": "contextmeld-readme-api",
+      "url": "https://api.github.com/repos/Ste2027/ContextMeld/contents/README.md?ref=main",
+      "accessed_at_utc": "2026-10-17T08:27:24.867119+00:00",
+      "status": 404,
+      "final_url": "https://api.github.com/repos/Ste2027/ContextMeld/contents/README.md?ref=main"
+    },
+    {
+      "id": "weftgate-readme-api",
+      "url": "https://api.github.com/repos/Avinash-Amudala/weftgate/contents/README.md?ref=main",
+      "accessed_at_utc": "2026-10-17T08:27:24.867119+00:00",
+      "status": 200,
+      "final_url": "https://api.github.com/repos/Avinash-Amudala/weftgate/contents/README.md?ref=main",
+      "snapshot": "weftgate-readme-api.txt",
+      "bytes": 20031,
+      "sha256": "9e4f07ae5776a92f28ab53ca1b88e61fe3333b7dafd52e03e72015f186657c66",
+      "github_blob_sha": "4fa26f981d08155035e09b5647f7bf757cb06e82",
+      "decoded_content_sha256": "084b7430f5f34b7438eda9363aec763a8ecb1f5fa88d52e0a63e404656d60100",
+      "html_url": "https://github.com/Avinash-Amudala/weftgate/blob/main/README.md"
+    },
+    {
+      "id": "anthropometer-readme-api",
+      "url": "https://api.github.com/repos/arian-shamaei/anthropometer/contents/README.md?ref=main",
+      "accessed_at_utc": "2026-10-17T08:27:24.868126+00:00",
+      "status": 200,
+      "final_url": "https://api.github.com/repos/arian-shamaei/anthropometer/contents/README.md?ref=main",
+      "snapshot": "anthropometer-readme-api.txt",
+      "bytes": 27244,
+      "sha256": "f18585a09683d4547e865f96e3f3d3ee53fc533049cdf0b362f3d94e145b8212",
+      "github_blob_sha": "d40a93c84a5ef6c9e9359f9f93d762e94837e126",
+      "decoded_content_sha256": "d1c6a3fc12b3bb082b707e0fa1193ccfaad5314731778b914774cbf78dd92dd1",
+      "html_url": "https://github.com/arian-shamaei/anthropometer/blob/main/README.md"
+    },
+    {
+      "id": "context-mode-snapshot-code-api",
+      "url": "https://api.github.com/repos/mksglu/context-mode/contents/src/session/snapshot.ts?ref=5f6298a9bdc480ebc7c88a29c9fbdf38ae2f8cb6",
+      "accessed_at_utc": "2026-10-17T08:27:24.868126+00:00",
+      "status": 200,
+      "final_url": "https://api.github.com/repos/mksglu/context-mode/contents/src/session/snapshot.ts?ref=5f6298a9bdc480ebc7c88a29c9fbdf38ae2f8cb6",
+      "snapshot": "context-mode-snapshot-code-api.txt",
+      "bytes": 26852,
+      "sha256": "76ab45e4268c433cce758146f8d50674312f4f272848efbbd2f0ec05aabc134a",
+      "github_blob_sha": "e49902d608a719a8382d7d1010f2801fbd220b60",
+      "decoded_content_sha256": "568ec1172043462d59da32f04f086465acf780a75936326d1183d1884787e39d",
+      "html_url": "https://github.com/mksglu/context-mode/blob/5f6298a9bdc480ebc7c88a29c9fbdf38ae2f8cb6/src/session/snapshot.ts"
+    },
+    {
+      "id": "context-mode-extract-code-api",
+      "url": "https://api.github.com/repos/mksglu/context-mode/contents/src/session/extract.ts?ref=5f6298a9bdc480ebc7c88a29c9fbdf38ae2f8cb6",
+      "accessed_at_utc": "2026-10-17T08:27:24.869127+00:00",
+      "status": 200,
+      "final_url": "https://api.github.com/repos/mksglu/context-mode/contents/src/session/extract.ts?ref=5f6298a9bdc480ebc7c88a29c9fbdf38ae2f8cb6",
+      "snapshot": "context-mode-extract-code-api.txt",
+      "bytes": 151746,
+      "sha256": "b7f34e41b3cc19fa419bc5205441e71a98722a9571a36081f6da125bf2697c47",
+      "github_blob_sha": "2b399be1ff9c97b07a8022b7bac7dacd218be0b8",
+      "decoded_content_sha256": "8af749c8f29a095774f88f8f2a14a007d028b559bd7c8ce4cf46a6c1300ec20e",
+      "html_url": "https://github.com/mksglu/context-mode/blob/5f6298a9bdc480ebc7c88a29c9fbdf38ae2f8cb6/src/session/extract.ts"
+    },
+    {
+      "id": "context-mode-start-code-api",
+      "url": "https://api.github.com/repos/mksglu/context-mode/contents/hooks/sessionstart.mjs?ref=5f6298a9bdc480ebc7c88a29c9fbdf38ae2f8cb6",
+      "accessed_at_utc": "2026-10-17T08:27:24.869127+00:00",
+      "status": 200,
+      "final_url": "https://api.github.com/repos/mksglu/context-mode/contents/hooks/sessionstart.mjs?ref=5f6298a9bdc480ebc7c88a29c9fbdf38ae2f8cb6",
+      "snapshot": "context-mode-start-code-api.txt",
+      "bytes": 30819,
+      "sha256": "434609c98a07594876bc298569de06440f202fffc4e10d4df1bf2b3699e5ac0a",
+      "github_blob_sha": "8083ce39c46b91d6e8f150acbdce5591a3e8e9a4",
+      "decoded_content_sha256": "41952548f197dc40bac50afff2126802c83fc9cbbe8ecc86743cacaeb0ced001",
+      "html_url": "https://github.com/mksglu/context-mode/blob/5f6298a9bdc480ebc7c88a29c9fbdf38ae2f8cb6/hooks/sessionstart.mjs"
+    },
+    {
+      "id": "context-mode-release-readme-api",
+      "url": "https://api.github.com/repos/mksglu/context-mode/contents/README.md?ref=v1.0.169",
+      "accessed_at_utc": "2026-10-17T08:27:24.869127+00:00",
+      "status": 200,
+      "final_url": "https://api.github.com/repos/mksglu/context-mode/contents/README.md?ref=v1.0.169",
+      "snapshot": "context-mode-release-readme-api.txt",
+      "bytes": 131510,
+      "sha256": "6a962d13933368a96e8c1d3cd91bf962e086ecda530046f2af19e8b82c45d296",
+      "github_blob_sha": "b796169524473691594af24995d21ca94027f7c7",
+      "decoded_content_sha256": "9308e09043c4746340662e7a72e68de155fc28d70a1dd316f5ff292596076d04",
+      "html_url": "https://github.com/mksglu/context-mode/blob/v1.0.169/README.md"
+    },
+    {
+      "id": "claude-mem-release-readme-api",
+      "url": "https://api.github.com/repos/thedotmack/claude-mem/contents/README.md?ref=v13.41.0",
+      "accessed_at_utc": "2026-10-17T08:27:26.093038+00:00",
+      "status": 200,
+      "final_url": "https://api.github.com/repos/thedotmack/claude-mem/contents/README.md?ref=v13.41.0",
+      "snapshot": "claude-mem-release-readme-api.txt",
+      "bytes": 28400,
+      "sha256": "8a0a35c0ce4a29b28a2f64a00b6c0d621df2de872074dbfe3b0ea2271651f930",
+      "github_blob_sha": "f6564292ea1b86b5eccf751abe18d07c5c0f4941",
+      "decoded_content_sha256": "984c9814e0822570cb6d2cba79e91b77ee6bf14a5dfa107811c9d1f8558d28c7",
+      "html_url": "https://github.com/thedotmack/claude-mem/blob/v13.41.0/README.md"
+    },
+    {
+      "id": "beads-release-readme-api",
+      "url": "https://api.github.com/repos/steveyegge/beads/contents/README.md?ref=v1.3.1",
+      "accessed_at_utc": "2026-10-17T08:27:26.252288+00:00",
+      "status": 200,
+      "final_url": "https://api.github.com/repositories/1074561042/contents/README.md?ref=v1.3.1",
+      "snapshot": "beads-release-readme-api.txt",
+      "bytes": 16008,
+      "sha256": "374508534d0da76e642cf9ab6919009360af68dcd8c011d35028bb83cc32560b",
+      "github_blob_sha": "025cdc3e478bb2408dbe76d5b26a0c3112dfb33d",
+      "decoded_content_sha256": "a2f98e079bcfc37a91d13f4f28c335ad2682d8717451396d42ab3559d1125d3a",
+      "html_url": "https://github.com/gastownhall/beads/blob/v1.3.1/README.md"
+    },
+    {
+      "id": "entire-release-readme-api",
+      "url": "https://api.github.com/repos/entireio/cli/contents/README.md?ref=v0.11.5",
+      "accessed_at_utc": "2026-10-17T08:27:26.299130+00:00",
+      "status": 200,
+      "final_url": "https://api.github.com/repos/entireio/cli/contents/README.md?ref=v0.11.5",
+      "snapshot": "entire-release-readme-api.txt",
+      "bytes": 64664,
+      "sha256": "2876f8dd795fc9ecfe7c60ea7a97836574cb1ced607f0c0e96538c6dd1cda086",
+      "github_blob_sha": "78f56111ba1008d92a88636bf7759581f752b566",
+      "decoded_content_sha256": "0bdd7b48179882a4f1585e5512c1041759707339740543f338e14be902fb24b2",
+      "html_url": "https://github.com/entireio/cli/blob/v0.11.5/README.md"
+    },
+    {
+      "id": "context-mode-benchmark-api",
+      "url": "https://api.github.com/repos/mksglu/context-mode/contents/BENCHMARK.md?ref=main",
+      "accessed_at_utc": "2026-10-17T08:27:26.486966+00:00",
+      "status": 200,
+      "final_url": "https://api.github.com/repos/mksglu/context-mode/contents/BENCHMARK.md?ref=main",
+      "snapshot": "context-mode-benchmark-api.txt",
+      "bytes": 11262,
+      "sha256": "85e1a348d8f75fcc04b2788f9933432b15861fc6fe8a2ebd8660d05d583bd10a",
+      "github_blob_sha": "7328e5a405ed2e2f2ef9bc16776b6010c00b9bd9",
+      "decoded_content_sha256": "eb21f875cab7e8c11bdaf5030b65d02b95f11fe2be5451baf907036d081a1769",
+      "html_url": "https://github.com/mksglu/context-mode/blob/main/BENCHMARK.md"
+    },
+    {
+      "id": "vault-release",
+      "url": "https://api.github.com/repos/aliihsaad/the-vault/releases/latest",
+      "accessed_at_utc": "2026-10-17T08:28:15.613421+00:00",
+      "status": 200,
+      "final_url": "https://api.github.com/repos/aliihsaad/the-vault/releases/latest",
+      "snapshot": "vault-release.txt",
+      "bytes": 8725,
+      "sha256": "b60fa15be573ee90a0e7aa008c942bdefd55c86e735c37807f7ba11f64709985"
+    },
+    {
+      "id": "weftgate-release",
+      "url": "https://api.github.com/repos/Avinash-Amudala/weftgate/releases/latest",
+      "accessed_at_utc": "2026-10-17T08:28:15.614420+00:00",
+      "status": 200,
+      "final_url": "https://api.github.com/repos/Avinash-Amudala/weftgate/releases/latest",
+      "snapshot": "weftgate-release.txt",
+      "bytes": 13025,
+      "sha256": "9c564c7f2f599810a877f1b4c9ddd00460ed1a3eaa6e80d0d4bd8fb93623a26f"
+    },
+    {
+      "id": "weftgate-tree",
+      "url": "https://api.github.com/repos/Avinash-Amudala/weftgate/git/trees/main?recursive=1",
+      "accessed_at_utc": "2026-10-17T08:28:15.614420+00:00",
+      "status": 200,
+      "final_url": "https://api.github.com/repos/Avinash-Amudala/weftgate/git/trees/main?recursive=1",
+      "snapshot": "weftgate-tree.txt",
+      "bytes": 40148,
+      "sha256": "87151d01ba571ae183ebc81d9973fb06e38f7f2e146bb5087b21a4f2036e2907"
+    },
+    {
+      "id": "anthropometer-release",
+      "url": "https://api.github.com/repos/arian-shamaei/anthropometer/releases/latest",
+      "accessed_at_utc": "2026-10-17T08:28:15.615621+00:00",
+      "status": 200,
+      "final_url": "https://api.github.com/repos/arian-shamaei/anthropometer/releases/latest",
+      "snapshot": "anthropometer-release.txt",
+      "bytes": 12927,
+      "sha256": "7fc6a8bf03c2487aed145d5ca92e5ed165e3c701179200dfaa8abad799792eaa"
+    },
+    {
+      "id": "weftgate-release-readme-api",
+      "url": "https://api.github.com/repos/Avinash-Amudala/weftgate/contents/README.md?ref=v0.3.0",
+      "accessed_at_utc": "2026-10-17T08:28:48.513840+00:00",
+      "status": 200,
+      "final_url": "https://api.github.com/repos/Avinash-Amudala/weftgate/contents/README.md?ref=v0.3.0",
+      "snapshot": "weftgate-release-readme-api.txt",
+      "bytes": 19161,
+      "sha256": "6c86d66114fe8449134667426d4c9bb20582362e5d00a9fd0b08247663cb7ee0",
+      "github_blob_sha": "6ee5b284fbb6e51391457ef126960ca19f13581f",
+      "decoded_content_sha256": "1a1c9c959458b3e7e5d05e864aaa637096124294b06b53743a688014615fa538",
+      "html_url": "https://github.com/Avinash-Amudala/weftgate/blob/v0.3.0/README.md"
+    },
+    {
+      "id": "weftgate-memory-code-api",
+      "url": "https://api.github.com/repos/Avinash-Amudala/weftgate/contents/weftgate/memory.py?ref=4f3f7a6c19d41a2014fcf01bde929237ccdc9aef",
+      "accessed_at_utc": "2026-10-17T08:28:48.513840+00:00",
+      "status": 200,
+      "final_url": "https://api.github.com/repos/Avinash-Amudala/weftgate/contents/weftgate/memory.py?ref=4f3f7a6c19d41a2014fcf01bde929237ccdc9aef",
+      "snapshot": "weftgate-memory-code-api.txt",
+      "bytes": 25317,
+      "sha256": "a2319108bdacd7d000f7582182ff2191b1ba95ab455ea35b5d830bd8c988aba6",
+      "github_blob_sha": "009227793e70f7646bcaa7d2dcd4f49f2419e4bd",
+      "decoded_content_sha256": "a0a21c106321a7ba15881162728b349c938f6d29d35dc711b9c18a3cb7f6e5b6",
+      "html_url": "https://github.com/Avinash-Amudala/weftgate/blob/4f3f7a6c19d41a2014fcf01bde929237ccdc9aef/weftgate/memory.py"
+    },
+    {
+      "id": "weftgate-workflow-doc-api",
+      "url": "https://api.github.com/repos/Avinash-Amudala/weftgate/contents/docs/WORKFLOWS.md?ref=4f3f7a6c19d41a2014fcf01bde929237ccdc9aef",
+      "accessed_at_utc": "2026-10-17T08:28:48.513840+00:00",
+      "status": 200,
+      "final_url": "https://api.github.com/repos/Avinash-Amudala/weftgate/contents/docs/WORKFLOWS.md?ref=4f3f7a6c19d41a2014fcf01bde929237ccdc9aef",
+      "snapshot": "weftgate-workflow-doc-api.txt",
+      "bytes": 6783,
+      "sha256": "4e08a0bc40915348ca1217b5fbfc53e0b517915222b71cc1b5a74640b4bd3a7e",
+      "github_blob_sha": "8071ac39b8bebab2a9e30677f8663376916f5d5f",
+      "decoded_content_sha256": "5fe3317896b0292ea1c4ba9ac83665e2b35f799fd265ce205d21cff6b92197c8",
+      "html_url": "https://github.com/Avinash-Amudala/weftgate/blob/4f3f7a6c19d41a2014fcf01bde929237ccdc9aef/docs/WORKFLOWS.md"
+    },
+    {
+      "id": "vault-release-readme-api",
+      "url": "https://api.github.com/repos/aliihsaad/the-vault/contents/README.md?ref=v0.6.7",
+      "accessed_at_utc": "2026-10-17T08:28:48.515471+00:00",
+      "status": 200,
+      "final_url": "https://api.github.com/repos/aliihsaad/the-vault/contents/README.md?ref=v0.6.7",
+      "snapshot": "vault-release-readme-api.txt",
+      "bytes": 46890,
+      "sha256": "6c350889d532854967e0f3e9ba81430ead988d14be143d1de54eec7a4aa79b90",
+      "github_blob_sha": "b3817ce939e1115cbcc937b4bd44a0811b09ca72",
+      "decoded_content_sha256": "34c5254e53ecad7a82bce101f1d24d00d339e7838f8ad2d97c45eee3ac494241",
+      "html_url": "https://github.com/aliihsaad/the-vault/blob/v0.6.7/README.md"
+    },
+    {
+      "id": "anthropometer-release-readme-api",
+      "url": "https://api.github.com/repos/arian-shamaei/anthropometer/contents/README.md?ref=v0.7.0",
+      "accessed_at_utc": "2026-10-17T08:28:48.515471+00:00",
+      "status": 200,
+      "final_url": "https://api.github.com/repos/arian-shamaei/anthropometer/contents/README.md?ref=v0.7.0",
+      "snapshot": "anthropometer-release-readme-api.txt",
+      "bytes": 27254,
+      "sha256": "bfd42d5868ed6a94edfb4e5738d361db20c96dd34da481335eafe4725b7adfb4",
+      "github_blob_sha": "d40a93c84a5ef6c9e9359f9f93d762e94837e126",
+      "decoded_content_sha256": "d1c6a3fc12b3bb082b707e0fa1193ccfaad5314731778b914774cbf78dd92dd1",
+      "html_url": "https://github.com/arian-shamaei/anthropometer/blob/v0.7.0/README.md"
+    },
+    {
+      "id": "claude-mem-adoption-repo",
+      "url": "https://api.github.com/repos/thedotmack/claude-mem",
+      "accessed_at_utc": "2026-10-17T08:58:37.295842+00:00",
+      "status": 200,
+      "final_url": "https://api.github.com/repos/thedotmack/claude-mem",
+      "snapshot": "claude-mem-adoption-repo.txt",
+      "bytes": 5904,
+      "sha256": "09e706533e2c585d2c2af06d2d432414b2bdb7e7a7294b779210888470a0f4bb"
+    },
+    {
+      "id": "context-mode-adoption-repo",
+      "url": "https://api.github.com/repos/mksglu/context-mode",
+      "accessed_at_utc": "2026-10-17T08:58:37.295842+00:00",
+      "status": 200,
+      "final_url": "https://api.github.com/repos/mksglu/context-mode",
+      "snapshot": "context-mode-adoption-repo.txt",
+      "bytes": 5611,
+      "sha256": "44fdcfe2c791c4954c21dc0774a9f6c60e1ca5932012cb59d19ae45da4022b44"
+    },
+    {
+      "id": "weftgate-adoption-repo",
+      "url": "https://api.github.com/repos/Avinash-Amudala/weftgate",
+      "accessed_at_utc": "2026-10-17T08:58:37.297359+00:00",
+      "status": 200,
+      "final_url": "https://api.github.com/repos/Avinash-Amudala/weftgate",
+      "snapshot": "weftgate-adoption-repo.txt",
+      "bytes": 5831,
+      "sha256": "215acc0660a00b5d970f5fc4d03781a48ffb31bab0e6f7bf0e74d52df9d982dc"
+    },
+    {
+      "id": "vault-adoption-repo",
+      "url": "https://api.github.com/repos/aliihsaad/the-vault",
+      "accessed_at_utc": "2026-10-17T08:58:37.298375+00:00",
+      "status": 200,
+      "final_url": "https://api.github.com/repos/aliihsaad/the-vault",
+      "snapshot": "vault-adoption-repo.txt",
+      "bytes": 5563,
+      "sha256": "a04708f88f2c8739f69cadbfc3fd4ffca70992760e53737167fc78648291e81e"
+    },
+    {
+      "id": "entire-adoption-repo",
+      "url": "https://api.github.com/repos/entireio/cli",
+      "accessed_at_utc": "2026-10-17T08:58:37.298375+00:00",
+      "status": 200,
+      "final_url": "https://api.github.com/repos/entireio/cli",
+      "snapshot": "entire-adoption-repo.txt",
+      "bytes": 6174,
+      "sha256": "ff7a9b83b85f42f5009fdde4820c2591a7d59c471115858ab09e2d1ba9a6b00f"
+    },
+    {
+      "id": "beads-adoption-repo",
+      "url": "https://api.github.com/repos/gastownhall/beads",
+      "accessed_at_utc": "2026-10-17T08:58:37.298375+00:00",
+      "status": 200,
+      "final_url": "https://api.github.com/repos/gastownhall/beads",
+      "snapshot": "beads-adoption-repo.txt",
+      "bytes": 6259,
+      "sha256": "f3c1c163d3a5ede23a2c72f51e0aae5e02a0c9077fa9242f19a2d08ee4373ea4"
+    },
+    {
+      "id": "claude-code-npm-month",
+      "url": "https://api.npmjs.org/downloads/point/last-month/@anthropic-ai/claude-code",
+      "accessed_at_utc": "2026-10-17T08:58:37.298375+00:00",
+      "status": 200,
+      "final_url": "https://api.npmjs.org/downloads/point/last-month/@anthropic-ai/claude-code",
+      "snapshot": "claude-code-npm-month.txt",
+      "bytes": 100,
+      "sha256": "1bbd1e6c3e0750aea2cf1c88dc33cc314d60867b8f92f9f4e38608207cddda98"
+    },
+    {
+      "id": "claude-mem-npm-month",
+      "url": "https://api.npmjs.org/downloads/point/last-month/claude-mem",
+      "accessed_at_utc": "2026-10-17T08:58:37.299360+00:00",
+      "status": 200,
+      "final_url": "https://api.npmjs.org/downloads/point/last-month/claude-mem",
+      "snapshot": "claude-mem-npm-month.txt",
+      "bytes": 82,
+      "sha256": "a02092023af8a776a9e90b5b524493a146214074f3dda0d98bc1498be7585aef"
+    },
+    {
+      "id": "context-mode-npm-month",
+      "url": "https://api.npmjs.org/downloads/point/last-month/context-mode",
+      "accessed_at_utc": "2026-10-17T08:58:38.410725+00:00",
+      "status": 200,
+      "final_url": "https://api.npmjs.org/downloads/point/last-month/context-mode",
+      "snapshot": "context-mode-npm-month.txt",
+      "bytes": 85,
+      "sha256": "c9372783e15357821c4cd4ad55145f16b4ac96dd50de961be4ad8875219f4cef"
+    },
+    {
+      "id": "claude-code-adoption-official",
+      "url": "https://www.anthropic.com/news/claude-code-on-team-and-enterprise",
+      "accessed_at_utc": "2026-10-17T08:58:38.420971+00:00",
+      "status": 200,
+      "final_url": "https://www.anthropic.com/news/claude-code-on-team-and-enterprise",
+      "snapshot": "claude-code-adoption-official.txt",
+      "bytes": 114794,
+      "sha256": "5e77b46cf4779107c25e515e2814f56ce8371887a19f63efb56169c742614448"
+    }
+  ]
+}

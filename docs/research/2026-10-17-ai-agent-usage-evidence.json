@@ -1,0 +1,178 @@
+{
+  "accessed_on": "2026-10-17",
+  "scope": "Public reports and research about actual AI and agent use; no original interviews or product experiments",
+  "snapshot_directory": "../../output/research-ai-agent-usage-2026-10-17",
+  "sources": [
+    {
+      "id": "S1",
+      "url": "https://www.cnnic.cn/n4/2026/1008/c88-11704.html",
+      "full_text_url": "https://www.cnnic.cn/NMediaFile/2026/1008/MAIN1791445205224NIO3ZYE5MH.pdf",
+      "published": "2026-10-08 (webpage); report released 2026-09-29",
+      "data_period": "Use-purpose and access-channel survey data through 2025-12; application activity separately refers to 2026-07",
+      "read_scope": "Official summary and complete 54-page PDF; relevant printed pages 7-9, PDF pages 15-17",
+      "snapshots": [
+        "cnnic-2026.html",
+        "cnnic-2026-report.pdf"
+      ],
+      "evidence": [
+        "用途：回答问题76.0%；图片/视频47.8%；文本37.6%；工作总结/会议纪要/PPT32.5%；生活助手30.6%；娱乐30.1%；代码10.8%。",
+        "PDF footnote 14: 该数据出自第57次中国互联网络发展状况统计调查的电话问卷调查，截止时间为2025年12月。",
+        "入口：手机内置助手36.1%；移动端APP35.5%；APP内AI插件29.2%；电脑网页版15.6%；电脑客户端6.5%。"
+      ],
+      "limits": "Reported use purposes are not query-volume shares. Access channels use a different population basis. Survey sample count and weighting were not established in this report reading.",
+      "snapshot_integrity": [
+        {
+          "file": "cnnic-2026.html",
+          "bytes": 14423,
+          "sha256": "481dccf16c57619b7464f44ecaac60ef87cc262ddfcbe3931a57ad15ce7ba51d"
+        },
+        {
+          "file": "cnnic-2026-report.pdf",
+          "bytes": 1245178,
+          "sha256": "ef0e64f2c4867be797eb85ae7e30a383e3577fdbf3719c13eaec226c89b29f33"
+        }
+      ]
+    },
+    {
+      "id": "S2",
+      "url": "https://www.nber.org/papers/w34255",
+      "published": "2025-09",
+      "data_period": "Consumer ChatGPT usage through 2025-07",
+      "read_scope": "NBER research description and abstract; full paper PDF not retrieved",
+      "snapshots": [
+        "nber-chatgpt.html"
+      ],
+      "evidence": [
+        "Practical Guidance, Seeking Information, and Writing collectively account for nearly 80%.",
+        "Non-work-related messages grew to more than 70%; programming represents a relatively small share."
+      ],
+      "limits": "Consumer product sample; not API or enterprise use. Figures are from the abstract rather than independently recalculated tables. Some authors are OpenAI employees.",
+      "snapshot_integrity": [
+        {
+          "file": "nber-chatgpt.html",
+          "bytes": 94337,
+          "sha256": "d2135da062e84241843a44b879fc5e82fa1827ed1606bde61ad7962f3122c9cd"
+        }
+      ]
+    },
+    {
+      "id": "S3",
+      "url": "https://www.anthropic.com/research/economic-index-june-2026-report",
+      "published": "2026-06-26",
+      "data_period": "Artifact chapter: 2026-04-10 through 2026-06-10",
+      "read_scope": "Full public HTML report, including footnotes; separate PDF appendix not retrieved",
+      "snapshots": [
+        "anthropic-june-2026.html"
+      ],
+      "evidence": [
+        "Chat and Cowork: explanations17%, documents and reports15%, guidance11%.",
+        "Among work conversations: documents and reports20%, explanations9%, email drafts7%, analyses and summaries6%.",
+        "Artifact definition includes conversational explanations and guidance, not only downloadable files."
+      ],
+      "limits": "Single vendor, model-classified conversations, pooled chat and Cowork. Claude Code and API have separate denominators.",
+      "snapshot_integrity": [
+        {
+          "file": "anthropic-june-2026.html",
+          "bytes": 337846,
+          "sha256": "6f3b5a6bb91fed926aa0320b88cfcba586b1386482330bb244d9cb78677ae67a"
+        }
+      ]
+    },
+    {
+      "id": "S4",
+      "url": "https://www.anthropic.com/research/measuring-agent-autonomy",
+      "published": "2026-02-18",
+      "data_period": "Late 2025 through early 2026, as described in limitations",
+      "read_scope": "Full public HTML article and limitations; PDF appendix not retrieved",
+      "snapshots": [
+        "anthropic-agent-autonomy.html"
+      ],
+      "evidence": [
+        "API sample n=998481 tool calls; software engineering accounts for nearly50%.",
+        "Human interruption reasons include providing missing technical context or corrections32%; agent stop reasons include gathering diagnostic information or test results21% and clarifying requests13%."
+      ],
+      "limits": "Tool calls are not users, deployments, completed tasks, or market share. Coding can generate many calls per task. Interrupt reasons have separate selected-sample denominators.",
+      "snapshot_integrity": [
+        {
+          "file": "anthropic-agent-autonomy.html",
+          "bytes": 255650,
+          "sha256": "c970119d4d79e7cbace6bd00a0da7f9767065e875b1b1aa6f28079c0fb0b00a2"
+        }
+      ]
+    },
+    {
+      "id": "S5",
+      "url": "https://arxiv.org/abs/2512.07828",
+      "published": "2025-12-10 (v2)",
+      "data_period": "Not established from the abstract in this research pass",
+      "read_scope": "Abstract and submission metadata only; PDF and experimental full HTML retrievals were stopped after stalling",
+      "snapshots": [
+        "consumer-agent-paper.html"
+      ],
+      "evidence": [
+        "Productivity & Workflow and Learning & Research account for57% of agentic queries.",
+        "Courses and Shopping for Goods collectively account for22%.",
+        "Personal55%, professional30%, educational16% of queries, rounded."
+      ],
+      "limits": "Comet and Comet Assistant users, not representative general population. Query classification is not proof of action completion or purchase. Abstract only; no additional detailed task frequencies inferred.",
+      "snapshot_integrity": [
+        {
+          "file": "consumer-agent-paper.html",
+          "bytes": 44707,
+          "sha256": "4af0d2c5e99e5163c8ded71889c8b194b208d666af9e6ce0d9db2efb5b60959b"
+        }
+      ]
+    },
+    {
+      "id": "S6",
+      "url": "https://www.langchain.com/state-of-agent-engineering",
+      "published": "Current page displays 2026-06-12",
+      "data_period": "2025-11-18 through 2025-12-02",
+      "read_scope": "Full public HTML report and methodology",
+      "snapshots": [
+        "langchain-agent-survey.html"
+      ],
+      "evidence": [
+        "1340 public-survey responses; technology63%.",
+        "Single primary agent use case: customer service26.5%, research and data analysis24.4%, internal workflow automation18%."
+      ],
+      "limits": "Self-selected professionals and vendor-community audience. Not representative enterprise adoption, ordinary consumers, or general agent market shares.",
+      "snapshot_integrity": [
+        {
+          "file": "langchain-agent-survey.html",
+          "bytes": 148099,
+          "sha256": "40d273cfc76f106e5f647d4f2208dd9854834199c9f11a30f3ad238cd8111793"
+        }
+      ]
+    },
+    {
+      "id": "S7",
+      "url": "https://www.anthropic.com/research/81k-economics",
+      "published": "2026-04-22",
+      "data_period": "2025-12 interviews, also identified retrospectively in S3",
+      "read_scope": "Full public HTML article, examples and limitations",
+      "snapshots": [
+        "anthropic-user-interviews.html"
+      ],
+      "evidence": [
+        "80508 volunteer personal-account users; examples include a delivery driver starting an e-commerce business, a landscaper building a music app, and an accountant building a financing-task tool.",
+        "Among users explicitly mentioning productivity effects,48% mentioned expanded scope and40% speed."
+      ],
+      "limits": "Volunteer self-reports, inferred occupations and categories, no independent timing. Percentages do not apply to all80508 respondents.",
+      "snapshot_integrity": [
+        {
+          "file": "anthropic-user-interviews.html",
+          "bytes": 169391,
+          "sha256": "ca6327d0e1b95701af71a048ea933cc9ef523bee0a6fcb859707a1151e13edb5"
+        }
+      ]
+    }
+  ],
+  "access_notes": [
+    "Google search was unreachable, including an escalated retry. Bing results were not useful enough to support claims.",
+    "OpenAI introduction page returned a browser challenge; no challenge bypass attempted. NBER original research abstract was read and archived after a successful retry.",
+    "NBER paper PDF returned HTTP504; it was not used as a full-text source.",
+    "arXiv PDF and full-HTML requests stalled and were terminated; only the retrieved abstract supports S5 claims.",
+    "McKinsey page timed out and was not used as evidence."
+  ]
+}
