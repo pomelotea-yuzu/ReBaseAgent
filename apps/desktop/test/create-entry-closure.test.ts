@@ -73,6 +73,8 @@ function createRecord(overrides: Partial<OperationRecord>): OperationRecord {
     runIds: [REGISTERED],
     experimentId: null,
     arms: [],
+    preparationIds: [],
+    verificationIds: [],
     requestOutcome: "returned",
     errorCode: null,
     diagnostics: [],

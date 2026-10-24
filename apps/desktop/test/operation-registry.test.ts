@@ -612,3 +612,189 @@ describe("U4 1.2 登记不变量（拒绝会造成状态倒流或误解锁的调
     expect(registry.registryVersion).toBe(versionBefore);
   });
 });
+
+describe("R3 4.1 verificationPrepare/verification target 与领域身份回调", () => {
+  const RUN_ID = "run_r3_target";
+  const STEP_SPAN = "s_r3_step_1";
+
+  it("verificationPrepare/verification 登记 running 并占槽；step 检查点带 stepSpanId", () => {
+    const { registry } = setup();
+    registry.registerRunning({
+      operationId: OP_A,
+      fingerprint: FP,
+      target: {
+        kind: "verificationPrepare",
+        runId: RUN_ID,
+        checkpointKind: "step",
+        stepSpanId: STEP_SPAN,
+      },
+    });
+    expect(snapshotOf(registry).activeOperationId).toBe(OP_A);
+    registry.settle({ operationId: OP_A, requestOutcome: "returned" });
+    registry.registerRunning({
+      operationId: OP_B,
+      fingerprint: FP,
+      target: {
+        kind: "verification",
+        runId: RUN_ID,
+        checkpointKind: "initial",
+        stepSpanId: null,
+        commandId: "test",
+      },
+    });
+    const snapshot = snapshotOf(registry);
+    expect(snapshot.operations.map((one) => [one.operationId, one.target?.kind])).toEqual([
+      [OP_A, "verificationPrepare"],
+      [OP_B, "verification"],
+    ]);
+  });
+
+  it("检查点定位不自洽（step 缺 stepSpanId / initial 带 stepSpanId）⇒ 快照当场抛", () => {
+    const { registry } = setup();
+    registry.registerRunning({
+      operationId: OP_A,
+      fingerprint: FP,
+      target: {
+        kind: "verification",
+        runId: RUN_ID,
+        checkpointKind: "step",
+        stepSpanId: null,
+        commandId: "test",
+      },
+    });
+    expect(() => registry.snapshot()).toThrow(OperationRegistryInvariantError);
+    const { registry: registry2 } = setup();
+    registry2.registerRunning({
+      operationId: OP_A,
+      fingerprint: FP,
+      target: {
+        kind: "verificationPrepare",
+        runId: RUN_ID,
+        checkpointKind: "initial",
+        stepSpanId: STEP_SPAN,
+      },
+    });
+    expect(() => registry2.snapshot()).toThrow(OperationRegistryInvariantError);
+  });
+
+  it("execute 回调关联 preparationIds/verificationIds；settled/failed 保留身份（D03）；重复关联幂等", async () => {
+    const { registry } = setup();
+    const report = await registry.submitExecution({
+      operationId: OP_A,
+      target: {
+        kind: "verificationPrepare",
+        runId: RUN_ID,
+        checkpointKind: "initial",
+        stepSpanId: null,
+      },
+      fingerprint: FP,
+      execute: async (ctx) => {
+        ctx.attachPreparationId("prep_1");
+        ctx.attachPreparationId("prep_1"); // 幂等
+        ctx.attachPreparationId("prep_2");
+        return { outcome: "failed", code: "PREP_BUILD_FAILED", message: "构建失败" };
+      },
+    });
+    expect(report.acceptance).toBe("accepted");
+    expect(report.record.state).toBe("settled");
+    expect(report.record.requestOutcome).toBe("failed");
+    // 身份事实不因失败撤销（D03：已接受后失败保留已知验证身份）
+    expect(report.record.preparationIds).toEqual(["prep_1", "prep_2"]);
+    expect(report.record.runIds).toEqual([]);
+    expect(report.record.verificationIds).toEqual([]);
+
+    const { registry: registry2 } = setup();
+    const report2 = await registry2.submitExecution({
+      operationId: OP_A,
+      target: {
+        kind: "verification",
+        runId: RUN_ID,
+        checkpointKind: "step",
+        stepSpanId: STEP_SPAN,
+        commandId: "typecheck",
+      },
+      fingerprint: FP,
+      execute: async (ctx) => {
+        ctx.attachVerificationId("ver_1");
+        return { outcome: "returned", data: null };
+      },
+    });
+    expect(report2.record.verificationIds).toEqual(["ver_1"]);
+    expect(report2.record.preparationIds).toEqual([]);
+    expect(report2.record.runIds).toEqual([]);
+  });
+
+  it("kind 不匹配的关联与 R3 伪造 runIds ⇒ 快照当场抛（M01 红线：领域身份不冒充运行）", async () => {
+    const { registry } = setup();
+    await registry.submitExecution({
+      operationId: OP_A,
+      target: {
+        kind: "verification",
+        runId: RUN_ID,
+        checkpointKind: "initial",
+        stepSpanId: null,
+        commandId: "test",
+      },
+      fingerprint: FP,
+      execute: async (ctx) => {
+        ctx.attachPreparationId("prep_wrong_kind");
+        return { outcome: "returned", data: null };
+      },
+    });
+    expect(() => registry.snapshot()).toThrow(/preparationIds 仅验证准备操作可关联/);
+
+    const { registry: registry2 } = setup();
+    await registry2.submitExecution({
+      operationId: OP_A,
+      target: {
+        kind: "verificationPrepare",
+        runId: RUN_ID,
+        checkpointKind: "initial",
+        stepSpanId: null,
+      },
+      fingerprint: FP,
+      execute: async (ctx) => {
+        ctx.attachRunId("run_fake_agent");
+        return { outcome: "returned", data: null };
+      },
+    });
+    expect(() => registry2.snapshot()).toThrow(/不得伪造 Agent run 身份/);
+  });
+
+  it("notAccepted 的 R3 操作零领域身份零 runIds；记录仍在快照可核对（既有登记场景）", () => {
+    const { registry } = setup();
+    registry.registerRunning({
+      operationId: OP_A,
+      fingerprint: FP,
+      target: {
+        kind: "verification",
+        runId: RUN_ID,
+        checkpointKind: "initial",
+        stepSpanId: null,
+        commandId: "test",
+      },
+    });
+    const rejected = registry.registerNotAccepted({
+      operationId: OP_BUSY,
+      target: {
+        kind: "verificationPrepare",
+        runId: RUN_ID,
+        checkpointKind: "initial",
+        stepSpanId: null,
+      },
+      reason: "busy",
+    });
+    expect(rejected).toMatchObject({
+      state: "notAccepted",
+      rejection: "busy",
+      preparationIds: [],
+      verificationIds: [],
+      runIds: [],
+    });
+    const tombstone = registry.reconcile(OP_NEVER);
+    expect(tombstone.preparationIds).toEqual([]);
+    expect(tombstone.verificationIds).toEqual([]);
+    // 快照自洽（两条 R3 记录过 schema 精炼）
+    expect(snapshotOf(registry).operations).toHaveLength(3);
+  });
+});

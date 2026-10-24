@@ -79,6 +79,9 @@ interface MutableOperation {
   readonly runIds: string[];
   experimentId: string | null;
   readonly arms: OperationArmSummary[];
+  /** R3 领域身份（design D6）：仅 verificationPrepare/verification 关联，见 shared/operations */
+  readonly preparationIds: string[];
+  readonly verificationIds: string[];
   requestOutcome: RequestOutcome | null;
   errorCode: string | null;
   readonly diagnostics: OperationDiagnostic[];
@@ -101,6 +104,8 @@ function toRecord(operation: MutableOperation): OperationRecord {
     runIds: [...operation.runIds],
     experimentId: operation.experimentId,
     arms: operation.arms.map((arm) => ({ ...arm })),
+    preparationIds: [...operation.preparationIds],
+    verificationIds: [...operation.verificationIds],
     requestOutcome: operation.requestOutcome,
     errorCode: operation.errorCode,
     diagnostics: operation.diagnostics.map((one) => ({ ...one })),
@@ -130,6 +135,10 @@ export interface OperationContext {
   attachRunId(runId: string): void;
   attachExperimentId(experimentId: string): void;
   attachArm(arm: OperationArmSummary): void;
+  /** R3 准备：关联编排真实创建的准备记录身份（仅 verificationPrepare，D6） */
+  attachPreparationId(preparationId: string): void;
+  /** R3 验证：关联编排真实创建的验证记录身份（仅 verification，D6） */
+  attachVerificationId(verificationId: string): void;
   diagnose(code: string, message: string, stage?: OperationDiagnostic["stage"]): void;
 }
 
@@ -324,6 +333,8 @@ export class OperationRegistry {
       attachRunId: (runId) => this.attachRunId(spec.operationId, runId),
       attachExperimentId: (id) => this.attachExperimentId(spec.operationId, id),
       attachArm: (arm) => this.attachArm(spec.operationId, arm),
+      attachPreparationId: (id) => this.attachPreparationId(spec.operationId, id),
+      attachVerificationId: (id) => this.attachVerificationId(spec.operationId, id),
       diagnose: (code, message, stage) =>
         this.addDiagnostic(spec.operationId, {
           code: code.slice(0, OPERATION_CODE_MAX),
@@ -507,6 +518,27 @@ export class OperationRegistry {
   }
 
   /**
+   * R3 准备：关联编排真实创建的准备记录身份（去重、登记后不因失败撤销——身份事实
+   * 不是成功证明，D03「已接受后失败保留已知验证身份」）。kind 一致性由快照精炼核查
+   * （与 attachExperimentId 同一形态）；R3 的 runIds 恒为空，任何 attachRunId 都会
+   * 让快照当场抛（M01 红线）。
+   */
+  attachPreparationId(operationId: string, preparationId: string): void {
+    const operation = this.requireRunning(operationId, "关联准备记录身份");
+    if (operation.preparationIds.includes(preparationId)) return;
+    operation.preparationIds.push(preparationId);
+    this.bump("identity");
+  }
+
+  /** R3 验证：关联编排真实创建的验证记录身份（语义同 attachPreparationId） */
+  attachVerificationId(operationId: string, verificationId: string): void {
+    const operation = this.requireRunning(operationId, "关联验证记录身份");
+    if (operation.verificationIds.includes(verificationId)) return;
+    operation.verificationIds.push(verificationId);
+    this.bump("identity");
+  }
+
+  /**
    * 追加/更新一个 A/B 臂摘要。未开始的臂由调用方显式登记 `id:null`，
    * 绝不凭空生成身份；已知 id 不会因为后续失败而回退为 null。
    */
@@ -615,6 +647,8 @@ export class OperationRegistry {
       runIds: [],
       experimentId: null,
       arms: [],
+      preparationIds: [],
+      verificationIds: [],
       requestOutcome: null,
       errorCode: null,
       diagnostics: [],

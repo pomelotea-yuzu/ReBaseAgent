@@ -83,6 +83,8 @@ function proxyRecord(overrides: Partial<OperationRecord> = {}): OperationRecord 
     runIds: [NEW_RUN],
     experimentId: null,
     arms: [],
+    preparationIds: [],
+    verificationIds: [],
     requestOutcome: "returned",
     errorCode: null,
     diagnostics: [],
@@ -117,6 +119,8 @@ describe("5.4 结果区派生：按目标圈定 proxy 提交，只认登记身�
           requestOutcome: null,
           runIds: [],
           arms: [],
+          preparationIds: [],
+          verificationIds: []
         }),
       ],
       reads: emptyResultReadStore(),

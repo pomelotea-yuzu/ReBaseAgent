@@ -79,6 +79,8 @@ function settledRecord(overrides: Partial<OperationRecord> = {}): OperationRecor
     runIds: [TRUSTED],
     experimentId: null,
     arms: [],
+    preparationIds: [],
+    verificationIds: [],
     requestOutcome: "returned",
     errorCode: null,
     diagnostics: [],

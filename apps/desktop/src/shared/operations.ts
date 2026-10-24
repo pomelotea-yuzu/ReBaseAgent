@@ -105,8 +105,26 @@ export type ExecutedResponse<T> =
 // 操作事实（D1）：七类主动入口归为五种 kind，create/result 各带普通/隔离模式
 // ---------------------------------------------------------------------------
 
-export const OperationKindSchema = z.enum(["create", "result", "prompt", "proxy", "modelAb"]);
+export const OperationKindSchema = z.enum([
+  "create",
+  "result",
+  "prompt",
+  "proxy",
+  "modelAb",
+  /** R3 环境准备（design D6：进入现有唯一 OperationRegistry，不另起一套登记） */
+  "verificationPrepare",
+  /** R3 项目验证执行（物化→执行→停止→采集→收尾全程占一个槽） */
+  "verification",
+]);
 export type OperationKind = z.infer<typeof OperationKindSchema>;
+
+/**
+ * R3 target 摘要的检查点定位（design D6「target run 放 target」）：扁平化为
+ * runId + 检查点形态，`stepSpanId` 仅 kind="step" 时非空——一致性由登记记录级
+ * 精炼核查（discriminatedUnion 成员不能内嵌 refine，与既有纪律一致）。
+ */
+export const OperationCheckpointKindSchema = z.enum(["initial", "step"]);
+export type OperationCheckpointKind = z.infer<typeof OperationCheckpointKindSchema>;
 
 /**
  * 目标摘要（按 kind 判别）：只带**定位用的 id 与被编辑字段名**，
@@ -150,6 +168,25 @@ export const OperationTargetSchema = z.discriminatedUnion("kind", [
       parentRunId: RunIdSchema,
       /** 批次的臂数（A/B 整批占一个槽，故摘要也按批次记） */
       armCount: z.number().int().min(2).max(OPERATION_SUMMARY_LIST_MAX),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("verificationPrepare"),
+      /** 被验证的目标 run（只放定位事实；不携带计划正文、许可或网络/下载策略） */
+      runId: RunIdSchema,
+      checkpointKind: OperationCheckpointKindSchema,
+      stepSpanId: RunIdSchema.nullable(),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("verification"),
+      runId: RunIdSchema,
+      checkpointKind: OperationCheckpointKindSchema,
+      stepSpanId: RunIdSchema.nullable(),
+      /** 固定命令枚举（main 映射 manifest 冻结命令表；renderer 不得输入命令） */
+      commandId: z.enum(["typecheck", "test"]),
     })
     .strict(),
 ]);
@@ -223,6 +260,18 @@ export const OperationRunIdsListSchema = z.array(RunIdSchema).max(OPERATION_SUMM
 export const OperationArmsListSchema = z
   .array(OperationArmSummarySchema)
   .max(OPERATION_SUMMARY_LIST_MAX);
+/**
+ * R3 领域身份摘要（design D6）：`preparationIds` 仅验证准备、`verificationIds` 仅
+ * 项目验证——由编排**实际创建记录后的回调**关联，**绝不放入 runIds**（后者仍只指
+ * 本操作创建的 Agent run，R3 不产生 Agent run，其 runIds 恒为空）。kind 不匹配的
+ * 关联在登记记录级精炼处被拒（与 arms/experimentId 同一形态）。
+ */
+export const OperationPreparationIdsListSchema = z
+  .array(RunIdSchema)
+  .max(OPERATION_SUMMARY_LIST_MAX);
+export const OperationVerificationIdsListSchema = z
+  .array(RunIdSchema)
+  .max(OPERATION_SUMMARY_LIST_MAX);
 
 /**
  * 一条操作的登记记录。状态联合的精炼（下方 refine）是**契约的一部分**：
@@ -245,6 +294,10 @@ export const OperationRecordSchema = z
     experimentId: RunIdSchema.nullable(),
     /** 仅 modelAb 批次有条目，其余操作为空数组 */
     arms: OperationArmsListSchema,
+    /** 仅 verificationPrepare 关联（编排真实创建的准备记录身份，D6） */
+    preparationIds: OperationPreparationIdsListSchema,
+    /** 仅 verification 关联（编排真实创建的验证记录身份，D6） */
+    verificationIds: OperationVerificationIdsListSchema,
     /** 仅 settled 有值 */
     requestOutcome: RequestOutcomeSchema.nullable(),
     /** 业务拒绝/失败的稳定错误码（原字段级校验错误不入登记） */
@@ -258,6 +311,27 @@ export const OperationRecordSchema = z
     }
     if (new Set(record.arms.map((arm) => arm.index)).size !== record.arms.length) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "臂索引不得重复" });
+    }
+    if (new Set(record.preparationIds).size !== record.preparationIds.length) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "preparationIds 必须去重" });
+    }
+    if (new Set(record.verificationIds).size !== record.verificationIds.length) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "verificationIds 必须去重" });
+    }
+    // R3 检查点定位自洽：step 必带步骤 span，initial 必不带
+    if (record.target?.kind === "verificationPrepare" || record.target?.kind === "verification") {
+      if (record.target.checkpointKind === "step" && record.target.stepSpanId === null) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "step 检查点必须携带 stepSpanId",
+        });
+      }
+      if (record.target.checkpointKind === "initial" && record.target.stepSpanId !== null) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "initial 检查点不得携带 stepSpanId",
+        });
+      }
     }
     if (record.target === null) {
       // 无目标 ⇒ 只能是 reconcile 先到的封禁，不得携带任何执行事实
@@ -318,6 +392,12 @@ export const OperationRecordSchema = z
         if (record.runIds.length > 0 || record.arms.length > 0) {
           ctx.addIssue({ code: z.ZodIssueCode.custom, message: "notAccepted 不得关联运行身份" });
         }
+        if (record.preparationIds.length > 0 || record.verificationIds.length > 0) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "notAccepted 不得关联 R3 领域身份",
+          });
+        }
         break;
       }
     }
@@ -327,6 +407,26 @@ export const OperationRecordSchema = z
     }
     if (record.experimentId !== null && record.target?.kind !== "modelAb") {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "非 A/B 操作不得携带 experimentId" });
+    }
+    // R3 领域身份与 kind 一致：准备关联 preparationIds、验证关联 verificationIds（D6）
+    if (record.preparationIds.length > 0 && record.target?.kind !== "verificationPrepare") {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "preparationIds 仅验证准备操作可关联" });
+    }
+    if (record.verificationIds.length > 0 && record.target?.kind !== "verification") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "verificationIds 仅项目验证操作可关联",
+      });
+    }
+    // runIds 语义红线（M01）：R3 不产生 Agent run，其 runIds 必须为空
+    if (
+      (record.target?.kind === "verificationPrepare" || record.target?.kind === "verification") &&
+      record.runIds.length > 0
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "R3 操作不得伪造 Agent run 身份（runIds 恒为空）",
+      });
     }
   });
 export type OperationRecord = z.infer<typeof OperationRecordSchema>;

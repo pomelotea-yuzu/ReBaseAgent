@@ -49,6 +49,8 @@ function record(over: Partial<OperationRecord> = {}): OperationRecord {
     runIds: [],
     experimentId: null,
     arms: [],
+    preparationIds: [],
+    verificationIds: [],
     requestOutcome: null,
     errorCode: null,
     diagnostics: [],
@@ -127,8 +129,8 @@ describe("U4 1.1 执行 envelope：身份是主动入口的强制项", () => {
   });
 });
 
-describe("U4 1.1 目标摘要：七类入口可表达，正文与授权值无处可放", () => {
-  it("五种 kind（create/result 各含普通与隔离 = 七类主动入口）均可表达", () => {
+describe("U4 1.1 目标摘要：九类 kind 可表达（含 R3 两类），正文与授权值无处可放", () => {
+  it("七种 kind（create/result 各含普通与隔离 + R3 两类）均可表达", () => {
     const targets: unknown[] = [
       { kind: "create", mode: "plain" },
       { kind: "create", mode: "isolated" },
@@ -143,6 +145,14 @@ describe("U4 1.1 目标摘要：七类入口可表达，正文与授权值无处
       { kind: "prompt", parentRunId: "run_a", editField: "user_message" },
       { kind: "proxy", parentRunId: "run_a", atSpanId: "s1" },
       { kind: "modelAb", parentRunId: "run_a", armCount: 2 },
+      { kind: "verificationPrepare", runId: "run_a", checkpointKind: "initial", stepSpanId: null },
+      {
+        kind: "verification",
+        runId: "run_a",
+        checkpointKind: "step",
+        stepSpanId: "s1",
+        commandId: "test",
+      },
     ];
     for (const target of targets) {
       expect(OperationTargetSchema.safeParse(target).success, JSON.stringify(target)).toBe(true);

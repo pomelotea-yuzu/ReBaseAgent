@@ -99,6 +99,8 @@ function record(overrides: Partial<OperationRecord>): OperationRecord {
     runIds: [REGISTERED_FORK],
     experimentId: null,
     arms: [],
+    preparationIds: [],
+    verificationIds: [],
     requestOutcome: "returned",
     errorCode: null,
     diagnostics: [],

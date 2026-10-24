@@ -75,6 +75,8 @@ function record(overrides: Partial<OperationRecord> = {}): OperationRecord {
     runIds: [],
     experimentId: null,
     arms: [],
+    preparationIds: [],
+    verificationIds: [],
     requestOutcome: null,
     errorCode: null,
     diagnostics: [],

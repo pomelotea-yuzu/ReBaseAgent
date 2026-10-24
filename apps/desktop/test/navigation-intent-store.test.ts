@@ -78,6 +78,8 @@ function navRecord(overrides: Partial<OperationRecord>): OperationRecord {
     runIds: [REGISTERED],
     experimentId: null,
     arms: [],
+    preparationIds: [],
+    verificationIds: [],
     requestOutcome: "returned",
     errorCode: null,
     diagnostics: [],

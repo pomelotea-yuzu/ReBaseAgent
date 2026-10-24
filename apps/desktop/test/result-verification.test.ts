@@ -310,6 +310,8 @@ function recordIn(
     runIds,
     experimentId: null,
     arms: [],
+    preparationIds: [],
+    verificationIds: [],
     requestOutcome: settled ? "returned" : null,
     errorCode: null,
     diagnostics: [],

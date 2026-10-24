@@ -56,6 +56,8 @@ function recordOf(
     runIds: state === "settled" ? ["run_x"] : [],
     experimentId: null,
     arms: [],
+    preparationIds: [],
+    verificationIds: [],
     requestOutcome: state === "settled" ? "returned" : null,
     errorCode: null,
     diagnostics: [],

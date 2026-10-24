@@ -133,6 +133,8 @@ function settledRecord(): OperationRecord {
     runIds: [TRUSTED_ID],
     experimentId: null,
     arms: [],
+    preparationIds: [],
+    verificationIds: [],
     requestOutcome: "rejected",
     errorCode: "CREATE_RUN_FAILED",
     diagnostics: [],

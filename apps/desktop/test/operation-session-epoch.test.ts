@@ -46,6 +46,8 @@ function runningRecord(id: string, at: string): OperationRecord {
     runIds: [],
     experimentId: null,
     arms: [],
+    preparationIds: [],
+    verificationIds: [],
     requestOutcome: null,
     errorCode: null,
     diagnostics: [],

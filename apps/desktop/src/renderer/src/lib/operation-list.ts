@@ -95,6 +95,8 @@ const KIND_LABELS: Record<OperationKind, string> = {
   prompt: "改提示词重跑",
   proxy: "代理重发",
   modelAb: "模型 A/B",
+  verificationPrepare: "验证环境准备",
+  verification: "项目验证",
 };
 
 const PHASE_HINTS: Record<OperationPhase, string> = {
@@ -103,6 +105,16 @@ const PHASE_HINTS: Record<OperationPhase, string> = {
   notAccepted: "未被接受：没有执行，也没有消耗许可",
   unknown: "结局未知：主进程会话已更换，不自动重发、不猜测关联",
 };
+
+/** R3 target 摘要的共用定位文案：run + 检查点形态（D6：target run 放 target） */
+function verificationTargetText(
+  runId: string,
+  checkpointKind: "initial" | "step",
+  stepSpanId: string | null,
+): string {
+  const checkpoint = checkpointKind === "initial" ? "初始检查点" : `步骤 ${stepSpanId ?? "(缺失)"}`;
+  return `父 ${runId} · ${checkpoint}`;
+}
 
 function targetTextOf(record: OperationRecord): string {
   const target = record.target;
@@ -118,6 +130,10 @@ function targetTextOf(record: OperationRecord): string {
       return `父 ${target.parentRunId} · 步 ${target.atSpanId}`;
     case "modelAb":
       return `父 ${target.parentRunId} · ${target.armCount} 臂`;
+    case "verificationPrepare":
+      return `${verificationTargetText(target.runId, target.checkpointKind, target.stepSpanId)} · 环境准备`;
+    case "verification":
+      return `${verificationTargetText(target.runId, target.checkpointKind, target.stepSpanId)} · ${target.commandId}`;
   }
 }
 

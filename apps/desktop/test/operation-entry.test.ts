@@ -48,6 +48,8 @@ function record(
     runIds: state === "running" ? [] : ["run_child_one", "run_child_two"],
     experimentId: "exp_one",
     arms: [],
+    preparationIds: [],
+    verificationIds: [],
     requestOutcome: state === "settled" ? "returned" : null,
     errorCode: null,
     diagnostics:

@@ -98,6 +98,8 @@ describe("4.1/4.2 批次结果区派生：按 main 登记圈定，分组键是 o
           requestOutcome: null,
           runIds: [],
           arms: [],
+          preparationIds: [],
+          verificationIds: [],
           experimentId: null,
         }), // tombstone（无 target，防御性排除）
       ],

@@ -64,6 +64,8 @@ function settledAbRecord(): OperationRecord {
       { index: 0, id: ARM_A, outcome: "returned" },
       { index: 1, id: ARM_B, outcome: "returned" },
     ],
+    preparationIds: [],
+    verificationIds: [],
     requestOutcome: "returned",
     errorCode: null,
     diagnostics: [],

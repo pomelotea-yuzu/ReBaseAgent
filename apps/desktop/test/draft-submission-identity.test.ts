@@ -258,6 +258,8 @@ describe("4.2 按身份解冻", () => {
               runIds: [],
               experimentId: null,
               arms: [],
+              preparationIds: [],
+              verificationIds: [],
               requestOutcome: null,
               errorCode: null,
               diagnostics: [],
