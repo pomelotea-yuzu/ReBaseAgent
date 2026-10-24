@@ -89,6 +89,8 @@ describe("4.9 预加载桥接面：不含文件能力", () => {
       "verificationPreparePlan",
       "verificationReadLog",
       "verificationRun",
+      // R3 定向停止（4.4）：唯一新增 stop 通道
+      "verificationStop",
     ]);
   });
 
@@ -117,8 +119,8 @@ describe("4.9 预加载桥接面：不含文件能力", () => {
     expect(PRELOAD).toContain("operationsReconcile");
   });
 
-  it("本阶段不交付取消能力：桥接面没有 stop/cancel/abort 通道", () => {
-    for (const banned of ["stop", "cancel", "abort", "terminate"]) {
+  it("无通用取消能力：桥接面只放行 R3 定向停止一条（4.4 显式更新白名单断言）", () => {
+    for (const banned of ["cancel", "abort", "terminate"]) {
       const hit = Object.entries(CHANNELS).filter(
         ([name, value]) =>
           name.toLowerCase().includes(banned) || String(value).toLowerCase().includes(banned),
@@ -126,6 +128,12 @@ describe("4.9 预加载桥接面：不含文件能力", () => {
       expect(hit, banned).toEqual([]);
       expect(PRELOAD.toLowerCase(), banned).not.toContain(`${banned}:`);
     }
+    // R3 定向停止是**唯一**的 stop 通道：绑定 epoch/operationId+可信领域 ID（D3/D6）
+    const stopChannels = Object.entries(CHANNELS).filter(
+      ([name, value]) =>
+        name.toLowerCase().includes("stop") || String(value).toLowerCase().includes("stop"),
+    );
+    expect(stopChannels).toEqual([["verificationStop", "verification:stop"]]);
   });
 
   it("通道白名单里操作相关只有 status / reconcile 两条只读", () => {

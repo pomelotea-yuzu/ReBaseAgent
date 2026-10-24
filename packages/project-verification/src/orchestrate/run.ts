@@ -102,6 +102,16 @@ export interface VerificationRunFailure {
 
 export type VerificationRunResult = VerificationRunSuccess | VerificationRunFailure;
 
+/**
+ * 用户停止信号（4.4 / design D6）：main 的 stop 端点置位，编排只在**阶段边界**
+ * 观察（不打断容器内 exec——工作负载的定向停止确认仍走 3.5 脚本）。请求只表示
+ * stopping：确认全部停止（quiescent）才落 `cancelled`；此前任何终局都不会把
+ * 更早的停止事实洗成通过（P19/P21）。
+ */
+export interface VerificationStopSignal {
+  isRequested(): boolean;
+}
+
 export interface ExecuteVerificationRunParams {
   /** 验证数据根（verifications/ + verification-assets/ + verification-runtime/）。 */
   readonly dataRoot: string;
@@ -114,6 +124,8 @@ export interface ExecuteVerificationRunParams {
   readonly input: unknown;
   /** main 侧从准备记录解析的准备事实（P08：镜像与准备身份不来自 renderer 输入）。 */
   readonly preparation: { readonly preparationId: string; readonly imageDigest: string };
+  /** 用户停止信号（可选；阶段边界观察，D6/P19/P21） */
+  readonly stopSignal?: VerificationStopSignal;
   readonly profile?: ProfileManifest;
   readonly now?: () => Date;
   readonly mintVerificationId?: () => string;
@@ -305,6 +317,53 @@ export async function executeVerificationRun(
       return terminate("environment_failed", `容器启动失败：${describe(error)}`, false);
     }
 
+    // ── 停止序列（局部复用）：定向停止 → 双扫确认 → stop_confirmed 事件 ─────────
+    const runStopPhase = async (): Promise<
+      { kind: "confirmed" } | { kind: "unknown"; reason: string } | { kind: "failed"; reason: string }
+    > => {
+      writer.append({ type: "stage", phase: "stopping", at: at() });
+      const stopped = await stopWorkloadsAndConfirm({
+        containerRef: containerId,
+        backend: params.ports.workloadStop,
+        quiescenceIntervalMs: params.ports.quiescenceIntervalMs,
+      });
+      if (!stopped.ok) {
+        return stopped.kind === "unknown"
+          ? { kind: "unknown", reason: stopped.reason }
+          : { kind: "failed", reason: stopped.reason };
+      }
+      if (!stopped.quiescent) {
+        return { kind: "unknown", reason: "工作负载未全部停止或 /work 仍在变化：不发布任何结论（P19）" };
+      }
+      writer.append({
+        type: "stop_confirmed",
+        stoppedPidCount: stopped.stoppedPidCount,
+        quiescenceMs: stopped.quiescenceMs,
+        at: at(),
+      });
+      return { kind: "confirmed" };
+    };
+    /** 用户取消终局（已确认全部停止后）：先真清理后写事实。 */
+    const finishCancelled = async (): Promise<VerificationRunResult> => {
+      await removeContainerQuietly(params.ports.lifecycle, containerId);
+      markRegistrationRemovedQuietly(params.dataRoot, created.registration.resourceOwnerId);
+      return terminate("cancelled", "用户停止：全部工作负载已确认停止并收尾", true);
+    };
+
+    // 阶段边界观察停止信号（D6：请求只表示 stopping；确认全部停止才 cancelled）
+    if (params.stopSignal?.isRequested() === true) {
+      const stopPhase = await runStopPhase();
+      if (stopPhase.kind === "unknown") {
+        return terminate("unknown", `停止结果未知：${stopPhase.reason}`, false);
+      }
+      if (stopPhase.kind === "failed") {
+        await removeContainerQuietly(params.ports.lifecycle, containerId);
+        markRegistrationRemovedQuietly(params.dataRoot, created.registration.resourceOwnerId);
+        return terminate("environment_failed", `停止失败：${stopPhase.reason}`, false);
+      }
+      return finishCancelled();
+    }
+
     // ── 物化（3.3：清单校验先于写入；字节经 readVerified 重读核验）──────────────
     const materialized = await materializeVerificationSnapshot({
       containerRef: containerId,
@@ -354,37 +413,23 @@ export async function executeVerificationRun(
     const classified = classifyExecutionReport(report);
 
     // ── 停止（3.5：owner 定向 + 双扫静止确认；不乐观宣布）────────────────────
-    writer.append({ type: "stage", phase: "stopping", at: at() });
-    const stopped = await stopWorkloadsAndConfirm({
-      containerRef: containerId,
-      backend: params.ports.workloadStop,
-      quiescenceIntervalMs: params.ports.quiescenceIntervalMs,
-    });
-    if (!stopped.ok) {
-      if (stopped.kind === "unknown") {
-        // daemon 不可达/停止响应丢失：不声明已停止、不采集、不移除容器；
-        // 登记保持 created ⇒ 启动核查收尾（P21/P23）；结局 unknown（D6 行）
-        return terminate("unknown", `停止结果未知：${stopped.reason}`, false);
-      }
+    const stopPhase = await runStopPhase();
+    if (stopPhase.kind === "unknown") {
+      // daemon 不可达/停止响应丢失：不声明已停止、不采集、不移除容器；
+      // 登记保持 created ⇒ 启动核查收尾（P21/P23）；结局 unknown（D6 行）
+      return terminate("unknown", `停止结果未知：${stopPhase.reason}`, false);
+    }
+    if (stopPhase.kind === "failed") {
       await removeContainerQuietly(params.ports.lifecycle, containerId);
       markRegistrationRemovedQuietly(params.dataRoot, created.registration.resourceOwnerId);
-      return terminate("environment_failed", `停止失败：${stopped.reason}`, false);
+      return terminate("environment_failed", `停止失败：${stopPhase.reason}`, false);
     }
-    if (!stopped.quiescent) {
-      await removeContainerQuietly(params.ports.lifecycle, containerId);
-      markRegistrationRemovedQuietly(params.dataRoot, created.registration.resourceOwnerId);
-      return terminate(
-        "unknown",
-        "工作负载未全部停止或 /work 仍在变化：不发布任何结论（P19）",
-        false,
-      );
+
+    // 用户停止（exit 0 不能覆盖更早的停止事实，D6）：确认全部停止 ⇒ cancelled，
+    // 不采集不发布（P19：停止未确认不得发布；已确认 ⇒ 用户意图优先于检查结果）
+    if (params.stopSignal?.isRequested() === true) {
+      return finishCancelled();
     }
-    writer.append({
-      type: "stop_confirmed",
-      stoppedPidCount: stopped.stoppedPidCount,
-      quiescenceMs: stopped.quiescenceMs,
-      at: at(),
-    });
 
     // ── 采集（3.6：内容级双扫 + 输入锚定 + 配额 + 发布）───────────────────────
     writer.append({ type: "stage", phase: "collecting", at: at() });

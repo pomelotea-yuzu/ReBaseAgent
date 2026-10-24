@@ -1137,6 +1137,8 @@ export interface WindowApi {
   verificationReadLog(
     request: VerificationReadLogRequest,
   ): Promise<Envelope<VerificationReadLogResult>>;
+  /** R3 定向停止（4.4）：唯一的新增停止通道——epoch/operationId+可信领域 ID 绑定 */
+  verificationStop(request: VerificationStopRequest): Promise<Envelope<VerificationStopResult>>;
   /** 原生目录选择：只签发会话 token，不导入、不写 trace/blob；取消返回 {canceled:true} */
   chooseSource(): Promise<Envelope<ChooseSourceResult>>;
   /**
@@ -1463,3 +1465,30 @@ export const VerificationReadLogResultSchema = z
   })
   .strict();
 export type VerificationReadLogResult = z.infer<typeof VerificationReadLogResultSchema>;
+
+// ---------------------------------------------------------------------------
+// verification:stop —— R3 定向停止（4.4 / design D3 D5 D6）：唯一的新增停止通道
+// ---------------------------------------------------------------------------
+
+/**
+ * R3 定向停止请求：当前 epoch + 在飞（或刚收尾）的 operationId + **可信领域 ID**
+ * （verificationId/preparationId 二选一）。不接任意 PID/container ID；不占第二槽。
+ */
+export const VerificationStopRequestSchema = z
+  .object({
+    epoch: z.string().uuid(),
+    operationId: z.string().uuid(),
+    domainId: z.string().min(1).max(64),
+  })
+  .strict();
+export type VerificationStopRequest = z.infer<typeof VerificationStopRequestSchema>;
+
+/** R3 停止结果：stopping=已置停止信号（确认全部停止由编排收尾）；幂等重复安全 */
+export const VerificationStopResultSchema = z
+  .object({
+    stopping: z.boolean(),
+    alreadySettled: z.boolean(),
+    reason: z.string().min(1).max(256).nullable(),
+  })
+  .strict();
+export type VerificationStopResult = z.infer<typeof VerificationStopResultSchema>;

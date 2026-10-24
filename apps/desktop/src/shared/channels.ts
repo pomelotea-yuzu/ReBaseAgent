@@ -70,6 +70,10 @@ export const CHANNELS = {
   verificationList: "verification:list",
   verificationGet: "verification:get",
   verificationReadLog: "verification:readLog",
+  // verification:stop（4.4）——**唯一**的新增停止通道：按 epoch/operationId 与可信
+  // 领域 ID 绑定的 R3 定向停止，不接任意 PID/container，不占第二槽（design D3/D5/D6）。
+  // 旧模型/代理执行保持原无取消契约（surface 测试显式放行此一条、仍禁其余）。
+  verificationStop: "verification:stop",
   // draft-close:* —— U3 关闭协商（design D6）：main 持有关闭决策，renderer 只报告元数据。
   // 所有消息只传 sessionId/sequence/dirtyCount/requestId/inputSettled，
   // 不传草稿正文、run 内容、sourceToken、授权或凭据

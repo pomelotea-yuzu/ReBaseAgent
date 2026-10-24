@@ -489,3 +489,80 @@ describe("容器创建响应丢失窗口（P22 编排侧）", () => {
     expect(latestRegistrationPhase()).toBe("registered");
   });
 });
+
+describe("用户停止信号（4.4：阶段边界观察，D6/P19/P21）", () => {
+  it("执行前请求停止 ⇒ 停止确认后 cancelled；不采集不发布；容器移除+登记收尾", async () => {
+    const script = makePorts();
+    const signal = { isRequested: () => true };
+    const result = await executeVerificationRun({
+      ...params(script.ports),
+      stopSignal: signal,
+    });
+    expect(result).toMatchObject({ ok: true, outcome: "cancelled", evidenceComplete: true });
+    if (!result.ok) return;
+    const events = readEvents(result.recordPath);
+    expect(events.map((e) => e.type)).toEqual([
+      "meta",
+      "stage",
+      "stage", // stopping（无 executing/command_*：停止发生在物化之前）
+      "stop_confirmed",
+      "terminated",
+    ]);
+    expect(script.calls.removed).toEqual([CONTAINER_ID]);
+    expect(latestRegistrationPhase()).toBe("removed");
+  });
+
+  it("命令 exit 0 后请求停止 ⇒ cancelled 覆盖 passed（exit 0 不能洗掉停止事实）", async () => {
+    const script = makePorts();
+    // 信号在命令真正跑过之后才置真（阶段边界观察的语义：执行中不中断，边界收割）
+    let commandRan = false;
+    script.setCommandResult({ exitCode: 0 });
+    const signal = { isRequested: () => commandRan };
+    const originalRunCommand = script.ports.command.runCommand;
+    script.ports.command = {
+      async runCommand(request) {
+        const result = await originalRunCommand(request);
+        commandRan = true;
+        return result;
+      },
+    };
+    const result = await executeVerificationRun({
+      ...params(script.ports),
+      stopSignal: signal,
+    });
+    expect(result).toMatchObject({ ok: true, outcome: "cancelled" });
+    if (!result.ok) return;
+    const events = readEvents(result.recordPath);
+    // 完整执行事实保留（command_start/end），但终局是 cancelled
+    expect(events.map((e) => e.type)).toEqual([
+      "meta",
+      "stage",
+      "stage",
+      "command_start",
+      "command_end",
+      "stage",
+      "stop_confirmed",
+      "terminated",
+    ]);
+    expect(script.calls.removed).toEqual([CONTAINER_ID]);
+  });
+
+  it("未请求停止 ⇒ 行为不变（回归：passed 主路径不受影响）", async () => {
+    const script = makePorts();
+    const result = await executeVerificationRun({
+      ...params(script.ports),
+      stopSignal: { isRequested: () => false },
+    });
+    expect(result).toMatchObject({ ok: true, outcome: "passed" });
+  });
+
+  it("停止请求 + 静止失败 ⇒ unknown（不乐观宣布 cancelled，P19）", async () => {
+    const script = makePorts();
+    script.setStopNotQuiescent();
+    const result = await executeVerificationRun({
+      ...params(script.ports),
+      stopSignal: { isRequested: () => true },
+    });
+    expect(result).toMatchObject({ ok: true, outcome: "unknown" });
+  });
+});

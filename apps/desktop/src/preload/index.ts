@@ -38,6 +38,8 @@ const api: WindowApi = {
   verificationList: () => ipcRenderer.invoke(CHANNELS.verificationList),
   verificationGet: (request) => ipcRenderer.invoke(CHANNELS.verificationGet, request),
   verificationReadLog: (request) => ipcRenderer.invoke(CHANNELS.verificationReadLog, request),
+  // verification:stop（4.4）：唯一的新增停止通道——定向 R3 owner，不接任意 PID
+  verificationStop: (request) => ipcRenderer.invoke(CHANNELS.verificationStop, request),
   // workspaces:*（B 1.3/1.5）：目录选择签发 token、隔离分叉只读预检——都不产生 run 文件
   chooseSource: () => ipcRenderer.invoke(CHANNELS.chooseSource),
   forkCapability: (request) => ipcRenderer.invoke(CHANNELS.forkCapability, request),

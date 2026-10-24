@@ -70,7 +70,12 @@ import type { RunRepository } from "./run-repository";
 import { RunSourceRejection } from "./run-source-gate";
 import type { SettingsStore } from "./settings";
 import { SourceTokenStore } from "./source-token";
-import { execVerificationPrepare, execVerificationRun } from "./verification-endpoints";
+import {
+  VerificationInFlightRegistry,
+  execVerificationPrepare,
+  execVerificationRun,
+  execVerificationStop,
+} from "./verification-endpoints";
 import {
   type VerificationReadonlyDeps,
   verificationCapability,
@@ -147,6 +152,8 @@ export function registerIpc(deps: IpcDeps): void {
    * 消费只发生在**已被接受**的操作里（判重先于许可消费）。
    */
   const sourceTokens = new SourceTokenStore();
+  /** R3 在飞验证登记（4.4 stop 寻路面；main 会话内唯一实例） */
+  const verificationInFlight = new VerificationInFlightRegistry();
   const execDeps: ExecEndpointDeps = {
     registry: operations,
     fingerprinter: new RequestFingerprinter(),
@@ -160,7 +167,7 @@ export function registerIpc(deps: IpcDeps): void {
     configState,
     // R3 依赖（4.2）：Docker Desktop CLI 可信位置在场才装配；缺席 ⇒ R3 通道拒绝（P01：
     // 不隐式安装、不回退宿主 Shell）。endpoint 钉死本机管道（schema 枚举），不读 env。
-    verification: assembleVerificationDeps(dataDir),
+    verification: assembleVerificationDeps(dataDir, verificationInFlight),
   };
   // R3 只读面依赖（4.3）：与执行面同根；CLI 缺席 ⇒ 引擎健康 available:false（P01）
   const verificationReadonly: VerificationReadonlyDeps = {
@@ -470,6 +477,10 @@ export function registerIpc(deps: IpcDeps): void {
   ipcMain.handle(CHANNELS.verificationRun, (event, request: unknown) =>
     execVerificationRun(execDeps, senderOf(event), request),
   );
+  // verification:stop（4.4）：定向停止，不占槽不新建执行
+  ipcMain.handle(CHANNELS.verificationStop, (event, request: unknown) =>
+    execVerificationStop(execDeps, senderOf(event), request as never),
+  );
   // verification 只读面（4.3）：不登记 operation、不占槽、不执行/清理
   ipcMain.handle(CHANNELS.verificationCapability, (event, request: unknown) =>
     verificationCapability(verificationReadonly, senderOf(event), request as never),
@@ -602,6 +613,7 @@ function assembleVerificationDocker(): {
  */
 function assembleVerificationDeps(
   dataDir: string,
+  inFlight: import("./verification-endpoints").VerificationInFlightRegistry,
 ): import("./verification-endpoints").VerificationEndpointDeps | undefined {
   const docker = assembleVerificationDocker();
   if (docker === null) {
@@ -611,6 +623,7 @@ function assembleVerificationDeps(
   const runtime = new DockerRuntimeBackend({ installation, endpoint });
   return {
     dataRoot: dataDir,
+    inFlight,
     backends: {
       preparation: new DockerPreparationBackend({ installation, endpoint }),
       run: {
