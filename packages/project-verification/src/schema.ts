@@ -468,6 +468,28 @@ export const CommandEndEventSchema = z.strictObject({
 export type CommandStartEvent = z.infer<typeof CommandStartEventSchema>;
 export type CommandEndEvent = z.infer<typeof CommandEndEventSchema>;
 
+/**
+ * interrupted 事件（R3 tasks 3.7 / design D6）：main 启动残留核查向**未封存**领域
+ * 记录追加的中断与清理事实——被停止/移除的遗留资源与未能确认者。它只是事实事件，
+ * **不是终止**：记录保持未封存、不呈现结局（不伪造 completed/cancelled，P22/P23）。
+ * 验证与准备两种记录共用同一形状。
+ */
+export const InterruptedEventSchema = z.strictObject({
+  type: z.literal("interrupted"),
+  reason: z.string().min(1),
+  stoppedResources: z.array(
+    z.strictObject({ name: z.string().min(1), containerId: z.string().min(1) }),
+  ),
+  removedResources: z.array(
+    z.strictObject({ name: z.string().min(1), containerId: z.string().min(1) }),
+  ),
+  /** 未能确认清理/已不存在的资源名（如实登记，不冒充已停止）。 */
+  unconfirmedResources: z.array(z.string().min(1)),
+  at: Iso8601Schema,
+});
+
+export type InterruptedEvent = z.infer<typeof InterruptedEventSchema>;
+
 /** 正文事件：meta 之后、terminated 之前可多次追加。 */
 export const VerificationBodyEventSchema = z.discriminatedUnion("type", [
   z.strictObject({
@@ -499,6 +521,7 @@ export const VerificationBodyEventSchema = z.discriminatedUnion("type", [
     excludedPatterns: z.array(z.string().min(1)),
     totalBytes: z.number().int().nonnegative(),
   }),
+  InterruptedEventSchema,
 ]);
 
 /** 终止事件：每个记录**恰一条**，写入即封存（append-only 到此为止）。 */
@@ -551,6 +574,7 @@ export const PreparationBodyEventSchema = z.discriminatedUnion("type", [
     reason: z.string().min(1),
     at: Iso8601Schema,
   }),
+  InterruptedEventSchema,
 ]);
 
 export const PreparationTerminatedEventSchema = z.strictObject({
@@ -567,17 +591,25 @@ export const PreparationEventSchema = z.union([
 
 /**
  * 恢复日志条目（`verification-runtime/<resourceOwnerId>.json`）。
- * **不是结果事实源、不是持久操作 registry**（design D4）：仅存资源名、安装实例归属、
- * owner 标签、已知容器 ID 与阶段——不存授权/正文/凭据。「创建资源之前」先落本登记，
- * create 后回填容器 ID，覆盖响应丢失窗口（P22）；归属不明不得停止陌生资源（P23）。
+ * **不是结果事实源、不是持久操作 registry**（design D4）：仅存资源名、安装实例/数据根
+ * 归属、owner 标签、已知容器 ID 与阶段——不存授权/正文/凭据。「创建资源之前」先落本
+ * 登记，create 后回填容器 ID，覆盖响应丢失窗口（P22）；归属不明不得停止陌生资源（P23）。
+ * `containerName` = 派生的确定性容器名（落盘冗余：恢复侧以存储值为准、派生值交叉核对）；
+ * `epoch` = 创建本资源的 main 会话 epoch（新 main 用新 epoch，只清理不恢复旧执行）。
  */
 export const ResourceRegistrationSchema = z.strictObject({
   resourceOwnerId: z.string().min(1),
   kind: z.enum(["prepare", "verification"]),
   ownerLabel: z.literal("rebaseagent-r3"),
+  containerName: z.string().min(1),
+  epoch: z.string().min(1),
+  /** 创建时的数据根绝对路径（归属诊断用；登记文件本身就在该根内）。 */
+  dataRoot: z.string().min(1),
   knownContainerIds: z.array(z.string().min(1)),
   phase: z.enum(["registered", "created", "collecting", "removed"]),
   preparationId: z.string().min(1).nullable(),
   verificationId: z.string().min(1).nullable(),
   updatedAt: Iso8601Schema,
 });
+
+export type ResourceRegistration = z.infer<typeof ResourceRegistrationSchema>;

@@ -1,6 +1,6 @@
 # R3 逐场景证据索引
 
-状态：阶段 1 完成（1.1–1.6）+ **第 2 组完成（2.1–2.4）** + **3.1–3.6 完成（受限准备/Docker 受控后端/受控物化/固定命令执行/停止语义+supervisor/静止采集）**——阶段 1 各切片、2.1–2.4 各切片、3.1（P03/P04 编排/P07/P08）、3.2（P01/P02/P09/P10）、3.3（P05/P06/P09/W01/W02）、3.4（P11/P12/P13/P20）、3.5（P10/P19/P21 + P20 接线）、3.6（P17/P18/W01）各切片已实测（backend-verification.md §1.x/§3.1–§3.6 + `packages/project-verification` 168 用例）；其余任务切片待验证；文档/strict 校验通过不代表功能、隔离或实机验收通过。
+状态：阶段 1 完成（1.1–1.6）+ **第 2 组完成（2.1–2.4）** + **3.1–3.7 完成（受限准备/Docker 受控后端/受控物化/固定命令执行/停止语义+supervisor/静止采集/资源登记+启动核查）**——阶段 1 各切片、2.1–2.4 各切片、3.1（P03/P04 编排/P07/P08）、3.2（P01/P02/P09/P10）、3.3（P05/P06/P09/W01/W02）、3.4（P11/P12/P13/P20）、3.5（P10/P19/P21 + P20 接线）、3.6（P17/P18/W01）、3.7（P22/P23）各切片已实测（backend-verification.md §1.x/§3.1–§3.7 + `packages/project-verification` 212 用例）；其余任务切片待验证；文档/strict 校验通过不代表功能、隔离或实机验收通过。
 
 ## 新增场景
 
@@ -27,8 +27,8 @@
 | P19 | project-verification / 停止覆盖子孙进程 | 1.5、3.5、4.4、6.2 | 1.5 切片已实测（按 PID 杀后 2s 字节稳定；pkill -f 自杀反证 ⇒ PID 定向停止）；3.5 切片已实测（§3.5：supervisor 作 PID 1 结构落地（/proc/1/comm=sh）；孤儿写者（detached exec 后仍在写，双扫不一致实证）经受信 stop-workloads.sh 定向停止——stoppedPidCount=4/survivors=0/双扫一致 quiescent=true；supervisor TERM 快停 6,166ms）；桌面操作面 4.4/5.2 待执行 |
 | P20 | project-verification / 启动故障与进程异常 | 3.4、3.5、6.2 | 3.4 切片已实测（2026-10-25，§3.4：classifyExecutionReport 四分类——completed 0–125/start_failed 126·127/process_failed ≥128（137→SIGKILL 推导）/timed_out；exit 1 报告照常产出、基础设施失败=environment_failed 与断言失败分开；OOM 真机复现归 6.2） |
 | P21 | project-verification / 停止结果未知 | 1.6、3.5、4.4、6.2 | 1.6 切片已实测（断连错误形态可识别、重启窗口 unknown 语义）；3.5 切片已实测（stopWorkloadsAndConfirm：daemon 断开族 ⇒ kind=unknown 不声明已停止、只允许核对与再次定向停止；survivors>0 或双扫不一致 ⇒ quiescent=false 不乐观宣布；幂等复停安全）；桌面操作面 4.4/5.2 待执行 |
-| P22 | project-verification / 创建响应丢失与 main 崩溃 | 1.6、3.7、4.5、6.2 | 1.6 切片已实测（丢弃 ID 后 label/名定位恢复；重启后容器 137 存留可清理；name 过滤为子串匹配的发现）；3.7/4.5/6.2 待执行 |
-| P23 | project-verification / 无法确认清理 | 1.6、3.7、4.5、6.2 | 1.6 切片已实测（label 清理不触碰陌生容器）；3.7/4.5/6.2 待执行 |
+| P22 | project-verification / 创建响应丢失与 main 崩溃 | 1.6、3.7、4.5、6.2 | 1.6 切片已实测（丢弃 ID 后 label/名定位恢复；重启后容器 137 存留可清理；name 过滤为子串匹配的发现）；3.7 切片已实测（2026-10-25，§3.7：登记先于创建+创建后绑定、残留核查 stop→confirm→remove 真实 CLI 全链、interrupted 事实落未封存记录且不伪造终止、复跑幂等 no-op；跨数据根残留 fail-closed 意外实证）；4.5 main 接线/6.2 回归待执行 |
+| P23 | project-verification / 无法确认清理 | 1.6、3.7、4.5、6.2 | 1.6 切片已实测（label 清理不触碰陌生容器）；3.7 切片已实测（2026-10-25，§3.7：先分类后执行——归属不明/登记损坏/daemon 不可达全部在触碰前 blocked 且零副作用、无标签容器不在扫描面原样存活、封存记录+存活容器自相矛盾 ⇒ blocked、追加失败登记不收尾可复跑重试）；4.5/6.2 待执行 |
 | P24 | project-verification / 同条件失败到通过 | 5.4、6.1、7.2 | 待验证；未执行 |
 | P25 | project-verification / 条件变化或未知 | 5.4、6.5、7.2 | 待验证；未执行 |
 | P26 | project-verification / 模板成功的范围 | 1.1、6.5、7.1、7.2 | 待验证；未执行 |

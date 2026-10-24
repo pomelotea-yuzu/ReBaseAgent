@@ -580,3 +580,71 @@ manifestVersion 2→3：`artifacts` 采集规则入表（include `.build/**`、e
 - 大产物树（2000 文件 × 8 MiB）的容器内批量扫描耗时未压测（分批上限 200 条/批），
   6.2 回归覆盖；
 - strays 的完整清单当前只计数不落记录（编排层可从 scan 快照取），如需审计面再扩展。
+
+## 3.7 资源登记与启动残留核查（2026-10-25，验收 P22/P23 的 3.7 切片；实测机同阶段 1）
+
+**交付**：`src/runtime/`（registration/create/reconcile）+ `src/records/append.ts` +
+`src/docker/docker-runtime.ts`。schema 修订：`ResourceRegistrationSchema` 补 D4 声明的
+`containerName`/`epoch`/`dataRoot`（登记面此前无写入方，字段随首个消费方落地）；新增
+`interrupted` 正文事件（验证/准备记录共用，事实事件非终止——记录保持未封存、不呈现结局）。
+
+### 契约要点
+
+- **登记先于创建**（P22）：`createRegisteredContainer` 顺序钉死 register（phase=registered，
+  确定性名 `r3-<prepare|verify>-<resourceOwnerId>` + owner 标签 `rebaseagent.owner=rebaseagent-r3`
+  落盘）→ `docker create` → bind（phase=created + 容器 ID，原子替换写）。create 结果四分类：
+  成功 / stale-name（同名残留，先核查）/ failed（明确未创建：spawn/daemon 拒绝——请求未到达
+  引擎）/ unknown（超时或 exit 0 但 ID 不可解析 ⇒ 按名探查消解，探查也不可判则如实 unknown，
+  登记保持 registered 等下次核查，绝不乐观宣布）。
+- **归属判定三重门**：名字匹配确定性派生形态 ∧ 登记在案（containerName 一致 ∧ 已知容器 ID
+  不冲突）∧ owner 标签精确匹配（复核，不依赖端口单方过滤）；带标签但登记/名字/ID 任一对不上
+  ⇒ **归属不明** ⇒ 阻断且零触碰。无标签容器不在扫描面（label 过滤精确键值，§1.6）。
+- **先分类后执行**：登记损坏、daemon 不可达、归属不明、记录缺失/损坏、封存记录+存活容器
+  ——全部在停止任何容器**之前**发现并阻断（blocked 携带诊断与未触碰的 unattributed 清单）；
+  执行段 stop → confirmStopped（非 running/已不存在）→ remove，任何失败 ⇒ blocked + 已完成
+  部分如实呈现（partialStopped/partialRemoved），不伪造清理成功。
+- **interrupted 追加**：向未封存领域记录（验证/准备）追加事实事件——本资源停止/移除清单 +
+  「登记在案但未见」的 unconfirmed；记录已有 interrupted 不二次追加（幂等）；**不写终止**
+  （保留已有日志，不伪造 completed/cancelled，P22）。追加门严格：文件以换行结尾（坏尾拒）、
+  逐行过全量事件联合、meta 首行身份一致、无 terminated；任一不过 ⇒ 不写盘 ⇒ blocked（P23
+  「记录不可写」）。
+- **幂等收尾**：清理+追加成功后登记收尾 phase=removed ⇒ 复跑 no-op；追加失败登记保持
+  created ⇒ 复跑重试（容器已不在则以 unconfirmed 如实补记）。
+
+### 实机探针读数（11/11 过；数据根 `…\Temp\r3-37-root-GW1pXv`，探针脚本 `.workbuddy/r3-37/probe.cjs`）
+
+1. **P22-A1 登记先于创建**：产品路径 `createRegisteredContainer`（真实 v3 镜像 +
+   `containerRunFlags` + supervisor 命令）——登记 phase=registered 落盘后 create，
+   绑定实际 ID（`ccdc6350…`/`a72e2490…` 两次运行）phase=created。
+2. **P22-B 残留核查**（容器 running + 未封存记录现场）：stop→confirm→remove 全链真实 CLI
+   执行，容器 inspect 确认 no such；interrupted 事实落记录（removedResources 含登记名+容器
+   ID），记录无 terminated；登记 phase=removed；**复跑幂等 no-op**。
+3. **P23-A 陌生资源保护**：无标签容器 `someuser-unrelated-p37`（本地镜像）在场 ⇒ 核查 ok
+   且该容器原样存活（不在扫描面）。
+4. **P23-B 归属不明**：手工造带 owner 标签但无登记的容器 `r3-verify-ghostp37` ⇒ blocked
+   （unattributed 指名）且容器未被触碰。
+5. **P23-C 登记损坏**：写入垃圾 JSON ⇒ blocked（`恢复日志不可信（REGISTRATION_CORRUPT）`）。
+6. **P23-D daemon 不可达**：假管道 endpoint ⇒ blocked（`failed to connect to the docker API`
+   实测形态，§1.6 断连族）。
+
+### 意外实证（跨数据根残留语义）
+
+探针前两轮因解析缺陷失败，留下的带标签容器（登记在各自一次性 tmpdir 根）在**新数据根**的
+核查中被判「归属不明」⇒ blocked 且未触碰——登记归属随数据根走、跨根残留 fail-closed 的
+设计与实现语义一致（修复解析缺陷后按设计清理）。
+
+### 实测修复的两处 Docker 29 事实（探针反证价值）
+
+- `docker ps --format {{json .}}` 的 `Labels` 是**逗号拼接字符串**（非对象），含逗号的标签值
+  无法无歧义还原 ⇒ 枚举改 `ps -aq --filter label=…` 取 ID + 逐容器 `container inspect`
+  （`Config.Labels` 为可靠对象映射）；
+- inspect 主键字段为 `Id`（`ps --format` 才是 `ID`）——解析两者兼容。
+
+### 3.7 未闭合项（如实）
+
+- 启动核查的 main 接线（启动互斥区、新 epoch、R3 blocked 呈现、读记录不触发核查写盘）
+  归 4.5/4.x；本节只交付包层机制与端口；
+- `docker stop` 对 running 容器的宽限（10s）在 supervisor TERM 快停（≈6.2s）之上留余量，
+  6.2 停止类回归覆盖；stopped-but-removed 竞态窗口（枚举后他方移除）按「已不存在」跳过；
+- 响应丢失窗口的「按名探查消解」未做真实断连复现（单测覆盖 unknown→resolve 路径），
+  6.2 可用引擎重启窗口回归。

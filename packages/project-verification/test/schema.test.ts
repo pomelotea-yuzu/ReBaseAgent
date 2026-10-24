@@ -263,6 +263,9 @@ describe("准备记录与恢复日志", () => {
       resourceOwnerId: "r3-run_x-abc",
       kind: "verification",
       ownerLabel: "rebaseagent-r3",
+      containerName: "r3-verify-r3-run_x-abc",
+      epoch: "ep-1",
+      dataRoot: "D:\\data\\r3-root",
       knownContainerIds: [],
       phase: "registered",
       preparationId: null,
@@ -273,5 +276,13 @@ describe("准备记录与恢复日志", () => {
     expect(
       ResourceRegistrationSchema.safeParse({ ...reg, ownerLabel: "someuser-app" }).success,
     ).toBe(false);
+    // 3.7 起的必填字段：确定性名称/epoch/数据根归属缺一不可
+    expect(ResourceRegistrationSchema.safeParse({ ...reg, containerName: undefined }).success).toBe(
+      false,
+    );
+    expect(ResourceRegistrationSchema.safeParse({ ...reg, epoch: undefined }).success).toBe(false);
+    expect(ResourceRegistrationSchema.safeParse({ ...reg, dataRoot: undefined }).success).toBe(
+      false,
+    );
   });
 });
