@@ -41,6 +41,8 @@ node packages/mcp-server/dist/cli.js --data-dir "D:/path/to/data-dir"
 以下配置在 **WorkBuddy 5.9.0 + 内置 CLI 2.165.0 + Node v22.22.2** 上实测通过
 （真实代表任务两轮实跑，见 change `add-readonly-mcp-diagnostics` 6.2）；
 同形状配置另在 **Trae 3.4.4**（Agent 会话 + ToolSearch 延迟加载工具）上验证通过（6.4 前置自验）。
+2026-10-24 另一位使用者（非维护者）在 **WorkBuddy 5.8.3 + 自带 Node v22.22.2** 上按本指南用
+`v0.6.0-rc.1` 发行包的 `mcp/` 目录完成接入与代表任务（S16 外部实测；记录摘要与随包数据复核见 6.4）。
 
 WorkBuddy 的 GUI 只读**用户级**配置，推荐用客户端自己的 CLI 登记（不手改它的 `mcp.json`）：
 
@@ -54,7 +56,9 @@ WorkBuddy 的 GUI 只读**用户级**配置，推荐用客户端自己的 CLI �
 ```
 
 其它标准 MCP 客户端用同样的 stdio 形状（`command` 指向你的 node，`args` 前两项指向
-`dist/cli.js` 与数据根）。首次使用若客户端弹出服务批准（approval），按客户端指引确认即可；
+`dist/cli.js` 与数据根）。首次使用若客户端弹出服务批准（approval），按客户端指引确认即可——
+部分客户端保存配置后不自动激活：如 WorkBuddy 需在连接器管理页「自定义连接器」手动点信任后才生效，
+且预先配置并信任的服务首次工具调用可能不再弹批准框（WorkBuddy 5.8.3 外部实测）。
 本服务只有只读工具，工具声明带 `readOnlyHint: true` / `openWorldHint: false`。
 
 ## 4. 结果形状：content 自足 + 正文只承载一次
