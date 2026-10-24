@@ -69,7 +69,7 @@
 ### 状态与下一步
 
 - **1.1 完成**（缺失态记录，后被安装事件覆盖：用户 2026-10-24 完成用户级安装并跳过登录，见 §1.2）。
-- 1.2 已执行（§1.2）；1.3 已执行（§1.3）；1.4 已执行（§1.4）；1.5 已执行（§1.5）；1.6 待续。
+- 1.2 已执行（§1.2）；1.3 已执行（§1.3）；1.4 已执行（§1.4）；1.5 已执行（§1.5）；1.6 已执行（§1.6）——**阶段 1 收口，四道开放门槛全过（见 §1.6 总结论），第 2–6 组解冻**。
 
 ## 1.2 安装落位与受限容器边界探针（2026-10-24，验收 P09 的 1.2 切片）
 
@@ -233,3 +233,48 @@
 
 诚实备注：物化/采集用 docker exec + stdin 流完成（探针级）；产品化物化（清单校验、拒绝矩阵）
 归 3.3，停止编排归 3.5。
+
+## 1.6 响应丢失、daemon 断开与残留核查（2026-10-24，验收 P21/P22/P23 的 1.6 切片）
+
+### 探针 A：create 响应丢失窗口（P22）
+
+- `docker create --name r3-p22-demo-7f3a --label rebaseagent.owner=r3probe` 后**丢弃返回 ID**：
+  按 label 过滤可精确定位（`--filter label=k=v` 为精确键值匹配）；`--filter name=` 为**子串
+  匹配**、不支持锚点正则（`^…$` 形态查不到）⇒ 产品资源定位以 label 为主、名字精确比对兜底
+  （3.7 设计输入）。按名 `docker start` / `docker rm` 均成功——**创建前持久化确定名称 + owner
+  标签即可覆盖响应丢失窗口**（design D4 模型实证）✅。
+
+### 探针 B：daemon 断开与引擎重启（P21/P22/P23）
+
+- 引擎停止（`docker desktop stop`，实测 **15 s**）后 CLI 错误形态可识别：
+  `failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine … The
+  system cannot find the file specified`（P21「daemon 断开」的可判定信号）✅。
+- 引擎重启（`docker desktop start`，实测 **21 s** 就绪）后：**容器记录仍在**（两个测试容器均
+  `Exited (137)`——被引擎关闭击杀，属预期），可按名/标签定位并清理 ⇒「main 崩溃 → 重启 → 按
+  登记名/owner 找到并停止遗留」路径成立（P22）✅。
+- **陌生资源保护**：按 label 的清理只删除带标签容器，未标记的 `someuser-unrelated-app`
+  原样存活（探针后手动清走）⇒ P23「不停止陌生资源」✅。
+- 重启期间容器状态不可核实（引擎不可达）⇒ 该窗口内结局 = unknown（与 design D6「daemon
+  不可达 ⇒ R3 blocked / unknown」一致）。
+
+### 阶段 1 总结论（1.1–1.6）
+
+**四道开放门槛（design D1）全部实测通过，第 2–6 组解冻：**
+
+1. 实际 endpoint 为已核实的本机引擎（desktop-linux npipe）；远程/env 覆盖重定向已实证，产品须
+   显式钉死管道并拒绝覆盖 ✅
+2. Linux 平台 + 固定 digest + 非 root + 只读 rootfs + cap-drop ALL + nnp + 无宿主挂载/socket +
+   测试断网 ✅（带对照组）
+3. 越界 / 网络 / CPU / 内存 / PID / 磁盘 / 输出限制实际生效 ✅（带对照组与读数）
+4. 命令退出后停止全部后代并确认不再写入；超时 / 引擎重启后残留可核查清理 ✅
+
+修订与未成立假设处置（tasks 1.6 要求）：
+
+- 候选限额语义修正：**tmpfs 计入内存 cgroup**（合并预算：512m + 192m tmpfs ⇒ 进程有效内存
+  ≈300 MiB）；冻结时按该语义定数字。
+- 「裸命令可被 docker stop 干净停止」**不成立**（裸 PID 1 忽略 SIGTERM，宽限期满才 SIGKILL）
+  ⇒ supervisor 结构必要（design D5 已有，实证支撑）。
+- 「node --test 零测试会失败」**不成立**（零用例文件计作 1 个通过的伪测试且 exit 0）⇒ 与
+  EXPECTED_TESTS 精确匹配门必要。
+- 未闭合项（如实）：跨 registry digest 与官方源一致性核对（Docker Hub 直连不可达，待可达时
+  补）；探针版 runner/gate 的产品化与包层单测归 2.x/3.x。
