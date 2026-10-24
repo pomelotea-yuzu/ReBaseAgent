@@ -26,6 +26,9 @@ importers:
       '@rebaseagent/llm-proxy':
         specifier: workspace:*
         version: link:../../packages/llm-proxy
+      '@rebaseagent/project-verification':
+        specifier: workspace:*
+        version: link:../../packages/project-verification
       '@rebaseagent/replay':
         specifier: workspace:*
         version: link:../../packages/replay
