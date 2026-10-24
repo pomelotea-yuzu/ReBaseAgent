@@ -1,6 +1,6 @@
 # R3 逐场景证据索引
 
-状态：阶段 1 进行中——P01 的 1.1、P09 的 1.2、P04/P08/P11/P12 的 1.3、P10/P13 的 1.4 切片已实测（backend-verification.md §1.1–§1.4）；除已标注切片外以下待验证；文档/strict 校验通过不代表功能、隔离或实机验收通过。
+状态：阶段 1 进行中——P01 的 1.1、P09 的 1.2、P04/P08/P11/P12 的 1.3、P10/P13 的 1.4、P05/P17/P18/P19 的 1.5 切片已实测（backend-verification.md §1.1–§1.5）；除已标注切片外以下待验证；文档/strict 校验通过不代表功能、隔离或实机验收通过。
 
 ## 新增场景
 
@@ -10,7 +10,7 @@
 | P02 | project-verification / 拒绝远程或漂移环境 | 1.1、2.1、3.2 | 待验证；未执行 |
 | P03 | project-verification / 只读计划不准备环境 | 3.1、4.3、6.5 | 待验证；未执行 |
 | P04 | project-verification / 授权准备成功或失败 | 1.3、3.1、6.5 | 1.3 切片已实测（2026-10-24，backend-verification.md §1.3：镜像构建内 npm install --ignore-scripts 成功、lock/受信文件哈希冻结）；3.1/6.5 待执行 |
-| P05 | project-verification / 精确选择初始或自有完成步骤 | 1.5、2.1、2.4、3.3 | 待验证；未执行 |
+| P05 | project-verification / 精确选择初始或自有完成步骤 | 1.5、2.1、2.4、3.3 | 1.5 切片已实测（uid1000 字节流物化，容器/宿主哈希一致）；2.1/2.4/3.3 待执行 |
 | P06 | project-verification / 来源或附件不成立 | 2.4、3.3 | 待验证；未执行 |
 | P07 | project-verification / 计划或授权失效 | 2.4、3.1、4.2 | 待验证；未执行 |
 | P08 | project-verification / 自定义命令和配置被拒绝 | 1.3、2.1、3.1 | 1.3 切片已实测（npm scripts 不执行、恶意 package.json 被模板覆盖、/opt/r3 不可改、/work 测试不扫描）；2.1/3.1 待执行 |
@@ -22,9 +22,9 @@
 | P14 | project-verification / 验证与旧轨迹兼容 | 2.2、6.1 | 待验证；未执行 |
 | P15 | project-verification / 损坏未知版本与迁移 | 2.1、2.2、2.3 | 待验证；未执行 |
 | P16 | project-verification / 来源删除和只读查询 | 2.3、4.3、5.3 | 待验证；未执行 |
-| P17 | project-verification / 停止后采集稳定输出 | 1.5、3.6 | 待验证；未执行 |
-| P18 | project-verification / 写者未停或产物非法 | 1.5、3.6、6.2 | 待验证；未执行 |
-| P19 | project-verification / 停止覆盖子孙进程 | 1.5、3.5、4.4、6.2 | 待验证；未执行 |
+| P17 | project-verification / 停止后采集稳定输出 | 1.5、3.6 | 1.5 切片已实测（静止双扫一致、产物仅在 /work、采集须在移除前）；3.6 待执行 |
+| P18 | project-verification / 写者未停或产物非法 | 1.5、3.6、6.2 | 1.5 切片已实测（孤儿子孙持续写入实证、输入哈希不变）；3.6/6.2 待执行 |
+| P19 | project-verification / 停止覆盖子孙进程 | 1.5、3.5、4.4、6.2 | 1.5 切片已实测（按 PID 杀后 2s 字节稳定；pkill -f 自杀反证 ⇒ PID 定向停止）；3.5/4.4/6.2 待执行 |
 | P20 | project-verification / 启动故障与进程异常 | 3.4、3.5、6.2 | 待验证；未执行 |
 | P21 | project-verification / 停止结果未知 | 1.6、3.5、4.4、6.2 | 待验证；未执行 |
 | P22 | project-verification / 创建响应丢失与 main 崩溃 | 1.6、3.7、4.5、6.2 | 待验证；未执行 |
