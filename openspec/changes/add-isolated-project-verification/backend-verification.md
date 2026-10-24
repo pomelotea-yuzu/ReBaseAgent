@@ -489,3 +489,54 @@ stdout/stderr 增 `totalBytes`（全观测口径，P13 计数是证据）并提�
 - OOM(137)/PID 封顶等限额的实际 Enforcement 沿用 §1.4 实测；P20 的 OOM 分支在包内
   以注入 runner 用例覆盖（exit 137 → process_failed + signal 推导），真机 OOM 复现归 6.2。
 - 受控 supervisor 作 PID 1 的容器结构归 3.5（P19）；本节容器以 sleep 保持存活（探针口径）。
+
+## 3.5 停止语义与 supervisor 结构（2026-10-25，验收 P10/P19/P20/P21 的 3.5 切片；实测机同阶段 1）
+
+落地：受信环境 v3 镜像（+ supervisor.sh / stop-workloads.sh，manifestVersion 1→2）；
+`src/execute/stop.ts`（解析/编排/静止确认/幂等/unknown 分类）与
+`src/docker/docker-stop.ts`（Docker 实现）；CliRunner 输出限额实时击杀接线
+（`outputLimitBytes` → 超限 kill 子进程 + `outputLimitHit` 标记 → 执行分类
+`output_limit_stopped`）。包内 13 新用例共 156 全绿；探针 `.workbuddy/r3-35/probe-3.5.cjs`。
+
+### 受信环境 v3（镜像内八文件哈希复核全过）
+
+- 新增受信脚本（哈希冻结于 manifest.trustedEnvironment）：supervisor.sh
+  `09fe58f3…add8`（PID 1：TERM → `kill -TERM -1`（不含调用者）→ 5s 宽限 → KILL 兜底 →
+  干净退出；主循环 wait 收割孤儿防 PID 配额被僵尸耗尽——§1.4 发现①的结构修复）；
+  stop-workloads.sh `74ea5c00…b1ff`（按 PID 定向，排除 PID 1 与自身，绝不模式匹配
+  ——§1.5 pkill -f 自杀反证；TERM → 2s → KILL 兜底 → 存活清点输出三行）。
+- 原 runner/锁/模板/测试五项字节未变（镜像内复核一致）；v3 ImageId
+  `sha256:121aa3a7…aca6e`，270,846,297 B；trustedEnvironment 形状扩展 ⇒
+  manifestVersion 2（plan token/准备记录随 digest 自动漂移——P07 机制按设计生效）。
+- 工作负载容器命令 = `containerRunFlags` + `workloadContainerCommand`
+  （`/bin/sh /opt/r3/supervisor.sh` 经 node 镜像 entrypoint exec 落位 PID 1）。
+
+### 实机探针读数
+
+1. **PID 1 身份**：容器命令 `["/bin/sh","/opt/r3/supervisor.sh"]` → `/proc/1/comm = sh`。
+2. **P19 孤儿写者**：detached exec 后台写者（会话退出仍在写，双扫不一致实证）→
+   `stopWorkloadsAndConfirm`：stoppedPidCount=4、survivors=0、quiescent=true
+   （quiescenceMs 2,576——2s 双扫窗口）。
+3. **幂等**：复停 stoppedPidCount=2、survivors=0、quiescent=true——**计数语义诚实注记**：
+   TERM_SENT 含对未及收割僵尸的信号成功（kill 对僵尸返回成功），计数是过程量；
+   终态判据 = SURVIVORS=0 + /work 双扫一致（本探针均满足）。
+4. **P13/P10 限额接线**：容器内 node 写 5 MiB vs 1 MiB 阈值 ⇒ 327 ms 内实时击杀，
+   outputLimitHit=true、全观测 1,081,344 B（保留恰 1 MiB）——超限即停不是事后发现。
+5. **supervisor TERM 快停对照**：`docker stop -t 10` 实测 **6,166 ms**（§1.4 裸 PID 1
+   基线 10,511 ms）——6s ≈ 脚本内固定 5s 宽限 + 开销，确定性设计（保守宽限，正常流程
+   不走 docker stop：停止工作负载保留容器供采集，docker stop 仅 teardown/残留清扫使用，
+   残留清扫亦可 rm -f 直接 SIGKILL）。
+
+### P21 未知阻断（包内用例 + 分类）
+
+daemon 断开形态（§1.6 错误族）⇒ `kind: unknown`——不声明已停止，保留可信身份，只允许
+核对与再次定向停止；普通失败（如 stat 权限）⇒ `failed`。survivors>0 或双扫不一致 ⇒
+quiescent=false，调用方不得据此发布完成/取消结论（不乐观语义）。
+
+### 3.5 未闭合项（如实）
+
+- 停止请求/槽位/epoch 校验与迟到停止归操作登记层（4.2/4.4）；本单元提供的是
+  资源侧停止事实（幂等、可重复、不乐观）。
+- supervisor 的 5s 固定宽限未做「轮询提前退出」优化（僵尸重父化使轮询不可靠；
+  确定性优先）——实测 6.2s 仍显著优于 §1.4 裸 PID 1 基线。
+- P19/P21 的完整桌面操作面（用户停止请求 → cancelled 呈现）归 4.4/5.2。

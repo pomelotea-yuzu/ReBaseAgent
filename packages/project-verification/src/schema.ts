@@ -119,6 +119,13 @@ export const TrustedEnvironmentSchema = z.strictObject({
   lockfile: z.strictObject({ path: z.string().min(1), sha256: FileHashSchema }),
   testFiles: z.array(z.strictObject({ path: z.string().min(1), sha256: FileHashSchema })).min(1),
   expectedTestCount: z.number().int().positive(),
+  /**
+   * 受控 supervisor（容器 PID 1）：TERM → 命名空间内全体转发 → 宽限 KILL → 干净退出，
+   * 并循环收割孤儿（design D5.5；阶段 1 §1.4 发现①——裸 PID 1 忽略 SIGTERM）。
+   */
+  supervisor: z.strictObject({ path: z.string().min(1), sha256: FileHashSchema }),
+  /** 工作负载定向停止脚本：按 PID 定向（排除 PID 1 与自身），绝不模式匹配（§1.5 反证）。 */
+  stopWorkloads: z.strictObject({ path: z.string().min(1), sha256: FileHashSchema }),
 });
 
 /** 资源限额类型（执行层签名使用）。 */
@@ -163,18 +170,18 @@ export const ProfileManifestSchema = z
   );
 
 /**
- * `node-ts-v1` 冻结实例——数值与阶段 1 实测一致（backend-verification.md §1.3）。
+ * `node-ts-v1` 冻结实例——数值与阶段 1/3.x 实测一致（backend-verification.md §1.3/§3.1/§3.5）。
  *
- * 哈希锚定**镜像内文件字节**：3.1 产品化构建（固定锁文件 + npm ci 配方，镜像
- * `r3/node-ts-v1:v2`，ImageId sha256:f3a8b56d…）已实测镜像内六文件哈希与探针版
- * 逐项一致（backend-verification.md §3.1）⇒ `manifestVersion` 维持 1、本表不变；
- * 受信环境**镜像自身的 digest 属准备期实测事实**（写入 prepared 事件），不冻结于此。
+ * `manifestVersion: 2`：v3 环境镜像加入受控 supervisor 与 stop-workloads 两个受信脚本
+ * （哈希冻结于此，trustedEnvironment 形状扩展 ⇒ 版本递增）；原 runner/锁/模板/测试五项
+ * 字节未变（镜像内复核一致，§3.5）。受信环境**镜像自身的 digest 属准备期实测事实**
+ * （写入 prepared 事件），不冻结于此。
  * 基础镜像 digest 经 DaoCloud 源拉取；与官方源的一致性核对未完成（Hub 直连不可达，
  * 如实登记于 §1.2），registryNote 记录该事实。
  */
 export const NODE_TS_V1_PROFILE: z.infer<typeof ProfileManifestSchema> = {
   profileId: "node-ts-v1",
-  manifestVersion: 1,
+  manifestVersion: 2,
   platform: "linux/amd64",
   baseImage: {
     repository: "docker.m.daocloud.io/library/node",
@@ -210,6 +217,14 @@ export const NODE_TS_V1_PROFILE: z.infer<typeof ProfileManifestSchema> = {
       },
     ],
     expectedTestCount: 2,
+    supervisor: {
+      path: "/opt/r3/supervisor.sh",
+      sha256: "09fe58f315cc705315242bcc5a1fde7216b7201ec1308d1f0fa1d75b96a0add8",
+    },
+    stopWorkloads: {
+      path: "/opt/r3/stop-workloads.sh",
+      sha256: "74ea5c003120c261074900abaef8a71a8f7186ec522e21d705b8a5a31e09b1ff",
+    },
   },
   commands: [
     {

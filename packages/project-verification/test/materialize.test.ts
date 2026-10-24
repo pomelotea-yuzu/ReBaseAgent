@@ -318,6 +318,7 @@ describe("Docker 物化后端（3.3，注入 runner 的 argv/解析测试）", (
       stderrBytes: new TextEncoder().encode(""),
       stdoutTotalBytes: 0,
       stderrTotalBytes: 0,
+      outputLimitHit: false,
       spawnError: null,
     };
   }

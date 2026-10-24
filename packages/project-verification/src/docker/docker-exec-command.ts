@@ -49,6 +49,7 @@ export class DockerCommandBackend implements ContainerCommandBackend {
         timeoutMs: request.timeoutMs + this.graceMs,
         stdoutMaxBytes: request.stdoutRetainBytes,
         stderrMaxBytes: request.stderrRetainBytes,
+        outputLimitBytes: request.totalOutputLimitBytes,
       },
     );
     if (result.spawnError !== null) {
@@ -60,6 +61,7 @@ export class DockerCommandBackend implements ContainerCommandBackend {
       exitCode: result.exitCode,
       // CLI 超时（= 命令超时 + 余量）⇒ 判定命令超时被击杀
       timedOut: result.timedOut,
+      outputLimitHit: result.outputLimitHit,
       stdout: {
         retainedBytes: result.stdoutBytes,
         totalBytes: result.stdoutTotalBytes,

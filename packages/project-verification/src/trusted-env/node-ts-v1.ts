@@ -38,6 +38,9 @@ export function nodeTsV1ExpectedAssetHashes(
   const trusted = TrustedEnvironmentSchema.parse(profile.trustedEnvironment);
   expected[trusted.runner.path.replace(OPT_R3_ASSET_PREFIX, "")] = trusted.runner.sha256;
   expected[trusted.lockfile.path.replace(OPT_R3_ASSET_PREFIX, "")] = trusted.lockfile.sha256;
+  expected[trusted.supervisor.path.replace(OPT_R3_ASSET_PREFIX, "")] = trusted.supervisor.sha256;
+  expected[trusted.stopWorkloads.path.replace(OPT_R3_ASSET_PREFIX, "")] =
+    trusted.stopWorkloads.sha256;
   for (const testFile of trusted.testFiles) {
     expected[testFile.path.replace(OPT_R3_ASSET_PREFIX, "")] = testFile.sha256;
   }

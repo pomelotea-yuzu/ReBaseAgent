@@ -64,6 +64,7 @@ describe("阶段分类与信号推导（3.4，P20）", () => {
       durationMs: 5000,
       exitCode: 0,
       timedOut: false,
+      outputLimitHit: false,
       stdout: { ...capture(new TextEncoder().encode(TAP_OK)), sha256: "a".repeat(64) },
       stderr: { ...capture(new TextEncoder().encode("")), sha256: "c".repeat(64) },
       ...overrides,
@@ -136,6 +137,7 @@ describe("执行编排（3.4，P11/P13/P20）", () => {
   const GOOD_RUN: ContainerCommandRun = {
     exitCode: 0,
     timedOut: false,
+    outputLimitHit: false,
     stdout: capture(new TextEncoder().encode(TAP_OK)),
     stderr: capture(new TextEncoder().encode("")),
   };
@@ -238,6 +240,7 @@ describe("执行编排（3.4，P11/P13/P20）", () => {
       durationMs: 1000,
       exitCode: 0,
       timedOut: false,
+      outputLimitHit: false,
       stdout: { ...capture(retained, 17 * 1024 * 1024), sha256: "a".repeat(64) },
       stderr: { ...capture(new Uint8Array(0), 0), sha256: "c".repeat(64) },
     };
@@ -271,6 +274,7 @@ describe("Docker 命令后端（3.4，注入 runner 的 argv 测试）", () => {
         stderrBytes: new Uint8Array(),
         stdoutTotalBytes: 3,
         stderrTotalBytes: 0,
+        outputLimitHit: false,
       };
     };
     const backend = new DockerCommandBackend({ installation, endpoint: ENDPOINT, runner });

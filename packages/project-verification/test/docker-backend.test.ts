@@ -166,6 +166,7 @@ describe("后端预检（3.2，P01/P02）", () => {
         stderrBytes: new TextEncoder().encode(""),
         stdoutTotalBytes: 0,
         stderrTotalBytes: 0,
+        outputLimitHit: false,
         spawnError: { code: "ENOENT", message: "spawn ENOENT" },
       }),
     ]);
@@ -191,6 +192,7 @@ describe("后端预检（3.2，P01/P02）", () => {
         stderrBytes: new TextEncoder().encode(""),
         stdoutTotalBytes: 0,
         stderrTotalBytes: 0,
+        outputLimitHit: false,
         spawnError: null,
       }),
     ]);
@@ -218,6 +220,7 @@ describe("后端预检（3.2，P01/P02）", () => {
         stderrBytes: new TextEncoder().encode(""),
         stdoutTotalBytes: 0,
         stderrTotalBytes: 0,
+        outputLimitHit: false,
         spawnError: null,
       }),
     ]);
@@ -245,6 +248,7 @@ describe("后端预检（3.2，P01/P02）", () => {
           stderrBytes: new TextEncoder().encode(""),
           stdoutTotalBytes: 0,
           stderrTotalBytes: 0,
+          outputLimitHit: false,
           spawnError: null,
         };
       },
@@ -342,6 +346,7 @@ describe("DockerPreparationBackend（3.2，注入 runner 的编排测试）", ()
       stderrBytes: new TextEncoder().encode(""),
       stdoutTotalBytes: 0,
       stderrTotalBytes: 0,
+      outputLimitHit: false,
       spawnError: null,
     };
   }

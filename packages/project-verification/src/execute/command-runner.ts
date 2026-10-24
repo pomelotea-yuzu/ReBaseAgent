@@ -72,11 +72,15 @@ export interface ContainerCommandRequest {
   readonly stdoutRetainBytes: number;
   readonly stderrRetainBytes: number;
   readonly timeoutMs: number;
+  /** 双流合计观测上限（P13/3.5）；undefined = 不做运行中阈值击杀。 */
+  readonly totalOutputLimitBytes?: number;
 }
 
 export interface ContainerCommandRun {
   readonly exitCode: number | null;
   readonly timedOut: boolean;
+  /** 因总观测超限被击杀（P13/3.5）；与 timedOut 互斥发生。 */
+  readonly outputLimitHit: boolean;
   readonly stdout: Omit<StreamCapture, "sha256">;
   readonly stderr: Omit<StreamCapture, "sha256">;
 }
@@ -102,11 +106,17 @@ export interface FixedCommandReport {
   readonly durationMs: number;
   readonly exitCode: number | null;
   readonly timedOut: boolean;
+  readonly outputLimitHit: boolean;
   readonly stdout: StreamCapture;
   readonly stderr: StreamCapture;
 }
 
-export type ExecutionOutcomeKind = "completed" | "start_failed" | "process_failed" | "timed_out";
+export type ExecutionOutcomeKind =
+  | "completed"
+  | "start_failed"
+  | "process_failed"
+  | "timed_out"
+  | "output_limit_stopped";
 
 export type CommandExecutionResult =
   | { readonly ok: true; readonly report: FixedCommandReport }
@@ -121,6 +131,9 @@ export type CommandExecutionResult =
  * exitCode + TAP 门在编排层判定，不属于本分类。
  */
 export function classifyExecutionReport(report: FixedCommandReport): ExecutionOutcomeKind {
+  if (report.outputLimitHit) {
+    return "output_limit_stopped";
+  }
   if (report.timedOut) {
     return "timed_out";
   }
@@ -237,6 +250,7 @@ export async function executeFixedCommand(
       stdoutRetainBytes: input.limits.stdoutBudgetBytes,
       stderrRetainBytes: input.limits.stderrBudgetBytes,
       timeoutMs: input.limits.commandTimeoutMs,
+      totalOutputLimitBytes: input.limits.totalOutputLimitBytes,
     });
   } catch (error) {
     return {
@@ -261,6 +275,7 @@ export async function executeFixedCommand(
       durationMs,
       exitCode: run.exitCode,
       timedOut: run.timedOut,
+      outputLimitHit: run.outputLimitHit,
       stdout: captureToStreamCapture(run.stdout),
       stderr: captureToStreamCapture(run.stderr),
     },

@@ -1,5 +1,5 @@
 /**
- * node-ts-v1 受信环境**构建资产**（包内资产，R3 tasks 3.1 产品化）。
+ * node-ts-v1 受信环境**构建资产**（包内资产，R3 tasks 3.1/3.5 产品化）。
  *
  * ⚠️ 本文件由脚本从构建上下文一次性生成（脚本与原始读数在 .workbuddy/r3-31/，不入库）；
  * 任何手工改动都会破坏与冻结 manifest 的哈希对应——改资产必须走 manifest 版本化流程
@@ -8,14 +8,15 @@
  * 资产来源：阶段 1 探针轮 .workbuddy/r3-13/env/（runner/tsconfig/package.tmpl/测试，
  * 字节原样）+ 探针镜像内提取的 package.json / package-lock.json（字节原样，
  * 锁文件 sha256 = manifest 冻结值 d41f6694…90c4）；v2 配方将依赖安装改为
- * 「入库固定锁文件 + npm ci --ignore-scripts」（design D2 固定锁文件与完整性校验）。
+ * 「入库固定锁文件 + npm ci --ignore-scripts」（design D2）；v3 追加受控
+ * supervisor.sh / stop-workloads.sh（manifestVersion 2，§3.5）。
  * 形态为**内嵌字符串常量**：不依赖文件系统相对路径与打包器资源规则，
  * CJS main / ESM 包 / 打包产物下字节稳定（3.2 适配器从本表取字节构造构建上下文）。
  */
 
 export const NODE_TS_V1_BUILD_ASSETS: Readonly<Record<string, string>> = {
   Dockerfile:
-    "# R3 node-ts-v1 受信环境镜像（产品化配方；探针版见 backend-verification.md §1.3）\n# 变更：依赖改为「入库固定锁文件 + npm ci」——锁文件字节入库、完整性由锁内 integrity\n# 校验、生命周期脚本禁用（design D2「固定锁文件和完整性校验、禁 lifecycle scripts」）。\n# 基础镜像按 digest 钉死（DaoCloud 源前缀；§1.2 未闭合项不变）。\nFROM docker.m.daocloud.io/library/node:22-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914\nRUN mkdir -p /opt/r3/tests /work\nWORKDIR /opt/r3\nCOPY package.json package-lock.json /opt/r3/\nRUN npm ci --ignore-scripts --no-audit --no-fund \\\n && npm cache clean --force\nCOPY runner.mjs tsconfig.json package.tmpl.json /opt/r3/\nCOPY tests/ /opt/r3/tests/\n",
+    "# R3 node-ts-v1 受信环境镜像（v3：+ supervisor/stop-workloads 受信脚本；§1.3 探针版/§3.1 v2/§3.5 v3）\n# 变更：依赖改为「入库固定锁文件 + npm ci」——锁文件字节入库、完整性由锁内 integrity\n# 校验、生命周期脚本禁用（design D2「固定锁文件和完整性校验、禁 lifecycle scripts」）。\n# 基础镜像按 digest 钉死（DaoCloud 源前缀；§1.2 未闭合项不变）。\nFROM docker.m.daocloud.io/library/node:22-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914\nRUN mkdir -p /opt/r3/tests /work\nWORKDIR /opt/r3\nCOPY package.json package-lock.json /opt/r3/\nRUN npm ci --ignore-scripts --no-audit --no-fund \\\n && npm cache clean --force\nCOPY runner.mjs tsconfig.json package.tmpl.json /opt/r3/\nCOPY supervisor.sh stop-workloads.sh /opt/r3/\nCOPY tests/ /opt/r3/tests/\n",
   "package.json": '{"name":"r3-node-ts-v1","private":true,"dependencies":{"typescript":"^5.9.3"}}',
   "package-lock.json":
     '{\n  "name": "r3-node-ts-v1",\n  "lockfileVersion": 3,\n  "requires": true,\n  "packages": {\n    "": {\n      "name": "r3-node-ts-v1",\n      "dependencies": {\n        "typescript": "^5.9.3"\n      }\n    },\n    "node_modules/typescript": {\n      "version": "5.9.3",\n      "resolved": "https://registry.npmjs.org/typescript/-/typescript-5.9.3.tgz",\n      "integrity": "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==",\n      "license": "Apache-2.0",\n      "bin": {\n        "tsc": "bin/tsc",\n        "tsserver": "bin/tsserver"\n      },\n      "engines": {\n        "node": ">=14.17"\n      }\n    }\n  }\n}\n',
@@ -25,6 +26,10 @@ export const NODE_TS_V1_BUILD_ASSETS: Readonly<Record<string, string>> = {
     '{\n  "compilerOptions": {\n    "target": "ES2022",\n    "module": "ES2022",\n    "moduleResolution": "Node10",\n    "strict": true,\n    "outDir": ".build",\n    "rootDir": ".",\n    "skipLibCheck": true,\n    "types": []\n  },\n  "include": ["src/**/*.ts"]\n}\n',
   "package.tmpl.json":
     '{\n  "name": "r3-probe-project",\n  "private": true,\n  "type": "module"\n}\n',
+  "supervisor.sh":
+    "#!/bin/sh\n# R3 受控 supervisor（容器 PID 1；受信环境资产，哈希冻结于 manifest）。\n# 职责（design D5.5 / schema supervisorPid1）：\n# 1) 保活容器（采集窗口内「仅 supervisor 存活」的前提——tmpfs 随容器存活）；\n# 2) 收到 TERM：向命名空间内全部可signal进程转发 TERM（kill -TERM -1 不含调用者自身），\n#    宽限后 KILL 兜底，随后干净退出——裸 PID 1 忽略 SIGTERM 的对照修复（阶段 1 §1.4 发现①）；\n# 3) 循环 wait 收割孤儿（exec 会话退出后被重父化到 PID 1 的后代），防 PID 配额被僵尸耗尽。\nterm() {\n  kill -TERM -1 2>/dev/null\n  sleep 5\n  kill -KILL -1 2>/dev/null\n  exit 0\n}\ntrap term TERM INT\nwhile :; do\n  wait 2>/dev/null\n  sleep 1\ndone\n",
+  "stop-workloads.sh":
+    '#!/bin/sh\n# R3 工作负载定向停止（受信环境资产，哈希冻结于 manifest；经 docker exec /bin/sh 调用）。\n# 纪律（阶段 1 §1.5 反证）：按 PID 定向，绝不模式匹配（pkill -f 会匹配到自身会话）。\n# 排除：PID 1（supervisor）与自身（$$）。\nself=$$\nterm_sent=0\nfor entry in /proc/[0-9]*; do\n  pid=${entry#/proc/}\n  [ "$pid" = "1" ] && continue\n  [ "$pid" = "$self" ] && continue\n  if kill -TERM "$pid" 2>/dev/null; then\n    term_sent=$((term_sent+1))\n  fi\ndone\nsleep 2\nkill_escalated=0\nfor entry in /proc/[0-9]*; do\n  pid=${entry#/proc/}\n  [ "$pid" = "1" ] && continue\n  [ "$pid" = "$self" ] && continue\n  if kill -0 "$pid" 2>/dev/null; then\n    kill -KILL "$pid" 2>/dev/null\n    kill_escalated=$((kill_escalated+1))\n  fi\ndone\nsleep 1\nsurvivors=0\nfor entry in /proc/[0-9]*; do\n  pid=${entry#/proc/}\n  [ "$pid" = "1" ] && continue\n  [ "$pid" = "$self" ] && continue\n  if kill -0 "$pid" 2>/dev/null; then\n    survivors=$((survivors+1))\n  fi\ndone\necho "TERM_SENT=$term_sent"\necho "KILL_ESCALATED=$kill_escalated"\necho "SURVIVORS=$survivors"\n',
   "tests/smoke.test.mjs":
     'import { test } from "node:test";\nimport assert from "node:assert/strict";\nimport { add, mul } from "/work/.build/src/calc.js";\n\ntest("add(2,3)=5", () => assert.equal(add(2, 3), 5));\ntest("mul(2,3)=6", () => assert.equal(mul(2, 3), 6));\n',
 };

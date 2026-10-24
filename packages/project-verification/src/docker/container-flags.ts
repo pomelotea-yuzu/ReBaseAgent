@@ -50,3 +50,13 @@ export function containerRunFlags(profile: ProfileManifest): string[] {
     "none",
   ];
 }
+
+/**
+ * 工作负载容器的容器内命令（PID 1 = 受控 supervisor，design D5.5 / schema
+ * `supervisorPid1`）：`docker run … <image> /bin/sh <supervisor.path>`——由 node 镜像
+ * entrypoint exec 落位，ash 作 PID 1 处理 TERM 并收割孤儿（§1.4 发现①的对照修复）。
+ * 与 `containerRunFlags` 组合构成完整创建参数。
+ */
+export function workloadContainerCommand(profile: ProfileManifest): string[] {
+  return ["/bin/sh", profile.trustedEnvironment.supervisor.path];
+}

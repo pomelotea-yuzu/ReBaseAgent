@@ -101,6 +101,11 @@ export interface CliRunOptions {
    * 记为 spawnError，不静默吞掉（物化字节必须确认送达）。
    */
   readonly stdinBytes?: Uint8Array;
+  /**
+   * 双流合计观测字节上限（P13「总观测阈值触发停止」的接线，3.5）：超过即击杀子进程，
+   * 结果以 outputLimitHit 标记。缺省 = 不做运行中阈值击杀（计数照常上报）。
+   */
+  readonly outputLimitBytes?: number;
 }
 
 export interface CliRunResult {
@@ -121,6 +126,8 @@ export interface CliRunResult {
    */
   readonly stdoutTotalBytes: number;
   readonly stderrTotalBytes: number;
+  /** 双流合计观测超过 outputLimitBytes 而被击杀（P13/3.5；timedOut 与其互斥语义）。 */
+  readonly outputLimitHit: boolean;
 }
 
 /**
@@ -136,6 +143,7 @@ export type CliRunner = (
 function captureStream(
   stream: NodeJS.ReadableStream,
   maxBytes: number,
+  onObserved: (deltaBytes: number) => void,
 ): {
   text: () => string;
   bytes: () => Uint8Array;
@@ -146,6 +154,7 @@ function captureStream(
   let retained = 0;
   let dropped = 0;
   stream.on("data", (chunk: Buffer) => {
+    onObserved(chunk.length);
     // 超限后**持续读取并丢弃计数**（不停读——停读会让子进程在满管道上阻塞，P13）
     if (retained >= maxBytes) {
       dropped += chunk.length;
@@ -174,13 +183,28 @@ export const defaultCliRunner: CliRunner = (exePath, args, options) =>
       windowsHide: true,
       stdio: [stdinPiped ? "pipe" : "ignore", "pipe", "pipe"],
     });
+    // 双流共享观测计数：超过 outputLimitBytes 即击杀（P13 总观测阈值，3.5 接线）
+    const observation = { total: 0, limitHit: false };
+    const observe = (delta: number) => {
+      observation.total += delta;
+      if (
+        options.outputLimitBytes !== undefined &&
+        observation.total > options.outputLimitBytes &&
+        !observation.limitHit
+      ) {
+        observation.limitHit = true;
+        child.kill();
+      }
+    };
     const stdout = captureStream(
       child.stdout as NonNullable<typeof child.stdout>,
       options.stdoutMaxBytes,
+      observe,
     );
     const stderr = captureStream(
       child.stderr as NonNullable<typeof child.stderr>,
       options.stderrMaxBytes,
+      observe,
     );
     let timedOut = false;
     const timer = setTimeout(() => {
@@ -203,7 +227,7 @@ export const defaultCliRunner: CliRunner = (exePath, args, options) =>
           stderrBytes: stderr.bytes(),
           stdoutTotalBytes: stdout.totalBytes(),
           stderrTotalBytes: stderr.totalBytes(),
-
+          outputLimitHit: observation.limitHit,
           spawnError: { code: error.code, message: `stdin 写入失败：${error.message}` },
         });
       });
@@ -222,6 +246,7 @@ export const defaultCliRunner: CliRunner = (exePath, args, options) =>
         stderrBytes: stderr.bytes(),
         stdoutTotalBytes: stdout.totalBytes(),
         stderrTotalBytes: stderr.totalBytes(),
+        outputLimitHit: observation.limitHit,
         spawnError: { code: error.code, message: error.message },
       });
     });
@@ -238,6 +263,7 @@ export const defaultCliRunner: CliRunner = (exePath, args, options) =>
         stderrBytes: stderr.bytes(),
         stdoutTotalBytes: stdout.totalBytes(),
         stderrTotalBytes: stderr.totalBytes(),
+        outputLimitHit: observation.limitHit,
         spawnError: null,
       });
     });
