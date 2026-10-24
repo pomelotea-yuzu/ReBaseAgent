@@ -69,7 +69,7 @@
 ### 状态与下一步
 
 - **1.1 完成**（缺失态记录，后被安装事件覆盖：用户 2026-10-24 完成用户级安装并跳过登录，见 §1.2）。
-- 1.2 已执行（§1.2）；1.3 已执行（§1.3）；1.4–1.6 待续。
+- 1.2 已执行（§1.2）；1.3 已执行（§1.3）；1.4 已执行（§1.4）；1.5–1.6 待续。
 
 ## 1.2 安装落位与受限容器边界探针（2026-10-24，验收 P09 的 1.2 切片）
 
@@ -176,3 +176,32 @@
   package-lock.json 哈希中。
 - 诚实备注：runner/gate 为探针版（包层单测与产品化归 2.x/3.x）；生产 EXPECTED_TESTS 由
   manifest 随测试冻结。
+
+## 1.4 资源限额实测（2026-10-24，验收 P10/P13 的 1.4 切片）
+
+候选限额（design D5）逐项实测生效；探针脚本与原始输出 `.workbuddy/r3-14/`（不入库）。
+
+| 限额 | 探针 | 实测读数 | 判定 |
+|---|---|---|---|
+| 内存 512 MiB 无 swap | node 持续分配 1 MiB Buffer（文件日志） | **NODE_EXIT=137（SIGKILL）**，最后读数 480 MB 处被 cgroup OOM 击杀 | ✅ 限额内终止、原因可识别 |
+| PID 64 | 尝试派生 200 个 sleep | spawned_ok=**62** / spawn_fail=138（`can't fork: Resource temporarily unavailable`） | ✅ 精确封顶（64 含容器自身进程） |
+| /work tmpfs 160 MiB、/tmp 32 MiB | dd 填充 | /work 精确写满 167,772,160 B 后 ENOSPC（DD_EXIT=1，1.5 GB/s）；/tmp 32 MiB 同样封顶；清理后 0% | ✅ |
+| CPU 1 核 | 2 个 busy loop × 5 s + cpu.stat | 限额侧 usage≈5.10 s、nr_periods 50 / **nr_throttled 50**、throttled_usec≈4.93 s；对照（无限额）usage≈10.04 s、nr_throttled 0 | ✅ 配额精确限 1 核（节流不杀进程） |
+| 停止时长 | `sleep 300` 容器 `docker stop -t 10` | **10,511 ms 后 SIGKILL（ExitCode 137）**——SIGTERM 被裸 PID 1 忽略 | ⚠️ 发现① |
+| 输出体量 | 生成 2048 KiB stdout | `docker logs` 全量返回 **2,099,200 B**（=2048×1025 精确），engine 不设界 | 记录：有界读取是产品责任（3.4，P13） |
+| 清理 | `docker ps -a` / `docker system df` | 0 残留容器/卷；镜像 3 个 284.1 MB、build cache 271 MB | ✅ |
+| tmpfs×内存相互作用 | 200m 内存 + 190m tmpfs：先填 180 MB 再分配堆 | dd 180 MB 存活（180<200），node 堆分配即刻 **Killed** | ⚠️ 发现② |
+
+### 发现与坑（记录在案）
+
+1. **PID 1 信号陷阱（直接支撑 design D5 supervisor 结构）**：工作负载裸跑 PID 1（无信号处理器）
+   时，`docker stop` 的 SIGTERM 被内核丢弃，宽限期满（10 s）才 SIGKILL。干净停止必须由受控
+   supervisor 作 PID 1（注册 TERM 处理、转发并等待全部子孙退出），工作负载以子进程身份收 TERM
+   正常退出——P19（停止覆盖子孙进程）依赖该结构。
+2. **tmpfs 页计入容器内存 cgroup**：180 MB tmpfs + 少量堆分配即在 200 MiB 限额内被 OOM 击杀
+   （若无相互作用，node 应能继续分配至 ~200 MB 并留有进度日志）。⇒ 候选口径修正为「**进程 +
+   tmpfs 合并预算**」：`--memory 512m` + `/work 160m` + `/tmp 32m` 下进程有效内存 ≈ 300 MiB
+   （含 node/tsc 自身）。冻结时要么接受该语义、要么调整数字；限额属 profile/指纹，按 design D5
+   更新即可，无需改提案主体。
+3. 管道后 `$?` 第四次踩（1.4 内存探针两版：首版 `| tail` 在脚本内、次版 NODE_EXIT 实为 tail 的
+   退出码）——证据以「Killed」行 + 137 退出码为准；判退出码一律无管道读取或落文件后 cat。
