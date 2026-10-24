@@ -69,7 +69,7 @@
 ### 状态与下一步
 
 - **1.1 完成**（缺失态记录，后被安装事件覆盖：用户 2026-10-24 完成用户级安装并跳过登录，见 §1.2）。
-- 1.2 已执行（§1.2）；1.3–1.6 待续。
+- 1.2 已执行（§1.2）；1.3 已执行（§1.3）；1.4–1.6 待续。
 
 ## 1.2 安装落位与受限容器边界探针（2026-10-24，验收 P09 的 1.2 切片）
 
@@ -128,3 +128,51 @@
   而是 docker 默认基线 + 编排「永不添加」的责任（3.2/3.3 以 mounts 审计与受控 env 断言落牙）。
 - 结论：**P09 的 1.2 切片（非 root / 只读 rootfs / capabilities / 断网）全部实测通过且带对照组**；
   物化与采集侧的越界覆盖留 3.3 / 6.2。
+
+## 1.3 node-ts-v1 模板冻结与可信环境探针（2026-10-24，验收 P04/P08/P11/P12 的 1.3 切片）
+
+### 冻结读数（探针版；产品化归 2.x/3.x，脚本与原始输出 `.workbuddy/r3-13/` 不入库）
+
+- 基础镜像：`node:22-alpine`（经 DaoCloud 源）manifest digest
+  `sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914`；**跨 registry 与
+  官方源一致性未核对**（Hub 直连超时，如实标注；digest 内容寻址保证同 digest 同字节，官方源
+  可达时补核对）。
+- 工具链：Node **v22.23.4** / npm 10.9.9 / TypeScript **5.9.3**（**npmjs.org 直连可用**，无需
+  镜像源变形；`npm install --ignore-scripts` 实测安装成功）。
+- 环境镜像 `r3/node-ts-v1:probe`：ImageId
+  `sha256:540409fd33af468376e596812cade3aa963468a986f44419043541bbf8346086`；受信文件 sha256：
+  runner.mjs `0edf7c21…d823`、tsconfig.json `a34da16b…91f6`、package.tmpl.json `a5f4e90e…7b0e`、
+  tests/smoke.test.mjs `aed08651…1030`、package-lock.json `d41f6694…90c4`（全值见
+  `.workbuddy/r3-13/`）。
+- 固定 argv（由 runner 冻结，枚举命令 typecheck/test）：
+  - typecheck → `/opt/r3/node_modules/.bin/tsc --noEmit -p /work/tsconfig.json`
+  - test → 先 `tsc -p /work/tsconfig.json`（编译到 `/work/.build`），
+    再 `node --test --test-reporter=tap /opt/r3/tests/*.test.mjs`（cwd=/work，显式文件列表）
+  - 模板 tsconfig/package 由 runner 从 /opt/r3 复制落位 /work（探针简化；生产归受控物化 3.3）；
+    受支持源码 = `src/**/*.ts`。
+- 预期测试数 `EXPECTED_TESTS=2` 与测试同镜像冻结（design D2「检查预期测试数」）。
+
+### 探针结果（受限 profile 同 §1.2 + `--tmpfs /work:size=160m,mode=1777`）
+
+| 探针 | 结果 | 判定 |
+|---|---|---|
+| 已知失败（mul=a−b） | typecheck 过、test 断言失败（expected 6 / actual −1，栈指向受信测试文件），exit 1 | ✅ P11 切片 |
+| 修复（mul=a×b） | `# tests 2 / pass 2`，exit 0 | ✅ P11 切片 |
+| `/opt/r3` 追加写入 | DENIED（只读 rootfs） | ✅ 受信测试不可被项目替换（P08） |
+| `/work` 恶意测试文件 | 未被执行（tests 仍为 2 而非 3） | ✅ 固定文件列表，不扫描 /work |
+| 恶意 package.json（scripts.test=echo PWNED） | 被模板覆盖、PWNED 未出现、npm scripts/install 全程未调用 | ✅ P08 |
+| gate 自检（6 例） | 空目录 / 零测试 / 垃圾输出 / 伪测试(1) / 超计数(3) 全拒，精确匹配通过 | ✅ P12 切片 |
+| 零测试危害形态实测 | **零用例文件被 node 22.23 计作「1 个通过的模块加载测试」且 exit 0** ⇒ `>0` 门无效，精确匹配门必要 | ✅ 修正后通过 |
+
+### 发现与坑（记录在案）
+
+- node 22.23.4 `--test <目录参数>` 把目录当模块路径加载（MODULE_NOT_FOUND）；目录发现模式
+  （cwd）正常。runner 用显式文件列表规避。
+- 管道后 `$?` 是 tail/grep 的退出码——量 node 退出码必须无管道或用 PIPESTATUS（本轮自踩两次）。
+- Git Bash MSYS 把 `/opt/...` 形态参数改写为 Git 安装路径 ⇒ 容器内绝对路径参数须 `sh -c` 包裹
+  （与既有「路径撕裂」坑同源）。
+- tsc outDir/include 公共根陷阱：缺 `rootDir` 时产物少一层 `src/`；已显式 `rootDir:"."`。
+- 镜像构建内 `npm install` = 「准备阶段联网」的探针体现（design D2）；lock/integrity 冻结在
+  package-lock.json 哈希中。
+- 诚实备注：runner/gate 为探针版（包层单测与产品化归 2.x/3.x）；生产 EXPECTED_TESTS 由
+  manifest 随测试冻结。
