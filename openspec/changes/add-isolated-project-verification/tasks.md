@@ -1,6 +1,6 @@
 # R3 实施与验收
 
-状态：**阶段 1 完成（1.1–1.6 全过，backend-verification.md §1.1–§1.6；四道开放门槛实测通过，第 2–6 组解冻）**；2.1 起未执行；实机和真实项目任务未执行。单项不超过 2 小时；超时须先拆分，不将探针/fixture 通过记成真实项目支持。阶段 1 是后续执行开放的硬门槛：1.1–1.6 的探针产物（backend-verification.md 与结论）作为独立提交节点尽早落库，任一门槛未过即冻结第 2–6 组并先修提案，不以零散本地记录代替。3.3/4.5/6.2 已预置拆分点（见各条），拆分不改编号与 evidence-index 映射。发现设计不成立先修 proposal/design/spec。
+状态：**阶段 1 完成（1.1–1.6 全过）**；第 2 组进行中——2.1 已完成（新包 + 纯 schema 层 + 25 用例）；下一步 2.2（JSONL writer）；实机和真实项目任务未执行。单项不超过 2 小时；超时须先拆分，不将探针/fixture 通过记成真实项目支持。阶段 1 是后续执行开放的硬门槛：1.1–1.6 的探针产物（backend-verification.md 与结论）作为独立提交节点尽早落库，任一门槛未过即冻结第 2–6 组并先修提案，不以零散本地记录代替。3.3/4.5/6.2 已预置拆分点（见各条），拆分不改编号与 evidence-index 映射。发现设计不成立先修 proposal/design/spec。
 
 ## 1. Windows 后端技术验证与 profile 冻结
 
@@ -13,7 +13,7 @@
 
 ## 2. 包层契约与只读记录
 
-- [ ] 2.1（1.5h）新包及纯 schema/只读子路径、项目 manifest/selector/plan/result/error 联合、测试类型检查入口。验收 P02/P05/P08/P15。
+- [x] 2.1（1.5h）新包及纯 schema/只读子路径、项目 manifest/selector/plan/result/error 联合、测试类型检查入口。验收 P02/P05/P08/P15。（2026-10-25 完成：`@rebaseagent/project-verification` 入库，exports `.`/`./schema` 分离；schema 纯 zod 全 strict——endpoint 仅本机管道、selector 显式判别联合、命令枚举、allowExecution/allowPrepare literal true、NODE_TS_V1_PROFILE 冻结实例（tmpfs 合并预算与 supervisorPid1 钉 literal）、结局/错误码闭集、记录事件 v1、恢复日志登记；25 用例绿 + 测试 tsconfig 0 错 + biome 0 + lockfile 仅新 importer；只读记录子路径随 2.2/2.3 落地）
 - [ ] 2.2（2h）版本化 JSONL writer、事件顺序/身份校验、唯一终止/封存、日志产物不可变发布。验收 P11/P14/P15。
 - [ ] 2.3（1.5h）只读 list/get/readLog 范围/预算/相对引用，处理运行中、坏尾、未知版本、附件损坏、来源缺失和迁移。验收 P13/P15/P16。
 - [ ] 2.4（1.5h）显式自有检查点/来源完整性/模板与附件全量预检，快照/计划摘要和漂移重核。验收 P05/P06/P07/W01/W02。
