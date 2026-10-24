@@ -3,11 +3,13 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import type { z } from "zod";
 import {
+  PreparationEventSchema,
+  PreparationMetaEventSchema,
   VerificationEventSchema,
   VerificationMetaEventSchema,
   type VerificationOutcome,
 } from "../schema.js";
-import { assetPath, requireRecordId, verificationRecordPath } from "./layout.js";
+import { assetPath, preparationRecordPath, requireRecordId, verificationRecordPath } from "./layout.js";
 
 const RECORD_ID_SAFE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 
@@ -265,4 +267,198 @@ export function readLog(
     remaining: totalBytes - end,
     truncated: end < totalBytes,
   };
+}
+
+// ---------------------------------------------------------------------------
+// 准备记录只读面（4.2 main 解析「已准备环境」用；与验证读取同一纪律）
+// ---------------------------------------------------------------------------
+
+export type PreparationRecordStatus = "sealed" | "unterminated" | "corrupt" | "unsupported_version";
+
+export interface PreparationRecordRead {
+  preparationId: string;
+  status: PreparationRecordStatus;
+  meta?: {
+    preparationId: string;
+    epoch: string;
+    operationId: string;
+    profileId: string;
+    planDigest: string;
+    createdAt: string;
+  };
+  /** prepared 事件（构建成功时恰一条；failed 记录没有） */
+  prepared?: { imageDigest: string; node: string; typescript: string; at: string };
+  failed?: { reason: string; at: string };
+  terminated?: { outcome: "prepared" | "failed"; at: string };
+  error?: { lineIndex: number; reason: string };
+}
+
+/** 读取单条准备记录（固定时点；含未封存现场）。 */
+export function getPreparation(root: string, preparationId: string): PreparationRecordRead {
+  requireRecordId("preparationId", preparationId);
+  const file = preparationRecordPath(root, preparationId);
+  if (!existsSync(file)) {
+    throw new RecordReadError("RECORD_NOT_FOUND", `准备记录不存在：${preparationId}`);
+  }
+  const lines = readFileSync(file, "utf8")
+    .split("\n")
+    .filter((l) => l.length > 0);
+  const result: PreparationRecordRead = { preparationId, status: "corrupt" };
+  if (lines.length === 0) {
+    result.error = { lineIndex: 0, reason: "空记录文件" };
+    return result;
+  }
+  let meta: unknown;
+  try {
+    meta = JSON.parse(lines[0]);
+  } catch (error) {
+    result.error = { lineIndex: 0, reason: `meta 行不是 JSON：${String(error)}` };
+    return result;
+  }
+  const version = (meta as { schemaVersion?: unknown }).schemaVersion;
+  if (version !== 1) {
+    result.status = "unsupported_version";
+    result.error = { lineIndex: 0, reason: `未知 schemaVersion：${String(version)}` };
+    return result;
+  }
+  const metaParsed = PreparationMetaEventSchema.safeParse(meta);
+  if (!metaParsed.success || metaParsed.data.preparationId !== preparationId) {
+    result.error = {
+      lineIndex: 0,
+      reason: metaParsed.success ? "meta 身份与请求的 preparationId 不一致" : "meta 形状不合法",
+    };
+    return result;
+  }
+  result.meta = {
+    preparationId: metaParsed.data.preparationId,
+    epoch: metaParsed.data.epoch,
+    operationId: metaParsed.data.operationId,
+    profileId: metaParsed.data.profileId,
+    planDigest: metaParsed.data.planDigest,
+    createdAt: metaParsed.data.createdAt,
+  };
+  let terminatedSeen = false;
+  for (let i = 1; i < lines.length; i++) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(lines[i]);
+    } catch (error) {
+      result.status = "corrupt";
+      result.error = { lineIndex: i, reason: `第 ${i} 行不是 JSON（坏尾）：${String(error)}` };
+      return result;
+    }
+    const event = PreparationEventSchema.safeParse(parsed);
+    if (!event.success) {
+      result.status = "corrupt";
+      result.error = { lineIndex: i, reason: `第 ${i} 行事件形状不合法` };
+      return result;
+    }
+    const data = event.data;
+    if (data.type === "meta") {
+      result.status = "corrupt";
+      result.error = { lineIndex: i, reason: "meta 只能是首行" };
+      return result;
+    }
+    if (data.type === "prepared" && result.prepared === undefined) {
+      result.prepared = {
+        imageDigest: data.imageDigest,
+        node: data.toolchain.node,
+        typescript: data.toolchain.typescript,
+        at: data.at,
+      };
+    }
+    if (data.type === "failed" && result.failed === undefined) {
+      result.failed = { reason: data.reason, at: data.at };
+    }
+    if (data.type === "terminated") {
+      terminatedSeen = true;
+      result.terminated = { outcome: data.outcome, at: data.at };
+    }
+  }
+  result.status = terminatedSeen ? "sealed" : "unterminated";
+  return result;
+}
+
+export interface PreparationSummary {
+  preparationId: string;
+  status: PreparationRecordStatus;
+  outcome?: "prepared" | "failed";
+  createdAt?: string;
+}
+
+/** 列出准备记录摘要（只扫 verification-environments/）。 */
+export function listPreparations(root: string): PreparationSummary[] {
+  const dir = join(root, "verification-environments");
+  if (!existsSync(dir)) {
+    return [];
+  }
+  const summaries: PreparationSummary[] = [];
+  for (const name of readdirSync(dir)) {
+    if (!name.endsWith(".jsonl")) {
+      continue;
+    }
+    const preparationId = name.slice(0, -".jsonl".length);
+    if (!RECORD_ID_SAFE.test(preparationId)) {
+      continue;
+    }
+    try {
+      const record = getPreparation(root, preparationId);
+      summaries.push({
+        preparationId,
+        status: record.status,
+        outcome: record.terminated?.outcome,
+        createdAt: record.meta?.createdAt,
+      });
+    } catch {
+      // 单条不可读不阻断列表
+    }
+  }
+  return summaries.sort((a, b) => a.preparationId.localeCompare(b.preparationId));
+}
+
+/**
+ * 解析「当前已准备环境」（4.2 验证执行的前置事实；main 侧调用）：
+ * 只认**已封存且 outcome=prepared** 的记录，取 createdAt 最新的一条——
+ * 镜像摘要来自记录内 `prepared.imageDigest`（P08：镜像身份从不来自 renderer 输入）。
+ * 没有已准备环境 ⇒ null（调用方给 PREPARE_MISSING 业务拒绝）。
+ */
+export function readLatestPreparedPreparation(
+  root: string,
+): { preparationId: string; imageDigest: string } | null {
+  const dir = join(root, "verification-environments");
+  if (!existsSync(dir)) {
+    return null;
+  }
+  let best: { preparationId: string; imageDigest: string; createdAt: string } | null = null;
+  for (const name of readdirSync(dir)) {
+    if (!name.endsWith(".jsonl")) {
+      continue;
+    }
+    const preparationId = name.slice(0, -".jsonl".length);
+    if (!RECORD_ID_SAFE.test(preparationId)) {
+      continue;
+    }
+    let record: PreparationRecordRead;
+    try {
+      record = getPreparation(root, preparationId);
+    } catch {
+      continue;
+    }
+    if (
+      record.status !== "sealed" ||
+      record.terminated?.outcome !== "prepared" ||
+      record.prepared === undefined ||
+      record.meta === undefined
+    ) {
+      continue;
+    }
+    if (best === null || record.meta.createdAt > best.createdAt) {
+      best = {
+        preparationId,
+        imageDigest: record.prepared.imageDigest,
+        createdAt: record.meta.createdAt,
+      };
+    }
+  }
+  return best === null ? null : { preparationId: best.preparationId, imageDigest: best.imageDigest };
 }

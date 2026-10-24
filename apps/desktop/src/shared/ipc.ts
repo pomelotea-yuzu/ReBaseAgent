@@ -1107,6 +1107,20 @@ export interface WindowApi {
   /** A/B 计划预览：只读、零网络、零文件、不占主动槽，因而**不**要求执行身份 */
   modelAbPlan(request: ModelAbRequest): Promise<Envelope<ModelAbResult>>;
   createRun(request: ExecutedRequest<CreateRunRequest>): Promise<ExecutedResponse<CreateRunResult>>;
+  /**
+   * R3 环境准备（4.2）：主动执行通道——登记 verificationPrepare 目标并关联真实
+   * preparationId；准备与测试分开确认，计划 token 漂移 ⇒ 零副作用拒绝（P07/D02）。
+   */
+  verificationPrepare(
+    request: ExecutedRequest<VerificationPrepareRequest>,
+  ): Promise<ExecutedResponse<VerificationPrepareResult>>;
+  /**
+   * R3 项目验证执行（4.2）：一次确认执行一次；领域结局（D6 九行表）随 returned
+   * 数据返回（D04 分层），runIds 恒空——领域身份不冒充 Agent run（M01）。
+   */
+  verificationRun(
+    request: ExecutedRequest<VerificationRunRequest>,
+  ): Promise<ExecutedResponse<VerificationRunResult>>;
   /** 原生目录选择：只签发会话 token，不导入、不写 trace/blob；取消返回 {canceled:true} */
   chooseSource(): Promise<Envelope<ChooseSourceResult>>;
   /**
@@ -1187,3 +1201,92 @@ export interface WindowApi {
    */
   operationsReconcile(request: ReconcileRequest): Promise<Envelope<ReconcileResult>>;
 }
+
+// ---------------------------------------------------------------------------
+// verification:prepare / verification:run —— R3 环境准备与项目验证（design D3）
+// ---------------------------------------------------------------------------
+
+/** R3 检查点定位（渲染侧显式二选一，UI 不得无声换点；与包层 selector 同构） */
+export const VerificationCheckpointSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("initial") }).strict(),
+  z.object({ kind: z.literal("step"), stepSpanId: z.string().min(1) }).strict(),
+]);
+export type VerificationCheckpoint = z.infer<typeof VerificationCheckpointSchema>;
+
+/**
+ * verification:prepare 请求：检查点定位（进目标摘要）+ 当前准备计划 token +
+ * 显式授权。物理路径/镜像/env/限额无字段可传（P08）；`allowPrepare` 必须显式
+ * true（P04：与测试授权分开，历史确认不延续）。
+ */
+export const VerificationPrepareRequestSchema = z
+  .object({
+    target: z
+      .object({
+        runId: z.string().min(1),
+        checkpoint: VerificationCheckpointSchema,
+      })
+      .strict(),
+    profileId: z.literal("node-ts-v1"),
+    planToken: z.string().min(1),
+    allowPrepare: z.literal(true),
+  })
+  .strict();
+export type VerificationPrepareRequest = z.infer<typeof VerificationPrepareRequestSchema>;
+
+/** verification:prepare 结果：真实创建的准备记录身份 + 镜像事实（P04/P08） */
+export const VerificationPrepareResultSchema = z
+  .object({
+    preparationId: z.string().min(1),
+    imageDigest: z.string().min(1),
+    toolchain: z.object({ node: z.string().min(1), typescript: z.string().min(1) }).strict(),
+    recordPath: z.string().min(1),
+  })
+  .strict();
+export type VerificationPrepareResult = z.infer<typeof VerificationPrepareResultSchema>;
+
+/**
+ * verification:run 请求：精确 selector + 枚举命令 + 当前计划 token + 显式授权
+ * （P07/P08：命令仅枚举、镜像/路径/env/限额无处可传——main 从已准备记录解析镜像）。
+ */
+export const VerificationRunRequestSchema = z
+  .object({
+    target: z
+      .object({
+        runId: z.string().min(1),
+        checkpoint: VerificationCheckpointSchema,
+      })
+      .strict(),
+    profileId: z.literal("node-ts-v1"),
+    commandId: z.enum(["typecheck", "test"]),
+    planToken: z.string().min(1),
+    allowExecution: z.literal(true),
+  })
+  .strict();
+export type VerificationRunRequest = z.infer<typeof VerificationRunRequestSchema>;
+
+/**
+ * verification:run 结果：请求收尾与测试结局**分层**（D04）——`outcome` 是测试/
+ * 环境事实（D6 九行表），不等于请求结局；请求层成败由信封与登记回执表达。
+ */
+export const VerificationRunResultSchema = z
+  .object({
+    verificationId: z.string().min(1),
+    outcome: z.enum([
+      "check_failed",
+      "passed",
+      "environment_failed",
+      "start_failed",
+      "process_failed",
+      "timed_out",
+      "output_limit",
+      "cancelled",
+      "artifact_invalid",
+      "evidence_incomplete",
+      "unknown",
+    ]),
+    detail: z.string().min(1),
+    evidenceComplete: z.boolean(),
+    recordPath: z.string().min(1),
+  })
+  .strict();
+export type VerificationRunResult = z.infer<typeof VerificationRunResultSchema>;

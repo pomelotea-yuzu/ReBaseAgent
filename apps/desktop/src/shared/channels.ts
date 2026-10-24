@@ -56,6 +56,12 @@ export const CHANNELS = {
   // 都不调用模型/工具、不写 trace/blob/source、不消费授权
   operationsStatus: "operations:status",
   operationsReconcile: "operations:reconcile",
+  // verification:* —— R3 单环境真实项目验证（design D3）：两条**主动执行**通道，
+  // 全部走执行 envelope（sender/epoch/一次 parse/判重/占槽与七主动入口同一套）。
+  // prepare 登记 verificationPrepare 目标并关联真实 preparationId；
+  // run 登记 verification 目标并关联真实 verificationId（runIds 恒空——M01）。
+  verificationPrepare: "verification:prepare",
+  verificationRun: "verification:run",
   // draft-close:* —— U3 关闭协商（design D6）：main 持有关闭决策，renderer 只报告元数据。
   // 所有消息只传 sessionId/sequence/dirtyCount/requestId/inputSettled，
   // 不传草稿正文、run 内容、sourceToken、授权或凭据

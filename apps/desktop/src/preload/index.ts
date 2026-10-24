@@ -27,6 +27,10 @@ const api: WindowApi = {
   // A/B 预览是只读通道：不带执行身份、不占主动槽（载荷原样透传，校验在 main 侧）
   modelAbPlan: (request) => ipcRenderer.invoke(CHANNELS.modelAbPlan, request),
   createRun: (request) => ipcRenderer.invoke(CHANNELS.createRun, request),
+  // verification:*（R3 4.2）：两条主动执行通道——经 main 登记与占槽，
+  // 领域身份/计划 token 由 main 侧校验，renderer 不传命令/镜像/路径
+  verificationPrepare: (request) => ipcRenderer.invoke(CHANNELS.verificationPrepare, request),
+  verificationRun: (request) => ipcRenderer.invoke(CHANNELS.verificationRun, request),
   // workspaces:*（B 1.3/1.5）：目录选择签发 token、隔离分叉只读预检——都不产生 run 文件
   chooseSource: () => ipcRenderer.invoke(CHANNELS.chooseSource),
   forkCapability: (request) => ipcRenderer.invoke(CHANNELS.forkCapability, request),

@@ -81,6 +81,9 @@ describe("4.9 预加载桥接面：不含文件能力", () => {
       "readComparedWorkspaceFile",
       "readWorkspaceFile",
       "saveSettings",
+      // R3 主动执行（4.2）：准备与测试分开确认，领域身份不冒充运行
+      "verificationPrepare",
+      "verificationRun",
     ]);
   });
 

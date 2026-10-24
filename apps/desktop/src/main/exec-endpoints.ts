@@ -53,6 +53,7 @@ import type { RunRepository } from "./run-repository";
 import { RunSourceRejection, checkRunSource } from "./run-source-gate";
 import type { SettingsStore } from "./settings";
 import type { SourceTokenStore } from "./source-token";
+import { verificationRunResultOf } from "./verification-errors";
 
 /**
  * 七个主动执行入口的 **main 侧端点体**（U4 design D2/D3，tasks 3.1–3.4）。
@@ -101,10 +102,12 @@ export interface ExecEndpointDeps {
    * 测试注入 mock ⇒ 零真实 API，且"同 ID 重复请求只执行一次"能数到真实模型调用次数）。
    */
   llm?: LlmClient;
+  /** R3 依赖（4.2）：未设置 ⇒ 两条 verification:* 通道以 R3_NOT_CONFIGURED 拒绝 */
+  verification?: import("./verification-endpoints").VerificationEndpointDeps;
 }
 
 /** 一条主动入口的规格：通道、业务 schema、受限目标摘要、真实编排 */
-interface ActiveChannel<TRequest, TResult> {
+export interface ActiveChannel<TRequest, TResult> {
   readonly channel: ChannelName;
   readonly schema: import("zod").ZodType<TRequest>;
   readonly targetOf: (business: TRequest) => OperationTarget;
@@ -167,6 +170,8 @@ function toRunResult(error: unknown): OperationRunResult {
   if (error instanceof ModelAbError) {
     return { outcome: "rejected", code: `MODEL_AB_${error.code}`, message };
   }
+  const r3 = verificationRunResultOf(error);
+  if (r3 !== null) return r3;
   return { outcome: "failed", code: "OPERATION_EXECUTION_FAILED", message };
 }
 
@@ -174,7 +179,7 @@ function toRunResult(error: unknown): OperationRunResult {
  * 端点体的公共段。返回 `null` 表示"接受之前的拒绝"已直接产出响应——
  * 那一类响应**没有** operation 回执（main 里根本没有这条登记）。
  */
-async function submitActive<TRequest, TResult>(
+export async function submitActive<TRequest, TResult>(
   deps: ExecEndpointDeps,
   sender: TrustedSender,
   spec: ActiveChannel<TRequest, TResult>,

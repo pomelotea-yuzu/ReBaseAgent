@@ -1,4 +1,14 @@
 import { appendFileSync, readFileSync } from "node:fs";
+import {
+  DockerCollectBackend,
+  DockerCommandBackend,
+  DockerMaterializationBackend,
+  DockerPreparationBackend,
+  DockerRuntimeBackend,
+  DockerStopBackend,
+  type LocalBackendEndpoint,
+  resolveDockerCli,
+} from "@rebaseagent/project-verification";
 import { app, dialog, ipcMain } from "electron";
 import {
   CHANNELS,
@@ -60,6 +70,7 @@ import type { RunRepository } from "./run-repository";
 import { RunSourceRejection } from "./run-source-gate";
 import type { SettingsStore } from "./settings";
 import { SourceTokenStore } from "./source-token";
+import { execVerificationPrepare, execVerificationRun } from "./verification-endpoints";
 import {
   compareWorkspaceSnapshotsEndpoint,
   readComparedWorkspaceFileEndpoint,
@@ -139,6 +150,9 @@ export function registerIpc(deps: IpcDeps): void {
     proxy,
     sourceTokens,
     configState,
+    // R3 依赖（4.2）：Docker Desktop CLI 可信位置在场才装配；缺席 ⇒ R3 通道拒绝（P01：
+    // 不隐式安装、不回退宿主 Shell）。endpoint 钉死本机管道（schema 枚举），不读 env。
+    verification: assembleVerificationDeps(dataDir),
   };
   const pickDirectory =
     deps.pickDirectory ??
@@ -429,6 +443,18 @@ export function registerIpc(deps: IpcDeps): void {
     (event, request: unknown): Promise<ExecutedResponse<CreateRunResult>> =>
       execCreateRun(execDeps, senderOf(event), request),
   );
+
+  // -------------------------------------------------------------------------
+  // verification:prepare / verification:run —— R3 环境准备与项目验证（4.2）：
+  // 两条主动执行通道与七入口同一接受序列；领域身份经真实回调关联（M01/D03）
+  // -------------------------------------------------------------------------
+
+  ipcMain.handle(CHANNELS.verificationPrepare, (event, request: unknown) =>
+    execVerificationPrepare(execDeps, senderOf(event), request),
+  );
+  ipcMain.handle(CHANNELS.verificationRun, (event, request: unknown) =>
+    execVerificationRun(execDeps, senderOf(event), request),
+  );
   ipcMain.handle(
     CHANNELS.settingsGet,
     (): ReturnType<typeof ok<SettingsState>> | ReturnType<typeof fail> => {
@@ -520,5 +546,34 @@ function senderOf(event: {
   return {
     webContentsId: event.sender.id,
     frameRoutingId: event.senderFrame?.routingId ?? -1,
+  };
+}
+
+/**
+ * R3 依赖装配（4.2）：Docker Desktop CLI 可信绝对路径在场才返回依赖；CLI 缺席 ⇒
+ * undefined（verification:* 通道以 R3_NOT_CONFIGURED 拒绝——P01：不隐式安装、不回退）。
+ * endpoint 钉死本机管道枚举值（不读 DOCKER_HOST/env，受控 env 见 3.2）。
+ */
+function assembleVerificationDeps(
+  dataDir: string,
+): import("./verification-endpoints").VerificationEndpointDeps | undefined {
+  const installation = resolveDockerCli();
+  if (installation === null) {
+    return undefined;
+  }
+  const endpoint: LocalBackendEndpoint = "npipe:////./pipe/dockerDesktopLinuxEngine";
+  const runtime = new DockerRuntimeBackend({ installation, endpoint });
+  return {
+    dataRoot: dataDir,
+    backends: {
+      preparation: new DockerPreparationBackend({ installation, endpoint }),
+      run: {
+        lifecycle: runtime,
+        materialize: new DockerMaterializationBackend({ installation, endpoint }),
+        command: new DockerCommandBackend({ installation, endpoint }),
+        workloadStop: new DockerStopBackend({ installation, endpoint }),
+        collect: new DockerCollectBackend({ installation, endpoint }),
+      },
+    },
   };
 }

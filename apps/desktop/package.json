@@ -19,6 +19,7 @@
     "@monaco-editor/react": "^4.7.0",
     "@rebaseagent/agent-loop": "workspace:*",
     "@rebaseagent/llm-proxy": "workspace:*",
+    "@rebaseagent/project-verification": "workspace:*",
     "@rebaseagent/replay": "workspace:*",
     "@rebaseagent/run-query": "workspace:*",
     "@rebaseagent/trace-sdk": "workspace:*",
