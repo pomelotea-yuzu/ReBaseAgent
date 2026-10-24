@@ -1,6 +1,6 @@
 # R3 逐场景证据索引
 
-状态：阶段 1 完成（1.1–1.6）+ 2.1/2.2 已完成——P01/P09/P04/P08/P11/P12/P10/P13/P05/P17/P18/P19/P21/P22/P23 的阶段 1 切片与 P02/P05/P08/P15 的 2.1 切片、P11/P14/P15 的 2.2 切片已实测（backend-verification.md + `packages/project-verification` 40 用例）；其余任务切片待验证；文档/strict 校验通过不代表功能、隔离或实机验收通过。
+状态：阶段 1 完成（1.1–1.6）+ **第 2 组完成（2.1–2.4）**——阶段 1 各切片、P02/P05/P08/P15 的 2.1、P11/P14/P15 的 2.2、P13/P15/P16 的 2.3、P05/P06/P07/W01/W02 的 2.4 切片已实测（backend-verification.md + `packages/project-verification` 65 用例）；其余任务切片待验证；文档/strict 校验通过不代表功能、隔离或实机验收通过。
 
 ## 新增场景
 
@@ -10,9 +10,9 @@
 | P02 | project-verification / 拒绝远程或漂移环境 | 1.1、2.1、3.2 | 1.1 记录 + 2.1 schema 切片已实测（LocalBackendEndpoint 仅枚举本机 npipe，tcp/ssh/unix 无类型表示且用例拒绝）；3.2 待执行 |
 | P03 | project-verification / 只读计划不准备环境 | 3.1、4.3、6.5 | 待验证；未执行 |
 | P04 | project-verification / 授权准备成功或失败 | 1.3、3.1、6.5 | 1.3 切片已实测（2026-10-24，backend-verification.md §1.3：镜像构建内 npm install --ignore-scripts 成功、lock/受信文件哈希冻结）；3.1/6.5 待执行 |
-| P05 | project-verification / 精确选择初始或自有完成步骤 | 1.5、2.1、2.4、3.3 | 1.5 物化切片 + 2.1 schema 切片已实测（selector 判别联合显式 initial/step，无默认形态）；2.4/3.3 待执行 |
-| P06 | project-verification / 来源或附件不成立 | 2.4、3.3 | 待验证；未执行 |
-| P07 | project-verification / 计划或授权失效 | 2.4、3.1、4.2 | 待验证；未执行 |
+| P05 | project-verification / 精确选择初始或自有完成步骤 | 1.5、2.1、2.4、3.3 | 1.5 物化 + 2.1 schema + 2.4 预检切片已实测（真实隔离 run 上 initial/step 双通过、未知步骤拒绝、stepSpanId 回填）；3.3 待执行 |
+| P06 | project-verification / 来源或附件不成立 | 2.4、3.3 | 2.4 切片已实测（真实 run 定向破坏：未封存/附件缺失/附件篡改/模板不相容均副作用前拒绝并给原因）；3.3 待执行 |
+| P07 | project-verification / 计划或授权失效 | 2.4、3.1、4.2 | 2.4 切片已实测（snapshotId+attachmentsManifestDigest 双摘要、sourceFactsMatch 重核）；3.1/4.2 待执行 |
 | P08 | project-verification / 自定义命令和配置被拒绝 | 1.3、2.1、3.1 | 1.3 切片 + 2.1 schema 切片已实测（命令枚举、strict 对象拒绝多余键、路径/env/镜像无处传）；3.1 待执行 |
 | P09 | project-verification / 越界和网络实际受限 | 1.2、3.2、3.3、6.2 | 1.2 切片已实测（2026-10-24，backend-verification.md §1.2：受限/对照双跑，非 root/cap/nnp/ro-rootfs/断网全生效）；3.2/3.3/6.2 待执行 |
 | P10 | project-verification / 资源限额生效 | 1.4、3.2、3.5、6.2 | 1.4 切片已实测（2026-10-24，backend-verification.md §1.4：OOM 137/PID 62/ENOSPC/节流 50:50 含对照；PID1 信号陷阱与 tmpfs 计内存两发现）；3.2/3.5/6.2 待执行 |
@@ -32,8 +32,8 @@
 | P24 | project-verification / 同条件失败到通过 | 5.4、6.1、7.2 | 待验证；未执行 |
 | P25 | project-verification / 条件变化或未知 | 5.4、6.5、7.2 | 待验证；未执行 |
 | P26 | project-verification / 模板成功的范围 | 1.1、6.5、7.1、7.2 | 待验证；未执行 |
-| W01 | workspace-isolation / 分支输入保持历史字节 | 2.4、3.3、3.6、6.1 | 待验证；未执行 |
-| W02 | workspace-isolation / 不扩展文件工具或状态承诺 | 2.4、3.3 | 待验证；未执行 |
+| W01 | workspace-isolation / 分支输入保持历史字节 | 2.4、3.3、3.6、6.1 | 2.4 切片已实测（宿主源文件改写+删除后预检摘要不变——只读历史清单/附件）；3.3/3.6/6.1 待执行 |
+| W02 | workspace-isolation / 不扩展文件工具或状态承诺 | 2.4、3.3 | 2.4 切片已实测（受支持源码面精确判定：node_modules/点文件/额外入口/非 .ts 明确拒绝）；3.3 待执行 |
 | W03 | workspace-isolation / 导出字节对应所测输入 | 5.5、6.1、7.2 | 待验证；未执行 |
 | W04 | workspace-isolation / 切换检查点或附件漂移 | 5.5 | 待验证；未执行 |
 | D01 | desktop-ui / 计划预览和不可用原因 | 4.3、5.1、6.3 | 待验证；未执行 |

@@ -1,6 +1,6 @@
 # R3 实施与验收
 
-状态：**阶段 1 完成（1.1–1.6 全过）**；第 2 组进行中——2.1–2.3 已完成（schema 层 + 记录层写/读，53 用例）；下一步 2.4（来源预检）；实机和真实项目任务未执行。单项不超过 2 小时；超时须先拆分，不将探针/fixture 通过记成真实项目支持。阶段 1 是后续执行开放的硬门槛：1.1–1.6 的探针产物（backend-verification.md 与结论）作为独立提交节点尽早落库，任一门槛未过即冻结第 2–6 组并先修提案，不以零散本地记录代替。3.3/4.5/6.2 已预置拆分点（见各条），拆分不改编号与 evidence-index 映射。发现设计不成立先修 proposal/design/spec。
+状态：**阶段 1 完成（1.1–1.6 全过）；第 2 组完成（2.1–2.4，包层契约与只读记录收口，65 用例）**；下一步 3.1（受限准备）；实机和真实项目任务未执行。单项不超过 2 小时；超时须先拆分，不将探针/fixture 通过记成真实项目支持。阶段 1 是后续执行开放的硬门槛：1.1–1.6 的探针产物（backend-verification.md 与结论）作为独立提交节点尽早落库，任一门槛未过即冻结第 2–6 组并先修提案，不以零散本地记录代替。3.3/4.5/6.2 已预置拆分点（见各条），拆分不改编号与 evidence-index 映射。发现设计不成立先修 proposal/design/spec。
 
 ## 1. Windows 后端技术验证与 profile 冻结
 
@@ -16,7 +16,7 @@
 - [x] 2.1（1.5h）新包及纯 schema/只读子路径、项目 manifest/selector/plan/result/error 联合、测试类型检查入口。验收 P02/P05/P08/P15。（2026-10-25 完成：`@rebaseagent/project-verification` 入库，exports `.`/`./schema` 分离；schema 纯 zod 全 strict——endpoint 仅本机管道、selector 显式判别联合、命令枚举、allowExecution/allowPrepare literal true、NODE_TS_V1_PROFILE 冻结实例（tmpfs 合并预算与 supervisorPid1 钉 literal）、结局/错误码闭集、记录事件 v1、恢复日志登记；25 用例绿 + 测试 tsconfig 0 错 + biome 0 + lockfile 仅新 importer；只读记录子路径随 2.2/2.3 落地）
 - [x] 2.2（2h）版本化 JSONL writer、事件顺序/身份校验、唯一终止/封存、日志产物不可变发布。验收 P11/P14/P15。（2026-10-25 完成：schema 联合拆分 meta/正文/唯一终止；layout 布局+ID 防穿越；writer wx 排他+meta 首行钉版本+body 联合校验+terminate fsync 封存+abortClose 留未封存现场+整行落盘；assets 临时文件+link 原子排他+同哈希字节比对幂等/拒绝覆盖；40 用例全绿+测试 tsconfig 0 错+biome 0）
 - [x] 2.3（1.5h）只读 list/get/readLog 范围/预算/相对引用，处理运行中、坏尾、未知版本、附件损坏、来源缺失和迁移。验收 P13/P15/P16。（2026-10-25 完成：reader 模块——getVerification 逐行校验（坏尾行号/未知版本/身份错配/terminated 非末行/重复终止均结构化降级，非 sealed 不呈现结局）、listVerifications 只扫 verifications/、readLog 先整体验哈希再 32KiB 默认/64KiB 钳制切片返回 nextOffset/remaining/truncated、sourceStatus 来源标注、数据根 rename 后记录与附件仍可读；53 用例全绿+测试 tsconfig 0 错+biome 0）
-- [ ] 2.4（1.5h）显式自有检查点/来源完整性/模板与附件全量预检，快照/计划摘要和漂移重核。验收 P05/P06/P07/W01/W02。
+- [x] 2.4（1.5h）显式自有检查点/来源完整性/模板与附件全量预检，快照/计划摘要和漂移重核。验收 P05/P06/P07/W01/W02。（2026-10-25 完成：source/precheck——readWorkspaceRun+locateSnapshotInRun 同一时点、status≠completed 拒、selector 显式二选一、受支持源码面精确判定（拒 node_modules/点文件段）、R1 配额复核复用 replay findFileSetQuotaViolation、附件逐字节 readVerified、snapshotId+attachmentsManifestDigest 供 PlanBinding、sourceFactsMatch 漂移重核；集成测试用真实 createIsolatedRun 夹具（12 用例：initial/step/未知步骤/run 不存在/未封存/模板不相容/附件缺失/篡改/宿主源目录漂移不影响）；配额边界用例归 replay 包既有测试，如实注明；65 用例全绿）
 
 ## 3. 受限准备、执行和产物
 

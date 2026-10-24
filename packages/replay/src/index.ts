@@ -114,18 +114,22 @@ export type {
 } from "./workspace/world.js";
 export {
   WORKSPACE_TRACES_DIR_NAME,
+  locateSnapshotInRun,
   locateWorkspaceSnapshot,
   readWorkspaceFile,
+  readWorkspaceRun,
   workspaceTraceFile,
 } from "./workspace/read-api.js";
 export type {
   LocateWorkspaceRequest,
   LocateWorkspaceResult,
   LocatedWorkspaceSnapshot,
+  ReadWorkspaceRunResult,
   WorkspaceFileReadResult,
   WorkspaceLocateFailure,
   WorkspaceLocateFailureCode,
   WorkspaceReadRequest,
+  WorkspaceRun,
 } from "./workspace/read-api.js";
 export {
   EXPORT_FILES_ROOT,

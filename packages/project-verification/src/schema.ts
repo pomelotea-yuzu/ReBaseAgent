@@ -52,6 +52,8 @@ export const VerificationTargetSelectorSchema = z.strictObject({
   checkpoint: CheckpointSelectorSchema,
 });
 
+export type CheckpointSelector = z.infer<typeof CheckpointSelectorSchema>;
+
 /**
  * 命令枚举：仅 `typecheck` / `test` 两个固定命令（design D2）。
  * renderer/project 不能提交自由命令、handler 或物理路径（P08）；

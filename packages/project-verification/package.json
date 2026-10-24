@@ -22,6 +22,8 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@rebaseagent/replay": "workspace:*",
+    "@rebaseagent/trace-sdk": "workspace:*",
     "zod": "^3.23.8"
   },
   "devDependencies": {

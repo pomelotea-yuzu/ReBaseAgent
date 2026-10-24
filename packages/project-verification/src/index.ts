@@ -11,3 +11,4 @@ export * from "./records/layout.js";
 export * from "./records/writer.js";
 export * from "./records/assets.js";
 export * from "./records/reader.js";
+export * from "./source/precheck.js";
