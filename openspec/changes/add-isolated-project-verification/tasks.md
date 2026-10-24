@@ -1,6 +1,6 @@
 # R3 实施与验收
 
-状态：**阶段 1 完成（1.1–1.6 全过）；第 2 组完成（2.1–2.4，包层契约与只读记录收口，65 用例）；3.1 完成（受限准备，79 用例）；3.2 完成（Docker 受控后端，103 用例）**；下一步 3.3（受控物化）；实机和真实项目任务未执行。单项不超过 2 小时；超时须先拆分，不将探针/fixture 通过记成真实项目支持。阶段 1 是后续执行开放的硬门槛：1.1–1.6 的探针产物（backend-verification.md 与结论）作为独立提交节点尽早落库，任一门槛未过即冻结第 2–6 组并先修提案，不以零散本地记录代替。3.3/4.5/6.2 已预置拆分点（见各条），拆分不改编号与 evidence-index 映射。发现设计不成立先修 proposal/design/spec。
+状态：**阶段 1 完成（1.1–1.6 全过）；第 2 组完成（2.1–2.4，包层契约与只读记录收口，65 用例）；3.1 完成（受限准备，79 用例）；3.2 完成（Docker 受控后端，103 用例）；3.3 完成（受控物化，131 用例）**；下一步 3.4（固定命令执行）；实机和真实项目任务未执行。单项不超过 2 小时；超时须先拆分，不将探针/fixture 通过记成真实项目支持。阶段 1 是后续执行开放的硬门槛：1.1–1.6 的探针产物（backend-verification.md 与结论）作为独立提交节点尽早落库，任一门槛未过即冻结第 2–6 组并先修提案，不以零散本地记录代替。3.3/4.5/6.2 已预置拆分点（见各条），拆分不改编号与 evidence-index 映射。发现设计不成立先修 proposal/design/spec。
 
 ## 1. Windows 后端技术验证与 profile 冻结
 
@@ -22,7 +22,7 @@
 
 - [x] 3.1（2h）固定准备 plan/执行、许可与当前授权、后端内依赖构建、独立准备记录；不在预检下载。验收 P03/P04/P07/P08。（2026-10-25 完成：受信环境资产产品化入库——内嵌构建资产（探针 env 字节原样 + 探针镜像内提取的固定锁文件/清单，`npm ci` 配方）+ 完整性门 verifyNodeTsV1Assets 逐项对回冻结 manifest；buildPreparePlan 纯只读计划（实测压缩/占用数字 + 网络范围/许可明示，P03）+ preparePlanToken（计划×策略×配方绑定，P07）；executePreparation 编排——allowPrepare 门→schema strict→token 漂移零副作用拒绝（P07）→独立准备记录先于构建→完整性门→后端端口内构建（依赖构建不在宿主，P04）→prepared/failed 封存（失败不算测试失败）；PreparationBackend 端口 + fake 仅覆盖编排（design D3）；v2 镜像 `r3/node-ts-v1:v2`（sha256:f3a8b56d…）构建实测镜像内六哈希与冻结 manifest 逐项一致（manifestVersion 维持 1）+ 受限 profile 功能冒烟 2/2；包内 79 用例全绿（+14）；详见 backend-verification.md §3.1。P04 真实后端全场景归 3.2/6.2）
 - [x] 3.2（2h）Docker adapter 受控 CLI/env、实际本地 endpoint/digest 校验与限额参数；不经 Shell、无宿主挂载/凭据。验收 P01/P02/P09/P10。（2026-10-25 完成：`src/docker/`——resolveDockerCli 只认两处候选绝对路径不扫 PATH；controlledCliEnv 完全替换 env（实机敌意注入证明 DOCKER_HOST/代理/密钥不可达 CLI）；`--host` 钉死 endpoint 进 argv + env 双保险；preflightLocalBackend 分类（枚举外 REMOTE_REFUSED 不发起调用/ENOENT·超时·管道失败形态 MISSING/非 linux-amd64 DRIFT，P01/P02）；containerRunFlags manifest→旗标唯一映射（memory==memory-swap 无 swap、tmpfs 精确字节、--restart no、--log-driver none、不用 --init；P10 静态面）+ 实容器 inspect 核验 11 字段全生效；DockerPreparationBackend——端口内再完整性门→预检→临时上下文（仅受信资产字节，无宿主挂载）→构建→inspect digest/平台校验→镜像内工具链实测（≠manifest ⇒ DRIFT）；实机构建两次成功（1.9s/7.9s，digest 按次登记）+ 镜像内五哈希复核全一致；未受控对照实证 DOCKER_HOST 可重定向（P02 必要性）。包内 24 新用例共 103 全绿、测试 tsconfig 0、biome 24 文件 0。事实源 backend-verification.md §3.2）
-- [ ] 3.3（2h）已校验清单流物化和路径/链接/配额拒绝，不读源目录或任意 archive。预计偏紧：可按穿越与名称碰撞、链接与特殊对象、配额三段拆分证据。验收 P05/P06/P09/W01/W02。
+- [x] 3.3（2h）已校验清单流物化和路径/链接/配额拒绝，不读源目录或任意 archive。预计偏紧：可按穿越与名称碰撞、链接与特殊对象、配额三段拆分证据。验收 P05/P06/P09/W01/W02。（2026-10-25 完成（一次收口未拆分）：`src/materialize/`——清单静态校验全纯函数先于一切写入（穿越/空段/绝对/反斜杠/碰撞 NFC+大小写折叠/配额 2000·8MiB·64MiB，全部复用 trace-sdk/replay 权威函数，W02 不另造标准），负例零 exec 实测计数为证；编排=建目录→逐文件重读核验（readVerified 长度+哈希）→tee 字节流写入→容器内 sha256sum 逐路径复核（P05「物化字节逐项与清单一致」）；链接/特殊对象结构性排除（清单 schema 无法表达 + tee 只建普通文件 + 实机 find -type l=0）；Docker 实现经 `exec -i tee`（字节 stdin/路径 argv，不经 Shell；alpine /bin/tee 坑改 PATH 解析）+ 字符预算分批；CliRunner 增 stdin 支持与写入失败上报。实机探针六步全过：正例 2 文件哈希=fcb8adfb（与阶段 1 冻结值一致、属主 1000:1000）、独立容器内复核、无链接、穿越/碰撞负例零 exec 且 escape 未发生。包内 28 新用例共 131 全绿；事实源 backend-verification.md §3.3）
 - [ ] 3.4（2h）固定命令执行、单调耗时、报告/退出码/阶段分类与有界 stdout/stderr 持续采集。验收 P11/P12/P13/P20。
 - [ ] 3.5（2h）owner 定向停止/超时/输出限额、全子孙停止确认、幂等与未知阻断。验收 P10/P19/P20/P21。
 - [ ] 3.6（2h）静止采集、输入未变/两次稳定校验、允许输出/排除/对象/配额和产物附件。验收 P17/P18/W01。

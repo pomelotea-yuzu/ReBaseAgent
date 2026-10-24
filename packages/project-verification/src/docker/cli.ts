@@ -95,6 +95,12 @@ export interface CliRunOptions {
   readonly timeoutMs: number;
   readonly stdoutMaxBytes: number;
   readonly stderrMaxBytes: number;
+  /**
+   * 提供给子进程 stdin 的字节（如 `docker exec -i … tee` 的文件内容）。
+   * 缺省时子进程 stdin 为 ignore；给出时写入后立即收尾——写入失败（如对端已关）
+   * 记为 spawnError，不静默吞掉（物化字节必须确认送达）。
+   */
+  readonly stdinBytes?: Uint8Array;
 }
 
 export interface CliRunResult {
@@ -145,18 +151,42 @@ function captureStream(
 
 export const defaultCliRunner: CliRunner = (exePath, args, options) =>
   new Promise<CliRunResult>((resolve) => {
+    const stdinPiped = options.stdinBytes !== undefined;
     const child = spawn(exePath, args, {
       env: options.env,
       windowsHide: true,
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: [stdinPiped ? "pipe" : "ignore", "pipe", "pipe"],
     });
-    const stdout = captureStream(child.stdout, options.stdoutMaxBytes);
-    const stderr = captureStream(child.stderr, options.stderrMaxBytes);
+    const stdout = captureStream(
+      child.stdout as NonNullable<typeof child.stdout>,
+      options.stdoutMaxBytes,
+    );
+    const stderr = captureStream(
+      child.stderr as NonNullable<typeof child.stderr>,
+      options.stderrMaxBytes,
+    );
     let timedOut = false;
     const timer = setTimeout(() => {
       timedOut = true;
       child.kill();
     }, options.timeoutMs);
+    if (stdinPiped && child.stdin !== null) {
+      child.stdin.on("error", (error: NodeJS.ErrnoException) => {
+        // stdin 写入失败（管道早关/EPIPE）：字节未确认送达，按 spawn 错误上报
+        child.kill();
+        clearTimeout(timer);
+        resolve({
+          exitCode: null,
+          stdout: stdout.text(),
+          stderr: stderr.text(),
+          stdoutTruncated: stdout.truncated(),
+          stderrTruncated: stderr.truncated(),
+          timedOut: false,
+          spawnError: { code: error.code, message: `stdin 写入失败：${error.message}` },
+        });
+      });
+      child.stdin.end(Buffer.from(options.stdinBytes));
+    }
     child.on("error", (error: NodeJS.ErrnoException) => {
       clearTimeout(timer);
       resolve({

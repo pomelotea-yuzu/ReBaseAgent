@@ -395,3 +395,51 @@ ENOENT/超时/管道连接失败形态（§1.6 错误文本族）⇒ `BACKEND_MI
 - 正式测试容器的创建/执行/停止/采集（supervisor 物化等）归 3.3–3.7；本节未执行项目。
 - `docker build` 缓存占用增长为已知行为（§1.4：build cache 271 MB 量级）；清理策略归 6.5 指南。
 - 跨 registry digest 与官方源一致性核对仍未闭合（§1.2 未闭合项延续）。
+
+## 3.3 受控物化（2026-10-25，验收 P05/P06/P09/W01/W02 的物化切片；实测机同阶段 1）
+
+落地：`packages/project-verification/src/materialize/materialize.ts`（验证层 + 编排 + 端口）
+与 `src/docker/docker-materialize.ts`（Docker 实现）。包内 28 新用例共 131 全绿（docker-free）；
+实机探针 `.workbuddy/r3-33/probe-3.3.cjs`（dogfood dist）。
+
+### 模型与复用边界
+
+- **字节流物化**：`docker exec -i <ctr> tee <abs-path>`，文件字节走 stdin、路径走 argv——
+  **不经 Shell**（无引号/注入面）；建目录 `docker exec mkdir -p`（argv 分批：Windows 命令行
+  预算 ⇒ 字符 8000 + 200 条双重分批）；容器内核验 `docker exec sha256sum`（同分批）。
+- **复用既有权威**（不另造标准，W02）：路径规则 `findLogicalPathViolation`（穿越/空段/
+  绝对/反斜杠/深度长度/冒号/保留名）、碰撞 `findLogicalPathCollisionViolation`（NFC+大小写
+  折叠）、配额 `findFileSetQuotaViolation`（2000 文件/8 MiB 单文件/64 MiB 合计）。
+- **链接/特殊对象结构性排除**：快照清单 schema（path/sha256/bytes）无法表达符号链接，
+  物化只经 tee 创建普通文件；容器内核查 symlink=0（实测，见下）。
+- **验证先于一切写入**：清单校验全纯函数，任一不成立 ⇒ 零 exec（实测计数为证）。
+- **字节来源逐文件重读核验**：默认 `createSnapshotByteReader(dataDir)`（replay
+  `readVerified`：长度+哈希双核），写入前比对清单；中途失败即停，已写部分不发布。
+- 容器生命周期（创建/停止/移除/登记）归 3.4/3.5/3.7；物化模块只持容器 ref。
+
+### 实机探针读数（受限容器 = containerRunFlags 全套 + r3/node-ts-v1:v2）
+
+1. **正例物化**：2 文件（`src/calc.ts` + 三层嵌套 `src/deep/nested/extra.ts`，同字节
+   140 B）→ ok，589 ms，4 次 exec（mkdir×1 + tee×2 + sha256sum×1）。
+2. **独立复核**（容器内原生 sha256sum，不经包内解析层）：两文件哈希均
+   `fcb8adfb…280e`（与阶段 1 §1.5 探针 M 宿主冻结哈希一致——字节逐项与清单一致，P05/W01）；
+   属主 `1000:1000` mode 644（非 root 物化）。
+3. **无链接核查**：`find /work -type l | wc -l` = 0；`/work` 恰为预期两文件（无额外条目）。
+4. **负例·穿越**：清单含 `../escape.ts` ⇒ `path_invalid`，**exec 调用 = 0**；
+   容器内核查 `/work/escape.ts` 缺席、根目录无异常（穿越从未发生，P09 物化侧）。
+5. **负例·碰撞**：`src/Dup.ts` 与 `src/dup.ts` ⇒ `path_collision`（NFC+大小写折叠语义，
+   trace-sdk 权威文案），exec 调用 = 0。
+
+### 坑记录
+
+- alpine 无 `/bin/tee`（busybox applet 在 `/usr/bin`）——绝对路径 `/bin/tee` exit 127；
+  改 PATH 解析的 `tee`/`mkdir`（仍是 argv 不经 Shell；容器内 PATH 为受信镜像固定值）。
+- `docker exec` 输出哈希行 `<hash>  <path>` 为两空格（busybox）；个别文件缺失 exit 1
+  但已输出其余行 ⇒ 解析保留部分结果、缺席路径由编排侧判 mismatch 指名。
+
+### 3.3 未闭合项（如实）
+
+- 物化的容器由编排层提供（3.4 组装：创建（3.2 旗标）→ 物化（本节）→ 执行 → 停止 → 采集）；
+  本节容器为探针自建，未走 3.7 登记流程。
+- 2000 文件/8 MiB 边界的容器内实测（大批量 tee 性能与 tmpfs ENOSPC 行为）归 6.2 回归；
+  配额数字本身已在 replay 包测试与 §1.4 实测覆盖。

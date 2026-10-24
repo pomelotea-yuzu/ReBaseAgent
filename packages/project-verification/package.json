@@ -1,7 +1,7 @@
 {
   "name": "@rebaseagent/project-verification",
   "version": "0.1.0",
-  "description": "ReBaseAgent R3 项目验证：固定环境 manifest、验证计划/记录/结局 schema、只读记录模块、受信环境资产、受限准备编排与 Docker 受控后端",
+  "description": "ReBaseAgent R3 项目验证：固定环境 manifest、验证计划/记录/结局 schema、只读记录模块、受信环境资产、受限准备编排、Docker 受控后端与受控物化",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
@@ -16,7 +16,9 @@
       "default": "./dist/schema.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run"
