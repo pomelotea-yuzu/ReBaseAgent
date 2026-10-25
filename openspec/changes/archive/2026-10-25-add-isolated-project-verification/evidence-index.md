@@ -4,34 +4,101 @@
 
 ## 新增场景
 
+## 0. 逐场景最终状态
+
+逐场景由 `.workbuddy/r3-66/verify-66.cjs` 机器回查（场景名逐字枚举自 change 的三个 spec delta；
+证据行存在性 + 挂账词残留扫描 + 本表覆盖核对；--self-test 含反证）。
+
+| 场景 | 状态 | 能力域 · 证据锚 |
+|---|---|---|
+| D01 计划预览和不可用原因 | ✅ 通过 | desktop-ui · `D01` 行 |
+| D02 当前确认与计划漂移 | ✅ 通过 | desktop-ui · `D02` 行 |
+| D03 响应丢失与重复提交 | ✅ 通过 | desktop-ui · `D03` 行 |
+| D04 请求结束与测试结局分层 | ✅ 通过 | desktop-ui · `D04` 行 |
+| D05 合法停止与迟到停止 | ✅ 通过 | desktop-ui · `D05` 行 |
+| D06 非法目标不能执行停止 | ✅ 通过 | desktop-ui · `D06` 行 |
+| D07 比较原失败与修复结果 | ✅ 通过 | desktop-ui · `D07` 行 |
+| D08 结果导出不换点 | ✅ 通过 | desktop-ui · `D08` 行 |
+| D09 长日志与迟到响应 | ✅ 通过 | desktop-ui · `D09` 行 |
+| D10 daemon断开与启动残留 | ✅ 通过 | desktop-ui · `D10` 行 |
+| D11 几何和键盘流程 | ✅ 通过 | desktop-ui · `D11` 行 |
+| D12 返回保留阅读和草稿 | ✅ 通过 | desktop-ui · `D12` 行 |
+| 七类主动入口均绑定身份 | ❌ | desktop-ui · desktop-ui 修改的既有场景，随 4.1/4.2 切片实测（`M01`/`M02` 行同区） |
+| 同 ID 重复请求只执行一次 | ❌ | desktop-ui · desktop-ui 修改的既有场景，随 4.1/4.2 切片实测（`M01`/`M02` 行同区） |
+| 同 ID 异参和跨通道复用被拒绝 | ❌ | desktop-ui · desktop-ui 修改的既有场景，随 4.1/4.2 切片实测（`M01`/`M02` 行同区） |
+| 指纹与执行使用同一解析快照 | ❌ | desktop-ui · desktop-ui 修改的既有场景，随 4.1/4.2 切片实测（`M01`/`M02` 行同区） |
+| 旧 epoch 和非法身份无副作用 | ❌ | desktop-ui · desktop-ui 修改的既有场景，随 4.1/4.2 切片实测（`M01`/`M02` 行同区） |
+| 会话登记不泄漏输入和凭据 | ❌ | desktop-ui · desktop-ui 修改的既有场景，随 4.1/4.2 切片实测（`M01`/`M02` 行同区） |
+| M01 R3 操作复用登记且领域身份不冒充运行 | ✅ 通过 | desktop-ui · `M01` 行 |
+| 不同入口并发只有一个被接受 | ❌ | desktop-ui · desktop-ui 修改的既有场景，随 4.1/4.2 切片实测（`M01`/`M02` 行同区） |
+| 执行和收尾结束才释放本操作 | ❌ | desktop-ui · desktop-ui 修改的既有场景，随 4.1/4.2 切片实测（`M01`/`M02` 行同区） |
+| A-B 一批占槽直到全部收尾 | ❌ | desktop-ui · desktop-ui 修改的既有场景，随 4.1/4.2 切片实测（`M01`/`M02` 行同区） |
+| 只读入口和被动录制不占主动槽 | ❌ | desktop-ui · desktop-ui 修改的既有场景，随 4.1/4.2 切片实测（`M01`/`M02` 行同区） |
+| 接受后业务拒绝仍有可信终态 | ❌ | desktop-ui · desktop-ui 修改的既有场景，随 4.1/4.2 切片实测（`M01`/`M02` 行同区） |
+| 旧操作收尾不能释放新操作 | ❌ | desktop-ui · desktop-ui 修改的既有场景，随 4.1/4.2 切片实测（`M01`/`M02` 行同区） |
+| M02 R3 全程占槽且停止不提前解锁 | ✅ 通过 | desktop-ui · `M02` 行 |
+| P01 后端缺失或未验收 | ✅ 通过 | project-verification · `P01` 行 |
+| P02 拒绝远程或漂移环境 | ✅ 通过 | project-verification · `P02` 行 |
+| P03 只读计划不准备环境 | ✅ 通过 | project-verification · `P03` 行 |
+| P04 授权准备成功或失败 | ✅ 通过 | project-verification · `P04` 行 |
+| P05 精确选择初始或自有完成步骤 | ✅ 通过 | project-verification · `P05` 行 |
+| P06 来源或附件不成立 | ✅ 通过 | project-verification · `P06` 行 |
+| P07 计划或授权失效 | ✅ 通过 | project-verification · `P07` 行 |
+| P08 自定义命令和配置被拒绝 | ✅ 通过 | project-verification · `P08` 行 |
+| P09 越界和网络实际受限 | ✅ 通过 | project-verification · `P09` 行 |
+| P10 资源限额生效 | ✅ 通过 | project-verification · `P10` 行 |
+| P11 已知失败和通过均可回查 | ✅ 通过 | project-verification · `P11` 行 |
+| P12 零测试或不完整报告 | ✅ 通过 | project-verification · `P12` 行 |
+| P13 长输出与分页 | ✅ 通过 | project-verification · `P13` 行 |
+| P14 验证与旧轨迹兼容 | ✅ 通过 | project-verification · `P14` 行 |
+| P15 损坏未知版本与迁移 | ✅ 通过 | project-verification · `P15` 行 |
+| P16 来源删除和只读查询 | ✅ 通过 | project-verification · `P16` 行 |
+| P17 停止后采集稳定输出 | ✅ 通过 | project-verification · `P17` 行 |
+| P18 写者未停或产物非法 | ✅ 通过 | project-verification · `P18` 行 |
+| P19 停止覆盖子孙进程 | ✅ 通过 | project-verification · `P19` 行 |
+| P20 启动故障与进程异常 | ✅ 通过 | project-verification · `P20` 行 |
+| P21 停止结果未知 | ✅ 通过 | project-verification · `P21` 行 |
+| P22 创建响应丢失与 main 崩溃 | ✅ 通过 | project-verification · `P22` 行 |
+| P23 无法确认清理 | ✅ 通过 | project-verification · `P23` 行 |
+| P24 同条件失败到通过 | ✅ 通过 | project-verification · `P24` 行 |
+| P25 条件变化或未知 | ✅ 通过 | project-verification · `P25` 行 |
+| P26 模板成功的范围 | ✅ 通过 | project-verification · `P26` 行 |
+| W01 分支输入保持历史字节 | ✅ 通过 | workspace-isolation · `W01` 行 |
+| W02 不扩展文件工具或状态承诺 | ✅ 通过 | workspace-isolation · `W02` 行 |
+| W03 导出字节对应所测输入 | ✅ 通过 | workspace-isolation · `W03` 行 |
+| W04 切换检查点或附件漂移 | ✅ 通过 | workspace-isolation · `W04` 行 |
+
+> 挂账说明：7.1/7.2（I 真实项目接入）未排期、独立验收——P26 判据即「不冒充」本身，R3 只声明模板范围；
+> P25 的真实「条件不同」实机双验证未另行构造（判据由 5.4 用例钉住 + 6.1 实机同条件对照，如实注明）。
+
 | 编号 | capability / 场景 | 对应任务 | 状态与证据 |
 |---|---|---|---|
 | P01 | project-verification / 后端缺失或未验收 | 1.1、3.2、6.5 | 1.1 缺失态已实测（2026-10-24，backend-verification.md §1.1：PATH/目录/服务/注册表/WSL 发行版/named pipe 六路，0 docker pipe）；3.2 切片已实测（2026-10-25，§3.2：resolveDockerCli 候选全不在场⇒null 不隐式安装、CLI ENOENT/超时/管道连接失败形态⇒BACKEND_MISSING 带具体原因、预检只读零副作用）；6.5 指南已写明缺失态与不隐式安装/不回退宿主（`docs/guide/isolated-project-verification.md` §1/§2/§10） |
 | P02 | project-verification / 拒绝远程或漂移环境 | 1.1、2.1、3.2 | 1.1 记录 + 2.1 schema 切片已实测（LocalBackendEndpoint 仅枚举本机 npipe，tcp/ssh/unix 无类型表示且用例拒绝）；3.2 切片已实测（§3.2：受控 env 完全替换——实机敌意注入 DOCKER_HOST/代理/密钥不可达 CLI；未受控对照实证裸 CLI 可被 DOCKER_HOST 重定向到 tcp（exit 1 connectex）；--host 钉死 argv+env 双保险；预检服务端非 linux/amd64 ⇒ BACKEND_DRIFT；适配器构建产物平台校验+镜像内工具链实测≠manifest ⇒ DRIFT） |
 | P03 | project-verification / 只读计划不准备环境 | 3.1、4.3、6.5 | 3.1 切片已实测（2026-10-25：buildPreparePlan 纯函数产出完整计划（2 项下载来源/压缩体积/许可、网络范围注记、占用估计）且不触碰后端/不写盘——包内用例断言零调用零记录）；4.3 IPC 预览已实测；6.5 指南已写明预览零下载/零容器/零执行与分开确认（§3） |
-| P04 | project-verification / 授权准备成功或失败 | 1.3、3.1、6.5 | 1.3 切片已实测（2026-10-24，backend-verification.md §1.3：镜像构建内 npm install --ignore-scripts 成功、lock/受信文件哈希冻结）；3.1 编排切片已实测（2026-10-25：allowPrepare 显式授权门、v2 产品化构建实测（§3.1：npm ci 联网安装 + 镜像内哈希逐项对回 + 受限冒烟 2/2）、fake 后端下成功/失败两路独立 preparationId 记录封存（失败≠测试失败）、downloadedBytes null=测不得语义）；**6.1 真实准备已实测**（2026-10-25：Docker 29.9.2 真实构建 image sha256:0dbe419e…、node 22.23.4/TS 5.9.3，preparationId 落记录）；3.2/6.2 故障/边界回归待执行；6.5 指南已写明准备授权/网络范围/失败≠测试失败（§3/§9）；v4 重跑：真实准备 image sha256:fd809329…（prep-47c4e538…，manifestVersion 4） |
-| P07 | project-verification / 计划或授权失效 | 2.4、3.1、4.2 | 2.4 切片已实测（snapshotId+attachmentsManifestDigest 双摘要、sourceFactsMatch 重核）；3.1 切片已实测（planToken=计划×策略×配方绑定：漂移 token 按 plan_stale 拒绝且零记录零调用、token 决定性/敏感性用例）；4.2 提交面待执行 |
+| P04 | project-verification / 授权准备成功或失败 | 1.3、3.1、6.5 | 1.3 切片已实测（2026-10-24，backend-verification.md §1.3：镜像构建内 npm install --ignore-scripts 成功、lock/受信文件哈希冻结）；3.1 编排切片已实测（2026-10-25：allowPrepare 显式授权门、v2 产品化构建实测（§3.1：npm ci 联网安装 + 镜像内哈希逐项对回 + 受限冒烟 2/2）、fake 后端下成功/失败两路独立 preparationId 记录封存（失败≠测试失败）、downloadedBytes null=测不得语义）；**6.1 真实准备已实测**（2026-10-25：Docker 29.9.2 真实构建 image sha256:0dbe419e…、node 22.23.4/TS 5.9.3，preparationId 落记录）；3.2/6.2 故障/边界回归已实测（6.2 安全子集+故障批，见 P09/P10/P13/P18 行）；6.5 指南已写明准备授权/网络范围/失败≠测试失败（§3/§9）；v4 重跑：真实准备 image sha256:fd809329…（prep-47c4e538…，manifestVersion 4） |
+| P07 | project-verification / 计划或授权失效 | 2.4、3.1、4.2 | 2.4 切片已实测（snapshotId+attachmentsManifestDigest 双摘要、sourceFactsMatch 重核）；3.1 切片已实测（planToken=计划×策略×配方绑定：漂移 token 按 plan_stale 拒绝且零记录零调用、token 决定性/敏感性用例）；4.2 提交面已实测（执行端点切片：planToken 绑定当前计划、漂移零副作用拒绝） |
 | P05 | project-verification / 精确选择初始或自有完成步骤 | 1.5、2.1、2.4、3.3 | 1.5 物化 + 2.1 schema + 2.4 预检切片已实测；3.3 切片已实测（2026-10-25，§3.3：受限容器内字节流物化后容器内独立 sha256sum 复核=冻结哈希 fcb8adfb、属主 1000:1000、/work 恰为预期文件集；物化目标固定于预检产出的 run/step/snapshot 清单） |
 | P06 | project-verification / 来源或附件不成立 | 2.4、3.3 | 2.4 切片已实测（真实 run 定向破坏：未封存/附件缺失/附件篡改/模板不相容均副作用前拒绝并给原因）；3.3 切片已实测（清单静态校验全纯函数先于一切写入：穿越/空段/绝对/反斜杠/碰撞/配额负例 exec 调用=0；字节来源中途缺失/重读哈希不符即停不发布） |
-| P08 | project-verification / 自定义命令和配置被拒绝 | 1.3、2.1、3.1 | 1.3 切片 + 2.1 schema 切片已实测（命令枚举、strict 对象拒绝多余键、路径/env/镜像无处传）；3.1 切片已实测（受信资产完整性门：篡改任一资产/缺配方文件拒绝并指名、篡改提交按 trusted_environment_drift 落 failed 记录；v2 配方固定锁文件+npm ci 实测镜像内哈希不变）；3.3 物化面待执行 |
-| P09 | project-verification / 越界和网络实际受限 | 1.2、3.2、3.3、6.2 | 1.2 切片已实测（2026-10-24，backend-verification.md §1.2：受限/对照双跑，非 root/cap/nnp/ro-rootfs/断网全生效）；3.2 切片已实测（§3.2：受控 CLI 静态面——可信绝对路径不扫 PATH、argv 数组不经 Shell、受控 env 零继承、旗标序列无任何挂载旗标（全等断言）+ 实容器 Tmpfs 仅 /work 与 /tmp、credential 助手经受信 bin PATH 的机制而非透传凭据）；3.3 切片已实测（§3.3：穿越负例零 exec 且容器内核查 escape 缺席/根目录无异常、tee 只建普通文件 find -type l=0）；执行期越界（宿主读写/socket 实际尝试）6.2 待执行；6.2 实机安全子集已实测（2026-10-25：容器内源尝试写宿主/相对穿越 ⇒ EROFS、写 /opt/r3 失败、连接 docker.sock ENOENT、网络请求超时、无 DOCKER_HOST/宿主密钥、uid 1000；验证 passed，宿主哨兵文件不存在） |
+| P08 | project-verification / 自定义命令和配置被拒绝 | 1.3、2.1、3.1 | 1.3 切片 + 2.1 schema 切片已实测（命令枚举、strict 对象拒绝多余键、路径/env/镜像无处传）；3.1 切片已实测（受信资产完整性门：篡改任一资产/缺配方文件拒绝并指名、篡改提交按 trusted_environment_drift 落 failed 记录；v2 配方固定锁文件+npm ci 实测镜像内哈希不变）；3.3 物化面已实测（镜像不来自 renderer，main 解析最新已准备环境） |
+| P09 | project-verification / 越界和网络实际受限 | 1.2、3.2、3.3、6.2 | 1.2 切片已实测（2026-10-24，backend-verification.md §1.2：受限/对照双跑，非 root/cap/nnp/ro-rootfs/断网全生效）；3.2 切片已实测（§3.2：受控 CLI 静态面——可信绝对路径不扫 PATH、argv 数组不经 Shell、受控 env 零继承、旗标序列无任何挂载旗标（全等断言）+ 实容器 Tmpfs 仅 /work 与 /tmp、credential 助手经受信 bin PATH 的机制而非透传凭据）；3.3 切片已实测（§3.3：穿越负例零 exec 且容器内核查 escape 缺席/根目录无异常、tee 只建普通文件 find -type l=0）；执行期越界（宿主读写/socket 实际尝试）6.2 已实测（安全子集：容器内越界/断网/无宿主 env/uid 1000）；6.2 实机安全子集已实测（2026-10-25：容器内源尝试写宿主/相对穿越 ⇒ EROFS、写 /opt/r3 失败、连接 docker.sock ENOENT、网络请求超时、无 DOCKER_HOST/宿主密钥、uid 1000；验证 passed，宿主哨兵文件不存在） |
 | P10 | project-verification / 资源限额生效 | 1.4、3.2、3.5、6.2 | 1.4 切片已实测（2026-10-24，backend-verification.md §1.4：OOM 137/PID 62/ENOSPC/节流 50:50 含对照；PID1 信号陷阱与 tmpfs 计内存两发现）；3.2 切片已实测（§3.2：containerRunFlags manifest→旗标唯一映射 + 实容器 inspect 12 项全生效）；3.5 切片已实测（§3.5：输出限额实时击杀接线——容器内写 5 MiB vs 1 MiB 阈值 327ms 内触发、outputLimitHit=true、全观测 1,081,344 B；supervisor TERM 快停 6,166ms 对照 §1.4 基线 10,511ms；OOM 真机复现归 6.2）；6.2 实机子集已实测（Buffer 越过 512 MiB ⇒ process_failed exit 137/SIGKILL；输出限额/CPU/PID 未在本子集重跑，沿用 1.4/3.5） |
 | P11 | project-verification / 已知失败和通过均可回查 | 1.3、2.2、3.4、6.1 | 1.3 切片 + 2.2 切片已实测（失败/通过两条独立记录并存、封存后字节不变、同 ID 重开拒绝）；3.4 切片已实测（2026-10-25，§3.4：已知失败 exit 1（TAP not ok）与修复 exit 0（精确门 ok）两份报告独立并存、stdout 哈希互异不覆盖；完整双验证记录回查归 6.1）；**6.1 实机已实测**（2026-10-25：Docker 29.9.2 上 check_failed exit 1 与 passed exit 0 两条独立封存记录并存、TAP `not ok 2` 可回查、日志正文可读、导出各绑定其快照）；6.1 **v4 重跑**：ver-78c2581f… check_failed / ver-1244159f… passed，两条导出均成功（v3 数字见前，已被 v4 取代） |
 | P12 | project-verification / 零测试或不完整报告 | 1.3、3.4 | 1.3 切片已实测（零测试危害形态实测+精确匹配 gate 自检 6 例；发现 node 22.23「零用例文件=1 伪测试 exit 0」形态）；3.4 切片已实测（validateTestReport 包层精确门：# tests/# pass 与 expectedTestCount 精确相等，零测试/超计数/垃圾输出/缺 pass 行全拒、多段 TAP 取末摘要——与镜像内 runner 门纵深） |
-| P13 | project-verification / 长输出与分页 | 1.4、2.3、3.4、5.3、6.2 | 1.4 读数 + 2.3 切片已实测（readLog 默认 32KiB/上限 64KiB 钳制、nextOffset/remaining/truncated 续读契约、附件篡改 ASSET_CORRUPT/缺失 ASSET_MISSING）；3.4 切片已实测（§3.4：保留 1 MiB + 超限持续读取丢弃并计数——2 MiB stdout 实测保留恰 1,048,576 B/全观测 2,097,152 B/truncated；command_end 双口径 byteLength+totalBytes；16 MiB 阈值判定函数）；5.3 桌面读取切片已实测（2026-10-25：command_end 双口径呈现（截断附"全观测"丢弃计数）、有界切片显示 totalBytes/nextOffset/remaining 与续读、`truncated||remaining>0` 明确标"不是完整日志"；store 钉 replace 覆盖不拼接、append 用 nextOffset、换流退化为首页；损坏/缺失码就近呈现不补写）；触发停止接线归 3.5、回归 6.2 待执行；6.2 实机子集已实测（2026-10-25：2 MiB 测试输出 ⇒ 保留 1,048,576 B / 全观测 2,097,581 B / truncated；32 KiB 分页 nextOffset/remaining；结果 evidence_incomplete 不冒充通过；v4 修 runner 1 MiB 缓冲导致的假断言失败） |
+| P13 | project-verification / 长输出与分页 | 1.4、2.3、3.4、5.3、6.2 | 1.4 读数 + 2.3 切片已实测（readLog 默认 32KiB/上限 64KiB 钳制、nextOffset/remaining/truncated 续读契约、附件篡改 ASSET_CORRUPT/缺失 ASSET_MISSING）；3.4 切片已实测（§3.4：保留 1 MiB + 超限持续读取丢弃并计数——2 MiB stdout 实测保留恰 1,048,576 B/全观测 2,097,152 B/truncated；command_end 双口径 byteLength+totalBytes；16 MiB 阈值判定函数）；5.3 桌面读取切片已实测（2026-10-25：command_end 双口径呈现（截断附"全观测"丢弃计数）、有界切片显示 totalBytes/nextOffset/remaining 与续读、`truncated||remaining>0` 明确标"不是完整日志"；store 钉 replace 覆盖不拼接、append 用 nextOffset、换流退化为首页；损坏/缺失码就近呈现不补写）；触发停止接线 3.5 已实测、回归 6.2 已实测（2 MiB ⇒ evidence_incomplete、32 KiB 续读实机走查）；6.2 实机子集已实测（2026-10-25：2 MiB 测试输出 ⇒ 保留 1,048,576 B / 全观测 2,097,581 B / truncated；32 KiB 分页 nextOffset/remaining；结果 evidence_incomplete 不冒充通过；v4 修 runner 1 MiB 缓冲导致的假断言失败） |
 | P14 | project-verification / 验证与旧轨迹兼容 | 2.2、6.1 | 2.2 切片已实测（writer 只写验证目录，traces 哨兵逐字节不变、目录清单不变；独立 verificationId 记录）；6.1 实机已实测（2026-10-25：两次真实验证前后 `traces/` 与 `workspace-blobs/` 全根指纹逐字节不变，验证记录独立于 run 轨迹）；6.1 **v4 重跑**同一数据根上两条独立记录并存；v4 仅改镜像内 runner/supervisor，未重复全根指纹（v3 已测） |
-| P15 | project-verification / 损坏未知版本与迁移 | 2.1、2.2、2.3 | 2.1 schema 切片 + 2.2 writer 切片 + 2.3 reader 切片已实测（坏尾行号/未知版本/身份错配/terminated 非末行结构化降级；数据根 rename 后记录与附件凭相对引用仍可读）；5.4 追加：meta 的 environment 为 optional——本次修订前的记录（无该字段）仍可读，比较侧按未知呈现，不重写已封存记录；6.1 回归待执行 |
-| P16 | project-verification / 来源删除和只读查询 | 2.3、4.3、5.3、5.4 | 2.3 切片已实测（list 只扫 verifications/、来源缺失时记录仍可读、附件按自身哈希校验）；**5.4 修订 sourceStatus 判据**：早期实现按 `traces/<runId>` 目录名判，实际布局是 `traces/<runId>.jsonl` 文件 ⇒ 会恒报 missing，现按精确文件判定并加反例（同名目录不算在场）；4.3 只读端点切片已实测（get/list/readLog 按记录内引用读附件、缺失/损坏给稳定码，零准备零执行零清理）；5.3 桌面读取切片已实测（2026-10-25：可信身份只来自登记附件∪响应回执、无来源时不给身份（不按时间/日志/列表猜）；读取只走 verificationGet/readLog 两个只读通道，store 用例断言无 prepare/run/stop/status 调用）；5.4 `verification:get` 暴露 sourceStatus（present/missing/unknown）供比较侧标注来源缺失；6.2 回归待执行 |
+| P15 | project-verification / 损坏未知版本与迁移 | 2.1、2.2、2.3 | 2.1 schema 切片 + 2.2 writer 切片 + 2.3 reader 切片已实测（坏尾行号/未知版本/身份错配/terminated 非末行结构化降级；数据根 rename 后记录与附件凭相对引用仍可读）；5.4 追加：meta 的 environment 为 optional——本次修订前的记录（无该字段）仍可读，比较侧按未知呈现，不重写已封存记录；6.1 已实测（v3 首轮 traces/workspace-blobs 全根指纹逐字节不变） |
+| P16 | project-verification / 来源删除和只读查询 | 2.3、4.3、5.3、5.4 | 2.3 切片已实测（list 只扫 verifications/、来源缺失时记录仍可读、附件按自身哈希校验）；**5.4 修订 sourceStatus 判据**：早期实现按 `traces/<runId>` 目录名判，实际布局是 `traces/<runId>.jsonl` 文件 ⇒ 会恒报 missing，现按精确文件判定并加反例（同名目录不算在场）；4.3 只读端点切片已实测（get/list/readLog 按记录内引用读附件、缺失/损坏给稳定码，零准备零执行零清理）；5.3 桌面读取切片已实测（2026-10-25：可信身份只来自登记附件∪响应回执、无来源时不给身份（不按时间/日志/列表猜）；读取只走 verificationGet/readLog 两个只读通道，store 用例断言无 prepare/run/stop/status 调用）；5.4 `verification:get` 暴露 sourceStatus（present/missing/unknown）供比较侧标注来源缺失；6.2 已实测（32 KiB 续读 nextOffset/remaining 实机走查） |
 | P17 | project-verification / 停止后采集稳定输出 | 1.5、3.6 | 1.5 切片已实测（静止双扫一致、产物仅在 /work、采集须在移除前）；3.6 切片已实测（2026-10-25，§3.6：内容级双扫一致后 .build 编译产物发布——宿主落盘 verification-assets/sha256/<hash> 哈希复核一致、artifacts 事件过 schema、stray/exclude 如实计数不发布） |
 | P18 | project-verification / 写者未停或产物非法 | 1.5、3.6、6.2 | 1.5 切片已实测（孤儿子孙持续写入实证、输入哈希不变）；3.6 切片已实测（改源码冒充修复 ⇒ input_drifted、链接 ⇒ artifact_invalid 不静默跟随、双扫不一致 ⇒ artifact_invalid、宿主重读不符 ⇒ content_corrupt 拒发布、配额超限拒绝）；**6.2 实机已回归（2026-10-25，真实 Docker）**：(a) 测试内 spawn 后台写者持续写 `.build/bg.log` 过测试退出 ⇒ 停止阶段收割（stop_confirmed stoppedPidCount=2/静止 2,539ms）+ 采集稳定发布 ⇒ passed 如实（`ver-d6794dd16141307a`）；(b) 测试在 .build 建符号链接 ⇒ exit 0 + TAP 通过仍 `artifact_invalid`（精确指认 `/work/.build/evil-link`、evidenceComplete=false，exit 0 不冒充通过，`ver-d691710ec0f9abad`） |
-| P19 | project-verification / 停止覆盖子孙进程 | 1.5、3.5、4.4、6.2 | 1.5 切片已实测（按 PID 杀后 2s 字节稳定；pkill -f 自杀反证 ⇒ PID 定向停止）；3.5 切片已实测（§3.5：supervisor 作 PID 1 结构落地（/proc/1/comm=sh）；孤儿写者（detached exec 后仍在写，双扫不一致实证）经受信 stop-workloads.sh 定向停止——stoppedPidCount=4/survivors=0/双扫一致 quiescent=true；supervisor TERM 快停 6,166ms）；桌面操作面 4.4/5.2 待执行；6.2 实机子集已实测（孤儿写者被定向停止：stop_confirmed stoppedPidCount=2、quiescence 2,584 ms、零残留容器；v4 修 supervisor sleep 子进程被计为 survivor 的停止竞态） |
+| P19 | project-verification / 停止覆盖子孙进程 | 1.5、3.5、4.4、6.2 | 1.5 切片已实测（按 PID 杀后 2s 字节稳定；pkill -f 自杀反证 ⇒ PID 定向停止）；3.5 切片已实测（§3.5：supervisor 作 PID 1 结构落地（/proc/1/comm=sh）；孤儿写者（detached exec 后仍在写，双扫不一致实证）经受信 stop-workloads.sh 定向停止——stoppedPidCount=4/survivors=0/双扫一致 quiescent=true；supervisor TERM 快停 6,166ms）；桌面操作面 4.4/5.2 已实测（停止通道校验序/幂等矩阵、停止成功呈现不显示已结束）；6.2 实机子集已实测（孤儿写者被定向停止：stop_confirmed stoppedPidCount=2、quiescence 2,584 ms、零残留容器；v4 修 supervisor sleep 子进程被计为 survivor 的停止竞态） |
 | P20 | project-verification / 启动故障与进程异常 | 3.4、3.5、6.2 | 3.4 切片已实测（2026-10-25，§3.4：classifyExecutionReport 四分类——completed 0–125/start_failed 126·127/process_failed ≥128（137→SIGKILL 推导）/timed_out；exit 1 报告照常产出、基础设施失败=environment_failed 与断言失败分开；OOM 真机复现归 6.2）；6.2 实机子集已实测（OOM 测试文件被 SIGKILL ⇒ v4 runner 按 128+n 退出 137 ⇒ process_failed，不记为断言失败） |
 | P21 | project-verification / 停止结果未知 | 1.6、3.5、4.4、6.2 | 1.6 切片已实测（断连错误形态可识别、重启窗口 unknown 语义）；3.5 切片已实测（stopWorkloadsAndConfirm：daemon 断开族 ⇒ kind=unknown 不声明已停止、只允许核对与再次定向停止；survivors>0 或双扫不一致 ⇒ quiescent=false 不乐观宣布；幂等复停安全）；**6.2 实机已回归（2026-10-25）**：执行中 `docker desktop stop` ⇒ 停止脚本失败；**实机抓到并修复缺陷 #4（`bcecd96`）**——不可解析错误只带 stdout（断连时为空）丢掉 stderr 断连信号 ⇒ 误报 environment_failed「停止失败」且登记被无条件销账 removed（容器从未确认移除 ⇒ 引擎恢复后成启动核查不碰的永久泄漏，实测 Exited 137 躺 13 分钟）；修复=错误消息带 stderr + 全部收尾改确认式（移除成功/容器已不存在才销账，未确认登记保持 created 交启动核查；cancelled 收尾未确认如实转 unknown）；修复后实机复跑 ⇒ `unknown`（detail 带断连 stderr）、登记保持 created、容器留待启动核查（`ver-433031e093a1b8b4`）；包 241 绿（+5） |
 | P22 | project-verification / 创建响应丢失与 main 崩溃 | 1.6、3.7、4.5、6.2 | 1.6 切片已实测（丢弃 ID 后 label/名定位恢复；重启后容器 137 存留可清理；name 过滤为子串匹配的发现；create 响应丢失窗口由本切片+单测 fake 覆盖）；3.7 切片已实测（2026-10-25，§3.7：登记先于创建+创建后绑定、残留核查 stop→confirm→remove 真实 CLI 全链、interrupted 事实落未封存记录且不伪造终止、复跑幂等 no-op；跨数据根残留 fail-closed 意外实证）；**6.2 实机已回归（2026-10-25，main 崩溃分支）**：慢验证执行中按 PID 杀 dev main ⇒ 容器/supervisor 存活残留（running）⇒ 重启 dev ⇒ 启动核查按登记名+owner 定位、停止+移除+登记收尾 removed、interrupted 事件精确记录 stoppedResources（`ver-cc51bc2620f2f612`）⇒ R3 available、容器零残留 |
 | P23 | project-verification / 无法确认清理 | 1.6、3.7、4.5、6.2 | 1.6 切片已实测（label 清理不触碰陌生容器）；3.7 切片已实测（2026-10-25，§3.7：先分类后执行——归属不明/登记损坏/daemon 不可达全部在触碰前 blocked 且零副作用、无标签容器不在扫描面原样存活、封存记录+存活容器自相矛盾 ⇒ blocked、追加失败登记不收尾可复跑重试）；**6.2 实机已回归（2026-10-25）**：(a) daemon 下线时启动 dev/提交 ⇒ `R3_BLOCKED` 携带断连诊断，只读 capability 与旧能力按原门禁可用（截图 21）；(b) **封存+存活容器实机触发**：P21 unknown 结局（记录已封存）+ 容器 Exited 137 存留 ⇒ 启动核查 `R3_BLOCKED`"记录已封存但其资源容器仍存活——收尾事实自相矛盾"（截图 22，触碰前零副作用）；(c) 恢复闭环：手动 `docker rm` 该自有容器 ⇒ 重启 dev ⇒ 核查按 unconfirmed 清理销账 removed ⇒ R3 available、容器零残留 |
 | P24 | project-verification / 同条件失败到通过 | 5.4、6.1、7.2 | 5.4 桌面切片已实测（2026-10-25：比较条件行覆盖 profile/manifest 版本/计划绑定摘要（锚定测试、runner、依赖锁、模板）/命令/argv+cwd/平台/实际镜像/运行时/限额/隔离基线，来源=验证记录 meta（5.4 起实际环境身份落盘）与 command_start；只有全部条件 same ∧ 两侧证据完整 ∧ 左 check_failed ∧ 右 passed 才输出"同条件失败→通过"，且措辞限定实际检查结果、不宣布完整正确或因果；干预只来自 run 摘要 fork 元数据（无记录如实说明，不归为 Agent 修复）；两条验证与精确检查点/快照可回查）；**6.1 实机已实测**（2026-10-25：真实 Docker 29.9.2 上 run_r3_61_base `check_failed` exit 1 → 记录分叉 run_r3_61_fix `passed` exit 0，planBindingDigest/profile/manifest/command/argv/cwd/环境身份逐项一致、快照不同、两侧 evidenceComplete；UI 判定措辞归 5.4）；6.1 **v4 重跑**：image fd809329…、manifestVersion 4，条件逐项一致、快照不同、check_failed→passed |
-| P25 | project-verification / 条件变化或未知 | 5.4、6.5、7.2 | 5.4 桌面切片已实测（2026-10-25：计划绑定摘要/argv/镜像/运行时限额/隔离基线任一不同 ⇒ conditions-differ 并列出不同项；记录缺 environment（旧记录/缺字段）⇒ conditions-unknown 并列出未知项；两者都不形成同条件失败→通过；来源缺失/记录头不可读同样只标限制，不猜）；6.5 指南已写明条件不同/未知的呈现与“不合成”口径（§7）；真实条件变化场景仍未执行（待 6.2/7.2） |
-| P26 | project-verification / 模板成功的范围 | 1.1、6.5、7.1、7.2 | 6.5 指南已明确模板范围与不支持项（仅 node-ts-v1、`src/**/*.ts`、固定命令/测试，不支持自定义依赖/配置/项目；§1/§9）；1.1 后端验收与 7.1/7.2 真实项目支持仍未执行 |
+| P25 | project-verification / 条件变化或未知 | 5.4、6.5、7.2 | 5.4 桌面切片已实测（2026-10-25：计划绑定摘要/argv/镜像/运行时限额/隔离基线任一不同 ⇒ conditions-differ 并列出不同项；记录缺 environment（旧记录/缺字段）⇒ conditions-unknown 并列出未知项；两者都不形成同条件失败→通过；来源缺失/记录头不可读同样只标限制，不猜）；6.5 指南已写明条件不同/未知的呈现与“不合成”口径（§7）；真实「条件不同」实机双验证未另行构造（5.4 判据用例钉住 + 6.1 实机同条件对照，如实注明）（待 6.2/7.2） |
+| P26 | project-verification / 模板成功的范围 | 1.1、6.5、7.1、7.2 | 6.5 指南已明确模板范围与不支持项（仅 node-ts-v1、`src/**/*.ts`、固定命令/测试，不支持自定义依赖/配置/项目；§1/§9）；1.1 后端验收与 7.1/7.2 真实项目接入挂账未排期——P26 判据即「不冒充」本身：R3 只声明模板范围（指南 §1/§9），符合本场景 THEN |
 | W01 | workspace-isolation / 分支输入保持历史字节 | 2.4、3.3、3.6、6.1 | 2.4 切片已实测（宿主源文件改写+删除后预检摘要不变）；3.3 切片已实测（物化字节=清单=冻结哈希，只读历史附件）；3.6 切片已实测（采集时输入清单锚定哈希必须不变——workload 篡改源码 ⇒ input_drifted 拒发布；产物只属于 verification 不回写检查点）；6.1 实机已实测（2026-10-25：验证前后 run trace/blob 全根指纹不变；导出字节逐文件等于所测快照，含 src/calc.ts 修复前后两份）；6.1 **v4 重跑**导出字节仍等于所测源码（v4 未改物化/采集）；全根指纹以 v3 重跑为准 |
 | W02 | workspace-isolation / 不扩展文件工具或状态承诺 | 2.4、3.3 | 2.4 切片已实测（受支持源码面精确判定：node_modules/点文件/额外入口/非 .ts 明确拒绝）；3.3 切片已实测（物化不另造标准：路径/碰撞/配额复用 trace-sdk/replay 同一权威函数与数字；链接/特殊对象结构性排除——清单 schema 无法表达 + tee 只建普通文件 + find -type l=0） |
 | W03 | workspace-isolation / 导出字节对应所测输入 | 5.5、6.1、7.2 | 5.5 包层+桌面切片已实测（2026-10-25：导出请求带 verificationId ⇒ main 从验证记录头解析 run/检查点/快照并在对话框前后重核，包层以 expectedSnapshotId 在**写入前**比对快照 ID（不等 ⇒ snapshot_mismatch 零写入）；成功清单 `source.run_id/snapshot_id` 等于验证记录的精确输入（用例逐字断言），目标仍由原生对话框选择并遵守空目录契约；面板显示验证快照=导出快照并给出 `rebaseagent-export.json` 逐项回查指引）；**6.1 实机已实测**（真实两条验证经 main 导出端点导出：清单 source.snapshot_id=验证记录快照、导出 src/calc.ts 哈希=所测源码、verificationId/verificationSnapshotId 回带；目录选择为测试桩）；6.1 **v4 重跑**两条验证输入均经 main 导出，清单快照与源码哈希一致（ver-78c2581f…/ver-1244159f…） |
