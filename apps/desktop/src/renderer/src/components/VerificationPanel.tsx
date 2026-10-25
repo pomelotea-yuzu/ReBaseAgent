@@ -278,7 +278,7 @@ function VerificationExportFeedbackBody({
         >
           <div>
             已导出 {outcome.fileCount} 个文件（{formatBytes(outcome.totalFileBytes)}）到{" "}
-            <span className="font-code">{outcome.targetDir}</span>
+            <span className="break-all font-code">{outcome.targetDir}</span>
           </div>
           <div>
             验证快照 {expectedSnapshotId ?? "未知"} · 导出快照 {outcome.snapshotId} ·{" "}
@@ -398,7 +398,7 @@ export function VerificationPanel({
     capability,
   });
   return (
-    <div className="mt-1" data-verification-panel={runId}>
+    <div className="mt-1 min-w-0" data-verification-panel={runId}>
       <button
         type="button"
         data-verification-entry="true"
@@ -673,7 +673,7 @@ export function VerificationPanel({
                     data-verification-record-focus={id}
                     aria-pressed={recordFocus === id ? "true" : undefined}
                     onClick={() => onFocusRecord(id)}
-                    className={`rounded border px-1.5 py-0.5 font-code text-[10px] ${FOCUS_RING} ${
+                    className={`max-w-full break-all rounded border px-1.5 py-0.5 text-left font-code text-[10px] ${FOCUS_RING} ${
                       recordFocus === id
                         ? "border-sky-500 bg-sky-100 text-sky-900"
                         : "border-gray-300 text-gray-600 hover:bg-gray-50"
@@ -842,12 +842,15 @@ export function VerificationPanel({
                       ) : null}
                       {logState === "ready" && logMeta !== null ? (
                         <>
-                          <pre
-                            className="mt-0.5 max-h-48 overflow-auto whitespace-pre-wrap break-all font-code text-[10px] leading-4 text-gray-800"
+                          {/* 只读 textarea：原生可聚焦滚动（D11 键盘可达），不引入输入语义 */}
+                          <textarea
+                            readOnly
+                            aria-label="验证日志切片（有界只读；可聚焦滚动）"
+                            value={logText}
+                            rows={Math.min(12, Math.max(3, logText.split("\n").length))}
+                            className="mt-0.5 w-full resize-y overflow-auto whitespace-pre-wrap break-all font-code text-[10px] leading-4 text-gray-800 outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-1"
                             data-verification-log-text="true"
-                          >
-                            {logText}
-                          </pre>
+                          />
                           <div className="mt-0.5 flex items-center gap-2 text-[10px] text-gray-500">
                             <span>
                               共 {formatBytes(logMeta.totalBytes)} · 已读{" "}
@@ -934,7 +937,7 @@ export function VerificationPanel({
                               disabled={isOther && !isSelected}
                               title={isOther ? "同一验证不能与自己比较" : `${id}（${source}）`}
                               onClick={() => onSelectCompareSide(side, isSelected ? null : id)}
-                              className={`rounded border px-1.5 py-0.5 font-code text-[10px] ${FOCUS_RING} ${
+                              className={`max-w-full break-all rounded border px-1.5 py-0.5 text-left font-code text-[10px] ${FOCUS_RING} ${
                                 isSelected
                                   ? "border-violet-500 bg-violet-100 text-violet-900"
                                   : "border-gray-300 text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
@@ -1022,7 +1025,7 @@ export function VerificationPanel({
                           <div
                             key={side}
                             data-compare-side-summary={side}
-                            className="rounded border border-gray-200 bg-white px-1.5 py-1 text-[10px] leading-4 text-gray-700"
+                            className="min-w-0 break-words rounded border border-gray-200 bg-white px-1.5 py-1 text-[10px] leading-4 text-gray-700"
                           >
                             <div className="font-medium">
                               {side === "left" ? "A · 原验证" : "B · 修复验证"} ·{" "}
@@ -1098,7 +1101,7 @@ export function VerificationPanel({
                             key={entry.key}
                             data-compare-condition={entry.key}
                             data-compare-state={entry.state}
-                            className="mt-0.5 rounded border border-gray-200 bg-white px-1.5 py-0.5 text-[10px] leading-4"
+                            className="mt-0.5 break-all rounded border border-gray-200 bg-white px-1.5 py-0.5 text-[10px] leading-4"
                           >
                             <span className="font-medium">{entry.label}</span>：
                             {entry.left ?? "（未记录）"} {"vs"} {entry.right ?? "（未记录）"}

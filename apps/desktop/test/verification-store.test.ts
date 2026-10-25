@@ -1195,3 +1195,36 @@ describe("验证输入导出反馈（5.5/W03/W04/D08：按验证身份绑定）"
     }
   });
 });
+
+describe("验证面板不改动其他阅读/草稿/比较状态（5.6/D12）", () => {
+  it("open/close 验证不导航、不动草稿/阅读/比较选择、不恢复旧执行许可", async () => {
+    useAppStore.setState({
+      view: "trace",
+      comparePair: { leftRunId: "run_l", rightRunId: "run_r" },
+      compareIds: ["run_l", "run_r"],
+    });
+    const before = {
+      view: stateOf().view,
+      readingByRun: stateOf().readingByRun,
+      drafts: stateOf().drafts,
+      comparePair: stateOf().comparePair,
+      compareIds: stateOf().compareIds,
+      selectedRunId: stateOf().selectedRunId,
+    };
+    stateOf().openVerification(RUN_A, { kind: "initial" });
+    await vi.waitFor(() => {
+      expect(stateOf().verificationCapability).not.toBeNull();
+    });
+    stateOf().closeVerification();
+    expect(stateOf().view).toBe(before.view);
+    expect(stateOf().readingByRun).toBe(before.readingByRun);
+    expect(stateOf().drafts).toBe(before.drafts);
+    expect(stateOf().comparePair).toEqual(before.comparePair);
+    expect(stateOf().compareIds).toEqual(before.compareIds);
+    expect(stateOf().selectedRunId).toBe(before.selectedRunId);
+    // D12：返回不恢复旧执行许可（确认/提交态必须为空）
+    expect(stateOf().verificationPrepareConfirmation).toBeNull();
+    expect(stateOf().verificationRunConfirmation).toBeNull();
+    expect(stateOf().verificationSubmitting).toBe("idle");
+  });
+});

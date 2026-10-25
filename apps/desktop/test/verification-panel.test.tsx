@@ -1071,3 +1071,60 @@ describe("VerificationPanel（5.5：导出所测输入 W03/W04/D08）", () => {
     expect(html).toContain("不会改变绑定");
   });
 });
+
+// ---------------------------------------------------------------------------
+// 5.6：焦点与长内容布局接线（D11；真实 200%/窄窗视觉归 6.3）
+// ---------------------------------------------------------------------------
+
+function tagOf(html: string, marker: string): string {
+  const match = html.match(new RegExp(`<[^>]*${marker}[^>]*>`));
+  return match?.[0] ?? "";
+}
+
+describe("VerificationPanel（5.6：D11 焦点可达与长内容不撑破）", () => {
+  it("日志切片可聚焦滚动（键盘可达），长身份/条件值/导出路径允许断行", () => {
+    const longId = "v".repeat(80);
+    const html = render(
+      baseProps({
+        expanded: true,
+        trustedVerificationIds: [longId],
+        recordFocus: longId,
+        recordState: "ready",
+        recordView: SEALED_VIEW,
+        recordStatus: "sealed",
+        recordMeta: EXPORT_META,
+        logIdentity: { verificationId: longId, commandId: "test", stream: "stdout" },
+        logState: "ready",
+        logText: "log-line",
+        logMeta: { totalBytes: 8, nextOffset: 8, remaining: 0, truncated: false },
+      }),
+    );
+    const logTag = tagOf(html, 'data-verification-log-text="true"');
+    // 只读 textarea 原生可聚焦（无需 tabindex），键盘可滚动/选择
+    expect(logTag.startsWith("<textarea")).toBe(true);
+    expect(logTag.toLowerCase()).toContain("readonly");
+    expect(logTag).toContain("aria-label");
+    expect(tagOf(html, 'data-verification-record-focus="')).toContain("break-all");
+    expect(tagOf(html, "data-verification-panel=")).toContain("min-w-0");
+  });
+
+  it("关键动作都有可见焦点环（核对/停止/读日志/导出/比较）", () => {
+    const html = render(
+      exportProps({
+        activeOperation: { kind: "run", operationId: "55555555-5555-4555-8555-555555555555" },
+        logIdentity: { verificationId: "ver-old", commandId: "test", stream: "stdout" },
+        logState: "ready",
+        logText: "x",
+        logMeta: { totalBytes: 1, nextOffset: 1, remaining: 0, truncated: false },
+      }),
+    );
+    for (const marker of [
+      'data-verification-stop="true"',
+      'data-verification-read-log="test:stdout"',
+      'data-verification-export-start="true"',
+      "data-verification-entry=",
+    ]) {
+      expect(tagOf(html, marker)).toContain("focus-visible:ring");
+    }
+  });
+});
