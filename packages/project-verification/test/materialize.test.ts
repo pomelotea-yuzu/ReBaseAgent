@@ -359,8 +359,8 @@ describe("Docker 物化后端（3.3，注入 runner 的 argv/解析测试）", (
         (args) => {
           expect(args[0]).toBe("sha256sum");
           return okResult(
-            `d4cd6a706e1f5a13bd4caa0eb8fedbc7b7dfa1a4d2e1b1a0e2a04a9ac69f4b91  /work/src/calc.ts\n` +
-              `0aa1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1  /work/src/deep/extra.ts\n`,
+            "d4cd6a706e1f5a13bd4caa0eb8fedbc7b7dfa1a4d2e1b1a0e2a04a9ac69f4b91  /work/src/calc.ts\n" +
+              "0aa1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1  /work/src/deep/extra.ts\n",
           );
         },
       ]),
@@ -385,7 +385,7 @@ describe("Docker 物化后端（3.3，注入 runner 的 argv/解析测试）", (
       runner: scriptedRunner([
         () =>
           okResult(
-            `d4cd6a706e1f5a13bd4caa0eb8fedbc7b7dfa1a4d2e1b1a0e2a04a9ac69f4b91  /work/src/calc.ts\n`,
+            "d4cd6a706e1f5a13bd4caa0eb8fedbc7b7dfa1a4d2e1b1a0e2a04a9ac69f4b91  /work/src/calc.ts\n",
             1,
           ),
       ]),

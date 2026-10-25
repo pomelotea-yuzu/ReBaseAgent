@@ -485,14 +485,14 @@ export async function executeVerificationRun(
           detail = `可信测试断言失败：${tap.reason}`;
         } else if (streamsTruncated) {
           outcome = "evidence_incomplete";
-          detail = `命令 exit 0 且断言通过，但输出被截断：不能当作完整证据（保留真实 exit）`;
+          detail = "命令 exit 0 且断言通过，但输出被截断：不能当作完整证据（保留真实 exit）";
         } else {
           outcome = "passed";
           detail = `命令完成（exit 0，${report.durationMs}ms），检查通过`;
         }
       } else if (streamsTruncated) {
         outcome = "evidence_incomplete";
-        detail = `命令 exit 0 但输出被截断：不能当作完整证据（保留真实 exit）`;
+        detail = "命令 exit 0 但输出被截断：不能当作完整证据（保留真实 exit）";
       } else {
         outcome = "passed";
         detail = `命令完成（exit 0，${report.durationMs}ms），检查通过`;

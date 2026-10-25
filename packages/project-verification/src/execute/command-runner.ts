@@ -3,7 +3,6 @@ import { performance } from "node:perf_hooks";
 import {
   CommandEndEventSchema,
   CommandStartEventSchema,
-  NODE_TS_V1_PROFILE,
   type ProfileLimits,
   type ProfileManifest,
 } from "../schema.js";
@@ -39,7 +38,7 @@ export interface FixedCommandSpec {
 
 /** 按枚举 commandId 查 manifest 冻结命令表；未枚举 ⇒ null（调用方拒绝）。 */
 export function resolveFixedCommand(
-  profile: ProfileManifest = NODE_TS_V1_PROFILE,
+  profile: ProfileManifest,
   commandId: "typecheck" | "test",
 ): FixedCommandSpec | null {
   const command = profile.commands.find((entry) => entry.commandId === commandId);

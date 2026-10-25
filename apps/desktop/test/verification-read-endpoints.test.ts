@@ -36,7 +36,7 @@ import type { Envelope } from "../src/shared/ipc";
  */
 
 const MAIN_FRAME: TrustedSender = { webContentsId: 7, frameRoutingId: 70 };
-const LOG_TEXT = "a".repeat(40_000) + "TAIL";
+const LOG_TEXT = `${"a".repeat(40_000)}TAIL`;
 const LOG_SHA = createHash("sha256").update(LOG_TEXT).digest("hex");
 
 interface Fixture {

@@ -120,7 +120,7 @@ describe("5.4 结果区派生：按目标圈定 proxy 提交，只认登记身�
           runIds: [],
           arms: [],
           preparationIds: [],
-          verificationIds: []
+          verificationIds: [],
         }),
       ],
       reads: emptyResultReadStore(),
