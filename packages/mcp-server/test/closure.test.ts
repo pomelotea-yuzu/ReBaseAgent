@@ -23,6 +23,7 @@ const EXPECTED_EXTERNAL = [
   "@modelcontextprotocol/sdk/server/stdio.js",
   "@modelcontextprotocol/sdk/server/zod-json-schema-compat.js",
   "@modelcontextprotocol/sdk/types.js",
+  "@rebaseagent/project-verification/facts",
   "@rebaseagent/project-verification/read",
   "@rebaseagent/project-verification/schema",
   "@rebaseagent/run-query",
@@ -118,7 +119,7 @@ function occurrences(haystack: string, needle: string): number {
 }
 
 describe("依赖闭包与调用面（Q15 结构半边）", () => {
-  it("dist 的外部依赖恰好是实测那十一个说明符（多一个就翻红）", () => {
+  it("dist 的外部依赖恰好是实测那十二个说明符（多一个就翻红）", () => {
     const js = filesWith(DIST_DIR, ".js");
     expect(js.length).toBeGreaterThan(20);
     const external = new Set<string>();
@@ -167,6 +168,7 @@ describe("依赖闭包与调用面（Q15 结构半边）", () => {
      * 禁止直接依赖（`./facts` 在比较事实接线时按同一条纪律追加并扩本表）。
      */
     expect(rebaseagent).toEqual([
+      "@rebaseagent/project-verification/facts",
       "@rebaseagent/project-verification/read",
       "@rebaseagent/project-verification/schema",
       "@rebaseagent/run-query",

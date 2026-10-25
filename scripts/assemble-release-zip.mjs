@@ -20,7 +20,7 @@
  *     （5.3 的 EOF 纪律）⇒ 异步 spawn、一次 write 交整批帧、收齐再关 stdin。
  *
  * 自验（全过才输出 ASSEMBLE_PASS，任一失败非零退出）：
- *   ① deploy 目录 stdio 探针：initialize（能力恰 {tools:{}}）→ tools/list（恰 7 个）
+ *   ① deploy 目录 stdio 探针：initialize（能力恰 {tools:{}}）→ tools/list（恰 13 个）
  *      → tools/call list_runs（空 traces 数据根）。
  *   ② zip 结构：7za 列表顶层恰 exe/说明/SUMS + mcp；SUMS 行数与文件数一致。
  *   ③ zip 内 exe 逐字节 = 源 exe（抽出重算 sha256）。
@@ -160,7 +160,7 @@ await new Promise((resolveProbe, rejectProbe) => {
       problems.push(
         `capabilities 应恰 {"tools":{}}，实得 ${JSON.stringify(init.result?.capabilities)}`,
       );
-    if (toolNames.length !== 7) problems.push(`tools/list 应 7 个，实得 ${toolNames.length}`);
+    if (toolNames.length !== 13) problems.push(`tools/list 应 13 个，实得 ${toolNames.length}`);
     if (!text.includes("list_runs") || !text.includes("0"))
       problems.push(`list_runs content 异常：${text.split("\n")[0]}`);
     child.stdin.end();

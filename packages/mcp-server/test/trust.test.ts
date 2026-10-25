@@ -97,10 +97,10 @@ describe("initialize：信任说明", () => {
       "不写盘",
       "不可信记录",
       "数据根",
-      "七个只读工具",
+      "十三个只读工具",
       "REDACTED",
       "自由文本",
-      "检查点文件",
+      "验证记录",
       "费用",
     ]) {
       expect(instructions).toContain(phrase);
@@ -114,7 +114,8 @@ describe("initialize：信任说明", () => {
     expect(h.client.getServerCapabilities()).toEqual({ tools: {} });
     const names = (await h.client.listTools()).tools.map((tool) => tool.name);
     expect(names).toEqual(READONLY_TOOLS.map((tool) => tool.name));
-    expect(names).toHaveLength(7);
+    // MCP2 起十三工具（7 运行/检查点 + 6 验证查询）；仍无 resources/prompts/写入
+    expect(names).toHaveLength(13);
     expect(names).not.toContain("write_file");
   });
 });

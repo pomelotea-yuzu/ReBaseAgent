@@ -12,6 +12,10 @@ import {
 import { DATA_DIR_FLAG } from "../src/startup.js";
 import { READ_ONLY_ANNOTATIONS, TOOL_CONTRACTS, contractOf } from "../src/tool-contracts.js";
 import {
+  VERIFICATION_TOOL_CONTRACTS,
+  verificationContractOf,
+} from "../src/verification-contracts.js";
+import {
   STDIO_OTHER_RUN_ID,
   type StdioFixture,
   buildEmptyRoot,
@@ -150,7 +154,7 @@ describe("S01 真实 stdio 协商：版本、能力与信任说明", () => {
       callFrame(3, "list_runs", {}),
     ]);
     const listed = resultOf(await session.waitForFrame(2)) as { tools: unknown[] };
-    expect(listed.tools).toHaveLength(TOOL_CONTRACTS.length);
+    expect(listed.tools).toHaveLength(TOOL_CONTRACTS.length + VERIFICATION_TOOL_CONTRACTS.length);
     const { data, envelope } = okData<ListRunsData>(await session.waitForFrame(3));
     expect(data.items).toEqual([]);
     expect(data.totals).toMatchObject({ matchedRuns: 0, listed: 0 });
@@ -183,7 +187,7 @@ describe("S01 真实 stdio 协商：版本、能力与信任说明", () => {
 });
 
 describe("S03 线务面：tools/list 发布的就是契约派生的声明", () => {
-  it("七个工具的 name/description/inputSchema/annotations 与契约逐字相同", async () => {
+  it("十三个工具的 name/description/inputSchema/annotations 与契约逐字相同", async () => {
     const session = await openSession(fx.dataDir);
     session.writeFrames([initFrame(1), requestFrame(2, "tools/list")]);
     await session.waitForFrame(1);
@@ -192,9 +196,10 @@ describe("S03 线务面：tools/list 发布的就是契约派生的声明", () =
         tools: Array<Record<string, unknown>>;
       }
     ).tools;
-    expect(tools.map((tool) => tool.name)).toEqual(TOOL_CONTRACTS.map((item) => item.name));
+    const allContracts = [...TOOL_CONTRACTS, ...VERIFICATION_TOOL_CONTRACTS];
+    expect(tools.map((tool) => tool.name)).toEqual(allContracts.map((item) => item.name));
     for (const tool of tools) {
-      const contract = contractOf(String(tool.name));
+      const contract = contractOf(String(tool.name)) ?? verificationContractOf(String(tool.name));
       if (contract === undefined) throw new Error(`契约缺失：${String(tool.name)}`);
       expect(tool.inputSchema).toEqual(contract.inputSchema);
       expect(tool.annotations).toEqual(READ_ONLY_ANNOTATIONS);

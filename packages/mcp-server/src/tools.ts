@@ -5,22 +5,25 @@ import { getStepTool } from "./query/get-step.js";
 import { inspectCheckpointTool } from "./query/inspect-checkpoint.js";
 import { listRunsTool } from "./query/list-runs.js";
 import { readCheckpointFileTool } from "./query/read-checkpoint-file.js";
+import { compareVerificationsTool } from "./query/compare-verifications.js";
+import { getVerificationTool } from "./query/get-verification.js";
+import { inspectVerificationArtifactsTool } from "./query/inspect-verification-artifacts.js";
+import { listVerificationsTool } from "./query/list-verifications.js";
+import { readVerificationArtifactTool } from "./query/read-verification-artifact.js";
+import { readVerificationLogTool } from "./query/read-verification-log.js";
 import type { ToolDefinition } from "./server.js";
 
 /**
- * 只读诊断工具的注册表（design D5/D7：**只发布这七个**，不提供 prompts/resources 旁路）。
+ * 只读诊断工具的注册表（MCP1 design D5/D7 + MCP2 design D2：**只发布这十三个**，
+ * 不提供 prompts/resources 旁路，不提供准备/执行/停止/导出工具）。
  *
- * 本表登记的是「契约 + 实现」的成品，逐批接入：
- * - `list_runs`、`get_run` ⇒ 4.3；`get_step` ⇒ 4.4；`compare_runs` ⇒ 4.5；
- * - `inspect_checkpoint` / `read_checkpoint_file` ⇒ 4.6；`compare_checkpoint_files` ⇒ 4.7。
+ * MCP1 七工具：list_runs/get_run/get_step/compare_runs/inspect_checkpoint/
+ * read_checkpoint_file/compare_checkpoint_files（名称、参数、行为不变）。
+ * MCP2 六工具（tasks 3.1–3.6）：list_verifications/get_verification/
+ * read_verification_log/inspect_verification_artifacts/read_verification_artifact/
+ * compare_verifications——只读消费 R3 验证记录，与桌面共享同一事实实现。
  *
- * 纪律：**没实现就不登记**。空位不是"少一个工具"而是"能力不存在"——注册一个会抛错的
- * 占位工具是谎报可用，而让 `tools/list` 如实反映已实现的部分，客户端拿到的声明
- * 与它实际能调通的东西始终一致。
- *
- * 七条都登记齐了不等于 S03 通过：分页游标（5.2）、64 KiB 实际预算（5.1）、结构凭据过滤（4.8）
- * 与真实客户端整链（6.2）仍在后面；未登记的工具名由服务层直接拒（`server.ts`，S04），
- * 不会因为契约里写了七行就扩大服务范围。
+ * 纪律：**没实现就不登记**；十三个 ≠ M01 通过（生产 stdio 与真实客户端验收在 5.1/5.3）。
  */
 export const READONLY_TOOLS: readonly ToolDefinition[] = [
   listRunsTool,
@@ -30,4 +33,10 @@ export const READONLY_TOOLS: readonly ToolDefinition[] = [
   inspectCheckpointTool,
   readCheckpointFileTool,
   compareCheckpointFilesTool,
+  listVerificationsTool,
+  getVerificationTool,
+  readVerificationLogTool,
+  inspectVerificationArtifactsTool,
+  readVerificationArtifactTool,
+  compareVerificationsTool,
 ];
