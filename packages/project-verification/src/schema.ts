@@ -183,17 +183,18 @@ export const ProfileManifestSchema = z
 /**
  * `node-ts-v1` 冻结实例——数值与阶段 1/3.x 实测一致（backend-verification.md §1.3/§3.1/§3.5）。
  *
- * `manifestVersion: 3`：v3 环境镜像加入受控 supervisor 与 stop-workloads 两个受信脚本
- * （哈希冻结于此，trustedEnvironment 形状扩展 ⇒ 版本递增，§3.5）；artifacts 采集规则
- * 入表（纯 manifest 数据，镜像字节不变，§3.6）。原 runner/锁/模板/测试五项字节未变
- * （镜像内复核一致）。受信环境**镜像自身的 digest 属准备期实测事实**
+ * `manifestVersion: 4`：v4 修两处 6.2 实机发现——①受信 runner 的测试子进程输出改为流式
+ * 转发（尾部 2 MiB 供 TAP 门，信号退出按 128+n 映射；v3 的 spawnSync 1 MiB maxBuffer 会把
+ * 长输出误判成断言失败）；②supervisor 等待改 FIFO 阻塞读（v3 的 `sleep` 子进程被定向停止
+ * 脚本计为 survivor，停止确认随机 unknown）。v3 曾加入 supervisor/stop-workloads（§3.5）与
+ * artifacts 规则（§3.6）。锁文件/模板/受信测试/stop-workloads 字节未变。受信环境**镜像自身的 digest 属准备期实测事实**
  * （写入 prepared 事件），不冻结于此。
  * 基础镜像 digest 经 DaoCloud 源拉取；与官方源的一致性核对未完成（Hub 直连不可达，
  * 如实登记于 §1.2），registryNote 记录该事实。
  */
 export const NODE_TS_V1_PROFILE: z.infer<typeof ProfileManifestSchema> = {
   profileId: "node-ts-v1",
-  manifestVersion: 3,
+  manifestVersion: 4,
   platform: "linux/amd64",
   baseImage: {
     repository: "docker.m.daocloud.io/library/node",
@@ -216,7 +217,7 @@ export const NODE_TS_V1_PROFILE: z.infer<typeof ProfileManifestSchema> = {
   trustedEnvironment: {
     runner: {
       path: "/opt/r3/runner.mjs",
-      sha256: "0edf7c21ae4ad39b275be0701aa4ff24ab866aa7eee8bc33419281bd5bc1d823",
+      sha256: "983a8b79affbeaeac628bda204573cac7a8dd15ef368d4e19d62f0ac613e84aa",
     },
     lockfile: {
       path: "/opt/r3/package-lock.json",
@@ -231,7 +232,7 @@ export const NODE_TS_V1_PROFILE: z.infer<typeof ProfileManifestSchema> = {
     expectedTestCount: 2,
     supervisor: {
       path: "/opt/r3/supervisor.sh",
-      sha256: "09fe58f315cc705315242bcc5a1fde7216b7201ec1308d1f0fa1d75b96a0add8",
+      sha256: "8e4be790349c4bf51daad69477b8b8c3007284fc559494c3b9b1c278534e2104",
     },
     stopWorkloads: {
       path: "/opt/r3/stop-workloads.sh",

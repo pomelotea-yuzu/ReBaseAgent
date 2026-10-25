@@ -455,6 +455,22 @@ describe("结局映射（D6 九行表）", () => {
     });
   });
 
+  it("6.2 回归：截断且保留日志里看不到 TAP 摘要 ⇒ evidence_incomplete，不误报断言失败", async () => {
+    const script = makePorts();
+    script.setCommandResult({
+      exitCode: 0,
+      stdoutTruncated: true,
+      stdout: Buffer.from("x".repeat(4096)),
+    });
+    const result = await executeVerificationRun(params(script.ports));
+    expect(result).toMatchObject({
+      ok: true,
+      outcome: "evidence_incomplete",
+      evidenceComplete: false,
+    });
+    if (result.ok) expect(result.detail).toContain("输出被截断");
+  });
+
   it("停止结果未知 ⇒ unknown；容器不移除、登记保持 created（P21/P23）", async () => {
     const script = makePorts();
     script.setStopUnknown("failed to connect to the docker API");

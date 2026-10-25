@@ -475,6 +475,11 @@ export async function executeVerificationRun(
         // completed 分类覆盖 0–125；非零即检查失败（真实 exit 保留在 detail，P20）
         outcome = "check_failed";
         detail = `检查失败（exit ${String(report.exitCode)}）：可信断言未通过`;
+      } else if (streamsTruncated) {
+        // 6.2 实机发现：保留日志被截断时 TAP 摘要可能落在丢弃区——先判证据不完整，
+        // 不能把"看不到摘要"误报成断言失败，也不能当作通过（P13）。
+        outcome = "evidence_incomplete";
+        detail = "命令 exit 0 但输出被截断：不能当作完整证据（保留真实 exit）";
       } else if (input.commandId === "test") {
         const tap = validateTestReport(
           Buffer.from(report.stdout.retainedBytes).toString("utf8"),
@@ -483,16 +488,10 @@ export async function executeVerificationRun(
         if (!tap.ok) {
           outcome = "check_failed";
           detail = `可信测试断言失败：${tap.reason}`;
-        } else if (streamsTruncated) {
-          outcome = "evidence_incomplete";
-          detail = "命令 exit 0 且断言通过，但输出被截断：不能当作完整证据（保留真实 exit）";
         } else {
           outcome = "passed";
           detail = `命令完成（exit 0，${report.durationMs}ms），检查通过`;
         }
-      } else if (streamsTruncated) {
-        outcome = "evidence_incomplete";
-        detail = "命令 exit 0 但输出被截断：不能当作完整证据（保留真实 exit）";
       } else {
         outcome = "passed";
         detail = `命令完成（exit 0，${report.durationMs}ms），检查通过`;
