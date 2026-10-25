@@ -130,7 +130,7 @@ describe("DockerRuntimeBackend：核查面 argv 与错误语义（3.7）", () =>
   });
 
   it("removeContainer：No such 容错（幂等）；其他非零 ⇒ 抛错", async () => {
-    const { backend: b } = backend((args) =>
+    const { backend: b, calls } = backend((args) =>
       args.includes("vanished")
         ? cliResult({ exitCode: 1, stderr: "Error: No such container: vanished" })
         : args.includes("busy")
@@ -138,6 +138,8 @@ describe("DockerRuntimeBackend：核查面 argv 与错误语义（3.7）", () =>
           : cliResult(),
     );
     await expect(b.removeContainer("ok-ctr")).resolves.toBeUndefined();
+    // 6.2：编排在 supervisor 仍存活时收尾 ⇒ 必须 rm -f（否则 Docker 拒绝并残留）
+    expect(calls[0]?.args).toEqual(["--host", ENDPOINT, "rm", "-f", "ok-ctr"]);
     await expect(b.removeContainer("vanished")).resolves.toBeUndefined();
     await expect(b.removeContainer("busy")).rejects.toThrow(/非零退出/);
   });

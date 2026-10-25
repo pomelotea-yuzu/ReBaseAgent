@@ -245,8 +245,11 @@ export class DockerRuntimeBackend implements RuntimeResourcePort, RuntimeContain
   }
 
   async removeContainer(containerId: string): Promise<void> {
+    // -f：编排在确认工作负载停止后仍保留 supervisor（PID 1）以维持 tmpfs 采集，
+    // 容器本身仍是 running；不带 -f 的 rm 会被 Docker 拒绝并残留（6.2 实机发现）。
+    // 调用方只会删除已确认停止/静止或本次创建失败的 own 容器（归属核查在编排/reconcile）。
     const result = await this.run(
-      [...pinnedGlobalArgs(this.config.endpoint), "rm", containerId],
+      [...pinnedGlobalArgs(this.config.endpoint), "rm", "-f", containerId],
       "移除遗留容器",
     );
     if (result.exitCode !== 0 && !/no such/i.test(result.stderr)) {
