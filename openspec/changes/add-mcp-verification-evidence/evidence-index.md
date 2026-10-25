@@ -19,17 +19,17 @@
 | M09 产物索引和内容来自指定验证 | `test/verification-tools.test.ts`（inspect available/corrupt 分类、未采集受控失败、read artifact 清单内文本/二进制元数据） | 部分通过（工具面已证；5.1 stdio 已证，真实客户端随 5.3） |
 | M10 长日志保留采集截断与分页事实 | `test/verification-tools.test.ts`（逐页读完 capture 截断 limitation 常驻、续读区间连续覆盖、正文单次承载 bodyIn） | 部分通过（工具面已证；64 KiB 信封实测随 4.2/5.1 收口） |
 | M11 Unicode 原文与二进制如实读取 | 同上（中文/emoji content 无 U+FFFD、CRLF 保留、二进制 kind=binary 只给元数据） | 部分通过（工具面已证；5.1 stdio 已证，真实客户端随 5.3） |
-| M12 验证与附件变化使游标失效 | `test/verification-cursor.test.ts`（新增记录/trace 追加/附件改写/附件删除 ⇒ STALE_CURSOR；篡改/换工具/换参数 ⇒ INVALID_ARGUMENT；尾页无进展不发游标，5 passed） | 部分通过（进程内已证；进程重启换密钥由 cursor.ts 判据承载，5.1 stdio 已证） |
+| M12 验证与附件变化使游标失效 | `test/verification-cursor.test.ts`（5 passed）+ 实机：进程 A 发游标→进程 B（重启）续读 ⇒ STALE_CURSOR（RESTART_STALE_PASS，2026-10-26） | 通过 |
 | M13 单项超限受控失败 | `test/verification-budget.test.ts`（超大 argv ⇒ RESPONSE_LIMIT+verification 定位、错误信封不超预算、无宿主路径；五工具正常数据 ≤64KiB，6 passed） | 部分通过（进程内已证；5.1 stdio 已证，真实客户端随 5.3） |
 | M14 同条件失败到通过有完整引用 | `test/verification-tools.test.ts`（fixture 同条件对 compare → failed-to-passed、全条件 same、expectedSnapshotIds=recordedTarget） | 部分通过（fixture 已证；真实 R3 记录随 5.3 收口） |
 | M15 条件不同未知和参数边界不掩盖 | `test/compare-facts.test.ts`（argv 边界/对象键序）+ `test/verification-tools.test.ts`（旧缺 environment ⇒ conditions-unknown 不补齐） | 部分通过（工具面已证；桌面一致性随 5.2 收口） |
 | M16 单侧不可用与当前证据缺项 | `test/verification-tools.test.ts`（一侧不存在/未封存 ⇒ unavailable+outcome-unknown、必需资产缺失 ⇒ evidence-incomplete.fromCurrentAssets） | 部分通过（工具面已证；5.1 stdio 已证，真实客户端随 5.3） |
-| M17 全链零执行零写入与断连取消 | `test/verification-zero-write.test.ts`（六工具全链+失败路径整根指纹逐字未动，残留 runtime/未封存记录未动；断连/取消属 stdio 服务层由 MCP1 stdio-lifecycle 覆盖，3 passed） | 部分通过（进程内已证；5.1 stdio 生命周期+目录树零写入已证；字节指纹与零执行实机计数随 5.3/6.3） |
+| M17 全链零执行零写入与断连取消 | ①`test/verification-zero-write.test.ts`（fixture 全链指纹 3 passed）②5.1 stdio 生命周期（取消/EOF/目录树零写入，11 passed）③2026-10-26 真实根五数据目录 801 文件指纹前后逐字相同（含 verification-runtime 残留登记与未封存记录未动）＝零执行/零登记/零清理的数据面佐证 | 通过（执行计数以数据域不变+指纹承载） |
 | M18 历史指令和秘密不扩展权限 | `test/verification-trust.test.ts`（data 封闭字段集/容器名不外发/错误无 errno 堆栈宿主路径/秘密原文不声称脱敏/TRUST_INSTRUCTIONS 对齐，6 passed） | 部分通过（工具面已证；指南文档随 6.1，真实客户端注入随 5.3） |
-| M19 真实客户端完成证据代表任务 | 实际客户端版本/配置/完整工具记录 + Electron 同对象回查 | 待验收 |
+| M19 真实客户端完成证据代表任务 | 2026-10-26 WorkBuddy 5.9.2 真实客户端回查（数据根 .rebaseagent，25 条真实 R3 记录）：①list 25 条 0 不可读 ②双记录 sealed/check_failed+passed、exit 1/0、env 在场 ③日志 TAP 原文（0–500/1014 码点，capture 完整）④compare failed-to-passed+11 same+expectedSnapshotId=recordedTarget——与桌面 CDP 自查逐项一致 ⑤VERIFICATION_NOT_FOUND 受控单行；回放五步调用真实根五数据目录 801 文件 SHA-256 前后逐字相同（ZERO_WRITE_PASS） | 通过（真实项目接入与自动修复未声称完成，模板范围如登记） |
 | M20 生产闭包与发行说明可核对 | 生产 deploy 探针/十三工具断言/文档状态 | 待验收 |
 | V01 只读入口无执行依赖且无需后端 | `packages/project-verification/test/read-closure.test.ts`（静态导入图禁入 writer/append/assets/prepare/execute/orchestrate/runtime/docker 等 4 passed）+ 纯 Node 探针 `node -e "import('./dist/read.js')…"`（read/facts 均加载） | 部分通过（import 闭包与纯 Node 读取已证；「无需后端」的端到端读取回归随 5.1/4.4 收口） |
-| V02 桌面与 MCP 对同对象事实一致 | 2026-10-26 实机自查（CDP 附加真实 Electron dev 实例，数据根 .rebaseagent）：① IPC 只读面直调 25 条记录 list/get/readLog 全通（sealed/passed/exit 0/env 在场/来源 present，日志 TAP 原文）② 桌面共享判据（renderer 经 vite import 真实 compareVerifications）与 MCP compare_verifications 对同一对 ver-18cedcbf0f7c3c03/ver-0fd97f8ca2567cdc 逐项一致：verdict 均 failed-to-passed、11 条件均 same、expectedSnapshotId 均为 recordedTarget | 部分通过（同对象事实一致性已证；UI 记录/比较区渲染需会话登记身份（D07 设计如此）、宽窄窗/200%/键盘抽查留人工） |
+| V02 桌面与 MCP 对同对象事实一致 | 2026-10-26 双侧同对象对照：桌面（CDP 附加真实 Electron dev + renderer 真实 compareVerifications）与 WorkBuddy 5.9.2 经 MCP compare_verifications 对同一对记录逐项一致（verdict/11 条件/expectedSnapshotId）；桌面 IPC list/get/readLog 25 条零异常。宽窄窗/200%/键盘视觉抽查未做（留人工，不影响事实判据） | 通过（视觉抽查项未覆盖，如实标注） |
 | V03 文本跨段与字节接口兼容 | `test/assets-view.test.ts`（码点切片跨段不丢字；旧字节接口默认 32 KiB/上限 64 KiB 零改动） | 部分通过（共享层已证；旧 IPC schema 全量回归随 5.2 收口） |
 | V04 核验与枚举不掩盖坏数据 | `test/scan.test.ts`（失败项/非法名/目录级区分）+ `test/assets-view.test.ts`（symlink/junction 顶替拒绝、字节改写 ASSET_CORRUPT、大小/hash 完整核验） | 部分通过（共享层已证；scan 失败项呈现已证（3.1+5.1）） |
 
@@ -38,10 +38,10 @@
 - 确定性 fixture：`packages/mcp-server/test/verification-fixtures.ts` 已建（tasks 1.3）——11 条具名记录（pass/fail 同条件对、旧缺 environment、unterminated+interrupted、坏尾、未知版本、重复 command_end、附件缺失/被改、冲突产物清单、来源缺失）+ 残留 runtime 登记 + 准备记录；全部经 R3 writer/publishAsset 真写，自证测试 `verification-fixtures.test.ts` 15 passed。整根指纹探针 `snapshotRootFingerprint`/`rootFingerprintDiff` 与真实验证记录复制探针 `copyVerificationRecord` 就绪；R3 实际记录来源（本机数据根与 verificationId）在 5.3 实机轮次回填。
 - 生产闭包探针（tasks 5.4，2026-10-25）：pnpm --filter @rebaseagent/mcp-server --prod --config.node-linker=hoisted deploy .rebaseagent/assemble-deploy → 复制到仓库外临时目录（自包含证明）→ 探针 PROBE_PASS：① dist/read.js+facts.js 独立加载（无 Electron/Docker/开发目录）②经生产闭包 writer/publishAsset 真写样本记录 ③stdio initialize→tools/list 恰 13→list_verifications/get_verification/read_verification_log 全通、content 自足；assemble-release-zip.mjs 断言已改 13（3.x）。实际打包/上传另行安排。
 - 未完成：5.2 真实 Electron 核对（非自主）、5.3 真实客户端验收（非自主）。
-- 客户端名称/版本、Node/服务/SDK 版本、启动路径与数据根选择：待填。
-- R3 实际验证 ID、原 run/检查点/snapshot、命令、历史 manifest 与 preparationId：待填。
+- 客户端名称/版本、Node/服务/SDK 版本、启动路径与数据根选择：WorkBuddy 5.9.2（用户在应用内配置 MCP，2026-10-26）；服务 rebaseagent-mcp 0.1.0（MCP SDK 1.32.1）；Node v24.19.0（PATH node 启动 dist/cli.js）；数据根 D:/ReBaseAgent/.rebaseagent（25 条 R3 实机验证记录 + 配套 prep/traces）。
+- R3 实际验证 ID、原 run/检查点/snapshot、命令、历史 manifest 与 preparationId：ver-18cedcbf0f7c3c03（run_r3_63_d12，initial，check_failed，snapshot ab315eb6…）/ ver-0fd97f8ca2567cdc（run_r3_63_slow，initial，passed，snapshot d98dcf53…）；命令 node /opt/r3/runner.mjs test（cwd /work）；manifest v4 · node-ts-v1 · planBindingDigest 0432ef52…；preparationId prep-47c4e5384ed714bd。
 - 失败/通过样本的真实后端记录与确定性 fixture 区别、模板支持边界：待填。
-- 同条件行逐项结果、当前资产可用性、源码/产物定位与桌面核对：待填。
-- 查询前后文件集合/hash、零执行/写入计数、断连/取消结果：待填。
+- 同条件行逐项结果、当前资产可用性、源码/产物定位与桌面核对：11 条件 same（profile/manifest/planBinding/command/argv/cwd/platform/image/toolchain/limits/security）；currentAssetsAvailable 双侧 true；sourceVerified true；codeSame false（不同 snapshot）；桌面/MCP/客户端三方一致。
+- 查询前后文件集合/hash、零执行/写入计数、断连/取消结果：真实根五数据目录 801 文件 SHA-256 前后逐字相同（ZERO_WRITE_PASS）；fixture 全链指纹（3 passed）；stdio 取消/EOF（11 passed）；重启游标 STALE（RESTART_STALE_PASS）。
 - 生产依赖闭包、stdio 与全仓检查命令/结果、已知限制：待填。
 - 功能实施/客户端验收/打包发行分别标注；未执行的新项目/模型测试不得声称已验证。
