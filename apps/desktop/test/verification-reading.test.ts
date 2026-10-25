@@ -25,19 +25,17 @@ const COMMAND_END = {
 };
 
 describe("narrowVerificationRecord（events 收窄：畸形跳过不猜）", () => {
-  it("command_end 提取双口径字节与退出码；terminated 提取结局", () => {
-    const view = narrowVerificationRecord([
-      { type: "stage", phase: "executing", at: "2026-10-25T10:00:00.000Z" },
-      COMMAND_END,
-      {
-        type: "terminated",
+  it("command_end 提取双口径字节与退出码；结局只从 record.terminated 取", () => {
+    const view = narrowVerificationRecord({
+      events: [{ type: "stage", phase: "executing", at: "2026-10-25T10:00:00.000Z" }, COMMAND_END],
+      terminated: {
         outcome: "check_failed",
         detail: "tsc 非零退出",
         evidenceComplete: true,
         at: "2026-10-25T10:00:06.000Z",
       },
-    ]);
-    expect(view.eventCount).toBe(3);
+    });
+    expect(view.eventCount).toBe(2);
     expect(view.commandEnds).toHaveLength(1);
     const entry = view.commandEnds[0];
     expect(entry?.commandId).toBe("test");
@@ -49,22 +47,35 @@ describe("narrowVerificationRecord（events 收窄：畸形跳过不猜）", () 
     expect(view.terminated).toBe(true);
     expect(view.outcome).toBe("check_failed");
     expect(view.detail).toBe("tsc 非零退出");
+    expect(view.evidenceComplete).toBe(true);
     expect(view.stages).toEqual(["executing"]);
   });
 
+  it("terminated 事件即便出现在 events 里也不作为结局（reader 从不把它写进正文）", () => {
+    const view = narrowVerificationRecord({
+      events: [{ type: "terminated", outcome: "passed", detail: "伪造", evidenceComplete: true }],
+      terminated: null,
+    });
+    expect(view.terminated).toBe(false);
+    expect(view.outcome).toBeNull();
+  });
+
   it("畸形事件整条跳过（未知命令/缺流字段/非对象），合法事件仍保留而不抛错", () => {
-    const view = narrowVerificationRecord([
-      null,
-      "junk",
-      { type: "command_end", commandId: "rm -rf", stdout: {}, stderr: {} },
-      {
-        type: "command_end",
-        commandId: "test",
-        stdout: { byteLength: 1, totalBytes: 1, truncated: false },
-        stderr: { byteLength: 1, totalBytes: 1, truncated: false },
-      },
-      { type: "terminated", outcome: 42, detail: null },
-    ]);
+    const view = narrowVerificationRecord({
+      events: [
+        null,
+        "junk",
+        { type: "command_end", commandId: "rm -rf", stdout: {}, stderr: {} },
+        {
+          type: "command_end",
+          commandId: "test",
+          stdout: { byteLength: 1, totalBytes: 1, truncated: false },
+          stderr: { byteLength: 1, totalBytes: 1, truncated: false },
+        },
+        { type: "terminated", outcome: 42, detail: null },
+      ],
+      terminated: null,
+    });
     expect(view.commandEnds).toHaveLength(1);
     expect(view.commandEnds[0]?.commandId).toBe("test");
     expect(view.terminated).toBe(false);
@@ -73,11 +84,12 @@ describe("narrowVerificationRecord（events 收窄：畸形跳过不猜）", () 
   });
 
   it("空记录 ⇒ 零条目、无结局（未封存不冒充）", () => {
-    const view = narrowVerificationRecord([]);
+    const view = narrowVerificationRecord({ events: [], terminated: null });
     expect(view.eventCount).toBe(0);
     expect(view.commandEnds).toHaveLength(0);
     expect(view.terminated).toBe(false);
     expect(view.outcome).toBeNull();
+    expect(view.evidenceComplete).toBeNull();
   });
 });
 

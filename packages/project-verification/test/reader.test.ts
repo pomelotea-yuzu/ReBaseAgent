@@ -190,7 +190,7 @@ describe("迁移与来源标注（P15/P16）", () => {
     expect(readLog(rootB, logHash).text).toBe("migrated-log");
   });
 
-  it("来源缺失只标注 sourceStatus，记录仍可读", () => {
+  it("来源缺失只标注 sourceStatus，记录仍可读（实际布局 traces/<runId>.jsonl）", () => {
     const root = newRoot();
     writeSealed(root, "ver_s1", "check_failed");
     const tracesRoot = join(root, "traces");
@@ -198,7 +198,17 @@ describe("迁移与来源标注（P15/P16）", () => {
     const missing = getVerification(root, "ver_s1", { tracesRoot });
     expect(missing.status).toBe("sealed");
     expect(missing.sourceStatus).toBe("missing");
+    // 目录同名不算来源在场（防止"精确目录名"旧口径假阳性）
     mkdirSync(join(tracesRoot, "run_reader1"), { recursive: true });
+    expect(getVerification(root, "ver_s1", { tracesRoot }).sourceStatus).toBe("missing");
+    writeFileSync(join(tracesRoot, "run_reader1.jsonl"), "{}\n");
     expect(getVerification(root, "ver_s1", { tracesRoot }).sourceStatus).toBe("present");
+  });
+
+  it("旧记录没有 environment ⇒ meta 可读（comparison 按未知处理，不猜）", () => {
+    const root = newRoot();
+    writeSealed(root, "ver_s2", "passed");
+    const r = getVerification(root, "ver_s2");
+    expect(r.meta?.environment).toBeUndefined();
   });
 });

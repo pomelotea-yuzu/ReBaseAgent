@@ -369,6 +369,61 @@ export function trustedVerificationIdsOf(
   return ids;
 }
 
+/** 比较候选（5.4/D07）：本会话登记附件里的验证身份 + 来源标签事实 */
+export interface VerificationCompareCandidate {
+  readonly verificationId: string;
+  /** 登记 target 里的来源 run；响应回执补齐的候选没有目标摘要（null） */
+  readonly runId: string | null;
+  readonly checkpointKind: "initial" | "step" | null;
+  readonly stepSpanId: string | null;
+  readonly commandId: "typecheck" | "test" | null;
+  readonly operationState: "running" | "settled" | "notAccepted" | null;
+}
+
+/**
+ * D07/P24：**比较候选** = 本会话登记里的全部验证附件（跨 run/检查点，用户显式
+ * A/B 选择）∪ 当前执行响应回执。仍然只来自 main 真实回调/响应，不从时间、日志、
+ * 记录列表猜身份（M01 红线）；重载后登记不在 ⇒ 候选自然为空，不补猜。
+ */
+export function collectVerificationCompareCandidates(
+  records: readonly OperationRecord[],
+  respondedVerificationId: string | null | undefined,
+): VerificationCompareCandidate[] {
+  const candidates: VerificationCompareCandidate[] = [];
+  const seen = new Set<string>();
+  for (const record of records) {
+    const target = record.target;
+    if (target === null || target.kind !== "verification") continue;
+    for (const verificationId of record.verificationIds) {
+      if (seen.has(verificationId)) continue;
+      seen.add(verificationId);
+      candidates.push({
+        verificationId,
+        runId: target.runId,
+        checkpointKind: target.checkpointKind,
+        stepSpanId: target.stepSpanId,
+        commandId: target.commandId,
+        operationState: record.state,
+      });
+    }
+  }
+  if (
+    respondedVerificationId !== null &&
+    respondedVerificationId !== undefined &&
+    !seen.has(respondedVerificationId)
+  ) {
+    candidates.push({
+      verificationId: respondedVerificationId,
+      runId: null,
+      checkpointKind: null,
+      stepSpanId: null,
+      commandId: null,
+      operationState: null,
+    });
+  }
+  return candidates;
+}
+
 /**
  * 从登记记录提取停止请求的**可信领域 ID**（D06：不接任意容器/PID）。
  * 执行类取 verificationIds 附件、准备类取 preparationIds 附件；kind 与附件不匹配

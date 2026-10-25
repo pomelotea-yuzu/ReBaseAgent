@@ -1,6 +1,12 @@
-import type { VerificationCapabilityResult, VerificationPreparePlanResult } from "@shared/ipc";
+import type {
+  RunSummary,
+  VerificationCapabilityResult,
+  VerificationGetResult,
+  VerificationPreparePlanResult,
+} from "@shared/ipc";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { compareVerifications } from "../src/renderer/src/lib/verification-compare";
 import {
   decideVerificationConfirmation,
   verificationTargetKey,
@@ -141,6 +147,18 @@ function baseProps(overrides?: Partial<Record<string, unknown>>) {
     logState: "idle" as const,
     logError: null,
     onReadLog: () => {},
+    // 5.4：双验证比较（默认无候选、未选）
+    compareCandidates: [],
+    compareLeft: null,
+    compareRight: null,
+    compareState: "idle" as const,
+    compareError: null,
+    comparison: null,
+    onSelectCompareSide: () => {},
+    onClearCompare: () => {},
+    onRetryCompare: () => {},
+    canOpenCompareDiff: false,
+    onOpenCompareDiff: () => {},
     ...overrides,
   };
 }
@@ -473,6 +491,7 @@ const SEALED_VIEW = {
   terminated: true,
   outcome: "check_failed",
   detail: "测试断言失败",
+  evidenceComplete: true,
   commandEnds: [
     {
       commandId: "test" as const,
@@ -623,5 +642,306 @@ describe("VerificationPanel（5.3：记录与有界日志 D09/P13/P16）", () =>
     );
     expect(failed).toContain("R3_RECORD_SCHEMA_INVALID");
     expect(failed).not.toContain("data-verification-command-end");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5.4：修复证据比较区（D07/P24/P25 呈现面静态断言）
+// ---------------------------------------------------------------------------
+
+const COMPARE_ENV = {
+  preparationId: "prep-1",
+  imageDigest: `sha256:${"b".repeat(64)}`,
+  platform: "linux/amd64" as const,
+  toolchain: { node: "22.23.4", npm: "10.9.9", typescript: "5.9.3" },
+  limits: {
+    cpus: 1,
+    memoryBytes: 536870912,
+    pidsLimit: 64,
+    workTmpfsBytes: 167772160,
+    tmpTmpfsBytes: 33554432,
+    commandTimeoutMs: 120000,
+    totalTimeoutMs: 180000,
+    stdoutBudgetBytes: 1048576,
+    stderrBudgetBytes: 1048576,
+    totalOutputLimitBytes: 16777216,
+    artifactUniqueContentBudgetBytes: 134217728,
+    tmpfsCountsTowardMemoryBudget: true as const,
+  },
+  security: {
+    runAsUser: "1000:1000" as const,
+    readOnlyRootfs: true as const,
+    capDropAll: true as const,
+    noNewPrivileges: true as const,
+    networkMode: "none" as const,
+    supervisorPid1: true as const,
+  },
+};
+
+function comparableRecord(opts: {
+  verificationId: string;
+  runId: string;
+  outcome: "check_failed" | "passed";
+  evidenceComplete?: boolean;
+  planBindingDigest?: string;
+}): VerificationGetResult {
+  return {
+    verificationId: opts.verificationId,
+    status: "sealed",
+    events: [
+      {
+        type: "command_start",
+        commandId: "test",
+        executable: "node",
+        argv: ["--test", "calc.test.mjs"],
+        cwd: "/work",
+      },
+      {
+        type: "command_end",
+        commandId: "test",
+        exitCode: opts.outcome === "passed" ? 0 : 1,
+        durationMs: 1850,
+        stdout: { byteLength: 10, totalBytes: 10, truncated: false },
+        stderr: { byteLength: 0, totalBytes: 0, truncated: false },
+      },
+    ],
+    error: null,
+    meta: {
+      runId: opts.runId,
+      checkpoint: { kind: "initial" },
+      snapshotId: `snap_${opts.runId}`,
+      profileId: "node-ts-v1",
+      manifestVersion: 3,
+      commandId: "test",
+      planBindingDigest: opts.planBindingDigest ?? "a".repeat(64),
+      createdAt: "2026-10-25T10:00:00.000Z",
+      environment: COMPARE_ENV,
+    },
+    terminated: {
+      outcome: opts.outcome,
+      detail: opts.outcome === "passed" ? "tests 2 pass 2" : "断言失败",
+      evidenceComplete: opts.evidenceComplete ?? true,
+      at: "2026-10-25T10:00:06.000Z",
+    },
+    sourceStatus: "present",
+  };
+}
+
+function runSummaryOf(id: string, forkField: string | null): RunSummary {
+  return {
+    id,
+    task: "修复",
+    model: "m",
+    created_at: "2026-10-25T09:00:00.000Z",
+    status: "completed",
+    parent: forkField === null ? null : "run_old",
+    reason: "completed",
+    fork:
+      forkField === null ? null : { at_span: "s_02", edit_field: forkField, experiment_id: null },
+    steps: 2,
+    toolCalls: 1,
+    toolErrors: 0,
+    tokensIn: 10,
+    tokensOut: 5,
+    cacheHit: null,
+    durationMs: 1000,
+    source: null,
+  };
+}
+
+const COMPARE_RUNS = [runSummaryOf("run_old", null), runSummaryOf("run_fix", "result")];
+
+function compareProps(overrides: Record<string, unknown> = {}) {
+  const left = comparableRecord({
+    verificationId: "ver-old",
+    runId: "run_old",
+    outcome: "check_failed",
+  });
+  const right = comparableRecord({
+    verificationId: "ver-fix",
+    runId: "run_fix",
+    outcome: "passed",
+  });
+  return baseProps({
+    expanded: true,
+    trustedVerificationIds: ["ver-old", "ver-fix"],
+    compareCandidates: [
+      {
+        verificationId: "ver-old",
+        runId: "run_old",
+        checkpointKind: "initial",
+        stepSpanId: null,
+        commandId: "test",
+        operationState: "settled",
+      },
+      {
+        verificationId: "ver-fix",
+        runId: "run_fix",
+        checkpointKind: "initial",
+        stepSpanId: null,
+        commandId: "test",
+        operationState: "settled",
+      },
+    ],
+    compareLeft: "ver-old",
+    compareRight: "ver-fix",
+    compareState: "ready",
+    comparison: compareVerifications(left, right, COMPARE_RUNS),
+    canOpenCompareDiff: true,
+    ...overrides,
+  });
+}
+
+describe("VerificationPanel（5.4：双验证比较 D07/P24/P25）", () => {
+  it("无可信身份 ⇒ 不出现比较区；未选齐 ⇒ 提示显式选择（不自动挑最近）", () => {
+    const none = render(baseProps({ expanded: true }));
+    expect(none).not.toContain("data-verification-compare");
+    const partial = render(
+      baseProps({
+        expanded: true,
+        trustedVerificationIds: ["ver-old", "ver-fix"],
+        compareCandidates: [
+          {
+            verificationId: "ver-old",
+            runId: "run_old",
+            checkpointKind: "initial",
+            stepSpanId: null,
+            commandId: "test",
+            operationState: "settled",
+          },
+        ],
+        compareLeft: "ver-old",
+      }),
+    );
+    expect(partial).toContain("data-verification-compare");
+    expect(partial).toContain("不自动挑");
+    expect(partial).not.toContain("data-compare-view");
+    // 选中侧的来源标签（跨 run 比较时用户能看清选的是哪条）
+    expect(partial).toContain("run_old · 初始检查点 · test");
+  });
+
+  it("A/B 选择器分开渲染；对侧已选的身份被禁用（同一验证不能自比）", () => {
+    const html = render(
+      baseProps({
+        expanded: true,
+        trustedVerificationIds: ["ver-old", "ver-fix"],
+        compareCandidates: [
+          {
+            verificationId: "ver-old",
+            runId: "run_old",
+            checkpointKind: "initial",
+            stepSpanId: null,
+            commandId: "test",
+            operationState: "settled",
+          },
+          {
+            verificationId: "ver-fix",
+            runId: "run_fix",
+            checkpointKind: "initial",
+            stepSpanId: null,
+            commandId: "test",
+            operationState: "settled",
+          },
+        ],
+        compareLeft: "ver-old",
+        compareRight: null,
+      }),
+    );
+    expect(html).toContain('data-compare-side-selector="left"');
+    expect(html).toContain('data-compare-side-selector="right"');
+    expect(html).toMatch(/data-compare-side="right:ver-old"[^>]*\sdisabled=""/);
+    expect(html).not.toMatch(/data-compare-side="right:ver-fix"[^>]*\sdisabled=""/);
+  });
+
+  it("同条件失败→通过 ⇒ 判定/干预/结局/条件/代码差异入口齐备（P24）", () => {
+    const html = render(compareProps());
+    expect(html).toContain('data-compare-verdict="failed-to-passed"');
+    expect(html).toContain("同条件失败→通过");
+    expect(html).toContain("不宣布完整正确或因果关系");
+    expect(html).toContain("记录的分叉：编辑 result @ s_02");
+    expect(html).toContain('data-compare-side-summary="left"');
+    expect(html).toContain('data-compare-side-summary="right"');
+    expect(html).toContain('data-compare-condition="planBindingDigest"');
+    expect(html).toContain('data-compare-state="same"');
+    expect(html).toContain('data-compare-open-diff="true"');
+    expect(html).toContain("Agent 文本不进入条件与结论");
+  });
+
+  it("条件不同 ⇒ 醒目标注不同项，不出现同条件成功措辞（P25）", () => {
+    const left = comparableRecord({
+      verificationId: "ver-old",
+      runId: "run_old",
+      outcome: "check_failed",
+    });
+    const right = comparableRecord({
+      verificationId: "ver-fix",
+      runId: "run_fix",
+      outcome: "passed",
+      planBindingDigest: "c".repeat(64),
+    });
+    const html = render(
+      compareProps({
+        comparison: compareVerifications(left, right, COMPARE_RUNS),
+      }),
+    );
+    expect(html).toContain('data-compare-verdict="conditions-differ"');
+    expect(html).toContain("不同项：");
+    expect(html).toContain("不构成同条件失败→通过");
+    expect(html).not.toContain('data-compare-verdict="failed-to-passed"');
+  });
+
+  it("证据不完整/未封存 ⇒ 阻断措辞（不把缺项做成通过）", () => {
+    const left = comparableRecord({
+      verificationId: "ver-old",
+      runId: "run_old",
+      outcome: "check_failed",
+    });
+    const right = comparableRecord({
+      verificationId: "ver-fix",
+      runId: "run_fix",
+      outcome: "passed",
+      evidenceComplete: false,
+    });
+    const incomplete = render(
+      compareProps({ comparison: compareVerifications(left, right, COMPARE_RUNS) }),
+    );
+    expect(incomplete).toContain('data-compare-verdict="evidence-incomplete"');
+    expect(incomplete).toContain("不形成修复结论");
+    const unknown = render(compareProps({ comparison: null, compareState: "loading" }));
+    expect(unknown).toContain("正在读取两侧验证记录");
+  });
+
+  it("读取失败/同一 run 无代码差异 ⇒ 稳定码与如实说明", () => {
+    const failed = render(
+      compareProps({
+        comparison: null,
+        compareState: "error",
+        compareError: { code: "R3_VERIFICATION_NOT_FOUND", message: "记录不存在" },
+      }),
+    );
+    expect(failed).toContain("R3_VERIFICATION_NOT_FOUND");
+    expect(failed).toContain('data-compare-retry="true"');
+    const sameRun = comparableRecord({
+      verificationId: "ver-b",
+      runId: "run_old",
+      outcome: "passed",
+    });
+    const html = render(
+      compareProps({
+        comparison: compareVerifications(
+          comparableRecord({
+            verificationId: "ver-a",
+            runId: "run_old",
+            outcome: "check_failed",
+          }),
+          sameRun,
+          COMPARE_RUNS,
+        ),
+        canOpenCompareDiff: false,
+      }),
+    );
+    expect(html).toContain('data-compare-no-diff="true"');
+    expect(html).toContain("两侧来自同一 run");
+    expect(html).not.toContain('data-compare-open-diff="true"');
   });
 });

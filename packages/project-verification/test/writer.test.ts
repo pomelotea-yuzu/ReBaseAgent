@@ -53,6 +53,54 @@ describe("验证记录 writer：顺序、封存与排他", () => {
     w.abortClose();
   });
 
+  it("meta 可带环境身份（5.4），非法镜像摘要/多余键在入口拒绝", () => {
+    const root = newRoot();
+    const w = VerificationRecordWriter.open(root, {
+      ...metaInput("ver_w1b"),
+      environment: {
+        preparationId: "prep-1",
+        imageDigest: `sha256:${"a".repeat(64)}`,
+        platform: "linux/amd64",
+        toolchain: { node: "22.23.4", npm: "10.9.9", typescript: "5.9.3" },
+        limits: {
+          cpus: 1,
+          memoryBytes: 536870912,
+          pidsLimit: 64,
+          workTmpfsBytes: 167772160,
+          tmpTmpfsBytes: 33554432,
+          commandTimeoutMs: 120000,
+          totalTimeoutMs: 180000,
+          stdoutBudgetBytes: 1048576,
+          stderrBudgetBytes: 1048576,
+          totalOutputLimitBytes: 16777216,
+          artifactUniqueContentBudgetBytes: 134217728,
+          tmpfsCountsTowardMemoryBudget: true,
+        },
+        security: {
+          runAsUser: "1000:1000",
+          readOnlyRootfs: true,
+          capDropAll: true,
+          noNewPrivileges: true,
+          networkMode: "none",
+          supervisorPid1: true,
+        },
+      },
+    });
+    const meta = readLines(root, "ver_w1b")[0] as { environment: { imageDigest: string } };
+    expect(meta.environment.imageDigest).toBe(`sha256:${"a".repeat(64)}`);
+    w.abortClose();
+    expect(() =>
+      VerificationRecordWriter.open(root, {
+        ...metaInput("ver_w1c"),
+        environment: {
+          preparationId: "prep-1",
+          imageDigest: "no-prefix",
+          platform: "linux/amd64",
+        } as never,
+      }),
+    ).toThrow();
+  });
+
   it("正文事件可追加且逐行通过全量事件联合解析", () => {
     const root = newRoot();
     const w = VerificationRecordWriter.open(root, metaInput("ver_w2"));

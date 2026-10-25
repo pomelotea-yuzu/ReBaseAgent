@@ -273,7 +273,7 @@ function params(ports: VerificationRunPorts, inputOverrides: Record<string, unkn
     ports,
     epoch: "11111111-1111-4111-8111-111111111111",
     operationId: "22222222-2222-4222-8222-222222222222",
-    preparation: { preparationId: "prep-1", imageDigest: "d".repeat(64) },
+    preparation: { preparationId: "prep-1", imageDigest: `sha256:${"d".repeat(64)}` },
     input: runInput(inputOverrides),
   };
 }
@@ -368,6 +368,18 @@ describe("passed 主路径：记录事件序列与收尾", () => {
       "terminated",
     ]);
     expect(events.at(-1)).toMatchObject({ type: "terminated", outcome: "passed" });
+    // 5.4/P24/P25：meta 落实际环境身份（比较条件不靠摘要推断）
+    expect(events[0]).toMatchObject({
+      type: "meta",
+      environment: {
+        preparationId: "prep-1",
+        imageDigest: `sha256:${"d".repeat(64)}`,
+        platform: "linux/amd64",
+        toolchain: { node: "22.23.4", npm: "10.9.9", typescript: "5.9.3" },
+        limits: { cpus: 1, memoryBytes: 536870912, pidsLimit: 64 },
+        security: { networkMode: "none", readOnlyRootfs: true, supervisorPid1: true },
+      },
+    });
     const stages = events
       .filter((e) => e.type === "stage")
       .map((e) => (e as { phase: string }).phase);

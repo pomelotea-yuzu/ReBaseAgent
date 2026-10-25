@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import {
   type CliRunner,
   type DockerCliInstallation,
@@ -19,6 +20,7 @@ import {
   readLatestPreparedPreparation,
   readLog,
 } from "@rebaseagent/project-verification";
+import { WORKSPACE_TRACES_DIR_NAME } from "@rebaseagent/replay";
 import { CHANNELS } from "../shared/channels";
 import type {
   VerificationCapabilityRequest,
@@ -256,12 +258,41 @@ export function verificationGet(
 ): Envelope<VerificationGetResult> {
   if (!deps.isTrustedSender(sender)) return untrusted();
   try {
-    const record = getVerification(deps.dataRoot, request.verificationId);
+    // 5.4/D07：来源在场以 trace 实际文件为准（P16 缺失明确标注，不猜同名）
+    const record = getVerification(deps.dataRoot, request.verificationId, {
+      tracesRoot: join(deps.dataDir, WORKSPACE_TRACES_DIR_NAME),
+    });
+    const meta = record.meta;
+    const terminated = record.terminated;
     const data = VerificationGetResultSchema.parse({
       verificationId: record.verificationId,
       status: record.status,
       events: record.events,
       error: record.error ?? null,
+      meta:
+        meta === undefined
+          ? null
+          : {
+              runId: meta.target.runId,
+              checkpoint: meta.target.checkpoint,
+              snapshotId: meta.target.snapshotId,
+              profileId: meta.profileId,
+              manifestVersion: meta.manifestVersion,
+              commandId: meta.commandId,
+              planBindingDigest: meta.planBindingDigest,
+              createdAt: meta.createdAt,
+              environment: meta.environment ?? null,
+            },
+      terminated:
+        terminated === undefined
+          ? null
+          : {
+              outcome: terminated.outcome,
+              detail: terminated.detail,
+              evidenceComplete: terminated.evidenceComplete,
+              at: terminated.at,
+            },
+      sourceStatus: record.sourceStatus,
     });
     return ok(data);
   } catch (error) {

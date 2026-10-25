@@ -9,7 +9,9 @@ import type { VerificationGetResult } from "@shared/ipc";
  *   schema；这里的收窄是展示守卫，不是第二套验证）；
  * - 命令条目按 command_end 提取**双口径字节**（保留 byteLength / 全观测 totalBytes +
  *   truncated——P13：截断与丢弃量本身是证据，不得只显示保留量）；
- * - terminated 是**唯一终局**事实：未封存（unterminated）⇒ 不呈现结局。
+ * - **terminated 是唯一终局事实，且只从 `record.terminated` 取**——reader 不把终止
+ *   事件放进 `events`（它落在独立字段），从 events 里找会永远找不到 ⇒ 把已封存记录
+ *   误显示成"未封存"。未封存/损坏 ⇒ 不呈现结局。
  */
 
 /** 一条固定命令的执行事实（来自 command_end 事件；双口径字节） */
@@ -31,9 +33,11 @@ export interface VerificationCommandEndView {
 export interface VerificationRecordView {
   readonly eventCount: number;
   readonly commandEnds: readonly VerificationCommandEndView[];
-  /** terminated 事件的结局；未封存/损坏 ⇒ null（不呈现结局） */
+  /** terminated 的结局；未封存/损坏 ⇒ null（不呈现结局） */
   readonly outcome: string | null;
   readonly detail: string | null;
+  /** 证据完整性（terminated 记录值）；未终止 ⇒ null */
+  readonly evidenceComplete: boolean | null;
   readonly terminated: boolean;
   /** 阶段序列（stage 事件的 phase，按出现顺序） */
   readonly stages: readonly string[];
@@ -65,12 +69,22 @@ function asStreamView(stream: unknown): {
   return { byteLength, totalBytes, truncated: stream.truncated === true };
 }
 
-export function narrowVerificationRecord(events: readonly unknown[]): VerificationRecordView {
+export function narrowVerificationRecord(
+  record: Pick<VerificationGetResult, "events" | "terminated">,
+): VerificationRecordView {
+  const events = record.events;
   const commandEnds: VerificationCommandEndView[] = [];
   const stages: string[] = [];
   let outcome: string | null = null;
   let detail: string | null = null;
+  let evidenceComplete: boolean | null = null;
   let terminated = false;
+  if (record.terminated !== null) {
+    terminated = true;
+    outcome = record.terminated.outcome;
+    detail = record.terminated.detail;
+    evidenceComplete = record.terminated.evidenceComplete;
+  }
   for (const event of events) {
     if (!isRecordObject(event)) continue;
     if (event.type === "command_end") {
@@ -97,16 +111,6 @@ export function narrowVerificationRecord(events: readonly unknown[]): Verificati
     }
     if (event.type === "stage" && typeof event.phase === "string") {
       stages.push(event.phase);
-      continue;
-    }
-    if (
-      event.type === "terminated" &&
-      typeof event.outcome === "string" &&
-      typeof event.detail === "string"
-    ) {
-      terminated = true;
-      outcome = event.outcome;
-      detail = event.detail;
     }
   }
   return {
@@ -114,6 +118,7 @@ export function narrowVerificationRecord(events: readonly unknown[]): Verificati
     commandEnds,
     outcome,
     detail,
+    evidenceComplete,
     terminated,
     stages,
   };

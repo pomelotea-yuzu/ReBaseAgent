@@ -3,6 +3,7 @@ import type { OperationRecord } from "@shared/operations";
 import { describe, expect, it } from "vitest";
 import {
   blockersFor,
+  collectVerificationCompareCandidates,
   decideVerificationConfirmation,
   matchVerificationRecords,
   profileLimitsLine,
@@ -522,5 +523,75 @@ describe("trustedVerificationIdsOf（D09/P16：身份只来自登记附件与响
     expect(trustedVerificationIdsOf([{ ...RECORD_BASE, verificationIds: [] }], undefined)).toEqual(
       [],
     );
+  });
+});
+
+describe("collectVerificationCompareCandidates（5.4/D07：跨 run 的比较候选只来自登记/响应）", () => {
+  const stepRecord: OperationRecord = {
+    ...RECORD_BASE,
+    operationId: "66666666-6666-4666-8666-666666666666",
+    target: {
+      kind: "verification",
+      runId: "run_fix",
+      checkpointKind: "step",
+      stepSpanId: STEP,
+      commandId: "typecheck",
+    },
+    verificationIds: ["ver-fix"],
+  };
+
+  it("验证类登记的附件逐条成为候选（带 run/检查点/命令/登记状态），准备类不入", () => {
+    const prepareRecord: OperationRecord = {
+      ...RECORD_BASE,
+      operationId: "77777777-7777-4777-8777-777777777777",
+      target: {
+        kind: "verificationPrepare",
+        runId: "run_fix",
+        checkpointKind: "initial",
+        stepSpanId: null,
+      },
+      preparationIds: ["prep-1"],
+      verificationIds: [],
+    };
+    const candidates = collectVerificationCompareCandidates(
+      [RECORD_BASE, prepareRecord, stepRecord],
+      null,
+    );
+    expect(candidates).toEqual([
+      {
+        verificationId: "ver-trusted",
+        runId: RUN,
+        checkpointKind: "initial",
+        stepSpanId: null,
+        commandId: "test",
+        operationState: "running",
+      },
+      {
+        verificationId: "ver-fix",
+        runId: "run_fix",
+        checkpointKind: "step",
+        stepSpanId: STEP,
+        commandId: "typecheck",
+        operationState: "running",
+      },
+    ]);
+  });
+
+  it("重复附件只出现一次；响应回执补齐登记里还没有的身份（目标摘要为 null，不猜）", () => {
+    const candidates = collectVerificationCompareCandidates(
+      [RECORD_BASE, { ...RECORD_BASE, operationId: "88888888-8888-4888-8888-888888888888" }],
+      "ver-response-only",
+    );
+    expect(candidates.map((one) => one.verificationId)).toEqual([
+      "ver-trusted",
+      "ver-response-only",
+    ]);
+    expect(candidates[1]?.runId).toBeNull();
+    expect(candidates[1]?.operationState).toBeNull();
+    expect(
+      collectVerificationCompareCandidates([RECORD_BASE], "ver-trusted").map(
+        (one) => one.verificationId,
+      ),
+    ).toEqual(["ver-trusted"]);
   });
 });

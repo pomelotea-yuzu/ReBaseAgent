@@ -1,4 +1,7 @@
-import { PreparePlanSchema } from "@rebaseagent/project-verification/schema";
+import {
+  PreparePlanSchema,
+  VerificationEnvironmentSchema,
+} from "@rebaseagent/project-verification/schema";
 import { RunEventSchema, RunMetaSchema, SpanSchema } from "@rebaseagent/trace-sdk/schema";
 import { z } from "zod";
 import { CHANNELS } from "./channels";
@@ -1441,6 +1444,22 @@ export type VerificationPreparePlanResult = z.infer<typeof VerificationPreparePl
 export const VerificationListRequestSchema = z.object({}).strict();
 export type VerificationListRequest = z.infer<typeof VerificationListRequestSchema>;
 
+/** 验证结局枚举（列表与记录头共用同一事实域） */
+export const VerificationOutcomeSchema = z.enum([
+  "check_failed",
+  "passed",
+  "environment_failed",
+  "start_failed",
+  "process_failed",
+  "timed_out",
+  "output_limit",
+  "cancelled",
+  "artifact_invalid",
+  "evidence_incomplete",
+  "unknown",
+]);
+export type VerificationOutcome = z.infer<typeof VerificationOutcomeSchema>;
+
 export const VerificationListResultSchema = z
   .object({
     verifications: z.array(
@@ -1448,21 +1467,7 @@ export const VerificationListResultSchema = z
         .object({
           verificationId: z.string().min(1),
           status: z.enum(["sealed", "unterminated", "corrupt", "unsupported_version"]),
-          outcome: z
-            .enum([
-              "check_failed",
-              "passed",
-              "environment_failed",
-              "start_failed",
-              "process_failed",
-              "timed_out",
-              "output_limit",
-              "cancelled",
-              "artifact_invalid",
-              "evidence_incomplete",
-              "unknown",
-            ])
-            .nullable(),
+          outcome: VerificationOutcomeSchema.nullable(),
           runId: z.string().min(1).nullable(),
           commandId: z.string().min(1).nullable(),
           createdAt: z.string().min(1).nullable(),
@@ -1479,6 +1484,37 @@ export const VerificationGetRequestSchema = z
   .strict();
 export type VerificationGetRequest = z.infer<typeof VerificationGetRequestSchema>;
 
+/**
+ * get 返回的**记录头**（5.4 比较条件的事实来源）：只暴露比较/回查需要的字段，
+ * epoch/operationId 等操作身份不出主进程。
+ */
+export const VerificationGetMetaSchema = z
+  .object({
+    runId: z.string().min(1),
+    checkpoint: VerificationCheckpointSchema,
+    snapshotId: z.string().min(1),
+    profileId: z.string().min(1),
+    manifestVersion: z.number().int().positive(),
+    commandId: z.enum(["typecheck", "test"]),
+    planBindingDigest: z.string().min(1),
+    createdAt: z.string().min(1),
+    /** 实际环境身份；null = 该记录未保存（P25：未知，不拿当前 manifest 冒充） */
+    environment: VerificationEnvironmentSchema.nullable(),
+  })
+  .strict();
+export type VerificationGetMeta = z.infer<typeof VerificationGetMetaSchema>;
+
+/** get 返回的终止事实（terminated 是唯一结局来源；未封存/损坏 ⇒ null） */
+export const VerificationTerminatedSummarySchema = z
+  .object({
+    outcome: VerificationOutcomeSchema,
+    detail: z.string().min(1),
+    evidenceComplete: z.boolean(),
+    at: z.string().min(1),
+  })
+  .strict();
+export type VerificationTerminatedSummary = z.infer<typeof VerificationTerminatedSummarySchema>;
+
 export const VerificationGetResultSchema = z
   .object({
     verificationId: z.string().min(1),
@@ -1488,6 +1524,10 @@ export const VerificationGetResultSchema = z
       .object({ lineIndex: z.number().int().nonnegative(), reason: z.string().min(1) })
       .strict()
       .nullable(),
+    meta: VerificationGetMetaSchema.nullable(),
+    terminated: VerificationTerminatedSummarySchema.nullable(),
+    /** 来源 run 的 trace 是否在场（P16：缺失明确标注，不猜同名来源） */
+    sourceStatus: z.enum(["present", "missing", "unknown"]),
   })
   .strict();
 export type VerificationGetResult = z.infer<typeof VerificationGetResultSchema>;

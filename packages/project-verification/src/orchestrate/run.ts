@@ -250,6 +250,15 @@ export async function executeVerificationRun(
       commandId: input.commandId,
       planBindingDigest: input.planToken,
       createdAt: at(),
+      // 5.4/P24/P25：实际环境身份随记录落盘（比较条件不能只靠摘要推断）
+      environment: {
+        preparationId: params.preparation.preparationId,
+        imageDigest: params.preparation.imageDigest,
+        platform: profile.platform,
+        toolchain: profile.toolchain,
+        limits: profile.limits,
+        security: profile.security,
+      },
     });
     recordPath = verificationRecordPath(params.dataRoot, verificationId);
   } catch (error) {
@@ -319,7 +328,9 @@ export async function executeVerificationRun(
 
     // ── 停止序列（局部复用）：定向停止 → 双扫确认 → stop_confirmed 事件 ─────────
     const runStopPhase = async (): Promise<
-      { kind: "confirmed" } | { kind: "unknown"; reason: string } | { kind: "failed"; reason: string }
+      | { kind: "confirmed" }
+      | { kind: "unknown"; reason: string }
+      | { kind: "failed"; reason: string }
     > => {
       writer.append({ type: "stage", phase: "stopping", at: at() });
       const stopped = await stopWorkloadsAndConfirm({
@@ -333,7 +344,10 @@ export async function executeVerificationRun(
           : { kind: "failed", reason: stopped.reason };
       }
       if (!stopped.quiescent) {
-        return { kind: "unknown", reason: "工作负载未全部停止或 /work 仍在变化：不发布任何结论（P19）" };
+        return {
+          kind: "unknown",
+          reason: "工作负载未全部停止或 /work 仍在变化：不发布任何结论（P19）",
+        };
       }
       writer.append({
         type: "stop_confirmed",

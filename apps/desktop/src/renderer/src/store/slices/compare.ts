@@ -105,6 +105,14 @@ export interface CompareState {
    */
   openComparePair: (leftRunId: string, rightRunId: string) => Promise<"opened" | "rejected">;
   /**
+   * R3 5.4/D07：从**验证比较**进入运行比较查看两侧代码差异。显式 pair 与指标表
+   * 入口同权（不要求两枚 run 已在全局对照集合内，也不改动它——U7 D1）。
+   */
+  openComparePairExplicit: (
+    leftRunId: string,
+    rightRunId: string,
+  ) => Promise<"opened" | "rejected">;
+  /**
    * U7 任务 2.2/2.5：从全局对照集合进入比较工作区。恰好两条 ⇒ 按加入顺序
    * （先子在左也是子左父右）；三/四条 ⇒ 不自动选两条（§5.3 显式选择，这里如实
    * 提示后仍进工作区）；零/一条 ⇒ 无详细比较（引导态）。
@@ -334,6 +342,14 @@ export function createCompareSlice({
       const ids = get().compareIds;
       if (!ids.includes(leftRunId) || !ids.includes(rightRunId)) return "rejected";
       // 页内换 pair = 显式换阅读对象 ⇒ 推进代次（与 setCompareSide/swap 同款）
+      noteReadingChanged();
+      await enterCompareView({ leftRunId, rightRunId });
+      return "opened";
+    },
+
+    async openComparePairExplicit(leftRunId, rightRunId) {
+      if (leftRunId.length === 0 || rightRunId.length === 0) return "rejected";
+      if (leftRunId === rightRunId) return "rejected";
       noteReadingChanged();
       await enterCompareView({ leftRunId, rightRunId });
       return "opened";

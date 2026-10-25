@@ -252,9 +252,22 @@ describe("verification:list / get（P15：坏尾/未知版本结构化降级）"
     seedRecord("ver_get_b", false);
     const okResponse = verificationGet(makeDeps(), MAIN_FRAME, {
       verificationId: "ver_get_b",
-    }) as Envelope<{ status: string; events: unknown[] }>;
+    }) as Envelope<{
+      status: string;
+      events: unknown[];
+      meta: { runId: string; environment: unknown } | null;
+      terminated: unknown;
+      sourceStatus: string;
+    }>;
     expect(okResponse.ok).toBe(true);
-    if (okResponse.ok) expect(okResponse.data.status).toBe("unterminated");
+    if (okResponse.ok) {
+      expect(okResponse.data.status).toBe("unterminated");
+      // 5.4：记录头与来源状态随 get 返回；未封存 ⇒ terminated 为 null（不呈现结局）
+      expect(okResponse.data.meta?.runId).toBe("run_x");
+      expect(okResponse.data.meta?.environment).toBeNull();
+      expect(okResponse.data.terminated).toBeNull();
+      expect(okResponse.data.sourceStatus).toBe("missing");
+    }
 
     const file = join(fixture.dataRoot, "verifications", "ver_get_b.jsonl");
     // 坏尾 = 崩溃半行（reader 语义：完整行缺终止=unterminated；半行=corrupt）
@@ -273,6 +286,47 @@ describe("verification:list / get（P15：坏尾/未知版本结构化降级）"
     }) as { ok: boolean; error?: { code: string } };
     expect(missing.ok).toBe(false);
     expect(missing.error?.code).toBe("R3_VERIFICATION_NOT_FOUND");
+  });
+
+  it("真实执行记录 ⇒ get 带环境身份/终止事实/来源在场（5.4 比较条件）", async () => {
+    const { verificationId } = await seedRunWithLog();
+    const response = verificationGet(makeDeps(), MAIN_FRAME, { verificationId }) as Envelope<{
+      status: string;
+      meta: {
+        runId: string;
+        snapshotId: string;
+        profileId: string;
+        manifestVersion: number;
+        commandId: string;
+        planBindingDigest: string;
+        environment: {
+          preparationId: string;
+          imageDigest: string;
+          platform: string;
+          toolchain: { node: string; typescript: string };
+          limits: { cpus: number };
+          security: { networkMode: string };
+        } | null;
+      } | null;
+      terminated: { outcome: string; evidenceComplete: boolean } | null;
+      sourceStatus: string;
+    }>;
+    expect(response.ok).toBe(true);
+    if (!response.ok) return;
+    expect(response.data.status).toBe("sealed");
+    expect(response.data.meta?.runId).toBe(fixture.runId);
+    expect(response.data.meta?.commandId).toBe("test");
+    expect(response.data.meta?.environment).toMatchObject({
+      preparationId: expect.stringMatching(/^prep-/),
+      imageDigest: IMAGE,
+      platform: "linux/amd64",
+      toolchain: { node: "22.23.4", typescript: "5.9.3" },
+      limits: { cpus: 1 },
+      security: { networkMode: "none" },
+    });
+    expect(response.data.terminated).toMatchObject({ evidenceComplete: true });
+    // 来源 run 的 trace 文件确实在场（P16 精确文件判定）
+    expect(response.data.sourceStatus).toBe("present");
   });
 });
 

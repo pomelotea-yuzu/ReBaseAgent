@@ -410,6 +410,30 @@ export const VerificationErrorCodeSchema = z.enum([
  * 由读写器执行，schema 只定形状。
  */
 
+/**
+ * 验证运行环境身份（R3 tasks 5.4）：main 从**受信准备记录 + 冻结 manifest** 取到的
+ * 实际环境事实——比较两侧条件时"实际镜像/工具链/限额"不能只靠 planBindingDigest
+ * 推断（P24/P25：缺字段必须是未知，不能拿当前 manifest 冒充历史）。
+ *
+ * optional：本次修订前的记录没有这一项 ⇒ 读取侧如实按未知呈现（P25），
+ * 不重写已封存记录（P14/P15）。
+ */
+export const VerificationEnvironmentSchema = z.strictObject({
+  preparationId: z.string().min(1),
+  imageDigest: ImageDigestSchema,
+  platform: z.literal("linux/amd64"),
+  toolchain: z.strictObject({
+    node: z.string().min(1),
+    npm: z.string().min(1),
+    typescript: z.string().min(1),
+  }),
+  /** 实际生效的 manifest 限额（执行层同一份对象）。 */
+  limits: ProfileLimitsSchema,
+  security: SecurityProfileSchema,
+});
+
+export type VerificationEnvironment = z.infer<typeof VerificationEnvironmentSchema>;
+
 /** meta 事件：必为首行，携带记录身份（verificationId）、来源身份与计划摘要。 */
 export const VerificationMetaEventSchema = z.strictObject({
   type: z.literal("meta"),
@@ -427,6 +451,8 @@ export const VerificationMetaEventSchema = z.strictObject({
   commandId: CommandIdSchema,
   planBindingDigest: FileHashSchema,
   createdAt: Iso8601Schema,
+  /** 环境身份（5.4）；旧记录缺省 = 未知，读取侧不得猜。 */
+  environment: VerificationEnvironmentSchema.optional(),
 });
 
 /** command_start 事件（具名导出：执行层 3.4 直接构造并校验）。 */

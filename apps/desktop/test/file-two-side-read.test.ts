@@ -627,6 +627,18 @@ describe("U2 3.1 接线契约：代次守卫，不退回 cancelled 布尔", () =
         "verificationLogError",
         "focusVerificationRecord",
         "readVerificationLog",
+        // R3 5.4：双验证比较与代码差异导航
+        "verificationCompareLeft",
+        "verificationCompareRight",
+        "verificationCompareData",
+        "verificationCompareState",
+        "verificationCompareError",
+        "selectVerificationCompareSide",
+        "clearVerificationComparison",
+        "loadVerificationComparison",
+        "openComparePairExplicit",
+        // 运行列表（比较区从 run 摘要的 fork 元数据呈现干预）
+        "runs",
       ]).toContain(name);
     }
   });

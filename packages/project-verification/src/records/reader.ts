@@ -9,7 +9,12 @@ import {
   VerificationMetaEventSchema,
   type VerificationOutcome,
 } from "../schema.js";
-import { assetPath, preparationRecordPath, requireRecordId, verificationRecordPath } from "./layout.js";
+import {
+  assetPath,
+  preparationRecordPath,
+  requireRecordId,
+  verificationRecordPath,
+} from "./layout.js";
 
 const RECORD_ID_SAFE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 
@@ -131,8 +136,9 @@ export function getVerification(
   }
   result.meta = metaParsed.data;
   if (opts.tracesRoot !== undefined) {
-    // 来源缺失只标注、不猜同名来源（P16）：traces/<runId> 是精确目录名比对
-    result.sourceStatus = existsSync(join(opts.tracesRoot, metaParsed.data.target.runId))
+    // 来源缺失只标注、不猜同名来源（P16）：实际布局是 traces/<runId>.jsonl 文件
+    //（replay read-api 同一约定；早期按目录名判会恒报 missing，不伪装存在）
+    result.sourceStatus = existsSync(join(opts.tracesRoot, `${metaParsed.data.target.runId}.jsonl`))
       ? "present"
       : "missing";
   }
@@ -460,5 +466,7 @@ export function readLatestPreparedPreparation(
       };
     }
   }
-  return best === null ? null : { preparationId: best.preparationId, imageDigest: best.imageDigest };
+  return best === null
+    ? null
+    : { preparationId: best.preparationId, imageDigest: best.imageDigest };
 }

@@ -15,7 +15,9 @@ import {
   settleSide,
   sideResult,
 } from "../lib/reading-request-guard";
+import { compareVerifications } from "../lib/verification-compare";
 import {
+  collectVerificationCompareCandidates,
   decideVerificationConfirmation,
   matchVerificationRecords,
   trustedVerificationIdsOf,
@@ -383,6 +385,17 @@ export function WorkspaceFileView({ run }: { run: RunDetail }) {
   const verificationLogError = useAppStore((s) => s.verificationLogError);
   const focusVerificationRecord = useAppStore((s) => s.focusVerificationRecord);
   const readVerificationLog = useAppStore((s) => s.readVerificationLog);
+  // 5.4：双验证比较（D07/P24/P25）——只读记录；干预来自运行分叉元数据
+  const verificationCompareLeft = useAppStore((s) => s.verificationCompareLeft);
+  const verificationCompareRight = useAppStore((s) => s.verificationCompareRight);
+  const verificationCompareData = useAppStore((s) => s.verificationCompareData);
+  const verificationCompareState = useAppStore((s) => s.verificationCompareState);
+  const verificationCompareError = useAppStore((s) => s.verificationCompareError);
+  const selectVerificationCompareSide = useAppStore((s) => s.selectVerificationCompareSide);
+  const clearVerificationComparison = useAppStore((s) => s.clearVerificationComparison);
+  const loadVerificationComparison = useAppStore((s) => s.loadVerificationComparison);
+  const runs = useAppStore((s) => s.runs);
+  const openComparePairExplicit = useAppStore((s) => s.openComparePairExplicit);
 
   const isolatedEligible = isIsolatedRun(run);
   /** 当前检查点的显式 selector 形状（初始 或 自有完成步骤） */
@@ -415,11 +428,38 @@ export function WorkspaceFileView({ run }: { run: RunDetail }) {
   /** 收窄后的记录视图（展示守卫在 lib；畸形事件跳过不猜） */
   const verificationRecordView = useMemo(
     () =>
-      verificationRecordData === null
-        ? null
-        : narrowVerificationRecord(verificationRecordData.events),
+      verificationRecordData === null ? null : narrowVerificationRecord(verificationRecordData),
     [verificationRecordData],
   );
+
+  /**
+   * 5.4/D07：比较候选 = 本会话登记里的全部验证附件（跨 run），不限于当前检查点——
+   * 原失败与修复通常来自不同 run。仍只认登记/响应，不从时间或记录列表猜。
+   */
+  const verificationCompareCandidates = useMemo(
+    () =>
+      collectVerificationCompareCandidates(
+        operationsSession.operations,
+        verificationLastOutcome?.verificationId,
+      ),
+    [operationsSession, verificationLastOutcome],
+  );
+
+  /** 5.4/D07：比较判据（条件/干预/结局全部来自记录与运行分叉元数据） */
+  const verificationComparison = useMemo(
+    () =>
+      verificationCompareData === null
+        ? null
+        : compareVerifications(verificationCompareData.left, verificationCompareData.right, runs),
+    [verificationCompareData, runs],
+  );
+  /** 两侧来源 run 不同才提供"查看代码差异"（同一 run ⇒ 无代码差异可比较） */
+  const compareDiffPair = useMemo(() => {
+    const leftRunId = verificationComparison?.left.runId ?? null;
+    const rightRunId = verificationComparison?.right.runId ?? null;
+    if (leftRunId === null || rightRunId === null || leftRunId === rightRunId) return null;
+    return { leftRunId, rightRunId };
+  }, [verificationComparison]);
 
   const toggleVerification = (): void => {
     if (verificationExpanded) {
@@ -587,6 +627,21 @@ export function WorkspaceFileView({ run }: { run: RunDetail }) {
           logState={verificationLogState}
           logError={verificationLogError}
           onReadLog={(commandId, stream, mode) => void readVerificationLog(commandId, stream, mode)}
+          compareCandidates={verificationCompareCandidates}
+          compareLeft={verificationCompareLeft}
+          compareRight={verificationCompareRight}
+          compareState={verificationCompareState}
+          compareError={verificationCompareError}
+          comparison={verificationComparison}
+          onSelectCompareSide={(side, id) => selectVerificationCompareSide(side, id)}
+          onClearCompare={() => clearVerificationComparison()}
+          onRetryCompare={() => void loadVerificationComparison()}
+          canOpenCompareDiff={compareDiffPair !== null}
+          onOpenCompareDiff={() => {
+            if (compareDiffPair !== null) {
+              void openComparePairExplicit(compareDiffPair.leftRunId, compareDiffPair.rightRunId);
+            }
+          }}
         />
       }
     />

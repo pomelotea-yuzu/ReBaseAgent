@@ -8,6 +8,8 @@ import type { OperationRecord } from "@shared/operations";
 import type { ConfirmationRow } from "../lib/execution-confirmation";
 import { disclosureLines } from "../lib/execution-confirmation";
 import { formatBytes } from "../lib/format";
+import type { VerificationComparison } from "../lib/verification-compare";
+import type { VerificationCompareCandidate } from "../lib/verification-entry";
 import {
   type VerificationBlocker,
   type VerificationConfirmationDecision,
@@ -163,6 +165,22 @@ export interface VerificationPanelProps {
     stream: "stdout" | "stderr",
     mode: "replace" | "append",
   ) => void;
+
+  // —— 5.4：双验证比较（D07/P24/P25：只读记录、显式 A/B）——
+  /** 本会话登记附件里的验证身份（跨 run；不从时间/列表猜） */
+  readonly compareCandidates: readonly VerificationCompareCandidate[];
+  readonly compareLeft: string | null;
+  readonly compareRight: string | null;
+  readonly compareState: "idle" | "loading" | "ready" | "error";
+  readonly compareError: { code: string; message: string } | null;
+  readonly comparison: VerificationComparison | null;
+  readonly onSelectCompareSide: (side: "left" | "right", verificationId: string | null) => void;
+  readonly onClearCompare: () => void;
+  /** 只读重试：重新读取两侧记录（不准备/不执行，D03/D04 同款） */
+  readonly onRetryCompare: () => void;
+  /** 两侧来源 run 不同才可打开运行比较；调用方判据见 WorkspaceFileView */
+  readonly canOpenCompareDiff: boolean;
+  readonly onOpenCompareDiff: () => void;
 }
 
 /** 判定的一行呈现（确认块 blocked 位与提交按钮的禁用说明共用） */
@@ -172,6 +190,40 @@ function decisionLine(decision: VerificationConfirmationDecision): string | null
 
 function blockerLines(blockers: readonly VerificationBlocker[]): readonly string[] {
   return blockers.map((one) => `${one.reason}（${one.code}）`);
+}
+
+function sourceStatusLabel(status: "present" | "missing" | "unknown"): string {
+  switch (status) {
+    case "present":
+      return "来源在场";
+    case "missing":
+      return "来源已缺失（记录仍可读）";
+    case "unknown":
+      return "来源状态未知";
+  }
+}
+
+function compareCandidateSourceLine(candidate: VerificationCompareCandidate): string {
+  const run = candidate.runId ?? "来源 run 未知";
+  const checkpoint =
+    candidate.checkpointKind === null
+      ? "检查点未知"
+      : candidate.checkpointKind === "initial"
+        ? "初始检查点"
+        : `步骤 ${candidate.stepSpanId ?? "?"}`;
+  const command = candidate.commandId ?? "命令未知";
+  return `${run} · ${checkpoint} · ${command}`;
+}
+
+function compareConditionStateLabel(state: "same" | "different" | "unknown"): string {
+  switch (state) {
+    case "same":
+      return "一致";
+    case "different":
+      return "不同";
+    case "unknown":
+      return "未知";
+  }
 }
 
 export function VerificationPanel({
@@ -221,6 +273,17 @@ export function VerificationPanel({
   logState,
   logError,
   onReadLog,
+  compareCandidates,
+  compareLeft,
+  compareRight,
+  compareState,
+  compareError,
+  comparison,
+  onSelectCompareSide,
+  onClearCompare,
+  onRetryCompare,
+  canOpenCompareDiff,
+  onOpenCompareDiff,
 }: VerificationPanelProps) {
   const prepareBlockers = blockersFor(verificationBlockers(capability), "prepare");
   const runBlockers = blockersFor(verificationBlockers(capability), "run");
@@ -557,6 +620,7 @@ export function VerificationPanel({
                           结局：<span className="font-semibold">{recordView.outcome}</span>（
                           {verificationOutcomeLabel(recordView.outcome ?? "")}）。
                           {recordView.detail}
+                          {" · "}证据{recordView.evidenceComplete === true ? "完整" : "不全"}
                         </div>
                       ) : (
                         <div className="text-amber-800">
@@ -681,6 +745,249 @@ export function VerificationPanel({
                         </>
                       ) : null}
                     </div>
+                  ) : null}
+                </div>
+              )}
+            </div>
+          ) : null}
+
+          {/* —— 5.4 修复证据比较（D07/P24/P25：只读记录、显式 A/B、条件未知不合成）—— */}
+          {compareCandidates.length > 0 ? (
+            <div
+              className="mt-1.5 rounded border border-violet-200 bg-violet-50/40 px-2 py-1"
+              data-verification-compare="true"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-1">
+                <div className="text-[10px] font-medium text-gray-500">
+                  修复证据比较（A 原验证 / B 修复验证）——只读记录、不自动准备/执行
+                </div>
+                {compareLeft !== null || compareRight !== null ? (
+                  <button
+                    type="button"
+                    data-compare-clear="true"
+                    onClick={onClearCompare}
+                    className={`rounded border border-gray-300 px-1.5 py-0.5 text-[10px] text-gray-600 hover:bg-gray-50 ${FOCUS_RING}`}
+                  >
+                    清空比较
+                  </button>
+                ) : null}
+              </div>
+              <div className="mt-0.5 grid gap-1 sm:grid-cols-2">
+                {(["left", "right"] as const).map((side) => {
+                  const selected = side === "left" ? compareLeft : compareRight;
+                  const other = side === "left" ? compareRight : compareLeft;
+                  return (
+                    <div key={side} data-compare-side-selector={side}>
+                      <div className="text-[10px] text-gray-500">
+                        {side === "left" ? "A · 原验证" : "B · 修复验证"}
+                      </div>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-1">
+                        {compareCandidates.map((candidate) => {
+                          const id = candidate.verificationId;
+                          const isSelected = selected === id;
+                          const isOther = other === id;
+                          const source = compareCandidateSourceLine(candidate);
+                          return (
+                            <button
+                              key={id}
+                              type="button"
+                              data-compare-side={`${side}:${id}`}
+                              aria-pressed={isSelected ? "true" : undefined}
+                              disabled={isOther && !isSelected}
+                              title={isOther ? "同一验证不能与自己比较" : `${id}（${source}）`}
+                              onClick={() => onSelectCompareSide(side, isSelected ? null : id)}
+                              className={`rounded border px-1.5 py-0.5 font-code text-[10px] ${FOCUS_RING} ${
+                                isSelected
+                                  ? "border-violet-500 bg-violet-100 text-violet-900"
+                                  : "border-gray-300 text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                              }`}
+                            >
+                              {id}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {selected === null ? null : (
+                        <div className="mt-0.5 text-[10px] text-gray-500">
+                          来源：
+                          {compareCandidateSourceLine(
+                            compareCandidates.find((one) => one.verificationId === selected) ?? {
+                              verificationId: selected,
+                              runId: null,
+                              checkpointKind: null,
+                              stepSpanId: null,
+                              commandId: null,
+                              operationState: null,
+                            },
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {compareLeft === null || compareRight === null ? (
+                <div className="mt-1 text-[10px] text-gray-500">
+                  显式选择 A/B 两条验证（不自动挑"最近"）；两侧选齐才读取记录。
+                </div>
+              ) : (
+                <div className="mt-1" data-compare-view="true">
+                  {compareState === "loading" ? (
+                    <div className="text-[10px] text-gray-500">正在读取两侧验证记录（只读）…</div>
+                  ) : null}
+                  {compareError !== null ? (
+                    <div className="text-[10px] text-red-700" data-compare-error="true">
+                      比较读取失败（{compareError.code}）：{compareError.message}
+                      <button
+                        type="button"
+                        data-compare-retry="true"
+                        onClick={onRetryCompare}
+                        className={`ml-1 rounded border border-gray-300 px-1.5 py-0.5 text-gray-700 hover:bg-gray-50 ${FOCUS_RING}`}
+                      >
+                        只读重试
+                      </button>
+                    </div>
+                  ) : null}
+                  {compareState === "ready" && comparison !== null ? (
+                    <>
+                      <div
+                        data-compare-verdict={comparison.verdict.kind}
+                        className={`rounded border px-1.5 py-1 text-[11px] leading-4 ${
+                          comparison.verdict.kind === "failed-to-passed"
+                            ? "border-emerald-300 bg-emerald-50 text-emerald-900"
+                            : comparison.verdict.kind === "same-conditions-other-outcome"
+                              ? "border-gray-300 bg-gray-50 text-gray-800"
+                              : "border-amber-300 bg-amber-50 text-amber-900"
+                        }`}
+                      >
+                        {comparison.verdict.headline}
+                        {comparison.verdict.kind === "conditions-differ" ? (
+                          <div className="mt-0.5 text-[10px]">
+                            不同项：{comparison.verdict.differences.join("、")}
+                          </div>
+                        ) : null}
+                        {comparison.verdict.kind === "conditions-unknown" ? (
+                          <div className="mt-0.5 text-[10px]">
+                            未知项：{comparison.verdict.unknowns.join("、")}
+                          </div>
+                        ) : null}
+                      </div>
+
+                      <div className="mt-1 grid gap-1 sm:grid-cols-2">
+                        {(
+                          [
+                            ["left", comparison.left],
+                            ["right", comparison.right],
+                          ] as const
+                        ).map(([side, view]) => (
+                          <div
+                            key={side}
+                            data-compare-side-summary={side}
+                            className="rounded border border-gray-200 bg-white px-1.5 py-1 text-[10px] leading-4 text-gray-700"
+                          >
+                            <div className="font-medium">
+                              {side === "left" ? "A · 原验证" : "B · 修复验证"} ·{" "}
+                              {view.verificationId}
+                            </div>
+                            <div>
+                              来源：{view.runId ?? "（未知）"} ·{" "}
+                              {view.checkpointLabel ?? "检查点未知"} ·{" "}
+                              {sourceStatusLabel(view.sourceStatus)}
+                            </div>
+                            <div>代码快照：{view.snapshotId ?? "未知"}</div>
+                            <div>干预：{view.intervention}</div>
+                            <div>
+                              结局：{view.outcome ?? "未知"}
+                              {view.outcome === null
+                                ? ""
+                                : `（${verificationOutcomeLabel(view.outcome)}）`}
+                              {" · "}证据
+                              {view.evidenceComplete === null
+                                ? "未知"
+                                : view.evidenceComplete
+                                  ? "完整"
+                                  : "不全"}
+                            </div>
+                            <div>
+                              退出码 {view.exitCode === null ? "未知" : view.exitCode} · 耗时{" "}
+                              {view.durationMs === null ? "未知" : `${view.durationMs}ms`}
+                            </div>
+                            <div>
+                              日志保留{" "}
+                              {view.logBytes === null
+                                ? "（无命令事实）"
+                                : `stdout ${formatBytes(view.logBytes.stdout)} / stderr ${formatBytes(view.logBytes.stderr)}（全观测 ${formatBytes(view.logBytes.stdoutTotal)} / ${formatBytes(view.logBytes.stderrTotal)}）`}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-gray-600">
+                        <span>
+                          代码差异：
+                          {comparison.codeSame === null
+                            ? "未知"
+                            : comparison.codeSame
+                              ? "两侧快照一致"
+                              : "两侧快照不同"}
+                        </span>
+                        {canOpenCompareDiff ? (
+                          <button
+                            type="button"
+                            data-compare-open-diff="true"
+                            onClick={onOpenCompareDiff}
+                            className={`rounded border border-gray-300 px-1.5 py-0.5 text-gray-700 hover:bg-gray-50 ${FOCUS_RING}`}
+                          >
+                            在运行比较中查看代码差异
+                          </button>
+                        ) : (
+                          <span data-compare-no-diff="true">
+                            {comparison.left.runId !== null &&
+                            comparison.left.runId === comparison.right.runId
+                              ? "两侧来自同一 run（无跨 run 代码差异）"
+                              : "缺少来源 run：代码差异不可核对"}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="mt-1" data-compare-conditions="true">
+                        <div className="text-[10px] text-gray-500">
+                          条件（只列记录事实；未知不拿当前 manifest 补齐）
+                        </div>
+                        {comparison.conditions.map((entry) => (
+                          <div
+                            key={entry.key}
+                            data-compare-condition={entry.key}
+                            data-compare-state={entry.state}
+                            className="mt-0.5 rounded border border-gray-200 bg-white px-1.5 py-0.5 text-[10px] leading-4"
+                          >
+                            <span className="font-medium">{entry.label}</span>：
+                            {entry.left ?? "（未记录）"} {"vs"} {entry.right ?? "（未记录）"}
+                            <span
+                              className={
+                                entry.state === "same"
+                                  ? "ml-1 text-emerald-700"
+                                  : entry.state === "different"
+                                    ? "ml-1 text-red-700"
+                                    : "ml-1 text-amber-700"
+                              }
+                            >
+                              {compareConditionStateLabel(entry.state)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+
+                      <ul
+                        className="mt-1 list-disc pl-4 text-[10px] leading-4 text-gray-500"
+                        data-compare-limitations="true"
+                      >
+                        {comparison.limitations.map((line) => (
+                          <li key={line}>{line}</li>
+                        ))}
+                      </ul>
+                    </>
                   ) : null}
                 </div>
               )}

@@ -120,6 +120,19 @@ export interface VerificationState {
   verificationLogState: "idle" | "loading" | "ready" | "error";
   verificationLogError: { code: string; message: string } | null;
   verificationLogGeneration: number;
+  /**
+   * 双验证比较（5.4/D07/P24/P25）：只接受连接层给的**可信验证身份**；两侧都选中才读取，
+   * 读取本身零准备/零执行/零清理。换侧/清除推进代次 ⇒ 旧响应整包丢弃。
+   */
+  verificationCompareLeft: string | null;
+  verificationCompareRight: string | null;
+  verificationCompareData: {
+    left: VerificationGetResult;
+    right: VerificationGetResult;
+  } | null;
+  verificationCompareState: "idle" | "loading" | "ready" | "error";
+  verificationCompareError: { code: string; message: string } | null;
+  verificationCompareGeneration: number;
 }
 
 export interface VerificationSliceActions {
@@ -182,6 +195,15 @@ export interface VerificationSliceActions {
     stream: "stdout" | "stderr",
     mode: "replace" | "append",
   ) => Promise<void>;
+  /**
+   * 显式选择比较的一侧（5.4/D07）。同一验证不能与自己比较；两侧就绪才发起两条
+   * `verification:get` 只读请求。`null` = 清空该侧。
+   */
+  selectVerificationCompareSide: (side: "left" | "right", verificationId: string | null) => void;
+  /** 清空比较选择与在飞读取（推进代次，迟到响应不复活） */
+  clearVerificationComparison: () => void;
+  /** 重读两侧验证记录（只读；未选齐时零动作） */
+  loadVerificationComparison: () => Promise<void>;
 }
 
 export type VerificationSlice = VerificationState & VerificationSliceActions;
@@ -222,6 +244,12 @@ export function initialVerificationState(): VerificationState {
     verificationLogState: "idle",
     verificationLogError: null,
     verificationLogGeneration: 0,
+    verificationCompareLeft: null,
+    verificationCompareRight: null,
+    verificationCompareData: null,
+    verificationCompareState: "idle",
+    verificationCompareError: null,
+    verificationCompareGeneration: 0,
   };
 }
 
@@ -258,6 +286,11 @@ export function createVerificationSlice({ set, get }: SliceContext): Verificatio
     verificationLogMeta: null,
     verificationLogState: "idle" as const,
     verificationLogError: null,
+    verificationCompareLeft: null,
+    verificationCompareRight: null,
+    verificationCompareData: null,
+    verificationCompareState: "idle" as const,
+    verificationCompareError: null,
   });
 
   return {
@@ -272,6 +305,7 @@ export function createVerificationSlice({ set, get }: SliceContext): Verificatio
         // 记录/日志也要失效在飞读取：换目标后旧验证的迟到响应不得写进新目标
         verificationRecordGeneration: state.verificationRecordGeneration + 1,
         verificationLogGeneration: state.verificationLogGeneration + 1,
+        verificationCompareGeneration: state.verificationCompareGeneration + 1,
       }));
       void get().refreshVerificationCapability();
       void get().loadVerificationPreparePlan();
@@ -283,6 +317,7 @@ export function createVerificationSlice({ set, get }: SliceContext): Verificatio
         verificationOutcomeGeneration: state.verificationOutcomeGeneration + 1,
         verificationRecordGeneration: state.verificationRecordGeneration + 1,
         verificationLogGeneration: state.verificationLogGeneration + 1,
+        verificationCompareGeneration: state.verificationCompareGeneration + 1,
       }));
     },
 
@@ -673,6 +708,110 @@ export function createVerificationSlice({ set, get }: SliceContext): Verificatio
         },
         verificationLogError: null,
       }));
+    },
+
+    selectVerificationCompareSide(side, verificationId) {
+      const state = get();
+      const other =
+        side === "left" ? state.verificationCompareRight : state.verificationCompareLeft;
+      if (verificationId !== null && other === verificationId) {
+        set({
+          verificationCompareError: {
+            code: "R3_COMPARE_SAME_ID",
+            message: "同一验证不能与自己比较（重新选择另一侧的验证身份）",
+          },
+        });
+        return;
+      }
+      const unchanged =
+        side === "left"
+          ? state.verificationCompareLeft === verificationId
+          : state.verificationCompareRight === verificationId;
+      if (unchanged) return;
+      const next = {
+        ...(side === "left"
+          ? { verificationCompareLeft: verificationId }
+          : { verificationCompareRight: verificationId }),
+        verificationCompareData: null,
+        verificationCompareState: "idle" as const,
+        verificationCompareError: null,
+        // 换侧 = 旧读取失效（代次单调，迟到响应整包丢弃）
+        verificationCompareGeneration: state.verificationCompareGeneration + 1,
+      };
+      set(next);
+      const left = get().verificationCompareLeft;
+      const right = get().verificationCompareRight;
+      if (left !== null && right !== null) void get().loadVerificationComparison();
+    },
+
+    clearVerificationComparison() {
+      set((state) => ({
+        verificationCompareLeft: null,
+        verificationCompareRight: null,
+        verificationCompareData: null,
+        verificationCompareState: "idle" as const,
+        verificationCompareError: null,
+        verificationCompareGeneration: state.verificationCompareGeneration + 1,
+      }));
+    },
+
+    async loadVerificationComparison() {
+      const leftId = get().verificationCompareLeft;
+      const rightId = get().verificationCompareRight;
+      if (leftId === null || rightId === null) return;
+      const generation = get().verificationCompareGeneration + 1;
+      set((state) => ({
+        verificationCompareGeneration: generation,
+        verificationCompareState: "loading" as const,
+        verificationCompareError: null,
+      }));
+      const fetchOne = async (
+        verificationId: string,
+      ): Promise<
+        | { readonly ok: true; readonly data: VerificationGetResult }
+        | { readonly ok: false; readonly code: string; readonly message: string }
+      > => {
+        let envelope: Awaited<ReturnType<typeof api.verificationGet>>;
+        try {
+          envelope = await api.verificationGet({ verificationId });
+        } catch (error) {
+          return {
+            ok: false,
+            code: "R3_COMPARE_CHANNEL_FAILED",
+            message: error instanceof Error ? error.message : String(error),
+          };
+        }
+        if (!envelope.ok)
+          return { ok: false, code: envelope.error.code, message: envelope.error.message };
+        const parsed = VerificationGetResultSchema.safeParse(envelope.data);
+        if (!parsed.success) {
+          return {
+            ok: false,
+            code: "R3_COMPARE_SCHEMA_INVALID",
+            message: `比较记录结构校验失败：${describeZodError(parsed.error)}`,
+          };
+        }
+        return { ok: true, data: parsed.data };
+      };
+      const [left, right] = await Promise.all([fetchOne(leftId), fetchOne(rightId)]);
+      if (get().verificationCompareGeneration !== generation) return;
+      if (!left.ok || !right.ok) {
+        const failure = !left.ok ? left : !right.ok ? right : null;
+        set({
+          verificationCompareData: null,
+          verificationCompareState: "error",
+          verificationCompareError: {
+            code: failure?.code ?? "R3_COMPARE_SCHEMA_INVALID",
+            message: failure?.message ?? "比较读取失败",
+          },
+        });
+        return;
+      }
+      set({
+        verificationCompareData: { left: left.data, right: right.data },
+        verificationCompareState: "ready" as const,
+        verificationCompareError: null,
+      });
     },
   };
 }

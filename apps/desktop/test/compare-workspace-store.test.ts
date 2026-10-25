@@ -358,6 +358,28 @@ describe("U7 5.3 指标表显式选两条（openComparePair）", () => {
   });
 });
 
+describe("R3 5.4 验证比较连接代码差异（openComparePairExplicit）", () => {
+  it("集合外的显式两条 ⇒ 打开 pair 并按序读取；全局集合纹丝不动（D07/D1）", async () => {
+    useAppStore.setState({ compareIds: ["r_parent"] });
+    const result = await useAppStore.getState().openComparePairExplicit("r_child", "r_other");
+    expect(result).toBe("opened");
+    expect(useAppStore.getState().comparePair).toEqual({
+      leftRunId: "r_child",
+      rightRunId: "r_other",
+    });
+    expect(calls).toContain("runs:compare:r_child,r_other");
+    expect(useAppStore.getState().compareIds).toEqual(["r_parent"]);
+  });
+
+  it("相同 ID / 空 ID ⇒ rejected 且零读取", async () => {
+    expect(await useAppStore.getState().openComparePairExplicit("r_child", "r_child")).toBe(
+      "rejected",
+    );
+    expect(await useAppStore.getState().openComparePairExplicit("", "r_other")).toBe("rejected");
+    expect(calls.every((call) => !call.startsWith("runs:compare"))).toBe(true);
+  });
+});
+
 describe("U7 5.6/5.7 单侧文件入口（openCompareSideFiles）", () => {
   it("普通运行 ⇒ unsupported：不发起 runs:get、不进文件页（不造文件历史）", async () => {
     useAppStore.setState({

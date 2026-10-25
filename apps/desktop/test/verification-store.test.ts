@@ -167,7 +167,7 @@ let readLogImpl: (
   request: VerificationReadLogRequest,
 ) => Promise<Envelope<VerificationReadLogResult>> = async () => ok(logPage("aaa", 3, 5));
 
-/** 5.3 夹具：封存记录（一条命令的双口径字节 + 终局） */
+/** 5.3/5.4 夹具：封存记录（记录头 + 一条命令的双口径字节 + 终局） */
 function recordFixture(verificationId = "ver-1"): VerificationGetResult {
   return {
     verificationId,
@@ -182,9 +182,26 @@ function recordFixture(verificationId = "ver-1"): VerificationGetResult {
         stdout: { byteLength: 1048576, totalBytes: 2097152, truncated: true },
         stderr: { byteLength: 42, totalBytes: 42, truncated: false },
       },
-      { type: "terminated", outcome: "check_failed", detail: "测试断言失败" },
     ],
     error: null,
+    meta: {
+      runId: "run_a",
+      checkpoint: { kind: "initial" },
+      snapshotId: "snap_1",
+      profileId: "node-ts-v1",
+      manifestVersion: 3,
+      commandId: "test",
+      planBindingDigest: "a".repeat(64),
+      createdAt: "2026-10-25T10:00:00.000Z",
+      environment: null,
+    },
+    terminated: {
+      outcome: "check_failed",
+      detail: "测试断言失败",
+      evidenceComplete: true,
+      at: "2026-10-25T10:00:06.000Z",
+    },
+    sourceStatus: "present",
   };
 }
 
@@ -942,5 +959,116 @@ describe("记录与日志读取（5.3/D09/P13/P16：只读可信身份，迟到�
     expect(stateOf().verificationLogError?.code).toBe("R3_LOG_ASSET_CORRUPT");
     expect(stateOf().verificationLogText).toBe("");
     expect(stateOf().verificationLogMeta).toBeNull();
+  });
+});
+
+describe("双验证比较读取（5.4/D07/P24/P25：只读、身份显式、迟到不混）", () => {
+  it("两侧选齐 ⇒ 只调两次 verification:get；取回两侧记录头", async () => {
+    stateOf().selectVerificationCompareSide("left", "ver-left");
+    expect(calls.filter((one) => one.startsWith("get:"))).toHaveLength(0);
+    stateOf().selectVerificationCompareSide("right", "ver-right");
+    await vi.waitFor(() => {
+      expect(stateOf().verificationCompareState).toBe("ready");
+    });
+    expect(stateOf().verificationCompareData?.left.verificationId).toBe("ver-left");
+    expect(stateOf().verificationCompareData?.right.verificationId).toBe("ver-right");
+    expect(calls.filter((one) => one.startsWith("get:"))).toHaveLength(2);
+    // 只读：比较读取不触碰准备/执行/停止/登记
+    expect(
+      calls.some(
+        (one) =>
+          one.startsWith("prepare:") ||
+          one.startsWith("run:") ||
+          one.startsWith("stop:") ||
+          one.startsWith("status"),
+      ),
+    ).toBe(false);
+  });
+
+  it("同一验证不能与自己比较（稳定码，不改动两侧）", () => {
+    stateOf().selectVerificationCompareSide("left", "ver-1");
+    stateOf().selectVerificationCompareSide("right", "ver-1");
+    expect(stateOf().verificationCompareError?.code).toBe("R3_COMPARE_SAME_ID");
+    expect(stateOf().verificationCompareRight).toBeNull();
+    expect(calls.some((one) => one.startsWith("get:"))).toBe(false);
+  });
+
+  it("换侧时旧比较响应迟到 ⇒ 整包丢弃（代次守卫）", async () => {
+    const gate = deferred<Envelope<VerificationGetResult>>();
+    let getCount = 0;
+    getImpl = (request) => {
+      getCount += 1;
+      if (getCount === 1) return gate.promise;
+      return Promise.resolve(ok(recordFixture(request.verificationId)));
+    };
+    stateOf().selectVerificationCompareSide("left", "ver-left");
+    stateOf().selectVerificationCompareSide("right", "ver-right");
+    // 换左：旧左响应仍在飞
+    stateOf().selectVerificationCompareSide("left", "ver-left-2");
+    await vi.waitFor(() => {
+      expect(stateOf().verificationCompareData?.left.verificationId).toBe("ver-left-2");
+    });
+    gate.resolve(ok(recordFixture("ver-left")));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(stateOf().verificationCompareLeft).toBe("ver-left-2");
+    expect(stateOf().verificationCompareData?.left.verificationId).toBe("ver-left-2");
+  });
+
+  it("清除比较 ⇒ 内容复位；在飞响应迟到不复活", async () => {
+    const gate = deferred<Envelope<VerificationGetResult>>();
+    getImpl = () => gate.promise;
+    stateOf().selectVerificationCompareSide("left", "ver-left");
+    stateOf().selectVerificationCompareSide("right", "ver-right");
+    stateOf().clearVerificationComparison();
+    gate.resolve(ok(recordFixture("ver-left")));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(stateOf().verificationCompareLeft).toBeNull();
+    expect(stateOf().verificationCompareRight).toBeNull();
+    expect(stateOf().verificationCompareData).toBeNull();
+    expect(stateOf().verificationCompareState).toBe("idle");
+  });
+
+  it("读取失败 ⇒ 稳定码如实呈现，比较数据不落地", async () => {
+    getImpl = async () => ({
+      ok: false as const,
+      error: { code: "R3_VERIFICATION_NOT_FOUND", message: "记录不存在" },
+    });
+    stateOf().selectVerificationCompareSide("left", "ver-left");
+    stateOf().selectVerificationCompareSide("right", "ver-right");
+    await vi.waitFor(() => {
+      expect(stateOf().verificationCompareState).toBe("error");
+    });
+    expect(stateOf().verificationCompareError?.code).toBe("R3_VERIFICATION_NOT_FOUND");
+    expect(stateOf().verificationCompareData).toBeNull();
+  });
+});
+
+describe("比较读取重试（5.4/D03：只读重试不再执行）", () => {
+  it("失败后原选择不变，重试只再发两个 get 并取回结果", async () => {
+    getImpl = async () => ({
+      ok: false as const,
+      error: { code: "R3_VERIFICATION_READ_FAILED", message: "暂时读不到" },
+    });
+    stateOf().selectVerificationCompareSide("left", "ver-left");
+    stateOf().selectVerificationCompareSide("right", "ver-right");
+    await vi.waitFor(() => {
+      expect(stateOf().verificationCompareState).toBe("error");
+    });
+    expect(stateOf().verificationCompareLeft).toBe("ver-left");
+    expect(stateOf().verificationCompareRight).toBe("ver-right");
+    calls.length = 0;
+    getImpl = async (request) => ok(recordFixture(request.verificationId));
+    await stateOf().loadVerificationComparison();
+    expect(stateOf().verificationCompareState).toBe("ready");
+    expect(calls.filter((one) => one.startsWith("get:"))).toHaveLength(2);
+    expect(
+      calls.some(
+        (one) =>
+          one.startsWith("prepare:") ||
+          one.startsWith("run:") ||
+          one.startsWith("stop:") ||
+          one.startsWith("status"),
+      ),
+    ).toBe(false);
   });
 });
