@@ -9,6 +9,7 @@ import type {
   VerificationReadLogResult,
   VerificationRunResult,
   WindowApi,
+  WorkspaceExportOutcome,
 } from "@shared/ipc";
 import type { OperationIdentity } from "@shared/operations";
 import type {
@@ -166,6 +167,12 @@ let getImpl: (request: { verificationId: string }) => Promise<Envelope<Verificat
 let readLogImpl: (
   request: VerificationReadLogRequest,
 ) => Promise<Envelope<VerificationReadLogResult>> = async () => ok(logPage("aaa", 3, 5));
+// —— 5.5：验证输入导出通道 ——
+let exportImpl: (request: {
+  verificationId?: string;
+  runId?: string;
+  stepSpanId?: string;
+}) => Promise<Envelope<WorkspaceExportOutcome>> = async () => ok(exportOutcomeFixture());
 
 /** 5.3/5.4 夹具：封存记录（记录头 + 一条命令的双口径字节 + 终局） */
 function recordFixture(verificationId = "ver-1"): VerificationGetResult {
@@ -209,6 +216,33 @@ function logPage(text: string, nextOffset: number, remaining: number): Verificat
   return { text, totalBytes: nextOffset + remaining, nextOffset, remaining, truncated: false };
 }
 
+/** 5.5 夹具：验证输入导出成功结局（快照与验证记录一致） */
+function exportOutcomeFixture(
+  verificationId = "ver-1",
+  snapshotId = "a".repeat(64),
+): Extract<WorkspaceExportOutcome, { status: "exported" }> {
+  return {
+    status: "exported",
+    targetDir: "D:/exports/ver-1",
+    filesRoot: "files",
+    fileCount: 2,
+    totalFileBytes: 20,
+    snapshotId,
+    stepSpanId: null,
+    patch: { status: "no_text_changes", covered: [], excluded: [] },
+    unpreserved: {
+      permissions: "未保留（原状态未知）",
+      executable_bit: "未保留（原状态未知）",
+      timestamps: "未保留（原状态未知）",
+      links: "未保留（原状态未知）",
+      empty_directories: "未保留（原状态未知）",
+      external_services: "未保留（原状态未知）",
+    },
+    verificationId,
+    verificationSnapshotId: snapshotId,
+  };
+}
+
 const apiStub: Record<string, unknown> = {
   verificationGet: (request: { verificationId: string }) => {
     calls.push(`get:${request.verificationId}`);
@@ -219,6 +253,14 @@ const apiStub: Record<string, unknown> = {
       `readLog:${request.verificationId}:${request.commandId}:${request.stream}:${request.offset}`,
     );
     return readLogImpl(request);
+  },
+  exportCheckpoint: (request: {
+    verificationId?: string;
+    runId?: string;
+    stepSpanId?: string;
+  }) => {
+    calls.push(`export:${JSON.stringify(request)}`);
+    return exportImpl(request);
   },
   verificationCapability: (request: CapabilityCall) => {
     calls.push(
@@ -307,6 +349,7 @@ beforeEach(() => {
   verificationStopStub.fail = null;
   getImpl = async (request) => ok(recordFixture(request.verificationId));
   readLogImpl = async () => ok(logPage("aaa", 3, 5));
+  exportImpl = async () => ok(exportOutcomeFixture());
   resetVerification();
 });
 
@@ -1070,5 +1113,85 @@ describe("比较读取重试（5.4/D03：只读重试不再执行）", () => {
           one.startsWith("status"),
       ),
     ).toBe(false);
+  });
+});
+
+describe("验证输入导出反馈（5.5/W03/W04/D08：按验证身份绑定）", () => {
+  it("成功 ⇒ 只调 exportCheckpoint(verificationId)，反馈按 id 留存且回带快照", async () => {
+    const outcome = await stateOf().exportVerificationInput("ver-1");
+    expect(outcome?.status).toBe("exported");
+    expect(calls.filter((one) => one.startsWith("export:"))).toEqual([
+      'export:{"verificationId":"ver-1"}',
+    ]);
+    const feedback = stateOf().verificationExports["ver-1"];
+    expect(feedback?.kind).toBe("exported");
+    if (feedback?.kind === "exported") {
+      expect(feedback.outcome.verificationId).toBe("ver-1");
+      expect(feedback.outcome.verificationSnapshotId).toBe("a".repeat(64));
+    }
+    // 零准备/执行/停止/登记
+    expect(
+      calls.some(
+        (one) =>
+          one.startsWith("prepare:") ||
+          one.startsWith("run:") ||
+          one.startsWith("stop:") ||
+          one.startsWith("status"),
+      ),
+    ).toBe(false);
+  });
+
+  it("信封失败 ⇒ 稳定码如实呈现，不冒充成功", async () => {
+    exportImpl = async () => ({
+      ok: false as const,
+      error: { code: "VERIFICATION_EXPORT_SNAPSHOT_DRIFT", message: "快照不一致" },
+    });
+    const outcome = await stateOf().exportVerificationInput("ver-1");
+    expect(outcome).toBeNull();
+    const feedback = stateOf().verificationExports["ver-1"];
+    expect(feedback?.kind).toBe("failed");
+    if (feedback?.kind === "failed") {
+      expect(feedback.code).toBe("VERIFICATION_EXPORT_SNAPSHOT_DRIFT");
+      expect(feedback.retained).toEqual([]);
+    }
+  });
+
+  it("同一验证重复导出：旧响应迟到不覆盖新反馈（按 id 代次）", async () => {
+    const gate = deferred<Envelope<WorkspaceExportOutcome>>();
+    let exportCount = 0;
+    exportImpl = () => {
+      exportCount += 1;
+      if (exportCount === 1) return gate.promise;
+      return Promise.resolve(ok(exportOutcomeFixture("ver-1", "b".repeat(64))));
+    };
+    void stateOf().exportVerificationInput("ver-1");
+    await stateOf().exportVerificationInput("ver-1");
+    const second = stateOf().verificationExports["ver-1"];
+    expect(second?.kind).toBe("exported");
+    if (second?.kind !== "exported") return;
+    expect(second.outcome.snapshotId).toBe("b".repeat(64));
+    gate.resolve(ok(exportOutcomeFixture("ver-1", "c".repeat(64))));
+    await new Promise((r) => setTimeout(r, 0));
+    const after = stateOf().verificationExports["ver-1"];
+    expect(after?.kind).toBe("exported");
+    if (after?.kind === "exported") expect(after.outcome.snapshotId).toBe("b".repeat(64));
+  });
+
+  it("取消 ⇒ canceled；关闭面板不丢反馈（离开页面结果仍可回看）", async () => {
+    exportImpl = async () => ok({ status: "canceled" as const });
+    await stateOf().exportVerificationInput("ver-1");
+    expect(stateOf().verificationExports["ver-1"]?.kind).toBe("canceled");
+    stateOf().closeVerification();
+    expect(stateOf().verificationExports["ver-1"]?.kind).toBe("canceled");
+  });
+
+  it("导出结果结构不合法 ⇒ R3_EXPORT_SCHEMA_INVALID，不落地伪造结果", async () => {
+    exportImpl = async () => ok({ status: "exported" } as never);
+    await stateOf().exportVerificationInput("ver-1");
+    const feedback = stateOf().verificationExports["ver-1"];
+    expect(feedback?.kind).toBe("failed");
+    if (feedback?.kind === "failed") {
+      expect(feedback.code).toBe("R3_EXPORT_SCHEMA_INVALID");
+    }
   });
 });

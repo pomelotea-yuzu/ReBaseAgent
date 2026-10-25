@@ -43,6 +43,12 @@ export interface ExportWorkspaceSnapshotRequest {
   readonly runId: string;
   readonly stepSpanId?: string;
   readonly targetDir: string;
+  /**
+   * 调用方绑定的精确输入快照（R3 W03/W04）：定位到的快照 ID 必须逐字相等，
+   * 否则在**任何目标写入前**以 `snapshot_mismatch` 拒绝——不导出"另一个点"的字节，
+   * 也不用测试副本/源目录补齐。缺省 = 不绑定（R2.1 旧调用）。
+   */
+  readonly expectedSnapshotId?: string;
 }
 
 /**
@@ -61,6 +67,7 @@ export type WorkspaceExportFailureCode =
   | "target_conflicts_data_dir"
   | "target_race"
   | "attachment_unavailable"
+  | "snapshot_mismatch"
   | "io";
 
 export interface WorkspaceExportFailure {

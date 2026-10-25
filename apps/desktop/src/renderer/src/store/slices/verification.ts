@@ -9,12 +9,14 @@ import type {
   VerificationCheckpoint,
   VerificationGetResult,
   VerificationPreparePlanResult,
+  WorkspaceExportOutcome,
 } from "@shared/ipc";
 import {
   VerificationCapabilityResultSchema,
   VerificationGetResultSchema,
   VerificationPreparePlanResultSchema,
   VerificationReadLogResultSchema,
+  WorkspaceExportOutcomeSchema,
 } from "@shared/ipc";
 import { api } from "../../lib/api";
 import { describeZodError } from "../../lib/describe-zod-error";
@@ -133,7 +135,33 @@ export interface VerificationState {
   verificationCompareState: "idle" | "loading" | "ready" | "error";
   verificationCompareError: { code: string; message: string } | null;
   verificationCompareGeneration: number;
+  /**
+   * 验证输入导出反馈（5.5/W03/W04/D08）：**按 verificationId 键**——导出绑定的是
+   * 「那次验证的精确输入」，切检查点/切比较侧/离开页面都不改关联；反馈留在 store，
+   * 回到该验证仍可见。重载丢失回执 = 结果未知（以目标清单为准，不自动重发）。
+   */
+  verificationExports: Record<string, VerificationExportFeedback>;
+  verificationExportGenerations: Record<string, number>;
 }
+
+/** 一次验证输入导出的会话反馈（形制对齐 R2.1，但身份是 verificationId） */
+export type VerificationExportFeedback =
+  | { readonly kind: "in-flight"; readonly verificationId: string; readonly generation: number }
+  | { readonly kind: "canceled"; readonly verificationId: string; readonly generation: number }
+  | {
+      readonly kind: "exported";
+      readonly verificationId: string;
+      readonly generation: number;
+      readonly outcome: Extract<WorkspaceExportOutcome, { status: "exported" }>;
+    }
+  | {
+      readonly kind: "failed";
+      readonly verificationId: string;
+      readonly generation: number;
+      readonly code: string;
+      readonly reason: string;
+      readonly retained: readonly string[];
+    };
 
 export interface VerificationSliceActions {
   /**
@@ -204,6 +232,12 @@ export interface VerificationSliceActions {
   clearVerificationComparison: () => void;
   /** 重读两侧验证记录（只读；未选齐时零动作） */
   loadVerificationComparison: () => Promise<void>;
+  /**
+   * 导出**该验证的精确输入**（5.5/W03/W04/D08）：请求只带可信 verificationId，
+   * main 从记录解析 run/step/快照并在对话框前后重核、写入前绑定快照 ID。
+   * 反馈按 id 留存；迟到响应不覆盖同 id 的新提交。零准备/执行/清理。
+   */
+  exportVerificationInput: (verificationId: string) => Promise<WorkspaceExportOutcome | null>;
 }
 
 export type VerificationSlice = VerificationState & VerificationSliceActions;
@@ -250,6 +284,8 @@ export function initialVerificationState(): VerificationState {
     verificationCompareState: "idle",
     verificationCompareError: null,
     verificationCompareGeneration: 0,
+    verificationExports: {},
+    verificationExportGenerations: {},
   };
 }
 
@@ -812,6 +848,83 @@ export function createVerificationSlice({ set, get }: SliceContext): Verificatio
         verificationCompareState: "ready" as const,
         verificationCompareError: null,
       });
+    },
+
+    async exportVerificationInput(verificationId) {
+      const generation = (get().verificationExportGenerations[verificationId] ?? 0) + 1;
+      set((state) => ({
+        verificationExportGenerations: {
+          ...state.verificationExportGenerations,
+          [verificationId]: generation,
+        },
+        verificationExports: {
+          ...state.verificationExports,
+          [verificationId]: { kind: "in-flight" as const, verificationId, generation },
+        },
+      }));
+      const keep = (feedback: VerificationExportFeedback): void => {
+        if ((get().verificationExportGenerations[verificationId] ?? 0) !== generation) return;
+        set((state) => ({
+          verificationExports: {
+            ...state.verificationExports,
+            [verificationId]: feedback,
+          },
+        }));
+      };
+      let envelope: Awaited<ReturnType<typeof api.exportCheckpoint>>;
+      try {
+        envelope = await api.exportCheckpoint({ verificationId });
+      } catch (error) {
+        keep({
+          kind: "failed",
+          verificationId,
+          generation,
+          code: "R3_EXPORT_CHANNEL_FAILED",
+          reason: error instanceof Error ? error.message : String(error),
+          retained: [],
+        });
+        return null;
+      }
+      if ((get().verificationExportGenerations[verificationId] ?? 0) !== generation) return null;
+      if (!envelope.ok) {
+        keep({
+          kind: "failed",
+          verificationId,
+          generation,
+          code: envelope.error.code,
+          reason: envelope.error.message,
+          retained: [],
+        });
+        return null;
+      }
+      const parsed = WorkspaceExportOutcomeSchema.safeParse(envelope.data);
+      if (!parsed.success) {
+        keep({
+          kind: "failed",
+          verificationId,
+          generation,
+          code: "R3_EXPORT_SCHEMA_INVALID",
+          reason: `导出结果结构校验失败：${describeZodError(parsed.error)}`,
+          retained: [],
+        });
+        return null;
+      }
+      const outcome = parsed.data;
+      if (outcome.status === "canceled") {
+        keep({ kind: "canceled", verificationId, generation });
+      } else if (outcome.status === "exported") {
+        keep({ kind: "exported", verificationId, generation, outcome });
+      } else {
+        keep({
+          kind: "failed",
+          verificationId,
+          generation,
+          code: outcome.code,
+          reason: outcome.reason,
+          retained: outcome.retained,
+        });
+      }
+      return outcome;
     },
   };
 }

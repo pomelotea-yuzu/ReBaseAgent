@@ -906,12 +906,38 @@ export type ComparedWorkspaceFileResult = z.infer<typeof ComparedWorkspaceFileRe
  * `.strict()` 钉死封闭形状——dataDir/source/blob/targetDir 等物理路径键一律拒绝：
  * 目标目录只能由 main 的原生对话框取得，renderer 永不写物理路径。
  */
+/**
+ * 导出请求（R2.1 原始入口 + R3 5.5 验证绑定）：
+ * - `runId`（+可选 `stepSpanId`）：R2.1 直接选检查点；
+ * - `verificationId`：R3 从已选验证导出**其精确输入**——main 从验证记录解析
+ *   run/step/应有快照并在导出前绑定快照 ID（W03/W04）。两者互斥，物理路径仍无字段。
+ */
 export const WorkspaceExportRequestSchema = z
   .object({
-    runId: z.string().min(1),
+    runId: z.string().min(1).optional(),
     stepSpanId: z.string().min(1).optional(),
+    verificationId: z.string().min(1).optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((value, ctx) => {
+    if (value.verificationId !== undefined) {
+      if (value.runId !== undefined || value.stepSpanId !== undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["verificationId"],
+          message: "verificationId 不能与 runId/stepSpanId 同时出现（验证导出不接受另一套来源）",
+        });
+      }
+      return;
+    }
+    if (value.runId === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["runId"],
+        message: "缺少 runId 或 verificationId",
+      });
+    }
+  });
 export type WorkspaceExportRequest = z.infer<typeof WorkspaceExportRequestSchema>;
 
 /** 补丁逐路径排除原因（与包层 ExportPatchExcludedReason 同枚举，跨进程钉死） */
@@ -1002,6 +1028,12 @@ export const WorkspaceExportOutcomeSchema = z.discriminatedUnion("status", [
     stepSpanId: z.string().min(1).nullable(),
     patch: WorkspaceExportPatchSchema,
     unpreserved: WorkspaceUnpreservedSchema,
+    /** 验证导出时回带：绑定的验证身份与其记录的输入快照（W03/D08 回查） */
+    verificationId: z.string().min(1).optional(),
+    verificationSnapshotId: z
+      .string()
+      .regex(/^[0-9a-f]{64}$/)
+      .optional(),
   }),
   z.object({
     status: z.literal("failed"),

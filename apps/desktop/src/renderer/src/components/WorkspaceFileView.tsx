@@ -385,6 +385,8 @@ export function WorkspaceFileView({ run }: { run: RunDetail }) {
   const verificationLogError = useAppStore((s) => s.verificationLogError);
   const focusVerificationRecord = useAppStore((s) => s.focusVerificationRecord);
   const readVerificationLog = useAppStore((s) => s.readVerificationLog);
+  const verificationExports = useAppStore((s) => s.verificationExports);
+  const exportVerificationInput = useAppStore((s) => s.exportVerificationInput);
   // 5.4：双验证比较（D07/P24/P25）——只读记录；干预来自运行分叉元数据
   const verificationCompareLeft = useAppStore((s) => s.verificationCompareLeft);
   const verificationCompareRight = useAppStore((s) => s.verificationCompareRight);
@@ -619,8 +621,19 @@ export function WorkspaceFileView({ run }: { run: RunDetail }) {
           recordState={verificationRecordState}
           recordView={verificationRecordView}
           recordStatus={verificationRecordData?.status ?? null}
+          recordMeta={verificationRecordData?.meta ?? null}
           recordErrorInfo={verificationRecordData?.error ?? null}
           recordError={verificationRecordError}
+          exportFeedback={
+            verificationRecordFocus === null
+              ? null
+              : (verificationExports[verificationRecordFocus] ?? null)
+          }
+          onExportInput={() => {
+            if (verificationRecordFocus !== null) {
+              void exportVerificationInput(verificationRecordFocus);
+            }
+          }}
           logIdentity={verificationLogIdentity}
           logText={verificationLogText}
           logMeta={verificationLogMeta}

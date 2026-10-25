@@ -95,6 +95,20 @@ export async function exportWorkspaceSnapshot(
   if (!resolved.ok) {
     return { ok: false, failure: resolved.failure, cleanup: EMPTY_CLEANUP };
   }
+  // ①b 输入身份绑定（R3 W03/W04）：快照 ID 不等于调用方绑定值 ⇒ 写入前拒绝
+  if (
+    request.expectedSnapshotId !== undefined &&
+    resolved.value.selected.snapshot.id !== request.expectedSnapshotId
+  ) {
+    return {
+      ok: false,
+      failure: {
+        code: "snapshot_mismatch",
+        reason: `导出定位到的快照 ${resolved.value.selected.snapshot.id} 与绑定的验证输入 ${request.expectedSnapshotId} 不一致：已阻断导出（不导出其他检查点，也不用测试副本补齐）`,
+      },
+      cleanup: EMPTY_CLEANUP,
+    };
+  }
 
   // ② 目标校验（零写入；真正的竞争由第 5 步的排他创建兜住）
   const target = await validateExportTargetDir(request.dataDir, request.targetDir);

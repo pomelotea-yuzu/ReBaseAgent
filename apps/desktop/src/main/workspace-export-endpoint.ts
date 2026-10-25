@@ -1,4 +1,9 @@
-import { UNPRESERVED_STATUSES, exportWorkspaceSnapshot } from "@rebaseagent/replay";
+import { getVerification } from "@rebaseagent/project-verification";
+import {
+  UNPRESERVED_STATUSES,
+  exportWorkspaceSnapshot,
+  resolveExportSnapshots,
+} from "@rebaseagent/replay";
 import type { WorkspaceExportSuccess } from "@rebaseagent/replay";
 import type {
   Envelope,
@@ -75,6 +80,123 @@ export function workspaceExportEnvelope(
 export const WORKSPACE_EXPORT_IN_FLIGHT = "WORKSPACE_EXPORT_IN_FLIGHT";
 /** 端点兜底码：包层之外的意外异常（不该发生，发生即受控收敛） */
 export const WORKSPACE_EXPORT_FAILED = "WORKSPACE_EXPORT_FAILED";
+/** R3 5.5：验证记录不可用（缺失/损坏/未封存/无记录头）⇒ 不导出，也不猜输入 */
+export const VERIFICATION_EXPORT_SOURCE_INVALID = "VERIFICATION_EXPORT_SOURCE_INVALID";
+/** R3 5.5：来源 run 的 trace 已缺失（P16/W04）⇒ 导出前阻断 */
+export const VERIFICATION_EXPORT_SOURCE_MISSING = "VERIFICATION_EXPORT_SOURCE_MISSING";
+/** R3 5.5：定位到的快照与验证记录绑定的输入不一致 ⇒ 阻断（W03/W04） */
+export const VERIFICATION_EXPORT_SNAPSHOT_DRIFT = "VERIFICATION_EXPORT_SNAPSHOT_DRIFT";
+
+interface ResolvedExportTarget {
+  readonly runId: string;
+  readonly stepSpanId: string | undefined;
+  /** 验证导出时绑定记录里的输入快照；R2.1 直接导出为 undefined */
+  readonly expectedSnapshotId: string | undefined;
+  readonly verificationId: string | undefined;
+}
+
+/** 验证导出：从记录头解析精确输入（零写入、零对话框），漂移在副作用前拒绝 */
+function resolveVerificationExportTarget(
+  deps: WorkspaceExportEndpointDeps,
+  verificationId: string,
+):
+  | { readonly ok: true; readonly target: ResolvedExportTarget }
+  | {
+      readonly ok: false;
+      readonly outcome: Extract<WorkspaceExportOutcome, { status: "failed" }>;
+    } {
+  const failed = (
+    code: string,
+    reason: string,
+  ): {
+    readonly ok: false;
+    readonly outcome: Extract<WorkspaceExportOutcome, { status: "failed" }>;
+  } => ({
+    ok: false,
+    outcome: { status: "failed", code, reason, retained: [] },
+  });
+  let record: ReturnType<typeof getVerification>;
+  try {
+    record = getVerification(deps.dataDir, verificationId, { tracesRoot: deps.tracesDir });
+  } catch (error) {
+    return failed(
+      VERIFICATION_EXPORT_SOURCE_INVALID,
+      `无法读取验证记录 ${verificationId}：${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  if (record.status !== "sealed" || record.meta === undefined) {
+    return failed(
+      VERIFICATION_EXPORT_SOURCE_INVALID,
+      `验证记录 ${verificationId} 未封存或记录头不可读（状态：${record.status}）：不能绑定精确输入导出`,
+    );
+  }
+  if (record.sourceStatus !== "present") {
+    return failed(
+      VERIFICATION_EXPORT_SOURCE_MISSING,
+      `验证记录 ${verificationId} 的来源 run ${record.meta.target.runId} 的 trace 已缺失：导出被阻断（不猜同名来源）`,
+    );
+  }
+  const { checkpoint } = record.meta.target;
+  const stepSpanId = checkpoint.kind === "step" ? checkpoint.stepSpanId : undefined;
+  const expectedSnapshotId = record.meta.target.snapshotId;
+  const located = resolveExportSnapshots(deps.dataDir, record.meta.target.runId, stepSpanId);
+  if (!located.ok) {
+    return failed(
+      VERIFICATION_EXPORT_SNAPSHOT_DRIFT,
+      `验证记录绑定的输入无法定位：${located.failure.reason}（不导出其他检查点）`,
+    );
+  }
+  if (located.value.selected.snapshot.id !== expectedSnapshotId) {
+    return failed(
+      VERIFICATION_EXPORT_SNAPSHOT_DRIFT,
+      `定位到的快照 ${located.value.selected.snapshot.id} 与验证记录绑定的输入 ${expectedSnapshotId} 不一致：导出被阻断（不导出其他检查点）`,
+    );
+  }
+  return {
+    ok: true,
+    target: {
+      runId: record.meta.target.runId,
+      stepSpanId,
+      expectedSnapshotId,
+      verificationId,
+    },
+  };
+}
+
+/** 请求 → 导出目标（验证绑定或 R2.1 直选）；所有拒绝都在对话框与写入之前 */
+function resolveExportTarget(
+  deps: WorkspaceExportEndpointDeps,
+  request: WorkspaceExportRequest,
+):
+  | { readonly ok: true; readonly target: ResolvedExportTarget }
+  | {
+      readonly ok: false;
+      readonly outcome: Extract<WorkspaceExportOutcome, { status: "failed" }>;
+    } {
+  if (request.verificationId !== undefined) {
+    return resolveVerificationExportTarget(deps, request.verificationId);
+  }
+  if (request.runId === undefined) {
+    return {
+      ok: false,
+      outcome: {
+        status: "failed",
+        code: "INVALID_ARGUMENT",
+        reason: "缺少 runId 或 verificationId",
+        retained: [],
+      },
+    };
+  }
+  return {
+    ok: true,
+    target: {
+      runId: request.runId,
+      stepSpanId: request.stepSpanId,
+      expectedSnapshotId: undefined,
+      verificationId: undefined,
+    },
+  };
+}
 
 export async function exportWorkspaceEndpoint(
   deps: WorkspaceExportEndpointDeps,
@@ -85,7 +207,10 @@ export async function exportWorkspaceEndpoint(
   if (!parsed.success) {
     return { kind: "envelope-failure", code: "INVALID_ARGUMENT", error: parsed.error };
   }
-  const { runId, stepSpanId }: WorkspaceExportRequest = parsed.data;
+  const requestTarget = resolveExportTarget(deps, parsed.data);
+  // 验证绑定解析（读记录/定位快照）也在占槽前完成：失败不占用导出槽
+  if (!requestTarget.ok) return { kind: "outcome", outcome: requestTarget.outcome };
+  const target = requestTarget.target;
 
   if (!deps.acquireSlot()) {
     return {
@@ -101,7 +226,7 @@ export async function exportWorkspaceEndpoint(
 
   try {
     // 对话框前的早期来源检查（只用于早期拒绝，省用户白选目录；不替代写入前重验）
-    const early = exportSourceRejection(deps.tracesDir, runId);
+    const early = exportSourceRejection(deps.tracesDir, target.runId);
     if (early !== null) return { kind: "outcome", outcome: early };
 
     const picked = await deps.pickDirectory();
@@ -109,14 +234,22 @@ export async function exportWorkspaceEndpoint(
       return { kind: "outcome", outcome: { status: "canceled" } };
     }
 
-    // 目录返回后、一切目标写入前的完整父链重验（对话框期间父链可能变化）
-    const late = exportSourceRejection(deps.tracesDir, runId);
+    // 目录返回后、一切目标写入前重验：验证绑定要重读记录并重定位快照（W04 漂移阻断），
+    // 普通导出沿用父链检查（对话框期间父链可能变化）
+    const lateTarget = resolveExportTarget(deps, parsed.data);
+    if (!lateTarget.ok) return { kind: "outcome", outcome: lateTarget.outcome };
+    const late = exportSourceRejection(deps.tracesDir, lateTarget.target.runId);
     if (late !== null) return { kind: "outcome", outcome: late };
 
     const result = await (deps.exportSnapshot ?? exportWorkspaceSnapshot)({
       dataDir: deps.dataDir,
-      runId,
-      ...(stepSpanId === undefined ? {} : { stepSpanId }),
+      runId: lateTarget.target.runId,
+      ...(lateTarget.target.stepSpanId === undefined
+        ? {}
+        : { stepSpanId: lateTarget.target.stepSpanId }),
+      ...(lateTarget.target.expectedSnapshotId === undefined
+        ? {}
+        : { expectedSnapshotId: lateTarget.target.expectedSnapshotId }),
       targetDir: picked,
     });
 
@@ -132,6 +265,12 @@ export async function exportWorkspaceEndpoint(
         stepSpanId: value.stepSpanId,
         patch: projectPatch(value.patch),
         unpreserved: { ...UNPRESERVED_STATUSES },
+        ...(lateTarget.target.verificationId === undefined
+          ? {}
+          : {
+              verificationId: lateTarget.target.verificationId,
+              verificationSnapshotId: lateTarget.target.expectedSnapshotId,
+            }),
       };
       return { kind: "outcome", outcome };
     }

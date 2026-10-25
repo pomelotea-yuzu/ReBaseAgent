@@ -627,6 +627,9 @@ describe("U2 3.1 接线契约：代次守卫，不退回 cancelled 布尔", () =
         "verificationLogError",
         "focusVerificationRecord",
         "readVerificationLog",
+        // R3 5.5：验证输入导出（按 verificationId 键的反馈）
+        "verificationExports",
+        "exportVerificationInput",
         // R3 5.4：双验证比较与代码差异导航
         "verificationCompareLeft",
         "verificationCompareRight",

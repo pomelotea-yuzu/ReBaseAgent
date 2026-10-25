@@ -1,6 +1,7 @@
 import type {
   VerificationCapabilityResult,
   VerificationCheckpoint,
+  VerificationGetMeta,
   VerificationGetResult,
   VerificationPreparePlanResult,
 } from "@shared/ipc";
@@ -23,6 +24,7 @@ import {
 import type { VerificationRecordView } from "../lib/verification-reading";
 import { verificationStatusLine } from "../lib/verification-reading";
 import type {
+  VerificationExportFeedback,
   VerificationOutcomeView,
   VerificationSubmitError,
 } from "../store/slices/verification";
@@ -143,9 +145,14 @@ export interface VerificationPanelProps {
   /** 收窄后的记录视图（lib/verification-reading 的产物；null = 尚未就绪） */
   readonly recordView: VerificationRecordView | null;
   readonly recordStatus: VerificationGetResult["status"] | null;
+  /** 记录头（5.5 导出绑定：run/检查点/快照事实）；不可读 ⇒ null */
+  readonly recordMeta: VerificationGetMeta | null;
   /** 记录读取的结构化错误（坏尾行号/原因；P15/D09） */
   readonly recordErrorInfo: VerificationGetResult["error"];
   readonly recordError: { code: string; message: string } | null;
+  /** 该验证的导出反馈（按 verificationId 留存；光标在别处时不显示） */
+  readonly exportFeedback: VerificationExportFeedback | null;
+  readonly onExportInput: () => void;
   readonly logIdentity: {
     verificationId: string;
     commandId: "typecheck" | "test";
@@ -215,6 +222,88 @@ function compareCandidateSourceLine(candidate: VerificationCompareCandidate): st
   return `${run} · ${checkpoint} · ${command}`;
 }
 
+function metaCheckpointLabel(meta: VerificationGetMeta): string {
+  return meta.checkpoint.kind === "initial"
+    ? "初始检查点"
+    : `步骤检查点 ${meta.checkpoint.stepSpanId}`;
+}
+
+/** 5.5：验证输入导出的反馈（W03/W04/D08；不把导出说成测试通过） */
+function VerificationExportFeedbackBody({
+  feedback,
+  expectedSnapshotId,
+}: {
+  feedback: VerificationExportFeedback;
+  expectedSnapshotId: string | null;
+}) {
+  switch (feedback.kind) {
+    case "in-flight":
+      return (
+        <div
+          data-verification-export-feedback="in-flight"
+          className="mt-0.5 text-[10px] text-violet-800"
+        >
+          正在导出该验证的精确输入… 切换检查点/比较侧或离开页面都不会改变绑定，main 侧继续写入。
+        </div>
+      );
+    case "canceled":
+      return (
+        <div
+          data-verification-export-feedback="canceled"
+          className="mt-0.5 text-[10px] text-gray-600"
+        >
+          已取消目录选择：没有写入任何内容。
+        </div>
+      );
+    case "failed":
+      return (
+        <div data-verification-export-feedback="failed" className="mt-0.5 text-[10px] text-red-700">
+          导出失败（{feedback.code}）：{feedback.reason}
+          {feedback.retained.length > 0 ? (
+            <div>
+              目标残留（清理未完成，不可当作完整导出）：
+              {feedback.retained.join("、")}
+            </div>
+          ) : null}
+        </div>
+      );
+    case "exported": {
+      const outcome = feedback.outcome;
+      const matches = expectedSnapshotId !== null && outcome.snapshotId === expectedSnapshotId;
+      return (
+        <div
+          data-verification-export-feedback="exported"
+          data-export-snapshot-match={matches ? "true" : "false"}
+          className="mt-0.5 rounded border border-emerald-200 bg-white px-1.5 py-1 text-[10px] leading-4 text-gray-700"
+        >
+          <div>
+            已导出 {outcome.fileCount} 个文件（{formatBytes(outcome.totalFileBytes)}）到{" "}
+            <span className="font-code">{outcome.targetDir}</span>
+          </div>
+          <div>
+            验证快照 {expectedSnapshotId ?? "未知"} · 导出快照 {outcome.snapshotId} ·{" "}
+            {matches ? "一致（写入前已绑定）" : "不一致（异常，请以清单为准）"}
+          </div>
+          <div>
+            补丁：
+            {outcome.patch.status === "written"
+              ? `changes.patch（${outcome.patch.bytes ?? 0} 字节）`
+              : outcome.patch.status === "no_text_changes"
+                ? "无文本差异"
+                : `不可用${outcome.patch.reason === null ? "" : `（${outcome.patch.reason}）`}`}
+          </div>
+          <div className="text-gray-500">
+            回查：目标根 rebaseagent-export.json 的 source.snapshot_id 与 files[] 哈希可逐项核对。
+          </div>
+          <div className="text-amber-800">
+            文件导出 ≠ 测试通过；导出的是所测输入快照，不含日志/材料包，也不应用补丁。
+          </div>
+        </div>
+      );
+    }
+  }
+}
+
 function compareConditionStateLabel(state: "same" | "different" | "unknown"): string {
   switch (state) {
     case "same":
@@ -265,8 +354,11 @@ export function VerificationPanel({
   recordState,
   recordView,
   recordStatus,
+  recordMeta,
   recordErrorInfo,
   recordError,
+  exportFeedback,
+  onExportInput,
   logIdentity,
   logText,
   logMeta,
@@ -672,6 +764,52 @@ export function VerificationPanel({
                       {recordView.commandEnds.length === 0 ? (
                         <div className="text-[10px] text-gray-500">
                           记录里没有命令执行事实（可能未到执行阶段或被中断）。
+                        </div>
+                      ) : null}
+
+                      {/* —— 5.5 导出所测输入（W03/W04/D08：绑定该验证的精确快照）—— */}
+                      {recordMeta !== null ? (
+                        <div
+                          className="mt-1 rounded border border-slate-300 bg-slate-50 px-1.5 py-1"
+                          data-verification-export="true"
+                        >
+                          <div className="text-[10px] font-medium text-gray-600">
+                            导出所测输入（R2.1）——文件快照；不含日志/材料包，也不是测试通过
+                          </div>
+                          <div className="text-[10px] text-gray-500">
+                            绑定：{recordMeta.runId} · {metaCheckpointLabel(recordMeta)} · snapshot{" "}
+                            {recordMeta.snapshotId}
+                          </div>
+                          <div className="mt-0.5 flex flex-wrap items-center gap-2">
+                            <button
+                              type="button"
+                              data-verification-export-start="true"
+                              disabled={recordStatus !== "sealed"}
+                              onClick={onExportInput}
+                              className={`rounded border border-slate-400 px-1.5 py-0.5 text-[10px] text-slate-800 hover:bg-white disabled:cursor-not-allowed disabled:opacity-40 ${FOCUS_RING}`}
+                            >
+                              选择空目录并导出精确输入
+                            </button>
+                            {recordStatus === "sealed" ? (
+                              <span className="text-[10px] text-gray-500">
+                                目标由原生对话框选择（须为空目录）；导出前 main 重核记录/来源/快照
+                                ID。
+                              </span>
+                            ) : (
+                              <span
+                                data-verification-export-blocked="true"
+                                className="text-[10px] text-amber-800"
+                              >
+                                记录未封存：不提供导出（不以未完成记录绑定输入）。
+                              </span>
+                            )}
+                          </div>
+                          {exportFeedback !== null ? (
+                            <VerificationExportFeedbackBody
+                              feedback={exportFeedback}
+                              expectedSnapshotId={recordMeta.snapshotId}
+                            />
+                          ) : null}
                         </div>
                       ) : null}
                     </div>

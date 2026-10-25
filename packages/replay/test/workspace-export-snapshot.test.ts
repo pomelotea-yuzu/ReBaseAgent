@@ -9,6 +9,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join, relative } from "node:path";
+import { createWorkspaceSnapshot } from "@rebaseagent/trace-sdk/workspace-hash";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { exportWorkspaceSnapshot } from "../src/index";
 import type { TempDataDir } from "./workspace-helpers";
@@ -400,6 +401,53 @@ describe("exportWorkspaceSnapshot 端到端（任务 3.X 收口）", () => {
       expect(result.failure.code).toBe("step_not_found");
       expect(existsSync(join(target, "files"))).toBe(false);
       expect(readdirSync(target)).toEqual([]);
+    } finally {
+      rmSync(target, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("R3 5.5：绑定精确输入快照（W03/W04）", () => {
+  it("expectedSnapshotId 一致 ⇒ 正常导出，结果快照等于绑定值", async () => {
+    const initialId = createWorkspaceSnapshot(root.roundFiles[0] ?? []).id;
+    const target = newTarget("binding-ok");
+    try {
+      const result = await exportWorkspaceSnapshot({
+        dataDir,
+        runId: ROOT_RUN,
+        targetDir: target,
+        expectedSnapshotId: initialId,
+      });
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.snapshotId).toBe(initialId);
+        const manifest = JSON.parse(
+          readFileSync(join(target, "rebaseagent-export.json"), "utf8"),
+        ) as { source: { snapshot_id: string } };
+        expect(manifest.source.snapshot_id).toBe(initialId);
+      }
+    } finally {
+      rmSync(target, { recursive: true, force: true });
+    }
+  });
+
+  it("expectedSnapshotId 不一致 ⇒ snapshot_mismatch 且零写入（不导出其他点）", async () => {
+    const target = newTarget("binding-mismatch");
+    const before = readdirSync(target);
+    try {
+      const result = await exportWorkspaceSnapshot({
+        dataDir,
+        runId: ROOT_RUN,
+        targetDir: target,
+        expectedSnapshotId: "0".repeat(64),
+      });
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.failure.code).toBe("snapshot_mismatch");
+        expect(result.failure.reason).toContain("已阻断导出");
+        expect(result.cleanup.retained).toEqual([]);
+      }
+      expect(readdirSync(target)).toEqual(before);
     } finally {
       rmSync(target, { recursive: true, force: true });
     }

@@ -139,8 +139,11 @@ function baseProps(overrides?: Partial<Record<string, unknown>>) {
     recordState: "idle" as const,
     recordView: null,
     recordStatus: null,
+    recordMeta: null,
     recordErrorInfo: null,
     recordError: null,
+    exportFeedback: null,
+    onExportInput: () => {},
     logIdentity: null,
     logText: "",
     logMeta: null,
@@ -943,5 +946,128 @@ describe("VerificationPanel（5.4：双验证比较 D07/P24/P25）", () => {
     expect(html).toContain('data-compare-no-diff="true"');
     expect(html).toContain("两侧来自同一 run");
     expect(html).not.toContain('data-compare-open-diff="true"');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5.5：导出所测输入（W03/W04/D08 呈现面静态断言）
+// ---------------------------------------------------------------------------
+
+const EXPORT_SNAPSHOT = "d".repeat(64);
+const EXPORT_META = {
+  runId: RUN,
+  checkpoint: { kind: "initial" as const },
+  snapshotId: EXPORT_SNAPSHOT,
+  profileId: "node-ts-v1",
+  manifestVersion: 3,
+  commandId: "test" as const,
+  planBindingDigest: "a".repeat(64),
+  createdAt: "2026-10-25T10:00:00.000Z",
+  environment: null,
+};
+
+/** 导出区块只在记录已读出且焦点明确时出现 */
+function exportProps(overrides: Record<string, unknown> = {}) {
+  return baseProps({
+    expanded: true,
+    trustedVerificationIds: ["ver-old"],
+    recordFocus: "ver-old",
+    recordState: "ready",
+    recordView: SEALED_VIEW,
+    recordStatus: "sealed",
+    recordMeta: EXPORT_META,
+    ...overrides,
+  });
+}
+
+describe("VerificationPanel（5.5：导出所测输入 W03/W04/D08）", () => {
+  it("封存记录 ⇒ 导出区显示精确输入身份与入口；未封存/记录头不可读 ⇒ 禁用或不出现", () => {
+    const html = render(exportProps());
+    expect(html).toContain("data-verification-export");
+    expect(html).toContain(`snapshot ${EXPORT_SNAPSHOT}`);
+    expect(html).toMatch(/data-verification-export-start="true"(?![^>]*disabled="")/);
+    expect(html).toContain("不含日志/材料包");
+    const unsealed = render(
+      exportProps({
+        recordStatus: "unterminated",
+        recordView: { ...SEALED_VIEW, terminated: false, outcome: null, detail: null },
+      }),
+    );
+    expect(unsealed).toContain("data-verification-export-blocked");
+    expect(unsealed).toMatch(/data-verification-export-start="true"[^>]*disabled=""/);
+    const noMeta = render(exportProps({ recordMeta: null, recordStatus: "corrupt" }));
+    expect(noMeta).not.toContain("data-verification-export");
+  });
+
+  it("导出成功 ⇒ 验证快照与导出快照一致、回查指引明确、不把导出说成测试通过", () => {
+    const html = render(
+      exportProps({
+        exportFeedback: {
+          kind: "exported",
+          verificationId: "ver-old",
+          generation: 1,
+          outcome: {
+            status: "exported",
+            targetDir: "D:/exports/ver-old",
+            filesRoot: "files",
+            fileCount: 3,
+            totalFileBytes: 1024,
+            snapshotId: EXPORT_SNAPSHOT,
+            stepSpanId: null,
+            patch: { status: "no_text_changes", covered: [], excluded: [] },
+            unpreserved: {
+              permissions: "未保留（原状态未知）",
+              executable_bit: "未保留（原状态未知）",
+              timestamps: "未保留（原状态未知）",
+              links: "未保留（原状态未知）",
+              empty_directories: "未保留（原状态未知）",
+              external_services: "未保留（原状态未知）",
+            },
+            verificationId: "ver-old",
+            verificationSnapshotId: EXPORT_SNAPSHOT,
+          },
+        },
+      }),
+    );
+    expect(html).toContain('data-verification-export-feedback="exported"');
+    expect(html).toContain('data-export-snapshot-match="true"');
+    expect(html).toContain("一致（写入前已绑定）");
+    expect(html).toContain("rebaseagent-export.json");
+    expect(html).toContain("文件导出 ≠ 测试通过");
+  });
+
+  it("导出失败 ⇒ 稳定码/原因/残留如实呈现；取消 ⇒ 零写入说明", () => {
+    const failed = render(
+      exportProps({
+        exportFeedback: {
+          kind: "failed",
+          verificationId: "ver-old",
+          generation: 1,
+          code: "VERIFICATION_EXPORT_SNAPSHOT_DRIFT",
+          reason: "快照不一致",
+          retained: ["files/a.txt"],
+        },
+      }),
+    );
+    expect(failed).toContain("VERIFICATION_EXPORT_SNAPSHOT_DRIFT");
+    expect(failed).toContain("清理未完成");
+    expect(failed).toContain("files/a.txt");
+    const canceled = render(
+      exportProps({
+        exportFeedback: { kind: "canceled", verificationId: "ver-old", generation: 2 },
+      }),
+    );
+    expect(canceled).toContain('data-verification-export-feedback="canceled"');
+    expect(canceled).toContain("没有写入任何内容");
+  });
+
+  it("在飞 ⇒ 明示切页不改绑定、主进程继续", () => {
+    const html = render(
+      exportProps({
+        exportFeedback: { kind: "in-flight", verificationId: "ver-old", generation: 1 },
+      }),
+    );
+    expect(html).toContain('data-verification-export-feedback="in-flight"');
+    expect(html).toContain("不会改变绑定");
   });
 });

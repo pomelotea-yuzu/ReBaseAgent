@@ -1,7 +1,13 @@
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createWorkspaceBlobStore, type exportWorkspaceSnapshot } from "@rebaseagent/replay";
+import { VerificationRecordWriter } from "@rebaseagent/project-verification";
+import {
+  createWorkspaceBlobStore,
+  type exportWorkspaceSnapshot,
+  readWorkspaceRun,
+  resolveExportSnapshots,
+} from "@rebaseagent/replay";
 import { JsonlTracer } from "@rebaseagent/trace-sdk";
 import { createWorkspaceSnapshot } from "@rebaseagent/trace-sdk/workspace-hash";
 import { afterEach, describe, expect, it } from "vitest";
@@ -500,5 +506,236 @@ describe("workspaces:export 端点（任务 5.1/5.2a/5.2b/5.4）", () => {
     if (failEnvelope.ok) return;
     expect(failEnvelope.error.code).toBe("INVALID_ARGUMENT");
     expect(typeof failEnvelope.error.message).toBe("string");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// R3 5.5：从验证记录导出精确输入（W03/W04/D08）
+// ---------------------------------------------------------------------------
+
+describe("workspaces:export × 验证绑定（R3 5.5）", () => {
+  const { dataDir, tracesDir, rootStepSpanId } = fixture;
+  const scratch: string[] = [];
+  let seq = 0;
+  const pickCallsLocal: string[] = [];
+
+  afterEach(() => {
+    for (const dir of scratch.splice(0)) rmSync(dir, { recursive: true, force: true });
+    pickCallsLocal.length = 0;
+  });
+
+  function newTarget(name: string): string {
+    const dir = join(fixture.outer, `v-target-${name}-${seq++}`);
+    rmSync(dir, { recursive: true, force: true });
+    mkdirSync(dir);
+    scratch.push(dir);
+    return dir;
+  }
+
+  function makeDeps(
+    overrides: Partial<WorkspaceExportEndpointDeps> = {},
+  ): WorkspaceExportEndpointDeps & { pickCalls: () => number } {
+    const slot = makeSlot();
+    const deps: WorkspaceExportEndpointDeps = {
+      dataDir,
+      tracesDir,
+      pickDirectory: async () => {
+        pickCallsLocal.push("pick");
+        return newTarget(`pick-${pickCallsLocal.length}`);
+      },
+      ...slot,
+      ...overrides,
+    };
+    return { ...deps, pickCalls: () => pickCallsLocal.length };
+  }
+
+  function initialSnapshotIdOf(runId: string): string {
+    const run = readWorkspaceRun(dataDir, runId);
+    if (!run.ok) throw new Error(run.failure.reason);
+    return run.value.workspace.initial_snapshot.id;
+  }
+
+  function seedRecord(opts: {
+    verificationId: string;
+    runId: string;
+    snapshotId: string;
+    stepSpanId?: string;
+    sealed?: boolean;
+  }): void {
+    const writer = VerificationRecordWriter.open(dataDir, {
+      verificationId: opts.verificationId,
+      epoch: "11111111-1111-4111-8111-111111111111",
+      operationId: "22222222-2222-4222-8222-222222222222",
+      target: {
+        runId: opts.runId,
+        checkpoint:
+          opts.stepSpanId === undefined
+            ? { kind: "initial" }
+            : { kind: "step", stepSpanId: opts.stepSpanId },
+        snapshotId: opts.snapshotId,
+      },
+      profileId: "node-ts-v1",
+      manifestVersion: 3,
+      commandId: "test",
+      planBindingDigest: "a".repeat(64),
+      createdAt: "2026-10-25T00:00:00.000Z",
+    });
+    writer.append({ type: "stage", phase: "executing", at: "2026-10-25T00:00:01.000Z" });
+    if (opts.sealed !== false) {
+      writer.terminate({
+        outcome: "check_failed",
+        detail: "断言失败",
+        evidenceComplete: true,
+        at: "2026-10-25T00:00:02.000Z",
+      });
+    }
+  }
+
+  it("验证记录（初始检查点）⇒ 导出绑定快照 ID，回带验证身份与所测输入快照", async () => {
+    const initialId = initialSnapshotIdOf(ROOT_RUN);
+    seedRecord({
+      verificationId: "ver_export_bind_initial",
+      runId: ROOT_RUN,
+      snapshotId: initialId,
+    });
+    const target = newTarget("ver-initial");
+    const deps = makeDeps({
+      pickDirectory: async () => {
+        pickCallsLocal.push("pick");
+        return target;
+      },
+    });
+    const result = await exportWorkspaceEndpoint(deps, {
+      verificationId: "ver_export_bind_initial",
+    });
+    expect(result.kind).toBe("outcome");
+    if (result.kind !== "outcome") return;
+    const outcome = WorkspaceExportOutcomeSchema.parse(result.outcome);
+    expect(outcome.status).toBe("exported");
+    if (outcome.status !== "exported") return;
+    expect(outcome.snapshotId).toBe(initialId);
+    expect(outcome.verificationId).toBe("ver_export_bind_initial");
+    expect(outcome.verificationSnapshotId).toBe(initialId);
+    expect(outcome.stepSpanId).toBeNull();
+    expect(readFileSync(join(target, "files", "a.txt"), "utf8")).toBe("before");
+    const manifest = JSON.parse(readFileSync(join(target, "rebaseagent-export.json"), "utf8")) as {
+      source: { run_id: string; snapshot_id: string };
+    };
+    expect(manifest.source.run_id).toBe(ROOT_RUN);
+    expect(manifest.source.snapshot_id).toBe(initialId);
+    expect(deps.pickCalls()).toBe(1);
+  });
+
+  it("验证记录（自有步骤）⇒ 导出该步骤快照，不导出初始点", async () => {
+    const located = resolveExportSnapshots(dataDir, ROOT_RUN, rootStepSpanId);
+    expect(located.ok).toBe(true);
+    if (!located.ok) return;
+    const stepSnapshotId = located.value.selected.snapshot.id;
+    expect(stepSnapshotId).not.toBe(initialSnapshotIdOf(ROOT_RUN));
+    seedRecord({
+      verificationId: "ver_export_bind_step",
+      runId: ROOT_RUN,
+      snapshotId: stepSnapshotId,
+      stepSpanId: rootStepSpanId,
+    });
+    const deps = makeDeps();
+    const result = await exportWorkspaceEndpoint(deps, {
+      verificationId: "ver_export_bind_step",
+    });
+    if (result.kind !== "outcome" || result.outcome.status !== "exported") {
+      throw new Error(`导出失败：${JSON.stringify(result)}`);
+    }
+    expect(result.outcome.snapshotId).toBe(stepSnapshotId);
+    expect(result.outcome.stepSpanId).toBe(rootStepSpanId);
+  });
+
+  it("记录绑定的快照与 run 实际不符 ⇒ SNAPSHOT_DRIFT，对话框未打开、目标零写入", async () => {
+    seedRecord({
+      verificationId: "ver_export_bind_drift",
+      runId: ROOT_RUN,
+      snapshotId: "0".repeat(64),
+    });
+    const target = newTarget("ver-drift");
+    const deps = makeDeps({
+      pickDirectory: async () => {
+        pickCallsLocal.push("pick");
+        return target;
+      },
+    });
+    const result = await exportWorkspaceEndpoint(deps, {
+      verificationId: "ver_export_bind_drift",
+    });
+    expect(result.kind).toBe("outcome");
+    if (result.kind !== "outcome") return;
+    expect(result.outcome.status).toBe("failed");
+    if (result.outcome.status !== "failed") return;
+    expect(result.outcome.code).toBe("VERIFICATION_EXPORT_SNAPSHOT_DRIFT");
+    expect(deps.pickCalls()).toBe(0);
+    expect(readdirSync(target)).toEqual([]);
+  });
+
+  it("来源 trace 缺失 / 记录未封存 / 记录不存在 ⇒ 稳定码且不开对话框", async () => {
+    seedRecord({
+      verificationId: "ver_export_bind_missing",
+      runId: "run_export_absent_source",
+      snapshotId: "0".repeat(64),
+    });
+    seedRecord({
+      verificationId: "ver_export_bind_unsealed",
+      runId: ROOT_RUN,
+      snapshotId: initialSnapshotIdOf(ROOT_RUN),
+      sealed: false,
+    });
+    const deps = makeDeps();
+    const codeOf = (result: Awaited<ReturnType<typeof exportWorkspaceEndpoint>>): string | null =>
+      result.kind === "outcome" && result.outcome.status === "failed" ? result.outcome.code : null;
+    expect(
+      codeOf(await exportWorkspaceEndpoint(deps, { verificationId: "ver_export_bind_missing" })),
+    ).toBe("VERIFICATION_EXPORT_SOURCE_MISSING");
+    expect(
+      codeOf(await exportWorkspaceEndpoint(deps, { verificationId: "ver_export_bind_unsealed" })),
+    ).toBe("VERIFICATION_EXPORT_SOURCE_INVALID");
+    expect(
+      codeOf(await exportWorkspaceEndpoint(deps, { verificationId: "ver_export_bind_absent" })),
+    ).toBe("VERIFICATION_EXPORT_SOURCE_INVALID");
+    expect(deps.pickCalls()).toBe(0);
+  });
+
+  it("对话框期间验证记录被移除 ⇒ 返回后重验阻断（零写入）", async () => {
+    seedRecord({
+      verificationId: "ver_export_bind_late",
+      runId: ROOT_RUN,
+      snapshotId: initialSnapshotIdOf(ROOT_RUN),
+    });
+    const target = newTarget("ver-late");
+    const deps = makeDeps({
+      pickDirectory: async () => {
+        pickCallsLocal.push("pick");
+        rmSync(join(dataDir, "verifications", "ver_export_bind_late.jsonl"));
+        return target;
+      },
+    });
+    const result = await exportWorkspaceEndpoint(deps, {
+      verificationId: "ver_export_bind_late",
+    });
+    expect(result.kind).toBe("outcome");
+    if (result.kind !== "outcome") return;
+    expect(result.outcome.status).toBe("failed");
+    if (result.outcome.status !== "failed") return;
+    expect(result.outcome.code).toBe("VERIFICATION_EXPORT_SOURCE_INVALID");
+    expect(readdirSync(target)).toEqual([]);
+  });
+
+  it("verificationId 与 runId 同时出现 ⇒ 信封失败（不接受两套来源）", async () => {
+    const deps = makeDeps();
+    const result = await exportWorkspaceEndpoint(deps, {
+      verificationId: "ver_export_bind_initial",
+      runId: ROOT_RUN,
+    });
+    expect(result.kind).toBe("envelope-failure");
+    expect(deps.pickCalls()).toBe(0);
+    expect(
+      WorkspaceExportRequestSchema.safeParse({ verificationId: "v", runId: "r" }).success,
+    ).toBe(false);
   });
 });

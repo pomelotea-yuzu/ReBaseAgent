@@ -16,7 +16,6 @@ import type {
   IsolatedPromptForkRequest,
   ModelAbResult,
   WorkspaceExportOutcome,
-  WorkspaceExportRequest,
   WorkspaceInspectRequest,
   WorkspaceInspectResult,
   WorkspaceReadFileRequest,
@@ -251,7 +250,11 @@ export interface OperationsState {
    *   不自动重发（本动作也不提供重发入口）。
    * 返回本次 outcome（代次被更新的提交顶掉时返回 null——反馈已不归本次所有）。
    */
-  exportCheckpoint: (request: WorkspaceExportRequest) => Promise<WorkspaceExportOutcome | null>;
+  /** R2.1 检查点导出（run 作用域；验证绑定导出见 verification 分片） */
+  exportCheckpoint: (request: {
+    readonly runId: string;
+    readonly stepSpanId?: string;
+  }) => Promise<WorkspaceExportOutcome | null>;
   /** 导出反馈（按提交 run/step 键控；重载后为空 = 结果未知，不自动重发） */
   workspaceExports: Record<string, WorkspaceExportFeedback>;
   /** 每个 key 最近一次提交的请求代次（旧响应按代次丢弃的判据） */
