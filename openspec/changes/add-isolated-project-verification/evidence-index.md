@@ -1,6 +1,6 @@
 # R3 逐场景证据索引
 
-状态：阶段 1 完成（1.1–1.6）+ **第 2 组完成（2.1–2.4）** + **3.1–3.7 完成（受限准备/Docker 受控后端/受控物化/固定命令执行/停止语义+supervisor/静止采集/资源登记+启动核查）**——阶段 1 各切片、2.1–2.4 各切片、3.1（P03/P04 编排/P07/P08）、3.2（P01/P02/P09/P10）、3.3（P05/P06/P09/W01/W02）、3.4（P11/P12/P13/P20）、3.5（P10/P19/P21 + P20 接线）、3.6（P17/P18/W01）、3.7（P22/P23）各切片已实测（backend-verification.md §1.x/§3.1–§3.7 + `packages/project-verification` 212 用例）、4.1 登记面切片已实测（shared/operations+registry+renderer 3306 用例）、4.2 执行端点切片已实测（包 executeVerificationRun 227 用例 + 端点 14 用例/desktop 3320）、4.3 只读端点切片已实测（desktop 3329）、4.4 定向停止切片已实测（包 231+desktop 3337）、4.5 启动核查/分层可用性切片已实测（desktop 3341）；其余任务切片待验证；文档/strict 校验通过不代表功能、隔离或实机验收通过。
+状态：阶段 1 完成（1.1–1.6）+ **第 2 组完成（2.1–2.4）** + **3.1–3.7 完成（受限准备/Docker 受控后端/受控物化/固定命令执行/停止语义+supervisor/静止采集/资源登记+启动核查）**——阶段 1 各切片、2.1–2.4 各切片、3.1（P03/P04 编排/P07/P08）、3.2（P01/P02/P09/P10）、3.3（P05/P06/P09/W01/W02）、3.4（P11/P12/P13/P20）、3.5（P10/P19/P21 + P20 接线）、3.6（P17/P18/W01）、3.7（P22/P23）各切片已实测（backend-verification.md §1.x/§3.1–§3.7 + `packages/project-verification` 212 用例）、4.1 登记面切片已实测（shared/operations+registry+renderer 3306 用例）、4.2 执行端点切片已实测（包 executeVerificationRun 227 用例 + 端点 14 用例/desktop 3320）、4.3 只读端点切片已实测（desktop 3329）、4.4 定向停止切片已实测（包 231+desktop 3337）、4.5 启动核查/分层可用性切片已实测（desktop 3341）、5.1 检查点入口/分开确认切片已实测（desktop 3385，+44 用例：lib 判据/store 接线/panel 静态断言）；其余任务切片待验证；文档/strict 校验通过不代表功能、隔离或实机验收通过。
 
 ## 新增场景
 
@@ -36,8 +36,8 @@
 | W02 | workspace-isolation / 不扩展文件工具或状态承诺 | 2.4、3.3 | 2.4 切片已实测（受支持源码面精确判定：node_modules/点文件/额外入口/非 .ts 明确拒绝）；3.3 切片已实测（物化不另造标准：路径/碰撞/配额复用 trace-sdk/replay 同一权威函数与数字；链接/特殊对象结构性排除——清单 schema 无法表达 + tee 只建普通文件 + find -type l=0） |
 | W03 | workspace-isolation / 导出字节对应所测输入 | 5.5、6.1、7.2 | 待验证；未执行 |
 | W04 | workspace-isolation / 切换检查点或附件漂移 | 5.5 | 待验证；未执行 |
-| D01 | desktop-ui / 计划预览和不可用原因 | 4.3、5.1、6.3 | 待验证；未执行 |
-| D02 | desktop-ui / 当前确认与计划漂移 | 4.2、5.1、6.3 | 4.2 切片已实测（准备与测试分开确认：run 无已准备环境 ⇒ R3_PREPARE_MISSING；计划漂移旧确认失效）|
+| D01 | desktop-ui / 计划预览和不可用原因 | 4.3、5.1、6.3 | 4.3 切片已实测（capability 聚合当前 planToken/已准备环境/来源预检/引擎健康；preparePlan 固定计划预览零副作用）；5.1 切片已实测（2026-10-25：文件页入口展开只发起 capability+preparePlan 两个只读 IPC（store 用例断言零执行通道调用）；精确输入/当前条件/profileSummary 投影/不可用原因可行动映射（引擎/来源/未准备分挡）由 lib+panel 用例钉住）；6.3 待执行 |
+| D02 | desktop-ui / 当前确认与计划漂移 | 4.2、5.1、6.3 | 4.2 切片已实测（准备与测试分开确认：run 无已准备环境 ⇒ R3_PREPARE_MISSING；计划漂移旧确认失效）；5.1 切片已实测（2026-10-25：两份独立确认 prepareConfirmation/runConfirmation 互不替代；decideVerificationConfirmation 现算——目标键/计划 token/命令任一漂移 ⇒ stale；提交门 stale/missing 本地拒发零 IPC（不隐式执行）；换检查点收起面板整域复位；迟到响应/结局按代次+目标键丢弃）；6.3 待执行 |
 | D03 | desktop-ui / 响应丢失与重复提交 | 4.1、4.2、5.2、6.3 | 4.1 切片已实测（登记面：R3 领域身份由实际回调关联且失败保留、复用既有 status/reconcile 判重/封禁/核对规则——同 ID 重复/封禁/占槽语义不变）；4.2/5.2/6.3 待执行 |
 | D04 | desktop-ui / 请求结束与测试结局分层 | 4.1、5.2、6.3 | 待验证；未执行 |
 | D05 | desktop-ui / 合法停止与迟到停止 | 4.4、5.2、6.3 | 待验证；未执行 |
