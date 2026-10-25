@@ -29,7 +29,7 @@
 | M19 真实客户端完成证据代表任务 | 实际客户端版本/配置/完整工具记录 + Electron 同对象回查 | 待验收 |
 | M20 生产闭包与发行说明可核对 | 生产 deploy 探针/十三工具断言/文档状态 | 待验收 |
 | V01 只读入口无执行依赖且无需后端 | `packages/project-verification/test/read-closure.test.ts`（静态导入图禁入 writer/append/assets/prepare/execute/orchestrate/runtime/docker 等 4 passed）+ 纯 Node 探针 `node -e "import('./dist/read.js')…"`（read/facts 均加载） | 部分通过（import 闭包与纯 Node 读取已证；「无需后端」的端到端读取回归随 5.1/4.4 收口） |
-| V02 桌面与 MCP 对同对象事实一致 | `compare-facts.test.ts`（共享判据）+ 桌面 renderer 已接同一实现（`verification-compare.ts` 消费 `@rebaseagent/project-verification/facts`，panel 35 passed 回归） | 部分通过（共享实现已证；真实 Electron 同对象回归随 5.2 收口） |
+| V02 桌面与 MCP 对同对象事实一致 | 2026-10-26 实机自查（CDP 附加真实 Electron dev 实例，数据根 .rebaseagent）：① IPC 只读面直调 25 条记录 list/get/readLog 全通（sealed/passed/exit 0/env 在场/来源 present，日志 TAP 原文）② 桌面共享判据（renderer 经 vite import 真实 compareVerifications）与 MCP compare_verifications 对同一对 ver-18cedcbf0f7c3c03/ver-0fd97f8ca2567cdc 逐项一致：verdict 均 failed-to-passed、11 条件均 same、expectedSnapshotId 均为 recordedTarget | 部分通过（同对象事实一致性已证；UI 记录/比较区渲染需会话登记身份（D07 设计如此）、宽窄窗/200%/键盘抽查留人工） |
 | V03 文本跨段与字节接口兼容 | `test/assets-view.test.ts`（码点切片跨段不丢字；旧字节接口默认 32 KiB/上限 64 KiB 零改动） | 部分通过（共享层已证；旧 IPC schema 全量回归随 5.2 收口） |
 | V04 核验与枚举不掩盖坏数据 | `test/scan.test.ts`（失败项/非法名/目录级区分）+ `test/assets-view.test.ts`（symlink/junction 顶替拒绝、字节改写 ASSET_CORRUPT、大小/hash 完整核验） | 部分通过（共享层已证；scan 失败项呈现已证（3.1+5.1）） |
 
