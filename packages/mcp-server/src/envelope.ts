@@ -9,6 +9,10 @@ import {
   SPAN_ID_MAX,
 } from "./limits.js";
 import { QUERY_API_VERSION } from "./server.js";
+import {
+  VERIFICATION_LIMITATION_CODES,
+  type VerificationToolErrorCode,
+} from "./verification-codes.js";
 
 /**
  * 工具结果信封（design D4）。
@@ -62,15 +66,20 @@ export const ProvenanceRefSchema = z
   .strict();
 export type ProvenanceRefInput = z.infer<typeof ProvenanceRefSchema>;
 
-/** 只提示不导致失败的限制项（码封闭，见 design D4） */
+/** limitation 码全集：MCP1 既有四码 + MCP2 验证域七码（码封闭，见 design D3/D4） */
+export const KNOWN_LIMITATION_CODES = [
+  "TERMINATION_NOT_RECORDED",
+  "ANCESTOR_NOT_FOUND",
+  "BODY_NOT_EXPOSED",
+  "REDACTED",
+  ...VERIFICATION_LIMITATION_CODES,
+] as const;
+export type McpLimitationCode = (typeof KNOWN_LIMITATION_CODES)[number];
+
+/** 只提示不导致失败的限制项（码封闭，见 design D3/D4） */
 export const LimitationSchema = z
   .object({
-    code: z.enum([
-      "TERMINATION_NOT_RECORDED",
-      "ANCESTOR_NOT_FOUND",
-      "BODY_NOT_EXPOSED",
-      "REDACTED",
-    ]),
+    code: z.enum(KNOWN_LIMITATION_CODES),
     ref: z.string().min(1).max(MESSAGE_MAX).optional(),
     message: z.string().min(1).max(MESSAGE_MAX),
   })
@@ -154,7 +163,7 @@ export function buildSuccessEnvelope(input: SuccessInput): SuccessEnvelope {
 }
 
 export interface FailureInput {
-  readonly code: RunQueryToolErrorCode;
+  readonly code: RunQueryToolErrorCode | VerificationToolErrorCode;
   readonly message: string;
   readonly ref?: string;
   readonly retryable: boolean;
@@ -175,13 +184,8 @@ export function buildErrorEnvelope(input: FailureInput): ErrorEnvelope {
 }
 
 /** limitation 码判定（实现若自行造码，这里挡住而不是静默发出） */
-export function isKnownLimitationCode(code: string): code is RunQueryLimitationCode {
-  return (
-    code === "TERMINATION_NOT_RECORDED" ||
-    code === "ANCESTOR_NOT_FOUND" ||
-    code === "BODY_NOT_EXPOSED" ||
-    code === "REDACTED"
-  );
+export function isKnownLimitationCode(code: string): code is McpLimitationCode {
+  return (KNOWN_LIMITATION_CODES as readonly string[]).includes(code);
 }
 
 export function boundedHeadline(text: string): string {

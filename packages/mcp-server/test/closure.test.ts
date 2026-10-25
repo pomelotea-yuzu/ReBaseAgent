@@ -17,12 +17,14 @@ import { describe, expect, it } from "vitest";
 const SRC_DIR = fileURLToPath(new URL("../src", import.meta.url));
 const DIST_DIR = fileURLToPath(new URL("../dist", import.meta.url));
 
-/** 实测到的外部依赖封闭集（相对/内部模块另计） */
+/** 实测到的外部依赖封闭集（相对/内部模块另计；MCP2 起增加 project-verification 子入口） */
 const EXPECTED_EXTERNAL = [
   "@modelcontextprotocol/sdk/server/index.js",
   "@modelcontextprotocol/sdk/server/stdio.js",
   "@modelcontextprotocol/sdk/server/zod-json-schema-compat.js",
   "@modelcontextprotocol/sdk/types.js",
+  "@rebaseagent/project-verification/read",
+  "@rebaseagent/project-verification/schema",
   "@rebaseagent/run-query",
   "node:crypto",
   "node:fs",
@@ -116,7 +118,7 @@ function occurrences(haystack: string, needle: string): number {
 }
 
 describe("依赖闭包与调用面（Q15 结构半边）", () => {
-  it("dist 的外部依赖恰好是实测那九个说明符（多一个就翻红）", () => {
+  it("dist 的外部依赖恰好是实测那十一个说明符（多一个就翻红）", () => {
     const js = filesWith(DIST_DIR, ".js");
     expect(js.length).toBeGreaterThan(20);
     const external = new Set<string>();
@@ -148,7 +150,7 @@ describe("依赖闭包与调用面（Q15 结构半边）", () => {
     }
   });
 
-  it("本包唯一的共享读取依赖是 run-query，不直连 replay/trace-sdk/desktop/Electron", () => {
+  it("本包的共享读取依赖只有 run-query 与 project-verification 的只读/纯数据子入口，不直连 replay/trace-sdk/desktop/Electron", () => {
     const js = filesWith(DIST_DIR, ".js");
     const external = new Set<string>();
     for (const file of js) {
@@ -156,8 +158,19 @@ describe("依赖闭包与调用面（Q15 结构半边）", () => {
         if (!specifier.startsWith(".")) external.add(specifier);
       }
     }
-    const rebaseagent = [...external].filter((item) => item.startsWith("@rebaseagent/"));
-    expect(rebaseagent).toEqual(["@rebaseagent/run-query"]);
+    const rebaseagent = [...external]
+      .filter((item) => item.startsWith("@rebaseagent/"))
+      .sort();
+    /**
+     * MCP2 design D1：mcp-server 只依赖 run-query 与 project-verification 的
+     * `./read`（记录读取）/`./schema`（纯数据 schema）子入口；主入口混导出执行器，
+     * 禁止直接依赖（`./facts` 在比较事实接线时按同一条纪律追加并扩本表）。
+     */
+    expect(rebaseagent).toEqual([
+      "@rebaseagent/project-verification/read",
+      "@rebaseagent/project-verification/schema",
+      "@rebaseagent/run-query",
+    ]);
     expect([...external].some((item) => /electron|apps\/desktop/.test(item))).toBe(false);
   });
 });
