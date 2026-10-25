@@ -66,6 +66,31 @@ export const ProvenanceRefSchema = z
   .strict();
 export type ProvenanceRefInput = z.infer<typeof ProvenanceRefSchema>;
 
+/**
+ * 验证域 provenance（MCP2 design D3）：verificationId 定位实际执行；
+ * 只给记录内身份/引用事实，不给 epoch/operationId/容器名或运行时登记。
+ */
+export const ProvenanceVerificationSchema = z
+  .object({
+    verificationId: z.string().max(64),
+    status: z.enum(["sealed", "unterminated", "corrupt", "unsupported_version"]),
+    recordVersion: z.number().int().positive().optional(),
+    runId: z.string().min(1).max(RUN_ID_MAX).optional(),
+    checkpointKind: z.enum(["initial", "step"]).optional(),
+    stepSpanId: z.string().min(1).max(SPAN_ID_MAX).optional(),
+    snapshotId: z.string().min(1).max(200).optional(),
+    commandId: z.enum(["typecheck", "test"]).optional(),
+    stream: z.enum(["stdout", "stderr"]).optional(),
+    path: z.string().min(1).max(LOGICAL_PATH_MAX).optional(),
+    hash: z
+      .string()
+      .regex(/^[0-9a-f]{64}$/)
+      .optional(),
+    preparationId: z.string().min(1).max(64).optional(),
+  })
+  .strict();
+export type ProvenanceVerificationInput = z.infer<typeof ProvenanceVerificationSchema>;
+
 /** limitation 码全集：MCP1 既有四码 + MCP2 验证域七码（码封闭，见 design D3/D4） */
 export const KNOWN_LIMITATION_CODES = [
   "TERMINATION_NOT_RECORDED",
@@ -99,6 +124,8 @@ export const SuccessEnvelopeSchema = z
       .object({
         runs: z.array(ProvenanceRunSchema),
         refs: z.array(ProvenanceRefSchema),
+        /** MCP2 起可选：验证域引用；MCP1 工具不带此字段，响应形状不变 */
+        verifications: z.array(ProvenanceVerificationSchema).optional(),
       })
       .strict(),
     limitations: z.array(LimitationSchema),
@@ -134,6 +161,7 @@ export interface SuccessInput {
   readonly readVersion: string;
   readonly runs: readonly ProvenanceRunInput[];
   readonly refs?: readonly ProvenanceRefInput[];
+  readonly verifications?: readonly ProvenanceVerificationInput[];
   readonly limitations?: readonly LimitationInput[];
   readonly nextCursor?: string;
   readonly truncated?: boolean;
@@ -152,6 +180,7 @@ export function buildSuccessEnvelope(input: SuccessInput): SuccessEnvelope {
     provenance: {
       runs: [...input.runs],
       refs: [...(input.refs ?? [])],
+      ...(input.verifications === undefined ? {} : { verifications: [...input.verifications] }),
     },
     limitations: [...(input.limitations ?? [])],
     ...(input.nextCursor === undefined ? {} : { page: { nextCursor: input.nextCursor } }),

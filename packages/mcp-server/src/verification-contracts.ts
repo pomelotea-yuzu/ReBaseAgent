@@ -194,3 +194,19 @@ export const VERIFICATION_TOOL_CONTRACTS: readonly VerificationToolContract[] = 
 export const VERIFICATION_TOOL_NAMES: readonly string[] = VERIFICATION_TOOL_CONTRACTS.map(
   (item) => item.name,
 );
+
+export function verificationContractOf(name: string): VerificationToolContract | undefined {
+  return VERIFICATION_TOOL_CONTRACTS.find((item) => item.name === name);
+}
+
+/**
+ * 登记实现时取契约：名字写错（契约里没有）是实现缺陷，宁可在模块加载时就炸，
+ * 也不要在客户端调用时才回一句含糊的「未知工具」（与 requireContract 同纪律）。
+ */
+export function requireVerificationContract(name: string): VerificationToolContract {
+  const found = verificationContractOf(name);
+  if (found === undefined) {
+    throw new Error(`验证工具契约缺失：${name}`);
+  }
+  return found;
+}

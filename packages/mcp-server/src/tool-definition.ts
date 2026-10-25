@@ -1,11 +1,13 @@
 import type { RunQueryToolErrorCode } from "@rebaseagent/run-query";
 import { RunDetailReadError } from "@rebaseagent/run-query";
+import { z, type ZodObject, type ZodRawShape } from "zod";
 import { type ToolBudget, fitWithinBudget } from "./budget.js";
 import { type ContentBodyInput, buildContentText } from "./content-text.js";
 import {
   type LimitationInput,
   type ProvenanceRefInput,
   type ProvenanceRunInput,
+  type ProvenanceVerificationInput,
   boundedHeadline,
   buildErrorEnvelope,
   buildSuccessEnvelope,
@@ -20,7 +22,12 @@ import {
 import { MESSAGE_MAX } from "./limits.js";
 import type { ToolDefinition, ToolResult } from "./server.js";
 import type { DataRoot } from "./startup.js";
-import type { ToolContract } from "./tool-contracts.js";
+import {
+  VERIFICATION_RETRYABLE_CODES,
+  VERIFICATION_TOOL_ERROR_MESSAGES,
+  type VerificationToolErrorCode,
+  type McpToolErrorCode,
+} from "./verification-codes.js";
 
 /**
  * 工具定义缝：入参校验 → 实现调用 → 信封装配（design D4/D5 的交汇处）。
@@ -39,13 +46,26 @@ import type { ToolContract } from "./tool-contracts.js";
  * （形状不合宁可不发）。预算量的是 content+structuredContent 整体，投影开销自然计入。
  */
 
+/** 稳定码 → 受控文案（MCP1 既有码 + MCP2 验证域码同一张查找面） */
+export function toolErrorMessageOf(code: McpToolErrorCode): string {
+  return VERIFICATION_TOOL_ERROR_MESSAGES[code as never] ?? TOOL_ERROR_MESSAGES[code as never];
+}
+
+/** 可重试判定：MCP1 既有集合 ∪ 验证域集合 */
+export function retryableOfCode(code: McpToolErrorCode): boolean {
+  return (
+    retryableOf(code as RunQueryToolErrorCode) ||
+    VERIFICATION_RETRYABLE_CODES.has(code as VerificationToolErrorCode)
+  );
+}
+
 /** 实现层主动宣告的业务失败：只带稳定码与可选定位，不带自造文案 */
 export class ToolFailure extends Error {
-  readonly code: RunQueryToolErrorCode;
+  readonly code: McpToolErrorCode;
   readonly ref: string | undefined;
 
-  constructor(code: RunQueryToolErrorCode, ref?: string) {
-    super(TOOL_ERROR_MESSAGES[code]);
+  constructor(code: McpToolErrorCode, ref?: string) {
+    super(toolErrorMessageOf(code));
     this.name = "ToolFailure";
     this.code = code;
     this.ref = ref;
@@ -59,6 +79,8 @@ export interface ToolPayload {
   readonly data: unknown;
   readonly runs: readonly ProvenanceRunInput[];
   readonly refs?: readonly ProvenanceRefInput[];
+  /** MCP2：验证域 provenance（verifications） */
+  readonly verifications?: readonly ProvenanceVerificationInput[];
   readonly limitations?: readonly LimitationInput[];
   readonly nextCursor?: string;
   readonly truncated?: boolean;
@@ -78,13 +100,22 @@ export interface ToolPayload {
 
 export type ToolImplementation<Args> = (args: Args, root: DataRoot) => Promise<ToolPayload>;
 
+/** defineTool 接受的契约形状（MCP1 ToolContract 与 MCP2 VerificationToolContract 同构） */
+export interface ToolContractLike {
+  readonly name: string;
+  readonly description: string;
+  readonly schema: ZodObject<ZodRawShape>;
+  readonly inputSchema: Readonly<Record<string, unknown>>;
+  readonly annotations: ToolDefinition["annotations"];
+}
+
 export interface DefineToolOptions {
   /** 观测时点注入（测试要求可预测；生产用当前 UTC 时刻） */
   readonly observedAt?: () => string;
 }
 
 export function defineTool<Args>(
-  contract: ToolContract,
+  contract: ToolContractLike,
   implement: ToolImplementation<Args>,
   options: DefineToolOptions = {},
 ): ToolDefinition {
@@ -109,6 +140,9 @@ export function defineTool<Args>(
             readVersion: candidate.readVersion,
             runs: candidate.runs,
             ...(candidate.refs === undefined ? {} : { refs: candidate.refs }),
+            ...(candidate.verifications === undefined
+              ? {}
+              : { verifications: candidate.verifications }),
             ...(candidate.limitations === undefined ? {} : { limitations: candidate.limitations }),
             ...(candidate.nextCursor === undefined ? {} : { nextCursor: candidate.nextCursor }),
             ...(candidate.truncated === undefined ? {} : { truncated: candidate.truncated }),
@@ -136,8 +170,8 @@ export function defineTool<Args>(
           return failureResult(
             {
               code: e.code,
-              message: TOOL_ERROR_MESSAGES[e.code],
-              retryable: retryableOf(e.code),
+              message: toolErrorMessageOf(e.code),
+              retryable: retryableOfCode(e.code),
             },
             e.ref,
           );
@@ -152,7 +186,7 @@ export function defineTool<Args>(
 }
 
 function failureResult(
-  error: { code: RunQueryToolErrorCode; message: string; retryable: boolean },
+  error: { code: McpToolErrorCode; message: string; retryable: boolean },
   ref?: string,
 ): ToolResult {
   const envelope = buildErrorEnvelope({
