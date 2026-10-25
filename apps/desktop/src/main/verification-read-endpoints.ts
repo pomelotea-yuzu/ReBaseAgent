@@ -76,6 +76,22 @@ function untrusted(): Envelope<never> {
   return fail("UNTRUSTED_SENDER", new Error("只读通道只接受本应用窗口主 frame 的调用"));
 }
 
+/**
+ * 冻结 manifest 的展示投影（5.1/D01）：限额与隔离基线进 capability 结果，renderer
+ * 不在本地另存第二份 profile 数字（与「数字全部来自 main 的只读 IPC」同一纪律）。
+ */
+function verificationProfileSummary(profile: ProfileManifest) {
+  return {
+    profileId: profile.profileId,
+    manifestVersion: profile.manifestVersion,
+    platform: profile.platform,
+    toolchain: profile.toolchain,
+    sourceIncludeGlob: profile.sourceIncludeGlob,
+    limits: profile.limits,
+    security: profile.security,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // verification:capability —— 计划预览与不可用原因（D01/P03）
 // ---------------------------------------------------------------------------
@@ -187,6 +203,7 @@ export async function verificationCapability(
     engine,
     source,
     sourceFailure,
+    profileSummary: verificationProfileSummary(profile),
   });
   return ok(data);
 }

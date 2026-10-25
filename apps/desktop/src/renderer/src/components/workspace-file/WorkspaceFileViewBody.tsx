@@ -1,5 +1,5 @@
 import type { RunDetail, WorkspaceReadFileResult } from "@shared/ipc";
-import type { KeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
+import type { KeyboardEvent, ReactNode, PointerEvent as ReactPointerEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   type DirectoryEmptyReason,
@@ -108,6 +108,8 @@ export interface WorkspaceFileViewBodyProps {
     readonly onToggleExpanded: () => void;
     readonly onConfirm: () => void;
   };
+  /** R3 5.1：项目验证面板（连接层已组装的完整节点；挂在导出面板之后） */
+  readonly verificationPanel?: ReactNode;
 }
 
 export function WorkspaceFileViewBody({
@@ -156,6 +158,7 @@ export function WorkspaceFileViewBody({
   checkpointInvalidated = false,
   pathInvalidated = false,
   exportPanel,
+  verificationPanel,
 }: WorkspaceFileViewBodyProps) {
   const selectedFile = inspect?.files.find((f) => f.path === selectedPath) ?? null;
 
@@ -436,6 +439,7 @@ export function WorkspaceFileViewBody({
             onConfirm={exportPanel.onConfirm}
           />
         )}
+        {verificationPanel ?? null}
       </div>
 
       {/* 目录/内容切换：目录非常驻时才需要（常驻时两者并排） */}

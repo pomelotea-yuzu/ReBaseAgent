@@ -58,6 +58,10 @@ import {
   initialSession,
   markUnknown,
 } from "../../lib/operation-session";
+import {
+  decideVerificationConfirmation,
+  verificationTargetKey,
+} from "../../lib/verification-entry";
 import { feedbackFromOutcome, workspaceExportKey } from "../../lib/workspace-export-state";
 import type { WorkspaceExportFeedback } from "../../lib/workspace-export-state";
 import type { OperationPollingRuntime } from "../runtime/operation-polling";
@@ -252,6 +256,16 @@ export interface OperationsState {
   workspaceExports: Record<string, WorkspaceExportFeedback>;
   /** 每个 key 最近一次提交的请求代次（旧响应按代次丢弃的判据） */
   workspaceExportGenerations: Record<string, number>;
+
+  /**
+   * R3 5.1：环境准备提交（verification:prepare）。与七主动入口同一接受序列
+   * （submitActive）；发送前现算确认判定（D02：missing/stale ⇒ 本地拒发零 IPC，
+   * 不隐式执行），目标/计划 token 来自 verification 分片的显式核对缓存。
+   * 在飞/失败/结局呈现面由 verification 分片承载（begin/end/fail/note 驱动口）。
+   */
+  submitVerificationPrepare: () => Promise<boolean>;
+  /** R3 5.1：固定检查执行提交（verification:run）；确认门与 prepare 同形，另绑命令 */
+  submitVerificationRun: () => Promise<boolean>;
 }
 
 /** operations 分片工厂上下文：完整 set/get + 跨域协调者/共享 helper 的显式注入 */
@@ -830,6 +844,151 @@ export function createOperationsSlice({
       // `selectRun(信封里的 id)`。delta 对这条入口的改判：执行结束 SHALL 刷新列表并按可信身份核实结果，
       // 自动导航仅在本次流程意图仍有效时进行（任务 3.4），所以这里只把请求标记复位。
       set({ forking: "idle" });
+      return true;
+    },
+
+    /**
+     * R3 5.1：环境准备/固定检查执行的两条提交。与七主动入口同一 submitActive 接受序列；
+     * R3 特有门在发送前现算（D02）：
+     * - 核对缺失（capability 为 null）⇒ 本地拒发（没有可绑定的计划 token，请求形状都不完整）；
+     * - 确认判定 missing/stale ⇒ 本地拒发**零 IPC**——旧确认失效后绝不自动提交新计划，
+     *   main 侧 plan_stale 是第二道防线，不是唯一防线。
+     * 在飞/失败/结局呈现面由 verification 分片承载；`outcomeGeneration` 在门通过后捕获，
+     * 迟到失败/结局按代次丢弃（提交期间目标切换/收起 ⇒ 结果不属于当前目标）。
+     * 通道抛错（响应是否被 main 接受不可知）⇒ 会话已标 Unknown（submitActive 内），
+     * 这里按 UNEXPECTED 呈现并保住 in-flight 复位。
+     */
+    async submitVerificationPrepare() {
+      const v = get();
+      if (v.verificationTarget === null || v.verificationCapability === null) {
+        v.failVerificationSubmit({
+          code: "R3_SUBMIT_NOT_READY",
+          message: "核对结果缺失：先完成只读核对（打开面板自动进行），再确认与提交",
+        });
+        return false;
+      }
+      const target = v.verificationTarget;
+      const capability = v.verificationCapability;
+      const decision = decideVerificationConfirmation({
+        armed: v.verificationPrepareConfirmation,
+        currentPlanToken: capability.planToken,
+        currentTargetKey: verificationTargetKey(target),
+      });
+      if (decision.kind !== "confirmed") {
+        v.failVerificationSubmit({
+          code: "VERIFICATION_CONFIRMATION_STALE",
+          message: decision.reason,
+        });
+        return false;
+      }
+      const atGeneration = v.verificationOutcomeGeneration;
+      v.beginVerificationSubmit("prepare");
+      let envelope: Awaited<ReturnType<typeof api.verificationPrepare>>;
+      try {
+        envelope = await submitActive(api.verificationPrepare, {
+          target: { runId: target.runId, checkpoint: target.checkpoint },
+          profileId: "node-ts-v1",
+          planToken: capability.planToken,
+          allowPrepare: true,
+        });
+      } catch (error) {
+        get().endVerificationSubmit();
+        get().failVerificationSubmit(
+          {
+            code: "R3_SUBMIT_CHANNEL_FAILED",
+            message: error instanceof Error ? error.message : String(error),
+          },
+          atGeneration,
+        );
+        return false;
+      }
+      get().endVerificationSubmit();
+      if (!envelope.ok) {
+        get().failVerificationSubmit(
+          { code: envelope.error.code, message: envelope.error.message },
+          atGeneration,
+        );
+        return false;
+      }
+      get().noteVerificationOutcome(
+        {
+          kind: "prepare",
+          preparationId: envelope.data.preparationId,
+          imageDigest: envelope.data.imageDigest,
+        },
+        atGeneration,
+      );
+      // 准备成功后重读一次核对（只读）：面板的执行条件（已准备环境/工具链）随之就绪
+      void get().refreshVerificationCapability();
+      return true;
+    },
+
+    async submitVerificationRun() {
+      const v = get();
+      if (v.verificationTarget === null || v.verificationCapability === null) {
+        v.failVerificationSubmit({
+          code: "R3_SUBMIT_NOT_READY",
+          message: "核对结果缺失：先完成只读核对（打开面板自动进行），再确认与提交",
+        });
+        return false;
+      }
+      const target = v.verificationTarget;
+      const capability = v.verificationCapability;
+      const commandId = v.verificationCommand;
+      const decision = decideVerificationConfirmation({
+        armed: v.verificationRunConfirmation,
+        currentPlanToken: capability.planToken,
+        currentTargetKey: verificationTargetKey(target),
+        currentCommandId: commandId,
+      });
+      if (decision.kind !== "confirmed") {
+        v.failVerificationSubmit({
+          code: "VERIFICATION_CONFIRMATION_STALE",
+          message: decision.reason,
+        });
+        return false;
+      }
+      const atGeneration = v.verificationOutcomeGeneration;
+      v.beginVerificationSubmit("run");
+      let envelope: Awaited<ReturnType<typeof api.verificationRun>>;
+      try {
+        envelope = await submitActive(api.verificationRun, {
+          target: { runId: target.runId, checkpoint: target.checkpoint },
+          profileId: "node-ts-v1",
+          commandId,
+          planToken: capability.planToken,
+          allowExecution: true,
+        });
+      } catch (error) {
+        get().endVerificationSubmit();
+        get().failVerificationSubmit(
+          {
+            code: "R3_SUBMIT_CHANNEL_FAILED",
+            message: error instanceof Error ? error.message : String(error),
+          },
+          atGeneration,
+        );
+        return false;
+      }
+      get().endVerificationSubmit();
+      if (!envelope.ok) {
+        get().failVerificationSubmit(
+          { code: envelope.error.code, message: envelope.error.message },
+          atGeneration,
+        );
+        return false;
+      }
+      // ok 信封 = 请求收尾；`outcome` 是领域结局（D04 分层：check_failed 也是明确收尾）
+      get().noteVerificationOutcome(
+        {
+          kind: "run",
+          verificationId: envelope.data.verificationId,
+          outcome: envelope.data.outcome,
+          detail: envelope.data.detail,
+          evidenceComplete: envelope.data.evidenceComplete,
+        },
+        atGeneration,
+      );
       return true;
     },
   };

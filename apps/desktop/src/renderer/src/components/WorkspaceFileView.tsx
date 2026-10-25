@@ -1,6 +1,12 @@
-import type { RunDetail, WorkspaceInspectResult, WorkspaceReadFileResult } from "@shared/ipc";
+import type {
+  RunDetail,
+  VerificationCheckpoint,
+  WorkspaceInspectResult,
+  WorkspaceReadFileResult,
+} from "@shared/ipc";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { resolveChangeFilter } from "../lib/file-directory";
+import { isIsolatedRun } from "../lib/isolated-fork";
 import {
   type ListReadState,
   RequestGuard,
@@ -9,6 +15,7 @@ import {
   settleSide,
   sideResult,
 } from "../lib/reading-request-guard";
+import { decideVerificationConfirmation, verificationTargetKey } from "../lib/verification-entry";
 import { workspaceExportKey } from "../lib/workspace-export-state";
 import {
   defaultCheckpointStepId,
@@ -17,6 +24,7 @@ import {
   validateSavedPath,
 } from "../lib/workspace-files";
 import { useAppStore } from "../store";
+import { VerificationPanel } from "./VerificationPanel";
 import {
   WorkspaceFileViewBody,
   WorkspaceFileViewBodyProps,
@@ -320,6 +328,78 @@ export function WorkspaceFileView({ run }: { run: RunDetail }) {
         : null;
 
   /**
+   * R3 5.1：项目验证面板的连接层。
+   *
+   * 显式 selector 纪律（design D3「UI 不得无声换点」）：打开面板这一刻把**当前检查点**
+   * 显式绑定为验证目标（`openVerification`）；检查点选择器此后的变化**绝不**改写目标——
+   * 切换检查点即收起面板并整域复位（`closeVerification`），再打开就是新的一次显式进入。
+   * 目标切换后旧核对/旧确认/旧结果一并清空（新目标必须重新核对——D02）。
+   */
+  const verificationExpanded = useAppStore((s) => s.verificationTarget?.runId === run.meta.id);
+  const openVerification = useAppStore((s) => s.openVerification);
+  const closeVerification = useAppStore((s) => s.closeVerification);
+  const verificationTarget = useAppStore((s) => s.verificationTarget);
+  const verificationCapability = useAppStore((s) => s.verificationCapability);
+  const verificationCapabilityState = useAppStore((s) => s.verificationCapabilityState);
+  const verificationCapabilityError = useAppStore((s) => s.verificationCapabilityError);
+  const verificationPlan = useAppStore((s) => s.verificationPlan);
+  const verificationPlanState = useAppStore((s) => s.verificationPlanState);
+  const verificationPlanError = useAppStore((s) => s.verificationPlanError);
+  const refreshVerificationCapability = useAppStore((s) => s.refreshVerificationCapability);
+  const loadVerificationPreparePlan = useAppStore((s) => s.loadVerificationPreparePlan);
+  const verificationCommand = useAppStore((s) => s.verificationCommand);
+  const setVerificationCommand = useAppStore((s) => s.setVerificationCommand);
+  const verificationPrepareConfirmation = useAppStore((s) => s.verificationPrepareConfirmation);
+  const verificationRunConfirmation = useAppStore((s) => s.verificationRunConfirmation);
+  const confirmVerificationPrepare = useAppStore((s) => s.confirmVerificationPrepare);
+  const confirmVerificationRun = useAppStore((s) => s.confirmVerificationRun);
+  const verificationSubmitting = useAppStore((s) => s.verificationSubmitting);
+  const verificationSubmitError = useAppStore((s) => s.verificationSubmitError);
+  const verificationLastOutcome = useAppStore((s) => s.verificationLastOutcome);
+  const submitVerificationPrepare = useAppStore((s) => s.submitVerificationPrepare);
+  const submitVerificationRun = useAppStore((s) => s.submitVerificationRun);
+
+  const isolatedEligible = isIsolatedRun(run);
+  /** 当前检查点的显式 selector 形状（初始 或 自有完成步骤） */
+  const checkpoint: VerificationCheckpoint =
+    effectiveStepSpanId === null
+      ? { kind: "initial" }
+      : { kind: "step", stepSpanId: effectiveStepSpanId };
+
+  const toggleVerification = (): void => {
+    if (verificationExpanded) {
+      closeVerification();
+      return;
+    }
+    openVerification(run.meta.id, checkpoint);
+  };
+
+  // 切换 run / 组件卸载 ⇒ 显式目标随检查点上下文失效（孤儿 target 不得跨 run 存活）
+  useEffect(() => {
+    return () => {
+      if (useAppStore.getState().verificationTarget?.runId === run.meta.id) {
+        useAppStore.getState().closeVerification();
+      }
+    };
+  }, [run.meta.id]);
+
+  // 确认判定：现算比对（目标键 + 当前计划 token + 当前命令），不靠"记得清"
+  const verificationTargetKeyOf = verificationTarget ?? null;
+  const prepareDecision = decideVerificationConfirmation({
+    armed: verificationPrepareConfirmation,
+    currentPlanToken: verificationCapability?.planToken ?? null,
+    currentTargetKey:
+      verificationTargetKeyOf === null ? "" : verificationTargetKey(verificationTargetKeyOf),
+  });
+  const runDecision = decideVerificationConfirmation({
+    armed: verificationRunConfirmation,
+    currentPlanToken: verificationCapability?.planToken ?? null,
+    currentTargetKey:
+      verificationTargetKeyOf === null ? "" : verificationTargetKey(verificationTargetKeyOf),
+    currentCommandId: verificationCommand,
+  });
+
+  /**
    * U2 任务 3.4：筛选偏好 `auto` 在**连接层**解析（初始检查点看全部、完成步骤看有变化），
    * 展示层只吃解析后的 `all | changed`（不把 auto 下传）。
    */
@@ -334,6 +414,9 @@ export function WorkspaceFileView({ run }: { run: RunDetail }) {
         setFileReading(run.meta.id, { checkpoint: stepSpanId, pane: "list" });
         // 确认对象绑定检查点：切换检查点即收起确认卡（用户重看新目标的确认说明再提交）
         setExportExpanded(false);
+        // R3 5.1：验证目标绝不无声换点——切换检查点即收起面板并整域复位
+        // （target/核对/两份确认/提交呈现一并清空，再打开是新的显式进入）
+        closeVerification();
       }}
       inspect={inspect}
       inspectError={inspectError}
@@ -392,6 +475,44 @@ export function WorkspaceFileView({ run }: { run: RunDetail }) {
           );
         },
       }}
+      verificationPanel={
+        <VerificationPanel
+          runId={run.meta.id}
+          checkpoint={verificationTarget?.checkpoint ?? checkpoint}
+          checkpointLabel={
+            verificationTarget === null
+              ? checkpointLabel(options, effectiveStepSpanId)
+              : checkpointLabel(
+                  options,
+                  verificationTarget.checkpoint.kind === "step"
+                    ? verificationTarget.checkpoint.stepSpanId
+                    : null,
+                )
+          }
+          isolatedEligible={isolatedEligible}
+          expanded={verificationExpanded}
+          onToggleExpanded={toggleVerification}
+          capability={verificationCapability}
+          capabilityState={verificationCapabilityState}
+          capabilityError={verificationCapabilityError}
+          plan={verificationPlan}
+          planState={verificationPlanState}
+          planError={verificationPlanError}
+          onRetryCapability={() => void refreshVerificationCapability()}
+          onRetryPlan={() => void loadVerificationPreparePlan()}
+          commandId={verificationCommand}
+          onCommandChange={setVerificationCommand}
+          prepareDecision={prepareDecision}
+          runDecision={runDecision}
+          onConfirmPrepare={() => confirmVerificationPrepare()}
+          onConfirmRun={() => confirmVerificationRun()}
+          submitting={verificationSubmitting}
+          submitError={verificationSubmitError}
+          lastOutcome={verificationLastOutcome}
+          onSubmitPrepare={() => void submitVerificationPrepare()}
+          onSubmitRun={() => void submitVerificationRun()}
+        />
+      }
     />
   );
 }

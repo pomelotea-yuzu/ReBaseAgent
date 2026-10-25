@@ -1,3 +1,4 @@
+import { PreparePlanSchema } from "@rebaseagent/project-verification/schema";
 import { RunEventSchema, RunMetaSchema, SpanSchema } from "@rebaseagent/trace-sdk/schema";
 import { z } from "zod";
 import { CHANNELS } from "./channels";
@@ -1340,6 +1341,51 @@ const EngineHealthSchema = z
   })
   .strict();
 
+/**
+ * profile 受限投影（5.1/D01：限额与隔离基线由 main 从冻结 manifest 投影，renderer
+ * 不在本地另存第二份数字）。只含展示面标量，不含路径/哈希等无展示意义的字段。
+ */
+export const VerificationProfileSummarySchema = z
+  .object({
+    profileId: z.string().min(1),
+    manifestVersion: z.number().int().positive(),
+    platform: z.string().min(1),
+    toolchain: z
+      .object({ node: z.string().min(1), npm: z.string().min(1), typescript: z.string().min(1) })
+      .strict(),
+    sourceIncludeGlob: z.string().min(1),
+    limits: z
+      .object({
+        cpus: z.number().positive(),
+        memoryBytes: z.number().int().positive(),
+        pidsLimit: z.number().int().positive(),
+        workTmpfsBytes: z.number().int().positive(),
+        tmpTmpfsBytes: z.number().int().positive(),
+        commandTimeoutMs: z.number().int().positive(),
+        totalTimeoutMs: z.number().int().positive(),
+        stdoutBudgetBytes: z.number().int().positive(),
+        stderrBudgetBytes: z.number().int().positive(),
+        totalOutputLimitBytes: z.number().int().positive(),
+        artifactUniqueContentBudgetBytes: z.number().int().positive(),
+        /** tmpfs 计入内存预算（阶段 1 发现的合并预算语义，展示面如实呈现） */
+        tmpfsCountsTowardMemoryBudget: z.boolean(),
+      })
+      .strict(),
+    security: z
+      .object({
+        runAsUser: z.string().min(1),
+        readOnlyRootfs: z.boolean(),
+        capDropAll: z.boolean(),
+        noNewPrivileges: z.boolean(),
+        networkMode: z.string().min(1),
+        /** 受控 supervisor 作 PID 1（裸 PID 1 忽略 SIGTERM 的阶段 1 发现，展示面如实呈现） */
+        supervisorPid1: z.boolean(),
+      })
+      .strict(),
+  })
+  .strict();
+export type VerificationProfileSummary = z.infer<typeof VerificationProfileSummarySchema>;
+
 export const VerificationCapabilityResultSchema = z
   .object({
     planToken: z.string().min(1),
@@ -1365,6 +1411,8 @@ export const VerificationCapabilityResultSchema = z
       .object({ code: z.string().min(1), reason: z.string().min(1) })
       .strict()
       .nullable(),
+    /** 冻结 manifest 的展示投影（5.1：限额/隔离基线行的事实源） */
+    profileSummary: VerificationProfileSummarySchema,
   })
   .strict();
 export type VerificationCapabilityResult = z.infer<typeof VerificationCapabilityResultSchema>;
@@ -1375,11 +1423,16 @@ export const VerificationPreparePlanRequestSchema = z
   .strict();
 export type VerificationPreparePlanRequest = z.infer<typeof VerificationPreparePlanRequestSchema>;
 
+/**
+ * verification:preparePlan 结果（D01/P03）：固定计划预览。`plan` 直接采用包层
+ * `PreparePlanSchema`（renderer 侧可安全展示 downloads/网络范围/占用数字，不再是无形状
+ * 的 unknown——展示数字的字段必须有 schema 管着）。
+ */
 export const VerificationPreparePlanResultSchema = z
   .object({
     planDigest: z.string().min(1),
     planToken: z.string().min(1),
-    plan: z.unknown(),
+    plan: PreparePlanSchema,
   })
   .strict();
 export type VerificationPreparePlanResult = z.infer<typeof VerificationPreparePlanResultSchema>;

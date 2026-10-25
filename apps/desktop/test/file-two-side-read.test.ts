@@ -571,7 +571,11 @@ describe("U2 3.1 接线契约：代次守卫，不退回 cancelled 布尔", () =
   it("**不得有任何写入通道**（阅读重试只读）：无 readFile 之外的 IPC、无 write/import/apply 调用", () => {
     // 组件只应调用 inspectWorkspace / readWorkspaceFile 两个只读动作，
     // 以及 R2.1 的 exportCheckpoint（唯一受控写通道：目标目录由 main 对话框决定，
-    // 请求只带 runId/stepSpanId——见 workspace-export-endpoint 的 strict schema 与 7.1a 实机验收）
+    // 请求只带 runId/stepSpanId——见 workspace-export-endpoint 的 strict schema 与 7.1a 实机验收）。
+    // R3 5.1 合法扩面（与 tasks 同 commit 留痕）：项目验证入口挂进文件页——
+    // 只读核对（verificationCapability/verificationPreparePlan）+ 显式确认/提交
+    // （submitVerificationPrepare/Run 走 main 登记占槽的受控通道，请求无自由字段）+
+    // 显式 selector 的开合与命令选择；全部动作见 lib/verification-entry 与 verification 分片。
     const calls = SRC.match(/useAppStore\(\(s\) => s\.(\w+)\)/g) ?? [];
     const names = calls.map((c) => c.replace(/.*s\./, "").replace(/\)$/, ""));
     for (const name of names) {
@@ -581,6 +585,29 @@ describe("U2 3.1 接线契约：代次守卫，不退回 cancelled 布尔", () =
         "exportCheckpoint",
         "fileReadingOf",
         "setFileReading",
+        // R3 5.1：项目验证面板（只读核对 + 显式确认/提交 + selector 开合）
+        "verificationTarget",
+        "verificationCapability",
+        "verificationCapabilityState",
+        "verificationCapabilityError",
+        "verificationPlan",
+        "verificationPlanState",
+        "verificationPlanError",
+        "verificationCommand",
+        "verificationPrepareConfirmation",
+        "verificationRunConfirmation",
+        "verificationSubmitting",
+        "verificationSubmitError",
+        "verificationLastOutcome",
+        "openVerification",
+        "closeVerification",
+        "refreshVerificationCapability",
+        "loadVerificationPreparePlan",
+        "setVerificationCommand",
+        "confirmVerificationPrepare",
+        "confirmVerificationRun",
+        "submitVerificationPrepare",
+        "submitVerificationRun",
       ]).toContain(name);
     }
   });
