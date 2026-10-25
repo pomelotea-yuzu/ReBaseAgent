@@ -222,6 +222,20 @@ describe("Docker 停止后端（3.5，注入 runner 的 argv 测试）", () => {
     const backend = new DockerStopBackend({ installation, endpoint: ENDPOINT, runner });
     await expect(backend.runStopWorkloads("ctr-x")).rejects.toThrow("不可解析");
   });
+
+  it("6.2 回归：断连 stderr 必须进错误消息（classifyStopFailure 靠它判 unknown，P21）", async () => {
+    // 引擎下线：stdout 空、exit 1、stderr=断连错误族——stderr 被丢会导致误报"停止失败"
+    const runner = async () => ({
+      ...okResult(),
+      exitCode: 1,
+      stderr: "failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine",
+      stderrTotalBytes: 78,
+    });
+    const backend = new DockerStopBackend({ installation, endpoint: ENDPOINT, runner });
+    const error = await backend.runStopWorkloads("ctr-x").catch((e: unknown) => e as Error);
+    expect((error as Error).message).toContain("failed to connect");
+    expect((error as Error).message).toContain("stderr:");
+  });
 });
 
 describe("supervisor 容器命令与限额击杀（3.5，P10/P19）", () => {

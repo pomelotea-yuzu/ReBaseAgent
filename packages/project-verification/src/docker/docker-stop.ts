@@ -91,8 +91,12 @@ export class DockerStopBackend implements WorkloadStopBackend {
     const result = await this.exec([containerRef, "/bin/sh", STOP_SCRIPT_PATH]);
     const counts = parseStopWorkloadsOutput(result.stdout);
     if (counts === null) {
+      // stderr 必须进消息：daemon 断连族（§1.6 "failed to connect…"）靠它被
+      // classifyStopFailure 识别为 unknown（P21）——只带 stdout 会在引擎下线时
+      // （stdout 空）把断连误报成确定性"停止失败"并销账登记（6.2 实测泄漏）。
+      const stderr = result.stderr.trim().slice(0, 200);
       throw new Error(
-        `停止脚本输出不可解析（exit ${String(result.exitCode)}）：${result.stdout.trim().slice(0, 200)}`,
+        `停止脚本输出不可解析（exit ${String(result.exitCode)}）：${result.stdout.trim().slice(0, 200)}${stderr ? ` | stderr: ${stderr}` : ""}`,
       );
     }
     return counts;

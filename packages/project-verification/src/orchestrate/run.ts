@@ -154,16 +154,29 @@ function describe(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-/** 尽力收尾：移除容器（失败留给启动核查，不抛错不掩盖主因）。 */
-async function removeContainerQuietly(
+/**
+ * 确认式收尾（6.2 实测缺陷修复）：容器移除**成功**（或容器已不存在）才销账登记。
+ * 移除未确认（daemon 断连/移除被拒）时登记保持 created ⇒ 启动核查收尾——
+ * 绝不在未验证的情况下把登记标成 removed（否则引擎恢复后残留成永久泄漏，P21/P23）。
+ */
+async function releaseConfirmedAndDeregister(
   lifecycle: VerificationContainerLifecycle,
-  containerId: string | null,
-): Promise<void> {
-  if (containerId === null) return;
+  dataRoot: string,
+  containerId: string,
+  resourceOwnerId: string,
+): Promise<{ released: boolean; reason: string }> {
   try {
     await lifecycle.removeContainer(containerId);
-  } catch {
-    /* 启动核查按登记收尾 */
+    markRegistrationRemovedQuietly(dataRoot, resourceOwnerId);
+    return { released: true, reason: "" };
+  } catch (error) {
+    const reason = describe(error);
+    // "No such container" = 本来就没有可清理的对象（幂等语义，与停止一致）
+    if (/no such container/i.test(reason)) {
+      markRegistrationRemovedQuietly(dataRoot, resourceOwnerId);
+      return { released: true, reason: "" };
+    }
+    return { released: false, reason };
   }
 }
 
@@ -323,14 +336,27 @@ export async function executeVerificationRun(
       );
     }
     const containerId = created.containerId;
+    /** 失败收尾：确认式移除+销账；未确认 ⇒ 登记保持 created 交启动核查（P21/P23）。 */
+    const releaseConfirmed = async (): Promise<boolean> =>
+      (
+        await releaseConfirmedAndDeregister(
+          params.ports.lifecycle,
+          params.dataRoot,
+          containerId,
+          created.registration.resourceOwnerId,
+        )
+      ).released;
 
     // 启动（物化/exec 要求 running）
     try {
       await params.ports.lifecycle.startContainer(containerId);
     } catch (error) {
-      await removeContainerQuietly(params.ports.lifecycle, containerId);
-      markRegistrationRemovedQuietly(params.dataRoot, created.registration.resourceOwnerId);
-      return terminate("environment_failed", `容器启动失败：${describe(error)}`, false);
+      const released = await releaseConfirmed();
+      return terminate(
+        "environment_failed",
+        `容器启动失败：${describe(error)}${released ? "" : "；容器收尾未确认（登记保留，交启动核查）"}`,
+        false,
+      );
     }
 
     // ── 停止序列（局部复用）：定向停止 → 双扫确认 → stop_confirmed 事件 ─────────
@@ -364,10 +390,16 @@ export async function executeVerificationRun(
       });
       return { kind: "confirmed" };
     };
-    /** 用户取消终局（已确认全部停止后）：先真清理后写事实。 */
+    /** 用户取消终局（已确认全部停止后）：先真清理后写事实；收尾未确认 ⇒ unknown（P21：不声明已取消）。 */
     const finishCancelled = async (): Promise<VerificationRunResult> => {
-      await removeContainerQuietly(params.ports.lifecycle, containerId);
-      markRegistrationRemovedQuietly(params.dataRoot, created.registration.resourceOwnerId);
+      const released = await releaseConfirmed();
+      if (!released) {
+        return terminate(
+          "unknown",
+          "用户停止：全部工作负载已确认停止，但容器收尾未确认（登记保留，交启动核查）",
+          false,
+        );
+      }
       return terminate("cancelled", "用户停止：全部工作负载已确认停止并收尾", true);
     };
 
@@ -378,9 +410,12 @@ export async function executeVerificationRun(
         return terminate("unknown", `停止结果未知：${stopPhase.reason}`, false);
       }
       if (stopPhase.kind === "failed") {
-        await removeContainerQuietly(params.ports.lifecycle, containerId);
-        markRegistrationRemovedQuietly(params.dataRoot, created.registration.resourceOwnerId);
-        return terminate("environment_failed", `停止失败：${stopPhase.reason}`, false);
+        const released = await releaseConfirmed();
+        return terminate(
+          "environment_failed",
+          `停止失败：${stopPhase.reason}${released ? "" : "；容器收尾未确认（登记保留，交启动核查）"}`,
+          false,
+        );
       }
       return finishCancelled();
     }
@@ -397,11 +432,10 @@ export async function executeVerificationRun(
       readBytes: params.ports.readBytes ?? createSnapshotByteReader(params.dataDir),
     });
     if (!materialized.ok) {
-      await removeContainerQuietly(params.ports.lifecycle, containerId);
-      markRegistrationRemovedQuietly(params.dataRoot, created.registration.resourceOwnerId);
+      const released = await releaseConfirmed();
       return terminate(
         "environment_failed",
-        `物化未完成（${materialized.failure.code}）：${materialized.failure.reason}`,
+        `物化未完成（${materialized.failure.code}）：${materialized.failure.reason}${released ? "" : "；容器收尾未确认（登记保留，交启动核查）"}`,
         false,
       );
     }
@@ -415,9 +449,12 @@ export async function executeVerificationRun(
       backend: params.ports.command,
     });
     if (!execution.ok) {
-      await removeContainerQuietly(params.ports.lifecycle, containerId);
-      markRegistrationRemovedQuietly(params.dataRoot, created.registration.resourceOwnerId);
-      return terminate("environment_failed", execution.failure.reason, false);
+      const released = await releaseConfirmed();
+      return terminate(
+        "environment_failed",
+        `${execution.failure.reason}${released ? "" : "；容器收尾未确认（登记保留，交启动核查）"}`,
+        false,
+      );
     }
     const report = execution.report;
     writer.append(commandStartEvent(report));
@@ -441,9 +478,12 @@ export async function executeVerificationRun(
       return terminate("unknown", `停止结果未知：${stopPhase.reason}`, false);
     }
     if (stopPhase.kind === "failed") {
-      await removeContainerQuietly(params.ports.lifecycle, containerId);
-      markRegistrationRemovedQuietly(params.dataRoot, created.registration.resourceOwnerId);
-      return terminate("environment_failed", `停止失败：${stopPhase.reason}`, false);
+      const released = await releaseConfirmed();
+      return terminate(
+        "environment_failed",
+        `停止失败：${stopPhase.reason}${released ? "" : "；容器收尾未确认（登记保留，交启动核查）"}`,
+        false,
+      );
     }
 
     // 用户停止（exit 0 不能覆盖更早的停止事实，D6）：确认全部停止 ⇒ cancelled，
@@ -463,11 +503,10 @@ export async function executeVerificationRun(
       stabilityIntervalMs: params.ports.stabilityIntervalMs,
     });
     if (!collected.ok) {
-      await removeContainerQuietly(params.ports.lifecycle, containerId);
-      markRegistrationRemovedQuietly(params.dataRoot, created.registration.resourceOwnerId);
+      const released = await releaseConfirmed();
       return terminate(
         "artifact_invalid",
-        `采集拒绝（${collected.failure.code}）：${collected.failure.reason}`,
+        `采集拒绝（${collected.failure.code}）：${collected.failure.reason}${released ? "" : "；容器收尾未确认（登记保留，交启动核查）"}`,
         false,
       );
     }
@@ -518,10 +557,14 @@ export async function executeVerificationRun(
     }
     const evidenceComplete = !streamsTruncated;
 
-    // 收尾：先真清理后写事实（移除容器 + 登记收尾 + 终止记录）
-    await removeContainerQuietly(params.ports.lifecycle, containerId);
-    markRegistrationRemovedQuietly(params.dataRoot, created.registration.resourceOwnerId);
-    return terminate(outcome, detail, evidenceComplete);
+    // 收尾：先真清理后写事实（移除容器 + 登记收尾 + 终止记录）；收尾未确认时
+    // 结局保留（检查事实已定），登记保持 created ⇒ 启动核查收尾（P21/P23）。
+    const released = await releaseConfirmed();
+    return terminate(
+      outcome,
+      `${detail}${released ? "" : "；容器收尾未确认（登记保留，交启动核查）"}`,
+      evidenceComplete,
+    );
   } catch (error) {
     writer.abortClose();
     return failure(

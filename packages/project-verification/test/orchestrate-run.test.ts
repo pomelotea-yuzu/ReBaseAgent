@@ -525,6 +525,73 @@ describe("结局映射（D6 九行表）", () => {
     });
   });
 
+  it("6.2 回归：停止失败且容器移除未确认 ⇒ 结局保留+登记保持 created（不伪造清理，P21/P23）", async () => {
+    const script = makePorts();
+    // 非断连词族的停止失败（daemon 在场但脚本坏了）⇒ failed 分支
+    script.setStopUnknown("停止脚本段缺失（夹具注入）");
+    // 移除也被拒（如 daemon 恰好下线）⇒ 移除未确认
+    script.ports.lifecycle.removeContainer = async () => {
+      throw new Error("docker rm 被拒绝（夹具注入）");
+    };
+    const result = await executeVerificationRun(params(script.ports));
+    expect(result).toMatchObject({
+      ok: true,
+      outcome: "environment_failed",
+      evidenceComplete: false,
+    });
+    if (result.ok) expect(result.detail).toContain("容器收尾未确认");
+    expect(latestRegistrationPhase()).not.toBe("removed");
+  });
+
+  it("6.2 回归：passed 但收尾未确认 ⇒ 结局保留 passed，登记保持 created（交启动核查）", async () => {
+    const script = makePorts();
+    script.ports.lifecycle.removeContainer = async () => {
+      throw new Error("docker rm 被拒绝（夹具注入）");
+    };
+    const result = await executeVerificationRun(params(script.ports));
+    expect(result).toMatchObject({ ok: true, outcome: "passed" });
+    if (result.ok) expect(result.detail).toContain("容器收尾未确认");
+    expect(latestRegistrationPhase()).not.toBe("removed");
+  });
+
+  it("6.2 回归：cancelled 但收尾未确认 ⇒ unknown（不声明已取消，P21）", async () => {
+    const script = makePorts();
+    // 移除被拒 ⇒ 收尾未确认
+    script.ports.lifecycle.removeContainer = async () => {
+      throw new Error("docker rm 被拒绝（夹具注入）");
+    };
+    // 用户停止信号：工作负载已确认停止但容器收不了 ⇒ unknown
+    let commandRan = false;
+    const originalRunCommand = script.ports.command.runCommand;
+    Object.assign(script.ports, {
+      command: {
+        async runCommand(request: unknown) {
+          const result = await originalRunCommand(request as never);
+          commandRan = true;
+          return result;
+        },
+      },
+    });
+    const result = await executeVerificationRun({
+      ...params(script.ports),
+      stopSignal: { isRequested: () => commandRan },
+    });
+    expect(result).toMatchObject({ ok: true, outcome: "unknown" });
+    if (result.ok) expect(result.detail).toContain("收尾未确认");
+    expect(latestRegistrationPhase()).not.toBe("removed");
+  });
+
+  it("容器已不存在（No such）⇒ 视作已收尾，结局照常", async () => {
+    const script = makePorts();
+    script.ports.lifecycle.removeContainer = async () => {
+      throw new Error("Error: No such container: deadbeef");
+    };
+    const result = await executeVerificationRun(params(script.ports));
+    expect(result).toMatchObject({ ok: true, outcome: "passed" });
+    if (result.ok) expect(result.detail).not.toContain("收尾未确认");
+    expect(latestRegistrationPhase()).toBe("removed");
+  });
+
   it("输入被改（采集 input_drifted）⇒ artifact_invalid（W01：改代码不是修复）", async () => {
     const script = makePorts();
     script.setCollectInputDrifted();
