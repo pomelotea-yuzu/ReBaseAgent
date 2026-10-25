@@ -35,6 +35,7 @@
 
 ## 实际执行记录（实施时填写）
 
+- 确定性 fixture：`packages/mcp-server/test/verification-fixtures.ts` 已建（tasks 1.3）——11 条具名记录（pass/fail 同条件对、旧缺 environment、unterminated+interrupted、坏尾、未知版本、重复 command_end、附件缺失/被改、冲突产物清单、来源缺失）+ 残留 runtime 登记 + 准备记录；全部经 R3 writer/publishAsset 真写，自证测试 `verification-fixtures.test.ts` 15 passed。整根指纹探针 `snapshotRootFingerprint`/`rootFingerprintDiff` 与真实验证记录复制探针 `copyVerificationRecord` 就绪；R3 实际记录来源（本机数据根与 verificationId）在 5.3 实机轮次回填。
 - 客户端名称/版本、Node/服务/SDK 版本、启动路径与数据根选择：待填。
 - R3 实际验证 ID、原 run/检查点/snapshot、命令、历史 manifest 与 preparationId：待填。
 - 失败/通过样本的真实后端记录与确定性 fixture 区别、模板支持边界：待填。
