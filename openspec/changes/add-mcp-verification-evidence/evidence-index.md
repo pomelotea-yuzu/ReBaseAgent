@@ -8,22 +8,22 @@
 |---|---|---|
 | 原：发现工具与按需读取正文 | 十三工具 stdio 发现 + 原七工具参数/结果回归 | 待验收 |
 | 原：未知字段和执行请求拒绝 | strict 参数与未知执行工具协议回归 | 待验收 |
-| M01 验证工具发现与独立数据域 | `packages/mcp-server/test/verification-contracts.test.ts`（契约为 6、注册仍 0、合集名唯一=13；枚举/上限/annotations 逐字钉死，11 passed） | 部分通过（契约冻结已证；注册与生产 stdio 发现随 3.x/5.1 收口） |
-| M02 精确筛选与稳定分页 | `packages/project-verification/test/scan.test.ts`（createdAt 倒序 + UTF-16 码元升序解同刻、失败项末尾按文件名，9 passed） | 部分通过（共享层排序/失败项已证；筛选与分页跨页重建随 3.1/5.1 收口） |
-| M03 空数据与读取失败分开 | 同上（缺目录=合法空且不建目录；目录级 ENOTDIR 抛 VerificationDirReadError；损坏/未知版本以 status 显式保留、不呈现 outcome） | 部分通过（共享层已证；MCP 错误码映射随 3.1 收口） |
-| M04 实际命令与历史环境按记录读取 | `packages/project-verification/test/projection.test.ts`（start/end 配对、executable/argv/cwd/UTC 起止/exit/流元数据、旧缺 environment 保持 null、epoch/operationId 不外发，9 passed） | 部分通过（共享投影已证；MCP get_verification 呈现随 3.2 收口） |
-| M05 未封存中断与坏尾不形成成功 | 同上（unterminated/corrupt/未知版本 terminated 恒 null + 结构化诊断；坏尾/重复终止/终止后事件不裁尾出 passed；interrupted 只给安全计数） | 部分通过（共享层已证；MCP 呈现随 3.2 收口） |
+| M01 验证工具发现与独立数据域 | 契约测试（11 passed）+ `packages/mcp-server/test/lifecycle.test.ts`/`trust.test.ts`（tools/list 恰 13、verifications provenance 不带 runs、runs 恒空断言，362 passed） | 部分通过（注册+单元面已证；生产 stdio 与真实客户端随 5.1/5.3 收口） |
+| M02 精确筛选与稳定分页 | 共享 scan 测试 + `test/list-verifications.test.ts`（筛选/失败项不消失/翻页无重漏/换参游标拒，7 passed） | 部分通过（工具面已证；生产 stdio 随 5.1 收口） |
+| M03 空数据与读取失败分开 | 同上（空目录=合法空列表不建目录；目录级 STORAGE_IO/文件级 UNREADABLE 分域；NOT_FOUND 稳定码） | 部分通过（工具面已证；生产 stdio 随 5.1 收口） |
+| M04 实际命令与历史环境按记录读取 | 共享投影测试 + `packages/mcp-server/test/verification-tools.test.ts`（get_verification 实际命令/环境/结局按记录读取、旧缺 environment 保持 null + limitation，22 passed） | 部分通过（工具面已证；真实 R3 记录回查随 5.3 收口） |
+| M05 未封存中断与坏尾不形成成功 | 同上（工具面：unterminated terminated=null + limitation、interrupted 只给计数不给容器名；坏记录读正文 VERIFICATION_RECORD_INVALID） | 部分通过（共享层+工具面已证；真实 stdio 随 5.1 收口） |
 | M06 故障分类与历史结局不被查询改写 | `packages/project-verification/test/compare-facts.test.ts`（证据门双来源、历史 outcome 不改写）+ projection/scan 同上 | 部分通过（共享层已证；十一 outcome 的 MCP 逐值回归随 3.x 收口） |
 | M07 缺来源和快照漂移仍能定位原验证 | `test/compare-facts.test.ts`（sourceVerified 三态、expectedSnapshotId 固定 recordedTarget、漂移不改结论）+ `test/assets-view.test.ts`（独立附件按引用核验） | 部分通过（共享层已证；run-query/replay 来源核对接线随 2.6 后续/5.1 收口） |
-| M08 附件与身份不可互换 | `packages/mcp-server/test/verification-contracts.test.ts`（形状层 dataDir/handler/额外键全拒，11 passed）+ `packages/project-verification/test/assets-view.test.ts`（重复 command_end/重复产物 path/清单外/未采集/非法哈希引用结构化拒绝，15 passed） | 部分通过（形状+共享定位已证；MCP 运行期信封随 3.3/3.5 收口） |
-| M09 产物索引和内容来自指定验证 | `test/assets-view.test.ts`（未采集 ARTIFACTS_NOT_RECORDED 与合法空清单 ARTIFACT_NOT_FOUND 分开、排除规则带出、坏资产 ASSET_CORRUPT） | 部分通过（共享层已证；inspect 工具呈现随 3.4 收口） |
-| M10 长日志保留采集截断与分页事实 | `test/assets-view.test.ts`（capture 双口径与响应范围分开：读完保留部分 capture.truncated 仍 true）+ fixture fail 记录（retained<observed） | 部分通过（共享层已证；逐页重建与 64 KiB 信封随 3.3/4.2 收口） |
-| M11 Unicode 原文与二进制如实读取 | `test/assets-view.test.ts`（中文/emoji/CRLF/空串/尾换行码点切片不拆代理对不补替换字符；非法 UTF-8 判 binary 只给元数据） | 部分通过（共享层已证；MCP 正文承载随 3.3/4.2 收口） |
+| M08 附件与身份不可互换 | 形状测试 + `test/verification-tools.test.ts`（重复 command_end=PATH_REJECTED、清单外/重复 path 拒、非法入参拒、log/artifact 分类矩阵） | 部分通过（工具面已证；生产 stdio 随 5.1 收口） |
+| M09 产物索引和内容来自指定验证 | `test/verification-tools.test.ts`（inspect available/corrupt 分类、未采集受控失败、read artifact 清单内文本/二进制元数据） | 部分通过（工具面已证；生产 stdio 随 5.1 收口） |
+| M10 长日志保留采集截断与分页事实 | `test/verification-tools.test.ts`（逐页读完 capture 截断 limitation 常驻、续读区间连续覆盖、正文单次承载 bodyIn） | 部分通过（工具面已证；64 KiB 信封实测随 4.2/5.1 收口） |
+| M11 Unicode 原文与二进制如实读取 | 同上（中文/emoji content 无 U+FFFD、CRLF 保留、二进制 kind=binary 只给元数据） | 部分通过（工具面已证；生产 stdio 随 5.1 收口） |
 | M12 验证与附件变化使游标失效 | 候选/记录/准备/来源/附件变化、异参/篡改/重启 | 待验收 |
 | M13 单项超限受控失败 | 超大元数据/转义与 RESPONSE_LIMIT | 待验收 |
-| M14 同条件失败到通过有完整引用 | `packages/project-verification/test/compare-facts.test.ts`（同条件对基线、结论顺序钉死，10 passed）+ mcp-server fixture 同条件对（ver-m2-pass/fail） | 部分通过（共享判据已证；MCP compare 与真实 R3 记录回查随 3.6/5.3 收口） |
-| M15 条件不同未知和参数边界不掩盖 | 同上（argv join 同串但边界不同 ⇒ different；对象键序无关深相等；环境缺 ⇒ unknown 不补齐）+ 桌面 `test/verification-compare.test.ts`（共享判据接线后 9 passed） | 部分通过（共享判据已证；桌面/MCP 同对象一致性随 5.2 收口） |
-| M16 单侧不可用与当前证据缺项 | `test/compare-facts.test.ts`（非封存 ⇒ outcome-unknown；当前资产缺失 ⇒ evidence-incomplete 且不改写历史 outcome） | 部分通过（共享层已证；MCP 逐侧呈现随 3.6 收口） |
+| M14 同条件失败到通过有完整引用 | `test/verification-tools.test.ts`（fixture 同条件对 compare → failed-to-passed、全条件 same、expectedSnapshotIds=recordedTarget） | 部分通过（fixture 已证；真实 R3 记录随 5.3 收口） |
+| M15 条件不同未知和参数边界不掩盖 | `test/compare-facts.test.ts`（argv 边界/对象键序）+ `test/verification-tools.test.ts`（旧缺 environment ⇒ conditions-unknown 不补齐） | 部分通过（工具面已证；桌面一致性随 5.2 收口） |
+| M16 单侧不可用与当前证据缺项 | `test/verification-tools.test.ts`（一侧不存在/未封存 ⇒ unavailable+outcome-unknown、必需资产缺失 ⇒ evidence-incomplete.fromCurrentAssets） | 部分通过（工具面已证；生产 stdio 随 5.1 收口） |
 | M17 全链零执行零写入与断连取消 | 全数据根/源目录前后集合 SHA-256，零执行计数，真实 stdio 生命周期 | 待验收 |
 | M18 历史指令和秘密不扩展权限 | 结构凭据/自由秘密/注入/受控 IO 错误 + 指南 | 待验收 |
 | M19 真实客户端完成证据代表任务 | 实际客户端版本/配置/完整工具记录 + Electron 同对象回查 | 待验收 |

@@ -19,12 +19,12 @@
 
 ## 3. MCP 查询实现
 
-- [ ] 3.1（1.5h）实现 list_verifications 的精确筛选、失败项和分页。验收 M02、M03。
-- [ ] 3.2（1.5h）实现 get_verification 摘要、命令/环境、分页事件索引和独立 provenance；验证不进入 run/消耗。验收 M01、M04–M07。
-- [ ] 3.3（1.5h）实现 read_verification_log 的验证/命令/流定位、空/未记录/缺失/损坏分类与码点片段。验收 M08、M10、M11。
-- [ ] 3.4（1.5h）实现 inspect_verification_artifacts 清单/排除规则/可用性，未采集与空清单分开。验收 M09。
-- [ ] 3.5（1.5h）实现 read_verification_artifact 的清单内 path 与附件核验/二进制/续读。验收 M08、M09、M11。
-- [ ] 3.6（1.5h）实现 compare_verifications 固定两侧、条件/受限结论和精确输入/日志/产物回查引用，不默认读正文。验收 M14–M16。
+- [x] 3.1（1.5h）实现 list_verifications 的精确筛选、失败项和分页。验收 M02、M03。
+- [x] 3.2（1.5h）实现 get_verification 摘要、命令/环境、分页事件索引和独立 provenance；验证不进入 run/消耗。验收 M01、M04–M07。
+- [x] 3.3（1.5h）实现 read_verification_log 的验证/命令/流定位、空/未记录/缺失/损坏分类与码点片段。验收 M08、M10、M11。
+- [x] 3.4（1.5h）实现 inspect_verification_artifacts 清单/排除规则/可用性，未采集与空清单分开。验收 M09。
+- [x] 3.5（1.5h）实现 read_verification_artifact 的清单内 path 与附件核验/二进制/续读。验收 M08、M09、M11。
+- [x] 3.6（1.5h）实现 compare_verifications 固定两侧、条件/受限结论和精确输入/日志/产物回查引用，不默认读正文。验收 M14–M16。
 
 ## 4. 容量、游标和信任边界
 
