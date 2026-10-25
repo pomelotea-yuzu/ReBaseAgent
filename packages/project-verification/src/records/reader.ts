@@ -15,6 +15,7 @@ import {
   requireRecordId,
   verificationRecordPath,
 } from "./layout.js";
+import { ensureRegularFile, RegularFileError } from "./fs-guards.js";
 
 const RECORD_ID_SAFE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 
@@ -46,6 +47,7 @@ export class RecordReadError extends Error {
   constructor(
     readonly code:
       | "RECORD_NOT_FOUND"
+      | "RECORD_UNUSUAL"
       | "RECORD_CORRUPT"
       | "RECORD_UNSUPPORTED_VERSION"
       | "ASSET_MISSING"
@@ -55,6 +57,27 @@ export class RecordReadError extends Error {
   ) {
     super(`${code}: ${message}`);
     this.name = "RecordReadError";
+  }
+}
+
+/** 普通文件守卫失败 → 结构化读取错误（symlink/junction/目录替身拒绝，design D4） */
+function guardRegularFile(path: string, kind: "记录" | "附件"): void {
+  try {
+    ensureRegularFile(path, kind);
+  } catch (error) {
+    if (error instanceof RegularFileError) {
+      if (error.failure === "MISSING") {
+        throw new RecordReadError(
+          kind === "附件" ? "ASSET_MISSING" : "RECORD_NOT_FOUND",
+          error.message,
+        );
+      }
+      throw new RecordReadError(
+        kind === "附件" ? "ASSET_CORRUPT" : "RECORD_UNUSUAL",
+        error.message,
+      );
+    }
+    throw error;
   }
 }
 
@@ -92,9 +115,7 @@ export function getVerification(
 ): VerificationRecordRead {
   requireRecordId("verificationId", verificationId);
   const file = verificationRecordPath(root, verificationId);
-  if (!existsSync(file)) {
-    throw new RecordReadError("RECORD_NOT_FOUND", `验证记录不存在：${verificationId}`);
-  }
+  guardRegularFile(file, "记录");
   const text = readFileSync(file, "utf8");
   const lines = parseLines(text);
   // status 在每个返回路径显式赋值；初始值仅为满足严格类型，不会被子路径观察
@@ -252,9 +273,7 @@ export function readLog(
     );
   }
   const file = assetPath(root, sha256HexRef);
-  if (!existsSync(file)) {
-    throw new RecordReadError("ASSET_MISSING", `附件不存在：${sha256HexRef.slice(0, 12)}`);
-  }
+  guardRegularFile(file, "附件");
   const bytes = readFileSync(file);
   const actual = createHash("sha256").update(bytes).digest("hex");
   if (actual !== sha256HexRef) {
@@ -303,9 +322,7 @@ export interface PreparationRecordRead {
 export function getPreparation(root: string, preparationId: string): PreparationRecordRead {
   requireRecordId("preparationId", preparationId);
   const file = preparationRecordPath(root, preparationId);
-  if (!existsSync(file)) {
-    throw new RecordReadError("RECORD_NOT_FOUND", `准备记录不存在：${preparationId}`);
-  }
+  guardRegularFile(file, "记录");
   const lines = readFileSync(file, "utf8")
     .split("\n")
     .filter((l) => l.length > 0);

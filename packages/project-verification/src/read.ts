@@ -10,3 +10,4 @@ export * from "./records/layout.js";
 export * from "./records/reader.js";
 export * from "./records/scan.js";
 export * from "./records/projection.js";
+export * from "./records/assets-view.js";
