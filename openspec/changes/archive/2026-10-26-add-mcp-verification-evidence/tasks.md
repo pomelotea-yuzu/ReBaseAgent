@@ -44,4 +44,4 @@
 
 - [x] 6.1（1h）更新只读接入指南、MCP 路线/项目状态和发行范围；写明六工具/缺项/日志单位/秘密与外发边界，不把 MCP2 写成既有发行能力。验收 M18–M20。
 - [x] 6.2（2h）跑包层 build、desktop typecheck、受影响测试、既有 MCP1/R3 回归以及全仓 lint/spec、change strict、git diff --check；失败先修，记录实际命令和结果。验收全部适用场景。
-- [ ] 6.3（1h）逐场景核对 evidence-index；合并 delta 时核对原 requirement/scenario 无丢失，确认真实客户端/桌面证据后归档。未通过项如实保留，归档不等于发布。验收全部场景。
+- [x] 6.3（1h）逐场景核对 evidence-index；合并 delta 时核对原 requirement/scenario 无丢失，确认真实客户端/桌面证据后归档。未通过项如实保留，归档不等于发布。验收全部场景。

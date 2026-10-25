@@ -80,7 +80,7 @@ R2.2 与 R3 继续保持核心交付优先级。MCP1 不成为二者的前置条
 
 完成判据：客户端能从原失败分支追到修复分支的实际测试和文件产物，核对命令及可比较环境；缺项与错误分类在桌面和 MCP 中一致。此阶段仍只读，不允许借查询执行命令。
 
-**状态（2026-10-26）**：已完成验收——`list_verifications`/`get_verification`/`read_verification_log`/`inspect_verification_artifacts`/`read_verification_artifact`/`compare_verifications` 六个只读工具，十三工具发现；WorkBuddy 5.9.2 真实客户端回查与桌面同对象一致，真实数据根零写入指纹实测。**未打包**：发行 zip 仍为 MCP1 七工具版本，实际打包/上传另行安排。证据：`openspec/changes/add-mcp-verification-evidence/evidence-index.md`；接入见[只读诊断指南 §5b/§10](../guide/mcp-readonly-diagnostics.md)。
+**状态（2026-10-26）**：已完成验收——`list_verifications`/`get_verification`/`read_verification_log`/`inspect_verification_artifacts`/`read_verification_artifact`/`compare_verifications` 六个只读工具，十三工具发现；WorkBuddy 5.9.2 真实客户端回查与桌面同对象一致，真实数据根零写入指纹实测。**未打包**：发行 zip 仍为 MCP1 七工具版本，实际打包/上传另行安排。证据：`openspec/changes/archive/2026-10-26-add-mcp-verification-evidence/evidence-index.md`；接入见[只读诊断指南 §5b/§10](../guide/mcp-readonly-diagnostics.md)。
 
 ## 6. MCP3：受控执行入口
 

@@ -183,7 +183,7 @@ MCP2 验证域九个：`VERIFICATION_NOT_FOUND`、`VERIFICATION_UNREADABLE`（�
 - **桌面一致**：真实 Electron 读取 IPC 与比较判据（`@rebaseagent/project-verification/facts`
   共享实现）与 MCP 对同对象结论一致。
 - **未抽查**：桌面比较面板的宽窄窗 / 200% / 键盘视觉抽查未做（读取面设计未改布局）。
-- 详细证据：`openspec/changes/add-mcp-verification-evidence/evidence-index.md`（仓库内）。
+- 详细证据：`openspec/changes/archive/2026-10-26-add-mcp-verification-evidence/evidence-index.md`（仓库内）。
 
 ---
 
