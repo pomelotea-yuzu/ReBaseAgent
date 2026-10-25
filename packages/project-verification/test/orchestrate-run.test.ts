@@ -398,6 +398,42 @@ describe("passed 主路径：记录事件序列与收尾", () => {
   });
 });
 
+describe("记录创建回调（onRecordCreated：在飞领域身份挂登记的时机，D05/D06）", () => {
+  it("记录创建成功即回调一次（先于容器创建），回调时记录文件已存在且 ID=mint 值", async () => {
+    const script = makePorts();
+    const seen: Array<{ verificationId: string; recordExists: boolean; afterCreate: boolean }> = [];
+    const result = await executeVerificationRun({
+      ...params(script.ports),
+      onRecordCreated: (verificationId, recordPath) => {
+        seen.push({
+          verificationId,
+          recordExists: existsSync(recordPath),
+          afterCreate: script.calls.created.length > 0,
+        });
+      },
+    });
+    expect(result).toMatchObject({ ok: true });
+    if (!result.ok) throw new Error("unreachable");
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toEqual({
+      verificationId: result.verificationId,
+      recordExists: true,
+      afterCreate: false,
+    });
+  });
+
+  it("门内拒绝（plan_stale，记录创建前）不回调——无记录即无领域身份", async () => {
+    const script = makePorts();
+    const seen: string[] = [];
+    const result = await executeVerificationRun({
+      ...params(script.ports, { planToken: "stale-token" }),
+      onRecordCreated: (id) => seen.push(id),
+    });
+    expect(result).toMatchObject({ ok: false, failure: { code: "plan_stale" } });
+    expect(seen).toEqual([]);
+  });
+});
+
 describe("结局映射（D6 九行表）", () => {
   it("test 命令 exit 0 但 TAP 不匹配 ⇒ check_failed（P12 精确门）", async () => {
     const script = makePorts();

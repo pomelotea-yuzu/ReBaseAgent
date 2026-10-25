@@ -126,6 +126,12 @@ export interface ExecuteVerificationRunParams {
   readonly preparation: { readonly preparationId: string; readonly imageDigest: string };
   /** 用户停止信号（可选；阶段边界观察，D6/P19/P21） */
   readonly stopSignal?: VerificationStopSignal;
+  /**
+   * 记录创建成功即回调（记录先于资源）：调用方由此在编排期间把领域身份挂上登记，
+   * renderer 在飞 reconcile 才能取到可信 verificationId 发起定向停止（D05/D06）。
+   * 门内拒绝（记录创建前）不回调——不存在记录就不登记领域身份。
+   */
+  readonly onRecordCreated?: (verificationId: string, recordPath: string) => void;
   readonly profile?: ProfileManifest;
   readonly now?: () => Date;
   readonly mintVerificationId?: () => string;
@@ -264,6 +270,7 @@ export async function executeVerificationRun(
   } catch (error) {
     return failure("record_io_failed", `验证记录创建失败：${describe(error)}`);
   }
+  params.onRecordCreated?.(verificationId, recordPath);
 
   const terminate = (
     outcome: VerificationOutcome,

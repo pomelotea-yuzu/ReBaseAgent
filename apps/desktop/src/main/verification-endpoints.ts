@@ -222,6 +222,8 @@ const runChannel: ActiveChannel<VerificationRunRequest, VerificationRunResult> =
     try {
       // 包层编排：门序（授权/形状/计划漂移/预检）→ 记录 → 容器 → 物化 → 执行 →
       // 停止 → 采集 → 终局。领域结局不是请求层失败：returned + 结局数据（D04）。
+      // 领域身份在记录创建时即挂登记（onRecordCreated）：renderer 在飞 reconcile
+      // 才能取到可信 verificationId 发起定向停止（D05/D06）；已接受后失败不撤销（D03）。
       const result = await executeVerificationRun({
         dataRoot: verification.dataRoot,
         dataDir: deps.dataDir,
@@ -232,6 +234,7 @@ const runChannel: ActiveChannel<VerificationRunRequest, VerificationRunResult> =
         preparation: prepared,
         stopSignal,
         mintVerificationId: () => verificationId,
+        onRecordCreated: (id) => ctx.attachVerificationId(id),
       });
       if (!result.ok) {
         // 门内拒绝（零副作用）或记录 I/O 失败：请求层失败，保留诊断
@@ -240,8 +243,6 @@ const runChannel: ActiveChannel<VerificationRunRequest, VerificationRunResult> =
           result.failure.reason,
         );
       }
-      // 真实验证记录已创建（无论结局）⇒ 关联领域身份；runIds 恒空（M01）
-      ctx.attachVerificationId(result.verificationId);
       return VerificationRunResultSchema.parse({
         verificationId: result.verificationId,
         outcome: result.outcome,

@@ -477,6 +477,60 @@ describe("verification:run（4.2 端点）", () => {
     expect(done.ok).toBe(true);
   });
 
+  it("在飞期间登记已带领域身份（记录创建即 attach）：renderer reconcile 可取，停止端点双源可核（D05/D06 前提）", async () => {
+    const h = makeHarness();
+    await seedPrepared(h);
+    let release: (() => void) | null = null;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    h.deps.verification.backends.run.command = {
+      async runCommand() {
+        await gate;
+        return {
+          exitCode: 0,
+          timedOut: false,
+          outputLimitHit: false,
+          stdout: {
+            retainedBytes: Buffer.from("# tests 2\n# pass 2\n"),
+            totalBytes: 17,
+            truncated: false,
+          },
+          stderr: { retainedBytes: Buffer.from(""), totalBytes: 0, truncated: false },
+        };
+      },
+    };
+    const running = execVerificationRun(h.deps, MAIN_FRAME, envelope(1, runRequest()));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const record = h.deps.registry.recordOf(opId(1));
+    expect(record?.state).toBe("running");
+    expect(record?.verificationIds).toHaveLength(1);
+    release?.();
+    const done = (await running) as { ok: boolean; data?: { verificationId: string } };
+    expect(done.ok).toBe(true);
+    expect(record?.verificationIds).toEqual([done.data?.verificationId]);
+  });
+
+  it("已接受后失败（容器启动失败）⇒ rejected 但领域身份保留（D03：记录已创建即挂登记）", async () => {
+    const h = makeHarness();
+    await seedPrepared(h);
+    const lifecycle = h.deps.verification.backends.run.lifecycle as unknown as {
+      startContainer: () => Promise<void>;
+    };
+    lifecycle.startContainer = async () => {
+      throw new Error("容器启动失败（夹具注入）");
+    };
+    const response = (await execVerificationRun(h.deps, MAIN_FRAME, envelope(1, runRequest()))) as {
+      ok: boolean;
+      data?: { verificationId: string; outcome: string };
+    };
+    expect(response.ok).toBe(true);
+    expect(response.data?.outcome).toBe("environment_failed");
+    const record = h.deps.registry.recordOf(opId(1));
+    expect(record?.verificationIds).toHaveLength(1);
+    expect(record?.verificationIds).toEqual([response.data?.verificationId]);
+  });
+
   it("R3 通道桥接面在 preload 白名单内且经执行信封（通道名核对）", () => {
     expect(CHANNELS.verificationPrepare).toBe("verification:prepare");
     expect(CHANNELS.verificationRun).toBe("verification:run");
