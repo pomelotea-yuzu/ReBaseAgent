@@ -14,6 +14,14 @@
     "./schema": {
       "types": "./dist/schema.d.ts",
       "default": "./dist/schema.js"
+    },
+    "./read": {
+      "types": "./dist/read.d.ts",
+      "default": "./dist/read.js"
+    },
+    "./facts": {
+      "types": "./dist/facts.d.ts",
+      "default": "./dist/facts.js"
     }
   },
   "files": ["dist"],

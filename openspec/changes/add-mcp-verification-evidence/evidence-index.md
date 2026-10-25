@@ -28,7 +28,7 @@
 | M18 历史指令和秘密不扩展权限 | 结构凭据/自由秘密/注入/受控 IO 错误 + 指南 | 待验收 |
 | M19 真实客户端完成证据代表任务 | 实际客户端版本/配置/完整工具记录 + Electron 同对象回查 | 待验收 |
 | M20 生产闭包与发行说明可核对 | 生产 deploy 探针/十三工具断言/文档状态 | 待验收 |
-| V01 只读入口无执行依赖且无需后端 | import 闭包检查 + 无 Electron/Docker Node 读取 | 待验收 |
+| V01 只读入口无执行依赖且无需后端 | `packages/project-verification/test/read-closure.test.ts`（静态导入图禁入 writer/append/assets/prepare/execute/orchestrate/runtime/docker 等 4 passed）+ 纯 Node 探针 `node -e "import('./dist/read.js')…"`（read/facts 均加载） | 部分通过（import 闭包与纯 Node 读取已证；「无需后端」的端到端读取回归随 5.1/4.4 收口） |
 | V02 桌面与 MCP 对同对象事实一致 | 共享事实用例 + 真实 Electron 记录/比较/日志回归 | 待验收 |
 | V03 文本跨段与字节接口兼容 | 同资产码点/字节视图、旧 IPC 默认/上限/schema | 待验收 |
 | V04 核验与枚举不掩盖坏数据 | scan 失败项、大小/hash/链接/歧义记录回归 | 待验收 |
