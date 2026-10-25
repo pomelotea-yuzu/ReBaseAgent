@@ -1,17 +1,18 @@
-import type { RunSummary, VerificationGetMeta, VerificationGetResult } from "@shared/ipc";
+import { compareVerificationFacts } from "@rebaseagent/project-verification/facts";
+import type { VerificationFactsSide } from "@rebaseagent/project-verification/facts";
+import type { VerificationGetMeta, VerificationGetResult } from "@shared/ipc";
+import type { RunSummary } from "@shared/ipc";
 import { formatBytes } from "./format";
 
 /**
- * R3 任务 5.4：两条验证的**比较判据**（D07/P24/P25 的渲染半边）。
+ * R3 任务 5.4 / MCP2 任务 2.5：两条验证的**比较判据**（D07/P24/P25 的渲染半边）。
  *
- * 纪律（delta 场景逐字）：
- * - 只比较**记录里实际存在的事实**：meta/command_start/terminated。缺字段 ⇒ unknown，
- *   **不**拿当前 manifest 或另一侧的值补（P25：不合成为同条件失败→通过）；
- * - 只有「全部条件行 same ∧ 两侧证据完整 ∧ 左 check_failed ∧ 右 passed」才输出
- *   failed-to-passed，且措辞只声明实际检查结果，不宣布完整正确或因果关系（P24）；
- * - 干预只来自 run 摘要里**记录的分叉**（fork 元数据）；没有记录就如实说明
- *   「不可从记录确认」，不把人工改动归成 Agent 修复（D07/design D7）；
- * - Agent 文本不进入条件与结论——本模块只吃验证记录与运行分叉元数据。
+ * MCP2 起，条件状态与结论**只出自** `@rebaseagent/project-verification/facts`
+ * 的共享纯事实（design D7）：argv 按数组比较、对象按规范值比较、缺项 unknown、
+ * 结论顺序 outcome-unknown → evidence-incomplete → conditions-differ →
+ * conditions-unknown → failed-to-passed → same-conditions-other-outcome。
+ * 本模块保留**展示适配**：中文标签、格式化串（join 仅用于显示）、干预措辞与
+ * limitation 文案；state/verdict 不再在本地重算（V02：桌面与 MCP 同判据）。
  */
 
 export type CompareConditionState = "same" | "different" | "unknown";
@@ -211,16 +212,6 @@ function formatSecurity(
   ].join(" · ");
 }
 
-function row(
-  key: string,
-  label: string,
-  left: string | null,
-  right: string | null,
-): VerificationCompareRow {
-  if (left === null || right === null) return { key, label, left, right, state: "unknown" };
-  return { key, label, left, right, state: left === right ? "same" : "different" };
-}
-
 function sideOf(
   result: VerificationGetResult,
   run: RunSummary | undefined,
@@ -245,11 +236,20 @@ function sideOf(
   };
 }
 
-function limitationList(left: VerificationGetResult, right: VerificationGetResult): string[] {
+function limitationList(
+  left: VerificationGetResult,
+  right: VerificationGetResult,
+  sourceVerified: boolean | null,
+): string[] {
   const limitations: string[] = [
     "Agent 文本不进入条件与结论；本区只读验证记录与运行分叉元数据。",
     "R3 不自动发起模型修复；干预是否成立以运行记录的分叉元数据为准。",
   ];
+  if (sourceVerified === false) {
+    limitations.push(
+      "至少一侧来源 trace 缺失或快照与记录不符：不宣称已核验修复分支或代码因果。",
+    );
+  }
   if (left.sourceStatus === "missing" || right.sourceStatus === "missing") {
     limitations.push(
       "至少一侧来源 run 的 trace 已缺失：代码差异无法在本机核对（验证记录仍可读）。",
@@ -272,6 +272,41 @@ function limitationList(left: VerificationGetResult, right: VerificationGetResul
   return limitations;
 }
 
+/** 从桌面 IPC 结果构造共享判据入参（locatedSnapshotId/currentAssets 尚未接线 ⇒ null） */
+function factsSideOf(
+  result: VerificationGetResult,
+  command: CommandFacts | null,
+): VerificationFactsSide {
+  const env = result.meta?.environment ?? null;
+  return {
+    verificationId: result.verificationId,
+    status: result.status,
+    profileId: result.meta?.profileId ?? null,
+    manifestVersion: result.meta?.manifestVersion ?? null,
+    planBindingDigest: result.meta?.planBindingDigest ?? null,
+    commandId: result.meta?.commandId ?? null,
+    executable: command?.executable ?? null,
+    argv: command?.argv ?? null,
+    cwd: command?.cwd ?? null,
+    environment:
+      env === null
+        ? null
+        : {
+            platform: env.platform,
+            imageDigest: env.imageDigest,
+            toolchain: env.toolchain,
+            limits: env.limits,
+            security: env.security,
+          },
+    outcome: result.terminated?.outcome ?? null,
+    evidenceComplete: result.terminated?.evidenceComplete ?? null,
+    recordedSnapshotId: result.meta?.snapshotId ?? null,
+    sourceStatus: result.sourceStatus,
+    locatedSnapshotId: null,
+    currentAssetsAvailable: null,
+  };
+}
+
 export function compareVerifications(
   leftResult: VerificationGetResult,
   rightResult: VerificationGetResult,
@@ -288,94 +323,127 @@ export function compareVerifications(
   );
   const leftMeta = leftResult.meta;
   const rightMeta = rightResult.meta;
-  const leftEnv = leftMeta?.environment ?? null;
-  const rightEnv = rightMeta?.environment ?? null;
   const leftCommand = commandFactsOf(leftResult);
   const rightCommand = commandFactsOf(rightResult);
-  const conditions: VerificationCompareRow[] = [
-    row("profileId", "profile", leftMeta?.profileId ?? null, rightMeta?.profileId ?? null),
-    row(
+
+  // 共享判据（@rebaseagent/project-verification/facts）：状态与结论只出自这里
+  const facts = compareVerificationFacts(factsSideOf(leftResult, leftCommand), factsSideOf(rightResult, rightCommand));
+  const stateByKey = new Map(facts.conditions.map((condition) => [condition.key, condition.state]));
+
+  const displayRows: [string, string, string | null, string | null][] = [
+    ["profileId", "profile", leftMeta?.profileId ?? null, rightMeta?.profileId ?? null],
+    [
       "manifestVersion",
       "manifest 版本",
       leftMeta === null ? null : String(leftMeta.manifestVersion),
       rightMeta === null ? null : String(rightMeta.manifestVersion),
-    ),
-    row(
+    ],
+    [
       "planBindingDigest",
       "计划绑定摘要（计划×策略×配方）",
       leftMeta?.planBindingDigest ?? null,
       rightMeta?.planBindingDigest ?? null,
-    ),
-    row("commandId", "检查命令", leftMeta?.commandId ?? null, rightMeta?.commandId ?? null),
-    row(
+    ],
+    ["commandId", "检查命令", leftMeta?.commandId ?? null, rightMeta?.commandId ?? null],
+    [
       "command",
       "executable + argv",
+      // join 仅用于显示；判等由共享判据按数组完成
       leftCommand === null ? null : `${leftCommand.executable} ${leftCommand.argv.join(" ")}`,
       rightCommand === null ? null : `${rightCommand.executable} ${rightCommand.argv.join(" ")}`,
-    ),
-    row("cwd", "工作目录", leftCommand?.cwd ?? null, rightCommand?.cwd ?? null),
-    row("platform", "平台", leftEnv?.platform ?? null, rightEnv?.platform ?? null),
-    row("imageDigest", "实际镜像摘要", leftEnv?.imageDigest ?? null, rightEnv?.imageDigest ?? null),
-    row(
+    ],
+    ["cwd", "工作目录", leftCommand?.cwd ?? null, rightCommand?.cwd ?? null],
+    ["platform", "平台", leftMeta?.environment?.platform ?? null, rightMeta?.environment?.platform ?? null],
+    [
+      "imageDigest",
+      "实际镜像摘要",
+      leftMeta?.environment?.imageDigest ?? null,
+      rightMeta?.environment?.imageDigest ?? null,
+    ],
+    [
       "toolchain",
       "运行时版本",
-      leftEnv === null ? null : formatToolchain(leftEnv.toolchain),
-      rightEnv === null ? null : formatToolchain(rightEnv.toolchain),
-    ),
-    row(
+      leftMeta?.environment === null || leftMeta?.environment === undefined
+        ? null
+        : formatToolchain(leftMeta.environment.toolchain),
+      rightMeta?.environment === null || rightMeta?.environment === undefined
+        ? null
+        : formatToolchain(rightMeta.environment.toolchain),
+    ],
+    [
       "limits",
       "资源限额",
-      leftEnv === null ? null : formatLimits(leftEnv.limits),
-      rightEnv === null ? null : formatLimits(rightEnv.limits),
-    ),
-    row(
+      leftMeta?.environment === null || leftMeta?.environment === undefined
+        ? null
+        : formatLimits(leftMeta.environment.limits),
+      rightMeta?.environment === null || rightMeta?.environment === undefined
+        ? null
+        : formatLimits(rightMeta.environment.limits),
+    ],
+    [
       "security",
       "隔离基线",
-      leftEnv === null ? null : formatSecurity(leftEnv.security),
-      rightEnv === null ? null : formatSecurity(rightEnv.security),
-    ),
+      leftMeta?.environment === null || leftMeta?.environment === undefined
+        ? null
+        : formatSecurity(leftMeta.environment.security),
+      rightMeta?.environment === null || rightMeta?.environment === undefined
+        ? null
+        : formatSecurity(rightMeta.environment.security),
+    ],
   ];
+  const conditions: VerificationCompareRow[] = displayRows.map(([key, label, leftText, rightText]) => ({
+    key,
+    label,
+    left: leftText,
+    right: rightText,
+    state: stateByKey.get(key as (typeof facts.conditions)[number]["key"]) ?? "unknown",
+  }));
   const differences = conditions.filter((one) => one.state === "different").map((one) => one.label);
   const unknowns = conditions.filter((one) => one.state === "unknown").map((one) => one.label);
-  const codeSame =
-    leftResult.meta === null || rightResult.meta === null
-      ? null
-      : leftResult.meta.snapshotId === rightResult.meta.snapshotId;
+  const codeSame = facts.codeSame;
 
   let verdict: VerificationCompareVerdict;
-  if (left.outcome === null || right.outcome === null) {
-    verdict = {
-      kind: "outcome-unknown",
-      headline: "至少一侧记录未封存/不可读：不形成比较结论（不以未完成事实冒充结果）。",
-    };
-  } else if (left.evidenceComplete !== true || right.evidenceComplete !== true) {
-    verdict = {
-      kind: "evidence-incomplete",
-      headline: "至少一侧证据不完整：不形成修复结论（缺项不能以模型文本补齐）。",
-    };
-  } else if (differences.length > 0) {
-    verdict = {
-      kind: "conditions-differ",
-      headline: "条件不同：不构成同条件失败→通过。",
-      differences,
-    };
-  } else if (unknowns.length > 0) {
-    verdict = {
-      kind: "conditions-unknown",
-      headline: "条件未知（记录缺字段）：不构成同条件失败→通过。",
-      unknowns,
-    };
-  } else if (left.outcome === "check_failed" && right.outcome === "passed") {
-    verdict = {
-      kind: "failed-to-passed",
-      headline:
-        "同条件失败→通过：仅指该固定检查在两侧已记录的相同条件下由 check_failed 变为 passed；不宣布完整正确或因果关系。",
-    };
-  } else {
-    verdict = {
-      kind: "same-conditions-other-outcome",
-      headline: `条件一致，但结局不是失败→通过（实际：${left.outcome} / ${right.outcome}）；只声明实际检查结果。`,
-    };
+  switch (facts.verdict.kind) {
+    case "outcome-unknown":
+      verdict = {
+        kind: "outcome-unknown",
+        headline: "至少一侧记录未封存/不可读：不形成比较结论（不以未完成事实冒充结果）。",
+      };
+      break;
+    case "evidence-incomplete":
+      verdict = {
+        kind: "evidence-incomplete",
+        headline: facts.evidenceIncompleteFromCurrentAssets
+          ? "至少一侧当前必需资产不可核验：不形成可核查的修复结论（历史结局不改写）。"
+          : "至少一侧证据不完整：不形成修复结论（缺项不能以模型文本补齐）。",
+      };
+      break;
+    case "conditions-differ":
+      verdict = {
+        kind: "conditions-differ",
+        headline: "条件不同：不构成同条件失败→通过。",
+        differences,
+      };
+      break;
+    case "conditions-unknown":
+      verdict = {
+        kind: "conditions-unknown",
+        headline: "条件未知（记录缺字段）：不构成同条件失败→通过。",
+        unknowns,
+      };
+      break;
+    case "failed-to-passed":
+      verdict = {
+        kind: "failed-to-passed",
+        headline:
+          "同条件失败→通过：仅指该固定检查在两侧已记录的相同条件下由 check_failed 变为 passed；不宣布完整正确或因果关系。",
+      };
+      break;
+    default:
+      verdict = {
+        kind: "same-conditions-other-outcome",
+        headline: `条件一致，但结局不是失败→通过（实际：${left.outcome} / ${right.outcome}）；只声明实际检查结果。`,
+      };
   }
 
   return {
@@ -384,6 +452,6 @@ export function compareVerifications(
     conditions,
     verdict,
     codeSame,
-    limitations: limitationList(leftResult, rightResult),
+    limitations: limitationList(leftResult, rightResult, facts.sourceVerified),
   };
 }

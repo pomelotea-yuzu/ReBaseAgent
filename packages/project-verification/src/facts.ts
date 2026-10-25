@@ -1,6 +1,7 @@
 /**
  * `@rebaseagent/project-verification/facts` 子入口（MCP2 design D1）：
- * 纯数据事实层——规范化序列化/摘要与共享比较判据，不触文件系统、
- * 不导入任何记录读取或执行/写入模块（闭包由 test/read-closure.test.ts 钉死）。
+ * 纯数据事实层——**零导入**（连 Node 内置都不碰，renderer bundle 可直接吃）。
+ * 当前导出共享比较纯事实（design D7）；规范化序列化/摘要（canonical.ts）仍在
+ * 主入口导出，不进本子入口以保持 renderer 可打包。
  */
-export * from "./canonical.js";
+export * from "./compare-facts.js";

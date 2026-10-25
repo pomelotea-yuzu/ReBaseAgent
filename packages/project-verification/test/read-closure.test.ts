@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { canonicalJson } from "../src/facts.js";
+import { compareVerificationFacts } from "../src/facts.js";
 import { getVerification, listVerifications } from "../src/read.js";
 import { VerificationRecordWriter } from "../src/records/writer.js";
 
@@ -130,7 +130,33 @@ describe("read 子入口在纯 Node 进程读历史记录（V01）", () => {
     expect(listVerifications(root)).toHaveLength(1);
   });
 
-  it("facts 入口给出纯数据规范化与摘要", () => {
-    expect(canonicalJson({ b: 1, a: 2 })).toBe('{"a":2,"b":1}');
+  it("facts 入口给出共享比较纯事实（零导入判据）", () => {
+    const base = {
+      verificationId: "ver_f",
+      status: "sealed" as const,
+      profileId: "node-ts-v1",
+      manifestVersion: 1,
+      planBindingDigest: "a".repeat(64),
+      commandId: "test" as const,
+      executable: "node",
+      argv: ["node", "--test"],
+      cwd: "/w",
+      environment: {
+        platform: "linux/amd64",
+        imageDigest: `sha256:${"a".repeat(63)}1`,
+        toolchain: { node: "20" },
+        limits: { cpus: 2 },
+        security: { runAsUser: 1000 },
+      },
+      outcome: "passed",
+      evidenceComplete: true,
+      recordedSnapshotId: "snap",
+      sourceStatus: "unknown" as const,
+      locatedSnapshotId: null,
+      currentAssetsAvailable: null,
+    };
+    const result = compareVerificationFacts(base, { ...base, verificationId: "ver_g" });
+    expect(result.verdict.kind).toBe("same-conditions-other-outcome");
+    expect(result.conditions.every((condition) => condition.state === "same")).toBe(true);
   });
 });
