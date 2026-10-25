@@ -17,7 +17,11 @@ import {
 import { ToolFailure, type ToolPayload, defineTool } from "../tool-definition.js";
 import { issueCursor, requireCursorPosition, withoutCursor } from "./cursor-io.js";
 import { takeWindow } from "./projection.js";
-import { computeVerificationReadVersion, verificationToolError } from "./verification-support.js";
+import {
+  computeVerificationReadVersion,
+  assertReadUnchanged,
+  verificationToolError,
+} from "./verification-support.js";
 
 /**
  * `list_verifications`（MCP2 design D2，tasks 3.1）。
@@ -224,6 +228,8 @@ export const listVerificationsTool: ToolDefinition = defineTool(
     };
 
     const initial = buildPayload(requestedLimit);
+    // D6/4.1：读后一致性核验——台账变了就不发这页（STALE_CURSOR，从首页重查）
+    assertReadUnchanged("list_verifications", requestArgs, root, null, readVersion);
     const initialCount = Math.min(matched.length - start, requestedLimit);
     if (initialCount === 0) return initial;
     const first = matched[start]?.item;

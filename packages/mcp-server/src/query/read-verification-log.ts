@@ -18,6 +18,7 @@ import {
 import { ToolFailure, type ToolPayload, defineTool } from "../tool-definition.js";
 import { issueCursor, requireCursorPosition, withoutCursor } from "./cursor-io.js";
 import {
+  assertReadUnchanged,
   computeVerificationReadVersion,
   readRecordOrThrow,
   verificationToolError,
@@ -96,8 +97,7 @@ const ReadVerificationLogDataSchema = z
   })
   .strict();
 
-export const readVerificationLogTool: ToolDefinition = defineTool(
-  requireVerificationContract("read_verification_log"),
+export const readVerificationLogTool: ToolDefinition = defineTool(  requireVerificationContract("read_verification_log"),
   async (args: ReadVerificationLogArgs, root: DataRoot): Promise<ToolPayload> => {
     const record = readRecordOrThrow(root, args.verificationId);
     if (record.status === "corrupt" || record.status === "unsupported_version") {
@@ -116,6 +116,29 @@ export const readVerificationLogTool: ToolDefinition = defineTool(
     }
     let verified: VerifiedAsset;
     let body: ReturnType<typeof classifyAssetBody>;
+    const requestArgs = withoutCursor(args);
+    const versionExtra = {
+      verificationId: args.verificationId,
+      commandId: args.commandId,
+      stream: args.stream,
+      hash: resolved.sha256,
+    };
+    const readVersion = computeVerificationReadVersion(
+      "read_verification_log",
+      requestArgs,
+      root,
+      versionExtra,
+    );
+    // 游标先于附件读取核验（M12）：来源/附件台账已变 ⇒ STALE_CURSOR（从首页重查），
+    // 而不是读出半新半旧的附件；篡改/异参仍在 decode 内判 INVALID_ARGUMENT
+    const [start] = requireCursorPosition({
+      cursor: args.cursor,
+      tool: "read_verification_log",
+      params: requestArgs,
+      readVersion,
+      kind: "chars",
+      slots: 1,
+    });
     try {
       verified = verifyAsset(root.dataDir, resolved.sha256);
       body = classifyAssetBody(root.dataDir, resolved.sha256);
@@ -140,22 +163,6 @@ export const readVerificationLogTool: ToolDefinition = defineTool(
         message: "记录未封存：附件来自已落盘的完整 command_end 事件，不承诺代表完整执行",
       });
     }
-
-    const requestArgs = withoutCursor(args);
-    const readVersion = computeVerificationReadVersion("read_verification_log", requestArgs, root, {
-      verificationId: args.verificationId,
-      commandId: args.commandId,
-      stream: args.stream,
-      hash: resolved.sha256,
-    });
-    const [start] = requireCursorPosition({
-      cursor: args.cursor,
-      tool: "read_verification_log",
-      params: requestArgs,
-      readVersion,
-      kind: "chars",
-      slots: 1,
-    });
 
     if (body.kind === "binary") {
       if (args.cursor !== undefined) throw new ToolFailure("INVALID_ARGUMENT", "cursor");
@@ -266,6 +273,8 @@ export const readVerificationLogTool: ToolDefinition = defineTool(
     };
 
     const initial = buildPayload(args.maxChars);
+    // D6/4.1：读后一致性核验（验证/来源/附件台账 + 本附件哈希绑定）
+    assertReadUnchanged("read_verification_log", requestArgs, root, versionExtra, readVersion);
     const emitted = Math.min(body.totalChars - start, args.maxChars ?? BODY_CHARS_DEFAULT);
     if (emitted <= 0) return initial;
     return {

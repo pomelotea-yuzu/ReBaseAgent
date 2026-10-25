@@ -15,6 +15,7 @@ import {
 import { ToolFailure, type ToolPayload, defineTool } from "../tool-definition.js";
 import { issueCursor, requireCursorPosition, withoutCursor } from "./cursor-io.js";
 import {
+  assertReadUnchanged,
   computeVerificationReadVersion,
   readRecordOrThrow,
   verificationToolError,
@@ -299,6 +300,8 @@ export const getVerificationTool: ToolDefinition = defineTool(
     };
 
     const initial = buildPayload(PAGE_LIMIT_DEFAULT);
+    // D6/4.1：读后一致性核验（记录/准备/来源/附件台账变化 ⇒ STALE_CURSOR）
+    assertReadUnchanged("get_verification", requestArgs, root, { verificationId: args.verificationId }, readVersion);
     const initialCount = Math.min(eventIndex.length - start, args.limit ?? PAGE_LIMIT_DEFAULT);
     if (initialCount <= 0) return initial;
     return {

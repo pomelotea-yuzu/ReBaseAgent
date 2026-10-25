@@ -15,7 +15,10 @@ import {
   requireVerificationContract,
 } from "../verification-contracts.js";
 import { ToolFailure, type ToolPayload, defineTool } from "../tool-definition.js";
-import { computeVerificationReadVersion } from "./verification-support.js";
+import {
+  assertReadUnchanged,
+  computeVerificationReadVersion,
+} from "./verification-support.js";
 
 /**
  * `compare_verifications`（MCP2 design D2/D7，tasks 3.6）。
@@ -136,15 +139,22 @@ export const compareVerificationsTool: ToolDefinition = defineTool(
       });
     }
 
+    const requestArgs = {
+      left: { verificationId: args.left.verificationId },
+      right: { verificationId: args.right.verificationId },
+    };
+    const versionExtra = {
+      left: leftRead?.meta?.target.snapshotId ?? null,
+      right: rightRead?.meta?.target.snapshotId ?? null,
+    };
     const readVersion = computeVerificationReadVersion(
       "compare_verifications",
-      { left: { verificationId: args.left.verificationId }, right: { verificationId: args.right.verificationId } },
+      requestArgs,
       root,
-      {
-        left: leftRead?.meta?.target.snapshotId ?? null,
-        right: rightRead?.meta?.target.snapshotId ?? null,
-      },
+      versionExtra,
     );
+    // D6/4.1：读后一致性核验（两侧记录/来源/必需资产台账在读取期间不得变化）
+    assertReadUnchanged("compare_verifications", requestArgs, root, versionExtra, readVersion);
 
     const data = CompareVerificationDataSchema.parse({
       left: {

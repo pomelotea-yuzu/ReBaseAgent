@@ -13,11 +13,13 @@ import type { DataRoot } from "../startup.js";
 import { ToolFailure } from "../tool-definition.js";
 
 /**
- * MCP2 验证查询的共享支撑（design D3/D4/D6，tasks 3.x）：
+ * MCP2 验证查询的共享支撑（design D3/D4/D6，tasks 3.x/4.x）：
  * - 验证域错误投影：共享读取层的结构化错误 → 稳定码 ToolFailure（不透传原始异常）；
- * - 验证 readVersion：verifications/、verification-environments/、
- *   verification-assets/sha256/ 三个目录的 stat 台账（design D6；只 stat 不读内容，
- *   4.1 在此基础上做读中变化核验与游标绑定收紧）；
+ * - 验证 readVersion（D6/4.1）：候选集合台账 = verifications/、verification-
+ *   environments/、verification-assets/sha256/、**traces/**（参与来源）四个目录的
+ *   stat 台账（只 stat 不读内容）+ 工具名 + 入参 + 调用方 extra（日志/产物工具绑定
+ *   附件哈希）；每请求重新计算，读后再核对一次——**读中来源变化 ⇒ STALE_CURSOR，
+ *   不发布混合事实**；进程重启换密钥 ⇒ 旧会话游标一律 STALE_CURSOR（cursor.ts）；
  * - 记录读取缝：getVerification + tracesRoot 来源状态，异常一律先投影。
  */
 
@@ -129,8 +131,10 @@ function dirLedger(dir: string, suffix: string): LedgerEntry[] {
 }
 
 /**
- * 验证域 readVersion（design D6）：三目录 stat 台账 + 工具名 + 入参 + 调用方 extra
+ * 验证域 readVersion（design D6）：四目录 stat 台账 + 工具名 + 入参 + 调用方 extra
  * （日志/产物工具把解析出的附件哈希放进来，附件替换/删除必换摘要 ⇒ 续读 STALE_CURSOR）。
+ * traces/ 台账覆盖参与来源（get/compare 的 sourceStatus 依据）；检查点附件不进台账——
+ * 验证工具不读检查点内容，只引用记录内 snapshotId。
  * 不逐字节哈希：与 MCP1 read-version 同一取舍（不承诺抵御保留 size/mtime 的本机改写）。
  */
 export function computeVerificationReadVersion(
@@ -139,13 +143,41 @@ export function computeVerificationReadVersion(
   root: DataRoot,
   extra: unknown = null,
 ): string {
-  const ledger = [
-    dirLedger(join(root.dataDir, "verifications"), ".jsonl"),
-    dirLedger(join(root.dataDir, "verification-environments"), ".jsonl"),
-    dirLedger(join(root.dataDir, "verification-assets", "sha256"), ""),
-  ];
-  const material = JSON.stringify([READ_VERSION_TAG, tool, args, ledger, extra]);
+  const material = JSON.stringify([
+    READ_VERSION_TAG,
+    tool,
+    args,
+    verificationLedger(root),
+    extra,
+  ]);
   return `${READ_VERSION_TAG}:${createHash("sha256")
     .update(Buffer.from(material, "utf8"))
     .digest("hex")}`;
+}
+
+/** 四目录 stat 台账（存在/类型/size/mtime；缺目录 = 空段） */
+function verificationLedger(root: DataRoot): unknown {
+  return [
+    dirLedger(join(root.dataDir, "verifications"), ".jsonl"),
+    dirLedger(join(root.dataDir, "verification-environments"), ".jsonl"),
+    dirLedger(join(root.dataDir, "verification-assets", "sha256"), ""),
+    dirLedger(root.tracesDir, ".jsonl"),
+  ];
+}
+
+/**
+ * 读后一致性核验（D6/4.1，M12）：全部读取完成后再算一次摘要；
+ * 与读取前不同 ⇒ 期间有来源变化，本轮结果可能是混合事实，发 STALE_CURSOR 让客户端
+ * 从首页重查。工具实现必须在**返回 payload 之前**调用（正文读取之后的最后一步）。
+ */
+export function assertReadUnchanged(
+  tool: string,
+  requestArgs: unknown,
+  root: DataRoot,
+  extra: unknown,
+  before: string,
+): void {
+  if (computeVerificationReadVersion(tool, requestArgs, root, extra) !== before) {
+    throw new ToolFailure("STALE_CURSOR");
+  }
 }

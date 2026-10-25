@@ -14,7 +14,11 @@ import {
 } from "../verification-contracts.js";
 import { ToolFailure, type ToolPayload, defineTool } from "../tool-definition.js";
 import { issueCursor, requireCursorPosition, withoutCursor } from "./cursor-io.js";
-import { computeVerificationReadVersion, readRecordOrThrow } from "./verification-support.js";
+import {
+  assertReadUnchanged,
+  computeVerificationReadVersion,
+  readRecordOrThrow,
+} from "./verification-support.js";
 
 /**
  * `inspect_verification_artifacts`（MCP2 design D2，tasks 3.4）。
@@ -171,6 +175,14 @@ export const inspectVerificationArtifactsTool: ToolDefinition = defineTool(
     };
 
     const initial = buildPayload(PAGE_LIMIT_DEFAULT);
+    // D6/4.1：读后一致性核验（逐项核验读取了大量附件，台账必须仍与读取前一致）
+    assertReadUnchanged(
+      "inspect_verification_artifacts",
+      requestArgs,
+      root,
+      { verificationId: args.verificationId },
+      readVersion,
+    );
     const initialCount = Math.min(rows.length - start, args.limit ?? PAGE_LIMIT_DEFAULT);
     if (initialCount <= 0) return initial;
     return {

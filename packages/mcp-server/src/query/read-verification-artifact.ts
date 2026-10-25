@@ -18,6 +18,7 @@ import {
 import { ToolFailure, type ToolPayload, defineTool } from "../tool-definition.js";
 import { issueCursor, requireCursorPosition, withoutCursor } from "./cursor-io.js";
 import {
+  assertReadUnchanged,
   computeVerificationReadVersion,
   readRecordOrThrow,
   verificationToolError,
@@ -99,6 +100,27 @@ export const readVerificationArtifactTool: ToolDefinition = defineTool(
     }
     let verified: VerifiedAsset;
     let body: ReturnType<typeof classifyAssetBody>;
+    const requestArgs = withoutCursor(args);
+    const versionExtra = {
+      verificationId: args.verificationId,
+      path: args.path,
+      hash: resolved.sha256,
+    };
+    const readVersion = computeVerificationReadVersion(
+      "read_verification_artifact",
+      requestArgs,
+      root,
+      versionExtra,
+    );
+    // 游标先于附件读取核验（M12）：台账/附件变化 ⇒ STALE_CURSOR，不读半新半旧附件
+    const [start] = requireCursorPosition({
+      cursor: args.cursor,
+      tool: "read_verification_artifact",
+      params: requestArgs,
+      readVersion,
+      kind: "chars",
+      slots: 1,
+    });
     try {
       verified = verifyAsset(root.dataDir, resolved.sha256);
       body = classifyAssetBody(root.dataDir, resolved.sha256);
@@ -113,22 +135,6 @@ export const readVerificationArtifactTool: ToolDefinition = defineTool(
       path: args.path,
       hash: resolved.sha256,
     };
-
-    const requestArgs = withoutCursor(args);
-    const readVersion = computeVerificationReadVersion(
-      "read_verification_artifact",
-      requestArgs,
-      root,
-      { verificationId: args.verificationId, path: args.path, hash: resolved.sha256 },
-    );
-    const [start] = requireCursorPosition({
-      cursor: args.cursor,
-      tool: "read_verification_artifact",
-      params: requestArgs,
-      readVersion,
-      kind: "chars",
-      slots: 1,
-    });
 
     if (body.kind === "binary") {
       if (args.cursor !== undefined) throw new ToolFailure("INVALID_ARGUMENT", "cursor");
@@ -204,6 +210,8 @@ export const readVerificationArtifactTool: ToolDefinition = defineTool(
     };
 
     const initial = buildPayload(args.maxChars);
+    // D6/4.1：读后一致性核验（验证/来源/附件台账 + 本附件哈希绑定）
+    assertReadUnchanged("read_verification_artifact", requestArgs, root, versionExtra, readVersion);
     const emitted = Math.min(body.totalChars - start, args.maxChars ?? BODY_CHARS_DEFAULT);
     if (emitted <= 0) return initial;
     return {
