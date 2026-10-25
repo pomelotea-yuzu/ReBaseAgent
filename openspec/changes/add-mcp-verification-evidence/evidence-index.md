@@ -36,6 +36,8 @@
 ## 实际执行记录（实施时填写）
 
 - 确定性 fixture：`packages/mcp-server/test/verification-fixtures.ts` 已建（tasks 1.3）——11 条具名记录（pass/fail 同条件对、旧缺 environment、unterminated+interrupted、坏尾、未知版本、重复 command_end、附件缺失/被改、冲突产物清单、来源缺失）+ 残留 runtime 登记 + 准备记录；全部经 R3 writer/publishAsset 真写，自证测试 `verification-fixtures.test.ts` 15 passed。整根指纹探针 `snapshotRootFingerprint`/`rootFingerprintDiff` 与真实验证记录复制探针 `copyVerificationRecord` 就绪；R3 实际记录来源（本机数据根与 verificationId）在 5.3 实机轮次回填。
+- 生产闭包探针（tasks 5.4，2026-10-25）：pnpm --filter @rebaseagent/mcp-server --prod --config.node-linker=hoisted deploy .rebaseagent/assemble-deploy → 复制到仓库外临时目录（自包含证明）→ 探针 PROBE_PASS：① dist/read.js+facts.js 独立加载（无 Electron/Docker/开发目录）②经生产闭包 writer/publishAsset 真写样本记录 ③stdio initialize→tools/list 恰 13→list_verifications/get_verification/read_verification_log 全通、content 自足；assemble-release-zip.mjs 断言已改 13（3.x）。实际打包/上传另行安排。
+- 未完成：5.2 真实 Electron 核对（非自主）、5.3 真实客户端验收（非自主）。
 - 客户端名称/版本、Node/服务/SDK 版本、启动路径与数据根选择：待填。
 - R3 实际验证 ID、原 run/检查点/snapshot、命令、历史 manifest 与 preparationId：待填。
 - 失败/通过样本的真实后端记录与确定性 fixture 区别、模板支持边界：待填。
