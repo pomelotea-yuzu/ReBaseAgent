@@ -113,6 +113,46 @@ describe("scanVerifications：坏项显式保留（V04/M03）", () => {
   });
 });
 
+describe("scanVerifications：十一 outcome 原样保留（M06）", () => {
+  const OUTCOMES = [
+    "check_failed",
+    "passed",
+    "environment_failed",
+    "start_failed",
+    "process_failed",
+    "timed_out",
+    "output_limit",
+    "cancelled",
+    "artifact_invalid",
+    "evidence_incomplete",
+    "unknown",
+  ] as const;
+
+  it("每个 outcome 经 writer 写入后由 scan 原样返回，exit/signal 不被改写", () => {
+    const root = newRoot();
+    OUTCOMES.forEach((outcome, index) => {
+      const w = VerificationRecordWriter.open(
+        root,
+        metaInput(`ver_oc${String(index).padStart(2, "0")}`, "2026-10-25T00:00:00.000Z"),
+      );
+      w.terminate({
+        outcome,
+        detail: `detail-${outcome}`,
+        evidenceComplete: outcome !== "unknown",
+        at: "2026-10-25T00:00:01.000Z",
+      });
+    });
+    const records = scanVerifications(root).filter((entry) => entry.kind === "record");
+    expect(records).toHaveLength(OUTCOMES.length);
+    const byId = new Map(records.map((entry) => [entry.verificationId, entry]));
+    OUTCOMES.forEach((outcome, index) => {
+      const entry = byId.get(`ver_oc${String(index).padStart(2, "0")}`);
+      expect(entry?.outcome, outcome).toBe(outcome);
+      expect(entry?.status).toBe("sealed");
+    });
+  });
+});
+
 describe("scanVerifications：稳定排序（M02）", () => {
   it("createdAt 倒序；同刻按 UTF-16 码元升序（不用区域排序）", () => {
     const root = newRoot();

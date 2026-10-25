@@ -154,7 +154,7 @@ describe("结论顺序与证据门（M14/M16）", () => {
 });
 
 describe("来源核对与 recordedTarget 固定（M07）", () => {
-  it("来源缺失/漂移：结论不变，sourceVerified=false，expectedSnapshotId 仍是记录值", () => {
+  it("来源缺失/漂移/未定位：结论不变，sourceVerified=false，expectedSnapshotId 仍是记录值", () => {
     const missing = compareVerificationFacts(
       side({ sourceStatus: "missing", locatedSnapshotId: null }),
       passedRight(),
@@ -168,9 +168,15 @@ describe("来源核对与 recordedTarget 固定（M07）", () => {
     );
     expect(drifted.sourceVerified).toBe(false);
     expect(drifted.expectedSnapshotIds.left).toBe("snap_1");
+    // present 但未做快照定位核对（located=null）⇒ 不能称已核验（D7 保守侧）
+    const unlocated = compareVerificationFacts(
+      side({ locatedSnapshotId: null }),
+      passedRight(),
+    );
+    expect(unlocated.sourceVerified).toBe(false);
   });
 
-  it("两侧都未核对来源 ⇒ sourceVerified=null；在场但未核对定位 ⇒ false", () => {
+  it("两侧都未核对来源 ⇒ sourceVerified=null；定位与 recorded 一致 ⇒ true", () => {
     expect(
       compareVerificationFacts(
         side({ sourceStatus: "unknown", locatedSnapshotId: null }),

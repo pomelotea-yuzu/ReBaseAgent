@@ -229,9 +229,12 @@ export function compareVerificationFacts(
 
   let sourceVerified: boolean | null = null;
   if (left.sourceStatus !== "unknown" || right.sourceStatus !== "unknown") {
+    // design D7：present 仅证明 trace 在场——快照定位核对（located）未给出时
+    // **不得**宣称已核验（保守侧）；漂移（located ≠ recorded）同样为 false
     const sideVerified = (side: VerificationFactsSide): boolean =>
       side.sourceStatus === "present" &&
-      (side.locatedSnapshotId === null || side.locatedSnapshotId === side.recordedSnapshotId);
+      side.locatedSnapshotId !== null &&
+      side.locatedSnapshotId === side.recordedSnapshotId;
     sourceVerified = sideVerified(left) && sideVerified(right);
   }
 
