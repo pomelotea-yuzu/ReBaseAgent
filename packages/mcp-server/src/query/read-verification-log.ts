@@ -105,7 +105,7 @@ export const readVerificationLogTool: ToolDefinition = defineTool(  requireVerif
       throw new ToolFailure("VERIFICATION_RECORD_INVALID", `status:${record.status}`);
     }
 
-    let resolved;
+    let resolved: ReturnType<typeof resolveLogAsset>;
     try {
       resolved = resolveLogAsset(record, args.commandId, args.stream);
     } catch (error) {
@@ -265,7 +265,7 @@ export const readVerificationLogTool: ToolDefinition = defineTool(  requireVerif
         ],
         limitations,
         headline: [
-          `read_verification_log：text`,
+          "read_verification_log：text",
           `${String(slice.start)}–${String(slice.nextStart)} 码点（共 ${String(slice.totalChars)}）`,
           resolved.capture.truncated ? "capture 截断仍在" : "capture 完整",
         ].join(" / "),

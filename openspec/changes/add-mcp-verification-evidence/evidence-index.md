@@ -43,5 +43,5 @@
 - 失败/通过样本的真实后端记录与确定性 fixture 区别、模板支持边界：待填。
 - 同条件行逐项结果、当前资产可用性、源码/产物定位与桌面核对：11 条件 same（profile/manifest/planBinding/command/argv/cwd/platform/image/toolchain/limits/security）；currentAssetsAvailable 双侧 true；sourceVerified true；codeSame false（不同 snapshot）；桌面/MCP/客户端三方一致。
 - 查询前后文件集合/hash、零执行/写入计数、断连/取消结果：真实根五数据目录 801 文件 SHA-256 前后逐字相同（ZERO_WRITE_PASS）；fixture 全链指纹（3 passed）；stdio 取消/EOF（11 passed）；重启游标 STALE（RESTART_STALE_PASS）。
-- 生产依赖闭包、stdio 与全仓检查命令/结果、已知限制：待填。
+- 生产依赖闭包、stdio 与全仓检查命令/结果、已知限制：6.2 门禁（2026-10-26）——run-query/project-verification/mcp-server build 全过；pv 288 passed、mcp-server 393 passed（含 MCP1 stdio 全量回归）、desktop 3474 passed（singleFork）、desktop typecheck node+web 0 错误、biome check 0 违规（修复 4 处：2 处 noImplicitAnyLet、2 处 noUnusedTemplateLiteral）、check-spec 16 passed / 0 failed、openspec validate --strict 通过、git diff --check 干净；deploy 闭包探针 PROBE_PASS（5.4）。已知限制：MCP2 未打包进发行 zip；桌面比较面板视觉抽查未做。
 - 功能实施/客户端验收/打包发行分别标注；未执行的新项目/模型测试不得声称已验证。

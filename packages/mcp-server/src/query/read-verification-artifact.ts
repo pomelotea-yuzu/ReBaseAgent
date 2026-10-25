@@ -89,7 +89,7 @@ export const readVerificationArtifactTool: ToolDefinition = defineTool(
       throw new ToolFailure("VERIFICATION_RECORD_INVALID", `status:${record.status}`);
     }
 
-    let resolved;
+    let resolved: ReturnType<typeof resolveArtifactAsset>;
     try {
       resolved = resolveArtifactAsset(record, args.path);
     } catch (error) {
@@ -203,7 +203,7 @@ export const readVerificationArtifactTool: ToolDefinition = defineTool(
         runs: [],
         verifications: [provenance],
         headline: [
-          `read_verification_artifact：text`,
+          "read_verification_artifact：text",
           `${args.path} ${String(slice.start)}–${String(slice.nextStart)} 码点（共 ${String(slice.totalChars)}）`,
         ].join(" / "),
       };
