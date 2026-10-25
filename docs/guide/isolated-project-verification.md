@@ -156,12 +156,19 @@ Docker Desktop 本身的许可、更新与资源设置由其自己的条款管�
 
 ## 12. 已实测证据（摘要）
 
-- 2026-10-25：Docker Desktop 29.9.2；真实准备构建镜像 `sha256:0dbe419e…`；
-  受控模板 `src/calc.ts` 已知失败（`mul` 误写 `a-b`）⇒ `check_failed` exit 1，
-  记录分叉修复（`fork.edit.field=result`）⇒ `passed` exit 0；两条独立封存记录、
-  TAP `not ok 2` 可回查；比较条件逐项一致、快照不同；`traces/` 与 `workspace-blobs/`
-  全根指纹不变；两条验证输入经 main 导出，清单快照与源码哈希一致。
+- 2026-10-25：Docker Desktop 29.9.2；**v4 受信环境**（manifestVersion 4）真实准备构建镜像
+  `sha256:fd809329…`；受控模板 `src/calc.ts` 已知失败（`mul` 误写 `a-b`）⇒
+  `check_failed` exit 1，记录分叉修复（`fork.edit.field=result`）⇒ `passed` exit 0；
+  两条独立封存记录、TAP `not ok 2` 可回查；比较条件逐项一致、快照不同；
+  （v3 首轮另测）`traces/` 与 `workspace-blobs/` 全根指纹不变；两条验证输入经 main 导出，
+  清单快照与源码哈希一致。
+- 2026-10-25 安全子集（v4）：容器内写宿主/相对穿越 ⇒ EROFS，docker.sock/网络/宿主凭据不可达，
+  uid 1000；Buffer 越过 512 MiB ⇒ `process_failed` exit 137/SIGKILL；2 MiB 测试输出 ⇒
+  保留 1,048,576 B / 全观测 2,097,581 B / `evidence_incomplete`；孤儿写者被定向停止
+  （stoppedPidCount=2、quiescence 2,584 ms、零残留容器）。v4 同时修复了 v3 的两个真实缺陷：
+  runner 的 1 MiB 缓冲会把长输出误判为断言失败；supervisor 的 sleep 子进程会让停止确认随机 unknown。
+  未重跑：P18 持续写者在采集期不停、P21 断连 unknown、P22/P23 崩溃重启/无法确认清理。
 - 失真清单：双验证使用确定性 fixture（非真实模型/R2.1 UI 产生）；导出目录选择为测试桩；
   UI 视觉/键盘/原生对话框未做实机取证（6.3）。
-- 原始报告与日志：`.workbuddy/r3-61/report.json`、`.workbuddy/r3-61-probe.log`
+- 原始报告与日志：`.workbuddy/r3-61b/report.json`、`.workbuddy/r3-62/report.json` 及对应 `-probe.log`
   （本地临时证据，不入库）；门禁读数：`.workbuddy/r3-64/`。
