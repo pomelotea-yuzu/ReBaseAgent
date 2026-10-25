@@ -3,6 +3,7 @@ import type {
   VerificationCheckpoint,
   VerificationPreparePlanResult,
 } from "@shared/ipc";
+import type { OperationRecord } from "@shared/operations";
 import type { ConfirmationRow } from "../lib/execution-confirmation";
 import { disclosureLines } from "../lib/execution-confirmation";
 import { formatBytes } from "../lib/format";
@@ -12,6 +13,7 @@ import {
   blockersFor,
   verificationBlockers,
   verificationPrepareDisclosure,
+  verificationRecordLine,
   verificationRunDisclosure,
   verificationTargetLabel,
 } from "../lib/verification-entry";
@@ -23,7 +25,7 @@ import { ConfirmationBlock } from "./ConfirmationBlock";
 import { FOCUS_RING } from "./IconButton";
 
 /**
- * R3 任务 5.1：文件页检查点侧的**项目验证**面板（展示层，只吃 props）。
+ * R3 任务 5.1/5.2：文件页检查点侧的**项目验证**面板（展示层，只吃 props）。
  *
  * D01/D02 的呈现面：
  * - **精确输入与当前条件**（D01）：run/检查点/快照/文件数与字节、profile/工具链、
@@ -37,9 +39,43 @@ import { FOCUS_RING } from "./IconButton";
  *   stale 就近显示原因，提交按钮禁用——不自动重确认、不自动提交新计划。
  * - **零副作用预览**（D01）：展开面板只发起两个只读 IPC；不下载、不建容器、不调模型。
  *
- * 显式 selector：目标（runId+checkpoint）由连接层在打开时显式绑定；本组件只显示
- * `verificationTargetLabel`，绝不从当前文件选择器推导目标。
+ * 5.2（D03/D04/D05/D10/M01/M02 的呈现面）：
+ * - **操作登记核对区**（D03/M01）：按显式目标匹配到的 R3 登记记录逐条展示
+ *   （状态/领域 ID/请求结局来自登记记录，不猜）；会话通信未知 ⇒ 只提示核对（D10）。
+ * - **结局分层**（D04）：请求收尾（登记 settled/requestOutcome）、测试结局（outcome）、
+ *   证据完整性（evidenceComplete）分行呈现，check_failed 不标成请求失败。
+ * - **停止反馈**（D05/D06）：执行在飞时提供定向停止（按钮只在 run 在飞可用；
+ *   准备阶段如实说明不可中断）；停止已请求 ⇒ 等待编排确认全部停止；
+ *   幂等 no-op 与失败码如实呈现，不伪造取消。
+ * - **显式 selector**：目标（runId+checkpoint）由连接层在打开时显式绑定；本组件只显示
+ *   `verificationTargetLabel`，绝不从当前文件选择器推导目标。
  */
+
+/** 领域结局的可读短语（D04：结局 ≠ 请求收尾；原文枚举随行展示） */
+export function verificationOutcomeLabel(outcome: string): string {
+  switch (outcome) {
+    case "passed":
+      return "通过（固定检查全过）";
+    case "check_failed":
+      return "检查未通过（断言失败/非零退出——不是请求失败）";
+    case "environment_failed":
+    case "start_failed":
+    case "process_failed":
+      return "环境/进程故障（不算项目断言失败）";
+    case "timed_out":
+    case "output_limit":
+    case "cancelled":
+      return "超时/超限/已停止（须先确认全部停止）";
+    case "artifact_invalid":
+      return "产物非法（含改源码冒充修复——改代码不是修复）";
+    case "evidence_incomplete":
+      return "证据不全（不能绿色通过）";
+    case "unknown":
+      return "未知（停止未确认或引擎断开）";
+    default:
+      return "未知结局";
+  }
+}
 
 export interface VerificationPanelProps {
   readonly runId: string;
@@ -73,6 +109,18 @@ export interface VerificationPanelProps {
   readonly lastOutcome: VerificationOutcomeView | null;
   readonly onSubmitPrepare: () => void;
   readonly onSubmitRun: () => void;
+
+  // —— 5.2：操作登记核实与停止反馈（全部来自登记记录，不猜）——
+  /** 按显式目标匹配到的 R3 登记记录（本会话已采纳的操作事实） */
+  readonly matchedRecords: readonly OperationRecord[];
+  /** 操作会话通信未知（D10）：只提示核对，不展示任何"执行中/已结束"猜测 */
+  readonly operationsUnknown: boolean;
+  /** 在飞 R3 操作身份（提交动作铸出；通道抛错后保留供核对） */
+  readonly activeOperation: { kind: "prepare" | "run"; operationId: string } | null;
+  readonly stopRequested: boolean;
+  readonly stopNotice: string | null;
+  readonly stopError: VerificationSubmitError | null;
+  readonly onStop: () => void;
 }
 
 /** 判定的一行呈现（确认块 blocked 位与提交按钮的禁用说明共用） */
@@ -110,6 +158,13 @@ export function VerificationPanel({
   lastOutcome,
   onSubmitPrepare,
   onSubmitRun,
+  matchedRecords,
+  operationsUnknown,
+  activeOperation,
+  stopRequested,
+  stopNotice,
+  stopError,
+  onStop,
 }: VerificationPanelProps) {
   const prepareBlockers = blockersFor(verificationBlockers(capability), "prepare");
   const runBlockers = blockersFor(verificationBlockers(capability), "run");
@@ -300,6 +355,96 @@ export function VerificationPanel({
             </span>
           </div>
 
+          {/* —— 在飞操作与定向停止（5.2/D05：只停当前 owner；准备阶段如实说明不可中断）—— */}
+          {activeOperation !== null ? (
+            <div
+              className="mt-1.5 rounded border-l-2 border-orange-300 bg-orange-50 px-2 py-1 text-orange-900"
+              data-verification-active-operation="true"
+            >
+              <div>
+                {activeOperation.kind === "prepare"
+                  ? "环境准备进行中：准备阶段不可中断（构建过程如实呈现，不提供定向停止）；等待其自然收尾。"
+                  : "固定检查执行中：可对当前操作定向停止（只作用于本次执行的受控资源）。"}
+              </div>
+              {activeOperation.kind === "run" ? (
+                <div className="mt-1 flex items-center gap-2">
+                  <button
+                    type="button"
+                    data-verification-stop="true"
+                    disabled={stopRequested}
+                    onClick={onStop}
+                    className={`rounded border border-red-300 bg-white px-2 py-0.5 text-[11px] text-red-800 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40 ${FOCUS_RING}`}
+                  >
+                    {stopRequested ? "停止已请求（等待确认）" : "请求停止"}
+                  </button>
+                  <span className="text-[10px] text-gray-500">
+                    领域 ID 只从操作登记取；重复点击安全（幂等）；确认全部停止前保持占用。
+                  </span>
+                </div>
+              ) : null}
+              {stopRequested ? (
+                <div className="mt-1 text-[10px] text-orange-800">
+                  停止信号已送达编排：确认全部工作负载停止并收尾后，结局（cancelled/unknown）才会呈现；
+                  在此之前操作保持占用，不显示为已结束。
+                </div>
+              ) : null}
+              {stopNotice !== null ? (
+                <div
+                  className="mt-1 text-[10px] text-gray-600"
+                  data-verification-stop-notice="true"
+                >
+                  {stopNotice}
+                </div>
+              ) : null}
+              {stopError !== null ? (
+                <div className="mt-1 text-[10px] text-red-700" data-verification-stop-error="true">
+                  停止未执行（{stopError.code}）：{stopError.message}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          {/* —— 操作登记核对区（5.2/D03/M01/D10：只呈现登记事实，不猜）—— */}
+          {operationsUnknown ? (
+            <div
+              className="mt-1.5 rounded border-l-2 border-amber-400 bg-amber-50 px-2 py-1 text-amber-800"
+              data-verification-operations-unknown="true"
+            >
+              操作状态未知（状态通道失联或返回非法）：请先用上方操作入口核对状态；
+              在有效快照确认前，这里不显示任何"执行中/已结束"的猜测，也不提供停止。
+            </div>
+          ) : matchedRecords.length > 0 ? (
+            <div
+              className="mt-1.5 rounded border border-gray-200 bg-white px-2 py-1"
+              data-verification-records="true"
+            >
+              <div className="text-[10px] font-medium text-gray-500">
+                本检查点的验证操作（来自操作登记核对；重载后凭登记恢复，不猜测）
+              </div>
+              {matchedRecords.map((record) => (
+                <div
+                  key={record.operationId}
+                  className="mt-0.5 text-[11px] leading-4 text-gray-700"
+                >
+                  {verificationRecordLine(record)}
+                  {record.verificationIds.length > 0 ? (
+                    <span className="ml-1 font-code text-[10px] text-gray-500">
+                      验证 {record.verificationIds.join("、")}
+                    </span>
+                  ) : null}
+                  {record.preparationIds.length > 0 ? (
+                    <span className="ml-1 font-code text-[10px] text-gray-500">
+                      准备 {record.preparationIds.join("、")}
+                    </span>
+                  ) : null}
+                  {record.errorCode !== null ? (
+                    <span className="ml-1 text-red-700">（{record.errorCode}）</span>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          ) : null}
+
           {/* —— 提交失败（请求层：门内拒绝稳定码 / 本地拒发）—— */}
           {submitError !== null ? (
             <div
@@ -310,7 +455,7 @@ export function VerificationPanel({
             </div>
           ) : null}
 
-          {/* —— 最近一次明确收尾（5.1 最小呈现；完整分层归 5.2/5.4）—— */}
+          {/* —— 最近一次明确收尾（D04 分层：请求收尾 / 测试结局 / 证据完整性分行）—— */}
           {lastOutcome !== null ? (
             <div
               className="mt-1.5 rounded border-l-2 border-sky-400 bg-sky-50 px-2 py-1 text-sky-900"
@@ -318,16 +463,32 @@ export function VerificationPanel({
             >
               {lastOutcome.kind === "prepare" ? (
                 <div>
-                  环境准备已收尾：准备记录 {lastOutcome.preparationId} · 镜像{" "}
-                  <span className="font-code">{lastOutcome.imageDigest}</span>
-                  。执行条件已随重新核对刷新。
+                  <div>请求收尾：环境准备已明确返回（操作已收尾）。</div>
+                  <div>
+                    领域事实：准备记录 {lastOutcome.preparationId} · 镜像{" "}
+                    <span className="font-code">{lastOutcome.imageDigest}</span>
+                    。执行条件已随重新核对刷新。
+                  </div>
                 </div>
               ) : (
-                <div>
-                  检查执行已收尾：验证记录 {lastOutcome.verificationId} · 结局{" "}
-                  <span className="font-semibold">{lastOutcome.outcome}</span>
-                  {lastOutcome.evidenceComplete === false ? " · 证据不全" : ""}。
-                  {lastOutcome.detail}
+                <div className="space-y-0.5">
+                  <div>请求收尾：执行请求已明确返回（操作已收尾，非请求层失败）。</div>
+                  <div>
+                    测试结局：<span className="font-semibold">{lastOutcome.outcome}</span>（
+                    {verificationOutcomeLabel(lastOutcome.outcome ?? "")}）。
+                  </div>
+                  <div>
+                    证据完整性：
+                    {lastOutcome.evidenceComplete === false
+                      ? "不全（截断/缺必要日志或报告——不能当作绿色通过）"
+                      : "完整"}
+                    。{lastOutcome.detail}
+                  </div>
+                  {lastOutcome.verificationId !== undefined ? (
+                    <div className="text-[10px] text-gray-500">
+                      验证身份 {lastOutcome.verificationId}（只重读该可信记录，不按时间/日志猜测）。
+                    </div>
+                  ) : null}
                 </div>
               )}
             </div>

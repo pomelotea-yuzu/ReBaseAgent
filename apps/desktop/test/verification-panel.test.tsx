@@ -118,6 +118,14 @@ function baseProps(overrides?: Partial<Record<string, unknown>>) {
     lastOutcome: null,
     onSubmitPrepare: () => {},
     onSubmitRun: () => {},
+    // 5.2：操作登记核实与停止反馈（默认干净零态）
+    matchedRecords: [],
+    operationsUnknown: false,
+    activeOperation: null,
+    stopRequested: false,
+    stopNotice: null,
+    stopError: null,
+    onStop: () => {},
     ...overrides,
   };
 }
@@ -292,5 +300,150 @@ describe("VerificationPanel（展开态：D02 分开确认与不隐式执行）"
     const done = render(baseProps({ expanded: true, lastOutcome: outcome }));
     expect(done).toContain("ver-9");
     expect(done).toContain("check_failed");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5.2：操作登记核实区 / 停止反馈 / D04 结局分层（呈现面静态断言）
+// ---------------------------------------------------------------------------
+
+import type { OperationRecord } from "@shared/operations";
+import { verificationOutcomeLabel } from "../src/renderer/src/components/VerificationPanel";
+
+const RECORD: OperationRecord = {
+  epoch: "44444444-4444-4444-8444-444444444444",
+  operationId: "55555555-5555-4555-8555-555555555555",
+  target: {
+    kind: "verification",
+    runId: RUN,
+    checkpointKind: "initial",
+    stepSpanId: null,
+    commandId: "test",
+  },
+  state: "running",
+  rejection: null,
+  startedAt: "2026-10-25T10:00:00.000Z",
+  settledAt: null,
+  runIds: [],
+  experimentId: null,
+  arms: [],
+  preparationIds: [],
+  verificationIds: ["ver-trusted"],
+  requestOutcome: null,
+  errorCode: null,
+  diagnostics: [],
+};
+
+describe("VerificationPanel（5.2：操作登记核对区 D03/M01/D10）", () => {
+  it("登记记录逐条展示（类型/状态/领域 ID），标注来源是登记核对", () => {
+    const html = render(
+      baseProps({
+        expanded: true,
+        matchedRecords: [RECORD],
+      }),
+    );
+    expect(html).toContain("data-verification-records");
+    expect(html).toContain("项目验证（test）");
+    expect(html).toContain("执行中");
+    expect(html).toContain("ver-trusted");
+    expect(html).toContain("操作登记核对");
+  });
+
+  it("会话通信未知 ⇒ 只显示核对提示，不展示记录（D10：不猜执行事实）", () => {
+    const html = render(
+      baseProps({
+        expanded: true,
+        matchedRecords: [RECORD],
+        operationsUnknown: true,
+      }),
+    );
+    expect(html).toContain("data-verification-operations-unknown");
+    expect(html).toContain("操作状态未知");
+    expect(html).not.toContain("data-verification-records");
+    expect(html).not.toContain("ver-trusted");
+  });
+
+  it("无登记记录时既不显示记录区也不显示未知提示（干净零态）", () => {
+    const html = render(baseProps({ expanded: true, matchedRecords: [] }));
+    expect(html).not.toContain("data-verification-records");
+    expect(html).not.toContain("data-verification-operations-unknown");
+  });
+});
+
+describe("VerificationPanel（5.2：停止反馈 D05）", () => {
+  it("执行在飞 ⇒ 提供定向停止按钮；准备在飞 ⇒ 如实说明不可中断", () => {
+    const run = render(
+      baseProps({
+        expanded: true,
+        activeOperation: { kind: "run", operationId: "55555555-5555-4555-8555-555555555555" },
+      }),
+    );
+    expect(run).toContain("data-verification-stop");
+    expect(run).toContain("请求停止");
+    const prepare = render(
+      baseProps({
+        expanded: true,
+        activeOperation: { kind: "prepare", operationId: "55555555-5555-4555-8555-555555555555" },
+      }),
+    );
+    expect(prepare).toContain("不可中断");
+    expect(prepare).not.toContain("data-verification-stop");
+  });
+
+  it("停止已请求 ⇒ 等待确认说明（不显示为已结束）；幂等 no-op 与失败码如实呈现", () => {
+    const requested = render(
+      baseProps({
+        expanded: true,
+        activeOperation: { kind: "run", operationId: "55555555-5555-4555-8555-555555555555" },
+        stopRequested: true,
+      }),
+    );
+    expect(requested).toContain("停止已请求（等待确认）");
+    expect(requested).toMatch(/data-verification-stop="true"[^>]*disabled/);
+    const notice = render(
+      baseProps({
+        expanded: true,
+        activeOperation: { kind: "run", operationId: "55555555-5555-4555-8555-555555555555" },
+        stopNotice: "该操作已收尾（settled），无需停止",
+      }),
+    );
+    expect(notice).toContain("data-verification-stop-notice");
+    const failed = render(
+      baseProps({
+        expanded: true,
+        activeOperation: { kind: "run", operationId: "55555555-5555-4555-8555-555555555555" },
+        stopError: { code: "R3_STOP_IDENTITY_MISMATCH", message: "领域 ID 不一致" },
+      }),
+    );
+    expect(failed).toContain("R3_STOP_IDENTITY_MISMATCH");
+  });
+});
+
+describe("VerificationPanel（5.2：D04 结局分层与结局短语）", () => {
+  it("run 结局分行呈现：请求收尾 / 测试结局 / 证据完整性 / 可信验证身份", () => {
+    const outcome: VerificationOutcomeView = {
+      kind: "run",
+      targetKey: "k",
+      atOutcomeGeneration: 1,
+      verificationId: "ver-9",
+      outcome: "check_failed",
+      detail: "tsc 非零退出",
+      evidenceComplete: false,
+      operationId: "55555555-5555-4555-8555-555555555555",
+    };
+    const html = render(baseProps({ expanded: true, lastOutcome: outcome }));
+    expect(html).toContain("请求收尾");
+    expect(html).toContain("测试结局");
+    expect(html).toContain("check_failed");
+    expect(html).toContain("证据完整性");
+    expect(html).toContain("不全");
+    expect(html).toContain("ver-9");
+    expect(html).toContain("只重读该可信记录");
+  });
+
+  it("结局短语把测试失败与请求失败分开（check_failed 不是请求失败）", () => {
+    expect(verificationOutcomeLabel("check_failed")).toContain("不是请求失败");
+    expect(verificationOutcomeLabel("evidence_incomplete")).toContain("不能绿色通过");
+    expect(verificationOutcomeLabel("artifact_invalid")).toContain("改代码不是修复");
   });
 });

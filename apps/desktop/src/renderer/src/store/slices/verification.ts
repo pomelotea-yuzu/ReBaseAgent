@@ -18,6 +18,7 @@ import { describeZodError } from "../../lib/describe-zod-error";
 import {
   type VerificationArmedConfirmation,
   type VerificationTargetRef,
+  verificationDomainIdOf,
   verificationTargetKey,
 } from "../../lib/verification-entry";
 import type { SliceContext } from "../types";
@@ -32,11 +33,13 @@ export interface VerificationOutcomeView {
   /** prepare 成功时：真实创建的准备记录身份 + 镜像事实 */
   readonly preparationId?: string;
   readonly imageDigest?: string;
-  /** run 返回时：请求收尾（ok 信封）+ 领域结局（D04 分层的原始事实，5.2 精化） */
+  /** run 返回时：请求收尾（ok 信封）+ 领域结局（D04 分层的原始事实） */
   readonly verificationId?: string;
   readonly outcome?: string;
   readonly detail?: string;
   readonly evidenceComplete?: boolean;
+  /** 本次提交的 operationId（与登记记录对链：D04 请求收尾以登记为准） */
+  readonly operationId?: string;
 }
 
 /** 提交失败的呈现面（请求层失败：门内拒绝稳定码 / 本地拒发） */
@@ -77,6 +80,17 @@ export interface VerificationState {
   verificationSubmitting: "idle" | "prepare" | "run";
   verificationSubmitError: VerificationSubmitError | null;
   verificationLastOutcome: VerificationOutcomeView | null;
+  /**
+   * 在飞 R3 操作身份（5.2/D05）：提交动作铸出 operationId 后立即登记——停止通道、
+   * status/reconcile 核对都按它寻路。响应明确返回（成功/业务拒绝）即清除；
+   * **通道抛错不清除**（请求是否被接受未知 ⇒ 靠该身份 reconcile 核对，D03）。
+   */
+  verificationActiveOperation: { kind: "prepare" | "run"; operationId: string } | null;
+  /** 停止反馈（D05）：停止信号已被 main 接受（确认全部停止由编排收尾后随结局到达） */
+  verificationStopRequested: boolean;
+  /** 停止通道的非失败事实（幂等 no-op / 尚无可信身份已转核对） */
+  verificationStopNotice: string | null;
+  verificationStopError: VerificationSubmitError | null;
 }
 
 export interface VerificationSliceActions {
@@ -110,6 +124,17 @@ export interface VerificationSliceActions {
     outcome: Omit<VerificationOutcomeView, "targetKey" | "atOutcomeGeneration">,
     atOutcomeGeneration: number,
   ) => void;
+  /** 登记/清除在飞 R3 操作身份（提交动作在铸出 operationId 后调用；组件不直接调） */
+  noteVerificationActiveOperation: (kind: "prepare" | "run", operationId: string) => void;
+  clearVerificationActiveOperation: () => void;
+
+  /**
+   * R3 定向停止（D05/D06）：对**当前在飞 owner** 请求停止。领域 ID 只从操作登记
+   * 附件取（D06 不接任意容器/PID）；登记里还没有身份时先 reconcile 一次核对
+   * （D03：复用既有核对，不猜），仍拿不到就如实说明并放弃（零停止）。
+   * 幂等：main 对重复/已收尾操作返回 alreadySettled（no-op）。
+   */
+  requestVerificationStop: () => Promise<void>;
 }
 
 export type VerificationSlice = VerificationState & VerificationSliceActions;
@@ -135,6 +160,10 @@ export function initialVerificationState(): VerificationState {
     verificationSubmitting: "idle",
     verificationSubmitError: null,
     verificationLastOutcome: null,
+    verificationActiveOperation: null,
+    verificationStopRequested: false,
+    verificationStopNotice: null,
+    verificationStopError: null,
   };
 }
 
@@ -158,6 +187,10 @@ export function createVerificationSlice({ set, get }: SliceContext): Verificatio
     verificationSubmitting: "idle" as const,
     verificationSubmitError: null,
     verificationLastOutcome: null,
+    verificationActiveOperation: null,
+    verificationStopRequested: false,
+    verificationStopNotice: null,
+    verificationStopError: null,
   });
 
   return {
@@ -354,6 +387,79 @@ export function createVerificationSlice({ set, get }: SliceContext): Verificatio
           targetKey: verificationTargetKey(state.verificationTarget),
           atOutcomeGeneration,
         },
+      });
+    },
+
+    noteVerificationActiveOperation(kind, operationId) {
+      set({ verificationActiveOperation: { kind, operationId } });
+    },
+
+    clearVerificationActiveOperation() {
+      set({ verificationActiveOperation: null });
+    },
+
+    async requestVerificationStop() {
+      const active = get().verificationActiveOperation;
+      if (active === null) return;
+      const epoch = get().operations.epoch;
+      if (epoch === null) {
+        set({
+          verificationStopError: {
+            code: "MAIN_HANDSHAKE_REQUIRED",
+            message: "尚未与主进程完成操作握手：停止请求未发送",
+          },
+        });
+        return;
+      }
+      set({ verificationStopError: null, verificationStopNotice: null });
+      // 可信领域 ID 只从登记记录附件取（D06）；编排尚未建记录 ⇒ 先 reconcile 核对一次
+      const findRecord = () =>
+        get().operations.operations.find(
+          (record) => record.epoch === epoch && record.operationId === active.operationId,
+        );
+      let domainId = verificationDomainIdOf(findRecord(), active.kind);
+      if (domainId === null) {
+        await get().reconcileOperation(active.operationId);
+        domainId = verificationDomainIdOf(findRecord(), active.kind);
+      }
+      if (domainId === null) {
+        set({
+          verificationStopNotice:
+            "登记里还没有该操作的可信领域身份（编排尚未创建记录或已收尾）：已请求核对；拿到登记身份后才能定向停止，不猜测目标",
+        });
+        return;
+      }
+      let envelope: Awaited<ReturnType<typeof api.verificationStop>>;
+      try {
+        envelope = await api.verificationStop({ epoch, operationId: active.operationId, domainId });
+      } catch (error) {
+        set({
+          verificationStopError: {
+            code: "R3_STOP_CHANNEL_FAILED",
+            message: error instanceof Error ? error.message : String(error),
+          },
+        });
+        return;
+      }
+      if (!envelope.ok) {
+        set({
+          verificationStopError: { code: envelope.error.code, message: envelope.error.message },
+        });
+        return;
+      }
+      if (envelope.data.alreadySettled) {
+        // 幂等 no-op（重复停止/已收尾/迟到请求）：如实呈现，不假装"停止了什么"；
+        // 已收尾 ⇒ 不再等待停止确认（stopRequested 复位）
+        set({
+          verificationStopRequested: false,
+          verificationStopNotice: envelope.data.reason ?? "该操作无需停止（已收尾或不在执行段）",
+        });
+        return;
+      }
+      set({
+        verificationStopRequested: true,
+        verificationStopNotice: null,
+        verificationStopError: null,
       });
     },
   };

@@ -8,13 +8,26 @@ import type {
   WindowApi,
 } from "@shared/ipc";
 import type { OperationIdentity } from "@shared/operations";
+import type {
+  OperationRecord,
+  OperationStatusResult,
+  ReconcileRequest,
+  ReconcileResult,
+} from "@shared/operations";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initialSession } from "../src/renderer/src/lib/operation-session";
 import {
   decideVerificationConfirmation,
+  matchVerificationRecords,
   verificationTargetKey,
 } from "../src/renderer/src/lib/verification-entry";
-import { executedFail, executedOk, installOperationChannels } from "./helpers/operation-channels";
+import {
+  FAKE_EPOCH,
+  executedFail,
+  executedOk,
+  installOperationChannels,
+  statusSnapshot,
+} from "./helpers/operation-channels";
 
 /**
  * R3 任务 5.1：verification 分片 + 提交动作的 **store 接线**。
@@ -136,6 +149,14 @@ let capabilityImpl: (request: CapabilityCall) => Promise<Envelope<VerificationCa
 let planImpl: () => Promise<Envelope<VerificationPreparePlanResult>> = async () => ok(planFixture);
 let prepareImpl: ExecCall = executedOk(prepareResult);
 let runImpl: ExecCall = executedOk(runResult);
+// —— 5.2：可控 status/reconcile 应答（操作登记核实与停止寻路）——
+let statusImpl: () => Promise<Envelope<OperationStatusResult>> = async () => ok(statusSnapshot());
+let reconcileImpl: ((request: ReconcileRequest) => ReconcileResult) | null = null;
+/** 停止通道的可控应答（默认成功置停止信号；幂等/失败用例改写） */
+const verificationStopStub: {
+  alreadySettled: boolean;
+  fail: { code: string; message: string } | null;
+} = { alreadySettled: false, fail: null };
 
 const apiStub: Record<string, unknown> = {
   verificationCapability: (request: CapabilityCall) => {
@@ -157,6 +178,35 @@ const apiStub: Record<string, unknown> = {
   verificationRun: (request: { operation: OperationIdentity }) => {
     calls.push(`run:${JSON.stringify(request)}`);
     return runImpl(request);
+  },
+  verificationStop: (request: { epoch: string; operationId: string; domainId: string }) => {
+    calls.push(`stop:${JSON.stringify(request)}`);
+    if (verificationStopStub.fail !== null) {
+      return Promise.resolve({ ok: false as const, error: verificationStopStub.fail });
+    }
+    return Promise.resolve({
+      ok: true as const,
+      data: {
+        stopping: !verificationStopStub.alreadySettled,
+        alreadySettled: verificationStopStub.alreadySettled,
+        reason: verificationStopStub.alreadySettled ? "操作已收尾（settled），无需停止" : null,
+      },
+    });
+  },
+  // 自有 status/reconcile 桩（installOperationChannels 的 ??= 不覆盖已有键）
+  operationsStatus: () => {
+    calls.push("status");
+    return statusImpl();
+  },
+  operationsReconcile: (request: ReconcileRequest) => {
+    calls.push(`reconcile:${request.operationId}`);
+    const result = reconcileImpl?.(request);
+    return result === null || result === undefined
+      ? {
+          ok: false,
+          error: { code: "RECONCILE_STUB_MISSING", message: "桩未实现核对" },
+        }
+      : ok(result);
   },
 };
 installOperationChannels(apiStub);
@@ -190,8 +240,56 @@ beforeEach(() => {
   planImpl = async () => ok(planFixture);
   prepareImpl = executedOk(prepareResult);
   runImpl = executedOk(runResult);
+  statusImpl = async () => ok(statusSnapshot());
+  reconcileImpl = null;
+  verificationStopStub.alreadySettled = false;
+  verificationStopStub.fail = null;
   resetVerification();
 });
+
+// ---------------------------------------------------------------------------
+// 5.2 夹具：R3 登记记录（与 @shared/operations 的登记精炼自洽）
+// ---------------------------------------------------------------------------
+
+const ACTIVE_OP_ID = "77777777-7777-4777-8777-777777777777";
+
+function runningVerificationRecord(overrides?: Partial<OperationRecord>): OperationRecord {
+  return {
+    epoch: FAKE_EPOCH,
+    operationId: ACTIVE_OP_ID,
+    target: {
+      kind: "verification",
+      runId: RUN_A,
+      checkpointKind: "initial",
+      stepSpanId: null,
+      commandId: "test",
+    },
+    state: "running",
+    rejection: null,
+    startedAt: "2026-10-25T10:00:00.000Z",
+    settledAt: null,
+    runIds: [],
+    experimentId: null,
+    arms: [],
+    preparationIds: [],
+    verificationIds: ["ver-trusted"],
+    requestOutcome: null,
+    errorCode: null,
+    diagnostics: [],
+    ...overrides,
+  };
+}
+
+function reconcileResultOf(record: OperationRecord): ReconcileResult {
+  return {
+    epoch: FAKE_EPOCH,
+    registryVersion: 5,
+    activeOperationId: record.state === "running" ? record.operationId : null,
+    closing: false,
+    configurationBusy: false,
+    operation: record,
+  };
+}
 
 describe("openVerification（显式 selector 与只读核对）", () => {
   it("打开 ⇒ 绑定显式目标并发起两个只读核对（capability + preparePlan），无执行通道调用", async () => {
@@ -445,5 +543,205 @@ describe("提交门（D02：不隐式执行——stale/missing 本地拒发零 I
     expect(await submitting).toBe(true);
     expect(stateOf().verificationLastOutcome).toBeNull();
     expect(stateOf().verificationTarget).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5.2：操作登记核实、可信领域 ID 与停止反馈（D03/D04/D05/D10/M01/M02）
+// ---------------------------------------------------------------------------
+
+describe("在飞操作身份与停止寻路（D05）", () => {
+  it("提交 run ⇒ 铸出 operationId 并登记为在飞身份；请求携带同一身份；明确返回后清除", async () => {
+    stateOf().openVerification(RUN_A, { kind: "initial" });
+    await vi.waitFor(() => {
+      expect(stateOf().verificationCapability).not.toBeNull();
+    });
+    stateOf().confirmVerificationRun();
+    const accepted = await stateOf().submitVerificationRun();
+    expect(accepted).toBe(true);
+    // 请求的 operation 身份 = 提交期间登记的在飞身份（停止/核对按它寻路）
+    const runCall = calls.find((one) => one.startsWith("run:"));
+    const request = JSON.parse((runCall ?? "{}").slice("run:".length)) as {
+      operation: { operationId: string };
+    };
+    expect(request.operation.operationId).toBeTypeOf("string");
+    // 明确返回 ⇒ 在飞身份清除（结局由 lastOutcome 与登记承载）
+    expect(stateOf().verificationActiveOperation).toBeNull();
+    expect(stateOf().verificationLastOutcome?.operationId).toBe(request.operation.operationId);
+  });
+
+  it("通道抛错 ⇒ 在飞身份保留（unknown 只核对）；reconcile 取得可信领域 ID 后停止成功", async () => {
+    stateOf().openVerification(RUN_A, { kind: "initial" });
+    await vi.waitFor(() => {
+      expect(stateOf().verificationCapability).not.toBeNull();
+    });
+    stateOf().confirmVerificationRun();
+    runImpl = () => {
+      throw new Error("通道炸了");
+    };
+    expect(await stateOf().submitVerificationRun()).toBe(false);
+    const active = stateOf().verificationActiveOperation;
+    expect(active?.kind).toBe("run");
+    // 登记里还没有记录 ⇒ 先 reconcile 核对（D03：复用核对，不猜）
+    reconcileImpl = () =>
+      reconcileResultOf(
+        runningVerificationRecord({
+          operationId: stateOf().verificationActiveOperation?.operationId ?? ACTIVE_OP_ID,
+        }),
+      );
+    await stateOf().requestVerificationStop();
+    expect(calls).toContain(`reconcile:${active?.operationId}`);
+    const stopCall = calls.find((one) => one.startsWith("stop:"));
+    expect(stopCall).toBeDefined();
+    const stopRequest = JSON.parse((stopCall ?? "{}").slice("stop:".length)) as {
+      epoch: string;
+      operationId: string;
+      domainId: string;
+    };
+    expect(stopRequest.epoch).toBe(FAKE_EPOCH);
+    expect(stopRequest.operationId).toBe(active?.operationId);
+    expect(stopRequest.domainId).toBe("ver-trusted");
+    expect(stateOf().verificationStopRequested).toBe(true);
+  });
+
+  it("reconcile 也拿不到可信身份 ⇒ 如实说明并放弃（零停止，不猜测目标）", async () => {
+    stateOf().openVerification(RUN_A, { kind: "initial" });
+    await vi.waitFor(() => {
+      expect(stateOf().verificationCapability).not.toBeNull();
+    });
+    stateOf().confirmVerificationRun();
+    runImpl = () => {
+      throw new Error("通道炸了");
+    };
+    await stateOf().submitVerificationRun();
+    reconcileImpl = () => reconcileResultOf(runningVerificationRecord({ verificationIds: [] }));
+    await stateOf().requestVerificationStop();
+    expect(calls.some((one) => one.startsWith("stop:"))).toBe(false);
+    expect(stateOf().verificationStopNotice).toContain("可信领域身份");
+    expect(stateOf().verificationStopRequested).toBe(false);
+  });
+
+  it("重复停止幂等：alreadySettled ⇒ no-op 呈现，不伪造停止", async () => {
+    stateOf().openVerification(RUN_A, { kind: "initial" });
+    await vi.waitFor(() => {
+      expect(stateOf().verificationCapability).not.toBeNull();
+    });
+    stateOf().confirmVerificationRun();
+    runImpl = () => {
+      throw new Error("通道炸了");
+    };
+    await stateOf().submitVerificationRun();
+    const active = stateOf().verificationActiveOperation;
+    reconcileImpl = () =>
+      reconcileResultOf(
+        runningVerificationRecord({ operationId: active?.operationId ?? ACTIVE_OP_ID }),
+      );
+    await stateOf().requestVerificationStop();
+    expect(stateOf().verificationStopRequested).toBe(true);
+    calls.length = 0;
+    // 重复停止：在飞已注销 ⇒ main 幂等 no-op（不新建执行、不停止新 owner）
+    verificationStopStub.alreadySettled = true;
+    await stateOf().requestVerificationStop();
+    expect(calls.filter((one) => one.startsWith("stop:"))).toHaveLength(1);
+    expect(stateOf().verificationStopRequested).toBe(false);
+    expect(stateOf().verificationStopNotice).toContain("已收尾");
+  });
+
+  it("停止通道失败码如实呈现（R3_STOP_IDENTITY_MISMATCH 不吞）", async () => {
+    stateOf().openVerification(RUN_A, { kind: "initial" });
+    await vi.waitFor(() => {
+      expect(stateOf().verificationCapability).not.toBeNull();
+    });
+    stateOf().confirmVerificationRun();
+    runImpl = () => {
+      throw new Error("通道炸了");
+    };
+    await stateOf().submitVerificationRun();
+    const active = stateOf().verificationActiveOperation;
+    reconcileImpl = () =>
+      reconcileResultOf(
+        runningVerificationRecord({
+          operationId: active?.operationId ?? ACTIVE_OP_ID,
+        }),
+      );
+    verificationStopStub.fail = { code: "R3_STOP_IDENTITY_MISMATCH", message: "领域 ID 不一致" };
+    await stateOf().requestVerificationStop();
+    expect(stateOf().verificationStopError?.code).toBe("R3_STOP_IDENTITY_MISMATCH");
+    expect(stateOf().verificationStopRequested).toBe(false);
+  });
+});
+
+describe("操作登记核实（D03/M01/D04：身份只来自登记）", () => {
+  it("status 快照带运行中验证记录 ⇒ 按显式目标匹配到登记（含领域 ID）", async () => {
+    stateOf().openVerification(RUN_A, { kind: "initial" });
+    await vi.waitFor(() => {
+      expect(stateOf().verificationCapability).not.toBeNull();
+    });
+    statusImpl = async () =>
+      ok(
+        statusSnapshot({
+          registryVersion: 4,
+          activeOperationId: ACTIVE_OP_ID,
+          operations: [runningVerificationRecord()],
+        }),
+      );
+    await stateOf().refreshOperationStatus();
+    const matched = matchVerificationRecords(stateOf().operations, {
+      runId: RUN_A,
+      checkpoint: { kind: "initial" },
+    });
+    expect(matched).toHaveLength(1);
+    expect(matched[0]?.verificationIds).toEqual(["ver-trusted"]);
+    expect(stateOf().verificationActiveOperation).toBeNull();
+  });
+
+  it("提交成功 + 登记回执（settled 记录）⇒ 结局分层呈现的事实齐备（D04）", async () => {
+    stateOf().openVerification(RUN_A, { kind: "initial" });
+    await vi.waitFor(() => {
+      expect(stateOf().verificationCapability).not.toBeNull();
+    });
+    stateOf().confirmVerificationRun();
+    const accepted = await stateOf().submitVerificationRun();
+    expect(accepted).toBe(true);
+    // 响应层事实（测试结局 + 证据完整性与请求收尾分开）
+    expect(stateOf().verificationLastOutcome?.outcome).toBe("check_failed");
+    expect(stateOf().verificationLastOutcome?.evidenceComplete).toBe(true);
+    // 登记层事实（领域 ID 从附件来，与响应层互证）：status 带回 settled 记录
+    const settledRecord = runningVerificationRecord({
+      state: "settled",
+      settledAt: "2026-10-25T10:05:00.000Z",
+      requestOutcome: "returned",
+      errorCode: null,
+    });
+    statusImpl = async () =>
+      ok(statusSnapshot({ registryVersion: 7, operations: [settledRecord] }));
+    await stateOf().refreshOperationStatus();
+    const matched = matchVerificationRecords(stateOf().operations, {
+      runId: RUN_A,
+      checkpoint: { kind: "initial" },
+    });
+    expect(matched).toHaveLength(1);
+    expect(matched[0]?.requestOutcome).toBe("returned");
+  });
+
+  it("M02：登记显示 R3 占槽（activeOperationId）⇒ 另一主动请求本地拒发（OPERATION_BUSY 零 IPC）", async () => {
+    stateOf().openVerification(RUN_A, { kind: "initial" });
+    await vi.waitFor(() => {
+      expect(stateOf().verificationCapability).not.toBeNull();
+    });
+    stateOf().confirmVerificationPrepare();
+    statusImpl = async () =>
+      ok(
+        statusSnapshot({
+          registryVersion: 4,
+          activeOperationId: ACTIVE_OP_ID,
+          operations: [runningVerificationRecord()],
+        }),
+      );
+    await stateOf().refreshOperationStatus();
+    const accepted = await stateOf().submitVerificationPrepare();
+    expect(accepted).toBe(false);
+    expect(stateOf().verificationSubmitError?.code).toBe("OPERATION_BUSY");
+    expect(calls.some((one) => one.startsWith("prepare:"))).toBe(false);
   });
 });

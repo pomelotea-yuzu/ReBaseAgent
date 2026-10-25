@@ -3,11 +3,13 @@ import type {
   VerificationCheckpoint,
   VerificationPreparePlanResult,
 } from "@shared/ipc";
+import type { OperationRecord } from "@shared/operations";
 import type { ConfirmationDisclosure } from "./execution-confirmation";
 import { formatBytes } from "./format";
 
 /**
- * R3（add-isolated-project-verification）任务 5.1：**检查点验证入口与分开确认**的纯判据。
+ * R3（add-isolated-project-verification）任务 5.1/5.2：**检查点验证入口、分开确认
+ * 与操作登记核实**的纯判据。
  *
  * 与 `execution-confirmation.ts`（U5）同一套思想，但绑定对象不同：验证没有草稿修订，
  * 确认绑的是 **显式 selector（runId + 检查点）+ 当前计划 token（计划×策略×配方）**：
@@ -24,7 +26,11 @@ import { formatBytes } from "./format";
  *
  * 不可用原因（D01）由 capability 的只读核对结果映射成**可行动**说明——这里只排版事实，
  * 不发明第二套判据（来源/引擎/环境事实全部来自 main）。
- */
+ *
+ * 5.2（操作/结果状态与停止反馈）：**可信领域 ID 只来自操作登记记录**（main 编排真实
+ * 创建记录后的回调附件）——`matchVerificationRecords` 按显式目标精确匹配登记，
+ * `verificationDomainIdOf` 从附件提取停止请求的领域 ID；时间、日志、列表一概不作
+ * 身份来源（D03/M01：重载/未知只核对，不猜）。
 
 /** R3 显式验证目标（与 IPC selector 同构：初始 或 自有完成步骤） */
 export interface VerificationTargetRef {
@@ -298,4 +304,73 @@ export function verificationRunDisclosure(input: {
       "执行在受限容器内进行：断网、非 root、只读 rootfs；输出与时间超限会被停止并如实记为对应结局。",
     ],
   };
+}
+
+// ---------------------------------------------------------------------------
+// 操作登记核实（5.2：D03/D05/M01——可信领域 ID 只来自登记，不猜）
+// ---------------------------------------------------------------------------
+
+/** 匹配所需的最小会话形状（避免 lib 依赖完整 OperationSession 类型树） */
+export interface VerificationSessionRef {
+  readonly epoch: string | null;
+  readonly operations: readonly OperationRecord[];
+}
+
+/**
+ * 按显式目标精确匹配本会话已知的 R3 操作登记记录。
+ *
+ * 只认 target 摘要（kind + runId + checkpointKind/stepSpanId）——时间、日志、最新列表
+ * 一概不作匹配依据（D03/M01：无身份不从猜测来）。reconcile tombstone（target=null）
+ * 与其它 kind 的记录天然不匹配。
+ */
+export function matchVerificationRecords(
+  session: VerificationSessionRef,
+  target: VerificationTargetRef,
+): readonly OperationRecord[] {
+  return session.operations.filter((record) => {
+    const t = record.target;
+    if (t === null) return false;
+    if (t.kind !== "verificationPrepare" && t.kind !== "verification") return false;
+    if (t.runId !== target.runId) return false;
+    if (t.checkpointKind !== target.checkpoint.kind) return false;
+    if (
+      t.checkpointKind === "step" &&
+      target.checkpoint.kind === "step" &&
+      t.stepSpanId !== target.checkpoint.stepSpanId
+    ) {
+      return false;
+    }
+    return true;
+  });
+}
+
+/**
+ * 从登记记录提取停止请求的**可信领域 ID**（D06：不接任意容器/PID）。
+ * 执行类取 verificationIds 附件、准备类取 preparationIds 附件；kind 与附件不匹配
+ * 或尚未关联（编排还没建记录）⇒ null——调用方不得猜测，只能核对后再试。
+ */
+export function verificationDomainIdOf(
+  record: OperationRecord | undefined,
+  kind: "prepare" | "run",
+): string | null {
+  if (record === undefined) return null;
+  const ids = kind === "run" ? record.verificationIds : record.preparationIds;
+  return ids.length > 0 ? (ids[0] ?? null) : null;
+}
+
+/** 登记记录的一行摘要（操作区展示；kind 与状态的可读名在这里集中） */
+export function verificationRecordLine(record: OperationRecord): string {
+  const kindLabel =
+    record.target?.kind === "verificationPrepare"
+      ? "环境准备"
+      : record.target?.kind === "verification"
+        ? `项目验证（${record.target.commandId}）`
+        : "未知类型";
+  const stateLabel =
+    record.state === "running"
+      ? "执行中"
+      : record.state === "settled"
+        ? `已收尾（${record.requestOutcome ?? "未知结局"}）`
+        : `未接受（${record.rejection ?? "未知原因"}）`;
+  return `${kindLabel} · ${stateLabel}`;
 }

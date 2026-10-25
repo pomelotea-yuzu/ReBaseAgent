@@ -608,6 +608,13 @@ describe("U2 3.1 接线契约：代次守卫，不退回 cancelled 布尔", () =
         "confirmVerificationRun",
         "submitVerificationPrepare",
         "submitVerificationRun",
+        // R3 5.2：操作登记核实与停止反馈（登记记录匹配 + 定向停止）
+        "operations",
+        "verificationActiveOperation",
+        "verificationStopRequested",
+        "verificationStopNotice",
+        "verificationStopError",
+        "requestVerificationStop",
       ]).toContain(name);
     }
   });

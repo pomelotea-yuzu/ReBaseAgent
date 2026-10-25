@@ -354,6 +354,12 @@ export function createOperationsSlice({
     business: TRequest,
     /** U4 任务 4.2：带草稿关联的提交用**关联里已生成的** operationId（身份与快照同步定下） */
     submission?: DraftSubmission,
+    /**
+     * R3 5.2：无草稿关联的入口也可显式携带**本次新铸**的 operationId——验证面板的
+     * 停止/核对都按该身份寻路，必须在请求发出前就定下（等响应里的回执就晚了）。
+     * 约束不变：每次提交一个新 ID（调用方逐次铸造，不得复用旧身份）。
+     */
+    operationIdOverride?: string,
   ): Promise<ExecutedResponse<TResponse>> {
     if (deriveGate(get().operations).blockedBy === "not_handshaked") {
       await get().refreshOperationStatus();
@@ -367,7 +373,7 @@ export function createOperationsSlice({
     const identity: PendingSubmission = {
       epoch,
       // 关联里已生成的 operationId 就是本次提交的身份；没有关联（如 dryRun/预览）才另起
-      operationId: submission?.operationId ?? crypto.randomUUID(),
+      operationId: submission?.operationId ?? operationIdOverride ?? crypto.randomUUID(),
       // U5 任务 5.2：本地提交时刻——等待计时的首选基准（会话内存，不进 IPC 信封）
       submittedAt: Date.now(),
     };
@@ -883,14 +889,23 @@ export function createOperationsSlice({
       }
       const atGeneration = v.verificationOutcomeGeneration;
       v.beginVerificationSubmit("prepare");
+      // 5.2/D05：铸出本次 operationId 并登记为在飞身份——停止/核对按它寻路。
+      // 通道抛错**不清除**（请求是否被接受未知 ⇒ 靠该身份 reconcile，D03）。
+      const operationId = crypto.randomUUID();
+      v.noteVerificationActiveOperation("prepare", operationId);
       let envelope: Awaited<ReturnType<typeof api.verificationPrepare>>;
       try {
-        envelope = await submitActive(api.verificationPrepare, {
-          target: { runId: target.runId, checkpoint: target.checkpoint },
-          profileId: "node-ts-v1",
-          planToken: capability.planToken,
-          allowPrepare: true,
-        });
+        envelope = await submitActive(
+          api.verificationPrepare,
+          {
+            target: { runId: target.runId, checkpoint: target.checkpoint },
+            profileId: "node-ts-v1",
+            planToken: capability.planToken,
+            allowPrepare: true,
+          },
+          undefined,
+          operationId,
+        );
       } catch (error) {
         get().endVerificationSubmit();
         get().failVerificationSubmit(
@@ -903,6 +918,7 @@ export function createOperationsSlice({
         return false;
       }
       get().endVerificationSubmit();
+      get().clearVerificationActiveOperation();
       if (!envelope.ok) {
         get().failVerificationSubmit(
           { code: envelope.error.code, message: envelope.error.message },
@@ -915,6 +931,7 @@ export function createOperationsSlice({
           kind: "prepare",
           preparationId: envelope.data.preparationId,
           imageDigest: envelope.data.imageDigest,
+          operationId,
         },
         atGeneration,
       );
@@ -950,15 +967,23 @@ export function createOperationsSlice({
       }
       const atGeneration = v.verificationOutcomeGeneration;
       v.beginVerificationSubmit("run");
+      // 5.2/D05：在飞身份（停止/核对寻路）；通道抛错保留（unknown ⇒ reconcile 核对）
+      const operationId = crypto.randomUUID();
+      v.noteVerificationActiveOperation("run", operationId);
       let envelope: Awaited<ReturnType<typeof api.verificationRun>>;
       try {
-        envelope = await submitActive(api.verificationRun, {
-          target: { runId: target.runId, checkpoint: target.checkpoint },
-          profileId: "node-ts-v1",
-          commandId,
-          planToken: capability.planToken,
-          allowExecution: true,
-        });
+        envelope = await submitActive(
+          api.verificationRun,
+          {
+            target: { runId: target.runId, checkpoint: target.checkpoint },
+            profileId: "node-ts-v1",
+            commandId,
+            planToken: capability.planToken,
+            allowExecution: true,
+          },
+          undefined,
+          operationId,
+        );
       } catch (error) {
         get().endVerificationSubmit();
         get().failVerificationSubmit(
@@ -971,6 +996,7 @@ export function createOperationsSlice({
         return false;
       }
       get().endVerificationSubmit();
+      get().clearVerificationActiveOperation();
       if (!envelope.ok) {
         get().failVerificationSubmit(
           { code: envelope.error.code, message: envelope.error.message },
@@ -986,6 +1012,7 @@ export function createOperationsSlice({
           outcome: envelope.data.outcome,
           detail: envelope.data.detail,
           evidenceComplete: envelope.data.evidenceComplete,
+          operationId,
         },
         atGeneration,
       );

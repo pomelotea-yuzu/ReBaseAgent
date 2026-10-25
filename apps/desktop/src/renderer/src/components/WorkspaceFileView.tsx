@@ -15,7 +15,11 @@ import {
   settleSide,
   sideResult,
 } from "../lib/reading-request-guard";
-import { decideVerificationConfirmation, verificationTargetKey } from "../lib/verification-entry";
+import {
+  decideVerificationConfirmation,
+  matchVerificationRecords,
+  verificationTargetKey,
+} from "../lib/verification-entry";
 import { workspaceExportKey } from "../lib/workspace-export-state";
 import {
   defaultCheckpointStepId,
@@ -358,6 +362,13 @@ export function WorkspaceFileView({ run }: { run: RunDetail }) {
   const verificationLastOutcome = useAppStore((s) => s.verificationLastOutcome);
   const submitVerificationPrepare = useAppStore((s) => s.submitVerificationPrepare);
   const submitVerificationRun = useAppStore((s) => s.submitVerificationRun);
+  // 5.2：操作登记核实与停止反馈（全部来自 operations 会话的登记记录，不猜）
+  const operationsSession = useAppStore((s) => s.operations);
+  const verificationActiveOperation = useAppStore((s) => s.verificationActiveOperation);
+  const verificationStopRequested = useAppStore((s) => s.verificationStopRequested);
+  const verificationStopNotice = useAppStore((s) => s.verificationStopNotice);
+  const verificationStopError = useAppStore((s) => s.verificationStopError);
+  const requestVerificationStop = useAppStore((s) => s.requestVerificationStop);
 
   const isolatedEligible = isIsolatedRun(run);
   /** 当前检查点的显式 selector 形状（初始 或 自有完成步骤） */
@@ -365,6 +376,18 @@ export function WorkspaceFileView({ run }: { run: RunDetail }) {
     effectiveStepSpanId === null
       ? { kind: "initial" }
       : { kind: "step", stepSpanId: effectiveStepSpanId };
+
+  /**
+   * 5.2/D03/M01：按显式目标匹配本会话已知的 R3 登记记录（重载后凭登记恢复——
+   * 匹配只认 target 摘要；时间/日志/列表不作为身份来源）。
+   */
+  const matchedRecords = useMemo(
+    () =>
+      verificationTarget === null
+        ? []
+        : matchVerificationRecords(operationsSession, verificationTarget),
+    [operationsSession, verificationTarget],
+  );
 
   const toggleVerification = (): void => {
     if (verificationExpanded) {
@@ -511,6 +534,13 @@ export function WorkspaceFileView({ run }: { run: RunDetail }) {
           lastOutcome={verificationLastOutcome}
           onSubmitPrepare={() => void submitVerificationPrepare()}
           onSubmitRun={() => void submitVerificationRun()}
+          matchedRecords={matchedRecords}
+          operationsUnknown={operationsSession.unknown}
+          activeOperation={verificationActiveOperation}
+          stopRequested={verificationStopRequested}
+          stopNotice={verificationStopNotice}
+          stopError={verificationStopError}
+          onStop={() => void requestVerificationStop()}
         />
       }
     />

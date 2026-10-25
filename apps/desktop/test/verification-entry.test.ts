@@ -1,11 +1,15 @@
 import type { VerificationCapabilityResult, VerificationPreparePlanResult } from "@shared/ipc";
+import type { OperationRecord } from "@shared/operations";
 import { describe, expect, it } from "vitest";
 import {
   blockersFor,
   decideVerificationConfirmation,
+  matchVerificationRecords,
   profileLimitsLine,
   verificationBlockers,
+  verificationDomainIdOf,
   verificationPrepareDisclosure,
+  verificationRecordLine,
   verificationRunDisclosure,
   verificationTargetKey,
   verificationTargetLabel,
@@ -354,5 +358,146 @@ describe("profileLimitsLine（限额行的格式化）", () => {
     expect(line).toContain("64");
     expect(line).toContain("120 s");
     expect(line).toContain("180 s");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5.2：操作登记核实（D03/D05/M01——可信领域 ID 只来自登记，不猜）
+// ---------------------------------------------------------------------------
+
+const RECORD_BASE: OperationRecord = {
+  epoch: "44444444-4444-4444-8444-444444444444",
+  operationId: "55555555-5555-4555-8555-555555555555",
+  target: {
+    kind: "verification",
+    runId: RUN,
+    checkpointKind: "initial",
+    stepSpanId: null,
+    commandId: "test",
+  },
+  state: "running",
+  rejection: null,
+  startedAt: "2026-10-25T10:00:00.000Z",
+  settledAt: null,
+  runIds: [],
+  experimentId: null,
+  arms: [],
+  preparationIds: [],
+  verificationIds: ["ver-trusted"],
+  requestOutcome: null,
+  errorCode: null,
+  diagnostics: [],
+};
+
+describe("matchVerificationRecords（按显式目标匹配登记，不猜）", () => {
+  const session = { epoch: RECORD_BASE.epoch, operations: [RECORD_BASE] };
+
+  it("run + 检查点形态一致 ⇒ 匹配；runId 不同 ⇒ 不匹配", () => {
+    expect(
+      matchVerificationRecords(session, { runId: RUN, checkpoint: { kind: "initial" } }),
+    ).toHaveLength(1);
+    expect(
+      matchVerificationRecords(session, { runId: "run_other", checkpoint: { kind: "initial" } }),
+    ).toHaveLength(0);
+  });
+
+  it("initial 与 step 不互配；stepSpanId 必须一致", () => {
+    expect(
+      matchVerificationRecords(session, {
+        runId: RUN,
+        checkpoint: { kind: "step", stepSpanId: STEP },
+      }),
+    ).toHaveLength(0);
+    const stepRecord: OperationRecord = {
+      ...RECORD_BASE,
+      target: {
+        kind: "verificationPrepare",
+        runId: RUN,
+        checkpointKind: "step",
+        stepSpanId: STEP,
+      },
+    };
+    const stepSession = { epoch: RECORD_BASE.epoch, operations: [stepRecord] };
+    expect(
+      matchVerificationRecords(stepSession, {
+        runId: RUN,
+        checkpoint: { kind: "step", stepSpanId: STEP },
+      }),
+    ).toHaveLength(1);
+    expect(
+      matchVerificationRecords(stepSession, {
+        runId: RUN,
+        checkpoint: { kind: "step", stepSpanId: "s_other" },
+      }),
+    ).toHaveLength(0);
+  });
+
+  it("tombstone（target=null）不匹配（D03：封禁不冒充执行事实）", () => {
+    const tombstone: OperationRecord = {
+      ...RECORD_BASE,
+      operationId: "66666666-6666-4666-8666-666666666666",
+      target: null,
+      state: "notAccepted",
+      rejection: "reconcile_tombstone",
+      startedAt: null,
+    };
+    expect(
+      matchVerificationRecords(
+        { epoch: RECORD_BASE.epoch, operations: [tombstone] },
+        { runId: RUN, checkpoint: { kind: "initial" } },
+      ),
+    ).toHaveLength(0);
+  });
+});
+
+describe("verificationDomainIdOf（D06：领域 ID 只从附件取）", () => {
+  it("执行类取 verificationIds；准备类取 preparationIds", () => {
+    expect(verificationDomainIdOf(RECORD_BASE, "run")).toBe("ver-trusted");
+    expect(verificationDomainIdOf(RECORD_BASE, "prepare")).toBeNull();
+    const prepareRecord: OperationRecord = {
+      ...RECORD_BASE,
+      target: {
+        kind: "verificationPrepare",
+        runId: RUN,
+        checkpointKind: "initial",
+        stepSpanId: null,
+      },
+      verificationIds: [],
+      preparationIds: ["prep-trusted"],
+    };
+    expect(verificationDomainIdOf(prepareRecord, "prepare")).toBe("prep-trusted");
+  });
+
+  it("记录缺失或尚未关联 ⇒ null（调用方不得猜测，只能核对）", () => {
+    expect(verificationDomainIdOf(undefined, "run")).toBeNull();
+    expect(verificationDomainIdOf({ ...RECORD_BASE, verificationIds: [] }, "run")).toBeNull();
+  });
+});
+
+describe("verificationRecordLine（登记记录摘要行）", () => {
+  it("区分类型与状态（执行中/已收尾/未接受）", () => {
+    expect(verificationRecordLine(RECORD_BASE)).toContain("项目验证（test）");
+    expect(verificationRecordLine(RECORD_BASE)).toContain("执行中");
+    expect(
+      verificationRecordLine({
+        ...RECORD_BASE,
+        state: "settled",
+        settledAt: "2026-10-25T10:05:00.000Z",
+        requestOutcome: "returned",
+      }),
+    ).toContain("已收尾（returned）");
+    expect(
+      verificationRecordLine({
+        ...RECORD_BASE,
+        target: {
+          kind: "verificationPrepare",
+          runId: RUN,
+          checkpointKind: "initial",
+          stepSpanId: null,
+        },
+        state: "notAccepted",
+        rejection: "busy",
+      }),
+    ).toContain("未接受（busy）");
   });
 });
