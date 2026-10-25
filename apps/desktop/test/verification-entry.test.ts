@@ -6,6 +6,7 @@ import {
   decideVerificationConfirmation,
   matchVerificationRecords,
   profileLimitsLine,
+  trustedVerificationIdsOf,
   verificationBlockers,
   verificationDomainIdOf,
   verificationPrepareDisclosure,
@@ -499,5 +500,27 @@ describe("verificationRecordLine（登记记录摘要行）", () => {
         rejection: "busy",
       }),
     ).toContain("未接受（busy）");
+  });
+});
+
+describe("trustedVerificationIdsOf（D09/P16：身份只来自登记附件与响应回执）", () => {
+  it("登记附件在前、响应回执补后；重复 ID 只出现一次", () => {
+    expect(
+      trustedVerificationIdsOf(
+        [
+          { ...RECORD_BASE, verificationIds: ["ver-a", "ver-b"] },
+          { ...RECORD_BASE, verificationIds: ["ver-b", "ver-c"] },
+        ],
+        "ver-d",
+      ),
+    ).toEqual(["ver-a", "ver-b", "ver-c", "ver-d"]);
+    expect(trustedVerificationIdsOf([RECORD_BASE], "ver-trusted")).toEqual(["ver-trusted"]);
+  });
+
+  it("无登记附件/无响应 ⇒ 空集（不从时间、日志或最新列表猜测身份）", () => {
+    expect(trustedVerificationIdsOf([], null)).toEqual([]);
+    expect(trustedVerificationIdsOf([{ ...RECORD_BASE, verificationIds: [] }], undefined)).toEqual(
+      [],
+    );
   });
 });

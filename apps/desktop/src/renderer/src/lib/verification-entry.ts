@@ -345,6 +345,31 @@ export function matchVerificationRecords(
 }
 
 /**
+ * D09/P16：**可信验证身份集合** = 登记附件（verificationIds）∪ 执行响应回执里的
+ * verificationId。两者都是 main 真实创建记录后给出的来源；时间、日志、最新列表
+ * 一概不作身份来源。去重保序（登记在前，响应补后）。
+ */
+export function trustedVerificationIdsOf(
+  records: readonly OperationRecord[],
+  respondedVerificationId: string | null | undefined,
+): string[] {
+  const ids: string[] = [];
+  for (const record of records) {
+    for (const id of record.verificationIds) {
+      if (!ids.includes(id)) ids.push(id);
+    }
+  }
+  if (
+    respondedVerificationId !== null &&
+    respondedVerificationId !== undefined &&
+    !ids.includes(respondedVerificationId)
+  ) {
+    ids.push(respondedVerificationId);
+  }
+  return ids;
+}
+
+/**
  * 从登记记录提取停止请求的**可信领域 ID**（D06：不接任意容器/PID）。
  * 执行类取 verificationIds 附件、准备类取 preparationIds 附件；kind 与附件不匹配
  * 或尚未关联（编排还没建记录）⇒ null——调用方不得猜测，只能核对后再试。

@@ -2,8 +2,11 @@ import { ok } from "@shared/ipc";
 import type {
   Envelope,
   VerificationCapabilityResult,
+  VerificationGetResult,
   VerificationPreparePlanResult,
   VerificationPrepareResult,
+  VerificationReadLogRequest,
+  VerificationReadLogResult,
   VerificationRunResult,
   WindowApi,
 } from "@shared/ipc";
@@ -157,8 +160,49 @@ const verificationStopStub: {
   alreadySettled: boolean;
   fail: { code: string; message: string } | null;
 } = { alreadySettled: false, fail: null };
+// —— 5.3：记录/日志只读通道的可控应答 ——
+let getImpl: (request: { verificationId: string }) => Promise<Envelope<VerificationGetResult>> =
+  async (request) => ok(recordFixture(request.verificationId));
+let readLogImpl: (
+  request: VerificationReadLogRequest,
+) => Promise<Envelope<VerificationReadLogResult>> = async () => ok(logPage("aaa", 3, 5));
+
+/** 5.3 夹具：封存记录（一条命令的双口径字节 + 终局） */
+function recordFixture(verificationId = "ver-1"): VerificationGetResult {
+  return {
+    verificationId,
+    status: "sealed",
+    events: [
+      { type: "stage", phase: "executing" },
+      {
+        type: "command_end",
+        commandId: "test",
+        exitCode: 1,
+        durationMs: 1850,
+        stdout: { byteLength: 1048576, totalBytes: 2097152, truncated: true },
+        stderr: { byteLength: 42, totalBytes: 42, truncated: false },
+      },
+      { type: "terminated", outcome: "check_failed", detail: "测试断言失败" },
+    ],
+    error: null,
+  };
+}
+
+function logPage(text: string, nextOffset: number, remaining: number): VerificationReadLogResult {
+  return { text, totalBytes: nextOffset + remaining, nextOffset, remaining, truncated: false };
+}
 
 const apiStub: Record<string, unknown> = {
+  verificationGet: (request: { verificationId: string }) => {
+    calls.push(`get:${request.verificationId}`);
+    return getImpl(request);
+  },
+  verificationReadLog: (request: VerificationReadLogRequest) => {
+    calls.push(
+      `readLog:${request.verificationId}:${request.commandId}:${request.stream}:${request.offset}`,
+    );
+    return readLogImpl(request);
+  },
   verificationCapability: (request: CapabilityCall) => {
     calls.push(
       `capability:${request.runId}:${request.checkpoint.kind}${
@@ -244,6 +288,8 @@ beforeEach(() => {
   reconcileImpl = null;
   verificationStopStub.alreadySettled = false;
   verificationStopStub.fail = null;
+  getImpl = async (request) => ok(recordFixture(request.verificationId));
+  readLogImpl = async () => ok(logPage("aaa", 3, 5));
   resetVerification();
 });
 
@@ -743,5 +789,158 @@ describe("操作登记核实（D03/M01/D04：身份只来自登记）", () => {
     expect(accepted).toBe(false);
     expect(stateOf().verificationSubmitError?.code).toBe("OPERATION_BUSY");
     expect(calls.some((one) => one.startsWith("prepare:"))).toBe(false);
+  });
+});
+
+describe("记录与日志读取（5.3/D09/P13/P16：只读可信身份，迟到不混入）", () => {
+  async function openAndFocus(verificationId: string): Promise<void> {
+    stateOf().openVerification(RUN_A, { kind: "initial" });
+    await vi.waitFor(() => {
+      expect(stateOf().verificationCapability).not.toBeNull();
+    });
+    stateOf().focusVerificationRecord(verificationId);
+    await vi.waitFor(() => {
+      expect(stateOf().verificationRecordState).toBe("ready");
+    });
+  }
+
+  it("聚焦可信身份 ⇒ 只调 verification:get 读取记录；不准备/不执行/不停止/不清理", async () => {
+    await openAndFocus("ver-trusted");
+    expect(calls).toContain("get:ver-trusted");
+    expect(stateOf().verificationRecordData?.verificationId).toBe("ver-trusted");
+    expect(stateOf().verificationRecordData?.status).toBe("sealed");
+    expect(stateOf().verificationRecordError).toBeNull();
+    // 只读：除打开面板的两个只读核对与本次 get 外，没有任何变更通道
+    expect(
+      calls.some(
+        (one) =>
+          one.startsWith("prepare:") ||
+          one.startsWith("run:") ||
+          one.startsWith("stop:") ||
+          one.startsWith("status"),
+      ),
+    ).toBe(false);
+  });
+
+  it("切换验证后旧记录响应迟到 ⇒ 整包丢弃（不混入新身份，D09）", async () => {
+    stateOf().openVerification(RUN_A, { kind: "initial" });
+    await vi.waitFor(() => {
+      expect(stateOf().verificationCapability).not.toBeNull();
+    });
+    const gateA = deferred<Envelope<VerificationGetResult>>();
+    let getCount = 0;
+    getImpl = (request) => {
+      getCount += 1;
+      if (getCount === 1) return gateA.promise;
+      return Promise.resolve(ok(recordFixture(request.verificationId)));
+    };
+    stateOf().focusVerificationRecord("ver-a");
+    stateOf().focusVerificationRecord("ver-b");
+    await vi.waitFor(() => {
+      expect(stateOf().verificationRecordData?.verificationId).toBe("ver-b");
+    });
+    gateA.resolve(ok(recordFixture("ver-a")));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(stateOf().verificationRecordFocus).toBe("ver-b");
+    expect(stateOf().verificationRecordData?.verificationId).toBe("ver-b");
+  });
+
+  it("关闭面板时在飞记录响应迟到 ⇒ 不落地（代次随 open/close 推进）", async () => {
+    stateOf().openVerification(RUN_A, { kind: "initial" });
+    await vi.waitFor(() => {
+      expect(stateOf().verificationCapability).not.toBeNull();
+    });
+    const gate = deferred<Envelope<VerificationGetResult>>();
+    getImpl = () => gate.promise;
+    stateOf().focusVerificationRecord("ver-a");
+    stateOf().closeVerification();
+    gate.resolve(ok(recordFixture("ver-a")));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(stateOf().verificationRecordFocus).toBeNull();
+    expect(stateOf().verificationRecordData).toBeNull();
+    expect(stateOf().verificationRecordState).toBe("idle");
+  });
+
+  it("记录结构不合法 ⇒ 稳定码呈现且不落地（跨进程数据不可信）", async () => {
+    stateOf().openVerification(RUN_A, { kind: "initial" });
+    await vi.waitFor(() => {
+      expect(stateOf().verificationCapability).not.toBeNull();
+    });
+    getImpl = async () =>
+      ok({ verificationId: "ver-1", status: "bogus", events: [], error: null } as never);
+    stateOf().focusVerificationRecord("ver-1");
+    await vi.waitFor(() => {
+      expect(stateOf().verificationRecordState).toBe("error");
+    });
+    expect(stateOf().verificationRecordError?.code).toBe("R3_RECORD_SCHEMA_INVALID");
+    expect(stateOf().verificationRecordData).toBeNull();
+  });
+
+  it("日志整段重读 ⇒ 覆盖而不拼接（不混上一条正文）", async () => {
+    await openAndFocus("ver-1");
+    stateOf().readVerificationLog("test", "stdout", "replace");
+    await vi.waitFor(() => {
+      expect(stateOf().verificationLogState).toBe("ready");
+    });
+    expect(stateOf().verificationLogText).toBe("aaa");
+    expect(calls).toContain("readLog:ver-1:test:stdout:0");
+    readLogImpl = async () => ok(logPage("bbb", 6, 0));
+    stateOf().readVerificationLog("test", "stdout", "replace");
+    await vi.waitFor(() => {
+      expect(stateOf().verificationLogText).toBe("bbb");
+    });
+    expect(stateOf().verificationLogMeta?.remaining).toBe(0);
+  });
+
+  it("续读 ⇒ 用 nextOffset 追加；换流/换命令的 append 退化为首页（offset=0 且清空）", async () => {
+    await openAndFocus("ver-1");
+    stateOf().readVerificationLog("test", "stdout", "replace");
+    await vi.waitFor(() => {
+      expect(stateOf().verificationLogState).toBe("ready");
+    });
+    readLogImpl = async () => ok(logPage("bbb", 6, 0));
+    stateOf().readVerificationLog("test", "stdout", "append");
+    await vi.waitFor(() => {
+      expect(stateOf().verificationLogText).toBe("aaabbb");
+    });
+    expect(calls).toContain("readLog:ver-1:test:stdout:3");
+    // 换到 stderr 的 append 不是同一份正文的续读
+    readLogImpl = async () => ok(logPage("err", 3, 0));
+    stateOf().readVerificationLog("test", "stderr", "append");
+    await vi.waitFor(() => {
+      expect(stateOf().verificationLogText).toBe("err");
+    });
+    expect(calls).toContain("readLog:ver-1:test:stderr:0");
+  });
+
+  it("换焦点 ⇒ 旧日志正文与身份清空，旧日志迟到响应丢弃（D09）", async () => {
+    await openAndFocus("ver-1");
+    const gate = deferred<Envelope<VerificationReadLogResult>>();
+    readLogImpl = () => gate.promise;
+    stateOf().readVerificationLog("test", "stdout", "replace");
+    expect(stateOf().verificationLogIdentity?.verificationId).toBe("ver-1");
+    stateOf().focusVerificationRecord("ver-2");
+    await vi.waitFor(() => {
+      expect(stateOf().verificationRecordData?.verificationId).toBe("ver-2");
+    });
+    gate.resolve(ok(logPage("stale-body", 10, 0)));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(stateOf().verificationLogIdentity).toBeNull();
+    expect(stateOf().verificationLogText).toBe("");
+  });
+
+  it("附件损坏 ⇒ 稳定码如实呈现，正文保持空（不以损坏字节冒充正文）", async () => {
+    await openAndFocus("ver-1");
+    readLogImpl = async () => ({
+      ok: false as const,
+      error: { code: "R3_LOG_ASSET_CORRUPT", message: "附件哈希不符" },
+    });
+    stateOf().readVerificationLog("test", "stdout", "replace");
+    await vi.waitFor(() => {
+      expect(stateOf().verificationLogState).toBe("error");
+    });
+    expect(stateOf().verificationLogError?.code).toBe("R3_LOG_ASSET_CORRUPT");
+    expect(stateOf().verificationLogText).toBe("");
+    expect(stateOf().verificationLogMeta).toBeNull();
   });
 });

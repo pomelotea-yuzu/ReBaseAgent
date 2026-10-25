@@ -1,6 +1,7 @@
 import type {
   VerificationCapabilityResult,
   VerificationCheckpoint,
+  VerificationGetResult,
   VerificationPreparePlanResult,
 } from "@shared/ipc";
 import type { OperationRecord } from "@shared/operations";
@@ -17,6 +18,8 @@ import {
   verificationRunDisclosure,
   verificationTargetLabel,
 } from "../lib/verification-entry";
+import type { VerificationRecordView } from "../lib/verification-reading";
+import { verificationStatusLine } from "../lib/verification-reading";
 import type {
   VerificationOutcomeView,
   VerificationSubmitError,
@@ -25,7 +28,7 @@ import { ConfirmationBlock } from "./ConfirmationBlock";
 import { FOCUS_RING } from "./IconButton";
 
 /**
- * R3 任务 5.1/5.2：文件页检查点侧的**项目验证**面板（展示层，只吃 props）。
+ * R3 任务 5.1/5.2/5.3：文件页检查点侧的**项目验证**面板（展示层，只吃 props）。
  *
  * D01/D02 的呈现面：
  * - **精确输入与当前条件**（D01）：run/检查点/快照/文件数与字节、profile/工具链、
@@ -47,6 +50,13 @@ import { FOCUS_RING } from "./IconButton";
  * - **停止反馈**（D05/D06）：执行在飞时提供定向停止（按钮只在 run 在飞可用；
  *   准备阶段如实说明不可中断）；停止已请求 ⇒ 等待编排确认全部停止；
  *   幂等 no-op 与失败码如实呈现，不伪造取消。
+ *
+ * 5.3（D09/P13/P16 的呈现面）：
+ * - **记录与日志阅读区**：只读**可信验证身份**（登记附件 ∪ 响应），读取零执行零补写；
+ *   记录状态（封存/未封存/损坏/版本）如实呈现，未封存不冒充结局；
+ * - **有界日志切片**（P13）：显示保留/全观测双口径字节与截断标注；切片正文标注
+ *   "不是完整日志"（remaining/续读），不混入上一条正文（身份+代次守卫在 store）；
+ * - **附件损坏/缺失**（D09/P16）：R3_LOG_* 稳定码就近呈现，不自动补写。
  * - **显式 selector**：目标（runId+checkpoint）由连接层在打开时显式绑定；本组件只显示
  *   `verificationTargetLabel`，绝不从当前文件选择器推导目标。
  */
@@ -121,6 +131,38 @@ export interface VerificationPanelProps {
   readonly stopNotice: string | null;
   readonly stopError: VerificationSubmitError | null;
   readonly onStop: () => void;
+
+  // —— 5.3：验证记录与有界日志（只读可信身份；D09/P13/P16）——
+  /** 可信验证身份（登记附件 ∪ 响应）；连接层保证不含猜测来源 */
+  readonly trustedVerificationIds: readonly string[];
+  readonly recordFocus: string | null;
+  readonly onFocusRecord: (verificationId: string) => void;
+  readonly recordState: "idle" | "loading" | "ready" | "error";
+  /** 收窄后的记录视图（lib/verification-reading 的产物；null = 尚未就绪） */
+  readonly recordView: VerificationRecordView | null;
+  readonly recordStatus: VerificationGetResult["status"] | null;
+  /** 记录读取的结构化错误（坏尾行号/原因；P15/D09） */
+  readonly recordErrorInfo: VerificationGetResult["error"];
+  readonly recordError: { code: string; message: string } | null;
+  readonly logIdentity: {
+    verificationId: string;
+    commandId: "typecheck" | "test";
+    stream: "stdout" | "stderr";
+  } | null;
+  readonly logText: string;
+  readonly logMeta: {
+    totalBytes: number;
+    nextOffset: number;
+    remaining: number;
+    truncated: boolean;
+  } | null;
+  readonly logState: "idle" | "loading" | "ready" | "error";
+  readonly logError: { code: string; message: string } | null;
+  readonly onReadLog: (
+    commandId: "typecheck" | "test",
+    stream: "stdout" | "stderr",
+    mode: "replace" | "append",
+  ) => void;
 }
 
 /** 判定的一行呈现（确认块 blocked 位与提交按钮的禁用说明共用） */
@@ -165,6 +207,20 @@ export function VerificationPanel({
   stopNotice,
   stopError,
   onStop,
+  trustedVerificationIds,
+  recordFocus,
+  onFocusRecord,
+  recordState,
+  recordView,
+  recordStatus,
+  recordErrorInfo,
+  recordError,
+  logIdentity,
+  logText,
+  logMeta,
+  logState,
+  logError,
+  onReadLog,
 }: VerificationPanelProps) {
   const prepareBlockers = blockersFor(verificationBlockers(capability), "prepare");
   const runBlockers = blockersFor(verificationBlockers(capability), "run");
@@ -442,6 +498,192 @@ export function VerificationPanel({
                   ) : null}
                 </div>
               ))}
+            </div>
+          ) : null}
+
+          {/* —— 验证记录与有界日志（5.3/D09/P13/P16：只读可信身份；零执行零补写）—— */}
+          {trustedVerificationIds.length > 0 ? (
+            <div
+              className="mt-1.5 rounded border border-sky-200 bg-sky-50/40 px-2 py-1"
+              data-verification-reading="true"
+            >
+              <div className="text-[10px] font-medium text-gray-500">
+                验证记录与日志（只读下方可信身份；读取零执行、零补写、零清理）
+              </div>
+              <div className="mt-0.5 flex flex-wrap items-center gap-1">
+                {trustedVerificationIds.map((id) => (
+                  <button
+                    key={id}
+                    type="button"
+                    data-verification-record-focus={id}
+                    aria-pressed={recordFocus === id ? "true" : undefined}
+                    onClick={() => onFocusRecord(id)}
+                    className={`rounded border px-1.5 py-0.5 font-code text-[10px] ${FOCUS_RING} ${
+                      recordFocus === id
+                        ? "border-sky-500 bg-sky-100 text-sky-900"
+                        : "border-gray-300 text-gray-600 hover:bg-gray-50"
+                    }`}
+                  >
+                    {id}
+                  </button>
+                ))}
+              </div>
+
+              {recordFocus === null ? (
+                <div className="mt-1 text-[10px] text-gray-500">
+                  选择一个验证身份查看记录与日志（身份来自登记附件与执行响应，不从时间/日志猜测）。
+                </div>
+              ) : (
+                <div className="mt-1" data-verification-record-view="true">
+                  {recordState === "loading" ? (
+                    <div className="text-[10px] text-gray-500">正在读取验证记录（只读）…</div>
+                  ) : null}
+                  {recordError !== null ? (
+                    <div className="text-[10px] text-red-700">
+                      记录读取失败（{recordError.code}）：{recordError.message}
+                    </div>
+                  ) : null}
+                  {recordState === "ready" && recordView !== null && recordStatus !== null ? (
+                    <div className="space-y-0.5 text-[11px] leading-4 text-gray-700">
+                      <div>{verificationStatusLine(recordStatus, recordErrorInfo)}</div>
+                      <div className="text-[10px] text-gray-500">
+                        共 {recordView.eventCount} 条事件
+                        {recordView.stages.length > 0
+                          ? ` · 阶段：${recordView.stages.join(" → ")}`
+                          : ""}
+                      </div>
+                      {recordView.terminated ? (
+                        <div>
+                          结局：<span className="font-semibold">{recordView.outcome}</span>（
+                          {verificationOutcomeLabel(recordView.outcome ?? "")}）。
+                          {recordView.detail}
+                        </div>
+                      ) : (
+                        <div className="text-amber-800">
+                          记录未封存或损坏：不呈现结局（不以未完成事实冒充通过/失败）。
+                        </div>
+                      )}
+                      {recordView.commandEnds.map((entry) => (
+                        <div
+                          key={`${recordFocus}-${entry.commandId}`}
+                          className="mt-1 rounded border border-gray-200 bg-white px-1.5 py-1"
+                          data-verification-command-end={entry.commandId}
+                        >
+                          <div>
+                            <span className="font-medium">{entry.commandId}</span>
+                            {" · "}
+                            退出码 {entry.exitCode === null ? "（未知）" : entry.exitCode}
+                            {" · "}
+                            耗时 {entry.durationMs}ms
+                          </div>
+                          <div className="text-[10px] text-gray-500">
+                            stdout 保留 {formatBytes(entry.stdoutBytes)}
+                            {entry.stdoutTruncated
+                              ? `（全观测 ${formatBytes(entry.stdoutTotalBytes)}，超出部分已按限额丢弃并计数）`
+                              : ""}
+                            {" · stderr 保留 "}
+                            {formatBytes(entry.stderrBytes)}
+                            {entry.stderrTruncated
+                              ? `（全观测 ${formatBytes(entry.stderrTotalBytes)}，超出部分已按限额丢弃并计数）`
+                              : ""}
+                          </div>
+                          <div className="mt-0.5 flex items-center gap-1">
+                            {(["stdout", "stderr"] as const).map((stream) => (
+                              <button
+                                key={stream}
+                                type="button"
+                                data-verification-read-log={`${entry.commandId}:${stream}`}
+                                onClick={() => onReadLog(entry.commandId, stream, "replace")}
+                                className={`rounded border border-gray-300 px-1.5 py-0.5 text-[10px] text-gray-700 hover:bg-gray-50 ${FOCUS_RING}`}
+                              >
+                                读 {stream}
+                              </button>
+                            ))}
+                            <span className="text-[10px] text-gray-400">
+                              有界切片（默认 32 KiB/页，上限 64 KiB）
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                      {recordView.commandEnds.length === 0 ? (
+                        <div className="text-[10px] text-gray-500">
+                          记录里没有命令执行事实（可能未到执行阶段或被中断）。
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  {/* 日志切片视图（身份 + 正文 + 分页事实） */}
+                  {logIdentity !== null ? (
+                    <div
+                      className="mt-1 rounded border border-gray-200 bg-white px-1.5 py-1"
+                      data-verification-log-view="true"
+                    >
+                      <div className="text-[10px] text-gray-500">
+                        {logIdentity.verificationId} · {logIdentity.commandId} ·{" "}
+                        {logIdentity.stream}
+                        {logState === "loading" ? " · 读取中…" : ""}
+                      </div>
+                      {logError !== null ? (
+                        <div
+                          className="mt-0.5 text-[10px] text-red-700"
+                          data-verification-log-error="true"
+                        >
+                          日志读取失败（{logError.code}）：{logError.message}
+                          {logError.code === "R3_LOG_ASSET_CORRUPT"
+                            ? "（附件损坏：不以损坏字节冒充正文）"
+                            : ""}
+                          {logError.code === "R3_LOG_ASSET_MISSING"
+                            ? "（附件缺失：不自动补写）"
+                            : ""}
+                        </div>
+                      ) : null}
+                      {logState === "ready" && logMeta !== null ? (
+                        <>
+                          <pre
+                            className="mt-0.5 max-h-48 overflow-auto whitespace-pre-wrap break-all font-code text-[10px] leading-4 text-gray-800"
+                            data-verification-log-text="true"
+                          >
+                            {logText}
+                          </pre>
+                          <div className="mt-0.5 flex items-center gap-2 text-[10px] text-gray-500">
+                            <span>
+                              共 {formatBytes(logMeta.totalBytes)} · 已读{" "}
+                              {formatBytes(logMeta.nextOffset)}
+                              {logMeta.remaining > 0
+                                ? ` · 剩余 ${formatBytes(logMeta.remaining)}`
+                                : ""}
+                              {logMeta.truncated ? " · 本切片有截断" : ""}
+                            </span>
+                            {logMeta.remaining > 0 ? (
+                              <button
+                                type="button"
+                                data-verification-log-continue="true"
+                                onClick={() =>
+                                  logIdentity === null
+                                    ? undefined
+                                    : onReadLog(logIdentity.commandId, logIdentity.stream, "append")
+                                }
+                                className={`rounded border border-gray-300 px-1.5 py-0.5 text-gray-700 hover:bg-gray-50 ${FOCUS_RING}`}
+                              >
+                                续读下一页
+                              </button>
+                            ) : null}
+                            {logMeta.remaining === 0 ? (
+                              <span>已到记录保留的末尾（超出限额的丢弃量见上方全观测计数）</span>
+                            ) : null}
+                          </div>
+                          {logMeta.truncated || logMeta.remaining > 0 ? (
+                            <div className="mt-0.5 text-[10px] text-amber-800">
+                              以上是有界切片视图，不是完整日志（P13：不以截断视图表示完整日志）。
+                            </div>
+                          ) : null}
+                        </>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              )}
             </div>
           ) : null}
 

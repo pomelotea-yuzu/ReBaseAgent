@@ -7,11 +7,14 @@
 import type {
   VerificationCapabilityResult,
   VerificationCheckpoint,
+  VerificationGetResult,
   VerificationPreparePlanResult,
 } from "@shared/ipc";
 import {
   VerificationCapabilityResultSchema,
+  VerificationGetResultSchema,
   VerificationPreparePlanResultSchema,
+  VerificationReadLogResultSchema,
 } from "@shared/ipc";
 import { api } from "../../lib/api";
 import { describeZodError } from "../../lib/describe-zod-error";
@@ -91,6 +94,32 @@ export interface VerificationState {
   /** 停止通道的非失败事实（幂等 no-op / 尚无可信身份已转核对） */
   verificationStopNotice: string | null;
   verificationStopError: VerificationSubmitError | null;
+  /**
+   * 记录/日志读取（5.3/D09/P13/P16）：只读**可信验证身份**（连接层只传登记附件/
+   * 响应里的 ID），读取本身零执行零补写。迟到响应按代次整包丢弃；焦点切换
+   * （换验证身份）推进两个代次 ⇒ 旧响应/旧正文绝不混入新身份（D09）。
+   */
+  verificationRecordFocus: string | null;
+  verificationRecordState: "idle" | "loading" | "ready" | "error";
+  verificationRecordData: VerificationGetResult | null;
+  verificationRecordError: { code: string; message: string } | null;
+  /** 记录/日志读取代次：与 capability/plan 同口径——单调递增、不随 open 复位 */
+  verificationRecordGeneration: number;
+  verificationLogIdentity: {
+    verificationId: string;
+    commandId: "typecheck" | "test";
+    stream: "stdout" | "stderr";
+  } | null;
+  verificationLogText: string;
+  verificationLogMeta: {
+    totalBytes: number;
+    nextOffset: number;
+    remaining: number;
+    truncated: boolean;
+  } | null;
+  verificationLogState: "idle" | "loading" | "ready" | "error";
+  verificationLogError: { code: string; message: string } | null;
+  verificationLogGeneration: number;
 }
 
 export interface VerificationSliceActions {
@@ -135,6 +164,24 @@ export interface VerificationSliceActions {
    * 幂等：main 对重复/已收尾操作返回 alreadySettled（no-op）。
    */
   requestVerificationStop: () => Promise<void>;
+
+  /**
+   * 聚焦一条**可信**验证身份并读取其记录（5.3/D09/P16）：调用方（连接层）只传登记
+   * 附件/响应里的 ID；焦点切换复位记录与日志并推进代次 ⇒ 旧响应/旧正文不混入。
+   */
+  focusVerificationRecord: (verificationId: string) => void;
+  /** 重读当前聚焦的验证记录（只读；焦点未设置时零动作） */
+  loadVerificationRecord: () => Promise<void>;
+  /**
+   * 有界日志读取（P13/D09）：`mode:"replace"` 读首页（main 默认 32 KiB 切片）、
+   * `"append"` 以 nextOffset 续读并追加正文。身份（verificationId+commandId+stream）
+   * 与代次双重守卫：迟到的旧响应绝不混入当前正文。
+   */
+  readVerificationLog: (
+    commandId: "typecheck" | "test",
+    stream: "stdout" | "stderr",
+    mode: "replace" | "append",
+  ) => Promise<void>;
 }
 
 export type VerificationSlice = VerificationState & VerificationSliceActions;
@@ -164,6 +211,17 @@ export function initialVerificationState(): VerificationState {
     verificationStopRequested: false,
     verificationStopNotice: null,
     verificationStopError: null,
+    verificationRecordFocus: null,
+    verificationRecordState: "idle",
+    verificationRecordData: null,
+    verificationRecordError: null,
+    verificationRecordGeneration: 0,
+    verificationLogIdentity: null,
+    verificationLogText: "",
+    verificationLogMeta: null,
+    verificationLogState: "idle",
+    verificationLogError: null,
+    verificationLogGeneration: 0,
   };
 }
 
@@ -191,6 +249,15 @@ export function createVerificationSlice({ set, get }: SliceContext): Verificatio
     verificationStopRequested: false,
     verificationStopNotice: null,
     verificationStopError: null,
+    verificationRecordFocus: null,
+    verificationRecordState: "idle" as const,
+    verificationRecordData: null,
+    verificationRecordError: null,
+    verificationLogIdentity: null,
+    verificationLogText: "",
+    verificationLogMeta: null,
+    verificationLogState: "idle" as const,
+    verificationLogError: null,
   });
 
   return {
@@ -202,6 +269,9 @@ export function createVerificationSlice({ set, get }: SliceContext): Verificatio
         ...resetContent(),
         verificationTarget: target,
         verificationOutcomeGeneration: state.verificationOutcomeGeneration + 1,
+        // 记录/日志也要失效在飞读取：换目标后旧验证的迟到响应不得写进新目标
+        verificationRecordGeneration: state.verificationRecordGeneration + 1,
+        verificationLogGeneration: state.verificationLogGeneration + 1,
       }));
       void get().refreshVerificationCapability();
       void get().loadVerificationPreparePlan();
@@ -211,6 +281,8 @@ export function createVerificationSlice({ set, get }: SliceContext): Verificatio
       set((state) => ({
         ...resetContent(),
         verificationOutcomeGeneration: state.verificationOutcomeGeneration + 1,
+        verificationRecordGeneration: state.verificationRecordGeneration + 1,
+        verificationLogGeneration: state.verificationLogGeneration + 1,
       }));
     },
 
@@ -461,6 +533,146 @@ export function createVerificationSlice({ set, get }: SliceContext): Verificatio
         verificationStopNotice: null,
         verificationStopError: null,
       });
+    },
+
+    focusVerificationRecord(verificationId) {
+      // 焦点切换 = 换验证身份：复位记录与日志并推进两个代次 ⇒ 在飞旧响应整包过期
+      // （D09：切换验证后旧响应迟到，绝不混入新身份的正文）
+      set((state) => ({
+        verificationRecordFocus: verificationId,
+        verificationRecordState: "idle" as const,
+        verificationRecordData: null,
+        verificationRecordError: null,
+        verificationRecordGeneration: state.verificationRecordGeneration + 1,
+        verificationLogIdentity: null,
+        verificationLogText: "",
+        verificationLogMeta: null,
+        verificationLogState: "idle" as const,
+        verificationLogError: null,
+        verificationLogGeneration: state.verificationLogGeneration + 1,
+      }));
+      void get().loadVerificationRecord();
+    },
+
+    async loadVerificationRecord() {
+      const verificationId = get().verificationRecordFocus;
+      if (verificationId === null) return;
+      const generation = get().verificationRecordGeneration + 1;
+      set((state) => ({
+        verificationRecordGeneration: generation,
+        verificationRecordState: "loading" as const,
+        verificationRecordError: null,
+      }));
+      let envelope: Awaited<ReturnType<typeof api.verificationGet>>;
+      try {
+        envelope = await api.verificationGet({ verificationId });
+      } catch (error) {
+        if (get().verificationRecordGeneration !== generation) return;
+        set({
+          verificationRecordState: "error",
+          verificationRecordError: {
+            code: "R3_RECORD_CHANNEL_FAILED",
+            message: error instanceof Error ? error.message : String(error),
+          },
+        });
+        return;
+      }
+      if (get().verificationRecordGeneration !== generation) return;
+      if (!envelope.ok) {
+        set({
+          verificationRecordState: "error",
+          verificationRecordError: { code: envelope.error.code, message: envelope.error.message },
+        });
+        return;
+      }
+      const parsed = VerificationGetResultSchema.safeParse(envelope.data);
+      if (!parsed.success) {
+        set({
+          verificationRecordState: "error",
+          verificationRecordError: {
+            code: "R3_RECORD_SCHEMA_INVALID",
+            message: `验证记录结构校验失败：${describeZodError(parsed.error)}`,
+          },
+        });
+        return;
+      }
+      set({
+        verificationRecordData: parsed.data,
+        verificationRecordState: "ready" as const,
+        verificationRecordError: null,
+      });
+    },
+
+    async readVerificationLog(commandId, stream, mode) {
+      const verificationId = get().verificationRecordFocus;
+      if (verificationId === null) return;
+      // 续读只对"当前身份+同一命令+同一流"追加；首页读取整段重置（不混上一条正文）
+      const currentMeta = get().verificationLogMeta;
+      const current = get().verificationLogIdentity;
+      // 续读须有当前身份的上一页游标；没有游标就退化为首页（绝不用 offset=0 再拼一次正文）
+      const appending =
+        mode === "append" &&
+        currentMeta !== null &&
+        current !== null &&
+        current.verificationId === verificationId &&
+        current.commandId === commandId &&
+        current.stream === stream;
+      const offset = appending ? currentMeta.nextOffset : 0;
+      const generation = get().verificationLogGeneration + 1;
+      set((state) => ({
+        verificationLogGeneration: generation,
+        verificationLogState: "loading" as const,
+        verificationLogError: null,
+        verificationLogIdentity: { verificationId, commandId, stream },
+        verificationLogText: appending ? state.verificationLogText : "",
+        verificationLogMeta: appending ? state.verificationLogMeta : null,
+      }));
+      let envelope: Awaited<ReturnType<typeof api.verificationReadLog>>;
+      try {
+        envelope = await api.verificationReadLog({ verificationId, commandId, stream, offset });
+      } catch (error) {
+        if (get().verificationLogGeneration !== generation) return;
+        set({
+          verificationLogState: "error",
+          verificationLogError: {
+            code: "R3_LOG_CHANNEL_FAILED",
+            message: error instanceof Error ? error.message : String(error),
+          },
+        });
+        return;
+      }
+      if (get().verificationLogGeneration !== generation) return;
+      if (!envelope.ok) {
+        set({
+          verificationLogState: "error",
+          verificationLogError: { code: envelope.error.code, message: envelope.error.message },
+        });
+        return;
+      }
+      const parsed = VerificationReadLogResultSchema.safeParse(envelope.data);
+      if (!parsed.success) {
+        set({
+          verificationLogState: "error",
+          verificationLogError: {
+            code: "R3_LOG_SCHEMA_INVALID",
+            message: `日志切片结构校验失败：${describeZodError(parsed.error)}`,
+          },
+        });
+        return;
+      }
+      set((state) => ({
+        verificationLogState: "ready" as const,
+        verificationLogText: appending
+          ? state.verificationLogText + parsed.data.text
+          : parsed.data.text,
+        verificationLogMeta: {
+          totalBytes: parsed.data.totalBytes,
+          nextOffset: parsed.data.nextOffset,
+          remaining: parsed.data.remaining,
+          truncated: parsed.data.truncated,
+        },
+        verificationLogError: null,
+      }));
     },
   };
 }

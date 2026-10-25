@@ -126,6 +126,21 @@ function baseProps(overrides?: Partial<Record<string, unknown>>) {
     stopNotice: null,
     stopError: null,
     onStop: () => {},
+    // 5.3：记录与有界日志（默认无可信身份 ⇒ 阅读区不出现）
+    trustedVerificationIds: [],
+    recordFocus: null,
+    onFocusRecord: () => {},
+    recordState: "idle" as const,
+    recordView: null,
+    recordStatus: null,
+    recordErrorInfo: null,
+    recordError: null,
+    logIdentity: null,
+    logText: "",
+    logMeta: null,
+    logState: "idle" as const,
+    logError: null,
+    onReadLog: () => {},
     ...overrides,
   };
 }
@@ -445,5 +460,168 @@ describe("VerificationPanel（5.2：D04 结局分层与结局短语）", () => {
     expect(verificationOutcomeLabel("check_failed")).toContain("不是请求失败");
     expect(verificationOutcomeLabel("evidence_incomplete")).toContain("不能绿色通过");
     expect(verificationOutcomeLabel("artifact_invalid")).toContain("改代码不是修复");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5.3：记录与有界日志（D09/P13/P16 呈现面静态断言）
+// ---------------------------------------------------------------------------
+
+const SEALED_VIEW = {
+  eventCount: 3,
+  stages: ["executing"],
+  terminated: true,
+  outcome: "check_failed",
+  detail: "测试断言失败",
+  commandEnds: [
+    {
+      commandId: "test" as const,
+      exitCode: 1,
+      durationMs: 1850,
+      stdoutBytes: 1048576,
+      stdoutTotalBytes: 2097152,
+      stdoutTruncated: true,
+      stderrBytes: 42,
+      stderrTotalBytes: 42,
+      stderrTruncated: false,
+    },
+  ],
+};
+
+const READING_BASE = {
+  expanded: true,
+  trustedVerificationIds: ["ver-a"],
+  recordFocus: "ver-a",
+} as const;
+
+describe("VerificationPanel（5.3：记录与有界日志 D09/P13/P16）", () => {
+  it("无可信身份 ⇒ 不出现阅读区（身份只来自登记/响应，不猜）", () => {
+    const html = render(baseProps({ expanded: true }));
+    expect(html).not.toContain("data-verification-reading");
+  });
+
+  it("可信身份逐条渲染，当前焦点标记选中；未选择时提示显式选择", () => {
+    const html = render(
+      baseProps({
+        expanded: true,
+        trustedVerificationIds: ["ver-a", "ver-b"],
+        recordFocus: "ver-b",
+      }),
+    );
+    expect(html).toContain('data-verification-record-focus="ver-a"');
+    expect(html).toMatch(/data-verification-record-focus="ver-b"[^>]*aria-pressed="true"/);
+    const idle = render(
+      baseProps({ expanded: true, trustedVerificationIds: ["ver-a"], recordFocus: null }),
+    );
+    expect(idle).toContain("选择一个验证身份");
+    expect(idle).not.toContain("data-verification-record-view");
+  });
+
+  it("封存记录 ⇒ 状态/阶段/结局/双口径字节（截断附全观测）与读写入口", () => {
+    const html = render(
+      baseProps({
+        ...READING_BASE,
+        recordState: "ready",
+        recordView: SEALED_VIEW,
+        recordStatus: "sealed",
+      }),
+    );
+    expect(html).toContain("已封存");
+    expect(html).toContain("executing");
+    expect(html).toContain("check_failed");
+    expect(html).toContain("测试断言失败");
+    expect(html).toContain('data-verification-command-end="test"');
+    expect(html).toContain("已按限额丢弃并计数");
+    expect(html).toContain("全观测 2.0 MB");
+    expect(html).toContain("读 stdout");
+    expect(html).toContain("读 stderr");
+    expect(html).toContain("默认 32 KiB/页");
+  });
+
+  it("未封存/损坏 ⇒ 不呈现结局；损坏带坏尾行号且不能当作通过", () => {
+    const unterminated = render(
+      baseProps({
+        ...READING_BASE,
+        recordState: "ready",
+        recordView: { ...SEALED_VIEW, terminated: false, outcome: null, detail: null },
+        recordStatus: "unterminated",
+      }),
+    );
+    expect(unterminated).toContain("不呈现结局");
+    expect(unterminated).not.toContain("结局：");
+    const corrupt = render(
+      baseProps({
+        ...READING_BASE,
+        recordState: "ready",
+        recordView: SEALED_VIEW,
+        recordStatus: "corrupt",
+        recordErrorInfo: { lineIndex: 4, reason: "JSON 解析失败" },
+      }),
+    );
+    expect(corrupt).toContain("第 5 行");
+    expect(corrupt).toContain("不能当作通过或失败");
+  });
+
+  it("日志切片显示偏移/剩余与续读；明确不是完整日志（P13 不以截断视图表示完整）", () => {
+    const html = render(
+      baseProps({
+        ...READING_BASE,
+        recordState: "ready",
+        recordView: SEALED_VIEW,
+        recordStatus: "sealed",
+        logIdentity: { verificationId: "ver-a", commandId: "test", stream: "stdout" },
+        logState: "ready",
+        logText: "line1\nline2",
+        logMeta: { totalBytes: 10485760, nextOffset: 32768, remaining: 10452992, truncated: true },
+      }),
+    );
+    expect(html).toContain("line1");
+    expect(html).toContain("data-verification-log-continue");
+    expect(html).toContain("剩余 10.0 MB");
+    expect(html).toContain("本切片有截断");
+    expect(html).toContain("不是完整日志");
+  });
+
+  it("已读到保留末尾 ⇒ 说明超出限额部分见全观测计数，不再提供续读", () => {
+    const html = render(
+      baseProps({
+        ...READING_BASE,
+        recordState: "ready",
+        recordView: SEALED_VIEW,
+        recordStatus: "sealed",
+        logIdentity: { verificationId: "ver-a", commandId: "test", stream: "stdout" },
+        logState: "ready",
+        logText: "tail",
+        logMeta: { totalBytes: 4, nextOffset: 4, remaining: 0, truncated: false },
+      }),
+    );
+    expect(html).toContain("已到记录保留的末尾");
+    expect(html).not.toContain("data-verification-log-continue");
+  });
+
+  it("附件损坏/缺失 ⇒ 稳定码与不补写说明，不展示正文；记录读取失败同样如实呈现", () => {
+    const corrupt = render(
+      baseProps({
+        ...READING_BASE,
+        recordState: "ready",
+        recordView: SEALED_VIEW,
+        recordStatus: "sealed",
+        logIdentity: { verificationId: "ver-a", commandId: "test", stream: "stderr" },
+        logState: "error",
+        logError: { code: "R3_LOG_ASSET_CORRUPT", message: "附件哈希不符" },
+      }),
+    );
+    expect(corrupt).toContain("R3_LOG_ASSET_CORRUPT");
+    expect(corrupt).toContain("不以损坏字节冒充正文");
+    expect(corrupt).not.toContain("data-verification-log-text");
+    const failed = render(
+      baseProps({
+        ...READING_BASE,
+        recordState: "error",
+        recordError: { code: "R3_RECORD_SCHEMA_INVALID", message: "结构校验失败" },
+      }),
+    );
+    expect(failed).toContain("R3_RECORD_SCHEMA_INVALID");
+    expect(failed).not.toContain("data-verification-command-end");
   });
 });

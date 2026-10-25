@@ -615,6 +615,18 @@ describe("U2 3.1 接线契约：代次守卫，不退回 cancelled 布尔", () =
         "verificationStopNotice",
         "verificationStopError",
         "requestVerificationStop",
+        // R3 5.3：验证记录与有界日志（只读可信身份）
+        "verificationRecordFocus",
+        "verificationRecordState",
+        "verificationRecordData",
+        "verificationRecordError",
+        "verificationLogIdentity",
+        "verificationLogText",
+        "verificationLogMeta",
+        "verificationLogState",
+        "verificationLogError",
+        "focusVerificationRecord",
+        "readVerificationLog",
       ]).toContain(name);
     }
   });

@@ -18,8 +18,10 @@ import {
 import {
   decideVerificationConfirmation,
   matchVerificationRecords,
+  trustedVerificationIdsOf,
   verificationTargetKey,
 } from "../lib/verification-entry";
+import { narrowVerificationRecord } from "../lib/verification-reading";
 import { workspaceExportKey } from "../lib/workspace-export-state";
 import {
   defaultCheckpointStepId,
@@ -369,6 +371,18 @@ export function WorkspaceFileView({ run }: { run: RunDetail }) {
   const verificationStopNotice = useAppStore((s) => s.verificationStopNotice);
   const verificationStopError = useAppStore((s) => s.verificationStopError);
   const requestVerificationStop = useAppStore((s) => s.requestVerificationStop);
+  // 5.3：验证记录与有界日志（只读可信身份）
+  const verificationRecordFocus = useAppStore((s) => s.verificationRecordFocus);
+  const verificationRecordState = useAppStore((s) => s.verificationRecordState);
+  const verificationRecordData = useAppStore((s) => s.verificationRecordData);
+  const verificationRecordError = useAppStore((s) => s.verificationRecordError);
+  const verificationLogIdentity = useAppStore((s) => s.verificationLogIdentity);
+  const verificationLogText = useAppStore((s) => s.verificationLogText);
+  const verificationLogMeta = useAppStore((s) => s.verificationLogMeta);
+  const verificationLogState = useAppStore((s) => s.verificationLogState);
+  const verificationLogError = useAppStore((s) => s.verificationLogError);
+  const focusVerificationRecord = useAppStore((s) => s.focusVerificationRecord);
+  const readVerificationLog = useAppStore((s) => s.readVerificationLog);
 
   const isolatedEligible = isIsolatedRun(run);
   /** 当前检查点的显式 selector 形状（初始 或 自有完成步骤） */
@@ -387,6 +401,24 @@ export function WorkspaceFileView({ run }: { run: RunDetail }) {
         ? []
         : matchVerificationRecords(operationsSession, verificationTarget),
     [operationsSession, verificationTarget],
+  );
+
+  /**
+   * 5.3/D09：可信验证身份集合 = 登记附件 ∪ 响应回执。两者都是 main 侧真实创建记录后的
+   * 可信来源；时间、日志、列表不作为身份来源（只重读可信验证，不猜）。
+   */
+  const trustedVerificationIds = useMemo(
+    () => trustedVerificationIdsOf(matchedRecords, verificationLastOutcome?.verificationId),
+    [matchedRecords, verificationLastOutcome],
+  );
+
+  /** 收窄后的记录视图（展示守卫在 lib；畸形事件跳过不猜） */
+  const verificationRecordView = useMemo(
+    () =>
+      verificationRecordData === null
+        ? null
+        : narrowVerificationRecord(verificationRecordData.events),
+    [verificationRecordData],
   );
 
   const toggleVerification = (): void => {
@@ -541,6 +573,20 @@ export function WorkspaceFileView({ run }: { run: RunDetail }) {
           stopNotice={verificationStopNotice}
           stopError={verificationStopError}
           onStop={() => void requestVerificationStop()}
+          trustedVerificationIds={trustedVerificationIds}
+          recordFocus={verificationRecordFocus}
+          onFocusRecord={(id) => focusVerificationRecord(id)}
+          recordState={verificationRecordState}
+          recordView={verificationRecordView}
+          recordStatus={verificationRecordData?.status ?? null}
+          recordErrorInfo={verificationRecordData?.error ?? null}
+          recordError={verificationRecordError}
+          logIdentity={verificationLogIdentity}
+          logText={verificationLogText}
+          logMeta={verificationLogMeta}
+          logState={verificationLogState}
+          logError={verificationLogError}
+          onReadLog={(commandId, stream, mode) => void readVerificationLog(commandId, stream, mode)}
         />
       }
     />
