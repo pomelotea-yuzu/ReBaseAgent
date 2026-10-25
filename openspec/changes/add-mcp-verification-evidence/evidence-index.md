@@ -19,13 +19,13 @@
 | M09 产物索引和内容来自指定验证 | `test/verification-tools.test.ts`（inspect available/corrupt 分类、未采集受控失败、read artifact 清单内文本/二进制元数据） | 部分通过（工具面已证；生产 stdio 随 5.1 收口） |
 | M10 长日志保留采集截断与分页事实 | `test/verification-tools.test.ts`（逐页读完 capture 截断 limitation 常驻、续读区间连续覆盖、正文单次承载 bodyIn） | 部分通过（工具面已证；64 KiB 信封实测随 4.2/5.1 收口） |
 | M11 Unicode 原文与二进制如实读取 | 同上（中文/emoji content 无 U+FFFD、CRLF 保留、二进制 kind=binary 只给元数据） | 部分通过（工具面已证；生产 stdio 随 5.1 收口） |
-| M12 验证与附件变化使游标失效 | 候选/记录/准备/来源/附件变化、异参/篡改/重启 | 待验收 |
-| M13 单项超限受控失败 | 超大元数据/转义与 RESPONSE_LIMIT | 待验收 |
+| M12 验证与附件变化使游标失效 | `test/verification-cursor.test.ts`（新增记录/trace 追加/附件改写/附件删除 ⇒ STALE_CURSOR；篡改/换工具/换参数 ⇒ INVALID_ARGUMENT；尾页无进展不发游标，5 passed） | 部分通过（进程内已证；进程重启换密钥由 cursor.ts 判据承载，真实 stdio 随 5.1 收口） |
+| M13 单项超限受控失败 | `test/verification-budget.test.ts`（超大 argv ⇒ RESPONSE_LIMIT+verification 定位、错误信封不超预算、无宿主路径；五工具正常数据 ≤64KiB，6 passed） | 部分通过（进程内已证；生产 stdio 随 5.1 收口） |
 | M14 同条件失败到通过有完整引用 | `test/verification-tools.test.ts`（fixture 同条件对 compare → failed-to-passed、全条件 same、expectedSnapshotIds=recordedTarget） | 部分通过（fixture 已证；真实 R3 记录随 5.3 收口） |
 | M15 条件不同未知和参数边界不掩盖 | `test/compare-facts.test.ts`（argv 边界/对象键序）+ `test/verification-tools.test.ts`（旧缺 environment ⇒ conditions-unknown 不补齐） | 部分通过（工具面已证；桌面一致性随 5.2 收口） |
 | M16 单侧不可用与当前证据缺项 | `test/verification-tools.test.ts`（一侧不存在/未封存 ⇒ unavailable+outcome-unknown、必需资产缺失 ⇒ evidence-incomplete.fromCurrentAssets） | 部分通过（工具面已证；生产 stdio 随 5.1 收口） |
-| M17 全链零执行零写入与断连取消 | 全数据根/源目录前后集合 SHA-256，零执行计数，真实 stdio 生命周期 | 待验收 |
-| M18 历史指令和秘密不扩展权限 | 结构凭据/自由秘密/注入/受控 IO 错误 + 指南 | 待验收 |
+| M17 全链零执行零写入与断连取消 | `test/verification-zero-write.test.ts`（六工具全链+失败路径整根指纹逐字未动，残留 runtime/未封存记录未动；断连/取消属 stdio 服务层由 MCP1 stdio-lifecycle 覆盖，3 passed） | 部分通过（进程内已证；真实 stdio 生命周期与零执行计数随 5.1/5.3 收口） |
+| M18 历史指令和秘密不扩展权限 | `test/verification-trust.test.ts`（data 封闭字段集/容器名不外发/错误无 errno 堆栈宿主路径/秘密原文不声称脱敏/TRUST_INSTRUCTIONS 对齐，6 passed） | 部分通过（工具面已证；指南文档与真实客户端注入随 6.1/5.3 收口） |
 | M19 真实客户端完成证据代表任务 | 实际客户端版本/配置/完整工具记录 + Electron 同对象回查 | 待验收 |
 | M20 生产闭包与发行说明可核对 | 生产 deploy 探针/十三工具断言/文档状态 | 待验收 |
 | V01 只读入口无执行依赖且无需后端 | `packages/project-verification/test/read-closure.test.ts`（静态导入图禁入 writer/append/assets/prepare/execute/orchestrate/runtime/docker 等 4 passed）+ 纯 Node 探针 `node -e "import('./dist/read.js')…"`（read/facts 均加载） | 部分通过（import 闭包与纯 Node 读取已证；「无需后端」的端到端读取回归随 5.1/4.4 收口） |
