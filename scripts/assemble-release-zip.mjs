@@ -167,7 +167,7 @@ await new Promise((resolveProbe, rejectProbe) => {
     child.on("exit", () => {
       if (problems.length > 0) rejectProbe(new Error(problems.join("；")));
       else {
-        console.log("① stdio 探针：initialize {tools:{}} / 7 工具 / list_runs 空数据根 ✓");
+        console.log("① stdio 探针：initialize {tools:{}} / 13 工具 / list_runs 空数据根 ✓");
         resolveProbe();
       }
     });
