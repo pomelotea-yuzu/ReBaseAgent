@@ -28,6 +28,19 @@ const EPOCH = "11111111-1111-4111-8111-111111111111";
 const MAIN_FRAME: TrustedSender = { webContentsId: 7, frameRoutingId: 70 };
 const PLAN_TOKEN = currentPreparePlanToken();
 
+/** 轮询到条件成立；慢 CI（2 CPU）上固定 sleep 会早于端点线程推进。 */
+async function waitFor(
+  condition: () => boolean,
+  description: string,
+  timeoutMs = 5000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!condition()) {
+    if (Date.now() > deadline) throw new Error(`等待超时：${description}`);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+}
+
 interface RunFixture {
   dataDir: string;
   runId: string;
@@ -464,7 +477,7 @@ describe("verification:run（4.2 端点）", () => {
     };
     const running = execVerificationRun(h.deps, MAIN_FRAME, envelope(1, runRequest()));
     // 等进入执行段（prepare 命中记录 + exec 挂起）
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await waitFor(() => h.backendCalls.includes("exec"), "进入执行段");
     const other = (await execVerificationPrepare(
       h.deps,
       MAIN_FRAME,
@@ -501,14 +514,18 @@ describe("verification:run（4.2 端点）", () => {
       },
     };
     const running = execVerificationRun(h.deps, MAIN_FRAME, envelope(1, runRequest()));
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await waitFor(
+      () => (h.deps.registry.recordOf(opId(1))?.verificationIds.length ?? 0) === 1,
+      "登记已 attach 验证身份",
+    );
     const record = h.deps.registry.recordOf(opId(1));
     expect(record?.state).toBe("running");
     expect(record?.verificationIds).toHaveLength(1);
     release?.();
     const done = (await running) as { ok: boolean; data?: { verificationId: string } };
     expect(done.ok).toBe(true);
-    expect(record?.verificationIds).toEqual([done.data?.verificationId]);
+    const finalRecord = h.deps.registry.recordOf(opId(1));
+    expect(finalRecord?.verificationIds).toEqual([done.data?.verificationId]);
   });
 
   it("已接受后失败（容器启动失败）⇒ rejected 但领域身份保留（D03：记录已创建即挂登记）", async () => {
