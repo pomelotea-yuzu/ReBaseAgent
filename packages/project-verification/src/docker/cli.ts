@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { win32 } from "node:path";
 import type { LocalBackendEndpoint } from "../schema.js";
 
 /**
@@ -28,13 +28,14 @@ export function defaultDockerCliCandidates(
   if (platform !== "win32") return [];
   const localAppData = env.LOCALAPPDATA ?? "";
   const candidates: string[] = [];
+  // 这些是 Windows 路径，必须用 win32 构造：宿主的 path.join 在 Linux 上会拼成正斜杠。
   if (localAppData.length > 0) {
     candidates.push(
-      join(localAppData, "Programs", "DockerDesktop", "resources", "bin", "docker.exe"),
+      win32.join(localAppData, "Programs", "DockerDesktop", "resources", "bin", "docker.exe"),
     );
   }
   candidates.push(
-    join("C:", "Program Files", "Docker", "Docker", "resources", "bin", "docker.exe"),
+    win32.join("C:", "Program Files", "Docker", "Docker", "resources", "bin", "docker.exe"),
   );
   return candidates;
 }
@@ -54,7 +55,7 @@ export function resolveDockerCli(
 ): DockerCliInstallation | null {
   for (const exePath of candidates) {
     if (existsSync(exePath)) {
-      return { exePath, binDir: join(exePath, "..") };
+      return { exePath, binDir: win32.dirname(exePath) };
     }
   }
   return null;

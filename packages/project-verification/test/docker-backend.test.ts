@@ -57,8 +57,9 @@ describe("受控 CLI 原语（3.2，P01/P02/P09 静态面）", () => {
     });
     expect(candidates.length).toBeGreaterThanOrEqual(2);
     for (const candidate of candidates) {
-      // 候选必须是绝对路径（不依赖 PATH 解析）
+      // 候选必须是绝对路径（不依赖 PATH 解析），且分隔符必须是 Windows 反斜杠
       expect(candidate).toMatch(/^[A-Za-z]:\\/);
+      expect(candidate).not.toContain("/");
       expect(candidate.endsWith("docker.exe")).toBe(true);
     }
 
