@@ -19,8 +19,14 @@ import type { LocalBackendEndpoint } from "../schema.js";
  */
 
 /** 已知可信安装位置（按优先级；路径来自阶段 1 实测 + Docker Desktop 官方默认）。 */
-export function defaultDockerCliCandidates(): string[] {
-  const localAppData = process.env.LOCALAPPDATA ?? "";
+export function defaultDockerCliCandidates(
+  platform: NodeJS.Platform = process.platform,
+  env: NodeJS.ProcessEnv = process.env,
+): string[] {
+  // R3 只声明 Windows x64 后端；其他平台没有受信安装位置，明确返回空表
+  // （不猜 PATH，也不把 Windows 路径带到 Linux/macOS）。
+  if (platform !== "win32") return [];
+  const localAppData = env.LOCALAPPDATA ?? "";
   const candidates: string[] = [];
   if (localAppData.length > 0) {
     candidates.push(

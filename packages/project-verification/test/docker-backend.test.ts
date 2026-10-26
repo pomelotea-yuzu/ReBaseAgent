@@ -48,12 +48,24 @@ describe("受控 CLI 原语（3.2，P01/P02/P09 静态面）", () => {
   it("resolveDockerCli 只认候选绝对路径，全不在场返回 null（不扫 PATH）", () => {
     const missing = resolveDockerCli(["Z:\\不存在\\docker.exe"]);
     expect(missing).toBeNull();
-    expect(defaultDockerCliCandidates().length).toBeGreaterThanOrEqual(2);
-    for (const candidate of defaultDockerCliCandidates()) {
+
+    // 非 Windows 没有受信候选（R3 只声明 Windows 后端）
+    expect(defaultDockerCliCandidates("linux", {})).toEqual([]);
+
+    const candidates = defaultDockerCliCandidates("win32", {
+      LOCALAPPDATA: "C:\\Users\\tester\\AppData\\Local",
+    });
+    expect(candidates.length).toBeGreaterThanOrEqual(2);
+    for (const candidate of candidates) {
       // 候选必须是绝对路径（不依赖 PATH 解析）
       expect(candidate).toMatch(/^[A-Za-z]:\\/);
       expect(candidate.endsWith("docker.exe")).toBe(true);
     }
+
+    // 缺 LOCALAPPDATA 时仍保留系统级候选
+    const withoutLocalAppData = defaultDockerCliCandidates("win32", {});
+    expect(withoutLocalAppData).toHaveLength(1);
+    expect(withoutLocalAppData[0]).toMatch(/^C:\\Program Files\\Docker\\Docker\\/);
   });
 
   it("受控 env 完全替换：敌意宿主变量（DOCKER_HOST/代理/密钥）不可达 CLI（P02）", () => {
