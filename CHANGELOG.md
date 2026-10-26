@@ -14,6 +14,15 @@
 - U8：独立录制、messages 与实验工作区；监听地址依据实际状态，messages 只重发单请求；实验预览绑定当前编辑与配置，结果保留全批逐臂事实并连接共用比较。
 - 开源治理、维护政策、发布交接和第三方声明文档补齐；远程配置与发行物许可核验另行记录。
 
+## [0.7.0-rc.2] — 候选（10/26 重打）2026-10-26
+
+相对 0.7.0-rc.1 为修复候选，不新增用户功能：
+
+- **修复根 run ID 同毫秒碰撞**：`runLoop` 原来只用毫秒时间戳生成 `run_<ts>`；同一毫秒创建两个 run 会得到相同 ID，后写者 `rename` 覆盖前者的 trace。改为 `run_<ts>_<random6>`（与 replay 的 `newRunId` 同形），并补固定时钟 + 不同随机数的唯一性回归。
+- **CI 可移植性**：Docker CLI 候选按平台返回（非 Windows 空表），Windows 路径改用 `path.win32.join/dirname`；Gitee root 容器下权限注入用例跳过；慢机/R3 端点测试去掉固定 sleep 改轮询；输出限额测试改用 64 MiB 证明中途击杀。
+- 门禁基线：agent-loop 105、replay 599（+6 skip）、trace-test 78、project-verification 288（+1 skip）、mcp-server 393、desktop 225 文件 / 3474 用例、biome 920 文件 0、check-spec 15/0。
+- 产物与验证依据见[构建记录](docs/engineering/reports/2026-10-26-v0.7.0-rc.2-build-record.md)、[发行文案](docs/engineering/reports/2026-10-26-v0.7.0-rc.2-release-notes.md)。
+
 ## [0.7.0-rc.1] — 候选（10/26 构建）2026-10-26
 
 相对 0.6.0-rc.1 新增：
@@ -22,6 +31,7 @@
 - **MCP2 测试证据查询**：发行 zip 的 `mcp/` 从七工具扩为**十三工具**，新增验证清单/详情/日志/产物/比较六个只读工具；与桌面共享投影与比较判据，零写入、零执行、64 KiB 预算与认证游标；WorkBuddy 5.9.2 真实客户端回查与桌面同对象对照通过。
 - **工程质量**：MCP2 最后一次源码修订后补跑全仓 biome，修复 34 文件（格式/导入排序 54 项 + 3 条 lint），复跑受影响包与 desktop 全量。
 - 门禁基线：desktop 225 文件 / 3474 用例全绿；mcp-server 393、project-verification 289、replay 599、run-query 51、trace-sdk 231、trace-test 78、agent-loop 104、llm-proxy 45；zip 组装三段自验、解压后十三工具自跑、离线冒烟 12 判据全过；人工实机验收未执行。构建与验证依据见[构建记录](docs/engineering/reports/2026-10-26-v0.7.0-rc.1-build-record.md)、[发行文案](docs/engineering/reports/2026-10-26-v0.7.0-rc.1-release-notes.md)。
+- 已知问题（已在 0.7.0-rc.2 修复）：根 run ID 只按毫秒时间戳生成，同毫秒创建两个 run 可能撞 ID 并覆盖 trace。
 
 ## [0.6.0-rc.1] — 候选（10/24 构建，已上传）2026-10-24
 
