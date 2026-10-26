@@ -27,6 +27,19 @@ import type { Envelope } from "../src/shared/ipc";
 const EPOCH = "11111111-1111-4111-8111-111111111111";
 const MAIN_FRAME: TrustedSender = { webContentsId: 7, frameRoutingId: 70 };
 
+/** 轮询到条件成立；慢 CI（2 CPU）上固定 sleep 会早于端点线程推进。 */
+async function waitFor(
+  condition: () => boolean,
+  description: string,
+  timeoutMs = 5000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!condition()) {
+    if (Date.now() > deadline) throw new Error(`等待超时：${description}`);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+}
+
 interface Fixture {
   dataDir: string;
   dataRoot: string;
@@ -216,7 +229,8 @@ describe("verification:stop（D05：合法停止与幂等）", () => {
       },
     }) as Promise<Envelope<{ verificationId: string; outcome: string }>>;
     // 等 exec 段进入（在飞条目已登记）
-    await new Promise((resolve) => setTimeout(resolve, 80));
+    await waitFor(() => h.execEnteredRef(), "进入 exec 段");
+    await waitFor(() => h.inFlight.lookup(opId(1)) !== null, "在飞登记已建立");
     expect(h.execEnteredRef()).toBe(true);
     // 第一次 stop：查在飞 verificationId（在飞登记可信）
     const inFlight = h.inFlight.lookup(opId(1));
