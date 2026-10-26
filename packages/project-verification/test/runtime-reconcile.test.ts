@@ -451,26 +451,31 @@ describe("interrupted 追加的幂等与门", () => {
     expect(readFileSync(file, "utf8")).toBe(before);
   });
 
-  it("追加失败（记录不可写）⇒ RecordAppendError.IO_FAILED，登记不收尾（复跑重试）", async () => {
-    const root = newRoot();
-    const { name } = crashFixture(root, {
-      ownerId: "ro01",
-      verificationId: "ver_ro1",
-      bind: ID64("c"),
-    });
-    const file = verificationRecordPath(root, "ver_ro1");
-    chmodSync(file, 0o444);
-    try {
-      const outcome = await reconcileStartupLeftovers({
-        root,
-        port: new FakePort([facts(name, ID64("c"))]),
+  // root 可绕过 0444（Gitee 容器以 root 运行），chmod 故障注入只在非 root 有意义；
+  // GitHub runner 与 Windows 仍会跑此用例。
+  it.skipIf(process.getuid?.() === 0)(
+    "追加失败（记录不可写）⇒ RecordAppendError.IO_FAILED，登记不收尾（复跑重试）",
+    async () => {
+      const root = newRoot();
+      const { name } = crashFixture(root, {
+        ownerId: "ro01",
+        verificationId: "ver_ro1",
+        bind: ID64("c"),
       });
-      expect(outcome).toMatchObject({ ok: false, kind: "blocked" });
-      expect(listPhase(root, "ro01")).toBe("created");
-    } finally {
-      chmodSync(file, 0o666);
-    }
-  });
+      const file = verificationRecordPath(root, "ver_ro1");
+      chmodSync(file, 0o444);
+      try {
+        const outcome = await reconcileStartupLeftovers({
+          root,
+          port: new FakePort([facts(name, ID64("c"))]),
+        });
+        expect(outcome).toMatchObject({ ok: false, kind: "blocked" });
+        expect(listPhase(root, "ro01")).toBe("created");
+      } finally {
+        chmodSync(file, 0o666);
+      }
+    },
+  );
 });
 
 describe("probeRecordState（先判定后动手的只读探测）", () => {

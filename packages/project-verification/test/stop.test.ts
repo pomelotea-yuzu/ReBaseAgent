@@ -247,11 +247,13 @@ describe("supervisor 容器命令与限额击杀（3.5，P10/P19）", () => {
   });
 
   it("总观测超限实时击杀：outputLimitHit 标记 + 分类 output_limit_stopped", async () => {
-    // 真实 spawn：node 写 5 MiB，上限 1 MiB ⇒ 中途击杀
+    // 真实 spawn：node 写 64 MiB，上限 1 MiB ⇒ 未写完即被杀。
+    // 不能只写 5 MiB：快机器上子进程可能在击杀信号送达前就写完，字节数正好等于全量。
     const { defaultCliRunner } = await import("../src/docker/cli.js");
+    const outputBytes = 64 * 1024 * 1024;
     const result = await defaultCliRunner(
       process.execPath,
-      ["-e", "process.stdout.write('x'.repeat(5 * 1024 * 1024))"],
+      ["-e", `process.stdout.write(Buffer.alloc(${outputBytes}, 120))`],
       {
         env: {},
         timeoutMs: 30000,
@@ -262,7 +264,7 @@ describe("supervisor 容器命令与限额击杀（3.5，P10/P19）", () => {
     );
     expect(result.outputLimitHit).toBe(true);
     expect(result.stdoutTotalBytes).toBeGreaterThan(1024 * 1024);
-    expect(result.stdoutTotalBytes).toBeLessThan(5 * 1024 * 1024); // 未写完即被杀
+    expect(result.stdoutTotalBytes).toBeLessThan(outputBytes); // 未写完即被杀
 
     const report: FixedCommandReport = {
       commandId: "test",
