@@ -1,19 +1,19 @@
 import { join } from "node:path";
-import { afterAll, describe, expect, it } from "vitest";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import { afterAll, describe, expect, it } from "vitest";
 import { SuccessEnvelopeSchema } from "../src/envelope.js";
-import type { DataRoot } from "../src/startup.js";
 import { compareVerificationsTool } from "../src/query/compare-verifications.js";
 import { getVerificationTool } from "../src/query/get-verification.js";
 import { inspectVerificationArtifactsTool } from "../src/query/inspect-verification-artifacts.js";
 import { readVerificationArtifactTool } from "../src/query/read-verification-artifact.js";
 import { readVerificationLogTool } from "../src/query/read-verification-log.js";
+import type { DataRoot } from "../src/startup.js";
 import {
   VERIFICATION_SENTINELS,
+  type VerificationFixture,
   buildVerificationFixture,
   cleanupVerificationFixtures,
   VERIFICATION_FIXTURE_IDS as ids,
-  type VerificationFixture,
 } from "./verification-fixtures.js";
 
 /**
@@ -81,7 +81,9 @@ const artIds = { ok: "ver-m2-artok", bad: "ver-m2-artbad" };
 }
 
 async function invoke(
-  tool: { execute: (args: Readonly<Record<string, unknown>>, root: DataRoot) => Promise<CallToolResult> },
+  tool: {
+    execute: (args: Readonly<Record<string, unknown>>, root: DataRoot) => Promise<CallToolResult>;
+  },
   args: Record<string, unknown>,
   rootOverride?: DataRoot,
 ): Promise<CallToolResult> {
@@ -189,7 +191,9 @@ describe("get_verification（3.2）", () => {
 
   it("事件索引分页可续读且换参游标被拒（M04/D6）", async () => {
     const page1 = envOf(await invoke(getVerificationTool, { verificationId: ids.pass, limit: 1 }));
-    const index1 = page1.data as { eventIndex: { total: number; remaining: number; items: unknown[] } };
+    const index1 = page1.data as {
+      eventIndex: { total: number; remaining: number; items: unknown[] };
+    };
     expect(index1.eventIndex.items).toHaveLength(1);
     if (index1.eventIndex.remaining > 0) {
       expect(page1.page?.nextCursor).toBeDefined();
@@ -256,9 +260,7 @@ describe("read_verification_log（3.3）", () => {
         maxChars: 100,
       }),
     );
-    expect(page1.limitations.map((item) => item.code)).toContain(
-      "VERIFICATION_CAPTURE_TRUNCATED",
-    );
+    expect(page1.limitations.map((item) => item.code)).toContain("VERIFICATION_CAPTURE_TRUNCATED");
     const body1 = (page1.data as { body: { truncated: boolean; remaining: number } }).body;
     expect(body1.truncated).toBe(true);
     // 逐页读完保留部分：capture 截断仍在
@@ -274,9 +276,7 @@ describe("read_verification_log（3.3）", () => {
           cursor,
         }),
       );
-      expect(page.limitations.map((item) => item.code)).toContain(
-        "VERIFICATION_CAPTURE_TRUNCATED",
-      );
+      expect(page.limitations.map((item) => item.code)).toContain("VERIFICATION_CAPTURE_TRUNCATED");
       cursor = page.page?.nextCursor;
       rounds += 1;
     }
@@ -298,7 +298,8 @@ describe("read_verification_log（3.3）", () => {
         ...(cursor === undefined ? {} : { cursor }),
       });
       const env = envOf(result);
-      const body = (env.data as { body: { range: { start: number; end: number; total: number } } }).body;
+      const body = (env.data as { body: { range: { start: number; end: number; total: number } } })
+        .body;
       ranges.push([body.range.start, body.range.end]);
       total = body.range.total;
       const contentText = (result.content as Array<{ text: string }>)[0]?.text ?? "";
@@ -362,11 +363,18 @@ describe("read_verification_log（3.3）", () => {
 
 describe("inspect_verification_artifacts（3.4）", () => {
   it("清单逐项可用性：available/corrupt 分类，排除规则带出（M09）", async () => {
-    const env = envOf(await invoke(inspectVerificationArtifactsTool, { verificationId: artIds.ok }));
+    const env = envOf(
+      await invoke(inspectVerificationArtifactsTool, { verificationId: artIds.ok }),
+    );
     const data = env.data as {
       totals: Record<string, number>;
       excludedPatterns: string[];
-      items: Array<{ path: string; availability: string; declaredBytes: number; actualBytes: number | null }>;
+      items: Array<{
+        path: string;
+        availability: string;
+        declaredBytes: number;
+        actualBytes: number | null;
+      }>;
     };
     expect(data.totals.entries).toBe(2);
     expect(data.totals.available).toBe(2);
@@ -383,10 +391,9 @@ describe("inspect_verification_artifacts（3.4）", () => {
   });
 
   it("未采集（无 artifacts 事件）受控失败，与合法空清单分开（M09）", async () => {
-    const notRecorded = await invoke(
-      inspectVerificationArtifactsTool,
-      { verificationId: ids.unterm },
-    );
+    const notRecorded = await invoke(inspectVerificationArtifactsTool, {
+      verificationId: ids.unterm,
+    });
     expect(errorOf(notRecorded).code).toBe("VERIFICATION_ARTIFACTS_NOT_RECORDED");
     const ok = envOf(await invoke(inspectVerificationArtifactsTool, { verificationId: artIds.ok }));
     expect((ok.data as { totals: { entries: number } }).totals.entries).toBe(2);
@@ -416,7 +423,7 @@ describe("read_verification_artifact（3.5）", () => {
     const env = envOf(result);
     expect((env.data as { body: { kind: string } }).body.kind).toBe("binary");
     const contentText = (result.content as Array<{ text: string }>)[0]?.text ?? "";
-    expect(contentText).not.toMatch(/[\u0000]/);
+    expect(contentText.includes("\u0000")).toBe(false);
   });
 
   it("清单外 path 拒绝；坏记录读产物受控拒绝（M08）", async () => {
@@ -456,8 +463,16 @@ describe("compare_verifications（3.6）", () => {
       verdict: { kind: string };
       conditions: Array<{ key: string; state: string }>;
       expectedSnapshotIds: { left: string; right: string };
-      left: { availability: string; outcome: string | null; currentAssetsAvailable: boolean | null };
-      right: { availability: string; outcome: string | null; currentAssetsAvailable: boolean | null };
+      left: {
+        availability: string;
+        outcome: string | null;
+        currentAssetsAvailable: boolean | null;
+      };
+      right: {
+        availability: string;
+        outcome: string | null;
+        currentAssetsAvailable: boolean | null;
+      };
     };
     expect(data.verdict.kind).toBe("failed-to-passed");
     expect(data.conditions.every((condition) => condition.state === "same")).toBe(true);
@@ -476,9 +491,7 @@ describe("compare_verifications（3.6）", () => {
         right: { verificationId: ids.oldEnv },
       }),
     );
-    expect((env.data as { verdict: { kind: string } }).verdict.kind).toBe(
-      "conditions-unknown",
-    );
+    expect((env.data as { verdict: { kind: string } }).verdict.kind).toBe("conditions-unknown");
   });
 
   it("一侧不存在/未封存 ⇒ unavailable + outcome-unknown，另一侧仍可查（M16）", async () => {

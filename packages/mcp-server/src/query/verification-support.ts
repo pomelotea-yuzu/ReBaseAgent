@@ -1,13 +1,13 @@
-import { readdirSync, statSync } from "node:fs";
 import { createHash } from "node:crypto";
+import { readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import {
   AssetResolveError,
   RecordReadError,
   RegularFileError,
   VerificationDirReadError,
-  getVerification,
   type VerificationRecordRead,
+  getVerification,
 } from "@rebaseagent/project-verification/read";
 import type { DataRoot } from "../startup.js";
 import { ToolFailure } from "../tool-definition.js";
@@ -68,9 +68,7 @@ export function verificationToolError(error: unknown): ToolFailure | null {
   }
   if (error instanceof RegularFileError) {
     return new ToolFailure(
-      error.failure === "MISSING"
-        ? "VERIFICATION_ASSET_MISSING"
-        : "VERIFICATION_ASSET_CORRUPT",
+      error.failure === "MISSING" ? "VERIFICATION_ASSET_MISSING" : "VERIFICATION_ASSET_CORRUPT",
       "asset",
     );
   }
@@ -83,10 +81,7 @@ export function verificationToolError(error: unknown): ToolFailure | null {
 }
 
 /** 读取单条验证记录：异常一律先投影成稳定码 */
-export function readRecordOrThrow(
-  root: DataRoot,
-  verificationId: string,
-): VerificationRecordRead {
+export function readRecordOrThrow(root: DataRoot, verificationId: string): VerificationRecordRead {
   try {
     return getVerification(root.dataDir, verificationId, { tracesRoot: root.tracesDir });
   } catch (error) {
@@ -143,13 +138,7 @@ export function computeVerificationReadVersion(
   root: DataRoot,
   extra: unknown = null,
 ): string {
-  const material = JSON.stringify([
-    READ_VERSION_TAG,
-    tool,
-    args,
-    verificationLedger(root),
-    extra,
-  ]);
+  const material = JSON.stringify([READ_VERSION_TAG, tool, args, verificationLedger(root), extra]);
   return `${READ_VERSION_TAG}:${createHash("sha256")
     .update(Buffer.from(material, "utf8"))
     .digest("hex")}`;

@@ -1,25 +1,23 @@
-import { z } from "zod";
 import {
-  scanVerifications,
   type VerificationScanEntry,
+  scanVerifications,
 } from "@rebaseagent/project-verification/read";
-import { MESSAGE_MAX } from "../limits.js";
+import { z } from "zod";
 import type { ProvenanceVerificationInput } from "../envelope.js";
+import { MESSAGE_MAX } from "../limits.js";
+import { PAGE_LIMIT_DEFAULT } from "../limits.js";
 import type { ToolDefinition } from "../server.js";
 import type { DataRoot } from "../startup.js";
-import {
-  PAGE_LIMIT_DEFAULT,
-} from "../limits.js";
+import { ToolFailure, type ToolPayload, defineTool } from "../tool-definition.js";
 import {
   type ListVerificationsArgs,
   requireVerificationContract,
 } from "../verification-contracts.js";
-import { ToolFailure, type ToolPayload, defineTool } from "../tool-definition.js";
 import { issueCursor, requireCursorPosition, withoutCursor } from "./cursor-io.js";
 import { takeWindow } from "./projection.js";
 import {
-  computeVerificationReadVersion,
   assertReadUnchanged,
+  computeVerificationReadVersion,
   verificationToolError,
 } from "./verification-support.js";
 
@@ -100,7 +98,10 @@ interface SequenceEntry {
   readonly provenance: ProvenanceVerificationInput | null;
 }
 
-const FAILURE_MESSAGES: Record<"UNREADABLE" | "CORRUPT" | "UNSUPPORTED_VERSION" | "INVALID_NAME", string> = {
+const FAILURE_MESSAGES: Record<
+  "UNREADABLE" | "CORRUPT" | "UNSUPPORTED_VERSION" | "INVALID_NAME",
+  string
+> = {
   UNREADABLE: "验证记录文件当前不可读（权限/IO），未参与筛选",
   CORRUPT: "验证记录损坏，未参与筛选",
   UNSUPPORTED_VERSION: "验证记录版本不受支持，未参与筛选",
@@ -118,9 +119,7 @@ function toSequence(entries: readonly VerificationScanEntry[]): SequenceEntry[] 
           outcome: entry.outcome ?? null,
           runId: entry.runId ?? null,
           commandId:
-            entry.commandId === "typecheck" || entry.commandId === "test"
-              ? entry.commandId
-              : null,
+            entry.commandId === "typecheck" || entry.commandId === "test" ? entry.commandId : null,
           createdAt: entry.createdAt ?? null,
         },
         provenance: {

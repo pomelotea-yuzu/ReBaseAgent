@@ -1,15 +1,15 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { afterAll, describe, expect, it } from "vitest";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import { afterAll, describe, expect, it } from "vitest";
 import { SuccessEnvelopeSchema } from "../src/envelope.js";
-import type { DataRoot } from "../src/startup.js";
 import { listVerificationsTool } from "../src/query/list-verifications.js";
+import type { DataRoot } from "../src/startup.js";
 import {
+  type VerificationFixture,
   buildVerificationFixture,
   cleanupVerificationFixtures,
   VERIFICATION_FIXTURE_IDS as ids,
-  type VerificationFixture,
 } from "./verification-fixtures.js";
 
 /**
@@ -63,7 +63,11 @@ function envelopeOf(result: CallToolResult): {
       items: Array<Record<string, unknown>>;
       totals: Record<string, number>;
     };
-    provenance: { runs: unknown[]; refs: unknown[]; verifications?: Array<Record<string, unknown>> };
+    provenance: {
+      runs: unknown[];
+      refs: unknown[];
+      verifications?: Array<Record<string, unknown>>;
+    };
     page?: { nextCursor: string };
     limitations: Array<Record<string, unknown>>;
   };
@@ -121,12 +125,8 @@ describe("list_verifications：全量与排序（M02）", () => {
     const page1 = envelopeOf(await invoke({ limit: 4 }));
     expect(page1.data.items).toHaveLength(4);
     expect(page1.page?.nextCursor).toBeDefined();
-    const page2 = envelopeOf(
-      await invoke({ limit: 4, cursor: page1.page?.nextCursor ?? "" }),
-    );
-    const page3 = envelopeOf(
-      await invoke({ limit: 4, cursor: page2.page?.nextCursor ?? "" }),
-    );
+    const page2 = envelopeOf(await invoke({ limit: 4, cursor: page1.page?.nextCursor ?? "" }));
+    const page3 = envelopeOf(await invoke({ limit: 4, cursor: page2.page?.nextCursor ?? "" }));
     const all = [
       ...page1.data.items.map((item) => JSON.stringify(item)),
       ...page2.data.items.map((item) => JSON.stringify(item)),

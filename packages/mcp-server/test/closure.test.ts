@@ -159,9 +159,7 @@ describe("依赖闭包与调用面（Q15 结构半边）", () => {
         if (!specifier.startsWith(".")) external.add(specifier);
       }
     }
-    const rebaseagent = [...external]
-      .filter((item) => item.startsWith("@rebaseagent/"))
-      .sort();
+    const rebaseagent = [...external].filter((item) => item.startsWith("@rebaseagent/")).sort();
     /**
      * MCP2 design D1：mcp-server 只依赖 run-query 与 project-verification 的
      * `./read`（记录读取）/`./schema`（纯数据 schema）子入口；主入口混导出执行器，

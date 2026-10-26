@@ -125,18 +125,18 @@ function deepEqual(a: unknown, b: unknown): boolean {
     const ka = Object.keys(a as Record<string, unknown>).sort();
     const kb = Object.keys(b as Record<string, unknown>).sort();
     if (ka.length !== kb.length || ka.some((key, index) => key !== kb[index])) return false;
-    return ka.every(
-      (key) =>
-        deepEqual(
-          (a as Record<string, unknown>)[key],
-          (b as Record<string, unknown>)[key],
-        ),
+    return ka.every((key) =>
+      deepEqual((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key]),
     );
   }
   return false;
 }
 
-function compareScalar<T>(left: T | null, right: T | null, equal: (a: T, b: T) => boolean): FactConditionState {
+function compareScalar<T>(
+  left: T | null,
+  right: T | null,
+  equal: (a: T, b: T) => boolean,
+): FactConditionState {
   if (left === null || right === null) return "unknown";
   return equal(left, right) ? "same" : "different";
 }
@@ -175,7 +175,11 @@ export function compareVerificationFacts(
     { key: "cwd", state: compareScalar(left.cwd, right.cwd, (a, b) => a === b) },
     {
       key: "platform",
-      state: compareScalar(leftEnv?.platform ?? null, rightEnv?.platform ?? null, (a, b) => a === b),
+      state: compareScalar(
+        leftEnv?.platform ?? null,
+        rightEnv?.platform ?? null,
+        (a, b) => a === b,
+      ),
     },
     {
       key: "imageDigest",

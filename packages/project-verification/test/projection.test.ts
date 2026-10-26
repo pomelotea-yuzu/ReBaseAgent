@@ -2,12 +2,12 @@ import { appendFileSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { NODE_TS_V1_PROFILE } from "../src/schema.js";
-import { getVerification } from "../src/records/reader.js";
-import { projectVerification, PROJECTION_PREVIEW_MAX_CHARS } from "../src/records/projection.js";
 import { publishAsset } from "../src/records/assets.js";
 import { verificationRecordPath } from "../src/records/layout.js";
+import { PROJECTION_PREVIEW_MAX_CHARS, projectVerification } from "../src/records/projection.js";
+import { getVerification } from "../src/records/reader.js";
 import { VerificationRecordWriter } from "../src/records/writer.js";
+import { NODE_TS_V1_PROFILE } from "../src/schema.js";
 
 /**
  * MCP2 tasks 2.2：共享白名单投影（M04–M06 的共享层半边）。
@@ -171,7 +171,11 @@ describe("实际命令与历史环境（M04）", () => {
       exitCode: 1,
       durationMs: 1500,
     });
-    expect(p.commands[0]?.stdout).toMatchObject({ byteLength: 10, totalBytes: 20, truncated: true });
+    expect(p.commands[0]?.stdout).toMatchObject({
+      byteLength: 10,
+      totalBytes: 20,
+      truncated: true,
+    });
   });
 
   it("旧记录缺 environment：保持 null，不拿当前 manifest 补齐", () => {

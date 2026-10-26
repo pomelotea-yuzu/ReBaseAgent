@@ -1,18 +1,18 @@
-import { z } from "zod";
 import {
   RecordReadError,
-  verifyAsset,
   type VerifiedAsset,
+  verifyAsset,
 } from "@rebaseagent/project-verification/read";
-import { PAGE_LIMIT_DEFAULT } from "../limits.js";
+import { z } from "zod";
 import type { ProvenanceVerificationInput } from "../envelope.js";
+import { PAGE_LIMIT_DEFAULT } from "../limits.js";
 import type { ToolDefinition } from "../server.js";
 import type { DataRoot } from "../startup.js";
+import { ToolFailure, type ToolPayload, defineTool } from "../tool-definition.js";
 import {
   type InspectVerificationArtifactsArgs,
   requireVerificationContract,
 } from "../verification-contracts.js";
-import { ToolFailure, type ToolPayload, defineTool } from "../tool-definition.js";
 import { issueCursor, requireCursorPosition, withoutCursor } from "./cursor-io.js";
 import {
   assertReadUnchanged,
@@ -76,10 +76,7 @@ export const inspectVerificationArtifactsTool: ToolDefinition = defineTool(
       );
     }
     if (artifactEvents.length > 1) {
-      throw new ToolFailure(
-        "VERIFICATION_PATH_REJECTED",
-        `verification:${args.verificationId}`,
-      );
+      throw new ToolFailure("VERIFICATION_PATH_REJECTED", `verification:${args.verificationId}`);
     }
     const event = artifactEvents[0];
     if (event?.type !== "artifacts") throw new Error("unreachable");

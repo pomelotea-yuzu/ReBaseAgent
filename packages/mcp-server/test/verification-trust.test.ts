@@ -1,17 +1,17 @@
-import { afterAll, describe, expect, it } from "vitest";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import { TRUST_INSTRUCTIONS } from "../src/server.js";
-import type { DataRoot } from "../src/startup.js";
+import { afterAll, describe, expect, it } from "vitest";
 import { compareVerificationsTool } from "../src/query/compare-verifications.js";
 import { getVerificationTool } from "../src/query/get-verification.js";
 import { listVerificationsTool } from "../src/query/list-verifications.js";
 import { readVerificationLogTool } from "../src/query/read-verification-log.js";
+import { TRUST_INSTRUCTIONS } from "../src/server.js";
+import type { DataRoot } from "../src/startup.js";
 import {
   VERIFICATION_SENTINELS,
+  type VerificationFixture,
   buildVerificationFixture,
   cleanupVerificationFixtures,
   VERIFICATION_FIXTURE_IDS as ids,
-  type VerificationFixture,
 } from "./verification-fixtures.js";
 
 /**
@@ -34,7 +34,9 @@ afterAll(() => {
 const root: DataRoot = { dataDir: fixture.dataRoot, tracesDir: fixture.tracesDir };
 
 async function invoke(
-  tool: { execute: (args: Readonly<Record<string, unknown>>, root: DataRoot) => Promise<CallToolResult> },
+  tool: {
+    execute: (args: Readonly<Record<string, unknown>>, root: DataRoot) => Promise<CallToolResult>;
+  },
   args: Record<string, unknown>,
 ): Promise<CallToolResult> {
   return tool.execute(args, root);
@@ -54,21 +56,23 @@ describe("白名单投影与路径隔离（M18）", () => {
   it("get_verification 的 data 只含封闭字段集，无宿主路径/epoch/operationId/容器名", async () => {
     const result = await invoke(getVerificationTool, { verificationId: ids.pass });
     const data = (result.structuredContent as { data: Record<string, unknown> }).data;
-    expect(Object.keys(data).sort()).toEqual([
-      "artifactsSummary",
-      "commands",
-      "diagnostic",
-      "eventIndex",
-      "interrupted",
-      "meta",
-      "stageCounts",
-      "status",
-      "stopConfirmed",
-      "stopRequested",
-      "terminated",
-      "sourceStatus",
-      "verificationId",
-    ].sort());
+    expect(Object.keys(data).sort()).toEqual(
+      [
+        "artifactsSummary",
+        "commands",
+        "diagnostic",
+        "eventIndex",
+        "interrupted",
+        "meta",
+        "stageCounts",
+        "status",
+        "stopConfirmed",
+        "stopRequested",
+        "terminated",
+        "sourceStatus",
+        "verificationId",
+      ].sort(),
+    );
     const text = envelopeText(result);
     expect(text).not.toContain(TMP_MARK);
     expect(text).not.toContain("ep_ver-m2-pass");
@@ -77,9 +81,7 @@ describe("白名单投影与路径隔离（M18）", () => {
   });
 
   it("unterminated 记录的容器名/ID 不外发（安全计数替代）", async () => {
-    const text = envelopeText(
-      await invoke(getVerificationTool, { verificationId: ids.unterm }),
-    );
+    const text = envelopeText(await invoke(getVerificationTool, { verificationId: ids.unterm }));
     expect(text).not.toContain("mcp2-unterm-容器");
     expect(text).not.toContain("c0ffee1");
     expect(text).not.toContain(TMP_MARK);

@@ -1,18 +1,18 @@
-import { z } from "zod";
 import {
+  RecordReadError,
   getPreparation,
   projectVerification,
-  RecordReadError,
 } from "@rebaseagent/project-verification/read";
-import { MESSAGE_MAX, PAGE_LIMIT_DEFAULT } from "../limits.js";
+import { z } from "zod";
 import type { LimitationInput, ProvenanceVerificationInput } from "../envelope.js";
+import { MESSAGE_MAX, PAGE_LIMIT_DEFAULT } from "../limits.js";
 import type { ToolDefinition } from "../server.js";
 import type { DataRoot } from "../startup.js";
+import { ToolFailure, type ToolPayload, defineTool } from "../tool-definition.js";
 import {
   type GetVerificationArgs,
   requireVerificationContract,
 } from "../verification-contracts.js";
-import { ToolFailure, type ToolPayload, defineTool } from "../tool-definition.js";
 import { issueCursor, requireCursorPosition, withoutCursor } from "./cursor-io.js";
 import {
   assertReadUnchanged,
@@ -70,7 +70,10 @@ const GetVerificationDataSchema = z
       .strict()
       .nullable(),
     diagnostic: z
-      .object({ lineIndex: z.number().int().nonnegative(), reason: z.string().min(1).max(MESSAGE_MAX) })
+      .object({
+        lineIndex: z.number().int().nonnegative(),
+        reason: z.string().min(1).max(MESSAGE_MAX),
+      })
       .strict()
       .nullable(),
     commands: z.array(
@@ -212,12 +215,9 @@ export const getVerificationTool: ToolDefinition = defineTool(
     };
 
     const requestArgs = withoutCursor(args);
-    const readVersion = computeVerificationReadVersion(
-      "get_verification",
-      requestArgs,
-      root,
-      { verificationId: args.verificationId },
-    );
+    const readVersion = computeVerificationReadVersion("get_verification", requestArgs, root, {
+      verificationId: args.verificationId,
+    });
     const [start] = requireCursorPosition({
       cursor: args.cursor,
       tool: "get_verification",
@@ -301,7 +301,13 @@ export const getVerificationTool: ToolDefinition = defineTool(
 
     const initial = buildPayload(PAGE_LIMIT_DEFAULT);
     // D6/4.1：读后一致性核验（记录/准备/来源/附件台账变化 ⇒ STALE_CURSOR）
-    assertReadUnchanged("get_verification", requestArgs, root, { verificationId: args.verificationId }, readVersion);
+    assertReadUnchanged(
+      "get_verification",
+      requestArgs,
+      root,
+      { verificationId: args.verificationId },
+      readVersion,
+    );
     const initialCount = Math.min(eventIndex.length - start, args.limit ?? PAGE_LIMIT_DEFAULT);
     if (initialCount <= 0) return initial;
     return {

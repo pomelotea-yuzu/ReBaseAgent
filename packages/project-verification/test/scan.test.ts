@@ -1,15 +1,10 @@
-import {
-  appendFileSync,
-  mkdirSync,
-  mkdtempSync,
-  writeFileSync,
-} from "node:fs";
+import { appendFileSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { scanVerifications, VerificationDirReadError } from "../src/records/scan.js";
 import { verificationRecordPath } from "../src/records/layout.js";
 import { listVerifications } from "../src/records/reader.js";
+import { VerificationDirReadError, scanVerifications } from "../src/records/scan.js";
 import { VerificationRecordWriter } from "../src/records/writer.js";
 
 /**
@@ -39,7 +34,12 @@ function metaInput(verificationId: string, createdAt: string, runId = `run_${ver
   };
 }
 
-function writeSealed(root: string, id: string, createdAt: string, outcome: "passed" | "check_failed" = "passed") {
+function writeSealed(
+  root: string,
+  id: string,
+  createdAt: string,
+  outcome: "passed" | "check_failed" = "passed",
+) {
   const w = VerificationRecordWriter.open(root, metaInput(id, createdAt));
   w.terminate({ outcome, detail: "d", evidenceComplete: true, at: createdAt });
 }

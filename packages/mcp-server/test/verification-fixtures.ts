@@ -12,13 +12,13 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { NODE_TS_V1_PROFILE } from "@rebaseagent/project-verification/schema";
 import { publishAsset } from "@rebaseagent/project-verification";
 import {
   type PreparationMetaInput,
   PreparationRecordWriter,
   VerificationRecordWriter,
 } from "@rebaseagent/project-verification";
+import { NODE_TS_V1_PROFILE } from "@rebaseagent/project-verification/schema";
 import { JsonlTracer } from "@rebaseagent/trace-sdk";
 
 /**
@@ -230,9 +230,7 @@ function writeVerificationRecord(
     writer.append({
       type: "artifacts",
       entries,
-      excludedPatterns: [
-        ...(plan.artifacts.excludedPatterns ?? ["node_modules/**", ".git/**"]),
-      ],
+      excludedPatterns: [...(plan.artifacts.excludedPatterns ?? ["node_modules/**", ".git/**"])],
       totalBytes: entries.reduce((total, entry) => total + entry.size, 0),
     });
   }
@@ -283,7 +281,10 @@ export function buildVerificationFixture(): VerificationFixture {
     ],
     artifacts: {
       entries: [
-        { path: "report.json", bytes: new TextEncoder().encode(VERIFICATION_SENTINELS.artifactText) },
+        {
+          path: "report.json",
+          bytes: new TextEncoder().encode(VERIFICATION_SENTINELS.artifactText),
+        },
         { path: "blob.bin", bytes: binaryBytes },
       ],
     },
@@ -572,10 +573,7 @@ export function snapshotRootFingerprint(root: string): RootFingerprint {
 }
 
 /** 指纹差异报告（空数组 = 逐字未动）；路径出现/消失/改字节都算差 */
-export function rootFingerprintDiff(
-  baseline: RootFingerprint,
-  current: RootFingerprint,
-): string[] {
+export function rootFingerprintDiff(baseline: RootFingerprint, current: RootFingerprint): string[] {
   const diffs: string[] = [];
   const paths = new Set([...Object.keys(baseline.entries), ...Object.keys(current.entries)]);
   for (const path of [...paths].sort()) {
@@ -622,7 +620,10 @@ export function copyVerificationRecord(
   for (const hash of new Set(referencedHashes(text))) {
     const sourceAsset = join(sourceRoot, "verification-assets", "sha256", hash);
     if (existsSync(sourceAsset)) {
-      writeFileSync(join(targetRoot, "verification-assets", "sha256", hash), readFileSync(sourceAsset));
+      writeFileSync(
+        join(targetRoot, "verification-assets", "sha256", hash),
+        readFileSync(sourceAsset),
+      );
     }
   }
 }

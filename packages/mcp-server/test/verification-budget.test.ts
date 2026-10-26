@@ -1,21 +1,21 @@
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, describe, expect, it } from "vitest";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import { RESPONSE_BUDGET_BYTES } from "../src/limits.js";
+import { afterAll, describe, expect, it } from "vitest";
 import { toolResultBytes } from "../src/budget.js";
-import type { DataRoot } from "../src/startup.js";
+import { RESPONSE_BUDGET_BYTES } from "../src/limits.js";
 import { getVerificationTool } from "../src/query/get-verification.js";
 import { inspectVerificationArtifactsTool } from "../src/query/inspect-verification-artifacts.js";
 import { listVerificationsTool } from "../src/query/list-verifications.js";
 import { readVerificationLogTool } from "../src/query/read-verification-log.js";
+import type { DataRoot } from "../src/startup.js";
 import {
   VERIFICATION_SENTINELS,
+  type VerificationFixture,
   buildVerificationFixture,
   cleanupVerificationFixtures,
   VERIFICATION_FIXTURE_IDS as ids,
-  type VerificationFixture,
 } from "./verification-fixtures.js";
 
 /**
@@ -81,7 +81,9 @@ afterAll(() => {
 const root: DataRoot = { dataDir: fixture.dataRoot, tracesDir: fixture.tracesDir };
 
 async function invoke(
-  tool: { execute: (args: Readonly<Record<string, unknown>>, root: DataRoot) => Promise<CallToolResult> },
+  tool: {
+    execute: (args: Readonly<Record<string, unknown>>, root: DataRoot) => Promise<CallToolResult>;
+  },
   args: Record<string, unknown>,
 ): Promise<CallToolResult> {
   return tool.execute(args, root);
@@ -124,7 +126,9 @@ describe("完整结果预算（M10）", () => {
       maxChars: 8192,
     });
     expect(result.isError).not.toBe(true);
-    const data = (result.structuredContent as { data: { body: { range: { start: number; end: number } } } }).data;
+    const data = (
+      result.structuredContent as { data: { body: { range: { start: number; end: number } } } }
+    ).data;
     expect(data.body.range.end - data.body.range.start).toBeLessThanOrEqual(8192);
     expect(toolResultBytes(result)).toBeLessThanOrEqual(RESPONSE_BUDGET_BYTES);
   });

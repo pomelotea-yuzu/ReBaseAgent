@@ -1,4 +1,4 @@
-import { lstatSync } from "node:fs";
+import { type Stats, lstatSync } from "node:fs";
 
 /**
  * 根内普通文件守卫（MCP2 design D4）：记录/附件必须是数据根内的**普通文件**。
@@ -23,7 +23,7 @@ export class RegularFileError extends Error {
 }
 
 export function ensureRegularFile(path: string, kind: "记录" | "附件"): void {
-  let stat;
+  let stat: Stats;
   try {
     stat = lstatSync(path);
   } catch (error) {

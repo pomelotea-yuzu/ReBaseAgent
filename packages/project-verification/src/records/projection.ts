@@ -87,28 +87,24 @@ export interface VerificationProjection {
    * 记录头白名单（meta 缺失/损坏 ⇒ null）。environment 为记录内事实：
    * 缺省保持 null（旧记录未知，不拿当前 manifest 补齐，M04）。
    */
-  readonly meta:
-    | null
-    | {
-        readonly runId: string;
-        readonly checkpoint: CheckpointSelector;
-        readonly snapshotId: string;
-        readonly profileId: string;
-        readonly manifestVersion: number;
-        readonly commandId: "typecheck" | "test";
-        readonly planBindingDigest: string;
-        readonly createdAt: string;
-        readonly environment: VerificationEnvironment | null;
-      };
+  readonly meta: null | {
+    readonly runId: string;
+    readonly checkpoint: CheckpointSelector;
+    readonly snapshotId: string;
+    readonly profileId: string;
+    readonly manifestVersion: number;
+    readonly commandId: "typecheck" | "test";
+    readonly planBindingDigest: string;
+    readonly createdAt: string;
+    readonly environment: VerificationEnvironment | null;
+  };
   /** 封存门：仅 sealed 有值；非 sealed 恒 null（可信结局不存在） */
-  readonly terminated:
-    | null
-    | {
-        readonly outcome: VerificationOutcome;
-        readonly detail: BoundedPreview;
-        readonly evidenceComplete: boolean;
-        readonly at: string;
-      };
+  readonly terminated: null | {
+    readonly outcome: VerificationOutcome;
+    readonly detail: BoundedPreview;
+    readonly evidenceComplete: boolean;
+    readonly at: string;
+  };
   /** corrupt/unsupported_version 的结构化诊断（reader 行号/原因；无堆栈无路径） */
   readonly diagnostic: VerificationRecordRead["error"] | null;
   /** 实际命令（start/end 按序配对；重复命令如实多条） */
@@ -119,26 +115,22 @@ export interface VerificationProjection {
   readonly stopRequested: number;
   readonly stopConfirmed: number;
   /** 中断事实：原因预览 + 安全计数（不给容器名/ID） */
-  readonly interrupted:
-    | null
-    | {
-        readonly reason: BoundedPreview;
-        readonly stoppedCount: number;
-        readonly removedCount: number;
-        readonly unconfirmedCount: number;
-      };
+  readonly interrupted: null | {
+    readonly reason: BoundedPreview;
+    readonly stoppedCount: number;
+    readonly removedCount: number;
+    readonly unconfirmedCount: number;
+  };
   /** 产物清单事实（无 artifacts 事件 ⇒ null；与"未采集"区分在资产层 2.3） */
-  readonly artifacts:
-    | null
-    | {
-        readonly entries: readonly {
-          readonly path: string;
-          readonly size: number;
-          readonly sha256: string;
-        }[];
-        readonly excludedPatterns: readonly string[];
-        readonly totalBytes: number;
-      };
+  readonly artifacts: null | {
+    readonly entries: readonly {
+      readonly path: string;
+      readonly size: number;
+      readonly sha256: string;
+    }[];
+    readonly excludedPatterns: readonly string[];
+    readonly totalBytes: number;
+  };
   readonly eventIndex: readonly VerificationEventIndexEntry[];
   readonly sourceStatus: VerificationRecordRead["sourceStatus"];
 }
@@ -183,7 +175,6 @@ export function projectVerification(record: VerificationRecordRead): Verificatio
         stdout: { ...event.stdout },
         stderr: { ...event.stderr },
       });
-      continue;
     }
   }
 

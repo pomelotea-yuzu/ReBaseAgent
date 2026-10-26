@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  compareVerificationFacts,
-  type VerificationFactsSide,
-} from "../src/compare-facts.js";
+import { type VerificationFactsSide, compareVerificationFacts } from "../src/compare-facts.js";
 
 /**
  * MCP2 tasks 2.5/2.6：共享比较纯事实（M14/M15/M16/M07 的共享层半边）。
@@ -102,9 +99,9 @@ describe("对象规范值判据（M15/V02）", () => {
         }),
       ).verdict.kind,
     ).toBe("conditions-differ");
-    expect(
-      compareVerificationFacts(side({ environment: null }), passedRight()).verdict.kind,
-    ).toBe("conditions-unknown");
+    expect(compareVerificationFacts(side({ environment: null }), passedRight()).verdict.kind).toBe(
+      "conditions-unknown",
+    );
   });
 });
 
@@ -124,10 +121,7 @@ describe("结论顺序与证据门（M14/M16）", () => {
   });
 
   it("evidence-incomplete 双来源：封存缺项与当前资产缺失都命中，历史 outcome 不改写", () => {
-    const fromRecord = compareVerificationFacts(
-      side({ evidenceComplete: false }),
-      passedRight(),
-    );
+    const fromRecord = compareVerificationFacts(side({ evidenceComplete: false }), passedRight());
     expect(fromRecord.verdict.kind).toBe("evidence-incomplete");
     expect(fromRecord.evidenceIncompleteFromRecord).toBe(true);
     expect(fromRecord.evidenceIncompleteFromCurrentAssets).toBe(false);
@@ -139,17 +133,16 @@ describe("结论顺序与证据门（M14/M16）", () => {
     expect(fromAssets.evidenceIncompleteFromCurrentAssets).toBe(true);
     // 证据不完整优先于条件差异（顺序钉住）
     expect(
-      compareVerificationFacts(
-        side({ evidenceComplete: false, environment: null }),
-        passedRight(),
-      ).verdict.kind,
+      compareVerificationFacts(side({ evidenceComplete: false, environment: null }), passedRight())
+        .verdict.kind,
     ).toBe("evidence-incomplete");
   });
 
   it("同条件但结局不是失败→通过 ⇒ same-conditions-other-outcome，只声明实际结果", () => {
-    expect(compareVerificationFacts(side({}), side({ verificationId: "ver_r", outcome: "cancelled" })).verdict.kind).toBe(
-      "same-conditions-other-outcome",
-    );
+    expect(
+      compareVerificationFacts(side({}), side({ verificationId: "ver_r", outcome: "cancelled" }))
+        .verdict.kind,
+    ).toBe("same-conditions-other-outcome");
   });
 });
 
@@ -169,10 +162,7 @@ describe("来源核对与 recordedTarget 固定（M07）", () => {
     expect(drifted.sourceVerified).toBe(false);
     expect(drifted.expectedSnapshotIds.left).toBe("snap_1");
     // present 但未做快照定位核对（located=null）⇒ 不能称已核验（D7 保守侧）
-    const unlocated = compareVerificationFacts(
-      side({ locatedSnapshotId: null }),
-      passedRight(),
-    );
+    const unlocated = compareVerificationFacts(side({ locatedSnapshotId: null }), passedRight());
     expect(unlocated.sourceVerified).toBe(false);
   });
 
@@ -193,6 +183,8 @@ describe("来源核对与 recordedTarget 固定（M07）", () => {
   });
 
   it("codeSame：recordedSnapshotId 缺 ⇒ null，不猜", () => {
-    expect(compareVerificationFacts(side({ recordedSnapshotId: null }), passedRight()).codeSame).toBeNull();
+    expect(
+      compareVerificationFacts(side({ recordedSnapshotId: null }), passedRight()).codeSame,
+    ).toBeNull();
   });
 });

@@ -1,25 +1,18 @@
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { getVerification, readLog } from "@rebaseagent/project-verification/read";
 import type { CommandEndEvent } from "@rebaseagent/project-verification/schema";
 import { afterAll, describe, expect, it } from "vitest";
-import { getVerification, readLog } from "@rebaseagent/project-verification/read";
 import {
   VERIFICATION_SENTINELS,
+  type VerificationFixture,
   buildVerificationFixture,
   cleanupVerificationFixtures,
   copyVerificationRecord,
   liveFixtureRootCount,
   rootFingerprintDiff,
   snapshotRootFingerprint,
-  type VerificationFixture,
 } from "./verification-fixtures.js";
 
 function commandEnds(record: ReturnType<typeof getVerification>): CommandEndEvent[] {

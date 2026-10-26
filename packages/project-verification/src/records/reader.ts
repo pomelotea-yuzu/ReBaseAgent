@@ -9,13 +9,13 @@ import {
   VerificationMetaEventSchema,
   type VerificationOutcome,
 } from "../schema.js";
+import { RegularFileError, ensureRegularFile } from "./fs-guards.js";
 import {
   assetPath,
   preparationRecordPath,
   requireRecordId,
   verificationRecordPath,
 } from "./layout.js";
-import { ensureRegularFile, RegularFileError } from "./fs-guards.js";
 
 const RECORD_ID_SAFE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 

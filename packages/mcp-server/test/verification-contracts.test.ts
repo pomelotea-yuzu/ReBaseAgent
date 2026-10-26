@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import { VerificationOutcomeSchema } from "@rebaseagent/project-verification/schema";
+import { describe, expect, it } from "vitest";
 import { LimitationSchema, isKnownLimitationCode } from "../src/envelope.js";
 import {
   BODY_CHARS_MAX,
@@ -9,6 +9,13 @@ import {
   RUN_ID_MAX,
 } from "../src/limits.js";
 import { TOOL_CONTRACTS, TOOL_NAMES } from "../src/tool-contracts.js";
+import {
+  VERIFICATION_LIMITATION_CODES,
+  VERIFICATION_RETRYABLE_CODES,
+  VERIFICATION_TOOL_ERROR_CODES,
+  VERIFICATION_TOOL_ERROR_MESSAGES,
+  type VerificationToolErrorCode,
+} from "../src/verification-codes.js";
 import {
   VERIFICATION_TOOL_CONTRACTS,
   VERIFICATION_TOOL_NAMES,
@@ -20,13 +27,6 @@ import {
   VERIFICATION_RECORD_STATUSES,
   VerificationRecordStatusSchema,
 } from "../src/verification-contracts.js";
-import {
-  VERIFICATION_LIMITATION_CODES,
-  VERIFICATION_RETRYABLE_CODES,
-  VERIFICATION_TOOL_ERROR_CODES,
-  VERIFICATION_TOOL_ERROR_MESSAGES,
-  type VerificationToolErrorCode,
-} from "../src/verification-codes.js";
 
 /**
  * MCP2 tasks 1.2：六工具契约冻结（M01/M08 的形状半边）。
@@ -180,9 +180,8 @@ describe("六工具契约冻结（M01/M08 形状半边，design D2）", () => {
       "corrupt",
       "unsupported_version",
     ]);
-    const ListArgs = VERIFICATION_TOOL_CONTRACTS.find(
-      (item) => item.name === "list_verifications",
-    )?.schema as unknown as { parse(args: unknown): { outcome?: string } };
+    const ListArgs = VERIFICATION_TOOL_CONTRACTS.find((item) => item.name === "list_verifications")
+      ?.schema as unknown as { parse(args: unknown): { outcome?: string } };
     const r3OutcomeValues = VerificationOutcomeSchema.options;
     expect(r3OutcomeValues).toEqual([
       "check_failed",
@@ -258,7 +257,9 @@ describe("验证域三域码表封闭（design D3）", () => {
   it("九个错误码各有受控文案；可重试只有文件级不可读", () => {
     expect(VERIFICATION_TOOL_ERROR_CODES).toHaveLength(9);
     for (const code of VERIFICATION_TOOL_ERROR_CODES) {
-      expect(VERIFICATION_TOOL_ERROR_MESSAGES[code as VerificationToolErrorCode].length).toBeGreaterThan(0);
+      expect(
+        VERIFICATION_TOOL_ERROR_MESSAGES[code as VerificationToolErrorCode].length,
+      ).toBeGreaterThan(0);
     }
     expect([...VERIFICATION_RETRYABLE_CODES]).toEqual(["VERIFICATION_UNREADABLE"]);
   });

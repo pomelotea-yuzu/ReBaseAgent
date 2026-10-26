@@ -1,14 +1,14 @@
 import { compareCheckpointFilesTool } from "./query/compare-checkpoint-files.js";
 import { compareRunsTool } from "./query/compare-runs.js";
+import { compareVerificationsTool } from "./query/compare-verifications.js";
 import { getRunTool } from "./query/get-run.js";
 import { getStepTool } from "./query/get-step.js";
-import { inspectCheckpointTool } from "./query/inspect-checkpoint.js";
-import { listRunsTool } from "./query/list-runs.js";
-import { readCheckpointFileTool } from "./query/read-checkpoint-file.js";
-import { compareVerificationsTool } from "./query/compare-verifications.js";
 import { getVerificationTool } from "./query/get-verification.js";
+import { inspectCheckpointTool } from "./query/inspect-checkpoint.js";
 import { inspectVerificationArtifactsTool } from "./query/inspect-verification-artifacts.js";
+import { listRunsTool } from "./query/list-runs.js";
 import { listVerificationsTool } from "./query/list-verifications.js";
+import { readCheckpointFileTool } from "./query/read-checkpoint-file.js";
 import { readVerificationArtifactTool } from "./query/read-verification-artifact.js";
 import { readVerificationLogTool } from "./query/read-verification-log.js";
 import type { ToolDefinition } from "./server.js";

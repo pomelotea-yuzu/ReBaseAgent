@@ -31,19 +31,18 @@ export type VerificationToolErrorCode = (typeof VERIFICATION_TOOL_ERROR_CODES)[n
 export type McpToolErrorCode = RunQueryToolErrorCode | VerificationToolErrorCode;
 
 /** 每个新增稳定码一句受控文案（不含物理路径/errno/堆栈；与 error-projection 同纪律） */
-export const VERIFICATION_TOOL_ERROR_MESSAGES: Readonly<
-  Record<VerificationToolErrorCode, string>
-> = {
-  VERIFICATION_NOT_FOUND: "指定验证不存在",
-  VERIFICATION_UNREADABLE: "指定验证的记录文件当前不可读",
-  VERIFICATION_RECORD_INVALID: "指定验证的记录无法通过校验",
-  VERIFICATION_LOG_NOT_RECORDED: "该验证没有记录指定命令/流的执行事实",
-  VERIFICATION_ARTIFACT_NOT_FOUND: "指定产物不在该验证的清单内",
-  VERIFICATION_ARTIFACTS_NOT_RECORDED: "该验证没有记录产物清单",
-  VERIFICATION_ASSET_MISSING: "该验证引用的附件不存在",
-  VERIFICATION_ASSET_CORRUPT: "该验证引用的附件与记录哈希不一致",
-  VERIFICATION_PATH_REJECTED: "产物路径不合法或被该验证的清单拒绝",
-};
+export const VERIFICATION_TOOL_ERROR_MESSAGES: Readonly<Record<VerificationToolErrorCode, string>> =
+  {
+    VERIFICATION_NOT_FOUND: "指定验证不存在",
+    VERIFICATION_UNREADABLE: "指定验证的记录文件当前不可读",
+    VERIFICATION_RECORD_INVALID: "指定验证的记录无法通过校验",
+    VERIFICATION_LOG_NOT_RECORDED: "该验证没有记录指定命令/流的执行事实",
+    VERIFICATION_ARTIFACT_NOT_FOUND: "指定产物不在该验证的清单内",
+    VERIFICATION_ARTIFACTS_NOT_RECORDED: "该验证没有记录产物清单",
+    VERIFICATION_ASSET_MISSING: "该验证引用的附件不存在",
+    VERIFICATION_ASSET_CORRUPT: "该验证引用的附件与记录哈希不一致",
+    VERIFICATION_PATH_REJECTED: "产物路径不合法或被该验证的清单拒绝",
+  };
 
 /** 可重试码：只有"换个时点再来一次"有意义的才 true（文件级不可读随权限修复可重试） */
 export const VERIFICATION_RETRYABLE_CODES: ReadonlySet<VerificationToolErrorCode> = new Set([

@@ -1,6 +1,6 @@
 import type { RunQueryToolErrorCode } from "@rebaseagent/run-query";
 import { RunDetailReadError } from "@rebaseagent/run-query";
-import { z, type ZodObject, type ZodRawShape } from "zod";
+import { type ZodObject, type ZodRawShape, z } from "zod";
 import { type ToolBudget, fitWithinBudget } from "./budget.js";
 import { type ContentBodyInput, buildContentText } from "./content-text.js";
 import {
@@ -23,10 +23,10 @@ import { MESSAGE_MAX } from "./limits.js";
 import type { ToolDefinition, ToolResult } from "./server.js";
 import type { DataRoot } from "./startup.js";
 import {
+  type McpToolErrorCode,
   VERIFICATION_RETRYABLE_CODES,
   VERIFICATION_TOOL_ERROR_MESSAGES,
   type VerificationToolErrorCode,
-  type McpToolErrorCode,
 } from "./verification-codes.js";
 
 /**

@@ -2,8 +2,6 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { publishAsset } from "../src/records/assets.js";
-import { getVerification, RecordReadError, readLog, LOG_READ_MAX_BYTES } from "../src/records/reader.js";
 import {
   AssetResolveError,
   classifyAssetBody,
@@ -12,6 +10,13 @@ import {
   sliceAssetText,
   verifyAsset,
 } from "../src/records/assets-view.js";
+import { publishAsset } from "../src/records/assets.js";
+import {
+  LOG_READ_MAX_BYTES,
+  RecordReadError,
+  getVerification,
+  readLog,
+} from "../src/records/reader.js";
 import { VerificationRecordWriter } from "../src/records/writer.js";
 
 /**
@@ -28,7 +33,11 @@ function metaInput(verificationId: string) {
     verificationId,
     epoch: `ep_${verificationId}`,
     operationId: `op_${verificationId}`,
-    target: { runId: `run_${verificationId}`, checkpoint: { kind: "initial" } as const, snapshotId: "snap_1" },
+    target: {
+      runId: `run_${verificationId}`,
+      checkpoint: { kind: "initial" } as const,
+      snapshotId: "snap_1",
+    },
     profileId: "node-ts-v1" as const,
     manifestVersion: 1,
     commandId: "test" as const,
@@ -86,7 +95,10 @@ describe("日志定位：唯一 command_end（M08）", () => {
     const root = newRoot();
     const w = VerificationRecordWriter.open(root, metaInput("ver_a1"));
     w.append(startEvent());
-    w.append({ ...commandEnd(root, "out"), stdout: { ...commandEnd(root, "out").stdout, totalBytes: 99, truncated: true } });
+    w.append({
+      ...commandEnd(root, "out"),
+      stdout: { ...commandEnd(root, "out").stdout, totalBytes: 99, truncated: true },
+    });
     w.terminate({ outcome: "passed", detail: "d", evidenceComplete: true, at: "t" });
     const record = getVerification(root, "ver_a1");
     const resolved = resolveLogAsset(record, "test", "stdout");
@@ -137,7 +149,11 @@ describe("日志定位：唯一 command_end（M08）", () => {
 });
 
 describe("产物定位：清单绑定（M08/M09）", () => {
-  function recordWithArtifacts(root: string, id: string, entries: { path: string; text: string }[]) {
+  function recordWithArtifacts(
+    root: string,
+    id: string,
+    entries: { path: string; text: string }[],
+  ) {
     const w = VerificationRecordWriter.open(root, metaInput(id));
     w.append({
       type: "artifacts",
@@ -174,7 +190,11 @@ describe("产物定位：清单绑定（M08/M09）", () => {
       type: "artifacts",
       entries: [
         { path: "same.txt", size: 1, sha256: publishAsset(root, bytes).sha256 },
-        { path: "same.txt", size: 1, sha256: publishAsset(root, new TextEncoder().encode("y")).sha256 },
+        {
+          path: "same.txt",
+          size: 1,
+          sha256: publishAsset(root, new TextEncoder().encode("y")).sha256,
+        },
       ],
       excludedPatterns: [],
       totalBytes: 2,
@@ -191,9 +211,9 @@ describe("产物定位：清单绑定（M08/M09）", () => {
     const noArtifacts = VerificationRecordWriter.open(root, metaInput("ver_b3"));
     noArtifacts.terminate({ outcome: "passed", detail: "d", evidenceComplete: true, at: "t" });
     const empty = recordWithArtifacts(root, "ver_b4", []);
-    expect(resolveErrorCode(() => resolveArtifactAsset(getVerification(root, "ver_b3"), "a.txt"))).toBe(
-      "ARTIFACTS_NOT_RECORDED",
-    );
+    expect(
+      resolveErrorCode(() => resolveArtifactAsset(getVerification(root, "ver_b3"), "a.txt")),
+    ).toBe("ARTIFACTS_NOT_RECORDED");
     expect(resolveErrorCode(() => resolveArtifactAsset(empty, "a.txt"))).toBe("ARTIFACT_NOT_FOUND");
   });
 });

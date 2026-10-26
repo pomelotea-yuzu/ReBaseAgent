@@ -1,7 +1,7 @@
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { RECORD_ID_PATTERN } from "./layout.js";
-import { getVerification, RecordReadError, type VerificationSummary } from "./reader.js";
+import { RecordReadError, type VerificationSummary, getVerification } from "./reader.js";
 
 /**
  * 完整验证列表扫描（MCP2 design D2）。

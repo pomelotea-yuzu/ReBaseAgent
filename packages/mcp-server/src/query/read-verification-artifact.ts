@@ -1,21 +1,21 @@
-import { z } from "zod";
 import {
   AssetResolveError,
+  type VerifiedAsset,
   classifyAssetBody,
   resolveArtifactAsset,
   sliceAssetText,
   verifyAsset,
-  type VerifiedAsset,
 } from "@rebaseagent/project-verification/read";
-import { BODY_CHARS_DEFAULT, MESSAGE_MAX } from "../limits.js";
+import { z } from "zod";
 import type { LimitationInput, ProvenanceVerificationInput } from "../envelope.js";
+import { BODY_CHARS_DEFAULT, MESSAGE_MAX } from "../limits.js";
 import type { ToolDefinition } from "../server.js";
 import type { DataRoot } from "../startup.js";
+import { ToolFailure, type ToolPayload, defineTool } from "../tool-definition.js";
 import {
   type ReadVerificationArtifactArgs,
   requireVerificationContract,
 } from "../verification-contracts.js";
-import { ToolFailure, type ToolPayload, defineTool } from "../tool-definition.js";
 import { issueCursor, requireCursorPosition, withoutCursor } from "./cursor-io.js";
 import {
   assertReadUnchanged,

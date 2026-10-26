@@ -50,9 +50,7 @@ function importsOf(file: string): string[] {
 function resolveLocal(fromFile: string, spec: string): string | null {
   if (!spec.startsWith(".")) return null; // node:*/zod 等外部依赖不入图
   const base = resolve(dirname(fromFile), spec.replace(/\.js$/, ".ts"));
-  const candidates = spec.endsWith(".js")
-    ? [base]
-    : [`${base}.ts`, join(base, "index.ts")];
+  const candidates = spec.endsWith(".js") ? [base] : [`${base}.ts`, join(base, "index.ts")];
   for (const candidate of candidates) {
     try {
       readFileSync(candidate);

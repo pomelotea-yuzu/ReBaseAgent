@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { RegularFileError, ensureRegularFile } from "./fs-guards.js";
 import { assetPath } from "./layout.js";
 import { RecordReadError, type VerificationRecordRead } from "./reader.js";
-import { RegularFileError, ensureRegularFile } from "./fs-guards.js";
 
 /**
  * 记录绑定的资产定位与核验后的安全文本视图（MCP2 design D4/D5，tasks 2.3/2.4）。
@@ -63,7 +63,9 @@ export function resolveLogAsset(
   commandId: "typecheck" | "test",
   stream: "stdout" | "stderr",
 ): ResolvedLogAsset {
-  const ends = record.events.filter((event) => event.type === "command_end" && event.commandId === commandId);
+  const ends = record.events.filter(
+    (event) => event.type === "command_end" && event.commandId === commandId,
+  );
   if (ends.length === 0) {
     throw new AssetResolveError(
       "LOG_NOT_RECORDED",
@@ -82,10 +84,7 @@ export function resolveLogAsset(
   }
   const side = stream === "stdout" ? end.stdout : end.stderr;
   if (!HASH_PATTERN.test(side.sha256)) {
-    throw new AssetResolveError(
-      "INVALID_REFERENCE",
-      `记录内 ${stream} 哈希不符合 64 位十六进制`,
-    );
+    throw new AssetResolveError("INVALID_REFERENCE", `记录内 ${stream} 哈希不符合 64 位十六进制`);
   }
   return {
     sha256: side.sha256,

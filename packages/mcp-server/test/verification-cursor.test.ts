@@ -1,19 +1,19 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, describe, expect, it } from "vitest";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import type { DataRoot } from "../src/startup.js";
+import { afterAll, describe, expect, it } from "vitest";
 import { getVerificationTool } from "../src/query/get-verification.js";
 import { listVerificationsTool } from "../src/query/list-verifications.js";
-import { readVerificationLogTool } from "../src/query/read-verification-log.js";
 import { readVerificationArtifactTool } from "../src/query/read-verification-artifact.js";
+import { readVerificationLogTool } from "../src/query/read-verification-log.js";
+import type { DataRoot } from "../src/startup.js";
 import {
   VERIFICATION_SENTINELS,
+  type VerificationFixture,
   buildVerificationFixture,
   cleanupVerificationFixtures,
   VERIFICATION_FIXTURE_IDS as ids,
-  type VerificationFixture,
 } from "./verification-fixtures.js";
 
 /**
@@ -35,14 +35,19 @@ afterAll(() => {
 const root: DataRoot = { dataDir: fixture.dataRoot, tracesDir: fixture.tracesDir };
 
 async function invoke(
-  tool: { execute: (args: Readonly<Record<string, unknown>>, root: DataRoot) => Promise<CallToolResult> },
+  tool: {
+    execute: (args: Readonly<Record<string, unknown>>, root: DataRoot) => Promise<CallToolResult>;
+  },
   args: Record<string, unknown>,
   rootOverride?: DataRoot,
 ): Promise<CallToolResult> {
   return tool.execute(args, rootOverride ?? root);
 }
 
-function envOf(result: CallToolResult): { page?: { nextCursor: string }; data: Record<string, unknown> } {
+function envOf(result: CallToolResult): {
+  page?: { nextCursor: string };
+  data: Record<string, unknown>;
+} {
   expect(result.isError).not.toBe(true);
   return result.structuredContent as never;
 }
@@ -76,18 +81,13 @@ describe("来源变化使游标失效（M12）", () => {
   });
 
   it("get 事件索引翻页前来源 trace 变化 ⇒ STALE_CURSOR（参与来源台账）", async () => {
-    const page1 = envOf(
-      await invoke(getVerificationTool, { verificationId: ids.pass, limit: 1 }),
-    );
+    const page1 = envOf(await invoke(getVerificationTool, { verificationId: ids.pass, limit: 1 }));
     const cursor = page1.page?.nextCursor;
     if (cursor === undefined) return; // 只有一条事件时无可续读
     // 追加来源 trace 字节（traces 台账变化）
     const { appendFileSync } = await import("node:fs");
     appendFileSync(join(fixture.tracesDir, "run-m2-pass.jsonl"), '{"touch":true}\n');
-    const page2 = await invoke(
-      getVerificationTool,
-      { verificationId: ids.pass, limit: 1, cursor },
-    );
+    const page2 = await invoke(getVerificationTool, { verificationId: ids.pass, limit: 1, cursor });
     expect(errorCode(page2)).toBe("STALE_CURSOR");
   });
 
@@ -137,21 +137,29 @@ describe("来源变化使游标失效（M12）", () => {
     const copyRootArg: DataRoot = { dataDir: copyRoot, tracesDir: copyTraces };
 
     const page1 = envOf(
-      await invoke(readVerificationArtifactTool, {
-        verificationId: ids.pass,
-        path: "report.json",
-        maxChars: 5,
-      }, copyRootArg),
+      await invoke(
+        readVerificationArtifactTool,
+        {
+          verificationId: ids.pass,
+          path: "report.json",
+          maxChars: 5,
+        },
+        copyRootArg,
+      ),
     );
     expect(page1.page?.nextCursor).toBeDefined();
 
     // 尾页：读完无剩余 ⇒ 无 nextCursor（进展守卫）
     const last = envOf(
-      await invoke(readVerificationArtifactTool, {
-        verificationId: ids.pass,
-        path: "report.json",
-        maxChars: 8192,
-      }, copyRootArg),
+      await invoke(
+        readVerificationArtifactTool,
+        {
+          verificationId: ids.pass,
+          path: "report.json",
+          maxChars: 8192,
+        },
+        copyRootArg,
+      ),
     );
     expect(last.page?.nextCursor).toBeUndefined();
 
@@ -163,12 +171,16 @@ describe("来源变化使游标失效（M12）", () => {
     const hash = /"path":"report.json","size":\d+,"sha256":"([0-9a-f]{64})"/.exec(recordText)?.[1];
     expect(hash).toBeDefined();
     unlinkSync(join(copyRoot, "verification-assets", "sha256", hash ?? ""));
-    const page2 = await invoke(readVerificationArtifactTool, {
-      verificationId: ids.pass,
-      path: "report.json",
-      maxChars: 5,
-      cursor: page1.page?.nextCursor,
-    }, copyRootArg);
+    const page2 = await invoke(
+      readVerificationArtifactTool,
+      {
+        verificationId: ids.pass,
+        path: "report.json",
+        maxChars: 5,
+        cursor: page1.page?.nextCursor,
+      },
+      copyRootArg,
+    );
     expect(errorCode(page2)).toBe("STALE_CURSOR");
   });
 });
@@ -177,9 +189,9 @@ describe("游标不被异参/篡改接受（M12 形状半边）", () => {
   it("换参数用旧游标 ⇒ INVALID_ARGUMENT；换工具 ⇒ INVALID_ARGUMENT；篡改载荷 ⇒ INVALID_ARGUMENT", async () => {
     const page1 = envOf(await invoke(listVerificationsTool, { limit: 3 }));
     const cursor = page1.page?.nextCursor ?? "";
-    expect(
-      errorCode(await invoke(listVerificationsTool, { limit: 4, cursor })),
-    ).toBe("INVALID_ARGUMENT");
+    expect(errorCode(await invoke(listVerificationsTool, { limit: 4, cursor }))).toBe(
+      "INVALID_ARGUMENT",
+    );
     expect(
       errorCode(
         await invoke(getVerificationTool, {
@@ -190,9 +202,9 @@ describe("游标不被异参/篡改接受（M12 形状半边）", () => {
       ),
     ).toBe("INVALID_ARGUMENT");
     const parts = cursor.split(".");
-    parts[2] = Buffer.from('{"v":1,"t":"list_verifications","p":"x","r":"y","k":"items","o":[9]}').toString(
-      "base64url",
-    );
+    parts[2] = Buffer.from(
+      '{"v":1,"t":"list_verifications","p":"x","r":"y","k":"items","o":[9]}',
+    ).toString("base64url");
     expect(
       errorCode(await invoke(listVerificationsTool, { limit: 3, cursor: parts.join(".") })),
     ).toBe("INVALID_ARGUMENT");

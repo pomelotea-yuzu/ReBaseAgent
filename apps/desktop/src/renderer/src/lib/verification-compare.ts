@@ -246,9 +246,7 @@ function limitationList(
     "R3 不自动发起模型修复；干预是否成立以运行记录的分叉元数据为准。",
   ];
   if (sourceVerified === false) {
-    limitations.push(
-      "至少一侧来源 trace 缺失或快照与记录不符：不宣称已核验修复分支或代码因果。",
-    );
+    limitations.push("至少一侧来源 trace 缺失或快照与记录不符：不宣称已核验修复分支或代码因果。");
   }
   if (left.sourceStatus === "missing" || right.sourceStatus === "missing") {
     limitations.push(
@@ -327,7 +325,10 @@ export function compareVerifications(
   const rightCommand = commandFactsOf(rightResult);
 
   // 共享判据（@rebaseagent/project-verification/facts）：状态与结论只出自这里
-  const facts = compareVerificationFacts(factsSideOf(leftResult, leftCommand), factsSideOf(rightResult, rightCommand));
+  const facts = compareVerificationFacts(
+    factsSideOf(leftResult, leftCommand),
+    factsSideOf(rightResult, rightCommand),
+  );
   const stateByKey = new Map(facts.conditions.map((condition) => [condition.key, condition.state]));
 
   const displayRows: [string, string, string | null, string | null][] = [
@@ -353,7 +354,12 @@ export function compareVerifications(
       rightCommand === null ? null : `${rightCommand.executable} ${rightCommand.argv.join(" ")}`,
     ],
     ["cwd", "工作目录", leftCommand?.cwd ?? null, rightCommand?.cwd ?? null],
-    ["platform", "平台", leftMeta?.environment?.platform ?? null, rightMeta?.environment?.platform ?? null],
+    [
+      "platform",
+      "平台",
+      leftMeta?.environment?.platform ?? null,
+      rightMeta?.environment?.platform ?? null,
+    ],
     [
       "imageDigest",
       "实际镜像摘要",
@@ -391,13 +397,15 @@ export function compareVerifications(
         : formatSecurity(rightMeta.environment.security),
     ],
   ];
-  const conditions: VerificationCompareRow[] = displayRows.map(([key, label, leftText, rightText]) => ({
-    key,
-    label,
-    left: leftText,
-    right: rightText,
-    state: stateByKey.get(key as (typeof facts.conditions)[number]["key"]) ?? "unknown",
-  }));
+  const conditions: VerificationCompareRow[] = displayRows.map(
+    ([key, label, leftText, rightText]) => ({
+      key,
+      label,
+      left: leftText,
+      right: rightText,
+      state: stateByKey.get(key as (typeof facts.conditions)[number]["key"]) ?? "unknown",
+    }),
+  );
   const differences = conditions.filter((one) => one.state === "different").map((one) => one.label);
   const unknowns = conditions.filter((one) => one.state === "unknown").map((one) => one.label);
   const codeSame = facts.codeSame;

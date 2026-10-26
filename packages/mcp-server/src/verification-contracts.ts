@@ -1,6 +1,9 @@
-import { CommandIdSchema, VerificationOutcomeSchema } from "@rebaseagent/project-verification/schema";
 import type { VerificationRecordStatus } from "@rebaseagent/project-verification/read";
 import { RECORD_ID_PATTERN } from "@rebaseagent/project-verification/read";
+import {
+  CommandIdSchema,
+  VerificationOutcomeSchema,
+} from "@rebaseagent/project-verification/schema";
 import { z } from "zod";
 import { toJsonSchemaDeclaration } from "./input-schema.js";
 import {
@@ -29,8 +32,7 @@ import { READ_ONLY_ANNOTATIONS } from "./tool-contracts.js";
  */
 
 /** 每个字段独立实例（防 zod-to-json-schema 压成 $ref，与 tool-contracts.ts 同注释） */
-const verificationIdField = (): z.ZodString =>
-  z.string().regex(RECORD_ID_PATTERN).max(64);
+const verificationIdField = (): z.ZodString => z.string().regex(RECORD_ID_PATTERN).max(64);
 const runIdField = (): z.ZodString => z.string().min(1).max(RUN_ID_MAX);
 const logicalPathField = (): z.ZodString => z.string().min(1).max(LOGICAL_PATH_MAX);
 const cursorField = (): z.ZodString => z.string().min(1).max(CURSOR_MAX);

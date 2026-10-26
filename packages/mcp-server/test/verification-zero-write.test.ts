@@ -1,21 +1,21 @@
 import { join } from "node:path";
-import { afterAll, describe, expect, it } from "vitest";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import type { DataRoot } from "../src/startup.js";
+import { afterAll, describe, expect, it } from "vitest";
 import { compareVerificationsTool } from "../src/query/compare-verifications.js";
 import { getVerificationTool } from "../src/query/get-verification.js";
 import { inspectVerificationArtifactsTool } from "../src/query/inspect-verification-artifacts.js";
 import { listVerificationsTool } from "../src/query/list-verifications.js";
 import { readVerificationArtifactTool } from "../src/query/read-verification-artifact.js";
 import { readVerificationLogTool } from "../src/query/read-verification-log.js";
+import type { DataRoot } from "../src/startup.js";
 import {
-  buildVerificationFixture,
-  cleanupVerificationFixtures,
-  rootFingerprintDiff,
-  snapshotRootFingerprint,
-  VERIFICATION_FIXTURE_IDS as ids,
   type RootFingerprint,
   type VerificationFixture,
+  buildVerificationFixture,
+  cleanupVerificationFixtures,
+  VERIFICATION_FIXTURE_IDS as ids,
+  rootFingerprintDiff,
+  snapshotRootFingerprint,
 } from "./verification-fixtures.js";
 
 /**
@@ -36,7 +36,9 @@ afterAll(() => {
 const root: DataRoot = { dataDir: fixture.dataRoot, tracesDir: fixture.tracesDir };
 
 async function invoke(
-  tool: { execute: (args: Readonly<Record<string, unknown>>, root: DataRoot) => Promise<CallToolResult> },
+  tool: {
+    execute: (args: Readonly<Record<string, unknown>>, root: DataRoot) => Promise<CallToolResult>;
+  },
   args: Record<string, unknown>,
 ): Promise<CallToolResult> {
   return tool.execute(args, root);
@@ -69,7 +71,8 @@ describe("六工具全链零写入（M17 进程内半边）", () => {
       stream: "stdout",
       maxChars: 500,
     });
-    const logCursor = (log1.structuredContent as { page?: { nextCursor: string } }).page?.nextCursor;
+    const logCursor = (log1.structuredContent as { page?: { nextCursor: string } }).page
+      ?.nextCursor;
     if (logCursor !== undefined) {
       await invoke(readVerificationLogTool, {
         verificationId: ids.fail,

@@ -1,24 +1,24 @@
-import { z } from "zod";
-import { compareVerificationFacts, type VerificationFactsSide } from "@rebaseagent/project-verification/facts";
 import {
+  type VerificationFactsSide,
+  compareVerificationFacts,
+} from "@rebaseagent/project-verification/facts";
+import {
+  type VerificationRecordRead,
   getVerification,
   projectVerification,
   resolveLogAsset,
   verifyAsset,
-  type VerificationRecordRead,
 } from "@rebaseagent/project-verification/read";
+import { z } from "zod";
 import type { LimitationInput, ProvenanceVerificationInput } from "../envelope.js";
 import type { ToolDefinition } from "../server.js";
 import type { DataRoot } from "../startup.js";
+import { ToolFailure, type ToolPayload, defineTool } from "../tool-definition.js";
 import {
   type CompareVerificationsArgs,
   requireVerificationContract,
 } from "../verification-contracts.js";
-import { ToolFailure, type ToolPayload, defineTool } from "../tool-definition.js";
-import {
-  assertReadUnchanged,
-  computeVerificationReadVersion,
-} from "./verification-support.js";
+import { assertReadUnchanged, computeVerificationReadVersion } from "./verification-support.js";
 
 /**
  * `compare_verifications`（MCP2 design D2/D7，tasks 3.6）。
@@ -37,9 +37,7 @@ const SideSchema = z
     verificationId: z.string().max(64),
     /** ready = 记录可读；unavailable = 不存在/不可读（不换验证） */
     availability: z.enum(["ready", "unavailable"]),
-    status: z
-      .enum(["sealed", "unterminated", "corrupt", "unsupported_version"])
-      .nullable(),
+    status: z.enum(["sealed", "unterminated", "corrupt", "unsupported_version"]).nullable(),
     outcome: z.string().min(1).nullable(),
     evidenceComplete: z.boolean().nullable(),
     exitCode: z.number().int().nullable(),
