@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { JsonlTracer, NullTracer, readRun } from "@rebaseagent/trace-sdk";
+import { JsonlTracer, MemoryTracer, NullTracer, readRun } from "@rebaseagent/trace-sdk";
 import type { SpanLine, TraceStreamEvent } from "@rebaseagent/trace-sdk";
 import { describe, expect, it } from "vitest";
 import { GENERIC_LLM_FAILURE, LlmRequestError, runLoop } from "../src/index";
@@ -45,6 +45,37 @@ describe("runLoop：纯函数四不变量", () => {
     expect(a.events).toEqual(b.events);
     expect(a.result.messages).toEqual(b.result.messages);
     expect(a.result.event).toEqual(b.result.event);
+  });
+
+  it("同毫秒创建根 run 也得到不同 id（时间戳 + 随机后缀）", async () => {
+    const ids: string[] = [];
+    const originalNow = Date.now;
+    const originalRandom = Math.random;
+    const randomValues = [0.111111, 0.222222];
+    let randomIndex = 0;
+    Date.now = () => 1_700_000_000_000;
+    Math.random = () => randomValues[randomIndex++] ?? 0.333333;
+    try {
+      for (let i = 0; i < 2; i += 1) {
+        const tracer = new MemoryTracer();
+        await runLoop(
+          sampleConfig(),
+          initialMessages("同毫秒"),
+          tracer,
+          tools,
+          new MockLlmClient([{ content: "完成" }]),
+        );
+        const id = tracer.metas[0]?.id;
+        expect(id).toBeDefined();
+        if (id !== undefined) ids.push(id);
+      }
+    } finally {
+      Date.now = originalNow;
+      Math.random = originalRandom;
+    }
+    expect(ids).toHaveLength(2);
+    expect(new Set(ids).size).toBe(2);
+    for (const id of ids) expect(id).toMatch(/^run_[0-9a-z]+_[0-9a-z]+$/);
   });
 
   it("历史不可变：初始消息对象不被修改，新消息只追加", async () => {

@@ -57,6 +57,11 @@ export function deriveTotalTokens(usages: Array<{ in: number; out: number }>): n
  * - 观测全部经 Tracer 流出，不写文件
  * - 只抛 loop 自身 bug（配置校验失败、Tracer 误用等）
  */
+/** 根 run id：毫秒时间戳 + 随机后缀。只用时间戳会在同毫秒创建两个 run 时撞 ID。 */
+function newRootRunId(): string {
+  return `run_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
 export async function runLoop(
   config: RunConfig,
   initialMessages: Message[],
@@ -77,7 +82,7 @@ export async function runLoop(
   }
 
   tracer.startRun({
-    id: forkRun?.id ?? `run_${Date.now().toString(36)}`,
+    id: forkRun?.id ?? newRootRunId(),
     // 普通运行恒写 v1（等于 trace-sdk 的 PLAIN_FORMAT_VERSION）。刻意**不复用**
     // FORMAT_VERSION：那个常量是"最高支持版本"（现为 3），隔离执行的 v2 由 workspace
     // Tracer 包装器覆盖 meta 的版本与 workspace 字段，普通 loop 不跟着跳版本。
