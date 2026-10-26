@@ -8,7 +8,7 @@
 
 <p>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"/></a>
-  <a href="https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.6.0-rc.1"><img src="https://img.shields.io/badge/Release-v0.6.0--rc.1-green.svg" alt="Release"/></a>
+  <a href="https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.7.0-rc.1"><img src="https://img.shields.io/badge/Release-v0.7.0--rc.1-green.svg" alt="Release"/></a>
   <a href="https://www.electronjs.org/"><img src="https://img.shields.io/badge/Electron-44-47848F?logo=electron&amp;logoColor=white" alt="Electron 44"/></a>
   <a href="https://react.dev/"><img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&amp;logoColor=black" alt="React 19"/></a>
   <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-5.6-3178C6?logo=typescript&amp;logoColor=white" alt="TypeScript 5.6"/></a>
@@ -37,11 +37,11 @@ ReBaseAgent 在本项目的执行循环与受控 `read_file` / `write_file` 工�
 
 ## 📥 下载
 
-**Windows x64 便携版** → [GitHub Releases](https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.6.0-rc.1) / [Gitee Releases](https://gitee.com/yuzu-tea-duck/re-base-agent/releases/tag/v0.6.0-rc.1)
+**Windows x64 便携版** → [GitHub Releases](https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.7.0-rc.1) / [Gitee Releases](https://gitee.com/yuzu-tea-duck/re-base-agent/releases/tag/v0.7.0-rc.1)
 
-最新打包为 **0.6.0-rc.1**（发行候选）：分发形态为 **zip 包**（`ReBaseAgent-0.6.0-rc.1-win-x64.zip`，`100,291,623` bytes，SHA-256 前缀 `5e9ca670fc0a4cd0`），内含 `ReBaseAgent-0.6.0-rc.1-win-x64-portable.exe`（`95,004,894` bytes）、**`mcp/` 只读诊断目录**（v0.6.0 起附带，接入见[指南](docs/guide/mcp-readonly-diagnostics.md)）、逐文件 `SHA256SUMS.txt` 与使用说明。用 7-Zip / WinRAR 解压后双击 exe 运行，无需安装；应用数据保存在 exe 旁的 `data/` 目录，迁移时同时携带该目录。便携启动器会使用临时解包目录，不能将便携理解为"不产生临时文件"。
+最新打包为 **0.7.0-rc.1**（发行候选）：分发形态为 **zip 包**（`ReBaseAgent-0.7.0-rc.1-win-x64.zip`，`100,711,505` bytes，SHA-256 前缀 `5fcaeb6cf714cacb`），内含 `ReBaseAgent-0.7.0-rc.1-win-x64-portable.exe`（`95,140,257` bytes）、**`mcp/` 只读诊断目录**（自 v0.7.0 起为十三工具，接入见[指南](docs/guide/mcp-readonly-diagnostics.md)）、逐文件 `SHA256SUMS.txt` 与使用说明。用 7-Zip / WinRAR 解压后双击 exe 运行，无需安装；应用数据保存在 exe 旁的 `data/` 目录，迁移时同时携带该目录。便携启动器会使用临时解包目录，不能将便携理解为"不产生临时文件"。
 
-> 0.6.0-rc.1 在 0.5.0-rc.1 基础上纳入 **R2.2 隔离 prompt 实验**（跨运行检查点/文件比较、单侧导出）、渲染层模块拆分与 **MCP 只读诊断**（七只读工具，zip 附带 `mcp/` 目录，真实客户端两轮验收）。 **上传 GitHub / Gitee Releases 属独立步骤，完成前上述链接暂不可用**；本版自动化门禁与离线冒烟全绿，人工实机验收未执行（构建与验证依据见[构建记录](docs/engineering/reports/2026-10-16-v0.5.0-rc.1-build-record.md)）。历史正式版 [v0.2.0](https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.2.0) 不代表长期维护承诺，支持范围见 [SECURITY.md](SECURITY.md)。
+> 0.7.0-rc.1 在 0.6.0-rc.1 基础上纳入 **R3 隔离项目验证**（Docker Desktop 受限容器、node-ts-v1 固定模板、双验证比较与精确输入导出）与 **MCP2 测试证据查询**（六个新只读工具，`mcp/` 共十三工具）。 **上传 GitHub / Gitee Releases 属独立步骤，完成前上述链接暂不可用**；本版自动化门禁与离线冒烟全绿，人工实机验收未执行（构建与验证依据见[构建记录](docs/engineering/reports/2026-10-26-v0.7.0-rc.1-build-record.md)）。历史正式版 [v0.2.0](https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.2.0) 不代表长期维护承诺，支持范围见 [SECURITY.md](SECURITY.md)。
 
 > 建议用 7-Zip / WinRAR 解压：不会给文件打 Mark-of-the-Web 标记，可绕开 SmartScreen「未知发布者」首弹；用系统自带解压若遇提示，点「更多信息 → 仍要运行」即可（本项目尚未购买代码签名证书）。
 
@@ -56,6 +56,8 @@ ReBaseAgent 在本项目的执行循环与受控 `read_file` / `write_file` 工�
 **🛡️ 带写工具的 run 也能安全地退回去重跑** — 这是与"只能看"的调试器最实际的差别。从一个目录创建带文件检查点的隔离 run，编辑某一步的工具结果后，从**那一轮的副本文件世界**续跑：父 run、源目录、兄弟分支逐字节不变，同轮兄弟工具的原效果保留且不重放。文件按内容寻址跨 run 共享，整个数据目录搬走后照样可读可分叉。
 
 **🔀 改启动上下文，从头重跑** — 改 system prompt 或首条 user message 后完整重跑，独立记录新轨迹，父 run 只作溯源对照；多分支可并排比较新旧行为。启动上下文变了，前缀天然不复用，所以这是新实验而非同源回放。
+
+**🧪 在固定环境里验证修复** — 从历史检查点取源码，在 Docker Desktop（Linux containers）受限容器里跑固定 `node-ts-v1` 模板的类型检查或可信测试；环境准备与执行分开确认，结局、证据完整性、日志与产物分别记录，两条验证可并排比较，所测输入可按 R2.1 口径导出。只支持 Windows x64 + Docker Desktop + `node-ts-v1`，不接受自定义命令、依赖、镜像或限额；验证不会自动发起模型修复。
 
 ![分支树与运行对照](docs/readme-shots/compare.png)
 
@@ -178,7 +180,7 @@ prompt fork = 编辑首次 llm.call 的启动上下文（system prompt / 首条 
 
 ### 改一项启动指令，从初始快照重跑（隔离 prompt 实验）
 
-> **已随 `v0.6.0-rc.1` 进入发行包**：zip 附带自包含 `mcp/` 目录（`node mcp/dist/cli.js --data-dir <数据根>`），接入方法与边界见[指南](docs/guide/mcp-readonly-diagnostics.md)。
+> **已随 `v0.7.0-rc.1` 进入发行包（十三工具）**：zip 附带自包含 `mcp/` 目录（`node mcp/dist/cli.js --data-dir <数据根>`），接入方法与边界见[指南](docs/guide/mcp-readonly-diagnostics.md)。
 
 在带文件的隔离根 run 的概览或首次 `llm.call` 详情里点「修改启动指令」，可以改 system prompt 或首条 user message，并从该根 run 的**初始文件快照**从头重跑：
 
@@ -249,12 +251,12 @@ DeepSeek / GLM / Qwen / Kimi 等 OpenAI 兼容端点开箱即用。
 
 **下一步在做的事**：
 
-- R3：在首个受支持的项目环境中运行真实测试，并把“修改 → 跑测试 → 导出”连成闭环
+- R3 真实项目接入（当前仅 `node-ts-v1` 固定模板）与验证面板的视觉/键盘/窄窗实机验收
 - trace 包导出（把整条轨迹带走；区别于已交付的文件快照导出）
 - 隔离父本／分支上的 prompt fork 与模型 A/B（仍禁用；R2.2 只开放根初始快照上的隔离 prompt 实验）
 - macOS / Linux 打包
 
-**MCP 服务体系**：MCP0（接口与接入准备）与 MCP1（运行／步骤／比较与历史文件的**只读**查询，七工具）已实现并随 `v0.6.0-rc.1` 进入发行包（zip 附带 `mcp/` 目录，[接入指南](docs/guide/mcp-readonly-diagnostics.md)）；MCP2（R3 后测试证据查询）与 MCP3（按需受控执行）仍为规划；详见 [MCP 服务规划](docs/product/mcp-service-roadmap.md)与[正式路线](docs/product/evolution-roadmap.md)。
+**MCP 服务体系**：MCP0（接口与接入准备）、MCP1（运行／步骤／比较与历史文件的**只读**查询，七工具）已随 `v0.6.0-rc.1` 进入发行包；MCP2（R3 验证记录查询，新增六工具，共十三工具）已随 `v0.7.0-rc.1` 进入发行包（zip 附带 `mcp/` 目录，[接入指南](docs/guide/mcp-readonly-diagnostics.md)）；MCP3（按需受控执行）仍为规划；详见 [MCP 服务规划](docs/product/mcp-service-roadmap.md)与[正式路线](docs/product/evolution-roadmap.md)。
 
 范围与边界见[拆分计划](docs/engineering/plans/2026-09-21-ui-change-split-plan.md)。
 
