@@ -1,6 +1,6 @@
 # MCP 服务演进规划
 
-更新：2026-10-26。状态：**MCP0（接口与接入准备）与 MCP1（只读诊断首版）已实施并归档**（change `add-readonly-mcp-diagnostics`，2026-10-24）：七只读工具 + 真实 stdio 全量协议 + 零写入/零执行复核 + WorkBuddy 5.9.0 真实客户端两轮验收 + 接入指南；**MCP1 已随 `v0.6.0-rc.1` 发行，MCP2 已随 `v0.7.0-rc.1` 发行（十三工具）**。接入方法见[只读诊断接入指南](../guide/mcp-readonly-diagnostics.md)。MCP3 仍为规划，能力排序以正式路线为准。本文细化[正式产品路线](evolution-roadmap.md) §3.3；能力排序以正式路线为准，具体接口与执行契约通过后续 OpenSpec 提案设计和验收。
+更新：2026-10-26。状态：**MCP0（接口与接入准备）与 MCP1（只读诊断首版）已实施并归档**（change `add-readonly-mcp-diagnostics`，2026-10-24）：七只读工具 + 真实 stdio 全量协议 + 零写入/零执行复核 + WorkBuddy 5.9.0 真实客户端两轮验收 + 接入指南；**MCP1 已随 `v0.6.0-rc.1` 发行，MCP2 已随 `v0.7.0-rc.2` 打包（十三工具）**。接入方法见[只读诊断接入指南](../guide/mcp-readonly-diagnostics.md)。MCP3 仍为规划，能力排序以正式路线为准。本文细化[正式产品路线](evolution-roadmap.md) §3.3；能力排序以正式路线为准，具体接口与执行契约通过后续 OpenSpec 提案设计和验收。
 
 ## 1. 目标与范围
 
@@ -72,7 +72,7 @@ R2.2 与 R3 继续保持核心交付优先级。MCP1 不成为二者的前置条
 
 在选定客户端完成代表任务，分析引用能回到真实运行、步骤和检查点；核对相同对象在桌面与 MCP 中的事实一致。覆盖非法标识、损坏记录、缺失父链／附件、二进制、长输出、空列表和中断连接等适用场景，记录既有数据不变。另一位使用者能依接入说明配置成功；未通过时先修复支持路径，不扩展客户端数量。
 
-## 5. MCP2：测试证据查询 ✅（2026-10-26 实施并验收；随 `v0.7.0-rc.1` 发行）
+## 5. MCP2：测试证据查询 ✅（2026-10-26 实施并验收；随 `v0.7.0-rc.2` 打包）
 
 在 MCP1 基础上查询 R3 实际记录的命令、参数、工作目录、stdout／stderr、退出码、耗时、环境版本及相关产物。每条证据对应实际 run、检查点和执行身份；日志按范围读取，并保留截断说明。
 
@@ -80,7 +80,7 @@ R2.2 与 R3 继续保持核心交付优先级。MCP1 不成为二者的前置条
 
 完成判据：客户端能从原失败分支追到修复分支的实际测试和文件产物，核对命令及可比较环境；缺项与错误分类在桌面和 MCP 中一致。此阶段仍只读，不允许借查询执行命令。
 
-**状态（2026-10-26）**：已完成验收——`list_verifications`/`get_verification`/`read_verification_log`/`inspect_verification_artifacts`/`read_verification_artifact`/`compare_verifications` 六个只读工具，十三工具发现；WorkBuddy 5.9.2 真实客户端回查与桌面同对象一致，真实数据根零写入指纹实测。**已随 `v0.7.0-rc.1` 打包**：发行 zip 的 `mcp/` 为十三工具版本（`v0.6.0-rc.1` 及更早为七工具）；外部客户端在 0.7 发行包上的重跑仍待回填。证据：`openspec/changes/archive/2026-10-26-add-mcp-verification-evidence/evidence-index.md`；接入见[只读诊断指南 §5b/§10](../guide/mcp-readonly-diagnostics.md)。
+**状态（2026-10-26）**：已完成验收——`list_verifications`/`get_verification`/`read_verification_log`/`inspect_verification_artifacts`/`read_verification_artifact`/`compare_verifications` 六个只读工具，十三工具发现；WorkBuddy 5.9.2 真实客户端回查与桌面同对象一致，真实数据根零写入指纹实测。**已随 `v0.7.0-rc.2` 打包**：发行 zip 的 `mcp/` 为十三工具版本（`v0.6.0-rc.1` 及更早为七工具）；`v0.7.0-rc.1` 同为十三工具但根 run ID 有碰撞缺陷，已由 rc.2 修复；外部客户端在 0.7 发行包上的重跑仍待回填。证据：`openspec/changes/archive/2026-10-26-add-mcp-verification-evidence/evidence-index.md`；接入见[只读诊断指南 §5b/§10](../guide/mcp-readonly-diagnostics.md)。
 
 ## 6. MCP3：受控执行入口
 
