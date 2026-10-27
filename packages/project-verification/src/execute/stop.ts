@@ -105,7 +105,9 @@ export async function stopWorkloadsAndConfirm(
       throw new Error(`__STOP_SCAN__${reason}`);
     }
   };
-  const startedAt = Date.now();
+  // 单调时钟测量（与 command-runner 的 durationMs 一致）：Date.now 的 1ms 截断
+  // 会把「实际 10ms 出头的双扫窗口」记成 9ms，且墙钟跳变会污染耗时。
+  const startedAt = performance.now();
   try {
     const before = await scan();
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
@@ -116,7 +118,7 @@ export async function stopWorkloadsAndConfirm(
       stoppedPidCount: counts.termSent + counts.killEscalated,
       survivors: counts.survivors,
       quiescent: quiescent && counts.survivors === 0,
-      quiescenceMs: Date.now() - startedAt,
+      quiescenceMs: Math.max(0, Math.round(performance.now() - startedAt)),
     };
   } catch (error) {
     const reason = (error instanceof Error ? error.message : String(error)).replace(
