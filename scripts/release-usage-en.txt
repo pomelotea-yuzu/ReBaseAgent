@@ -1,0 +1,123 @@
+ReBaseAgent Usage Notes (v{{VERSION}})
+=====================
+
+[What this is]
+
+ReBaseAgent is a time-travel debugger for AI agents: it records every run of an AI agent,
+lets you inspect exactly what the model saw at each step, and lets you edit the step that
+went wrong and rerun only the necessary part. All data stays on your own computer.
+
+[What is in the zip]
+
+- ReBaseAgent-{{VERSION}}-win-x64-portable.exe — desktop app; double-click to run
+- mcp\ — MCP read-only diagnostics service (lets AI tools query run records; see the dedicated section below)
+- SHA256SUMS.txt — SHA-256 checksums for every file
+- 使用说明.txt — Chinese usage notes
+- 使用说明.en.txt — this English usage notes file
+
+[Requirements]
+
+- Windows 10 / 11 (64-bit)
+- No installation or administrator privileges required
+
+[How to start]
+
+1. Extract the zip to a fixed folder (for example D:\ReBaseAgent\).
+   Using 7-Zip or WinRAR is recommended.
+2. Double-click ReBaseAgent-*.exe in that folder.
+3. On first launch, Windows may show "Windows protected your PC":
+   click "More info" → "Run anyway".
+   (This app has no code-signing certificate and is an individual open-source
+   project; this is the normal warning for unsigned programs. You can verify
+   file integrity first with SHA256SUMS.txt in the zip.)
+4. On first launch, a data\ directory is created next to the exe. Note: no sample
+   run is created automatically — an empty list is normal. Create a run in the app
+   first (model API configuration is required) to produce the first record.
+
+[Where data is stored]
+
+- All run records, settings, and configuration live in the data\ folder next to the exe.
+- The app does not write to the registry or to C:\Users\<you>\AppData; deleting the data\ folder removes all data.
+- To back up, copy the whole folder (including data\).
+- Note: moving the exe to another directory means a new data directory; the old data
+  remains in the old directory.
+
+[How to upgrade]
+
+- Download the new zip, extract it, and replace the old exe with the new one (keep the
+  sibling data\ folder); all historical run data is preserved.
+- You can also extract to a new folder and start from scratch; the two installations do not affect each other.
+
+[Model access]
+
+- The API key is stored only locally, and requests go directly from your computer to the
+  provider; this app does not route them through any third-party server.
+- You can also use the built-in "local recording proxy": point the agent app's base_url at
+  the local proxy port to record while using it, without changing code.
+
+[Project verification]
+
+On the Files page, select a checkpoint and expand "Project verification" to run a fixed
+typecheck or trusted tests against that historical source in a restricted Docker container,
+with auditable records and logs.
+
+- Environment: Windows x64 + Docker Desktop (Linux containers).
+  The app does not install an engine and does not accept WSL / remote Docker / Podman.
+- Currently only the node-ts-v1 template is supported: tested source is limited to src\**\*.ts,
+  tests come from the trusted image, and the only commands are typecheck / test; custom commands,
+  dependencies, or images are not accepted.
+- First-time environment preparation requires network access to pull fixed images and the
+  toolchain (with integrity verification); the formal test phase runs with the container offline.
+- Verification never initiates a model repair automatically; fixes should come from a run
+  branch you have already recorded.
+- Real-project integration and more language templates are planned for later versions; use the
+  current template scope for now.
+
+[MCP read-only diagnostics (AI tool integration)]
+
+The mcp\ folder is ReBaseAgent's MCP service: it lets the AI tools you already use
+(MCP-capable clients such as WorkBuddy, Trae, and Cursor) query ReBaseAgent run records
+directly — run lists, step bodies, two-sided comparisons, checkpoint files, and project
+verification commands, logs, artifacts, and condition comparisons. There are **13 read-only
+tools**; they are **read-only**: no disk writes, no tool execution, no model calls.
+
+- Requirement: Node.js ≥ 20 (some clients bundle Node, such as WorkBuddy).
+- Prerequisite: launch the desktop app once to create the data\ directory and complete at
+  least one run (MCP queries existing run records; an empty directory returns an empty list,
+  which is not a configuration error).
+- Configuration (add in the client's MCP settings, transport stdio):
+    command: node   (or the full path to node.exe on your machine)
+    args: <extract-dir>\mcp\dist\cli.js --data-dir <extract-dir>\data
+  where --data-dir points to your data directory (for the portable build, data\ next to the exe by default).
+- Full integration guide (configuration examples, capability boundaries, cost, and known limitations):
+  repository docs/guide/mcp-readonly-diagnostics.en.md (English) or docs/guide/mcp-readonly-diagnostics.md (Chinese).
+
+Note: the MCP service makes zero writes to the data directory; queries do not modify any of your run records.
+
+[FAQ]
+
+Q: Double-clicking shows "Windows protected your PC"?
+A: Click "More info" → "Run anyway". If you prefer, verify the file hash first with
+   SHA256SUMS.txt (command: certutil -hashfile <filename> SHA256) and compare it with the
+   value published on the Release page.
+
+Q: Antivirus flags the app / warns about an unsigned program?
+A: This is a normal false positive for unsigned programs. You can add the app's folder to
+   your antivirus trust list; if you still have concerns, the entire project is open source,
+   so you are welcome to review it or build from source. We are also evaluating code-signing
+   options and hope later versions can provide a smoother installation experience.
+
+Q: A confirmation dialog appears when closing the window?
+A: This is normal protection when there are unsaved editing drafts; the window closes only after you confirm.
+
+Q: Is data sent over the network?
+A: Run records are always stored locally; the app connects to the network only when sending a
+   conversation to the model provider, and connects directly according to your configuration.
+   The MCP service also makes zero outbound network requests.
+
+[Open source and license]
+
+- The project is open source under the MIT license:
+  GitHub: https://github.com/pomelotea-yuzu/ReBaseAgent
+  Gitee:  https://gitee.com/yuzu-tea-duck/re-base-agent
+- If you run into problems, feel free to open an issue.

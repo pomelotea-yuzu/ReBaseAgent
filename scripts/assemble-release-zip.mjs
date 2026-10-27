@@ -8,7 +8,7 @@
  *     ├─ dist/cli.js                              入口：node mcp/dist/cli.js --data-dir <dir>
  *     └─ node_modules/                            pnpm --prod deploy（hoisted）的扁平依赖闭包
  *   SHA256SUMS.txt                                zip 内全部文件逐条 sha256（不含自身）
- *   使用说明.txt                                  桌面用法 + MCP 一节
+ *   使用说明.txt / 使用说明.en.txt                 中英双语桌面用法 + MCP 一节
  *
  * 关键工程事实（实测，别按直觉改）：
  *   - deploy 必须带 `--config.node-linker=hoisted`：pnpm 默认 .pnpm+symlink 布局既不能
@@ -224,14 +224,19 @@ await new Promise((resolveProbe, rejectProbe) => {
 // ---------------------------------------------------------------------------
 // 3) 使用说明 + SHA256SUMS + 组装 zip
 // ---------------------------------------------------------------------------
-const usage = readFileSync(join(REPO, "scripts/release-usage-zh.txt"), "utf8").replaceAll(
+const usageZh = readFileSync(join(REPO, "scripts/release-usage-zh.txt"), "utf8").replaceAll(
+  "{{VERSION}}",
+  version,
+);
+const usageEn = readFileSync(join(REPO, "scripts/release-usage-en.txt"), "utf8").replaceAll(
   "{{VERSION}}",
   version,
 );
 mkdirSync(join(work, "stage"));
 cpSync(exePath, join(work, "stage", exeName));
 cpSync(mcpDir, join(work, "stage", "mcp"), { recursive: true });
-writeFileSync(join(work, "stage", "使用说明.txt"), usage);
+writeFileSync(join(work, "stage", "使用说明.txt"), usageZh);
+writeFileSync(join(work, "stage", "使用说明.en.txt"), usageEn);
 
 const sums = [];
 const walk = (abs, rel) => {
@@ -271,7 +276,7 @@ const listing = run(SZ, ["l", "-ba", "-sccUTF-8", zipPath])
   // 7za 列表用反斜杠；与 SUMS（walk 生成，正斜杠）与顶层判断统一为正斜杠
   .map((n) => n.replaceAll("\\", "/"));
 const top = new Set(listing.map((n) => (n.includes("/") ? n.split("/")[0] : n)));
-const expectedTop = new Set([exeName, "mcp", "SHA256SUMS.txt", "使用说明.txt"]);
+const expectedTop = new Set([exeName, "mcp", "SHA256SUMS.txt", "使用说明.txt", "使用说明.en.txt"]);
 const structProblems = [];
 for (const t of top) if (!expectedTop.has(t)) structProblems.push(`多余顶层：${t}`);
 for (const t of expectedTop) if (!top.has(t)) structProblems.push(`缺顶层：${t}`);
@@ -292,7 +297,7 @@ if (structProblems.length > 0) {
   console.error(`③ 结构自验失败：${structProblems.join("；")}`);
   process.exit(1);
 }
-console.log(`③ 结构自验：顶层恰 4 项 / SUMS ${sums.length} 行对齐 / exe 逐字节一致 ✓`);
+console.log(`③ 结构自验：顶层恰 5 项 / SUMS ${sums.length} 行对齐 / exe 逐字节一致 ✓`);
 
 if (!keepWork) rmSync(work, { recursive: true, force: true });
 console.log(`ASSEMBLE_PASS ${zipPath}`);

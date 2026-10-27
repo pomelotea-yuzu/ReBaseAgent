@@ -4,6 +4,10 @@
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). This English file covers recent releases from `0.5.0-rc.1` through `0.7.0-rc.2`; the full history (`0.3.0-k1` and earlier, plus the Chinese `Unreleased` section) is in [CHANGELOG.md](CHANGELOG.md) (Chinese). Facts and boundaries match the Chinese entries; the per-version release notes in `docs/engineering/reports/` are the authoritative records (Chinese).
 
+## [Unreleased]
+
+- Packaging: release zips from the next build include both `使用说明.txt` (Chinese) and `使用说明.en.txt` (English). The already-uploaded rc.2 zip still contains only the Chinese usage notes.
+
 ## [0.7.0-rc.2] — candidate (rebuilt 10/26) 2026-10-26
 
 A fix candidate relative to 0.7.0-rc.1; no new user features:

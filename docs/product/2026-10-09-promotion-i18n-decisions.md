@@ -89,6 +89,7 @@
 
 - **范围**：`.github/ISSUE_TEMPLATE/` issue 模板 + `.github/pull_request_template.md` PR 模板；先检查已有文件再增补，不预设尚不存在。
 - **语言策略：混排。**中文为主、关键字段标签并列英文，不维护两套同义模板；影响填写的必要说明也应可由英文用户理解。
+- **发行 zip 使用说明**：自下一构建起同时附带 `使用说明.txt`（中文）与 `使用说明.en.txt`（英文）；组装脚本写入两份并纳入 zip 顶层结构自检（顶层 5 项）。
 - **内容要求**：
   - bug 模板填写实际使用的发行版本或源码提交、运行环境、复现步骤、预期/实际；不能仅凭仓库 `package.json` 推断已安装版本；
   - 引导提供脱敏后的相关 run/trace 与最小必要日志，明确不要提交 API Key、私密提示词或未经确认的项目文件，不强求完整数据目录；
@@ -111,7 +112,7 @@
 3. 调整或补充中英混排 Issue/PR 模板；后续完善贡献、机制、治理材料，不补翻全部历史。
 4. 按英文指南实际走通：安装 → 配置 → 核心操作 → 结果核对 → 查限制/反馈；执行涉及真实费用、数据外发或副本写入时按既有规则授权，不能为验收绕过确认。
 
-2026-10-28 首批已实施：`README.en.md`、`getting-started.en.md`、`SECURITY.en.md`、`CODE_OF_CONDUCT.en.md`、MCP 与项目验证两篇指南英文版、`CONTRIBUTING.en.md`、Issue/PR 模板中英混排；机制/治理英文版已补齐：`architecture/overview.en.md`、`architecture/replay-state-consistency.en.md`、`development/workflow.en.md`、`development/governance-and-maintenance.en.md`、`development/maintenance-policy.en.md`、`development/third-party-notices.en.md`；`CHANGELOG.en.md` 覆盖近期版本。中文侧同步校准 rc.2 下载与发行事实。仍为中文：`project-status`、`landscape`（入口标注 Chinese）、`release-and-handoff`、`audits` 与历史过程材料；软件 i18n 实施仍未开始。
+2026-10-28 首批已实施：`README.en.md`、`getting-started.en.md`、`SECURITY.en.md`、`CODE_OF_CONDUCT.en.md`、MCP 与项目验证两篇指南英文版、`CONTRIBUTING.en.md`、Issue/PR 模板中英混排；机制/治理英文版已补齐：`architecture/overview.en.md`、`architecture/replay-state-consistency.en.md`、`development/workflow.en.md`、`development/governance-and-maintenance.en.md`、`development/maintenance-policy.en.md`、`development/third-party-notices.en.md`；`CHANGELOG.en.md` 覆盖近期版本。中文侧同步校准 rc.2 下载与发行事实。仍为中文：`project-status`、`landscape`（入口标注 Chinese）、`release-and-handoff`、`audits` 与历史过程材料；软件 i18n 实施仍未开始。发行 zip 英文使用说明已接入组装脚本（2026-10-28 组装自验通过；rc.2 已上传包仍只有中文说明）。
 
 ### 阶段完成标准
 
