@@ -23,7 +23,7 @@ engineering / collab / competition / reviews），原 9 个并列目录归组；
 | [`architecture/`](architecture/overview.md) | **架构总览**：monorepo 包结构、数据流、设计原则 |
 | [`development/`](development/workflow.md) | **开发工作流**：质量门禁 `check:ci`、OpenSpec 流程、文档约定 |
 
-> 英文入口：[`README.en.md`](../README.en.md)、[`SECURITY.en.md`](../SECURITY.en.md)、[`CONTRIBUTING.en.md`](../CONTRIBUTING.en.md)；`guide/` 下提供同目录 `*.en.md` 版本。
+> 英文入口：[`README.en.md`](../README.en.md)、[`SECURITY.en.md`](../SECURITY.en.md)、[`CONTRIBUTING.en.md`](../CONTRIBUTING.en.md)、[`CODE_OF_CONDUCT.en.md`](../CODE_OF_CONDUCT.en.md)；`guide/` 下提供同目录 `*.en.md` 版本。
 
 ## 研发调研与维护
 

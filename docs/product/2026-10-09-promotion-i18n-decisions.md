@@ -55,7 +55,7 @@
 | `README.md` / `README.en.md` | 保留中文默认页，新增英文版，顶部互链；事实、能力状态、支持平台、命令、费用和安全边界等价，允许用自然英文改写句式，不自行改变定位与重点 |
 | `SECURITY.md` | 首批提供英文版，中文主文件保留 |
 | `CONTRIBUTING.md` | 已提供英文版（2026-10-28 首批）；后续补项目现状与文档导航 |
-| `CODE_OF_CONDUCT.md` | 后续完善英文版；核对现有准则版本与官方对应文本，不随意改写规范含义 |
+| `CODE_OF_CONDUCT.md` | 已提供英文版（2026-10-28）：按项目中文改写本翻译，保留 Contributor Covenant 2.1 来源与 CC BY 4.0 署名；未替换为官方英文原文 |
 | `LICENSE` | 不动，保留 MIT 英文原文 |
 | `CHANGELOG.md` | 不补翻全部历史；新增版本是否附双语发布摘要另定 |
 
@@ -111,7 +111,7 @@
 3. 调整或补充中英混排 Issue/PR 模板；后续完善贡献、机制、治理材料，不补翻全部历史。
 4. 按英文指南实际走通：安装 → 配置 → 核心操作 → 结果核对 → 查限制/反馈；执行涉及真实费用、数据外发或副本写入时按既有规则授权，不能为验收绕过确认。
 
-2026-10-28 首批已实施：`README.en.md`、`getting-started.en.md`、`SECURITY.en.md`、MCP 与项目验证两篇指南英文版、`CONTRIBUTING.en.md`、Issue/PR 模板中英混排；中文侧同步校准 rc.2 下载与发行事实。剩余：`CODE_OF_CONDUCT` 英文版（须核对官方对应文本）、机制/治理材料；软件 i18n 实施仍未开始。
+2026-10-28 首批已实施：`README.en.md`、`getting-started.en.md`、`SECURITY.en.md`、`CODE_OF_CONDUCT.en.md`、MCP 与项目验证两篇指南英文版、`CONTRIBUTING.en.md`、Issue/PR 模板中英混排；中文侧同步校准 rc.2 下载与发行事实。剩余：机制/治理材料（`architecture/overview.md`、`architecture/replay-state-consistency.md`、`governance-and-maintenance.md`、`maintenance-policy.md`、`third-party-notices.md` 等），按需分批补齐；软件 i18n 实施仍未开始。
 
 ### 阶段完成标准
 

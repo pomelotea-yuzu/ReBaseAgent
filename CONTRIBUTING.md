@@ -69,4 +69,4 @@ pnpm check:ci       # 质量门禁：build → typecheck → test → lint → s
 
 ## 行为准则
 
-参与社区即表示同意 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)。
+参与社区即表示同意 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)（[English](CODE_OF_CONDUCT.en.md)）。

@@ -69,4 +69,4 @@ Report privately through the channels in [SECURITY.en.md](SECURITY.en.md).
 
 ## Code of conduct
 
-Participating in the community means agreeing to [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) (Chinese; the file identifies its upstream version).
+Participating in the community means agreeing to [CODE_OF_CONDUCT.en.md](CODE_OF_CONDUCT.en.md).
