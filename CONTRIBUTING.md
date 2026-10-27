@@ -1,5 +1,7 @@
 # 贡献指南
 
+> **语言 / Language:** [English](CONTRIBUTING.en.md) | 简体中文
+
 谢谢愿意参与 ReBaseAgent！这是一份简短的合作约定。使用问题请先看
 [README](README.md) 与[快速开始](docs/guide/getting-started.md)。
 

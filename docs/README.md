@@ -17,11 +17,13 @@ engineering / collab / competition / reviews），原 9 个并列目录归组；
 
 | 目录 | 内容 |
 |---|---|
-| [`guide/`](guide/getting-started.md) | **快速开始**：下载/源码运行、四条上手路径、核心概念 1 分钟 |
-| [`guide/mcp-readonly-diagnostics.md`](guide/mcp-readonly-diagnostics.md) | **MCP 只读诊断接入**：七工具构建/启动/客户端配置、正文外发与预算、信任口径、游标边界（发行包暂不含，须源码构建） |
-| [`guide/isolated-project-verification.md`](guide/isolated-project-verification.md) | **项目验证使用/限制**：R3 模板范围、准备与执行分开授权、停止/unknown、有界日志、双验证比较、精确输入导出（发行包暂不含，须源码构建） |
+| [`guide/`](guide/getting-started.md) | **快速开始**：下载/源码运行、四条上手路径、核心概念 1 分钟（[English](guide/getting-started.en.md)） |
+| [`guide/mcp-readonly-diagnostics.md`](guide/mcp-readonly-diagnostics.md) | **MCP 只读诊断接入**：十三工具构建/启动/客户端配置、正文外发与预算、信任口径、游标边界（自 `v0.7.0-rc.2` 起随发行包附带 `mcp/`；[English](guide/mcp-readonly-diagnostics.en.md)） |
+| [`guide/isolated-project-verification.md`](guide/isolated-project-verification.md) | **项目验证使用/限制**：R3 模板范围、准备与执行分开授权、停止/unknown、有界日志、双验证比较、精确输入导出（自 `v0.7.0-rc.2` 起随发行包提供；[English](guide/isolated-project-verification.en.md)） |
 | [`architecture/`](architecture/overview.md) | **架构总览**：monorepo 包结构、数据流、设计原则 |
 | [`development/`](development/workflow.md) | **开发工作流**：质量门禁 `check:ci`、OpenSpec 流程、文档约定 |
+
+> 英文入口：[`README.en.md`](../README.en.md)、[`SECURITY.en.md`](../SECURITY.en.md)、[`CONTRIBUTING.en.md`](../CONTRIBUTING.en.md)；`guide/` 下提供同目录 `*.en.md` 版本。
 
 ## 研发调研与维护
 
@@ -46,15 +48,15 @@ engineering / collab / competition / reviews），原 9 个并列目录归组；
 | [`direction-2026H2.md`](product/direction-2026H2.md) | AniPedia × ReBaseAgent 2026H2 方向规划（一审稿 v2.1，含一审/二审回执） |
 | [`2026-09-09-roadmap-gaps.md`](product/2026-09-09-roadmap-gaps.md) | 路线图与缺口清单（09-09） |
 | [`evolution-roadmap.md`](product/evolution-roadmap.md) | **产品演进路线（原隔离重跑演进路线，无日期前缀的长期文档）**：R0–R5 能力阶段、I/U 主线、打包节点及证据门槛；10/18 增加 MCP0–MCP3 独立服务体系；10/22 R2.2 已归档（源码、未打包），下一项为 R3 |
-| [`mcp-service-roadmap.md`](product/mcp-service-roadmap.md) | **MCP 服务演进规划**：MCP0/MCP1 只读诊断已交付（未打包；接入见 [指南](guide/mcp-readonly-diagnostics.md)），MCP2 测试证据与 MCP3 受控执行仍为规划 |
+| [`mcp-service-roadmap.md`](product/mcp-service-roadmap.md) | **MCP 服务演进规划**：MCP0/MCP1/MCP2 已交付并随 `v0.7.0-rc.2` 打包（十三工具，接入见 [指南](guide/mcp-readonly-diagnostics.md)）；MCP3 受控执行仍为规划 |
 | [`2026-10-12-capability-roadmap-from-r2-2.md`](product/2026-10-12-capability-roadmap-from-r2-2.md) | **R2.2 起的能力增强路线讨论稿存档**：主线排序已同步正式路线，10/18 附注补充 MCP 的 H1–H3 实施映射；详细任务与技术方案仍待设计、立项，不重开已完成阶段 |
 
 ### competition/ — 参赛规划与材料
 
 | 文件 | 说明 |
 |---|---|
-| [2026-shanghai-os-contest-plan.md](competition/2026-shanghai-os-contest-plan.md) | **2026 上海开源软件应用创新大赛方案**：U1–U8 验收后录制，目标 10/02 开发收口、10/03 实包验收、10/04–10/05 录制、10/06 复核，争取 **10/07 全部材料实际提交**；含 Gitee 交付、视频主线及材料清单 |
-| [2026-09-27-evaluation-gap-analysis.md](competition/2026-09-27-evaluation-gap-analysis.md) | **四项评审维度证据矩阵**：技术创新、场景落地、开源治理、长期发展当前证据、缺口、边界和分步补强顺序 |
+| [2026-shanghai-os-contest-plan.md](competition/oscc-sh/2026-shanghai-os-contest-plan.md) | **2026 上海开源软件应用创新大赛方案**：U1–U8 验收后录制，目标 10/02 开发收口、10/03 实包验收、10/04–10/05 录制、10/06 复核，争取 **10/07 全部材料实际提交**；含 Gitee 交付、视频主线及材料清单 |
+| [2026-09-27-evaluation-gap-analysis.md](competition/oscc-sh/2026-09-27-evaluation-gap-analysis.md) | **四项评审维度证据矩阵**：技术创新、场景落地、开源治理、长期发展当前证据、缺口、边界和分步补强顺序 |
 
 ### engineering/ — 执行方案、报告与交接单
 

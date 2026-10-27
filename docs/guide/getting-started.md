@@ -1,12 +1,14 @@
 # 快速开始（Guide）
 
+> **语言 / Language:** [English](getting-started.en.md) | 简体中文
+
 > 面向新用户：从零到第一次看到时间旅行调试界面。功能全貌与能力边界见仓库根 [`README.md`](../../README.md)。
 
 ## 1. 获取应用
 
 两条路（Windows x64）：
 
-- **便携版（推荐）**：从 [GitHub](https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.5.0-rc.1) 或 [Gitee](https://gitee.com/yuzu-tea-duck/re-base-agent/releases/tag/v0.5.0-rc.1) 获取 `v0.5.0-rc.1` zip 包，用 7-Zip / WinRAR 解压后双击 exe 运行。该候选包含 R2.1 结果导出与全部已归档桌面能力（对象身份经社区发行打磨）；**上传 Releases 属独立步骤，完成前链接暂不可用**，哈希与验收边界见[项目状态](../development/project-status.md)。应用数据在 exe 旁的 `data/`，启动时会临时解包。
+- **便携版（推荐）**：从 [GitHub](https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.7.0-rc.2) 或 [Gitee](https://gitee.com/yuzu-tea-duck/re-base-agent/releases/tag/v0.7.0-rc.2) 获取 `v0.7.0-rc.2` 的 `ReBaseAgent-0.7.0-rc.2-win-x64.zip`（`100,711,965` bytes，SHA-256 前缀 `46bf35061f7338b0`），用 7-Zip / WinRAR 解压后双击 exe 运行。该候选包含 R3 隔离项目验证、MCP 十三工具与全部已归档桌面能力；已上传 GitHub / Gitee Releases（2026-10-28 维护者确认），哈希与验收边界见[项目状态](../development/project-status.md)。应用数据在 exe 旁的 `data/`，启动时会临时解包。
 - **从源码运行**：
 
 ```bash

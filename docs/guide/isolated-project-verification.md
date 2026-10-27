@@ -1,9 +1,11 @@
 # 项目验证使用指南（R3 当前实现）
 
+> **语言 / Language:** [English](isolated-project-verification.en.md) | 简体中文
+
 > 在**受限容器**里，对某个隔离检查点的历史源码跑固定类型检查/可信测试，保存可回查的记录与日志；
 > 两条验证可并排比较条件与结局，并把「所测输入」按 R2.1 导出。
 >
-> 本文对应 `add-isolated-project-verification` 的当前实现（**自 `v0.7.0-rc.2` 起进入发行 zip；Release 上传由维护者执行**）。
+> 本文对应 `add-isolated-project-verification` 的当前实现（**自 `v0.7.0-rc.2` 起进入发行 zip；已上传 GitHub / Gitee Releases，2026-10-28 维护者确认**）。
 > 证据边界：真实 Docker 双验证与导出已实测（2026-10-25）；**Electron 实机视觉/键盘/窄窗走查尚未完成**，
 > 相关结论不能引用本文代替实机验收。
 

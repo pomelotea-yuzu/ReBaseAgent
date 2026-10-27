@@ -1,5 +1,7 @@
 <div align="center">
 
+<p><a href="README.en.md">English</a> | 简体中文</p>
+
 <img src="apps/desktop/build/icon.png" width="128" alt="ReBaseAgent logo"/>
 
 # ReBaseAgent
@@ -41,7 +43,7 @@ ReBaseAgent 在本项目的执行循环与受控 `read_file` / `write_file` 工�
 
 最新打包为 **0.7.0-rc.2**（修复候选）：分发形态为 **zip 包**（`ReBaseAgent-0.7.0-rc.2-win-x64.zip`，`100,711,965` bytes，SHA-256 前缀 `46bf35061f7338b0`），内含 `ReBaseAgent-0.7.0-rc.2-win-x64-portable.exe`（`95,140,470` bytes）、**`mcp/` 只读诊断目录**（自 v0.7.0 起为十三工具，接入见[指南](docs/guide/mcp-readonly-diagnostics.md)）、逐文件 `SHA256SUMS.txt` 与使用说明。用 7-Zip / WinRAR 解压后双击 exe 运行，无需安装；应用数据保存在 exe 旁的 `data/` 目录，迁移时同时携带该目录。便携启动器会使用临时解包目录，不能将便携理解为"不产生临时文件"。
 
-> 0.7.0-rc.2 是 0.7.0-rc.1 的修复重打包：功能范围不变（R3 隔离项目验证 + MCP 十三工具），修复 **rc.1 的根 run ID 同毫秒碰撞**（可能覆盖历史运行记录）及若干 Linux/root/慢机 CI 兼容问题。 **上传 GitHub / Gitee Releases 属独立步骤，完成前上述链接暂不可用**；本版自动化门禁与离线冒烟全绿，人工实机验收未执行（构建与验证依据见[构建记录](docs/engineering/reports/2026-10-26-v0.7.0-rc.2-build-record.md)）。历史正式版 [v0.2.0](https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.2.0) 不代表长期维护承诺，支持范围见 [SECURITY.md](SECURITY.md)。
+> 0.7.0-rc.2 是 0.7.0-rc.1 的修复重打包：功能范围不变（R3 隔离项目验证 + MCP 十三工具），修复 **rc.1 的根 run ID 同毫秒碰撞**（可能覆盖历史运行记录）及若干 Linux/root/慢机 CI 兼容问题。 **已上传 GitHub / Gitee Releases（2026-10-28 维护者确认）**；本版自动化门禁与离线冒烟全绿，人工实机验收未执行（构建与验证依据见[构建记录](docs/engineering/reports/2026-10-26-v0.7.0-rc.2-build-record.md)）。历史正式版 [v0.2.0](https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.2.0) 不代表长期维护承诺，支持范围见 [SECURITY.md](SECURITY.md)。
 
 > 建议用 7-Zip / WinRAR 解压：不会给文件打 Mark-of-the-Web 标记，可绕开 SmartScreen「未知发布者」首弹；用系统自带解压若遇提示，点「更多信息 → 仍要运行」即可（本项目尚未购买代码签名证书）。
 

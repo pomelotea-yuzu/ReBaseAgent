@@ -1,25 +1,29 @@
-name: Bug 报告
-description: 使用中遇到的问题或错误行为
+name: Bug report / Bug 报告
+description: Report a problem or unexpected behavior / 使用中遇到的问题或错误行为
 labels: [bug]
 body:
   - type: markdown
     attributes:
       value: |
+        Search existing issues first. Redact sensitive information such as API keys —
+        keep only the error shape in logs; never paste full credentials.
+        For security issues such as credential leaks or path escapes, report privately per SECURITY.md.
+
         提交前请先搜索已有 issue。涉及 API key 等敏感信息请先脱敏——
         日志里只需保留报错形态，不要贴完整凭据。
         涉及凭据泄露、路径逃逸等安全问题，请按仓库 SECURITY.md 私下报告。
   - type: textarea
     id: problem
     attributes:
-      label: 遇到的问题
-      description: 一句话说清现象。例如：改某步 tool_result 续跑后，分支树里没有出现新节点。
+      label: What happened / 遇到的问题
+      description: "One sentence describing the symptom. Example: after editing a step's tool_result and rerunning, no new node appears in the branch tree. / 一句话说清现象。例如：改某步 tool_result 续跑后，分支树里没有出现新节点。"
     validations:
       required: true
   - type: textarea
     id: repro
     attributes:
-      label: 复现步骤
-      description: 编号列出最少复现路径；涉及界面时可附脱敏截图，不必上传完整工程。
+      label: Steps to reproduce / 复现步骤
+      description: List the minimal reproduction path by number; for UI issues, redacted screenshots are enough — do not upload a full project. / 编号列出最少复现路径；涉及界面时可附脱敏截图，不必上传完整工程。
       placeholder: |
         1. …
         2. …
@@ -28,48 +32,48 @@ body:
   - type: textarea
     id: expected
     attributes:
-      label: 期望行为
+      label: Expected behavior / 期望行为
     validations:
       required: true
   - type: textarea
     id: actual
     attributes:
-      label: 实际行为
+      label: Actual behavior / 实际行为
     validations:
       required: true
   - type: dropdown
     id: runmode
     attributes:
-      label: 运行方式
+      label: Run mode / 运行方式
       options:
-        - 便携版 exe
-        - 源码（pnpm dev）
-        - SDK 接入（agent-loop / trace-sdk）
-        - 本地录制代理（llm-proxy）
-        - 模型 A/B CLI
+        - Portable exe / 便携版 exe
+        - Source (pnpm dev) / 源码（pnpm dev）
+        - SDK integration (agent-loop / trace-sdk) / SDK 接入（agent-loop / trace-sdk）
+        - Local recording proxy (llm-proxy) / 本地录制代理（llm-proxy）
+        - Model A/B CLI / 模型 A/B CLI
     validations:
       required: true
   - type: input
     id: version
     attributes:
-      label: 发行文件名 / 版本或源码提交
-      description: 发行包请附 exe 文件名（如 ReBaseAgent-0.3.0-k1-win-x64-portable.exe）；源码运行或自行构建请附确切提交，可补充产物 SHA-256。package.json 版本号不能单独定位构建。
+      label: Release filename / version or source commit / 发行文件名 / 版本或源码提交
+      description: For release packages, include the exe filename (e.g. ReBaseAgent-0.3.0-k1-win-x64-portable.exe); for source runs or self-built packages, include the exact commit and optionally the artifact SHA-256. A package.json version alone cannot identify the build. / 发行包请附 exe 文件名（如 ReBaseAgent-0.3.0-k1-win-x64-portable.exe）；源码运行或自行构建请附确切提交，可补充产物 SHA-256。package.json 版本号不能单独定位构建。
     validations:
       required: true
   - type: input
     id: os
     attributes:
-      label: 操作系统
+      label: Operating system / 操作系统
       placeholder: Windows 11 23H2
     validations:
       required: true
   - type: input
     id: provider
     attributes:
-      label: 模型 / Provider（如涉及）
-      placeholder: DeepSeek / GLM / Qwen / Kimi / 其他 OpenAI 兼容端点
+      label: Model / provider (if relevant) / 模型 / Provider（如涉及）
+      placeholder: DeepSeek / GLM / Qwen / Kimi / other OpenAI-compatible endpoint
   - type: textarea
     id: logs
     attributes:
-      label: 日志或截图（可选）
-      description: 可附必要的脱敏报错或 trace 片段；便携版轨迹位于 exe 同级 data/traces/。不要上传整个 data/、完整模型消息或文件附件目录。
+      label: Logs or screenshots (optional) / 日志或截图（可选）
+      description: Attach necessary redacted errors or trace excerpts; for the portable build, traces are in data/traces/ next to the exe. Do not upload the whole data/ directory, full model messages, or attachment directories. / 可附必要的脱敏报错或 trace 片段；便携版轨迹位于 exe 同级 data/traces/。不要上传整个 data/、完整模型消息或文件附件目录。
