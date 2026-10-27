@@ -26,10 +26,10 @@ pnpm check:ci       # quality gate: build → typecheck → test → lint → sp
 ```
 
 Development conventions, the OpenSpec workflow, and test notes are in
-[docs/development/workflow.md](docs/development/workflow.md) (Chinese).
+[docs/development/workflow.en.md](docs/development/workflow.en.md).
 
 Maintenance responsibilities, issue triage, review decisions, contribution licensing, and release requirements are in
-[governance and maintenance](docs/development/governance-and-maintenance.md) (Chinese). A single maintainer is responsible; ordinary issues/PRs have no fixed response time.
+[governance and maintenance](docs/development/governance-and-maintenance.en.md). A single maintainer is responsible; ordinary issues/PRs have no fixed response time.
 
 ## Submitting changes
 
@@ -54,7 +54,7 @@ Submitting a contribution means you have the right to provide the content and ag
 
 When introducing code, dependencies, icons, fonts, documentation snippets, examples, or data, list the source link, version or commit, license, modifications, and copyright/NOTICE files that must be retained. For contributions assisted by generation tools, the submitter remains responsible for checking correctness and sources; tool output does not replace source or license explanations. No CLA or DCO signature is currently required, and no automated check is configured.
 
-Dependency declarations and lockfiles should be updated together, with purpose and necessity explained; do not bundle bulk upgrades into unrelated fixes. Update and compatibility rules are in the [version and maintenance policy](docs/development/maintenance-policy.md) (Chinese); release licensing requirements are in [third-party notices and release notes](docs/development/third-party-notices.md) (Chinese).
+Dependency declarations and lockfiles should be updated together, with purpose and necessity explained; do not bundle bulk upgrades into unrelated fixes. Update and compatibility rules are in the [version and maintenance policy](docs/development/maintenance-policy.en.md); release licensing requirements are in [third-party notices and release notes](docs/development/third-party-notices.en.md).
 
 ## Reporting issues
 

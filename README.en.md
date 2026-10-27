@@ -35,7 +35,7 @@ Within this project's execution loop and controlled `read_file` / `write_file` t
 | 🔁 Regression tests | Trace-as-Test replay |
 | 🌿 `git diff` | Locate the fork point between two runs |
 
-Compared with LangGraph checkpoint forking and Langfuse / Phoenix prompt experiments and retries, this project's technical notes focus on **message/file-state alignment, branch isolation, and failure-rejection boundaries**. For a comparison with related approaches, see the [landscape research](docs/research/2026-09-27-agent-debugging-landscape.md) (Chinese) and [mechanism notes](docs/architecture/replay-state-consistency.md) (Chinese). Cross-product performance and effectiveness still need same-task validation.
+Compared with LangGraph checkpoint forking and Langfuse / Phoenix prompt experiments and retries, this project's technical notes focus on **message/file-state alignment, branch isolation, and failure-rejection boundaries**. For a comparison with related approaches, see the [landscape research](docs/research/2026-09-27-agent-debugging-landscape.md) (Chinese) and [mechanism notes](docs/architecture/replay-state-consistency.en.md). Cross-product performance and effectiveness still need same-task validation.
 
 ## 📥 Download
 
@@ -249,7 +249,7 @@ OpenAI-compatible endpoints such as DeepSeek / GLM / Qwen / Kimi work out of the
 
 ## 🗺️ Roadmap
 
-**Delivered capabilities** are listed under **What it can do** above. Per-version iteration records (including each preview package's exact boundaries) are in [CHANGELOG.md](CHANGELOG.md) (Chinese); current version and hash evidence are in [project status](docs/development/project-status.md) (Chinese).
+**Delivered capabilities** are listed under **What it can do** above. Per-version iteration records (including each preview package's exact boundaries) are in [CHANGELOG.en.md](CHANGELOG.en.md) (recent releases; full history in Chinese); current version and hash evidence are in [project status](docs/development/project-status.md) (Chinese).
 
 **Next up**:
 
@@ -279,7 +279,7 @@ apps/
 - **Model access**: OpenAI-compatible protocol directly, zero vendor SDKs
 - **Data policy**: portable-first — all data lives in `data/` next to the app directory, never in AppData or the registry
 
-For modules and data flow, see [docs/architecture/overview.md](docs/architecture/overview.md) (Chinese); for the full documentation index (product / engineering records / on-device acceptance evidence), see [docs/README.md](docs/README.md) (Chinese).
+For modules and data flow, see [docs/architecture/overview.en.md](docs/architecture/overview.en.md); for the full documentation index (product / engineering records / on-device acceptance evidence), see [docs/README.md](docs/README.md) (Chinese).
 
 ## 💻 Development
 
@@ -304,9 +304,9 @@ This project uses [OpenSpec](https://github.com/Fission-AI/OpenSpec) for Spec-Dr
 
 ## 🤝 Contributing
 
-Issues and PRs are welcome: development environment and workflow are in [CONTRIBUTING.en.md](CONTRIBUTING.en.md); quality gates and the OpenSpec workflow are in [docs/development/workflow.md](docs/development/workflow.md) (Chinese). For security issues, do not use a public issue; see [SECURITY.en.md](SECURITY.en.md). A [Gitee mirror](https://gitee.com/yuzu-tea-duck/re-base-agent) is available for mainland China networks.
+Issues and PRs are welcome: development environment and workflow are in [CONTRIBUTING.en.md](CONTRIBUTING.en.md); quality gates and the OpenSpec workflow are in [docs/development/workflow.en.md](docs/development/workflow.en.md). For security issues, do not use a public issue; see [SECURITY.en.md](SECURITY.en.md). A [Gitee mirror](https://gitee.com/yuzu-tea-duck/re-base-agent) is available for mainland China networks.
 
-Governance and responsibilities: [governance notes](docs/development/governance-and-maintenance.md) (Chinese); version support: [maintenance policy](docs/development/maintenance-policy.md) (Chinese); release and handoff: [release guide](docs/development/release-and-handoff.md) (Chinese); dependency licenses: [third-party notices](docs/development/third-party-notices.md) (Chinese).
+Governance and responsibilities: [governance notes](docs/development/governance-and-maintenance.en.md); version support: [maintenance policy](docs/development/maintenance-policy.en.md); release and handoff: [release guide](docs/development/release-and-handoff.md) (Chinese); dependency licenses: [third-party notices](docs/development/third-party-notices.en.md).
 
 ## 📄 License
 

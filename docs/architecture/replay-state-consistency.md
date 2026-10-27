@@ -1,5 +1,7 @@
 # 重跑状态一致性机制
 
+> **语言 / Language:** [English](replay-state-consistency.en.md) | 简体中文
+
 核查日期：2026-09-27。本文解释已存在的执行语义，依据 [replay 规范](../../openspec/specs/replay/spec.md)、[workspace-isolation 规范](../../openspec/specs/workspace-isolation/spec.md) 与对应源码。它不增加新的产品契约，也不代表本次已重跑全部测试。
 
 ## 要解决的问题

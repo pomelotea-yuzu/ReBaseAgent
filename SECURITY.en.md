@@ -14,7 +14,7 @@ This policy describes the scope in which security reports are accepted. It does 
 
 Download and release entry points are in [README.en.md](README.en.md). Back up local data before upgrading and read compatibility notes; do not overwrite original traces or working files in order to verify a vulnerability.
 
-Daily maintenance, version backports, and end-of-maintenance rules are in the [version and maintenance policy](docs/development/maintenance-policy.md) (Chinese); this page remains the entry point for security-report scope and process.
+Daily maintenance, version backports, and end-of-maintenance rules are in the [version and maintenance policy](docs/development/maintenance-policy.en.md); this page remains the entry point for security-report scope and process.
 
 ## How to report a vulnerability
 

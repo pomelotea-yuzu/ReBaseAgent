@@ -20,10 +20,10 @@ engineering / collab / competition / reviews），原 9 个并列目录归组；
 | [`guide/`](guide/getting-started.md) | **快速开始**：下载/源码运行、四条上手路径、核心概念 1 分钟（[English](guide/getting-started.en.md)） |
 | [`guide/mcp-readonly-diagnostics.md`](guide/mcp-readonly-diagnostics.md) | **MCP 只读诊断接入**：十三工具构建/启动/客户端配置、正文外发与预算、信任口径、游标边界（自 `v0.7.0-rc.2` 起随发行包附带 `mcp/`；[English](guide/mcp-readonly-diagnostics.en.md)） |
 | [`guide/isolated-project-verification.md`](guide/isolated-project-verification.md) | **项目验证使用/限制**：R3 模板范围、准备与执行分开授权、停止/unknown、有界日志、双验证比较、精确输入导出（自 `v0.7.0-rc.2` 起随发行包提供；[English](guide/isolated-project-verification.en.md)） |
-| [`architecture/`](architecture/overview.md) | **架构总览**：monorepo 包结构、数据流、设计原则 |
-| [`development/`](development/workflow.md) | **开发工作流**：质量门禁 `check:ci`、OpenSpec 流程、文档约定 |
+| [`architecture/`](architecture/overview.md) | **架构总览**：monorepo 包结构、数据流、设计原则（[English](architecture/overview.en.md)） |
+| [`development/`](development/workflow.md) | **开发工作流**：质量门禁 `check:ci`、OpenSpec 流程、文档约定（[English](development/workflow.en.md)） |
 
-> 英文入口：[`README.en.md`](../README.en.md)、[`SECURITY.en.md`](../SECURITY.en.md)、[`CONTRIBUTING.en.md`](../CONTRIBUTING.en.md)、[`CODE_OF_CONDUCT.en.md`](../CODE_OF_CONDUCT.en.md)；`guide/` 下提供同目录 `*.en.md` 版本。
+> 英文入口：[`README.en.md`](../README.en.md)、[`SECURITY.en.md`](../SECURITY.en.md)、[`CONTRIBUTING.en.md`](../CONTRIBUTING.en.md)、[`CODE_OF_CONDUCT.en.md`](../CODE_OF_CONDUCT.en.md)；`guide/`、`architecture/`、`development/` 下提供已翻译文件的同目录 `*.en.md` 版本。
 
 ## 研发调研与维护
 
@@ -31,11 +31,11 @@ engineering / collab / competition / reviews），原 9 个并列目录归组；
 |---|---|
 | [`project-status.md`](development/project-status.md) | **10/19 项目状态与版本依据**：R2.1、UI 整理与渲染层模块拆分已归档，R2.1/UI 整理进入 `0.5.0-rc.1`（维护者确认已打包上传）；[渲染层拆分归档](../openspec/changes/archive/2026-10-19-refactor-desktop-renderer-modules/tasks.md)为纯内部重构不进发行包，MCP 服务已纳入规划但未实现，后续能力与发行验收分列 |
 | [`research/`](research/README.md) | Agent 调试方案对照、来源记录、重跑一致性实验设计 |
-| [`replay-state-consistency.md`](architecture/replay-state-consistency.md) | 工具观察编辑、整轮文件快照与分支隔离的机制和边界 |
-| [`governance-and-maintenance.md`](development/governance-and-maintenance.md) | 维护职责、Issue 状态与响应、PR 复审、贡献许可、发布与交接规则；未落实事项单列 |
-| [`maintenance-policy.md`](development/maintenance-policy.md) | 版本与平台维护范围、依赖更新、数据兼容和停止维护说明 |
+| [`replay-state-consistency.md`](architecture/replay-state-consistency.md) | 工具观察编辑、整轮文件快照与分支隔离的机制和边界（[English](architecture/replay-state-consistency.en.md)） |
+| [`governance-and-maintenance.md`](development/governance-and-maintenance.md) | 维护职责、Issue 状态与响应、PR 复审、贡献许可、发布与交接规则；未落实事项单列（[English](development/governance-and-maintenance.en.md)） |
+| [`maintenance-policy.md`](development/maintenance-policy.md) | 版本与平台维护范围、依赖更新、数据兼容和停止维护说明（[English](development/maintenance-policy.en.md)） |
 | [`release-and-handoff.md`](development/release-and-handoff.md) | 发布与交接指南：固定候选、独立输出、静态检查与实包验收、双端发布和人员交接 |
-| [`third-party-notices.md`](development/third-party-notices.md) | 第三方声明的范围、组件记录、交付形式与完成判据；不代表实际发行核查已完成 |
+| [`third-party-notices.md`](development/third-party-notices.md) | 第三方声明的范围、组件记录、交付形式与完成判据；不代表实际发行核查已完成（[English](development/third-party-notices.en.md)） |
 | [`audits/`](development/audits/README.md) | 依赖许可证核查报告、机器清单与只读生成器 |
 
 ## 工程过程资产

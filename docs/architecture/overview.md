@@ -1,5 +1,7 @@
 # 架构总览（Architecture）
 
+> **语言 / Language:** [English](overview.en.md) | 简体中文
+
 > 权威的包清单与职责描述以仓库根 [`README.md`](../../README.md)「架构」节为准；本页是展开说明。
 
 ## Monorepo 结构

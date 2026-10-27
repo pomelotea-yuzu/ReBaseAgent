@@ -1,5 +1,7 @@
 # 开发工作流（Development）
 
+> **语言 / Language:** [English](workflow.en.md) | 简体中文
+
 ## 环境与日常命令
 
 Node + pnpm workspace（`packages/*` + `apps/*`）：

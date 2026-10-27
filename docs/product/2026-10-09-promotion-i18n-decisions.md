@@ -57,7 +57,7 @@
 | `CONTRIBUTING.md` | 已提供英文版（2026-10-28 首批）；后续补项目现状与文档导航 |
 | `CODE_OF_CONDUCT.md` | 已提供英文版（2026-10-28）：按项目中文改写本翻译，保留 Contributor Covenant 2.1 来源与 CC BY 4.0 署名；未替换为官方英文原文 |
 | `LICENSE` | 不动，保留 MIT 英文原文 |
-| `CHANGELOG.md` | 不补翻全部历史；新增版本是否附双语发布摘要另定 |
+| `CHANGELOG.md` | 近期版本提供英文版 `CHANGELOG.en.md`（2026-10-28，覆盖 `0.5.0-rc.1`–`0.7.0-rc.2`）；历史不补翻，后续版本是否同步双语随发布流程决定 |
 
 先校准本批中文内容与能力边界，再翻译对应批次，不无限等待整份文档“永久定稿”。保持价值、案例、入口与关键范围清楚；不把此次工作扩展为营销定位重做，也不将决策级限制全部藏进折叠区。
 
@@ -111,7 +111,7 @@
 3. 调整或补充中英混排 Issue/PR 模板；后续完善贡献、机制、治理材料，不补翻全部历史。
 4. 按英文指南实际走通：安装 → 配置 → 核心操作 → 结果核对 → 查限制/反馈；执行涉及真实费用、数据外发或副本写入时按既有规则授权，不能为验收绕过确认。
 
-2026-10-28 首批已实施：`README.en.md`、`getting-started.en.md`、`SECURITY.en.md`、`CODE_OF_CONDUCT.en.md`、MCP 与项目验证两篇指南英文版、`CONTRIBUTING.en.md`、Issue/PR 模板中英混排；中文侧同步校准 rc.2 下载与发行事实。剩余：机制/治理材料（`architecture/overview.md`、`architecture/replay-state-consistency.md`、`governance-and-maintenance.md`、`maintenance-policy.md`、`third-party-notices.md` 等），按需分批补齐；软件 i18n 实施仍未开始。
+2026-10-28 首批已实施：`README.en.md`、`getting-started.en.md`、`SECURITY.en.md`、`CODE_OF_CONDUCT.en.md`、MCP 与项目验证两篇指南英文版、`CONTRIBUTING.en.md`、Issue/PR 模板中英混排；机制/治理英文版已补齐：`architecture/overview.en.md`、`architecture/replay-state-consistency.en.md`、`development/workflow.en.md`、`development/governance-and-maintenance.en.md`、`development/maintenance-policy.en.md`、`development/third-party-notices.en.md`；`CHANGELOG.en.md` 覆盖近期版本。中文侧同步校准 rc.2 下载与发行事实。仍为中文：`project-status`、`landscape`（入口标注 Chinese）、`release-and-handoff`、`audits` 与历史过程材料；软件 i18n 实施仍未开始。
 
 ### 阶段完成标准
 

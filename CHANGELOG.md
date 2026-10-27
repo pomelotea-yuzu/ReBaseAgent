@@ -1,5 +1,7 @@
 # 更新日志
 
+> **语言 / Language:** [English](CHANGELOG.en.md) | 简体中文
+
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 各版本的完整发布文案见 `docs/engineering/reports/`。
 

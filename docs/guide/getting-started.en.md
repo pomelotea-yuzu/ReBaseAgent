@@ -38,6 +38,6 @@ Choose according to what you have (detailed steps are in the root README's Quick
 
 ## 4. Next steps
 
-- Architecture and package responsibilities: [`architecture/overview.md`](../architecture/overview.md) (Chinese)
-- Contributing: [`development/workflow.md`](../development/workflow.md) (Chinese)
+- Architecture and package responsibilities: [`architecture/overview.en.md`](../architecture/overview.en.md)
+- Contributing: [`development/workflow.en.md`](../development/workflow.en.md)
 - Roadmap and current limitations: the corresponding sections in the root [`README.en.md`](../../README.en.md)
