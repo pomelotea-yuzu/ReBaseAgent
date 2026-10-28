@@ -29,12 +29,9 @@ export type RelationEntry =
       readonly referencedId: string;
       /** 指向它的子 run（占位因它而存在） */
       readonly childId: string;
-      /** 固定不可用原因（唯一文案来源） */
-      readonly reason: string;
+      /** 固定不可用原因的稳定类别（文案由展示层按语言投影） */
+      readonly reasonKind: "missing-parent";
     };
-
-/** 缺父占位的固定不可用原因 */
-export const MISSING_PARENT_REASON = "该父运行不在数据目录中，无法打开或加入比较";
 
 /**
  * 由 run 顺序（= 图的确定性布局顺序）派生关系列表条目。
@@ -58,7 +55,7 @@ export function deriveRelationEntries(
         kind: "missing-parent",
         referencedId: run.parent,
         childId: run.id,
-        reason: MISSING_PARENT_REASON,
+        reasonKind: "missing-parent",
       });
     }
     entries.push({

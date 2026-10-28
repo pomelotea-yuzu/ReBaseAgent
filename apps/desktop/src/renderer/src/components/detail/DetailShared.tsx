@@ -51,8 +51,8 @@ export function IsolatedParentUnsupportedNotice({ run }: { run: RunDetail }) {
       className="border-t border-violet-100 px-4 py-1.5 text-[11px] leading-5 text-violet-900"
     >
       <Disclosure
-        summary="不适用说明"
-        meta="模型 A/B 在隔离父本上本期不支持"
+        summary={translator.t("detail.isolatedParentSummary")}
+        meta={translator.t("detail.isolatedParentMeta")}
         expanded={expanded}
         onToggle={() => {
           useAppStore.getState().toggleNoticeExpanded(runId, ISOLATED_PARENT_UNSUPPORTED_KEY);
@@ -62,7 +62,7 @@ export function IsolatedParentUnsupportedNotice({ run }: { run: RunDetail }) {
         <div className="px-1 pb-1">
           {reason}
           <br />
-          可用的执行方式：在某个工具调用上使用「在此重跑（隔离续跑）」；启动指令实验请从经验证的根运行进入。
+          {translator.t("detail.isolatedParentAvailable")}
         </div>
       </Disclosure>
     </div>
@@ -85,18 +85,26 @@ export function KeyValue({ items }: { items: Array<[string, string]> }) {
 /**
  * 缓存命中行（前缀缓存生效与否的唯一可见证据）。
  *
- * 判据与文案全部来自 `lib/cache-view.ts` 的纯函数 `presentCacheHit`——组件只负责把
- * 结论摆成 DOM。这样做的原因：原先判据内联在组件里，本包无 jsdom ⇒ 改错打不红，
- * 等于没有判据（spec 明写存在性而非 truthiness、`in=0` 不做除法、少量命中不得称全量）。
+ * 判据来自 `lib/cache-view.ts` 的纯函数 `presentCacheHit`（tone/截断/占比），
+ * 文案由本层按当前语言投影——组件只负责把结论摆成 DOM。这样做的原因：原先判据
+ * 内联在组件里，本包无 jsdom ⇒ 改错打不红，等于没有判据（spec 明写存在性而非
+ * truthiness、`in=0` 不做除法、少量命中不得称全量）。
  */
 export function CacheHitRow({
   usage,
 }: { usage: Extract<SpanLine, { kind: "llm.call" }>["response"]["usage"] }) {
+  const translator = useTranslator();
   const view = presentCacheHit(usage);
   if (view === null) return null;
 
   const miss = presentCacheMiss(usage);
   const effective = view.tone === "effective";
+  const verdict =
+    view.tone === "full"
+      ? translator.t("detail.cacheVerdictFull")
+      : view.tone === "effective"
+        ? translator.t("detail.cacheVerdictEffective")
+        : translator.t("detail.cacheVerdictPartial");
 
   return (
     <div
@@ -105,7 +113,7 @@ export function CacheHitRow({
       }`}
       data-cache-tone={view.tone}
     >
-      <span>缓存命中</span>
+      <span>{translator.t("detail.cacheHitLabel")}</span>
       <span className="font-code">{view.shownHit}</span>
       {view.percent === null ? null : (
         <span>
@@ -117,10 +125,10 @@ export function CacheHitRow({
           · miss <span className="font-code">{miss}</span>
         </span>
       )}
-      <span>{view.verdict}</span>
-      {view.abnormalNote === null ? null : (
-        <span className="text-red-600">{view.abnormalNote}</span>
-      )}
+      <span>{verdict}</span>
+      {view.abnormal ? (
+        <span className="text-red-600">{translator.t("detail.cacheAbnormalNote")}</span>
+      ) : null}
     </div>
   );
 }
@@ -148,6 +156,7 @@ export function ForkCacheHintView({ hint }: { hint: ForkCacheHint | null }) {
  * 同一个 `DraftListPanel` 视图；无草稿时整节不渲染（不加噪音）。
  */
 export function RunDraftListSection({ runId }: { runId: string }) {
+  const translator = useTranslator();
   const [expanded, setExpanded] = useState(false);
   const drafts = useAppStore((s) => s.drafts);
   const openDraftAt = useAppStore((s) => s.openDraftAt);
@@ -161,14 +170,14 @@ export function RunDraftListSection({ runId }: { runId: string }) {
       className="border-b border-gray-200 bg-gray-50/60 px-4 py-1"
     >
       <Disclosure
-        summary={`本运行草稿（${items.length}）`}
+        summary={translator.t("detail.runDraftsTitle", { count: items.length })}
         expanded={expanded}
         onToggle={() => setExpanded(!expanded)}
         controlsId={`run-drafts-${runId}`}
       >
         <DraftListPanel
           items={items}
-          emptyHint="本运行暂无草稿"
+          emptyHint={translator.t("detail.runDraftsEmpty")}
           onOpen={(item) => {
             void openDraftAt({
               runId: item.runId,
@@ -189,8 +198,11 @@ export function RunDraftListSection({ runId }: { runId: string }) {
             const runId = item.runId;
             const spanId = item.spanId;
             void requestConfirm({
-              title: "放弃草稿",
-              message: `放弃「${item.title}」的草稿？（run ${runId}${spanId !== null ? ` · ${spanId}` : ""}）\n内容将被删除，不可撤销。`,
+              title: translator.t("common.discardDraftTitle"),
+              message: translator.t("common.discardDraftMessageScoped", {
+                title: item.title,
+                scope: `run ${runId}${spanId !== null ? ` · ${spanId}` : ""}`,
+              }),
             }).then((confirmed) => {
               if (!confirmed) return;
               if (field === "model_ab") {

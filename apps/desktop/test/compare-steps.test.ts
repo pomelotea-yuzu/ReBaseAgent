@@ -6,6 +6,7 @@ import {
   prefixSummaryOf,
 } from "../src/renderer/src/lib/compare-steps";
 import type { RunDetail } from "../src/shared/ipc";
+import { createTestTranslator } from "./i18n/render-with-locale";
 
 /**
  * U7（improve-branch-comparison）tasks 4.8/4.9：比较的独立步骤目录。
@@ -18,6 +19,7 @@ import type { RunDetail } from "../src/shared/ipc";
  */
 
 const T0 = "2026-01-15T10:00:00.000Z";
+const translator = createTestTranslator("zh-CN");
 
 function meta(id: string, parent: string | null, fork: Fork | null): RunDetail["meta"] {
   return {
@@ -99,7 +101,7 @@ describe("deriveSideStepCatalog：v1 链目录与来源归属（4.8）", () => {
       leafSpanIds: ["b1", "b2"],
     });
 
-    const catalog = deriveSideStepCatalog(detail);
+    const catalog = deriveSideStepCatalog(detail, translator);
     expect(catalog.runId).toBe("r_b");
     expect(catalog.attribution).toEqual({ kind: "mapped" });
     expect(catalog.prefixUnknown).toBe(false);
@@ -118,8 +120,8 @@ describe("deriveSideStepCatalog：v1 链目录与来源归属（4.8）", () => {
         spanScope: "own",
       });
 
-    const left = deriveSideStepCatalog(makeSide("r_left"));
-    const right = deriveSideStepCatalog(makeSide("r_right"));
+    const left = deriveSideStepCatalog(makeSide("r_left"), translator);
+    const right = deriveSideStepCatalog(makeSide("r_right"), translator);
 
     // 同形但身份独立：runId 不同，行各自属于各侧（没有跨侧对齐产生的第三种结构）
     expect(left.runId).toBe("r_left");
@@ -139,7 +141,7 @@ describe("deriveSideStepCatalog：v1 链目录与来源归属（4.8）", () => {
       [stepSpan("b1"), toolSpan("b2", "b1")],
     );
 
-    const catalog = deriveSideStepCatalog(detail);
+    const catalog = deriveSideStepCatalog(detail, translator);
     expect(catalog.attribution).toMatchObject({ kind: "unavailable" });
     if (catalog.attribution.kind === "unavailable") {
       expect(catalog.attribution.reason).toContain("a_missing");
@@ -162,7 +164,7 @@ describe("deriveSideStepCatalog：ownOnly 前缀未知（4.9）", () => {
       },
     );
 
-    const catalog = deriveSideStepCatalog(detail);
+    const catalog = deriveSideStepCatalog(detail, translator);
     expect(catalog.prefixUnknown).toBe(true);
     expect(catalog.attribution).toEqual({ kind: "own" });
     // 目录 = 已校验自有步骤（含失败标记照抄），无任何「推断出的根/祖先」行
@@ -181,6 +183,7 @@ describe("deriveSideStepCatalog：ownOnly 前缀未知（4.9）", () => {
       detailOf("r_b", [hop("r_a", null, null), hop("r_b", "r_a", bFork)], fullView, {
         leafSpanIds: ["b1"],
       }),
+      translator,
     );
     const orphanFork: Fork = { at_span: "x1", edit: { field: "result", value: "孤儿编辑" } };
     const orphan = deriveSideStepCatalog(
@@ -189,6 +192,7 @@ describe("deriveSideStepCatalog：ownOnly 前缀未知（4.9）", () => {
         completeness: "ownOnly",
         lineage: { status: "incomplete", reason: "ANCESTOR_NOT_FOUND", missingRunId: "r_x" },
       }),
+      translator,
     );
 
     expect(full.prefixUnknown).toBe(false);
@@ -211,6 +215,7 @@ describe("deriveSideStepCatalog 4.14：前缀折叠/展开", () => {
       detailOf("r_b", [hop("r_a", null, null), hop("r_b", "r_a", bFork)], view, {
         leafSpanIds: ["b1", "b2"],
       }),
+      translator,
     );
   };
 
@@ -249,6 +254,7 @@ describe("deriveSideStepCatalog 4.14：前缀折叠/展开", () => {
   it("无前缀（ownOnly/根）⇒ 无摘要可折，折叠态视图仍为全部行", () => {
     const catalog = deriveSideStepCatalog(
       detailOf("r_o", [hop("r_o", null, null)], [stepSpan("o1")], { spanScope: "own" }),
+      translator,
     );
     expect(prefixSummaryOf(catalog)).toBeNull();
     expect(foldCatalogRows(catalog, true)).toHaveLength(1);
@@ -260,6 +266,7 @@ describe("deriveSideStepCatalog 4.14：前缀折叠/展开", () => {
       detailOf("r_b", [hop("r_a", null, null), hop("r_b", "r_a", bFork)], [stepSpan("b1")], {
         leafSpanIds: ["b1"],
       }),
+      translator,
     );
     // 该 fixture 无前缀行（视图只有自有段）⇒ 本就无摘要；不可靠路径由 attribution 承载
     expect(catalog.attribution).toMatchObject({ kind: "unavailable" });

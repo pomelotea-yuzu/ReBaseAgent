@@ -2,6 +2,7 @@ import type { SpanLine } from "@rebaseagent/trace-sdk";
 import { spanDurationMs } from "@shared/derive";
 import type { RunDetail } from "@shared/ipc";
 import { type ReactNode, useMemo } from "react";
+import { useTranslator } from "../../i18n";
 import { draftBadgeForSpan } from "../../lib/draft-list";
 import { formatDuration, prettyJson } from "../../lib/format";
 import { useAppStore } from "../../store";
@@ -40,14 +41,19 @@ export function ToolInvokeDetailView({
   children?: ReactNode;
   compact?: boolean;
 }) {
+  const translator = useTranslator();
   const recordedValues = (
     <div className="grid grid-cols-1 gap-2 py-2 sm:grid-cols-2">
       <div className="min-w-0">
-        <div className="mb-1 text-[11px] font-medium text-gray-600">入参</div>
+        <div className="mb-1 text-[11px] font-medium text-gray-600">
+          {translator.t("detail.argsLabel")}
+        </div>
         <LongText text={prettyJson(span.args)} label="args" {...longTextProps("args")} />
       </div>
       <div className="min-w-0">
-        <div className="mb-1 text-[11px] font-medium text-gray-600">结果</div>
+        <div className="mb-1 text-[11px] font-medium text-gray-600">
+          {translator.t("detail.resultLabel")}
+        </div>
         <LongText text={prettyJson(span.result)} label="result" {...longTextProps("result")} />
       </div>
     </div>
@@ -61,23 +67,28 @@ export function ToolInvokeDetailView({
             target={<span className="font-code">{span.id}</span>}
             summary={
               <span className="text-gray-500">
-                执行 {span.dur_ms}ms · 墙上耗时 {formatDuration(spanDurationMs(span))}
-                {draftBadge ? ` · ${draftBadge.label}` : ""}
+                {translator.t("detail.toolCompactLine", {
+                  dur: span.dur_ms,
+                  wall: formatDuration(spanDurationMs(span)),
+                })}
+                {draftBadge ? translator.t("detail.draftSuffix", { label: draftBadge.label }) : ""}
               </span>
             }
-            detailsLabel="入参与结果"
+            detailsLabel={translator.t("detail.argsAndResult")}
             details={recordedValues}
           />
         </div>
       ) : (
-        <Section title="概要">
+        <Section title={translator.t("detail.summaryTitle")}>
           <KeyValue
             items={[
-              ["工具", span.tool],
-              ["执行耗时", `${span.dur_ms}ms`],
-              ["墙上耗时", formatDuration(spanDurationMs(span))],
+              [translator.t("detail.toolLabel"), span.tool],
+              [translator.t("detail.execDuration"), `${span.dur_ms}ms`],
+              [translator.t("detail.wallDuration"), formatDuration(spanDurationMs(span))],
               ...(draftBadge !== null && draftBadge !== undefined
-                ? ([["草稿", draftBadge.label]] as Array<[string, string]>)
+                ? ([[translator.t("detail.draftLabel"), draftBadge.label]] as Array<
+                    [string, string]
+                  >)
                 : []),
             ]}
           />
@@ -85,23 +96,31 @@ export function ToolInvokeDetailView({
       )}
 
       {span.error !== null ? (
-        <Section title="错误（错误是数据不是异常）">
+        <Section title={translator.t("detail.toolErrorTitle")}>
           <div className="rounded border-l-2 border-red-400 bg-red-50 px-2 py-1.5">
-            <LongText text={span.error} label="错误信息" {...longTextProps("error")} />
+            <LongText
+              text={span.error}
+              label={translator.t("detail.toolErrorMessage")}
+              {...longTextProps("error")}
+            />
           </div>
         </Section>
       ) : null}
 
       {/* args / result 就近核对：并排（宽屏）→ 上下相邻（窄屏），中间不被其它栏目隔开 */}
       {!compact ? (
-        <Section title="入参与结果">
+        <Section title={translator.t("detail.argsAndResult")}>
           <div className="grid grid-cols-1 gap-2 xl:grid-cols-2">
             <div className="min-w-0">
-              <div className="mb-1 text-[11px] font-medium text-gray-600">入参</div>
+              <div className="mb-1 text-[11px] font-medium text-gray-600">
+                {translator.t("detail.argsLabel")}
+              </div>
               <LongText text={prettyJson(span.args)} label="args" {...longTextProps("args")} />
             </div>
             <div className="min-w-0">
-              <div className="mb-1 text-[11px] font-medium text-gray-600">结果</div>
+              <div className="mb-1 text-[11px] font-medium text-gray-600">
+                {translator.t("detail.resultLabel")}
+              </div>
               <LongText
                 text={prettyJson(span.result)}
                 label="result"
@@ -125,6 +144,7 @@ export function ToolInvokeDetail({
   span: Extract<SpanLine, { kind: "tool.invoke" }>;
   run: RunDetail | null;
 }) {
+  const translator = useTranslator();
   const leafOwned = run?.leafSpanIds.includes(span.id) ?? false;
   // 分叉点必须是当前 run 自身段的 tool.invoke，且 run 已封存（crashed 前缀不稳定）
   const canFork = leafOwned && run?.status === "completed";
@@ -164,11 +184,11 @@ export function ToolInvokeDetail({
         <ForkEditor span={span} run={run} />
       ) : span.kind === "tool.invoke" && run !== null && !leafOwned && run.chain.length > 1 ? (
         <div className="border-t border-gray-100 px-4 py-2 text-[11px] text-gray-400">
-          该调用位于祖先前缀（继承自父 run），不属于当前 run 自身段——打开其所属 run 才可在此重跑。
+          {translator.t("detail.toolAncestorOnly")}
         </div>
       ) : run !== null && leafOwned && run.status === "crashed" ? (
         <div className="border-t border-gray-100 px-4 py-2 text-[11px] text-gray-400">
-          该 run 运行中断（未封存），不允许作为分叉起点。
+          {translator.t("detail.crashedNoFork")}
         </div>
       ) : null}
     </ToolInvokeDetailView>

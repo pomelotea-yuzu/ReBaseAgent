@@ -9,7 +9,7 @@ import {
 import type { RunSummary } from "@shared/ipc";
 import { ArrowRight, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useTranslator } from "../i18n";
+import { Trans, useTranslator } from "../i18n";
 import { deriveRelationEntries, experimentGroupsOf } from "../lib/branch-relations";
 import { formatTime, formatTokens } from "../lib/format";
 import {
@@ -46,16 +46,15 @@ import { RunStatusBadge } from "./RunStatusBadge";
 
 /** 孤立节点标注（父缺失 / 父链成环——提为根但如实说明，不假装它是真根） */
 function OrphanBadge({ reason }: { reason: "missing-parent" | "cycle" }) {
+  const translator = useTranslator();
   return (
     <span
       className="shrink-0 rounded bg-amber-100 px-1 text-[10px] leading-4 text-amber-800"
-      title={
-        reason === "missing-parent"
-          ? "父 run 不在数据目录中（可能被删除或只拷来半个家谱），已提为根"
-          : "parent 链成环，已断开并把该 run 提为根"
-      }
+      title={translator.t(
+        reason === "missing-parent" ? "run.treeOrphanMissingTitle" : "run.treeOrphanCycleTitle",
+      )}
     >
-      {reason === "missing-parent" ? "父缺失" : "父链成环"}
+      {translator.t(reason === "missing-parent" ? "run.treeOrphanMissing" : "run.treeOrphanCycle")}
     </span>
   );
 }
@@ -237,9 +236,9 @@ export function BranchTreeView({
     return (
       <section className="flex flex-1 items-center justify-center bg-white">
         <div className="max-w-sm text-center text-xs leading-6 text-gray-500">
-          还没有运行记录，画不出分支树。
+          {translator.t("run.treeEmptyTitle")}
           <br />
-          先跑一次（接 trace-sdk / agent-loop），或把应用的 base_url 指到本地录制代理录一次。
+          {translator.t("run.treeEmptyBody")}
         </div>
       </section>
     );
@@ -259,9 +258,9 @@ export function BranchTreeView({
   return (
     <section className="flex min-w-0 flex-1 flex-col bg-white">
       <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 px-3 py-2">
-        <div className="text-sm font-semibold text-gray-800">分支树</div>
+        <div className="text-sm font-semibold text-gray-800">{translator.t("run.treeTitle")}</div>
         <div className="text-[11px] text-gray-500">
-          {runs.length} 次运行 · 节点为运行、连线为一次分叉 · 只读
+          {translator.t("run.treeSummary", { count: runs.length })}
         </div>
         {selectedRunId !== null ? (
           // 树里没有详情面板 ⇒ 想看清所选 run 必须切回轨迹视图。给一个**显式**入口，
@@ -271,14 +270,18 @@ export function BranchTreeView({
             onClick={onOpenDetail}
             className={`inline-flex items-center gap-1 rounded border border-sky-300 px-2 py-0.5 text-[11px] text-sky-800 hover:bg-sky-50 ${FOCUS_RING}`}
           >
-            查看所选运行详情
+            {translator.t("run.treeOpenDetail")}
             <ArrowRight size={11} aria-hidden="true" focusable="false" role="presentation" />
           </button>
         ) : null}
 
         {/* U7 3.1：范围切换（当前树 / 全部）——只改可见性，不改逻辑坐标 */}
         {/* biome-ignore lint/a11y/useSemanticElements: toolbar 式按钮组保持 div+role（fieldset 会引入表单语义与默认样式） */}
-        <div role="group" aria-label="树范围" className="flex items-center gap-1 text-[11px]">
+        <div
+          role="group"
+          aria-label={translator.t("run.treeScopeAria")}
+          className="flex items-center gap-1 text-[11px]"
+        >
           <button
             type="button"
             aria-pressed={effectiveScope === "current"}
@@ -289,7 +292,7 @@ export function BranchTreeView({
                 : "text-gray-600 hover:bg-gray-100"
             }`}
           >
-            当前树
+            {translator.t("run.treeScopeCurrent")}
           </button>
           <button
             type="button"
@@ -301,27 +304,31 @@ export function BranchTreeView({
                 : "text-gray-600 hover:bg-gray-100"
             }`}
           >
-            全部关系
+            {translator.t("run.treeScopeAll")}
           </button>
         </div>
 
         {/* U7 3.2：完整字段搜索（完整 ID/任务，匹配原值不匹配截断） */}
         <label className="flex items-center gap-1 text-[11px] text-gray-500">
           <Search size={11} aria-hidden="true" focusable="false" role="presentation" />
-          <span className="sr-only">搜索运行（完整 ID 或任务）</span>
+          <span className="sr-only">{translator.t("run.treeSearchAria")}</span>
           <input
             type="search"
             value={query}
             onChange={(event) => onQueryChange(event.target.value)}
-            placeholder="完整 ID 或任务关键词"
-            aria-label="搜索运行（完整 ID 或任务）"
+            placeholder={translator.t("run.treeSearchPlaceholder")}
+            aria-label={translator.t("run.treeSearchAria")}
             className={`w-40 rounded border border-gray-300 px-1.5 py-0.5 text-[11px] text-gray-800 ${FOCUS_RING}`}
           />
         </label>
 
         {/* U7 3.6：呈现模式（图 / 关系列表）——同一份森林与身份，返回保留模式 */}
         {/* biome-ignore lint/a11y/useSemanticElements: toolbar 式按钮组保持 div+role（fieldset 会引入表单语义与默认样式） */}
-        <div role="group" aria-label="呈现模式" className="flex items-center gap-1 text-[11px]">
+        <div
+          role="group"
+          aria-label={translator.t("run.treeModeAria")}
+          className="flex items-center gap-1 text-[11px]"
+        >
           <button
             type="button"
             aria-pressed={mode === "graph"}
@@ -330,7 +337,7 @@ export function BranchTreeView({
               mode === "graph" ? "bg-blue-600 text-white" : "text-gray-600 hover:bg-gray-100"
             }`}
           >
-            图
+            {translator.t("run.treeModeGraph")}
           </button>
           <button
             type="button"
@@ -340,7 +347,7 @@ export function BranchTreeView({
               mode === "list" ? "bg-blue-600 text-white" : "text-gray-600 hover:bg-gray-100"
             }`}
           >
-            关系列表
+            {translator.t("run.treeModeList")}
           </button>
         </div>
 
@@ -352,7 +359,7 @@ export function BranchTreeView({
             }}
             className={`rounded px-2 py-0.5 text-gray-600 hover:bg-gray-100 ${FOCUS_RING}`}
           >
-            定位当前运行
+            {translator.t("run.treeCenter")}
           </button>
           <button
             type="button"
@@ -368,7 +375,7 @@ export function BranchTreeView({
             }}
             className={`rounded px-2 py-0.5 text-gray-600 hover:bg-gray-100 ${FOCUS_RING}`}
           >
-            适应画布
+            {translator.t("run.treeFit")}
           </button>
           {TREE_ZOOM_LEVELS.map((level) => (
             <button
@@ -395,9 +402,7 @@ export function BranchTreeView({
           className="border-b border-gray-200 bg-gray-50/60 px-3 py-1.5 text-[11px]"
         >
           {hits.length === 0 ? (
-            <div className="text-gray-500">
-              没有匹配「{query}」的运行（按完整 ID 与任务原值匹配）。原选择保持不变。
-            </div>
+            <div className="text-gray-500">{translator.t("run.treeNoMatch", { query })}</div>
           ) : (
             <ul className="flex flex-wrap items-center gap-2">
               {hits.map((hit) => {
@@ -413,15 +418,17 @@ export function BranchTreeView({
                           ? "border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100"
                           : "border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
                       }`}
-                      title={
-                        outside
-                          ? `该运行在当前范围之外（所属树根 ${hit.treeRootId}），点击定位其树`
-                          : `所属树根 ${hit.treeRootId}`
-                      }
+                      title={translator.t(outside ? "run.treeHitOutside" : "run.treeHitRoot", {
+                        root: hit.treeRootId,
+                      })}
                     >
                       <span className="font-code">{shortIds.get(hit.runId) ?? hit.runId}</span>
                       <span className="max-w-40 truncate">{run?.task ?? hit.runId}</span>
-                      {outside ? <span className="text-[10px]">范围外</span> : null}
+                      {outside ? (
+                        <span className="text-[10px]">
+                          {translator.t("run.treeHitOutsideShort")}
+                        </span>
+                      ) : null}
                     </button>
                   </li>
                 );
@@ -523,7 +530,7 @@ export function BranchTreeView({
                       onClick={() => onSelect(run.id)}
                       onDoubleClick={() => onOpenRun(run.id)}
                       className="h-full w-full overflow-hidden rounded-lg px-2 py-1.5 text-left hover:bg-gray-50"
-                      title={`${run.task} · ${run.id}（双击打开运行）`}
+                      title={translator.t("run.treeNodeTooltip", { task: run.task, id: run.id })}
                     >
                       <div className="flex items-center gap-1.5 pr-5">
                         <span className="truncate text-xs font-medium text-gray-800">
@@ -535,7 +542,7 @@ export function BranchTreeView({
                       <div className="mt-0.5 flex items-center gap-1 overflow-hidden text-[11px] text-gray-500">
                         <span
                           className="font-code text-gray-700"
-                          title={`完整 run id（可复制）：${run.id}`}
+                          title={translator.t("run.treeNodeIdTitle", { id: run.id })}
                         >
                           {shortId}
                         </span>
@@ -543,7 +550,7 @@ export function BranchTreeView({
                         <span>{formatTime(run.created_at)}</span>
                         {run.source === "proxy" ? (
                           <span className="rounded bg-sky-100 px-1 text-[10px] leading-4 text-sky-800">
-                            代理
+                            {translator.t("run.treeNodeProxy")}
                           </span>
                         ) : null}
                         {node.orphanReason !== null ? (
@@ -552,24 +559,33 @@ export function BranchTreeView({
                       </div>
                       <div className="truncate text-[11px] leading-4 text-gray-500">
                         {run.model === "" ? (
-                          <span className="text-gray-400" title="记录中无模型字段">
-                            模型：未记录
+                          <span
+                            className="text-gray-400"
+                            title={translator.t("run.treeNodeModelMissingTitle")}
+                          >
+                            {translator.t("run.treeNodeModelMissing")}
                           </span>
                         ) : (
-                          <span title={`记录模型（完整值）：${run.model}`}>模型：{run.model}</span>
+                          <span
+                            title={translator.t("run.treeNodeModelTitle", { model: run.model })}
+                          >
+                            {translator.t("run.treeNodeModel", { model: run.model })}
+                          </span>
                         )}
                       </div>
 
                       <div className="mt-1 text-[11px] leading-4 text-gray-500">
-                        本 run 增量 {run.steps} 步 · {formatTokens(run.tokensIn + run.tokensOut)}{" "}
-                        tokens
+                        {translator.t("run.treeNodeDelta", {
+                          steps: translator.t("common.stepCount", { count: run.steps }),
+                          tokens: formatTokens(run.tokensIn + run.tokensOut),
+                        })}
                       </div>
                       {/* 沿链累计的完整说明在标题提示里（节点高度有限；spec 的详情区展开归 3.5 后续单元） */}
                       <div
                         className="text-[11px] leading-4 text-gray-400"
-                        title="沿 parent 链把各代增量逐段求和；不等于从头连续跑一次的消耗；累计值复制完整数字请开运行详情"
+                        title={translator.t("run.treeNodeChainedTitle")}
                       >
-                        累计增量（沿链求和）
+                        {translator.t("run.treeNodeChained")}
                       </div>
                     </button>
 
@@ -577,8 +593,8 @@ export function BranchTreeView({
                       type="checkbox"
                       checked={checked}
                       onChange={() => onToggleCompare(run.id)}
-                      aria-label={`把 ${run.id} 加入对照`}
-                      title="加入对照（最多 4 条）"
+                      aria-label={translator.t("run.treeCompareAria", { id: run.id })}
+                      title={translator.t("run.treeCompareTitle")}
                       className="absolute right-1.5 top-1.5 cursor-pointer"
                     />
                   </div>
@@ -600,8 +616,15 @@ export function BranchTreeView({
                     data-tree-placeholder={entry.referencedId}
                     className="rounded border border-dashed border-amber-300 bg-amber-50/50 px-2 py-1 text-[11px] text-amber-900"
                   >
-                    缺失的父运行 <span className="font-code">{entry.referencedId}</span>（
-                    {entry.reason}）——子运行 {entry.childId} 已提为根
+                    <Trans
+                      i18nKey="run.treeMissingParentRich"
+                      values={{
+                        id: entry.referencedId,
+                        reason: translator.t("run.treeMissingParentReason"),
+                        child: entry.childId,
+                      }}
+                      components={{ code: <span className="font-code" /> }}
+                    />
                   </li>
                 );
               }
@@ -619,8 +642,12 @@ export function BranchTreeView({
                       data-experiment-group={entry.experimentId}
                       className="mb-0.5 mt-1.5 text-[11px] font-semibold text-violet-800"
                     >
-                      实验组 {entry.experimentId}（{(groups.get(entry.experimentId) ?? []).length}{" "}
-                      臂）
+                      {translator.t("run.treeExperimentGroup", {
+                        id: entry.experimentId,
+                        arms: translator.t("run.treeArmCount", {
+                          count: (groups.get(entry.experimentId) ?? []).length,
+                        }),
+                      })}
                     </div>
                   ) : null}
                   <div
@@ -638,14 +665,14 @@ export function BranchTreeView({
                         selected ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-100"
                       }`}
                     >
-                      选中
+                      {translator.t("run.treeSelect")}
                     </button>
                     <button
                       type="button"
                       onClick={() => onOpenRun(run.id)}
                       className={`rounded border border-sky-300 px-1.5 py-0.5 text-sky-800 hover:bg-sky-50 ${FOCUS_RING}`}
                     >
-                      打开运行
+                      {translator.t("run.treeOpenRun")}
                     </button>
                     <button
                       type="button"
@@ -655,9 +682,12 @@ export function BranchTreeView({
                         checked ? "bg-emerald-600 text-white" : "text-gray-700 hover:bg-gray-100"
                       }`}
                     >
-                      {checked ? "移出对照" : "加入对照"}
+                      {translator.t(checked ? "run.treeRemoveCompare" : "run.treeAddCompare")}
                     </button>
-                    <span className="font-code text-gray-700" title={`完整 run id：${run.id}`}>
+                    <span
+                      className="font-code text-gray-700"
+                      title={translator.t("run.treeFullIdTitle", { id: run.id })}
+                    >
                       {shortId}
                     </span>
                     <span className="max-w-56 truncate text-gray-800">{run.task}</span>
@@ -668,9 +698,9 @@ export function BranchTreeView({
                     {entry.experimentId !== null ? (
                       <span
                         className="rounded bg-violet-100 px-1 text-[10px] leading-4 text-violet-800"
-                        title="记录的实验组标签（真实 experimentId）"
+                        title={translator.t("run.treeExperimentBadgeTitle")}
                       >
-                        实验 {entry.experimentId}
+                        {translator.t("run.treeExperimentBadge", { id: entry.experimentId })}
                       </span>
                     ) : null}
                   </div>
@@ -693,8 +723,7 @@ export function BranchTreeView({
       ) : null}
 
       <div className="border-t border-gray-200 px-3 py-1.5 text-[11px] text-gray-500">
-        点击节点选中该运行（与在列表中点击一致）；选中后用标题栏的入口或全局栏的「轨迹」切回详情页。
-        勾选节点加入右侧对照。连线上的标签是分叉时改了哪个字段，分叉点 span id 见详情面板。
+        {translator.t("run.treeFooter")}
       </div>
     </section>
   );
@@ -748,15 +777,19 @@ export function SelectedRunDetail({
   return (
     <section
       data-tree-detail="true"
-      aria-label="所选运行详情"
+      aria-label={translator.t("run.treeSelectedDetailAria")}
       className="border-t border-gray-200 px-3 py-2 text-[11px]"
     >
       <div className="mb-1 flex flex-wrap items-center gap-2">
-        <span className="font-semibold text-gray-700">所选运行</span>
+        <span className="font-semibold text-gray-700">
+          {translator.t("run.treeSelectedHeading")}
+        </span>
         <RunStatusBadge status={run.status} reason={run.reason} />
         <span className="text-gray-500">{formatTime(run.created_at)}</span>
         {run.source === "proxy" ? (
-          <span className="rounded bg-sky-100 px-1 text-[10px] leading-4 text-sky-800">代理</span>
+          <span className="rounded bg-sky-100 px-1 text-[10px] leading-4 text-sky-800">
+            {translator.t("run.treeNodeProxy")}
+          </span>
         ) : null}
       </div>
       <div className="mb-1 flex flex-wrap items-center gap-2">
@@ -766,7 +799,7 @@ export function SelectedRunDetail({
           onClick={copyId}
           className={`rounded border border-gray-300 px-1.5 py-0.5 text-gray-600 hover:bg-gray-50 ${FOCUS_RING}`}
         >
-          复制完整 ID
+          {translator.t("run.treeCopyFullId")}
         </button>
         {copyFeedback !== null ? (
           <span className="text-gray-500">{copyFeedbackText(copyFeedback, translator)}</span>
@@ -774,26 +807,29 @@ export function SelectedRunDetail({
       </div>
       <div className="mb-1 text-gray-700">
         {run.model === "" ? (
-          <span className="text-gray-400">模型：未记录（不按当前设置补造）</span>
+          <span className="text-gray-400">{translator.t("run.treeModelMissingFull")}</span>
         ) : (
-          <span>模型：{run.model}</span>
+          <span>{translator.t("run.treeNodeModel", { model: run.model })}</span>
         )}
       </div>
       {fork !== null ? (
         <div className="mb-1 text-gray-500">
-          入边标注：{forkEditLabel(fork.edit_field, translator)} · 分叉点{" "}
-          <span className="font-code">{fork.at_span}</span>
+          {translator.t("run.treeIncomingEdge", {
+            label: forkEditLabel(fork.edit_field, translator),
+            span: fork.at_span,
+          })}
         </div>
       ) : null}
       <div className="mb-1">
-        <LongText text={run.task} label="完整任务" />
+        <LongText text={run.task} label={translator.t("run.treeFullTask")} />
       </div>
       <div className="text-gray-500">
-        沿链累计（沿链求和）：
-        {totals === null
-          ? "—（链不可得，不补零）"
-          : `${totals.steps} 步 · ${formatTokens(totals.tokens)} tokens`}
-        ，不等于从头连续跑一次的消耗
+        {translator.t("run.treeChainedTotals", {
+          values:
+            totals === null
+              ? translator.t("run.treeChainedUnknown")
+              : `${translator.t("common.stepCount", { count: totals.steps })} · ${formatTokens(totals.tokens)} tokens`,
+        })}
       </div>
       <div className="mt-1.5 flex flex-wrap items-center gap-2">
         <button
@@ -801,7 +837,7 @@ export function SelectedRunDetail({
           onClick={() => onOpen(run.id)}
           className={`rounded border border-sky-400 px-2 py-0.5 text-sky-800 hover:bg-sky-50 ${FOCUS_RING}`}
         >
-          打开运行
+          {translator.t("run.treeOpenRun")}
         </button>
         <button
           type="button"
@@ -811,7 +847,7 @@ export function SelectedRunDetail({
             inCompare ? "bg-emerald-600 text-white" : "text-gray-700 hover:bg-gray-100"
           }`}
         >
-          {inCompare ? "移出对照" : "加入对照"}
+          {translator.t(inCompare ? "run.treeRemoveCompare" : "run.treeAddCompare")}
         </button>
       </div>
     </section>

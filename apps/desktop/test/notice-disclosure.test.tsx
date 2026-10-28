@@ -139,6 +139,21 @@ describe("IsolatedRunNoticeView：共享 disclosure 的纯展示", () => {
     expect(out).toContain('aria-expanded="false"');
   });
 
+  it("英文独立期望：disclosure 摘要与技术标签按语言输出", () => {
+    const view = isolatedRunNoticeView(isolatedDetail({ kind: "import" }));
+    const out = renderWithLocale(
+      "en-US",
+      createElement(IsolatedRunNoticeView, {
+        view: view!,
+        runId: "r_iso",
+        expanded: false,
+        onToggle: () => {},
+      }),
+    );
+    expect(out).toContain("Source and technical details");
+    expect(out).not.toContain("来源与技术详情");
+  });
+
   it("展开时完整边界与技术值可读，内容区 id 与 aria-controls 对上", () => {
     const view = isolatedRunNoticeView(isolatedDetail({ kind: "import" }));
     const out = html(

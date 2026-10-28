@@ -343,4 +343,16 @@ describe("U6 4.11：LineageIncompleteNoticeView 静态渲染——长 ID/警告/
     expect(markup).toContain("仅显示本运行记录，父链不完整");
     expect(markup).toContain("不补零、不推算");
   });
+
+  it("英文独立期望：缺失祖先与复制动作为英文（资源键生效，ID 原值不改）", () => {
+    const markup = renderWithLocale(
+      "en-US",
+      createElement(LineageIncompleteNoticeView, { view, onCopy: () => {} }),
+    );
+    expect(markup).toContain("Missing ancestor run:");
+    expect(markup).toContain(view.missingRunId);
+    expect(markup).toContain("Copy missing run ID");
+    expect(markup).toContain("not zero-filled or inferred");
+    expect(markup).not.toContain("复制缺失 run ID");
+  });
 });

@@ -19,6 +19,10 @@ describe("resources：双语键契约", () => {
   it("键为语义化 ASCII，值非空；复数分支按语言完整", () => {
     const zhTable = zhCN as Record<string, Record<string, MessageValue>>;
     const enTable = enUS as Record<string, Record<string, MessageValue>>;
+    // 只有占位符与分隔符的值没有可翻译文本（如 "{{target}} · {{command}}"），
+    // 两种语言相同时不算"未翻译"；含实际文案的值仍必须不同。
+    const hasTranslatableText = (value: string): boolean =>
+      /[A-Za-z\u4e00-\u9fff]/.test(value.replace(/\{\{[^}]*\}\}/g, ""));
     for (const namespace of NAMESPACES) {
       for (const [key, zh] of Object.entries(zhTable[namespace] ?? {})) {
         const en = enTable[namespace]?.[key];
@@ -27,7 +31,7 @@ describe("resources：双语键契约", () => {
           expect(zh.trim()).not.toBe("");
           expect(typeof en).toBe("string");
           expect((en as string).trim()).not.toBe("");
-          if (key !== "appName") expect(en).not.toBe(zh);
+          if (key !== "appName" && hasTranslatableText(zh)) expect(en).not.toBe(zh);
         } else {
           expect(zh.other.trim()).not.toBe("");
           expect(en).toMatchObject({ other: expect.any(String), one: expect.any(String) });

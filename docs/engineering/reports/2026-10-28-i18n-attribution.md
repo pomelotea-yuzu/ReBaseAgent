@@ -155,6 +155,8 @@ node scripts/i18n-attribution.cjs --compare-inventory --verify-boundaries
 
 2.4 迁移运行列表（搜索/筛选/指标/刷新重试/空态/复制）、状态徽章、工作区页签与页头、隔离来源说明、分叉边标签，以及总览（结局/错误/结果/消耗/缓存/来源/prompt 实验）和预算地图；`overview-view` 迁移后只剩安全渲染审计说明，改判 internal。机器清单 **2,989 处**（product 2,524 / original 385 / internal 76 / generated 4）：2.4 迁入资源 217 处、改判 internal 3 处。批次 1 余 77 个 pending 文件。
 
+2.5 迁移步骤目录与分支树（节点/边标签、范围/搜索/模式、选中详情与缺父占位）、树行与分支边的按语言投影、缓存命中措辞，以及 step/LLM/tool 详情（概要、请求/响应、思维链、失败占位、入参与结果）、详情提示区与原文区外围；`cache-view` 移除结论文案只留 tone/异常判据，`branch-relations` 的缺父原因改为稳定类别由展示层翻译。机器清单 **2,759 处**（product 2,294 / original 385 / internal 76 / generated 4）：2.5 迁入资源 230 处。批次 1 余 64 个 pending 文件。
+
 ## 9. 局限
 
 - 工作区与批次按文件名近似，包层不能精确拆到单个工作区；迁移时以实际入口为准修正。

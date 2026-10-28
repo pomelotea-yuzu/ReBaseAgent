@@ -1,7 +1,9 @@
+import type { Translator } from "@rebaseagent/i18n";
 import type { SpanLine } from "@rebaseagent/trace-sdk";
 import type { SpanNode } from "@shared/derive";
 import { buildSpanTree, deriveStepStats } from "@shared/derive";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslator } from "../i18n";
 import { formatDuration, formatTokens } from "../lib/format";
 import { STEPS_MAX, STEPS_MIN } from "../lib/layout";
 import { decideRestore, initialRestoreState, restoreIdentity } from "../lib/restore-gate";
@@ -31,11 +33,16 @@ import { ResizeGrip } from "./ResizeGrip";
  *    由 `lib/span-tree-view.ts` 的纯函数算出（有独立用例），本组件只摆放。
  */
 
-const KIND_LABEL: Record<SpanLine["kind"], string> = {
-  "agent.step": "步骤",
-  "llm.call": "LLM",
-  "tool.invoke": "工具",
-};
+function kindLabel(kind: SpanLine["kind"], translator: Translator): string {
+  switch (kind) {
+    case "agent.step":
+      return translator.t("detail.kindStep");
+    case "llm.call":
+      return "LLM";
+    case "tool.invoke":
+      return translator.t("detail.kindTool");
+  }
+}
 
 /** span 类型的语义色：步骤中性、LLM 蓝紫、工具青 */
 const KIND_COLOR: Record<SpanLine["kind"], string> = {
@@ -72,6 +79,7 @@ export function SpanRow({
   /** step 行的子树 token 合计（非 step 为 0） */
   tokens: number;
 }) {
+  const translator = useTranslator();
   const errored = row.errorKind !== null;
   return (
     <div className="flex items-center" style={{ paddingLeft: 8 + row.depth * 14 }}>
@@ -81,7 +89,7 @@ export function SpanRow({
           type="button"
           onClick={() => onToggleExpand(row.spanId)}
           aria-expanded={expanded}
-          aria-label={expanded ? "折叠该步骤" : "展开该步骤"}
+          aria-label={translator.t(expanded ? "detail.collapseStepAria" : "detail.expandStepAria")}
           className={`w-5 shrink-0 cursor-pointer rounded text-[9px] text-gray-500 hover:bg-gray-200 ${FOCUS_RING}`}
         >
           {expanded ? "▼" : "▶"}
@@ -101,7 +109,7 @@ export function SpanRow({
         } ${errored ? "text-red-700" : KIND_COLOR[row.kind]}`}
       >
         <span className="shrink-0 rounded bg-gray-100 px-1 text-[10px] text-gray-500">
-          {KIND_LABEL[row.kind]}
+          {kindLabel(row.kind, translator)}
         </span>
 
         <span className={`truncate ${errored ? "font-medium" : ""}`}>{row.label}</span>
@@ -110,27 +118,36 @@ export function SpanRow({
         {!row.own ? (
           <span
             className="shrink-0 rounded bg-gray-100 px-1 text-[10px] text-gray-500"
-            title="来自父 run 的共享前缀（不是本次自有）"
+            title={translator.t("detail.inheritedTitle")}
           >
-            继承
+            {translator.t("detail.inheritedBadge")}
           </span>
         ) : null}
 
         {row.orphan ? (
-          <span className="shrink-0 text-[10px] text-amber-600" title="父 span 不在此轨迹中">
-            孤立
+          <span
+            className="shrink-0 text-[10px] text-amber-600"
+            title={translator.t("detail.orphanTitle")}
+          >
+            {translator.t("detail.orphanBadge")}
           </span>
         ) : null}
 
         {/* 两类错误各自标记（不合并） */}
         {row.errorKind === "tool" ? (
-          <span className="shrink-0 text-[10px] text-red-600" title="工具调用记录到错误">
-            工具错误
+          <span
+            className="shrink-0 text-[10px] text-red-600"
+            title={translator.t("detail.toolErrorRowTitle")}
+          >
+            {translator.t("detail.toolErrorBadge")}
           </span>
         ) : null}
         {row.errorKind === "llm" ? (
-          <span className="shrink-0 text-[10px] text-red-600" title="模型调用记录到错误">
-            LLM 错误
+          <span
+            className="shrink-0 text-[10px] text-red-600"
+            title={translator.t("detail.llmErrorRowTitle")}
+          >
+            {translator.t("detail.llmErrorBadge")}
           </span>
         ) : null}
 
@@ -155,6 +172,7 @@ function SpanTreeRow({
   depth,
   onSelected,
 }: { node: SpanNode; depth: number; onSelected?: () => void }) {
+  const translator = useTranslator();
   const selectedSpanId = useAppStore((s) => s.selectedSpanId);
   const expandedSteps = useAppStore((s) => s.expandedSteps);
   const leafSpanIds = useAppStore((s) => s.detail?.leafSpanIds ?? []);
@@ -172,7 +190,7 @@ function SpanTreeRow({
     spanId: span.id,
     kind: span.kind,
     depth,
-    label: spanRowLabel(span),
+    label: spanRowLabel(span, translator),
     own: ownIds.has(span.id),
     orphan: node.orphan,
     errorKind: rowErrorKind(span),
@@ -225,6 +243,7 @@ export function SpanTree({
   fullWidth?: boolean;
   onSelected?: () => void;
 }) {
+  const translator = useTranslator();
   const detail = useAppStore((s) => s.detail);
   const loadingDetail = useAppStore((s) => s.loadingDetail);
   const selectedRunId = useAppStore((s) => s.selectedRunId);
@@ -300,7 +319,7 @@ export function SpanTree({
         className="shrink-0 border-r border-gray-200 bg-white px-3 py-6 text-xs text-gray-500"
         style={panelStyle}
       >
-        加载中…
+        {translator.t("common.loading")}
       </section>
     );
   }
@@ -311,7 +330,7 @@ export function SpanTree({
         className="shrink-0 border-r border-gray-200 bg-white px-3 py-6 text-xs text-gray-500"
         style={panelStyle}
       >
-        从左侧选择一次运行。
+        {translator.t("detail.selectRunHint")}
       </section>
     );
   }
@@ -332,27 +351,29 @@ export function SpanTree({
           <DisclosureButton
             expanded
             onToggle={onToggleCollapsed}
-            label={fullWidth ? "返回当前调用（收起步骤目录）" : "收起步骤目录"}
+            label={translator.t(fullWidth ? "detail.backToCurrentCall" : "detail.collapseSteps")}
             controls="steps-navigation"
-            title="收起步骤目录（正文会保留「重新打开步骤目录」入口，当前选中的调用不会丢失）"
+            title={translator.t("detail.collapseStepsTitle")}
             className="min-w-0 flex-1 justify-between px-1 hover:bg-gray-100"
           >
-            <span className="text-sm font-semibold text-gray-800">轨迹</span>
+            <span className="text-sm font-semibold text-gray-800">
+              {translator.t("detail.traceHeading")}
+            </span>
             <span className="shrink-0 pl-2 text-[11px] text-gray-500">
-              {fullWidth ? "返回" : "收起"}
+              {translator.t(fullWidth ? "common.back" : "common.collapse")}
             </span>
           </DisclosureButton>
         </div>
-        <div className="text-[11px] text-gray-500">{detail.spans.length} 个 span · 只读呈现</div>
+        <div className="text-[11px] text-gray-500">
+          {translator.t("detail.spanCountReadOnly", { count: detail.spans.length })}
+        </div>
       </div>
       <div ref={scrollRef} className="flex-1 overflow-y-auto py-1" onScroll={handleScroll}>
         {emptyCause === "no-spans" ? (
-          <div className="px-3 py-4 text-xs text-gray-500">
-            这条记录没有任何 span——没有可展示的步骤。
-          </div>
+          <div className="px-3 py-4 text-xs text-gray-500">{translator.t("detail.noSpans")}</div>
         ) : emptyCause === "no-own-calls" ? (
           <div className="px-3 py-2 text-[11px] leading-5 text-gray-500">
-            本 run 没有自有模型/工具调用；下方为继承的共享前缀（首次选择回退到首个可读 span）。
+            {translator.t("detail.noOwnCalls")}
           </div>
         ) : null}
         {roots.map((node) => (
@@ -363,7 +384,7 @@ export function SpanTree({
       {/* 宽度调节柄（任务 4.3）：200–320，拖动或 ←/→ 均可；480px 二次约束由外壳判 */}
       {!fullWidth ? (
         <ResizeGrip
-          label="步骤目录宽度"
+          label={translator.t("detail.stepsWidth")}
           width={width}
           min={STEPS_MIN}
           max={STEPS_MAX}

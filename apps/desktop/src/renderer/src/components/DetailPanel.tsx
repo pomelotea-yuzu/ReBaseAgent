@@ -3,6 +3,7 @@ import { buildSpanTree, spanDurationMs } from "@shared/derive";
 import type { SpanNode } from "@shared/derive";
 import type { ModelArmPlan, RunDetail } from "@shared/ipc";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslator } from "../i18n";
 import { presentStepDetail } from "../lib/call-detail-view";
 import { isModelAbDraftDirty, newArmRowKey } from "../lib/debugging-drafts";
 import { formatDuration } from "../lib/format";
@@ -41,6 +42,7 @@ export function DetailPanel({
   readonly onEnterFocus?: (mode: "edit" | "diff") => void;
   readonly onExitFocus?: () => void;
 }) {
+  const translator = useTranslator();
   const detail = useAppStore((s) => s.detail);
   const selectedSpanId = useAppStore((s) => s.selectedSpanId);
   const selectedRunId = useAppStore((s) => s.selectedRunId);
@@ -149,7 +151,7 @@ export function DetailPanel({
           data-focus-bar="edit"
         >
           <span className="text-[11px] font-medium text-violet-900">
-            专注编辑 · 草稿列表与消耗图已临时收起（选择与阅读状态不变，退出后按原布局恢复）
+            {translator.t("detail.focusEditActive")}
           </span>
           <button
             type="button"
@@ -157,7 +159,7 @@ export function DetailPanel({
             onClick={onExitFocus}
             className="ml-auto rounded border border-violet-300 bg-white px-2 py-0.5 text-[11px] text-violet-900 hover:bg-violet-100"
           >
-            退出专注
+            {translator.t("common.exitFocus")}
           </button>
         </div>
       ) : null}
@@ -167,10 +169,10 @@ export function DetailPanel({
             type="button"
             data-enter-focus="edit"
             onClick={() => onEnterFocus("edit")}
-            title="临时收起草稿列表与消耗图，把空间让给编辑区（退出后按原布局恢复）"
+            title={translator.t("detail.focusEditHint")}
             className="rounded border border-gray-300 px-2 py-0.5 text-[11px] text-gray-600 hover:bg-gray-50"
           >
-            专注编辑
+            {translator.t("common.focusEdit")}
           </button>
         </div>
       ) : null}
@@ -185,7 +187,9 @@ export function DetailPanel({
         ) : null}
         {span === null ? (
           <div className="px-4 py-6 text-xs text-gray-500">
-            {detail === null ? "尚未选择运行。" : "尚未选择 span。"}
+            {detail === null
+              ? translator.t("detail.selectRunHint")
+              : translator.t("detail.selectSpanEmpty")}
           </div>
         ) : span.kind === "llm.call" ? (
           <LlmCallDetail span={span} run={detail} />
@@ -201,15 +205,15 @@ export function DetailPanel({
             onOpenStepFiles={openStepFiles ?? undefined}
           />
         ) : (
-          <Section title="步骤概要">
+          <Section title={translator.t("detail.stepSummary")}>
             <KeyValue
               items={[
-                ["迭代序号", String(span.n)],
-                ["耗时", formatDuration(spanDurationMs(span))],
+                [translator.t("detail.iterationIndex"), String(span.n)],
+                [translator.t("detail.durationLabel"), formatDuration(spanDurationMs(span))],
               ]}
             />
             <div className="mt-2 text-[11px] text-gray-500">
-              展开该步骤可查看其下的 LLM 调用与工具执行。
+              {translator.t("detail.stepExpandHint")}
             </div>
           </Section>
         )}

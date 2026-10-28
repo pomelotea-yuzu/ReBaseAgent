@@ -139,6 +139,8 @@ function step(id: string, n: number, extra: Partial<{ timing: object }> = {}): S
 
 const html = (node: Parameters<typeof renderWithLocale>[1]): string =>
   renderWithLocale("zh-CN", node);
+const enHtml = (node: Parameters<typeof renderWithLocale>[1]): string =>
+  renderWithLocale("en-US", node);
 const zh = createTestTranslator("zh-CN");
 const en = createTestTranslator("en-US");
 
@@ -535,6 +537,28 @@ describe("LlmCallDetailView：场景「推理模型的思维链」与字段完�
     expect(markup).not.toContain("RESPONSE_TEXT");
   });
 
+  it("英文独立期望：概要/思维链/响应正文/输入输出切换为英文（不是中文硬编码）", () => {
+    const span = llm("l1", "s1", {
+      reasoning: "thinking",
+      content: "answer",
+    }) as Extract<SpanLine, { kind: "llm.call" }>;
+    const markup = enHtml(
+      createElement(LlmCallDetailView, {
+        span,
+        io: "output",
+        onIo: noop,
+        emptyContentHint: "",
+        longTextProps,
+      }),
+    );
+    expect(markup).toContain("Summary");
+    expect(markup).toContain("Reasoning (reasoning_content)");
+    expect(markup).toContain("Response body");
+    expect(markup).toContain("Input");
+    expect(markup).toContain("Output");
+    expect(markup).not.toContain("响应正文");
+  });
+
   it("io=output ⇒ 渲染响应正文，不渲染请求消息列表", () => {
     const span = llm("l1", "s1", { content: "RESPONSE_TEXT" }) as Extract<
       SpanLine,
@@ -671,6 +695,18 @@ describe("ToolInvokeDetailView：场景「工具调用详情」", () => {
     expect(markup).not.toContain("错误（错误是数据不是异常）");
   });
 
+  it("英文独立期望：入参与结果、墙上耗时与错误分区标题为英文", () => {
+    const span = tool("t1", "s1", { error: "command not found" }) as Extract<
+      SpanLine,
+      { kind: "tool.invoke" }
+    >;
+    const markup = enHtml(createElement(ToolInvokeDetailView, { span, longTextProps }));
+    expect(markup).toContain("Arguments and result");
+    expect(markup).toContain("Wall-clock time");
+    expect(markup).toContain("Error (the error is data, not an exception)");
+    expect(markup).not.toContain("入参与结果");
+  });
+
   it("children（fork 编辑器）由壳注入，纯展示部分原样透传", () => {
     const span = tool("t1", "s1") as Extract<SpanLine, { kind: "tool.invoke" }>;
     const markup = html(
@@ -709,6 +745,21 @@ describe("StepDetailView：场景「长请求和原始字段完整可读」的 s
     expect(markup).toContain("输入 tokens");
     expect(markup).toContain("输出 tokens");
     expect(markup).toContain("工具调用");
+  });
+
+  it("英文独立期望：步骤概要/已记录调用标题与打开本轮文件入口按语言输出", () => {
+    const markup = enHtml(
+      createElement(StepDetailView, {
+        view: presentStepDetail(node as never),
+        onOpenCall: noop,
+        onOpenStepFiles: noop,
+      }),
+    );
+    expect(markup).toContain("Step summary");
+    expect(markup).toContain("Recorded calls (2)");
+    expect(markup).toContain("Open this turn&#x27;s files");
+    expect(markup).toContain("Iteration");
+    expect(markup).not.toContain("步骤概要");
   });
 
   it("每条已记录调用是一个按钮（可下钻到原始调用）", () => {

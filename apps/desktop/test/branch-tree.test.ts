@@ -61,10 +61,11 @@ function render(
     scope: TreeScope | null;
     query: string;
     viewport: TreeViewport | null;
+    locale: "zh-CN" | "en-US";
   }> = {},
 ): string {
   return renderWithLocale(
-    "zh-CN",
+    over.locale ?? "zh-CN",
     createElement(BranchTreeView, {
       runs,
       // U7 5.1：视图吃容器传入的会话短 ID（测试里按同一算法现算）
@@ -102,6 +103,15 @@ function nodeHtml(markup: string, runId: string): string {
 // ---------------------------------------------------------------------------
 
 describe("场景：多分支家庭呈现", () => {
+  it("英文独立期望：树标题、范围切换与只读摘要均为英文（资源键生效）", () => {
+    const markup = render([run({ id: "A" })], { locale: "en-US" });
+    expect(markup).toContain("Branch tree");
+    expect(markup).toContain("Current tree");
+    expect(markup).toContain("All relations");
+    expect(markup).toContain("1 run · nodes are runs, edges are forks · read-only");
+    expect(markup).toContain("This run&#x27;s increment 2 steps");
+  });
+
   const family: RunSummary[] = [
     run({ id: "A" }),
     run({

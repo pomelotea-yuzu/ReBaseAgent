@@ -31,10 +31,8 @@ export interface CacheHitView {
    * 三档互斥，语义不同，不得合并（`"full"` 与 `"partial"` 合并就是把 0 与"少量"混为一谈）。
    */
   tone: "effective" | "partial" | "full";
-  /** 结论文案（唯一文案来源，不得在 JSX 里另写一版） */
-  verdict: string;
-  /** 异常口径数据的显式标注（`cache_hit > in`）；正常为 null */
-  abnormalNote: string | null;
+  /** 异常口径数据（`cache_hit > in`）已按输入总量截断；正常为 false */
+  abnormal: boolean;
 }
 
 /** 判「命中为主」的占比门槛（spec 用「视觉强调区分命中为主与全量计费」，此处取 50%） */
@@ -60,12 +58,6 @@ export function presentCacheHit(usage: {
 
   const tone: CacheHitView["tone"] =
     hit === 0 ? "full" : (percent ?? 0) >= CACHE_EFFECTIVE_PERCENT ? "effective" : "partial";
-  const verdict =
-    tone === "full"
-      ? "全量计费（无命中）"
-      : tone === "effective"
-        ? "前缀缓存生效，本次调用省钱"
-        : "部分命中，多数输入仍按全价计费";
 
   return {
     hit,
@@ -73,8 +65,7 @@ export function presentCacheHit(usage: {
     shownHit,
     percent,
     tone,
-    verdict,
-    abnormalNote: abnormal ? "⚠️ 命中数大于输入总量，已按输入总量截断（数据异常）" : null,
+    abnormal,
   };
 }
 

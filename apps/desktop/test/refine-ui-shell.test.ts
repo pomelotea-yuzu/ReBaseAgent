@@ -51,9 +51,18 @@ describe("步骤目录名称（MODIFIED1）：可辨层级名称已对齐", () =
   const tree = read("../src/renderer/src/components/SpanTree.tsx");
 
   it("SpanTree 面向用户使用「步骤目录」（收起/重开入口与宽度标签同源）", () => {
-    expect(tree).toContain("收起步骤目录");
-    expect(tree).toContain("重新打开步骤目录");
-    expect(tree).toContain('label="步骤目录宽度"');
+    expect(tree).toContain('"detail.collapseSteps"');
+    expect(tree).toContain('"detail.backToCurrentCall"');
+    expect(tree).toContain('"detail.stepsWidth"');
+    expect(tree).toContain('"detail.collapseStepsTitle"');
+    // 独立期望：资源里的中文值就是这些名称（不以 t(key) 自证）
+    const zh = readFileSync(
+      resolve(import.meta.dirname, "../../../packages/i18n/src/resources/zh-CN.ts"),
+      "utf8",
+    );
+    expect(zh).toContain('collapseSteps: "收起步骤目录"');
+    expect(zh).toContain('stepsWidth: "步骤目录宽度"');
+    expect(zh).toContain("重新打开步骤目录");
   });
 });
 
@@ -105,6 +114,20 @@ describe("单运行对象头：完整 ID 可访问并复制（N04）", () => {
     expect(html).toContain("复制完整 运行 ID r_full000123");
     expect(html).toContain('title="复制完整 ID：r_full000123"');
     expect(html).toContain("r_f1");
+  });
+
+  it("英文独立期望：可访问名与标题为英文，复制目标仍是完整 ID", () => {
+    const html = renderWithLocale(
+      "en-US",
+      createElement(ShortIdLabel, {
+        id: "r_full000123",
+        shortId: "r_f1",
+        label: "Run ID",
+      }),
+    );
+    expect(html).toContain("Copy full Run ID r_full000123");
+    expect(html).toContain('title="Copy full ID: r_full000123"');
+    expect(html).toContain("r_full000123");
   });
 
   it("缺省 shortId ⇒ 回退显示完整 ID，复制目标不变", () => {

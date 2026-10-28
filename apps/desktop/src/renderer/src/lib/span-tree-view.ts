@@ -21,6 +21,7 @@
  *    （「错误是数据不是异常」）——本模块只标注"这一行有错"，不据此改结局。
  */
 
+import type { Translator } from "@rebaseagent/i18n";
 import type { SpanLine } from "@rebaseagent/trace-sdk";
 import type { SpanNode } from "@shared/derive";
 
@@ -51,8 +52,8 @@ export interface SpanRowView {
  * ⚠️ **不沿链累加**：`n` 是记录里的原值（该 run 自己的本地轮号），照抄即可。
  *    合并轨迹里"沿链累计"会给错答案（实测 `[1,2,3,1,1]`）。这里不做任何累加。
  */
-export function stepLabel(n: number): string {
-  return `第 ${n} 轮`;
+export function stepLabel(n: number, translator: Translator): string {
+  return translator.t("detail.stepTurn", { turn: n });
 }
 
 /** 某 span 的错误来源（按 kind 缩窄后取各自判据；null/undefined 语义不同） */
@@ -63,9 +64,9 @@ export function rowErrorKind(span: SpanLine): RowErrorKind {
 }
 
 /** 一行的标签（只按记录取值，不推断内容） */
-export function spanRowLabel(span: SpanLine): string {
-  if (span.kind === "agent.step") return stepLabel(span.n);
-  if (span.kind === "llm.call") return "LLM 调用";
+export function spanRowLabel(span: SpanLine, translator: Translator): string {
+  if (span.kind === "agent.step") return stepLabel(span.n, translator);
+  if (span.kind === "llm.call") return translator.t("detail.llmCallLabel");
   return span.tool;
 }
 
@@ -78,11 +79,13 @@ export function spanRowLabel(span: SpanLine): string {
 export function flattenSpanRows(
   roots: readonly SpanNode[],
   options: {
+    /** 行标签的翻译器（显式传入，不读共享当前语言） */
+    translator: Translator;
     /** 自有 span id 集合（`RunDetail.leafSpanIds`）；缺省视为全部自有 */
     ownIds?: ReadonlySet<string>;
     /** 该行是否展开（默认全部展开，与 store 的 `expandedSteps[id] !== false` 同口径） */
     expandedOf?: (spanId: string, kind: SpanLine["kind"]) => boolean;
-  } = {},
+  },
 ): SpanRowView[] {
   const ownIds = options.ownIds;
   const rows: SpanRowView[] = [];
@@ -95,7 +98,7 @@ export function flattenSpanRows(
       spanId: span.id,
       kind: span.kind,
       depth,
-      label: spanRowLabel(span),
+      label: spanRowLabel(span, options.translator),
       own: ownIds === undefined ? true : ownIds.has(span.id),
       orphan: node.orphan,
       errorKind: rowErrorKind(span),

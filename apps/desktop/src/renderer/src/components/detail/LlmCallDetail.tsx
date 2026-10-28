@@ -2,6 +2,7 @@ import type { SpanLine } from "@rebaseagent/trace-sdk";
 import { spanDurationMs } from "@shared/derive";
 import type { RunDetail } from "@shared/ipc";
 import { type ReactNode, useMemo } from "react";
+import { Trans, useTranslator } from "../../i18n";
 import type { IoView } from "../../lib/call-detail-view";
 import {
   messageContentText,
@@ -50,6 +51,7 @@ export function LlmCallDetailView({
   /** fork / 重发编辑器（由壳提供；纯展示部分不碰它们） */
   children?: ReactNode;
 }) {
+  const translator = useTranslator();
   const { request, response, error } = span;
   // 🔴 失败调用的 usage/ttft 是**占位**（代理录制的失败 llm.call 写 `{in:0,out:0}`
   // 与 ttft_ms=0 表示"没有正文抵达"，不是实测零消耗/零延迟）。delta「代理失败概览
@@ -58,17 +60,29 @@ export function LlmCallDetailView({
   const failed = error !== undefined;
   return (
     <>
-      <Section title="概要">
+      <Section title={translator.t("detail.summaryTitle")}>
         <KeyValue
           items={[
-            ["模型", request.model],
-            ["输入 tokens", failed ? "未获得（失败调用占位）" : String(response.usage.in)],
-            ["输出 tokens", failed ? "未获得（失败调用占位）" : String(response.usage.out)],
-            ["首 token 延迟", failed ? "不适用（失败调用无正文抵达）" : `${response.ttft_ms}ms`],
-            ["耗时", formatDuration(spanDurationMs(span))],
-            ["工具调用", failed ? "不适用（失败调用）" : String(response.tool_calls.length)],
+            [translator.t("detail.modelLabel"), request.model],
+            [
+              translator.t("detail.tokensIn"),
+              failed ? translator.t("detail.usageFailed") : String(response.usage.in),
+            ],
+            [
+              translator.t("detail.tokensOut"),
+              failed ? translator.t("detail.usageFailed") : String(response.usage.out),
+            ],
+            [
+              translator.t("detail.ttftLabel"),
+              failed ? translator.t("detail.ttftFailed") : `${response.ttft_ms}ms`,
+            ],
+            [translator.t("detail.durationLabel"), formatDuration(spanDurationMs(span))],
+            [
+              translator.t("detail.toolCalls"),
+              failed ? translator.t("detail.toolCallsFailed") : String(response.tool_calls.length),
+            ],
             ...(draftBadge !== null && draftBadge !== undefined
-              ? ([["草稿", draftBadge.label]] as Array<[string, string]>)
+              ? ([[translator.t("detail.draftLabel"), draftBadge.label]] as Array<[string, string]>)
               : []),
           ]}
         />
@@ -78,7 +92,7 @@ export function LlmCallDetailView({
 
       {/* 输入/输出切换（任务 5.5）：两半各自完整，切换只是换看哪半 */}
       <div className="flex items-center gap-1 border-t border-gray-200 px-4 py-1.5">
-        <span className="mr-1 text-[11px] text-gray-500">查看</span>
+        <span className="mr-1 text-[11px] text-gray-500">{translator.t("detail.viewLabel")}</span>
         {(["input", "output"] as const).map((key) => (
           <button
             key={key}
@@ -89,26 +103,33 @@ export function LlmCallDetailView({
               io === key ? "bg-sky-100 font-medium text-sky-900" : "text-gray-600 hover:bg-gray-100"
             }`}
           >
-            {key === "input" ? "输入" : "输出"}
+            {translator.t(key === "input" ? "detail.viewInput" : "detail.viewOutput")}
           </button>
         ))}
-        <span className="ml-auto text-[10px] text-gray-400">两半内容都完整保留，切换不丢字段</span>
+        <span className="ml-auto text-[10px] text-gray-400">
+          {translator.t("detail.ioBothHalvesNote")}
+        </span>
       </div>
 
       {error !== undefined ? (
-        <Section title="错误（调用失败，错误是数据）">
+        <Section title={translator.t("detail.failedCallTitle")}>
           <div className="rounded border-l-2 border-red-400 bg-red-50 px-2 py-1.5">
             <div className="mb-1 flex flex-wrap items-center gap-2 text-[11px] text-red-900">
-              <span>调用失败</span>
+              <span>{translator.t("detail.callFailed")}</span>
               {error.status === undefined ? null : (
                 <span className="rounded bg-red-100 px-1 font-code">HTTP {error.status}</span>
               )}
             </div>
-            <LongText text={error.message} label="错误详情" {...longTextProps("error")} />
+            <LongText
+              text={error.message}
+              label={translator.t("detail.errorDetailLabel")}
+              {...longTextProps("error")}
+            />
             <div className="mt-1 text-[11px] leading-5 text-red-800">
-              这是记录于本次调用的失败原因。上列 tokens 与首 token 延迟是
-              <span className="font-medium">失败占位零值</span>
-              ，不代表实际零消耗或零延迟；请求内容仍可照常查看。
+              <Trans
+                i18nKey="detail.errorPlaceholderRich"
+                components={{ strong: <span className="font-medium" /> }}
+              />
             </div>
           </div>
         </Section>
@@ -117,27 +138,33 @@ export function LlmCallDetailView({
       {io === "output" ? (
         <>
           {response.reasoning_content !== null ? (
-            <Section title="思维链（reasoning_content）">
+            <Section title={translator.t("detail.reasoningTitle")}>
               <div className="rounded border-l-2 border-amber-400 bg-amber-50 px-2 py-1.5">
                 <LongText
                   text={response.reasoning_content}
-                  label="思维链"
+                  label={translator.t("detail.reasoningLabel")}
                   {...longTextProps("reasoning")}
                 />
               </div>
             </Section>
           ) : null}
 
-          <Section title="响应正文">
+          <Section title={translator.t("detail.responseBodyTitle")}>
             {response.content === null || response.content === "" ? (
               <div className="text-[11px] text-gray-400">{emptyContentHint}</div>
             ) : (
-              <LongText text={response.content} label="正文" {...longTextProps("content")} />
+              <LongText
+                text={response.content}
+                label={translator.t("detail.bodyLabel")}
+                {...longTextProps("content")}
+              />
             )}
           </Section>
 
           {response.tool_calls.length > 0 ? (
-            <Section title={`工具调用（${response.tool_calls.length}）`}>
+            <Section
+              title={translator.t("detail.toolCallsTitle", { count: response.tool_calls.length })}
+            >
               <LongText
                 text={prettyJson(response.tool_calls)}
                 label="tool_calls"
@@ -148,7 +175,9 @@ export function LlmCallDetailView({
         </>
       ) : (
         <>
-          <Section title={`请求消息（${request.messages.length} 条）`}>
+          <Section
+            title={translator.t("detail.requestMessagesTitle", { count: request.messages.length })}
+          >
             <div className="space-y-2">
               {request.messages.map((message, index) => (
                 <div key={`${message.role}-${index}`} className="rounded bg-gray-50 px-2 py-1.5">
@@ -160,7 +189,7 @@ export function LlmCallDetailView({
                   </div>
                   <LongText
                     text={messageContentText(message)}
-                    label="内容"
+                    label={translator.t("detail.messageContentLabel")}
                     {...longTextProps(`msg:${index}`)}
                   />
                 </div>
@@ -169,7 +198,9 @@ export function LlmCallDetailView({
           </Section>
 
           {optionalSectionVisible(span, "request.tools") ? (
-            <Section title={`工具表（${request.tools?.length ?? 0}）`}>
+            <Section
+              title={translator.t("detail.toolTableTitle", { count: request.tools?.length ?? 0 })}
+            >
               <LongText
                 text={prettyJson(request.tools)}
                 label="tools"
@@ -179,7 +210,7 @@ export function LlmCallDetailView({
           ) : null}
 
           {optionalSectionVisible(span, "request.params") ? (
-            <Section title="采样参数">
+            <Section title={translator.t("detail.paramsTitle")}>
               <LongText
                 text={prettyJson(request.params)}
                 label="params"
@@ -200,6 +231,7 @@ export function LlmCallDetail({
   span,
   run,
 }: { span: Extract<SpanLine, { kind: "llm.call" }>; run: RunDetail | null }) {
+  const translator = useTranslator();
   const { request, response, error } = span;
   const leafOwned = run?.leafSpanIds.includes(span.id) ?? false;
   const isProxy = run?.meta.source?.kind === "proxy";
@@ -251,12 +283,12 @@ export function LlmCallDetail({
    */
   const emptyContentHint =
     error !== undefined
-      ? "（调用失败，无响应正文）"
+      ? translator.t("detail.emptyFailed")
       : response.tool_calls.length > 0
-        ? "（无正文，仅有工具调用）"
+        ? translator.t("detail.emptyToolCallsOnly")
         : response.reasoning_content !== null
-          ? "（无正文，仅有思维链）"
-          : "（响应为空正文）";
+          ? translator.t("detail.emptyReasoningOnly")
+          : translator.t("detail.emptyBody");
 
   // U3 任务 2.5：该调用的会话草稿标记（徽章数据从草稿仓库派生，useMemo 保引用稳定）
   const drafts = useAppStore((s) => s.drafts);
@@ -315,8 +347,7 @@ export function LlmCallDetail({
         }
         return (
           <div className="border-t border-gray-100 px-4 py-2 text-[11px] text-gray-400">
-            prompt fork 与模型 A/B 只从首次 llm.call 的启动上下文出发；打开首次 llm.call（
-            {firstLlmId}）使用编辑入口。
+            {translator.t("detail.forkFirstCallOnly", { callId: firstLlmId ?? "" })}
           </div>
         );
       })()}
@@ -332,15 +363,15 @@ export function LlmCallDetail({
             onClick={() => openMessagesWorkspace({ runId: run.meta.id, spanId: span.id })}
             className="rounded bg-sky-600 px-2 py-1 text-[11px] text-white hover:bg-sky-700"
           >
-            编辑 messages 重发
+            {translator.t("detail.editMessagesResend")}
           </button>
           <div className="mt-1 text-[11px] text-gray-400">
-            在 messages 编辑工作区打开：单请求级分叉 · 源 run 不会被修改 · 重发使用最近捕获的 key
+            {translator.t("detail.messagesWorkspaceNote")}
           </div>
         </div>
       ) : isProxy && run !== null && run.status === "crashed" ? (
         <div className="border-t border-gray-100 px-4 py-2 text-[11px] text-gray-400">
-          该 run 运行中断（未封存），不允许作为重发起点。
+          {translator.t("detail.crashedNoResend")}
         </div>
       ) : null}
     </LlmCallDetailView>

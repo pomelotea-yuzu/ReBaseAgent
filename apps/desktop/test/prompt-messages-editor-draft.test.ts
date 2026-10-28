@@ -211,8 +211,8 @@ describe("U8 5.1b 源码级：编辑器唯一消费面在 messages 工作区，�
     expect(shell).toContain(
       'const canResend = isProxy === true && leafOwned && run?.status === "completed";',
     );
-    // 崩溃 run 的诚实说明保留（随壳迁 detail/LlmCallDetail.tsx）
-    expect(shell).toContain("该 run 运行中断（未封存），不允许作为重发起点。");
+    // 崩溃 run 的诚实说明保留（随壳迁 detail/LlmCallDetail.tsx；2.5 改由资源投影）
+    expect(shell).toContain('"detail.crashedNoResend"');
   });
 });
 

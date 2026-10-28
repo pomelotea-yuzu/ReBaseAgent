@@ -251,6 +251,16 @@ describe("2.4 DetailPanel：专注编辑栏（静态渲染 + 源码契约）", (
     expect(html).toContain('data-exit-focus="true"');
   });
 
+  it("英文独立期望：专注编辑栏与退出入口为英文（资源键生效）", () => {
+    const html = renderWithLocale(
+      "en-US",
+      createElement(DetailPanel, { focusActive: true, onExitFocus: () => {} }),
+    );
+    expect(html).toContain("Focus editing");
+    expect(html).toContain("Exit focus");
+    expect(html).not.toContain("退出专注");
+  });
+
   it("未专注 + 有 onEnterFocus ⇒ 渲染「专注编辑」入口", () => {
     const html = renderWithLocale("zh-CN", createElement(DetailPanel, { onEnterFocus: () => {} }));
     expect(html).toContain('data-enter-focus="edit"');

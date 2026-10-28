@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { renderWithLocale } from "./i18n/render-with-locale";
 
 /**
  * U2 任务 5.3 实机验收暴露的**接线缺口**回归（四个，全部属"纯逻辑写好但没接上 UI"这一类）。
@@ -36,7 +36,8 @@ const VIEW = {
 
 describe("U2 5.3 缺口③：步骤页真的有「打开该轮文件」入口（能力断言）", () => {
   it("给出回调 ⇒ 渲染入口按钮", () => {
-    const html = renderToStaticMarkup(
+    const html = renderWithLocale(
+      "zh-CN",
       createElement(StepDetailView, {
         view: VIEW,
         onOpenCall: () => {},
@@ -47,7 +48,8 @@ describe("U2 5.3 缺口③：步骤页真的有「打开该轮文件」入口（
   });
 
   it("不给回调（祖先步骤 / 非自有完成步骤）⇒ **不渲染**入口，不冒充检查点", () => {
-    const html = renderToStaticMarkup(
+    const html = renderWithLocale(
+      "zh-CN",
       createElement(StepDetailView, { view: VIEW, onOpenCall: () => {} }),
     );
     expect(html).not.toContain("打开该轮文件");

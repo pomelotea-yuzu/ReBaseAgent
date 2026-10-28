@@ -6,7 +6,7 @@ import { buildSpanTree } from "@shared/derive";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { renderWithLocale } from "./i18n/render-with-locale";
+import { createTestTranslator, renderWithLocale } from "./i18n/render-with-locale";
 
 // SpanTree 的 store 薄壳在 import 时就会触到 `window.api`（../lib/api.ts）
 // ⇒ 桩必须先就位；ESM 静态 import 会被提升，故用动态 import（同 5.1/5.2/5.3 的 test 文件）。
@@ -92,6 +92,8 @@ function tool(id: string, parent: string, name: string, error: string | null = n
 
 const html = (node: Parameters<typeof renderWithLocale>[1]): string =>
   renderWithLocale("zh-CN", node);
+const zh = createTestTranslator("zh-CN");
+const en = createTestTranslator("en-US");
 const noop = (): void => {};
 
 // ---------------------------------------------------------------------------
@@ -101,7 +103,7 @@ const noop = (): void => {};
 describe("flattenSpanRows：三步运行的树结构", () => {
   it("u1-ok：3 个 agent.step 各自展开后为其下 llm.call / tool.invoke 子节点", () => {
     if (!has("u1-ok")) return;
-    const rows = flattenSpanRows(buildSpanTree(spansOf("u1-ok")));
+    const rows = flattenSpanRows(buildSpanTree(spansOf("u1-ok")), { translator: zh });
 
     // 根层就是 3 个 step（第 1/2/3 轮），depth 0
     const roots = rows.filter((r) => r.depth === 0);
@@ -115,7 +117,7 @@ describe("flattenSpanRows：三步运行的树结构", () => {
 
   it("缩进层级逐层递增（depth 不是恒为 0 —— 否则树会被拍平成一列）", () => {
     if (!has("u1-ok")) return;
-    const rows = flattenSpanRows(buildSpanTree(spansOf("u1-ok")));
+    const rows = flattenSpanRows(buildSpanTree(spansOf("u1-ok")), { translator: zh });
     const depths = new Set(rows.map((r) => r.depth));
     // 至少两层（step=0 / 其下调用=1）；若恒为 0，树结构在界面上就不成立
     expect(depths.has(0)).toBe(true);
@@ -125,7 +127,7 @@ describe("flattenSpanRows：三步运行的树结构", () => {
 
   it("只把 agent.step 视为可展开节点（其下有子时才出现展开控件）", () => {
     const spans = [step("s1", 1), llm("s2", "s1"), tool("s3", "s1", "read_file")];
-    const rows = flattenSpanRows(buildSpanTree(spans));
+    const rows = flattenSpanRows(buildSpanTree(spans), { translator: zh });
     const stepRow = rows.find((r) => r.kind === "agent.step");
     const llmRow = rows.find((r) => r.kind === "llm.call");
     expect(stepRow?.expandable).toBe(true);
@@ -135,8 +137,8 @@ describe("flattenSpanRows：三步运行的树结构", () => {
   it("折叠某 step 只影响其子节点是否下钻，不影响选中通道", () => {
     const spans = [step("s1", 1), llm("s2", "s1"), tool("s3", "s1", "read_file")];
     const tree = buildSpanTree(spans);
-    const all = flattenSpanRows(tree);
-    const collapsed = flattenSpanRows(tree, { expandedOf: (id) => id !== "s1" });
+    const all = flattenSpanRows(tree, { translator: zh });
+    const collapsed = flattenSpanRows(tree, { translator: zh, expandedOf: (id) => id !== "s1" });
     expect(all.map((r) => r.spanId)).toEqual(["s1", "s2", "s3"]);
     expect(collapsed.map((r) => r.spanId)).toEqual(["s1"]); // 只留被折叠的 step 自身
   });
@@ -293,7 +295,7 @@ describe("flattenSpanRows：自有与继承可辨，轮号不累加", () => {
     const spans = [step("s1", 1), llm("s2", "s1"), step("s9", 2), tool("s10", "s9", "read_file")];
     // 自有段只有 s9/s10（模拟 result 分叉：父前缀 s1/s2 是继承来的）
     const owned = new Set(["s9", "s10"]);
-    const rows = flattenSpanRows(buildSpanTree(spans), { ownIds: owned });
+    const rows = flattenSpanRows(buildSpanTree(spans), { translator: zh, ownIds: owned });
     const byId = new Map(rows.map((r) => [r.spanId, r]));
     expect(byId.get("s1")?.own).toBe(false);
     expect(byId.get("s2")?.own).toBe(false);
@@ -308,7 +310,7 @@ describe("flattenSpanRows：自有与继承可辨，轮号不累加", () => {
     // 合并轨迹 = 父前缀 + 子自有段（与 resolveBranch 同形态）
     const merged = [...parent.spans, ...child.spans];
     const own = new Set(child.spans.map((s) => s.id));
-    const rows = flattenSpanRows(buildSpanTree(merged), { ownIds: own });
+    const rows = flattenSpanRows(buildSpanTree(merged), { translator: zh, ownIds: own });
     const byId = new Map(rows.map((r) => [r.spanId, r]));
 
     for (const span of parent.spans) expect(byId.get(span.id)?.own, span.id).toBe(false);
@@ -317,17 +319,17 @@ describe("flattenSpanRows：自有与继承可辨，轮号不累加", () => {
 
   it("stepLabel 用记录原值，不沿链累加（合并轨迹里 [1,2,3,1,1] 照抄）", () => {
     // 子 run 的 agent.step.n 是它自己的本地轮号：父段 1/2/3 + 子段回到 1
-    expect(stepLabel(1)).toBe("第 1 轮");
-    expect(stepLabel(3)).toBe("第 3 轮");
+    expect(stepLabel(1, zh)).toBe("第 1 轮");
+    expect(stepLabel(3, zh)).toBe("第 3 轮");
     // 若"沿链累计"，子的第 1 轮会被算成第 4 轮——这里恒等于记录值
     const spans = [step("a", 1), step("b", 2), step("c", 3), step("d", 1)];
-    const labels = flattenSpanRows(buildSpanTree(spans)).map((r) => r.label);
+    const labels = flattenSpanRows(buildSpanTree(spans), { translator: zh }).map((r) => r.label);
     expect(labels).toEqual(["第 1 轮", "第 2 轮", "第 3 轮", "第 1 轮"]);
   });
 
   it("ownIds 缺省时视为全部自有（不擅自把没边界信息的轨迹全判成继承）", () => {
     const spans = [step("s1", 1), llm("s2", "s1")];
-    const rows = flattenSpanRows(buildSpanTree(spans));
+    const rows = flattenSpanRows(buildSpanTree(spans), { translator: zh });
     expect(rows.every((r) => r.own)).toBe(true);
   });
 
@@ -355,6 +357,34 @@ describe("flattenSpanRows：自有与继承可辨，轮号不累加", () => {
     expect(markup).toContain("继承");
   });
 
+  it("英文独立期望：继承/错误标记与展开控件名称随语言（不是固定中文）", () => {
+    const markup = renderWithLocale(
+      "en-US",
+      createElement(SpanRow, {
+        row: {
+          spanId: "s1",
+          kind: "tool.invoke" as const,
+          depth: 0,
+          label: "read_file",
+          own: false,
+          orphan: false,
+          errorKind: "tool" as const,
+          expandable: false,
+        },
+        selected: false,
+        expanded: true,
+        onSelect: noop,
+        onToggleExpand: noop,
+        durationMs: null,
+        tokens: 0,
+      }),
+    );
+    expect(markup).toContain("Inherited");
+    expect(markup).toContain("Tool error");
+    expect(markup).toContain("Tool");
+    expect(markup).not.toContain("继承");
+  });
+
   it("自有行不渲染「继承」标记（不误标）", () => {
     const markup = html(
       createElement(SpanRow, {
@@ -380,9 +410,13 @@ describe("flattenSpanRows：自有与继承可辨，轮号不累加", () => {
   });
 
   it("spanRowLabel：step 用本地轮号、llm 固定文案、tool 用工具名", () => {
-    expect(spanRowLabel(step("s1", 2))).toBe("第 2 轮");
-    expect(spanRowLabel(llm("s2", "s1"))).toBe("LLM 调用");
-    expect(spanRowLabel(tool("s3", "s1", "read_file"))).toBe("read_file");
+    expect(spanRowLabel(step("s1", 2), zh)).toBe("第 2 轮");
+    expect(spanRowLabel(llm("s2", "s1"), zh)).toBe("LLM 调用");
+    expect(spanRowLabel(tool("s3", "s1", "read_file"), zh)).toBe("read_file");
+    // 英文独立期望（不拿 t(key) 自证；工具名是记录原值不翻译）
+    expect(stepLabel(2, en)).toBe("Turn 2");
+    expect(spanRowLabel(llm("s2", "s1"), en)).toBe("LLM call");
+    expect(spanRowLabel(tool("s3", "s1", "read_file"), en)).toBe("read_file");
   });
 });
 

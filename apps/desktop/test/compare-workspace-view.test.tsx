@@ -16,7 +16,7 @@ import { deriveCompareFileEntry } from "../src/renderer/src/lib/compare-files";
 import { deriveSideStepCatalog } from "../src/renderer/src/lib/compare-steps";
 import { deriveSideOutputFacts } from "../src/shared/compare-output";
 import type { RunDetail } from "../src/shared/ipc";
-import { renderWithLocale } from "./i18n/render-with-locale";
+import { createTestTranslator, renderWithLocale } from "./i18n/render-with-locale";
 
 /**
  * U7（improve-branch-comparison）tasks 4.6/4.12：比较工作区展示层的静态断言。
@@ -29,6 +29,7 @@ import { renderWithLocale } from "./i18n/render-with-locale";
  * - 编辑证据三态（方向、前后值、语义标签、逐跳链、不同根两列）。
  */
 
+const zhTranslator = createTestTranslator("zh-CN");
 const T0 = "2026-01-15T10:00:00.000Z";
 
 function meta(id: string, parent: string | null, fork: Fork | null): RunDetail["meta"] {
@@ -121,7 +122,7 @@ function okSide(side: "left" | "right", runId: string, spans: SpanLine[]): Compa
       savedTab: undefined,
     }),
     onOpenFiles: vi.fn(),
-    catalog: deriveSideStepCatalog(detail),
+    catalog: deriveSideStepCatalog(detail, zhTranslator),
     folded: false,
     selectedSpanId: null,
     onToggleFold: vi.fn(),
@@ -224,7 +225,7 @@ describe("SideStepsSection：折叠摘要 / ownOnly / 编辑标记 / 选中态",
       spanScope: "resolved",
       lineage: { status: "complete" },
     };
-    return deriveSideStepCatalog(detail);
+    return deriveSideStepCatalog(detail, zhTranslator);
   }
 
   it("折叠态：摘要行（行数/来源/编辑数）+ 自有行；展开态：全部行带来源与编辑标记", () => {
@@ -270,7 +271,7 @@ describe("SideStepsSection：折叠摘要 / ownOnly / 编辑标记 / 选中态",
     const html = renderWithLocale(
       "zh-CN",
       <SideStepsSection
-        catalog={deriveSideStepCatalog(detail)}
+        catalog={deriveSideStepCatalog(detail, zhTranslator)}
         folded={true}
         selectedSpanId={null}
         {...IDLE_ACTIONS}

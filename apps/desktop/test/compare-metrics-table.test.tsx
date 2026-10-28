@@ -1,10 +1,12 @@
 import type { Fork, SpanLine } from "@rebaseagent/trace-sdk/schema";
-import { renderToStaticMarkup } from "react-dom/server";
+
 import { describe, expect, it, vi } from "vitest";
 import { deriveCompareMetricsTable as deriveCompareMetricsTableOf } from "../src/renderer/src/lib/compare-metrics";
-import { createTestTranslator } from "./i18n/render-with-locale";
+import { createTestTranslator, renderWithLocale } from "./i18n/render-with-locale";
 
 const zh = createTestTranslator("zh-CN");
+const render = (node: Parameters<typeof renderWithLocale>[1]): string =>
+  renderWithLocale("zh-CN", node);
 const deriveCompareMetricsTable = (input: Parameters<typeof deriveCompareMetricsTableOf>[0]) =>
   deriveCompareMetricsTableOf(input, zh);
 import type { CompareRunItem, RunDetail, RunSummary } from "../src/shared/ipc";
@@ -89,7 +91,7 @@ function tableFor(
   const shorts = computeShortIds(ids);
   const items = ids.map((id) => readyItem(id, [summary({ id })]));
   const model = deriveCompareMetricsTable({ items, shortIds: shorts });
-  return renderToStaticMarkup(
+  return render(
     <CompareMetricsTable
       model={model}
       loading={extra?.loading ?? false}
@@ -124,7 +126,7 @@ describe("CompareMetricsTable：宽幅表结构", () => {
   it("请求级拒绝 ⇒ 稳定码 + 受控原因 + 重试按钮（可访问名称明确）", () => {
     const shorts = computeShortIds(["r_a"]);
     const model = deriveCompareMetricsTable({ items: null, shortIds: shorts });
-    const html = renderToStaticMarkup(
+    const html = render(
       <CompareMetricsTable
         model={model}
         loading={false}
@@ -145,7 +147,7 @@ describe("CompareMetricsTable：宽幅表结构", () => {
   it("空集 ⇒ 引导文案（不渲染空表）", () => {
     const shorts = computeShortIds([]);
     const model = deriveCompareMetricsTable({ items: null, shortIds: shorts });
-    const html = renderToStaticMarkup(
+    const html = render(
       <CompareMetricsTable model={model} loading={false} rejected={null} onRetry={vi.fn()} />,
     );
     expect(html).toContain("在分支树勾选节点");
@@ -161,7 +163,7 @@ describe("5.3 指标表显式选两条（挑选条与列头动作）", () => {
   }
 
   function renderWithPick(pick: { left: string | null; right: string | null }) {
-    return renderToStaticMarkup(
+    return render(
       <CompareMetricsTable
         model={model3()}
         loading={false}
@@ -201,7 +203,7 @@ describe("CompareSelectionBarView：选择栏", () => {
   const noop = (): void => {};
 
   function bar(over: { compareIds?: string[]; compareNotice?: string | null } = {}): string {
-    return renderToStaticMarkup(
+    return render(
       <CompareSelectionBarView
         runs={runs}
         compareIds={over.compareIds ?? ["r_a", "r_b"]}

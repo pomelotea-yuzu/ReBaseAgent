@@ -1,6 +1,6 @@
 import { deriveMissingLlmErrorDetail, forkEditLabel, isPromptForkField } from "@shared/derive";
 import { useMemo } from "react";
-import { useTranslator } from "../i18n";
+import { Trans, useTranslator } from "../i18n";
 import {
   type LineageIncompleteView,
   lineageIncompleteViewOf,
@@ -76,13 +76,20 @@ function BranchNotice() {
     const iteration = resumeBoundaryIteration(detail.spans, resumeAfterStep);
     return (
       <div className="border-b border-violet-200 bg-violet-50 px-4 py-2 text-[11px] leading-5 text-violet-900">
-        隔离续跑分支：
-        {isolatedBranchBoundaryLabel(parentHop.meta.id, iteration, resumeAfterStep, translator)}
-        ，该轮全部工具的结果作为共享前缀各出现一次。
+        {translator.t("detail.isoContinuationBranch", {
+          boundary: isolatedBranchBoundaryLabel(
+            parentHop.meta.id,
+            iteration,
+            resumeAfterStep,
+            translator,
+          ),
+        })}
         <br />
-        编辑位置 <span className="font-code">{fork.at_span}</span> · 轮末边界{" "}
-        <span className="font-code">{resumeAfterStep}</span>
-        （轮号取所属 run 的原始 agent.step.n，不按合并轨迹沿链累加）
+        <Trans
+          i18nKey="detail.isoContinuationBoundary"
+          values={{ span: fork.at_span, boundary: resumeAfterStep }}
+          components={{ code: <span className="font-code" /> }}
+        />
       </div>
     );
   }
@@ -91,11 +98,13 @@ function BranchNotice() {
   if (isPromptForkField(field)) {
     return (
       <div className="border-b border-emerald-200 bg-emerald-50 px-4 py-2 text-[11px] leading-5 text-emerald-900">
-        prompt fork（从头重跑）：本 run 的所有 span 均来自本次完整执行，父 run
-        <span className="font-code"> {parentHop.meta.id} </span>
-        仅作溯源对照——不共享前缀，父轨迹不会进入本时间线。
+        {translator.t("detail.promptForkLine", { parent: parentHop.meta.id })}
         <br />
-        编辑字段：<span className="font-code">{forkEditLabel(field, translator)}</span>
+        <Trans
+          i18nKey="detail.promptForkField"
+          values={{ field: forkEditLabel(field, translator) }}
+          components={{ code: <span className="font-code" /> }}
+        />
       </div>
     );
   }
@@ -113,19 +122,19 @@ function BranchNotice() {
         : undefined;
     return (
       <div className="border-b border-sky-200 bg-sky-50 px-4 py-2 text-[11px] leading-5 text-sky-900">
-        模型 A/B 实验臂（从头重跑）：本 run 的所有 span 均来自本次完整执行，父 run
-        <span className="font-code"> {parentHop.meta.id} </span>
-        仅作对照——不共享前缀。
+        {translator.t("detail.modelAbLine", { parent: parentHop.meta.id })}
         <br />
-        本臂：<span className="font-code">{String(edited?.model ?? "?")}</span>
+        {translator.t("detail.modelAbArmLabel")}
+        <span className="font-code">{String(edited?.model ?? "?")}</span>
         {edited?.params !== undefined ? (
           <span className="font-code"> {prettyJson(edited.params)}</span>
         ) : null}
         {typeof experimentId === "string" ? (
-          <>
-            {" "}
-            · 实验组 <span className="font-code">{experimentId}</span>（同批臂共享此标签）
-          </>
+          <Trans
+            i18nKey="detail.modelAbGroup"
+            values={{ id: experimentId }}
+            components={{ code: <span className="font-code" /> }}
+          />
         ) : null}
       </div>
     );
@@ -133,13 +142,17 @@ function BranchNotice() {
 
   return (
     <div className="border-b border-violet-200 bg-violet-50 px-4 py-2 text-[11px] leading-5 text-violet-900">
-      分支 run：
-      <span className="font-code"> {parentHop.meta.id} </span>
-      的轨迹截至分叉点
-      <span className="font-code"> {fork.at_span} </span>
-      为共享前缀（来自父 run 文件，本 run 只记录新增 span）。
+      <Trans
+        i18nKey="detail.branchLine"
+        values={{ parent: parentHop.meta.id, span: fork.at_span }}
+        components={{ code: <span className="font-code" /> }}
+      />
       <br />
-      编辑字段：<span className="font-code">{fork.edit.field}</span>
+      <Trans
+        i18nKey="detail.promptForkField"
+        values={{ field: fork.edit.field }}
+        components={{ code: <span className="font-code" /> }}
+      />
     </div>
   );
 }
@@ -169,11 +182,13 @@ function ParentChainList() {
     <div className="border-b border-sky-200 bg-sky-50 px-4 py-2 text-[11px] leading-5 text-sky-900">
       <div className="mb-1 font-semibold">
         {partialTitle ??
-          (isModelAb
-            ? "分叉链（A/B 实验臂 · 从头重跑的独立新轨迹）"
-            : isPromptFork
-              ? "分叉链（从头重跑的独立新轨迹）"
-              : "分叉链（单请求级编辑重发）")}
+          translator.t(
+            isModelAb
+              ? "detail.chainTitleModelAb"
+              : isPromptFork
+                ? "detail.chainTitlePromptFork"
+                : "detail.chainTitleProxy",
+          )}
       </div>
       <div className="flex flex-wrap items-center gap-1">
         {detail.chain.map((hop, index) => {
@@ -196,12 +211,14 @@ function ParentChainList() {
                     ? "bg-sky-600 text-white"
                     : "border border-sky-300 bg-white text-sky-800 hover:bg-sky-100"
                 }`}
-                title={isLeaf ? "当前 run" : "查看该代 run 详情"}
+                title={translator.t(isLeaf ? "detail.chainCurrent" : "detail.chainView")}
               >
                 {hop.meta.id}
               </button>
               {editedMessages ? (
-                <span className="text-[10px] text-sky-600">已编辑 messages</span>
+                <span className="text-[10px] text-sky-600">
+                  {translator.t("detail.chainEditedMessages")}
+                </span>
               ) : editedField !== null ? (
                 <span className="text-[10px] text-emerald-700">
                   {forkEditLabel(editedField, translator)}
@@ -224,6 +241,7 @@ function ParentChainList() {
  * 只按列表当前事实陈述，不猜是哪一条失败文件。
  */
 function SourceUnavailableNotice() {
+  const translator = useTranslator();
   const unavailable = useAppStore((s) => s.sourceUnavailable);
   const reason = useAppStore((s) => s.sourceUnavailableReason);
   const loadRuns = useAppStore((s) => s.loadRuns);
@@ -231,13 +249,15 @@ function SourceUnavailableNotice() {
 
   return (
     <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-[11px] leading-5 text-amber-900">
-      <span className="font-semibold">源记录不可用：</span>
-      {reason === "unreadable"
-        ? "刷新时该运行的源文件读取失败，下方内容为之前加载的结果，"
-        : "刷新时该运行的记录已不在 traces 目录中，下方内容为之前加载的结果，"}
-      依赖它的新执行（重跑、prompt/messages 编辑、模型实验）已禁用。
+      <span className="font-semibold">{translator.t("detail.sourceUnavailable")}</span>
+      {translator.t(
+        reason === "unreadable"
+          ? "detail.sourceUnavailableUnreadable"
+          : "detail.sourceUnavailableMissing",
+      )}
+      {translator.t("detail.sourceUnavailableTail")}
       <br />
-      重新读取并校验通过后自动恢复；也可在左侧列表改选其他运行。
+      {translator.t("detail.sourceUnavailableRecover")}
       <button
         type="button"
         onClick={() => {
@@ -245,7 +265,7 @@ function SourceUnavailableNotice() {
         }}
         className="ml-1 underline hover:text-amber-950"
       >
-        重新读取
+        {translator.t("detail.reread")}
       </button>
     </div>
   );
@@ -258,14 +278,14 @@ function SourceUnavailableNotice() {
  * 不说"文件被删了"之类的因果（那不是渲染层能知道的事），也不暗示选了别的 run 的同 ID span。
  */
 function ReadingInvalidatedNotice() {
+  const translator = useTranslator();
   const invalidated = useAppStore((s) => s.readingInvalidated);
   if (!invalidated) return null;
 
   return (
     <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-[11px] leading-5 text-amber-900">
-      <span className="font-semibold">原阅读位置不可用：</span>
-      上次记录的 span 或展开项已不在本次读取到的轨迹里（可能是记录被重写或缩减）。
-      已清理失效引用并回到默认位置。
+      <span className="font-semibold">{translator.t("detail.readingInvalidated")}</span>
+      {translator.t("detail.readingInvalidatedBody")}
     </div>
   );
 }
@@ -279,6 +299,7 @@ function ReadingInvalidatedNotice() {
  * 只陈述"未记录"这一事实，不推断原因（空正文 / 零 token / 末尾 llm.call 概不参与）。
  */
 function ErrorDetailNotice() {
+  const translator = useTranslator();
   const detail = useAppStore((s) => s.detail);
   const missing = useMemo(
     () =>
@@ -294,10 +315,9 @@ function ErrorDetailNotice() {
 
   return (
     <div className="border-b border-red-200 bg-red-50 px-4 py-2 text-[11px] leading-5 text-red-900">
-      错误详情未记录：本 run 以「出错终止」收尾，但它自身没有任何记录了失败原因的 LLM 调用
-      （代理录制的失败、或早于错误详情记录能力的历史 run）。
+      {translator.t("detail.errorDetailMissing")}
       <br />
-      此处不推断失败原因；轨迹树上的失败标记只反映各 span 自身记录的 error，不代表本次终止的原因。
+      {translator.t("detail.errorDetailMissingBody")}
     </div>
   );
 }
@@ -333,13 +353,14 @@ export function IsolatedRunNoticeView({
   expanded: boolean;
   onToggle: () => void;
 }) {
+  const translator = useTranslator();
   return (
     <div
       data-isolated-notice="true"
       className="border-b border-violet-200 bg-violet-50 px-4 py-1.5 text-[11px] leading-5 text-violet-900"
     >
       <Disclosure
-        summary="来源与技术详情"
+        summary={translator.t("detail.sourceTechSummary")}
         meta={view.compact}
         expanded={expanded}
         onToggle={onToggle}
@@ -404,6 +425,7 @@ export function LineageIncompleteNoticeView({
   view: LineageIncompleteView;
   onCopy: (missingRunId: string) => void;
 }) {
+  const translator = useTranslator();
   return (
     <div
       data-lineage-incomplete="true"
@@ -411,16 +433,20 @@ export function LineageIncompleteNoticeView({
     >
       <span className="font-semibold">{view.text}：</span>
       <span className="break-all">
-        缺失的祖先运行：<span className="font-code">{view.missingRunId}</span>
+        <Trans
+          i18nKey="detail.lineageMissingAncestor"
+          values={{ runId: view.missingRunId }}
+          components={{ code: <span className="font-code" /> }}
+        />
       </span>
-      。本运行自有输出、步骤、消耗与终止事实仍可读；共享前缀与祖先增量未知，不补零、不推算。
+      {translator.t("detail.lineageOwnReadable")}
       <button
         type="button"
-        aria-label={`复制缺失祖先 run ID（${view.missingRunId}）`}
+        aria-label={translator.t("detail.copyMissingRunAria", { runId: view.missingRunId })}
         onClick={() => onCopy(view.missingRunId)}
         className={`ml-1 rounded border border-amber-400 px-1.5 py-0.5 text-amber-800 hover:bg-amber-100 ${FOCUS_RING}`}
       >
-        复制缺失 run ID
+        {translator.t("detail.copyMissingRun")}
       </button>
     </div>
   );

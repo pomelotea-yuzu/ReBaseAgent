@@ -46,7 +46,9 @@ describe("运行列表 / 步骤目录：标题行折叠开关（任务 1.1）", 
     expect(src).toContain("DisclosureButton");
     expect(src).toContain('controls="steps-navigation"');
     expect(src).toContain("onToggle={onToggleCollapsed}");
-    expect(src).toContain("收起步骤目录");
+    // 文案经 translator 投影（中文独立期望在 refine-ui-shell.test.ts 钉资源值）
+    expect(src).toContain('"detail.collapseSteps"');
+    expect(src).toContain('"detail.backToCurrentCall"');
   });
 
   it("浅色 16px 裸箭头不再是入口（剥注释后扫，两个面板都不得残留 ‹ 字符）", () => {

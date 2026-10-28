@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslator } from "../i18n";
 import { FOCUS_RING } from "./IconButton";
 import { copyPayload } from "./LongText";
 
@@ -28,6 +29,7 @@ export function ShortIdLabel({
   /** 可访问名称里的对象名（如「复制完整 ID r_ab12…」） */
   readonly label?: string;
 }) {
+  const translator = useTranslator();
   const [feedback, setFeedback] = useState<"copied" | "unavailable" | null>(null);
 
   const copy = (): void => {
@@ -53,16 +55,16 @@ export function ShortIdLabel({
       </span>
       <button
         type="button"
-        aria-label={`复制完整 ${label} ${id}`}
-        title={`复制完整 ID：${id}`}
+        aria-label={translator.t("common.copyFullLabelAria", { label, id })}
+        title={translator.t("common.copyFullIdTitle", { id })}
         onClick={copy}
         className={`shrink-0 rounded px-1 text-[10px] text-gray-400 hover:bg-gray-100 hover:text-gray-600 ${FOCUS_RING}`}
       >
-        复制
+        {translator.t("common.copy")}
       </button>
       {feedback !== null ? (
         <span className="text-[10px] text-gray-400" aria-live="polite">
-          {feedback === "copied" ? "已复制完整 ID" : "当前环境不支持复制"}
+          {translator.t(feedback === "copied" ? "common.copiedFullId" : "common.copyUnavailable")}
         </span>
       ) : null}
     </span>

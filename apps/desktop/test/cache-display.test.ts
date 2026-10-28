@@ -2,9 +2,8 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { SpanLine } from "@rebaseagent/trace-sdk";
 import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { createTestTranslator } from "./i18n/render-with-locale";
+import { createTestTranslator, renderWithLocale } from "./i18n/render-with-locale";
 
 const zh = createTestTranslator("zh-CN");
 
@@ -39,8 +38,10 @@ const { CacheHitRow, ForkCacheHintView, LlmCallDetailView } = await import(
  */
 
 const noop = (): void => {};
-const html = (node: Parameters<typeof renderToStaticMarkup>[0]): string =>
-  renderToStaticMarkup(node);
+const html = (node: Parameters<typeof renderWithLocale>[1]): string =>
+  renderWithLocale("zh-CN", node);
+const enHtml = (node: Parameters<typeof renderWithLocale>[1]): string =>
+  renderWithLocale("en-US", node);
 
 /** 造一个 llm.call，usage 可带 cache_hit / cache_miss */
 function llm(
@@ -81,7 +82,7 @@ describe("presentCacheHit：存在性而非 truthiness，且按命中量分档�
     expect(view?.input).toBe(1000);
     expect(view?.percent).toBe(80);
     expect(view?.tone).toBe("effective");
-    expect(view?.verdict).toContain("前缀缓存生效");
+    expect(view?.abnormal).toBe(false);
   });
 
   it("场景② 零命中：cache_hit: 0 ⇒ 照常展示、tone=full、措辞「全量计费」（不得因假值省略）", () => {
@@ -91,15 +92,12 @@ describe("presentCacheHit：存在性而非 truthiness，且按命中量分档�
     expect(view?.shownHit).toBe(0);
     expect(view?.percent).toBe(0);
     expect(view?.tone).toBe("full");
-    expect(view?.verdict).toContain("全量计费");
   });
 
   it("场景③ 少量命中：128 / 323 ⇒ 40%，tone=partial，措辞「部分命中」且**不得**出现「全量计费」", () => {
     const view = presentCacheHit({ in: 323, cache_hit: 128 });
     expect(view?.percent).toBe(40);
     expect(view?.tone).toBe("partial");
-    expect(view?.verdict).toContain("部分命中");
-    expect(view?.verdict).not.toContain("全量计费");
   });
 
   it("场景④ 无 cache_hit 字段 ⇒ null（降级省略，不报错、不显示 0）", () => {
@@ -124,7 +122,7 @@ describe("presentCacheHit：存在性而非 truthiness，且按命中量分档�
     const view = presentCacheHit({ in: 100, cache_hit: 300 });
     expect(view?.shownHit).toBe(100);
     expect(view?.percent).toBe(100);
-    expect(view?.abnormalNote).not.toBeNull();
+    expect(view?.abnormal).toBe(true);
   });
 
   it("cache_miss：缺失 ⇒ null（未知 ≠ 0），有值 ⇒ 原样", () => {
@@ -149,6 +147,12 @@ describe("CacheHitRow：usage 区缓存命中行静态渲染", () => {
     expect(markup).toContain("80%");
     expect(markup).toContain('data-cache-tone="effective"');
     expect(markup).toContain("前缀缓存生效");
+
+    const english = enHtml(
+      createElement(CacheHitRow, { usage: llm({ in: 1000, cache_hit: 800 }).response.usage }),
+    );
+    expect(english).toContain("Cache hits");
+    expect(english).toContain("Prefix cache effective; this call saved cost");
   });
 
   it("场景② cache_hit: 0 ⇒ 展示 0 与「全量计费」，不省略（0 不是假值）", () => {

@@ -1,3 +1,4 @@
+import { useTranslator } from "../../i18n";
 import type { StepDetailView as StepDetailViewData } from "../../lib/call-detail-view";
 import { formatDuration } from "../../lib/format";
 import { KeyValue, Section } from "./DetailShared";
@@ -33,9 +34,10 @@ export function StepDetailView({
    */
   onOpenStepFiles?: () => void;
 }) {
+  const translator = useTranslator();
   return (
     <>
-      <Section title="步骤概要">
+      <Section title={translator.t("detail.stepSummary")}>
         {onOpenStepFiles === undefined ? null : (
           <div className="mb-1">
             <button
@@ -43,34 +45,32 @@ export function StepDetailView({
               onClick={onOpenStepFiles}
               className="rounded border border-violet-300 bg-violet-50 px-2 py-0.5 text-[11px] text-violet-800 hover:bg-violet-100"
             >
-              打开该轮文件
+              {translator.t("detail.openStepFiles")}
             </button>
             <div className="mt-0.5 text-[10px] leading-4 text-gray-500">
-              定位到本 run 该轮结束的文件检查点（不是历史检查点，也不借用父 run 的快照）。
+              {translator.t("detail.openStepFilesHint")}
             </div>
           </div>
         )}
         <KeyValue
           items={[
-            ["迭代序号", String(view.iteration)],
-            ["已记录调用", String(view.calls.length)],
-            ["其中错误", String(view.errorCount)],
-            ["耗时", formatDuration(view.durationMs)],
-            ["输入 tokens", String(view.tokensIn)],
-            ["输出 tokens", String(view.tokensOut)],
-            ["工具调用", String(view.toolCalls)],
+            [translator.t("detail.iterationIndex"), String(view.iteration)],
+            [translator.t("detail.recordedCalls"), String(view.calls.length)],
+            [translator.t("detail.errorAmong"), String(view.errorCount)],
+            [translator.t("detail.durationLabel"), formatDuration(view.durationMs)],
+            [translator.t("detail.tokensIn"), String(view.tokensIn)],
+            [translator.t("detail.tokensOut"), String(view.tokensOut)],
+            [translator.t("detail.toolCalls"), String(view.toolCalls)],
           ]}
         />
         <div className="mt-1 text-[11px] leading-5 text-gray-500">
-          下列消耗为该步骤子树的派生值（现有轨迹口径）。点任一条调用可打开其原始请求与响应。
+          {translator.t("detail.stepConsumptionNote")}
         </div>
       </Section>
 
-      <Section title={`已记录调用（${view.calls.length}）`}>
+      <Section title={translator.t("detail.recordedCallsTitle", { count: view.calls.length })}>
         {view.calls.length === 0 ? (
-          <div className="text-[11px] text-gray-400">
-            该步骤下没有直接记录的 LLM 调用或工具执行。
-          </div>
+          <div className="text-[11px] text-gray-400">{translator.t("detail.stepNoCalls")}</div>
         ) : (
           <div className="space-y-1">
             {view.calls.map((call) => (
@@ -87,7 +87,9 @@ export function StepDetailView({
                   {call.label}
                 </span>
                 {call.errored ? (
-                  <span className="rounded bg-red-100 px-1 text-[10px] text-red-800">错误</span>
+                  <span className="rounded bg-red-100 px-1 text-[10px] text-red-800">
+                    {translator.t("detail.errorBadge")}
+                  </span>
                 ) : null}
                 <span className="font-code text-[10px] text-gray-400">
                   {shortSpanId(call.spanId)}

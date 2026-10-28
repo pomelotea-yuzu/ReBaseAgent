@@ -261,7 +261,7 @@ export function CompareWorkspace({ stacked = false }: { stacked?: boolean } = {}
       onOpenFiles: () => {
         void openCompareSideFiles(side);
       },
-      catalog: detail !== null ? deriveSideStepCatalog(detail) : null,
+      catalog: detail !== null ? deriveSideStepCatalog(detail, translator) : null,
       folded: side === "left" ? prefixFolded.left : prefixFolded.right,
       selectedSpanId: side === "left" ? stepSelection.left : stepSelection.right,
       onToggleFold: () => toggleComparePrefix(side),

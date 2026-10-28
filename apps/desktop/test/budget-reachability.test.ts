@@ -273,10 +273,18 @@ describe("失败解释在步骤页可达（错误正文 / HTTP 状态 / 占位�
   });
 
   it("失败 LLM 的错误区渲染 HTTP 状态、错误详情与占位零值解释（静态可断言）", () => {
-    // 5.5 已在 LlmCallDetailView 落这三样；此处确认它们在位（防被后续任务删掉）
+    // 5.5 已在 LlmCallDetailView 落这三样；此处确认它们在位（防被后续任务删掉）。
+    // 2.5：文案改由 detail 资源投影，源码钉键、资源值独立书写期望。
     expect(llmViewSource).toContain("HTTP {error.status}");
-    expect(llmViewSource).toContain("失败占位零值");
-    expect(llmViewSource).toContain("这是记录于本次调用的失败原因");
+    expect(llmViewSource).toContain('"detail.errorPlaceholderRich"');
+    expect(llmViewSource).toContain('"detail.failedCallTitle"');
+    expect(llmViewSource).toContain('"detail.errorDetailLabel"');
+    const zh = readFileSync(
+      resolve(import.meta.dirname, "../../../packages/i18n/src/resources/zh-CN.ts"),
+      "utf8",
+    );
+    expect(zh).toContain("失败占位零值");
+    expect(zh).toContain("这是记录于本次调用的失败原因");
   });
 });
 

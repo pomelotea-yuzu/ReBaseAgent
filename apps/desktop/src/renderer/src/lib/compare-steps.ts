@@ -1,3 +1,4 @@
+import type { Translator } from "@rebaseagent/i18n";
 import { deriveResultSourceMapping } from "@shared/compare-source-map";
 import { buildSpanTree } from "@shared/derive";
 import type { RunDetail } from "@shared/ipc";
@@ -54,7 +55,7 @@ export interface SideStepCatalog {
 /**
  * 从该侧已校验详情派生独立步骤目录（纯函数，零 Electron / 零 Node）。
  */
-export function deriveSideStepCatalog(detail: RunDetail): SideStepCatalog {
+export function deriveSideStepCatalog(detail: RunDetail, translator: Translator): SideStepCatalog {
   const mapping = deriveResultSourceMapping(detail);
 
   const attribution: StepAttribution =
@@ -85,6 +86,7 @@ export function deriveSideStepCatalog(detail: RunDetail): SideStepCatalog {
 
   const ownIds = new Set(detail.leafSpanIds);
   const rows: CompareStepRow[] = flattenSpanRows(buildSpanTree(detail.spans), {
+    translator,
     ownIds,
   }).map((row) => ({
     ...row,
