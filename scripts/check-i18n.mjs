@@ -196,6 +196,12 @@ export function validateGuaranteeIndex(index, root = ROOT) {
           message: `${file.path} 测试数 ${count} 低于基线 ${file.minTests}；迁移不得删除/跳过原保证`,
         });
       }
+      if (/\b(it|test|describe)\.(skip|todo)\s*\(/.test(text) || /\b(xit|xdescribe)\s*\(/.test(text)) {
+        errors.push({
+          code: "GUARANTEE_TEST_SKIPPED",
+          message: `${file.path} 含 skip/todo 注册；原保证不得跳过（平台 skipIf 除外）`,
+        });
+      }
     }
   }
   return errors;
@@ -380,6 +386,15 @@ export function runSelfTest() {
       ),
       "GUARANTEE_FILE_MISSING",
     );
+    writeFileSync(join(guardTemp, "skip.test.ts"), 'it.skip("x", () => {});\n');
+    expect(
+      "保证测试被跳过",
+      validateGuaranteeIndex(
+        { categories: [{ files: [{ path: "skip.test.ts", minTests: 1 }] }] },
+        guardTemp,
+      ),
+      "GUARANTEE_TEST_SKIPPED",
+    );
   } finally {
     rmSync(guardTemp, { recursive: true, force: true });
   }
@@ -404,7 +419,7 @@ export function runSelfTest() {
     for (const failure of failures) console.error(`[check:i18n] --selftest FAIL: ${failure}`);
     return 1;
   }
-  console.log("[check:i18n] --selftest 通过（13 个反例 + 1 个正例）");
+  console.log("[check:i18n] --selftest 通过（14 个反例 + 1 个正例）");
   return 0;
 }
 
