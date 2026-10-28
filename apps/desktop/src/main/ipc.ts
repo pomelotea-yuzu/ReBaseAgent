@@ -31,6 +31,7 @@ import type {
   ProxyState,
   RunDetail,
   SettingsState,
+  UiPreferencesState,
   WorkspaceInspectResult,
   WorkspaceReadFileResult,
 } from "../shared/ipc";
@@ -71,6 +72,12 @@ import type { RunRepository } from "./run-repository";
 import { RunSourceRejection } from "./run-source-gate";
 import type { SettingsStore } from "./settings";
 import { SourceTokenStore } from "./source-token";
+import type { UiPreferencesStore } from "./ui-preferences";
+import {
+  type UiPreferencesEndpointDeps,
+  readUiPreferences,
+  setUiPreference,
+} from "./ui-preferences-endpoints";
 import { R3Availability } from "./verification-availability";
 import {
   VerificationInFlightRegistry,
@@ -115,6 +122,10 @@ export interface IpcDeps {
   execCwd: string;
   /** 数据目录（隔离创建/续跑的 trace 与附件锚点，main 按便携策略解析） */
   dataDir: string;
+  /** 展示语言偏好（独立于 settings；数据根切换时随根读取） */
+  uiPreferences: UiPreferencesStore;
+  /** main 当前系统语言（system 偏好解析；不读 renderer/navigator） */
+  systemLocale: () => string | null | undefined;
   /** 本地录制代理编排（启停/key 暂存/代理分叉） */
   proxy: ProxyManager;
   /**
@@ -134,8 +145,23 @@ export interface IpcDeps {
 }
 
 export function registerIpc(deps: IpcDeps): void {
-  const { repository, settings, execCwd, dataDir, proxy, operations, isTrustedSender } = deps;
+  const {
+    repository,
+    settings,
+    execCwd,
+    dataDir,
+    proxy,
+    operations,
+    isTrustedSender,
+    uiPreferences,
+    systemLocale,
+  } = deps;
   const endpointDeps: OperationEndpointDeps = { registry: operations, isTrustedSender };
+  const uiPreferencesDeps: UiPreferencesEndpointDeps = {
+    store: uiPreferences,
+    systemLocale,
+    isTrustedSender,
+  };
   /**
    * R2.2：执行配置修订的唯一拥有者（main 装配一次，注入配置写、预检与执行端点）。
    * 只比较 main 内存里的实际值；密钥不离开 main，也不以 secret 哈希构造修订。
@@ -574,6 +600,22 @@ export function registerIpc(deps: IpcDeps): void {
     CHANNELS.settingsClear,
     (event): ReturnType<typeof ok<{ configured: false }>> | ReturnType<typeof fail> =>
       clearRunSettings(configDeps, senderOf(event)),
+  );
+
+  // -------------------------------------------------------------------------
+  // uiPreferences —— 展示语言偏好（独立于配置锁；system 由 main 解析）
+  // -------------------------------------------------------------------------
+
+  ipcMain.handle(
+    CHANNELS.uiPreferencesGet,
+    (): ReturnType<typeof ok<UiPreferencesState>> | ReturnType<typeof fail> =>
+      readUiPreferences(uiPreferencesDeps),
+  );
+
+  ipcMain.handle(
+    CHANNELS.uiPreferencesSet,
+    (event, input: unknown): ReturnType<typeof ok<UiPreferencesState>> | ReturnType<typeof fail> =>
+      setUiPreference(uiPreferencesDeps, senderOf(event), input),
   );
 
   // -------------------------------------------------------------------------

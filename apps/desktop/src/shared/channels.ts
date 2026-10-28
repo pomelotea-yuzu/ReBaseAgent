@@ -43,6 +43,10 @@ export const CHANNELS = {
   settingsGet: "settings:get",
   settingsSave: "settings:save",
   settingsClear: "settings:clear",
+  // uiPreferences:* —— 展示语言偏好，独立于 settings.json 与配置修订。
+  // get 只读返回保存值/有效语言/恢复原因；set 只接受枚举偏好，不写业务数据。
+  uiPreferencesGet: "uiPreferences:get",
+  uiPreferencesSet: "uiPreferences:set",
   proxyStatus: "proxy:status",
   proxyToggle: "proxy:toggle",
   proxyFork: "proxy:fork",

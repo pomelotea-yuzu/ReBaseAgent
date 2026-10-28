@@ -20,6 +20,7 @@ import { RunRepository } from "./run-repository";
 import { SettingsStore } from "./settings";
 import type { SettingsCipher } from "./settings";
 import { installSmokeEventHook } from "./smoke-event-hook";
+import { UiPreferencesStore } from "./ui-preferences";
 import { VerificationInFlightRegistry } from "./verification-endpoints";
 
 /**
@@ -214,6 +215,7 @@ async function bootstrap(): Promise<void> {
     decrypt: (encoded) => safeStorage.decryptString(Buffer.from(encoded, "base64")),
   };
   const settings = new SettingsStore({ dataDir, cipher });
+  const uiPreferences = new UiPreferencesStore({ dataDir });
   const repository = new RunRepository(tracesDir);
   const proxy = new ProxyManager({ repository, settings, tracesDir });
   /**
@@ -227,6 +229,9 @@ async function bootstrap(): Promise<void> {
     r3InFlight,
     repository,
     settings,
+    uiPreferences,
+    // 系统语言每次读取当前值：OS 语言变化无需重启 main；显式偏好永远优先
+    systemLocale: () => app.getSystemLocale() || app.getLocale(),
     // 工具重跑的工作目录：数据目录（trace 不记录首次 cwd，桌面以数据目录为落点）
     execCwd: dataDir,
     // 隔离创建/续跑的 trace 与附件锚点（B 1.3/1.4）

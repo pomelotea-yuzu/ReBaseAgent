@@ -361,6 +361,31 @@ export const SettingsInputSchema = z.object({
 export type SettingsInput = z.infer<typeof SettingsInputSchema>;
 
 // ---------------------------------------------------------------------------
+// uiPreferences —— 展示语言偏好（独立于运行配置与配置修订）
+// ---------------------------------------------------------------------------
+
+export const UiLanguagePreferenceSchema = z.enum(["system", "zh-CN", "en-US"]);
+export type UiLanguagePreference = z.infer<typeof UiLanguagePreferenceSchema>;
+
+/** 语言偏好的完整可展示状态；revision 仅供 renderer 丢弃旧回声，不持久化。 */
+export const UiPreferencesStateSchema = z
+  .object({
+    preference: UiLanguagePreferenceSchema,
+    effectiveLocale: z.enum(["zh-CN", "en-US"]),
+    source: z.enum(["default", "file", "recovered"]),
+    issue: z.enum(["corrupt", "unknown_version"]).nullable(),
+    revision: z.number().int().nonnegative(),
+  })
+  .strict();
+export type UiPreferencesState = z.infer<typeof UiPreferencesStateSchema>;
+
+/** 只接受枚举偏好；不接受物理路径、语言标签变体或其他偏好字段。 */
+export const UiPreferencesSetInputSchema = z
+  .object({ preference: UiLanguagePreferenceSchema })
+  .strict();
+export type UiPreferencesSetInput = z.infer<typeof UiPreferencesSetInputSchema>;
+
+// ---------------------------------------------------------------------------
 // proxy —— 本地 LLM 录制代理（key 永不回传渲染层，状态只回 hasKey 布尔）
 // ---------------------------------------------------------------------------
 
@@ -1216,6 +1241,10 @@ export interface WindowApi {
   getSettings(): Promise<Envelope<SettingsState>>;
   saveSettings(input: SettingsInput): Promise<Envelope<{ configured: true }>>;
   clearSettings(): Promise<Envelope<{ configured: false }>>;
+  /** 读取展示语言偏好（首次业务视图挂载前调用；只读、不占主动槽） */
+  getUiPreferences(): Promise<Envelope<UiPreferencesState>>;
+  /** 独立保存展示语言；不提交未保存的模型/代理输入，也不轮换配置修订 */
+  setUiPreferences(input: UiPreferencesSetInput): Promise<Envelope<UiPreferencesState>>;
   proxyStatus(): Promise<Envelope<ProxyState>>;
   proxyToggle(input: ProxyToggleInput): Promise<Envelope<ProxyState>>;
   proxyFork(request: ExecutedRequest<ProxyForkRequest>): Promise<ExecutedResponse<ProxyForkResult>>;

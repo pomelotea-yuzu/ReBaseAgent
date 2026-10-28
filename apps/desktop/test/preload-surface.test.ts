@@ -60,6 +60,7 @@ describe("4.9 预加载桥接面：不含文件能力", () => {
       "forkRun",
       "getRun",
       "getSettings",
+      "getUiPreferences",
       "inspectWorkspace",
       // R2.2 隔离 prompt 只读预检：不建运行、不写文件
       "isolatedPromptCapability",
@@ -81,6 +82,7 @@ describe("4.9 预加载桥接面：不含文件能力", () => {
       "readComparedWorkspaceFile",
       "readWorkspaceFile",
       "saveSettings",
+      "setUiPreferences",
       // R3 主动执行与只读面（4.2/4.3）：准备与测试分开确认；只读面零执行零占槽
       "verificationCapability",
       "verificationGet",

@@ -10,6 +10,7 @@ import type { OperationsState } from "./slices/operations";
 import type { ReadingState } from "./slices/reading";
 import type { ResultsState } from "./slices/results";
 import type { RunsState } from "./slices/runs";
+import type { UiPreferencesSlice } from "./slices/ui-preferences";
 import type { VerificationSlice } from "./slices/verification";
 
 export type AppState = RunsState &
@@ -20,6 +21,7 @@ export type AppState = RunsState &
   CompareState &
   NavigationState &
   ConfigurationState &
+  UiPreferencesSlice &
   VerificationSlice;
 
 /**

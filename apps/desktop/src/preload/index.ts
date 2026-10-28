@@ -59,6 +59,9 @@ const api: WindowApi = {
   getSettings: () => ipcRenderer.invoke(CHANNELS.settingsGet),
   saveSettings: (input) => ipcRenderer.invoke(CHANNELS.settingsSave, input),
   clearSettings: () => ipcRenderer.invoke(CHANNELS.settingsClear),
+  // uiPreferences（展示语言）：只读读取 + 枚举偏好保存；不写业务数据、不碰配置修订
+  getUiPreferences: () => ipcRenderer.invoke(CHANNELS.uiPreferencesGet),
+  setUiPreferences: (input) => ipcRenderer.invoke(CHANNELS.uiPreferencesSet, input),
   proxyStatus: () => ipcRenderer.invoke(CHANNELS.proxyStatus),
   proxyToggle: (input) => ipcRenderer.invoke(CHANNELS.proxyToggle, input),
   proxyFork: (request) => ipcRenderer.invoke(CHANNELS.proxyFork, request),

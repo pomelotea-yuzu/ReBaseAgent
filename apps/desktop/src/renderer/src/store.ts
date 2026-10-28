@@ -15,6 +15,7 @@ import { createOperationsSlice } from "./store/slices/operations";
 import { createDetailReadAttempts, createReadingSlice } from "./store/slices/reading";
 import { createResultsSlice } from "./store/slices/results";
 import { createRunsSlice } from "./store/slices/runs";
+import { createUiPreferencesSlice } from "./store/slices/ui-preferences";
 import { createVerificationSlice } from "./store/slices/verification";
 import type { AppState } from "./store/types";
 export { idleExperimentSource };
@@ -122,6 +123,8 @@ export const useAppStore = create<AppState>((set, get) => {
       get,
       coordination: proxyCoordination,
     }),
+    // 语言偏好（展示配置）：独立存储与请求代次，不进入配置修订
+    ...createUiPreferencesSlice({ set, get }),
     // R3 5.1：verification 分片（显式 selector/只读核对缓存/两份独立确认/提交呈现面；
     // 提交动作在 operations 分片，经本分片 action 驱动这里的状态）
     ...createVerificationSlice({ set, get }),
