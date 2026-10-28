@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-28T01:51:53.672Z",
+  "generatedAt": "2026-10-28T02:07:57.313Z",
   "scanner": "scripts/i18n-attribution.cjs",
   "method": "AST 扫描 desktop 三层 ASCII-only 字符串/JSX 文本，按 UI 角色过滤 className/CSS/技术值；正则只作候选发现，逐条人工复核后才进入迁移范围。",
   "candidates": [
@@ -10,7 +10,7 @@
       "role": "ui_text",
       "context": "ternary",
       "text": "· miss",
-      "review": "pending",
+      "review": "fragment",
       "note": null
     },
     {
@@ -19,7 +19,7 @@
       "role": "ui_text",
       "context": "ternary",
       "text": "system prompt",
-      "review": "pending",
+      "review": "product",
       "note": null
     },
     {
@@ -28,7 +28,7 @@
       "role": "ui_text",
       "context": "ternary",
       "text": "user message",
-      "review": "pending",
+      "review": "product",
       "note": null
     },
     {
@@ -37,7 +37,7 @@
       "role": "return",
       "context": "return",
       "text": "upstream base_url",
-      "review": "pending",
+      "review": "product",
       "note": null
     },
     {
@@ -46,7 +46,7 @@
       "role": "ui_text",
       "context": "ternary",
       "text": "」· run",
-      "review": "pending",
+      "review": "fragment",
       "note": null
     },
     {
@@ -55,7 +55,7 @@
       "role": "ui_text",
       "context": "ternary",
       "text": "· snapshot",
-      "review": "pending",
+      "review": "fragment",
       "note": null
     },
     {
@@ -64,7 +64,7 @@
       "role": "ui_text",
       "context": "ternary",
       "text": "· sha256",
-      "review": "pending",
+      "review": "technical",
       "note": null
     },
     {
@@ -73,7 +73,7 @@
       "role": "ui_text",
       "context": "ternary",
       "text": "· profile",
-      "review": "pending",
+      "review": "technical",
       "note": null
     },
     {
@@ -82,7 +82,7 @@
       "role": "ui_prop",
       "context": "user_message",
       "text": "prompt · user",
-      "review": "pending",
+      "review": "product",
       "note": null
     },
     {
@@ -91,7 +91,7 @@
       "role": "return",
       "context": "return",
       "text": "|create",
-      "review": "pending",
+      "review": "technical",
       "note": null
     },
     {
@@ -100,7 +100,7 @@
       "role": "ui_prop",
       "context": "label",
       "text": "System Prompt",
-      "review": "pending",
+      "review": "product",
       "note": null
     },
     {
@@ -109,7 +109,7 @@
       "role": "ui_text",
       "context": "ternary",
       "text": "system prompt",
-      "review": "pending",
+      "review": "product",
       "note": null
     },
     {
@@ -118,7 +118,7 @@
       "role": "ui_text",
       "context": "ternary",
       "text": "cap drop all",
-      "review": "pending",
+      "review": "product",
       "note": null
     },
     {
@@ -127,7 +127,7 @@
       "role": "ui_text",
       "context": "ternary",
       "text": "supervisor PID 1",
-      "review": "pending",
+      "review": "product",
       "note": null
     },
     {
@@ -136,7 +136,7 @@
       "role": "return",
       "context": "return",
       "text": "(root)",
-      "review": "pending",
+      "review": "technical",
       "note": null
     }
   ]

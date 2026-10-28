@@ -517,6 +517,65 @@ const manifest = {
 };
 
 const outFile = path.join(ROOT, "i18n", "attribution.json");
+const CHECK_ONLY = process.argv.includes("--check");
+const manifestArg = process.argv.indexOf("--manifest");
+const manifestPath =
+  manifestArg !== -1 && process.argv[manifestArg + 1]
+    ? path.resolve(ROOT, process.argv[manifestArg + 1])
+    : outFile;
+
+if (CHECK_ONLY) {
+  if (!fs.existsSync(manifestPath)) {
+    console.error(`[i18n-attribution] --check 缺少归属表：${manifestPath}；先运行生成器`);
+    process.exit(2);
+  }
+  const existing = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  const keyOf = (s) => `${s.symbol}|${s.role}`;
+  const structure = (m) => {
+    const map = new Map();
+    for (const f of m.files ?? []) {
+      const symbols = new Map();
+      for (const s of f.symbols ?? []) symbols.set(keyOf(s), `${s.classification}:${s.count}`);
+      map.set(f.path, symbols);
+    }
+    return map;
+  };
+  const before = structure(existing);
+  const current = structure(manifest);
+  const diffs = [];
+  for (const [file, symbols] of current) {
+    const old = before.get(file);
+    if (!old) {
+      diffs.push(`新增文件：${file}`);
+      continue;
+    }
+    for (const [key, value] of symbols) {
+      const oldValue = old.get(key);
+      if (oldValue === undefined) diffs.push(`新增符号：${file} :: ${key} (${value})`);
+      else if (oldValue !== value)
+        diffs.push(`计数/分类变化：${file} :: ${key} (${oldValue} -> ${value})`);
+    }
+    for (const key of old.keys()) {
+      if (!symbols.has(key)) diffs.push(`符号消失：${file} :: ${key}`);
+    }
+  }
+  for (const file of before.keys()) {
+    if (!current.has(file)) diffs.push(`文件消失：${file}`);
+  }
+  if (diffs.length > 0) {
+    console.error(
+      `[i18n-attribution] --check 与归属表不一致（${diffs.length} 项，最多显示 30 项）：`,
+    );
+    for (const line of diffs.slice(0, 30)) console.error(`  - ${line}`);
+    console.error("请核对新增/变更文本；产品文案需归属并在 i18n/attribution.json 更新后重新生成。");
+    process.exit(1);
+  }
+  console.log(
+    `[i18n-attribution] --check 一致：${manifestFiles.length} 个文件 / ${occurrenceTotal} 处候选`,
+  );
+  process.exit(0);
+}
+
 fs.mkdirSync(path.dirname(outFile), { recursive: true });
 fs.writeFileSync(outFile, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
 
@@ -528,6 +587,10 @@ const TECHNICAL = /^[\w./:@#$%&*+=[\]{}<>-]+$/;
 const STYLE_LIKE =
   /(^|\s)(flex|grid|text-|bg-|border-|px-|py-|mt-|mb-|ml-|mr-|w-|h-|min-|max-|gap-|rounded|absolute|relative|hover:|disabled:|overflow|shrink|break-|font-|md:|lg:)/;
 const UI_ROLES = new Set(["ui_attr", "ui_prop", "ui_text", "return"]);
+const reviewFile = path.join(ROOT, "i18n", "english-product-review.json");
+const englishReviews = fs.existsSync(reviewFile)
+  ? (JSON.parse(fs.readFileSync(reviewFile, "utf8")).reviews ?? {})
+  : {};
 
 function englishCandidates() {
   const seen = new Set();
@@ -574,7 +637,7 @@ function englishCandidates() {
                 role,
                 context,
                 text: candidate.slice(0, 160),
-                review: "pending",
+                review: englishReviews[`${rel(f)}|${candidate}`] ?? "pending",
                 note: null,
               });
             }

@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "reviewedAt": "2026-10-28",
+  "method": "逐条人工判定；product=产品文案/需迁移，fragment=随所在句迁移的片段，technical=技术标识不翻译。新增候选默认 pending，check:i18n 会阻止收口。",
+  "reviews": {
+    "apps/desktop/src/renderer/src/components/detail/DetailShared.tsx|· miss": "fragment",
+    "apps/desktop/src/renderer/src/components/detail/PromptForkEditor.tsx|system prompt": "product",
+    "apps/desktop/src/renderer/src/components/detail/PromptForkEditor.tsx|user message": "product",
+    "apps/desktop/src/renderer/src/components/RecordingWorkspaceView.tsx|upstream base_url": "product",
+    "apps/desktop/src/renderer/src/components/VerificationPanel.tsx|」· run": "fragment",
+    "apps/desktop/src/renderer/src/components/VerificationPanel.tsx|· snapshot": "fragment",
+    "apps/desktop/src/renderer/src/components/workspace-file/FileContent.tsx|· sha256": "technical",
+    "apps/desktop/src/renderer/src/components/workspace-file/WorkspaceFileViewBody.tsx|· profile": "technical",
+    "apps/desktop/src/renderer/src/lib/draft-list.ts|prompt · user": "product",
+    "apps/desktop/src/renderer/src/lib/draft-submission.ts||create": "technical",
+    "apps/desktop/src/renderer/src/lib/execution-confirmation.ts|System Prompt": "product",
+    "apps/desktop/src/renderer/src/lib/prompt-experiment-view.ts|system prompt": "product",
+    "apps/desktop/src/renderer/src/lib/verification-compare.ts|cap drop all": "product",
+    "apps/desktop/src/renderer/src/lib/verification-compare.ts|supervisor PID 1": "product",
+    "apps/desktop/src/main/operation-request.ts|(root)": "technical"
+  }
+}
