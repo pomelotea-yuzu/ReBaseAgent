@@ -196,7 +196,10 @@ export function validateGuaranteeIndex(index, root = ROOT) {
           message: `${file.path} 测试数 ${count} 低于基线 ${file.minTests}；迁移不得删除/跳过原保证`,
         });
       }
-      if (/\b(it|test|describe)\.(skip|todo)\s*\(/.test(text) || /\b(xit|xdescribe)\s*\(/.test(text)) {
+      if (
+        /\b(it|test|describe)\.(skip|todo)\s*\(/.test(text) ||
+        /\b(xit|xdescribe)\s*\(/.test(text)
+      ) {
         errors.push({
           code: "GUARANTEE_TEST_SKIPPED",
           message: `${file.path} 含 skip/todo 注册；原保证不得跳过（平台 skipIf 除外）`,
