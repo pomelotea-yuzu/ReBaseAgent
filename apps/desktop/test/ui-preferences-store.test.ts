@@ -15,6 +15,7 @@ interface Controller {
   setCalls: Array<{ preference: string }>;
   setEnvelope: Envelope<UiPreferencesState> | undefined;
   settingsCalls: number;
+  clears: number;
 }
 
 const controller: Controller = {
@@ -23,6 +24,7 @@ const controller: Controller = {
   setCalls: [],
   setEnvelope: undefined,
   settingsCalls: 0,
+  clears: 0,
 };
 
 const fakeApi = {
@@ -71,10 +73,16 @@ function makeSlice(): UiPreferencesSlice {
     state = { ...state, ...patch };
   };
   const get = (): UiPreferencesSlice => state;
-  state = createUiPreferencesSlice({
-    set: set as never,
-    get: get as never,
-  });
+  state = {
+    ...createUiPreferencesSlice({
+      set: set as never,
+      get: get as never,
+    }),
+    effectiveLocale: "en-US",
+    clearExecutionConfirmations: () => {
+      controller.clears += 1;
+    },
+  } as UiPreferencesSlice;
   return new Proxy({} as UiPreferencesSlice, {
     get: (_target, key) => {
       const value = (state as unknown as Record<PropertyKey, unknown>)[key];
@@ -101,6 +109,7 @@ beforeEach(() => {
   controller.setCalls = [];
   controller.setEnvelope = undefined;
   controller.settingsCalls = 0;
+  controller.clears = 0;
 });
 
 describe("uiPreferences store 分片", () => {
@@ -132,6 +141,10 @@ describe("uiPreferences store 分片", () => {
     const slice = createUiPreferencesSlice({ set: set as never, get: get as never });
     state = {
       ...slice,
+      effectiveLocale: "en-US",
+      clearExecutionConfirmations: () => {
+        controller.clears += 1;
+      },
       draftText: "保留的草稿",
       editorValue: "editor value",
       unsavedSettings: "unsaved",
@@ -152,6 +165,48 @@ describe("uiPreferences store 分片", () => {
     expect(slice.effectiveLocale).toBe("zh-CN");
     expect(slice.uiPreferences).toEqual(systemState);
     expect(slice.uiPreferencesLoaded).toBe(true);
+    // fallback en-US → zh-CN 是一次有效语言变化：清空未提交确认并推进 epoch
+    expect(controller.clears).toBe(1);
+    expect(slice.languageEpoch).toBe(1);
+  });
+
+  it("仅偏好变化而有效语言相同：不清确认、不推进 epoch", async () => {
+    const slice = makeSlice();
+    const first = slice.loadUiPreferences();
+    controller.getDeferred.shift()?.(ok(systemState));
+    await first;
+    expect(controller.clears).toBe(1);
+    expect(slice.languageEpoch).toBe(1);
+
+    controller.setEnvelope = ok({
+      preference: "system",
+      effectiveLocale: "zh-CN",
+      source: "file",
+      issue: null,
+      revision: 2,
+    });
+    await expect(slice.saveUiLanguage("system")).resolves.toBe("saved");
+    expect(controller.clears).toBe(1);
+    expect(slice.languageEpoch).toBe(1);
+  });
+
+  it("有效语言变化：清空执行确认并推进 epoch", async () => {
+    const slice = makeSlice();
+    const first = slice.loadUiPreferences();
+    controller.getDeferred.shift()?.(ok(systemState));
+    await first;
+    expect(slice.effectiveLocale).toBe("zh-CN");
+
+    controller.setEnvelope = ok({
+      preference: "en-US",
+      effectiveLocale: "en-US",
+      source: "file",
+      issue: null,
+      revision: 2,
+    });
+    await expect(slice.saveUiLanguage("en-US")).resolves.toBe("saved");
+    expect(controller.clears).toBe(2);
+    expect(slice.languageEpoch).toBe(2);
   });
 
   it("保存语言是独立入口：只调 uiPreferences:set，不触碰 settings", async () => {

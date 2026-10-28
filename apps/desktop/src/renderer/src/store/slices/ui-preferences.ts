@@ -19,6 +19,8 @@ export interface UiPreferencesSlice {
   uiPreferencesSaveFailed: boolean;
   /** 仅作响应排序，不参与渲染；值本身无业务含义。 */
   uiPreferencesRequestSeq: number;
+  /** 有效语言每变化一次递增；组件据此清除本地未提交确认，不重建编辑器。 */
+  languageEpoch: number;
 
   loadUiPreferences: () => Promise<boolean>;
   saveUiLanguage: (preference: UiLanguagePreference) => Promise<"saved" | "failed" | "stale">;
@@ -34,6 +36,27 @@ function accepted(current: UiPreferencesState | null, next: UiPreferencesState):
   return current === null || next.revision >= current.revision;
 }
 
+/**
+ * 采纳一次偏好响应。只有**有效语言**变化才递增 epoch 并清空执行确认；
+ * 仅偏好从 system 改为同一有效语言（或反向）不清确认，避免无谓撤销。
+ */
+function applyState(
+  set: SliceContext["set"],
+  get: SliceContext["get"],
+  next: UiPreferencesState,
+): void {
+  const localeChanged = next.effectiveLocale !== get().effectiveLocale;
+  if (localeChanged) get().clearExecutionConfirmations();
+  set({
+    uiPreferences: next,
+    effectiveLocale: next.effectiveLocale,
+    uiPreferencesLoaded: true,
+    uiPreferencesSaving: false,
+    uiPreferencesSaveFailed: false,
+    ...(localeChanged ? { languageEpoch: get().languageEpoch + 1 } : {}),
+  });
+}
+
 export function createUiPreferencesSlice({ set, get }: SliceContext): UiPreferencesSlice {
   return {
     uiPreferences: null,
@@ -42,6 +65,7 @@ export function createUiPreferencesSlice({ set, get }: SliceContext): UiPreferen
     uiPreferencesSaving: false,
     uiPreferencesSaveFailed: false,
     uiPreferencesRequestSeq: 0,
+    languageEpoch: 0,
 
     async loadUiPreferences() {
       const seq = get().uiPreferencesRequestSeq + 1;
@@ -59,12 +83,7 @@ export function createUiPreferencesSlice({ set, get }: SliceContext): UiPreferen
           return false;
         }
         if (!accepted(get().uiPreferences, parsed.data)) return false;
-        set({
-          uiPreferences: parsed.data,
-          effectiveLocale: parsed.data.effectiveLocale,
-          uiPreferencesLoaded: true,
-          uiPreferencesSaveFailed: false,
-        });
+        applyState(set, get, parsed.data);
         return true;
       } catch {
         if (get().uiPreferencesRequestSeq === seq) set({ uiPreferencesLoaded: true });
@@ -95,13 +114,7 @@ export function createUiPreferencesSlice({ set, get }: SliceContext): UiPreferen
           set({ uiPreferencesSaving: false, uiPreferencesSaveFailed: true });
           return "failed";
         }
-        set({
-          uiPreferences: parsed.data,
-          effectiveLocale: parsed.data.effectiveLocale,
-          uiPreferencesLoaded: true,
-          uiPreferencesSaving: false,
-          uiPreferencesSaveFailed: false,
-        });
+        applyState(set, get, parsed.data);
         return "saved";
       } catch {
         if (get().uiPreferencesRequestSeq === seq) {

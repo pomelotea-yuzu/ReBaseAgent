@@ -21,6 +21,7 @@ import {
   resolveIsolatedForkSubmission,
 } from "../../lib/isolated-fork";
 import { useEscapeClose } from "../../lib/use-escape-close";
+import { useResetOnLanguageChange } from "../../lib/use-reset-on-language-change";
 import { useRevokeOnConfigChange } from "../../lib/use-revoke-on-config-change";
 import { useAppStore } from "../../store";
 import { requestConfirm } from "../ConfirmDialog";
@@ -114,6 +115,8 @@ export function ForkEditor({
   const [checking, setChecking] = useState(false);
   const [checkError, setCheckError] = useState<{ code: string; message: string } | null>(null);
   const [writesAuthorized, setWritesAuthorized] = useState(false);
+  // 有效语言变化：撤销未提交的副本写入授权；草稿正文/预检事实/焦点不动
+  useResetOnLanguageChange(() => setWritesAuthorized(false));
   // U5 任务 5.3：模型配置变了（设置往返保存成功）⇒ "本次副本写入"授权作废——
   // 授权绑的是当时那台上游；确认/检查代次走 setSettingsSection 进出（4.4），两路互补。
   useRevokeOnConfigChange(modelConfigStampOf(settings), () => setWritesAuthorized(false));

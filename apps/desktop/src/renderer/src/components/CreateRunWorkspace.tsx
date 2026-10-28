@@ -30,6 +30,7 @@ import {
   modelConfigStampOf,
 } from "../lib/execution-confirmation";
 import type { ConfirmationRow } from "../lib/execution-confirmation";
+import { useResetOnLanguageChange } from "../lib/use-reset-on-language-change";
 import { useRevokeOnConfigChange } from "../lib/use-revoke-on-config-change";
 import { useAppStore } from "../store";
 import { requestConfirm } from "./ConfirmDialog";
@@ -496,6 +497,10 @@ export function CreateRunWorkspace({ onOpenSettings }: { onOpenSettings: () => v
    * 字段编辑过或「尝试核对」（确认按钮点击但输入判据未过）后才就近显示。
    * touched 只记渲染层的编辑事件；判据、disabled 与请求构造不在这里。
    */
+  // 有效语言变化：只清副本写入勾选，保留模式/两段文本/来源引用与焦点
+  useResetOnLanguageChange(() => {
+    setForm((prev) => setWritesAuthorized(prev, false));
+  });
   const [touched, setTouched] = useState<CreateRunFailureField[]>([]);
   const [attempted, setAttempted] = useState(false);
   const markTouched = (field: CreateRunFailureField): void => {

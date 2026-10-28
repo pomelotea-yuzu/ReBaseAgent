@@ -14,6 +14,7 @@ import {
 import { promptForkGuard } from "../../lib/prompt-fork";
 import type { PromptForkField } from "../../lib/prompt-fork";
 import { useEscapeClose } from "../../lib/use-escape-close";
+import { useResetOnLanguageChange } from "../../lib/use-reset-on-language-change";
 import { useAppStore } from "../../store";
 import { requestConfirm } from "../ConfirmDialog";
 import { ConfirmationBlock } from "../ConfirmationBlock";
@@ -188,6 +189,8 @@ export function PromptForkEditor({
   } | null>(null);
   const [checkError, setCheckError] = useState<string | null>(null);
   const [authorizedKey, setAuthorizedKey] = useState<string | null>(null);
+  // 有效语言变化：撤销副本写入勾选；草稿/只读预检结论保留，提交时仍重新核对
+  useResetOnLanguageChange(() => setAuthorizedKey(null));
   const checkSeq = useRef(0);
   const draftRevision = activeEntry?.revision ?? -1;
   const capabilityKey = `${draftRevision}|${promptBinding.settingsStamp}|${field}`;

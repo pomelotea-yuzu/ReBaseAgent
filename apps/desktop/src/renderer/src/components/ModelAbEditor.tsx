@@ -15,6 +15,7 @@ import {
 import { modelAbGuard, riskyToolNames, scalarRequestParams } from "../lib/model-ab";
 import type { ArmDraft, ModelAbGuardItem, Scalar } from "../lib/model-ab";
 import { useEscapeClose } from "../lib/use-escape-close";
+import { useResetOnLanguageChange } from "../lib/use-reset-on-language-change";
 import { useRevokeOnConfigChange } from "../lib/use-revoke-on-config-change";
 import { useAppStore } from "../store";
 import { requestConfirm } from "./ConfirmDialog";
@@ -154,6 +155,8 @@ export function ModelAbEditor({
 
   const [open, setOpen] = useState(alwaysOpen);
   const [allowSideEffects, setAllowSideEffects] = useState(false);
+  // 有效语言变化：撤销副作用勾选；草稿修订与只读计划事实保留，执行需重新确认
+  useResetOnLanguageChange(() => setAllowSideEffects(false));
   const [plan, setPlan] = useState<ModelAbResult | null>(null);
   // U3 任务 3.3：计划所绑定的批次修订（预览时的请求代次）——见下方 activePlan
   const [planRevision, setPlanRevision] = useState<number | null>(null);
