@@ -1,6 +1,6 @@
 import type { ResourceShape } from "./zh-CN.js";
 
-export const enUS: ResourceShape = {
+export const enUS = {
   common: {
     appName: "ReBaseAgent",
     unknown: "Unknown",
@@ -17,6 +17,10 @@ export const enUS: ResourceShape = {
     close: "Close",
     copy: "Copy",
     copied: "Copied",
+    stepCount: { one: "{{count}} step", other: "{{count}} steps" },
+    runSummary: "{{duration}} · {{stepCount}} steps · {{runId}}",
+    runSummaryRich: "{{duration}} · <strong>{{stepCount}}</strong> steps · <code>{{runId}}</code>",
+    deleteRunConfirm: "Delete <code>{{name}}</code>? This removes the local record.",
   },
   run: {},
   detail: {},
@@ -31,4 +35,4 @@ export const enUS: ResourceShape = {
   errors: {},
   mcp: {},
   cli: {},
-};
+} satisfies ResourceShape;

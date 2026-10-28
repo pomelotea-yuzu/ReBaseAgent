@@ -13,13 +13,21 @@ export {
   type MissingKeyEvent,
   type Translator,
   createTranslator,
+  toI18nextKey,
 } from "./create-i18n.js";
+export { RICH_TEXT_TAGS, type RichTextTag } from "./rich-text.js";
 export {
   NAMESPACES,
   enUS,
+  flattenCatalog,
   resources,
   zhCN,
+  type FlattenedCatalog,
   type MessageKey,
+  type MessageValue,
   type Namespace,
+  type PlainMessageKey,
+  type PluralMessageKey,
+  type ResourceCatalog,
   type ResourceShape,
 } from "./resources/index.js";

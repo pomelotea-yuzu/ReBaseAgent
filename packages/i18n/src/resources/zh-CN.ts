@@ -1,6 +1,6 @@
 /**
  * 中文资源是键契约的源：新增键先加在这里，英文资源按同一键补齐。
- * 0.x 只建立通用键；各工作区键按批次加入，不得用中文原句作键名。
+ * 复数用 { one?, other } 表示；中文只有 other 分支，英文必须提供 one 与 other。
  */
 export const zhCN = {
   common: {
@@ -19,6 +19,10 @@ export const zhCN = {
     close: "关闭",
     copy: "复制",
     copied: "已复制",
+    stepCount: { other: "{{count}} 步" },
+    runSummary: "运行 {{runId}}：{{stepCount}} 步 · {{duration}}",
+    runSummaryRich: "运行 <code>{{runId}}</code>：<strong>{{stepCount}}</strong> 步 · {{duration}}",
+    deleteRunConfirm: "删除 <code>{{name}}</code>？此操作会移除本地记录。",
   },
   run: {},
   detail: {},
@@ -43,8 +47,22 @@ export type MessageKey = {
   [N in Namespace]: `${N}.${KeysOf<N>}`;
 }[Namespace];
 
-export type ResourceShape = {
-  [N in Namespace]: Record<KeysOf<N>, string>;
+type PluralKeysOf<N extends Namespace> = {
+  [K in KeysOf<N>]: (typeof zhCN)[N][K] extends object ? K : never;
+}[KeysOf<N>];
+
+export type PluralMessageKey = {
+  [N in Namespace]: `${N}.${PluralKeysOf<N>}`;
+}[Namespace];
+
+export type PlainMessageKey = Exclude<MessageKey, PluralMessageKey>;
+
+export type MessageValue = string | { readonly one?: string; readonly other: string };
+
+export type ResourceCatalog = {
+  [N in Namespace]: Record<KeysOf<N>, MessageValue>;
 };
+
+export type ResourceShape = ResourceCatalog;
 
 export const NAMESPACES = Object.keys(zhCN) as Namespace[];

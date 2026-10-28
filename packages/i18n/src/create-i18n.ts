@@ -34,6 +34,12 @@ function splitKey(key: MessageKey): { namespace: Namespace; path: string } {
   };
 }
 
+/** 供 react-i18next 的 Trans 使用：把点分键转成 namespace:key。 */
+export function toI18nextKey(key: MessageKey): string {
+  const { namespace, path } = splitKey(key);
+  return `${namespace}:${path}`;
+}
+
 function deepFreeze<T>(value: T): T {
   if (value !== null && typeof value === "object" && !Object.isFrozen(value)) {
     for (const child of Object.values(value)) deepFreeze(child);
@@ -74,7 +80,6 @@ export function createTranslator(options: CreateTranslatorOptions): Translator {
     ns: NAMESPACES,
     initAsync: false,
     keySeparator: ".",
-    nsSeparator: false,
     interpolation: { escapeValue: false },
     returnNull: false,
     saveMissing: true,
@@ -93,7 +98,10 @@ export function createTranslator(options: CreateTranslatorOptions): Translator {
     },
     has(key) {
       const { namespace, path } = splitKey(key);
-      return instance.exists(path, { ns: namespace }) !== false;
+      return (
+        instance.exists(path, { ns: namespace }) !== false ||
+        instance.exists(`${path}_other`, { ns: namespace }) !== false
+      );
     },
   };
 }

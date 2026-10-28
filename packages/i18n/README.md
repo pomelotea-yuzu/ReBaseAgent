@@ -14,7 +14,8 @@
 
 | 包 | 版本 | 许可 | 说明 |
 |---|---|---|---|
-| `i18next` | `26.5.11`（精确版本，无 `^`） | MIT | 仅运行时依赖；无传递依赖 |
+| `i18next` | `26.5.11`（精确版本，无 `^`） | MIT | 仅本包运行时依赖；无传递依赖 |
+| `react-i18next` | `17.1.9`（精确版本，无 `^`） | MIT | 只由 `apps/desktop` 的 React 适配使用，不在本包依赖中；peer 要求 i18next ≥ 26.2 |
 
 版本与许可写入 `pnpm-lock.yaml`。升级必须先复核同步初始化行为（`initAsync:false`）与 Node / Electron renderer 兼容性，再更新本表。
 
