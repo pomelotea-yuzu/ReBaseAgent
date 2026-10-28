@@ -1371,7 +1371,7 @@ describe("createReturnFactsOf：selector 消费安全（getSnapshot 引用稳定
     const after = useAppStore.getState().createReturnFactsOf();
     expect(after).not.toBe(baseline);
     expect(after.kind).toBe("restore");
-    expect(after.label).toBe("返回运行记录 · 调用步骤");
+    expect(after).toMatchObject({ location: { view: "trace", tab: "steps" } });
   });
 
   it("knownRunIds 变化（来源 run 入列）⇒ 缓存重建，run-missing 翻为 restore", () => {

@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { renderWithLocale } from "./i18n/render-with-locale";
+import { createTestTranslator, renderWithLocale } from "./i18n/render-with-locale";
 
 /**
  * U5（unify-run-execution-workflow）任务 4.2：创建页的**布置与就近字段错误**。
@@ -31,13 +31,19 @@ import type {
   CreateRunLock,
 } from "../src/renderer/src/components/CreateRunWorkspace";
 const {
-  CREATE_RUN_MODE_LABELS,
   ISOLATED_TOOL_PROFILE_LABEL,
+  createRunModeLabel,
   fieldErrorsOf,
   presentFieldErrorsOf,
-  resolveCreateRunSubmission,
+  resolveCreateRunSubmission: resolveCreateRunSubmissionOf,
 } = await import("../src/renderer/src/lib/create-run");
 import type { CreateRunFieldErrors } from "../src/renderer/src/lib/create-run";
+
+const zh = createTestTranslator("zh-CN");
+const resolveCreateRunSubmission = (
+  state: Parameters<typeof resolveCreateRunSubmissionOf>[0],
+  fields: Parameters<typeof resolveCreateRunSubmissionOf>[1],
+) => resolveCreateRunSubmissionOf(state, fields, zh);
 
 const NO_ERRORS: CreateRunFieldErrors = {
   userMessage: null,
@@ -189,8 +195,8 @@ describe("4.2 两模式共用的接入摘要、配置入口与执行范围", () 
 
   it("模式分段控件用标签文字（不靠悬停猜）", () => {
     const markup = html();
-    expect(markup).toContain(CREATE_RUN_MODE_LABELS.chat);
-    expect(markup).toContain(CREATE_RUN_MODE_LABELS.isolated_files);
+    expect(markup).toContain(createRunModeLabel("chat", zh));
+    expect(markup).toContain(createRunModeLabel("isolated_files", zh));
     expect(markup).toContain('aria-pressed="true"');
   });
 });
@@ -480,5 +486,16 @@ describe("4.1 呈现分层：presentFieldErrorsOf 只管显示时机，不改判
       writesAuthorized: null,
       form: null,
     });
+  });
+});
+
+describe("2.3 创建页英文标签", () => {
+  it("标题、模式与提交按钮独立成句", () => {
+    const markup = renderWithLocale("en-US", createElement(CreateRunWorkspaceView, props()));
+    expect(markup).toContain("New run");
+    expect(markup).toContain("Plain chat");
+    expect(markup).toContain("Isolated file run");
+    expect(markup).toContain("User Message (required)");
+    expect(markup).not.toContain("新建运行");
   });
 });

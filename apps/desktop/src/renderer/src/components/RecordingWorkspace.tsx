@@ -1,3 +1,4 @@
+import { useTranslator } from "../i18n";
 import { decideAuxReturn } from "../lib/aux-workspace";
 import { describeReturnDestination } from "../lib/create-workspace";
 import { useAppStore } from "../store";
@@ -16,6 +17,7 @@ import { RecordingWorkspaceView } from "./RecordingWorkspaceView";
  *   不清当前选择、不动搜索词。
  */
 export function RecordingWorkspace() {
+  const translator = useTranslator();
   const draft = useAppStore((s) => s.recordingDraft);
   const location = useAppStore((s) => s.recordingReturnLocation);
   const returnToAuxSource = useAppStore((s) => s.returnToAuxSource);
@@ -29,7 +31,7 @@ export function RecordingWorkspace() {
     returnAvailable: returnDecision.kind === "restore",
     returnLabel:
       returnDecision.kind === "restore"
-        ? describeReturnDestination(returnDecision.location)
+        ? describeReturnDestination(returnDecision.location, translator)
         : undefined,
     returnFallback:
       returnDecision.kind === "fallback"

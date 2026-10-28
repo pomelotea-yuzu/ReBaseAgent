@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useTranslator } from "../i18n";
 import {
   type WorkspaceView,
   describeReturnFallbackReason,
@@ -58,6 +59,7 @@ export function AuxWorkspaceFrame({
   readonly onReturn: () => void;
   readonly children: ReactNode;
 }): ReactNode {
+  const translator = useTranslator();
   const returnButton = ((): ReactNode => {
     if (returnAvailable) {
       return (
@@ -76,12 +78,16 @@ export function AuxWorkspaceFrame({
       return (
         <button
           type="button"
-          aria-label={`回到${workspaceViewName(returnFallback.fallbackView)}`}
+          aria-label={translator.t("run.returnToWorkspace", {
+            view: workspaceViewName(returnFallback.fallbackView, translator),
+          })}
           onClick={onReturn}
-          title={describeReturnFallbackReason(returnFallback.reason)}
+          title={describeReturnFallbackReason(returnFallback.reason, translator)}
           className={`rounded border border-gray-300 bg-gray-50 px-2 py-0.5 text-reading-meta text-gray-700 hover:bg-gray-100 ${FOCUS_RING}`}
         >
-          回到{workspaceViewName(returnFallback.fallbackView)}
+          {translator.t("run.returnToWorkspace", {
+            view: workspaceViewName(returnFallback.fallbackView, translator),
+          })}
         </button>
       );
     }
@@ -100,7 +106,7 @@ export function AuxWorkspaceFrame({
   const fallbackReasonLine =
     !returnAvailable && returnFallback !== undefined && returnFallback !== null ? (
       <p className="mt-0.5 text-reading-meta leading-5 text-amber-700">
-        {describeReturnFallbackReason(returnFallback.reason)}
+        {describeReturnFallbackReason(returnFallback.reason, translator)}
       </p>
     ) : null;
   return (

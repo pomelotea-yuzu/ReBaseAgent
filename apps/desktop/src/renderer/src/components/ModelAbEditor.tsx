@@ -252,7 +252,7 @@ export function ModelAbEditor({
   // U4 任务 4.4：A/B 只有**真实执行**受统一槽约束；"校验并预览计划"走只读通道
   // （runs:modelAbPlan），占槽期间照常可用——把预览一起禁用就是拿门禁当业务判据。
   const operationsSession = useAppStore((s) => s.operations);
-  const gate = deriveEntryGate(operationsSession);
+  const gate = deriveEntryGate(operationsSession, translator);
 
   // U5 任务 4.7：A/B 的确认对象是**当前这份预览计划**（同一凭据、同一执法点）。
   // 检查代次由"校验并预览计划"推进：重新预览 ⇒ 旧确认作废，旧响应也装不回新确认。

@@ -215,7 +215,10 @@ export function ForkEditor({
   // U4 任务 4.3：入口可用性从**统一操作槽**派生（main 槽 / 通信未知 / 关闭 / 配置变更 /
   // 本地尚未确认的提交），不再只看本地 forking。⚠️ 只拦"提交"，不拦只读的能力预检——
   // 预检按 spec 不占主动槽，占槽期间照常可用。
-  const gate = deriveEntryGate(useAppStore((s) => s.operations));
+  const gate = deriveEntryGate(
+    useAppStore((s) => s.operations),
+    translator,
+  );
   const executionBinding = currentConfirmationBinding("result", draftKey);
   const executionConfirmed = useAppStore((s) => s.executionConfirmationReady(executionBinding));
   // U5 4.4：普通路径再叠一道"已核对本次目标与边界"的确认；隔离路径仍走既有预检 + 本次授权

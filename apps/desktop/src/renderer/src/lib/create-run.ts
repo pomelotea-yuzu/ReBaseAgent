@@ -1,3 +1,4 @@
+import type { MessageKey, Translator } from "@rebaseagent/i18n";
 import type { ChooseSourceResult, CreateRunRequest } from "@shared/ipc";
 
 /**
@@ -25,10 +26,14 @@ export const CREATE_RUN_MODES = ["chat", "isolated_files"] as const;
 export type CreateRunMode = (typeof CREATE_RUN_MODES)[number];
 
 /** 分段控件文案（spec 用词：默认"纯对话"或"隔离文件运行"） */
-export const CREATE_RUN_MODE_LABELS: Record<CreateRunMode, string> = {
-  chat: "纯对话",
-  isolated_files: "隔离文件运行",
+const CREATE_RUN_MODE_KEYS: Record<CreateRunMode, MessageKey> = {
+  chat: "run.modeChat",
+  isolated_files: "run.modeIsolated",
 };
+
+export function createRunModeLabel(mode: CreateRunMode, translator: Translator): string {
+  return translator.t(CREATE_RUN_MODE_KEYS[mode]);
+}
 
 /**
  * 隔离模式的工具组展示文案。**不得**在这里手抄第二份定义——它与 replay 的
@@ -122,18 +127,19 @@ export type CreateRunSubmission =
 export function resolveCreateRunSubmission(
   state: CreateRunFormState,
   fields: CreateRunFormFields,
+  translator: Translator,
 ): CreateRunSubmission {
   if (fields.busy) {
     return {
       ok: false,
-      reason: "执行中：本次运行尚未结束，不能重复提交",
+      reason: translator.t("run.submitBusy"),
       field: null,
     };
   }
   if (fields.userMessage.trim().length === 0) {
     return {
       ok: false,
-      reason: "User Message 不能为空（它同时是该 run 的标题与首条用户消息）",
+      reason: translator.t("run.submitUserMessageRequired"),
       field: "userMessage",
     };
   }
@@ -142,14 +148,14 @@ export function resolveCreateRunSubmission(
     if (state.source === null) {
       return {
         ok: false,
-        reason: "隔离文件运行需要先选择源目录（只读采集，源目录不会被修改）",
+        reason: translator.t("run.submitSourceRequired"),
         field: "source",
       };
     }
     if (!state.writesAuthorized) {
       return {
         ok: false,
-        reason: "请勾选“允许本次执行的副本写入”——授权只对这一次提交有效，不会从历史记录补授权",
+        reason: translator.t("run.submitWritesRequired"),
         field: "writesAuthorized",
       };
     }
@@ -267,8 +273,9 @@ export async function submitCreateRun(
   state: CreateRunFormState,
   fields: CreateRunFormFields,
   deps: { createRun(request: CreateRunRequest): Promise<boolean> },
+  translator: Translator,
 ): Promise<boolean> {
-  const submission = resolveCreateRunSubmission(state, fields);
+  const submission = resolveCreateRunSubmission(state, fields, translator);
   if (!submission.ok) return false;
   return deps.createRun(submission.request);
 }

@@ -3,7 +3,12 @@ import { join, resolve } from "node:path";
 import type { SettingsState } from "@shared/ipc";
 import { ok } from "@shared/ipc";
 import { describe, expect, it } from "vitest";
-import { deriveConfigGate } from "../src/renderer/src/lib/entry-gate";
+import { deriveConfigGate as deriveConfigGateOf } from "../src/renderer/src/lib/entry-gate";
+import { createTestTranslator } from "./i18n/render-with-locale";
+
+const zh = createTestTranslator("zh-CN");
+const deriveConfigGate = (session: Parameters<typeof deriveConfigGateOf>[0]) =>
+  deriveConfigGateOf(session, zh);
 import { initialSession } from "../src/renderer/src/lib/operation-session";
 
 /**
@@ -97,7 +102,7 @@ describe("5.5 清除确认：点名凭据、取消零调用、受槽约束、查
     expect(gate.canChange).toBe(false);
     expect(gate.notice).not.toBeNull();
     // 对话框确实把写通道绑在这把门上（保存与清除共用）
-    expect(dialog).toContain("deriveConfigGate(useAppStore((s) => s.operations))");
+    expect(dialog).toMatch(/deriveConfigGate\(\s*useAppStore\(\(s\) => s\.operations\)/);
     expect(dialog).toContain("!configGate.canChange");
   });
 });

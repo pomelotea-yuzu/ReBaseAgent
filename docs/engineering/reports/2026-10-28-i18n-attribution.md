@@ -151,6 +151,8 @@ node scripts/i18n-attribution.cjs --compare-inventory --verify-boundaries
 
 2.2 继续迁移执行确认构造器（创建/result/prompt/messages/A-B）、操作行/结果/通知/等待计时、详情完整性长文与结局标签投影；机器清单更新为 **3,282 处**（product 2,827 / original 378 / internal 73 / generated 4）。2.2 内 2.2a 降 98、2.2b 降 124。共享 Zod/操作登记校验提示仍留 4.5，操作面板内的草稿列表留 4.4。
 
+2.3 迁移创建运行闭环（创建页、模式/校验/源目录/副本授权、返回目的地、门禁提示），并把 `main/run-create.ts`、`main/run-source-gate.ts` 的原始失败说明改判 original（渲染层显示为“原始详情”，产品摘要按稳定码本地化）。机器清单 **3,206 处**（product 2,744 / original 385 / internal 73 / generated 4）：2.3 迁入资源 76 处、改判 original 7 处。批次 1 余 87 个 pending 文件。
+
 ## 9. 局限
 
 - 工作区与批次按文件名近似，包层不能精确拆到单个工作区；迁移时以实际入口为准修正。

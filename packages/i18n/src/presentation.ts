@@ -41,6 +41,8 @@ const PARAM_SPECS: Record<PresentationId, Readonly<Record<string, ParamSpec>>> =
   "errors.conflict": { operationId: { kind: "string", maxLength: 128 } },
   "errors.staleCursor": {},
   "errors.preparationRequired": {},
+  "errors.createRunFailed": {},
+  "errors.sourceChooseFailed": {},
 };
 
 const MAX_ITEMS = 8;

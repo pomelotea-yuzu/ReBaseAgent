@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslator } from "../i18n";
 import { deriveConfigGate } from "../lib/entry-gate";
 import { settingsDraftDirty } from "../lib/settings-form";
 import { useAppStore } from "../store";
@@ -18,6 +19,7 @@ import { ModalDialog } from "./ModalDialog";
  * 第一个控件。`sectionRef` 只在"被要求定位"时滚动一次，常规打开不受影响。
  */
 export function SettingsDialog({ onClose }: { onClose: () => void }) {
+  const translator = useTranslator();
   const settings = useAppStore((s) => s.settings);
   const configured = settings?.configured ?? false;
   const proxy = useAppStore((s) => s.proxy);
@@ -43,7 +45,10 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   // ⚠️ 只绑写通道：`settings:get` 的读取与"关闭"按钮不受门禁影响
   // （spec「直接 IPC 不能绕过配置锁」的 THEN 句要求读取照常可用），main 判锁仍是最后防线。
   // U8 2.10：代理应用已迁独立录制工作区，设置里不再有第三个写动作。
-  const configGate = deriveConfigGate(useAppStore((s) => s.operations));
+  const configGate = deriveConfigGate(
+    useAppStore((s) => s.operations),
+    translator,
+  );
 
   const trimmed = {
     baseURL: baseURL.trim(),

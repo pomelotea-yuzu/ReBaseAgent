@@ -1,3 +1,4 @@
+import type { Translator } from "@rebaseagent/i18n";
 import type { RunReadingState } from "./reading-state";
 
 /**
@@ -173,34 +174,34 @@ export function filePatchOfLocation(
  * 轨迹两种视图」的面向用户文案）；其余视图名与各工作区对象头一致。
  * 判据型函数：switch 全覆盖，不查表字符串拼接。
  */
-export function workspaceViewName(view: WorkspaceView): string {
+export function workspaceViewName(view: WorkspaceView, translator: Translator): string {
   switch (view) {
     case "trace":
-      return "运行记录";
+      return translator.t("run.workspaceTrace");
     case "tree":
-      return "分支关系";
+      return translator.t("run.workspaceTree");
     case "create":
-      return "新建运行";
+      return translator.t("run.workspaceCreate");
     case "compare":
-      return "比较";
+      return translator.t("run.workspaceCompare");
     case "recording":
-      return "录制";
+      return translator.t("run.workspaceRecording");
     case "experiment":
-      return "模型实验";
+      return translator.t("run.workspaceExperiment");
     case "messages":
-      return "编辑 messages";
+      return translator.t("run.workspaceMessages");
   }
 }
 
 /** 页签的面向用户名称（与 RunWorkspace 页签文案一致） */
-function readingTabName(tab: ReadingTab): string {
+function readingTabName(tab: ReadingTab, translator: Translator): string {
   switch (tab) {
     case "overview":
-      return "概览";
+      return translator.t("run.tabOverview");
     case "steps":
-      return "调用步骤";
+      return translator.t("run.tabSteps");
     case "files":
-      return "文件";
+      return translator.t("run.tabFiles");
   }
 }
 
@@ -214,20 +215,26 @@ function readingTabName(tab: ReadingTab): string {
  */
 export function describeReturnDestination(
   location: Pick<CreateReturnLocation, "tab"> & { readonly view: WorkspaceView },
+  translator: Translator,
 ): string {
-  const base = `返回${workspaceViewName(location.view)}`;
-  if (location.view !== "trace" || location.tab === null) return base;
-  return `${base} · ${readingTabName(location.tab)}`;
+  const destination =
+    location.view === "trace" && location.tab !== null
+      ? `${workspaceViewName(location.view, translator)} · ${readingTabName(location.tab, translator)}`
+      : workspaceViewName(location.view, translator);
+  return translator.t("run.returnTo", { destination });
 }
 
 /**
  * 返回来源失效的就近原因文案（UI 整理 2.3 · N03「显示真实原因和可达退路」）。
  * 与 `decideCreateReturn`/`decideAuxReturn` 的 fallback reason 一一对应。
  */
-export function describeReturnFallbackReason(reason: "no-location" | "run-missing"): string {
-  return reason === "no-location"
-    ? "本次会话没有记录来源位置（重载后来源失效），不能返回原页面。"
-    : "来源运行已不在列表里，不能返回原位置。";
+export function describeReturnFallbackReason(
+  reason: "no-location" | "run-missing",
+  translator: Translator,
+): string {
+  return translator.t(
+    reason === "no-location" ? "run.returnFallbackNoLocation" : "run.returnFallbackRunMissing",
+  );
 }
 
 /**
@@ -235,8 +242,12 @@ export function describeReturnFallbackReason(reason: "no-location" | "run-missin
  * 来源引用与判据仍归 store/lib，组件不自算位置（create-workspace-store 的接线纪律）。
  */
 export type CreateReturnFacts =
-  | { readonly kind: "restore"; readonly label: string }
-  | { readonly kind: "fallback"; readonly label: string; readonly reasonText: string };
+  | { readonly kind: "restore"; readonly location: CreateReturnLocation }
+  | {
+      readonly kind: "fallback";
+      readonly view: SourceView;
+      readonly reason: "no-location" | "run-missing";
+    };
 
 /**
  * 当场（该 run 已经是选中运行，不会再走 `selectRun`）要选中的调用。

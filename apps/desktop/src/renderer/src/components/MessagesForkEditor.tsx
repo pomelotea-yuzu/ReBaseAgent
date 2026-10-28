@@ -87,7 +87,10 @@ export function MessagesForkEditor({
   // U3 任务 3.4：待定提交期间视同进行中——输入、放弃、关闭、提交一并禁用
   const inProgress = forking === "in_progress" || draftFrozen;
   // U4 任务 4.4：代理 messages 重发同样是主动执行 ⇒ 受统一槽约束
-  const gate = deriveEntryGate(useAppStore((s) => s.operations));
+  const gate = deriveEntryGate(
+    useAppStore((s) => s.operations),
+    translator,
+  );
   const messagesBaseline = prettyJson(span.request.messages);
   const value = draftEntry !== undefined ? draftEntry.text : messagesBaseline;
   const unchanged = value === messagesBaseline;

@@ -10,6 +10,7 @@ import {
 } from "../src/renderer/src/components/RunActionsBar";
 import { decideExperimentEntry } from "../src/renderer/src/lib/aux-workspace";
 import { stripComments } from "../src/renderer/src/lib/overview-view";
+import { renderWithLocale } from "./i18n/render-with-locale";
 
 // RunActionsBar → store → lib/api.ts 在模块级读 window.api：先打桩再求值（引擎室纪律）
 vi.hoisted(() => {
@@ -73,7 +74,8 @@ describe("U8 1.4：实验入口决策（decideExperimentEntry）", () => {
 
 describe("U8 1.4：运行级入口的纯视图（RunActionsBarView）", () => {
   it("open ⇒ 入口按钮可用且无理由文案", () => {
-    const html = renderToStaticMarkup(
+    const html = renderWithLocale(
+      "zh-CN",
       <RunActionsBarView
         decision={{ kind: "open", target: { runId: "r1", spanId: "s1" } }}
         onOpen={() => {}}
@@ -86,7 +88,8 @@ describe("U8 1.4：运行级入口的纯视图（RunActionsBarView）", () => {
 
   it("三类 disabled ⇒ 逐控件 disabled 属性 + 就近理由（不是只给灰按钮）", () => {
     for (const reason of ["no-detail", "isolated", "no-own-llm-call"] as const) {
-      const html = renderToStaticMarkup(
+      const html = renderWithLocale(
+        "zh-CN",
         <RunActionsBarView decision={{ kind: "disabled", reason }} onOpen={() => {}} />,
       );
       // 逐控件判属性：入口按钮自己的开标签带 disabled=""
@@ -99,7 +102,8 @@ describe("U8 1.4：运行级入口的纯视图（RunActionsBarView）", () => {
 
 describe("U8 1.4：辅助工作区外壳（AuxWorkspaceFrame）", () => {
   it("有来源 ⇒ 返回来源是真实可点按钮", () => {
-    const html = renderToStaticMarkup(
+    const html = renderWithLocale(
+      "zh-CN",
       <AuxWorkspaceFrame
         title="模型实验"
         description="d"
@@ -115,7 +119,8 @@ describe("U8 1.4：辅助工作区外壳（AuxWorkspaceFrame）", () => {
   });
 
   it("无来源（重载后）⇒ 按钮禁用并说明原因，不伪造回不去的入口", () => {
-    const html = renderToStaticMarkup(
+    const html = renderWithLocale(
+      "zh-CN",
       <AuxWorkspaceFrame
         title="录制接入"
         description="d"
@@ -131,7 +136,8 @@ describe("U8 1.4：辅助工作区外壳（AuxWorkspaceFrame）", () => {
   });
 
   it("目标身份行原样呈现；null 时不出现伪造身份", () => {
-    const withTarget = renderToStaticMarkup(
+    const withTarget = renderWithLocale(
+      "zh-CN",
       <AuxWorkspaceFrame
         title="t"
         description="d"
@@ -143,7 +149,8 @@ describe("U8 1.4：辅助工作区外壳（AuxWorkspaceFrame）", () => {
       </AuxWorkspaceFrame>,
     );
     expect(withTarget).toContain("父本 r1 · 首次模型调用 s1");
-    const without = renderToStaticMarkup(
+    const without = renderWithLocale(
+      "zh-CN",
       <AuxWorkspaceFrame
         title="t"
         description="d"
@@ -205,7 +212,8 @@ describe("U8 6.11：键盘闭环的焦点回位接线（实机坐实补齐）", 
   );
 
   it("辅助工作区主容器带 data-aux-frame 焦点锚点（真实可聚焦容器，不是说明文字）", () => {
-    const html = renderToStaticMarkup(
+    const html = renderWithLocale(
+      "zh-CN",
       <AuxWorkspaceFrame
         title="录制接入"
         description="d"

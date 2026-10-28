@@ -26,12 +26,9 @@ import type {
 import {
   decideCreateEntry,
   decideCreateReturn,
-  describeReturnDestination,
-  describeReturnFallbackReason,
   filePatchOfLocation,
   liveSpanOfLocation,
   readingPatchOfLocation,
-  workspaceViewName,
 } from "../../lib/create-workspace";
 import { describeZodError } from "../../lib/describe-zod-error";
 import {
@@ -336,17 +333,10 @@ export function createNavigationSlice({
       return createReturnFactsRuntime.factsOf(
         { location: state.createReturnLocation, runs: state.runs },
         ({ location, runs }) => {
-          const decision = decideCreateReturn({
+          return decideCreateReturn({
             location,
             knownRunIds: runs.map((run) => run.id),
           });
-          return decision.kind === "restore"
-            ? { kind: "restore", label: describeReturnDestination(decision.location) }
-            : {
-                kind: "fallback",
-                label: `回到${workspaceViewName(decision.view)}`,
-                reasonText: describeReturnFallbackReason(decision.reason),
-              };
         },
       );
     },

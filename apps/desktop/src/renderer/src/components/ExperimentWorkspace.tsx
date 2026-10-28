@@ -24,6 +24,7 @@ import { ShortIdLabel } from "./ShortIdLabel";
  *    全局选中作用域的默认门禁。
  */
 export function ExperimentWorkspace() {
+  const translator = useTranslator();
   const target = useAppStore((s) => s.experimentTarget);
   const source = useAppStore((s) => s.experimentSource);
   const location = useAppStore((s) => s.experimentReturnLocation);
@@ -123,7 +124,7 @@ export function ExperimentWorkspace() {
       returnAvailable={returnDecision.kind === "restore"}
       returnLabel={
         returnDecision.kind === "restore"
-          ? describeReturnDestination(returnDecision.location)
+          ? describeReturnDestination(returnDecision.location, translator)
           : undefined
       }
       returnFallback={

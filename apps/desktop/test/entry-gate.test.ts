@@ -1,7 +1,17 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { deriveConfigGate, deriveEntryGate } from "../src/renderer/src/lib/entry-gate";
+import {
+  deriveConfigGate as deriveConfigGateOf,
+  deriveEntryGate as deriveEntryGateOf,
+} from "../src/renderer/src/lib/entry-gate";
+import { createTestTranslator } from "./i18n/render-with-locale";
+
+const zh = createTestTranslator("zh-CN");
+const deriveEntryGate = (session: Parameters<typeof deriveEntryGateOf>[0]) =>
+  deriveEntryGateOf(session, zh);
+const deriveConfigGate = (session: Parameters<typeof deriveConfigGateOf>[0]) =>
+  deriveConfigGateOf(session, zh);
 import { type OperationSession, initialSession } from "../src/renderer/src/lib/operation-session";
 
 /**
@@ -91,7 +101,7 @@ describe("4.3 接线契约：create 与 result 都从同一份会话派生", () 
       [dialog, "CreateRunWorkspace"],
       [panel, "DetailPanel（result 编辑器）"],
     ] as const) {
-      expect(src, label).toContain("deriveEntryGate(useAppStore((s) => s.operations))");
+      expect(src, label).toMatch(/deriveEntryGate\(\s*useAppStore\(\(s\) => s\.operations\)/);
     }
   });
 
@@ -178,14 +188,14 @@ describe("4.4 接线契约：prompt / messages / A-B 也接同一份会话", () 
       ["prompt", PROMPT],
       ["messages", MESSAGES],
     ] as const) {
-      expect(body, label).toContain("deriveEntryGate(useAppStore((s) => s.operations))");
+      expect(body, label).toMatch(/deriveEntryGate\(\s*useAppStore\(\(s\) => s\.operations\)/);
       expect(body, label).toContain("<EntryGateNotice gate={gate} />");
     }
     // U5 任务 5.1 改判（两边留痕）：ModelAbEditor 的会话快照被批次结果区共用 ⇒ 拆成
     // "先订阅、后派生"两步。**判据不变**：仍是同一份 `s.operations` 派生的门禁，
     // 没有第二套状态源——所以两步都必须按字面在场，缺一即接线偏离。
     expect(MODEL_AB).toContain("const operationsSession = useAppStore((s) => s.operations);");
-    expect(MODEL_AB).toContain("deriveEntryGate(operationsSession)");
+    expect(MODEL_AB).toContain("deriveEntryGate(operationsSession, translator)");
     expect(MODEL_AB).toContain("<EntryGateNotice gate={gate} />");
   });
 
@@ -275,5 +285,15 @@ describe("4.8 接线契约：配置写入口绑同一门禁，读取与关闭不
     expect(settings).not.toContain("disabled={configGate");
     // 模态焦点通道（ModalDialog + closeDisabled）不因门禁改写
     expect(settings).toContain("<ModalDialog");
+  });
+});
+
+describe("2.3 门禁提示按语言", () => {
+  it("英文未握手提示独立成句", () => {
+    const en = createTestTranslator("en-US");
+    const gate = deriveEntryGateOf(initialSession(), en);
+    expect(gate.canSubmit).toBe(false);
+    expect(gate.notice).toContain("handshake");
+    expect(gate.notice).not.toMatch(/[\u4e00-\u9fff]/);
   });
 });

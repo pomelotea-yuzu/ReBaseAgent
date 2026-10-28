@@ -27,13 +27,25 @@ import {
   ISOLATED_TOOL_PROFILE_LABEL,
   applyChosenSource,
   initialCreateRunForm,
-  resolveCreateRunSubmission,
+  resolveCreateRunSubmission as resolveCreateRunSubmissionOf,
   restoreCreateForm,
   setWritesAuthorized,
-  submitCreateRun,
+  submitCreateRun as submitCreateRunOf,
   switchCreateRunMode,
 } from "../src/renderer/src/lib/create-run";
 import type { CreateRunFormFields } from "../src/renderer/src/lib/create-run";
+import { createTestTranslator } from "./i18n/render-with-locale";
+
+const zh = createTestTranslator("zh-CN");
+const resolveCreateRunSubmission = (
+  state: Parameters<typeof resolveCreateRunSubmissionOf>[0],
+  fields: Parameters<typeof resolveCreateRunSubmissionOf>[1],
+) => resolveCreateRunSubmissionOf(state, fields, zh);
+const submitCreateRun = (
+  state: Parameters<typeof submitCreateRunOf>[0],
+  fields: Parameters<typeof submitCreateRunOf>[1],
+  deps: Parameters<typeof submitCreateRunOf>[2],
+) => submitCreateRunOf(state, fields, deps, zh);
 import { CreateRunRequestSchema } from "../src/shared/ipc";
 import type { ChooseSourceResult, CreateRunRequest } from "../src/shared/ipc";
 

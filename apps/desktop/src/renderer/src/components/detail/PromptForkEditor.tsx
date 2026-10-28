@@ -114,7 +114,10 @@ export function PromptForkEditor({
   // U3 任务 3.4：待定提交期间视同进行中——输入、放弃、关闭、提交一并禁用
   const inProgress = forking === "in_progress" || draftFrozen;
   // U4 任务 4.4：入口可用性从统一操作槽派生（只拦"再发一条"，不锁输入与放弃）
-  const gate = deriveEntryGate(useAppStore((s) => s.operations));
+  const gate = deriveEntryGate(
+    useAppStore((s) => s.operations),
+    translator,
+  );
   const original = field === "system_prompt" ? originalSystem : originalUser;
   const activeEntry = useAppStore((s) => s.callDraftOf(draftKeyOf(field)));
   // 草稿已登记 ⇒ 读该字段草稿；未登记（尚未打开/切换到）⇒ 退回该字段原值

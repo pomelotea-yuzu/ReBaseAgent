@@ -164,6 +164,9 @@ const ORIGINAL_REASONS = {
   "packages/trace-sdk/src/guards.ts": "分支/删除守卫事实，属于记录边界",
   "packages/trace-sdk/src/memory-tracer.ts": "MemoryTracer 不变量事实，属于测试/记录边界",
   "packages/trace-sdk/src/workspace-hash.ts": "快照哈希校验事实，属于记录边界",
+  "apps/desktop/src/main/run-create.ts":
+    "main 返回的创建失败原始说明，渲染层作为原始详情展示；产品摘要按稳定码本地化",
+  "apps/desktop/src/main/run-source-gate.ts": "main 返回的来源拒绝原始说明，渲染层作为原始详情展示",
   "packages/trace-test/src/assertions.ts":
     "断言 detail 进入 JSON 报告与原始 detail，报告契约不随 locale 改写",
   "packages/trace-test/src/shape-align.ts": "形状对齐 detail 进入 JSON 报告，保留原始事实",
@@ -224,13 +227,15 @@ function fileRule(file, layer) {
     return { classification: GENERATED, reason: "生成资产（内嵌 runner/脚本），不作为产品文案" };
   }
   if (INTERNAL_REASONS[file]) return { classification: INTERNAL, reason: INTERNAL_REASONS[file] };
+  // 原文/记录事实的显式清单优先于层默认：main 返回的原始错误说明由渲染层按
+  // “原始详情”展示，产品摘要另按稳定 code 本地化，不把原始字节当作待翻文案。
+  if (ORIGINAL_REASONS[file]) return { classification: ORIGINAL, reason: ORIGINAL_REASONS[file] };
   if (layer === "renderer" || layer === "main" || layer === "shared" || layer === "preload") {
     return { classification: PRODUCT, reason: null };
   }
   if (PRODUCT_FILES.has(file)) return { classification: PRODUCT, reason: null };
   if (PRODUCT_PREFIXES.some((p) => file.startsWith(p)))
     return { classification: PRODUCT, reason: null };
-  if (ORIGINAL_REASONS[file]) return { classification: ORIGINAL, reason: ORIGINAL_REASONS[file] };
   const prefix = ORIGINAL_PREFIXES.find(([p]) => file.startsWith(p));
   if (prefix) return { classification: ORIGINAL, reason: prefix[1] };
   if (file.startsWith("packages/replay/")) return { classification: PRODUCT, reason: null };

@@ -8,10 +8,20 @@ import { type AuxReturnLocation, decideAuxReturn } from "../src/renderer/src/lib
 import {
   type CreateReturnLocation,
   decideCreateReturn,
-  describeReturnDestination,
-  describeReturnFallbackReason,
-  workspaceViewName,
+  describeReturnDestination as describeReturnDestinationOf,
+  describeReturnFallbackReason as describeReturnFallbackReasonOf,
+  workspaceViewName as workspaceViewNameOf,
 } from "../src/renderer/src/lib/create-workspace";
+import { createTestTranslator, renderWithLocale } from "./i18n/render-with-locale";
+
+const zh = createTestTranslator("zh-CN");
+const describeReturnDestination = (location: Parameters<typeof describeReturnDestinationOf>[0]) =>
+  describeReturnDestinationOf(location, zh);
+const describeReturnFallbackReason = (
+  reason: Parameters<typeof describeReturnFallbackReasonOf>[0],
+) => describeReturnFallbackReasonOf(reason, zh);
+const workspaceViewName = (view: Parameters<typeof workspaceViewNameOf>[0]) =>
+  workspaceViewNameOf(view, zh);
 
 /**
  * refine-ui-for-community-release 任务 2.3：一致来源摘要与具体返回文案。
@@ -94,7 +104,8 @@ describe("AuxWorkspaceFrame：失效就近呈现 + 诚实退路（N03）", () =>
     returnLabel?: string;
     returnFallback?: { reason: "no-location" | "run-missing"; fallbackView: "trace" } | null;
   }): string =>
-    renderToStaticMarkup(
+    renderWithLocale(
+      "zh-CN",
       createElement(
         AuxWorkspaceFrame,
         {
@@ -164,8 +175,10 @@ describe("容器接线：三个辅助工作区与创建页共用同一批判据�
     // refactor-renderer 5.3：navigation 分片实现迁 slices/navigation.ts，断言随载体改读。
     const store = read("../src/renderer/src/store/slices/navigation.ts");
     expect(store).toContain("createReturnFactsOf");
-    expect(store).toContain("describeReturnDestination(decision.location)");
-    expect(store).toContain("describeReturnFallbackReason(decision.reason)");
+    // store 只给 locale 无关的判据事实；文案由组件按当前语言派生
+    expect(store).toContain("decideCreateReturn(");
+    expect(store).not.toContain("describeReturnDestination(");
+    expect(src).toContain("describeReturnDestination(returnFacts.location, translator)");
   });
 });
 
@@ -202,5 +215,16 @@ describe("判据复用：decideAuxReturn / decideCreateReturn 的 fallback 语�
       knownRunIds: ["r_1"],
     });
     expect(decision.kind).toBe("restore");
+  });
+});
+
+describe("2.3 返回目的地按语言", () => {
+  it("英文视图名与目的地独立成句", () => {
+    const en = createTestTranslator("en-US");
+    expect(workspaceViewNameOf("trace", en)).toBe("Runs");
+    expect(describeReturnDestinationOf({ view: "trace", tab: "steps" }, en)).toBe(
+      "Back to Runs · Call steps",
+    );
+    expect(describeReturnFallbackReasonOf("run-missing", en)).toContain("no longer in the list");
   });
 });

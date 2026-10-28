@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-28T05:17:06.200Z",
+  "generatedAt": "2026-10-28T05:34:57.106Z",
   "scanner": "scripts/i18n-attribution.cjs",
   "taxonomy": {
     "product": "产品展示：需要按批次迁移为双语资源",
@@ -9,10 +9,10 @@
     "generated": "生成资产：不作为产品文案"
   },
   "totals": {
-    "files": 244,
-    "occurrences": 3282,
-    "product": 2827,
-    "original": 378,
+    "files": 240,
+    "occurrences": 3206,
+    "product": 2744,
+    "original": 385,
     "internal": 73,
     "generated": 4
   },
@@ -20,15 +20,15 @@
     "main": {
       "files": 20,
       "occurrences": 131,
-      "product": 129,
-      "original": 0,
+      "product": 122,
+      "original": 7,
       "internal": 2,
       "generated": 0
     },
     "renderer": {
-      "files": 90,
-      "occurrences": 1948,
-      "product": 1924,
+      "files": 86,
+      "occurrences": 1872,
+      "product": 1848,
       "original": 0,
       "internal": 24,
       "generated": 0
@@ -989,17 +989,17 @@
       "layer": "main",
       "package": null,
       "workspace": "运行创建/读取/分叉",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "main 返回的创建失败原始说明，渲染层作为原始详情展示；产品摘要按稳定码本地化",
       "symbols": [
         {
           "symbol": "runCreate",
           "role": "error_message",
           "context": "new CreateRunError",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "main 返回的创建失败原始说明，渲染层作为原始详情展示；产品摘要按稳定码本地化",
           "count": 3,
           "samples": [
             "新建 run 执行失败：模型调用未完成（终止原因 ${…}）。run ${…} 已落盘，可在列表中点开该 run，查看失败的那次 LLM 调用上的错误详情。",
@@ -1014,8 +1014,8 @@
           "symbol": "runCreateIsolated",
           "role": "error_message",
           "context": "new CreateRunError",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "main 返回的创建失败原始说明，渲染层作为原始详情展示；产品摘要按稳定码本地化",
           "count": 2,
           "samples": [
             "隔离创建被拒绝（${…}）：${…}",
@@ -1033,17 +1033,17 @@
       "layer": "main",
       "package": null,
       "workspace": "运行创建/读取/分叉",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "main 返回的来源拒绝原始说明，渲染层作为原始详情展示",
       "symbols": [
         {
           "symbol": "checkRunSource",
           "role": "other",
           "context": "",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "main 返回的来源拒绝原始说明，渲染层作为原始详情展示",
           "count": 2,
           "samples": [
             "来源不完整：被引用的父本 ${…} 只能确认自身及可读上游，祖先 run ${…} 的文件缺失，不能引用不完整父本执行",
@@ -1565,31 +1565,13 @@
           "context": "jsx_expr",
           "classification": "product",
           "reason": null,
-          "count": 3,
-          "samples": [
-            "返回来源",
-            "回到${…}"
-          ],
-          "lines": [
-            66,
-            70,
-            79
-          ]
-        },
-        {
-          "symbol": "returnButton.button",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
           "count": 2,
           "samples": [
-            "回到",
             "返回来源"
           ],
           "lines": [
-            84,
-            96
+            68,
+            72
           ]
         },
         {
@@ -1604,8 +1586,22 @@
             "本次会话没有记录来源位置（重载后来源失效），不能返回"
           ],
           "lines": [
-            91,
-            93
+            97,
+            99
+          ]
+        },
+        {
+          "symbol": "returnButton.button",
+          "role": "return",
+          "context": "return",
+          "classification": "product",
+          "reason": null,
+          "count": 1,
+          "samples": [
+            "返回来源"
+          ],
+          "lines": [
+            102
           ]
         }
       ]
@@ -3380,397 +3376,6 @@
       ]
     },
     {
-      "path": "apps/desktop/src/renderer/src/components/CreateRunWorkspace.tsx",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "创建运行",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "CreateRunWorkspaceView.section",
-          "role": "ui_attr",
-          "context": "aria-label",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "新建运行"
-          ],
-          "lines": [
-            172
-          ]
-        },
-        {
-          "symbol": "div.h1",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "新建运行"
-          ],
-          "lines": [
-            176
-          ]
-        },
-        {
-          "symbol": "div.div",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "从头执行一个 run（无父 run、不续跑既有轨迹）"
-          ],
-          "lines": [
-            179
-          ]
-        },
-        {
-          "symbol": "div.span",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "运行模式",
-            "执行范围："
-          ],
-          "lines": [
-            204,
-            378
-          ]
-        },
-        {
-          "symbol": "label.span",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "User Message（必填）",
-            "该 run 在列表中的标题（task）即这段文字。"
-          ],
-          "lines": [
-            230,
-            247
-          ]
-        },
-        {
-          "symbol": "label.textarea",
-          "role": "ui_attr",
-          "context": "placeholder",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "要交给模型的任务。它会同时成为该 run 在列表中的标题。"
-          ],
-          "lines": [
-            240
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 7,
-          "samples": [
-            "选择中…",
-            "选择目录…"
-          ],
-          "lines": [
-            262,
-            446,
-            457
-          ]
-        },
-        {
-          "symbol": "div.div",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 5,
-          "samples": [
-            "尚未选择源目录",
-            "隔离运行的工具读取文本同样进入该模型请求。"
-          ],
-          "lines": [
-            266,
-            338,
-            432,
-            438
-          ]
-        },
-        {
-          "symbol": "ul.li",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "采集选定目录下全部受支持的普通文件（含隐藏文件）；链接、非普通文件、磁盘根与数据目录内的路径会被拒绝。",
-            "文件内容只落入数据目录里的不可变附件，源目录不会被修改；后续分叉的写入也只落在各自的副本映射里。"
-          ],
-          "lines": [
-            284,
-            287,
-            289
-          ]
-        },
-        {
-          "symbol": "label.span",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "允许本次执行的副本写入"
-          ],
-          "lines": [
-            305
-          ]
-        },
-        {
-          "symbol": "span.span",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "（默认未选；只对这一次提交有效，重新打开或切换模式后都要重新勾选）"
-          ],
-          "lines": [
-            307
-          ]
-        },
-        {
-          "symbol": "span.span",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "当前接入："
-          ],
-          "lines": [
-            325
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "运行配置…",
-            "高级：System Prompt（可选）"
-          ],
-          "lines": [
-            334,
-            351,
-            449
-          ]
-        },
-        {
-          "symbol": "div.textarea",
-          "role": "ui_attr",
-          "context": "placeholder",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "例如：你是一个简洁的问答助手，用两三句话回答。"
-          ],
-          "lines": [
-            359
-          ]
-        },
-        {
-          "symbol": "div.span",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "留空也可以：此时运行配置的校验标识按空 system 计算",
-            "（空 system + 固定工具组）"
-          ],
-          "lines": [
-            367,
-            368
-          ]
-        },
-        {
-          "symbol": "div.Disclosure",
-          "role": "ui_attr",
-          "context": "summary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "技术说明"
-          ],
-          "lines": [
-            383
-          ]
-        },
-        {
-          "symbol": "Disclosure.div",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "纯对话产出 v1 根 run；隔离文件运行产出 v2 根 run（带检查点与初始快照， 第二轮起可续跑）。config_hash 是运行配置的校验标识，按 system 与工具表计算， 改动会使其变化"
-          ],
-          "lines": [
-            390
-          ]
-        },
-        {
-          "symbol": "div.ConfirmationBlock",
-          "role": "ui_attr",
-          "context": "title",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "核对本次提交",
-            "已核对，确认本次提交"
-          ],
-          "lines": [
-            401,
-            408,
-            409
-          ]
-        },
-        {
-          "symbol": "ConfirmationBlock.div",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "确认后才会放行创建；改任何输入、换配置或去别的页面看一眼，都要重新确认。"
-          ],
-          "lines": [
-            414
-          ]
-        },
-        {
-          "symbol": "CreateRunWorkspace.settingsSummary",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "运行配置尚未读取",
-            "当前模型 ${…}（${…}）"
-          ],
-          "lines": [
-            605,
-            607,
-            608
-          ]
-        },
-        {
-          "symbol": "scopeFacts.execution",
-          "role": "prop",
-          "context": "execution",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "隔离文件运行：只读采集所选目录，按固定 ${…} 工具组（${…}）执行，副本写入需本次显式勾选；产出带检查点的隔离运行（第二轮起可作续跑与对照的父本）。",
-            "纯对话：不启用工具，模型只产出文本；运行配置的校验标识按 system 与工具表（此处为空）计算。"
-          ],
-          "lines": [
-            612,
-            617
-          ]
-        },
-        {
-          "symbol": "scopeFacts.cost",
-          "role": "prop",
-          "context": "cost",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "一次提交 = 一次真实模型调用（按实际用量计费），采集到的文本会进入你配置的模型请求。",
-            "一次提交 = 一次真实模型调用（按实际用量计费）。"
-          ],
-          "lines": [
-            613,
-            618
-          ]
-        },
-        {
-          "symbol": "CreateRunWorkspace.confirmBlocked",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "先补齐必填输入，再核对本次提交"
-          ],
-          "lines": [
-            639
-          ]
-        },
-        {
-          "symbol": "discardDraft.title",
-          "role": "ui_prop",
-          "context": "title",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "放弃创建草稿"
-          ],
-          "lines": [
-            712
-          ]
-        },
-        {
-          "symbol": "discardDraft.message",
-          "role": "ui_prop",
-          "context": "message",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "放弃本次填写的创建内容？\n\n运行模式、System Prompt 与 User Message 将全部重置（源目录选择与写入授权也一并作废）。"
-          ],
-          "lines": [
-            714
-          ]
-        }
-      ]
-    },
-    {
       "path": "apps/desktop/src/renderer/src/components/detail/DetailShared.tsx",
       "layer": "renderer",
       "package": null,
@@ -4189,7 +3794,7 @@
             "源记录不可用：重新读取并校验通过前不能发起新执行"
           ],
           "lines": [
-            180
+            183
           ]
         },
         {
@@ -4204,8 +3809,8 @@
             "请确认本次从头执行会真实调用模型并计费；费用确认不随草稿恢复。"
           ],
           "lines": [
-            237,
-            240
+            240,
+            243
           ]
         },
         {
@@ -4219,7 +3824,7 @@
             "首条 user message"
           ],
           "lines": [
-            347
+            350
           ]
         },
         {
@@ -4233,7 +3838,7 @@
             "放弃 prompt 草稿 · ${…}"
           ],
           "lines": [
-            350
+            353
           ]
         },
         {
@@ -4247,7 +3852,7 @@
             "放弃「prompt fork · ${…}」的草稿？（run ${…} · ${…}）\n\n当前草稿内容：\n${…}\n\n只影响这一个字段；放弃按确认时的修订校验：此后内容若被更新，本次放弃不会执行。"
           ],
           "lines": [
-            351
+            354
           ]
         },
         {
@@ -4261,7 +3866,7 @@
             "首次 llm.call 缺少字符串形式的 system 消息，无法重建运行配置，prompt fork 不可用。"
           ],
           "lines": [
-            376
+            379
           ]
         },
         {
@@ -4276,15 +3881,15 @@
             "编辑 system prompt 重跑"
           ],
           "lines": [
-            391,
-            404,
-            456,
-            668,
-            670,
+            394,
+            407,
+            459,
             671,
-            784,
-            800,
-            832
+            673,
+            674,
+            787,
+            803,
+            835
           ]
         },
         {
@@ -4299,16 +3904,16 @@
             "prompt fork：修改启动上下文后从头重跑（独立新轨迹，不共享父前缀）。一次只改一项。"
           ],
           "lines": [
-            412,
-            413,
-            591,
-            600,
-            680,
-            689,
-            704,
+            415,
+            416,
+            594,
+            603,
+            683,
+            692,
             707,
-            736,
-            737
+            710,
+            739,
+            740
           ]
         },
         {
@@ -4323,13 +3928,13 @@
             "prompt fork · 从头重跑"
           ],
           "lines": [
-            439,
-            467,
+            442,
             470,
             473,
-            674,
-            774,
-            794
+            476,
+            677,
+            777,
+            797
           ]
         },
         {
@@ -4344,9 +3949,9 @@
             "人工判据（可选，≤4000 字）"
           ],
           "lines": [
-            530,
-            545,
-            759
+            533,
+            548,
+            762
           ]
         },
         {
@@ -4361,8 +3966,8 @@
             "例如：输出中必须说明配置文件的值；由我人工判定，不自动评分"
           ],
           "lines": [
-            540,
-            557
+            543,
+            560
           ]
         },
         {
@@ -4376,7 +3981,7 @@
             "放弃 prompt 草稿"
           ],
           "lines": [
-            576
+            579
           ]
         },
         {
@@ -4390,7 +3995,7 @@
             "放弃这份 prompt 草稿（${…}）？内容将被删除（不可撤销）。"
           ],
           "lines": [
-            577
+            580
           ]
         },
         {
@@ -4405,8 +4010,8 @@
             "首个 user 消息"
           ],
           "lines": [
-            623,
-            624
+            626,
+            627
           ]
         },
         {
@@ -4420,7 +4025,7 @@
             "（未配置模型）"
           ],
           "lines": [
-            627
+            630
           ]
         },
         {
@@ -4435,12 +4040,12 @@
             "已核对，确认从头重跑"
           ],
           "lines": [
-            636,
-            649,
-            650,
-            714,
-            728,
-            729
+            639,
+            652,
+            653,
+            717,
+            731,
+            732
           ]
         },
         {
@@ -4455,9 +4060,9 @@
             "恢复原值"
           ],
           "lines": [
-            807,
-            815,
-            823
+            810,
+            818,
+            826
           ]
         }
       ]
@@ -4497,7 +4102,7 @@
             "源记录不可用：重新读取并校验通过前不能发起新执行"
           ],
           "lines": [
-            227
+            230
           ]
         },
         {
@@ -4511,7 +4116,7 @@
             "放弃工具结果草稿"
           ],
           "lines": [
-            251
+            254
           ]
         },
         {
@@ -4525,7 +4130,7 @@
             "放弃这份工具结果草稿？（run ${…} · ${…}）\n\n当前草稿内容：\n${…}\n\n放弃按确认时的修订校验：此后内容若被更新，本次放弃不会执行。"
           ],
           "lines": [
-            252
+            255
           ]
         },
         {
@@ -4540,9 +4145,9 @@
             "在此重跑（时间旅行）"
           ],
           "lines": [
-            307,
-            458,
-            675
+            310,
+            461,
+            678
           ]
         },
         {
@@ -4557,15 +4162,15 @@
             "时间旅行：从该工具调用之后重跑这一步，结果写入新分支。它不是\"恢复世界\"—— 期间真实执行过的外部调用不撤回，同轮工具的写入也不回滚。"
           ],
           "lines": [
-            311,
-            318,
-            419,
-            468,
-            470,
-            503,
-            507,
-            652,
-            662
+            314,
+            321,
+            422,
+            471,
+            473,
+            506,
+            510,
+            655,
+            665
           ]
         },
         {
@@ -4580,9 +4185,9 @@
             "在此重跑"
           ],
           "lines": [
-            332,
-            343,
-            344
+            335,
+            346,
+            347
           ]
         },
         {
@@ -4596,7 +4201,7 @@
             "重跑说明"
           ],
           "lines": [
-            347
+            350
           ]
         },
         {
@@ -4611,8 +4216,8 @@
             "以上文本将作为该工具的返回结果重新送入模型；其余上下文（prompt、工具表、此前步骤）与父 run 完全一致。"
           ],
           "lines": [
-            351,
-            352
+            354,
+            355
           ]
         },
         {
@@ -4626,7 +4231,7 @@
             "放弃工具结果草稿"
           ],
           "lines": [
-            433
+            436
           ]
         },
         {
@@ -4640,7 +4245,7 @@
             "放弃这份工具结果草稿？内容将被删除（不可撤销）。"
           ],
           "lines": [
-            434
+            437
           ]
         },
         {
@@ -4655,10 +4260,10 @@
             "（整轮续跑：该轮的其余工具不重做，同轮工具在子运行前缀中各出现一次）"
           ],
           "lines": [
-            450,
-            480,
-            503,
-            669
+            453,
+            483,
+            506,
+            672
           ]
         },
         {
@@ -4673,9 +4278,9 @@
             "编辑点"
           ],
           "lines": [
-            485,
-            493,
-            520
+            488,
+            496,
+            523
           ]
         },
         {
@@ -4689,7 +4294,7 @@
             "允许本次副本写入"
           ],
           "lines": [
-            518
+            521
           ]
         },
         {
@@ -4703,7 +4308,7 @@
             "（未配置模型）"
           ],
           "lines": [
-            544
+            547
           ]
         },
         {
@@ -4718,12 +4323,12 @@
             "已核对，确认本次续跑"
           ],
           "lines": [
-            564,
-            582,
-            583,
-            623,
-            639,
-            640
+            567,
+            585,
+            586,
+            626,
+            642,
+            643
           ]
         },
         {
@@ -4737,7 +4342,7 @@
             "还没拿到只读预检结论：先点上方「校验续跑条件」，确认要核对的就是那份结论。"
           ],
           "lines": [
-            587
+            590
           ]
         },
         {
@@ -4752,9 +4357,9 @@
             "取消"
           ],
           "lines": [
-            682,
-            693,
-            724
+            685,
+            696,
+            727
           ]
         }
       ]
@@ -5724,10 +5329,10 @@
             "正在读取父本详情…"
           ],
           "lines": [
-            69,
-            86,
-            90,
-            91
+            70,
+            87,
+            91,
+            92
           ]
         },
         {
@@ -5741,7 +5346,7 @@
             "父本详情读取失败："
           ],
           "lines": [
-            75
+            76
           ]
         },
         {
@@ -5755,7 +5360,7 @@
             "只读重试"
           ],
           "lines": [
-            81
+            82
           ]
         },
         {
@@ -5770,8 +5375,8 @@
             "以一个普通运行及其首次模型调用为父本，编排多臂参数对比。资格由门禁与 main 裁决；臂编辑与计划预览在此完成。"
           ],
           "lines": [
-            108,
-            109
+            109,
+            110
           ]
         },
         {
@@ -5786,8 +5391,8 @@
             "· 首次模型调用"
           ],
           "lines": [
-            113,
-            119
+            114,
+            120
           ]
         },
         {
@@ -5801,7 +5406,7 @@
             "父本运行 ID"
           ],
           "lines": [
-            117
+            118
           ]
         }
       ]
@@ -5828,10 +5433,10 @@
             "在编辑工作区打开"
           ],
           "lines": [
-            178,
-            188,
-            447,
-            484
+            181,
+            191,
+            450,
+            487
           ]
         },
         {
@@ -5846,10 +5451,10 @@
             "来源失效，已禁止重发：${…}"
           ],
           "lines": [
-            197,
-            202,
-            222,
-            227
+            200,
+            205,
+            225,
+            230
           ]
         },
         {
@@ -5863,7 +5468,7 @@
             "放弃 messages 重发草稿"
           ],
           "lines": [
-            243
+            246
           ]
         },
         {
@@ -5877,7 +5482,7 @@
             "放弃这份 messages 重发草稿？（run ${…} · ${…}）\n\n当前草稿内容：\n${…}\n\n放弃按确认时的修订校验：此后内容若被更新，本次放弃不会执行。"
           ],
           "lines": [
-            244
+            247
           ]
         },
         {
@@ -5892,10 +5497,10 @@
             "单请求级分叉 · 源 run 不会被修改 · 重发使用最近捕获的 key"
           ],
           "lines": [
-            258,
-            260,
-            422,
-            434
+            261,
+            263,
+            425,
+            437
           ]
         },
         {
@@ -5909,7 +5514,7 @@
             "编辑任意一条消息后重发：model / 工具表 / 采样参数与源 run 一致，仅 messages 使用编辑后的值。"
           ],
           "lines": [
-            315
+            318
           ]
         },
         {
@@ -5924,10 +5529,10 @@
             "与原值相同，请修改后再提交；未做修改的重发会被原样拒绝。"
           ],
           "lines": [
-            325,
-            335,
-            362,
-            371
+            328,
+            338,
+            365,
+            374
           ]
         },
         {
@@ -5941,7 +5546,7 @@
             "放弃 messages 重发草稿"
           ],
           "lines": [
-            347
+            350
           ]
         },
         {
@@ -5955,7 +5560,7 @@
             "放弃这份 messages 重发草稿？内容将被删除（不可撤销）。"
           ],
           "lines": [
-            348
+            351
           ]
         },
         {
@@ -5970,9 +5575,9 @@
             "已核对，确认本次重发"
           ],
           "lines": [
-            397,
-            404,
-            405
+            400,
+            407,
+            408
           ]
         },
         {
@@ -5987,11 +5592,11 @@
             "尚无修改可放弃"
           ],
           "lines": [
-            419,
-            440,
-            460,
-            477,
-            479
+            422,
+            443,
+            463,
+            480,
+            482
           ]
         }
       ]
@@ -6118,10 +5723,10 @@
             "正在读取源详情…"
           ],
           "lines": [
-            70,
-            87,
-            91,
-            92
+            71,
+            88,
+            92,
+            93
           ]
         },
         {
@@ -6135,7 +5740,7 @@
             "源详情读取失败："
           ],
           "lines": [
-            76
+            77
           ]
         },
         {
@@ -6149,7 +5754,7 @@
             "只读重试"
           ],
           "lines": [
-            82
+            83
           ]
         },
         {
@@ -6164,9 +5769,9 @@
             "单请求重发 · 不执行外部工具 · 使用本会话最近捕获的凭据"
           ],
           "lines": [
-            109,
             110,
-            111
+            111,
+            112
           ]
         },
         {
@@ -6181,8 +5786,8 @@
             "· 调用"
           ],
           "lines": [
-            115,
-            121
+            116,
+            122
           ]
         },
         {
@@ -6196,7 +5801,7 @@
             "来源运行 ID"
           ],
           "lines": [
-            119
+            120
           ]
         }
       ]
@@ -7133,8 +6738,8 @@
             "录制配置在本工作区内操作。"
           ],
           "lines": [
-            47,
-            48
+            49,
+            50
           ]
         },
         {
@@ -7148,7 +6753,7 @@
             "初始化录制配置"
           ],
           "lines": [
-            57
+            59
           ]
         },
         {
@@ -7163,8 +6768,8 @@
             "把现有 Agent 的 base_url 指到本地录制代理即可录制。配置、启停与真实监听状态在本工作区内操作。"
           ],
           "lines": [
-            96,
-            97
+            98,
+            99
           ]
         },
         {
@@ -7178,7 +6783,7 @@
             "放弃录制配置的未应用修改"
           ],
           "lines": [
-            124
+            126
           ]
         },
         {
@@ -7192,7 +6797,7 @@
             "放弃这些未应用的录制配置修改？\n\n端口：${…}\nupstream：${…}\n启用意图：${…}\n\n放弃按确认时的修订校验：此后若输入又有变化，本次放弃不会执行；放弃不调用任何配置写通道（只是回到已核"
           ],
           "lines": [
-            125
+            127
           ]
         },
         {
@@ -7207,7 +6812,7 @@
             "关"
           ],
           "lines": [
-            125
+            127
           ]
         }
       ]
@@ -8066,7 +7671,7 @@
             "运行配置有未保存修改"
           ],
           "lines": [
-            75
+            80
           ]
         },
         {
@@ -8080,7 +7685,7 @@
             "baseURL / apiKey / model 有未保存的修改。\n\n放弃会丢失这些未保存输入（含打过的密钥——它从未被写入）；已保存的配置、录制配置草稿与调试草稿不受影响。"
           ],
           "lines": [
-            77
+            82
           ]
         },
         {
@@ -8094,7 +7699,7 @@
             "放弃修改并关闭"
           ],
           "lines": [
-            78
+            83
           ]
         },
         {
@@ -8108,7 +7713,7 @@
             "继续编辑"
           ],
           "lines": [
-            79
+            84
           ]
         },
         {
@@ -8123,9 +7728,9 @@
             "已保存，但配置状态回读失败：当前不展示任何配置摘要，可只读重试回读（不会重新保存）。"
           ],
           "lines": [
-            97,
-            103,
-            107
+            102,
+            108,
+            112
           ]
         },
         {
@@ -8140,8 +7745,8 @@
             "回读仍然失败（${…}）——这是只读通道，不涉及重新保存。"
           ],
           "lines": [
-            118,
-            119
+            123,
+            124
           ]
         },
         {
@@ -8155,7 +7760,7 @@
             "清除运行配置"
           ],
           "lines": [
-            132
+            137
           ]
         },
         {
@@ -8169,7 +7774,7 @@
             "清除会删除已保存的配置：\n\n• apiKey（保存的凭据）一并删除，不可恢复\n• baseURL 与 model 回到未配置\n\n调试草稿与已有运行不受影响。"
           ],
           "lines": [
-            134
+            139
           ]
         },
         {
@@ -8183,7 +7788,7 @@
             "确认清除"
           ],
           "lines": [
-            135
+            140
           ]
         },
         {
@@ -8198,8 +7803,8 @@
             "清除失败"
           ],
           "lines": [
-            146,
-            148
+            151,
+            153
           ]
         },
         {
@@ -8213,7 +7818,7 @@
             "设置有未保存修改"
           ],
           "lines": [
-            163
+            168
           ]
         },
         {
@@ -8227,7 +7832,7 @@
             "baseURL / apiKey / model 有未保存的修改，跳转录制前需要先处理。\n\n「继续编辑」留在设置（不发生任何代理应用调用）；「放弃并跳转」丢弃未保存输入（含打过的密钥——它从未被写入）"
           ],
           "lines": [
-            165
+            170
           ]
         },
         {
@@ -8241,7 +7846,7 @@
             "放弃并跳转录制"
           ],
           "lines": [
-            166
+            171
           ]
         },
         {
@@ -8255,7 +7860,7 @@
             "继续编辑"
           ],
           "lines": [
-            167
+            172
           ]
         },
         {
@@ -8269,7 +7874,7 @@
             "运行配置"
           ],
           "lines": [
-            199
+            204
           ]
         },
         {
@@ -8284,9 +7889,9 @@
             "本地录制代理"
           ],
           "lines": [
-            204,
-            334,
-            349
+            209,
+            339,
+            354
           ]
         },
         {
@@ -8301,7 +7906,7 @@
             "尚未配置 · 重跑前必须完成"
           ],
           "lines": [
-            206
+            211
           ]
         },
         {
@@ -8315,7 +7920,7 @@
             "关闭"
           ],
           "lines": [
-            213
+            218
           ]
         },
         {
@@ -8330,7 +7935,7 @@
             "必填"
           ],
           "lines": [
-            238
+            243
           ]
         },
         {
@@ -8345,9 +7950,9 @@
             "apiKey 将经系统加密（safeStorage）后写入数据目录 settings.json。"
           ],
           "lines": [
-            260,
-            264,
-            292
+            265,
+            269,
+            297
           ]
         },
         {
@@ -8361,7 +7966,7 @@
             "只重发 settings:get 读取（不写任何东西）"
           ],
           "lines": [
-            277
+            282
           ]
         },
         {
@@ -8375,7 +7980,7 @@
             "重新读取配置状态"
           ],
           "lines": [
-            280
+            285
           ]
         },
         {
@@ -8390,9 +7995,9 @@
             "关闭"
           ],
           "lines": [
-            305,
-            313,
-            358
+            310,
+            318,
+            363
           ]
         },
         {
@@ -8407,7 +8012,7 @@
             "保存"
           ],
           "lines": [
-            323
+            328
           ]
         },
         {
@@ -8422,7 +8027,7 @@
             "已停止"
           ],
           "lines": [
-            345
+            350
           ]
         }
       ]
@@ -10510,144 +10115,6 @@
       ]
     },
     {
-      "path": "apps/desktop/src/renderer/src/lib/create-run.ts",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "创建运行",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "CREATE_RUN_MODE_LABELS.chat",
-          "role": "prop",
-          "context": "chat",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "纯对话"
-          ],
-          "lines": [
-            29
-          ]
-        },
-        {
-          "symbol": "CREATE_RUN_MODE_LABELS.isolated_files",
-          "role": "prop",
-          "context": "isolated_files",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "隔离文件运行"
-          ],
-          "lines": [
-            30
-          ]
-        },
-        {
-          "symbol": "resolveCreateRunSubmission.reason",
-          "role": "ui_prop",
-          "context": "reason",
-          "classification": "product",
-          "reason": null,
-          "count": 4,
-          "samples": [
-            "执行中：本次运行尚未结束，不能重复提交",
-            "User Message 不能为空（它同时是该 run 的标题与首条用户消息）"
-          ],
-          "lines": [
-            129,
-            136,
-            145,
-            152
-          ]
-        }
-      ]
-    },
-    {
-      "path": "apps/desktop/src/renderer/src/lib/create-workspace.ts",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "创建运行",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "workspaceViewName",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 7,
-          "samples": [
-            "运行记录",
-            "分支关系"
-          ],
-          "lines": [
-            179,
-            181,
-            183,
-            185,
-            187,
-            189,
-            191
-          ]
-        },
-        {
-          "symbol": "readingTabName",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "概览",
-            "调用步骤"
-          ],
-          "lines": [
-            199,
-            201,
-            203
-          ]
-        },
-        {
-          "symbol": "describeReturnDestination.base",
-          "role": "constant",
-          "context": "base",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "返回${…}"
-          ],
-          "lines": [
-            218
-          ]
-        },
-        {
-          "symbol": "describeReturnFallbackReason",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "本次会话没有记录来源位置（重载后来源失效），不能返回原页面。",
-            "来源运行已不在列表里，不能返回原位置。"
-          ],
-          "lines": [
-            229,
-            230
-          ]
-        }
-      ]
-    },
-    {
       "path": "apps/desktop/src/renderer/src/lib/draft-closure.ts",
       "layer": "renderer",
       "package": null,
@@ -11012,88 +10479,6 @@
           ],
           "lines": [
             76
-          ]
-        }
-      ]
-    },
-    {
-      "path": "apps/desktop/src/renderer/src/lib/entry-gate.ts",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "创建运行",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "NOTICES.not_handshaked",
-          "role": "prop",
-          "context": "not_handshaked",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "尚未与主进程确认操作状态，正在重试握手……"
-          ],
-          "lines": [
-            28
-          ]
-        },
-        {
-          "symbol": "NOTICES.communication_unknown",
-          "role": "prop",
-          "context": "communication_unknown",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "操作状态未确认（状态通道失联或返回异常）。请先核对状态，不要重复提交。"
-          ],
-          "lines": [
-            29
-          ]
-        },
-        {
-          "symbol": "NOTICES.closing",
-          "role": "prop",
-          "context": "closing",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "应用正在退出，不能发起新的执行。"
-          ],
-          "lines": [
-            30
-          ]
-        },
-        {
-          "symbol": "NOTICES.configuration_busy",
-          "role": "prop",
-          "context": "configuration_busy",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "运行配置或代理正在变更，请等这次变更结束后再执行。"
-          ],
-          "lines": [
-            31
-          ]
-        },
-        {
-          "symbol": "NOTICES.operation_running",
-          "role": "prop",
-          "context": "operation_running",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "已有操作正在执行（桌面同时只允许一个主动操作），请等它结束。"
-          ],
-          "lines": [
-            32
           ]
         }
       ]
@@ -13615,20 +13000,6 @@
       "reason": null,
       "symbols": [
         {
-          "symbol": "createReturnFactsOf.label",
-          "role": "ui_prop",
-          "context": "label",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "回到${…}"
-          ],
-          "lines": [
-            347
-          ]
-        },
-        {
           "symbol": "experimentSource.errorMessage",
           "role": "ui_prop",
           "context": "errorMessage",
@@ -13639,7 +13010,7 @@
             "父本详情数据结构校验失败：${…}"
           ],
           "lines": [
-            462
+            452
           ]
         },
         {
@@ -13653,7 +13024,7 @@
             "源详情数据结构校验失败：${…}"
           ],
           "lines": [
-            489
+            479
           ]
         }
       ]
@@ -13854,7 +13225,7 @@
           ],
           "lines": [
             742,
-            752
+            754
           ]
         },
         {
@@ -13868,7 +13239,7 @@
             "核对结果缺失：先完成只读核对（打开面板自动进行），再确认与提交"
           ],
           "lines": [
-            884
+            886
           ]
         },
         {
@@ -13882,7 +13253,7 @@
             "核对结果缺失：先完成只读核对（打开面板自动进行），再确认与提交"
           ],
           "lines": [
-            960
+            962
           ]
         }
       ]

@@ -3,10 +3,10 @@ import type { RefObject } from "react";
 import { useTranslator } from "../i18n";
 import {
   CREATE_RUN_MODES,
-  CREATE_RUN_MODE_LABELS,
   ISOLATED_TOOL_NAMES,
   ISOLATED_TOOL_PROFILE_LABEL,
   applyChosenSource,
+  createRunModeLabel,
   initialCreateRunForm,
   presentFieldErrorsOf,
   resolveCreateRunSubmission,
@@ -22,6 +22,11 @@ import type {
   CreateRunMode,
 } from "../lib/create-run";
 import type { CreateRunFormState } from "../lib/create-run";
+import {
+  describeReturnDestination,
+  describeReturnFallbackReason,
+  workspaceViewName,
+} from "../lib/create-workspace";
 import { isCreateRunDraftDirty } from "../lib/debugging-drafts";
 import { CREATE_SUBMIT_TARGET } from "../lib/draft-submission";
 import { deriveEntryGate } from "../lib/entry-gate";
@@ -164,20 +169,22 @@ export function CreateRunWorkspaceView(props: CreateRunFormViewProps) {
     lock,
     headingRef,
   } = props;
+  const translator = useTranslator();
   const isolated = mode === "isolated_files";
   // 3.4（design D5）：v1/v2、config_hash 等工程口径收进详情——可查但不占主文案位
   const [techOpen, setTechOpen] = useState(false);
 
   return (
-    <section aria-label="新建运行" className="flex min-w-0 flex-1 flex-col bg-white">
+    <section
+      aria-label={translator.t("run.createTitle")}
+      className="flex min-w-0 flex-1 flex-col bg-white"
+    >
       <div className="flex shrink-0 items-start justify-between gap-2 border-b border-gray-200 px-4 py-2">
         <div className="min-w-0">
           <h1 ref={headingRef} tabIndex={-1} className="text-sm font-semibold text-gray-800">
-            新建运行
+            {translator.t("run.createTitle")}
           </h1>
-          <div className="text-[11px] text-gray-500">
-            从头执行一个 run（无父 run、不续跑既有轨迹）
-          </div>
+          <div className="text-[11px] text-gray-500">{translator.t("run.createSubtitle")}</div>
           {props.returnReasonText !== null ? (
             <div className="mt-0.5 text-[11px] text-amber-700" data-return-fallback-reason>
               {props.returnReasonText}
@@ -201,7 +208,9 @@ export function CreateRunWorkspaceView(props: CreateRunFormViewProps) {
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-200 space-y-3 px-4 py-3">
           <div>
-            <span className="mb-1 block text-[11px] font-medium text-gray-600">运行模式</span>
+            <span className="mb-1 block text-[11px] font-medium text-gray-600">
+              {translator.t("run.modeLabel")}
+            </span>
             {/* 与运行列表的来源过滤同形：一组 aria-pressed 按钮，不额外声明 role */}
             <div className="flex items-center gap-1">
               {CREATE_RUN_MODES.map((one) => (
@@ -217,7 +226,7 @@ export function CreateRunWorkspaceView(props: CreateRunFormViewProps) {
                       : "border-gray-300 text-gray-600 hover:bg-gray-50"
                   }`}
                 >
-                  {CREATE_RUN_MODE_LABELS[one]}
+                  {createRunModeLabel(one, translator)}
                 </button>
               ))}
             </div>
@@ -227,7 +236,7 @@ export function CreateRunWorkspaceView(props: CreateRunFormViewProps) {
           <div>
             <label className="block">
               <span className="mb-0.5 block text-[11px] font-medium text-gray-600">
-                User Message（必填）
+                {translator.t("run.userMessageLabel")}
               </span>
               <textarea
                 id="create-user-message"
@@ -237,14 +246,14 @@ export function CreateRunWorkspaceView(props: CreateRunFormViewProps) {
                 }
                 value={userMessage}
                 onChange={(event) => props.onUserMessage(event.target.value)}
-                placeholder="要交给模型的任务。它会同时成为该 run 在列表中的标题。"
+                placeholder={translator.t("run.userMessagePlaceholder")}
                 spellCheck={false}
                 rows={5}
                 disabled={lock.draftFrozen}
                 className="w-full resize-y rounded border border-gray-300 px-2 py-1 font-code text-xs outline-none focus:border-blue-400 disabled:bg-gray-50"
               />
               <span className="mt-0.5 block text-[11px] text-gray-500">
-                该 run 在列表中的标题（task）即这段文字。
+                {translator.t("run.userMessageHelp")}
               </span>
             </label>
             <FieldError id="create-user-message-error" message={errors.userMessage} />
@@ -259,11 +268,19 @@ export function CreateRunWorkspaceView(props: CreateRunFormViewProps) {
                   disabled={lock.fields}
                   className="shrink-0 rounded border border-gray-300 bg-white px-2 py-1 text-[11px] text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  {lock.pickingSource ? "选择中…" : source === null ? "选择目录…" : "重新选择…"}
+                  {translator.t(
+                    lock.pickingSource
+                      ? "run.pickingSource"
+                      : source === null
+                        ? "run.chooseSource"
+                        : "run.rechooseSource",
+                  )}
                 </button>
                 <div className="min-w-0 flex-1">
                   {source === null ? (
-                    <div className="text-[11px] text-gray-500">尚未选择源目录</div>
+                    <div className="text-[11px] text-gray-500">
+                      {translator.t("run.noSourceSelected")}
+                    </div>
                   ) : (
                     <>
                       <div className="truncate text-[11px] font-medium text-gray-700">
@@ -280,13 +297,11 @@ export function CreateRunWorkspaceView(props: CreateRunFormViewProps) {
               <FieldError id="create-source-error" message={errors.source} />
 
               <ul className="list-disc space-y-0.5 pl-4 text-[11px] leading-4 text-gray-600">
+                <li>{translator.t("run.sourceCollectNote")}</li>
+                <li>{translator.t("run.sourceWritesNote")}</li>
                 <li>
-                  采集选定目录下全部受支持的普通文件（含隐藏文件）；链接、非普通文件、磁盘根与数据目录内的路径会被拒绝。
+                  {translator.t("run.sourceToolsNote", { tools: ISOLATED_TOOL_NAMES.join(" / ") })}
                 </li>
-                <li>
-                  文件内容只落入数据目录里的不可变附件，源目录不会被修改；后续分叉的写入也只落在各自的副本映射里。
-                </li>
-                <li>{ISOLATED_TOOL_NAMES.join(" / ")} 工具读出的文本会进入你配置的模型请求。</li>
               </ul>
 
               <label className="flex items-start gap-2 rounded border border-amber-200 bg-amber-50 px-2 py-1.5">
@@ -302,10 +317,8 @@ export function CreateRunWorkspaceView(props: CreateRunFormViewProps) {
                   className="mt-0.5 shrink-0"
                 />
                 <span className="text-[11px] leading-4 text-amber-900">
-                  允许本次执行的副本写入
-                  <span className="text-amber-700">
-                    （默认未选；只对这一次提交有效，重新打开或切换模式后都要重新勾选）
-                  </span>
+                  {translator.t("run.allowWrites")}
+                  <span className="text-amber-700">{translator.t("run.allowWritesNote")}</span>
                 </span>
               </label>
               <FieldError id="create-writes-error" message={errors.writesAuthorized} />
@@ -322,7 +335,9 @@ export function CreateRunWorkspaceView(props: CreateRunFormViewProps) {
           >
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="min-w-0 break-words">
-                <span className="font-medium text-gray-700">当前接入：</span>
+                <span className="font-medium text-gray-700">
+                  {translator.t("run.currentEndpoint")}
+                </span>
                 {settingsSummary}
               </span>
               <button
@@ -331,11 +346,11 @@ export function CreateRunWorkspaceView(props: CreateRunFormViewProps) {
                 data-open-settings
                 className={`shrink-0 rounded border border-gray-300 bg-white px-2 py-0.5 text-[11px] text-gray-600 hover:bg-gray-50 ${FOCUS_RING}`}
               >
-                运行配置…
+                {translator.t("run.openSettings")}
               </button>
             </div>
             <div className="mt-0.5 text-gray-500">
-              {isolated ? "隔离运行的工具读取文本同样进入该模型请求。" : "纯对话请求不带工具表。"}
+              {translator.t(isolated ? "run.isolatedModelNote" : "run.chatModelNote")}
             </div>
           </div>
 
@@ -348,7 +363,7 @@ export function CreateRunWorkspaceView(props: CreateRunFormViewProps) {
               data-advanced-toggle
               className={`w-full rounded px-2 py-1.5 text-left text-[11px] font-medium text-gray-600 hover:bg-gray-50 ${FOCUS_RING}`}
             >
-              高级：System Prompt（可选）
+              {translator.t("run.advancedSystemPrompt")}
             </button>
             {advancedOpen ? (
               <div className="border-t border-gray-200 px-2 pb-2 pt-1.5">
@@ -356,7 +371,7 @@ export function CreateRunWorkspaceView(props: CreateRunFormViewProps) {
                   id="create-system-prompt"
                   value={systemPrompt}
                   onChange={(event) => props.onSystemPrompt(event.target.value)}
-                  placeholder="例如：你是一个简洁的问答助手，用两三句话回答。"
+                  placeholder={translator.t("run.systemPromptPlaceholder")}
                   spellCheck={false}
                   rows={3}
                   disabled={lock.draftFrozen}
@@ -364,8 +379,9 @@ export function CreateRunWorkspaceView(props: CreateRunFormViewProps) {
                 />
                 {systemPrompt.trim().length === 0 ? (
                   <span className="mt-0.5 block text-[11px] text-gray-500">
-                    留空也可以：此时运行配置的校验标识按空 system 计算
-                    {isolated ? "（空 system + 固定工具组）" : ""}，仍可作为分叉与 A/B 的父本。
+                    {translator.t("run.systemPromptOptionalHint", {
+                      isolated: isolated ? translator.t("run.systemPromptEmptyIsolated") : "",
+                    })}
                   </span>
                 ) : null}
               </div>
@@ -375,21 +391,19 @@ export function CreateRunWorkspaceView(props: CreateRunFormViewProps) {
           {/* 执行范围与计费事实：提交前就地可读 */}
           <div className="rounded border-l-2 border-gray-300 bg-white px-2 py-1.5 text-[11px] leading-4 text-gray-600">
             <div>
-              <span className="font-medium text-gray-700">执行范围：</span>
+              <span className="font-medium text-gray-700">{translator.t("run.scopeLabel")}</span>
               {scopeFacts.execution}
             </div>
             <div className="mt-0.5 text-gray-500">{scopeFacts.cost}</div>
             <Disclosure
-              summary="技术说明"
+              summary={translator.t("run.techSummary")}
               expanded={techOpen}
               onToggle={() => setTechOpen((prev) => !prev)}
               controlsId="create-tech-details"
               className="mt-0.5"
             >
               <div className="px-1 pb-0.5 text-[10px] leading-4 text-gray-500">
-                纯对话产出 v1 根 run；隔离文件运行产出 v2 根 run（带检查点与初始快照，
-                第二轮起可续跑）。config_hash 是运行配置的校验标识，按 system 与工具表计算，
-                改动会使其变化。
+                {translator.t("run.techDetails")}
               </div>
             </Disclosure>
           </div>
@@ -398,20 +412,20 @@ export function CreateRunWorkspaceView(props: CreateRunFormViewProps) {
               UI 密度 3.1/3.2（design D4）：换共享确认块——关键摘要收起仍可见、
               详细边界默认收起；确认行为提醒保留在块内。 */}
           <ConfirmationBlock
-            title="核对本次提交"
+            title={translator.t("run.confirmTitle")}
             tone="gray"
             summary={props.confirmation.summary}
             rows={props.confirmation.rows}
             confirmed={props.confirmation.ready}
             confirmDisabled={props.confirmation.confirmDisabled}
             onConfirm={props.onConfirm}
-            confirmLabel="已核对，确认本次提交"
-            confirmedLabel="已确认本次提交"
+            confirmLabel={translator.t("run.confirmAccept")}
+            confirmedLabel={translator.t("run.confirmAccepted")}
             blocked={props.confirmation.blocked}
             controlsId="create-confirm-details"
           >
             <div className="border-t border-gray-100 px-2 py-1.5 text-[11px] leading-4 text-gray-500">
-              确认后才会放行创建；改任何输入、换配置或去别的页面看一眼，都要重新确认。
+              {translator.t("run.confirmHelp")}
             </div>
           </ConfirmationBlock>
 
@@ -429,13 +443,12 @@ export function CreateRunWorkspaceView(props: CreateRunFormViewProps) {
         <div className="mr-auto min-w-0 space-y-0.5">
           {lock.draftFrozen ? (
             <div className="rounded border-l-2 border-violet-400 bg-violet-50 px-2 py-1 text-[11px] leading-4 text-violet-800">
-              本次提交待处理：已按提交时的修订冻结这份表单，请求返回前不可修改、切换模式或放弃。
-              期间切运行、阅读文件、打开设置都不受影响。
+              {translator.t("run.formFrozen")}
             </div>
           ) : null}
           {lock.busy ? (
             <div className="rounded border-l-2 border-blue-400 bg-blue-50 px-2 py-1 text-[11px] leading-4 text-blue-800">
-              本次创建仍在进行中：结局与结果由上方「操作」面板核对，留在本页不会挡住它。
+              {translator.t("run.formBusy")}
             </div>
           ) : null}
         </div>
@@ -443,10 +456,10 @@ export function CreateRunWorkspaceView(props: CreateRunFormViewProps) {
           type="button"
           onClick={props.onDiscard}
           disabled={!lock.canDiscard}
-          title={lock.canDiscard ? undefined : "尚无修改可放弃"}
+          title={lock.canDiscard ? undefined : translator.t("run.noChangesToDiscard")}
           className="rounded border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          放弃填写内容
+          {translator.t("run.discardButton")}
         </button>
         <button
           type="button"
@@ -454,7 +467,9 @@ export function CreateRunWorkspaceView(props: CreateRunFormViewProps) {
           disabled={!lock.canSubmit}
           className={`rounded bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40 ${FOCUS_RING}`}
         >
-          {lock.busy ? "创建中…" : isolated ? "创建隔离运行" : "创建"}
+          {translator.t(
+            lock.busy ? "run.submitting" : isolated ? "run.submitIsolated" : "run.submitChat",
+          )}
         </button>
       </div>
     </section>
@@ -563,8 +578,16 @@ export function CreateRunWorkspace({ onOpenSettings }: { onOpenSettings: () => v
   const isolated = form.mode === "isolated_files";
 
   // 文案直接来自 store 派生事实（fallback 就近原因进页头）
-  const returnLabel = returnFacts.label;
-  const returnReasonText = returnFacts.kind === "fallback" ? returnFacts.reasonText : null;
+  const returnLabel =
+    returnFacts.kind === "restore"
+      ? describeReturnDestination(returnFacts.location, translator)
+      : translator.t("run.returnToWorkspace", {
+          view: workspaceViewName(returnFacts.view, translator),
+        });
+  const returnReasonText =
+    returnFacts.kind === "fallback"
+      ? describeReturnFallbackReason(returnFacts.reason, translator)
+      : null;
   // U3 任务 3.5：待定提交冻结整份表单（store 侧同时拒绝写入与放弃）。
   // ⚠️ U5 4.1 起它**只冻结这份表单**，不再锁整窗：切运行/去设置/返回来源都照常可用，
   // 离开时这份草稿连同冻结一起留在会话里（判据在 draft-submission，不在组件）。
@@ -573,11 +596,18 @@ export function CreateRunWorkspace({ onOpenSettings }: { onOpenSettings: () => v
   const currentConfirmationBinding = useAppStore((s) => s.currentConfirmationBinding);
   const armExecutionConfirmation = useAppStore((s) => s.armExecutionConfirmation);
   // 禁用判据与将要发出的请求同源（同一个函数），不存在两处口径漂移
-  const submission = resolveCreateRunSubmission(form, { systemPrompt, userMessage, busy });
+  const submission = resolveCreateRunSubmission(
+    form,
+    { systemPrompt, userMessage, busy },
+    translator,
+  );
   // U4 任务 4.3：入口可用性从**统一操作槽**派生（不再只看本地 in_progress）。
   // 只禁"提交"——门禁拦下属于"这次发不出去"，不该顺手把输入也锁住（那是自己那次
   // 提交在飞时草稿冻结要做的事）。
-  const gate = deriveEntryGate(useAppStore((s) => s.operations));
+  const gate = deriveEntryGate(
+    useAppStore((s) => s.operations),
+    translator,
+  );
   /**
    * U5 任务 4.4：确认门禁。**现场绑定由 store 现取**（修订与设置快照组件传不进旧值），
    * 判据在 `lib/execution-confirmation.ts`；store 的登记口在确认不成立时直接拒绝登记，
@@ -602,20 +632,25 @@ export function CreateRunWorkspace({ onOpenSettings }: { onOpenSettings: () => v
   const settingsMissing = settings === null || !settings.configured || settings.model === null;
   const settingsSummary =
     settings === null
-      ? "运行配置尚未读取"
+      ? translator.t("run.settingsNotLoaded")
       : settings.configured && settings.model !== null
-        ? `当前模型 ${settings.model}（${settings.baseURL ?? ""}）`
-        : "尚未配置运行参数：提交会被拒绝（SETTINGS_NOT_CONFIGURED）";
+        ? translator.t("run.settingsSummary", {
+            model: settings.model,
+            baseURL: settings.baseURL ?? "",
+          })
+        : translator.t("run.settingsUnconfigured");
 
   const scopeFacts = isolated
     ? {
-        execution: `隔离文件运行：只读采集所选目录，按固定 ${ISOLATED_TOOL_PROFILE_LABEL} 工具组（${ISOLATED_TOOL_NAMES.join(" / ")}）执行，副本写入需本次显式勾选；产出带检查点的隔离运行（第二轮起可作续跑与对照的父本）。`,
-        cost: "一次提交 = 一次真实模型调用（按实际用量计费），采集到的文本会进入你配置的模型请求。",
+        execution: translator.t("run.scopeIsolatedExecution", {
+          profile: ISOLATED_TOOL_PROFILE_LABEL,
+          tools: ISOLATED_TOOL_NAMES.join(" / "),
+        }),
+        cost: translator.t("run.scopeIsolatedCost"),
       }
     : {
-        execution:
-          "纯对话：不启用工具，模型只产出文本；运行配置的校验标识按 system 与工具表（此处为空）计算。",
-        cost: "一次提交 = 一次真实模型调用（按实际用量计费）。",
+        execution: translator.t("run.scopeChatExecution"),
+        cost: translator.t("run.scopeChatCost"),
       };
 
   /** 确认区展示的内容：全部由事实拼出（`lib/execution-confirmation.ts`），组件不写第二套话术 */
@@ -636,7 +671,7 @@ export function CreateRunWorkspace({ onOpenSettings }: { onOpenSettings: () => v
   const confirmBlocked = confirmed
     ? null
     : !submission.ok
-      ? "先补齐必填输入，再核对本次提交"
+      ? translator.t("run.confirmBlocked")
       : gate.canSubmit
         ? null
         : gate.notice;
@@ -661,6 +696,7 @@ export function CreateRunWorkspace({ onOpenSettings }: { onOpenSettings: () => v
       {
         createRun: (request) => createRun(request, assoc),
       },
+      translator,
     );
     // U5 任务 3.1 / 4.1：这里交出的只是**输入面**。响应返回不代表运行成功，页面也不
     // 因此收起：结局、列表与草稿清理走 store 的终态消费，是否进入新 run 的概览走导航意图。
@@ -709,9 +745,8 @@ export function CreateRunWorkspace({ onOpenSettings }: { onOpenSettings: () => v
     if (current === null || !isCreateRunDraftDirty(current)) return;
     // U3 5.2：放弃确认走真模态（异步）；CAS 按请求时的快照修订校验
     void requestConfirm({
-      title: "放弃创建草稿",
-      message:
-        "放弃本次填写的创建内容？\n\n运行模式、System Prompt 与 User Message 将全部重置（源目录选择与写入授权也一并作废）。",
+      title: translator.t("run.discardTitle"),
+      message: translator.t("run.discardMessage"),
     }).then((confirmed) => {
       if (!confirmed) return;
       // CAS 按确认请求时的修订校验：等待期间修订推进 ⇒ 放弃不执行
@@ -794,7 +829,24 @@ export function CreateRunWorkspace({ onOpenSettings }: { onOpenSettings: () => v
           被怎样对待（D4：请求诊断与持久运行结局各自一行，互不覆盖） */}
       {createRunError !== null ? (
         <div className="shrink-0 border-t border-red-200 bg-red-50 px-4 py-1.5 text-[11px] leading-4 text-red-700">
-          {createRunError}
+          <div>{translator.t("run.createFailureSummary")}</div>
+          {createRunErrorCode !== null ? (
+            <div className="font-code text-[10px] text-red-600">{createRunErrorCode}</div>
+          ) : null}
+          <details className="mt-0.5">
+            <summary className="cursor-pointer text-[10px] text-red-600">
+              {translator.t("run.createRawDetailLabel")}
+            </summary>
+            <div
+              data-create-raw-detail
+              className="mt-0.5 break-all whitespace-pre-wrap text-[10px] text-red-700"
+            >
+              {createRunError}
+            </div>
+            <div className="mt-0.5 text-[10px] text-red-500">
+              {translator.t("run.createRawDetailHint")}
+            </div>
+          </details>
         </div>
       ) : null}
     </>

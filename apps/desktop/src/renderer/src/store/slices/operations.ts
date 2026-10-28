@@ -739,7 +739,9 @@ export function createOperationsSlice({
       const envelope = await api.chooseSource();
       if (!envelope.ok) {
         set({
-          ...storeError("UI_SOURCE_CHOOSE_FAILED", `选择源目录失败：${envelope.error.message}`),
+          ...storeError("UI_SOURCE_CHOOSE_FAILED", `选择源目录失败：${envelope.error.message}`, {
+            id: "errors.sourceChooseFailed",
+          }),
         });
         return null;
       }

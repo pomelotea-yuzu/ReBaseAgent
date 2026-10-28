@@ -26,6 +26,7 @@ import { ShortIdLabel } from "./ShortIdLabel";
  *    全局选中作用域的默认门禁；凭据门禁（running/hasKey）在编辑器内部就近呈现（5.2）。
  */
 export function MessagesWorkspace() {
+  const translator = useTranslator();
   const target = useAppStore((s) => s.messagesTarget);
   const source = useAppStore((s) => s.messagesSource);
   const location = useAppStore((s) => s.messagesReturnLocation);
@@ -125,7 +126,7 @@ export function MessagesWorkspace() {
       returnAvailable={returnDecision.kind === "restore"}
       returnLabel={
         returnDecision.kind === "restore"
-          ? describeReturnDestination(returnDecision.location)
+          ? describeReturnDestination(returnDecision.location, translator)
           : undefined
       }
       returnFallback={

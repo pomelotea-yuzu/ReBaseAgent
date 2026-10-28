@@ -1,3 +1,4 @@
+import type { MessageKey, Translator } from "@rebaseagent/i18n";
 import type { OperationBlockedBy, OperationSession } from "./operation-session";
 import { deriveGate } from "./operation-session";
 
@@ -24,15 +25,15 @@ export interface EntryGate {
   readonly shouldReconcile: boolean;
 }
 
-const NOTICES: Record<OperationBlockedBy, string> = {
-  not_handshaked: "尚未与主进程确认操作状态，正在重试握手……",
-  communication_unknown: "操作状态未确认（状态通道失联或返回异常）。请先核对状态，不要重复提交。",
-  closing: "应用正在退出，不能发起新的执行。",
-  configuration_busy: "运行配置或代理正在变更，请等这次变更结束后再执行。",
-  operation_running: "已有操作正在执行（桌面同时只允许一个主动操作），请等它结束。",
+const NOTICE_KEYS: Record<OperationBlockedBy, MessageKey> = {
+  not_handshaked: "run.gateNotHandshaked",
+  communication_unknown: "run.gateCommunicationUnknown",
+  closing: "run.gateClosing",
+  configuration_busy: "run.gateConfigurationBusy",
+  operation_running: "run.gateOperationRunning",
 };
 
-export function deriveEntryGate(session: OperationSession): EntryGate {
+export function deriveEntryGate(session: OperationSession, translator: Translator): EntryGate {
   const gate = deriveGate(session);
   if (gate.blockedBy === null) {
     return {
@@ -45,7 +46,7 @@ export function deriveEntryGate(session: OperationSession): EntryGate {
   return {
     canSubmit: false,
     blockedBy: gate.blockedBy,
-    notice: NOTICES[gate.blockedBy],
+    notice: translator.t(NOTICE_KEYS[gate.blockedBy]),
     shouldReconcile: gate.blockedBy === "communication_unknown",
   };
 }
@@ -62,15 +63,12 @@ export interface ConfigGate {
   readonly notice: string | null;
 }
 
-export function deriveConfigGate(session: OperationSession): ConfigGate {
+export function deriveConfigGate(session: OperationSession, translator: Translator): ConfigGate {
   const gate = deriveGate(session);
   if (gate.blockedBy === null) return { canChange: true, notice: null };
   return {
     canChange: false,
     // 自己就是"配置变更中"那条判据的持有者 ⇒ 文案换成面向配置的说法
-    notice:
-      gate.blockedBy === "configuration_busy"
-        ? NOTICES.configuration_busy
-        : NOTICES[gate.blockedBy],
+    notice: translator.t(NOTICE_KEYS[gate.blockedBy]),
   };
 }

@@ -328,6 +328,107 @@ export const enUS = {
     reconcileButton: "Check status",
     reconcileTitle:
       "operations:reconcile({{id}}) — checks operation facts only; it reads no run files and switches no pages",
+    modeChat: "Plain chat",
+    modeIsolated: "Isolated file run",
+    createTitle: "New run",
+    createSubtitle:
+      "Runs a run from the start (no parent run, no continuation of an existing trajectory)",
+    modeLabel: "Run mode",
+    userMessageLabel: "User Message (required)",
+    userMessagePlaceholder: "The task for the model. It also becomes this run's title in the list.",
+    userMessageHelp: "This text becomes the run's title (task) in the list.",
+    pickingSource: "Choosing…",
+    chooseSource: "Choose directory…",
+    rechooseSource: "Choose again…",
+    noSourceSelected: "No source directory selected",
+    sourceCollectNote:
+      "Collects all supported regular files in the selected directory (including hidden files); links, non-regular files, disk roots, and paths inside the data directory are rejected.",
+    sourceWritesNote:
+      "File contents land only in immutable attachments under the data directory; the source directory is not modified, and later fork writes land only in each copy's mapping.",
+    sourceToolsNote: "Text read by the {{tools}} tools enters the model request you configured.",
+    allowWrites: "Allow file writes for this execution",
+    allowWritesNote:
+      "(Off by default; valid only for this submit, and you must check it again after reopening or switching modes)",
+    currentEndpoint: "Current endpoint:",
+    openSettings: "Run settings…",
+    isolatedModelNote: "Text read by isolated-run tools also enters this model request.",
+    chatModelNote: "Plain chat requests carry no tool table.",
+    advancedSystemPrompt: "Advanced: System Prompt (optional)",
+    systemPromptPlaceholder:
+      "For example: You are a concise Q&A assistant. Answer in two or three sentences.",
+    systemPromptOptionalHint:
+      "Leaving it empty is fine: the configuration fingerprint is computed with an empty system{{isolated}}, and the run can still serve as a fork or A/B parent.",
+    systemPromptEmptyIsolated: " (empty system + fixed tool set)",
+    scopeLabel: "Execution scope:",
+    techSummary: "Technical notes",
+    techDetails:
+      "Plain chat produces a v1 root run; isolated file runs produce a v2 root run (with a checkpoint and initial snapshot, and can be continued from the second turn). config_hash is the configuration fingerprint computed from system and the tool table; changing either changes it.",
+    confirmTitle: "Review this submit",
+    confirmAccept: "Reviewed — confirm this submit",
+    confirmAccepted: "This submit is confirmed",
+    confirmHelp:
+      "Creation is allowed only after confirmation; changing any input, switching configuration, or visiting another page requires confirming again.",
+    formFrozen:
+      "This submit is pending: the form is frozen at the submitted revision and cannot be edited, switched, or discarded until the request returns. Switching runs, reading files, and opening settings remain available.",
+    formBusy:
+      "This creation is still in progress: check its outcome and result from the Operations panel above; staying on this page does not block it.",
+    discardButton: "Discard entered content",
+    noChangesToDiscard: "No changes to discard",
+    submitting: "Creating…",
+    submitIsolated: "Create isolated run",
+    submitChat: "Create",
+    settingsNotLoaded: "Run configuration has not been read",
+    settingsSummary: "Current model {{model}} ({{baseURL}})",
+    settingsUnconfigured:
+      "Run parameters are not configured: the submit will be rejected (SETTINGS_NOT_CONFIGURED)",
+    scopeIsolatedExecution:
+      "Isolated file run: reads the selected directory only and executes with the fixed {{profile}} tool set ({{tools}}); file writes require an explicit check in this submit. It produces an isolated run with checkpoints (usable as a continuation and comparison parent from the second turn).",
+    scopeIsolatedCost:
+      "One submit = one real model call (billed by actual usage); collected text enters the model request you configured.",
+    scopeChatExecution:
+      "Plain chat: tools are disabled and the model produces text only; the configuration fingerprint is computed from system and the tool table (empty here).",
+    scopeChatCost: "One submit = one real model call (billed by actual usage).",
+    confirmBlocked: "Fill in the required inputs before reviewing this submit",
+    discardTitle: "Discard create draft",
+    discardMessage:
+      "Discard the content entered for this creation?\n\nRun mode, System Prompt, and User Message are all reset (the source directory choice and write authorization are discarded too).",
+    createFailureSummary:
+      "The run was not created; check the run list for any created record before retrying.",
+    createRawDetailLabel: "Original detail (returned by main)",
+    createRawDetailHint:
+      "The original detail is kept untranslated; use the stable code to interpret it.",
+    gateNotHandshaked:
+      "Operation status has not been confirmed with the main process; retrying the handshake…",
+    gateCommunicationUnknown:
+      "Operation status is unconfirmed (the status channel is unreachable or returned an error). Check status first and do not submit again.",
+    gateClosing: "The app is quitting and cannot start a new execution.",
+    gateConfigurationBusy:
+      "Run configuration or the proxy is changing; wait for it to finish before executing.",
+    gateOperationRunning:
+      "Another operation is running (the desktop allows only one active operation); wait for it to finish.",
+    submitBusy: "Running: this run has not finished, so it cannot be submitted again",
+    submitUserMessageRequired:
+      "User Message cannot be empty (it is both the run's title and its first user message)",
+    submitSourceRequired:
+      "An isolated file run requires choosing a source directory first (read-only collection; the source directory is not modified)",
+    submitWritesRequired:
+      "Check “Allow file writes for this execution” — authorization is valid only for this submit and is never restored from history",
+    returnTo: "Back to {{destination}}",
+    returnToWorkspace: "Back to {{view}}",
+    returnFallbackNoLocation:
+      "This session recorded no source location (it is lost after reload), so the original page cannot be restored.",
+    returnFallbackRunMissing:
+      "The source run is no longer in the list, so the original location cannot be restored.",
+    workspaceTrace: "Runs",
+    workspaceTree: "Branch tree",
+    workspaceCreate: "New run",
+    workspaceCompare: "Comparison",
+    workspaceRecording: "Recording",
+    workspaceExperiment: "Model experiments",
+    workspaceMessages: "Edit messages",
+    tabOverview: "Overview",
+    tabSteps: "Call steps",
+    tabFiles: "Files",
   },
   detail: {
     lineageIncomplete: "Showing only this run's records; the parent chain is incomplete",
@@ -454,6 +555,10 @@ export const enUS = {
     staleCursor: "The cursor is stale. Start a new query.",
     preparationRequired:
       "The environment has not been prepared, or its preparation record is unavailable.",
+    createRunFailed:
+      "The run was not created; check the run list for any created record before retrying.",
+    sourceChooseFailed:
+      "Could not choose the source directory. Try again or pick another directory.",
   },
   mcp: {},
   cli: {},
