@@ -6,6 +6,7 @@ import type {
   VerificationPreparePlanResult,
 } from "@shared/ipc";
 import type { OperationRecord } from "@shared/operations";
+import { useTranslator } from "../i18n";
 import type { ConfirmationRow } from "../lib/execution-confirmation";
 import { disclosureLines } from "../lib/execution-confirmation";
 import { formatBytes } from "../lib/format";
@@ -377,6 +378,7 @@ export function VerificationPanel({
   canOpenCompareDiff,
   onOpenCompareDiff,
 }: VerificationPanelProps) {
+  const translator = useTranslator();
   const prepareBlockers = blockersFor(verificationBlockers(capability), "prepare");
   const runBlockers = blockersFor(verificationBlockers(capability), "run");
   const preparing = submitting === "prepare";
@@ -494,7 +496,7 @@ export function VerificationPanel({
           <ConfirmationBlock
             title="核对环境准备"
             summary={prepareDisclosure.summary}
-            rows={disclosureLines(prepareDisclosure)}
+            rows={disclosureLines(prepareDisclosure, translator)}
             confirmed={prepareDecision.kind === "confirmed"}
             confirmDisabled={capabilityState !== "ready"}
             onConfirm={onConfirmPrepare}
@@ -541,7 +543,7 @@ export function VerificationPanel({
           <ConfirmationBlock
             title="核对固定检查执行"
             summary={runDisclosure.summary}
-            rows={disclosureLines(runDisclosure)}
+            rows={disclosureLines(runDisclosure, translator)}
             confirmed={runDecision.kind === "confirmed"}
             confirmDisabled={capabilityState !== "ready"}
             onConfirm={onConfirmRun}

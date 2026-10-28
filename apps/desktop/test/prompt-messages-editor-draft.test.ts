@@ -174,7 +174,7 @@ describe("接线契约：MessagesForkEditor 接入 messages 草稿（任务 2.2�
     expect(code).not.toContain("modelReplayRun");
     // 单请求边界措辞出自 lib 的 messagesDisclosure（组件不自己拼「这次会怎样」的句子），
     // 「只重发这一个请求 / 不执行任何外部 Agent 的工具」的判据由 execution-confirmation.test.ts 承载
-    expect(code).toContain("messagesDisclosure({");
+    expect(code).toContain("messagesDisclosure(");
     // 实际请求仍由 main 裁决：登记口执法（不成立 ⇒ null ⇒ 一次 IPC 都不发）
     expect(code).toContain("if (assoc === null) return;");
   });

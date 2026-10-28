@@ -131,11 +131,122 @@ export const zhCN = {
     activityNote:
       "「核对状态」只查操作登记（不读运行文件、不切页面）；要看内容请明确点「打开结果」。 面板关闭时结果通知仍经 polite live 区域播报，不抢当前页面。草稿不落盘，关闭应用即清空。",
     closeActivityPanel: "关闭会话活动面板",
+    truncatedPreview: "{{text}}…（共 {{count}} 字）",
+    localFieldCheck: "本地字段检查：必填项、模式与授权条件（不联网、不调用模型）",
+    checksDone: "已做的检查",
+    boundaryThisRun: "本次边界",
+    notSelected: "未选择",
+    checked: "已勾选",
+    unchecked: "未勾选",
+    fieldOldValue: "原值",
+    fieldNewValue: "新值",
+    fieldWrites: "本次副本写入",
   },
-  run: {},
+  run: {
+    createSummaryChat: "一次真实模型调用 · 按实际用量计费 · 纯对话不调用工具",
+    createSummaryIsolated: "隔离采集只读源目录 · 副本写入须本次勾选 · 真实调用按用量计费",
+    fieldTask: "任务（User Message）",
+    fieldEndpoint: "接入",
+    fieldSourceDir: "源目录",
+    fieldToolTable: "工具表",
+    systemPromptEmpty: "留空（config_hash 按空 system 计）",
+    emptyToolTable: "空（纯对话不调用工具）",
+    createLimitChatNoWorkspace: "没有目录或工作区参与：这次只发一条纯对话请求。",
+    createLimitChatNoPrecheck:
+      "没有独立的模型连通性预检：能否真的跑通由提交时 main 校验（未配置会拒绝，不消耗模型调用）。",
+    createLimitIsolatedNoPreview:
+      "没有目录采集预览接口：文件数量、体积与是否被拒绝，要到提交后才可知，这里不预告。",
+    createLimitIsolatedWrites:
+      "隔离运行按固定工具组执行，采集到的文本会进入模型请求；副本写入只落到数据目录的不可变附件。",
+  },
   detail: {},
-  fork: {},
-  experiment: {},
+  fork: {
+    cacheHint:
+      "父 run 该步使用 {{parentModel}}，当前运行配置为 {{configModel}}——前缀缓存可能不命中，计费口径可能变化（仅提示，不阻止重跑）。",
+    plainSummary: "普通续跑 · 后续新发起的工具调用会真实执行 · 父 run 不会被修改",
+    fieldParentRun: "父运行",
+    fieldEditedCall: "被改的调用",
+    fieldModelPrefix: "模型与前缀",
+    modelSameAsParent: "与父 run 该步录制的模型相同（{{model}}）",
+    modelUnknown: "父模型或当前配置未知：不据此推断一致性",
+    plainLimitNoWorld:
+      "世界不隔离：这是普通 replay 续跑——默认不复执行工具（把录下的结果喂回模型），但后续由模型新发起的工具调用会真的执行，可能有外部副作用。",
+    plainLimitNoPrecheck:
+      "没有独立的续跑条件预检接口（隔离路径才有）：这里的条件由提交时 main 复核。",
+    plainLimitParentUnchanged: "父运行与其后的步骤不会被修改；重跑产出的是一条新 run。",
+    isolatedSummary: "整轮续跑 · 本轮其余工具不重做 · 副本写入须本次勾选",
+    fieldContinueCondition: "续跑条件",
+    precheckMissing: "尚未取得只读预检结论（下面这几项要预检后才知道）",
+    fieldDirectParent: "直接父",
+    fieldLocalTurn: "本地轮号",
+    fieldTurnEndCheckpoint: "整轮结束检查点",
+    fieldContinueMode: "续跑方式",
+    fieldRealCall: "真实调用",
+    writesCheckedOneShot: "已勾选（只对这次提交有效）",
+    writesUncheckedRejected: "未勾选（隔离提交会被拒绝）",
+    precheckCheck: "只读预检 `runs:forkCapability`：不创建运行、不写文件、不请求模型",
+    isolatedLimitNoRedo:
+      "整轮续跑：这一轮的其余工具不重做（它们在子运行的前缀里各出现一次），编辑点之后的步骤由模型重新生成。",
+    isolatedLimitWrites:
+      "不撤销已经发生的写入：源目录与父 trace 都不会被改动，写入只落在本副本映射里；父 trace 上的历史授权标注不构成本次授权。",
+    isolatedLimitRights:
+      "副本写入需要本次显式勾选；重新打开编辑或换目录都要重新勾选，不从历史记录补授权。",
+    promptSummary: "从头执行新轨迹 · 真实调用模型并计费 · 父 run 只作对照",
+    fieldParentRunCompare: "父运行（只作对照）",
+    fieldStartField: "改动的启动字段",
+    promptLimitNewTrace:
+      "从头执行一条新轨迹：不复用父 run 的执行前缀，不回放任何工具结果，父 run 不会被修改。",
+    promptLimitOneField:
+      "一次只改一个启动字段（system 或首个 user），其余上下文与后续步骤都由模型重新生成。",
+    promptLimitContextRecorded:
+      "启动上下文取自该次调用录制的首个 llm.call（system + 首个 user），config_hash 随改动变化。",
+    promptLimitContextUnavailable:
+      "启动上下文无法从首次调用重建：该入口不可用，原因已就近标在入口上。",
+    messagesSummary: "只重发这一个请求 · 不执行外部工具 · 凭据用代理会话最近捕获的 key",
+    fieldTargetCall: "目标 run · 调用",
+    fieldMessages: "本次请求的 messages",
+    messagesCount: "{{count}} 条（完整替换发送，不截断）",
+    upstreamMissing: "（代理未运行，无 upstream）",
+    fieldCredentials: "凭据",
+    credsCaptured: "使用代理会话最近捕获的 key",
+    credsMissing: "未捕获 key：本次无法重发",
+    fieldModel: "模型",
+    messagesCheck:
+      "本地结构检查：messages 必须是非空 JSON 数组（不合法就就近报错、不发请求，不调用模型）",
+    messagesLimitSingle:
+      "只重发这一个请求：不执行任何外部 Agent 的工具，也不恢复它的工作区或后续步骤。",
+    messagesLimitCreds:
+      "凭据是代理会话最近捕获的那一个，可能与该 run 录制当时不同（也可能没有 ⇒ 会被拒）。",
+    messagesLimitNoConfigHash:
+      "被动录制的 run 没有自有 config_hash：它仍是可对照的轨迹，但这条路径不产生父子续跑。",
+  },
+  experiment: {
+    localBatchCheck:
+      "本地批次检查：运行配置已填、至少两臂、每臂 model 非空、参数 JSON 可解析、逐臂与父 run 不同（与父完全相同的臂会让整批被拒）",
+    abSummaryNoPlan: "尚未取得当前批次的计划（{{count}} 臂）：先校验并预览",
+    abSummaryPlan: "{{count}} 次真实模型调用 · 按臂数计费",
+    abSummarySideEffects: "{{count}} 次真实模型调用 · 按臂数计费 · 副作用工具将真实执行",
+    fieldExecutionPlan: "执行计划",
+    abPlanMissing:
+      "尚未取得当前批次的计划（{{count}} 臂）：先“校验并预览计划”，确认要核对的是计划里各臂实际生效的参数",
+    fieldExperimentGroup: "实验组",
+    abRealCalls: "{{count}} 次（每臂一次，各自落盘为独立新 run）",
+    fieldArmEffective: "臂 {{index}} 实际生效",
+    fieldSideEffectTools: "副作用工具",
+    abSideEffectsAllowed: "已放行：含副作用的工具会真实执行",
+    abSideEffectsNotAllowed: "未放行：该调用没有需要放行的副作用工具",
+    abCheckDryRun: "只读校验 `runs:modelAbPlan`（dry-run）：不联网、不写文件、不占主动执行槽",
+    abLimitPerArm:
+      "一次执行按臂数发起真实模型调用并产生费用（当前 {{count}} 臂）；各臂顺序执行，单臂失败不影响其它臂。",
+    abLimitParent: "父 run 只作对照，不会被修改；各臂各自落盘为独立新轨迹，同批共享一个实验组 ID。",
+    abLimitSideEffectWarning:
+      "⚠ 前一臂的外部副作用会改变后一臂的起点：比较结果不一定可信（该声明随实验留痕）。",
+    abLimitPlanBinding:
+      "计划与批次修订同源：改臂、改参数、改动副作用许可或修改运行配置都会作废旧计划与旧确认，须重新预览再重新确认。",
+    armLineNoParams: "（沿用父 run 的采样参数）",
+    armLineDiscarded: " · 丢弃父录值 {{values}}",
+    armLineWarnings: " · ⚠ {{keys}} 可能未生效",
+  },
   compare: {},
   files: {},
   verification: {},

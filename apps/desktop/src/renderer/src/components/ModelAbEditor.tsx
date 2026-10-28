@@ -2,6 +2,7 @@ import type { SpanLine } from "@rebaseagent/trace-sdk";
 import type { ModelAbResult, ModelArmPlan, RunDetail } from "@shared/ipc";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
+import { useTranslator } from "../i18n";
 import { isModelAbDraftDirty, newArmRowKey } from "../lib/debugging-drafts";
 import type { ModelAbDraftKey } from "../lib/debugging-drafts";
 import { captureCallDraftSource, revalidateModelAbDraftSource } from "../lib/draft-source";
@@ -137,6 +138,7 @@ export function ModelAbEditor({
   /** U8 3.1b：工作区形态常开（初始即展开、无「收起」按钮、Esc 不收起；草稿照常保留） */
   readonly alwaysOpen?: boolean;
 }) {
+  const translator = useTranslator();
   const modelAbInFlight = useAppStore((s) => s.modelAbInFlight);
   const modelAbError = useAppStore((s) => s.modelAbError);
   const modelAbErrorCode = useAppStore((s) => s.modelAbErrorCode);
@@ -687,19 +689,22 @@ export function ModelAbEditor({
        * 不把未校验的草稿文本摊开冒充计划。确认与其余入口同一份凭据、同一个执法点。
        */}
       {(() => {
-        const abConfirmDisclosure = abDisclosure({
-          parentRunId: run.meta.id,
-          atSpanId: span.id,
-          provider: settings?.baseURL ?? "（未配置 baseURL）",
-          armCount: rows.length,
-          plan: activePlan,
-        });
+        const abConfirmDisclosure = abDisclosure(
+          {
+            parentRunId: run.meta.id,
+            atSpanId: span.id,
+            provider: settings?.baseURL ?? "（未配置 baseURL）",
+            armCount: rows.length,
+            plan: activePlan,
+          },
+          translator,
+        );
         return (
           <ConfirmationBlock
             title="核对本次实验"
             tone="sky"
             summary={abConfirmDisclosure.summary}
-            rows={disclosureLines(abConfirmDisclosure)}
+            rows={disclosureLines(abConfirmDisclosure, translator)}
             confirmed={abConfirmed}
             confirmDisabled={
               inProgress || abConfirmed || activePlan === null || !canSubmit || !gate.canSubmit

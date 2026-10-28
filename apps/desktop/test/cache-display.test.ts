@@ -4,6 +4,9 @@ import type { SpanLine } from "@rebaseagent/trace-sdk";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { createTestTranslator } from "./i18n/render-with-locale";
+
+const zh = createTestTranslator("zh-CN");
 
 // DetailPanel 的 store 薄壳在 import 时就会触到 `window.api` ⇒ 桩必须先就位；
 // ESM 静态 import 会被提升，故用动态 import（同 call-detail-view.test.ts）。
@@ -229,11 +232,14 @@ describe("接线契约：llm.call 详情确实挂上缓存命中行", () => {
 
 describe("forkCacheHint：仅 tool_result 分叉在模型不一致时提示，且不拦截门禁", () => {
   it("场景⑤ tool_result 分叉 + 模型不一致 ⇒ 给出信息性提示，点名两侧模型", () => {
-    const hint = forkCacheHint({
-      kind: "tool-result",
-      parentModel: "deepseek-chat",
-      configModel: "deepseek-reasoner",
-    });
+    const hint = forkCacheHint(
+      {
+        kind: "tool-result",
+        parentModel: "deepseek-chat",
+        configModel: "deepseek-reasoner",
+      },
+      zh,
+    );
     expect(hint).not.toBeNull();
     expect(hint?.text).toContain("deepseek-chat");
     expect(hint?.text).toContain("deepseek-reasoner");
@@ -244,22 +250,28 @@ describe("forkCacheHint：仅 tool_result 分叉在模型不一致时提示，�
   });
 
   it("tool_result 分叉但模型一致 ⇒ 不提示", () => {
-    expect(forkCacheHint({ kind: "tool-result", parentModel: "m", configModel: "m" })).toBeNull();
+    expect(
+      forkCacheHint({ kind: "tool-result", parentModel: "m", configModel: "m" }, zh),
+    ).toBeNull();
   });
 
   it("场景⑥ prompt fork ⇒ 不加缓存提示（无论模型是否一致）", () => {
-    expect(forkCacheHint({ kind: "prompt", parentModel: "a", configModel: "b" })).toBeNull();
+    expect(forkCacheHint({ kind: "prompt", parentModel: "a", configModel: "b" }, zh)).toBeNull();
   });
 
   it("场景⑥ 代理 messages 分叉 ⇒ 不加缓存提示", () => {
     expect(
-      forkCacheHint({ kind: "proxy-messages", parentModel: "a", configModel: "b" }),
+      forkCacheHint({ kind: "proxy-messages", parentModel: "a", configModel: "b" }, zh),
     ).toBeNull();
   });
 
   it("未知 ≠ 不一致：任一模型为 null ⇒ 不提示", () => {
-    expect(forkCacheHint({ kind: "tool-result", parentModel: null, configModel: "m" })).toBeNull();
-    expect(forkCacheHint({ kind: "tool-result", parentModel: "m", configModel: null })).toBeNull();
+    expect(
+      forkCacheHint({ kind: "tool-result", parentModel: null, configModel: "m" }, zh),
+    ).toBeNull();
+    expect(
+      forkCacheHint({ kind: "tool-result", parentModel: "m", configModel: null }, zh),
+    ).toBeNull();
   });
 });
 
@@ -269,11 +281,14 @@ describe("forkCacheHint：仅 tool_result 分叉在模型不一致时提示，�
 
 describe("ForkCacheHintView：提示块真的渲染出来", () => {
   it("给了 hint ⇒ 渲染提示文本，并带 tool-result 锚点", () => {
-    const hint = forkCacheHint({
-      kind: "tool-result",
-      parentModel: "deepseek-chat",
-      configModel: "deepseek-reasoner",
-    });
+    const hint = forkCacheHint(
+      {
+        kind: "tool-result",
+        parentModel: "deepseek-chat",
+        configModel: "deepseek-reasoner",
+      },
+      zh,
+    );
     const markup = html(createElement(ForkCacheHintView, { hint }));
     expect(markup).toContain('data-fork-cache-hint="tool-result"');
     expect(markup).toContain("deepseek-chat");

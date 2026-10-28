@@ -3,21 +3,37 @@ import { describe, expect, it } from "vitest";
 import { CREATE_SUBMIT_TARGET } from "../src/renderer/src/lib/draft-submission";
 import type { DraftSubmitTarget } from "../src/renderer/src/lib/draft-submission";
 import {
-  abDisclosure,
+  abDisclosure as abDisclosureOf,
   armConfirmation,
   confirmationTargetKey,
-  createDisclosure,
+  createDisclosure as createDisclosureOf,
   decideConfirmation,
-  disclosureLines,
+  disclosureLines as disclosureLinesOf,
   emptyConfirmationStore,
-  messagesDisclosure,
-  promptDisclosure,
+  messagesDisclosure as messagesDisclosureOf,
+  promptDisclosure as promptDisclosureOf,
   releaseConfirmation,
-  resultIsolatedDisclosure,
-  resultPlainDisclosure,
+  resultIsolatedDisclosure as resultIsolatedDisclosureOf,
+  resultPlainDisclosure as resultPlainDisclosureOf,
   settingsStampOf,
 } from "../src/renderer/src/lib/execution-confirmation";
 import type { ConfirmationBinding } from "../src/renderer/src/lib/execution-confirmation";
+import { createTestTranslator } from "./i18n/render-with-locale";
+
+const zh = createTestTranslator("zh-CN");
+const abDisclosure = (input: Parameters<typeof abDisclosureOf>[0]) => abDisclosureOf(input, zh);
+const createDisclosure = (input: Parameters<typeof createDisclosureOf>[0]) =>
+  createDisclosureOf(input, zh);
+const messagesDisclosure = (input: Parameters<typeof messagesDisclosureOf>[0]) =>
+  messagesDisclosureOf(input, zh);
+const promptDisclosure = (input: Parameters<typeof promptDisclosureOf>[0]) =>
+  promptDisclosureOf(input, zh);
+const resultIsolatedDisclosure = (input: Parameters<typeof resultIsolatedDisclosureOf>[0]) =>
+  resultIsolatedDisclosureOf(input, zh);
+const resultPlainDisclosure = (input: Parameters<typeof resultPlainDisclosureOf>[0]) =>
+  resultPlainDisclosureOf(input, zh);
+const disclosureLines = (input: Parameters<typeof disclosureLinesOf>[0]) =>
+  disclosureLinesOf(input, zh);
 
 /**
  * U5（unify-run-execution-workflow）任务 4.4：**执行前检查与确认**的纯判据。
@@ -455,5 +471,33 @@ describe("4.7 A/B 确认使用当前预览计划", () => {
     const all = flatten(d);
     expect(all).not.toMatch(/上游连通|网络检查|已产生费用/);
     expect(d.checks.join("\n")).toContain("不联网、不写文件");
+  });
+});
+
+describe("2.2 确认构造器按当前语言输出", () => {
+  const en = createTestTranslator("en-US");
+
+  it("英文确认行独立成句，事实与边界齐全且不混中文", () => {
+    const d = resultPlainDisclosureOf(
+      {
+        parentRunId: "r_parent",
+        atSpanId: "s_05",
+        toolName: "read_file",
+        oldValue: "old",
+        newValue: "new",
+        parentModel: "m-1",
+        configModel: "m-2",
+      },
+      en,
+    );
+    const all = disclosureLinesOf(d, en)
+      .map((row) => `${row.label}=${row.value}`)
+      .join("\n");
+    expect(all).toContain("Parent run=r_parent");
+    expect(all).toContain("Original value=old");
+    expect(all).toContain("Checks performed=");
+    expect(all).toContain("Boundaries for this run=");
+    expect(all).toContain("prefix cache may miss");
+    expect(all).not.toMatch(/[\u4e00-\u9fff]/);
   });
 });

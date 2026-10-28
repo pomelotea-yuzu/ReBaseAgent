@@ -210,10 +210,10 @@ describe("4.4 接线契约：确认判据只有一份", () => {
   it("披露内容全部来自 lib（组件不自己拼「这次会怎样」的句子）", () => {
     const create = read("components/CreateRunWorkspace.tsx");
     const panel = read("components/detail/ResultForkEditor.tsx"); // refactor-renderer 2.3：result 确认面随载体
-    expect(create).toContain("createDisclosure({");
-    expect(panel).toContain("resultPlainDisclosure({");
+    expect(create).toContain("createDisclosure(");
+    expect(panel).toContain("resultPlainDisclosure(");
     // U5 4.5：隔离侧的"已做的检查 / 本次边界"也出自同一模块
-    expect(panel).toContain("resultIsolatedDisclosure({");
+    expect(panel).toContain("resultIsolatedDisclosure(");
     // 两个入口都经同一份 disclosureLines，不存在各写一套顺序
     expect(create).toContain("disclosureLines(");
     expect(panel).toContain("disclosureLines(");

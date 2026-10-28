@@ -1,6 +1,7 @@
 import type { SpanLine } from "@rebaseagent/trace-sdk";
 import type { RunDetail } from "@shared/ipc";
 import { useEffect, useMemo, useState } from "react";
+import { useTranslator } from "../i18n";
 import type { CallDraftKey } from "../lib/debugging-drafts";
 import { captureCallDraftSource, revalidateCallDraftSource } from "../lib/draft-source";
 import { deriveEntryGate } from "../lib/entry-gate";
@@ -46,6 +47,7 @@ export function MessagesForkEditor({
   readonly sourceExecutable?: boolean;
   readonly alwaysOpen?: boolean;
 }) {
+  const translator = useTranslator();
   const forking = useAppStore((s) => s.forking);
   const forkError = useAppStore((s) => s.forkError);
   const forkErrorCode = useAppStore((s) => s.forkErrorCode);
@@ -378,21 +380,24 @@ export function MessagesForkEditor({
        * 详细边界（facts/checks/limits 全表）收进共享 Disclosure；提交按钮行紧随其下。
        */}
       {(() => {
-        const disclosure = messagesDisclosure({
-          parentRunId: run.meta.id,
-          atSpanId: span.id,
-          messageCount: span.request.messages.length,
-          modelSummary: span.request.model,
-          keyCaptured: proxy?.hasKey === true,
-          upstream: proxy?.running === true ? proxy.upstreamBaseUrl : null,
-          ineligible: ineligibleReason,
-        });
+        const disclosure = messagesDisclosure(
+          {
+            parentRunId: run.meta.id,
+            atSpanId: span.id,
+            messageCount: span.request.messages.length,
+            modelSummary: span.request.model,
+            keyCaptured: proxy?.hasKey === true,
+            upstream: proxy?.running === true ? proxy.upstreamBaseUrl : null,
+            ineligible: ineligibleReason,
+          },
+          translator,
+        );
         return (
           <ConfirmationBlock
             title="核对本次重发"
             tone="sky"
             summary={disclosure.summary}
-            rows={disclosureLines(disclosure)}
+            rows={disclosureLines(disclosure, translator)}
             confirmed={messagesConfirmed}
             confirmDisabled={inProgress || ineligible !== null}
             onConfirm={() => armExecutionConfirmation(messagesBinding)}

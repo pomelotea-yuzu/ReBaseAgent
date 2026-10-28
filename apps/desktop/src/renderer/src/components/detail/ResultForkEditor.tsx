@@ -2,6 +2,7 @@ import type { SpanLine } from "@rebaseagent/trace-sdk";
 import { findStepLlm } from "@shared/derive";
 import type { ForkCapabilityResult, RunDetail } from "@shared/ipc";
 import { useEffect, useMemo, useState } from "react";
+import { useTranslator } from "../../i18n";
 import type { CallDraftKey } from "../../lib/debugging-drafts";
 import { captureCallDraftSource, revalidateCallDraftSource } from "../../lib/draft-source";
 import { deriveEntryGate } from "../../lib/entry-gate";
@@ -68,6 +69,7 @@ export function ForkEditor({
   span: Extract<SpanLine, { kind: "tool.invoke" }>;
   run: RunDetail;
 }) {
+  const translator = useTranslator();
   const forking = useAppStore((s) => s.forking);
   const forkError = useAppStore((s) => s.forkError);
   const forkErrorCode = useAppStore((s) => s.forkErrorCode);
@@ -138,7 +140,7 @@ export function ForkEditor({
   const configModel = settings?.model ?? null;
   // 只有 tool_result 分叉共享前缀，缓存提示才有意义（prompt fork / 代理 messages 分叉不加）。
   // 判据与文案都在 lib 纯函数里，本组件只负责"说不说这句话"。
-  const cacheHint = forkCacheHint({ kind: "tool-result", parentModel, configModel });
+  const cacheHint = forkCacheHint({ kind: "tool-result", parentModel, configModel }, translator);
 
   const original = toolMessageText(span);
   // 草稿条目已登记（正常打开路径必经 ensure）⇒ 读草稿；未登记（未点开过）⇒ 退回原值。
@@ -534,32 +536,35 @@ export function ForkEditor({
            *（"事实"与"结论"两处都由 `lib/execution-confirmation.ts` 生成，顺序与措辞不同处不写第二份。）
            */}
           {(() => {
-            const isolatedDisclosure = resultIsolatedDisclosure({
-              toolName: span.kind === "tool.invoke" ? span.tool : null,
-              oldValue: original,
-              newValue: value,
-              modelSummary: `${settings?.model ?? "（未配置模型）"}${
-                settings?.baseURL ? ` @ ${settings.baseURL}` : ""
-              }`,
-              writesAuthorized,
-              precheck:
-                capability === null
-                  ? null
-                  : {
-                      parentId: capability.parentId,
-                      stepSpanId: capability.stepSpanId,
-                      atSpanId: capability.atSpanId,
-                      checkpointLabel: isolatedCheckpointLabel(capability),
-                      continueLabel: isolatedContinueLabel(capability),
-                      configHash: capability.configHash,
-                    },
-            });
+            const isolatedDisclosure = resultIsolatedDisclosure(
+              {
+                toolName: span.kind === "tool.invoke" ? span.tool : null,
+                oldValue: original,
+                newValue: value,
+                modelSummary: `${settings?.model ?? "（未配置模型）"}${
+                  settings?.baseURL ? ` @ ${settings.baseURL}` : ""
+                }`,
+                writesAuthorized,
+                precheck:
+                  capability === null
+                    ? null
+                    : {
+                        parentId: capability.parentId,
+                        stepSpanId: capability.stepSpanId,
+                        atSpanId: capability.atSpanId,
+                        checkpointLabel: isolatedCheckpointLabel(capability),
+                        continueLabel: isolatedContinueLabel(capability),
+                        configHash: capability.configHash,
+                      },
+              },
+              translator,
+            );
             return (
               <ConfirmationBlock
                 title="核对本次续跑"
                 tone="violet"
                 summary={isolatedDisclosure.summary}
-                rows={disclosureLines(isolatedDisclosure)}
+                rows={disclosureLines(isolatedDisclosure, translator)}
                 confirmed={executionConfirmed}
                 confirmDisabled={
                   inProgress ||
@@ -601,21 +606,24 @@ export function ForkEditor({
            * facts/checks/limits 全表默认收进详情。
            */
           (() => {
-            const plainDisclosure = resultPlainDisclosure({
-              parentRunId: run.meta.id,
-              atSpanId: span.id,
-              toolName: span.tool,
-              oldValue: original,
-              newValue: value,
-              parentModel,
-              configModel,
-            });
+            const plainDisclosure = resultPlainDisclosure(
+              {
+                parentRunId: run.meta.id,
+                atSpanId: span.id,
+                toolName: span.tool,
+                oldValue: original,
+                newValue: value,
+                parentModel,
+                configModel,
+              },
+              translator,
+            );
             return (
               <ConfirmationBlock
                 title="核对本次重跑"
                 tone="gray"
                 summary={plainDisclosure.summary}
-                rows={disclosureLines(plainDisclosure)}
+                rows={disclosureLines(plainDisclosure, translator)}
                 confirmed={executionConfirmed}
                 confirmDisabled={
                   inProgress ||

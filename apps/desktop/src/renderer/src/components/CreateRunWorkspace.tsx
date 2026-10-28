@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
+import { useTranslator } from "../i18n";
 import {
   CREATE_RUN_MODES,
   CREATE_RUN_MODE_LABELS,
@@ -468,6 +469,7 @@ export function CreateRunWorkspaceView(props: CreateRunFormViewProps) {
  * 组件不自建第二份设置状态。
  */
 export function CreateRunWorkspace({ onOpenSettings }: { onOpenSettings: () => void }) {
+  const translator = useTranslator();
   /**
    * U3 任务 2.3：模式 / System Prompt / User Message 由**会话创建草稿**驱动
    * （design D1/D3：离开再回来恢复；切模式保留文本；显式放弃才重置整份表单）。
@@ -617,15 +619,18 @@ export function CreateRunWorkspace({ onOpenSettings }: { onOpenSettings: () => v
       };
 
   /** 确认区展示的内容：全部由事实拼出（`lib/execution-confirmation.ts`），组件不写第二套话术 */
-  const confirmationDisclosure = createDisclosure({
-    mode: form.mode,
-    systemPrompt,
-    userMessage,
-    modelSummary: settingsSummary,
-    sourcePath: form.source?.path ?? null,
-    writesAuthorized: form.writesAuthorized,
-  });
-  const confirmationRows = disclosureLines(confirmationDisclosure);
+  const confirmationDisclosure = createDisclosure(
+    {
+      mode: form.mode,
+      systemPrompt,
+      userMessage,
+      modelSummary: settingsSummary,
+      sourcePath: form.source?.path ?? null,
+      writesAuthorized: form.writesAuthorized,
+    },
+    translator,
+  );
+  const confirmationRows = disclosureLines(confirmationDisclosure, translator);
   // 4.1：确认按钮只在**执行性**原因下禁用（门禁）；输入缺项可点——点击即「尝试核对」，
   // 就近错误随之出现（store 的登记口仍会拒绝不成立的确认，这里先行拦截保证零 IPC）。
   const confirmBlocked = confirmed

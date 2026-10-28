@@ -17,6 +17,8 @@
  *      时**不给提示**——凭空说“可能不命中”是把“不知道”说成“有风险”。
  */
 
+import type { Translator } from "@rebaseagent/i18n";
+
 /** 分叉形态；只有 `"tool-result"` 共享前缀，缓存提示才有意义 */
 export type ForkKind = "tool-result" | "prompt" | "proxy-messages";
 
@@ -43,7 +45,10 @@ export interface ForkCacheHint {
 /**
  * 算出该分叉入口要不要给缓存提示；`null` = 不给（形态不符 / 模型一致 / 任一未知）。
  */
-export function forkCacheHint(input: ForkCacheHintInput): ForkCacheHint | null {
+export function forkCacheHint(
+  input: ForkCacheHintInput,
+  translator: Translator,
+): ForkCacheHint | null {
   // 只有 tool_result 分叉共享父前缀：其它形态（prompt fork / 代理 messages）根本不
   // 沿用父上下文，谈"前缀缓存"是无意义的——spec 明令不加此提示。
   if (input.kind !== "tool-result") return null;
@@ -54,7 +59,10 @@ export function forkCacheHint(input: ForkCacheHintInput): ForkCacheHint | null {
   return {
     parentModel: input.parentModel,
     configModel: input.configModel,
-    text: `父 run 该步使用 ${input.parentModel}，当前运行配置为 ${input.configModel}——前缀缓存可能不命中，计费口径可能变化（仅提示，不阻止重跑）。`,
+    text: translator.t("fork.cacheHint", {
+      parentModel: input.parentModel,
+      configModel: input.configModel,
+    }),
     informational: true,
   };
 }

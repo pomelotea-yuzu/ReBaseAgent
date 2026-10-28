@@ -1,3 +1,4 @@
+import type { Translator } from "@rebaseagent/i18n";
 import type { ModelAbResult, ModelArmPlan, ProxyState, SettingsState } from "@shared/ipc";
 import type { DraftSubmitChannel, DraftSubmitTarget } from "./draft-submission";
 import { submissionIdOf } from "./draft-submission";
@@ -234,21 +235,11 @@ export interface ConfirmationDisclosure {
 }
 
 /** 截断长文本用于确认行（确认要的是"是哪一条"，不是全文复读） */
-function preview(text: string, max = 60): string {
+function preview(text: string, translator: Translator, max = 60): string {
   const flat = text.replace(/\s+/g, " ").trim();
   if (flat.length <= max) return flat;
-  return `${flat.slice(0, max)}…（共 ${flat.length} 字）`;
+  return translator.t("common.truncatedPreview", { text: flat.slice(0, max), count: flat.length });
 }
-
-/** 本地字段检查的措辞：只说做了的事 */
-const LOCAL_FIELD_CHECK = "本地字段检查：必填项、模式与授权条件（不联网、不调用模型）";
-
-/**
- * A/B 的本地批次检查（`modelAbGuard` 的真实判据，逐臂粒度）——dry-run 之外唯一
- * 在渲染层确实做过的事，所以计划缺失时它也要显示。
- */
-const AB_LOCAL_CHECK =
-  "本地批次检查：运行配置已填、至少两臂、每臂 model 非空、参数 JSON 可解析、逐臂与父 run 不同（与父完全相同的臂会让整批被拒）";
 
 export interface CreateDisclosureInput {
   readonly mode: "chat" | "isolated_files";
@@ -260,38 +251,50 @@ export interface CreateDisclosureInput {
 }
 
 /** 创建入口（普通与隔离同一函数：差异全部由入参表达，不在组件里分叉两套话术） */
-export function createDisclosure(input: CreateDisclosureInput): ConfirmationDisclosure {
+export function createDisclosure(
+  input: CreateDisclosureInput,
+  translator: Translator,
+): ConfirmationDisclosure {
   const isolated = input.mode === "isolated_files";
   return {
-    summary: isolated
-      ? "隔离采集只读源目录 · 副本写入须本次勾选 · 真实调用按用量计费"
-      : "一次真实模型调用 · 按实际用量计费 · 纯对话不调用工具",
+    summary: translator.t(isolated ? "run.createSummaryIsolated" : "run.createSummaryChat"),
     facts: [
-      { label: "任务（User Message）", value: preview(input.userMessage) },
+      { label: translator.t("run.fieldTask"), value: preview(input.userMessage, translator) },
       {
         label: "System Prompt",
         value:
           input.systemPrompt.trim().length === 0
-            ? "留空（config_hash 按空 system 计）"
-            : preview(input.systemPrompt),
+            ? translator.t("run.systemPromptEmpty")
+            : preview(input.systemPrompt, translator),
       },
-      { label: "接入", value: input.modelSummary },
+      { label: translator.t("run.fieldEndpoint"), value: input.modelSummary },
       ...(isolated
         ? [
-            { label: "源目录", value: input.sourcePath ?? "未选择" },
-            { label: "本次副本写入", value: input.writesAuthorized ? "已勾选" : "未勾选" },
+            {
+              label: translator.t("run.fieldSourceDir"),
+              value: input.sourcePath ?? translator.t("common.notSelected"),
+            },
+            {
+              label: translator.t("common.fieldWrites"),
+              value: translator.t(input.writesAuthorized ? "common.checked" : "common.unchecked"),
+            },
           ]
-        : [{ label: "工具表", value: "空（纯对话不调用工具）" }]),
+        : [
+            {
+              label: translator.t("run.fieldToolTable"),
+              value: translator.t("run.emptyToolTable"),
+            },
+          ]),
     ],
-    checks: [LOCAL_FIELD_CHECK],
+    checks: [translator.t("common.localFieldCheck")],
     limits: isolated
       ? [
-          "没有目录采集预览接口：文件数量、体积与是否被拒绝，要到提交后才可知，这里不预告。",
-          "隔离运行按固定工具组执行，采集到的文本会进入模型请求；副本写入只落到数据目录的不可变附件。",
+          translator.t("run.createLimitIsolatedNoPreview"),
+          translator.t("run.createLimitIsolatedWrites"),
         ]
       : [
-          "没有目录或工作区参与：这次只发一条纯对话请求。",
-          "没有独立的模型连通性预检：能否真的跑通由提交时 main 校验（未配置会拒绝，不消耗模型调用）。",
+          translator.t("run.createLimitChatNoWorkspace"),
+          translator.t("run.createLimitChatNoPrecheck"),
         ],
   };
 }
@@ -315,37 +318,43 @@ export interface ResultDisclosureInput {
  * 模型那一行复用 `lib/fork-cache-hint.ts` 的既有判据（未知 ≠ 不一致），
  * 不在这里另算一套"一致性"结论。
  */
-export function resultPlainDisclosure(input: ResultDisclosureInput): ConfirmationDisclosure {
-  const hint = forkCacheHint({
-    kind: "tool-result",
-    parentModel: input.parentModel,
-    configModel: input.configModel,
-  });
+export function resultPlainDisclosure(
+  input: ResultDisclosureInput,
+  translator: Translator,
+): ConfirmationDisclosure {
+  const hint = forkCacheHint(
+    {
+      kind: "tool-result",
+      parentModel: input.parentModel,
+      configModel: input.configModel,
+    },
+    translator,
+  );
   return {
-    summary: "普通续跑 · 后续新发起的工具调用会真实执行 · 父 run 不会被修改",
+    summary: translator.t("fork.plainSummary"),
     facts: [
-      { label: "父运行", value: input.parentRunId },
+      { label: translator.t("fork.fieldParentRun"), value: input.parentRunId },
       {
-        label: "被改的调用",
+        label: translator.t("fork.fieldEditedCall"),
         value: input.toolName === null ? input.atSpanId : `${input.toolName} · ${input.atSpanId}`,
       },
-      { label: "原值", value: preview(input.oldValue) },
-      { label: "新值", value: preview(input.newValue) },
+      { label: translator.t("common.fieldOldValue"), value: preview(input.oldValue, translator) },
+      { label: translator.t("common.fieldNewValue"), value: preview(input.newValue, translator) },
       {
-        label: "模型与前缀",
+        label: translator.t("fork.fieldModelPrefix"),
         value:
           hint === null
             ? input.parentModel !== null && input.parentModel === input.configModel
-              ? `与父 run 该步录制的模型相同（${input.parentModel}）`
-              : "父模型或当前配置未知：不据此推断一致性"
+              ? translator.t("fork.modelSameAsParent", { model: input.parentModel })
+              : translator.t("fork.modelUnknown")
             : hint.text,
       },
     ],
-    checks: [LOCAL_FIELD_CHECK],
+    checks: [translator.t("common.localFieldCheck")],
     limits: [
-      "世界不隔离：这是普通 replay 续跑——默认不复执行工具（把录下的结果喂回模型），但后续由模型新发起的工具调用会真的执行，可能有外部副作用。",
-      "没有独立的续跑条件预检接口（隔离路径才有）：这里的条件由提交时 main 复核。",
-      "父运行与其后的步骤不会被修改；重跑产出的是一条新 run。",
+      translator.t("fork.plainLimitNoWorld"),
+      translator.t("fork.plainLimitNoPrecheck"),
+      translator.t("fork.plainLimitParentUnchanged"),
     ],
   };
 }
@@ -382,43 +391,51 @@ export interface IsolatedResultDisclosureInput {
  */
 export function resultIsolatedDisclosure(
   input: IsolatedResultDisclosureInput,
+  translator: Translator,
 ): ConfirmationDisclosure {
   const pre = input.precheck;
   return {
-    summary: "整轮续跑 · 本轮其余工具不重做 · 副本写入须本次勾选",
+    summary: translator.t("fork.isolatedSummary"),
     facts: [
       {
-        label: "被改的调用",
+        label: translator.t("fork.fieldEditedCall"),
         value:
           input.toolName === null
             ? (pre?.atSpanId ?? "-")
             : `${input.toolName} · ${pre?.atSpanId ?? "-"}`,
       },
-      { label: "原值", value: preview(input.oldValue) },
-      { label: "新值", value: preview(input.newValue) },
+      { label: translator.t("common.fieldOldValue"), value: preview(input.oldValue, translator) },
+      { label: translator.t("common.fieldNewValue"), value: preview(input.newValue, translator) },
       ...(pre === null
-        ? [{ label: "续跑条件", value: "尚未取得只读预检结论（下面这几项要预检后才知道）" }]
+        ? [
+            {
+              label: translator.t("fork.fieldContinueCondition"),
+              value: translator.t("fork.precheckMissing"),
+            },
+          ]
         : [
-            { label: "直接父", value: pre.parentId },
-            { label: "本地轮号", value: pre.stepSpanId },
-            { label: "整轮结束检查点", value: pre.checkpointLabel },
-            { label: "续跑方式", value: pre.continueLabel },
+            { label: translator.t("fork.fieldDirectParent"), value: pre.parentId },
+            { label: translator.t("fork.fieldLocalTurn"), value: pre.stepSpanId },
+            { label: translator.t("fork.fieldTurnEndCheckpoint"), value: pre.checkpointLabel },
+            { label: translator.t("fork.fieldContinueMode"), value: pre.continueLabel },
             { label: "config_hash", value: pre.configHash },
-            { label: "真实调用", value: input.modelSummary },
+            { label: translator.t("fork.fieldRealCall"), value: input.modelSummary },
           ]),
       {
-        label: "本次副本写入",
-        value: input.writesAuthorized ? "已勾选（只对这次提交有效）" : "未勾选（隔离提交会被拒绝）",
+        label: translator.t("common.fieldWrites"),
+        value: translator.t(
+          input.writesAuthorized ? "fork.writesCheckedOneShot" : "fork.writesUncheckedRejected",
+        ),
       },
     ],
     checks:
       pre === null
-        ? [LOCAL_FIELD_CHECK]
-        : [LOCAL_FIELD_CHECK, "只读预检 `runs:forkCapability`：不创建运行、不写文件、不请求模型"],
+        ? [translator.t("common.localFieldCheck")]
+        : [translator.t("common.localFieldCheck"), translator.t("fork.precheckCheck")],
     limits: [
-      "整轮续跑：这一轮的其余工具不重做（它们在子运行的前缀里各出现一次），编辑点之后的步骤由模型重新生成。",
-      "不撤销已经发生的写入：源目录与父 trace 都不会被改动，写入只落在本副本映射里；父 trace 上的历史授权标注不构成本次授权。",
-      "副本写入需要本次显式勾选；重新打开编辑或换目录都要重新勾选，不从历史记录补授权。",
+      translator.t("fork.isolatedLimitNoRedo"),
+      translator.t("fork.isolatedLimitWrites"),
+      translator.t("fork.isolatedLimitRights"),
     ],
   };
 }
@@ -438,23 +455,28 @@ export interface PromptDisclosureInput {
  * prompt fork 的确认（U5 任务 4.6）：**从头执行**是它全部语义，措辞不得让人以为
  * 在续跑父 run 的世界（delta 场景「prompt 与 messages 不冒充续跑完整世界」）。
  */
-export function promptDisclosure(input: PromptDisclosureInput): ConfirmationDisclosure {
+export function promptDisclosure(
+  input: PromptDisclosureInput,
+  translator: Translator,
+): ConfirmationDisclosure {
   return {
-    summary: "从头执行新轨迹 · 真实调用模型并计费 · 父 run 只作对照",
+    summary: translator.t("fork.promptSummary"),
     facts: [
-      { label: "父运行（只作对照）", value: input.parentRunId },
-      { label: "改动的启动字段", value: input.fieldLabel },
-      { label: "原值", value: preview(input.oldValue) },
-      { label: "新值", value: preview(input.newValue) },
-      { label: "真实调用", value: input.modelSummary },
+      { label: translator.t("fork.fieldParentRunCompare"), value: input.parentRunId },
+      { label: translator.t("fork.fieldStartField"), value: input.fieldLabel },
+      { label: translator.t("common.fieldOldValue"), value: preview(input.oldValue, translator) },
+      { label: translator.t("common.fieldNewValue"), value: preview(input.newValue, translator) },
+      { label: translator.t("fork.fieldRealCall"), value: input.modelSummary },
     ],
-    checks: [LOCAL_FIELD_CHECK],
+    checks: [translator.t("common.localFieldCheck")],
     limits: [
-      "从头执行一条新轨迹：不复用父 run 的执行前缀，不回放任何工具结果，父 run 不会被修改。",
-      "一次只改一个启动字段（system 或首个 user），其余上下文与后续步骤都由模型重新生成。",
-      input.rebuildable
-        ? "启动上下文取自该次调用录制的首个 llm.call（system + 首个 user），config_hash 随改动变化。"
-        : "启动上下文无法从首次调用重建：该入口不可用，原因已就近标在入口上。",
+      translator.t("fork.promptLimitNewTrace"),
+      translator.t("fork.promptLimitOneField"),
+      translator.t(
+        input.rebuildable
+          ? "fork.promptLimitContextRecorded"
+          : "fork.promptLimitContextUnavailable",
+      ),
     ],
   };
 }
@@ -475,26 +497,33 @@ export interface MessagesDisclosureInput {
  * 代理 messages 单请求重发的确认（U5 任务 4.6）：说的是"**这一个请求**重发一次"，
  * 不得读成"把那个外部 Agent 接着跑完"——它不执行外部工具，也不恢复其工作区。
  */
-export function messagesDisclosure(input: MessagesDisclosureInput): ConfirmationDisclosure {
+export function messagesDisclosure(
+  input: MessagesDisclosureInput,
+  translator: Translator,
+): ConfirmationDisclosure {
   return {
-    summary: "只重发这一个请求 · 不执行外部工具 · 凭据用代理会话最近捕获的 key",
+    summary: translator.t("fork.messagesSummary"),
     facts: [
-      { label: "目标 run · 调用", value: `${input.parentRunId} · ${input.atSpanId}` },
-      { label: "本次请求的 messages", value: `${input.messageCount} 条（完整替换发送，不截断）` },
-      { label: "upstream", value: input.upstream ?? "（代理未运行，无 upstream）" },
       {
-        label: "凭据",
-        value: input.keyCaptured ? "使用代理会话最近捕获的 key" : "未捕获 key：本次无法重发",
+        label: translator.t("fork.fieldTargetCall"),
+        value: `${input.parentRunId} · ${input.atSpanId}`,
       },
-      { label: "模型", value: input.modelSummary },
+      {
+        label: translator.t("fork.fieldMessages"),
+        value: translator.t("fork.messagesCount", { count: input.messageCount }),
+      },
+      { label: "upstream", value: input.upstream ?? translator.t("fork.upstreamMissing") },
+      {
+        label: translator.t("fork.fieldCredentials"),
+        value: translator.t(input.keyCaptured ? "fork.credsCaptured" : "fork.credsMissing"),
+      },
+      { label: translator.t("fork.fieldModel"), value: input.modelSummary },
     ],
-    checks: [
-      "本地结构检查：messages 必须是非空 JSON 数组（不合法就就近报错、不发请求，不调用模型）",
-    ],
+    checks: [translator.t("fork.messagesCheck")],
     limits: [
-      "只重发这一个请求：不执行任何外部 Agent 的工具，也不恢复它的工作区或后续步骤。",
-      "凭据是代理会话最近捕获的那一个，可能与该 run 录制当时不同（也可能没有 ⇒ 会被拒）。",
-      "被动录制的 run 没有自有 config_hash：它仍是可对照的轨迹，但这条路径不产生父子续跑。",
+      translator.t("fork.messagesLimitSingle"),
+      translator.t("fork.messagesLimitCreds"),
+      translator.t("fork.messagesLimitNoConfigHash"),
     ],
   };
 }
@@ -517,80 +546,103 @@ export interface AbDisclosureInput {
  * 只说缺的是什么。把未校验的草稿文本摊开当"已核对的计划"看，正是这条路径最容易骗人的地方：
  * 草稿里的 params 还要经过解析、与父 params 合并、丢弃无效项，最终生效的是 `plan.params`。
  */
-export function abDisclosure(input: AbDisclosureInput): ConfirmationDisclosure {
+export function abDisclosure(
+  input: AbDisclosureInput,
+  translator: Translator,
+): ConfirmationDisclosure {
   const plan = input.plan;
   return {
     summary:
       plan === null
-        ? `尚未取得当前批次的计划（${input.armCount} 臂）：先校验并预览`
-        : `${plan.plan.length} 次真实模型调用 · 按臂数计费${
-            plan.sideEffectsAllowed ? " · 副作用工具将真实执行" : ""
-          }`,
+        ? translator.t("experiment.abSummaryNoPlan", { count: input.armCount })
+        : plan.sideEffectsAllowed
+          ? translator.t("experiment.abSummarySideEffects", { count: plan.plan.length })
+          : translator.t("experiment.abSummaryPlan", { count: plan.plan.length }),
     facts:
       plan === null
         ? [
-            { label: "目标 run · 调用", value: `${input.parentRunId} · ${input.atSpanId}` },
-            { label: "接入", value: input.provider },
             {
-              label: "执行计划",
-              value: `尚未取得当前批次的计划（${input.armCount} 臂）：先“校验并预览计划”，确认要核对的是计划里各臂实际生效的参数`,
+              label: translator.t("fork.fieldTargetCall"),
+              value: `${input.parentRunId} · ${input.atSpanId}`,
+            },
+            { label: translator.t("run.fieldEndpoint"), value: input.provider },
+            {
+              label: translator.t("experiment.fieldExecutionPlan"),
+              value: translator.t("experiment.abPlanMissing", { count: input.armCount }),
             },
           ]
         : [
-            { label: "目标 run · 调用", value: `${input.parentRunId} · ${input.atSpanId}` },
-            { label: "接入", value: input.provider },
-            { label: "实验组", value: plan.experimentId },
             {
-              label: "真实调用",
-              value: `${plan.plan.length} 次（每臂一次，各自落盘为独立新 run）`,
+              label: translator.t("fork.fieldTargetCall"),
+              value: `${input.parentRunId} · ${input.atSpanId}`,
+            },
+            { label: translator.t("run.fieldEndpoint"), value: input.provider },
+            { label: translator.t("experiment.fieldExperimentGroup"), value: plan.experimentId },
+            {
+              label: translator.t("fork.fieldRealCall"),
+              value: translator.t("experiment.abRealCalls", { count: plan.plan.length }),
             },
             ...plan.plan.map(
               (arm): ConfirmationRow => ({
-                label: `臂 ${arm.index + 1} 实际生效`,
-                value: armPlanLine(arm),
+                label: translator.t("experiment.fieldArmEffective", { index: arm.index + 1 }),
+                value: armPlanLine(arm, translator),
               }),
             ),
             {
-              label: "副作用工具",
-              value: plan.sideEffectsAllowed
-                ? "已放行：含副作用的工具会真实执行"
-                : "未放行：该调用没有需要放行的副作用工具",
+              label: translator.t("experiment.fieldSideEffectTools"),
+              value: translator.t(
+                plan.sideEffectsAllowed
+                  ? "experiment.abSideEffectsAllowed"
+                  : "experiment.abSideEffectsNotAllowed",
+              ),
             },
           ],
     checks:
       plan === null
-        ? [AB_LOCAL_CHECK]
-        : [
-            AB_LOCAL_CHECK,
-            "只读校验 `runs:modelAbPlan`（dry-run）：不联网、不写文件、不占主动执行槽",
-          ],
+        ? [translator.t("experiment.localBatchCheck")]
+        : [translator.t("experiment.localBatchCheck"), translator.t("experiment.abCheckDryRun")],
     limits: [
-      `一次执行按臂数发起真实模型调用并产生费用（当前 ${input.armCount} 臂）；各臂顺序执行，单臂失败不影响其它臂。`,
-      "父 run 只作对照，不会被修改；各臂各自落盘为独立新轨迹，同批共享一个实验组 ID。",
+      translator.t("experiment.abLimitPerArm", { count: input.armCount }),
+      translator.t("experiment.abLimitParent"),
       ...(plan?.sideEffectsAllowed === true
-        ? ["⚠ 前一臂的外部副作用会改变后一臂的起点：比较结果不一定可信（该声明随实验留痕）。"]
+        ? [translator.t("experiment.abLimitSideEffectWarning")]
         : []),
-      "计划与批次修订同源：改臂、改参数、改动副作用许可或修改运行配置都会作废旧计划与旧确认，须重新预览再重新确认。",
+      translator.t("experiment.abLimitPlanBinding"),
     ],
   };
 }
 
 /** 一臂在计划里实际会用的东西：生效参数 + 被丢弃的父录值 + 静默忽略告警（全部来自 dry-run 响应） */
-function armPlanLine(arm: ModelArmPlan): string {
+function armPlanLine(arm: ModelArmPlan, translator: Translator): string {
   const params =
-    Object.keys(arm.params).length > 0 ? JSON.stringify(arm.params) : "（沿用父 run 的采样参数）";
+    Object.keys(arm.params).length > 0
+      ? JSON.stringify(arm.params)
+      : translator.t("experiment.armLineNoParams");
   const discarded =
-    Object.keys(arm.discarded).length > 0 ? ` · 丢弃父录值 ${JSON.stringify(arm.discarded)}` : "";
+    Object.keys(arm.discarded).length > 0
+      ? translator.t("experiment.armLineDiscarded", { values: JSON.stringify(arm.discarded) })
+      : "";
   const warnings =
-    arm.warnings.length > 0 ? ` · ⚠ ${arm.warnings.map((w) => w.key).join("、")} 可能未生效` : "";
+    arm.warnings.length > 0
+      ? translator.t("experiment.armLineWarnings", {
+          keys: arm.warnings.map((w) => w.key).join(", "),
+        })
+      : "";
   return `${arm.model} ${params}${discarded}${warnings}`;
 }
 
 /** 披露里"检查"与"边界"合成可读列表（视图只渲染，不再自己拼句子） */
-export function disclosureLines(disclosure: ConfirmationDisclosure): ConfirmationRow[] {
+export function disclosureLines(
+  disclosure: ConfirmationDisclosure,
+  translator: Translator,
+): ConfirmationRow[] {
   return [
     ...disclosure.facts,
-    ...disclosure.checks.map((one): ConfirmationRow => ({ label: "已做的检查", value: one })),
-    ...disclosure.limits.map((one): ConfirmationRow => ({ label: "本次边界", value: one })),
+    ...disclosure.checks.map(
+      (one): ConfirmationRow => ({ label: translator.t("common.checksDone"), value: one }),
+    ),
+    ...disclosure.limits.map(
+      (one): ConfirmationRow => ({ label: translator.t("common.boundaryThisRun"), value: one }),
+    ),
   ];
 }

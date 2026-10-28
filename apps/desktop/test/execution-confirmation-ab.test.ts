@@ -204,7 +204,7 @@ describe("4.7 接线契约：确认对象是当前预览计划而非草稿", () 
 
   it("披露喂的是 activePlan：属于旧修订的计划不进确认", () => {
     expect(ab).toContain("核对本次实验");
-    expect(flat(ab)).toContain("abDisclosure({");
+    expect(flat(ab)).toContain("abDisclosure(");
     expect(flat(ab)).toContain("plan: activePlan,");
     // 反向：不得把组件里的原始 plan 直接交给披露（那正是"旧计划复活"）
     expect(flat(ab)).not.toContain("plan: plan,");

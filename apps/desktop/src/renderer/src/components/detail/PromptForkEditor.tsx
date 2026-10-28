@@ -1,6 +1,7 @@
 import type { SpanLine } from "@rebaseagent/trace-sdk";
 import type { IsolatedPromptCapabilityResult, RunDetail } from "@shared/ipc";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslator } from "../../i18n";
 import type { CallDraftKey, CallDraftMode } from "../../lib/debugging-drafts";
 import { captureCallDraftSource, revalidateCallDraftSource } from "../../lib/draft-source";
 import { deriveEntryGate } from "../../lib/entry-gate";
@@ -59,6 +60,7 @@ export function PromptForkEditor({
   /** R2.2 6.1：隔离启动指令实验复用本编辑器（草稿身份带模式，不建第二份表单） */
   mode?: CallDraftMode;
 }) {
+  const translator = useTranslator();
   const isolated = mode === "isolated";
   const forking = useAppStore((s) => s.forking);
   const forkError = useAppStore((s) => s.forkError);
@@ -613,23 +615,28 @@ export function PromptForkEditor({
       {isolated
         ? null
         : (() => {
-            const disclosure = promptDisclosure({
-              parentRunId: run.meta.id,
-              fieldLabel:
-                field === "system_prompt" ? "System Prompt（启动 system 消息）" : "首个 user 消息",
-              oldValue: original ?? "",
-              newValue: value,
-              modelSummary: `${settings?.model ?? "（未配置模型）"}${
-                settings?.baseURL ? ` @ ${settings.baseURL}` : ""
-              }`,
-              rebuildable: originalSystem !== null,
-            });
+            const disclosure = promptDisclosure(
+              {
+                parentRunId: run.meta.id,
+                fieldLabel:
+                  field === "system_prompt"
+                    ? "System Prompt（启动 system 消息）"
+                    : "首个 user 消息",
+                oldValue: original ?? "",
+                newValue: value,
+                modelSummary: `${settings?.model ?? "（未配置模型）"}${
+                  settings?.baseURL ? ` @ ${settings.baseURL}` : ""
+                }`,
+                rebuildable: originalSystem !== null,
+              },
+              translator,
+            );
             return (
               <ConfirmationBlock
                 title="核对本次从头重跑"
                 tone="emerald"
                 summary={disclosure.summary}
-                rows={disclosureLines(disclosure)}
+                rows={disclosureLines(disclosure, translator)}
                 confirmed={promptConfirmed}
                 confirmDisabled={
                   inProgress ||
