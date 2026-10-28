@@ -1,11 +1,12 @@
 import type { ReactNode } from "react";
 import { useState } from "react";
+import { useTranslator } from "../i18n";
 import type { MessagesResultView } from "../lib/messages-results";
 import type { ResultAction } from "../lib/operation-result-view";
 import type { ResultReadIdentity } from "../lib/result-verification";
 import { Disclosure } from "./Disclosure";
 import { FOCUS_RING } from "./IconButton";
-import { ACTION_LABELS, TONE_STYLES } from "./OperationsEntry";
+import { TONE_STYLES, actionLabelOf } from "./OperationsEntry";
 
 /**
  * U8 任务 5.4：**messages 工作区的重发结果区**（只吃 props 的纯视图；派生由
@@ -24,6 +25,7 @@ export function MessagesResultsSection({
   readonly results: readonly MessagesResultView[];
   readonly onAction: (action: ResultAction | "return-draft", identity: ResultReadIdentity) => void;
 }): ReactNode {
+  const translator = useTranslator();
   // 3.4（design D5）：技术说明收进 Disclosure——主文案用户语言，细节"可查但不占位"
   const [detailsOpen, setDetailsOpen] = useState(false);
   return (
@@ -95,7 +97,7 @@ export function MessagesResultsSection({
                             }
                             className={`shrink-0 rounded border border-gray-300 px-1.5 py-0.5 text-[10px] text-gray-700 hover:bg-gray-50 ${FOCUS_RING}`}
                           >
-                            {ACTION_LABELS[action]}
+                            {actionLabelOf(action, translator)}
                           </button>
                         ))}
                       </div>

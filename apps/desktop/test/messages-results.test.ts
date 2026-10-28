@@ -5,7 +5,7 @@ import type { OperationRecord } from "@shared/operations";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it } from "vitest";
-import { deriveMessagesResults } from "../src/renderer/src/lib/messages-results";
+import { deriveMessagesResults as deriveMessagesResultsOf } from "../src/renderer/src/lib/messages-results";
 import { initialSession } from "../src/renderer/src/lib/operation-session";
 import {
   emptyResultReadStore,
@@ -14,7 +14,11 @@ import {
 } from "../src/renderer/src/lib/result-verification";
 import { FAKE_EPOCH, statusSnapshot } from "./helpers/operation-channels";
 import { proxyStatusOk } from "./helpers/proxy-state-fixture";
-import { renderWithLocale } from "./i18n/render-with-locale";
+import { createTestTranslator, renderWithLocale } from "./i18n/render-with-locale";
+
+const zh = createTestTranslator("zh-CN");
+const deriveMessagesResults = (input: Parameters<typeof deriveMessagesResultsOf>[0]) =>
+  deriveMessagesResultsOf(input, zh);
 
 /**
  * U8 任务 5.4：**messages 工作区的重发结果区**（delta「messages 失败定位与返回不丢草稿」）。
@@ -221,7 +225,7 @@ describe("5.4/5.5 源码级：结果区接线与只读边界", () => {
 
   it("MessagesWorkspace 接线：deriveMessagesResults 按目标圈定，动作走既有 store 口", () => {
     const code = read("../src/renderer/src/components/MessagesWorkspace.tsx");
-    expect(code).toContain("deriveMessagesResults({");
+    expect(code).toContain("deriveMessagesResults(");
     expect(code).toContain("targetRunId,");
     expect(code).toContain("targetSpanId,");
     expect(code).toContain("operations: operations.operations");

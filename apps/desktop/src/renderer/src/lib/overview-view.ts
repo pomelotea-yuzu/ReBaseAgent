@@ -27,6 +27,7 @@
  *    `auditSafeTextRendering` 把这个"渲染方式契约"变成可断言的对象。
  */
 
+import type { Translator } from "@rebaseagent/i18n";
 import { forkEditLabel, isPromptForkField } from "@shared/derive";
 import type { Outcome, OutcomeKind, OutcomeTone } from "@shared/outcome";
 import type {
@@ -38,7 +39,7 @@ import type {
   ToolErrorTarget,
 } from "@shared/overview";
 import { decideCompareWithParent } from "./compare-navigation";
-import { LINEAGE_INCOMPLETE_TEXT, LINEAGE_METRICS_UNKNOWN_TEXT } from "./detail-completeness";
+import { lineageIncompleteText, lineageMetricsUnknownText } from "./detail-completeness";
 
 /** 结果区的内容形态（互斥，供渲染分支与测试一一对应） */
 export type ResultKind =
@@ -316,6 +317,7 @@ export interface CacheSection {
  */
 export function presentConsumption(
   consumption: OwnConsumption,
+  translator: Translator,
   /** U6 任务 4.1：ownOnly 时追加"沿链指标未知"的固定口径说明（complete 省略） */
   options: { lineageIncomplete?: boolean } = {},
 ): ConsumptionSection {
@@ -327,7 +329,7 @@ export function presentConsumption(
     toolCalls: consumption.toolCalls,
     toolErrors: consumption.toolErrors,
     scopeNote: `仅本次运行自有调用的已记录值；祖先共享前缀不计入，缺失项不补零。${
-      options.lineageIncomplete === true ? LINEAGE_METRICS_UNKNOWN_TEXT : ""
+      options.lineageIncomplete === true ? lineageMetricsUnknownText(translator) : ""
     }`,
     // 有自有调用但 token 全为 0：可能是失败调用的占位零用量，也可能确实是空输入/输出。
     // 两种都不声称"实际零消费"——如实说明它只是"记录值"。
@@ -420,22 +422,27 @@ export interface SourceSection {
  *      本模块不复用 `isolatedRunNotice` 那类长文案，只给概览所需的**一句**边界事实；
  *      完整说明仍在 RunWorkspace 顶部（不重复实现）。
  */
-export function presentSource(detail: {
-  meta: {
-    id: string;
-    parent: string | null;
-    fork: { at_span: string; edit: { field: string } } | null;
-    source?: { kind: string } | undefined;
-    workspace?: { world_id: string; origin: { kind: string; run_id?: string } } | undefined;
-  };
-  chain: ReadonlyArray<unknown>;
-  /**
-   * U6 任务 4.1：详情完整性元数据（载荷受校验，renderer 不从 chain 长度猜）。
-   * 省略 = complete（老调用方兼容：本包内只有 OverviewPanel 传入完整 detail）。
-   */
-  completeness?: "complete" | "ownOnly";
-  lineage?: { status: "complete" } | { status: "incomplete"; reason: string; missingRunId: string };
-}): SourceSection {
+export function presentSource(
+  detail: {
+    meta: {
+      id: string;
+      parent: string | null;
+      fork: { at_span: string; edit: { field: string } } | null;
+      source?: { kind: string } | undefined;
+      workspace?: { world_id: string; origin: { kind: string; run_id?: string } } | undefined;
+    };
+    chain: ReadonlyArray<unknown>;
+    /**
+     * U6 任务 4.1：详情完整性元数据（载荷受校验，renderer 不从 chain 长度猜）。
+     * 省略 = complete（老调用方兼容：本包内只有 OverviewPanel 传入完整 detail）。
+     */
+    completeness?: "complete" | "ownOnly";
+    lineage?:
+      | { status: "complete" }
+      | { status: "incomplete"; reason: string; missingRunId: string };
+  },
+  translator: Translator,
+): SourceSection {
   const { parent, fork } = detail.meta;
   const isolated = detail.meta.workspace !== undefined;
   // ownOnly 展示事实（唯一判据来源：detail-completeness；这里只转述，不另写文案）
@@ -445,7 +452,7 @@ export function presentSource(detail: {
     detail.lineage.status === "incomplete"
       ? {
           missingRunId: detail.lineage.missingRunId,
-          note: `${LINEAGE_INCOMPLETE_TEXT}（缺失祖先 run：${detail.lineage.missingRunId}）`,
+          note: `${lineageIncompleteText(translator)}（缺失祖先 run：${detail.lineage.missingRunId}）`,
         }
       : null;
 

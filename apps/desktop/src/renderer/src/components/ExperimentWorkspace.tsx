@@ -1,6 +1,7 @@
 import type { SpanLine } from "@rebaseagent/trace-sdk";
 import type { ReactNode } from "react";
 import { useEffect } from "react";
+import { useTranslator } from "../i18n";
 import { decideAuxReturn } from "../lib/aux-workspace";
 import { describeReturnDestination } from "../lib/create-workspace";
 import { deriveExperimentBatches } from "../lib/experiment-results";
@@ -149,6 +150,7 @@ export function ExperimentWorkspace() {
  * - 逐臂动作走与操作面板同一批 store 口（打开/失败定位/只读重试），本容器不自建第二套。
  */
 function ExperimentResults({ targetRunId }: { readonly targetRunId: string }) {
+  const translator = useTranslator();
   const operations = useAppStore((s) => s.operations);
   const resultReads = useAppStore((s) => s.resultReads);
   const openOperationResult = useAppStore((s) => s.openOperationResult);
@@ -160,11 +162,14 @@ function ExperimentResults({ targetRunId }: { readonly targetRunId: string }) {
   const toggleCompare = useAppStore((s) => s.toggleCompare);
   const openCompareWorkspace = useAppStore((s) => s.openCompareWorkspace);
 
-  const batches = deriveExperimentBatches({
-    targetRunId,
-    operations: operations.operations,
-    reads: resultReads,
-  });
+  const batches = deriveExperimentBatches(
+    {
+      targetRunId,
+      operations: operations.operations,
+      reads: resultReads,
+    },
+    translator,
+  );
   return (
     <ExperimentResultsSection
       batches={batches}

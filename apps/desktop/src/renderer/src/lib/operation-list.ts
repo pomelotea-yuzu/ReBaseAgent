@@ -1,3 +1,4 @@
+import type { MessageKey, Translator } from "@rebaseagent/i18n";
 import type { OperationDiagnostic, OperationKind, OperationRecord } from "@shared/operations";
 import type { OperationResultView } from "./operation-result-view";
 import {
@@ -89,21 +90,21 @@ export interface OperationRowClock {
   readonly nowMs: number;
 }
 
-const KIND_LABELS: Record<OperationKind, string> = {
-  create: "新建运行",
-  result: "结果重跑",
-  prompt: "改提示词重跑",
-  proxy: "代理重发",
-  modelAb: "模型 A/B",
-  verificationPrepare: "验证环境准备",
-  verification: "项目验证",
+const KIND_LABEL_KEYS: Record<OperationKind, MessageKey> = {
+  create: "run.kindCreate",
+  result: "run.kindResult",
+  prompt: "run.kindPrompt",
+  proxy: "run.kindProxy",
+  modelAb: "run.kindModelAb",
+  verificationPrepare: "run.kindVerificationPrepare",
+  verification: "run.kindVerification",
 };
 
-const PHASE_HINTS: Record<OperationPhase, string> = {
-  running: "正在执行（桌面同时只允许一个主动操作）",
-  settled: "已收口：请求执行并收尾完毕；不等于运行成功",
-  notAccepted: "未被接受：没有执行，也没有消耗许可",
-  unknown: "结局未知：主进程会话已更换，不自动重发、不猜测关联",
+const PHASE_HINT_KEYS: Record<OperationPhase, MessageKey> = {
+  running: "run.phaseHintRunning",
+  settled: "run.phaseHintSettled",
+  notAccepted: "run.phaseHintNotAccepted",
+  unknown: "run.phaseHintUnknown",
 };
 
 /** R3 target 摘要的共用定位文案：run + 检查点形态（D6：target run 放 target） */
@@ -111,29 +112,66 @@ function verificationTargetText(
   runId: string,
   checkpointKind: "initial" | "step",
   stepSpanId: string | null,
+  translator: Translator,
 ): string {
-  const checkpoint = checkpointKind === "initial" ? "初始检查点" : `步骤 ${stepSpanId ?? "(缺失)"}`;
-  return `父 ${runId} · ${checkpoint}`;
+  const checkpoint =
+    checkpointKind === "initial"
+      ? translator.t("run.checkpointInitial")
+      : translator.t("run.checkpointStep", {
+          span: stepSpanId ?? translator.t("run.stepMissing"),
+        });
+  return translator.t("run.parentCheckpoint", { runId, checkpoint });
 }
 
-function targetTextOf(record: OperationRecord): string {
+function targetTextOf(record: OperationRecord, translator: Translator): string {
   const target = record.target;
-  if (target === null) return "（无目标事实：核对先建立的封禁）";
+  if (target === null) return translator.t("run.targetNoFacts");
   switch (target.kind) {
     case "create":
-      return target.mode === "isolated" ? "隔离文件世界创建" : "纯对话创建";
+      return translator.t(
+        target.mode === "isolated" ? "run.targetIsolatedCreate" : "run.targetChatCreate",
+      );
     case "result":
-      return `父 ${target.parentRunId} · 步 ${target.atSpanId} · 改 ${target.editField}${target.mode === "isolated" ? " · 隔离" : ""}`;
+      return translator.t("run.targetResult", {
+        parent: target.parentRunId,
+        span: target.atSpanId,
+        field: target.editField,
+        isolated: target.mode === "isolated" ? translator.t("run.targetIsolatedSuffix") : "",
+      });
     case "prompt":
-      return `父 ${target.parentRunId} · 改 ${target.editField}`;
+      return translator.t("run.targetPrompt", {
+        parent: target.parentRunId,
+        field: target.editField,
+      });
     case "proxy":
-      return `父 ${target.parentRunId} · 步 ${target.atSpanId}`;
+      return translator.t("run.targetProxy", {
+        parent: target.parentRunId,
+        span: target.atSpanId,
+      });
     case "modelAb":
-      return `父 ${target.parentRunId} · ${target.armCount} 臂`;
+      return translator.t("run.targetModelAb", {
+        parent: target.parentRunId,
+        count: target.armCount,
+      });
     case "verificationPrepare":
-      return `${verificationTargetText(target.runId, target.checkpointKind, target.stepSpanId)} · 环境准备`;
+      return translator.t("run.targetVerificationPrepare", {
+        target: verificationTargetText(
+          target.runId,
+          target.checkpointKind,
+          target.stepSpanId,
+          translator,
+        ),
+      });
     case "verification":
-      return `${verificationTargetText(target.runId, target.checkpointKind, target.stepSpanId)} · ${target.commandId}`;
+      return translator.t("run.targetVerification", {
+        target: verificationTargetText(
+          target.runId,
+          target.checkpointKind,
+          target.stepSpanId,
+          translator,
+        ),
+        command: target.commandId,
+      });
   }
 }
 
@@ -142,26 +180,30 @@ function rowOf(
   result: OperationResultView | null,
   submittedAt: number | null,
   clock: OperationRowClock | undefined,
+  translator: Translator,
 ): OperationRow {
   const phase: OperationPhase = record.state;
   return {
     key: `${record.epoch}/${record.operationId}`,
     phase,
-    kindLabel: record.target === null ? null : KIND_LABELS[record.target.kind],
-    targetText: targetTextOf(record),
+    kindLabel: record.target === null ? null : translator.t(KIND_LABEL_KEYS[record.target.kind]),
+    targetText: targetTextOf(record, translator),
     operationId: record.operationId,
     epoch: record.epoch,
     // runIds 是身份，不是"可读证明"：note 说清这一点，界面据此显示"读取可能失败"
     runLinks: record.runIds.map((runId) => ({
       runId,
-      note: phase === "running" ? "已创建，尚未收尾" : "身份来自编排回调，未确认文件可读",
+      note: translator.t(phase === "running" ? "run.noteRunning" : "run.noteReadable"),
     })),
     diagnostics: record.diagnostics,
-    requestLine: requestFactsLineOf(record),
+    requestLine: requestFactsLineOf(record, translator),
     experimentId: record.experimentId,
     canReconcile: true,
-    hint: PHASE_HINTS[phase],
-    wait: clock === undefined ? null : deriveWaitView({ record, submittedAt, nowMs: clock.nowMs }),
+    hint: translator.t(PHASE_HINT_KEYS[phase]),
+    wait:
+      clock === undefined
+        ? null
+        : deriveWaitView({ record, submittedAt, nowMs: clock.nowMs }, translator),
     result,
   };
 }
@@ -171,12 +213,13 @@ function unknownRow(
   operationId: string,
   submittedAt: number | null,
   clock: OperationRowClock | undefined,
+  translator: Translator,
 ): OperationRow {
   return {
     key: `${epoch}/${operationId}`,
     phase: "unknown",
     kindLabel: null,
-    targetText: "（本次提交属上一个主进程会话，登记事实不在当前快照里）",
+    targetText: translator.t("run.unknownTarget"),
     operationId,
     epoch,
     runLinks: [],
@@ -184,12 +227,12 @@ function unknownRow(
     requestLine: null,
     experimentId: null,
     canReconcile: true,
-    hint: PHASE_HINTS.unknown,
+    hint: translator.t(PHASE_HINT_KEYS.unknown),
     // 未知历史只有"本地提交了多久"这一个时间事实（重载后连它也没有 ⇒ null，不造数）
     wait:
       clock === undefined
         ? null
-        : deriveWaitView({ record: null, submittedAt, nowMs: clock.nowMs }),
+        : deriveWaitView({ record: null, submittedAt, nowMs: clock.nowMs }, translator),
     // 旧会话的操作没有本会话的读取项可依附 ⇒ 不给结果动作（只能核对）
     result: null,
   };
@@ -206,26 +249,36 @@ function unknownRow(
  */
 export function deriveOperationRows(
   session: OperationSession,
-  results?: OperationRowResults,
-  clock?: OperationRowClock,
+  results: OperationRowResults | undefined,
+  clock: OperationRowClock | undefined,
+  translator: Translator,
 ): OperationRow[] {
   const views =
     results === undefined
       ? {}
-      : buildOperationResultViews({
-          records: session.operations,
-          reads: results.reads,
-          draftPresentOf: results.draftPresentOf,
-        });
+      : buildOperationResultViews(
+          {
+            records: session.operations,
+            reads: results.reads,
+            draftPresentOf: results.draftPresentOf,
+          },
+          translator,
+        );
   // 本地提交时刻只挂在**尚未销账的在飞身份**上（settle 后即从 pending 移除，
   // 终态行的时长因此退回 main startedAt + "自接受起"标注——这是刻意的口径分层）
   const submittedAtOf = (operationId: string): number | null =>
     session.pending.find((one) => one.operationId === operationId)?.submittedAt ?? null;
   const rows = session.operations.map((record) =>
-    rowOf(record, views[resultViewKeyOf(record)] ?? null, submittedAtOf(record.operationId), clock),
+    rowOf(
+      record,
+      views[resultViewKeyOf(record)] ?? null,
+      submittedAtOf(record.operationId),
+      clock,
+      translator,
+    ),
   );
   const stale = stalePendingOf(session).map((one) =>
-    unknownRow(one.epoch, one.operationId, one.submittedAt, clock),
+    unknownRow(one.epoch, one.operationId, one.submittedAt, clock, translator),
   );
   return [...rows.reverse(), ...stale];
 }
@@ -238,15 +291,16 @@ export function deriveOperationRows(
  */
 export function operationBadge(
   rows: readonly OperationRow[],
-  unreadResults = 0,
+  unreadResults: number,
+  translator: Translator,
 ): { readonly label: string; readonly attention: boolean } {
   const running = rows.filter((one) => one.phase === "running").length;
   const unknown = rows.filter((one) => one.phase === "unknown").length;
   const attention = running > 0 || unknown > 0 || unreadResults > 0;
-  const parts = [`操作 ${rows.length}`];
-  if (running > 0) parts.push(`执行中 ${running}`);
-  if (unknown > 0) parts.push(`待核对 ${unknown}`);
-  if (unreadResults > 0) parts.push(`结果待看 ${unreadResults}`);
+  const parts = [translator.t("run.badgeOperations", { count: rows.length })];
+  if (running > 0) parts.push(translator.t("run.badgeRunning", { count: running }));
+  if (unknown > 0) parts.push(translator.t("run.badgeUnknown", { count: unknown }));
+  if (unreadResults > 0) parts.push(translator.t("run.badgeUnread", { count: unreadResults }));
   return { label: parts.join(" · "), attention };
 }
 

@@ -3,11 +3,21 @@ import { resolve } from "node:path";
 import type { OperationRecord } from "@shared/operations";
 import { describe, expect, it } from "vitest";
 import {
-  deriveOperationRows,
+  deriveOperationRows as deriveOperationRowsOf,
   hasWatchableOperation,
-  operationBadge,
+  operationBadge as operationBadgeOf,
 } from "../src/renderer/src/lib/operation-list";
 import { type OperationSession, initialSession } from "../src/renderer/src/lib/operation-session";
+import { createTestTranslator } from "./i18n/render-with-locale";
+
+const zh = createTestTranslator("zh-CN");
+const deriveOperationRows = (
+  session: Parameters<typeof deriveOperationRowsOf>[0],
+  results: Parameters<typeof deriveOperationRowsOf>[1],
+  clock: Parameters<typeof deriveOperationRowsOf>[2],
+) => deriveOperationRowsOf(session, results, clock, zh);
+const operationBadge = (rows: Parameters<typeof operationBadgeOf>[0], unread = 0) =>
+  operationBadgeOf(rows, unread, zh);
 
 /**
  * U4 任务 4.7：全局栏「操作」入口。
@@ -209,10 +219,10 @@ describe("4.7 接线契约：入口挂会话活动条（UI 整理 3.3 迁址）�
     }
     // 状态标签恰好四种，没有第五种"阶段"（标签常量在 OperationsEntry.tsx 的共享呈现件）
     const labels = rowView.slice(
-      rowView.indexOf("const PHASE_LABELS"),
+      rowView.indexOf("const PHASE_LABEL_KEYS"),
       rowView.indexOf("const TONE_STYLES"),
     );
-    expect(labels.match(/: "/g)).toHaveLength(4);
+    expect(labels.match(/: "run\./g)).toHaveLength(4);
     // 核对与"刷新"都不收起面板、不切页面（U5 3.4 之后"自动跳"另有判据，但绝不由核对触发）
     const reconcileBlock = entry.slice(
       entry.indexOf("onReconcile={(operationId)"),
@@ -221,8 +231,8 @@ describe("4.7 接线契约：入口挂会话活动条（UI 整理 3.3 迁址）�
     expect(reconcileBlock).not.toContain("setOpen(false)");
     expect(
       entry.slice(
-        entry.indexOf('title="重新读取主进程的操作快照（只读）"') - 260,
-        entry.indexOf('title="重新读取主进程的操作快照（只读）"'),
+        entry.indexOf('title={translator.t("common.refreshHint")}') - 260,
+        entry.indexOf('title={translator.t("common.refreshHint")}'),
       ),
     ).not.toContain("setOpen(false)");
     // 只有明确动作会收起面板并切页面；失败定位拿不到自有调用时**不**收起（页面也不动）
@@ -238,5 +248,22 @@ describe("4.7 接线契约：入口挂会话活动条（UI 整理 3.3 迁址）�
     expect(entry).toContain('aria-controls="session-activity-panel"');
     expect(entry).toContain('id="session-activity-panel"');
     expect(entry).toContain("FOCUS_RING");
+  });
+});
+
+describe("2.2 操作行按语言派生", () => {
+  it("英文行：类型/阶段提示/目标摘要独立成句，技术身份原样", () => {
+    const en = createTestTranslator("en-US");
+    const rows = deriveOperationRowsOf(
+      sessionWith({ operations: [record(OP_RUNNING, "running")] }),
+      undefined,
+      undefined,
+      en,
+    );
+    const row = rows.find((one) => one.operationId === OP_RUNNING);
+    expect(row?.kindLabel).toBe("Model A/B");
+    expect(row?.hint).toContain("Running");
+    expect(row?.targetText).toBe("Parent run_parent · 2 arms");
+    expect(row?.operationId).toBe(OP_RUNNING);
   });
 });

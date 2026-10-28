@@ -28,6 +28,7 @@ import {
 } from "@shared/overview";
 import { Check, Copy } from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
+import { useTranslator } from "../i18n";
 import { formatDuration, formatTokens } from "../lib/format";
 import type {
   CacheSection,
@@ -562,6 +563,7 @@ export function OverviewResultView({
   /** R2.2 6.1：隔离根/分支的启动指令入口（普通运行不渲染） */
   startupPromptAction?: ReactNode;
 }) {
+  const translator = useTranslator();
   // 终止原因走**唯一来源** `deriveTerminalReason`（任务 6.2 提取）：原先本组件内联推导了
   // **两处**，而运行页头干脆传 `reason={null}`、分支树另有一套 ⇒ 四个视图口径分叉。
   // 不读 `meta.status`——那只是"文件是否封存"，不代表本 run 正常结束（design D4）。
@@ -612,13 +614,14 @@ export function OverviewResultView({
     () =>
       presentConsumption(
         deriveOwnConsumption({ spans: detail.spans, leafSpanIds: detail.leafSpanIds }),
+        translator,
         {
           lineageIncomplete: detail.completeness === "ownOnly",
         },
       ),
-    [detail],
+    [detail, translator],
   );
-  const source = useMemo(() => presentSource(detail), [detail]);
+  const source = useMemo(() => presentSource(detail, translator), [detail, translator]);
   const promptExperiment = useMemo(() => promptExperimentViewOf(detail.meta), [detail.meta]);
 
   return (

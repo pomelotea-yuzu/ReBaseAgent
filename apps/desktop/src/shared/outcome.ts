@@ -1,8 +1,29 @@
-import type { OutcomeTone } from "@rebaseagent/run-query/facts";
+import type { Translator } from "@rebaseagent/i18n";
+import type { OutcomeKind, OutcomeTone } from "@rebaseagent/run-query/facts";
 
 // 结局分类已迁至 @rebaseagent/run-query/facts；Tailwind 类名是视图映射，留在 desktop。
 export { classifyOutcome, isKnownReason } from "@rebaseagent/run-query/facts";
 export type { Outcome, OutcomeKind, OutcomeTone } from "@rebaseagent/run-query/facts";
+
+/** 结局短标签的展示投影：领域包只给稳定 kind，文案随 UI 语言。 */
+export function outcomeLabelOf(kind: OutcomeKind, translator: Translator): string {
+  switch (kind) {
+    case "completed":
+      return translator.t("run.outcomeCompleted");
+    case "error":
+      return translator.t("run.outcomeError");
+    case "max_iterations":
+      return translator.t("run.outcomeMaxIterations");
+    case "budget_exceeded":
+      return translator.t("run.outcomeBudgetExceeded");
+    case "aborted":
+      return translator.t("run.outcomeAborted");
+    case "interrupted":
+      return translator.t("run.outcomeInterrupted");
+    case "unknown":
+      return translator.t("run.outcomeUnknown");
+  }
+}
 
 /**
  * 语义色调 → Tailwind 徽标类名（唯一映射，列表/概览/树节点共用）。

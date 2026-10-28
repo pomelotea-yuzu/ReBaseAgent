@@ -1,3 +1,4 @@
+import type { Translator } from "@rebaseagent/i18n";
 import type { OperationRecord } from "@shared/operations";
 import type { AbArmResultView, AbBatchResultView } from "./operation-result-view";
 import { deriveAbBatchResult } from "./operation-result-view";
@@ -35,11 +36,14 @@ export interface ExperimentBatchView {
   readonly view: AbBatchResultView;
 }
 
-export function deriveExperimentBatches(input: {
-  readonly targetRunId: string;
-  readonly operations: readonly OperationRecord[];
-  readonly reads: ResultReadStore;
-}): readonly ExperimentBatchView[] {
+export function deriveExperimentBatches(
+  input: {
+    readonly targetRunId: string;
+    readonly operations: readonly OperationRecord[];
+    readonly reads: ResultReadStore;
+  },
+  translator: Translator,
+): readonly ExperimentBatchView[] {
   const batches = input.operations.filter(
     (record) =>
       record.target?.kind === "modelAb" && record.target.parentRunId === input.targetRunId,
@@ -53,7 +57,10 @@ export function deriveExperimentBatches(input: {
   return sorted.map((record) => ({
     operationId: record.operationId,
     experimentId: record.experimentId,
-    view: deriveAbBatchResult({ operationId: record.operationId, record, reads: input.reads }),
+    view: deriveAbBatchResult(
+      { operationId: record.operationId, record, reads: input.reads },
+      translator,
+    ),
   }));
 }
 

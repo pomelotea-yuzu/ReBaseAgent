@@ -1,4 +1,5 @@
 import type { RequestOutcome } from "@shared/operations";
+import { useTranslator } from "../i18n";
 import type { ExperimentArmSelectability } from "../lib/experiment-results";
 import type {
   AbArmResultView,
@@ -7,7 +8,7 @@ import type {
 } from "../lib/operation-result-view";
 import type { ResultReadIdentity } from "../lib/result-verification";
 import { FOCUS_RING } from "./IconButton";
-import { ACTION_LABELS, TONE_STYLES } from "./OperationsEntry";
+import { TONE_STYLES, actionLabelOf } from "./OperationsEntry";
 
 /**
  * U5（unify-run-execution-workflow）任务 5.1：**A/B 批次结果区（逐臂读取状态）**。
@@ -54,6 +55,7 @@ function ArmActionButton({
   identity: ResultReadIdentity;
   onAct: (action: ResultAction, identity: ResultReadIdentity) => void;
 }) {
+  const translator = useTranslator();
   return (
     <button
       type="button"
@@ -69,7 +71,7 @@ function ArmActionButton({
       }
       className={`shrink-0 rounded border border-gray-300 px-1.5 py-0.5 text-[10px] text-gray-700 hover:bg-gray-50 ${FOCUS_RING}`}
     >
-      {ACTION_LABELS[action]}
+      {actionLabelOf(action, translator)}
     </button>
   );
 }

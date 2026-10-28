@@ -11,14 +11,32 @@ const { SourceSectionView } = await import("../src/renderer/src/components/Overv
 const { LineageIncompleteNoticeView } = await import(
   "../src/renderer/src/components/DetailNotices"
 );
-const { presentConsumption, presentSource } = await import("../src/renderer/src/lib/overview-view");
+const { presentConsumption: presentConsumptionOf, presentSource: presentSourceOf } = await import(
+  "../src/renderer/src/lib/overview-view"
+);
 const {
-  LINEAGE_INCOMPLETE_TEXT,
-  lineageIncompleteViewOf,
-  ownOnlyBranchNoticeOf,
-  truncatedChainTitleOf,
+  lineageIncompleteText,
+  lineageIncompleteViewOf: lineageIncompleteViewOfRaw,
+  ownOnlyBranchNoticeOf: ownOnlyBranchNoticeOfRaw,
+  truncatedChainTitleOf: truncatedChainTitleOfRaw,
 } = await import("../src/renderer/src/lib/detail-completeness");
 const { deriveOwnConsumption } = await import("@shared/overview");
+const { createTestTranslator } = await import("./i18n/render-with-locale");
+
+const zh = createTestTranslator("zh-CN");
+const LINEAGE_INCOMPLETE_TEXT = lineageIncompleteText(zh);
+const presentConsumption = (
+  input: Parameters<typeof presentConsumptionOf>[0],
+  options?: Parameters<typeof presentConsumptionOf>[2],
+) => presentConsumptionOf(input, zh, options);
+const presentSource = (detail: Parameters<typeof presentSourceOf>[0]) =>
+  presentSourceOf(detail, zh);
+const lineageIncompleteViewOf = (detail: Parameters<typeof lineageIncompleteViewOfRaw>[0]) =>
+  lineageIncompleteViewOfRaw(detail, zh);
+const ownOnlyBranchNoticeOf = (detail: Parameters<typeof ownOnlyBranchNoticeOfRaw>[0]) =>
+  ownOnlyBranchNoticeOfRaw(detail, zh);
+const truncatedChainTitleOf = (detail: Parameters<typeof truncatedChainTitleOfRaw>[0]) =>
+  truncatedChainTitleOfRaw(detail, zh);
 
 /**
  * U6（add-partial-run-reading）任务 4.1–4.3：详情完整性在展示层的判据。

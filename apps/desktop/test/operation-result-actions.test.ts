@@ -12,9 +12,17 @@ import type { DraftSubmission } from "../src/renderer/src/lib/draft-submission";
 import * as subLib from "../src/renderer/src/lib/draft-submission";
 import { emptyNavigationIntents } from "../src/renderer/src/lib/navigation-intent";
 import { initialSession } from "../src/renderer/src/lib/operation-session";
-import { deriveResultNotices, noticeKeyOf } from "../src/renderer/src/lib/result-notices";
+import {
+  deriveResultNotices as deriveResultNoticesOf,
+  noticeKeyOf,
+} from "../src/renderer/src/lib/result-notices";
 import { emptyResultReadStore, resultReadKeyOf } from "../src/renderer/src/lib/result-verification";
 import { FAKE_EPOCH, statusSnapshot, toExecuted } from "./helpers/operation-channels";
+import { createTestTranslator } from "./i18n/render-with-locale";
+
+const zh = createTestTranslator("zh-CN");
+const deriveResultNotices = (input: Parameters<typeof deriveResultNoticesOf>[0]) =>
+  deriveResultNoticesOf(input, zh);
 
 /**
  * U5（unify-run-execution-workflow）任务 3.5 / 3.6 的 **store 接线**。

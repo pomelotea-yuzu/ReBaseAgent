@@ -1,5 +1,6 @@
 import { deriveMissingLlmErrorDetail, forkEditLabel, isPromptForkField } from "@shared/derive";
 import { useMemo } from "react";
+import { useTranslator } from "../i18n";
 import {
   type LineageIncompleteView,
   lineageIncompleteViewOf,
@@ -41,12 +42,13 @@ import { FOCUS_RING } from "./IconButton";
 
 /** 分支提示：按 fork 字段分流——共享前缀（result）/ 从头重跑（prompt fork） */
 function BranchNotice() {
+  const translator = useTranslator();
   const detail = useAppStore((s) => s.detail);
   if (detail === null || detail.chain.length <= 1) return null;
   // U6 任务 4.2：ownOnly 分支一律走「父链不完整」文案——result / 隔离续跑的
   // "共享前缀"措辞在父前缀没进时间线时是伪造（delta「部分普通分支不伪造共享前缀」）。
   // 分叉点与被编辑字段的标注保留（记录元数据不因祖先缺失消失），判据在纯函数里。
-  const partialNotice = ownOnlyBranchNoticeOf(detail);
+  const partialNotice = ownOnlyBranchNoticeOf(detail, translator);
   if (partialNotice !== null) {
     return (
       <div
@@ -147,6 +149,7 @@ function BranchNotice() {
  * 点击切换查看。
  */
 function ParentChainList() {
+  const translator = useTranslator();
   const detail = useAppStore((s) => s.detail);
   const selectRun = useAppStore((s) => s.selectRun);
   if (detail === null || detail.chain.length <= 1) return null;
@@ -158,7 +161,7 @@ function ParentChainList() {
   const isModelAb = forkField === "model_params";
   // U6 任务 4.2：ownOnly 的来源链也要单列展示——标为**截断链**（首项不是根 run），
   // 不绘制虚假的根到叶连接（delta「部分来源链首项不冒充根」）。
-  const partialTitle = truncatedChainTitleOf(detail);
+  const partialTitle = truncatedChainTitleOf(detail, translator);
   if (!isProxy && !isPromptFork && !isModelAb && partialTitle === null) return null;
 
   return (
@@ -421,8 +424,12 @@ export function LineageIncompleteNoticeView({
 
 /** store 薄壳：取当前详情派生展示事实，复制动作接剪贴板 */
 function LineageIncompleteNotice() {
+  const translator = useTranslator();
   const detail = useAppStore((s) => s.detail);
-  const view = useMemo(() => (detail === null ? null : lineageIncompleteViewOf(detail)), [detail]);
+  const view = useMemo(
+    () => (detail === null ? null : lineageIncompleteViewOf(detail, translator)),
+    [detail, translator],
+  );
   if (view === null) return null;
   return (
     <LineageIncompleteNoticeView

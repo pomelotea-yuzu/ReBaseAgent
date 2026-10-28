@@ -73,12 +73,16 @@ export function SessionActivity() {
         isOperationDraftPresent({ epoch: record.epoch, operationId: record.operationId }),
     },
     { nowMs },
+    translator,
   );
-  const notices = deriveResultNotices({
-    records: session.operations,
-    reads,
-    seenKeys: seenNoticeKeys,
-  });
+  const notices = deriveResultNotices(
+    {
+      records: session.operations,
+      reads,
+      seenKeys: seenNoticeKeys,
+    },
+    translator,
+  );
 
   // —— 草稿（3.4：dirty / clean 分组；修改计数含录制未应用修改）——
   const draftItems = useMemo(() => deriveDraftList(drafts), [drafts]);

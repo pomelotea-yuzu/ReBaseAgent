@@ -1,5 +1,7 @@
+import type { MessageKey, Translator } from "@rebaseagent/i18n";
 import type { NotAcceptedReason, OperationRecord, RequestOutcome } from "@shared/operations";
-import { LINEAGE_INCOMPLETE_TEXT } from "./detail-completeness";
+import { outcomeLabelOf } from "@shared/outcome";
+import { lineageIncompleteText } from "./detail-completeness";
 import type { ResultReadEntry, ResultReadStore } from "./result-verification";
 import { resultReadOf, viewOperationResult } from "./result-verification";
 
@@ -67,24 +69,25 @@ export interface OperationResultView {
   readonly draftNote: string | null;
 }
 
-const NOT_ACCEPTED_TEXT: Record<NotAcceptedReason, string> = {
-  busy: "执行槽被占：本次没有开始执行，也不消耗任何许可",
-  closing: "主进程正在退出协商：本次未被接受",
-  configuration_busy: "配置变更在飞：本次未被接受",
-  reconcile_tombstone: "该操作已由核对封禁：迟到请求不会复活它",
+const NOT_ACCEPTED_KEYS: Record<NotAcceptedReason, MessageKey> = {
+  busy: "run.notAcceptedBusy",
+  closing: "run.notAcceptedClosing",
+  configuration_busy: "run.notAcceptedConfigurationBusy",
+  reconcile_tombstone: "run.notAcceptedTombstone",
 };
 
-const DRAFT_GONE_NOTE =
-  "该提交的草稿已按修订清理或从未登记：不返回、不复活旧内容（需要旧输入请在草稿列表里复制）";
-
 /** 单条运行的呈现：未读 / 在读 / 不可读 / 已核实（含失败定位可用性与来源警告） */
-function itemViewOf(runId: string, entry: ResultReadEntry | undefined): ResultItemView {
+function itemViewOf(
+  runId: string,
+  entry: ResultReadEntry | undefined,
+  translator: Translator,
+): ResultItemView {
   if (entry === undefined) {
     return {
       runId,
-      label: "结果待读取",
+      label: translator.t("run.resultUnread"),
       tone: "neutral",
-      detail: "还没有按这个可信运行 ID 读过；打开即读一次，不会重新执行",
+      detail: translator.t("run.resultNotReadDetail"),
       actions: ["open-result"],
       failureNote: null,
       sourceWarning: null,
@@ -93,9 +96,9 @@ function itemViewOf(runId: string, entry: ResultReadEntry | undefined): ResultIt
   if (entry.phase === "reading") {
     return {
       runId,
-      label: "正在读取结果",
+      label: translator.t("run.resultReading"),
       tone: "neutral",
-      detail: "只读通道在飞（不重发执行、不改当前阅读现场）",
+      detail: translator.t("run.resultReadingDetail"),
       actions: [],
       failureNote: null,
       sourceWarning: null,
@@ -104,12 +107,12 @@ function itemViewOf(runId: string, entry: ResultReadEntry | undefined): ResultIt
   if (entry.phase === "unreadable") {
     return {
       runId,
-      label: "结果不可读",
+      label: translator.t("run.unreadable"),
       tone: "warn",
       detail: entry.reason,
       // 只按**同一个** runId 重试读取：没有"换个 id 试试"这条路
       actions: ["retry-read"],
-      failureNote: "结局读不出来时不做失败定位（不拿别的记录凑原因）",
+      failureNote: translator.t("run.resultUnreadableFailureNote"),
       sourceWarning: null,
     };
   }
@@ -119,11 +122,17 @@ function itemViewOf(runId: string, entry: ResultReadEntry | undefined): ResultIt
   const lineage = entry.lineage;
   const sourceWarning =
     lineage?.status === "incomplete"
-      ? `${LINEAGE_INCOMPLETE_TEXT}（缺失祖先 run：${lineage.missingRunId}）——只核实了本运行自有记录；正常结束不等于可以重跑`
+      ? translator.t("run.sourceIncompleteWarning", {
+          text: lineageIncompleteText(translator),
+          missingRunId: lineage.missingRunId,
+        })
       : null;
   return {
     runId,
-    label: facts?.outcome.label ?? "结局未知",
+    label:
+      facts === null
+        ? translator.t("run.outcomeUnknown")
+        : outcomeLabelOf(facts.outcome.kind, translator),
     tone: facts?.outcome.tone ?? "neutral",
     detail: facts?.failure.message ?? null,
     actions: [
@@ -135,8 +144,8 @@ function itemViewOf(runId: string, entry: ResultReadEntry | undefined): ResultIt
     failureNote:
       failureSpanId === null
         ? facts?.failure.missingDetail === true
-          ? "以错误终止，但本次自有记录里没有失败的模型调用详情（不取祖先调用冒充原因）"
-          : "本次不是以错误终止，没有失败调用可定位"
+          ? translator.t("run.resultMissingFailureDetail")
+          : translator.t("run.resultNotErrorFailureNote")
         : null,
     sourceWarning,
   };
@@ -153,18 +162,24 @@ export function resultViewKeyOf(record: OperationRecord): string {
  * `draftPresentOf` 由调用方注入（store 的 `isOperationDraftPresent`）——本模块不 import store，
  * 才能在没有 DOM 的包里逐条单测。
  */
-export function buildOperationResultViews(input: {
-  records: readonly OperationRecord[];
-  reads: ResultReadStore;
-  draftPresentOf: (record: OperationRecord) => boolean;
-}): Readonly<Record<string, OperationResultView>> {
+export function buildOperationResultViews(
+  input: {
+    records: readonly OperationRecord[];
+    reads: ResultReadStore;
+    draftPresentOf: (record: OperationRecord) => boolean;
+  },
+  translator: Translator,
+): Readonly<Record<string, OperationResultView>> {
   const out: Record<string, OperationResultView> = {};
   for (const record of input.records) {
-    out[resultViewKeyOf(record)] = deriveOperationResultView({
-      record,
-      reads: input.reads,
-      draftPresent: input.draftPresentOf(record),
-    });
+    out[resultViewKeyOf(record)] = deriveOperationResultView(
+      {
+        record,
+        reads: input.reads,
+        draftPresent: input.draftPresentOf(record),
+      },
+      translator,
+    );
   }
   return out;
 }
@@ -175,20 +190,23 @@ export function buildOperationResultViews(input: {
  * `draftPresent` 来自"提交关联/收尾关联里的目标键，其草稿是否还在"，
  * **不是**"这次操作成没成功"——草稿被正常结束清理后就不该再有返回入口。
  */
-export function deriveOperationResultView(input: {
-  record: OperationRecord;
-  reads: ResultReadStore;
-  draftPresent: boolean;
-}): OperationResultView {
+export function deriveOperationResultView(
+  input: {
+    record: OperationRecord;
+    reads: ResultReadStore;
+    draftPresent: boolean;
+  },
+  translator: Translator,
+): OperationResultView {
   const view = viewOperationResult(input.record, input.reads);
   const canReturnDraft = input.draftPresent;
-  const draftNote = input.draftPresent ? null : DRAFT_GONE_NOTE;
+  const draftNote = input.draftPresent ? null : translator.t("run.draftGoneNote");
   switch (view.kind) {
     case "running":
       return {
         kind: "running",
-        label: "执行中",
-        detail: "草稿保持冻结；不显示进度、阶段或百分比（主进程没有这些事实）",
+        label: translator.t("run.operationRunning"),
+        detail: translator.t("run.runningNoProgress"),
         items: [],
         canReturnDraft,
         draftNote,
@@ -196,11 +214,11 @@ export function deriveOperationResultView(input: {
     case "not-accepted":
       return {
         kind: "not-accepted",
-        label: "本次未接受",
+        label: translator.t("run.operationNotAccepted"),
         detail:
           view.rejection === null
-            ? "未被接受（主进程未给出稳定原因）"
-            : NOT_ACCEPTED_TEXT[view.rejection],
+            ? translator.t("run.notAcceptedUnknownReason")
+            : translator.t(NOT_ACCEPTED_KEYS[view.rejection]),
         items: [],
         canReturnDraft,
         draftNote,
@@ -208,8 +226,8 @@ export function deriveOperationResultView(input: {
     case "unlocated":
       return {
         kind: "unlocated",
-        label: "结果未定位",
-        detail: "登记里没有可信运行 ID：只能核对登记，不按列表最新项或错误文案猜一个结果",
+        label: translator.t("run.resultUnlocated"),
+        detail: translator.t("run.unlocatedDetail"),
         items: [],
         canReturnDraft,
         draftNote,
@@ -217,9 +235,12 @@ export function deriveOperationResultView(input: {
     case "results":
       return {
         kind: "items",
-        label: view.items.length > 1 ? `${view.items.length} 条结果` : "结果",
+        label:
+          view.items.length > 1
+            ? translator.t("run.resultsCount", { count: view.items.length })
+            : translator.t("run.resultSingle"),
         detail: null,
-        items: view.items.map((item) => itemViewOf(item.runId, item.entry)),
+        items: view.items.map((item) => itemViewOf(item.runId, item.entry, translator)),
         canReturnDraft,
         draftNote,
       };
@@ -230,28 +251,25 @@ export function deriveOperationResultView(input: {
 // 任务 5.1a：请求事实（信封侧）单独一行——与运行结局分层，互不覆盖
 // ---------------------------------------------------------------------------
 
-const REQUEST_OUTCOME_LABEL: Record<RequestOutcome, string> = {
-  returned: "返回",
-  failed: "请求异常",
-  rejected: "业务拒绝",
-};
-
 /**
  * settled 才有请求事实可陈述（running / notAccepted ⇒ null：前者没有结局，
  * 后者的"没有执行"说法由 notAccepted 自己的拒绝文案承担，二者不叠加）。
  */
-export function requestFactsLineOf(record: OperationRecord): string | null {
+export function requestFactsLineOf(record: OperationRecord, translator: Translator): string | null {
   if (record.state !== "settled" || record.requestOutcome === null) return null;
-  const code = record.errorCode === null ? "" : `（稳定码 ${record.errorCode}）`;
+  const code =
+    record.errorCode === null
+      ? ""
+      : translator.t("run.requestStableCode", { code: record.errorCode });
   switch (record.requestOutcome) {
     case "returned":
       return record.target?.kind === "modelAb"
-        ? `请求事实：主进程按「返回」收口${code}——A/B 的返回可含失败臂，不宣告任何一条运行正常完成`
-        : `请求事实：主进程按「返回」收口${code}——各运行的结局只看自有终止事件`;
+        ? translator.t("run.requestReturnedAb", { code })
+        : translator.t("run.requestReturned", { code });
     case "failed":
-      return `请求事实：${REQUEST_OUTCOME_LABEL.failed}${code}——失败信封不影响按可信 ID 打开与核实已登记的运行`;
+      return translator.t("run.requestFailed", { code });
     case "rejected":
-      return `请求事实：${REQUEST_OUTCOME_LABEL.rejected}${code}——拒绝是编排时的分类，不一律等于零模型调用；是否发生过调用看自有终止事实`;
+      return translator.t("run.requestRejected", { code });
   }
 }
 
@@ -284,16 +302,11 @@ export interface AbBatchResultView {
   readonly arms: readonly AbArmResultView[];
 }
 
-const ARM_OUTCOME_TEXT: Record<RequestOutcome, string> = {
-  returned: "请求层：该臂返回",
-  failed: "请求层：该臂失败",
-  rejected: "请求层：该臂被拒绝",
-};
-
 function abArmViewOf(
   index: number,
   record: OperationRecord,
   reads: ResultReadStore,
+  translator: Translator,
 ): AbArmResultView {
   const arm = record.arms.find((one) => one.index === index);
   if (arm === undefined || arm.id === null) {
@@ -302,10 +315,10 @@ function abArmViewOf(
       runId: null,
       armOutcome: arm?.outcome ?? null,
       item: null,
-      note:
-        record.state === "running"
-          ? `臂 ${index + 1}：尚无登记的可信运行 ID（执行中，未观察到不代表失败，也不提前给结果入口）`
-          : `臂 ${index + 1}：main 未登记可信运行 ID（缺臂 / 未开始）——不生成结果链接，不从信封多报的 id 或邻近记录凑一个`,
+      note: translator.t(
+        record.state === "running" ? "run.abArmNoIdRunning" : "run.abArmNoIdSettled",
+        { index: index + 1 },
+      ),
     };
   }
   return {
@@ -319,6 +332,7 @@ function abArmViewOf(
         operationId: record.operationId,
         runId: arm.id,
       }),
+      translator,
     ),
     note: null,
   };
@@ -328,19 +342,21 @@ function abArmViewOf(
  * A/B 批次呈现的唯一派生口。`record` 为 null = 提交身份已知但登记快照还没到场
  * （刚提交 / 通信未知）——这时**什么结论都不说**，只留等待事实。
  */
-export function deriveAbBatchResult(input: {
-  operationId: string;
-  record: OperationRecord | null;
-  reads: ResultReadStore;
-}): AbBatchResultView {
+export function deriveAbBatchResult(
+  input: {
+    operationId: string;
+    record: OperationRecord | null;
+    reads: ResultReadStore;
+  },
+  translator: Translator,
+): AbBatchResultView {
   const { record } = input;
   if (record === null) {
     return {
       operationId: input.operationId,
       epoch: null,
-      statusLabel: "等待登记快照",
-      statusDetail:
-        "本次执行的提交身份已确定，但主进程登记快照尚未到场：不预告结局，可在「操作」入口核对状态",
+      statusLabel: translator.t("run.abStatusWaiting"),
+      statusDetail: translator.t("run.abStatusWaitingDetail"),
       requestLine: null,
       experimentId: null,
       arms: [],
@@ -350,14 +366,14 @@ export function deriveAbBatchResult(input: {
   const arms =
     record.state === "notAccepted"
       ? []
-      : Array.from({ length: armCount }, (_, i) => abArmViewOf(i, record, input.reads));
+      : Array.from({ length: armCount }, (_, i) => abArmViewOf(i, record, input.reads, translator));
   switch (record.state) {
     case "running":
       return {
         operationId: record.operationId,
         epoch: record.epoch,
-        statusLabel: "执行中",
-        statusDetail: "整批按登记逐臂呈现；不显示进度、阶段或百分比（主进程没有这些事实）",
+        statusLabel: translator.t("run.abStatusRunning"),
+        statusDetail: translator.t("run.abStatusRunningDetail"),
         requestLine: null,
         experimentId: record.experimentId,
         arms,
@@ -366,8 +382,8 @@ export function deriveAbBatchResult(input: {
       return {
         operationId: record.operationId,
         epoch: record.epoch,
-        statusLabel: "本次未接受",
-        statusDetail: "整批没有开始执行，也不消耗任何许可；不存在可读的实验结果",
+        statusLabel: translator.t("run.abStatusNotAccepted"),
+        statusDetail: translator.t("run.abStatusNotAcceptedDetail"),
         requestLine: null,
         experimentId: null,
         arms,
@@ -376,9 +392,9 @@ export function deriveAbBatchResult(input: {
       return {
         operationId: record.operationId,
         epoch: record.epoch,
-        statusLabel: "已收口",
-        statusDetail: "逐臂状态按登记身份与独立核实呈现：收口不等于全部成功，缺臂与失败臂原样保留",
-        requestLine: requestFactsLineOf(record),
+        statusLabel: translator.t("run.abStatusSettled"),
+        statusDetail: translator.t("run.abStatusSettledDetail"),
+        requestLine: requestFactsLineOf(record, translator),
         experimentId: record.experimentId,
         arms,
       };

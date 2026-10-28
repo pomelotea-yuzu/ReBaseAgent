@@ -1,3 +1,4 @@
+import type { Translator } from "@rebaseagent/i18n";
 import type { OperationRecord } from "@shared/operations";
 import { formatDuration } from "./format";
 
@@ -46,20 +47,22 @@ function clampElapsed(startMs: number, endMs: number): number {
   return Math.max(0, endMs - startMs);
 }
 
-const BASIS_TEXT: Record<WaitBasis, string> = {
-  submitted: "自提交起",
-  accepted: "自接受起",
-};
+function basisText(basis: WaitBasis, translator: Translator): string {
+  return translator.t(basis === "submitted" ? "run.waitBasisSubmitted" : "run.waitBasisAccepted");
+}
 
 /**
  * 一条操作的等待呈现。`record` = 登记事实（未知历史传 null），
  * `submittedAt` = 本地提交时刻（重载后没有 ⇒ null）。
  */
-export function deriveWaitView(input: {
-  record: OperationRecord | null;
-  submittedAt: number | null;
-  nowMs: number;
-}): WaitView | null {
+export function deriveWaitView(
+  input: {
+    record: OperationRecord | null;
+    submittedAt: number | null;
+    nowMs: number;
+  },
+  translator: Translator,
+): WaitView | null {
   const { record } = input;
   const nowMs = input.nowMs;
   const submittedAt = finiteOr(input.submittedAt, nowMs);
@@ -68,7 +71,10 @@ export function deriveWaitView(input: {
     // 未知历史：只有"本地提交了多久"是可陈述事实，它**不是**执行时长，更不是结局
     if (submittedAt === null) return null;
     return {
-      text: `${BASIS_TEXT.submitted}已过 ${formatDuration(clampElapsed(submittedAt, nowMs))}（结局未知：这段时间不表示执行进度）`,
+      text: translator.t("run.waitUnknownElapsed", {
+        basis: basisText("submitted", translator),
+        duration: formatDuration(clampElapsed(submittedAt, nowMs)),
+      }),
       growing: true,
       basis: "submitted",
     };
@@ -83,7 +89,10 @@ export function deriveWaitView(input: {
       if (startMs === null) return null;
       const basis: WaitBasis = submittedAt !== null ? "submitted" : "accepted";
       return {
-        text: `${BASIS_TEXT[basis]}已等待 ${formatDuration(clampElapsed(startMs, nowMs))}（等待时长，不是模型耗时，也没有进度含义）`,
+        text: translator.t("run.waitRunning", {
+          basis: basisText(basis, translator),
+          duration: formatDuration(clampElapsed(startMs, nowMs)),
+        }),
         growing: true,
         basis,
       };
@@ -94,7 +103,10 @@ export function deriveWaitView(input: {
       if (endMs === null || startMs === null) return null;
       const basis: WaitBasis = submittedAt !== null ? "submitted" : "accepted";
       return {
-        text: `${BASIS_TEXT[basis]}等待 ${formatDuration(clampElapsed(startMs, endMs))} 后收口（计时已停止）`,
+        text: translator.t("run.waitSettled", {
+          basis: basisText(basis, translator),
+          duration: formatDuration(clampElapsed(startMs, endMs)),
+        }),
         growing: false,
         basis,
       };

@@ -1,6 +1,7 @@
 import type { SpanLine } from "@rebaseagent/trace-sdk";
 import type { ReactNode } from "react";
 import { useEffect } from "react";
+import { useTranslator } from "../i18n";
 import { decideAuxReturn } from "../lib/aux-workspace";
 import { describeReturnDestination } from "../lib/create-workspace";
 import { deriveMessagesResults } from "../lib/messages-results";
@@ -156,6 +157,7 @@ function MessagesResults({
   readonly targetRunId: string;
   readonly targetSpanId: string;
 }) {
+  const translator = useTranslator();
   const operations = useAppStore((s) => s.operations);
   const resultReads = useAppStore((s) => s.resultReads);
   const isOperationDraftPresent = useAppStore((s) => s.isOperationDraftPresent);
@@ -164,14 +166,17 @@ function MessagesResults({
   const retryResultRead = useAppStore((s) => s.retryResultRead);
   const returnOperationDraft = useAppStore((s) => s.returnOperationDraft);
 
-  const results = deriveMessagesResults({
-    targetRunId,
-    targetSpanId,
-    operations: operations.operations,
-    reads: resultReads,
-    draftPresentOf: (record) =>
-      isOperationDraftPresent({ epoch: record.epoch, operationId: record.operationId }),
-  });
+  const results = deriveMessagesResults(
+    {
+      targetRunId,
+      targetSpanId,
+      operations: operations.operations,
+      reads: resultReads,
+      draftPresentOf: (record) =>
+        isOperationDraftPresent({ epoch: record.epoch, operationId: record.operationId }),
+    },
+    translator,
+  );
   return (
     <MessagesResultsSection
       results={results}

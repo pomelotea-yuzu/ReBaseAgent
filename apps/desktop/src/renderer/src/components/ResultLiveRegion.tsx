@@ -1,3 +1,4 @@
+import { useTranslator } from "../i18n";
 import { deriveResultNotices } from "../lib/result-notices";
 import { useAppStore } from "../store";
 
@@ -27,14 +28,18 @@ export function ResultLiveRegionView({ text }: { text: string | null }) {
 }
 
 export function ResultLiveRegion() {
+  const translator = useTranslator();
   const session = useAppStore((s) => s.operations);
   const reads = useAppStore((s) => s.resultReads);
   const seenNoticeKeys = useAppStore((s) => s.seenNoticeKeys);
   // 与面板徽标**同一份派生**（lib/result-notices）：两处各算一套必然分叉
-  const notices = deriveResultNotices({
-    records: session.operations,
-    reads,
-    seenKeys: seenNoticeKeys,
-  });
+  const notices = deriveResultNotices(
+    {
+      records: session.operations,
+      reads,
+      seenKeys: seenNoticeKeys,
+    },
+    translator,
+  );
   return <ResultLiveRegionView text={notices.liveText} />;
 }

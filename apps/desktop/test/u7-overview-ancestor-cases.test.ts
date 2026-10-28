@@ -8,11 +8,22 @@ import { deriveOwnTerminalFacts } from "@shared/terminal-facts";
 import { afterAll, describe, expect, it } from "vitest";
 import { RunDetailReadError, RunReadContext } from "../src/main/run-read-context";
 import {
-  LINEAGE_INCOMPLETE_TEXT,
-  LINEAGE_METRICS_UNKNOWN_TEXT,
-  lineageIncompleteViewOf,
+  lineageIncompleteText,
+  lineageIncompleteViewOf as lineageIncompleteViewOfRaw,
+  lineageMetricsUnknownText,
 } from "../src/renderer/src/lib/detail-completeness";
-import { presentConsumption } from "../src/renderer/src/lib/overview-view";
+import { presentConsumption as presentConsumptionOf } from "../src/renderer/src/lib/overview-view";
+import { createTestTranslator } from "./i18n/render-with-locale";
+
+const zh = createTestTranslator("zh-CN");
+const LINEAGE_INCOMPLETE_TEXT = lineageIncompleteText(zh);
+const LINEAGE_METRICS_UNKNOWN_TEXT = lineageMetricsUnknownText(zh);
+const lineageIncompleteViewOf = (detail: Parameters<typeof lineageIncompleteViewOfRaw>[0]) =>
+  lineageIncompleteViewOfRaw(detail, zh);
+const presentConsumption = (
+  input: Parameters<typeof presentConsumptionOf>[0],
+  options?: Parameters<typeof presentConsumptionOf>[2],
+) => presentConsumptionOf(input, zh, options);
 
 /**
  * U7（improve-branch-comparison）任务 1.8：锁定**修订后**的概览缺祖先判据

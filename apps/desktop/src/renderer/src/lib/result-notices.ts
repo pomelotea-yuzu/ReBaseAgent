@@ -1,4 +1,6 @@
+import type { Translator } from "@rebaseagent/i18n";
 import type { OperationRecord } from "@shared/operations";
+import { outcomeLabelOf } from "@shared/outcome";
 import type { ResultReadStore } from "./result-verification";
 import { resultReadKeyOf, viewOperationResult } from "./result-verification";
 
@@ -54,29 +56,39 @@ function itemNotice(
   label: string,
   tone: ResultNotice["tone"],
   verdict: string,
+  translator: Translator,
 ): ResultNotice {
   return {
     key: noticeKeyOf(record.epoch, record.operationId, runId),
-    text: `${kindTextOf(record)} ${verdict}：${runId}（${label}）`,
+    text: translator.t("run.noticeItem", {
+      kind: kindTextOf(record, translator),
+      verdict,
+      runId,
+      label,
+    }),
     tone,
   };
 }
 
-/** 类型的中文短名（与操作面板一致，只到 kind，不重抄目标摘要） */
-function kindTextOf(record: OperationRecord): string {
+/** 类型短名（与操作面板一致，只到 kind，不重抄目标摘要） */
+export function kindTextOf(record: OperationRecord, translator: Translator): string {
   switch (record.target?.kind) {
     case "create":
-      return "新建运行";
+      return translator.t("run.kindCreate");
     case "result":
-      return "结果重跑";
+      return translator.t("run.kindResult");
     case "prompt":
-      return "改提示词重跑";
+      return translator.t("run.kindPrompt");
     case "proxy":
-      return "代理重发";
+      return translator.t("run.kindProxy");
     case "modelAb":
-      return "模型 A/B";
+      return translator.t("run.kindModelAb");
+    case "verificationPrepare":
+      return translator.t("run.kindVerificationPrepare");
+    case "verification":
+      return translator.t("run.kindVerification");
     default:
-      return "操作";
+      return translator.t("run.kindOperation");
   }
 }
 
@@ -87,11 +99,14 @@ function kindTextOf(record: OperationRecord): string {
  * @param reads   结果读取项（1.2/1.3 的产物）
  * @param seenKeys 已看过的通知键（面板展开或用户明确打开时标记）
  */
-export function deriveResultNotices(input: {
-  records: readonly OperationRecord[];
-  reads: ResultReadStore;
-  seenKeys: Readonly<Record<string, true>>;
-}): ResultNotices {
+export function deriveResultNotices(
+  input: {
+    records: readonly OperationRecord[];
+    reads: ResultReadStore;
+    seenKeys: Readonly<Record<string, true>>;
+  },
+  translator: Translator,
+): ResultNotices {
   const notices: ResultNotice[] = [];
   for (const record of input.records) {
     const view = viewOperationResult(record, input.reads);
@@ -101,14 +116,14 @@ export function deriveResultNotices(input: {
       case "not-accepted":
         notices.push({
           key: noticeKeyOf(record.epoch, record.operationId, null),
-          text: `${kindTextOf(record)} 本次未被主进程接受：未执行，输入仍保留`,
+          text: translator.t("run.noticeNotAccepted", { kind: kindTextOf(record, translator) }),
           tone: "warn",
         });
         continue;
       case "unlocated":
         notices.push({
           key: noticeKeyOf(record.epoch, record.operationId, null),
-          text: `${kindTextOf(record)} 已结束但结果未定位：登记里没有可信运行 ID`,
+          text: translator.t("run.noticeUnlocated", { kind: kindTextOf(record, translator) }),
           tone: "warn",
         });
         continue;
@@ -117,17 +132,30 @@ export function deriveResultNotices(input: {
           const entry = item.entry;
           if (entry === undefined || entry.phase === "reading") continue;
           if (entry.phase === "unreadable") {
-            notices.push(itemNotice(record, item.runId, "结果不可读", "warn", "的结果读不出来"));
+            notices.push(
+              itemNotice(
+                record,
+                item.runId,
+                translator.t("run.unreadable"),
+                "warn",
+                translator.t("run.unreadableVerdict"),
+                translator,
+              ),
+            );
             continue;
           }
-          const label = entry.facts?.outcome.label ?? "结局未知";
+          const label =
+            entry.facts === null
+              ? translator.t("run.outcomeUnknown")
+              : outcomeLabelOf(entry.facts.outcome.kind, translator);
           notices.push(
             itemNotice(
               record,
               item.runId,
               label,
               entry.facts?.normalEnd ? "success" : "danger",
-              "已有结果",
+              translator.t("run.hasResult"),
+              translator,
             ),
           );
         }
@@ -147,6 +175,9 @@ export function deriveResultNotices(input: {
   return {
     notices: unread,
     unreadCount: unread.length,
-    liveText: unread.length === 0 ? null : unread.map((one) => one.text).join("；"),
+    liveText:
+      unread.length === 0
+        ? null
+        : unread.map((one) => one.text).join(translator.t("common.liveSeparator")),
   };
 }

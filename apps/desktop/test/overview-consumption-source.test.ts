@@ -14,9 +14,20 @@ import { describe, expect, it } from "vitest";
 const { ConsumptionSectionView, SourceSectionView, CacheCoverageView } = await import(
   "../src/renderer/src/components/OverviewPanel"
 );
-const { presentCacheCoverage, presentConsumption, presentSource } = await import(
-  "../src/renderer/src/lib/overview-view"
-);
+const {
+  presentCacheCoverage,
+  presentConsumption: presentConsumptionOf,
+  presentSource: presentSourceOf,
+} = await import("../src/renderer/src/lib/overview-view");
+const { createTestTranslator } = await import("./i18n/render-with-locale");
+
+const zh = createTestTranslator("zh-CN");
+const presentConsumption = (
+  input: Parameters<typeof presentConsumptionOf>[0],
+  options?: Parameters<typeof presentConsumptionOf>[2],
+) => presentConsumptionOf(input, zh, options);
+const presentSource = (detail: Parameters<typeof presentSourceOf>[0]) =>
+  presentSourceOf(detail, zh);
 
 /**
  * U1（refactor-run-workspace）任务 5.3：概览本次指标、缓存覆盖与父本来源。

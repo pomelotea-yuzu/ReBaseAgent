@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-28T05:01:39.615Z",
+  "generatedAt": "2026-10-28T05:17:06.200Z",
   "scanner": "scripts/i18n-attribution.cjs",
   "taxonomy": {
     "product": "产品展示：需要按批次迁移为双语资源",
@@ -9,9 +9,9 @@
     "generated": "生成资产：不作为产品文案"
   },
   "totals": {
-    "files": 250,
-    "occurrences": 3406,
-    "product": 2951,
+    "files": 244,
+    "occurrences": 3282,
+    "product": 2827,
     "original": 378,
     "internal": 73,
     "generated": 4
@@ -26,9 +26,9 @@
       "generated": 0
     },
     "renderer": {
-      "files": 96,
-      "occurrences": 2072,
-      "product": 2048,
+      "files": 90,
+      "occurrences": 1948,
+      "product": 1924,
       "original": 0,
       "internal": 24,
       "generated": 0
@@ -1423,7 +1423,7 @@
             "返回"
           ],
           "lines": [
-            43
+            44
           ]
         },
         {
@@ -1437,7 +1437,7 @@
             "失败"
           ],
           "lines": [
-            44
+            45
           ]
         },
         {
@@ -1451,7 +1451,7 @@
             "拒绝"
           ],
           "lines": [
-            45
+            46
           ]
         },
         {
@@ -1466,9 +1466,9 @@
             "只定位这条臂自有的失败调用；祖先或其他臂的错误不算本次原因"
           ],
           "lines": [
-            65,
             67,
-            68
+            69,
+            70
           ]
         },
         {
@@ -1483,10 +1483,10 @@
             "从全局对照集合移出这条臂"
           ],
           "lines": [
-            94,
             96,
-            97,
-            108
+            98,
+            99,
+            110
           ]
         },
         {
@@ -1500,7 +1500,7 @@
             "臂"
           ],
           "lines": [
-            131
+            133
           ]
         },
         {
@@ -1515,8 +1515,8 @@
             "请求层："
           ],
           "lines": [
-            137,
-            156
+            139,
+            158
           ]
         },
         {
@@ -1530,7 +1530,7 @@
             "实验组"
           ],
           "lines": [
-            214
+            216
           ]
         },
         {
@@ -1544,7 +1544,7 @@
             "逐臂只呈现登记身份与独立核实到的事实：不产出臂间差值或\"胜出臂\"，比较请看分支树与各臂轨迹。"
           ],
           "lines": [
-            241
+            243
           ]
         }
       ]
@@ -5050,20 +5050,20 @@
             "，该轮全部工具的结果作为共享前缀各出现一次。"
           ],
           "lines": [
-            77,
-            78,
+            79,
             80,
             82,
-            91,
+            84,
             93,
             95,
-            113,
+            97,
             115,
             117,
-            133,
+            119,
             135,
             137,
-            139
+            139,
+            141
           ]
         },
         {
@@ -5078,7 +5078,7 @@
             "（同批臂共享此标签）"
           ],
           "lines": [
-            124
+            126
           ]
         },
         {
@@ -5093,9 +5093,9 @@
             "分叉链（从头重跑的独立新轨迹）"
           ],
           "lines": [
-            169,
-            171,
-            172
+            172,
+            174,
+            175
           ]
         },
         {
@@ -5110,7 +5110,7 @@
             "查看该代 run 详情"
           ],
           "lines": [
-            195
+            198
           ]
         },
         {
@@ -5124,7 +5124,7 @@
             "已编辑 messages"
           ],
           "lines": [
-            200
+            203
           ]
         },
         {
@@ -5139,9 +5139,9 @@
             "原阅读位置不可用："
           ],
           "lines": [
-            228,
-            260,
-            407
+            231,
+            263,
+            410
           ]
         },
         {
@@ -5156,8 +5156,8 @@
             "刷新时该运行的记录已不在 traces 目录中，下方内容为之前加载的结果，"
           ],
           "lines": [
-            230,
-            231
+            233,
+            234
           ]
         },
         {
@@ -5172,8 +5172,8 @@
             "重新读取并校验通过后自动恢复；也可在左侧列表改选其他运行。"
           ],
           "lines": [
-            232,
-            234
+            235,
+            237
           ]
         },
         {
@@ -5188,8 +5188,8 @@
             "复制缺失 run ID"
           ],
           "lines": [
-            242,
-            416
+            245,
+            419
           ]
         },
         {
@@ -5203,7 +5203,7 @@
             "上次记录的 span 或展开项已不在本次读取到的轨迹里（可能是记录被重写或缩减）。 已清理失效引用并回到默认位置。"
           ],
           "lines": [
-            261
+            264
           ]
         },
         {
@@ -5218,8 +5218,8 @@
             "此处不推断失败原因；轨迹树上的失败标记只反映各 span 自身记录的 error，不代表本次终止的原因。"
           ],
           "lines": [
-            291,
-            294
+            294,
+            297
           ]
         },
         {
@@ -5233,7 +5233,7 @@
             "来源与技术详情"
           ],
           "lines": [
-            336
+            339
           ]
         },
         {
@@ -5247,7 +5247,7 @@
             "。本运行自有输出、步骤、消耗与终止事实仍可读；共享前缀与祖先增量未知，不补零、不推算。"
           ],
           "lines": [
-            409
+            412
           ]
         },
         {
@@ -5261,7 +5261,7 @@
             "复制缺失祖先 run ID（${…}）"
           ],
           "lines": [
-            412
+            415
           ]
         }
       ]
@@ -5724,10 +5724,10 @@
             "正在读取父本详情…"
           ],
           "lines": [
-            68,
-            85,
-            89,
-            90
+            69,
+            86,
+            90,
+            91
           ]
         },
         {
@@ -5741,7 +5741,7 @@
             "父本详情读取失败："
           ],
           "lines": [
-            74
+            75
           ]
         },
         {
@@ -5755,7 +5755,7 @@
             "只读重试"
           ],
           "lines": [
-            80
+            81
           ]
         },
         {
@@ -5770,8 +5770,8 @@
             "以一个普通运行及其首次模型调用为父本，编排多臂参数对比。资格由门禁与 main 裁决；臂编辑与计划预览在此完成。"
           ],
           "lines": [
-            107,
-            108
+            108,
+            109
           ]
         },
         {
@@ -5786,8 +5786,8 @@
             "· 首次模型调用"
           ],
           "lines": [
-            112,
-            118
+            113,
+            119
           ]
         },
         {
@@ -5801,7 +5801,7 @@
             "父本运行 ID"
           ],
           "lines": [
-            116
+            117
           ]
         }
       ]
@@ -6017,7 +6017,7 @@
             "重发结果"
           ],
           "lines": [
-            32
+            34
           ]
         },
         {
@@ -6031,7 +6031,7 @@
             "次"
           ],
           "lines": [
-            34
+            36
           ]
         },
         {
@@ -6045,7 +6045,7 @@
             "尚未提交重发：确认重发后，结果会出现在这里。"
           ],
           "lines": [
-            39
+            41
           ]
         },
         {
@@ -6060,10 +6060,10 @@
             "只定位这条运行自有的失败调用"
           ],
           "lines": [
-            91,
             93,
-            94,
-            135
+            95,
+            96,
+            137
           ]
         },
         {
@@ -6077,7 +6077,7 @@
             "结果说明"
           ],
           "lines": [
-            144
+            146
           ]
         },
         {
@@ -6091,7 +6091,7 @@
             "结果只按这次提交的登记身份呈现：失败或未知都保留编辑输入，不用被动录制补结果；源 trace 不会被改写。"
           ],
           "lines": [
-            151
+            153
           ]
         }
       ]
@@ -6118,10 +6118,10 @@
             "正在读取源详情…"
           ],
           "lines": [
-            69,
-            86,
-            90,
-            91
+            70,
+            87,
+            91,
+            92
           ]
         },
         {
@@ -6135,7 +6135,7 @@
             "源详情读取失败："
           ],
           "lines": [
-            75
+            76
           ]
         },
         {
@@ -6149,7 +6149,7 @@
             "只读重试"
           ],
           "lines": [
-            81
+            82
           ]
         },
         {
@@ -6164,9 +6164,9 @@
             "单请求重发 · 不执行外部工具 · 使用本会话最近捕获的凭据"
           ],
           "lines": [
-            108,
             109,
-            110
+            110,
+            111
           ]
         },
         {
@@ -6181,8 +6181,8 @@
             "· 调用"
           ],
           "lines": [
-            114,
-            120
+            115,
+            121
           ]
         },
         {
@@ -6196,7 +6196,7 @@
             "来源运行 ID"
           ],
           "lines": [
-            118
+            119
           ]
         }
       ]
@@ -6668,317 +6668,6 @@
       ]
     },
     {
-      "path": "apps/desktop/src/renderer/src/components/OperationsEntry.tsx",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "通用外壳/组件",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "PHASE_LABELS.running",
-          "role": "prop",
-          "context": "running",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "执行中"
-          ],
-          "lines": [
-            34
-          ]
-        },
-        {
-          "symbol": "PHASE_LABELS.settled",
-          "role": "prop",
-          "context": "settled",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "已收口"
-          ],
-          "lines": [
-            35
-          ]
-        },
-        {
-          "symbol": "PHASE_LABELS.notAccepted",
-          "role": "prop",
-          "context": "notAccepted",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "未接受"
-          ],
-          "lines": [
-            36
-          ]
-        },
-        {
-          "symbol": "PHASE_LABELS.unknown",
-          "role": "prop",
-          "context": "unknown",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "待核对"
-          ],
-          "lines": [
-            37
-          ]
-        },
-        {
-          "symbol": "ACTION_LABELS.open-result",
-          "role": "prop",
-          "context": "open-result",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "打开结果"
-          ],
-          "lines": [
-            50
-          ]
-        },
-        {
-          "symbol": "ACTION_LABELS.view-failure",
-          "role": "prop",
-          "context": "view-failure",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "查看失败调用"
-          ],
-          "lines": [
-            51
-          ]
-        },
-        {
-          "symbol": "ACTION_LABELS.retry-read",
-          "role": "prop",
-          "context": "retry-read",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "重读这条结果"
-          ],
-          "lines": [
-            52
-          ]
-        },
-        {
-          "symbol": "ACTION_LABELS.return-draft",
-          "role": "prop",
-          "context": "return-draft",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "返回草稿"
-          ],
-          "lines": [
-            53
-          ]
-        },
-        {
-          "symbol": "DIAGNOSTIC_STAGE_LABELS.execute",
-          "role": "prop",
-          "context": "execute",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "执行"
-          ],
-          "lines": [
-            57
-          ]
-        },
-        {
-          "symbol": "DIAGNOSTIC_STAGE_LABELS.identity",
-          "role": "prop",
-          "context": "identity",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "身份登记"
-          ],
-          "lines": [
-            58
-          ]
-        },
-        {
-          "symbol": "DIAGNOSTIC_STAGE_LABELS.finalize",
-          "role": "prop",
-          "context": "finalize",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "收尾"
-          ],
-          "lines": [
-            59
-          ]
-        },
-        {
-          "symbol": "DIAGNOSTIC_STAGE_LABELS.cleanup",
-          "role": "prop",
-          "context": "cleanup",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "清理"
-          ],
-          "lines": [
-            60
-          ]
-        },
-        {
-          "symbol": "DIAGNOSTIC_STAGE_LABELS.rejection",
-          "role": "prop",
-          "context": "rejection",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "拒绝"
-          ],
-          "lines": [
-            61
-          ]
-        },
-        {
-          "symbol": "RowActionButton.button",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 4,
-          "samples": [
-            "只按同一个可信运行 ID 重读（${…}）：不会重新执行，也不会换一条记录试",
-            "只定位本次运行自有的失败调用；祖先里的错误调用不算本次原因"
-          ],
-          "lines": [
-            91,
-            93,
-            95,
-            96
-          ]
-        },
-        {
-          "symbol": "div.span",
-          "role": "ui_text",
-          "context": "jsx_expr",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "（类型未知）"
-          ],
-          "lines": [
-            125
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "ui_text",
-          "context": "jsx_expr",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "operations:reconcile(${…})——只核对操作事实，不读运行文件，也不切页面"
-          ],
-          "lines": [
-            132
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "核对状态"
-          ],
-          "lines": [
-            135
-          ]
-        },
-        {
-          "symbol": "li.div",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "操作"
-          ],
-          "lines": [
-            140
-          ]
-        },
-        {
-          "symbol": "li.div",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "实验"
-          ],
-          "lines": [
-            248
-          ]
-        },
-        {
-          "symbol": "details.summary",
-          "role": "ui_attr",
-          "context": "title",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "受控诊断：稳定码 + 脱敏限长文案（正文、密钥、授权与源目录凭据从结构上就没有进来的通道）"
-          ],
-          "lines": [
-            256
-          ]
-        },
-        {
-          "symbol": "details.summary",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "受控诊断",
-            "条（不含正文与凭据）"
-          ],
-          "lines": [
-            258
-          ]
-        }
-      ]
-    },
-    {
       "path": "apps/desktop/src/renderer/src/components/OverviewPanel.tsx",
       "layer": "renderer",
       "package": null,
@@ -6999,8 +6688,8 @@
             "复制${…}完整原文"
           ],
           "lines": [
-            82,
-            83
+            83,
+            84
           ]
         },
         {
@@ -7015,7 +6704,7 @@
             "复制原文"
           ],
           "lines": [
-            90
+            91
           ]
         },
         {
@@ -7029,7 +6718,7 @@
             "运行结局"
           ],
           "lines": [
-            110
+            111
           ]
         },
         {
@@ -7044,9 +6733,9 @@
             "本次失败原因"
           ],
           "lines": [
-            112,
-            147,
-            344
+            113,
+            148,
+            345
           ]
         },
         {
@@ -7060,7 +6749,7 @@
             "LLM 错误"
           ],
           "lines": [
-            145
+            146
           ]
         },
         {
@@ -7075,9 +6764,9 @@
             "直接父 run id"
           ],
           "lines": [
-            153,
-            348,
-            684
+            154,
+            349,
+            687
           ]
         },
         {
@@ -7092,12 +6781,12 @@
             "未记录命中量"
           ],
           "lines": [
-            160,
-            314,
-            347,
-            376,
-            651,
-            655
+            161,
+            315,
+            348,
+            377,
+            654,
+            658
           ]
         },
         {
@@ -7112,9 +6801,9 @@
             "未填写"
           ],
           "lines": [
-            169,
-            487,
-            495
+            170,
+            488,
+            496
           ]
         },
         {
@@ -7129,12 +6818,12 @@
             "返回父记录"
           ],
           "lines": [
-            179,
-            359,
-            369,
-            518,
-            528,
-            712
+            180,
+            360,
+            370,
+            519,
+            529,
+            715
           ]
         },
         {
@@ -7148,7 +6837,7 @@
             "工具错误"
           ],
           "lines": [
-            207
+            208
           ]
         },
         {
@@ -7163,15 +6852,15 @@
             "次"
           ],
           "lines": [
-            210,
-            213,
-            216,
-            258,
-            260,
-            311,
-            433,
-            436,
-            532
+            211,
+            214,
+            217,
+            259,
+            261,
+            312,
+            434,
+            437,
+            533
           ]
         },
         {
@@ -7185,7 +6874,7 @@
             "定位"
           ],
           "lines": [
-            232
+            233
           ]
         },
         {
@@ -7199,7 +6888,7 @@
             "本次消耗"
           ],
           "lines": [
-            255
+            256
           ]
         },
         {
@@ -7214,11 +6903,11 @@
             "输出 token"
           ],
           "lines": [
-            264,
-            270,
-            276,
-            287,
-            291
+            265,
+            271,
+            277,
+            288,
+            292
           ]
         },
         {
@@ -7232,7 +6921,7 @@
             "未记录时间跨度"
           ],
           "lines": [
-            280
+            281
           ]
         },
         {
@@ -7246,7 +6935,7 @@
             "来源"
           ],
           "lines": [
-            343
+            344
           ]
         },
         {
@@ -7260,7 +6949,7 @@
             "与父运行对比（父左子右）"
           ],
           "lines": [
-            366
+            367
           ]
         },
         {
@@ -7274,7 +6963,7 @@
             "隔离启动指令实验"
           ],
           "lines": [
-            428
+            429
           ]
         },
         {
@@ -7289,15 +6978,15 @@
             "基线调用"
           ],
           "lines": [
-            441,
-            445,
-            449,
-            453,
-            457,
-            461,
-            465,
-            467,
-            471
+            442,
+            446,
+            450,
+            454,
+            458,
+            462,
+            466,
+            468,
+            472
           ]
         },
         {
@@ -7312,10 +7001,10 @@
             "新值"
           ],
           "lines": [
-            477,
-            481,
-            485,
-            493
+            478,
+            482,
+            486,
+            494
           ]
         },
         {
@@ -7330,10 +7019,10 @@
             "实验新值"
           ],
           "lines": [
-            478,
-            482,
-            489,
-            497
+            479,
+            483,
+            490,
+            498
           ]
         },
         {
@@ -7347,7 +7036,7 @@
             "运行概览"
           ],
           "lines": [
-            627
+            630
           ]
         },
         {
@@ -7361,7 +7050,7 @@
             "运行结果"
           ],
           "lines": [
-            644
+            647
           ]
         },
         {
@@ -7375,7 +7064,7 @@
             "正文"
           ],
           "lines": [
-            662
+            665
           ]
         },
         {
@@ -7389,7 +7078,7 @@
             "正文"
           ],
           "lines": [
-            695
+            698
           ]
         },
         {
@@ -7403,7 +7092,7 @@
             "没有可展示的输出，也没有可定位的调用。"
           ],
           "lines": [
-            720
+            723
           ]
         },
         {
@@ -7417,7 +7106,7 @@
             "尚未选择运行。"
           ],
           "lines": [
-            757
+            760
           ]
         }
       ]
@@ -10959,104 +10648,6 @@
       ]
     },
     {
-      "path": "apps/desktop/src/renderer/src/lib/detail-completeness.ts",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "运行总览/详情",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "LINEAGE_INCOMPLETE_TEXT",
-          "role": "ui_constant",
-          "context": "LINEAGE_INCOMPLETE_TEXT",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "仅显示本运行记录，父链不完整"
-          ],
-          "lines": [
-            24
-          ]
-        },
-        {
-          "symbol": "LINEAGE_METRICS_UNKNOWN_TEXT",
-          "role": "ui_constant",
-          "context": "LINEAGE_METRICS_UNKNOWN_TEXT",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "父链不完整：沿链祖先的指标未知，不补零、不推算。"
-          ],
-          "lines": [
-            27
-          ]
-        },
-        {
-          "symbol": "lineageIncompleteViewOf.missingNote",
-          "role": "ui_prop",
-          "context": "missingNote",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "缺失的祖先运行：${…}"
-          ],
-          "lines": [
-            63
-          ]
-        },
-        {
-          "symbol": "ownOnlyBranchNoticeOf.lines",
-          "role": "array_item",
-          "context": "[]",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "${…}（缺失祖先 run：${…}）。"
-          ],
-          "lines": [
-            82
-          ]
-        },
-        {
-          "symbol": "ownOnlyBranchNoticeOf",
-          "role": "call_arg",
-          "context": "lines.push",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "编辑字段：${…} · 分叉点 ${…}（标注保留；父前缀未并入时间线）。"
-          ],
-          "lines": [
-            85
-          ]
-        },
-        {
-          "symbol": "truncatedChainTitleOf",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "分叉链（截断：父链不完整，首项不是根 run）",
-            "分叉链（父链不完整）"
-          ],
-          "lines": [
-            102,
-            103
-          ]
-        }
-      ]
-    },
-    {
       "path": "apps/desktop/src/renderer/src/lib/draft-closure.ts",
       "layer": "renderer",
       "package": null,
@@ -11559,7 +11150,7 @@
             "该臂没有登记可信运行 ID：不能进入比较（不从信封 ids、邻近记录或目录猜身份）"
           ],
           "lines": [
-            80
+            87
           ]
         },
         {
@@ -11574,9 +11165,9 @@
             "已选两条：进入比较将按选择顺序作为详细比较的左右两侧"
           ],
           "lines": [
-            91,
-            92,
-            93
+            98,
+            99,
+            100
           ]
         }
       ]
@@ -12378,701 +11969,6 @@
       ]
     },
     {
-      "path": "apps/desktop/src/renderer/src/lib/operation-list.ts",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "通用外壳/组件",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "KIND_LABELS.create",
-          "role": "prop",
-          "context": "create",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "新建运行"
-          ],
-          "lines": [
-            93
-          ]
-        },
-        {
-          "symbol": "KIND_LABELS.result",
-          "role": "prop",
-          "context": "result",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "结果重跑"
-          ],
-          "lines": [
-            94
-          ]
-        },
-        {
-          "symbol": "KIND_LABELS.prompt",
-          "role": "prop",
-          "context": "prompt",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "改提示词重跑"
-          ],
-          "lines": [
-            95
-          ]
-        },
-        {
-          "symbol": "KIND_LABELS.proxy",
-          "role": "prop",
-          "context": "proxy",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "代理重发"
-          ],
-          "lines": [
-            96
-          ]
-        },
-        {
-          "symbol": "KIND_LABELS.modelAb",
-          "role": "prop",
-          "context": "modelAb",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "模型 A/B"
-          ],
-          "lines": [
-            97
-          ]
-        },
-        {
-          "symbol": "KIND_LABELS.verificationPrepare",
-          "role": "prop",
-          "context": "verificationPrepare",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "验证环境准备"
-          ],
-          "lines": [
-            98
-          ]
-        },
-        {
-          "symbol": "KIND_LABELS.verification",
-          "role": "prop",
-          "context": "verification",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "项目验证"
-          ],
-          "lines": [
-            99
-          ]
-        },
-        {
-          "symbol": "PHASE_HINTS.running",
-          "role": "prop",
-          "context": "running",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "正在执行（桌面同时只允许一个主动操作）"
-          ],
-          "lines": [
-            103
-          ]
-        },
-        {
-          "symbol": "PHASE_HINTS.settled",
-          "role": "prop",
-          "context": "settled",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "已收口：请求执行并收尾完毕；不等于运行成功"
-          ],
-          "lines": [
-            104
-          ]
-        },
-        {
-          "symbol": "PHASE_HINTS.notAccepted",
-          "role": "prop",
-          "context": "notAccepted",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "未被接受：没有执行，也没有消耗许可"
-          ],
-          "lines": [
-            105
-          ]
-        },
-        {
-          "symbol": "PHASE_HINTS.unknown",
-          "role": "prop",
-          "context": "unknown",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "结局未知：主进程会话已更换，不自动重发、不猜测关联"
-          ],
-          "lines": [
-            106
-          ]
-        },
-        {
-          "symbol": "verificationTargetText.checkpoint",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "初始检查点",
-            "步骤 ${…}"
-          ],
-          "lines": [
-            115
-          ]
-        },
-        {
-          "symbol": "verificationTargetText",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "父 ${…} · ${…}"
-          ],
-          "lines": [
-            116
-          ]
-        },
-        {
-          "symbol": "targetTextOf",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 6,
-          "samples": [
-            "（无目标事实：核对先建立的封禁）",
-            "父 ${…} · 步 ${…} · 改 ${…}${…}"
-          ],
-          "lines": [
-            121,
-            126,
-            128,
-            130,
-            132,
-            134
-          ]
-        },
-        {
-          "symbol": "targetTextOf",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "隔离文件世界创建",
-            "纯对话创建"
-          ],
-          "lines": [
-            124,
-            126
-          ]
-        },
-        {
-          "symbol": "runLinks.note",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "已创建，尚未收尾",
-            "身份来自编排回调，未确认文件可读"
-          ],
-          "lines": [
-            157
-          ]
-        },
-        {
-          "symbol": "unknownRow.targetText",
-          "role": "ui_prop",
-          "context": "targetText",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "（本次提交属上一个主进程会话，登记事实不在当前快照里）"
-          ],
-          "lines": [
-            179
-          ]
-        },
-        {
-          "symbol": "operationBadge.parts",
-          "role": "array_item",
-          "context": "[]",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "操作 ${…}"
-          ],
-          "lines": [
-            246
-          ]
-        },
-        {
-          "symbol": "operationBadge",
-          "role": "call_arg",
-          "context": "parts.push",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "执行中 ${…}",
-            "待核对 ${…}"
-          ],
-          "lines": [
-            247,
-            248,
-            249
-          ]
-        }
-      ]
-    },
-    {
-      "path": "apps/desktop/src/renderer/src/lib/operation-result-view.ts",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "通用外壳/组件",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "NOT_ACCEPTED_TEXT.busy",
-          "role": "prop",
-          "context": "busy",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "执行槽被占：本次没有开始执行，也不消耗任何许可"
-          ],
-          "lines": [
-            71
-          ]
-        },
-        {
-          "symbol": "NOT_ACCEPTED_TEXT.closing",
-          "role": "prop",
-          "context": "closing",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "主进程正在退出协商：本次未被接受"
-          ],
-          "lines": [
-            72
-          ]
-        },
-        {
-          "symbol": "NOT_ACCEPTED_TEXT.configuration_busy",
-          "role": "prop",
-          "context": "configuration_busy",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "配置变更在飞：本次未被接受"
-          ],
-          "lines": [
-            73
-          ]
-        },
-        {
-          "symbol": "NOT_ACCEPTED_TEXT.reconcile_tombstone",
-          "role": "prop",
-          "context": "reconcile_tombstone",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "该操作已由核对封禁：迟到请求不会复活它"
-          ],
-          "lines": [
-            74
-          ]
-        },
-        {
-          "symbol": "DRAFT_GONE_NOTE",
-          "role": "constant",
-          "context": "DRAFT_GONE_NOTE",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "该提交的草稿已按修订清理或从未登记：不返回、不复活旧内容（需要旧输入请在草稿列表里复制）"
-          ],
-          "lines": [
-            78
-          ]
-        },
-        {
-          "symbol": "itemViewOf.label",
-          "role": "ui_prop",
-          "context": "label",
-          "classification": "product",
-          "reason": null,
-          "count": 4,
-          "samples": [
-            "结果待读取",
-            "正在读取结果"
-          ],
-          "lines": [
-            85,
-            96,
-            107,
-            126
-          ]
-        },
-        {
-          "symbol": "itemViewOf.detail",
-          "role": "prop",
-          "context": "detail",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "还没有按这个可信运行 ID 读过；打开即读一次，不会重新执行",
-            "只读通道在飞（不重发执行、不改当前阅读现场）"
-          ],
-          "lines": [
-            87,
-            98
-          ]
-        },
-        {
-          "symbol": "itemViewOf.failureNote",
-          "role": "ui_prop",
-          "context": "failureNote",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "结局读不出来时不做失败定位（不拿别的记录凑原因）"
-          ],
-          "lines": [
-            112
-          ]
-        },
-        {
-          "symbol": "itemViewOf.sourceWarning",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "${…}（缺失祖先 run：${…}）——只核实了本运行自有记录；正常结束不等于可以重跑"
-          ],
-          "lines": [
-            122
-          ]
-        },
-        {
-          "symbol": "itemViewOf.failureNote",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "以错误终止，但本次自有记录里没有失败的模型调用详情（不取祖先调用冒充原因）",
-            "本次不是以错误终止，没有失败调用可定位"
-          ],
-          "lines": [
-            138,
-            139
-          ]
-        },
-        {
-          "symbol": "deriveOperationResultView.label",
-          "role": "ui_prop",
-          "context": "label",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "执行中",
-            "本次未接受"
-          ],
-          "lines": [
-            190,
-            199,
-            211
-          ]
-        },
-        {
-          "symbol": "deriveOperationResultView.detail",
-          "role": "prop",
-          "context": "detail",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "草稿保持冻结；不显示进度、阶段或百分比（主进程没有这些事实）",
-            "登记里没有可信运行 ID：只能核对登记，不按列表最新项或错误文案猜一个结果"
-          ],
-          "lines": [
-            191,
-            212
-          ]
-        },
-        {
-          "symbol": "deriveOperationResultView.detail",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "未被接受（主进程未给出稳定原因）"
-          ],
-          "lines": [
-            202
-          ]
-        },
-        {
-          "symbol": "deriveOperationResultView.label",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "${…} 条结果",
-            "结果"
-          ],
-          "lines": [
-            220
-          ]
-        },
-        {
-          "symbol": "REQUEST_OUTCOME_LABEL.returned",
-          "role": "prop",
-          "context": "returned",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "返回"
-          ],
-          "lines": [
-            234
-          ]
-        },
-        {
-          "symbol": "REQUEST_OUTCOME_LABEL.failed",
-          "role": "prop",
-          "context": "failed",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "请求异常"
-          ],
-          "lines": [
-            235
-          ]
-        },
-        {
-          "symbol": "REQUEST_OUTCOME_LABEL.rejected",
-          "role": "prop",
-          "context": "rejected",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "业务拒绝"
-          ],
-          "lines": [
-            236
-          ]
-        },
-        {
-          "symbol": "requestFactsLineOf.code",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "（稳定码 ${…}）"
-          ],
-          "lines": [
-            245
-          ]
-        },
-        {
-          "symbol": "requestFactsLineOf",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "请求事实：主进程按「返回」收口${…}——A/B 的返回可含失败臂，不宣告任何一条运行正常完成",
-            "请求事实：主进程按「返回」收口${…}——各运行的结局只看自有终止事件"
-          ],
-          "lines": [
-            249,
-            250
-          ]
-        },
-        {
-          "symbol": "requestFactsLineOf",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "请求事实：${…}${…}——失败信封不影响按可信 ID 打开与核实已登记的运行",
-            "请求事实：${…}${…}——拒绝是编排时的分类，不一律等于零模型调用；是否发生过调用看自有终止事实"
-          ],
-          "lines": [
-            252,
-            254
-          ]
-        },
-        {
-          "symbol": "ARM_OUTCOME_TEXT.returned",
-          "role": "prop",
-          "context": "returned",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "请求层：该臂返回"
-          ],
-          "lines": [
-            288
-          ]
-        },
-        {
-          "symbol": "ARM_OUTCOME_TEXT.failed",
-          "role": "prop",
-          "context": "failed",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "请求层：该臂失败"
-          ],
-          "lines": [
-            289
-          ]
-        },
-        {
-          "symbol": "ARM_OUTCOME_TEXT.rejected",
-          "role": "prop",
-          "context": "rejected",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "请求层：该臂被拒绝"
-          ],
-          "lines": [
-            290
-          ]
-        },
-        {
-          "symbol": "abArmViewOf.note",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "臂 ${…}：尚无登记的可信运行 ID（执行中，未观察到不代表失败，也不提前给结果入口）",
-            "臂 ${…}：main 未登记可信运行 ID（缺臂 / 未开始）——不生成结果链接，不从信封多报的 id 或邻近记录凑一个"
-          ],
-          "lines": [
-            307,
-            308
-          ]
-        },
-        {
-          "symbol": "deriveAbBatchResult.statusLabel",
-          "role": "ui_prop",
-          "context": "statusLabel",
-          "classification": "product",
-          "reason": null,
-          "count": 4,
-          "samples": [
-            "等待登记快照",
-            "执行中"
-          ],
-          "lines": [
-            341,
-            359,
-            369,
-            379
-          ]
-        },
-        {
-          "symbol": "deriveAbBatchResult.statusDetail",
-          "role": "ui_prop",
-          "context": "statusDetail",
-          "classification": "product",
-          "reason": null,
-          "count": 4,
-          "samples": [
-            "本次执行的提交身份已确定，但主进程登记快照尚未到场：不预告结局，可在「操作」入口核对状态",
-            "整批按登记逐臂呈现；不显示进度、阶段或百分比（主进程没有这些事实）"
-          ],
-          "lines": [
-            343,
-            360,
-            370,
-            380
-          ]
-        }
-      ]
-    },
-    {
       "path": "apps/desktop/src/renderer/src/lib/overview-view.ts",
       "layer": "renderer",
       "package": null,
@@ -13093,7 +11989,7 @@
             "本 run 没有记录任何自有模型调用，因此没有可展示的输出。"
           ],
           "lines": [
-            71
+            72
           ]
         },
         {
@@ -13107,7 +12003,7 @@
             "最后一次自有模型调用的响应正文为空。"
           ],
           "lines": [
-            72
+            73
           ]
         },
         {
@@ -13121,7 +12017,7 @@
             "最后一次自有模型调用只记录了思维链，没有正文——已记录内容类型为「思维链」。"
           ],
           "lines": [
-            73
+            74
           ]
         },
         {
@@ -13135,7 +12031,7 @@
             "最后一次自有模型调用只记录了工具调用，没有正文——已记录内容类型为「工具调用」，循环本应继续。"
           ],
           "lines": [
-            75
+            76
           ]
         },
         {
@@ -13149,7 +12045,7 @@
             "最后一次自有模型调用以错误结束，没有可用的正文结果。"
           ],
           "lines": [
-            76
+            77
           ]
         },
         {
@@ -13163,7 +12059,7 @@
             "本 run 不是正常结束（不是 completed 终止），最后一段正文不作为最终结果。"
           ],
           "lines": [
-            77
+            78
           ]
         },
         {
@@ -13178,8 +12074,8 @@
             "未记录最终输出"
           ],
           "lines": [
-            99,
-            114
+            100,
+            115
           ]
         },
         {
@@ -13193,7 +12089,7 @@
             "最终输出"
           ],
           "lines": [
-            102
+            103
           ]
         },
         {
@@ -13207,7 +12103,7 @@
             "结束前记录的最后一段正文（不是本次最终结果）"
           ],
           "lines": [
-            118
+            119
           ]
         },
         {
@@ -13222,8 +12118,8 @@
             "打开该调用查看工具调用详情"
           ],
           "lines": [
-            150,
-            151
+            151,
+            152
           ]
         },
         {
@@ -13237,7 +12133,7 @@
             "循环达到迭代上限后停止，不是正常结束。"
           ],
           "lines": [
-            197
+            198
           ]
         },
         {
@@ -13251,7 +12147,7 @@
             "token / 预算超出上限后停止，不是正常结束。"
           ],
           "lines": [
-            198
+            199
           ]
         },
         {
@@ -13265,7 +12161,7 @@
             "运行被中止，不是正常结束；已记录内容保留在下方。"
           ],
           "lines": [
-            199
+            200
           ]
         },
         {
@@ -13279,7 +12175,7 @@
             "没有记录到终止事件（进程可能被强制结束），不代表仍在执行。"
           ],
           "lines": [
-            200
+            201
           ]
         },
         {
@@ -13293,7 +12189,7 @@
             "有终止事件但原因不在已知枚举内，原始原因见运行记录。"
           ],
           "lines": [
-            201
+            202
           ]
         },
         {
@@ -13307,7 +12203,7 @@
             "本 run 以错误结束，但自有记录里没有 LLM 错误详情——不反推原因，也不借用祖先的错误。"
           ],
           "lines": [
-            233
+            234
           ]
         },
         {
@@ -13321,7 +12217,7 @@
             "仅本次运行自有调用的已记录值；祖先共享前缀不计入，缺失项不补零。${…}"
           ],
           "lines": [
-            329
+            331
           ]
         },
         {
@@ -13335,7 +12231,7 @@
             "本次自有调用的记录用量为 0——这可能是失败调用的占位值，不据此断言实际零消费。"
           ],
           "lines": [
-            336
+            338
           ]
         },
         {
@@ -13350,8 +12246,8 @@
             "本次 ${…} 次自有模型调用均未记录缓存命中字段，命中量未知。"
           ],
           "lines": [
-            359,
-            360
+            361,
+            362
           ]
         },
         {
@@ -13365,7 +12261,7 @@
             "已记录 ${…} / ${…} 次自有调用的命中量（部分记录不构成整次命中率）。"
           ],
           "lines": [
-            367
+            369
           ]
         },
         {
@@ -13379,7 +12275,7 @@
             "${…}（缺失祖先 run：${…}）"
           ],
           "lines": [
-            448
+            455
           ]
         },
         {
@@ -13394,8 +12290,8 @@
             "这是根运行，没有上游来源记录。"
           ],
           "lines": [
-            460,
-            461
+            467,
+            468
           ]
         },
         {
@@ -13410,10 +12306,10 @@
             "隔离续跑：从运行 ${…} 的轮末检查点出发，文件读写只发生在独立世界里。"
           ],
           "lines": [
-            464,
-            511,
-            513,
-            514
+            471,
+            518,
+            520,
+            521
           ]
         },
         {
@@ -13428,11 +12324,11 @@
             "prompt fork（从头重跑）：本 run 是独立执行，不共享父轨迹前缀，父 run 仅作溯源对照。"
           ],
           "lines": [
-            481,
-            485,
-            489,
-            495,
-            498
+            488,
+            492,
+            496,
+            502,
+            505
           ]
         },
         {
@@ -13447,9 +12343,9 @@
             "出现 <img>：模型输出里的远程图片地址会被浏览器自动加载"
           ],
           "lines": [
-            575,
-            581,
-            587
+            582,
+            588,
+            594
           ]
         }
       ]
@@ -13728,84 +12624,6 @@
           "lines": [
             160,
             165
-          ]
-        }
-      ]
-    },
-    {
-      "path": "apps/desktop/src/renderer/src/lib/result-notices.ts",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "通用外壳/组件",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "kindTextOf",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 6,
-          "samples": [
-            "新建运行",
-            "结果重跑"
-          ],
-          "lines": [
-            69,
-            71,
-            73,
-            75,
-            77,
-            79
-          ]
-        },
-        {
-          "symbol": "deriveResultNotices.text",
-          "role": "ui_prop",
-          "context": "text",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "${…} 本次未被主进程接受：未执行，输入仍保留",
-            "${…} 已结束但结果未定位：登记里没有可信运行 ID"
-          ],
-          "lines": [
-            104,
-            111
-          ]
-        },
-        {
-          "symbol": "deriveResultNotices",
-          "role": "call_arg",
-          "context": "itemNotice",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "结果不可读",
-            "的结果读不出来"
-          ],
-          "lines": [
-            120,
-            130
-          ]
-        },
-        {
-          "symbol": "deriveResultNotices.label",
-          "role": "constant",
-          "context": "label",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "结局未知"
-          ],
-          "lines": [
-            123
           ]
         }
       ]
@@ -14431,63 +13249,6 @@
           ],
           "lines": [
             138
-          ]
-        }
-      ]
-    },
-    {
-      "path": "apps/desktop/src/renderer/src/lib/wait-timing.ts",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "通用外壳/组件",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "BASIS_TEXT.submitted",
-          "role": "prop",
-          "context": "submitted",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "自提交起"
-          ],
-          "lines": [
-            50
-          ]
-        },
-        {
-          "symbol": "BASIS_TEXT.accepted",
-          "role": "prop",
-          "context": "accepted",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "自接受起"
-          ],
-          "lines": [
-            51
-          ]
-        },
-        {
-          "symbol": "deriveWaitView.text",
-          "role": "ui_prop",
-          "context": "text",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "${…}已过 ${…}（结局未知：这段时间不表示执行进度）",
-            "${…}已等待 ${…}（等待时长，不是模型耗时，也没有进度含义）"
-          ],
-          "lines": [
-            71,
-            86,
-            97
           ]
         }
       ]

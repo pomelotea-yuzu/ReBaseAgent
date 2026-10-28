@@ -8,14 +8,26 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { OperationRow } from "../src/renderer/src/lib/operation-list";
-import { deriveOperationRows } from "../src/renderer/src/lib/operation-list";
+import { deriveOperationRows as deriveOperationRowsOf } from "../src/renderer/src/lib/operation-list";
 import type { OperationResultView } from "../src/renderer/src/lib/operation-result-view";
 import {
-  deriveAbBatchResult,
-  requestFactsLineOf,
+  deriveAbBatchResult as deriveAbBatchResultOf,
+  requestFactsLineOf as requestFactsLineOfRaw,
 } from "../src/renderer/src/lib/operation-result-view";
 import { initialSession } from "../src/renderer/src/lib/operation-session";
 import { emptyResultReadStore, setResultRead } from "../src/renderer/src/lib/result-verification";
+import { createTestTranslator, renderWithLocale } from "./i18n/render-with-locale";
+
+const zh = createTestTranslator("zh-CN");
+const deriveOperationRows = (
+  session: Parameters<typeof deriveOperationRowsOf>[0],
+  results: Parameters<typeof deriveOperationRowsOf>[1],
+  clock: Parameters<typeof deriveOperationRowsOf>[2],
+) => deriveOperationRowsOf(session, results, clock, zh);
+const deriveAbBatchResult = (input: Parameters<typeof deriveAbBatchResultOf>[0]) =>
+  deriveAbBatchResultOf(input, zh);
+const requestFactsLineOf = (record: Parameters<typeof requestFactsLineOfRaw>[0]) =>
+  requestFactsLineOfRaw(record, zh);
 
 /**
  * U5（unify-run-execution-workflow）任务 5.1：**操作列表/详情的请求事实、结果状态、
@@ -219,7 +231,8 @@ describe("5.1 受控诊断：详情可读但不泄漏输入", () => {
       wait: null,
       result,
     };
-    const markup = renderToStaticMarkup(
+    const markup = renderWithLocale(
+      "zh-CN",
       createElement(OperationRowView, {
         row,
         onReconcile: () => undefined,
@@ -385,7 +398,8 @@ describe("5.1 A/B 批次结果区：逐臂读取状态，基准是登记不是�
     expect(view.requestLine).toContain("请求异常");
     expect(view.arms[0]?.item?.actions).toEqual(["retry-read"]);
 
-    const markup = renderToStaticMarkup(
+    const markup = renderWithLocale(
+      "zh-CN",
       createElement(AbBatchResultSection, { view, onAct: () => undefined }),
     );
     expect(markup).toContain("臂 1");

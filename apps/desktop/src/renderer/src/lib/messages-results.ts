@@ -1,3 +1,4 @@
+import type { Translator } from "@rebaseagent/i18n";
 import type { OperationRecord } from "@shared/operations";
 import type { OperationResultView } from "./operation-result-view";
 import { deriveOperationResultView, requestFactsLineOf } from "./operation-result-view";
@@ -29,13 +30,16 @@ export interface MessagesResultView {
   readonly requestLine: string | null;
 }
 
-export function deriveMessagesResults(input: {
-  readonly targetRunId: string;
-  readonly targetSpanId: string;
-  readonly operations: readonly OperationRecord[];
-  readonly reads: ResultReadStore;
-  readonly draftPresentOf: (record: OperationRecord) => boolean;
-}): readonly MessagesResultView[] {
+export function deriveMessagesResults(
+  input: {
+    readonly targetRunId: string;
+    readonly targetSpanId: string;
+    readonly operations: readonly OperationRecord[];
+    readonly reads: ResultReadStore;
+    readonly draftPresentOf: (record: OperationRecord) => boolean;
+  },
+  translator: Translator,
+): readonly MessagesResultView[] {
   const records = input.operations.filter(
     (record) =>
       record.target?.kind === "proxy" &&
@@ -51,11 +55,14 @@ export function deriveMessagesResults(input: {
   return sorted.map((record) => ({
     epoch: record.epoch,
     operationId: record.operationId,
-    view: deriveOperationResultView({
-      record,
-      reads: input.reads,
-      draftPresent: input.draftPresentOf(record),
-    }),
-    requestLine: requestFactsLineOf(record),
+    view: deriveOperationResultView(
+      {
+        record,
+        reads: input.reads,
+        draftPresent: input.draftPresentOf(record),
+      },
+      translator,
+    ),
+    requestLine: requestFactsLineOf(record, translator),
   }));
 }

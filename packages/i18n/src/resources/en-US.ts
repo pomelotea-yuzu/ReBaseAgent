@@ -154,6 +154,7 @@ export const enUS = {
     fieldOldValue: "Original value",
     fieldNewValue: "New value",
     fieldWrites: "File writes in this submit",
+    liveSeparator: "; ",
   },
   run: {
     createSummaryChat: "One real model call · billed by actual usage · plain chat calls no tools",
@@ -173,8 +174,173 @@ export const enUS = {
       "There is no directory collection preview: file count, size, and rejections are only known after submit, so none are promised here.",
     createLimitIsolatedWrites:
       "Isolated runs use a fixed tool set, and collected text enters the model request; file writes land only in immutable attachments under the data directory.",
+    kindCreate: "New run",
+    kindResult: "Result rerun",
+    kindPrompt: "Prompt rerun",
+    kindProxy: "Proxy resend",
+    kindModelAb: "Model A/B",
+    kindVerificationPrepare: "Verification preparation",
+    kindVerification: "Project verification",
+    kindOperation: "Operation",
+    kindUnknown: "(Unknown type)",
+    phaseRunning: "Running",
+    phaseSettled: "Settled",
+    phaseNotAccepted: "Not accepted",
+    phaseUnknown: "Needs check",
+    phaseHintRunning: "Running (the desktop allows only one active operation at a time)",
+    phaseHintSettled:
+      "Settled: the request finished and was wrapped up; this does not mean the run succeeded",
+    phaseHintNotAccepted: "Not accepted: nothing ran and no permission was consumed",
+    phaseHintUnknown:
+      "Outcome unknown: the main-process session changed; this is not resent automatically and associations are not guessed",
+    noteRunning: "Created, not yet settled",
+    noteReadable:
+      "Identity came from the orchestration callback; the file is not confirmed readable",
+    targetNoFacts: "(No target facts: the block was created by reconciliation first)",
+    targetIsolatedCreate: "Isolated file world creation",
+    targetChatCreate: "Plain chat creation",
+    targetResult: "Parent {{parent}} · step {{span}} · edit {{field}}{{isolated}}",
+    targetIsolatedSuffix: " · isolated",
+    targetPrompt: "Parent {{parent}} · edit {{field}}",
+    targetProxy: "Parent {{parent}} · step {{span}}",
+    targetModelAb: "Parent {{parent}} · {{count}} arms",
+    targetVerificationPrepare: "{{target}} · environment preparation",
+    targetVerification: "{{target}} · {{command}}",
+    checkpointInitial: "Initial checkpoint",
+    checkpointStep: "Step {{span}}",
+    stepMissing: "(missing)",
+    parentCheckpoint: "Parent {{runId}} · {{checkpoint}}",
+    unknownTarget:
+      "(This submit belongs to a previous main-process session; its registration facts are not in the current snapshot)",
+    badgeOperations: "Operations {{count}}",
+    badgeRunning: "Running {{count}}",
+    badgeUnknown: "Needs check {{count}}",
+    badgeUnread: "Results to review {{count}}",
+    noticeNotAccepted:
+      "{{kind}} was not accepted by the main process: nothing ran and the input is preserved",
+    noticeUnlocated:
+      "{{kind}} ended but its result was not located: the registration has no trusted run ID",
+    unreadable: "Result unreadable",
+    unreadableVerdict: "result cannot be read",
+    hasResult: "has a result",
+    noticeItem: "{{kind}} {{verdict}}: {{runId}} ({{label}})",
+    waitBasisSubmitted: "Since submit",
+    waitBasisAccepted: "Since acceptance",
+    waitUnknownElapsed:
+      "{{basis}}: {{duration}} elapsed (outcome unknown: this period does not indicate progress)",
+    waitRunning:
+      "{{basis}}: waiting {{duration}} (wait time, not model time, and no progress meaning)",
+    waitSettled: "{{basis}}: settled after {{duration}} (timer stopped)",
+    notAcceptedBusy:
+      "The execution slot is occupied: nothing started and no permission was consumed",
+    notAcceptedClosing: "The main process is negotiating shutdown: this submit was not accepted",
+    notAcceptedConfigurationBusy:
+      "A configuration change is in flight: this submit was not accepted",
+    notAcceptedTombstone:
+      "This operation was blocked by reconciliation: late requests will not revive it",
+    draftGoneNote:
+      "The draft for this submit was cleared by revision or was never registered: it is not returned and old content is not revived (copy old input from the draft list if needed)",
+    resultUnread: "Result not read yet",
+    resultReading: "Reading result",
+    resultNotReadDetail:
+      "This trusted run ID has not been read yet; opening reads it once and does not rerun anything",
+    resultReadingDetail:
+      "A read-only channel is in flight (no execution is resent and the current reading view is unchanged)",
+    resultUnreadableFailureNote:
+      "Failure location is not attempted when the outcome cannot be read (no other record is used as a substitute)",
+    resultNotErrorFailureNote:
+      "This run did not end with an error, so there is no failed call to locate",
+    resultMissingFailureDetail:
+      "The run ended with an error, but its own records contain no failed model call detail (ancestor calls are not presented as the cause)",
+    sourceIncompleteWarning:
+      "{{text}} (missing ancestor run: {{missingRunId}}) — only this run's own records were verified; a normal end does not mean it can be rerun",
+    operationRunning: "Running",
+    runningNoProgress:
+      "The draft stays frozen; progress, stages, or percentages are not shown (the main process has no such facts)",
+    operationNotAccepted: "Not accepted",
+    notAcceptedUnknownReason: "Not accepted (the main process gave no stable reason)",
+    resultUnlocated: "Result not located",
+    unlocatedDetail:
+      "The registration has no trusted run ID: only registration facts can be checked; no result is guessed from the latest list item or error text",
+    resultsCount: "{{count}} results",
+    resultSingle: "Result",
+    requestReturnedAb:
+      "Request facts: the main process settled as returned{{code}} — an A/B return may include failed arms, so no run is declared successful",
+    requestReturned:
+      "Request facts: the main process settled as returned{{code}} — each run's outcome is determined only by its own terminal events",
+    requestFailed:
+      "Request facts: request failed{{code}} — a failed envelope does not prevent opening and verifying registered runs by trusted ID",
+    requestRejected:
+      "Request facts: rejected by business logic{{code}} — rejection is an orchestration classification and does not always mean zero model calls; check own terminal facts for whether calls happened",
+    requestStableCode: " (stable code {{code}})",
+    requestOutcomeReturned: "returned",
+    requestOutcomeFailed: "request failed",
+    requestOutcomeRejected: "rejected",
+    armOutcomeReturned: "Request layer: this arm returned",
+    armOutcomeFailed: "Request layer: this arm failed",
+    armOutcomeRejected: "Request layer: this arm was rejected",
+    abArmNoIdRunning:
+      "Arm {{index}}: no trusted run ID registered yet (running; not observing it does not mean failure, and no result entry is offered early)",
+    abArmNoIdSettled:
+      "Arm {{index}}: main registered no trusted run ID (missing arm / not started) — no result link is generated and no ID is taken from the envelope or nearby records",
+    abStatusWaiting: "Waiting for registration snapshot",
+    abStatusWaitingDetail:
+      "The submit identity for this execution is known, but the main-process registration snapshot has not arrived: no outcome is predicted; check status from the Operations entry",
+    abStatusRunning: "Running",
+    abStatusRunningDetail:
+      "The batch is presented arm by arm from registrations; progress, stages, or percentages are not shown (the main process has no such facts)",
+    abStatusNotAccepted: "Not accepted",
+    abStatusNotAcceptedDetail:
+      "The whole batch did not start and consumed no permission; there are no readable experiment results",
+    abStatusSettled: "Settled",
+    abStatusSettledDetail:
+      "Each arm is shown by its registered identity and independent verification: settled does not mean all succeeded; missing and failed arms are kept as they are",
+    outcomeCompleted: "Completed",
+    outcomeError: "Ended with error",
+    outcomeMaxIterations: "Reached iteration limit",
+    outcomeBudgetExceeded: "Exceeded budget",
+    outcomeAborted: "Aborted",
+    outcomeInterrupted: "Run interrupted",
+    outcomeUnknown: "End reason unknown",
+    actionOpenResult: "Open result",
+    actionViewFailure: "View failed call",
+    actionRetryRead: "Re-read this result",
+    actionReturnDraft: "Return to draft",
+    actionTitleOpen:
+      "Open the overview by trusted run ID (an explicit user action, unrelated to automatic-navigation intent)",
+    actionTitleRetry:
+      "Re-read only the same trusted run ID ({{runId}}): nothing is rerun and no other record is tried",
+    actionTitleFailure:
+      "Locate only a failed call owned by this run; ancestor error calls are not this run's cause",
+    actionTitleReturn:
+      "Return to the draft edited for this submit (permission was reset; check and authorize again)",
+    diagnosticStageExecute: "Execute",
+    diagnosticStageIdentity: "Identity registration",
+    diagnosticStageFinalize: "Finalize",
+    diagnosticStageCleanup: "Cleanup",
+    diagnosticStageRejection: "Rejection",
+    diagnosticLine: "[{{stage}}] {{code}}: {{message}}",
+    diagnosticTitle:
+      "Controlled diagnostics: stable codes plus redacted, length-limited text (bodies, keys, authorization, and source-directory credentials have no structural path in)",
+    diagnosticSummary: "Controlled diagnostics: {{count}} (no bodies or credentials)",
+    operationIdLine: "Operation {{id}}",
+    experimentLine: "Experiment {{id}}",
+    reconcileButton: "Check status",
+    reconcileTitle:
+      "operations:reconcile({{id}}) — checks operation facts only; it reads no run files and switches no pages",
   },
-  detail: {},
+  detail: {
+    lineageIncomplete: "Showing only this run's records; the parent chain is incomplete",
+    lineageMetricsUnknown:
+      "The parent chain is incomplete: ancestor metrics along the chain are unknown; they are not zero-filled or inferred.",
+    missingAncestor: "Missing ancestor run: {{runId}}",
+    ownOnlyBranchLine: "{{text}} (missing ancestor run: {{missingRunId}}).",
+    ownOnlyEditLine:
+      "Edited field: {{field}} · fork point {{span}} (markers kept; the parent prefix was not merged into the timeline).",
+    truncatedChain:
+      "Fork chain (truncated: parent chain incomplete; the first item is not the root run)",
+    incompleteChain: "Fork chain (parent chain incomplete)",
+  },
   fork: {
     cacheHint:
       "The parent run used {{parentModel}} for this step; the current configuration is {{configModel}} — prefix cache may miss and billing may change (informational only; rerun is not blocked).",

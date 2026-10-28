@@ -1,4 +1,6 @@
+import type { MessageKey, Translator } from "@rebaseagent/i18n";
 import type { OperationDiagnostic } from "@shared/operations";
+import { useTranslator } from "../i18n";
 import type { OperationRow } from "../lib/operation-list";
 import type { ResultAction } from "../lib/operation-result-view";
 import type { ResultReadIdentity } from "../lib/result-verification";
@@ -30,11 +32,11 @@ const PHASE_STYLES: Record<OperationRow["phase"], string> = {
   unknown: "border-violet-300 bg-violet-300 text-violet-800",
 };
 
-const PHASE_LABELS: Record<OperationRow["phase"], string> = {
-  running: "执行中",
-  settled: "已收口",
-  notAccepted: "未接受",
-  unknown: "待核对",
+const PHASE_LABEL_KEYS: Record<OperationRow["phase"], MessageKey> = {
+  running: "run.phaseRunning",
+  settled: "run.phaseSettled",
+  notAccepted: "run.phaseNotAccepted",
+  unknown: "run.phaseUnknown",
 };
 
 /** U5 5.1：与 A/B 批次结果区共用同一套色调（两处各写一份必然分叉） */
@@ -46,27 +48,35 @@ export const TONE_STYLES: Record<"neutral" | "success" | "danger" | "warn", stri
 };
 
 /** U5 5.1：A/B 批次结果区（`AbBatchResultSection`）与本面板共用同一套动作词与色调 */
-export const ACTION_LABELS: Record<ResultAction, string> = {
-  "open-result": "打开结果",
-  "view-failure": "查看失败调用",
-  "retry-read": "重读这条结果",
-  "return-draft": "返回草稿",
+const ACTION_LABEL_KEYS: Record<ResultAction, MessageKey> = {
+  "open-result": "run.actionOpenResult",
+  "view-failure": "run.actionViewFailure",
+  "retry-read": "run.actionRetryRead",
+  "return-draft": "run.actionReturnDraft",
 };
 
-const DIAGNOSTIC_STAGE_LABELS: Record<OperationDiagnostic["stage"], string> = {
-  execute: "执行",
-  identity: "身份登记",
-  finalize: "收尾",
-  cleanup: "清理",
-  rejection: "拒绝",
+export function actionLabelOf(action: ResultAction, translator: Translator): string {
+  return translator.t(ACTION_LABEL_KEYS[action]);
+}
+
+const DIAGNOSTIC_STAGE_KEYS: Record<OperationDiagnostic["stage"], MessageKey> = {
+  execute: "run.diagnosticStageExecute",
+  identity: "run.diagnosticStageIdentity",
+  finalize: "run.diagnosticStageFinalize",
+  cleanup: "run.diagnosticStageCleanup",
+  rejection: "run.diagnosticStageRejection",
 };
 
-/** 一条受控诊断：码与文案原样列出（main 已脱敏限长），阶段给中文标签便于扫读 */
+/** 一条受控诊断：码与文案原样列出（main 已脱敏限长），阶段给本地化标签便于扫读 */
 function DiagnosticLine({ diagnostic }: { diagnostic: OperationDiagnostic }) {
+  const translator = useTranslator();
   return (
     <li className="break-all text-[10px] leading-4 text-gray-500">
-      〔{DIAGNOSTIC_STAGE_LABELS[diagnostic.stage]}〕{" "}
-      <span className="font-code">{diagnostic.code}</span>：{diagnostic.message}
+      {translator.t("run.diagnosticLine", {
+        stage: translator.t(DIAGNOSTIC_STAGE_KEYS[diagnostic.stage]),
+        code: diagnostic.code,
+        message: diagnostic.message,
+      })}
     </li>
   );
 }
@@ -80,24 +90,26 @@ function RowActionButton({
   identity: ResultReadIdentity;
   onAct: (action: ResultAction, identity: ResultReadIdentity) => void;
 }) {
+  const translator = useTranslator();
   return (
     <button
       type="button"
       onClick={() => {
         onAct(action, identity);
       }}
-      title={
+      title={translator.t(
         action === "retry-read"
-          ? `只按同一个可信运行 ID 重读（${identity.runId}）：不会重新执行，也不会换一条记录试`
+          ? "run.actionTitleRetry"
           : action === "view-failure"
-            ? "只定位本次运行自有的失败调用；祖先里的错误调用不算本次原因"
+            ? "run.actionTitleFailure"
             : action === "return-draft"
-              ? "回到这次提交编辑的那份草稿（许可已复位，需重新检查与授权）"
-              : "按可信运行 ID 打开概览（这是用户主动动作，与自动导航的意图判据无关）"
-      }
+              ? "run.actionTitleReturn"
+              : "run.actionTitleOpen",
+        action === "retry-read" ? { runId: identity.runId } : undefined,
+      )}
       className={`shrink-0 rounded border border-gray-300 px-1.5 py-0.5 text-[10px] text-gray-700 hover:bg-gray-50 ${FOCUS_RING}`}
     >
-      {ACTION_LABELS[action]}
+      {actionLabelOf(action, translator)}
     </button>
   );
 }
@@ -112,6 +124,7 @@ export function OperationRowView({
   onReconcile: (operationId: string) => void;
   onAct: (action: ResultAction, identity: ResultReadIdentity) => void;
 }) {
+  const translator = useTranslator();
   const result = row.result;
   return (
     <li className="mt-1 rounded border border-gray-200 bg-white p-1.5">
@@ -119,25 +132,25 @@ export function OperationRowView({
         <span
           className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] ${PHASE_STYLES[row.phase]}`}
         >
-          {PHASE_LABELS[row.phase]}
+          {translator.t(PHASE_LABEL_KEYS[row.phase])}
         </span>
         <span className="min-w-0 break-all text-[11px] font-semibold text-gray-800">
-          {row.kindLabel ?? "（类型未知）"}
+          {row.kindLabel ?? translator.t("run.kindUnknown")}
         </span>
         <button
           type="button"
           onClick={() => {
             onReconcile(row.operationId);
           }}
-          title={`operations:reconcile(${row.operationId})——只核对操作事实，不读运行文件，也不切页面`}
+          title={translator.t("run.reconcileTitle", { id: row.operationId })}
           className={`ml-auto shrink-0 rounded border border-gray-300 px-1.5 py-0.5 text-[11px] text-gray-700 hover:bg-gray-50 ${FOCUS_RING}`}
         >
-          核对状态
+          {translator.t("run.reconcileButton")}
         </button>
       </div>
       <div className="mt-0.5 break-all text-[10px] leading-4 text-gray-500">{row.targetText}</div>
       <div className="break-all font-code text-[10px] leading-4 text-gray-400">
-        操作 {row.operationId}
+        {translator.t("run.operationIdLine", { id: row.operationId })}
       </div>
       <div className="mt-0.5 text-[10px] leading-4 text-gray-600">{row.hint}</div>
       {/* U5 5.1：信封侧请求事实单独一行——它与下方逐条运行结局分层，互不覆盖 */}
@@ -245,7 +258,7 @@ export function OperationRowView({
 
       {row.experimentId !== null ? (
         <div className="mt-0.5 break-all font-code text-[10px] text-gray-400">
-          实验 {row.experimentId}
+          {translator.t("run.experimentLine", { id: row.experimentId })}
         </div>
       ) : null}
       {/* U5 5.1：受控诊断从"只报条数"改为可读列表——main 侧已脱敏限长，这里原样列出 */}
@@ -253,9 +266,9 @@ export function OperationRowView({
         <details className="mt-0.5">
           <summary
             className={`cursor-pointer text-[10px] leading-4 text-gray-500 ${FOCUS_RING}`}
-            title="受控诊断：稳定码 + 脱敏限长文案（正文、密钥、授权与源目录凭据从结构上就没有进来的通道）"
+            title={translator.t("run.diagnosticTitle")}
           >
-            受控诊断 {row.diagnostics.length} 条（不含正文与凭据）
+            {translator.t("run.diagnosticSummary", { count: row.diagnostics.length })}
           </summary>
           <ul className="mt-1 space-y-0.5">
             {row.diagnostics.map((diagnostic, index) => (

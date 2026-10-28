@@ -9,7 +9,7 @@ import * as draftLib from "../src/renderer/src/lib/debugging-drafts";
 import type { CallDraftKey, ModelAbDraftKey } from "../src/renderer/src/lib/debugging-drafts";
 import { isLineageRejectionCode } from "../src/renderer/src/lib/detail-completeness";
 import { closureOf } from "../src/renderer/src/lib/draft-submission";
-import { buildOperationResultViews } from "../src/renderer/src/lib/operation-result-view";
+import { buildOperationResultViews as buildOperationResultViewsOf } from "../src/renderer/src/lib/operation-result-view";
 import { initialSession } from "../src/renderer/src/lib/operation-session";
 import {
   emptyResultReadStore,
@@ -18,6 +18,11 @@ import {
   verifyResultPayload,
 } from "../src/renderer/src/lib/result-verification";
 import { FAKE_EPOCH, executedFail, statusSnapshot } from "./helpers/operation-channels";
+import { createTestTranslator } from "./i18n/render-with-locale";
+
+const zh = createTestTranslator("zh-CN");
+const buildOperationResultViews = (input: Parameters<typeof buildOperationResultViewsOf>[0]) =>
+  buildOperationResultViewsOf(input, zh);
 
 /**
  * U6（add-partial-run-reading）任务 4.6–4.9：部分详情沿用 U5 的结果核实与草稿收尾。

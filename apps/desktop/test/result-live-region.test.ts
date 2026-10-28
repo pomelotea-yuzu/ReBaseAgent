@@ -4,8 +4,13 @@ import type { OperationRecord } from "@shared/operations";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { deriveResultNotices } from "../src/renderer/src/lib/result-notices";
+import { deriveResultNotices as deriveResultNoticesOf } from "../src/renderer/src/lib/result-notices";
 import { emptyResultReadStore, setResultRead } from "../src/renderer/src/lib/result-verification";
+import { createTestTranslator } from "./i18n/render-with-locale";
+
+const zh = createTestTranslator("zh-CN");
+const deriveResultNotices = (input: Parameters<typeof deriveResultNoticesOf>[0]) =>
+  deriveResultNoticesOf(input, zh);
 
 /**
  * U5（unify-run-execution-workflow）任务 5.2（下半）：**全局 `aria-live` 通知区、

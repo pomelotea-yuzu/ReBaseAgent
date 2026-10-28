@@ -5,10 +5,20 @@ import type { OperationRecord } from "@shared/operations";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it } from "vitest";
-import { deriveOperationRows } from "../src/renderer/src/lib/operation-list";
+import { deriveOperationRows as deriveOperationRowsOf } from "../src/renderer/src/lib/operation-list";
 import { initialSession } from "../src/renderer/src/lib/operation-session";
-import { deriveWaitView } from "../src/renderer/src/lib/wait-timing";
+import { deriveWaitView as deriveWaitViewOf } from "../src/renderer/src/lib/wait-timing";
 import { FAKE_EPOCH, statusSnapshot, toExecuted } from "./helpers/operation-channels";
+import { createTestTranslator, renderWithLocale } from "./i18n/render-with-locale";
+
+const zh = createTestTranslator("zh-CN");
+const deriveOperationRows = (
+  session: Parameters<typeof deriveOperationRowsOf>[0],
+  results?: Parameters<typeof deriveOperationRowsOf>[1],
+  clock?: Parameters<typeof deriveOperationRowsOf>[2],
+) => deriveOperationRowsOf(session, results, clock, zh);
+const deriveWaitView = (input: Parameters<typeof deriveWaitViewOf>[0]) =>
+  deriveWaitViewOf(input, zh);
 
 /**
  * U5（unify-run-execution-workflow）任务 5.2：**真实等待计时**。
@@ -219,7 +229,8 @@ describe("5.2 面板接线：时长全部现算，组件不复算", () => {
       undefined,
       { nowMs: NOW_MS },
     );
-    const markup = renderToStaticMarkup(
+    const markup = renderWithLocale(
+      "zh-CN",
       createElement(OperationRowView, {
         row: rows.find((one) => one.operationId === OP)!,
         onReconcile: () => undefined,
@@ -316,5 +327,14 @@ describe("5.2 源码级：时钟受控、不驱动执行，判据不摸系统时
     for (const forbidden of ["deriveWaitView", "clampElapsed", "formatDuration"]) {
       expect(src, forbidden).not.toContain(forbidden);
     }
+  });
+});
+
+describe("2.2 等待文案按语言", () => {
+  it("英文：基准与口径独立成句", () => {
+    const en = createTestTranslator("en-US");
+    const view = deriveWaitViewOf({ record: record(), submittedAt: SUBMIT_MS, nowMs: NOW_MS }, en);
+    expect(view?.text).toContain("Since submit: waiting");
+    expect(view?.text).toContain("not model time");
   });
 });

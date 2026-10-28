@@ -10,13 +10,25 @@ import { describe, expect, it } from "vitest";
 import type { OperationRow } from "../src/renderer/src/lib/operation-list";
 import type { OperationResultView } from "../src/renderer/src/lib/operation-result-view";
 import {
-  buildOperationResultViews,
-  deriveOperationResultView,
+  buildOperationResultViews as buildOperationResultViewsOf,
+  deriveOperationResultView as deriveOperationResultViewOf,
   resultViewKeyOf,
 } from "../src/renderer/src/lib/operation-result-view";
-import { deriveResultNotices, noticeKeyOf } from "../src/renderer/src/lib/result-notices";
+import {
+  deriveResultNotices as deriveResultNoticesOf,
+  noticeKeyOf,
+} from "../src/renderer/src/lib/result-notices";
 import type { ResultReadStore } from "../src/renderer/src/lib/result-verification";
 import { emptyResultReadStore, setResultRead } from "../src/renderer/src/lib/result-verification";
+import { createTestTranslator, renderWithLocale } from "./i18n/render-with-locale";
+
+const zh = createTestTranslator("zh-CN");
+const buildOperationResultViews = (input: Parameters<typeof buildOperationResultViewsOf>[0]) =>
+  buildOperationResultViewsOf(input, zh);
+const deriveOperationResultView = (input: Parameters<typeof deriveOperationResultViewOf>[0]) =>
+  deriveOperationResultViewOf(input, zh);
+const deriveResultNotices = (input: Parameters<typeof deriveResultNoticesOf>[0]) =>
+  deriveResultNoticesOf(input, zh);
 
 /**
  * U5（unify-run-execution-workflow）任务 3.5 / 3.6 的**呈现与通知判据**（纯函数 + 喂 props 的视图）。
@@ -349,7 +361,8 @@ describe("3.5 面板视图（喂 props）：入口与说明互斥地出现", () 
   });
 
   const render = (result: OperationResultView | null): string =>
-    renderToStaticMarkup(
+    renderWithLocale(
+      "zh-CN",
       createElement(OperationRowView, {
         row: row(result),
         onReconcile: () => undefined,

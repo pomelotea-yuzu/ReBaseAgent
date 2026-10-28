@@ -5,11 +5,16 @@ import { ok } from "@shared/ipc";
 import type { Envelope, ListRunsData, RunDetail, WindowApi } from "@shared/ipc";
 import type { OperationRecord } from "@shared/operations";
 import { beforeEach, describe, expect, it } from "vitest";
-import { deriveExperimentBatches } from "../src/renderer/src/lib/experiment-results";
+import { deriveExperimentBatches as deriveExperimentBatchesOf } from "../src/renderer/src/lib/experiment-results";
 import { initialSession } from "../src/renderer/src/lib/operation-session";
 import { emptyResultReadStore, resultReadKeyOf } from "../src/renderer/src/lib/result-verification";
 import { FAKE_EPOCH, statusSnapshot } from "./helpers/operation-channels";
 import { proxyStatusOk } from "./helpers/proxy-state-fixture";
+import { createTestTranslator } from "./i18n/render-with-locale";
+
+const zh = createTestTranslator("zh-CN");
+const deriveExperimentBatches = (input: Parameters<typeof deriveExperimentBatchesOf>[0]) =>
+  deriveExperimentBatchesOf(input, zh);
 
 /**
  * U8（unify-recording-and-experiment-workspaces）任务 4.3：**实验工作区逐臂动作的

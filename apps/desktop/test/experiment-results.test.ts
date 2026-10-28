@@ -5,12 +5,16 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import {
-  deriveExperimentBatches,
+  deriveExperimentBatches as deriveExperimentBatchesOf,
   experimentArmSelectabilityOf,
   experimentCompareHintOf,
 } from "../src/renderer/src/lib/experiment-results";
 import { emptyResultReadStore, setResultRead } from "../src/renderer/src/lib/result-verification";
-import { renderWithLocale } from "./i18n/render-with-locale";
+import { createTestTranslator, renderWithLocale } from "./i18n/render-with-locale";
+
+const zh = createTestTranslator("zh-CN");
+const deriveExperimentBatches = (input: Parameters<typeof deriveExperimentBatchesOf>[0]) =>
+  deriveExperimentBatchesOf(input, zh);
 
 /**
  * U8（unify-recording-and-experiment-workspaces）任务 4.1/4.2：**实验工作区的批次结果区**。
@@ -340,7 +344,7 @@ describe("4.1/4.2 源码级：结果区迁到工作区，编辑器/详情不再�
 
   it("ExperimentWorkspace 接线：deriveExperimentBatches 按目标圈定，动作走既有 store 口", () => {
     const code = read("../src/renderer/src/components/ExperimentWorkspace.tsx");
-    expect(code).toContain("deriveExperimentBatches({");
+    expect(code).toContain("deriveExperimentBatches(");
     expect(code).toContain("targetRunId,");
     expect(code).toContain("operations: operations.operations");
     expect(code).toContain("reads: resultReads");

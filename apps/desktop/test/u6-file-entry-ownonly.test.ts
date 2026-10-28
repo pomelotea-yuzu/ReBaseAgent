@@ -106,10 +106,12 @@ describe("U6 4.4：缺祖先与缺附件分别诊断", () => {
   });
 
   it("来源完整性提示与附件诊断是两套文案（互不冒充）", async () => {
-    const { LINEAGE_INCOMPLETE_TEXT } = await import("../src/renderer/src/lib/detail-completeness");
+    const { lineageIncompleteText } = await import("../src/renderer/src/lib/detail-completeness");
     const { availabilityLabel } = await import("../src/renderer/src/lib/workspace-files");
+    const { createTestTranslator } = await import("./i18n/render-with-locale");
+    const lineageText = lineageIncompleteText(createTestTranslator("zh-CN"));
     // 固定提示只说父链；附件标签只说附件——两者没有共享措辞，不混同
-    expect(LINEAGE_INCOMPLETE_TEXT).not.toContain("附件");
+    expect(lineageText).not.toContain("附件");
     expect(availabilityLabel("missing")).not.toContain("父链");
     expect(availabilityLabel("corrupt")).toBe("附件损坏");
   });

@@ -1,3 +1,4 @@
+import type { Translator } from "@rebaseagent/i18n";
 import type { RunDetail } from "@shared/ipc";
 
 /**
@@ -21,10 +22,14 @@ import type { RunDetail } from "@shared/ipc";
  */
 
 /** 固定提示（唯一文案来源；delta 场景原文） */
-export const LINEAGE_INCOMPLETE_TEXT = "仅显示本运行记录，父链不完整";
+export function lineageIncompleteText(translator: Translator): string {
+  return translator.t("detail.lineageIncomplete");
+}
 
 /** ownOnly 沿链指标的固定口径说明（概览消耗区/来源区共用） */
-export const LINEAGE_METRICS_UNKNOWN_TEXT = "父链不完整：沿链祖先的指标未知，不补零、不推算。";
+export function lineageMetricsUnknownText(translator: Translator): string {
+  return translator.t("detail.lineageMetricsUnknown");
+}
 
 /** ownOnly 时来源区/详情提示区的完整展示事实 */
 export interface LineageIncompleteView {
@@ -51,16 +56,19 @@ export interface LineageIncompleteView {
  *    不自行推断）；`lineage.status` 与 completeness 不一致时按「不可信载荷」
  *    返回 null 交由上层 schema 兜底——本函数**绝不**把 ownOnly 误判成 complete。
  */
-export function lineageIncompleteViewOf(detail: RunDetail): LineageIncompleteView | null {
+export function lineageIncompleteViewOf(
+  detail: RunDetail,
+  translator: Translator,
+): LineageIncompleteView | null {
   if (detail.completeness !== "ownOnly") return null;
   if (detail.lineage.status !== "incomplete") return null;
   const first = detail.chain[0];
   const chainTruncated = !(first !== undefined && first.meta.parent === null);
   return {
     incomplete: true,
-    text: LINEAGE_INCOMPLETE_TEXT,
+    text: lineageIncompleteText(translator),
     missingRunId: detail.lineage.missingRunId,
-    missingNote: `缺失的祖先运行：${detail.lineage.missingRunId}`,
+    missingNote: translator.t("detail.missingAncestor", { runId: detail.lineage.missingRunId }),
     chainTruncated,
   };
 }
@@ -75,14 +83,22 @@ export function lineageIncompleteViewOf(detail: RunDetail): LineageIncompleteVie
  *
  * @returns null = 非 ownOnly（调用方走既有完整分支文案，本函数不参与）
  */
-export function ownOnlyBranchNoticeOf(detail: RunDetail): string | null {
-  const view = lineageIncompleteViewOf(detail);
+export function ownOnlyBranchNoticeOf(detail: RunDetail, translator: Translator): string | null {
+  const view = lineageIncompleteViewOf(detail, translator);
   if (view === null) return null;
   const fork = detail.meta.fork;
-  const lines: string[] = [`${view.text}（缺失祖先 run：${view.missingRunId}）。`];
+  const lines: string[] = [
+    translator.t("detail.ownOnlyBranchLine", {
+      text: view.text,
+      missingRunId: view.missingRunId,
+    }),
+  ];
   if (fork !== null) {
     lines.push(
-      `编辑字段：${fork.edit.field} · 分叉点 ${fork.at_span}（标注保留；父前缀未并入时间线）。`,
+      translator.t("detail.ownOnlyEditLine", {
+        field: fork.edit.field,
+        span: fork.at_span,
+      }),
     );
   }
   return lines.join("\n");
@@ -95,12 +111,10 @@ export function ownOnlyBranchNoticeOf(detail: RunDetail): string | null {
  * 「最早可读 hop」不等于根 run，不得绘制一条虚假的根到叶连接
  * （delta「部分来源链首项不冒充根」）。complete ⇒ null（调用方用既有标题）。
  */
-export function truncatedChainTitleOf(detail: RunDetail): string | null {
-  const view = lineageIncompleteViewOf(detail);
+export function truncatedChainTitleOf(detail: RunDetail, translator: Translator): string | null {
+  const view = lineageIncompleteViewOf(detail, translator);
   if (view === null) return null;
-  return view.chainTruncated
-    ? "分叉链（截断：父链不完整，首项不是根 run）"
-    : "分叉链（父链不完整）";
+  return translator.t(view.chainTruncated ? "detail.truncatedChain" : "detail.incompleteChain");
 }
 
 // ---------------------------------------------------------------------------

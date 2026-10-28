@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { renderWithLocale } from "./i18n/render-with-locale";
 
 /**
  * UI 密度 2.4（improve-workspace-reading-and-editing）：**专注模式**（design D3）。
@@ -202,7 +203,8 @@ const { DetailPanel } = await import("../src/renderer/src/components/DetailPanel
 
 describe("2.4 WorkspaceFilesPanelView：专注差异栏（静态渲染）", () => {
   it("focusActive ⇒ 顶部专注栏 + 退出入口（spec：专注中目标和恢复操作可见）", () => {
-    const html = renderToStaticMarkup(
+    const html = renderWithLocale(
+      "zh-CN",
       createElement(WorkspaceFilesPanelView, {
         detail: null,
         loadingDetail: false,
@@ -217,7 +219,8 @@ describe("2.4 WorkspaceFilesPanelView：专注差异栏（静态渲染）", () =
   });
 
   it("未专注 + 有 onEnterFocus ⇒ 渲染「专注差异」入口（不渲染专注栏）", () => {
-    const html = renderToStaticMarkup(
+    const html = renderWithLocale(
+      "zh-CN",
       createElement(WorkspaceFilesPanelView, {
         detail: null,
         loadingDetail: false,
@@ -229,7 +232,8 @@ describe("2.4 WorkspaceFilesPanelView：专注差异栏（静态渲染）", () =
   });
 
   it("没有任何专注 props ⇒ 两样都不渲染（默认形态零噪音）", () => {
-    const html = renderToStaticMarkup(
+    const html = renderWithLocale(
+      "zh-CN",
       createElement(WorkspaceFilesPanelView, { detail: null, loadingDetail: false }),
     );
     expect(html).not.toContain("data-focus-bar");
@@ -239,7 +243,8 @@ describe("2.4 WorkspaceFilesPanelView：专注差异栏（静态渲染）", () =
 
 describe("2.4 DetailPanel：专注编辑栏（静态渲染 + 源码契约）", () => {
   it("focusActive ⇒ 顶部专注栏 + 退出入口", () => {
-    const html = renderToStaticMarkup(
+    const html = renderWithLocale(
+      "zh-CN",
       createElement(DetailPanel, { focusActive: true, onExitFocus: () => {} }),
     );
     expect(html).toContain('data-focus-bar="edit"');
@@ -247,7 +252,7 @@ describe("2.4 DetailPanel：专注编辑栏（静态渲染 + 源码契约）", (
   });
 
   it("未专注 + 有 onEnterFocus ⇒ 渲染「专注编辑」入口", () => {
-    const html = renderToStaticMarkup(createElement(DetailPanel, { onEnterFocus: () => {} }));
+    const html = renderWithLocale("zh-CN", createElement(DetailPanel, { onEnterFocus: () => {} }));
     expect(html).toContain('data-enter-focus="edit"');
     expect(html).not.toContain("data-focus-bar");
   });
