@@ -180,6 +180,22 @@ const apiStub: Record<string, unknown> = {
   settingsGet: async () => ok({ configured: true, baseURL: null, model: null, encryption: "safe" }),
   saveSettings: async () => ok(undefined),
   clearSettings: async () => ok(undefined),
+  getUiPreferences: async () =>
+    ok({
+      preference: "system",
+      effectiveLocale: "en-US",
+      source: "file",
+      issue: null,
+      revision: 1,
+    }),
+  setUiPreferences: async (input: { preference: string }) =>
+    ok({
+      preference: input.preference,
+      effectiveLocale: input.preference === "zh-CN" ? "zh-CN" : "en-US",
+      source: "file",
+      issue: null,
+      revision: 2,
+    }),
   proxyStatus: async () => proxyStatusOk(),
   proxyToggle: async () => proxyStatusOk(),
 };
@@ -230,6 +246,7 @@ beforeEach(async () => {
     listLoaded: false,
     listStale: false,
     error: null,
+    errorDescriptor: null,
     selectedRunId: null,
     detail: null,
     readingByRun: {},
@@ -427,6 +444,27 @@ describe("1.4 未知通信与新会话分开呈现", () => {
     ).toBeDefined();
     expect(readCount()).toBe(0);
     expect(listCount()).toBe(0);
+  });
+
+  it("切语言不清 unknown、不消费待定、不新增执行或读取", async () => {
+    const submission = seedPendingSubmission(OP);
+    snapshot = () => [record()];
+    statusFails = true;
+    await useAppStore.getState().refreshOperationStatus();
+    expect(useAppStore.getState().operations.unknown).toBe(true);
+    const reads = readCount();
+    const lists = listCount();
+    const forks = calls.filter((one) => one === "runs:fork").length;
+
+    await useAppStore.getState().saveUiLanguage("zh-CN");
+
+    expect(useAppStore.getState().operations.unknown).toBe(true);
+    expect(
+      subLib.submissionOf(useAppStore.getState().draftSubmissions, submission.target),
+    ).toBeDefined();
+    expect(readCount()).toBe(reads);
+    expect(listCount()).toBe(lists);
+    expect(calls.filter((one) => one === "runs:fork")).toHaveLength(forks);
   });
 
   it("新 main 会话 ⇒ 只消费新 epoch 的记录，旧 epoch 的待定既不解冻也不读取", async () => {

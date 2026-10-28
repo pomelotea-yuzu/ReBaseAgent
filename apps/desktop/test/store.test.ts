@@ -17,6 +17,7 @@ import type {
   PromptForkResult,
   RunDetail,
   SettingsState,
+  UiPreferencesState,
   WindowApi,
 } from "../src/shared/ipc";
 import { FAKE_EPOCH, statusSnapshot, toExecuted } from "./helpers/operation-channels";
@@ -104,6 +105,10 @@ interface Controller {
   listEnvelopesByCall: Envelope<ListRunsData>[] | undefined;
   /** 挂起列表返回，直到用例手动 resolve（制造"请求在途"窗口） */
   listGate: { promise: Promise<void>; release: () => void } | undefined;
+  forkGate: { promise: Promise<void>; release: () => void } | undefined;
+  uiSetGate: { promise: Promise<void>; release: () => void } | undefined;
+  uiSetEnvelope: Envelope<UiPreferencesState> | undefined;
+  uiSetCalls: Array<{ preference: string }>;
 }
 
 /** 合法预检结论（main 侧 `ForkCapabilityResultSchema` 的形状） */
@@ -173,6 +178,7 @@ function makeFakeApi(c: Controller): WindowApi {
         // 未传时不写该键：与真实请求体一致（普通父本请求里没有 execution）
         ...(request.execution === undefined ? {} : { execution: request.execution }),
       });
+      if (c.forkGate !== undefined) await c.forkGate.promise;
       return toExecuted(c.forkEnvelope ?? ok({ id: "run_forked" }), envelope.operation);
     },
     promptFork: async (envelope) => {
@@ -192,6 +198,28 @@ function makeFakeApi(c: Controller): WindowApi {
       ok({ configured: false, baseURL: null, model: null, encryption: "safe" }),
     saveSettings: async () => ok({ configured: true }),
     clearSettings: async () => ok({ configured: false }),
+    getUiPreferences: async () =>
+      ok({
+        preference: "system",
+        effectiveLocale: "en-US",
+        source: "file",
+        issue: null,
+        revision: 1,
+      }),
+    setUiPreferences: async (input) => {
+      c.uiSetCalls.push(input);
+      if (c.uiSetGate !== undefined) await c.uiSetGate.promise;
+      return (
+        c.uiSetEnvelope ??
+        ok({
+          preference: input.preference,
+          effectiveLocale: input.preference === "zh-CN" ? "zh-CN" : "en-US",
+          source: "file",
+          issue: null,
+          revision: 2,
+        })
+      );
+    },
     createRun: async (envelope) => {
       c.activeOperations.push({ channel: "runs:create", ...envelope.operation });
       c.createRunRequests.push(envelope.request);
@@ -226,6 +254,10 @@ const controller: Controller = {
   listEnvelope: undefined,
   listEnvelopesByCall: undefined,
   listGate: undefined,
+  forkGate: undefined,
+  uiSetGate: undefined,
+  uiSetEnvelope: undefined,
+  uiSetCalls: [],
 };
 (globalThis as Record<string, unknown>).window = { api: makeFakeApi(controller) };
 
@@ -288,6 +320,14 @@ beforeEach(() => {
   controller.listEnvelope = undefined;
   controller.listEnvelopesByCall = undefined;
   controller.listGate = undefined;
+  controller.forkGate = undefined;
+  controller.uiSetGate = undefined;
+  controller.uiSetEnvelope = undefined;
+  controller.uiSetCalls = [];
+  // 前序用例会临时替换 operationsStatus（握手失败/非法快照）且不恢复；
+  // 每个用例从自洽的空闲快照开始，避免后续主动入口测试继承破坏性桩。
+  (globalThis.window as unknown as { api: Record<string, unknown> }).api.operationsStatus =
+    async () => ok(statusSnapshot());
   resetStore();
 });
 
@@ -1355,5 +1395,93 @@ describe("createReturnFactsOf：selector 消费安全（getSnapshot 引用稳定
     expect(loaded.kind).toBe("restore");
     // 引用随后再次稳定（同输入同引用）
     expect(useAppStore.getState().createReturnFactsOf()).toBe(loaded);
+  });
+});
+
+/** 把 run:fork 返回挂起，制造"主动操作在飞"窗口 */
+function gateFork(): () => void {
+  let release: () => void = () => {};
+  const promise = new Promise<void>((resolvePromise) => {
+    release = resolvePromise;
+  });
+  controller.forkGate = { promise, release };
+  return () => {
+    controller.forkGate = undefined;
+    release();
+  };
+}
+
+/** 把语言保存回执挂起，制造"偏好保存与提交交错"窗口 */
+function gateUiSet(): () => void {
+  let release: () => void = () => {};
+  const promise = new Promise<void>((resolvePromise) => {
+    release = resolvePromise;
+  });
+  controller.uiSetGate = { promise, release };
+  return () => {
+    controller.uiSetGate = undefined;
+    release();
+  };
+}
+
+async function until(condition: () => boolean, message: string): Promise<void> {
+  for (let i = 0; i < 50; i += 1) {
+    if (condition()) return;
+    await Promise.resolve();
+  }
+  throw new Error(message);
+}
+
+describe("store：语言切换与在飞/提交竞态（D17/D18）", () => {
+  it("在飞操作切语言不改变身份、不重发；迟到结果按原身份收尾且零新增执行", async () => {
+    useAppStore.setState({ operations: sessionLib.initialSession() });
+    controller.activeOperations.length = 0;
+    await useAppStore.getState().loadRuns();
+    const releaseFork = gateFork();
+    const pending = useAppStore.getState().forkAt("r_01", "s_03", "语言切换期间的编辑");
+    await until(() => controller.forkRequests.length === 1, "fork 未发出");
+    const identity = { ...controller.activeOperations[0] };
+    const listBefore = controller.listCalls;
+    expect(useAppStore.getState().forking).toBe("in_progress");
+
+    await useAppStore.getState().saveUiLanguage("zh-CN");
+
+    // 在飞状态、原 owner、原载荷与调用数全部不变
+    expect(useAppStore.getState().forking).toBe("in_progress");
+    expect(controller.activeOperations).toHaveLength(1);
+    expect(controller.activeOperations[0]).toEqual(identity);
+    expect(controller.forkRequests).toEqual([
+      { parentRunId: "r_01", atSpanId: "s_03", value: "语言切换期间的编辑" },
+    ]);
+    expect(controller.listCalls).toBe(listBefore);
+
+    // 迟到结果仍在原身份下收尾，没有第二次提交
+    releaseFork();
+    await expect(pending).resolves.toBe(true);
+    expect(useAppStore.getState().forking).toBe("idle");
+    expect(controller.activeOperations[0]).toEqual(identity);
+    expect(controller.forkRequests).toHaveLength(1);
+    expect(controller.listCalls).toBe(listBefore);
+  });
+
+  it("偏好保存回执与主动提交交错：冻结提交沿用原载荷，不重复执行", async () => {
+    useAppStore.setState({ operations: sessionLib.initialSession() });
+    controller.activeOperations.length = 0;
+    await useAppStore.getState().loadRuns();
+    const releaseLang = gateUiSet();
+    const languageSave = useAppStore.getState().saveUiLanguage("zh-CN");
+    const fork = useAppStore.getState().forkAt("r_01", "s_03", "交错提交");
+    await until(() => controller.forkRequests.length === 1, "fork 未发出");
+    const identity = { ...controller.activeOperations[0] };
+    const callsBefore = controller.forkRequests.length;
+
+    releaseLang();
+    await expect(languageSave).resolves.toBe("saved");
+    await expect(fork).resolves.toBe(true);
+
+    expect(controller.forkRequests).toHaveLength(callsBefore);
+    expect(controller.activeOperations).toHaveLength(1);
+    expect(controller.activeOperations[0]).toEqual(identity);
+    expect(controller.uiSetCalls).toEqual([{ preference: "zh-CN" }]);
   });
 });
