@@ -169,6 +169,38 @@ export function validateManifest(manifest, { final = false } = {}) {
   return errors;
 }
 
+export function validateGuaranteeIndex(index, root = ROOT) {
+  const errors = [];
+  for (const category of index.categories ?? []) {
+    for (const file of category.files ?? []) {
+      const full = join(root, file.path);
+      if (!existsSync(full)) {
+        errors.push({
+          code: "GUARANTEE_FILE_MISSING",
+          message: `保证测试文件不存在：${file.path}`,
+        });
+        continue;
+      }
+      if (!Number.isInteger(file.minTests) || file.minTests < 0) {
+        errors.push({
+          code: "GUARANTEE_INDEX_SCHEMA",
+          message: `${file.path} 缺 minTests 基线`,
+        });
+        continue;
+      }
+      const text = readFileSync(full, "utf8");
+      const count = (text.match(/\b(it|test)(\.\w+)?\s*\(/g) ?? []).length;
+      if (count < file.minTests) {
+        errors.push({
+          code: "GUARANTEE_TEST_LOST",
+          message: `${file.path} 测试数 ${count} 低于基线 ${file.minTests}；迁移不得删除/跳过原保证`,
+        });
+      }
+    }
+  }
+  return errors;
+}
+
 export function validateEnglishReviews(candidates) {
   const errors = [];
   for (const candidate of candidates.candidates ?? []) {
@@ -329,6 +361,29 @@ export function runSelfTest() {
     "ENGLISH_REVIEW",
   );
 
+  const guardTemp = mkdtempSync(join(tmpdir(), "i18n-guarantee-"));
+  try {
+    writeFileSync(join(guardTemp, "a.test.ts"), 'it("x", () => {});\n');
+    expect(
+      "保证测试减少",
+      validateGuaranteeIndex(
+        { categories: [{ files: [{ path: "a.test.ts", minTests: 2 }] }] },
+        guardTemp,
+      ),
+      "GUARANTEE_TEST_LOST",
+    );
+    expect(
+      "保证测试文件缺失",
+      validateGuaranteeIndex(
+        { categories: [{ files: [{ path: "missing.test.ts", minTests: 1 }] }] },
+        guardTemp,
+      ),
+      "GUARANTEE_FILE_MISSING",
+    );
+  } finally {
+    rmSync(guardTemp, { recursive: true, force: true });
+  }
+
   const temp = mkdtempSync(join(tmpdir(), "i18n-gate-"));
   try {
     const tampered = structuredClone(loadJson("i18n/attribution.json"));
@@ -349,7 +404,7 @@ export function runSelfTest() {
     for (const failure of failures) console.error(`[check:i18n] --selftest FAIL: ${failure}`);
     return 1;
   }
-  console.log("[check:i18n] --selftest 通过（11 个反例 + 1 个正例）");
+  console.log("[check:i18n] --selftest 通过（13 个反例 + 1 个正例）");
   return 0;
 }
 
@@ -369,6 +424,7 @@ async function main() {
   const errors = [
     ...validateCatalogs(catalogs.zh, catalogs.en, catalogs.tags),
     ...validateManifest(loadJson("i18n/attribution.json"), { final: FINAL }),
+    ...validateGuaranteeIndex(loadJson("i18n/test-guarantee-index.json")),
     ...validateEnglishReviews(loadJson("i18n/english-product-candidates.json")),
     ...validateBoundaryConfig(),
   ];

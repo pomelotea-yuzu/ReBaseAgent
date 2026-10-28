@@ -37,8 +37,7 @@
       "**/.tmp-*",
       "**/test/fixtures/**",
       "docs/**",
-      "i18n/attribution.json",
-      "i18n/english-product-candidates.json"
+      "i18n/*.json"
     ]
   },
   "overrides": [

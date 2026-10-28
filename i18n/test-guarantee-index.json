@@ -1,0 +1,504 @@
+{
+  "version": 1,
+  "updatedAt": "2026-10-28",
+  "baseline": "0.x 完成时（2026-10-28）",
+  "rules": {
+    "noDelete": "迁移只能替换断言方式，不得删除或跳过原保证；平台条件导致的 skipIf 需在迁移记录说明，不能把缺失产物静默跳过当作通过。",
+    "stableHooks": "行为断言优先稳定 code、结构化字段、data-testid 或语义角色；不以固定中文 aria-label/文本作为稳定性锚点。",
+    "copyExpectations": "文案测试用 renderWithLocale 显式 locale，至少保留独立书写的 zh/en 期望；不得只用 t(key) 的返回值自证。",
+    "domainErrors": "领域错误断言改用 code / presentation.id；原始 detail 仅在报告契约要求时保留，不把中文 message 当类型判据。",
+    "preserve": "授权、未知、在飞、竞态、零执行、只读、隔离父本/源目录/兄弟分支等保证必须原样保留；不得为通过翻译测试而放宽断言。"
+  },
+  "categories": [
+    {
+      "id": "authorization",
+      "label": "授权与确认",
+      "files": [
+        {
+          "path": "apps/desktop/test/execution-confirmation.test.ts",
+          "batch": 1,
+          "minTests": 27,
+          "titles": [
+            "未确认过 ⇒ missing（默认没有「顺手已经确认过」这回事）",
+            "现场逐分量相同才算已确认",
+            "改输入（修订推进）⇒ 旧确认作废：这就是「返回修改撤销旧确认」"
+          ]
+        },
+        {
+          "path": "apps/desktop/test/execution-confirmation-store.test.ts",
+          "batch": 1,
+          "minTests": 15,
+          "titles": [
+            "没有草稿条目 ⇒ 修订是 -1（不猜一个 0 出来当作可确认的现场）",
+            "改输入推进修订 ⇒ 之前那次确认当场不再成立（无需谁去清）",
+            "换视图 / 进设置 / 常规打开设置 ⇒ 撤销待用的确认（离开现场）"
+          ]
+        },
+        {
+          "path": "apps/desktop/test/execution-confirmation-ab.test.ts",
+          "batch": 3,
+          "minTests": 13,
+          "titles": [
+            "绑定取的是**整批**修订：改任一臂即作废（不是只认第一次写入的那一版）",
+            "确认属于这一批：同一 run 的另一个 span 不共享（各批次各核各的）",
+            "增删臂与非法参数文本同样作废确认（行写入只有一条路径，草稿本身保留）"
+          ]
+        },
+        {
+          "path": "apps/desktop/test/create-run-dialog.test.ts",
+          "batch": 1,
+          "minTests": 19,
+          "titles": [
+            "初始表单 = 纯对话 / 无目录 / 未授权；请求只有 systemPrompt 与 userMessage 两个键",
+            "真跑：对话框构造的请求 → zod → runCreate，落 v1 根 run 且指纹按空工具表算",
+            "空 systemPrompt 允许：两种模式都放行，且请求里 systemPrompt 为空串"
+          ]
+        },
+        {
+          "path": "apps/desktop/test/isolated-desktop-flows.test.ts",
+          "batch": 1,
+          "minTests": 19,
+          "titles": [
+            "签发 → 消费换出真实路径；二次消费报 invalid（一次性）",
+            "未签发 / 形状不对的 token → invalid",
+            "超过 TTL → expired（且条目已焚毁，不可复活）"
+          ]
+        },
+        {
+          "path": "apps/desktop/test/verification-panel.test.tsx",
+          "batch": 2,
+          "minTests": 35,
+          "titles": [
+            "非隔离 run ⇒ 入口禁用并说明原因（不可行动的入口不假装可用）",
+            "收起态只渲染入口按钮（展开前的核对由连接层在打开时发起）",
+            "显示核对事实：快照/文件数/字节、准备状态、引擎版本、计划概览与零副作用说明"
+          ]
+        },
+        {
+          "path": "apps/desktop/test/verification-store.test.ts",
+          "batch": 2,
+          "minTests": 44,
+          "titles": [
+            "打开 ⇒ 绑定显式目标并发起两个只读核对（capability + preparePlan），无执行通道调用",
+            "步骤检查点 ⇒ selector 显式携带 stepSpanId（不得无声回落初始）",
+            "核对失败 ⇒ 结构化错误如实呈现（state=error + 码），不冒充可用"
+          ]
+        },
+        {
+          "path": "packages/project-verification/test/orchestrate-run.test.ts",
+          "batch": 2,
+          "minTests": 26,
+          "titles": [
+            "缺 allowExecution:true ⇒ run_not_allowed，零记录零登记零容器调用",
+            "形状非法（多余键）⇒ invalid_input，零副作用",
+            "planToken 漂移 ⇒ plan_stale（P07），零副作用"
+          ]
+        },
+        {
+          "path": "packages/project-verification/test/prepare.test.ts",
+          "batch": 2,
+          "minTests": 14,
+          "titles": [
+            "产品内嵌资产逐项哈希等于冻结 manifest 期望值，完整性门通过",
+            "配方摘要重算稳定，且进入当前计划 token",
+            "篡改任一受信资产即拒绝并指名文件"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "unknown-race",
+      "label": "未知、在飞与竞态",
+      "files": [
+        {
+          "path": "apps/desktop/test/operation-registry.test.ts",
+          "batch": 1,
+          "minTests": 31,
+          "titles": [
+            "epoch 在构造时确定、之后不变；缺省用 UUID；两个 main 会话互不相同",
+            "空会话的握手快照自洽：版本 1、无活跃槽、无操作",
+            "登记 running ⇒ 占槽且快照自洽；身份/时间来自登记而非臆造"
+          ]
+        },
+        {
+          "path": "apps/desktop/test/operation-races.test.ts",
+          "batch": 1,
+          "minTests": 9,
+          "titles": [
+            "七类入口轮流抢位：赢家占槽执行，其余 notAccepted 且此后永不自动执行",
+            "同 ID 同参的并发重复提交：第二个只等待同一收口，执行计数仍为 1",
+            "同 ID 换入口（跨通道复用）⇒ conflict：原登记与执行都不受影响"
+          ]
+        },
+        {
+          "path": "apps/desktop/test/operation-session-epoch.test.ts",
+          "batch": 1,
+          "minTests": 4,
+          "titles": [
+            "旧 epoch 的成功响应迟到 ⇒ 不导航、不解冻、不回退会话",
+            "旧未知历史不锁新会话；新提交照常可用新身份发出",
+            "换会话后旧会话的迟到快照不得覆盖新槽（不回退状态）"
+          ]
+        },
+        {
+          "path": "apps/desktop/test/operation-polling.test.ts",
+          "batch": 1,
+          "minTests": 9,
+          "titles": [
+            "响应完成后才计时：有活性 ⇒ 排一次，且已排定时不叠加",
+            "没有已知 running / 通信未知 ⇒ 不排轮询",
+            "在飞期间到点 ⇒ 丢弃这次触发（单路，不并发第二个请求）"
+          ]
+        },
+        {
+          "path": "apps/desktop/test/operation-result-consumption.test.ts",
+          "batch": 1,
+          "minTests": 13,
+          "titles": [
+            "有效 status 采纳 ⇒ 解冻该身份 + 单次列表刷新 + 按可信 ID 核实",
+            "reconcile 采纳 ⇒ 走同一条消费（解冻 + 刷新 + 核实），结论与 status 路径一致",
+            "执行回执后的状态刷新 ⇒ 回执不自带 runIds，收尾仍由同一落点完成"
+          ]
+        },
+        {
+          "path": "apps/desktop/test/draft-close-flow.test.ts",
+          "batch": 1,
+          "minTests": 41,
+          "titles": [
+            "无应答/未握手/inputSettled=false/会话丢失 ⇒ unknown；dirty>0 ⇒ dirty；其余 clean",
+            "clean + 槽空闲 + 无配置变更 ⇒ 才允许直接关闭",
+            "clean 但有活跃操作 ⇒ 合并确认（draft=null 表示草稿侧已知 clean，不冒充有草稿）"
+          ]
+        },
+        {
+          "path": "apps/desktop/test/proxy-recovery-races.test.ts",
+          "batch": 3,
+          "minTests": 11,
+          "titles": [
+            "🔴 变异靶：恢复中显式停用 ⇒ 终态是已停，不是被恢复反手拉起",
+            "恢复中改端口 ⇒ 最终监听的是新端口（旧端口不被占住）",
+            "重复 autoStart 幂等：不会起两个监听器，也不会把阶段倒退"
+          ]
+        },
+        {
+          "path": "apps/desktop/test/proxy-fork-version-race.test.ts",
+          "batch": 3,
+          "minTests": 6,
+          "titles": [
+            "凭据轮换（hasKey 仍 true、捕获版本推进）⇒ 副作用前拒绝",
+            "上游地址变了 ⇒ PROXY_CONFIG_CHANGED、零新 run",
+            "端口变了 ⇒ 同样按配置失配拒绝（不是只比upstream 字符串）"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "isolation-readonly",
+      "label": "隔离、只读与零执行",
+      "files": [
+        {
+          "path": "apps/desktop/test/isolated-fork.test.ts",
+          "batch": 1,
+          "minTests": 10,
+          "titles": [
+            "隔离运行判据：v2 带 workspace 为真；v1 老 trace 为假，且不显示任何文件标注",
+            "隔离父本：模型 A/B 给出禁用原因（prompt 启动指令实验改走根入口，普通父本对照不受影响）",
+            "单向蕴含：界面说「A/B 不支持」时内核确实拒绝；普通 prompt handler 仍拒绝隔离父本"
+          ]
+        },
+        {
+          "path": "apps/desktop/test/isolated-prompt-fork-ipc.test.ts",
+          "batch": 1,
+          "minTests": 10,
+          "titles": [
+            "合法提交：v3 落盘、操作身份=真实 run id、记录不含正文",
+            "同 ID 同参只执行一次；异参冲突不改原登记",
+            "旧 epoch：零执行、零登记"
+          ]
+        },
+        {
+          "path": "apps/desktop/test/isolated-parent-rejection.test.ts",
+          "batch": 1,
+          "minTests": 5,
+          "titles": [
+            "隔离父本出现在桌面 run 列表（v2 根 run 可被 RunRepository 正常扫描）",
+            "runFork（普通 result 分叉）→ 拒绝，不落盘、零 LLM 调用",
+            "runPromptFork（system prompt 编辑）→ 拒绝（与 prompt fork 共用 loadForkParent 门禁）"
+          ]
+        },
+        {
+          "path": "apps/desktop/test/u6-exec-source-gate.test.ts",
+          "batch": 1,
+          "minTests": 17,
+          "titles": [
+            "完整父链（根 run）⇒ 放行（不抛）",
+            "祖先缺失 ⇒ RUN_LINEAGE_INCOMPLETE 并携带受校验的 missingRunId",
+            "当前文件损坏 ⇒ RUN_DETAIL_UNREADABLE（缺失不掩盖损坏，missingRunId 为 null）"
+          ]
+        },
+        {
+          "path": "apps/desktop/test/compare-readonly.test.ts",
+          "batch": 2,
+          "minTests": 4,
+          "titles": [
+            "选中→比较→重试→指标阅读→交换→返回：只产生 runs:compare，执行/写通道零调用",
+            "指标表选两条（openComparePair）与更换/交换：同样零执行通道",
+            "单侧文件打开（隔离 run）→ 返回比较：只走 runs:get + 文件清单只读，不碰执行通道"
+          ]
+        },
+        {
+          "path": "packages/replay/test/workspace-isolated-integration.test.ts",
+          "batch": 1,
+          "minTests": 6,
+          "titles": [
+            "三层链的 parent / span 序号 / 起点检查点都正确，且两条父 trace 逐字节不变",
+            "两个分支并发：各自独立映射，彼此写的内容互不出现，父与源不变",
+            "并发兄弟的授权互相独立：一个未授权被拒，另一个照常完成"
+          ]
+        },
+        {
+          "path": "packages/replay/test/workspace-isolated-run.test.ts",
+          "batch": 1,
+          "minTests": 8,
+          "titles": [
+            "创建受控父本：任务、工具指纹、根关系、文件名与快照全部正确",
+            "首次 LLM 调用之前，trace meta 已经带上 v2 与初始快照",
+            "system prompt 为空串时仍可创建（config_hash 与空 prompt 对应）"
+          ]
+        },
+        {
+          "path": "packages/replay/test/workspace-file-tools.test.ts",
+          "batch": 1,
+          "minTests": 37,
+          "titles": [
+            "profile 名与两个工具的名字、顺序、sideEffect 固定",
+            "参数 schema 声明 required 与 additionalProperties:false",
+            "createFileToolsV1 造出的表与固定定义逐字段一致（定义不被调用方改写）"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "unknown-outcome",
+      "label": "未知结局与不猜测",
+      "files": [
+        {
+          "path": "apps/desktop/test/outcome.test.ts",
+          "batch": 1,
+          "minTests": 22,
+          "titles": [
+            "completed ⇒ 已结束（success，normalEnd）",
+            "error ⇒ 出错终止，语义色为红（不是正常绿），且不属于正常结束",
+            "max_iterations / budget_exceeded ⇒ 琥珀色限制，可辨认"
+          ]
+        },
+        {
+          "path": "apps/desktop/test/u7-overview-ancestor-cases.test.ts",
+          "batch": 1,
+          "minTests": 10,
+          "titles": [
+            "ownOnly 详情通过自家 schema——概览只吃受校验载荷，无第三种入口",
+            "固定提示 + 缺失 ID：措辞唯一来源不改写，缺失祖先可点认",
+            "自有结局可读：stopped/completed 正常结束（不因祖先缺失变 unknown）"
+          ]
+        },
+        {
+          "path": "apps/desktop/test/u6-lineage-faults.test.ts",
+          "batch": 1,
+          "minTests": 13,
+          "titles": [
+            "ancestorMissing ⇒ 结构化 ownOnly；还原（父文件恢复）后重读 ⇒ complete/resolved",
+            "ancestorCorrupt ⇒ 严格失败不降级 ownOnly（受控中文，不透传路径）",
+            "ancestorFutureVersion ⇒ 版本守卫拒绝，schema 转换前失败"
+          ]
+        },
+        {
+          "path": "packages/run-query/test/read-context.test.ts",
+          "batch": 1,
+          "minTests": 7,
+          "titles": [
+            "同一上下文内同一物理 run 只解析一次，新上下文重新读盘",
+            "提示父本缺失的 prompt 分支返回结构化 ownOnly",
+            "祖先损坏是结构化失败，不降级成缺父"
+          ]
+        },
+        {
+          "path": "packages/project-verification/test/read-closure.test.ts",
+          "batch": 2,
+          "minTests": 4,
+          "titles": [
+            "read 子入口导入图不含 writer/append/assets 发布/prepare/execute/runtime/docker 等",
+            "facts 子入口导入图不含任何执行/写入模块",
+            "密封记录可经 read 入口完整读取"
+          ]
+        },
+        {
+          "path": "packages/project-verification/test/reader.test.ts",
+          "batch": 2,
+          "minTests": 14,
+          "titles": [
+            "封存记录可读：sealed + outcome + 事件序列",
+            "运行中/未封存记录判 unterminated，不呈现结局",
+            "坏尾（末行非法 JSON）判 corrupt 并报告行号"
+          ]
+        },
+        {
+          "path": "packages/trace-sdk/test/version-guard.test.ts",
+          "batch": 1,
+          "minTests": 12,
+          "titles": [
+            "v1 span 携带 workspace_snapshot ⇒ 拒绝（版本从文件传参，不在 span 行上）",
+            "v1 不带隔离字段 ⇒ 放行",
+            "v2 meta 缺 workspace ⇒ 拒绝"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "mcp-cli-contract",
+      "label": "MCP/CLI 契约与机器输出",
+      "files": [
+        {
+          "path": "packages/mcp-server/test/contracts.test.ts",
+          "batch": 4,
+          "minTests": 12,
+          "titles": [
+            "恰七个工具且顺序与 D5 表一致",
+            "每个工具的参数集与必填项逐个钉住（多一个少一个都算契约变动）",
+            "所有对象节点 additionalProperties 恒为 false（未知字段是拒绝不是忽略）"
+          ]
+        },
+        {
+          "path": "packages/mcp-server/test/envelope.test.ts",
+          "batch": 4,
+          "minTests": 14,
+          "titles": [
+            "带版本、观测时点、读取版本与来源；未给 nextCursor 时不编造分页",
+            "来源段的完整性字段可缺省=未判定，缺省不自动补成可信事实",
+            "nextCursor 同时驱动 page 与 truncation（两处不一致就是谎报）"
+          ]
+        },
+        {
+          "path": "packages/mcp-server/test/safe-errors.test.ts",
+          "batch": 4,
+          "minTests": 7,
+          "titles": [
+            "六个带标识的工具各自在任何读取之前拒绝",
+            "未知字段只报规则名，不回显 dataDir 取值",
+            "get_run 给 RUN_INVALID 与码表文案，不透传读取器的版本原文"
+          ]
+        },
+        {
+          "path": "packages/mcp-server/test/redaction.test.ts",
+          "batch": 4,
+          "minTests": 14,
+          "titles": [
+            "Authorization / api-key / token 的常见写法都命中，值整段替换",
+            "非凭据字段不被误伤：token 计数、作者、普通键都原样保留",
+            "嵌套对象与数组逐层处理，凭据字段整值替换（对象也不保留内部结构）"
+          ]
+        },
+        {
+          "path": "packages/mcp-server/test/cursor-continuation.test.ts",
+          "batch": 4,
+          "minTests": 17,
+          "titles": [
+            "逐页推进后与完整列表逐项相同；最后不重复失败段",
+            "索引按游标推进后与完整索引逐项相同",
+            "get_step 正文按码点续读：拼接等于完整规范 JSON，范围连续"
+          ]
+        },
+        {
+          "path": "packages/mcp-server/test/budget.test.ts",
+          "batch": 4,
+          "minTests": 18,
+          "titles": [
+            "测量包含 content 与 structuredContent；未超预算原样返回",
+            "超预算时按 chars 二分收窄，结果为前缀且满足预算",
+            "返回满足预算的最大规模，而不是最小可行"
+          ]
+        },
+        {
+          "path": "packages/mcp-server/test/trust.test.ts",
+          "batch": 4,
+          "minTests": 6,
+          "titles": [
+            "instructions 明确只读、不可信历史、过滤有限与外发/计费边界",
+            "能力仍只有 tools：没有 resources/prompts/写入工具",
+            "注入 prompt 只作为数据返回，凭据仍按同一规则过滤"
+          ]
+        },
+        {
+          "path": "packages/mcp-server/test/zero-write.test.ts",
+          "batch": 4,
+          "minTests": 8,
+          "titles": [
+            "六个工具全部跑通之后，整根指纹与文件集合逐字不变",
+            "逐页翻到底 + 正文续读到末尾同样零写入（分页与续读不留下任何游标状态）",
+            "数据根文件集合是封闭白名单：没有任何索引/锁/session/日志类新产物"
+          ]
+        },
+        {
+          "path": "packages/mcp-server/test/stdio-protocol.test.ts",
+          "batch": 4,
+          "minTests": 11,
+          "titles": [
+            "客户端支持的协议版本逐个原样回显",
+            "不支持的版本落 SDK 现行版本；能力恰为 tools；身份与信任说明原样到达对端",
+            "空 traces 的合法数据根也能初始化，list_runs 出门就是空列表"
+          ]
+        },
+        {
+          "path": "packages/trace-test/test/run-test.test.ts",
+          "batch": 4,
+          "minTests": 10,
+          "titles": [
+            "卡带模式：全部断言通过 → passed / mode=cassette / 零漂移",
+            "断言失败 → status=failed（失败是数据不是异常）",
+            "max_iterations 基线：卡带恰好消费完，outcome=max_iterations 对齐"
+          ]
+        },
+        {
+          "path": "packages/trace-test/test/assertions.test.ts",
+          "batch": 4,
+          "minTests": 9,
+          "titles": [
+            "各条件 AND 叠加",
+            "run.outcome：对齐 reason 五枚举",
+            "span.exists：零匹配即失败；≥1 命中即通过（量词恒 any）"
+          ]
+        },
+        {
+          "path": "packages/trace-test/test/rerun.test.ts",
+          "batch": 4,
+          "minTests": 10,
+          "titles": [
+            "当前代码未变 → 新轨迹结构对齐，零漂移，零网络",
+            "录制中的工具错误 → 桩复现 error tool_result，轨迹仍对齐",
+            "改了 system prompt → config drift 标记但不阻断，测试照常执行"
+          ]
+        },
+        {
+          "path": "packages/trace-test/test/cassette.test.ts",
+          "batch": 4,
+          "minTests": 6,
+          "titles": [
+            "按调用顺序消费卡带响应；remaining / consumed 如实记账",
+            "请求结构不一致 → 记 request_drift 但照常返回卡带响应（方案 A：不硬失败）",
+            "卡带耗尽 → exhausted 置位并抛配置错误"
+          ]
+        },
+        {
+          "path": "packages/replay/test/model-ab-cli.test.ts",
+          "batch": 4,
+          "minTests": 9,
+          "titles": [
+            "dry-run：不需要密钥、不联网、不写文件，退出 0 且 JSON 报告含两臂计划",
+            "父 run 带工具 → require_empty 拒绝（提示改用桌面端），退出 2、零调用",
+            "隔离父本 → 明确拒绝本期不支持隔离 A/B，退出 2、零文件"
+          ]
+        }
+      ]
+    }
+  ]
+}
