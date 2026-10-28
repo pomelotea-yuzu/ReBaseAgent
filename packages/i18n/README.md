@@ -38,6 +38,13 @@ src/index.ts             公共导出
 2. 两语言都缺 → 返回当前语言的通用提示（`此消息暂不可用` / `This message is unavailable`），不显示裸 key；
 3. `onMissingKey` 只收到 `locale/namespace/key`，不包含插值参数或密钥；发行门禁仍要求无缺键，运行期回退不豁免资源缺失。
 
+## 受控错误描述
+
+- 现有 `Envelope.error` 的 `{code,message}` 保持兼容；`attachPresentation` 只追加通过校验的 `presentation:{id,params}`，不改 code/message。
+- `id` 由 `errors` namespace 的键派生（`PRESENTATION_IDS`），参数按 id 白名单校验：只接受有界字符串、有限数字、布尔和有界字符串/数字集合；拒绝对象、堆栈、未知字段与超限值。
+- `explainError` 优先使用受控描述；无描述时按稳定 code 映射；未知异常只给通用本地化摘要和 `UNKNOWN_ERROR`，不携带 message/stack。
+- `renderPresentation` 只把校验后的参数作为文本交给 translator，不把参数当资源键或 HTML；数组参数按 `, ` 连接展示。
+
 ## 命令
 
 ```powershell

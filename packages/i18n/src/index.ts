@@ -17,6 +17,24 @@ export {
 } from "./create-i18n.js";
 export { RICH_TEXT_TAGS, type RichTextTag } from "./rich-text.js";
 export {
+  type DegradedError,
+  type ErrorExplanation,
+  type ExplainErrorInput,
+  type ExplanationSource,
+  type PresentationId,
+  type PresentationMessage,
+  type PresentationParam,
+  type PresentationValidation,
+  PRESENTATION_IDS,
+  attachPresentation,
+  degradeUnknownError,
+  explainError,
+  legacyPresentationId,
+  parsePresentation,
+  renderPresentation,
+  validatePresentation,
+} from "./presentation.js";
+export {
   NAMESPACES,
   enUS,
   flattenCatalog,

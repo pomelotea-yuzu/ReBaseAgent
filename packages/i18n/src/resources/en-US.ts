@@ -32,7 +32,17 @@ export const enUS = {
   recording: {},
   settings: {},
   export: {},
-  errors: {},
+  errors: {
+    generic: "The operation did not complete. Check the current state before continuing.",
+    invalidArgument: "The request parameters are invalid.",
+    notFound: "The requested resource was not found.",
+    unknownOperation: "The operation status is unknown. Check it first.",
+    unsupported: "This operation is not supported in this release.",
+    conflict: "This operation was already submitted or is in flight.",
+    staleCursor: "The cursor is stale. Start a new query.",
+    preparationRequired:
+      "The environment has not been prepared, or its preparation record is unavailable.",
+  },
   mcp: {},
   cli: {},
 } satisfies ResourceShape;

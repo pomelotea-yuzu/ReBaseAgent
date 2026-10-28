@@ -34,7 +34,16 @@ export const zhCN = {
   recording: {},
   settings: {},
   export: {},
-  errors: {},
+  errors: {
+    generic: "操作未完成，请核对当前状态后再继续。",
+    invalidArgument: "请求参数不符合要求。",
+    notFound: "未找到请求的资源。",
+    unknownOperation: "操作状态未知，请先核对。",
+    unsupported: "当前版本不支持此操作。",
+    conflict: "该操作已提交或正在执行。",
+    staleCursor: "游标已失效，请重新发起查询。",
+    preparationRequired: "环境尚未准备或准备记录不可用。",
+  },
   mcp: {},
   cli: {},
 } as const;
