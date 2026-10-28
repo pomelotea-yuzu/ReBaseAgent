@@ -372,6 +372,8 @@ let occurrenceTotal = 0;
 for (const [layer, relDir] of sourceRoots) {
   for (const f of walk(path.join(ROOT, relDir), [".ts", ".tsx"])) {
     const file = rel(f);
+    // 资源目录是迁移终点（键契约与译文），不是待迁移候选；由 check:i18n 单独校验。
+    if (file.startsWith("packages/i18n/src/resources/")) continue;
     const text = fs.readFileSync(f, "utf8");
     if (!HAN.test(text)) continue;
     const sf = ts.createSourceFile(
