@@ -57,6 +57,7 @@ import {
   initialSession,
   markUnknown,
 } from "../../lib/operation-session";
+import { storeError } from "../../lib/store-error";
 import {
   decideVerificationConfirmation,
   verificationTargetKey,
@@ -737,13 +738,21 @@ export function createOperationsSlice({
     async chooseSource() {
       const envelope = await api.chooseSource();
       if (!envelope.ok) {
-        set({ error: `选择源目录失败：${envelope.error.message}` });
+        set({
+          ...storeError("UI_SOURCE_CHOOSE_FAILED", `选择源目录失败：${envelope.error.message}`),
+        });
         return null;
       }
       // 跨进程数据不可信：核验形状后再交给对话框（"取消"与"失败"必须可分辨）
       const parsed = ChooseSourceResultSchema.safeParse(envelope.data);
       if (!parsed.success) {
-        set({ error: `目录选择结果结构校验失败：${describeZodError(parsed.error)}` });
+        set({
+          ...storeError(
+            "UI_SOURCE_CHOOSE_INVALID",
+            `目录选择结果结构校验失败：${describeZodError(parsed.error)}`,
+            { id: "errors.invalidArgument" },
+          ),
+        });
         return null;
       }
       return parsed.data;

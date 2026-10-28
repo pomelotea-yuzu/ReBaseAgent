@@ -114,6 +114,33 @@ describe("uiPreferences store 分片", () => {
     expect(load).toBeGreaterThan(-1);
     expect(mount).toBeGreaterThan(-1);
     expect(load).toBeLessThan(mount);
+    // Provider 不允许用 locale 作 key：切语言不能重建编辑器/工作区/焦点
+    expect(source).toContain("<I18nProvider locale={locale}>");
+    expect(source).not.toContain("key={locale}");
+  });
+
+  it("切换语言不触碰草稿/编辑器/未保存设置等其他状态", async () => {
+    let state: UiPreferencesSlice & {
+      draftText: string;
+      editorValue: string;
+      unsavedSettings: string;
+    };
+    const set = (patch: Partial<typeof state>): void => {
+      state = { ...state, ...patch };
+    };
+    const get = (): typeof state => state;
+    const slice = createUiPreferencesSlice({ set: set as never, get: get as never });
+    state = {
+      ...slice,
+      draftText: "保留的草稿",
+      editorValue: "editor value",
+      unsavedSettings: "unsaved",
+    };
+    await slice.saveUiLanguage("en-US");
+    expect(state.draftText).toBe("保留的草稿");
+    expect(state.editorValue).toBe("editor value");
+    expect(state.unsavedSettings).toBe("unsaved");
+    expect(state.effectiveLocale).toBe("en-US");
   });
 
   it("首次读取在业务挂载前拿到有效语言并采纳", async () => {

@@ -1,6 +1,8 @@
-import { StrictMode } from "react";
+import { StrictMode, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
+import { I18nProvider } from "./i18n";
+import { applyHtmlLang } from "./lib/html-lang";
 import { useAppStore } from "./store";
 import "./index.css";
 // ⚠️ Monaco **不在此静态装配**（U1 任务 5.6）：编辑器资源必须懒加载，
@@ -14,6 +16,19 @@ if (rootElement === null) {
 }
 const mountElement: HTMLElement = rootElement;
 
+function Root() {
+  const locale = useAppStore((s) => s.effectiveLocale);
+  useEffect(() => {
+    applyHtmlLang(document.documentElement, locale);
+  }, [locale]);
+  // locale 不挂在 key 上：切语言只刷新订阅者，不重建编辑器/工作区/焦点。
+  return (
+    <I18nProvider locale={locale}>
+      <App />
+    </I18nProvider>
+  );
+}
+
 async function bootstrap(): Promise<void> {
   // 业务视图挂载前先取语言偏好：避免先按旧语言渲染再闪换。
   // IPC 异常时最多等 1.5s 后按 fallback 渲染；未完成的读取仍会在 store 里更新。
@@ -23,7 +38,7 @@ async function bootstrap(): Promise<void> {
   ]);
   createRoot(mountElement).render(
     <StrictMode>
-      <App />
+      <Root />
     </StrictMode>,
   );
 }

@@ -21,6 +21,7 @@ import { api } from "../../lib/api";
 import { describeZodError } from "../../lib/describe-zod-error";
 import { resolveReading } from "../../lib/reading-resolve";
 import { patchReadingState, readingStateOf } from "../../lib/reading-state";
+import { type StoreErrorDescriptor, clearedStoreError, storeError } from "../../lib/store-error";
 import {
   resolveExecutionGate,
   resolveFilterVisibility,
@@ -44,6 +45,8 @@ export interface RunsState {
   /** 列表刷新失败但旧记录仍在：界面据此提示「未更新」，不清空列表 */
   listStale: boolean;
   error: string | null;
+  /** 产品错误描述；展示时按当前语言派生。null = 无错误或旧路径未登记。 */
+  errorDescriptor: StoreErrorDescriptor | null;
   /** run 列表来源过滤 */
   sourceFilter: "all" | "proxy" | "local";
   /** 列表搜索词（匹配完整 task/ID）；与来源条件求交集（任务 3.5） */
@@ -108,6 +111,7 @@ export function createRunsSlice({
     listLoaded: false,
     listStale: false,
     error: null,
+    errorDescriptor: null,
     listRefreshInFlight: 0,
     listRefreshPending: 0,
     sourceFilter: "all",
@@ -150,7 +154,7 @@ export function createRunsSlice({
      */
     async refreshRunsOnce() {
       const hadLoadedBefore = get().listLoaded;
-      set({ loadingList: true, error: null });
+      set({ loadingList: true, ...clearedStoreError() });
       const envelope = await api.listRuns();
       if (!envelope.ok) {
         const failure = resolveRefreshFailure(hadLoadedBefore);
@@ -158,9 +162,12 @@ export function createRunsSlice({
           loadingList: false,
           // 失败不倒退：runs/failed 原样保留；仅标记未更新（首次失败不标）
           listStale: failure.stale,
-          error: hadLoadedBefore
-            ? `刷新 run 列表失败（仍显示上次结果）：${envelope.error.message}`
-            : `读取 run 列表失败：${envelope.error.message}`,
+          ...storeError(
+            "UI_RUN_LIST_REFRESH_FAILED",
+            hadLoadedBefore
+              ? `刷新 run 列表失败（仍显示上次结果）：${envelope.error.message}`
+              : `读取 run 列表失败：${envelope.error.message}`,
+          ),
         });
         return;
       }
@@ -170,9 +177,13 @@ export function createRunsSlice({
         set({
           loadingList: false,
           listStale: failure.stale,
-          error: hadLoadedBefore
-            ? `刷新 run 列表失败（仍显示上次结果）：列表数据结构校验失败：${describeZodError(parsed.error)}`
-            : `列表数据结构校验失败：${describeZodError(parsed.error)}`,
+          ...storeError(
+            "UI_RUN_LIST_INVALID",
+            hadLoadedBefore
+              ? `刷新 run 列表失败（仍显示上次结果）：列表数据结构校验失败：${describeZodError(parsed.error)}`
+              : `列表数据结构校验失败：${describeZodError(parsed.error)}`,
+            { id: "errors.invalidArgument" },
+          ),
         });
         return;
       }
@@ -238,7 +249,7 @@ export function createRunsSlice({
         expandedSteps: restored.expandedSteps,
         detail: null,
         loadingDetail: true,
-        error: null,
+        ...clearedStoreError(),
       });
       // 请求归属（3.3）：记录**发出请求时**的选中 run。此后任何分支落地前都要与此比对，
       // 否则 A 的慢响应 / A 的失败收尾会盖掉用户已经切到的 B。
@@ -249,7 +260,10 @@ export function createRunsSlice({
         if (!shouldApplyDetailFailure(selectedAtRequest, get().selectedRunId, id)) return;
         // U6 4.5：旧代次的失败收尾一律不落地（不清 loadingDetail、不写 error）
         if (!isCurrentDetailAttempt(attemptAtRequest, detailReadAttempts.current())) return;
-        set({ loadingDetail: false, error: `读取 run 失败：${envelope.error.message}` });
+        set({
+          loadingDetail: false,
+          ...storeError("UI_RUN_DETAIL_LOAD_FAILED", `读取 run 失败：${envelope.error.message}`),
+        });
         return;
       }
       // 跨进程数据不可信：先确认载荷自称的 run id 与请求一致（防 main 回错 / 信封串号），
@@ -259,7 +273,11 @@ export function createRunsSlice({
         if (!isCurrentDetailAttempt(attemptAtRequest, detailReadAttempts.current())) return;
         set({
           loadingDetail: false,
-          error: "轨迹数据归属校验失败（载荷与请求的 run 不一致）：拒绝加载",
+          ...storeError(
+            "UI_RUN_DETAIL_OWNERSHIP_MISMATCH",
+            "轨迹数据归属校验失败（载荷与请求的 run 不一致）：拒绝加载",
+            { id: "errors.invalidArgument" },
+          ),
         });
         return;
       }
@@ -271,7 +289,11 @@ export function createRunsSlice({
         if (!isCurrentDetailAttempt(attemptAtRequest, detailReadAttempts.current())) return;
         set({
           loadingDetail: false,
-          error: `轨迹数据版本校验失败（拒绝加载）：${versionViolation}`,
+          ...storeError(
+            "UI_RUN_DETAIL_VERSION_UNSUPPORTED",
+            `轨迹数据版本校验失败（拒绝加载）：${versionViolation}`,
+            { id: "errors.unsupported" },
+          ),
         });
         return;
       }
@@ -281,7 +303,11 @@ export function createRunsSlice({
         if (!isCurrentDetailAttempt(attemptAtRequest, detailReadAttempts.current())) return;
         set({
           loadingDetail: false,
-          error: `轨迹数据结构校验失败：${describeZodError(parsed.error)}`,
+          ...storeError(
+            "UI_RUN_DETAIL_INVALID",
+            `轨迹数据结构校验失败：${describeZodError(parsed.error)}`,
+            { id: "errors.invalidArgument" },
+          ),
         });
         return;
       }

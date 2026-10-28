@@ -21,6 +21,7 @@ import { SessionActivity } from "./components/SessionActivity";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { SpanTree } from "./components/SpanTree";
 import { WorkspaceFilesPanel } from "./components/WorkspaceFilesPanel";
+import { useTranslator } from "./i18n";
 import {
   COMPARE_STACK_THRESHOLD,
   decideCompareBodyLayout,
@@ -28,12 +29,21 @@ import {
 } from "./lib/compare-navigation";
 import { isIsolatedRun } from "./lib/isolated-fork";
 import { focusActiveFor, workspaceKeyOf } from "./lib/layout";
+import { describeStoreError } from "./lib/store-error";
 import { useDraftCloseGuard } from "./lib/use-draft-close-guard";
 import { useContentWidth, useLayoutState } from "./lib/use-layout";
 import { useAppStore } from "./store";
 
 export default function App() {
   const error = useAppStore((s) => s.error);
+  const errorDescriptor = useAppStore((s) => s.errorDescriptor);
+  const translator = useTranslator();
+  const errorText =
+    error === null
+      ? null
+      : errorDescriptor === null
+        ? error
+        : describeStoreError(errorDescriptor, translator);
   const runs = useAppStore((s) => s.runs);
   const failed = useAppStore((s) => s.failed);
   const loadingList = useAppStore((s) => s.loadingList);
@@ -197,9 +207,9 @@ export default function App() {
       {/* U5 任务 5.2：全局结果通知区——挂在外壳上，独立于操作面板的开合与当前视图 */}
       <ResultLiveRegion />
 
-      {error !== null ? (
+      {errorText !== null ? (
         <div className="border-b border-red-200 bg-red-50 px-4 py-2 text-[11px] text-red-700">
-          {error}
+          {errorText}
         </div>
       ) : null}
 

@@ -254,6 +254,7 @@ function resetStore(): void {
     sourceUnavailable: false,
     sourceUnavailableReason: "unknown",
     error: null,
+    errorDescriptor: null,
     forking: "idle",
     forkError: null,
     forkErrorCode: null,
@@ -975,6 +976,7 @@ describe("store：列表刷新合并（任务 3.4）", () => {
     expect(afterFailure.listStale).toBe(true);
     expect(afterFailure.loadingList).toBe(false);
     expect(afterFailure.error).toContain("仍显示上次结果");
+    expect(afterFailure.errorDescriptor?.code).toBe("UI_RUN_LIST_REFRESH_FAILED");
     // 不生成假记录、不清空已成功加载的阅读位置
     expect(afterFailure.readingOf("r_01").spanId).toBe(stepId);
     expect(afterFailure.selectedRunId).toBe("r_01");
@@ -986,6 +988,7 @@ describe("store：列表刷新合并（任务 3.4）", () => {
     expect(afterRetry.runs.map((r) => r.id)).toEqual(["run_forked", "r_01"]);
     expect(afterRetry.listStale).toBe(false);
     expect(afterRetry.error).toBeNull();
+    expect(afterRetry.errorDescriptor).toBeNull();
     expect(afterRetry.readingOf("r_01").spanId).toBe(stepId);
   });
 
@@ -1002,6 +1005,7 @@ describe("store：列表刷新合并（任务 3.4）", () => {
     expect(state.listStale).toBe(false); // 从来没有可过期的数据
     expect(state.loadingList).toBe(false);
     expect(state.error).toContain("读取 run 列表失败");
+    expect(state.errorDescriptor?.code).toBe("UI_RUN_LIST_REFRESH_FAILED");
   });
 
   it("列表结构非法同样不倒退：保留旧记录并标未更新", async () => {
@@ -1013,6 +1017,7 @@ describe("store：列表刷新合并（任务 3.4）", () => {
     expect(state.runs.map((r) => r.id)).toEqual(["r_01"]);
     expect(state.listStale).toBe(true);
     expect(state.error).toContain("仍显示上次结果");
+    expect(state.errorDescriptor?.code).toBe("UI_RUN_LIST_INVALID");
   });
 });
 
