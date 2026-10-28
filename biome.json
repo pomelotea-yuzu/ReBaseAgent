@@ -36,7 +36,9 @@
       "**/electron.vite.config.*.mjs",
       "**/.tmp-*",
       "**/test/fixtures/**",
-      "docs/**"
+      "docs/**",
+      "i18n/attribution.json",
+      "i18n/english-product-candidates.json"
     ]
   },
   "overrides": [

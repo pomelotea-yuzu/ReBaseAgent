@@ -1,0 +1,143 @@
+{
+  "version": 1,
+  "generatedAt": "2026-10-28T01:51:53.672Z",
+  "scanner": "scripts/i18n-attribution.cjs",
+  "method": "AST 扫描 desktop 三层 ASCII-only 字符串/JSX 文本，按 UI 角色过滤 className/CSS/技术值；正则只作候选发现，逐条人工复核后才进入迁移范围。",
+  "candidates": [
+    {
+      "file": "apps/desktop/src/renderer/src/components/detail/DetailShared.tsx",
+      "layer": "renderer",
+      "role": "ui_text",
+      "context": "ternary",
+      "text": "· miss",
+      "review": "pending",
+      "note": null
+    },
+    {
+      "file": "apps/desktop/src/renderer/src/components/detail/PromptForkEditor.tsx",
+      "layer": "renderer",
+      "role": "ui_text",
+      "context": "ternary",
+      "text": "system prompt",
+      "review": "pending",
+      "note": null
+    },
+    {
+      "file": "apps/desktop/src/renderer/src/components/detail/PromptForkEditor.tsx",
+      "layer": "renderer",
+      "role": "ui_text",
+      "context": "ternary",
+      "text": "user message",
+      "review": "pending",
+      "note": null
+    },
+    {
+      "file": "apps/desktop/src/renderer/src/components/RecordingWorkspaceView.tsx",
+      "layer": "renderer",
+      "role": "return",
+      "context": "return",
+      "text": "upstream base_url",
+      "review": "pending",
+      "note": null
+    },
+    {
+      "file": "apps/desktop/src/renderer/src/components/VerificationPanel.tsx",
+      "layer": "renderer",
+      "role": "ui_text",
+      "context": "ternary",
+      "text": "」· run",
+      "review": "pending",
+      "note": null
+    },
+    {
+      "file": "apps/desktop/src/renderer/src/components/VerificationPanel.tsx",
+      "layer": "renderer",
+      "role": "ui_text",
+      "context": "ternary",
+      "text": "· snapshot",
+      "review": "pending",
+      "note": null
+    },
+    {
+      "file": "apps/desktop/src/renderer/src/components/workspace-file/FileContent.tsx",
+      "layer": "renderer",
+      "role": "ui_text",
+      "context": "ternary",
+      "text": "· sha256",
+      "review": "pending",
+      "note": null
+    },
+    {
+      "file": "apps/desktop/src/renderer/src/components/workspace-file/WorkspaceFileViewBody.tsx",
+      "layer": "renderer",
+      "role": "ui_text",
+      "context": "ternary",
+      "text": "· profile",
+      "review": "pending",
+      "note": null
+    },
+    {
+      "file": "apps/desktop/src/renderer/src/lib/draft-list.ts",
+      "layer": "renderer",
+      "role": "ui_prop",
+      "context": "user_message",
+      "text": "prompt · user",
+      "review": "pending",
+      "note": null
+    },
+    {
+      "file": "apps/desktop/src/renderer/src/lib/draft-submission.ts",
+      "layer": "renderer",
+      "role": "return",
+      "context": "return",
+      "text": "|create",
+      "review": "pending",
+      "note": null
+    },
+    {
+      "file": "apps/desktop/src/renderer/src/lib/execution-confirmation.ts",
+      "layer": "renderer",
+      "role": "ui_prop",
+      "context": "label",
+      "text": "System Prompt",
+      "review": "pending",
+      "note": null
+    },
+    {
+      "file": "apps/desktop/src/renderer/src/lib/prompt-experiment-view.ts",
+      "layer": "renderer",
+      "role": "ui_text",
+      "context": "ternary",
+      "text": "system prompt",
+      "review": "pending",
+      "note": null
+    },
+    {
+      "file": "apps/desktop/src/renderer/src/lib/verification-compare.ts",
+      "layer": "renderer",
+      "role": "ui_text",
+      "context": "ternary",
+      "text": "cap drop all",
+      "review": "pending",
+      "note": null
+    },
+    {
+      "file": "apps/desktop/src/renderer/src/lib/verification-compare.ts",
+      "layer": "renderer",
+      "role": "ui_text",
+      "context": "ternary",
+      "text": "supervisor PID 1",
+      "review": "pending",
+      "note": null
+    },
+    {
+      "file": "apps/desktop/src/main/operation-request.ts",
+      "layer": "main",
+      "role": "return",
+      "context": "return",
+      "text": "(root)",
+      "review": "pending",
+      "note": null
+    }
+  ]
+}

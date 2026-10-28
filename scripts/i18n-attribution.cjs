@@ -1,0 +1,717 @@
+#!/usr/bin/env node
+/**
+ * i18n 候选文案归属表生成器（只读源码，写 i18n/attribution.json）。
+ *
+ * 口径与 docs/engineering/reports/2026-10-28-i18n-attribution.md 一致：
+ * - 只统计 `apps/desktop/src` 与 `packages` 各包 `src` 的 TS/TSX 字符串字面量、模板与 JSX 文本；
+ *   注释不计入；CSS 中的中文均为注释，HTML 当前无中文。
+ * - 每条候选带文件、层、工作区、符号路径、角色与分类：
+ *   product（产品展示，迁移目标）/ original（原文、模型输入、记录或机器报告）/
+ *   internal（内部诊断或存储不变量）/ generated（生成资产）。
+ * - 分类是审查辅助，不是运行时判据；后续批次可在本文件维护映射，但必须保留理由。
+ *
+ * 复跑：node scripts/i18n-attribution.cjs
+ * 对比盘点：node scripts/i18n-attribution.cjs --compare-inventory
+ */
+const fs = require("node:fs");
+const path = require("node:path");
+const ts = require("typescript");
+
+const ROOT = path.resolve(__dirname, "..");
+const HAN = /\p{Script=Han}/u;
+const SKIP_DIRS = new Set([
+  "node_modules",
+  "dist",
+  "out",
+  ".rebaseagent",
+  ".vite",
+  ".tmp",
+  "release",
+  "release-win",
+  "build",
+]);
+
+const UI_PROPS =
+  /(label|title|description|message|hint|placeholder|text|summary|heading|empty|help|error|notice|status|action|confirm|cancel|reason|note|tip|aria)/i;
+const UI_CONSTS =
+  /LABEL|TEXT|MESSAGE|TITLE|HINT|ERROR|NOTICE|STATUS|DESC|PLACEHOLDER|EMPTY|HELP|SUMMARY/;
+
+function walk(dir, exts, out = []) {
+  if (!fs.existsSync(dir)) return out;
+  for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+    const p = path.join(dir, ent.name);
+    if (ent.isDirectory()) {
+      if (SKIP_DIRS.has(ent.name)) continue;
+      walk(p, exts, out);
+    } else if (exts.includes(path.extname(ent.name)) && !ent.name.endsWith(".d.ts")) {
+      out.push(p);
+    }
+  }
+  return out;
+}
+
+const rel = (p) => path.relative(ROOT, p).replace(/\\/g, "/");
+const baseName = (p) => path.basename(p).replace(/\.(tsx?|css|html)$/, "");
+
+/* ---------- 工作区近似（与盘点报告同口径） ---------- */
+
+const RENDERER_RULES = [
+  ["创建运行", /^(CreateRunWorkspace|create-run|create-workspace|entry-gate)$/],
+  [
+    "重跑/分叉",
+    /^(MessagesWorkspace|MessagesForkEditor|MessagesResults|RunActionsBar|ResultForkEditor|PromptForkEditor|IsolatedPromptEntry|isolated-fork|isolated-prompt|prompt-fork|fork-cache-hint|messages-)/,
+  ],
+  ["录制接入", /^(RecordingWorkspace|RecordingWorkspaceView|recording-draft|proxy-)/],
+  [
+    "模型实验",
+    /^(ExperimentWorkspace|ExperimentResults|ModelAbEditor|AbBatchResult|experiment-results|model-ab|prompt-experiment-view)/,
+  ],
+  [
+    "比较工作区",
+    /^(CompareWorkspace|CompareWorkspaceView|CompareFileWorkspace|CompareMetricsTable|CompareSelectionBar|compare-|DraftCompareGrid|DraftListPanel|DraftSourceBanner|draft-|verification-compare)/,
+  ],
+  [
+    "文件工作区",
+    /^(WorkspaceFilesPanel|WorkspaceFileView|WorkspaceFileViewBody|FileContent|workspace-file|workspace-files|file-)/,
+  ],
+  ["项目验证", /^(VerificationPanel|verification-)/],
+  ["设置", /^(SettingsDialog|settings-form)$/],
+  ["辅助/导出", /^(AuxWorkspaceFrame|WorkspaceExportPanel|aux-workspace|workspace-export-state)/],
+  [
+    "运行总览/详情",
+    /^(RunList|OverviewPanel|BudgetMap|SpanTree|span-tree-view|DetailPanel|DetailNotices|DetailShared|StepDetailView|LlmCallDetail|ToolInvokeDetail|RunStatusBadge|SessionActivity|RunWorkspace|ShortIdLabel|overview-view|tree-view|budget|call-detail-view|detail-)/,
+  ],
+];
+const RENDERER_FALLBACK = "通用外壳/组件";
+
+function rendererWorkspace(file) {
+  const b = baseName(file);
+  for (const [ws, re] of RENDERER_RULES) if (re.test(b)) return ws;
+  return RENDERER_FALLBACK;
+}
+
+function mainWorkspace(file) {
+  const b = baseName(file);
+  if (
+    /^(run-create|run-repository|run-read-context|run-lineage-read|run-detail-project|run-source-gate|fork-runner)$/.test(
+      b,
+    )
+  )
+    return "运行创建/读取/分叉";
+  if (/^(exec-endpoints|execution-config-state|isolated-prompt-endpoints)$/.test(b))
+    return "隔离执行/实验";
+  if (/^verification-/.test(b)) return "项目验证";
+  if (/^(compare-endpoints|workspace-compare-endpoint)$/.test(b)) return "比较";
+  if (/^(config-endpoints|settings)$/.test(b)) return "设置/配置";
+  if (/^proxy-/.test(b)) return "录制代理";
+  if (/^(operation-|draft-close)/.test(b)) return "操作/草稿";
+  return "外壳/其他";
+}
+
+const RENDERER_BATCH = {
+  "通用外壳/组件": 1,
+  创建运行: 1,
+  "运行总览/详情": 1,
+  "重跑/分叉": 1,
+  项目验证: 2,
+  比较工作区: 2,
+  文件工作区: 2,
+  模型实验: 3,
+  录制接入: 3,
+  设置: 3,
+  "辅助/导出": 3,
+};
+
+const MAIN_BATCH = {
+  "运行创建/读取/分叉": 1,
+  "隔离执行/实验": 1,
+  "操作/草稿": 1,
+  "外壳/其他": 1,
+  项目验证: 2,
+  比较: 2,
+  "设置/配置": 3,
+  录制代理: 3,
+};
+
+/* ---------- 文件级归属规则 ---------- */
+
+const PRODUCT = "product";
+const ORIGINAL = "original";
+const INTERNAL = "internal";
+const GENERATED = "generated";
+
+const ORIGINAL_REASONS = {
+  "packages/agent-loop/src/diagnostic.ts": "模型/工具错误事实，随 trace 与工具结果保留原文",
+  "packages/agent-loop/src/llm-client.ts":
+    "模型调用错误事实，写入 llm.call.error，不能随 locale 改写",
+  "packages/agent-loop/src/run-loop.ts": "工具结果与执行错误事实，保留原文",
+  "packages/agent-loop/src/tool-registry.ts": "工具注册与调用结果原文，进入模型上下文",
+  "packages/llm-proxy/src/diagnostic.ts": "上游错误原文，随录制记录保留",
+  "packages/llm-proxy/src/handler.ts": "录制代理对外 HTTP 响应原文，不属桌面/MCP/CLI 产品面",
+  "packages/replay/src/tool-unwrap.ts": "父录工具声明解析事实，属于模型工具定义原文",
+  "packages/replay/src/workspace/file-tools.ts": "隔离文件工具的声明/参数说明，直接进入模型上下文",
+  "packages/replay/src/workspace/export-manifest.ts":
+    "导出清单正文标签，导出内容不随 UI locale 改写",
+  "packages/trace-sdk/src/branch.ts": "轨迹结构校验事实，供来源拒绝详情与记录读取展示",
+  "packages/trace-sdk/src/schema.ts": "trace schema 校验事实，属于记录原文边界",
+  "packages/trace-sdk/src/logical-path.ts": "逻辑路径校验事实，属于记录/文件操作原文边界",
+  "packages/trace-sdk/src/reader.ts": "JSONL 读取错误事实，属于记录原文边界",
+  "packages/trace-sdk/src/version-guard.ts": "trace 版本守卫事实，属于记录原文边界",
+  "packages/trace-sdk/src/workspace-snapshot.ts": "快照清单校验事实，属于记录原文边界",
+  "packages/trace-sdk/src/fs-boundary.ts": "文件系统边界错误事实，属于读取原文边界",
+  "packages/trace-sdk/src/tracer.ts": "tracer 不变量事实，属于记录生成边界",
+  "packages/trace-sdk/src/jsonl-tracer.ts": "JSONL 写入不变量事实，属于记录生成边界",
+  "packages/trace-sdk/src/guards.ts": "分支/删除守卫事实，属于记录边界",
+  "packages/trace-sdk/src/memory-tracer.ts": "MemoryTracer 不变量事实，属于测试/记录边界",
+  "packages/trace-sdk/src/workspace-hash.ts": "快照哈希校验事实，属于记录边界",
+  "packages/trace-test/src/assertions.ts":
+    "断言 detail 进入 JSON 报告与原始 detail，报告契约不随 locale 改写",
+  "packages/trace-test/src/shape-align.ts": "形状对齐 detail 进入 JSON 报告，保留原始事实",
+  "packages/trace-test/src/cassette-llm-client.ts":
+    "卡带消息差异 detail 进入 JSON 报告，保留原始事实",
+  "packages/trace-test/src/format.ts": "机器/人类共用的截断说明，随原始 detail 序列化",
+};
+const ORIGINAL_PREFIXES = [
+  ["packages/project-verification/src/", "验证记录/runner/日志正文，持久化事实不随 locale 改写"],
+];
+
+const INTERNAL_REASONS = {
+  "packages/replay/src/workspace/blob-store.ts": "附件存储不变量，不面向用户",
+  "packages/replay/src/workspace/world.ts": "隔离世界内部不变量，不面向用户",
+  "packages/replay/src/workspace/checkpoint-tracer.ts": "检查点 tracer 不变量，不面向用户",
+  "packages/project-verification/src/runtime/reconcile.ts": "main 启动残留核查诊断，不面向用户",
+  "packages/project-verification/src/runtime/registration.ts": "容器登记内部不变量，不面向用户",
+  "packages/project-verification/src/trusted-env/node-ts-v1.ts":
+    "受信环境 manifest 构建不变量，不面向用户",
+  "packages/project-verification/src/docker/cli.ts": "Docker CLI 子进程内部错误，不面向用户",
+};
+
+const PRODUCT_FILES = new Set([
+  "packages/agent-loop/src/config.ts",
+  "packages/llm-proxy/src/server.ts",
+  "packages/project-verification/src/prepare/plan.ts",
+  "packages/project-verification/src/schema.ts",
+  "packages/project-verification/src/records/reader.ts",
+  "packages/project-verification/src/records/assets-view.ts",
+  "packages/project-verification/src/source/precheck.ts",
+]);
+const PRODUCT_PREFIXES = [
+  "packages/mcp-server/src/",
+  "packages/run-query/src/",
+  "packages/trace-test/src/cli.ts",
+  "packages/trace-test/src/loader.ts",
+  "packages/trace-test/src/run-test.ts",
+  "packages/trace-test/src/rerun.ts",
+  "packages/trace-test/src/definition.ts",
+  "packages/trace-test/src/stub-tools.ts",
+];
+
+function packageOf(file) {
+  const m = /^packages\/([^/]+)\//.exec(file);
+  return m ? m[1] : null;
+}
+
+function fileRule(file, layer) {
+  if (file.endsWith(".generated.ts")) {
+    return { classification: GENERATED, reason: "生成资产（内嵌 runner/脚本），不作为产品文案" };
+  }
+  if (layer === "renderer" || layer === "main" || layer === "shared" || layer === "preload") {
+    return { classification: PRODUCT, reason: null };
+  }
+  if (INTERNAL_REASONS[file]) return { classification: INTERNAL, reason: INTERNAL_REASONS[file] };
+  if (PRODUCT_FILES.has(file)) return { classification: PRODUCT, reason: null };
+  if (PRODUCT_PREFIXES.some((p) => file.startsWith(p)))
+    return { classification: PRODUCT, reason: null };
+  if (ORIGINAL_REASONS[file]) return { classification: ORIGINAL, reason: ORIGINAL_REASONS[file] };
+  const prefix = ORIGINAL_PREFIXES.find(([p]) => file.startsWith(p));
+  if (prefix) return { classification: ORIGINAL, reason: prefix[1] };
+  if (file.startsWith("packages/replay/")) return { classification: PRODUCT, reason: null };
+  // 包层其余文件按“原文/记录事实”处理：错误码与参数由适配层投影，不在此处翻译。
+  return { classification: ORIGINAL, reason: "包层领域事实/错误原文，由适配层按稳定 code 投影" };
+}
+
+function isCliFile(file) {
+  return /(^|\/)(cli|model-ab-cli)\.ts$/.test(file) || file.endsWith("startup.ts");
+}
+
+function classifySymbol(file, layer, role) {
+  const base = fileRule(file, layer);
+  if (role === "internal_log" && !isCliFile(file)) {
+    return { classification: INTERNAL, reason: "console 内部诊断，不面向用户" };
+  }
+  return base;
+}
+
+function batchOf(file, layer, workspace, classification) {
+  if (classification !== PRODUCT) return null;
+  if (layer === "renderer") return RENDERER_BATCH[workspace] ?? 1;
+  if (layer === "main") return MAIN_BATCH[workspace] ?? 1;
+  if (layer === "shared" || layer === "preload") return 1;
+  if (file === "packages/replay/src/model-ab-cli.ts") return 4;
+  if (file === "packages/replay/src/model-replay-run.ts") return 3;
+  if (file.startsWith("packages/replay/src/workspace/export-")) return 2;
+  if (file.startsWith("packages/project-verification/")) return 2;
+  if (file.startsWith("packages/run-query/src/facts/compare-")) return 2;
+  if (file.startsWith("packages/run-query/")) return 1;
+  if (file.startsWith("packages/mcp-server/")) return 4;
+  if (file.startsWith("packages/trace-test/")) return 4;
+  if (file.startsWith("packages/agent-loop/")) return 1;
+  if (file.startsWith("packages/llm-proxy/")) return 3;
+  if (file.startsWith("packages/replay/")) return 1;
+  return null;
+}
+
+/* ---------- AST 扫描 ---------- */
+
+function callRole(calleeText) {
+  if (
+    /^(fail|throw)$/.test(calleeText) ||
+    /(^|\.)fail$/.test(calleeText) ||
+    /Error$/.test(calleeText)
+  )
+    return "error_message";
+  if (/^console\./.test(calleeText)) return "internal_log";
+  if (/^(set|show|open|request|confirm|notify|toast|alert|warn)/i.test(calleeText))
+    return "ui_message";
+  return "call_arg";
+}
+
+function classifyRole(ancestors) {
+  for (let i = ancestors.length - 1; i >= 0; i--) {
+    const a = ancestors[i];
+    if (ts.isJsxAttribute(a)) return { role: "ui_attr", context: a.name.getText() };
+    if (ts.isPropertyAssignment(a)) {
+      const name = a.name.getText().replace(/^["']|["']$/g, "");
+      return { role: UI_PROPS.test(name) ? "ui_prop" : "prop", context: name };
+    }
+    if (ts.isCallExpression(a)) {
+      const callee = a.expression.getText();
+      return { role: callRole(callee), context: callee };
+    }
+    if (ts.isNewExpression(a) && a.expression.getText().endsWith("Error")) {
+      return { role: "error_message", context: `new ${a.expression.getText()}` };
+    }
+    if (ts.isVariableDeclaration(a)) {
+      const name = a.name.getText();
+      return { role: UI_CONSTS.test(name) ? "ui_constant" : "constant", context: name };
+    }
+    if (ts.isBinaryExpression(a) && a.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+      return { role: "concat", context: "+" };
+    }
+    if (ts.isJsxExpression(a)) return { role: "ui_text", context: "jsx_expr" };
+    if (ts.isReturnStatement(a)) return { role: "return", context: "return" };
+    if (ts.isArrayLiteralExpression(a)) return { role: "array_item", context: "[]" };
+    if (ts.isConditionalExpression(a)) return { role: "ui_text", context: "ternary" };
+  }
+  return { role: "other", context: "" };
+}
+
+function nameOfDeclaration(node) {
+  if (node.name && ts.isIdentifier(node.name)) return node.name.text;
+  if (node.name && ts.isStringLiteralLike(node.name)) return node.name.text;
+  return null;
+}
+
+function symbolOf(ancestors, sf) {
+  const parts = [];
+  for (let i = ancestors.length - 1; i >= 0; i--) {
+    const a = ancestors[i];
+    let name = null;
+    if (
+      ts.isFunctionDeclaration(a) ||
+      ts.isMethodDeclaration(a) ||
+      ts.isMethodSignature(a) ||
+      ts.isGetAccessorDeclaration(a) ||
+      ts.isSetAccessorDeclaration(a) ||
+      ts.isConstructorDeclaration(a)
+    ) {
+      name = nameOfDeclaration(a) ?? (ts.isConstructorDeclaration(a) ? "constructor" : null);
+    } else if (
+      ts.isVariableDeclaration(a) ||
+      ts.isPropertyAssignment(a) ||
+      ts.isPropertyDeclaration(a) ||
+      ts.isPropertySignature(a)
+    ) {
+      name = nameOfDeclaration(a);
+    } else if (
+      ts.isClassDeclaration(a) ||
+      ts.isInterfaceDeclaration(a) ||
+      ts.isTypeAliasDeclaration(a) ||
+      ts.isEnumDeclaration(a)
+    ) {
+      name = nameOfDeclaration(a);
+    } else if (ts.isJsxElement(a)) {
+      name = a.openingElement.tagName.getText(sf);
+    } else if (ts.isJsxSelfClosingElement(a)) {
+      name = a.tagName.getText(sf);
+    }
+    if (name) {
+      parts.unshift(name);
+      // 只保留最近两层，避免超长路径；文件名已单独记录。
+      if (parts.length === 2) break;
+    }
+  }
+  return parts.length ? parts.join(".") : "<module>";
+}
+
+const sourceRoots = [
+  ["renderer", "apps/desktop/src/renderer"],
+  ["main", "apps/desktop/src/main"],
+  ["shared", "apps/desktop/src/shared"],
+  ["preload", "apps/desktop/src/preload"],
+];
+for (const pkg of fs.readdirSync(path.join(ROOT, "packages"))) {
+  if (fs.existsSync(path.join(ROOT, "packages", pkg, "src"))) {
+    sourceRoots.push([`pkg:${pkg}`, `packages/${pkg}/src`]);
+  }
+}
+
+const files = new Map();
+let occurrenceTotal = 0;
+
+for (const [layer, relDir] of sourceRoots) {
+  for (const f of walk(path.join(ROOT, relDir), [".ts", ".tsx"])) {
+    const file = rel(f);
+    const text = fs.readFileSync(f, "utf8");
+    if (!HAN.test(text)) continue;
+    const sf = ts.createSourceFile(
+      f,
+      text,
+      ts.ScriptTarget.Latest,
+      true,
+      f.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+    );
+    const workspace =
+      layer === "renderer" ? rendererWorkspace(f) : layer === "main" ? mainWorkspace(f) : layer;
+    const entry = files.get(file) ?? {
+      path: file,
+      layer,
+      package: packageOf(file),
+      workspace,
+      classification: "product",
+      batch: null,
+      status: "pending",
+      reason: null,
+      symbols: [],
+    };
+    const symbolMap = new Map(entry.symbols.map((s) => [`${s.symbol}|${s.role}`, s]));
+
+    const visit = (node, ancestors) => {
+      let rec = null;
+      if (ts.isJsxText(node)) {
+        const t = node.text.replace(/\s+/g, " ").trim();
+        if (t && HAN.test(t)) rec = { kind: "jsx_text", text: t };
+      } else if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
+        if (HAN.test(node.text)) rec = { kind: "string", text: node.text };
+      } else if (ts.isTemplateExpression(node)) {
+        const parts = [node.head.text, ...node.templateSpans.map((s) => s.literal.text)];
+        if (parts.some((p) => HAN.test(p))) rec = { kind: "template", text: parts.join("${…}") };
+      }
+      if (rec) {
+        const { role, context } = classifyRole(ancestors);
+        const symbol = symbolOf(ancestors, sf);
+        const { classification, reason } = classifySymbol(file, layer, role);
+        const line = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
+        const key = `${symbol}|${role}`;
+        let s = symbolMap.get(key);
+        if (!s) {
+          s = {
+            symbol,
+            role,
+            context,
+            classification,
+            reason: reason ?? null,
+            count: 0,
+            samples: [],
+            lines: [],
+          };
+          symbolMap.set(key, s);
+          entry.symbols.push(s);
+        }
+        s.count += 1;
+        if (s.samples.length < 2 && !s.samples.includes(rec.text.slice(0, 100))) {
+          s.samples.push(rec.text.slice(0, 100));
+        }
+        if (s.lines.length < 20) s.lines.push(line);
+        occurrenceTotal += 1;
+      }
+      ts.forEachChild(node, (c) => visit(c, [...ancestors, node]));
+    };
+    visit(sf, []);
+    files.set(file, entry);
+  }
+}
+
+/* ---------- 汇总与分类收口 ---------- */
+
+const manifestFiles = [];
+for (const entry of [...files.values()]
+  .filter((e) => e.symbols.length > 0)
+  .sort((a, b) => a.path.localeCompare(b.path))) {
+  for (const s of entry.symbols) s.lines = [...new Set(s.lines)].sort((a, b) => a - b);
+  const classes = new Set(entry.symbols.map((s) => s.classification));
+  entry.classification = classes.size === 1 ? [...classes][0] : "mixed";
+  const rule = fileRule(entry.path, entry.layer);
+  entry.reason = rule.reason ?? entry.symbols.find((s) => s.reason)?.reason ?? null;
+  entry.batch = entry.symbols.some((s) => s.classification === PRODUCT)
+    ? batchOf(entry.path, entry.layer, entry.workspace, PRODUCT)
+    : null;
+  entry.status = entry.symbols.some((s) => s.classification === PRODUCT) ? "pending" : "excluded";
+  manifestFiles.push(entry);
+}
+
+function countBy(list, key) {
+  const out = {};
+  for (const item of list) out[item[key]] = (out[item[key]] ?? 0) + 1;
+  return out;
+}
+
+const allSymbols = manifestFiles.flatMap((f) => f.symbols);
+const totals = {
+  files: manifestFiles.length,
+  occurrences: occurrenceTotal,
+  product: allSymbols.filter((s) => s.classification === PRODUCT).reduce((n, s) => n + s.count, 0),
+  original: allSymbols
+    .filter((s) => s.classification === ORIGINAL)
+    .reduce((n, s) => n + s.count, 0),
+  internal: allSymbols
+    .filter((s) => s.classification === INTERNAL)
+    .reduce((n, s) => n + s.count, 0),
+  generated: allSymbols
+    .filter((s) => s.classification === GENERATED)
+    .reduce((n, s) => n + s.count, 0),
+};
+const byLayer = {};
+for (const f of manifestFiles) {
+  const e = byLayer[f.layer] ?? {
+    files: 0,
+    occurrences: 0,
+    product: 0,
+    original: 0,
+    internal: 0,
+    generated: 0,
+  };
+  e.files += 1;
+  for (const s of f.symbols) {
+    e.occurrences += s.count;
+    e[s.classification] += s.count;
+  }
+  byLayer[f.layer] = e;
+}
+
+const manifest = {
+  version: 1,
+  generatedAt: new Date().toISOString(),
+  scanner: "scripts/i18n-attribution.cjs",
+  taxonomy: {
+    product: "产品展示：需要按批次迁移为双语资源",
+    original: "原文/模型输入/持久化记录/机器报告：不随 UI locale 改写",
+    internal: "内部诊断或存储不变量：不面向用户",
+    generated: "生成资产：不作为产品文案",
+  },
+  totals,
+  byLayer,
+  files: manifestFiles,
+};
+
+const outFile = path.join(ROOT, "i18n", "attribution.json");
+fs.mkdirSync(path.dirname(outFile), { recursive: true });
+fs.writeFileSync(outFile, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+
+/* ---------- 英文硬编码产品文本候选（审查辅助，不冒充全覆盖） ---------- */
+
+const ENGLISH_SKIP_ATTRS =
+  /^(className|class|style|d|fill|stroke|viewBox|width|height|id|name|type|href|src|key|htmlFor|role|tabIndex|transform|points|xmlns|strokeWidth|strokeLinecap|strokeLinejoin|fontSize|fontFamily|textAnchor)$/;
+const TECHNICAL = /^[\w./:@#$%&*+=[\]{}<>-]+$/;
+const STYLE_LIKE =
+  /(^|\s)(flex|grid|text-|bg-|border-|px-|py-|mt-|mb-|ml-|mr-|w-|h-|min-|max-|gap-|rounded|absolute|relative|hover:|disabled:|overflow|shrink|break-|font-|md:|lg:)/;
+const UI_ROLES = new Set(["ui_attr", "ui_prop", "ui_text", "return"]);
+
+function englishCandidates() {
+  const seen = new Set();
+  const out = [];
+  const roots = [
+    ["renderer", "apps/desktop/src/renderer"],
+    ["main", "apps/desktop/src/main"],
+    ["shared", "apps/desktop/src/shared"],
+  ];
+  for (const [layer, relDir] of roots) {
+    for (const f of walk(path.join(ROOT, relDir), [".ts", ".tsx"])) {
+      const text = fs.readFileSync(f, "utf8");
+      if (!/[A-Za-z]/.test(text)) continue;
+      const sf = ts.createSourceFile(
+        f,
+        text,
+        ts.ScriptTarget.Latest,
+        true,
+        f.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+      );
+      const visit = (node, ancestors) => {
+        let candidate = null;
+        if (ts.isJsxText(node)) {
+          const t = node.text.replace(/\s+/g, " ").trim();
+          if (t && !HAN.test(t) && /[A-Za-z]{2}/.test(t)) candidate = t;
+        } else if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
+          const t = node.text.trim();
+          if (t && !HAN.test(t) && /[A-Za-z]{2}/.test(t) && t.length >= 4) candidate = t;
+        }
+        if (candidate !== null) {
+          const { role, context } = classifyRole(ancestors);
+          if (
+            UI_ROLES.has(role) &&
+            !ENGLISH_SKIP_ATTRS.test(context) &&
+            !TECHNICAL.test(candidate) &&
+            !STYLE_LIKE.test(candidate)
+          ) {
+            const key = `${rel(f)}|${candidate}`;
+            if (!seen.has(key)) {
+              seen.add(key);
+              out.push({
+                file: rel(f),
+                layer,
+                role,
+                context,
+                text: candidate.slice(0, 160),
+                review: "pending",
+                note: null,
+              });
+            }
+          }
+        }
+        ts.forEachChild(node, (c) => visit(c, [...ancestors, node]));
+      };
+      visit(sf, []);
+    }
+  }
+  return out;
+}
+
+const englishOut = path.join(ROOT, "i18n", "english-product-candidates.json");
+const english = englishCandidates();
+fs.writeFileSync(
+  englishOut,
+  `${JSON.stringify(
+    {
+      version: 1,
+      generatedAt: new Date().toISOString(),
+      scanner: "scripts/i18n-attribution.cjs",
+      method:
+        "AST 扫描 desktop 三层 ASCII-only 字符串/JSX 文本，按 UI 角色过滤 className/CSS/技术值；正则只作候选发现，逐条人工复核后才进入迁移范围。",
+      candidates: english,
+    },
+    null,
+    2,
+  )}\n`,
+  "utf8",
+);
+console.log(
+  `[i18n-attribution] 英文产品文本候选 ${english.length} 条 -> ${rel(englishOut)}（需人工复核，正则不是覆盖判据）`,
+);
+
+console.log(`[i18n-attribution] 写入 ${rel(outFile)}`);
+console.log(`[i18n-attribution] files=${totals.files} occurrences=${totals.occurrences}`);
+console.log(
+  `[i18n-attribution] product=${totals.product} original=${totals.original} internal=${totals.internal} generated=${totals.generated}`,
+);
+for (const [layer, e] of Object.entries(byLayer)) {
+  console.log(
+    `  ${layer}: files=${e.files} occ=${e.occurrences} product=${e.product} original=${e.original} internal=${e.internal} generated=${e.generated}`,
+  );
+}
+
+if (process.argv.includes("--verify-boundaries")) {
+  const assert = require("node:assert/strict");
+  const byPath = new Map(manifestFiles.map((f) => [f.path, f]));
+  const occ = (f, cls) =>
+    f.symbols.filter((s) => s.classification === cls).reduce((n, s) => n + s.count, 0);
+
+  // S07：生成资产、模型输入、记录/报告原文必须划在翻译范围之外。
+  const generated = byPath.get(
+    "packages/project-verification/src/trusted-env/node-ts-v1-assets.generated.ts",
+  );
+  assert.ok(generated, "缺少生成资产条目");
+  assert.equal(generated.classification, GENERATED, "生成资产必须整文件排除");
+  assert.equal(occ(generated, GENERATED), 4, "生成资产应有 4 条内嵌脚本字符串");
+  for (const p of [
+    "packages/replay/src/workspace/file-tools.ts",
+    "packages/replay/src/tool-unwrap.ts",
+    "packages/trace-sdk/src/branch.ts",
+    "packages/trace-sdk/src/schema.ts",
+    "packages/trace-test/src/assertions.ts",
+    "packages/trace-test/src/shape-align.ts",
+    "packages/trace-test/src/cassette-llm-client.ts",
+    "packages/trace-test/src/format.ts",
+    "packages/agent-loop/src/llm-client.ts",
+    "packages/agent-loop/src/run-loop.ts",
+    "packages/agent-loop/src/tool-registry.ts",
+    "packages/llm-proxy/src/handler.ts",
+  ]) {
+    const f = byPath.get(p);
+    assert.ok(f, `缺少原文边界条目：${p}`);
+    assert.equal(occ(f, PRODUCT), 0, `原文边界不应含产品文案：${p}`);
+  }
+  assert.equal(
+    occ(byPath.get("packages/project-verification/src/orchestrate/run.ts"), PRODUCT),
+    0,
+    "验证记录正文必须保持原文",
+  );
+  assert.equal(
+    occ(byPath.get("packages/llm-proxy/src/handler.ts"), PRODUCT),
+    0,
+    "录制代理对外响应保持原文",
+  );
+
+  // S11：全部现有包层 CLI 入口在归属表中有产品文案归属。
+  for (const pkg of ["mcp-server", "trace-test", "replay"]) {
+    const pkgJson = JSON.parse(
+      fs.readFileSync(path.join(ROOT, "packages", pkg, "package.json"), "utf8"),
+    );
+    assert.ok(pkgJson.bin && Object.keys(pkgJson.bin).length > 0, `${pkg} 应声明 bin`);
+    const product = manifestFiles
+      .filter((f) => f.path.startsWith(`packages/${pkg}/`))
+      .reduce((n, f) => n + occ(f, PRODUCT), 0);
+    assert.ok(product > 0, `${pkg} CLI 未找到产品文案候选`);
+  }
+  // 模型实验 CLI 属 5.7 范围，必须有独立归属与批次。
+  const modelAb = byPath.get("packages/replay/src/model-ab-cli.ts");
+  assert.equal(modelAb.classification, PRODUCT, "模型实验 CLI 应为产品文案");
+  assert.equal(modelAb.batch, 4, "模型实验 CLI 应归入包层 CLI 批次");
+
+  // G03：所有产品文件有批次，所有排除项有理由。
+  for (const f of manifestFiles) {
+    if (f.status === "pending") {
+      assert.ok([1, 2, 3, 4].includes(f.batch), `产品文件缺批次：${f.path}`);
+    } else {
+      assert.ok(f.reason || f.symbols.some((s) => s.reason), `排除项缺理由：${f.path}`);
+    }
+  }
+  console.log(
+    "[i18n-attribution] 边界核对通过：生成资产/模型输入/记录原文/内部诊断/全部 CLI/批次归属",
+  );
+}
+
+if (process.argv.includes("--compare-inventory")) {
+  const invPath = path.join(ROOT, ".tmp", "i18n-inventory.json");
+  if (!fs.existsSync(invPath)) {
+    console.error(
+      "[i18n-attribution] 缺少 .tmp/i18n-inventory.json，先运行 node scripts/i18n-inventory.cjs",
+    );
+    process.exit(2);
+  }
+  const inv = JSON.parse(fs.readFileSync(invPath, "utf8"));
+  const invByLayer = Object.fromEntries(inv.byLayer.map((b) => [b.key, b.occurrences]));
+  let failed = false;
+  for (const [layer, e] of Object.entries(byLayer)) {
+    const expected = invByLayer[layer] ?? 0;
+    const actual = e.occurrences;
+    const ok = layer === "renderer" ? actual === expected - 1 : actual === expected; // 盘点把 index.css 计 1 条
+    if (!ok) {
+      failed = true;
+      console.error(
+        `[i18n-attribution] 层 ${layer} 与盘点不一致：attribution=${actual} inventory=${expected}`,
+      );
+    }
+  }
+  if (failed) process.exit(1);
+  console.log("[i18n-attribution] 与盘点报告分层计数一致（renderer 扣除 CSS 汇总记录 1 条）");
+}
