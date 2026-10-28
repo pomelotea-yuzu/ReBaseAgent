@@ -5,15 +5,26 @@ import type { RunEventLine, SpanLine } from "@rebaseagent/trace-sdk";
 import { createElement } from "react";
 import type { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { renderWithLocale } from "./i18n/render-with-locale";
+import { createTestTranslator, renderWithLocale } from "./i18n/render-with-locale";
 
 // OverviewPanel 的 store 薄壳在 import 时就会触到 `window.api`（../lib/api.ts）
 // ⇒ 桩必须先就位；ESM 静态 import 会被提升，故用动态 import（同 run-workspace.test.ts）。
 (globalThis as Record<string, unknown>).window = { api: {} };
 
 const { OverviewResultView } = await import("../src/renderer/src/components/OverviewPanel");
-const { auditSafeTextRendering, containsMarkupLikeText, openCallHint, presentResult } =
-  await import("../src/renderer/src/lib/overview-view");
+const {
+  auditSafeTextRendering,
+  containsMarkupLikeText,
+  openCallHint: openCallHintOf,
+  presentResult: presentResultOf,
+} = await import("../src/renderer/src/lib/overview-view");
+
+const zh = createTestTranslator("zh-CN");
+const presentResult = (own: Parameters<typeof presentResultOf>[0]) => presentResultOf(own, zh);
+const openCallHint = (
+  own: Parameters<typeof openCallHintOf>[0],
+  presentation: Parameters<typeof openCallHintOf>[1],
+) => openCallHintOf(own, presentation, zh);
 
 /**
  * U1（refactor-run-workspace）任务 5.1：概览结果区与安全长文本。

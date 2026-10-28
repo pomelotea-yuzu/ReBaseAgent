@@ -7,6 +7,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { auditForbiddenTokens } from "../src/renderer/src/lib/overview-view";
+import { createTestTranslator, renderWithLocale } from "./i18n/render-with-locale";
 
 // OverviewPanel 的 store 薄壳在 import 时就会触到 `window.api`（../lib/api.ts）
 // ⇒ 桩必须先就位；ESM 静态 import 会被提升，故用动态 import（同 5.1 的 test 文件）。
@@ -15,10 +16,18 @@ import { auditForbiddenTokens } from "../src/renderer/src/lib/overview-view";
 const { LlmErrorSectionView, OutcomeSectionView, ToolErrorsSectionView } = await import(
   "../src/renderer/src/components/OverviewPanel"
 );
-const { presentLlmError, presentOutcome, presentToolErrors } = await import(
-  "../src/renderer/src/lib/overview-view"
-);
+const {
+  presentLlmError: presentLlmErrorOf,
+  presentOutcome: presentOutcomeOf,
+  presentToolErrors,
+} = await import("../src/renderer/src/lib/overview-view");
 const { auditSafeTextRendering } = await import("../src/renderer/src/lib/overview-view");
+
+const zh = createTestTranslator("zh-CN");
+const presentLlmError = (target: Parameters<typeof presentLlmErrorOf>[0]) =>
+  presentLlmErrorOf(target, zh);
+const presentOutcome = (outcome: Parameters<typeof presentOutcomeOf>[0]) =>
+  presentOutcomeOf(outcome, zh);
 
 /**
  * U1（refactor-run-workspace）任务 5.2：概览错误/限制/中断区及真实调用定位。
@@ -43,8 +52,8 @@ const PANEL_SOURCE = readFileSync(
   "utf8",
 );
 
-const html = (node: Parameters<typeof renderToStaticMarkup>[0]): string =>
-  renderToStaticMarkup(node);
+const html = (node: Parameters<typeof renderWithLocale>[1]): string =>
+  renderWithLocale("zh-CN", node);
 const noop = (): void => {};
 
 function detailOf(name: string): {
@@ -402,8 +411,8 @@ describe("接线契约：概览页挂上结局/错误/工具错误三区", () =>
 
 describe("回归：5.1 的结果区契约在三区加入后仍成立", () => {
   it("概览根容器仍带「运行概览」标签，结果区仍带「运行结果」", () => {
-    expect(PANEL_SOURCE).toContain('aria-label="运行概览"');
-    expect(PANEL_SOURCE).toContain('aria-label="运行结果"');
+    expect(PANEL_SOURCE).toContain('"run.overviewAria"');
+    expect(PANEL_SOURCE).toContain('"run.overviewResultAria"');
   });
 
   it("正文仍走 LongText（未被三区改造顺手换成 Markdown 渲染）", () => {
@@ -412,5 +421,24 @@ describe("回归：5.1 的结果区契约在三区加入后仍成立", () => {
     // 本文件的文档注释里**点名**了这个禁用写法（正在解释为什么禁用），会假红。
     // 复用 5.1 的审计函数（它已按纪律先剥注释再扫）。
     expect(auditSafeTextRendering(PANEL_SOURCE)).toEqual([]);
+  });
+});
+
+describe("2.4 结局说明英文", () => {
+  it("结局标签与补充说明独立成句", () => {
+    const en = createTestTranslator("en-US");
+    const section = presentOutcomeOf(
+      {
+        kind: "max_iterations",
+        label: "达到迭代上限",
+        tone: "warn",
+        normalEnd: false,
+        reason: "max_iterations",
+      },
+      en,
+    );
+    expect(section.label).toBe("Reached iteration limit");
+    expect(section.note).toContain("iteration limit");
+    expect(section.label + section.note).not.toMatch(/[\u4e00-\u9fff]/);
   });
 });

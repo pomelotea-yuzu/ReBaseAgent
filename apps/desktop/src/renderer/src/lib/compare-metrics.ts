@@ -1,7 +1,8 @@
+import type { Translator } from "@rebaseagent/i18n";
 import { deriveVerifiedComparison } from "@shared/compare-derive";
 import type { CompareRunItem } from "@shared/ipc";
 import { taskSummary } from "@shared/nav";
-import { classifyOutcome } from "@shared/outcome";
+import { classifyOutcome, outcomeLabelOf } from "@shared/outcome";
 import type { OutcomeTone } from "@shared/outcome";
 import { deriveOwnConsumption } from "@shared/overview";
 import type { OwnConsumption } from "@shared/overview";
@@ -80,10 +81,13 @@ const EMPTY_MODEL: MetricsTableModel = {
  * `items` 传 verified 结论的 items（无结论 / 请求级拒绝时传 null ⇒ empty，
  * 由组件展示"正在读取 / 读取失败"状态）。`shortIds` 供身份列显示。
  */
-export function deriveCompareMetricsTable(input: {
-  items: readonly CompareRunItem[] | null;
-  shortIds: ReadonlyMap<string, string>;
-}): MetricsTableModel {
+export function deriveCompareMetricsTable(
+  input: {
+    items: readonly CompareRunItem[] | null;
+    shortIds: ReadonlyMap<string, string>;
+  },
+  translator: Translator,
+): MetricsTableModel {
   if (input.items === null || input.items.length === 0) return EMPTY_MODEL;
 
   const items = input.items;
@@ -110,7 +114,7 @@ export function deriveCompareMetricsTable(input: {
       shortId: shortIdOf(item.runId),
       task: own !== null && own.task !== "" ? taskSummary(own.task) : null,
       model: own !== null && own.model !== "" ? own.model : null,
-      statusLabel: outcome?.label ?? null,
+      statusLabel: outcome === null ? null : outcomeLabelOf(outcome.kind, translator),
       statusTone: outcome?.tone ?? null,
       unavailableReason: null,
     };
@@ -292,7 +296,7 @@ export function deriveCompareMetricsTable(input: {
       values: columns.map((_column, index) => {
         const consumption = consumptionOf(index);
         if (consumption === null) return null;
-        const cache = presentCacheCoverage(consumption.cache);
+        const cache = presentCacheCoverage(consumption.cache, translator);
         if (cache.recorded === 0) {
           // 未记录不显示成实际零：没有 cache_hit 字段 ⇒ 命中量未知
           return cache.total === 0 ? "无自有模型调用" : "未记录（命中量未知）";
@@ -301,7 +305,9 @@ export function deriveCompareMetricsTable(input: {
       }),
       titles: columns.map((_column, index) => {
         const consumption = consumptionOf(index);
-        return consumption === null ? undefined : presentCacheCoverage(consumption.cache).note;
+        return consumption === null
+          ? undefined
+          : presentCacheCoverage(consumption.cache, translator).note;
       }),
     },
     // ---- 5.4：沿链累计（各代自有值沿链求和；禁称总耗时/总成本）----

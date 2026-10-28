@@ -1,7 +1,12 @@
 import type { Fork, SpanLine } from "@rebaseagent/trace-sdk/schema";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import { deriveCompareMetricsTable } from "../src/renderer/src/lib/compare-metrics";
+import { deriveCompareMetricsTable as deriveCompareMetricsTableOf } from "../src/renderer/src/lib/compare-metrics";
+import { createTestTranslator } from "./i18n/render-with-locale";
+
+const zh = createTestTranslator("zh-CN");
+const deriveCompareMetricsTable = (input: Parameters<typeof deriveCompareMetricsTableOf>[0]) =>
+  deriveCompareMetricsTableOf(input, zh);
 import type { CompareRunItem, RunDetail, RunSummary } from "../src/shared/ipc";
 import { computeShortIds } from "../src/shared/nav";
 

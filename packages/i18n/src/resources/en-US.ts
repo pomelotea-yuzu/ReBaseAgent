@@ -527,6 +527,130 @@ export const enUS = {
       "The precheck result does not match the current fork point; check the continuation conditions again",
     writesRequiredFork:
       "Check “Allow file writes for this execution” — authorization is valid only for this submit and is never restored from the parent run's write_authorized marker",
+    finalOutput: "Final output",
+    noFinalOutput: "No final output recorded",
+    resultNoLlmCall: "This run recorded no model calls of its own, so there is no output to show.",
+    resultEmptyContent: "The last model call of this run returned an empty body.",
+    resultReasoningOnly:
+      "The last model call recorded reasoning only, with no body — the recorded content type is “reasoning”.",
+    resultPendingToolCalls:
+      "The last model call recorded tool calls only, with no body — the recorded content type is “tool calls”, and the loop should have continued.",
+    resultHasError: "The last model call ended with an error, so there is no usable body.",
+    resultNotNormalEnd:
+      "This run did not end normally (not a completed terminal event); the last body is not treated as the final result.",
+    intermediateBlockLabel: "Last body recorded before the end (not this run's final result)",
+    openCallReasoning: "Open this call to view the full reasoning",
+    openCallTools: "Open this call to view tool call details",
+    outcomeNoteMaxIterations:
+      "The loop stopped after reaching the iteration limit; this is not a normal end.",
+    outcomeNoteBudgetExceeded:
+      "The run stopped after exceeding the token / budget limit; this is not a normal end.",
+    outcomeNoteAborted:
+      "The run was aborted; this is not a normal end, and recorded content remains below.",
+    outcomeNoteInterrupted:
+      "No terminal event was recorded (the process may have been killed); this does not mean it is still running.",
+    outcomeNoteUnknown:
+      "A terminal event exists but its reason is outside the known set; see the run record for the original reason.",
+    llmErrorMissingNote:
+      "This run ended with an error, but its own records contain no LLM error detail — the cause is not inferred and ancestor errors are not borrowed.",
+    consumptionScopeNote:
+      "Recorded values from this run's own calls only; the shared ancestor prefix is excluded and missing values are not zero-filled.",
+    consumptionZeroUsage:
+      "Recorded usage from this run's own calls is 0 — this may be a placeholder for failed calls; actual zero consumption is not asserted.",
+    cacheNoCalls: "This run has no model calls of its own, so there is no cache record.",
+    cacheNoHitsRecorded:
+      "None of this run's {{count}} own model calls recorded cache-hit fields; hits are unknown.",
+    cacheCoverageNote:
+      "Recorded hits for {{recorded}} / {{total}} own calls (partial records do not make a whole-run hit rate).",
+    sourceRootIsolated:
+      "This is the root run of an isolated file world: the world was collected from the chosen source directory, and there is no upstream run record.",
+    sourceRoot: "This is a root run with no upstream source record.",
+    sourceIsolation:
+      "Isolated file run: file reads and writes happen only in the independent world; the source directory is not modified.",
+    sourceIsolationCheckpoint:
+      "Isolated continuation: it starts from the end-of-turn checkpoint of run {{runId}}, and file reads and writes happen only in the independent world.",
+    sourceIsolationInitial:
+      "Isolated prompt experiment: it starts from the initial file state and startup instructions of run {{runId}}, and file reads and writes happen only in the independent world.",
+    sourceRelationProxy:
+      "Forked run recorded through the proxy (single-request edit and resend): see the parent chain for the source relation; this run shows only its own records.",
+    sourceRelationPromptFork:
+      "Prompt fork (rerun from start): this run is an independent execution that shares no parent trajectory prefix; the parent run is only a reference for lineage.",
+    sourceRelationModelAb:
+      "Model A/B arm (rerun from start): this run is an independent execution that shares no parent trajectory prefix; the parent run is only a reference.",
+    sourceRelationIncomplete:
+      "The parent chain is incomplete: only this run's own trajectory is shown; the shared prefix and ancestor increments are unknown and are neither zero-filled nor inferred.",
+    sourceRelationSharedPrefix:
+      "The parent run's trajectory up to the fork point is a shared prefix (from the parent run file; this run records only new spans).",
+    sourceIncompleteNote: "{{text}} (missing ancestor run: {{missingRunId}})",
+    copyFullOriginal: "Copy the full original {{label}}",
+    overviewAria: "Run overview",
+    overviewOutcomeAria: "Run outcome",
+    overviewLlmErrorAria: "LLM error",
+    overviewToolErrorsAria: "Tool errors",
+    overviewConsumptionAria: "This run's usage",
+    overviewSourceAria: "Source",
+    overviewPromptExperimentAria: "Isolated startup-prompt experiment",
+    overviewResultAria: "Run result",
+    outcomeTitle: "How it ended",
+    failureReasonTitle: "Failure reason",
+    failedCallTitle: "Failed call",
+    directParentTitle: "Direct parent run ID",
+    httpStatusUnknown: "HTTP status not recorded",
+    cacheHitUnknown: "Cache hits not recorded",
+    errorBodyMissing: "This call is marked as an error, but no error body was recorded.",
+    notFilled: "Not filled in",
+    openCallExpandStep: "Open this call and expand its step",
+    backToParent: "Back to parent record",
+    toolErrorsTitle: "Tool errors",
+    timesCount: "{{count}} times",
+    locate: "Locate",
+    tokensInLabel: "Input tokens",
+    tokensOutLabel: "Output tokens",
+    toolCallsLabel: "Tool calls",
+    toolErrorsLabel: "Tool errors",
+    durationLabel: "Recorded time span",
+    cacheHitLabel: "Cache hits",
+    durationUnknown: "Time span not recorded",
+    compareWithParentAria: "Compare with the parent run (parent on the left, child on the right)",
+    baselineRun: "Baseline run",
+    baselineCall: "Baseline call",
+    experimentOldValue: "Experiment original value",
+    experimentNewValue: "Experiment new value",
+    noOutputNoCall: "There is no output to show and no call to locate.",
+    toolErrorsNotCause: "(not a terminal cause)",
+    consumptionOwnNote: "(this run's own)",
+    directParentRun: "Direct parent run",
+    editedFieldLabel: "Edited field",
+    compareWithParent: "Compare with parent run",
+    promptExperimentTitle: "This intervention · isolated startup-prompt experiment",
+    editingField: "Editing {{field}}",
+    initialSnapshot: "Initial snapshot",
+    executionModel: "Execution model",
+    paramsLabel: "Parameters",
+    endpointLabel: "Endpoint",
+    limitsBudget: "Limits / budget",
+    planFingerprint: "Plan fingerprint",
+    iterationsBudget: "{{iterations}} iterations / {{budget}} tokens",
+    budgetXAxis: "LLM call order",
+    budgetYAxis: "Cumulative tokens",
+    budgetMarkLine: "Budget {{value}}",
+    budgetNone: "No budget info",
+    budgetSummary: "Context budget map · {{budget}}{{exceeded}}",
+    budgetSummaryExceeded: " · stopped over budget",
+    budgetEmpty: "This run contains no LLM calls, so no curve can be drawn.",
+    budgetDetailBase: "Cumulative usage {{total}} tokens (in+out) across {{count}} LLM calls.",
+    budgetNoLimitSuffix: "This run recorded no budget limit, so no reference line is drawn.",
+    hypothesisLabel: "Hypothesis (user-provided)",
+    acceptanceLabel: "Manual criterion (user-provided; never auto-scored)",
+    experimentHypothesis: "Experiment hypothesis",
+    acceptanceCriterion: "Manual criterion",
+    compareWithBaseline: "Compare with baseline run",
+    openRunFilesExport: "View this run's files / export",
+    promptExperimentNote:
+      "Comparison defaults to parent-left, child-right; export uses this run's explicit own checkpoint, and patches are relative to that run's initial snapshot.",
+    recorded: "Recorded",
+    producingCallTitle: "Call that produced this body",
+    bodyLabel: "Body",
   },
   detail: {
     lineageIncomplete: "Showing only this run's records; the parent chain is incomplete",

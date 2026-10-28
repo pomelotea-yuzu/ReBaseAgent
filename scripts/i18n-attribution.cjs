@@ -193,6 +193,8 @@ const INTERNAL_REASONS = {
   "apps/desktop/src/renderer/src/lib/a11y-action.ts": "开发期可访问性审计判据，只在测试/断言中消费",
   "apps/desktop/src/renderer/src/lib/navigation-intent.ts":
     "自动导航判定理由，仅内部区分 wait/drop 使用，不显示给用户",
+  "apps/desktop/src/renderer/src/lib/overview-view.ts":
+    "迁移后仅剩安全渲染审计说明，只在测试中断言，不面向用户",
   "apps/desktop/src/renderer/src/lib/format.ts":
     "文件内唯一中文是历史状态短标签 reasonLabel，当前界面无消费点（状态由 RunStatusBadge/classifyOutcome 呈现）",
 };

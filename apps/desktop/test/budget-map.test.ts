@@ -1,6 +1,15 @@
 import type { BudgetSeries } from "@shared/derive";
 import { describe, expect, it } from "vitest";
-import { budgetExtent, buildBudgetMapOption } from "../src/renderer/src/lib/budget";
+import {
+  budgetExtent,
+  budgetSummaryLabel,
+  buildBudgetMapOption as buildBudgetMapOptionOf,
+} from "../src/renderer/src/lib/budget";
+import { createTestTranslator } from "./i18n/render-with-locale";
+
+const zh = createTestTranslator("zh-CN");
+const buildBudgetMapOption = (...args: Parameters<typeof buildBudgetMapOptionOf>) =>
+  buildBudgetMapOptionOf(args[0], args[1], args[2], zh);
 
 /** 用派生的合成数据喂 option 装配纯函数（不触发任何 echarts/react 运行时） */
 function series(pairs: Array<[inTok: number, outTok?: number]>): BudgetSeries {
@@ -89,5 +98,17 @@ describe("budgetExtent", () => {
         ]),
       ),
     ).toEqual({ min: 10, max: 35 });
+  });
+});
+
+describe("2.4 预算摘要英文", () => {
+  it("轴名与摘要按当前语言输出", () => {
+    const en = createTestTranslator("en-US");
+    const option = buildBudgetMapOptionOf(series([[100, 50]]), 3000, false, en);
+    expect(option.xAxis.name).toBe("LLM call order");
+    expect(option.yAxis.name).toBe("Cumulative tokens");
+    expect(budgetSummaryLabel({ maxTotal: 3000, exceeded: false }, en)).toBe(
+      "Context budget map · Budget 3000",
+    );
   });
 });

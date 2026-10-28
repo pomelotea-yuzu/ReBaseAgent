@@ -153,6 +153,8 @@ node scripts/i18n-attribution.cjs --compare-inventory --verify-boundaries
 
 2.3 迁移创建运行闭环（创建页、模式/校验/源目录/副本授权、返回目的地、门禁提示），并把 `main/run-create.ts`、`main/run-source-gate.ts` 的原始失败说明改判 original（渲染层显示为“原始详情”，产品摘要按稳定码本地化）。机器清单 **3,206 处**（product 2,744 / original 385 / internal 73 / generated 4）：2.3 迁入资源 76 处、改判 original 7 处。批次 1 余 87 个 pending 文件。
 
+2.4 迁移运行列表（搜索/筛选/指标/刷新重试/空态/复制）、状态徽章、工作区页签与页头、隔离来源说明、分叉边标签，以及总览（结局/错误/结果/消耗/缓存/来源/prompt 实验）和预算地图；`overview-view` 迁移后只剩安全渲染审计说明，改判 internal。机器清单 **2,989 处**（product 2,524 / original 385 / internal 76 / generated 4）：2.4 迁入资源 217 处、改判 internal 3 处。批次 1 余 77 个 pending 文件。
+
 ## 9. 局限
 
 - 工作区与批次按文件名近似，包层不能精确拆到单个工作区；迁移时以实际入口为准修正。

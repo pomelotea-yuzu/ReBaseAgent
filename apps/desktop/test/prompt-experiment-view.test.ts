@@ -153,6 +153,6 @@ describe("6.6 接线契约", () => {
     expect(compareSide).toContain("openCompareSideFilesAt");
     expect(compareSide).toContain("setFileReading(runId");
     const overview = read("components/OverviewPanel.tsx");
-    expect(overview).toContain("补丁相对该运行初始快照");
+    expect(overview).toContain('"run.promptExperimentNote"');
   });
 });

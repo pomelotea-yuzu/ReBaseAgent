@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-28T13:27:51.145Z",
+  "generatedAt": "2026-10-28T13:41:57.148Z",
   "scanner": "scripts/i18n-attribution.cjs",
   "taxonomy": {
     "product": "产品展示：需要按批次迁移为双语资源",
@@ -9,11 +9,11 @@
     "generated": "生成资产：不作为产品文案"
   },
   "totals": {
-    "files": 235,
-    "occurrences": 3105,
-    "product": 2643,
+    "files": 233,
+    "occurrences": 2989,
+    "product": 2524,
     "original": 385,
-    "internal": 73,
+    "internal": 76,
     "generated": 4
   },
   "byLayer": {
@@ -26,11 +26,11 @@
       "generated": 0
     },
     "renderer": {
-      "files": 82,
-      "occurrences": 1778,
-      "product": 1754,
+      "files": 80,
+      "occurrences": 1662,
+      "product": 1635,
       "original": 0,
-      "internal": 24,
+      "internal": 27,
       "generated": 0
     },
     "shared": {
@@ -2568,7 +2568,7 @@
             "无法打开：两条必须是集合内互异的有效运行（相同 ID 不构成两条比较）"
           ],
           "lines": [
-            101
+            103
           ]
         },
         {
@@ -2582,8 +2582,8 @@
             "比较工作区"
           ],
           "lines": [
-            143,
-            196
+            145,
+            198
           ]
         },
         {
@@ -2598,7 +2598,7 @@
             "→ 右"
           ],
           "lines": [
-            151
+            153
           ]
         },
         {
@@ -2613,8 +2613,8 @@
             "重试详细比较读取"
           ],
           "lines": [
-            155,
-            208
+            157,
+            210
           ]
         },
         {
@@ -2629,8 +2629,8 @@
             "重试读取"
           ],
           "lines": [
-            159,
-            214
+            161,
+            216
           ]
         },
         {
@@ -2644,7 +2644,7 @@
             "正在读取详细比较对象…"
           ],
           "lines": [
-            200
+            202
           ]
         },
         {
@@ -2659,9 +2659,9 @@
             "共同祖先判定不完整（存在父缺失）：链结论受限，祖先差不计算"
           ],
           "lines": [
-            275,
-            310,
-            317
+            277,
+            312,
+            319
           ]
         },
         {
@@ -2676,8 +2676,8 @@
             "存在不可读侧"
           ],
           "lines": [
-            303,
-            304
+            305,
+            306
           ]
         },
         {
@@ -2691,7 +2691,7 @@
             "存在不可读侧：无法进入文本 diff"
           ],
           "lines": [
-            370
+            372
           ]
         }
       ]
@@ -6273,450 +6273,6 @@
       ]
     },
     {
-      "path": "apps/desktop/src/renderer/src/components/OverviewPanel.tsx",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "运行总览/详情",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "CopyButton.button",
-          "role": "ui_text",
-          "context": "jsx_expr",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "复制${…}完整原文"
-          ],
-          "lines": [
-            83,
-            84
-          ]
-        },
-        {
-          "symbol": "button.span",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "已复制",
-            "复制原文"
-          ],
-          "lines": [
-            91
-          ]
-        },
-        {
-          "symbol": "OutcomeSectionView.section",
-          "role": "ui_attr",
-          "context": "aria-label",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "运行结局"
-          ],
-          "lines": [
-            111
-          ]
-        },
-        {
-          "symbol": "section.div",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "结束情况",
-            "本次失败原因"
-          ],
-          "lines": [
-            113,
-            148,
-            345
-          ]
-        },
-        {
-          "symbol": "LlmErrorSectionView.section",
-          "role": "ui_attr",
-          "context": "aria-label",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "LLM 错误"
-          ],
-          "lines": [
-            146
-          ]
-        },
-        {
-          "symbol": "div.span",
-          "role": "ui_attr",
-          "context": "title",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "失败调用",
-            "直接父 run id"
-          ],
-          "lines": [
-            154,
-            349,
-            687
-          ]
-        },
-        {
-          "symbol": "div.span",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 6,
-          "samples": [
-            "未记录 HTTP 状态",
-            "未记录命中量"
-          ],
-          "lines": [
-            161,
-            315,
-            348,
-            377,
-            654,
-            658
-          ]
-        },
-        {
-          "symbol": "div.div",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "该调用标记了错误，但没有记录错误正文。",
-            "未填写"
-          ],
-          "lines": [
-            170,
-            488,
-            496
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 6,
-          "samples": [
-            "打开该调用并展开所属 step",
-            "返回父记录"
-          ],
-          "lines": [
-            180,
-            360,
-            370,
-            519,
-            529,
-            715
-          ]
-        },
-        {
-          "symbol": "ToolErrorsSectionView.section",
-          "role": "ui_attr",
-          "context": "aria-label",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "工具错误"
-          ],
-          "lines": [
-            208
-          ]
-        },
-        {
-          "symbol": "div.span",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 9,
-          "samples": [
-            "工具错误",
-            "次"
-          ],
-          "lines": [
-            211,
-            214,
-            217,
-            259,
-            261,
-            312,
-            434,
-            437,
-            533
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "call_arg",
-          "context": "rows.map",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "定位"
-          ],
-          "lines": [
-            233
-          ]
-        },
-        {
-          "symbol": "ConsumptionSectionView.section",
-          "role": "ui_attr",
-          "context": "aria-label",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "本次消耗"
-          ],
-          "lines": [
-            256
-          ]
-        },
-        {
-          "symbol": "div.dt",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 5,
-          "samples": [
-            "输入 token",
-            "输出 token"
-          ],
-          "lines": [
-            265,
-            271,
-            277,
-            288,
-            292
-          ]
-        },
-        {
-          "symbol": "dd.span",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "未记录时间跨度"
-          ],
-          "lines": [
-            281
-          ]
-        },
-        {
-          "symbol": "SourceSectionView.section",
-          "role": "ui_attr",
-          "context": "aria-label",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "来源"
-          ],
-          "lines": [
-            344
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "ui_attr",
-          "context": "aria-label",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "与父运行对比（父左子右）"
-          ],
-          "lines": [
-            367
-          ]
-        },
-        {
-          "symbol": "PromptExperimentSectionView.section",
-          "role": "ui_attr",
-          "context": "aria-label",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "隔离启动指令实验"
-          ],
-          "lines": [
-            429
-          ]
-        },
-        {
-          "symbol": "span.span",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 9,
-          "samples": [
-            "基线运行",
-            "基线调用"
-          ],
-          "lines": [
-            442,
-            446,
-            450,
-            454,
-            458,
-            462,
-            466,
-            468,
-            472
-          ]
-        },
-        {
-          "symbol": "div.div",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 4,
-          "samples": [
-            "原值",
-            "新值"
-          ],
-          "lines": [
-            478,
-            482,
-            486,
-            494
-          ]
-        },
-        {
-          "symbol": "div.LongText",
-          "role": "ui_attr",
-          "context": "label",
-          "classification": "product",
-          "reason": null,
-          "count": 4,
-          "samples": [
-            "实验原值",
-            "实验新值"
-          ],
-          "lines": [
-            479,
-            483,
-            490,
-            498
-          ]
-        },
-        {
-          "symbol": "OverviewResultView.div",
-          "role": "ui_attr",
-          "context": "aria-label",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "运行概览"
-          ],
-          "lines": [
-            630
-          ]
-        },
-        {
-          "symbol": "div.section",
-          "role": "ui_attr",
-          "context": "aria-label",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "运行结果"
-          ],
-          "lines": [
-            647
-          ]
-        },
-        {
-          "symbol": "span.CopyButton",
-          "role": "ui_text",
-          "context": "jsx_expr",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "正文"
-          ],
-          "lines": [
-            665
-          ]
-        },
-        {
-          "symbol": "div.LongText",
-          "role": "ui_text",
-          "context": "jsx_expr",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "正文"
-          ],
-          "lines": [
-            698
-          ]
-        },
-        {
-          "symbol": "section.div",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "没有可展示的输出，也没有可定位的调用。"
-          ],
-          "lines": [
-            723
-          ]
-        },
-        {
-          "symbol": "OverviewPanel.div",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "尚未选择运行。"
-          ],
-          "lines": [
-            760
-          ]
-        }
-      ]
-    },
-    {
       "path": "apps/desktop/src/renderer/src/components/RecordingWorkspace.tsx",
       "layer": "renderer",
       "package": null,
@@ -9054,145 +8610,6 @@
       ]
     },
     {
-      "path": "apps/desktop/src/renderer/src/lib/budget.ts",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "运行总览/详情",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "xAxis.name",
-          "role": "prop",
-          "context": "name",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "LLM 调用次序"
-          ],
-          "lines": [
-            54
-          ]
-        },
-        {
-          "symbol": "yAxis.name",
-          "role": "prop",
-          "context": "name",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "累计 token"
-          ],
-          "lines": [
-            55
-          ]
-        },
-        {
-          "symbol": "label.formatter",
-          "role": "prop",
-          "context": "formatter",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "预算 ${…}"
-          ],
-          "lines": [
-            66
-          ]
-        },
-        {
-          "symbol": "budgetSummaryLabel.budget",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "无预算信息",
-            "预算 ${…}"
-          ],
-          "lines": [
-            113
-          ]
-        },
-        {
-          "symbol": "budgetSummaryLabel",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "上下文预算地图 · ${…}${…}"
-          ],
-          "lines": [
-            114
-          ]
-        },
-        {
-          "symbol": "budgetSummaryLabel",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            " · 已超预算终止"
-          ],
-          "lines": [
-            114
-          ]
-        },
-        {
-          "symbol": "budgetDetailLabel",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "该 run 不含任何 LLM 调用，无曲线可绘。"
-          ],
-          "lines": [
-            123
-          ]
-        },
-        {
-          "symbol": "budgetDetailLabel.base",
-          "role": "constant",
-          "context": "base",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "累计消耗 ${…} token（in+out），共 ${…} 次 LLM 调用。"
-          ],
-          "lines": [
-            124
-          ]
-        },
-        {
-          "symbol": "budgetDetailLabel",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "${…}该 run 未记录预算上限，故不画参考线。"
-          ],
-          "lines": [
-            125
-          ]
-        }
-      ]
-    },
-    {
       "path": "apps/desktop/src/renderer/src/lib/cache-view.ts",
       "layer": "renderer",
       "package": null,
@@ -9385,7 +8802,7 @@
             "在分支树勾选节点加入对照（最多四条）；两条及以上可进入指标对照与详细比较。"
           ],
           "lines": [
-            70
+            71
           ]
         },
         {
@@ -9400,8 +8817,8 @@
             "共同祖先：无（分属不同根）——两条链都完整走到根且无公共祖先，没有可比基线"
           ],
           "lines": [
-            137,
-            143
+            141,
+            147
           ]
         },
         {
@@ -9416,8 +8833,8 @@
             "无法确认更深的共同祖先；不是「本来就不同源」，祖先增量不计算"
           ],
           "lines": [
-            149,
-            150
+            153,
+            154
           ]
         },
         {
@@ -9432,10 +8849,10 @@
             "共同祖先判定不完整（存在父缺失）：祖先增量不计算"
           ],
           "lines": [
-            177,
-            179,
-            182,
-            184
+            181,
+            183,
+            186,
+            188
           ]
         },
         {
@@ -9450,23 +8867,23 @@
             "终止原因"
           ],
           "lines": [
-            190,
-            197,
-            208,
+            194,
+            201,
             212,
-            217,
-            222,
-            229,
-            238,
-            251,
-            258,
-            274,
-            291,
-            309,
-            317,
-            325,
-            336,
-            348
+            216,
+            221,
+            226,
+            233,
+            242,
+            255,
+            262,
+            278,
+            295,
+            315,
+            323,
+            331,
+            342,
+            354
           ]
         },
         {
@@ -9481,14 +8898,14 @@
             "记录里没有终止事件，— 表示无原值"
           ],
           "lines": [
-            193,
-            204,
-            247,
-            269,
-            285,
-            344,
-            357,
-            360
+            197,
+            208,
+            251,
+            273,
+            289,
+            350,
+            363,
+            366
           ]
         },
         {
@@ -9503,12 +8920,12 @@
             "同一批模型实验的臂共享一个 experimentId；无标签如实显示 —"
           ],
           "lines": [
-            214,
-            219,
-            234,
-            314,
-            322,
-            332
+            218,
+            223,
+            238,
+            320,
+            328,
+            338
           ]
         },
         {
@@ -9523,7 +8940,7 @@
             "未记录（命中量未知）"
           ],
           "lines": [
-            298
+            302
           ]
         },
         {
@@ -9537,7 +8954,7 @@
             "${…}（已记录 ${…} / ${…} 次调用）"
           ],
           "lines": [
-            300
+            304
           ]
         },
         {
@@ -9552,8 +8969,8 @@
             "已选三条及以上：可在表内显式选择两条进入详细比较。"
           ],
           "lines": [
-            367,
-            369
+            373,
+            375
           ]
         },
         {
@@ -9568,11 +8985,11 @@
             "自有值仅统计本运行自有调用（leaf spans）；沿链累计为各代自有值沿链求和"
           ],
           "lines": [
-            379,
-            380,
-            381,
-            382,
-            383
+            385,
+            386,
+            387,
+            388,
+            389
           ]
         }
       ]
@@ -10630,379 +10047,26 @@
       "layer": "renderer",
       "package": null,
       "workspace": "运行总览/详情",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "internal",
+      "batch": null,
+      "status": "excluded",
+      "reason": "迁移后仅剩安全渲染审计说明，只在测试中断言，不面向用户",
       "symbols": [
-        {
-          "symbol": "REASON_TEXT.no-llm-call",
-          "role": "prop",
-          "context": "no-llm-call",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "本 run 没有记录任何自有模型调用，因此没有可展示的输出。"
-          ],
-          "lines": [
-            72
-          ]
-        },
-        {
-          "symbol": "REASON_TEXT.empty-content",
-          "role": "ui_prop",
-          "context": "empty-content",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "最后一次自有模型调用的响应正文为空。"
-          ],
-          "lines": [
-            73
-          ]
-        },
-        {
-          "symbol": "REASON_TEXT.reasoning-only",
-          "role": "ui_prop",
-          "context": "reasoning-only",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "最后一次自有模型调用只记录了思维链，没有正文——已记录内容类型为「思维链」。"
-          ],
-          "lines": [
-            74
-          ]
-        },
-        {
-          "symbol": "REASON_TEXT.pending-tool-calls",
-          "role": "prop",
-          "context": "pending-tool-calls",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "最后一次自有模型调用只记录了工具调用，没有正文——已记录内容类型为「工具调用」，循环本应继续。"
-          ],
-          "lines": [
-            76
-          ]
-        },
-        {
-          "symbol": "REASON_TEXT.has-error",
-          "role": "ui_prop",
-          "context": "has-error",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "最后一次自有模型调用以错误结束，没有可用的正文结果。"
-          ],
-          "lines": [
-            77
-          ]
-        },
-        {
-          "symbol": "REASON_TEXT.not-normal-end",
-          "role": "prop",
-          "context": "not-normal-end",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "本 run 不是正常结束（不是 completed 终止），最后一段正文不作为最终结果。"
-          ],
-          "lines": [
-            78
-          ]
-        },
-        {
-          "symbol": "presentResult.title",
-          "role": "ui_prop",
-          "context": "title",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "最终输出",
-            "未记录最终输出"
-          ],
-          "lines": [
-            100,
-            115
-          ]
-        },
-        {
-          "symbol": "presentResult.blockLabel",
-          "role": "ui_prop",
-          "context": "blockLabel",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "最终输出"
-          ],
-          "lines": [
-            103
-          ]
-        },
-        {
-          "symbol": "presentResult.blockLabel",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "结束前记录的最后一段正文（不是本次最终结果）"
-          ],
-          "lines": [
-            119
-          ]
-        },
-        {
-          "symbol": "openCallHint",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "打开该调用查看完整思维链",
-            "打开该调用查看工具调用详情"
-          ],
-          "lines": [
-            151,
-            152
-          ]
-        },
-        {
-          "symbol": "OUTCOME_NOTE.max_iterations",
-          "role": "prop",
-          "context": "max_iterations",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "循环达到迭代上限后停止，不是正常结束。"
-          ],
-          "lines": [
-            198
-          ]
-        },
-        {
-          "symbol": "OUTCOME_NOTE.budget_exceeded",
-          "role": "prop",
-          "context": "budget_exceeded",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "token / 预算超出上限后停止，不是正常结束。"
-          ],
-          "lines": [
-            199
-          ]
-        },
-        {
-          "symbol": "OUTCOME_NOTE.aborted",
-          "role": "prop",
-          "context": "aborted",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "运行被中止，不是正常结束；已记录内容保留在下方。"
-          ],
-          "lines": [
-            200
-          ]
-        },
-        {
-          "symbol": "OUTCOME_NOTE.interrupted",
-          "role": "prop",
-          "context": "interrupted",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "没有记录到终止事件（进程可能被强制结束），不代表仍在执行。"
-          ],
-          "lines": [
-            201
-          ]
-        },
-        {
-          "symbol": "OUTCOME_NOTE.unknown",
-          "role": "prop",
-          "context": "unknown",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "有终止事件但原因不在已知枚举内，原始原因见运行记录。"
-          ],
-          "lines": [
-            202
-          ]
-        },
-        {
-          "symbol": "presentLlmError.note",
-          "role": "ui_prop",
-          "context": "note",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "本 run 以错误结束，但自有记录里没有 LLM 错误详情——不反推原因，也不借用祖先的错误。"
-          ],
-          "lines": [
-            234
-          ]
-        },
-        {
-          "symbol": "presentConsumption.scopeNote",
-          "role": "ui_prop",
-          "context": "scopeNote",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "仅本次运行自有调用的已记录值；祖先共享前缀不计入，缺失项不补零。${…}"
-          ],
-          "lines": [
-            331
-          ]
-        },
-        {
-          "symbol": "presentConsumption.zeroUsageNote",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "本次自有调用的记录用量为 0——这可能是失败调用的占位值，不据此断言实际零消费。"
-          ],
-          "lines": [
-            338
-          ]
-        },
-        {
-          "symbol": "presentCacheCoverage.note",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "本次运行没有自有模型调用，无缓存记录。",
-            "本次 ${…} 次自有模型调用均未记录缓存命中字段，命中量未知。"
-          ],
-          "lines": [
-            361,
-            362
-          ]
-        },
-        {
-          "symbol": "presentCacheCoverage.note",
-          "role": "ui_prop",
-          "context": "note",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "已记录 ${…} / ${…} 次自有调用的命中量（部分记录不构成整次命中率）。"
-          ],
-          "lines": [
-            369
-          ]
-        },
-        {
-          "symbol": "incompleteView.note",
-          "role": "ui_prop",
-          "context": "note",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "${…}（缺失祖先 run：${…}）"
-          ],
-          "lines": [
-            455
-          ]
-        },
-        {
-          "symbol": "presentSource.relationNote",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "这是隔离文件世界的根运行：文件世界由选定源目录采集而来，没有上游运行记录。",
-            "这是根运行，没有上游来源记录。"
-          ],
-          "lines": [
-            467,
-            468
-          ]
-        },
-        {
-          "symbol": "presentSource.isolationNote",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 4,
-          "samples": [
-            "隔离文件运行：文件读写只发生在独立世界里，源目录不会被修改。",
-            "隔离续跑：从运行 ${…} 的轮末检查点出发，文件读写只发生在独立世界里。"
-          ],
-          "lines": [
-            471,
-            518,
-            520,
-            521
-          ]
-        },
-        {
-          "symbol": "presentSource",
-          "role": "other",
-          "context": "",
-          "classification": "product",
-          "reason": null,
-          "count": 5,
-          "samples": [
-            "代理录制的分叉运行（单请求级编辑重发）：来源关系见父链列表，本 run 只呈现自身记录。",
-            "prompt fork（从头重跑）：本 run 是独立执行，不共享父轨迹前缀，父 run 仅作溯源对照。"
-          ],
-          "lines": [
-            488,
-            492,
-            496,
-            502,
-            505
-          ]
-        },
         {
           "symbol": "auditSafeTextRendering.detail",
           "role": "prop",
           "context": "detail",
-          "classification": "product",
-          "reason": null,
+          "classification": "internal",
+          "reason": "迁移后仅剩安全渲染审计说明，只在测试中断言，不面向用户",
           "count": 3,
           "samples": [
             "出现 dangerouslySetInnerHTML：模型输出会被当作 HTML 解析",
             "出现 <img>：模型输出里的远程图片地址会被浏览器自动加载"
           ],
           "lines": [
-            582,
-            588,
-            594
+            589,
+            595,
+            601
           ]
         }
       ]

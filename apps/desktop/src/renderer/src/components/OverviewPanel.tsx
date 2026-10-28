@@ -62,6 +62,7 @@ import { IsolatedPromptEntryAction } from "./detail/IsolatedPromptEntry";
  * 不影响可复制的内容（delta「复制 SHALL 对应原始文本而非省略后的展示」）。
  */
 function CopyButton({ text, label }: { text: string; label: string }) {
+  const translator = useTranslator();
   const [copied, setCopied] = useState(false);
   return (
     <button
@@ -80,15 +81,15 @@ function CopyButton({ text, label }: { text: string; label: string }) {
           });
       }}
       className="inline-flex items-center gap-1 rounded border border-gray-300 px-1.5 py-0.5 text-reading-meta text-gray-600 hover:bg-gray-50"
-      title={`复制${label}完整原文`}
-      aria-label={`复制${label}完整原文`}
+      title={translator.t("run.copyFullOriginal", { label })}
+      aria-label={translator.t("run.copyFullOriginal", { label })}
     >
       {copied ? (
         <Check size={11} aria-hidden="true" focusable="false" role="presentation" />
       ) : (
         <Copy size={11} aria-hidden="true" focusable="false" role="presentation" />
       )}
-      <span>{copied ? "已复制" : "复制原文"}</span>
+      <span>{translator.t(copied ? "common.copied" : "common.copyOriginal")}</span>
     </button>
   );
 }
@@ -106,11 +107,15 @@ export function OutcomeSectionView({
   status: "completed" | "crashed";
   reason: string | null;
 }) {
-  const section = presentOutcome(classifyOutcome({ status, reason }));
+  const translator = useTranslator();
+  const section = presentOutcome(classifyOutcome({ status, reason }), translator);
   return (
-    <section className="border-t border-gray-200 px-4 py-3" aria-label="运行结局">
+    <section
+      className="border-t border-gray-200 px-4 py-3"
+      aria-label={translator.t("run.overviewOutcomeAria")}
+    >
       <div className="mb-1.5 text-reading-meta font-semibold tracking-wide text-gray-500">
-        结束情况
+        {translator.t("run.outcomeTitle")}
       </div>
       <div className="flex flex-wrap items-center gap-2">
         {/* 语义色 + 文字：颜色只是辅助，标签本身承载信息 */}
@@ -140,25 +145,29 @@ export function LlmErrorSectionView({
   section: LlmErrorSection;
   onOpenCall: (target: { spanId: string; stepSpanId: string | null }) => void;
 }) {
+  const translator = useTranslator();
   if (section.form === "none") return null;
 
   return (
-    <section className="border-t border-gray-200 px-4 py-3" aria-label="LLM 错误">
+    <section
+      className="border-t border-gray-200 px-4 py-3"
+      aria-label={translator.t("run.overviewLlmErrorAria")}
+    >
       <div className="mb-1.5 text-reading-meta font-semibold tracking-wide text-gray-500">
-        本次失败原因
+        {translator.t("run.failureReasonTitle")}
       </div>
       {section.form === "located" ? (
         <>
           <div className="rounded border-l-2 border-red-400 bg-red-50/60 px-3 py-2">
             <div className="mb-1 flex flex-wrap items-center gap-x-3 text-reading-meta text-gray-500">
-              <span className="font-code" title="失败调用">
+              <span className="font-code" title={translator.t("run.failedCallTitle")}>
                 {section.target.spanId}
               </span>
               {section.status !== null ? (
                 <span className="font-code">HTTP {section.status}</span>
               ) : (
                 // 未记录状态码 ⇒ 不显示"HTTP —"这种像数据的占位
-                <span className="text-gray-400">未记录 HTTP 状态</span>
+                <span className="text-gray-400">{translator.t("run.httpStatusUnknown")}</span>
               )}
             </div>
             {section.message.length > 0 ? (
@@ -167,7 +176,7 @@ export function LlmErrorSectionView({
               </pre>
             ) : (
               <div className="text-reading-meta text-gray-600">
-                该调用标记了错误，但没有记录错误正文。
+                {translator.t("run.errorBodyMissing")}
               </div>
             )}
           </div>
@@ -177,7 +186,7 @@ export function LlmErrorSectionView({
               onClick={() => onOpenCall(section.target)}
               className="rounded border border-red-400 px-2 py-0.5 text-reading-meta text-red-800 hover:bg-red-50"
             >
-              打开该调用并展开所属 step
+              {translator.t("run.openCallExpandStep")}
             </button>
           </div>
         </>
@@ -202,19 +211,25 @@ export function ToolErrorsSectionView({
   rows: ReturnType<typeof presentToolErrors>;
   onOpenCall: (target: { spanId: string; stepSpanId: string | null }) => void;
 }) {
+  const translator = useTranslator();
   if (rows.length === 0) return null;
 
   return (
-    <section className="border-t border-gray-200 px-4 py-3" aria-label="工具错误">
+    <section
+      className="border-t border-gray-200 px-4 py-3"
+      aria-label={translator.t("run.overviewToolErrorsAria")}
+    >
       <div className="mb-1.5 flex items-center gap-2">
         <span className="text-reading-meta font-semibold tracking-wide text-gray-500">
-          工具错误
+          {translator.t("run.toolErrorsTitle")}
         </span>
         <span className="rounded bg-amber-100 px-1.5 py-0.5 text-reading-meta text-amber-800">
-          {rows.length} 次
+          {translator.t("run.timesCount", { count: rows.length })}
         </span>
         {/* 明确它不构成终止原因，避免用户把工具错误当成本次失败根因 */}
-        <span className="text-reading-meta text-gray-400">（不构成终止原因）</span>
+        <span className="text-reading-meta text-gray-400">
+          {translator.t("run.toolErrorsNotCause")}
+        </span>
       </div>
       <ul className="space-y-1.5">
         {rows.map((row) => (
@@ -230,7 +245,7 @@ export function ToolErrorsSectionView({
                 onClick={() => onOpenCall({ spanId: row.spanId, stepSpanId: row.stepSpanId })}
                 className="ml-auto rounded border border-amber-400 px-1.5 py-0.5 text-amber-800 hover:bg-amber-50"
               >
-                定位
+                {translator.t("run.locate")}
               </button>
             </div>
             <pre className="whitespace-pre-wrap break-words font-code text-[11px] leading-5 text-amber-900">
@@ -252,44 +267,50 @@ export function ToolErrorsSectionView({
  *    更不是 `0`）；`hitTotal === null` ⇒ 「未记录命中量」（不是 0 命中）。
  */
 export function ConsumptionSectionView({ section }: { section: ConsumptionSection }) {
+  const translator = useTranslator();
   return (
-    <section className="border-t border-gray-200 px-4 py-3" aria-label="本次消耗">
+    <section
+      className="border-t border-gray-200 px-4 py-3"
+      aria-label={translator.t("run.overviewConsumptionAria")}
+    >
       <div className="mb-1.5 flex flex-wrap items-center gap-2">
         <span className="text-reading-meta font-semibold tracking-wide text-gray-500">
-          本次消耗
+          {translator.t("run.overviewConsumptionAria")}
         </span>
-        <span className="text-reading-meta text-gray-400">（本 run 自有）</span>
+        <span className="text-reading-meta text-gray-400">
+          {translator.t("run.consumptionOwnNote")}
+        </span>
       </div>
       <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 sm:grid-cols-3">
         <div>
-          <dt className="text-reading-meta text-gray-500">输入 token</dt>
+          <dt className="text-reading-meta text-gray-500">{translator.t("run.tokensInLabel")}</dt>
           <dd className="font-code text-reading-body text-gray-800">
             {formatTokens(section.tokensIn)}
           </dd>
         </div>
         <div>
-          <dt className="text-reading-meta text-gray-500">输出 token</dt>
+          <dt className="text-reading-meta text-gray-500">{translator.t("run.tokensOutLabel")}</dt>
           <dd className="font-code text-reading-body text-gray-800">
             {formatTokens(section.tokensOut)}
           </dd>
         </div>
         <div>
-          <dt className="text-reading-meta text-gray-500">已记录时间跨度</dt>
+          <dt className="text-reading-meta text-gray-500">{translator.t("run.durationLabel")}</dt>
           <dd className="font-code text-reading-body text-gray-800">
             {/* 未记录 ⇒ 文字说明，不显示 "—"/0（未知 ≠ 零） */}
             {section.durationMs === null ? (
-              <span className="text-gray-400">未记录时间跨度</span>
+              <span className="text-gray-400">{translator.t("run.durationUnknown")}</span>
             ) : (
               formatDuration(section.durationMs)
             )}
           </dd>
         </div>
         <div>
-          <dt className="text-reading-meta text-gray-500">工具调用</dt>
+          <dt className="text-reading-meta text-gray-500">{translator.t("run.toolCallsLabel")}</dt>
           <dd className="font-code text-reading-body text-gray-800">{section.toolCalls}</dd>
         </div>
         <div>
-          <dt className="text-reading-meta text-gray-500">工具错误</dt>
+          <dt className="text-reading-meta text-gray-500">{translator.t("run.toolErrorsLabel")}</dt>
           <dd className="font-code text-reading-body text-gray-800">{section.toolErrors}</dd>
         </div>
       </dl>
@@ -306,13 +327,14 @@ export function ConsumptionSectionView({ section }: { section: ConsumptionSectio
 
 /** 缓存覆盖（嵌在消耗区内的子块；与消耗同源，只报已记录范围） */
 export function CacheCoverageView({ section }: { section: CacheSection }) {
+  const translator = useTranslator();
   return (
     <div className="mt-2 border-t border-gray-100 pt-2">
       <div className="mb-1 flex flex-wrap items-center gap-2 text-reading-meta">
-        <span className="text-gray-500">缓存命中</span>
+        <span className="text-gray-500">{translator.t("run.cacheHitLabel")}</span>
         {section.hitTotal === null ? (
           // 全无 cache_hit 字段：说"未记录"，**不**显示 0（未知 ≠ 0）
-          <span className="text-gray-400">未记录命中量</span>
+          <span className="text-gray-400">{translator.t("run.cacheHitUnknown")}</span>
         ) : (
           <span className="font-code text-gray-800">{formatTokens(section.hitTotal)}</span>
         )}
@@ -340,13 +362,19 @@ export function SourceSectionView({
   /** U7 2.1：「与父运行对比」（父左子右）；只在 available 时渲染，不给点不动的按钮 */
   onCompareWithParent?: () => void;
 }) {
+  const translator = useTranslator();
   return (
-    <section className="border-t border-gray-200 px-4 py-3" aria-label="来源">
-      <div className="mb-1.5 text-reading-meta font-semibold tracking-wide text-gray-500">来源</div>
+    <section
+      className="border-t border-gray-200 px-4 py-3"
+      aria-label={translator.t("run.overviewSourceAria")}
+    >
+      <div className="mb-1.5 text-reading-meta font-semibold tracking-wide text-gray-500">
+        {translator.t("run.overviewSourceAria")}
+      </div>
       {section.parentId !== null ? (
         <div className="mb-1 flex flex-wrap items-center gap-2 text-reading-meta">
-          <span className="text-gray-500">直接父运行</span>
-          <span className="font-code text-gray-800" title="直接父 run id">
+          <span className="text-gray-500">{translator.t("run.directParentRun")}</span>
+          <span className="font-code text-gray-800" title={translator.t("run.directParentTitle")}>
             {section.parentId}
           </span>
           {section.canOpenParent ? (
@@ -357,24 +385,24 @@ export function SourceSectionView({
               }}
               className="rounded border border-sky-400 px-1.5 py-0.5 text-sky-800 hover:bg-sky-50"
             >
-              返回父记录
+              {translator.t("run.backToParent")}
             </button>
           ) : null}
           {section.compareWithParent === "available" && onCompareWithParent !== undefined ? (
             <button
               type="button"
               onClick={onCompareWithParent}
-              aria-label="与父运行对比（父左子右）"
+              aria-label={translator.t("run.compareWithParentAria")}
               className="rounded border border-sky-400 px-1.5 py-0.5 text-sky-800 hover:bg-sky-50"
             >
-              与父运行对比
+              {translator.t("run.compareWithParent")}
             </button>
           ) : null}
         </div>
       ) : null}
       {section.editField !== null ? (
         <div className="mb-1 flex flex-wrap items-center gap-2 text-reading-meta">
-          <span className="text-gray-500">修改字段</span>
+          <span className="text-gray-500">{translator.t("run.editedFieldLabel")}</span>
           <span className="font-code text-gray-800">{section.editField}</span>
           {section.editLabel !== null ? (
             <span className="text-gray-400">{section.editLabel}</span>
@@ -423,79 +451,90 @@ export function PromptExperimentSectionView({
   readonly onCompareWithBaseline?: () => void;
   readonly onOpenFiles?: () => void;
 }) {
+  const translator = useTranslator();
   return (
     <section
       className="border-t border-violet-200 bg-violet-50/40 px-4 py-3"
-      aria-label="隔离启动指令实验"
+      aria-label={translator.t("run.overviewPromptExperimentAria")}
       data-prompt-experiment-view="true"
     >
       <div className="mb-1.5 flex flex-wrap items-center gap-2">
         <span className="text-reading-meta font-semibold tracking-wide text-violet-900">
-          本次干预 · 隔离启动指令实验
+          {translator.t("run.promptExperimentTitle")}
         </span>
         <span className="rounded bg-white px-1.5 py-0.5 text-reading-meta text-violet-800">
-          编辑 {view.fieldLabel}
+          {translator.t("run.editingField", { field: view.fieldLabel })}
         </span>
       </div>
       <div className="grid gap-x-4 gap-y-1 text-reading-meta text-gray-700 sm:grid-cols-2">
         <span>
-          <span className="text-gray-400">基线运行</span>{" "}
+          <span className="text-gray-400">{translator.t("run.baselineRun")}</span>{" "}
           <span className="font-code">{view.baselineRunId}</span>
         </span>
         <span>
-          <span className="text-gray-400">基线调用</span>{" "}
+          <span className="text-gray-400">{translator.t("run.baselineCall")}</span>{" "}
           <span className="font-code">{view.baselineLlmSpanId}</span>
         </span>
         <span>
-          <span className="text-gray-400">初始快照</span>{" "}
+          <span className="text-gray-400">{translator.t("run.initialSnapshot")}</span>{" "}
           <span className="font-code">{view.initialSnapshotId.slice(0, 16)}…</span>
         </span>
         <span>
-          <span className="text-gray-400">执行模型</span>{" "}
+          <span className="text-gray-400">{translator.t("run.executionModel")}</span>{" "}
           <span className="font-code">{view.execution.model}</span>
         </span>
         <span>
-          <span className="text-gray-400">参数</span>{" "}
+          <span className="text-gray-400">{translator.t("run.paramsLabel")}</span>{" "}
           <span className="font-code">{view.execution.params}</span>
         </span>
         <span>
-          <span className="text-gray-400">端点</span>{" "}
+          <span className="text-gray-400">{translator.t("run.endpointLabel")}</span>{" "}
           <span className="break-all font-code">{view.execution.providerEndpoint}</span>
         </span>
         <span>
-          <span className="text-gray-400">上限 / 预算</span>{" "}
+          <span className="text-gray-400">{translator.t("run.limitsBudget")}</span>{" "}
           <span className="font-code">
-            {view.execution.maxIterations} 轮 / {view.execution.budget} tokens
+            {translator.t("run.iterationsBudget", {
+              iterations: view.execution.maxIterations,
+              budget: view.execution.budget,
+            })}
           </span>
         </span>
         <span>
-          <span className="text-gray-400">计划指纹</span>{" "}
+          <span className="text-gray-400">{translator.t("run.planFingerprint")}</span>{" "}
           <span className="font-code">{view.execution.configFingerprint.slice(0, 16)}…</span>
         </span>
       </div>
       <div className="mt-2 grid gap-2 sm:grid-cols-2">
         <div>
-          <div className="text-[11px] text-gray-500">原值</div>
-          <LongText text={view.originalValue} label="实验原值" />
+          <div className="text-[11px] text-gray-500">{translator.t("common.fieldOldValue")}</div>
+          <LongText text={view.originalValue} label={translator.t("run.experimentOldValue")} />
         </div>
         <div>
-          <div className="text-[11px] text-gray-500">新值</div>
-          <LongText text={view.editedValue} label="实验新值" />
+          <div className="text-[11px] text-gray-500">{translator.t("common.fieldNewValue")}</div>
+          <LongText text={view.editedValue} label={translator.t("run.experimentNewValue")} />
         </div>
         <div>
-          <div className="text-[11px] text-gray-500">假设（用户填写）</div>
+          <div className="text-[11px] text-gray-500">{translator.t("run.hypothesisLabel")}</div>
           {view.hypothesis === null ? (
-            <div className="text-reading-meta italic text-gray-400">未填写</div>
+            <div className="text-reading-meta italic text-gray-400">
+              {translator.t("run.notFilled")}
+            </div>
           ) : (
-            <LongText text={view.hypothesis} label="实验假设" />
+            <LongText text={view.hypothesis} label={translator.t("run.experimentHypothesis")} />
           )}
         </div>
         <div>
-          <div className="text-[11px] text-gray-500">人工判据（用户填写，不自动评分）</div>
+          <div className="text-[11px] text-gray-500">{translator.t("run.acceptanceLabel")}</div>
           {view.acceptanceCriterion === null ? (
-            <div className="text-reading-meta italic text-gray-400">未填写</div>
+            <div className="text-reading-meta italic text-gray-400">
+              {translator.t("run.notFilled")}
+            </div>
           ) : (
-            <LongText text={view.acceptanceCriterion} label="人工判据" />
+            <LongText
+              text={view.acceptanceCriterion}
+              label={translator.t("run.acceptanceCriterion")}
+            />
           )}
         </div>
       </div>
@@ -516,7 +555,7 @@ export function PromptExperimentSectionView({
             className="rounded border border-violet-400 bg-white px-2 py-0.5 text-reading-meta text-violet-800 hover:bg-violet-100"
             data-prompt-experiment-compare
           >
-            与基线运行比较
+            {translator.t("run.compareWithBaseline")}
           </button>
         ) : null}
         {onOpenFiles !== undefined ? (
@@ -526,11 +565,11 @@ export function PromptExperimentSectionView({
             className="rounded border border-violet-400 bg-white px-2 py-0.5 text-reading-meta text-violet-800 hover:bg-violet-100"
             data-prompt-experiment-files
           >
-            查看本运行文件 / 导出
+            {translator.t("run.openRunFilesExport")}
           </button>
         ) : null}
         <span className="text-[10px] leading-4 text-violet-700">
-          比较默认父左子右；导出固定本运行的显式自有检查点，补丁相对该运行初始快照。
+          {translator.t("run.promptExperimentNote")}
         </span>
       </div>
     </section>
@@ -583,8 +622,8 @@ export function OverviewResultView({
     [detail, ownReason],
   );
 
-  const presentation = useMemo(() => presentResult(own), [own]);
-  const hint = openCallHint(own, presentation);
+  const presentation = useMemo(() => presentResult(own, translator), [own, translator]);
+  const hint = openCallHint(own, presentation, translator);
   const isFinal = presentation.kind === "final";
 
   // 错误与工具错误（任务 5.2）：全部走上游派生，本组件只摆放
@@ -596,8 +635,9 @@ export function OverviewResultView({
           leafSpanIds: detail.leafSpanIds,
           reason: ownReason,
         }),
+        translator,
       ),
-    [detail, ownReason],
+    [detail, ownReason, translator],
   );
   const toolErrorRows = useMemo(
     () =>
@@ -627,7 +667,7 @@ export function OverviewResultView({
   return (
     // 任务 7.1 布局修复：概览自带滚动容器（h-full + overflow-y-auto），内容超高时在
     // 自身内滚动，不把所在列撑高；bg-white 让滚动区底部与正文同色，避免露背景色块。
-    <div className="h-full overflow-y-auto bg-white" aria-label="运行概览">
+    <div className="h-full overflow-y-auto bg-white" aria-label={translator.t("run.overviewAria")}>
       {/* 0. R2.2 6.1 → 隔离根/分支只在这里给显式入口；普通运行不渲染 */}
       {startupPromptAction ?? null}
       {/* 1. 结束情况：这次运行为什么停了（结局的唯一判据来源是 classifyOutcome） */}
@@ -644,25 +684,28 @@ export function OverviewResultView({
       {/* 2. 本次失败原因：自有 LLM 错误 + 定位入口；缺失时只给说明 */}
       <LlmErrorSectionView section={errorSection} onOpenCall={onOpenCall} />
       {/* 3. 结果区 */}
-      <section className="border-t border-gray-200 px-4 py-3" aria-label="运行结果">
+      <section
+        className="border-t border-gray-200 px-4 py-3"
+        aria-label={translator.t("run.overviewResultAria")}
+      >
         <div className="mb-1.5 flex flex-wrap items-center gap-2">
           <span className="text-reading-meta font-semibold tracking-wide text-gray-500">
             {presentation.title}
           </span>
           {isFinal ? (
             <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-reading-meta text-emerald-800">
-              已记录
+              {translator.t("run.recorded")}
             </span>
           ) : (
             <span className="rounded bg-gray-100 px-1.5 py-0.5 text-reading-meta text-gray-600">
-              未记录
+              {translator.t("common.notRecorded")}
             </span>
           )}
           {presentation.block !== null ? (
             <span className="ml-auto">
               <CopyButton
                 text={presentation.block.content}
-                label={presentation.blockLabel ?? "正文"}
+                label={presentation.blockLabel ?? translator.t("run.bodyLabel")}
               />
             </span>
           ) : null}
@@ -684,7 +727,7 @@ export function OverviewResultView({
           >
             <div className="mb-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-reading-meta text-gray-500">
               <span>{presentation.blockLabel}</span>
-              <span className="font-code" title="产出该正文的调用">
+              <span className="font-code" title={translator.t("run.producingCallTitle")}>
                 {presentation.block.spanId}
               </span>
               <span className="font-code">{presentation.block.model}</span>
@@ -695,7 +738,7 @@ export function OverviewResultView({
           */}
             <LongText
               text={presentation.block.content}
-              label={presentation.blockLabel ?? "正文"}
+              label={presentation.blockLabel ?? translator.t("run.bodyLabel")}
               expanded={isLongTextExpanded(expanded, "overview-result")}
               onToggle={() => onToggleExpanded("overview-result")}
             />
@@ -712,7 +755,7 @@ export function OverviewResultView({
               }}
               className="rounded border border-sky-400 px-2 py-0.5 text-reading-meta text-sky-800 hover:bg-sky-50"
             >
-              打开该调用并展开所属 step
+              {translator.t("run.openCallExpandStep")}
             </button>
             {hint !== null ? <span className="text-reading-meta text-gray-500">{hint}</span> : null}
           </div>
@@ -720,7 +763,7 @@ export function OverviewResultView({
 
         {presentation.block === null && presentation.openCallTarget === null ? (
           <div className="text-reading-meta text-gray-400">
-            没有可展示的输出，也没有可定位的调用。
+            {translator.t("run.noOutputNoCall")}
           </div>
         ) : null}
       </section>
@@ -745,6 +788,7 @@ export function OverviewResultView({
  * 既有 store 方法，不新开通道；目标不存在时 `selectSpan` 会在 detail 校验后自然回退。
  */
 export function OverviewPanel() {
+  const translator = useTranslator();
   const detail = useAppStore((s) => s.detail);
   const selectedRunId = useAppStore((s) => s.selectedRunId);
   const expanded = useAppStore((s) =>
@@ -757,7 +801,11 @@ export function OverviewPanel() {
   const selectRun = useAppStore((s) => s.selectRun);
 
   if (detail === null) {
-    return <div className="px-4 py-6 text-reading-meta text-gray-500">尚未选择运行。</div>;
+    return (
+      <div className="px-4 py-6 text-reading-meta text-gray-500">
+        {translator.t("run.noRunSelected")}
+      </div>
+    );
   }
 
   return (

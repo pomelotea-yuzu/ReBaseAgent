@@ -27,9 +27,9 @@
  *    `auditSafeTextRendering` 把这个"渲染方式契约"变成可断言的对象。
  */
 
-import type { Translator } from "@rebaseagent/i18n";
+import type { MessageKey, Translator } from "@rebaseagent/i18n";
 import { forkEditLabel, isPromptForkField } from "@shared/derive";
-import type { Outcome, OutcomeKind, OutcomeTone } from "@shared/outcome";
+import { type Outcome, type OutcomeKind, type OutcomeTone, outcomeLabelOf } from "@shared/outcome";
 import type {
   CacheCoverage,
   ErrorTarget,
@@ -68,14 +68,13 @@ export interface ResultPresentation {
   openCallTarget: { spanId: string; stepSpanId: string | null } | null;
 }
 
-const REASON_TEXT: Record<Exclude<ResultKind, "final">, string> = {
-  "no-llm-call": "本 run 没有记录任何自有模型调用，因此没有可展示的输出。",
-  "empty-content": "最后一次自有模型调用的响应正文为空。",
-  "reasoning-only": "最后一次自有模型调用只记录了思维链，没有正文——已记录内容类型为「思维链」。",
-  "pending-tool-calls":
-    "最后一次自有模型调用只记录了工具调用，没有正文——已记录内容类型为「工具调用」，循环本应继续。",
-  "has-error": "最后一次自有模型调用以错误结束，没有可用的正文结果。",
-  "not-normal-end": "本 run 不是正常结束（不是 completed 终止），最后一段正文不作为最终结果。",
+const REASON_KEYS: Record<Exclude<ResultKind, "final">, MessageKey> = {
+  "no-llm-call": "run.resultNoLlmCall",
+  "empty-content": "run.resultEmptyContent",
+  "reasoning-only": "run.resultReasoningOnly",
+  "pending-tool-calls": "run.resultPendingToolCalls",
+  "has-error": "run.resultHasError",
+  "not-normal-end": "run.resultNotNormalEnd",
 };
 
 /**
@@ -93,14 +92,14 @@ const REASON_TEXT: Record<Exclude<ResultKind, "final">, string> = {
  *    `deriveOwnOutput` 的分型对 2.2 的用例仍有意义（它服务的是「原因归属」），
  *    本模块只是在**文案层**换个更贴近用户问题的角度，不改动上游结论。
  */
-export function presentResult(own: OwnOutput): ResultPresentation {
+export function presentResult(own: OwnOutput, translator: Translator): ResultPresentation {
   if (own.finalOutput !== null) {
     return {
       kind: "final",
-      title: "最终输出",
+      title: translator.t("run.finalOutput"),
       reason: null,
       block: own.finalOutput,
-      blockLabel: "最终输出",
+      blockLabel: translator.t("run.finalOutput"),
       openCallTarget: {
         spanId: own.finalOutput.spanId,
         stepSpanId: own.finalOutput.stepSpanId,
@@ -112,11 +111,11 @@ export function presentResult(own: OwnOutput): ResultPresentation {
   const block = own.latestIntermediate;
   return {
     kind,
-    title: "未记录最终输出",
-    reason: REASON_TEXT[kind],
+    title: translator.t("run.noFinalOutput"),
+    reason: translator.t(REASON_KEYS[kind]),
     block,
     // 中间输出的措辞必须明确它**不是**本次结果
-    blockLabel: block === null ? null : "结束前记录的最后一段正文（不是本次最终结果）",
+    blockLabel: block === null ? null : translator.t("run.intermediateBlockLabel"),
     openCallTarget: block !== null ? { spanId: block.spanId, stepSpanId: block.stepSpanId } : null,
   };
 }
@@ -146,10 +145,14 @@ function resolveMissingKind(own: OwnOutput): Exclude<ResultKind, "final"> {
  * 「打开原调用」的提示：仅有思维链 / 工具调用时，正文无处可看，那部分内容在原调用详情里。
  * 有正文块时为 null（此时入口在正文块自己身上，不需要额外解释）。
  */
-export function openCallHint(own: OwnOutput, presentation: ResultPresentation): string | null {
+export function openCallHint(
+  own: OwnOutput,
+  presentation: ResultPresentation,
+  translator: Translator,
+): string | null {
   if (presentation.block !== null) return null;
-  if (own.lastOutputKind === "reasoning-only") return "打开该调用查看完整思维链";
-  if (own.lastOutputKind === "tool-calls-only") return "打开该调用查看工具调用详情";
+  if (own.lastOutputKind === "reasoning-only") return translator.t("run.openCallReasoning");
+  if (own.lastOutputKind === "tool-calls-only") return translator.t("run.openCallTools");
   return null;
 }
 
@@ -194,12 +197,12 @@ export type LlmErrorSection =
       form: "none";
     };
 
-const OUTCOME_NOTE: Partial<Record<OutcomeKind, string>> = {
-  max_iterations: "循环达到迭代上限后停止，不是正常结束。",
-  budget_exceeded: "token / 预算超出上限后停止，不是正常结束。",
-  aborted: "运行被中止，不是正常结束；已记录内容保留在下方。",
-  interrupted: "没有记录到终止事件（进程可能被强制结束），不代表仍在执行。",
-  unknown: "有终止事件但原因不在已知枚举内，原始原因见运行记录。",
+const OUTCOME_NOTE_KEYS: Partial<Record<OutcomeKind, MessageKey>> = {
+  max_iterations: "run.outcomeNoteMaxIterations",
+  budget_exceeded: "run.outcomeNoteBudgetExceeded",
+  aborted: "run.outcomeNoteAborted",
+  interrupted: "run.outcomeNoteInterrupted",
+  unknown: "run.outcomeNoteUnknown",
 };
 
 /**
@@ -209,12 +212,13 @@ const OUTCOME_NOTE: Partial<Record<OutcomeKind, string>> = {
  *    本函数只提供"这个结局对概览阅读者意味着什么"的**补充说明**。
  *    自己再写一遍 `reason === "error" ? …` 就会与列表徽标分叉（design D4 要消灭的正是这个）。
  */
-export function presentOutcome(outcome: Outcome): OutcomeSection {
+export function presentOutcome(outcome: Outcome, translator: Translator): OutcomeSection {
+  const noteKey = OUTCOME_NOTE_KEYS[outcome.kind];
   return {
     kind: outcome.kind,
-    label: outcome.label,
+    label: outcomeLabelOf(outcome.kind, translator),
     tone: outcome.tone,
-    note: OUTCOME_NOTE[outcome.kind] ?? null,
+    note: noteKey === undefined ? null : translator.t(noteKey),
   };
 }
 
@@ -227,11 +231,11 @@ export function presentOutcome(outcome: Outcome): OutcomeSection {
  *   ⇒ **只给说明、不给入口**。给一个指向不了任何东西的按钮比不给更糟。
  * - `none`：不是 error 终止 ⇒ 整区不渲染。渲染一个空错误框会让用户以为"有错误但没显示出来"。
  */
-export function presentLlmError(target: ErrorTarget): LlmErrorSection {
+export function presentLlmError(target: ErrorTarget, translator: Translator): LlmErrorSection {
   if (target.missingDetail) {
     return {
       form: "missing",
-      note: "本 run 以错误结束，但自有记录里没有 LLM 错误详情——不反推原因，也不借用祖先的错误。",
+      note: translator.t("run.llmErrorMissingNote"),
     };
   }
   if (target.llmCallSpanId === null) return { form: "none" };
@@ -321,21 +325,21 @@ export function presentConsumption(
   /** U6 任务 4.1：ownOnly 时追加"沿链指标未知"的固定口径说明（complete 省略） */
   options: { lineageIncomplete?: boolean } = {},
 ): ConsumptionSection {
-  const cache = presentCacheCoverage(consumption.cache);
+  const cache = presentCacheCoverage(consumption.cache, translator);
   return {
     tokensIn: consumption.tokensIn,
     tokensOut: consumption.tokensOut,
     durationMs: consumption.durationMs,
     toolCalls: consumption.toolCalls,
     toolErrors: consumption.toolErrors,
-    scopeNote: `仅本次运行自有调用的已记录值；祖先共享前缀不计入，缺失项不补零。${
+    scopeNote: `${translator.t("run.consumptionScopeNote")}${
       options.lineageIncomplete === true ? lineageMetricsUnknownText(translator) : ""
     }`,
     // 有自有调用但 token 全为 0：可能是失败调用的占位零用量，也可能确实是空输入/输出。
     // 两种都不声称"实际零消费"——如实说明它只是"记录值"。
     zeroUsageNote:
       consumption.tokensIn === 0 && consumption.tokensOut === 0
-        ? "本次自有调用的记录用量为 0——这可能是失败调用的占位值，不据此断言实际零消费。"
+        ? translator.t("run.consumptionZeroUsage")
         : null,
     cache,
   };
@@ -350,7 +354,7 @@ export function presentConsumption(
  *    - 记录下来 0 命中（`recorded > 0` 且 `hitTotal === 0`）⇒ 照常显示"0"（0 是有值）。
  *    概览**不生成**整次确定命中率（design D5：部分记录不能说成整次命中率）。
  */
-export function presentCacheCoverage(cache: CacheCoverage): CacheSection {
+export function presentCacheCoverage(cache: CacheCoverage, translator: Translator): CacheSection {
   if (cache.recorded === 0) {
     return {
       recorded: 0,
@@ -358,15 +362,18 @@ export function presentCacheCoverage(cache: CacheCoverage): CacheSection {
       hitTotal: null,
       note:
         cache.total === 0
-          ? "本次运行没有自有模型调用，无缓存记录。"
-          : `本次 ${cache.total} 次自有模型调用均未记录缓存命中字段，命中量未知。`,
+          ? translator.t("run.cacheNoCalls")
+          : translator.t("run.cacheNoHitsRecorded", { count: cache.total }),
     };
   }
   return {
     recorded: cache.recorded,
     total: cache.total,
     hitTotal: cache.hitTotal,
-    note: `已记录 ${cache.recorded} / ${cache.total} 次自有调用的命中量（部分记录不构成整次命中率）。`,
+    note: translator.t("run.cacheCoverageNote", {
+      recorded: cache.recorded,
+      total: cache.total,
+    }),
   };
 }
 
@@ -452,7 +459,10 @@ export function presentSource(
     detail.lineage.status === "incomplete"
       ? {
           missingRunId: detail.lineage.missingRunId,
-          note: `${lineageIncompleteText(translator)}（缺失祖先 run：${detail.lineage.missingRunId}）`,
+          note: translator.t("run.sourceIncompleteNote", {
+            text: lineageIncompleteText(translator),
+            missingRunId: detail.lineage.missingRunId,
+          }),
         }
       : null;
 
@@ -463,13 +473,9 @@ export function presentSource(
       editField: null,
       editLabel: null,
       relation: "root",
-      relationNote: isolated
-        ? "这是隔离文件世界的根运行：文件世界由选定源目录采集而来，没有上游运行记录。"
-        : "这是根运行，没有上游来源记录。",
+      relationNote: translator.t(isolated ? "run.sourceRootIsolated" : "run.sourceRoot"),
       incompleteNote: incompleteView?.note ?? null,
-      isolationNote: isolated
-        ? "隔离文件运行：文件读写只发生在独立世界里，源目录不会被修改。"
-        : null,
+      isolationNote: isolated ? translator.t("run.sourceIsolation") : null,
       canOpenParent: false,
       // 根 run：无 parent 引用 ⇒ 比较入口不显示（scenario「无 parent 不显示入口」）
       compareWithParent: null,
@@ -484,25 +490,21 @@ export function presentSource(
   if (isProxy) {
     // 代理分叉：单请求级编辑重发——不复用 result 分叉的"共享前缀"措辞
     relation = "proxy";
-    relationNote =
-      "代理录制的分叉运行（单请求级编辑重发）：来源关系见父链列表，本 run 只呈现自身记录。";
+    relationNote = translator.t("run.sourceRelationProxy");
   } else if (field !== null && isPromptForkField(field)) {
     relation = "independent";
-    relationNote =
-      "prompt fork（从头重跑）：本 run 是独立执行，不共享父轨迹前缀，父 run 仅作溯源对照。";
+    relationNote = translator.t("run.sourceRelationPromptFork");
   } else if (field === "model_params") {
     relation = "independent";
-    relationNote =
-      "模型 A/B 臂（从头重跑）：本 run 是独立执行，不共享父轨迹前缀，父 run 仅作对照。";
+    relationNote = translator.t("run.sourceRelationModelAb");
   } else if (incompleteView !== null) {
     // U6 任务 4.1：ownOnly 的 result 分支**不得**声称共享前缀——父前缀没进时间线，
     // 沿链指标未知。固定提示 + 缺失 ID 走 incompleteNote，这里只换掉关系说明。
     relation = "shared-prefix";
-    relationNote =
-      "父链不完整：仅显示本运行记录的自有轨迹，共享前缀与祖先增量未知，不补零、不推算。";
+    relationNote = translator.t("run.sourceRelationIncomplete");
   } else {
     relation = "shared-prefix";
-    relationNote = "父 run 的轨迹截至分叉点为共享前缀（来自父 run 文件，本 run 只记录新增 span）。";
+    relationNote = translator.t("run.sourceRelationSharedPrefix");
   }
 
   return {
@@ -515,10 +517,15 @@ export function presentSource(
     // 隔离 branch：origin.run_id 才是"从哪个 run 续跑"的真实来源（不冒充共享前缀）
     isolationNote: isolated
       ? detail.meta.workspace?.origin.kind === "checkpoint"
-        ? `隔离续跑：从运行 ${detail.meta.workspace.origin.run_id ?? parent} 的轮末检查点出发，文件读写只发生在独立世界里。`
+        ? translator.t("run.sourceIsolationCheckpoint", {
+            runId: detail.meta.workspace.origin.run_id ?? parent ?? translator.t("common.unknown"),
+          })
         : detail.meta.workspace?.origin.kind === "initial"
-          ? `隔离 prompt 实验：从运行 ${detail.meta.workspace.origin.run_id ?? parent} 的初始文件状态与启动指令出发，文件读写只发生在独立世界里。`
-          : "隔离文件运行：文件读写只发生在独立世界里，源目录不会被修改。"
+          ? translator.t("run.sourceIsolationInitial", {
+              runId:
+                detail.meta.workspace.origin.run_id ?? parent ?? translator.t("common.unknown"),
+            })
+          : translator.t("run.sourceIsolation")
       : null,
     canOpenParent: parent !== null,
     // U7 2.1：父子比较入口判据唯一来源在 compare-navigation（父左子右 / 实验门禁）

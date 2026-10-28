@@ -2,6 +2,7 @@ import type { BudgetSeries } from "@shared/derive";
 import { deriveBudgetSeries } from "@shared/derive";
 import type { RunDetail } from "@shared/ipc";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslator } from "../i18n";
 import {
   budgetDetailLabel,
   budgetExceeded,
@@ -21,6 +22,7 @@ type ChartLike = {
 
 /** 上下文预算地图：run 级折叠区块，展开才懒加载 echarts */
 export function BudgetMap({ detail }: { detail: RunDetail }) {
+  const translator = useTranslator();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [chart, setChart] = useState<ChartLike | null>(null);
   const [open, setOpen] = useState(false);
@@ -67,8 +69,8 @@ export function BudgetMap({ detail }: { detail: RunDetail }) {
   // 数据/上限/终止状态变化时刷新 option
   useEffect(() => {
     if (chart === null) return;
-    chart.setOption(buildBudgetMapOption(series, maxTotal, exceeded), true);
-  }, [chart, series, maxTotal, exceeded]);
+    chart.setOption(buildBudgetMapOption(series, maxTotal, exceeded, translator), true);
+  }, [chart, series, maxTotal, exceeded, translator]);
 
   return (
     <details
@@ -80,13 +82,13 @@ export function BudgetMap({ detail }: { detail: RunDetail }) {
       className="border-b border-gray-200 px-4 py-2"
     >
       <summary className="cursor-pointer select-none text-[11px] font-semibold tracking-wide text-gray-500 hover:text-gray-700">
-        {budgetSummaryLabel({ maxTotal, exceeded })}
+        {budgetSummaryLabel({ maxTotal, exceeded }, translator)}
       </summary>
       {open ? (
         <>
           <div ref={containerRef} className="mt-2 w-full" style={{ height: CHART_HEIGHT }} />
           <div className="mt-1 text-[10px] leading-4 text-gray-400">
-            {budgetDetailLabel({ series, maxTotal })}
+            {budgetDetailLabel({ series, maxTotal }, translator)}
           </div>
         </>
       ) : null}

@@ -21,7 +21,7 @@ const {
   truncatedChainTitleOf: truncatedChainTitleOfRaw,
 } = await import("../src/renderer/src/lib/detail-completeness");
 const { deriveOwnConsumption } = await import("@shared/overview");
-const { createTestTranslator } = await import("./i18n/render-with-locale");
+const { createTestTranslator, renderWithLocale } = await import("./i18n/render-with-locale");
 
 const zh = createTestTranslator("zh-CN");
 const LINEAGE_INCOMPLETE_TEXT = lineageIncompleteText(zh);
@@ -269,8 +269,8 @@ describe("U6 4.1：presentConsumption——ownOnly 追加「沿链指标未知�
 });
 
 describe("U6 4.1：SourceSectionView 静态渲染——缺失说明进 DOM", () => {
-  const html = (node: Parameters<typeof renderToStaticMarkup>[0]): string =>
-    renderToStaticMarkup(node);
+  const html = (node: Parameters<typeof renderWithLocale>[1]): string =>
+    renderWithLocale("zh-CN", node);
 
   it("incompleteNote 非空 ⇒ 渲染缺失说明块（含缺失 run ID）", () => {
     const markup = html(
@@ -313,8 +313,8 @@ describe("U6 4.1：SourceSectionView 静态渲染——缺失说明进 DOM", () 
 });
 
 describe("U6 4.11：LineageIncompleteNoticeView 静态渲染——长 ID/警告/复制动作可达", () => {
-  const html = (node: Parameters<typeof renderToStaticMarkup>[0]): string =>
-    renderToStaticMarkup(node);
+  const html = (node: Parameters<typeof renderWithLocale>[1]): string =>
+    renderWithLocale("zh-CN", node);
 
   const view = {
     incomplete: true as const,

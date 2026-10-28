@@ -15,13 +15,15 @@ const { ConsumptionSectionView, SourceSectionView, CacheCoverageView } = await i
   "../src/renderer/src/components/OverviewPanel"
 );
 const {
-  presentCacheCoverage,
+  presentCacheCoverage: presentCacheCoverageOf,
   presentConsumption: presentConsumptionOf,
   presentSource: presentSourceOf,
 } = await import("../src/renderer/src/lib/overview-view");
-const { createTestTranslator } = await import("./i18n/render-with-locale");
+const { createTestTranslator, renderWithLocale } = await import("./i18n/render-with-locale");
 
 const zh = createTestTranslator("zh-CN");
+const presentCacheCoverage = (cache: Parameters<typeof presentCacheCoverageOf>[0]) =>
+  presentCacheCoverageOf(cache, zh);
 const presentConsumption = (
   input: Parameters<typeof presentConsumptionOf>[0],
   options?: Parameters<typeof presentConsumptionOf>[2],
@@ -54,8 +56,8 @@ const has = (name: string): boolean => existsSync(resolve(FIXTURE_DIR, `${name}.
 const hasTrace = (name: string): boolean => existsSync(resolve(TRACES, `${name}.jsonl`));
 const hasIso = (id: string): boolean => existsSync(resolve(ISO, `${id}.jsonl`));
 
-const html = (node: Parameters<typeof renderToStaticMarkup>[0]): string =>
-  renderToStaticMarkup(node);
+const html = (node: Parameters<typeof renderWithLocale>[1]): string =>
+  renderWithLocale("zh-CN", node);
 
 const consume = (name: string) => {
   const record = readRun(resolve(FIXTURE_DIR, `${name}.jsonl`));

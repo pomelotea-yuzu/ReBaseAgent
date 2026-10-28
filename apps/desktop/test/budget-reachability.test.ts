@@ -14,11 +14,19 @@ import { describe, expect, it } from "vitest";
 
 const {
   budgetExceeded,
-  budgetSummaryLabel,
-  budgetDetailLabel,
+  budgetSummaryLabel: budgetSummaryLabelOf,
+  budgetDetailLabel: budgetDetailLabelOf,
   budgetExtent,
-  buildBudgetMapOption,
+  buildBudgetMapOption: buildBudgetMapOptionOf,
 } = await import("../src/renderer/src/lib/budget");
+const { createTestTranslator } = await import("./i18n/render-with-locale");
+const zh = createTestTranslator("zh-CN");
+const budgetSummaryLabel = (input: Parameters<typeof budgetSummaryLabelOf>[0]) =>
+  budgetSummaryLabelOf(input, zh);
+const budgetDetailLabel = (input: Parameters<typeof budgetDetailLabelOf>[0]) =>
+  budgetDetailLabelOf(input, zh);
+const buildBudgetMapOption = (...args: Parameters<typeof buildBudgetMapOptionOf>) =>
+  buildBudgetMapOptionOf(args[0], args[1], args[2], zh);
 const { MonacoFallback } = await import("../src/renderer/src/components/MonacoEditor");
 
 /**

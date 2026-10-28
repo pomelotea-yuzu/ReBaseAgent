@@ -10,6 +10,7 @@ import type { CompareDiffGate, SideOutputFacts } from "@shared/compare-output";
 import { deriveExperimentGate } from "@shared/experiment-records";
 import type { CompareRunItem } from "@shared/ipc";
 import { useEffect, useMemo, useState } from "react";
+import { useTranslator } from "../i18n";
 import { deriveCompareFileEntry } from "../lib/compare-files";
 import { deriveCompareMetricsTable } from "../lib/compare-metrics";
 import { deriveSideStepCatalog } from "../lib/compare-steps";
@@ -39,6 +40,7 @@ import type { CompareSideViewData, EvidenceViewData } from "./CompareWorkspaceVi
  * 不恢复许可」）；容器不消费比较结论做导航真相源——打开单侧走 runs:get。
  */
 export function CompareWorkspace({ stacked = false }: { stacked?: boolean } = {}) {
+  const translator = useTranslator();
   const comparePair = useAppStore((s) => s.comparePair);
   const compareRead = useAppStore((s) => s.compareRead);
   const compareFileView = useAppStore((s) => s.compareFileView);
@@ -136,7 +138,7 @@ export function CompareWorkspace({ stacked = false }: { stacked?: boolean } = {}
 
   // ---------- 指标表模式（pair 为空，或用户显式切回） ----------
   if (comparePair === null || tableMode) {
-    const model = deriveCompareMetricsTable({ items: acceptedItems, shortIds });
+    const model = deriveCompareMetricsTable({ items: acceptedItems, shortIds }, translator);
     return (
       <div
         className="flex min-w-0 flex-1 flex-col overflow-hidden bg-white outline-none"

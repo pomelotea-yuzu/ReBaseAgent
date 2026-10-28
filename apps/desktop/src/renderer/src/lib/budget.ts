@@ -1,3 +1,4 @@
+import type { Translator } from "@rebaseagent/i18n";
 import type { BudgetSeries } from "@shared/derive";
 
 /**
@@ -36,6 +37,7 @@ export function buildBudgetMapOption(
   series: BudgetSeries,
   maxTotal: number | null,
   exceeded: boolean,
+  translator: Translator,
 ): BudgetMapOption {
   const xs = series.points.map((p) => `#${p.index}`);
   const overdue = exceeded && maxTotal !== null && series.total > maxTotal;
@@ -51,8 +53,8 @@ export function buildBudgetMapOption(
     grid: { left: 48, right: 16, top: 24, bottom: 44 },
     tooltip: { trigger: "axis" },
     dataZoom: [{ type: "inside" }, { type: "slider", height: 14 }],
-    xAxis: { type: "category", data: xs, name: "LLM 调用次序" },
-    yAxis: { type: "value", name: "累计 token" },
+    xAxis: { type: "category", data: xs, name: translator.t("run.budgetXAxis") },
+    yAxis: { type: "value", name: translator.t("run.budgetYAxis") },
     series: [
       {
         type: "line",
@@ -63,7 +65,11 @@ export function buildBudgetMapOption(
             : {
                 silent: true,
                 symbol: "none",
-                label: { formatter: `预算 ${maxTotal}`, color: "#dc2626", position: "end" },
+                label: {
+                  formatter: translator.t("run.budgetMarkLine", { value: maxTotal }),
+                  color: "#dc2626",
+                  position: "end",
+                },
                 lineStyle: { color: "#dc2626", type: "dashed" },
                 data: [{ yAxis: maxTotal }],
               },
@@ -106,21 +112,36 @@ export function budgetExceeded(facts: BudgetTerminationFacts): boolean {
 }
 
 /** 折叠摘要行：一眼看清"有没有预算 / 是否超限终止"，不臆造数值 */
-export function budgetSummaryLabel(input: {
-  maxTotal: number | null;
-  exceeded: boolean;
-}): string {
-  const budget = input.maxTotal === null ? "无预算信息" : `预算 ${input.maxTotal}`;
-  return `上下文预算地图 · ${budget}${input.exceeded ? " · 已超预算终止" : ""}`;
+export function budgetSummaryLabel(
+  input: {
+    maxTotal: number | null;
+    exceeded: boolean;
+  },
+  translator: Translator,
+): string {
+  const budget =
+    input.maxTotal === null
+      ? translator.t("run.budgetNone")
+      : translator.t("run.budgetMarkLine", { value: input.maxTotal });
+  return translator.t("run.budgetSummary", {
+    budget,
+    exceeded: input.exceeded ? translator.t("run.budgetSummaryExceeded") : "",
+  });
 }
 
 /** 展开后的说明行：区分"无调用可绘"与"有调用但无预算"（后者不画参考线而非臆造） */
-export function budgetDetailLabel(input: {
-  series: BudgetSeries;
-  maxTotal: number | null;
-}): string {
+export function budgetDetailLabel(
+  input: {
+    series: BudgetSeries;
+    maxTotal: number | null;
+  },
+  translator: Translator,
+): string {
   const extent = budgetExtent(input.series);
-  if (extent === null) return "该 run 不含任何 LLM 调用，无曲线可绘。";
-  const base = `累计消耗 ${extent.max} token（in+out），共 ${input.series.points.length} 次 LLM 调用。`;
-  return input.maxTotal === null ? `${base}该 run 未记录预算上限，故不画参考线。` : base;
+  if (extent === null) return translator.t("run.budgetEmpty");
+  const base = translator.t("run.budgetDetailBase", {
+    total: extent.max,
+    count: input.series.points.length,
+  });
+  return input.maxTotal === null ? `${base}${translator.t("run.budgetNoLimitSuffix")}` : base;
 }
