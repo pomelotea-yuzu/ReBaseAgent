@@ -184,6 +184,8 @@ const INTERNAL_REASONS = {
   "packages/project-verification/src/trusted-env/node-ts-v1.ts":
     "受信环境 manifest 构建不变量，不面向用户",
   "packages/project-verification/src/docker/cli.ts": "Docker CLI 子进程内部错误，不面向用户",
+  "apps/desktop/src/main/ui-preferences.ts": "语言偏好存储内部校验，不面向用户",
+  "apps/desktop/src/main/ui-preferences-endpoints.ts": "语言偏好 IPC 安全拒绝，不面向用户",
 };
 
 const PRODUCT_FILES = new Set([
@@ -215,10 +217,10 @@ function fileRule(file, layer) {
   if (file.endsWith(".generated.ts")) {
     return { classification: GENERATED, reason: "生成资产（内嵌 runner/脚本），不作为产品文案" };
   }
+  if (INTERNAL_REASONS[file]) return { classification: INTERNAL, reason: INTERNAL_REASONS[file] };
   if (layer === "renderer" || layer === "main" || layer === "shared" || layer === "preload") {
     return { classification: PRODUCT, reason: null };
   }
-  if (INTERNAL_REASONS[file]) return { classification: INTERNAL, reason: INTERNAL_REASONS[file] };
   if (PRODUCT_FILES.has(file)) return { classification: PRODUCT, reason: null };
   if (PRODUCT_PREFIXES.some((p) => file.startsWith(p)))
     return { classification: PRODUCT, reason: null };

@@ -12,6 +12,12 @@ import {
 } from "./data-dir";
 import { type DraftCloseGuardHandle, attachDraftCloseGuard } from "./draft-close-attach";
 import { registerIpc } from "./ipc";
+import {
+  closeConfirmLabels,
+  dataDirDialogOptions,
+  translatorForSystemLocale,
+  translatorForUiLanguage,
+} from "./native-dialogs";
 import type { TrustedSender } from "./operation-endpoints";
 import { OperationRegistry } from "./operation-registry";
 import { attachProxyChangeBroadcast } from "./proxy-change-broadcast";
@@ -87,8 +93,25 @@ function repoRoot(): string {
 }
 
 let mainWindow: BrowserWindow | null = null;
+/** 数据根确定后创建；原生对话框每次打开时据此取当前语言 */
+let uiPreferencesStore: UiPreferencesStore | null = null;
 /** U3 关闭协商 guard（§4）：窗口创建时装配；4.4 起在 close/app.quit 路径消费 */
 let draftClose: DraftCloseGuardHandle | null = null;
+
+function currentSystemLocale(): string {
+  return app.getSystemLocale() || app.getLocale();
+}
+
+function dialogLabels() {
+  const translator =
+    uiPreferencesStore === null
+      ? translatorForSystemLocale(currentSystemLocale())
+      : translatorForUiLanguage({
+          store: uiPreferencesStore,
+          systemLocale: currentSystemLocale,
+        });
+  return closeConfirmLabels(translator);
+}
 /**
  * U4（design D1）：操作登记与主动执行槽在 **main 生命周期**创建一次，全窗口共用。
  * renderer 的文档会话 id（U3 关闭协商）与这里的 epoch 各有职责、不能互代：
@@ -137,7 +160,7 @@ function createWindow(): void {
   });
   // U3 关闭协商：装配受限协议（会话轮换 / 握手 / sender 校验）；销毁时自动解绑
   // U4 5.1：一并接进操作登记（协商期间 closing 封住主动执行与配置变更，clean 判定读活跃槽）
-  draftClose = attachDraftCloseGuard(win, operations, r3InFlight);
+  draftClose = attachDraftCloseGuard(win, operations, r3InFlight, dialogLabels);
 
   if (process.env.ELECTRON_RENDERER_URL) {
     void win.loadURL(process.env.ELECTRON_RENDERER_URL);
@@ -188,11 +211,11 @@ async function bootstrap(): Promise<void> {
   if (resolved.kind === "resolved") {
     dataDir = resolved.dir;
   } else {
-    // 非便携且从未选择过：请用户指定，选定前不创建任何文件
+    // 非便携且从未选择过：请用户指定，选定前不创建任何文件。
+    // 此时还没有数据根，无法读取 ui-preferences；按系统语言显示，OS 控件保持系统语言。
     const picked = await dialog.showOpenDialog({
-      title: "选择 ReBaseAgent 数据目录",
+      ...dataDirDialogOptions(translatorForSystemLocale(currentSystemLocale())),
       properties: ["openDirectory", "createDirectory"],
-      message: "数据将只保存在该目录内。也可在程序旁放置 portable.marker 使用便携模式。",
     });
     if (picked.canceled || picked.filePaths.length === 0) {
       app.quit();
@@ -216,6 +239,7 @@ async function bootstrap(): Promise<void> {
   };
   const settings = new SettingsStore({ dataDir, cipher });
   const uiPreferences = new UiPreferencesStore({ dataDir });
+  uiPreferencesStore = uiPreferences;
   const repository = new RunRepository(tracesDir);
   const proxy = new ProxyManager({ repository, settings, tracesDir });
   /**
@@ -231,7 +255,7 @@ async function bootstrap(): Promise<void> {
     settings,
     uiPreferences,
     // 系统语言每次读取当前值：OS 语言变化无需重启 main；显式偏好永远优先
-    systemLocale: () => app.getSystemLocale() || app.getLocale(),
+    systemLocale: currentSystemLocale,
     // 工具重跑的工作目录：数据目录（trace 不记录首次 cwd，桌面以数据目录为落点）
     execCwd: dataDir,
     // 隔离创建/续跑的 trace 与附件锚点（B 1.3/1.4）

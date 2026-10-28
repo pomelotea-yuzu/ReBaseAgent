@@ -23,6 +23,28 @@ export const zhCN = {
     runSummary: "运行 {{runId}}：{{stepCount}} 步 · {{duration}}",
     runSummaryRich: "运行 <code>{{runId}}</code>：<strong>{{stepCount}}</strong> 步 · {{duration}}",
     deleteRunConfirm: "删除 <code>{{name}}</code>？此操作会移除本地记录。",
+    chooseDataDirTitle: "选择 ReBaseAgent 数据目录",
+    chooseDataDirMessage: "数据将只保存在该目录内。也可在程序旁放置 portable.marker 使用便携模式。",
+    chooseDirectoryTitle: "选择目录",
+    quit: "退出",
+    quitAndDiscardDraft: "退出并丢弃草稿",
+    draftCloseTitle: "退出 ReBaseAgent",
+    draftCloseMessageDirty: "有未放弃的调试草稿",
+    draftCloseMessageDirtyWithOperation: "有未放弃的调试草稿，且有操作正在执行",
+    draftCloseMessageUnknown: "暂时无法确认草稿状态",
+    draftCloseMessageUnknownWithOperation: "暂时无法确认草稿状态，且有操作正在执行",
+    draftCloseMessageConfigurationBusy: "有一次配置变更尚未完成",
+    draftCloseMessageActiveOperation: "有操作正在执行",
+    draftCloseNoteDraftLost: "本轮会话中已输入的调试草稿在退出后将丢失，且无法恢复。",
+    draftCloseNoteDraftUnknown:
+      "暂时无法确认草稿状态，不能确定是否有未放弃的编辑。选择「返回」可继续使用应用，稍后再次退出时会重新核对。",
+    draftCloseNoteActiveOperation:
+      "还有已登记的主动操作尚未结束：退出不会取消上游请求，也不会撤销已产生的费用或副作用，操作记录同样不会标记为已取消。",
+    draftCloseNoteConfigurationBusy:
+      "还有一次配置变更尚未完成（保存配置或代理启停），退出不会让它回滚。",
+    draftCloseNotePendingLoss:
+      "此外，先前会话的调试草稿可能已经丢失（该会话在退出或重载前未能完成核对）。",
+    draftCloseNoteContinue: "要继续编辑或保留当前操作请选择「返回」。",
   },
   run: {},
   detail: {},

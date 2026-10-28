@@ -59,6 +59,7 @@ import {
 import { ExecutionConfigState } from "./execution-config-state";
 import { ForkError, runForkCapability } from "./fork-runner";
 import { runIsolatedPromptCapability } from "./isolated-prompt-endpoints";
+import { directoryDialogOptions, translatorForUiLanguage } from "./native-dialogs";
 import {
   type OperationEndpointDeps,
   type TrustedSender,
@@ -162,6 +163,8 @@ export function registerIpc(deps: IpcDeps): void {
     systemLocale,
     isTrustedSender,
   };
+  // 原生目录选择的应用文案：每次打开时按当前语言构造，OS 控件保持系统语言
+  const dialogTranslator = () => translatorForUiLanguage({ store: uiPreferences, systemLocale });
   /**
    * R2.2：执行配置修订的唯一拥有者（main 装配一次，注入配置写、预检与执行端点）。
    * 只比较 main 内存里的实际值；密钥不离开 main，也不以 secret 哈希构造修订。
@@ -261,7 +264,10 @@ export function registerIpc(deps: IpcDeps): void {
           return instruction === "__cancel__" ? null : instruction;
         }
       }
-      const result = await dialog.showOpenDialog({ properties: ["openDirectory"] });
+      const result = await dialog.showOpenDialog({
+        ...directoryDialogOptions(dialogTranslator()),
+        properties: ["openDirectory"],
+      });
       if (result.canceled || result.filePaths.length === 0) return null;
       return result.filePaths[0] ?? null;
     });

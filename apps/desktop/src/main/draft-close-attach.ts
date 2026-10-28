@@ -8,7 +8,12 @@ import {
 } from "electron";
 import { CHANNELS } from "../shared/channels";
 import type { Envelope } from "../shared/ipc";
-import { type CloseConfirmFacts, DraftCloseFlow, buildCloseConfirmText } from "./draft-close-flow";
+import {
+  type CloseConfirmFacts,
+  type CloseConfirmLabels,
+  DraftCloseFlow,
+  buildCloseConfirmText,
+} from "./draft-close-flow";
 import { DraftCloseGuard } from "./draft-close-guard";
 import type { OperationRegistry } from "./operation-registry";
 
@@ -47,11 +52,12 @@ async function showMergedConfirm(
   win: BrowserWindow,
   guard: DraftCloseGuard,
   facts: CloseConfirmFacts,
+  labels: CloseConfirmLabels,
 ): Promise<"return" | "quit"> {
-  const text = buildCloseConfirmText(facts, guard.hasPendingLoss());
+  const text = buildCloseConfirmText(facts, guard.hasPendingLoss(), labels);
   const { response } = await dialog.showMessageBox(win, {
     type: "warning",
-    buttons: ["返回", text.quitLabel],
+    buttons: [labels.backLabel, text.quitLabel],
     defaultId: 0,
     cancelId: 0,
     noLink: true,
@@ -65,8 +71,10 @@ async function showMergedConfirm(
 export function attachDraftCloseGuard(
   win: BrowserWindow,
   operations: OperationRegistry,
-  /** R3 在飞登记（4.5）：关闭协商开始时请求停止全部在飞 R3（可选；测试省略） */
-  r3InFlight?: { requestStopAll(): number },
+  /** R3 在飞登记（4.5）：关闭协商开始时请求停止全部在飞 R3（允许无 R3 依赖） */
+  r3InFlight: { requestStopAll(): number } | undefined,
+  /** 打开确认框时取当前语言文案；装配层必须注入，避免 main 内硬编码产品文案 */
+  labelsOf: () => CloseConfirmLabels,
 ): DraftCloseGuardHandle {
   let flow: DraftCloseFlow | null = null;
   const guard = new DraftCloseGuard({
@@ -105,7 +113,8 @@ export function attachDraftCloseGuard(
           // 窗口可能正在销毁——查询发不出，决策流将走 unknown 降级（4.5 超时兜底）
         }
       },
-      showConfirm: (facts) => showMergedConfirm(win, guard, facts),
+      // 每次打开时现取文案：已打开的模态不重建，下次打开用新语言
+      showConfirm: (facts) => showMergedConfirm(win, guard, facts, labelsOf()),
       closeWindow: () => {
         win.close();
       },

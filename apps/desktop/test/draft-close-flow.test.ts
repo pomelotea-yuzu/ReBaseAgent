@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   type CloseConfirmFacts,
+  type CloseConfirmLabels,
   DRAFT_CLOSE_QUERY_TIMEOUT_MS,
   DraftCloseFlow,
   type DraftCloseFlowDeps,
@@ -16,6 +17,28 @@ import { DraftCloseGuard, type DraftCloseSender } from "../src/main/draft-close-
 import { OperationRegistry } from "../src/main/operation-registry";
 import type { DraftCloseAnswer, DraftCloseQuery } from "../src/shared/ipc";
 import type { OperationKind, OperationTarget } from "../src/shared/operations";
+
+/** 中文文案夹具：产品默认文案已迁入 i18n 资源，main 不再硬编码。 */
+const ZH_LABELS: CloseConfirmLabels = {
+  backLabel: "返回",
+  quitLabel: "退出",
+  quitAndDiscardLabel: "退出并丢弃草稿",
+  title: "退出 ReBaseAgent",
+  messageDirty: "有未放弃的调试草稿",
+  messageDirtyWithOperation: "有未放弃的调试草稿，且有操作正在执行",
+  messageUnknown: "暂时无法确认草稿状态",
+  messageUnknownWithOperation: "暂时无法确认草稿状态，且有操作正在执行",
+  messageConfigurationBusy: "有一次配置变更尚未完成",
+  messageActiveOperation: "有操作正在执行",
+  noteDraftLost: "本轮会话中已输入的调试草稿在退出后将丢失，且无法恢复。",
+  noteDraftUnknown:
+    "暂时无法确认草稿状态，不能确定是否有未放弃的编辑。选择「返回」可继续使用应用，稍后再次退出时会重新核对。",
+  noteActiveOperation:
+    "还有已登记的主动操作尚未结束：退出不会取消上游请求，也不会撤销已产生的费用或副作用，操作记录同样不会标记为已取消。",
+  noteConfigurationBusy: "还有一次配置变更尚未完成（保存配置或代理启停），退出不会让它回滚。",
+  notePendingLoss: "此外，先前会话的调试草稿可能已经丢失（该会话在退出或重载前未能完成核对）。",
+  noteContinue: "要继续编辑或保留当前操作请选择「返回」。",
+};
 
 /**
  * U3 任务 4.4：main 关闭决策流。
@@ -238,32 +261,36 @@ describe("U4 5.1 evaluateCloseOutcome：clean 判定联合 main 活跃槽与配�
 
 describe("U4 5.2 buildCloseConfirmText：合并成一次文案", () => {
   it("dirty + 活跃操作 ⇒ message 同时点出两类事实，detail 含「不会取消上游请求」且不称已取消", () => {
-    const text = buildCloseConfirmText(facts("dirty", { activeOperation: true }), false);
+    const text = buildCloseConfirmText(facts("dirty", { activeOperation: true }), false, ZH_LABELS);
     expect(text.message).toBe("有未放弃的调试草稿，且有操作正在执行");
     expect(text.detail).toContain("主动操作尚未结束");
     expect(text.detail).toContain("不会取消上游请求");
     expect(text.quitLabel).toBe("退出并丢弃草稿");
   });
   it("只有活跃操作（草稿已知 clean）⇒ 不出现草稿丢失措辞，退出按钮不写「丢弃草稿」", () => {
-    const text = buildCloseConfirmText(facts(null, { activeOperation: true }), false);
+    const text = buildCloseConfirmText(facts(null, { activeOperation: true }), false, ZH_LABELS);
     expect(text.message).toBe("有操作正在执行");
     expect(text.detail).toContain("主动操作尚未结束");
     expect(text.detail).not.toContain("调试草稿在退出后将丢失");
     expect(text.quitLabel).toBe("退出");
   });
   it("配置变更中 ⇒ 按「配置变更尚未完成」呈现，不写成主动操作在跑", () => {
-    const text = buildCloseConfirmText(facts(null, { configurationBusy: true }), false);
+    const text = buildCloseConfirmText(facts(null, { configurationBusy: true }), false, ZH_LABELS);
     expect(text.message).toBe("有一次配置变更尚未完成");
     expect(text.detail).not.toContain("主动操作尚未结束");
   });
   it("unknown + 会话丢失遗留 ⇒ 两段说明合并进同一次确认", () => {
-    const text = buildCloseConfirmText(facts("unknown"), true);
+    const text = buildCloseConfirmText(facts("unknown"), true, ZH_LABELS);
     expect(text.message).toBe("暂时无法确认草稿状态");
     expect(text.detail).toContain("先前会话的调试草稿可能已经丢失");
   });
   it("unknown 档只说「暂时无法确认」，不断言 renderer 存活状态", () => {
     for (const active of [false, true]) {
-      const text = buildCloseConfirmText(facts("unknown", { activeOperation: active }), false);
+      const text = buildCloseConfirmText(
+        facts("unknown", { activeOperation: active }),
+        false,
+        ZH_LABELS,
+      );
       expect(text.detail).toContain("暂时无法确认草稿状态");
       expect(text.message + text.detail).not.toMatch(/崩溃|失联|无响应|已死/);
     }
@@ -486,7 +513,7 @@ describe("U3 4.5 有界查询与超时降级", () => {
   });
 
   it("unknown 文案只说明暂时无法确认，不断言崩溃/失联（行为判据）", () => {
-    const text = buildCloseConfirmText(facts("unknown"), false);
+    const text = buildCloseConfirmText(facts("unknown"), false, ZH_LABELS);
     expect(text.message).toContain("暂时无法确认草稿状态");
     // 不做存活诊断：文案不得断言崩溃/失联/无响应
     expect(`${text.message}${text.detail}`).not.toMatch(/崩溃|失联|无响应/);
@@ -823,7 +850,7 @@ describe("U4 5.4 closing 标记的取消与异常清理", () => {
     expect(attach).not.toContain("activeOperationId === null");
     const index = readFileSync(resolve(import.meta.dirname, "../src/main/index.ts"), "utf8");
     // 登记对象由 bootstrap 建一次并穿进 createWindow ⇒ 关闭协商与执行用同一个真相源
-    expect(index).toContain("attachDraftCloseGuard(win, operations, r3InFlight)");
+    expect(index).toContain("attachDraftCloseGuard(win, operations, r3InFlight, dialogLabels)");
     expect(index).toContain("const operations = new OperationRegistry()");
   });
 });

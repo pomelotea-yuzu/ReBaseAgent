@@ -114,42 +114,58 @@ export interface CloseConfirmText {
  * 活跃操作只陈述「尚未结束」与「退出不会撤销上游请求/费用/副作用」，
  * 不宣称已取消，也不宣称已停止。
  */
+export interface CloseConfirmLabels {
+  readonly backLabel: string;
+  readonly quitLabel: string;
+  readonly quitAndDiscardLabel: string;
+  readonly title: string;
+  readonly messageDirty: string;
+  readonly messageDirtyWithOperation: string;
+  readonly messageUnknown: string;
+  readonly messageUnknownWithOperation: string;
+  readonly messageConfigurationBusy: string;
+  readonly messageActiveOperation: string;
+  readonly noteDraftLost: string;
+  readonly noteDraftUnknown: string;
+  readonly noteActiveOperation: string;
+  readonly noteConfigurationBusy: string;
+  readonly notePendingLoss: string;
+  readonly noteContinue: string;
+}
+
 export function buildCloseConfirmText(
   facts: CloseConfirmFacts,
   pendingLoss: boolean,
+  labels: CloseConfirmLabels,
 ): CloseConfirmText {
   const notes: string[] = [];
   let message: string;
   if (facts.draft === "dirty") {
-    message = facts.activeOperation ? "有未放弃的调试草稿，且有操作正在执行" : "有未放弃的调试草稿";
-    notes.push("本轮会话中已输入的调试草稿在退出后将丢失，且无法恢复。");
+    message = facts.activeOperation ? labels.messageDirtyWithOperation : labels.messageDirty;
+    notes.push(labels.noteDraftLost);
   } else if (facts.draft === "unknown") {
-    message = facts.activeOperation
-      ? "暂时无法确认草稿状态，且有操作正在执行"
-      : "暂时无法确认草稿状态";
-    notes.push(
-      "暂时无法确认草稿状态，不能确定是否有未放弃的编辑。选择「返回」可继续使用应用，稍后再次退出时会重新核对。",
-    );
+    message = facts.activeOperation ? labels.messageUnknownWithOperation : labels.messageUnknown;
+    notes.push(labels.noteDraftUnknown);
   } else {
-    message = facts.configurationBusy ? "有一次配置变更尚未完成" : "有操作正在执行";
+    message = facts.configurationBusy
+      ? labels.messageConfigurationBusy
+      : labels.messageActiveOperation;
   }
   if (facts.activeOperation) {
-    notes.push(
-      "还有已登记的主动操作尚未结束：退出不会取消上游请求，也不会撤销已产生的费用或副作用，操作记录同样不会标记为已取消。",
-    );
+    notes.push(labels.noteActiveOperation);
   }
   if (facts.configurationBusy) {
-    notes.push("还有一次配置变更尚未完成（保存配置或代理启停），退出不会让它回滚。");
+    notes.push(labels.noteConfigurationBusy);
   }
   if (pendingLoss) {
-    notes.push("此外，先前会话的调试草稿可能已经丢失（该会话在退出或重载前未能完成核对）。");
+    notes.push(labels.notePendingLoss);
   }
-  notes.push("要继续编辑或保留当前操作请选择「返回」。");
+  notes.push(labels.noteContinue);
   return {
-    title: "退出 ReBaseAgent",
+    title: labels.title,
     message,
     detail: notes.join(""),
-    quitLabel: facts.draft === "dirty" ? "退出并丢弃草稿" : "退出",
+    quitLabel: facts.draft === "dirty" ? labels.quitAndDiscardLabel : labels.quitLabel,
   };
 }
 
