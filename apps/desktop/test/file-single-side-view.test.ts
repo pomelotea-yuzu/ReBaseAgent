@@ -4,6 +4,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { RunDetail } from "../src/shared/ipc";
+import { renderWithLocale } from "./i18n/render-with-locale";
 
 /**
  * U2 任务 5.4 实机验收暴露的真实产品缺陷回归：**单侧可读时"可读侧完整展示"通道缺失**。
@@ -99,7 +100,8 @@ function text(path: string, body: string): Record<string, unknown> {
 
 function renderBody(overrides: Record<string, unknown> = {}): string {
   const run = isolatedRun();
-  return renderToStaticMarkup(
+  return renderWithLocale(
+    "zh-CN",
     createElement(WorkspaceFileViewBody, {
       run,
       options: deriveCheckpointOptions(run),

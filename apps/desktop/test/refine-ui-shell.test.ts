@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ShortIdLabel } from "../src/renderer/src/components/ShortIdLabel";
 import { auditForbiddenTokens } from "../src/renderer/src/lib/overview-view";
+import { renderWithLocale } from "./i18n/render-with-locale";
 
 /**
  * refine-ui-for-community-release 任务 2.1：全局入口与视图名称整理。
@@ -22,13 +23,21 @@ const read = (rel: string): string => readFileSync(resolve(import.meta.dirname, 
 const bar = read("../src/renderer/src/components/GlobalBar.tsx");
 
 describe("视图切换名称：运行记录／分支关系（MODIFIED1）", () => {
-  it("两个切换入口面向用户标为「运行记录」「分支关系」", () => {
-    expect(bar).toContain('label: "运行记录"');
-    expect(bar).toContain('label: "分支关系"');
+  it("两个切换入口面向用户标为「运行记录」「分支关系」（文案取自 i18n 资源）", () => {
+    expect(bar).toContain('translator.t("common.viewRuns")');
+    expect(bar).toContain('translator.t("common.viewTree")');
+    // 独立期望：资源里的中文值正是这两个名称（不以 t(key) 自证）
+    const zh = readFileSync(
+      resolve(import.meta.dirname, "../../../packages/i18n/src/resources/zh-CN.ts"),
+      "utf8",
+    );
+    expect(zh).toContain('viewRuns: "运行记录"');
+    expect(zh).toContain('viewTree: "分支关系"');
   });
 
   it("应用级视图不再标为「轨迹」（禁用型判据走审计函数，剥注释）", () => {
     expect(auditForbiddenTokens(bar, ['label: "轨迹"', 'label: "分支树"'])).toEqual([]);
+    expect(bar).toContain("data-view-option={key}");
   });
 
   it("标签经 options.map 渲染到按钮（不是只写在数组里）", () => {
@@ -58,8 +67,10 @@ describe("录制接入进入既有独立录制工作区（R07/N16 的规范对�
   });
 
   it("按钮可见名称与提示指认独立录制工作区（面向用户文字与实现一致）", () => {
-    expect(bar).toContain("录制接入");
-    expect(bar).toContain("打开录制工作区");
+    expect(bar).toContain('translator.t("common.connectRecording")');
+    expect(bar).toContain('translator.t("common.connectRecordingHint")');
+    // 稳定钩子：按钮身份不靠中文文案定位
+    expect(bar).toContain("data-shell-recording");
   });
 });
 
@@ -110,7 +121,8 @@ describe("单运行对象头：完整 ID 可访问并复制（N04）", () => {
 
 describe("辅助工作区对象头：run ID 可复制（N04）", () => {
   it("AuxWorkspaceFrame 的 targetLine 接受 ReactNode（string 承载不了复制按钮）", () => {
-    const html = renderToStaticMarkup(
+    const html = renderWithLocale(
+      "zh-CN",
       createElement(
         AuxWorkspaceFrame,
         {
@@ -211,11 +223,13 @@ describe("会话活动入口（delta ADDED「会话活动区区分修改与清�
   const activity = read("../src/renderer/src/components/SessionActivity.tsx");
 
   it("一个入口三组计数：修改（含录制未应用）／操作／结果，不新增第四个并存入口", () => {
-    expect(activity).toContain("会话活动");
+    expect(activity).toContain('translator.t("common.sessionActivity")');
     expect(activity).toContain("sessionDirtyCountOf(drafts, recordingDraft)");
-    expect(activity).toContain("修改 {dirtyCount}");
-    expect(activity).toContain("操作 {rows.length}");
-    expect(activity).toContain("结果 {notices.unreadCount}");
+    expect(activity).toContain('translator.t("common.draftCount", { count: dirtyCount })');
+    expect(activity).toContain('translator.t("common.operationCount", { count: rows.length })');
+    expect(activity).toContain(
+      'translator.t("common.resultCount", { count: notices.unreadCount })',
+    );
     // 事实来源唯一：草稿 deriveDraftList、操作 deriveOperationRows、通知 deriveResultNotices
     for (const fn of ["deriveDraftList(drafts)", "deriveOperationRows(", "deriveResultNotices("]) {
       expect(activity, fn).toContain(fn);
@@ -224,7 +238,7 @@ describe("会话活动入口（delta ADDED「会话活动区区分修改与清�
 
   it("组内分组：dirty 在前、clean 单独分组并标为未修改（N09）", () => {
     expect(activity).toContain("draftItems.filter((item) => item.dirty)");
-    expect(activity).toContain("未修改的编辑会话");
+    expect(activity).toContain('translator.t("common.cleanSessions"');
     // DraftListPanel 对 clean 条目给「未修改」标记（不冒充修改、不加退出保护）
     const panel = read("../src/renderer/src/components/DraftListPanel.tsx");
     expect(panel).toContain('data-draft-clean="true"');
@@ -233,7 +247,7 @@ describe("会话活动入口（delta ADDED「会话活动区区分修改与清�
 
   it("录制未应用修改纳入修改提示并有可达动作（去录制）", () => {
     expect(activity).toContain("isRecordingDraftDirty(recordingDraft)");
-    expect(activity).toContain("录制配置有未应用的修改");
+    expect(activity).toContain('translator.t("common.recordingDirty")');
     expect(activity).toContain("openRecordingWorkspace()");
   });
 

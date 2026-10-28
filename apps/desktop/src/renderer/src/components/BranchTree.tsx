@@ -9,6 +9,7 @@ import {
 import type { RunSummary } from "@shared/ipc";
 import { ArrowRight, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslator } from "../i18n";
 import { deriveRelationEntries, experimentGroupsOf } from "../lib/branch-relations";
 import { formatTime, formatTokens } from "../lib/format";
 import {
@@ -724,6 +725,7 @@ export function SelectedRunDetail({
   onOpen: (id: string) => void;
   onToggleCompare: (id: string) => void;
 }) {
+  const translator = useTranslator();
   const [copyFeedback, setCopyFeedback] = useState<"copied" | "unavailable" | null>(null);
   const copyId = (): void => {
     const clipboard = (globalThis as { navigator?: { clipboard?: { writeText?: unknown } } })
@@ -766,7 +768,7 @@ export function SelectedRunDetail({
           复制完整 ID
         </button>
         {copyFeedback !== null ? (
-          <span className="text-gray-500">{copyFeedbackText(copyFeedback)}</span>
+          <span className="text-gray-500">{copyFeedbackText(copyFeedback, translator)}</span>
         ) : null}
       </div>
       <div className="mb-1 text-gray-700">

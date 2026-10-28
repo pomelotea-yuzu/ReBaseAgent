@@ -360,6 +360,7 @@ function WorkspaceShell({
   readonly onEnterFocus?: (mode: "edit" | "diff") => void;
   readonly onExitFocus?: () => void;
 }) {
+  const translator = useTranslator();
   const detail = useAppStore((s) => s.detail);
   const selectedRunId = useAppStore((s) => s.selectedRunId);
   const tab = useAppStore((s) =>
@@ -405,10 +406,16 @@ function WorkspaceShell({
                   ? onExitFocus?.()
                   : onEnterFocus?.(visible === "files" ? "diff" : "edit")
               }
-              title="临时收起辅助区域，退出后恢复原布局与阅读状态"
+              title={translator.t("common.focusHint")}
               className={`rounded border px-2 py-0.5 text-reading-meta ${focusActive ? "border-violet-300 bg-violet-50 text-violet-900" : "border-gray-300 text-gray-600 hover:bg-gray-50"} ${FOCUS_RING}`}
             >
-              {focusActive ? "退出专注" : visible === "files" ? "专注差异" : "专注编辑"}
+              {translator.t(
+                focusActive
+                  ? "common.exitFocus"
+                  : visible === "files"
+                    ? "common.focusDiff"
+                    : "common.focusEdit",
+              )}
             </button>
           ) : null}
         </>
@@ -448,6 +455,7 @@ function WorkspaceShell({
  * returnToCompare 同 pair 幂等（不重读，会话结论与阅读位置保留）。
  */
 export function ReturnToCompareBar() {
+  const translator = useTranslator();
   const comparePair = useAppStore((s) => s.comparePair);
   const returnToCompare = useAppStore((s) => s.returnToCompare);
   if (comparePair === null) return null;
@@ -455,7 +463,8 @@ export function ReturnToCompareBar() {
     <div className="flex items-center gap-2 border-b border-gray-200 bg-sky-50 px-3 py-1">
       <button
         type="button"
-        aria-label="返回比较工作区"
+        data-back-to-compare
+        aria-label={translator.t("common.backToCompareAria")}
         onClick={() => {
           returnToCompare();
           // U7 5.9：异步焦点——返回后焦点落到比较工作区主容器（不落页顶、不丢位置）
@@ -465,10 +474,13 @@ export function ReturnToCompareBar() {
         }}
         className={`rounded border border-sky-200 px-2 py-0.5 text-reading-meta text-sky-900 hover:bg-sky-100 ${FOCUS_RING}`}
       >
-        返回比较
+        {translator.t("common.backToCompare")}
       </button>
       <span className="text-reading-meta text-gray-500">
-        比较对象已保留：左 {comparePair.leftRunId} → 右 {comparePair.rightRunId}
+        {translator.t("common.comparePairKept", {
+          left: comparePair.leftRunId,
+          right: comparePair.rightRunId,
+        })}
       </span>
     </div>
   );
@@ -488,6 +500,7 @@ export function StepsDirectoryEntry({
   onOpen,
   compact = false,
 }: { onOpen: () => void; compact?: boolean }) {
+  const translator = useTranslator();
   return (
     <div className={compact ? "" : "border-b border-gray-200 px-4 py-1.5"}>
       <button
@@ -497,7 +510,7 @@ export function StepsDirectoryEntry({
         className={`inline-flex items-center gap-1.5 rounded px-2 py-1 text-reading-meta text-gray-600 hover:bg-gray-100 ${FOCUS_RING}`}
       >
         <PanelLeftOpen size={13} aria-hidden="true" focusable="false" role="presentation" />
-        <span>重新打开步骤目录</span>
+        <span>{translator.t("common.reopenSteps")}</span>
       </button>
     </div>
   );

@@ -38,7 +38,9 @@ describe("U3 5.2 requestConfirm：单实例挂起与取消语义", () => {
       "utf8",
     );
     expect(src).toContain("initialFocusRef={cancelRef}");
-    expect(src).toContain("确认放弃");
+    // 缺省确认/取消文案走 i18n 资源（不再硬编码中文）；具体译文由资源门禁与 Provider 测试覆盖
+    expect(src).toContain('translator.t("common.confirmDiscard")');
+    expect(src).toContain('translator.t("common.cancel")');
     // ModalDialog 是唯一容器（复用 5.1 的 top layer 语义）
     expect(src).toContain("<ModalDialog");
     // settle 必须清 pending（宿主不残留旧请求）

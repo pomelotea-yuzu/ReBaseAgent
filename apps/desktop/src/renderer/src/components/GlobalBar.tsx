@@ -26,6 +26,7 @@ import {
   Waypoints,
 } from "lucide-react";
 import type { ReactNode } from "react";
+import { useTranslator } from "../i18n";
 import { proxyPhaseDotClass, proxyRecoveryView } from "../lib/proxy-recovery-view";
 import { useAppStore } from "../store";
 import { FOCUS_RING } from "./IconButton";
@@ -34,21 +35,22 @@ import { FOCUS_RING } from "./IconButton";
  * 面向用户的名称按 UI 整理 delta（MODIFIED「界面提供分支树与轨迹两种视图」）：
  * 应用级两视图标为「运行记录」「分支关系」，不再把应用级视图统称「轨迹」。 */
 function ViewToggle() {
+  const translator = useTranslator();
   const view = useAppStore((s) => s.view);
   const setView = useAppStore((s) => s.setView);
 
   const options = [
     {
       key: "trace" as const,
-      label: "运行记录",
+      label: translator.t("common.viewRuns"),
       icon: Activity,
-      hint: "运行记录视图：运行列表与概览、步骤、文件页签",
+      hint: translator.t("common.viewRunsHint"),
     },
     {
       key: "tree" as const,
-      label: "分支关系",
+      label: translator.t("common.viewTree"),
       icon: GitBranch,
-      hint: "宽幅分支关系：节点为运行、连线为分叉，可勾选多条对照",
+      hint: translator.t("common.viewTreeHint"),
     },
   ];
 
@@ -56,13 +58,14 @@ function ViewToggle() {
     // fieldset + legend：一组互斥的视图切换按钮，语义分组由原生元素表达
     // （比在 div 上手写 role="group" 更贴合规则集）
     <fieldset className="m-0 flex items-center gap-0.5 border-0 p-0">
-      <legend className="sr-only">主视图切换</legend>
+      <legend className="sr-only">{translator.t("common.viewSwitchLegend")}</legend>
       {options.map(({ key, label, icon: Icon, hint }) => {
         const active = view === key;
         return (
           <button
             key={key}
             type="button"
+            data-view-option={key}
             aria-pressed={active ? "true" : undefined}
             title={hint}
             onClick={() => setView(key)}
@@ -95,6 +98,7 @@ function StatusIndicators({
   onOpenSettings: () => void;
   onOpenRecording: () => void;
 }): ReactNode {
+  const translator = useTranslator();
   const proxy = useAppStore((s) => s.proxy);
   const statusReadFailed = useAppStore((s) => s.recordingStatusReadFailed);
   const settingsConfigured = useAppStore((s) => s.settings?.configured);
@@ -105,6 +109,7 @@ function StatusIndicators({
       {proxy !== null || statusReadFailed ? (
         <button
           type="button"
+          data-shell-proxy
           onClick={onOpenSettings}
           className={`inline-flex cursor-pointer items-center gap-1.5 rounded border px-2 py-0.5 hover:bg-gray-50 ${FOCUS_RING} ${
             view.phase === "failed"
@@ -113,7 +118,7 @@ function StatusIndicators({
                 ? "border-amber-300 text-amber-800"
                 : "border-gray-300 text-gray-600"
           }`}
-          title="本地录制代理：把你的 Agent 应用 base_url 指到 http://127.0.0.1:<端口>/v1，key 一字不动即可录制"
+          title={translator.t("common.proxyStatusHint")}
         >
           <Radio size={12} aria-hidden="true" focusable="false" role="presentation" />
           <span
@@ -125,7 +130,7 @@ function StatusIndicators({
           <span data-proxy-phase-label>{view.headline}</span>
           {/* delta：「本会话尚未捕获凭据时如实显示未捕获」——只在真的在监听时说 */}
           {view.phase === "listening" && proxy?.hasKey !== true ? (
-            <span className="text-amber-600">未捕获 key</span>
+            <span className="text-amber-600">{translator.t("common.proxyNoKey")}</span>
           ) : null}
         </button>
       ) : null}
@@ -135,18 +140,20 @@ function StatusIndicators({
           type="button"
           data-proxy-open-recording
           onClick={onOpenRecording}
-          title={
+          title={translator.t(
             view.phase === "failed"
-              ? "打开录制工作区查看受控原因、重读状态或重新保存并应用"
-              : "打开录制工作区查看本次启动恢复的进行情况"
-          }
+              ? "common.proxyOpenRecordingFailedHint"
+              : "common.proxyOpenRecordingRecoveringHint",
+          )}
           className={`inline-flex cursor-pointer items-center gap-1 rounded border px-2 py-0.5 hover:bg-gray-50 ${FOCUS_RING} ${
             view.phase === "failed"
               ? "border-red-300 text-red-800"
               : "border-amber-300 text-amber-800"
           }`}
         >
-          {view.phase === "failed" ? "去录制页处理" : "恢复中…"}
+          {translator.t(
+            view.phase === "failed" ? "common.proxyFixInRecording" : "common.proxyRecovering",
+          )}
         </button>
       ) : null}
       <button
@@ -154,8 +161,9 @@ function StatusIndicators({
         onClick={onOpenSettings}
         // U3 5.1：模态关闭时的焦点回退锚点——触发元素已卸载时聚焦这个常驻入口
         data-modal-focus-fallback
+        data-shell-settings
         className={`inline-flex cursor-pointer items-center gap-1.5 rounded border border-gray-300 px-2 py-0.5 text-gray-600 hover:bg-gray-50 ${FOCUS_RING}`}
-        title="配置 LLM 接入（baseURL / apiKey / model），供“在此重跑”发起真实调用"
+        title={translator.t("common.runConfigHint")}
       >
         <Settings size={12} aria-hidden="true" focusable="false" role="presentation" />
         <span
@@ -164,7 +172,7 @@ function StatusIndicators({
             settingsConfigured === true ? "bg-emerald-500" : "bg-gray-300"
           }`}
         />
-        运行配置
+        {translator.t("common.runConfig")}
       </button>
     </div>
   );
@@ -180,6 +188,7 @@ export function GlobalBar({
   onOpenRecording: () => void;
   navigation?: { visible: boolean; onToggle: () => void };
 }) {
+  const translator = useTranslator();
   const openCreateWorkspace = useAppStore((s) => s.openCreateWorkspace);
 
   /** 录制接入 = 打开独立录制工作区（U8 1.4；配置/状态随 §2 落地） */
@@ -193,8 +202,10 @@ export function GlobalBar({
         <button
           id="run-navigation-toggle"
           type="button"
-          aria-label={navigation.visible ? "收起运行列表" : "打开运行列表"}
-          title={navigation.visible ? "收起运行列表" : "打开运行列表"}
+          aria-label={translator.t(
+            navigation.visible ? "common.collapseRunList" : "common.openRunList",
+          )}
+          title={translator.t(navigation.visible ? "common.collapseRunList" : "common.openRunList")}
           aria-expanded={navigation.visible}
           aria-controls="run-navigation"
           onClick={navigation.onToggle}
@@ -219,21 +230,23 @@ export function GlobalBar({
             全局栏只保留身份无关的常驻动作（新建/录制/设置与状态指示）。 */}
         <button
           type="button"
+          data-shell-new-run
           onClick={openCreateWorkspace}
-          title="直接在桌面端跑一个 run（纯对话，或隔离文件运行；不需代理、不需写代码）"
+          title={translator.t("common.newRunHint")}
           className={`inline-flex cursor-pointer items-center gap-1.5 rounded border border-gray-300 px-2 py-0.5 text-reading-meta text-gray-700 hover:bg-gray-50 ${FOCUS_RING}`}
         >
           <Plus size={12} aria-hidden="true" focusable="false" role="presentation" />
-          新建运行
+          {translator.t("common.newRun")}
         </button>
         <button
           type="button"
+          data-shell-recording
           onClick={openRecording}
-          title="打开录制工作区，把现有 Agent 的 base_url 指过来即可录制"
+          title={translator.t("common.connectRecordingHint")}
           className={`inline-flex cursor-pointer items-center gap-1.5 rounded border border-gray-300 px-2 py-0.5 text-reading-meta text-gray-700 hover:bg-gray-50 ${FOCUS_RING}`}
         >
           <Waypoints size={12} aria-hidden="true" focusable="false" role="presentation" />
-          录制接入
+          {translator.t("common.connectRecording")}
         </button>
         <StatusIndicators onOpenSettings={onOpenSettings} onOpenRecording={openRecording} />
       </div>

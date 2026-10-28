@@ -1,6 +1,7 @@
 import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
+import type { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { renderWithLocale } from "./i18n/render-with-locale";
 
 // store 薄壳 import 时触到 window.api ⇒ 桩先就位（与 run-workspace.test.ts 同法）
 (globalThis as Record<string, unknown>).window = { api: {} };
@@ -21,7 +22,7 @@ const { useAppStore } = await import("../src/renderer/src/store");
  */
 
 const html = (node: Parameters<typeof renderToStaticMarkup>[0]): string =>
-  renderToStaticMarkup(node);
+  renderWithLocale("zh-CN", node);
 
 const VALUE_MARK = "原始结果正文的独特片段";
 

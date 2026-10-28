@@ -4,6 +4,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { RunDetail } from "../src/shared/ipc";
+import { renderWithLocale } from "./i18n/render-with-locale";
 
 /**
  * U2 任务 2.4：文件选择/pane/偏好接入**会话状态**（不再用组件局部 state）。
@@ -53,7 +54,8 @@ function isolatedRun(): RunDetail {
 
 function renderBody(overrides: Record<string, unknown> = {}): string {
   const run = isolatedRun();
-  return renderToStaticMarkup(
+  return renderWithLocale(
+    "zh-CN",
     createElement(WorkspaceFileViewBody, {
       run,
       options: deriveCheckpointOptions(run),

@@ -112,6 +112,8 @@ export class ShortIdState {
   }
 }
 
+import type { Translator } from "@rebaseagent/i18n";
+
 /** 导航摘要（列表行的标题区），含空任务/缺失模型的回退 */
 export interface NavLabel {
   /** 任务标题（空任务回退为来源/时间/短 ID 组合见 `navFallbackLabel`） */
@@ -131,9 +133,11 @@ export function deriveNavLabel(
   run: { task: string; model: string },
   shortId: string,
   fallbackParts: { time: string; source: string },
+  translator: Translator,
 ): NavLabel {
   const collapsed = collapseWhitespace(run.task);
-  const model = collapseWhitespace(run.model) === "" ? "未记录" : run.model;
+  const model =
+    collapseWhitespace(run.model) === "" ? translator.t("common.notRecorded") : run.model;
 
   if (collapsed === "") {
     return {

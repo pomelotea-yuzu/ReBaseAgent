@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { useTranslator } from "../i18n";
 import { ModalDialog } from "./ModalDialog";
 
 /**
@@ -20,7 +21,7 @@ export interface ConfirmRequest {
   title: string;
   /** 正文（保留换行：草稿内容摘要在此展示） */
   message: string;
-  /** 确认按钮文字（缺省「确认放弃」） */
+  /** 确认按钮文字（缺省取当前语言「确认放弃」） */
   confirmLabel?: string;
   /** 取消按钮文字（U5 5.3 增设；缺省「取消」）——"继续编辑"这类非破坏语义要能说清 */
   cancelLabel?: string;
@@ -47,6 +48,7 @@ export function requestConfirm(req: ConfirmRequest): Promise<boolean> {
  * 确认宿主（App 层单例挂载）。无挂起确认时不渲染任何内容。
  */
 export function ConfirmDialogHost() {
+  const translator = useTranslator();
   const [, force] = useReducer((n: number) => n + 1, 0);
   useEffect(() => {
     const listener = (): void => {
@@ -97,7 +99,7 @@ export function ConfirmDialogHost() {
           }}
           className="rounded border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50"
         >
-          {pending.req.cancelLabel ?? "取消"}
+          {pending.req.cancelLabel ?? translator.t("common.cancel")}
         </button>
         <button
           type="button"
@@ -106,7 +108,7 @@ export function ConfirmDialogHost() {
           }}
           className="rounded border border-red-300 bg-red-50 px-3 py-1 text-xs text-red-700 hover:bg-red-100"
         >
-          {pending.req.confirmLabel ?? "确认放弃"}
+          {pending.req.confirmLabel ?? translator.t("common.confirmDiscard")}
         </button>
       </div>
     </ModalDialog>

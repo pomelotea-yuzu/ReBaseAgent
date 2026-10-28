@@ -11,6 +11,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { auditForbiddenTokens } from "../src/renderer/src/lib/overview-view";
 import type { RunSummary } from "../src/shared/ipc";
+import { renderWithLocale } from "./i18n/render-with-locale";
 const {
   NoRunsEmpty,
   RunHeaderView,
@@ -39,8 +40,8 @@ const {
  *    真实点击切页签、焦点流转、页签记忆归 store 层（见 store.test.ts）。
  */
 
-const html = (node: Parameters<typeof renderToStaticMarkup>[0]): string =>
-  renderToStaticMarkup(node);
+const html = (node: Parameters<typeof renderWithLocale>[1]): string =>
+  renderWithLocale("zh-CN", node);
 
 function summaryOf(over: Partial<RunSummary>): RunSummary {
   return {
@@ -191,6 +192,17 @@ describe("空态：无运行时给两个真实可用的入口", () => {
     const markup = html(createElement(NoRunsEmpty, { onCreate: () => {}, onRecord: () => {} }));
     expect(markup).toContain("隔离文件运行");
     expect(markup).toContain("录制代理");
+  });
+
+  it("英文空态使用独立英文文案，不混中文", () => {
+    const markup = renderWithLocale(
+      "en-US",
+      createElement(NoRunsEmpty, { onCreate: () => {}, onRecord: () => {} }),
+    );
+    expect(markup).toContain("No runs in the data directory yet");
+    expect(markup).toContain("New run");
+    expect(markup).toContain("Connect recording");
+    expect(markup).not.toContain("新建运行");
   });
 
   it("两个入口分别绑到各自的动作（静态渲染下用 on* 属性确认接线）", () => {

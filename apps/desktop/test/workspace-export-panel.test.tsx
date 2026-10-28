@@ -2,6 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { WorkspaceExportFeedback } from "../src/renderer/src/lib/workspace-export-state";
+import { renderWithLocale } from "./i18n/render-with-locale";
 
 // WorkspaceFileView 的 import 链经 store → lib/api 读 `window.api`（模块级求值）⇒
 // 必须先放桩再动态 import（静态 import 会先于桩执行）
@@ -72,7 +73,7 @@ const base = {
 };
 
 function markup(element: React.ReactElement): string {
-  return renderToStaticMarkup(element);
+  return renderWithLocale("zh-CN", element);
 }
 
 describe("导出入口资格（任务 6.1）", () => {

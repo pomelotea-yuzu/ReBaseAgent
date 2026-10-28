@@ -5,6 +5,7 @@ import { buildSpanTree } from "@shared/derive";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { createTestTranslator, renderWithLocale } from "./i18n/render-with-locale";
 
 // DetailPanel / LongText 的 store 薄壳在 import 时就会触到 `window.api` ⇒ 桩必须先就位；
 // ESM 静态 import 会被提升，故用动态 import（同 overview-consumption-source.test.ts）。
@@ -136,8 +137,10 @@ function step(id: string, n: number, extra: Partial<{ timing: object }> = {}): S
   } as SpanLine;
 }
 
-const html = (node: Parameters<typeof renderToStaticMarkup>[0]): string =>
-  renderToStaticMarkup(node);
+const html = (node: Parameters<typeof renderWithLocale>[1]): string =>
+  renderWithLocale("zh-CN", node);
+const zh = createTestTranslator("zh-CN");
+const en = createTestTranslator("en-US");
 
 /** 恒真的 noop 回调（渲染层不关心它做什么） */
 const noop = (): void => undefined;
@@ -780,13 +783,17 @@ describe("LongText：长文本可查找、展开和复制", () => {
   });
 
   it("findCountLabel：无命中明说「无命中」，有命中给「第 n / m 个」", () => {
-    expect(findCountLabel({ matches: [], index: -1 })).toBe("无命中");
-    expect(findCountLabel({ matches: [{}, {}], index: 0 })).toBe("第 1 / 2 个");
+    expect(findCountLabel({ matches: [], index: -1 }, zh)).toBe("无命中");
+    expect(findCountLabel({ matches: [{}, {}], index: 0 }, zh)).toBe("第 1 / 2 个");
+    expect(findCountLabel({ matches: [], index: -1 }, en)).toBe("No matches");
+    expect(findCountLabel({ matches: [{}, {}], index: 1 }, en)).toBe("2 / 2");
   });
 
   it("copyFeedbackText：成功与不可用如实分开（不谎报已复制）", () => {
-    expect(copyFeedbackText("copied")).toContain("已复制");
-    expect(copyFeedbackText("unavailable")).toContain("不支持");
+    expect(copyFeedbackText("copied", zh)).toContain("已复制");
+    expect(copyFeedbackText("unavailable", zh)).toContain("不支持");
+    expect(copyFeedbackText("copied", en)).toBe("Original copied");
+    expect(copyFeedbackText("unavailable", en)).toContain("unavailable");
   });
 
   it("copyPayload 恒为完整原文（spec：复制对应原始文本而非省略后的展示）", () => {

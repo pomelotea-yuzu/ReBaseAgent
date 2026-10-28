@@ -21,6 +21,7 @@ import { deriveTerminalReason } from "@shared/derive";
 import type { RunSummary } from "@shared/ipc";
 import { FileCode2, LayoutDashboard, ListTree } from "lucide-react";
 import type { ReactNode } from "react";
+import { useTranslator } from "../i18n";
 import { isIsolatedRun, isolatedRunNoticeView } from "../lib/isolated-fork";
 import { useAppStore } from "../store";
 import { FOCUS_RING } from "./IconButton";
@@ -137,31 +138,33 @@ export function NoRunsEmpty({
   onCreate: () => void;
   onRecord: () => void;
 }): ReactNode {
+  const translator = useTranslator();
   return (
     <section className="flex h-full min-w-0 flex-1 flex-col items-center justify-center gap-3 bg-white px-6">
-      <div className="text-reading-body text-gray-700">数据目录里还没有运行记录</div>
+      <div className="text-reading-body text-gray-700">{translator.t("common.noRunsTitle")}</div>
       <div className="max-w-md text-center text-reading-meta leading-5 text-gray-500">
-        可以直接在这里跑一个 run（纯对话或隔离文件运行，不需要代理、不需要写代码），
-        也可以在设置里打开录制代理，把你现有 Agent 的 base_url 指过来。
+        {translator.t("common.noRunsBody")}
       </div>
       <div className="flex items-center gap-2">
         <button
           type="button"
+          data-empty-create-run
           onClick={onCreate}
           className={`rounded bg-sky-600 px-3 py-1.5 text-reading-meta text-white hover:bg-sky-700 ${FOCUS_RING}`}
         >
-          新建运行
+          {translator.t("common.noRunsCreate")}
         </button>
         <button
           type="button"
+          data-empty-connect-recording
           onClick={onRecord}
           className={`rounded border border-gray-300 px-3 py-1.5 text-reading-meta text-gray-700 hover:bg-gray-50 ${FOCUS_RING}`}
         >
-          接入录制
+          {translator.t("common.noRunsRecord")}
         </button>
       </div>
       <div className="text-reading-meta text-gray-400">
-        也可以把已有 *.jsonl 放进数据目录的 traces/ 后重新打开。
+        {translator.t("common.noRunsJsonlHint")}
       </div>
     </section>
   );

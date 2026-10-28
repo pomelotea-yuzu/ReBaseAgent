@@ -4,6 +4,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { RunDetail } from "../src/shared/ipc";
+import { renderWithLocale } from "./i18n/render-with-locale";
 
 /**
  * C 任务 2.1/2.2：文件视图**展示层**的结构断言。
@@ -120,7 +121,8 @@ interface BodyOverrides {
 function renderBody(run: RunDetail, overrides: BodyOverrides = {}): string {
   const stepSpanId = overrides.stepSpanId ?? null;
   const options = deriveCheckpointOptions(run);
-  return renderToStaticMarkup(
+  return renderWithLocale(
+    "zh-CN",
     createElement(WorkspaceFileViewBody, {
       run,
       options,
@@ -339,7 +341,7 @@ describe("文件视图展示层 —— 内容 / 差异呈现", () => {
  */
 describe("文件页承载：详情就绪时真的挂上文件视图（能力断言）", () => {
   const render = (detail: RunDetail | null, loadingDetail = false): string =>
-    renderToStaticMarkup(createElement(WorkspaceFilesPanelView, { detail, loadingDetail }));
+    renderWithLocale("zh-CN", createElement(WorkspaceFilesPanelView, { detail, loadingDetail }));
 
   it("detail 就绪 ⇒ 出现文件视图本体（检查点选择器 + 只读声明）", () => {
     const html = render(isolatedRun());

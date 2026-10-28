@@ -9,6 +9,10 @@ import {
   taskSummary,
 } from "@shared/nav";
 import { describe, expect, it } from "vitest";
+import { createTestTranslator } from "./i18n/render-with-locale";
+
+const zh = createTestTranslator("zh-CN");
+const en = createTestTranslator("en-US");
 
 /**
  * U1（refactor-run-workspace）任务 2.4：任务展示/搜索与稳定短 ID。
@@ -155,30 +159,49 @@ describe("ShortIdState：长度只增不减（刷新删除碰撞项不缩短）"
 
 describe("deriveNavLabel：空任务与缺失模型的导航摘要", () => {
   it("空任务 ⇒ 回退为来源/时间/短 ID，并标 isFallback", () => {
-    const label = deriveNavLabel({ task: "   ", model: "gpt-4o" }, "abcd1234", {
-      time: "09-21 10:00",
-      source: "本地记录",
-    });
+    const label = deriveNavLabel(
+      { task: "   ", model: "gpt-4o" },
+      "abcd1234",
+      {
+        time: "09-21 10:00",
+        source: "本地记录",
+      },
+      zh,
+    );
     expect(label.isFallback).toBe(true);
     expect(label.title).toBe("本地记录 · 09-21 10:00 · abcd1234");
   });
 
   it("缺失模型 ⇒ 显示「未记录」，任务正常展示", () => {
-    const label = deriveNavLabel({ task: "修复登录", model: "" }, "abcd1234", {
-      time: "09-21 10:00",
-      source: "本地记录",
-    });
+    const label = deriveNavLabel(
+      { task: "修复登录", model: "" },
+      "abcd1234",
+      {
+        time: "09-21 10:00",
+        source: "本地记录",
+      },
+      zh,
+    );
     expect(label.model).toBe("未记录");
     expect(label.isFallback).toBe(false);
     expect(label.title).toBe("修复登录");
+    expect(
+      deriveNavLabel({ task: "修复登录", model: "" }, "abcd1234", { time: "t", source: "s" }, en)
+        .model,
+    ).toBe("Not recorded");
   });
 
   it("超长模型原值保留（换行由 CSS，这里不做截断）", () => {
     const longModel = `very-long-model-${"x".repeat(80)}`;
-    const label = deriveNavLabel({ task: "t", model: longModel }, "abcd1234", {
-      time: "t",
-      source: "s",
-    });
+    const label = deriveNavLabel(
+      { task: "t", model: longModel },
+      "abcd1234",
+      {
+        time: "t",
+        source: "s",
+      },
+      zh,
+    );
     expect(label.model).toBe(longModel);
   });
 });

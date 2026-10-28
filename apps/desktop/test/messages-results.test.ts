@@ -14,6 +14,7 @@ import {
 } from "../src/renderer/src/lib/result-verification";
 import { FAKE_EPOCH, statusSnapshot } from "./helpers/operation-channels";
 import { proxyStatusOk } from "./helpers/proxy-state-fixture";
+import { renderWithLocale } from "./i18n/render-with-locale";
 
 /**
  * U8 任务 5.4：**messages 工作区的重发结果区**（delta「messages 失败定位与返回不丢草稿」）。
@@ -189,7 +190,8 @@ describe("5.4 结果区视图：登记身份 + 诚实空态 + 返回编辑", () 
       reads: emptyResultReadStore(),
       draftPresentOf: (record) => record.operationId === OP_2,
     });
-    const markup = renderToStaticMarkup(
+    const markup = renderWithLocale(
+      "zh-CN",
       createElement(MessagesResultsSection, { results, onAction: noop }),
     );
     // 3.4：标题去实现术语；技术说明收进 Disclosure（收起态不在标记里）
@@ -205,7 +207,8 @@ describe("5.4 结果区视图：登记身份 + 诚实空态 + 返回编辑", () 
   });
 
   it("零提交 ⇒ 引导语（尚未提交重发），不渲染任何结果块", () => {
-    const markup = renderToStaticMarkup(
+    const markup = renderWithLocale(
+      "zh-CN",
       createElement(MessagesResultsSection, { results: [], onAction: noop }),
     );
     expect(markup).toContain("尚未提交重发");

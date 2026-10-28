@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
+import { useTranslator } from "../i18n";
 import type { ConfirmationRow } from "../lib/execution-confirmation";
 import { DisclosureButton } from "./Disclosure";
 import { FOCUS_RING } from "./IconButton";
@@ -61,6 +62,8 @@ export function ConfirmationBlock({
   /** 附加内容（如 messages 的就近录制入口），渲染在原因行之后 */
   readonly children?: ReactNode;
 }): ReactNode {
+  const translator = useTranslator();
+  const detailsBoundary = translator.t("common.detailsBoundary");
   const [detailsOpen, setDetailsOpen] = useState(false);
   const borderClass =
     tone === "sky"
@@ -99,11 +102,13 @@ export function ConfirmationBlock({
         <DisclosureButton
           expanded={detailsOpen}
           onToggle={() => setDetailsOpen((prev) => !prev)}
-          label={detailsOpen ? "收起详细边界" : "展开详细边界"}
+          label={translator.t(detailsOpen ? "common.collapseNamed" : "common.expandNamed", {
+            name: detailsBoundary,
+          })}
           controls={controlsId}
           className="workspace-heading-disclosure px-1 text-[11px] text-gray-600 hover:bg-gray-50"
         >
-          详细边界
+          {detailsBoundary}
         </DisclosureButton>
         <div id={controlsId} className="workspace-heading-details" hidden={!detailsOpen}>
           {detailsOpen ? (

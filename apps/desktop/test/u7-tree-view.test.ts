@@ -9,6 +9,7 @@ import {
   treeRootOf,
   visibleRunIdsForScope,
 } from "../src/renderer/src/lib/tree-view";
+import { renderWithLocale } from "./i18n/render-with-locale";
 
 // BranchTree 的 store 薄壳在 import 时就会触到 `window.api` ⇒ 桩必须先就位
 (globalThis as Record<string, unknown>).window = { api: {} };
@@ -202,7 +203,7 @@ function render(
     onViewportChange: () => {},
     onModeChange: () => {},
   };
-  return renderToStaticMarkup(createElement(BranchTreeView, props));
+  return renderWithLocale("zh-CN", createElement(BranchTreeView, props));
 }
 
 function nodeHtml(markup: string, runId: string): string {
@@ -270,7 +271,8 @@ describe("U7 3.4/3.5 选中详情区（静态结构）", () => {
   function detailHtml(id: string, over: { inCompare?: boolean } = {}): string {
     const target = byId.get(id);
     if (target === undefined) throw new Error(`夹具缺 ${id}`);
-    return renderToStaticMarkup(
+    return renderWithLocale(
+      "zh-CN",
       createElement(SelectedRunDetail, {
         run: target,
         totals: deriveChainTotals(byId, id),
@@ -314,7 +316,8 @@ describe("U7 3.6 关系列表（图同步 + 键盘动作）", () => {
   const runs = [run("A"), run("B", { parent: "A" })];
 
   function listHtml(over: { selectedRunId?: string | null; compareIds?: string[] } = {}): string {
-    return renderToStaticMarkup(
+    return renderWithLocale(
+      "zh-CN",
       createElement(BranchTreeView, {
         runs,
         // U7 5.1：视图短 ID 由 store 同一会话 ShortIdState 现算传入（同 render()）
@@ -357,7 +360,8 @@ describe("U7 3.6 关系列表（图同步 + 键盘动作）", () => {
 describe("U7 3.7 缺父占位与实验分组（不造记录）", () => {
   it("缺父占位只显示真实引用与不可用原因，无任何动作按钮；原 run 保留", () => {
     const runs = [run("r_orphan", { parent: "r_missing" })];
-    const markup = renderToStaticMarkup(
+    const markup = renderWithLocale(
+      "zh-CN",
       createElement(BranchTreeView, {
         runs,
         shortIds: useAppStore.getState().shortIdState.update(runs.map((r) => r.id)),
@@ -399,7 +403,8 @@ describe("U7 3.7 缺父占位与实验分组（不造记录）", () => {
         fork: { at_span: "s_2", edit_field: "model_params", experiment_id: "exp1" },
       }),
     ];
-    const markup = renderToStaticMarkup(
+    const markup = renderWithLocale(
+      "zh-CN",
       createElement(BranchTreeView, {
         runs,
         shortIds: useAppStore.getState().shortIdState.update(runs.map((r) => r.id)),

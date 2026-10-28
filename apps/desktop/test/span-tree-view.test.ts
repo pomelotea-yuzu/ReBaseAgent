@@ -6,6 +6,7 @@ import { buildSpanTree } from "@shared/derive";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { renderWithLocale } from "./i18n/render-with-locale";
 
 // SpanTree 的 store 薄壳在 import 时就会触到 `window.api`（../lib/api.ts）
 // ⇒ 桩必须先就位；ESM 静态 import 会被提升，故用动态 import（同 5.1/5.2/5.3 的 test 文件）。
@@ -89,8 +90,8 @@ function tool(id: string, parent: string, name: string, error: string | null = n
   } as SpanLine;
 }
 
-const html = (node: Parameters<typeof renderToStaticMarkup>[0]): string =>
-  renderToStaticMarkup(node);
+const html = (node: Parameters<typeof renderWithLocale>[1]): string =>
+  renderWithLocale("zh-CN", node);
 const noop = (): void => {};
 
 // ---------------------------------------------------------------------------

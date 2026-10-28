@@ -1,7 +1,8 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { Disclosure, DisclosureButton } from "../src/renderer/src/components/Disclosure";
+import { renderWithLocale } from "./i18n/render-with-locale";
 
 /**
  * UI 密度 change（improve-workspace-reading-and-editing）任务 1.1/1.2/1.3：
@@ -16,8 +17,8 @@ import { Disclosure, DisclosureButton } from "../src/renderer/src/components/Dis
  *    文案变了能力还在 ⇒ 不算违规；结构缺了（无 aria-expanded / 无命中区类）才算。
  */
 
-const html = (node: Parameters<typeof renderToStaticMarkup>[0]): string =>
-  renderToStaticMarkup(node);
+const html = (node: Parameters<typeof renderWithLocale>[1]): string =>
+  renderWithLocale("zh-CN", node);
 
 describe("DisclosureButton：结构与可访问语义", () => {
   it("aria-expanded 与传入状态一致（true/false 都显式输出，不吃默认值）", () => {
@@ -147,5 +148,19 @@ describe("Disclosure：摘要行 + 受控内容块", () => {
     );
     expect(out).toContain("展开");
     expect(out).toContain("字段 message");
+  });
+
+  it("缺省动作文字随当前语言（中文展开/收起，英文 Expand/Collapse）", () => {
+    const en = renderWithLocale(
+      "en-US",
+      createElement(
+        Disclosure,
+        { summary: "Source details", expanded: false, onToggle: () => {}, controlsId: "x" },
+        createElement("div", null, "body"),
+      ),
+    );
+    expect(en).toContain("Expand");
+    expect(en).toContain("Source details (Expand)");
+    expect(en).not.toContain("展开");
   });
 });

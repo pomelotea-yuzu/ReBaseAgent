@@ -1,6 +1,7 @@
 import { deriveNavLabel, filterRuns } from "@shared/nav";
 import { classifyOutcome } from "@shared/outcome";
 import { useEffect, useRef, useState } from "react";
+import { useTranslator } from "../i18n";
 import { formatDuration, formatTime, formatTokens } from "../lib/format";
 import { NAV_MAX, NAV_MIN } from "../lib/layout";
 import { copyValueForRun, resolveEmptyCause, resolveNavListState } from "../lib/nav-notice";
@@ -30,6 +31,7 @@ export function RunList({
   fullWidth?: boolean;
   onSelected?: () => void;
 }) {
+  const translator = useTranslator();
   const runs = useAppStore((s) => s.runs);
   const failed = useAppStore((s) => s.failed);
   const selectedRunId = useAppStore((s) => s.selectedRunId);
@@ -260,10 +262,15 @@ export function RunList({
 
         {filtered.map((run) => {
           // 导航摘要（任务 4.4）：短 ID 只是**界面标识**，完整 ID 仍用于复制与 title
-          const label = deriveNavLabel(run, shortIds.get(run.id) ?? run.id, {
-            time: formatTime(run.created_at),
-            source: run.source === "proxy" ? "代理录制" : "本地记录",
-          });
+          const label = deriveNavLabel(
+            run,
+            shortIds.get(run.id) ?? run.id,
+            {
+              time: formatTime(run.created_at),
+              source: run.source === "proxy" ? "代理录制" : "本地记录",
+            },
+            translator,
+          );
           const outcome = classifyOutcome({ status: run.status, reason: run.reason });
           const zeroUsageNeedsExplanation =
             !outcome.normalEnd && run.tokensIn === 0 && run.tokensOut === 0;

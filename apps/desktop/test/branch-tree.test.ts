@@ -4,6 +4,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { TreeScope, TreeViewport } from "../src/renderer/src/lib/tree-view";
+import { renderWithLocale } from "./i18n/render-with-locale";
 
 // BranchTree 的 store 薄壳在 import 时就会触到 `window.api` ⇒ 桩必须先就位；
 // ESM 静态 import 会被提升，故用动态 import（同 run-workspace.test.ts）。
@@ -62,7 +63,8 @@ function render(
     viewport: TreeViewport | null;
   }> = {},
 ): string {
-  return renderToStaticMarkup(
+  return renderWithLocale(
+    "zh-CN",
     createElement(BranchTreeView, {
       runs,
       // U7 5.1：视图吃容器传入的会话短 ID（测试里按同一算法现算）

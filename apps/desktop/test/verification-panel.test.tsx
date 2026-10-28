@@ -12,6 +12,7 @@ import {
   verificationTargetKey,
 } from "../src/renderer/src/lib/verification-entry";
 import type { VerificationOutcomeView } from "../src/renderer/src/store/slices/verification";
+import { renderWithLocale } from "./i18n/render-with-locale";
 
 // VerificationPanel 是纯展示层（不触 store），但 ConfirmationBlock/Disclosure 链上有
 // 组件在 import 时触到 window ⇒ 先放桩（同 compare-metrics-table.test.ts 惯例）。
@@ -167,7 +168,7 @@ function baseProps(overrides?: Partial<Record<string, unknown>>) {
 }
 
 function render(props: Record<string, unknown>): string {
-  return renderToStaticMarkup(<VerificationPanel {...(props as never)} />);
+  return renderWithLocale("zh-CN", <VerificationPanel {...(props as never)} />);
 }
 
 describe("VerificationPanel（入口与资格）", () => {

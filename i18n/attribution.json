@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-28T04:32:48.831Z",
+  "generatedAt": "2026-10-28T04:51:23.756Z",
   "scanner": "scripts/i18n-attribution.cjs",
   "taxonomy": {
     "product": "产品展示：需要按批次迁移为双语资源",
@@ -9,11 +9,11 @@
     "generated": "生成资产：不作为产品文案"
   },
   "totals": {
-    "files": 261,
-    "occurrences": 3586,
-    "product": 3154,
+    "files": 251,
+    "occurrences": 3504,
+    "product": 3049,
     "original": 378,
-    "internal": 50,
+    "internal": 73,
     "generated": 4
   },
   "byLayer": {
@@ -26,17 +26,17 @@
       "generated": 0
     },
     "renderer": {
-      "files": 106,
-      "occurrences": 2251,
-      "product": 2250,
+      "files": 97,
+      "occurrences": 2170,
+      "product": 2146,
       "original": 0,
-      "internal": 1,
+      "internal": 24,
       "generated": 0
     },
     "shared": {
-      "files": 6,
-      "occurrences": 79,
-      "product": 79,
+      "files": 5,
+      "occurrences": 78,
+      "product": 78,
       "original": 0,
       "internal": 0,
       "generated": 0
@@ -516,8 +516,8 @@
             "启动残留核查异常：${…}"
           ],
           "lines": [
-            215,
-            234
+            214,
+            233
           ]
         },
         {
@@ -532,8 +532,8 @@
             "尚未配置运行参数（baseURL / apiKey / model），请先完成运行配置"
           ],
           "lines": [
-            291,
-            377
+            290,
+            376
           ]
         }
       ]
@@ -1403,104 +1403,6 @@
       ]
     },
     {
-      "path": "apps/desktop/src/renderer/src/App.tsx",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "通用外壳/组件",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "RunWorkspace.button",
-          "role": "ui_attr",
-          "context": "title",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "临时收起辅助区域，退出后恢复原布局与阅读状态"
-          ],
-          "lines": [
-            408
-          ]
-        },
-        {
-          "symbol": "RunWorkspace.button",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "退出专注",
-            "专注差异"
-          ],
-          "lines": [
-            411
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "ui_attr",
-          "context": "aria-label",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "返回比较工作区"
-          ],
-          "lines": [
-            458
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "返回比较"
-          ],
-          "lines": [
-            468
-          ]
-        },
-        {
-          "symbol": "div.span",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "比较对象已保留：左",
-            "→ 右"
-          ],
-          "lines": [
-            471
-          ]
-        },
-        {
-          "symbol": "button.span",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "重新打开步骤目录"
-          ],
-          "lines": [
-            500
-          ]
-        }
-      ]
-    },
-    {
       "path": "apps/desktop/src/renderer/src/components/AbBatchResult.tsx",
       "layer": "renderer",
       "package": null,
@@ -1730,9 +1632,9 @@
             "parent 链成环，已断开并把该 run 提为根"
           ],
           "lines": [
-            53,
             54,
-            57
+            55,
+            58
           ]
         },
         {
@@ -1747,11 +1649,11 @@
             "先跑一次（接 trace-sdk / agent-loop），或把应用的 base_url 指到本地录制代理录一次。"
           ],
           "lines": [
-            238,
-            240,
-            694,
-            789,
-            793
+            239,
+            241,
+            695,
+            791,
+            795
           ]
         },
         {
@@ -1766,8 +1668,8 @@
             "次运行 · 节点为运行、连线为一次分叉 · 只读"
           ],
           "lines": [
-            260,
-            262
+            261,
+            263
           ]
         },
         {
@@ -1782,10 +1684,10 @@
             "${…} · ${…}（双击打开运行）"
           ],
           "lines": [
-            272,
-            524,
-            656,
-            811
+            273,
+            525,
+            657,
+            813
           ]
         },
         {
@@ -1800,8 +1702,8 @@
             "呈现模式"
           ],
           "lines": [
-            279,
-            322
+            280,
+            323
           ]
         },
         {
@@ -1816,16 +1718,16 @@
             "全部关系"
           ],
           "lines": [
-            290,
-            302,
-            331,
-            341,
-            353,
-            369,
-            639,
-            646,
-            766,
-            801
+            291,
+            303,
+            332,
+            342,
+            354,
+            370,
+            640,
+            647,
+            768,
+            803
           ]
         },
         {
@@ -1839,7 +1741,7 @@
             "搜索运行（完整 ID 或任务）"
           ],
           "lines": [
-            309
+            310
           ]
         },
         {
@@ -1854,8 +1756,8 @@
             "搜索运行（完整 ID 或任务）"
           ],
           "lines": [
-            314,
-            315
+            315,
+            316
           ]
         },
         {
@@ -1870,7 +1772,7 @@
             "」的运行（按完整 ID 与任务原值匹配）。原选择保持不变。"
           ],
           "lines": [
-            397
+            398
           ]
         },
         {
@@ -1885,8 +1787,8 @@
             "所属树根 ${…}"
           ],
           "lines": [
-            416,
-            417
+            417,
+            418
           ]
         },
         {
@@ -1900,7 +1802,7 @@
             "范围外"
           ],
           "lines": [
-            422
+            423
           ]
         },
         {
@@ -1915,15 +1817,15 @@
             "代理"
           ],
           "lines": [
-            536,
-            544,
-            554,
-            557,
-            658,
-            671,
-            756,
-            774,
-            776
+            537,
+            545,
+            555,
+            558,
+            659,
+            672,
+            758,
+            776,
+            778
           ]
         },
         {
@@ -1938,8 +1840,8 @@
             "记录的实验组标签（真实 experimentId）"
           ],
           "lines": [
-            553,
-            669
+            554,
+            670
           ]
         },
         {
@@ -1954,8 +1856,8 @@
             "步 ·"
           ],
           "lines": [
-            562,
-            570
+            563,
+            571
           ]
         },
         {
@@ -1969,7 +1871,7 @@
             "沿 parent 链把各代增量逐段求和；不等于从头连续跑一次的消耗；累计值复制完整数字请开运行详情"
           ],
           "lines": [
-            568
+            569
           ]
         },
         {
@@ -1983,7 +1885,7 @@
             "把 ${…} 加入对照"
           ],
           "lines": [
-            578
+            579
           ]
         },
         {
@@ -1997,7 +1899,7 @@
             "加入对照（最多 4 条）"
           ],
           "lines": [
-            579
+            580
           ]
         },
         {
@@ -2012,8 +1914,8 @@
             "）——子运行"
           ],
           "lines": [
-            601,
-            602
+            602,
+            603
           ]
         },
         {
@@ -2028,8 +1930,8 @@
             "臂）"
           ],
           "lines": [
-            620,
-            621
+            621,
+            622
           ]
         },
         {
@@ -2043,7 +1945,7 @@
             "所选运行详情"
           ],
           "lines": [
-            748
+            750
           ]
         },
         {
@@ -2057,7 +1959,7 @@
             "所选运行"
           ],
           "lines": [
-            752
+            754
           ]
         },
         {
@@ -2072,9 +1974,9 @@
             "· 分叉点"
           ],
           "lines": [
-            781,
-            791,
-            792
+            783,
+            793,
+            794
           ]
         },
         {
@@ -2088,7 +1990,7 @@
             "完整任务"
           ],
           "lines": [
-            786
+            788
           ]
         }
       ]
@@ -3473,75 +3375,6 @@
             803,
             811,
             819
-          ]
-        }
-      ]
-    },
-    {
-      "path": "apps/desktop/src/renderer/src/components/ConfirmationBlock.tsx",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "通用外壳/组件",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "div.DisclosureButton",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "收起详细边界",
-            "展开详细边界"
-          ],
-          "lines": [
-            102
-          ]
-        },
-        {
-          "symbol": "div.DisclosureButton",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "详细边界"
-          ],
-          "lines": [
-            106
-          ]
-        }
-      ]
-    },
-    {
-      "path": "apps/desktop/src/renderer/src/components/ConfirmDialog.tsx",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "通用外壳/组件",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "div.button",
-          "role": "ui_text",
-          "context": "jsx_expr",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "取消",
-            "确认放弃"
-          ],
-          "lines": [
-            100,
-            109
           ]
         }
       ]
@@ -5548,34 +5381,6 @@
       ]
     },
     {
-      "path": "apps/desktop/src/renderer/src/components/Disclosure.tsx",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "通用外壳/组件",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "Disclosure",
-          "role": "other",
-          "context": "",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "展开",
-            "收起"
-          ],
-          "lines": [
-            98,
-            99
-          ]
-        }
-      ]
-    },
-    {
       "path": "apps/desktop/src/renderer/src/components/DraftCompareGrid.tsx",
       "layer": "renderer",
       "package": null,
@@ -5996,248 +5801,6 @@
           ],
           "lines": [
             116
-          ]
-        }
-      ]
-    },
-    {
-      "path": "apps/desktop/src/renderer/src/components/GlobalBar.tsx",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "通用外壳/组件",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "options.label",
-          "role": "ui_prop",
-          "context": "label",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "运行记录",
-            "分支关系"
-          ],
-          "lines": [
-            43,
-            49
-          ]
-        },
-        {
-          "symbol": "options.hint",
-          "role": "ui_prop",
-          "context": "hint",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "运行记录视图：运行列表与概览、步骤、文件页签",
-            "宽幅分支关系：节点为运行、连线为分叉，可勾选多条对照"
-          ],
-          "lines": [
-            45,
-            51
-          ]
-        },
-        {
-          "symbol": "fieldset.legend",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "主视图切换"
-          ],
-          "lines": [
-            59
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "ui_attr",
-          "context": "title",
-          "classification": "product",
-          "reason": null,
-          "count": 4,
-          "samples": [
-            "本地录制代理：把你的 Agent 应用 base_url 指到 http://127.0.0.1:<端口>/v1，key 一字不动即可录制",
-            "配置 LLM 接入（baseURL / apiKey / model），供“在此重跑”发起真实调用"
-          ],
-          "lines": [
-            116,
-            158,
-            223,
-            232
-          ]
-        },
-        {
-          "symbol": "button.span",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "未捕获 key"
-          ],
-          "lines": [
-            128
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 4,
-          "samples": [
-            "打开录制工作区查看受控原因、重读状态或重新保存并应用",
-            "打开录制工作区查看本次启动恢复的进行情况"
-          ],
-          "lines": [
-            140,
-            141,
-            149
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "运行配置",
-            "新建运行"
-          ],
-          "lines": [
-            167,
-            227,
-            236
-          ]
-        },
-        {
-          "symbol": "header.button",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 4,
-          "samples": [
-            "收起运行列表",
-            "打开运行列表"
-          ],
-          "lines": [
-            196,
-            197
-          ]
-        }
-      ]
-    },
-    {
-      "path": "apps/desktop/src/renderer/src/components/LongText.tsx",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "通用外壳/组件",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "collapsedLabel",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "${…}（${…} 字符，点击展开完整内容）"
-          ],
-          "lines": [
-            35
-          ]
-        },
-        {
-          "symbol": "copyFeedbackText",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "已复制原文",
-            "当前环境不支持复制（可手动选择文本）"
-          ],
-          "lines": [
-            60
-          ]
-        },
-        {
-          "symbol": "findCountLabel",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "无命中",
-            "第 ${…} / ${…} 个"
-          ],
-          "lines": [
-            79,
-            80
-          ]
-        },
-        {
-          "symbol": "div.input",
-          "role": "ui_attr",
-          "context": "placeholder",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "在原文中查找"
-          ],
-          "lines": [
-            178
-          ]
-        },
-        {
-          "symbol": "div.input",
-          "role": "ui_text",
-          "context": "jsx_expr",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "在${…}中查找"
-          ],
-          "lines": [
-            179
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "上一个",
-            "下一个"
-          ],
-          "lines": [
-            191,
-            199,
-            206
           ]
         }
       ]
@@ -8227,32 +7790,6 @@
       ]
     },
     {
-      "path": "apps/desktop/src/renderer/src/components/ResizeGrip.tsx",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "通用外壳/组件",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "ResizeGrip.div",
-          "role": "ui_text",
-          "context": "jsx_expr",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "${…} ${…}px（${…}–${…}）· 拖动或 ←/→ 调整"
-          ],
-          "lines": [
-            95
-          ]
-        }
-      ]
-    },
-    {
       "path": "apps/desktop/src/renderer/src/components/RunActionsBar.tsx",
       "layer": "renderer",
       "package": null,
@@ -8344,7 +7881,7 @@
             "运行列表"
           ],
           "lines": [
-            109
+            111
           ]
         },
         {
@@ -8359,8 +7896,8 @@
             "收起运行列表"
           ],
           "lines": [
-            125,
-            127
+            127,
+            129
           ]
         },
         {
@@ -8374,7 +7911,7 @@
             "运行记录"
           ],
           "lines": [
-            130
+            132
           ]
         },
         {
@@ -8389,7 +7926,7 @@
             "收起"
           ],
           "lines": [
-            132
+            134
           ]
         },
         {
@@ -8404,8 +7941,8 @@
             "展开每条记录的模型与消耗指标（步数、工具、tokens、缓存命中、时长）"
           ],
           "lines": [
-            138,
-            181
+            140,
+            183
           ]
         },
         {
@@ -8420,8 +7957,8 @@
             "指标"
           ],
           "lines": [
-            141,
-            186
+            143,
+            188
           ]
         },
         {
@@ -8435,7 +7972,7 @@
             "按创建时间倒序 · trace 只读"
           ],
           "lines": [
-            144
+            146
           ]
         },
         {
@@ -8449,7 +7986,7 @@
             "搜索完整任务或运行 ID"
           ],
           "lines": [
-            152
+            154
           ]
         },
         {
@@ -8464,9 +8001,9 @@
             "代理录制"
           ],
           "lines": [
-            158,
-            159,
-            160
+            160,
+            161,
+            162
           ]
         },
         {
@@ -8481,8 +8018,8 @@
             "列表未更新，仍显示上次结果。"
           ],
           "lines": [
-            194,
-            209
+            196,
+            211
           ]
         },
         {
@@ -8497,13 +8034,13 @@
             "重试"
           ],
           "lines": [
-            200,
-            215,
-            228,
-            248,
-            366,
-            367,
-            370
+            202,
+            217,
+            230,
+            250,
+            373,
+            374,
+            377
           ]
         },
         {
@@ -8518,10 +8055,10 @@
             "当前条件下没有匹配的运行记录。"
           ],
           "lines": [
-            235,
-            242,
-            253,
-            255
+            237,
+            244,
+            255,
+            257
           ]
         },
         {
@@ -8536,7 +8073,7 @@
             "本地记录"
           ],
           "lines": [
-            265
+            270
           ]
         },
         {
@@ -8550,7 +8087,7 @@
             "经本地录制代理录制（可在其 llm.call 详情编辑 messages 重发）"
           ],
           "lines": [
-            294
+            301
           ]
         },
         {
@@ -8564,7 +8101,7 @@
             "代理录制"
           ],
           "lines": [
-            296
+            303
           ]
         },
         {
@@ -8579,14 +8116,14 @@
             "分支"
           ],
           "lines": [
-            315,
-            318,
-            321,
-            335,
-            336,
-            340,
-            345,
-            353
+            322,
+            325,
+            328,
+            342,
+            343,
+            347,
+            352,
+            360
           ]
         },
         {
@@ -8600,7 +8137,7 @@
             "本 run 自有 llm.call 的已记录命中量（不含祖先共享前缀，非全运行命中率）"
           ],
           "lines": [
-            351
+            358
           ]
         },
         {
@@ -8614,7 +8151,7 @@
             "读取失败："
           ],
           "lines": [
-            378
+            385
           ]
         },
         {
@@ -8628,7 +8165,7 @@
             "运行导航宽度"
           ],
           "lines": [
-            387
+            394
           ]
         }
       ]
@@ -8711,7 +8248,7 @@
             "概览"
           ],
           "lines": [
-            39
+            40
           ]
         },
         {
@@ -8725,7 +8262,7 @@
             "步骤"
           ],
           "lines": [
-            40
+            41
           ]
         },
         {
@@ -8739,7 +8276,7 @@
             "文件"
           ],
           "lines": [
-            41
+            42
           ]
         },
         {
@@ -8753,40 +8290,7 @@
             "运行工作区页签"
           ],
           "lines": [
-            90
-          ]
-        },
-        {
-          "symbol": "section.div",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "数据目录里还没有运行记录",
-            "可以直接在这里跑一个 run（纯对话或隔离文件运行，不需要代理、不需要写代码）， 也可以在设置里打开录制代理，把你现有 Agent 的 base_url 指过来。"
-          ],
-          "lines": [
-            142,
-            144,
-            164
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "新建运行",
-            "接入录制"
-          ],
-          "lines": [
-            153,
-            160
+            91
           ]
         },
         {
@@ -8800,7 +8304,7 @@
             "尚未选择运行"
           ],
           "lines": [
-            240
+            241
           ]
         },
         {
@@ -8814,7 +8318,7 @@
             "运行 ID"
           ],
           "lines": [
-            257
+            258
           ]
         },
         {
@@ -8828,7 +8332,7 @@
             "运行 ID"
           ],
           "lines": [
-            259
+            260
           ]
         },
         {
@@ -8843,224 +8347,10 @@
             "父运行 ${…} · 检查点 ${…}"
           ],
           "lines": [
-            267,
-            272,
-            274,
-            275
-          ]
-        }
-      ]
-    },
-    {
-      "path": "apps/desktop/src/renderer/src/components/SessionActivity.tsx",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "运行总览/详情",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "discardDraftItem.title",
-          "role": "ui_prop",
-          "context": "title",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "放弃草稿"
-          ],
-          "lines": [
-            91
-          ]
-        },
-        {
-          "symbol": "discardDraftItem.message",
-          "role": "ui_prop",
-          "context": "message",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "放弃「${…}」的草稿？${…}\n内容将被删除，不可撤销。"
-          ],
-          "lines": [
-            92
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "ui_attr",
-          "context": "title",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "本会话的活动：未提交修改、主动操作与结果待查看（同一处入口，不另设第二份状态）",
-            "重新读取主进程的操作快照（只读）"
-          ],
-          "lines": [
-            134,
-            244,
-            326
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "会话活动"
-          ],
-          "lines": [
-            142
-          ]
-        },
-        {
-          "symbol": "span.span",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "修改",
-            "操作"
-          ],
-          "lines": [
-            145,
-            148,
-            151
-          ]
-        },
-        {
-          "symbol": "div.section",
-          "role": "ui_attr",
-          "context": "aria-label",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "未提交修改",
-            "主动操作"
-          ],
-          "lines": [
-            164,
-            233,
-            295
-          ]
-        },
-        {
-          "symbol": "div.span",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "需处理的修改",
-            "本会话操作"
-          ],
-          "lines": [
-            167,
-            236
-          ]
-        },
-        {
-          "symbol": "section.div",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "录制配置有未应用的修改",
-            "未修改的编辑会话 ·"
-          ],
-          "lines": [
-            172,
-            209,
-            297
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "去录制",
-            "刷新"
-          ],
-          "lines": [
-            181,
-            246
-          ]
-        },
-        {
-          "symbol": "section.DraftListPanel",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "草稿没有待处理的修改；上面的录制配置修改仍在。",
-            "没有待处理的草稿修改。"
-          ],
-          "lines": [
-            189,
-            190
-          ]
-        },
-        {
-          "symbol": "section.DraftListPanel",
-          "role": "ui_attr",
-          "context": "emptyHint",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "没有未修改的编辑会话。"
-          ],
-          "lines": [
-            213
-          ]
-        },
-        {
-          "symbol": "section.p",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "本会话还没有主动操作：新建运行、结果重跑、改提示词、代理重发或模型 A/B 提交后，会在这里显示真实状态与可信运行 ID。",
-            "没有待查看的结果通知。"
-          ],
-          "lines": [
-            251,
-            301
-          ]
-        },
-        {
-          "symbol": "div.p",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "「核对状态」只查操作登记（不读运行文件、不切页面）；要看内容请明确点「打开结果」。 面板关闭时结果通知仍经 polite live 区域播报，不抢当前页面。草稿不落盘，关闭应用即清空。"
-          ],
-          "lines": [
-            318
+            268,
+            273,
+            275,
+            276
           ]
         }
       ]
@@ -10908,62 +10198,21 @@
       ]
     },
     {
-      "path": "apps/desktop/src/renderer/src/components/WorkspaceHeading.tsx",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "通用外壳/组件",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "WorkspaceHeading",
-          "role": "other",
-          "context": "",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "详细说明"
-          ],
-          "lines": [
-            12
-          ]
-        },
-        {
-          "symbol": "div.DisclosureButton",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "收起",
-            "展开"
-          ],
-          "lines": [
-            40
-          ]
-        }
-      ]
-    },
-    {
       "path": "apps/desktop/src/renderer/src/lib/a11y-action.ts",
       "layer": "renderer",
       "package": null,
       "workspace": "通用外壳/组件",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "internal",
+      "batch": null,
+      "status": "excluded",
+      "reason": "开发期可访问性审计判据，只在测试/断言中消费",
       "symbols": [
         {
           "symbol": "auditAccessibleAction.message",
           "role": "ui_prop",
           "context": "message",
-          "classification": "product",
-          "reason": null,
+          "classification": "internal",
+          "reason": "开发期可访问性审计判据，只在测试/断言中消费",
           "count": 4,
           "samples": [
             "纯图标控件必须有可访问名称",
@@ -12870,17 +12119,17 @@
       "layer": "renderer",
       "package": null,
       "workspace": "通用外壳/组件",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "internal",
+      "batch": null,
+      "status": "excluded",
+      "reason": "文件内唯一中文是历史状态短标签 reasonLabel，当前界面无消费点（状态由 RunStatusBadge/classifyOutcome 呈现）",
       "symbols": [
         {
           "symbol": "reasonLabel",
           "role": "return",
           "context": "return",
-          "classification": "product",
-          "reason": null,
+          "classification": "internal",
+          "reason": "文件内唯一中文是历史状态短标签 reasonLabel，当前界面无消费点（状态由 RunStatusBadge/classifyOutcome 呈现）",
           "count": 6,
           "samples": [
             "已完成",
@@ -13534,17 +12783,17 @@
       "layer": "renderer",
       "package": null,
       "workspace": "通用外壳/组件",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "internal",
+      "batch": null,
+      "status": "excluded",
+      "reason": "自动导航判定理由，仅内部区分 wait/drop 使用，不显示给用户",
       "symbols": [
         {
           "symbol": "decideResultNavigation.reason",
           "role": "ui_prop",
           "context": "reason",
-          "classification": "product",
-          "reason": null,
+          "classification": "internal",
+          "reason": "自动导航判定理由，仅内部区分 wait/drop 使用，不显示给用户",
           "count": 10,
           "samples": [
             "终态由显式核对得到：只通知，不跳转",
@@ -13566,8 +12815,8 @@
           "symbol": "decideResultNavigation.reason",
           "role": "ui_text",
           "context": "ternary",
-          "classification": "product",
-          "reason": null,
+          "classification": "internal",
+          "reason": "自动导航判定理由，仅内部区分 wait/drop 使用，不显示给用户",
           "count": 2,
           "samples": [
             "结果未定位（登记里没有可信运行 id）：不猜一个 run 去跳",
@@ -15869,17 +15118,17 @@
       "layer": "renderer",
       "package": null,
       "workspace": "通用外壳/组件",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "internal",
+      "batch": null,
+      "status": "excluded",
+      "reason": "渲染入口启动断言（缺 #root 即崩溃），不面向用户",
       "symbols": [
         {
           "symbol": "<module>",
           "role": "error_message",
           "context": "new Error",
-          "classification": "product",
-          "reason": null,
+          "classification": "internal",
+          "reason": "渲染入口启动断言（缺 #root 即崩溃），不面向用户",
           "count": 1,
           "samples": [
             "未找到 #root 挂载点"
@@ -16866,32 +16115,6 @@
           "lines": [
             953,
             962
-          ]
-        }
-      ]
-    },
-    {
-      "path": "apps/desktop/src/shared/nav.ts",
-      "layer": "shared",
-      "package": null,
-      "workspace": "shared",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "deriveNavLabel.model",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "未记录"
-          ],
-          "lines": [
-            136
           ]
         }
       ]

@@ -151,7 +151,7 @@ describe("5.2 关闭详情只关查看：不冒充停止、不触达登记", () 
     ]) {
       expect(closeBlock, forbidden).not.toContain(forbidden);
     }
-    // 关闭按钮的标签不是「停止/取消」（UI 整理 3.3 后面板在 SessionActivity）
-    expect(src).toContain('aria-label="关闭会话活动面板"');
+    // 关闭按钮的标签不是「停止/取消」（UI 整理 3.3 后面板在 SessionActivity，文案走 i18n）
+    expect(src).toContain('aria-label={translator.t("common.closeActivityPanel")}');
   });
 });

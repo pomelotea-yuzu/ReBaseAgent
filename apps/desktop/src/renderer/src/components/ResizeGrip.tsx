@@ -14,6 +14,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslator } from "../i18n";
 import { FOCUS_RING } from "./IconButton";
 
 export function ResizeGrip({
@@ -34,6 +35,7 @@ export function ResizeGrip({
   /** 键盘调整：返回 true = 已消费该键 */
   onWidthKey: (key: string) => boolean;
 }) {
+  const translator = useTranslator();
   const [dragging, setDragging] = useState(false);
   const origin = useRef({ x: 0, width: 0 });
 
@@ -92,7 +94,7 @@ export function ResizeGrip({
       onPointerUp={stop}
       onPointerCancel={stop}
       onKeyDown={onKeyDown}
-      title={`${label} ${width}px（${min}–${max}）· 拖动或 ←/→ 调整`}
+      title={translator.t("common.resizeGripTitle", { label, width, min, max })}
       className={`absolute inset-y-0 right-0 z-10 w-1 cursor-col-resize bg-transparent transition-colors hover:bg-sky-300 ${
         dragging ? "bg-sky-400" : ""
       } ${FOCUS_RING}`}

@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { COLLAPSE_THRESHOLD } from "../src/renderer/src/components/LongText";
 import { ArmPlanRow } from "../src/renderer/src/components/ModelAbEditor";
+import { renderWithLocale } from "./i18n/render-with-locale";
 
 // ModelAbEditor → store → lib/api.ts 模块级读 window.api：先打桩再求值（引擎室纪律）
 vi.hoisted(() => {
@@ -32,7 +33,7 @@ function plan(overrides: Partial<ModelArmPlan> = {}): ModelArmPlan {
 
 describe("U8 3.4：ArmPlanRow 长字段展开与复制", () => {
   it("短值 ⇒ 内联原形态（无折叠、无 details）", () => {
-    const html = renderToStaticMarkup(<ArmPlanRow arm={plan()} />);
+    const html = renderWithLocale("zh-CN", <ArmPlanRow arm={plan()} />);
     expect(html).toContain("deepseek-chat");
     expect(html).not.toContain("<details");
     expect(html).toContain("（覆盖）");
@@ -40,7 +41,7 @@ describe("U8 3.4：ArmPlanRow 长字段展开与复制", () => {
 
   it("超长 model ⇒ 折叠摘要（带字符数）+ details 可展开，完整原文仍在 DOM", () => {
     const longModel = "m".repeat(COLLAPSE_THRESHOLD + 1);
-    const html = renderToStaticMarkup(<ArmPlanRow arm={plan({ model: longModel })} />);
+    const html = renderWithLocale("zh-CN", <ArmPlanRow arm={plan({ model: longModel })} />);
     expect(html).toContain("<details");
     expect(html).toContain(`${longModel.length} 字符`);
     expect(html).toContain("点击展开完整内容");
@@ -51,7 +52,8 @@ describe("U8 3.4：ArmPlanRow 长字段展开与复制", () => {
 
   it("超长告警 reason ⇒ 可展开可复制（绕行文案同样处理）", () => {
     const reason = "r".repeat(COLLAPSE_THRESHOLD + 1);
-    const html = renderToStaticMarkup(
+    const html = renderWithLocale(
+      "zh-CN",
       <ArmPlanRow
         arm={plan({
           warnings: [{ key: "num_ctx", reason, workaround: "改用支持 num_ctx 的 upstream" }],
@@ -65,7 +67,8 @@ describe("U8 3.4：ArmPlanRow 长字段展开与复制", () => {
 
   it("超长丢弃父录值 ⇒ 同样可展开复制（整体替换语义文案保留）", () => {
     const longValue = "v".repeat(COLLAPSE_THRESHOLD + 1);
-    const html = renderToStaticMarkup(
+    const html = renderWithLocale(
+      "zh-CN",
       <ArmPlanRow arm={plan({ discarded: [["num_predict", longValue]] })} />,
     );
     expect(html).toContain("<details");

@@ -10,6 +10,7 @@ import {
   experimentCompareHintOf,
 } from "../src/renderer/src/lib/experiment-results";
 import { emptyResultReadStore, setResultRead } from "../src/renderer/src/lib/result-verification";
+import { renderWithLocale } from "./i18n/render-with-locale";
 
 /**
  * U8（unify-recording-and-experiment-workspaces）任务 4.1/4.2：**实验工作区的批次结果区**。
@@ -201,7 +202,8 @@ describe("4.1/4.2 批次结果区视图：登记身份 + 逐批分块", () => {
       ],
       reads: emptyResultReadStore(),
     });
-    const markup = renderToStaticMarkup(
+    const markup = renderWithLocale(
+      "zh-CN",
       createElement(ExperimentResultsSection, { batches, onArmAction: noop }),
     );
     // 3.4：标题与组头去实现术语；分组技术说明收进 Disclosure（收起态不在标记里）
@@ -231,7 +233,8 @@ describe("4.1/4.2 批次结果区视图：登记身份 + 逐批分块", () => {
       ],
       reads: emptyResultReadStore(),
     });
-    const markup = renderToStaticMarkup(
+    const markup = renderWithLocale(
+      "zh-CN",
       createElement(ExperimentResultsSection, { batches, onArmAction: noop }),
     );
     // 没有可信 ID ⇒ 没有动作按钮（打开/失败定位/重读都不给），不生成伪链接；
@@ -248,7 +251,8 @@ describe("4.1/4.2 批次结果区视图：登记身份 + 逐批分块", () => {
       operations: [abRecord()],
       reads: emptyResultReadStore(),
     });
-    const selected = renderToStaticMarkup(
+    const selected = renderWithLocale(
+      "zh-CN",
       createElement(ExperimentResultsSection, {
         batches,
         onArmAction: noop,
@@ -272,7 +276,8 @@ describe("4.1/4.2 批次结果区视图：登记身份 + 逐批分块", () => {
       operations: [abRecord()],
       reads: emptyResultReadStore(),
     });
-    const fewer = renderToStaticMarkup(
+    const fewer = renderWithLocale(
+      "zh-CN",
       createElement(ExperimentResultsSection, {
         batches,
         onArmAction: noop,
@@ -286,7 +291,8 @@ describe("4.1/4.2 批次结果区视图：登记身份 + 逐批分块", () => {
     expect(fewer).toContain('data-experiment-enter-compare="true" disabled=""');
     expect(fewer).toContain("选择两条即可进入详细比较");
 
-    const two = renderToStaticMarkup(
+    const two = renderWithLocale(
+      "zh-CN",
       createElement(ExperimentResultsSection, {
         batches,
         onArmAction: noop,
@@ -301,7 +307,8 @@ describe("4.1/4.2 批次结果区视图：登记身份 + 逐批分块", () => {
     expect(two).toContain('data-experiment-enter-compare="true" title=');
     expect(two).not.toContain('data-experiment-enter-compare="true" disabled');
 
-    const noticed = renderToStaticMarkup(
+    const noticed = renderWithLocale(
+      "zh-CN",
       createElement(ExperimentResultsSection, {
         batches,
         onArmAction: noop,
@@ -315,7 +322,8 @@ describe("4.1/4.2 批次结果区视图：登记身份 + 逐批分块", () => {
   });
 
   it("零批次 ⇒ 引导语（尚未执行实验），不渲染任何批次块", () => {
-    const markup = renderToStaticMarkup(
+    const markup = renderWithLocale(
+      "zh-CN",
       createElement(ExperimentResultsSection, { batches: [], onArmAction: noop }),
     );
     expect(markup).toContain("尚未执行实验");

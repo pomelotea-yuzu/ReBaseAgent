@@ -4,6 +4,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { RunDetail } from "../src/shared/ipc";
+import { renderWithLocale } from "./i18n/render-with-locale";
 
 /**
  * UI 密度 change（improve-workspace-reading-and-editing）任务 2.1：
@@ -85,7 +86,8 @@ function text(path: string, body: string): Record<string, unknown> {
 
 function renderBody(overrides: Record<string, unknown> = {}): string {
   const run = isolatedRun();
-  return renderToStaticMarkup(
+  return renderWithLocale(
+    "zh-CN",
     createElement(WorkspaceFileViewBody, {
       run,
       options: [],

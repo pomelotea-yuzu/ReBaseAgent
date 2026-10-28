@@ -17,8 +17,10 @@
  *     "第 n / m 个"提示。查找输入框只在展开后出现——折叠时连原文都看不到，查找无处可用。
  */
 
+import type { Translator } from "@rebaseagent/i18n";
 import { ChevronDown } from "lucide-react";
 import { useState } from "react";
+import { useTranslator } from "../i18n";
 import { findInText, splitByMatches, stepFind } from "../lib/call-detail-view";
 import { expandedKeysInclude, toggleExpandedKey } from "../lib/reading-state";
 
@@ -31,8 +33,8 @@ export function shouldCollapse(text: string): boolean {
 }
 
 /** 折叠摘要文案：带真实字符数——用户据此判断"展开的是多大一块内容" */
-export function collapsedLabel(text: string, label: string): string {
-  return `${label}（${text.length} 字符，点击展开完整内容）`;
+export function collapsedLabel(text: string, label: string, translator: Translator): string {
+  return translator.t("common.longTextCollapsed", { label, count: text.length });
 }
 
 /**
@@ -55,9 +57,12 @@ export function toggleLongTextExpanded(expanded: string[] | undefined, id: strin
   return toggleExpandedKey(expanded, id);
 }
 
-/** 复制反馈文案（英文/中文各一份？不需要——统一中文，且**如实**区分成功与不可用） */
-export function copyFeedbackText(outcome: "copied" | "unavailable"): string {
-  return outcome === "copied" ? "已复制原文" : "当前环境不支持复制（可手动选择文本）";
+/** 复制反馈文案：按当前语言如实区分成功与不可用。 */
+export function copyFeedbackText(
+  outcome: "copied" | "unavailable",
+  translator: Translator,
+): string {
+  return translator.t(outcome === "copied" ? "common.copiedOriginal" : "common.copyUnavailable");
 }
 
 /**
@@ -75,9 +80,15 @@ export function copyPayload(text: string): string {
 }
 
 /** 查找的计数提示；无命中时明确说"无命中"，不显示"0 / 0"让人以为没搜 */
-export function findCountLabel(result: { matches: unknown[]; index: number }): string {
-  if (result.matches.length === 0) return "无命中";
-  return `第 ${result.index + 1} / ${result.matches.length} 个`;
+export function findCountLabel(
+  result: { matches: unknown[]; index: number },
+  translator: Translator,
+): string {
+  if (result.matches.length === 0) return translator.t("common.noMatches");
+  return translator.t("common.matchPosition", {
+    index: result.index + 1,
+    total: result.matches.length,
+  });
 }
 
 export function LongText({
@@ -93,6 +104,7 @@ export function LongText({
   /** 展开状态变化回调（受控时必须提供，否则切换会被 React 忽略成不生效） */
   onToggle?: (next: boolean) => void;
 }) {
+  const translator = useTranslator();
   // 非受控兜底：既有调用点不传 expanded 时行为与改造前一致
   const [uncontrolled, setUncontrolled] = useState(false);
   const [query, setQuery] = useState("");
@@ -162,7 +174,7 @@ export function LongText({
           role="presentation"
           className={`shrink-0 transition-transform ${isExpanded ? "" : "-rotate-90"}`}
         />
-        {collapsedLabel(text, label)}
+        {collapsedLabel(text, label, translator)}
       </summary>
 
       {showTools ? (
@@ -175,12 +187,12 @@ export function LongText({
               setQuery(event.target.value);
               setFindIndex(0);
             }}
-            placeholder="在原文中查找"
-            aria-label={`在${label}中查找`}
+            placeholder={translator.t("common.findInOriginal")}
+            aria-label={translator.t("common.findWithinLabel", { label })}
             className="w-40 rounded border border-gray-300 px-1.5 py-0.5 text-[11px] text-gray-700 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none"
           />
           <span className="text-gray-500" aria-live="polite">
-            {query === "" ? "" : findCountLabel(find)}
+            {query === "" ? "" : findCountLabel(find, translator)}
           </span>
           <button
             type="button"
@@ -188,7 +200,7 @@ export function LongText({
             disabled={find.matches.length === 0}
             className="rounded border border-gray-300 px-1.5 py-0.5 text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            上一个
+            {translator.t("common.previous")}
           </button>
           <button
             type="button"
@@ -196,17 +208,17 @@ export function LongText({
             disabled={find.matches.length === 0}
             className="rounded border border-gray-300 px-1.5 py-0.5 text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            下一个
+            {translator.t("common.next")}
           </button>
           <button
             type="button"
             onClick={copy}
             className="rounded border border-gray-300 px-1.5 py-0.5 text-gray-600 hover:bg-gray-50"
           >
-            复制原文
+            {translator.t("common.copyOriginal")}
           </button>
           {copyFeedback !== null ? (
-            <span className="text-gray-500">{copyFeedbackText(copyFeedback)}</span>
+            <span className="text-gray-500">{copyFeedbackText(copyFeedback, translator)}</span>
           ) : null}
         </div>
       ) : null}

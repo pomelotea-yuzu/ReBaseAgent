@@ -3,8 +3,9 @@ import { resolve } from "node:path";
 import { readRun } from "@rebaseagent/trace-sdk";
 import type { RunEventLine, SpanLine } from "@rebaseagent/trace-sdk";
 import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
+import type { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { renderWithLocale } from "./i18n/render-with-locale";
 
 // OverviewPanel 的 store 薄壳在 import 时就会触到 `window.api`（../lib/api.ts）
 // ⇒ 桩必须先就位；ESM 静态 import 会被提升，故用动态 import（同 run-workspace.test.ts）。
@@ -41,7 +42,7 @@ const LONG_TEXT_SOURCE = readFileSync(
 );
 
 const html = (node: Parameters<typeof renderToStaticMarkup>[0]): string =>
-  renderToStaticMarkup(node);
+  renderWithLocale("zh-CN", node);
 
 /** 某 fixture 的 `getRun` 等价输入：文件内 span 全为自有（见 1.1 的数据源陷阱） */
 function detailOf(name: string): {

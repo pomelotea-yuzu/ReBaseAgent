@@ -16,6 +16,7 @@ import { deriveCompareFileEntry } from "../src/renderer/src/lib/compare-files";
 import { deriveSideStepCatalog } from "../src/renderer/src/lib/compare-steps";
 import { deriveSideOutputFacts } from "../src/shared/compare-output";
 import type { RunDetail } from "../src/shared/ipc";
+import { renderWithLocale } from "./i18n/render-with-locale";
 
 /**
  * U7（improve-branch-comparison）tasks 4.6/4.12：比较工作区展示层的静态断言。
@@ -140,7 +141,8 @@ describe("SideOutputSection：输出分层与错误定位", () => {
     const facts = deriveSideOutputFacts(
       completedDetail("r_ok", [stepSpan("s_01"), llmSpan("c_01", { content: "最终正文" })]),
     );
-    const html = renderToStaticMarkup(
+    const html = renderWithLocale(
+      "zh-CN",
       <SideOutputSection
         side="left"
         facts={facts}
@@ -170,7 +172,8 @@ describe("SideOutputSection：输出分层与错误定位", () => {
       lineage: { status: "complete" },
     };
     const errFacts = deriveSideOutputFacts(detail);
-    const html = renderToStaticMarkup(
+    const html = renderWithLocale(
+      "zh-CN",
       <SideOutputSection
         side="right"
         facts={errFacts}
@@ -187,7 +190,8 @@ describe("SideOutputSection：输出分层与错误定位", () => {
   });
 
   it("不可读侧：真实身份与受控原因，不伪正文", () => {
-    const html = renderToStaticMarkup(
+    const html = renderWithLocale(
+      "zh-CN",
       <SideOutputSection
         side="left"
         facts={null}
@@ -225,14 +229,16 @@ describe("SideStepsSection：折叠摘要 / ownOnly / 编辑标记 / 选中态",
 
   it("折叠态：摘要行（行数/来源/编辑数）+ 自有行；展开态：全部行带来源与编辑标记", () => {
     const catalog = chainCatalog();
-    const foldedHtml = renderToStaticMarkup(
+    const foldedHtml = renderWithLocale(
+      "zh-CN",
       <SideStepsSection catalog={catalog} folded={true} selectedSpanId={null} {...IDLE_ACTIONS} />,
     );
     expect(foldedHtml).toContain("共享前缀：2 条来自 r_a（含 1 处编辑）");
     expect(foldedHtml).toContain("展开完整前缀");
     expect(foldedHtml).not.toContain("来自 r_a</span>"); // 前缀行被收进摘要
 
-    const expandedHtml = renderToStaticMarkup(
+    const expandedHtml = renderWithLocale(
+      "zh-CN",
       <SideStepsSection catalog={catalog} folded={false} selectedSpanId={null} {...IDLE_ACTIONS} />,
     );
     expect(expandedHtml).toContain("编辑点（result）");
@@ -241,7 +247,8 @@ describe("SideStepsSection：折叠摘要 / ownOnly / 编辑标记 / 选中态",
 
   it("复合定位：选中态 aria-pressed 落在本侧行上", () => {
     const catalog = chainCatalog();
-    const html = renderToStaticMarkup(
+    const html = renderWithLocale(
+      "zh-CN",
       <SideStepsSection catalog={catalog} folded={false} selectedSpanId="b1" {...IDLE_ACTIONS} />,
     );
     expect(html).toContain('aria-pressed="true"');
@@ -260,7 +267,8 @@ describe("SideStepsSection：折叠摘要 / ownOnly / 编辑标记 / 选中态",
       spanScope: "own",
       lineage: { status: "incomplete", reason: "ANCESTOR_NOT_FOUND", missingRunId: "r_x" },
     };
-    const html = renderToStaticMarkup(
+    const html = renderWithLocale(
+      "zh-CN",
       <SideStepsSection
         catalog={deriveSideStepCatalog(detail)}
         folded={true}
@@ -294,7 +302,7 @@ describe("EditEvidenceSection：三态与分型呈现", () => {
   };
 
   it("verified：方向标注（左列 → 右列）、语义标签、前后值、工具结果措辞", () => {
-    const html = renderToStaticMarkup(<EditEvidenceSection data={verified} />);
+    const html = renderWithLocale("zh-CN", <EditEvidenceSection data={verified} />);
     expect(html).toContain("左列 → 右列");
     expect(html).toContain("共享父前缀");
     expect(html).toContain("原始工具结果");
@@ -303,7 +311,8 @@ describe("EditEvidenceSection：三态与分型呈现", () => {
   });
 
   it("v2 隔离：整轮边界（轮号）呈现", () => {
-    const html = renderToStaticMarkup(
+    const html = renderWithLocale(
+      "zh-CN",
       <EditEvidenceSection
         data={{
           kind: "direct",
@@ -330,7 +339,8 @@ describe("EditEvidenceSection：三态与分型呈现", () => {
   });
 
   it("unavailable：稳定码与受控原因，已得一侧的值仍可读", () => {
-    const html = renderToStaticMarkup(
+    const html = renderWithLocale(
+      "zh-CN",
       <EditEvidenceSection
         data={{
           kind: "direct",
@@ -356,7 +366,8 @@ describe("EditEvidenceSection：三态与分型呈现", () => {
   });
 
   it("逐跳链：每跳 source→target 独立成行（不压缩）", () => {
-    const html = renderToStaticMarkup(
+    const html = renderWithLocale(
+      "zh-CN",
       <EditEvidenceSection
         data={{
           kind: "hops",
@@ -404,7 +415,8 @@ describe("EditEvidenceSection：三态与分型呈现", () => {
   });
 
   it("不同根：两列事实并排，未记录如实标注", () => {
-    const html = renderToStaticMarkup(
+    const html = renderWithLocale(
+      "zh-CN",
       <EditEvidenceSection
         data={{
           kind: "different-roots",
@@ -461,7 +473,8 @@ describe("CompareWorkspaceView：整体形态", () => {
   };
 
   it("双列标题、交换/返回按钮就位；门禁可用时 diff 按钮可点", () => {
-    const html = renderToStaticMarkup(
+    const html = renderWithLocale(
+      "zh-CN",
       <CompareWorkspaceView
         {...baseProps}
         diffGate={{
@@ -483,7 +496,8 @@ describe("CompareWorkspaceView：整体形态", () => {
   });
 
   it("门禁不可用 ⇒ diff 按钮禁用且原因可读； unavailable 侧不伪正文", () => {
-    const html = renderToStaticMarkup(
+    const html = renderWithLocale(
+      "zh-CN",
       <CompareWorkspaceView
         {...baseProps}
         left={{ ...left, facts: null, unavailableReason: "祖先记录损坏（ANCESTOR_INVALID）" }}
@@ -500,7 +514,8 @@ describe("CompareWorkspaceView：整体形态", () => {
   });
 
   it("diff 模式（门禁可用）⇒ 只读 DiffEditor 面板就位", () => {
-    const html = renderToStaticMarkup(
+    const html = renderWithLocale(
+      "zh-CN",
       <CompareWorkspaceView
         {...baseProps}
         diffMode={true}
@@ -542,7 +557,8 @@ describe("5.1 会话短 ID：比较标题与完整 ID 复制", () => {
   };
 
   it("两侧标题显示短 ID，复制按钮的可访问名称携带完整 ID", () => {
-    const html = renderToStaticMarkup(
+    const html = renderWithLocale(
+      "zh-CN",
       <CompareWorkspaceView
         {...baseProps}
         diffGate={{ status: "unavailable", reason: "不可用" }}
@@ -557,7 +573,8 @@ describe("5.1 会话短 ID：比较标题与完整 ID 复制", () => {
   });
 
   it("diff 页头用短 ID 标识两侧，并保留完整 ID 的悬停与复制入口", () => {
-    const html = renderToStaticMarkup(
+    const html = renderWithLocale(
+      "zh-CN",
       <CompareWorkspaceView
         {...baseProps}
         diffMode={true}
@@ -590,7 +607,8 @@ describe("5.6/5.7 单侧文件入口", () => {
   }
 
   it("available：按钮可点，可访问名称 = 「打开左列文件/右列文件」", () => {
-    const html = renderToStaticMarkup(
+    const html = renderWithLocale(
+      "zh-CN",
       <SideOutputSection
         side="left"
         facts={deriveSideOutputFacts(completedDetail("r_x", [stepSpan("s_01")]))}
@@ -625,7 +643,8 @@ describe("5.6/5.7 单侧文件入口", () => {
   });
 
   it("unavailable 侧：无入口按钮（fileEntry 为 null）", () => {
-    const html = renderToStaticMarkup(
+    const html = renderWithLocale(
+      "zh-CN",
       <CompareWorkspaceView
         pair={{ leftRunId: "r_l", rightRunId: "r_r" }}
         loading={false}
@@ -657,7 +676,8 @@ describe("5.6/5.7 单侧文件入口", () => {
       ...isolatedDetail,
       meta: { ...isolatedDetail.meta, workspace: { profile: "isolated" } } as RunDetail["meta"],
     };
-    const html = renderToStaticMarkup(
+    const html = renderWithLocale(
+      "zh-CN",
       <CompareWorkspaceView
         pair={{ leftRunId: "r_l", rightRunId: "r_r" }}
         loading={false}
@@ -712,7 +732,8 @@ describe("5.9 键盘交互与异步焦点", () => {
   };
 
   it("动作按钮全部带 focus-visible 焦点环（键盘焦点可见）", () => {
-    const html = renderToStaticMarkup(
+    const html = renderWithLocale(
+      "zh-CN",
       <CompareWorkspaceView
         {...props}
         loading={false}
@@ -725,14 +746,16 @@ describe("5.9 键盘交互与异步焦点", () => {
   });
 
   it("在飞读取不卸载动作按钮（交换/加载/重试不把焦点甩回页顶的静态前提）", () => {
-    const idle = renderToStaticMarkup(
+    const idle = renderWithLocale(
+      "zh-CN",
       <CompareWorkspaceView
         {...props}
         loading={false}
         diffGate={{ status: "unavailable", reason: "不可用" }}
       />,
     );
-    const loading = renderToStaticMarkup(
+    const loading = renderWithLocale(
+      "zh-CN",
       <CompareWorkspaceView
         {...props}
         loading={true}
@@ -748,7 +771,8 @@ describe("5.9 键盘交互与异步焦点", () => {
 
 describe("5.11/5.15 模型实验比较区", () => {
   it("eligible：批次身份 + 相对父累计增量 + 无臂间结论恒定说明 + 副作用放行说明", () => {
-    const html = renderToStaticMarkup(
+    const html = renderWithLocale(
+      "zh-CN",
       <EditEvidenceSection
         stacked={false}
         onOpenRun={vi.fn()}
@@ -779,7 +803,8 @@ describe("5.11/5.15 模型实验比较区", () => {
   });
 
   it("ineligible：受控原因 + 各记录单独打开入口（不恢复资格措辞）", () => {
-    const html = renderToStaticMarkup(
+    const html = renderWithLocale(
+      "zh-CN",
       <EditEvidenceSection
         stacked={false}
         onOpenRun={vi.fn()}
@@ -830,7 +855,8 @@ describe("5.8 宽度适配：并排 / 上下排列", () => {
   };
 
   it("宽容器 ⇒ 并排两列（grid-cols-2）", () => {
-    const html = renderToStaticMarkup(
+    const html = renderWithLocale(
+      "zh-CN",
       <CompareWorkspaceView
         {...props}
         stacked={false}
@@ -842,7 +868,8 @@ describe("5.8 宽度适配：并排 / 上下排列", () => {
   });
 
   it("窄容器 ⇒ 上下排列（grid-cols-1）且对象标题重复（每列自带标题区）", () => {
-    const html = renderToStaticMarkup(
+    const html = renderWithLocale(
+      "zh-CN",
       <CompareWorkspaceView
         {...props}
         stacked={true}

@@ -1,8 +1,9 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
+import type { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { renderWithLocale } from "./i18n/render-with-locale";
 
 // RunHeaderView / IsolatedRunNoticeView 的 store 薄壳在 import 时就会触到 window.api
 // （../lib/api.ts）⇒ 桩必须先就位；ESM 静态 import 会被提升，故用动态 import
@@ -29,7 +30,7 @@ const { isolatedRunNoticeView } = await import("../src/renderer/src/lib/isolated
  */
 
 const html = (node: Parameters<typeof renderToStaticMarkup>[0]): string =>
-  renderToStaticMarkup(node);
+  renderWithLocale("zh-CN", node);
 
 /** 完整保真边界里的标志性句子（断言"长段落只出现一次"用它定位） */
 const DETAIL_SENTENCE = "源目录、父分支与兄弟分支都不会被修改";

@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { renderWithLocale } from "./i18n/render-with-locale";
 
 /**
  * U5（unify-run-execution-workflow）任务 4.2：创建页的**布置与就近字段错误**。
@@ -94,7 +95,7 @@ function props(over: Partial<CreateRunFormViewProps> = {}): CreateRunFormViewPro
 }
 
 const html = (over: Partial<CreateRunFormViewProps> = {}): string =>
-  renderToStaticMarkup(createElement(CreateRunWorkspaceView, props(over)));
+  renderWithLocale("zh-CN", createElement(CreateRunWorkspaceView, props(over)));
 
 describe("4.2 就近字段错误：给得出、接得上，没给就什么都不渲染", () => {
   it("userMessage 有拒绝 ⇒ 文本出现，且 textarea 用 describedby + aria-invalid 指向它", () => {

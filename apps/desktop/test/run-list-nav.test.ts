@@ -4,6 +4,9 @@ import { describe, expect, it } from "vitest";
 
 import { ShortIdState, computeShortIds, deriveNavLabel, filterRuns } from "@shared/nav";
 import type { RunSummary } from "../src/shared/ipc";
+import { createTestTranslator } from "./i18n/render-with-locale";
+
+const zh = createTestTranslator("zh-CN");
 
 /**
  * U1（refactor-run-workspace）任务 4.4：RunList 的摘要、搜索、来源与展开指标重排。
@@ -71,7 +74,9 @@ describe("场景「多份 trace 文件」：一份文件一行，互不吞并", 
   });
 
   it("每行摘要取自**自己**的 task，不串行", () => {
-    const labels = runs.map((run) => deriveNavLabel(run, "abc", { time: "t", source: "本地记录" }));
+    const labels = runs.map((run) =>
+      deriveNavLabel(run, "abc", { time: "t", source: "本地记录" }, zh),
+    );
     expect(labels.map((l) => l.title)).toEqual(["任务甲", "任务乙", "任务丙"]);
   });
 
@@ -98,30 +103,35 @@ describe("场景「完整任务和 ID 搜索」：匹配完整原值，不受展
 describe("场景「长模型和空任务的导航摘要」", () => {
   it("空任务回退为「来源 · 时间 · 短 ID」并标 isFallback", () => {
     const run = summaryOf({ id: "run_abcd1234", task: "   \n  " });
-    const label = deriveNavLabel(run, "abcd1234", {
-      time: "09-21 10:00",
-      source: "本地记录",
-    });
+    const label = deriveNavLabel(
+      run,
+      "abcd1234",
+      {
+        time: "09-21 10:00",
+        source: "本地记录",
+      },
+      zh,
+    );
     expect(label.isFallback).toBe(true);
     expect(label.title).toBe("本地记录 · 09-21 10:00 · abcd1234");
   });
 
   it("有任务时 isFallback 为 false，标题即折叠后的任务", () => {
     const run = summaryOf({ id: "run_x", task: "修复\n\n登录 页面" });
-    const label = deriveNavLabel(run, "xxxx", { time: "t", source: "s" });
+    const label = deriveNavLabel(run, "xxxx", { time: "t", source: "s" }, zh);
     expect(label.isFallback).toBe(false);
     expect(label.title).toBe("修复 登录 页面");
   });
 
   it("缺失模型显示「未记录」，不借用当前配置（组件不读 settings.model）", () => {
     const run = summaryOf({ id: "run_x", task: "任务", model: "" });
-    expect(deriveNavLabel(run, "x", { time: "t", source: "s" }).model).toBe("未记录");
+    expect(deriveNavLabel(run, "x", { time: "t", source: "s" }, zh).model).toBe("未记录");
   });
 
   it("长模型原值保留（换行/展开交给样式，不在数据层截断）", () => {
     const longModel = `azure-${"m".repeat(120)}`;
     const run = summaryOf({ id: "run_x", task: "任务", model: longModel });
-    expect(deriveNavLabel(run, "x", { time: "t", source: "s" }).model).toBe(longModel);
+    expect(deriveNavLabel(run, "x", { time: "t", source: "s" }, zh).model).toBe(longModel);
   });
 });
 

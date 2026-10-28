@@ -27,6 +27,7 @@ import {
   collapsedLabel,
   shouldCollapse,
 } from "../src/renderer/src/components/LongText";
+import { createTestTranslator, renderWithLocale } from "./i18n/render-with-locale";
 
 /**
  * B 任务 3.1：桌面**纯对话**能力回归（新建 run 及其后续操作）。
@@ -288,14 +289,16 @@ describe("3.1 超长消息（折叠判据 + 展开为完整原文 + 录制不截
   it("折叠判据与摘要文案：严格大于阈值才折叠，摘要带真实字符数", () => {
     expect(shouldCollapse("a".repeat(COLLAPSE_THRESHOLD))).toBe(false);
     expect(shouldCollapse("a".repeat(COLLAPSE_THRESHOLD + 1))).toBe(true);
-    expect(collapsedLabel("a".repeat(COLLAPSE_THRESHOLD + 1), "正文")).toBe(
+    const zh = createTestTranslator("zh-CN");
+    expect(collapsedLabel("a".repeat(COLLAPSE_THRESHOLD + 1), "正文", zh)).toBe(
       `正文（${COLLAPSE_THRESHOLD + 1} 字符，点击展开完整内容）`,
     );
   });
 
   it("渲染：短文本直接呈现；超长文本折叠但**完整原文就在 DOM 里**（展开即可见，无截断）", () => {
     const short = "短短一行。";
-    const shortMarkup = renderToStaticMarkup(
+    const shortMarkup = renderWithLocale(
+      "zh-CN",
       createElement(LongText, { text: short, label: "正文" }),
     );
     expect(shortMarkup).toContain(short);
@@ -304,7 +307,10 @@ describe("3.1 超长消息（折叠判据 + 展开为完整原文 + 录制不截
     const head = "【开头】";
     const tail = "【结尾·最后一段必须原样保留】";
     const long = head + "长".repeat(900) + tail;
-    const longMarkup = renderToStaticMarkup(createElement(LongText, { text: long, label: "正文" }));
+    const longMarkup = renderWithLocale(
+      "zh-CN",
+      createElement(LongText, { text: long, label: "正文" }),
+    );
     expect(longMarkup).toContain("<details");
     expect(longMarkup).toContain(`正文（${long.length} 字符，点击展开完整内容）`);
     // 展开后是完整原文：开头、结尾与全文字符数都在标记里（没有被 slice/省略号取代）

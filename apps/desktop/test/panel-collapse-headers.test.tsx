@@ -9,6 +9,7 @@ import {
   shouldCollapse,
 } from "../src/renderer/src/components/LongText";
 import { auditForbiddenTokens } from "../src/renderer/src/lib/overview-view";
+import { createTestTranslator, renderWithLocale } from "./i18n/render-with-locale";
 const { LongText } = await import("../src/renderer/src/components/LongText");
 
 /**
@@ -24,8 +25,9 @@ const { LongText } = await import("../src/renderer/src/components/LongText");
 const rendererSrc = (file: string): string =>
   readFileSync(resolve(import.meta.dirname, "../src/renderer/src", file), "utf8");
 
-const html = (node: Parameters<typeof renderToStaticMarkup>[0]): string =>
-  renderToStaticMarkup(node);
+const html = (node: Parameters<typeof renderWithLocale>[1]): string =>
+  renderWithLocale("zh-CN", node);
+const zh = createTestTranslator("zh-CN");
 
 describe("运行列表 / 步骤目录：标题行折叠开关（任务 1.1）", () => {
   it("RunList：用共享 DisclosureButton 接 onToggleCollapsed，aria-controls 指向 run-navigation", () => {
@@ -73,7 +75,7 @@ describe("LongText：与页面折叠控制同一交互语义（任务 1.2）", (
     expect(COLLAPSE_THRESHOLD).toBe(600);
     expect(shouldCollapse("a".repeat(600))).toBe(false);
     expect(shouldCollapse("a".repeat(601))).toBe(true);
-    expect(collapsedLabel("abcd", "正文")).toBe("正文（4 字符，点击展开完整内容）");
+    expect(collapsedLabel("abcd", "正文", zh)).toBe("正文（4 字符，点击展开完整内容）");
   });
 
   it("折叠态：summary 带 ≥28px 命中区类与收起方向箭头；展开态箭头转正", () => {

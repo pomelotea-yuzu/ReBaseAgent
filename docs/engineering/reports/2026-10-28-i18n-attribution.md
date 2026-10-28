@@ -145,7 +145,11 @@ node scripts/i18n-attribution.cjs --compare-inventory --verify-boundaries
 
 1.3 把全局 store 错误改为稳定 code/受控描述（文案内容未变，符号路径变化）；1.6 把关闭确认与原生目录对话框的默认中文从 main 迁入 i18n 资源，并把语言偏好存储/IPC 的安全拒绝归为 internal。当前机器清单为 **3,586 处**（product 3,154 / original 378 / internal 50 / generated 4）；0.1 的 3,602 是迁移前快照，差异来自这 16 处默认文案迁入资源与 2 处内部拒绝改类。
 
-## 8. 局限
+## 8. 2.1 增量（2026-10-28）
+
+2.1 迁移外壳导航、通用按钮/模态、活动/空态与 shared 导航标签（App、GlobalBar、SessionActivity、ConfirmDialog、ConfirmationBlock、Disclosure、WorkspaceHeading、ResizeGrip、LongText、RunWorkspace 空态、shared/nav），并把四处确属内部诊断的 renderer 文件改为 internal：`main.tsx`（启动断言）、`lib/a11y-action.ts`（开发期审计）、`lib/navigation-intent.ts`（内部判定理由）、`lib/format.ts`（`reasonLabel` 无产品消费点）。当前机器清单 **3,504 处**（product 3,049 / original 378 / internal 73 / generated 4）；相对 1.x 的 3,586：82 处产品文案迁入资源，23 处由 product 改判 internal（总数不变）。批次 1 仍有 98 个 pending 文件。
+
+## 9. 局限
 
 - 工作区与批次按文件名近似，包层不能精确拆到单个工作区；迁移时以实际入口为准修正。
 - 符号路径是审查定位辅助，重构改名后需重跑生成器；它不是运行时契约。

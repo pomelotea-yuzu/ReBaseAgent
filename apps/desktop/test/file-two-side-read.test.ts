@@ -4,6 +4,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { RunDetail } from "../src/shared/ipc";
+import { renderWithLocale } from "./i18n/render-with-locale";
 
 /**
  * U2 任务 3.1 / 3.2：两侧读取状态真实 + 旧响应不覆盖新选择。
@@ -104,7 +105,8 @@ function text(path: string, body: string): Record<string, unknown> {
 
 function renderBody(overrides: Record<string, unknown> = {}): string {
   const run = isolatedRun();
-  return renderToStaticMarkup(
+  return renderWithLocale(
+    "zh-CN",
     createElement(WorkspaceFileViewBody, {
       run,
       options: deriveCheckpointOptions(run),

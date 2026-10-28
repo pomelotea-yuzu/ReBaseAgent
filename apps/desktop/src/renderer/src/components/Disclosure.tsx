@@ -24,6 +24,7 @@
 
 import { ChevronDown } from "lucide-react";
 import type { ReactNode } from "react";
+import { useTranslator } from "../i18n";
 import { DECORATIVE_ICON_PROPS, FOCUS_RING } from "./IconButton";
 
 /** 方向箭头：展开朝下、收起朝右（旋转过渡只影响视觉，语义在 aria-expanded） */
@@ -95,8 +96,8 @@ export function Disclosure({
   expanded,
   onToggle,
   controlsId,
-  openLabel = "展开",
-  closeLabel = "收起",
+  openLabel,
+  closeLabel,
   className = "",
   children,
 }: {
@@ -107,19 +108,25 @@ export function Disclosure({
   expanded: boolean;
   onToggle: () => void;
   controlsId: string;
-  /** 收起态摘要行上的动作文字（默认「展开」） */
+  /** 收起态摘要行上的动作文字（缺省取当前语言「展开」） */
   openLabel?: string;
-  /** 展开态摘要行上的动作文字（默认「收起」） */
+  /** 展开态摘要行上的动作文字（缺省取当前语言「收起」） */
   closeLabel?: string;
   className?: string;
   children: ReactNode;
 }): ReactNode {
+  const translator = useTranslator();
+  const resolvedOpen = openLabel ?? translator.t("common.expand");
+  const resolvedClose = closeLabel ?? translator.t("common.collapse");
   return (
     <div className={className}>
       <DisclosureButton
         expanded={expanded}
         onToggle={onToggle}
-        label={`${summary}（${expanded ? closeLabel : openLabel}）`}
+        label={translator.t("common.disclosureLabel", {
+          summary,
+          action: expanded ? resolvedClose : resolvedOpen,
+        })}
         controls={controlsId}
         className="w-full px-1 py-0.5 hover:bg-black/[0.03]"
       >
@@ -128,7 +135,7 @@ export function Disclosure({
           <span className="min-w-0 truncate text-[11px] opacity-80">{meta}</span>
         ) : null}
         <span className="ml-auto shrink-0 text-[11px] underline decoration-dotted opacity-70">
-          {expanded ? closeLabel : openLabel}
+          {expanded ? resolvedClose : resolvedOpen}
         </span>
       </DisclosureButton>
       {expanded ? (

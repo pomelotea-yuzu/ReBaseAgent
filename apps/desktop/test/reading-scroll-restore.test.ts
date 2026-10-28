@@ -33,6 +33,7 @@ import {
   readingScrollOf,
   resolveDetailPhase,
 } from "../src/renderer/src/lib/workspace-selection";
+import { renderWithLocale } from "./i18n/render-with-locale";
 
 /**
  * U1（refactor-run-workspace）任务 3.6：概览/步骤目录/逐调用滚动与长文本展开恢复。
@@ -59,24 +60,27 @@ describe("长文本展开状态可受控（design D6：LongText 展开状态改�
   });
 
   it("未受控（不传 expanded）时退化为默认折叠：静态渲染不带 open", () => {
-    const html = renderToStaticMarkup(createElement(LongText, { text: LONG, label: "正文" }));
+    const html = renderWithLocale("zh-CN", createElement(LongText, { text: LONG, label: "正文" }));
     expect(html).toContain("<details");
     expect(html).not.toContain("open");
   });
 
   it("受控展开 ⇒ 静态渲染带 open；受控折叠 ⇒ 不带 open", () => {
-    const open = renderToStaticMarkup(
+    const open = renderWithLocale(
+      "zh-CN",
       createElement(LongText, { text: LONG, label: "正文", expanded: true, onToggle: () => {} }),
     );
     expect(open).toContain("open");
-    const closed = renderToStaticMarkup(
+    const closed = renderWithLocale(
+      "zh-CN",
       createElement(LongText, { text: LONG, label: "正文", expanded: false, onToggle: () => {} }),
     );
     expect(closed).not.toContain("open");
   });
 
   it("短文本一律不折叠：即便传了 expanded=true 也不渲染 details", () => {
-    const html = renderToStaticMarkup(
+    const html = renderWithLocale(
+      "zh-CN",
       createElement(LongText, { text: SHORT, label: "正文", expanded: true, onToggle: () => {} }),
     );
     expect(html).not.toContain("<details");
