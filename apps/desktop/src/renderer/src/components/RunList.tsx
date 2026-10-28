@@ -5,6 +5,7 @@ import { useTranslator } from "../i18n";
 import { formatDuration, formatTime, formatTokens } from "../lib/format";
 import { NAV_MAX, NAV_MIN } from "../lib/layout";
 import { copyValueForRun, resolveEmptyCause, resolveNavListState } from "../lib/nav-notice";
+import { describeStoreError } from "../lib/store-error";
 import { useAppStore } from "../store";
 import { DisclosureButton } from "./Disclosure";
 import { ResizeGrip } from "./ResizeGrip";
@@ -64,11 +65,18 @@ export function RunList({
   // 「筛选后为空」与「真的没有记录」成因分开，不把前者说成后者（否则误导用户去 traces/ 找文件）
   const listStale = useAppStore((s) => s.listStale);
   const error = useAppStore((s) => s.error);
+  const errorDescriptor = useAppStore((s) => s.errorDescriptor);
+  const errorText =
+    error === null
+      ? null
+      : errorDescriptor === null
+        ? error
+        : describeStoreError(errorDescriptor, translator);
   const reload = useAppStore((s) => s.loadRuns);
   const navState = resolveNavListState({
     loading: loadingList,
     stale: listStale,
-    error,
+    error: errorText,
     hasAnyData: runs.length + failed.length > 0,
   });
   const emptyCause = resolveEmptyCause({
@@ -108,7 +116,7 @@ export function RunList({
   return (
     <aside
       id="run-navigation"
-      aria-label="运行列表"
+      aria-label={translator.t("run.listAria")}
       className="relative flex h-full min-h-0 shrink-0 flex-col border-r border-gray-200 bg-white"
       style={fullWidth ? { width: "100%", minWidth: 0 } : { width, minWidth: width }}
     >
@@ -124,26 +132,30 @@ export function RunList({
           <DisclosureButton
             expanded
             onToggle={onToggleCollapsed}
-            label={fullWidth ? "返回当前运行（收起运行列表）" : "收起运行列表"}
+            label={translator.t(fullWidth ? "run.listReturnCurrent" : "common.collapseRunList")}
             controls="run-navigation"
-            title={fullWidth ? "返回当前运行" : "收起运行列表（宽度偏好保留，可随时重新打开）"}
+            title={translator.t(
+              fullWidth ? "run.listReturnCurrentTitle" : "common.collapseRunList",
+            )}
             className="min-w-0 flex-1 justify-between px-1 hover:bg-gray-100"
           >
-            <span className="text-sm font-semibold text-gray-800">运行记录</span>
+            <span className="text-sm font-semibold text-gray-800">
+              {translator.t("run.listTitle")}
+            </span>
             <span className="shrink-0 pl-2 text-[11px] text-gray-500">
-              {fullWidth ? "返回" : "收起"}
+              {translator.t(fullWidth ? "common.back" : "common.collapse")}
             </span>
           </DisclosureButton>
           <button
             type="button"
             onClick={openCreateWorkspace}
-            title="直接在桌面端跑一个 run（纯对话，或隔离文件运行；不需代理、不需写代码）"
+            title={translator.t("common.newRunHint")}
             className="flex shrink-0 items-center gap-1.5 rounded border border-gray-300 px-2 py-0.5 text-[11px] text-gray-600 hover:bg-gray-50"
           >
-            ＋ 新建运行
+            {translator.t("run.listNewRun")}
           </button>
         </div>
-        <div className="text-[11px] text-gray-500">按创建时间倒序 · trace 只读</div>
+        <div className="text-[11px] text-gray-500">{translator.t("run.listSubtitle")}</div>
       </div>
 
       <div className="border-b border-gray-200 px-3 py-1.5">
@@ -151,15 +163,15 @@ export function RunList({
           type="search"
           value={searchQuery}
           onChange={(event) => setSearchQuery(event.target.value)}
-          placeholder="搜索完整任务或运行 ID"
+          placeholder={translator.t("run.searchPlaceholder")}
           className="w-full rounded border border-gray-300 px-2 py-1 text-[11px] text-gray-700 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none"
         />
         <div className="mt-1.5 flex items-center gap-1 text-[11px]">
           {(
             [
-              ["all", "全部"],
-              ["proxy", "代理录制"],
-              ["local", "本地记录"],
+              ["all", translator.t("run.filterAll")],
+              ["proxy", translator.t("run.filterProxy")],
+              ["local", translator.t("run.filterLocal")],
             ] as const
           ).map(([value, label]) => (
             <button
@@ -180,12 +192,12 @@ export function RunList({
             type="button"
             onClick={() => setMetricsOpen((prev) => !prev)}
             aria-pressed={metricsOpen}
-            title="展开每条记录的模型与消耗指标（步数、工具、tokens、缓存命中、时长）"
+            title={translator.t("run.metricsToggleHint")}
             className={`ml-auto rounded px-2 py-0.5 ${
               metricsOpen ? "bg-blue-600 text-white" : "text-gray-600 hover:bg-gray-100"
             }`}
           >
-            指标
+            {translator.t("run.metricsToggle")}
           </button>
         </div>
       </div>
@@ -193,13 +205,13 @@ export function RunList({
       {/* 当前运行不在筛选结果中（任务 3.5）：明确提示 + 清除条件入口，**不**自动改选其他运行 */}
       {visibility.hidden ? (
         <div className="border-b border-amber-200 bg-amber-50 px-3 py-1.5 text-[11px] leading-4 text-amber-800">
-          当前运行的记录不在筛选结果中，主工作区仍显示它。
+          {translator.t("run.selectedHidden")}
           <button
             type="button"
             onClick={clearFilters}
             className="ml-1 underline hover:text-amber-900"
           >
-            清除条件
+            {translator.t("run.clearFilters")}
           </button>
         </div>
       ) : null}
@@ -208,13 +220,13 @@ export function RunList({
           刷新进行中保留旧列表，不显示"加载中…"覆盖已有内容。 */}
       {navState.failure !== null && navState.showStale ? (
         <div className="border-b border-amber-200 bg-amber-50 px-3 py-1.5 text-[11px] leading-4 text-amber-800">
-          列表未更新，仍显示上次结果。
+          {translator.t("run.listStale")}
           <button
             type="button"
             onClick={() => void reload()}
             className="ml-1 underline hover:text-amber-900"
           >
-            重试
+            {translator.t("run.retry")}
           </button>
         </div>
       ) : null}
@@ -227,35 +239,31 @@ export function RunList({
             onClick={() => void reload()}
             className="ml-1 shrink-0 underline hover:text-red-800"
           >
-            重试
+            {translator.t("run.retry")}
           </button>
         </div>
       ) : null}
 
       <div className="flex-1 overflow-y-auto">
         {navState.showLoading ? (
-          <div className="px-3 py-6 text-xs text-gray-500">加载中…</div>
+          <div className="px-3 py-6 text-xs text-gray-500">{translator.t("common.loading")}</div>
         ) : null}
 
         {emptyCause !== null ? (
           <div className="px-3 py-6 text-xs leading-5 text-gray-500">
             {emptyCause === "filtered" ? (
               <>
-                当前条件下没有匹配的运行记录。
+                {translator.t("run.emptyFiltered")}
                 <button
                   type="button"
                   onClick={clearFilters}
                   className="ml-1 underline hover:text-gray-700"
                 >
-                  清除条件
+                  {translator.t("run.clearFilters")}
                 </button>
               </>
             ) : (
-              <>
-                还没有运行记录：点上方「＋ 新建运行」直接跑一个，
-                <br />
-                或把 *.jsonl 放进数据目录的 traces/。
-              </>
+              <>{translator.t("run.emptyNoRecords")}</>
             )}
           </div>
         ) : null}
@@ -267,7 +275,7 @@ export function RunList({
             shortIds.get(run.id) ?? run.id,
             {
               time: formatTime(run.created_at),
-              source: run.source === "proxy" ? "代理录制" : "本地记录",
+              source: translator.t(run.source === "proxy" ? "run.filterProxy" : "run.filterLocal"),
             },
             translator,
           );
@@ -298,9 +306,9 @@ export function RunList({
                     {run.source === "proxy" ? (
                       <span
                         className="shrink-0 rounded bg-sky-100 px-1.5 py-0.5 text-reading-meta leading-4 text-sky-800"
-                        title="经本地录制代理录制（可在其 llm.call 详情编辑 messages 重发）"
+                        title={translator.t("run.proxyBadgeHint")}
                       >
-                        代理录制
+                        {translator.t("run.filterProxy")}
                       </span>
                     ) : null}
                   </span>
@@ -319,13 +327,17 @@ export function RunList({
                     是默认可辨的身份／结局事实；模型与消耗指标移入「指标」展开区） */}
                 <div className="mt-1 flex items-center gap-2 text-reading-meta text-gray-500">
                   {/* 短 ID 是界面标识；复制入口在**行右侧**（绝对定位的兄弟按钮，见下） */}
-                  <span className="font-code" title={`完整 ID：${run.id}`}>
+                  <span className="font-code" title={translator.t("run.fullId", { id: run.id })}>
                     {shortIds.get(run.id) ?? run.id}
                   </span>
-                  {run.parent !== null ? <span className="text-violet-600">分支</span> : null}
+                  {run.parent !== null ? (
+                    <span className="text-violet-600">{translator.t("run.branchBadge")}</span>
+                  ) : null}
                   <span className="ml-auto">{formatTime(run.created_at)}</span>
                   {run.toolErrors > 0 ? (
-                    <span className="shrink-0 text-red-600">{run.toolErrors} 出错</span>
+                    <span className="shrink-0 text-red-600">
+                      {translator.t("run.toolErrorsCount", { count: run.toolErrors })}
+                    </span>
                   ) : null}
                 </div>
 
@@ -339,25 +351,23 @@ export function RunList({
                     <span className="break-all" title={label.model}>
                       {label.model}
                     </span>
-                    <span>{run.steps} 步</span>
-                    <span>{run.toolCalls} 工具</span>
+                    <span>{translator.t("common.stepCount", { count: run.steps })}</span>
+                    <span>{translator.t("run.toolCount", { count: run.toolCalls })}</span>
                     <span
                       title={
-                        zeroUsageNeedsExplanation
-                          ? "记录用量为 0；这可能是失败调用的占位值，不据此断言实际零消费"
-                          : undefined
+                        zeroUsageNeedsExplanation ? translator.t("run.zeroUsageHint") : undefined
                       }
                     >
                       {formatTokens(run.tokensIn + run.tokensOut)} tokens
-                      {zeroUsageNeedsExplanation ? "（可能为失败占位）" : ""}
+                      {zeroUsageNeedsExplanation ? translator.t("run.zeroUsageSuffix") : ""}
                     </span>
                     {/* run 级累计缓存命中：null = 无数据（未知，不显示）；0 = 实测零命中（照常显示） */}
                     {run.cacheHit === null ? null : (
                       <span
                         className={run.cacheHit > 0 ? "text-emerald-600" : "text-amber-600"}
-                        title="本 run 自有 llm.call 的已记录命中量（不含祖先共享前缀，非全运行命中率）"
+                        title={translator.t("run.listCacheHint")}
                       >
-                        命中 {formatTokens(run.cacheHit)}
+                        {translator.t("run.cacheHitShort", { value: formatTokens(run.cacheHit) })}
                       </span>
                     )}
                     <span>{formatDuration(run.durationMs)}</span>
@@ -370,11 +380,11 @@ export function RunList({
               <button
                 type="button"
                 onClick={() => void copyRunId(run.id)}
-                aria-label={`复制完整运行 ID ${run.id}`}
-                title={`点击复制完整 ID：${run.id}`}
+                aria-label={translator.t("run.copyIdAria", { id: run.id })}
+                title={translator.t("run.copyIdTitle", { id: run.id })}
                 className="absolute top-1/2 right-2 -translate-y-1/2 rounded px-1.5 py-0.5 text-reading-meta text-gray-400 opacity-0 hover:bg-gray-200 hover:text-gray-700 focus-visible:opacity-100 group-hover:opacity-100"
               >
-                {copiedId === run.id ? "已复制" : "复制 ID"}
+                {translator.t(copiedId === run.id ? "common.copied" : "run.copyId")}
               </button>
             </div>
           );
@@ -382,7 +392,10 @@ export function RunList({
 
         {failed.map((item) => (
           <div key={item.file} className="border-b border-gray-100 bg-red-50 px-3 py-2">
-            <div className="text-xs font-medium text-red-700">读取失败：{item.file}</div>
+            <div className="text-xs font-medium text-red-700">
+              {translator.t("run.loadFailed")}
+              {item.file}
+            </div>
             <div className="mt-0.5 break-all text-[11px] leading-4 text-red-600">{item.error}</div>
           </div>
         ))}
@@ -391,7 +404,7 @@ export function RunList({
       {/* 宽度调节柄（任务 4.3）：220–360，拖动或 ←/→ 均可 */}
       {!fullWidth ? (
         <ResizeGrip
-          label="运行导航宽度"
+          label={translator.t("run.navWidth")}
           width={width}
           min={NAV_MIN}
           max={NAV_MAX}

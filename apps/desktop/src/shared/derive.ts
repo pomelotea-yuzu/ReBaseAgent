@@ -1,3 +1,4 @@
+import type { Translator } from "@rebaseagent/i18n";
 import type { SpanLine } from "@rebaseagent/trace-sdk";
 import type { RunSummary } from "./ipc";
 
@@ -353,14 +354,14 @@ export function isPromptForkField(field: string): boolean {
   return field === "system_prompt" || field === "user_message";
 }
 
-/** 分叉字段 → 中文边标签（只按字段名映射，不推断编辑内容） */
-export function forkEditLabel(field: string): string {
-  if (field === "result") return "改 tool_result";
-  if (field === "messages") return "改 messages";
-  if (field === "system_prompt") return "改 system prompt";
-  if (field === "user_message") return "改 user message";
-  if (field === "model_params") return "换 model/params（A/B）";
-  return `改 ${field}`;
+/** 分叉字段 → 边标签（只按字段名映射，不推断编辑内容） */
+export function forkEditLabel(field: string, translator: Translator): string {
+  if (field === "result") return translator.t("run.forkEditResult");
+  if (field === "messages") return translator.t("run.forkEditMessages");
+  if (field === "system_prompt") return translator.t("run.forkEditSystemPrompt");
+  if (field === "user_message") return translator.t("run.forkEditUserMessage");
+  if (field === "model_params") return translator.t("run.forkEditModelParams");
+  return translator.t("run.forkEditOther", { field });
 }
 
 /**
@@ -371,6 +372,7 @@ export function forkEditLabel(field: string): string {
  */
 export function layoutRunTree(
   forest: readonly RunTreeNode[],
+  translator: Translator,
   options: RunTreeLayoutOptions = {},
 ): RunTreeLayout {
   const { nodeWidth = 176, nodeHeight = 76, gapX = 72, gapY = 16, padding = 16 } = options;
@@ -433,10 +435,10 @@ export function layoutRunTree(
       const midX = (startX + endX) / 2;
       const childFork = child.tree.run.fork;
       // prompt fork 的边标注「从头重跑」，不把 at_span 呈现为普通分叉点
-      const baseLabel = childFork === null ? null : forkEditLabel(childFork.edit_field);
+      const baseLabel = childFork === null ? null : forkEditLabel(childFork.edit_field, translator);
       const label =
         childFork !== null && baseLabel !== null && isPromptForkField(childFork.edit_field)
-          ? `${baseLabel} · 从头重跑`
+          ? `${baseLabel} · ${translator.t("run.forkFromStart")}`
           : baseLabel;
       edges.push({
         from: node.run.id,

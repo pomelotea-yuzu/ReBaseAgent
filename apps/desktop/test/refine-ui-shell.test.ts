@@ -88,7 +88,7 @@ const renderHeader = (props: {
   selectedRunId: string | null;
   shortId?: string | null;
 }): string =>
-  renderToStaticMarkup(createElement(RunHeaderView, { detail: null, runs: [], ...props }));
+  renderWithLocale("zh-CN", createElement(RunHeaderView, { detail: null, runs: [], ...props }));
 
 describe("全局栏不再冒充当前对象（2.2 移除 detail 身份展示）", () => {
   it("GlobalBar 不订阅 detail、不渲染 meta.id；对象身份归各工作区对象头", () => {
@@ -166,7 +166,7 @@ describe("运行列表：默认身份与结局清楚，次级指标按需展开�
   it("列表级「指标」开关存在且用 aria-pressed 表达当前态", () => {
     expect(runList).toContain("const [metricsOpen, setMetricsOpen] = useState(false)");
     expect(runList).toContain("aria-pressed={metricsOpen}");
-    expect(runList).toContain("展开每条记录的模型与消耗指标");
+    expect(runList).toContain('"run.metricsToggleHint"');
   });
 
   it("次级指标块由 metricsOpen 条件承载，字段与未知语义一个不删", () => {
@@ -176,7 +176,7 @@ describe("运行列表：默认身份与结局清楚，次级指标按需展开�
       "run.steps",
       "run.toolCalls",
       "run.tokensIn + run.tokensOut",
-      "（可能为失败占位）",
+      '"run.zeroUsageSuffix"',
       "run.cacheHit === null ? null",
       "run.durationMs",
     ]) {

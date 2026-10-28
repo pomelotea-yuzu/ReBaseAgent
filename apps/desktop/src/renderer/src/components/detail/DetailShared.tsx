@@ -1,6 +1,7 @@
 import type { SpanLine } from "@rebaseagent/trace-sdk";
 import type { RunDetail } from "@shared/ipc";
 import { useMemo, useState } from "react";
+import { useTranslator } from "../../i18n";
 import { presentCacheHit, presentCacheMiss } from "../../lib/cache-view";
 import { deriveDraftList } from "../../lib/draft-list";
 import type { ForkCacheHint } from "../../lib/fork-cache-hint";
@@ -32,7 +33,8 @@ export function Section({ title, children }: { title: string; children: React.Re
 export const ISOLATED_PARENT_UNSUPPORTED_KEY = "isolated-parent-unsupported";
 
 export function IsolatedParentUnsupportedNotice({ run }: { run: RunDetail }) {
-  const reason = isolatedParentExecutionNotice(run);
+  const translator = useTranslator();
+  const reason = isolatedParentExecutionNotice(run, translator);
   const runId = useAppStore((s) => s.selectedRunId);
   const expanded = useAppStore((s) =>
     runId === null

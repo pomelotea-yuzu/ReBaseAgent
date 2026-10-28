@@ -15,13 +15,21 @@ import {
   findCommonAncestor,
   findStepLlm,
   flattenTree,
-  forkEditLabel,
+  forkEditLabel as forkEditLabelOf,
   indexRunsById,
-  layoutRunTree,
+  layoutRunTree as layoutRunTreeOf,
   spanDurationMs,
 } from "@shared/derive";
 import type { RunSummary } from "@shared/ipc";
 import { describe, expect, it } from "vitest";
+import { createTestTranslator } from "./i18n/render-with-locale";
+
+const zh = createTestTranslator("zh-CN");
+const layoutRunTree = (
+  forest: Parameters<typeof layoutRunTreeOf>[0],
+  options?: Parameters<typeof layoutRunTreeOf>[2],
+) => layoutRunTreeOf(forest, zh, options ?? {});
+const forkEditLabel = (field: Parameters<typeof forkEditLabelOf>[0]) => forkEditLabelOf(field, zh);
 
 /** trace-sdk 的 fixtures 是本仓库的"真实数据"基准（桌面端开发期零 API 消耗） */
 const FIXTURES = resolve(import.meta.dirname, "../../../packages/trace-sdk/fixtures");

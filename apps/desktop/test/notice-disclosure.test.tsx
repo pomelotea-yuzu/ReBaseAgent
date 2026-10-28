@@ -17,7 +17,13 @@ const { ISOLATED_SOURCE_NOTICE_KEY, IsolatedRunNoticeView } = await import(
   "../src/renderer/src/components/DetailNotices"
 );
 const { RunHeaderView } = await import("../src/renderer/src/components/RunWorkspace");
-const { isolatedRunNoticeView } = await import("../src/renderer/src/lib/isolated-fork");
+const { isolatedRunNoticeView: isolatedRunNoticeViewOf } = await import(
+  "../src/renderer/src/lib/isolated-fork"
+);
+const { createTestTranslator } = await import("./i18n/render-with-locale");
+const zh = createTestTranslator("zh-CN");
+const isolatedRunNoticeView = (run: Parameters<typeof isolatedRunNoticeViewOf>[0]) =>
+  isolatedRunNoticeViewOf(run, zh);
 
 /**
  * UI 密度 change（improve-workspace-reading-and-editing）任务 1.3/1.5：

@@ -22,15 +22,34 @@ import type { RunSettings } from "../src/main/settings";
 import { formatBytes } from "../src/renderer/src/lib/format";
 import {
   isIsolatedRun,
-  isolatedBranchBoundaryLabel,
-  isolatedCheckpointLabel,
-  isolatedContinueLabel,
-  isolatedParentExecutionNotice,
-  isolatedRunNotice,
-  resolveCapabilityCheck,
-  resolveIsolatedForkSubmission,
+  isolatedBranchBoundaryLabel as isolatedBranchBoundaryLabelOf,
+  isolatedCheckpointLabel as isolatedCheckpointLabelOf,
+  isolatedContinueLabel as isolatedContinueLabelOf,
+  isolatedParentExecutionNotice as isolatedParentExecutionNoticeOf,
+  isolatedRunNotice as isolatedRunNoticeOf,
+  resolveCapabilityCheck as resolveCapabilityCheckOf,
+  resolveIsolatedForkSubmission as resolveIsolatedForkSubmissionOf,
   resumeBoundaryIteration,
 } from "../src/renderer/src/lib/isolated-fork";
+import { createTestTranslator } from "./i18n/render-with-locale";
+
+const zh = createTestTranslator("zh-CN");
+const isolatedBranchBoundaryLabel = (...args: Parameters<typeof isolatedBranchBoundaryLabelOf>) =>
+  isolatedBranchBoundaryLabelOf(args[0], args[1], args[2], zh);
+const isolatedCheckpointLabel = (capability: Parameters<typeof isolatedCheckpointLabelOf>[0]) =>
+  isolatedCheckpointLabelOf(capability, zh);
+const isolatedContinueLabel = (capability: Parameters<typeof isolatedContinueLabelOf>[0]) =>
+  isolatedContinueLabelOf(capability, zh);
+const isolatedParentExecutionNotice = (
+  run: Parameters<typeof isolatedParentExecutionNoticeOf>[0],
+) => isolatedParentExecutionNoticeOf(run, zh);
+const isolatedRunNotice = (run: Parameters<typeof isolatedRunNoticeOf>[0]) =>
+  isolatedRunNoticeOf(run, zh);
+const resolveCapabilityCheck = (input: Parameters<typeof resolveCapabilityCheckOf>[0]) =>
+  resolveCapabilityCheckOf(input, zh);
+const resolveIsolatedForkSubmission = (
+  input: Parameters<typeof resolveIsolatedForkSubmissionOf>[0],
+) => resolveIsolatedForkSubmissionOf(input, zh);
 import { ForkCapabilityRequestSchema, ForkRunRequestSchema } from "../src/shared/ipc";
 import type { ForkCapabilityResult, RunDetail } from "../src/shared/ipc";
 

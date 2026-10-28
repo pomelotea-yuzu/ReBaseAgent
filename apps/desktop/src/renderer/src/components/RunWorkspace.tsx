@@ -17,6 +17,7 @@
  *    真正"文件页时卸下步骤目录"由本组件的 `stepsMounted` 传给 App 消费。
  */
 
+import type { MessageKey } from "@rebaseagent/i18n";
 import { deriveTerminalReason } from "@shared/derive";
 import type { RunSummary } from "@shared/ipc";
 import { FileCode2, LayoutDashboard, ListTree } from "lucide-react";
@@ -36,10 +37,10 @@ export const WORKSPACE_TABS = ["overview", "steps", "files"] as const;
 export type WorkspaceTab = (typeof WORKSPACE_TABS)[number];
 
 /** 页签显示名与图标（图标 + 文字：名称不靠猜） */
-const TAB_META: Record<WorkspaceTab, { label: string; icon: typeof ListTree }> = {
-  overview: { label: "概览", icon: LayoutDashboard },
-  steps: { label: "步骤", icon: ListTree },
-  files: { label: "文件", icon: FileCode2 },
+const TAB_META: Record<WorkspaceTab, { labelKey: MessageKey; icon: typeof ListTree }> = {
+  overview: { labelKey: "run.tabOverview", icon: LayoutDashboard },
+  steps: { labelKey: "run.tabStepsShort", icon: ListTree },
+  files: { labelKey: "run.tabFiles", icon: FileCode2 },
 };
 
 /**
@@ -80,6 +81,7 @@ export function RunWorkspace({
   actions?: ReactNode;
   children: ReactNode;
 }): ReactNode {
+  const translator = useTranslator();
   const tabs = availableTabs(isIsolated);
   const visible = resolveVisibleTab(tab, isIsolated);
 
@@ -88,9 +90,14 @@ export function RunWorkspace({
       {header}
 
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-gray-200 px-3 py-1">
-        <div className="flex items-center gap-1" role="tablist" aria-label="运行工作区页签">
+        <div
+          className="flex items-center gap-1"
+          role="tablist"
+          aria-label={translator.t("run.workspaceTabsAria")}
+        >
           {tabs.map((key) => {
             const meta = TAB_META[key];
+            const label = translator.t(meta.labelKey);
             const Icon = meta.icon;
             const selected = visible === key;
             return (
@@ -101,7 +108,7 @@ export function RunWorkspace({
                 aria-selected={selected}
                 // 键盘切页签用原生 button 的 Tab 焦点 + aria-selected，不自行实现方向键
                 // （完整方向键导航归 4.3/7.3 的键盘实测）
-                title={meta.label}
+                title={label}
                 onClick={() => onTab(key)}
                 className={`inline-flex cursor-pointer items-center gap-1.5 rounded px-2 py-1 text-reading-meta ${
                   selected
@@ -110,7 +117,7 @@ export function RunWorkspace({
                 } ${FOCUS_RING}`}
               >
                 <Icon size={13} aria-hidden="true" focusable="false" role="presentation" />
-                <span>{meta.label}</span>
+                <span>{label}</span>
               </button>
             );
           })}
@@ -221,11 +228,12 @@ export function RunHeaderView({
   /** 会话稳定短 ID（调用方从 ShortIdState 取）；缺省回退显示完整 ID，复制目标仍是完整 id */
   shortId?: string | null;
 }) {
+  const translator = useTranslator();
   const isolated = isIsolatedRun(detail);
   // UI 密度 change 1.3（design D2）：页头只留**紧凑来源摘要**一行——完整的隔离保真
   // 边界由详情提示区（DetailNotices）的「来源与技术详情」disclosure 承载。
   // 此前页头与文件区各自渲染同一段长说明 ⇒ 同屏重复（2026-10-06 实机评审抓到）。
-  const noticeView = isolatedRunNoticeView(detail);
+  const noticeView = isolatedRunNoticeView(detail, translator);
 
   // 摘要可能还没刷出来（刚 fork 出的新 run）⇒ 用详情兜底，但**不**编造任务名
   const summary = runs.find((run) => run.id === selectedRunId) ?? null;
@@ -240,7 +248,7 @@ export function RunHeaderView({
           className="min-w-0 flex-1 basis-[260px] truncate text-reading-body font-medium text-gray-900"
           title={task ?? undefined}
         >
-          {task ?? "尚未选择运行"}
+          {task ?? translator.t("run.noRunSelected")}
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2 text-reading-meta text-gray-500">
           {/*
@@ -257,9 +265,9 @@ export function RunHeaderView({
             }
           />
           {id !== null ? (
-            <ShortIdLabel id={id} shortId={shortId ?? id} label="运行 ID" />
+            <ShortIdLabel id={id} shortId={shortId ?? id} label={translator.t("run.runIdLabel")} />
           ) : (
-            <span className="font-code" title="运行 ID">
+            <span className="font-code" title={translator.t("run.runIdLabel")}>
               —
             </span>
           )}
@@ -267,15 +275,22 @@ export function RunHeaderView({
             {model ?? "—"}
           </span>
           {isolated ? (
-            <span className="rounded bg-violet-100 px-1 text-violet-800">文件隔离</span>
+            <span className="rounded bg-violet-100 px-1 text-violet-800">
+              {translator.t("run.isolatedBadge")}
+            </span>
           ) : null}
           {!showSourceSummary && detail?.meta.workspace !== undefined ? (
             <span className="text-violet-800" data-source-identity>
               {detail.meta.workspace.origin.kind === "checkpoint"
-                ? `父运行 ${detail.meta.workspace.origin.run_id} · 检查点 ${detail.meta.workspace.origin.step_span}`
+                ? translator.t("run.headerParentCheckpoint", {
+                    runId: detail.meta.workspace.origin.run_id,
+                    span: detail.meta.workspace.origin.step_span,
+                  })
                 : detail.meta.workspace.origin.kind === "initial"
-                  ? `父运行 ${detail.meta.workspace.origin.run_id} · 初始快照`
-                  : "独立采集的文件世界"}
+                  ? translator.t("run.headerParentInitial", {
+                      runId: detail.meta.workspace.origin.run_id,
+                    })
+                  : translator.t("run.headerIndependentWorld")}
             </span>
           ) : null}
         </div>

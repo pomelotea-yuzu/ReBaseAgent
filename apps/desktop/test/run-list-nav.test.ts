@@ -158,14 +158,14 @@ describe("场景「徽标与过滤」：代理徽标 + 三档过滤", () => {
   it('来源徽标只在 proxy 上出现（组件判 source === "proxy"）', () => {
     const src = read("src/renderer/src/components/RunList.tsx");
     expect(src).toContain('run.source === "proxy"');
-    expect(src).toContain("代理录制");
+    expect(src).toContain('"run.filterProxy"');
   });
 
   it("过滤按钮三档文案与 shared/nav 的枚举同口径", () => {
     const src = read("src/renderer/src/components/RunList.tsx");
-    expect(src).toContain('["all", "全部"]');
-    expect(src).toContain('["proxy", "代理录制"]');
-    expect(src).toContain('["local", "本地记录"]');
+    expect(src).toContain('["all", translator.t("run.filterAll")]');
+    expect(src).toContain('["proxy", translator.t("run.filterProxy")]');
+    expect(src).toContain('["local", translator.t("run.filterLocal")]');
   });
 });
 
@@ -210,7 +210,7 @@ describe("接线：短 ID 长度记忆挂在 store（跨渲染存活）", () => 
   it("短 ID 只用于展示：完整 ID 仍在 title/复制口径内（短 ID 非权威标识）", () => {
     const src = read("src/renderer/src/components/RunList.tsx");
     // 组件里有「完整 ID」字样（title 里给出完整值）
-    expect(src).toContain("完整 ID");
+    expect(src).toContain('"run.fullId"');
   });
 });
 
@@ -242,8 +242,8 @@ describe("接线：既有指标字段一个不删，源标签同步", () => {
     const src = read("src/renderer/src/components/RunList.tsx");
     expect(src).toContain('import { classifyOutcome } from "@shared/outcome"');
     expect(src).toContain("!outcome.normalEnd");
-    expect(src).toContain("（可能为失败占位）");
-    expect(src).toContain("不据此断言实际零消费");
+    expect(src).toContain('"run.zeroUsageSuffix"');
+    expect(src).toContain('"run.zeroUsageHint"');
   });
 
   it("产品源码与当前测试里没有遗留旧标签「本地直录 / 仅代理」", () => {
@@ -291,6 +291,8 @@ describe("接线：既有指标字段一个不删，源标签同步", () => {
     for (const src of storeSides) {
       expect(src).not.toContain('归入"本地直录"');
     }
-    expect(read("src/renderer/src/components/RunList.tsx")).toContain('["local", "本地记录"]');
+    expect(read("src/renderer/src/components/RunList.tsx")).toContain(
+      '["local", translator.t("run.filterLocal")]',
+    );
   });
 });

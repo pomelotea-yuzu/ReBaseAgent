@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-28T05:34:57.106Z",
+  "generatedAt": "2026-10-28T13:27:51.145Z",
   "scanner": "scripts/i18n-attribution.cjs",
   "taxonomy": {
     "product": "产品展示：需要按批次迁移为双语资源",
@@ -9,9 +9,9 @@
     "generated": "生成资产：不作为产品文案"
   },
   "totals": {
-    "files": 240,
-    "occurrences": 3206,
-    "product": 2744,
+    "files": 235,
+    "occurrences": 3105,
+    "product": 2643,
     "original": 385,
     "internal": 73,
     "generated": 4
@@ -26,17 +26,17 @@
       "generated": 0
     },
     "renderer": {
-      "files": 86,
-      "occurrences": 1872,
-      "product": 1848,
+      "files": 82,
+      "occurrences": 1778,
+      "product": 1754,
       "original": 0,
       "internal": 24,
       "generated": 0
     },
     "shared": {
-      "files": 5,
-      "occurrences": 78,
-      "product": 78,
+      "files": 4,
+      "occurrences": 71,
+      "product": 71,
       "original": 0,
       "internal": 0,
       "generated": 0
@@ -1645,11 +1645,11 @@
             "先跑一次（接 trace-sdk / agent-loop），或把应用的 base_url 指到本地录制代理录一次。"
           ],
           "lines": [
-            239,
-            241,
-            695,
-            791,
-            795
+            240,
+            242,
+            696,
+            792,
+            796
           ]
         },
         {
@@ -1664,8 +1664,8 @@
             "次运行 · 节点为运行、连线为一次分叉 · 只读"
           ],
           "lines": [
-            261,
-            263
+            262,
+            264
           ]
         },
         {
@@ -1680,10 +1680,10 @@
             "${…} · ${…}（双击打开运行）"
           ],
           "lines": [
-            273,
-            525,
-            657,
-            813
+            274,
+            526,
+            658,
+            814
           ]
         },
         {
@@ -1698,8 +1698,8 @@
             "呈现模式"
           ],
           "lines": [
-            280,
-            323
+            281,
+            324
           ]
         },
         {
@@ -1714,16 +1714,16 @@
             "全部关系"
           ],
           "lines": [
-            291,
-            303,
-            332,
-            342,
-            354,
-            370,
-            640,
-            647,
-            768,
-            803
+            292,
+            304,
+            333,
+            343,
+            355,
+            371,
+            641,
+            648,
+            769,
+            804
           ]
         },
         {
@@ -1737,7 +1737,7 @@
             "搜索运行（完整 ID 或任务）"
           ],
           "lines": [
-            310
+            311
           ]
         },
         {
@@ -1752,8 +1752,8 @@
             "搜索运行（完整 ID 或任务）"
           ],
           "lines": [
-            315,
-            316
+            316,
+            317
           ]
         },
         {
@@ -1768,7 +1768,7 @@
             "」的运行（按完整 ID 与任务原值匹配）。原选择保持不变。"
           ],
           "lines": [
-            398
+            399
           ]
         },
         {
@@ -1783,8 +1783,8 @@
             "所属树根 ${…}"
           ],
           "lines": [
-            417,
-            418
+            418,
+            419
           ]
         },
         {
@@ -1798,7 +1798,7 @@
             "范围外"
           ],
           "lines": [
-            423
+            424
           ]
         },
         {
@@ -1813,15 +1813,15 @@
             "代理"
           ],
           "lines": [
-            537,
-            545,
-            555,
-            558,
-            659,
-            672,
-            758,
-            776,
-            778
+            538,
+            546,
+            556,
+            559,
+            660,
+            673,
+            759,
+            777,
+            779
           ]
         },
         {
@@ -1836,8 +1836,8 @@
             "记录的实验组标签（真实 experimentId）"
           ],
           "lines": [
-            554,
-            670
+            555,
+            671
           ]
         },
         {
@@ -1852,8 +1852,8 @@
             "步 ·"
           ],
           "lines": [
-            563,
-            571
+            564,
+            572
           ]
         },
         {
@@ -1867,7 +1867,7 @@
             "沿 parent 链把各代增量逐段求和；不等于从头连续跑一次的消耗；累计值复制完整数字请开运行详情"
           ],
           "lines": [
-            569
+            570
           ]
         },
         {
@@ -1881,7 +1881,7 @@
             "把 ${…} 加入对照"
           ],
           "lines": [
-            579
+            580
           ]
         },
         {
@@ -1895,7 +1895,7 @@
             "加入对照（最多 4 条）"
           ],
           "lines": [
-            580
+            581
           ]
         },
         {
@@ -1910,8 +1910,8 @@
             "）——子运行"
           ],
           "lines": [
-            602,
-            603
+            603,
+            604
           ]
         },
         {
@@ -1926,8 +1926,8 @@
             "臂）"
           ],
           "lines": [
-            621,
-            622
+            622,
+            623
           ]
         },
         {
@@ -1941,7 +1941,7 @@
             "所选运行详情"
           ],
           "lines": [
-            750
+            751
           ]
         },
         {
@@ -1955,7 +1955,7 @@
             "所选运行"
           ],
           "lines": [
-            754
+            755
           ]
         },
         {
@@ -1970,9 +1970,9 @@
             "· 分叉点"
           ],
           "lines": [
-            783,
-            793,
-            794
+            784,
+            794,
+            795
           ]
         },
         {
@@ -1986,7 +1986,7 @@
             "完整任务"
           ],
           "lines": [
-            788
+            789
           ]
         }
       ]
@@ -3397,8 +3397,8 @@
             "模型 A/B 在隔离父本上本期不支持"
           ],
           "lines": [
-            52,
-            53
+            54,
+            55
           ]
         },
         {
@@ -3412,7 +3412,7 @@
             "可用的执行方式：在某个工具调用上使用「在此重跑（隔离续跑）」；启动指令实验请从经验证的根运行进入。"
           ],
           "lines": [
-            63
+            65
           ]
         },
         {
@@ -3426,7 +3426,7 @@
             "缓存命中"
           ],
           "lines": [
-            106
+            108
           ]
         },
         {
@@ -3440,7 +3440,7 @@
             "本运行草稿（${…}）"
           ],
           "lines": [
-            162
+            164
           ]
         },
         {
@@ -3454,7 +3454,7 @@
             "本运行暂无草稿"
           ],
           "lines": [
-            169
+            171
           ]
         },
         {
@@ -3468,7 +3468,7 @@
             "放弃草稿"
           ],
           "lines": [
-            190
+            192
           ]
         },
         {
@@ -3482,7 +3482,7 @@
             "放弃「${…}」的草稿？（run ${…}${…}）\n内容将被删除，不可撤销。"
           ],
           "lines": [
-            191
+            193
           ]
         }
       ]
@@ -4102,7 +4102,7 @@
             "源记录不可用：重新读取并校验通过前不能发起新执行"
           ],
           "lines": [
-            230
+            236
           ]
         },
         {
@@ -4116,7 +4116,7 @@
             "放弃工具结果草稿"
           ],
           "lines": [
-            254
+            260
           ]
         },
         {
@@ -4130,7 +4130,7 @@
             "放弃这份工具结果草稿？（run ${…} · ${…}）\n\n当前草稿内容：\n${…}\n\n放弃按确认时的修订校验：此后内容若被更新，本次放弃不会执行。"
           ],
           "lines": [
-            255
+            261
           ]
         },
         {
@@ -4145,9 +4145,9 @@
             "在此重跑（时间旅行）"
           ],
           "lines": [
-            310,
-            461,
-            678
+            316,
+            467,
+            684
           ]
         },
         {
@@ -4162,15 +4162,15 @@
             "时间旅行：从该工具调用之后重跑这一步，结果写入新分支。它不是\"恢复世界\"—— 期间真实执行过的外部调用不撤回，同轮工具的写入也不回滚。"
           ],
           "lines": [
-            314,
-            321,
-            422,
-            471,
-            473,
-            506,
-            510,
-            655,
-            665
+            320,
+            327,
+            428,
+            477,
+            479,
+            512,
+            516,
+            661,
+            671
           ]
         },
         {
@@ -4185,9 +4185,9 @@
             "在此重跑"
           ],
           "lines": [
-            335,
-            346,
-            347
+            341,
+            352,
+            353
           ]
         },
         {
@@ -4201,7 +4201,7 @@
             "重跑说明"
           ],
           "lines": [
-            350
+            356
           ]
         },
         {
@@ -4216,8 +4216,8 @@
             "以上文本将作为该工具的返回结果重新送入模型；其余上下文（prompt、工具表、此前步骤）与父 run 完全一致。"
           ],
           "lines": [
-            354,
-            355
+            360,
+            361
           ]
         },
         {
@@ -4231,7 +4231,7 @@
             "放弃工具结果草稿"
           ],
           "lines": [
-            436
+            442
           ]
         },
         {
@@ -4245,7 +4245,7 @@
             "放弃这份工具结果草稿？内容将被删除（不可撤销）。"
           ],
           "lines": [
-            437
+            443
           ]
         },
         {
@@ -4260,10 +4260,10 @@
             "（整轮续跑：该轮的其余工具不重做，同轮工具在子运行前缀中各出现一次）"
           ],
           "lines": [
-            453,
-            483,
-            506,
-            672
+            459,
+            489,
+            512,
+            678
           ]
         },
         {
@@ -4278,9 +4278,9 @@
             "编辑点"
           ],
           "lines": [
-            488,
-            496,
-            523
+            494,
+            502,
+            529
           ]
         },
         {
@@ -4294,7 +4294,7 @@
             "允许本次副本写入"
           ],
           "lines": [
-            521
+            527
           ]
         },
         {
@@ -4308,7 +4308,7 @@
             "（未配置模型）"
           ],
           "lines": [
-            547
+            553
           ]
         },
         {
@@ -4323,12 +4323,12 @@
             "已核对，确认本次续跑"
           ],
           "lines": [
-            567,
-            585,
-            586,
-            626,
-            642,
-            643
+            573,
+            591,
+            592,
+            632,
+            648,
+            649
           ]
         },
         {
@@ -4342,7 +4342,7 @@
             "还没拿到只读预检结论：先点上方「校验续跑条件」，确认要核对的就是那份结论。"
           ],
           "lines": [
-            590
+            596
           ]
         },
         {
@@ -4357,9 +4357,9 @@
             "取消"
           ],
           "lines": [
-            685,
-            696,
-            727
+            691,
+            702,
+            733
           ]
         }
       ]
@@ -4656,19 +4656,19 @@
           ],
           "lines": [
             79,
-            80,
-            82,
-            84,
-            93,
-            95,
-            97,
-            115,
-            117,
-            119,
-            135,
-            137,
-            139,
-            141
+            81,
+            83,
+            85,
+            94,
+            96,
+            98,
+            116,
+            118,
+            120,
+            136,
+            138,
+            140,
+            142
           ]
         },
         {
@@ -4683,7 +4683,7 @@
             "（同批臂共享此标签）"
           ],
           "lines": [
-            126
+            127
           ]
         },
         {
@@ -4698,9 +4698,9 @@
             "分叉链（从头重跑的独立新轨迹）"
           ],
           "lines": [
-            172,
-            174,
-            175
+            173,
+            175,
+            176
           ]
         },
         {
@@ -4715,7 +4715,7 @@
             "查看该代 run 详情"
           ],
           "lines": [
-            198
+            199
           ]
         },
         {
@@ -4729,7 +4729,7 @@
             "已编辑 messages"
           ],
           "lines": [
-            203
+            204
           ]
         },
         {
@@ -4744,9 +4744,9 @@
             "原阅读位置不可用："
           ],
           "lines": [
-            231,
-            263,
-            410
+            234,
+            266,
+            414
           ]
         },
         {
@@ -4761,8 +4761,8 @@
             "刷新时该运行的记录已不在 traces 目录中，下方内容为之前加载的结果，"
           ],
           "lines": [
-            233,
-            234
+            236,
+            237
           ]
         },
         {
@@ -4777,8 +4777,8 @@
             "重新读取并校验通过后自动恢复；也可在左侧列表改选其他运行。"
           ],
           "lines": [
-            235,
-            237
+            238,
+            240
           ]
         },
         {
@@ -4793,8 +4793,8 @@
             "复制缺失 run ID"
           ],
           "lines": [
-            245,
-            419
+            248,
+            423
           ]
         },
         {
@@ -4808,7 +4808,7 @@
             "上次记录的 span 或展开项已不在本次读取到的轨迹里（可能是记录被重写或缩减）。 已清理失效引用并回到默认位置。"
           ],
           "lines": [
-            264
+            267
           ]
         },
         {
@@ -4823,8 +4823,8 @@
             "此处不推断失败原因；轨迹树上的失败标记只反映各 span 自身记录的 error，不代表本次终止的原因。"
           ],
           "lines": [
-            294,
-            297
+            297,
+            300
           ]
         },
         {
@@ -4838,7 +4838,7 @@
             "来源与技术详情"
           ],
           "lines": [
-            339
+            342
           ]
         },
         {
@@ -4852,7 +4852,7 @@
             "。本运行自有输出、步骤、消耗与终止事实仍可读；共享前缀与祖先增量未知，不补零、不推算。"
           ],
           "lines": [
-            412
+            416
           ]
         },
         {
@@ -4866,7 +4866,7 @@
             "复制缺失祖先 run ID（${…}）"
           ],
           "lines": [
-            415
+            419
           ]
         }
       ]
@@ -7151,501 +7151,6 @@
           ],
           "lines": [
             70
-          ]
-        }
-      ]
-    },
-    {
-      "path": "apps/desktop/src/renderer/src/components/RunList.tsx",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "运行总览/详情",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "RunList.aside",
-          "role": "ui_attr",
-          "context": "aria-label",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "运行列表"
-          ],
-          "lines": [
-            111
-          ]
-        },
-        {
-          "symbol": "div.DisclosureButton",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 4,
-          "samples": [
-            "返回当前运行（收起运行列表）",
-            "收起运行列表"
-          ],
-          "lines": [
-            127,
-            129
-          ]
-        },
-        {
-          "symbol": "DisclosureButton.span",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "运行记录"
-          ],
-          "lines": [
-            132
-          ]
-        },
-        {
-          "symbol": "DisclosureButton.span",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "返回",
-            "收起"
-          ],
-          "lines": [
-            134
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "ui_attr",
-          "context": "title",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "直接在桌面端跑一个 run（纯对话，或隔离文件运行；不需代理、不需写代码）",
-            "展开每条记录的模型与消耗指标（步数、工具、tokens、缓存命中、时长）"
-          ],
-          "lines": [
-            140,
-            183
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "＋ 新建运行",
-            "指标"
-          ],
-          "lines": [
-            143,
-            188
-          ]
-        },
-        {
-          "symbol": "div.div",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "按创建时间倒序 · trace 只读"
-          ],
-          "lines": [
-            146
-          ]
-        },
-        {
-          "symbol": "div.input",
-          "role": "ui_attr",
-          "context": "placeholder",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "搜索完整任务或运行 ID"
-          ],
-          "lines": [
-            154
-          ]
-        },
-        {
-          "symbol": "div.div",
-          "role": "array_item",
-          "context": "[]",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "全部",
-            "代理录制"
-          ],
-          "lines": [
-            160,
-            161,
-            162
-          ]
-        },
-        {
-          "symbol": "aside.div",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "当前运行的记录不在筛选结果中，主工作区仍显示它。",
-            "列表未更新，仍显示上次结果。"
-          ],
-          "lines": [
-            196,
-            211
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 8,
-          "samples": [
-            "清除条件",
-            "重试"
-          ],
-          "lines": [
-            202,
-            217,
-            230,
-            250,
-            373,
-            374,
-            377
-          ]
-        },
-        {
-          "symbol": "div.div",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 4,
-          "samples": [
-            "加载中…",
-            "当前条件下没有匹配的运行记录。"
-          ],
-          "lines": [
-            237,
-            244,
-            255,
-            257
-          ]
-        },
-        {
-          "symbol": "label.source",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "代理录制",
-            "本地记录"
-          ],
-          "lines": [
-            270
-          ]
-        },
-        {
-          "symbol": "span.span",
-          "role": "ui_attr",
-          "context": "title",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "经本地录制代理录制（可在其 llm.call 详情编辑 messages 重发）"
-          ],
-          "lines": [
-            301
-          ]
-        },
-        {
-          "symbol": "span.span",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "代理录制"
-          ],
-          "lines": [
-            303
-          ]
-        },
-        {
-          "symbol": "div.span",
-          "role": "ui_text",
-          "context": "jsx_expr",
-          "classification": "product",
-          "reason": null,
-          "count": 8,
-          "samples": [
-            "完整 ID：${…}",
-            "分支"
-          ],
-          "lines": [
-            322,
-            325,
-            328,
-            342,
-            343,
-            347,
-            352,
-            360
-          ]
-        },
-        {
-          "symbol": "div.span",
-          "role": "ui_attr",
-          "context": "title",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "本 run 自有 llm.call 的已记录命中量（不含祖先共享前缀，非全运行命中率）"
-          ],
-          "lines": [
-            358
-          ]
-        },
-        {
-          "symbol": "div.div",
-          "role": "call_arg",
-          "context": "failed.map",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "读取失败："
-          ],
-          "lines": [
-            385
-          ]
-        },
-        {
-          "symbol": "aside.ResizeGrip",
-          "role": "ui_attr",
-          "context": "label",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "运行导航宽度"
-          ],
-          "lines": [
-            394
-          ]
-        }
-      ]
-    },
-    {
-      "path": "apps/desktop/src/renderer/src/components/RunStatusBadge.tsx",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "运行总览/详情",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "outcomeHint",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "进程中断，无终止事件",
-            "运行被中止（非正常结束）"
-          ],
-          "lines": [
-            27,
-            32
-          ]
-        },
-        {
-          "symbol": "outcomeHint",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "没有记录终止原因",
-            "原始结束原因：${…}"
-          ],
-          "lines": [
-            30
-          ]
-        },
-        {
-          "symbol": "RunStatusBadge.span",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "状态未知"
-          ],
-          "lines": [
-            50
-          ]
-        }
-      ]
-    },
-    {
-      "path": "apps/desktop/src/renderer/src/components/RunWorkspace.tsx",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "运行总览/详情",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "overview.label",
-          "role": "ui_prop",
-          "context": "label",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "概览"
-          ],
-          "lines": [
-            40
-          ]
-        },
-        {
-          "symbol": "steps.label",
-          "role": "ui_prop",
-          "context": "label",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "步骤"
-          ],
-          "lines": [
-            41
-          ]
-        },
-        {
-          "symbol": "files.label",
-          "role": "ui_prop",
-          "context": "label",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "文件"
-          ],
-          "lines": [
-            42
-          ]
-        },
-        {
-          "symbol": "div.div",
-          "role": "ui_attr",
-          "context": "aria-label",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "运行工作区页签"
-          ],
-          "lines": [
-            91
-          ]
-        },
-        {
-          "symbol": "div.div",
-          "role": "ui_text",
-          "context": "jsx_expr",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "尚未选择运行"
-          ],
-          "lines": [
-            243
-          ]
-        },
-        {
-          "symbol": "div.ShortIdLabel",
-          "role": "ui_attr",
-          "context": "label",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "运行 ID"
-          ],
-          "lines": [
-            260
-          ]
-        },
-        {
-          "symbol": "div.span",
-          "role": "ui_attr",
-          "context": "title",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "运行 ID"
-          ],
-          "lines": [
-            262
-          ]
-        },
-        {
-          "symbol": "div.span",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 4,
-          "samples": [
-            "文件隔离",
-            "父运行 ${…} · 检查点 ${…}"
-          ],
-          "lines": [
-            270,
-            275,
-            277,
-            278
           ]
         }
       ]
@@ -10671,239 +10176,6 @@
       ]
     },
     {
-      "path": "apps/desktop/src/renderer/src/lib/isolated-fork.ts",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "重跑/分叉",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "isolatedParentExecutionNotice",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "该运行是隔离文件运行：模型 A/B 本期不支持隔离父本——即使绕过界面发 IPC，main 与内核也会拒绝。启动指令实验只能从经验证的根运行发起；分支只提供显式返回根的导航，不把分支自有消息当根启动上"
-          ],
-          "lines": [
-            46
-          ]
-        },
-        {
-          "symbol": "isolatedRunNotice.origin",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "独立文件世界（world_id ${…}），由选定源目录采集而来",
-            "从运行 ${…} 的初始快照重跑而来"
-          ],
-          "lines": [
-            55,
-            57,
-            58
-          ]
-        },
-        {
-          "symbol": "isolatedRunNotice",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "隔离文件运行 · profile ${…} · ${…}。文件读写只发生在独立世界里：源目录、父分支与兄弟分支都不会被修改；页面不会把本 run 显示成\"已恢复历史磁盘状态\"。"
-          ],
-          "lines": [
-            59
-          ]
-        },
-        {
-          "symbol": "isolatedRunNoticeView.originCompact",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "由选定源目录采集的独立文件世界",
-            "从运行 ${…} 的初始快照重跑"
-          ],
-          "lines": [
-            89,
-            91,
-            92
-          ]
-        },
-        {
-          "symbol": "isolatedRunNoticeView.originFull",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "独立文件世界（world_id ${…}），由选定源目录采集而来",
-            "从运行 ${…} 的初始快照从头重跑而来"
-          ],
-          "lines": [
-            95,
-            97,
-            98
-          ]
-        },
-        {
-          "symbol": "isolatedRunNoticeView.compact",
-          "role": "prop",
-          "context": "compact",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "隔离文件运行 · ${…}"
-          ],
-          "lines": [
-            100
-          ]
-        },
-        {
-          "symbol": "isolatedRunNoticeView.detail",
-          "role": "prop",
-          "context": "detail",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "文件读写只发生在独立世界里：源目录、父分支与兄弟分支都不会被修改；页面不会把本 run 显示成\"已恢复历史磁盘状态\"。"
-          ],
-          "lines": [
-            101
-          ]
-        },
-        {
-          "symbol": "tech.value",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "import（源目录采集）",
-            "initial（源 run ${…} · 快照 ${…}）"
-          ],
-          "lines": [
-            109,
-            111,
-            112
-          ]
-        },
-        {
-          "symbol": "tech.label",
-          "role": "ui_prop",
-          "context": "label",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "来源说明"
-          ],
-          "lines": [
-            114
-          ]
-        },
-        {
-          "symbol": "isolatedContinueLabel",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "从运行 ${…} 的第 ${…} 轮结束后继续"
-          ],
-          "lines": [
-            130
-          ]
-        },
-        {
-          "symbol": "isolatedCheckpointLabel",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "轮末检查点 ${…}… · ${…} 个文件 / ${…}"
-          ],
-          "lines": [
-            135
-          ]
-        },
-        {
-          "symbol": "isolatedBranchBoundaryLabel",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "从运行 ${…} 的那一轮结束后继续（本地轮号未能在轨迹中解析，此处只报 step ${…}）",
-            "从运行 ${…} 的第 ${…} 轮结束后继续（整轮续跑：该轮工具不重做）"
-          ],
-          "lines": [
-            167,
-            168
-          ]
-        },
-        {
-          "symbol": "resolveCapabilityCheck.reason",
-          "role": "ui_prop",
-          "context": "reason",
-          "classification": "product",
-          "reason": null,
-          "count": 4,
-          "samples": [
-            "重跑进行中：不能再发起校验",
-            "正在校验续跑条件…"
-          ],
-          "lines": [
-            191,
-            192,
-            196,
-            202
-          ]
-        },
-        {
-          "symbol": "resolveIsolatedForkSubmission.reason",
-          "role": "ui_prop",
-          "context": "reason",
-          "classification": "product",
-          "reason": null,
-          "count": 7,
-          "samples": [
-            "重跑进行中：不能重复提交",
-            "正在校验续跑条件…"
-          ],
-          "lines": [
-            230,
-            231,
-            235,
-            241,
-            245,
-            252,
-            258
-          ]
-        }
-      ]
-    },
-    {
       "path": "apps/desktop/src/renderer/src/lib/isolated-prompt-card.ts",
       "layer": "renderer",
       "package": null,
@@ -13444,52 +12716,6 @@
           ],
           "lines": [
             907
-          ]
-        }
-      ]
-    },
-    {
-      "path": "apps/desktop/src/shared/derive.ts",
-      "layer": "shared",
-      "package": null,
-      "workspace": "shared",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "forkEditLabel",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 6,
-          "samples": [
-            "改 tool_result",
-            "改 messages"
-          ],
-          "lines": [
-            358,
-            359,
-            360,
-            361,
-            362,
-            363
-          ]
-        },
-        {
-          "symbol": "place.label",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "${…} · 从头重跑"
-          ],
-          "lines": [
-            439
           ]
         }
       ]

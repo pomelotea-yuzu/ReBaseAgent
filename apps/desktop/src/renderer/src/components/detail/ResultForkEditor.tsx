@@ -186,27 +186,33 @@ export function ForkEditor({
     verified !== null && verified.value === value && verified.revision === draftRevision
       ? verified.result
       : null;
-  const check = resolveCapabilityCheck({
-    parentRunId: run.meta.id,
-    atSpanId: span.id,
-    value,
-    unchanged,
-    settingsConfigured,
-    capabilityInFlight: checking,
-    forking: inProgress,
-  });
+  const check = resolveCapabilityCheck(
+    {
+      parentRunId: run.meta.id,
+      atSpanId: span.id,
+      value,
+      unchanged,
+      settingsConfigured,
+      capabilityInFlight: checking,
+      forking: inProgress,
+    },
+    translator,
+  );
   // 隔离路径的提交判据与请求同源（含"本次授权"）；普通路径沿用既有单步条件
-  const submission = resolveIsolatedForkSubmission({
-    parentRunId: run.meta.id,
-    atSpanId: span.id,
-    value,
-    unchanged,
-    settingsConfigured,
-    capabilityInFlight: checking,
-    forking: inProgress,
-    capability,
-    writesAuthorized,
-  });
+  const submission = resolveIsolatedForkSubmission(
+    {
+      parentRunId: run.meta.id,
+      atSpanId: span.id,
+      value,
+      unchanged,
+      settingsConfigured,
+      capabilityInFlight: checking,
+      forking: inProgress,
+      capability,
+      writesAuthorized,
+    },
+    translator,
+  );
   const canSubmit = isolated ? submission.ok : !unchanged;
   // 源记录不可用时禁用依赖它的执行（任务 3.5）：先决条件同样拦住"预检"这个只读动作，
   // 因为它已经把源记录当成可执行父本（源都不在了，预检结论没有意义）。
@@ -478,7 +484,7 @@ export function ForkEditor({
           {capability !== null ? (
             <div className="mt-1 space-y-1">
               <div className="text-[11px] leading-4 text-violet-900">
-                {isolatedContinueLabel(capability)}
+                {isolatedContinueLabel(capability, translator)}
                 <span className="text-violet-600">
                   （整轮续跑：该轮的其余工具不重做，同轮工具在子运行前缀中各出现一次）
                 </span>
@@ -496,7 +502,7 @@ export function ForkEditor({
                   <span className="text-gray-400">编辑点</span>{" "}
                   <span className="font-code">{capability.atSpanId}</span>
                 </span>
-                <span className="font-code">{isolatedCheckpointLabel(capability)}</span>
+                <span className="font-code">{isolatedCheckpointLabel(capability, translator)}</span>
                 <span>
                   <span className="text-gray-400">config_hash</span>{" "}
                   <span className="font-code">{capability.configHash.slice(0, 18)}…</span>
@@ -555,8 +561,8 @@ export function ForkEditor({
                         parentId: capability.parentId,
                         stepSpanId: capability.stepSpanId,
                         atSpanId: capability.atSpanId,
-                        checkpointLabel: isolatedCheckpointLabel(capability),
-                        continueLabel: isolatedContinueLabel(capability),
+                        checkpointLabel: isolatedCheckpointLabel(capability, translator),
+                        continueLabel: isolatedContinueLabel(capability, translator),
                         configHash: capability.configHash,
                       },
               },

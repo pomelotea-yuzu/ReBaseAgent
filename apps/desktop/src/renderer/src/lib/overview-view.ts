@@ -508,7 +508,7 @@ export function presentSource(
   return {
     parentId: parent,
     editField: field,
-    editLabel: field === null ? null : forkEditLabel(field),
+    editLabel: field === null ? null : forkEditLabel(field, translator),
     relation,
     relationNote,
     incompleteNote: incompleteView?.note ?? null,

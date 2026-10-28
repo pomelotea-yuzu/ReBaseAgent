@@ -17,19 +17,22 @@
  * 纪律：状态**带文字**，不靠颜色单打独斗（delta「长内容和状态无需仅靠颜色理解」）。
  */
 
-import { classifyOutcome, outcomeBadgeClass } from "@shared/outcome";
-import type { Outcome } from "@shared/outcome";
+import type { Translator } from "@rebaseagent/i18n";
+import { type Outcome, classifyOutcome, outcomeBadgeClass, outcomeLabelOf } from "@shared/outcome";
+import { useTranslator } from "../i18n";
 
 /** 未知/中断/中止等"非成功"结局的补充说明（title，不占正文） */
-function outcomeHint(outcome: Outcome): string | undefined {
+function outcomeHint(outcome: Outcome, translator: Translator): string | undefined {
   switch (outcome.kind) {
     case "interrupted":
-      return "进程中断，无终止事件";
+      return translator.t("run.hintInterrupted");
     case "unknown":
       // 未知原因时把**原值**放出来（delta：保留可查看的原值）
-      return outcome.reason === null ? "没有记录终止原因" : `原始结束原因：${outcome.reason}`;
+      return outcome.reason === null
+        ? translator.t("run.hintUnknownNoReason")
+        : translator.t("run.hintUnknownOriginal", { reason: outcome.reason });
     case "aborted":
-      return "运行被中止（非正常结束）";
+      return translator.t("run.hintAborted");
     default:
       return undefined;
   }
@@ -43,11 +46,12 @@ export function RunStatusBadge({
   status: "completed" | "crashed" | null;
   reason: string | null;
 }) {
+  const translator = useTranslator();
   if (status === null) {
     // 尚未读到状态 ⇒ 如实说"未知"，不默认成"已完成"（缺省 ≠ 成功）
     return (
       <span className="inline-flex shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-reading-meta leading-4 text-gray-600">
-        状态未知
+        {translator.t("run.statusUnknown")}
       </span>
     );
   }
@@ -58,9 +62,9 @@ export function RunStatusBadge({
       className={`inline-flex shrink-0 rounded px-1.5 py-0.5 text-reading-meta leading-4 ${outcomeBadgeClass(
         outcome.tone,
       )}`}
-      title={outcomeHint(outcome)}
+      title={outcomeHint(outcome, translator)}
     >
-      {outcome.label}
+      {outcomeLabelOf(outcome.kind, translator)}
     </span>
   );
 }

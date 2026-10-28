@@ -1,3 +1,4 @@
+import type { Translator } from "@rebaseagent/i18n";
 import type { SpanLine } from "@rebaseagent/trace-sdk";
 import type {
   ForkCapabilityRequest,
@@ -41,22 +42,25 @@ export function isIsolatedRun(run: RunDetail | null): boolean {
  * 内核同样拒绝这类请求（`loadForkParent` 的隔离门禁），所以这是"把界面与内核
  * 对齐"，不是新增一条只有界面认的规则。
  */
-export function isolatedParentExecutionNotice(run: RunDetail | null): string | null {
+export function isolatedParentExecutionNotice(
+  run: RunDetail | null,
+  translator: Translator,
+): string | null {
   if (!isIsolatedRun(run)) return null;
-  return "该运行是隔离文件运行：模型 A/B 本期不支持隔离父本——即使绕过界面发 IPC，main 与内核也会拒绝。启动指令实验只能从经验证的根运行发起；分支只提供显式返回根的导航，不把分支自有消息当根启动上下文。";
+  return translator.t("run.isoParentExecutionNotice");
 }
 
 /** 隔离运行的详情标注（明确标注"文件隔离"，并说明世界从哪来；v1 老 trace 返回 null） */
-export function isolatedRunNotice(run: RunDetail | null): string | null {
+export function isolatedRunNotice(run: RunDetail | null, translator: Translator): string | null {
   const workspace = run?.meta.workspace;
   if (workspace === undefined) return null;
   const origin =
     workspace.origin.kind === "import"
-      ? `独立文件世界（world_id ${workspace.world_id}），由选定源目录采集而来`
+      ? translator.t("run.isoOriginImport", { worldId: workspace.world_id })
       : workspace.origin.kind === "initial"
-        ? `从运行 ${workspace.origin.run_id} 的初始快照重跑而来`
-        : `从运行 ${workspace.origin.run_id} 的检查点续跑而来`;
-  return `隔离文件运行 · profile ${workspace.profile} · ${origin}。文件读写只发生在独立世界里：源目录、父分支与兄弟分支都不会被修改；页面不会把本 run 显示成"已恢复历史磁盘状态"。`;
+        ? translator.t("run.isoOriginInitial", { runId: workspace.origin.run_id })
+        : translator.t("run.isoOriginCheckpoint", { runId: workspace.origin.run_id });
+  return translator.t("run.isoNotice", { profile: workspace.profile, origin });
 }
 
 /**
@@ -81,24 +85,27 @@ export interface IsolatedRunNoticeView {
   readonly tech: readonly { readonly label: string; readonly value: string }[];
 }
 
-export function isolatedRunNoticeView(run: RunDetail | null): IsolatedRunNoticeView | null {
+export function isolatedRunNoticeView(
+  run: RunDetail | null,
+  translator: Translator,
+): IsolatedRunNoticeView | null {
   const workspace = run?.meta.workspace;
   if (workspace === undefined) return null;
   const originCompact =
     workspace.origin.kind === "import"
-      ? "由选定源目录采集的独立文件世界"
+      ? translator.t("run.isoOriginImportCompact")
       : workspace.origin.kind === "initial"
-        ? `从运行 ${workspace.origin.run_id} 的初始快照重跑`
-        : `从运行 ${workspace.origin.run_id} 的检查点续跑`;
+        ? translator.t("run.isoOriginInitialCompact", { runId: workspace.origin.run_id })
+        : translator.t("run.isoOriginCheckpointCompact", { runId: workspace.origin.run_id });
   const originFull =
     workspace.origin.kind === "import"
-      ? `独立文件世界（world_id ${workspace.world_id}），由选定源目录采集而来`
+      ? translator.t("run.isoOriginImport", { worldId: workspace.world_id })
       : workspace.origin.kind === "initial"
-        ? `从运行 ${workspace.origin.run_id} 的初始快照从头重跑而来`
-        : `从运行 ${workspace.origin.run_id} 的检查点续跑而来`;
+        ? translator.t("run.isoOriginInitialFull", { runId: workspace.origin.run_id })
+        : translator.t("run.isoOriginCheckpoint", { runId: workspace.origin.run_id });
   return {
-    compact: `隔离文件运行 · ${originCompact}`,
-    detail: `文件读写只发生在独立世界里：源目录、父分支与兄弟分支都不会被修改；页面不会把本 run 显示成"已恢复历史磁盘状态"。`,
+    compact: translator.t("run.isoCompact", { origin: originCompact }),
+    detail: translator.t("run.isoDetail"),
     tech: [
       { label: "profile", value: workspace.profile },
       { label: "world_id", value: workspace.world_id },
@@ -106,12 +113,18 @@ export function isolatedRunNoticeView(run: RunDetail | null): IsolatedRunNoticeV
         label: "origin",
         value:
           workspace.origin.kind === "import"
-            ? "import（源目录采集）"
+            ? translator.t("run.isoOriginImportTech")
             : workspace.origin.kind === "initial"
-              ? `initial（源 run ${workspace.origin.run_id} · 快照 ${workspace.origin.snapshot_id}）`
-              : `checkpoint（源 run ${workspace.origin.run_id} · step ${workspace.origin.step_span}）`,
+              ? translator.t("run.isoOriginInitialTech", {
+                  runId: workspace.origin.run_id,
+                  snapshotId: workspace.origin.snapshot_id,
+                })
+              : translator.t("run.isoOriginCheckpointTech", {
+                  runId: workspace.origin.run_id,
+                  span: workspace.origin.step_span,
+                }),
       },
-      { label: "来源说明", value: originFull },
+      { label: translator.t("run.isoOriginLabel"), value: originFull },
     ],
   };
 }
@@ -126,15 +139,26 @@ export function forkCapabilityRequest(
 }
 
 /** 「从运行 X 的第 N 轮结束后继续」——轮号取所属 run 自己的 `agent.step.n`，不沿链累加 */
-export function isolatedContinueLabel(capability: ForkCapabilityResult): string {
-  return `从运行 ${capability.parentId} 的第 ${capability.localIteration} 轮结束后继续`;
+export function isolatedContinueLabel(
+  capability: ForkCapabilityResult,
+  translator: Translator,
+): string {
+  return translator.t("run.isoContinueLabel", {
+    runId: capability.parentId,
+    iteration: capability.localIteration,
+  });
 }
 
 /** 轮末检查点一行：裸 64 位 hex 指纹只露前 12 位（完整值在轨迹里，界面不铺长串） */
-export function isolatedCheckpointLabel(capability: ForkCapabilityResult): string {
-  return `轮末检查点 ${capability.snapshotId.slice(0, 12)}… · ${capability.fileCount} 个文件 / ${formatBytes(
-    capability.totalBytes,
-  )}`;
+export function isolatedCheckpointLabel(
+  capability: ForkCapabilityResult,
+  translator: Translator,
+): string {
+  return translator.t("run.isoCheckpointLabel", {
+    snapshot: capability.snapshotId.slice(0, 12),
+    count: capability.fileCount,
+    bytes: formatBytes(capability.totalBytes),
+  });
 }
 
 /**
@@ -162,10 +186,17 @@ export function isolatedBranchBoundaryLabel(
   parentRunId: string,
   iteration: number | null,
   resumeAfterStep: string,
+  translator: Translator,
 ): string {
   return iteration === null
-    ? `从运行 ${parentRunId} 的那一轮结束后继续（本地轮号未能在轨迹中解析，此处只报 step ${resumeAfterStep}）`
-    : `从运行 ${parentRunId} 的第 ${iteration} 轮结束后继续（整轮续跑：该轮工具不重做）`;
+    ? translator.t("run.isoBranchBoundaryNoIteration", {
+        runId: parentRunId,
+        span: resumeAfterStep,
+      })
+    : translator.t("run.isoBranchBoundaryIteration", {
+        runId: parentRunId,
+        iteration,
+      });
 }
 
 export interface CapabilityCheckInput {
@@ -187,19 +218,23 @@ export type CapabilityCheck =
   | { ok: false; reason: string };
 
 /** 「校验续跑条件」按钮的判据 + 请求（同源） */
-export function resolveCapabilityCheck(input: CapabilityCheckInput): CapabilityCheck {
-  if (input.forking) return { ok: false, reason: "重跑进行中：不能再发起校验" };
-  if (input.capabilityInFlight) return { ok: false, reason: "正在校验续跑条件…" };
+export function resolveCapabilityCheck(
+  input: CapabilityCheckInput,
+  translator: Translator,
+): CapabilityCheck {
+  if (input.forking) return { ok: false, reason: translator.t("run.checkBusy") };
+  if (input.capabilityInFlight)
+    return { ok: false, reason: translator.t("run.checkingConditions") };
   if (!input.settingsConfigured) {
     return {
       ok: false,
-      reason: "尚未配置运行参数（baseURL / apiKey / model），请先点击右上角“运行配置”",
+      reason: translator.t("run.settingsRequiredForFork"),
     };
   }
   if (input.unchanged) {
     return {
       ok: false,
-      reason: "与原始结果相同，请修改后再校验；未做修改的续跑会被原样拒绝。",
+      reason: translator.t("run.checkUnchanged"),
     };
   }
   return {
@@ -226,36 +261,37 @@ export type IsolatedForkSubmission =
  */
 export function resolveIsolatedForkSubmission(
   input: IsolatedForkSubmissionInput,
+  translator: Translator,
 ): IsolatedForkSubmission {
-  if (input.forking) return { ok: false, reason: "重跑进行中：不能重复提交" };
-  if (input.capabilityInFlight) return { ok: false, reason: "正在校验续跑条件…" };
+  if (input.forking) return { ok: false, reason: translator.t("run.submitBusyFork") };
+  if (input.capabilityInFlight)
+    return { ok: false, reason: translator.t("run.checkingConditions") };
   if (!input.settingsConfigured) {
     return {
       ok: false,
-      reason: "尚未配置运行参数（baseURL / apiKey / model），请先点击右上角“运行配置”",
+      reason: translator.t("run.settingsRequiredForFork"),
     };
   }
   if (input.unchanged) {
     return {
       ok: false,
-      reason: "与原始结果相同，请修改后再重跑；未做修改的续跑会被原样拒绝。",
+      reason: translator.t("run.submitUnchanged"),
     };
   }
   if (input.capability === null) {
-    return { ok: false, reason: "请先点击「校验续跑条件」完成只读预检（确定检查点与轮末边界）" };
+    return { ok: false, reason: translator.t("run.checkRequired") };
   }
   // 预检结论必须与当前分叉点同源：换了 span / 换了父 = 旧结论作废
   if (
     input.capability.atSpanId !== input.atSpanId ||
     input.capability.parentId !== input.parentRunId
   ) {
-    return { ok: false, reason: "预检结论与当前分叉点不一致，请重新校验续跑条件" };
+    return { ok: false, reason: translator.t("run.checkMismatch") };
   }
   if (!input.writesAuthorized) {
     return {
       ok: false,
-      reason:
-        "请勾选「允许本次副本写入」——授权只对这一次提交有效，不会从父 run 的 write_authorized 标注补授权",
+      reason: translator.t("run.writesRequiredFork"),
     };
   }
   return {

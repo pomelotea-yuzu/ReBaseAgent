@@ -36,9 +36,9 @@ describe("运行列表 / 步骤目录：标题行折叠开关（任务 1.1）", 
     expect(src).toContain('controls="run-navigation"');
     expect(src).toContain("onToggle={onToggleCollapsed}");
     // 收起/展开含义可见（不是只靠 aria-label 或箭头）；fullWidth 时动作是「返回」
-    expect(src).toContain("收起运行列表");
-    expect(src).toContain("返回当前运行");
-    expect(src).toContain('{fullWidth ? "返回" : "收起"}');
+    expect(src).toContain('"common.collapseRunList"');
+    expect(src).toContain('"run.listReturnCurrent"');
+    expect(src).toContain('{translator.t(fullWidth ? "common.back" : "common.collapse")}');
   });
 
   it("SpanTree：同一套开关，aria-controls 指向 steps-navigation，写偏好路径不变", () => {

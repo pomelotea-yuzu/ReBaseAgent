@@ -130,7 +130,7 @@ describe("接线：RunList 接入刷新提示、重试与复制", () => {
     expect(src).toContain("s.loadRuns");
     // ⚠️ 两个「重试」按钮（未更新 / 首次失败）**都必须**接 loadRuns——
     // 只查 toContain 会被"其中一个接了"骗过（变异验证证实过），故按数量对齐。
-    const retryButtons = src.match(/>\s*重试\s*</g) ?? [];
+    const retryButtons = src.match(/translator\.t\("run\.retry"\)/g) ?? [];
     const wiredReloads = src.match(/onClick=\{\(\) => void reload\(\)\}/g) ?? [];
     expect(retryButtons.length).toBeGreaterThan(0);
     expect(wiredReloads).toHaveLength(retryButtons.length);
@@ -138,7 +138,7 @@ describe("接线：RunList 接入刷新提示、重试与复制", () => {
 
   it("刷新失败用「未更新」措辞且保留旧列表（不显示空态）", () => {
     const src = read("src/renderer/src/components/RunList.tsx");
-    expect(src).toContain("列表未更新，仍显示上次结果");
+    expect(src).toContain('"run.listStale"');
     expect(src).toContain("resolveNavListState");
   });
 
@@ -157,14 +157,14 @@ describe("接线：RunList 接入刷新提示、重试与复制", () => {
     // 复制时不得把短 ID 当值（短 ID 只用于显示）
     expect(src).not.toMatch(/writeText\(\s*(shortIds|shortId)\b/);
     // 复制入口必须是真 <button>，且位于选择按钮的闭合标签**之后**（兄弟节点）
-    expect(src).toContain("复制完整运行 ID");
+    expect(src).toContain('"run.copyIdAria"');
     const selectionClose = src.indexOf("</button>\n\n              {/* 复制完整 ID");
     expect(selectionClose).toBeGreaterThan(-1);
   });
 
   it("复制入口带可访问名称（aria-label 给出完整 ID 语义）", () => {
     const src = read("src/renderer/src/components/RunList.tsx");
-    expect(src).toContain("aria-label={`复制完整运行 ID");
+    expect(src).toContain('aria-label={translator.t("run.copyIdAria"');
     expect(src).toContain('type="button"');
   });
 
@@ -175,8 +175,8 @@ describe("接线：RunList 接入刷新提示、重试与复制", () => {
 
   it("筛选隐藏当前运行的提示仍在（3.5 能力未回退）", () => {
     const src = read("src/renderer/src/components/RunList.tsx");
-    expect(src).toContain("当前运行的记录不在筛选结果中");
-    expect(src).toContain("清除条件");
+    expect(src).toContain('"run.selectedHidden"');
+    expect(src).toContain('"run.clearFilters"');
   });
 
   it("刷新中不显示加载中覆盖已有数据（有旧列表就留着）", () => {

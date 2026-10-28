@@ -163,7 +163,8 @@ export function BranchTreeView({
   onViewportChange: (viewport: TreeViewport) => void;
   onModeChange: (mode: "graph" | "list") => void;
 }) {
-  const layout = useMemo(() => layoutRunTree(buildRunForest(runs)), [runs]);
+  const translator = useTranslator();
+  const layout = useMemo(() => layoutRunTree(buildRunForest(runs), translator), [runs, translator]);
   const byId = useMemo(() => indexRunsById(runs), [runs]);
   const highlighted = useMemo(
     () => (selectedRunId === null ? new Set<string>() : deriveAncestorIds(byId, selectedRunId)),
@@ -780,7 +781,7 @@ export function SelectedRunDetail({
       </div>
       {fork !== null ? (
         <div className="mb-1 text-gray-500">
-          入边标注：{forkEditLabel(fork.edit_field)} · 分叉点{" "}
+          入边标注：{forkEditLabel(fork.edit_field, translator)} · 分叉点{" "}
           <span className="font-code">{fork.at_span}</span>
         </div>
       ) : null}

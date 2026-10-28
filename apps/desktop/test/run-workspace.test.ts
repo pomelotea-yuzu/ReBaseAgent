@@ -365,3 +365,25 @@ describe("接线：全局栏与列表共用同一创建工作区（源码契约�
     expect(src).toContain("setSettingsSection(null)");
   });
 });
+
+describe("2.4 运行状态与页头英文", () => {
+  it("状态徽章与未选择运行按当前语言输出", async () => {
+    const { RunStatusBadge } = await import("../src/renderer/src/components/RunStatusBadge");
+    const en = renderWithLocale(
+      "en-US",
+      createElement(RunStatusBadge, { status: "completed", reason: "completed" }),
+    );
+    expect(en).toContain("Completed");
+    expect(en).not.toContain("已结束");
+    const unknown = renderWithLocale(
+      "en-US",
+      createElement(RunStatusBadge, { status: null, reason: null }),
+    );
+    expect(unknown).toContain("Status unknown");
+    const header = renderWithLocale(
+      "en-US",
+      createElement(RunHeaderView, { detail: null, runs: [], selectedRunId: null }),
+    );
+    expect(header).toContain("No run selected");
+  });
+});

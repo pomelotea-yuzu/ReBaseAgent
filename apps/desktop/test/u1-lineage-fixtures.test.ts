@@ -8,12 +8,16 @@ import {
   deriveComparison,
   deriveRunSummary,
   findCommonAncestor,
-  forkEditLabel,
+  forkEditLabel as forkEditLabelOf,
   indexRunsById,
   isPromptForkField,
 } from "@shared/derive";
 import type { RunSummary } from "@shared/ipc";
 import { describe, expect, it } from "vitest";
+import { createTestTranslator } from "./i18n/render-with-locale";
+
+const zh = createTestTranslator("zh-CN");
+const forkEditLabel = (field: Parameters<typeof forkEditLabelOf>[0]) => forkEditLabelOf(field, zh);
 
 /**
  * U1（refactor-run-workspace）任务 1.2：继承/来源/短 ID/坏版本 fixture 组的输入条件验证。

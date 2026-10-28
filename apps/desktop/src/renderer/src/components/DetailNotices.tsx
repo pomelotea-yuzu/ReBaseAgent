@@ -76,7 +76,8 @@ function BranchNotice() {
     const iteration = resumeBoundaryIteration(detail.spans, resumeAfterStep);
     return (
       <div className="border-b border-violet-200 bg-violet-50 px-4 py-2 text-[11px] leading-5 text-violet-900">
-        隔离续跑分支：{isolatedBranchBoundaryLabel(parentHop.meta.id, iteration, resumeAfterStep)}
+        隔离续跑分支：
+        {isolatedBranchBoundaryLabel(parentHop.meta.id, iteration, resumeAfterStep, translator)}
         ，该轮全部工具的结果作为共享前缀各出现一次。
         <br />
         编辑位置 <span className="font-code">{fork.at_span}</span> · 轮末边界{" "}
@@ -94,7 +95,7 @@ function BranchNotice() {
         <span className="font-code"> {parentHop.meta.id} </span>
         仅作溯源对照——不共享前缀，父轨迹不会进入本时间线。
         <br />
-        编辑字段：<span className="font-code">{forkEditLabel(field)}</span>
+        编辑字段：<span className="font-code">{forkEditLabel(field, translator)}</span>
       </div>
     );
   }
@@ -202,7 +203,9 @@ function ParentChainList() {
               {editedMessages ? (
                 <span className="text-[10px] text-sky-600">已编辑 messages</span>
               ) : editedField !== null ? (
-                <span className="text-[10px] text-emerald-700">{forkEditLabel(editedField)}</span>
+                <span className="text-[10px] text-emerald-700">
+                  {forkEditLabel(editedField, translator)}
+                </span>
               ) : null}
             </span>
           );
@@ -358,9 +361,10 @@ export function IsolatedRunNoticeView({
 
 /** store 薄壳：取当前详情派生分层视图，展开状态接 run 级阅读状态 */
 function IsolatedRunNotice() {
+  const translator = useTranslator();
   const detail = useAppStore((s) => s.detail);
   const selectedRunId = useAppStore((s) => s.selectedRunId);
-  const view = useMemo(() => isolatedRunNoticeView(detail), [detail]);
+  const view = useMemo(() => isolatedRunNoticeView(detail, translator), [detail, translator]);
   const expanded = useAppStore((s) =>
     selectedRunId === null
       ? false
