@@ -1,3 +1,5 @@
+import type { Translator } from "@rebaseagent/i18n";
+
 /**
  * prompt fork 编辑器的客户端校验（纯函数，可单测）。
  *
@@ -26,31 +28,21 @@ export interface PromptForkGuardResult {
   reason: string | null;
 }
 
-export function promptForkGuard(input: PromptForkGuardInput): PromptForkGuardResult {
+export function promptForkGuard(
+  input: PromptForkGuardInput,
+  translator: Translator,
+): PromptForkGuardResult {
   if (!input.settingsConfigured) {
-    return {
-      canSubmit: false,
-      reason: "尚未配置运行参数（baseURL / apiKey / model），请先点击右上角“运行配置”",
-    };
+    return { canSubmit: false, reason: translator.t("run.settingsRequiredForFork") };
   }
   if (!input.hasSystem) {
-    return {
-      canSubmit: false,
-      reason:
-        "首次 llm.call 不含字符串形式的 system 消息，无法重建 RunConfig.systemPrompt，prompt fork 不可用",
-    };
+    return { canSubmit: false, reason: translator.t("fork.promptNoSystem") };
   }
   if (input.field === "user_message" && !input.hasUser) {
-    return {
-      canSubmit: false,
-      reason: "首次 llm.call 不含字符串形式的 user 消息，无法编辑初始用户指令",
-    };
+    return { canSubmit: false, reason: translator.t("fork.promptNoUser") };
   }
   if (input.unchanged) {
-    return {
-      canSubmit: false,
-      reason: "与原值相同，请修改后再提交；未做修改的请求会被原样拒绝。",
-    };
+    return { canSubmit: false, reason: translator.t("fork.promptUnchanged") };
   }
   return { canSubmit: true, reason: null };
 }

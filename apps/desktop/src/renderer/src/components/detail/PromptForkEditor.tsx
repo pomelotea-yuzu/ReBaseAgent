@@ -169,7 +169,9 @@ export function PromptForkEditor({
   };
   // 隔离实验比普通 prompt fork 多一条「启动消息 system+user 至少各一条」；
   // 无字符串 system 时两种编辑都不可用，不以 config_hash / 设置 / 空串补造。
-  const guard = isolated ? isolatedPromptGuard(guardInput) : promptForkGuard(guardInput);
+  const guard = isolated
+    ? isolatedPromptGuard(guardInput, translator)
+    : promptForkGuard(guardInput, translator);
   // 提交闸门 = 既有单步条件 ∧ 源记录可用（源不可用时"能编辑"不等于"能执行"）
   //           ∧ 恢复重验通过（U3 2.5：源缺失/损坏/改变/资格失效都拦）
   //           ∧ 已核对本次从头重跑（U5 4.6：确认凭据，判据在 lib/execution-confirmation.ts）
@@ -183,7 +185,7 @@ export function PromptForkEditor({
   const submitBlocked = !guard.canSubmit
     ? guard.reason
     : !sourceExecutable
-      ? "源记录不可用：重新读取并校验通过前不能发起新执行"
+      ? translator.t("detail.sourceUnavailableExecBlocked")
       : null;
 
   // R2.2 6.2：隔离实验的只读核对状态。全部绑定「草稿修订 + 设置快照 + 字段」，
@@ -216,35 +218,36 @@ export function PromptForkEditor({
     .map((tool) => (tool as { name?: unknown }).name)
     .filter((name): name is string => typeof name === "string");
   const isolatedCard =
-    capability === null ? null : presentIsolatedPromptCard(capability, toolNames);
+    capability === null ? null : presentIsolatedPromptCard(capability, toolNames, translator);
   const canCheck =
     !inProgress && !checking && guard.canSubmit && sourceExecutable && sourceBlocked === null;
   const isolatedSubmission = isolated
-    ? resolveIsolatedPromptSubmission({
-        rootRunId: run.meta.id,
-        edit: { field, value },
-        originalValue: original ?? "",
-        hypothesis,
-        acceptanceCriterion,
-        capability,
-        capabilityFresh: capability !== null,
-        feeConfirmed: promptConfirmed,
-        writesAuthorized,
-        checking,
-        inProgress,
-        gateBlockedReason: gate.canSubmit ? null : gate.notice,
-        guardCanSubmit: guard.canSubmit,
-        guardReason: guard.reason,
-      })
+    ? resolveIsolatedPromptSubmission(
+        {
+          rootRunId: run.meta.id,
+          edit: { field, value },
+          originalValue: original ?? "",
+          hypothesis,
+          acceptanceCriterion,
+          capability,
+          capabilityFresh: capability !== null,
+          feeConfirmed: promptConfirmed,
+          writesAuthorized,
+          checking,
+          inProgress,
+          gateBlockedReason: gate.canSubmit ? null : gate.notice,
+          guardCanSubmit: guard.canSubmit,
+          guardReason: guard.reason,
+        },
+        translator,
+      )
     : null;
   const feeBlocked = !guard.canSubmit
     ? guard.reason
     : !sourceExecutable
-      ? "源记录不可用：重新读取并校验通过前不能确认"
+      ? translator.t("fork.sourceUnavailableCannotConfirm")
       : (sourceBlocked?.reason ??
-        (gate.canSubmit
-          ? "请确认本次从头执行会真实调用模型并计费；费用确认不随草稿恢复。"
-          : gate.notice));
+        (gate.canSubmit ? translator.t("fork.feeNotConfirmed") : gate.notice));
 
   // 设置/凭据往返（包括改走又改回）必须让旧核对、费用确认与副本授权全部失效：
   // 快照值比对看不出来的"曾经离开现场"，由设置快照变化推进检查代次兜住。
@@ -350,11 +353,17 @@ export function PromptForkEditor({
   const discardCurrentField = (): void => {
     if (activeEntry === undefined || inProgress) return;
     const snapshot = activeEntry;
-    const fieldLabel = field === "system_prompt" ? "system prompt" : "首条 user message";
+    const fieldLabel =
+      field === "system_prompt" ? "system prompt" : translator.t("fork.fieldUserMessage");
     // U3 5.2：异步模态确认；CAS 按请求时的快照修订校验（确认期间修订推进 ⇒ 放弃不执行）
     void requestConfirm({
-      title: `放弃 prompt 草稿 · ${fieldLabel}`,
-      message: `放弃「prompt fork · ${fieldLabel}」的草稿？（run ${run.meta.id} · ${span.id}）\n\n当前草稿内容：\n${snapshot.text}\n\n只影响这一个字段；放弃按确认时的修订校验：此后内容若被更新，本次放弃不会执行。`,
+      title: translator.t("fork.discardPromptTitle", { field: fieldLabel }),
+      message: translator.t("fork.discardPromptMessage", {
+        field: fieldLabel,
+        runId: run.meta.id,
+        spanId: span.id,
+        content: snapshot.text,
+      }),
     }).then((confirmed) => {
       if (!confirmed) return; // 取消：逐字保留
       if (discardCallDraft(draftKeyOf(field), snapshot.revision)) {
@@ -372,14 +381,17 @@ export function PromptForkEditor({
     // 隔离实验：启动消息要求 system+user 各至少一条，缺任一条两种编辑都不可用。
     const unavailable = originalSystem === null || (isolated && originalUser === null);
     const unavailableReason = isolated
-      ? isolatedPromptGuard({
-          field: "system_prompt",
-          hasSystem: originalSystem !== null,
-          hasUser: originalUser !== null,
-          settingsConfigured: true,
-          unchanged: false,
-        }).reason
-      : "首次 llm.call 缺少字符串形式的 system 消息，无法重建运行配置，prompt fork 不可用。";
+      ? isolatedPromptGuard(
+          {
+            field: "system_prompt",
+            hasSystem: originalSystem !== null,
+            hasUser: originalUser !== null,
+            settingsConfigured: true,
+            unchanged: false,
+          },
+          translator,
+        ).reason
+      : translator.t("fork.promptUnavailableSystem");
     return (
       <div className="border-t border-emerald-100 px-4 py-2">
         <div className="flex items-center gap-2">
@@ -394,7 +406,9 @@ export function PromptForkEditor({
             title={unavailable ? (unavailableReason ?? undefined) : undefined}
             className="rounded bg-emerald-600 px-2 py-1 text-[11px] text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {isolated ? "修改 system prompt（隔离实验）" : "编辑 system prompt 重跑"}
+            {translator.t(
+              isolated ? "fork.promptEditSystemIsolated" : "fork.promptEditSystemPlain",
+            )}
           </button>
           <button
             type="button"
@@ -407,16 +421,14 @@ export function PromptForkEditor({
             title={unavailable ? (unavailableReason ?? undefined) : undefined}
             className="rounded border border-emerald-500 px-2 py-1 text-[11px] text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {isolated ? "修改首条 user message（隔离实验）" : "编辑初始 user message 重跑"}
+            {translator.t(isolated ? "fork.promptEditUserIsolated" : "fork.promptEditUserPlain")}
           </button>
         </div>
         {unavailable ? (
           <div className="mt-1 text-[11px] text-gray-400">{unavailableReason}</div>
         ) : (
           <div className="mt-1 text-[11px] text-gray-400">
-            {isolated
-              ? "隔离启动指令实验：从该根的初始文件与启动指令出发从头重跑（真实模型调用；父/兄弟/源目录不会被修改）。一次只改一项。"
-              : "prompt fork：修改启动上下文后从头重跑（独立新轨迹，不共享父前缀）。一次只改一项。"}
+            {translator.t(isolated ? "fork.isoIntro" : "fork.promptIntro")}
           </div>
         )}
       </div>
@@ -442,7 +454,7 @@ export function PromptForkEditor({
     <div className="border-t border-emerald-100 bg-emerald-50/60 px-4 py-3">
       <div className="mb-1 flex items-center justify-between">
         <span className="text-[11px] font-semibold text-emerald-900">
-          {isolated ? "隔离 prompt 实验 · 从初始文件与启动指令重跑" : "prompt fork · 从头重跑"}
+          {translator.t(isolated ? "fork.isoHeading" : "fork.promptHeading")}
         </span>
         <div className="flex items-center gap-1">
           {(["system_prompt", "user_message"] as const).map((f) => (
@@ -459,7 +471,7 @@ export function PromptForkEditor({
                   : "border border-emerald-300 bg-white text-emerald-700 hover:bg-emerald-100"
               }`}
             >
-              {f === "system_prompt" ? "system prompt" : "首条 user message"}
+              {f === "system_prompt" ? "system prompt" : translator.t("fork.fieldUserMessage")}
             </button>
           ))}
         </div>
@@ -470,14 +482,12 @@ export function PromptForkEditor({
           data-isolated-prompt-root
         >
           <span>
-            根运行 <span className="font-code">{run.meta.id}</span>
+            {translator.t("fork.isoRootLine")} <span className="font-code">{run.meta.id}</span>
           </span>
           <span>
-            启动调用 <span className="font-code">{span.id}</span>
+            {translator.t("fork.isoStartCall")} <span className="font-code">{span.id}</span>
           </span>
-          <span className="text-emerald-700">
-            当前目标已固定为该根；返回原阅读页用上方页签，不自动跳转。
-          </span>
+          <span className="text-emerald-700">{translator.t("fork.isoRootFixed")}</span>
         </div>
       ) : null}
       {/* U3 任务 2.6：原值（只读）/草稿（可编辑）就近核对。
@@ -533,7 +543,7 @@ export function PromptForkEditor({
       {isolated ? (
         <div className="mt-2 grid gap-2 sm:grid-cols-2" data-isolated-prompt-notes>
           <label className="block text-[11px] text-gray-700">
-            <span className="mb-0.5 block font-medium">假设（可选，≤4000 字）</span>
+            <span className="mb-0.5 block font-medium">{translator.t("fork.hypothesisLabel")}</span>
             <textarea
               data-isolated-note="hypothesis"
               value={hypothesis}
@@ -543,12 +553,12 @@ export function PromptForkEditor({
                 writeCallDraftNotes(draftKeyOf(field), { hypothesis: event.target.value })
               }
               rows={3}
-              placeholder="例如：把启动指令改成先读配置，预期会多调用一次 read_file"
+              placeholder={translator.t("fork.hypothesisPlaceholder")}
               className="w-full resize-y rounded border border-emerald-200 bg-white px-2 py-1 text-[11px] leading-4 text-gray-800 disabled:bg-gray-50"
             />
           </label>
           <label className="block text-[11px] text-gray-700">
-            <span className="mb-0.5 block font-medium">人工判据（可选，≤4000 字）</span>
+            <span className="mb-0.5 block font-medium">{translator.t("fork.criterionLabel")}</span>
             <textarea
               data-isolated-note="acceptance-criterion"
               value={acceptanceCriterion}
@@ -560,7 +570,7 @@ export function PromptForkEditor({
                 })
               }
               rows={3}
-              placeholder="例如：输出中必须说明配置文件的值；由我人工判定，不自动评分"
+              placeholder={translator.t("fork.criterionPlaceholder")}
               className="w-full resize-y rounded border border-emerald-200 bg-white px-2 py-1 text-[11px] leading-4 text-gray-800 disabled:bg-gray-50"
             />
           </label>
@@ -579,8 +589,13 @@ export function PromptForkEditor({
             if (activeEntry === undefined) return;
             const snapshot = activeEntry;
             void requestConfirm({
-              title: "放弃 prompt 草稿",
-              message: `放弃这份 prompt 草稿（${field === "system_prompt" ? "system prompt" : "user message"}）？内容将被删除（不可撤销）。`,
+              title: translator.t("fork.discardPromptBannerTitle"),
+              message: translator.t("fork.discardPromptBannerMessage", {
+                field:
+                  field === "system_prompt"
+                    ? "system prompt"
+                    : translator.t("fork.fieldUserMessage"),
+              }),
             }).then((confirmed) => {
               if (!confirmed) return;
               if (discardCallDraft(draftKeyOf(field), snapshot.revision)) {
@@ -594,17 +609,28 @@ export function PromptForkEditor({
 
       {draftFrozen ? (
         <div className="mt-2 rounded border border-emerald-200 bg-emerald-100/60 px-2 py-1.5 text-[11px] leading-4 text-emerald-900">
-          本次提交待处理：已按提交时的修订冻结这个字段的草稿，请求返回前不可修改或放弃。
-          另一字段与其他运行不受影响；无论成功、业务拒绝还是失败，草稿都保留。
+          {translator.t("fork.promptFrozenNote")}
         </div>
       ) : null}
 
       {forking === "error" ? (
         <div className="mt-1 text-[11px] text-red-700">
-          {forkError}
-          {forkErrorCode === "SETTINGS_NOT_CONFIGURED"
-            ? "（请先点击右上角“运行配置”填写 baseURL/apiKey/model）"
-            : ""}
+          <div>
+            {translator.t("detail.forkFailedSummary", {
+              code: forkErrorCode ?? "UNKNOWN_ERROR",
+            })}
+          </div>
+          {forkError === null ? null : (
+            <div className="mt-0.5 whitespace-pre-wrap break-words text-red-600">
+              {translator.t("detail.rawFailureDetail")}
+              {forkError}
+            </div>
+          )}
+          {forkErrorCode === "SETTINGS_NOT_CONFIGURED" ? (
+            <div className="mt-0.5 text-amber-700">
+              {translator.t("run.settingsRequiredForFork")}
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -624,13 +650,14 @@ export function PromptForkEditor({
             const disclosure = promptDisclosure(
               {
                 parentRunId: run.meta.id,
-                fieldLabel:
+                fieldLabel: translator.t(
                   field === "system_prompt"
-                    ? "System Prompt（启动 system 消息）"
-                    : "首个 user 消息",
+                    ? "fork.plainFieldSystemLabel"
+                    : "fork.plainFieldUserLabel",
+                ),
                 oldValue: original ?? "",
                 newValue: value,
-                modelSummary: `${settings?.model ?? "（未配置模型）"}${
+                modelSummary: `${settings?.model ?? translator.t("detail.modelUnconfigured")}${
                   settings?.baseURL ? ` @ ${settings.baseURL}` : ""
                 }`,
                 rebuildable: originalSystem !== null,
@@ -639,7 +666,7 @@ export function PromptForkEditor({
             );
             return (
               <ConfirmationBlock
-                title="核对本次从头重跑"
+                title={translator.t("fork.confirmPromptTitle")}
                 tone="emerald"
                 summary={disclosure.summary}
                 rows={disclosureLines(disclosure, translator)}
@@ -652,8 +679,8 @@ export function PromptForkEditor({
                   !gate.canSubmit
                 }
                 onConfirm={() => armExecutionConfirmation(promptBinding)}
-                confirmLabel="已核对，确认从头重跑"
-                confirmedLabel="已确认从头重跑"
+                confirmLabel={translator.t("fork.confirmPromptAccept")}
+                confirmedLabel={translator.t("fork.confirmPromptAccepted")}
                 blocked={promptConfirmed ? null : submitBlocked}
                 controlsId={`prompt-confirm-details-${run.meta.id}-${span.id}`}
               />
@@ -670,20 +697,22 @@ export function PromptForkEditor({
               disabled={!canCheck}
               className="rounded border border-violet-400 bg-white px-2 py-0.5 text-[11px] text-violet-800 hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {checking
-                ? "正在核对本次运行…"
-                : capability !== null || unavailableCheck !== null
-                  ? "重新核对本次运行（只读）"
-                  : "核对本次运行（只读）"}
+              {translator.t(
+                checking
+                  ? "fork.isoChecking"
+                  : capability !== null || unavailableCheck !== null
+                    ? "fork.isoCheckRerun"
+                    : "fork.isoCheckRun",
+              )}
             </button>
             <span className="text-[11px] leading-4 text-emerald-800">
-              只读预检：不调用模型、不写文件、不占执行槽；结论不是执行凭证。
+              {translator.t("fork.isoCheckNote")}
             </span>
           </div>
 
           {checked !== null && currentCheck !== null ? (
             <div className="text-[10px] text-gray-500" data-isolated-prompt-checked>
-              核对绑定草稿修订 #{draftRevision} 与当前设置快照；任何修改都要重新核对。
+              {translator.t("fork.isoCheckBound", { revision: draftRevision })}
             </div>
           ) : null}
 
@@ -692,7 +721,7 @@ export function PromptForkEditor({
               className="rounded border border-amber-300 bg-amber-50 px-2 py-1.5 text-[11px] leading-4 text-amber-900"
               data-isolated-prompt-check-stale
             >
-              输入或运行配置已变化：旧核对结论、费用确认与副本授权已失效。请重新核对本次运行。
+              {translator.t("fork.isoCheckStale")}
             </div>
           ) : null}
 
@@ -707,17 +736,22 @@ export function PromptForkEditor({
               className="rounded border border-amber-300 bg-amber-50 px-2 py-1.5 text-[11px] leading-4 text-amber-900"
               data-isolated-prompt-check-unavailable
             >
-              核对未通过（{unavailableCheck.code}）：{unavailableCheck.reason}
+              {translator.t("fork.isoCheckUnavailable", {
+                code: unavailableCheck.code,
+                reason: unavailableCheck.reason,
+              })}
               {unavailableCheck.rootId === undefined
                 ? ""
-                : ` 经验证的根：${unavailableCheck.rootId}（需显式打开根后重新核对）`}
+                : translator.t("fork.isoVerifiedRootSuffix", {
+                    rootId: unavailableCheck.rootId,
+                  })}
             </div>
           ) : null}
 
           {capability !== null && isolatedCard !== null ? (
             <>
               <ConfirmationBlock
-                title="核对本次隔离实验"
+                title={translator.t("fork.isoConfirmTitle")}
                 tone="emerald"
                 summary={isolatedCard.summary}
                 rows={isolatedCard.rows}
@@ -731,16 +765,18 @@ export function PromptForkEditor({
                   !gate.canSubmit
                 }
                 onConfirm={() => armExecutionConfirmation(promptBinding)}
-                confirmLabel="已核对，确认真实计费"
-                confirmedLabel="已确认真实计费"
+                confirmLabel={translator.t("fork.isoConfirmAccept")}
+                confirmedLabel={translator.t("fork.isoConfirmAccepted")}
                 blocked={promptConfirmed ? null : feeBlocked}
                 controlsId={`isolated-prompt-confirm-${run.meta.id}-${span.id}`}
               />
               <div className="text-[11px] leading-4 text-emerald-900" data-isolated-billing>
                 {isolatedCard.billing}
                 {isolatedCard.unknowns.length === 0
-                  ? " 历史未录制条件：无。"
-                  : ` 历史未知：${isolatedCard.unknowns.join("；")}`}
+                  ? translator.t("fork.isoUnknownNone")
+                  : translator.t("fork.isoUnknownList", {
+                      list: isolatedCard.unknowns.join(translator.t("fork.unknownSeparator")),
+                    })}
               </div>
               <label
                 className="flex items-start gap-2 rounded border border-violet-200 bg-white px-2 py-1.5 text-[11px] leading-4 text-gray-700"
@@ -761,10 +797,7 @@ export function PromptForkEditor({
                     setAuthorizedKey(event.target.checked ? authorizationKey : null)
                   }
                 />
-                <span>
-                  允许本次副本写入（只写本次新副本的独立文件世界；父/兄弟/源目录不修改）。
-                  授权默认未选、仅对这一次提交有效，不从父 trace 的 write_authorized 补授权。
-                </span>
+                <span>{translator.t("fork.isoWritesLabel")}</span>
               </label>
               <div
                 className="flex flex-wrap items-center justify-end gap-2"
@@ -777,7 +810,7 @@ export function PromptForkEditor({
                   data-isolated-prompt-submit-state
                 >
                   {isolatedSubmission?.ok
-                    ? "费用确认与本次副本授权已就绪；提交后会真实调用模型并写入独立文件世界。"
+                    ? translator.t("fork.isoSubmitReady")
                     : (isolatedSubmission?.reason ?? "")}
                 </span>
                 <button
@@ -787,7 +820,7 @@ export function PromptForkEditor({
                   disabled={inProgress || isolatedSubmission === null || !isolatedSubmission.ok}
                   className="rounded bg-violet-700 px-3 py-1 text-[11px] text-white hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  {inProgress ? "提交处理中…" : "确认开始实验（真实调用）"}
+                  {translator.t(inProgress ? "fork.isoSubmitBusy" : "fork.isoSubmitButton")}
                 </button>
               </div>
             </>
@@ -797,20 +830,24 @@ export function PromptForkEditor({
 
       <div className="mt-2 flex items-center justify-end gap-2">
         {inProgress ? (
-          <span className="text-[11px] text-emerald-600">重跑中…（真实 LLM 调用，可能耗时）</span>
+          <span className="text-[11px] text-emerald-600">
+            {translator.t("detail.rerunInProgress")}
+          </span>
         ) : null}
         <button
           type="button"
           onClick={discardCurrentField}
           disabled={inProgress || unchanged}
-          title={unchanged ? "尚无修改可放弃" : "放弃这个字段的草稿（需确认；只影响当前字段）"}
+          title={translator.t(
+            unchanged ? "detail.discardNoChangesTitle" : "fork.discardFieldTitle",
+          )}
           className={`mr-auto rounded border px-2 py-1 text-[11px] disabled:cursor-not-allowed disabled:opacity-40 ${
             unchanged
               ? "border-gray-200 text-gray-300"
               : "border-amber-400 text-amber-800 hover:bg-amber-50"
           }`}
         >
-          放弃修改
+          {translator.t("detail.discardChanges")}
         </button>
         <button
           type="button"
@@ -818,7 +855,7 @@ export function PromptForkEditor({
           disabled={inProgress || original === null}
           className="rounded border border-gray-300 px-2 py-1 text-[11px] text-gray-600 hover:bg-gray-50 disabled:opacity-40"
         >
-          恢复原值
+          {translator.t("fork.restoreOriginalValue")}
         </button>
         <button
           type="button"
@@ -826,7 +863,7 @@ export function PromptForkEditor({
           disabled={inProgress}
           className="rounded border border-gray-300 px-2 py-1 text-[11px] text-gray-600 hover:bg-gray-50 disabled:opacity-40"
         >
-          取消
+          {translator.t("common.cancel")}
         </button>
         {isolated ? null : (
           <button
@@ -835,7 +872,7 @@ export function PromptForkEditor({
             disabled={inProgress || !canSubmit || !gate.canSubmit}
             className="rounded bg-emerald-600 px-3 py-1 text-[11px] text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            确认从头重跑
+            {translator.t("fork.submitPrompt")}
           </button>
         )}
       </div>

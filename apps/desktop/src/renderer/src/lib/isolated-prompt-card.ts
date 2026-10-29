@@ -1,3 +1,4 @@
+import type { Translator } from "@rebaseagent/i18n";
 import type {
   IsolatedPromptCapabilityRequest,
   IsolatedPromptCapabilityResult,
@@ -38,77 +39,136 @@ export interface IsolatedPromptCardView {
   readonly billing: string;
 }
 
-const UNKNOWN_LABELS = {
-  provider_backend: "服务端实际后端/版本未录制（不能声称严格因果对照）",
-  max_iterations: "历史迭代上限未录制（本次使用当前上限）",
-  token_budget: "历史 token 预算未录制（本次使用当前预算）",
-} as const;
+function unknownLabel(key: string, translator: Translator): string {
+  switch (key) {
+    case "provider_backend":
+      return translator.t("fork.cardUnknownProvider");
+    case "max_iterations":
+      return translator.t("fork.cardUnknownIterations");
+    case "token_budget":
+      return translator.t("fork.cardUnknownBudget");
+    default:
+      // 未知类别是记录事实本身：保留原键名，不编造解释
+      return key;
+  }
+}
 
 function shortId(id: string): string {
   return id.length > 16 ? `${id.slice(0, 16)}…` : id;
 }
 
-function paramsLabel(params: IsolatedPromptCapabilitySuccess["execution"]["params"]): string {
-  if (params === undefined) return "缺省（根首次请求未录制 params）";
-  return Object.keys(params).length === 0 ? "显式空对象 {}" : JSON.stringify(params);
+function paramsLabel(
+  params: IsolatedPromptCapabilitySuccess["execution"]["params"],
+  translator: Translator,
+): string {
+  if (params === undefined) return translator.t("fork.cardParamsMissing");
+  return Object.keys(params).length === 0
+    ? translator.t("fork.cardParamsEmpty")
+    : JSON.stringify(params);
 }
 
-function budgetLabel(execution: IsolatedPromptCapabilitySuccess["execution"]): string {
+function budgetLabel(
+  execution: IsolatedPromptCapabilitySuccess["execution"],
+  translator: Translator,
+): string {
   const cost =
-    execution.budget.maxCost === undefined ? "" : ` / 成本上限 ${execution.budget.maxCost}`;
-  const source = execution.tokenBudgetSource === "recorded" ? "根录制值" : "当前配置";
-  return `${execution.budget.maxTotalTokens} tokens（${source}）${cost}`;
+    execution.budget.maxCost === undefined
+      ? ""
+      : translator.t("fork.cardCostCap", { value: execution.budget.maxCost });
+  const source = translator.t(
+    execution.tokenBudgetSource === "recorded"
+      ? "fork.cardBudgetRecorded"
+      : "fork.cardBudgetCurrent",
+  );
+  return translator.t("fork.cardBudgetValue", {
+    tokens: execution.budget.maxTotalTokens,
+    source,
+    cost,
+  });
 }
 
 /** 把 capability 结论排版成核对卡（组件只渲染，不再写第二套判据） */
 export function presentIsolatedPromptCard(
   capability: IsolatedPromptCapabilitySuccess,
   tools: readonly string[],
+  translator: Translator,
 ): IsolatedPromptCardView {
-  const unknowns = capability.execution.historicalUnknowns.map((key) => UNKNOWN_LABELS[key]);
+  const unknowns = capability.execution.historicalUnknowns.map((key) =>
+    unknownLabel(key, translator),
+  );
   const toolLabel =
     tools.length === 0
-      ? "（根首次请求未录制工具表）"
-      : `${tools.join("、")}（profile 由 main 固定）`;
+      ? translator.t("fork.cardToolMissing")
+      : translator.t("fork.cardToolList", {
+          tools: tools.join(translator.t("fork.listSeparator")),
+        });
   return {
-    summary: `从根 ${capability.rootId} 的初始文件（${capability.fileCount} 个 / ${formatBytes(
-      capability.totalBytes,
-    )}）与启动指令重跑；真实模型调用并计费，usage/价格/缓存执行前未知；副本只写独立世界。`,
+    summary: translator.t("fork.cardSummary", {
+      rootId: capability.rootId,
+      files: translator.t("fork.cardFileCount", { count: capability.fileCount }),
+      bytes: formatBytes(capability.totalBytes),
+    }),
     rows: [
-      { label: "根运行", value: capability.rootId },
-      { label: "启动调用", value: capability.baselineLlmSpanId },
+      { label: translator.t("fork.cardRoot"), value: capability.rootId },
+      { label: translator.t("fork.cardStartCall"), value: capability.baselineLlmSpanId },
       {
-        label: "初始文件",
-        value: `${capability.fileCount} 个 / ${formatBytes(capability.totalBytes)} · 快照 ${shortId(
-          capability.initialSnapshotId,
-        )}`,
+        label: translator.t("fork.cardInitialFiles"),
+        value: translator.t("fork.cardFilesValue", {
+          count: capability.fileCount,
+          bytes: formatBytes(capability.totalBytes),
+          snapshot: shortId(capability.initialSnapshotId),
+        }),
       },
       {
-        label: "有效启动消息",
-        value: `${capability.messages.length} 条（${capability.messages
-          .map((message) => message.role)
-          .join(" / ")}）`,
+        label: translator.t("fork.cardMessages"),
+        value: translator.t("fork.cardMessagesValue", {
+          count: capability.messages.length,
+          roles: capability.messages.map((message) => message.role).join(" / "),
+        }),
       },
-      { label: "固定工具", value: toolLabel },
-      { label: "基线模型（根首次请求）", value: capability.execution.model },
-      { label: "根参数", value: paramsLabel(capability.execution.params) },
-      { label: "本次端点", value: capability.execution.providerEndpoint },
-      { label: "执行上限", value: `${capability.execution.maxIterations} 轮` },
-      { label: "token 预算", value: budgetLabel(capability.execution) },
+      { label: translator.t("fork.cardTools"), value: toolLabel },
+      { label: translator.t("fork.cardBaselineModel"), value: capability.execution.model },
       {
-        label: "编辑",
-        value: `${capability.originalValue.length} 字 → ${capability.editedValue.length} 字（逐字差异见上方核对网格）`,
+        label: translator.t("fork.cardParams"),
+        value: paramsLabel(capability.execution.params, translator),
       },
-      { label: "历史未知条件", value: unknowns.length === 0 ? "无" : unknowns.join("；") },
+      { label: translator.t("fork.cardEndpoint"), value: capability.execution.providerEndpoint },
       {
-        label: "真实计费",
-        value: "执行前 usage/单价/缓存未知；执行后按实际记录呈现，未知不补零",
+        label: translator.t("fork.cardMaxIterations"),
+        value: translator.t("fork.cardMaxIterationsValue", {
+          count: capability.execution.maxIterations,
+        }),
       },
-      { label: "计划指纹", value: shortId(capability.planFingerprint) },
-      { label: "副本写入", value: "仅写入本次新副本的独立文件世界；父/兄弟/源目录不修改" },
+      {
+        label: translator.t("fork.cardTokenBudget"),
+        value: budgetLabel(capability.execution, translator),
+      },
+      {
+        label: translator.t("fork.cardEdit"),
+        value: translator.t("fork.cardEditValue", {
+          old: capability.originalValue.length,
+          new: capability.editedValue.length,
+        }),
+      },
+      {
+        label: translator.t("fork.cardUnknowns"),
+        value:
+          unknowns.length === 0
+            ? translator.t("fork.cardUnknownNone")
+            : unknowns.join(translator.t("fork.unknownSeparator")),
+      },
+      {
+        label: translator.t("fork.cardBillingLabel"),
+        value: translator.t("fork.cardBillingValue"),
+      },
+      {
+        label: translator.t("fork.cardPlanFingerprint"),
+        value: shortId(capability.planFingerprint),
+      },
+      { label: translator.t("fork.cardWrites"), value: translator.t("fork.cardWritesValue") },
     ],
     unknowns,
-    billing: "真实模型调用并计费；usage、单价与缓存命中在执行前未知，执行后按实际记录呈现。",
+    billing: translator.t("fork.cardBilling"),
   };
 }
 
@@ -170,36 +230,31 @@ export type IsolatedPromptSubmission =
  */
 export function resolveIsolatedPromptSubmission(
   input: IsolatedPromptSubmissionInput,
+  translator: Translator,
 ): IsolatedPromptSubmission {
-  if (input.inProgress) return { ok: false, reason: "提交进行中：不能重复提交" };
-  if (input.checking) return { ok: false, reason: "正在核对本次运行…" };
+  if (input.inProgress) return { ok: false, reason: translator.t("fork.submitInProgress") };
+  if (input.checking) return { ok: false, reason: translator.t("fork.isoChecking") };
   if (!input.guardCanSubmit) {
-    return { ok: false, reason: input.guardReason ?? "本次编辑尚不满足隔离实验条件" };
-  }
-  if (input.capability === null || !input.capabilityFresh) {
     return {
       ok: false,
-      reason: "请先点击「核对本次运行」完成只读预检；输入或配置变化后必须重新核对",
+      reason: input.guardReason ?? translator.t("fork.submitGuardMissing"),
     };
+  }
+  if (input.capability === null || !input.capabilityFresh) {
+    return { ok: false, reason: translator.t("fork.submitNeedsCheck") };
   }
   if (
     input.capability.rootId !== input.rootRunId ||
     input.capability.originalValue !== input.originalValue ||
     input.capability.editedValue !== input.edit.value
   ) {
-    return { ok: false, reason: "核对结论与当前根/原值/新值不一致，请重新核对" };
+    return { ok: false, reason: translator.t("fork.submitCheckMismatch") };
   }
   if (!input.feeConfirmed) {
-    return {
-      ok: false,
-      reason: "请先确认本次从头执行会真实调用模型并计费（费用确认不随草稿恢复）",
-    };
+    return { ok: false, reason: translator.t("fork.submitNeedsFee") };
   }
   if (!input.writesAuthorized) {
-    return {
-      ok: false,
-      reason: "请勾选「允许本次副本写入」——授权只对这一次提交有效，不从父 trace 补授权",
-    };
+    return { ok: false, reason: translator.t("fork.submitNeedsWrites") };
   }
   if (input.gateBlockedReason !== null) {
     return { ok: false, reason: input.gateBlockedReason };

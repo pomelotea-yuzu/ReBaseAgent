@@ -1,3 +1,4 @@
+import type { Translator } from "@rebaseagent/i18n";
 import type { SpanLine } from "@rebaseagent/trace-sdk";
 import type { IsolatedPromptCapabilityResult, RunDetail } from "@shared/ipc";
 import type { PromptForkGuardInput, PromptForkGuardResult } from "./prompt-fork";
@@ -27,48 +28,46 @@ export type IsolatedPromptEntry =
 /**
  * 隔离 prompt 入口判据。返回 null = 不是隔离运行（普通入口不变）。
  */
-export function isolatedPromptEntryOf(run: RunDetail | null): IsolatedPromptEntry | null {
+export function isolatedPromptEntryOf(
+  run: RunDetail | null,
+  translator: Translator,
+): IsolatedPromptEntry | null {
   if (run === null || run.meta.workspace === undefined) return null;
   if (run.meta.parent !== null || run.meta.fork !== null) {
     return {
       kind: "branch",
-      reason:
-        "该运行是隔离分支：启动指令实验只能从根运行发起。请显式前往经验证的根运行，核对初始输入与文件后重新编辑；分支自有的消息不会被当作根启动上下文，草稿也不会自动搬运。",
+      reason: translator.t("fork.isoBranchEntry"),
     };
   }
   if (run.meta.workspace.origin.kind !== "import") {
     return {
       kind: "unavailable",
-      reason:
-        "该隔离运行不是从源目录采集的根（origin 不是 import），不能作为启动指令实验的基线；请回到采集该世界的根运行。",
+      reason: translator.t("fork.isoNotImportRoot"),
     };
   }
   if (run.status !== "completed") {
     return {
       kind: "unavailable",
-      reason: `运行尚未封存（当前 ${run.status}）：启动指令实验需要已封存且来源完整的根记录，请等运行结束后再试。`,
+      reason: translator.t("fork.isoNotSealed", { status: run.status }),
     };
   }
   if (run.meta.config_hash === undefined) {
     return {
       kind: "unavailable",
-      reason:
-        "该根运行没有录制 config_hash：无法确认原 system 与固定工具表来源，启动指令实验不可用。",
+      reason: translator.t("fork.isoNoConfigHash"),
     };
   }
   const firstLlm = run.spans.find((span) => span.kind === "llm.call");
   if (firstLlm === undefined || firstLlm.kind !== "llm.call") {
     return {
       kind: "unavailable",
-      reason:
-        "该根运行的轨迹里没有 llm.call：无法从真实首次请求重建启动上下文，启动指令实验不可用。",
+      reason: translator.t("fork.isoNoLlmCall"),
     };
   }
   if (!run.leafSpanIds.includes(firstLlm.id)) {
     return {
       kind: "unavailable",
-      reason:
-        "该根运行的首次 llm.call 不是自有记录（自有读取不完整）：不能把它当作本次实验的启动上下文。",
+      reason: translator.t("fork.isoFirstCallNotOwn"),
     };
   }
   return {
@@ -83,32 +82,21 @@ export function isolatedPromptEntryOf(run: RunDetail | null): IsolatedPromptEntr
  * 隔离实验的本地提交前拦截：比普通 prompt fork 多一条「启动消息至少各一条」。
  * 没有字符串 system 时两种编辑都不可用（不以 config_hash / 桌面设置 / 空串补造）。
  */
-export function isolatedPromptGuard(input: PromptForkGuardInput): PromptForkGuardResult {
+export function isolatedPromptGuard(
+  input: PromptForkGuardInput,
+  translator: Translator,
+): PromptForkGuardResult {
   if (!input.settingsConfigured) {
-    return {
-      canSubmit: false,
-      reason: "尚未配置运行参数（baseURL / apiKey / model），请先点击右上角“运行配置”",
-    };
+    return { canSubmit: false, reason: translator.t("run.settingsRequiredForFork") };
   }
   if (!input.hasSystem) {
-    return {
-      canSubmit: false,
-      reason:
-        "首次 llm.call 不含字符串形式的 system 消息：隔离实验无法重建启动上下文，system 与 user 两种编辑均不可用（不会用 config_hash、桌面设置或空字符串补造原值）。",
-    };
+    return { canSubmit: false, reason: translator.t("fork.isoNoSystem") };
   }
   if (!input.hasUser) {
-    return {
-      canSubmit: false,
-      reason:
-        "隔离实验要求启动消息至少包含字符串 system 与 user 各一条；当前缺少 user 消息，两种编辑均不可用。",
-    };
+    return { canSubmit: false, reason: translator.t("fork.isoNoUser") };
   }
   if (input.unchanged) {
-    return {
-      canSubmit: false,
-      reason: "与原值相同，请修改后再核对；未做修改的隔离实验会被原样拒绝。",
-    };
+    return { canSubmit: false, reason: translator.t("fork.isoUnchanged") };
   }
   return { canSubmit: true, reason: null };
 }

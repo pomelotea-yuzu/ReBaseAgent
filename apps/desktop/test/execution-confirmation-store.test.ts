@@ -294,7 +294,8 @@ describe("4.4 接线契约：确认判据只有一份", () => {
     const panel = read("components/detail/PromptForkEditor.tsx");
     // 3.1 起确认块换共享 ConfirmationBlock：原因经 blocked prop 传入（钉**判据形状**：
     // 只写"出现过 submitBlocked"是假门 —— 反向条件也满足它；确认后原因必须收起）
-    const promptAt = panel.indexOf("已核对，确认从头重跑");
+    // 2.7：确认标签改由 fork 资源投影（中文值在实际渲染路径由 zh-CN 资源提供）
+    const promptAt = panel.indexOf('"fork.confirmPromptAccept"');
     expect(promptAt).toBeGreaterThan(-1);
     expect(panel.slice(promptAt, promptAt + 400)).toContain(
       "blocked={promptConfirmed ? null : submitBlocked}",

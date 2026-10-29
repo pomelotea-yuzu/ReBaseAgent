@@ -161,6 +161,8 @@ node scripts/i18n-attribution.cjs --compare-inventory --verify-boundaries
 
 2.6c 归属收口：`execution-confirmation` 的 `decideConfirmation` 原因改判 internal（界面只消费 confirmed/missing/stale，不显示原因）；`result-verification` 的读取核对诊断改判 original（按原始详情展示）；`fork-runner` 与 `exec-endpoints` 的 fork 通道分叉失败原文改判 original（渲染层已给本地化摘要 + 稳定码 + 原始说明）。机器清单 **2,682 处**（product 2,187 / original 410 / internal 81 / generated 4）；收口门禁 `--final` 仍红 152 个 pending 文件（批次 1 余 61）。2.6 完成。
 
+2.7 迁移普通/隔离 prompt 单项编辑：`prompt-fork` 与 `isolated-prompt` 的本地拦截/根定位原因接 translator；`isolated-prompt-card` 的核对卡（根/初始文件/消息/工具/参数/预算/未知项/计费/计划指纹/副本）与提交判据全部按语言投影；`PromptForkEditor`（入口、字段、假设/判据、隔离核对与费用/副本确认、普通确认、放弃/冻结、失败原文）与 `IsolatedPromptEntry`（根/分支导航）全量迁移。replay 的 prompt/preflight/run/state 五个文件与 main 的隔离 prompt 能力预检说明改判 original（原始诊断，产品摘要由渲染层给出）。机器清单 **2,565 处**（product 1,987 / original 493 / internal 81 / generated 4）：迁入资源 117 处、改判 original 83 处。收口门禁 `--final` 仍红 141 个 pending 文件（批次 1 余 50）。2.7 完成。
+
 ## 9. 局限
 
 - 工作区与批次按文件名近似，包层不能精确拆到单个工作区；迁移时以实际入口为准修正。

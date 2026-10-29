@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-29T15:02:57.896Z",
+  "generatedAt": "2026-10-29T15:24:33.906Z",
   "scanner": "scripts/i18n-attribution.cjs",
   "taxonomy": {
     "product": "产品展示：需要按批次迁移为双语资源",
@@ -9,10 +9,10 @@
     "generated": "生成资产：不作为产品文案"
   },
   "totals": {
-    "files": 219,
-    "occurrences": 2682,
-    "product": 2187,
-    "original": 410,
+    "files": 214,
+    "occurrences": 2565,
+    "product": 1987,
+    "original": 493,
     "internal": 81,
     "generated": 4
   },
@@ -20,15 +20,15 @@
     "main": {
       "files": 20,
       "occurrences": 131,
-      "product": 105,
-      "original": 24,
+      "product": 104,
+      "original": 25,
       "internal": 2,
       "generated": 0
     },
     "renderer": {
-      "files": 66,
-      "occurrences": 1355,
-      "product": 1315,
+      "files": 61,
+      "occurrences": 1238,
+      "product": 1198,
       "original": 8,
       "internal": 32,
       "generated": 0
@@ -76,8 +76,8 @@
     "pkg:replay": {
       "files": 32,
       "occurrences": 352,
-      "product": 302,
-      "original": 32,
+      "product": 220,
+      "original": 114,
       "internal": 18,
       "generated": 0
     },
@@ -543,17 +543,17 @@
       "layer": "main",
       "package": null,
       "workspace": "隔离执行/实验",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "main 返回的隔离 prompt 能力预检原始说明，渲染层作为原始详情展示",
       "symbols": [
         {
           "symbol": "runIsolatedPromptCapability",
           "role": "error_message",
           "context": "new Error",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "main 返回的隔离 prompt 能力预检原始说明，渲染层作为原始详情展示",
           "count": 1,
           "samples": [
             "尚未配置运行参数（baseURL / apiKey / model），请先完成运行配置"
@@ -2986,355 +2986,6 @@
             803,
             811,
             819
-          ]
-        }
-      ]
-    },
-    {
-      "path": "apps/desktop/src/renderer/src/components/detail/IsolatedPromptEntry.tsx",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "重跑/分叉",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "div.button",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "修改启动指令"
-          ],
-          "lines": [
-            49
-          ]
-        },
-        {
-          "symbol": "div.span",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "从该根的初始文件与启动指令出发重跑（真实模型调用；父/兄弟/源目录不会被修改）。"
-          ],
-          "lines": [
-            52
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "正在核实根…",
-            "前往根运行查看启动指令"
-          ],
-          "lines": [
-            115
-          ]
-        }
-      ]
-    },
-    {
-      "path": "apps/desktop/src/renderer/src/components/detail/PromptForkEditor.tsx",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "重跑/分叉",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "PromptForkEditor.submitBlocked",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "源记录不可用：重新读取并校验通过前不能发起新执行"
-          ],
-          "lines": [
-            186
-          ]
-        },
-        {
-          "symbol": "PromptForkEditor.feeBlocked",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "源记录不可用：重新读取并校验通过前不能确认",
-            "请确认本次从头执行会真实调用模型并计费；费用确认不随草稿恢复。"
-          ],
-          "lines": [
-            243,
-            246
-          ]
-        },
-        {
-          "symbol": "discardCurrentField.fieldLabel",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "首条 user message"
-          ],
-          "lines": [
-            353
-          ]
-        },
-        {
-          "symbol": "discardCurrentField.title",
-          "role": "ui_prop",
-          "context": "title",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "放弃 prompt 草稿 · ${…}"
-          ],
-          "lines": [
-            356
-          ]
-        },
-        {
-          "symbol": "discardCurrentField.message",
-          "role": "ui_prop",
-          "context": "message",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "放弃「prompt fork · ${…}」的草稿？（run ${…} · ${…}）\n\n当前草稿内容：\n${…}\n\n只影响这一个字段；放弃按确认时的修订校验：此后内容若被更新，本次放弃不会执行。"
-          ],
-          "lines": [
-            357
-          ]
-        },
-        {
-          "symbol": "PromptForkEditor.unavailableReason",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "首次 llm.call 缺少字符串形式的 system 消息，无法重建运行配置，prompt fork 不可用。"
-          ],
-          "lines": [
-            382
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 13,
-          "samples": [
-            "修改 system prompt（隔离实验）",
-            "编辑 system prompt 重跑"
-          ],
-          "lines": [
-            397,
-            410,
-            462,
-            674,
-            676,
-            677,
-            790,
-            806,
-            838
-          ]
-        },
-        {
-          "symbol": "div.div",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 11,
-          "samples": [
-            "隔离启动指令实验：从该根的初始文件与启动指令出发从头重跑（真实模型调用；父/兄弟/源目录不会被修改）。一次只改一项。",
-            "prompt fork：修改启动上下文后从头重跑（独立新轨迹，不共享父前缀）。一次只改一项。"
-          ],
-          "lines": [
-            418,
-            419,
-            597,
-            606,
-            686,
-            695,
-            710,
-            713,
-            742,
-            743
-          ]
-        },
-        {
-          "symbol": "div.span",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 8,
-          "samples": [
-            "隔离 prompt 实验 · 从初始文件与启动指令重跑",
-            "prompt fork · 从头重跑"
-          ],
-          "lines": [
-            445,
-            473,
-            476,
-            479,
-            680,
-            780,
-            800
-          ]
-        },
-        {
-          "symbol": "label.span",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "假设（可选，≤4000 字）",
-            "人工判据（可选，≤4000 字）"
-          ],
-          "lines": [
-            536,
-            551,
-            765
-          ]
-        },
-        {
-          "symbol": "label.textarea",
-          "role": "ui_attr",
-          "context": "placeholder",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "例如：把启动指令改成先读配置，预期会多调用一次 read_file",
-            "例如：输出中必须说明配置文件的值；由我人工判定，不自动评分"
-          ],
-          "lines": [
-            546,
-            563
-          ]
-        },
-        {
-          "symbol": "DraftSourceBanner.title",
-          "role": "ui_prop",
-          "context": "title",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "放弃 prompt 草稿"
-          ],
-          "lines": [
-            582
-          ]
-        },
-        {
-          "symbol": "DraftSourceBanner.message",
-          "role": "ui_prop",
-          "context": "message",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "放弃这份 prompt 草稿（${…}）？内容将被删除（不可撤销）。"
-          ],
-          "lines": [
-            583
-          ]
-        },
-        {
-          "symbol": "disclosure.fieldLabel",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "System Prompt（启动 system 消息）",
-            "首个 user 消息"
-          ],
-          "lines": [
-            629,
-            630
-          ]
-        },
-        {
-          "symbol": "disclosure.modelSummary",
-          "role": "ui_prop",
-          "context": "modelSummary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "（未配置模型）"
-          ],
-          "lines": [
-            633
-          ]
-        },
-        {
-          "symbol": "div.ConfirmationBlock",
-          "role": "ui_attr",
-          "context": "title",
-          "classification": "product",
-          "reason": null,
-          "count": 6,
-          "samples": [
-            "核对本次从头重跑",
-            "已核对，确认从头重跑"
-          ],
-          "lines": [
-            642,
-            655,
-            656,
-            720,
-            734,
-            735
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "放弃修改",
-            "恢复原值"
-          ],
-          "lines": [
-            813,
-            821,
-            829
           ]
         }
       ]
@@ -7449,295 +7100,6 @@
       ]
     },
     {
-      "path": "apps/desktop/src/renderer/src/lib/isolated-prompt-card.ts",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "重跑/分叉",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "UNKNOWN_LABELS.provider_backend",
-          "role": "prop",
-          "context": "provider_backend",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "服务端实际后端/版本未录制（不能声称严格因果对照）"
-          ],
-          "lines": [
-            42
-          ]
-        },
-        {
-          "symbol": "UNKNOWN_LABELS.max_iterations",
-          "role": "prop",
-          "context": "max_iterations",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "历史迭代上限未录制（本次使用当前上限）"
-          ],
-          "lines": [
-            43
-          ]
-        },
-        {
-          "symbol": "UNKNOWN_LABELS.token_budget",
-          "role": "prop",
-          "context": "token_budget",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "历史 token 预算未录制（本次使用当前预算）"
-          ],
-          "lines": [
-            44
-          ]
-        },
-        {
-          "symbol": "paramsLabel",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "缺省（根首次请求未录制 params）"
-          ],
-          "lines": [
-            52
-          ]
-        },
-        {
-          "symbol": "paramsLabel",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "显式空对象 {}"
-          ],
-          "lines": [
-            53
-          ]
-        },
-        {
-          "symbol": "budgetLabel.cost",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            " / 成本上限 ${…}"
-          ],
-          "lines": [
-            58
-          ]
-        },
-        {
-          "symbol": "budgetLabel.source",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "根录制值",
-            "当前配置"
-          ],
-          "lines": [
-            59
-          ]
-        },
-        {
-          "symbol": "presentIsolatedPromptCard.toolLabel",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "（根首次请求未录制工具表）",
-            "${…}（profile 由 main 固定）"
-          ],
-          "lines": [
-            71,
-            72
-          ]
-        },
-        {
-          "symbol": "presentIsolatedPromptCard.summary",
-          "role": "ui_prop",
-          "context": "summary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "从根 ${…} 的初始文件（${…} 个 / ${…}）与启动指令重跑；真实模型调用并计费，usage/价格/缓存执行前未知；副本只写独立世界。"
-          ],
-          "lines": [
-            74
-          ]
-        },
-        {
-          "symbol": "rows.label",
-          "role": "ui_prop",
-          "context": "label",
-          "classification": "product",
-          "reason": null,
-          "count": 15,
-          "samples": [
-            "根运行",
-            "启动调用"
-          ],
-          "lines": [
-            78,
-            79,
-            81,
-            87,
-            92,
-            93,
-            94,
-            95,
-            96,
-            97,
-            99,
-            102,
-            104,
-            107,
-            108
-          ]
-        },
-        {
-          "symbol": "rows.value",
-          "role": "prop",
-          "context": "value",
-          "classification": "product",
-          "reason": null,
-          "count": 6,
-          "samples": [
-            "${…} 个 / ${…} · 快照 ${…}",
-            "${…} 条（${…}）"
-          ],
-          "lines": [
-            82,
-            88,
-            96,
-            100,
-            105,
-            108
-          ]
-        },
-        {
-          "symbol": "rows.value",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "无"
-          ],
-          "lines": [
-            102
-          ]
-        },
-        {
-          "symbol": "presentIsolatedPromptCard.billing",
-          "role": "prop",
-          "context": "billing",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "真实模型调用并计费；usage、单价与缓存命中在执行前未知，执行后按实际记录呈现。"
-          ],
-          "lines": [
-            111
-          ]
-        },
-        {
-          "symbol": "resolveIsolatedPromptSubmission.reason",
-          "role": "ui_prop",
-          "context": "reason",
-          "classification": "product",
-          "reason": null,
-          "count": 7,
-          "samples": [
-            "提交进行中：不能重复提交",
-            "正在核对本次运行…"
-          ],
-          "lines": [
-            174,
-            175,
-            177,
-            182,
-            190,
-            195,
-            201
-          ]
-        }
-      ]
-    },
-    {
-      "path": "apps/desktop/src/renderer/src/lib/isolated-prompt.ts",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "重跑/分叉",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "isolatedPromptEntryOf.reason",
-          "role": "ui_prop",
-          "context": "reason",
-          "classification": "product",
-          "reason": null,
-          "count": 6,
-          "samples": [
-            "该运行是隔离分支：启动指令实验只能从根运行发起。请显式前往经验证的根运行，核对初始输入与文件后重新编辑；分支自有的消息不会被当作根启动上下文，草稿也不会自动搬运。",
-            "该隔离运行不是从源目录采集的根（origin 不是 import），不能作为启动指令实验的基线；请回到采集该世界的根运行。"
-          ],
-          "lines": [
-            36,
-            43,
-            49,
-            56,
-            64,
-            71
-          ]
-        },
-        {
-          "symbol": "isolatedPromptGuard.reason",
-          "role": "ui_prop",
-          "context": "reason",
-          "classification": "product",
-          "reason": null,
-          "count": 4,
-          "samples": [
-            "尚未配置运行参数（baseURL / apiKey / model），请先点击右上角“运行配置”",
-            "首次 llm.call 不含字符串形式的 system 消息：隔离实验无法重建启动上下文，system 与 user 两种编辑均不可用（不会用 config_hash、桌面设置或空字符串补造原值）。"
-          ],
-          "lines": [
-            90,
-            97,
-            104,
-            110
-          ]
-        }
-      ]
-    },
-    {
       "path": "apps/desktop/src/renderer/src/lib/messages-eligibility.ts",
       "layer": "renderer",
       "package": null,
@@ -7995,36 +7357,6 @@
           "lines": [
             84,
             85
-          ]
-        }
-      ]
-    },
-    {
-      "path": "apps/desktop/src/renderer/src/lib/prompt-fork.ts",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "重跑/分叉",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "promptForkGuard.reason",
-          "role": "ui_prop",
-          "context": "reason",
-          "classification": "product",
-          "reason": null,
-          "count": 4,
-          "samples": [
-            "尚未配置运行参数（baseURL / apiKey / model），请先点击右上角“运行配置”",
-            "首次 llm.call 不含字符串形式的 system 消息，无法重建 RunConfig.systemPrompt，prompt fork 不可用"
-          ],
-          "lines": [
-            33,
-            40,
-            46,
-            52
           ]
         }
       ]
@@ -14598,17 +13930,17 @@
       "layer": "pkg:replay",
       "package": "replay",
       "workspace": "pkg:replay",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "prompt fork 的领域校验/重建失败事实，作为原始诊断展示；产品摘要由渲染层按稳定码给出",
       "symbols": [
         {
           "symbol": "ModelParamsValueSchema.model",
           "role": "call_arg",
           "context": "z.string().min",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "prompt fork 的领域校验/重建失败事实，作为原始诊断展示；产品摘要由渲染层按稳定码给出",
           "count": 1,
           "samples": [
             "model 不能为空"
@@ -14621,8 +13953,8 @@
           "symbol": "params.message",
           "role": "ui_prop",
           "context": "message",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "prompt fork 的领域校验/重建失败事实，作为原始诊断展示；产品摘要由渲染层按稳定码给出",
           "count": 1,
           "samples": [
             "采样参数不得使用请求体保留键（${…}）"
@@ -14635,8 +13967,8 @@
           "symbol": "ModelParamsValueSchema",
           "role": "concat",
           "context": "+",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "prompt fork 的领域校验/重建失败事实，作为原始诊断展示；产品摘要由渲染层按稳定码给出",
           "count": 2,
           "samples": [
             "model_params 的 value 只允许 model / params / experimentId / allowSideEffects 四个字段",
@@ -14651,8 +13983,8 @@
           "symbol": "firstLlmCall",
           "role": "error_message",
           "context": "new Error",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "prompt fork 的领域校验/重建失败事实，作为原始诊断展示；产品摘要由渲染层按稳定码给出",
           "count": 1,
           "samples": [
             "run ${…} 的轨迹中没有 llm.call 录制，无法定位启动上下文"
@@ -14665,8 +13997,8 @@
           "symbol": "parseModelParamsValue",
           "role": "error_message",
           "context": "new Error",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "prompt fork 的领域校验/重建失败事实，作为原始诊断展示；产品摘要由渲染层按稳定码给出",
           "count": 2,
           "samples": [
             "非法的 model_params 编辑值：${…}",
@@ -14680,8 +14012,8 @@
           "symbol": "derivePromptForkState",
           "role": "error_message",
           "context": "new Error",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "prompt fork 的领域校验/重建失败事实，作为原始诊断展示；产品摘要由渲染层按稳定码给出",
           "count": 5,
           "samples": [
             "父 run ${…} 的首次 llm.call 不含字符串形式的 system 消息，无法重建 RunConfig.systemPrompt，prompt fork 不可用（系统不从 config_h",
@@ -14699,8 +14031,8 @@
           "symbol": "derivePromptForkState",
           "role": "ui_text",
           "context": "ternary",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "prompt fork 的领域校验/重建失败事实，作为原始诊断展示；产品摘要由渲染层按稳定码给出",
           "count": 1,
           "samples": [
             "首条 user message"
@@ -14713,8 +14045,8 @@
           "symbol": "deriveModelParamsState",
           "role": "error_message",
           "context": "new Error",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "prompt fork 的领域校验/重建失败事实，作为原始诊断展示；产品摘要由渲染层按稳定码给出",
           "count": 1,
           "samples": [
             "空 fork 被拒绝：model 与采样参数都与父 run ${…} 相同（${…}），模型配置无变化"
@@ -14730,17 +14062,17 @@
       "layer": "pkg:replay",
       "package": "replay",
       "workspace": "pkg:replay",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "prompt 重跑的执行失败事实，作为原始诊断展示，不随 UI locale 改写",
       "symbols": [
         {
           "symbol": "promptReplayRun",
           "role": "error_message",
           "context": "new Error",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "prompt 重跑的执行失败事实，作为原始诊断展示，不随 UI locale 改写",
           "count": 2,
           "samples": [
             "config.tools 与 tools（含 handler）数量不一致，无法重跑",
@@ -15812,17 +15144,17 @@
       "layer": "pkg:replay",
       "package": "replay",
       "workspace": "pkg:replay",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "隔离 prompt 预检的校验/计划事实，作为原始诊断展示，不随 UI locale 改写",
       "symbols": [
         {
           "symbol": "findRunIdViolation",
           "role": "return",
           "context": "return",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "隔离 prompt 预检的校验/计划事实，作为原始诊断展示，不随 UI locale 改写",
           "count": 5,
           "samples": [
             "不能为空",
@@ -15840,8 +15172,8 @@
           "symbol": "loadRootChain.reason",
           "role": "ui_prop",
           "context": "reason",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "隔离 prompt 预检的校验/计划事实，作为原始诊断展示，不随 UI locale 改写",
           "count": 5,
           "samples": [
             "父链中的 run 标识 ${…} 非法：${…}",
@@ -15859,8 +15191,8 @@
           "symbol": "validateNote",
           "role": "return",
           "context": "return",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "隔离 prompt 预检的校验/计划事实，作为原始诊断展示，不随 UI locale 改写",
           "count": 2,
           "samples": [
             "${…}必须是字符串",
@@ -15875,8 +15207,8 @@
           "symbol": "buildExecutionPlan.reason",
           "role": "ui_prop",
           "context": "reason",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "隔离 prompt 预检的校验/计划事实，作为原始诊断展示，不随 UI locale 改写",
           "count": 6,
           "samples": [
             "当前 maxIterations 必须是正整数（实际 ${…}）",
@@ -15895,8 +15227,8 @@
           "symbol": "preflightIsolatedPromptReplay",
           "role": "error_message",
           "context": "fail",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "隔离 prompt 预检的校验/计划事实，作为原始诊断展示，不随 UI locale 改写",
           "count": 19,
           "samples": [
             "dataDir 必须是非空字符串，实际为 ${…}",
@@ -15928,8 +15260,8 @@
           "symbol": "preflightIsolatedPromptReplay.hypothesisViolation",
           "role": "call_arg",
           "context": "validateNote",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "隔离 prompt 预检的校验/计划事实，作为原始诊断展示，不随 UI locale 改写",
           "count": 1,
           "samples": [
             "假设（hypothesis）"
@@ -15942,8 +15274,8 @@
           "symbol": "preflightIsolatedPromptReplay.criterionViolation",
           "role": "call_arg",
           "context": "validateNote",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "隔离 prompt 预检的校验/计划事实，作为原始诊断展示，不随 UI locale 改写",
           "count": 1,
           "samples": [
             "人工判据（acceptanceCriterion）"
@@ -15959,17 +15291,17 @@
       "layer": "pkg:replay",
       "package": "replay",
       "workspace": "pkg:replay",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "隔离 prompt 执行失败事实，作为原始诊断展示，不随 UI locale 改写",
       "symbols": [
         {
           "symbol": "promptReplayIsolatedRun",
           "role": "error_message",
           "context": "fail",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "隔离 prompt 执行失败事实，作为原始诊断展示，不随 UI locale 改写",
           "count": 2,
           "samples": [
             "确认后的计划已变化（确认 ${…}，当前 ${…}）：请重新预检并确认，不能沿用旧许可",
@@ -15987,17 +15319,17 @@
       "layer": "pkg:replay",
       "package": "replay",
       "workspace": "pkg:replay",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "隔离 prompt 状态还原的校验事实，作为原始诊断展示，不随 UI locale 改写",
       "symbols": [
         {
           "symbol": "findStartupMessagesViolation",
           "role": "return",
           "context": "return",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "隔离 prompt 状态还原的校验事实，作为原始诊断展示，不随 UI locale 改写",
           "count": 6,
           "samples": [
             "启动消息第 ${…} 条为空",
@@ -16016,8 +15348,8 @@
           "symbol": "validateIsolatedPromptEdit",
           "role": "call_arg",
           "context": "deriveFail",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "隔离 prompt 状态还原的校验事实，作为原始诊断展示，不随 UI locale 改写",
           "count": 4,
           "samples": [
             "编辑值必须是对象 {field,value}",
@@ -16034,8 +15366,8 @@
           "symbol": "restorePromptParams.reason",
           "role": "ui_prop",
           "context": "reason",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "隔离 prompt 状态还原的校验事实，作为原始诊断展示，不随 UI locale 改写",
           "count": 4,
           "samples": [
             "params 必须是普通对象（数组/null 不是合法采样参数表）",
@@ -16052,8 +15384,8 @@
           "symbol": "locateBaselineCall.reason",
           "role": "ui_prop",
           "context": "reason",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "隔离 prompt 状态还原的校验事实，作为原始诊断展示，不随 UI locale 改写",
           "count": 4,
           "samples": [
             "根 run ${…} 没有自有 llm.call 录制，无法还原启动上下文",
@@ -16070,8 +15402,8 @@
           "symbol": "deriveIsolatedPromptState",
           "role": "call_arg",
           "context": "deriveFail",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "隔离 prompt 状态还原的校验事实，作为原始诊断展示，不随 UI locale 改写",
           "count": 4,
           "samples": [
             "根 run ${…} 的启动消息不可还原：${…}",
@@ -16088,8 +15420,8 @@
           "symbol": "deriveIsolatedPromptState",
           "role": "ui_text",
           "context": "ternary",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "隔离 prompt 状态还原的校验事实，作为原始诊断展示，不随 UI locale 改写",
           "count": 1,
           "samples": [
             "首条 user message"
@@ -16102,8 +15434,8 @@
           "symbol": "sanitizeProviderEndpoint.reason",
           "role": "ui_prop",
           "context": "reason",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "隔离 prompt 状态还原的校验事实，作为原始诊断展示，不随 UI locale 改写",
           "count": 2,
           "samples": [
             "当前端点不是合法 URL：${…}",

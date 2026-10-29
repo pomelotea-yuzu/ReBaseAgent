@@ -323,7 +323,7 @@ export function LlmCallDetail({
         if (firstLlmId === span.id) {
           // R2.2 6.1：隔离运行分两条入口路——根进入独立初始快照实验（复用本编辑器），
           // 分支只给经验证根的显式导航。普通 run 的既有 prompt fork 完全不变。
-          const isolatedPrompt = isolatedPromptEntryOf(run);
+          const isolatedPrompt = isolatedPromptEntryOf(run, translator);
           return (
             <>
               {isolatedPrompt === null ? (

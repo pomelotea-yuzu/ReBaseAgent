@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
+
+const zh = createTestTranslator("zh-CN");
+const en = createTestTranslator("en-US");
 import {
   type IsolatedPromptCapabilitySuccess,
   isolatedPromptCapabilityRequestOf,
   presentIsolatedPromptCard,
   resolveIsolatedPromptSubmission,
 } from "../src/renderer/src/lib/isolated-prompt-card";
+import { createTestTranslator } from "./i18n/render-with-locale";
 
 /**
  * R2.2 6.2：隔离 prompt 核对卡与提交判据（纯逻辑）。
@@ -62,7 +66,7 @@ const BASE_INPUT = {
 
 describe("presentIsolatedPromptCard：实际条件与未知项分列", () => {
   it("根/初始文件/固定工具/基线模型/端点/上限/计费都在卡上", () => {
-    const card = presentIsolatedPromptCard(CAPABILITY, ["read_file", "write_file"]);
+    const card = presentIsolatedPromptCard(CAPABILITY, ["read_file", "write_file"], zh);
     const row = (label: string): string =>
       card.rows.find((item) => item.label === label)?.value ?? "";
     expect(row("根运行")).toBe("run_root");
@@ -79,7 +83,7 @@ describe("presentIsolatedPromptCard：实际条件与未知项分列", () => {
   });
 
   it("历史未录制条件单独成行，不把当前设置说成历史一致", () => {
-    const card = presentIsolatedPromptCard(CAPABILITY, []);
+    const card = presentIsolatedPromptCard(CAPABILITY, [], zh);
     expect(card.unknowns).toHaveLength(2);
     expect(card.unknowns[0]).toContain("服务端实际后端/版本未录制");
     expect(card.unknowns[1]).toContain("历史迭代上限未录制");
@@ -92,17 +96,19 @@ describe("presentIsolatedPromptCard：实际条件与未知项分列", () => {
     const absent = presentIsolatedPromptCard(
       { ...CAPABILITY, execution: { ...CAPABILITY.execution, params: undefined } },
       [],
+      zh,
     );
     const empty = presentIsolatedPromptCard(
       { ...CAPABILITY, execution: { ...CAPABILITY.execution, params: {} } },
       [],
+      zh,
     );
     expect(absent.rows.find((row) => row.label === "根参数")?.value).toContain("缺省");
     expect(empty.rows.find((row) => row.label === "根参数")?.value).toContain("显式空对象");
   });
 
   it("根首次请求未录制工具表时如实说明，不伪造工具名", () => {
-    const card = presentIsolatedPromptCard(CAPABILITY, []);
+    const card = presentIsolatedPromptCard(CAPABILITY, [], zh);
     expect(card.rows.find((row) => row.label === "固定工具")?.value).toContain("未录制工具表");
   });
 });
@@ -129,7 +135,7 @@ describe("请求构造：只带允许的字段", () => {
   });
 
   it("提交请求包含模式/计划指纹/配置修订/本次授权，不含模型或路径", () => {
-    const submission = resolveIsolatedPromptSubmission(BASE_INPUT);
+    const submission = resolveIsolatedPromptSubmission(BASE_INPUT, zh);
     expect(submission.ok).toBe(true);
     if (!submission.ok) throw new Error("应为可提交");
     expect(submission.request).toEqual({
@@ -148,7 +154,7 @@ describe("请求构造：只带允许的字段", () => {
 
 describe("resolveIsolatedPromptSubmission：逐条撤销与拦截", () => {
   const rejected = (patch: Record<string, unknown>): string => {
-    const result = resolveIsolatedPromptSubmission({ ...BASE_INPUT, ...patch } as never);
+    const result = resolveIsolatedPromptSubmission({ ...BASE_INPUT, ...patch } as never, zh);
     expect(result.ok).toBe(false);
     return result.ok ? "" : result.reason;
   };
@@ -173,5 +179,30 @@ describe("resolveIsolatedPromptSubmission：逐条撤销与拦截", () => {
     expect(rejected({ gateBlockedReason: "已有操作正在执行" })).toContain("已有操作");
     expect(rejected({ checking: true })).toContain("正在核对");
     expect(rejected({ inProgress: true })).toContain("提交进行中");
+  });
+});
+
+describe("2.7 英文独立期望：核对卡与提交原因按语言输出", () => {
+  it("核对卡标签/未知项/计费说明为英文，未知项不丢失", () => {
+    const card = presentIsolatedPromptCard(CAPABILITY, ["read_file", "write_file"], en);
+    const labels = card.rows.map((row) => row.label);
+    expect(labels).toContain("Root run");
+    expect(labels).toContain("Historical unknowns");
+    expect(card.summary).toContain("Rerun from the initial files of root");
+    expect(card.billing).toContain("Real model calls are billed");
+    expect(card.unknowns.some((text) => text.includes("server backend"))).toBe(true);
+    expect(labels).not.toContain("根运行");
+  });
+
+  it("缺费用确认/副本授权的原因按语言输出", () => {
+    const noFee = resolveIsolatedPromptSubmission({ ...BASE_INPUT, feeConfirmed: false }, en);
+    expect(noFee.ok).toBe(false);
+    if (!noFee.ok) expect(noFee.reason).toContain("Confirm that this rerun from the start");
+
+    const noWrites = resolveIsolatedPromptSubmission(
+      { ...BASE_INPUT, writesAuthorized: false },
+      en,
+    );
+    if (!noWrites.ok) expect(noWrites.reason).toContain("Allow copy writes for this execution");
   });
 });

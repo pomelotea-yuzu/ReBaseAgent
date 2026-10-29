@@ -23,6 +23,10 @@ import { FORK_ERROR_CODES, PROMPT_FORK_ERROR_CODES, runPromptFork } from "../src
 import { RunRepository } from "../src/main/run-repository";
 import type { RunSettings } from "../src/main/settings";
 import { promptForkGuard } from "../src/renderer/src/lib/prompt-fork";
+import { createTestTranslator } from "./i18n/render-with-locale";
+
+const zh = createTestTranslator("zh-CN");
+const en = createTestTranslator("en-US");
 import { deriveRunSummary } from "../src/shared/derive";
 import { RunDetailSchema, RunSummarySchema } from "../src/shared/ipc";
 import { PromptForkRequestSchema } from "../src/shared/ipc";
@@ -112,34 +116,34 @@ describe("promptForkGuard：提交前本地拦截", () => {
   };
 
   it("全部满足 → 放行", () => {
-    expect(promptForkGuard(base)).toEqual({ canSubmit: true, reason: null });
+    expect(promptForkGuard(base, zh)).toEqual({ canSubmit: true, reason: null });
   });
 
   it("未配置运行参数 → 拦截并提示先完成运行配置", () => {
-    const result = promptForkGuard({ ...base, settingsConfigured: false });
+    const result = promptForkGuard({ ...base, settingsConfigured: false }, zh);
     expect(result.canSubmit).toBe(false);
     expect(result.reason).toContain("运行配置");
   });
 
   it("缺字符串 system 消息 → 两种编辑都拦截（不假定空字符串）", () => {
     for (const field of ["system_prompt", "user_message"] as const) {
-      const result = promptForkGuard({ ...base, field, hasSystem: false });
+      const result = promptForkGuard({ ...base, field, hasSystem: false }, zh);
       expect(result.canSubmit).toBe(false);
       expect(result.reason).toContain("system 消息");
     }
   });
 
   it("user_message 编辑但缺字符串 user 消息 → 拦截；system_prompt 编辑不受影响", () => {
-    const blocked = promptForkGuard({ ...base, field: "user_message", hasUser: false });
+    const blocked = promptForkGuard({ ...base, field: "user_message", hasUser: false }, zh);
     expect(blocked.canSubmit).toBe(false);
     expect(blocked.reason).toContain("user 消息");
-    expect(promptForkGuard({ ...base, field: "system_prompt", hasUser: false }).canSubmit).toBe(
+    expect(promptForkGuard({ ...base, field: "system_prompt", hasUser: false }, zh).canSubmit).toBe(
       true,
     );
   });
 
   it("空 fork（编辑前后相同）→ 拦截", () => {
-    const result = promptForkGuard({ ...base, unchanged: true });
+    const result = promptForkGuard({ ...base, unchanged: true }, zh);
     expect(result.canSubmit).toBe(false);
     expect(result.reason).toContain("与原值相同");
   });
@@ -581,5 +585,25 @@ describe("schema 兼容：prompt fork 的 IPC 契约", () => {
         edit: { field: "system_prompt", value: "" },
       }).success,
     ).toBe(true); // 空串是合法形状；空 fork 由编排层按"编辑前后相同"语义拒绝
+  });
+});
+
+describe("2.7 英文独立期望：prompt fork 本地拦截原因", () => {
+  const base = {
+    field: "system_prompt" as const,
+    hasSystem: true,
+    hasUser: true,
+    settingsConfigured: true,
+    unchanged: false,
+  };
+
+  it("缺 system 与未修改的拦截原因为英文", () => {
+    const noSystem = promptForkGuard({ ...base, hasSystem: false }, en);
+    expect(noSystem.canSubmit).toBe(false);
+    expect(noSystem.reason).toContain("no string system message");
+    expect(noSystem.reason).not.toContain("不含字符串形式的 system");
+
+    const unchanged = promptForkGuard({ ...base, unchanged: true }, en);
+    expect(unchanged.reason).toContain("identical to the original value");
   });
 });

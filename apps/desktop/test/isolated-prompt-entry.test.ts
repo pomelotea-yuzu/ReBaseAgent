@@ -19,7 +19,7 @@ function read(path: string): string {
 describe("隔离 prompt 入口接线", () => {
   it("LlmCallDetail：根复用 PromptForkEditor(mode=isolated)，分支只给导航，A/B 提示独立", () => {
     const src = read("components/detail/LlmCallDetail.tsx");
-    expect(src).toContain("isolatedPromptEntryOf(run)");
+    expect(src).toContain("isolatedPromptEntryOf(run, translator)");
     expect(src).toContain('mode="isolated"');
     expect(src).toContain(
       "<IsolatedPromptBranchNavigation detail={run} reason={isolatedPrompt.reason} />",
@@ -35,7 +35,7 @@ describe("隔离 prompt 入口接线", () => {
       "startupPromptAction={<IsolatedPromptEntryAction detail={detail} />}",
     );
     const entry = read("components/detail/IsolatedPromptEntry.tsx");
-    expect(entry).toContain("isolatedPromptEntryOf(detail)");
+    expect(entry).toContain("isolatedPromptEntryOf(detail, translator)");
     expect(entry).toContain('mode: "isolated"');
     expect(entry).toContain("verifiedRootNavigation");
     expect(entry).toContain("data-isolated-prompt-goto-root");

@@ -1,5 +1,6 @@
 import type { RunDetail } from "@shared/ipc";
 import { useState } from "react";
+import { useTranslator } from "../../i18n";
 import { isolatedPromptEntryOf, verifiedRootNavigation } from "../../lib/isolated-prompt";
 import { useAppStore } from "../../store";
 
@@ -20,7 +21,8 @@ export function IsolatedPromptEntryAction({
   detail: RunDetail;
   compact?: boolean;
 }) {
-  const entry = isolatedPromptEntryOf(detail);
+  const translator = useTranslator();
+  const entry = isolatedPromptEntryOf(detail, translator);
   const openDraftAt = useAppStore((s) => s.openDraftAt);
   if (entry === null) return null;
   if (entry.kind === "root") {
@@ -46,10 +48,10 @@ export function IsolatedPromptEntryAction({
           }}
           className="rounded bg-violet-700 px-2 py-0.5 text-reading-meta text-white hover:bg-violet-800"
         >
-          修改启动指令
+          {translator.t("fork.isoEditStartPrompt")}
         </button>
         <span className="text-reading-meta leading-5 text-violet-900">
-          从该根的初始文件与启动指令出发重跑（真实模型调用；父/兄弟/源目录不会被修改）。
+          {translator.t("fork.isoEditStartIntro")}
         </span>
       </div>
     );
@@ -70,6 +72,7 @@ export function IsolatedPromptBranchNavigation({
   reason: string;
   compact?: boolean;
 }) {
+  const translator = useTranslator();
   const loadCapability = useAppStore((s) => s.loadIsolatedPromptCapability);
   const selectRun = useAppStore((s) => s.selectRun);
   const setReadingTab = useAppStore((s) => s.setReadingTab);
@@ -112,7 +115,7 @@ export function IsolatedPromptBranchNavigation({
           disabled={busy}
           className="rounded border border-violet-400 bg-white px-2 py-0.5 text-reading-meta text-violet-800 hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {busy ? "正在核实根…" : "前往根运行查看启动指令"}
+          {translator.t(busy ? "fork.isoVerifyingRoot" : "fork.isoGotoRoot")}
         </button>
         <span className="text-reading-meta leading-5">{reason}</span>
       </div>

@@ -1057,6 +1057,164 @@ export const enUS = {
     discardDraftAction: "Discard draft",
     draftKeptNote:
       "The draft is kept until you discard it explicitly; execution eligibility returns automatically after re-verification passes.",
+    listSeparator: ", ",
+    unknownSeparator: "; ",
+    promptNoSystem:
+      "The first llm.call has no string system message, so RunConfig.systemPrompt cannot be rebuilt; prompt fork is unavailable.",
+    promptNoUser:
+      "The first llm.call has no string user message, so the initial user instruction cannot be edited.",
+    promptUnchanged:
+      "It is identical to the original value; edit it before submitting — an unchanged request is rejected as-is.",
+    isoNoSystem:
+      "The first llm.call has no string system message: the isolated experiment cannot rebuild the startup context, so neither system nor user editing is available (the original is never backfilled from config_hash, desktop settings, or an empty string).",
+    isoNoUser:
+      "The isolated experiment requires at least one string system and one string user startup message; the user message is missing, so neither edit is available.",
+    isoUnchanged:
+      "It is identical to the original value; edit it before checking — an unchanged isolated experiment is rejected as-is.",
+    isoBranchEntry:
+      "This run is an isolated branch: startup-prompt experiments can start only from the root run. Open the verified root explicitly, verify the initial input and files, and edit again; the branch's own messages are never used as the root startup context, and drafts are not moved automatically.",
+    isoNotImportRoot:
+      "This isolated run is not a root collected from a source directory (origin is not import), so it cannot be the baseline for a startup-prompt experiment; return to the root that collected this world.",
+    isoNotSealed:
+      "The run is not sealed yet (currently {{status}}): startup-prompt experiments require a sealed root record with a complete source; try again after the run ends.",
+    isoNoConfigHash:
+      "This root run recorded no config_hash: the original system and fixed tool table cannot be verified, so the startup-prompt experiment is unavailable.",
+    isoNoLlmCall:
+      "This root run's trace contains no llm.call: the startup context cannot be rebuilt from the real first request, so the startup-prompt experiment is unavailable.",
+    isoFirstCallNotOwn:
+      "The root run's first llm.call is not its own record (own-read is incomplete): it cannot serve as the startup context for this experiment.",
+    isoEditStartPrompt: "Edit startup prompt",
+    isoEditStartIntro:
+      "Rerun from this root's initial files and startup prompt (real model calls; the parent, siblings, and source directory are not modified).",
+    isoGotoRoot: "Go to the root run to view the startup prompt",
+    isoVerifyingRoot: "Verifying the root…",
+    promptEditSystemPlain: "Edit system prompt and rerun",
+    promptEditSystemIsolated: "Edit system prompt (isolated experiment)",
+    promptEditUserPlain: "Edit initial user message and rerun",
+    promptEditUserIsolated: "Edit the first user message (isolated experiment)",
+    promptUnavailableSystem:
+      "The first llm.call has no string system message, so the run configuration cannot be rebuilt; prompt fork is unavailable.",
+    isoIntro:
+      "Isolated startup-prompt experiment: rerun from the root's initial files and startup prompt (real model calls; the parent, siblings, and source directory are not modified). Change only one field at a time.",
+    promptIntro:
+      "prompt fork: rerun from the start after editing the startup context (an independent new trajectory with no shared parent prefix). Change only one field at a time.",
+    isoHeading: "Isolated prompt experiment · rerun from initial files and startup prompt",
+    promptHeading: "prompt fork · rerun from start",
+    fieldUserMessage: "First user message",
+    isoRootLine: "Root run",
+    isoStartCall: "Startup call",
+    isoRootFixed:
+      "The target is fixed to this root; use the tabs above to return to the original reading page — navigation is never automatic.",
+    hypothesisLabel: "Hypothesis (optional, ≤4000 characters)",
+    hypothesisPlaceholder:
+      "For example: change the startup prompt to read the config first, expecting one more read_file call",
+    criterionLabel: "Manual criterion (optional, ≤4000 characters)",
+    criterionPlaceholder:
+      "For example: the output must state the config value; I judge it manually, with no automatic scoring",
+    discardPromptTitle: "Discard prompt draft · {{field}}",
+    discardPromptMessage:
+      "Discard the draft for “prompt fork · {{field}}”? (run {{runId}} · {{spanId}})\n\nCurrent draft content:\n{{content}}\n\nOnly this field is affected; the discard is checked against the revision at confirmation time — if the content is updated afterwards, this discard will not run.",
+    discardPromptBannerTitle: "Discard prompt draft",
+    discardPromptBannerMessage:
+      "Discard this prompt draft ({{field}})? Its content will be deleted and cannot be recovered.",
+    promptFrozenNote:
+      "This submit is pending: the draft for this field is frozen at the submitted revision and cannot be edited or discarded until the request returns. The other field and other runs are unaffected; the draft is kept regardless of success, business rejection, or failure.",
+    plainFieldSystemLabel: "System Prompt (startup system message)",
+    plainFieldUserLabel: "First user message",
+    confirmPromptTitle: "Review this rerun from the start",
+    confirmPromptAccept: "Reviewed — confirm rerun from start",
+    confirmPromptAccepted: "Rerun from start is confirmed",
+    isoCheckRun: "Check this run (read-only)",
+    isoCheckRerun: "Check this run again (read-only)",
+    isoChecking: "Checking this run…",
+    isoCheckNote:
+      "Read-only precheck: no model calls, no file writes, no execution slot; the result is not an execution permit.",
+    isoCheckBound:
+      "The check is bound to draft revision #{{revision}} and the current settings snapshot; any change requires checking again.",
+    isoCheckStale:
+      "Input or run configuration changed: the previous check result, fee confirmation, and copy-write authorization are invalid. Check this run again.",
+    isoCheckUnavailable: "Check failed ({{code}}): {{reason}}",
+    isoVerifiedRootSuffix: " Verified root: {{rootId}} (open the root explicitly and check again.)",
+    isoConfirmTitle: "Review this isolated experiment",
+    isoConfirmAccept: "Reviewed — confirm real billing",
+    isoConfirmAccepted: "Real billing is confirmed",
+    feeNotConfirmed:
+      "Confirm that this rerun from the start makes real model calls and incurs cost; fee confirmation is never restored from a draft.",
+    sourceUnavailableCannotConfirm:
+      "The source record is unavailable; confirmation is blocked until it is re-read and verified",
+    isoUnknownNone: " Historical unrecorded conditions: none.",
+    isoUnknownList: " Historical unknowns: {{list}}",
+    isoWritesLabel:
+      "Allow copy writes for this execution (only into this new copy's independent file world; the parent, siblings, and source directory are not modified). Authorization is off by default, valid only for this submit, and never restored from the parent trace's write_authorized marker.",
+    isoSubmitReady:
+      "Fee confirmation and this copy-write authorization are ready; submitting makes a real model call and writes into the independent file world.",
+    isoSubmitButton: "Start the experiment (real call)",
+    isoSubmitBusy: "Submitting…",
+    discardFieldTitle: "Discard the draft for this field (confirmation required; only this field)",
+    restoreOriginalValue: "Restore original",
+    submitPrompt: "Confirm rerun from start",
+    cardParamsMissing: "Default (the root's first request recorded no params)",
+    cardParamsEmpty: "Explicit empty object {}",
+    cardCostCap: " / cost cap {{value}}",
+    cardBudgetRecorded: "recorded on the root",
+    cardBudgetCurrent: "current configuration",
+    cardBudgetValue: "{{tokens}} tokens ({{source}}){{cost}}",
+    cardToolMissing: "(the root's first request recorded no tool table)",
+    cardToolList: "{{tools}} (profile fixed by main)",
+    cardSummary:
+      "Rerun from the initial files of root {{rootId}} ({{files}} / {{bytes}}) and its startup prompt; real model calls are billed, while usage/price/cache are unknown before execution; copies are written only into the independent world.",
+    cardFileCount: { one: "{{count}} file", other: "{{count}} files" },
+    cardFilesValue: {
+      one: "{{count}} file / {{bytes}} · snapshot {{snapshot}}",
+      other: "{{count}} files / {{bytes}} · snapshot {{snapshot}}",
+    },
+    cardMessagesValue: {
+      one: "{{count}} message ({{roles}})",
+      other: "{{count}} messages ({{roles}})",
+    },
+    cardEditValue:
+      "{{old}} characters → {{new}} characters (see the review grid above for the verbatim difference)",
+    cardUnknownNone: "None",
+    cardBillingValue:
+      "Usage/unit price/cache are unknown before execution; after execution they are shown as recorded, and unknowns are not zero-filled",
+    cardWritesValue:
+      "Written only into this new copy's independent file world; the parent, siblings, and source directory are not modified",
+    cardBilling:
+      "Real model calls are billed; usage, unit price, and cache hits are unknown before execution and are shown as recorded afterwards.",
+    cardRoot: "Root run",
+    cardStartCall: "Startup call",
+    cardInitialFiles: "Initial files",
+    cardMessages: "Effective startup messages",
+    cardTools: "Fixed tools",
+    cardBaselineModel: "Baseline model (root's first request)",
+    cardParams: "Root parameters",
+    cardEndpoint: "Current endpoint",
+    cardMaxIterations: "Execution limit",
+    cardTokenBudget: "Token budget",
+    cardEdit: "Edit",
+    cardUnknowns: "Historical unknowns",
+    cardBillingLabel: "Real billing",
+    cardPlanFingerprint: "Plan fingerprint",
+    cardWrites: "Copy writes",
+    cardUnknownProvider:
+      "The actual server backend/version was not recorded (a strict causal comparison cannot be claimed)",
+    cardUnknownIterations:
+      "The historical iteration limit was not recorded (the current limit is used)",
+    cardUnknownBudget: "The historical token budget was not recorded (the current budget is used)",
+    cardMaxIterationsValue: {
+      one: "{{count}} iteration",
+      other: "{{count}} iterations",
+    },
+    submitInProgress: "Submission in progress: it cannot be submitted again",
+    submitGuardMissing: "This edit does not yet satisfy the isolated experiment conditions",
+    submitNeedsCheck:
+      "Check this run first (read-only precheck); input or configuration changes require checking again",
+    submitCheckMismatch:
+      "The check result does not match the current root/original/new value; check again",
+    submitNeedsFee:
+      "Confirm that this rerun from the start makes real model calls and incurs cost (fee confirmation is never restored from a draft)",
+    submitNeedsWrites:
+      "Check “Allow copy writes for this execution” — authorization is valid only for this submit and is never restored from the parent trace",
   },
   experiment: {
     localBatchCheck:

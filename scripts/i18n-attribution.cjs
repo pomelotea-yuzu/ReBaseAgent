@@ -177,6 +177,16 @@ const ORIGINAL_REASONS = {
   "packages/trace-test/src/cassette-llm-client.ts":
     "卡带消息差异 detail 进入 JSON 报告，保留原始事实",
   "packages/trace-test/src/format.ts": "机器/人类共用的截断说明，随原始 detail 序列化",
+  "packages/replay/src/prompt-fork.ts":
+    "prompt fork 的领域校验/重建失败事实，作为原始诊断展示；产品摘要由渲染层按稳定码给出",
+  "packages/replay/src/prompt-replay-run.ts":
+    "prompt 重跑的执行失败事实，作为原始诊断展示，不随 UI locale 改写",
+  "packages/replay/src/workspace/isolated-prompt-preflight.ts":
+    "隔离 prompt 预检的校验/计划事实，作为原始诊断展示，不随 UI locale 改写",
+  "packages/replay/src/workspace/isolated-prompt-run.ts":
+    "隔离 prompt 执行失败事实，作为原始诊断展示，不随 UI locale 改写",
+  "packages/replay/src/workspace/isolated-prompt-state.ts":
+    "隔离 prompt 状态还原的校验事实，作为原始诊断展示，不随 UI locale 改写",
 };
 const ORIGINAL_PREFIXES = [
   ["packages/project-verification/src/", "验证记录/runner/日志正文，持久化事实不随 locale 改写"],
@@ -191,6 +201,8 @@ const ORIGINAL_SYMBOLS = {
     "模型所见的工具结果文本（写入新 trace 并进入模型上下文），不随 UI locale 生成",
   "apps/desktop/src/main/exec-endpoints.ts::forkChannel.run":
     "main 返回的分叉失败原始说明，渲染层作为原始详情展示；产品摘要按稳定码本地化",
+  "apps/desktop/src/main/isolated-prompt-endpoints.ts::runIsolatedPromptCapability":
+    "main 返回的隔离 prompt 能力预检原始说明，渲染层作为原始详情展示",
 };
 
 const INTERNAL_REASONS = {

@@ -2,10 +2,12 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { readRun } from "@rebaseagent/trace-sdk";
 import type { RunRecord } from "@rebaseagent/trace-sdk";
+import { createElement } from "react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { captureCallDraftSource } from "../src/renderer/src/lib/draft-source";
 import { auditForbiddenTokens } from "../src/renderer/src/lib/overview-view";
 import type { RunDetail } from "../src/shared/ipc";
+import { renderWithLocale } from "./i18n/render-with-locale";
 
 /**
  * U3（preserve-debugging-drafts）任务 2.2：prompt 两字段和代理 messages 接入无损草稿。
@@ -84,8 +86,13 @@ describe("接线契约：PromptForkEditor 两字段独立草稿（任务 2.2）"
 
   it("任务 2.6：按修订明确放弃只影响当前字段；原值/草稿核对网格就位", () => {
     const code = src();
-    // 确认文案明确目标与范围（只影响这一个字段——另一字段是独立草稿键）
-    expect(code).toContain("只影响这一个字段");
+    // 确认文案明确目标与范围（只影响这一个字段——另一字段是独立草稿键；2.7 起由资源投影）
+    expect(code).toContain('"fork.discardPromptMessage"');
+    const zh = readFileSync(
+      resolve(import.meta.dirname, "../../../packages/i18n/src/resources/zh-CN.ts"),
+      "utf8",
+    );
+    expect(zh).toContain("只影响这一个字段");
     expect(code).toContain("discardCallDraft(draftKeyOf(field), snapshot.revision)");
     // 核对网格：原值只读 + 草稿可编辑（UI 密度 2.2：布局进共享 DraftCompareGrid）
     expect(code).toContain('compareKey="prompt"');
@@ -333,5 +340,51 @@ describe("UI 整理 4.3：prompt 编辑器原因主位置与说明去重（desig
     const code = src();
     expect(code).not.toContain("从头重跑，将真实调用模型并计费 · 父 run 只作对照，不会被修改");
     expect(code).not.toContain("编辑值将替换首次 llm.call 请求中的");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 2.7：入口与说明的英文独立期望（资源键生效，不是中文硬编码）
+// ---------------------------------------------------------------------------
+
+const { PromptForkEditor } = await import("../src/renderer/src/components/detail/PromptForkEditor");
+const { IsolatedPromptEntryAction } = await import(
+  "../src/renderer/src/components/detail/IsolatedPromptEntry"
+);
+
+describe("2.7 英文独立期望：prompt 编辑器入口与隔离入口按语言输出", () => {
+  it("普通 prompt fork 的两个入口与说明为英文", () => {
+    const html = renderWithLocale(
+      "en-US",
+      createElement(PromptForkEditor, { span: firstLlmSpan, run: detail }),
+    );
+    expect(html).toContain("Edit system prompt and rerun");
+    expect(html).toContain("Edit initial user message and rerun");
+    expect(html).toContain("prompt fork: rerun from the start after editing the startup context");
+    expect(html).not.toContain("编辑 system prompt");
+  });
+
+  it("隔离分支入口的导航与原因说明为英文", () => {
+    const branchRun = {
+      ...detail,
+      meta: {
+        ...detail.meta,
+        parent: "r_parent",
+        workspace: {
+          profile: "file-tools-v1",
+          world_id: "r_iso",
+          write_authorized: false,
+          initial_snapshot: { id: "0".repeat(64), files: [] },
+          origin: { kind: "import" },
+        },
+      },
+    } as RunDetail;
+    const html = renderWithLocale(
+      "en-US",
+      createElement(IsolatedPromptEntryAction, { detail: branchRun }),
+    );
+    expect(html).toContain("Go to the root run to view the startup prompt");
+    expect(html).toContain("isolated branch");
+    expect(html).not.toContain("前往根运行");
   });
 });

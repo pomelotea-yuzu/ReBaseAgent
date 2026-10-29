@@ -609,8 +609,9 @@ describe("接线契约：五类提交走快照并受冻结约束（任务 3.4/3.
     expect(RESULT_EDITOR.match(/isDraftFrozen\(/g)?.length).toBe(1);
     expect(MESSAGES_EDITOR.match(/isDraftFrozen\(/g)?.length).toBe(1);
     expect(MODEL_AB_EDITOR.match(/isDraftFrozen\(/g)?.length).toBe(1);
-    expect(PROMPT_EDITOR.match(/本次提交待处理/g)?.length).toBe(1);
-    // 2.6a：result 编辑器的冻结通报改由 detail 资源投影（中文值独立书写）
+    // 2.7：prompt 冻结通报改由 fork 资源投影；result 用 detail 资源（中文值独立书写）
+    expect(PROMPT_EDITOR).toContain('"fork.promptFrozenNote"');
+    expect(PROMPT_EDITOR.match(/本次提交待处理/g)).toBeNull();
     expect(RESULT_EDITOR).toContain('"detail.draftFrozenNote"');
     const zhResources = readFileSync(
       resolve(import.meta.dirname, "../../../packages/i18n/src/resources/zh-CN.ts"),
