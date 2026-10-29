@@ -218,6 +218,30 @@ describe("5.4 结果区视图：登记身份 + 诚实空态 + 返回编辑", () 
     expect(markup).toContain("尚未提交重发");
     expect(markup).not.toContain("data-messages-result=");
   });
+
+  it("英文独立期望：标题/计数/返回编辑与结果说明为英文", () => {
+    const results = deriveMessagesResults({
+      targetRunId: PARENT,
+      targetSpanId: SPAN,
+      operations: [
+        proxyRecord({
+          operationId: OP_2,
+          startedAt: "2026-10-01T11:00:00.000Z",
+        }),
+      ],
+      reads: emptyResultReadStore(),
+      draftPresentOf: (record) => record.operationId === OP_2,
+    });
+    const markup = renderWithLocale(
+      "en-US",
+      createElement(MessagesResultsSection, { results, onAction: noop }),
+    );
+    expect(markup).toContain("Resend results");
+    expect(markup).toContain("1 time");
+    expect(markup).toContain("Back to editing");
+    expect(markup).toContain("About results");
+    expect(markup).not.toContain("重发结果");
+  });
 });
 
 describe("5.4/5.5 源码级：结果区接线与只读边界", () => {

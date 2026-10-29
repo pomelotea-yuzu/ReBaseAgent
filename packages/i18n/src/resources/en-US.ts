@@ -1215,6 +1215,69 @@ export const enUS = {
       "Confirm that this rerun from the start makes real model calls and incurs cost (fee confirmation is never restored from a draft)",
     submitNeedsWrites:
       "Check “Allow copy writes for this execution” — authorization is valid only for this submit and is never restored from the parent trace",
+    messagesSourceUnavailable:
+      "The source record is unavailable; no resend can start until it is re-read and verified",
+    messagesSourceBlocked: "Source invalid; resend is blocked: {{reason}}",
+    messagesProxyStopped:
+      "The local recording proxy is not running, so there is no upstream to resend to (a key captured in this session does not allow resending while it is disabled)",
+    messagesProxyChecking:
+      "Checking the current proxy state… (resend is not allowed on a “possibly running” assumption before the latest facts are read)",
+    messagesProxyUnknown:
+      "The proxy state is unknown (not read yet or the read failed): resend is not allowed on a “possibly running” assumption",
+    messagesNoKey:
+      "No key was captured in this session: run your agent through the proxy once, then come back to resend",
+    messagesEditEntry: "Edit messages and resend",
+    messagesOpenWorkspace: "Open in the editing workspace",
+    messagesInlineSummary:
+      "Single-request fork · the source run is not modified · resend uses the most recently captured key",
+    messagesEditHint:
+      "Resend after editing any message: model / tool table / sampling parameters match the source run; only messages use the edited value.",
+    messagesProxyCheckingLine:
+      "Checking the current proxy state (listening and credentials)… resend is not allowed on old facts until this finishes.",
+    messagesUnchanged:
+      "It is identical to the original value; edit it before submitting — an unchanged resend is rejected as-is.",
+    discardMessagesTitle: "Discard the messages resend draft",
+    discardMessagesMessage:
+      "Discard this messages resend draft? (run {{runId}} · {{spanId}})\n\nCurrent draft content:\n{{content}}\n\nThe discard is checked against the revision at confirmation time: if the content is updated afterwards, this discard will not run.",
+    discardMessagesSimple:
+      "Discard this messages resend draft? Its content will be deleted and cannot be recovered.",
+    messagesProxyNoKeyHint: " (run your agent through the proxy once, then come back to resend)",
+    messagesInvalidJson: "messages is not valid JSON: {{detail}}",
+    messagesNotEmpty: "messages must be a non-empty array",
+    messagesConfirmTitle: "Review this resend",
+    messagesConfirmAccept: "Reviewed — confirm this resend",
+    messagesConfirmAccepted: "This resend is confirmed",
+    messagesRecordingEntry: "Open the recording workspace (enable the proxy / add credentials)",
+    messagesRecordingReturnNote:
+      "This edit draft and target are kept as-is after returning; the previous confirmation is not restored",
+    messagesResending: "Resending… (a real LLM call; this may take a while)",
+    messagesSubmit: "Confirm resend",
+    messagesProxyStoppedShort: "The proxy is not running; enable it in settings first",
+    messagesNoTarget:
+      "No editing target is bound (targets are not kept across reloads; re-enter from “Edit messages and resend” on the proxy call).",
+    messagesSourceFailed: "Failed to read the source detail: {{detail}}",
+    messagesRetryRead: "Read-only retry",
+    messagesReadingSource: "Reading the source detail…",
+    messagesTargetMissing:
+      "The target call was not found in the source detail ({{spanId}}): the detail content may have changed; the edit draft is kept, but the resend entry is unavailable.",
+    messagesFrameCompact:
+      "Single-request resend · no external tools · uses the key most recently captured in this session",
+    messagesFrameDescription:
+      "Edit one model request recorded by the proxy and resend it as a single real request (no external tools). The source run is not modified. The resend uses the proxy key captured in this session.",
+    messagesSourceRun: "Source run",
+    messagesCallLabel: "· call",
+    messagesSourceRunIdLabel: "Source run ID",
+    messagesResultsTitle: "Resend results",
+    messagesResultsCount: { one: "{{count}} time", other: "{{count}} times" },
+    messagesResultsEmpty:
+      "No resend submitted yet: after you confirm a resend, its results appear here.",
+    messagesRetryReadTitle: "Re-read only the same trusted run ID ({{runId}}): nothing is rerun",
+    messagesViewFailureTitle: "Locate only a failed call owned by this run",
+    messagesOpenResultTitle: "Open the overview by trusted run ID",
+    messagesReturnDraft: "Back to editing",
+    messagesResultsNoteTitle: "About results",
+    messagesResultsNote:
+      "Results are shown only by the registered identity of this submit: failures and unknowns keep the edited input, no passive recording is used to fill in results, and the source trace is not rewritten.",
   },
   experiment: {
     localBatchCheck:

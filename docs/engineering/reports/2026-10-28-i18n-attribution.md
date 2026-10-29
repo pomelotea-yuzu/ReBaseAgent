@@ -163,6 +163,8 @@ node scripts/i18n-attribution.cjs --compare-inventory --verify-boundaries
 
 2.7 迁移普通/隔离 prompt 单项编辑：`prompt-fork` 与 `isolated-prompt` 的本地拦截/根定位原因接 translator；`isolated-prompt-card` 的核对卡（根/初始文件/消息/工具/参数/预算/未知项/计费/计划指纹/副本）与提交判据全部按语言投影；`PromptForkEditor`（入口、字段、假设/判据、隔离核对与费用/副本确认、普通确认、放弃/冻结、失败原文）与 `IsolatedPromptEntry`（根/分支导航）全量迁移。replay 的 prompt/preflight/run/state 五个文件与 main 的隔离 prompt 能力预检说明改判 original（原始诊断，产品摘要由渲染层给出）。机器清单 **2,565 处**（product 1,987 / original 493 / internal 81 / generated 4）：迁入资源 117 处、改判 original 83 处。收口门禁 `--final` 仍红 141 个 pending 文件（批次 1 余 50）。2.7 完成。
 
+2.8 迁移代理 messages 编辑/授权/结果与未知核实：`messages-eligibility` 的五类原因接 translator；`MessagesForkEditor`（入口、代理核对、草稿放弃/冻结、重发失败摘要+原始说明、重发确认与录制入口、底部动作）、`MessagesWorkspace`（未绑定/读取中/读取失败/目标缺失、框架标题与来源标签）、`MessagesResults`（标题/计数/空态/动作提示/返回编辑/结果说明）全量迁移；main `ProxyManager.fork` 的凭据/配置漂移原文改判 original（渲染层已给本地化摘要）。机器清单 **2,508 处**（product 1,919 / original 504 / internal 81 / generated 4）：迁入资源 57 处、改判 original 11 处。收口门禁 `--final` 仍红 137 个 pending 文件（批次 1 余 46）。2.8 完成。
+
 ## 9. 局限
 
 - 工作区与批次按文件名近似，包层不能精确拆到单个工作区；迁移时以实际入口为准修正。

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-29T15:24:33.906Z",
+  "generatedAt": "2026-10-29T15:37:11.668Z",
   "scanner": "scripts/i18n-attribution.cjs",
   "taxonomy": {
     "product": "产品展示：需要按批次迁移为双语资源",
@@ -9,10 +9,10 @@
     "generated": "生成资产：不作为产品文案"
   },
   "totals": {
-    "files": 214,
-    "occurrences": 2565,
-    "product": 1987,
-    "original": 493,
+    "files": 210,
+    "occurrences": 2508,
+    "product": 1919,
+    "original": 504,
     "internal": 81,
     "generated": 4
   },
@@ -20,15 +20,15 @@
     "main": {
       "files": 20,
       "occurrences": 131,
-      "product": 104,
-      "original": 25,
+      "product": 93,
+      "original": 36,
       "internal": 2,
       "generated": 0
     },
     "renderer": {
-      "files": 61,
-      "occurrences": 1238,
-      "product": 1198,
+      "files": 57,
+      "occurrences": 1181,
+      "product": 1141,
       "original": 8,
       "internal": 32,
       "generated": 0
@@ -938,10 +938,10 @@
       "layer": "main",
       "package": null,
       "workspace": "录制代理",
-      "classification": "product",
+      "classification": "mixed",
       "batch": 3,
       "status": "pending",
-      "reason": null,
+      "reason": "main 返回的代理重发失败原始说明（凭据/配置在核对后变化），渲染层作为原始详情展示",
       "symbols": [
         {
           "symbol": "classifyRecoveryFailure.message",
@@ -961,8 +961,8 @@
           "symbol": "ProxyManager.fork",
           "role": "error_message",
           "context": "new ProxyForkError",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "main 返回的代理重发失败原始说明（凭据/配置在核对后变化），渲染层作为原始详情展示",
           "count": 11,
           "samples": [
             "凭据在核对之后又变过了：请重新核对当前这次重发（草稿与目标已保留）",
@@ -3295,401 +3295,6 @@
           ],
           "lines": [
             118
-          ]
-        }
-      ]
-    },
-    {
-      "path": "apps/desktop/src/renderer/src/components/MessagesForkEditor.tsx",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "重跑/分叉",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "div.button",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 4,
-          "samples": [
-            "编辑 messages 重发",
-            "在编辑工作区打开"
-          ],
-          "lines": [
-            184,
-            194,
-            453,
-            490
-          ]
-        },
-        {
-          "symbol": "MessagesForkEditor.doResend",
-          "role": "error_message",
-          "context": "setParseError",
-          "classification": "product",
-          "reason": null,
-          "count": 4,
-          "samples": [
-            "源记录不可用：重新读取并校验通过前不能重发",
-            "来源失效，已禁止重发：${…}"
-          ],
-          "lines": [
-            203,
-            208,
-            228,
-            233
-          ]
-        },
-        {
-          "symbol": "discardCurrent.title",
-          "role": "ui_prop",
-          "context": "title",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "放弃 messages 重发草稿"
-          ],
-          "lines": [
-            249
-          ]
-        },
-        {
-          "symbol": "discardCurrent.message",
-          "role": "ui_prop",
-          "context": "message",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "放弃这份 messages 重发草稿？（run ${…} · ${…}）\n\n当前草稿内容：\n${…}\n\n放弃按确认时的修订校验：此后内容若被更新，本次放弃不会执行。"
-          ],
-          "lines": [
-            250
-          ]
-        },
-        {
-          "symbol": "div.span",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 4,
-          "samples": [
-            "编辑 messages 重发",
-            "单请求级分叉 · 源 run 不会被修改 · 重发使用最近捕获的 key"
-          ],
-          "lines": [
-            264,
-            266,
-            428,
-            440
-          ]
-        },
-        {
-          "symbol": "div.div",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "编辑任意一条消息后重发：model / 工具表 / 采样参数与源 run 一致，仅 messages 使用编辑后的值。"
-          ],
-          "lines": [
-            321
-          ]
-        },
-        {
-          "symbol": "div.div",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 4,
-          "samples": [
-            "正在核对代理当前状态（监听与凭据）…核对完成前不按旧事实放行重发。",
-            "与原值相同，请修改后再提交；未做修改的重发会被原样拒绝。"
-          ],
-          "lines": [
-            331,
-            341,
-            368,
-            377
-          ]
-        },
-        {
-          "symbol": "DraftSourceBanner.title",
-          "role": "ui_prop",
-          "context": "title",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "放弃 messages 重发草稿"
-          ],
-          "lines": [
-            353
-          ]
-        },
-        {
-          "symbol": "DraftSourceBanner.message",
-          "role": "ui_prop",
-          "context": "message",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "放弃这份 messages 重发草稿？内容将被删除（不可撤销）。"
-          ],
-          "lines": [
-            354
-          ]
-        },
-        {
-          "symbol": "div.ConfirmationBlock",
-          "role": "ui_attr",
-          "context": "title",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "核对本次重发",
-            "已核对，确认本次重发"
-          ],
-          "lines": [
-            403,
-            410,
-            411
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 6,
-          "samples": [
-            "打开录制工作区（启用代理 / 接入凭据）",
-            "尚无修改可放弃"
-          ],
-          "lines": [
-            425,
-            446,
-            466,
-            483,
-            485
-          ]
-        }
-      ]
-    },
-    {
-      "path": "apps/desktop/src/renderer/src/components/MessagesResults.tsx",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "重跑/分叉",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "div.span",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "重发结果"
-          ],
-          "lines": [
-            34
-          ]
-        },
-        {
-          "symbol": "div.span",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "次"
-          ],
-          "lines": [
-            36
-          ]
-        },
-        {
-          "symbol": "div.div",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "尚未提交重发：确认重发后，结果会出现在这里。"
-          ],
-          "lines": [
-            41
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 4,
-          "samples": [
-            "只按同一个可信运行 ID 重读（${…}）：不会重新执行",
-            "只定位这条运行自有的失败调用"
-          ],
-          "lines": [
-            93,
-            95,
-            96,
-            137
-          ]
-        },
-        {
-          "symbol": "div.Disclosure",
-          "role": "ui_attr",
-          "context": "summary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "结果说明"
-          ],
-          "lines": [
-            146
-          ]
-        },
-        {
-          "symbol": "Disclosure.div",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "结果只按这次提交的登记身份呈现：失败或未知都保留编辑输入，不用被动录制补结果；源 trace 不会被改写。"
-          ],
-          "lines": [
-            153
-          ]
-        }
-      ]
-    },
-    {
-      "path": "apps/desktop/src/renderer/src/components/MessagesWorkspace.tsx",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "重跑/分叉",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "MessagesWorkspace.div",
-          "role": "other",
-          "context": "",
-          "classification": "product",
-          "reason": null,
-          "count": 4,
-          "samples": [
-            "未绑定编辑目标（会话内目标不跨重载保留；从代理调用的「编辑 messages 重发」重新进入即可）。",
-            "正在读取源详情…"
-          ],
-          "lines": [
-            71,
-            88,
-            92,
-            93
-          ]
-        },
-        {
-          "symbol": "div.span",
-          "role": "other",
-          "context": "",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "源详情读取失败："
-          ],
-          "lines": [
-            77
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "other",
-          "context": "",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "只读重试"
-          ],
-          "lines": [
-            83
-          ]
-        },
-        {
-          "symbol": "MessagesWorkspace.AuxWorkspaceFrame",
-          "role": "ui_attr",
-          "context": "title",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "编辑 messages 重发",
-            "单请求重发 · 不执行外部工具 · 使用本会话最近捕获的凭据"
-          ],
-          "lines": [
-            110,
-            111,
-            112
-          ]
-        },
-        {
-          "symbol": "MessagesWorkspace.AuxWorkspaceFrame",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "源 run",
-            "· 调用"
-          ],
-          "lines": [
-            116,
-            122
-          ]
-        },
-        {
-          "symbol": "AuxWorkspaceFrame.ShortIdLabel",
-          "role": "ui_attr",
-          "context": "label",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "来源运行 ID"
-          ],
-          "lines": [
-            120
           ]
         }
       ]
@@ -7095,52 +6700,6 @@
             52,
             54,
             56
-          ]
-        }
-      ]
-    },
-    {
-      "path": "apps/desktop/src/renderer/src/lib/messages-eligibility.ts",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "重跑/分叉",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "deriveMessagesIneligibility.reason",
-          "role": "ui_prop",
-          "context": "reason",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "源记录不可用：重新读取并校验通过前不能重发",
-            "来源失效，已禁止重发：${…}"
-          ],
-          "lines": [
-            56,
-            59,
-            74
-          ]
-        },
-        {
-          "symbol": "deriveMessagesIneligibility.reason",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "本地录制代理未运行：没有可重发的 upstream（停用状态下即使本会话捕获过 key 也不能重发）",
-            "正在核对代理当前状态…（读到最新事实前不能按「可能在跑」放行重发）"
-          ],
-          "lines": [
-            65,
-            67,
-            68
           ]
         }
       ]

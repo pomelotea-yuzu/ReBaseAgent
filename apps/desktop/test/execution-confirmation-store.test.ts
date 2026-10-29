@@ -303,13 +303,19 @@ describe("4.4 接线契约：确认判据只有一份", () => {
     // ⚠️ U8 5.1a/5.2 改判留痕：messages 编辑器迁 MessagesForkEditor.tsx，资格原因
     // 提取为 lib/messages-eligibility.ts 纯判据（顺序判定可单独定向测试）。
     const msgEditor = read("components/MessagesForkEditor.tsx");
-    const msgAt = msgEditor.indexOf("已核对，确认本次重发");
+    const msgAt = msgEditor.indexOf('"fork.messagesConfirmAccept"');
     expect(msgAt).toBeGreaterThan(-1);
     expect(msgEditor.slice(msgAt, msgAt + 400)).toContain(
       "blocked={messagesConfirmed ? null : (ineligible?.reason ?? null)}",
     );
     const eligibility = read("lib/messages-eligibility.ts");
-    expect(eligibility).toContain("本会话未捕获到 key：先把你的应用经代理跑一次");
-    expect(msgEditor).toContain("deriveMessagesIneligibility({");
+    expect(eligibility).toContain('"fork.messagesNoKey"');
+    const zhResources = readFileSync(
+      resolve(import.meta.dirname, "../../../packages/i18n/src/resources/zh-CN.ts"),
+      "utf8",
+    );
+    expect(zhResources).toContain("本会话未捕获到 key：先把你的应用经代理跑一次");
+    expect(msgEditor).toContain("deriveMessagesIneligibility(");
+    expect(msgEditor).toContain("translator,");
   });
 });

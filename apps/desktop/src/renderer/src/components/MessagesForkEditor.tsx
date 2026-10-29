@@ -148,15 +148,18 @@ export function MessagesForkEditor({
    * 由「打开录制工作区」就地化解（代理启停/凭据接入都在录制页完成）。
    */
   const openRecordingWorkspace = useAppStore((s) => s.openRecordingWorkspace);
-  const ineligible = deriveMessagesIneligibility({
-    sourceExecutable,
-    sourceBlockedReason: sourceBlocked?.reason ?? null,
-    proxyRunning: proxy?.running ?? null,
-    // 任务 2.1：核对中如实说"正在核对"，不谎报未捕获（delta「读取期间显示核对中」）
-    proxyChecking,
-    hasKey: proxy?.hasKey === true,
-    gateNotice: gate.canSubmit ? null : gate.notice,
-  });
+  const ineligible = deriveMessagesIneligibility(
+    {
+      sourceExecutable,
+      sourceBlockedReason: sourceBlocked?.reason ?? null,
+      proxyRunning: proxy?.running ?? null,
+      // 任务 2.1：核对中如实说"正在核对"，不谎报未捕获（delta「读取期间显示核对中」）
+      proxyChecking,
+      hasKey: proxy?.hasKey === true,
+      gateNotice: gate.canSubmit ? null : gate.notice,
+    },
+    translator,
+  );
   const ineligibleReason = ineligible?.reason ?? null;
   const messagesBinding = currentConfirmationBinding("messages", draftKey);
   const messagesConfirmed = useAppStore((s) => s.executionConfirmationReady(messagesBinding));
@@ -181,7 +184,7 @@ export function MessagesForkEditor({
           }}
           className="rounded bg-sky-600 px-2 py-1 text-[11px] text-white hover:bg-sky-700"
         >
-          编辑 messages 重发
+          {translator.t("fork.messagesEditEntry")}
         </button>
         {/* U8 任务 1.4：就地编辑器之外的第二扇门通向 messages 编辑工作区（同一草稿键，
             不是第二份表单状态）；编辑器本体随 §5.1 提取到工作区后，就地这份随之移除 */}
@@ -191,7 +194,7 @@ export function MessagesForkEditor({
           onClick={() => openMessagesWorkspace({ runId: run.meta.id, spanId: span.id })}
           className="ml-2 rounded border border-sky-200 bg-sky-50 px-2 py-1 text-[11px] text-sky-900 hover:bg-sky-100"
         >
-          在编辑工作区打开
+          {translator.t("fork.messagesOpenWorkspace")}
         </button>
       </div>
     );
@@ -200,12 +203,12 @@ export function MessagesForkEditor({
   const doResend = (): void => {
     // 源记录不可用：旧内容可见但不得据此获得执行资格（提交口兜底，不依赖按钮禁用）
     if (!sourceExecutable) {
-      setParseError("源记录不可用：重新读取并校验通过前不能重发");
+      setParseError(translator.t("fork.messagesSourceUnavailable"));
       return;
     }
     // U3 任务 2.5：恢复重验未通过同样在提交口兜底
     if (sourceBlocked !== null) {
-      setParseError(`来源失效，已禁止重发：${sourceBlocked.reason}`);
+      setParseError(translator.t("fork.messagesSourceBlocked", { reason: sourceBlocked.reason }));
       return;
     }
     // U3 任务 3.4：先原子登记提交关联（key + 修订 + 请求快照），提交边界的解析只针对
@@ -225,12 +228,12 @@ export function MessagesForkEditor({
       messages = JSON.parse(assoc.submittedText);
     } catch (e) {
       settleDraftSubmission(assoc);
-      setParseError(`messages 不是合法 JSON：${(e as Error).message}`);
+      setParseError(translator.t("fork.messagesInvalidJson", { detail: (e as Error).message }));
       return;
     }
     if (!Array.isArray(messages) || messages.length === 0) {
       settleDraftSubmission(assoc);
-      setParseError("messages 必须是非空数组");
+      setParseError(translator.t("fork.messagesNotEmpty"));
       return;
     }
     setParseError(null);
@@ -246,8 +249,12 @@ export function MessagesForkEditor({
     const snapshot = draftEntry;
     // U3 5.2：异步模态确认；CAS 按请求时的快照修订校验
     void requestConfirm({
-      title: "放弃 messages 重发草稿",
-      message: `放弃这份 messages 重发草稿？（run ${run.meta.id} · ${span.id}）\n\n当前草稿内容：\n${snapshot.text}\n\n放弃按确认时的修订校验：此后内容若被更新，本次放弃不会执行。`,
+      title: translator.t("fork.discardMessagesTitle"),
+      message: translator.t("fork.discardMessagesMessage", {
+        runId: run.meta.id,
+        spanId: span.id,
+        content: snapshot.text,
+      }),
     }).then((confirmed) => {
       if (!confirmed) return; // 取消：逐字保留
       if (discardCallDraft(draftKey, snapshot.revision)) {
@@ -261,9 +268,11 @@ export function MessagesForkEditor({
     <div className="border-t border-sky-100 bg-sky-50/60 px-4 py-3">
       {!alwaysOpen ? (
         <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-          <span className="text-[11px] font-semibold text-sky-900">编辑 messages 重发</span>
+          <span className="text-[11px] font-semibold text-sky-900">
+            {translator.t("fork.messagesEditEntry")}
+          </span>
           <span className="text-[10px] text-sky-500">
-            单请求级分叉 · 源 run 不会被修改 · 重发使用最近捕获的 key
+            {translator.t("fork.messagesInlineSummary")}
           </span>
         </div>
       ) : null}
@@ -318,7 +327,7 @@ export function MessagesForkEditor({
         }
       />
       <div className="mt-1.5 text-[10px] leading-4 text-sky-600">
-        编辑任意一条消息后重发：model / 工具表 / 采样参数与源 run 一致，仅 messages 使用编辑后的值。
+        {translator.t("fork.messagesEditHint")}
       </div>
 
       {/*
@@ -328,7 +337,7 @@ export function MessagesForkEditor({
        */}
       {proxyChecking ? (
         <div className="mt-1 text-[11px] text-sky-700" data-messages-proxy-checking>
-          正在核对代理当前状态（监听与凭据）…核对完成前不按旧事实放行重发。
+          {translator.t("fork.messagesProxyCheckingLine")}
         </div>
       ) : null}
 
@@ -338,7 +347,7 @@ export function MessagesForkEditor({
 
       {unchanged ? (
         <div className="mt-1 text-[11px] text-amber-700">
-          与原值相同，请修改后再提交；未做修改的重发会被原样拒绝。
+          {translator.t("fork.messagesUnchanged")}
         </div>
       ) : null}
 
@@ -350,8 +359,8 @@ export function MessagesForkEditor({
             if (draftEntry === undefined) return;
             const snapshot = draftEntry;
             void requestConfirm({
-              title: "放弃 messages 重发草稿",
-              message: "放弃这份 messages 重发草稿？内容将被删除（不可撤销）。",
+              title: translator.t("fork.discardMessagesTitle"),
+              message: translator.t("fork.discardMessagesSimple"),
             }).then((confirmed) => {
               if (!confirmed) return;
               if (discardCallDraft(draftKey, snapshot.revision)) {
@@ -365,16 +374,28 @@ export function MessagesForkEditor({
 
       {draftFrozen ? (
         <div className="mt-2 rounded border border-sky-200 bg-sky-100/60 px-2 py-1.5 text-[11px] leading-4 text-sky-900">
-          本次提交待处理：已按提交时的修订冻结这份草稿，请求返回前不可修改或放弃。
-          无论成功、业务拒绝还是失败，草稿都先保留；按可信身份核实到正常结束、
-          且草稿修订与提交时逐字相同，才自动清理（U5 §2/§3 已接线）。
+          {translator.t("detail.draftFrozenNote")}
         </div>
       ) : null}
 
       {forking === "error" ? (
         <div className="mt-1 text-[11px] text-red-700">
-          {forkError}
-          {forkErrorCode === "PROXY_NO_KEY" ? "（请先把你的应用经代理跑一次，再回来重发）" : ""}
+          <div>
+            {translator.t("detail.forkFailedSummary", {
+              code: forkErrorCode ?? "UNKNOWN_ERROR",
+            })}
+          </div>
+          {forkError === null ? null : (
+            <div className="mt-0.5 whitespace-pre-wrap break-words text-red-600">
+              {translator.t("detail.rawFailureDetail")}
+              {forkError}
+            </div>
+          )}
+          {forkErrorCode === "PROXY_NO_KEY" ? (
+            <div className="mt-0.5 text-amber-700">
+              {translator.t("fork.messagesProxyNoKeyHint")}
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -400,15 +421,15 @@ export function MessagesForkEditor({
         );
         return (
           <ConfirmationBlock
-            title="核对本次重发"
+            title={translator.t("fork.messagesConfirmTitle")}
             tone="sky"
             summary={disclosure.summary}
             rows={disclosureLines(disclosure, translator)}
             confirmed={messagesConfirmed}
             confirmDisabled={inProgress || ineligible !== null}
             onConfirm={() => armExecutionConfirmation(messagesBinding)}
-            confirmLabel="已核对，确认本次重发"
-            confirmedLabel="已确认重发"
+            confirmLabel={translator.t("fork.messagesConfirmAccept")}
+            confirmedLabel={translator.t("fork.messagesConfirmAccepted")}
             blocked={messagesConfirmed ? null : (ineligible?.reason ?? null)}
             controlsId={`messages-confirm-details-${run.meta.id}-${span.id}`}
           >
@@ -422,10 +443,10 @@ export function MessagesForkEditor({
                   onClick={openRecordingWorkspace}
                   className={`rounded border border-sky-300 bg-sky-50 px-2 py-0.5 text-[11px] text-sky-800 hover:bg-sky-100 ${FOCUS_RING}`}
                 >
-                  打开录制工作区（启用代理 / 接入凭据）
+                  {translator.t("fork.messagesRecordingEntry")}
                 </button>
                 <span className="ml-2 text-[10px] text-gray-500">
-                  返回后这份编辑草稿与目标原样保留；旧确认不恢复
+                  {translator.t("fork.messagesRecordingReturnNote")}
                 </span>
               </div>
             ) : null}
@@ -437,20 +458,22 @@ export function MessagesForkEditor({
 
       <div className="mt-2 flex items-center justify-end gap-2">
         {inProgress ? (
-          <span className="text-[11px] text-sky-600">重发中…（真实 LLM 调用，可能耗时）</span>
+          <span className="text-[11px] text-sky-600">{translator.t("fork.messagesResending")}</span>
         ) : null}
         <button
           type="button"
           onClick={discardCurrent}
           disabled={inProgress || unchanged}
-          title={unchanged ? "尚无修改可放弃" : "放弃这份草稿（需确认；按当前修订校验）"}
+          title={translator.t(
+            unchanged ? "detail.discardNoChangesTitle" : "detail.discardDraftTitle",
+          )}
           className={`mr-auto rounded border px-2 py-1 text-[11px] disabled:cursor-not-allowed disabled:opacity-40 ${
             unchanged
               ? "border-gray-200 text-gray-300"
               : "border-amber-400 text-amber-800 hover:bg-amber-50"
           }`}
         >
-          放弃修改
+          {translator.t("detail.discardChanges")}
         </button>
         {!alwaysOpen ? (
           <button
@@ -463,7 +486,7 @@ export function MessagesForkEditor({
             className="rounded border border-gray-300 px-2 py-1 text-[11px] text-gray-600 hover:bg-gray-50 disabled:opacity-40"
           >
             {/* U8 5.1b：工作区形态无「取消」收起（编辑器常开；收起语义只属于步骤页内联形态） */}
-            取消
+            {translator.t("common.cancel")}
           </button>
         ) : null}
         <button
@@ -480,14 +503,14 @@ export function MessagesForkEditor({
           }
           title={
             !sourceExecutable
-              ? "源记录不可用：重新读取并校验通过前不能重发"
+              ? translator.t("fork.messagesSourceUnavailable")
               : proxy?.running !== true
-                ? "代理未运行，请先在设置中启用"
+                ? translator.t("fork.messagesProxyStoppedShort")
                 : undefined
           }
           className="rounded bg-sky-600 px-3 py-1 text-[11px] text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          确认重发
+          {translator.t("fork.messagesSubmit")}
         </button>
       </div>
     </div>

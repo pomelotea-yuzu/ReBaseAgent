@@ -203,6 +203,8 @@ const ORIGINAL_SYMBOLS = {
     "main 返回的分叉失败原始说明，渲染层作为原始详情展示；产品摘要按稳定码本地化",
   "apps/desktop/src/main/isolated-prompt-endpoints.ts::runIsolatedPromptCapability":
     "main 返回的隔离 prompt 能力预检原始说明，渲染层作为原始详情展示",
+  "apps/desktop/src/main/proxy-manager.ts::ProxyManager.fork":
+    "main 返回的代理重发失败原始说明（凭据/配置在核对后变化），渲染层作为原始详情展示",
 };
 
 const INTERNAL_REASONS = {

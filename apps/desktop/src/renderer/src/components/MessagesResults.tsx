@@ -31,14 +31,18 @@ export function MessagesResultsSection({
   return (
     <div className="mt-3" data-messages-results>
       <div className="mb-1 flex items-baseline gap-2">
-        <span className="text-[11px] font-semibold text-gray-700">重发结果</span>
+        <span className="text-[11px] font-semibold text-gray-700">
+          {translator.t("fork.messagesResultsTitle")}
+        </span>
         {results.length > 0 ? (
-          <span className="text-[10px] text-gray-400">{results.length} 次</span>
+          <span className="text-[10px] text-gray-400">
+            {translator.t("fork.messagesResultsCount", { count: results.length })}
+          </span>
         ) : null}
       </div>
       {results.length === 0 ? (
         <div className="rounded border border-gray-100 bg-gray-50/60 px-2 py-1.5 text-[11px] leading-4 text-gray-500">
-          尚未提交重发：确认重发后，结果会出现在这里。
+          {translator.t("fork.messagesResultsEmpty")}
         </div>
       ) : (
         <div className="space-y-2">
@@ -90,10 +94,12 @@ export function MessagesResultsSection({
                             }}
                             title={
                               action === "retry-read"
-                                ? `只按同一个可信运行 ID 重读（${item.runId}）：不会重新执行`
+                                ? translator.t("fork.messagesRetryReadTitle", {
+                                    runId: item.runId,
+                                  })
                                 : action === "view-failure"
-                                  ? "只定位这条运行自有的失败调用"
-                                  : "按可信运行 ID 打开概览"
+                                  ? translator.t("fork.messagesViewFailureTitle")
+                                  : translator.t("fork.messagesOpenResultTitle")
                             }
                             className={`shrink-0 rounded border border-gray-300 px-1.5 py-0.5 text-[10px] text-gray-700 hover:bg-gray-50 ${FOCUS_RING}`}
                           >
@@ -134,7 +140,7 @@ export function MessagesResultsSection({
                     }}
                     className={`rounded border border-sky-300 bg-sky-50 px-2 py-0.5 text-[11px] text-sky-800 hover:bg-sky-100 ${FOCUS_RING}`}
                   >
-                    返回编辑
+                    {translator.t("fork.messagesReturnDraft")}
                   </button>
                 </div>
               ) : null}
@@ -143,15 +149,14 @@ export function MessagesResultsSection({
         </div>
       )}
       <Disclosure
-        summary="结果说明"
+        summary={translator.t("fork.messagesResultsNoteTitle")}
         expanded={detailsOpen}
         onToggle={() => setDetailsOpen((prev) => !prev)}
         controlsId="messages-results-details"
         className="mt-1"
       >
         <div className="px-1 pb-1 text-[10px] leading-4 text-gray-500">
-          结果只按这次提交的登记身份呈现：失败或未知都保留编辑输入，不用被动录制补结果；源 trace
-          不会被改写。
+          {translator.t("fork.messagesResultsNote")}
         </div>
       </Disclosure>
     </div>

@@ -199,7 +199,12 @@ describe("U8 5.1b 源码级：编辑器唯一消费面在 messages 工作区，�
     expect(code).toContain("alwaysOpen={true}");
     // 目标 span 缺席 ⇒ 如实说明（不拿别的 span 顶上），草稿保留、入口不可用
     expect(code).toContain("data-messages-source-span-missing");
-    expect(code).toContain("编辑草稿保留，重发入口不可用");
+    expect(code).toContain('"fork.messagesTargetMissing"');
+    const zh = readFileSync(
+      resolve(import.meta.dirname, "../../../packages/i18n/src/resources/zh-CN.ts"),
+      "utf8",
+    );
+    expect(zh).toContain("编辑草稿保留，重发入口不可用");
     // 读取失败 ⇒ 只读重试（不重新读取执行通道）
     expect(code).toContain("data-messages-source-failed");
   });
@@ -386,5 +391,27 @@ describe("2.7 英文独立期望：prompt 编辑器入口与隔离入口按语�
     expect(html).toContain("Go to the root run to view the startup prompt");
     expect(html).toContain("isolated branch");
     expect(html).not.toContain("前往根运行");
+  });
+});
+
+const { MessagesForkEditor } = await import("../src/renderer/src/components/MessagesForkEditor");
+const { MessagesWorkspace } = await import("../src/renderer/src/components/MessagesWorkspace");
+
+describe("2.8 英文独立期望：messages 入口与工作区空态按语言输出", () => {
+  it("步骤页内联入口为英文（编辑重发 / 工作区入口）", () => {
+    const html = renderWithLocale(
+      "en-US",
+      createElement(MessagesForkEditor, { span: firstLlmSpan, run: detail }),
+    );
+    expect(html).toContain("Edit messages and resend");
+    expect(html).toContain("Open in the editing workspace");
+    expect(html).not.toContain("编辑 messages 重发");
+  });
+
+  it("工作区未绑定目标的空态与框架标题为英文", () => {
+    const html = renderWithLocale("en-US", createElement(MessagesWorkspace));
+    expect(html).toContain("No editing target is bound");
+    expect(html).toContain("Edit messages and resend");
+    expect(html).not.toContain("未绑定编辑目标");
   });
 });

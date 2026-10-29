@@ -171,7 +171,8 @@ describe("辅助工作区对象头：run ID 可复制（N04）", () => {
     const msg = read("../src/renderer/src/components/MessagesWorkspace.tsx");
     expect(exp).toContain('label="父本运行 ID"');
     expect(exp).toContain("id={target.runId}");
-    expect(msg).toContain('label="来源运行 ID"');
+    // 2.8：messages 来源标签改由 fork 资源投影
+    expect(msg).toContain('label={translator.t("fork.messagesSourceRunIdLabel")}');
     expect(msg).toContain("id={target.runId}");
   });
 

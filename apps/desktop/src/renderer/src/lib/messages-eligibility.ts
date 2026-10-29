@@ -1,3 +1,5 @@
+import type { Translator } from "@rebaseagent/i18n";
+
 /**
  * U8（unify-recording-and-experiment-workspaces）任务 5.2：**messages 重发的凭据与
  * 来源资格**（design D3/D7）。
@@ -51,29 +53,33 @@ export interface MessagesIneligibility {
 
 export function deriveMessagesIneligibility(
   input: MessagesEligibilityInput,
+  translator: Translator,
 ): MessagesIneligibility | null {
   if (!input.sourceExecutable) {
-    return { reason: "源记录不可用：重新读取并校验通过前不能重发", recordingEntry: false };
+    return { reason: translator.t("fork.messagesSourceUnavailable"), recordingEntry: false };
   }
   if (input.sourceBlockedReason !== null) {
-    return { reason: `来源失效，已禁止重发：${input.sourceBlockedReason}`, recordingEntry: false };
+    return {
+      reason: translator.t("fork.messagesSourceBlocked", {
+        reason: input.sourceBlockedReason,
+      }),
+      recordingEntry: false,
+    };
   }
   if (input.proxyRunning !== true) {
     return {
-      reason:
+      reason: translator.t(
         input.proxyRunning === false
-          ? "本地录制代理未运行：没有可重发的 upstream（停用状态下即使本会话捕获过 key 也不能重发）"
+          ? "fork.messagesProxyStopped"
           : input.proxyChecking === true
-            ? "正在核对代理当前状态…（读到最新事实前不能按「可能在跑」放行重发）"
-            : "代理状态未知（尚未读取或读取失败）：不能按「可能在跑」放行重发",
+            ? "fork.messagesProxyChecking"
+            : "fork.messagesProxyUnknown",
+      ),
       recordingEntry: true,
     };
   }
   if (input.hasKey !== true) {
-    return {
-      reason: "本会话未捕获到 key：先把你的应用经代理跑一次，再回来重发",
-      recordingEntry: true,
-    };
+    return { reason: translator.t("fork.messagesNoKey"), recordingEntry: true };
   }
   if (input.gateNotice !== null) {
     return { reason: input.gateNotice, recordingEntry: false };

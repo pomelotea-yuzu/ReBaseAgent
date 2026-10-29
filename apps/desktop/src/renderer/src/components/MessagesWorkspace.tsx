@@ -67,30 +67,35 @@ export function MessagesWorkspace() {
   let body: ReactNode;
   if (target === null) {
     body = (
-      <div className="text-reading-meta text-gray-500">
-        未绑定编辑目标（会话内目标不跨重载保留；从代理调用的「编辑 messages 重发」重新进入即可）。
-      </div>
+      <div className="text-reading-meta text-gray-500">{translator.t("fork.messagesNoTarget")}</div>
     );
   } else if (source.phase === "failed") {
     body = (
       <div className="flex flex-col gap-2 text-reading-meta" data-messages-source-failed>
-        <span className="text-red-700">源详情读取失败：{source.errorMessage}</span>
+        <span className="text-red-700">
+          {translator.t("fork.messagesSourceFailed", {
+            detail: source.errorMessage ?? "",
+          })}
+        </span>
         <button
           type="button"
           onClick={() => void readMessagesSource()}
           className="w-fit rounded border border-gray-300 px-2 py-0.5 text-gray-600 hover:bg-gray-50"
         >
-          只读重试
+          {translator.t("fork.messagesRetryRead")}
         </button>
       </div>
     );
   } else if (source.phase !== "ready" || source.detail === null) {
-    body = <div className="text-reading-meta text-gray-500">正在读取源详情…</div>;
+    body = (
+      <div className="text-reading-meta text-gray-500">
+        {translator.t("fork.messagesReadingSource")}
+      </div>
+    );
   } else if (span === null) {
     body = (
       <div className="text-reading-meta text-amber-700" data-messages-source-span-missing>
-        源详情里找不到目标调用（{target.spanId}
-        ）：详情内容可能已改变；编辑草稿保留，重发入口不可用。
+        {translator.t("fork.messagesTargetMissing", { spanId: target.spanId })}
       </div>
     );
   } else {
@@ -107,19 +112,20 @@ export function MessagesWorkspace() {
 
   return (
     <AuxWorkspaceFrame
-      title="编辑 messages 重发"
-      compactDescription="单请求重发 · 不执行外部工具 · 使用本会话最近捕获的凭据"
-      description="编辑一次代理录制的模型请求并作为单个真实请求重发（不执行外部工具）。源 run 不会被修改。重发使用本会话代理捕获的凭据。"
+      title={translator.t("fork.messagesEditEntry")}
+      compactDescription={translator.t("fork.messagesFrameCompact")}
+      description={translator.t("fork.messagesFrameDescription")}
       targetLine={
         target === null ? null : (
           <>
-            源 run{" "}
+            {translator.t("fork.messagesSourceRun")}{" "}
             <ShortIdLabel
               id={target.runId}
               shortId={shortIdState.update([target.runId]).get(target.runId) ?? target.runId}
-              label="来源运行 ID"
+              label={translator.t("fork.messagesSourceRunIdLabel")}
             />{" "}
-            · 调用 <span className="font-code">{target.spanId}</span>
+            {translator.t("fork.messagesCallLabel")}{" "}
+            <span className="font-code">{target.spanId}</span>
           </>
         )
       }

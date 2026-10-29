@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { deriveMessagesIneligibility } from "../src/renderer/src/lib/messages-eligibility";
+import { createTestTranslator } from "./i18n/render-with-locale";
 
 /**
  * U8 任务 5.2：**messages 重发的凭据与来源资格**（delta「停用代理仍有凭据不能重发」
@@ -7,6 +8,9 @@ import { deriveMessagesIneligibility } from "../src/renderer/src/lib/messages-el
  *
  * 判据来源：MessagesForkEditor 原内联资格链提取为纯函数——顺序即语义。
  */
+
+const zh = createTestTranslator("zh-CN");
+const en = createTestTranslator("en-US");
 
 const base = {
   sourceExecutable: true,
@@ -18,24 +22,27 @@ const base = {
 
 describe("5.2 messages 资格顺序判据：源 → 重验 → 监听 → 凭据 → 槽", () => {
   it("全部通过 ⇒ null（可重发）", () => {
-    expect(deriveMessagesIneligibility(base)).toBeNull();
+    expect(deriveMessagesIneligibility(base, zh)).toBeNull();
   });
 
   it("源记录不可用最先挡住；来源失效次之——两者不给录制入口（不是启停代理能修的）", () => {
-    const noSource = deriveMessagesIneligibility({ ...base, sourceExecutable: false });
+    const noSource = deriveMessagesIneligibility({ ...base, sourceExecutable: false }, zh);
     expect(noSource?.reason).toContain("源记录不可用");
     expect(noSource?.recordingEntry).toBe(false);
 
-    const blocked = deriveMessagesIneligibility({
-      ...base,
-      sourceBlockedReason: "源内容已改变",
-    });
+    const blocked = deriveMessagesIneligibility(
+      {
+        ...base,
+        sourceBlockedReason: "源内容已改变",
+      },
+      zh,
+    );
     expect(blocked?.reason).toContain("来源失效");
     expect(blocked?.recordingEntry).toBe(false);
   });
 
   it("「停用代理仍有凭据不能重发」：running=false 且 hasKey=true ⇒ 仍被监听检查挡住（顺序有牙）", () => {
-    const stopped = deriveMessagesIneligibility({ ...base, proxyRunning: false, hasKey: true });
+    const stopped = deriveMessagesIneligibility({ ...base, proxyRunning: false, hasKey: true }, zh);
     expect(stopped?.reason).toContain("未运行");
     expect(stopped?.reason).toContain("即使本会话捕获过 key 也不能重发");
     // 该原因可由录制工作区化解（启停代理在那页完成）
@@ -43,17 +50,20 @@ describe("5.2 messages 资格顺序判据：源 → 重验 → 监听 → 凭据
   });
 
   it("状态未知（running=null）不能按「可能在跑」放行", () => {
-    const unknown = deriveMessagesIneligibility({ ...base, proxyRunning: null });
+    const unknown = deriveMessagesIneligibility({ ...base, proxyRunning: null }, zh);
     expect(unknown?.reason).toContain("状态未知");
     expect(unknown?.recordingEntry).toBe(true);
   });
 
   it("任务 2.1：「核对中」与「状态未知」是两句话，但都不放行", () => {
-    const checking = deriveMessagesIneligibility({
-      ...base,
-      proxyRunning: null,
-      proxyChecking: true,
-    });
+    const checking = deriveMessagesIneligibility(
+      {
+        ...base,
+        proxyRunning: null,
+        proxyChecking: true,
+      },
+      zh,
+    );
     // 说"正在核对"而不是"状态未知"：前者几毫秒后就有结论，不是需要用户处理的长期占位
     expect(checking?.reason).toContain("正在核对");
     expect(checking?.reason).not.toContain("状态未知");
@@ -62,45 +72,63 @@ describe("5.2 messages 资格顺序判据：源 → 重验 → 监听 → 凭据
     expect(checking?.recordingEntry).toBe(true);
 
     // 未标记核对中 ⇒ 退回"状态未知"措辞（不因为新增字段就说成正在核对）
-    const unknown = deriveMessagesIneligibility({ ...base, proxyRunning: null });
+    const unknown = deriveMessagesIneligibility({ ...base, proxyRunning: null }, zh);
     expect(unknown?.reason).toContain("状态未知");
   });
 
   it("核对中不掩盖更早的硬事实：源不可用仍先由源挡住", () => {
-    const blocked = deriveMessagesIneligibility({
-      ...base,
-      sourceExecutable: false,
-      proxyRunning: null,
-      proxyChecking: true,
-    });
+    const blocked = deriveMessagesIneligibility(
+      {
+        ...base,
+        sourceExecutable: false,
+        proxyRunning: null,
+        proxyChecking: true,
+      },
+      zh,
+    );
     expect(blocked?.reason).toContain("源记录不可用");
   });
 
   it("running=false 时不说「正在核对」——那是停用事实，不是未知", () => {
-    const stopped = deriveMessagesIneligibility({
-      ...base,
-      proxyRunning: false,
-      proxyChecking: true,
-    });
+    const stopped = deriveMessagesIneligibility(
+      {
+        ...base,
+        proxyRunning: false,
+        proxyChecking: true,
+      },
+      zh,
+    );
     expect(stopped?.reason).toContain("未运行");
   });
 
   it("「未捕获 key」：running 正常但 hasKey=false ⇒ 提示先把应用经代理跑一次", () => {
-    const noKey = deriveMessagesIneligibility({ ...base, hasKey: false });
+    const noKey = deriveMessagesIneligibility({ ...base, hasKey: false }, zh);
     expect(noKey?.reason).toBe("本会话未捕获到 key：先把你的应用经代理跑一次，再回来重发");
     expect(noKey?.recordingEntry).toBe(true);
   });
 
   it("槽忙碌的最后防线就近呈现；不给录制入口（等槽空，不是录制能修的）", () => {
-    const busy = deriveMessagesIneligibility({ ...base, gateNotice: "已有操作在飞" });
+    const busy = deriveMessagesIneligibility({ ...base, gateNotice: "已有操作在飞" }, zh);
     expect(busy?.reason).toBe("已有操作在飞");
     expect(busy?.recordingEntry).toBe(false);
   });
 
   it("「不借用模型 key」是结构性的：判据输入里没有 settings（想借也借不到）", () => {
-    // 输入形状只有代理状态与来源/槽事实——settings 的 apiKey 没有通路进入本判据
-    expect(deriveMessagesIneligibility.length).toBe(1);
-    const input = deriveMessagesIneligibility(base);
+    // 输入形状只有代理状态与来源/槽事实——settings 的 apiKey 没有通路进入本判据；
+    // 2.8 起第二个参数只用于文案投影（translator），不承载任何凭据事实。
+    expect(deriveMessagesIneligibility.length).toBe(2);
+    const input = deriveMessagesIneligibility(base, zh);
     expect(input).toBeNull();
+  });
+});
+
+describe("2.8 英文独立期望：资格原因按语言输出", () => {
+  it("停用代理/未捕获 key 的原因为英文，且顺序语义不变", () => {
+    const stopped = deriveMessagesIneligibility({ ...base, proxyRunning: false, hasKey: true }, en);
+    expect(stopped?.reason).toContain("recording proxy is not running");
+    expect(stopped?.recordingEntry).toBe(true);
+
+    const noKey = deriveMessagesIneligibility({ ...base, hasKey: false }, en);
+    expect(noKey?.reason).toContain("No key was captured");
   });
 });
