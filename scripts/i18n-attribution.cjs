@@ -167,6 +167,10 @@ const ORIGINAL_REASONS = {
   "apps/desktop/src/main/run-create.ts":
     "main 返回的创建失败原始说明，渲染层作为原始详情展示；产品摘要按稳定码本地化",
   "apps/desktop/src/main/run-source-gate.ts": "main 返回的来源拒绝原始说明，渲染层作为原始详情展示",
+  "apps/desktop/src/main/fork-runner.ts":
+    "main 返回的分叉失败原始说明与工具结果原文，渲染层按原始详情展示；产品摘要按稳定码本地化",
+  "apps/desktop/src/renderer/src/lib/result-verification.ts":
+    "结果读取核对的原始诊断（信封/版本/schema/身份），作为原始详情展示，不随 UI locale 改写",
   "packages/trace-test/src/assertions.ts":
     "断言 detail 进入 JSON 报告与原始 detail，报告契约不随 locale 改写",
   "packages/trace-test/src/shape-align.ts": "形状对齐 detail 进入 JSON 报告，保留原始事实",
@@ -185,6 +189,8 @@ const ORIGINAL_SYMBOLS = {
     "模型所见的工具结果文本（写入新 trace 并进入模型上下文），不随 UI locale 生成",
   "apps/desktop/src/renderer/src/lib/draft-source.ts::toolResultText":
     "模型所见的工具结果文本（写入新 trace 并进入模型上下文），不随 UI locale 生成",
+  "apps/desktop/src/main/exec-endpoints.ts::forkChannel.run":
+    "main 返回的分叉失败原始说明，渲染层作为原始详情展示；产品摘要按稳定码本地化",
 };
 
 const INTERNAL_REASONS = {
@@ -206,6 +212,8 @@ const INTERNAL_REASONS = {
     "迁移后仅剩安全渲染审计说明，只在测试中断言，不面向用户",
   "apps/desktop/src/renderer/src/lib/format.ts":
     "文件内唯一中文是历史状态短标签 reasonLabel，当前界面无消费点（状态由 RunStatusBadge/classifyOutcome 呈现）",
+  "apps/desktop/src/renderer/src/lib/execution-confirmation.ts":
+    "decideConfirmation 的 reason 只用于内部判定对象，界面只消费 kind（confirmed/missing/stale），不显示给用户",
 };
 
 const PRODUCT_FILES = new Set([

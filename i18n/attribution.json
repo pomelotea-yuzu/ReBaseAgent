@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-29T11:16:45.759Z",
+  "generatedAt": "2026-10-29T15:02:57.896Z",
   "scanner": "scripts/i18n-attribution.cjs",
   "taxonomy": {
     "product": "产品展示：需要按批次迁移为双语资源",
@@ -11,26 +11,26 @@
   "totals": {
     "files": 219,
     "occurrences": 2682,
-    "product": 2215,
-    "original": 387,
-    "internal": 76,
+    "product": 2187,
+    "original": 410,
+    "internal": 81,
     "generated": 4
   },
   "byLayer": {
     "main": {
       "files": 20,
       "occurrences": 131,
-      "product": 122,
-      "original": 7,
+      "product": 105,
+      "original": 24,
       "internal": 2,
       "generated": 0
     },
     "renderer": {
       "files": 66,
       "occurrences": 1355,
-      "product": 1326,
-      "original": 2,
-      "internal": 27,
+      "product": 1315,
+      "original": 8,
+      "internal": 32,
       "generated": 0
     },
     "shared": {
@@ -232,10 +232,10 @@
       "layer": "main",
       "package": null,
       "workspace": "隔离执行/实验",
-      "classification": "product",
+      "classification": "mixed",
       "batch": 1,
       "status": "pending",
-      "reason": null,
+      "reason": "main 返回的分叉失败原始说明，渲染层作为原始详情展示；产品摘要按稳定码本地化",
       "symbols": [
         {
           "symbol": "errorOfNonAccepted.message",
@@ -309,8 +309,8 @@
           "symbol": "forkChannel.run",
           "role": "error_message",
           "context": "new ForkError",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "main 返回的分叉失败原始说明，渲染层作为原始详情展示；产品摘要按稳定码本地化",
           "count": 1,
           "samples": [
             "尚未配置运行参数（baseURL / apiKey / model），请先完成运行配置"
@@ -376,17 +376,17 @@
       "layer": "main",
       "package": null,
       "workspace": "运行创建/读取/分叉",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "main 返回的分叉失败原始说明与工具结果原文，渲染层按原始详情展示；产品摘要按稳定码本地化",
       "symbols": [
         {
           "symbol": "runFork",
           "role": "error_message",
           "context": "new ForkError",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "main 返回的分叉失败原始说明与工具结果原文，渲染层按原始详情展示；产品摘要按稳定码本地化",
           "count": 5,
           "samples": [
             "分叉点 ${…} 必须是当前 run 自身轨迹中的 tool.invoke（祖先共享前缀上的 span 不可作为分叉点）",
@@ -404,8 +404,8 @@
           "symbol": "buildForkConfig",
           "role": "error_message",
           "context": "new ForkError",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "main 返回的分叉失败原始说明与工具结果原文，渲染层按原始详情展示；产品摘要按稳定码本地化",
           "count": 3,
           "samples": [
             "父 run ${…} 的轨迹中没有 llm.call 录制，无法定位启动上下文",
@@ -421,8 +421,8 @@
           "symbol": "HANDLERS.handler",
           "role": "return",
           "context": "return",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "main 返回的分叉失败原始说明与工具结果原文，渲染层按原始详情展示；产品摘要按稳定码本地化",
           "count": 1,
           "samples": [
             "已写入 ${…}（${…} 字节）"
@@ -435,8 +435,8 @@
           "symbol": "resolvePath",
           "role": "error_message",
           "context": "new Error",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "main 返回的分叉失败原始说明与工具结果原文，渲染层按原始详情展示；产品摘要按稳定码本地化",
           "count": 2,
           "samples": [
             "path 必须是非空字符串",
@@ -451,8 +451,8 @@
           "symbol": "toToolDefsOrThrow",
           "role": "concat",
           "context": "+",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "main 返回的分叉失败原始说明与工具结果原文，渲染层按原始详情展示；产品摘要按稳定码本地化",
           "count": 3,
           "samples": [
             "父 run 录制的工具表无法解析（需 name/description/parameters 或 OpenAI 的 function 包装）。",
@@ -468,8 +468,8 @@
           "symbol": "runForkIsolated",
           "role": "error_message",
           "context": "new ForkError",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "main 返回的分叉失败原始说明与工具结果原文，渲染层按原始详情展示；产品摘要按稳定码本地化",
           "count": 1,
           "samples": [
             "隔离续跑被拒绝（${…}）：${…}"
@@ -482,8 +482,8 @@
           "symbol": "runForkCapability",
           "role": "error_message",
           "context": "new ForkError",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "main 返回的分叉失败原始说明与工具结果原文，渲染层按原始详情展示；产品摘要按稳定码本地化",
           "count": 1,
           "samples": [
             "该运行当前不可隔离续跑（${…}）：${…}"
@@ -3066,7 +3066,7 @@
             "源记录不可用：重新读取并校验通过前不能发起新执行"
           ],
           "lines": [
-            183
+            186
           ]
         },
         {
@@ -3081,8 +3081,8 @@
             "请确认本次从头执行会真实调用模型并计费；费用确认不随草稿恢复。"
           ],
           "lines": [
-            240,
-            243
+            243,
+            246
           ]
         },
         {
@@ -3096,7 +3096,7 @@
             "首条 user message"
           ],
           "lines": [
-            350
+            353
           ]
         },
         {
@@ -3110,7 +3110,7 @@
             "放弃 prompt 草稿 · ${…}"
           ],
           "lines": [
-            353
+            356
           ]
         },
         {
@@ -3124,7 +3124,7 @@
             "放弃「prompt fork · ${…}」的草稿？（run ${…} · ${…}）\n\n当前草稿内容：\n${…}\n\n只影响这一个字段；放弃按确认时的修订校验：此后内容若被更新，本次放弃不会执行。"
           ],
           "lines": [
-            354
+            357
           ]
         },
         {
@@ -3138,7 +3138,7 @@
             "首次 llm.call 缺少字符串形式的 system 消息，无法重建运行配置，prompt fork 不可用。"
           ],
           "lines": [
-            379
+            382
           ]
         },
         {
@@ -3153,15 +3153,15 @@
             "编辑 system prompt 重跑"
           ],
           "lines": [
-            394,
-            407,
-            459,
-            671,
-            673,
+            397,
+            410,
+            462,
             674,
-            787,
-            803,
-            835
+            676,
+            677,
+            790,
+            806,
+            838
           ]
         },
         {
@@ -3176,16 +3176,16 @@
             "prompt fork：修改启动上下文后从头重跑（独立新轨迹，不共享父前缀）。一次只改一项。"
           ],
           "lines": [
-            415,
-            416,
-            594,
-            603,
-            683,
-            692,
-            707,
+            418,
+            419,
+            597,
+            606,
+            686,
+            695,
             710,
-            739,
-            740
+            713,
+            742,
+            743
           ]
         },
         {
@@ -3200,13 +3200,13 @@
             "prompt fork · 从头重跑"
           ],
           "lines": [
-            442,
-            470,
+            445,
             473,
             476,
-            677,
-            777,
-            797
+            479,
+            680,
+            780,
+            800
           ]
         },
         {
@@ -3221,9 +3221,9 @@
             "人工判据（可选，≤4000 字）"
           ],
           "lines": [
-            533,
-            548,
-            762
+            536,
+            551,
+            765
           ]
         },
         {
@@ -3238,8 +3238,8 @@
             "例如：输出中必须说明配置文件的值；由我人工判定，不自动评分"
           ],
           "lines": [
-            543,
-            560
+            546,
+            563
           ]
         },
         {
@@ -3253,7 +3253,7 @@
             "放弃 prompt 草稿"
           ],
           "lines": [
-            579
+            582
           ]
         },
         {
@@ -3267,7 +3267,7 @@
             "放弃这份 prompt 草稿（${…}）？内容将被删除（不可撤销）。"
           ],
           "lines": [
-            580
+            583
           ]
         },
         {
@@ -3282,8 +3282,8 @@
             "首个 user 消息"
           ],
           "lines": [
-            626,
-            627
+            629,
+            630
           ]
         },
         {
@@ -3297,7 +3297,7 @@
             "（未配置模型）"
           ],
           "lines": [
-            630
+            633
           ]
         },
         {
@@ -3312,12 +3312,12 @@
             "已核对，确认从头重跑"
           ],
           "lines": [
-            639,
-            652,
-            653,
-            717,
-            731,
-            732
+            642,
+            655,
+            656,
+            720,
+            734,
+            735
           ]
         },
         {
@@ -3332,9 +3332,9 @@
             "恢复原值"
           ],
           "lines": [
-            810,
-            818,
-            826
+            813,
+            821,
+            829
           ]
         }
       ]
@@ -3670,10 +3670,10 @@
             "在编辑工作区打开"
           ],
           "lines": [
-            181,
-            191,
-            450,
-            487
+            184,
+            194,
+            453,
+            490
           ]
         },
         {
@@ -3688,10 +3688,10 @@
             "来源失效，已禁止重发：${…}"
           ],
           "lines": [
-            200,
-            205,
-            225,
-            230
+            203,
+            208,
+            228,
+            233
           ]
         },
         {
@@ -3705,7 +3705,7 @@
             "放弃 messages 重发草稿"
           ],
           "lines": [
-            246
+            249
           ]
         },
         {
@@ -3719,7 +3719,7 @@
             "放弃这份 messages 重发草稿？（run ${…} · ${…}）\n\n当前草稿内容：\n${…}\n\n放弃按确认时的修订校验：此后内容若被更新，本次放弃不会执行。"
           ],
           "lines": [
-            247
+            250
           ]
         },
         {
@@ -3734,10 +3734,10 @@
             "单请求级分叉 · 源 run 不会被修改 · 重发使用最近捕获的 key"
           ],
           "lines": [
-            261,
-            263,
-            425,
-            437
+            264,
+            266,
+            428,
+            440
           ]
         },
         {
@@ -3751,7 +3751,7 @@
             "编辑任意一条消息后重发：model / 工具表 / 采样参数与源 run 一致，仅 messages 使用编辑后的值。"
           ],
           "lines": [
-            318
+            321
           ]
         },
         {
@@ -3766,10 +3766,10 @@
             "与原值相同，请修改后再提交；未做修改的重发会被原样拒绝。"
           ],
           "lines": [
-            328,
-            338,
-            365,
-            374
+            331,
+            341,
+            368,
+            377
           ]
         },
         {
@@ -3783,7 +3783,7 @@
             "放弃 messages 重发草稿"
           ],
           "lines": [
-            350
+            353
           ]
         },
         {
@@ -3797,7 +3797,7 @@
             "放弃这份 messages 重发草稿？内容将被删除（不可撤销）。"
           ],
           "lines": [
-            351
+            354
           ]
         },
         {
@@ -3812,9 +3812,9 @@
             "已核对，确认本次重发"
           ],
           "lines": [
-            400,
-            407,
-            408
+            403,
+            410,
+            411
           ]
         },
         {
@@ -3829,11 +3829,11 @@
             "尚无修改可放弃"
           ],
           "lines": [
-            422,
-            443,
-            463,
-            480,
-            482
+            425,
+            446,
+            466,
+            483,
+            485
           ]
         }
       ]
@@ -4067,9 +4067,9 @@
           "lines": [
             63,
             73,
-            464,
-            521,
-            587
+            467,
+            524,
+            590
           ]
         },
         {
@@ -4105,8 +4105,8 @@
             75,
             95,
             104,
-            664,
-            665
+            667,
+            668
           ]
         },
         {
@@ -4140,8 +4140,8 @@
           "lines": [
             109,
             110,
-            496,
-            506
+            499,
+            509
           ]
         },
         {
@@ -4171,7 +4171,7 @@
             "${…} 个臂的输入问题已就近标注在臂卡上（model 为空 / params 非法或与父相同）"
           ],
           "lines": [
-            331
+            334
           ]
         },
         {
@@ -4186,9 +4186,9 @@
             "放弃整批"
           ],
           "lines": [
-            380,
-            749,
-            776
+            383,
+            752,
+            779
           ]
         },
         {
@@ -4202,7 +4202,7 @@
             "用同一启动上下文跑至少两个臂（model / 采样参数组合），先出计划预览，确认后真实执行。"
           ],
           "lines": [
-            383
+            386
           ]
         },
         {
@@ -4216,7 +4216,7 @@
             "臂 ${…}：${…}（${…}）"
           ],
           "lines": [
-            399
+            402
           ]
         },
         {
@@ -4230,7 +4230,7 @@
             "沿用父 params"
           ],
           "lines": [
-            399
+            402
           ]
         },
         {
@@ -4244,7 +4244,7 @@
             "放弃模型 A/B 批次"
           ],
           "lines": [
-            404
+            407
           ]
         },
         {
@@ -4258,7 +4258,7 @@
             "放弃整个模型 A/B 批次草稿？（run ${…} · ${…}）\n\n${…}\n\n放弃整批；按确认时的修订校验：此后批次若被更新，本次放弃不会执行。"
           ],
           "lines": [
-            405
+            408
           ]
         },
         {
@@ -4273,12 +4273,12 @@
             "+ 加一臂（最多 4）"
           ],
           "lines": [
-            476,
-            583,
-            742,
-            757,
-            768,
-            770
+            479,
+            586,
+            745,
+            760,
+            771,
+            773
           ]
         },
         {
@@ -4293,8 +4293,8 @@
             "原值（父本基线臂 · 只读）"
           ],
           "lines": [
-            488,
-            489
+            491,
+            492
           ]
         },
         {
@@ -4309,14 +4309,14 @@
             "本次执行待处理：已按提交时的批次修订冻结整个批次，请求返回前不可增删臂、改参数或放弃。 无论成功、业务拒绝还是部分臂失败，批次都先保留；各臂按可信身份核实到正常结束、 且草稿修订与提交时逐字相同，才自"
           ],
           "lines": [
-            497,
-            507,
-            639,
-            645,
-            649,
-            656,
-            672,
-            676
+            500,
+            510,
+            642,
+            648,
+            652,
+            659,
+            675,
+            679
           ]
         },
         {
@@ -4330,7 +4330,7 @@
             "model 名"
           ],
           "lines": [
-            526
+            529
           ]
         },
         {
@@ -4344,7 +4344,7 @@
             "移除该臂"
           ],
           "lines": [
-            539
+            542
           ]
         },
         {
@@ -4359,8 +4359,8 @@
             "无"
           ],
           "lines": [
-            549,
-            550
+            552,
+            553
           ]
         },
         {
@@ -4375,7 +4375,7 @@
             "未标记 sideEffect: false。各臂顺序执行时，前一臂的 外部副作用会污染后一臂起点，比较结果不可信——确认接受请勾选（将随实验留痕）。"
           ],
           "lines": [
-            605
+            608
           ]
         },
         {
@@ -4389,7 +4389,7 @@
             "放弃模型 A/B 批次"
           ],
           "lines": [
-            624
+            627
           ]
         },
         {
@@ -4403,7 +4403,7 @@
             "放弃这个模型 A/B 批次草稿？全部臂内容将被删除（不可撤销）。"
           ],
           "lines": [
-            625
+            628
           ]
         },
         {
@@ -4417,7 +4417,7 @@
             "（未配置 baseURL）"
           ],
           "lines": [
-            696
+            699
           ]
         },
         {
@@ -4432,9 +4432,9 @@
             "已核对，确认执行实验"
           ],
           "lines": [
-            704,
-            713,
-            714
+            707,
+            716,
+            717
           ]
         },
         {
@@ -4449,8 +4449,8 @@
             "先「校验并预览计划」：核对实际执行的计划（各臂 model / params）后再确认"
           ],
           "lines": [
-            721,
-            725
+            724,
+            728
           ]
         }
       ]
@@ -7266,17 +7266,17 @@
       "layer": "renderer",
       "package": null,
       "workspace": "通用外壳/组件",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "internal",
+      "batch": null,
+      "status": "excluded",
+      "reason": "decideConfirmation 的 reason 只用于内部判定对象，界面只消费 kind（confirmed/missing/stale），不显示给用户",
       "symbols": [
         {
           "symbol": "decideConfirmation.reason",
           "role": "ui_prop",
           "context": "reason",
-          "classification": "product",
-          "reason": null,
+          "classification": "internal",
+          "reason": "decideConfirmation 的 reason 只用于内部判定对象，界面只消费 kind（confirmed/missing/stale），不显示给用户",
           "count": 5,
           "samples": [
             "本次目标还没有确认过：先核对下面的目标与执行边界",
@@ -8210,17 +8210,17 @@
       "layer": "renderer",
       "package": null,
       "workspace": "通用外壳/组件",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "结果读取核对的原始诊断（信封/版本/schema/身份），作为原始详情展示，不随 UI locale 改写",
       "symbols": [
         {
           "symbol": "verifyResultPayload",
           "role": "call_arg",
           "context": "unreadable",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "结果读取核对的原始诊断（信封/版本/schema/身份），作为原始详情展示，不随 UI locale 改写",
           "count": 6,
           "samples": [
             "结果读取失败（${…}）：${…}",

@@ -2,10 +2,12 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { readRun } from "@rebaseagent/trace-sdk";
 import type { RunRecord } from "@rebaseagent/trace-sdk";
+import { createElement } from "react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { captureCallDraftSource } from "../src/renderer/src/lib/draft-source";
 import { auditForbiddenTokens } from "../src/renderer/src/lib/overview-view";
 import type { RunDetail } from "../src/shared/ipc";
+import { renderWithLocale } from "./i18n/render-with-locale";
 
 /**
  * U3（preserve-debugging-drafts）任务 2.1：工具结果编辑器（ForkEditor）改读写 store。
@@ -136,6 +138,7 @@ if (toolSpan === undefined || toolSpan.kind !== "tool.invoke") {
 
 // store 接线（模块读 window.api，桩须先于动态 import 就位）
 (globalThis as Record<string, unknown>).window = { api: {} };
+const { ForkEditor } = await import("../src/renderer/src/components/detail/ResultForkEditor");
 const { useAppStore } = await import("../src/renderer/src/store");
 const draftsModule = await import("../src/renderer/src/lib/debugging-drafts");
 
@@ -265,5 +268,38 @@ describe("store 行为：预检是只读通道，不动草稿仓库（任务 3.1
 
     expect(useAppStore.getState().drafts).toBe(repoBefore);
     expect(useAppStore.getState().callDraftOf(key)?.text).toBe("编辑后内容");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 2.6：入口与隔离说明的英文独立期望（资源键生效，不是中文硬编码）
+// ---------------------------------------------------------------------------
+
+describe("2.6 英文独立期望：result 编辑器入口与隔离说明按语言输出", () => {
+  const isoRun = {
+    ...detail,
+    meta: {
+      ...detail.meta,
+      workspace: {
+        profile: "file-tools-v1",
+        world_id: "r_iso",
+        write_authorized: false,
+        initial_snapshot: { id: "0".repeat(64), files: [] },
+        origin: { kind: "import" },
+      },
+    },
+  } as RunDetail;
+
+  it("普通父本 ⇒ time travel 入口与说明；隔离父本 ⇒ isolated continuation", () => {
+    const span = toolSpan as Parameters<typeof ForkEditor>[0]["span"];
+    const plain = renderWithLocale("en-US", createElement(ForkEditor, { span, run: detail }));
+    expect(plain).toContain("Rerun here (time travel)");
+    expect(plain).toContain("Time travel:");
+    expect(plain).not.toContain("在此重跑");
+
+    const isolated = renderWithLocale("en-US", createElement(ForkEditor, { span, run: isoRun }));
+    expect(isolated).toContain("Rerun here (isolated continuation)");
+    expect(isolated).toContain("Isolated continuation:");
+    expect(isolated).not.toContain("隔离续跑");
   });
 });
