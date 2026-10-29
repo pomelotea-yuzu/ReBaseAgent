@@ -159,7 +159,7 @@ node scripts/i18n-attribution.cjs --compare-inventory --verify-boundaries
 
 2.6a 迁移 result 编辑共享层与 ResultForkEditor 主体：`draft-source` 的恢复重验原因全部接 translator（result/prompt/messages/A-B 四个编辑器同源），`DraftSourceBanner` 的阻断说明与两个动作、`DraftCompareGrid` 的默认标签与收起/恢复入口，以及 result 编辑器的入口/隔离续跑说明、轮末起点与预检事实、副本授权、两份核对确认、放弃/冻结/失败摘要与按钮全部迁移；工具结果文本（`ResultForkEditor.toolMessageText` / `draft-source.toolResultText`）按符号改判 original——它是写入新 trace 并作为模型消息重新送入的正文，不随 UI locale 生成。机器清单 **2,682 处**（product 2,215 / original 387 / internal 76 / generated 4）：迁入资源 77 处、改判 original 2 处。批次 1 余 63 个 pending 文件。
 
-2.6c 归属收口：`execution-confirmation` 的 `decideConfirmation` 原因改判 internal（界面只消费 confirmed/missing/stale，不显示原因）；`result-verification` 的读取核对诊断改判 original（按原始详情展示）；`fork-runner` 与 `exec-endpoints` 的 fork 通道分叉失败原文改判 original（渲染层已给本地化摘要 + 稳定码 + 原始说明）。机器清单 **2,682 处**（product 2,187 / original 410 / internal 81 / generated 4）。批次 1 余 59 个 pending 文件；2.6 完成。
+2.6c 归属收口：`execution-confirmation` 的 `decideConfirmation` 原因改判 internal（界面只消费 confirmed/missing/stale，不显示原因）；`result-verification` 的读取核对诊断改判 original（按原始详情展示）；`fork-runner` 与 `exec-endpoints` 的 fork 通道分叉失败原文改判 original（渲染层已给本地化摘要 + 稳定码 + 原始说明）。机器清单 **2,682 处**（product 2,187 / original 410 / internal 81 / generated 4）；收口门禁 `--final` 仍红 152 个 pending 文件（批次 1 余 61）。2.6 完成。
 
 ## 9. 局限
 
