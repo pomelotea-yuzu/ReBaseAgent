@@ -1,3 +1,4 @@
+import { useTranslator } from "../i18n";
 import { FOCUS_RING } from "./IconButton";
 
 /**
@@ -19,30 +20,32 @@ export function DraftSourceBanner({
   copyText: string;
   onDiscard: () => void;
 }) {
+  const translator = useTranslator();
   return (
     <div
       data-draft-source-blocked="true"
       className="mt-1 rounded border border-amber-300 bg-amber-50 px-2 py-1.5"
     >
-      <div className="text-[11px] leading-4 text-amber-900">来源失效，已禁止执行：{reason}</div>
+      <div className="text-[11px] leading-4 text-amber-900">
+        {translator.t("fork.sourceBlockedPrefix")}
+        {reason}
+      </div>
       <div className="mt-1 flex flex-wrap items-center gap-2">
         <button
           type="button"
           onClick={() => void navigator.clipboard.writeText(copyText)}
           className={`rounded border border-amber-400 px-2 py-0.5 text-[11px] text-amber-800 hover:bg-amber-100 ${FOCUS_RING}`}
         >
-          复制草稿内容
+          {translator.t("fork.copyDraftContent")}
         </button>
         <button
           type="button"
           onClick={onDiscard}
           className={`rounded border border-amber-400 px-2 py-0.5 text-[11px] text-amber-800 hover:bg-amber-100 ${FOCUS_RING}`}
         >
-          放弃草稿
+          {translator.t("fork.discardDraftAction")}
         </button>
-        <span className="text-[10px] text-amber-700">
-          草稿内容保留到明确放弃；重新校验通过后自动恢复执行资格
-        </span>
+        <span className="text-[10px] text-amber-700">{translator.t("fork.draftKeptNote")}</span>
       </div>
     </div>
   );

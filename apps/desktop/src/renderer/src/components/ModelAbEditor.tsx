@@ -297,12 +297,15 @@ export function ModelAbEditor({
   const sourceVerdict =
     draftEntry === undefined
       ? null
-      : revalidateModelAbDraftSource({
-          runId: run.meta.id,
-          spanId: span.id,
-          source: draftEntry.source,
-          detail: run,
-        });
+      : revalidateModelAbDraftSource(
+          {
+            runId: run.meta.id,
+            spanId: span.id,
+            source: draftEntry.source,
+            detail: run,
+          },
+          translator,
+        );
   const sourceBlocked = sourceVerdict?.kind === "blocked" ? sourceVerdict : null;
 
   const guard = modelAbGuard({

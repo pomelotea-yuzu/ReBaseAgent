@@ -128,14 +128,17 @@ export function MessagesForkEditor({
   const sourceVerdict =
     draftEntry === undefined
       ? null
-      : revalidateCallDraftSource({
-          runId: run.meta.id,
-          spanId: span.id,
-          field: "messages",
-          baseline: draftEntry.baseline,
-          source: draftEntry.source,
-          detail: run,
-        });
+      : revalidateCallDraftSource(
+          {
+            runId: run.meta.id,
+            spanId: span.id,
+            field: "messages",
+            baseline: draftEntry.baseline,
+            source: draftEntry.source,
+            detail: run,
+          },
+          translator,
+        );
   const sourceBlocked = sourceVerdict?.kind === "blocked" ? sourceVerdict : null;
 
   /**

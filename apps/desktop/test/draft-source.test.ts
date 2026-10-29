@@ -10,6 +10,7 @@ import {
   toolResultText,
 } from "../src/renderer/src/lib/draft-source";
 import type { RunDetail } from "../src/shared/ipc";
+import { createTestTranslator } from "./i18n/render-with-locale";
 
 /**
  * U3（preserve-debugging-drafts）任务 1.4：草稿源基线的捕获与恢复重验。
@@ -25,6 +26,8 @@ import type { RunDetail } from "../src/shared/ipc";
  *
  * ⚠️ 本文件测纯逻辑层（源基线捕获 + 重验判定）；编辑器恢复接线归任务 2.5/2.6。
  */
+
+const zh = createTestTranslator("zh-CN");
 
 const FIXTURE = resolve(import.meta.dirname, "../../../packages/trace-sdk/fixtures/normal.jsonl");
 const record: RunRecord = readRun(FIXTURE);
@@ -108,41 +111,89 @@ describe("源基线捕获（captureCallDraftSource）", () => {
   });
 });
 
+describe("来源失效原因按语言输出（2.6）", () => {
+  const en = createTestTranslator("en-US");
+
+  it("英文独立期望：缺源基线与内容变化原因不是中文硬编码", () => {
+    const noBaseline = revalidateCallDraftSource(
+      {
+        runId: RUN_ID,
+        spanId: TOOL_ID,
+        field: "result",
+        baseline: TOOL_BASELINE,
+        source: undefined,
+        detail,
+      },
+      en,
+    );
+    expect(noBaseline.kind).toBe("blocked");
+    if (noBaseline.kind === "blocked") {
+      expect(noBaseline.reason).toContain("no source baseline");
+      expect(noBaseline.reason).not.toContain("草稿缺少源基线");
+    }
+
+    const changed = revalidateCallDraftSource(
+      {
+        runId: RUN_ID,
+        spanId: TOOL_ID,
+        field: "result",
+        baseline: "旧内容",
+        source: toolSource,
+        detail,
+      },
+      en,
+    );
+    expect(changed.kind).toBe("blocked");
+    if (changed.kind === "blocked") {
+      expect(changed.reason).toContain("source tool result changed");
+    }
+  });
+});
+
 describe("恢复重验通过（重新校验后恢复执行资格）", () => {
   it("prompt 字段：详情未变 ⇒ eligible", () => {
     expect(
-      revalidateCallDraftSource({
-        runId: RUN_ID,
-        spanId: FIRST_LLM_ID,
-        field: "system_prompt",
-        baseline: "你是文件助手，按用户要求完成文件任务。",
-        source: llmSource,
-        detail,
-      }),
+      revalidateCallDraftSource(
+        {
+          runId: RUN_ID,
+          spanId: FIRST_LLM_ID,
+          field: "system_prompt",
+          baseline: "你是文件助手，按用户要求完成文件任务。",
+          source: llmSource,
+          detail,
+        },
+        zh,
+      ),
     ).toEqual({ kind: "eligible" });
   });
 
   it("result 字段：工具结果未变 ⇒ eligible", () => {
     expect(
-      revalidateCallDraftSource({
-        runId: RUN_ID,
-        spanId: TOOL_ID,
-        field: "result",
-        baseline: TOOL_BASELINE,
-        source: toolSource,
-        detail,
-      }),
+      revalidateCallDraftSource(
+        {
+          runId: RUN_ID,
+          spanId: TOOL_ID,
+          field: "result",
+          baseline: TOOL_BASELINE,
+          source: toolSource,
+          detail,
+        },
+        zh,
+      ),
     ).toEqual({ kind: "eligible" });
   });
 
   it("A/B 批次：详情未变 ⇒ eligible", () => {
     expect(
-      revalidateModelAbDraftSource({
-        runId: RUN_ID,
-        spanId: FIRST_LLM_ID,
-        source: llmSource,
-        detail,
-      }),
+      revalidateModelAbDraftSource(
+        {
+          runId: RUN_ID,
+          spanId: FIRST_LLM_ID,
+          source: llmSource,
+          detail,
+        },
+        zh,
+      ),
     ).toEqual({ kind: "eligible" });
   });
 
@@ -155,21 +206,24 @@ describe("恢复重验通过（重新校验后恢复执行资格）", () => {
       baseline: "请读取 README.md 并把要点写入 summary.md",
       source: llmSource,
     };
-    expect(revalidateCallDraftSource({ ...input, detail: null }).kind).toBe("blocked");
-    expect(revalidateCallDraftSource({ ...input, detail })).toEqual({ kind: "eligible" });
+    expect(revalidateCallDraftSource({ ...input, detail: null }, zh).kind).toBe("blocked");
+    expect(revalidateCallDraftSource({ ...input, detail }, zh)).toEqual({ kind: "eligible" });
   });
 });
 
 describe("源记录缺失（source_missing）", () => {
   it("详情缺失或读取失败（detail=null）⇒ 保留草稿、禁止执行", () => {
-    const verdict = revalidateCallDraftSource({
-      runId: RUN_ID,
-      spanId: FIRST_LLM_ID,
-      field: "messages",
-      baseline: "[]",
-      source: llmSource,
-      detail: null,
-    });
+    const verdict = revalidateCallDraftSource(
+      {
+        runId: RUN_ID,
+        spanId: FIRST_LLM_ID,
+        field: "messages",
+        baseline: "[]",
+        source: llmSource,
+        detail: null,
+      },
+      zh,
+    );
     expect(verdict.kind).toBe("blocked");
     if (verdict.kind === "blocked") expect(verdict.cause).toBe("source_missing");
   });
@@ -181,12 +235,15 @@ describe("源记录缺失（source_missing）", () => {
       ...detail,
       spans: detail.spans.filter((s) => s.id !== FIRST_LLM_ID),
     };
-    const verdict = revalidateModelAbDraftSource({
-      runId: RUN_ID,
-      spanId: FIRST_LLM_ID,
-      source: llmSource,
-      detail: withoutSpan,
-    });
+    const verdict = revalidateModelAbDraftSource(
+      {
+        runId: RUN_ID,
+        spanId: FIRST_LLM_ID,
+        source: llmSource,
+        detail: withoutSpan,
+      },
+      zh,
+    );
     expect(verdict.kind).toBe("blocked");
     if (verdict.kind === "blocked") {
       expect(verdict.cause).toBe("source_missing");
@@ -196,27 +253,33 @@ describe("源记录缺失（source_missing）", () => {
 
   it("详情是另一个 run ⇒ source_missing（不拿别运行的详情冒充核对）", () => {
     const other: RunDetail = { ...detail, meta: { ...detail.meta, id: "r_other" } };
-    const verdict = revalidateCallDraftSource({
-      runId: RUN_ID,
-      spanId: FIRST_LLM_ID,
-      field: "result",
-      baseline: TOOL_BASELINE,
-      source: toolSource,
-      detail: other,
-    });
+    const verdict = revalidateCallDraftSource(
+      {
+        runId: RUN_ID,
+        spanId: FIRST_LLM_ID,
+        field: "result",
+        baseline: TOOL_BASELINE,
+        source: toolSource,
+        detail: other,
+      },
+      zh,
+    );
     expect(verdict.kind).toBe("blocked");
     if (verdict.kind === "blocked") expect(verdict.cause).toBe("source_missing");
   });
 
   it("旧条目无源基线（source=undefined）⇒ 保守拒绝（不新增迁移逻辑）", () => {
-    const verdict = revalidateCallDraftSource({
-      runId: RUN_ID,
-      spanId: FIRST_LLM_ID,
-      field: "system_prompt",
-      baseline: "任意",
-      source: undefined,
-      detail,
-    });
+    const verdict = revalidateCallDraftSource(
+      {
+        runId: RUN_ID,
+        spanId: FIRST_LLM_ID,
+        field: "system_prompt",
+        baseline: "任意",
+        source: undefined,
+        detail,
+      },
+      zh,
+    );
     expect(verdict.kind).toBe("blocked");
     if (verdict.kind === "blocked") {
       expect(verdict.cause).toBe("source_missing");
@@ -231,14 +294,17 @@ describe("源内容改变（source_changed：不静默采用新基线）", () =>
       { role: "system", content: "被改过的 system" },
       { role: "user", content: "请读取 README.md 并把要点写入 summary.md" },
     ]);
-    const verdict = revalidateCallDraftSource({
-      runId: RUN_ID,
-      spanId: FIRST_LLM_ID,
-      field: "system_prompt",
-      baseline: "你是文件助手，按用户要求完成文件任务。",
-      source: llmSource,
-      detail: changed,
-    });
+    const verdict = revalidateCallDraftSource(
+      {
+        runId: RUN_ID,
+        spanId: FIRST_LLM_ID,
+        field: "system_prompt",
+        baseline: "你是文件助手，按用户要求完成文件任务。",
+        source: llmSource,
+        detail: changed,
+      },
+      zh,
+    );
     expect(verdict).toMatchObject({ kind: "blocked", cause: "source_changed" });
   });
 
@@ -252,12 +318,15 @@ describe("源内容改变（source_changed：不静默采用新基线）", () =>
       ),
     };
     expect(
-      revalidateModelAbDraftSource({
-        runId: RUN_ID,
-        spanId: FIRST_LLM_ID,
-        source: llmSource,
-        detail: changedModel,
-      }),
+      revalidateModelAbDraftSource(
+        {
+          runId: RUN_ID,
+          spanId: FIRST_LLM_ID,
+          source: llmSource,
+          detail: changedModel,
+        },
+        zh,
+      ),
     ).toMatchObject({ kind: "blocked", cause: "source_changed" });
   });
 
@@ -267,14 +336,17 @@ describe("源内容改变（source_changed：不静默采用新基线）", () =>
       { role: "user", content: "请读取 README.md 并把要点写入 summary.md" },
       { role: "user", content: "追加的一条消息" },
     ]);
-    const verdict = revalidateCallDraftSource({
-      runId: RUN_ID,
-      spanId: FIRST_LLM_ID,
-      field: "messages",
-      baseline: "[]",
-      source: llmSource,
-      detail: changed,
-    });
+    const verdict = revalidateCallDraftSource(
+      {
+        runId: RUN_ID,
+        spanId: FIRST_LLM_ID,
+        field: "messages",
+        baseline: "[]",
+        source: llmSource,
+        detail: changed,
+      },
+      zh,
+    );
     expect(verdict).toMatchObject({ kind: "blocked", cause: "source_changed" });
   });
 
@@ -285,14 +357,17 @@ describe("源内容改变（source_changed：不静默采用新基线）", () =>
         s.id === TOOL_ID && s.kind === "tool.invoke" ? { ...s, result: "被替换的工具结果" } : s,
       ),
     };
-    const verdict = revalidateCallDraftSource({
-      runId: RUN_ID,
-      spanId: TOOL_ID,
-      field: "result",
-      baseline: TOOL_BASELINE,
-      source: toolSource,
-      detail: changed,
-    });
+    const verdict = revalidateCallDraftSource(
+      {
+        runId: RUN_ID,
+        spanId: TOOL_ID,
+        field: "result",
+        baseline: TOOL_BASELINE,
+        source: toolSource,
+        detail: changed,
+      },
+      zh,
+    );
     expect(verdict).toMatchObject({ kind: "blocked", cause: "source_changed" });
   });
 });
@@ -300,14 +375,17 @@ describe("源内容改变（source_changed：不静默采用新基线）", () =>
 describe("既有资格失效（capability_invalid：不仅凭 span ID 相同放行）", () => {
   it("运行状态改变（completed → crashed）⇒ 拦截，即使 span ID 仍存在", () => {
     const crashed: RunDetail = { ...detail, status: "crashed" };
-    const verdict = revalidateCallDraftSource({
-      runId: RUN_ID,
-      spanId: FIRST_LLM_ID,
-      field: "system_prompt",
-      baseline: "任意",
-      source: llmSource,
-      detail: crashed,
-    });
+    const verdict = revalidateCallDraftSource(
+      {
+        runId: RUN_ID,
+        spanId: FIRST_LLM_ID,
+        field: "system_prompt",
+        baseline: "任意",
+        source: llmSource,
+        detail: crashed,
+      },
+      zh,
+    );
     expect(verdict).toMatchObject({ kind: "blocked", cause: "capability_invalid" });
   });
 
@@ -317,12 +395,15 @@ describe("既有资格失效（capability_invalid：不仅凭 span ID 相同放�
       leafSpanIds: detail.leafSpanIds.filter((id) => id !== FIRST_LLM_ID),
     };
     expect(
-      revalidateModelAbDraftSource({
-        runId: RUN_ID,
-        spanId: FIRST_LLM_ID,
-        source: llmSource,
-        detail: notLeaf,
-      }),
+      revalidateModelAbDraftSource(
+        {
+          runId: RUN_ID,
+          spanId: FIRST_LLM_ID,
+          source: llmSource,
+          detail: notLeaf,
+        },
+        zh,
+      ),
     ).toMatchObject({ kind: "blocked", cause: "capability_invalid" });
   });
 
@@ -332,14 +413,17 @@ describe("既有资格失效（capability_invalid：不仅凭 span ID 相同放�
       meta: { ...detail.meta, config_hash: "sha256:changed" },
     };
     expect(
-      revalidateCallDraftSource({
-        runId: RUN_ID,
-        spanId: FIRST_LLM_ID,
-        field: "user_message",
-        baseline: "任意",
-        source: llmSource,
-        detail: changedHash,
-      }),
+      revalidateCallDraftSource(
+        {
+          runId: RUN_ID,
+          spanId: FIRST_LLM_ID,
+          field: "user_message",
+          baseline: "任意",
+          source: llmSource,
+          detail: changedHash,
+        },
+        zh,
+      ),
     ).toMatchObject({ kind: "blocked", cause: "capability_invalid" });
   });
 
@@ -351,14 +435,17 @@ describe("既有资格失效（capability_invalid：不仅凭 span ID 相同放�
       ...detail,
       spans: [s05, ...detail.spans.filter((s) => s.id !== "s_05")],
     };
-    const verdict = revalidateCallDraftSource({
-      runId: RUN_ID,
-      spanId: FIRST_LLM_ID,
-      field: "system_prompt",
-      baseline: "任意",
-      source: llmSource,
-      detail: reordered,
-    });
+    const verdict = revalidateCallDraftSource(
+      {
+        runId: RUN_ID,
+        spanId: FIRST_LLM_ID,
+        field: "system_prompt",
+        baseline: "任意",
+        source: llmSource,
+        detail: reordered,
+      },
+      zh,
+    );
     expect(verdict.kind).toBe("blocked");
     if (verdict.kind === "blocked") {
       expect(verdict.cause).toBe("capability_invalid");
@@ -372,14 +459,17 @@ describe("既有资格失效（capability_invalid：不仅凭 span ID 相同放�
       meta: { ...detail.meta, source: { kind: "proxy", base_url: "http://127.0.0.1:8787" } },
     };
     expect(
-      revalidateCallDraftSource({
-        runId: RUN_ID,
-        spanId: FIRST_LLM_ID,
-        field: "messages",
-        baseline: "[]",
-        source: llmSource,
-        detail: nowProxy,
-      }),
+      revalidateCallDraftSource(
+        {
+          runId: RUN_ID,
+          spanId: FIRST_LLM_ID,
+          field: "messages",
+          baseline: "[]",
+          source: llmSource,
+          detail: nowProxy,
+        },
+        zh,
+      ),
     ).toMatchObject({ kind: "blocked", cause: "capability_invalid" });
   });
 
@@ -389,26 +479,32 @@ describe("既有资格失效（capability_invalid：不仅凭 span ID 相同放�
       // 仅重验需要「workspace !== undefined」这一事实；完整 schema 形状由读取层保证
       meta: { ...detail.meta, workspace: {} },
     } as unknown as RunDetail;
-    const verdict = revalidateModelAbDraftSource({
-      runId: RUN_ID,
-      spanId: FIRST_LLM_ID,
-      source: llmSource,
-      detail: isolated,
-    });
+    const verdict = revalidateModelAbDraftSource(
+      {
+        runId: RUN_ID,
+        spanId: FIRST_LLM_ID,
+        source: llmSource,
+        detail: isolated,
+      },
+      zh,
+    );
     expect(verdict.kind).toBe("blocked");
     if (verdict.kind === "blocked") expect(verdict.cause).toBe("capability_invalid");
   });
 
   it("字段与目标类型不匹配（result 草稿对到 llm.call）⇒ 拦截", () => {
     expect(
-      revalidateCallDraftSource({
-        runId: RUN_ID,
-        spanId: FIRST_LLM_ID,
-        field: "result",
-        baseline: "任意",
-        source: llmSource,
-        detail,
-      }),
+      revalidateCallDraftSource(
+        {
+          runId: RUN_ID,
+          spanId: FIRST_LLM_ID,
+          field: "result",
+          baseline: "任意",
+          source: llmSource,
+          detail,
+        },
+        zh,
+      ),
     ).toMatchObject({ kind: "blocked", cause: "capability_invalid" });
   });
 });

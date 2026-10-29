@@ -157,6 +157,8 @@ node scripts/i18n-attribution.cjs --compare-inventory --verify-boundaries
 
 2.5 迁移步骤目录与分支树（节点/边标签、范围/搜索/模式、选中详情与缺父占位）、树行与分支边的按语言投影、缓存命中措辞，以及 step/LLM/tool 详情（概要、请求/响应、思维链、失败占位、入参与结果）、详情提示区与原文区外围；`cache-view` 移除结论文案只留 tone/异常判据，`branch-relations` 的缺父原因改为稳定类别由展示层翻译。机器清单 **2,759 处**（product 2,294 / original 385 / internal 76 / generated 4）：2.5 迁入资源 230 处。批次 1 余 64 个 pending 文件。
 
+2.6a 迁移 result 编辑共享层与 ResultForkEditor 主体：`draft-source` 的恢复重验原因全部接 translator（result/prompt/messages/A-B 四个编辑器同源），`DraftSourceBanner` 的阻断说明与两个动作、`DraftCompareGrid` 的默认标签与收起/恢复入口，以及 result 编辑器的入口/隔离续跑说明、轮末起点与预检事实、副本授权、两份核对确认、放弃/冻结/失败摘要与按钮全部迁移；工具结果文本（`ResultForkEditor.toolMessageText` / `draft-source.toolResultText`）按符号改判 original——它是写入新 trace 并作为模型消息重新送入的正文，不随 UI locale 生成。机器清单 **2,682 处**（product 2,215 / original 387 / internal 76 / generated 4）：迁入资源 77 处、改判 original 2 处。批次 1 余 63 个 pending 文件。
+
 ## 9. 局限
 
 - 工作区与批次按文件名近似，包层不能精确拆到单个工作区；迁移时以实际入口为准修正。

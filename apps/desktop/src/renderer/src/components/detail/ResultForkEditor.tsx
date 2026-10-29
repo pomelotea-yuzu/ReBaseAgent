@@ -165,14 +165,17 @@ export function ForkEditor({
   const sourceVerdict =
     draftEntry === undefined
       ? null
-      : revalidateCallDraftSource({
-          runId: run.meta.id,
-          spanId: span.id,
-          field: "result",
-          baseline: draftEntry.baseline,
-          source: draftEntry.source,
-          detail: run,
-        });
+      : revalidateCallDraftSource(
+          {
+            runId: run.meta.id,
+            spanId: span.id,
+            field: "result",
+            baseline: draftEntry.baseline,
+            source: draftEntry.source,
+            detail: run,
+          },
+          translator,
+        );
   const sourceBlocked = sourceVerdict?.kind === "blocked" ? sourceVerdict : null;
   // 语言依据原始文本初探一次（避免编辑过程中语言选项来回闪变）
   const language = useMemo(() => detectResultLanguage(original), [original]);
@@ -233,7 +236,7 @@ export function ForkEditor({
   const checkAllowed = check.ok && sourceExecutable && sourceBlocked === null;
   // 提示语：源不可用优先（它同时也会让 check 失配，但原因不同，不能互相冒充）
   const checkBlockReason = !sourceExecutable
-    ? "源记录不可用：重新读取并校验通过前不能发起新执行"
+    ? translator.t("detail.sourceUnavailableExecBlocked")
     : check.ok
       ? null
       : check.reason;
@@ -257,8 +260,12 @@ export function ForkEditor({
     const snapshot = draftEntry;
     // U3 5.2：异步模态确认；CAS 按请求时的快照修订校验
     void requestConfirm({
-      title: "放弃工具结果草稿",
-      message: `放弃这份工具结果草稿？（run ${run.meta.id} · ${span.id}）\n\n当前草稿内容：\n${snapshot.text}\n\n放弃按确认时的修订校验：此后内容若被更新，本次放弃不会执行。`,
+      title: translator.t("detail.discardResultDraftTitle"),
+      message: translator.t("detail.discardResultDraftMessage", {
+        runId: run.meta.id,
+        spanId: span.id,
+        content: snapshot.text,
+      }),
     }).then((confirmed) => {
       if (!confirmed) return; // 取消：逐字保留
       if (discardCallDraft(draftKey, snapshot.revision)) {
@@ -313,19 +320,17 @@ export function ForkEditor({
           }}
           className="rounded bg-violet-600 px-2 py-1 text-[11px] text-white hover:bg-violet-700"
         >
-          {isolated ? "在此重跑（隔离续跑）" : "在此重跑（时间旅行）"}
+          {translator.t(isolated ? "detail.resultRunIsolated" : "detail.resultRunPlain")}
         </button>
         {isolated ? (
           <div className="mt-1 text-[11px] leading-4 text-violet-600">
-            隔离续跑：从该工具所在轮次结束后继续（整轮一起续跑，该轮工具不重做）；父 run、源目录与
-            兄弟分支都不会被修改。
+            {translator.t("detail.resultIsolatedIntro")}
           </div>
         ) : (
           /* 3.4（design D5）：「时间旅行」只描述"从这一步重跑"的定位，不扩大恢复承诺——
              期间真实执行过的外部调用不撤回、同轮工具的写入不回滚，两句话都直说。 */
           <div className="mt-1 text-[11px] leading-4 text-violet-600">
-            时间旅行：从该工具调用之后重跑这一步，结果写入新分支。它不是"恢复世界"——
-            期间真实执行过的外部调用不撤回，同轮工具的写入也不回滚。
+            {translator.t("detail.resultPlainIntro")}
           </div>
         )}
       </div>
@@ -338,7 +343,7 @@ export function ForkEditor({
         <WorkspaceHeading
           title={
             <span className="text-reading-meta text-violet-900">
-              {isolated ? "在此重跑 · 隔离续跑" : "在此重跑"}
+              {translator.t(isolated ? "detail.rerunHeadingIsolated" : "detail.rerunHeading")}
             </span>
           }
           target={
@@ -348,17 +353,13 @@ export function ForkEditor({
           }
           summary={
             <span className="text-violet-600">
-              {isolated
-                ? "从轮末检查点继续 · 父 run 与源目录不会被修改"
-                : "从该工具调用之后重跑 · 父 run 文件不会被修改"}
+              {translator.t(isolated ? "detail.rerunSummaryIsolated" : "detail.rerunSummaryPlain")}
             </span>
           }
-          detailsLabel="重跑说明"
+          detailsLabel={translator.t("detail.rerunDetailsLabel")}
           details={
             <p className="py-1 text-reading-meta leading-5 text-violet-600">
-              {isolated
-                ? "以上文本将作为该工具的返回结果重新送入模型；其后的步骤由模型重新生成，文件世界从该轮轮末检查点继续。"
-                : "以上文本将作为该工具的返回结果重新送入模型；其余上下文（prompt、工具表、此前步骤）与父 run 完全一致。"}
+              {translator.t(isolated ? "detail.rerunDetailsIsolated" : "detail.rerunDetailsPlain")}
             </p>
           }
         />
@@ -424,9 +425,7 @@ export function ForkEditor({
       />
 
       {unchanged ? (
-        <div className="mt-1 text-[11px] text-amber-700">
-          与原始结果相同，请修改后再重跑；未做修改的续跑会被原样拒绝。
-        </div>
+        <div className="mt-1 text-[11px] text-amber-700">{translator.t("run.submitUnchanged")}</div>
       ) : null}
 
       <ForkCacheHintView hint={cacheHint} />
@@ -439,8 +438,8 @@ export function ForkEditor({
             if (draftEntry === undefined) return;
             const snapshot = draftEntry;
             void requestConfirm({
-              title: "放弃工具结果草稿",
-              message: "放弃这份工具结果草稿？内容将被删除（不可撤销）。",
+              title: translator.t("detail.discardResultDraftTitle"),
+              message: translator.t("detail.discardResultDraftSimple"),
             }).then((confirmed) => {
               if (!confirmed) return;
               if (discardCallDraft(draftKey, snapshot.revision)) {
@@ -456,7 +455,7 @@ export function ForkEditor({
         <div className="mt-2 rounded border border-violet-200 bg-white px-2 py-1.5">
           <div className="flex items-center justify-between gap-2">
             <span className="text-[10px] font-semibold text-violet-900">
-              续跑条件（只读预检：不创建运行、不写文件、不请求模型）
+              {translator.t("detail.precheckTitle")}
             </span>
             <button
               type="button"
@@ -464,7 +463,13 @@ export function ForkEditor({
               disabled={!checkAllowed}
               className="rounded border border-violet-400 px-2 py-0.5 text-[10px] text-violet-700 hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {checking ? "校验中…" : capability !== null ? "重新校验" : "校验续跑条件"}
+              {translator.t(
+                checking
+                  ? "detail.precheckChecking"
+                  : capability !== null
+                    ? "detail.precheckRecheck"
+                    : "detail.precheckRun",
+              )}
             </button>
           </div>
 
@@ -474,9 +479,12 @@ export function ForkEditor({
 
           {checkError !== null ? (
             <div className="mt-1 text-[11px] leading-4 text-red-700">
-              续跑条件不可用（{checkError.code}）：{checkError.message}
+              {translator.t("detail.precheckUnavailable", {
+                code: checkError.code,
+                message: checkError.message,
+              })}
               <div className="mt-0.5 text-red-600">
-                不可用原因来自 main 的只读预检；界面不会用"当前目录"或父 run 的历史标注兜底。
+                {translator.t("detail.precheckUnavailableNote")}
               </div>
             </div>
           ) : null}
@@ -485,13 +493,11 @@ export function ForkEditor({
             <div className="mt-1 space-y-1">
               <div className="text-[11px] leading-4 text-violet-900">
                 {isolatedContinueLabel(capability, translator)}
-                <span className="text-violet-600">
-                  （整轮续跑：该轮的其余工具不重做，同轮工具在子运行前缀中各出现一次）
-                </span>
+                <span className="text-violet-600">{translator.t("detail.isoWholeTurnNote")}</span>
               </div>
               <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-[11px] text-gray-700">
                 <span>
-                  <span className="text-gray-400">父 run</span>{" "}
+                  <span className="text-gray-400">{translator.t("detail.parentRunLabel")}</span>{" "}
                   <span className="font-code">{capability.parentId}</span>
                 </span>
                 <span>
@@ -499,7 +505,7 @@ export function ForkEditor({
                   <span className="font-code">{capability.stepSpanId}</span>
                 </span>
                 <span>
-                  <span className="text-gray-400">编辑点</span>{" "}
+                  <span className="text-gray-400">{translator.t("detail.editPointLabel")}</span>{" "}
                   <span className="font-code">{capability.atSpanId}</span>
                 </span>
                 <span className="font-code">{isolatedCheckpointLabel(capability, translator)}</span>
@@ -509,11 +515,14 @@ export function ForkEditor({
                 </span>
               </div>
               <div className="text-[11px] leading-4 text-gray-600">
-                真实模型调用：<span className="font-code">{settings?.model ?? "（未配置）"}</span>
+                {translator.t("detail.realModelCallLabel")}
+                <span className="font-code">
+                  {settings?.model ?? translator.t("detail.modelUnconfiguredShort")}
+                </span>
                 {settings?.baseURL === null || settings?.baseURL === undefined
                   ? ""
                   : ` @ ${settings.baseURL}`}
-                ；本操作只请求该模型，不写源目录。
+                {translator.t("detail.realModelCallScoped")}
               </div>
               <label className="flex items-start gap-2 rounded border border-amber-200 bg-amber-50 px-2 py-1.5">
                 <input
@@ -524,11 +533,8 @@ export function ForkEditor({
                   className="mt-0.5 shrink-0"
                 />
                 <span className="text-[11px] leading-4 text-amber-900">
-                  允许本次副本写入
-                  <span className="text-amber-700">
-                    （默认未选；只对这一次提交有效。父 trace 的 write_authorized 只是历史审计标注——
-                    不会从它补授权，重新打开也要重新勾选）
-                  </span>
+                  {translator.t("detail.allowWrites")}
+                  <span className="text-amber-700">{translator.t("detail.allowWritesNote")}</span>
                 </span>
               </label>
             </div>
@@ -550,7 +556,7 @@ export function ForkEditor({
                 toolName: span.kind === "tool.invoke" ? span.tool : null,
                 oldValue: original,
                 newValue: value,
-                modelSummary: `${settings?.model ?? "（未配置模型）"}${
+                modelSummary: `${settings?.model ?? translator.t("detail.modelUnconfigured")}${
                   settings?.baseURL ? ` @ ${settings.baseURL}` : ""
                 }`,
                 writesAuthorized,
@@ -570,7 +576,7 @@ export function ForkEditor({
             );
             return (
               <ConfirmationBlock
-                title="核对本次续跑"
+                title={translator.t("detail.confirmIsolatedTitle")}
                 tone="violet"
                 summary={isolatedDisclosure.summary}
                 rows={disclosureLines(isolatedDisclosure, translator)}
@@ -588,12 +594,12 @@ export function ForkEditor({
                 onConfirm={() =>
                   armExecutionConfirmation(currentConfirmationBinding("result", draftKey))
                 }
-                confirmLabel="已核对，确认本次续跑"
-                confirmedLabel="已确认本次续跑"
+                confirmLabel={translator.t("detail.confirmIsolatedAccept")}
+                confirmedLabel={translator.t("detail.confirmIsolatedAccepted")}
                 blocked={
                   executionConfirmed || capability !== null
                     ? null
-                    : "还没拿到只读预检结论：先点上方「校验续跑条件」，确认要核对的就是那份结论。"
+                    : translator.t("detail.confirmIsolatedBlocked")
                 }
                 controlsId={`result-isolated-confirm-details-${run.meta.id}-${span.id}`}
               />
@@ -629,7 +635,7 @@ export function ForkEditor({
             );
             return (
               <ConfirmationBlock
-                title="核对本次重跑"
+                title={translator.t("detail.confirmPlainTitle")}
                 tone="gray"
                 summary={plainDisclosure.summary}
                 rows={disclosureLines(plainDisclosure, translator)}
@@ -645,8 +651,8 @@ export function ForkEditor({
                 onConfirm={() =>
                   armExecutionConfirmation(currentConfirmationBinding("result", draftKey))
                 }
-                confirmLabel="已核对，确认本次重跑"
-                confirmedLabel="已确认本次重跑"
+                confirmLabel={translator.t("detail.confirmPlainAccept")}
+                confirmedLabel={translator.t("detail.confirmPlainAccepted")}
                 blocked={null}
                 controlsId={`result-plain-confirm-details-${run.meta.id}-${span.id}`}
               />
@@ -658,37 +664,51 @@ export function ForkEditor({
 
       {draftFrozen ? (
         <div className="mt-2 rounded border border-violet-200 bg-violet-50 px-2 py-1.5 text-[11px] leading-4 text-violet-800">
-          本次提交待处理：已按提交时的修订冻结这份草稿，请求返回前不可修改或放弃。
-          无论成功、业务拒绝还是失败，草稿都先保留；按可信身份核实到正常结束、
-          且草稿修订与提交时逐字相同，才自动清理（U5 §2/§3 已接线）。
+          {translator.t("detail.draftFrozenNote")}
         </div>
       ) : null}
 
       {forking === "error" ? (
         <div className="mt-1 text-[11px] text-red-700">
-          {forkError}
-          {forkErrorCode === "SETTINGS_NOT_CONFIGURED"
-            ? "（请先点击右上角“运行配置”填写 baseURL/apiKey/model）"
-            : ""}
+          <div>
+            {translator.t("detail.forkFailedSummary", {
+              code: forkErrorCode ?? "UNKNOWN_ERROR",
+            })}
+          </div>
+          {forkError === null ? null : (
+            <div className="mt-0.5 whitespace-pre-wrap break-words text-red-600">
+              {translator.t("detail.rawFailureDetail")}
+              {forkError}
+            </div>
+          )}
+          {forkErrorCode === "SETTINGS_NOT_CONFIGURED" ? (
+            <div className="mt-0.5 text-amber-700">
+              {translator.t("run.settingsRequiredForFork")}
+            </div>
+          ) : null}
         </div>
       ) : null}
 
       <div className="mt-2 flex items-center justify-end gap-2">
         {inProgress ? (
-          <span className="text-[11px] text-violet-600">重跑中…（真实 LLM 调用，可能耗时）</span>
+          <span className="text-[11px] text-violet-600">
+            {translator.t("detail.rerunInProgress")}
+          </span>
         ) : null}
         <button
           type="button"
           onClick={discardCurrent}
           disabled={inProgress || unchanged}
-          title={unchanged ? "尚无修改可放弃" : "放弃这份草稿（需确认；按当前修订校验）"}
+          title={translator.t(
+            unchanged ? "detail.discardNoChangesTitle" : "detail.discardDraftTitle",
+          )}
           className={`mr-auto rounded border px-2 py-1 text-[11px] disabled:cursor-not-allowed disabled:opacity-40 ${
             unchanged
               ? "border-gray-200 text-gray-300"
               : "border-amber-400 text-amber-800 hover:bg-amber-50"
           }`}
         >
-          放弃修改
+          {translator.t("detail.discardChanges")}
         </button>
         <button
           type="button"
@@ -699,7 +719,7 @@ export function ForkEditor({
           disabled={inProgress}
           className="rounded border border-gray-300 px-2 py-1 text-[11px] text-gray-600 hover:bg-gray-50 disabled:opacity-40"
         >
-          取消
+          {translator.t("common.cancel")}
         </button>
         <button
           type="button"
@@ -730,7 +750,7 @@ export function ForkEditor({
           disabled={inProgress || !canFork}
           className="rounded bg-violet-600 px-3 py-1 text-[11px] text-white hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          确认重跑
+          {translator.t("detail.confirmRerun")}
         </button>
       </div>
     </div>

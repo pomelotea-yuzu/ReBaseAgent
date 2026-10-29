@@ -145,6 +145,13 @@ export const zhCN = {
     fieldNewValue: "新值",
     fieldWrites: "本次副本写入",
     liveSeparator: "；",
+    draftEditable: "草稿（可编辑）",
+    originalReadOnly: "原值（只读）",
+    collapseOriginalTitle: "收起只读原值，把空间让给草稿（可随时恢复）",
+    collapseOriginal: "收起原值",
+    restoreOriginalTitle: "恢复显示只读原值（全文与只读身份保持）",
+    restoreOriginal: "显示原值",
+    originalHeightAria: "调整原值区高度",
   },
   run: {
     createSummaryChat: "一次真实模型调用 · 按实际用量计费 · 纯对话不调用工具",
@@ -741,6 +748,60 @@ export const zhCN = {
     toolAncestorOnly:
       "该调用位于祖先前缀（继承自父 run），不属于当前 run 自身段——打开其所属 run 才可在此重跑。",
     crashedNoFork: "该 run 运行中断（未封存），不允许作为分叉起点。",
+    resultRunIsolated: "在此重跑（隔离续跑）",
+    resultRunPlain: "在此重跑（时间旅行）",
+    resultIsolatedIntro:
+      "隔离续跑：从该工具所在轮次结束后继续（整轮一起续跑，该轮工具不重做）；父 run、源目录与兄弟分支都不会被修改。",
+    resultPlainIntro:
+      '时间旅行：从该工具调用之后重跑这一步，结果写入新分支。它不是"恢复世界"——期间真实执行过的外部调用不撤回，同轮工具的写入也不回滚。',
+    rerunHeadingIsolated: "在此重跑 · 隔离续跑",
+    rerunHeading: "在此重跑",
+    rerunSummaryIsolated: "从轮末检查点继续 · 父 run 与源目录不会被修改",
+    rerunSummaryPlain: "从该工具调用之后重跑 · 父 run 文件不会被修改",
+    rerunDetailsLabel: "重跑说明",
+    rerunDetailsIsolated:
+      "以上文本将作为该工具的返回结果重新送入模型；其后的步骤由模型重新生成，文件世界从该轮轮末检查点继续。",
+    rerunDetailsPlain:
+      "以上文本将作为该工具的返回结果重新送入模型；其余上下文（prompt、工具表、此前步骤）与父 run 完全一致。",
+    discardResultDraftTitle: "放弃工具结果草稿",
+    discardResultDraftMessage:
+      "放弃这份工具结果草稿？（run {{runId}} · {{spanId}}）\n\n当前草稿内容：\n{{content}}\n\n放弃按确认时的修订校验：此后内容若被更新，本次放弃不会执行。",
+    discardResultDraftSimple: "放弃这份工具结果草稿？内容将被删除（不可撤销）。",
+    precheckTitle: "续跑条件（只读预检：不创建运行、不写文件、不请求模型）",
+    isoWholeTurnNote: "（整轮续跑：该轮的其余工具不重做，同轮工具在子运行前缀中各出现一次）",
+    parentRunLabel: "父 run",
+    editPointLabel: "编辑点",
+    allowWrites: "允许本次副本写入",
+    allowWritesNote:
+      "（默认未选；只对这一次提交有效。父 trace 的 write_authorized 只是历史审计标注——不会从它补授权，重新打开也要重新勾选）",
+    precheckChecking: "校验中…",
+    precheckRecheck: "重新校验",
+    precheckRun: "校验续跑条件",
+    precheckUnavailable: "续跑条件不可用（{{code}}）：{{message}}",
+    precheckUnavailableNote:
+      '不可用原因来自 main 的只读预检；界面不会用"当前目录"或父 run 的历史标注兜底。',
+    realModelCallLabel: "真实模型调用：",
+    realModelCallScoped: "；本操作只请求该模型，不写源目录。",
+    modelUnconfiguredShort: "（未配置）",
+    modelUnconfigured: "（未配置模型）",
+    confirmIsolatedTitle: "核对本次续跑",
+    confirmIsolatedAccept: "已核对，确认本次续跑",
+    confirmIsolatedAccepted: "已确认本次续跑",
+    confirmIsolatedBlocked:
+      "还没拿到只读预检结论：先点上方「校验续跑条件」，确认要核对的就是那份结论。",
+    confirmPlainTitle: "核对本次重跑",
+    confirmPlainAccept: "已核对，确认本次重跑",
+    confirmPlainAccepted: "已确认本次重跑",
+    draftFrozenNote:
+      "本次提交待处理：已按提交时的修订冻结这份草稿，请求返回前不可修改或放弃。无论成功、业务拒绝还是失败，草稿都先保留；按可信身份核实到正常结束、且草稿修订与提交时逐字相同，才自动清理。",
+    rerunInProgress: "重跑中…（真实 LLM 调用，可能耗时）",
+    discardChanges: "放弃修改",
+    discardNoChangesTitle: "尚无修改可放弃",
+    discardDraftTitle: "放弃这份草稿（需确认；按当前修订校验）",
+    confirmRerun: "确认重跑",
+    forkFailedSummary: "重跑请求未完成（稳定码 {{code}}）。",
+    rawFailureDetail: "原始说明（main 返回）：",
+    sourceUnavailableExecBlocked: "源记录不可用：重新读取并校验通过前不能发起新执行",
     isolatedParentSummary: "不适用说明",
     isolatedParentMeta: "模型 A/B 在隔离父本上本期不支持",
     isolatedParentAvailable:
@@ -849,6 +910,35 @@ export const zhCN = {
       "凭据是代理会话最近捕获的那一个，可能与该 run 录制当时不同（也可能没有 ⇒ 会被拒）。",
     messagesLimitNoConfigHash:
       "被动录制的 run 没有自有 config_hash：它仍是可对照的轨迹，但这条路径不产生父子续跑。",
+    draftNoBaseline:
+      "草稿缺少源基线，无法核对来源：为避免以错误来源执行，已禁止提交（可复制内容或明确放弃）",
+    draftDetailMissing:
+      "详情缺失或读取失败：草稿已保留，重新读取并通过校验后才能执行；也可从会话草稿入口复制内容",
+    draftWrongRun: "当前详情不是草稿所属的运行，无法核对来源",
+    draftTargetMissing:
+      "目标调用已不在当前详情中（源记录缺失或被改动）：草稿保留供复制/放弃，不换用其他调用冒充恢复",
+    draftStatusChanged: "运行状态已改变（编辑时 {{before}}，当前 {{now}}），执行资格须重新核对",
+    draftLeafNowOwn: "目标调用已成为本运行自有叶子（编辑时不是），执行资格须重新核对",
+    draftLeafNoLongerOwn: "目标调用不再属于本运行的自有叶子 span，执行资格失效",
+    draftIsolationChanged:
+      "运行的隔离文件元数据已改变（隔离父本不支持 prompt fork / 模型 A/B），执行资格须重新核对",
+    draftConfigChanged:
+      "源配置指纹（config_hash）已改变：草稿保留供复制/放弃，须重新核对来源后才能执行",
+    draftTypeChanged: "目标调用的类型已改变，原草稿无法对应到当前源记录",
+    draftFieldMismatch: "草稿字段与目标调用的类型不匹配",
+    draftResultChanged:
+      "源工具结果内容已改变：草稿保留供复制/放弃；如需采用新内容，请先明确放弃旧草稿再重新编辑",
+    draftProxyChanged: "运行录制来源（代理/引擎）已改变，messages 重发资格须重新核对",
+    draftFirstCallChanged:
+      "当前详情的首次 llm.call（{{first}}）与草稿目标（{{target}}）不一致：不得跳过首次调用改用后续调用，草稿保留供复制/放弃",
+    draftStartupChanged:
+      "编辑所依赖的源内容已改变（启动上下文/模型/参数/工具表）：草稿保留供复制/放弃，不静默采用新基线",
+    draftMessagesChanged:
+      "源请求消息已改变：草稿保留供复制/放弃；如需采用新消息，请先明确放弃旧草稿再重新编辑",
+    sourceBlockedPrefix: "来源失效，已禁止执行：",
+    copyDraftContent: "复制草稿内容",
+    discardDraftAction: "放弃草稿",
+    draftKeptNote: "草稿内容保留到明确放弃；重新校验通过后自动恢复执行资格",
   },
   experiment: {
     localBatchCheck:

@@ -258,7 +258,8 @@ describe("4.4 接线契约：确认判据只有一份", () => {
 
   it("隔离侧的确认按钮要求预检结论与本次授权都在场（无预检就不给确认）", () => {
     const panel = read("components/detail/ResultForkEditor.tsx"); // refactor-renderer 2.3：result 确认面随载体
-    const at = panel.indexOf("已核对，确认本次续跑");
+    // 2.6a：确认标签改由资源投影（中文值在实际渲染路径由 zh-CN 资源提供）
+    const at = panel.indexOf('"detail.confirmIsolatedAccept"');
     expect(at).toBeGreaterThan(-1);
     // 3.1 起确认按钮在共享 ConfirmationBlock 里，判据经 confirmDisabled 传入（写在标签之前）：
     // 往回切出这一支的禁用清单
@@ -271,7 +272,12 @@ describe("4.4 接线契约：确认判据只有一份", () => {
     expect(gate).toContain("capability === null ||");
     expect(gate).toContain("!writesAuthorized ||");
     // 预检缺席时就近给出原因，而不是只把按钮禁掉
-    expect(panel).toContain("还没拿到只读预检结论");
+    expect(panel).toContain('"detail.confirmIsolatedBlocked"');
+    const zhResources = readFileSync(
+      resolve(import.meta.dirname, "../../../packages/i18n/src/resources/zh-CN.ts"),
+      "utf8",
+    );
+    expect(zhResources).toContain("还没拿到只读预检结论");
     // 重新启动预检必须先推进检查代次：否则"旧预检 + 新确认"能拼出一条没人核对过的执行
     const from = panel.indexOf("const doCheck");
     const check = panel.slice(from, panel.indexOf("loadForkCapability", from));

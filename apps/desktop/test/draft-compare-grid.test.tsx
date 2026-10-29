@@ -1,7 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import {
   DRAFT_EDITOR_HEIGHT,
@@ -15,7 +14,9 @@ import {
   stepOriginalHeight,
 } from "../src/renderer/src/lib/editor-space";
 import { auditForbiddenTokens } from "../src/renderer/src/lib/overview-view";
+import { renderWithLocale } from "./i18n/render-with-locale";
 const { DraftCompareGrid } = await import("../src/renderer/src/components/DraftCompareGrid");
+const { DraftSourceBanner } = await import("../src/renderer/src/components/DraftSourceBanner");
 
 /**
  * UI 密度 change（improve-workspace-reading-and-editing）任务 2.2/2.3：
@@ -33,8 +34,10 @@ const { DraftCompareGrid } = await import("../src/renderer/src/components/DraftC
 const rendererSrc = (file: string): string =>
   readFileSync(resolve(import.meta.dirname, "../src/renderer/src", file), "utf8");
 
-const html = (node: Parameters<typeof renderToStaticMarkup>[0]): string =>
-  renderToStaticMarkup(node);
+const html = (node: Parameters<typeof renderWithLocale>[1]): string =>
+  renderWithLocale("zh-CN", node);
+const enHtml = (node: Parameters<typeof renderWithLocale>[1]): string =>
+  renderWithLocale("en-US", node);
 
 describe("空间判据（lib/editor-space，任务 2.2）", () => {
   it("并排/上下按容器实测宽决策：每侧 ≥320 才并排，非法输入回上下", () => {
@@ -89,7 +92,7 @@ describe("DraftCompareGrid 布局层（能力断言）", () => {
     const src = rendererSrc("components/DraftCompareGrid.tsx");
     // 收起态 = 草稿独占单列 + 「显示原值」恢复入口（aria-expanded 翻转为 false）
     expect(src).toContain('data-original-collapsed="true"');
-    expect(src).toContain("显示原值");
+    expect(src).toContain("common.restoreOriginal");
     expect(src).toContain('aria-expanded="false"');
     // 收起后草稿用加大的展开高度（spec「草稿加大且可输入」）
     expect(src).toContain("EXPANDED_DRAFT_EDITOR_HEIGHT");
@@ -97,6 +100,38 @@ describe("DraftCompareGrid 布局层（能力断言）", () => {
     expect(src).toContain('role="separator"');
     expect(src).toContain("aria-valuemin={ORIGINAL_HEIGHT_MIN}");
     expect(src).toContain("stepOriginalHeight(separatorValue, event.key)");
+  });
+});
+
+describe("对照区与来源失效横幅：英文独立期望", () => {
+  it("DraftCompareGrid 默认标签与收起/恢复入口按语言输出", () => {
+    const out = enHtml(
+      createElement(DraftCompareGrid, {
+        compareKey: "tool-result",
+        draftTone: "violet",
+        original: createElement("div", { "data-x": "original" }),
+        draft: createElement("div", { "data-x": "draft" }),
+      }),
+    );
+    expect(out).toContain("Original (read-only)");
+    expect(out).toContain("Draft (editable)");
+    expect(out).toContain("Collapse original");
+    expect(out).not.toContain("原值（只读）");
+  });
+
+  it("DraftSourceBanner 的阻断说明与两个动作按语言输出", () => {
+    const out = enHtml(
+      createElement(DraftSourceBanner, {
+        reason: "SOURCE_MISSING",
+        copyText: "draft body",
+        onDiscard: () => {},
+      }),
+    );
+    expect(out).toContain("Source invalid; execution is blocked:");
+    expect(out).toContain("Copy draft content");
+    expect(out).toContain("Discard draft");
+    expect(out).toContain("The draft is kept until you discard it explicitly");
+    expect(out).not.toContain("来源失效");
   });
 });
 

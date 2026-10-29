@@ -178,6 +178,15 @@ const ORIGINAL_PREFIXES = [
   ["packages/project-verification/src/", "验证记录/runner/日志正文，持久化事实不随 locale 改写"],
 ];
 
+// 文件内混有产品文案与模型输入原文时，按符号改判（文件级规则无法拆分）。
+// 工具结果文本会写入新 trace 并作为模型消息重新送入，不能随 UI locale 生成。
+const ORIGINAL_SYMBOLS = {
+  "apps/desktop/src/renderer/src/components/detail/ResultForkEditor.tsx::toolMessageText":
+    "模型所见的工具结果文本（写入新 trace 并进入模型上下文），不随 UI locale 生成",
+  "apps/desktop/src/renderer/src/lib/draft-source.ts::toolResultText":
+    "模型所见的工具结果文本（写入新 trace 并进入模型上下文），不随 UI locale 生成",
+};
+
 const INTERNAL_REASONS = {
   "packages/replay/src/workspace/blob-store.ts": "附件存储不变量，不面向用户",
   "packages/replay/src/workspace/world.ts": "隔离世界内部不变量，不面向用户",
@@ -249,7 +258,9 @@ function isCliFile(file) {
   return /(^|\/)(cli|model-ab-cli)\.ts$/.test(file) || file.endsWith("startup.ts");
 }
 
-function classifySymbol(file, layer, role) {
+function classifySymbol(file, layer, role, symbol) {
+  const originalSymbol = ORIGINAL_SYMBOLS[`${file}::${symbol}`];
+  if (originalSymbol) return { classification: ORIGINAL, reason: originalSymbol };
   const base = fileRule(file, layer);
   if (role === "internal_log" && !isCliFile(file)) {
     return { classification: INTERNAL, reason: "console 内部诊断，不面向用户" };
@@ -427,7 +438,7 @@ for (const [layer, relDir] of sourceRoots) {
       if (rec) {
         const { role, context } = classifyRole(ancestors);
         const symbol = symbolOf(ancestors, sf);
-        const { classification, reason } = classifySymbol(file, layer, role);
+        const { classification, reason } = classifySymbol(file, layer, role, symbol);
         const line = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
         const key = `${symbol}|${role}`;
         let s = symbolMap.get(key);

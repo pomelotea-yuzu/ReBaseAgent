@@ -610,7 +610,13 @@ describe("接线契约：五类提交走快照并受冻结约束（任务 3.4/3.
     expect(MESSAGES_EDITOR.match(/isDraftFrozen\(/g)?.length).toBe(1);
     expect(MODEL_AB_EDITOR.match(/isDraftFrozen\(/g)?.length).toBe(1);
     expect(PROMPT_EDITOR.match(/本次提交待处理/g)?.length).toBe(1);
-    expect(RESULT_EDITOR.match(/本次提交待处理/g)?.length).toBe(1);
+    // 2.6a：result 编辑器的冻结通报改由 detail 资源投影（中文值独立书写）
+    expect(RESULT_EDITOR).toContain('"detail.draftFrozenNote"');
+    const zhResources = readFileSync(
+      resolve(import.meta.dirname, "../../../packages/i18n/src/resources/zh-CN.ts"),
+      "utf8",
+    );
+    expect(zhResources).toContain("本次提交待处理");
     expect(DETAIL_PANEL).not.toContain("本次执行待处理");
     // A/B 的整批冻结说明随载体迁 ModelAbEditor
     expect(MODEL_AB_EDITOR).toContain("本次执行待处理");

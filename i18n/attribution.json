@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-28T14:18:17.587Z",
+  "generatedAt": "2026-10-29T11:16:45.759Z",
   "scanner": "scripts/i18n-attribution.cjs",
   "taxonomy": {
     "product": "产品展示：需要按批次迁移为双语资源",
@@ -9,10 +9,10 @@
     "generated": "生成资产：不作为产品文案"
   },
   "totals": {
-    "files": 221,
-    "occurrences": 2759,
-    "product": 2294,
-    "original": 385,
+    "files": 219,
+    "occurrences": 2682,
+    "product": 2215,
+    "original": 387,
     "internal": 76,
     "generated": 4
   },
@@ -26,10 +26,10 @@
       "generated": 0
     },
     "renderer": {
-      "files": 68,
-      "occurrences": 1432,
-      "product": 1405,
-      "original": 0,
+      "files": 66,
+      "occurrences": 1355,
+      "product": 1326,
+      "original": 2,
       "internal": 27,
       "generated": 0
     },
@@ -3344,380 +3344,23 @@
       "layer": "renderer",
       "package": null,
       "workspace": "重跑/分叉",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "模型所见的工具结果文本（写入新 trace 并进入模型上下文），不随 UI locale 生成",
       "symbols": [
         {
           "symbol": "toolMessageText",
           "role": "return",
           "context": "return",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "模型所见的工具结果文本（写入新 trace 并进入模型上下文），不随 UI locale 生成",
           "count": 1,
           "samples": [
             "工具执行失败：${…}"
           ],
           "lines": [
             39
-          ]
-        },
-        {
-          "symbol": "ForkEditor.checkBlockReason",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "源记录不可用：重新读取并校验通过前不能发起新执行"
-          ],
-          "lines": [
-            236
-          ]
-        },
-        {
-          "symbol": "discardCurrent.title",
-          "role": "ui_prop",
-          "context": "title",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "放弃工具结果草稿"
-          ],
-          "lines": [
-            260
-          ]
-        },
-        {
-          "symbol": "discardCurrent.message",
-          "role": "ui_prop",
-          "context": "message",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "放弃这份工具结果草稿？（run ${…} · ${…}）\n\n当前草稿内容：\n${…}\n\n放弃按确认时的修订校验：此后内容若被更新，本次放弃不会执行。"
-          ],
-          "lines": [
-            261
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 7,
-          "samples": [
-            "在此重跑（隔离续跑）",
-            "在此重跑（时间旅行）"
-          ],
-          "lines": [
-            316,
-            467,
-            684
-          ]
-        },
-        {
-          "symbol": "div.div",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 9,
-          "samples": [
-            "隔离续跑：从该工具所在轮次结束后继续（整轮一起续跑，该轮工具不重做）；父 run、源目录与 兄弟分支都不会被修改。",
-            "时间旅行：从该工具调用之后重跑这一步，结果写入新分支。它不是\"恢复世界\"—— 期间真实执行过的外部调用不撤回，同轮工具的写入也不回滚。"
-          ],
-          "lines": [
-            320,
-            327,
-            428,
-            477,
-            479,
-            512,
-            516,
-            661,
-            671
-          ]
-        },
-        {
-          "symbol": "WorkspaceHeading.span",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 4,
-          "samples": [
-            "在此重跑 · 隔离续跑",
-            "在此重跑"
-          ],
-          "lines": [
-            341,
-            352,
-            353
-          ]
-        },
-        {
-          "symbol": "div.WorkspaceHeading",
-          "role": "ui_attr",
-          "context": "detailsLabel",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "重跑说明"
-          ],
-          "lines": [
-            356
-          ]
-        },
-        {
-          "symbol": "WorkspaceHeading.p",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "以上文本将作为该工具的返回结果重新送入模型；其后的步骤由模型重新生成，文件世界从该轮轮末检查点继续。",
-            "以上文本将作为该工具的返回结果重新送入模型；其余上下文（prompt、工具表、此前步骤）与父 run 完全一致。"
-          ],
-          "lines": [
-            360,
-            361
-          ]
-        },
-        {
-          "symbol": "DraftSourceBanner.title",
-          "role": "ui_prop",
-          "context": "title",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "放弃工具结果草稿"
-          ],
-          "lines": [
-            442
-          ]
-        },
-        {
-          "symbol": "DraftSourceBanner.message",
-          "role": "ui_prop",
-          "context": "message",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "放弃这份工具结果草稿？内容将被删除（不可撤销）。"
-          ],
-          "lines": [
-            443
-          ]
-        },
-        {
-          "symbol": "div.span",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 4,
-          "samples": [
-            "续跑条件（只读预检：不创建运行、不写文件、不请求模型）",
-            "（整轮续跑：该轮的其余工具不重做，同轮工具在子运行前缀中各出现一次）"
-          ],
-          "lines": [
-            459,
-            489,
-            512,
-            678
-          ]
-        },
-        {
-          "symbol": "span.span",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "父 run",
-            "编辑点"
-          ],
-          "lines": [
-            494,
-            502,
-            529
-          ]
-        },
-        {
-          "symbol": "label.span",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "允许本次副本写入"
-          ],
-          "lines": [
-            527
-          ]
-        },
-        {
-          "symbol": "isolatedDisclosure.modelSummary",
-          "role": "ui_prop",
-          "context": "modelSummary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "（未配置模型）"
-          ],
-          "lines": [
-            553
-          ]
-        },
-        {
-          "symbol": "div.ConfirmationBlock",
-          "role": "ui_attr",
-          "context": "title",
-          "classification": "product",
-          "reason": null,
-          "count": 6,
-          "samples": [
-            "核对本次续跑",
-            "已核对，确认本次续跑"
-          ],
-          "lines": [
-            573,
-            591,
-            592,
-            632,
-            648,
-            649
-          ]
-        },
-        {
-          "symbol": "div.ConfirmationBlock",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "还没拿到只读预检结论：先点上方「校验续跑条件」，确认要核对的就是那份结论。"
-          ],
-          "lines": [
-            596
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "放弃修改",
-            "取消"
-          ],
-          "lines": [
-            691,
-            702,
-            733
-          ]
-        }
-      ]
-    },
-    {
-      "path": "apps/desktop/src/renderer/src/components/DraftCompareGrid.tsx",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "比较工作区",
-      "classification": "product",
-      "batch": 2,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "DraftCompareGrid",
-          "role": "other",
-          "context": "",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "草稿（可编辑）",
-            "原值（只读）"
-          ],
-          "lines": [
-            47,
-            48
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "ui_attr",
-          "context": "title",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "收起只读原值，把空间让给草稿（可随时恢复）",
-            "恢复显示只读原值（全文与只读身份保持）"
-          ],
-          "lines": [
-            82,
-            101
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "constant",
-          "context": "originalLabelRow",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "收起原值"
-          ],
-          "lines": [
-            85
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "显示原值"
-          ],
-          "lines": [
-            104
-          ]
-        },
-        {
-          "symbol": "div.div",
-          "role": "ui_attr",
-          "context": "aria-label",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "调整原值区高度"
-          ],
-          "lines": [
-            177
           ]
         }
       ]
@@ -3781,62 +3424,6 @@
             66,
             74,
             82
-          ]
-        }
-      ]
-    },
-    {
-      "path": "apps/desktop/src/renderer/src/components/DraftSourceBanner.tsx",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "比较工作区",
-      "classification": "product",
-      "batch": 2,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "div.div",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "来源失效，已禁止执行："
-          ],
-          "lines": [
-            27
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "复制草稿内容",
-            "放弃草稿"
-          ],
-          "lines": [
-            34,
-            41
-          ]
-        },
-        {
-          "symbol": "div.span",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "草稿内容保留到明确放弃；重新校验通过后自动恢复执行资格"
-          ],
-          "lines": [
-            44
           ]
         }
       ]
@@ -7599,69 +7186,23 @@
       "layer": "renderer",
       "package": null,
       "workspace": "比较工作区",
-      "classification": "product",
-      "batch": 2,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "模型所见的工具结果文本（写入新 trace 并进入模型上下文），不随 UI locale 生成",
       "symbols": [
         {
           "symbol": "toolResultText",
           "role": "return",
           "context": "return",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "模型所见的工具结果文本（写入新 trace 并进入模型上下文），不随 UI locale 生成",
           "count": 1,
           "samples": [
             "工具执行失败：${…}"
           ],
           "lines": [
-            81
-          ]
-        },
-        {
-          "symbol": "revalidateSource",
-          "role": "call_arg",
-          "context": "blocked",
-          "classification": "product",
-          "reason": null,
-          "count": 17,
-          "samples": [
-            "草稿缺少源基线，无法核对来源：为避免以错误来源执行，已禁止提交（可复制内容或明确放弃）",
-            "详情缺失或读取失败：草稿已保留，重新读取并通过校验后才能执行；也可从会话草稿入口复制内容"
-          ],
-          "lines": [
-            200,
-            206,
-            210,
-            216,
-            225,
-            241,
-            247,
-            254,
-            257,
-            262,
-            269,
-            272,
-            281,
-            290,
-            307,
-            313
-          ]
-        },
-        {
-          "symbol": "revalidateSource",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "目标调用已成为本运行自有叶子（编辑时不是），执行资格须重新核对",
-            "目标调用不再属于本运行的自有叶子 span，执行资格失效"
-          ],
-          "lines": [
-            234,
-            235
+            82
           ]
         }
       ]

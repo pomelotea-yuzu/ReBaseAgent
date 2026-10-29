@@ -1,3 +1,4 @@
+import type { Translator } from "@rebaseagent/i18n";
 import type { SpanLine } from "@rebaseagent/trace-sdk";
 import type { RunDetail } from "@shared/ipc";
 import type { CallDraftField, CallDraftSource } from "./debugging-drafts";
@@ -170,7 +171,10 @@ export interface ModelAbSourceCheckInput {
  * 判定顺序：来源存在性 → run 级资格事实 → 字段相关入口条件（首次调用身份 / 代理来源）
  * → 编辑所依赖的源内容。任何拦截都保留草稿，只收回执行资格。
  */
-export function revalidateCallDraftSource(input: CallDraftSourceCheckInput): DraftSourceVerdict {
+export function revalidateCallDraftSource(
+  input: CallDraftSourceCheckInput,
+  translator: Translator,
+): DraftSourceVerdict {
   return revalidateSource(
     input.runId,
     input.spanId,
@@ -178,12 +182,24 @@ export function revalidateCallDraftSource(input: CallDraftSourceCheckInput): Dra
     input.baseline,
     input.source,
     input.detail,
+    translator,
   );
 }
 
 /** 恢复 A/B 批次草稿前的来源重验（与 prompt 字段同判据：首次 llm.call + 入口条件 + 源内容） */
-export function revalidateModelAbDraftSource(input: ModelAbSourceCheckInput): DraftSourceVerdict {
-  return revalidateSource(input.runId, input.spanId, "model_ab", null, input.source, input.detail);
+export function revalidateModelAbDraftSource(
+  input: ModelAbSourceCheckInput,
+  translator: Translator,
+): DraftSourceVerdict {
+  return revalidateSource(
+    input.runId,
+    input.spanId,
+    "model_ab",
+    null,
+    input.source,
+    input.detail,
+    translator,
+  );
 }
 
 function revalidateSource(
@@ -193,28 +209,20 @@ function revalidateSource(
   baseline: string | null,
   source: CallDraftSource | undefined,
   detail: RunDetail | null,
+  translator: Translator,
 ): DraftSourceVerdict {
   if (source === undefined) {
-    return blocked(
-      "source_missing",
-      "草稿缺少源基线，无法核对来源：为避免以错误来源执行，已禁止提交（可复制内容或明确放弃）",
-    );
+    return blocked("source_missing", translator.t("fork.draftNoBaseline"));
   }
   if (detail === null) {
-    return blocked(
-      "source_missing",
-      "详情缺失或读取失败：草稿已保留，重新读取并通过校验后才能执行；也可从会话草稿入口复制内容",
-    );
+    return blocked("source_missing", translator.t("fork.draftDetailMissing"));
   }
   if (detail.meta.id !== runId) {
-    return blocked("source_missing", "当前详情不是草稿所属的运行，无法核对来源");
+    return blocked("source_missing", translator.t("fork.draftWrongRun"));
   }
   const span = detail.spans.find((s) => s.id === spanId);
   if (span === undefined) {
-    return blocked(
-      "source_missing",
-      "目标调用已不在当前详情中（源记录缺失或被改动）：草稿保留供复制/放弃，不换用其他调用冒充恢复",
-    );
+    return blocked("source_missing", translator.t("fork.draftTargetMissing"));
   }
 
   // —— run 级资格事实：登记时刻 vs 当前详情（既有入口条件的事实输入）——
@@ -222,7 +230,7 @@ function revalidateSource(
   if (facts.status !== source.runStatus) {
     return blocked(
       "capability_invalid",
-      `运行状态已改变（编辑时 ${source.runStatus}，当前 ${facts.status}），执行资格须重新核对`,
+      translator.t("fork.draftStatusChanged", { before: source.runStatus, now: facts.status }),
     );
   }
   const leafNow = facts.leafSpanIds.includes(spanId);
@@ -230,56 +238,42 @@ function revalidateSource(
   if (leafNow !== leafThen) {
     return blocked(
       "capability_invalid",
-      leafNow
-        ? "目标调用已成为本运行自有叶子（编辑时不是），执行资格须重新核对"
-        : "目标调用不再属于本运行的自有叶子 span，执行资格失效",
+      translator.t(leafNow ? "fork.draftLeafNowOwn" : "fork.draftLeafNoLongerOwn"),
     );
   }
   if (facts.isolated !== source.isolated) {
-    return blocked(
-      "capability_invalid",
-      "运行的隔离文件元数据已改变（隔离父本不支持 prompt fork / 模型 A/B），执行资格须重新核对",
-    );
+    return blocked("capability_invalid", translator.t("fork.draftIsolationChanged"));
   }
   if (facts.configHash !== source.configHash) {
-    return blocked(
-      "capability_invalid",
-      "源配置指纹（config_hash）已改变：草稿保留供复制/放弃，须重新核对来源后才能执行",
-    );
+    return blocked("capability_invalid", translator.t("fork.draftConfigChanged"));
   }
 
   // —— 目标 span 的类型与字段匹配 ——
   if (source.target.kind === "tool.invoke") {
     if (span.kind !== "tool.invoke") {
-      return blocked("source_changed", "目标调用的类型已改变，原草稿无法对应到当前源记录");
+      return blocked("source_changed", translator.t("fork.draftTypeChanged"));
     }
     if (field !== "result") {
-      return blocked("capability_invalid", "草稿字段与目标调用的类型不匹配");
+      return blocked("capability_invalid", translator.t("fork.draftFieldMismatch"));
     }
     if (baseline !== null && toolResultText(span) !== baseline) {
-      return blocked(
-        "source_changed",
-        "源工具结果内容已改变：草稿保留供复制/放弃；如需采用新内容，请先明确放弃旧草稿再重新编辑",
-      );
+      return blocked("source_changed", translator.t("fork.draftResultChanged"));
     }
     return eligible();
   }
 
   if (span.kind !== "llm.call") {
-    return blocked("source_changed", "目标调用的类型已改变，原草稿无法对应到当前源记录");
+    return blocked("source_changed", translator.t("fork.draftTypeChanged"));
   }
   if (field === "result") {
-    return blocked("capability_invalid", "草稿字段与目标调用的类型不匹配");
+    return blocked("capability_invalid", translator.t("fork.draftFieldMismatch"));
   }
 
   // —— 字段相关入口条件 ——
   if (field === "messages") {
     // 代理 messages 重发的资格事实：录制来源必须仍是代理（与 canResend 判据同源）
     if (facts.proxy !== source.proxy) {
-      return blocked(
-        "capability_invalid",
-        "运行录制来源（代理/引擎）已改变，messages 重发资格须重新核对",
-      );
+      return blocked("capability_invalid", translator.t("fork.draftProxyChanged"));
     }
   } else {
     // prompt fork / A/B：隔离父本排除 + **重推**首次 llm.call 身份（不只看 span ID 是否存在）
@@ -287,7 +281,10 @@ function revalidateSource(
     if (firstLlmId !== spanId) {
       return blocked(
         "capability_invalid",
-        `当前详情的首次 llm.call（${firstLlmId ?? "无"}）与草稿目标（${spanId}）不一致：不得跳过首次调用改用后续调用，草稿保留供复制/放弃`,
+        translator.t("fork.draftFirstCallChanged", {
+          first: firstLlmId ?? translator.t("common.notRecorded"),
+          target: spanId,
+        }),
       );
     }
   }
@@ -302,16 +299,10 @@ function revalidateSource(
     signature(scalarRequestParams(span.request.params)) !== target.paramsSignature ||
     signature(span.request.tools ?? null) !== target.toolsSignature
   ) {
-    return blocked(
-      "source_changed",
-      "编辑所依赖的源内容已改变（启动上下文/模型/参数/工具表）：草稿保留供复制/放弃，不静默采用新基线",
-    );
+    return blocked("source_changed", translator.t("fork.draftStartupChanged"));
   }
   if (field === "messages" && signature(span.request.messages) !== target.messagesSignature) {
-    return blocked(
-      "source_changed",
-      "源请求消息已改变：草稿保留供复制/放弃；如需采用新消息，请先明确放弃旧草稿再重新编辑",
-    );
+    return blocked("source_changed", translator.t("fork.draftMessagesChanged"));
   }
   return eligible();
 }

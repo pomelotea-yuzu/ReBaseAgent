@@ -88,7 +88,13 @@ describe("接线契约：原值/草稿核对与按修订放弃（任务 2.6）",
 
   it("放弃修改：确认核对当前内容、按渲染快照修订 CAS；取消逐字保留", () => {
     const code = src();
-    expect(code).toContain("放弃修改");
+    // 2.6：按钮文案由 detail 资源投影（中文值独立书写在同一断言组下方）
+    expect(code).toContain('"detail.discardChanges"');
+    const zh = readFileSync(
+      resolve(import.meta.dirname, "../../../packages/i18n/src/resources/zh-CN.ts"),
+      "utf8",
+    );
+    expect(zh).toContain('discardChanges: "放弃修改"');
     // 确认等待期间内容被更新 ⇒ CAS 拒绝（旧确认不作数），界面保持当前内容
     expect(code).toContain("discardCallDraft(draftKey, snapshot.revision)");
     expect(code).toContain("if (!confirmed) return; // 取消：逐字保留");

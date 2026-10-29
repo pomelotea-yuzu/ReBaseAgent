@@ -147,14 +147,17 @@ export function PromptForkEditor({
   const sourceVerdict =
     activeEntry === undefined
       ? null
-      : revalidateCallDraftSource({
-          runId: run.meta.id,
-          spanId: span.id,
-          field,
-          baseline: activeEntry.baseline,
-          source: activeEntry.source,
-          detail: run,
-        });
+      : revalidateCallDraftSource(
+          {
+            runId: run.meta.id,
+            spanId: span.id,
+            field,
+            baseline: activeEntry.baseline,
+            source: activeEntry.source,
+            detail: run,
+          },
+          translator,
+        );
   const sourceBlocked = sourceVerdict?.kind === "blocked" ? sourceVerdict : null;
 
   const guardInput = {

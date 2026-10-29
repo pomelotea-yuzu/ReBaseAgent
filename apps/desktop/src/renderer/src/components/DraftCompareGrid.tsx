@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { useId, useRef, useState } from "react";
+import { useTranslator } from "../i18n";
 import {
   DRAFT_EDITOR_HEIGHT,
   EXPANDED_DRAFT_EDITOR_HEIGHT,
@@ -44,8 +45,8 @@ export function DraftCompareGrid({
   original,
   draft,
   draftTone,
-  draftLabel = "草稿（可编辑）",
-  originalLabel = "原值（只读）",
+  draftLabel,
+  originalLabel,
   fixedHeight = true,
   resizable = true,
 }: {
@@ -63,6 +64,9 @@ export function DraftCompareGrid({
   /** 是否提供原值区高度手柄（文本对照 false） */
   readonly resizable?: boolean;
 }): ReactNode {
+  const translator = useTranslator();
+  const draftLabelText = draftLabel ?? translator.t("common.draftEditable");
+  const originalLabelText = originalLabel ?? translator.t("common.originalReadOnly");
   const [ref, width] = useContainerWidth<HTMLDivElement>(720);
   const layout = decideDraftCompareLayout(width);
   const [originalCollapsed, setOriginalCollapsed] = useState(false);
@@ -73,16 +77,16 @@ export function DraftCompareGrid({
 
   const originalLabelRow = (
     <div className="flex min-h-[28px] items-center justify-between gap-2">
-      <div className="mb-0.5 text-[10px] font-medium text-gray-500">{originalLabel}</div>
+      <div className="mb-0.5 text-[10px] font-medium text-gray-500">{originalLabelText}</div>
       <button
         type="button"
         aria-expanded="true"
         aria-controls={controlsId}
         onClick={() => setOriginalCollapsed(true)}
-        title="收起只读原值，把空间让给草稿（可随时恢复）"
+        title={translator.t("common.collapseOriginalTitle")}
         className={`shrink-0 rounded border border-gray-300 px-1.5 py-0.5 text-[10px] text-gray-500 hover:bg-gray-50 ${FOCUS_RING}`}
       >
-        收起原值
+        {translator.t("common.collapseOriginal")}
       </button>
     </div>
   );
@@ -90,7 +94,7 @@ export function DraftCompareGrid({
   const draftLabelRow = (restoreEntry: boolean) => (
     <div className="flex min-h-[28px] items-center justify-between gap-2">
       <div className={`mb-0.5 text-[10px] font-medium ${DRAFT_TONE_LABEL[draftTone]}`}>
-        {draftLabel}
+        {draftLabelText}
       </div>
       {restoreEntry ? (
         <button
@@ -98,10 +102,10 @@ export function DraftCompareGrid({
           aria-expanded="false"
           aria-controls={controlsId}
           onClick={() => setOriginalCollapsed(false)}
-          title="恢复显示只读原值（全文与只读身份保持）"
+          title={translator.t("common.restoreOriginalTitle")}
           className={`shrink-0 rounded border border-gray-300 px-1.5 py-0.5 text-[10px] text-gray-600 hover:bg-gray-50 ${FOCUS_RING}`}
         >
-          显示原值
+          {translator.t("common.restoreOriginal")}
         </button>
       ) : null}
     </div>
@@ -174,7 +178,7 @@ export function DraftCompareGrid({
           key="original-resizer"
           role="separator"
           aria-orientation="horizontal"
-          aria-label="调整原值区高度"
+          aria-label={translator.t("common.originalHeightAria")}
           aria-valuemin={ORIGINAL_HEIGHT_MIN}
           aria-valuemax={ORIGINAL_HEIGHT_MAX}
           aria-valuenow={separatorValue}
