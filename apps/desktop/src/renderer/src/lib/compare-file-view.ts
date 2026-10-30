@@ -123,7 +123,7 @@ export function resolveCompareFileSide(
       reason: translator.t("compare.fileSideNotIsolated"),
     };
   }
-  const options = deriveCheckpointOptions(input.detail);
+  const options = deriveCheckpointOptions(input.detail, translator);
   if (input.savedStepSpanId === undefined) {
     return {
       kind: "ready",

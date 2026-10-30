@@ -1,6 +1,7 @@
 import type { RunDetail, WorkspaceReadFileResult } from "@shared/ipc";
 import type { KeyboardEvent, ReactNode, PointerEvent as ReactPointerEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslator } from "../../i18n";
 import {
   type DirectoryEmptyReason,
   deriveDirectoryEmptyReason,
@@ -160,6 +161,7 @@ export function WorkspaceFileViewBody({
   exportPanel,
   verificationPanel,
 }: WorkspaceFileViewBodyProps) {
+  const translator = useTranslator();
   const selectedFile = inspect?.files.find((f) => f.path === selectedPath) ?? null;
 
   /**
@@ -357,8 +359,8 @@ export function WorkspaceFileViewBody({
       parentStep !== undefined && parentStep !== null && parentStep.kind === "agent.step"
         ? parentStep.n
         : null;
-    return checkpointOriginNote(inspect, parentIteration);
-  }, [inspect, run.spans]);
+    return checkpointOriginNote(inspect, parentIteration, translator);
+  }, [inspect, run.spans, translator]);
 
   return (
     <div
@@ -369,7 +371,9 @@ export function WorkspaceFileViewBody({
       {/* 检查点选择器 + 来源说明 */}
       <div className="border-b border-gray-200 px-4 py-2">
         <WorkspaceHeading
-          title={<span className="text-reading-meta text-gray-600">文件检查点</span>}
+          title={
+            <span className="text-reading-meta text-gray-600">{translator.t("files.heading")}</span>
+          }
           target={
             <div className="flex flex-wrap items-center gap-1">
               {options.map((option) => (
@@ -384,8 +388,10 @@ export function WorkspaceFileViewBody({
                   }`}
                   title={
                     option.stepSpanId === null
-                      ? "本 run 的文件世界起点（导入快照或父 run 检查点）"
-                      : `检查点所属 step：${option.stepSpanId}`
+                      ? translator.t("files.originButtonImportTip")
+                      : translator.t("files.originButtonStepTip", {
+                          stepSpanId: option.stepSpanId,
+                        })
                   }
                 >
                   {option.label}
@@ -395,21 +401,23 @@ export function WorkspaceFileViewBody({
           }
           actions={
             inspect !== null ? (
-              <span className="text-reading-meta text-gray-500">{inspectSummaryLine(inspect)}</span>
+              <span className="text-reading-meta text-gray-500">
+                {inspectSummaryLine(inspect, translator)}
+              </span>
             ) : null
           }
-          summary={<span className="text-violet-800">只读文件快照 · 相对本 run 初始状态比较</span>}
-          detailsLabel="检查点来源与说明"
+          summary={<span className="text-violet-800">{translator.t("files.readonlySummary")}</span>}
+          detailsLabel={translator.t("files.originDetailsLabel")}
           details={
             <div className="space-y-1 py-1 text-reading-meta leading-5 text-gray-500">
               {originNote !== null ? <p className="text-violet-800">{originNote}</p> : null}
-              <p>
-                只读视图：仅按 trace
-                引用读取附件，不写文件、不补快照、不调用模型；没有任何回写源目录的入口。
-              </p>
+              <p>{translator.t("files.readonlyNote")}</p>
               {inspect !== null ? (
                 <p className="break-all font-code">
-                  快照 {inspect.snapshotId} · profile {inspect.profile}
+                  {translator.t("files.snapshotLine", {
+                    snapshotId: inspect.snapshotId,
+                    profile: inspect.profile,
+                  })}
                 </p>
               ) : null}
             </div>
@@ -417,13 +425,12 @@ export function WorkspaceFileViewBody({
         />
         {checkpointInvalidated ? (
           <div className="mt-1 text-[11px] leading-4 text-amber-800">
-            上次保存的检查点已不属于本
-            run（可能来自祖先步骤或已删除的轮次），已回到最近的自有完成步骤。
+            {translator.t("files.checkpointInvalidated")}
           </div>
         ) : null}
         {pathInvalidated ? (
           <div className="mt-1 text-[11px] leading-4 text-amber-800">
-            上次阅读的文件不在所选清单里，已清空选择并显示列表（不会改选同名的其它路径）。
+            {translator.t("files.pathInvalidated")}
           </div>
         ) : null}
         {exportPanel === undefined ? null : (
@@ -448,32 +455,34 @@ export function WorkspaceFileViewBody({
           <button
             type="button"
             onClick={() => onPane("list")}
-            aria-label="显示文件列表"
+            aria-label={translator.t("files.showList")}
             className={`rounded px-2 py-0.5 text-[11px] ${
               pane === "list" ? "bg-gray-800 text-white" : "border border-gray-300 text-gray-600"
             }`}
           >
-            文件列表
+            {translator.t("files.listTab")}
           </button>
           <button
             type="button"
             onClick={() => onPane("content")}
-            aria-label="显示文件内容"
+            aria-label={translator.t("files.showContent")}
             className={`rounded px-2 py-0.5 text-[11px] ${
               pane === "content" ? "bg-gray-800 text-white" : "border border-gray-300 text-gray-600"
             }`}
           >
-            内容
+            {translator.t("files.contentTab")}
           </button>
           {onDirCollapsed === undefined ? null : (
             <button
               type="button"
               onClick={() => onDirCollapsed(!dirCollapsed)}
               aria-expanded={dirCollapsed ? "false" : "true"}
-              aria-label={dirCollapsed ? "展开文件目录" : "收起文件目录"}
+              aria-label={translator.t(
+                dirCollapsed ? "files.expandDirAria" : "files.collapseDirAria",
+              )}
               className="ml-auto min-h-[28px] rounded border border-gray-300 px-2 py-0.5 text-[10px] text-gray-500 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-violet-400 focus-visible:outline-none"
             >
-              {dirCollapsed ? "展开目录" : "收起目录"}
+              {translator.t(dirCollapsed ? "files.expandDir" : "files.collapseDir")}
             </button>
           )}
         </div>
@@ -481,17 +490,18 @@ export function WorkspaceFileViewBody({
 
       {inspectError !== null ? (
         <div className="mx-4 mt-2 rounded border-l-2 border-red-400 bg-red-50 px-2 py-1.5 text-[11px] leading-4 text-red-800">
-          文件清单不可用（{inspectError.code}）：{inspectError.message}
-          <div className="mt-0.5 text-red-600">
-            原因来自 main 的只读读取；界面不会用"当前目录"或父 run 的历史快照兜底。
-          </div>
+          {translator.t("files.manifestUnavailable", {
+            code: inspectError.code,
+            detail: inspectError.message,
+          })}
+          <div className="mt-0.5 text-red-600">{translator.t("files.manifestUnavailableNote")}</div>
           {onRetryList === undefined ? null : (
             <button
               type="button"
               onClick={onRetryList}
               className="mt-1 rounded border border-red-300 bg-white px-2 py-0.5 text-[11px] text-red-700 hover:bg-red-50"
             >
-              重新读取清单
+              {translator.t("files.retryManifest")}
             </button>
           )}
         </div>
@@ -517,17 +527,19 @@ export function WorkspaceFileViewBody({
           */}
           <div className="sticky top-0 z-10 border-b border-gray-100 bg-white">
             <div className="flex items-center justify-between gap-2 px-2 pb-1 pt-1.5">
-              <span className="text-[11px] font-semibold text-gray-500">目录</span>
+              <span className="text-[11px] font-semibold text-gray-500">
+                {translator.t("files.directoryTitle")}
+              </span>
               {dirResident && onDirCollapsed !== undefined ? (
                 <button
                   type="button"
                   onClick={() => onDirCollapsed(true)}
                   aria-expanded="false"
-                  aria-label="收起文件目录（可随时重新展开）"
-                  title="收起文件目录（可随时重新展开）"
+                  aria-label={translator.t("files.collapseDirTitle")}
+                  title={translator.t("files.collapseDirTitle")}
                   className="shrink-0 rounded border border-gray-300 px-2 py-0.5 text-[11px] text-gray-600 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-violet-400 focus-visible:outline-none"
                 >
-                  收起目录
+                  {translator.t("files.collapseDir")}
                 </button>
               ) : null}
             </div>
@@ -537,16 +549,16 @@ export function WorkspaceFileViewBody({
                 type="search"
                 value={query}
                 onChange={(e) => onQuery?.(e.target.value)}
-                placeholder="按完整路径搜索"
-                aria-label="按完整路径搜索文件"
+                placeholder={translator.t("files.searchPlaceholder")}
+                aria-label={translator.t("files.searchAria")}
                 className="w-full rounded border border-gray-300 px-2 py-0.5 font-code text-[11px] text-gray-800"
               />
               <div className="mt-1 flex flex-wrap items-center gap-1">
                 {(
                   [
-                    ["auto", "自动"],
-                    ["all", "全部"],
-                    ["changed", "有变化"],
+                    ["auto", translator.t("files.modeAuto")],
+                    ["all", translator.t("files.filterAll")],
+                    ["changed", translator.t("files.filterChanged")],
                   ] as const
                 ).map(([value, label]) => (
                   <button
@@ -564,17 +576,24 @@ export function WorkspaceFileViewBody({
                 ))}
                 <span className="ml-auto text-[10px] text-gray-400">
                   {visibleCounts.filtered
-                    ? `筛出 ${visibleCounts.visible} / 共 ${visibleCounts.total}`
-                    : `共 ${visibleCounts.total} 个`}
+                    ? translator.t("files.countFiltered", {
+                        visible: visibleCounts.visible,
+                        total: visibleCounts.total,
+                      })
+                    : translator.t("files.countTotal", { count: visibleCounts.total })}
                 </span>
               </div>
             </div>
           </div>
 
           {loadingList && inspect === null ? (
-            <div className="px-3 py-4 text-[11px] text-gray-400">读取文件清单…</div>
+            <div className="px-3 py-4 text-[11px] text-gray-400">
+              {translator.t("files.listLoading")}
+            </div>
           ) : inspect === null ? (
-            <div className="px-3 py-4 text-[11px] text-gray-400">选择上方任一检查点查看文件。</div>
+            <div className="px-3 py-4 text-[11px] text-gray-400">
+              {translator.t("files.pickCheckpoint")}
+            </div>
           ) : visibleFiles.length > 0 ? (
             <div
               ref={listRef}
@@ -582,7 +601,7 @@ export function WorkspaceFileViewBody({
               onKeyDown={onListKeyDown}
               role="listbox"
               tabIndex={0}
-              aria-label="工作区文件列表"
+              aria-label={translator.t("files.listAria")}
               className="divide-y divide-gray-100 focus:outline-none"
             >
               {visibleFiles.map((file) => {
@@ -617,11 +636,11 @@ export function WorkspaceFileViewBody({
                                 : "text-gray-400"
                           }
                         >
-                          {changeLabel(file.change)}
+                          {changeLabel(file.change, translator)}
                         </span>
                         {usable ? null : (
                           <span className="rounded bg-red-100 px-1 text-red-700">
-                            {availabilityLabel(file.availability)}
+                            {availabilityLabel(file.availability, translator)}
                           </span>
                         )}
                       </div>
@@ -632,14 +651,14 @@ export function WorkspaceFileViewBody({
             </div>
           ) : (
             <div className="px-3 py-4 text-[11px] text-gray-400">
-              {directoryEmptyMessage(emptyReason, { query, filter: changeFilter })}
+              {directoryEmptyMessage(emptyReason, { query, filter: changeFilter }, translator)}
               {emptyReason === "no-match" && onQuery !== undefined ? (
                 <button
                   type="button"
                   onClick={() => onQuery("")}
                   className="ml-2 rounded border border-gray-300 px-1.5 py-0.5 text-[10px] text-gray-600 hover:bg-gray-50"
                 >
-                  清空搜索
+                  {translator.t("files.clearSearch")}
                 </button>
               ) : null}
               {emptyReason === "no-change" && onFilter !== undefined ? (
@@ -648,7 +667,7 @@ export function WorkspaceFileViewBody({
                   onClick={() => onFilter("all")}
                   className="ml-2 rounded border border-gray-300 px-1.5 py-0.5 text-[10px] text-gray-600 hover:bg-gray-50"
                 >
-                  查看全部
+                  {translator.t("files.viewAll")}
                 </button>
               ) : null}
             </div>
@@ -660,7 +679,7 @@ export function WorkspaceFileViewBody({
           <div
             role="separator"
             aria-orientation="vertical"
-            aria-label="调整文件目录宽度"
+            aria-label={translator.t("files.resizeAria")}
             aria-valuenow={Math.round(dirWidth)}
             aria-valuemin={FILE_DIR_MIN}
             aria-valuemax={FILE_DIR_MAX}
@@ -679,7 +698,7 @@ export function WorkspaceFileViewBody({
         >
           {selectedPath === null ? (
             <div className="px-4 py-6 text-[11px] text-gray-400">
-              从左侧选择一个文件查看内容与相对初始快照的差异。
+              {translator.t("files.selectFileHint")}
             </div>
           ) : (
             <FileContent

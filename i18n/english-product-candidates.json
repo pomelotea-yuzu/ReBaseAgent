@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-30T14:48:03.465Z",
+  "generatedAt": "2026-10-30T15:34:39.225Z",
   "scanner": "scripts/i18n-attribution.cjs",
   "method": "AST 扫描 desktop 三层 ASCII-only 字符串/JSX 文本，按 UI 角色过滤 className/CSS/技术值；正则只作候选发现，逐条人工复核后才进入迁移范围。",
   "candidates": [
@@ -29,24 +29,6 @@
       "context": "return",
       "text": "upstream base_url",
       "review": "product",
-      "note": null
-    },
-    {
-      "file": "apps/desktop/src/renderer/src/components/workspace-file/FileContent.tsx",
-      "layer": "renderer",
-      "role": "ui_text",
-      "context": "ternary",
-      "text": "· sha256",
-      "review": "technical",
-      "note": null
-    },
-    {
-      "file": "apps/desktop/src/renderer/src/components/workspace-file/WorkspaceFileViewBody.tsx",
-      "layer": "renderer",
-      "role": "ui_text",
-      "context": "ternary",
-      "text": "· profile",
-      "review": "technical",
       "note": null
     },
     {

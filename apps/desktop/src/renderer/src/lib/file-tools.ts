@@ -123,22 +123,3 @@ export function resolveToolEnablement(input: {
     modeToggle: input.diffEligible,
   };
 }
-
-/**
- * 剪贴板写入（就近反馈失败，不假报成功）。
- *
- * ⚠️ 只读：写的是**系统剪贴板**，不是文件。失败时返回错误信息供就近提示。
- */
-export async function writeClipboard(
-  text: string,
-): Promise<{ ok: true } | { ok: false; message: string }> {
-  try {
-    if (typeof navigator === "undefined" || navigator.clipboard === undefined) {
-      return { ok: false, message: "当前环境不支持剪贴板" };
-    }
-    await navigator.clipboard.writeText(text);
-    return { ok: true };
-  } catch (error: unknown) {
-    return { ok: false, message: error instanceof Error ? error.message : String(error) };
-  }
-}

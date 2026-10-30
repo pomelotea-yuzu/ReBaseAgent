@@ -1,6 +1,7 @@
 import type { WorkspaceReadFileResult } from "@shared/ipc";
 import type { editor as MonacoEditorNs } from "monaco-editor/editor/editor.api";
 import { useCallback, useRef, useState } from "react";
+import { useTranslator } from "../../i18n";
 import {
   type DiffMode,
   decideDiffMode,
@@ -100,6 +101,7 @@ export function FileContent({
   contentAnchor?: ContentScrollAnchor | null;
   onContentAnchor?: (anchor: ContentScrollAnchor) => void;
 }) {
+  const translator = useTranslator();
   const [copyFeedback, setCopyFeedback] = useState<CopyFeedback>(null);
 
   /**
@@ -236,25 +238,25 @@ export function FileContent({
   if (loading && current === null && initialReadableText === null) {
     return (
       <div className="px-4 py-6 text-[11px] text-gray-400">
-        读取文件内容…
-        {loadingInitial ? <span className="ml-2 text-gray-300">（初始快照同步读取中）</span> : null}
+        {translator.t("files.readingContent")}
+        {loadingInitial ? (
+          <span className="ml-2 text-gray-300">{translator.t("files.readingInitialSync")}</span>
+        ) : null}
       </div>
     );
   }
   if (error !== null && initialReadableText === null) {
     return (
       <div className="m-4 rounded border-l-2 border-red-400 bg-red-50 px-2 py-1.5 text-[11px] leading-4 text-red-800">
-        读取失败（{error.code}）：{error.message}
-        <div className="mt-0.5 text-red-600">
-          这是只读通道的失败，并不表示该文件不存在；定位意图已保留，可重试。
-        </div>
+        {translator.t("files.readFailed", { code: error.code, detail: error.message })}
+        <div className="mt-0.5 text-red-600">{translator.t("files.readFailedNotMissing")}</div>
         {onRetryContent === undefined ? null : (
           <button
             type="button"
             onClick={onRetryContent}
             className="mt-1 rounded border border-red-300 bg-white px-2 py-0.5 text-[11px] text-red-700 hover:bg-red-50"
           >
-            重新读取该文件
+            {translator.t("files.retryFile")}
           </button>
         )}
       </div>
@@ -263,7 +265,7 @@ export function FileContent({
   if (current === null && initialReadableText === null) {
     return (
       <div className="px-4 py-6 text-[11px] text-gray-400">
-        {loadingInitial ? "正在读取初始快照…" : "尚未读取该文件。"}
+        {loadingInitial ? translator.t("files.readingInitial") : translator.t("files.notRead")}
       </div>
     );
   }
@@ -271,21 +273,24 @@ export function FileContent({
   if (current !== null && current.status === "rejected") {
     return (
       <div className="m-4 rounded border-l-2 border-red-400 bg-red-50 px-2 py-1.5 text-[11px] leading-4 text-red-800">
-        请求被拒绝（{current.code}）：{current.reason}
+        {translator.t("files.requestRejected", {
+          code: current.code,
+          reason: current.reason,
+        })}
       </div>
     );
   }
   if (current !== null && current.status === "not_found") {
     return (
       <div className="m-4 rounded border-l-2 border-amber-400 bg-amber-50 px-2 py-1.5 text-[11px] leading-4 text-amber-900">
-        该路径不在所选清单里：{current.reason}
+        {translator.t("files.notInManifest", { reason: current.reason })}
       </div>
     );
   }
 
-  const comparability = canCompareText(current);
+  const comparability = canCompareText(current, translator);
   const sides = resolveDiffSides(initial, current, {
-    initial: "本 run 初始状态",
+    initial: translator.t("files.initialCheckpoint"),
     selected: currentLabel,
   });
 
@@ -293,7 +298,7 @@ export function FileContent({
   const leftReady = sideReadiness(initial, { loading: loadingInitial, failed: initialFailed });
   const rights = copyableText(current);
   const lefts = copyableText(initial);
-  const diffEligibility = canEnterTextDiff(sides);
+  const diffEligibility = canEnterTextDiff(sides, translator);
   /**
    * U2 任务 5.4 实机缺陷修复：**唯一可读的那一侧**。
    *
@@ -302,10 +307,13 @@ export function FileContent({
    */
   const readableSide: "left" | "right" | null =
     sides.leftNote === "text" ? "left" : sides.rightNote === "text" ? "right" : null;
-  const modeDecision = decideDiffMode({
-    prefs: preserveFilePrefs({ ...initialFileLayoutPrefs, diffPreference, wordWrap }),
-    contentAreaWidth,
-  });
+  const modeDecision = decideDiffMode(
+    {
+      prefs: preserveFilePrefs({ ...initialFileLayoutPrefs, diffPreference, wordWrap }),
+      contentAreaWidth,
+    },
+    translator,
+  );
   const mode: DiffMode = modeDecision.mode;
 
   const doCopy = async (text: string | null, label: string): Promise<void> => {
@@ -313,16 +321,19 @@ export function FileContent({
     copyMenuRef.current?.removeAttribute("open");
     copyMenuRef.current?.querySelector<HTMLElement>("summary")?.focus();
     if (typeof navigator === "undefined" || navigator.clipboard === undefined) {
-      setCopyFeedback({ kind: "fail", message: `${label}：当前环境不支持剪贴板` });
+      setCopyFeedback({
+        kind: "fail",
+        message: translator.t("files.clipboardUnsupported", { label }),
+      });
       return;
     }
     try {
       await navigator.clipboard.writeText(text);
-      setCopyFeedback({ kind: "ok", message: `${label}已复制` });
+      setCopyFeedback({ kind: "ok", message: translator.t("files.copied", { label }) });
     } catch (e: unknown) {
       setCopyFeedback({
         kind: "fail",
-        message: `${label}：${e instanceof Error ? e.message : String(e)}`,
+        message: `${label}: ${e instanceof Error ? e.message : String(e)}`,
       });
     }
   };
@@ -367,7 +378,7 @@ export function FileContent({
               file.availability === "ok" ? "text-gray-400" : "rounded bg-red-100 px-1 text-red-700"
             }
           >
-            {availabilityLabel(file.availability as "ok" | "missing" | "corrupt")}
+            {availabilityLabel(file.availability as "ok" | "missing" | "corrupt", translator)}
           </span>
         )}
       </div>
@@ -384,47 +395,57 @@ export function FileContent({
     <div className="flex flex-wrap items-center justify-end gap-1 text-[10px]">
       <details ref={copyMenuRef} className="relative">
         <summary
-          title="展开复制菜单：完整路径、两侧原文和元信息"
+          title={translator.t("files.copyMenuTitle")}
           className="min-h-[28px] cursor-pointer rounded border border-gray-300 px-1.5 py-0.5 text-gray-600 hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
         >
-          复制
+          {translator.t("files.copy")}
         </summary>
         <div className="absolute right-0 top-full z-20 mt-1 flex min-w-[160px] flex-col gap-1 rounded border border-gray-200 bg-white p-1.5 shadow-md">
           <button
             type="button"
             disabled={!tools.copyPath}
-            onClick={() => void doCopy(path, "路径")}
-            title="复制完整逻辑路径"
+            onClick={() => void doCopy(path, translator.t("files.labelPath"))}
+            title={translator.t("files.copyPathTitle")}
             className="rounded border border-gray-300 px-1.5 py-0.5 text-gray-600 disabled:opacity-40"
           >
-            复制路径
+            {translator.t("files.copyPath")}
           </button>
           <button
             type="button"
             disabled={!tools.copyLeftText}
-            onClick={() => void doCopy(lefts, "初始侧原文")}
-            title={tools.copyLeftText ? "复制初始快照侧完整原文" : "初始侧没有可复制的文本"}
+            onClick={() => void doCopy(lefts, translator.t("files.labelInitialText"))}
+            title={
+              tools.copyLeftText
+                ? translator.t("files.copyInitialTitle")
+                : translator.t("files.copyInitialDisabled")
+            }
             className="rounded border border-gray-300 px-1.5 py-0.5 text-gray-600 disabled:opacity-40"
           >
-            复制左侧原文
+            {translator.t("files.copyInitial")}
           </button>
           <button
             type="button"
             disabled={!tools.copyRightText}
-            onClick={() => void doCopy(rights, "所选侧原文")}
-            title={tools.copyRightText ? "复制所选检查点侧完整原文" : "所选侧没有可复制的文本"}
+            onClick={() => void doCopy(rights, translator.t("files.labelSelectedText"))}
+            title={
+              tools.copyRightText
+                ? translator.t("files.copySelectedTitle")
+                : translator.t("files.copySelectedDisabled")
+            }
             className="rounded border border-gray-300 px-1.5 py-0.5 text-gray-600 disabled:opacity-40"
           >
-            复制右侧原文
+            {translator.t("files.copySelected")}
           </button>
           {meta === null ? null : (
             <button
               type="button"
-              onClick={() => void doCopy(`${meta.bytes} B\n${meta.sha256}`, "元信息")}
-              title="复制真实大小与完整哈希"
+              onClick={() =>
+                void doCopy(`${meta.bytes} B\n${meta.sha256}`, translator.t("files.labelMeta"))
+              }
+              title={translator.t("files.copyMetaTitle")}
               className="rounded border border-gray-300 px-1.5 py-0.5 text-gray-600"
             >
-              复制元信息
+              {translator.t("files.copyMeta")}
             </button>
           )}
         </div>
@@ -433,19 +454,25 @@ export function FileContent({
         type="button"
         disabled={!tools.wordWrap}
         onClick={() => onWordWrap?.(!wordWrap)}
-        title={tools.wordWrap ? "切换自动换行" : "内容不可比较时不可换行"}
+        title={
+          tools.wordWrap
+            ? translator.t("files.wordWrapToggle")
+            : translator.t("files.wordWrapUnavailable")
+        }
         className="rounded border border-gray-300 px-1.5 py-0.5 text-gray-600 disabled:opacity-40"
       >
-        换行：{wordWrap ? "开" : "关"}
+        {translator.t("files.wordWrap", {
+          state: translator.t(wordWrap ? "files.wordWrapOn" : "files.wordWrapOff"),
+        })}
       </button>
       <button
         type="button"
         disabled={!tools.find}
         onClick={openFind}
-        title={tools.find ? "在当前文件查找（只读，不开放替换）" : "内容不可比较时不可查找"}
+        title={tools.find ? translator.t("files.findTitle") : translator.t("files.findUnavailable")}
         className="rounded border border-gray-300 px-1.5 py-0.5 text-gray-600 disabled:opacity-40"
       >
-        查找
+        {translator.t("files.find")}
       </button>
       <button
         type="button"
@@ -453,15 +480,15 @@ export function FileContent({
         onClick={goPrevDiff}
         title={
           tools.prevDiff
-            ? "跳到上一处差异"
+            ? translator.t("files.prevDiffTitle")
             : diffCount === 0
-              ? "当前两版没有差异可导航"
-              : "并排且两侧都有文本时才可导航差异"
+              ? translator.t("files.noDiffToNavigate")
+              : translator.t("files.diffNavUnavailable")
         }
-        aria-label="上一处差异"
+        aria-label={translator.t("files.prevDiffAria")}
         className="rounded border border-gray-300 px-1.5 py-0.5 text-gray-600 disabled:opacity-40"
       >
-        上一差异
+        {translator.t("files.prevDiff")}
       </button>
       <button
         type="button"
@@ -469,25 +496,31 @@ export function FileContent({
         onClick={goNextDiff}
         title={
           tools.nextDiff
-            ? "跳到下一处差异"
+            ? translator.t("files.nextDiffTitle")
             : diffCount === 0
-              ? "当前两版没有差异可导航"
-              : "并排且两侧都有文本时才可导航差异"
+              ? translator.t("files.noDiffToNavigate")
+              : translator.t("files.diffNavUnavailable")
         }
-        aria-label="下一处差异"
+        aria-label={translator.t("files.nextDiffAria")}
         className="rounded border border-gray-300 px-1.5 py-0.5 text-gray-600 disabled:opacity-40"
       >
-        下一差异
+        {translator.t("files.nextDiff")}
       </button>
       {tools.modeToggle && onDiffPreference !== undefined ? (
         <button
           type="button"
           onClick={() => onDiffPreference(diffPreference === "inline" ? "sideBySide" : "inline")}
-          title="切换 inline / 并排"
+          title={translator.t("files.modeTitle")}
           className="rounded border border-gray-300 px-1.5 py-0.5 text-gray-600"
         >
-          模式：
-          {diffPreference === "auto" ? "自动" : diffPreference === "inline" ? "inline" : "并排"}
+          {translator.t("files.mode", {
+            mode:
+              diffPreference === "auto"
+                ? translator.t("files.modeAuto")
+                : diffPreference === "inline"
+                  ? "inline"
+                  : translator.t("files.modeSideBySide"),
+          })}
         </button>
       ) : null}
       {copyFeedback === null ? null : (
@@ -517,13 +550,17 @@ export function FileContent({
   ): string => {
     switch (note) {
       case "not_found":
-        return "清单确认不存在";
+        return translator.t("files.noteNotFound");
       case "unavailable":
-        return "内容不可比较（二进制 / 附件缺失 / 损坏）";
+        return translator.t("files.noteUnavailable");
       case "unread":
-        return failed ? "读取失败（不是不存在）" : loadingWhile ? "正在读取" : "尚未读取";
+        return failed
+          ? translator.t("files.noteReadFailed")
+          : loadingWhile
+            ? translator.t("files.noteReading")
+            : translator.t("files.noteNotRead");
       case "text":
-        return "有文本";
+        return translator.t("files.noteText");
     }
   };
 
@@ -545,8 +582,12 @@ export function FileContent({
     readableSide === null || diffEligibility.ok ? null : (
       <>
         <div className="px-4 py-1.5 text-[10px] text-gray-400">
-          {readableSide === "left" ? `左：${sides.leftLabel}` : `右：${sides.rightLabel}`}
-          （该侧原文完整展示；另一侧不可比较，未用空文本参与 diff）
+          {translator.t("files.singleSide", {
+            side: translator.t(
+              readableSide === "left" ? "files.sideShortLeft" : "files.sideShortRight",
+            ),
+            label: readableSide === "left" ? sides.leftLabel : sides.rightLabel,
+          })}
         </div>
         {/* ⚠️ 锚点挂在**真实 DOM 包裹层**上，不挂在 <Editor> 上：`@monaco-editor/react` 只通过
             `wrapperProps` 透传 `data-*`，直接给 <Editor> 的 `data-testid` 在编辑器**已加载**
@@ -586,25 +627,35 @@ export function FileContent({
         {fileHeader}
         <div className="m-4 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-[11px] leading-5 text-gray-700">
           <div className="font-semibold text-gray-800">
-            {current.status === "binary" ? "二进制文件" : "内容不可读"}
+            {current.status === "binary"
+              ? translator.t("files.binaryTitle")
+              : translator.t("files.unreadableTitle")}
           </div>
           <div className="mt-0.5">{comparability.reason}</div>
           {current.status === "binary" ? (
             <div className="mt-1 font-code text-[10px] text-gray-500">
-              原始大小 {formatBytes(current.bytes)} · sha256 {current.sha256}
+              {translator.t("files.originalSize", {
+                bytes: formatBytes(current.bytes),
+                sha: current.sha256,
+              })}
             </div>
           ) : null}
           {current.status === "missing" || current.status === "corrupt" ? (
             <div className="mt-1 text-gray-500">
-              清单记录大小 {formatBytes(current.bytes)} · sha256 {current.sha256}
+              {translator.t("files.manifestSize", {
+                bytes: formatBytes(current.bytes),
+                sha: current.sha256,
+              })}
             </div>
           ) : null}
           {/* U2 5.4：本分支原先**只标所选侧**（卡片标题/原因都是它），初始侧状态完全不可见 ⇒
               左右互换（初始侧可读、所选侧不可比较）时用户看不到"另一侧有文本"。补统一的
               两侧状态行，与「不进入文本差异」分支同源同文案。 */}
           <div className="mt-1 text-gray-600">
-            初始快照侧：{noteText(sides.leftNote, initialFailed, loadingInitial)}；所选检查点侧：
-            {noteText(sides.rightNote, selectedFailed, loading)}。
+            {translator.t("files.bothSidesStatus", {
+              left: noteText(sides.leftNote, initialFailed, loadingInitial),
+              right: noteText(sides.rightNote, selectedFailed, loading),
+            })}
           </div>
           {sides.leftNote === "unread" && onRetryInitial !== undefined ? (
             <div className="mt-1">
@@ -613,7 +664,7 @@ export function FileContent({
                 onClick={onRetryInitial}
                 className="rounded border border-gray-300 bg-white px-2 py-0.5 text-[11px] text-gray-700 hover:bg-gray-50"
               >
-                重新读取初始快照
+                {translator.t("files.retryInitial")}
               </button>
             </div>
           ) : null}
@@ -637,20 +688,23 @@ export function FileContent({
       <>
         {fileHeader}
         <div className="m-4 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-[11px] leading-5 text-gray-700">
-          <div className="font-semibold text-gray-800">不进入文本差异</div>
+          <div className="font-semibold text-gray-800">{translator.t("files.notEnterDiff")}</div>
           <div className="mt-0.5">{diffEligibility.reason}</div>
           <div className="mt-1 text-gray-600">
-            初始快照侧：{noteText(sides.leftNote, initialFailed, loadingInitial)}；所选检查点侧：
-            {noteText(sides.rightNote, selectedFailed, loading)}。
+            {translator.t("files.bothSidesStatus", {
+              left: noteText(sides.leftNote, initialFailed, loadingInitial),
+              right: noteText(sides.rightNote, selectedFailed, loading),
+            })}
           </div>
-          <div className="mt-1 text-gray-500">
-            绝不会用空编辑器冒充"文件是空的"，也不会把不可用或未读取的一侧置空参与 diff。
-          </div>
+          <div className="mt-1 text-gray-500">{translator.t("files.noEmptyDiff")}</div>
           {/* U2 5.4：所选侧通道失败时不再走独占错误卡（其条件是"另一侧也读不出东西"），
               错误码/原因必须在这里补出，否则"读取失败"只剩一句状态、丢失可诊断信息。 */}
           {error === null ? null : (
             <div className="mt-1 text-red-700">
-              读取失败（{error.code}）：{error.message}（这是只读通道的失败，并不表示该文件不存在）
+              {translator.t("files.readFailedInline", {
+                code: error.code,
+                detail: error.message,
+              })}
             </div>
           )}
           {onRetryInitial === undefined && onRetryContent === undefined ? null : (
@@ -661,7 +715,7 @@ export function FileContent({
                   onClick={onRetryInitial}
                   className="rounded border border-gray-300 bg-white px-2 py-0.5 text-[11px] text-gray-700 hover:bg-gray-50"
                 >
-                  重新读取初始快照
+                  {translator.t("files.retryInitial")}
                 </button>
               ) : null}
               {sides.rightNote === "unread" && onRetryContent !== undefined ? (
@@ -670,7 +724,7 @@ export function FileContent({
                   onClick={onRetryContent}
                   className="rounded border border-gray-300 bg-white px-2 py-0.5 text-[11px] text-gray-700 hover:bg-gray-50"
                 >
-                  重新读取所选侧
+                  {translator.t("files.retrySelected")}
                 </button>
               ) : null}
             </div>
@@ -685,7 +739,7 @@ export function FileContent({
    * 一侧的状态说明。走这里时已由 `canEnterTextDiff` 保证两侧**只有** `text` 或 `not_found`。
    */
   const sideNote = (note: DiffSides["leftNote"]): string =>
-    note === "not_found" ? "（该侧不存在）" : "";
+    note === "not_found" ? translator.t("files.sideMissingNote") : "";
 
   return (
     /*
@@ -708,10 +762,18 @@ export function FileContent({
     <div className="flex h-full min-h-0 flex-col overflow-y-auto" data-file-diff-chain="true">
       {fileHeader}
       <div className="shrink-0 px-4 py-1.5 text-[10px] text-gray-400">
-        左：本 run 初始状态
-        {sideNote(sides.leftNote)} · 右：{sides.rightLabel}
-        {sideNote(sides.rightNote)}
-        {diffCount > 0 ? <span className="ml-2 text-gray-500">共 {diffCount} 处差异</span> : null}
+        {translator.t("files.sideHeaderInitial", {
+          label: translator.t("files.initialCheckpoint") + sideNote(sides.leftNote),
+        })}{" "}
+        ·{" "}
+        {translator.t("files.sideHeaderSelected", {
+          label: sides.rightLabel + sideNote(sides.rightNote),
+        })}
+        {diffCount > 0 ? (
+          <span className="ml-2 text-gray-500">
+            {translator.t("files.diffCount", { count: diffCount })}
+          </span>
+        ) : null}
         {modeDecision.downgraded && modeDecision.reason !== null ? (
           <span className="ml-2 text-amber-700">{modeDecision.reason}</span>
         ) : null}
@@ -753,12 +815,12 @@ export function FileContent({
       </div>
       {leftMissing ? (
         <div className="mx-4 mb-4 shrink-0 rounded border-l-2 border-amber-400 bg-amber-50 px-2 py-1.5 text-[10px] leading-4 text-amber-900">
-          初始快照里没有这条路径（本 run 新增的文件）；左侧标作不存在，未用空文本冒充。
+          {translator.t("files.leftAbsent")}
         </div>
       ) : null}
       {rightMissing ? (
         <div className="mx-4 mb-4 shrink-0 rounded border-l-2 border-amber-400 bg-amber-50 px-2 py-1.5 text-[10px] leading-4 text-amber-900">
-          所选检查点没有这条路径；右侧标作不存在（可能是初始有、后轮被移出世界）。
+          {translator.t("files.rightAbsent")}
         </div>
       ) : null}
     </div>

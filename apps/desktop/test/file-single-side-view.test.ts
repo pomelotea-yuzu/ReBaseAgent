@@ -4,7 +4,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { RunDetail } from "../src/shared/ipc";
-import { renderWithLocale } from "./i18n/render-with-locale";
+import { createTestTranslator, renderWithLocale } from "./i18n/render-with-locale";
 
 /**
  * U2 任务 5.4 实机验收暴露的真实产品缺陷回归：**单侧可读时"可读侧完整展示"通道缺失**。
@@ -98,13 +98,16 @@ function text(path: string, body: string): Record<string, unknown> {
   return { status: "text", path, bytes: body.length, sha256: hex("c"), text: body };
 }
 
-function renderBody(overrides: Record<string, unknown> = {}): string {
+function renderBody(
+  overrides: Record<string, unknown> = {},
+  locale: "zh-CN" | "en-US" = "zh-CN",
+): string {
   const run = isolatedRun();
   return renderWithLocale(
-    "zh-CN",
+    locale,
     createElement(WorkspaceFileViewBody, {
       run,
-      options: deriveCheckpointOptions(run),
+      options: deriveCheckpointOptions(run, createTestTranslator(locale)),
       selection: { stepSpanId: "s_2" },
       onSelect: () => {},
       inspect: inspect(),
@@ -338,5 +341,16 @@ describe("U2 5.4 单侧视图接线契约（源码级）", () => {
     const hits = SRC.split("noteText(sides.leftNote, initialFailed, loadingInitial)").length - 1;
     expect(hits).toBeGreaterThanOrEqual(2);
     expect(SRC).not.toContain("初始与所选检查点在两侧都没有可显示的内容");
+  });
+});
+
+describe("文件工作区英文投影（D19）", () => {
+  it("检查点标题/搜索/空态按英文呈现，路径与 run ID 原值不变", () => {
+    const html = renderBody({}, "en-US");
+    expect(html).toContain("File checkpoints");
+    expect(html).toContain("Search by full path");
+    expect(html).toContain("a.txt");
+    expect(html).toContain("run_b");
+    expect(html).not.toContain("文件检查点");
   });
 });

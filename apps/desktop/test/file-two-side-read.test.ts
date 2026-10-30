@@ -677,9 +677,9 @@ describe("U2 3.4 接线契约：搜索/筛选/空态/计数走纯派生层", () 
     expect(SRC).toContain("query={");
     expect(SRC).toContain("onQuery={");
     // 搜索/空态文案的承载在 Body（refactor-renderer 3.1）
-    expect(BODY).toContain("按完整路径搜索");
-    expect(BODY).toContain("查看全部");
-    expect(BODY).toContain("清空搜索");
+    expect(BODY).toContain("files.searchPlaceholder");
+    expect(BODY).toContain("files.viewAll");
+    expect(BODY).toContain("files.clearSearch");
   });
 });
 

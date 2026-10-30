@@ -1,3 +1,4 @@
+import { type Translator, createTranslator } from "@rebaseagent/i18n";
 import type { SpanLine } from "@rebaseagent/trace-sdk";
 import type {
   WorkspaceInspectFile,
@@ -42,11 +43,30 @@ export interface CheckpointOption {
  * 不属于本 run，把它们列进选择器就是"把祖先当本 run 的文件检查点"（本段明令禁止）。
  * 因此判据必须是"这个 step 在 leafSpanIds 里"，而不是"它出现在合并轨迹里"。
  */
-export function deriveCheckpointOptions(run: {
+const FALLBACK_TRANSLATOR = createTranslator({ locale: "zh-CN" });
+
+function ownedStepIds(run: {
   spans: readonly SpanLine[];
   leafSpanIds: readonly string[];
   meta: { workspace?: unknown };
-}): CheckpointOption[] {
+}): string[] {
+  const owned = new Set(run.leafSpanIds);
+  return run.spans
+    .filter(
+      (span): span is Extract<SpanLine, { kind: "agent.step" }> =>
+        span.kind === "agent.step" && owned.has(span.id),
+    )
+    .map((span) => span.id);
+}
+
+export function deriveCheckpointOptions(
+  run: {
+    spans: readonly SpanLine[];
+    leafSpanIds: readonly string[];
+    meta: { workspace?: unknown };
+  },
+  translator: Translator = FALLBACK_TRANSLATOR,
+): CheckpointOption[] {
   const owned = new Set(run.leafSpanIds);
   const steps = run.spans.filter(
     (span): span is Extract<SpanLine, { kind: "agent.step" }> =>
@@ -56,7 +76,7 @@ export function deriveCheckpointOptions(run: {
   const initial: CheckpointOption = {
     stepSpanId: null,
     localIteration: null,
-    label: "本 run 初始状态",
+    label: translator.t("files.initialCheckpoint"),
     originNote: null,
   };
 
@@ -67,7 +87,7 @@ export function deriveCheckpointOptions(run: {
       stepSpanId: step.id,
       localIteration: step.n,
       // 文案固定为"本 run 第 N 轮结束"——**不**写"沿链第 N 轮"
-      label: `本 run 第 ${step.n} 轮结束`,
+      label: translator.t("files.stepCheckpoint", { n: step.n }),
       originNote: null,
     }));
 
@@ -89,12 +109,9 @@ export function defaultCheckpointStepId(run: {
   leafSpanIds: readonly string[];
   meta: { workspace?: unknown };
 }): string | null {
-  const options = deriveCheckpointOptions(run);
-  // options[0] 恒为初始（stepSpanId: null）；其余按 n 升序 ⇒ 末条即最近
-  const steps = options.filter(
-    (option): option is CheckpointOption & { stepSpanId: string } => option.stepSpanId !== null,
-  );
-  return steps.length === 0 ? null : (steps[steps.length - 1]?.stepSpanId ?? null);
+  const steps = ownedStepIds(run);
+  const last = steps[steps.length - 1];
+  return last ?? null;
 }
 
 /**
@@ -115,8 +132,7 @@ export function validateCheckpointStepId(
   stepSpanId: string | null,
 ): "initial" | "valid" | "stale" {
   if (stepSpanId === null) return "initial";
-  const options = deriveCheckpointOptions(run);
-  return options.some((option) => option.stepSpanId === stepSpanId) ? "valid" : "stale";
+  return ownedStepIds(run).includes(stepSpanId) ? "valid" : "stale";
 }
 
 /**
@@ -185,53 +201,77 @@ export function validateSavedPath(
 export function checkpointOriginNote(
   inspect: WorkspaceInspectResult,
   parentIteration: number | null,
+  translator: Translator = FALLBACK_TRANSLATOR,
 ): string {
   const origin = inspect.origin;
   if (origin.kind === "import") {
-    return `独立文件世界（world_id ${inspect.worldId}），由选定源目录采集而来；本 run 的初始状态即该世界的起点。`;
+    return translator.t("files.originImport", { worldId: inspect.worldId });
   }
   if (origin.kind === "initial") {
-    return `本 run 的文件世界从父运行 ${origin.runId} 的初始快照（${origin.snapshotId}）出发；这是隔离 prompt 实验的起点，不是任何轮末检查点。`;
+    return translator.t("files.originInitial", {
+      runId: origin.runId,
+      snapshotId: origin.snapshotId,
+    });
   }
   const iterationText =
     parentIteration === null
-      ? `父运行 ${origin.runId} 的某一轮检查点（轮号未能在轨迹中解析，此处只报 step ${origin.stepSpanId}）`
-      : `父运行 ${origin.runId} 的第 ${parentIteration} 轮检查点`;
-  return `本 run 的文件世界从 ${iterationText} 续跑而来；本 run 的"初始状态"即该检查点，不是父 run 的第 1 轮。`;
+      ? translator.t("files.originIterationUnknown", {
+          runId: origin.runId,
+          stepSpanId: origin.stepSpanId,
+        })
+      : translator.t("files.originIteration", {
+          runId: origin.runId,
+          iteration: parentIteration,
+        });
+  return translator.t("files.originResume", { iteration: iterationText });
 }
 
 /** 变更状态的中文短标签（added / modified / unchanged / initial） */
-export function changeLabel(change: WorkspaceInspectFile["change"]): string {
+export function changeLabel(
+  change: WorkspaceInspectFile["change"],
+  translator: Translator = FALLBACK_TRANSLATOR,
+): string {
   switch (change) {
     case "added":
-      return "新增";
+      return translator.t("files.changeAdded");
     case "modified":
-      return "修改";
+      return translator.t("files.changeModified");
     case "unchanged":
-      return "未变";
+      return translator.t("files.changeUnchanged");
     case "initial":
-      return "初始";
+      return translator.t("files.changeInitial");
   }
 }
 
 /** 附件可用性的中文短标签（ok / missing / corrupt） */
-export function availabilityLabel(availability: WorkspaceInspectFile["availability"]): string {
+export function availabilityLabel(
+  availability: WorkspaceInspectFile["availability"],
+  translator: Translator = FALLBACK_TRANSLATOR,
+): string {
   switch (availability) {
     case "ok":
-      return "可读";
+      return translator.t("files.availabilityOk");
     case "missing":
-      return "附件缺失";
+      return translator.t("files.availabilityMissing");
     case "corrupt":
-      return "附件损坏";
+      return translator.t("files.availabilityCorrupt");
   }
 }
 
 /** 清单规模一行：文件数 / 总字节 / 不可用附件数 */
-export function inspectSummaryLine(inspect: WorkspaceInspectResult): string {
-  const base = `${inspect.fileCount} 个文件 / ${formatBytes(inspect.totalBytes)}`;
+export function inspectSummaryLine(
+  inspect: WorkspaceInspectResult,
+  translator: Translator = FALLBACK_TRANSLATOR,
+): string {
+  const base = translator.t("files.inspectSummary", {
+    count: inspect.fileCount,
+    bytes: formatBytes(inspect.totalBytes),
+  });
   return inspect.unavailableCount === 0
     ? base
-    : `${base} · ⚠ ${inspect.unavailableCount} 个附件不可用`;
+    : `${base}${translator.t("files.inspectUnavailable", {
+        count: inspect.unavailableCount,
+      })}`;
 }
 
 /**
@@ -242,21 +282,25 @@ export function inspectSummaryLine(inspect: WorkspaceInspectResult): string {
  */
 export function canCompareText(
   side: WorkspaceReadFileResult | null,
+  translator: Translator = FALLBACK_TRANSLATOR,
 ): { ok: true } | { ok: false; reason: string } {
   if (side === null) return { ok: true };
   switch (side.status) {
     case "text":
       return { ok: true };
     case "binary":
-      return { ok: false, reason: "二进制文件不参与文本比较（只展示大小与哈希）" };
+      return { ok: false, reason: translator.t("files.compareBinary") };
     case "missing":
-      return { ok: false, reason: "附件缺失，无法读取内容；不会用空文本或源目录兜底" };
+      return { ok: false, reason: translator.t("files.compareMissing") };
     case "corrupt":
-      return { ok: false, reason: "附件与清单记录的哈希/长度不符，拒绝展示内容" };
+      return { ok: false, reason: translator.t("files.compareCorrupt") };
     case "not_found":
-      return { ok: false, reason: "该路径不在所选清单里（可能是本 run 新增或已不存在）" };
+      return { ok: false, reason: translator.t("files.compareNotFound") };
     case "rejected":
-      return { ok: false, reason: `请求被拒绝：${side.reason}` };
+      return {
+        ok: false,
+        reason: translator.t("files.compareRejected", { reason: side.reason }),
+      };
   }
 }
 
@@ -330,14 +374,16 @@ export function resolveDiffSides(
  * - 任一侧 `unread`（null，加载中 / 通道失败 / 还没读）⇒ "未读"不等于"不存在"；
  * - **所选侧** `not_found` ⇒ 所选检查点里根本没有这条路径，不该当空侧比较。
  */
-export function canEnterTextDiff(sides: DiffSides): { ok: true } | { ok: false; reason: string } {
+export function canEnterTextDiff(
+  sides: DiffSides,
+  translator: Translator = FALLBACK_TRANSLATOR,
+): { ok: true } | { ok: false; reason: string } {
   const leftOk = sides.leftNote === "text" || sides.leftNote === "not_found";
   const rightOk = sides.rightNote === "text";
   if (!leftOk || !rightOk) {
     return {
       ok: false,
-      reason:
-        "至少一侧不可比较（不可用 / 尚未读取 / 读取失败 / 所选侧不存在）；不会把该侧当空文本参与 diff。",
+      reason: translator.t("files.diffNotEligible"),
     };
   }
   return { ok: true };

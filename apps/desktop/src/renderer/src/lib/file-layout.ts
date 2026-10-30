@@ -1,3 +1,4 @@
+import { type Translator, createTranslator } from "@rebaseagent/i18n";
 /**
  * U2 任务 4.1 / 4.2 / 4.3 · 文件视图的**容器布局判据**（纯逻辑层，design D4）。
  *
@@ -178,11 +179,20 @@ export function decideDirResident(input: {
  * ⚠️ 与目录决策**独立**：并排判断吃的是**正文区**当前宽度（目录决策之后的结果），
  *    不是容器总宽——目录常驻与否会改变正文区宽，进而改变并排结论（D4 明写两条独立条件）。
  */
-export function decideDiffMode(input: {
-  prefs: FileLayoutPrefs;
-  /** 正文区（编辑器所在列）实测宽 */
-  contentAreaWidth: number;
-}): { mode: DiffMode; downgraded: boolean; reason: string | null } {
+const FALLBACK_TRANSLATOR = createTranslator({ locale: "zh-CN" });
+
+export function decideDiffMode(
+  input: {
+    prefs: FileLayoutPrefs;
+    /** 正文区（编辑器所在列）实测宽 */
+    contentAreaWidth: number;
+  },
+  translator: Translator = FALLBACK_TRANSLATOR,
+): {
+  mode: DiffMode;
+  downgraded: boolean;
+  reason: string | null;
+} {
   const { prefs, contentAreaWidth } = input;
   if (prefs.diffPreference === "inline") {
     return { mode: "inline", downgraded: false, reason: null };
@@ -202,7 +212,10 @@ export function decideDiffMode(input: {
     return {
       mode: "inline",
       downgraded: true,
-      reason: `可用宽度不足：并排每侧需 ≥${SIDE_BY_SIDE_MIN_TEXT}px，当前约 ${Math.max(0, Math.round(minSideText))}px。`,
+      reason: translator.t("files.diffTooNarrow", {
+        min: SIDE_BY_SIDE_MIN_TEXT,
+        current: Math.max(0, Math.round(minSideText)),
+      }),
     };
   }
   // auto

@@ -1,5 +1,6 @@
 import type { RunDetail } from "@shared/ipc";
 import { useEffect } from "react";
+import { useTranslator } from "../i18n";
 import { useAppStore } from "../store";
 import { DetailNotices } from "./DetailNotices";
 import { WorkspaceFileView } from "./WorkspaceFileView";
@@ -133,6 +134,7 @@ export function WorkspaceFilesPanelView({
   readonly onEnterFocus?: (mode: "edit" | "diff") => void;
   readonly onExitFocus?: () => void;
 }) {
+  const translator = useTranslator();
   return (
     <div className="flex h-full min-h-0 flex-col bg-white">
       {focusActive && !focusControlsInHeader ? (
@@ -141,7 +143,7 @@ export function WorkspaceFilesPanelView({
           data-focus-bar="files-diff"
         >
           <span className="text-[11px] font-medium text-violet-900">
-            专注差异 · 辅助列表与步骤目录已临时收起（目标与阅读状态不变，退出后按原偏好恢复）
+            {translator.t("files.focusModeNote")}
           </span>
           <button
             type="button"
@@ -149,7 +151,7 @@ export function WorkspaceFilesPanelView({
             onClick={onExitFocus}
             className="ml-auto rounded border border-violet-300 bg-white px-2 py-0.5 text-[11px] text-violet-900 hover:bg-violet-100"
           >
-            退出专注
+            {translator.t("files.focusExit")}
           </button>
         </div>
       ) : null}
@@ -159,10 +161,10 @@ export function WorkspaceFilesPanelView({
             type="button"
             data-enter-focus="diff"
             onClick={() => onEnterFocus("diff")}
-            title="临时收起运行列表与步骤目录，把空间让给文件差异（退出后按原偏好恢复）"
+            title={translator.t("files.focusEnterTitle")}
             className="rounded border border-gray-300 px-2 py-0.5 text-[11px] text-gray-600 hover:bg-gray-50"
           >
-            专注差异
+            {translator.t("files.focusEnter")}
           </button>
         </div>
       ) : null}
@@ -173,7 +175,7 @@ export function WorkspaceFilesPanelView({
           <WorkspaceFileView key={detail.meta.id} run={detail} />
         ) : (
           <div className="px-4 py-6 text-xs text-gray-500">
-            {loadingDetail ? "正在读取运行详情…" : "尚未选择运行。"}
+            {loadingDetail ? translator.t("files.loadingRun") : translator.t("files.noRun")}
           </div>
         )}
       </div>

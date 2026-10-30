@@ -1,3 +1,4 @@
+import { type Translator, createTranslator } from "@rebaseagent/i18n";
 import type { WorkspaceInspectFile, WorkspaceInspectResult } from "@shared/ipc";
 
 /**
@@ -73,17 +74,20 @@ export function deriveDirectoryEmptyReason(
 }
 
 /** 空态文案（供展示层直接渲染；调用方仍可自行覆盖措辞） */
+const FALLBACK_TRANSLATOR = createTranslator({ locale: "zh-CN" });
+
 export function directoryEmptyMessage(
   reason: DirectoryEmptyReason,
   ctx: { query: string; filter: "all" | "changed" },
+  translator: Translator = FALLBACK_TRANSLATOR,
 ): string {
   switch (reason) {
     case "empty-list":
-      return "该检查点为空清单（世界内没有任何文件）。";
+      return translator.t("files.dirEmpty");
     case "no-change":
-      return "清单里相对本 run 初始没有变化；可切到「全部」查看未变文件。";
+      return translator.t("files.dirNoChange");
     case "no-match":
-      return `没有路径匹配「${ctx.query}」；可清空搜索查看全部。`;
+      return translator.t("files.dirNoMatch", { query: ctx.query });
     case "none":
       return "";
   }

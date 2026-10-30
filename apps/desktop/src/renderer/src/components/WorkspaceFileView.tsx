@@ -90,7 +90,7 @@ export function WorkspaceFileView({ run }: { run: RunDetail }) {
   const fileReadingEntered = useAppStore((s) => s.fileReadingEntered(run.meta.id));
   const setFileReading = useAppStore((s) => s.setFileReading);
 
-  const options = useMemo(() => deriveCheckpointOptions(run), [run]);
+  const options = useMemo(() => deriveCheckpointOptions(run, translator), [run, translator]);
   /** 首次进入要用的默认检查点（最近自有完成步骤；无则 null = 初始） */
   const defaultStepSpanId = useMemo(() => defaultCheckpointStepId(run), [run]);
 
@@ -332,9 +332,11 @@ export function WorkspaceFileView({ run }: { run: RunDetail }) {
   const exportEligible = inspect !== null && inspect.unavailableCount === 0;
   const exportIneligibleReason =
     inspect === null
-      ? "检查点清单尚未读取，暂不可导出"
+      ? translator.t("files.exportIneligibleUnread")
       : inspect.unavailableCount > 0
-        ? `有 ${inspect.unavailableCount} 个附件缺失或损坏；导出要求全部附件可验证`
+        ? translator.t("files.exportIneligibleUnavailable", {
+            count: inspect.unavailableCount,
+          })
         : null;
 
   /**

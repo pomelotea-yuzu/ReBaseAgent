@@ -1,6 +1,8 @@
 import type { SpanLine } from "@rebaseagent/trace-sdk";
 import { describe, expect, it } from "vitest";
+import { directoryEmptyMessage } from "../src/renderer/src/lib/file-directory";
 import {
+  availabilityLabel,
   canCompareText,
   canEnterTextDiff,
   changeLabel,
@@ -11,6 +13,7 @@ import {
   resolveDiffSides,
 } from "../src/renderer/src/lib/workspace-files";
 import type { WorkspaceInspectResult, WorkspaceReadFileResult } from "../src/shared/ipc";
+import { createTestTranslator } from "./i18n/render-with-locale";
 
 /**
  * C 任务 1.2：文件检查点选择与差异的**渲染层纯逻辑**。
@@ -362,5 +365,25 @@ describe("展示层小工具", () => {
     expect(detectFileLanguage('{"a":1}')).toBe("json");
     expect(detectFileLanguage("hello")).toBe("plaintext");
     expect(detectFileLanguage(null)).toBe("plaintext");
+  });
+});
+
+describe("文件工作区英文投影（D19）", () => {
+  it("检查点/变更/可用性/清单摘要/空态按英文呈现，数量与字节原值", () => {
+    const en = createTestTranslator("en-US");
+    expect(changeLabel("added", en)).toBe("Added");
+    expect(availabilityLabel("missing", en)).toBe("Attachment missing");
+    expect(inspectSummaryLine(inspectResult({ fileCount: 3, totalBytes: 100 }), en)).toBe(
+      "3 files / 100 B",
+    );
+    const run = {
+      spans: [{ type: "span", id: "s1", parent: null, kind: "agent.step", n: 1 }],
+      leafSpanIds: ["s1"],
+      meta: {},
+    } as never;
+    expect(deriveCheckpointOptions(run, en)[0]?.label).toBe("This run's initial state");
+    expect(directoryEmptyMessage("empty-list", { query: "", filter: "all" }, en)).toContain(
+      "empty manifest",
+    );
   });
 });
