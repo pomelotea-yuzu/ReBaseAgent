@@ -171,6 +171,10 @@ function render(props: Record<string, unknown>): string {
   return renderWithLocale("zh-CN", <VerificationPanel {...(props as never)} />);
 }
 
+function renderEn(props: Record<string, unknown>): string {
+  return renderWithLocale("en-US", <VerificationPanel {...(props as never)} />);
+}
+
 describe("VerificationPanel（入口与资格）", () => {
   it("非隔离 run ⇒ 入口禁用并说明原因（不可行动的入口不假装可用）", () => {
     const html = render(baseProps({ isolatedEligible: false }));
@@ -183,6 +187,14 @@ describe("VerificationPanel（入口与资格）", () => {
     const html = render(baseProps());
     expect(html).toContain("项目验证");
     expect(html).not.toContain("data-verification-confirm");
+  });
+
+  it("英文入口与不可用原因使用英文文案（独立期望，不靠 t() 自证）", () => {
+    const html = renderEn(baseProps({ isolatedEligible: false }));
+    expect(html).toContain("Project verification");
+    expect(html).toContain("Only isolated runs can be verified");
+    expect(html).not.toContain("项目验证");
+    expect(html).not.toContain("仅隔离运行");
   });
 });
 
@@ -248,6 +260,30 @@ describe("VerificationPanel（展开态：D01 精确输入与当前条件）", (
     );
     expect(html).toContain("R3_CAPABILITY_CHANNEL_FAILED");
     expect(html).toContain("data-verification-retry-capability");
+  });
+
+  it("英文展开态：条件表/不可用原因/计划概览按英文呈现，事实值原样", () => {
+    const html = renderEn(
+      baseProps({
+        expanded: true,
+        capability: CAPABILITY,
+        capabilityState: "ready",
+        plan: PLAN,
+        planState: "ready",
+      }),
+    );
+    expect(html).toContain("Exact input");
+    expect(html).toContain("5 files");
+    expect(html).toContain("Local backend");
+    expect(html).toContain("Preparation plan");
+    expect(html).toContain("1 fixed download");
+    expect(html).toContain("The environment is not prepared");
+    expect(html).toContain("Docker engine 29.9.2");
+    // 事实值与会话标识不随语言改写
+    expect(html).toContain("snap-9");
+    expect(html).toContain("token-1");
+    expect(html).toContain("node-ts-v1");
+    expect(html).not.toContain("尚未准备");
   });
 });
 
@@ -315,6 +351,41 @@ describe("VerificationPanel（展开态：D02 分开确认与不隐式执行）"
     );
     expect(html).toContain("旧确认失效");
     expect(html).toMatch(/data-verification-submit-prepare="true"[^>]*disabled/);
+  });
+
+  it("英文确认块与失效原因：独立成句，提交门判据不变", () => {
+    const targetKey = verificationTargetKey({ runId: RUN, checkpoint: { kind: "initial" } });
+    const html = renderEn(
+      baseProps({
+        expanded: true,
+        capability: { ...CAPABILITY, planToken: "token-2" },
+        capabilityState: "ready",
+        plan: PLAN,
+        planState: "ready",
+        prepareDecision: decideVerificationConfirmation({
+          armed: { planToken: "token-1", targetKey },
+          currentPlanToken: "token-2",
+          currentTargetKey: targetKey,
+        }),
+      }),
+    );
+    expect(html).toContain("Verify environment preparation");
+    expect(html).toContain("Verify fixed-check execution");
+    expect(html).toContain("old confirmation is invalid");
+    expect(html).toMatch(/data-verification-submit-prepare="true"[^>]*disabled/);
+    expect(html).not.toContain("核对环境准备");
+  });
+
+  it("提交失败 ⇒ 本地化摘要 + 稳定码 + 原始说明（原文单独展示）", () => {
+    const html = renderEn(
+      baseProps({
+        expanded: true,
+        submitError: { code: "R3_PREPARE_PLAN_STALE", message: "计划漂移：重新核对后再确认" },
+      }),
+    );
+    expect(html).toContain("The submission did not run (R3_PREPARE_PLAN_STALE).");
+    expect(html).toContain("Raw detail:");
+    expect(html).toContain("计划漂移：重新核对后再确认");
   });
 
   it("提交失败与最近结局如实呈现（请求层失败码 + 领域结局一行）", () => {

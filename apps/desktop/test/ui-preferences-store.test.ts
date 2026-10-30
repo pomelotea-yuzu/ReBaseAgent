@@ -16,6 +16,7 @@ interface Controller {
   setEnvelope: Envelope<UiPreferencesState> | undefined;
   settingsCalls: number;
   clears: number;
+  verificationRevokes: number;
 }
 
 const controller: Controller = {
@@ -25,6 +26,7 @@ const controller: Controller = {
   setEnvelope: undefined,
   settingsCalls: 0,
   clears: 0,
+  verificationRevokes: 0,
 };
 
 const fakeApi = {
@@ -82,6 +84,9 @@ function makeSlice(): UiPreferencesSlice {
     clearExecutionConfirmations: () => {
       controller.clears += 1;
     },
+    revokeVerificationConfirmations: () => {
+      controller.verificationRevokes += 1;
+    },
   } as UiPreferencesSlice;
   return new Proxy({} as UiPreferencesSlice, {
     get: (_target, key) => {
@@ -110,6 +115,7 @@ beforeEach(() => {
   controller.setEnvelope = undefined;
   controller.settingsCalls = 0;
   controller.clears = 0;
+  controller.verificationRevokes = 0;
 });
 
 describe("uiPreferences store 分片", () => {
@@ -133,6 +139,8 @@ describe("uiPreferences store 分片", () => {
       draftText: string;
       editorValue: string;
       unsavedSettings: string;
+      clearExecutionConfirmations: () => void;
+      revokeVerificationConfirmations: () => void;
     };
     const set = (patch: Partial<typeof state>): void => {
       state = { ...state, ...patch };
@@ -145,6 +153,9 @@ describe("uiPreferences store 分片", () => {
       clearExecutionConfirmations: () => {
         controller.clears += 1;
       },
+      revokeVerificationConfirmations: () => {
+        controller.verificationRevokes += 1;
+      },
       draftText: "保留的草稿",
       editorValue: "editor value",
       unsavedSettings: "unsaved",
@@ -154,6 +165,7 @@ describe("uiPreferences store 分片", () => {
     expect(state.editorValue).toBe("editor value");
     expect(state.unsavedSettings).toBe("unsaved");
     expect(state.effectiveLocale).toBe("en-US");
+    expect(controller.verificationRevokes).toBe(0);
   });
 
   it("首次读取在业务挂载前拿到有效语言并采纳", async () => {
@@ -165,8 +177,9 @@ describe("uiPreferences store 分片", () => {
     expect(slice.effectiveLocale).toBe("zh-CN");
     expect(slice.uiPreferences).toEqual(systemState);
     expect(slice.uiPreferencesLoaded).toBe(true);
-    // fallback en-US → zh-CN 是一次有效语言变化：清空未提交确认并推进 epoch
+    // fallback en-US → zh-CN 是一次有效语言变化：清空未提交确认（含验证许可）并推进 epoch
     expect(controller.clears).toBe(1);
+    expect(controller.verificationRevokes).toBe(1);
     expect(slice.languageEpoch).toBe(1);
   });
 
@@ -176,6 +189,7 @@ describe("uiPreferences store 分片", () => {
     controller.getDeferred.shift()?.(ok(systemState));
     await first;
     expect(controller.clears).toBe(1);
+    expect(controller.verificationRevokes).toBe(1);
     expect(slice.languageEpoch).toBe(1);
 
     controller.setEnvelope = ok({
@@ -187,6 +201,7 @@ describe("uiPreferences store 分片", () => {
     });
     await expect(slice.saveUiLanguage("system")).resolves.toBe("saved");
     expect(controller.clears).toBe(1);
+    expect(controller.verificationRevokes).toBe(1);
     expect(slice.languageEpoch).toBe(1);
   });
 
@@ -206,6 +221,7 @@ describe("uiPreferences store 分片", () => {
     });
     await expect(slice.saveUiLanguage("en-US")).resolves.toBe("saved");
     expect(controller.clears).toBe(2);
+    expect(controller.verificationRevokes).toBe(2);
     expect(slice.languageEpoch).toBe(2);
   });
 

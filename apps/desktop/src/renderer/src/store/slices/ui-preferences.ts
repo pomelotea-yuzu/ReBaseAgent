@@ -46,7 +46,11 @@ function applyState(
   next: UiPreferencesState,
 ): void {
   const localeChanged = next.effectiveLocale !== get().effectiveLocale;
-  if (localeChanged) get().clearExecutionConfirmations();
+  if (localeChanged) {
+    get().clearExecutionConfirmations();
+    // 验证准备/测试确认也是未提交许可：随有效语言变化清零，只读目标/计划事实保留
+    get().revokeVerificationConfirmations();
+  }
   set({
     uiPreferences: next,
     effectiveLocale: next.effectiveLocale,

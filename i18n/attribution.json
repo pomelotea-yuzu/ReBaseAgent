@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-29T15:37:11.668Z",
+  "generatedAt": "2026-10-30T13:11:53.162Z",
   "scanner": "scripts/i18n-attribution.cjs",
   "taxonomy": {
     "product": "产品展示：需要按批次迁移为双语资源",
@@ -10,9 +10,9 @@
   },
   "totals": {
     "files": 210,
-    "occurrences": 2508,
-    "product": 1919,
-    "original": 504,
+    "occurrences": 2408,
+    "product": 1791,
+    "original": 532,
     "internal": 81,
     "generated": 4
   },
@@ -20,15 +20,15 @@
     "main": {
       "files": 20,
       "occurrences": 131,
-      "product": 93,
-      "original": 36,
+      "product": 74,
+      "original": 55,
       "internal": 2,
       "generated": 0
     },
     "renderer": {
       "files": 57,
-      "occurrences": 1181,
-      "product": 1141,
+      "occurrences": 1081,
+      "product": 1041,
       "original": 8,
       "internal": 32,
       "generated": 0
@@ -68,8 +68,8 @@
     "pkg:project-verification": {
       "files": 30,
       "occurrences": 261,
-      "product": 61,
-      "original": 168,
+      "product": 52,
+      "original": 177,
       "internal": 28,
       "generated": 4
     },
@@ -1153,17 +1153,17 @@
       "layer": "main",
       "package": null,
       "workspace": "项目验证",
-      "classification": "product",
-      "batch": 2,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "main 启动核查门禁的原始诊断，渲染层按稳定码给出本地化摘要并按原始详情展示",
       "symbols": [
         {
           "symbol": "gate.reason",
           "role": "ui_prop",
           "context": "reason",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "main 启动核查门禁的原始诊断，渲染层按稳定码给出本地化摘要并按原始详情展示",
           "count": 2,
           "samples": [
             "启动残留核查进行中：R3 执行暂不可提交，完成后自动开放",
@@ -1181,17 +1181,17 @@
       "layer": "main",
       "package": null,
       "workspace": "项目验证",
-      "classification": "product",
-      "batch": 2,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "main 验证执行端点的门内拒绝/停止原始诊断，渲染层按稳定码本地化摘要并按原始详情展示",
       "symbols": [
         {
           "symbol": "prepareChannel.run",
           "role": "error_message",
           "context": "new VerificationEndpointError",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "main 验证执行端点的门内拒绝/停止原始诊断，渲染层按稳定码本地化摘要并按原始详情展示",
           "count": 1,
           "samples": [
             "R3 依赖未装配（数据根/后端缺失），环境准备不可用"
@@ -1204,8 +1204,8 @@
           "symbol": "runChannel.run",
           "role": "error_message",
           "context": "new VerificationEndpointError",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "main 验证执行端点的门内拒绝/停止原始诊断，渲染层按稳定码本地化摘要并按原始详情展示",
           "count": 2,
           "samples": [
             "R3 依赖未装配（数据根/后端缺失），项目验证不可用",
@@ -1220,8 +1220,8 @@
           "symbol": "execVerificationStop",
           "role": "error_message",
           "context": "new Error",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "main 验证执行端点的门内拒绝/停止原始诊断，渲染层按稳定码本地化摘要并按原始详情展示",
           "count": 6,
           "samples": [
             "停止通道只接受本应用窗口主 frame 的调用",
@@ -1240,8 +1240,8 @@
           "symbol": "execVerificationStop.reason",
           "role": "ui_text",
           "context": "ternary",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "main 验证执行端点的门内拒绝/停止原始诊断，渲染层按稳定码本地化摘要并按原始详情展示",
           "count": 2,
           "samples": [
             "该操作无在飞验证执行（停止请求到达时已过执行段）",
@@ -1259,17 +1259,17 @@
       "layer": "main",
       "package": null,
       "workspace": "项目验证",
-      "classification": "product",
-      "batch": 2,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "main 只读验证端点的引擎/来源诊断原始说明，渲染层作为原始详情与不可用原因参数展示",
       "symbols": [
         {
           "symbol": "untrusted",
           "role": "error_message",
           "context": "new Error",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "main 只读验证端点的引擎/来源诊断原始说明，渲染层作为原始详情与不可用原因参数展示",
           "count": 1,
           "samples": [
             "只读通道只接受本应用窗口主 frame 的调用"
@@ -1282,8 +1282,8 @@
           "symbol": "verificationCapability",
           "role": "error_message",
           "context": "new Error",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "main 只读验证端点的引擎/来源诊断原始说明，渲染层作为原始详情与不可用原因参数展示",
           "count": 1,
           "samples": [
             "profile ${…} 不受当前 manifest 支持"
@@ -1296,8 +1296,8 @@
           "symbol": "verificationCapability.reason",
           "role": "ui_prop",
           "context": "reason",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "main 只读验证端点的引擎/来源诊断原始说明，渲染层作为原始详情与不可用原因参数展示",
           "count": 1,
           "samples": [
             "未发现可信 Docker Desktop CLI（P01：不隐式安装、不回退宿主 Shell）"
@@ -1310,8 +1310,8 @@
           "symbol": "verificationCapability.reason",
           "role": "ui_text",
           "context": "ternary",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "main 只读验证端点的引擎/来源诊断原始说明，渲染层作为原始详情与不可用原因参数展示",
           "count": 2,
           "samples": [
             "引擎探测超时（未就绪或不可达）",
@@ -1326,8 +1326,8 @@
           "symbol": "verificationReadLog",
           "role": "error_message",
           "context": "new Error",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "main 只读验证端点的引擎/来源诊断原始说明，渲染层作为原始详情与不可用原因参数展示",
           "count": 1,
           "samples": [
             "记录 ${…} 没有命令 ${…} 的执行事实"
@@ -4608,14 +4608,14 @@
             "检查未通过（断言失败/非零退出——不是请求失败）"
           ],
           "lines": [
-            73,
             75,
-            79,
-            83,
+            77,
+            81,
             85,
             87,
             89,
-            91
+            91,
+            93
           ]
         },
         {
@@ -4630,9 +4630,9 @@
             "来源已缺失（记录仍可读）"
           ],
           "lines": [
-            206,
-            208,
-            210
+            209,
+            211,
+            213
           ]
         },
         {
@@ -4646,7 +4646,7 @@
             "来源 run 未知"
           ],
           "lines": [
-            215
+            218
           ]
         },
         {
@@ -4661,9 +4661,9 @@
             "初始检查点"
           ],
           "lines": [
-            218,
-            220,
-            221
+            221,
+            223,
+            224
           ]
         },
         {
@@ -4677,7 +4677,7 @@
             "命令未知"
           ],
           "lines": [
-            222
+            225
           ]
         },
         {
@@ -4692,8 +4692,8 @@
             "步骤检查点 ${…}"
           ],
           "lines": [
-            228,
-            229
+            231,
+            232
           ]
         },
         {
@@ -4708,9 +4708,9 @@
             "已取消目录选择：没有写入任何内容。"
           ],
           "lines": [
-            247,
-            256,
-            262
+            250,
+            259,
+            265
           ]
         },
         {
@@ -4719,31 +4719,30 @@
           "context": "ternary",
           "classification": "product",
           "reason": null,
-          "count": 79,
+          "count": 73,
           "samples": [
             "目标残留（清理未完成，不可当作完整导出）：",
             "未知"
           ],
           "lines": [
-            265,
-            285,
-            286,
-            291,
-            293,
+            268,
+            288,
+            289,
             294,
-            431,
-            434,
-            451,
-            464,
-            476,
-            579,
-            580,
-            600,
-            614,
-            626,
-            635,
-            668,
-            691
+            296,
+            297,
+            608,
+            609,
+            629,
+            643,
+            655,
+            664,
+            697,
+            720,
+            725,
+            729,
+            736,
+            738
           ]
         },
         {
@@ -4758,11 +4757,11 @@
             "个文件（"
           ],
           "lines": [
-            281,
-            285,
-            289,
-            297,
-            300
+            284,
+            288,
+            292,
+            300,
+            303
           ]
         },
         {
@@ -4777,9 +4776,9 @@
             "不同"
           ],
           "lines": [
-            311,
-            313,
-            315
+            314,
+            316,
+            318
           ]
         },
         {
@@ -4788,26 +4787,19 @@
           "context": "ternary",
           "classification": "product",
           "reason": null,
-          "count": 18,
+          "count": 8,
           "samples": [
-            "在受限容器内验证该检查点的项目：环境准备与固定检查分开确认",
-            "普通/代理运行没有隔离文件世界（没有可验证的检查点输入）；验证只支持隔离运行"
+            "停止已请求（等待确认）",
+            "请求停止"
           ],
           "lines": [
-            412,
-            413,
-            417,
-            458,
-            471,
-            517,
-            564,
-            591,
-            793,
-            876,
-            914,
-            940,
-            991,
-            1085
+            620,
+            822,
+            905,
+            943,
+            969,
+            1020,
+            1114
           ]
         },
         {
@@ -4816,51 +4808,27 @@
           "context": "ternary",
           "classification": "product",
           "reason": null,
-          "count": 20,
+          "count": 16,
           "samples": [
-            "仅隔离运行可验证（普通/代理运行没有检查点输入）",
-            "只在「已确认 ∧ 引擎可用」时可提交；确认过期或计划变化后按钮回到禁用，须重新核对确认。"
+            "领域 ID 只从操作登记取；重复点击安全（幂等）；确认全部停止前保持占用。",
+            "验证"
           ],
           "lines": [
-            421,
-            520,
-            525,
-            567,
-            594,
-            645,
-            650,
-            797,
-            805,
-            858,
-            861,
-            863,
-            880,
-            1071,
-            1073,
-            1075,
-            1076,
-            1091,
-            1092
-          ]
-        },
-        {
-          "symbol": "div.ConfirmationBlock",
-          "role": "ui_attr",
-          "context": "title",
-          "classification": "product",
-          "reason": null,
-          "count": 6,
-          "samples": [
-            "核对环境准备",
-            "已核对，确认准备环境"
-          ],
-          "lines": [
-            497,
-            503,
-            504,
-            544,
-            550,
-            551
+            623,
+            674,
+            679,
+            826,
+            834,
+            887,
+            890,
+            892,
+            909,
+            1100,
+            1102,
+            1104,
+            1105,
+            1120,
+            1121
           ]
         },
         {
@@ -4875,16 +4843,16 @@
             "耗时"
           ],
           "lines": [
-            733,
-            735,
-            738,
-            1037,
-            1041,
-            1042,
-            1044,
-            1048,
-            1056,
-            1060
+            762,
+            764,
+            767,
+            1066,
+            1070,
+            1071,
+            1073,
+            1077,
+            1085,
+            1089
           ]
         },
         {
@@ -4898,7 +4866,7 @@
             "读"
           ],
           "lines": [
-            757
+            786
           ]
         },
         {
@@ -4912,7 +4880,7 @@
             "有界切片（默认 32 KiB/页，上限 64 KiB）"
           ],
           "lines": [
-            761
+            790
           ]
         },
         {
@@ -4926,70 +4894,7 @@
             "验证日志切片（有界只读；可聚焦滚动）"
           ],
           "lines": [
-            850
-          ]
-        },
-        {
-          "symbol": "conditionRows.label",
-          "role": "ui_prop",
-          "context": "label",
-          "classification": "product",
-          "reason": null,
-          "count": 9,
-          "samples": [
-            "核对结果",
-            "精确输入"
-          ],
-          "lines": [
-            1208,
-            1210,
-            1213,
-            1220,
-            1227,
-            1233,
-            1243,
-            1245,
-            1248
-          ]
-        },
-        {
-          "symbol": "conditionRows.value",
-          "role": "prop",
-          "context": "value",
-          "classification": "product",
-          "reason": null,
-          "count": 6,
-          "samples": [
-            "读取失败（见下方原因）——条件未知，不冒充可用",
-            "尚未取得（正在核对或未开始）"
-          ],
-          "lines": [
-            1208,
-            1210,
-            1239,
-            1243,
-            1245,
-            1249
-          ]
-        },
-        {
-          "symbol": "conditionRows.value",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 8,
-          "samples": [
-            "来源预检未通过（见下方原因）",
-            "快照 ${…} · ${…} 个文件 · ${…}"
-          ],
-          "lines": [
-            1216,
-            1217,
-            1223,
-            1224,
-            1229,
-            1230
+            879
           ]
         }
       ]
@@ -7375,232 +7280,6 @@
       "reason": null,
       "symbols": [
         {
-          "symbol": "verificationTargetLabel",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "初始检查点",
-            "步骤检查点 ${…}"
-          ],
-          "lines": [
-            51
-          ]
-        },
-        {
-          "symbol": "verificationBlockers.reason",
-          "role": "ui_prop",
-          "context": "reason",
-          "classification": "product",
-          "reason": null,
-          "count": 4,
-          "samples": [
-            "本机受限后端不可用：${…}。安装或启动 Docker Desktop（Linux containers）后重试；应用不会自动安装，也不会回退到宿主 Shell。",
-            "原因未提供"
-          ],
-          "lines": [
-            78,
-            85,
-            93
-          ]
-        },
-        {
-          "symbol": "decideVerificationConfirmation.reason",
-          "role": "ui_prop",
-          "context": "reason",
-          "classification": "product",
-          "reason": null,
-          "count": 5,
-          "samples": [
-            "尚未确认：先核对本次目标与边界，再显式确认",
-            "验证目标已变化：旧确认绑定的是另一个检查点，须重新核对确认"
-          ],
-          "lines": [
-            140,
-            143,
-            148,
-            154,
-            164
-          ]
-        },
-        {
-          "symbol": "profileLimitsLine",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "CPU ${…} 核 · 内存 ${…} · PIDs ${…} · 单命令 ${…} s · 整次 ${…} s"
-          ],
-          "lines": [
-            182
-          ]
-        },
-        {
-          "symbol": "READONLY_CHECKS",
-          "role": "array_item",
-          "context": "[]",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "只读核对 `verification:capability`：零下载、零容器、零执行、零模型调用",
-            "只读计划预览 `verification:preparePlan`：只展示固定计划，不安装任何东西"
-          ],
-          "lines": [
-            186,
-            187
-          ]
-        },
-        {
-          "symbol": "targetFacts.label",
-          "role": "ui_prop",
-          "context": "label",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "目标 run",
-            "检查点（显式选定）"
-          ],
-          "lines": [
-            192,
-            193
-          ]
-        },
-        {
-          "symbol": "verificationPrepareDisclosure.summary",
-          "role": "ui_prop",
-          "context": "summary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "一次性环境准备 · 仅准备阶段按固定来源联网下载 · 不执行项目测试"
-          ],
-          "lines": [
-            206
-          ]
-        },
-        {
-          "symbol": "facts.value",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 11,
-          "samples": [
-            "尚未取得计划（打开面板时会自动核对）",
-            "尚未核对"
-          ],
-          "lines": [
-            213,
-            229,
-            231,
-            232,
-            268,
-            269,
-            275,
-            276,
-            282
-          ]
-        },
-        {
-          "symbol": "facts.label",
-          "role": "ui_prop",
-          "context": "label",
-          "classification": "product",
-          "reason": null,
-          "count": 11,
-          "samples": [
-            "下载来源 ${…}",
-            "磁盘占用估计"
-          ],
-          "lines": [
-            219,
-            224,
-            226,
-            234,
-            261,
-            265,
-            272,
-            279,
-            288,
-            290,
-            295
-          ]
-        },
-        {
-          "symbol": "facts.value",
-          "role": "prop",
-          "context": "value",
-          "classification": "product",
-          "reason": null,
-          "count": 5,
-          "samples": [
-            "${…} · 约 ${…} · ${…}",
-            "确认后仅授予这一次环境准备（allowPrepare），不授予测试执行"
-          ],
-          "lines": [
-            220,
-            234,
-            262,
-            291,
-            296
-          ]
-        },
-        {
-          "symbol": "verificationPrepareDisclosure.limits",
-          "role": "array_item",
-          "context": "[]",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "准备与测试分开确认：这里只构建环境，不物化代码、不执行任何检查；执行要单独核对确认。",
-            "确认绑定当前计划：计划/策略/配方任一变化后旧确认失效，须重新核对确认；不会自动提交新计划。"
-          ],
-          "lines": [
-            239,
-            240
-          ]
-        },
-        {
-          "symbol": "verificationRunDisclosure.summary",
-          "role": "ui_prop",
-          "context": "summary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "执行固定检查 ${…} · 受限断网容器 · 结果只来自退出码与可信测试报告"
-          ],
-          "lines": [
-            257
-          ]
-        },
-        {
-          "symbol": "verificationRunDisclosure.limits",
-          "role": "array_item",
-          "context": "[]",
-          "classification": "product",
-          "reason": null,
-          "count": 4,
-          "samples": [
-            "结果只来自真实退出码与可信测试报告（TAP 计数精确匹配）：Agent 文本、日志内容都不能替代测试事实。",
-            "测试来自固定环境 /opt/r3 的受信测试与 runner：不读取项目可改的测试文件与 npm scripts；改源码冒充修复会被采集门拒绝。"
-          ],
-          "lines": [
-            301,
-            302,
-            303,
-            304
-          ]
-        },
-        {
           "symbol": "verificationRecordLine.kindLabel",
           "role": "ui_text",
           "context": "ternary",
@@ -7612,9 +7291,9 @@
             "项目验证（${…}）"
           ],
           "lines": [
-            445,
-            447,
-            448
+            546,
+            548,
+            549
           ]
         },
         {
@@ -7629,9 +7308,9 @@
             "已收尾（${…}）"
           ],
           "lines": [
-            451,
-            453,
-            454
+            552,
+            554,
+            555
           ]
         }
       ]
@@ -11860,17 +11539,17 @@
       "layer": "pkg:project-verification",
       "package": "project-verification",
       "workspace": "pkg:project-verification",
-      "classification": "product",
-      "batch": 2,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "准备计划正文（网络范围/许可）进入计划 token，按原文展示；外围标签与边界由渲染层本地化",
       "symbols": [
         {
           "symbol": "downloads.license",
           "role": "prop",
           "context": "license",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "准备计划正文（网络范围/许可）进入计划 token，按原文展示；外围标签与边界由渲染层本地化",
           "count": 2,
           "samples": [
             "Node.js 运行时（MIT）；Alpine 及镜像内组件许可随 6.5 第三方清单核对汇总",
@@ -11885,8 +11564,8 @@
           "symbol": "buildPreparePlan.networkScopeNote",
           "role": "concat",
           "context": "+",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "准备计划正文（网络范围/许可）进入计划 token，按原文展示；外围标签与边界由渲染层本地化",
           "count": 4,
           "samples": [
             "仅本次准备允许联网：按上方来源拉取基础镜像与依赖（固定锁文件 integrity 校验、",
@@ -12806,17 +12485,17 @@
       "layer": "pkg:project-verification",
       "package": "project-verification",
       "workspace": "pkg:project-verification",
-      "classification": "product",
-      "batch": 2,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "来源预检的领域原因，作为不可用原因参数与原始详情展示，不随 UI locale 改写",
       "symbols": [
         {
           "symbol": "precheckVerificationSource",
           "role": "error_message",
           "context": "fail",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "来源预检的领域原因，作为不可用原因参数与原始详情展示，不随 UI locale 改写",
           "count": 3,
           "samples": [
             "来源 run 未封存（status=${…}）：只接受已终止落盘的隔离 run",

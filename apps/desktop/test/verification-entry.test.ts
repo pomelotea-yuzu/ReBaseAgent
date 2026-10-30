@@ -9,6 +9,7 @@ import {
   profileLimitsLine,
   trustedVerificationIdsOf,
   verificationBlockers,
+  verificationDecisionLine,
   verificationDomainIdOf,
   verificationPrepareDisclosure,
   verificationRecordLine,
@@ -16,6 +17,7 @@ import {
   verificationTargetKey,
   verificationTargetLabel,
 } from "../src/renderer/src/lib/verification-entry";
+import { createTestTranslator } from "./i18n/render-with-locale";
 
 /**
  * R3 任务 5.1：验证入口与分开确认的**纯判据**。
@@ -27,6 +29,8 @@ import {
 
 const RUN = "run_a";
 const STEP = "s_02";
+const zh = createTestTranslator("zh-CN");
+const en = createTestTranslator("en-US");
 
 function capabilityOf(
   overrides?: Partial<VerificationCapabilityResult>,
@@ -121,14 +125,18 @@ describe("verificationTargetKey（显式 selector 的唯一键）", () => {
   });
 
   it("目标可读名区分初始与步骤（确认卡指名'是哪一次'）", () => {
-    expect(verificationTargetLabel({ kind: "initial" })).toBe("初始检查点");
-    expect(verificationTargetLabel({ kind: "step", stepSpanId: STEP })).toContain(STEP);
+    expect(verificationTargetLabel({ kind: "initial" }, zh)).toBe("初始检查点");
+    expect(verificationTargetLabel({ kind: "step", stepSpanId: STEP }, zh)).toContain(STEP);
+    expect(verificationTargetLabel({ kind: "initial" }, en)).toBe("Initial checkpoint");
+    expect(verificationTargetLabel({ kind: "step", stepSpanId: STEP }, en)).toBe(
+      `Step checkpoint ${STEP}`,
+    );
   });
 });
 
 describe("verificationBlockers（D01：不可用原因可行动）", () => {
   it("尚未核对（null）⇒ 零条目——'没核对'不冒充'没问题'", () => {
-    expect(verificationBlockers(null)).toEqual([]);
+    expect(verificationBlockers(null, zh)).toEqual([]);
   });
 
   it("全部就绪 ⇒ 零条目", () => {
@@ -139,7 +147,7 @@ describe("verificationBlockers（D01：不可用原因可行动）", () => {
         toolchain: { node: "22.23.4", typescript: "5.9.3" },
       },
     });
-    expect(verificationBlockers(allReady)).toEqual([]);
+    expect(verificationBlockers(allReady, zh)).toEqual([]);
   });
 
   it("引擎不可用 ⇒ 挡准备的可行动原因（说明不自动安装、不回退宿主 Shell）", () => {
@@ -156,6 +164,7 @@ describe("verificationBlockers（D01：不可用原因可行动）", () => {
           toolchain: { node: "22.23.4", typescript: "5.9.3" },
         },
       }),
+      zh,
     );
     expect(blockers).toHaveLength(1);
     expect(blockers[0]?.code).toBe("engine_unavailable");
@@ -175,6 +184,7 @@ describe("verificationBlockers（D01：不可用原因可行动）", () => {
           toolchain: { node: "22.23.4", typescript: "5.9.3" },
         },
       }),
+      zh,
     );
     expect(blockers).toHaveLength(1);
     expect(blockers[0]?.gates).toBe("run");
@@ -182,7 +192,7 @@ describe("verificationBlockers（D01：不可用原因可行动）", () => {
   });
 
   it("未准备环境 ⇒ 只挡执行，并指向先完成准备", () => {
-    const blockers = verificationBlockers(capabilityOf());
+    const blockers = verificationBlockers(capabilityOf(), zh);
     expect(blockers).toHaveLength(1);
     expect(blockers[0]?.code).toBe("prepare_missing");
     expect(blockers[0]?.gates).toBe("run");
@@ -195,6 +205,7 @@ describe("verificationBlockers（D01：不可用原因可行动）", () => {
         source: null,
         sourceFailure: { code: "x", reason: "y" },
       }),
+      zh,
     );
     expect(blockersFor(blockers, "prepare").map((one) => one.code)).toEqual(["engine_unavailable"]);
     expect(blockersFor(blockers, "run").map((one) => one.code)).toEqual(["x", "prepare_missing"]);
@@ -210,7 +221,9 @@ describe("decideVerificationConfirmation（D02：现算判定，漂移即失效�
       currentPlanToken: "token-1",
       currentTargetKey: "k",
     });
-    expect(decision.kind).toBe("missing");
+    expect(decision).toEqual({ kind: "missing", reason: "not_armed" });
+    expect(verificationDecisionLine(decision, zh)).toContain("尚未确认");
+    expect(verificationDecisionLine(decision, en)).toContain("Not confirmed");
   });
 
   it("目标变化 ⇒ stale（旧确认绑定另一个检查点）", () => {
@@ -219,7 +232,7 @@ describe("decideVerificationConfirmation（D02：现算判定，漂移即失效�
       currentPlanToken: "token-1",
       currentTargetKey: "k2",
     });
-    expect(decision.kind).toBe("stale");
+    expect(decision).toEqual({ kind: "stale", reason: "target_changed" });
   });
 
   it("计划 token 漂移 ⇒ stale（计划/策略/配方任一变化）", () => {
@@ -228,8 +241,9 @@ describe("decideVerificationConfirmation（D02：现算判定，漂移即失效�
       currentPlanToken: "token-2",
       currentTargetKey: "k",
     });
-    expect(decision.kind).toBe("stale");
-    expect(decision.kind === "stale" && decision.reason).toContain("计划");
+    expect(decision).toEqual({ kind: "stale", reason: "plan_changed" });
+    expect(verificationDecisionLine(decision, zh)).toContain("旧确认失效");
+    expect(verificationDecisionLine(decision, en)).toContain("old confirmation is invalid");
   });
 
   it("当前计划未知（核对缺失）⇒ stale，不沿用旧确认", () => {
@@ -238,7 +252,7 @@ describe("decideVerificationConfirmation（D02：现算判定，漂移即失效�
       currentPlanToken: null,
       currentTargetKey: "k",
     });
-    expect(decision.kind).toBe("stale");
+    expect(decision).toEqual({ kind: "stale", reason: "plan_unknown" });
   });
 
   it("命令变化 ⇒ stale（执行确认绑定命令；准备确认不受命令影响）", () => {
@@ -249,7 +263,7 @@ describe("decideVerificationConfirmation（D02：现算判定，漂移即失效�
       currentTargetKey: "k",
       currentCommandId: "typecheck",
     });
-    expect(switched.kind).toBe("stale");
+    expect(switched).toEqual({ kind: "stale", reason: "command_changed" });
     const same = decideVerificationConfirmation({
       armed: runArmed,
       currentPlanToken: "token-1",
@@ -282,46 +296,73 @@ describe("decideVerificationConfirmation（D02：现算判定，漂移即失效�
 
 describe("披露行（D01：精确输入与当前条件）", () => {
   it("准备披露包含下载来源/体积/许可、网络注记与分开确认边界", () => {
-    const disclosure = verificationPrepareDisclosure({
-      runId: RUN,
-      checkpointLabel: "初始检查点",
-      capability: capabilityOf(),
-      plan: planOf(),
-    });
+    const disclosure = verificationPrepareDisclosure(
+      {
+        runId: RUN,
+        checkpointLabel: "初始检查点",
+        capability: capabilityOf(),
+        plan: planOf(),
+      },
+      zh,
+    );
     const labels = disclosure.facts.map((one) => one.label);
     expect(labels).toContain("下载来源 1");
     const download = disclosure.facts.find((one) => one.label === "下载来源 1");
     expect(download?.value).toContain("docker.m.daocloud.io");
     expect(download?.value).toContain("Node.js 运行时（MIT）");
-    expect(disclosure.limits.join("\n")).toContain("仅本次准备允许联网");
+    expect(disclosure.limits.join("\n")).toContain("计划原文：仅本次准备允许联网");
     expect(disclosure.limits.join("\n")).toContain("分开确认");
     expect(disclosure.limits.join("\n")).toContain("自动提交");
   });
 
-  it("计划未取得时准备披露如实说明（不冒充有计划）", () => {
-    const disclosure = verificationPrepareDisclosure({
+  it("准备披露按语言投影标签与边界（原文计划保持原字节）", () => {
+    const input = {
       runId: RUN,
-      checkpointLabel: "初始检查点",
-      capability: null,
-      plan: null,
-    });
+      checkpointLabel: "Initial checkpoint",
+      capability: capabilityOf(),
+      plan: planOf(),
+    };
+    const english = verificationPrepareDisclosure(input, en);
+    expect(english.summary).toContain("One-time environment preparation");
+    expect(english.facts.map((one) => one.label)).toContain("Download source 1");
+    expect(english.facts.map((one) => one.label)).toContain("Target run");
+    expect(english.facts.map((one) => one.label)).toContain("Authorization for this run");
+    expect(english.limits.join("\n")).toContain("Plan original text:");
+    // 计划正文进入 token：只加原文标签，不改写字节
+    expect(english.limits.join("\n")).toContain("仅本次准备允许联网");
+    expect(english.checks.join("\n")).toContain("zero model calls");
+  });
+
+  it("计划未取得时准备披露如实说明（不冒充有计划）", () => {
+    const disclosure = verificationPrepareDisclosure(
+      {
+        runId: RUN,
+        checkpointLabel: "初始检查点",
+        capability: null,
+        plan: null,
+      },
+      zh,
+    );
     const all = disclosure.facts.map((one) => `${one.label}: ${one.value}`).join("\n");
     expect(all).toContain("尚未取得计划");
   });
 
   it("执行披露包含精确输入（快照/文件数/字节）、已准备环境与限额隔离基线", () => {
-    const disclosure = verificationRunDisclosure({
-      runId: RUN,
-      checkpointLabel: "步骤检查点 s_02",
-      commandId: "test",
-      capability: capabilityOf({
-        prepared: {
-          preparationId: "prep-1",
-          imageDigest: "sha256:dd",
-          toolchain: { node: "22.23.4", typescript: "5.9.3" },
-        },
-      }),
-    });
+    const disclosure = verificationRunDisclosure(
+      {
+        runId: RUN,
+        checkpointLabel: "步骤检查点 s_02",
+        commandId: "test",
+        capability: capabilityOf({
+          prepared: {
+            preparationId: "prep-1",
+            imageDigest: "sha256:dd",
+            toolchain: { node: "22.23.4", typescript: "5.9.3" },
+          },
+        }),
+      },
+      zh,
+    );
     const all = [...disclosure.facts.map((one) => `${one.label}: ${one.value}`)].join("\n");
     expect(all).toContain("snap-1");
     expect(all).toContain("3 个文件");
@@ -334,13 +375,42 @@ describe("披露行（D01：精确输入与当前条件）", () => {
     expect(disclosure.limits.join("\n")).toContain("Agent 文本");
   });
 
+  it("执行披露英文：单复数/边界措辞独立成句，事实值不变", () => {
+    const disclosure = verificationRunDisclosure(
+      {
+        runId: RUN,
+        checkpointLabel: "Step checkpoint s_02",
+        commandId: "typecheck",
+        capability: capabilityOf({
+          prepared: {
+            preparationId: "prep-1",
+            imageDigest: "sha256:dd",
+            toolchain: { node: "22.23.4", typescript: "5.9.3" },
+          },
+        }),
+      },
+      en,
+    );
+    const all = disclosure.facts.map((one) => `${one.label}: ${one.value}`).join("\n");
+    expect(disclosure.summary).toContain("Run fixed check typecheck");
+    expect(all).toContain("3 files");
+    expect(all).toContain("Prepared prep-1");
+    expect(all).toContain("non-root (1000:1000)");
+    expect(disclosure.limits.join("\n")).toContain(
+      "Preparation and execution permits do not replace each other",
+    );
+  });
+
   it("未准备时执行披露如实说明执行环境未知", () => {
-    const disclosure = verificationRunDisclosure({
-      runId: RUN,
-      checkpointLabel: "初始检查点",
-      commandId: "typecheck",
-      capability: capabilityOf(),
-    });
+    const disclosure = verificationRunDisclosure(
+      {
+        runId: RUN,
+        checkpointLabel: "初始检查点",
+        commandId: "typecheck",
+        capability: capabilityOf(),
+      },
+      zh,
+    );
     const all = disclosure.facts.map((one) => `${one.label}: ${one.value}`).join("\n");
     expect(all).toContain("尚未准备");
   });
@@ -348,18 +418,20 @@ describe("披露行（D01：精确输入与当前条件）", () => {
 
 describe("profileLimitsLine（限额行的格式化）", () => {
   it("产出单行人类可读限额（数字来自 profile 投影）", () => {
-    const line = profileLimitsLine({
+    const limits = {
       cpus: 1,
       memoryBytes: 536870912,
       pidsLimit: 64,
       commandTimeoutMs: 120000,
       totalTimeoutMs: 180000,
-    });
-    expect(line).toContain("1 核");
-    expect(line).toContain("512");
-    expect(line).toContain("64");
-    expect(line).toContain("120 s");
-    expect(line).toContain("180 s");
+    };
+    const line = profileLimitsLine(limits, en);
+    expect(line).toContain("CPU 1 core");
+    expect(line).toContain("Memory 512.0 MB");
+    expect(line).toContain("PIDs 64");
+    expect(line).toContain("120 s per command");
+    expect(line).toContain("180 s total");
+    expect(profileLimitsLine(limits, zh)).toContain("1 核");
   });
 });
 

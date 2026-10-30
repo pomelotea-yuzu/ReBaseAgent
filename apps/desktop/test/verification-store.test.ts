@@ -503,6 +503,23 @@ describe("两份独立确认（D02：准备与执行许可不互相替代）", (
     expect(decision.kind).toBe("stale");
   });
 
+  it("D16 撤销未提交确认：清空两份许可，保留显式目标与只读核对，零新增调用", async () => {
+    stateOf().openVerification(RUN_A, { kind: "initial" });
+    await vi.waitFor(() => {
+      expect(stateOf().verificationCapability).not.toBeNull();
+    });
+    const target = stateOf().verificationTarget;
+    const callsBefore = calls.length;
+    stateOf().confirmVerificationPrepare();
+    stateOf().confirmVerificationRun();
+    stateOf().revokeVerificationConfirmations();
+    expect(stateOf().verificationPrepareConfirmation).toBeNull();
+    expect(stateOf().verificationRunConfirmation).toBeNull();
+    expect(stateOf().verificationTarget).toEqual(target);
+    expect(stateOf().verificationCapability).not.toBeNull();
+    expect(calls.length).toBe(callsBefore);
+  });
+
   it("换目标 ⇒ 旧确认清空（openVerification 内容复位）", async () => {
     stateOf().openVerification(RUN_A, { kind: "initial" });
     await vi.waitFor(() => {

@@ -166,6 +166,12 @@ const ORIGINAL_REASONS = {
   "packages/trace-sdk/src/workspace-hash.ts": "快照哈希校验事实，属于记录边界",
   "apps/desktop/src/main/run-create.ts":
     "main 返回的创建失败原始说明，渲染层作为原始详情展示；产品摘要按稳定码本地化",
+  "apps/desktop/src/main/verification-availability.ts":
+    "main 启动核查门禁的原始诊断，渲染层按稳定码给出本地化摘要并按原始详情展示",
+  "apps/desktop/src/main/verification-endpoints.ts":
+    "main 验证执行端点的门内拒绝/停止原始诊断，渲染层按稳定码本地化摘要并按原始详情展示",
+  "apps/desktop/src/main/verification-read-endpoints.ts":
+    "main 只读验证端点的引擎/来源诊断原始说明，渲染层作为原始详情与不可用原因参数展示",
   "apps/desktop/src/main/run-source-gate.ts": "main 返回的来源拒绝原始说明，渲染层作为原始详情展示",
   "apps/desktop/src/main/fork-runner.ts":
     "main 返回的分叉失败原始说明与工具结果原文，渲染层按原始详情展示；产品摘要按稳定码本地化",
@@ -187,6 +193,10 @@ const ORIGINAL_REASONS = {
     "隔离 prompt 执行失败事实，作为原始诊断展示，不随 UI locale 改写",
   "packages/replay/src/workspace/isolated-prompt-state.ts":
     "隔离 prompt 状态还原的校验事实，作为原始诊断展示，不随 UI locale 改写",
+  "packages/project-verification/src/prepare/plan.ts":
+    "准备计划正文（网络范围/许可）进入计划 token，按原文展示；外围标签与边界由渲染层本地化",
+  "packages/project-verification/src/source/precheck.ts":
+    "来源预检的领域原因，作为不可用原因参数与原始详情展示，不随 UI locale 改写",
 };
 const ORIGINAL_PREFIXES = [
   ["packages/project-verification/src/", "验证记录/runner/日志正文，持久化事实不随 locale 改写"],

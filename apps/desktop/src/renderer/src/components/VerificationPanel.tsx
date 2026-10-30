@@ -15,8 +15,10 @@ import type { VerificationCompareCandidate } from "../lib/verification-entry";
 import {
   type VerificationBlocker,
   type VerificationConfirmationDecision,
+  blockerLine,
   blockersFor,
   verificationBlockers,
+  verificationDecisionLine,
   verificationPrepareDisclosure,
   verificationRecordLine,
   verificationRunDisclosure,
@@ -191,13 +193,14 @@ export interface VerificationPanelProps {
   readonly onOpenCompareDiff: () => void;
 }
 
-/** 判定的一行呈现（确认块 blocked 位与提交按钮的禁用说明共用） */
-function decisionLine(decision: VerificationConfirmationDecision): string | null {
-  return decision.kind === "confirmed" ? null : decision.reason;
-}
+/** 判定与阻碍的文案映射在 lib（原因码/原因事实 → 当前语言），组件只排版。 */
+type PanelTranslator = ReturnType<typeof useTranslator>;
 
-function blockerLines(blockers: readonly VerificationBlocker[]): readonly string[] {
-  return blockers.map((one) => `${one.reason}（${one.code}）`);
+function blockerLines(
+  blockers: readonly VerificationBlocker[],
+  translator: PanelTranslator,
+): readonly string[] {
+  return blockers.map((one) => blockerLine(one, translator));
 }
 
 function sourceStatusLabel(status: "present" | "missing" | "unknown"): string {
@@ -379,26 +382,32 @@ export function VerificationPanel({
   onOpenCompareDiff,
 }: VerificationPanelProps) {
   const translator = useTranslator();
-  const prepareBlockers = blockersFor(verificationBlockers(capability), "prepare");
-  const runBlockers = blockersFor(verificationBlockers(capability), "run");
+  const prepareBlockers = blockersFor(verificationBlockers(capability, translator), "prepare");
+  const runBlockers = blockersFor(verificationBlockers(capability, translator), "run");
   const preparing = submitting === "prepare";
   const running = submitting === "run";
   // 提交资格：确认现算判定为 confirmed ∧ 该动作的不可用原因为空（D02：不隐式执行）
   const prepareReady =
     prepareDecision.kind === "confirmed" && prepareBlockers.length === 0 && !preparing;
   const runReady = runDecision.kind === "confirmed" && runBlockers.length === 0 && !running;
-  const prepareDisclosure = verificationPrepareDisclosure({
-    runId,
-    checkpointLabel: verificationTargetLabel(checkpoint),
-    capability,
-    plan,
-  });
-  const runDisclosure = verificationRunDisclosure({
-    runId,
-    checkpointLabel: verificationTargetLabel(checkpoint),
-    commandId,
-    capability,
-  });
+  const prepareDisclosure = verificationPrepareDisclosure(
+    {
+      runId,
+      checkpointLabel: verificationTargetLabel(checkpoint, translator),
+      capability,
+      plan,
+    },
+    translator,
+  );
+  const runDisclosure = verificationRunDisclosure(
+    {
+      runId,
+      checkpointLabel: verificationTargetLabel(checkpoint, translator),
+      commandId,
+      capability,
+    },
+    translator,
+  );
   return (
     <div className="mt-1 min-w-0" data-verification-panel={runId}>
       <button
@@ -409,16 +418,18 @@ export function VerificationPanel({
         onClick={onToggleExpanded}
         title={
           isolatedEligible
-            ? "在受限容器内验证该检查点的项目：环境准备与固定检查分开确认"
-            : "普通/代理运行没有隔离文件世界（没有可验证的检查点输入）；验证只支持隔离运行"
+            ? translator.t("verification.entryTitle")
+            : translator.t("verification.entryDisabledTitle")
         }
         className={`rounded border border-emerald-300 px-2 py-0.5 text-[11px] text-emerald-700 hover:bg-emerald-50 ${FOCUS_RING} disabled:cursor-not-allowed disabled:opacity-40`}
       >
-        {expanded ? "收起项目验证" : "项目验证"}
+        {expanded
+          ? translator.t("verification.entryClose")
+          : translator.t("verification.entryOpen")}
       </button>
       {!isolatedEligible ? (
         <span className="ml-2 text-[10px] text-gray-400">
-          仅隔离运行可验证（普通/代理运行没有检查点输入）
+          {translator.t("verification.entryNotIsolated")}
         </span>
       ) : null}
 
@@ -428,16 +439,24 @@ export function VerificationPanel({
           data-verification-confirm="true"
         >
           <div className="font-semibold text-gray-800">
-            验证「{verificationTargetLabel(checkpoint)}」· run {runId}
+            {translator.t("verification.panelHeading", {
+              checkpoint: verificationTargetLabel(checkpoint, translator),
+              runId,
+            })}
           </div>
           <div className="mt-0.5 text-gray-500">
-            打开面板只做了两个只读核对（能力/来源/环境聚合 +
-            固定计划预览）：零下载、零容器、零执行、零模型调用。
+            {translator.t("verification.panelReadonlyNote")}
           </div>
 
           {/* —— 精确输入与当前条件（D01）—— */}
           <dl className="mt-1.5 grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 text-[11px] leading-4">
-            {conditionRows({ capability, capabilityState, plan, planState }).map((row) => (
+            {conditionRows({
+              capability,
+              capabilityState,
+              plan,
+              planState,
+              translator,
+            }).map((row) => (
               <div key={`${row.label}-${row.value}`} className="col-span-2 grid grid-cols-subgrid">
                 <dt className="text-gray-500">{row.label}</dt>
                 <dd className="min-w-0 break-words text-gray-700">{row.value}</dd>
@@ -448,45 +467,53 @@ export function VerificationPanel({
           {/* —— 核对异常与重试（核对失败 ≠ 不可用：如实说明）—— */}
           {capabilityError !== null ? (
             <div className="mt-1.5 rounded border-l-2 border-amber-400 bg-amber-50 px-2 py-1 text-amber-800">
-              核对失败（{capabilityError.code}）：{capabilityError.message}
+              {translator.t("verification.capabilityCheckFailed", {
+                code: capabilityError.code,
+                detail: capabilityError.message,
+              })}
               <button
                 type="button"
                 data-verification-retry-capability="true"
                 onClick={onRetryCapability}
                 className={`ml-2 rounded border border-amber-300 px-1.5 py-0.5 text-[10px] ${FOCUS_RING}`}
               >
-                重新核对
+                {translator.t("verification.retryCapability")}
               </button>
             </div>
           ) : null}
           {planError !== null ? (
             <div className="mt-1.5 rounded border-l-2 border-amber-400 bg-amber-50 px-2 py-1 text-amber-800">
-              计划预览读取失败（{planError.code}）：{planError.message}
+              {translator.t("verification.planReadFailed", {
+                code: planError.code,
+                detail: planError.message,
+              })}
               <button
                 type="button"
                 data-verification-retry-plan="true"
                 onClick={onRetryPlan}
                 className={`ml-2 rounded border border-amber-300 px-1.5 py-0.5 text-[10px] ${FOCUS_RING}`}
               >
-                重新读取
+                {translator.t("verification.retryPlan")}
               </button>
             </div>
           ) : null}
           {capabilityState === "loading" || planState === "loading" ? (
-            <div className="mt-1.5 text-gray-500">正在核对（只读）…</div>
+            <div className="mt-1.5 text-gray-500">
+              {translator.t("verification.checkingReadonly")}
+            </div>
           ) : null}
 
           {/* —— 不可用原因（D01：可行动说明就近显示）—— */}
           {prepareBlockers.length > 0 ? (
             <div className="mt-1.5 rounded border-l-2 border-amber-400 bg-amber-50 px-2 py-1 text-amber-800">
-              {blockerLines(prepareBlockers).map((line) => (
+              {blockerLines(prepareBlockers, translator).map((line) => (
                 <div key={line}>{line}</div>
               ))}
             </div>
           ) : null}
           {runBlockers.length > 0 ? (
             <div className="mt-1.5 rounded border-l-2 border-amber-400 bg-amber-50 px-2 py-1 text-amber-800">
-              {blockerLines(runBlockers).map((line) => (
+              {blockerLines(runBlockers, translator).map((line) => (
                 <div key={line}>{line}</div>
               ))}
             </div>
@@ -494,15 +521,15 @@ export function VerificationPanel({
 
           {/* —— 两份独立确认（D02：准备与执行许可不互相替代）—— */}
           <ConfirmationBlock
-            title="核对环境准备"
+            title={translator.t("verification.prepareBlockTitle")}
             summary={prepareDisclosure.summary}
             rows={disclosureLines(prepareDisclosure, translator)}
             confirmed={prepareDecision.kind === "confirmed"}
             confirmDisabled={capabilityState !== "ready"}
             onConfirm={onConfirmPrepare}
-            confirmLabel="已核对，确认准备环境"
-            confirmedLabel="已确认准备（绑定当前计划）"
-            blocked={decisionLine(prepareDecision)}
+            confirmLabel={translator.t("verification.prepareConfirm")}
+            confirmedLabel={translator.t("verification.prepareConfirmed")}
+            blocked={verificationDecisionLine(prepareDecision, translator)}
             controlsId="verification-prepare-details"
             tone="emerald"
           />
@@ -514,15 +541,19 @@ export function VerificationPanel({
               onClick={onSubmitPrepare}
               className={`rounded border border-emerald-400 bg-emerald-100 px-2 py-0.5 text-[11px] text-emerald-900 hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-40 ${FOCUS_RING}`}
             >
-              {preparing ? "正在准备环境…" : "开始准备环境"}
+              {preparing
+                ? translator.t("verification.prepareSubmitting")
+                : translator.t("verification.prepareSubmit")}
             </button>
             <span className="text-[10px] text-gray-500">
-              只在「已确认 ∧ 引擎可用」时可提交；确认过期或计划变化后按钮回到禁用，须重新核对确认。
+              {translator.t("verification.prepareSubmitHint")}
             </span>
           </div>
 
           <div className="mt-2 flex items-center gap-2">
-            <span className="text-[11px] font-medium text-gray-600">固定检查命令</span>
+            <span className="text-[11px] font-medium text-gray-600">
+              {translator.t("verification.commandLabel")}
+            </span>
             {(["typecheck", "test"] as const).map((one) => (
               <button
                 key={one}
@@ -541,15 +572,15 @@ export function VerificationPanel({
             ))}
           </div>
           <ConfirmationBlock
-            title="核对固定检查执行"
+            title={translator.t("verification.runBlockTitle")}
             summary={runDisclosure.summary}
             rows={disclosureLines(runDisclosure, translator)}
             confirmed={runDecision.kind === "confirmed"}
             confirmDisabled={capabilityState !== "ready"}
             onConfirm={onConfirmRun}
-            confirmLabel="已核对，确认执行检查"
-            confirmedLabel="已确认执行（绑定当前计划与命令）"
-            blocked={decisionLine(runDecision)}
+            confirmLabel={translator.t("verification.runConfirm")}
+            confirmedLabel={translator.t("verification.runConfirmed")}
+            blocked={verificationDecisionLine(runDecision, translator)}
             controlsId="verification-run-details"
             tone="emerald"
           />
@@ -561,10 +592,12 @@ export function VerificationPanel({
               onClick={onSubmitRun}
               className={`rounded border border-emerald-400 bg-emerald-100 px-2 py-0.5 text-[11px] text-emerald-900 hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-40 ${FOCUS_RING}`}
             >
-              {running ? "正在执行检查…" : "执行固定检查"}
+              {running
+                ? translator.t("verification.runSubmitting")
+                : translator.t("verification.runSubmit")}
             </button>
             <span className="text-[10px] text-gray-500">
-              需要环境已准备 ∧ 来源可用 ∧ 本次执行确认有效；命令切换后旧确认失效。
+              {translator.t("verification.runSubmitHint")}
             </span>
           </div>
 
@@ -1143,7 +1176,15 @@ export function VerificationPanel({
               className="mt-1.5 rounded border-l-2 border-red-400 bg-red-50 px-2 py-1 text-red-800"
               data-verification-submit-error="true"
             >
-              提交未执行（{submitError.code}）：{submitError.message}
+              <div>
+                {translator.t("verification.submitFailedSummary", { code: submitError.code })}
+              </div>
+              {submitError.message.trim() === "" ? null : (
+                <div className="mt-0.5 whitespace-pre-wrap break-words text-red-700">
+                  {translator.t("verification.submitRawDetail")}
+                  {submitError.message}
+                </div>
+              )}
             </div>
           ) : null}
 
@@ -1197,56 +1238,92 @@ function conditionRows({
   capabilityState,
   plan,
   planState,
+  translator,
 }: {
   capability: VerificationCapabilityResult | null;
   capabilityState: VerificationPanelProps["capabilityState"];
   plan: VerificationPreparePlanResult | null;
   planState: VerificationPanelProps["planState"];
+  translator: PanelTranslator;
 }): readonly ConfirmationRow[] {
   const rows: ConfirmationRow[] = [];
   if (capabilityState === "error") {
-    rows.push({ label: "核对结果", value: "读取失败（见下方原因）——条件未知，不冒充可用" });
+    rows.push({
+      label: translator.t("verification.conditionCapability"),
+      value: translator.t("verification.conditionCapabilityFailed"),
+    });
   } else if (capability === null) {
-    rows.push({ label: "核对结果", value: "尚未取得（正在核对或未开始）" });
+    rows.push({
+      label: translator.t("verification.conditionCapability"),
+      value: translator.t("verification.conditionCapabilityPending"),
+    });
   } else {
     rows.push({
-      label: "精确输入",
+      label: translator.t("verification.fieldExactInput"),
       value:
         capability.source === null
-          ? "来源预检未通过（见下方原因）"
-          : `快照 ${capability.source.snapshotId} · ${capability.source.fileCount} 个文件 · ${formatBytes(capability.source.totalBytes)}`,
+          ? translator.t("verification.sourceNotReady")
+          : translator.t("verification.sourceSnapshot", {
+              snapshotId: capability.source.snapshotId,
+              count: capability.source.fileCount,
+              totalBytes: formatBytes(capability.source.totalBytes),
+            }),
     });
     rows.push({
-      label: "已准备环境",
+      label: translator.t("verification.fieldPrepared"),
       value:
         capability.prepared === null
-          ? "尚未准备（先完成环境准备）"
-          : `${capability.prepared.preparationId} · 镜像 ${capability.prepared.imageDigest} · Node ${capability.prepared.toolchain.node} / TS ${capability.prepared.toolchain.typescript}`,
+          ? translator.t("verification.preparedMissing")
+          : translator.t("verification.preparedSummary", {
+              preparationId: capability.prepared.preparationId,
+              imageDigest: capability.prepared.imageDigest,
+              node: capability.prepared.toolchain.node,
+              typescript: capability.prepared.toolchain.typescript,
+            }),
     });
     rows.push({
-      label: "本机后端",
+      label: translator.t("verification.fieldBackend"),
       value: capability.engine.available
-        ? `Docker 引擎 ${capability.engine.engineVersion ?? "（版本未知）"}`
-        : `不可用：${capability.engine.reason ?? "原因未提供"}`,
+        ? translator.t("verification.backendEngine", {
+            version:
+              capability.engine.engineVersion ?? translator.t("verification.backendVersionUnknown"),
+          })
+        : translator.t("verification.backendUnavailable", {
+            reason: capability.engine.reason ?? translator.t("verification.reasonMissing"),
+          }),
     });
     rows.push({
-      label: "当前计划 token",
+      label: translator.t("verification.fieldPlanToken"),
       value: capability.planToken,
     });
     const summary = capability.profileSummary;
     rows.push({
-      label: "profile",
-      value: `${summary.profileId} · manifest v${summary.manifestVersion} · ${summary.platform} · 受支持源码面 ${summary.sourceIncludeGlob}`,
+      label: translator.t("verification.fieldProfile"),
+      value: translator.t("verification.profileSummary", {
+        profileId: summary.profileId,
+        manifestVersion: summary.manifestVersion,
+        platform: summary.platform,
+        sourceIncludeGlob: summary.sourceIncludeGlob,
+      }),
     });
   }
   if (planState === "error") {
-    rows.push({ label: "准备计划", value: "预览读取失败（见下方原因）" });
+    rows.push({
+      label: translator.t("verification.fieldPreparePlan"),
+      value: translator.t("verification.planPreviewFailed"),
+    });
   } else if (plan === null) {
-    rows.push({ label: "准备计划", value: "尚未取得（只读预览）" });
+    rows.push({
+      label: translator.t("verification.fieldPreparePlan"),
+      value: translator.t("verification.planPending"),
+    });
   } else {
     rows.push({
-      label: "准备计划",
-      value: `${plan.plan.downloads.length} 项固定下载 · 占用估计 ${formatBytes(plan.plan.spaceEstimateBytes)} · 网络与脚本策略见确认卡`,
+      label: translator.t("verification.fieldPreparePlan"),
+      value: translator.t("verification.planSummary", {
+        count: plan.plan.downloads.length,
+        space: formatBytes(plan.plan.spaceEstimateBytes),
+      }),
     });
   }
   return rows;

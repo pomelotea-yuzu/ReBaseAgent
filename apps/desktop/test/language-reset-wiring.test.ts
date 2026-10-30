@@ -12,6 +12,8 @@ describe("语言变化的本地确认清理接线", () => {
   it("有效语言变化统一清空中心执行确认并推进 epoch", () => {
     const slice = read("store/slices/ui-preferences.ts");
     expect(slice).toContain("get().clearExecutionConfirmations()");
+    // 验证准备/测试许可是中心态的未提交确认，同样随有效语言变化清零（D16）
+    expect(slice).toContain("get().revokeVerificationConfirmations()");
     expect(slice).toContain("languageEpoch: get().languageEpoch + 1");
     expect(slice).toContain("next.effectiveLocale !== get().effectiveLocale");
   });

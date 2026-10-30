@@ -165,6 +165,8 @@ node scripts/i18n-attribution.cjs --compare-inventory --verify-boundaries
 
 2.8 迁移代理 messages 编辑/授权/结果与未知核实：`messages-eligibility` 的五类原因接 translator；`MessagesForkEditor`（入口、代理核对、草稿放弃/冻结、重发失败摘要+原始说明、重发确认与录制入口、底部动作）、`MessagesWorkspace`（未绑定/读取中/读取失败/目标缺失、框架标题与来源标签）、`MessagesResults`（标题/计数/空态/动作提示/返回编辑/结果说明）全量迁移；main `ProxyManager.fork` 的凭据/配置漂移原文改判 original（渲染层已给本地化摘要）。机器清单 **2,508 处**（product 1,919 / original 504 / internal 81 / generated 4）：迁入资源 57 处、改判 original 11 处。收口门禁 `--final` 仍红 137 个 pending 文件（批次 1 余 46）。2.8 完成。
 
+3.1 迁移验证入口/环境/准备/测试计划及不可用原因：`verification-entry` 的目标标签、三类不可用原因（引擎/来源/未准备）、限额行、两份确认披露（准备/执行）全部接 translator；确认判定改为 locale 无关的稳定原因码（`not_armed`/`target_changed`/`plan_unknown`/`plan_changed`/`command_changed`），展示层按码取文案，store 提交门只消费码。`VerificationPanel` 迁移入口/展开头、条件表（精确输入/已准备环境/本机后端/计划 token/profile/准备计划）、核对异常与重试、不可用原因、两份确认块与提交按钮/禁用说明、提交失败摘要+原始说明；5.2–5.5 的停止/记录/日志/比较/导出区域留待 3.2/3.3。main 三个验证端点文件（可用性门、执行端点、只读端点）的原始诊断与包层 `prepare/plan.ts`（网络范围/许可随计划 token 冻结）、`source/precheck.ts`（来源预检原因作为不可用原因参数）改判 original。D16 补接线：`revokeVerificationConfirmations` 此前只有定义无调用，现随有效语言变化清零两份未提交验证许可，保留显式目标/只读核对且零新增 IPC。机器清单 **2,408 处**（product 1,791 / original 532 / internal 81 / generated 4）：迁入资源 100 处、改判 original 28 处。收口门禁 `--final` 仍红 132 个 pending 文件（批次 1 余 46；3.1 后 `VerificationPanel`/`verification-entry` 仍余 143/8 处，属 3.2/3.3）。3.1 完成。
+
 ## 9. 局限
 
 - 工作区与批次按文件名近似，包层不能精确拆到单个工作区；迁移时以实际入口为准修正。

@@ -1312,7 +1312,145 @@ export const enUS = {
   },
   compare: {},
   files: {},
-  verification: {},
+  verification: {
+    checkpointInitial: "Initial checkpoint",
+    checkpointStep: "Step checkpoint {{stepSpanId}}",
+    entryOpen: "Project verification",
+    entryClose: "Collapse project verification",
+    entryTitle:
+      "Verify this checkpoint's project in a restricted container: environment preparation and fixed checks are confirmed separately",
+    entryDisabledTitle:
+      "Normal/proxy runs have no isolated file world (no verifiable checkpoint input); verification supports isolated runs only",
+    entryNotIsolated:
+      "Only isolated runs can be verified (normal/proxy runs have no checkpoint input)",
+    panelHeading: "Verifying “{{checkpoint}}” · run {{runId}}",
+    panelReadonlyNote:
+      "Opening the panel performs only two read-only checks (capability/source/environment aggregate + fixed plan preview): zero downloads, zero containers, zero executions, zero model calls.",
+    conditionCapability: "Check result",
+    conditionCapabilityFailed:
+      "Read failed (see the reason below) — conditions are unknown and are not shown as available",
+    conditionCapabilityPending: "Not available yet (checking or not started)",
+    fieldExactInput: "Exact input",
+    sourceNotReady: "Source preflight failed (see the reason below)",
+    sourceSnapshot: {
+      one: "Snapshot {{snapshotId}} · {{count}} file · {{totalBytes}}",
+      other: "Snapshot {{snapshotId}} · {{count}} files · {{totalBytes}}",
+    },
+    fieldPrepared: "Prepared environment",
+    preparedMissing: "Not prepared yet (complete environment preparation first)",
+    preparedSummary:
+      "{{preparationId}} · image {{imageDigest}} · Node {{node}} / TS {{typescript}}",
+    fieldBackend: "Local backend",
+    backendEngine: "Docker engine {{version}}",
+    backendUnavailable: "Unavailable: {{reason}}",
+    backendVersionUnknown: "(version unknown)",
+    reasonMissing: "no reason provided",
+    fieldPlanToken: "Current plan token",
+    fieldProfile: "Profile",
+    profileSummary:
+      "{{profileId}} · manifest v{{manifestVersion}} · {{platform}} · supported source glob {{sourceIncludeGlob}}",
+    fieldPreparePlan: "Preparation plan",
+    planPreviewFailed: "Preview read failed (see the reason below)",
+    planPending: "Not available yet (read-only preview)",
+    planSummary: {
+      one: "{{count}} fixed download · estimated {{space}} · see the confirmation card for the network and script policy",
+      other:
+        "{{count}} fixed downloads · estimated {{space}} · see the confirmation card for the network and script policy",
+    },
+    capabilityCheckFailed: "Capability check failed ({{code}}): {{detail}}",
+    retryCapability: "Check again (read-only)",
+    planReadFailed: "Preparation plan read failed ({{code}}): {{detail}}",
+    retryPlan: "Read again (read-only)",
+    checkingReadonly: "Checking (read-only)…",
+    blockerEngine:
+      "The local restricted backend is unavailable: {{reason}}. Install or start Docker Desktop (Linux containers) and retry; the app never installs it automatically and never falls back to the host shell.",
+    blockerSource:
+      "The verification input is not valid: {{reason}} (a fixed check can only run from a completed checkpoint owned by a valid isolated run; switch to a run/step with a file world, or fix that run's source integrity first)",
+    blockerPrepareMissing:
+      "The environment is not prepared: finish “Environment preparation” below (one-time) and wait for it to succeed before running a fixed check. Preparation and execution are confirmed separately.",
+    blockerLine: "{{reason}} ({{code}})",
+    confirmMissing: "Not confirmed: review this target and its boundaries, then confirm explicitly",
+    confirmStaleTarget:
+      "The verification target changed: the old confirmation is bound to another checkpoint; review and confirm again",
+    confirmStalePlanUnknown:
+      "The current plan is unknown (the check result is missing or stale): the old confirmation cannot be reused; check again",
+    confirmStalePlanChanged:
+      "The plan changed (plan/strategy/recipe drift): the old confirmation is invalid; review the current plan and confirm again",
+    confirmStaleCommand:
+      "The fixed check command changed: the old confirmation is bound to another command; confirm again",
+    limitsLine: {
+      one: "CPU {{count}} core · Memory {{memory}} · PIDs {{pids}} · {{commandSeconds}} s per command · {{totalSeconds}} s total",
+      other:
+        "CPU {{count}} cores · Memory {{memory}} · PIDs {{pids}} · {{commandSeconds}} s per command · {{totalSeconds}} s total",
+    },
+    fieldTargetRun: "Target run",
+    fieldCheckpoint: "Checkpoint (explicitly selected)",
+    prepareSummary:
+      "One-time environment preparation · network downloads from fixed sources during preparation only · does not run project tests",
+    planMissing: "Plan not available yet (opening the panel checks automatically)",
+    planProfile: "Profile {{profileId}} · manifest v{{manifestVersion}}",
+    fieldDownload: "Download source {{index}}",
+    downloadLine: "{{source}} · approx. {{size}} · {{license}}",
+    fieldDiskEstimate: "Estimated disk usage",
+    fieldLocalBackend: "Local backend",
+    backendNotChecked: "Not checked yet",
+    fieldAuthorization: "Authorization for this run",
+    authorizationPrepare:
+      "Confirming grants only this one environment preparation (allowPrepare), not test execution",
+    planNote: "Plan original text: {{note}}",
+    limitPrepareSeparate:
+      "Preparation and tests are confirmed separately: this only builds the environment, materializes no code, and runs no checks; execution requires its own review and confirmation.",
+    limitPrepareBinding:
+      "Confirmation is bound to the current plan: any plan/strategy/recipe change invalidates the old confirmation and requires a new review; a new plan is never submitted automatically.",
+    checkCapabilityReadonly:
+      "Read-only check `verification:capability`: zero downloads, zero containers, zero executions, zero model calls",
+    checkPlanReadonly:
+      "Read-only plan preview `verification:preparePlan`: shows only the fixed plan and installs nothing",
+    prepareBlockTitle: "Verify environment preparation",
+    prepareConfirm: "Reviewed — confirm environment preparation",
+    prepareConfirmed: "Preparation confirmed (bound to the current plan)",
+    prepareSubmitting: "Preparing the environment…",
+    prepareSubmit: "Start environment preparation",
+    prepareSubmitHint:
+      "Submittable only when confirmed ∧ the engine is available; an expired confirmation or a plan change disables the button until you review and confirm again.",
+    commandLabel: "Fixed check command",
+    runBlockTitle: "Verify fixed-check execution",
+    runConfirm: "Reviewed — confirm the check execution",
+    runConfirmed: "Execution confirmed (bound to the current plan and command)",
+    runSubmitting: "Running the check…",
+    runSubmit: "Run the fixed check",
+    runSubmitHint:
+      "Requires the environment to be prepared ∧ the source to be available ∧ this execution confirmation to be valid; switching the command invalidates the old confirmation.",
+    runSummary:
+      "Run fixed check {{commandId}} · restricted offline container · results come only from exit codes and trusted test reports",
+    fieldCommand: "Fixed command",
+    commandValue:
+      "{{commandId}} (executable/argv/cwd are frozen by the manifest; custom commands, paths, or environment variables are not accepted)",
+    runSourceMissing:
+      "Source preflight failed (see the reason below): there is no verifiable input",
+    fieldExecutionEnv: "Execution environment",
+    envMissing: "Not prepared yet (complete environment preparation and wait for success)",
+    envPrepared: "Prepared {{preparationId}} · image {{imageDigest}}",
+    fieldToolchain: "Toolchain",
+    toolchainUnknown: "Unknown (depends on the preparation result)",
+    toolchainValue: "Runtime Node {{node}} · TypeScript {{typescript}}",
+    fieldLimits: "Resource limits",
+    fieldIsolationBaseline: "Isolation baseline",
+    isolationBaseline:
+      "non-root ({{runAsUser}}) · read-only rootfs · cap-drop ALL · no-new-privileges · offline ({{networkMode}})",
+    authorizationRun:
+      "Confirming grants only this one execution (allowExecution); a prepared environment is not consent to execute",
+    limitEvidence:
+      "Results come only from real exit codes and trusted test reports (exact TAP count match): Agent text and log content cannot replace test facts.",
+    limitTrustedTests:
+      "Tests come from the trusted tests and runner in the fixed environment at /opt/r3: the project's editable test files and npm scripts are not read; changing source to fake a fix is rejected by the collection gate.",
+    limitPermits:
+      "Preparation and execution permits do not replace each other: execution still requires this explicit confirmation; the confirmation is bound to the current plan and target, expires on change, and is never resubmitted automatically.",
+    limitContainer:
+      "Execution runs in a restricted container: offline, non-root, read-only rootfs; output and time overruns are stopped and recorded truthfully as the corresponding outcome.",
+    submitFailedSummary: "The submission did not run ({{code}}).",
+    submitRawDetail: "Raw detail:",
+  },
   recording: {},
   settings: {},
   export: {},

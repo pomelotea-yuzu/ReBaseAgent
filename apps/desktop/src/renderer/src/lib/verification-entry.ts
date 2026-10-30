@@ -1,3 +1,4 @@
+import type { MessageKey, Translator } from "@rebaseagent/i18n";
 import type {
   VerificationCapabilityResult,
   VerificationCheckpoint,
@@ -47,8 +48,13 @@ export function verificationTargetKey(target: VerificationTargetRef): string {
 }
 
 /** 目标的可读名（确认卡与不可用说明里指名"是哪一次"） */
-export function verificationTargetLabel(checkpoint: VerificationCheckpoint): string {
-  return checkpoint.kind === "initial" ? "初始检查点" : `步骤检查点 ${checkpoint.stepSpanId}`;
+export function verificationTargetLabel(
+  checkpoint: VerificationCheckpoint,
+  translator: Translator,
+): string {
+  return checkpoint.kind === "initial"
+    ? translator.t("verification.checkpointInitial")
+    : translator.t("verification.checkpointStep", { stepSpanId: checkpoint.stepSpanId });
 }
 
 // ---------------------------------------------------------------------------
@@ -69,32 +75,44 @@ export interface VerificationBlocker {
  */
 export function verificationBlockers(
   capability: VerificationCapabilityResult | null,
+  translator: Translator,
 ): readonly VerificationBlocker[] {
   if (capability === null) return [];
   const blockers: VerificationBlocker[] = [];
   if (!capability.engine.available) {
     blockers.push({
       code: "engine_unavailable",
-      reason: `本机受限后端不可用：${capability.engine.reason ?? "原因未提供"}。安装或启动 Docker Desktop（Linux containers）后重试；应用不会自动安装，也不会回退到宿主 Shell。`,
+      reason: translator.t("verification.blockerEngine", {
+        reason: capability.engine.reason ?? translator.t("verification.reasonMissing"),
+      }),
       gates: "prepare",
     });
   }
   if (capability.sourceFailure !== null) {
     blockers.push({
       code: capability.sourceFailure.code,
-      reason: `验证输入不成立：${capability.sourceFailure.reason}（固定检查只能从合法隔离 run 的自有检查点执行；换一个有文件世界的 run/步骤，或先修该 run 的来源完整性）`,
+      reason: translator.t("verification.blockerSource", {
+        reason: capability.sourceFailure.reason,
+      }),
       gates: "run",
     });
   }
   if (capability.prepared === null) {
     blockers.push({
       code: "prepare_missing",
-      reason:
-        "尚未准备环境：先完成下方的「环境准备」（一次性），等它成功后再执行固定检查。准备与执行分开确认。",
+      reason: translator.t("verification.blockerPrepareMissing"),
       gates: "run",
     });
   }
   return blockers;
+}
+
+/** 一条不可用原因的单行呈现（原因已本地化，稳定码随后括注） */
+export function blockerLine(blocker: VerificationBlocker, translator: Translator): string {
+  return translator.t("verification.blockerLine", {
+    reason: blocker.reason,
+    code: blocker.code,
+  });
 }
 
 /** 取挡住某一动作的原因（确认/提交按钮的禁用说明） */
@@ -119,10 +137,41 @@ export interface VerificationArmedConfirmation {
   readonly commandId?: "typecheck" | "test";
 }
 
+/**
+ * 确认失效的稳定原因码（不随语言变化）：领域判定只回事实，展示层按码取文案。
+ * store 的提交门也消费它——判定本身不认识 locale，也不需要 translator。
+ */
+export type VerificationConfirmationReason =
+  | "not_armed"
+  | "target_changed"
+  | "plan_unknown"
+  | "plan_changed"
+  | "command_changed";
+
 export type VerificationConfirmationDecision =
   | { readonly kind: "confirmed" }
-  | { readonly kind: "missing"; readonly reason: string }
-  | { readonly kind: "stale"; readonly reason: string };
+  | { readonly kind: "missing"; readonly reason: "not_armed" }
+  | {
+      readonly kind: "stale";
+      readonly reason: Exclude<VerificationConfirmationReason, "not_armed">;
+    };
+
+const CONFIRMATION_REASON_KEY = {
+  not_armed: "verification.confirmMissing",
+  target_changed: "verification.confirmStaleTarget",
+  plan_unknown: "verification.confirmStalePlanUnknown",
+  plan_changed: "verification.confirmStalePlanChanged",
+  command_changed: "verification.confirmStaleCommand",
+} as const satisfies Record<VerificationConfirmationReason, MessageKey>;
+
+/** 判定的展示行（confirmed ⇒ null）；原因码 → 当前语言文案只在这里映射。 */
+export function verificationDecisionLine(
+  decision: VerificationConfirmationDecision,
+  translator: Translator,
+): string | null {
+  if (decision.kind === "confirmed") return null;
+  return translator.t(CONFIRMATION_REASON_KEY[decision.reason]);
+}
 
 /**
  * 确认判定：**现算**，任何分量不一致即 stale。
@@ -137,32 +186,23 @@ export function decideVerificationConfirmation(input: {
 }): VerificationConfirmationDecision {
   const armed = input.armed;
   if (armed === null) {
-    return { kind: "missing", reason: "尚未确认：先核对本次目标与边界，再显式确认" };
+    return { kind: "missing", reason: "not_armed" };
   }
   if (armed.targetKey !== input.currentTargetKey) {
-    return { kind: "stale", reason: "验证目标已变化：旧确认绑定的是另一个检查点，须重新核对确认" };
+    return { kind: "stale", reason: "target_changed" };
   }
   if (input.currentPlanToken === null) {
-    return {
-      kind: "stale",
-      reason: "当前计划未知（核对结果缺失或已失效）：旧确认不能沿用，请重新核对",
-    };
+    return { kind: "stale", reason: "plan_unknown" };
   }
   if (armed.planToken !== input.currentPlanToken) {
-    return {
-      kind: "stale",
-      reason: "计划已变化（计划/策略/配方任一漂移）：旧确认失效，请重新核对当前计划再确认",
-    };
+    return { kind: "stale", reason: "plan_changed" };
   }
   if (
     armed.commandId !== undefined &&
     input.currentCommandId !== undefined &&
     armed.commandId !== input.currentCommandId
   ) {
-    return {
-      kind: "stale",
-      reason: "固定检查命令已变化：旧确认绑定的是另一条命令，须重新确认",
-    };
+    return { kind: "stale", reason: "command_changed" };
   }
   return { kind: "confirmed" };
 }
@@ -172,136 +212,196 @@ export function decideVerificationConfirmation(input: {
 // ---------------------------------------------------------------------------
 
 /** 限额/安全基线的单行摘要（数字来自 capability 的 profile 投影，不在渲染层另存） */
-export function profileLimitsLine(limits: {
-  cpus: number;
-  memoryBytes: number;
-  pidsLimit: number;
-  commandTimeoutMs: number;
-  totalTimeoutMs: number;
-}): string {
-  return `CPU ${limits.cpus} 核 · 内存 ${formatBytes(limits.memoryBytes)} · PIDs ${limits.pidsLimit} · 单命令 ${Math.round(limits.commandTimeoutMs / 1000)} s · 整次 ${Math.round(limits.totalTimeoutMs / 1000)} s`;
+export function profileLimitsLine(
+  limits: {
+    cpus: number;
+    memoryBytes: number;
+    pidsLimit: number;
+    commandTimeoutMs: number;
+    totalTimeoutMs: number;
+  },
+  translator: Translator,
+): string {
+  return translator.t("verification.limitsLine", {
+    count: limits.cpus,
+    memory: formatBytes(limits.memoryBytes),
+    pids: limits.pidsLimit,
+    commandSeconds: Math.round(limits.commandTimeoutMs / 1000),
+    totalSeconds: Math.round(limits.totalTimeoutMs / 1000),
+  });
 }
 
-const READONLY_CHECKS = [
-  "只读核对 `verification:capability`：零下载、零容器、零执行、零模型调用",
-  "只读计划预览 `verification:preparePlan`：只展示固定计划，不安装任何东西",
-] as const;
-
-function targetFacts(runId: string, checkpointLabel: string): ConfirmationDisclosure["facts"] {
+function readonlyChecks(translator: Translator): readonly string[] {
   return [
-    { label: "目标 run", value: runId },
-    { label: "检查点（显式选定）", value: checkpointLabel },
+    translator.t("verification.checkCapabilityReadonly"),
+    translator.t("verification.checkPlanReadonly"),
+  ];
+}
+
+function targetFacts(
+  runId: string,
+  checkpointLabel: string,
+  translator: Translator,
+): ConfirmationDisclosure["facts"] {
+  return [
+    { label: translator.t("verification.fieldTargetRun"), value: runId },
+    { label: translator.t("verification.fieldCheckpoint"), value: checkpointLabel },
   ];
 }
 
 /** 环境准备确认的披露（D02：与执行确认措辞分开，各说各的边界） */
-export function verificationPrepareDisclosure(input: {
-  readonly runId: string;
-  readonly checkpointLabel: string;
-  readonly capability: VerificationCapabilityResult | null;
-  readonly plan: VerificationPreparePlanResult | null;
-}): ConfirmationDisclosure {
+export function verificationPrepareDisclosure(
+  input: {
+    readonly runId: string;
+    readonly checkpointLabel: string;
+    readonly capability: VerificationCapabilityResult | null;
+    readonly plan: VerificationPreparePlanResult | null;
+  },
+  translator: Translator,
+): ConfirmationDisclosure {
   const { capability, plan } = input;
   return {
-    summary: "一次性环境准备 · 仅准备阶段按固定来源联网下载 · 不执行项目测试",
+    summary: translator.t("verification.prepareSummary"),
     facts: [
-      ...targetFacts(input.runId, input.checkpointLabel),
+      ...targetFacts(input.runId, input.checkpointLabel, translator),
       {
-        label: "profile",
+        label: translator.t("verification.fieldProfile"),
         value:
           plan === null
-            ? "尚未取得计划（打开面板时会自动核对）"
-            : `${plan.plan.profileId} · manifest v${plan.plan.manifestVersion}`,
+            ? translator.t("verification.planMissing")
+            : translator.t("verification.planProfile", {
+                profileId: plan.plan.profileId,
+                manifestVersion: plan.plan.manifestVersion,
+              }),
       },
       ...(plan === null
         ? []
         : plan.plan.downloads.map((download, index): ConfirmationDisclosure["facts"][number] => ({
-            label: `下载来源 ${index + 1}`,
-            value: `${download.source} · 约 ${formatBytes(download.approxBytes)} · ${download.license}`,
+            label: translator.t("verification.fieldDownload", { index: index + 1 }),
+            value: translator.t("verification.downloadLine", {
+              source: download.source,
+              size: formatBytes(download.approxBytes),
+              license: download.license,
+            }),
           }))),
       ...(plan === null
         ? []
-        : [{ label: "磁盘占用估计", value: formatBytes(plan.plan.spaceEstimateBytes) }]),
+        : [
+            {
+              label: translator.t("verification.fieldDiskEstimate"),
+              value: formatBytes(plan.plan.spaceEstimateBytes),
+            },
+          ]),
       {
-        label: "本机后端",
+        label: translator.t("verification.fieldLocalBackend"),
         value:
           capability === null
-            ? "尚未核对"
+            ? translator.t("verification.backendNotChecked")
             : capability.engine.available
-              ? `Docker 引擎 ${capability.engine.engineVersion ?? "（版本未知）"}`
-              : `不可用：${capability.engine.reason ?? "原因未提供"}`,
+              ? translator.t("verification.backendEngine", {
+                  version:
+                    capability.engine.engineVersion ??
+                    translator.t("verification.backendVersionUnknown"),
+                })
+              : translator.t("verification.backendUnavailable", {
+                  reason: capability.engine.reason ?? translator.t("verification.reasonMissing"),
+                }),
       },
-      { label: "本次授权", value: "确认后仅授予这一次环境准备（allowPrepare），不授予测试执行" },
+      {
+        label: translator.t("verification.fieldAuthorization"),
+        value: translator.t("verification.authorizationPrepare"),
+      },
     ],
-    checks: [...READONLY_CHECKS],
+    checks: [...readonlyChecks(translator)],
     limits: [
-      ...(plan === null ? [] : [plan.plan.networkScopeNote]),
-      "准备与测试分开确认：这里只构建环境，不物化代码、不执行任何检查；执行要单独核对确认。",
-      "确认绑定当前计划：计划/策略/配方任一变化后旧确认失效，须重新核对确认；不会自动提交新计划。",
+      ...(plan === null
+        ? []
+        : [translator.t("verification.planNote", { note: plan.plan.networkScopeNote })]),
+      translator.t("verification.limitPrepareSeparate"),
+      translator.t("verification.limitPrepareBinding"),
     ],
   };
 }
 
 /** 固定检查执行确认的披露（D02：已准备环境 ≠ 同意执行；结果只认测试事实） */
-export function verificationRunDisclosure(input: {
-  readonly runId: string;
-  readonly checkpointLabel: string;
-  readonly commandId: "typecheck" | "test";
-  readonly capability: VerificationCapabilityResult | null;
-}): ConfirmationDisclosure {
+export function verificationRunDisclosure(
+  input: {
+    readonly runId: string;
+    readonly checkpointLabel: string;
+    readonly commandId: "typecheck" | "test";
+    readonly capability: VerificationCapabilityResult | null;
+  },
+  translator: Translator,
+): ConfirmationDisclosure {
   const { capability } = input;
   const source = capability?.source ?? null;
   const prepared = capability?.prepared ?? null;
   const limits = capability?.profileSummary ?? null;
   return {
-    summary: `执行固定检查 ${input.commandId} · 受限断网容器 · 结果只来自退出码与可信测试报告`,
+    summary: translator.t("verification.runSummary", { commandId: input.commandId }),
     facts: [
-      ...targetFacts(input.runId, input.checkpointLabel),
+      ...targetFacts(input.runId, input.checkpointLabel, translator),
       {
-        label: "固定命令",
-        value: `${input.commandId}（executable/argv/cwd 由 manifest 冻结；不接受自定义命令、路径或环境变量）`,
+        label: translator.t("verification.fieldCommand"),
+        value: translator.t("verification.commandValue", { commandId: input.commandId }),
       },
       {
-        label: "精确输入",
+        label: translator.t("verification.fieldExactInput"),
         value:
           source === null
-            ? "来源预检未通过（见下方原因）：没有可验证的输入"
-            : `快照 ${source.snapshotId} · ${source.fileCount} 个文件 · ${formatBytes(source.totalBytes)}`,
+            ? translator.t("verification.runSourceMissing")
+            : translator.t("verification.sourceSnapshot", {
+                snapshotId: source.snapshotId,
+                count: source.fileCount,
+                totalBytes: formatBytes(source.totalBytes),
+              }),
       },
       {
-        label: "执行环境",
+        label: translator.t("verification.fieldExecutionEnv"),
         value:
           prepared === null
-            ? "尚未准备（先完成环境准备并等它成功）"
-            : `已准备 ${prepared.preparationId} · 镜像 ${prepared.imageDigest}`,
+            ? translator.t("verification.envMissing")
+            : translator.t("verification.envPrepared", {
+                preparationId: prepared.preparationId,
+                imageDigest: prepared.imageDigest,
+              }),
       },
       {
-        label: "工具链",
+        label: translator.t("verification.fieldToolchain"),
         value:
           prepared === null
-            ? "未知（取决于准备结果）"
-            : `Node ${prepared.toolchain.node} · TypeScript ${prepared.toolchain.typescript}`,
+            ? translator.t("verification.toolchainUnknown")
+            : translator.t("verification.toolchainValue", {
+                node: prepared.toolchain.node,
+                typescript: prepared.toolchain.typescript,
+              }),
       },
       ...(limits === null
         ? []
         : [
-            { label: "资源限额", value: profileLimitsLine(limits.limits) },
             {
-              label: "隔离基线",
-              value: `非 root（${limits.security.runAsUser}）· 只读 rootfs · cap-drop ALL · no-new-privileges · 断网（${limits.security.networkMode}）`,
+              label: translator.t("verification.fieldLimits"),
+              value: profileLimitsLine(limits.limits, translator),
+            },
+            {
+              label: translator.t("verification.fieldIsolationBaseline"),
+              value: translator.t("verification.isolationBaseline", {
+                runAsUser: limits.security.runAsUser,
+                networkMode: limits.security.networkMode,
+              }),
             },
           ]),
       {
-        label: "本次授权",
-        value: "确认后仅授予这一次执行（allowExecution）；已准备环境不等于同意执行",
+        label: translator.t("verification.fieldAuthorization"),
+        value: translator.t("verification.authorizationRun"),
       },
     ],
-    checks: [...READONLY_CHECKS],
+    checks: [...readonlyChecks(translator)],
     limits: [
-      "结果只来自真实退出码与可信测试报告（TAP 计数精确匹配）：Agent 文本、日志内容都不能替代测试事实。",
-      "测试来自固定环境 /opt/r3 的受信测试与 runner：不读取项目可改的测试文件与 npm scripts；改源码冒充修复会被采集门拒绝。",
-      "准备与执行许可不互相替代：执行前仍须本次显式确认；确认绑定当前计划与目标，变化后失效且不自动提交。",
-      "执行在受限容器内进行：断网、非 root、只读 rootfs；输出与时间超限会被停止并如实记为对应结局。",
+      translator.t("verification.limitEvidence"),
+      translator.t("verification.limitTrustedTests"),
+      translator.t("verification.limitPermits"),
+      translator.t("verification.limitContainer"),
     ],
   };
 }
