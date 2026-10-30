@@ -1,3 +1,4 @@
+import type { Translator } from "@rebaseagent/i18n";
 import type { VerificationGetResult } from "@shared/ipc";
 
 /**
@@ -128,15 +129,24 @@ export function narrowVerificationRecord(
 export function verificationStatusLine(
   status: VerificationGetResult["status"],
   error: VerificationGetResult["error"],
+  translator: Translator,
 ): string {
   switch (status) {
     case "sealed":
-      return "已封存（终局事实不可再追加）";
+      return translator.t("verification.statusSealed");
     case "unterminated":
-      return "未封存（尚无终止事件：不呈现结局，可能仍在执行或被中断）";
+      return translator.t("verification.statusUnterminated");
     case "corrupt":
-      return `损坏（${error === null ? "坏尾" : `第 ${error.lineIndex + 1} 行：${error.reason}`}）——不能当作通过或失败`;
+      return translator.t("verification.statusCorrupt", {
+        detail:
+          error === null
+            ? translator.t("verification.statusCorruptBadTail")
+            : translator.t("verification.statusCorruptDetail", {
+                line: error.lineIndex + 1,
+                reason: error.reason,
+              }),
+      });
     case "unsupported_version":
-      return "版本不受支持（未知记录版本被拒绝）";
+      return translator.t("verification.statusUnsupported");
   }
 }

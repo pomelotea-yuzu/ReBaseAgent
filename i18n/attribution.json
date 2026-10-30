@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-30T13:11:53.162Z",
+  "generatedAt": "2026-10-30T13:40:01.881Z",
   "scanner": "scripts/i18n-attribution.cjs",
   "taxonomy": {
     "product": "产品展示：需要按批次迁移为双语资源",
@@ -9,10 +9,10 @@
     "generated": "生成资产：不作为产品文案"
   },
   "totals": {
-    "files": 210,
-    "occurrences": 2408,
-    "product": 1791,
-    "original": 532,
+    "files": 208,
+    "occurrences": 2330,
+    "product": 1666,
+    "original": 579,
     "internal": 81,
     "generated": 4
   },
@@ -26,9 +26,9 @@
       "generated": 0
     },
     "renderer": {
-      "files": 57,
-      "occurrences": 1081,
-      "product": 1041,
+      "files": 55,
+      "occurrences": 1003,
+      "product": 963,
       "original": 8,
       "internal": 32,
       "generated": 0
@@ -68,8 +68,8 @@
     "pkg:project-verification": {
       "files": 30,
       "occurrences": 261,
-      "product": 52,
-      "original": 177,
+      "product": 5,
+      "original": 224,
       "internal": 28,
       "generated": 4
     },
@@ -4597,28 +4597,6 @@
       "reason": null,
       "symbols": [
         {
-          "symbol": "verificationOutcomeLabel",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 8,
-          "samples": [
-            "通过（固定检查全过）",
-            "检查未通过（断言失败/非零退出——不是请求失败）"
-          ],
-          "lines": [
-            75,
-            77,
-            81,
-            85,
-            87,
-            89,
-            91,
-            93
-          ]
-        },
-        {
           "symbol": "sourceStatusLabel",
           "role": "return",
           "context": "return",
@@ -4719,7 +4697,7 @@
           "context": "ternary",
           "classification": "product",
           "reason": null,
-          "count": 73,
+          "count": 34,
           "samples": [
             "目标残留（清理未完成，不可当作完整导出）：",
             "未知"
@@ -4731,18 +4709,17 @@
             294,
             296,
             297,
-            608,
-            609,
-            629,
-            643,
-            655,
-            664,
-            697,
-            720,
-            725,
-            729,
-            736,
-            738
+            857,
+            860,
+            994,
+            1014,
+            1044,
+            1064,
+            1069,
+            1073,
+            1099,
+            1104,
+            1122
           ]
         },
         {
@@ -4787,19 +4764,17 @@
           "context": "ternary",
           "classification": "product",
           "reason": null,
-          "count": 8,
+          "count": 5,
           "samples": [
-            "停止已请求（等待确认）",
-            "请求停止"
+            "选择空目录并导出精确输入",
+            "清空比较"
           ],
           "lines": [
-            620,
-            822,
-            905,
-            943,
-            969,
-            1020,
-            1114
+            871,
+            1003,
+            1029,
+            1080,
+            1174
           ]
         },
         {
@@ -4808,93 +4783,41 @@
           "context": "ternary",
           "classification": "product",
           "reason": null,
-          "count": 16,
+          "count": 8,
           "samples": [
-            "领域 ID 只从操作登记取；重复点击安全（幂等）；确认全部停止前保持占用。",
-            "验证"
+            "目标由原生对话框选择（须为空目录）；导出前 main 重核记录/来源/快照 ID。",
+            "记录未封存：不提供导出（不以未完成记录绑定输入）。"
           ],
           "lines": [
-            623,
-            674,
-            679,
-            826,
-            834,
-            887,
-            890,
-            892,
-            909,
-            1100,
-            1102,
-            1104,
-            1105,
-            1120,
-            1121
+            875,
+            883,
+            1160,
+            1162,
+            1164,
+            1165,
+            1180,
+            1181
           ]
         },
         {
           "symbol": "div.div",
           "role": "call_arg",
-          "context": "recordView.commandEnds.map",
+          "context": "(\n                          [\n                            [\"left\", comparison.left],\n                            [\"right\", comparison.right],\n                          ] as const\n                        ).map",
           "classification": "product",
           "reason": null,
-          "count": 11,
+          "count": 8,
           "samples": [
-            "退出码",
-            "耗时"
+            "来源：",
+            "代码快照："
           ],
           "lines": [
-            762,
-            764,
-            767,
-            1066,
-            1070,
-            1071,
-            1073,
-            1077,
-            1085,
-            1089
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "call_arg",
-          "context": "([\"stdout\", \"stderr\"] as const).map",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "读"
-          ],
-          "lines": [
-            786
-          ]
-        },
-        {
-          "symbol": "div.span",
-          "role": "call_arg",
-          "context": "recordView.commandEnds.map",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "有界切片（默认 32 KiB/页，上限 64 KiB）"
-          ],
-          "lines": [
-            790
-          ]
-        },
-        {
-          "symbol": "div.textarea",
-          "role": "ui_attr",
-          "context": "aria-label",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "验证日志切片（有界只读；可聚焦滚动）"
-          ],
-          "lines": [
-            879
+            1126,
+            1130,
+            1131,
+            1133,
+            1137,
+            1145,
+            1149
           ]
         }
       ]
@@ -7265,97 +7188,6 @@
           "lines": [
             425,
             426
-          ]
-        }
-      ]
-    },
-    {
-      "path": "apps/desktop/src/renderer/src/lib/verification-entry.ts",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "项目验证",
-      "classification": "product",
-      "batch": 2,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "verificationRecordLine.kindLabel",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "环境准备",
-            "项目验证（${…}）"
-          ],
-          "lines": [
-            546,
-            548,
-            549
-          ]
-        },
-        {
-          "symbol": "verificationRecordLine.stateLabel",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 5,
-          "samples": [
-            "执行中",
-            "已收尾（${…}）"
-          ],
-          "lines": [
-            552,
-            554,
-            555
-          ]
-        }
-      ]
-    },
-    {
-      "path": "apps/desktop/src/renderer/src/lib/verification-reading.ts",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "项目验证",
-      "classification": "product",
-      "batch": 2,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "verificationStatusLine",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 4,
-          "samples": [
-            "已封存（终局事实不可再追加）",
-            "未封存（尚无终止事件：不呈现结局，可能仍在执行或被中断）"
-          ],
-          "lines": [
-            134,
-            136,
-            138,
-            140
-          ]
-        },
-        {
-          "symbol": "verificationStatusLine",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "坏尾",
-            "第 ${…} 行：${…}"
-          ],
-          "lines": [
-            138
           ]
         }
       ]
@@ -11684,17 +11516,17 @@
       "layer": "pkg:project-verification",
       "package": "project-verification",
       "workspace": "pkg:project-verification",
-      "classification": "product",
-      "batch": 2,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "验证日志/产物附件的定位与完整性诊断，作为稳定码之外的原始详情展示，不随 locale 改写",
       "symbols": [
         {
           "symbol": "resolveLogAsset",
           "role": "error_message",
           "context": "new AssetResolveError",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "验证日志/产物附件的定位与完整性诊断，作为稳定码之外的原始详情展示，不随 locale 改写",
           "count": 4,
           "samples": [
             "记录 ${…} 没有命令 ${…} 的执行事实",
@@ -11711,8 +11543,8 @@
           "symbol": "resolveArtifactAsset",
           "role": "error_message",
           "context": "new AssetResolveError",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "验证日志/产物附件的定位与完整性诊断，作为稳定码之外的原始详情展示，不随 locale 改写",
           "count": 6,
           "samples": [
             "记录 ${…} 没有产物清单（未采集）",
@@ -11731,8 +11563,8 @@
           "symbol": "guardAssetFile",
           "role": "call_arg",
           "context": "ensureRegularFile",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "验证日志/产物附件的定位与完整性诊断，作为稳定码之外的原始详情展示，不随 locale 改写",
           "count": 1,
           "samples": [
             "附件"
@@ -11745,8 +11577,8 @@
           "symbol": "verifyAsset",
           "role": "error_message",
           "context": "new RecordReadError",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "验证日志/产物附件的定位与完整性诊断，作为稳定码之外的原始详情展示，不随 locale 改写",
           "count": 2,
           "samples": [
             "非法附件哈希：${…}",
@@ -11761,8 +11593,8 @@
           "symbol": "classifyAssetBody",
           "role": "error_message",
           "context": "new RecordReadError",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "验证日志/产物附件的定位与完整性诊断，作为稳定码之外的原始详情展示，不随 locale 改写",
           "count": 1,
           "samples": [
             "附件字节与引用哈希不一致：${…}"
@@ -11775,8 +11607,8 @@
           "symbol": "sliceAssetText",
           "role": "error_message",
           "context": "new RecordReadError",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "验证日志/产物附件的定位与完整性诊断，作为稳定码之外的原始详情展示，不随 locale 改写",
           "count": 4,
           "samples": [
             "maxChars 必须为正整数",
@@ -11793,8 +11625,8 @@
           "symbol": "requireHash",
           "role": "error_message",
           "context": "new RecordReadError",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "验证日志/产物附件的定位与完整性诊断，作为稳定码之外的原始详情展示，不随 locale 改写",
           "count": 1,
           "samples": [
             "非法附件哈希：${…}"
@@ -11933,17 +11765,17 @@
       "layer": "pkg:project-verification",
       "package": "project-verification",
       "workspace": "pkg:project-verification",
-      "classification": "product",
-      "batch": 2,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "验证记录读取/坏尾/附件校验的领域诊断，作为稳定码之外的原始详情展示，不随 locale 改写",
       "symbols": [
         {
           "symbol": "guardRegularFile",
           "role": "other",
           "context": "",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "验证记录读取/坏尾/附件校验的领域诊断，作为稳定码之外的原始详情展示，不随 locale 改写",
           "count": 2,
           "samples": [
             "记录",
@@ -11957,8 +11789,8 @@
           "symbol": "guardRegularFile",
           "role": "ui_text",
           "context": "ternary",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "验证记录读取/坏尾/附件校验的领域诊断，作为稳定码之外的原始详情展示，不随 locale 改写",
           "count": 2,
           "samples": [
             "附件"
@@ -11972,8 +11804,8 @@
           "symbol": "getVerification",
           "role": "call_arg",
           "context": "guardRegularFile",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "验证记录读取/坏尾/附件校验的领域诊断，作为稳定码之外的原始详情展示，不随 locale 改写",
           "count": 1,
           "samples": [
             "记录"
@@ -11986,8 +11818,8 @@
           "symbol": "getVerification.reason",
           "role": "ui_prop",
           "context": "reason",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "验证记录读取/坏尾/附件校验的领域诊断，作为稳定码之外的原始详情展示，不随 locale 改写",
           "count": 8,
           "samples": [
             "空记录文件",
@@ -12008,8 +11840,8 @@
           "symbol": "getVerification.reason",
           "role": "ui_text",
           "context": "ternary",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "验证记录读取/坏尾/附件校验的领域诊断，作为稳定码之外的原始详情展示，不随 locale 改写",
           "count": 2,
           "samples": [
             "meta 身份与请求的 verificationId 不一致",
@@ -12023,8 +11855,8 @@
           "symbol": "readLog",
           "role": "error_message",
           "context": "new RecordReadError",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "验证记录读取/坏尾/附件校验的领域诊断，作为稳定码之外的原始详情展示，不随 locale 改写",
           "count": 3,
           "samples": [
             "非法附件哈希：${…}",
@@ -12040,8 +11872,8 @@
           "symbol": "readLog",
           "role": "call_arg",
           "context": "guardRegularFile",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "验证记录读取/坏尾/附件校验的领域诊断，作为稳定码之外的原始详情展示，不随 locale 改写",
           "count": 1,
           "samples": [
             "附件"
@@ -12054,8 +11886,8 @@
           "symbol": "getPreparation",
           "role": "call_arg",
           "context": "guardRegularFile",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "验证记录读取/坏尾/附件校验的领域诊断，作为稳定码之外的原始详情展示，不随 locale 改写",
           "count": 1,
           "samples": [
             "记录"
@@ -12068,8 +11900,8 @@
           "symbol": "getPreparation.reason",
           "role": "ui_prop",
           "context": "reason",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "验证记录读取/坏尾/附件校验的领域诊断，作为稳定码之外的原始详情展示，不随 locale 改写",
           "count": 6,
           "samples": [
             "空记录文件",
@@ -12088,8 +11920,8 @@
           "symbol": "getPreparation.reason",
           "role": "ui_text",
           "context": "ternary",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "验证记录读取/坏尾/附件校验的领域诊断，作为稳定码之外的原始详情展示，不随 locale 改写",
           "count": 2,
           "samples": [
             "meta 身份与请求的 preparationId 不一致",

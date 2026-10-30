@@ -167,6 +167,8 @@ node scripts/i18n-attribution.cjs --compare-inventory --verify-boundaries
 
 3.1 迁移验证入口/环境/准备/测试计划及不可用原因：`verification-entry` 的目标标签、三类不可用原因（引擎/来源/未准备）、限额行、两份确认披露（准备/执行）全部接 translator；确认判定改为 locale 无关的稳定原因码（`not_armed`/`target_changed`/`plan_unknown`/`plan_changed`/`command_changed`），展示层按码取文案，store 提交门只消费码。`VerificationPanel` 迁移入口/展开头、条件表（精确输入/已准备环境/本机后端/计划 token/profile/准备计划）、核对异常与重试、不可用原因、两份确认块与提交按钮/禁用说明、提交失败摘要+原始说明；5.2–5.5 的停止/记录/日志/比较/导出区域留待 3.2/3.3。main 三个验证端点文件（可用性门、执行端点、只读端点）的原始诊断与包层 `prepare/plan.ts`（网络范围/许可随计划 token 冻结）、`source/precheck.ts`（来源预检原因作为不可用原因参数）改判 original。D16 补接线：`revokeVerificationConfirmations` 此前只有定义无调用，现随有效语言变化清零两份未提交验证许可，保留显式目标/只读核对且零新增 IPC。机器清单 **2,408 处**（product 1,791 / original 532 / internal 81 / generated 4）：迁入资源 100 处、改判 original 28 处。收口门禁 `--final` 仍红 132 个 pending 文件（批次 1 余 46；3.1 后 `VerificationPanel`/`verification-entry` 仍余 143/8 处，属 3.2/3.3）。3.1 完成。
 
+3.2 迁移验证在飞/定向停止/结局/未知/记录与日志外围：`verification-reading` 的状态行（封存/未封存/坏尾行号/版本不支持）与 `verification-entry` 的登记记录摘要（类型/状态/未知回落）接 translator；`VerificationPanel` 迁移在飞提示（准备不可中断/执行可定向停止）、停止按钮与幂等说明、main 停止说明的原文标注、停止失败码、操作状态未知、登记记录区、记录阅读（事件数/阶段/结局/证据完整性/命令双口径字节/读流入口）、日志切片（身份/加载中/稳定码+附件损坏缺失/分页续读/截断与完整日志边界）、D04 结局三层与验证身份。包层 `records/reader.ts`、`records/assets-view.ts` 的读取与附件诊断改判 original（作为稳定码之外的原始详情）。机器清单 **2,330 处**（product 1,666 / original 579 / internal 81 / generated 4）：迁入资源 78 处、改判 original 47 处。收口门禁 `--final` 仍红 128 个 pending 文件（批次 1 余 46；`VerificationPanel` 余 79 处属 3.3 比较与导出）。3.2 完成。
+
 ## 9. 局限
 
 - 工作区与批次按文件名近似，包层不能精确拆到单个工作区；迁移时以实际入口为准修正。

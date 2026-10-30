@@ -3,6 +3,7 @@ import {
   narrowVerificationRecord,
   verificationStatusLine,
 } from "../src/renderer/src/lib/verification-reading";
+import { createTestTranslator } from "./i18n/render-with-locale";
 
 /**
  * R3 任务 5.3：验证记录读取的**收窄判据**（D09/P13/P16 渲染半边）。
@@ -12,6 +13,9 @@ import {
  * - P13：保留/全观测双口径字节（截断与丢弃量本身是证据）；
  * - P15/P16：坏尾/未封存/版本不受支持如实呈现，不冒充结局。
  */
+
+const zh = createTestTranslator("zh-CN");
+const en = createTestTranslator("en-US");
 
 const COMMAND_END = {
   type: "command_end",
@@ -95,14 +99,33 @@ describe("narrowVerificationRecord（events 收窄：畸形跳过不猜）", () 
 
 describe("verificationStatusLine（记录状态的可读名，P15/D09）", () => {
   it("封存/未封存/损坏（带坏尾行号）/版本不受支持各说各话", () => {
-    expect(verificationStatusLine("sealed", null)).toContain("已封存");
-    expect(verificationStatusLine("unterminated", null)).toContain("不呈现结局");
-    const corrupt = verificationStatusLine("corrupt", {
-      lineIndex: 4,
-      reason: "JSON 解析失败",
-    });
+    expect(verificationStatusLine("sealed", null, zh)).toContain("已封存");
+    expect(verificationStatusLine("unterminated", null, zh)).toContain("不呈现结局");
+    const corrupt = verificationStatusLine(
+      "corrupt",
+      {
+        lineIndex: 4,
+        reason: "JSON 解析失败",
+      },
+      zh,
+    );
     expect(corrupt).toContain("第 5 行");
     expect(corrupt).toContain("不能当作通过或失败");
-    expect(verificationStatusLine("unsupported_version", null)).toContain("版本不受支持");
+    expect(verificationStatusLine("unsupported_version", null, zh)).toContain("版本不受支持");
+  });
+
+  it("英文状态行独立成句；坏尾行号与原因作为参数原样保留", () => {
+    expect(verificationStatusLine("sealed", null, en)).toContain("Sealed");
+    expect(verificationStatusLine("unterminated", null, en)).toContain("no outcome is shown");
+    const corrupt = verificationStatusLine(
+      "corrupt",
+      { lineIndex: 4, reason: "JSON parse failed" },
+      en,
+    );
+    expect(corrupt).toContain("line 5: JSON parse failed");
+    expect(corrupt).toContain("not a pass or a failure");
+    expect(verificationStatusLine("unsupported_version", null, en)).toContain(
+      "Unsupported version",
+    );
   });
 });

@@ -69,28 +69,28 @@ import { FOCUS_RING } from "./IconButton";
  */
 
 /** 领域结局的可读短语（D04：结局 ≠ 请求收尾；原文枚举随行展示） */
-export function verificationOutcomeLabel(outcome: string): string {
+export function verificationOutcomeLabel(outcome: string, translator: PanelTranslator): string {
   switch (outcome) {
     case "passed":
-      return "通过（固定检查全过）";
+      return translator.t("verification.outcomePassed");
     case "check_failed":
-      return "检查未通过（断言失败/非零退出——不是请求失败）";
+      return translator.t("verification.outcomeCheckFailed");
     case "environment_failed":
     case "start_failed":
     case "process_failed":
-      return "环境/进程故障（不算项目断言失败）";
+      return translator.t("verification.outcomeEnvironmentFailed");
     case "timed_out":
     case "output_limit":
     case "cancelled":
-      return "超时/超限/已停止（须先确认全部停止）";
+      return translator.t("verification.outcomeStopped");
     case "artifact_invalid":
-      return "产物非法（含改源码冒充修复——改代码不是修复）";
+      return translator.t("verification.outcomeArtifactInvalid");
     case "evidence_incomplete":
-      return "证据不全（不能绿色通过）";
+      return translator.t("verification.outcomeEvidenceIncomplete");
     case "unknown":
-      return "未知（停止未确认或引擎断开）";
+      return translator.t("verification.outcomeUnknown");
     default:
-      return "未知结局";
+      return translator.t("verification.outcomeUnrecognized");
   }
 }
 
@@ -608,9 +608,11 @@ export function VerificationPanel({
               data-verification-active-operation="true"
             >
               <div>
-                {activeOperation.kind === "prepare"
-                  ? "环境准备进行中：准备阶段不可中断（构建过程如实呈现，不提供定向停止）；等待其自然收尾。"
-                  : "固定检查执行中：可对当前操作定向停止（只作用于本次执行的受控资源）。"}
+                {translator.t(
+                  activeOperation.kind === "prepare"
+                    ? "verification.activePrepare"
+                    : "verification.activeRun",
+                )}
               </div>
               {activeOperation.kind === "run" ? (
                 <div className="mt-1 flex items-center gap-2">
@@ -621,17 +623,18 @@ export function VerificationPanel({
                     onClick={onStop}
                     className={`rounded border border-red-300 bg-white px-2 py-0.5 text-[11px] text-red-800 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40 ${FOCUS_RING}`}
                   >
-                    {stopRequested ? "停止已请求（等待确认）" : "请求停止"}
+                    {translator.t(
+                      stopRequested ? "verification.stopRequested" : "verification.stopRequest",
+                    )}
                   </button>
                   <span className="text-[10px] text-gray-500">
-                    领域 ID 只从操作登记取；重复点击安全（幂等）；确认全部停止前保持占用。
+                    {translator.t("verification.stopHint")}
                   </span>
                 </div>
               ) : null}
               {stopRequested ? (
                 <div className="mt-1 text-[10px] text-orange-800">
-                  停止信号已送达编排：确认全部工作负载停止并收尾后，结局（cancelled/unknown）才会呈现；
-                  在此之前操作保持占用，不显示为已结束。
+                  {translator.t("verification.stopRequestedNote")}
                 </div>
               ) : null}
               {stopNotice !== null ? (
@@ -639,12 +642,16 @@ export function VerificationPanel({
                   className="mt-1 text-[10px] text-gray-600"
                   data-verification-stop-notice="true"
                 >
-                  {stopNotice}
+                  {translator.t("verification.stopNoticeLabel")}
+                  <span className="whitespace-pre-wrap break-words">{stopNotice}</span>
                 </div>
               ) : null}
               {stopError !== null ? (
                 <div className="mt-1 text-[10px] text-red-700" data-verification-stop-error="true">
-                  停止未执行（{stopError.code}）：{stopError.message}
+                  {translator.t("verification.stopFailed", {
+                    code: stopError.code,
+                    detail: stopError.message,
+                  })}
                 </div>
               ) : null}
             </div>
@@ -656,8 +663,7 @@ export function VerificationPanel({
               className="mt-1.5 rounded border-l-2 border-amber-400 bg-amber-50 px-2 py-1 text-amber-800"
               data-verification-operations-unknown="true"
             >
-              操作状态未知（状态通道失联或返回非法）：请先用上方操作入口核对状态；
-              在有效快照确认前，这里不显示任何"执行中/已结束"的猜测，也不提供停止。
+              {translator.t("verification.operationsUnknown")}
             </div>
           ) : matchedRecords.length > 0 ? (
             <div
@@ -665,22 +671,26 @@ export function VerificationPanel({
               data-verification-records="true"
             >
               <div className="text-[10px] font-medium text-gray-500">
-                本检查点的验证操作（来自操作登记核对；重载后凭登记恢复，不猜测）
+                {translator.t("verification.recordsTitle")}
               </div>
               {matchedRecords.map((record) => (
                 <div
                   key={record.operationId}
                   className="mt-0.5 text-[11px] leading-4 text-gray-700"
                 >
-                  {verificationRecordLine(record)}
+                  {verificationRecordLine(record, translator)}
                   {record.verificationIds.length > 0 ? (
                     <span className="ml-1 font-code text-[10px] text-gray-500">
-                      验证 {record.verificationIds.join("、")}
+                      {translator.t("verification.recordsVerifyLabel", {
+                        ids: record.verificationIds.join("、"),
+                      })}
                     </span>
                   ) : null}
                   {record.preparationIds.length > 0 ? (
                     <span className="ml-1 font-code text-[10px] text-gray-500">
-                      准备 {record.preparationIds.join("、")}
+                      {translator.t("verification.recordsPrepareLabel", {
+                        ids: record.preparationIds.join("、"),
+                      })}
                     </span>
                   ) : null}
                   {record.errorCode !== null ? (
@@ -698,7 +708,7 @@ export function VerificationPanel({
               data-verification-reading="true"
             >
               <div className="text-[10px] font-medium text-gray-500">
-                验证记录与日志（只读下方可信身份；读取零执行、零补写、零清理）
+                {translator.t("verification.readingTitle")}
               </div>
               <div className="mt-0.5 flex flex-wrap items-center gap-1">
                 {trustedVerificationIds.map((id) => (
@@ -721,37 +731,53 @@ export function VerificationPanel({
 
               {recordFocus === null ? (
                 <div className="mt-1 text-[10px] text-gray-500">
-                  选择一个验证身份查看记录与日志（身份来自登记附件与执行响应，不从时间/日志猜测）。
+                  {translator.t("verification.readingPick")}
                 </div>
               ) : (
                 <div className="mt-1" data-verification-record-view="true">
                   {recordState === "loading" ? (
-                    <div className="text-[10px] text-gray-500">正在读取验证记录（只读）…</div>
+                    <div className="text-[10px] text-gray-500">
+                      {translator.t("verification.readingLoading")}
+                    </div>
                   ) : null}
                   {recordError !== null ? (
                     <div className="text-[10px] text-red-700">
-                      记录读取失败（{recordError.code}）：{recordError.message}
+                      {translator.t("verification.recordReadFailed", {
+                        code: recordError.code,
+                        detail: recordError.message,
+                      })}
                     </div>
                   ) : null}
                   {recordState === "ready" && recordView !== null && recordStatus !== null ? (
                     <div className="space-y-0.5 text-[11px] leading-4 text-gray-700">
-                      <div>{verificationStatusLine(recordStatus, recordErrorInfo)}</div>
+                      <div>{verificationStatusLine(recordStatus, recordErrorInfo, translator)}</div>
                       <div className="text-[10px] text-gray-500">
-                        共 {recordView.eventCount} 条事件
+                        {translator.t("verification.recordEvents", {
+                          count: recordView.eventCount,
+                        })}
                         {recordView.stages.length > 0
-                          ? ` · 阶段：${recordView.stages.join(" → ")}`
+                          ? ` · ${translator.t("verification.recordStages", {
+                              stages: recordView.stages.join(" → "),
+                            })}`
                           : ""}
                       </div>
                       {recordView.terminated ? (
                         <div>
-                          结局：<span className="font-semibold">{recordView.outcome}</span>（
-                          {verificationOutcomeLabel(recordView.outcome ?? "")}）。
-                          {recordView.detail}
-                          {" · "}证据{recordView.evidenceComplete === true ? "完整" : "不全"}
+                          {translator.t("verification.recordOutcome", {
+                            outcome: recordView.outcome ?? "",
+                            label: verificationOutcomeLabel(recordView.outcome ?? "", translator),
+                            detail: recordView.detail ?? "",
+                          })}
+                          {" · "}
+                          {translator.t(
+                            recordView.evidenceComplete === true
+                              ? "verification.evidenceComplete"
+                              : "verification.evidenceIncomplete",
+                          )}
                         </div>
                       ) : (
                         <div className="text-amber-800">
-                          记录未封存或损坏：不呈现结局（不以未完成事实冒充通过/失败）。
+                          {translator.t("verification.recordNotSealed")}
                         </div>
                       )}
                       {recordView.commandEnds.map((entry) => (
@@ -761,22 +787,37 @@ export function VerificationPanel({
                           data-verification-command-end={entry.commandId}
                         >
                           <div>
-                            <span className="font-medium">{entry.commandId}</span>
-                            {" · "}
-                            退出码 {entry.exitCode === null ? "（未知）" : entry.exitCode}
-                            {" · "}
-                            耗时 {entry.durationMs}ms
+                            {translator.t("verification.commandEndLine", {
+                              commandId: entry.commandId,
+                              exit:
+                                entry.exitCode === null
+                                  ? translator.t("verification.commandExitUnknown")
+                                  : translator.t("verification.commandExit", {
+                                      exitCode: entry.exitCode,
+                                    }),
+                              duration: translator.t("verification.commandDuration", {
+                                durationMs: entry.durationMs,
+                              }),
+                            })}
                           </div>
                           <div className="text-[10px] text-gray-500">
-                            stdout 保留 {formatBytes(entry.stdoutBytes)}
-                            {entry.stdoutTruncated
-                              ? `（全观测 ${formatBytes(entry.stdoutTotalBytes)}，超出部分已按限额丢弃并计数）`
-                              : ""}
-                            {" · stderr 保留 "}
-                            {formatBytes(entry.stderrBytes)}
-                            {entry.stderrTruncated
-                              ? `（全观测 ${formatBytes(entry.stderrTotalBytes)}，超出部分已按限额丢弃并计数）`
-                              : ""}
+                            {translator.t("verification.commandStdout", {
+                              bytes: formatBytes(entry.stdoutBytes),
+                              extra: entry.stdoutTruncated
+                                ? translator.t("verification.commandStreamExtra", {
+                                    totalBytes: formatBytes(entry.stdoutTotalBytes),
+                                  })
+                                : "",
+                            })}
+                            {" · "}
+                            {translator.t("verification.commandStderr", {
+                              bytes: formatBytes(entry.stderrBytes),
+                              extra: entry.stderrTruncated
+                                ? translator.t("verification.commandStreamExtra", {
+                                    totalBytes: formatBytes(entry.stderrTotalBytes),
+                                  })
+                                : "",
+                            })}
                           </div>
                           <div className="mt-0.5 flex items-center gap-1">
                             {(["stdout", "stderr"] as const).map((stream) => (
@@ -787,18 +828,22 @@ export function VerificationPanel({
                                 onClick={() => onReadLog(entry.commandId, stream, "replace")}
                                 className={`rounded border border-gray-300 px-1.5 py-0.5 text-[10px] text-gray-700 hover:bg-gray-50 ${FOCUS_RING}`}
                               >
-                                读 {stream}
+                                {translator.t(
+                                  stream === "stdout"
+                                    ? "verification.readStdout"
+                                    : "verification.readStderr",
+                                )}
                               </button>
                             ))}
                             <span className="text-[10px] text-gray-400">
-                              有界切片（默认 32 KiB/页，上限 64 KiB）
+                              {translator.t("verification.logSliceHint")}
                             </span>
                           </div>
                         </div>
                       ))}
                       {recordView.commandEnds.length === 0 ? (
                         <div className="text-[10px] text-gray-500">
-                          记录里没有命令执行事实（可能未到执行阶段或被中断）。
+                          {translator.t("verification.noCommandFacts")}
                         </div>
                       ) : null}
 
@@ -859,19 +904,24 @@ export function VerificationPanel({
                       <div className="text-[10px] text-gray-500">
                         {logIdentity.verificationId} · {logIdentity.commandId} ·{" "}
                         {logIdentity.stream}
-                        {logState === "loading" ? " · 读取中…" : ""}
+                        {logState === "loading"
+                          ? translator.t("verification.logLoadingSuffix")
+                          : ""}
                       </div>
                       {logError !== null ? (
                         <div
                           className="mt-0.5 text-[10px] text-red-700"
                           data-verification-log-error="true"
                         >
-                          日志读取失败（{logError.code}）：{logError.message}
+                          {translator.t("verification.logReadFailed", {
+                            code: logError.code,
+                            detail: logError.message,
+                          })}
                           {logError.code === "R3_LOG_ASSET_CORRUPT"
-                            ? "（附件损坏：不以损坏字节冒充正文）"
+                            ? translator.t("verification.logAssetCorrupt")
                             : ""}
                           {logError.code === "R3_LOG_ASSET_MISSING"
-                            ? "（附件缺失：不自动补写）"
+                            ? translator.t("verification.logAssetMissing")
                             : ""}
                         </div>
                       ) : null}
@@ -880,7 +930,7 @@ export function VerificationPanel({
                           {/* 只读 textarea：原生可聚焦滚动（D11 键盘可达），不引入输入语义 */}
                           <textarea
                             readOnly
-                            aria-label="验证日志切片（有界只读；可聚焦滚动）"
+                            aria-label={translator.t("verification.logAria")}
                             value={logText}
                             rows={Math.min(12, Math.max(3, logText.split("\n").length))}
                             className="mt-0.5 w-full resize-y overflow-auto whitespace-pre-wrap break-all font-code text-[10px] leading-4 text-gray-800 outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-1"
@@ -888,12 +938,16 @@ export function VerificationPanel({
                           />
                           <div className="mt-0.5 flex items-center gap-2 text-[10px] text-gray-500">
                             <span>
-                              共 {formatBytes(logMeta.totalBytes)} · 已读{" "}
-                              {formatBytes(logMeta.nextOffset)}
+                              {translator.t("verification.logMeta", {
+                                total: formatBytes(logMeta.totalBytes),
+                                read: formatBytes(logMeta.nextOffset),
+                              })}
                               {logMeta.remaining > 0
-                                ? ` · 剩余 ${formatBytes(logMeta.remaining)}`
+                                ? translator.t("verification.logRemaining", {
+                                    remaining: formatBytes(logMeta.remaining),
+                                  })
                                 : ""}
-                              {logMeta.truncated ? " · 本切片有截断" : ""}
+                              {logMeta.truncated ? translator.t("verification.logTruncated") : ""}
                             </span>
                             {logMeta.remaining > 0 ? (
                               <button
@@ -906,16 +960,16 @@ export function VerificationPanel({
                                 }
                                 className={`rounded border border-gray-300 px-1.5 py-0.5 text-gray-700 hover:bg-gray-50 ${FOCUS_RING}`}
                               >
-                                续读下一页
+                                {translator.t("verification.logContinue")}
                               </button>
                             ) : null}
                             {logMeta.remaining === 0 ? (
-                              <span>已到记录保留的末尾（超出限额的丢弃量见上方全观测计数）</span>
+                              <span>{translator.t("verification.logEnd")}</span>
                             ) : null}
                           </div>
                           {logMeta.truncated || logMeta.remaining > 0 ? (
                             <div className="mt-0.5 text-[10px] text-amber-800">
-                              以上是有界切片视图，不是完整日志（P13：不以截断视图表示完整日志）。
+                              {translator.t("verification.logNotComplete")}
                             </div>
                           ) : null}
                         </>
@@ -1077,7 +1131,7 @@ export function VerificationPanel({
                               结局：{view.outcome ?? "未知"}
                               {view.outcome === null
                                 ? ""
-                                : `（${verificationOutcomeLabel(view.outcome)}）`}
+                                : `（${verificationOutcomeLabel(view.outcome, translator)}）`}
                               {" · "}证据
                               {view.evidenceComplete === null
                                 ? "未知"
@@ -1196,30 +1250,37 @@ export function VerificationPanel({
             >
               {lastOutcome.kind === "prepare" ? (
                 <div>
-                  <div>请求收尾：环境准备已明确返回（操作已收尾）。</div>
+                  <div>{translator.t("verification.outcomePrepareRequestDone")}</div>
                   <div>
-                    领域事实：准备记录 {lastOutcome.preparationId} · 镜像{" "}
-                    <span className="font-code">{lastOutcome.imageDigest}</span>
-                    。执行条件已随重新核对刷新。
+                    {translator.t("verification.outcomePrepareFacts", {
+                      preparationId: lastOutcome.preparationId,
+                      imageDigest: lastOutcome.imageDigest,
+                    })}
                   </div>
                 </div>
               ) : (
                 <div className="space-y-0.5">
-                  <div>请求收尾：执行请求已明确返回（操作已收尾，非请求层失败）。</div>
+                  <div>{translator.t("verification.outcomeRunRequestDone")}</div>
                   <div>
-                    测试结局：<span className="font-semibold">{lastOutcome.outcome}</span>（
-                    {verificationOutcomeLabel(lastOutcome.outcome ?? "")}）。
+                    {translator.t("verification.outcomeTestOutcome", {
+                      outcome: lastOutcome.outcome ?? "",
+                      label: verificationOutcomeLabel(lastOutcome.outcome ?? "", translator),
+                    })}
                   </div>
                   <div>
-                    证据完整性：
-                    {lastOutcome.evidenceComplete === false
-                      ? "不全（截断/缺必要日志或报告——不能当作绿色通过）"
-                      : "完整"}
-                    。{lastOutcome.detail}
+                    {translator.t("verification.outcomeEvidence", {
+                      status:
+                        lastOutcome.evidenceComplete === false
+                          ? translator.t("verification.outcomeEvidenceIncompleteLong")
+                          : translator.t("verification.evidenceComplete"),
+                      detail: lastOutcome.detail ?? "",
+                    })}
                   </div>
                   {lastOutcome.verificationId !== undefined ? (
                     <div className="text-[10px] text-gray-500">
-                      验证身份 {lastOutcome.verificationId}（只重读该可信记录，不按时间/日志猜测）。
+                      {translator.t("verification.outcomeIdentity", {
+                        verificationId: lastOutcome.verificationId,
+                      })}
                     </div>
                   ) : null}
                 </div>

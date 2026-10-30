@@ -1450,6 +1450,100 @@ export const enUS = {
       "Execution runs in a restricted container: offline, non-root, read-only rootfs; output and time overruns are stopped and recorded truthfully as the corresponding outcome.",
     submitFailedSummary: "The submission did not run ({{code}}).",
     submitRawDetail: "Raw detail:",
+    recordKindPrepare: "Environment preparation",
+    recordKindRun: "Project verification ({{commandId}})",
+    recordKindUnknown: "Unknown type",
+    recordRunning: "Running",
+    recordSettled: "Settled ({{outcome}})",
+    recordNotAccepted: "Not accepted ({{rejection}})",
+    recordUnknownOutcome: "unknown outcome",
+    recordUnknownRejection: "unknown reason",
+    outcomePassed: "Passed (all fixed checks passed)",
+    outcomeCheckFailed: "Check failed (assertion failure/non-zero exit — not a request failure)",
+    outcomeEnvironmentFailed: "Environment/process fault (not a project assertion failure)",
+    outcomeStopped: "Timed out/over limit/stopped (all stops must be confirmed first)",
+    outcomeArtifactInvalid:
+      "Invalid artifact (including source edits posing as a fix — changing code is not a fix)",
+    outcomeEvidenceIncomplete: "Incomplete evidence (cannot be a green pass)",
+    outcomeUnknown: "Unknown (stop unconfirmed or engine disconnected)",
+    outcomeUnrecognized: "Unrecognized outcome",
+    activePrepare:
+      "Preparing the environment: the preparation phase cannot be interrupted (the build is shown as-is; no targeted stop is offered); wait for it to finish.",
+    activeRun:
+      "Running the fixed check: you can request a targeted stop for this operation (it only affects the controlled resources of this execution).",
+    stopRequest: "Request stop",
+    stopRequested: "Stop requested (waiting for confirmation)",
+    stopHint:
+      "The domain ID comes only from the operation registry; repeated clicks are safe (idempotent); the slot stays occupied until all stops are confirmed.",
+    stopRequestedNote:
+      "The stop signal has reached the orchestrator: the outcome (cancelled/unknown) appears only after all workloads are confirmed stopped and finalized; until then the operation stays occupied and is not shown as finished.",
+    stopNoticeLabel: "Stop result (returned by main):",
+    stopFailed: "The stop did not run ({{code}}): {{detail}}",
+    operationsUnknown:
+      "Operation state unknown (the state channel is unreachable or returned invalid data): check the state from the operation entry above first; until a valid snapshot is confirmed, this panel shows no “running/finished” guess and offers no stop.",
+    recordsTitle:
+      "Verification operations for this checkpoint (from the operation registry; restored from registrations after reload, never guessed)",
+    recordsVerifyLabel: "Verification {{ids}}",
+    recordsPrepareLabel: "Preparation {{ids}}",
+    readingTitle:
+      "Verification records and logs (read-only for the trusted identities below; reading executes nothing, writes nothing, and cleans nothing)",
+    readingPick:
+      "Select a verification identity to view its record and logs (identities come from registered attachments and execution responses, never from time or logs).",
+    readingLoading: "Reading the verification record (read-only)…",
+    recordReadFailed: "Record read failed ({{code}}): {{detail}}",
+    recordEvents: { one: "{{count}} event", other: "{{count}} events" },
+    recordStages: "stages: {{stages}}",
+    recordOutcome: "Outcome: {{outcome}} ({{label}}). {{detail}}",
+    evidenceComplete: "complete",
+    evidenceIncomplete: "incomplete",
+    evidenceUnknown: "unknown",
+    recordNotSealed:
+      "The record is unsealed or corrupt: no outcome is shown (unfinished facts are never presented as pass/fail).",
+    commandEndLine: "{{commandId}} · {{exit}} · {{duration}}",
+    commandExit: "exit code {{exitCode}}",
+    commandExitUnknown: "exit code (unknown)",
+    commandDuration: "{{durationMs}}ms",
+    commandStdout: "stdout kept {{bytes}}{{extra}}",
+    commandStderr: "stderr kept {{bytes}}{{extra}}",
+    commandStreamExtra:
+      " ({{totalBytes}} observed in total; the excess was dropped under the limit and counted)",
+    readStdout: "Read stdout",
+    readStderr: "Read stderr",
+    logSliceHint: "bounded slice (default 32 KiB per page, max 64 KiB)",
+    noCommandFacts:
+      "The record has no command-execution facts (it may not have reached the execution phase or was interrupted).",
+    logLoadingSuffix: " · reading…",
+    logReadFailed: "Log read failed ({{code}}): {{detail}}",
+    logAssetCorrupt: " (attachment corrupt: corrupt bytes are not presented as text)",
+    logAssetMissing: " (attachment missing: it is not rewritten automatically)",
+    logAria: "Verification log slice (bounded, read-only; focusable and scrollable)",
+    logMeta: "Total {{total}} · read {{read}}",
+    logRemaining: " · {{remaining}} remaining",
+    logTruncated: " · this slice is truncated",
+    logContinue: "Continue to next page",
+    logEnd:
+      "Reached the end of the retained record (dropped bytes beyond the limit are counted in the observed totals above)",
+    logNotComplete:
+      "The above is a bounded slice view, not the complete log (P13: a truncated view must not be presented as the complete log).",
+    outcomePrepareRequestDone:
+      "Request completion: environment preparation returned explicitly (the operation is settled).",
+    outcomePrepareFacts:
+      "Domain facts: preparation record {{preparationId}} · image {{imageDigest}}. Execution conditions were refreshed by the re-check.",
+    outcomeRunRequestDone:
+      "Request completion: the execution request returned explicitly (the operation is settled; this is not a request-layer failure).",
+    outcomeTestOutcome: "Test outcome: {{outcome}} ({{label}}).",
+    outcomeEvidence: "Evidence completeness: {{status}}. {{detail}}",
+    outcomeEvidenceIncompleteLong:
+      "incomplete (truncated or missing required logs/reports — cannot count as a green pass)",
+    outcomeIdentity:
+      "Verification identity {{verificationId}} (only this trusted record is reread; no guessing from time or logs).",
+    statusSealed: "Sealed (terminal facts can no longer be appended)",
+    statusUnterminated:
+      "Unsealed (no termination event yet: no outcome is shown; it may still be running or was interrupted)",
+    statusCorrupt: "Corrupt ({{detail}}) — not a pass or a failure",
+    statusCorruptBadTail: "bad tail",
+    statusCorruptDetail: "line {{line}}: {{reason}}",
+    statusUnsupported: "Unsupported version (an unknown record version was rejected)",
   },
   recording: {},
   settings: {},

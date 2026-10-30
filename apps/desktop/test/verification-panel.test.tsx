@@ -12,7 +12,7 @@ import {
   verificationTargetKey,
 } from "../src/renderer/src/lib/verification-entry";
 import type { VerificationOutcomeView } from "../src/renderer/src/store/slices/verification";
-import { renderWithLocale } from "./i18n/render-with-locale";
+import { createTestTranslator, renderWithLocale } from "./i18n/render-with-locale";
 
 // VerificationPanel 是纯展示层（不触 store），但 ConfirmationBlock/Disclosure 链上有
 // 组件在 import 时触到 window ⇒ 先放桩（同 compare-metrics-table.test.ts 惯例）。
@@ -527,6 +527,39 @@ describe("VerificationPanel（5.2：停止反馈 D05）", () => {
   });
 });
 
+describe("VerificationPanel（3.2：在飞/停止/操作登记英文呈现）", () => {
+  it("停止与未知状态按英文呈现；main 原始说明单独标注，不冒充本地化文案", () => {
+    const run = renderEn(
+      baseProps({
+        expanded: true,
+        activeOperation: { kind: "run", operationId: "55555555-5555-4555-8555-555555555555" },
+        stopRequested: true,
+        stopNotice: "该操作已收尾（settled），无需停止",
+      }),
+    );
+    expect(run).toContain("Running the fixed check");
+    expect(run).toContain("Stop requested (waiting for confirmation)");
+    expect(run).toContain("Stop result (returned by main):");
+    expect(run).toContain("该操作已收尾（settled），无需停止");
+    const unknown = renderEn(
+      baseProps({
+        expanded: true,
+        matchedRecords: [RECORD],
+        operationsUnknown: true,
+      }),
+    );
+    expect(unknown).toContain("Operation state unknown");
+    expect(unknown).not.toContain("data-verification-records");
+  });
+
+  it("登记记录摘要英文（类型/状态），领域 ID 原样", () => {
+    const html = renderEn(baseProps({ expanded: true, matchedRecords: [RECORD] }));
+    expect(html).toContain("Project verification (test) · Running");
+    expect(html).toContain("ver-trusted");
+    expect(html).toContain("Verification operations for this checkpoint");
+  });
+});
+
 describe("VerificationPanel（5.2：D04 结局分层与结局短语）", () => {
   it("run 结局分行呈现：请求收尾 / 测试结局 / 证据完整性 / 可信验证身份", () => {
     const outcome: VerificationOutcomeView = {
@@ -550,9 +583,10 @@ describe("VerificationPanel（5.2：D04 结局分层与结局短语）", () => {
   });
 
   it("结局短语把测试失败与请求失败分开（check_failed 不是请求失败）", () => {
-    expect(verificationOutcomeLabel("check_failed")).toContain("不是请求失败");
-    expect(verificationOutcomeLabel("evidence_incomplete")).toContain("不能绿色通过");
-    expect(verificationOutcomeLabel("artifact_invalid")).toContain("改代码不是修复");
+    const zh = createTestTranslator("zh-CN");
+    expect(verificationOutcomeLabel("check_failed", zh)).toContain("不是请求失败");
+    expect(verificationOutcomeLabel("evidence_incomplete", zh)).toContain("不能绿色通过");
+    expect(verificationOutcomeLabel("artifact_invalid", zh)).toContain("改代码不是修复");
   });
 });
 
@@ -717,6 +751,45 @@ describe("VerificationPanel（5.3：记录与有界日志 D09/P13/P16）", () =>
     );
     expect(failed).toContain("R3_RECORD_SCHEMA_INVALID");
     expect(failed).not.toContain("data-verification-command-end");
+  });
+
+  it("英文记录/日志外围：状态、双口径字节、切片分页与结局分层独立成句", () => {
+    const html = renderEn(
+      baseProps({
+        ...READING_BASE,
+        recordState: "ready",
+        recordView: SEALED_VIEW,
+        recordStatus: "sealed",
+        logIdentity: { verificationId: "ver-a", commandId: "test", stream: "stdout" },
+        logState: "ready",
+        logText: "line1",
+        logMeta: { totalBytes: 10485760, nextOffset: 32768, remaining: 10452992, truncated: true },
+        lastOutcome: {
+          kind: "run",
+          targetKey: "k",
+          atOutcomeGeneration: 1,
+          verificationId: "ver-9",
+          outcome: "check_failed",
+          detail: "tsc exited non-zero",
+          evidenceComplete: false,
+        },
+      }),
+    );
+    expect(html).toContain("Sealed (terminal facts can no longer be appended)");
+    expect(html).toContain("3 events");
+    expect(html).toContain(
+      "Check failed (assertion failure/non-zero exit — not a request failure)",
+    );
+    expect(html).toContain("exit code 1");
+    expect(html).toContain("stdout kept");
+    expect(html).toContain("observed in total");
+    expect(html).toContain("Read stdout");
+    expect(html).toContain("Total 10.0 MB · read 32.0 KB");
+    expect(html).toContain("Continue to next page");
+    expect(html).toContain("not the complete log");
+    expect(html).toContain("Request completion: the execution request returned explicitly");
+    expect(html).toContain("Test outcome: check_failed");
+    expect(html).toContain("Evidence completeness: incomplete");
   });
 });
 

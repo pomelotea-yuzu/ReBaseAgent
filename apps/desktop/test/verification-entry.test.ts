@@ -550,29 +550,39 @@ describe("verificationDomainIdOf（D06：领域 ID 只从附件取）", () => {
 
 describe("verificationRecordLine（登记记录摘要行）", () => {
   it("区分类型与状态（执行中/已收尾/未接受）", () => {
-    expect(verificationRecordLine(RECORD_BASE)).toContain("项目验证（test）");
-    expect(verificationRecordLine(RECORD_BASE)).toContain("执行中");
+    expect(verificationRecordLine(RECORD_BASE, zh)).toContain("项目验证（test）");
+    expect(verificationRecordLine(RECORD_BASE, zh)).toContain("执行中");
     expect(
-      verificationRecordLine({
-        ...RECORD_BASE,
-        state: "settled",
-        settledAt: "2026-10-25T10:05:00.000Z",
-        requestOutcome: "returned",
-      }),
+      verificationRecordLine(
+        {
+          ...RECORD_BASE,
+          state: "settled",
+          settledAt: "2026-10-25T10:05:00.000Z",
+          requestOutcome: "returned",
+        },
+        zh,
+      ),
     ).toContain("已收尾（returned）");
     expect(
-      verificationRecordLine({
-        ...RECORD_BASE,
-        target: {
-          kind: "verificationPrepare",
-          runId: RUN,
-          checkpointKind: "initial",
-          stepSpanId: null,
+      verificationRecordLine(
+        {
+          ...RECORD_BASE,
+          target: {
+            kind: "verificationPrepare",
+            runId: RUN,
+            checkpointKind: "initial",
+            stepSpanId: null,
+          },
+          state: "notAccepted",
+          rejection: "busy",
         },
-        state: "notAccepted",
-        rejection: "busy",
-      }),
+        zh,
+      ),
     ).toContain("未接受（busy）");
+    expect(verificationRecordLine(RECORD_BASE, en)).toBe("Project verification (test) · Running");
+    expect(
+      verificationRecordLine({ ...RECORD_BASE, state: "settled", requestOutcome: "returned" }, en),
+    ).toContain("Settled (returned)");
   });
 });
 

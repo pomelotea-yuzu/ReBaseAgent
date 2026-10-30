@@ -197,6 +197,10 @@ const ORIGINAL_REASONS = {
     "准备计划正文（网络范围/许可）进入计划 token，按原文展示；外围标签与边界由渲染层本地化",
   "packages/project-verification/src/source/precheck.ts":
     "来源预检的领域原因，作为不可用原因参数与原始详情展示，不随 UI locale 改写",
+  "packages/project-verification/src/records/reader.ts":
+    "验证记录读取/坏尾/附件校验的领域诊断，作为稳定码之外的原始详情展示，不随 locale 改写",
+  "packages/project-verification/src/records/assets-view.ts":
+    "验证日志/产物附件的定位与完整性诊断，作为稳定码之外的原始详情展示，不随 locale 改写",
 };
 const ORIGINAL_PREFIXES = [
   ["packages/project-verification/src/", "验证记录/runner/日志正文，持久化事实不随 locale 改写"],

@@ -539,18 +539,22 @@ export function verificationDomainIdOf(
 }
 
 /** 登记记录的一行摘要（操作区展示；kind 与状态的可读名在这里集中） */
-export function verificationRecordLine(record: OperationRecord): string {
+export function verificationRecordLine(record: OperationRecord, translator: Translator): string {
   const kindLabel =
     record.target?.kind === "verificationPrepare"
-      ? "环境准备"
+      ? translator.t("verification.recordKindPrepare")
       : record.target?.kind === "verification"
-        ? `项目验证（${record.target.commandId}）`
-        : "未知类型";
+        ? translator.t("verification.recordKindRun", { commandId: record.target.commandId })
+        : translator.t("verification.recordKindUnknown");
   const stateLabel =
     record.state === "running"
-      ? "执行中"
+      ? translator.t("verification.recordRunning")
       : record.state === "settled"
-        ? `已收尾（${record.requestOutcome ?? "未知结局"}）`
-        : `未接受（${record.rejection ?? "未知原因"}）`;
+        ? translator.t("verification.recordSettled", {
+            outcome: record.requestOutcome ?? translator.t("verification.recordUnknownOutcome"),
+          })
+        : translator.t("verification.recordNotAccepted", {
+            rejection: record.rejection ?? translator.t("verification.recordUnknownRejection"),
+          });
   return `${kindLabel} · ${stateLabel}`;
 }
