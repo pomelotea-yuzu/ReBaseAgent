@@ -1,3 +1,4 @@
+import type { Translator } from "@rebaseagent/i18n";
 import { compareVerificationFacts } from "@rebaseagent/project-verification/facts";
 import type { VerificationFactsSide } from "@rebaseagent/project-verification/facts";
 import type { VerificationGetMeta, VerificationGetResult } from "@shared/ipc";
@@ -159,21 +160,37 @@ function logBytesOf(result: VerificationGetResult): VerificationSideLog | null {
 
 type VerificationSideLog = NonNullable<VerificationCompareSide["logBytes"]>;
 
-function checkpointLabelOf(meta: VerificationGetMeta | null): string | null {
+function checkpointLabelOf(
+  meta: VerificationGetMeta | null,
+  translator: Translator,
+): string | null {
   if (meta === null) return null;
   return meta.checkpoint.kind === "initial"
-    ? "初始检查点"
-    : `步骤检查点 ${meta.checkpoint.stepSpanId}`;
+    ? translator.t("verification.checkpointInitial")
+    : translator.t("verification.checkpointStep", { stepSpanId: meta.checkpoint.stepSpanId });
 }
 
-function interventionOf(run: RunSummary | undefined): string {
-  if (run === undefined) return "来源 run 不在当前列表：分叉干预未知（不猜）";
+function interventionOf(run: RunSummary | undefined, translator: Translator): string {
+  if (run === undefined) return translator.t("verification.cmpInterventionNoRun");
   if (run.fork === null) {
-    return "无记录的分叉（根运行；人工改文件不可从记录确认）";
+    return translator.t("verification.cmpInterventionRoot");
   }
-  const parent = run.parent === null ? "父 run 未知" : `父 ${run.parent}`;
-  const experiment = run.fork.experiment_id === null ? "" : `，实验组 ${run.fork.experiment_id}`;
-  return `记录的分叉：编辑 ${run.fork.edit_field} @ ${run.fork.at_span}（${parent}${experiment}）`;
+  const parent =
+    run.parent === null
+      ? translator.t("verification.cmpInterventionParentUnknown")
+      : translator.t("verification.cmpInterventionParent", { runId: run.parent });
+  const experiment =
+    run.fork.experiment_id === null
+      ? ""
+      : translator.t("verification.cmpInterventionExperiment", {
+          experimentId: run.fork.experiment_id,
+        });
+  return translator.t("verification.cmpInterventionRecorded", {
+    field: run.fork.edit_field,
+    span: run.fork.at_span,
+    parent,
+    experiment,
+  });
 }
 
 function formatToolchain(toolchain: {
@@ -184,46 +201,69 @@ function formatToolchain(toolchain: {
   return `node ${toolchain.node} / npm ${toolchain.npm} / TypeScript ${toolchain.typescript}`;
 }
 
-function formatLimits(limits: NonNullable<VerificationGetMeta["environment"]>["limits"]): string {
-  const tmpfs = limits.tmpfsCountsTowardMemoryBudget ? "（tmpfs 计入内存）" : "";
+function formatLimits(
+  limits: NonNullable<VerificationGetMeta["environment"]>["limits"],
+  translator: Translator,
+): string {
+  const tmpfs = limits.tmpfsCountsTowardMemoryBudget ? translator.t("verification.cmpTmpfs") : "";
   return [
-    `CPU ${limits.cpus}`,
-    `内存 ${formatBytes(limits.memoryBytes)}${tmpfs}`,
-    `PID ${limits.pidsLimit}`,
-    `命令超时 ${limits.commandTimeoutMs}ms`,
-    `总超时 ${limits.totalTimeoutMs}ms`,
-    `stdout 保留 ${formatBytes(limits.stdoutBudgetBytes)}`,
-    `stderr 保留 ${formatBytes(limits.stderrBudgetBytes)}`,
-    `总输出上限 ${formatBytes(limits.totalOutputLimitBytes)}`,
-    `产物 ${formatBytes(limits.artifactUniqueContentBudgetBytes)}`,
+    translator.t("verification.cmpCpu", { count: limits.cpus }),
+    translator.t("verification.cmpMemory", {
+      memory: formatBytes(limits.memoryBytes),
+      tmpfs,
+    }),
+    translator.t("verification.cmpPids", { pids: limits.pidsLimit }),
+    translator.t("verification.cmpCommandTimeout", { ms: limits.commandTimeoutMs }),
+    translator.t("verification.cmpTotalTimeout", { ms: limits.totalTimeoutMs }),
+    translator.t("verification.cmpStdoutRetained", {
+      bytes: formatBytes(limits.stdoutBudgetBytes),
+    }),
+    translator.t("verification.cmpStderrRetained", {
+      bytes: formatBytes(limits.stderrBudgetBytes),
+    }),
+    translator.t("verification.cmpTotalOutput", {
+      bytes: formatBytes(limits.totalOutputLimitBytes),
+    }),
+    translator.t("verification.cmpArtifact", {
+      bytes: formatBytes(limits.artifactUniqueContentBudgetBytes),
+    }),
   ].join(" · ");
 }
 
 function formatSecurity(
   security: NonNullable<VerificationGetMeta["environment"]>["security"],
+  translator: Translator,
 ): string {
   return [
-    `非 root ${security.runAsUser}`,
-    security.readOnlyRootfs ? "只读根" : "可写根",
-    security.capDropAll ? "cap drop all" : "保留 capabilities",
-    security.noNewPrivileges ? "no-new-privileges" : "允许提权",
-    `网络 ${security.networkMode}`,
-    security.supervisorPid1 ? "supervisor PID 1" : "无 supervisor",
+    translator.t("verification.secRunAsUser", { runAsUser: security.runAsUser }),
+    translator.t(
+      security.readOnlyRootfs ? "verification.secReadOnlyRoot" : "verification.secWritableRoot",
+    ),
+    translator.t(security.capDropAll ? "verification.secCapDropAll" : "verification.secKeepCaps"),
+    translator.t(
+      security.noNewPrivileges
+        ? "verification.secNoNewPrivileges"
+        : "verification.secAllowPrivilege",
+    ),
+    translator.t("verification.secNetwork", { mode: security.networkMode }),
+    translator.t(
+      security.supervisorPid1 ? "verification.secSupervisor" : "verification.secNoSupervisor",
+    ),
   ].join(" · ");
 }
 
 function sideOf(
   result: VerificationGetResult,
   run: RunSummary | undefined,
+  translator: Translator,
 ): VerificationCompareSide {
   const meta = result.meta;
-  const env = meta?.environment ?? null;
   const command = commandFactsOf(result);
   return {
     verificationId: result.verificationId,
     status: result.status,
     runId: meta?.runId ?? null,
-    checkpointLabel: checkpointLabelOf(meta),
+    checkpointLabel: checkpointLabelOf(meta, translator),
     snapshotId: meta?.snapshotId ?? null,
     outcome: result.terminated?.outcome ?? null,
     detail: result.terminated?.detail ?? null,
@@ -231,7 +271,7 @@ function sideOf(
     exitCode: command?.exitCode ?? null,
     durationMs: command?.durationMs ?? null,
     sourceStatus: result.sourceStatus,
-    intervention: interventionOf(run),
+    intervention: interventionOf(run, translator),
     logBytes: logBytesOf(result),
   };
 }
@@ -240,33 +280,26 @@ function limitationList(
   left: VerificationGetResult,
   right: VerificationGetResult,
   sourceVerified: boolean | null,
+  translator: Translator,
 ): string[] {
   const limitations: string[] = [
-    "Agent 文本不进入条件与结论；本区只读验证记录与运行分叉元数据。",
-    "R3 不自动发起模型修复；干预是否成立以运行记录的分叉元数据为准。",
+    translator.t("verification.cmpLimitAgentText"),
+    translator.t("verification.cmpLimitNoAutoFix"),
   ];
   if (sourceVerified === false) {
-    limitations.push("至少一侧来源 trace 缺失或快照与记录不符：不宣称已核验修复分支或代码因果。");
+    limitations.push(translator.t("verification.cmpLimitSourceUnverified"));
   }
   if (left.sourceStatus === "missing" || right.sourceStatus === "missing") {
-    limitations.push(
-      "至少一侧来源 run 的 trace 已缺失：代码差异无法在本机核对（验证记录仍可读）。",
-    );
+    limitations.push(translator.t("verification.cmpLimitSourceMissing"));
   }
   if (left.meta?.environment === null || right.meta?.environment === null) {
-    limitations.push(
-      "至少一侧记录未保存环境身份（实际镜像/工具链/限额）：这些条件按未知处理，不拿当前 manifest 冒充。",
-    );
+    limitations.push(translator.t("verification.cmpLimitEnvironmentMissing"));
   }
   if (left.meta === null || right.meta === null) {
-    limitations.push("至少一侧记录头不可读（损坏/版本不受支持）：条件与代码身份未知。");
+    limitations.push(translator.t("verification.cmpLimitMetaMissing"));
   }
-  limitations.push(
-    "测试/runner/依赖锁/模板身份由计划绑定摘要锚定（摘要相同 = 同一配方；这些明细不单独展开）。",
-  );
-  limitations.push(
-    "公开环境变量：产品不注入（命令行不含 --env），容器镜像默认由实际 imageDigest 锚定。",
-  );
+  limitations.push(translator.t("verification.cmpLimitPlanBinding"));
+  limitations.push(translator.t("verification.cmpLimitEnvVars"));
   return limitations;
 }
 
@@ -309,15 +342,18 @@ export function compareVerifications(
   leftResult: VerificationGetResult,
   rightResult: VerificationGetResult,
   runs: readonly RunSummary[],
+  translator: Translator,
 ): VerificationComparison {
   const byId = new Map(runs.map((run) => [run.id, run]));
   const left = sideOf(
     leftResult,
     leftResult.meta === null ? undefined : byId.get(leftResult.meta.runId),
+    translator,
   );
   const right = sideOf(
     rightResult,
     rightResult.meta === null ? undefined : byId.get(rightResult.meta.runId),
+    translator,
   );
   const leftMeta = leftResult.meta;
   const rightMeta = rightResult.meta;
@@ -332,43 +368,58 @@ export function compareVerifications(
   const stateByKey = new Map(facts.conditions.map((condition) => [condition.key, condition.state]));
 
   const displayRows: [string, string, string | null, string | null][] = [
-    ["profileId", "profile", leftMeta?.profileId ?? null, rightMeta?.profileId ?? null],
+    [
+      "profileId",
+      translator.t("verification.cmpProfile"),
+      leftMeta?.profileId ?? null,
+      rightMeta?.profileId ?? null,
+    ],
     [
       "manifestVersion",
-      "manifest 版本",
+      translator.t("verification.cmpManifestVersion"),
       leftMeta === null ? null : String(leftMeta.manifestVersion),
       rightMeta === null ? null : String(rightMeta.manifestVersion),
     ],
     [
       "planBindingDigest",
-      "计划绑定摘要（计划×策略×配方）",
+      translator.t("verification.cmpPlanBinding"),
       leftMeta?.planBindingDigest ?? null,
       rightMeta?.planBindingDigest ?? null,
     ],
-    ["commandId", "检查命令", leftMeta?.commandId ?? null, rightMeta?.commandId ?? null],
+    [
+      "commandId",
+      translator.t("verification.cmpCommand"),
+      leftMeta?.commandId ?? null,
+      rightMeta?.commandId ?? null,
+    ],
     [
       "command",
-      "executable + argv",
+      translator.t("verification.cmpExecutable"),
       // join 仅用于显示；判等由共享判据按数组完成
       leftCommand === null ? null : `${leftCommand.executable} ${leftCommand.argv.join(" ")}`,
       rightCommand === null ? null : `${rightCommand.executable} ${rightCommand.argv.join(" ")}`,
     ],
-    ["cwd", "工作目录", leftCommand?.cwd ?? null, rightCommand?.cwd ?? null],
+    [
+      "cwd",
+      translator.t("verification.cmpCwd"),
+      leftCommand?.cwd ?? null,
+      rightCommand?.cwd ?? null,
+    ],
     [
       "platform",
-      "平台",
+      translator.t("verification.cmpPlatform"),
       leftMeta?.environment?.platform ?? null,
       rightMeta?.environment?.platform ?? null,
     ],
     [
       "imageDigest",
-      "实际镜像摘要",
+      translator.t("verification.cmpImageDigest"),
       leftMeta?.environment?.imageDigest ?? null,
       rightMeta?.environment?.imageDigest ?? null,
     ],
     [
       "toolchain",
-      "运行时版本",
+      translator.t("verification.cmpToolchain"),
       leftMeta?.environment === null || leftMeta?.environment === undefined
         ? null
         : formatToolchain(leftMeta.environment.toolchain),
@@ -378,23 +429,23 @@ export function compareVerifications(
     ],
     [
       "limits",
-      "资源限额",
+      translator.t("verification.cmpLimits"),
       leftMeta?.environment === null || leftMeta?.environment === undefined
         ? null
-        : formatLimits(leftMeta.environment.limits),
+        : formatLimits(leftMeta.environment.limits, translator),
       rightMeta?.environment === null || rightMeta?.environment === undefined
         ? null
-        : formatLimits(rightMeta.environment.limits),
+        : formatLimits(rightMeta.environment.limits, translator),
     ],
     [
       "security",
-      "隔离基线",
+      translator.t("verification.cmpSecurity"),
       leftMeta?.environment === null || leftMeta?.environment === undefined
         ? null
-        : formatSecurity(leftMeta.environment.security),
+        : formatSecurity(leftMeta.environment.security, translator),
       rightMeta?.environment === null || rightMeta?.environment === undefined
         ? null
-        : formatSecurity(rightMeta.environment.security),
+        : formatSecurity(rightMeta.environment.security, translator),
     ],
   ];
   const conditions: VerificationCompareRow[] = displayRows.map(
@@ -415,42 +466,46 @@ export function compareVerifications(
     case "outcome-unknown":
       verdict = {
         kind: "outcome-unknown",
-        headline: "至少一侧记录未封存/不可读：不形成比较结论（不以未完成事实冒充结果）。",
+        headline: translator.t("verification.cmpVerdictOutcomeUnknown"),
       };
       break;
     case "evidence-incomplete":
       verdict = {
         kind: "evidence-incomplete",
-        headline: facts.evidenceIncompleteFromCurrentAssets
-          ? "至少一侧当前必需资产不可核验：不形成可核查的修复结论（历史结局不改写）。"
-          : "至少一侧证据不完整：不形成修复结论（缺项不能以模型文本补齐）。",
+        headline: translator.t(
+          facts.evidenceIncompleteFromCurrentAssets
+            ? "verification.cmpVerdictAssetsUnverifiable"
+            : "verification.cmpVerdictEvidenceIncomplete",
+        ),
       };
       break;
     case "conditions-differ":
       verdict = {
         kind: "conditions-differ",
-        headline: "条件不同：不构成同条件失败→通过。",
+        headline: translator.t("verification.cmpVerdictConditionsDiffer"),
         differences,
       };
       break;
     case "conditions-unknown":
       verdict = {
         kind: "conditions-unknown",
-        headline: "条件未知（记录缺字段）：不构成同条件失败→通过。",
+        headline: translator.t("verification.cmpVerdictConditionsUnknown"),
         unknowns,
       };
       break;
     case "failed-to-passed":
       verdict = {
         kind: "failed-to-passed",
-        headline:
-          "同条件失败→通过：仅指该固定检查在两侧已记录的相同条件下由 check_failed 变为 passed；不宣布完整正确或因果关系。",
+        headline: translator.t("verification.cmpVerdictFailedToPassed"),
       };
       break;
     default:
       verdict = {
         kind: "same-conditions-other-outcome",
-        headline: `条件一致，但结局不是失败→通过（实际：${left.outcome} / ${right.outcome}）；只声明实际检查结果。`,
+        headline: translator.t("verification.cmpVerdictSameOther", {
+          left: left.outcome ?? translator.t("verification.compareUnknownShort"),
+          right: right.outcome ?? translator.t("verification.compareUnknownShort"),
+        }),
       };
   }
 
@@ -460,6 +515,6 @@ export function compareVerifications(
     conditions,
     verdict,
     codeSame,
-    limitations: limitationList(leftResult, rightResult, facts.sourceVerified),
+    limitations: limitationList(leftResult, rightResult, facts.sourceVerified, translator),
   };
 }

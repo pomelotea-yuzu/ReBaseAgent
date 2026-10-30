@@ -31,6 +31,9 @@ const { VerificationPanel } = await import("../src/renderer/src/components/Verif
  * - stale 判定就近显示原因；提交错误与最近结局如实呈现。
  */
 
+const zh = createTestTranslator("zh-CN");
+const en = createTestTranslator("en-US");
+
 const RUN = "run_ver_panel";
 const CAPABILITY: VerificationCapabilityResult = {
   planToken: "token-1",
@@ -583,7 +586,6 @@ describe("VerificationPanel（5.2：D04 结局分层与结局短语）", () => {
   });
 
   it("结局短语把测试失败与请求失败分开（check_failed 不是请求失败）", () => {
-    const zh = createTestTranslator("zh-CN");
     expect(verificationOutcomeLabel("check_failed", zh)).toContain("不是请求失败");
     expect(verificationOutcomeLabel("evidence_incomplete", zh)).toContain("不能绿色通过");
     expect(verificationOutcomeLabel("artifact_invalid", zh)).toContain("改代码不是修复");
@@ -899,7 +901,7 @@ function runSummaryOf(id: string, forkField: string | null): RunSummary {
 
 const COMPARE_RUNS = [runSummaryOf("run_old", null), runSummaryOf("run_fix", "result")];
 
-function compareProps(overrides: Record<string, unknown> = {}) {
+function compareProps(overrides: Record<string, unknown> = {}, translator = zh) {
   const left = comparableRecord({
     verificationId: "ver-old",
     runId: "run_old",
@@ -934,7 +936,7 @@ function compareProps(overrides: Record<string, unknown> = {}) {
     compareLeft: "ver-old",
     compareRight: "ver-fix",
     compareState: "ready",
-    comparison: compareVerifications(left, right, COMPARE_RUNS),
+    comparison: compareVerifications(left, right, COMPARE_RUNS, translator),
     canOpenCompareDiff: true,
     ...overrides,
   });
@@ -1029,7 +1031,7 @@ describe("VerificationPanel（5.4：双验证比较 D07/P24/P25）", () => {
     });
     const html = render(
       compareProps({
-        comparison: compareVerifications(left, right, COMPARE_RUNS),
+        comparison: compareVerifications(left, right, COMPARE_RUNS, zh),
       }),
     );
     expect(html).toContain('data-compare-verdict="conditions-differ"');
@@ -1051,7 +1053,7 @@ describe("VerificationPanel（5.4：双验证比较 D07/P24/P25）", () => {
       evidenceComplete: false,
     });
     const incomplete = render(
-      compareProps({ comparison: compareVerifications(left, right, COMPARE_RUNS) }),
+      compareProps({ comparison: compareVerifications(left, right, COMPARE_RUNS, zh) }),
     );
     expect(incomplete).toContain('data-compare-verdict="evidence-incomplete"');
     expect(incomplete).toContain("不形成修复结论");
@@ -1084,6 +1086,7 @@ describe("VerificationPanel（5.4：双验证比较 D07/P24/P25）", () => {
           }),
           sameRun,
           COMPARE_RUNS,
+          zh,
         ),
         canOpenCompareDiff: false,
       }),
@@ -1271,5 +1274,70 @@ describe("VerificationPanel（5.6：D11 焦点可达与长内容不撑破）", (
     ]) {
       expect(tagOf(html, marker)).toContain("focus-visible:ring");
     }
+  });
+});
+
+describe("VerificationPanel（3.3：比较与导出英文呈现）", () => {
+  it("比较区英文：A/B 标签、判定、条件行、差异入口与限制说明", () => {
+    const html = renderEn(compareProps({}, en));
+    expect(html).toContain("Fix evidence comparison (A original / B fix)");
+    expect(html).toContain("A · Original");
+    expect(html).toContain("B · Fix");
+    expect(html).toContain("Same conditions failed → passed");
+    expect(html).toContain("Plan binding digest (plan × strategy × recipe)");
+    expect(html).toContain("View code differences in run comparison");
+    expect(html).toContain("Agent text does not enter conditions or conclusions");
+    expect(html).not.toContain("修复证据比较");
+  });
+
+  it("导出区英文：绑定、快照一致、补丁与“文件导出≠测试通过”边界", () => {
+    const exported = renderEn(
+      exportProps({
+        exportFeedback: {
+          kind: "exported",
+          verificationId: "ver-old",
+          generation: 1,
+          outcome: {
+            status: "exported",
+            targetDir: "D:/exports/ver-old",
+            filesRoot: "files",
+            fileCount: 3,
+            totalFileBytes: 1024,
+            snapshotId: EXPORT_SNAPSHOT,
+            stepSpanId: null,
+            patch: { status: "no_text_changes", covered: [], excluded: [] },
+            unpreserved: {
+              permissions: "unknown",
+              executable_bit: "unknown",
+              timestamps: "unknown",
+              links: "unknown",
+              empty_directories: "unknown",
+              external_services: "unknown",
+            },
+            verificationId: "ver-old",
+            verificationSnapshotId: EXPORT_SNAPSHOT,
+          },
+        },
+      }),
+    );
+    expect(exported).toContain("Export the tested input (R2.1)");
+    expect(exported).toContain("Exported 3 files");
+    expect(exported).toContain("match (bound before writing)");
+    expect(exported).toContain("A file export ≠ a test pass");
+
+    const failed = renderEn(
+      exportProps({
+        exportFeedback: {
+          kind: "failed",
+          verificationId: "ver-old",
+          generation: 1,
+          code: "VERIFICATION_EXPORT_SNAPSHOT_DRIFT",
+          reason: "snapshot mismatch",
+          retained: ["files/a.txt"],
+        },
+      }),
+    );
+    expect(failed).toContain("Export failed (VERIFICATION_EXPORT_SNAPSHOT_DRIFT)");
+    expect(failed).toContain("Target leftovers");
   });
 });

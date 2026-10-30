@@ -169,6 +169,8 @@ node scripts/i18n-attribution.cjs --compare-inventory --verify-boundaries
 
 3.2 迁移验证在飞/定向停止/结局/未知/记录与日志外围：`verification-reading` 的状态行（封存/未封存/坏尾行号/版本不支持）与 `verification-entry` 的登记记录摘要（类型/状态/未知回落）接 translator；`VerificationPanel` 迁移在飞提示（准备不可中断/执行可定向停止）、停止按钮与幂等说明、main 停止说明的原文标注、停止失败码、操作状态未知、登记记录区、记录阅读（事件数/阶段/结局/证据完整性/命令双口径字节/读流入口）、日志切片（身份/加载中/稳定码+附件损坏缺失/分页续读/截断与完整日志边界）、D04 结局三层与验证身份。包层 `records/reader.ts`、`records/assets-view.ts` 的读取与附件诊断改判 original（作为稳定码之外的原始详情）。机器清单 **2,330 处**（product 1,666 / original 579 / internal 81 / generated 4）：迁入资源 78 处、改判 original 47 处。收口门禁 `--final` 仍红 128 个 pending 文件（批次 1 余 46；`VerificationPanel` 余 79 处属 3.3 比较与导出）。3.2 完成。
 
+3.3 迁移验证比较、代码关联与所测输入导出：`verification-compare` 的条件行（profile/manifest/计划绑定/命令/argv/cwd/平台/镜像/工具链/限额/隔离基线）、干预措辞、六类结论与限制说明全部接 translator；`VerificationPanel` 迁移 A/B 选择（来源行/自比禁用）、判定横幅、差异/未知项、逐侧摘要（状态/快照/干预/结局/证据/退出码/日志双口径）、代码差异入口与条件行，以及导出区（绑定/空目录/未封存阻断）与导出反馈（在飞/取消/失败+残留/成功快照一致+补丁+回查+“文件导出≠测试通过”）。包层五个 `export-*` 文件的写入/定位诊断改判 original（稳定码之外的原始详情）。机器清单 **2,204 处**（product 1,504 / original 615 / internal 81 / generated 4）：迁入资源 126 处、改判 original 36 处。收口门禁 `--final` 仍红 121 个 pending 文件（批次 1 余 46；3.3 后验证面板与比较/导出均已产品归零）。3.3 完成。
+
 ## 9. 局限
 
 - 工作区与批次按文件名近似，包层不能精确拆到单个工作区；迁移时以实际入口为准修正。

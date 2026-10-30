@@ -1,6 +1,7 @@
 import type { RunSummary, VerificationGetResult } from "@shared/ipc";
 import { describe, expect, it } from "vitest";
 import { compareVerifications } from "../src/renderer/src/lib/verification-compare";
+import { createTestTranslator } from "./i18n/render-with-locale";
 
 /**
  * R3 任务 5.4：比较判据（D07/P24/P25 逐字）。
@@ -8,6 +9,9 @@ import { compareVerifications } from "../src/renderer/src/lib/verification-compa
  * - 条件不同/缺字段必须显式标注，不得合成同条件；
  * - 干预只来自运行分叉元数据；Agent 文本不进入结论。
  */
+
+const zh = createTestTranslator("zh-CN");
+const en = createTestTranslator("en-US");
 
 const D = "a".repeat(64);
 const IMAGE = `sha256:${"b".repeat(64)}`;
@@ -142,6 +146,7 @@ describe("compareVerifications（D07/P24：同条件失败→通过与干预来�
         outcome: "passed",
       }),
       [BASE_RUN, FIX_RUN],
+      zh,
     );
     expect(comparison.verdict.kind).toBe("failed-to-passed");
     expect(comparison.verdict.headline).toContain("同条件失败→通过");
@@ -162,6 +167,7 @@ describe("compareVerifications（D07/P24：同条件失败→通过与干预来�
         planBindingDigest: "c".repeat(64),
       }),
       [BASE_RUN, FIX_RUN],
+      zh,
     );
     expect(comparison.verdict.kind).toBe("conditions-differ");
     if (comparison.verdict.kind !== "conditions-differ") return;
@@ -179,6 +185,7 @@ describe("compareVerifications（D07/P24：同条件失败→通过与干预来�
         argv: ["--test", "other.test.mjs"],
       }),
       [BASE_RUN, FIX_RUN],
+      zh,
     );
     const command = comparison.conditions.find((one) => one.key === "command");
     expect(command?.state).toBe("different");
@@ -190,6 +197,7 @@ describe("compareVerifications（D07/P24：同条件失败→通过与干预来�
       recordOf({ verificationId: "ver-old", env: null }),
       recordOf({ verificationId: "ver-fix", runId: "run_fix", outcome: "passed" }),
       [BASE_RUN, FIX_RUN],
+      zh,
     );
     expect(comparison.verdict.kind).toBe("conditions-unknown");
     if (comparison.verdict.kind !== "conditions-unknown") return;
@@ -209,6 +217,7 @@ describe("compareVerifications（D07/P24：同条件失败→通过与干预来�
         evidenceComplete: false,
       }),
       [BASE_RUN, FIX_RUN],
+      zh,
     );
     expect(comparison.verdict.kind).toBe("evidence-incomplete");
     expect(comparison.verdict.headline).toContain("不形成修复结论");
@@ -219,6 +228,7 @@ describe("compareVerifications（D07/P24：同条件失败→通过与干预来�
       recordOf({ verificationId: "ver-old", terminated: false }),
       recordOf({ verificationId: "ver-fix", runId: "run_fix", outcome: "passed" }),
       [BASE_RUN, FIX_RUN],
+      zh,
     );
     expect(comparison.verdict.kind).toBe("outcome-unknown");
     expect(comparison.left.outcome).toBeNull();
@@ -229,6 +239,7 @@ describe("compareVerifications（D07/P24：同条件失败→通过与干预来�
       recordOf({ verificationId: "ver-a", outcome: "passed" }),
       recordOf({ verificationId: "ver-b", runId: "run_fix", outcome: "passed" }),
       [BASE_RUN, FIX_RUN],
+      zh,
     );
     expect(comparison.verdict.kind).toBe("same-conditions-other-outcome");
     expect(comparison.verdict.headline).toContain("passed / passed");
@@ -241,6 +252,7 @@ describe("比较的未知与限制（P25/D07）", () => {
       recordOf({ verificationId: "ver-old", sourceStatus: "missing", env: null }),
       recordOf({ verificationId: "ver-fix", runId: "run_fix", outcome: "passed" }),
       [FIX_RUN],
+      zh,
     );
     expect(comparison.limitations.join("\n")).toContain("trace 已缺失");
     expect(comparison.limitations.join("\n")).toContain("未保存环境身份");
@@ -254,10 +266,67 @@ describe("比较的未知与限制（P25/D07）", () => {
       recordOf({ verificationId: "ver-a" }),
       recordOf({ verificationId: "ver-b", outcome: "passed" }),
       [BASE_RUN],
+      zh,
     );
     expect(same.codeSame).toBe(true);
     const broken = recordOf({ verificationId: "ver-c" });
-    const unknown = compareVerifications(broken, { ...broken, meta: null, status: "corrupt" }, []);
+    const unknown = compareVerifications(
+      broken,
+      { ...broken, meta: null, status: "corrupt" },
+      [],
+      zh,
+    );
     expect(unknown.codeSame).toBeNull();
+  });
+});
+
+describe("compareVerifications 英文投影（D19：条件/干预/结论独立成句）", () => {
+  it("同条件失败→通过、条件行与干预按英文呈现，事实值不变", () => {
+    const comparison = compareVerifications(
+      recordOf({ verificationId: "ver-old", runId: "run_base", outcome: "check_failed" }),
+      recordOf({
+        verificationId: "ver-fix",
+        runId: "run_fix",
+        snapshotId: "snap_fix",
+        outcome: "passed",
+      }),
+      [BASE_RUN, FIX_RUN],
+      en,
+    );
+    expect(comparison.verdict.kind).toBe("failed-to-passed");
+    expect(comparison.verdict.headline).toContain("Same conditions failed → passed");
+    expect(comparison.verdict.headline).toContain("does not claim complete correctness");
+    const labels = comparison.conditions.map((one) => one.label);
+    expect(labels).toContain("Plan binding digest (plan × strategy × recipe)");
+    expect(labels).toContain("Runtime versions");
+    expect(comparison.left.intervention).toContain("No recorded fork");
+    expect(comparison.right.intervention).toContain(
+      "Recorded fork: edit result @ s_02 (parent run_base)",
+    );
+    expect(comparison.conditions.find((one) => one.key === "limits")?.left).toContain("CPU 1 core");
+    expect(comparison.conditions.find((one) => one.key === "security")?.left).toContain(
+      "non-root 1000:1000",
+    );
+    expect(comparison.limitations.join("\n")).toContain("Agent text does not enter conditions");
+  });
+
+  it("条件不同的差异项使用英文标签（不把中文标签混入英文结论）", () => {
+    const comparison = compareVerifications(
+      recordOf({ verificationId: "ver-old" }),
+      recordOf({
+        verificationId: "ver-fix",
+        runId: "run_fix",
+        outcome: "passed",
+        planBindingDigest: "c".repeat(64),
+      }),
+      [BASE_RUN, FIX_RUN],
+      en,
+    );
+    expect(comparison.verdict.kind).toBe("conditions-differ");
+    if (comparison.verdict.kind !== "conditions-differ") return;
+    expect(comparison.verdict.differences).toContain(
+      "Plan binding digest (plan × strategy × recipe)",
+    );
+    expect(comparison.verdict.headline).toContain("not a same-condition");
   });
 });

@@ -5,6 +5,7 @@ import type {
   WorkspaceReadFileResult,
 } from "@shared/ipc";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslator } from "../i18n";
 import { resolveChangeFilter } from "../lib/file-directory";
 import { isIsolatedRun } from "../lib/isolated-fork";
 import {
@@ -82,6 +83,7 @@ function requestKey(runId: string, stepSpanId: string | null, path: string): str
  * - **loading 由状态机持有**，不在 `finally` 里无条件清除。
  */
 export function WorkspaceFileView({ run }: { run: RunDetail }) {
+  const translator = useTranslator();
   const inspectWorkspace = useAppStore((s) => s.inspectWorkspace);
   const readWorkspaceFile = useAppStore((s) => s.readWorkspaceFile);
   const fileReading = useAppStore((s) => s.fileReadingOf(run.meta.id));
@@ -452,8 +454,13 @@ export function WorkspaceFileView({ run }: { run: RunDetail }) {
     () =>
       verificationCompareData === null
         ? null
-        : compareVerifications(verificationCompareData.left, verificationCompareData.right, runs),
-    [verificationCompareData, runs],
+        : compareVerifications(
+            verificationCompareData.left,
+            verificationCompareData.right,
+            runs,
+            translator,
+          ),
+    [verificationCompareData, runs, translator],
   );
   /** 两侧来源 run 不同才提供"查看代码差异"（同一 run ⇒ 无代码差异可比较） */
   const compareDiffPair = useMemo(() => {

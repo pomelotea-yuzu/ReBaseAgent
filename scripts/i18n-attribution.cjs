@@ -193,6 +193,16 @@ const ORIGINAL_REASONS = {
     "隔离 prompt 执行失败事实，作为原始诊断展示，不随 UI locale 改写",
   "packages/replay/src/workspace/isolated-prompt-state.ts":
     "隔离 prompt 状态还原的校验事实，作为原始诊断展示，不随 UI locale 改写",
+  "packages/replay/src/workspace/export-api.ts":
+    "导出目标/来源校验的领域诊断，渲染层按稳定码给出本地化摘要并作为原始详情展示",
+  "packages/replay/src/workspace/export-materialize.ts":
+    "导出写入/复核/清理的领域诊断，渲染层按稳定码给出本地化摘要并作为原始详情展示",
+  "packages/replay/src/workspace/export-snapshot.ts":
+    "导出快照绑定的领域诊断，渲染层按稳定码给出本地化摘要并作为原始详情展示",
+  "packages/replay/src/workspace/export-diff.ts":
+    "补丁生成上限的领域诊断，渲染层按稳定码给出本地化摘要并作为原始详情展示",
+  "packages/replay/src/workspace/export-patch.ts":
+    "补丁基线/附件不可用的领域诊断，渲染层按稳定码给出本地化摘要并作为原始详情展示",
   "packages/project-verification/src/prepare/plan.ts":
     "准备计划正文（网络范围/许可）进入计划 token，按原文展示；外围标签与边界由渲染层本地化",
   "packages/project-verification/src/source/precheck.ts":

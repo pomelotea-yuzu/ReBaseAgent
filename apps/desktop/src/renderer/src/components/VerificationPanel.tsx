@@ -203,42 +203,52 @@ function blockerLines(
   return blockers.map((one) => blockerLine(one, translator));
 }
 
-function sourceStatusLabel(status: "present" | "missing" | "unknown"): string {
+function sourceStatusLabel(
+  status: "present" | "missing" | "unknown",
+  translator: PanelTranslator,
+): string {
   switch (status) {
     case "present":
-      return "来源在场";
+      return translator.t("verification.sourceStatusPresent");
     case "missing":
-      return "来源已缺失（记录仍可读）";
+      return translator.t("verification.sourceStatusMissing");
     case "unknown":
-      return "来源状态未知";
+      return translator.t("verification.sourceStatusUnknown");
   }
 }
 
-function compareCandidateSourceLine(candidate: VerificationCompareCandidate): string {
-  const run = candidate.runId ?? "来源 run 未知";
+function compareCandidateSourceLine(
+  candidate: VerificationCompareCandidate,
+  translator: PanelTranslator,
+): string {
+  const run = candidate.runId ?? translator.t("verification.compareRunUnknown");
   const checkpoint =
     candidate.checkpointKind === null
-      ? "检查点未知"
+      ? translator.t("verification.compareCheckpointUnknown")
       : candidate.checkpointKind === "initial"
-        ? "初始检查点"
-        : `步骤 ${candidate.stepSpanId ?? "?"}`;
-  const command = candidate.commandId ?? "命令未知";
+        ? translator.t("verification.checkpointInitial")
+        : translator.t("verification.checkpointStep", {
+            stepSpanId: candidate.stepSpanId ?? "?",
+          });
+  const command = candidate.commandId ?? translator.t("verification.compareCommandUnknown");
   return `${run} · ${checkpoint} · ${command}`;
 }
 
-function metaCheckpointLabel(meta: VerificationGetMeta): string {
+function metaCheckpointLabel(meta: VerificationGetMeta, translator: PanelTranslator): string {
   return meta.checkpoint.kind === "initial"
-    ? "初始检查点"
-    : `步骤检查点 ${meta.checkpoint.stepSpanId}`;
+    ? translator.t("verification.checkpointInitial")
+    : translator.t("verification.checkpointStep", { stepSpanId: meta.checkpoint.stepSpanId });
 }
 
 /** 5.5：验证输入导出的反馈（W03/W04/D08；不把导出说成测试通过） */
 function VerificationExportFeedbackBody({
   feedback,
   expectedSnapshotId,
+  translator,
 }: {
   feedback: VerificationExportFeedback;
   expectedSnapshotId: string | null;
+  translator: PanelTranslator;
 }) {
   switch (feedback.kind) {
     case "in-flight":
@@ -247,7 +257,7 @@ function VerificationExportFeedbackBody({
           data-verification-export-feedback="in-flight"
           className="mt-0.5 text-[10px] text-violet-800"
         >
-          正在导出该验证的精确输入… 切换检查点/比较侧或离开页面都不会改变绑定，main 侧继续写入。
+          {translator.t("verification.exportInFlight")}
         </div>
       );
     case "canceled":
@@ -256,17 +266,21 @@ function VerificationExportFeedbackBody({
           data-verification-export-feedback="canceled"
           className="mt-0.5 text-[10px] text-gray-600"
         >
-          已取消目录选择：没有写入任何内容。
+          {translator.t("verification.exportCanceled")}
         </div>
       );
     case "failed":
       return (
         <div data-verification-export-feedback="failed" className="mt-0.5 text-[10px] text-red-700">
-          导出失败（{feedback.code}）：{feedback.reason}
+          {translator.t("verification.exportFailed", {
+            code: feedback.code,
+            reason: feedback.reason,
+          })}
           {feedback.retained.length > 0 ? (
             <div>
-              目标残留（清理未完成，不可当作完整导出）：
-              {feedback.retained.join("、")}
+              {translator.t("verification.exportRetained", {
+                list: feedback.retained.join("、"),
+              })}
             </div>
           ) : null}
         </div>
@@ -281,41 +295,58 @@ function VerificationExportFeedbackBody({
           className="mt-0.5 rounded border border-emerald-200 bg-white px-1.5 py-1 text-[10px] leading-4 text-gray-700"
         >
           <div>
-            已导出 {outcome.fileCount} 个文件（{formatBytes(outcome.totalFileBytes)}）到{" "}
-            <span className="break-all font-code">{outcome.targetDir}</span>
+            {translator.t("verification.exportExported", {
+              count: outcome.fileCount,
+              bytes: formatBytes(outcome.totalFileBytes),
+              dir: outcome.targetDir,
+            })}
           </div>
           <div>
-            验证快照 {expectedSnapshotId ?? "未知"} · 导出快照 {outcome.snapshotId} ·{" "}
-            {matches ? "一致（写入前已绑定）" : "不一致（异常，请以清单为准）"}
+            {translator.t("verification.exportSnapshotCompare", {
+              expected: expectedSnapshotId ?? translator.t("verification.compareUnknownShort"),
+              actual: outcome.snapshotId,
+              match: translator.t(
+                matches
+                  ? "verification.exportSnapshotMatch"
+                  : "verification.exportSnapshotMismatch",
+              ),
+            })}
           </div>
           <div>
-            补丁：
-            {outcome.patch.status === "written"
-              ? `changes.patch（${outcome.patch.bytes ?? 0} 字节）`
-              : outcome.patch.status === "no_text_changes"
-                ? "无文本差异"
-                : `不可用${outcome.patch.reason === null ? "" : `（${outcome.patch.reason}）`}`}
+            {translator.t("verification.exportPatch", {
+              patch:
+                outcome.patch.status === "written"
+                  ? translator.t("verification.exportPatchWritten", {
+                      bytes: outcome.patch.bytes ?? 0,
+                    })
+                  : outcome.patch.status === "no_text_changes"
+                    ? translator.t("verification.exportPatchNone")
+                    : outcome.patch.reason === null
+                      ? translator.t("verification.exportPatchUnavailableNoReason")
+                      : translator.t("verification.exportPatchUnavailable", {
+                          reason: outcome.patch.reason,
+                        }),
+            })}
           </div>
-          <div className="text-gray-500">
-            回查：目标根 rebaseagent-export.json 的 source.snapshot_id 与 files[] 哈希可逐项核对。
-          </div>
-          <div className="text-amber-800">
-            文件导出 ≠ 测试通过；导出的是所测输入快照，不含日志/材料包，也不应用补丁。
-          </div>
+          <div className="text-gray-500">{translator.t("verification.exportRecheck")}</div>
+          <div className="text-amber-800">{translator.t("verification.exportNotPass")}</div>
         </div>
       );
     }
   }
 }
 
-function compareConditionStateLabel(state: "same" | "different" | "unknown"): string {
+function compareConditionStateLabel(
+  state: "same" | "different" | "unknown",
+  translator: PanelTranslator,
+): string {
   switch (state) {
     case "same":
-      return "一致";
+      return translator.t("verification.compareStateSame");
     case "different":
-      return "不同";
+      return translator.t("verification.compareStateDifferent");
     case "unknown":
-      return "未知";
+      return translator.t("verification.compareStateUnknown");
   }
 }
 
@@ -854,11 +885,14 @@ export function VerificationPanel({
                           data-verification-export="true"
                         >
                           <div className="text-[10px] font-medium text-gray-600">
-                            导出所测输入（R2.1）——文件快照；不含日志/材料包，也不是测试通过
+                            {translator.t("verification.exportTitle")}
                           </div>
                           <div className="text-[10px] text-gray-500">
-                            绑定：{recordMeta.runId} · {metaCheckpointLabel(recordMeta)} · snapshot{" "}
-                            {recordMeta.snapshotId}
+                            {translator.t("verification.exportBinding", {
+                              runId: recordMeta.runId,
+                              checkpoint: metaCheckpointLabel(recordMeta, translator),
+                              snapshotId: recordMeta.snapshotId,
+                            })}
                           </div>
                           <div className="mt-0.5 flex flex-wrap items-center gap-2">
                             <button
@@ -868,19 +902,18 @@ export function VerificationPanel({
                               onClick={onExportInput}
                               className={`rounded border border-slate-400 px-1.5 py-0.5 text-[10px] text-slate-800 hover:bg-white disabled:cursor-not-allowed disabled:opacity-40 ${FOCUS_RING}`}
                             >
-                              选择空目录并导出精确输入
+                              {translator.t("verification.exportStart")}
                             </button>
                             {recordStatus === "sealed" ? (
                               <span className="text-[10px] text-gray-500">
-                                目标由原生对话框选择（须为空目录）；导出前 main 重核记录/来源/快照
-                                ID。
+                                {translator.t("verification.exportSealedHint")}
                               </span>
                             ) : (
                               <span
                                 data-verification-export-blocked="true"
                                 className="text-[10px] text-amber-800"
                               >
-                                记录未封存：不提供导出（不以未完成记录绑定输入）。
+                                {translator.t("verification.exportBlocked")}
                               </span>
                             )}
                           </div>
@@ -888,6 +921,7 @@ export function VerificationPanel({
                             <VerificationExportFeedbackBody
                               feedback={exportFeedback}
                               expectedSnapshotId={recordMeta.snapshotId}
+                              translator={translator}
                             />
                           ) : null}
                         </div>
@@ -989,7 +1023,7 @@ export function VerificationPanel({
             >
               <div className="flex flex-wrap items-center justify-between gap-1">
                 <div className="text-[10px] font-medium text-gray-500">
-                  修复证据比较（A 原验证 / B 修复验证）——只读记录、不自动准备/执行
+                  {translator.t("verification.compareSectionTitle")}
                 </div>
                 {compareLeft !== null || compareRight !== null ? (
                   <button
@@ -998,7 +1032,7 @@ export function VerificationPanel({
                     onClick={onClearCompare}
                     className={`rounded border border-gray-300 px-1.5 py-0.5 text-[10px] text-gray-600 hover:bg-gray-50 ${FOCUS_RING}`}
                   >
-                    清空比较
+                    {translator.t("verification.compareClear")}
                   </button>
                 ) : null}
               </div>
@@ -1009,14 +1043,18 @@ export function VerificationPanel({
                   return (
                     <div key={side} data-compare-side-selector={side}>
                       <div className="text-[10px] text-gray-500">
-                        {side === "left" ? "A · 原验证" : "B · 修复验证"}
+                        {translator.t(
+                          side === "left"
+                            ? "verification.compareSideA"
+                            : "verification.compareSideB",
+                        )}
                       </div>
                       <div className="mt-0.5 flex flex-wrap items-center gap-1">
                         {compareCandidates.map((candidate) => {
                           const id = candidate.verificationId;
                           const isSelected = selected === id;
                           const isOther = other === id;
-                          const source = compareCandidateSourceLine(candidate);
+                          const source = compareCandidateSourceLine(candidate, translator);
                           return (
                             <button
                               key={id}
@@ -1024,7 +1062,11 @@ export function VerificationPanel({
                               data-compare-side={`${side}:${id}`}
                               aria-pressed={isSelected ? "true" : undefined}
                               disabled={isOther && !isSelected}
-                              title={isOther ? "同一验证不能与自己比较" : `${id}（${source}）`}
+                              title={
+                                isOther
+                                  ? translator.t("verification.compareSelfTitle")
+                                  : `${id} (${source})`
+                              }
                               onClick={() => onSelectCompareSide(side, isSelected ? null : id)}
                               className={`max-w-full break-all rounded border px-1.5 py-0.5 text-left font-code text-[10px] ${FOCUS_RING} ${
                                 isSelected
@@ -1039,7 +1081,7 @@ export function VerificationPanel({
                       </div>
                       {selected === null ? null : (
                         <div className="mt-0.5 text-[10px] text-gray-500">
-                          来源：
+                          {translator.t("verification.compareSourceLabel")}
                           {compareCandidateSourceLine(
                             compareCandidates.find((one) => one.verificationId === selected) ?? {
                               verificationId: selected,
@@ -1049,6 +1091,7 @@ export function VerificationPanel({
                               commandId: null,
                               operationState: null,
                             },
+                            translator,
                           )}
                         </div>
                       )}
@@ -1059,23 +1102,28 @@ export function VerificationPanel({
 
               {compareLeft === null || compareRight === null ? (
                 <div className="mt-1 text-[10px] text-gray-500">
-                  显式选择 A/B 两条验证（不自动挑"最近"）；两侧选齐才读取记录。
+                  {translator.t("verification.comparePickBoth")}
                 </div>
               ) : (
                 <div className="mt-1" data-compare-view="true">
                   {compareState === "loading" ? (
-                    <div className="text-[10px] text-gray-500">正在读取两侧验证记录（只读）…</div>
+                    <div className="text-[10px] text-gray-500">
+                      {translator.t("verification.compareLoading")}
+                    </div>
                   ) : null}
                   {compareError !== null ? (
                     <div className="text-[10px] text-red-700" data-compare-error="true">
-                      比较读取失败（{compareError.code}）：{compareError.message}
+                      {translator.t("verification.compareReadFailed", {
+                        code: compareError.code,
+                        detail: compareError.message,
+                      })}
                       <button
                         type="button"
                         data-compare-retry="true"
                         onClick={onRetryCompare}
                         className={`ml-1 rounded border border-gray-300 px-1.5 py-0.5 text-gray-700 hover:bg-gray-50 ${FOCUS_RING}`}
                       >
-                        只读重试
+                        {translator.t("verification.compareRetry")}
                       </button>
                     </div>
                   ) : null}
@@ -1094,12 +1142,16 @@ export function VerificationPanel({
                         {comparison.verdict.headline}
                         {comparison.verdict.kind === "conditions-differ" ? (
                           <div className="mt-0.5 text-[10px]">
-                            不同项：{comparison.verdict.differences.join("、")}
+                            {translator.t("verification.compareDifferences", {
+                              list: comparison.verdict.differences.join("、"),
+                            })}
                           </div>
                         ) : null}
                         {comparison.verdict.kind === "conditions-unknown" ? (
                           <div className="mt-0.5 text-[10px]">
-                            未知项：{comparison.verdict.unknowns.join("、")}
+                            {translator.t("verification.compareUnknowns", {
+                              list: comparison.verdict.unknowns.join("、"),
+                            })}
                           </div>
                         ) : null}
                       </div>
@@ -1117,37 +1169,81 @@ export function VerificationPanel({
                             className="min-w-0 break-words rounded border border-gray-200 bg-white px-1.5 py-1 text-[10px] leading-4 text-gray-700"
                           >
                             <div className="font-medium">
-                              {side === "left" ? "A · 原验证" : "B · 修复验证"} ·{" "}
-                              {view.verificationId}
+                              {translator.t("verification.compareSideSummary", {
+                                side: translator.t(
+                                  side === "left"
+                                    ? "verification.compareSideA"
+                                    : "verification.compareSideB",
+                                ),
+                                verificationId: view.verificationId,
+                              })}
                             </div>
                             <div>
-                              来源：{view.runId ?? "（未知）"} ·{" "}
-                              {view.checkpointLabel ?? "检查点未知"} ·{" "}
-                              {sourceStatusLabel(view.sourceStatus)}
-                            </div>
-                            <div>代码快照：{view.snapshotId ?? "未知"}</div>
-                            <div>干预：{view.intervention}</div>
-                            <div>
-                              结局：{view.outcome ?? "未知"}
-                              {view.outcome === null
-                                ? ""
-                                : `（${verificationOutcomeLabel(view.outcome, translator)}）`}
-                              {" · "}证据
-                              {view.evidenceComplete === null
-                                ? "未知"
-                                : view.evidenceComplete
-                                  ? "完整"
-                                  : "不全"}
+                              {translator.t("verification.compareSideSource", {
+                                runId:
+                                  view.runId ?? translator.t("verification.compareRunUnknownShort"),
+                                checkpoint:
+                                  view.checkpointLabel ??
+                                  translator.t("verification.compareCheckpointUnknown"),
+                                status: sourceStatusLabel(view.sourceStatus, translator),
+                              })}
                             </div>
                             <div>
-                              退出码 {view.exitCode === null ? "未知" : view.exitCode} · 耗时{" "}
-                              {view.durationMs === null ? "未知" : `${view.durationMs}ms`}
+                              {translator.t("verification.compareSnapshot", {
+                                snapshotId:
+                                  view.snapshotId ??
+                                  translator.t("verification.compareUnknownShort"),
+                              })}
                             </div>
                             <div>
-                              日志保留{" "}
+                              {translator.t("verification.compareIntervention", {
+                                intervention: view.intervention,
+                              })}
+                            </div>
+                            <div>
+                              {translator.t("verification.compareOutcome", {
+                                outcome:
+                                  view.outcome ?? translator.t("verification.compareUnknownShort"),
+                                label:
+                                  view.outcome === null
+                                    ? ""
+                                    : translator.t("verification.compareOutcomeLabel", {
+                                        label: verificationOutcomeLabel(view.outcome, translator),
+                                      }),
+                              })}
+                              {" · "}
+                              {translator.t("verification.compareEvidence", {
+                                status:
+                                  view.evidenceComplete === null
+                                    ? translator.t("verification.evidenceUnknown")
+                                    : translator.t(
+                                        view.evidenceComplete
+                                          ? "verification.evidenceComplete"
+                                          : "verification.evidenceIncomplete",
+                                      ),
+                              })}
+                            </div>
+                            <div>
+                              {translator.t("verification.compareExit", {
+                                exit:
+                                  view.exitCode === null
+                                    ? translator.t("verification.compareUnknownShort")
+                                    : view.exitCode,
+                                duration:
+                                  view.durationMs === null
+                                    ? translator.t("verification.compareUnknownShort")
+                                    : `${view.durationMs}ms`,
+                              })}
+                            </div>
+                            <div>
                               {view.logBytes === null
-                                ? "（无命令事实）"
-                                : `stdout ${formatBytes(view.logBytes.stdout)} / stderr ${formatBytes(view.logBytes.stderr)}（全观测 ${formatBytes(view.logBytes.stdoutTotal)} / ${formatBytes(view.logBytes.stderrTotal)}）`}
+                                ? translator.t("verification.compareNoCommandFacts")
+                                : translator.t("verification.compareLogs", {
+                                    stdout: formatBytes(view.logBytes.stdout),
+                                    stderr: formatBytes(view.logBytes.stderr),
+                                    stdoutTotal: formatBytes(view.logBytes.stdoutTotal),
+                                    stderrTotal: formatBytes(view.logBytes.stderrTotal),
+                                  })}
                             </div>
                           </div>
                         ))}
@@ -1155,12 +1251,16 @@ export function VerificationPanel({
 
                       <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-gray-600">
                         <span>
-                          代码差异：
-                          {comparison.codeSame === null
-                            ? "未知"
-                            : comparison.codeSame
-                              ? "两侧快照一致"
-                              : "两侧快照不同"}
+                          {translator.t("verification.compareCodeSame", {
+                            status:
+                              comparison.codeSame === null
+                                ? translator.t("verification.codeSameUnknown")
+                                : translator.t(
+                                    comparison.codeSame
+                                      ? "verification.codeSameYes"
+                                      : "verification.codeSameNo",
+                                  ),
+                          })}
                         </span>
                         {canOpenCompareDiff ? (
                           <button
@@ -1169,21 +1269,23 @@ export function VerificationPanel({
                             onClick={onOpenCompareDiff}
                             className={`rounded border border-gray-300 px-1.5 py-0.5 text-gray-700 hover:bg-gray-50 ${FOCUS_RING}`}
                           >
-                            在运行比较中查看代码差异
+                            {translator.t("verification.compareOpenDiff")}
                           </button>
                         ) : (
                           <span data-compare-no-diff="true">
-                            {comparison.left.runId !== null &&
-                            comparison.left.runId === comparison.right.runId
-                              ? "两侧来自同一 run（无跨 run 代码差异）"
-                              : "缺少来源 run：代码差异不可核对"}
+                            {translator.t(
+                              comparison.left.runId !== null &&
+                                comparison.left.runId === comparison.right.runId
+                                ? "verification.compareNoDiffSameRun"
+                                : "verification.compareNoDiffMissingRun",
+                            )}
                           </span>
                         )}
                       </div>
 
                       <div className="mt-1" data-compare-conditions="true">
                         <div className="text-[10px] text-gray-500">
-                          条件（只列记录事实；未知不拿当前 manifest 补齐）
+                          {translator.t("verification.compareConditionsTitle")}
                         </div>
                         {comparison.conditions.map((entry) => (
                           <div
@@ -1192,8 +1294,15 @@ export function VerificationPanel({
                             data-compare-state={entry.state}
                             className="mt-0.5 break-all rounded border border-gray-200 bg-white px-1.5 py-0.5 text-[10px] leading-4"
                           >
-                            <span className="font-medium">{entry.label}</span>：
-                            {entry.left ?? "（未记录）"} {"vs"} {entry.right ?? "（未记录）"}
+                            {translator.t("verification.compareConditionLine", {
+                              label: entry.label,
+                              left:
+                                entry.left ??
+                                translator.t("verification.compareConditionUnrecorded"),
+                              right:
+                                entry.right ??
+                                translator.t("verification.compareConditionUnrecorded"),
+                            })}
                             <span
                               className={
                                 entry.state === "same"
@@ -1203,7 +1312,7 @@ export function VerificationPanel({
                                     : "ml-1 text-amber-700"
                               }
                             >
-                              {compareConditionStateLabel(entry.state)}
+                              {compareConditionStateLabel(entry.state, translator)}
                             </span>
                           </div>
                         ))}

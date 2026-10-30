@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-30T13:40:01.881Z",
+  "generatedAt": "2026-10-30T13:55:46.285Z",
   "scanner": "scripts/i18n-attribution.cjs",
   "taxonomy": {
     "product": "产品展示：需要按批次迁移为双语资源",
@@ -9,10 +9,10 @@
     "generated": "生成资产：不作为产品文案"
   },
   "totals": {
-    "files": 208,
-    "occurrences": 2330,
-    "product": 1666,
-    "original": 579,
+    "files": 206,
+    "occurrences": 2204,
+    "product": 1504,
+    "original": 615,
     "internal": 81,
     "generated": 4
   },
@@ -26,9 +26,9 @@
       "generated": 0
     },
     "renderer": {
-      "files": 55,
-      "occurrences": 1003,
-      "product": 963,
+      "files": 53,
+      "occurrences": 877,
+      "product": 837,
       "original": 8,
       "internal": 32,
       "generated": 0
@@ -76,8 +76,8 @@
     "pkg:replay": {
       "files": 32,
       "occurrences": 352,
-      "product": 220,
-      "original": 114,
+      "product": 184,
+      "original": 150,
       "internal": 18,
       "generated": 0
     },
@@ -4587,242 +4587,6 @@
       ]
     },
     {
-      "path": "apps/desktop/src/renderer/src/components/VerificationPanel.tsx",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "项目验证",
-      "classification": "product",
-      "batch": 2,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "sourceStatusLabel",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "来源在场",
-            "来源已缺失（记录仍可读）"
-          ],
-          "lines": [
-            209,
-            211,
-            213
-          ]
-        },
-        {
-          "symbol": "compareCandidateSourceLine.run",
-          "role": "constant",
-          "context": "run",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "来源 run 未知"
-          ],
-          "lines": [
-            218
-          ]
-        },
-        {
-          "symbol": "compareCandidateSourceLine.checkpoint",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "检查点未知",
-            "初始检查点"
-          ],
-          "lines": [
-            221,
-            223,
-            224
-          ]
-        },
-        {
-          "symbol": "compareCandidateSourceLine.command",
-          "role": "constant",
-          "context": "command",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "命令未知"
-          ],
-          "lines": [
-            225
-          ]
-        },
-        {
-          "symbol": "metaCheckpointLabel",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "初始检查点",
-            "步骤检查点 ${…}"
-          ],
-          "lines": [
-            231,
-            232
-          ]
-        },
-        {
-          "symbol": "VerificationExportFeedbackBody.div",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "正在导出该验证的精确输入… 切换检查点/比较侧或离开页面都不会改变绑定，main 侧继续写入。",
-            "已取消目录选择：没有写入任何内容。"
-          ],
-          "lines": [
-            250,
-            259,
-            265
-          ]
-        },
-        {
-          "symbol": "div.div",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 34,
-          "samples": [
-            "目标残留（清理未完成，不可当作完整导出）：",
-            "未知"
-          ],
-          "lines": [
-            268,
-            288,
-            289,
-            294,
-            296,
-            297,
-            857,
-            860,
-            994,
-            1014,
-            1044,
-            1064,
-            1069,
-            1073,
-            1099,
-            1104,
-            1122
-          ]
-        },
-        {
-          "symbol": "div.div",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 8,
-          "samples": [
-            "已导出",
-            "个文件（"
-          ],
-          "lines": [
-            284,
-            288,
-            292,
-            300,
-            303
-          ]
-        },
-        {
-          "symbol": "compareConditionStateLabel",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "一致",
-            "不同"
-          ],
-          "lines": [
-            314,
-            316,
-            318
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 5,
-          "samples": [
-            "选择空目录并导出精确输入",
-            "清空比较"
-          ],
-          "lines": [
-            871,
-            1003,
-            1029,
-            1080,
-            1174
-          ]
-        },
-        {
-          "symbol": "div.span",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 8,
-          "samples": [
-            "目标由原生对话框选择（须为空目录）；导出前 main 重核记录/来源/快照 ID。",
-            "记录未封存：不提供导出（不以未完成记录绑定输入）。"
-          ],
-          "lines": [
-            875,
-            883,
-            1160,
-            1162,
-            1164,
-            1165,
-            1180,
-            1181
-          ]
-        },
-        {
-          "symbol": "div.div",
-          "role": "call_arg",
-          "context": "(\n                          [\n                            [\"left\", comparison.left],\n                            [\"right\", comparison.right],\n                          ] as const\n                        ).map",
-          "classification": "product",
-          "reason": null,
-          "count": 8,
-          "samples": [
-            "来源：",
-            "代码快照："
-          ],
-          "lines": [
-            1126,
-            1130,
-            1131,
-            1133,
-            1137,
-            1145,
-            1149
-          ]
-        }
-      ]
-    },
-    {
       "path": "apps/desktop/src/renderer/src/components/workspace-file/FileContent.tsx",
       "layer": "renderer",
       "package": null,
@@ -5602,8 +5366,8 @@
             "有 ${…} 个附件缺失或损坏；导出要求全部附件可验证"
           ],
           "lines": [
-            333,
-            335
+            335,
+            337
           ]
         }
       ]
@@ -6951,243 +6715,6 @@
             94,
             98,
             105
-          ]
-        }
-      ]
-    },
-    {
-      "path": "apps/desktop/src/renderer/src/lib/verification-compare.ts",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "比较工作区",
-      "classification": "product",
-      "batch": 2,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "checkpointLabelOf",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "初始检查点",
-            "步骤检查点 ${…}"
-          ],
-          "lines": [
-            165,
-            166
-          ]
-        },
-        {
-          "symbol": "interventionOf",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "来源 run 不在当前列表：分叉干预未知（不猜）",
-            "无记录的分叉（根运行；人工改文件不可从记录确认）"
-          ],
-          "lines": [
-            170,
-            172,
-            176
-          ]
-        },
-        {
-          "symbol": "interventionOf.parent",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "父 run 未知",
-            "父 ${…}"
-          ],
-          "lines": [
-            174
-          ]
-        },
-        {
-          "symbol": "interventionOf.experiment",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "，实验组 ${…}"
-          ],
-          "lines": [
-            175
-          ]
-        },
-        {
-          "symbol": "formatLimits.tmpfs",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "（tmpfs 计入内存）"
-          ],
-          "lines": [
-            188
-          ]
-        },
-        {
-          "symbol": "formatLimits",
-          "role": "array_item",
-          "context": "[]",
-          "classification": "product",
-          "reason": null,
-          "count": 7,
-          "samples": [
-            "内存 ${…}${…}",
-            "命令超时 ${…}ms"
-          ],
-          "lines": [
-            191,
-            193,
-            194,
-            195,
-            196,
-            197,
-            198
-          ]
-        },
-        {
-          "symbol": "formatSecurity",
-          "role": "array_item",
-          "context": "[]",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "非 root ${…}",
-            "网络 ${…}"
-          ],
-          "lines": [
-            206,
-            210
-          ]
-        },
-        {
-          "symbol": "formatSecurity",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 5,
-          "samples": [
-            "只读根",
-            "可写根"
-          ],
-          "lines": [
-            207,
-            208,
-            209,
-            211
-          ]
-        },
-        {
-          "symbol": "limitationList.limitations",
-          "role": "array_item",
-          "context": "[]",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "Agent 文本不进入条件与结论；本区只读验证记录与运行分叉元数据。",
-            "R3 不自动发起模型修复；干预是否成立以运行记录的分叉元数据为准。"
-          ],
-          "lines": [
-            245,
-            246
-          ]
-        },
-        {
-          "symbol": "limitationList",
-          "role": "call_arg",
-          "context": "limitations.push",
-          "classification": "product",
-          "reason": null,
-          "count": 6,
-          "samples": [
-            "至少一侧来源 trace 缺失或快照与记录不符：不宣称已核验修复分支或代码因果。",
-            "至少一侧来源 run 的 trace 已缺失：代码差异无法在本机核对（验证记录仍可读）。"
-          ],
-          "lines": [
-            249,
-            253,
-            258,
-            262,
-            265,
-            268
-          ]
-        },
-        {
-          "symbol": "compareVerifications.displayRows",
-          "role": "array_item",
-          "context": "[]",
-          "classification": "product",
-          "reason": null,
-          "count": 9,
-          "samples": [
-            "manifest 版本",
-            "计划绑定摘要（计划×策略×配方）"
-          ],
-          "lines": [
-            338,
-            344,
-            348,
-            356,
-            359,
-            365,
-            371,
-            381,
-            391
-          ]
-        },
-        {
-          "symbol": "compareVerifications.headline",
-          "role": "prop",
-          "context": "headline",
-          "classification": "product",
-          "reason": null,
-          "count": 5,
-          "samples": [
-            "至少一侧记录未封存/不可读：不形成比较结论（不以未完成事实冒充结果）。",
-            "条件不同：不构成同条件失败→通过。"
-          ],
-          "lines": [
-            418,
-            432,
-            439,
-            447,
-            453
-          ]
-        },
-        {
-          "symbol": "compareVerifications.headline",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "至少一侧当前必需资产不可核验：不形成可核查的修复结论（历史结局不改写）。",
-            "至少一侧证据不完整：不形成修复结论（缺项不能以模型文本补齐）。"
-          ],
-          "lines": [
-            425,
-            426
           ]
         }
       ]
@@ -13464,17 +12991,17 @@
       "layer": "pkg:replay",
       "package": "replay",
       "workspace": "pkg:replay",
-      "classification": "product",
-      "batch": 2,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "导出目标/来源校验的领域诊断，渲染层按稳定码给出本地化摘要并作为原始详情展示",
       "symbols": [
         {
           "symbol": "validateExportTargetDir",
           "role": "error_message",
           "context": "fail",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "导出目标/来源校验的领域诊断，渲染层按稳定码给出本地化摘要并作为原始详情展示",
           "count": 8,
           "samples": [
             "目标目录不得为空",
@@ -13495,8 +13022,8 @@
           "symbol": "findDataDirRelationViolation",
           "role": "return",
           "context": "return",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "导出目标/来源校验的领域诊断，渲染层按稳定码给出本地化摘要并作为原始详情展示",
           "count": 3,
           "samples": [
             "目标目录与数据目录相同",
@@ -13512,8 +13039,8 @@
           "symbol": "findExportMaterializationViolation",
           "role": "return",
           "context": "return",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "导出目标/来源校验的领域诊断，渲染层按稳定码给出本地化摘要并作为原始详情展示",
           "count": 1,
           "samples": [
             "物化路径超出宿主长度上限（${…} > ${…} 字符）：${…}——导出被拒绝，不做改名或截断"
@@ -13526,8 +13053,8 @@
           "symbol": "failure.reason",
           "role": "ui_prop",
           "context": "reason",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "导出目标/来源校验的领域诊断，渲染层按稳定码给出本地化摘要并作为原始详情展示",
           "count": 1,
           "samples": [
             "读取附件失败：${…}"
@@ -13543,17 +13070,17 @@
       "layer": "pkg:replay",
       "package": "replay",
       "workspace": "pkg:replay",
-      "classification": "product",
-      "batch": 2,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "补丁生成上限的领域诊断，渲染层按稳定码给出本地化摘要并作为原始详情展示",
       "symbols": [
         {
           "symbol": "buildUnifiedDiff",
           "role": "error_message",
           "context": "new ExportDiffError",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "补丁生成上限的领域诊断，渲染层按稳定码给出本地化摘要并作为原始详情展示",
           "count": 1,
           "samples": [
             "补丁生成工作量超限（${…}×${…} 行，${…} > ${…} 格）：${…}"
@@ -13665,17 +13192,17 @@
       "layer": "pkg:replay",
       "package": "replay",
       "workspace": "pkg:replay",
-      "classification": "product",
-      "batch": 2,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "导出写入/复核/清理的领域诊断，渲染层按稳定码给出本地化摘要并作为原始详情展示",
       "symbols": [
         {
           "symbol": "WorkspaceExportWriter.physical",
           "role": "error_message",
           "context": "new ExportWriteError",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "导出写入/复核/清理的领域诊断，渲染层按稳定码给出本地化摘要并作为原始详情展示",
           "count": 2,
           "samples": [
             "相对路径不得为空",
@@ -13690,8 +13217,8 @@
           "symbol": "WorkspaceExportWriter.ensureDir",
           "role": "error_message",
           "context": "new ExportWriteError",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "导出写入/复核/清理的领域诊断，渲染层按稳定码给出本地化摘要并作为原始详情展示",
           "count": 2,
           "samples": [
             "目录已存在（竞争写入或其他来源），不覆盖既有条目：${…}",
@@ -13706,8 +13233,8 @@
           "symbol": "WorkspaceExportWriter.writeFile",
           "role": "error_message",
           "context": "new ExportWriteError",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "导出写入/复核/清理的领域诊断，渲染层按稳定码给出本地化摘要并作为原始详情展示",
           "count": 5,
           "samples": [
             "写入前目标已出现同名条目，不覆盖竞争者的内容：${…}",
@@ -13725,8 +13252,8 @@
           "symbol": "writeFile.written",
           "role": "error_message",
           "context": "new ExportWriteError",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "导出写入/复核/清理的领域诊断，渲染层按稳定码给出本地化摘要并作为原始详情展示",
           "count": 1,
           "samples": [
             "目标字节复核读取失败：${…}：${…}"
@@ -13739,8 +13266,8 @@
           "symbol": "verifyAll.data",
           "role": "error_message",
           "context": "new ExportWriteError",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "导出写入/复核/清理的领域诊断，渲染层按稳定码给出本地化摘要并作为原始详情展示",
           "count": 1,
           "samples": [
             "目标复核读取失败：${…}：${…}"
@@ -13753,8 +13280,8 @@
           "symbol": "WorkspaceExportWriter.verifyAll",
           "role": "error_message",
           "context": "new ExportWriteError",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "导出写入/复核/清理的领域诊断，渲染层按稳定码给出本地化摘要并作为原始详情展示",
           "count": 1,
           "samples": [
             "目标复核不符：${…} 的字节与本次写入不一致"
@@ -13767,8 +13294,8 @@
           "symbol": "cleanup.reason",
           "role": "ui_prop",
           "context": "reason",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "导出写入/复核/清理的领域诊断，渲染层按稳定码给出本地化摘要并作为原始详情展示",
           "count": 5,
           "samples": [
             "清理读取失败：${…}",
@@ -13786,8 +13313,8 @@
           "symbol": "removeOwnPartialNow.reason",
           "role": "ui_prop",
           "context": "reason",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "导出写入/复核/清理的领域诊断，渲染层按稳定码给出本地化摘要并作为原始详情展示",
           "count": 1,
           "samples": [
             "半成品移除失败：${…}"
@@ -13800,8 +13327,8 @@
           "symbol": "toExportFailure.reason",
           "role": "ui_prop",
           "context": "reason",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "导出写入/复核/清理的领域诊断，渲染层按稳定码给出本地化摘要并作为原始详情展示",
           "count": 1,
           "samples": [
             "导出写入失败：${…}"
@@ -13817,17 +13344,17 @@
       "layer": "pkg:replay",
       "package": "replay",
       "workspace": "pkg:replay",
-      "classification": "product",
-      "batch": 2,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "补丁基线/附件不可用的领域诊断，渲染层按稳定码给出本地化摘要并作为原始详情展示",
       "symbols": [
         {
           "symbol": "computeExportPatch.reason",
           "role": "ui_text",
           "context": "ternary",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "补丁基线/附件不可用的领域诊断，渲染层按稳定码给出本地化摘要并作为原始详情展示",
           "count": 1,
           "samples": [
             "补丁基线附件不可用，整份补丁撤销"
@@ -13843,17 +13370,17 @@
       "layer": "pkg:replay",
       "package": "replay",
       "workspace": "pkg:replay",
-      "classification": "product",
-      "batch": 2,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "导出快照绑定的领域诊断，渲染层按稳定码给出本地化摘要并作为原始详情展示",
       "symbols": [
         {
           "symbol": "failure.reason",
           "role": "ui_prop",
           "context": "reason",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "导出快照绑定的领域诊断，渲染层按稳定码给出本地化摘要并作为原始详情展示",
           "count": 1,
           "samples": [
             "导出定位到的快照 ${…} 与绑定的验证输入 ${…} 不一致：已阻断导出（不导出其他检查点，也不用测试副本补齐）"
@@ -13866,8 +13393,8 @@
           "symbol": "toExportFailure.reason",
           "role": "ui_prop",
           "context": "reason",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "导出快照绑定的领域诊断，渲染层按稳定码给出本地化摘要并作为原始详情展示",
           "count": 1,
           "samples": [
             "导出写入失败：${…}"
