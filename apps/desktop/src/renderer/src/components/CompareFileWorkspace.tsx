@@ -6,6 +6,7 @@ import type {
   RunDetail,
 } from "@shared/ipc";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslator } from "../i18n";
 import {
   type CompareFileSide,
   type CompareFileSideState,
@@ -38,7 +39,9 @@ import { ShortIdLabel } from "./ShortIdLabel";
  * 换点/换 path/换对时旧响应整份丢弃，不拼混合差异。
  */
 
-const SIDE_LABEL: Record<CompareFileSide, string> = { left: "左侧", right: "右侧" };
+function sideLabelOf(side: CompareFileSide, translator: ReturnType<typeof useTranslator>): string {
+  return translator.t(side === "left" ? "compare.sideLeft" : "compare.sideRight");
+}
 
 function sideStateReason(state: CompareFileSideState): string {
   switch (state.kind) {
@@ -76,6 +79,7 @@ export function CompareFileWorkspace({
   readonly onBack: () => void;
   readonly stacked?: boolean;
 }) {
+  const translator = useTranslator();
   const fileView = useAppStore((s) => s.compareFileView);
   const ensureSelection = useAppStore((s) => s.ensureCompareFileSelection);
   const setCheckpoint = useAppStore((s) => s.setCompareFileCheckpoint);
@@ -99,18 +103,24 @@ export function CompareFileWorkspace({
     });
   }, [pairKey, leftDetail, rightDetail, ensureSelection]);
 
-  const leftState = resolveCompareFileSide({
-    detail: leftDetail,
-    runId: pair.leftRunId,
-    unavailableReason: leftUnavailable,
-    savedStepSpanId: samePair ? fileView.leftStepSpanId : undefined,
-  });
-  const rightState = resolveCompareFileSide({
-    detail: rightDetail,
-    runId: pair.rightRunId,
-    unavailableReason: rightUnavailable,
-    savedStepSpanId: samePair ? fileView.rightStepSpanId : undefined,
-  });
+  const leftState = resolveCompareFileSide(
+    {
+      detail: leftDetail,
+      runId: pair.leftRunId,
+      unavailableReason: leftUnavailable,
+      savedStepSpanId: samePair ? fileView.leftStepSpanId : undefined,
+    },
+    translator,
+  );
+  const rightState = resolveCompareFileSide(
+    {
+      detail: rightDetail,
+      runId: pair.rightRunId,
+      unavailableReason: rightUnavailable,
+      savedStepSpanId: samePair ? fileView.rightStepSpanId : undefined,
+    },
+    translator,
+  );
   const ready = leftState.kind === "ready" && rightState.kind === "ready";
   const requestKey = ready
     ? compareFileSelectionKey(leftState.selection, rightState.selection)
@@ -227,8 +237,8 @@ export function CompareFileWorkspace({
       if (result === "opened") return;
       setSideOpenError(
         result === "unsupported"
-          ? `${SIDE_LABEL[side]}不是合法隔离运行，不能打开自有文件页`
-          : `${SIDE_LABEL[side]}的检查点已失效或详情不可读：不会自动改点，请重新核对`,
+          ? translator.t("compare.fileOpenUnsupported", { side: sideLabelOf(side, translator) })
+          : translator.t("compare.fileOpenInvalid", { side: sideLabelOf(side, translator) }),
       );
     });
   };
@@ -238,7 +248,7 @@ export function CompareFileWorkspace({
     const selected = state.selection.stepSpanId ?? "initial";
     return (
       <label className="flex min-w-0 flex-wrap items-center gap-1 text-[11px] text-gray-600">
-        <span>检查点</span>
+        <span>{translator.t("compare.fileCheckpoint")}</span>
         <select
           value={selected}
           onChange={(event) => chooseCheckpoint(side, event.target.value)}
@@ -253,7 +263,7 @@ export function CompareFileWorkspace({
         </select>
         {state.defaulted ? (
           <span className="text-gray-400" data-compare-file-default={side}>
-            默认最近自有完成步骤（无则初始）
+            {translator.t("compare.fileDefaultNote")}
           </span>
         ) : null}
       </label>
@@ -276,10 +286,14 @@ export function CompareFileWorkspace({
         data-compare-file-side={side}
       >
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[11px] font-medium text-gray-700">{SIDE_LABEL[side]}</span>
+          <span className="text-[11px] font-medium text-gray-700">
+            {sideLabelOf(side, translator)}
+          </span>
           <ShortIdLabel id={runId} shortId={shortIds.get(runId) ?? runId} />
           {isIsolatedRun(detail) ? (
-            <span className="rounded bg-violet-100 px-1 text-[10px] text-violet-800">文件隔离</span>
+            <span className="rounded bg-violet-100 px-1 text-[10px] text-violet-800">
+              {translator.t("compare.fileIsolationBadge")}
+            </span>
           ) : null}
           <button
             type="button"
@@ -288,7 +302,7 @@ export function CompareFileWorkspace({
             className="ml-auto rounded border border-gray-300 px-1.5 py-0.5 text-[10px] text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
             data-compare-file-open-side={side}
           >
-            打开{SIDE_LABEL[side]}文件
+            {translator.t("compare.fileOpenSide", { side: sideLabelOf(side, translator) })}
           </button>
           <button
             type="button"
@@ -296,13 +310,13 @@ export function CompareFileWorkspace({
             disabled={!exportAvailable}
             title={
               exportAvailable
-                ? "在该侧文件页使用既有 R2.1 导出确认；检查点固定为本次比较选择"
-                : "该侧清单尚不可用：不能把不可用侧当作可导出来源"
+                ? translator.t("compare.fileExportHint")
+                : translator.t("compare.fileExportUnavailable")
             }
             className="rounded border border-gray-300 px-1.5 py-0.5 text-[10px] text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
             data-compare-file-export-side={side}
           >
-            导出{SIDE_LABEL[side]}检查点
+            {translator.t("compare.fileExportSide", { side: sideLabelOf(side, translator) })}
           </button>
         </div>
         {state.kind === "ready" ? (
@@ -322,7 +336,7 @@ export function CompareFileWorkspace({
                 className="rounded border border-amber-400 px-1.5 py-0.5 text-[10px] text-amber-900 hover:bg-amber-50"
                 data-compare-file-use-default={side}
               >
-                显式使用默认检查点
+                {translator.t("compare.fileUseDefault")}
               </button>
             ) : null}
           </div>
@@ -335,7 +349,7 @@ export function CompareFileWorkspace({
     if (entries.length === 0) {
       return (
         <div className="px-2 py-3 text-[11px] text-gray-500">
-          两侧清单均可读，但没有可并集展示的路径。
+          {translator.t("compare.fileNoUnion")}
         </div>
       );
     }
@@ -353,9 +367,21 @@ export function CompareFileWorkspace({
             >
               <div className="break-all font-code text-gray-800">{entry.path}</div>
               <div className="mt-0.5 flex flex-wrap gap-x-2 text-[10px] text-gray-500">
-                <span>{referenceLabel(entry)}</span>
-                {entry.left !== null ? <span>左 {formatBytes(entry.left.bytes)}</span> : null}
-                {entry.right !== null ? <span>右 {formatBytes(entry.right.bytes)}</span> : null}
+                <span>{referenceLabel(entry, translator)}</span>
+                {entry.left !== null ? (
+                  <span>
+                    {translator.t("compare.fileBytesLeft", {
+                      bytes: formatBytes(entry.left.bytes),
+                    })}
+                  </span>
+                ) : null}
+                {entry.right !== null ? (
+                  <span>
+                    {translator.t("compare.fileBytesRight", {
+                      bytes: formatBytes(entry.right.bytes),
+                    })}
+                  </span>
+                ) : null}
               </div>
             </button>
           </li>
@@ -367,14 +393,17 @@ export function CompareFileWorkspace({
   return (
     <div
       className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white"
-      aria-label="比较文件视图"
+      aria-label={translator.t("compare.fileViewAria")}
       data-compare-files-view="true"
     >
       <div className="shrink-0 border-b border-gray-200 px-4 py-2">
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-sm text-gray-800">比较文件</h2>
+          <h2 className="text-sm text-gray-800">{translator.t("compare.fileTitle")}</h2>
           <span className="text-[11px] text-gray-500">
-            左侧 {pair.leftRunId} → 右侧 {pair.rightRunId}
+            {translator.t("compare.fileTarget", {
+              left: pair.leftRunId,
+              right: pair.rightRunId,
+            })}
           </span>
           <button
             type="button"
@@ -382,7 +411,7 @@ export function CompareFileWorkspace({
             className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
             data-compare-files-back
           >
-            返回详细比较
+            {translator.t("compare.backToDetail")}
           </button>
           <button
             type="button"
@@ -391,11 +420,11 @@ export function CompareFileWorkspace({
             className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-40"
             data-compare-files-refresh
           >
-            刷新清单
+            {translator.t("compare.fileRefresh")}
           </button>
         </div>
         <div className="mt-1 text-[10px] leading-4 text-gray-500">
-          两侧检查点独立生效；默认各取最近自有完成步骤（无则初始）。清单引用相同≠内容相同，正文在选中路径后逐侧核验。
+          {translator.t("compare.fileIntro")}
         </div>
       </div>
 
@@ -413,10 +442,12 @@ export function CompareFileWorkspace({
           <div className="min-h-0 flex-1 overflow-y-auto rounded border border-gray-200">
             {!ready ? (
               <div className="px-2 py-3 text-[11px] text-gray-500">
-                两侧都必须是可读的隔离运行才能比较文件；不可用侧不会被当作空清单。
+                {translator.t("compare.fileNeedBoth")}
               </div>
             ) : manifestLoading ? (
-              <div className="px-2 py-3 text-[11px] text-gray-500">正在读取两侧清单…</div>
+              <div className="px-2 py-3 text-[11px] text-gray-500">
+                {translator.t("compare.fileManifestLoading")}
+              </div>
             ) : manifestError !== null ? (
               <div
                 className="px-2 py-3 text-[11px] text-amber-800"
@@ -428,22 +459,28 @@ export function CompareFileWorkspace({
                   onClick={() => setManifestNonce((value) => value + 1)}
                   className="ml-2 rounded border border-amber-400 px-1.5 py-0.5 text-[10px]"
                 >
-                  重试
+                  {translator.t("compare.fileRetry")}
                 </button>
               </div>
             ) : showManifest !== null ? (
               <>
                 {!showManifest.unionComplete ? (
                   <div className="border-b border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] leading-4 text-amber-900">
-                    有一侧清单不可用：路径并集不完整，不可用侧不能当作不存在。
+                    {translator.t("compare.fileUnionIncomplete")}
                     {showManifest.left.status === "unavailable" ? (
                       <div>
-                        左侧：{showManifest.left.failure.code}：{showManifest.left.failure.reason}
+                        {translator.t("compare.fileSideFailure", {
+                          side: sideLabelOf("left", translator),
+                          failure: `${showManifest.left.failure.code}: ${showManifest.left.failure.reason}`,
+                        })}
                       </div>
                     ) : null}
                     {showManifest.right.status === "unavailable" ? (
                       <div>
-                        右侧：{showManifest.right.failure.code}：{showManifest.right.failure.reason}
+                        {translator.t("compare.fileSideFailure", {
+                          side: sideLabelOf("right", translator),
+                          failure: `${showManifest.right.failure.code}: ${showManifest.right.failure.reason}`,
+                        })}
                       </div>
                     ) : null}
                   </div>
@@ -451,7 +488,9 @@ export function CompareFileWorkspace({
                 {renderPathRows(showManifest.entries)}
               </>
             ) : (
-              <div className="px-2 py-3 text-[11px] text-gray-500">等待两侧清单…</div>
+              <div className="px-2 py-3 text-[11px] text-gray-500">
+                {translator.t("compare.fileWaiting")}
+              </div>
             )}
           </div>
         </div>
@@ -459,10 +498,12 @@ export function CompareFileWorkspace({
         <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded border border-gray-200">
           {currentPath === null ? (
             <div className="px-3 py-4 text-[11px] text-gray-500">
-              从左侧路径并集选择一条文件查看两侧正文；不会预读全部文件。
+              {translator.t("compare.fileChoosePath")}
             </div>
           ) : fileLoading ? (
-            <div className="px-3 py-4 text-[11px] text-gray-500">正在按路径核验两侧正文…</div>
+            <div className="px-3 py-4 text-[11px] text-gray-500">
+              {translator.t("compare.fileLoading")}
+            </div>
           ) : fileError !== null ? (
             <div className="px-3 py-4 text-[11px] text-amber-800" data-compare-file-error>
               {fileError}
@@ -473,14 +514,22 @@ export function CompareFileWorkspace({
                 <div className="break-all font-code text-[11px] text-gray-800">{file.path}</div>
                 <div className="mt-0.5 flex flex-wrap gap-x-3 text-[10px] text-gray-500">
                   <span data-compare-file-conclusion={file.conclusion}>
-                    结论：{file.conclusion}
+                    {translator.t("compare.fileConclusion", { conclusion: file.conclusion })}
                   </span>
-                  <span>{comparedFileSideLabel(file.left, "左")}</span>
-                  <span>{comparedFileSideLabel(file.right, "右")}</span>
+                  <span>
+                    {comparedFileSideLabel(file.left, translator.t("compare.sideLeft"), translator)}
+                  </span>
+                  <span>
+                    {comparedFileSideLabel(
+                      file.right,
+                      translator.t("compare.sideRight"),
+                      translator,
+                    )}
+                  </span>
                 </div>
                 {!file.textDiffEligible ? (
                   <div className="mt-1 text-[10px] leading-4 text-amber-800">
-                    该组合不生成文本差异：逐侧状态如上；二进制/超限/缺失不冒充空文件。
+                    {translator.t("compare.fileNoDiff")}
                   </div>
                 ) : null}
               </div>
@@ -502,13 +551,15 @@ export function CompareFileWorkspace({
                 </div>
               ) : (
                 <div className="flex-1 overflow-y-auto p-2">
-                  <FileSideFallback side={file.left} label="左侧" />
-                  <FileSideFallback side={file.right} label="右侧" />
+                  <FileSideFallback side={file.left} label={translator.t("compare.sideLeft")} />
+                  <FileSideFallback side={file.right} label={translator.t("compare.sideRight")} />
                 </div>
               )}
             </div>
           ) : (
-            <div className="px-3 py-4 text-[11px] text-gray-500">选择路径后读取两侧正文。</div>
+            <div className="px-3 py-4 text-[11px] text-gray-500">
+              {translator.t("compare.filePickPath")}
+            </div>
           )}
         </div>
       </div>
@@ -524,6 +575,7 @@ function FileSideFallback({
   readonly side: ComparedWorkspaceFileResult["left"] | ComparedWorkspaceFileResult["right"];
   readonly label: string;
 }) {
+  const translator = useTranslator();
   return (
     <section className="mb-2 rounded border border-gray-200 bg-white" data-compare-file-side-body>
       <div className="border-b border-gray-100 px-2 py-1 text-[11px] font-medium text-gray-600">
@@ -531,21 +583,30 @@ function FileSideFallback({
       </div>
       {side.status === "text" ? (
         <div className="p-2">
-          <LongText text={side.text} label={`${label}正文`} />
+          <LongText text={side.text} label={translator.t("compare.fileBodyLabel", { label })} />
         </div>
       ) : (
         <div className="px-2 py-2 text-[11px] leading-4 text-gray-600">
           {side.status === "binary"
-            ? `二进制文件（${formatBytes(side.file.bytes)}，sha256 ${side.file.sha256.slice(0, 12)}…）：不生成文本差异。`
+            ? translator.t("compare.fileBinary", {
+                bytes: formatBytes(side.file.bytes),
+                sha: side.file.sha256.slice(0, 12),
+              })
             : side.status === "not_found"
-              ? `清单证明该侧不存在此路径（不是空文件）。${side.reason}`
+              ? translator.t("compare.fileNotFound", { reason: side.reason })
               : side.status === "selection_changed"
-                ? `快照已变化：期望 ${side.expectedSnapshotId.slice(0, 12)}…，实际 ${side.actualSnapshotId.slice(0, 12)}…。请刷新清单，不串用旧正文。`
+                ? translator.t("compare.fileSelectionChanged", {
+                    expected: side.expectedSnapshotId.slice(0, 12),
+                    actual: side.actualSnapshotId.slice(0, 12),
+                  })
                 : side.status === "unavailable"
-                  ? `不可用（${side.failure.code}）：${side.failure.reason}`
+                  ? translator.t("compare.fileSideUnavailable", {
+                      code: side.failure.code,
+                      reason: side.failure.reason,
+                    })
                   : "reason" in side
                     ? side.reason
-                    : "该侧不可用。"}
+                    : translator.t("compare.fileSideUnavailableFallback")}
         </div>
       )}
     </section>

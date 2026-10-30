@@ -25,7 +25,7 @@ describe("比较文件视图接线", () => {
     expect(src).toContain("onOpenFilesView={openCompareFileView}");
     const view = read("components/CompareWorkspaceView.tsx");
     expect(view).toContain("onOpenFilesView");
-    expect(view).toContain("比较文件视图");
+    expect(view).toContain("compare.filesAria");
   });
 
   it("默认检查点显式解析；只有初始才省略 stepSpanId", () => {
@@ -41,7 +41,7 @@ describe("比较文件视图接线", () => {
     const src = read("components/CompareFileWorkspace.tsx");
     expect(src).toContain('state.kind === "stale"');
     expect(src).toContain("data-compare-file-use-default");
-    expect(src).toContain("不会自动改点");
+    expect(src).toContain("sideStateReason(state)");
   });
 
   it("清单/正文请求带身份守卫和 expectedSnapshotIds，迟到响应按序号丢弃", () => {
@@ -56,11 +56,11 @@ describe("比较文件视图接线", () => {
 
   it("清单引用与正文核验分列；无文本 diff 时逐侧状态可读", () => {
     const src = read("components/CompareFileWorkspace.tsx");
-    expect(src).toContain("referenceLabel(entry)");
+    expect(src).toContain("referenceLabel(entry, translator)");
     expect(src).toContain("textDiffSidesOf(fileResult.result)");
     expect(src).toContain("!file.textDiffEligible");
     expect(src).toContain("FileSideFallback");
-    expect(src).toContain("不生成文本差异");
+    expect(src).toContain("compare.fileNoDiff");
   });
 
   it("单侧打开固定本次比较检查点/路径；不回到未验证的运行页", () => {

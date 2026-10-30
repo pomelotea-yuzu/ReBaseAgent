@@ -173,6 +173,8 @@ node scripts/i18n-attribution.cjs --compare-inventory --verify-boundaries
 
 3.4 迁移运行比较的选择/指标/派生标签与逐侧失败：`compare-metrics` 的空态/数量提示、共同祖先三态、全部行标签与口径解释、缓存/累计/祖先增量说明接 translator；`CompareSelectionBar`（选择栏/chips 移出/进入详细或指标/清空）、`CompareMetricsTable`（标题/挑选条/列头动作/不可读标签/重试）迁移；`CompareWorkspaceView` 全量迁移（标题与列名、diff 门禁与模式、交换/返回/文件/指标入口、逐侧输出缺型、失败定位、步骤目录折叠摘要与来源归属、编辑证据三态/逐跳链/不同根、模型实验比较与副作用说明）；`CompareWorkspace` 容器（指标表模式、详细模式、挑选拒绝、读取/重试、不可读侧与关系受限）。main `compare-endpoints` 的请求/读取失败、`compare-state` 的载荷/错配诊断与 run-query 三个 compare-facts 文件的领域原因改判 original（带稳定码，渲染层给本地化摘要/标签、原文作详情）。机器清单 **1,991 处**（product 1,241 / original 665 / internal 81 / generated 4）：迁入资源 213 处、改判 original 50 处。收口门禁 `--final` 仍红 111 个 pending 文件（批次 1 余 46；比较工作区余 3.5 的文件视图与 4.4 的草稿列表）。3.4 完成。
 
+3.5 迁移比较文件视图：`compare-files` 的单侧文件入口判据（不可读/非隔离/失效步骤原因与定位说明）、`compare-file-view` 的默认解析/失效不改点原因、清单引用状态（仅左/仅右/引用同异，内容待核验）、逐侧正文状态（文本/二进制/缺失/损坏/超限/IO/快照变化/不可用）接 translator（库保留无 translator 时的中文默认，非展示消费者只判 kind）；`CompareFileWorkspace` 迁移标题/两侧目标/检查点选择与默认注记、文件隔离标记、打开与导出入口（固定本次比较检查点）、清单加载/错误/并集不完整、路径并集与引用状态、正文核验、逐侧回退与导出提示。文件名/路径/sha256/字节数保持原值。机器清单 **1,924 处**（product 1,174 / original 665 / internal 81 / generated 4）：迁入资源 67 处。收口门禁 `--final` 仍红 108 个 pending 文件（批次 1 余 46；比较工作区产品文案归零，余 4.4 草稿列表与 3.6 文件工作区）。3.5 完成。
+
 ## 9. 局限
 
 - 工作区与批次按文件名近似，包层不能精确拆到单个工作区；迁移时以实际入口为准修正。

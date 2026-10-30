@@ -1,3 +1,4 @@
+import { type Translator, createTranslator } from "@rebaseagent/i18n";
 import type { RunDetail } from "@shared/ipc";
 import type {
   ComparePathEntry,
@@ -29,6 +30,8 @@ import {
  */
 
 export type CompareFileSide = "left" | "right";
+
+const FALLBACK_TRANSLATOR = createTranslator({ locale: "zh-CN" });
 
 /**
  * 比较文件视图的会话状态（store 持有；纯模块定义便于无 window 的单测）。
@@ -96,25 +99,28 @@ export type CompareFileSideState =
  * `savedStepSpanId === undefined` = 本次 pair 尚未初始化 ⇒ 显式解析默认值；
  * `null` = 用户/默认选择初始；具体 id = 需在当前详情里仍为合法自有完成步骤。
  */
-export function resolveCompareFileSide(input: {
-  readonly detail: RunDetail | null;
-  readonly runId: string;
-  readonly unavailableReason: string | null;
-  readonly savedStepSpanId: string | null | undefined;
-}): CompareFileSideState {
+export function resolveCompareFileSide(
+  input: {
+    readonly detail: RunDetail | null;
+    readonly runId: string;
+    readonly unavailableReason: string | null;
+    readonly savedStepSpanId: string | null | undefined;
+  },
+  translator: Translator = FALLBACK_TRANSLATOR,
+): CompareFileSideState {
   if (input.detail === null) {
     return {
       kind: "unavailable",
-      reason: input.unavailableReason ?? "该侧不可读：没有已校验详情可供文件选择",
+      reason: input.unavailableReason ?? translator.t("compare.fileSideNoDetail"),
     };
   }
   if (input.detail.meta.id !== input.runId) {
-    return { kind: "unavailable", reason: "该侧详情的运行身份与比较对象不一致" };
+    return { kind: "unavailable", reason: translator.t("compare.fileSideIdentityMismatch") };
   }
   if (!isIsolatedRun(input.detail)) {
     return {
       kind: "not-isolated",
-      reason: "普通运行没有自有文件世界：跨运行文件比较不适用（不会改选另一条运行冒充）",
+      reason: translator.t("compare.fileSideNotIsolated"),
     };
   }
   const options = deriveCheckpointOptions(input.detail);
@@ -133,8 +139,7 @@ export function resolveCompareFileSide(input: {
   if (verdict === "stale") {
     return {
       kind: "stale",
-      reason:
-        "所选检查点已不属于该运行的自有完成步骤（祖先/已删除/拼错）：不自动改点，请显式重新选择",
+      reason: translator.t("compare.fileSideCheckpointStale"),
       options,
     };
   }
@@ -167,40 +172,58 @@ export function compareSideFailureLabel(side: CompareSideResult): string | null 
 }
 
 /** 路径清单引用状态的展示文案（未核验字节；不能冒充内容相同） */
-export function referenceLabel(entry: ComparePathEntry): string {
+export function referenceLabel(
+  entry: ComparePathEntry,
+  translator: Translator = FALLBACK_TRANSLATOR,
+): string {
   switch (entry.presence) {
     case "left_only":
-      return "仅左侧存在";
+      return translator.t("compare.fileRefLeftOnly");
     case "right_only":
-      return "仅右侧存在";
+      return translator.t("compare.fileRefRightOnly");
     case "both":
       return entry.reference === "same"
-        ? "两侧清单引用相同（内容待核验）"
-        : "两侧清单引用不同（内容待核验）";
+        ? translator.t("compare.fileRefSame")
+        : translator.t("compare.fileRefDifferent");
   }
 }
 
 /** 逐侧正文状态标签（错误/二进制/超限各自可辨认） */
-export function comparedFileSideLabel(side: ComparedFileSide, sideName: string): string {
+export function comparedFileSideLabel(
+  side: ComparedFileSide,
+  sideName: string,
+  translator: Translator = FALLBACK_TRANSLATOR,
+): string {
   switch (side.status) {
     case "text":
-      return `${sideName}：文本 ${side.file.bytes} B`;
+      return translator.t("compare.fileSideText", { side: sideName, bytes: side.file.bytes });
     case "binary":
-      return `${sideName}：二进制（不生成文本差异）`;
+      return translator.t("compare.fileSideBinary", { side: sideName });
     case "not_found":
-      return `${sideName}：清单证明不存在（不是空文件）`;
+      return translator.t("compare.fileSideNotFound", { side: sideName });
     case "missing":
-      return `${sideName}：附件缺失（${side.reason}）`;
+      return translator.t("compare.fileSideMissing", { side: sideName, reason: side.reason });
     case "corrupt":
-      return `${sideName}：附件损坏（${side.reason}）`;
+      return translator.t("compare.fileSideCorrupt", { side: sideName, reason: side.reason });
     case "too_large":
-      return `${sideName}：超出文本大小限制（${side.reason}）`;
+      return translator.t("compare.fileSideTooLarge", {
+        side: sideName,
+        reason: side.reason,
+      });
     case "io":
-      return `${sideName}：读取 I/O 失败（${side.reason}）`;
+      return translator.t("compare.fileSideIo", { side: sideName, reason: side.reason });
     case "selection_changed":
-      return `${sideName}：快照已变化（期望 ${side.expectedSnapshotId.slice(0, 12)}…，实际 ${side.actualSnapshotId.slice(0, 12)}…），请刷新`;
+      return translator.t("compare.fileSideSelectionChanged", {
+        side: sideName,
+        expected: side.expectedSnapshotId.slice(0, 12),
+        actual: side.actualSnapshotId.slice(0, 12),
+      });
     case "unavailable":
-      return `${sideName}：不可用（${side.failure.code}：${side.failure.reason}）`;
+      return translator.t("compare.fileSideUnavailableLabel", {
+        side: sideName,
+        code: side.failure.code,
+        reason: side.failure.reason,
+      });
   }
 }
 

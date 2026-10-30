@@ -145,7 +145,7 @@ describe("6.6 接线契约", () => {
     expect(src).toContain("data-compare-file-export-side");
     expect(src).toContain("openCompareSideFilesAt");
     expect(src).toContain("state.selection.stepSpanId, currentPath");
-    expect(src).toContain("R2.1");
+    expect(src).toContain("compare.fileExportHint");
   });
 
   it("导出方向说明仍绑定该 run 初始快照，不相对比较另一侧", () => {

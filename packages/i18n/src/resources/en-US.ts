@@ -1525,6 +1525,80 @@ export const enUS = {
     sideUnreadableInline: "run {{runId}} is unreadable ({{code}}): {{reason}}",
     unreadableSide: "an unreadable side exists",
     diffGateUnreadable: "An unreadable side exists: the text diff cannot be opened",
+    fileCheckpoint: "Checkpoint",
+    fileDefaultNote: "Defaults to the most recent own completed step (or initial)",
+    fileIsolationBadge: "File isolation",
+    fileOpenSide: "Open {{side}} files",
+    fileOpenUnsupported: "{{side}} is not a valid isolated run; its own file page cannot open",
+    fileOpenInvalid:
+      "{{side}} has a stale checkpoint or unreadable detail: the checkpoint is not changed automatically; review it again",
+    fileExportSide: "Export the {{side}} checkpoint",
+    fileExportHint:
+      "Use the existing R2.1 export confirmation on that side's file page; the checkpoint is fixed to this comparison selection",
+    fileExportUnavailable:
+      "That side's manifest is unavailable: an unavailable side cannot be used as an export source",
+    fileUseDefault: "Explicitly use the default checkpoint",
+    fileNoUnion: "Both manifests are readable, but there are no paths to show in the union.",
+    fileBytesLeft: "Left {{bytes}}",
+    fileBytesRight: "Right {{bytes}}",
+    fileViewAria: "Comparison file view",
+    fileTitle: "Compare files",
+    fileTarget: "Left {{left}} → right {{right}}",
+    fileRefresh: "Refresh manifest",
+    fileIntro:
+      "Both checkpoints apply independently; each defaults to its most recent own completed step (or initial). Equal manifest references do not mean equal content: each side's content is verified after a path is selected.",
+    fileNeedBoth:
+      "Both sides must be readable isolated runs to compare files; an unavailable side is never treated as an empty manifest.",
+    fileManifestLoading: "Reading both manifests…",
+    fileRetry: "Retry",
+    fileUnionIncomplete:
+      "One side's manifest is unavailable: the path union is incomplete, and the unavailable side is not treated as absent.",
+    fileSideFailure: "{{side}}: {{failure}}",
+    fileWaiting: "Waiting for both manifests…",
+    fileChoosePath:
+      "Choose a file from the left-side path union to view both sides' content; not all files are preloaded.",
+    fileLoading: "Verifying both sides' content by path…",
+    fileConclusion: "Conclusion: {{conclusion}}",
+    fileNoDiff:
+      "This combination does not produce a text diff: per-side states are above; binary/over-limit/missing files are not treated as empty files.",
+    filePickPath: "Choose a path to read both sides' content.",
+    fileBodyLabel: "{{label}} content",
+    fileBinary: "Binary file ({{bytes}}, sha256 {{sha}}…): no text diff is generated.",
+    fileNotFound:
+      "The manifest proves this path does not exist on that side (not an empty file). {{reason}}",
+    fileSelectionChanged:
+      "The snapshot changed: expected {{expected}}…, actual {{actual}}…. Refresh the manifest; old content is not reused.",
+    fileSideUnavailable: "Unavailable ({{code}}): {{reason}}",
+    fileSideUnavailableFallback: "That side is unavailable.",
+    fileEntryUnreadable:
+      "This side is unreadable: there is no verified detail for the file capability check",
+    fileEntryNotIsolated:
+      "Normal runs have no own file world and no file history — only isolated runs' file pages can open",
+    fileEntryStaleNote:
+      "The selected step is not this run's own completed step: it is not used as the file target; the saved location or default checkpoint is used instead",
+    fileEntryNoSavedNote:
+      "No file-page location was saved: after opening, U2's default picks the most recent own completed step (or initial state)",
+    fileSideNoDetail: "This side is unreadable: there is no verified detail for the file selection",
+    fileSideIdentityMismatch:
+      "The run identity of this side's detail does not match the comparison target",
+    fileSideNotIsolated:
+      "Normal runs have no own file world: cross-run file comparison does not apply (another run is never substituted)",
+    fileSideCheckpointStale:
+      "The selected checkpoint is no longer an own completed step of this run (ancestor/deleted/mistyped): the checkpoint is not changed automatically; select again explicitly",
+    fileRefLeftOnly: "Only on the left",
+    fileRefRightOnly: "Only on the right",
+    fileRefSame: "Both manifests reference the same entry (content pending verification)",
+    fileRefDifferent: "The manifests reference different entries (content pending verification)",
+    fileSideText: "{{side}}: text {{bytes}} B",
+    fileSideBinary: "{{side}}: binary (no text diff)",
+    fileSideNotFound: "{{side}}: the manifest proves it does not exist (not an empty file)",
+    fileSideMissing: "{{side}}: attachment missing ({{reason}})",
+    fileSideCorrupt: "{{side}}: attachment corrupt ({{reason}})",
+    fileSideTooLarge: "{{side}}: exceeds the text size limit ({{reason}})",
+    fileSideIo: "{{side}}: read I/O failed ({{reason}})",
+    fileSideSelectionChanged:
+      "{{side}}: the snapshot changed (expected {{expected}}…, actual {{actual}}…); refresh",
+    fileSideUnavailableLabel: "{{side}}: unavailable ({{code}}: {{reason}})",
     diffUnavailable: "Unavailable: ",
   },
   files: {},

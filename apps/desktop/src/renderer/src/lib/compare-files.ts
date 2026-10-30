@@ -1,3 +1,4 @@
+import { type Translator, createTranslator } from "@rebaseagent/i18n";
 import type { SpanLine } from "@rebaseagent/trace-sdk";
 import type { RunDetail } from "@shared/ipc";
 import { isIsolatedRun } from "./isolated-fork";
@@ -36,22 +37,27 @@ export type CompareFileEntry =
   /** 该侧不可读：没有已校验详情可供能力判据 */
   | { readonly kind: "unavailable"; readonly reason: string };
 
-export function deriveCompareFileEntry(input: {
-  /** 该侧 ready 详情（unavailable 侧传 null） */
-  detail: RunDetail | null;
-  /** 该侧当前的比较步骤选中（复合定位）；null = 未选 */
-  selectedSpanId: string | null;
-  /** 该 run 已保存的文件页签（来自 U2 阅读状态；undefined = 未进过文件页） */
-  savedTab: string | undefined;
-}): CompareFileEntry {
+const FALLBACK_TRANSLATOR = createTranslator({ locale: "zh-CN" });
+
+export function deriveCompareFileEntry(
+  input: {
+    /** 该侧 ready 详情（unavailable 侧传 null） */
+    detail: RunDetail | null;
+    /** 该侧当前的比较步骤选中（复合定位）；null = 未选 */
+    selectedSpanId: string | null;
+    /** 该 run 已保存的文件页签（来自 U2 阅读状态；undefined = 未进过文件页） */
+    savedTab: string | undefined;
+  },
+  translator: Translator = FALLBACK_TRANSLATOR,
+): CompareFileEntry {
   const { detail } = input;
   if (detail === null) {
-    return { kind: "unavailable", reason: "该侧不可读：无已校验详情可供文件能力判定" };
+    return { kind: "unavailable", reason: translator.t("compare.fileEntryUnreadable") };
   }
   if (!isIsolatedRun(detail)) {
     return {
       kind: "not-isolated",
-      reason: "普通运行没有自有文件世界，不生成文件历史——只有隔离运行的文件页可打开",
+      reason: translator.t("compare.fileEntryNotIsolated"),
     };
   }
 
@@ -69,10 +75,7 @@ export function deriveCompareFileEntry(input: {
     return {
       kind: "available",
       targetCheckpointStepId: null,
-      note:
-        verdict === "stale"
-          ? "所选步骤不是该运行的自有完成步骤：不作为文件定位目标，改用已保存位置或默认检查点"
-          : null,
+      note: verdict === "stale" ? translator.t("compare.fileEntryStaleNote") : null,
     };
   }
 
@@ -80,10 +83,7 @@ export function deriveCompareFileEntry(input: {
   return {
     kind: "available",
     targetCheckpointStepId: null,
-    note:
-      input.savedTab === "files"
-        ? null
-        : "未在文件页选定位置：打开后按 U2 默认规则选最近自有完成步骤（或初始状态）",
+    note: input.savedTab === "files" ? null : translator.t("compare.fileEntryNoSavedNote"),
   };
 }
 

@@ -16,6 +16,7 @@ import {
   validateCheckpointStepId,
 } from "../src/renderer/src/lib/workspace-files";
 import type { RunDetail } from "../src/shared/ipc";
+import { createTestTranslator } from "./i18n/render-with-locale";
 
 /**
  * R2.2 6.4/6.5：比较文件视图的纯判据。
@@ -42,6 +43,8 @@ function detailOf(fileName: string): RunDetail {
     lineage: { status: "complete" },
   };
 }
+
+const en = createTestTranslator("en-US");
 
 const ROOT = detailOf("run_mufbxhbd_qp0ijq.jsonl");
 const BRANCH = detailOf("run_mufbxhen_73kc.jsonl");
@@ -265,5 +268,32 @@ describe("清单/正文状态：未核验与不可用分开", () => {
       textDiffEligible: false,
     };
     expect(textDiffSidesOf(binary)).toBeNull();
+  });
+});
+
+describe("compare-file 英文投影（D19）", () => {
+  it("引用状态/逐侧状态/失效原因按英文呈现，事实值不变", () => {
+    const entry = {
+      path: "a.txt",
+      presence: "both" as const,
+      left: { path: "a.txt", sha256: "a".repeat(64), bytes: 1 },
+      right: { path: "a.txt", sha256: "b".repeat(64), bytes: 2 },
+      reference: "different" as const,
+    };
+    expect(referenceLabel(entry, en)).toContain("reference different entries");
+    expect(
+      comparedFileSideLabel({ path: "a.txt", status: "not_found", reason: "no entry" }, "Left", en),
+    ).toContain("does not exist");
+    expect(
+      resolveCompareFileSide(
+        {
+          detail: { ...ROOT, meta: { ...ROOT.meta, id: "other_run" } },
+          runId: ROOT.meta.id,
+          unavailableReason: null,
+          savedStepSpanId: undefined,
+        },
+        en,
+      ),
+    ).toMatchObject({ kind: "unavailable", reason: expect.stringContaining("identity") });
   });
 });
