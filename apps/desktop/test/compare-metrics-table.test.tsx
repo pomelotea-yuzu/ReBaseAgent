@@ -243,3 +243,58 @@ describe("CompareSelectionBarView：选择栏", () => {
     expect(html).not.toContain("进入指标对照");
   });
 });
+
+describe("compare 指标表/选择栏英文投影（D19）", () => {
+  const runsEn = [summary({ id: "r_a" }), summary({ id: "r_b" })];
+  const shortsEn = computeShortIds(["r_a", "r_b"]);
+  const en = createTestTranslator("en-US");
+
+  it("选择栏与进入按钮按英文呈现，短 ID/任务原值保留", () => {
+    const html = renderWithLocale(
+      "en-US",
+      <CompareSelectionBarView
+        runs={runsEn}
+        compareIds={["r_a", "r_b"]}
+        compareNotice={null}
+        shortIds={shortsEn}
+        maxCompare={4}
+        onToggleCompare={() => {}}
+        onClear={() => {}}
+        onEnter={() => {}}
+      />,
+    );
+    expect(html).toContain("Selected 2 / 4");
+    expect(html).toContain("Open detailed comparison");
+    expect(html).toContain("任务 r_a");
+    expect(html).not.toContain("已选 2 / 4");
+  });
+
+  it("指标表英文：标题/表头/挑选条/不可读标签；行值不变", () => {
+    const items = [
+      readyItem("r_a", [summary({ id: "r_a" })]),
+      readyItem("r_b", [summary({ id: "r_a" }), summary({ id: "r_b", parent: "r_a" })]),
+    ];
+    const model = deriveCompareMetricsTableOf({ items, shortIds: shortsEn }, en);
+    const html = renderWithLocale(
+      "en-US",
+      <CompareMetricsTable
+        model={model}
+        loading={false}
+        rejected={null}
+        onRetry={() => {}}
+        pick={{ left: "r_a", right: null }}
+        pickError={null}
+        onPickSide={() => {}}
+        onOpenPair={() => {}}
+        onClearPick={() => {}}
+      />,
+    );
+    expect(html).toContain("Metrics comparison (2 runs)");
+    expect(html).toContain("Own tokens (input)");
+    expect(html).toContain("Selected: left r_a");
+    expect(html).toContain("not selected");
+    expect(html).toContain("Set as left");
+    expect(html).toContain("任务 r_a");
+    expect(html).not.toContain("指标对照（2 条）");
+  });
+});

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-30T13:55:46.285Z",
+  "generatedAt": "2026-10-30T14:24:57.290Z",
   "scanner": "scripts/i18n-attribution.cjs",
   "taxonomy": {
     "product": "产品展示：需要按批次迁移为双语资源",
@@ -9,10 +9,10 @@
     "generated": "生成资产：不作为产品文案"
   },
   "totals": {
-    "files": 206,
-    "occurrences": 2204,
-    "product": 1504,
-    "original": 615,
+    "files": 201,
+    "occurrences": 1991,
+    "product": 1241,
+    "original": 665,
     "internal": 81,
     "generated": 4
   },
@@ -20,16 +20,16 @@
     "main": {
       "files": 20,
       "occurrences": 131,
-      "product": 74,
-      "original": 55,
+      "product": 72,
+      "original": 57,
       "internal": 2,
       "generated": 0
     },
     "renderer": {
-      "files": 53,
-      "occurrences": 877,
-      "product": 837,
-      "original": 8,
+      "files": 48,
+      "occurrences": 664,
+      "product": 620,
+      "original": 12,
       "internal": 32,
       "generated": 0
     },
@@ -84,8 +84,8 @@
     "pkg:run-query": {
       "files": 13,
       "occurrences": 123,
-      "product": 123,
-      "original": 0,
+      "product": 79,
+      "original": 44,
       "internal": 0,
       "generated": 0
     },
@@ -112,17 +112,17 @@
       "layer": "main",
       "package": null,
       "workspace": "比较",
-      "classification": "product",
-      "batch": 2,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "main 比较读取端点的请求/逐项读取失败原始说明，渲染层按稳定码本地化摘要并作为原始详情展示",
       "symbols": [
         {
           "symbol": "compareRunsEndpoint.message",
           "role": "ui_prop",
           "context": "message",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "main 比较读取端点的请求/逐项读取失败原始说明，渲染层按稳定码本地化摘要并作为原始详情展示",
           "count": 1,
           "samples": [
             "run 标识非法：${…}"
@@ -135,8 +135,8 @@
           "symbol": "items.reason",
           "role": "ui_text",
           "context": "ternary",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "main 比较读取端点的请求/逐项读取失败原始说明，渲染层按稳定码本地化摘要并作为原始详情展示",
           "count": 1,
           "samples": [
             "读取失败"
@@ -1900,1092 +1900,6 @@
             543,
             545,
             548
-          ]
-        }
-      ]
-    },
-    {
-      "path": "apps/desktop/src/renderer/src/components/CompareMetricsTable.tsx",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "比较工作区",
-      "classification": "product",
-      "batch": 2,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "CompareMetricsTable.div",
-          "role": "ui_attr",
-          "context": "aria-label",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "指标对照"
-          ],
-          "lines": [
-            43,
-            65,
-            75
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "ui_attr",
-          "context": "aria-label",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "重试比较读取",
-            "打开所选两条的详细比较"
-          ],
-          "lines": [
-            50,
-            96,
-            106
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "重试读取"
-          ],
-          "lines": [
-            54
-          ]
-        },
-        {
-          "symbol": "div.h2",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "指标对照（",
-            "条）"
-          ],
-          "lines": [
-            77
-          ]
-        },
-        {
-          "symbol": "div.div",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 5,
-          "samples": [
-            "正在读取比较对象…",
-            "（不可读）"
-          ],
-          "lines": [
-            84,
-            142,
-            148,
-            157
-          ]
-        },
-        {
-          "symbol": "div.span",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 4,
-          "samples": [
-            "已选：左",
-            "（未选）"
-          ],
-          "lines": [
-            91,
-            92
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 6,
-          "samples": [
-            "打开详细比较",
-            "清除"
-          ],
-          "lines": [
-            101,
-            110,
-            164,
-            169,
-            173,
-            178
-          ]
-        },
-        {
-          "symbol": "tr.th",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "指标"
-          ],
-          "lines": [
-            128
-          ]
-        }
-      ]
-    },
-    {
-      "path": "apps/desktop/src/renderer/src/components/CompareSelectionBar.tsx",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "比较工作区",
-      "classification": "product",
-      "batch": 2,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "CompareSelectionBarView.div",
-          "role": "ui_attr",
-          "context": "aria-label",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "对照选择栏"
-          ],
-          "lines": [
-            72
-          ]
-        },
-        {
-          "symbol": "div.div",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "对照",
-            "已选"
-          ],
-          "lines": [
-            74,
-            76
-          ]
-        },
-        {
-          "symbol": "div.div",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "勾选分支树节点即可加入对照（最多四条）。"
-          ],
-          "lines": [
-            84
-          ]
-        },
-        {
-          "symbol": "span.button",
-          "role": "ui_text",
-          "context": "jsx_expr",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "移出对照 ${…}"
-          ],
-          "lines": [
-            106
-          ]
-        },
-        {
-          "symbol": "span.button",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "移出"
-          ],
-          "lines": [
-            110
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "ui_attr",
-          "context": "aria-label",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "进入对照与比较工作区",
-            "清空对照集合"
-          ],
-          "lines": [
-            118,
-            126
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "进入详细比较",
-            "进入指标对照"
-          ],
-          "lines": [
-            122,
-            130
-          ]
-        }
-      ]
-    },
-    {
-      "path": "apps/desktop/src/renderer/src/components/CompareWorkspace.tsx",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "比较工作区",
-      "classification": "product",
-      "batch": 2,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "CompareWorkspace.submitPick",
-          "role": "error_message",
-          "context": "setPickError",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "无法打开：两条必须是集合内互异的有效运行（相同 ID 不构成两条比较）"
-          ],
-          "lines": [
-            103
-          ]
-        },
-        {
-          "symbol": "CompareWorkspace.div",
-          "role": "ui_attr",
-          "context": "aria-label",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "比较工作区"
-          ],
-          "lines": [
-            145,
-            198
-          ]
-        },
-        {
-          "symbol": "div.span",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "详细比较对象：左",
-            "→ 右"
-          ],
-          "lines": [
-            153
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "ui_attr",
-          "context": "aria-label",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "返回详细比较",
-            "重试详细比较读取"
-          ],
-          "lines": [
-            157,
-            210
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "返回详细比较",
-            "重试读取"
-          ],
-          "lines": [
-            161,
-            216
-          ]
-        },
-        {
-          "symbol": "div.div",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "正在读取详细比较对象…"
-          ],
-          "lines": [
-            202
-          ]
-        },
-        {
-          "symbol": "evidence.reason",
-          "role": "ui_prop",
-          "context": "reason",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "尚无可核对两侧的比较结论",
-            "共同祖先判定不完整（存在父缺失）：链结论受限，祖先差不计算"
-          ],
-          "lines": [
-            277,
-            312,
-            319
-          ]
-        },
-        {
-          "symbol": "evidence.reason",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "run ${…} 不可读（${…}）：${…}",
-            "存在不可读侧"
-          ],
-          "lines": [
-            305,
-            306
-          ]
-        },
-        {
-          "symbol": "diffGate.reason",
-          "role": "ui_prop",
-          "context": "reason",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "存在不可读侧：无法进入文本 diff"
-          ],
-          "lines": [
-            372
-          ]
-        }
-      ]
-    },
-    {
-      "path": "apps/desktop/src/renderer/src/components/CompareWorkspaceView.tsx",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "比较工作区",
-      "classification": "product",
-      "batch": 2,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "div.div",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "未记录（不是空值）"
-          ],
-          "lines": [
-            145
-          ]
-        },
-        {
-          "symbol": "SEMANTICS_LABEL.shared-prefix",
-          "role": "prop",
-          "context": "shared-prefix",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "共享父前缀 · 单点编辑"
-          ],
-          "lines": [
-            158
-          ]
-        },
-        {
-          "symbol": "SEMANTICS_LABEL.from-scratch",
-          "role": "prop",
-          "context": "from-scratch",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "从头重跑（独立执行，不共享前缀）"
-          ],
-          "lines": [
-            159
-          ]
-        },
-        {
-          "symbol": "SEMANTICS_LABEL.single-request",
-          "role": "prop",
-          "context": "single-request",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "代理单请求重发（只影响该次请求）"
-          ],
-          "lines": [
-            160
-          ]
-        },
-        {
-          "symbol": "DirectEvidenceBlock.directionLabel",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "左列 → 右列",
-            "右列 → 左列"
-          ],
-          "lines": [
-            171
-          ]
-        },
-        {
-          "symbol": "DirectEvidenceBlock.div",
-          "role": "ui_attr",
-          "context": "aria-label",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "编辑证据"
-          ],
-          "lines": [
-            174,
-            190,
-            203
-          ]
-        },
-        {
-          "symbol": "div.span",
-          "role": "constant",
-          "context": "head",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "字段「"
-          ],
-          "lines": [
-            182
-          ]
-        },
-        {
-          "symbol": "div.ValueBlock",
-          "role": "ui_attr",
-          "context": "label",
-          "classification": "product",
-          "reason": null,
-          "count": 4,
-          "samples": [
-            "原值",
-            "新值"
-          ],
-          "lines": [
-            196,
-            197,
-            224,
-            225
-          ]
-        },
-        {
-          "symbol": "div.span",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 13,
-          "samples": [
-            "工具结果编辑（工具",
-            "）——不是文件修改"
-          ],
-          "lines": [
-            210,
-            214,
-            219,
-            259,
-            262,
-            589,
-            591,
-            593,
-            594
-          ]
-        },
-        {
-          "symbol": "ExperimentEvidenceBlock.section",
-          "role": "ui_attr",
-          "context": "aria-label",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "模型实验比较"
-          ],
-          "lines": [
-            251
-          ]
-        },
-        {
-          "symbol": "section.h3",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "模型实验比较（历史记录）"
-          ],
-          "lines": [
-            252
-          ]
-        },
-        {
-          "symbol": "section.div",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 8,
-          "samples": [
-            "批次父本",
-            "已记录副作用放行：多臂按顺序执行，前一臂的外部状态可能影响后一臂的起点——比较结果按此口径阅读"
-          ],
-          "lines": [
-            256,
-            279,
-            283,
-            293,
-            563,
-            620,
-            652,
-            657
-          ]
-        },
-        {
-          "symbol": "div.span",
-          "role": "call_arg",
-          "context": "gate.batch.experimentIds.map",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "（未记录）"
-          ],
-          "lines": [
-            259
-          ]
-        },
-        {
-          "symbol": "div.dd",
-          "role": "call_arg",
-          "context": "deltas.map",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "相对父累计增量："
-          ],
-          "lines": [
-            270
-          ]
-        },
-        {
-          "symbol": "div.dd",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 5,
-          "samples": [
-            "未知（不估算）",
-            "未记录"
-          ],
-          "lines": [
-            271,
-            409,
-            417,
-            423,
-            429
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "ui_text",
-          "context": "jsx_expr",
-          "classification": "product",
-          "reason": null,
-          "count": 6,
-          "samples": [
-            "打开记录 ${…}",
-            "打开 ${…} 的失败调用"
-          ],
-          "lines": [
-            300,
-            611,
-            615,
-            861,
-            866,
-            871
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "call_arg",
-          "context": "deltas.map",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "打开"
-          ],
-          "lines": [
-            304
-          ]
-        },
-        {
-          "symbol": "div.div",
-          "role": "call_arg",
-          "context": "data.chains.map",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "到",
-            "的来源路径"
-          ],
-          "lines": [
-            370
-          ]
-        },
-        {
-          "symbol": "li.span",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "· 字段「"
-          ],
-          "lines": [
-            381
-          ]
-        },
-        {
-          "symbol": "span.span",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "已核对",
-            "左侧"
-          ],
-          "lines": [
-            383,
-            752,
-            756
-          ]
-        },
-        {
-          "symbol": "div.dt",
-          "role": "call_arg",
-          "context": "data.facts.sides.map",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "模型：",
-            "参数："
-          ],
-          "lines": [
-            407,
-            427
-          ]
-        },
-        {
-          "symbol": "EditEvidenceSection.heading",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 5,
-          "samples": [
-            "修改证据（关系判定不完整）",
-            "修改证据（尚无可核对的完整结论）"
-          ],
-          "lines": [
-            449,
-            451,
-            453,
-            455,
-            456
-          ]
-        },
-        {
-          "symbol": "EditEvidenceSection.section",
-          "role": "ui_attr",
-          "context": "aria-label",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "修改证据"
-          ],
-          "lines": [
-            458,
-            467
-          ]
-        },
-        {
-          "symbol": "section.Disclosure",
-          "role": "ui_attr",
-          "context": "summary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "修改证据"
-          ],
-          "lines": [
-            469
-          ]
-        },
-        {
-          "symbol": "SIDE_LABEL.left",
-          "role": "prop",
-          "context": "left",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "左列"
-          ],
-          "lines": [
-            492
-          ]
-        },
-        {
-          "symbol": "SIDE_LABEL.right",
-          "role": "prop",
-          "context": "right",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "右列"
-          ],
-          "lines": [
-            492
-          ]
-        },
-        {
-          "symbol": "evidenceSummaryText",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "字段「${…}」 · ${…}",
-            "左列 → 右列"
-          ],
-          "lines": [
-            514,
-            515
-          ]
-        },
-        {
-          "symbol": "evidenceSummaryText",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "${…} 处逐跳核对（不压缩为一次编辑）",
-            "两侧实际输入配置核对（不同根，不声称分叉修改）"
-          ],
-          "lines": [
-            520,
-            523,
-            525
-          ]
-        },
-        {
-          "symbol": "SideOutputSection.section",
-          "role": "ui_text",
-          "context": "jsx_expr",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "${…}输出"
-          ],
-          "lines": [
-            561,
-            570
-          ]
-        },
-        {
-          "symbol": "section.div",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "该侧不可读：",
-            "该侧不可读：无步骤目录"
-          ],
-          "lines": [
-            563,
-            643
-          ]
-        },
-        {
-          "symbol": "div.LongText",
-          "role": "ui_attr",
-          "context": "label",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "最终输出",
-            "中间正文"
-          ],
-          "lines": [
-            581,
-            603
-          ]
-        },
-        {
-          "symbol": "div.div",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "未记录最终输出",
-            "中间正文（不是最终结果）"
-          ],
-          "lines": [
-            584,
-            602,
-            826
-          ]
-        },
-        {
-          "symbol": "SideStepsSection.section",
-          "role": "ui_attr",
-          "context": "aria-label",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "步骤目录"
-          ],
-          "lines": [
-            642,
-            649
-          ]
-        },
-        {
-          "symbol": "li.button",
-          "role": "ui_attr",
-          "context": "aria-label",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "展开完整前缀"
-          ],
-          "lines": [
-            667
-          ]
-        },
-        {
-          "symbol": "li.button",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 5,
-          "samples": [
-            "共享前缀：",
-            "条来自"
-          ],
-          "lines": [
-            671,
-            673,
-            675,
-            683
-          ]
-        },
-        {
-          "symbol": "button.span",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "来自",
-            "编辑点（"
-          ],
-          "lines": [
-            697,
-            702,
-            706
-          ]
-        },
-        {
-          "symbol": "CompareWorkspaceView.div",
-          "role": "ui_attr",
-          "context": "aria-label",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "比较工作区"
-          ],
-          "lines": [
-            740
-          ]
-        },
-        {
-          "symbol": "WorkspaceHeading.h2",
-          "role": "ui_text",
-          "context": "jsx_expr",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "比较"
-          ],
-          "lines": [
-            747
-          ]
-        },
-        {
-          "symbol": "WorkspaceHeading.span",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "只读文本差异 · 最终输出 · 同步滚动"
-          ],
-          "lines": [
-            763
-          ]
-        },
-        {
-          "symbol": "WorkspaceHeading.p",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "仅双方均有已记录最终输出时可用。退出文本差异后，两侧恢复独立滚动。"
-          ],
-          "lines": [
-            769
-          ]
-        },
-        {
-          "symbol": "WorkspaceHeading.button",
-          "role": "ui_attr",
-          "context": "aria-label",
-          "classification": "product",
-          "reason": null,
-          "count": 5,
-          "samples": [
-            "查看比较文件视图",
-            "查看指标对照表"
-          ],
-          "lines": [
-            778,
-            788,
-            797,
-            807,
-            815
-          ]
-        },
-        {
-          "symbol": "WorkspaceHeading.button",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 7,
-          "samples": [
-            "文件",
-            "指标表"
-          ],
-          "lines": [
-            782,
-            792,
-            800,
-            803,
-            811,
-            819
           ]
         }
       ]
@@ -5532,234 +4446,21 @@
       ]
     },
     {
-      "path": "apps/desktop/src/renderer/src/lib/compare-metrics.ts",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "比较工作区",
-      "classification": "product",
-      "batch": 2,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "EMPTY_MODEL.hint",
-          "role": "ui_prop",
-          "context": "hint",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "在分支树勾选节点加入对照（最多四条）；两条及以上可进入指标对照与详细比较。"
-          ],
-          "lines": [
-            71
-          ]
-        },
-        {
-          "symbol": "relation.note",
-          "role": "ui_prop",
-          "context": "note",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "共同祖先：${…}",
-            "共同祖先：无（分属不同根）——两条链都完整走到根且无公共祖先，没有可比基线"
-          ],
-          "lines": [
-            141,
-            147
-          ]
-        },
-        {
-          "symbol": "relation.note",
-          "role": "concat",
-          "context": "+",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "共同祖先：判定不完整（存在父缺失）——链上有 run 的父 run 不在数据目录，",
-            "无法确认更深的共同祖先；不是「本来就不同源」，祖先增量不计算"
-          ],
-          "lines": [
-            153,
-            154
-          ]
-        },
-        {
-          "symbol": "deriveCompareMetricsTable.deltaUnavailableNote",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 4,
-          "samples": [
-            "可读侧不足两条：不判定共同祖先，不计算祖先增量",
-            "共同祖先判定不完整（存在父缺失）：祖先增量不计算"
-          ],
-          "lines": [
-            181,
-            183,
-            186,
-            188
-          ]
-        },
-        {
-          "symbol": "rows.label",
-          "role": "ui_prop",
-          "context": "label",
-          "classification": "product",
-          "reason": null,
-          "count": 17,
-          "samples": [
-            "状态",
-            "终止原因"
-          ],
-          "lines": [
-            194,
-            201,
-            212,
-            216,
-            221,
-            226,
-            233,
-            242,
-            255,
-            262,
-            278,
-            295,
-            315,
-            323,
-            331,
-            342,
-            354
-          ]
-        },
-        {
-          "symbol": "rows.titles",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 8,
-          "samples": [
-            "该运行不可读：无已校验状态",
-            "记录里没有终止事件，— 表示无原值"
-          ],
-          "lines": [
-            197,
-            208,
-            251,
-            273,
-            289,
-            350,
-            363,
-            366
-          ]
-        },
-        {
-          "symbol": "rows.titles",
-          "role": "call_arg",
-          "context": "columns.map",
-          "classification": "product",
-          "reason": null,
-          "count": 6,
-          "samples": [
-            "分叉编辑发生的 span id；根 run 无分叉点",
-            "同一批模型实验的臂共享一个 experimentId；无标签如实显示 —"
-          ],
-          "lines": [
-            218,
-            223,
-            238,
-            320,
-            328,
-            338
-          ]
-        },
-        {
-          "symbol": "rows.values",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "无自有模型调用",
-            "未记录（命中量未知）"
-          ],
-          "lines": [
-            302
-          ]
-        },
-        {
-          "symbol": "rows.values",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "${…}（已记录 ${…} / ${…} 次调用）"
-          ],
-          "lines": [
-            304
-          ]
-        },
-        {
-          "symbol": "deriveCompareMetricsTable.hint",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "再选一条即可对照（最多四条）。",
-            "已选三条及以上：可在表内显式选择两条进入详细比较。"
-          ],
-          "lines": [
-            373,
-            375
-          ]
-        },
-        {
-          "symbol": "deriveCompareMetricsTable.scopeNote",
-          "role": "concat",
-          "context": "+",
-          "classification": "product",
-          "reason": null,
-          "count": 5,
-          "samples": [
-            "指标来自本次已校验比较读取（不可读侧如实呈现原因，不用列表缓存补齐）；",
-            "自有值仅统计本运行自有调用（leaf spans）；沿链累计为各代自有值沿链求和"
-          ],
-          "lines": [
-            385,
-            386,
-            387,
-            388,
-            389
-          ]
-        }
-      ]
-    },
-    {
       "path": "apps/desktop/src/renderer/src/lib/compare-state.ts",
       "layer": "renderer",
       "package": null,
       "workspace": "比较工作区",
-      "classification": "product",
-      "batch": 2,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "比较请求的载荷/响应错配诊断（带稳定码），作为原始详情展示；产品摘要由渲染层本地化",
       "symbols": [
         {
           "symbol": "findCompareSelectionViolation",
           "role": "return",
           "context": "return",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "比较请求的载荷/响应错配诊断（带稳定码），作为原始详情展示；产品摘要由渲染层本地化",
           "count": 1,
           "samples": [
             "比较请求不合法"
@@ -5772,8 +4473,8 @@
           "symbol": "applyCompareResponse.reason",
           "role": "ui_prop",
           "context": "reason",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "比较请求的载荷/响应错配诊断（带稳定码），作为原始详情展示；产品摘要由渲染层本地化",
           "count": 3,
           "samples": [
             "比较载荷结构校验失败：${…}",
@@ -14471,17 +13172,17 @@
       "layer": "pkg:run-query",
       "package": "run-query",
       "workspace": "pkg:run-query",
-      "classification": "product",
-      "batch": 2,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "比较投影的编辑证据/不可核对原因（带稳定 reasonCode），作为原始详情展示；外围标签与结构由渲染层本地化",
       "symbols": [
         {
           "symbol": "deriveDirectEditEvidence.reason",
           "role": "ui_prop",
           "context": "reason",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "比较投影的编辑证据/不可核对原因（带稳定 reasonCode），作为原始详情展示；外围标签与结构由渲染层本地化",
           "count": 3,
           "samples": [
             "两侧均不可读，不构成父子编辑核对前提",
@@ -14497,8 +13198,8 @@
           "symbol": "projectSingleReadySide.reason",
           "role": "ui_prop",
           "context": "reason",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "比较投影的编辑证据/不可核对原因（带稳定 reasonCode），作为原始详情展示；外围标签与结构由渲染层本地化",
           "count": 2,
           "samples": [
             "不可读侧身份无法参与父子判定，不猜方向",
@@ -14513,8 +13214,8 @@
           "symbol": "projectChildFork.reason",
           "role": "ui_prop",
           "context": "reason",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "比较投影的编辑证据/不可核对原因（带稳定 reasonCode），作为原始详情展示；外围标签与结构由渲染层本地化",
           "count": 3,
           "samples": [
             "目标 run ${…} 不是分叉（无 fork 元数据）",
@@ -14530,8 +13231,8 @@
           "symbol": "projectContextFork.reason",
           "role": "ui_prop",
           "context": "reason",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "比较投影的编辑证据/不可核对原因（带稳定 reasonCode），作为原始详情展示；外围标签与结构由渲染层本地化",
           "count": 4,
           "samples": [
             "编辑新值未记录：无法核对前后值",
@@ -14548,8 +13249,8 @@
           "symbol": "projectContextFork.label",
           "role": "ui_text",
           "context": "ternary",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "比较投影的编辑证据/不可核对原因（带稳定 reasonCode），作为原始详情展示；外围标签与结构由渲染层本地化",
           "count": 2,
           "samples": [
             "system 消息",
@@ -14563,8 +13264,8 @@
           "symbol": "projectResultForkInView.reason",
           "role": "ui_prop",
           "context": "reason",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "比较投影的编辑证据/不可核对原因（带稳定 reasonCode），作为原始详情展示；外围标签与结构由渲染层本地化",
           "count": 3,
           "samples": [
             "编辑新值未记录：无法核对前后值",
@@ -14580,8 +13281,8 @@
           "symbol": "deriveSideHops.reason",
           "role": "ui_prop",
           "context": "reason",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "比较投影的编辑证据/不可核对原因（带稳定 reasonCode），作为原始详情展示；外围标签与结构由渲染层本地化",
           "count": 2,
           "samples": [
             "链不连续：${…} 声明的父（${…}）不是前一跳 ${…}",
@@ -14596,8 +13297,8 @@
           "symbol": "projectHopFork.reason",
           "role": "ui_prop",
           "context": "reason",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "比较投影的编辑证据/不可核对原因（带稳定 reasonCode），作为原始详情展示；外围标签与结构由渲染层本地化",
           "count": 2,
           "samples": [
             "model_params 编辑属于模型实验比较（另有资格门禁），普通比较不投影前后值",
@@ -14612,8 +13313,8 @@
           "symbol": "deriveDifferentRootFacts.reason",
           "role": "ui_text",
           "context": "ternary",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "比较投影的编辑证据/不可核对原因（带稳定 reasonCode），作为原始详情展示；外围标签与结构由渲染层本地化",
           "count": 2,
           "samples": [
             "两侧有共同祖先：按逐跳编辑证据呈现，不按不同根核对",
@@ -14628,8 +13329,8 @@
           "symbol": "deriveDifferentRootFacts.reason",
           "role": "ui_prop",
           "context": "reason",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "比较投影的编辑证据/不可核对原因（带稳定 reasonCode），作为原始详情展示；外围标签与结构由渲染层本地化",
           "count": 1,
           "samples": [
             "不同根判定要求两侧均可读：存在不可读侧时不构成完整对照"
@@ -14645,17 +13346,17 @@
       "layer": "pkg:run-query",
       "package": "run-query",
       "workspace": "pkg:run-query",
-      "classification": "product",
-      "batch": 2,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "比较逐侧输出与文本 diff 门禁的领域原因，作为原始详情展示；状态/缺型由渲染层本地化",
       "symbols": [
         {
           "symbol": "MISSING_TEXT.no-llm-call",
           "role": "prop",
           "context": "no-llm-call",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "比较逐侧输出与文本 diff 门禁的领域原因，作为原始详情展示；状态/缺型由渲染层本地化",
           "count": 1,
           "samples": [
             "未记录任何自有模型调用"
@@ -14668,8 +13369,8 @@
           "symbol": "MISSING_TEXT.empty-content",
           "role": "ui_prop",
           "context": "empty-content",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "比较逐侧输出与文本 diff 门禁的领域原因，作为原始详情展示；状态/缺型由渲染层本地化",
           "count": 1,
           "samples": [
             "最终调用无正文"
@@ -14682,8 +13383,8 @@
           "symbol": "MISSING_TEXT.has-error",
           "role": "ui_prop",
           "context": "has-error",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "比较逐侧输出与文本 diff 门禁的领域原因，作为原始详情展示；状态/缺型由渲染层本地化",
           "count": 1,
           "samples": [
             "最终调用带错误"
@@ -14696,8 +13397,8 @@
           "symbol": "MISSING_TEXT.pending-tool-calls",
           "role": "prop",
           "context": "pending-tool-calls",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "比较逐侧输出与文本 diff 门禁的领域原因，作为原始详情展示；状态/缺型由渲染层本地化",
           "count": 1,
           "samples": [
             "有待执行的工具调用（循环未竟）"
@@ -14710,8 +13411,8 @@
           "symbol": "MISSING_TEXT.aborted",
           "role": "prop",
           "context": "aborted",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "比较逐侧输出与文本 diff 门禁的领域原因，作为原始详情展示；状态/缺型由渲染层本地化",
           "count": 1,
           "samples": [
             "非正常终止且无正文"
@@ -14724,8 +13425,8 @@
           "symbol": "deriveCompareDiffGate.label",
           "role": "ui_text",
           "context": "ternary",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "比较逐侧输出与文本 diff 门禁的领域原因，作为原始详情展示；状态/缺型由渲染层本地化",
           "count": 2,
           "samples": [
             "左侧",
@@ -14739,8 +13440,8 @@
           "symbol": "deriveCompareDiffGate.detail",
           "role": "ui_text",
           "context": "ternary",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "比较逐侧输出与文本 diff 门禁的领域原因，作为原始详情展示；状态/缺型由渲染层本地化",
           "count": 1,
           "samples": [
             "未记录最终输出"
@@ -14753,8 +13454,8 @@
           "symbol": "deriveCompareDiffGate.reason",
           "role": "ui_prop",
           "context": "reason",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "比较逐侧输出与文本 diff 门禁的领域原因，作为原始详情展示；状态/缺型由渲染层本地化",
           "count": 2,
           "samples": [
             "${…}（${…}）${…}：不能作为空文本参与 diff",
@@ -14772,17 +13473,17 @@
       "layer": "pkg:run-query",
       "package": "run-query",
       "workspace": "pkg:run-query",
-      "classification": "product",
-      "batch": 2,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "result 链来源映射的领域原因，作为原始详情展示；来源标签由渲染层本地化",
       "symbols": [
         {
           "symbol": "deriveResultSourceMapping.reason",
           "role": "ui_prop",
           "context": "reason",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "result 链来源映射的领域原因，作为原始详情展示；来源标签由渲染层本地化",
           "count": 2,
           "samples": [
             "链上 ${…} 无 fork 元数据：不是可映射的 result 链",
@@ -14797,8 +13498,8 @@
           "symbol": "locateV1Boundary",
           "role": "return",
           "context": "return",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "result 链来源映射的领域原因，作为原始详情展示；来源标签由渲染层本地化",
           "count": 2,
           "samples": [
             "边界 span ${…} 在投影视图中出现 ${…} 次（应为 1）：来源映射不可靠，不折叠前缀",
@@ -14813,8 +13514,8 @@
           "symbol": "locateV2Boundary",
           "role": "return",
           "context": "return",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "result 链来源映射的领域原因，作为原始详情展示；来源标签由渲染层本地化",
           "count": 6,
           "samples": [
             "整轮边界 step ${…} 在投影视图中出现 ${…} 次（应为 1）：来源映射不可靠，不折叠前缀",

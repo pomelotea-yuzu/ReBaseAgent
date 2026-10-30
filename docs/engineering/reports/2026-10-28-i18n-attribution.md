@@ -171,6 +171,8 @@ node scripts/i18n-attribution.cjs --compare-inventory --verify-boundaries
 
 3.3 迁移验证比较、代码关联与所测输入导出：`verification-compare` 的条件行（profile/manifest/计划绑定/命令/argv/cwd/平台/镜像/工具链/限额/隔离基线）、干预措辞、六类结论与限制说明全部接 translator；`VerificationPanel` 迁移 A/B 选择（来源行/自比禁用）、判定横幅、差异/未知项、逐侧摘要（状态/快照/干预/结局/证据/退出码/日志双口径）、代码差异入口与条件行，以及导出区（绑定/空目录/未封存阻断）与导出反馈（在飞/取消/失败+残留/成功快照一致+补丁+回查+“文件导出≠测试通过”）。包层五个 `export-*` 文件的写入/定位诊断改判 original（稳定码之外的原始详情）。机器清单 **2,204 处**（product 1,504 / original 615 / internal 81 / generated 4）：迁入资源 126 处、改判 original 36 处。收口门禁 `--final` 仍红 121 个 pending 文件（批次 1 余 46；3.3 后验证面板与比较/导出均已产品归零）。3.3 完成。
 
+3.4 迁移运行比较的选择/指标/派生标签与逐侧失败：`compare-metrics` 的空态/数量提示、共同祖先三态、全部行标签与口径解释、缓存/累计/祖先增量说明接 translator；`CompareSelectionBar`（选择栏/chips 移出/进入详细或指标/清空）、`CompareMetricsTable`（标题/挑选条/列头动作/不可读标签/重试）迁移；`CompareWorkspaceView` 全量迁移（标题与列名、diff 门禁与模式、交换/返回/文件/指标入口、逐侧输出缺型、失败定位、步骤目录折叠摘要与来源归属、编辑证据三态/逐跳链/不同根、模型实验比较与副作用说明）；`CompareWorkspace` 容器（指标表模式、详细模式、挑选拒绝、读取/重试、不可读侧与关系受限）。main `compare-endpoints` 的请求/读取失败、`compare-state` 的载荷/错配诊断与 run-query 三个 compare-facts 文件的领域原因改判 original（带稳定码，渲染层给本地化摘要/标签、原文作详情）。机器清单 **1,991 处**（product 1,241 / original 665 / internal 81 / generated 4）：迁入资源 213 处、改判 original 50 处。收口门禁 `--final` 仍红 111 个 pending 文件（批次 1 余 46；比较工作区余 3.5 的文件视图与 4.4 的草稿列表）。3.4 完成。
+
 ## 9. 局限
 
 - 工作区与批次按文件名近似，包层不能精确拆到单个工作区；迁移时以实际入口为准修正。

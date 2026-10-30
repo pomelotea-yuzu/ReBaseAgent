@@ -166,6 +166,8 @@ const ORIGINAL_REASONS = {
   "packages/trace-sdk/src/workspace-hash.ts": "快照哈希校验事实，属于记录边界",
   "apps/desktop/src/main/run-create.ts":
     "main 返回的创建失败原始说明，渲染层作为原始详情展示；产品摘要按稳定码本地化",
+  "apps/desktop/src/main/compare-endpoints.ts":
+    "main 比较读取端点的请求/逐项读取失败原始说明，渲染层按稳定码本地化摘要并作为原始详情展示",
   "apps/desktop/src/main/verification-availability.ts":
     "main 启动核查门禁的原始诊断，渲染层按稳定码给出本地化摘要并按原始详情展示",
   "apps/desktop/src/main/verification-endpoints.ts":
@@ -207,6 +209,14 @@ const ORIGINAL_REASONS = {
     "准备计划正文（网络范围/许可）进入计划 token，按原文展示；外围标签与边界由渲染层本地化",
   "packages/project-verification/src/source/precheck.ts":
     "来源预检的领域原因，作为不可用原因参数与原始详情展示，不随 UI locale 改写",
+  "packages/run-query/src/facts/compare-edit-evidence.ts":
+    "比较投影的编辑证据/不可核对原因（带稳定 reasonCode），作为原始详情展示；外围标签与结构由渲染层本地化",
+  "packages/run-query/src/facts/compare-output.ts":
+    "比较逐侧输出与文本 diff 门禁的领域原因，作为原始详情展示；状态/缺型由渲染层本地化",
+  "packages/run-query/src/facts/compare-source-map.ts":
+    "result 链来源映射的领域原因，作为原始详情展示；来源标签由渲染层本地化",
+  "apps/desktop/src/renderer/src/lib/compare-state.ts":
+    "比较请求的载荷/响应错配诊断（带稳定码），作为原始详情展示；产品摘要由渲染层本地化",
   "packages/project-verification/src/records/reader.ts":
     "验证记录读取/坏尾/附件校验的领域诊断，作为稳定码之外的原始详情展示，不随 locale 改写",
   "packages/project-verification/src/records/assets-view.ts":

@@ -100,7 +100,7 @@ export function CompareWorkspace({ stacked = false }: { stacked?: boolean } = {}
         setTableMode(false);
         return;
       }
-      setPickError("无法打开：两条必须是集合内互异的有效运行（相同 ID 不构成两条比较）");
+      setPickError(translator.t("compare.pickError"));
     });
   };
 
@@ -142,7 +142,7 @@ export function CompareWorkspace({ stacked = false }: { stacked?: boolean } = {}
     return (
       <div
         className="flex min-w-0 flex-1 flex-col overflow-hidden bg-white outline-none"
-        aria-label="比较工作区"
+        aria-label={translator.t("compare.workspaceAria")}
         // U7 5.9：程序化焦点落点（指标表模式同理）
         data-compare-primary="true"
         tabIndex={-1}
@@ -150,15 +150,18 @@ export function CompareWorkspace({ stacked = false }: { stacked?: boolean } = {}
         {comparePair !== null ? (
           <div className="flex items-center justify-between border-b border-gray-200 px-4 py-2">
             <span className="text-[11px] text-gray-500">
-              详细比较对象：左 {comparePair.leftRunId} → 右 {comparePair.rightRunId}
+              {translator.t("compare.detailTarget", {
+                left: comparePair.leftRunId,
+                right: comparePair.rightRunId,
+              })}
             </span>
             <button
               type="button"
-              aria-label="返回详细比较"
+              aria-label={translator.t("compare.backAria")}
               onClick={backToDetail}
               className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
             >
-              返回详细比较
+              {translator.t("compare.backToDetail")}
             </button>
           </div>
         ) : null}
@@ -195,25 +198,30 @@ export function CompareWorkspace({ stacked = false }: { stacked?: boolean } = {}
     return (
       <div
         className="flex min-w-0 flex-1 flex-col overflow-hidden bg-white outline-none"
-        aria-label="比较工作区"
+        aria-label={translator.t("compare.workspaceAria")}
         data-compare-primary="true"
         tabIndex={-1}
       >
-        <div className="px-4 py-2 text-[11px] text-gray-500">正在读取详细比较对象…</div>
+        <div className="px-4 py-2 text-[11px] text-gray-500">
+          {translator.t("compare.loadingDetail")}
+        </div>
         {conclusion?.kind === "rejected" ? (
           <div className="px-4 py-2">
             <div className="rounded bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              [{conclusion.code}] {conclusion.reason}
+              {translator.t("compare.metricsReadFailed", {
+                code: conclusion.code,
+                detail: conclusion.reason,
+              })}
             </div>
             <button
               type="button"
-              aria-label="重试详细比较读取"
+              aria-label={translator.t("compare.retryDetailAria")}
               onClick={() => {
                 void retryCompareSelectionRead();
               }}
               className="mt-2 rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
             >
-              重试读取
+              {translator.t("compare.metricsRetry")}
             </button>
           </div>
         ) : null}
@@ -274,7 +282,7 @@ export function CompareWorkspace({ stacked = false }: { stacked?: boolean } = {}
 
   const evidence: EvidenceViewData = (() => {
     if (acceptedItems === null || verified === null || readyItems.length < 2) {
-      return { kind: "unavailable", reason: "尚无可核对两侧的比较结论" };
+      return { kind: "unavailable", reason: translator.t("compare.noConclusion") };
     }
     // 5.11/5.15：含 model_params 臂的选择集必须走实验门禁（优先于普通关系分型——
     // 混选/异父不能退回普通不同根规则放行）
@@ -302,21 +310,25 @@ export function CompareWorkspace({ stacked = false }: { stacked?: boolean } = {}
         kind: "unavailable",
         reason:
           unavailableItem.status === "unavailable"
-            ? `run ${unavailableItem.runId} 不可读（${unavailableItem.code}）：${unavailableItem.reason}`
-            : "存在不可读侧",
+            ? translator.t("compare.sideUnreadableInline", {
+                runId: unavailableItem.runId,
+                code: unavailableItem.code,
+                reason: unavailableItem.reason,
+              })
+            : translator.t("compare.unreadableSide"),
       };
     }
     if (verified.relation.kind === "incomplete") {
       return {
         kind: "incomplete",
-        reason: "共同祖先判定不完整（存在父缺失）：链结论受限，祖先差不计算",
+        reason: translator.t("compare.relationLimited"),
       };
     }
     if (verified.relation.kind === "unrelated") {
       const left = readyItems[0];
       const right = readyItems[1];
       if (left === undefined || right === undefined) {
-        return { kind: "unavailable", reason: "可读侧不足两条" };
+        return { kind: "unavailable", reason: translator.t("compare.readableSidesInsufficient") };
       }
       const facts = deriveDifferentRootFacts(left, right, verified.relation);
       return facts.status === "facts"
@@ -369,7 +381,7 @@ export function CompareWorkspace({ stacked = false }: { stacked?: boolean } = {}
   const diffGate: CompareDiffGate =
     leftFacts !== null && rightFacts !== null
       ? deriveCompareDiffGate(leftFacts, rightFacts)
-      : { status: "unavailable", reason: "存在不可读侧：无法进入文本 diff" };
+      : { status: "unavailable", reason: translator.t("compare.diffGateUnreadable") };
 
   return (
     <CompareWorkspaceView

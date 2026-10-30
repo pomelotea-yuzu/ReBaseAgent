@@ -3,6 +3,7 @@ import type { DifferentRootComparison } from "@shared/compare-edit-evidence";
 import type { CompareDiffGate, SideOutputFacts } from "@shared/compare-output";
 import type { ExperimentGate } from "@shared/experiment-records";
 import { outcomeBadgeClass } from "@shared/outcome";
+import { useTranslator } from "../i18n";
 import type { CompareFileEntry } from "../lib/compare-files";
 import { foldCatalogRows } from "../lib/compare-steps";
 import type { SideStepCatalog } from "../lib/compare-steps";
@@ -138,11 +139,14 @@ function valueToText(value: unknown): string {
 
 /** 值的在场呈现：真实值（含空串/null）可展开复制；未记录如实标注 */
 function ValueBlock({ presence, label }: { presence: EditValuePresence; label: string }) {
+  const translator = useTranslator();
   if (presence.kind === "unrecorded") {
     return (
       <div className="min-w-0 flex-1">
         <div className="text-[11px] text-gray-500">{label}</div>
-        <div className="text-xs italic text-gray-400">未记录（不是空值）</div>
+        <div className="text-xs italic text-gray-400">
+          {translator.t("compare.valueUnrecorded")}
+        </div>
       </div>
     );
   }
@@ -154,11 +158,11 @@ function ValueBlock({ presence, label }: { presence: EditValuePresence; label: s
   );
 }
 
-const SEMANTICS_LABEL: Record<string, string> = {
-  "shared-prefix": "共享父前缀 · 单点编辑",
-  "from-scratch": "从头重跑（独立执行，不共享前缀）",
-  "single-request": "代理单请求重发（只影响该次请求）",
-};
+const SEMANTICS_KEY = {
+  "shared-prefix": "compare.semanticsSharedPrefix",
+  "from-scratch": "compare.semanticsFromScratch",
+  "single-request": "compare.semanticsSingleRequest",
+} as const;
 
 /** 直接父子编辑证据的呈现（verified / unavailable / notApplicable 三态） */
 export function DirectEvidenceBlock({
@@ -168,10 +172,16 @@ export function DirectEvidenceBlock({
   evidence: DirectEditEvidence;
   direction: "left-to-right" | "right-to-left";
 }) {
-  const directionLabel = direction === "left-to-right" ? "左列 → 右列" : "右列 → 左列";
+  const translator = useTranslator();
+  const directionLabel = translator.t(
+    direction === "left-to-right" ? "compare.directionLtr" : "compare.directionRtl",
+  );
   if (evidence.status === "notApplicable") {
     return (
-      <div className="rounded bg-gray-50 px-3 py-2 text-xs text-gray-600" aria-label="编辑证据">
+      <div
+        className="rounded bg-gray-50 px-3 py-2 text-xs text-gray-600"
+        aria-label={translator.t("compare.evidenceAria")}
+      >
         {evidence.reason}
       </div>
     );
@@ -179,50 +189,65 @@ export function DirectEvidenceBlock({
   const head = (
     <div className="flex items-center justify-between text-[11px] text-gray-500">
       <span>
-        字段「{evidence.field}」 · {directionLabel}（{evidence.sourceRunId} → {evidence.targetRunId}
-        ）
+        {translator.t("compare.evidenceSummaryDirect", {
+          field: evidence.field,
+          direction: directionLabel,
+        })}{" "}
+        ({evidence.sourceRunId} → {evidence.targetRunId})
       </span>
       <span className="font-code">{evidence.atSpanId}</span>
     </div>
   );
   if (evidence.status === "unavailable") {
     return (
-      <div className="rounded bg-amber-50 px-3 py-2" aria-label="编辑证据">
+      <div
+        className="rounded bg-amber-50 px-3 py-2"
+        aria-label={translator.t("compare.evidenceAria")}
+      >
         {head}
         <div className="mt-1 text-xs text-amber-800">
           [{evidence.reasonCode}] {evidence.reason}
         </div>
         <div className="mt-2 flex gap-3">
-          <ValueBlock presence={evidence.original} label="原值" />
-          <ValueBlock presence={evidence.updated} label="新值" />
+          <ValueBlock presence={evidence.original} label={translator.t("compare.originalValue")} />
+          <ValueBlock presence={evidence.updated} label={translator.t("compare.updatedValue")} />
         </div>
       </div>
     );
   }
   return (
-    <div className="rounded bg-gray-50 px-3 py-2" aria-label="编辑证据">
+    <div className="rounded bg-gray-50 px-3 py-2" aria-label={translator.t("compare.evidenceAria")}>
       {head}
       <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px]">
         <span className="rounded bg-blue-50 px-1.5 py-0.5 text-blue-700">
-          {SEMANTICS_LABEL[evidence.semantics] ?? evidence.semantics}
+          {SEMANTICS_KEY[evidence.semantics as keyof typeof SEMANTICS_KEY] !== undefined
+            ? translator.t(SEMANTICS_KEY[evidence.semantics as keyof typeof SEMANTICS_KEY])
+            : evidence.semantics}
         </span>
         {evidence.tool !== null ? (
-          <span className="text-gray-500">工具结果编辑（工具 {evidence.tool}）——不是文件修改</span>
+          <span className="text-gray-500">
+            {translator.t("compare.toolResultEdit", { tool: evidence.tool })}
+          </span>
         ) : null}
         {evidence.variant === "isolated-v2" && evidence.boundaryStep !== null ? (
           <span className="rounded bg-purple-50 px-1.5 py-0.5 text-purple-700">
-            隔离整轮边界：第 {evidence.boundaryStep.n} 轮（{evidence.boundaryStep.spanId}）之后续跑
+            {translator.t("compare.boundaryStep", {
+              n: evidence.boundaryStep.n,
+              spanId: evidence.boundaryStep.spanId,
+            })}
           </span>
         ) : null}
         {evidence.variant === "isolated-v2" && evidence.boundaryStep === null ? (
           <span className="text-gray-500">
-            隔离整轮边界：{evidence.resumeAfterStep ?? "未定位"}
+            {translator.t("compare.boundaryUnlocated", {
+              step: evidence.resumeAfterStep ?? translator.t("compare.boundaryUnlocatedNone"),
+            })}
           </span>
         ) : null}
       </div>
       <div className="mt-2 flex gap-3">
-        <ValueBlock presence={evidence.original} label="原值（共同区保留原值）" />
-        <ValueBlock presence={evidence.updated} label="新值（fork 编辑值）" />
+        <ValueBlock presence={evidence.original} label={translator.t("compare.originalKept")} />
+        <ValueBlock presence={evidence.updated} label={translator.t("compare.updatedFork")} />
       </div>
     </div>
   );
@@ -247,19 +272,30 @@ function ExperimentEvidenceBlock({
   sideEffectsDeclared: boolean;
   onOpenRun: (runId: string) => void;
 }) {
+  const translator = useTranslator();
   return (
-    <section className="border-t border-gray-200 px-4 py-3" aria-label="模型实验比较">
-      <h3 className="text-xs font-medium text-gray-700">模型实验比较（历史记录）</h3>
+    <section
+      className="border-t border-gray-200 px-4 py-3"
+      aria-label={translator.t("compare.experimentAria")}
+    >
+      <h3 className="text-xs font-medium text-gray-700">
+        {translator.t("compare.experimentTitle")}
+      </h3>
       {gate.status === "eligible" ? (
         <>
           <div className="mt-1 text-[11px] text-gray-500">
-            批次父本 <span className="font-code">{gate.batch?.parentRunId}</span>
+            {translator.t("compare.batchParent")}{" "}
+            <span className="font-code">{gate.batch?.parentRunId}</span>
             {gate.batch?.experimentIds.some((id) => id !== null) ? (
               <span className="ml-2">
-                各臂批次标签：{gate.batch.experimentIds.map((id) => id ?? "（未记录）").join("、")}
+                {translator.t("compare.batchLabels", {
+                  labels: gate.batch.experimentIds
+                    .map((id) => id ?? translator.t("compare.batchLabelUnrecorded"))
+                    .join("、"),
+                })}
               </span>
             ) : (
-              <span className="ml-2">各臂未记录批次标签（不伪造同批）</span>
+              <span className="ml-2">{translator.t("compare.batchUnrecorded")}</span>
             )}
           </div>
           <dl className="mt-2 space-y-1 text-xs">
@@ -267,21 +303,24 @@ function ExperimentEvidenceBlock({
               <div key={delta.runId} className="flex items-center gap-2">
                 <dt className="font-code text-[11px] text-gray-500">{delta.runId}</dt>
                 <dd className="text-gray-700">
-                  相对父累计增量：
-                  {delta.tokens === null ? "未知（不估算）" : `${delta.tokens} tokens`}
-                  {delta.durationMs !== null ? ` · ${delta.durationMs} ms` : ""}
+                  {translator.t("compare.experimentDelta", {
+                    tokens:
+                      delta.tokens === null
+                        ? translator.t("compare.experimentUnknownTokens")
+                        : `${delta.tokens} tokens`,
+                    duration: delta.durationMs !== null ? ` · ${delta.durationMs} ms` : "",
+                  })}
                 </dd>
               </div>
             ))}
           </dl>
           {sideEffectsDeclared ? (
             <div className="mt-2 rounded bg-amber-50 px-2 py-1 text-[11px] text-amber-800">
-              已记录副作用放行：多臂按顺序执行，前一臂的外部状态可能影响后一臂的起点——比较结果按此口径阅读
+              {translator.t("compare.experimentSideEffects")}
             </div>
           ) : null}
           <div className="mt-2 text-[11px] text-gray-500">
-            仅展示各臂事实与相对父 run
-            的累计增量（沿链求和口径）；不产出臂间差值、胜出臂或最佳模型结论——交换左右或改选两臂同样如此
+            {translator.t("compare.experimentScope")}
           </div>
         </>
       ) : (
@@ -290,18 +329,18 @@ function ExperimentEvidenceBlock({
             [{gate.code}] {gate.reason}
           </div>
           <div className="mt-1 text-[11px] text-gray-500">
-            各记录仍可单独打开（不恢复实验资格、不产生执行授权）：
+            {translator.t("compare.experimentOpenHint")}
           </div>
           <div className="mt-1 flex gap-2">
             {deltas.map((delta) => (
               <button
                 key={delta.runId}
                 type="button"
-                aria-label={`打开记录 ${delta.runId}`}
+                aria-label={translator.t("compare.experimentOpenAria", { runId: delta.runId })}
                 onClick={() => onOpenRun(delta.runId)}
                 className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
               >
-                打开 {delta.runId}
+                {translator.t("compare.experimentOpen", { runId: delta.runId })}
               </button>
             ))}
           </div>
@@ -340,6 +379,7 @@ export function EditEvidenceSection({
   /** 提供时渲染展开/收起开关（受控；不提供 = 不可收起） */
   onToggleCollapsed?: () => void;
 }) {
+  const translator = useTranslator();
   if (data.kind === "experiment") {
     return (
       <ExperimentEvidenceBlock
@@ -367,7 +407,9 @@ export function EditEvidenceSection({
         <>
           {data.chains.map((chain) => (
             <div key={chain.runId} className="mt-2">
-              <div className="text-[11px] text-gray-500">到 {chain.runId} 的来源路径</div>
+              <div className="text-[11px] text-gray-500">
+                {translator.t("compare.hopsSourcePath", { runId: chain.runId })}
+              </div>
               <ol className="mt-1 space-y-1">
                 {chain.hops.map((hop, index) => (
                   <li
@@ -378,9 +420,13 @@ export function EditEvidenceSection({
                       <span className="text-gray-500">{hop.reason}</span>
                     ) : (
                       <span>
-                        {hop.sourceRunId} → {hop.targetRunId} · 字段「{hop.field}」 ·{" "}
+                        {hop.sourceRunId} → {hop.targetRunId} ·{" "}
+                        {translator.t("compare.hopField", { field: hop.field })}
+                        {" · "}
                         {hop.status === "verified" ? (
-                          <span className="text-emerald-700">已核对</span>
+                          <span className="text-emerald-700">
+                            {translator.t("compare.hopVerified")}
+                          </span>
                         ) : (
                           <span className="text-amber-700">
                             [{hop.reasonCode}] {hop.reason}
@@ -404,29 +450,43 @@ export function EditEvidenceSection({
               <div className="font-code text-[11px] text-gray-500">{side.runId}</div>
               <dl className="mt-1 space-y-1">
                 <div>
-                  <dt className="inline text-gray-500">模型： </dt>
+                  <dt className="inline text-gray-500">
+                    {translator.t("compare.differentRootModel")}
+                  </dt>
                   <dd className="inline font-code">
-                    {side.model.kind === "value" ? String(side.model.value) : "未记录"}
+                    {side.model.kind === "value"
+                      ? String(side.model.value)
+                      : translator.t("common.notRecorded")}
                   </dd>
                 </div>
                 <div>
-                  <dt className="inline text-gray-500">system： </dt>
+                  <dt className="inline text-gray-500">
+                    {translator.t("compare.differentRootSystem")}
+                  </dt>
                   <dd className="inline">
                     {side.systemPrompt.kind === "value"
                       ? String(side.systemPrompt.value)
-                      : "未记录"}
+                      : translator.t("common.notRecorded")}
                   </dd>
                 </div>
                 <div>
-                  <dt className="inline text-gray-500">user： </dt>
+                  <dt className="inline text-gray-500">
+                    {translator.t("compare.differentRootUser")}
+                  </dt>
                   <dd className="inline">
-                    {side.userMessage.kind === "value" ? String(side.userMessage.value) : "未记录"}
+                    {side.userMessage.kind === "value"
+                      ? String(side.userMessage.value)
+                      : translator.t("common.notRecorded")}
                   </dd>
                 </div>
                 <div>
-                  <dt className="inline text-gray-500">参数： </dt>
+                  <dt className="inline text-gray-500">
+                    {translator.t("compare.differentRootParams")}
+                  </dt>
                   <dd className="inline font-code">
-                    {side.params.kind === "value" ? JSON.stringify(side.params.value) : "未记录"}
+                    {side.params.kind === "value"
+                      ? JSON.stringify(side.params.value)
+                      : translator.t("common.notRecorded")}
                   </dd>
                 </div>
               </dl>
@@ -446,28 +506,34 @@ export function EditEvidenceSection({
   if (!collapsible) {
     const heading =
       data.kind === "incomplete"
-        ? "修改证据（关系判定不完整）"
+        ? translator.t("compare.evidenceHeadingIncomplete")
         : data.kind === "unavailable"
-          ? "修改证据（尚无可核对的完整结论）"
+          ? translator.t("compare.evidenceHeadingUnavailable")
           : data.kind === "direct"
-            ? "修改证据"
+            ? translator.t("compare.evidenceHeadingDirect")
             : data.kind === "hops"
-              ? "修改证据（逐跳来源链，不压缩为一次编辑）"
-              : "不同根：只核对两侧实际输入配置（不声称分叉修改或共同前缀）";
+              ? translator.t("compare.evidenceHeadingHops")
+              : translator.t("compare.evidenceHeadingDifferentRoots");
     return (
-      <section className="border-t border-gray-200 px-4 py-3" aria-label="修改证据">
+      <section
+        className="border-t border-gray-200 px-4 py-3"
+        aria-label={translator.t("compare.evidenceAria")}
+      >
         <h3 className="text-xs font-medium text-gray-700">{heading}</h3>
         {body}
       </section>
     );
   }
 
-  const exceptions = data.kind === "hops" ? hopExceptionLines(data) : [];
+  const exceptions = data.kind === "hops" ? hopExceptionLines(data, translator) : [];
   return (
-    <section className="border-t border-gray-200 px-4 py-2" aria-label="修改证据">
+    <section
+      className="border-t border-gray-200 px-4 py-2"
+      aria-label={translator.t("compare.evidenceAria")}
+    >
       <Disclosure
-        summary="修改证据"
-        meta={evidenceSummaryText(data)}
+        summary={translator.t("compare.evidenceTitle")}
+        meta={evidenceSummaryText(data, translator)}
         expanded={!collapsed}
         onToggle={() => onToggleCollapsed?.()}
         controlsId={EVIDENCE_CONTROLS_ID}
@@ -489,7 +555,9 @@ export function EditEvidenceSection({
   );
 }
 
-const SIDE_LABEL: Record<"left" | "right", string> = { left: "左列", right: "右列" };
+function sideLabel(side: "left" | "right", translator: ReturnType<typeof useTranslator>): string {
+  return translator.t(side === "left" ? "compare.sideLeft" : "compare.sideRight");
+}
 
 /**
  * UI 密度 change 1.4（design D2）：修改证据区的**收起判据与摘要文案**（纯函数）。
@@ -506,30 +574,39 @@ export function evidenceCollapsible(data: EvidenceViewData): boolean {
   return data.kind === "hops" || data.kind === "different-roots";
 }
 
-export function evidenceSummaryText(data: EvidenceViewData): string {
+export function evidenceSummaryText(
+  data: EvidenceViewData,
+  translator: ReturnType<typeof useTranslator>,
+): string {
   switch (data.kind) {
     case "direct":
       // verified / unavailable 才有字段与方向（notApplicable 不可收起，摘要不会被用到）
       return data.evidence.status === "verified" || data.evidence.status === "unavailable"
-        ? `字段「${data.evidence.field}」 · ${
-            data.direction === "left-to-right" ? "左列 → 右列" : "右列 → 左列"
-          }`
+        ? translator.t("compare.evidenceSummaryDirect", {
+            field: data.evidence.field,
+            direction: translator.t(
+              data.direction === "left-to-right" ? "compare.directionLtr" : "compare.directionRtl",
+            ),
+          })
         : "";
     case "hops": {
       const total = data.chains.reduce((sum, chain) => sum + chain.hops.length, 0);
-      return `${total} 处逐跳核对（不压缩为一次编辑）`;
+      return translator.t("compare.evidenceSummaryHops", { count: total });
     }
     case "different-roots":
-      return "两侧实际输入配置核对（不同根，不声称分叉修改）";
+      return translator.t("compare.evidenceSummaryDifferentRoots");
     case "experiment":
-      return "模型实验（历史记录）";
+      return translator.t("compare.evidenceSummaryExperiment");
     default:
       return "";
   }
 }
 
 /** 逐跳链里收起时仍须常驻的异常/不适用原因行（verified 跳不产生原因行） */
-function hopExceptionLines(data: Extract<EvidenceViewData, { kind: "hops" }>): string[] {
+function hopExceptionLines(
+  data: Extract<EvidenceViewData, { kind: "hops" }>,
+  translator: ReturnType<typeof useTranslator>,
+): string[] {
   const lines: string[] = [];
   for (const chain of data.chains) {
     for (const hop of chain.hops) {
@@ -556,18 +633,31 @@ export function SideOutputSection({
   unavailableReason: string | null;
   onOpenError: (runId: string, spanId: string) => void;
 }) {
+  const translator = useTranslator();
   if (facts === null) {
     return (
-      <section className="px-3 py-2" aria-label={`${SIDE_LABEL[side]}输出`}>
+      <section
+        className="px-3 py-2"
+        aria-label={translator.t("compare.outputAria", {
+          side: sideLabel(side, translator),
+        })}
+      >
         <div className="rounded bg-amber-50 px-2 py-1.5 text-xs text-amber-800">
-          该侧不可读：{unavailableReason ?? "读取失败"}
+          {translator.t("compare.sideUnreadable", {
+            reason: unavailableReason ?? translator.t("compare.readFailed"),
+          })}
         </div>
       </section>
     );
   }
   const { output, failure } = facts;
   return (
-    <section className="px-3 py-2" aria-label={`${SIDE_LABEL[side]}输出`}>
+    <section
+      className="px-3 py-2"
+      aria-label={translator.t("compare.outputAria", {
+        side: sideLabel(side, translator),
+      })}
+    >
       <div className="flex items-center gap-2">
         <span
           className={`rounded px-1.5 py-0.5 text-[11px] ${outcomeBadgeClass(facts.outcome.tone)}`}
@@ -578,20 +668,20 @@ export function SideOutputSection({
       </div>
       <div className="mt-2">
         {output.finalOutput !== null ? (
-          <LongText text={output.finalOutput.content} label="最终输出" />
+          <LongText text={output.finalOutput.content} label={translator.t("compare.finalOutput")} />
         ) : (
           <div className="rounded bg-gray-50 px-2 py-1.5 text-xs text-gray-600">
-            未记录最终输出
+            {translator.t("compare.finalOutputMissing")}
             {output.missingReason !== null ? (
               <span className="text-gray-500">
                 （
                 {output.missingReason === "no-llm-call"
-                  ? "无自有模型调用"
+                  ? translator.t("compare.missingNoLlmCall")
                   : output.missingReason === "has-error"
-                    ? "最终调用带错误"
+                    ? translator.t("compare.missingHasError")
                     : output.missingReason === "pending-tool-calls"
-                      ? "有待执行的工具调用"
-                      : "无正文"}
+                      ? translator.t("compare.missingPendingToolCalls")
+                      : translator.t("compare.missingNoContent")}
                 ）
               </span>
             ) : null}
@@ -599,8 +689,11 @@ export function SideOutputSection({
         )}
         {output.finalOutput === null && output.latestIntermediate !== null ? (
           <div className="mt-2">
-            <div className="text-[11px] text-gray-500">中间正文（不是最终结果）</div>
-            <LongText text={output.latestIntermediate.content} label="中间正文" />
+            <div className="text-[11px] text-gray-500">{translator.t("compare.intermediate")}</div>
+            <LongText
+              text={output.latestIntermediate.content}
+              label={translator.t("compare.intermediateLabel")}
+            />
           </div>
         ) : null}
       </div>
@@ -608,16 +701,18 @@ export function SideOutputSection({
         <div className="mt-2">
           <button
             type="button"
-            aria-label={`打开 ${facts.runId} 的失败调用`}
+            aria-label={translator.t("compare.openFailureAria", { runId: facts.runId })}
             onClick={() => onOpenError(facts.runId, failure.llmCallSpanId ?? "")}
             className={`rounded border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50 ${FOCUS_RING}`}
           >
-            打开失败调用（{failure.llmCallSpanId}）
+            {translator.t("compare.openFailure", { spanId: failure.llmCallSpanId })}
           </button>
           <span className="ml-2 text-[11px] text-gray-500">{failure.message}</span>
         </div>
       ) : failure.missingDetail ? (
-        <div className="mt-2 text-[11px] text-gray-500">错误详情未记录</div>
+        <div className="mt-2 text-[11px] text-gray-500">
+          {translator.t("compare.errorDetailMissing")}
+        </div>
       ) : null}
     </section>
   );
@@ -637,24 +732,27 @@ export function SideStepsSection({
   onToggleFold: () => void;
   onSelectStep: (spanId: string | null) => void;
 }) {
+  const translator = useTranslator();
   if (catalog === null) {
     return (
-      <section className="px-3 py-2" aria-label="步骤目录">
-        <div className="text-[11px] text-gray-500">该侧不可读：无步骤目录</div>
+      <section className="px-3 py-2" aria-label={translator.t("compare.stepsAria")}>
+        <div className="text-[11px] text-gray-500">{translator.t("compare.stepsUnreadable")}</div>
       </section>
     );
   }
   const view = foldCatalogRows(catalog, folded);
   return (
-    <section className="px-3 py-2" aria-label="步骤目录">
+    <section className="px-3 py-2" aria-label={translator.t("compare.stepsAria")}>
       {catalog.prefixUnknown ? (
         <div className="mb-2 rounded bg-amber-50 px-2 py-1 text-[11px] text-amber-800">
-          祖先缺失：仅显示已校验自有步骤，前缀未知——不按可见链首项推断根
+          {translator.t("compare.prefixUnknown")}
         </div>
       ) : null}
       {catalog.attribution.kind === "unavailable" ? (
         <div className="mb-2 rounded bg-gray-50 px-2 py-1 text-[11px] text-gray-500">
-          来源归属不可用：{catalog.attribution.reason}
+          {translator.t("compare.attributionUnavailable", {
+            reason: catalog.attribution.reason,
+          })}
         </div>
       ) : null}
       <ul className="space-y-0.5" data-testid={`compare-steps-${catalog.runId}`}>
@@ -664,15 +762,20 @@ export function SideStepsSection({
             <li key={`prefix-summary:${index}`}>
               <button
                 type="button"
-                aria-label="展开完整前缀"
+                aria-label={translator.t("compare.expandPrefix")}
                 onClick={onToggleFold}
                 className={`w-full rounded bg-gray-100 px-2 py-1 text-left text-[11px] text-gray-600 hover:bg-gray-200 ${FOCUS_RING}`}
               >
-                共享前缀：{entry.summary.rowCount} 条来自 {entry.summary.sourceRunIds.join("、")}
-                {entry.summary.edits.length > 0
-                  ? `（含 ${entry.summary.edits.length} 处编辑）`
-                  : ""}
-                ——点击展开
+                {translator.t("compare.prefixSummary", {
+                  rows: entry.summary.rowCount,
+                  sources: entry.summary.sourceRunIds.join("、"),
+                  edits:
+                    entry.summary.edits.length > 0
+                      ? translator.t("compare.prefixEdits", {
+                          count: entry.summary.edits.length,
+                        })
+                      : "",
+                })}
               </button>
             </li>
           ) : (
@@ -680,7 +783,7 @@ export function SideStepsSection({
               <button
                 type="button"
                 aria-pressed={selectedSpanId === entry.row.spanId}
-                aria-label={`选中 ${entry.row.spanId}`}
+                aria-label={translator.t("compare.selectSpan", { spanId: entry.row.spanId })}
                 onClick={() =>
                   onSelectStep(selectedSpanId === entry.row.spanId ? null : entry.row.spanId)
                 }
@@ -694,16 +797,22 @@ export function SideStepsSection({
                 <span className={entry.row.own ? "" : "text-gray-400"}>{entry.row.label}</span>
                 {!entry.row.own && entry.row.sourceRunId !== null ? (
                   <span className="ml-1 text-[10px] text-gray-400">
-                    来自 {entry.row.sourceRunId}
+                    {translator.t("compare.fromSource", {
+                      sourceRunId: entry.row.sourceRunId,
+                    })}
                   </span>
                 ) : null}
                 {entry.row.editMarker !== null ? (
                   <span className="ml-1 rounded bg-amber-100 px-1 text-[10px] text-amber-800">
-                    编辑点（{entry.row.editMarker.field}）
+                    {translator.t("compare.editPoint", {
+                      field: entry.row.editMarker.field,
+                    })}
                   </span>
                 ) : null}
                 {entry.row.errorKind !== null ? (
-                  <span className="ml-1 text-[10px] text-red-600">错误</span>
+                  <span className="ml-1 text-[10px] text-red-600">
+                    {translator.t("compare.errorBadge")}
+                  </span>
                 ) : null}
               </button>
             </li>
@@ -733,40 +842,43 @@ export function CompareWorkspaceView({
   collapsed = false,
   onToggleCollapsed = undefined,
 }: CompareWorkspaceViewProps) {
+  const translator = useTranslator();
   const diffAvailable = diffGate.status === "available";
   return (
     <div
       className="flex min-w-0 flex-1 flex-col overflow-hidden bg-white outline-none"
-      aria-label="比较工作区"
+      aria-label={translator.t("compare.workspaceAria")}
       // U7 5.9：程序化焦点落点——从单侧运行「返回比较」后焦点回到比较头部（不落页顶）
       data-compare-primary="true"
       tabIndex={-1}
     >
       <div className="shrink-0 border-b border-gray-200 px-4 py-2">
         <WorkspaceHeading
-          title={<h2 className="text-sm text-gray-800">比较</h2>}
+          title={<h2 className="text-sm text-gray-800">{translator.t("compare.heading")}</h2>}
           target={
             diffMode ? (
               <span className="inline-flex flex-wrap items-center gap-2">
                 <span>
-                  左侧 <ShortIdLabel id={left.runId} shortId={left.shortId} />
+                  {translator.t("compare.diffSideLeftLabel")}{" "}
+                  <ShortIdLabel id={left.runId} shortId={left.shortId} />
                 </span>
                 <span>→</span>
                 <span>
-                  右侧 <ShortIdLabel id={right.runId} shortId={right.shortId} />
+                  {translator.t("compare.diffSideRightLabel")}{" "}
+                  <ShortIdLabel id={right.runId} shortId={right.shortId} />
                 </span>
               </span>
             ) : undefined
           }
           summary={
             diffMode ? (
-              <span className="text-gray-500">只读文本差异 · 最终输出 · 同步滚动</span>
+              <span className="text-gray-500">{translator.t("compare.diffSummary")}</span>
             ) : undefined
           }
           details={
             diffMode ? (
               <p className="py-1 text-reading-meta text-gray-500">
-                仅双方均有已记录最终输出时可用。退出文本差异后，两侧恢复独立滚动。
+                {translator.t("compare.diffDetails")}
               </p>
             ) : undefined
           }
@@ -775,55 +887,59 @@ export function CompareWorkspaceView({
               {onOpenFilesView !== undefined ? (
                 <button
                   type="button"
-                  aria-label="查看比较文件视图"
+                  aria-label={translator.t("compare.filesAria")}
                   onClick={onOpenFilesView}
                   className={`rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 ${FOCUS_RING}`}
                 >
-                  文件
+                  {translator.t("compare.filesAction")}
                 </button>
               ) : null}
               {onOpenMetricsTable !== undefined ? (
                 <button
                   type="button"
-                  aria-label="查看指标对照表"
+                  aria-label={translator.t("compare.metricsOpenAria")}
                   onClick={onOpenMetricsTable}
                   className={`rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 ${FOCUS_RING}`}
                 >
-                  指标表
+                  {translator.t("compare.metricsAction")}
                 </button>
               ) : null}
               <button
                 type="button"
-                aria-label="切换文本差异"
+                aria-label={translator.t("compare.toggleDiffAria")}
                 onClick={onToggleDiffMode}
                 disabled={!diffAvailable}
-                title={diffAvailable ? "两侧独立滚动 ↔ 只读文本差异（同步滚动）" : diffGate.reason}
+                title={
+                  diffAvailable
+                    ? translator.t("compare.toggleDiffTitle")
+                    : `${translator.t("compare.diffUnavailable")}${diffGate.reason}`
+                }
                 className={`rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 enabled:hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400 ${FOCUS_RING}`}
               >
-                {diffMode ? "退出文本差异" : "文本差异"}
+                {translator.t(diffMode ? "compare.exitDiff" : "compare.toggleDiff")}
               </button>
               <button
                 type="button"
-                aria-label="交换左右"
+                aria-label={translator.t("compare.swapAria")}
                 onClick={onSwap}
                 className={`rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 ${FOCUS_RING}`}
               >
-                交换左右
+                {translator.t("compare.swap")}
               </button>
               <button
                 type="button"
-                aria-label="返回来源"
+                aria-label={translator.t("compare.returnAria")}
                 onClick={onReturn}
                 className={`rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 ${FOCUS_RING}`}
               >
-                返回来源
+                {translator.t("compare.return")}
               </button>
             </>
           }
         />
       </div>
       {loading ? (
-        <div className="px-4 py-1 text-[11px] text-gray-500">正在读取比较对象…</div>
+        <div className="px-4 py-1 text-[11px] text-gray-500">{translator.t("compare.loading")}</div>
       ) : null}
       {diffMode && diffGate.status === "available" ? (
         // 只读文本 diff：同步滚动仅存在于本模式（design D4）；退出即回两列独立滚动。
@@ -854,21 +970,25 @@ export function CompareWorkspaceView({
             >
               <div className="border-b border-gray-100 px-3 py-1.5">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-[11px] text-gray-500">{SIDE_LABEL[side.side]}</span>
+                  <span className="text-[11px] text-gray-500">
+                    {sideLabel(side.side, translator)}
+                  </span>
                   {side.fileEntry !== null ? (
                     <button
                       type="button"
-                      aria-label={`打开${SIDE_LABEL[side.side]}文件`}
+                      aria-label={translator.t("compare.openSideFilesAria", {
+                        side: sideLabel(side.side, translator),
+                      })}
                       onClick={side.onOpenFiles}
                       disabled={side.fileEntry.kind !== "available"}
                       title={
                         side.fileEntry.kind === "available"
-                          ? (side.fileEntry.note ?? "进入该运行自己的 U2 文件页（保留比较对象）")
+                          ? (side.fileEntry.note ?? translator.t("compare.fileEntryNote"))
                           : side.fileEntry.reason
                       }
                       className={`rounded border border-gray-300 px-1.5 py-0.5 text-[10px] text-gray-600 enabled:hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400 ${FOCUS_RING}`}
                     >
-                      打开文件
+                      {translator.t("compare.openFiles")}
                     </button>
                   ) : null}
                 </div>

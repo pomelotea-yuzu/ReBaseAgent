@@ -66,14 +66,16 @@ export interface MetricsTableModel {
   readonly scopeNote: string;
 }
 
-const EMPTY_MODEL: MetricsTableModel = {
-  kind: "empty",
-  hint: "在分支树勾选节点加入对照（最多四条）；两条及以上可进入指标对照与详细比较。",
-  columns: [],
-  rows: [],
-  relation: null,
-  scopeNote: "",
-};
+function emptyModel(translator: Translator): MetricsTableModel {
+  return {
+    kind: "empty",
+    hint: translator.t("compare.metricsEmptyHint"),
+    columns: [],
+    rows: [],
+    relation: null,
+    scopeNote: "",
+  };
+}
 
 /**
  * 从本次已校验比较结论派生宽幅指标表。
@@ -88,7 +90,7 @@ export function deriveCompareMetricsTable(
   },
   translator: Translator,
 ): MetricsTableModel {
-  if (input.items === null || input.items.length === 0) return EMPTY_MODEL;
+  if (input.items === null || input.items.length === 0) return emptyModel(translator);
 
   const items = input.items;
   const shortIdOf = (runId: string): string => input.shortIds.get(runId) ?? runId;
@@ -102,7 +104,10 @@ export function deriveCompareMetricsTable(
         model: null,
         statusLabel: null,
         statusTone: null,
-        unavailableReason: `${item.reason}（${item.code}）`,
+        unavailableReason: translator.t("compare.metricsUnavailableReason", {
+          reason: item.reason,
+          code: item.code,
+        }),
       };
     }
     // 标题事实取自本次已校验链摘要的最后一项（= 该 run 自身），不用列表缓存
@@ -138,20 +143,20 @@ export function deriveCompareMetricsTable(
         ? {
             ancestorId: verified.relation.ancestorId,
             incomplete: false,
-            note: `共同祖先：${verified.relation.ancestorId}`,
+            note: translator.t("compare.relationCommon", {
+              ancestorId: verified.relation.ancestorId,
+            }),
           }
         : verified.relation.kind === "unrelated"
           ? {
               ancestorId: null,
               incomplete: false,
-              note: "共同祖先：无（分属不同根）——两条链都完整走到根且无公共祖先，没有可比基线",
+              note: translator.t("compare.relationUnrelated"),
             }
           : {
               ancestorId: null,
               incomplete: true,
-              note:
-                "共同祖先：判定不完整（存在父缺失）——链上有 run 的父 run 不在数据目录，" +
-                "无法确认更深的共同祖先；不是「本来就不同源」，祖先增量不计算",
+              note: translator.t("compare.relationIncomplete"),
             };
 
   // 5.2/5.4：行 = 身份与结局（状态/终止原因/创建时间/分叉点/实验组）+
@@ -178,88 +183,90 @@ export function deriveCompareMetricsTable(
   /** 祖先增量不可得时的逐列解释（按三态与该侧累计可得性区分，不冒充 0） */
   const deltaUnavailableNote = (index: number): string | undefined => {
     if (items[index]?.status !== "ready") return undefined;
-    if (verified === null) return "可读侧不足两条：不判定共同祖先，不计算祖先增量";
+    if (verified === null) return translator.t("compare.deltaNoAncestor");
     if (verified.relation.kind === "incomplete") {
-      return "共同祖先判定不完整（存在父缺失）：祖先增量不计算";
+      return translator.t("compare.deltaIncomplete");
     }
     if (verified.relation.kind === "unrelated") {
-      return "无共同祖先（分属不同根）：没有可比基线，祖先增量不计算";
+      return translator.t("compare.deltaUnrelated");
     }
-    if (totalsOf(index) === null) return "该侧沿链累计不可得（链上有段未知）：祖先增量不计算";
+    if (totalsOf(index) === null) return translator.t("compare.deltaTotalsUnknown");
     return undefined;
   };
 
   const rows: MetricsRow[] = [
     {
-      label: "状态",
+      label: translator.t("compare.rowStatus"),
       values: columns.map((column) => column.statusLabel),
       titles: columns.map((column) =>
-        column.unavailableReason === null ? undefined : "该运行不可读：无已校验状态",
+        column.unavailableReason === null
+          ? undefined
+          : translator.t("compare.rowStatusUnreadableTitle"),
       ),
     },
     {
-      label: "终止原因",
+      label: translator.t("compare.rowReason"),
       values: columns.map((column, index) => {
         const own = ownOf(index);
         return own === null ? null : (own.reason ?? "—");
       }),
       titles: columns.map((column, index) => {
         const own = ownOf(index);
-        return own !== null && own.reason === null ? "记录里没有终止事件，— 表示无原值" : undefined;
+        return own !== null && own.reason === null
+          ? translator.t("compare.rowReasonTitle")
+          : undefined;
       }),
     },
     {
-      label: "创建时间",
+      label: translator.t("compare.rowCreatedAt"),
       values: columns.map((_column, index) => ownOf(index)?.created_at ?? null),
     },
     {
-      label: "分叉点",
+      label: translator.t("compare.rowForkSpan"),
       values: columns.map((_column, index) => ownOf(index)?.fork?.at_span ?? null),
-      titles: columns.map(() => "分叉编辑发生的 span id；根 run 无分叉点"),
+      titles: columns.map(() => translator.t("compare.rowForkSpanTitle")),
     },
     {
-      label: "实验组",
+      label: translator.t("compare.rowExperiment"),
       values: columns.map((_column, index) => ownOf(index)?.fork?.experiment_id ?? null),
-      titles: columns.map(() => "同一批模型实验的臂共享一个 experimentId；无标签如实显示 —"),
+      titles: columns.map(() => translator.t("compare.rowExperimentTitle")),
     },
     {
-      label: "本 run 步数",
+      label: translator.t("compare.rowSteps"),
       values: columns.map((_column, index) => {
         const own = ownOf(index);
         return own === null ? null : String(own.steps);
       }),
     },
     {
-      label: "工具 / 出错",
+      label: translator.t("compare.rowTools"),
       values: columns.map((_column, index) => {
         const own = ownOf(index);
         return own === null ? null : `${own.toolCalls} / ${own.toolErrors}`;
       }),
-      titles: columns.map(() => "工具调用次数 / 其中出错次数"),
+      titles: columns.map(() => translator.t("compare.rowToolsTitle")),
     },
     // ---- 5.4：自有消耗（leaf spans；未知不补零）----
     {
-      label: "自有 tokens（输入）",
+      label: translator.t("compare.rowTokensIn"),
       values: columns.map((_column, index) => {
         const consumption = consumptionOf(index);
         return consumption === null ? null : formatTokens(consumption.tokensIn);
       }),
       titles: columns.map((_column, index) => {
         const consumption = consumptionOf(index);
-        return consumption === null
-          ? undefined
-          : "仅本运行自有调用（leaf spans）的已记录值；祖先共享前缀不计入，缺失不补零";
+        return consumption === null ? undefined : translator.t("compare.rowTokensInTitle");
       }),
     },
     {
-      label: "自有 tokens（输出）",
+      label: translator.t("compare.rowTokensOut"),
       values: columns.map((_column, index) => {
         const consumption = consumptionOf(index);
         return consumption === null ? null : formatTokens(consumption.tokensOut);
       }),
     },
     {
-      label: "自有 tokens（合计）",
+      label: translator.t("compare.rowTokensTotal"),
       values: columns.map((_column, index) => {
         const consumption = consumptionOf(index);
         return consumption === null
@@ -270,12 +277,12 @@ export function deriveCompareMetricsTable(
         const consumption = consumptionOf(index);
         // 失败调用的占位零用量不称实际零消费（5.5 同源判据，随行先行）
         return consumption !== null && consumption.tokensIn === 0 && consumption.tokensOut === 0
-          ? "记录用量为 0——可能是失败调用的占位值，不据此断言实际零消费"
+          ? translator.t("compare.rowTokensZeroTitle")
           : undefined;
       }),
     },
     {
-      label: "自有已记录耗时",
+      label: translator.t("compare.rowDuration"),
       values: columns.map((_column, index) => {
         const consumption = consumptionOf(index);
         // null（未知）交给组件层显示 —；不在派生层用字符串冒充值
@@ -286,22 +293,28 @@ export function deriveCompareMetricsTable(
       titles: columns.map((_column, index) => {
         const consumption = consumptionOf(index);
         return consumption !== null && consumption.durationMs === null
-          ? "自有 spans 无已记录时间跨度：保持未知，不补 0"
+          ? translator.t("compare.rowDurationUnknownTitle")
           : undefined;
       }),
     },
     // ---- 5.5：缓存覆盖范围（未记录 ≠ 零命中 ≠ 部分记录，三种解释可辨）----
     {
-      label: "缓存",
+      label: translator.t("compare.rowCache"),
       values: columns.map((_column, index) => {
         const consumption = consumptionOf(index);
         if (consumption === null) return null;
         const cache = presentCacheCoverage(consumption.cache, translator);
         if (cache.recorded === 0) {
           // 未记录不显示成实际零：没有 cache_hit 字段 ⇒ 命中量未知
-          return cache.total === 0 ? "无自有模型调用" : "未记录（命中量未知）";
+          return cache.total === 0
+            ? translator.t("compare.rowCacheNoCalls")
+            : translator.t("compare.rowCacheUnrecorded");
         }
-        return `${cache.hitTotal}（已记录 ${cache.recorded} / ${cache.total} 次调用）`;
+        return translator.t("compare.rowCacheSummary", {
+          hit: cache.hitTotal ?? 0,
+          recorded: cache.recorded,
+          total: cache.total,
+        });
       }),
       titles: columns.map((_column, index) => {
         const consumption = consumptionOf(index);
@@ -312,34 +325,34 @@ export function deriveCompareMetricsTable(
     },
     // ---- 5.4：沿链累计（各代自有值沿链求和；禁称总耗时/总成本）----
     {
-      label: "累计增量（步数）",
+      label: translator.t("compare.rowTotalsSteps"),
       values: columns.map((_column, index) => {
         const totals = totalsOf(index);
         return totals === null ? null : String(totals.steps);
       }),
-      titles: columns.map(() => "沿 parent 链对各代自有值求和"),
+      titles: columns.map(() => translator.t("compare.rowTotalsStepsTitle")),
     },
     {
-      label: "累计增量（tokens）",
+      label: translator.t("compare.rowTotalsTokens"),
       values: columns.map((_column, index) => {
         const totals = totalsOf(index);
         return totals === null ? null : formatTokens(totals.tokens);
       }),
-      titles: columns.map(() => "沿 parent 链对各代自有值求和；不等于从头连续跑一次的消耗"),
+      titles: columns.map(() => translator.t("compare.rowTotalsTokensTitle")),
     },
     {
-      label: "累计增量（耗时）",
+      label: translator.t("compare.rowTotalsDuration"),
       values: columns.map((_column, index) => {
         const totals = totalsOf(index);
         return totals === null || totals.durationMs === null
           ? null
           : formatDuration(totals.durationMs);
       }),
-      titles: columns.map(() => "各段已记录耗时之和（任一段未知即整体未知）；禁称「总耗时」"),
+      titles: columns.map(() => translator.t("compare.rowTotalsDurationTitle")),
     },
     // ---- 5.4：相对共同祖先增量（= 该侧累计 − 祖先累计；不是左右臂相减）----
     {
-      label: "相对祖先增量（tokens）",
+      label: translator.t("compare.rowDeltaTokens"),
       values: columns.map((_column, index) => {
         const delta = deltaOf(index);
         return delta === null ? null : formatTokens(delta.tokens);
@@ -347,11 +360,11 @@ export function deriveCompareMetricsTable(
       titles: columns.map((_column, index) =>
         deltaOf(index) === null
           ? deltaUnavailableNote(index)
-          : "该侧沿链累计 − 共同祖先沿链累计（同口径相减）；不是左右两侧互差",
+          : translator.t("compare.rowDeltaTokensTitle"),
       ),
     },
     {
-      label: "相对祖先增量（耗时）",
+      label: translator.t("compare.rowDeltaDuration"),
       values: columns.map((_column, index) => {
         const delta = deltaOf(index);
         return delta === null || delta.durationMs === null
@@ -360,19 +373,19 @@ export function deriveCompareMetricsTable(
       }),
       titles: columns.map((_column, index) =>
         deltaOf(index)?.durationMs === null
-          ? "祖先段耗时未知：增量保持未知，不补 0"
+          ? translator.t("compare.rowDeltaDurationUnknownTitle")
           : deltaOf(index) === null
             ? deltaUnavailableNote(index)
-            : "该侧沿链累计 − 共同祖先沿链累计（同口径相减）",
+            : translator.t("compare.rowDeltaDurationTitle"),
       ),
     },
   ];
 
   const hint =
     items.length === 1
-      ? "再选一条即可对照（最多四条）。"
+      ? translator.t("compare.metricsHintOne")
       : items.length >= 3
-        ? "已选三条及以上：可在表内显式选择两条进入详细比较。"
+        ? translator.t("compare.metricsHintMany")
         : null;
 
   return {
@@ -381,11 +394,6 @@ export function deriveCompareMetricsTable(
     columns,
     rows,
     relation,
-    scopeNote:
-      "指标来自本次已校验比较读取（不可读侧如实呈现原因，不用列表缓存补齐）；" +
-      "自有值仅统计本运行自有调用（leaf spans）；沿链累计为各代自有值沿链求和" +
-      "（prompt / messages / model_params 为独立执行，各代自有值照记、不当作共享前缀），" +
-      "禁称「总耗时 / 总成本」；相对祖先增量 = 该侧累计 − 祖先累计（同口径相减，不是左右臂相减）。" +
-      "对照只呈现各运行事实与其相对共同祖先的增量，不产出运行之间的互差、胜出或最佳结论。",
+    scopeNote: translator.t("compare.metricsScopeNote"),
   };
 }

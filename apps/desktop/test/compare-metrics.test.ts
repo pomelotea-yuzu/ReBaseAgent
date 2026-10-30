@@ -4,6 +4,7 @@ import { deriveCompareMetricsTable as deriveCompareMetricsTableOf } from "../src
 import { createTestTranslator } from "./i18n/render-with-locale";
 
 const zh = createTestTranslator("zh-CN");
+const en = createTestTranslator("en-US");
 const deriveCompareMetricsTable = (input: Parameters<typeof deriveCompareMetricsTableOf>[0]) =>
   deriveCompareMetricsTableOf(input, zh);
 import { formatDuration, formatTokens } from "../src/renderer/src/lib/format";
@@ -471,5 +472,23 @@ describe("5.5 缓存与失败占位", () => {
     for (const banned of ["金额", "评分", "胜出", "最佳", "¥", "$"]) {
       expect(cellText, banned).not.toContain(banned);
     }
+  });
+});
+
+describe("compare 指标表英文投影（D19）", () => {
+  it("空态引导、行标签与不可读原因按英文呈现，事实值不变", () => {
+    const empty = deriveCompareMetricsTableOf({ items: null, shortIds: shorts }, en);
+    expect(empty.hint).toContain("Select branch-tree nodes");
+    const items = [
+      readyItem("r_a", [summary({ id: "r_a" })]),
+      readyItem("r_b", [summary({ id: "r_a" }), summary({ id: "r_b", parent: "r_a" })]),
+      unavailableItem("r_ghost"),
+    ];
+    const model = deriveCompareMetricsTableOf({ items, shortIds: shorts }, en);
+    expect(model.rows.map((row) => row.label)).toContain("Own tokens (input)");
+    expect(model.rows.map((row) => row.label)).toContain("Cumulative increment (tokens)");
+    expect(model.columns[2]?.unavailableReason).toContain("RUN_UNREADABLE");
+    expect(model.columns[2]?.unavailableReason).toContain("运行记录读取失败");
+    expect(model.scopeNote).toContain("never produces left-right differences");
   });
 });

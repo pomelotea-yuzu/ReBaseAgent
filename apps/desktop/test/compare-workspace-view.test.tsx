@@ -886,3 +886,42 @@ describe("5.8 宽度适配：并排 / 上下排列", () => {
     expect(html).toContain('aria-label="复制完整 ID r_r"');
   });
 });
+
+describe("CompareWorkspaceView 英文投影（D19）", () => {
+  const leftEn = okSide("left", "r_l", [stepSpan("s_01"), llmSpan("c_01", { content: "left" })]);
+  const rightEn = okSide("right", "r_r", [stepSpan("s_01"), llmSpan("c_01", { content: "right" })]);
+
+  it("标题/列名/动作/空证据按英文呈现；左侧侧名复用同一语言", () => {
+    const html = renderWithLocale(
+      "en-US",
+      <CompareWorkspaceView
+        pair={{ leftRunId: "r_l", rightRunId: "r_r" }}
+        loading={false}
+        stacked={false}
+        left={leftEn}
+        right={rightEn}
+        diffGate={{
+          status: "available",
+          leftText: "left",
+          rightText: "right",
+          leftSpanId: "c_01",
+          rightSpanId: "c_01",
+        }}
+        diffMode={false}
+        onToggleDiffMode={vi.fn()}
+        onSwap={vi.fn()}
+        onReturn={vi.fn()}
+        evidence={{ kind: "unavailable", reason: "原始派生原因（不翻译）" }}
+      />,
+    );
+    expect(html).toContain("Compare");
+    expect(html).toContain("Left");
+    expect(html).toContain("Right");
+    expect(html).toContain("Swap sides");
+    expect(html).toContain("Back to source");
+    expect(html).toContain("Text diff");
+    expect(html).toContain("Edit evidence");
+    expect(html).toContain("原始派生原因（不翻译）");
+    expect(html).not.toContain("交换左右");
+  });
+});

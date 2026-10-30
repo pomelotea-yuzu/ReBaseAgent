@@ -1,3 +1,4 @@
+import { useTranslator } from "../i18n";
 import type { MetricsRow, MetricsTableModel } from "../lib/compare-metrics";
 import { FOCUS_RING } from "./IconButton";
 import { ShortIdLabel } from "./ShortIdLabel";
@@ -34,24 +35,31 @@ export function CompareMetricsTable(props: {
   /** 挑选提交被拒（同 ID / 集合外）时的就地解释 */
   readonly pickError?: string | null;
 }) {
+  const translator = useTranslator();
   const { model } = props;
 
   // 请求级拒绝（信封失败 / 载荷不合法）优先呈现：稳定码 + 受控原因 + 重试入口。
   // ⚠️ 此时结论为 null，model 是空态——拒绝信息不能被空态引导吞掉。
   if (props.rejected !== null) {
     return (
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden" aria-label="指标对照">
+      <div
+        className="flex min-w-0 flex-1 flex-col overflow-hidden"
+        aria-label={translator.t("compare.metricsAria")}
+      >
         <div className="px-4 py-2">
           <div className="rounded bg-amber-50 px-3 py-2 text-xs text-amber-800">
-            [{props.rejected.code}] {props.rejected.reason}
+            {translator.t("compare.metricsReadFailed", {
+              code: props.rejected.code,
+              detail: props.rejected.reason,
+            })}
           </div>
           <button
             type="button"
-            aria-label="重试比较读取"
+            aria-label={translator.t("compare.metricsRetryAria")}
             onClick={props.onRetry}
             className={`mt-2 rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 ${FOCUS_RING}`}
           >
-            重试读取
+            {translator.t("compare.metricsRetry")}
           </button>
         </div>
       </div>
@@ -62,7 +70,7 @@ export function CompareMetricsTable(props: {
     return (
       <div
         className="flex min-w-0 flex-1 items-start justify-center overflow-y-auto p-6"
-        aria-label="指标对照"
+        aria-label={translator.t("compare.metricsAria")}
       >
         <div className="rounded bg-gray-50 px-4 py-3 text-xs leading-5 text-gray-600">
           {model.hint}
@@ -72,42 +80,53 @@ export function CompareMetricsTable(props: {
   }
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col overflow-hidden" aria-label="指标对照">
+    <div
+      className="flex min-w-0 flex-1 flex-col overflow-hidden"
+      aria-label={translator.t("compare.metricsAria")}
+    >
       <div className="flex items-center justify-between border-b border-gray-200 px-4 py-2">
-        <h2 className="text-sm font-medium text-gray-800">指标对照（{model.columns.length} 条）</h2>
+        <h2 className="text-sm font-medium text-gray-800">
+          {translator.t("compare.metricsTitle", { count: model.columns.length })}
+        </h2>
         {model.hint !== null ? (
           <span className="text-[11px] text-gray-500">{model.hint}</span>
         ) : null}
       </div>
 
       {props.loading ? (
-        <div className="px-4 py-1 text-[11px] text-gray-500">正在读取比较对象…</div>
+        <div className="px-4 py-1 text-[11px] text-gray-500">{translator.t("compare.loading")}</div>
       ) : null}
 
       {/* U7 5.3：两步挑选条——两侧齐备才可打开详细比较（相同 ID 由 store 拒绝） */}
       {props.pick !== undefined && model.columns.length >= 2 ? (
         <div className="flex flex-wrap items-center gap-2 border-b border-gray-100 px-4 py-1.5">
           <span className="text-[11px] text-gray-500">
-            已选：左 {pickLabel(props.pick.left, model.columns) ?? "（未选）"} · 右{" "}
-            {pickLabel(props.pick.right, model.columns) ?? "（未选）"}
+            {translator.t("compare.metricsPickSelected", {
+              left:
+                pickLabel(props.pick.left, model.columns) ??
+                translator.t("compare.metricsPickNone"),
+              right:
+                pickLabel(props.pick.right, model.columns) ??
+                translator.t("compare.metricsPickNone"),
+            })}
           </span>
           <button
             type="button"
-            aria-label="打开所选两条的详细比较"
+            aria-label={translator.t("compare.metricsOpenPairAria")}
             onClick={props.onOpenPair}
             disabled={props.pick.left === null || props.pick.right === null}
             className={`rounded border border-gray-300 px-2 py-0.5 text-[11px] text-gray-700 enabled:hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 ${FOCUS_RING}`}
           >
-            打开详细比较
+            {translator.t("compare.metricsOpenPair")}
           </button>
           {props.pick.left !== null || props.pick.right !== null ? (
             <button
               type="button"
-              aria-label="清除挑选"
+              aria-label={translator.t("compare.metricsClearPickAria")}
               onClick={props.onClearPick}
               className={`rounded px-1.5 py-0.5 text-[11px] text-gray-500 hover:bg-gray-100 ${FOCUS_RING}`}
             >
-              清除
+              {translator.t("compare.metricsClearPick")}
             </button>
           ) : null}
           {props.pickError !== null && props.pickError !== undefined ? (
@@ -125,7 +144,7 @@ export function CompareMetricsTable(props: {
                 scope="col"
                 className="sticky left-0 z-10 min-w-[128px] border-b border-gray-200 bg-white px-3 py-2 text-left text-[11px] font-normal text-gray-500"
               >
-                指标
+                {translator.t("compare.metricsNameColumn")}
               </th>
               {model.columns.map((column) => (
                 <th
@@ -139,13 +158,15 @@ export function CompareMetricsTable(props: {
                       title={column.task ?? undefined}
                     >
                       {column.task ??
-                        (column.unavailableReason !== null ? "（不可读）" : "未记录任务")}
+                        (column.unavailableReason !== null
+                          ? translator.t("compare.metricsUnavailableTag")
+                          : translator.t("compare.metricsTaskMissing"))}
                     </div>
                     <div className="mt-0.5">
                       <ShortIdLabel id={column.runId} shortId={column.shortId} />
                     </div>
                     <div className="mt-0.5 text-[11px] text-gray-500">
-                      {column.model ?? "未记录模型"}
+                      {column.model ?? translator.t("compare.metricsModelMissing")}
                     </div>
                     {column.statusLabel !== null ? (
                       <div className={`mt-0.5 text-[11px] ${statusTextClass(column.statusTone)}`}>
@@ -154,28 +175,34 @@ export function CompareMetricsTable(props: {
                     ) : null}
                     {column.unavailableReason !== null ? (
                       <div className="mt-1 rounded bg-amber-50 px-1.5 py-1 text-[11px] text-amber-800">
-                        不可读：{column.unavailableReason}
+                        {translator.t("compare.metricsUnavailable", {
+                          reason: column.unavailableReason,
+                        })}
                       </div>
                     ) : null}
                     {props.onPickSide !== undefined && column.unavailableReason === null ? (
                       <div className="mt-1 flex gap-1">
                         <button
                           type="button"
-                          aria-label={`设为左列 ${column.runId}`}
+                          aria-label={translator.t("compare.metricsSetLeftAria", {
+                            runId: column.runId,
+                          })}
                           aria-pressed={props.pick?.left === column.runId}
                           onClick={() => props.onPickSide?.("left", column.runId)}
                           className={`rounded border border-gray-300 px-1.5 py-0.5 text-[10px] text-gray-600 hover:bg-gray-50 ${FOCUS_RING}`}
                         >
-                          设为左列
+                          {translator.t("compare.metricsSetLeft")}
                         </button>
                         <button
                           type="button"
-                          aria-label={`设为右列 ${column.runId}`}
+                          aria-label={translator.t("compare.metricsSetRightAria", {
+                            runId: column.runId,
+                          })}
                           aria-pressed={props.pick?.right === column.runId}
                           onClick={() => props.onPickSide?.("right", column.runId)}
                           className={`rounded border border-gray-300 px-1.5 py-0.5 text-[10px] text-gray-600 hover:bg-gray-50 ${FOCUS_RING}`}
                         >
-                          设为右列
+                          {translator.t("compare.metricsSetRight")}
                         </button>
                       </div>
                     ) : null}

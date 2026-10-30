@@ -1,7 +1,7 @@
 import { createElement } from "react";
 import type { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { renderWithLocale } from "./i18n/render-with-locale";
+import { createTestTranslator, renderWithLocale } from "./i18n/render-with-locale";
 
 // store 薄壳 import 时触到 window.api ⇒ 桩先就位（与 run-workspace.test.ts 同法）
 (globalThis as Record<string, unknown>).window = { api: {} };
@@ -23,6 +23,9 @@ const { useAppStore } = await import("../src/renderer/src/store");
 
 const html = (node: Parameters<typeof renderToStaticMarkup>[0]): string =>
   renderWithLocale("zh-CN", node);
+
+const zh = createTestTranslator("zh-CN");
+const en = createTestTranslator("en-US");
 
 const VALUE_MARK = "原始结果正文的独特片段";
 
@@ -65,21 +68,46 @@ describe("evidenceCollapsible / evidenceSummaryText（纯判据）", () => {
 
   it("收起摘要含字段与方向（直接证据）与修改数（逐跳链）", () => {
     expect(
-      evidenceSummaryText({
-        kind: "direct",
-        evidence: verifiedDirect(),
-        direction: "right-to-left",
-      }),
+      evidenceSummaryText(
+        {
+          kind: "direct",
+          evidence: verifiedDirect(),
+          direction: "right-to-left",
+        },
+        zh,
+      ),
     ).toBe("字段「result」 · 右列 → 左列");
     expect(
-      evidenceSummaryText({
-        kind: "hops",
-        chains: [
-          { runId: "r_b", hops: [verifiedDirect(), verifiedDirect()] },
-          { runId: "r_c", hops: [verifiedDirect()] },
-        ],
-      }),
+      evidenceSummaryText(
+        {
+          kind: "direct",
+          evidence: verifiedDirect(),
+          direction: "left-to-right",
+        },
+        en,
+      ),
+    ).toBe("Field “result” · Left → Right");
+    expect(
+      evidenceSummaryText(
+        {
+          kind: "hops",
+          chains: [
+            { runId: "r_b", hops: [verifiedDirect(), verifiedDirect()] },
+            { runId: "r_c", hops: [verifiedDirect()] },
+          ],
+        },
+        zh,
+      ),
     ).toContain("3 处逐跳核对");
+    expect(
+      evidenceSummaryText(
+        {
+          kind: "hops",
+          chains: [{ runId: "r_b", hops: [verifiedDirect()] }],
+        },
+        en,
+      ),
+    ).toContain("1 hop checks");
   });
 });
 

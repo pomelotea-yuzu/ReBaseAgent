@@ -1,5 +1,6 @@
 import type { RunSummary } from "@shared/ipc";
 import { taskSummary } from "@shared/nav";
+import { useTranslator } from "../i18n";
 import { MAX_COMPARE, useAppStore } from "../store";
 import { FOCUS_RING } from "./IconButton";
 import { ShortIdLabel } from "./ShortIdLabel";
@@ -65,15 +66,21 @@ export function CompareSelectionBarView({
   onClear: () => void;
   onEnter: () => void;
 }) {
+  const translator = useTranslator();
   const byId = new Map(runs.map((run) => [run.id, run]));
   return (
     <div
       className="flex shrink-0 flex-wrap items-center gap-2 border-t border-gray-200 bg-white px-3 py-2"
-      aria-label="对照选择栏"
+      aria-label={translator.t("compare.selectionAria")}
     >
-      <div className="text-xs font-medium text-gray-700">对照</div>
+      <div className="text-xs font-medium text-gray-700">
+        {translator.t("compare.selectionTitle")}
+      </div>
       <div className="text-[11px] text-gray-500">
-        已选 {compareIds.length} / {maxCompare}
+        {translator.t("compare.selectionCount", {
+          selected: compareIds.length,
+          max: maxCompare,
+        })}
       </div>
       {compareNotice !== null ? (
         <output className="rounded bg-amber-50 px-2 py-1 text-[11px] text-amber-800">
@@ -81,7 +88,7 @@ export function CompareSelectionBarView({
         </output>
       ) : null}
       {compareIds.length === 0 ? (
-        <div className="text-[11px] text-gray-500">勾选分支树节点即可加入对照（最多四条）。</div>
+        <div className="text-[11px] text-gray-500">{translator.t("compare.selectionEmpty")}</div>
       ) : (
         <>
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
@@ -103,11 +110,11 @@ export function CompareSelectionBarView({
                   ) : null}
                   <button
                     type="button"
-                    aria-label={`移出对照 ${id}`}
+                    aria-label={translator.t("compare.selectionRemoveAria", { runId: id })}
                     onClick={() => onToggleCompare(id)}
                     className={`rounded px-1 text-[11px] text-gray-400 hover:bg-gray-200 hover:text-gray-600 ${FOCUS_RING}`}
                   >
-                    移出
+                    {translator.t("compare.selectionRemove")}
                   </button>
                 </span>
               );
@@ -115,19 +122,23 @@ export function CompareSelectionBarView({
           </div>
           <button
             type="button"
-            aria-label="进入对照与比较工作区"
+            aria-label={translator.t("compare.selectionEnterAria")}
             onClick={onEnter}
             className={`rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 ${FOCUS_RING}`}
           >
-            {compareIds.length === 2 ? "进入详细比较" : "进入指标对照"}
+            {translator.t(
+              compareIds.length === 2
+                ? "compare.selectionEnterDetailed"
+                : "compare.selectionEnterMetrics",
+            )}
           </button>
           <button
             type="button"
-            aria-label="清空对照集合"
+            aria-label={translator.t("compare.selectionClearAria")}
             onClick={onClear}
             className={`rounded px-1.5 py-1 text-[11px] text-gray-500 hover:bg-gray-100 ${FOCUS_RING}`}
           >
-            清空
+            {translator.t("compare.selectionClear")}
           </button>
         </>
       )}
