@@ -16,12 +16,13 @@
  * 真实窗口下的**恢复行为**由 `scripts/editor-recovery-43-cdp.cjs` 承载。
  */
 import { readFileSync } from "node:fs";
-import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { MonacoLoadFailure } from "../src/renderer/src/components/MonacoEditor";
+import { renderWithLocale } from "./i18n/render-with-locale";
 
 describe("MonacoLoadFailure · 失败占位的 DOM 契约", () => {
-  const html = renderToStaticMarkup(
+  const html = renderWithLocale(
+    "zh-CN",
     <MonacoLoadFailure
       height={200}
       testId="messages-draft-editor"
@@ -50,8 +51,8 @@ describe("MonacoLoadFailure · 失败占位的 DOM 契约", () => {
 
   it("给出可辨的失败标题（不是「正在加载」）", () => {
     expect(html).toContain("编辑器未能加载");
-    // 旧实现的文案是「正在加载编辑器…」——失败时显示它就是本轮修掉的缺陷本身
-    expect(html).not.toContain("正在加载编辑器");
+    // 旧实现的文案是加载占位——失败时显示它就是本轮修掉的缺陷本身
+    expect(html).not.toContain("编辑器加载中");
   });
 
   it("给出就地重试入口", () => {
@@ -78,12 +79,12 @@ describe("MonacoLoadFailure · 失败占位的 DOM 契约", () => {
 describe("失败占位不是普通加载占位", () => {
   // 两条路径互斥：失败时**不能**同时显示「正在加载编辑器…」，否则用户仍以为在等
   it("失败态不含加载中文案", () => {
-    const html = renderToStaticMarkup(<MonacoLoadFailure height={160} onRetry={() => {}} />);
-    expect(html).not.toContain("正在加载编辑器");
+    const html = renderWithLocale("zh-CN", <MonacoLoadFailure height={160} onRetry={() => {}} />);
+    expect(html).not.toContain("编辑器加载中");
   });
 
   it("失败态没有 data-monaco-failed=false 之类的软标记（只认 true）", () => {
-    const html = renderToStaticMarkup(<MonacoLoadFailure height={160} onRetry={() => {}} />);
+    const html = renderWithLocale("zh-CN", <MonacoLoadFailure height={160} onRetry={() => {}} />);
     expect(html).toContain('data-monaco-failed="true"');
     expect(html).not.toContain('data-monaco-failed="false"');
   });

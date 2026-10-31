@@ -19,6 +19,7 @@
 
 import { createElement, lazy, useCallback, useEffect, useRef, useState } from "react";
 import type { ComponentProps } from "react";
+import { useTranslator } from "../i18n";
 import { classifyHost, layoutRecoveryAction, recoveryNotice } from "../lib/editor-recovery";
 import {
   type ViewStateEditorLike,
@@ -42,6 +43,7 @@ export function MonacoFallback({
   testId?: string;
   extra?: Record<string, unknown>;
 }) {
+  const translator = useTranslator();
   return (
     <div
       {...extra}
@@ -49,7 +51,7 @@ export function MonacoFallback({
       className="flex items-center justify-center rounded border border-gray-200 bg-gray-50 text-[11px] text-gray-400"
       style={{ height: height ?? 160 }}
     >
-      正在加载编辑器…
+      {translator.t("detail.editorLoading")}
     </div>
   );
 }
@@ -176,7 +178,8 @@ export function MonacoLoadFailure({
   readonly extra?: Record<string, unknown>;
   readonly onRetry: () => void;
 }) {
-  const notice = recoveryNotice("编辑器资源未能加载");
+  const translator = useTranslator();
+  const notice = recoveryNotice(translator.t("detail.editorAssetLoadFailed"), translator);
   return (
     <div
       {...extra}

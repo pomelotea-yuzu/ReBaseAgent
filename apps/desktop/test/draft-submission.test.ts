@@ -13,6 +13,9 @@ import type { DraftSubmission } from "../src/renderer/src/lib/draft-submission";
 import * as sessionLib from "../src/renderer/src/lib/operation-session";
 import type { RunDetail } from "../src/shared/ipc";
 import { executedFail, executedOk, installOperationChannels } from "./helpers/operation-channels";
+import { createTestTranslator } from "./i18n/render-with-locale";
+
+const zh = createTestTranslator("zh-CN");
 
 /**
  * U3（preserve-debugging-drafts）任务 3.4/3.5：提交绑定草稿快照并冻结，响应不清草稿。
@@ -157,7 +160,7 @@ describe("纯逻辑：提交关联的登记与收尾（任务 3.4/3.5）", () =>
       userMessage: "任务",
     });
 
-    const listKeys = new Map(deriveDraftList(repo).map((item) => [item.field, item.listKey]));
+    const listKeys = new Map(deriveDraftList(repo, zh).map((item) => [item.field, item.listKey]));
     expect(subLib.submissionIdOf(keyA)).toBe(listKeys.get("result"));
     expect(subLib.submissionIdOf(abKey)).toBe(listKeys.get("model_ab"));
     expect(subLib.submissionIdOf(CREATE_SUBMIT_TARGET)).toBe(listKeys.get("create"));

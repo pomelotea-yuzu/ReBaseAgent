@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T03:15:22.753Z",
+  "generatedAt": "2026-10-31T03:41:41.513Z",
   "scanner": "scripts/i18n-attribution.cjs",
   "taxonomy": {
     "product": "产品展示：需要按批次迁移为双语资源",
@@ -9,11 +9,11 @@
     "generated": "生成资产：不作为产品文案"
   },
   "totals": {
-    "files": 177,
-    "occurrences": 1514,
-    "product": 737,
+    "files": 171,
+    "occurrences": 1479,
+    "product": 676,
     "original": 692,
-    "internal": 81,
+    "internal": 107,
     "generated": 4
   },
   "byLayer": {
@@ -26,11 +26,11 @@
       "generated": 0
     },
     "renderer": {
-      "files": 24,
-      "occurrences": 187,
-      "product": 143,
+      "files": 18,
+      "occurrences": 152,
+      "product": 82,
       "original": 12,
-      "internal": 32,
+      "internal": 58,
       "generated": 0
     },
     "shared": {
@@ -1403,63 +1403,6 @@
       ]
     },
     {
-      "path": "apps/desktop/src/renderer/src/components/AuxWorkspaceFrame.tsx",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "辅助/导出",
-      "classification": "product",
-      "batch": 3,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "returnButton.button",
-          "role": "ui_text",
-          "context": "jsx_expr",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "返回来源"
-          ],
-          "lines": [
-            68,
-            72
-          ]
-        },
-        {
-          "symbol": "returnButton.button",
-          "role": "ui_attr",
-          "context": "aria-label",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "返回来源",
-            "本次会话没有记录来源位置（重载后来源失效），不能返回"
-          ],
-          "lines": [
-            97,
-            99
-          ]
-        },
-        {
-          "symbol": "returnButton.button",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "返回来源"
-          ],
-          "lines": [
-            102
-          ]
-        }
-      ]
-    },
-    {
       "path": "apps/desktop/src/renderer/src/components/detail/ResultForkEditor.tsx",
       "layer": "renderer",
       "package": null,
@@ -1486,92 +1429,15 @@
       ]
     },
     {
-      "path": "apps/desktop/src/renderer/src/components/DraftListPanel.tsx",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "比较工作区",
-      "classification": "product",
-      "batch": 2,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "div.span",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "未放弃",
-            "未修改"
-          ],
-          "lines": [
-            39,
-            47,
-            52
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "ui_attr",
-          "context": "title",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "定位到该草稿的编辑目标",
-            "复制草稿完整内容"
-          ],
-          "lines": [
-            64,
-            72,
-            80
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "call_arg",
-          "context": "items.map",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "定位",
-            "复制"
-          ],
-          "lines": [
-            66,
-            74,
-            82
-          ]
-        }
-      ]
-    },
-    {
       "path": "apps/desktop/src/renderer/src/components/MonacoEditor.tsx",
       "layer": "renderer",
       "package": null,
       "workspace": "通用外壳/组件",
-      "classification": "mixed",
-      "batch": 1,
-      "status": "pending",
+      "classification": "internal",
+      "batch": null,
+      "status": "excluded",
       "reason": "console 内部诊断，不面向用户",
       "symbols": [
-        {
-          "symbol": "MonacoFallback.div",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "正在加载编辑器…"
-          ],
-          "lines": [
-            52
-          ]
-        },
         {
           "symbol": "useLazyEditors",
           "role": "internal_log",
@@ -1583,118 +1449,7 @@
             "[monaco] 编辑器懒加载失败"
           ],
           "lines": [
-            151
-          ]
-        },
-        {
-          "symbol": "MonacoLoadFailure.notice",
-          "role": "call_arg",
-          "context": "recoveryNotice",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "编辑器资源未能加载"
-          ],
-          "lines": [
-            179
-          ]
-        }
-      ]
-    },
-    {
-      "path": "apps/desktop/src/renderer/src/components/RunActionsBar.tsx",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "重跑/分叉",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "experimentEntryReason",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "详情尚未读取，还不能绑定实验目标",
-            "隔离文件运行不作为实验父本（实验只能从普通运行的首次模型调用出发）"
-          ],
-          "lines": [
-            23,
-            25,
-            26
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "以该运行的首次模型调用为父本编排多臂参数对比"
-          ],
-          "lines": [
-            56
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "模型实验"
-          ],
-          "lines": [
-            65
-          ]
-        },
-        {
-          "symbol": "div.Disclosure",
-          "role": "ui_attr",
-          "context": "summary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "不可用原因"
-          ],
-          "lines": [
-            70
-          ]
-        }
-      ]
-    },
-    {
-      "path": "apps/desktop/src/renderer/src/components/workspace-file/types.ts",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "通用外壳/组件",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "checkpointLabel",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "本 run 当前检查点"
-          ],
-          "lines": [
-            18
+            153
           ]
         }
       ]
@@ -1928,17 +1683,17 @@
       "layer": "renderer",
       "package": null,
       "workspace": "比较工作区",
-      "classification": "product",
-      "batch": 2,
-      "status": "pending",
-      "reason": null,
+      "classification": "internal",
+      "batch": null,
+      "status": "excluded",
+      "reason": "草稿收尾判定/清理结果的内部结论，只用于决定是否删除，不显示给用户",
       "symbols": [
         {
           "symbol": "verdictOfOperation.reason",
           "role": "ui_text",
           "context": "ternary",
-          "classification": "product",
-          "reason": null,
+          "classification": "internal",
+          "reason": "草稿收尾判定/清理结果的内部结论，只用于决定是否删除，不显示给用户",
           "count": 3,
           "samples": [
             "仍在执行，不判定结局",
@@ -1954,8 +1709,8 @@
           "symbol": "verdictOfOperation",
           "role": "call_arg",
           "context": "abnormal.push",
-          "classification": "product",
-          "reason": null,
+          "classification": "internal",
+          "reason": "草稿收尾判定/清理结果的内部结论，只用于决定是否删除，不显示给用户",
           "count": 1,
           "samples": [
             "结局未知"
@@ -1968,8 +1723,8 @@
           "symbol": "verdictOfOperation.reason",
           "role": "ui_prop",
           "context": "reason",
-          "classification": "product",
-          "reason": null,
+          "classification": "internal",
+          "reason": "草稿收尾判定/清理结果的内部结论，只用于决定是否删除，不显示给用户",
           "count": 3,
           "samples": [
             "仍有可信运行未读到结果：${…}",
@@ -1985,8 +1740,8 @@
           "symbol": "batchGapOf",
           "role": "return",
           "context": "return",
-          "classification": "product",
-          "reason": null,
+          "classification": "internal",
+          "reason": "草稿收尾判定/清理结果的内部结论，只用于决定是否删除，不显示给用户",
           "count": 9,
           "samples": [
             "A/B 收尾关联缺少提交时的预期臂数，不判定整批",
@@ -2008,8 +1763,8 @@
           "symbol": "decideDraftClosure.reason",
           "role": "ui_prop",
           "context": "reason",
-          "classification": "product",
-          "reason": null,
+          "classification": "internal",
+          "reason": "草稿收尾判定/清理结果的内部结论，只用于决定是否删除，不显示给用户",
           "count": 4,
           "samples": [
             "该目标已被更晚的提交接管，旧操作无权清理",
@@ -2026,8 +1781,8 @@
           "symbol": "applyDraftClosure.reason",
           "role": "ui_text",
           "context": "ternary",
-          "classification": "product",
-          "reason": null,
+          "classification": "internal",
+          "reason": "草稿收尾判定/清理结果的内部结论，只用于决定是否删除，不显示给用户",
           "count": 6,
           "samples": [
             "已清理匹配的 A/B 批次",
@@ -2037,131 +1792,6 @@
             207,
             215,
             222
-          ]
-        }
-      ]
-    },
-    {
-      "path": "apps/desktop/src/renderer/src/lib/draft-list.ts",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "比较工作区",
-      "classification": "product",
-      "batch": 2,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "DRAFT_KIND_LABELS.result",
-          "role": "prop",
-          "context": "result",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "工具结果重跑"
-          ],
-          "lines": [
-            37
-          ]
-        },
-        {
-          "symbol": "DRAFT_KIND_LABELS.messages",
-          "role": "ui_prop",
-          "context": "messages",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "messages 重发"
-          ],
-          "lines": [
-            40
-          ]
-        },
-        {
-          "symbol": "DRAFT_KIND_LABELS.model_ab",
-          "role": "prop",
-          "context": "model_ab",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "模型 A/B 批次"
-          ],
-          "lines": [
-            41
-          ]
-        },
-        {
-          "symbol": "DRAFT_KIND_LABELS.create",
-          "role": "prop",
-          "context": "create",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "新建运行表单"
-          ],
-          "lines": [
-            42
-          ]
-        },
-        {
-          "symbol": "deriveDraftList.title",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "隔离 prompt 实验 · ${…}"
-          ],
-          "lines": [
-            96
-          ]
-        },
-        {
-          "symbol": "deriveDraftList.preview",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "沿用父 params"
-          ],
-          "lines": [
-            121
-          ]
-        },
-        {
-          "symbol": "draftBadgeForSpan",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "隔离 prompt 实验 · ${…}"
-          ],
-          "lines": [
-            196
-          ]
-        },
-        {
-          "symbol": "draftBadgeForSpan.label",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "草稿：${…}",
-            "草稿 ×${…}"
-          ],
-          "lines": [
-            209
           ]
         }
       ]
@@ -2188,60 +1818,6 @@
           ],
           "lines": [
             82
-          ]
-        }
-      ]
-    },
-    {
-      "path": "apps/desktop/src/renderer/src/lib/editor-recovery.ts",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "通用外壳/组件",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "recoveryNotice.title",
-          "role": "ui_prop",
-          "context": "title",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "编辑器未能加载"
-          ],
-          "lines": [
-            73
-          ]
-        },
-        {
-          "symbol": "recoveryNotice.detail",
-          "role": "prop",
-          "context": "detail",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "${…}。草稿与目标保持原样，重试只恢复这一个编辑器。"
-          ],
-          "lines": [
-            75
-          ]
-        },
-        {
-          "symbol": "recoveryNotice.action",
-          "role": "ui_prop",
-          "context": "action",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "就地重试"
-          ],
-          "lines": [
-            76
           ]
         }
       ]

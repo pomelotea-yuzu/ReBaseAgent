@@ -16,6 +16,9 @@ import {
   draftBadgeForSpan,
   truncatePreview,
 } from "../src/renderer/src/lib/draft-list";
+import { createTestTranslator } from "./i18n/render-with-locale";
+
+const zh = createTestTranslator("zh-CN");
 
 /**
  * U3（preserve-debugging-drafts）任务 2.5：草稿标记、两个列表入口、精确定位、
@@ -70,7 +73,7 @@ function repoWithEverything(): DraftRepo {
 
 describe("deriveDraftList（两个入口共用的同一派生）", () => {
   it("全会话列表：含调用类 / A/B / 创建，身份可辨认且 dirty 正确", () => {
-    const items = deriveDraftList(repoWithEverything());
+    const items = deriveDraftList(repoWithEverything(), zh);
     const keys = items.map((i) => i.listKey);
     expect(keys).toContain("r_a|s1|result");
     expect(keys).toContain("r_a|s1|system_prompt");
@@ -88,7 +91,7 @@ describe("deriveDraftList（两个入口共用的同一派生）", () => {
   });
 
   it("copyText 完整不截断；preview 截断且换行可见化（正文不丢）", () => {
-    const items = deriveDraftList(repoWithEverything());
+    const items = deriveDraftList(repoWithEverything(), zh);
     const result = items.find((i) => i.listKey === "r_a|s1|result")!;
     expect(result.copyText).toBe("改过的结果\n第二行");
     expect(result.preview).toContain("⏎");
@@ -100,7 +103,7 @@ describe("deriveDraftList（两个入口共用的同一派生）", () => {
   });
 
   it("按 runId 过滤（本运行列表）：只含该运行条目，创建草稿被排除", () => {
-    const items = deriveDraftList(repoWithEverything(), { runId: "r_a" });
+    const items = deriveDraftList(repoWithEverything(), zh, { runId: "r_a" });
     expect(items.every((i) => i.runId === "r_a")).toBe(true);
     expect(items.every((i) => i.field !== "create")).toBe(true);
     expect(items.map((i) => i.listKey).sort()).toEqual([
@@ -122,7 +125,7 @@ describe("deriveDraftList（两个入口共用的同一派生）", () => {
       { runId: "r_root", spanId: "s1", field: "system_prompt", mode: "isolated" },
       "b",
     ).repo;
-    const items = deriveDraftList(repo, { runId: "r_root" });
+    const items = deriveDraftList(repo, zh, { runId: "r_root" });
     expect(items.map((i) => i.listKey).sort()).toEqual([
       "r_root|s1|isolated:system_prompt",
       "r_root|s1|system_prompt",
@@ -137,14 +140,14 @@ describe("deriveDraftList（两个入口共用的同一派生）", () => {
 describe("draftBadgeForSpan（调用旁草稿标记）", () => {
   it("无草稿 ⇒ null；单草稿 ⇒ 草稿：字段；多草稿 ⇒ 草稿 ×N", () => {
     const repo = repoWithEverything();
-    expect(draftBadgeForSpan(repo, "r_a", "s_none")).toBeNull();
-    const single = draftBadgeForSpan(repo, "r_b", "s9")!;
+    expect(draftBadgeForSpan(repo, "r_a", "s_none", zh)).toBeNull();
+    const single = draftBadgeForSpan(repo, "r_b", "s9", zh)!;
     expect(single.label).toContain("messages 重发");
     expect(single.dirty).toBe(true);
-    const multi = draftBadgeForSpan(repo, "r_a", "s1")!;
+    const multi = draftBadgeForSpan(repo, "r_a", "s1", zh)!;
     expect(multi.label).toBe("草稿 ×2");
     // A/B 与调用字段同 span 汇总
-    const withAb = draftBadgeForSpan(repo, "r_a", "s2")!;
+    const withAb = draftBadgeForSpan(repo, "r_a", "s2", zh)!;
     expect(withAb.label).toContain("A/B");
   });
 });
@@ -279,7 +282,7 @@ describe("接线契约：草稿入口与失效视图（任务 2.5）", () => {
     // refactor-renderer 2.1：列表派生与 DraftListPanel 视图随 RunDraftListSection
     // 迁至 detail/DetailShared.tsx（挂载点留在容器）
     expect(DETAIL_PANEL).toContain('from "./detail/DetailShared"');
-    expect(SHARED_SOURCE).toContain("deriveDraftList(drafts, { runId })");
+    expect(SHARED_SOURCE).toContain("deriveDraftList(drafts, translator, { runId })");
     expect(SHARED_SOURCE).toContain("<DraftListPanel");
     // refactor-renderer 2.3：失效横幅的挂载点随 ForkEditor 迁 ResultForkEditor
     expect(RESULT_EDITOR).toContain("DraftSourceBanner");
@@ -302,7 +305,7 @@ describe("接线契约：草稿入口与失效视图（任务 2.5）", () => {
       resolve(import.meta.dirname, "../src/renderer/src/components/SessionActivity.tsx"),
       "utf8",
     );
-    expect(activity).toContain("deriveDraftList(drafts)");
+    expect(activity).toContain("deriveDraftList(drafts, translator)");
     expect(activity).toContain("<DraftListPanel");
     // 全局栏不再并存第二份草稿入口（不新增第四个入口）
     expect(GLOBAL_BAR).not.toContain("<SessionDraftsEntry />");

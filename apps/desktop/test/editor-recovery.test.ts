@@ -14,6 +14,10 @@ import {
   recoveryNotice,
   shouldShowFailure,
 } from "../src/renderer/src/lib/editor-recovery";
+import { createTestTranslator } from "./i18n/render-with-locale";
+
+const zh = createTestTranslator("zh-CN");
+const en = createTestTranslator("en-US");
 
 /** 满档事实：可见、有框、在视口内、有内容面。 */
 const okFacts = {
@@ -74,7 +78,7 @@ describe("shouldShowFailure · 只有真失败才提示", () => {
 });
 
 describe("recoveryNotice · 失败占位文案的三条边界", () => {
-  const notice = recoveryNotice("编辑器资源未能加载");
+  const notice = recoveryNotice(zh.t("detail.editorAssetLoadFailed"), zh);
 
   it("给出标题、详情与就地重试入口名", () => {
     expect(notice.title).toBe("编辑器未能加载");
@@ -89,7 +93,16 @@ describe("recoveryNotice · 失败占位文案的三条边界", () => {
   });
 
   it("原因原样透传（不吞诊断）", () => {
-    expect(recoveryNotice("chunk 404").detail).toContain("chunk 404");
+    expect(recoveryNotice("chunk 404", zh).detail).toContain("chunk 404");
+  });
+
+  it("英文措辞独立书写：标题/动作/边界与原因参数", () => {
+    const noticeEn = recoveryNotice("chunk 404", en);
+    expect(noticeEn.title).toBe("The editor could not be loaded");
+    expect(noticeEn.action).toBe("Retry in place");
+    expect(noticeEn.detail).toContain("chunk 404");
+    expect(noticeEn.detail).toContain("kept as-is");
+    expect(noticeEn.detail).toContain("only this editor");
   });
 });
 

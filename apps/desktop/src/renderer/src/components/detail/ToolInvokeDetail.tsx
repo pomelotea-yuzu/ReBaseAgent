@@ -160,8 +160,8 @@ export function ToolInvokeDetail({
   // U3 任务 2.5：该调用的会话草稿标记（徽章数据从草稿仓库派生，useMemo 保引用稳定）
   const drafts = useAppStore((s) => s.drafts);
   const toolDraftBadge = useMemo(
-    () => (toolRunId === null ? null : draftBadgeForSpan(drafts, toolRunId, span.id)),
-    [drafts, toolRunId, span.id],
+    () => (toolRunId === null ? null : draftBadgeForSpan(drafts, toolRunId, span.id, translator)),
+    [drafts, toolRunId, span.id, translator],
   );
   const toolLongTextProps = (key: string): { expanded: boolean; onToggle: () => void } => ({
     expanded: isLongTextExpanded(toolExpandedSections, key),

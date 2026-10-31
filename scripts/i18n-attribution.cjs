@@ -274,6 +274,8 @@ const INTERNAL_REASONS = {
     "文件内唯一中文是历史状态短标签 reasonLabel，当前界面无消费点（状态由 RunStatusBadge/classifyOutcome 呈现）",
   "apps/desktop/src/renderer/src/lib/execution-confirmation.ts":
     "decideConfirmation 的 reason 只用于内部判定对象，界面只消费 kind（confirmed/missing/stale），不显示给用户",
+  "apps/desktop/src/renderer/src/lib/draft-closure.ts":
+    "草稿收尾判定/清理结果的内部结论，只用于决定是否删除，不显示给用户",
 };
 
 const PRODUCT_FILES = new Set([

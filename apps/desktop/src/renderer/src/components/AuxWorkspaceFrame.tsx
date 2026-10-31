@@ -65,11 +65,11 @@ export function AuxWorkspaceFrame({
       return (
         <button
           type="button"
-          aria-label={returnLabel ?? "返回来源"}
+          aria-label={returnLabel ?? translator.t("common.returnSource")}
           onClick={onReturn}
           className={`rounded border border-sky-200 bg-sky-50 px-2 py-0.5 text-reading-meta text-sky-900 hover:bg-sky-100 ${FOCUS_RING}`}
         >
-          {returnLabel ?? "返回来源"}
+          {returnLabel ?? translator.t("common.returnSource")}
         </button>
       );
     }
@@ -94,12 +94,12 @@ export function AuxWorkspaceFrame({
     return (
       <button
         type="button"
-        aria-label="返回来源"
+        aria-label={translator.t("common.returnSource")}
         disabled
-        title="本次会话没有记录来源位置（重载后来源失效），不能返回"
+        title={translator.t("common.returnUnavailable")}
         className={`cursor-not-allowed rounded border border-gray-200 bg-gray-50 px-2 py-0.5 text-reading-meta text-gray-400 ${FOCUS_RING}`}
       >
-        返回来源
+        {translator.t("common.returnSource")}
       </button>
     );
   })();

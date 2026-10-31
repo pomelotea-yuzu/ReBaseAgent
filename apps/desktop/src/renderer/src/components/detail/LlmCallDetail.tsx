@@ -293,8 +293,8 @@ export function LlmCallDetail({
   // U3 任务 2.5：该调用的会话草稿标记（徽章数据从草稿仓库派生，useMemo 保引用稳定）
   const drafts = useAppStore((s) => s.drafts);
   const llmDraftBadge = useMemo(
-    () => (runId === null ? null : draftBadgeForSpan(drafts, runId, span.id)),
-    [drafts, runId, span.id],
+    () => (runId === null ? null : draftBadgeForSpan(drafts, runId, span.id, translator)),
+    [drafts, runId, span.id, translator],
   );
 
   return (

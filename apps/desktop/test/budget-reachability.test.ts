@@ -5,8 +5,9 @@ import { readRun } from "@rebaseagent/trace-sdk";
 import type { SpanLine } from "@rebaseagent/trace-sdk";
 import { deriveBudgetSeries } from "@shared/derive";
 import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
+import type { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { renderWithLocale } from "./i18n/render-with-locale";
 
 // BudgetMap / DetailPanel 的 store 薄壳在 import 时就会触到 `window.api` ⇒ 桩必须先就位；
 // ESM 静态 import 会被提升，故用动态 import。
@@ -50,7 +51,7 @@ const FIXTURE_DIR = resolve(import.meta.dirname, "fixtures/u1-fixtures");
 const has = (name: string): boolean => existsSync(resolve(FIXTURE_DIR, `${name}.jsonl`));
 
 const html = (node: Parameters<typeof renderToStaticMarkup>[0]): string =>
-  renderToStaticMarkup(node);
+  renderWithLocale("zh-CN", node);
 
 // ---------------------------------------------------------------------------
 // 造数据
@@ -365,7 +366,7 @@ describe("编辑器懒加载：纯浏览路径不加载编辑器资源", () => {
 
   it("MonacoFallback 渲染加载占位，且自身不含任何 monaco 依赖（静态可渲染）", () => {
     const markup = html(createElement(MonacoFallback, { height: 140 }));
-    expect(markup).toContain("正在加载编辑器");
+    expect(markup).toContain("编辑器加载中");
     expect(markup).not.toContain("monaco");
   });
 });

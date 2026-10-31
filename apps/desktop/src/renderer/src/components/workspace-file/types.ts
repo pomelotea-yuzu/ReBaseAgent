@@ -1,3 +1,4 @@
+import type { Translator } from "@rebaseagent/i18n";
 import type { WorkspaceInspectResult } from "@shared/ipc";
 import type { CheckpointOption } from "../../lib/workspace-files";
 
@@ -13,7 +14,8 @@ export interface Selection {
 export function checkpointLabel(
   options: readonly CheckpointOption[],
   stepSpanId: string | null,
+  translator: Translator,
 ): string {
   const found = options.find((option) => option.stepSpanId === stepSpanId);
-  return found?.label ?? "本 run 当前检查点";
+  return found?.label ?? translator.t("detail.checkpointCurrent");
 }

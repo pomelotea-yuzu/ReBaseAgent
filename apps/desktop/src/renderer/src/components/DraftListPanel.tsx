@@ -1,3 +1,4 @@
+import { useTranslator } from "../i18n";
 import type { DraftListItem } from "../lib/draft-list";
 import { FOCUS_RING } from "./IconButton";
 
@@ -26,6 +27,7 @@ export function DraftListPanel({
   onCopy: (item: DraftListItem) => void;
   onDiscard: (item: DraftListItem) => void;
 }) {
+  const translator = useTranslator();
   if (items.length === 0) {
     return <div className="px-1 py-1 text-[11px] text-gray-400">{emptyHint}</div>;
   }
@@ -36,7 +38,9 @@ export function DraftListPanel({
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
             <span className="text-[11px] font-semibold text-gray-800">{item.title}</span>
             {item.dirty ? (
-              <span className="rounded bg-amber-100 px-1 text-[10px] text-amber-800">未放弃</span>
+              <span className="rounded bg-amber-100 px-1 text-[10px] text-amber-800">
+                {translator.t("detail.draftUnapplied")}
+              </span>
             ) : (
               // UI 整理 3.4（N09）：清洁编辑会话如实标为「未修改」——可定位、可找回，
               // 不冒充修改也不冒充脏数据
@@ -44,12 +48,12 @@ export function DraftListPanel({
                 data-draft-clean="true"
                 className="rounded bg-gray-100 px-1 text-[10px] text-gray-500"
               >
-                未修改
+                {translator.t("detail.draftClean")}
               </span>
             )}
             <span className="ml-auto truncate font-code text-[10px] text-gray-400">
               {item.field === "create"
-                ? "会话"
+                ? translator.t("detail.draftSession")
                 : `run ${item.runId}${item.spanId !== null ? ` · ${item.spanId}` : ""}`}
             </span>
           </div>
@@ -61,25 +65,25 @@ export function DraftListPanel({
               type="button"
               onClick={() => onOpen(item)}
               className={`rounded border border-gray-300 px-1.5 py-0.5 text-[10px] text-gray-600 hover:bg-gray-50 ${FOCUS_RING}`}
-              title="定位到该草稿的编辑目标"
+              title={translator.t("detail.draftOpenTitle")}
             >
-              定位
+              {translator.t("detail.draftLocate")}
             </button>
             <button
               type="button"
               onClick={() => onCopy(item)}
               className={`rounded border border-gray-300 px-1.5 py-0.5 text-[10px] text-gray-600 hover:bg-gray-50 ${FOCUS_RING}`}
-              title="复制草稿完整内容"
+              title={translator.t("detail.draftCopyTitle")}
             >
-              复制
+              {translator.t("detail.draftCopy")}
             </button>
             <button
               type="button"
               onClick={() => onDiscard(item)}
               className={`rounded border border-gray-300 px-1.5 py-0.5 text-[10px] text-gray-600 hover:bg-gray-50 ${FOCUS_RING}`}
-              title="放弃该草稿（需确认；按当前修订校验）"
+              title={translator.t("detail.draftDiscardTitle")}
             >
-              放弃
+              {translator.t("detail.draftDiscard")}
             </button>
           </div>
         </li>

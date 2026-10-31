@@ -15,6 +15,8 @@
  *   - 「不自动提交或清空」由调用方保证（本模块不碰草稿，只给文案与动作名）。
  */
 
+import type { Translator } from "@rebaseagent/i18n";
+
 /** 一个锚点宿主的观测事实（与实机探针的采集字段同名同义）。 */
 export interface EditorHostFacts {
   /** 宿主自身边框盒宽高（CSS px）。`offsetWidth/Height`，不受 transform 影响。 */
@@ -64,16 +66,19 @@ export function shouldShowFailure(verdict: EditorHostVerdict): boolean {
 }
 
 /** 失败占位文案。`reason` 由调用方给（装配失败 / chunk 失败 / 布局恢复失败）。 */
-export function recoveryNotice(reason: string): {
+export function recoveryNotice(
+  reason: string,
+  translator: Translator,
+): {
   readonly title: string;
   readonly detail: string;
   readonly action: string;
 } {
   return {
-    title: "编辑器未能加载",
+    title: translator.t("detail.editorRecoveryTitle"),
     // 三条边界写进文案：不清草稿、不恢复旧许可、不以重启为唯一出口
-    detail: `${reason}。草稿与目标保持原样，重试只恢复这一个编辑器。`,
-    action: "就地重试",
+    detail: translator.t("detail.editorRecoveryDetail", { reason }),
+    action: translator.t("detail.editorRetry"),
   };
 }
 

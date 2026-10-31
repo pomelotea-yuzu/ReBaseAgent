@@ -165,6 +165,9 @@ export const enUS = {
     collapseOriginal: "Collapse original",
     restoreOriginalTitle:
       "Show the read-only original again (full text and read-only identity kept)",
+    returnSource: "Back to source",
+    returnUnavailable:
+      "This session recorded no source location (it is lost after reload), so it cannot return",
     restoreOriginal: "Show original",
     originalHeightAria: "Resize the original area",
   },
@@ -923,6 +926,42 @@ export const enUS = {
     cacheAbnormalNote: "⚠️ Hits exceed total input; truncated to total input (abnormal data)",
     runDraftsTitle: "Drafts for this run ({{count}})",
     runDraftsEmpty: "No drafts for this run yet",
+    draftKindResult: "Tool-result rerun",
+    draftKindSystem: "prompt · system",
+    draftKindUser: "prompt · first user message",
+    draftKindMessages: "messages resend",
+    draftKindModelAb: "Model A/B batch",
+    draftKindCreate: "New-run form",
+    draftIsolatedSystem: "Isolated prompt experiment · system",
+    draftIsolatedUser: "Isolated prompt experiment · user",
+    draftInheritParams: "inherit the parent's params",
+    draftBadgeSingle: "Draft: {{label}}",
+    draftBadgeCount: "Drafts ×{{count}}",
+    draftUnapplied: "Unapplied",
+    draftClean: "Unchanged",
+    draftSession: "Session",
+    draftOpenTitle: "Jump to this draft's edit target",
+    draftCopyTitle: "Copy the full draft content",
+    draftDiscardTitle:
+      "Discard this draft (confirmation required; checked against the current revision)",
+    draftLocate: "Locate",
+    draftCopy: "Copy",
+    draftDiscard: "Discard",
+    editorLoading: "Loading the editor…",
+    editorAssetLoadFailed: "The editor resources could not be loaded",
+    editorRecoveryTitle: "The editor could not be loaded",
+    editorRecoveryDetail:
+      "{{reason}}. The draft and target are kept as-is; retrying recovers only this editor.",
+    editorRetry: "Retry in place",
+    checkpointCurrent: "This run's current checkpoint",
+    experimentEntryNoDetail:
+      "The detail has not been read yet, so an experiment target cannot be bound",
+    experimentEntryIsolated:
+      "An isolated file run cannot be an experiment parent (experiments start only from the first model call of an ordinary run)",
+    experimentEntryNoCall: "This run has no own model call, so it cannot be an experiment parent",
+    experimentEntryOpenTitle:
+      "Orchestrate a multi-arm parameter comparison from this run's first model call",
+    experimentUnavailableSummary: "Why unavailable",
     sourceTechSummary: "Source and technical details",
     isoContinuationBranch:
       "Isolated continuation branch: {{boundary}}; every tool result from that turn appears once as part of the shared prefix.",

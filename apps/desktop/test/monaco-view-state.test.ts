@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it } from "vitest";
+import { renderWithLocale } from "./i18n/render-with-locale";
 
 /**
  * UI 密度 2.5（improve-workspace-reading-and-editing）：**Monaco 布局/视图状态接线**。
@@ -208,7 +209,8 @@ const { MonacoDiffEditor } = await import("../src/renderer/src/components/Monaco
 
 describe("2.5 MonacoDiffEditor 静态渲染（loading 态）", () => {
   it("占位带 data-monaco-host 锚点与高度（宿主化前后 DOM 契约不变）", () => {
-    const html = renderToStaticMarkup(
+    const html = renderWithLocale(
+      "zh-CN",
       createElement(MonacoDiffEditor, {
         "data-testid": "diff-editor",
         "data-monaco-host": "file-diff",
@@ -219,6 +221,6 @@ describe("2.5 MonacoDiffEditor 静态渲染（loading 态）", () => {
     );
     expect(html).toContain('data-monaco-host="file-diff"');
     expect(html).toContain('data-testid="diff-editor"');
-    expect(html).toContain("正在加载编辑器…");
+    expect(html).toContain("编辑器加载中…");
   });
 });

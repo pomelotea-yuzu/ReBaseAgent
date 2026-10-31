@@ -85,11 +85,11 @@ export function SessionActivity() {
   );
 
   // —— 草稿（3.4：dirty / clean 分组；修改计数含录制未应用修改）——
-  const draftItems = useMemo(() => deriveDraftList(drafts), [drafts]);
+  const draftItems = useMemo(() => deriveDraftList(drafts, translator), [drafts, translator]);
   const dirtyItems = useMemo(() => draftItems.filter((item) => item.dirty), [draftItems]);
   const cleanItems = useMemo(() => draftItems.filter((item) => !item.dirty), [draftItems]);
   const recordingDirty = recordingDraft !== null && isRecordingDraftDirty(recordingDraft);
-  const dirtyCount = sessionDirtyCountOf(drafts, recordingDraft);
+  const dirtyCount = sessionDirtyCountOf(drafts, recordingDraft, translator);
 
   const discardDraftItem = (item: DraftListItem): void => {
     // 与原 SessionDraftsEntry 同一放弃路径：确认后按 CAS（条目修订）删除

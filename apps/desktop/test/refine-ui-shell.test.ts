@@ -248,14 +248,18 @@ describe("会话活动入口（delta ADDED「会话活动区区分修改与清�
 
   it("一个入口三组计数：修改（含录制未应用）／操作／结果，不新增第四个并存入口", () => {
     expect(activity).toContain('translator.t("common.sessionActivity")');
-    expect(activity).toContain("sessionDirtyCountOf(drafts, recordingDraft)");
+    expect(activity).toContain("sessionDirtyCountOf(drafts, recordingDraft, translator)");
     expect(activity).toContain('translator.t("common.draftCount", { count: dirtyCount })');
     expect(activity).toContain('translator.t("common.operationCount", { count: rows.length })');
     expect(activity).toContain(
       'translator.t("common.resultCount", { count: notices.unreadCount })',
     );
     // 事实来源唯一：草稿 deriveDraftList、操作 deriveOperationRows、通知 deriveResultNotices
-    for (const fn of ["deriveDraftList(drafts)", "deriveOperationRows(", "deriveResultNotices("]) {
+    for (const fn of [
+      "deriveDraftList(drafts, translator)",
+      "deriveOperationRows(",
+      "deriveResultNotices(",
+    ]) {
       expect(activity, fn).toContain(fn);
     }
   });

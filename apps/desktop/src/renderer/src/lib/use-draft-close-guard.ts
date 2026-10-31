@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslator } from "../i18n";
 import { useAppStore } from "../store";
 import { api } from "./api";
 import { DraftCloseClient } from "./draft-close-client";
@@ -21,6 +22,7 @@ import { sessionDirtyCountOf } from "./draft-list";
  * 事件入 store——flush 本身是收口点，不需要额外的文本搬运。
  */
 export function useDraftCloseGuard(): boolean {
+  const translator = useTranslator();
   const [locked, setLocked] = useState(false);
   /** 是否有进行中的输入法组合（任务 4.3）；document 捕获跟踪，不用 React 状态 */
   const composingRef = useRef(false);
@@ -31,7 +33,7 @@ export function useDraftCloseGuard(): boolean {
       // U8 任务 2.3：录制配置草稿的未应用修改一并计入关闭协商（单独一条 dirty）
       getDirtyCount: () => {
         const state = useAppStore.getState();
-        return sessionDirtyCountOf(state.drafts, state.recordingDraft);
+        return sessionDirtyCountOf(state.drafts, state.recordingDraft, translator);
       },
       flushInputs: () => {
         // 变更事件已同步（见文件头注释）；组合中已进入 model 的文字同在 store

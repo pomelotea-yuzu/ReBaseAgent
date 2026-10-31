@@ -1,4 +1,6 @@
+import type { Translator } from "@rebaseagent/i18n";
 import { type ReactNode, useId, useState } from "react";
+import { useTranslator } from "../i18n";
 import { type ExperimentEntryDecision, decideExperimentEntry } from "../lib/aux-workspace";
 import { useAppStore } from "../store";
 import { Disclosure } from "./Disclosure";
@@ -18,12 +20,13 @@ import { FOCUS_RING } from "./IconButton";
 /** 三类禁用原因的可读文案（唯一来源，视图不另写一套） */
 export function experimentEntryReason(
   reason: Extract<ExperimentEntryDecision, { kind: "disabled" }>["reason"],
+  translator: Translator,
 ): string {
   return reason === "no-detail"
-    ? "详情尚未读取，还不能绑定实验目标"
+    ? translator.t("detail.experimentEntryNoDetail")
     : reason === "isolated"
-      ? "隔离文件运行不作为实验父本（实验只能从普通运行的首次模型调用出发）"
-      : "该运行没有自有模型调用，不能作为实验父本";
+      ? translator.t("detail.experimentEntryIsolated")
+      : translator.t("detail.experimentEntryNoCall");
 }
 
 export function RunActionsBarView({
@@ -35,6 +38,7 @@ export function RunActionsBarView({
   onOpen: () => void;
   compact?: boolean;
 }): ReactNode {
+  const translator = useTranslator();
   const [reasonExpanded, setReasonExpanded] = useState(false);
   const reasonId = useId();
   const open = decision.kind === "open";
@@ -53,8 +57,8 @@ export function RunActionsBarView({
         disabled={!open}
         title={
           open
-            ? "以该运行的首次模型调用为父本编排多臂参数对比"
-            : experimentEntryReason(decision.reason)
+            ? translator.t("detail.experimentEntryOpenTitle")
+            : experimentEntryReason(decision.reason, translator)
         }
         className={
           open
@@ -62,24 +66,24 @@ export function RunActionsBarView({
             : `cursor-not-allowed rounded border border-gray-200 bg-gray-50 px-2 py-0.5 text-reading-meta text-gray-400 ${FOCUS_RING}`
         }
       >
-        模型实验
+        {translator.t("run.workspaceExperiment")}
       </button>
       {!open ? (
         compact ? (
           <Disclosure
-            summary="不可用原因"
+            summary={translator.t("detail.experimentUnavailableSummary")}
             expanded={reasonExpanded}
             onToggle={() => setReasonExpanded(!reasonExpanded)}
             controlsId={reasonId}
             className="text-reading-meta text-gray-500"
           >
             <p className="max-w-sm py-1" data-experiment-entry-reason>
-              {experimentEntryReason(decision.reason)}
+              {experimentEntryReason(decision.reason, translator)}
             </p>
           </Disclosure>
         ) : (
           <span className="text-reading-meta text-gray-500" data-experiment-entry-reason>
-            {experimentEntryReason(decision.reason)}
+            {experimentEntryReason(decision.reason, translator)}
           </span>
         )
       ) : null}

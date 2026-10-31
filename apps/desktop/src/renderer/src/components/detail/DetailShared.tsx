@@ -162,7 +162,10 @@ export function RunDraftListSection({ runId }: { runId: string }) {
   const openDraftAt = useAppStore((s) => s.openDraftAt);
   const discardCallDraft = useAppStore((s) => s.discardCallDraft);
   const discardModelAbDraft = useAppStore((s) => s.discardModelAbDraft);
-  const items = useMemo(() => deriveDraftList(drafts, { runId }), [drafts, runId]);
+  const items = useMemo(
+    () => deriveDraftList(drafts, translator, { runId }),
+    [drafts, runId, translator],
+  );
   if (items.length === 0) return null;
   return (
     <section

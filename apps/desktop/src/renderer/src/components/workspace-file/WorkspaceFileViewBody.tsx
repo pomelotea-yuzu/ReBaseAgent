@@ -437,7 +437,7 @@ export function WorkspaceFileViewBody({
           <WorkspaceExportPanel
             runId={run.meta.id}
             stepSpanId={selection.stepSpanId}
-            checkpointLabel={checkpointLabel(options, selection.stepSpanId)}
+            checkpointLabel={checkpointLabel(options, selection.stepSpanId, translator)}
             eligible={exportPanel.eligible}
             ineligibleReason={exportPanel.ineligibleReason}
             feedback={exportPanel.feedback}

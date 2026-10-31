@@ -533,7 +533,7 @@ export function WorkspaceFileView({ run }: { run: RunDetail }) {
       }}
       current={current}
       currentKey={currentKey}
-      currentLabel={checkpointLabel(options, effectiveStepSpanId)}
+      currentLabel={checkpointLabel(options, effectiveStepSpanId, translator)}
       loadingContent={selectedState.kind === "loading"}
       contentError={contentFailure(selectedState)}
       initial={initialResult}
@@ -587,12 +587,13 @@ export function WorkspaceFileView({ run }: { run: RunDetail }) {
           checkpoint={verificationTarget?.checkpoint ?? checkpoint}
           checkpointLabel={
             verificationTarget === null
-              ? checkpointLabel(options, effectiveStepSpanId)
+              ? checkpointLabel(options, effectiveStepSpanId, translator)
               : checkpointLabel(
                   options,
                   verificationTarget.checkpoint.kind === "step"
                     ? verificationTarget.checkpoint.stepSpanId
                     : null,
+                  translator,
                 )
           }
           isolatedEligible={isolatedEligible}

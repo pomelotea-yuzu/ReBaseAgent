@@ -8,6 +8,9 @@ import { initialSession } from "../src/renderer/src/lib/operation-session";
 import { emptyResultReadStore } from "../src/renderer/src/lib/result-verification";
 import { installOperationChannels } from "./helpers/operation-channels";
 import { proxyStateFixture } from "./helpers/proxy-state-fixture";
+import { createTestTranslator } from "./i18n/render-with-locale";
+
+const zh = createTestTranslator("zh-CN");
 
 /**
  * U8 任务 2.2/2.3/2.5/2.6 的 **store 接线**：录制草稿写入 / CAS 放弃 / 应用收尾 / 代次守卫。
@@ -294,13 +297,13 @@ describe("U8 2.3：录制未应用修改参与退出保护（sessionDirtyCountOf
     drafts = draftLib.ensureCreateRunDraft(drafts).repo;
     drafts = draftLib.writeCreateRunDraft(drafts, { userMessage: "hi" });
     useAppStore.setState({ drafts, recordingDraft: null });
-    expect(sessionDirtyCountOf(stateOf().drafts, null)).toBe(1);
+    expect(sessionDirtyCountOf(stateOf().drafts, null, zh)).toBe(1);
 
     useAppStore.getState().openRecordingWorkspace();
     // 默认表单（baseline 未读）不误报
-    expect(sessionDirtyCountOf(stateOf().drafts, stateOf().recordingDraft)).toBe(1);
+    expect(sessionDirtyCountOf(stateOf().drafts, stateOf().recordingDraft, zh)).toBe(1);
 
     stateOf().writeRecordingDraftFields({ portText: "20000" });
-    expect(sessionDirtyCountOf(stateOf().drafts, stateOf().recordingDraft)).toBe(2);
+    expect(sessionDirtyCountOf(stateOf().drafts, stateOf().recordingDraft, zh)).toBe(2);
   });
 });

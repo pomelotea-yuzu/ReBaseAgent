@@ -10,7 +10,9 @@ import {
 } from "../src/renderer/src/components/RunActionsBar";
 import { decideExperimentEntry } from "../src/renderer/src/lib/aux-workspace";
 import { stripComments } from "../src/renderer/src/lib/overview-view";
-import { renderWithLocale } from "./i18n/render-with-locale";
+import { createTestTranslator, renderWithLocale } from "./i18n/render-with-locale";
+
+const zh = createTestTranslator("zh-CN");
 
 // RunActionsBar → store → lib/api.ts 在模块级读 window.api：先打桩再求值（引擎室纪律）
 vi.hoisted(() => {
@@ -95,7 +97,7 @@ describe("U8 1.4：运行级入口的纯视图（RunActionsBarView）", () => {
       // 逐控件判属性：入口按钮自己的开标签带 disabled=""
       expect(html).toMatch(/data-experiment-entry[^>]* disabled=""/);
       expect(html).toContain("data-experiment-entry-reason");
-      expect(html).toContain(experimentEntryReason(reason));
+      expect(html).toContain(experimentEntryReason(reason, zh));
     }
   });
 });

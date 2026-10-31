@@ -1,3 +1,4 @@
+import type { MessageKey, Translator } from "@rebaseagent/i18n";
 import {
   type CallDraftMode,
   type DraftRepo,
@@ -33,14 +34,24 @@ export type DraftKind =
   | "create";
 
 /** 列表与定位界面的人类可读字段名（spec：「展示可辨认的运行和字段身份」） */
-export const DRAFT_KIND_LABELS: Record<DraftKind, string> = {
-  result: "工具结果重跑",
-  system_prompt: "prompt · system",
-  user_message: "prompt · user",
-  messages: "messages 重发",
-  model_ab: "模型 A/B 批次",
-  create: "新建运行表单",
-};
+const DRAFT_KIND_KEYS = {
+  result: "detail.draftKindResult",
+  system_prompt: "detail.draftKindSystem",
+  user_message: "detail.draftKindUser",
+  messages: "detail.draftKindMessages",
+  model_ab: "detail.draftKindModelAb",
+  create: "detail.draftKindCreate",
+} as const satisfies Record<DraftKind, MessageKey>;
+
+export function draftKindLabel(kind: DraftKind, translator: Translator): string {
+  return translator.t(DRAFT_KIND_KEYS[kind]);
+}
+
+function isolatedDraftLabel(field: DraftKind, translator: Translator): string {
+  return translator.t(
+    field === "system_prompt" ? "detail.draftIsolatedSystem" : "detail.draftIsolatedUser",
+  );
+}
 
 export interface DraftListItem {
   readonly runId: string;
@@ -74,6 +85,7 @@ export function truncatePreview(text: string, max: number = PREVIEW_MAX): string
  */
 export function deriveDraftList(
   repo: DraftRepo,
+  translator: Translator,
   filter?: { runId?: string | null },
 ): DraftListItem[] {
   const out: DraftListItem[] = [];
@@ -93,8 +105,8 @@ export function deriveDraftList(
           ...(isolated ? { mode: "isolated" as const } : {}),
           listKey: `${runId}|${spanId}|${isolated ? "isolated:" : ""}${identity.field}`,
           title: isolated
-            ? `隔离 prompt 实验 · ${identity.field === "system_prompt" ? "system" : "user"}`
-            : DRAFT_KIND_LABELS[identity.field],
+            ? isolatedDraftLabel(identity.field, translator)
+            : draftKindLabel(identity.field, translator),
           preview: truncatePreview(entry.text),
           copyText: entry.text,
           dirty: isCallDraftDirty(entry),
@@ -115,10 +127,13 @@ export function deriveDraftList(
         spanId,
         field: "model_ab",
         listKey: `${runId}|${spanId}|model_ab`,
-        title: DRAFT_KIND_LABELS.model_ab,
+        title: draftKindLabel("model_ab", translator),
         preview: truncatePreview(
           entry.rows
-            .map((r) => `${r.model}(${r.paramsText === "" ? "沿用父 params" : r.paramsText})`)
+            .map(
+              (r) =>
+                `${r.model}(${r.paramsText === "" ? translator.t("detail.draftInheritParams") : r.paramsText})`,
+            )
             .join(" / "),
         ),
         copyText,
@@ -141,7 +156,7 @@ export function deriveDraftList(
       spanId: null,
       field: "create",
       listKey: "|create",
-      title: DRAFT_KIND_LABELS.create,
+      title: draftKindLabel("create", translator),
       preview: truncatePreview(`[${create.mode}] ${create.userMessage || create.systemPrompt}`),
       copyText,
       dirty: isCreateRunDraftDirty(create),
@@ -158,8 +173,8 @@ export function deriveDraftList(
  * dirtyCount」是**同一口径**——两处判定不得漂移。
  * 全会话口径：调用类 + A/B 批次 + 创建表单（含未通过校验的输入）。
  */
-export function dirtyCountOf(repo: DraftRepo): number {
-  return deriveDraftList(repo).filter((item) => item.dirty).length;
+export function dirtyCountOf(repo: DraftRepo, translator: Translator): number {
+  return deriveDraftList(repo, translator).filter((item) => item.dirty).length;
 }
 
 /**
@@ -170,9 +185,11 @@ export function dirtyCountOf(repo: DraftRepo): number {
 export function sessionDirtyCountOf(
   repo: DraftRepo,
   recordingDraft: RecordingDraft | null,
+  translator: Translator,
 ): number {
   return (
-    dirtyCountOf(repo) + (recordingDraft !== null && isRecordingDraftDirty(recordingDraft) ? 1 : 0)
+    dirtyCountOf(repo, translator) +
+    (recordingDraft !== null && isRecordingDraftDirty(recordingDraft) ? 1 : 0)
   );
 }
 
@@ -181,6 +198,7 @@ export function draftBadgeForSpan(
   repo: DraftRepo,
   runId: string,
   spanId: string,
+  translator: Translator,
 ): { label: string; dirty: boolean } | null {
   const fields = repo.calls[runId]?.[spanId];
   const ab = repo.modelAb[runId]?.[spanId];
@@ -193,20 +211,23 @@ export function draftBadgeForSpan(
       if (identity === null) continue;
       labels.push(
         identity.mode === "isolated"
-          ? `隔离 prompt 实验 · ${identity.field === "system_prompt" ? "system" : "user"}`
-          : DRAFT_KIND_LABELS[identity.field],
+          ? isolatedDraftLabel(identity.field, translator)
+          : draftKindLabel(identity.field, translator),
       );
       if (isCallDraftDirty(entry)) dirty = true;
     }
   }
   if (ab !== undefined) {
-    labels.push(DRAFT_KIND_LABELS.model_ab);
+    labels.push(draftKindLabel("model_ab", translator));
     if (isModelAbDraftDirty(ab)) dirty = true;
   }
 
   if (labels.length === 0) return null;
   return {
-    label: labels.length === 1 ? `草稿：${labels[0]}` : `草稿 ×${labels.length}`,
+    label:
+      labels.length === 1
+        ? translator.t("detail.draftBadgeSingle", { label: labels[0] ?? "" })
+        : translator.t("detail.draftBadgeCount", { count: labels.length }),
     dirty,
   };
 }

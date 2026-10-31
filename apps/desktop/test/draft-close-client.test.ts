@@ -1,6 +1,9 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { createTestTranslator } from "./i18n/render-with-locale";
+
+const zh = createTestTranslator("zh-CN");
 import * as draftLib from "../src/renderer/src/lib/debugging-drafts";
 import { type DraftCloseApi, DraftCloseClient } from "../src/renderer/src/lib/draft-close-client";
 import { dirtyCountOf } from "../src/renderer/src/lib/draft-list";
@@ -220,7 +223,7 @@ describe("U3 4.2 关闭协商客户端：握手、查询应答与输入锁", () 
 describe("U3 4.2 dirtyCountOf：与草稿列表同一 dirty 口径", () => {
   it("调用类 + A/B 批次 + 创建表单的 dirty 条目计数，clean 条目不计", () => {
     let repo = draftLib.emptyDraftRepo();
-    expect(dirtyCountOf(repo)).toBe(0);
+    expect(dirtyCountOf(repo, zh)).toBe(0);
 
     // 调用类：未编辑不计，写入后计 1
     const callKey: draftLib.CallDraftKey = {
@@ -229,9 +232,9 @@ describe("U3 4.2 dirtyCountOf：与草稿列表同一 dirty 口径", () => {
       field: "result",
     };
     repo = draftLib.ensureCallDraft(repo, callKey, "baseline").repo;
-    expect(dirtyCountOf(repo)).toBe(0);
+    expect(dirtyCountOf(repo, zh)).toBe(0);
     repo = draftLib.writeCallDraftText(repo, callKey, "edited");
-    expect(dirtyCountOf(repo)).toBe(1);
+    expect(dirtyCountOf(repo, zh)).toBe(1);
 
     // A/B：初始臂不计，语义变化计 1
     const abKey: draftLib.ModelAbDraftKey = { runId: "run_a", spanId: "span_1" };
@@ -239,18 +242,18 @@ describe("U3 4.2 dirtyCountOf：与草稿列表同一 dirty 口径", () => {
       { model: "m1", paramsText: "" },
       { model: "m2", paramsText: "" },
     ]).repo;
-    expect(dirtyCountOf(repo)).toBe(1);
+    expect(dirtyCountOf(repo, zh)).toBe(1);
     repo = draftLib.setModelAbRows(repo, abKey, [
       ...draftLib.modelAbDraftOf(repo, abKey)!.rows,
       { key: draftLib.newArmRowKey(), model: "m3", paramsText: "0.7" },
     ]);
-    expect(dirtyCountOf(repo)).toBe(2);
+    expect(dirtyCountOf(repo, zh)).toBe(2);
 
     // 创建：未编辑不计，模式修改计 1
     repo = draftLib.ensureCreateRunDraft(repo).repo;
-    expect(dirtyCountOf(repo)).toBe(2);
+    expect(dirtyCountOf(repo, zh)).toBe(2);
     repo = draftLib.writeCreateRunDraft(repo, { userMessage: "任务" });
-    expect(dirtyCountOf(repo)).toBe(3);
+    expect(dirtyCountOf(repo, zh)).toBe(3);
   });
 });
 
