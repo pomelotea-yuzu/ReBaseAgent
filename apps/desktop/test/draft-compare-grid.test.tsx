@@ -175,6 +175,6 @@ describe("四处调用点共用同一布局层（接线契约，任务 2.2/2.3�
     const src = rendererSrc("components/ModelAbEditor.tsx");
     expect(src).toContain("fixedHeight={false}");
     expect(src).toContain("resizable={false}");
-    expect(src).toContain('originalLabel="原值（父本基线臂 · 只读）"');
+    expect(src).toContain('originalLabel={translator.t("experiment.baselineArmsLabel")}');
   });
 });

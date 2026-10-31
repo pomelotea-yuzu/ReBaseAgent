@@ -67,29 +67,34 @@ export function ExperimentWorkspace() {
   if (target === null) {
     body = (
       <div className="text-reading-meta text-gray-500">
-        未绑定实验目标（会话内目标不跨重载保留；从运行的更多操作重新进入即可）。
+        {translator.t("experiment.targetUnbound")}
       </div>
     );
   } else if (source.phase === "failed") {
     body = (
       <div className="flex flex-col gap-2 text-reading-meta" data-experiment-source-failed>
-        <span className="text-red-700">父本详情读取失败：{source.errorMessage}</span>
+        <span className="text-red-700">
+          {translator.t("experiment.sourceFailed", { message: source.errorMessage ?? "" })}
+        </span>
         <button
           type="button"
           onClick={() => void readExperimentSource()}
           className="w-fit rounded border border-gray-300 px-2 py-0.5 text-gray-600 hover:bg-gray-50"
         >
-          只读重试
+          {translator.t("experiment.retryRead")}
         </button>
       </div>
     );
   } else if (source.phase !== "ready" || source.detail === null) {
-    body = <div className="text-reading-meta text-gray-500">正在读取父本详情…</div>;
+    body = (
+      <div className="text-reading-meta text-gray-500">
+        {translator.t("experiment.sourceReading")}
+      </div>
+    );
   } else if (span === null) {
     body = (
       <div className="text-reading-meta text-amber-700" data-experiment-source-span-missing>
-        父本详情里找不到目标调用（{target.spanId}
-        ）：详情内容可能已改变；批次草稿保留，执行入口不可用。
+        {translator.t("experiment.sourceSpanMissing", { spanId: target.spanId })}
       </div>
     );
   } else {
@@ -106,18 +111,19 @@ export function ExperimentWorkspace() {
 
   return (
     <AuxWorkspaceFrame
-      title="模型实验"
-      description="以一个普通运行及其首次模型调用为父本，编排多臂参数对比。资格由门禁与 main 裁决；臂编辑与计划预览在此完成。"
+      title={translator.t("run.workspaceExperiment")}
+      description={translator.t("experiment.workspaceDescription")}
       targetLine={
         target === null ? null : (
           <>
-            父本{" "}
+            {translator.t("experiment.targetParent")}{" "}
             <ShortIdLabel
               id={target.runId}
               shortId={shortIdState.update([target.runId]).get(target.runId) ?? target.runId}
-              label="父本运行 ID"
+              label={translator.t("experiment.parentRunIdLabel")}
             />{" "}
-            · 首次模型调用 <span className="font-code">{target.spanId}</span>
+            {translator.t("experiment.targetFirstCall")}{" "}
+            <span className="font-code">{target.spanId}</span>
           </>
         )
       }

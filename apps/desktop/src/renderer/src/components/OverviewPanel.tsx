@@ -542,10 +542,13 @@ export function PromptExperimentSectionView({
         className="mt-2 rounded border border-violet-200 bg-white px-2 py-1.5 text-reading-meta leading-5 text-violet-900"
         data-prompt-experiment-verdict
       >
-        {promptExperimentVerdictNote({
-          status,
-          acceptanceCriterion: view.acceptanceCriterion,
-        })}
+        {promptExperimentVerdictNote(
+          {
+            status,
+            acceptanceCriterion: view.acceptanceCriterion,
+          },
+          translator,
+        )}
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-2">
         {onCompareWithBaseline !== undefined ? (
@@ -662,7 +665,10 @@ export function OverviewResultView({
     [detail, translator],
   );
   const source = useMemo(() => presentSource(detail, translator), [detail, translator]);
-  const promptExperiment = useMemo(() => promptExperimentViewOf(detail.meta), [detail.meta]);
+  const promptExperiment = useMemo(
+    () => promptExperimentViewOf(detail.meta, translator),
+    [detail.meta, translator],
+  );
 
   return (
     // 任务 7.1 布局修复：概览自带滚动容器（h-full + overflow-y-auto），内容超高时在

@@ -23,6 +23,9 @@ import {
   scalarRequestParams,
 } from "../src/renderer/src/lib/model-ab";
 import type { ArmDraft, ModelAbGuardInput } from "../src/renderer/src/lib/model-ab";
+import { createTestTranslator } from "./i18n/render-with-locale";
+
+const zh = createTestTranslator("zh-CN");
 
 /**
  * 模型 A/B 的**双层判据一致性**（renderer 早拦层 ↔ replay 内核）。
@@ -129,6 +132,7 @@ describe("guard ↔ 内核：空 fork 的粒度一致（逐臂，不是整批）
           ],
           false,
         ),
+        zh,
       );
       expect(guard.canSubmit).toBe(true);
 
@@ -153,9 +157,9 @@ describe("guard ↔ 内核：空 fork 的粒度一致（逐臂，不是整批）
         { model: "deepseek-chat", paramsText: "" },
       ];
 
-      const guard = modelAbGuard(guardInputFrom(parent, arms, false));
+      const guard = modelAbGuard(guardInputFrom(parent, arms, false), zh);
       expect(guard.canSubmit).toBe(false);
-      expect(guard.reason).toContain("第 2 臂");
+      expect(guard.items.map((item) => item.scope)).toEqual([{ kind: "arm", index: 1 }]);
       expect(guard.arms).toEqual([]);
 
       // 反向证明：把界面拦下的同一批直接交给内核，确实是整批 INVALID_ARM（零文件、零调用）
@@ -212,10 +216,10 @@ describe("guard ↔ 内核：空 fork 的粒度一致（逐臂，不是整批）
         allowSideEffects: false,
         arms: [candidate, otherArm],
       };
-      const guard = modelAbGuard(input);
+      const guard = modelAbGuard(input, zh);
       expect(guard.canSubmit, `候选臂 ${JSON.stringify(candidate)}`).toBe(!kernelSaysEmpty);
       if (kernelSaysEmpty) {
-        expect(guard.reason).toContain("第 1 臂");
+        expect(guard.items.map((item) => item.scope)).toEqual([{ kind: "arm", index: 0 }]);
       }
     }
   });
@@ -235,12 +239,13 @@ describe("guard ↔ 内核：批次级副作用确认必须展开到每臂", () 
       expect(input.riskyTools).toEqual(["write_file"]);
 
       // 未勾选：界面拦，且不下发任何声明
-      const blocked = modelAbGuard(input);
+      const blocked = modelAbGuard(input, zh);
       expect(blocked.canSubmit).toBe(false);
-      expect(blocked.reason).toContain("write_file");
+      expect(blocked.items[0]?.code).toBe("SIDE_EFFECTS_UNCONFIRMED");
+      expect(blocked.items[0]?.reason).toContain("write_file");
 
       // 勾选：界面放行，且声明逐臂展开（内核判据是 arms.every(allowSideEffects === true)）
-      const allowed = modelAbGuard({ ...input, allowSideEffects: true });
+      const allowed = modelAbGuard({ ...input, allowSideEffects: true }, zh);
       expect(allowed.canSubmit).toBe(true);
       expect(allowed.arms).toHaveLength(2);
       expect(allowed.arms.every((arm) => arm.allowSideEffects === true)).toBe(true);

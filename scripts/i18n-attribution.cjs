@@ -189,6 +189,8 @@ const ORIGINAL_REASONS = {
     "prompt fork 的领域校验/重建失败事实，作为原始诊断展示；产品摘要由渲染层按稳定码给出",
   "packages/replay/src/prompt-replay-run.ts":
     "prompt 重跑的执行失败事实，作为原始诊断展示，不随 UI locale 改写",
+  "packages/replay/src/model-replay-run.ts":
+    "模型实验内核的领域校验/执行失败事实（费用未确认、工具策略、臂形状、实验组冲突），桌面端按稳定码给出本地化摘要并作为原始详情展示；CLI 人类报告在 5.7 统一投影",
   "packages/replay/src/workspace/isolated-prompt-preflight.ts":
     "隔离 prompt 预检的校验/计划事实，作为原始诊断展示，不随 UI locale 改写",
   "packages/replay/src/workspace/isolated-prompt-run.ts":
@@ -235,6 +237,8 @@ const ORIGINAL_SYMBOLS = {
     "模型所见的工具结果文本（写入新 trace 并进入模型上下文），不随 UI locale 生成",
   "apps/desktop/src/main/exec-endpoints.ts::forkChannel.run":
     "main 返回的分叉失败原始说明，渲染层作为原始详情展示；产品摘要按稳定码本地化",
+  "apps/desktop/src/main/exec-endpoints.ts::modelAbChannel.run":
+    "main 返回的模型实验 A/B 通道拒绝原始说明（设置未配置/通道误用），渲染层作为原始详情展示；产品摘要按稳定码本地化",
   "apps/desktop/src/main/isolated-prompt-endpoints.ts::runIsolatedPromptCapability":
     "main 返回的隔离 prompt 能力预检原始说明，渲染层作为原始详情展示",
   "apps/desktop/src/main/proxy-manager.ts::ProxyManager.fork":

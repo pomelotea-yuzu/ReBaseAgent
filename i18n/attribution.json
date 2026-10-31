@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-30T15:34:38.989Z",
+  "generatedAt": "2026-10-31T02:15:03.218Z",
   "scanner": "scripts/i18n-attribution.cjs",
   "taxonomy": {
     "product": "产品展示：需要按批次迁移为双语资源",
@@ -9,10 +9,10 @@
     "generated": "生成资产：不作为产品文案"
   },
   "totals": {
-    "files": 190,
-    "occurrences": 1770,
-    "product": 1020,
-    "original": 665,
+    "files": 183,
+    "occurrences": 1643,
+    "product": 875,
+    "original": 683,
     "internal": 81,
     "generated": 4
   },
@@ -20,15 +20,15 @@
     "main": {
       "files": 20,
       "occurrences": 131,
-      "product": 72,
-      "original": 57,
+      "product": 70,
+      "original": 59,
       "internal": 2,
       "generated": 0
     },
     "renderer": {
-      "files": 37,
-      "occurrences": 443,
-      "product": 399,
+      "files": 30,
+      "occurrences": 316,
+      "product": 272,
       "original": 12,
       "internal": 32,
       "generated": 0
@@ -76,8 +76,8 @@
     "pkg:replay": {
       "files": 32,
       "occurrences": 352,
-      "product": 184,
-      "original": 150,
+      "product": 168,
+      "original": 166,
       "internal": 18,
       "generated": 0
     },
@@ -357,8 +357,8 @@
           "symbol": "modelAbChannel.run",
           "role": "error_message",
           "context": "new ForkError",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "main 返回的模型实验 A/B 通道拒绝原始说明（设置未配置/通道误用），渲染层作为原始详情展示；产品摘要按稳定码本地化",
           "count": 2,
           "samples": [
             "A/B 计划预览请用只读通道（modelAbPlan）；执行通道会整批占住主动槽",
@@ -1403,153 +1403,6 @@
       ]
     },
     {
-      "path": "apps/desktop/src/renderer/src/components/AbBatchResult.tsx",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "模型实验",
-      "classification": "product",
-      "batch": 3,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "ARM_OUTCOME_SHORT.returned",
-          "role": "prop",
-          "context": "returned",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "返回"
-          ],
-          "lines": [
-            44
-          ]
-        },
-        {
-          "symbol": "ARM_OUTCOME_SHORT.failed",
-          "role": "prop",
-          "context": "failed",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "失败"
-          ],
-          "lines": [
-            45
-          ]
-        },
-        {
-          "symbol": "ARM_OUTCOME_SHORT.rejected",
-          "role": "prop",
-          "context": "rejected",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "拒绝"
-          ],
-          "lines": [
-            46
-          ]
-        },
-        {
-          "symbol": "ArmActionButton.button",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "只按同一个可信运行 ID 重读（${…}）：不会重新执行，也不会换一条臂试",
-            "只定位这条臂自有的失败调用；祖先或其他臂的错误不算本次原因"
-          ],
-          "lines": [
-            67,
-            69,
-            70
-          ]
-        },
-        {
-          "symbol": "ArmCompareToggle.button",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 5,
-          "samples": [
-            "不能进入对照",
-            "从全局对照集合移出这条臂"
-          ],
-          "lines": [
-            96,
-            98,
-            99,
-            110
-          ]
-        },
-        {
-          "symbol": "li.span",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "臂"
-          ],
-          "lines": [
-            133
-          ]
-        },
-        {
-          "symbol": "li.span",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "该臂已登记可信 ID，但批次呈现未拿到逐条事实（只保留身份，不造状态）",
-            "请求层："
-          ],
-          "lines": [
-            139,
-            158
-          ]
-        },
-        {
-          "symbol": "div.span",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "实验组"
-          ],
-          "lines": [
-            216
-          ]
-        },
-        {
-          "symbol": "div.div",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "逐臂只呈现登记身份与独立核实到的事实：不产出臂间差值或\"胜出臂\"，比较请看分支树与各臂轨迹。"
-          ],
-          "lines": [
-            243
-          ]
-        }
-      ]
-    },
-    {
       "path": "apps/desktop/src/renderer/src/components/AuxWorkspaceFrame.tsx",
       "layer": "renderer",
       "package": null,
@@ -1691,638 +1544,6 @@
             66,
             74,
             82
-          ]
-        }
-      ]
-    },
-    {
-      "path": "apps/desktop/src/renderer/src/components/ExperimentResults.tsx",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "模型实验",
-      "classification": "product",
-      "batch": 3,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "div.span",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "实验结果"
-          ],
-          "lines": [
-            60
-          ]
-        },
-        {
-          "symbol": "div.span",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "批",
-            "实验组"
-          ],
-          "lines": [
-            62,
-            84,
-            87
-          ]
-        },
-        {
-          "symbol": "div.div",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "尚未执行实验：确认执行后，各臂的结果会按批次出现在这里。"
-          ],
-          "lines": [
-            67
-          ]
-        },
-        {
-          "symbol": "div.span",
-          "role": "call_arg",
-          "context": "batches.map",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "批次"
-          ],
-          "lines": [
-            78
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "先选择至少两条已关联的臂结果",
-            "进入共用比较工作区（只读；不改批次事实与结果读取）"
-          ],
-          "lines": [
-            103,
-            104,
-            109
-          ]
-        },
-        {
-          "symbol": "div.Disclosure",
-          "role": "ui_attr",
-          "context": "summary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "结果说明"
-          ],
-          "lines": [
-            120
-          ]
-        },
-        {
-          "symbol": "Disclosure.div",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "批次按这次执行的登记身份分组：同父同模型的两批不合并，不同批的臂不混成一组； 逐臂事实与动作同操作面板口径。预览（dry-run）不产生批次，预览标签也不充当批次身份。"
-          ],
-          "lines": [
-            127
-          ]
-        }
-      ]
-    },
-    {
-      "path": "apps/desktop/src/renderer/src/components/ExperimentWorkspace.tsx",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "模型实验",
-      "classification": "product",
-      "batch": 3,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "ExperimentWorkspace.div",
-          "role": "other",
-          "context": "",
-          "classification": "product",
-          "reason": null,
-          "count": 4,
-          "samples": [
-            "未绑定实验目标（会话内目标不跨重载保留；从运行的更多操作重新进入即可）。",
-            "正在读取父本详情…"
-          ],
-          "lines": [
-            70,
-            87,
-            91,
-            92
-          ]
-        },
-        {
-          "symbol": "div.span",
-          "role": "other",
-          "context": "",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "父本详情读取失败："
-          ],
-          "lines": [
-            76
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "other",
-          "context": "",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "只读重试"
-          ],
-          "lines": [
-            82
-          ]
-        },
-        {
-          "symbol": "ExperimentWorkspace.AuxWorkspaceFrame",
-          "role": "ui_attr",
-          "context": "title",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "模型实验",
-            "以一个普通运行及其首次模型调用为父本，编排多臂参数对比。资格由门禁与 main 裁决；臂编辑与计划预览在此完成。"
-          ],
-          "lines": [
-            109,
-            110
-          ]
-        },
-        {
-          "symbol": "ExperimentWorkspace.AuxWorkspaceFrame",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "父本",
-            "· 首次模型调用"
-          ],
-          "lines": [
-            114,
-            120
-          ]
-        },
-        {
-          "symbol": "AuxWorkspaceFrame.ShortIdLabel",
-          "role": "ui_attr",
-          "context": "label",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "父本运行 ID"
-          ],
-          "lines": [
-            118
-          ]
-        }
-      ]
-    },
-    {
-      "path": "apps/desktop/src/renderer/src/components/ModelAbEditor.tsx",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "模型实验",
-      "classification": "product",
-      "batch": 3,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "div.span",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 5,
-          "samples": [
-            "臂",
-            "生效 params："
-          ],
-          "lines": [
-            63,
-            73,
-            467,
-            524,
-            590
-          ]
-        },
-        {
-          "symbol": "div.span",
-          "role": "call_arg",
-          "context": "longOr",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "臂 ${…} model",
-            "臂 ${…} 参数 ${…}"
-          ],
-          "lines": [
-            65,
-            86,
-            100
-          ]
-        },
-        {
-          "symbol": "div.span",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 7,
-          "samples": [
-            "改变：${…}",
-            "与父相同"
-          ],
-          "lines": [
-            68,
-            75,
-            95,
-            104,
-            667,
-            668
-          ]
-        },
-        {
-          "symbol": "div.tag",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "（覆盖）",
-            "（新增）"
-          ],
-          "lines": [
-            79,
-            81,
-            82
-          ]
-        },
-        {
-          "symbol": "div.div",
-          "role": "call_arg",
-          "context": "longOr",
-          "classification": "product",
-          "reason": null,
-          "count": 5,
-          "samples": [
-            "告警 ${…}",
-            "绕行："
-          ],
-          "lines": [
-            109,
-            110,
-            499,
-            509
-          ]
-        },
-        {
-          "symbol": "ModelAbEditor.planStaleText",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "预览之后运行配置已改变（设置往返作废这份计划）：须重新校验并预览，旧确认一并作废",
-            "这份计划属于旧批次修订：改臂或改参数后须重新校验并预览，旧确认一并作废"
-          ],
-          "lines": [
-            246,
-            247
-          ]
-        },
-        {
-          "symbol": "ModelAbEditor.guardBlockedText",
-          "role": "array_item",
-          "context": "[]",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "${…} 个臂的输入问题已就近标注在臂卡上（model 为空 / params 非法或与父相同）"
-          ],
-          "lines": [
-            334
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 4,
-          "samples": [
-            "模型 A/B 实验（换 model / params 对比）",
-            "放弃整批"
-          ],
-          "lines": [
-            383,
-            752,
-            779
-          ]
-        },
-        {
-          "symbol": "div.div",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "用同一启动上下文跑至少两个臂（model / 采样参数组合），先出计划预览，确认后真实执行。"
-          ],
-          "lines": [
-            386
-          ]
-        },
-        {
-          "symbol": "discardBatch.summary",
-          "role": "call_arg",
-          "context": "snapshot.rows\n      .map",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "臂 ${…}：${…}（${…}）"
-          ],
-          "lines": [
-            402
-          ]
-        },
-        {
-          "symbol": "discardBatch.summary",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "沿用父 params"
-          ],
-          "lines": [
-            402
-          ]
-        },
-        {
-          "symbol": "discardBatch.title",
-          "role": "ui_prop",
-          "context": "title",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "放弃模型 A/B 批次"
-          ],
-          "lines": [
-            407
-          ]
-        },
-        {
-          "symbol": "discardBatch.message",
-          "role": "ui_prop",
-          "context": "message",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "放弃整个模型 A/B 批次草稿？（run ${…} · ${…}）\n\n${…}\n\n放弃整批；按确认时的修订校验：此后批次若被更新，本次放弃不会执行。"
-          ],
-          "lines": [
-            408
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 9,
-          "samples": [
-            "收起",
-            "+ 加一臂（最多 4）"
-          ],
-          "lines": [
-            479,
-            586,
-            745,
-            760,
-            771,
-            773
-          ]
-        },
-        {
-          "symbol": "div.DraftCompareGrid",
-          "role": "ui_attr",
-          "context": "draftLabel",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "草稿（可编辑批次）",
-            "原值（父本基线臂 · 只读）"
-          ],
-          "lines": [
-            491,
-            492
-          ]
-        },
-        {
-          "symbol": "div.div",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 8,
-          "samples": [
-            "（沿用父 params）",
-            "本次执行待处理：已按提交时的批次修订冻结整个批次，请求返回前不可增删臂、改参数或放弃。 无论成功、业务拒绝还是部分臂失败，批次都先保留；各臂按可信身份核实到正常结束、 且草稿修订与提交时逐字相同，才自"
-          ],
-          "lines": [
-            500,
-            510,
-            642,
-            648,
-            652,
-            659,
-            675,
-            679
-          ]
-        },
-        {
-          "symbol": "div.input",
-          "role": "ui_attr",
-          "context": "placeholder",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "model 名"
-          ],
-          "lines": [
-            529
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "ui_attr",
-          "context": "title",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "移除该臂"
-          ],
-          "lines": [
-            542
-          ]
-        },
-        {
-          "symbol": "div.input",
-          "role": "ui_text",
-          "context": "jsx_expr",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "采样参数 JSON（留空 = 沿用父 run：${…}）",
-            "无"
-          ],
-          "lines": [
-            552,
-            553
-          ]
-        },
-        {
-          "symbol": "label.span",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "⚠ 工具",
-            "未标记 sideEffect: false。各臂顺序执行时，前一臂的 外部副作用会污染后一臂起点，比较结果不可信——确认接受请勾选（将随实验留痕）。"
-          ],
-          "lines": [
-            608
-          ]
-        },
-        {
-          "symbol": "DraftSourceBanner.title",
-          "role": "ui_prop",
-          "context": "title",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "放弃模型 A/B 批次"
-          ],
-          "lines": [
-            627
-          ]
-        },
-        {
-          "symbol": "DraftSourceBanner.message",
-          "role": "ui_prop",
-          "context": "message",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "放弃这个模型 A/B 批次草稿？全部臂内容将被删除（不可撤销）。"
-          ],
-          "lines": [
-            628
-          ]
-        },
-        {
-          "symbol": "abConfirmDisclosure.provider",
-          "role": "prop",
-          "context": "provider",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "（未配置 baseURL）"
-          ],
-          "lines": [
-            699
-          ]
-        },
-        {
-          "symbol": "div.ConfirmationBlock",
-          "role": "ui_attr",
-          "context": "title",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "核对本次实验",
-            "已核对，确认执行实验"
-          ],
-          "lines": [
-            707,
-            716,
-            717
-          ]
-        },
-        {
-          "symbol": "div.ConfirmationBlock",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "源记录不可用：重新读取并校验通过前不能发起新执行",
-            "先「校验并预览计划」：核对实际执行的计划（各臂 model / params）后再确认"
-          ],
-          "lines": [
-            724,
-            728
           ]
         }
       ]
@@ -3807,49 +3028,6 @@
       ]
     },
     {
-      "path": "apps/desktop/src/renderer/src/lib/experiment-results.ts",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "模型实验",
-      "classification": "product",
-      "batch": 3,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "experimentArmSelectabilityOf.reason",
-          "role": "ui_prop",
-          "context": "reason",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "该臂没有登记可信运行 ID：不能进入比较（不从信封 ids、邻近记录或目录猜身份）"
-          ],
-          "lines": [
-            87
-          ]
-        },
-        {
-          "symbol": "experimentCompareHintOf",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "选择两条即可进入详细比较；三四条先看指标表再显式选两条",
-            "已选两条：进入比较将按选择顺序作为详细比较的左右两侧"
-          ],
-          "lines": [
-            98,
-            99,
-            100
-          ]
-        }
-      ]
-    },
-    {
       "path": "apps/desktop/src/renderer/src/lib/format.ts",
       "layer": "renderer",
       "package": null,
@@ -3877,70 +3055,6 @@
             52,
             54,
             56
-          ]
-        }
-      ]
-    },
-    {
-      "path": "apps/desktop/src/renderer/src/lib/model-ab.ts",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "模型实验",
-      "classification": "product",
-      "batch": 3,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "parseArmParams.reason",
-          "role": "ui_prop",
-          "context": "reason",
-          "classification": "product",
-          "reason": null,
-          "count": 5,
-          "samples": [
-            "params 不是合法 JSON（示例：{\"temperature\": 0.7}）",
-            "params 必须是 JSON 对象（键 → 标量）"
-          ],
-          "lines": [
-            72,
-            75,
-            82,
-            88,
-            92
-          ]
-        },
-        {
-          "symbol": "modelAbGuard.reason",
-          "role": "ui_prop",
-          "context": "reason",
-          "classification": "product",
-          "reason": null,
-          "count": 5,
-          "samples": [
-            "尚未配置运行参数（baseURL / apiKey / model），请先点击右上角“运行配置”",
-            "模型实验至少需要 2 个 arm；单臂请用 prompt fork"
-          ],
-          "lines": [
-            164,
-            170,
-            176,
-            184,
-            204
-          ]
-        },
-        {
-          "symbol": "modelAbGuard.label",
-          "role": "constant",
-          "context": "label",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "第 ${…} 臂"
-          ],
-          "lines": [
-            182
           ]
         }
       ]
@@ -4021,78 +3135,6 @@
             589,
             595,
             601
-          ]
-        }
-      ]
-    },
-    {
-      "path": "apps/desktop/src/renderer/src/lib/prompt-experiment-view.ts",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "模型实验",
-      "classification": "product",
-      "batch": 3,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "paramsLabel",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "缺省（根首次请求未录制 params）"
-          ],
-          "lines": [
-            35
-          ]
-        },
-        {
-          "symbol": "promptExperimentViewOf.fieldLabel",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "首条 user message"
-          ],
-          "lines": [
-            48
-          ]
-        },
-        {
-          "symbol": "promptExperimentVerdictNote.base",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "本次运行正常结束。这只说明执行终止事实，不代表改动已达到目的，也不自动标为“已修复”。",
-            "本次运行未正常结束。实际结局与失败记录以下方详情为准，界面不补造成功结论。"
-          ],
-          "lines": [
-            81,
-            82
-          ]
-        },
-        {
-          "symbol": "promptExperimentVerdictNote",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "${…} 未填写人工判据：请直接核对本次输出与文件差异。",
-            "${…} 请按你填写的人工判据自行核对；界面不会自动执行或评分该判据。"
-          ],
-          "lines": [
-            84,
-            85
           ]
         }
       ]
@@ -9778,17 +8820,17 @@
       "layer": "pkg:replay",
       "package": "replay",
       "workspace": "pkg:replay",
-      "classification": "product",
-      "batch": 3,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "模型实验内核的领域校验/执行失败事实（费用未确认、工具策略、臂形状、实验组冲突），桌面端按稳定码给出本地化摘要并作为原始详情展示；CLI 人类报告在 5.7 统一投影",
       "symbols": [
         {
           "symbol": "resolveExperimentId",
           "role": "error_message",
           "context": "new ModelAbError",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "模型实验内核的领域校验/执行失败事实（费用未确认、工具策略、臂形状、实验组冲突），桌面端按稳定码给出本地化摘要并作为原始详情展示；CLI 人类报告在 5.7 统一投影",
           "count": 2,
           "samples": [
             "experimentId 冲突：同一批实验出现 ${…} 个不同分组标签（${…}），一次调用即一批，必须相同",
@@ -9803,8 +8845,8 @@
           "symbol": "recordedToolFlags.name",
           "role": "ui_text",
           "context": "ternary",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "模型实验内核的领域校验/执行失败事实（费用未确认、工具策略、臂形状、实验组冲突），桌面端按稳定码给出本地化摘要并作为原始详情展示；CLI 人类报告在 5.7 统一投影",
           "count": 1,
           "samples": [
             "<未命名工具>"
@@ -9817,8 +8859,8 @@
           "symbol": "assertToolPolicy",
           "role": "error_message",
           "context": "new ModelAbError",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "模型实验内核的领域校验/执行失败事实（费用未确认、工具策略、臂形状、实验组冲突），桌面端按稳定码给出本地化摘要并作为原始详情展示；CLI 人类报告在 5.7 统一投影",
           "count": 2,
           "samples": [
             "父 run 带 ${…} 个工具（${…}），命令行首期只支持空工具表（纯对话任务）：replay 包不提供工具 handler，桌面内置 handler 不跨进程复用，卡带测试的桩工具更不能冒充真实",
@@ -9833,8 +8875,8 @@
           "symbol": "modelReplayRunMany",
           "role": "error_message",
           "context": "new ModelAbError",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "模型实验内核的领域校验/执行失败事实（费用未确认、工具策略、臂形状、实验组冲突），桌面端按稳定码给出本地化摘要并作为原始详情展示；CLI 人类报告在 5.7 统一投影",
           "count": 5,
           "samples": [
             "模型实验至少需要 2 个 arm（当前 ${…} 个）；单臂请用 prompt fork",
@@ -9852,8 +8894,8 @@
           "symbol": "modelReplayRunMany.prepared",
           "role": "error_message",
           "context": "new ModelAbError",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "模型实验内核的领域校验/执行失败事实（费用未确认、工具策略、臂形状、实验组冲突），桌面端按稳定码给出本地化摘要并作为原始详情展示；CLI 人类报告在 5.7 统一投影",
           "count": 1,
           "samples": [
             "第 ${…} 个 arm 不合法：${…}"
@@ -9866,8 +8908,8 @@
           "symbol": "modelReplayRunMany",
           "role": "concat",
           "context": "+",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "模型实验内核的领域校验/执行失败事实（费用未确认、工具策略、臂形状、实验组冲突），桌面端按稳定码给出本地化摘要并作为原始详情展示；CLI 人类报告在 5.7 统一投影",
           "count": 2,
           "samples": [
             "未确认费用：模型实验会按 arm 数真实调用 provider 并产生费用。",
@@ -9882,8 +8924,8 @@
           "symbol": "modelReplayRunMany.error",
           "role": "ui_prop",
           "context": "error",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "模型实验内核的领域校验/执行失败事实（费用未确认、工具策略、臂形状、实验组冲突），桌面端按稳定码给出本地化摘要并作为原始详情展示；CLI 人类报告在 5.7 统一投影",
           "count": 1,
           "samples": [
             "实验已被取消，该臂未开始"
@@ -9896,8 +8938,8 @@
           "symbol": "modelReplayRunMany.failure",
           "role": "ui_text",
           "context": "ternary",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "模型实验内核的领域校验/执行失败事实（费用未确认、工具策略、臂形状、实验组冲突），桌面端按稳定码给出本地化摘要并作为原始详情展示；CLI 人类报告在 5.7 统一投影",
           "count": 2,
           "samples": [
             "该臂在第 ${…} 步以 error 终止（${…}）",

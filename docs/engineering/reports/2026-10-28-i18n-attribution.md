@@ -177,6 +177,8 @@ node scripts/i18n-attribution.cjs --compare-inventory --verify-boundaries
 
 3.6 迁移单运行文件工作区：`workspace-files` 的检查点标签/来源说明/变更与可用性标签/清单规模/可比较性原因、`file-directory` 空态、`file-layout` 并排宽度不足原因、`file-tools` 的未消费剪贴板辅助删除；`FileContent` 迁移加载/失败/拒绝/不存在、两侧状态行、复制菜单与反馈、换行/查找/差异导航/模式、二进制与不可读卡、单侧只读展示与两侧缺席说明；`WorkspaceFileViewBody` 迁移检查点选择与来源/只读说明、失效回退、目录开关与搜索/筛选/计数、清单加载与错误、文件列表与空态、拖拽分隔条；`WorkspaceFilesPanel` 迁移专注差异入口/退出/加载态；导出不可用原因迁移。文件名/路径/sha256/字节数/差异条数保持原值。机器清单 **1,770 处**（product 1,020 / original 665 / internal 81 / generated 4）：迁入资源 153 处、删除死代码 1 处。收口门禁 `--final` 仍红 100 个 pending 文件（批次 1 余 46；3.x 完成，余项为 4.4 草稿列表与后续 MCP/CLI）。3.6 完成，**3.x 全部完成**。
 
+4.1 迁移模型实验工作区：`model-ab` 的 params 解析与提交前拦截改为稳定原因码（非法 JSON/非对象/保留键/非标量/非有限数；配置/臂数/副作用/空 fork），`modelAbGuard`、`experimentArmSelectabilityOf`、`experimentCompareHintOf` 按 translator 派生文案（组件按 `code`/`detail` 呈现，测试按码与结构断言），`prompt-experiment-view` 的字段标签、params 缺省与结局说明接 translator（总览页调用同步）。`ModelAbEditor` 迁移入口与提示、臂卡与基线对照、计划预览（生效 params、覆盖/新增/继承、丢弃父录值、告警与绕行）、副作用与费用确认、计划过期两种措辞、失败摘要+原始说明、冻结/放弃/预览状态与按钮标题；`AbBatchResult` 迁移逐臂身份、请求层结局、动作提示与对照选择；`ExperimentResults` 迁移批次身份、空态、进入比较与结果说明；`ExperimentWorkspace` 迁移目标未绑定/父本读取失败与重试/目标调用缺失/框架标题与目标行。D16 沿用既有接线：有效语言变化清空 A/B 执行确认，编辑器同时撤销副作用勾选，只读计划与草稿修订保留。内核 `model-replay-run.ts` 与 main `modelAbChannel.run` 的校验/执行失败原文改判 original（渲染层按稳定码给摘要、原文作详情；CLI 人类报告留 5.7）。机器清单 **1,643 处**（product 875 / original 683 / internal 81 / generated 4）：迁入资源 127 处、改判 original 18 处。收口门禁 `--final` 仍红 92 个 pending 文件（批次 1 余 46；模型实验工作区产品文案归零）。4.1 完成。
+
 ## 9. 局限
 
 - 工作区与批次按文件名近似，包层不能精确拆到单个工作区；迁移时以实际入口为准修正。

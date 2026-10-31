@@ -14,6 +14,8 @@
  * （2026-09-17 K0 验收暴露）。同源性由 `test/model-ab-guard-parity.test.ts` 钉住。
  */
 
+import type { Translator } from "@rebaseagent/i18n";
+
 /** 采样参数值：JSON 标量（与 agent-loop 的 SampleParams 一致） */
 export type Scalar = string | number | boolean;
 
@@ -59,41 +61,68 @@ export function scalarRequestParams(raw: unknown): Record<string, Scalar> {
 /** 请求体保留键（与 agent-loop 的 RESERVED_BODY_KEYS 同一键集） */
 const RESERVED_BODY_KEYS = ["model", "messages", "tools", "stream", "stream_options"];
 
+export type ArmParamsErrorCode =
+  | "INVALID_JSON"
+  | "NOT_OBJECT"
+  | "RESERVED_KEY"
+  | "NON_SCALAR"
+  | "NON_FINITE";
+
+/** params 解析失败：稳定码 + 可选键名（展示层按 code 取文案，locale 不进判据） */
+export type ArmParamsError = {
+  readonly ok: false;
+  readonly code: ArmParamsErrorCode;
+  readonly key: string | null;
+};
+
 /** params JSON 文本 → 标量参数对象；空串视为沿用父值（undefined） */
 export function parseArmParams(
   text: string,
-): { ok: true; params: Record<string, Scalar> | undefined } | { ok: false; reason: string } {
+): { ok: true; params: Record<string, Scalar> | undefined } | ArmParamsError {
   const trimmed = text.trim();
   if (trimmed.length === 0) return { ok: true, params: undefined };
   let parsed: unknown;
   try {
     parsed = JSON.parse(trimmed);
   } catch {
-    return { ok: false, reason: 'params 不是合法 JSON（示例：{"temperature": 0.7}）' };
+    return { ok: false, code: "INVALID_JSON", key: null };
   }
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-    return { ok: false, reason: "params 必须是 JSON 对象（键 → 标量）" };
+    return { ok: false, code: "NOT_OBJECT", key: null };
   }
   const out: Record<string, Scalar> = {};
   for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
     if (RESERVED_BODY_KEYS.includes(key)) {
-      return {
-        ok: false,
-        reason: `params.${key} 是请求体保留键（${RESERVED_BODY_KEYS.join(" / ")}），不得用作采样参数`,
-      };
+      return { ok: false, code: "RESERVED_KEY", key };
     }
     if (typeof value !== "string" && typeof value !== "number" && typeof value !== "boolean") {
-      return {
-        ok: false,
-        reason: `params.${key} 必须是 string / number / boolean 标量（不支持嵌套对象、数组、null）`,
-      };
+      return { ok: false, code: "NON_SCALAR", key };
     }
     if (typeof value === "number" && !Number.isFinite(value)) {
-      return { ok: false, reason: `params.${key} 必须是有限数字` };
+      return { ok: false, code: "NON_FINITE", key };
     }
     out[key] = value;
   }
   return { ok: true, params: Object.keys(out).length > 0 ? out : undefined };
+}
+
+/** params 解析失败的本地化说明（键名/保留键集为原值，不翻译） */
+export function armParamsErrorText(error: ArmParamsError, translator: Translator): string {
+  switch (error.code) {
+    case "INVALID_JSON":
+      return translator.t("experiment.armParamsInvalidJson");
+    case "NOT_OBJECT":
+      return translator.t("experiment.armParamsNotObject");
+    case "RESERVED_KEY":
+      return translator.t("experiment.armParamsReservedKey", {
+        key: error.key ?? "",
+        keys: RESERVED_BODY_KEYS.join(" / "),
+      });
+    case "NON_SCALAR":
+      return translator.t("experiment.armParamsNonScalar", { key: error.key ?? "" });
+    case "NON_FINITE":
+      return translator.t("experiment.armParamsNonFinite", { key: error.key ?? "" });
+  }
 }
 
 export interface ModelAbGuardInput {
@@ -130,9 +159,22 @@ export interface ModelAbGuardResult {
 
 export type ModelAbGuardItemScope = { kind: "batch" } | { kind: "arm"; index: number };
 
+/** 稳定原因码：测试与组件按码判定，文案由 translator 派生（locale 不进判据） */
+export type ModelAbGuardCode =
+  | "SETTINGS_NOT_CONFIGURED"
+  | "MIN_ARMS"
+  | "SIDE_EFFECTS_UNCONFIRMED"
+  | "ARM_MODEL_EMPTY"
+  | "ARM_PARAMS_INVALID"
+  | "ARM_SAME_AS_PARENT";
+
 export interface ModelAbGuardItem {
   scope: ModelAbGuardItemScope;
+  code: ModelAbGuardCode;
+  /** 完整行（臂级带「臂 N：」前缀，可直接展示） */
   reason: string;
+  /** 臂级原因的主体词（不带前缀，供臂卡就近呈现）；批次级为 null */
+  detail: string | null;
 }
 
 /**
@@ -155,41 +197,54 @@ function sameAsParent(
   return true;
 }
 
-export function modelAbGuard(input: ModelAbGuardInput): ModelAbGuardResult {
+export function modelAbGuard(input: ModelAbGuardInput, translator: Translator): ModelAbGuardResult {
   const items: ModelAbGuardItem[] = [];
+  const armItem = (index: number, code: ModelAbGuardCode, detail: string): void => {
+    const arm = translator.t("experiment.armLabel", { index: index + 1 });
+    items.push({
+      scope: { kind: "arm", index },
+      code,
+      detail,
+      reason: translator.t("experiment.armReasonLine", { arm, detail }),
+    });
+  };
 
   if (!input.settingsConfigured) {
     items.push({
       scope: { kind: "batch" },
-      reason: "尚未配置运行参数（baseURL / apiKey / model），请先点击右上角“运行配置”",
+      code: "SETTINGS_NOT_CONFIGURED",
+      detail: null,
+      reason: translator.t("experiment.guardSettings"),
     });
   }
   if (input.arms.length < 2) {
     items.push({
       scope: { kind: "batch" },
-      reason: "模型实验至少需要 2 个 arm；单臂请用 prompt fork",
+      code: "MIN_ARMS",
+      detail: null,
+      reason: translator.t("experiment.guardMinArms"),
     });
   }
   if (input.riskyTools.length > 0 && !input.allowSideEffects) {
     items.push({
       scope: { kind: "batch" },
-      reason: `工具 ${input.riskyTools.join("、")} 未标记 sideEffect: false，多臂顺序执行时前一臂的外部副作用会污染后一臂起点；确认接受请勾选副作用声明`,
+      code: "SIDE_EFFECTS_UNCONFIRMED",
+      detail: null,
+      reason: translator.t("experiment.guardSideEffects", {
+        tools: input.riskyTools.join(translator.t("experiment.listSeparator")),
+      }),
     });
   }
 
   const arms: ParsedArm[] = [];
   input.arms.forEach((draft, index) => {
-    const label = `第 ${index + 1} 臂`;
     if (draft.model.trim().length === 0) {
-      items.push({ scope: { kind: "arm", index }, reason: `${label}：model 不能为空` });
+      armItem(index, "ARM_MODEL_EMPTY", translator.t("experiment.guardArmModelEmpty"));
       return;
     }
     const parsedParams = parseArmParams(draft.paramsText);
     if (!parsedParams.ok) {
-      items.push({
-        scope: { kind: "arm", index },
-        reason: `${label}：${parsedParams.reason}`,
-      });
+      armItem(index, "ARM_PARAMS_INVALID", armParamsErrorText(parsedParams, translator));
       return;
     }
     const arm: ParsedArm = { model: draft.model.trim() };
@@ -199,10 +254,7 @@ export function modelAbGuard(input: ModelAbGuardInput): ModelAbGuardResult {
     // INVALID_ARM（零文件、零调用）。本层曾按"全部臂都相同"才拦，于是"臂 1 改、臂 2 沿用父"
     // 会被界面放行、提交才整批被拒。粒度必须与内核一致。
     if (sameAsParent(arm, input.parentModel, input.parentParams)) {
-      items.push({
-        scope: { kind: "arm", index },
-        reason: `${label}：与父 run 完全相同（model 与采样参数都未变）——与父完全相同的臂会让整批被拒，请修改该臂的 model 或 params`,
-      });
+      armItem(index, "ARM_SAME_AS_PARENT", translator.t("experiment.guardArmSameAsParent"));
       return;
     }
 
@@ -213,7 +265,7 @@ export function modelAbGuard(input: ModelAbGuardInput): ModelAbGuardResult {
   });
 
   if (items.length > 0) {
-    const reason = items.map((item) => item.reason).join("；");
+    const reason = items.map((item) => item.reason).join(translator.t("common.liveSeparator"));
     return { canSubmit: false, reason, items, arms: [] };
   }
   return { canSubmit: true, reason: null, items, arms };

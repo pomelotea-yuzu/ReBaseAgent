@@ -74,4 +74,25 @@ describe("U8 3.4：ArmPlanRow 长字段展开与复制", () => {
     expect(html).toContain("<details");
     expect(html).toContain("整体替换不合并");
   });
+
+  it("英文措辞独立书写：覆盖标签、丢弃说明与父值沿用均为英文", () => {
+    const overridden = renderWithLocale("en-US", <ArmPlanRow arm={plan()} />);
+    expect(overridden).toContain("(override)");
+    expect(overridden).toContain("Effective params:");
+    expect(overridden).toContain("Changed: temperature");
+
+    const discarded = renderWithLocale(
+      "en-US",
+      <ArmPlanRow arm={plan({ discarded: [["temperature", 0.2]] })} />,
+    );
+    expect(discarded).toContain("Discarded parent values:");
+    expect(discarded).toContain("replaced as a whole, not merged");
+
+    const inherited = renderWithLocale(
+      "en-US",
+      <ArmPlanRow arm={plan({ params: {}, overridden: [], added: [], changed: [] })} />,
+    );
+    expect(inherited).toContain("inherit the parent");
+    expect(inherited).toContain("Same as parent");
+  });
 });

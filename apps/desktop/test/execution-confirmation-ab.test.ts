@@ -203,7 +203,7 @@ describe("4.7 接线契约：确认对象是当前预览计划而非草稿", () 
   }
 
   it("披露喂的是 activePlan：属于旧修订的计划不进确认", () => {
-    expect(ab).toContain("核对本次实验");
+    expect(ab).toContain('translator.t("experiment.confirmTitle")');
     expect(flat(ab)).toContain("abDisclosure(");
     expect(flat(ab)).toContain("plan: activePlan,");
     // 反向：不得把组件里的原始 plan 直接交给披露（那正是"旧计划复活"）
@@ -211,7 +211,7 @@ describe("4.7 接线契约：确认对象是当前预览计划而非草稿", () 
   });
 
   it("没有生效计划就不给确认按钮（确认的必须先是被校验的那一份）", () => {
-    const confirmDisabled = confirmDisabledOf("已核对，确认执行实验");
+    const confirmDisabled = confirmDisabledOf('translator.t("experiment.confirmAccept")');
     expect(confirmDisabled).toContain("activePlan === null ||");
     expect(confirmDisabled).toContain("!canSubmit");
     expect(confirmDisabled).toContain("!gate.canSubmit");
@@ -223,9 +223,9 @@ describe("4.7 接线契约：确认对象是当前预览计划而非草稿", () 
     expect(flat(ab)).toContain(
       "disabled={ inProgress || !canSubmit || activePlan === null || !gate.canSubmit || !abConfirmed }",
     );
-    expect(ab).toContain("先核对上面的目标与执行边界并确认");
+    expect(ab).toContain('translator.t("experiment.executeTitleNoConfirm")');
     // 计划属于旧修订时的说明（改臂/改参数后不能只看到一个禁用按钮）
-    expect(ab).toContain("这份计划属于旧批次修订");
+    expect(ab).toContain('translator.t("experiment.planStaleRevision")');
   });
 
   it("重新预览 = 重启检查：先推进代次再发只读请求，且只在资格齐备时", () => {
@@ -280,6 +280,6 @@ describe("U8 3.5 接线契约：预览独立请求状态（源码级）", () => 
     expect(ab35).toContain("setPreviewing(false);");
     // 独立呈现：只读通道的在飞文案与执行 busy 分开
     expect(ab35).toContain("data-ab-previewing");
-    expect(ab35).toContain("只读 dry-run：不联网、不写文件");
+    expect(ab35).toContain('translator.t("experiment.previewing")');
   });
 });

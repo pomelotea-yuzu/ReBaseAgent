@@ -1,3 +1,4 @@
+import type { MessageKey } from "@rebaseagent/i18n";
 import type { RequestOutcome } from "@shared/operations";
 import { useTranslator } from "../i18n";
 import type { ExperimentArmSelectability } from "../lib/experiment-results";
@@ -40,11 +41,11 @@ export interface ArmCompareSelection {
   readonly onToggle: (runId: string) => void;
 }
 
-const ARM_OUTCOME_SHORT: Record<RequestOutcome, string> = {
-  returned: "返回",
-  failed: "失败",
-  rejected: "拒绝",
-};
+const ARM_OUTCOME_KEY = {
+  returned: "run.requestOutcomeReturned",
+  failed: "run.requestOutcomeFailed",
+  rejected: "run.requestOutcomeRejected",
+} as const satisfies Record<RequestOutcome, MessageKey>;
 
 function ArmActionButton({
   action,
@@ -64,10 +65,10 @@ function ArmActionButton({
       }}
       title={
         action === "retry-read"
-          ? `只按同一个可信运行 ID 重读（${identity.runId}）：不会重新执行，也不会换一条臂试`
+          ? translator.t("experiment.armActionRetryTitle", { runId: identity.runId })
           : action === "view-failure"
-            ? "只定位这条臂自有的失败调用；祖先或其他臂的错误不算本次原因"
-            : "按可信运行 ID 打开概览（用户主动动作，不改动其它臂的阅读现场）"
+            ? translator.t("experiment.armActionFailureTitle")
+            : translator.t("experiment.armActionOpenTitle")
       }
       className={`shrink-0 rounded border border-gray-300 px-1.5 py-0.5 text-[10px] text-gray-700 hover:bg-gray-50 ${FOCUS_RING}`}
     >
@@ -84,6 +85,7 @@ function ArmCompareToggle({
   arm: AbArmResultView;
   selection: ArmCompareSelection;
 }) {
+  const translator = useTranslator();
   const selectability = selection.selectabilityOf(arm);
   const selected = arm.runId !== null && selection.isSelectedOf(arm.runId);
   return (
@@ -93,10 +95,10 @@ function ArmCompareToggle({
       disabled={!selectability.selectable}
       title={
         !selectability.selectable
-          ? (selectability.reason ?? "不能进入对照")
+          ? (selectability.reason ?? translator.t("experiment.compareToggleBlocked"))
           : selected
-            ? "从全局对照集合移出这条臂"
-            : "加入全局对照集合（两至四条；从实验结果进入共用比较）"
+            ? translator.t("experiment.compareToggleRemove")
+            : translator.t("experiment.compareToggleAdd")
       }
       onClick={() => {
         if (arm.runId !== null && selectability.selectable) selection.onToggle(arm.runId);
@@ -107,7 +109,7 @@ function ArmCompareToggle({
           : "border-gray-300 text-gray-700 hover:bg-gray-50"
       }`}
     >
-      {selected ? "移出对照" : "加入对照"}
+      {selected ? translator.t("experiment.compareRemove") : translator.t("experiment.compareAdd")}
     </button>
   );
 }
@@ -126,17 +128,18 @@ function ArmRow({
   onAct: (action: ResultAction, identity: ResultReadIdentity) => void;
   selection: ArmCompareSelection | null;
 }) {
+  const translator = useTranslator();
   const runId = arm.runId;
   const item = arm.item;
   return (
     <li className="flex flex-wrap items-center gap-x-2 gap-y-0.5 rounded border border-gray-100 bg-gray-50/60 px-1.5 py-1">
-      <span className="shrink-0 text-[10px] font-semibold text-gray-700">臂 {arm.index + 1}</span>
+      <span className="shrink-0 text-[10px] font-semibold text-gray-700">
+        {translator.t("experiment.armLabel", { index: arm.index + 1 })}
+      </span>
       {runId === null || item === null ? (
         <>
           <span className="min-w-0 break-all text-[10px] leading-4 text-gray-500">
-            {runId === null
-              ? arm.note
-              : "该臂已登记可信 ID，但批次呈现未拿到逐条事实（只保留身份，不造状态）"}
+            {runId === null ? arm.note : translator.t("experiment.armMissingFacts")}
           </span>
           {/* U8 4.5：未关联臂的选择按钮禁用在场（原因就近可读），但不隐藏不冒充 */}
           {selection !== null ? (
@@ -155,7 +158,9 @@ function ArmRow({
           </span>
           {arm.armOutcome !== null ? (
             <span className="text-[10px] text-gray-400">
-              请求层：{ARM_OUTCOME_SHORT[arm.armOutcome]}
+              {translator.t("experiment.armOutcomeLine", {
+                outcome: translator.t(ARM_OUTCOME_KEY[arm.armOutcome]),
+              })}
             </span>
           ) : null}
           <div className="ml-auto flex shrink-0 items-center gap-1">
@@ -204,6 +209,7 @@ export function AbBatchResultSection({
   /** U8 4.5：对照选择（缺省 null = 不提供选择面，操作面板等旧消费方不受影响） */
   selection?: ArmCompareSelection | null;
 }) {
+  const translator = useTranslator();
   return (
     <div
       className="mt-2 rounded border border-sky-200 bg-white px-2 py-1.5"
@@ -213,7 +219,7 @@ export function AbBatchResultSection({
         <span className="text-[10px] font-semibold text-sky-800">{view.statusLabel}</span>
         {view.experimentId !== null ? (
           <span className="break-all font-code text-[10px] text-gray-400">
-            实验组 {view.experimentId}
+            {translator.t("experiment.groupLabel", { id: view.experimentId })}
           </span>
         ) : null}
       </div>
@@ -240,7 +246,7 @@ export function AbBatchResultSection({
         </ul>
       ) : null}
       <div className="mt-1 text-[10px] leading-4 text-gray-400">
-        逐臂只呈现登记身份与独立核实到的事实：不产出臂间差值或"胜出臂"，比较请看分支树与各臂轨迹。
+        {translator.t("experiment.resultsScopeNote")}
       </div>
     </div>
   );

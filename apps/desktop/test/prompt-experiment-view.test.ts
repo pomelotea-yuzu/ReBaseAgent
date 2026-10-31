@@ -6,6 +6,10 @@ import {
   promptExperimentViewOf,
 } from "../src/renderer/src/lib/prompt-experiment-view";
 import type { RunDetail } from "../src/shared/ipc";
+import { createTestTranslator } from "./i18n/render-with-locale";
+
+const zh = createTestTranslator("zh-CN");
+const en = createTestTranslator("en-US");
 
 /**
  * R2.2 6.6：v3 干预记录与结果入口的纯逻辑。
@@ -58,7 +62,7 @@ function v3Meta(overrides: Record<string, unknown> = {}): RunDetail["meta"] {
 
 describe("promptExperimentViewOf：只读干预记录", () => {
   it("v3 记录：字段/原值/新值/假设/判据/执行条件齐全", () => {
-    const view = promptExperimentViewOf(v3Meta());
+    const view = promptExperimentViewOf(v3Meta(), zh);
     expect(view).not.toBeNull();
     if (view === null) throw new Error("应为 v3 视图");
     expect(view.field).toBe("system_prompt");
@@ -78,7 +82,7 @@ describe("promptExperimentViewOf：只读干预记录", () => {
   it("非 v3（无 prompt_experiment）返回 null，普通运行不渲染干预区", () => {
     const meta = v3Meta();
     const { prompt_experiment: _removed, ...rest } = meta as Record<string, unknown>;
-    expect(promptExperimentViewOf(rest as unknown as RunDetail["meta"])).toBeNull();
+    expect(promptExperimentViewOf(rest as unknown as RunDetail["meta"], zh)).toBeNull();
   });
 
   it("可选字段缺失如实为 null；params 缺省与空对象保持区别", () => {
@@ -96,7 +100,7 @@ describe("promptExperimentViewOf：只读干预记录", () => {
         },
       },
     });
-    const view = promptExperimentViewOf(noNotes);
+    const view = promptExperimentViewOf(noNotes, zh);
     expect(view?.hypothesis).toBeNull();
     expect(view?.acceptanceCriterion).toBeNull();
     expect(view?.execution.params).toContain("缺省");
@@ -105,24 +109,46 @@ describe("promptExperimentViewOf：只读干预记录", () => {
 
 describe("promptExperimentVerdictNote：不自动判定修复", () => {
   it("正常结束也不写已修复/测试通过；有判据时交还人工核对", () => {
-    const withCriterion = promptExperimentVerdictNote({
-      status: "completed",
-      acceptanceCriterion: "输出包含配置值",
-    });
+    const withCriterion = promptExperimentVerdictNote(
+      {
+        status: "completed",
+        acceptanceCriterion: "输出包含配置值",
+      },
+      zh,
+    );
     expect(withCriterion).toContain("不代表改动已达到目的");
     expect(withCriterion).toContain("人工判据");
     expect(withCriterion).not.toContain("本次已修复");
     expect(withCriterion).not.toContain("测试通过");
 
-    const without = promptExperimentVerdictNote({ status: "completed", acceptanceCriterion: null });
+    const without = promptExperimentVerdictNote(
+      { status: "completed", acceptanceCriterion: null },
+      zh,
+    );
     expect(without).toContain("未填写人工判据");
   });
 
   it("失败/中断只复述事实，不补造成成功", () => {
-    const note = promptExperimentVerdictNote({ status: "crashed", acceptanceCriterion: null });
+    const note = promptExperimentVerdictNote({ status: "crashed", acceptanceCriterion: null }, zh);
     expect(note).toContain("未正常结束");
     expect(note).not.toContain("本次已修复");
     expect(note).not.toContain("测试通过");
+  });
+
+  it("英文措辞独立书写：结论边界与人工判据说明不弱化", () => {
+    const note = promptExperimentVerdictNote(
+      { status: "completed", acceptanceCriterion: "输出包含配置值" },
+      en,
+    );
+    expect(note).toContain("ended normally");
+    expect(note).toContain("not automatically marked");
+    expect(note).toContain("does not execute or score");
+    const crashed = promptExperimentVerdictNote(
+      { status: "crashed", acceptanceCriterion: null },
+      en,
+    );
+    expect(crashed).toContain("did not end normally");
+    expect(crashed).not.toContain("fixed");
   });
 });
 
@@ -133,7 +159,7 @@ describe("6.6 接线契约", () => {
   it("结果概览渲染干预区，并提供与基线比较/文件导出入口", () => {
     const src = read("components/OverviewPanel.tsx");
     expect(src).toContain("PromptExperimentSectionView");
-    expect(src).toContain("promptExperimentViewOf(detail.meta)");
+    expect(src).toContain("promptExperimentViewOf(detail.meta, translator)");
     expect(src).toContain("data-prompt-experiment-compare");
     expect(src).toContain("data-prompt-experiment-files");
     expect(src).toContain("data-prompt-experiment-verdict");

@@ -13,6 +13,7 @@ import { emptyResultReadStore, setResultRead } from "../src/renderer/src/lib/res
 import { createTestTranslator, renderWithLocale } from "./i18n/render-with-locale";
 
 const zh = createTestTranslator("zh-CN");
+const en = createTestTranslator("en-US");
 const deriveExperimentBatches = (input: Parameters<typeof deriveExperimentBatchesOf>[0]) =>
   deriveExperimentBatchesOf(input, zh);
 
@@ -176,17 +177,23 @@ describe("4.1/4.2 批次结果区派生：按 main 登记圈定，分组键是 o
       operations: [abRecord()],
       reads: emptyResultReadStore(),
     });
-    const armWithId = experimentArmSelectabilityOf(batches[0]!.view.arms[0]!);
+    const armWithId = experimentArmSelectabilityOf(batches[0]!.view.arms[0]!, zh);
     expect(armWithId).toEqual({ selectable: true, reason: null });
-    const armWithoutId = experimentArmSelectabilityOf(batches[0]!.view.arms[1]!);
+    const armWithoutId = experimentArmSelectabilityOf(batches[0]!.view.arms[1]!, zh);
     expect(armWithoutId.selectable).toBe(false);
     expect(armWithoutId.reason).toContain("不能进入比较");
+    // 同一判据换语言只换文案（缺 ID 仍不可选）
+    const enArmWithoutId = experimentArmSelectabilityOf(batches[0]!.view.arms[1]!, en);
+    expect(enArmWithoutId.selectable).toBe(false);
+    expect(enArmWithoutId.reason).toContain("no registered trusted run ID");
 
-    expect(experimentCompareHintOf(0)).toContain("选择两条");
-    expect(experimentCompareHintOf(1)).toContain("选择两条");
-    expect(experimentCompareHintOf(2)).toContain("按选择顺序");
-    expect(experimentCompareHintOf(3)).toContain("指标表中显式选择两条");
-    expect(experimentCompareHintOf(4)).toContain("指标表中显式选择两条");
+    expect(experimentCompareHintOf(0, zh)).toContain("选择两条");
+    expect(experimentCompareHintOf(1, zh)).toContain("选择两条");
+    expect(experimentCompareHintOf(2, zh)).toContain("按选择顺序");
+    expect(experimentCompareHintOf(3, zh)).toContain("指标表中显式选择两条");
+    expect(experimentCompareHintOf(4, zh)).toContain("指标表中显式选择两条");
+    expect(experimentCompareHintOf(0, en)).toContain("Select two");
+    expect(experimentCompareHintOf(2, en)).toContain("selection order");
   });
 });
 
@@ -323,6 +330,32 @@ describe("4.1/4.2 批次结果区视图：登记身份 + 逐批分块", () => {
       }),
     );
     expect(noticed).toContain("最多同时对照 4 条运行");
+  });
+
+  it("英文渲染独立书写：标题/批次计数/实验组/进入比较与分流提示", () => {
+    const enBatches = deriveExperimentBatchesOf(
+      {
+        targetRunId: PARENT,
+        operations: [abRecord()],
+        reads: emptyResultReadStore(),
+      },
+      en,
+    );
+    const markup = renderWithLocale(
+      "en-US",
+      createElement(ExperimentResultsSection, {
+        batches: enBatches,
+        onArmAction: noop,
+        compareIds: [],
+        onToggleCompare: noop,
+        onEnterCompare: noop,
+      }),
+    );
+    expect(markup).toContain("Experiment results");
+    expect(markup).toContain("1 batch");
+    expect(markup).toContain("Experiment group exp_real_1");
+    expect(markup).toContain("Open comparison (0/4 selected)");
+    expect(markup).toContain("Select two to open the detailed comparison");
   });
 
   it("零批次 ⇒ 引导语（尚未执行实验），不渲染任何批次块", () => {

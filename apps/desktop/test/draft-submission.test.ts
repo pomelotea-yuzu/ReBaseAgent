@@ -620,7 +620,7 @@ describe("接线契约：五类提交走快照并受冻结约束（任务 3.4/3.
     expect(zhResources).toContain("本次提交待处理");
     expect(DETAIL_PANEL).not.toContain("本次执行待处理");
     // A/B 的整批冻结说明随载体迁 ModelAbEditor
-    expect(MODEL_AB_EDITOR).toContain("本次执行待处理");
+    expect(MODEL_AB_EDITOR).toContain('translator.t("experiment.draftFrozen")');
 
     expect(CREATE_WORKSPACE).toContain("isDraftFrozen(CREATE_SUBMIT_TARGET)");
     expect(CREATE_WORKSPACE).toContain("const formLocked = busy || pickingSource || draftFrozen;");

@@ -52,38 +52,48 @@ function scalarText(value: Scalar): string {
  * （阈值判据复用 `shouldCollapse`，不造第二份）。
  */
 export function ArmPlanRow({ arm }: { arm: ModelArmPlan }) {
+  const translator = useTranslator();
   const entries = Object.entries(arm.params) as Array<[string, Scalar]>;
   const discarded = Object.entries(arm.discarded) as Array<[string, Scalar]>;
   /** 超长值走 LongText（折叠/展开/复制原文）；短值保持原内联形态 */
   const longOr = (text: string, label: string): React.ReactNode =>
     shouldCollapse(text) ? <LongText text={text} label={label} /> : <span>{text}</span>;
+  const armLabel = translator.t("experiment.armLabel", { index: arm.index + 1 });
   return (
     <div className="border-b border-sky-50 py-1 last:border-b-0">
       <div className="flex items-baseline gap-2 text-[11px]">
-        <span className="w-8 shrink-0 text-gray-400">臂 {arm.index + 1}</span>
+        <span className="w-8 shrink-0 text-gray-400">{armLabel}</span>
         <span className="min-w-0 flex-1 font-code text-gray-800">
-          {longOr(arm.model, `臂 ${arm.index + 1} model`)}
+          {longOr(arm.model, translator.t("experiment.armModelLabel", { index: arm.index + 1 }))}
         </span>
         <span className="ml-auto shrink-0 text-[10px] text-gray-400">
-          {arm.changed.length > 0 ? `改变：${arm.changed.join("、")}` : "与父相同"}
+          {arm.changed.length > 0
+            ? translator.t("experiment.armChanged", {
+                fields: arm.changed.join(translator.t("experiment.listSeparator")),
+              })
+            : translator.t("experiment.armSameAsParent")}
         </span>
       </div>
       <div className="pl-10 text-[10px] leading-4 text-gray-500">
         <div>
-          <span className="text-gray-400">生效 params：</span>
+          <span className="text-gray-400">{translator.t("experiment.armEffectiveParams")}</span>
           {entries.length === 0 ? (
-            <span className="font-code">（沿用父 params）</span>
+            <span className="font-code">{translator.t("experiment.armInheritParentParams")}</span>
           ) : (
             entries.map(([k, v]) => {
               const tag = arm.overridden.includes(k)
-                ? "（覆盖）"
+                ? translator.t("experiment.armTagOverridden")
                 : arm.added.includes(k)
-                  ? "（新增）"
-                  : "（继承）";
+                  ? translator.t("experiment.armTagAdded")
+                  : translator.t("experiment.armTagInherited");
               const text = scalarText(v);
               return (
                 <span key={k} className="mr-2 font-code">
-                  {k}={longOr(text, `臂 ${arm.index + 1} 参数 ${k}`)}
+                  {k}=
+                  {longOr(
+                    text,
+                    translator.t("experiment.armParamLabel", { index: arm.index + 1, key: k }),
+                  )}
                   <span className="text-gray-400">{tag}</span>
                 </span>
               );
@@ -92,22 +102,36 @@ export function ArmPlanRow({ arm }: { arm: ModelArmPlan }) {
         </div>
         {discarded.length > 0 ? (
           <div className="text-amber-700">
-            <span className="text-gray-400">丢弃父录值：</span>
+            <span className="text-gray-400">{translator.t("experiment.armDiscardedParams")}</span>
             {discarded.map(([k, v]) => {
               const text = scalarText(v);
               return (
                 <span key={k} className="mr-2 font-code">
-                  {k}={longOr(text, `臂 ${arm.index + 1} 丢弃值 ${k}`)}
+                  {k}=
+                  {longOr(
+                    text,
+                    translator.t("experiment.armDiscardedValueLabel", {
+                      index: arm.index + 1,
+                      key: k,
+                    }),
+                  )}
                 </span>
               );
             })}
-            <span className="text-gray-400">← 整体替换不合并，此项不会进入请求</span>
+            <span className="text-gray-400">{translator.t("experiment.armDiscardNote")}</span>
           </div>
         ) : null}
         {arm.warnings.map((w) => (
           <div key={w.key} className="text-amber-700">
-            ⚠ {w.key}：{longOr(w.reason, `告警 ${w.key}`)}
-            <div className="text-gray-500">绕行：{longOr(w.workaround, `告警 ${w.key} 绕行`)}</div>
+            {translator.t("experiment.armWarningPrefix", { key: w.key })}
+            {longOr(w.reason, translator.t("experiment.armWarningLabel", { key: w.key }))}
+            <div className="text-gray-500">
+              {translator.t("experiment.armWarningWorkaround")}
+              {longOr(
+                w.workaround,
+                translator.t("experiment.armWarningWorkaroundLabel", { key: w.key }),
+              )}
+            </div>
           </div>
         ))}
       </div>
@@ -243,8 +267,8 @@ export function ModelAbEditor({
   const planStale = plan !== null && planFreshness !== "fresh";
   const planStaleText =
     planFreshness === "config-stale"
-      ? "预览之后运行配置已改变（设置往返作废这份计划）：须重新校验并预览，旧确认一并作废"
-      : "这份计划属于旧批次修订：改臂或改参数后须重新校验并预览，旧确认一并作废";
+      ? translator.t("experiment.planStaleConfig")
+      : translator.t("experiment.planStaleRevision");
 
   // U3 任务 3.3/3.5：待定执行期间视同进行中（预览与执行都禁用），且整批已冻结
   const inProgress = modelAbInFlight || draftFrozen;
@@ -308,14 +332,17 @@ export function ModelAbEditor({
         );
   const sourceBlocked = sourceVerdict?.kind === "blocked" ? sourceVerdict : null;
 
-  const guard = modelAbGuard({
-    settingsConfigured: settings?.configured === true,
-    parentModel,
-    parentParams,
-    riskyTools: risky,
-    allowSideEffects,
-    arms: rows.map((row) => row.arm),
-  });
+  const guard = modelAbGuard(
+    {
+      settingsConfigured: settings?.configured === true,
+      parentModel,
+      parentParams,
+      riskyTools: risky,
+      allowSideEffects,
+      arms: rows.map((row) => row.arm),
+    },
+    translator,
+  );
   // UI 整理 4.2（design D5）：臂级原因就近归属到臂卡；批次级原因进确认块的主位置。
   // 拆分只认 guard.items，不自己拆 reason 拼接串（判据单一来源）。
   const guardArmItems = guard.items.filter(
@@ -331,10 +358,12 @@ export function ModelAbEditor({
         ...guardBatchReasons,
         ...(guardArmItems.length > 0
           ? [
-              `${guardArmItems.length} 个臂的输入问题已就近标注在臂卡上（model 为空 / params 非法或与父相同）`,
+              translator.t("experiment.guardArmSummary", {
+                count: guardArmItems.length,
+              }),
             ]
           : []),
-      ].join("；") || null;
+      ].join(translator.t("common.liveSeparator")) || null;
   // 提交闸门 = 既有 guard ∧ 源记录可用（dry-run 也依赖父记录，一并拦截）
   //           ∧ 恢复重验通过（U3 2.5：源缺失/损坏/改变/资格失效都拦）
   const canSubmit = guard.canSubmit && sourceExecutable && sourceBlocked === null;
@@ -380,10 +409,10 @@ export function ModelAbEditor({
           disabled={inProgress}
           className="rounded bg-sky-600 px-2 py-1 text-[11px] text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          模型 A/B 实验（换 model / params 对比）
+          {translator.t("experiment.abEntryButton")}
         </button>
         <div className="mt-1 text-[11px] text-gray-400">
-          用同一启动上下文跑至少两个臂（model / 采样参数组合），先出计划预览，确认后真实执行。
+          {translator.t("experiment.abEntryHint")}
         </div>
       </div>
     );
@@ -397,15 +426,25 @@ export function ModelAbEditor({
     if (draftEntry === undefined || inProgress) return;
     const snapshot = draftEntry;
     const summary = snapshot.rows
-      .map(
-        (row, i) =>
-          `臂 ${i + 1}：${row.model}（${row.paramsText === "" ? "沿用父 params" : row.paramsText}）`,
+      .map((row, i) =>
+        translator.t("experiment.discardBatchSummaryLine", {
+          index: i + 1,
+          model: row.model,
+          params:
+            row.paramsText === ""
+              ? translator.t("experiment.discardBatchSummaryInherit")
+              : row.paramsText,
+        }),
       )
       .join("\n");
     // U3 5.2：异步模态确认；CAS 按请求时的快照修订校验
     void requestConfirm({
-      title: "放弃模型 A/B 批次",
-      message: `放弃整个模型 A/B 批次草稿？（run ${run.meta.id} · ${span.id}）\n\n${summary}\n\n放弃整批；按确认时的修订校验：此后批次若被更新，本次放弃不会执行。`,
+      title: translator.t("experiment.discardBatchTitle"),
+      message: translator.t("experiment.discardBatchMessage", {
+        runId: run.meta.id,
+        spanId: span.id,
+        summary,
+      }),
     }).then((confirmed) => {
       if (!confirmed) return; // 取消：逐字保留
       if (discardModelAbDraft(draftKey, snapshot.revision)) {
@@ -464,7 +503,7 @@ export function ModelAbEditor({
     <div className="border-t border-sky-100 bg-sky-50/60 px-4 py-3">
       <div className="mb-2 flex items-center justify-between">
         <span className="text-[11px] font-semibold text-sky-900">
-          模型 A/B 实验 · 同上下文多臂对比
+          {translator.t("experiment.heading")}
         </span>
         {alwaysOpen ? null : (
           <button
@@ -476,7 +515,7 @@ export function ModelAbEditor({
             disabled={inProgress}
             className="rounded border border-gray-300 px-2 py-0.5 text-[11px] text-gray-600 hover:bg-gray-50 disabled:opacity-40"
           >
-            收起
+            {translator.t("common.collapse")}
           </button>
         )}
       </div>
@@ -488,16 +527,18 @@ export function ModelAbEditor({
         <DraftCompareGrid
           compareKey="model-ab"
           draftTone="sky"
-          draftLabel="草稿（可编辑批次）"
-          originalLabel="原值（父本基线臂 · 只读）"
+          draftLabel={translator.t("experiment.draftBatchLabel")}
+          originalLabel={translator.t("experiment.baselineArmsLabel")}
           fixedHeight={false}
           resizable={false}
           original={
             <div className="rounded border border-gray-200 bg-white px-2 py-1.5">
               {baselineRows.map(({ id, no, arm }) => (
                 <div key={id} className="font-code break-all text-[11px] leading-4 text-gray-600">
-                  臂 {no}：{arm.model}
-                  {arm.paramsText === "" ? "（沿用父 params）" : ` · ${arm.paramsText}`}
+                  {translator.t("experiment.armLine", { index: no, model: arm.model })}
+                  {arm.paramsText === ""
+                    ? translator.t("experiment.armLineInherit")
+                    : translator.t("experiment.armLineParams", { params: arm.paramsText })}
                 </div>
               ))}
             </div>
@@ -506,8 +547,10 @@ export function ModelAbEditor({
             <div className="rounded border border-sky-200 bg-white px-2 py-1.5">
               {rows.map(({ key, arm }, index) => (
                 <div key={key} className="font-code break-all text-[11px] leading-4 text-gray-700">
-                  臂 {index + 1}：{arm.model}
-                  {arm.paramsText === "" ? "（沿用父 params）" : ` · ${arm.paramsText}`}
+                  {translator.t("experiment.armLine", { index: index + 1, model: arm.model })}
+                  {arm.paramsText === ""
+                    ? translator.t("experiment.armLineInherit")
+                    : translator.t("experiment.armLineParams", { params: arm.paramsText })}
                 </div>
               ))}
             </div>
@@ -521,12 +564,14 @@ export function ModelAbEditor({
           return (
             <div key={key} className="rounded border border-sky-200 bg-white px-2 py-1.5">
               <div className="mb-1 flex items-center gap-2">
-                <span className="text-[10px] font-semibold text-sky-800">臂 {index + 1}</span>
+                <span className="text-[10px] font-semibold text-sky-800">
+                  {translator.t("experiment.armLabel", { index: index + 1 })}
+                </span>
                 <input
                   type="text"
                   value={arm.model}
                   onChange={(e) => updateArm(index, { model: e.target.value })}
-                  placeholder="model 名"
+                  placeholder={translator.t("experiment.armModelPlaceholder")}
                   disabled={inProgress}
                   aria-describedby={armReason === undefined ? undefined : armErrorId}
                   className="min-w-0 flex-1 rounded border border-gray-300 px-1.5 py-0.5 font-code text-[11px] focus:border-sky-400 focus:outline-none"
@@ -539,7 +584,7 @@ export function ModelAbEditor({
                     }}
                     disabled={inProgress}
                     className="rounded px-1 text-[11px] text-gray-400 hover:bg-gray-100 disabled:opacity-40"
-                    title="移除该臂"
+                    title={translator.t("experiment.removeArmTitle")}
                   >
                     ✕
                   </button>
@@ -549,9 +594,12 @@ export function ModelAbEditor({
                 type="text"
                 value={arm.paramsText}
                 onChange={(e) => updateArm(index, { paramsText: e.target.value })}
-                placeholder={`采样参数 JSON（留空 = 沿用父 run：${
-                  Object.keys(parentParams).length > 0 ? JSON.stringify(parentParams) : "无"
-                }）`}
+                placeholder={translator.t("experiment.armParamsPlaceholder", {
+                  params:
+                    Object.keys(parentParams).length > 0
+                      ? JSON.stringify(parentParams)
+                      : translator.t("experiment.armParamsPlaceholderNone"),
+                })}
                 disabled={inProgress}
                 aria-describedby={armReason === undefined ? undefined : armErrorId}
                 className="w-full rounded border border-gray-300 px-1.5 py-0.5 font-code text-[11px] focus:border-sky-400 focus:outline-none"
@@ -562,7 +610,7 @@ export function ModelAbEditor({
                   className="mt-1 text-[11px] leading-4 text-red-700"
                   data-ab-arm-error={index}
                 >
-                  {armReason.reason.replace(/^第 \d+ 臂：/, "")}
+                  {armReason.detail}
                 </p>
               ) : null}
             </div>
@@ -583,12 +631,14 @@ export function ModelAbEditor({
             disabled={inProgress}
             className="rounded border border-sky-300 px-2 py-0.5 text-[11px] text-sky-700 hover:bg-sky-100 disabled:opacity-40"
           >
-            + 加一臂（最多 4）
+            {translator.t("experiment.addArm")}
           </button>
         ) : null}
         <span className="text-[11px] text-gray-400">
-          父 run：{parentModel}
-          {Object.keys(parentParams).length > 0 ? ` ${JSON.stringify(parentParams)}` : ""}
+          {translator.t("experiment.parentRunLine", {
+            model: parentModel,
+            params: Object.keys(parentParams).length > 0 ? ` ${JSON.stringify(parentParams)}` : "",
+          })}
         </span>
       </div>
 
@@ -605,8 +655,9 @@ export function ModelAbEditor({
             className="mt-0.5"
           />
           <span>
-            ⚠ 工具 {risky.join("、")} 未标记 sideEffect: false。各臂顺序执行时，前一臂的
-            外部副作用会污染后一臂起点，比较结果不可信——确认接受请勾选（将随实验留痕）。
+            {translator.t("experiment.sideEffectCheck", {
+              tools: risky.join(translator.t("experiment.listSeparator")),
+            })}
           </span>
         </label>
       ) : null}
@@ -624,8 +675,8 @@ export function ModelAbEditor({
             if (draftEntry === undefined) return;
             const snapshot = draftEntry;
             void requestConfirm({
-              title: "放弃模型 A/B 批次",
-              message: "放弃这个模型 A/B 批次草稿？全部臂内容将被删除（不可撤销）。",
+              title: translator.t("experiment.discardBatchTitle"),
+              message: translator.t("experiment.discardBatchSimple"),
             }).then((confirmed) => {
               if (!confirmed) return;
               if (discardModelAbDraft(draftKey, snapshot.revision)) {
@@ -639,44 +690,58 @@ export function ModelAbEditor({
 
       {draftFrozen ? (
         <div className="mt-2 rounded border border-violet-200 bg-violet-50 px-2 py-1.5 text-[11px] leading-4 text-violet-800">
-          本次执行待处理：已按提交时的批次修订冻结整个批次，请求返回前不可增删臂、改参数或放弃。
-          无论成功、业务拒绝还是部分臂失败，批次都先保留；各臂按可信身份核实到正常结束、
-          且草稿修订与提交时逐字相同，才自动清理（U5 §2/§3/5.1 已接线）。
+          {translator.t("experiment.draftFrozen")}
         </div>
       ) : null}
 
-      {modelAbInFlight ? <div className="mt-2 text-[11px] text-sky-600">处理中…</div> : null}
+      {modelAbInFlight ? (
+        <div className="mt-2 text-[11px] text-sky-600">{translator.t("experiment.working")}</div>
+      ) : null}
       {/* U8 3.5：预览的独立请求状态（只读通道自己的在飞呈现，不冒充执行 busy） */}
       {previewing ? (
         <div className="mt-2 text-[11px] text-sky-600" data-ab-previewing>
-          正在校验计划（只读 dry-run：不联网、不写文件）…
+          {translator.t("experiment.previewing")}
         </div>
       ) : null}
       {modelAbError !== null ? (
         <div className="mt-2 text-[11px] text-red-700">
-          {modelAbError}
-          {modelAbErrorCode === "SETTINGS_NOT_CONFIGURED"
-            ? "（请先点击右上角“运行配置”填写 baseURL/apiKey/model）"
-            : ""}
+          <div>
+            {translator.t("experiment.requestFailedSummary", {
+              code: modelAbErrorCode ?? "UNKNOWN_ERROR",
+            })}
+          </div>
+          <div className="mt-0.5 whitespace-pre-wrap break-words text-red-600">
+            {translator.t("detail.rawFailureDetail")}
+            {modelAbError}
+          </div>
+          {modelAbErrorCode === "SETTINGS_NOT_CONFIGURED" ? (
+            <div className="mt-0.5 text-amber-700">
+              {translator.t("experiment.settingsNotConfiguredHint")}
+            </div>
+          ) : null}
         </div>
       ) : null}
 
       {activePlan !== null ? (
         <div className="mt-2 rounded border border-sky-200 bg-white px-2 py-1.5">
           <div className="mb-1 flex items-center gap-2 text-[10px] text-gray-500">
-            <span className="font-semibold text-sky-800">校验通过 · 执行计划</span>
-            <span className="font-code">实验组 {activePlan.experimentId}</span>
+            <span className="font-semibold text-sky-800">
+              {translator.t("experiment.planApproved")}
+            </span>
+            <span className="font-code">
+              {translator.t("experiment.planGroup", { id: activePlan.experimentId })}
+            </span>
           </div>
           {activePlan.plan.map((arm) => (
             <ArmPlanRow key={arm.index} arm={arm} />
           ))}
           {activePlan.sideEffectsAllowed ? (
             <div className="mt-1 text-[10px] leading-4 text-amber-700">
-              ⚠ 副作用工具将被真实执行（顺序执行，外部状态可能已被前一臂改变）——本次实验将留痕。
+              {translator.t("experiment.planSideEffects")}
             </div>
           ) : null}
           <div className="mt-1 text-[10px] leading-4 text-gray-400">
-            dry-run 不联网、不写文件；真实执行按臂数产生费用。执行后各臂落盘为独立新轨迹。
+            {translator.t("experiment.planDryRunNote")}
           </div>
         </div>
       ) : null}
@@ -696,7 +761,7 @@ export function ModelAbEditor({
           {
             parentRunId: run.meta.id,
             atSpanId: span.id,
-            provider: settings?.baseURL ?? "（未配置 baseURL）",
+            provider: settings?.baseURL ?? translator.t("experiment.providerUnconfigured"),
             armCount: rows.length,
             plan: activePlan,
           },
@@ -704,7 +769,7 @@ export function ModelAbEditor({
         );
         return (
           <ConfirmationBlock
-            title="核对本次实验"
+            title={translator.t("experiment.confirmTitle")}
             tone="sky"
             summary={abConfirmDisclosure.summary}
             rows={disclosureLines(abConfirmDisclosure, translator)}
@@ -713,19 +778,19 @@ export function ModelAbEditor({
               inProgress || abConfirmed || activePlan === null || !canSubmit || !gate.canSubmit
             }
             onConfirm={() => armExecutionConfirmation(abBinding)}
-            confirmLabel="已核对，确认执行实验"
-            confirmedLabel="已确认执行实验"
+            confirmLabel={translator.t("experiment.confirmAccept")}
+            confirmedLabel={translator.t("experiment.confirmAccepted")}
             blocked={
               abConfirmed
                 ? null
                 : !guard.canSubmit
                   ? guardBlockedText
                   : !sourceExecutable
-                    ? "源记录不可用：重新读取并校验通过前不能发起新执行"
+                    ? translator.t("detail.sourceUnavailableExecBlocked")
                     : activePlan === null
                       ? // UI 整理 4.2：初始引导（delta「空表单初始引导」）——没有计划时
                         // 直说下一步，而不是只把确认按钮禁掉让人猜
-                        "先「校验并预览计划」：核对实际执行的计划（各臂 model / params）后再确认"
+                        translator.t("experiment.confirmBlockedNoPlan")
                       : planStale
                         ? planStaleText
                         : null
@@ -742,14 +807,18 @@ export function ModelAbEditor({
           type="button"
           onClick={discardBatch}
           disabled={inProgress || !isBatchDirty}
-          title={isBatchDirty ? "放弃整个批次草稿（需确认）" : "批次与基线一致，尚无修改可放弃"}
+          title={
+            isBatchDirty
+              ? translator.t("experiment.discardBatchTitleDirty")
+              : translator.t("experiment.discardBatchTitleClean")
+          }
           className={`mr-auto rounded border px-2 py-1 text-[11px] disabled:cursor-not-allowed disabled:opacity-40 ${
             isBatchDirty
               ? "border-amber-400 text-amber-800 hover:bg-amber-50"
               : "border-gray-200 text-gray-300"
           }`}
         >
-          放弃整批
+          {translator.t("experiment.discardBatch")}
         </button>
         <button
           type="button"
@@ -757,7 +826,11 @@ export function ModelAbEditor({
           disabled={inProgress || !canSubmit || previewing}
           className="rounded border border-sky-500 px-2 py-1 text-[11px] text-sky-700 hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          {previewing ? "校验中…" : activePlan !== null ? "重新校验" : "校验并预览计划"}
+          {previewing
+            ? translator.t("experiment.previewBusy")
+            : activePlan !== null
+              ? translator.t("experiment.previewRedo")
+              : translator.t("experiment.preview")}
         </button>
         <button
           type="button"
@@ -768,15 +841,17 @@ export function ModelAbEditor({
           className="rounded bg-sky-600 px-3 py-1 text-[11px] text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-40"
           title={
             activePlan === null
-              ? "先校验并预览计划"
+              ? translator.t("experiment.executeTitleNoPlan")
               : !abConfirmed
-                ? "先核对上面的目标与执行边界并确认"
+                ? translator.t("experiment.executeTitleNoConfirm")
                 : undefined
           }
         >
           {/* U8 3.7/3.9：措辞只称「臂」——臂数不是准确 API 请求数（每臂 loop 可多次调用），
-              delta「费用确认区分臂数和请求数」禁止把臂数宣称为请求次数 */}
-          确认执行（{activePlan?.plan.length ?? rows.length} 臂）
+              delta「费用确认区分臂数和请求次数」禁止把臂数宣称为请求次数 */}
+          {translator.t("experiment.execute", {
+            count: activePlan?.plan.length ?? rows.length,
+          })}
         </button>
       </div>
     </div>

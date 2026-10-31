@@ -98,7 +98,7 @@ describe("接线契约：ModelAbEditor 批次草稿（任务 2.4）", () => {
     // 核对网格：父本基线臂只读 vs 批次草稿（UI 密度 2.3：布局进共享 DraftCompareGrid）
     expect(code).toContain('compareKey="model-ab"');
     expect(code).toContain('from "./DraftCompareGrid"');
-    expect(code).toContain("原值（父本基线臂 · 只读）");
+    expect(code).toContain('translator.t("experiment.baselineArmsLabel")');
     // 6.9 实机缺陷：无空格 JSON 长拉丁串（`{"temperature":0.777…`）在窄盒不断行 ⇒
     // 两侧臂行绘制右溢 26~36px 截文 ⇒ 基线与草稿臂行一律 break-all 强制断行
     expect(code).toContain('className="font-code break-all text-[11px] leading-4 text-gray-600"');
@@ -374,9 +374,7 @@ describe("UI 整理 4.2：guard 逐项原因就近归属（design D5）", () => 
     expect(code).not.toContain("const submitBlocked");
     // blocked 链：guard 批次级（含臂级汇总指针）→ 源不可用 → 初始引导 → 计划过期
     expect(code).toContain("guardBlockedText");
-    expect(code).toContain(
-      "先「校验并预览计划」：核对实际执行的计划（各臂 model / params）后再确认",
-    );
-    expect(code).toContain("个臂的输入问题已就近标注在臂卡上");
+    expect(code).toContain('translator.t("experiment.confirmBlockedNoPlan")');
+    expect(code).toContain('translator.t("experiment.guardArmSummary"');
   });
 });

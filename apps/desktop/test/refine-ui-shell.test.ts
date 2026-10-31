@@ -169,7 +169,7 @@ describe("辅助工作区对象头：run ID 可复制（N04）", () => {
   it("实验与编辑容器的 targetLine 用 ShortIdLabel 承载目标 run ID（源码契约）", () => {
     const exp = read("../src/renderer/src/components/ExperimentWorkspace.tsx");
     const msg = read("../src/renderer/src/components/MessagesWorkspace.tsx");
-    expect(exp).toContain('label="父本运行 ID"');
+    expect(exp).toContain('label={translator.t("experiment.parentRunIdLabel")}');
     expect(exp).toContain("id={target.runId}");
     // 2.8：messages 来源标签改由 fork 资源投影
     expect(msg).toContain('label={translator.t("fork.messagesSourceRunIdLabel")}');

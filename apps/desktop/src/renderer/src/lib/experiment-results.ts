@@ -80,11 +80,14 @@ export interface ExperimentArmSelectability {
  * 已关联但 ownOnly/不可读/未封存的记录**仍可选中**——由 U7 比较工作区呈现拒绝，
  * 结果页不把它们过滤成"比较成功"）。
  */
-export function experimentArmSelectabilityOf(arm: AbArmResultView): ExperimentArmSelectability {
+export function experimentArmSelectabilityOf(
+  arm: AbArmResultView,
+  translator: Translator,
+): ExperimentArmSelectability {
   if (arm.runId === null) {
     return {
       selectable: false,
-      reason: "该臂没有登记可信运行 ID：不能进入比较（不从信封 ids、邻近记录或目录猜身份）",
+      reason: translator.t("experiment.selectabilityNoRunId"),
     };
   }
   return { selectable: true, reason: null };
@@ -94,8 +97,11 @@ export function experimentArmSelectabilityOf(arm: AbArmResultView): ExperimentAr
  * 已选条数的进入提示（display 用；进入决策由 store 的 `openCompareWorkspace` 现算——
  * 本函数不复制它的判据，只给同口径的话术）。
  */
-export function experimentCompareHintOf(selectedCount: number): string | null {
-  if (selectedCount < 2) return "选择两条即可进入详细比较；三四条先看指标表再显式选两条";
-  if (selectedCount === 2) return "已选两条：进入比较将按选择顺序作为详细比较的左右两侧";
-  return "已选三条及以上：进入比较后在指标表中显式选择两条进行详细比较";
+export function experimentCompareHintOf(
+  selectedCount: number,
+  translator: Translator,
+): string | null {
+  if (selectedCount < 2) return translator.t("experiment.compareHintNeedTwo");
+  if (selectedCount === 2) return translator.t("experiment.compareHintTwo");
+  return translator.t("experiment.compareHintMany");
 }

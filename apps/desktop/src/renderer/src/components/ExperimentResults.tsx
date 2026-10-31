@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { useState } from "react";
+import { useTranslator } from "../i18n";
 import type { ExperimentArmSelectability, ExperimentBatchView } from "../lib/experiment-results";
 import { experimentArmSelectabilityOf, experimentCompareHintOf } from "../lib/experiment-results";
 import type { AbArmResultView, ResultAction } from "../lib/operation-result-view";
@@ -42,29 +43,35 @@ export function ExperimentResultsSection({
   readonly onToggleCompare?: (runId: string) => void;
   readonly onEnterCompare?: () => void;
 }): ReactNode {
+  const translator = useTranslator();
   const selection =
     onToggleCompare === undefined
       ? null
       : {
           isSelectedOf: (runId: string): boolean => compareIds.includes(runId),
           selectabilityOf: (arm: AbArmResultView): ExperimentArmSelectability =>
-            experimentArmSelectabilityOf(arm),
+            experimentArmSelectabilityOf(arm, translator),
           onToggle: onToggleCompare,
         };
-  const hint = onEnterCompare === undefined ? null : experimentCompareHintOf(compareIds.length);
+  const hint =
+    onEnterCompare === undefined ? null : experimentCompareHintOf(compareIds.length, translator);
   // 3.4（design D5）：技术说明收进 Disclosure——主文案用户语言，细节"可查但不占位"
   const [detailsOpen, setDetailsOpen] = useState(false);
   return (
     <div className="mt-3" data-experiment-results>
       <div className="mb-1 flex items-baseline gap-2">
-        <span className="text-[11px] font-semibold text-gray-700">实验结果</span>
+        <span className="text-[11px] font-semibold text-gray-700">
+          {translator.t("experiment.resultsTitle")}
+        </span>
         {batches.length > 0 ? (
-          <span className="text-[10px] text-gray-400">{batches.length} 批</span>
+          <span className="text-[10px] text-gray-400">
+            {translator.t("experiment.resultsBatchCount", { count: batches.length })}
+          </span>
         ) : null}
       </div>
       {batches.length === 0 ? (
         <div className="rounded border border-gray-100 bg-gray-50/60 px-2 py-1.5 text-[11px] leading-4 text-gray-500">
-          尚未执行实验：确认执行后，各臂的结果会按批次出现在这里。
+          {translator.t("experiment.resultsEmpty")}
         </div>
       ) : (
         <div className="space-y-2">
@@ -75,16 +82,20 @@ export function ExperimentResultsSection({
               className="rounded border border-gray-200 bg-white px-2 py-1.5"
             >
               <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                <span className="text-[10px] font-semibold text-gray-600">批次</span>
+                <span className="text-[10px] font-semibold text-gray-600">
+                  {translator.t("experiment.batchLabel")}
+                </span>
                 <span className="break-all font-code text-[10px] text-gray-600">
                   {batch.operationId}
                 </span>
                 {batch.experimentId !== null ? (
                   <span className="break-all font-code text-[10px] text-gray-400">
-                    实验组 {batch.experimentId}
+                    {translator.t("experiment.groupLabel", { id: batch.experimentId })}
                   </span>
                 ) : (
-                  <span className="text-[10px] text-gray-400">实验组身份未登记</span>
+                  <span className="text-[10px] text-gray-400">
+                    {translator.t("experiment.groupUnrecorded")}
+                  </span>
                 )}
               </div>
               <AbBatchResultSection view={batch.view} onAct={onArmAction} selection={selection} />
@@ -100,13 +111,13 @@ export function ExperimentResultsSection({
             disabled={compareIds.length < 2}
             title={
               compareIds.length < 2
-                ? "先选择至少两条已关联的臂结果"
-                : "进入共用比较工作区（只读；不改批次事实与结果读取）"
+                ? translator.t("experiment.enterCompareNeedTwo")
+                : translator.t("experiment.enterCompareTitle")
             }
             onClick={onEnterCompare}
             className={`rounded border border-sky-400 bg-sky-50 px-2 py-0.5 text-[11px] text-sky-800 hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-40 ${FOCUS_RING}`}
           >
-            进入比较（已选 {compareIds.length}/4）
+            {translator.t("experiment.enterCompare", { count: compareIds.length })}
           </button>
           {hint !== null ? <span className="text-[10px] text-gray-500">{hint}</span> : null}
         </div>
@@ -117,15 +128,14 @@ export function ExperimentResultsSection({
         </output>
       ) : null}
       <Disclosure
-        summary="结果说明"
+        summary={translator.t("experiment.resultsNoteSummary")}
         expanded={detailsOpen}
         onToggle={() => setDetailsOpen((prev) => !prev)}
         controlsId="experiment-results-details"
         className="mt-1"
       >
         <div className="px-1 pb-1 text-[10px] leading-4 text-gray-500">
-          批次按这次执行的登记身份分组：同父同模型的两批不合并，不同批的臂不混成一组；
-          逐臂事实与动作同操作面板口径。预览（dry-run）不产生批次，预览标签也不充当批次身份。
+          {translator.t("experiment.resultsNote")}
         </div>
       </Disclosure>
     </div>

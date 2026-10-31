@@ -660,6 +660,17 @@ export const enUS = {
     openRunFilesExport: "View this run's files / export",
     promptExperimentNote:
       "Comparison defaults to parent-left, child-right; export uses this run's explicit own checkpoint, and patches are relative to that run's initial snapshot.",
+    promptExperimentFieldSystem: "System prompt",
+    promptExperimentFieldUser: "first user message",
+    promptExperimentParamsMissing: "(not recorded: the root's first request has no params)",
+    promptExperimentVerdictCompleted:
+      "This run ended normally. That states only the termination fact; it does not mean the change achieved its goal and is not automatically marked “fixed”.",
+    promptExperimentVerdictCrashed:
+      "This run did not end normally. The actual outcome and failure record are authoritative in the details below; the UI never invents a success conclusion.",
+    promptExperimentVerdictNoCriterion:
+      "{{base}} No manual criterion was provided: check this run's output and file diff yourself.",
+    promptExperimentVerdictWithCriterion:
+      "{{base}} Check the result yourself against the manual criterion you wrote; the UI does not execute or score that criterion.",
     recorded: "Recorded",
     producingCallTitle: "Call that produced this body",
     bodyLabel: "Body",
@@ -1309,6 +1320,149 @@ export const enUS = {
     armLineNoParams: "(reuse the parent run's sampling parameters)",
     armLineDiscarded: " · discards parent values {{values}}",
     armLineWarnings: " · ⚠ {{keys}} may not take effect",
+    listSeparator: ", ",
+    armLabel: "Arm {{index}}",
+    armModelLabel: "Arm {{index}} model",
+    armParamLabel: "Arm {{index}} parameter {{key}}",
+    armDiscardedValueLabel: "Arm {{index}} discarded value {{key}}",
+    armWarningLabel: "Warning {{key}}",
+    armWarningWorkaroundLabel: "Warning {{key}} workaround",
+    armWarningPrefix: "⚠ {{key}}: ",
+    armWarningWorkaround: "Workaround: ",
+    armReasonLine: "{{arm}}: {{detail}}",
+    armChanged: "Changed: {{fields}}",
+    armSameAsParent: "Same as parent",
+    armEffectiveParams: "Effective params: ",
+    armInheritParentParams: "(inherit the parent's params)",
+    armTagOverridden: "(override)",
+    armTagAdded: "(added)",
+    armTagInherited: "(inherited)",
+    armDiscardedParams: "Discarded parent values: ",
+    armDiscardNote: "← replaced as a whole, not merged; this value does not enter the request",
+    abEntryButton: "Model A/B experiment (compare model / params)",
+    abEntryHint:
+      "Run at least two arms from the same startup context (model / sampling-parameter combinations); preview the plan first, then confirm before real execution.",
+    heading: "Model A/B experiment · multi-arm comparison in one context",
+    draftBatchLabel: "Draft (editable batch)",
+    baselineArmsLabel: "Original (parent baseline arms · read-only)",
+    armLine: "Arm {{index}}: {{model}}",
+    armLineParams: " · {{params}}",
+    armLineInherit: "(inherit the parent's params)",
+    armModelPlaceholder: "model name",
+    removeArmTitle: "Remove this arm",
+    armParamsPlaceholder: "Sampling-parameter JSON (empty = inherit the parent run: {{params}})",
+    armParamsPlaceholderNone: "none",
+    addArm: "+ Add an arm (up to 4)",
+    parentRunLine: "Parent run: {{model}}{{params}}",
+    sideEffectCheck:
+      "⚠ Tool(s) {{tools}} are not marked sideEffect: false. With arms running in order, an earlier arm's external side effects change the next arm's starting point, so the comparison may not be trustworthy — check to accept (recorded with the experiment).",
+    draftFrozen:
+      "This submission is pending: the whole batch is frozen at the revision captured on submit, so arms, parameters, and discard stay locked until the request returns. The batch is kept regardless of success, business rejection, or partial arm failure; it is cleaned up only after every arm is verified by trusted identity to have ended normally and the draft revision is still byte-identical to the submitted one.",
+    working: "Working…",
+    previewing: "Validating the plan (read-only dry run: no network, no file writes)…",
+    settingsNotConfiguredHint:
+      "(click “Run settings” in the top right to fill in baseURL/apiKey/model first)",
+    requestFailedSummary: "The request did not complete (stable code {{code}}).",
+    providerUnconfigured: "(baseURL not configured)",
+    planApproved: "Validation passed · execution plan",
+    planGroup: "Experiment group {{id}}",
+    planSideEffects:
+      "⚠ Tools with side effects will really run (in order; external state may already have been changed by an earlier arm) — this experiment is recorded.",
+    planDryRunNote:
+      "The dry run uses no network and writes no files; real execution is billed per arm. Each arm is saved as a separate new trajectory.",
+    confirmTitle: "Review this experiment",
+    confirmAccept: "Reviewed — run the experiment",
+    confirmAccepted: "Experiment confirmed",
+    confirmBlockedNoPlan:
+      "Choose “Validate and preview plan” first, review the parameters each arm will actually use, then confirm",
+    planStaleConfig:
+      "The run settings changed after the preview (leaving settings invalidates this plan): validate and preview again, and the old confirmation is void",
+    planStaleRevision:
+      "This plan belongs to an older batch revision: after changing arms or parameters, validate and preview again, and the old confirmation is void",
+    guardArmSummary:
+      "{{count}} arm input problem(s) are marked next to their arm cards (empty model / invalid params / identical to the parent)",
+    discardBatch: "Discard the batch",
+    discardBatchTitleDirty: "Discard the whole batch draft (confirmation required)",
+    discardBatchTitleClean: "The batch matches the baseline; nothing to discard",
+    discardBatchTitle: "Discard the model A/B batch",
+    discardBatchMessage:
+      "Discard the whole model A/B batch draft? (run {{runId}} · {{spanId}})\n\n{{summary}}\n\nThis discards the entire batch and is checked against the revision at confirmation time: if the batch has changed since, this discard does not run.",
+    discardBatchSimple:
+      "Discard this model A/B batch draft? All arm content will be deleted (cannot be undone).",
+    discardBatchSummaryLine: "Arm {{index}}: {{model}} ({{params}})",
+    discardBatchSummaryInherit: "inherit the parent's params",
+    previewBusy: "Validating…",
+    previewRedo: "Validate again",
+    preview: "Validate and preview plan",
+    execute: "Run ({{count}} arms)",
+    executeTitleNoPlan: "Validate and preview the plan first",
+    executeTitleNoConfirm: "Review the target and execution boundaries above and confirm first",
+    guardSettings:
+      "LLM access is not configured (baseURL / apiKey / model): click “Run settings” in the top right first",
+    guardMinArms: "A model experiment needs at least 2 arms; for a single arm use prompt fork",
+    guardSideEffects:
+      "Tool(s) {{tools}} are not marked sideEffect: false; with arms running in order, an earlier arm's external side effects change the next arm's starting point — check the side-effect declaration to accept",
+    guardArmModelEmpty: "model must not be empty",
+    guardArmSameAsParent:
+      "Identical to the parent run (neither model nor sampling parameters changed) — an arm identical to the parent rejects the whole batch; change this arm's model or params",
+    armParamsInvalidJson: 'params is not valid JSON (example: {"temperature": 0.7})',
+    armParamsNotObject: "params must be a JSON object (key → scalar)",
+    armParamsReservedKey:
+      "params.{{key}} is a reserved request-body key ({{keys}}) and cannot be used as a sampling parameter",
+    armParamsNonScalar:
+      "params.{{key}} must be a string / number / boolean scalar (nested objects, arrays, and null are not supported)",
+    armParamsNonFinite: "params.{{key}} must be a finite number",
+    resultsTitle: "Experiment results",
+    resultsBatchCount: { one: "{{count}} batch", other: "{{count}} batches" },
+    resultsEmpty:
+      "No experiment has run yet: after you confirm a run, each arm's result appears here grouped by batch.",
+    batchLabel: "Batch",
+    groupLabel: "Experiment group {{id}}",
+    groupUnrecorded: "Experiment group identity not registered",
+    enterCompareNeedTwo: "Select at least two linked arm results first",
+    enterCompareTitle:
+      "Open the shared comparison workspace (read-only; batch facts and result reads are unchanged)",
+    enterCompare: "Open comparison ({{count}}/4 selected)",
+    resultsNoteSummary: "About results",
+    resultsNote:
+      "Batches are grouped by this execution's registered identity: two batches with the same parent and model are never merged, and arms from different batches never form one group; per-arm facts and actions follow the operation panel. A preview (dry run) produces no batch, and preview labels never serve as a batch identity.",
+    armOutcomeLine: "Request: {{outcome}}",
+    armMissingFacts:
+      "This arm has a registered trusted ID, but the batch presentation has no per-arm facts (identity is kept; no state is invented)",
+    resultsScopeNote:
+      "Each arm shows only its registered identity and independently verified facts: no inter-arm difference or “winning arm” is produced; see the branch tree and each arm's trace for comparison.",
+    compareToggleBlocked: "Cannot join the comparison",
+    compareToggleRemove: "Remove this arm from the global comparison set",
+    compareToggleAdd:
+      "Add to the global comparison set (two to four; enter the shared comparison from experiment results)",
+    compareRemove: "Remove",
+    compareAdd: "Add to comparison",
+    armActionRetryTitle:
+      "Re-read only the same trusted run ID ({{runId}}): nothing is rerun and no other arm is tried",
+    armActionFailureTitle:
+      "Locate only a failed call owned by this arm; errors from ancestors or other arms are not this cause",
+    armActionOpenTitle:
+      "Open the overview by trusted run ID (a user action; other arms' reading state is unchanged)",
+    selectabilityNoRunId:
+      "This arm has no registered trusted run ID, so it cannot join the comparison (identity is never guessed from envelope ids, nearby records, or directories)",
+    compareHintNeedTwo:
+      "Select two to open the detailed comparison; for three or four, check the metrics table first and then pick two explicitly",
+    compareHintTwo:
+      "Two selected: the detailed comparison uses them as left and right in selection order",
+    compareHintMany:
+      "Three or more selected: in the comparison, pick two explicitly in the metrics table for the detailed comparison",
+    workspaceDescription:
+      "Uses an ordinary run and its first model call as the parent to orchestrate a multi-arm parameter comparison. Eligibility is decided by gates and the main process; arm editing and plan preview happen here.",
+    targetUnbound:
+      "No experiment target is bound (targets are not kept across reloads; re-enter from the run's more actions).",
+    sourceFailed: "Failed to read the parent detail: {{message}}",
+    sourceReading: "Reading the parent detail…",
+    sourceSpanMissing:
+      "The target call is missing from the parent detail ({{spanId}}): the detail may have changed; the batch draft is kept, but the execution entry is unavailable.",
+    targetParent: "Parent",
+    parentRunIdLabel: "Parent run ID",
+    targetFirstCall: "· first model call",
+    retryRead: "Retry read",
   },
   compare: {
     selectionAria: "Compare selection bar",

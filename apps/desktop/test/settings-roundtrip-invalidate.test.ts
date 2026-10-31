@@ -163,8 +163,8 @@ describe("5.3 容器接线（源码级契约）", () => {
     const src = read("../src/renderer/src/components/ModelAbEditor.tsx");
     expect(src).toContain("setPlanConfigStamp(requestedStamp)");
     expect(src).toContain('plan !== null && planFreshness === "fresh" ? plan : null');
-    expect(src).toContain("预览之后运行配置已改变");
-    expect(src).toContain("这份计划属于旧批次修订");
+    expect(src).toContain('translator.t("experiment.planStaleConfig")');
+    expect(src).toContain('translator.t("experiment.planStaleRevision")');
     // 指纹在**发起时**捕获（在飞期间改设置也不装新计划）——requestedStamp 取自请求时的 currentConfigStamp
     expect(src).toContain("const requestedStamp = currentConfigStamp;");
   });
