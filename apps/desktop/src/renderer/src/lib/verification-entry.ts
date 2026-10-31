@@ -107,6 +107,20 @@ export function verificationBlockers(
   return blockers;
 }
 
+/** 定向停止的就近提示：store 只记类别，文案由展示层按语言派生 */
+export type VerificationStopNotice =
+  | { readonly kind: "identity_pending" }
+  | { readonly kind: "already_settled"; readonly detail: string | null };
+
+export function verificationStopNoticeText(
+  notice: VerificationStopNotice,
+  translator: Translator,
+): string {
+  return notice.kind === "identity_pending"
+    ? translator.t("verification.stopNoticeIdentityPending")
+    : translator.t("verification.stopNoticeSettled");
+}
+
 /** 一条不可用原因的单行呈现（原因已本地化，稳定码随后括注） */
 export function blockerLine(blocker: VerificationBlocker, translator: Translator): string {
   return translator.t("verification.blockerLine", {

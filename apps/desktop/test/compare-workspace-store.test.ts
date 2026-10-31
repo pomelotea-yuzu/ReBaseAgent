@@ -303,7 +303,7 @@ describe("U7 2.2/2.5 手动集合与 pair 编辑", () => {
     const state = useAppStore.getState();
     expect(state.view).toBe("compare");
     expect(state.comparePair).toBeNull();
-    expect(state.compareNotice).toContain("显式选择两条");
+    expect(state.compareNotice).toEqual({ code: "pick_two_in_metrics" });
   });
 
   it("集合进入清残留 pair：先 pair 进入再把集合缩到 1 条重进 ⇒ 旧 pair 必须清掉（6.4 实机坐实）", async () => {

@@ -1504,6 +1504,9 @@ export const enUS = {
     retryRead: "Retry read",
   },
   compare: {
+    noticeMaxSelected: "At most {{limit}} runs can be compared at once",
+    noticePickTwoMetrics:
+      "Three or more selected: pick two explicitly in the metrics table for the detailed comparison",
     selectionAria: "Compare selection bar",
     selectionTitle: "Compare",
     selectionCount: "Selected {{selected}} / {{max}}",
@@ -1970,6 +1973,10 @@ export const enUS = {
       "{{count}} attachments are missing or corrupt; export requires every attachment to be verifiable",
   },
   verification: {
+    stopNoticeIdentityPending:
+      "The registration has no trusted domain identity for this operation yet (the orchestration has not created a record or has already settled): a check was requested; targeted stop becomes available only after the registration identity is available, and the target is never guessed",
+    stopNoticeSettled:
+      "This operation needs no stop (already settled or not in the execution phase)",
     checkpointInitial: "Initial checkpoint",
     checkpointStep: "Step checkpoint {{stepSpanId}}",
     entryOpen: "Project verification",
@@ -2279,6 +2286,8 @@ export const enUS = {
     comparePickBoth:
       "Explicitly select two verifications for A/B (never auto-pick the “latest”); records are read only when both sides are selected.",
     compareLoading: "Reading both verification records (read-only)…",
+    compareSameId:
+      "The same verification cannot be compared with itself; choose a different verification on the other side",
     compareReadFailed: "Comparison read failed ({{code}}): {{detail}}",
     compareRetry: "Retry read-only",
     compareDifferences: "Differences: {{list}}",
@@ -2520,7 +2529,55 @@ export const enUS = {
       "The language preference file has an unknown version: this launch used the system language and did not overwrite the file. Choose a language below to save it again.",
     dismissNotice: "Dismiss notice",
   },
-  export: {},
+  export: {
+    entryTitleEligible:
+      "Export the current checkpoint as standalone result material (file tree + manifest + applicable text patch)",
+    entryTitleUnavailable: "Cannot export right now",
+    entryCollapsed: "Export selected checkpoint",
+    entryExpanded: "Collapse export",
+    targetInitial: "the initial checkpoint",
+    targetStep: "checkpoint {{step}}",
+    inFlight:
+      "Exporting “{{target}}”… leaving this page does not stop the export; return here to see the result. This notice is lost after reload — treat rebaseagent-export.json in the target directory as authoritative.",
+    canceled: "Canceled: no target directory was chosen and nothing was written.",
+    failedSummary: "Export failed (stable code {{code}}).",
+    retainedTitle:
+      "The target contains leftovers from this export (cleanup did not finish); do not use them directly and do not treat them as a complete export:",
+    failedReassure:
+      "The current run / file selection / drafts were not rewritten; retry with another empty directory.",
+    exportedSummary: {
+      one: "Exported {{count}} file ({{bytes}} bytes in total) to:",
+      other: "Exported {{count}} files ({{bytes}} bytes in total) to:",
+    },
+    filesRootNote:
+      "The file tree is under <code>{{root}}/</code>; copy that directory's contents when bringing it back to the project. The root also has a <code>rebaseagent-export.json</code> manifest (per-file hashes and not-preserved state).",
+    preserveNote:
+      "Permissions, executable bits, timestamps, links, empty directories, and external service state are not preserved (original state unknown). A successful export only means the material was exported; it does not mean the project builds, tests pass, or a patch was applied.",
+    patchNoTextChanges:
+      "Patch: no text differences from the initial snapshot (no_text_changes); changes.patch was not generated.",
+    patchNotAvailable: "Patch unavailable; the file export is unaffected.",
+    patchNotAvailableWithReason: "Patch unavailable ({{reason}}); the file export is unaffected.",
+    patchWritten: {
+      one: "changes.patch was generated ({{bytes}} bytes); it covers text changes/additions in {{count}} path.",
+      other:
+        "changes.patch was generated ({{bytes}} bytes); it covers text changes/additions in {{count}} paths.",
+    },
+    excludedLine: "{{path}}: {{reason}}",
+    uncoveredLine: "{{path}}: not covered ({{reason}})",
+    confirmHeading: "Export “{{checkpoint}}” ({{scope}})",
+    scopeInitial: "this run's initial checkpoint",
+    scopeStep: "an own completed step",
+    confirmEmptyDir:
+      "The target must be an empty directory (chosen with the system directory picker; no existing file is overwritten).",
+    confirmLayout:
+      "Export layout: <code>files/</code> file tree (project files stored as-is) + a root <code>rebaseagent-export.json</code> manifest + an applicable <code>changes.patch</code> text patch.",
+    confirmPreserve:
+      "Only verified regular-file bytes are copied; permissions, executable bits, timestamps, links, empty directories, and external service state are <strong>not preserved</strong> (original state unknown).",
+    confirmSourceIntact:
+      "The source directory, trace, parent/sibling runs, and this page's reading position are not modified.",
+    confirmExport: "Choose target directory and export",
+    cancelNoWrite: "Cancel (writes nothing)",
+  },
   errors: {
     generic: "The operation did not complete. Check the current state before continuing.",
     invalidArgument: "The request parameters are invalid.",

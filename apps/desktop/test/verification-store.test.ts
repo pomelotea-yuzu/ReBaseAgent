@@ -740,7 +740,7 @@ describe("在飞操作身份与停止寻路（D05）", () => {
     reconcileImpl = () => reconcileResultOf(runningVerificationRecord({ verificationIds: [] }));
     await stateOf().requestVerificationStop();
     expect(calls.some((one) => one.startsWith("stop:"))).toBe(false);
-    expect(stateOf().verificationStopNotice).toContain("可信领域身份");
+    expect(stateOf().verificationStopNotice).toEqual({ kind: "identity_pending" });
     expect(stateOf().verificationStopRequested).toBe(false);
   });
 
@@ -767,7 +767,10 @@ describe("在飞操作身份与停止寻路（D05）", () => {
     await stateOf().requestVerificationStop();
     expect(calls.filter((one) => one.startsWith("stop:"))).toHaveLength(1);
     expect(stateOf().verificationStopRequested).toBe(false);
-    expect(stateOf().verificationStopNotice).toContain("已收尾");
+    expect(stateOf().verificationStopNotice).toEqual({
+      kind: "already_settled",
+      detail: expect.anything(),
+    });
   });
 
   it("停止通道失败码如实呈现（R3_STOP_IDENTITY_MISMATCH 不吞）", async () => {

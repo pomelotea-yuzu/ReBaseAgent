@@ -177,6 +177,8 @@ const ORIGINAL_REASONS = {
   "apps/desktop/src/main/verification-read-endpoints.ts":
     "main 只读验证端点的引擎/来源诊断原始说明，渲染层作为原始详情与不可用原因参数展示",
   "apps/desktop/src/main/run-source-gate.ts": "main 返回的来源拒绝原始说明，渲染层作为原始详情展示",
+  "apps/desktop/src/main/workspace-export-endpoint.ts":
+    "main 导出端点的目标/来源/会话校验原始说明，渲染层按稳定码给出本地化摘要并作为原始说明展示",
   "apps/desktop/src/main/settings.ts":
     "main 设置存储的校验/读写失败原始说明，渲染层按稳定码给出本地化摘要并作为原始详情展示",
   "apps/desktop/src/main/config-endpoints.ts":
@@ -251,6 +253,36 @@ const ORIGINAL_SYMBOLS = {
     "main 返回的隔离 prompt 能力预检原始说明，渲染层作为原始详情展示",
   "apps/desktop/src/main/proxy-manager.ts::ProxyManager.fork":
     "main 返回的代理重发失败原始说明（凭据/配置在核对后变化），渲染层作为原始详情展示",
+  "apps/desktop/src/renderer/src/store/slices/operations.ts::not_handshaked.message":
+    "本地提交门禁/回执核验的原始诊断，作为原始说明展示；产品摘要按稳定码派生",
+  "apps/desktop/src/renderer/src/store/slices/operations.ts::communication_unknown.message":
+    "本地提交门禁/回执核验的原始诊断，作为原始说明展示；产品摘要按稳定码派生",
+  "apps/desktop/src/renderer/src/store/slices/operations.ts::closing.message":
+    "本地提交门禁/回执核验的原始诊断，作为原始说明展示；产品摘要按稳定码派生",
+  "apps/desktop/src/renderer/src/store/slices/operations.ts::configuration_busy.message":
+    "本地提交门禁/回执核验的原始诊断，作为原始说明展示；产品摘要按稳定码派生",
+  "apps/desktop/src/renderer/src/store/slices/operations.ts::operation_running.message":
+    "本地提交门禁/回执核验的原始诊断，作为原始说明展示；产品摘要按稳定码派生",
+  "apps/desktop/src/renderer/src/store/slices/operations.ts::inspectAck.problem":
+    "本地提交门禁/回执核验的原始诊断，作为原始说明展示；产品摘要按稳定码派生",
+  "apps/desktop/src/renderer/src/store/slices/operations.ts::error.message":
+    "本地提交门禁/回执核验的原始诊断，作为原始说明展示；产品摘要按稳定码派生",
+  "apps/desktop/src/renderer/src/store/slices/operations.ts::loadForkCapability.message":
+    "本地提交门禁/回执核验的原始诊断，作为原始说明展示；产品摘要按稳定码派生",
+  "apps/desktop/src/renderer/src/store/slices/operations.ts::loadIsolatedPromptCapability.message":
+    "本地提交门禁/回执核验的原始诊断，作为原始说明展示；产品摘要按稳定码派生",
+  "apps/desktop/src/renderer/src/store/slices/operations.ts::inspectWorkspace.message":
+    "本地提交门禁/回执核验的原始诊断，作为原始说明展示；产品摘要按稳定码派生",
+  "apps/desktop/src/renderer/src/store/slices/operations.ts::readWorkspaceFile.message":
+    "本地提交门禁/回执核验的原始诊断，作为原始说明展示；产品摘要按稳定码派生",
+  "apps/desktop/src/renderer/src/store/slices/operations.ts::submitVerificationPrepare.message":
+    "本地提交门禁/回执核验的原始诊断，作为原始说明展示；产品摘要按稳定码派生",
+  "apps/desktop/src/renderer/src/store/slices/operations.ts::submitVerificationRun.message":
+    "本地提交门禁/回执核验的原始诊断，作为原始说明展示；产品摘要按稳定码派生",
+  "apps/desktop/src/renderer/src/store/slices/verification.ts::verificationStopError.message":
+    "本地提交门禁/回执核验的原始诊断，作为原始说明展示；产品摘要按稳定码派生",
+  "apps/desktop/src/renderer/src/store/slices/verification.ts::verificationCompareError.message":
+    "本地提交门禁/回执核验的原始诊断，作为原始说明展示；产品摘要按稳定码派生",
 };
 
 const INTERNAL_REASONS = {
@@ -276,6 +308,8 @@ const INTERNAL_REASONS = {
     "decideConfirmation 的 reason 只用于内部判定对象，界面只消费 kind（confirmed/missing/stale），不显示给用户",
   "apps/desktop/src/renderer/src/lib/draft-closure.ts":
     "草稿收尾判定/清理结果的内部结论，只用于决定是否删除，不显示给用户",
+  "apps/desktop/src/renderer/src/store/slices/runs.ts":
+    "run 列表/详情读取失败的内部诊断与稳定码，界面按 errorDescriptor 派生文案，不显示原文",
 };
 
 const PRODUCT_FILES = new Set([

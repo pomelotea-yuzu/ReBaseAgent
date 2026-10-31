@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T03:41:41.513Z",
+  "generatedAt": "2026-10-31T04:03:22.482Z",
   "scanner": "scripts/i18n-attribution.cjs",
   "taxonomy": {
     "product": "产品展示：需要按批次迁移为双语资源",
@@ -9,28 +9,28 @@
     "generated": "生成资产：不作为产品文案"
   },
   "totals": {
-    "files": 171,
-    "occurrences": 1479,
-    "product": 676,
-    "original": 692,
-    "internal": 107,
+    "files": 168,
+    "occurrences": 1419,
+    "product": 584,
+    "original": 716,
+    "internal": 115,
     "generated": 4
   },
   "byLayer": {
     "main": {
       "files": 20,
       "occurrences": 131,
-      "product": 64,
-      "original": 65,
+      "product": 54,
+      "original": 75,
       "internal": 2,
       "generated": 0
     },
     "renderer": {
-      "files": 18,
-      "occurrences": 152,
-      "product": 82,
-      "original": 12,
-      "internal": 58,
+      "files": 15,
+      "occurrences": 92,
+      "product": 0,
+      "original": 26,
+      "internal": 66,
       "generated": 0
     },
     "shared": {
@@ -1343,17 +1343,17 @@
       "layer": "main",
       "package": null,
       "workspace": "外壳/其他",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "main 导出端点的目标/来源/会话校验原始说明，渲染层按稳定码给出本地化摘要并作为原始说明展示",
       "symbols": [
         {
           "symbol": "resolveVerificationExportTarget",
           "role": "call_arg",
           "context": "failed",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "main 导出端点的目标/来源/会话校验原始说明，渲染层按稳定码给出本地化摘要并作为原始说明展示",
           "count": 5,
           "samples": [
             "无法读取验证记录 ${…}：${…}",
@@ -1371,8 +1371,8 @@
           "symbol": "outcome.reason",
           "role": "ui_prop",
           "context": "reason",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "main 导出端点的目标/来源/会话校验原始说明，渲染层按稳定码给出本地化摘要并作为原始说明展示",
           "count": 3,
           "samples": [
             "缺少 runId 或 verificationId",
@@ -1388,8 +1388,8 @@
           "symbol": "exportSourceRejection.reason",
           "role": "ui_prop",
           "context": "reason",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "main 导出端点的目标/来源/会话校验原始说明，渲染层按稳定码给出本地化摘要并作为原始说明展示",
           "count": 2,
           "samples": [
             "导出来源不完整：run ${…} 只能确认自身及可读上游，祖先 run ${…} 的文件缺失；桌面导出要求完整来源（自有文件仍可按原规则阅读）",
@@ -1450,158 +1450,6 @@
           ],
           "lines": [
             153
-          ]
-        }
-      ]
-    },
-    {
-      "path": "apps/desktop/src/renderer/src/components/WorkspaceExportPanel.tsx",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "辅助/导出",
-      "classification": "product",
-      "batch": 3,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "PatchFeedback.div",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "补丁：与初始快照无文本差异（no_text_changes），未生成 changes.patch。"
-          ],
-          "lines": [
-            46
-          ]
-        },
-        {
-          "symbol": "div.div",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 14,
-          "samples": [
-            "补丁不可用",
-            "；文件导出不受影响。"
-          ],
-          "lines": [
-            53,
-            65,
-            66,
-            103,
-            116,
-            124,
-            125,
-            129,
-            130,
-            132,
-            138
-          ]
-        },
-        {
-          "symbol": "div.div",
-          "role": "call_arg",
-          "context": "patch.excluded.map",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "：未覆盖（"
-          ],
-          "lines": [
-            75
-          ]
-        },
-        {
-          "symbol": "ExportFeedbackBody.div",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "正在导出「",
-            "」… 切换页面不会中止导出；返回本页可查看结果。重载后本提示会丢失，请以目标目录中的 rebaseagent-export.json 为准。"
-          ],
-          "lines": [
-            88,
-            89,
-            96
-          ]
-        },
-        {
-          "symbol": "ExportFeedbackBody.div",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "初始检查点",
-            "检查点 ${…}"
-          ],
-          "lines": [
-            88
-          ]
-        },
-        {
-          "symbol": "div.div",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 4,
-          "samples": [
-            "目标中残留本次导出的半成品（清理未完成），请勿直接使用，也不要把残留当作完整导出：",
-            "导出「"
-          ],
-          "lines": [
-            107,
-            193
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 6,
-          "samples": [
-            "把当前检查点导出为独立结果材料（文件树 + 清单 + 适用的文本补丁）",
-            "当前不可导出"
-          ],
-          "lines": [
-            176,
-            177,
-            181,
-            215,
-            223
-          ]
-        },
-        {
-          "symbol": "ul.li",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 7,
-          "samples": [
-            "目标必须是一个**空目录**（由系统目录选择器指定；不会覆盖任何既有文件）。",
-            "导出布局："
-          ],
-          "lines": [
-            197,
-            199,
-            200,
-            201,
-            204,
-            206
           ]
         }
       ]
@@ -2023,129 +1871,21 @@
       ]
     },
     {
-      "path": "apps/desktop/src/renderer/src/store/slices/compare.ts",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "通用外壳/组件",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "openCompareWorkspace.compareNotice",
-          "role": "ui_prop",
-          "context": "compareNotice",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "已选三条及以上：请在指标表中显式选择两条进入详细比较"
-          ],
-          "lines": [
-            364
-          ]
-        },
-        {
-          "symbol": "loadCompareWorkspaceSnapshots.message",
-          "role": "ui_prop",
-          "context": "message",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "比较清单结构校验失败：${…}"
-          ],
-          "lines": [
-            615
-          ]
-        },
-        {
-          "symbol": "loadComparedWorkspaceFile.message",
-          "role": "ui_prop",
-          "context": "message",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "比较正文结构校验失败：${…}"
-          ],
-          "lines": [
-            631
-          ]
-        },
-        {
-          "symbol": "toggleCompare.compareNotice",
-          "role": "ui_prop",
-          "context": "compareNotice",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "最多同时对照 ${…} 条运行"
-          ],
-          "lines": [
-            647
-          ]
-        }
-      ]
-    },
-    {
-      "path": "apps/desktop/src/renderer/src/store/slices/navigation.ts",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "通用外壳/组件",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "experimentSource.errorMessage",
-          "role": "ui_prop",
-          "context": "errorMessage",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "父本详情数据结构校验失败：${…}"
-          ],
-          "lines": [
-            452
-          ]
-        },
-        {
-          "symbol": "messagesSource.errorMessage",
-          "role": "ui_prop",
-          "context": "errorMessage",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "源详情数据结构校验失败：${…}"
-          ],
-          "lines": [
-            479
-          ]
-        }
-      ]
-    },
-    {
       "path": "apps/desktop/src/renderer/src/store/slices/operations.ts",
       "layer": "renderer",
       "package": null,
       "workspace": "通用外壳/组件",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "本地提交门禁/回执核验的原始诊断，作为原始说明展示；产品摘要按稳定码派生",
       "symbols": [
         {
           "symbol": "not_handshaked.message",
           "role": "ui_prop",
           "context": "message",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "本地提交门禁/回执核验的原始诊断，作为原始说明展示；产品摘要按稳定码派生",
           "count": 1,
           "samples": [
             "尚未与主进程完成操作握手，本次请求未发送；请重试或重新加载窗口"
@@ -2158,8 +1898,8 @@
           "symbol": "communication_unknown.message",
           "role": "ui_prop",
           "context": "message",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "本地提交门禁/回执核验的原始诊断，作为原始说明展示；产品摘要按稳定码派生",
           "count": 1,
           "samples": [
             "操作状态未确认（状态通道失联或返回非法结构），本次请求未发送；请先核对状态"
@@ -2172,8 +1912,8 @@
           "symbol": "closing.message",
           "role": "ui_prop",
           "context": "message",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "本地提交门禁/回执核验的原始诊断，作为原始说明展示；产品摘要按稳定码派生",
           "count": 1,
           "samples": [
             "应用正在退出协商，本次请求未发送"
@@ -2186,8 +1926,8 @@
           "symbol": "configuration_busy.message",
           "role": "ui_prop",
           "context": "message",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "本地提交门禁/回执核验的原始诊断，作为原始说明展示；产品摘要按稳定码派生",
           "count": 1,
           "samples": [
             "运行配置或代理服务正在变更，本次请求未发送；请等变更完成后重试"
@@ -2200,8 +1940,8 @@
           "symbol": "operation_running.message",
           "role": "ui_prop",
           "context": "message",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "本地提交门禁/回执核验的原始诊断，作为原始说明展示；产品摘要按稳定码派生",
           "count": 1,
           "samples": [
             "已有操作在执行（或尚未确认结束），本次请求未发送；请等当前操作结束"
@@ -2214,8 +1954,8 @@
           "symbol": "inspectAck.problem",
           "role": "prop",
           "context": "problem",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "本地提交门禁/回执核验的原始诊断，作为原始说明展示；产品摘要按稳定码派生",
           "count": 3,
           "samples": [
             "响应缺少操作回执",
@@ -2231,8 +1971,8 @@
           "symbol": "error.message",
           "role": "ui_prop",
           "context": "message",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "本地提交门禁/回执核验的原始诊断，作为原始说明展示；产品摘要按稳定码派生",
           "count": 2,
           "samples": [
             "主进程会话已更换：这次提交（属旧会话）的结局未知，不会自动重发，也不会跳转结果",
@@ -2244,97 +1984,11 @@
           ]
         },
         {
-          "symbol": "loadForkCapability.message",
-          "role": "ui_prop",
-          "context": "message",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "续跑能力预检结果结构校验失败：${…}"
-          ],
-          "lines": [
-            598
-          ]
-        },
-        {
-          "symbol": "loadIsolatedPromptCapability.message",
-          "role": "ui_prop",
-          "context": "message",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "隔离 prompt 能力预检结果结构校验失败：${…}"
-          ],
-          "lines": [
-            615
-          ]
-        },
-        {
-          "symbol": "inspectWorkspace.message",
-          "role": "ui_prop",
-          "context": "message",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "文件清单结构校验失败：${…}"
-          ],
-          "lines": [
-            632
-          ]
-        },
-        {
-          "symbol": "readWorkspaceFile.message",
-          "role": "ui_prop",
-          "context": "message",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "文件内容结构校验失败：${…}"
-          ],
-          "lines": [
-            648
-          ]
-        },
-        {
-          "symbol": "exportCheckpoint.reason",
-          "role": "ui_prop",
-          "context": "reason",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "导出结果结构校验失败：${…}"
-          ],
-          "lines": [
-            689
-          ]
-        },
-        {
-          "symbol": "createOperationsSlice.chooseSource",
-          "role": "error_message",
-          "context": "storeError",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "选择源目录失败：${…}",
-            "目录选择结果结构校验失败：${…}"
-          ],
-          "lines": [
-            742,
-            754
-          ]
-        },
-        {
           "symbol": "submitVerificationPrepare.message",
           "role": "ui_prop",
           "context": "message",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "本地提交门禁/回执核验的原始诊断，作为原始说明展示；产品摘要按稳定码派生",
           "count": 1,
           "samples": [
             "核对结果缺失：先完成只读核对（打开面板自动进行），再确认与提交"
@@ -2347,8 +2001,8 @@
           "symbol": "submitVerificationRun.message",
           "role": "ui_prop",
           "context": "message",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "本地提交门禁/回执核验的原始诊断，作为原始说明展示；产品摘要按稳定码派生",
           "count": 1,
           "samples": [
             "核对结果缺失：先完成只读核对（打开面板自动进行），再确认与提交"
@@ -2364,17 +2018,17 @@
       "layer": "renderer",
       "package": null,
       "workspace": "通用外壳/组件",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "internal",
+      "batch": null,
+      "status": "excluded",
+      "reason": "run 列表/详情读取失败的内部诊断与稳定码，界面按 errorDescriptor 派生文案，不显示原文",
       "symbols": [
         {
           "symbol": "createRunsSlice.refreshRunsOnce",
           "role": "ui_text",
           "context": "ternary",
-          "classification": "product",
-          "reason": null,
+          "classification": "internal",
+          "reason": "run 列表/详情读取失败的内部诊断与稳定码，界面按 errorDescriptor 派生文案，不显示原文",
           "count": 4,
           "samples": [
             "刷新 run 列表失败（仍显示上次结果）：${…}",
@@ -2391,8 +2045,8 @@
           "symbol": "createRunsSlice.selectRun",
           "role": "error_message",
           "context": "storeError",
-          "classification": "product",
-          "reason": null,
+          "classification": "internal",
+          "reason": "run 列表/详情读取失败的内部诊断与稳定码，界面按 errorDescriptor 派生文案，不显示原文",
           "count": 4,
           "samples": [
             "读取 run 失败：${…}",
@@ -2412,139 +2066,37 @@
       "layer": "renderer",
       "package": null,
       "workspace": "通用外壳/组件",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "本地提交门禁/回执核验的原始诊断，作为原始说明展示；产品摘要按稳定码派生",
       "symbols": [
-        {
-          "symbol": "verificationCapabilityError.message",
-          "role": "ui_prop",
-          "context": "message",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "核对结果结构校验失败：${…}"
-          ],
-          "lines": [
-            408
-          ]
-        },
-        {
-          "symbol": "verificationPlanError.message",
-          "role": "ui_prop",
-          "context": "message",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "计划预览结构校验失败：${…}"
-          ],
-          "lines": [
-            455
-          ]
-        },
         {
           "symbol": "verificationStopError.message",
           "role": "ui_prop",
           "context": "message",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "本地提交门禁/回执核验的原始诊断，作为原始说明展示；产品摘要按稳定码派生",
           "count": 1,
           "samples": [
             "尚未与主进程完成操作握手：停止请求未发送"
           ],
           "lines": [
-            552
-          ]
-        },
-        {
-          "symbol": "requestVerificationStop.verificationStopNotice",
-          "role": "ui_prop",
-          "context": "verificationStopNotice",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "登记里还没有该操作的可信领域身份（编排尚未创建记录或已收尾）：已请求核对；拿到登记身份后才能定向停止，不猜测目标",
-            "该操作无需停止（已收尾或不在执行段）"
-          ],
-          "lines": [
-            571,
-            598
-          ]
-        },
-        {
-          "symbol": "verificationRecordError.message",
-          "role": "ui_prop",
-          "context": "message",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "验证记录结构校验失败：${…}"
-          ],
-          "lines": [
-            665
-          ]
-        },
-        {
-          "symbol": "verificationLogError.message",
-          "role": "ui_prop",
-          "context": "message",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "日志切片结构校验失败：${…}"
-          ],
-          "lines": [
-            729
+            553
           ]
         },
         {
           "symbol": "verificationCompareError.message",
           "role": "ui_prop",
           "context": "message",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "同一验证不能与自己比较（重新选择另一侧的验证身份）",
-            "比较读取失败"
-          ],
-          "lines": [
-            757,
-            841
-          ]
-        },
-        {
-          "symbol": "fetchOne.message",
-          "role": "ui_prop",
-          "context": "message",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "本地提交门禁/回执核验的原始诊断，作为原始说明展示；产品摘要按稳定码派生",
           "count": 1,
           "samples": [
-            "比较记录结构校验失败：${…}"
+            "同一验证不能与自己比较（重新选择另一侧的验证身份）"
           ],
           "lines": [
-            827
-          ]
-        },
-        {
-          "symbol": "exportVerificationInput.reason",
-          "role": "ui_prop",
-          "context": "reason",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "导出结果结构校验失败：${…}"
-          ],
-          "lines": [
-            907
+            760
           ]
         }
       ]

@@ -170,7 +170,7 @@ describe("反馈四态（任务 6.2/6.3）", () => {
     };
     const html = markup(createElement(WorkspaceExportPanel, { ...base, feedback }));
     expect(html).toContain('data-export-feedback="exported"');
-    expect(html).toContain("补丁不可用：补丁基线附件不可用，整份补丁撤销");
+    expect(html).toContain("补丁不可用（补丁基线附件不可用，整份补丁撤销）");
     expect(html).toContain("文件导出不受影响");
     expect(html).toContain("a.txt：baseline_missing");
     // 文件导出成功的部分仍然显示
@@ -238,6 +238,17 @@ describe("反馈四态（任务 6.2/6.3）", () => {
   it("无反馈：不渲染反馈区（重载后状态为空 = 结果未知，不自动重发）", () => {
     const html = markup(createElement(WorkspaceExportPanel, base));
     expect(html).not.toContain("data-export-feedback");
+  });
+
+  it("英文措辞独立书写：成功摘要、逐路径排除与未保留边界", () => {
+    const html = renderWithLocale(
+      "en-US",
+      createElement(WorkspaceExportPanel, { ...base, feedback: EXPORTED }),
+    );
+    expect(html).toContain("Exported 2 files");
+    expect(html).toContain("not covered (binary)");
+    expect(html).toContain("not preserved");
+    expect(html).toContain("does not mean the project builds");
   });
 });
 

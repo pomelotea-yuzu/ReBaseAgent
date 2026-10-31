@@ -324,7 +324,7 @@ describe("4.1/4.2 批次结果区视图：登记身份 + 逐批分块", () => {
         batches,
         onArmAction: noop,
         compareIds: [ARM_A, ARM_B],
-        compareNotice: "最多同时对照 4 条运行",
+        compareNotice: { code: "max_selected", limit: 4 },
         onToggleCompare: noop,
         onEnterCompare: noop,
       }),

@@ -1,6 +1,8 @@
 import type { RunSummary } from "@shared/ipc";
 import { taskSummary } from "@shared/nav";
 import { useTranslator } from "../i18n";
+import { compareNoticeText } from "../lib/compare-notice";
+import type { CompareNotice } from "../lib/compare-notice";
 import { MAX_COMPARE, useAppStore } from "../store";
 import { FOCUS_RING } from "./IconButton";
 import { ShortIdLabel } from "./ShortIdLabel";
@@ -58,7 +60,7 @@ export function CompareSelectionBarView({
 }: {
   runs: ReadonlyArray<RunSummary>;
   compareIds: ReadonlyArray<string>;
-  compareNotice: string | null;
+  compareNotice: CompareNotice | null;
   /** 会话稳定短 ID（容器从 ShortIdState 现算后传入） */
   shortIds: ReadonlyMap<string, string>;
   maxCompare: number;
@@ -84,7 +86,7 @@ export function CompareSelectionBarView({
       </div>
       {compareNotice !== null ? (
         <output className="rounded bg-amber-50 px-2 py-1 text-[11px] text-amber-800">
-          {compareNotice}
+          {compareNoticeText(compareNotice, translator)}
         </output>
       ) : null}
       {compareIds.length === 0 ? (

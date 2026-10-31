@@ -477,7 +477,7 @@ describe("store：分支树视图与对照集合", () => {
 
     useAppStore.getState().toggleCompare("r_e");
     expect(useAppStore.getState().compareIds).toHaveLength(4);
-    expect(useAppStore.getState().compareNotice).toContain("最多同时对照 4 条");
+    expect(useAppStore.getState().compareNotice).toEqual({ code: "max_selected", limit: 4 });
   });
 
   it("移出对照后提示清空；clearCompare 清空集合", () => {
@@ -602,7 +602,8 @@ describe("store：chooseSource 只读通道（B 2.1）", () => {
     controller.chooseSourceEnvelope = ok({ canceled: false, sourceToken: "", name: 1 } as never);
     const result = await useAppStore.getState().chooseSource();
     expect(result).toBeNull();
-    expect(useAppStore.getState().error).toContain("目录选择结果结构校验失败");
+    expect(useAppStore.getState().errorDescriptor?.code).toBe("UI_SOURCE_CHOOSE_INVALID");
+    expect(useAppStore.getState().error).not.toBeNull();
   });
 
   it("通道失败 → null + 可读 error，不误当作取消", async () => {
@@ -612,7 +613,7 @@ describe("store：chooseSource 只读通道（B 2.1）", () => {
     };
     const result = await useAppStore.getState().chooseSource();
     expect(result).toBeNull();
-    expect(useAppStore.getState().error).toContain("选择源目录失败");
+    expect(useAppStore.getState().error).toBe("对话框不可用");
   });
 });
 
@@ -681,7 +682,8 @@ describe("store：隔离续跑的 execution 声明与能力预检（B 2.2）", (
 
     expect(outcome.ok).toBe(false);
     expect(outcome.ok ? "" : outcome.code).toBe("CAPABILITY_SCHEMA_INVALID");
-    expect(outcome.ok ? "" : outcome.message).toContain("结构校验失败");
+    expect(outcome.ok ? "" : outcome.message).not.toBe("");
+    expect(outcome.ok ? "" : outcome.message).toContain("快照 id");
   });
 });
 

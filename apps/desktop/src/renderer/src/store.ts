@@ -32,6 +32,7 @@ export type { ExperimentSourceState } from "./store/slices/navigation";
 
 // MAX_COMPARE（5.3）随 compare 分片迁 slices/compare.ts；此处兼容再导出指向同一实现。
 export { MAX_COMPARE } from "./store/slices/compare";
+export type { CompareNotice } from "./lib/compare-notice";
 
 // 详情读取代次（5.1）：唯一持有者住在 slices/reading 的工厂；这里按 store 实例创建一次，
 // runs 分片经注入访问（分片之间无运行时互相导入，design D2）。

@@ -1316,6 +1316,8 @@ export const zhCN = {
     retryRead: "只读重试",
   },
   compare: {
+    noticeMaxSelected: "最多同时对照 {{limit}} 条运行",
+    noticePickTwoMetrics: "已选三条及以上：请在指标表中显式选择两条进入详细比较",
     selectionAria: "对照选择栏",
     selectionTitle: "对照",
     selectionCount: "已选 {{selected}} / {{max}}",
@@ -1727,6 +1729,9 @@ export const zhCN = {
     exportIneligibleUnavailable: "有 {{count}} 个附件缺失或损坏；导出要求全部附件可验证",
   },
   verification: {
+    stopNoticeIdentityPending:
+      "登记里还没有该操作的可信领域身份（编排尚未创建记录或已收尾）：已请求核对；拿到登记身份后才能定向停止，不猜测目标",
+    stopNoticeSettled: "该操作无需停止（已收尾或不在执行段）",
     checkpointInitial: "初始检查点",
     checkpointStep: "步骤检查点 {{stepSpanId}}",
     entryOpen: "项目验证",
@@ -1990,6 +1995,7 @@ export const zhCN = {
     compareSourceLabel: "来源：",
     comparePickBoth: "显式选择 A/B 两条验证（不自动挑“最近”）；两侧选齐才读取记录。",
     compareLoading: "正在读取两侧验证记录（只读）…",
+    compareSameId: "同一验证不能与自己比较；请重新选择另一侧的验证身份",
     compareReadFailed: "比较读取失败（{{code}}）：{{detail}}",
     compareRetry: "只读重试",
     compareDifferences: "不同项：{{list}}",
@@ -2198,7 +2204,47 @@ export const zhCN = {
       "语言偏好文件版本未知：本次按系统语言启动，未自动覆盖原文件。可在下方重新选择语言以保存。",
     dismissNotice: "关闭提示",
   },
-  export: {},
+  export: {
+    entryTitleEligible: "把当前检查点导出为独立结果材料（文件树 + 清单 + 适用的文本补丁）",
+    entryTitleUnavailable: "当前不可导出",
+    entryCollapsed: "导出选定检查点",
+    entryExpanded: "收起导出",
+    targetInitial: "初始检查点",
+    targetStep: "检查点 {{step}}",
+    inFlight:
+      "正在导出「{{target}}」… 切换页面不会中止导出；返回本页可查看结果。重载后本提示会丢失，请以目标目录中的 rebaseagent-export.json 为准。",
+    canceled: "已取消：未选择目标目录，没有写入任何内容。",
+    failedSummary: "导出失败（稳定码 {{code}}）。",
+    retainedTitle:
+      "目标中残留本次导出的半成品（清理未完成），请勿直接使用，也不要把残留当作完整导出：",
+    failedReassure: "当前 run/文件选择/草稿未被改写；可换一个空目录重试。",
+    exportedSummary: {
+      other: "已导出 {{count}} 个文件（共 {{bytes}} 字节）到：",
+    },
+    filesRootNote:
+      "文件树在 <code>{{root}}/</code> 下；带回原项目时复制该目录内容。根部另有 <code>rebaseagent-export.json</code> 清单（含逐文件哈希与未保留状态）。",
+    preserveNote:
+      "权限、可执行位、时间戳、链接、空目录与外部服务状态未保留（原状态未知）。导出成功只表示材料已导出，不表示项目可构建、测试通过或已应用。",
+    patchNoTextChanges: "补丁：与初始快照无文本差异（no_text_changes），未生成 changes.patch。",
+    patchNotAvailable: "补丁不可用；文件导出不受影响。",
+    patchNotAvailableWithReason: "补丁不可用（{{reason}}）；文件导出不受影响。",
+    patchWritten: {
+      other: "补丁已生成 changes.patch（{{bytes}} 字节）；覆盖 {{count}} 个路径的文本修改/新增。",
+    },
+    excludedLine: "{{path}}：{{reason}}",
+    uncoveredLine: "{{path}}：未覆盖（{{reason}}）",
+    confirmHeading: "导出「{{checkpoint}}」（{{scope}}）",
+    scopeInitial: "本 run 初始检查点",
+    scopeStep: "自有完成步骤",
+    confirmEmptyDir: "目标必须是一个空目录（由系统目录选择器指定；不会覆盖任何既有文件）。",
+    confirmLayout:
+      "导出布局：<code>files/</code> 文件树（项目文件原样存放）+ 根部 <code>rebaseagent-export.json</code> 清单 + 适用的 <code>changes.patch</code> 文本补丁。",
+    confirmPreserve:
+      "只复制已校验的普通文件字节；权限、可执行位、时间戳、链接、空目录、外部服务<strong>未保留</strong>（原状态未知）。",
+    confirmSourceIntact: "源目录、trace、父/兄弟运行与本页阅读位置都不会被改动。",
+    confirmExport: "选择目标目录并导出",
+    cancelNoWrite: "取消（不写入）",
+  },
   errors: {
     generic: "操作未完成，请核对当前状态后再继续。",
     invalidArgument: "请求参数不符合要求。",

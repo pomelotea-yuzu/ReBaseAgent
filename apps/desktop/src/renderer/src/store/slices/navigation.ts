@@ -449,7 +449,7 @@ export function createNavigationSlice({
           experimentSource: {
             phase: "failed",
             detail: null,
-            errorMessage: `父本详情数据结构校验失败：${describeZodError(parsed.error)}`,
+            errorMessage: describeZodError(parsed.error),
           },
         });
         return;
@@ -476,7 +476,7 @@ export function createNavigationSlice({
           messagesSource: {
             phase: "failed",
             detail: null,
-            errorMessage: `源详情数据结构校验失败：${describeZodError(parsed.error)}`,
+            errorMessage: describeZodError(parsed.error),
           },
         });
         return;

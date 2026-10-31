@@ -595,7 +595,7 @@ export function createOperationsSlice({
         return {
           ok: false,
           code: "CAPABILITY_SCHEMA_INVALID",
-          message: `续跑能力预检结果结构校验失败：${describeZodError(parsed.error)}`,
+          message: describeZodError(parsed.error),
         };
       }
       return { ok: true, data: parsed.data };
@@ -612,7 +612,7 @@ export function createOperationsSlice({
         return {
           ok: false,
           code: "ISOLATED_PROMPT_CAPABILITY_SCHEMA_INVALID",
-          message: `隔离 prompt 能力预检结果结构校验失败：${describeZodError(parsed.error)}`,
+          message: describeZodError(parsed.error),
         };
       }
       return { ok: true, data: parsed.data };
@@ -629,7 +629,7 @@ export function createOperationsSlice({
         return {
           ok: false,
           code: "INSPECT_SCHEMA_INVALID",
-          message: `文件清单结构校验失败：${describeZodError(parsed.error)}`,
+          message: describeZodError(parsed.error),
         };
       }
       return { ok: true, data: parsed.data };
@@ -645,7 +645,7 @@ export function createOperationsSlice({
         return {
           ok: false,
           code: "READ_FILE_SCHEMA_INVALID",
-          message: `文件内容结构校验失败：${describeZodError(parsed.error)}`,
+          message: describeZodError(parsed.error),
         };
       }
       return { ok: true, data: parsed.data };
@@ -686,7 +686,7 @@ export function createOperationsSlice({
           outcome = {
             status: "failed",
             code: "EXPORT_SCHEMA_INVALID",
-            reason: `导出结果结构校验失败：${describeZodError(parsed.error)}`,
+            reason: describeZodError(parsed.error),
             retained: [],
           };
         } else {
@@ -739,7 +739,7 @@ export function createOperationsSlice({
       const envelope = await api.chooseSource();
       if (!envelope.ok) {
         set({
-          ...storeError("UI_SOURCE_CHOOSE_FAILED", `选择源目录失败：${envelope.error.message}`, {
+          ...storeError("UI_SOURCE_CHOOSE_FAILED", envelope.error.message, {
             id: "errors.sourceChooseFailed",
           }),
         });
@@ -749,11 +749,9 @@ export function createOperationsSlice({
       const parsed = ChooseSourceResultSchema.safeParse(envelope.data);
       if (!parsed.success) {
         set({
-          ...storeError(
-            "UI_SOURCE_CHOOSE_INVALID",
-            `目录选择结果结构校验失败：${describeZodError(parsed.error)}`,
-            { id: "errors.invalidArgument" },
-          ),
+          ...storeError("UI_SOURCE_CHOOSE_INVALID", describeZodError(parsed.error), {
+            id: "errors.invalidArgument",
+          }),
         });
         return null;
       }

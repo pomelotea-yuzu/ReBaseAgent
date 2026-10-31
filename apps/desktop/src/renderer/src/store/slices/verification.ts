@@ -22,6 +22,7 @@ import { api } from "../../lib/api";
 import { describeZodError } from "../../lib/describe-zod-error";
 import {
   type VerificationArmedConfirmation,
+  type VerificationStopNotice,
   type VerificationTargetRef,
   verificationDomainIdOf,
   verificationTargetKey,
@@ -94,7 +95,7 @@ export interface VerificationState {
   /** 停止反馈（D05）：停止信号已被 main 接受（确认全部停止由编排收尾后随结局到达） */
   verificationStopRequested: boolean;
   /** 停止通道的非失败事实（幂等 no-op / 尚无可信身份已转核对） */
-  verificationStopNotice: string | null;
+  verificationStopNotice: VerificationStopNotice | null;
   verificationStopError: VerificationSubmitError | null;
   /**
    * 记录/日志读取（5.3/D09/P13/P16）：只读**可信验证身份**（连接层只传登记附件/
@@ -405,7 +406,7 @@ export function createVerificationSlice({ set, get }: SliceContext): Verificatio
           verificationCapabilityState: "error",
           verificationCapabilityError: {
             code: "R3_CAPABILITY_SCHEMA_INVALID",
-            message: `核对结果结构校验失败：${describeZodError(parsed.error)}`,
+            message: describeZodError(parsed.error),
           },
         });
         return;
@@ -452,7 +453,7 @@ export function createVerificationSlice({ set, get }: SliceContext): Verificatio
           verificationPlanState: "error",
           verificationPlanError: {
             code: "R3_PLAN_SCHEMA_INVALID",
-            message: `计划预览结构校验失败：${describeZodError(parsed.error)}`,
+            message: describeZodError(parsed.error),
           },
         });
         return;
@@ -567,8 +568,7 @@ export function createVerificationSlice({ set, get }: SliceContext): Verificatio
       }
       if (domainId === null) {
         set({
-          verificationStopNotice:
-            "登记里还没有该操作的可信领域身份（编排尚未创建记录或已收尾）：已请求核对；拿到登记身份后才能定向停止，不猜测目标",
+          verificationStopNotice: { kind: "identity_pending" },
         });
         return;
       }
@@ -595,7 +595,10 @@ export function createVerificationSlice({ set, get }: SliceContext): Verificatio
         // 已收尾 ⇒ 不再等待停止确认（stopRequested 复位）
         set({
           verificationStopRequested: false,
-          verificationStopNotice: envelope.data.reason ?? "该操作无需停止（已收尾或不在执行段）",
+          verificationStopNotice: {
+            kind: "already_settled",
+            detail: envelope.data.reason,
+          },
         });
         return;
       }
@@ -662,7 +665,7 @@ export function createVerificationSlice({ set, get }: SliceContext): Verificatio
           verificationRecordState: "error",
           verificationRecordError: {
             code: "R3_RECORD_SCHEMA_INVALID",
-            message: `验证记录结构校验失败：${describeZodError(parsed.error)}`,
+            message: describeZodError(parsed.error),
           },
         });
         return;
@@ -726,7 +729,7 @@ export function createVerificationSlice({ set, get }: SliceContext): Verificatio
           verificationLogState: "error",
           verificationLogError: {
             code: "R3_LOG_SCHEMA_INVALID",
-            message: `日志切片结构校验失败：${describeZodError(parsed.error)}`,
+            message: describeZodError(parsed.error),
           },
         });
         return;
@@ -824,7 +827,7 @@ export function createVerificationSlice({ set, get }: SliceContext): Verificatio
           return {
             ok: false,
             code: "R3_COMPARE_SCHEMA_INVALID",
-            message: `比较记录结构校验失败：${describeZodError(parsed.error)}`,
+            message: describeZodError(parsed.error),
           };
         }
         return { ok: true, data: parsed.data };
@@ -838,7 +841,7 @@ export function createVerificationSlice({ set, get }: SliceContext): Verificatio
           verificationCompareState: "error",
           verificationCompareError: {
             code: failure?.code ?? "R3_COMPARE_SCHEMA_INVALID",
-            message: failure?.message ?? "比较读取失败",
+            message: failure?.message ?? "",
           },
         });
         return;
@@ -904,7 +907,7 @@ export function createVerificationSlice({ set, get }: SliceContext): Verificatio
           verificationId,
           generation,
           code: "R3_EXPORT_SCHEMA_INVALID",
-          reason: `导出结果结构校验失败：${describeZodError(parsed.error)}`,
+          reason: describeZodError(parsed.error),
           retained: [],
         });
         return null;

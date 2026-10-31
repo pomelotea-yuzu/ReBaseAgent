@@ -202,7 +202,7 @@ describe("CompareSelectionBarView：选择栏", () => {
   const shorts = computeShortIds(["r_a", "r_b"]);
   const noop = (): void => {};
 
-  function bar(over: { compareIds?: string[]; compareNotice?: string | null } = {}): string {
+  function bar(over: { compareIds?: string[]; compareNotice?: CompareNotice | null } = {}): string {
     return render(
       <CompareSelectionBarView
         runs={runs}
@@ -232,7 +232,7 @@ describe("CompareSelectionBarView：选择栏", () => {
   });
 
   it("上限提示如实呈现（store 写下的 compareNotice）", () => {
-    const html = bar({ compareNotice: "最多同时对照 4 条运行" });
+    const html = bar({ compareNotice: { code: "max_selected", limit: 4 } });
     expect(html).toContain("最多同时对照 4 条运行");
   });
 

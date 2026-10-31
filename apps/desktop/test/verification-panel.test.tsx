@@ -515,7 +515,7 @@ describe("VerificationPanel（5.2：停止反馈 D05）", () => {
       baseProps({
         expanded: true,
         activeOperation: { kind: "run", operationId: "55555555-5555-4555-8555-555555555555" },
-        stopNotice: "该操作已收尾（settled），无需停止",
+        stopNotice: { kind: "already_settled", detail: "该操作已收尾（settled），无需停止" },
       }),
     );
     expect(notice).toContain("data-verification-stop-notice");
@@ -537,7 +537,7 @@ describe("VerificationPanel（3.2：在飞/停止/操作登记英文呈现）", 
         expanded: true,
         activeOperation: { kind: "run", operationId: "55555555-5555-4555-8555-555555555555" },
         stopRequested: true,
-        stopNotice: "该操作已收尾（settled），无需停止",
+        stopNotice: { kind: "already_settled", detail: "该操作已收尾（settled），无需停止" },
       }),
     );
     expect(run).toContain("Running the fixed check");

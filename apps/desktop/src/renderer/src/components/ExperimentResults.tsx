@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { useTranslator } from "../i18n";
+import { compareNoticeText } from "../lib/compare-notice";
+import type { CompareNotice } from "../lib/compare-notice";
 import type { ExperimentArmSelectability, ExperimentBatchView } from "../lib/experiment-results";
 import { experimentArmSelectabilityOf, experimentCompareHintOf } from "../lib/experiment-results";
 import type { AbArmResultView, ResultAction } from "../lib/operation-result-view";
@@ -39,7 +41,7 @@ export function ExperimentResultsSection({
   /** 全局对照集合（U7 共用；缺省空 = 只呈现不提供选择面） */
   readonly compareIds?: readonly string[];
   /** store 的对照操作提示（超上限等）；null = 无 */
-  readonly compareNotice?: string | null;
+  readonly compareNotice?: CompareNotice | null;
   readonly onToggleCompare?: (runId: string) => void;
   readonly onEnterCompare?: () => void;
 }): ReactNode {
@@ -124,7 +126,7 @@ export function ExperimentResultsSection({
       ) : null}
       {compareNotice !== null ? (
         <output className="mt-1 block break-all text-[10px] leading-4 text-amber-800">
-          {compareNotice}
+          {compareNoticeText(compareNotice, translator)}
         </output>
       ) : null}
       <Disclosure

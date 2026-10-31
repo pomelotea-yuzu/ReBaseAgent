@@ -11,7 +11,10 @@ import type { ConfirmationRow } from "../lib/execution-confirmation";
 import { disclosureLines } from "../lib/execution-confirmation";
 import { formatBytes } from "../lib/format";
 import type { VerificationComparison } from "../lib/verification-compare";
-import type { VerificationCompareCandidate } from "../lib/verification-entry";
+import type {
+  VerificationCompareCandidate,
+  VerificationStopNotice,
+} from "../lib/verification-entry";
 import {
   type VerificationBlocker,
   type VerificationConfirmationDecision,
@@ -22,6 +25,7 @@ import {
   verificationPrepareDisclosure,
   verificationRecordLine,
   verificationRunDisclosure,
+  verificationStopNoticeText,
   verificationTargetLabel,
 } from "../lib/verification-entry";
 import type { VerificationRecordView } from "../lib/verification-reading";
@@ -135,7 +139,7 @@ export interface VerificationPanelProps {
   /** 在飞 R3 操作身份（提交动作铸出；通道抛错后保留供核对） */
   readonly activeOperation: { kind: "prepare" | "run"; operationId: string } | null;
   readonly stopRequested: boolean;
-  readonly stopNotice: string | null;
+  readonly stopNotice: VerificationStopNotice | null;
   readonly stopError: VerificationSubmitError | null;
   readonly onStop: () => void;
 
@@ -674,7 +678,15 @@ export function VerificationPanel({
                   data-verification-stop-notice="true"
                 >
                   {translator.t("verification.stopNoticeLabel")}
-                  <span className="whitespace-pre-wrap break-words">{stopNotice}</span>
+                  <span className="whitespace-pre-wrap break-words">
+                    {verificationStopNoticeText(stopNotice, translator)}
+                  </span>
+                  {stopNotice.kind === "already_settled" && stopNotice.detail !== null ? (
+                    <span className="mt-0.5 block whitespace-pre-wrap break-words text-gray-500">
+                      {translator.t("detail.rawFailureDetail")}
+                      {stopNotice.detail}
+                    </span>
+                  ) : null}
                 </div>
               ) : null}
               {stopError !== null ? (
@@ -1113,10 +1125,12 @@ export function VerificationPanel({
                   ) : null}
                   {compareError !== null ? (
                     <div className="text-[10px] text-red-700" data-compare-error="true">
-                      {translator.t("verification.compareReadFailed", {
-                        code: compareError.code,
-                        detail: compareError.message,
-                      })}
+                      {compareError.code === "R3_COMPARE_SAME_ID"
+                        ? translator.t("verification.compareSameId")
+                        : translator.t("verification.compareReadFailed", {
+                            code: compareError.code,
+                            detail: compareError.message,
+                          })}
                       <button
                         type="button"
                         data-compare-retry="true"

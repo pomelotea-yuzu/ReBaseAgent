@@ -23,6 +23,7 @@ import {
   decidePairSideEdit,
   swapComparePair,
 } from "../../lib/compare-navigation";
+import type { CompareNotice } from "../../lib/compare-notice";
 import {
   type CompareReadSession,
   applyCompareResponse,
@@ -67,8 +68,8 @@ export interface CompareState {
   compareReturnLocation: CompareReturnLocation | null;
   /** 加入对照的 run id（上限 4，分支树的选择栏与比较工作区的指标表消费） */
   compareIds: string[];
-  /** 对照集合的操作提示（超上限等），空则无提示 */
-  compareNotice: string | null;
+  /** 对照集合的操作提示（稳定码；文案由展示层按语言派生） */
+  compareNotice: CompareNotice | null;
   /**
    * U7 任务 1.4：进入/更换比较对象并读取。合法性与幂等判据：
    * 非法（数量/重复/空 id）⇒ 不变；与当前选择集同序同 id ⇒ 幂等不重读（保留结论）；
@@ -361,7 +362,7 @@ export function createCompareSlice({
       // 零/一条 ⇒ 无 pair（指标表引导 / 单条自有指标）。
       const decision = decideManualPair(get().compareIds);
       if (decision.kind === "none" && decision.reason === "explicit-select") {
-        set({ compareNotice: "已选三条及以上：请在指标表中显式选择两条进入详细比较" });
+        set({ compareNotice: { code: "pick_two_in_metrics" } });
       }
       await enterCompareView(decision.kind === "pair" ? decision.pair : null);
       // U7 5.2：无 pair 的进入也要让宽幅指标表有数据——对整个对照集合发起一次
@@ -612,7 +613,7 @@ export function createCompareSlice({
         return {
           ok: false,
           code: "COMPARE_SNAPSHOTS_SCHEMA_INVALID",
-          message: `比较清单结构校验失败：${describeZodError(parsed.error)}`,
+          message: describeZodError(parsed.error),
         };
       }
       return { ok: true, data: parsed.data };
@@ -628,7 +629,7 @@ export function createCompareSlice({
         return {
           ok: false,
           code: "COMPARE_FILE_SCHEMA_INVALID",
-          message: `比较正文结构校验失败：${describeZodError(parsed.error)}`,
+          message: describeZodError(parsed.error),
         };
       }
       return { ok: true, data: parsed.data };
@@ -644,7 +645,7 @@ export function createCompareSlice({
         return;
       }
       if (compareIds.length >= MAX_COMPARE) {
-        set({ compareNotice: `最多同时对照 ${MAX_COMPARE} 条运行` });
+        set({ compareNotice: { code: "max_selected", limit: MAX_COMPARE } });
         return;
       }
       set({ compareIds: [...compareIds, runId], compareNotice: null });

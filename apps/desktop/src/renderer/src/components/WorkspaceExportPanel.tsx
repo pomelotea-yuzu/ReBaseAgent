@@ -1,4 +1,5 @@
 import type { KeyboardEvent } from "react";
+import { Trans, useTranslator } from "../i18n";
 import type { WorkspaceExportFeedback } from "../lib/workspace-export-state";
 
 /**
@@ -39,21 +40,22 @@ export interface WorkspaceExportPanelProps {
 function PatchFeedback({
   feedback,
 }: { feedback: Extract<WorkspaceExportFeedback, { kind: "exported" }> }) {
+  const translator = useTranslator();
   const patch = feedback.result.patch;
   if (patch.status === "no_text_changes") {
-    return (
-      <div className="text-gray-600">
-        补丁：与初始快照无文本差异（no_text_changes），未生成 changes.patch。
-      </div>
-    );
+    return <div className="text-gray-600">{translator.t("export.patchNoTextChanges")}</div>;
   }
   if (patch.status === "not_available") {
     return (
       <div className="text-amber-800">
-        <div>补丁不可用{patch.reason === null ? "" : `：${patch.reason}`}；文件导出不受影响。</div>
+        <div>
+          {patch.reason === null
+            ? translator.t("export.patchNotAvailable")
+            : translator.t("export.patchNotAvailableWithReason", { reason: patch.reason })}
+        </div>
         {patch.excluded.map((entry) => (
           <div key={entry.path} className="font-code text-[10px]">
-            {entry.path}：{entry.reason}
+            {translator.t("export.excludedLine", { path: entry.path, reason: entry.reason })}
           </div>
         ))}
       </div>
@@ -62,8 +64,10 @@ function PatchFeedback({
   return (
     <div className="text-gray-700">
       <div>
-        补丁已生成 changes.patch（{patch.bytes} 字节）；覆盖 {patch.covered.length}{" "}
-        个路径的文本修改/新增。
+        {translator.t("export.patchWritten", {
+          bytes: patch.bytes,
+          count: patch.covered.length,
+        })}
       </div>
       {patch.covered.map((path) => (
         <div key={path} className="font-code text-[10px] text-gray-500">
@@ -72,7 +76,7 @@ function PatchFeedback({
       ))}
       {patch.excluded.map((entry) => (
         <div key={entry.path} className="font-code text-[10px] text-amber-700">
-          {entry.path}：未覆盖（{entry.reason}）
+          {translator.t("export.uncoveredLine", { path: entry.path, reason: entry.reason })}
         </div>
       ))}
     </div>
@@ -81,30 +85,36 @@ function PatchFeedback({
 
 /** 单条反馈的正文（按 kind 分流；全部不抢焦点、不触发导航） */
 function ExportFeedbackBody({ feedback }: { feedback: WorkspaceExportFeedback }) {
+  const translator = useTranslator();
   switch (feedback.kind) {
-    case "in-flight":
+    case "in-flight": {
+      const target =
+        feedback.stepSpanId === null
+          ? translator.t("export.targetInitial")
+          : translator.t("export.targetStep", { step: feedback.stepSpanId });
       return (
         <div className="rounded border-l-2 border-violet-400 bg-violet-50 px-2 py-1.5 text-[11px] leading-4 text-violet-900">
-          正在导出「{feedback.stepSpanId === null ? "初始检查点" : `检查点 ${feedback.stepSpanId}`}
-          」… 切换页面不会中止导出；返回本页可查看结果。重载后本提示会丢失，请以目标目录中的
-          rebaseagent-export.json 为准。
+          {translator.t("export.inFlight", { target })}
         </div>
       );
+    }
     case "canceled":
       return (
         <div className="rounded border-l-2 border-gray-300 bg-gray-50 px-2 py-1.5 text-[11px] leading-4 text-gray-600">
-          已取消：未选择目标目录，没有写入任何内容。
+          {translator.t("export.canceled")}
         </div>
       );
     case "failed":
       return (
         <div className="rounded border-l-2 border-red-400 bg-red-50 px-2 py-1.5 text-[11px] leading-4 text-red-800">
-          <div>
-            导出失败（{feedback.code}）：{feedback.reason}
+          <div>{translator.t("export.failedSummary", { code: feedback.code })}</div>
+          <div className="mt-0.5 whitespace-pre-wrap break-words">
+            {translator.t("detail.rawFailureDetail")}
+            {feedback.reason}
           </div>
           {feedback.retained.length > 0 ? (
             <div className="mt-1">
-              目标中残留本次导出的半成品（清理未完成），请勿直接使用，也不要把残留当作完整导出：
+              {translator.t("export.retainedTitle")}
               <div className="font-code text-[10px]">
                 {feedback.retained.map((path) => (
                   <div key={path}>{path}</div>
@@ -112,32 +122,30 @@ function ExportFeedbackBody({ feedback }: { feedback: WorkspaceExportFeedback })
               </div>
             </div>
           ) : null}
-          <div className="mt-1 text-red-600">
-            当前 run/文件选择/草稿未被改写；可换一个空目录重试。
-          </div>
+          <div className="mt-1 text-red-600">{translator.t("export.failedReassure")}</div>
         </div>
       );
     case "exported":
       return (
         <div className="rounded border-l-2 border-emerald-500 bg-emerald-50 px-2 py-1.5 text-[11px] leading-4 text-emerald-900">
           <div className="font-semibold">
-            已导出 {feedback.result.fileCount} 个文件（共 {feedback.result.totalFileBytes}{" "}
-            字节）到：
+            {translator.t("export.exportedSummary", {
+              count: feedback.result.fileCount,
+              bytes: feedback.result.totalFileBytes,
+            })}
           </div>
           <div className="break-all font-code text-[10px]">{feedback.result.targetDir}</div>
           <div className="mt-0.5 text-gray-600">
-            文件树在 <span className="font-code">{feedback.result.filesRoot}/</span>{" "}
-            下；带回原项目时复制该目录内容。根部另有{" "}
-            <span className="font-code">rebaseagent-export.json</span>{" "}
-            清单（含逐文件哈希与未保留状态）。
+            <Trans
+              i18nKey="export.filesRootNote"
+              values={{ root: feedback.result.filesRoot }}
+              components={{ code: <span className="font-code" /> }}
+            />
           </div>
           <div className="mt-1">
             <PatchFeedback feedback={feedback} />
           </div>
-          <div className="mt-1 text-gray-500">
-            权限、可执行位、时间戳、链接、空目录与外部服务状态未保留（原状态未知）。导出成功只表示材料已导出，
-            不表示项目可构建、测试通过或已应用。
-          </div>
+          <div className="mt-1 text-gray-500">{translator.t("export.preserveNote")}</div>
         </div>
       );
   }
@@ -154,6 +162,7 @@ export function WorkspaceExportPanel({
   onToggleExpanded,
   onConfirm,
 }: WorkspaceExportPanelProps) {
+  const translator = useTranslator();
   /** 任务 6.4：Esc 收起确认卡（零写入；焦点落回入口按钮，不丢在页面外） */
   const onEscape = (event: KeyboardEvent<HTMLDivElement>): void => {
     if (event.key !== "Escape" || !expanded) return;
@@ -173,12 +182,12 @@ export function WorkspaceExportPanel({
         onClick={onToggleExpanded}
         title={
           eligible
-            ? "把当前检查点导出为独立结果材料（文件树 + 清单 + 适用的文本补丁）"
-            : (ineligibleReason ?? "当前不可导出")
+            ? translator.t("export.entryTitleEligible")
+            : (ineligibleReason ?? translator.t("export.entryTitleUnavailable"))
         }
         className="rounded border border-violet-300 px-2 py-0.5 text-[11px] text-violet-700 hover:bg-violet-50 focus-visible:ring-2 focus-visible:ring-violet-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
       >
-        {expanded ? "收起导出" : "导出选定检查点"}
+        {expanded ? translator.t("export.entryExpanded") : translator.t("export.entryCollapsed")}
       </button>
       {ineligibleReason !== null ? (
         <span className="ml-2 text-[10px] text-gray-400">{ineligibleReason}</span>
@@ -190,20 +199,26 @@ export function WorkspaceExportPanel({
           data-export-confirm="true"
         >
           <div className="font-semibold text-gray-800">
-            导出「{checkpointLabel}」（{stepSpanId === null ? "本 run 初始检查点" : "自有完成步骤"}
-            ）
+            {translator.t("export.confirmHeading", {
+              checkpoint: checkpointLabel,
+              scope:
+                stepSpanId === null
+                  ? translator.t("export.scopeInitial")
+                  : translator.t("export.scopeStep"),
+            })}
           </div>
           <ul className="mt-1 list-disc space-y-0.5 pl-4">
-            <li>目标必须是一个**空目录**（由系统目录选择器指定；不会覆盖任何既有文件）。</li>
+            <li>{translator.t("export.confirmEmptyDir")}</li>
             <li>
-              导出布局：<span className="font-code">files/</span> 文件树（项目文件原样存放）+ 根部{" "}
-              <span className="font-code">rebaseagent-export.json</span> 清单 + 适用的{" "}
-              <span className="font-code">changes.patch</span> 文本补丁。
+              <Trans
+                i18nKey="export.confirmLayout"
+                components={{ code: <span className="font-code" /> }}
+              />
             </li>
             <li>
-              只复制已校验的普通文件字节；权限、可执行位、时间戳、链接、空目录、外部服务**未保留**（原状态未知）。
+              <Trans i18nKey="export.confirmPreserve" components={{ strong: <strong /> }} />
             </li>
-            <li>源目录、trace、父/兄弟运行与本页阅读位置都不会被改动。</li>
+            <li>{translator.t("export.confirmSourceIntact")}</li>
           </ul>
           <div className="mt-1.5 flex gap-2">
             <button
@@ -212,7 +227,7 @@ export function WorkspaceExportPanel({
               onClick={onConfirm}
               className="rounded border border-violet-400 bg-violet-600 px-2 py-0.5 text-[11px] text-white hover:bg-violet-700 focus-visible:ring-2 focus-visible:ring-violet-400 focus-visible:outline-none"
             >
-              选择目标目录并导出
+              {translator.t("export.confirmExport")}
             </button>
             <button
               type="button"
@@ -220,7 +235,7 @@ export function WorkspaceExportPanel({
               onClick={onToggleExpanded}
               className="rounded border border-gray-300 bg-white px-2 py-0.5 text-[11px] text-gray-600 hover:bg-gray-50"
             >
-              取消（不写入）
+              {translator.t("export.cancelNoWrite")}
             </button>
           </div>
         </div>
