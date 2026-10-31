@@ -1368,6 +1368,14 @@ export const enUS = {
     armWarningWorkaroundLabel: "Warning {{key}} workaround",
     armWarningPrefix: "⚠ {{key}}: ",
     armWarningWorkaround: "Workaround: ",
+    warningNumCtxReason:
+      "Ollama /v1 silently ignores num_ctx (measured 2026-09-14, /api/ps cold-load comparison): after top-level, nested options, and string forms, the running model's context stayed at the default 4096, while native /api/generate with options.num_ctx=2048 did lower context to 2048 — the parameter works, but /v1 does not forward it to options. HTTP 200 with no warning, and the /v1 response body has no context length, so it cannot be self-checked",
+    warningNumCtxWorkaround:
+      "Two paths: (1) lighter — call Ollama's native /api/generate with options.num_ctx, verified effective; (2) heavier — derive a model (PARAMETER num_ctx N in a Modelfile, then ollama create) and request the derived model name. Note: model cards often claim context_length 40960, but the runtime loads only 4096 by default",
+    warningThinkReason:
+      "Ollama /v1 ignores top-level think (measured 2026-09-10): no error, but chain-of-thought behavior is unchanged; use OpenAI-compatible reasoning_effort instead",
+    warningThinkWorkaround:
+      'Send reasoning_effort instead (e.g. reasoning_effort: "none" to disable thinking) — verified byte-identical to production (2026-09-14 retest: reasoning_effort="none" reduced the reasoning field from ~2,900 characters to 0 while content returned normally)',
     armReasonLine: "{{arm}}: {{detail}}",
     armChanged: "Changed: {{fields}}",
     armSameAsParent: "Same as parent",

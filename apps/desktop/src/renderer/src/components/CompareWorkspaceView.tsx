@@ -2,7 +2,7 @@ import type { DirectEditEvidence, EditValuePresence } from "@shared/compare-edit
 import type { DifferentRootComparison } from "@shared/compare-edit-evidence";
 import type { CompareDiffGate, SideOutputFacts } from "@shared/compare-output";
 import type { ExperimentGate } from "@shared/experiment-records";
-import { outcomeBadgeClass } from "@shared/outcome";
+import { outcomeBadgeClass, outcomeLabelOf } from "@shared/outcome";
 import { useTranslator } from "../i18n";
 import type { CompareFileEntry } from "../lib/compare-files";
 import { foldCatalogRows } from "../lib/compare-steps";
@@ -662,7 +662,7 @@ export function SideOutputSection({
         <span
           className={`rounded px-1.5 py-0.5 text-[11px] ${outcomeBadgeClass(facts.outcome.tone)}`}
         >
-          {facts.outcome.label}
+          {outcomeLabelOf(facts.outcome.kind, translator)}
         </span>
         <span className="font-code text-[11px] text-gray-400">{facts.runId}</span>
       </div>

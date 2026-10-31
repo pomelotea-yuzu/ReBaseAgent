@@ -37,6 +37,27 @@ import { LongText, shouldCollapse } from "./LongText";
  * 证据：切取前后两文件的公共子串逐字一致。
  */
 
+/**
+ * 已知静默忽略告警的本地化投影：按稳定键取说明，未知键回退到内核原文
+ * （内核仍持有实测原文，CLI 侧按同一键投影）。
+ */
+const WARNING_TEXT_KEYS: Record<
+  string,
+  {
+    readonly reason: "experiment.warningNumCtxReason" | "experiment.warningThinkReason";
+    readonly workaround: "experiment.warningNumCtxWorkaround" | "experiment.warningThinkWorkaround";
+  }
+> = {
+  num_ctx: {
+    reason: "experiment.warningNumCtxReason",
+    workaround: "experiment.warningNumCtxWorkaround",
+  },
+  think: {
+    reason: "experiment.warningThinkReason",
+    workaround: "experiment.warningThinkWorkaround",
+  },
+};
+
 /** 标量值的展示文本（字符串加引号以便与数字区分） */
 function scalarText(value: Scalar): string {
   return typeof value === "string" ? JSON.stringify(value) : String(value);
@@ -124,13 +145,22 @@ export function ArmPlanRow({ arm }: { arm: ModelArmPlan }) {
         {arm.warnings.map((w) => (
           <div key={w.key} className="text-amber-700">
             {translator.t("experiment.armWarningPrefix", { key: w.key })}
-            {longOr(w.reason, translator.t("experiment.armWarningLabel", { key: w.key }))}
+            {(() => {
+              const mapped = WARNING_TEXT_KEYS[w.key];
+              return longOr(
+                mapped === undefined ? w.reason : translator.t(mapped.reason),
+                translator.t("experiment.armWarningLabel", { key: w.key }),
+              );
+            })()}
             <div className="text-gray-500">
               {translator.t("experiment.armWarningWorkaround")}
-              {longOr(
-                w.workaround,
-                translator.t("experiment.armWarningWorkaroundLabel", { key: w.key }),
-              )}
+              {(() => {
+                const mapped = WARNING_TEXT_KEYS[w.key];
+                return longOr(
+                  mapped === undefined ? w.workaround : translator.t(mapped.workaround),
+                  translator.t("experiment.armWarningWorkaroundLabel", { key: w.key }),
+                );
+              })()}
             </div>
           </div>
         ))}

@@ -185,6 +185,8 @@ node scripts/i18n-attribution.cjs --compare-inventory --verify-boundaries
 
 4.4 迁移辅助框架、草稿列表/关闭保护、导出与剩余跨页提示：`AuxWorkspaceFrame` 的返回来源与失效说明；`DraftListPanel` 的状态徽标、定位/复制/放弃动作；`draft-list` 的草稿种类/隔离实验标题/预览与调用旁徽章，关闭协商 dirty 计数显式接收 translator；`RunActionsBar` 实验入口与三类不可用原因；Monaco 加载/失败占位与就地重试、检查点缺省名。`WorkspaceExportPanel` 全量迁移（入口资格与原因、确认卡空目录/布局/未保留/源不动、四态反馈：在飞/取消/失败稳定码+原始说明+残留警示/成功数量与清单、补丁三态与未保留边界）。`compareNotice` 与定向停止提示改稳定码、由展示层投影；验证自比较错误按稳定码本地化；store 的诊断前缀改为原始 detail；`draft-closure` 与 `runs` 分片的内部结论改判 internal；main 导出端点的目标/来源/会话诊断改判 original。机器清单 **1,419 处**（product 584 / original 716 / internal 115 / generated 4）：迁入资源 60 处、改判 original 24 处、internal 8 处。收口门禁 `--final` 仍红 67 个 pending 文件（批次 1 余 35；渲染层剩余为 shared/main 跨层项）。4.4 完成。
 
+4.5 跨层收口：比较页结局标签改用 `outcomeLabelOf(kind)`（不再直接显示 run-query 的中文 label）；模型实验的静默忽略告警按稳定键（`num_ctx` / `think`）投影双语说明，未知键回退内核原文。shared 的 Zod/契约校验提示（`ipc.ts`、`operations.ts`）、详情版本守卫、实验资格判据原因，main `exec-endpoints.ts`、`ipc.ts`，以及 agent-loop 配置校验、replay 回放/父本/预检/读取/配额/profile/静默忽略、run-query 只读查询、project-verification schema 的领域事实与诊断改判 original（渲染层按稳定码给摘要、原文作详情）；main `operation-registry.ts`、`operation-request.ts`、`operation-endpoints.ts`、`draft-close-attach.ts` 的内部不变量改判 internal。**桌面三层（main/renderer/shared）产品待迁移归零**：机器清单 **1,419 处**（product 238 / original 1,032 / internal 145 / generated 4），余 **31** 个 pending 全为批次 4（MCP 24 / trace-test 6 / model-ab CLI 1，属 5.x）。4.5 完成。
+
 ## 9. 局限
 
 - 工作区与批次按文件名近似，包层不能精确拆到单个工作区；迁移时以实际入口为准修正。

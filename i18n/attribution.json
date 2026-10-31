@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T04:03:22.482Z",
+  "generatedAt": "2026-10-31T04:39:43.570Z",
   "scanner": "scripts/i18n-attribution.cjs",
   "taxonomy": {
     "product": "产品展示：需要按批次迁移为双语资源",
@@ -11,18 +11,18 @@
   "totals": {
     "files": 168,
     "occurrences": 1419,
-    "product": 584,
-    "original": 716,
-    "internal": 115,
+    "product": 238,
+    "original": 1032,
+    "internal": 145,
     "generated": 4
   },
   "byLayer": {
     "main": {
       "files": 20,
       "occurrences": 131,
-      "product": 54,
-      "original": 75,
-      "internal": 2,
+      "product": 0,
+      "original": 99,
+      "internal": 32,
       "generated": 0
     },
     "renderer": {
@@ -36,16 +36,16 @@
     "shared": {
       "files": 4,
       "occurrences": 71,
-      "product": 71,
-      "original": 0,
+      "product": 0,
+      "original": 71,
       "internal": 0,
       "generated": 0
     },
     "pkg:agent-loop": {
       "files": 5,
       "occurrences": 17,
-      "product": 2,
-      "original": 14,
+      "product": 0,
+      "original": 16,
       "internal": 1,
       "generated": 0
     },
@@ -68,24 +68,24 @@
     "pkg:project-verification": {
       "files": 30,
       "occurrences": 261,
-      "product": 5,
-      "original": 224,
+      "product": 0,
+      "original": 229,
       "internal": 28,
       "generated": 4
     },
     "pkg:replay": {
       "files": 32,
       "occurrences": 352,
-      "product": 168,
-      "original": 166,
+      "product": 33,
+      "original": 301,
       "internal": 18,
       "generated": 0
     },
     "pkg:run-query": {
       "files": 13,
       "occurrences": 123,
-      "product": 79,
-      "original": 44,
+      "product": 0,
+      "original": 123,
       "internal": 0,
       "generated": 0
     },
@@ -206,17 +206,17 @@
       "layer": "main",
       "package": null,
       "workspace": "操作/草稿",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "internal",
+      "batch": null,
+      "status": "excluded",
+      "reason": "关闭协商握手的内部拒绝，不面向用户",
       "symbols": [
         {
           "symbol": "error.message",
           "role": "ui_prop",
           "context": "message",
-          "classification": "product",
-          "reason": null,
+          "classification": "internal",
+          "reason": "关闭协商握手的内部拒绝，不面向用户",
           "count": 1,
           "samples": [
             "关闭协商握手被拒绝"
@@ -232,17 +232,17 @@
       "layer": "main",
       "package": null,
       "workspace": "隔离执行/实验",
-      "classification": "mixed",
-      "batch": 1,
-      "status": "pending",
-      "reason": "main 返回的分叉失败原始说明，渲染层作为原始详情展示；产品摘要按稳定码本地化",
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "main 主动执行通道的拒绝/失败原始说明，渲染层按稳定码给出本地化摘要并作为原始详情展示",
       "symbols": [
         {
           "symbol": "errorOfNonAccepted.message",
           "role": "ui_prop",
           "context": "message",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "main 主动执行通道的拒绝/失败原始说明，渲染层按稳定码给出本地化摘要并作为原始详情展示",
           "count": 3,
           "samples": [
             "该 operationId 已用于另一份业务请求，本次未执行",
@@ -258,8 +258,8 @@
           "symbol": "error.message",
           "role": "ui_prop",
           "context": "message",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "main 主动执行通道的拒绝/失败原始说明，渲染层按稳定码给出本地化摘要并作为原始详情展示",
           "count": 7,
           "samples": [
             "主动执行通道只接受本应用窗口主 frame 的调用",
@@ -279,8 +279,8 @@
           "symbol": "createChannel.run",
           "role": "error_message",
           "context": "new CreateRunError",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "main 主动执行通道的拒绝/失败原始说明，渲染层按稳定码给出本地化摘要并作为原始详情展示",
           "count": 1,
           "samples": [
             "尚未配置运行参数（baseURL / apiKey / model），请先完成运行配置"
@@ -293,8 +293,8 @@
           "symbol": "createChannel.run",
           "role": "ui_text",
           "context": "ternary",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "main 主动执行通道的拒绝/失败原始说明，渲染层按稳定码给出本地化摘要并作为原始详情展示",
           "count": 2,
           "samples": [
             "所选目录的确认已过期（超过 15 分钟），请重新选择目录并确认副本写入",
@@ -323,8 +323,8 @@
           "symbol": "runIsolatedPromptFork",
           "role": "error_message",
           "context": "new ForkError",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "main 主动执行通道的拒绝/失败原始说明，渲染层按稳定码给出本地化摘要并作为原始详情展示",
           "count": 6,
           "samples": [
             "读取运行配置失败，请重新配置后再试",
@@ -343,8 +343,8 @@
           "symbol": "promptChannel.run",
           "role": "error_message",
           "context": "new ForkError",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "main 主动执行通道的拒绝/失败原始说明，渲染层按稳定码给出本地化摘要并作为原始详情展示",
           "count": 1,
           "samples": [
             "尚未配置运行参数（baseURL / apiKey / model），请先完成运行配置"
@@ -499,17 +499,17 @@
       "layer": "main",
       "package": null,
       "workspace": "外壳/其他",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "main 通道注册/启动诊断原始说明，渲染层按稳定码给出本地化摘要并作为原始详情展示",
       "symbols": [
         {
           "symbol": "registerIpc",
           "role": "call_arg",
           "context": "r3Availability.setBlocked",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "main 通道注册/启动诊断原始说明，渲染层按稳定码给出本地化摘要并作为原始详情展示",
           "count": 2,
           "samples": [
             "未发现可信 Docker Desktop CLI（P01：不隐式安装、不回退宿主 Shell）",
@@ -524,8 +524,8 @@
           "symbol": "registerIpc",
           "role": "error_message",
           "context": "new Error",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "main 通道注册/启动诊断原始说明，渲染层按稳定码给出本地化摘要并作为原始详情展示",
           "count": 2,
           "samples": [
             "run id 必须是字符串",
@@ -569,17 +569,17 @@
       "layer": "main",
       "package": null,
       "workspace": "操作/草稿",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "internal",
+      "batch": null,
+      "status": "excluded",
+      "reason": "操作通道可信来源/核对形状的安全拒绝，不面向用户",
       "symbols": [
         {
           "symbol": "rejectUntrusted",
           "role": "error_message",
           "context": "new Error",
-          "classification": "product",
-          "reason": null,
+          "classification": "internal",
+          "reason": "操作通道可信来源/核对形状的安全拒绝，不面向用户",
           "count": 1,
           "samples": [
             "操作通道只接受本应用窗口主 frame 的调用"
@@ -592,8 +592,8 @@
           "symbol": "reconcileOperation",
           "role": "error_message",
           "context": "new Error",
-          "classification": "product",
-          "reason": null,
+          "classification": "internal",
+          "reason": "操作通道可信来源/核对形状的安全拒绝，不面向用户",
           "count": 2,
           "samples": [
             "核对请求必须只含当前 epoch 与 operationId（UUID）",
@@ -611,17 +611,17 @@
       "layer": "main",
       "package": null,
       "workspace": "操作/草稿",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "internal",
+      "batch": null,
+      "status": "excluded",
+      "reason": "操作登记/执行槽不变量错误，不面向用户",
       "symbols": [
         {
           "symbol": "OperationRegistryInvariantError.constructor",
           "role": "call_arg",
           "context": "super",
-          "classification": "product",
-          "reason": null,
+          "classification": "internal",
+          "reason": "操作登记/执行槽不变量错误，不面向用户",
           "count": 1,
           "samples": [
             "操作登记不变量被破坏：${…}"
@@ -634,8 +634,8 @@
           "symbol": "OperationRegistry.snapshot",
           "role": "error_message",
           "context": "new OperationRegistryInvariantError",
-          "classification": "product",
-          "reason": null,
+          "classification": "internal",
+          "reason": "操作登记/执行槽不变量错误，不面向用户",
           "count": 2,
           "samples": [
             "快照不自洽：${…}",
@@ -650,8 +650,8 @@
           "symbol": "OperationRegistry.registerRunning",
           "role": "error_message",
           "context": "new OperationRegistryInvariantError",
-          "classification": "product",
-          "reason": null,
+          "classification": "internal",
+          "reason": "操作登记/执行槽不变量错误，不面向用户",
           "count": 2,
           "samples": [
             "执行槽已被占用",
@@ -666,8 +666,8 @@
           "symbol": "OperationRegistry.registerNotAccepted",
           "role": "error_message",
           "context": "new OperationRegistryInvariantError",
-          "classification": "product",
-          "reason": null,
+          "classification": "internal",
+          "reason": "操作登记/执行槽不变量错误，不面向用户",
           "count": 1,
           "samples": [
             "已存在的操作不能被改写为 notAccepted"
@@ -680,8 +680,8 @@
           "symbol": "OperationRegistry.settle",
           "role": "error_message",
           "context": "new OperationRegistryInvariantError",
-          "classification": "product",
-          "reason": null,
+          "classification": "internal",
+          "reason": "操作登记/执行槽不变量错误，不面向用户",
           "count": 1,
           "samples": [
             "notAccepted 不能被反标为已执行"
@@ -694,8 +694,8 @@
           "symbol": "attachRunId.operation",
           "role": "call_arg",
           "context": "this.requireRunning",
-          "classification": "product",
-          "reason": null,
+          "classification": "internal",
+          "reason": "操作登记/执行槽不变量错误，不面向用户",
           "count": 1,
           "samples": [
             "追加运行身份"
@@ -708,8 +708,8 @@
           "symbol": "attachExperimentId.operation",
           "role": "call_arg",
           "context": "this.requireRunning",
-          "classification": "product",
-          "reason": null,
+          "classification": "internal",
+          "reason": "操作登记/执行槽不变量错误，不面向用户",
           "count": 1,
           "samples": [
             "关联 experimentId"
@@ -722,8 +722,8 @@
           "symbol": "OperationRegistry.attachExperimentId",
           "role": "error_message",
           "context": "new OperationRegistryInvariantError",
-          "classification": "product",
-          "reason": null,
+          "classification": "internal",
+          "reason": "操作登记/执行槽不变量错误，不面向用户",
           "count": 1,
           "samples": [
             "同一操作不得关联两个 experimentId"
@@ -736,8 +736,8 @@
           "symbol": "attachPreparationId.operation",
           "role": "call_arg",
           "context": "this.requireRunning",
-          "classification": "product",
-          "reason": null,
+          "classification": "internal",
+          "reason": "操作登记/执行槽不变量错误，不面向用户",
           "count": 1,
           "samples": [
             "关联准备记录身份"
@@ -750,8 +750,8 @@
           "symbol": "attachVerificationId.operation",
           "role": "call_arg",
           "context": "this.requireRunning",
-          "classification": "product",
-          "reason": null,
+          "classification": "internal",
+          "reason": "操作登记/执行槽不变量错误，不面向用户",
           "count": 1,
           "samples": [
             "关联验证记录身份"
@@ -764,8 +764,8 @@
           "symbol": "attachArm.operation",
           "role": "call_arg",
           "context": "this.requireRunning",
-          "classification": "product",
-          "reason": null,
+          "classification": "internal",
+          "reason": "操作登记/执行槽不变量错误，不面向用户",
           "count": 1,
           "samples": [
             "追加臂摘要"
@@ -778,8 +778,8 @@
           "symbol": "OperationRegistry.attachArm",
           "role": "error_message",
           "context": "new OperationRegistryInvariantError",
-          "classification": "product",
-          "reason": null,
+          "classification": "internal",
+          "reason": "操作登记/执行槽不变量错误，不面向用户",
           "count": 1,
           "samples": [
             "臂 ${…} 出现两个运行身份"
@@ -792,8 +792,8 @@
           "symbol": "OperationRegistry.beginConfigurationChange",
           "role": "error_message",
           "context": "new OperationRegistryInvariantError",
-          "classification": "product",
-          "reason": null,
+          "classification": "internal",
+          "reason": "操作登记/执行槽不变量错误，不面向用户",
           "count": 1,
           "samples": [
             "配置变更标记已被占用"
@@ -806,8 +806,8 @@
           "symbol": "OperationRegistry.assertOperationId",
           "role": "error_message",
           "context": "new OperationRegistryInvariantError",
-          "classification": "product",
-          "reason": null,
+          "classification": "internal",
+          "reason": "操作登记/执行槽不变量错误，不面向用户",
           "count": 1,
           "samples": [
             "operationId 必须是 UUID"
@@ -820,8 +820,8 @@
           "symbol": "OperationRegistry.requireOperation",
           "role": "error_message",
           "context": "new OperationRegistryInvariantError",
-          "classification": "product",
-          "reason": null,
+          "classification": "internal",
+          "reason": "操作登记/执行槽不变量错误，不面向用户",
           "count": 1,
           "samples": [
             "未登记的操作 ${…}"
@@ -834,8 +834,8 @@
           "symbol": "OperationRegistry.requireRunning",
           "role": "error_message",
           "context": "new OperationRegistryInvariantError",
-          "classification": "product",
-          "reason": null,
+          "classification": "internal",
+          "reason": "操作登记/执行槽不变量错误，不面向用户",
           "count": 1,
           "samples": [
             "${…} 已 ${…}，不能${…}"
@@ -848,8 +848,8 @@
           "symbol": "OperationRegistry.releaseSlotOf",
           "role": "error_message",
           "context": "new OperationRegistryInvariantError",
-          "classification": "product",
-          "reason": null,
+          "classification": "internal",
+          "reason": "操作登记/执行槽不变量错误，不面向用户",
           "count": 1,
           "samples": [
             "收尾的操作不是当前槽 owner"
@@ -862,8 +862,8 @@
           "symbol": "rejectionOf.message",
           "role": "ui_prop",
           "context": "message",
-          "classification": "product",
-          "reason": null,
+          "classification": "internal",
+          "reason": "操作登记/执行槽不变量错误，不面向用户",
           "count": 2,
           "samples": [
             "该 operationId 已用于另一份业务请求，本次未执行",
@@ -881,17 +881,17 @@
       "layer": "main",
       "package": null,
       "workspace": "操作/草稿",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "internal",
+      "batch": null,
+      "status": "excluded",
+      "reason": "业务请求规范化/深冻结的内部不变量错误，不面向用户",
       "symbols": [
         {
           "symbol": "RequestCanonicalError.constructor",
           "role": "call_arg",
           "context": "super",
-          "classification": "product",
-          "reason": null,
+          "classification": "internal",
+          "reason": "业务请求规范化/深冻结的内部不变量错误，不面向用户",
           "count": 1,
           "samples": [
             "业务请求无法规范化：${…}"
@@ -904,8 +904,8 @@
           "symbol": "walk",
           "role": "error_message",
           "context": "new RequestCanonicalError",
-          "classification": "product",
-          "reason": null,
+          "classification": "internal",
+          "reason": "业务请求规范化/深冻结的内部不变量错误，不面向用户",
           "count": 3,
           "samples": [
             "${…} 非法数值 ${…}",
@@ -921,8 +921,8 @@
           "symbol": "freezeDeep",
           "role": "error_message",
           "context": "new RequestCanonicalError",
-          "classification": "product",
-          "reason": null,
+          "classification": "internal",
+          "reason": "业务请求规范化/深冻结的内部不变量错误，不面向用户",
           "count": 1,
           "samples": [
             "业务快照存在循环引用"
@@ -1994,7 +1994,7 @@
             "核对结果缺失：先完成只读核对（打开面板自动进行），再确认与提交"
           ],
           "lines": [
-            886
+            884
           ]
         },
         {
@@ -2008,7 +2008,7 @@
             "核对结果缺失：先完成只读核对（打开面板自动进行），再确认与提交"
           ],
           "lines": [
-            962
+            960
           ]
         }
       ]
@@ -2106,17 +2106,17 @@
       "layer": "shared",
       "package": null,
       "workspace": "shared",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "详情版本守卫的违规路径事实，作为原始详情展示",
       "symbols": [
         {
           "symbol": "findRunDetailVersionViolation",
           "role": "return",
           "context": "return",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "详情版本守卫的违规路径事实，作为原始详情展示",
           "count": 3,
           "samples": [
             "叶子 run 的 meta：${…}",
@@ -2135,17 +2135,17 @@
       "layer": "shared",
       "package": null,
       "workspace": "shared",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "实验资格判据的领域原因（带稳定码），渲染层按码呈现并作为原始详情展示",
       "symbols": [
         {
           "symbol": "findModelParamsRecordViolation.reason",
           "role": "ui_prop",
           "context": "reason",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "实验资格判据的领域原因（带稳定码），渲染层按码呈现并作为原始详情展示",
           "count": 9,
           "samples": [
             "run ${…} 不是 model_params 编辑臂：不进实验比较",
@@ -2167,8 +2167,8 @@
           "symbol": "riskyToolNames.name",
           "role": "ui_text",
           "context": "ternary",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "实验资格判据的领域原因（带稳定码），渲染层按码呈现并作为原始详情展示",
           "count": 1,
           "samples": [
             "<未命名工具>"
@@ -2181,8 +2181,8 @@
           "symbol": "findToolRecordViolation.reason",
           "role": "ui_prop",
           "context": "reason",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "实验资格判据的领域原因（带稳定码），渲染层按码呈现并作为原始详情展示",
           "count": 4,
           "samples": [
             "run ${…} 未记录自有 llm.call：无法核对工具表与副作用声明",
@@ -2199,8 +2199,8 @@
           "symbol": "findToolRecordViolation.reason",
           "role": "ui_text",
           "context": "ternary",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "实验资格判据的领域原因（带稳定码），渲染层按码呈现并作为原始详情展示",
           "count": 2,
           "samples": [
             "直接父本的 meta 不在本次已校验读取内：工具表同源无法核对，资格不可验证",
@@ -2215,8 +2215,8 @@
           "symbol": "notExperiment.reason",
           "role": "ui_prop",
           "context": "reason",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "实验资格判据的领域原因（带稳定码），渲染层按码呈现并作为原始详情展示",
           "count": 1,
           "samples": [
             "选择集不含 model_params 编辑臂：按普通比较呈现"
@@ -2229,8 +2229,8 @@
           "symbol": "deriveExperimentGate.reason",
           "role": "ui_text",
           "context": "ternary",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "实验资格判据的领域原因（带稳定码），渲染层按码呈现并作为原始详情展示",
           "count": 4,
           "samples": [
             "run ${…} 不可读（${…}）：${…}——实验比较资格不可验证",
@@ -2247,8 +2247,8 @@
           "symbol": "deriveExperimentGate.reason",
           "role": "ui_prop",
           "context": "reason",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "实验资格判据的领域原因（带稳定码），渲染层按码呈现并作为原始详情展示",
           "count": 3,
           "samples": [
             "选择集混入非实验臂（${…}）：普通 run/父本与 model_params 臂不能同批比较，也不能退回普通比较绕过实验资格；各记录可单独打开",
@@ -2267,17 +2267,17 @@
       "layer": "shared",
       "package": null,
       "workspace": "shared",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "shared Zod/契约校验提示（字段名/边界事实），作为机器/原始详情展示；产品摘要按稳定码在展示层派生",
       "symbols": [
         {
           "symbol": "CreateRunRequestSchema.userMessage",
           "role": "call_arg",
           "context": "z.string().min",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "shared Zod/契约校验提示（字段名/边界事实），作为机器/原始详情展示；产品摘要按稳定码在展示层派生",
           "count": 1,
           "samples": [
             "userMessage 不能为空"
@@ -2290,8 +2290,8 @@
           "symbol": "ModelAbArmSchema.model",
           "role": "call_arg",
           "context": "z.string().min",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "shared Zod/契约校验提示（字段名/边界事实），作为机器/原始详情展示；产品摘要按稳定码在展示层派生",
           "count": 1,
           "samples": [
             "model 不能为空"
@@ -2304,8 +2304,8 @@
           "symbol": "ModelAbRequestSchema.arms",
           "role": "call_arg",
           "context": "z.array(ModelAbArmSchema).min",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "shared Zod/契约校验提示（字段名/边界事实），作为机器/原始详情展示；产品摘要按稳定码在展示层派生",
           "count": 1,
           "samples": [
             "模型实验至少需要 2 个 arm"
@@ -2318,8 +2318,8 @@
           "symbol": "findCompareResponseMismatch",
           "role": "return",
           "context": "return",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "shared Zod/契约校验提示（字段名/边界事实），作为机器/原始详情展示；产品摘要按稳定码在展示层派生",
           "count": 5,
           "samples": [
             "响应项数与请求不符：期望 ${…}，实际 ${…}",
@@ -2336,8 +2336,8 @@
           "symbol": "SettingsInputSchema.baseURL",
           "role": "call_arg",
           "context": "z.string().url",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "shared Zod/契约校验提示（字段名/边界事实），作为机器/原始详情展示；产品摘要按稳定码在展示层派生",
           "count": 1,
           "samples": [
             "baseURL 必须是合法 URL"
@@ -2350,8 +2350,8 @@
           "symbol": "SettingsInputSchema.model",
           "role": "call_arg",
           "context": "z.string().min",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "shared Zod/契约校验提示（字段名/边界事实），作为机器/原始详情展示；产品摘要按稳定码在展示层派生",
           "count": 1,
           "samples": [
             "model 不能为空"
@@ -2364,8 +2364,8 @@
           "symbol": "ProxyToggleInputSchema.upstreamBaseUrl",
           "role": "call_arg",
           "context": "z.string().url",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "shared Zod/契约校验提示（字段名/边界事实），作为机器/原始详情展示；产品摘要按稳定码在展示层派生",
           "count": 1,
           "samples": [
             "upstream 必须是合法 URL"
@@ -2378,8 +2378,8 @@
           "symbol": "ForkCapabilityResultSchema.snapshotId",
           "role": "call_arg",
           "context": "z.string().regex",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "shared Zod/契约校验提示（字段名/边界事实），作为机器/原始详情展示；产品摘要按稳定码在展示层派生",
           "count": 1,
           "samples": [
             "快照 id 必须是 64 位十六进制指纹"
@@ -2392,8 +2392,8 @@
           "symbol": "WorkspaceExportRequestSchema.message",
           "role": "ui_prop",
           "context": "message",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "shared Zod/契约校验提示（字段名/边界事实），作为机器/原始详情展示；产品摘要按稳定码在展示层派生",
           "count": 2,
           "samples": [
             "verificationId 不能与 runId/stepSpanId 同时出现（验证导出不接受另一套来源）",
@@ -2411,17 +2411,17 @@
       "layer": "shared",
       "package": null,
       "workspace": "shared",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "操作登记/核对契约的校验提示，作为机器/原始详情展示；产品摘要按稳定码在展示层派生",
       "symbols": [
         {
           "symbol": "OperationUuidSchema",
           "role": "call_arg",
           "context": "z.string().uuid",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "操作登记/核对契约的校验提示，作为机器/原始详情展示；产品摘要按稳定码在展示层派生",
           "count": 1,
           "samples": [
             "epoch / operationId 必须是 UUID"
@@ -2434,8 +2434,8 @@
           "symbol": "OperationRecordSchema.message",
           "role": "ui_prop",
           "context": "message",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "操作登记/核对契约的校验提示，作为机器/原始详情展示；产品摘要按稳定码在展示层派生",
           "count": 20,
           "samples": [
             "runIds 必须去重",
@@ -2468,8 +2468,8 @@
           "symbol": "findSlotStateViolation",
           "role": "return",
           "context": "return",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "操作登记/核对契约的校验提示，作为机器/原始详情展示；产品摘要按稳定码在展示层派生",
           "count": 5,
           "samples": [
             "登记记录属于其他 epoch",
@@ -2487,8 +2487,8 @@
           "symbol": "findSlotStateViolation",
           "role": "ui_text",
           "context": "ternary",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "操作登记/核对契约的校验提示，作为机器/原始详情展示；产品摘要按稳定码在展示层派生",
           "count": 1,
           "samples": [
             "activeOperationId 未指向在跑的操作"
@@ -2501,8 +2501,8 @@
           "symbol": "ReconcileResultSchema.message",
           "role": "ui_prop",
           "context": "message",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "操作登记/核对契约的校验提示，作为机器/原始详情展示；产品摘要按稳定码在展示层派生",
           "count": 3,
           "samples": [
             "核对结果与快照 epoch 不匹配",
@@ -2521,17 +2521,17 @@
       "layer": "pkg:agent-loop",
       "package": "agent-loop",
       "workspace": "pkg:agent-loop",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "预算/采样参数的领域校验事实，作为原始诊断展示；产品摘要由调用方按稳定码派生",
       "symbols": [
         {
           "symbol": "BudgetSchema.message",
           "role": "ui_prop",
           "context": "message",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "预算/采样参数的领域校验事实，作为原始诊断展示；产品摘要由调用方按稳定码派生",
           "count": 1,
           "samples": [
             "预算上限需提供 maxTotalTokens 或 maxCost 至少其一"
@@ -2544,8 +2544,8 @@
           "symbol": "SampleParamsSchema.message",
           "role": "ui_prop",
           "context": "message",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "预算/采样参数的领域校验事实，作为原始诊断展示；产品摘要由调用方按稳定码派生",
           "count": 1,
           "samples": [
             "采样参数不得使用请求体保留键（${…}）——params 平铺进请求体顶层，保留键冲突等于请求体注入"
@@ -6346,17 +6346,17 @@
       "layer": "pkg:project-verification",
       "package": "project-verification",
       "workspace": "pkg:project-verification",
-      "classification": "product",
-      "batch": 2,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "验证记录的 Zod/注册表校验事实，作为原始诊断展示；产品摘要由渲染层给出",
       "symbols": [
         {
           "symbol": "ImageDigestSchema",
           "role": "call_arg",
           "context": "z\n  .string()\n  .regex",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "验证记录的 Zod/注册表校验事实，作为原始诊断展示；产品摘要由渲染层给出",
           "count": 1,
           "samples": [
             "必须是 sha256:<64 位小写十六进制>"
@@ -6369,8 +6369,8 @@
           "symbol": "FileHashSchema",
           "role": "call_arg",
           "context": "z.string().regex",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "验证记录的 Zod/注册表校验事实，作为原始诊断展示；产品摘要由渲染层给出",
           "count": 1,
           "samples": [
             "必须是 64 位小写十六进制 sha256"
@@ -6383,8 +6383,8 @@
           "symbol": "ProfileManifestSchema.message",
           "role": "ui_prop",
           "context": "message",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "验证记录的 Zod/注册表校验事实，作为原始诊断展示；产品摘要由渲染层给出",
           "count": 2,
           "samples": [
             "commandId 不得重复",
@@ -6399,8 +6399,8 @@
           "symbol": "baseImage.registryNote",
           "role": "ui_prop",
           "context": "registryNote",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "验证记录的 Zod/注册表校验事实，作为原始诊断展示；产品摘要由渲染层给出",
           "count": 1,
           "samples": [
             "阶段 1 经 DaoCloud 镜像源拉取（Docker Hub 直连不可达）；digest 内容寻址，与官方源一致性核对未完成（backend-verification.md §1.2 未闭合项）"
@@ -6559,17 +6559,17 @@
       "layer": "pkg:replay",
       "package": "replay",
       "workspace": "pkg:replay",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "回放/分叉推导的领域校验事实，作为原始诊断展示；产品摘要由渲染层按稳定码给出",
       "symbols": [
         {
           "symbol": "deriveReplayState",
           "role": "error_message",
           "context": "new Error",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "回放/分叉推导的领域校验事实，作为原始诊断展示；产品摘要由渲染层按稳定码给出",
           "count": 10,
           "samples": [
             "仅支持编辑 tool.invoke 的 result 字段（收到 field=\"${…}\"）",
@@ -6592,8 +6592,8 @@
           "symbol": "assertChanged",
           "role": "error_message",
           "context": "new Error",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "回放/分叉推导的领域校验事实，作为原始诊断展示；产品摘要由渲染层按稳定码给出",
           "count": 1,
           "samples": [
             "空 fork 被拒绝：${…} 的 tool 结果编辑前后相同，模型上下文无变化（无意义的重跑）"
@@ -6609,17 +6609,17 @@
       "layer": "pkg:replay",
       "package": "replay",
       "workspace": "pkg:replay",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "fork 父本加载/资格校验事实，作为原始诊断展示；产品摘要由渲染层按稳定码给出",
       "symbols": [
         {
           "symbol": "loadForkParent",
           "role": "error_message",
           "context": "new Error",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "fork 父本加载/资格校验事实，作为原始诊断展示；产品摘要由渲染层按稳定码给出",
           "count": 2,
           "samples": [
             "父 run 加载失败：${…}",
@@ -6634,8 +6634,8 @@
           "symbol": "loadForkParent",
           "role": "concat",
           "context": "+",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "fork 父本加载/资格校验事实，作为原始诊断展示；产品摘要由渲染层按稳定码给出",
           "count": 2,
           "samples": [
             "本期不支持把隔离 run 降级为普通 prompt fork，也不支持隔离 A/B（dry-run 与 allowSideEffects 都不是逃生通道）；",
@@ -6650,8 +6650,8 @@
           "symbol": "missingConfigHashMessage",
           "role": "return",
           "context": "return",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "fork 父本加载/资格校验事实，作为原始诊断展示；产品摘要由渲染层按稳定码给出",
           "count": 1,
           "samples": [
             "run ${…} 缺少 config_hash，无法作为 prompt fork 的父 run"
@@ -6664,8 +6664,8 @@
           "symbol": "missingConfigHashMessage.tail",
           "role": "constant",
           "context": "tail",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "fork 父本加载/资格校验事实，作为原始诊断展示；产品摘要由渲染层按稳定码给出",
           "count": 1,
           "samples": [
             "也可以在其 llm.call 详情使用\"编辑 messages 重发\"（代理分叉）。"
@@ -6678,8 +6678,8 @@
           "symbol": "missingConfigHashMessage",
           "role": "concat",
           "context": "+",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "fork 父本加载/资格校验事实，作为原始诊断展示；产品摘要由渲染层按稳定码给出",
           "count": 6,
           "samples": [
             "run ${…} 由本地录制代理录制，但首次请求不含字符串形式的 system 消息，无法派生配置指纹（config_hash），因此不支持 prompt fork；",
@@ -6701,17 +6701,17 @@
       "layer": "pkg:replay",
       "package": "replay",
       "workspace": "pkg:replay",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "隔离父本限制的领域事实，作为原始诊断展示；产品摘要由渲染层按稳定码给出",
       "symbols": [
         {
           "symbol": "findIsolatedParentViolation",
           "role": "return",
           "context": "return",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "隔离父本限制的领域事实，作为原始诊断展示；产品摘要由渲染层按稳定码给出",
           "count": 1,
           "samples": [
             "父 run ${…} 是隔离 run（带 workspace 元数据，格式版本 ${…}）：它的文件状态位于副本世界与内容附件中，而普通执行路径使用调用方传入的工具实现与 exec.cwd 指向的真实"
@@ -7071,17 +7071,17 @@
       "layer": "pkg:replay",
       "package": "replay",
       "workspace": "pkg:replay",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "父链读取/成环校验事实，作为原始诊断展示",
       "symbols": [
         {
           "symbol": "loadParentChain",
           "role": "error_message",
           "context": "new Error",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "父链读取/成环校验事实，作为原始诊断展示",
           "count": 2,
           "samples": [
             "parent 链成环：${…}",
@@ -7259,17 +7259,17 @@
       "layer": "pkg:replay",
       "package": "replay",
       "workspace": "pkg:replay",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "重跑前置校验/父本加载事实，作为原始诊断展示；产品摘要由渲染层按稳定码给出",
       "symbols": [
         {
           "symbol": "replayRun",
           "role": "error_message",
           "context": "new Error",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "重跑前置校验/父本加载事实，作为原始诊断展示；产品摘要由渲染层按稳定码给出",
           "count": 4,
           "samples": [
             "config.tools 与 tools（含 handler）数量不一致，无法重跑",
@@ -7286,8 +7286,8 @@
           "symbol": "replayRun",
           "role": "concat",
           "context": "+",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "重跑前置校验/父本加载事实，作为原始诊断展示；产品摘要由渲染层按稳定码给出",
           "count": 2,
           "samples": [
             "请改用隔离续跑（replayIsolatedRun）——它从该轮检查点建立副本世界继续执行；",
@@ -7305,17 +7305,17 @@
       "layer": "pkg:replay",
       "package": "replay",
       "workspace": "pkg:replay",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "Ollama 静默忽略知识库的实测原文（含日期与数值）；桌面按稳定键投影本地化说明，原文仅作详情，CLI 5.7 同键投影",
       "symbols": [
         {
           "symbol": "SILENT_IGNORE_RULES.reason",
           "role": "ui_prop",
           "context": "reason",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "Ollama 静默忽略知识库的实测原文（含日期与数值）；桌面按稳定键投影本地化说明，原文仅作详情，CLI 5.7 同键投影",
           "count": 2,
           "samples": [
             "Ollama /v1 静默忽略 num_ctx（实测 2026-09-14，/api/ps 冷加载对照）：顶层、嵌套 options、字符串三种写法请求后运行中模型的 context 均为默认 409",
@@ -7330,8 +7330,8 @@
           "symbol": "SILENT_IGNORE_RULES.workaround",
           "role": "prop",
           "context": "workaround",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "Ollama 静默忽略知识库的实测原文（含日期与数值）；桌面按稳定键投影本地化说明，原文仅作详情，CLI 5.7 同键投影",
           "count": 2,
           "samples": [
             "两条路：①（轻）改走 Ollama 原生 /api/generate 的 options.num_ctx —— 实测生效；②（重）派生模型（Modelfile 中 PARAMETER num_ctx ",
@@ -7498,17 +7498,17 @@
       "layer": "pkg:replay",
       "package": "replay",
       "workspace": "pkg:replay",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "比较侧选择/快照一致性校验事实，作为原始诊断展示；产品标签由渲染层给出",
       "symbols": [
         {
           "symbol": "failure.reason",
           "role": "ui_prop",
           "context": "reason",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "比较侧选择/快照一致性校验事实，作为原始诊断展示；产品标签由渲染层给出",
           "count": 4,
           "samples": [
             "比较侧选择器必须是 {runId, stepSpanId?} 对象",
@@ -7525,8 +7525,8 @@
           "symbol": "readOneSide.reason",
           "role": "ui_prop",
           "context": "reason",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "比较侧选择/快照一致性校验事实，作为原始诊断展示；产品标签由渲染层给出",
           "count": 5,
           "samples": [
             "所选快照已变化（列表冻结 ${…}，当前 ${…}）：等待显式刷新，不把旧清单与新正文拼接",
@@ -7544,8 +7544,8 @@
           "symbol": "readComparedWorkspaceFile",
           "role": "call_arg",
           "context": "invalidExpectedResult",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "比较侧选择/快照一致性校验事实，作为原始诊断展示；产品标签由渲染层给出",
           "count": 2,
           "samples": [
             "expectedSnapshotIds 必须是 {left,right} 两个快照 id（来自同一次清单比较）",
@@ -8165,17 +8165,17 @@
       "layer": "pkg:replay",
       "package": "replay",
       "workspace": "pkg:replay",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "源目录校验/采集/一致性核对事实，作为原始诊断展示；产品摘要由渲染层给出",
       "symbols": [
         {
           "symbol": "validateSourceRoot",
           "role": "error_message",
           "context": "fail",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "源目录校验/采集/一致性核对事实，作为原始诊断展示；产品摘要由渲染层给出",
           "count": 4,
           "samples": [
             "源目录不存在或无法解析真实路径：${…}",
@@ -8192,8 +8192,8 @@
           "symbol": "failure.reason",
           "role": "ui_prop",
           "context": "reason",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "源目录校验/采集/一致性核对事实，作为原始诊断展示；产品摘要由渲染层给出",
           "count": 2,
           "samples": [
             "源目录在两次核对之间发生变化：${…}",
@@ -8208,8 +8208,8 @@
           "symbol": "verifySourceTreeUnchanged",
           "role": "call_arg",
           "context": "changed",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "源目录校验/采集/一致性核对事实，作为原始诊断展示；产品摘要由渲染层给出",
           "count": 5,
           "samples": [
             "文件消失",
@@ -8227,8 +8227,8 @@
           "symbol": "walk.reason",
           "role": "ui_prop",
           "context": "reason",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "源目录校验/采集/一致性核对事实，作为原始诊断展示；产品摘要由渲染层给出",
           "count": 5,
           "samples": [
             "目录无法枚举（权限不足或采集期间被改动）：${…}",
@@ -8246,8 +8246,8 @@
           "symbol": "findRequestShapeViolation",
           "role": "return",
           "context": "return",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "源目录校验/采集/一致性核对事实，作为原始诊断展示；产品摘要由渲染层给出",
           "count": 2,
           "samples": [
             "必须显式提供源目录",
@@ -8262,8 +8262,8 @@
           "symbol": "findUnsuitableRootViolation",
           "role": "return",
           "context": "return",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "源目录校验/采集/一致性核对事实，作为原始诊断展示；产品摘要由渲染层给出",
           "count": 3,
           "samples": [
             "源目录不得是 UNC 或设备路径：${…}",
@@ -8279,8 +8279,8 @@
           "symbol": "describeRelationMessage",
           "role": "return",
           "context": "return",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "源目录校验/采集/一致性核对事实，作为原始诊断展示；产品摘要由渲染层给出",
           "count": 2,
           "samples": [
             "源目录不能与数据目录相同：${…}",
@@ -8295,8 +8295,8 @@
           "symbol": "describeRelationMessage.which",
           "role": "ui_text",
           "context": "ternary",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "源目录校验/采集/一致性核对事实，作为原始诊断展示；产品摘要由渲染层给出",
           "count": 2,
           "samples": [
             "源在数据目录内",
@@ -8622,17 +8622,17 @@
       "layer": "pkg:replay",
       "package": "replay",
       "workspace": "pkg:replay",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "隔离续跑的领域事实，作为原始诊断展示",
       "symbols": [
         {
           "symbol": "replayIsolatedRun",
           "role": "error_message",
           "context": "fail",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "隔离续跑的领域事实，作为原始诊断展示",
           "count": 1,
           "samples": [
             "隔离续跑未产出 trace 文件（loop 未走到 startRun，或临时文件已丢失）"
@@ -8648,17 +8648,17 @@
       "layer": "pkg:replay",
       "package": "replay",
       "workspace": "pkg:replay",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "隔离续跑创建的参数/来源校验事实，作为原始诊断展示",
       "symbols": [
         {
           "symbol": "createIsolatedRun",
           "role": "error_message",
           "context": "fail",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "隔离续跑创建的参数/来源校验事实，作为原始诊断展示",
           "count": 5,
           "samples": [
             "dataDir 必须是非空字符串，实际为 ${…}",
@@ -8679,17 +8679,17 @@
       "layer": "pkg:replay",
       "package": "replay",
       "workspace": "pkg:replay",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "隔离续跑预检的参数/来源/授权事实，作为原始诊断展示；产品摘要由渲染层给出",
       "symbols": [
         {
           "symbol": "preflightIsolatedReplay",
           "role": "error_message",
           "context": "fail",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "隔离续跑预检的参数/来源/授权事实，作为原始诊断展示；产品摘要由渲染层给出",
           "count": 23,
           "samples": [
             "dataDir 必须是非空字符串，实际为 ${…}",
@@ -8725,17 +8725,17 @@
       "layer": "pkg:replay",
       "package": "replay",
       "workspace": "pkg:replay",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "工具 profile/写入授权的领域校验事实，作为原始诊断展示；产品摘要由渲染层给出",
       "symbols": [
         {
           "symbol": "checkToolProfile",
           "role": "error_message",
           "context": "fail",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "工具 profile/写入授权的领域校验事实，作为原始诊断展示；产品摘要由渲染层给出",
           "count": 3,
           "samples": [
             "未知的工具 profile：${…}（本版本只认识 ${…}）",
@@ -8751,8 +8751,8 @@
           "symbol": "checkWriteAuthority",
           "role": "concat",
           "context": "+",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "工具 profile/写入授权的领域校验事实，作为原始诊断展示；产品摘要由渲染层给出",
           "count": 2,
           "samples": [
             "缺少本次请求的副本写入授权（allowFileWrites）——授权只由**当前请求**提供，",
@@ -8767,8 +8767,8 @@
           "symbol": "checkWriteAuthority",
           "role": "call_arg",
           "context": "reject",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "工具 profile/写入授权的领域校验事实，作为原始诊断展示；产品摘要由渲染层给出",
           "count": 1,
           "samples": [
             "本次请求未显式允许副本写入（allowFileWrites 必须为字面量 true，实际为 ${…}）——历史审计标注不能替代本次授权"
@@ -8781,8 +8781,8 @@
           "symbol": "describeWriteAuthorizationAudit",
           "role": "ui_text",
           "context": "ternary",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "工具 profile/写入授权的领域校验事实，作为原始诊断展示；产品摘要由渲染层给出",
           "count": 2,
           "samples": [
             "该 run 创建时声称已确认副本写入（审计标注，不代表本次已授权）",
@@ -8797,8 +8797,8 @@
           "symbol": "findDefinitionMismatch",
           "role": "return",
           "context": "return",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "工具 profile/写入授权的领域校验事实，作为原始诊断展示；产品摘要由渲染层给出",
           "count": 5,
           "samples": [
             "名字不符：期望 ${…}，实际 ${…}",
@@ -8816,8 +8816,8 @@
           "symbol": "describeToolName",
           "role": "ui_text",
           "context": "ternary",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "工具 profile/写入授权的领域校验事实，作为原始诊断展示；产品摘要由渲染层给出",
           "count": 1,
           "samples": [
             "<无名>"
@@ -8830,8 +8830,8 @@
           "symbol": "describeValue",
           "role": "return",
           "context": "return",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "工具 profile/写入授权的领域校验事实，作为原始诊断展示；产品摘要由渲染层给出",
           "count": 1,
           "samples": [
             "未提供"
@@ -8847,17 +8847,17 @@
       "layer": "pkg:replay",
       "package": "replay",
       "workspace": "pkg:replay",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "文件数/字节配额的领域事实，作为原始诊断展示；产品摘要由渲染层按稳定码给出",
       "symbols": [
         {
           "symbol": "findFileSetQuotaViolation",
           "role": "return",
           "context": "return",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "文件数/字节配额的领域事实，作为原始诊断展示；产品摘要由渲染层按稳定码给出",
           "count": 3,
           "samples": [
             "文件数超过上限 ${…}（当前 ${…}）",
@@ -8873,8 +8873,8 @@
           "symbol": "findNewContentQuotaViolation",
           "role": "return",
           "context": "return",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "文件数/字节配额的领域事实，作为原始诊断展示；产品摘要由渲染层按稳定码给出",
           "count": 1,
           "samples": [
             "本次运行新增内容超过上限 ${…} 字节（当前 ${…}）"
@@ -8887,8 +8887,8 @@
           "symbol": "findAppendQuotaViolation",
           "role": "return",
           "context": "return",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "文件数/字节配额的领域事实，作为原始诊断展示；产品摘要由渲染层按稳定码给出",
           "count": 3,
           "samples": [
             "文件数超过上限 ${…}（当前 ${…}）",
@@ -8907,17 +8907,17 @@
       "layer": "pkg:replay",
       "package": "replay",
       "workspace": "pkg:replay",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "文件清单/正文读取的领域事实，作为原始诊断展示；产品标签由渲染层给出",
       "symbols": [
         {
           "symbol": "failure.reason",
           "role": "ui_prop",
           "context": "reason",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "文件清单/正文读取的领域事实，作为原始诊断展示；产品标签由渲染层给出",
           "count": 3,
           "samples": [
             "run 文件不存在：${…}",
@@ -8933,8 +8933,8 @@
           "symbol": "locateSnapshotInRun",
           "role": "call_arg",
           "context": "reject",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "文件清单/正文读取的领域事实，作为原始诊断展示；产品标签由渲染层给出",
           "count": 3,
           "samples": [
             "step ${…} 不在 ${…} 的自有记录中（祖先步骤不能用来定位本 run 的文件）",
@@ -8950,8 +8950,8 @@
           "symbol": "readWorkspaceFile.reason",
           "role": "ui_prop",
           "context": "reason",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "文件清单/正文读取的领域事实，作为原始诊断展示；产品标签由渲染层给出",
           "count": 2,
           "samples": [
             "逻辑路径不符合契约，不可能出现在任何清单里：${…}",
@@ -8966,8 +8966,8 @@
           "symbol": "findRunIdViolation",
           "role": "return",
           "context": "return",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "文件清单/正文读取的领域事实，作为原始诊断展示；产品标签由渲染层给出",
           "count": 4,
           "samples": [
             "runId 不得为空",
@@ -9407,17 +9407,17 @@
       "layer": "pkg:run-query",
       "package": "run-query",
       "workspace": "pkg:run-query",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "run-query 只读查询的领域事实/校验诊断，展示层按 code/kind 本地化，原文作详情",
       "symbols": [
         {
           "symbol": "classifyOutcome.label",
           "role": "ui_prop",
           "context": "label",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "run-query 只读查询的领域事实/校验诊断，展示层按 code/kind 本地化，原文作详情",
           "count": 8,
           "samples": [
             "运行中断",
@@ -9441,17 +9441,17 @@
       "layer": "pkg:run-query",
       "package": "run-query",
       "workspace": "pkg:run-query",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "run-query 只读查询的领域事实/校验诊断，展示层按 code/kind 本地化，原文作详情",
       "symbols": [
         {
           "symbol": "findResultIdentityViolation",
           "role": "return",
           "context": "return",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "run-query 只读查询的领域事实/校验诊断，展示层按 code/kind 本地化，原文作详情",
           "count": 3,
           "samples": [
             "结果详情自称的 run（${…}）与请求的 run（${…}）不一致",
@@ -9470,17 +9470,17 @@
       "layer": "pkg:run-query",
       "package": "run-query",
       "workspace": "pkg:run-query",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "run-query 只读查询的领域事实/校验诊断，展示层按 code/kind 本地化，原文作详情",
       "symbols": [
         {
           "symbol": "projectMixedChainWithOwners.message",
           "role": "ui_prop",
           "context": "message",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "run-query 只读查询的领域事实/校验诊断，展示层按 code/kind 本地化，原文作详情",
           "count": 7,
           "samples": [
             "投影输入为空：缺少根记录",
@@ -9500,8 +9500,8 @@
           "symbol": "projectMixedChainWithOwners.parentId",
           "role": "constant",
           "context": "parentId",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "run-query 只读查询的领域事实/校验诊断，展示层按 code/kind 本地化，原文作详情",
           "count": 1,
           "samples": [
             "未知父"
@@ -9517,17 +9517,17 @@
       "layer": "pkg:run-query",
       "package": "run-query",
       "workspace": "pkg:run-query",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "run-query 只读查询的领域事实/校验诊断，展示层按 code/kind 本地化，原文作详情",
       "symbols": [
         {
           "symbol": "readRunLineage.message",
           "role": "ui_prop",
           "context": "message",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "run-query 只读查询的领域事实/校验诊断，展示层按 code/kind 本地化，原文作详情",
           "count": 3,
           "samples": [
             "run 标识非法：${…}",
@@ -9543,8 +9543,8 @@
           "symbol": "readRunLineage",
           "role": "call_arg",
           "context": "readFailure",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "run-query 只读查询的领域事实/校验诊断，展示层按 code/kind 本地化，原文作详情",
           "count": 8,
           "samples": [
             "校验失败：${…}",
@@ -9565,8 +9565,8 @@
           "symbol": "readFailure.subject",
           "role": "ui_text",
           "context": "ternary",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "run-query 只读查询的领域事实/校验诊断，展示层按 code/kind 本地化，原文作详情",
           "count": 1,
           "samples": [
             "祖先 run ${…}"
@@ -9579,8 +9579,8 @@
           "symbol": "findV2BoundaryViolation",
           "role": "return",
           "context": "return",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "run-query 只读查询的领域事实/校验诊断，展示层按 code/kind 本地化，原文作详情",
           "count": 6,
           "samples": [
             "v2 隔离分支 ${…} 缺少 fork.resume_after_step（整轮续跑边界）",
@@ -9602,17 +9602,17 @@
       "layer": "pkg:run-query",
       "package": "run-query",
       "workspace": "pkg:run-query",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "run-query 只读查询的领域事实/校验诊断，展示层按 code/kind 本地化，原文作详情",
       "symbols": [
         {
           "symbol": "buildSpanOwnerIndex",
           "role": "call_arg",
           "context": "unreliable",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "run-query 只读查询的领域事实/校验诊断，展示层按 code/kind 本地化，原文作详情",
           "count": 1,
           "samples": [
             "投影 owner 索引与详情轨迹不一致"
@@ -9625,8 +9625,8 @@
           "symbol": "resolveSpanOwner.reason",
           "role": "ui_prop",
           "context": "reason",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "run-query 只读查询的领域事实/校验诊断，展示层按 code/kind 本地化，原文作详情",
           "count": 1,
           "samples": [
             "owner 索引不可用"
@@ -9642,17 +9642,17 @@
       "layer": "pkg:run-query",
       "package": "run-query",
       "workspace": "pkg:run-query",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "run-query 只读查询的领域事实/校验诊断，展示层按 code/kind 本地化，原文作详情",
       "symbols": [
         {
           "symbol": "RunReadContext.projectDetail",
           "role": "error_message",
           "context": "new RunDetailReadError",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "run-query 只读查询的领域事实/校验诊断，展示层按 code/kind 本地化，原文作详情",
           "count": 4,
           "samples": [
             "run ${…} 读取结果为空",
@@ -9669,8 +9669,8 @@
           "symbol": "RunReadContext.checkedDetail",
           "role": "error_message",
           "context": "new Error",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "run-query 只读查询的领域事实/校验诊断，展示层按 code/kind 本地化，原文作详情",
           "count": 1,
           "samples": [
             "详情载荷自检失败（内部错误，已阻止出站）：${…}"
@@ -9686,17 +9686,17 @@
       "layer": "pkg:run-query",
       "package": "run-query",
       "workspace": "pkg:run-query",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "run-query 只读查询的领域事实/校验诊断，展示层按 code/kind 本地化，原文作详情",
       "symbols": [
         {
           "symbol": "RunRepository.loadRunRecord",
           "role": "error_message",
           "context": "new Error",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "run-query 只读查询的领域事实/校验诊断，展示层按 code/kind 本地化，原文作详情",
           "count": 1,
           "samples": [
             "run 标识非法：${…}"
@@ -9712,17 +9712,17 @@
       "layer": "pkg:run-query",
       "package": "run-query",
       "workspace": "pkg:run-query",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "run-query 只读查询的领域事实/校验诊断，展示层按 code/kind 本地化，原文作详情",
       "symbols": [
         {
           "symbol": "findIllegalRunIdViolation",
           "role": "return",
           "context": "return",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "run-query 只读查询的领域事实/校验诊断，展示层按 code/kind 本地化，原文作详情",
           "count": 5,
           "samples": [
             "不能为空",
@@ -9740,8 +9740,8 @@
           "symbol": "findIllegalExternalRunIdViolation",
           "role": "return",
           "context": "return",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "run-query 只读查询的领域事实/校验诊断，展示层按 code/kind 本地化，原文作详情",
           "count": 1,
           "samples": [
             "超过 ${…} 字符"
@@ -9754,8 +9754,8 @@
           "symbol": "findIllegalSpanIdViolation",
           "role": "return",
           "context": "return",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "run-query 只读查询的领域事实/校验诊断，展示层按 code/kind 本地化，原文作详情",
           "count": 3,
           "samples": [
             "不能为空",
@@ -9771,8 +9771,8 @@
           "symbol": "findRunIdentityViolation",
           "role": "return",
           "context": "return",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "run-query 只读查询的领域事实/校验诊断，展示层按 code/kind 本地化，原文作详情",
           "count": 1,
           "samples": [
             "run 标识 ${…} 与记录 meta.id ${…} 不一致"
@@ -9785,8 +9785,8 @@
           "symbol": "findIllegalLogicalPathViolation",
           "role": "return",
           "context": "return",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "run-query 只读查询的领域事实/校验诊断，展示层按 code/kind 本地化，原文作详情",
           "count": 3,
           "samples": [
             "不能为空",
@@ -9805,17 +9805,17 @@
       "layer": "pkg:run-query",
       "package": "run-query",
       "workspace": "pkg:run-query",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "run-query 只读查询的领域事实/校验诊断，展示层按 code/kind 本地化，原文作详情",
       "symbols": [
         {
           "symbol": "findRunDetailIntegrityViolation",
           "role": "return",
           "context": "return",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "run-query 只读查询的领域事实/校验诊断，展示层按 code/kind 本地化，原文作详情",
           "count": 17,
           "samples": [
             "chain 不能为空",
@@ -9848,17 +9848,17 @@
       "layer": "pkg:run-query",
       "package": "run-query",
       "workspace": "pkg:run-query",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "run-query 只读查询的领域事实/校验诊断，展示层按 code/kind 本地化，原文作详情",
       "symbols": [
         {
           "symbol": "CompareRunsRequestSchema.runIds",
           "role": "call_arg",
           "context": "z.string().min",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "run-query 只读查询的领域事实/校验诊断，展示层按 code/kind 本地化，原文作详情",
           "count": 3,
           "samples": [
             "run 标识不能为空",
@@ -9874,8 +9874,8 @@
           "symbol": "CompareRunsRequestSchema.message",
           "role": "ui_prop",
           "context": "message",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "run-query 只读查询的领域事实/校验诊断，展示层按 code/kind 本地化，原文作详情",
           "count": 1,
           "samples": [
             "比较对象重复：${…}"

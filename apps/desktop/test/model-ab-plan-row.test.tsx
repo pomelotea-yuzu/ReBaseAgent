@@ -56,13 +56,15 @@ describe("U8 3.4：ArmPlanRow 长字段展开与复制", () => {
       "zh-CN",
       <ArmPlanRow
         arm={plan({
-          warnings: [{ key: "num_ctx", reason, workaround: "改用支持 num_ctx 的 upstream" }],
+          warnings: [
+            { key: "custom_rule", reason, workaround: "改用支持 custom_rule 的 upstream" },
+          ],
         })}
       />,
     );
     expect(html).toContain("<details");
     expect(html).toContain(reason);
-    expect(html).toContain("改用支持 num_ctx 的 upstream");
+    expect(html).toContain("改用支持 custom_rule 的 upstream");
   });
 
   it("超长丢弃父录值 ⇒ 同样可展开复制（整体替换语义文案保留）", () => {
@@ -73,6 +75,32 @@ describe("U8 3.4：ArmPlanRow 长字段展开与复制", () => {
     );
     expect(html).toContain("<details");
     expect(html).toContain("整体替换不合并");
+  });
+
+  it("已知静默忽略告警按稳定键投影：中文/英文说明来自资源，不显示内核中文原文", () => {
+    const zh = renderWithLocale(
+      "zh-CN",
+      <ArmPlanRow
+        arm={plan({
+          warnings: [{ key: "num_ctx", reason: "内核原文", workaround: "内核绕行" }],
+        })}
+      />,
+    );
+    expect(zh).toContain("静默忽略 num_ctx");
+    expect(zh).toContain("派生模型");
+    expect(zh).not.toContain("内核原文");
+
+    const en = renderWithLocale(
+      "en-US",
+      <ArmPlanRow
+        arm={plan({
+          warnings: [{ key: "think", reason: "内核原文", workaround: "内核绕行" }],
+        })}
+      />,
+    );
+    expect(en).toContain("ignores top-level think");
+    expect(en).toContain("reasoning_effort");
+    expect(en).not.toContain("内核原文");
   });
 
   it("英文措辞独立书写：覆盖标签、丢弃说明与父值沿用均为英文", () => {

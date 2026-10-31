@@ -141,6 +141,48 @@ const INTERNAL = "internal";
 const GENERATED = "generated";
 
 const ORIGINAL_REASONS = {
+  "apps/desktop/src/shared/ipc.ts":
+    "shared Zod/契约校验提示（字段名/边界事实），作为机器/原始详情展示；产品摘要按稳定码在展示层派生",
+  "apps/desktop/src/shared/operations.ts":
+    "操作登记/核对契约的校验提示，作为机器/原始详情展示；产品摘要按稳定码在展示层派生",
+  "apps/desktop/src/shared/detail-version-guard.ts": "详情版本守卫的违规路径事实，作为原始详情展示",
+  "apps/desktop/src/shared/experiment-records.ts":
+    "实验资格判据的领域原因（带稳定码），渲染层按码呈现并作为原始详情展示",
+  "apps/desktop/src/main/exec-endpoints.ts":
+    "main 主动执行通道的拒绝/失败原始说明，渲染层按稳定码给出本地化摘要并作为原始详情展示",
+  "apps/desktop/src/main/ipc.ts":
+    "main 通道注册/启动诊断原始说明，渲染层按稳定码给出本地化摘要并作为原始详情展示",
+  "packages/agent-loop/src/config.ts":
+    "预算/采样参数的领域校验事实，作为原始诊断展示；产品摘要由调用方按稳定码派生",
+  "packages/replay/src/derive.ts":
+    "回放/分叉推导的领域校验事实，作为原始诊断展示；产品摘要由渲染层按稳定码给出",
+  "packages/replay/src/fork-parent.ts":
+    "fork 父本加载/资格校验事实，作为原始诊断展示；产品摘要由渲染层按稳定码给出",
+  "packages/replay/src/replay-run.ts":
+    "重跑前置校验/父本加载事实，作为原始诊断展示；产品摘要由渲染层按稳定码给出",
+  "packages/replay/src/parent-chain.ts": "父链读取/成环校验事实，作为原始诊断展示",
+  "packages/replay/src/isolated-guard.ts":
+    "隔离父本限制的领域事实，作为原始诊断展示；产品摘要由渲染层按稳定码给出",
+  "packages/replay/src/silent-ignore.ts":
+    "Ollama 静默忽略知识库的实测原文（含日期与数值）；桌面按稳定键投影本地化说明，原文仅作详情，CLI 5.7 同键投影",
+  "packages/replay/src/workspace/isolated-run.ts":
+    "隔离续跑创建的参数/来源校验事实，作为原始诊断展示",
+  "packages/replay/src/workspace/isolated-replay.ts": "隔离续跑的领域事实，作为原始诊断展示",
+  "packages/replay/src/workspace/compare-api.ts":
+    "比较侧选择/快照一致性校验事实，作为原始诊断展示；产品标签由渲染层给出",
+  "packages/replay/src/workspace/quota.ts":
+    "文件数/字节配额的领域事实，作为原始诊断展示；产品摘要由渲染层按稳定码给出",
+  "packages/replay/src/workspace/preflight.ts":
+    "隔离续跑预检的参数/来源/授权事实，作为原始诊断展示；产品摘要由渲染层给出",
+  "packages/replay/src/workspace/read-api.ts":
+    "文件清单/正文读取的领域事实，作为原始诊断展示；产品标签由渲染层给出",
+  "packages/replay/src/workspace/import-source.ts":
+    "源目录校验/采集/一致性核对事实，作为原始诊断展示；产品摘要由渲染层给出",
+  "packages/replay/src/workspace/profile-guard.ts":
+    "工具 profile/写入授权的领域校验事实，作为原始诊断展示；产品摘要由渲染层给出",
+  "packages/project-verification/src/schema.ts":
+    "验证记录的 Zod/注册表校验事实，作为原始诊断展示；产品摘要由渲染层给出",
+
   "packages/agent-loop/src/diagnostic.ts": "模型/工具错误事实，随 trace 与工具结果保留原文",
   "packages/agent-loop/src/llm-client.ts":
     "模型调用错误事实，写入 llm.call.error，不能随 locale 改写",
@@ -233,6 +275,10 @@ const ORIGINAL_REASONS = {
     "验证日志/产物附件的定位与完整性诊断，作为稳定码之外的原始详情展示，不随 locale 改写",
 };
 const ORIGINAL_PREFIXES = [
+  [
+    "packages/run-query/src/",
+    "run-query 只读查询的领域事实/校验诊断，展示层按 code/kind 本地化，原文作详情",
+  ],
   ["packages/project-verification/src/", "验证记录/runner/日志正文，持久化事实不随 locale 改写"],
 ];
 
@@ -286,6 +332,11 @@ const ORIGINAL_SYMBOLS = {
 };
 
 const INTERNAL_REASONS = {
+  "apps/desktop/src/main/operation-registry.ts": "操作登记/执行槽不变量错误，不面向用户",
+  "apps/desktop/src/main/operation-request.ts": "业务请求规范化/深冻结的内部不变量错误，不面向用户",
+  "apps/desktop/src/main/operation-endpoints.ts": "操作通道可信来源/核对形状的安全拒绝，不面向用户",
+  "apps/desktop/src/main/draft-close-attach.ts": "关闭协商握手的内部拒绝，不面向用户",
+
   "packages/replay/src/workspace/blob-store.ts": "附件存储不变量，不面向用户",
   "packages/replay/src/workspace/world.ts": "隔离世界内部不变量，不面向用户",
   "packages/replay/src/workspace/checkpoint-tracer.ts": "检查点 tracer 不变量，不面向用户",
@@ -322,7 +373,6 @@ const PRODUCT_FILES = new Set([
 ]);
 const PRODUCT_PREFIXES = [
   "packages/mcp-server/src/",
-  "packages/run-query/src/",
   "packages/trace-test/src/cli.ts",
   "packages/trace-test/src/loader.ts",
   "packages/trace-test/src/run-test.ts",
