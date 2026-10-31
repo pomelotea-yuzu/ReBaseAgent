@@ -7,4 +7,5 @@ export * from "./server.js";
 export * from "./startup.js";
 export * from "./tool-contracts.js";
 export * from "./tool-definition.js";
+export * from "./tool-metadata.js";
 export * from "./tools.js";

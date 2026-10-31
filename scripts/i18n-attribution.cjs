@@ -337,6 +337,10 @@ const INTERNAL_REASONS = {
   "apps/desktop/src/main/operation-endpoints.ts": "操作通道可信来源/核对形状的安全拒绝，不面向用户",
   "apps/desktop/src/main/draft-close-attach.ts": "关闭协商握手的内部拒绝，不面向用户",
 
+  "packages/mcp-server/src/tool-contracts.ts":
+    "工具契约缺失/名字写错属实现缺陷，模块加载即炸，不面向用户",
+  "packages/mcp-server/src/verification-contracts.ts":
+    "验证工具契约缺失属实现缺陷，模块加载即炸，不面向用户",
   "packages/replay/src/workspace/blob-store.ts": "附件存储不变量，不面向用户",
   "packages/replay/src/workspace/world.ts": "隔离世界内部不变量，不面向用户",
   "packages/replay/src/workspace/checkpoint-tracer.ts": "检查点 tracer 不变量，不面向用户",

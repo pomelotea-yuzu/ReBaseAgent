@@ -25,6 +25,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",
+    "@rebaseagent/i18n": "workspace:*",
     "@rebaseagent/project-verification": "workspace:*",
     "@rebaseagent/run-query": "workspace:*",
     "zod": "^3.23.8"

@@ -58,6 +58,23 @@ export interface ResolveCliLocaleInput {
 /** `null` 表示 --locale 后没有取值（缺值或紧跟另一个参数）。 */
 type FlagValue = string | null;
 
+export interface IntlLocaleSource {
+  DateTimeFormat(): { resolvedOptions(): { locale: string } };
+}
+
+/**
+ * 读取宿主 Intl 建议语言。没有系统语言（Node 无 Intl、抛错或返回空串）时返回 null，
+ * 由 resolveCliLocale 照常回退英文。
+ */
+export function hostIntlLocale(source: IntlLocaleSource = Intl): string | null {
+  try {
+    const locale = source.DateTimeFormat().resolvedOptions().locale;
+    return typeof locale === "string" && locale.length > 0 ? locale : null;
+  } catch {
+    return null;
+  }
+}
+
 function readFlagValues(argv: readonly string[]): FlagValue[] {
   const values: FlagValue[] = [];
   for (let i = 0; i < argv.length; i += 1) {

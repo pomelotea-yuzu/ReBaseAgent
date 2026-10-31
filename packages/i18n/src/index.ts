@@ -13,11 +13,13 @@ export {
   type CliLocaleOutcome,
   type CliLocaleResolution,
   type CliLocaleSource,
+  type IntlLocaleSource,
   type ResolveCliLocaleInput,
   CLI_LOCALE_ENV,
   CLI_LOCALE_EXIT_CODE,
   CLI_LOCALE_FLAG,
   CLI_LOCALE_SYSTEM_ENV,
+  hostIntlLocale,
   resolveCliLocale,
 } from "./cli-locale.js";
 export {

@@ -4,6 +4,7 @@ import {
   CLI_LOCALE_EXIT_CODE,
   CLI_LOCALE_FLAG,
   createTranslator,
+  hostIntlLocale,
   resolveCliLocale,
 } from "../src/index.js";
 
@@ -97,6 +98,31 @@ describe("cli-locale：优先级与系统回退", () => {
       locale: "en-US",
       source: "fallback",
     });
+  });
+});
+
+describe("cli-locale：宿主 Intl 检测", () => {
+  it("Intl 缺失、抛错或返回空串时给 null，不抛异常", () => {
+    expect(
+      hostIntlLocale({
+        DateTimeFormat: () => ({ resolvedOptions: () => ({ locale: "" }) }),
+      }),
+    ).toBeNull();
+    expect(
+      hostIntlLocale({
+        DateTimeFormat: () => {
+          throw new Error("Intl unavailable");
+        },
+      }),
+    ).toBeNull();
+  });
+
+  it("正常返回宿主建议语言", () => {
+    expect(
+      hostIntlLocale({
+        DateTimeFormat: () => ({ resolvedOptions: () => ({ locale: "zh-Hant-TW" }) }),
+      }),
+    ).toBe("zh-Hant-TW");
   });
 });
 

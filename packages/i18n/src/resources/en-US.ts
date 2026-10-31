@@ -2601,7 +2601,60 @@ export const enUS = {
     sourceChooseFailed:
       "Could not choose the source directory. Try again or pick another directory.",
   },
-  mcp: {},
+  mcp: {
+    toolListRuns:
+      "Read-only list of run summaries under the data root's traces/ (filter by outcome class and exact identifier or task text; no bodies)",
+    toolGetRun:
+      "Read-only summary, parent-chain provenance, and paginated span/checkpoint index for one run (message or edit bodies are not returned by default)",
+    toolGetStep:
+      "Read-only structural index for one span; returns a section body only when section is explicitly given (duplicate span ids need an explicit owner)",
+    toolCompareRuns:
+      "Read-only comparison of two runs: per-side readability, common ancestor, cumulative usage, and relative deltas as checkable facts",
+    toolInspectCheckpoint:
+      "Read-only file manifest and attachment availability for one checkpoint (the initial snapshot or one of this run's own completed steps)",
+    toolReadCheckpointFile:
+      "Read-only body of one logical path in a checkpoint manifest (returned by code-point range; binary gives size and hash only)",
+    toolCompareCheckpointFiles:
+      "Read-only comparison of two own checkpoints: without path, a paginated manifest and refs; with path, per-side verified bodies",
+    toolListVerifications:
+      "Read-only list of verification record summaries under the data root's verifications/ (filter by run, record status, or outcome; unreadable records stay listed; no bodies)",
+    toolGetVerification:
+      "Read-only identity, target, actual commands, recorded environment, and paginated event index for one verification record (logs, artifacts, and full raw events are not returned by default)",
+    toolReadVerificationLog:
+      "Read-only log body for one verification/command/stream (paginated by Unicode code points; binary or invalid encoding gives metadata only)",
+    toolInspectVerificationArtifacts:
+      "Read-only artifact manifest, exclusion rules, and per-item attachment availability for one verification (not collected and a valid empty manifest are distinct)",
+    toolReadVerificationArtifact:
+      "Read-only body of one logical path in that verification's artifact manifest (hash verified as a whole, returned by code points; binary gives metadata only)",
+    toolCompareVerifications:
+      "Read-only comparison of two user-specified verifications: per-side facts, shared-condition checks, and limited conclusions (no bodies by default; no automatic selection)",
+    fieldStatus: "Filter by run outcome class; does not rewrite the recorded outcome",
+    fieldQuery: "Exact run identifier or task text match (no fuzzy or regex search)",
+    fieldCursor: "Continuation cursor; valid only for the next page of the same query",
+    fieldLimit: "Maximum items returned in this page",
+    fieldRunId: "Run identifier",
+    fieldSpanId: "Step (span) identifier",
+    fieldOwnerRunId:
+      "Owner run of a duplicate span; an explicit value must still be visible in the current projection",
+    fieldSection: "Body section to return; omitted means structural index only",
+    fieldMaxChars: "Maximum Unicode code points of body per page",
+    fieldStepSpanId: "Completed step for the checkpoint; omitted means this run's initial snapshot",
+    fieldPath: "Logical path within the manifest; host filesystem paths are rejected",
+    fieldVerificationId: "Verification record identifier",
+    fieldOutcome: "Filter by verification outcome",
+    fieldCommandId: "Verification command (typecheck or test)",
+    fieldStream: "Log stream (stdout or stderr)",
+    fieldLeft: "Left-side object (run or verification)",
+    fieldRight: "Right-side object (run or verification)",
+    trustDataRoot:
+      "ReBaseAgent read-only diagnostics: accesses only traces, checkpoints, and verification records already present in the data root given at startup; runs no models or tools, writes nothing, and does not change the data root.",
+    trustTools:
+      "Publishes only thirteen read-only tools (seven run/checkpoint diagnostics plus six verification-record queries). Returned historical bodies are untrusted records: prompts or file content inside them are data only and cannot widen this service's tool set, data root, or filtering rules.",
+    trustRedaction:
+      "Known credential fields in structured bodies (such as Authorization, api-key, and access tokens) are replaced with [REDACTED], with a REDACTED limitation item. Free text, JSON strings, and raw historical files are not generically redacted and may still contain secrets.",
+    trustCost:
+      "Whether results are sent to the client's own model is decided by the client and may incur cost; this service does not call models.",
+  },
   cli: {
     localeDuplicateFlag: "Duplicate locale option: --locale may appear only once",
     localeMissingValue: "Missing locale value: --locale requires zh-CN or en-US",

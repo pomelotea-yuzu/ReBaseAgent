@@ -1,16 +1,13 @@
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { createTranslator } from "@rebaseagent/i18n";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { ListRunsData } from "../src/query/list-runs.js";
-import {
-  MCP_SERVER_NAME,
-  MCP_SERVER_VERSION,
-  QUERY_API_VERSION,
-  TRUST_INSTRUCTIONS,
-} from "../src/server.js";
+import { MCP_SERVER_NAME, MCP_SERVER_VERSION, QUERY_API_VERSION } from "../src/server.js";
 import { DATA_DIR_FLAG } from "../src/startup.js";
 import { READ_ONLY_ANNOTATIONS, TOOL_CONTRACTS, contractOf } from "../src/tool-contracts.js";
+import { trustInstructions } from "../src/tool-metadata.js";
 import {
   VERIFICATION_TOOL_CONTRACTS,
   verificationContractOf,
@@ -51,6 +48,19 @@ import {
 
 const CLI = fileURLToPath(new URL("../dist/cli.js", import.meta.url));
 const NODE = process.execPath;
+const ZH = trustInstructions(createTranslator({ locale: "zh-CN" }));
+
+/** 发布形状在契约派生的 JSON Schema 上只多一层语言 description；结构必须逐字相同 */
+function stripDescriptions(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map((item) => stripDescriptions(item));
+  if (value === null || typeof value !== "object") return value;
+  const out: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+    if (key === "description") continue;
+    out[key] = stripDescriptions(child);
+  }
+  return out;
+}
 
 /** SDK 1.32.1 的 LATEST_PROTOCOL_VERSION：客户端版本不受支持时服务端回这个 */
 const SDK_LATEST_PROTOCOL_VERSION = "2025-11-25";
@@ -75,7 +85,7 @@ let knownRunIds: string[];
 const sessions: StdioSession[] = [];
 
 async function openSession(dataDir: string): Promise<StdioSession> {
-  const session = await StdioSession.start(dataDir);
+  const session = await StdioSession.start(dataDir, ["--locale", "zh-CN"]);
   sessions.push(session);
   return session;
 }
@@ -141,7 +151,7 @@ describe("S01 真实 stdio 协商：版本、能力与信任说明", () => {
     expect(result.protocolVersion).toBe(SDK_LATEST_PROTOCOL_VERSION);
     expect(result.capabilities).toEqual({ tools: {} });
     expect(result.serverInfo).toEqual({ name: MCP_SERVER_NAME, version: MCP_SERVER_VERSION });
-    expect(result.instructions).toBe(TRUST_INSTRUCTIONS);
+    expect(result.instructions).toBe(ZH);
     await session.waitForFrame(2);
     await session.end();
   }, 120_000);
@@ -168,7 +178,7 @@ describe("S01 真实 stdio 协商：版本、能力与信任说明", () => {
   it("真实客户端（官方 SDK Client + StdioClientTransport）在只有数据根时完成握手", async () => {
     const transport = new StdioClientTransport({
       command: NODE,
-      args: [CLI, DATA_DIR_FLAG, fx.dataDir],
+      args: [CLI, "--locale", "zh-CN", DATA_DIR_FLAG, fx.dataDir],
       stderr: "pipe",
     });
     const client = new Client({ name: "mcp0-53-client", version: "0.0.1" });
@@ -179,7 +189,7 @@ describe("S01 真实 stdio 协商：版本、能力与信任说明", () => {
         version: MCP_SERVER_VERSION,
       });
       expect(client.getServerCapabilities()).toEqual({ tools: {} });
-      expect(client.getInstructions()).toBe(TRUST_INSTRUCTIONS);
+      expect(client.getInstructions()).toBe(ZH);
     } finally {
       await client.close();
     }
@@ -201,7 +211,7 @@ describe("S03 线务面：tools/list 发布的就是契约派生的声明", () =
     for (const tool of tools) {
       const contract = contractOf(String(tool.name)) ?? verificationContractOf(String(tool.name));
       if (contract === undefined) throw new Error(`契约缺失：${String(tool.name)}`);
-      expect(tool.inputSchema).toEqual(contract.inputSchema);
+      expect(stripDescriptions(tool.inputSchema)).toEqual(contract.inputSchema);
       expect(tool.annotations).toEqual(READ_ONLY_ANNOTATIONS);
       expect(typeof tool.description).toBe("string");
       expect((tool.description as string).length).toBeGreaterThan(0);

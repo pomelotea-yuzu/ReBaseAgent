@@ -168,6 +168,9 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.32.1
         version: 1.32.1(zod@3.25.76)
+      '@rebaseagent/i18n':
+        specifier: workspace:*
+        version: link:../i18n
       '@rebaseagent/project-verification':
         specifier: workspace:*
         version: link:../project-verification

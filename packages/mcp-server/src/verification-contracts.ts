@@ -75,20 +75,14 @@ export const VerificationCompareSideStateSchema = z.enum(VERIFICATION_COMPARE_SI
 
 export interface VerificationToolContract {
   readonly name: string;
-  readonly description: string;
   readonly schema: z.ZodObject<z.ZodRawShape>;
   readonly inputSchema: Readonly<Record<string, unknown>>;
   readonly annotations: ToolAnnotations;
 }
 
-function contract(
-  name: string,
-  description: string,
-  schema: z.ZodObject<z.ZodRawShape>,
-): VerificationToolContract {
+function contract(name: string, schema: z.ZodObject<z.ZodRawShape>): VerificationToolContract {
   return {
     name,
-    description,
     schema,
     inputSchema: toJsonSchemaDeclaration(schema),
     annotations: READ_ONLY_ANNOTATIONS,
@@ -161,36 +155,12 @@ export type CompareVerificationsArgs = z.infer<typeof CompareVerificationsArgs>;
 
 /** 发布顺序即 tools/list 里验证域的顺序（与 D2 表一致） */
 export const VERIFICATION_TOOL_CONTRACTS: readonly VerificationToolContract[] = [
-  contract(
-    "list_verifications",
-    "只读列出数据根 verifications/ 下的验证记录摘要（按 run/记录状态/结局筛选，保留独立读取失败项，不含正文）",
-    ListVerificationsArgs,
-  ),
-  contract(
-    "get_verification",
-    "只读读取单条验证记录的身份、目标、实际命令、历史环境与分页事件索引（不默认返回日志、产物或完整原始事件）",
-    GetVerificationArgs,
-  ),
-  contract(
-    "read_verification_log",
-    "只读读取指定验证/命令/流的日志正文（按 Unicode 码点范围分页；二进制或非法编码只给元数据）",
-    ReadVerificationLogArgs,
-  ),
-  contract(
-    "inspect_verification_artifacts",
-    "只读列出指定验证的产物清单、排除规则与逐项附件可用性（未采集与合法空清单分开）",
-    InspectVerificationArtifactsArgs,
-  ),
-  contract(
-    "read_verification_artifact",
-    "只读读取该验证产物清单内逻辑路径的正文（整体核验哈希后按码点返回；二进制只给元数据）",
-    ReadVerificationArtifactArgs,
-  ),
-  contract(
-    "compare_verifications",
-    "只读比较用户指定的两条验证：逐侧事实、共享条件判据与受限结论（无默认正文，不自动选验证）",
-    CompareVerificationsArgs,
-  ),
+  contract("list_verifications", ListVerificationsArgs),
+  contract("get_verification", GetVerificationArgs),
+  contract("read_verification_log", ReadVerificationLogArgs),
+  contract("inspect_verification_artifacts", InspectVerificationArtifactsArgs),
+  contract("read_verification_artifact", ReadVerificationArtifactArgs),
+  contract("compare_verifications", CompareVerificationsArgs),
 ];
 
 export const VERIFICATION_TOOL_NAMES: readonly string[] = VERIFICATION_TOOL_CONTRACTS.map(

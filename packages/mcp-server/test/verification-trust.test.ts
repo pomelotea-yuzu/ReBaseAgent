@@ -1,11 +1,12 @@
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import { createTranslator } from "@rebaseagent/i18n";
 import { afterAll, describe, expect, it } from "vitest";
 import { compareVerificationsTool } from "../src/query/compare-verifications.js";
 import { getVerificationTool } from "../src/query/get-verification.js";
 import { listVerificationsTool } from "../src/query/list-verifications.js";
 import { readVerificationLogTool } from "../src/query/read-verification-log.js";
-import { TRUST_INSTRUCTIONS } from "../src/server.js";
 import type { DataRoot } from "../src/startup.js";
+import { trustInstructions } from "../src/tool-metadata.js";
 import {
   VERIFICATION_SENTINELS,
   type VerificationFixture,
@@ -143,13 +144,14 @@ describe("自由文本与秘密边界（M18）", () => {
 });
 
 describe("指南与 initialize 说明对齐（M18）", () => {
-  it("TRUST_INSTRUCTIONS 覆盖验证域边界：验证记录、正文可能含秘密、外发费用", () => {
-    expect(TRUST_INSTRUCTIONS).toContain("验证记录");
-    expect(TRUST_INSTRUCTIONS).toContain("不写盘");
-    expect(TRUST_INSTRUCTIONS).toContain("不可信记录");
-    expect(TRUST_INSTRUCTIONS).toContain("仍可能含秘密");
-    expect(TRUST_INSTRUCTIONS).toContain("费用");
-    // 与 initialize 下发的是同一份（server.ts 单一来源）
-    expect(TRUST_INSTRUCTIONS.split("\n")).toHaveLength(4);
+  it("trustInstructions 覆盖验证域边界：验证记录、正文可能含秘密、外发费用", () => {
+    const instructions = trustInstructions(createTranslator({ locale: "zh-CN" }));
+    expect(instructions).toContain("验证记录");
+    expect(instructions).toContain("不写盘");
+    expect(instructions).toContain("不可信记录");
+    expect(instructions).toContain("仍可能含秘密");
+    expect(instructions).toContain("费用");
+    // 与 initialize 下发的是同一份（tool-metadata.ts 单一来源）
+    expect(instructions.split("\n")).toHaveLength(4);
   });
 });

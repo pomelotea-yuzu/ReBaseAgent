@@ -17,12 +17,13 @@ import { describe, expect, it } from "vitest";
 const SRC_DIR = fileURLToPath(new URL("../src", import.meta.url));
 const DIST_DIR = fileURLToPath(new URL("../dist", import.meta.url));
 
-/** 实测到的外部依赖封闭集（相对/内部模块另计；MCP2 起增加 project-verification 子入口） */
+/** 实测到的外部依赖封闭集（相对/内部模块另计；MCP2 起增加 project-verification 子入口，i18n 5.2 起增加共享语言包） */
 const EXPECTED_EXTERNAL = [
   "@modelcontextprotocol/sdk/server/index.js",
   "@modelcontextprotocol/sdk/server/stdio.js",
   "@modelcontextprotocol/sdk/server/zod-json-schema-compat.js",
   "@modelcontextprotocol/sdk/types.js",
+  "@rebaseagent/i18n",
   "@rebaseagent/project-verification/facts",
   "@rebaseagent/project-verification/read",
   "@rebaseagent/project-verification/schema",
@@ -119,7 +120,7 @@ function occurrences(haystack: string, needle: string): number {
 }
 
 describe("依赖闭包与调用面（Q15 结构半边）", () => {
-  it("dist 的外部依赖恰好是实测那十二个说明符（多一个就翻红）", () => {
+  it("dist 的外部依赖恰好是实测那十三个说明符（多一个就翻红）", () => {
     const js = filesWith(DIST_DIR, ".js");
     expect(js.length).toBeGreaterThan(20);
     const external = new Set<string>();
@@ -151,7 +152,7 @@ describe("依赖闭包与调用面（Q15 结构半边）", () => {
     }
   });
 
-  it("本包的共享读取依赖只有 run-query 与 project-verification 的只读/纯数据子入口，不直连 replay/trace-sdk/desktop/Electron", () => {
+  it("本包的共享读取依赖只有 i18n 与 run-query/project-verification 的只读/纯数据子入口，不直连 replay/trace-sdk/desktop/Electron", () => {
     const js = filesWith(DIST_DIR, ".js");
     const external = new Set<string>();
     for (const file of js) {
@@ -166,6 +167,7 @@ describe("依赖闭包与调用面（Q15 结构半边）", () => {
      * 禁止直接依赖（`./facts` 在比较事实接线时按同一条纪律追加并扩本表）。
      */
     expect(rebaseagent).toEqual([
+      "@rebaseagent/i18n",
       "@rebaseagent/project-verification/facts",
       "@rebaseagent/project-verification/read",
       "@rebaseagent/project-verification/schema",

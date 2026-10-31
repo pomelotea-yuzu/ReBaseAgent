@@ -60,20 +60,14 @@ export const READ_ONLY_ANNOTATIONS: ToolAnnotations = {
 /** 一个工具契约：zod 入参是唯一的真相，发布形状由它派生 */
 export interface ToolContract {
   readonly name: string;
-  readonly description: string;
   readonly schema: z.ZodObject<z.ZodRawShape>;
   readonly inputSchema: Readonly<Record<string, unknown>>;
   readonly annotations: ToolAnnotations;
 }
 
-function contract(
-  name: string,
-  description: string,
-  schema: z.ZodObject<z.ZodRawShape>,
-): ToolContract {
+function contract(name: string, schema: z.ZodObject<z.ZodRawShape>): ToolContract {
   return {
     name,
-    description,
     schema,
     inputSchema: toJsonSchemaDeclaration(schema),
     annotations: READ_ONLY_ANNOTATIONS,
@@ -169,41 +163,13 @@ export type CompareCheckpointFilesArgs = z.infer<typeof CompareCheckpointFilesAr
 
 /** 发布顺序即 tools/list 的顺序（与 D5 表一致） */
 export const TOOL_CONTRACTS: readonly ToolContract[] = [
-  contract(
-    "list_runs",
-    "只读列出数据根 traces/ 下的运行摘要（按结局类别与完整标识/任务文本筛选，不含正文）",
-    ListRunsArgs,
-  ),
-  contract(
-    "get_run",
-    "只读读取单个运行的白名单摘要、父链来源与分页的 span/检查点索引（不默认返回消息或编辑正文）",
-    GetRunArgs,
-  ),
-  contract(
-    "get_step",
-    "只读读取单个 span 的结构索引；仅在显式指定 section 时返回该段正文（重名 span 需要显式 owner）",
-    GetStepArgs,
-  ),
-  contract(
-    "compare_runs",
-    "只读比较两个运行：逐侧给出可读/不可用与共同祖先、累计消耗与相对增量的可核对事实",
-    CompareRunsArgs,
-  ),
-  contract(
-    "inspect_checkpoint",
-    "只读列出某个检查点（初始快照或本 run 自有完成步骤）的文件清单与附件可用性",
-    InspectCheckpointArgs,
-  ),
-  contract(
-    "read_checkpoint_file",
-    "只读读取检查点清单内一条逻辑路径的原文（按码点范围返回，二进制只给大小与哈希）",
-    ReadCheckpointFileArgs,
-  ),
-  contract(
-    "compare_checkpoint_files",
-    "只读比较两个自有检查点：不给 path 时分页列清单与引用，给 path 时逐侧核验正文",
-    CompareCheckpointFilesArgs,
-  ),
+  contract("list_runs", ListRunsArgs),
+  contract("get_run", GetRunArgs),
+  contract("get_step", GetStepArgs),
+  contract("compare_runs", CompareRunsArgs),
+  contract("inspect_checkpoint", InspectCheckpointArgs),
+  contract("read_checkpoint_file", ReadCheckpointFileArgs),
+  contract("compare_checkpoint_files", CompareCheckpointFilesArgs),
 ];
 
 export const TOOL_NAMES: readonly string[] = TOOL_CONTRACTS.map((item) => item.name);

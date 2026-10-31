@@ -1,6 +1,7 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
+import { createTranslator } from "@rebaseagent/i18n";
 import { afterEach, describe, expect, it } from "vitest";
 import { createDiagnosticLog } from "../src/diagnostics.js";
 import { ErrorEnvelopeSchema, SuccessEnvelopeSchema } from "../src/envelope.js";
@@ -35,7 +36,7 @@ async function harness(tools: readonly ToolDefinition[]): Promise<Harness> {
   const log = createDiagnosticLog((line) => {
     stderr.push(line);
   });
-  const handle = createQueryServer(ROOT, tools, log);
+  const handle = createQueryServer(ROOT, tools, log, createTranslator({ locale: "zh-CN" }));
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   await handle.server.connect(serverTransport);
   const client = new Client({ name: "mcp0-42-probe", version: "0.0.1" });

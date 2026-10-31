@@ -103,7 +103,6 @@ export type ToolImplementation<Args> = (args: Args, root: DataRoot) => Promise<T
 /** defineTool 接受的契约形状（MCP1 ToolContract 与 MCP2 VerificationToolContract 同构） */
 export interface ToolContractLike {
   readonly name: string;
-  readonly description: string;
   readonly schema: ZodObject<ZodRawShape>;
   readonly inputSchema: Readonly<Record<string, unknown>>;
   readonly annotations: ToolDefinition["annotations"];
@@ -121,7 +120,6 @@ export function defineTool<Args>(
 ): ToolDefinition {
   return {
     name: contract.name,
-    description: contract.description,
     inputSchema: contract.inputSchema,
     annotations: contract.annotations,
     async execute(rawArgs, root): Promise<ToolResult> {

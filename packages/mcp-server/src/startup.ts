@@ -1,5 +1,6 @@
 import { constants, accessSync, statSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
+import { CLI_LOCALE_FLAG } from "@rebaseagent/i18n";
 import type { RunQueryStartupCode } from "@rebaseagent/run-query";
 
 /**
@@ -18,7 +19,7 @@ import type { RunQueryStartupCode } from "@rebaseagent/run-query";
  *   （`@rebaseagent/trace-sdk/fs-boundary`），不在这里重复实现。
  */
 
-/** 唯一接受的 CLI 参数（不接受位置参数、不接受第二个数据根） */
+/** 唯一接受的读取参数（不接受位置参数、不接受第二个数据根；语言参数由共享解析器先处理） */
 export const DATA_DIR_FLAG = "--data-dir";
 
 /** 启动失败的固定退出码（1.1 的实机记录用的就是这个值，保持一致） */
@@ -49,6 +50,11 @@ export function parseStartupArgv(argv: readonly string[]): StartupOutcome {
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === undefined) continue;
+    if (arg === CLI_LOCALE_FLAG) {
+      // 值已由共享 CLI 语言解析器校验；这里只跳过参数对，不重复解释语言。
+      i += 1;
+      continue;
+    }
     if (arg !== DATA_DIR_FLAG) {
       // 只列参数名，不列取值：取值可能承载正文
       return reject(`未知参数（只接受 ${DATA_DIR_FLAG}）`);

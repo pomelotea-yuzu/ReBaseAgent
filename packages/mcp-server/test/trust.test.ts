@@ -1,13 +1,15 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import type { CompatibilityCallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import { createTranslator } from "@rebaseagent/i18n";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { createDiagnosticLog } from "../src/diagnostics.js";
 import { ErrorEnvelopeSchema, SuccessEnvelopeSchema } from "../src/envelope.js";
 import type { GetStepData } from "../src/query/get-step.js";
 import { REDACTED_MARKER } from "../src/query/redaction.js";
-import { TRUST_INSTRUCTIONS, createQueryServer } from "../src/server.js";
+import { createQueryServer } from "../src/server.js";
 import type { DataRoot } from "../src/startup.js";
+import { trustInstructions } from "../src/tool-metadata.js";
 import { READONLY_TOOLS } from "../src/tools.js";
 import { contentBodyTexts } from "./content-bodies.js";
 import {
@@ -52,6 +54,7 @@ async function harness(): Promise<Harness> {
     root,
     READONLY_TOOLS,
     createDiagnosticLog(() => {}),
+    createTranslator({ locale: "zh-CN" }),
   );
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   await handle.server.connect(serverTransport);
@@ -90,7 +93,7 @@ describe("initialize：信任说明", () => {
   it("instructions 明确只读、不可信历史、过滤有限与外发/计费边界", async () => {
     const h = await harness();
     const instructions = h.client.getInstructions();
-    expect(instructions).toBe(TRUST_INSTRUCTIONS);
+    expect(instructions).toBe(trustInstructions(createTranslator({ locale: "zh-CN" })));
     for (const phrase of [
       "只读诊断",
       "不运行模型或工具",
