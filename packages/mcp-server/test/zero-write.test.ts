@@ -1,7 +1,6 @@
 import { readdirSync } from "node:fs";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { ErrorEnvelopeSchema, SuccessEnvelopeSchema } from "../src/envelope.js";
-import { TOOL_ERROR_MESSAGES } from "../src/error-projection.js";
 import type { CompareCheckpointFilesData } from "../src/query/compare-checkpoint-files.js";
 import type { GetStepData } from "../src/query/get-step.js";
 import type { ListRunsData } from "../src/query/list-runs.js";
@@ -20,6 +19,7 @@ import {
   resultOf,
   treeListing,
 } from "./stdio-harness.js";
+import { errorMessageOf } from "./test-locale.js";
 import { assertNoSentinels } from "./whitelist-assertions.js";
 import {
   ZW_LONG_PATH,
@@ -51,7 +51,7 @@ const sessions: StdioSession[] = [];
 let fx: ZeroWriteFixture;
 
 async function openSession(dataDir: string): Promise<StdioSession> {
-  const session = await StdioSession.start(dataDir);
+  const session = await StdioSession.start(dataDir, ["--locale", "zh-CN"]);
   sessions.push(session);
   return session;
 }
@@ -299,12 +299,12 @@ describe("故障与生命周期路径同样零写入", () => {
     // 坏尾行的定位就是请求里那个 runId：不拼物理路径，也不给半个文件位置（4.x 同口径）
     expect(errorOf(await session.waitForFrame(2))).toEqual({
       code: "RUN_INVALID",
-      message: TOOL_ERROR_MESSAGES.RUN_INVALID,
+      message: errorMessageOf("RUN_INVALID"),
       retryable: false,
     });
     expect(errorOf(await session.waitForFrame(3))).toEqual({
       code: "RUN_NOT_FOUND",
-      message: TOOL_ERROR_MESSAGES.RUN_NOT_FOUND,
+      message: errorMessageOf("RUN_NOT_FOUND"),
       retryable: false,
     });
     const io = errorOf(await session.waitForFrame(4));

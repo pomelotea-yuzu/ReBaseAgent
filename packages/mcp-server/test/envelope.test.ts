@@ -13,7 +13,7 @@ import {
   isKnownLimitationCode,
 } from "../src/envelope.js";
 import {
-  TOOL_ERROR_MESSAGES,
+  TOOL_ERROR_MESSAGE_KEYS,
   isKnownToolErrorCode,
   projectArgumentError,
   projectThrowable,
@@ -21,6 +21,7 @@ import {
 } from "../src/error-projection.js";
 import { CONTENT_HEADLINE_MAX, MESSAGE_MAX } from "../src/limits.js";
 import { QUERY_API_VERSION } from "../src/server.js";
+import { ZH, errorMessageOf } from "./test-locale.js";
 
 /**
  * MCP0 4.2（S05/S06）：结果信封与错误投影。
@@ -155,9 +156,9 @@ describe("失败信封与错误投影（S06）", () => {
       "STALE_CURSOR",
       "RESPONSE_LIMIT",
     ] as const;
-    expect(Object.keys(TOOL_ERROR_MESSAGES).sort()).toEqual([...codes].sort());
+    expect(Object.keys(TOOL_ERROR_MESSAGE_KEYS).sort()).toEqual([...codes].sort());
     for (const code of codes) {
-      const message = TOOL_ERROR_MESSAGES[code];
+      const message = errorMessageOf(code);
       expect(message.length).toBeGreaterThan(0);
       expect(message.length).toBeLessThanOrEqual(MESSAGE_MAX);
       expect(message).not.toMatch(/[\\/]/);
@@ -177,9 +178,9 @@ describe("失败信封与错误投影（S06）", () => {
   it("异常文本与堆栈不进结果：物理路径被码表文案替换", () => {
     const leaky = new Error("无法读取 D:\\secret\\traces\\run-1.jsonl: EPERM");
     leaky.stack = `${leaky.stack}\nat 秘密目录 C:\\Users\\someone\\.rebaseagent`;
-    const projected = projectThrowable(leaky);
+    const projected = projectThrowable(leaky, ZH);
     expect(projected.code).toBe("STORAGE_IO");
-    expect(projected.message).toBe(TOOL_ERROR_MESSAGES.STORAGE_IO);
+    expect(projected.message).toBe(errorMessageOf("STORAGE_IO"));
     const envelope = buildErrorEnvelope({ ...projected });
     const serialized = JSON.stringify(envelope);
     expect(serialized).not.toContain("secret");
@@ -193,7 +194,7 @@ describe("失败信封与错误投影（S06）", () => {
     const enoent = Object.assign(new Error("ENOENT: no such file or directory"), {
       code: "ENOENT",
     });
-    expect(projectThrowable(enoent).code).toBe("RUN_NOT_FOUND");
+    expect(projectThrowable(enoent, ZH).code).toBe("RUN_NOT_FOUND");
   });
 
   it("共享层读取错误按结构映射稳定码，中文原因本身不外发", () => {
@@ -201,9 +202,9 @@ describe("失败信封与错误投影（S06）", () => {
       "ANCESTOR_INVALID",
       "祖先 run run-0 的记录无法校验：D:\\data\\traces\\run-0.jsonl",
     );
-    const projected = projectThrowable(detail);
+    const projected = projectThrowable(detail, ZH);
     expect(projected.code).toBe("ANCESTOR_INVALID");
-    expect(projected.message).toBe(TOOL_ERROR_MESSAGES.ANCESTOR_INVALID);
+    expect(projected.message).toBe(errorMessageOf("ANCESTOR_INVALID"));
     expect(projected.retryable).toBe(false);
   });
 
@@ -212,7 +213,7 @@ describe("失败信封与错误投影（S06）", () => {
     const parsed = schema.safeParse({ runId: "x".repeat(300), dataDir: "D:/secret" });
     expect(parsed.success).toBe(false);
     if (parsed.success) return;
-    const projected = projectArgumentError(parsed.error.issues);
+    const projected = projectArgumentError(parsed.error.issues, ZH);
     expect(projected.code).toBe("INVALID_ARGUMENT");
     expect(projected.message).toContain("runId");
     expect(projected.message).not.toContain("x".repeat(30));
@@ -224,7 +225,7 @@ describe("失败信封与错误投影（S06）", () => {
   it("失败信封带定位 ref 时仍受控，且 message 有界", () => {
     const envelope = buildErrorEnvelope({
       code: "SPAN_AMBIGUOUS",
-      message: TOOL_ERROR_MESSAGES.SPAN_AMBIGUOUS,
+      message: errorMessageOf("SPAN_AMBIGUOUS"),
       ref: "span:s_01 owners:2",
       retryable: false,
     });

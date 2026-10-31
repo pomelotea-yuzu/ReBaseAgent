@@ -2646,6 +2646,163 @@ export const enUS = {
     fieldStream: "Log stream (stdout or stderr)",
     fieldLeft: "Left-side object (run or verification)",
     fieldRight: "Right-side object (run or verification)",
+    errorInvalidArgument: "The arguments do not satisfy this tool's contract",
+    errorInvalidArgumentDetail: "The arguments do not satisfy this tool's contract ({{detail}})",
+    errorRunNotFound: "The specified run does not exist",
+    errorRunInvalid: "The specified run's record failed validation",
+    errorUnsupportedTraceVersion: "This run's trace version is not supported",
+    errorIdentityMismatch: "The filename and the run identifier inside the record do not match",
+    errorAncestorInvalid: "An ancestor record of this run failed validation",
+    errorAncestorUnreadable: "An ancestor record of this run is currently unreadable",
+    errorLineageCycle: "This run's parent chain contains a cycle",
+    errorForkInvalid: "This run's fork declaration is invalid",
+    errorStepNotFound:
+      "The specified step or span cannot be located in the current readable projection",
+    errorSpanAmbiguous:
+      "This span identifier is not unique in the projection; an explicit owner is required",
+    errorNoWorkspace: "This run is not an isolated run and has no file checkpoints",
+    errorStorageIo: "Storage read failed; try again later",
+    errorStaleCursor: "The continuation cursor is stale; restart the query from the first page",
+    errorResponseLimit: "A single result cannot fit within the response budget",
+    errorVerificationNotFound: "The specified verification does not exist",
+    errorVerificationUnreadable: "The specified verification's record file is currently unreadable",
+    errorVerificationRecordInvalid: "The specified verification's record failed validation",
+    errorVerificationLogNotRecorded:
+      "This verification did not record execution facts for the specified command/stream",
+    errorVerificationArtifactNotFound:
+      "The specified artifact is not in this verification's manifest",
+    errorVerificationArtifactsNotRecorded: "This verification did not record an artifact manifest",
+    errorVerificationAssetMissing: "An attachment referenced by this verification is missing",
+    errorVerificationAssetCorrupt:
+      "An attachment referenced by this verification does not match the recorded hash",
+    errorVerificationPathRejected:
+      "The artifact path is invalid or rejected by this verification's manifest",
+    resultIncomplete: "{{code}} (this query did not complete)",
+    unknownTool: "Unknown tool: {{name}} (this service publishes read-only diagnostics only)",
+    toolRunFailed: "Tool {{tool}} did not complete this run",
+    queryCancelled: "The current query for tool {{tool}} was cancelled",
+    startupUnknownArgument: "Unknown argument (this service accepts only --data-dir and --locale)",
+    startupDuplicateDataDir: "--data-dir may appear only once (a single data root)",
+    startupMissingDataDir: "Missing --data-dir (an existing absolute path)",
+    startupDataDirNotAbsolute: "The data root must be an absolute path",
+    startupDataDirMissing: "The data root does not exist or is not accessible",
+    startupDataDirNotDirectory: "The data root is not a directory",
+    startupTracesMissing: "The data root has no traces/",
+    startupTracesNotDirectory: "traces/ is not a directory",
+    startupTracesUnreadable: "traces/ is not readable",
+    contentTruncated:
+      "…[projection truncated: {{count}} code points total; see structured data for the full text]",
+    contentBodyPointerMissing:
+      "[projection body missing: bodyIn=content but the body was not provided with the result]",
+    contentBodyMissing: "[projection body missing]",
+    contentComplexValue: "[complex value]",
+    summaryPagePartial: "{{listed}} listed on this page; {{remaining}} remain",
+    summaryPageAll: "All listed on this page",
+    summaryManifestComplete: "Manifest complete",
+    summaryUnreadableFiles: "{{count}} unreadable files",
+    summarySealed: "Sealed",
+    summaryUnsealed: "Not sealed",
+    summaryInitialSnapshot: "Initial snapshot",
+    summaryStepLabel: "Step {{step}}",
+    summaryBodyNotRequested: "Body not requested",
+    summarySectionNotRecorded: "That section was not recorded",
+    summaryBodyNotExposed: "Body not exposed",
+    summaryCodepointRange: "code points {{start}}–{{end}} ({{total}} total)",
+    summaryBinaryBody: "binary ({{size}} bytes; body not exposed)",
+    summaryCheckpointLabel: "Checkpoint {{checkpoint}}",
+    summaryFilesBytes: "{{files}} files / {{bytes}} bytes",
+    summaryYes: "Yes",
+    summaryNo: "No",
+    subjectAttachment: "attachment",
+    subjectArtifact: "artifact",
+    binaryReason:
+      "The {{subject}} is not strict UTF-8 text: only byte size and hash are provided; the body is not exposed",
+    limitTerminationRun:
+      "No termination event: results stop at records already on disk and cannot establish that the run is still in progress",
+    limitTerminationBody:
+      "No termination event: the body stops at records already on disk and cannot establish that the run is still in progress",
+    limitTerminationManifest:
+      "No termination event: the manifest stops at records already on disk and cannot establish that the run is still in progress",
+    limitTerminationSideWithName:
+      "No termination event on this side: results stop at records already on disk and cannot establish that it is still in progress ({{side}})",
+    limitTerminationSide:
+      "No termination event on this side: results stop at records already on disk and cannot establish that the run is still in progress",
+    limitAncestorMissing:
+      "Ancestor records are indeed missing: the parent chain is truncated at the missing point, so the inherited prefix and ancestor deltas are unknown",
+    limitAncestorTruncatedSide:
+      "The {{side}} side's parent chain is truncated at the missing point: inherited prefix and ancestor deltas are unknown; this is not called a different root",
+    limitBodyNotExposedRun:
+      "Fork edit bodies and experiment original values, hypotheses, and criteria are not returned by this tool: use get_step for the relevant span, or open the full ID in the desktop app",
+    limitBodyNotExposedStep:
+      "No section specified: this response gives the structural index only; request input, output, or error explicitly for a body",
+    limitBodyNotExposedCheckpoint:
+      "The manifest gives paths, sizes, hashes, and attachment availability only; request a body with read_checkpoint_file and an explicit path",
+    limitBodyNotExposedCompare:
+      "The comparison does not include output or fork-edit bodies: use the span refs in `provenance.refs` with get_step, or open the full ID in the desktop app",
+    limitCheckpointReferenceSame:
+      "A manifest reference=same means only that hashes and byte counts match; request a path for per-side content verification before drawing content conclusions",
+    limitRedacted:
+      "Replaced {{count}} known credential occurrences (fields or endpoint userinfo) with {{marker}}; free text and raw checkpoint files may still contain secrets",
+    limitVerificationUnterminated:
+      "The record is not sealed: there is no trustworthy outcome, and content stops at complete events already on disk",
+    limitVerificationEnvironmentUnknown:
+      "The record did not preserve environment identity: actual image, toolchain, and limits are unknown and are not filled in from the current environment",
+    limitVerificationSourceMissingRun:
+      "The source run's trace is not in the data root: source status is marked, and the verification record remains readable",
+    limitVerificationSourceMissingSide:
+      "This side's source trace is missing: no claim of a verified fix branch or code causality",
+    limitVerificationPreparationUnavailable:
+      "The preparation record referenced by this record is currently unreadable: environment is still shown as recorded",
+    limitVerificationCaptureTruncated:
+      "Output was truncated during execution: {{retained}} of {{observed}} bytes retained; discarded bytes cannot be recovered",
+    limitVerificationLogUnterminated:
+      "The record is not sealed: attachments come from complete command_end events already on disk and are not claimed to represent the full execution",
+    limitVerificationAssetsNotVerifiable:
+      "Required assets (logs/artifacts) on at least one side cannot be verified: no checkable fix conclusion is published",
+    headlineListRuns: "list_runs: {{matched}} matching summaries",
+    headlineListVerifications: "list_verifications: {{matched}} matching summaries",
+    headlineGetRun: "get_run: {{spans}} spans / {{checkpoints}} checkpoints",
+    headlineGetStep: "get_step: {{kind}} belongs to {{owner}}",
+    getStepOwn: "Owned by this run",
+    getStepInherited: "Inherited from the source chain",
+    headlineGetVerification: "{{commands}} commands / {{events}} event index items",
+    headlineVerificationStatus: "get_verification: {{status}}",
+    outcomeNone: "No trustworthy outcome",
+    outcomeValue: "Outcome {{outcome}}",
+    headlineInspectCheckpoint: "inspect_checkpoint: {{checkpoint}}",
+    headlineReadCheckpointStatus: "read_checkpoint_file: {{status}}",
+    headlineReadArtifactBinary:
+      "read_verification_artifact: binary ({{size}} bytes; body not exposed)",
+    headlineReadArtifactText: "read_verification_artifact: text",
+    headlineReadLogBinary: "read_verification_log: binary ({{size}} bytes; body not exposed)",
+    headlineReadLogText: "read_verification_log: text",
+    inspectCheckpointUnavailable: "{{count}} attachments unavailable",
+    inspectCheckpointAllAvailable: "All attachments available",
+    headlineInspectArtifacts: "inspect_verification_artifacts: {{count}} items",
+    inspectArtifactsCounts: "Available {{available}} / missing {{missing}} / corrupt {{corrupt}}",
+    headlineCompareRuns: "compare_runs: {{ready}} side(s) readable, {{unavailable}} unreadable",
+    headlineCompareFilesConclusion: "compare_checkpoint_files: {{conclusion}}",
+    compareRunsRelation: "Relation {{kind}}{{ancestor}}",
+    compareRunsAncestor: " (ancestor {{ancestor}})",
+    compareFilesTextDiff: "Text diff available: {{value}}",
+    compareFilesSides: "Left {{left}} / right {{right}}",
+    compareFilesManifestMode: "compare_checkpoint_files: manifest mode",
+    compareFilesUnion: "{{count}} paths in the union",
+    compareFilesUnionIncomplete:
+      "A side's checkpoint is unreadable: the union is incomplete, and an empty manifest does not mean files are absent",
+    headlineCompareVerifications: "{{same}} same / {{different}} different / {{unknown}} unknown",
+    headlineCompareVerificationsVerdict: "compare_verifications: {{verdict}}",
+    limitVerificationUnterminatedSide:
+      "This side's record is not sealed: there is no trustworthy outcome, so it does not participate in the comparison conclusion",
+    captureTruncated: "capture still truncated",
+    captureComplete: "capture complete",
+    verificationFileUnreadable:
+      "Verification record file is currently unreadable (permissions/IO) and was not filtered",
+    verificationFileCorrupt: "Verification record is corrupt and was not filtered",
+    verificationFileUnsupportedVersion:
+      "Verification record version is not supported and was not filtered",
+    verificationFileNameInvalid:
+      "The filename is not a valid verification identifier and was not filtered",
     trustDataRoot:
       "ReBaseAgent read-only diagnostics: accesses only traces, checkpoints, and verification records already present in the data root given at startup; runs no models or tools, writes nothing, and does not change the data root.",
     trustTools:

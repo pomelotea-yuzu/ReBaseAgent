@@ -1,3 +1,4 @@
+import type { Translator } from "@rebaseagent/i18n";
 import {
   RunReadContext,
   RunRepository,
@@ -139,7 +140,7 @@ function ownersRef(candidates: readonly string[]): string {
 
 export const getStepTool: ToolDefinition = defineTool(
   requireContract("get_step"),
-  async (args: GetStepArgs, root: DataRoot) => {
+  async (args: GetStepArgs, root: DataRoot, translator: Translator) => {
     /**
      * 形状校验一律在任何读取之前（design D3 + Q05）：这一层能给 `INVALID_ARGUMENT`
      * 并指出是哪个字段，共享层只能给「记录校验不通过」——让客户端去猜没意义。
@@ -221,7 +222,7 @@ export const getStepTool: ToolDefinition = defineTool(
       limitations.push({
         code: "BODY_NOT_EXPOSED",
         ref: `span:${lookup.ownerRunId}:${args.spanId}`,
-        message: "未指定 section：本次只给结构性索引，正文需显式请求 input/output/error 之一",
+        message: translator.t("mcp.limitBodyNotExposedStep"),
       });
     } else {
       const value = bodyValueOf(span, args.section);
@@ -232,7 +233,10 @@ export const getStepTool: ToolDefinition = defineTool(
           limitations.push({
             code: "REDACTED",
             ref: `span:${lookup.ownerRunId}:${args.spanId}/section:${args.section}`,
-            message: `已把 ${redacted.redactedFields} 处已知凭据（字段或端点 userinfo）替换为 ${REDACTED_MARKER}；自由文本与检查点文件原文仍可能含秘密`,
+            message: translator.t("mcp.limitRedacted", {
+              count: redacted.redactedFields,
+              marker: REDACTED_MARKER,
+            }),
           });
         }
       }
@@ -305,13 +309,20 @@ export const getStepTool: ToolDefinition = defineTool(
         refs,
         limitations: [...limitations],
         headline: [
-          `get_step：${span.kind} 属于 ${lookup.ownerRunId}`,
-          item.own ? "本 run 自有" : "继承自来源链",
+          translator.t("mcp.headlineGetStep", {
+            kind: span.kind,
+            owner: lookup.ownerRunId,
+          }),
+          item.own ? translator.t("mcp.getStepOwn") : translator.t("mcp.getStepInherited"),
           body === null
-            ? "未取正文"
+            ? translator.t("mcp.summaryBodyNotRequested")
             : body.recorded
-              ? `${body.range.start}–${body.range.end} 码点（共 ${body.range.total}）`
-              : "该段未记录",
+              ? translator.t("mcp.summaryCodepointRange", {
+                  start: body.range.start,
+                  end: body.range.end,
+                  total: body.range.total,
+                })
+              : translator.t("mcp.summarySectionNotRecorded"),
         ].join(" / "),
       };
     };

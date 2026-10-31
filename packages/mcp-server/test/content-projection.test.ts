@@ -25,6 +25,7 @@ import {
   buildQueryFixture,
   cleanupQueryFixtures,
 } from "./query-fixtures.js";
+import { ZH } from "./test-locale.js";
 
 /**
  * MCP0 6.2（投影修订，owner 2026-10-23 定稿）的正面判据：
@@ -75,6 +76,7 @@ describe("正文只承载一次（三个正文位工具）", () => {
     const result = await getStepTool.execute(
       { runId: qfx.ids.alpha, spanId: "s_02", section: "input" },
       qRoot,
+      ZH,
     );
     const envelope = okEnvelope(result);
     const data = envelope.data as { body: { recorded: boolean; bodyIn?: string } };
@@ -88,6 +90,7 @@ describe("正文只承载一次（三个正文位工具）", () => {
     const result = await readCheckpointFileTool.execute(
       { runId: cfx.ids.root, path: "notes/crlf.txt" },
       cRoot,
+      ZH,
     );
     const envelope = okEnvelope(result);
     const data = envelope.data as {
@@ -108,6 +111,7 @@ describe("正文只承载一次（三个正文位工具）", () => {
     const result = await compareCheckpointFilesTool.execute(
       { left, right, path: "shared.txt" },
       cmpRoot,
+      ZH,
     );
     const envelope = okEnvelope(result);
     const data = envelope.data as {
@@ -129,6 +133,7 @@ describe("content 投影自足（小事实逐个可读回）", () => {
     const result = await getStepTool.execute(
       { runId: qfx.ids.alpha, spanId: "s_02", section: "input" },
       qRoot,
+      ZH,
     );
     okEnvelope(result);
     const text = contentText(result);
@@ -151,7 +156,7 @@ describe("content 投影自足（小事实逐个可读回）", () => {
         range: { start: 0, end: 8_192, total: 8_192, unit: "unicode-code-point" },
       },
     };
-    const text = buildContentText("headline", data, [{ at: "body", text: body }]);
+    const text = buildContentText("headline", data, [{ at: "body", text: body }], ZH);
     // 超长叶子被截：不是全文复制，且标注总码点（全文仍在 structuredContent）
     expect(text).not.toContain("长".repeat(3_001));
     expect(text).toContain("[投影截断：共 4000 码点，全文见结构化数据]");
@@ -164,13 +169,13 @@ describe("content 投影自足（小事实逐个可读回）", () => {
     const data = {
       file: { status: "text", encoding: "utf8-text", bodyIn: "content" },
     };
-    const first = buildContentText("h", data, [{ at: "file", text: "甲\n乙" }]);
-    const second = buildContentText("h", data, [{ at: "file", text: "甲\n乙" }]);
+    const first = buildContentText("h", data, [{ at: "file", text: "甲\n乙" }], ZH);
+    const second = buildContentText("h", data, [{ at: "file", text: "甲\n乙" }], ZH);
     expect(second).toBe(first);
     // 换行/引号转义：正文是单行 JSON 字符串，不破坏投影结构
     expect(first).toContain('text: "甲\\n乙"');
     // 缺本体（结构上不可达，防御必须显眼而不是静默丢字段）
-    const missing = buildContentText("h", data, []);
+    const missing = buildContentText("h", data, [], ZH);
     expect(missing).toContain("[投影缺正文：bodyIn=content 但本体未随结果提供]");
   });
 });

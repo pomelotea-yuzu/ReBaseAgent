@@ -2,7 +2,6 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ErrorEnvelopeSchema, SuccessEnvelopeSchema } from "../src/envelope.js";
-import { TOOL_ERROR_MESSAGES } from "../src/error-projection.js";
 import { listRunsTool } from "../src/query/list-runs.js";
 import type { ListRunItem, ListRunsData } from "../src/query/list-runs.js";
 import type { ToolResult } from "../src/server.js";
@@ -13,6 +12,7 @@ import {
   cleanupQueryFixtures,
   dirFingerprint,
 } from "./query-fixtures.js";
+import { ZH, errorMessageOf } from "./test-locale.js";
 import { FORBIDDEN_KEYS, assertNoSentinels, collectKeys } from "./whitelist-assertions.js";
 
 /**
@@ -39,7 +39,7 @@ afterAll(() => {
 });
 
 async function callListRuns(args: Record<string, unknown>): Promise<ToolResult> {
-  return listRunsTool.execute(args, root);
+  return listRunsTool.execute(args, root, ZH);
 }
 
 interface OkResult {
@@ -201,7 +201,7 @@ describe("list_runs：失败文件不因筛选消失（Q03）", () => {
     const { data } = await okData({ query: "超长标识" });
     const overlong = failedItems(data).find((item) => item.file.startsWith("mcp0-long-"));
     expect(overlong?.code).toBe("RUN_INVALID");
-    expect(overlong?.message).toBe(TOOL_ERROR_MESSAGES.RUN_INVALID);
+    expect(overlong?.message).toBe(errorMessageOf("RUN_INVALID"));
     expect([...(overlong?.file ?? "")].length).toBeLessThanOrEqual(200);
     // 它没有被当成一条请求得到的摘要
     expect(runItems(data)).toHaveLength(0);
@@ -320,7 +320,7 @@ describe("list_runs：空数据根与零写入", () => {
         dataDir: emptyDir,
         tracesDir: join(emptyDir, "traces"),
       };
-      const result = await listRunsTool.execute({}, emptyRoot);
+      const result = await listRunsTool.execute({}, emptyRoot, ZH);
       expect(result.isError).not.toBe(true);
       const envelope = SuccessEnvelopeSchema.parse(result.structuredContent);
       expect((envelope.data as ListRunsData).items).toEqual([]);

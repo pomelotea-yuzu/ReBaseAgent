@@ -17,6 +17,7 @@ import {
   dirFingerprintRecursive,
 } from "./checkpoint-fixtures.js";
 import { LONG_BODY } from "./query-fixtures.js";
+import { ZH } from "./test-locale.js";
 import { collectKeys } from "./whitelist-assertions.js";
 
 /**
@@ -47,7 +48,7 @@ afterAll(() => {
 });
 
 async function callInspect(runId: string, args: Record<string, unknown> = {}): Promise<ToolResult> {
-  return inspectCheckpointTool.execute({ runId, ...args }, root);
+  return inspectCheckpointTool.execute({ runId, ...args }, root, ZH);
 }
 
 interface OkInspect {
@@ -180,7 +181,7 @@ describe("inspect_checkpoint：缺省 selector = 本 run 初始快照（Q13）",
 
   it("同一条件下与 get_run 给同一个码（两个工具不各判一套）", async () => {
     const inspectFailure = errorOf(await failureOf(fx.ids.mismatch));
-    const runResult = await getRunTool.execute({ runId: fx.ids.mismatch }, root);
+    const runResult = await getRunTool.execute({ runId: fx.ids.mismatch }, root, ZH);
     expect(runResult.isError).toBe(true);
     expect(errorOf(runResult).code).toBe(inspectFailure.code);
   });
@@ -352,7 +353,7 @@ describe("inspect_checkpoint：来源、稳定映射与零写入", () => {
 
   it("refs 里的 snapshotId 与 get_run 检查点段同一条逐项相同（三处说法一致）", async () => {
     const inspect = await okInspect(fx.ids.root, { stepSpanId: fx.rootStepSpanId });
-    const runResult = await getRunTool.execute({ runId: fx.ids.root, limit: 100 }, root);
+    const runResult = await getRunTool.execute({ runId: fx.ids.root, limit: 100 }, root, ZH);
     const runEnvelope = SuccessEnvelopeSchema.parse(runResult.structuredContent);
     const runData = runEnvelope.data as {
       index: {

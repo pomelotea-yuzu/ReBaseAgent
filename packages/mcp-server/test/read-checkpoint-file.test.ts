@@ -17,6 +17,7 @@ import {
 } from "./checkpoint-fixtures.js";
 import { contentBodyTexts } from "./content-bodies.js";
 import { LONG_BODY, LONG_BODY_EMOJI_START } from "./query-fixtures.js";
+import { ZH } from "./test-locale.js";
 import { collectKeys } from "./whitelist-assertions.js";
 
 /**
@@ -52,7 +53,7 @@ async function callRead(
   path: string,
   args: Record<string, unknown> = {},
 ): Promise<ToolResult> {
-  return readCheckpointFileTool.execute({ runId, path, ...args }, root);
+  return readCheckpointFileTool.execute({ runId, path, ...args }, root, ZH);
 }
 
 interface OkRead {
@@ -334,6 +335,7 @@ describe("read_checkpoint_file：正文边界、来源与零写入", () => {
     const inspected = await inspectCheckpointTool.execute(
       { runId: fx.ids.root, stepSpanId: fx.rootStepSpanId },
       root,
+      ZH,
     );
     const inspectEnvelope = SuccessEnvelopeSchema.parse(inspected.structuredContent);
     expect(read.envelope.provenance.runs).toEqual(inspectEnvelope.provenance.runs);

@@ -1,3 +1,4 @@
+import type { Translator } from "@rebaseagent/i18n";
 import {
   RunRepository,
   classifyReadFailure,
@@ -11,12 +12,7 @@ import {
 import type { CompareSideResult, ComparedFileSide } from "@rebaseagent/run-query";
 import { z } from "zod";
 import type { LimitationInput, ProvenanceRefInput, ProvenanceRunInput } from "../envelope.js";
-import {
-  TOOL_ERROR_MESSAGES,
-  ToolErrorCodeSchema,
-  boundedMessage,
-  retryableOf,
-} from "../error-projection.js";
+import { ToolErrorCodeSchema, boundedMessage, retryableOf } from "../error-projection.js";
 import {
   BODY_CHARS_DEFAULT,
   LOGICAL_PATH_MAX,
@@ -26,7 +22,12 @@ import {
 import type { ToolDefinition } from "../server.js";
 import type { DataRoot } from "../startup.js";
 import { type CompareCheckpointFilesArgs, requireContract } from "../tool-contracts.js";
-import { ToolFailure, type ToolPayload, defineTool } from "../tool-definition.js";
+import {
+  ToolFailure,
+  type ToolPayload,
+  defineTool,
+  toolErrorMessageOf,
+} from "../tool-definition.js";
 import { attachmentLedger } from "./attachment-ledger.js";
 import { sliceBody } from "./body-range.js";
 import { issueCursor, requireCursorPosition, withoutCursor } from "./cursor-io.js";
@@ -221,12 +222,13 @@ const CompareCheckpointFilesDataSchema = z.discriminatedUnion("mode", [
 ]);
 export type CompareCheckpointFilesData = z.infer<typeof CompareCheckpointFilesDataSchema>;
 
-function toSideCell(side: SideName, result: CompareSideResult) {
+function toSideCell(side: SideName, result: CompareSideResult, translator: Translator) {
   if (result.status === "unavailable") {
     return unavailableSideOfCode(
       side,
       result.requestedRunId,
       toolCodeOfLocateFailure(result.failure.code),
+      translator,
     );
   }
   const ready: ReadySide = {
@@ -248,6 +250,7 @@ function toSideCell(side: SideName, result: CompareSideResult) {
 function projectComparedFile(
   side: ComparedFileSide,
   maxChars: number | undefined,
+  translator: Translator,
   start = 0,
 ): {
   shape: z.infer<typeof ComparedSideFileSchema>;
@@ -306,7 +309,7 @@ function projectComparedFile(
         shape: {
           status: "unavailable",
           code: "STORAGE_IO",
-          message: boundedMessage(TOOL_ERROR_MESSAGES.STORAGE_IO),
+          message: boundedMessage(toolErrorMessageOf("STORAGE_IO", translator)),
           retryable: true,
         },
         bodyText: null,
@@ -317,7 +320,7 @@ function projectComparedFile(
         shape: {
           status: "unavailable",
           code,
-          message: boundedMessage(TOOL_ERROR_MESSAGES[code]),
+          message: boundedMessage(toolErrorMessageOf(code, translator)),
           retryable: retryableOf(code),
         },
         bodyText: null,
@@ -328,7 +331,7 @@ function projectComparedFile(
 
 export const compareCheckpointFilesTool: ToolDefinition = defineTool(
   requireContract("compare_checkpoint_files"),
-  async (args: CompareCheckpointFilesArgs, root: DataRoot) => {
+  async (args: CompareCheckpointFilesArgs, root: DataRoot, translator: Translator) => {
     for (const [name, selector] of [
       ["left", args.left],
       ["right", args.right],
@@ -387,7 +390,10 @@ export const compareCheckpointFilesTool: ToolDefinition = defineTool(
       );
     }
 
-    const sides = [toSideCell("left", manifest.left), toSideCell("right", manifest.right)] as const;
+    const sides = [
+      toSideCell("left", manifest.left, translator),
+      toSideCell("right", manifest.right, translator),
+    ] as const;
     const readySides = sides.filter((side) => side.status === "ready") as ReadySide[];
 
     /**
@@ -410,7 +416,7 @@ export const compareCheckpointFilesTool: ToolDefinition = defineTool(
         limitations.push({
           code: "TERMINATION_NOT_RECORDED",
           ref: `run:${side.runId}`,
-          message: "该侧没有终止事件：只到已落盘的记录为止，不能据此判断该运行仍在进行",
+          message: translator.t("mcp.limitTerminationSide"),
         });
       }
     }
@@ -500,8 +506,8 @@ export const compareCheckpointFilesTool: ToolDefinition = defineTool(
 
       /** 两侧各按同一个码点上限切；一侧较短自然结束，不拿另一侧补（S10） */
       const buildPayload = (chars: number): ToolPayload => {
-        const left = projectComparedFile(compared.left, chars, leftStart);
-        const right = projectComparedFile(compared.right, chars, rightStart);
+        const left = projectComparedFile(compared.left, chars, translator, leftStart);
+        const right = projectComparedFile(compared.right, chars, translator, rightStart);
         const bothText = left.shape.status === "text" && right.shape.status === "text";
         const leftEnd = left.shape.status === "text" ? left.shape.range.end : leftStart;
         const rightEnd = right.shape.status === "text" ? right.shape.range.end : rightStart;
@@ -542,9 +548,18 @@ export const compareCheckpointFilesTool: ToolDefinition = defineTool(
           refs,
           limitations: [...limitations],
           headline: [
-            `compare_checkpoint_files：${compared.conclusion}`,
-            `可生成文本 diff ${compared.textDiffEligible ? "是" : "否"}`,
-            `左 ${left.shape.status} / 右 ${right.shape.status}`,
+            translator.t("mcp.headlineCompareFilesConclusion", {
+              conclusion: compared.conclusion,
+            }),
+            translator.t("mcp.compareFilesTextDiff", {
+              value: compared.textDiffEligible
+                ? translator.t("mcp.summaryYes")
+                : translator.t("mcp.summaryNo"),
+            }),
+            translator.t("mcp.compareFilesSides", {
+              left: left.shape.status,
+              right: right.shape.status,
+            }),
           ].join(" / "),
         };
       };
@@ -601,8 +616,7 @@ export const compareCheckpointFilesTool: ToolDefinition = defineTool(
         pageLimitations.push({
           code: "BODY_NOT_EXPOSED",
           ref: pairRef,
-          message:
-            "清单 reference=same 只表示哈希与字节数相同；内容结论需在请求里带上 path 取逐侧核验",
+          message: translator.t("mcp.limitCheckpointReferenceSame"),
         });
       }
       const data = CompareCheckpointFilesDataSchema.parse({
@@ -626,11 +640,16 @@ export const compareCheckpointFilesTool: ToolDefinition = defineTool(
         refs,
         limitations: pageLimitations,
         headline: [
-          "compare_checkpoint_files：清单模式",
+          translator.t("mcp.compareFilesManifestMode"),
           manifest.unionComplete
-            ? `并集 ${manifest.entries.length} 条路径`
-            : "某侧检查点不可读：并集不完整，空清单不代表文件不存在",
-          window.truncated ? `本页 ${entries.length} 条，尚有 ${window.remaining} 条` : "已列全",
+            ? translator.t("mcp.compareFilesUnion", { count: manifest.entries.length })
+            : translator.t("mcp.compareFilesUnionIncomplete"),
+          window.truncated
+            ? translator.t("mcp.summaryPagePartial", {
+                listed: entries.length,
+                remaining: window.remaining,
+              })
+            : translator.t("mcp.summaryManifestComplete"),
         ].join(" / "),
       };
     };

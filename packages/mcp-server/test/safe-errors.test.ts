@@ -1,10 +1,10 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { Translator } from "@rebaseagent/i18n";
 import { JsonlTracer } from "@rebaseagent/trace-sdk";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ErrorEnvelopeSchema, SuccessEnvelopeSchema } from "../src/envelope.js";
-import { TOOL_ERROR_MESSAGES } from "../src/error-projection.js";
 import type { CompareCheckpointFilesData } from "../src/query/compare-checkpoint-files.js";
 import { compareCheckpointFilesTool } from "../src/query/compare-checkpoint-files.js";
 import type { CompareRunsData } from "../src/query/compare-runs.js";
@@ -21,6 +21,7 @@ import {
   buildCheckpointFixture,
   cleanupCheckpointFixtures,
 } from "./checkpoint-fixtures.js";
+import { ZH, errorMessageOf } from "./test-locale.js";
 
 /**
  * MCP0 4.8（S06）：业务错误不泄露内部载荷。
@@ -106,7 +107,7 @@ afterAll(() => {
 });
 
 async function call(tool: ToolDefinition, args: Record<string, unknown>): Promise<ToolResult> {
-  return tool.execute(args, root);
+  return tool.execute(args, root, ZH);
 }
 
 interface Failure {
@@ -180,7 +181,7 @@ describe("非法标识：稳定码 + 字段定位，不回显取值", () => {
       expect(failure.code).toBe("INVALID_ARGUMENT");
       expect(failure.ref).toBe(item.ref);
       expect(failure.retryable).toBe(false);
-      expect(failure.message).toBe(TOOL_ERROR_MESSAGES.INVALID_ARGUMENT);
+      expect(failure.message).toBe(errorMessageOf("INVALID_ARGUMENT"));
       expect(failure.serialized).not.toContain(item.raw);
     }
   });
@@ -201,7 +202,7 @@ describe("不支持的 trace 版本：稳定码，不按文字猜专用码", () 
     const failure = await failureOf(getRunTool, { runId: V9_RUN });
     expect(failure.code).toBe("RUN_INVALID");
     expect(failure.retryable).toBe(false);
-    expect(failure.message).toBe(TOOL_ERROR_MESSAGES.RUN_INVALID);
+    expect(failure.message).toBe(errorMessageOf("RUN_INVALID"));
     expect(failure.serialized).not.toContain("不支持的格式版本");
     expect(failure.serialized).not.toContain(safeTraces);
   });
@@ -217,7 +218,7 @@ describe("不支持的 trace 版本：稳定码，不按文字猜专用码", () 
       (item) => item.kind === "unreadable_file" && item.file === `${V9_RUN}.jsonl`,
     );
     expect(failed?.code).toBe("RUN_INVALID");
-    expect(failed?.message).toBe(TOOL_ERROR_MESSAGES.RUN_INVALID);
+    expect(failed?.message).toBe(errorMessageOf("RUN_INVALID"));
     expect(JSON.stringify(data)).not.toContain("不支持的格式版本");
   });
 });
@@ -233,7 +234,7 @@ describe("缺失 run：逐工具稳定失败或逐侧不可用", () => {
       const failure = await failureOf(tool, args);
       expect(failure.code).toBe("RUN_NOT_FOUND");
       expect(failure.retryable).toBe(false);
-      expect(failure.message).toBe(TOOL_ERROR_MESSAGES.RUN_NOT_FOUND);
+      expect(failure.message).toBe(errorMessageOf("RUN_NOT_FOUND"));
       expect(failure.serialized).not.toContain(safeTraces);
     }
   });
@@ -285,12 +286,13 @@ describe("真实存储 I/O 故障：STORAGE_IO，可重试且不透传 errno", (
     const result = await inspectCheckpointTool.execute(
       { runId: checkpoint.ids.ioRun, limit: 100 },
       { dataDir: checkpoint.dataDir, tracesDir: checkpoint.tracesDir },
+      ZH,
     );
     expect(result.isError).toBe(true);
     const envelope = ErrorEnvelopeSchema.parse(result.structuredContent);
     expect(envelope.error.code).toBe("STORAGE_IO");
     expect(envelope.error.retryable).toBe(true);
-    expect(envelope.error.message).toBe(TOOL_ERROR_MESSAGES.STORAGE_IO);
+    expect(envelope.error.message).toBe(errorMessageOf("STORAGE_IO"));
     const serialized = JSON.stringify(envelope);
     for (const needle of [
       checkpoint.dataDir,

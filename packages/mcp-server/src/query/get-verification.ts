@@ -1,3 +1,4 @@
+import type { Translator } from "@rebaseagent/i18n";
 import {
   RecordReadError,
   getPreparation,
@@ -150,7 +151,11 @@ const GetVerificationDataSchema = z
 
 export const getVerificationTool: ToolDefinition = defineTool(
   requireVerificationContract("get_verification"),
-  async (args: GetVerificationArgs, root: DataRoot): Promise<ToolPayload> => {
+  async (
+    args: GetVerificationArgs,
+    root: DataRoot,
+    translator: Translator,
+  ): Promise<ToolPayload> => {
     const record = readRecordOrThrow(root, args.verificationId);
     const projected = projectVerification(record);
 
@@ -159,21 +164,21 @@ export const getVerificationTool: ToolDefinition = defineTool(
       limitations.push({
         code: "VERIFICATION_UNTERMINATED",
         ref: `verification:${args.verificationId}`,
-        message: "记录未封存：没有可信结局；内容只到已落盘的完整事件为止",
+        message: translator.t("mcp.limitVerificationUnterminated"),
       });
     }
     if (projected.meta !== null && projected.meta.environment === null) {
       limitations.push({
         code: "VERIFICATION_ENVIRONMENT_UNKNOWN",
         ref: `verification:${args.verificationId}`,
-        message: "记录未保存环境身份：实际镜像/工具链/限额未知，不以当前环境补齐",
+        message: translator.t("mcp.limitVerificationEnvironmentUnknown"),
       });
     }
     if (record.sourceStatus === "missing") {
       limitations.push({
         code: "VERIFICATION_SOURCE_MISSING",
         ref: `run:${projected.meta?.runId ?? "unknown"}`,
-        message: "来源 run 的 trace 不在数据根：来源状态已标注，验证记录仍可读",
+        message: translator.t("mcp.limitVerificationSourceMissingRun"),
       });
     }
     const preparationId = projected.meta?.environment?.preparationId;
@@ -186,7 +191,7 @@ export const getVerificationTool: ToolDefinition = defineTool(
           limitations.push({
             code: "VERIFICATION_PREPARATION_UNAVAILABLE",
             ref: `preparation:${preparationId}`,
-            message: "记录引用的准备记录当前不可读：environment 仍按记录原值呈现",
+            message: translator.t("mcp.limitVerificationPreparationUnavailable"),
           });
         } else {
           throw error;
@@ -292,9 +297,14 @@ export const getVerificationTool: ToolDefinition = defineTool(
         verifications: [provenance],
         limitations,
         headline: [
-          `get_verification：${projected.status}`,
-          projected.terminated === null ? "无可信结局" : `结局 ${projected.terminated.outcome}`,
-          `命令 ${projected.commands.length} 条 / 事件索引 ${eventIndex.length} 项`,
+          translator.t("mcp.headlineVerificationStatus", { status: projected.status }),
+          projected.terminated === null
+            ? translator.t("mcp.outcomeNone")
+            : translator.t("mcp.outcomeValue", { outcome: projected.terminated.outcome }),
+          translator.t("mcp.headlineGetVerification", {
+            commands: projected.commands.length,
+            events: eventIndex.length,
+          }),
         ].join(" / "),
       };
     };

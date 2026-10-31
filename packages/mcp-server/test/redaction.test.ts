@@ -12,6 +12,7 @@ import {
   buildExposureFixture,
   cleanupExposureFixtures,
 } from "./exposure-fixtures.js";
+import { ZH } from "./test-locale.js";
 
 /**
  * MCP0 4.8（S11）：结构正文的已知凭据过滤。
@@ -41,7 +42,11 @@ async function bodyOf(
   section: "input" | "output" | "error",
   extra: Record<string, unknown> = {},
 ): Promise<{ data: GetStepData; limitations: string[]; envelope: unknown; result: ToolResult }> {
-  const result = await getStepTool.execute({ runId: fx.runId, spanId, section, ...extra }, root);
+  const result = await getStepTool.execute(
+    { runId: fx.runId, spanId, section, ...extra },
+    root,
+    ZH,
+  );
   expect(result.isError).not.toBe(true);
   const envelope = SuccessEnvelopeSchema.parse(result.structuredContent);
   return {
@@ -260,7 +265,11 @@ describe("get_step：工具 args/result 的凭据过滤", () => {
   });
 
   it("不给 section 就不取正文，也不会凭空发 REDACTED；错误段未记录仍然可分辨", async () => {
-    const noSection = await getStepTool.execute({ runId: fx.runId, spanId: fx.llmSpanId }, root);
+    const noSection = await getStepTool.execute(
+      { runId: fx.runId, spanId: fx.llmSpanId },
+      root,
+      ZH,
+    );
     expect(noSection.isError).not.toBe(true);
     const envelope = SuccessEnvelopeSchema.parse(noSection.structuredContent);
     expect(envelope.limitations.map((item) => item.code)).not.toContain("REDACTED");

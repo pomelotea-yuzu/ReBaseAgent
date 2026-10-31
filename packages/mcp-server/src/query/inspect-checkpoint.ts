@@ -1,3 +1,4 @@
+import type { Translator } from "@rebaseagent/i18n";
 import {
   RunReadContext,
   RunRepository,
@@ -66,7 +67,7 @@ export type InspectCheckpointData = z.infer<typeof InspectCheckpointDataSchema>;
 
 export const inspectCheckpointTool: ToolDefinition = defineTool(
   requireContract("inspect_checkpoint"),
-  async (args: InspectCheckpointArgs, root: DataRoot) => {
+  async (args: InspectCheckpointArgs, root: DataRoot, translator: Translator) => {
     /**
      * 形状校验在任何读取之前（design D3 + Q05）。游标在定位到检查点后再核验：
      * 它的 readVersion 必须包含本次快照的附件 stat 台账（S08 的附件变化）。
@@ -207,15 +208,14 @@ export const inspectCheckpointTool: ToolDefinition = defineTool(
         limitations.push({
           code: "BODY_NOT_EXPOSED",
           ref: `snapshot:${checkpoint.snapshotId}`,
-          message:
-            "清单只给路径、字节、哈希与附件可用性：正文需用 read_checkpoint_file 显式指定 path",
+          message: translator.t("mcp.limitBodyNotExposedCheckpoint"),
         });
       }
       if (!sealed) {
         limitations.push({
           code: "TERMINATION_NOT_RECORDED",
           ref: `run:${leafRunId}`,
-          message: "没有终止事件：清单只到已落盘的记录为止，不能据此判断该运行仍在进行",
+          message: translator.t("mcp.limitTerminationManifest"),
         });
       }
       return {
@@ -227,12 +227,27 @@ export const inspectCheckpointTool: ToolDefinition = defineTool(
         refs,
         limitations,
         headline: [
-          `inspect_checkpoint：${checkpoint.stepSpanId === null ? "初始快照" : `步骤 ${checkpoint.stepSpanId}`}`,
-          `${checkpoint.fileCount} 个文件 / ${checkpoint.totalBytes} 字节`,
+          translator.t("mcp.headlineInspectCheckpoint", {
+            checkpoint:
+              checkpoint.stepSpanId === null
+                ? translator.t("mcp.summaryInitialSnapshot")
+                : translator.t("mcp.summaryStepLabel", { step: checkpoint.stepSpanId }),
+          }),
+          translator.t("mcp.summaryFilesBytes", {
+            files: checkpoint.fileCount,
+            bytes: checkpoint.totalBytes,
+          }),
           checkpoint.unavailableCount > 0
-            ? `${checkpoint.unavailableCount} 个附件不可用`
-            : "附件全部可用",
-          window.truncated ? `本页 ${items.length} 条，尚有 ${window.remaining} 条` : "清单已列全",
+            ? translator.t("mcp.inspectCheckpointUnavailable", {
+                count: checkpoint.unavailableCount,
+              })
+            : translator.t("mcp.inspectCheckpointAllAvailable"),
+          window.truncated
+            ? translator.t("mcp.summaryPagePartial", {
+                listed: items.length,
+                remaining: window.remaining,
+              })
+            : translator.t("mcp.summaryManifestComplete"),
         ].join(" / "),
       };
     };

@@ -331,12 +331,21 @@ const ORIGINAL_SYMBOLS = {
     "本地提交门禁/回执核验的原始诊断，作为原始说明展示；产品摘要按稳定码派生",
 };
 
+const INTERNAL_SYMBOLS = {
+  "packages/mcp-server/src/query/projection.ts::ContentHashSchema":
+    "Zod regex 提示只用于本层 safeParse，客户端只见字段与规则名，属内部校验",
+  "packages/mcp-server/src/query/read-checkpoint-file.ts::SnapshotIdSchema":
+    "Zod regex 提示只用于本层 safeParse，客户端只见字段与规则名，属内部校验",
+};
+
 const INTERNAL_REASONS = {
   "apps/desktop/src/main/operation-registry.ts": "操作登记/执行槽不变量错误，不面向用户",
   "apps/desktop/src/main/operation-request.ts": "业务请求规范化/深冻结的内部不变量错误，不面向用户",
   "apps/desktop/src/main/operation-endpoints.ts": "操作通道可信来源/核对形状的安全拒绝，不面向用户",
   "apps/desktop/src/main/draft-close-attach.ts": "关闭协商握手的内部拒绝，不面向用户",
 
+  "packages/mcp-server/src/query/cursor.ts": "游标 codec 的 reason/异常只在进程内分类，不外发文本",
+  "packages/mcp-server/src/query/canonical-json.ts": "规范 JSON 的内部不变量错误，不外发",
   "packages/mcp-server/src/tool-contracts.ts":
     "工具契约缺失/名字写错属实现缺陷，模块加载即炸，不面向用户",
   "packages/mcp-server/src/verification-contracts.ts":
@@ -418,6 +427,8 @@ function isCliFile(file) {
 function classifySymbol(file, layer, role, symbol) {
   const originalSymbol = ORIGINAL_SYMBOLS[`${file}::${symbol}`];
   if (originalSymbol) return { classification: ORIGINAL, reason: originalSymbol };
+  const internalSymbol = INTERNAL_SYMBOLS[`${file}::${symbol}`];
+  if (internalSymbol) return { classification: INTERNAL, reason: internalSymbol };
   const base = fileRule(file, layer);
   if (role === "internal_log" && !isCliFile(file)) {
     return { classification: INTERNAL, reason: "console 内部诊断，不面向用户" };

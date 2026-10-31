@@ -16,6 +16,7 @@ import {
   cleanupQueryFixtures,
   dirFingerprint,
 } from "./query-fixtures.js";
+import { ZH } from "./test-locale.js";
 import { assertNoSentinels, collectKeys } from "./whitelist-assertions.js";
 
 /**
@@ -54,7 +55,7 @@ async function okStep(
   spanId: string,
   args: Record<string, unknown> = {},
 ): Promise<OkStep> {
-  const result = await getStepTool.execute({ runId, spanId, ...args }, root);
+  const result = await getStepTool.execute({ runId, spanId, ...args }, root, ZH);
   expect(result.isError).not.toBe(true);
   const envelope = SuccessEnvelopeSchema.parse(result.structuredContent);
   return { data: envelope.data as GetStepData, envelope, result };
@@ -65,7 +66,7 @@ async function failureOf(
   spanId: string,
   args: Record<string, unknown> = {},
 ): Promise<{ code: string; message: string; ref?: string; retryable: boolean }> {
-  const result = await getStepTool.execute({ runId, spanId, ...args }, root);
+  const result = await getStepTool.execute({ runId, spanId, ...args }, root, ZH);
   expect(result.isError).toBe(true);
   return ErrorEnvelopeSchema.parse(result.structuredContent).error;
 }
@@ -304,7 +305,7 @@ describe("get_step：重名消歧与截断祖先（Q09/Q10）", () => {
 describe("get_step：与 get_run 同源、零写入", () => {
   it("span 元数据与 get_run 索引里的同一条逐项相同（一处形状）", async () => {
     const step = await okStep(fx.ids.cutChild, "s_02");
-    const run = await getRunTool.execute({ runId: fx.ids.cutChild }, root);
+    const run = await getRunTool.execute({ runId: fx.ids.cutChild }, root, ZH);
     const envelope = SuccessEnvelopeSchema.parse(run.structuredContent);
     const data = envelope.data as GetRunData;
     const indexed = data.index.items.find((item) => item.kind === "span" && item.spanId === "s_02");

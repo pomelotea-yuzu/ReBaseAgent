@@ -1,3 +1,4 @@
+import type { Translator } from "@rebaseagent/i18n";
 import {
   RunReadContext,
   RunRepository,
@@ -120,7 +121,7 @@ export type GetRunData = z.infer<typeof GetRunDataSchema>;
 
 export const getRunTool: ToolDefinition = defineTool(
   requireContract("get_run"),
-  async (args: GetRunArgs, root: DataRoot) => {
+  async (args: GetRunArgs, root: DataRoot, translator: Translator) => {
     /**
      * 非法标识在任何读取之前按参数问题拒绝（design D3 + Q05）。共享层同样会在拼路径前
      * 挡住，但那层的分类是「记录校验不通过」；对调用方来说真正的原因是「你给的 ID
@@ -191,22 +192,21 @@ export const getRunTool: ToolDefinition = defineTool(
       limitations.push({
         code: "TERMINATION_NOT_RECORDED",
         ref: `run:${leafRunId}`,
-        message: "没有终止事件：以上只到已落盘的记录为止，不能据此判断该运行仍在进行",
+        message: translator.t("mcp.limitTerminationRun"),
       });
     }
     if (detail.lineage.status === "incomplete") {
       limitations.push({
         code: "ANCESTOR_NOT_FOUND",
         ref: `run:${detail.lineage.missingRunId}`,
-        message: "祖先记录确实缺失：父链在缺失点截断，继承前缀与祖先增量为未知",
+        message: translator.t("mcp.limitAncestorMissing"),
       });
     }
     if (fork !== null || experiment !== undefined) {
       limitations.push({
         code: "BODY_NOT_EXPOSED",
         ref: `run:${leafRunId}`,
-        message:
-          "分叉编辑正文与实验的原值/假设/判据不在本工具返回：按需用 get_step 读对应 span，或在桌面按完整 ID 查看",
+        message: translator.t("mcp.limitBodyNotExposedRun"),
       });
     }
 
@@ -298,11 +298,17 @@ export const getRunTool: ToolDefinition = defineTool(
         refs,
         limitations: [...limitations],
         headline: [
-          `get_run：${spanItems.length} 个 span / ${checkpointItems.length} 个检查点`,
-          sealed ? "已封存" : "未封存",
+          translator.t("mcp.headlineGetRun", {
+            spans: spanItems.length,
+            checkpoints: checkpointItems.length,
+          }),
+          sealed ? translator.t("mcp.summarySealed") : translator.t("mcp.summaryUnsealed"),
           window.truncated
-            ? `本页 ${window.items.length} 条，尚有 ${window.remaining} 条`
-            : "全部在本页",
+            ? translator.t("mcp.summaryPagePartial", {
+                listed: window.items.length,
+                remaining: window.remaining,
+              })
+            : translator.t("mcp.summaryPageAll"),
         ].join(" / "),
       };
     };

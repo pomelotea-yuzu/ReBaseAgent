@@ -13,6 +13,7 @@ import {
   cleanupCompareFixtures,
 } from "./compare-file-fixtures.js";
 import { contentBodyTexts } from "./content-bodies.js";
+import { ZH } from "./test-locale.js";
 import { collectKeys } from "./whitelist-assertions.js";
 
 /**
@@ -49,7 +50,7 @@ async function rawCall(
   right: Side,
   extra: Record<string, unknown> = {},
 ): Promise<ToolResult> {
-  return compareCheckpointFilesTool.execute({ left, right, ...extra }, root);
+  return compareCheckpointFilesTool.execute({ left, right, ...extra }, root, ZH);
 }
 
 function envelopeOf(result: ToolResult) {
@@ -523,6 +524,7 @@ describe("compare_checkpoint_files：入参边界与不变性", () => {
     const result = await compareCheckpointFilesTool.execute(
       { left: [{ runId: fx.ids.root }], right: { runId: fx.ids.child } },
       root,
+      ZH,
     );
     expect(result.isError).toBe(true);
     const error = ErrorEnvelopeSchema.parse(result.structuredContent).error;

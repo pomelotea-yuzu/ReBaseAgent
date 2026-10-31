@@ -1,3 +1,4 @@
+import type { Translator } from "@rebaseagent/i18n";
 import {
   RunReadContext,
   RunRepository,
@@ -135,7 +136,7 @@ export type ReadCheckpointFileData = z.infer<typeof ReadCheckpointFileDataSchema
 
 export const readCheckpointFileTool: ToolDefinition = defineTool(
   requireContract("read_checkpoint_file"),
-  async (args: ReadCheckpointFileArgs, root: DataRoot) => {
+  async (args: ReadCheckpointFileArgs, root: DataRoot, translator: Translator) => {
     if (findIllegalExternalRunIdViolation(args.runId) !== null) {
       throw new ToolFailure("INVALID_ARGUMENT", "runId");
     }
@@ -217,7 +218,7 @@ export const readCheckpointFileTool: ToolDefinition = defineTool(
       limitations.push({
         code: "TERMINATION_NOT_RECORDED",
         ref: `run:${leafRunId}`,
-        message: "没有终止事件：正文只到已落盘的记录为止，不能据此判断该运行仍在进行",
+        message: translator.t("mcp.limitTerminationBody"),
       });
     }
 
@@ -288,11 +289,20 @@ export const readCheckpointFileTool: ToolDefinition = defineTool(
         refs,
         limitations,
         headline: [
-          `read_checkpoint_file：${file.status}`,
-          `检查点 ${matched.stepSpanId === null ? "初始快照" : `步骤 ${matched.stepSpanId}`}`,
+          translator.t("mcp.headlineReadCheckpointStatus", { status: file.status }),
+          translator.t("mcp.summaryCheckpointLabel", {
+            checkpoint:
+              matched.stepSpanId === null
+                ? translator.t("mcp.summaryInitialSnapshot")
+                : translator.t("mcp.summaryStepLabel", { step: matched.stepSpanId }),
+          }),
           file.status === "text"
-            ? `${file.range.start}–${file.range.end} 码点（共 ${file.range.total}）`
-            : "未外发正文",
+            ? translator.t("mcp.summaryCodepointRange", {
+                start: file.range.start,
+                end: file.range.end,
+                total: file.range.total,
+              })
+            : translator.t("mcp.summaryBodyNotExposed"),
         ].join(" / "),
       };
     };

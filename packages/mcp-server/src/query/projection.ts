@@ -1,3 +1,4 @@
+import type { Translator } from "@rebaseagent/i18n";
 import { classifyOutcome } from "@rebaseagent/run-query";
 import type {
   CompareSideFailureCode,
@@ -12,7 +13,7 @@ import { z } from "zod";
 import type { ProvenanceRunInput } from "../envelope.js";
 import {
   type ProjectedToolError,
-  TOOL_ERROR_MESSAGES,
+  TOOL_ERROR_MESSAGE_KEYS,
   ToolErrorCodeSchema,
   boundedMessage,
   retryableOf,
@@ -815,13 +816,14 @@ export function unavailableSideOfCode(
   side: SideName,
   runId: string,
   code: RunQueryToolErrorCode,
+  translator: Translator,
 ): UnavailableSide {
   return {
     side,
     status: "unavailable",
     runId,
     code,
-    message: boundedMessage(TOOL_ERROR_MESSAGES[code]),
+    message: boundedMessage(translator.t(TOOL_ERROR_MESSAGE_KEYS[code])),
     retryable: retryableOf(code),
   };
 }

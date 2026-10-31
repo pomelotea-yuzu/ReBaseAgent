@@ -1,3 +1,5 @@
+import type { Translator } from "@rebaseagent/i18n";
+
 /**
  * content 文本投影（6.2 真实客户端修订，owner 2026-10-23 定稿）。
  *
@@ -43,17 +45,17 @@ const LEAF_MAX = 3_000;
 /** 嵌套深度上限：信封实际最深约 5 层，留余量但不放开成无界递归 */
 const DEPTH_MAX = 8;
 
-function leaf(value: string): string {
+function leaf(value: string, translator: Translator): string {
   const chars = [...value];
   if (chars.length <= LEAF_MAX) return JSON.stringify(value);
-  return `${JSON.stringify(chars.slice(0, LEAF_MAX).join(""))}…[投影截断：共 ${chars.length} 码点，全文见结构化数据]`;
+  return `${JSON.stringify(chars.slice(0, LEAF_MAX).join(""))}${translator.t("mcp.contentTruncated", { count: chars.length })}`;
 }
 
-function scalar(value: unknown): string | null {
+function scalar(value: unknown, translator: Translator): string | null {
   if (value === null) return "null";
   switch (typeof value) {
     case "string":
-      return leaf(value);
+      return leaf(value, translator);
     case "number":
     case "boolean":
       return String(value);
@@ -81,6 +83,7 @@ function renderObject(
   indent: number,
   bodies: ReadonlyMap<string, string>,
   out: string[],
+  translator: Translator,
 ): void {
   const pad = "  ".repeat(indent);
   for (const [key, child] of Object.entries(value)) {
@@ -93,7 +96,7 @@ function renderObject(
         if (innerKey === "bodyIn") {
           // 本体缺失 = 实现层构造了指针却没随结果给正文（结构上不可达，防御性可见）
           out.push(
-            `${pad}  text: ${body === undefined ? JSON.stringify("[投影缺正文：bodyIn=content 但本体未随结果提供]") : JSON.stringify(body)}`,
+            `${pad}  text: ${body === undefined ? JSON.stringify(translator.t("mcp.contentBodyPointerMissing")) : JSON.stringify(body)}`,
           );
           continue;
         }
@@ -104,9 +107,11 @@ function renderObject(
             continue;
           }
           out.push(`${pad}  ${innerKey}:`);
-          renderValue(inner, `${childPath}.${innerKey}`, indent + 2, bodies, out);
+          renderValue(inner, `${childPath}.${innerKey}`, indent + 2, bodies, out, translator);
         } else {
-          out.push(`${pad}  ${innerKey}: ${scalar(inner) ?? "[复杂值]"}`);
+          out.push(
+            `${pad}  ${innerKey}: ${scalar(inner, translator) ?? translator.t("mcp.contentComplexValue")}`,
+          );
         }
       }
       continue;
@@ -118,10 +123,12 @@ function renderObject(
         continue;
       }
       out.push(`${pad}${key}:`);
-      renderValue(child, childPath, indent + 1, bodies, out);
+      renderValue(child, childPath, indent + 1, bodies, out, translator);
       continue;
     }
-    out.push(`${pad}${key}: ${scalar(child) ?? "[复杂值]"}`);
+    out.push(
+      `${pad}${key}: ${scalar(child, translator) ?? translator.t("mcp.contentComplexValue")}`,
+    );
   }
 }
 
@@ -131,6 +138,7 @@ function renderValue(
   indent: number,
   bodies: ReadonlyMap<string, string>,
   out: string[],
+  translator: Translator,
 ): void {
   const pad = "  ".repeat(indent);
   if (Array.isArray(value)) {
@@ -141,24 +149,26 @@ function renderValue(
     for (const item of value) {
       if (item !== null && typeof item === "object" && Object.keys(item).length > 0) {
         const inner: string[] = [];
-        renderValue(item, path, indent + 1, bodies, inner);
+        renderValue(item, path, indent + 1, bodies, inner, translator);
         out.push(`${pad}-`);
         out.push(...inner);
       } else if (isBodyInNode(item)) {
         // 当前三个工具的正文位都在对象键下、不在数组里；这里按同规则兜底
         const body = bodies.get(path);
-        out.push(`${pad}- text: ${body === undefined ? "[投影缺正文]" : JSON.stringify(body)}`);
+        out.push(
+          `${pad}- text: ${body === undefined ? translator.t("mcp.contentBodyMissing") : JSON.stringify(body)}`,
+        );
       } else {
-        out.push(`${pad}- ${scalar(item) ?? "[复杂值]"}`);
+        out.push(`${pad}- ${scalar(item, translator) ?? translator.t("mcp.contentComplexValue")}`);
       }
     }
     return;
   }
   if (value !== null && typeof value === "object" && indent < DEPTH_MAX) {
-    renderObject(value as Record<string, unknown>, path, indent, bodies, out);
+    renderObject(value as Record<string, unknown>, path, indent, bodies, out, translator);
     return;
   }
-  out.push(`${pad}${scalar(value) ?? "[复杂值]"}`);
+  out.push(`${pad}${scalar(value, translator) ?? translator.t("mcp.contentComplexValue")}`);
 }
 
 /**
@@ -169,10 +179,11 @@ function renderValue(
 export function buildContentText(
   headline: string,
   data: unknown,
-  bodies: readonly ContentBodyInput[] = [],
+  bodies: readonly ContentBodyInput[],
+  translator: Translator,
 ): string {
   const out: string[] = [headline];
   const bodyMap = new Map(bodies.map((body) => [body.at, body.text]));
-  renderValue(data === undefined ? null : data, "", 0, bodyMap, out);
+  renderValue(data === undefined ? null : data, "", 0, bodyMap, out, translator);
   return out.join("\n");
 }

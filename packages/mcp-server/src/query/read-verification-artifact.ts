@@ -1,3 +1,4 @@
+import type { Translator } from "@rebaseagent/i18n";
 import {
   AssetResolveError,
   type VerifiedAsset,
@@ -83,7 +84,11 @@ const ReadVerificationArtifactDataSchema = z
 
 export const readVerificationArtifactTool: ToolDefinition = defineTool(
   requireVerificationContract("read_verification_artifact"),
-  async (args: ReadVerificationArtifactArgs, root: DataRoot): Promise<ToolPayload> => {
+  async (
+    args: ReadVerificationArtifactArgs,
+    root: DataRoot,
+    translator: Translator,
+  ): Promise<ToolPayload> => {
     const record = readRecordOrThrow(root, args.verificationId);
     if (record.status === "corrupt" || record.status === "unsupported_version") {
       throw new ToolFailure("VERIFICATION_RECORD_INVALID", `status:${record.status}`);
@@ -144,7 +149,9 @@ export const readVerificationArtifactTool: ToolDefinition = defineTool(
         fullAsset: { bytes: verified.size, sha256: resolved.sha256 },
         body: {
           kind: "binary",
-          reason: "产物不是严格 UTF-8 文本：只提供字节数与哈希，不外发正文",
+          reason: translator.t("mcp.binaryReason", {
+            subject: translator.t("mcp.subjectArtifact"),
+          }),
         },
       });
       return {
@@ -153,7 +160,7 @@ export const readVerificationArtifactTool: ToolDefinition = defineTool(
         truncated: false,
         runs: [],
         verifications: [provenance],
-        headline: `read_verification_artifact：binary（${String(verified.size)} 字节，未外发正文）`,
+        headline: translator.t("mcp.headlineReadArtifactBinary", { size: verified.size }),
       };
     }
 
@@ -203,8 +210,12 @@ export const readVerificationArtifactTool: ToolDefinition = defineTool(
         runs: [],
         verifications: [provenance],
         headline: [
-          "read_verification_artifact：text",
-          `${args.path} ${String(slice.start)}–${String(slice.nextStart)} 码点（共 ${String(slice.totalChars)}）`,
+          translator.t("mcp.headlineReadArtifactText"),
+          `${args.path} ${translator.t("mcp.summaryCodepointRange", {
+            start: slice.start,
+            end: slice.nextStart,
+            total: slice.totalChars,
+          })}`,
         ].join(" / "),
       };
     };

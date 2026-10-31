@@ -1,3 +1,4 @@
+import type { Translator } from "@rebaseagent/i18n";
 import {
   type VerificationFactsSide,
   compareVerificationFacts,
@@ -76,7 +77,11 @@ const CompareVerificationDataSchema = z
 
 export const compareVerificationsTool: ToolDefinition = defineTool(
   requireVerificationContract("compare_verifications"),
-  async (args: CompareVerificationsArgs, root: DataRoot): Promise<ToolPayload> => {
+  async (
+    args: CompareVerificationsArgs,
+    root: DataRoot,
+    translator: Translator,
+  ): Promise<ToolPayload> => {
     if (args.left.verificationId === args.right.verificationId) {
       // 必须是两个不同验证（语义约束在任何读取之前拒，与 compare_runs 同注释）
       throw new ToolFailure("INVALID_ARGUMENT", "left/right");
@@ -98,14 +103,14 @@ export const compareVerificationsTool: ToolDefinition = defineTool(
         limitations.push({
           code: "VERIFICATION_UNTERMINATED",
           ref: `verification:${label === "left" ? args.left.verificationId : args.right.verificationId}`,
-          message: "该侧记录未封存：没有可信结局，不参与比较结论",
+          message: translator.t("mcp.limitVerificationUnterminatedSide"),
         });
       }
       if (side?.sourceStatus === "missing") {
         limitations.push({
           code: "VERIFICATION_SOURCE_MISSING",
           ref: `verification:${label === "left" ? args.left.verificationId : args.right.verificationId}`,
-          message: "该侧来源 trace 缺失：不宣称已核验修复分支或代码因果",
+          message: translator.t("mcp.limitVerificationSourceMissingSide"),
         });
       }
     }
@@ -113,7 +118,7 @@ export const compareVerificationsTool: ToolDefinition = defineTool(
       limitations.push({
         code: "VERIFICATION_SOURCE_MISSING",
         ref: "comparison",
-        message: "至少一侧当前必需资产（日志/产物）不可核验：不发布可核查的修复结论",
+        message: translator.t("mcp.limitVerificationAssetsNotVerifiable"),
       });
     }
 
@@ -199,8 +204,14 @@ export const compareVerificationsTool: ToolDefinition = defineTool(
       verifications: provenance,
       limitations,
       headline: [
-        `compare_verifications：${facts.verdict.kind}`,
-        `${String(facts.conditions.filter((c) => c.state === "same").length)} 同 / ${String(facts.conditions.filter((c) => c.state === "different").length)} 异 / ${String(facts.conditions.filter((c) => c.state === "unknown").length)} 未知`,
+        translator.t("mcp.headlineCompareVerificationsVerdict", {
+          verdict: facts.verdict.kind,
+        }),
+        translator.t("mcp.headlineCompareVerifications", {
+          same: facts.conditions.filter((c) => c.state === "same").length,
+          different: facts.conditions.filter((c) => c.state === "different").length,
+          unknown: facts.conditions.filter((c) => c.state === "unknown").length,
+        }),
       ].join(" / "),
     };
   },

@@ -1,3 +1,4 @@
+import type { MessageKey, Translator } from "@rebaseagent/i18n";
 import {
   type VerificationScanEntry,
   scanVerifications,
@@ -98,17 +99,20 @@ interface SequenceEntry {
   readonly provenance: ProvenanceVerificationInput | null;
 }
 
-const FAILURE_MESSAGES: Record<
+const FAILURE_MESSAGE_KEYS: Record<
   "UNREADABLE" | "CORRUPT" | "UNSUPPORTED_VERSION" | "INVALID_NAME",
-  string
+  MessageKey
 > = {
-  UNREADABLE: "验证记录文件当前不可读（权限/IO），未参与筛选",
-  CORRUPT: "验证记录损坏，未参与筛选",
-  UNSUPPORTED_VERSION: "验证记录版本不受支持，未参与筛选",
-  INVALID_NAME: "文件名不是合法验证标识，未参与筛选",
+  UNREADABLE: "mcp.verificationFileUnreadable",
+  CORRUPT: "mcp.verificationFileCorrupt",
+  UNSUPPORTED_VERSION: "mcp.verificationFileUnsupportedVersion",
+  INVALID_NAME: "mcp.verificationFileNameInvalid",
 };
 
-function toSequence(entries: readonly VerificationScanEntry[]): SequenceEntry[] {
+function toSequence(
+  entries: readonly VerificationScanEntry[],
+  translator: Translator,
+): SequenceEntry[] {
   return entries.map((entry): SequenceEntry => {
     if (entry.kind === "record") {
       return {
@@ -134,7 +138,7 @@ function toSequence(entries: readonly VerificationScanEntry[]): SequenceEntry[] 
         kind: "unreadable_file",
         file: entry.fileName,
         reason: entry.reason,
-        message: FAILURE_MESSAGES[entry.reason],
+        message: translator.t(FAILURE_MESSAGE_KEYS[entry.reason]),
       },
       provenance: null,
     };
@@ -143,7 +147,7 @@ function toSequence(entries: readonly VerificationScanEntry[]): SequenceEntry[] 
 
 export const listVerificationsTool: ToolDefinition = defineTool(
   requireVerificationContract("list_verifications"),
-  async (args: ListVerificationsArgs, root: DataRoot) => {
+  async (args: ListVerificationsArgs, root: DataRoot, translator: Translator) => {
     const requestArgs = withoutCursor(args);
     const readVersion = computeVerificationReadVersion("list_verifications", requestArgs, root);
     const [start] = requireCursorPosition({
@@ -163,7 +167,7 @@ export const listVerificationsTool: ToolDefinition = defineTool(
       const projected = verificationToolError(error);
       throw projected ?? error;
     }
-    const sequence: SequenceEntry[] = toSequence(scanned);
+    const sequence: SequenceEntry[] = toSequence(scanned, translator);
 
     // 筛选只作用于可判定摘要；失败项保留在原位（段尾）
     const matched = sequence.filter((entry) => {
@@ -217,11 +221,18 @@ export const listVerificationsTool: ToolDefinition = defineTool(
           .map((entry) => entry.provenance)
           .filter((v): v is ProvenanceVerificationInput => v !== null),
         headline: [
-          `list_verifications：命中 ${matched.filter((e) => e.item.kind === "verification").length} 条摘要`,
-          `不可读文件 ${matched.filter((e) => e.item.kind === "unreadable_file").length} 个`,
+          translator.t("mcp.headlineListVerifications", {
+            matched: matched.filter((e) => e.item.kind === "verification").length,
+          }),
+          translator.t("mcp.summaryUnreadableFiles", {
+            count: matched.filter((e) => e.item.kind === "unreadable_file").length,
+          }),
           window.truncated
-            ? `本页 ${window.items.length} 条，尚有 ${window.remaining} 条`
-            : "全部在本页",
+            ? translator.t("mcp.summaryPagePartial", {
+                listed: window.items.length,
+                remaining: window.remaining,
+              })
+            : translator.t("mcp.summaryPageAll"),
         ].join(" / "),
       };
     };

@@ -1,3 +1,4 @@
+import type { Translator } from "@rebaseagent/i18n";
 import {
   AssetResolveError,
   type VerifiedAsset,
@@ -99,7 +100,11 @@ const ReadVerificationLogDataSchema = z
 
 export const readVerificationLogTool: ToolDefinition = defineTool(
   requireVerificationContract("read_verification_log"),
-  async (args: ReadVerificationLogArgs, root: DataRoot): Promise<ToolPayload> => {
+  async (
+    args: ReadVerificationLogArgs,
+    root: DataRoot,
+    translator: Translator,
+  ): Promise<ToolPayload> => {
     const record = readRecordOrThrow(root, args.verificationId);
     if (record.status === "corrupt" || record.status === "unsupported_version") {
       // 坏记录不可读正文（design D3）：记录状态本身已是 get_verification 的成功诊断
@@ -154,14 +159,17 @@ export const readVerificationLogTool: ToolDefinition = defineTool(
       limitations.push({
         code: "VERIFICATION_CAPTURE_TRUNCATED",
         ref: `asset:${resolved.sha256.slice(0, 12)}`,
-        message: `执行时输出被截断：保留 ${String(resolved.capture.byteLength)} / 观测 ${String(resolved.capture.totalBytes)} 字节，丢弃部分不可恢复`,
+        message: translator.t("mcp.limitVerificationCaptureTruncated", {
+          retained: resolved.capture.byteLength,
+          observed: resolved.capture.totalBytes,
+        }),
       });
     }
     if (record.status === "unterminated") {
       limitations.push({
         code: "VERIFICATION_UNTERMINATED",
         ref: `verification:${args.verificationId}`,
-        message: "记录未封存：附件来自已落盘的完整 command_end 事件，不承诺代表完整执行",
+        message: translator.t("mcp.limitVerificationLogUnterminated"),
       });
     }
 
@@ -181,7 +189,9 @@ export const readVerificationLogTool: ToolDefinition = defineTool(
         fullAsset: { bytes: verified.size, sha256: resolved.sha256 },
         body: {
           kind: "binary",
-          reason: "附件不是严格 UTF-8 文本：只提供字节数与哈希，不外发正文",
+          reason: translator.t("mcp.binaryReason", {
+            subject: translator.t("mcp.subjectAttachment"),
+          }),
         },
       });
       return {
@@ -199,7 +209,7 @@ export const readVerificationLogTool: ToolDefinition = defineTool(
           },
         ],
         limitations,
-        headline: `read_verification_log：binary（${String(verified.size)} 字节，未外发正文）`,
+        headline: translator.t("mcp.headlineReadLogBinary", { size: verified.size }),
       };
     }
 
@@ -266,9 +276,15 @@ export const readVerificationLogTool: ToolDefinition = defineTool(
         ],
         limitations,
         headline: [
-          "read_verification_log：text",
-          `${String(slice.start)}–${String(slice.nextStart)} 码点（共 ${String(slice.totalChars)}）`,
-          resolved.capture.truncated ? "capture 截断仍在" : "capture 完整",
+          translator.t("mcp.headlineReadLogText"),
+          translator.t("mcp.summaryCodepointRange", {
+            start: slice.start,
+            end: slice.nextStart,
+            total: slice.totalChars,
+          }),
+          resolved.capture.truncated
+            ? translator.t("mcp.captureTruncated")
+            : translator.t("mcp.captureComplete"),
         ].join(" / "),
       };
     };

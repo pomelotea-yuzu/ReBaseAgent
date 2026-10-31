@@ -1,5 +1,5 @@
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import { createTranslator } from "@rebaseagent/i18n";
+import { type Translator, createTranslator } from "@rebaseagent/i18n";
 import { afterAll, describe, expect, it } from "vitest";
 import { compareVerificationsTool } from "../src/query/compare-verifications.js";
 import { getVerificationTool } from "../src/query/get-verification.js";
@@ -7,6 +7,7 @@ import { listVerificationsTool } from "../src/query/list-verifications.js";
 import { readVerificationLogTool } from "../src/query/read-verification-log.js";
 import type { DataRoot } from "../src/startup.js";
 import { trustInstructions } from "../src/tool-metadata.js";
+import { ZH } from "./test-locale.js";
 import {
   VERIFICATION_SENTINELS,
   type VerificationFixture,
@@ -36,11 +37,15 @@ const root: DataRoot = { dataDir: fixture.dataRoot, tracesDir: fixture.tracesDir
 
 async function invoke(
   tool: {
-    execute: (args: Readonly<Record<string, unknown>>, root: DataRoot) => Promise<CallToolResult>;
+    execute: (
+      args: Readonly<Record<string, unknown>>,
+      root: DataRoot,
+      translator: Translator,
+    ) => Promise<CallToolResult>;
   },
   args: Record<string, unknown>,
 ): Promise<CallToolResult> {
-  return tool.execute(args, root);
+  return tool.execute(args, root, ZH);
 }
 
 /** fixture 临时根的路径片段：任何外发信封都不该出现 */

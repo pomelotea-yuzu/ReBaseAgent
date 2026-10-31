@@ -10,6 +10,7 @@ import {
   cleanupQueryFixtures,
   dirFingerprint,
 } from "./query-fixtures.js";
+import { ZH } from "./test-locale.js";
 import { FORBIDDEN_KEYS, assertNoSentinels, collectKeys } from "./whitelist-assertions.js";
 
 /**
@@ -37,7 +38,7 @@ afterAll(() => {
 });
 
 async function callGetRun(runId: string, args: Record<string, unknown> = {}): Promise<ToolResult> {
-  return getRunTool.execute({ runId, ...args }, root);
+  return getRunTool.execute({ runId, ...args }, root, ZH);
 }
 
 interface OkRun {

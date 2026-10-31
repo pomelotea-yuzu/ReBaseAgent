@@ -1,3 +1,4 @@
+import type { Translator } from "@rebaseagent/i18n";
 import type { RunQueryToolErrorCode } from "@rebaseagent/run-query";
 import { RunDetailReadError } from "@rebaseagent/run-query";
 import { type ZodObject, type ZodRawShape, z } from "zod";
@@ -13,7 +14,7 @@ import {
   buildSuccessEnvelope,
 } from "./envelope.js";
 import {
-  TOOL_ERROR_MESSAGES,
+  TOOL_ERROR_MESSAGE_KEYS,
   boundedMessage,
   projectArgumentError,
   projectThrowable,
@@ -25,7 +26,7 @@ import type { DataRoot } from "./startup.js";
 import {
   type McpToolErrorCode,
   VERIFICATION_RETRYABLE_CODES,
-  VERIFICATION_TOOL_ERROR_MESSAGES,
+  VERIFICATION_TOOL_ERROR_MESSAGE_KEYS,
   type VerificationToolErrorCode,
 } from "./verification-codes.js";
 
@@ -47,8 +48,10 @@ import {
  */
 
 /** 稳定码 → 受控文案（MCP1 既有码 + MCP2 验证域码同一张查找面） */
-export function toolErrorMessageOf(code: McpToolErrorCode): string {
-  return VERIFICATION_TOOL_ERROR_MESSAGES[code as never] ?? TOOL_ERROR_MESSAGES[code as never];
+export function toolErrorMessageOf(code: McpToolErrorCode, translator: Translator): string {
+  const key =
+    VERIFICATION_TOOL_ERROR_MESSAGE_KEYS[code as never] ?? TOOL_ERROR_MESSAGE_KEYS[code as never];
+  return translator.t(key);
 }
 
 /** 可重试判定：MCP1 既有集合 ∪ 验证域集合 */
@@ -65,7 +68,8 @@ export class ToolFailure extends Error {
   readonly ref: string | undefined;
 
   constructor(code: McpToolErrorCode, ref?: string) {
-    super(toolErrorMessageOf(code));
+    // 原始 message 不参与对外投影；稳定码由 catch 处按服务语言翻译。
+    super(code);
     this.name = "ToolFailure";
     this.code = code;
     this.ref = ref;
@@ -98,7 +102,11 @@ export interface ToolPayload {
   readonly budget?: ToolBudget;
 }
 
-export type ToolImplementation<Args> = (args: Args, root: DataRoot) => Promise<ToolPayload>;
+export type ToolImplementation<Args> = (
+  args: Args,
+  root: DataRoot,
+  translator: Translator,
+) => Promise<ToolPayload>;
 
 /** defineTool 接受的契约形状（MCP1 ToolContract 与 MCP2 VerificationToolContract 同构） */
 export interface ToolContractLike {
@@ -122,13 +130,17 @@ export function defineTool<Args>(
     name: contract.name,
     inputSchema: contract.inputSchema,
     annotations: contract.annotations,
-    async execute(rawArgs, root): Promise<ToolResult> {
+    async execute(rawArgs, root, translator): Promise<ToolResult> {
       const parsed = contract.schema.safeParse(rawArgs);
       if (!parsed.success) {
-        return failureResult(projectArgumentError(parsed.error.issues));
+        return failureResult(
+          projectArgumentError(parsed.error.issues, translator),
+          undefined,
+          translator,
+        );
       }
       try {
-        const payload = await implement(parsed.data as Args, root);
+        const payload = await implement(parsed.data as Args, root, translator);
         /** observedAt 在收窄前后必须一致：它参与字节测量，也参与同参结果稳定性 */
         const observedAt =
           options.observedAt === undefined ? new Date().toISOString() : options.observedAt();
@@ -154,6 +166,7 @@ export function defineTool<Args>(
                   boundedHeadline(candidate.headline),
                   candidate.data,
                   candidate.contentBodies ?? [],
+                  translator,
                 ),
               },
             ],
@@ -168,14 +181,15 @@ export function defineTool<Args>(
           return failureResult(
             {
               code: e.code,
-              message: toolErrorMessageOf(e.code),
+              message: toolErrorMessageOf(e.code, translator),
               retryable: retryableOfCode(e.code),
             },
             e.ref,
+            translator,
           );
         }
         if (e instanceof RunDetailReadError) {
-          return failureResult(projectThrowable(e));
+          return failureResult(projectThrowable(e, translator), undefined, translator);
         }
         throw e;
       }
@@ -185,7 +199,8 @@ export function defineTool<Args>(
 
 function failureResult(
   error: { code: McpToolErrorCode; message: string; retryable: boolean },
-  ref?: string,
+  ref: string | undefined,
+  translator: Translator,
 ): ToolResult {
   const envelope = buildErrorEnvelope({
     code: error.code,
@@ -195,7 +210,7 @@ function failureResult(
   });
   return {
     // content 只承载"哪个码"，具体一句受控文案在 structuredContent 里
-    content: [{ type: "text", text: `${error.code}（本次查询未完成）` }],
+    content: [{ type: "text", text: translator.t("mcp.resultIncomplete", { code: error.code }) }],
     structuredContent: envelope,
     isError: true,
   };

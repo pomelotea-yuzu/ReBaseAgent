@@ -2,7 +2,12 @@ import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { DATA_DIR_FLAG, STARTUP_EXIT_CODE, parseStartupArgv } from "../src/startup.js";
+import {
+  DATA_DIR_FLAG,
+  STARTUP_EXIT_CODE,
+  type StartupRejectReason,
+  parseStartupArgv,
+} from "../src/startup.js";
 
 /**
  * MCP0 4.1（S02）：启动期数据根核验。
@@ -65,7 +70,8 @@ describe("parseStartupArgv：启动即失败（S02）", () => {
       expect(outcome.ok).toBe(false);
       if (outcome.ok) continue;
       expect(outcome.code).toBe("DATA_DIR_INVALID");
-      expect(outcome.reason.length).toBeGreaterThan(0);
+      expect(outcome.reason).toBe("MISSING_DATA_DIR");
+      expect(outcome.messageKey).toBe("mcp.startupMissingDataDir");
     }
   });
 
@@ -74,22 +80,22 @@ describe("parseStartupArgv：启动即失败（S02）", () => {
     expect(outcome.ok).toBe(false);
     if (outcome.ok) return;
     expect(outcome.code).toBe("DATA_DIR_INVALID");
-    expect(outcome.reason).toContain("绝对路径");
+    expect(outcome.reason).toBe("DATA_DIR_NOT_ABSOLUTE");
   });
 
   it("不存在 / 是文件 / 没有 traces/ / traces 是文件 ⇒ 逐条可辨认原因", () => {
-    const cases: Array<[readonly string[], string]> = [
-      [[DATA_DIR_FLAG, join(tempRoot(), "nope")], "不存在"],
-      [[DATA_DIR_FLAG, notADir], "不是目录"],
-      [[DATA_DIR_FLAG, noTraces], "traces"],
-      [[DATA_DIR_FLAG, tracesIsFile], "不是目录"],
+    const cases: Array<[readonly string[], StartupRejectReason]> = [
+      [[DATA_DIR_FLAG, join(tempRoot(), "nope")], "DATA_DIR_MISSING"],
+      [[DATA_DIR_FLAG, notADir], "DATA_DIR_NOT_DIRECTORY"],
+      [[DATA_DIR_FLAG, noTraces], "TRACES_MISSING"],
+      [[DATA_DIR_FLAG, tracesIsFile], "TRACES_NOT_DIRECTORY"],
     ];
-    for (const [argv, keyword] of cases) {
+    for (const [argv, reason] of cases) {
       const outcome = parseStartupArgv(argv);
       expect(outcome.ok).toBe(false);
       if (outcome.ok) continue;
       expect(outcome.code).toBe("DATA_DIR_INVALID");
-      expect(outcome.reason).toContain(keyword);
+      expect(outcome.reason).toBe(reason);
     }
   });
 
@@ -109,7 +115,7 @@ describe("parseStartupArgv：启动即失败（S02）", () => {
     const outcome = parseStartupArgv([DATA_DIR_FLAG, secretish]);
     expect(outcome.ok).toBe(false);
     if (outcome.ok) return;
-    expect(outcome.reason).not.toContain(secretish);
+    expect(JSON.stringify(outcome)).not.toContain(secretish);
   });
 
   it("核验失败不建目录、不写文件（无副作用）", () => {

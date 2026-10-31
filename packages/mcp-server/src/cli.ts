@@ -43,7 +43,11 @@ if (!localeOutcome.ok) {
   const outcome = parseStartupArgv(argv);
 
   if (!outcome.ok) {
-    log.event("startup_rejected", { code: outcome.code, reason: outcome.reason });
+    log.event("startup_rejected", {
+      code: outcome.code,
+      reason: outcome.reason,
+      message: translator.t(outcome.messageKey),
+    });
     process.exitCode = STARTUP_EXIT_CODE;
   } else {
     const handle = createQueryServer(outcome.root, READONLY_TOOLS, log, translator);

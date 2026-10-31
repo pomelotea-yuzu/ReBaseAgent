@@ -1,6 +1,6 @@
 import { constants, accessSync, statSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
-import { CLI_LOCALE_FLAG } from "@rebaseagent/i18n";
+import { CLI_LOCALE_FLAG, type MessageKey } from "@rebaseagent/i18n";
 import type { RunQueryStartupCode } from "@rebaseagent/run-query";
 
 /**
@@ -31,12 +31,28 @@ export interface DataRoot {
   readonly tracesDir: string;
 }
 
+export type StartupRejectReason =
+  | "UNKNOWN_ARGUMENT"
+  | "DUPLICATE_DATA_DIR"
+  | "MISSING_DATA_DIR"
+  | "DATA_DIR_NOT_ABSOLUTE"
+  | "DATA_DIR_MISSING"
+  | "DATA_DIR_NOT_DIRECTORY"
+  | "TRACES_MISSING"
+  | "TRACES_NOT_DIRECTORY"
+  | "TRACES_UNREADABLE";
+
 export type StartupOutcome =
   | { readonly ok: true; readonly root: DataRoot }
-  | { readonly ok: false; readonly code: RunQueryStartupCode; readonly reason: string };
+  | {
+      readonly ok: false;
+      readonly code: RunQueryStartupCode;
+      readonly reason: StartupRejectReason;
+      readonly messageKey: MessageKey;
+    };
 
-function reject(reason: string): StartupOutcome {
-  return { ok: false, code: "DATA_DIR_INVALID", reason };
+function reject(reason: StartupRejectReason, messageKey: MessageKey): StartupOutcome {
+  return { ok: false, code: "DATA_DIR_INVALID", reason, messageKey };
 }
 
 /**
@@ -57,44 +73,44 @@ export function parseStartupArgv(argv: readonly string[]): StartupOutcome {
     }
     if (arg !== DATA_DIR_FLAG) {
       // 只列参数名，不列取值：取值可能承载正文
-      return reject(`未知参数（只接受 ${DATA_DIR_FLAG}）`);
+      return reject("UNKNOWN_ARGUMENT", "mcp.startupUnknownArgument");
     }
     if (given !== null) {
-      return reject(`${DATA_DIR_FLAG} 重复出现（只允许一个数据根）`);
+      return reject("DUPLICATE_DATA_DIR", "mcp.startupDuplicateDataDir");
     }
     const value = argv[i + 1];
     i += 1;
     if (value === undefined || value.length === 0) {
-      return reject(`缺少 ${DATA_DIR_FLAG} <已有绝对路径>`);
+      return reject("MISSING_DATA_DIR", "mcp.startupMissingDataDir");
     }
     given = value;
   }
 
   if (given === null) {
-    return reject(`缺少 ${DATA_DIR_FLAG} <已有绝对路径>`);
+    return reject("MISSING_DATA_DIR", "mcp.startupMissingDataDir");
   }
   if (!isAbsolute(given)) {
-    return reject("数据根必须是绝对路径");
+    return reject("DATA_DIR_NOT_ABSOLUTE", "mcp.startupDataDirNotAbsolute");
   }
 
   const rootStat = statOrUndefined(given);
   if (rootStat === undefined) {
-    return reject("数据根不存在或不可访问");
+    return reject("DATA_DIR_MISSING", "mcp.startupDataDirMissing");
   }
   if (!rootStat.isDirectory()) {
-    return reject("数据根不是目录");
+    return reject("DATA_DIR_NOT_DIRECTORY", "mcp.startupDataDirNotDirectory");
   }
 
   const tracesDir = join(given, "traces");
   const tracesStat = statOrUndefined(tracesDir);
   if (tracesStat === undefined) {
-    return reject("数据根下没有 traces/");
+    return reject("TRACES_MISSING", "mcp.startupTracesMissing");
   }
   if (!tracesStat.isDirectory()) {
-    return reject("traces/ 不是目录");
+    return reject("TRACES_NOT_DIRECTORY", "mcp.startupTracesNotDirectory");
   }
   if (!isReadable(tracesDir)) {
-    return reject("traces/ 不可读");
+    return reject("TRACES_UNREADABLE", "mcp.startupTracesUnreadable");
   }
 
   return { ok: true, root: { dataDir: given, tracesDir } };

@@ -1,3 +1,4 @@
+import type { Translator } from "@rebaseagent/i18n";
 import {
   RecordReadError,
   type VerifiedAsset,
@@ -65,7 +66,11 @@ const InspectVerificationArtifactsDataSchema = z
 
 export const inspectVerificationArtifactsTool: ToolDefinition = defineTool(
   requireVerificationContract("inspect_verification_artifacts"),
-  async (args: InspectVerificationArtifactsArgs, root: DataRoot): Promise<ToolPayload> => {
+  async (
+    args: InspectVerificationArtifactsArgs,
+    root: DataRoot,
+    translator: Translator,
+  ): Promise<ToolPayload> => {
     const record = readRecordOrThrow(root, args.verificationId);
     const artifactEvents = record.events.filter((event) => event.type === "artifacts");
     if (artifactEvents.length === 0) {
@@ -165,8 +170,12 @@ export const inspectVerificationArtifactsTool: ToolDefinition = defineTool(
           } satisfies ProvenanceVerificationInput,
         ],
         headline: [
-          `inspect_verification_artifacts：${String(rows.length)} 项`,
-          `可用 ${String(count("available"))} / 缺失 ${String(count("missing"))} / 损坏 ${String(count("corrupt"))}`,
+          translator.t("mcp.headlineInspectArtifacts", { count: rows.length }),
+          translator.t("mcp.inspectArtifactsCounts", {
+            available: count("available"),
+            missing: count("missing"),
+            corrupt: count("corrupt"),
+          }),
         ].join(" / "),
       };
     };

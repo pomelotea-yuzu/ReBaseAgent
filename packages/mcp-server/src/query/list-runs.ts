@@ -1,14 +1,20 @@
+import type { Translator } from "@rebaseagent/i18n";
 import { RunRepository } from "@rebaseagent/run-query";
 import type { RunQueryToolErrorCode } from "@rebaseagent/run-query";
 import { z } from "zod";
 import type { ProvenanceRunInput } from "../envelope.js";
-import { TOOL_ERROR_MESSAGES, ToolErrorCodeSchema } from "../error-projection.js";
+import { ToolErrorCodeSchema } from "../error-projection.js";
 import { MESSAGE_MAX, PAGE_LIMIT_DEFAULT, RUN_ID_MAX } from "../limits.js";
 import type { ToolDefinition } from "../server.js";
 import type { DataRoot } from "../startup.js";
 import { RUN_STATUS_FILTERS, requireContract } from "../tool-contracts.js";
 import type { ListRunsArgs } from "../tool-contracts.js";
-import { ToolFailure, type ToolPayload, defineTool } from "../tool-definition.js";
+import {
+  ToolFailure,
+  type ToolPayload,
+  defineTool,
+  toolErrorMessageOf,
+} from "../tool-definition.js";
 import { issueCursor, requireCursorPosition, withoutCursor } from "./cursor-io.js";
 import {
   RunSummaryItemSchema,
@@ -80,13 +86,17 @@ interface SequenceEntry {
   readonly provenance: ProvenanceRunInput | null;
 }
 
-function failureEntry(file: string, code: RunQueryToolErrorCode): SequenceEntry {
+function failureEntry(
+  file: string,
+  code: RunQueryToolErrorCode,
+  translator: Translator,
+): SequenceEntry {
   return {
     item: {
       kind: "unreadable_file",
       file: safeFileIdentifier(file),
       code,
-      message: TOOL_ERROR_MESSAGES[code],
+      message: toolErrorMessageOf(code, translator),
     },
     provenance: null,
   };
@@ -100,7 +110,7 @@ function byFileAscending(a: SequenceEntry, b: SequenceEntry): number {
 
 export const listRunsTool: ToolDefinition = defineTool(
   requireContract("list_runs"),
-  async (args: ListRunsArgs, root: DataRoot) => {
+  async (args: ListRunsArgs, root: DataRoot, translator: Translator) => {
     const repository = new RunRepository(root.tracesDir);
     const requestArgs = withoutCursor(args);
     const readVersion = computeReadVersion("list_runs", requestArgs, repository);
@@ -126,7 +136,7 @@ export const listRunsTool: ToolDefinition = defineTool(
        * 就连同它的文件一起从列表里蒸发。
        */
       if (summary.id.length > RUN_ID_MAX) {
-        unrequestable.push(failureEntry(record.file, "RUN_INVALID"));
+        unrequestable.push(failureEntry(record.file, "RUN_INVALID", translator));
         continue;
       }
       if (!matchesOutcome(summary, status)) continue;
@@ -149,7 +159,7 @@ export const listRunsTool: ToolDefinition = defineTool(
     rows.sort(compareSummaryOrder);
 
     const failures: SequenceEntry[] = [
-      ...failed.map((entry) => failureEntry(entry.file, entry.code)),
+      ...failed.map((entry) => failureEntry(entry.file, entry.code, translator)),
       ...unrequestable,
     ].sort(byFileAscending);
 
@@ -192,11 +202,14 @@ export const listRunsTool: ToolDefinition = defineTool(
           .map((entry) => entry.provenance)
           .filter((run): run is ProvenanceRunInput => run !== null),
         headline: [
-          `list_runs：命中 ${rows.length} 条摘要`,
-          `不可读文件 ${failures.length} 个`,
+          translator.t("mcp.headlineListRuns", { matched: rows.length }),
+          translator.t("mcp.summaryUnreadableFiles", { count: failures.length }),
           window.truncated
-            ? `本页 ${window.items.length} 条，尚有 ${window.remaining} 条`
-            : "全部在本页",
+            ? translator.t("mcp.summaryPagePartial", {
+                listed: window.items.length,
+                remaining: window.remaining,
+              })
+            : translator.t("mcp.summaryPageAll"),
         ].join(" / "),
       };
     };

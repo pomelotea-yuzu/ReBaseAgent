@@ -5,6 +5,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { SuccessEnvelopeSchema } from "../src/envelope.js";
 import { listVerificationsTool } from "../src/query/list-verifications.js";
 import type { DataRoot } from "../src/startup.js";
+import { ZH } from "./test-locale.js";
 import {
   type VerificationFixture,
   buildVerificationFixture,
@@ -43,7 +44,7 @@ async function invoke(
   args: Record<string, unknown>,
   rootOverride?: DataRoot,
 ): Promise<CallToolResult> {
-  return listVerificationsTool.execute(args, rootOverride ?? root);
+  return listVerificationsTool.execute(args, rootOverride ?? root, ZH);
 }
 
 function envelopeOf(result: CallToolResult): {

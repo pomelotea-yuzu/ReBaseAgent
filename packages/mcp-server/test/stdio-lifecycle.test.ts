@@ -1,6 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { SuccessEnvelope } from "../src/envelope.js";
-import { TOOL_ERROR_MESSAGES } from "../src/error-projection.js";
 import type { GetStepData } from "../src/query/get-step.js";
 import type { ListRunItem, ListRunsData } from "../src/query/list-runs.js";
 import {
@@ -23,6 +22,7 @@ import {
   okData,
   treeListing,
 } from "./stdio-harness.js";
+import { errorMessageOf } from "./test-locale.js";
 
 /**
  * MCP0 5.3（S13/S14）：真实 stdio 子进程的取消、EOF 与重连。
@@ -46,7 +46,7 @@ let fx: StdioFixture;
 const sessions: StdioSession[] = [];
 
 async function openSession(dataDir: string): Promise<StdioSession> {
-  const session = await StdioSession.start(dataDir);
+  const session = await StdioSession.start(dataDir, ["--locale", "zh-CN"]);
   sessions.push(session);
   return session;
 }
@@ -255,7 +255,7 @@ describe("S13 重连只是重新查询", () => {
     ]);
     expect(errorOf(await session2.waitForFrame(2))).toEqual({
       code: "STALE_CURSOR",
-      message: TOOL_ERROR_MESSAGES.STALE_CURSOR,
+      message: errorMessageOf("STALE_CURSOR"),
       ref: "cursor",
       retryable: true,
     });

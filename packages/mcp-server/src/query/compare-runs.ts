@@ -1,3 +1,4 @@
+import type { Translator } from "@rebaseagent/i18n";
 import {
   RunDetailReadError,
   RunReadContext,
@@ -167,13 +168,18 @@ type Side = ReadySide | ErroredSide;
  * 单侧读取：`RunDetailReadError` 按结构投影成该侧的失败（稳定码 + 码表文案）；
  * 其余异常**继续上抛**——程序缺陷不伪装成业务码（design D4 的分工）。
  */
-function readSide(context: RunReadContext, side: SideName, runId: string): Side {
+function readSide(
+  context: RunReadContext,
+  side: SideName,
+  runId: string,
+  translator: Translator,
+): Side {
   try {
     const { detail, chainSummaries } = context.readOf(runId);
     return { side, status: "ready", detail, chainSummaries };
   } catch (e) {
     if (e instanceof RunDetailReadError) {
-      return { side, status: "unavailable", runId, error: projectThrowable(e) };
+      return { side, status: "unavailable", runId, error: projectThrowable(e, translator) };
     }
     throw e;
   }
@@ -200,7 +206,7 @@ function ownSummaryOf(side: ReadySide): RunSummary {
 
 export const compareRunsTool: ToolDefinition = defineTool(
   requireContract("compare_runs"),
-  async (args: CompareRunsArgs, root: DataRoot) => {
+  async (args: CompareRunsArgs, root: DataRoot, translator: Translator) => {
     /** 两侧标识都在任何读取之前按参数问题拒绝（design D3 + Q05） */
     if (findIllegalExternalRunIdViolation(args.left.runId) !== null) {
       throw new ToolFailure("INVALID_ARGUMENT", "left");
@@ -218,8 +224,8 @@ export const compareRunsTool: ToolDefinition = defineTool(
     /** 一次请求一个上下文：共同祖先在两侧之间只解析一次，事实仍不跨请求缓存（Q02） */
     const context = new RunReadContext(root.tracesDir);
     const sides: readonly Side[] = [
-      readSide(context, "left", args.left.runId),
-      readSide(context, "right", args.right.runId),
+      readSide(context, "left", args.left.runId, translator),
+      readSide(context, "right", args.right.runId, translator),
     ];
     const ready = sides.filter((item): item is ReadySide => item.status === "ready");
 
@@ -316,14 +322,14 @@ export const compareRunsTool: ToolDefinition = defineTool(
         limitations.push({
           code: "TERMINATION_NOT_RECORDED",
           ref: `run:${side.detail.meta.id}`,
-          message: `该侧没有终止事件：只到已落盘的记录为止，不能据此判断它仍在进行（${side.side}）`,
+          message: translator.t("mcp.limitTerminationSideWithName", { side: side.side }),
         });
       }
       if (side.detail.lineage.status === "incomplete") {
         limitations.push({
           code: "ANCESTOR_NOT_FOUND",
           ref: `run:${side.detail.lineage.missingRunId}`,
-          message: `该侧父链在缺失点截断（${side.side}）：继承前缀与祖先增量为未知，不称「不同根」`,
+          message: translator.t("mcp.limitAncestorTruncatedSide", { side: side.side }),
         });
       }
       const facts = deriveSideOutputFacts(side.detail);
@@ -355,8 +361,7 @@ export const compareRunsTool: ToolDefinition = defineTool(
     limitations.push({
       code: "BODY_NOT_EXPOSED",
       ref: `pair:${args.left.runId}|${args.right.runId}`,
-      message:
-        "比较结果不含输出正文与分叉编辑正文：`provenance.refs` 里的 span 引用可用 get_step 逐段取，或在桌面按完整 ID 查看",
+      message: translator.t("mcp.limitBodyNotExposedCompare"),
     });
 
     const unavailableCount = sides.length - ready.length;
@@ -367,8 +372,19 @@ export const compareRunsTool: ToolDefinition = defineTool(
       refs,
       limitations,
       headline: [
-        `compare_runs：${ready.length} 侧可读、${unavailableCount} 侧不可读`,
-        `关系 ${relation.kind}${relation.ancestorRunId === null ? "" : `（祖先 ${relation.ancestorRunId}）`}`,
+        translator.t("mcp.headlineCompareRuns", {
+          ready: ready.length,
+          unavailable: unavailableCount,
+        }),
+        translator.t("mcp.compareRunsRelation", {
+          kind: relation.kind,
+          ancestor:
+            relation.ancestorRunId === null
+              ? ""
+              : translator.t("mcp.compareRunsAncestor", {
+                  ancestor: relation.ancestorRunId,
+                }),
+        }),
       ].join(" / "),
     };
   },

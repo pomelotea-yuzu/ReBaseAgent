@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import type { Translator } from "@rebaseagent/i18n";
 import { afterAll, describe, expect, it } from "vitest";
 import { SuccessEnvelopeSchema } from "../src/envelope.js";
 import { compareVerificationsTool } from "../src/query/compare-verifications.js";
@@ -8,6 +9,7 @@ import { inspectVerificationArtifactsTool } from "../src/query/inspect-verificat
 import { readVerificationArtifactTool } from "../src/query/read-verification-artifact.js";
 import { readVerificationLogTool } from "../src/query/read-verification-log.js";
 import type { DataRoot } from "../src/startup.js";
+import { ZH } from "./test-locale.js";
 import {
   VERIFICATION_SENTINELS,
   type VerificationFixture,
@@ -82,12 +84,16 @@ const artIds = { ok: "ver-m2-artok", bad: "ver-m2-artbad" };
 
 async function invoke(
   tool: {
-    execute: (args: Readonly<Record<string, unknown>>, root: DataRoot) => Promise<CallToolResult>;
+    execute: (
+      args: Readonly<Record<string, unknown>>,
+      root: DataRoot,
+      translator: Translator,
+    ) => Promise<CallToolResult>;
   },
   args: Record<string, unknown>,
   rootOverride?: DataRoot,
 ): Promise<CallToolResult> {
-  return tool.execute(args, rootOverride ?? root);
+  return tool.execute(args, rootOverride ?? root, ZH);
 }
 
 function envOf(result: CallToolResult): Record<string, unknown> & {

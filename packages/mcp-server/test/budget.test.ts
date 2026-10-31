@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { fitWithinBudget, toolResultBytes } from "../src/budget.js";
 import { ErrorEnvelopeSchema, SuccessEnvelopeSchema } from "../src/envelope.js";
-import { TOOL_ERROR_MESSAGES } from "../src/error-projection.js";
 import { RESPONSE_BUDGET_BYTES } from "../src/limits.js";
 import { canonicalJson } from "../src/query/canonical-json.js";
 import type { CompareCheckpointFilesData } from "../src/query/compare-checkpoint-files.js";
@@ -35,6 +34,7 @@ import {
   cleanupBudgetFixtures,
 } from "./budget-fixtures.js";
 import { contentBodyTexts } from "./content-bodies.js";
+import { ZH, errorMessageOf } from "./test-locale.js";
 
 /**
  * MCP0 5.1（S07/S09/S10）：完整 tool result 的 64 KiB 预算。
@@ -233,7 +233,7 @@ describe("预算搜索：完整结果字节与单旋钮二分", () => {
 
 describe("list_runs：长 task 页按预算收窄（S07/S09）", () => {
   it("默认页宽装不下时提前结束页，remaining/truncated 按实际外发量重算", async () => {
-    const result = await listRunsTool.execute({ limit: 20 }, pageRoot);
+    const result = await listRunsTool.execute({ limit: 20 }, pageRoot, ZH);
     assertBudget(result);
     const { data, envelope } = okData<ListRunsData>(result);
     const totalRuns = pageFx.ids.pages.length + 2;
@@ -256,19 +256,23 @@ describe("list_runs：长 task 页按预算收窄（S07/S09）", () => {
   });
 
   it("单项 task 超过预算 ⇒ RESPONSE_LIMIT，不删身份/不截断正文冒充完整", async () => {
-    const result = await listRunsTool.execute({ query: "OVERSIZE-MARKER" }, pageRoot);
+    const result = await listRunsTool.execute({ query: "OVERSIZE-MARKER" }, pageRoot, ZH);
     const error = failureOf(result);
     expect(error.code).toBe("RESPONSE_LIMIT");
     expect(error.ref).toBe(`run:${pageFx.ids.oversized}`);
     expect(error.retryable).toBe(false);
-    expect(error.message).toBe(TOOL_ERROR_MESSAGES.RESPONSE_LIMIT);
+    expect(error.message).toBe(errorMessageOf("RESPONSE_LIMIT"));
     expect(JSON.stringify(error)).not.toContain("\u5DE8".repeat(100));
   });
 });
 
 describe("get_run：index 页预算与单项超限", () => {
   it("60 个长工具名 span 的 index 提前结束页，总数仍报全量", async () => {
-    const result = await getRunTool.execute({ runId: pageFx.ids.manySpans, limit: 100 }, pageRoot);
+    const result = await getRunTool.execute(
+      { runId: pageFx.ids.manySpans, limit: 100 },
+      pageRoot,
+      ZH,
+    );
     assertBudget(result);
     const { data, envelope } = okData<GetRunData>(result);
     const spans = MANY_SPANS + 1;
@@ -282,7 +286,7 @@ describe("get_run：index 页预算与单项超限", () => {
   });
 
   it("单项摘要超预算 ⇒ RESPONSE_LIMIT", async () => {
-    const result = await getRunTool.execute({ runId: pageFx.ids.oversized }, pageRoot);
+    const result = await getRunTool.execute({ runId: pageFx.ids.oversized }, pageRoot, ZH);
     const error = failureOf(result);
     expect(error.code).toBe("RESPONSE_LIMIT");
     expect(error.ref).toBe(`run:${pageFx.ids.oversized}`);
@@ -293,6 +297,7 @@ describe("get_run：index 页预算与单项超限", () => {
     const result = await compareRunsTool.execute(
       { left: { runId: pageFx.ids.oversized }, right: { runId: pageFx.ids.pages[0] } },
       pageRoot,
+      ZH,
     );
     const error = failureOf(result);
     expect(error.code).toBe("RESPONSE_LIMIT");
@@ -304,6 +309,7 @@ describe("get_run：index 页预算与单项超限", () => {
     const result = await compareRunsTool.execute(
       { left: { runId: pageFx.ids.pages[0] }, right: { runId: pageFx.ids.pages[1] } },
       pageRoot,
+      ZH,
     );
     assertBudget(result);
     const { data } = okData<CompareRunsData>(result);
@@ -314,7 +320,11 @@ describe("get_run：index 页预算与单项超限", () => {
 
 describe("inspect/compare 清单：100 条长路径页按预算收窄（S07/S09）", () => {
   it("inspect_checkpoint 的 files 页提前结束，files 总数不受影响", async () => {
-    const result = await inspectCheckpointTool.execute({ runId: wsFx.runId, limit: 100 }, wsRoot);
+    const result = await inspectCheckpointTool.execute(
+      { runId: wsFx.runId, limit: 100 },
+      wsRoot,
+      ZH,
+    );
     assertBudget(result);
     const { data, envelope } = okData<InspectCheckpointData>(result);
     const total = wsFx.initialFileCount;
@@ -336,6 +346,7 @@ describe("inspect/compare 清单：100 条长路径页按预算收窄（S07/S09�
         limit: 100,
       },
       wsRoot,
+      ZH,
     );
     assertBudget(result);
     const { data } = okData<CompareCheckpointFilesData>(result);
@@ -356,6 +367,7 @@ describe("文件正文：码点范围与两侧独立预算（S09/S10）", () => 
     const result = await readCheckpointFileTool.execute(
       { runId: wsFx.runId, path: "huge.txt", maxChars: 8192 },
       wsRoot,
+      ZH,
     );
     assertBudget(result);
     const { data } = okData<ReadCheckpointFileData>(result);
@@ -378,6 +390,7 @@ describe("文件正文：码点范围与两侧独立预算（S09/S10）", () => 
         maxChars: 8192,
       },
       wsRoot,
+      ZH,
     );
     assertBudget(result);
     const { data } = okData<CompareCheckpointFilesData>(result);
@@ -412,6 +425,7 @@ describe("文件正文：码点范围与两侧独立预算（S09/S10）", () => 
         maxChars: 8192,
       },
       wsRoot,
+      ZH,
     );
     assertBudget(result);
     const { data } = okData<CompareCheckpointFilesData>(result);
@@ -443,6 +457,7 @@ describe("get_step：长来源链挤占预算时正文按码点收窄（S09）",
         maxChars: 8192,
       },
       chainRoot,
+      ZH,
     );
     assertBudget(result);
     const { data, envelope } = okData<GetStepData>(result);
@@ -479,6 +494,7 @@ describe("get_step：长来源链挤占预算时正文按码点收窄（S09）",
           ...(cursor === undefined ? {} : { cursor }),
         },
         chainRoot,
+        ZH,
       );
       assertBudget(result);
       const { data, envelope } = okData<GetStepData>(result);

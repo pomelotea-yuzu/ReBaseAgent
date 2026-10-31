@@ -64,6 +64,7 @@ export interface ToolDefinition {
   readonly execute: (
     args: Readonly<Record<string, unknown>>,
     root: DataRoot,
+    translator: Translator,
   ) => Promise<ToolResult>;
 }
 
@@ -113,7 +114,7 @@ export function createQueryServer(
       if (tool === undefined) {
         // 未知工具：拒绝并如实报错，不改服务边界（S04）
         log.event("tool_unknown", { name: boundedName(name) });
-        return errorContent(`未知工具：${boundedName(name)}（本服务只发布只读诊断工具）`);
+        return errorContent(translator.t("mcp.unknownTool", { name: boundedName(name) }));
       }
       /**
        * 取消（design D8/S14）的实测口径（`.workbuddy/mcp0-53/probe-cancel.cjs` 连跑 6/6 稳定）：
@@ -130,16 +131,16 @@ export function createQueryServer(
        */
       if (extra.signal.aborted) {
         log.event("tool_cancelled", { name, request_id: boundedRequestId(extra.requestId) });
-        return cancelledPlaceholder(name);
+        return cancelledPlaceholder(name, translator);
       }
       const args = request.params.arguments ?? {};
       log.event("tool_call", { name });
       try {
-        return await tool.execute(args, root);
+        return await tool.execute(args, root, translator);
       } catch (e) {
         // 内部异常只留事件名：堆栈与原始参数都不外泄
         log.event("tool_internal_error", { name, error: e instanceof Error ? e.name : "unknown" });
-        return errorContent(`工具 ${name} 本次未完成`);
+        return errorContent(translator.t("mcp.toolRunFailed", { tool: name }));
       }
     },
   );
@@ -193,9 +194,11 @@ function errorContent(text: string): CallToolResult {
  * 取消后的占位结果：SDK 在 `signal.aborted` 时不会把它外发（见 handler 上方注释），
  * 存在只为满足 handler 的返回类型——不是给客户端的答复，也不参与预算与信封。
  */
-function cancelledPlaceholder(name: string): CallToolResult {
+function cancelledPlaceholder(name: string, translator: Translator): CallToolResult {
   return {
-    content: [{ type: "text", text: `工具 ${boundedName(name)} 的本次查询已取消` }],
+    content: [
+      { type: "text", text: translator.t("mcp.queryCancelled", { tool: boundedName(name) }) },
+    ],
     isError: true,
   };
 }

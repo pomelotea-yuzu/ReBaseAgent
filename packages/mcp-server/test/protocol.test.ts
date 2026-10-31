@@ -5,12 +5,12 @@ import { createTranslator } from "@rebaseagent/i18n";
 import { afterEach, describe, expect, it } from "vitest";
 import { createDiagnosticLog } from "../src/diagnostics.js";
 import { ErrorEnvelopeSchema, SuccessEnvelopeSchema } from "../src/envelope.js";
-import { TOOL_ERROR_MESSAGES } from "../src/error-projection.js";
 import { createQueryServer } from "../src/server.js";
 import type { ToolDefinition } from "../src/server.js";
 import type { DataRoot } from "../src/startup.js";
 import { contractOf } from "../src/tool-contracts.js";
 import { ToolFailure, defineTool } from "../src/tool-definition.js";
+import { errorMessageOf } from "./test-locale.js";
 
 /**
  * MCP0 4.2（S04/S06）：协议面行为——用官方 SDK 客户端与真 Server 实例对跑。
@@ -159,7 +159,7 @@ describe("协议面：拒绝与错误信封", () => {
     if (!parsed.success) return;
     expect(parsed.data.error).toEqual({
       code: "RUN_NOT_FOUND",
-      message: TOOL_ERROR_MESSAGES.RUN_NOT_FOUND,
+      message: errorMessageOf("RUN_NOT_FOUND"),
       ref: "run:run-9",
       retryable: false,
     });

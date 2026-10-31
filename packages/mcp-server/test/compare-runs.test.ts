@@ -1,6 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ErrorEnvelopeSchema, SuccessEnvelopeSchema } from "../src/envelope.js";
-import { TOOL_ERROR_MESSAGES } from "../src/error-projection.js";
 import { compareRunsTool } from "../src/query/compare-runs.js";
 import type { CompareRunsData } from "../src/query/compare-runs.js";
 import type { ToolResult } from "../src/server.js";
@@ -12,6 +11,7 @@ import {
   cleanupQueryFixtures,
   dirFingerprint,
 } from "./query-fixtures.js";
+import { ZH, errorMessageOf } from "./test-locale.js";
 import { FORBIDDEN_KEYS, assertNoSentinels, collectKeys } from "./whitelist-assertions.js";
 
 /**
@@ -48,6 +48,7 @@ async function okCompare(left: string, right: string): Promise<OkCompare> {
   const result = await compareRunsTool.execute(
     { left: { runId: left }, right: { runId: right } },
     root,
+    ZH,
   );
   expect(result.isError).not.toBe(true);
   const envelope = SuccessEnvelopeSchema.parse(result.structuredContent);
@@ -58,6 +59,7 @@ async function failureOf(left: unknown, right: unknown): Promise<ToolResult> {
   const result = await compareRunsTool.execute(
     { left: { runId: left }, right: { runId: right } },
     root,
+    ZH,
   );
   expect(result.isError).toBe(true);
   return result;
@@ -83,7 +85,7 @@ describe("compare_runs：逐侧结论（Q11）", () => {
     if (bad.status !== "unavailable") return;
     expect(bad.runId).toBe(fx.ids.corrupt);
     expect(bad.code).toBe("RUN_INVALID");
-    expect(bad.message).toBe(TOOL_ERROR_MESSAGES.RUN_INVALID);
+    expect(bad.message).toBe(errorMessageOf("RUN_INVALID"));
 
     const good = sideOf(data, "right");
     expect(good.status).toBe("ready");
@@ -263,6 +265,7 @@ describe("compare_runs：入参边界与零写入", () => {
     const arrayish = await compareRunsTool.execute(
       { left: fx.ids.alpha, right: fx.ids.child } as unknown as Record<string, unknown>,
       root,
+      ZH,
     );
     expect(arrayish.isError).toBe(true);
     expect(errorOf(arrayish).code).toBe("INVALID_ARGUMENT");

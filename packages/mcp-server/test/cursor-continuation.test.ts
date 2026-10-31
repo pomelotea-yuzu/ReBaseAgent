@@ -26,6 +26,7 @@ import {
   cleanupCursorFixtures,
   rewriteRunTask,
 } from "./cursor-fixtures.js";
+import { ZH } from "./test-locale.js";
 
 /**
  * MCP0 5.2（S07/S08/S09/S10）：认证游标的续读、参数/来源绑定与失败项顺序。
@@ -84,7 +85,7 @@ const wsSelectors = () => ({
 
 describe("列表分页：无重漏、失败项只出现一次（S07）", () => {
   it("逐页推进后与完整列表逐项相同；最后不重复失败段", async () => {
-    const full = ok<ListRunsData>(await listRunsTool.execute({ limit: 100 }, root));
+    const full = ok<ListRunsData>(await listRunsTool.execute({ limit: 100 }, root, ZH));
     const expected = full.data.items.map(itemKey);
     expect(expected.length).toBeGreaterThan(9);
 
@@ -93,7 +94,11 @@ describe("列表分页：无重漏、失败项只出现一次（S07）", () => {
     let pages = 0;
     do {
       const page = ok<ListRunsData>(
-        await listRunsTool.execute({ limit: 3, ...(cursor === undefined ? {} : { cursor }) }, root),
+        await listRunsTool.execute(
+          { limit: 3, ...(cursor === undefined ? {} : { cursor }) },
+          root,
+          ZH,
+        ),
       );
       collected.push(...page.data.items.map(itemKey));
       expect(page.data.totals.matchedRuns).toBe(full.data.totals.matchedRuns);
@@ -110,7 +115,7 @@ describe("列表分页：无重漏、失败项只出现一次（S07）", () => {
 describe("get_run 索引分页与正文续读（S07/S09）", () => {
   it("索引按游标推进后与完整索引逐项相同", async () => {
     const full = ok<GetRunData>(
-      await getRunTool.execute({ runId: fx.spansRunId, limit: 100 }, root),
+      await getRunTool.execute({ runId: fx.spansRunId, limit: 100 }, root, ZH),
     );
     const expected = full.data.index.items.map(indexKey);
 
@@ -121,6 +126,7 @@ describe("get_run 索引分页与正文续读（S07/S09）", () => {
         await getRunTool.execute(
           { runId: fx.spansRunId, limit: 2, ...(cursor === undefined ? {} : { cursor }) },
           root,
+          ZH,
         ),
       );
       collected.push(...page.data.index.items.map(indexKey));
@@ -147,6 +153,7 @@ describe("get_run 索引分页与正文续读（S07/S09）", () => {
             ...(cursor === undefined ? {} : { cursor }),
           },
           root,
+          ZH,
         ),
       );
       if (page.data.body === null || page.data.body.recorded !== true) {
@@ -181,6 +188,7 @@ describe("get_run 索引分页与正文续读（S07/S09）", () => {
             ...(cursor === undefined ? {} : { cursor }),
           },
           root,
+          ZH,
         ),
       );
       if (page.data.file.status !== "text") throw new Error("应当是文本");
@@ -198,7 +206,7 @@ describe("get_run 索引分页与正文续读（S07/S09）", () => {
 describe("检查点清单与比较正文续读（S07/S10）", () => {
   it("inspect_checkpoint 清单逐页推进后与完整清单相同", async () => {
     const full = ok<InspectCheckpointData>(
-      await inspectCheckpointTool.execute({ runId: fx.workspaceRunId, limit: 100 }, root),
+      await inspectCheckpointTool.execute({ runId: fx.workspaceRunId, limit: 100 }, root, ZH),
     );
     const expected = full.data.files.map((file) => file.path);
     const collected: string[] = [];
@@ -212,6 +220,7 @@ describe("检查点清单与比较正文续读（S07/S10）", () => {
             ...(cursor === undefined ? {} : { cursor }),
           },
           root,
+          ZH,
         ),
       );
       collected.push(...page.data.files.map((file) => file.path));
@@ -223,7 +232,7 @@ describe("检查点清单与比较正文续读（S07/S10）", () => {
 
   it("compare_checkpoint_files 清单逐页推进后覆盖完整并集", async () => {
     const full = ok<CompareCheckpointFilesData>(
-      await compareCheckpointFilesTool.execute({ ...wsSelectors(), limit: 100 }, root),
+      await compareCheckpointFilesTool.execute({ ...wsSelectors(), limit: 100 }, root, ZH),
     );
     if (full.data.mode !== "manifest") throw new Error("应是清单模式");
     const expected = full.data.entries.map((entry) => entry.path);
@@ -238,6 +247,7 @@ describe("检查点清单与比较正文续读（S07/S10）", () => {
             ...(cursor === undefined ? {} : { cursor }),
           },
           root,
+          ZH,
         ),
       );
       if (page.data.mode !== "manifest") throw new Error("应是清单模式");
@@ -266,6 +276,7 @@ describe("检查点清单与比较正文续读（S07/S10）", () => {
             ...(cursor === undefined ? {} : { cursor }),
           },
           root,
+          ZH,
         ),
       );
       if (page.data.mode !== "content") throw new Error("应是内容模式");
@@ -298,7 +309,7 @@ describe("检查点清单与比较正文续读（S07/S10）", () => {
 
 describe("游标篡改与参数变化（S08）", () => {
   it("篡改 / 参数变化 / 换工具都判 INVALID_ARGUMENT，且不回显游标", async () => {
-    const page = ok<ListRunsData>(await listRunsTool.execute({ limit: 2 }, root));
+    const page = ok<ListRunsData>(await listRunsTool.execute({ limit: 2 }, root, ZH));
     const cursor = requireCursor(page.envelope);
 
     const [tag, keyId, payload, mac] = cursor.split(".");
@@ -314,16 +325,18 @@ describe("游标篡改与参数变化（S08）", () => {
     const tamperedPayload = Buffer.from(JSON.stringify(payloadJson), "utf8").toString("base64url");
     const tampered = [tag, keyId, tamperedPayload, mac].join(".");
 
-    const tamperedError = failure(await listRunsTool.execute({ limit: 2, cursor: tampered }, root));
+    const tamperedError = failure(
+      await listRunsTool.execute({ limit: 2, cursor: tampered }, root, ZH),
+    );
     expect(tamperedError.code).toBe("INVALID_ARGUMENT");
     expect(tamperedError.ref).toBe("cursor");
     expect(JSON.stringify(tamperedError)).not.toContain(tampered);
 
-    const changedParam = failure(await listRunsTool.execute({ limit: 3, cursor }, root));
+    const changedParam = failure(await listRunsTool.execute({ limit: 3, cursor }, root, ZH));
     expect(changedParam.code).toBe("INVALID_ARGUMENT");
     expect(changedParam.ref).toBe("cursor");
 
-    const wrongTool = failure(await getRunTool.execute({ runId: fx.bodyRunId, cursor }, root));
+    const wrongTool = failure(await getRunTool.execute({ runId: fx.bodyRunId, cursor }, root, ZH));
     expect(wrongTool.code).toBe("INVALID_ARGUMENT");
     expect(wrongTool.ref).toBe("cursor");
 
@@ -332,6 +345,7 @@ describe("游标篡改与参数变化（S08）", () => {
       await getStepTool.execute(
         { runId: fx.bodyRunId, spanId: fx.bodySpanId, section: "output", maxChars: 50 },
         root,
+        ZH,
       ),
     );
     const bodyCursor = requireCursor(bodyPage.envelope);
@@ -345,6 +359,7 @@ describe("游标篡改与参数变化（S08）", () => {
           cursor: bodyCursor,
         },
         root,
+        ZH,
       ),
     );
     expect(changedChars.code).toBe("INVALID_ARGUMENT");
@@ -354,11 +369,11 @@ describe("游标篡改与参数变化（S08）", () => {
 
 describe("来源变化：STALE_CURSOR，不拼接新旧结果（S08）", () => {
   it("列表翻页前新增 run 文件 ⇒ 旧游标过期", async () => {
-    const first = ok<ListRunsData>(await listRunsTool.execute({ limit: 2 }, root));
+    const first = ok<ListRunsData>(await listRunsTool.execute({ limit: 2 }, root, ZH));
     const cursor = requireCursor(first.envelope);
     addNewRun(fx.tracesDir, "mcp0-cur-new");
 
-    const error = failure(await listRunsTool.execute({ limit: 2, cursor }, root));
+    const error = failure(await listRunsTool.execute({ limit: 2, cursor }, root, ZH));
     expect(error.code).toBe("STALE_CURSOR");
     expect(error.ref).toBe("cursor");
     expect(error.message).toBe("续读游标已过期，请从首页重新查询");
@@ -367,13 +382,13 @@ describe("来源变化：STALE_CURSOR，不拼接新旧结果（S08）", () => {
 
   it("get_run 索引翻页前改写 trace ⇒ 旧游标过期", async () => {
     const first = ok<GetRunData>(
-      await getRunTool.execute({ runId: fx.spansRunId, limit: 2 }, root),
+      await getRunTool.execute({ runId: fx.spansRunId, limit: 2 }, root, ZH),
     );
     const cursor = requireCursor(first.envelope);
     rewriteRunTask(join(fx.tracesDir, `${fx.spansRunId}.jsonl`), "改写后的 task");
 
     const error = failure(
-      await getRunTool.execute({ runId: fx.spansRunId, limit: 2, cursor }, root),
+      await getRunTool.execute({ runId: fx.spansRunId, limit: 2, cursor }, root, ZH),
     );
     expect(error.code).toBe("STALE_CURSOR");
   });
@@ -383,6 +398,7 @@ describe("来源变化：STALE_CURSOR，不拼接新旧结果（S08）", () => {
       await getStepTool.execute(
         { runId: fx.bodyRunId, spanId: fx.bodySpanId, section: "output", maxChars: 50 },
         root,
+        ZH,
       ),
     );
     const cursor = requireCursor(first.envelope);
@@ -398,6 +414,7 @@ describe("来源变化：STALE_CURSOR，不拼接新旧结果（S08）", () => {
           cursor,
         },
         root,
+        ZH,
       ),
     );
     expect(error.code).toBe("STALE_CURSOR");
@@ -405,13 +422,13 @@ describe("来源变化：STALE_CURSOR，不拼接新旧结果（S08）", () => {
 
   it("inspect_checkpoint 翻页前附件被改写 ⇒ 旧游标过期", async () => {
     const first = ok<InspectCheckpointData>(
-      await inspectCheckpointTool.execute({ runId: fx.workspaceRunId, limit: 2 }, root),
+      await inspectCheckpointTool.execute({ runId: fx.workspaceRunId, limit: 2 }, root, ZH),
     );
     const cursor = requireCursor(first.envelope);
     writeFileSync(join(fx.blobsDir, fx.longLeftSha), Buffer.from("附件已被改写"));
 
     const error = failure(
-      await inspectCheckpointTool.execute({ runId: fx.workspaceRunId, limit: 2, cursor }, root),
+      await inspectCheckpointTool.execute({ runId: fx.workspaceRunId, limit: 2, cursor }, root, ZH),
     );
     expect(error.code).toBe("STALE_CURSOR");
   });
@@ -421,6 +438,7 @@ describe("来源变化：STALE_CURSOR，不拼接新旧结果（S08）", () => {
       await readCheckpointFileTool.execute(
         { runId: fx.workspaceRunId, path: fx.longPath, maxChars: 50 },
         root,
+        ZH,
       ),
     );
     const cursor = requireCursor(first.envelope);
@@ -430,6 +448,7 @@ describe("来源变化：STALE_CURSOR，不拼接新旧结果（S08）", () => {
       await readCheckpointFileTool.execute(
         { runId: fx.workspaceRunId, path: fx.longPath, maxChars: 50, cursor },
         root,
+        ZH,
       ),
     );
     expect(error.code).toBe("STALE_CURSOR");
@@ -437,7 +456,7 @@ describe("来源变化：STALE_CURSOR，不拼接新旧结果（S08）", () => {
 
   it("compare 清单翻页前附件被改写 ⇒ 旧游标过期", async () => {
     const first = ok<CompareCheckpointFilesData>(
-      await compareCheckpointFilesTool.execute({ ...wsSelectors(), limit: 2 }, root),
+      await compareCheckpointFilesTool.execute({ ...wsSelectors(), limit: 2 }, root, ZH),
     );
     const cursor = requireCursor(first.envelope);
     const [hash] = fx.attachmentHashes;
@@ -445,7 +464,7 @@ describe("来源变化：STALE_CURSOR，不拼接新旧结果（S08）", () => {
     writeFileSync(join(fx.blobsDir, hash), Buffer.from("changed"));
 
     const error = failure(
-      await compareCheckpointFilesTool.execute({ ...wsSelectors(), limit: 2, cursor }, root),
+      await compareCheckpointFilesTool.execute({ ...wsSelectors(), limit: 2, cursor }, root, ZH),
     );
     expect(error.code).toBe("STALE_CURSOR");
   });
@@ -455,6 +474,7 @@ describe("来源变化：STALE_CURSOR，不拼接新旧结果（S08）", () => {
       await compareCheckpointFilesTool.execute(
         { ...wsSelectors(), path: fx.longPath, maxChars: 50 },
         root,
+        ZH,
       ),
     );
     const cursor = requireCursor(first.envelope);
@@ -464,6 +484,7 @@ describe("来源变化：STALE_CURSOR，不拼接新旧结果（S08）", () => {
       await compareCheckpointFilesTool.execute(
         { ...wsSelectors(), path: fx.longPath, maxChars: 50, cursor },
         root,
+        ZH,
       ),
     );
     expect(error.code).toBe("STALE_CURSOR");
@@ -472,18 +493,18 @@ describe("来源变化：STALE_CURSOR，不拼接新旧结果（S08）", () => {
 
 describe("新请求重新读盘（Q02）", () => {
   it("新增 run 后首页重新扫描可见，不复用上一请求的列表", async () => {
-    const before = ok<ListRunsData>(await listRunsTool.execute({ limit: 100 }, root));
+    const before = ok<ListRunsData>(await listRunsTool.execute({ limit: 100 }, root, ZH));
     addNewRun(fx.tracesDir, "mcp0-cur-fresh");
-    const after = ok<ListRunsData>(await listRunsTool.execute({ limit: 100 }, root));
+    const after = ok<ListRunsData>(await listRunsTool.execute({ limit: 100 }, root, ZH));
     expect(after.data.totals.matchedRuns).toBe(before.data.totals.matchedRuns + 1);
     expect(after.data.items.map(itemKey)).toContain("run:mcp0-cur-fresh");
   });
 
   it("改写 run 后 get_run 重新读盘，返回新 task", async () => {
-    const before = ok<GetRunData>(await getRunTool.execute({ runId: fx.bodyRunId }, root));
+    const before = ok<GetRunData>(await getRunTool.execute({ runId: fx.bodyRunId }, root, ZH));
     expect(before.data.run.task).toBe("长正文夹具");
     rewriteRunTask(join(fx.tracesDir, `${fx.bodyRunId}.jsonl`), "新的 task 文本");
-    const after = ok<GetRunData>(await getRunTool.execute({ runId: fx.bodyRunId }, root));
+    const after = ok<GetRunData>(await getRunTool.execute({ runId: fx.bodyRunId }, root, ZH));
     expect(after.data.run.task).toBe("新的 task 文本");
     expect(after.envelope.readVersion).not.toBe(before.envelope.readVersion);
   });

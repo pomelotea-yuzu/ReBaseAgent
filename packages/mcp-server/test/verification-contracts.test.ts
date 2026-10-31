@@ -13,7 +13,7 @@ import {
   VERIFICATION_LIMITATION_CODES,
   VERIFICATION_RETRYABLE_CODES,
   VERIFICATION_TOOL_ERROR_CODES,
-  VERIFICATION_TOOL_ERROR_MESSAGES,
+  VERIFICATION_TOOL_ERROR_MESSAGE_KEYS,
   type VerificationToolErrorCode,
 } from "../src/verification-codes.js";
 import {
@@ -27,6 +27,7 @@ import {
   VERIFICATION_RECORD_STATUSES,
   VerificationRecordStatusSchema,
 } from "../src/verification-contracts.js";
+import { errorMessageOf } from "./test-locale.js";
 
 /**
  * MCP2 tasks 1.2：六工具契约冻结（M01/M08 的形状半边）。
@@ -257,9 +258,10 @@ describe("验证域三域码表封闭（design D3）", () => {
   it("九个错误码各有受控文案；可重试只有文件级不可读", () => {
     expect(VERIFICATION_TOOL_ERROR_CODES).toHaveLength(9);
     for (const code of VERIFICATION_TOOL_ERROR_CODES) {
-      expect(
-        VERIFICATION_TOOL_ERROR_MESSAGES[code as VerificationToolErrorCode].length,
-      ).toBeGreaterThan(0);
+      expect(VERIFICATION_TOOL_ERROR_MESSAGE_KEYS[code as VerificationToolErrorCode]).toMatch(
+        /^mcp./,
+      );
+      expect(errorMessageOf(code).length).toBeGreaterThan(0);
     }
     expect([...VERIFICATION_RETRYABLE_CODES]).toEqual(["VERIFICATION_UNREADABLE"]);
   });

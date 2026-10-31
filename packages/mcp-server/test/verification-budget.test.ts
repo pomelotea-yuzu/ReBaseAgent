@@ -2,6 +2,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import type { Translator } from "@rebaseagent/i18n";
 import { afterAll, describe, expect, it } from "vitest";
 import { toolResultBytes } from "../src/budget.js";
 import { RESPONSE_BUDGET_BYTES } from "../src/limits.js";
@@ -10,6 +11,7 @@ import { inspectVerificationArtifactsTool } from "../src/query/inspect-verificat
 import { listVerificationsTool } from "../src/query/list-verifications.js";
 import { readVerificationLogTool } from "../src/query/read-verification-log.js";
 import type { DataRoot } from "../src/startup.js";
+import { ZH } from "./test-locale.js";
 import {
   VERIFICATION_SENTINELS,
   type VerificationFixture,
@@ -82,11 +84,15 @@ const root: DataRoot = { dataDir: fixture.dataRoot, tracesDir: fixture.tracesDir
 
 async function invoke(
   tool: {
-    execute: (args: Readonly<Record<string, unknown>>, root: DataRoot) => Promise<CallToolResult>;
+    execute: (
+      args: Readonly<Record<string, unknown>>,
+      root: DataRoot,
+      translator: Translator,
+    ) => Promise<CallToolResult>;
   },
   args: Record<string, unknown>,
 ): Promise<CallToolResult> {
-  return tool.execute(args, root);
+  return tool.execute(args, root, ZH);
 }
 
 describe("完整结果预算（M10）", () => {
