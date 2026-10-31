@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T06:16:48.990Z",
+  "generatedAt": "2026-10-31T07:06:22.267Z",
   "scanner": "scripts/i18n-attribution.cjs",
   "taxonomy": {
     "product": "产品展示：需要按批次迁移为双语资源",
@@ -9,10 +9,10 @@
     "generated": "生成资产：不作为产品文案"
   },
   "totals": {
-    "files": 150,
-    "occurrences": 1273,
-    "product": 75,
-    "original": 1032,
+    "files": 145,
+    "occurrences": 1230,
+    "product": 33,
+    "original": 1031,
     "internal": 162,
     "generated": 4
   },
@@ -98,10 +98,10 @@
       "generated": 0
     },
     "pkg:trace-test": {
-      "files": 10,
-      "occurrences": 80,
-      "product": 42,
-      "original": 38,
+      "files": 5,
+      "occurrences": 37,
+      "product": 0,
+      "original": 37,
       "internal": 0,
       "generated": 0
     }
@@ -9097,7 +9097,7 @@
             "第 ${…} 个 span（${…}, ${…}, id=${…}）"
           ],
           "lines": [
-            55
+            92
           ]
         },
         {
@@ -9112,13 +9112,13 @@
             "<无>"
           ],
           "lines": [
-            100,
-            111,
-            112,
-            165,
-            166,
-            192,
-            193
+            137,
+            151,
+            152,
+            240,
+            241,
+            270,
+            271
           ]
         },
         {
@@ -9133,11 +9133,11 @@
             "quantifier=nth（第 ${…} 个）越界：命中总数 ${…}"
           ],
           "lines": [
-            122,
-            137,
-            149,
-            156,
-            199
+            170,
+            189,
+            206,
+            221,
+            288
           ]
         },
         {
@@ -9152,9 +9152,9 @@
             "期望至少 ${…} 个"
           ],
           "lines": [
-            178,
-            182,
-            186
+            253,
+            258,
+            263
           ]
         }
       ]
@@ -9181,199 +9181,7 @@
             "<无>"
           ],
           "lines": [
-            49
-          ]
-        },
-        {
-          "symbol": "toToolCalls",
-          "role": "error_message",
-          "context": "new TraceTestConfigError",
-          "classification": "original",
-          "reason": "卡带消息差异 detail 进入 JSON 报告，保留原始事实",
-          "count": 1,
-          "samples": [
-            "卡带损坏：第 ${…} 条录制 tool_call 结构非法（${…}），请重录基线"
-          ],
-          "lines": [
-            62
-          ]
-        },
-        {
-          "symbol": "CassetteLlmClient.complete",
-          "role": "error_message",
-          "context": "new TraceTestConfigError",
-          "classification": "original",
-          "reason": "卡带消息差异 detail 进入 JSON 报告，保留原始事实",
-          "count": 1,
-          "samples": [
-            "卡带耗尽：第 ${…} 次 LLM 调用没有录制响应（录制共 ${…} 次）。当前代码的 LLM 调用次数多于录制——若属预期的行为变化，请重录基线。"
-          ],
-          "lines": [
-            126
-          ]
-        },
-        {
-          "symbol": "extractCassette",
-          "role": "error_message",
-          "context": "new TraceTestConfigError",
-          "classification": "original",
-          "reason": "卡带消息差异 detail 进入 JSON 报告，保留原始事实",
-          "count": 2,
-          "samples": [
-            "录制 trace 中没有任何 llm.call span，无卡带素材可用（代理录制的 run 请走静态断言路径）",
-            "首个 llm.call 的录制 messages 结构非法：${…}"
-          ],
-          "lines": [
-            169,
-            175
-          ]
-        }
-      ]
-    },
-    {
-      "path": "packages/trace-test/src/cli.ts",
-      "layer": "pkg:trace-test",
-      "package": "trace-test",
-      "workspace": "pkg:trace-test",
-      "classification": "product",
-      "batch": 4,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "parseArgs",
-          "role": "internal_log",
-          "context": "console.error",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "未知参数：${…}"
-          ],
-          "lines": [
-            49
-          ]
-        },
-        {
-          "symbol": "printUsageAndExit",
-          "role": "internal_log",
-          "context": "console.log",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "用法：trace-test <definition.json | tests-dir> --config <config.mjs> [--report json] [--update-baseline"
-          ],
-          "lines": [
-            61
-          ]
-        },
-        {
-          "symbol": "main",
-          "role": "error_message",
-          "context": "new Error",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "配置模块需 default 导出 { config, tools }"
-          ],
-          "lines": [
-            79
-          ]
-        },
-        {
-          "symbol": "main",
-          "role": "internal_log",
-          "context": "console.error",
-          "classification": "product",
-          "reason": null,
-          "count": 8,
-          "samples": [
-            "配置错误：无法加载配置模块 ${…}",
-            "[baseline] 已更新基线：${…}"
-          ],
-          "lines": [
-            82,
-            98,
-            104,
-            107,
-            123,
-            135,
-            140,
-            142
-          ]
-        },
-        {
-          "symbol": "main",
-          "role": "concat",
-          "context": "+",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "      ⚠ args drift：${…} 第 ${…} 次调用 args 形状不同：",
-            "录制=${…}，当前=${…}"
-          ],
-          "lines": [
-            146,
-            147
-          ]
-        },
-        {
-          "symbol": "<module>",
-          "role": "internal_log",
-          "context": "console.error",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "运行错误：${…}"
-          ],
-          "lines": [
-            180
-          ]
-        }
-      ]
-    },
-    {
-      "path": "packages/trace-test/src/definition.ts",
-      "layer": "pkg:trace-test",
-      "package": "trace-test",
-      "workspace": "pkg:trace-test",
-      "classification": "product",
-      "batch": 4,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "SelectorSchema.message",
-          "role": "ui_prop",
-          "context": "message",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "selector 至少要有一个条件"
-          ],
-          "lines": [
-            22
-          ]
-        },
-        {
-          "symbol": "AssertionSchema.message",
-          "role": "ui_prop",
-          "context": "message",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "quantifier=nth 需要提供 nth（第 n 个匹配，1 起）",
-            "span.count 需要至少一个数量约束（min/max/equals）"
-          ],
-          "lines": [
-            83,
-            94
+            54
           ]
         }
       ]
@@ -9405,172 +9213,35 @@
       ]
     },
     {
-      "path": "packages/trace-test/src/loader.ts",
-      "layer": "pkg:trace-test",
-      "package": "trace-test",
-      "workspace": "pkg:trace-test",
-      "classification": "product",
-      "batch": 4,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "loadDefinition",
-          "role": "error_message",
-          "context": "new TraceTestConfigError",
-          "classification": "product",
-          "reason": null,
-          "count": 4,
-          "samples": [
-            "无法读取测试定义 ${…}：${…}",
-            "测试定义 ${…} 不是合法 JSON：${…}"
-          ],
-          "lines": [
-            14,
-            21,
-            28
-          ]
-        },
-        {
-          "symbol": "discoverDefinitions",
-          "role": "error_message",
-          "context": "new TraceTestConfigError",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "无法读取测试目录 ${…}：${…}",
-            "测试目录 ${…} 下没有找到任何 *.json 测试定义"
-          ],
-          "lines": [
-            58,
-            62
-          ]
-        },
-        {
-          "symbol": "loadTrace",
-          "role": "error_message",
-          "context": "new TraceTestConfigError",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "读取 trace 失败（${…}）：${…}"
-          ],
-          "lines": [
-            72
-          ]
-        }
-      ]
-    },
-    {
-      "path": "packages/trace-test/src/rerun.ts",
-      "layer": "pkg:trace-test",
-      "package": "trace-test",
-      "workspace": "pkg:trace-test",
-      "classification": "product",
-      "batch": 4,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "rerunWithCassette",
-          "role": "error_message",
-          "context": "new TraceTestConfigError",
-          "classification": "product",
-          "reason": null,
-          "count": 4,
-          "samples": [
-            "录制 trace 未封存（缺少终止事件），不可作为卡带基线。请使用完整结束的 run。",
-            "录制 trace 缺少 config_hash（无 loop 配置证据），不支持卡带重跑。仅允许显式静态断言。"
-          ],
-          "lines": [
-            64,
-            75,
-            103,
-            108
-          ]
-        },
-        {
-          "symbol": "rerunWithCassette",
-          "role": "concat",
-          "context": "+",
-          "classification": "product",
-          "reason": null,
-          "count": 4,
-          "samples": [
-            "代理录制的 run（meta.source.kind=proxy）没有完整的 loop 配置与多轮轨迹，",
-            "不支持卡带重跑——单次响应回放不构成运行时回归测试。仅允许显式静态断言。"
-          ],
-          "lines": [
-            69,
-            70,
-            97,
-            98
-          ]
-        }
-      ]
-    },
-    {
       "path": "packages/trace-test/src/run-test.ts",
       "layer": "pkg:trace-test",
       "package": "trace-test",
       "workspace": "pkg:trace-test",
-      "classification": "product",
-      "batch": 4,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "trace.shape 断言的 detail 是既有 JSON 报告字段；人类报告用 display 结构化投影",
       "symbols": [
-        {
-          "symbol": "runTraceTest",
-          "role": "error_message",
-          "context": "new TraceTestConfigError",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "trace ${…} 未封存（缺少终止事件），不能作为测试基线。请使用完整结束的 run。"
-          ],
-          "lines": [
-            69
-          ]
-        },
-        {
-          "symbol": "runTraceTest",
-          "role": "concat",
-          "context": "+",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "该 trace 为代理录制 run 或缺少 loop 配置，不支持卡带重跑与结构对齐。",
-            "请在定义中移除 trace.shape 断言，只保留静态断言（run.outcome / span.*）。"
-          ],
-          "lines": [
-            82,
-            83
-          ]
-        },
         {
           "symbol": "runTraceTest.detail",
           "role": "prop",
           "context": "detail",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "trace.shape 断言的 detail 是既有 JSON 报告字段；人类报告用 display 结构化投影",
           "count": 1,
           "samples": [
             "结构对齐失败"
           ],
           "lines": [
-            115
+            111
           ]
         },
         {
           "symbol": "runTraceTest.detail",
           "role": "ui_text",
           "context": "ternary",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "trace.shape 断言的 detail 是既有 JSON 报告字段；人类报告用 display 结构化投影",
           "count": 2,
           "samples": [
             "结构对齐通过（${…} 个 span）",
@@ -9579,20 +9250,6 @@
           "lines": [
             126,
             127
-          ]
-        },
-        {
-          "symbol": "writeTraceBaseline",
-          "role": "error_message",
-          "context": "new TraceTestConfigError",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "只有已封存的 run 才能作为基线写入"
-          ],
-          "lines": [
-            203
           ]
         }
       ]
@@ -9657,48 +9314,6 @@
           ],
           "lines": [
             149
-          ]
-        }
-      ]
-    },
-    {
-      "path": "packages/trace-test/src/stub-tools.ts",
-      "layer": "pkg:trace-test",
-      "package": "trace-test",
-      "workspace": "pkg:trace-test",
-      "classification": "product",
-      "batch": 4,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "StubToolTable.constructor",
-          "role": "error_message",
-          "context": "new TraceTestConfigError",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "当前工具表与录制不兼容：录制中使用的工具 ${…} 不在当前工具声明中。请补齐工具声明，或重录基线。"
-          ],
-          "lines": [
-            85
-          ]
-        },
-        {
-          "symbol": "StubToolTable.executeStub",
-          "role": "concat",
-          "context": "+",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "桩工具卡带耗尽：工具 \"${…}\" 的第 ${…} 次调用没有录制结果",
-            "（录制共 ${…} 次）。当前代码的调用次数多于录制，请重录基线。"
-          ],
-          "lines": [
-            108,
-            109
           ]
         }
       ]

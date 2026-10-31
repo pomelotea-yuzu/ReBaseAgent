@@ -20,6 +20,8 @@ import {
   readRun,
 } from "@rebaseagent/trace-sdk";
 import { createWorkspaceSnapshot } from "@rebaseagent/trace-sdk/workspace-hash";
+import { expect } from "vitest";
+import { TraceTestConfigError, type TraceTestConfigErrorCode } from "../src/errors.js";
 
 /** —— 合法 RunConfig 样例（与 agent-loop 测试同构；卡带模式不碰网络） —— */
 
@@ -323,4 +325,19 @@ export function writeIsolatedCassetteTrace(
   tracer.endRun({ event: "stopped", reason: "completed", at: 2 });
 
   return { dir, traceFile, runId, record: readRun(traceFile) };
+}
+
+/** 配置错误断言：只认稳定 code（文案由 CLI 按语言投影，不再作为判据） */
+export function expectConfigError(
+  fn: () => unknown,
+  code: TraceTestConfigErrorCode,
+): TraceTestConfigError {
+  try {
+    fn();
+  } catch (error) {
+    expect(error).toBeInstanceOf(TraceTestConfigError);
+    expect((error as { code: string }).code).toBe(code);
+    return error as TraceTestConfigError;
+  }
+  throw new Error(`expected TraceTestConfigError(${code})`);
 }

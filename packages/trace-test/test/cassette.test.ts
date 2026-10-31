@@ -2,7 +2,13 @@ import type { LlmCallSpan } from "@rebaseagent/trace-sdk";
 import { describe, expect, it } from "vitest";
 import { CassetteLlmClient, extractCassette } from "../src/cassette-llm-client.js";
 import { TraceTestConfigError } from "../src/errors.js";
-import { cannedResponse, fakeConfig, initialMessages, toolCall } from "./helpers.js";
+import {
+  cannedResponse,
+  expectConfigError,
+  fakeConfig,
+  initialMessages,
+  toolCall,
+} from "./helpers.js";
 
 /** 构造最小合法 LlmCallSpan（作为卡带素材） */
 function llmSpan(
@@ -100,7 +106,9 @@ describe("CassetteLlmClient", () => {
     );
     await client.complete(initialMessages("t"), null);
     await expect(client.complete(initialMessages("t"), null)).rejects.toThrow(TraceTestConfigError);
-    await expect(client.complete(initialMessages("t"), null)).rejects.toThrow("卡带耗尽");
+    await expect(client.complete(initialMessages("t"), null)).rejects.toMatchObject({
+      code: "CASSETTE_EXHAUSTED_AT",
+    });
     expect(client.exhausted).toBe(true);
   });
 
@@ -108,7 +116,9 @@ describe("CassetteLlmClient", () => {
     const broken = llmSpan("s_02", [{ role: "user", content: "t" }]);
     (broken.response.tool_calls as unknown as Array<Record<string, unknown>>).push({ id: "bad" });
     const client = new CassetteLlmClient([broken], fakeConfig());
-    await expect(client.complete(initialMessages("t"), null)).rejects.toThrow("卡带损坏");
+    await expect(client.complete(initialMessages("t"), null)).rejects.toMatchObject({
+      code: "CASSETTE_TOOLCALL_INVALID",
+    });
   });
 });
 
@@ -132,6 +142,6 @@ describe("extractCassette", () => {
 
   it("没有任何 llm.call → 配置错误", () => {
     expect(() => extractCassette({ spans: [] })).toThrow(TraceTestConfigError);
-    expect(() => extractCassette({ spans: [] })).toThrow("llm.call");
+    expectConfigError(() => extractCassette({ spans: [] }), "CASSETTE_EMPTY");
   });
 });

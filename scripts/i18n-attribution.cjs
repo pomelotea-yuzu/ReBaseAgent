@@ -285,6 +285,8 @@ const ORIGINAL_PREFIXES = [
 // 文件内混有产品文案与模型输入原文时，按符号改判（文件级规则无法拆分）。
 // 工具结果文本会写入新 trace 并作为模型消息重新送入，不能随 UI locale 生成。
 const ORIGINAL_SYMBOLS = {
+  "packages/trace-test/src/run-test.ts::runTraceTest.detail":
+    "trace.shape 断言的 detail 是既有 JSON 报告字段；人类报告用 display 结构化投影",
   "apps/desktop/src/renderer/src/components/detail/ResultForkEditor.tsx::toolMessageText":
     "模型所见的工具结果文本（写入新 trace 并进入模型上下文），不随 UI locale 生成",
   "apps/desktop/src/renderer/src/lib/draft-source.ts::toolResultText":

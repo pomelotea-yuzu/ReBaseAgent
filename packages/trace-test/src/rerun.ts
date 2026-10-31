@@ -60,20 +60,13 @@ export async function rerunWithCassette(options: RerunOptions): Promise<RerunRes
   const { record, config, tools } = options;
 
   if (record.status !== "completed") {
-    throw new TraceTestConfigError(
-      "录制 trace 未封存（缺少终止事件），不可作为卡带基线。请使用完整结束的 run。",
-    );
+    throw new TraceTestConfigError("TRACE_UNSEALED");
   }
   if (record.meta.source?.kind === "proxy") {
-    throw new TraceTestConfigError(
-      "代理录制的 run（meta.source.kind=proxy）没有完整的 loop 配置与多轮轨迹，" +
-        "不支持卡带重跑——单次响应回放不构成运行时回归测试。仅允许显式静态断言。",
-    );
+    throw new TraceTestConfigError("PROXY_UNSUPPORTED");
   }
   if (record.meta.config_hash === undefined) {
-    throw new TraceTestConfigError(
-      "录制 trace 缺少 config_hash（无 loop 配置证据），不支持卡带重跑。仅允许显式静态断言。",
-    );
+    throw new TraceTestConfigError("MISSING_CONFIG_HASH");
   }
 
   const { llmSpans, initialMessages } = extractCassette(record);
@@ -93,20 +86,18 @@ export async function rerunWithCassette(options: RerunOptions): Promise<RerunRes
   const run = await runLoop(config, initialMessages, tracer, stubs.tools, cassette);
 
   if (cassette.exhausted) {
-    throw new TraceTestConfigError(
-      "卡带耗尽：当前代码的 LLM 调用次数多于录制。" +
-        "若属预期的行为变化，请重录基线；否则检查循环终止条件是否被改坏。",
-    );
+    throw new TraceTestConfigError("CASSETTE_EXHAUSTED");
   }
   if (cassette.remaining > 0) {
-    throw new TraceTestConfigError(
-      `卡带有剩余：录制 ${cassette.total} 次 LLM 调用，重跑只消费 ${cassette.consumed} 次（当前 run 提前终止）。若属预期的行为变化，请重录基线。`,
-    );
+    throw new TraceTestConfigError("CASSETTE_REMAINING", {
+      total: cassette.total,
+      consumed: cassette.consumed,
+    });
   }
   if (stubs.overflows.length > 0) {
-    throw new TraceTestConfigError(
-      `工具调用次数超出录制：${stubs.overflows.map((n) => `"${n}"`).join("、")}。请重录基线。`,
-    );
+    throw new TraceTestConfigError("TOOL_CALL_OVERFLOW", {
+      tools: stubs.overflows.map((n) => `"${n}"`).join(", "),
+    });
   }
 
   const newRecord = tracer.snapshot();

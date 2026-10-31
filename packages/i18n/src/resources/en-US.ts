@@ -2817,5 +2817,86 @@ export const enUS = {
     localeMissingValue: "Missing locale value: --locale requires zh-CN or en-US",
     localeUnsupportedValue: "Unsupported locale option: --locale accepts only zh-CN or en-US",
     localeInvalidEnvValue: "Unsupported REBASEAGENT_LOCALE value: only zh-CN or en-US are accepted",
+    traceUsage:
+      "Usage: rebaseagent-trace-test [definition.json | tests-dir] --config config.mjs [--locale zh-CN|en-US] [--report json] [--update-baseline]\n\n" +
+      "  --config file          Required. User code module whose default export is { config: RunConfig, tools: Tool[] }\n" +
+      "  --locale zh-CN|en-US   Language of human-readable output; defaults to REBASEAGENT_LOCALE, then system language, then en-US\n" +
+      "  --report json         Emit the stable JSON report (human-readable text by default)\n" +
+      "  --update-baseline     Explicitly write the cassette rerun into the trace path (never silently on failure)\n\n" +
+      "Exit codes: 0 = all passed / 1 = assertion failure / 2 = configuration error.",
+    traceUnknownArgument: "Unknown argument: {{arg}}",
+    traceMissingArguments: "Missing test target or --config",
+    traceConfigLoad: "Configuration error: could not load the config module ({{detail}})",
+    traceConfigModuleShape: "The config module must default-export { config, tools }",
+    traceConfigError: "Configuration error: {{detail}}",
+    traceRunError: "Runtime error: {{detail}}",
+    tracePrivacy:
+      "[privacy] traces may contain full prompts, model responses, and tool arguments; redact or re-record before committing them.",
+    traceStatusPassed: "PASS",
+    traceStatusFailed: "FAIL",
+    traceDriftBadgeConfig: "config-drift",
+    traceDriftBadgeRequest: "request-drift×{{count}}",
+    traceDriftBadgeArgs: "args-drift×{{count}}",
+    traceDriftConfigLine:
+      "      ⚠ config drift: recorded={{recorded}} current={{current}} (cassette responses may no longer represent the model under the new configuration; re-record the baseline)",
+    traceDriftRequestLine:
+      '      ⚠ request drift: call {{call}}, message {{index}} structure differs: recorded="{{recorded}}", current="{{current}}"',
+    traceDriftRequestSummary:
+      "      ⚠ request drift present: re-record the baseline to reflect the current input structure.",
+    traceDriftArgsLine:
+      "      ⚠ args drift: {{tool}} call {{sequence}} args shape differs: recorded={{recorded}}, current={{current}}",
+    traceBaselineUpdated: "[baseline] Baseline updated: {{path}}",
+    traceSummary:
+      "Total {{total}}: {{passed}} passed / {{failed}} failed / {{configErrors}} configuration errors",
+    traceAssertOutcome: 'Termination reason differs: expected "{{expected}}", actual "{{actual}}"',
+    traceAssertActualNone: "(none)",
+    traceAssertNoSpan:
+      "No matching span (selector={{selector}}); a missing match fails the assertion",
+    traceAssertNth: "quantifier=nth (match {{nth}}) is out of range: {{total}} matches total",
+    traceAssertFieldMissing:
+      'span {{index}} ({{kind}}, {{where}}, id={{id}}) has no field "{{field}}"',
+    traceAssertFieldMismatch:
+      'span {{index}} ({{kind}}, {{where}}, id={{id}}) field "{{field}}" differs: expected {{expected}}, actual {{actual}}',
+    traceAssertCountEquals:
+      "{{count}} matching spans; expected exactly {{value}} (selector={{selector}})",
+    traceAssertCountMin:
+      "{{count}} matching spans; expected at least {{value}} (selector={{selector}})",
+    traceAssertCountMax:
+      "{{count}} matching spans; expected at most {{value}} (selector={{selector}})",
+    traceAssertShapeMismatch: "Structural alignment failed: span {{index}} differs in {{field}}",
+    traceAssertShapeFailed: "Structural alignment failed",
+    traceErrTraceUnsealed:
+      "The trace is not sealed (no termination event) and cannot be a test baseline. Use a completed run.",
+    traceErrTraceUnsealedPath:
+      "Trace {{trace}} is not sealed (no termination event) and cannot be a test baseline. Use a completed run.",
+    traceErrStaticShape:
+      "This trace is a proxy-recorded run or lacks loop configuration, so cassette rerun and structural alignment are not supported. Remove the trace.shape assertion from the definition and keep static assertions (run.outcome / span.*) only.",
+    traceErrProxy:
+      "Proxy-recorded runs (meta.source.kind=proxy) have no complete loop configuration or multi-turn trace and cannot be rerun from a cassette; a single replayed response is not a runtime regression test. Only explicit static assertions are allowed.",
+    traceErrMissingConfigHash:
+      "The recorded trace has no config_hash (no loop configuration evidence) and cannot be rerun from a cassette. Only explicit static assertions are allowed.",
+    traceErrCassetteExhausted:
+      "Cassette exhausted: the current code makes more LLM calls than were recorded. If this behavior change is expected, re-record the baseline; otherwise check whether the loop termination condition was broken.",
+    traceErrCassetteExhaustedAt:
+      "Cassette exhausted: LLM call {{call}} has no recorded response ({{total}} recorded). The current code makes more LLM calls than were recorded; if this behavior change is expected, re-record the baseline.",
+    traceErrCassetteRemaining:
+      "Cassette has leftover responses: {{total}} LLM calls recorded, only {{consumed}} consumed (the current run terminated early). If this behavior change is expected, re-record the baseline.",
+    traceErrToolOverflow: "Tool calls exceed the recording: {{tools}}. Re-record the baseline.",
+    traceErrToolNotDeclared:
+      "The current tool table is incompatible with the recording: {{tools}} is used in the recording but not declared. Add the tool declaration or re-record the baseline.",
+    traceErrBaselineUnsealed: "Only a sealed run can be written as a baseline",
+    traceErrDefinitionRead: "Could not read test definition {{file}}: {{detail}}",
+    traceErrDefinitionJson: "Test definition {{file}} is not valid JSON: {{detail}}",
+    traceErrDefinitionInvalid:
+      "Test definition {{file}} is structurally invalid: {{path}} ({{issue}})",
+    traceErrDirectoryRead: "Could not read the test directory {{dir}}: {{detail}}",
+    traceErrNoDefinitions: "No *.json test definitions found under {{dir}}",
+    traceErrTraceRead: "Could not read the trace ({{path}}): {{detail}}",
+    traceErrCassetteToolCall:
+      "Cassette is corrupt: recorded tool_call {{index}} is structurally invalid ({{detail}}); re-record the baseline",
+    traceErrCassetteEmpty:
+      "The recorded trace has no llm.call span, so there is no cassette material (proxy-recorded runs must use the static assertion path)",
+    traceErrCassetteMessages:
+      "The first llm.call's recorded messages are structurally invalid: {{detail}}",
   },
 } satisfies ResourceShape;

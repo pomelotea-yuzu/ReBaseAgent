@@ -2,12 +2,47 @@ import type { SpanLine } from "@rebaseagent/trace-sdk";
 import type { Assertion, Selector } from "./definition.js";
 import { deepEqual, formatValue } from "./format.js";
 
+/** 人类报告用的结构化差异；不进入 JSON 报告（detail 字段才是机器契约） */
+export type AssertionDisplay =
+  | { readonly kind: "outcome"; readonly expected: string; readonly actual: string | null }
+  | { readonly kind: "no-span"; readonly selector: string }
+  | { readonly kind: "nth"; readonly nth: number; readonly total: number }
+  | {
+      readonly kind: "field-missing";
+      readonly index: number;
+      readonly spanKind: string;
+      readonly where: string;
+      readonly id: string;
+      readonly field: string;
+    }
+  | {
+      readonly kind: "field-mismatch";
+      readonly index: number;
+      readonly spanKind: string;
+      readonly where: string;
+      readonly id: string;
+      readonly field: string;
+      readonly expected: string;
+      readonly actual: string;
+    }
+  | {
+      readonly kind: "count";
+      readonly count: number;
+      readonly constraint: "equals" | "min" | "max";
+      readonly value: number;
+      readonly selector: string;
+    }
+  | { readonly kind: "shape"; readonly index: number; readonly field: string }
+  | { readonly kind: "shape-failed" };
+
 /** 单条断言的求值结果（断言失败是数据，不是异常） */
 export interface AssertionResult {
   type: Assertion["type"];
   passed: boolean;
-  /** 失败（或值得说明）时的定位与差异摘要；已脱敏、已截断 */
+  /** 失败（或值得说明）时的定位与差异摘要；已脱敏、已截断；JSON 报告的既有字段 */
   detail: string;
+  /** 人类报告的结构化投影；序列化报告必须省略本字段 */
+  display?: AssertionDisplay;
 }
 
 /** selector 各条件 AND 叠加，返回语义序下的命中集合 */
@@ -45,14 +80,16 @@ function fieldAt(span: SpanLine, path: string): unknown {
   return cur;
 }
 
+function spanWhere(span: SpanLine): string {
+  return span.kind === "tool.invoke"
+    ? `tool=${span.tool}`
+    : span.kind === "agent.step"
+      ? `n=${span.n}`
+      : "llm.call";
+}
+
 function describeSpan(span: SpanLine, index: number): string {
-  const where =
-    span.kind === "tool.invoke"
-      ? `tool=${span.tool}`
-      : span.kind === "agent.step"
-        ? `n=${span.n}`
-        : "llm.call";
-  return `第 ${index} 个 span（${span.kind}, ${where}, id=${span.id}）`;
+  return `第 ${index} 个 span（${span.kind}, ${spanWhere(span)}, id=${span.id}）`;
 }
 
 /** 字段值格式化：字段末段 key 命中 redact 列表时整个值掩码（值本身可能就是敏感原文） */
@@ -98,6 +135,9 @@ function evaluateOne(
         detail: passed
           ? `outcome=${outcome}`
           : `终止 reason 不同：期望 "${assertion.equals}"，实际 "${outcome ?? "<无>"}"`,
+        ...(passed
+          ? {}
+          : { display: { kind: "outcome", expected: assertion.equals, actual: outcome ?? null } }),
       };
     }
 
@@ -110,6 +150,14 @@ function evaluateOne(
         detail: passed
           ? `命中 ${matches.length} 个 span`
           : `无匹配 span（selector=${formatValue(assertion.selector, redactKeys)}）；缺失匹配即失败`,
+        ...(passed
+          ? {}
+          : {
+              display: {
+                kind: "no-span",
+                selector: formatValue(assertion.selector, redactKeys),
+              },
+            }),
       };
     }
 
@@ -120,6 +168,10 @@ function evaluateOne(
           type: assertion.type,
           passed: false,
           detail: `无匹配 span（selector=${formatValue(assertion.selector, redactKeys)}）；缺失匹配即失败`,
+          display: {
+            kind: "no-span",
+            selector: formatValue(assertion.selector, redactKeys),
+          },
         };
       }
       const quantifier = assertion.quantifier ?? "all";
@@ -135,6 +187,11 @@ function evaluateOne(
           type: assertion.type,
           passed: false,
           detail: `quantifier=nth（第 ${assertion.nth} 个）越界：命中总数 ${matches.length}`,
+          display: {
+            kind: "nth",
+            nth: assertion.nth ?? 1,
+            total: matches.length,
+          },
         };
       }
 
@@ -147,6 +204,14 @@ function evaluateOne(
             type: assertion.type,
             passed: false,
             detail: `${describeSpan(span, spanIndex)} 不存在字段 "${assertion.field}"`,
+            display: {
+              kind: "field-missing",
+              index: spanIndex,
+              spanKind: span.kind,
+              where: spanWhere(span),
+              id: span.id,
+              field: assertion.field,
+            },
           };
         }
         if (!deepEqual(value, assertion.equals)) {
@@ -154,6 +219,16 @@ function evaluateOne(
             type: assertion.type,
             passed: false,
             detail: `${describeSpan(span, spanIndex)} 字段 "${assertion.field}" 不相等：期望 ${formatFieldValue(assertion.equals, assertion.field, redactKeys)}，实际 ${formatFieldValue(value, assertion.field, redactKeys)}`,
+            display: {
+              kind: "field-mismatch",
+              index: spanIndex,
+              spanKind: span.kind,
+              where: spanWhere(span),
+              id: span.id,
+              field: assertion.field,
+              expected: formatFieldValue(assertion.equals, assertion.field, redactKeys),
+              actual: formatFieldValue(value, assertion.field, redactKeys),
+            },
           };
         }
       }
@@ -170,20 +245,23 @@ function evaluateOne(
     case "span.count": {
       const matches = matchSpans(spans, assertion.selector);
       const count = matches.length;
-      const constraints: string[] = [];
       let passed = true;
       let why = "";
+      let constraint: { kind: "equals" | "min" | "max"; value: number } | null = null;
       if (assertion.equals !== undefined && count !== assertion.equals) {
         passed = false;
         why = `期望恰好 ${assertion.equals} 个`;
+        constraint = { kind: "equals", value: assertion.equals };
       }
       if (assertion.min !== undefined && count < assertion.min) {
         passed = false;
         why = `期望至少 ${assertion.min} 个`;
+        constraint = { kind: "min", value: assertion.min };
       }
       if (assertion.max !== undefined && count > assertion.max) {
         passed = false;
         why = `期望至多 ${assertion.max} 个`;
+        constraint = { kind: "max", value: assertion.max };
       }
       return {
         type: assertion.type,
@@ -191,6 +269,17 @@ function evaluateOne(
         detail: passed
           ? `命中 ${count} 个 span，满足数量约束`
           : `命中 ${count} 个 span，${why}（selector=${formatValue(assertion.selector, redactKeys)}）`,
+        ...(constraint === null
+          ? {}
+          : {
+              display: {
+                kind: "count" as const,
+                count,
+                constraint: constraint.kind,
+                value: constraint.value,
+                selector: formatValue(assertion.selector, redactKeys),
+              },
+            }),
       };
     }
 

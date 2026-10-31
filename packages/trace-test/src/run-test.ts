@@ -65,9 +65,7 @@ export async function runTraceTest(
   const record = loadTrace(tracePath);
 
   if (record.status !== "completed") {
-    throw new TraceTestConfigError(
-      `trace ${tracePath} 未封存（缺少终止事件），不能作为测试基线。请使用完整结束的 run。`,
-    );
+    throw new TraceTestConfigError("TRACE_UNSEALED_PATH", { trace: tracePath });
   }
 
   const staticOnly = record.meta.source?.kind === "proxy" || record.meta.config_hash === undefined;
@@ -78,10 +76,7 @@ export async function runTraceTest(
 
   if (staticOnly) {
     if (shapeAssertion !== undefined && shapeAssertion.enabled !== false) {
-      throw new TraceTestConfigError(
-        "该 trace 为代理录制 run 或缺少 loop 配置，不支持卡带重跑与结构对齐。" +
-          "请在定义中移除 trace.shape 断言，只保留静态断言（run.outcome / span.*）。",
-      );
+      throw new TraceTestConfigError("STATIC_SHAPE_UNSUPPORTED");
     }
     return runStaticAssertions(
       definition,
@@ -109,10 +104,15 @@ export async function runTraceTest(
 
   // 默认结构对齐：未显式关闭时，对齐失败即测试失败（首个不匹配 span 定位）
   if (shapeEnabled && !result.alignment.aligned) {
+    const mismatch = result.alignment.mismatch;
     assertionResults.unshift({
       type: "trace.shape",
       passed: false,
-      detail: result.alignment.mismatch?.detail ?? "结构对齐失败",
+      detail: mismatch?.detail ?? "结构对齐失败",
+      display:
+        mismatch === null
+          ? { kind: "shape-failed" }
+          : { kind: "shape", index: mismatch.index, field: mismatch.field },
     });
   }
   if (shapeAssertion !== undefined) {
@@ -125,6 +125,18 @@ export async function runTraceTest(
         detail: result.alignment.aligned
           ? `结构对齐通过（${result.alignment.comparedSpanCount} 个 span）`
           : (result.alignment.mismatch?.detail ?? "结构对齐失败"),
+        ...(result.alignment.aligned
+          ? {}
+          : {
+              display:
+                result.alignment.mismatch === null
+                  ? ({ kind: "shape-failed" } as const)
+                  : ({
+                      kind: "shape",
+                      index: result.alignment.mismatch.index,
+                      field: result.alignment.mismatch.field,
+                    } as const),
+            }),
       });
     }
   }
@@ -200,7 +212,7 @@ export function exitCodeFor(results: TestResult[], configErrors: number): 0 | 1 
  */
 export function writeTraceBaseline(tracePath: string, record: RunRecord): string {
   if (record.status !== "completed" || record.events.length === 0) {
-    throw new TraceTestConfigError("只有已封存的 run 才能作为基线写入");
+    throw new TraceTestConfigError("BASELINE_UNSEALED");
   }
   const lines = [
     JSON.stringify(record.meta),

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T06:16:49.224Z",
+  "generatedAt": "2026-10-31T07:06:22.499Z",
   "scanner": "scripts/i18n-attribution.cjs",
   "method": "AST 扫描 desktop 三层 ASCII-only 字符串/JSX 文本，按 UI 角色过滤 className/CSS/技术值；正则只作候选发现，逐条人工复核后才进入迁移范围。",
   "candidates": [

@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { TraceTestConfigError } from "../src/errors.js";
 import { discoverDefinitions, loadDefinition, resolveTracePath } from "../src/loader.js";
+import { expectConfigError } from "./helpers.js";
 
 const tempDirs: string[] = [];
 function makeTempDir(): string {
@@ -38,7 +39,8 @@ describe("loadDefinition", () => {
     const dir = makeTempDir();
     const file = join(dir, "v2.json");
     writeFileSync(file, JSON.stringify({ format_version: 9, name: "x", trace: "t" }), "utf8");
-    expect(() => loadDefinition(file)).toThrow(/v2\.json/);
+    const invalid = expectConfigError(() => loadDefinition(file), "DEFINITION_INVALID");
+    expect(invalid.params.file).toBe("v2.json");
 
     const file2 = join(dir, "missing.json");
     writeFileSync(file2, JSON.stringify({ format_version: 1 }), "utf8");

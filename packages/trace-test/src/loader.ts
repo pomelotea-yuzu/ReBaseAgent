@@ -11,22 +11,28 @@ export function loadDefinition(file: string): TraceTestDefinition {
   try {
     raw = readFileSync(file, "utf8");
   } catch (e) {
-    throw new TraceTestConfigError(`无法读取测试定义 ${file}：${(e as Error).message}`);
+    throw new TraceTestConfigError("DEFINITION_READ_FAILED", { file }, (e as Error).message);
   }
   let json: unknown;
   try {
     json = JSON.parse(raw);
   } catch (e) {
     throw new TraceTestConfigError(
-      `测试定义 ${basename(file)} 不是合法 JSON：${(e as Error).message}`,
+      "DEFINITION_INVALID_JSON",
+      { file: basename(file) },
+      (e as Error).message,
     );
   }
   const parsed = TraceTestDefinitionSchema.safeParse(json);
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
-    throw new TraceTestConfigError(
-      `测试定义 ${basename(file)} 结构非法：${issue?.path.join(".") || "定义"} ${issue?.message ?? ""}（不支持的 format_version 也会在此被拒绝）`,
-    );
+    const issueKey =
+      issue !== undefined && /^[A-Z][A-Z0-9_]+$/.test(issue.message) ? issue.message : issue?.code;
+    throw new TraceTestConfigError("DEFINITION_INVALID", {
+      file: basename(file),
+      path: issue?.path.join(".") || "(root)",
+      issue: issueKey ?? "unknown",
+    });
   }
   return parsed.data;
 }
@@ -55,11 +61,11 @@ export function discoverDefinitions(dir: string): string[] {
       .map((e) => String(e))
       .filter((p) => p.endsWith(".json") && !p.includes("node_modules"));
   } catch (e) {
-    throw new TraceTestConfigError(`无法读取测试目录 ${dir}：${(e as Error).message}`);
+    throw new TraceTestConfigError("DIRECTORY_READ_FAILED", { dir }, (e as Error).message);
   }
   const files = entries.map((p) => join(dir, p)).sort();
   if (files.length === 0) {
-    throw new TraceTestConfigError(`测试目录 ${dir} 下没有找到任何 *.json 测试定义`);
+    throw new TraceTestConfigError("NO_DEFINITIONS", { dir });
   }
   return files;
 }
@@ -69,6 +75,6 @@ export function loadTrace(tracePath: string): RunRecord {
   try {
     return readRun(tracePath);
   } catch (e) {
-    throw new TraceTestConfigError(`读取 trace 失败（${tracePath}）：${(e as Error).message}`);
+    throw new TraceTestConfigError("TRACE_READ_FAILED", { path: tracePath }, (e as Error).message);
   }
 }

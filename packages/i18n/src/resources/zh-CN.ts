@@ -2457,6 +2457,79 @@ export const zhCN = {
     localeMissingValue: "语言参数缺值：--locale 需要 zh-CN 或 en-US",
     localeUnsupportedValue: "语言参数不支持：--locale 只接受 zh-CN 或 en-US",
     localeInvalidEnvValue: "环境变量 REBASEAGENT_LOCALE 不支持：只接受 zh-CN 或 en-US",
+    traceUsage:
+      "用法：rebaseagent-trace-test [definition.json | tests-dir] --config config.mjs [--locale zh-CN|en-US] [--report json] [--update-baseline]\n\n" +
+      "  --config file         必填。用户代码模块，default 导出 { config: RunConfig, tools: Tool[] }\n" +
+      "  --locale zh-CN|en-US  人类可读输出的语言；默认按 REBASEAGENT_LOCALE、系统语言、en-US 解析\n" +
+      "  --report json         输出稳定 JSON 报告（默认输出人类可读文本）\n" +
+      "  --update-baseline     显式把卡带重跑的新轨迹写回 trace 路径（失败时绝不静默覆盖）\n\n" +
+      "退出码：0=全部通过 / 1=有断言失败 / 2=有配置错误。",
+    traceUnknownArgument: "未知参数：{{arg}}",
+    traceMissingArguments: "缺少测试目标或 --config 参数",
+    traceConfigLoad: "配置错误：无法加载配置模块（{{detail}}）",
+    traceConfigModuleShape: "配置模块需 default 导出 { config, tools }",
+    traceConfigError: "配置错误：{{detail}}",
+    traceRunError: "运行错误：{{detail}}",
+    tracePrivacy:
+      "[privacy] trace 可能包含完整 prompt、模型响应与工具参数；提交进仓库前请脱敏或重录。",
+    traceStatusPassed: "通过",
+    traceStatusFailed: "失败",
+    traceDriftBadgeConfig: "配置漂移",
+    traceDriftBadgeRequest: "请求漂移×{{count}}",
+    traceDriftBadgeArgs: "参数漂移×{{count}}",
+    traceDriftConfigLine:
+      "      ⚠ 配置漂移：recorded={{recorded}} current={{current}}（卡带响应可能已不能代表新配置下的模型行为，建议重录基线）",
+    traceDriftRequestLine:
+      '      ⚠ 请求漂移：第 {{call}} 次调用 · 第 {{index}} 条消息结构不同：录制="{{recorded}}"，当前="{{current}}"',
+    traceDriftRequestSummary: "      ⚠ 存在请求漂移：建议重录基线以反映当前输入结构。",
+    traceDriftArgsLine:
+      "      ⚠ 参数漂移：{{tool}} 第 {{sequence}} 次调用 args 形状不同：录制={{recorded}}，当前={{current}}",
+    traceBaselineUpdated: "[baseline] 已更新基线：{{path}}",
+    traceSummary: "合计 {{total}}：{{passed}} 通过 / {{failed}} 失败 / {{configErrors}} 配置错误",
+    traceAssertOutcome: '终止 reason 不同：期望 "{{expected}}"，实际 "{{actual}}"',
+    traceAssertActualNone: "（无）",
+    traceAssertNoSpan: "无匹配 span（selector={{selector}}）；缺失匹配即失败",
+    traceAssertNth: "quantifier=nth（第 {{nth}} 个）越界：命中总数 {{total}}",
+    traceAssertFieldMissing:
+      '第 {{index}} 个 span（{{kind}}, {{where}}, id={{id}}）不存在字段 "{{field}}"',
+    traceAssertFieldMismatch:
+      '第 {{index}} 个 span（{{kind}}, {{where}}, id={{id}}）字段 "{{field}}" 不相等：期望 {{expected}}，实际 {{actual}}',
+    traceAssertCountEquals:
+      "命中 {{count}} 个 span，期望恰好 {{value}} 个（selector={{selector}}）",
+    traceAssertCountMin: "命中 {{count}} 个 span，期望至少 {{value}} 个（selector={{selector}}）",
+    traceAssertCountMax: "命中 {{count}} 个 span，期望至多 {{value}} 个（selector={{selector}}）",
+    traceAssertShapeMismatch: "结构对齐失败：第 {{index}} 个 span 的 {{field}} 不一致",
+    traceAssertShapeFailed: "结构对齐失败",
+    traceErrTraceUnsealed: "trace 未封存（缺少终止事件），不能作为测试基线。请使用完整结束的 run。",
+    traceErrTraceUnsealedPath:
+      "trace {{trace}} 未封存（缺少终止事件），不能作为测试基线。请使用完整结束的 run。",
+    traceErrStaticShape:
+      "该 trace 为代理录制 run 或缺少 loop 配置，不支持卡带重跑与结构对齐。请在定义中移除 trace.shape 断言，只保留静态断言（run.outcome / span.*）。",
+    traceErrProxy:
+      "代理录制的 run（meta.source.kind=proxy）没有完整的 loop 配置与多轮轨迹，不支持卡带重跑——单次响应回放不构成运行时回归测试。仅允许显式静态断言。",
+    traceErrMissingConfigHash:
+      "录制 trace 缺少 config_hash（无 loop 配置证据），不支持卡带重跑。仅允许显式静态断言。",
+    traceErrCassetteExhausted:
+      "卡带耗尽：当前代码的 LLM 调用次数多于录制。若属预期的行为变化，请重录基线；否则检查循环终止条件是否被改坏。",
+    traceErrCassetteExhaustedAt:
+      "卡带耗尽：第 {{call}} 次 LLM 调用没有录制响应（录制共 {{total}} 次）。当前代码的 LLM 调用次数多于录制——若属预期的行为变化，请重录基线。",
+    traceErrCassetteRemaining:
+      "卡带有剩余：录制 {{total}} 次 LLM 调用，重跑只消费 {{consumed}} 次（当前 run 提前终止）。若属预期的行为变化，请重录基线。",
+    traceErrToolOverflow: "工具调用次数超出录制：{{tools}}。请重录基线。",
+    traceErrToolNotDeclared:
+      "当前工具表与录制不兼容：录制中使用的工具 {{tools}} 不在当前工具声明中。请补齐工具声明，或重录基线。",
+    traceErrBaselineUnsealed: "只有已封存的 run 才能作为基线写入",
+    traceErrDefinitionRead: "无法读取测试定义 {{file}}：{{detail}}",
+    traceErrDefinitionJson: "测试定义 {{file}} 不是合法 JSON：{{detail}}",
+    traceErrDefinitionInvalid: "测试定义 {{file}} 结构非法：{{path}}（{{issue}}）",
+    traceErrDirectoryRead: "无法读取测试目录 {{dir}}：{{detail}}",
+    traceErrNoDefinitions: "测试目录 {{dir}} 下没有找到任何 *.json 测试定义",
+    traceErrTraceRead: "读取 trace 失败（{{path}}）：{{detail}}",
+    traceErrCassetteToolCall:
+      "卡带损坏：第 {{index}} 条录制 tool_call 结构非法（{{detail}}），请重录基线",
+    traceErrCassetteEmpty:
+      "录制 trace 中没有任何 llm.call span，无卡带素材可用（代理录制的 run 请走静态断言路径）",
+    traceErrCassetteMessages: "首个 llm.call 的录制 messages 结构非法：{{detail}}",
   },
 } as const;
 

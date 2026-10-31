@@ -3,20 +3,29 @@
  * trace-test CLI（3.2，CI-only 入口）。
  *
  * 用法：
- *   rebaseagent-trace-test <definition.json | tests-dir> --config <config.mjs> [选项]
+ *   rebaseagent-trace-test [definition.json | tests-dir] --config config.mjs [选项]
  *
  * 选项：
- *   --config <file>       必填。用户代码模块，default 导出 { config: RunConfig, tools: Tool[] }
+ *   --config file         必填。用户代码模块，default 导出 { config: RunConfig, tools: Tool[] }
+ *   --locale zh-CN|en-US  人类可读输出的语言（默认按 REBASEAGENT_LOCALE、系统语言、en-US）
  *   --report json         输出稳定 JSON 报告（默认输出人类可读文本）
- *   --update-baseline     显式把卡带重跑的新轨迹写回 trace 路径（3.3；失败时绝不静默覆盖）
+ *   --update-baseline     显式把卡带重跑的新轨迹写回 trace 路径（失败时绝不静默覆盖）
  *
  * 退出码：0=全部通过 / 1=有断言失败 / 2=有配置错误。
  *
  * 隐私警告：trace 含完整 prompt、模型响应与工具参数——提交进仓库前务必脱敏或重录。
+ * JSON 模式下 stdout 只有一份可解析报告；隐私/配置错误/baseline 反馈一律走 stderr。
  */
 import { pathToFileURL } from "node:url";
+import {
+  CLI_LOCALE_EXIT_CODE,
+  type Translator,
+  createTranslator,
+  hostIntlLocale,
+  resolveCliLocale,
+} from "@rebaseagent/i18n";
 import { TraceTestConfigError } from "./errors.js";
-import { formatValue } from "./format.js";
+import { configErrorText, humanReportLines } from "./report.js";
 import { type TestResult, exitCodeFor, runTraceTests, writeTraceBaseline } from "./run-test.js";
 
 interface CliArgs {
@@ -26,7 +35,12 @@ interface CliArgs {
   updateBaseline: boolean;
 }
 
-function parseArgs(argv: string[]): CliArgs {
+function printUsageAndExit(code: 0 | 2, translator: Translator): never {
+  console.log(translator.t("cli.traceUsage"));
+  process.exit(code);
+}
+
+function parseArgs(argv: string[], translator: Translator): CliArgs {
   const args: CliArgs = {
     target: "",
     configModule: null,
@@ -35,32 +49,29 @@ function parseArgs(argv: string[]): CliArgs {
   };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
-    if (arg === "--config") {
+    if (arg === "--locale") {
+      // 值在进入 main 之前已由共享解析器校验；这里只跳过参数对。
+      i += 1;
+    } else if (arg === "--config") {
       args.configModule = argv[++i] ?? null;
     } else if (arg === "--report") {
       args.reportJson = (argv[++i] ?? "") === "json";
     } else if (arg === "--update-baseline") {
       args.updateBaseline = true;
     } else if (arg === "--help" || arg === "-h") {
-      printUsageAndExit(0);
+      printUsageAndExit(0, translator);
     } else if (!arg.startsWith("--") && args.target === "") {
       args.target = arg;
     } else {
-      console.error(`未知参数：${arg}`);
-      printUsageAndExit(2);
+      console.error(translator.t("cli.traceUnknownArgument", { arg }));
+      printUsageAndExit(2, translator);
     }
   }
   if (args.target === "" || args.configModule === null) {
-    printUsageAndExit(2);
+    console.error(translator.t("cli.traceMissingArguments"));
+    printUsageAndExit(2, translator);
   }
   return args;
-}
-
-function printUsageAndExit(code: 0 | 2): never {
-  console.log(
-    "用法：trace-test <definition.json | tests-dir> --config <config.mjs> [--report json] [--update-baseline]",
-  );
-  process.exit(code);
 }
 
 interface ConfigModule {
@@ -68,18 +79,19 @@ interface ConfigModule {
   tools: Parameters<typeof runTraceTests>[1]["tools"];
 }
 
-async function main(): Promise<never | undefined> {
-  const args = parseArgs(process.argv.slice(2));
+async function main(argv: string[], translator: Translator): Promise<never | undefined> {
+  const args = parseArgs(argv, translator);
 
   let configModule: ConfigModule;
   try {
     const mod = await import(pathToFileURL(args.configModule as string).href);
     configModule = (mod.default ?? mod) as ConfigModule;
-    if (configModule.config === undefined || configModule.tools === undefined) {
-      throw new Error("配置模块需 default 导出 { config, tools }");
-    }
   } catch (e) {
-    console.error(`配置错误：无法加载配置模块 ${(e as Error).message}`);
+    console.error(translator.t("cli.traceConfigLoad", { detail: (e as Error).message }));
+    process.exit(2);
+  }
+  if (configModule.config === undefined || configModule.tools === undefined) {
+    console.error(translator.t("cli.traceConfigModuleShape"));
     process.exit(2);
   }
 
@@ -95,16 +107,18 @@ async function main(): Promise<never | undefined> {
       results.push(result);
       if (args.updateBaseline && result.mode === "cassette" && result.newRecord !== null) {
         const written = writeTraceBaseline(result.tracePath, result.newRecord);
-        console.log(`[baseline] 已更新基线：${written}`);
+        // C04：baseline 反馈只走 stderr，JSON 模式下 stdout 仍是单份报告。
+        process.stderr.write(`${translator.t("cli.traceBaselineUpdated", { path: written })}\n`);
       }
     }
   } catch (e) {
+    configErrors += 1;
     if (e instanceof TraceTestConfigError) {
-      configErrors += 1;
-      console.error(`配置错误：${e.message}`);
+      console.error(
+        translator.t("cli.traceConfigError", { detail: configErrorText(e, translator) }),
+      );
     } else {
-      configErrors += 1;
-      console.error(`运行错误：${(e as Error).message}`);
+      console.error(translator.t("cli.traceRunError", { detail: (e as Error).message }));
     }
   }
 
@@ -118,46 +132,13 @@ async function main(): Promise<never | undefined> {
     };
     console.log(JSON.stringify({ summary, results: results.map(toJsonResult) }, null, 2));
   } else {
-    // 人类可读文本报告；隐私警告始终输出（trace 含完整 prompt/响应/工具参数）
-    console.warn(
-      "[privacy] trace 可能包含完整 prompt、模型响应与工具参数；提交进仓库前请脱敏或重录。",
-    );
-    for (const r of results) {
-      const drift = driftBadge(r);
-      console.log(`${r.status === "passed" ? "PASS" : "FAIL"}  ${r.name} (${r.mode})${drift}`);
-      for (const a of r.assertions) {
-        if (!a.passed) {
-          console.log(`      ✗ ${a.type}: ${a.detail}`);
-        }
-      }
-      if (r.configDrift !== null) {
-        console.log(
-          `      ⚠ config drift：recorded=${r.configDrift.recorded} current=${r.configDrift.current}（卡带响应可能已不能代表新配置下的模型行为，建议重录基线）`,
-        );
-      }
-      if (r.requestDrift.length > 0) {
-        for (const d of r.requestDrift) {
-          console.log(`      ⚠ request drift：第 ${d.callIndex + 1} 次调用 ${d.detail}`);
-        }
-        console.log("      ⚠ 存在请求漂移：建议重录基线以反映当前输入结构。");
-      }
-      for (const d of r.argsDrift) {
-        console.log(
-          `      ⚠ args drift：${d.tool} 第 ${d.sequence} 次调用 args 形状不同：` +
-            `录制=${formatValue(d.recordedArgs, r.redact)}，当前=${formatValue(d.currentArgs, r.redact)}`,
-        );
-      }
+    // 隐私警告始终走 stderr；人类报告正文走 stdout。
+    console.warn(translator.t("cli.tracePrivacy"));
+    for (const line of humanReportLines(results, configErrors, translator)) {
+      console.log(line);
     }
   }
   process.exit(exitCodeFor(results, configErrors));
-}
-
-function driftBadge(r: TestResult): string {
-  const parts: string[] = [];
-  if (r.configDrift !== null) parts.push("config-drift");
-  if (r.requestDrift.length > 0) parts.push(`request-drift×${r.requestDrift.length}`);
-  if (r.argsDrift.length > 0) parts.push(`args-drift×${r.argsDrift.length}`);
-  return parts.length > 0 ? `  ⚠[${parts.join(", ")}]` : "";
 }
 
 function toJsonResult(r: TestResult) {
@@ -169,14 +150,30 @@ function toJsonResult(r: TestResult) {
     definition: r.definitionPath,
     trace: r.tracePath,
     config_drift: r.configDrift,
-    request_drift: r.requestDrift,
+    // 只保留既有字段：display 是人类报告投影，不得进入 JSON 契约。
+    request_drift: r.requestDrift.map((drift) => ({
+      callIndex: drift.callIndex,
+      firstDiff: drift.firstDiff,
+      detail: drift.detail,
+    })),
     args_drift: r.argsDrift,
     alignment: r.alignment,
     assertions: r.assertions.map((a) => ({ type: a.type, passed: a.passed, detail: a.detail })),
   };
 }
 
-main().catch((e: Error) => {
-  console.error(`运行错误：${e.message}`);
-  process.exit(2);
+const argv = process.argv.slice(2);
+const localeOutcome = resolveCliLocale({
+  argv,
+  env: process.env,
+  intlLocale: hostIntlLocale(),
 });
+
+if (!localeOutcome.ok) {
+  const translator = createTranslator({ locale: localeOutcome.messageLocale });
+  process.stderr.write(`${localeOutcome.code}: ${translator.t(localeOutcome.messageKey)}\n`);
+  process.exitCode = CLI_LOCALE_EXIT_CODE;
+} else {
+  const translator = createTranslator({ locale: localeOutcome.locale });
+  await main(argv, translator);
+}

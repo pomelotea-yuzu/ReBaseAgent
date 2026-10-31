@@ -281,6 +281,9 @@ importers:
       '@rebaseagent/agent-loop':
         specifier: workspace:*
         version: link:../agent-loop
+      '@rebaseagent/i18n':
+        specifier: workspace:*
+        version: link:../i18n
       '@rebaseagent/trace-sdk':
         specifier: workspace:*
         version: link:../trace-sdk

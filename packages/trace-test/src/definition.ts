@@ -19,7 +19,7 @@ export const SelectorSchema = z
     n: z.number().int().positive().optional(),
     id: z.string().min(1).optional(),
   })
-  .refine((s) => Object.keys(s).length > 0, { message: "selector 至少要有一个条件" });
+  .refine((s) => Object.keys(s).length > 0, { message: "SELECTOR_EMPTY" });
 export type Selector = z.infer<typeof SelectorSchema>;
 
 export const RunOutcomeSchema = z.object({
@@ -80,7 +80,7 @@ export const AssertionSchema = z
     if (value.type === "span.field" && value.quantifier === "nth" && value.nth === undefined) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "quantifier=nth 需要提供 nth（第 n 个匹配，1 起）",
+        message: "SPAN_FIELD_NTH_REQUIRED",
       });
     }
     if (
@@ -91,7 +91,7 @@ export const AssertionSchema = z
     ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "span.count 需要至少一个数量约束（min/max/equals）",
+        message: "SPAN_COUNT_CONSTRAINT_REQUIRED",
       });
     }
   });

@@ -81,9 +81,9 @@ export class StubToolTable {
     const currentNames = new Set(currentTools.map((t) => t.name));
     const missing = [...this.recordedByTool.keys()].filter((name) => !currentNames.has(name));
     if (missing.length > 0) {
-      throw new TraceTestConfigError(
-        `当前工具表与录制不兼容：录制中使用的工具 ${missing.map((n) => `"${n}"`).join("、")} 不在当前工具声明中。请补齐工具声明，或重录基线。`,
-      );
+      throw new TraceTestConfigError("TOOL_NOT_DECLARED", {
+        tools: missing.map((n) => `"${n}"`).join(", "),
+      });
     }
 
     this.tools = currentTools.map((tool) => ({
@@ -105,8 +105,8 @@ export class StubToolTable {
         this.overflows.push(toolName);
       }
       throw new Error(
-        `桩工具卡带耗尽：工具 "${toolName}" 的第 ${sequence} 次调用没有录制结果` +
-          `（录制共 ${recorded.length} 次）。当前代码的调用次数多于录制，请重录基线。`,
+        `Stub cassette exhausted: tool "${toolName}" call ${sequence} has no recorded result ` +
+          `(${recorded.length} recorded). The current code calls it more often than the recording.`,
       );
     }
 

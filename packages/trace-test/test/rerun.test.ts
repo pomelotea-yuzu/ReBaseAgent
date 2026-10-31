@@ -74,7 +74,7 @@ describe("rerunWithCassette（headless 卡带重跑端到端）", () => {
         config: fakeConfig({ tools: [] }),
         tools: [],
       }),
-    ).rejects.toThrow(/与录制不兼容/);
+    ).rejects.toMatchObject({ code: "TOOL_NOT_DECLARED" });
   });
 
   it("当前 maxIterations 收紧 → 重跑提前终止，卡带有剩余 → 配置错误", async () => {
@@ -85,7 +85,7 @@ describe("rerunWithCassette（headless 卡带重跑端到端）", () => {
         config: fakeConfig({ maxIterations: 1 }),
         tools: fakeTools(),
       }),
-    ).rejects.toThrow(/卡带有剩余/);
+    ).rejects.toMatchObject({ code: "CASSETTE_REMAINING" });
   });
 
   it("代理录制的 run → 拒绝卡带重跑（不把单次响应伪装成回归测试）", async () => {
@@ -93,7 +93,7 @@ describe("rerunWithCassette（headless 卡带重跑端到端）", () => {
     record.meta.source = { kind: "proxy", base_url: "http://127.0.0.1:18787" };
     await expect(
       rerunWithCassette({ record, config: fakeConfig(), tools: fakeTools() }),
-    ).rejects.toThrow(/proxy|代理/);
+    ).rejects.toMatchObject({ code: "PROXY_UNSUPPORTED" });
   });
 
   it("未封存（crashed）的 trace → 配置错误", async () => {
@@ -102,7 +102,7 @@ describe("rerunWithCassette（headless 卡带重跑端到端）", () => {
     record.status = "crashed";
     await expect(
       rerunWithCassette({ record, config: fakeConfig(), tools: fakeTools() }),
-    ).rejects.toThrow(/未封存/);
+    ).rejects.toMatchObject({ code: "TRACE_UNSEALED" });
   });
 
   it("缺 config_hash 的 trace → 配置错误", async () => {
@@ -110,7 +110,7 @@ describe("rerunWithCassette（headless 卡带重跑端到端）", () => {
     record.meta.config_hash = undefined;
     await expect(
       rerunWithCassette({ record, config: fakeConfig(), tools: fakeTools() }),
-    ).rejects.toThrow(/config_hash/);
+    ).rejects.toMatchObject({ code: "MISSING_CONFIG_HASH" });
   });
 
   it("没有任何 llm.call 的 trace → 配置错误", async () => {
@@ -118,6 +118,6 @@ describe("rerunWithCassette（headless 卡带重跑端到端）", () => {
     record.spans = record.spans.filter((s) => s.kind !== "llm.call");
     await expect(
       rerunWithCassette({ record, config: fakeConfig(), tools: fakeTools() }),
-    ).rejects.toThrow(/llm\.call/);
+    ).rejects.toMatchObject({ code: "CASSETTE_EMPTY" });
   });
 });

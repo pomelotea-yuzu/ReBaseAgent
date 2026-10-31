@@ -2,7 +2,7 @@ import type { ToolInvokeSpan } from "@rebaseagent/trace-sdk";
 import { describe, expect, it } from "vitest";
 import { TraceTestConfigError } from "../src/errors.js";
 import { StubToolTable } from "../src/stub-tools.js";
-import { fakeTools, recordOfSpans, stepSpan } from "./helpers.js";
+import { expectConfigError, fakeTools, recordOfSpans, stepSpan } from "./helpers.js";
 
 function toolSpan(
   id: string,
@@ -73,8 +73,11 @@ describe("StubToolTable", () => {
       reason: "completed",
       at: 1,
     });
-    expect(() => new StubToolTable(fakeTools(), record)).toThrow(TraceTestConfigError);
-    expect(() => new StubToolTable(fakeTools(), record)).toThrow("delete_db");
+    const error = expectConfigError(
+      () => new StubToolTable(fakeTools(), record),
+      "TOOL_NOT_DECLARED",
+    );
+    expect(error.params.tools).toContain("delete_db");
   });
 
   it("调用次数超出录制 → 记入 overflows 并抛错", async () => {
@@ -86,7 +89,7 @@ describe("StubToolTable", () => {
     const read = stubs.tools.find((t) => t.name === "read_file");
     await read?.handler({ path: "a.json" }, { cwd: ".", signal: null });
     await expect(read?.handler({ path: "a.json" }, { cwd: ".", signal: null })).rejects.toThrow(
-      "桩工具卡带耗尽",
+      "Stub cassette exhausted",
     );
     expect(stubs.overflows).toEqual(["read_file"]);
   });

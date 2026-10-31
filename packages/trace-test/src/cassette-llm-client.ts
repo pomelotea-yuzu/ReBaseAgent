@@ -20,6 +20,8 @@ export interface RequestDrift {
   /** 首个差异的消息下标；长度不一致时为消息数较大者的越界位置 */
   firstDiff: number;
   detail: string;
+  /** 人类报告的结构化投影；JSON 报告只保留 callIndex/firstDiff/detail */
+  display?: { recorded: string | null; current: string | null };
 }
 
 /**
@@ -40,17 +42,22 @@ function structureOf(messages: Array<Message | ChatMessage>): string[] {
   });
 }
 
-function firstDiffIndex(a: string[], b: string[]): { at: number; detail: string } {
+function firstDiffIndex(
+  a: string[],
+  b: string[],
+): { at: number; detail: string; recorded: string | null; current: string | null } {
   const n = Math.max(a.length, b.length);
   for (let i = 0; i < n; i++) {
     if (a[i] !== b[i]) {
       return {
         at: i,
         detail: `第 ${i} 条消息结构不同：录制="${a[i] ?? "<无>"}"，当前="${b[i] ?? "<无>"}"`,
+        recorded: a[i] ?? null,
+        current: b[i] ?? null,
       };
     }
   }
-  return { at: -1, detail: "" };
+  return { at: -1, detail: "", recorded: null, current: null };
 }
 
 /** 把录制响应的 tool_calls（zod record 数组）校验并还原为协议 ToolCall */
@@ -59,7 +66,9 @@ function toToolCalls(recorded: Array<Record<string, unknown>>): ToolCall[] {
     const parsed = ToolCallSchema.safeParse(tc);
     if (!parsed.success) {
       throw new TraceTestConfigError(
-        `卡带损坏：第 ${i} 条录制 tool_call 结构非法（${parsed.error.issues[0]?.message ?? "unknown"}），请重录基线`,
+        "CASSETTE_TOOLCALL_INVALID",
+        { index: i },
+        parsed.error.issues[0]?.message ?? "unknown",
       );
     }
     return parsed.data;
@@ -122,14 +131,20 @@ export class CassetteLlmClient implements LlmClient {
   ): Promise<{ response: LlmResponse; requestBody: RequestBody }> {
     if (this.cursor >= this.recorded.length) {
       this.exhaustedFlag = true;
-      throw new TraceTestConfigError(
-        `卡带耗尽：第 ${this.cursor + 1} 次 LLM 调用没有录制响应（录制共 ${this.recorded.length} 次）。当前代码的 LLM 调用次数多于录制——若属预期的行为变化，请重录基线。`,
-      );
+      throw new TraceTestConfigError("CASSETTE_EXHAUSTED_AT", {
+        call: this.cursor + 1,
+        total: this.recorded.length,
+      });
     }
     const span = this.recorded[this.cursor];
     const diff = firstDiffIndex(structureOf(span.request.messages), structureOf(messages));
     if (diff.at >= 0) {
-      this.drift.push({ callIndex: this.cursor, firstDiff: diff.at, detail: diff.detail });
+      this.drift.push({
+        callIndex: this.cursor,
+        firstDiff: diff.at,
+        detail: diff.detail,
+        display: { recorded: diff.recorded, current: diff.current },
+      });
     }
     this.cursor += 1;
 
@@ -165,14 +180,14 @@ export function extractCassette(record: { spans: SpanLine[] }): {
 } {
   const llmSpans = record.spans.filter((s): s is LlmCallSpan => s.kind === "llm.call");
   if (llmSpans.length === 0) {
-    throw new TraceTestConfigError(
-      "录制 trace 中没有任何 llm.call span，无卡带素材可用（代理录制的 run 请走静态断言路径）",
-    );
+    throw new TraceTestConfigError("CASSETTE_EMPTY");
   }
   const parsed = MessageSchema.array().safeParse(llmSpans[0].request.messages);
   if (!parsed.success) {
     throw new TraceTestConfigError(
-      `首个 llm.call 的录制 messages 结构非法：${parsed.error.issues[0]?.message ?? "unknown"}`,
+      "CASSETTE_MESSAGES_INVALID",
+      {},
+      parsed.error.issues[0]?.message ?? "unknown",
     );
   }
   return { llmSpans, initialMessages: parsed.data };
