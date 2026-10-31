@@ -181,6 +181,8 @@ node scripts/i18n-attribution.cjs --compare-inventory --verify-boundaries
 
 4.2 迁移录制代理配置/接入说明、状态/错误与凭据边界：`recording-draft` 的端口/upstream 校验改稳定码（`RecordingFieldError`，store 只认码，视图按 translator 派生），`proxy-recovery-view` 接 translator 并把失败拆成**本地化摘要（按 PORT_UNAVAILABLE/LISTEN_FAILED/UNKNOWN 投影）+ 原始诊断**；`recordingStatusLines` 同样接 translator，诊断行按「摘要 → 原始诊断」分层。`RecordingWorkspaceView` 迁移配置区（启用意图/端口/上游/应用与字段错误）、真实状态区（意图/监听/恢复原因/凭据、只读重读、恢复中与失败处置、停止边界）、接入地址区（仅已核实监听可复制、复制零请求说明、不可用原因）与代理记录区；应用失败改为「稳定码摘要 + 原始说明 + 保存≠监听后果」。`RecordingWorkspace` 迁移框架标题/描述、初始化入口与放弃确认（含端口/upstream/启用意图原文）。store 增 `recordingApplyErrorCode`（信封稳定码；成功即清）。`packages/llm-proxy/src/server.ts`（监听启动失败/内部错误原文）与 main `classifyRecoveryFailure.message`（脱敏限长诊断）改判 original。机器清单 **1,563 处**（product 791 / original 687 / internal 81 / generated 4）：迁入资源 80 处、改判 original 4 处。收口门禁 `--final` 仍红 86 个 pending 文件（批次 1 余 46；录制工作区产品文案归零）。4.2 完成。
 
+4.3 迁移模型/代理设置校验、加密降级/清除与语言入口：`SettingsDialog` 迁移未保存关闭确认、跳转录制前确认、保存/回读失败反馈（本地化摘要 + 原始说明）、清除确认与成功/失败、明文降级与 safeStorage 提示、必填缺失提示、代理真实摘要与跳转入口及框架文案；新增 `LanguageSettings` 纯视图（跟随系统/简体中文/English、独立保存、保存中与失败提示、偏好文件损坏/未知版本的可关闭提示、切语言保留草稿/清未提交确认/不提交模型输入的帮助说明），接入设置对话框。store 的 settings/proxy 错误改为保留原始 detail，产品摘要由稳定码在展示层派生；main `settings.ts` 与 `config-endpoints.ts` 的诊断改判 original。机器清单 **1,514 处**（product 737 / original 692 / internal 81 / generated 4）：迁入资源 49 处、改判 original 5 处。收口门禁 `--final` 仍红 82 个 pending 文件（批次 1 余 45；设置工作区产品文案归零）。4.3 完成。
+
 ## 9. 局限
 
 - 工作区与批次按文件名近似，包层不能精确拆到单个工作区；迁移时以实际入口为准修正。

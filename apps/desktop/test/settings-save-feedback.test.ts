@@ -16,6 +16,11 @@ import { settingsDraftDirty } from "../src/renderer/src/lib/settings-form";
  * 禁用型断言先剥注释。
  */
 
+const ZH_RESOURCES = readFileSync(
+  resolve(import.meta.dirname, "../../../packages/i18n/src/resources/zh-CN.ts"),
+  "utf8",
+);
+
 const saved: SettingsState = {
   configured: true,
   baseURL: "https://api.deepseek.com/v1",
@@ -222,7 +227,8 @@ describe("5.4 单向 key 与不冒充连通（结构判据）", () => {
   it("设置对话框不冒充连通、不清调试草稿、防重入双保险、只读重试走读通道", () => {
     const src = codeOf("../src/renderer/src/components/SettingsDialog.tsx");
     // ① 反馈措辞：只称"已保存/回读"，不称连接测试/连接成功
-    expect(src).toContain("未发起任何连接测试");
+    expect(src).toContain('translator.t("settings.savedVerified")');
+    expect(ZH_RESOURCES).toContain("未发起任何连接测试");
     for (const forbidden of ["连接成功", "测试连接", "verifyConnection", "ping"]) {
       expect(src, forbidden).not.toContain(forbidden);
     }
@@ -230,8 +236,8 @@ describe("5.4 单向 key 与不冒充连通（结构判据）", () => {
     expect(
       src.match(/onClose=\{requestClose\}|onClick={requestClose}/g)?.length,
     ).toBeGreaterThanOrEqual(3);
-    expect(src).toContain("继续编辑");
-    expect(src).toContain("放弃修改并关闭");
+    expect(src).toContain('translator.t("settings.continueEditing")');
+    expect(src).toContain('translator.t("settings.discardClose")');
     // ③ 保存防重入：渲染期 canSave 含 busy，事件入口再挡一次
     expect(src).toContain("const canSave = missing.length === 0 && !busy");
     expect(src).toContain("if (busy || !canSave) return;");

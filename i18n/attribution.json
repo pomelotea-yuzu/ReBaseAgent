@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T02:47:41.853Z",
+  "generatedAt": "2026-10-31T03:15:22.753Z",
   "scanner": "scripts/i18n-attribution.cjs",
   "taxonomy": {
     "product": "产品展示：需要按批次迁移为双语资源",
@@ -9,10 +9,10 @@
     "generated": "生成资产：不作为产品文案"
   },
   "totals": {
-    "files": 179,
-    "occurrences": 1563,
-    "product": 791,
-    "original": 687,
+    "files": 177,
+    "occurrences": 1514,
+    "product": 737,
+    "original": 692,
     "internal": 81,
     "generated": 4
   },
@@ -20,15 +20,15 @@
     "main": {
       "files": 20,
       "occurrences": 131,
-      "product": 69,
-      "original": 60,
+      "product": 64,
+      "original": 65,
       "internal": 2,
       "generated": 0
     },
     "renderer": {
-      "files": 26,
-      "occurrences": 236,
-      "product": 192,
+      "files": 24,
+      "occurrences": 187,
+      "product": 143,
       "original": 12,
       "internal": 32,
       "generated": 0
@@ -152,17 +152,17 @@
       "layer": "main",
       "package": null,
       "workspace": "设置/配置",
-      "classification": "product",
-      "batch": 3,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "配置写通道的可信来源/判锁/写入失败原始诊断（含脱敏占位），渲染层按稳定码给出本地化摘要并作为原始详情展示",
       "symbols": [
         {
           "symbol": "rejectUntrusted",
           "role": "error_message",
           "context": "new Error",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "配置写通道的可信来源/判锁/写入失败原始诊断（含脱敏占位），渲染层按稳定码给出本地化摘要并作为原始详情展示",
           "count": 1,
           "samples": [
             "配置通道只接受本应用窗口主 frame 的调用"
@@ -175,8 +175,8 @@
           "symbol": "configurationBlock",
           "role": "error_message",
           "context": "new Error",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "配置写通道的可信来源/判锁/写入失败原始诊断（含脱敏占位），渲染层按稳定码给出本地化摘要并作为原始详情展示",
           "count": 1,
           "samples": [
             "配置变更被拒绝（${…}）：有主动操作或另一项配置变更正在进行"
@@ -189,8 +189,8 @@
           "symbol": "describeConfigFailure",
           "role": "call_arg",
           "context": "firstLine.split(secret).join",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "配置写通道的可信来源/判锁/写入失败原始诊断（含脱敏占位），渲染层按稳定码给出本地化摘要并作为原始详情展示",
           "count": 1,
           "samples": [
             "[已隐去]"
@@ -1061,17 +1061,17 @@
       "layer": "main",
       "package": null,
       "workspace": "设置/配置",
-      "classification": "product",
-      "batch": 3,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "main 设置存储的校验/读写失败原始说明，渲染层按稳定码给出本地化摘要并作为原始详情展示",
       "symbols": [
         {
           "symbol": "SettingsStore.load",
           "role": "error_message",
           "context": "new Error",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "main 设置存储的校验/读写失败原始说明，渲染层按稳定码给出本地化摘要并作为原始详情展示",
           "count": 1,
           "samples": [
             "settings.json 内容不完整（缺 baseURL/model/apiKey）"
@@ -1084,8 +1084,8 @@
           "symbol": "SettingsStore.save",
           "role": "error_message",
           "context": "new Error",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "main 设置存储的校验/读写失败原始说明，渲染层按稳定码给出本地化摘要并作为原始详情展示",
           "count": 1,
           "samples": [
             "apiKey 不能为空（清空请用“清除配置”）"
@@ -1669,388 +1669,6 @@
           ],
           "lines": [
             70
-          ]
-        }
-      ]
-    },
-    {
-      "path": "apps/desktop/src/renderer/src/components/SettingsDialog.tsx",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "设置",
-      "classification": "product",
-      "batch": 3,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "requestClose.title",
-          "role": "ui_prop",
-          "context": "title",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "运行配置有未保存修改"
-          ],
-          "lines": [
-            80
-          ]
-        },
-        {
-          "symbol": "requestClose.message",
-          "role": "ui_prop",
-          "context": "message",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "baseURL / apiKey / model 有未保存的修改。\n\n放弃会丢失这些未保存输入（含打过的密钥——它从未被写入）；已保存的配置、录制配置草稿与调试草稿不受影响。"
-          ],
-          "lines": [
-            82
-          ]
-        },
-        {
-          "symbol": "requestClose.confirmLabel",
-          "role": "ui_prop",
-          "context": "confirmLabel",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "放弃修改并关闭"
-          ],
-          "lines": [
-            83
-          ]
-        },
-        {
-          "symbol": "requestClose.cancelLabel",
-          "role": "ui_prop",
-          "context": "cancelLabel",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "继续编辑"
-          ],
-          "lines": [
-            84
-          ]
-        },
-        {
-          "symbol": "SettingsDialog.doSave",
-          "role": "ui_message",
-          "context": "setMessage",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "已保存并回读到配置状态（未发起任何连接测试）。此后“在此重跑”将使用该配置发起真实调用。",
-            "已保存，但配置状态回读失败：当前不展示任何配置摘要，可只读重试回读（不会重新保存）。"
-          ],
-          "lines": [
-            102,
-            108,
-            112
-          ]
-        },
-        {
-          "symbol": "SettingsDialog.doReread",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "配置状态已回读核实。",
-            "回读仍然失败（${…}）——这是只读通道，不涉及重新保存。"
-          ],
-          "lines": [
-            123,
-            124
-          ]
-        },
-        {
-          "symbol": "confirmed.title",
-          "role": "ui_prop",
-          "context": "title",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "清除运行配置"
-          ],
-          "lines": [
-            137
-          ]
-        },
-        {
-          "symbol": "confirmed.message",
-          "role": "ui_prop",
-          "context": "message",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "清除会删除已保存的配置：\n\n• apiKey（保存的凭据）一并删除，不可恢复\n• baseURL 与 model 回到未配置\n\n调试草稿与已有运行不受影响。"
-          ],
-          "lines": [
-            139
-          ]
-        },
-        {
-          "symbol": "confirmed.confirmLabel",
-          "role": "ui_prop",
-          "context": "confirmLabel",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "确认清除"
-          ],
-          "lines": [
-            140
-          ]
-        },
-        {
-          "symbol": "SettingsDialog.doClear",
-          "role": "ui_message",
-          "context": "setMessage",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "运行配置已清除。",
-            "清除失败"
-          ],
-          "lines": [
-            151,
-            153
-          ]
-        },
-        {
-          "symbol": "openRecordingFromSettings.title",
-          "role": "ui_prop",
-          "context": "title",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "设置有未保存修改"
-          ],
-          "lines": [
-            168
-          ]
-        },
-        {
-          "symbol": "openRecordingFromSettings.message",
-          "role": "ui_prop",
-          "context": "message",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "baseURL / apiKey / model 有未保存的修改，跳转录制前需要先处理。\n\n「继续编辑」留在设置（不发生任何代理应用调用）；「放弃并跳转」丢弃未保存输入（含打过的密钥——它从未被写入）"
-          ],
-          "lines": [
-            170
-          ]
-        },
-        {
-          "symbol": "openRecordingFromSettings.confirmLabel",
-          "role": "ui_prop",
-          "context": "confirmLabel",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "放弃并跳转录制"
-          ],
-          "lines": [
-            171
-          ]
-        },
-        {
-          "symbol": "openRecordingFromSettings.cancelLabel",
-          "role": "ui_prop",
-          "context": "cancelLabel",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "继续编辑"
-          ],
-          "lines": [
-            172
-          ]
-        },
-        {
-          "symbol": "SettingsDialog.ModalDialog",
-          "role": "ui_attr",
-          "context": "ariaLabel",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "运行配置"
-          ],
-          "lines": [
-            204
-          ]
-        },
-        {
-          "symbol": "div.div",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "运行配置（LLM 接入）",
-            "本地录制代理"
-          ],
-          "lines": [
-            209,
-            339,
-            354
-          ]
-        },
-        {
-          "symbol": "div.div",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "已配置 · 重跑将使用该接入点",
-            "尚未配置 · 重跑前必须完成"
-          ],
-          "lines": [
-            211
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "ui_attr",
-          "context": "aria-label",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "关闭"
-          ],
-          "lines": [
-            218
-          ]
-        },
-        {
-          "symbol": "label.input",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "留空表示保持已保存的密钥",
-            "必填"
-          ],
-          "lines": [
-            243
-          ]
-        },
-        {
-          "symbol": "ModalDialog.div",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 4,
-          "samples": [
-            "系统加密不可用：apiKey 将以明文保存在数据目录 settings.json 中。请仅在可信环境下使用。",
-            "apiKey 将经系统加密（safeStorage）后写入数据目录 settings.json。"
-          ],
-          "lines": [
-            265,
-            269,
-            297
-          ]
-        },
-        {
-          "symbol": "ModalDialog.button",
-          "role": "ui_attr",
-          "context": "title",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "只重发 settings:get 读取（不写任何东西）"
-          ],
-          "lines": [
-            282
-          ]
-        },
-        {
-          "symbol": "ModalDialog.button",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "重新读取配置状态"
-          ],
-          "lines": [
-            285
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "清除配置",
-            "关闭"
-          ],
-          "lines": [
-            310,
-            318,
-            363
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "保存中…",
-            "保存"
-          ],
-          "lines": [
-            328
-          ]
-        },
-        {
-          "symbol": "div.span",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "运行中 :${…}",
-            "已停止"
-          ],
-          "lines": [
-            350
           ]
         }
       ]
@@ -2892,94 +2510,6 @@
           ],
           "lines": [
             647
-          ]
-        }
-      ]
-    },
-    {
-      "path": "apps/desktop/src/renderer/src/store/slices/configuration.ts",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "通用外壳/组件",
-      "classification": "product",
-      "batch": 1,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "createConfigurationSlice.loadSettings",
-          "role": "error_message",
-          "context": "storeError",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "读取运行配置失败：${…}",
-            "运行配置数据结构校验失败：${…}"
-          ],
-          "lines": [
-            205,
-            215
-          ]
-        },
-        {
-          "symbol": "createConfigurationSlice.saveSettings",
-          "role": "error_message",
-          "context": "storeError",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "保存运行配置失败：${…}"
-          ],
-          "lines": [
-            229
-          ]
-        },
-        {
-          "symbol": "createConfigurationSlice.clearSettings",
-          "role": "error_message",
-          "context": "storeError",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "清除运行配置失败：${…}"
-          ],
-          "lines": [
-            248
-          ]
-        },
-        {
-          "symbol": "createConfigurationSlice.loadProxyStatus",
-          "role": "error_message",
-          "context": "storeError",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "读取代理状态失败：${…}",
-            "代理状态数据结构校验失败：${…}"
-          ],
-          "lines": [
-            306,
-            323
-          ]
-        },
-        {
-          "symbol": "createConfigurationSlice.toggleProxy",
-          "role": "error_message",
-          "context": "storeError",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "代理操作失败：${…}",
-            "代理状态数据结构校验失败：${…}"
-          ],
-          "lines": [
-            366,
-            375
           ]
         }
       ]

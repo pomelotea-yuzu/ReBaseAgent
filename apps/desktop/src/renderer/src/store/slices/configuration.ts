@@ -202,7 +202,7 @@ export function createConfigurationSlice({
       if (!envelope.ok) {
         set({
           settings: null,
-          ...storeError("UI_SETTINGS_LOAD_FAILED", `读取运行配置失败：${envelope.error.message}`),
+          ...storeError("UI_SETTINGS_LOAD_FAILED", envelope.error.message),
         });
         return false;
       }
@@ -210,11 +210,9 @@ export function createConfigurationSlice({
       if (!parsed.success) {
         set({
           settings: null,
-          ...storeError(
-            "UI_SETTINGS_INVALID",
-            `运行配置数据结构校验失败：${describeZodError(parsed.error)}`,
-            { id: "errors.invalidArgument" },
-          ),
+          ...storeError("UI_SETTINGS_INVALID", describeZodError(parsed.error), {
+            id: "errors.invalidArgument",
+          }),
         });
         return false;
       }
@@ -226,7 +224,7 @@ export function createConfigurationSlice({
       const envelope = await api.saveSettings(input);
       if (!envelope.ok) {
         set({
-          ...storeError("UI_SETTINGS_SAVE_FAILED", `保存运行配置失败：${envelope.error.message}`),
+          ...storeError("UI_SETTINGS_SAVE_FAILED", envelope.error.message),
         });
         return "save-failed";
       }
@@ -245,7 +243,7 @@ export function createConfigurationSlice({
       const envelope = await api.clearSettings();
       if (!envelope.ok) {
         set({
-          ...storeError("UI_SETTINGS_CLEAR_FAILED", `清除运行配置失败：${envelope.error.message}`),
+          ...storeError("UI_SETTINGS_CLEAR_FAILED", envelope.error.message),
         });
         return false;
       }
@@ -301,10 +299,7 @@ export function createConfigurationSlice({
         if (!envelope.ok) {
           set({
             proxy: null,
-            ...storeError(
-              "UI_PROXY_STATUS_LOAD_FAILED",
-              `读取代理状态失败：${envelope.error.message}`,
-            ),
+            ...storeError("UI_PROXY_STATUS_LOAD_FAILED", envelope.error.message),
             // U8 任务 2.5：回读失败如实呈现「状态待读取」，允许只读重试（不重新 toggle）
             recordingStatusReadFailed: true,
           });
@@ -318,11 +313,9 @@ export function createConfigurationSlice({
         if (!parsed.success) {
           set({
             proxy: null,
-            ...storeError(
-              "UI_PROXY_STATUS_INVALID",
-              `代理状态数据结构校验失败：${describeZodError(parsed.error)}`,
-              { id: "errors.invalidArgument" },
-            ),
+            ...storeError("UI_PROXY_STATUS_INVALID", describeZodError(parsed.error), {
+              id: "errors.invalidArgument",
+            }),
           });
           return;
         }
@@ -363,18 +356,16 @@ export function createConfigurationSlice({
       const envelope = await api.proxyToggle(input);
       if (!envelope.ok) {
         set({
-          ...storeError("UI_PROXY_TOGGLE_FAILED", `代理操作失败：${envelope.error.message}`),
+          ...storeError("UI_PROXY_TOGGLE_FAILED", envelope.error.message),
         });
         return null;
       }
       const parsed = ProxyStateSchema.safeParse(envelope.data);
       if (!parsed.success) {
         set({
-          ...storeError(
-            "UI_PROXY_STATUS_INVALID",
-            `代理状态数据结构校验失败：${describeZodError(parsed.error)}`,
-            { id: "errors.invalidArgument" },
-          ),
+          ...storeError("UI_PROXY_STATUS_INVALID", describeZodError(parsed.error), {
+            id: "errors.invalidArgument",
+          }),
         });
         return null;
       }

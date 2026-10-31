@@ -580,7 +580,9 @@ describe("刷新失败与游标推进的交互", () => {
 
     const state = useAppStore.getState();
     expect(state.proxy).toBeNull();
-    expect(state.error).toContain("校验失败");
+    // 旧 error 字段保留原始 detail；产品解释由稳定码派生（视图按码取文案）
+    expect(state.error).toContain("invalid_type");
+    expect(state.errorDescriptor?.code).toBe("UI_PROXY_STATUS_INVALID");
     expect(state.proxyFactCursor).toEqual({ epoch: EPOCH_A, revision: 2, recordsRevision: 2 });
   });
 });

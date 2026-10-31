@@ -177,6 +177,10 @@ const ORIGINAL_REASONS = {
   "apps/desktop/src/main/verification-read-endpoints.ts":
     "main 只读验证端点的引擎/来源诊断原始说明，渲染层作为原始详情与不可用原因参数展示",
   "apps/desktop/src/main/run-source-gate.ts": "main 返回的来源拒绝原始说明，渲染层作为原始详情展示",
+  "apps/desktop/src/main/settings.ts":
+    "main 设置存储的校验/读写失败原始说明，渲染层按稳定码给出本地化摘要并作为原始详情展示",
+  "apps/desktop/src/main/config-endpoints.ts":
+    "配置写通道的可信来源/判锁/写入失败原始诊断（含脱敏占位），渲染层按稳定码给出本地化摘要并作为原始详情展示",
   "apps/desktop/src/main/fork-runner.ts":
     "main 返回的分叉失败原始说明与工具结果原文，渲染层按原始详情展示；产品摘要按稳定码本地化",
   "apps/desktop/src/renderer/src/lib/result-verification.ts":

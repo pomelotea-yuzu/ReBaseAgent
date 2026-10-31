@@ -2414,7 +2414,73 @@ export const enUS = {
     upstreamEmpty: "upstream must not be empty",
     upstreamInvalid: "upstream must be a valid URL (received “{{received}}”)",
   },
-  settings: {},
+  settings: {
+    dialogAria: "Run settings",
+    heading: "Run settings (LLM access)",
+    statusConfigured: "Configured · reruns will use this endpoint",
+    statusUnconfigured: "Not configured · complete this before rerunning",
+    closeAria: "Close",
+    apiKeyKeepPlaceholder: "Leave empty to keep the saved key",
+    apiKeyRequiredPlaceholder: "Required",
+    encryptionPlain:
+      "System encryption is unavailable: apiKey will be stored in plain text in settings.json in the data directory. Use this only in a trusted environment.",
+    encryptionSafe:
+      "apiKey will be encrypted with the system (safeStorage) before it is written to settings.json in the data directory.",
+    savedVerified:
+      "Saved, and the configuration state was read back (no connection test was performed). “Rerun here” will now use this configuration for real calls.",
+    savedRereadFailed:
+      "Saved, but reading the configuration state back failed: no configuration summary is shown, and the read can be retried read-only (this does not save again).",
+    saveFailedSummary: "Saving the run settings failed; your input is kept — check it and retry.",
+    rereadTitle: "Re-send only the settings:get read (writes nothing)",
+    rereadButton: "Re-read configuration state",
+    rereadOk: "The configuration state was re-read and verified.",
+    rereadStillFailedSummary:
+      "The re-read still failed; this is a read-only channel and does not save again.",
+    closeDirtyTitle: "Run settings have unsaved changes",
+    closeDirtyMessage:
+      "baseURL / apiKey / model have unsaved changes.\n\nDiscarding loses these unsaved inputs (including any key you typed — it was never written); the saved configuration, the recording draft, and debugging drafts are unaffected.",
+    discardClose: "Discard changes and close",
+    continueEditing: "Continue editing",
+    clearTitle: "Clear run settings",
+    clearMessage:
+      "Clearing deletes the saved configuration:\n\n• apiKey (the saved credential) is deleted with it and cannot be recovered\n• baseURL and model return to unconfigured\n\nDebugging drafts and existing runs are unaffected.",
+    clearConfirm: "Clear configuration",
+    cleared: "Run settings cleared.",
+    clearFailedSummary: "Clearing the run settings failed; the saved configuration is unchanged.",
+    missingFields:
+      "Fill in: {{fields}} first (apiKey may stay empty once configured to keep the saved key)",
+    clearButton: "Clear configuration",
+    closeButton: "Close",
+    saving: "Saving…",
+    save: "Save",
+    fieldsSeparator: ", ",
+    jumpDirtyTitle: "Settings have unsaved changes",
+    jumpDirtyMessage:
+      "baseURL / apiKey / model have unsaved changes; resolve them before jumping to recording.\n\n“Continue editing” stays in settings (no proxy apply is called); “Discard and jump” drops the unsaved inputs (including any typed key — it was never written) and opens the recording workspace; the saved configuration and debugging drafts are unaffected.",
+    discardAndJump: "Discard and jump to recording",
+    proxyHeading: "Local recording proxy",
+    proxyRunning: "Running :{{port}}",
+    proxyStopped: "Stopped",
+    proxyNote:
+      "Proxy configuration and start/stop are managed in the recording workspace (the summary above only reflects the real state; it is not an editable form).",
+    openRecording: "Open recording workspace",
+    languageSectionAria: "Interface language",
+    languageHeading: "Interface language",
+    languageHelp:
+      "Takes effect immediately without a restart. Unsaved model input, drafts, and reading positions are kept; unsubmitted cost / copy-write / side-effect / experiment / verification confirmations are cleared and must be reviewed again in the new language. The language preference is saved separately and does not submit the model configuration above.",
+    languageGroupAria: "Choose the interface language",
+    languageSystem: "Follow the system",
+    languageChinese: "Simplified Chinese",
+    languageEnglish: "English",
+    languageSaving: "Saving the language preference…",
+    languageSaveFailed:
+      "The language preference was not saved: the interface keeps its current language; retry.",
+    languageIssueCorrupt:
+      "The language preference file is corrupt: this launch used the system language and did not overwrite the file. Choose a language below to save it again.",
+    languageIssueUnknownVersion:
+      "The language preference file has an unknown version: this launch used the system language and did not overwrite the file. Choose a language below to save it again.",
+    dismissNotice: "Dismiss notice",
+  },
   export: {},
   errors: {
     generic: "The operation did not complete. Check the current state before continuing.",

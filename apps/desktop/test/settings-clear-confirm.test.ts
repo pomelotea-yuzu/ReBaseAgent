@@ -23,6 +23,10 @@ import { initialSession } from "../src/renderer/src/lib/operation-session";
  */
 
 const SETTINGS_DIR = resolve(import.meta.dirname, "../src/renderer/src");
+const ZH_RESOURCES = readFileSync(
+  resolve(import.meta.dirname, "../../../packages/i18n/src/resources/zh-CN.ts"),
+  "utf8",
+);
 
 const apiStub: Record<string, unknown> = {};
 (globalThis as Record<string, unknown>).window = { api: apiStub };
@@ -63,8 +67,10 @@ describe("5.5 清除确认：点名凭据、取消零调用、受槽约束、查
     // 改为 `const plain`（doClear 之后第一个声明）
     const block = dialog.slice(at, dialog.indexOf("const plain"));
     expect(block).toContain("requestConfirm(");
-    expect(block).toContain("apiKey（保存的凭据）一并删除，不可恢复");
-    expect(block).toContain("调试草稿与已有运行不受影响");
+    expect(block).toContain('translator.t("settings.clearMessage")');
+    // 文案事实仍独立核对（不靠组件里的中文字面量）：凭据一并删除且不可恢复
+    expect(ZH_RESOURCES).toContain("apiKey（保存的凭据）一并删除，不可恢复");
+    expect(ZH_RESOURCES).toContain("调试草稿与已有运行不受影响");
   });
 
   it("取消 ⇒ 清除通道一次都不碰；确认之后的复位只动配置输入，不越界清草稿", () => {
