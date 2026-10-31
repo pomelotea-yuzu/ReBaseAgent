@@ -102,7 +102,7 @@ function StatusIndicators({
   const proxy = useAppStore((s) => s.proxy);
   const statusReadFailed = useAppStore((s) => s.recordingStatusReadFailed);
   const settingsConfigured = useAppStore((s) => s.settings?.configured);
-  const view = proxyRecoveryView(proxy, statusReadFailed);
+  const view = proxyRecoveryView(proxy, statusReadFailed, translator);
 
   return (
     <div className="flex items-center gap-2 text-reading-meta">

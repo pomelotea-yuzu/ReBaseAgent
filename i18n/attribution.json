@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T02:15:03.218Z",
+  "generatedAt": "2026-10-31T02:47:41.853Z",
   "scanner": "scripts/i18n-attribution.cjs",
   "taxonomy": {
     "product": "产品展示：需要按批次迁移为双语资源",
@@ -9,10 +9,10 @@
     "generated": "生成资产：不作为产品文案"
   },
   "totals": {
-    "files": 183,
-    "occurrences": 1643,
-    "product": 875,
-    "original": 683,
+    "files": 179,
+    "occurrences": 1563,
+    "product": 791,
+    "original": 687,
     "internal": 81,
     "generated": 4
   },
@@ -20,15 +20,15 @@
     "main": {
       "files": 20,
       "occurrences": 131,
-      "product": 70,
-      "original": 59,
+      "product": 69,
+      "original": 60,
       "internal": 2,
       "generated": 0
     },
     "renderer": {
-      "files": 30,
-      "occurrences": 316,
-      "product": 272,
+      "files": 26,
+      "occurrences": 236,
+      "product": 192,
       "original": 12,
       "internal": 32,
       "generated": 0
@@ -52,8 +52,8 @@
     "pkg:llm-proxy": {
       "files": 3,
       "occurrences": 15,
-      "product": 3,
-      "original": 12,
+      "product": 0,
+      "original": 15,
       "internal": 0,
       "generated": 0
     },
@@ -938,17 +938,17 @@
       "layer": "main",
       "package": null,
       "workspace": "录制代理",
-      "classification": "mixed",
-      "batch": 3,
-      "status": "pending",
-      "reason": "main 返回的代理重发失败原始说明（凭据/配置在核对后变化），渲染层作为原始详情展示",
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "main 回传的监听启动失败原始诊断（已脱敏限长），渲染层按稳定码给出本地化摘要并作为原始诊断展示",
       "symbols": [
         {
           "symbol": "classifyRecoveryFailure.message",
           "role": "call_arg",
           "context": "sanitizeDiagnosticText",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "main 回传的监听启动失败原始诊断（已脱敏限长），渲染层按稳定码给出本地化摘要并作为原始诊断展示",
           "count": 1,
           "samples": [
             "端口 ${…} 启动监听失败：${…}"
@@ -1598,374 +1598,6 @@
           ],
           "lines": [
             179
-          ]
-        }
-      ]
-    },
-    {
-      "path": "apps/desktop/src/renderer/src/components/RecordingWorkspace.tsx",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "录制接入",
-      "classification": "product",
-      "batch": 3,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "RecordingWorkspace.AuxWorkspaceFrame",
-          "role": "ui_attr",
-          "context": "title",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "录制接入",
-            "录制配置在本工作区内操作。"
-          ],
-          "lines": [
-            49,
-            50
-          ]
-        },
-        {
-          "symbol": "AuxWorkspaceFrame.button",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "初始化录制配置"
-          ],
-          "lines": [
-            59
-          ]
-        },
-        {
-          "symbol": "RecordingWorkspaceConnected.AuxWorkspaceFrame",
-          "role": "ui_attr",
-          "context": "title",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "录制接入",
-            "把现有 Agent 的 base_url 指到本地录制代理即可录制。配置、启停与真实监听状态在本工作区内操作。"
-          ],
-          "lines": [
-            98,
-            99
-          ]
-        },
-        {
-          "symbol": "RecordingWorkspaceView.title",
-          "role": "ui_prop",
-          "context": "title",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "放弃录制配置的未应用修改"
-          ],
-          "lines": [
-            126
-          ]
-        },
-        {
-          "symbol": "RecordingWorkspaceView.message",
-          "role": "ui_prop",
-          "context": "message",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "放弃这些未应用的录制配置修改？\n\n端口：${…}\nupstream：${…}\n启用意图：${…}\n\n放弃按确认时的修订校验：此后若输入又有变化，本次放弃不会执行；放弃不调用任何配置写通道（只是回到已核"
-          ],
-          "lines": [
-            127
-          ]
-        },
-        {
-          "symbol": "RecordingWorkspaceView.message",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "开",
-            "关"
-          ],
-          "lines": [
-            127
-          ]
-        }
-      ]
-    },
-    {
-      "path": "apps/desktop/src/renderer/src/components/RecordingWorkspaceView.tsx",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "录制接入",
-      "classification": "product",
-      "batch": 3,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "recordingStatusLines.label",
-          "role": "ui_prop",
-          "context": "label",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "真实状态",
-            "恢复失败原因"
-          ],
-          "lines": [
-            54,
-            66,
-            69
-          ]
-        },
-        {
-          "symbol": "recordingStatusLines.value",
-          "role": "prop",
-          "context": "value",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "状态待读取（读取失败或尚未读到；可只读重试）"
-          ],
-          "lines": [
-            54
-          ]
-        },
-        {
-          "symbol": "lines.label",
-          "role": "ui_prop",
-          "context": "label",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "保存的启用意图",
-            "本地监听"
-          ],
-          "lines": [
-            59,
-            62
-          ]
-        },
-        {
-          "symbol": "lines.value",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "已启用（配置已保存）",
-            "未启用"
-          ],
-          "lines": [
-            60
-          ]
-        },
-        {
-          "symbol": "recordingStatusLines.value",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "已捕获（本会话有请求经过）",
-            "尚未捕获 key（重发预期不可用）"
-          ],
-          "lines": [
-            70
-          ]
-        },
-        {
-          "symbol": "div.section",
-          "role": "ui_attr",
-          "context": "aria-label",
-          "classification": "product",
-          "reason": null,
-          "count": 4,
-          "samples": [
-            "录制配置",
-            "录制真实状态"
-          ],
-          "lines": [
-            131,
-            233,
-            322,
-            361
-          ]
-        },
-        {
-          "symbol": "section.div",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "配置（「保存并应用」同时保存并启停本地监听）",
-            "本地接入地址（把应用的 base_url 指到这里即可录制）"
-          ],
-          "lines": [
-            133,
-            324
-          ]
-        },
-        {
-          "symbol": "div.label",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "启用录制代理（保存的意图；监听是否成功以下方真实状态为准）",
-            "监听端口"
-          ],
-          "lines": [
-            145,
-            148
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 12,
-          "samples": [
-            "应用进行中（含状态回读），结束后才能再次应用",
-            "保存配置并按启用意图启停本地监听"
-          ],
-          "lines": [
-            191,
-            193,
-            194,
-            202,
-            215,
-            292,
-            302,
-            303,
-            311,
-            335,
-            339
-          ]
-        },
-        {
-          "symbol": "div.span",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 8,
-          "samples": [
-            "有未应用的修改（偏离已核实的保存配置）",
-            "启动恢复失败：已保存的启用意图仍然保留，处理后用「保存并应用」重试"
-          ],
-          "lines": [
-            207,
-            282,
-            283,
-            343,
-            347,
-            353,
-            354
-          ]
-        },
-        {
-          "symbol": "div.p",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "应用失败：",
-            "。配置可能已保存但监听未启动（以下方真实状态为准）；重新应用须再次点击。"
-          ],
-          "lines": [
-            225,
-            226
-          ]
-        },
-        {
-          "symbol": "div.span",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "真实状态（与配置输入无关）",
-            "代理记录"
-          ],
-          "lines": [
-            236,
-            363,
-            365
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "ui_attr",
-          "context": "title",
-          "classification": "product",
-          "reason": null,
-          "count": 4,
-          "samples": [
-            "只读重读状态；不重新应用、不启停服务",
-            "只读重读状态：只核对当前事实，不启动监听、不调用模型"
-          ],
-          "lines": [
-            242,
-            289,
-            373,
-            382
-          ]
-        },
-        {
-          "symbol": "div.button",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "重读状态",
-            "查看代理记录"
-          ],
-          "lines": [
-            245,
-            376,
-            385
-          ]
-        },
-        {
-          "symbol": "section.p",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "停用只停止本地接入服务；不承诺取消外部 Agent 或在途请求。"
-          ],
-          "lines": [
-            317
           ]
         }
       ]
@@ -3140,182 +2772,6 @@
       ]
     },
     {
-      "path": "apps/desktop/src/renderer/src/lib/proxy-recovery-view.ts",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "录制接入",
-      "classification": "product",
-      "batch": 3,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "UNKNOWN.headline",
-          "role": "prop",
-          "context": "headline",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "状态待读取"
-          ],
-          "lines": [
-            44
-          ]
-        },
-        {
-          "symbol": "UNKNOWN.listenLine",
-          "role": "prop",
-          "context": "listenLine",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "状态待读取（读取失败或尚未读到；可只读重试）"
-          ],
-          "lines": [
-            45
-          ]
-        },
-        {
-          "symbol": "proxyRecoveryView.headline",
-          "role": "prop",
-          "context": "headline",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "代理恢复中…",
-            "代理 :${…}"
-          ],
-          "lines": [
-            68,
-            97
-          ]
-        },
-        {
-          "symbol": "proxyRecoveryView.listenLine",
-          "role": "prop",
-          "context": "listenLine",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "正在恢复本地监听（按已保存的端口 ${…} 尝试启动）",
-            "运行中 · 端口 ${…}"
-          ],
-          "lines": [
-            69,
-            98
-          ]
-        },
-        {
-          "symbol": "proxyRecoveryView.headline",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 4,
-          "samples": [
-            "代理恢复失败（已启用未监听）",
-            "代理恢复失败"
-          ],
-          "lines": [
-            80,
-            107
-          ]
-        },
-        {
-          "symbol": "proxyRecoveryView.listenLine",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 4,
-          "samples": [
-            "未监听（已启用，但启动时未能监听成功）",
-            "未监听（启动时未能监听成功）"
-          ],
-          "lines": [
-            83,
-            84,
-            108
-          ]
-        },
-        {
-          "symbol": "proxyRecoveryView.reason",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "启动时未能监听成功（本次未留下受控诊断；可在录制工作区重读状态或重新应用）"
-          ],
-          "lines": [
-            88
-          ]
-        }
-      ]
-    },
-    {
-      "path": "apps/desktop/src/renderer/src/lib/recording-draft.ts",
-      "layer": "renderer",
-      "package": null,
-      "workspace": "录制接入",
-      "classification": "product",
-      "batch": 3,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "recordingPortError",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "端口不能为空",
-            "端口必须是完整整数（收到「${…}」）"
-          ],
-          "lines": [
-            149
-          ]
-        },
-        {
-          "symbol": "recordingPortError",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "端口必须在 1–65535 之间"
-          ],
-          "lines": [
-            153
-          ]
-        },
-        {
-          "symbol": "recordingUpstreamError",
-          "role": "return",
-          "context": "return",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "upstream 不能为空",
-            "upstream 必须是合法 URL（收到「${…}」）"
-          ],
-          "lines": [
-            160,
-            165
-          ]
-        }
-      ]
-    },
-    {
       "path": "apps/desktop/src/renderer/src/lib/result-verification.ts",
       "layer": "renderer",
       "package": null,
@@ -3462,8 +2918,8 @@
             "运行配置数据结构校验失败：${…}"
           ],
           "lines": [
-            202,
-            212
+            205,
+            215
           ]
         },
         {
@@ -3477,7 +2933,7 @@
             "保存运行配置失败：${…}"
           ],
           "lines": [
-            226
+            229
           ]
         },
         {
@@ -3491,7 +2947,7 @@
             "清除运行配置失败：${…}"
           ],
           "lines": [
-            245
+            248
           ]
         },
         {
@@ -3506,8 +2962,8 @@
             "代理状态数据结构校验失败：${…}"
           ],
           "lines": [
-            303,
-            320
+            306,
+            323
           ]
         },
         {
@@ -3522,8 +2978,8 @@
             "代理状态数据结构校验失败：${…}"
           ],
           "lines": [
-            363,
-            372
+            366,
+            375
           ]
         }
       ]
@@ -4785,17 +4241,17 @@
       "layer": "pkg:llm-proxy",
       "package": "llm-proxy",
       "workspace": "pkg:llm-proxy",
-      "classification": "product",
-      "batch": 3,
-      "status": "pending",
-      "reason": null,
+      "classification": "original",
+      "batch": null,
+      "status": "excluded",
+      "reason": "录制代理监听启动失败与内部错误的原文事实，main 作为受控诊断回传；渲染层按稳定码给出本地化摘要并作为原始诊断展示",
       "symbols": [
         {
           "symbol": "error.message",
           "role": "ui_prop",
           "context": "message",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "录制代理监听启动失败与内部错误的原文事实，main 作为受控诊断回传；渲染层按稳定码给出本地化摘要并作为原始诊断展示",
           "count": 1,
           "samples": [
             "录制代理内部错误：${…}"
@@ -4808,8 +4264,8 @@
           "symbol": "startProxyServer",
           "role": "error_message",
           "context": "new Error",
-          "classification": "product",
-          "reason": null,
+          "classification": "original",
+          "reason": "录制代理监听启动失败与内部错误的原文事实，main 作为受控诊断回传；渲染层按稳定码给出本地化摘要并作为原始诊断展示",
           "count": 2,
           "samples": [
             "端口 ${…} 已被占用，无法启动录制代理（可在设置中换端口）",

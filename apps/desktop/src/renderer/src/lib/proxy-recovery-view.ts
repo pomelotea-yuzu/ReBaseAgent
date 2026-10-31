@@ -1,3 +1,4 @@
+import type { Translator } from "@rebaseagent/i18n";
 import type { ProxyState } from "@shared/ipc";
 
 /**
@@ -30,8 +31,10 @@ export interface ProxyRecoveryView {
   readonly headline: string;
   /** 录制页「本地监听」行的值 */
   readonly listenLine: string;
-  /** 受控失败原因（仅 failed 且确有诊断时非 null；原样透出，不二次加工） */
+  /** 本地化失败摘要（仅 failed 时非 null；按稳定 code 投影，可行动） */
   readonly reason: string | null;
+  /** 受控失败的原始诊断（仅确有诊断时非 null；原样透出，不二次加工） */
+  readonly reasonDetail: string | null;
   /**
    * 是否需要在顶栏给出录制页入口。
    * 恢复中与失败都要：这两态用户都需要"为什么 / 怎么办"的详情，就近可得的成本最低。
@@ -39,13 +42,31 @@ export interface ProxyRecoveryView {
   readonly needsRecordingEntry: boolean;
 }
 
-const UNKNOWN: ProxyRecoveryView = {
-  phase: "unknown",
-  headline: "状态待读取",
-  listenLine: "状态待读取（读取失败或尚未读到；可只读重试）",
-  reason: null,
-  needsRecordingEntry: false,
-};
+function unknownView(translator: Translator): ProxyRecoveryView {
+  return {
+    phase: "unknown",
+    headline: translator.t("recording.unknownHeadline"),
+    listenLine: translator.t("recording.unknownListenLine"),
+    reason: null,
+    reasonDetail: null,
+    needsRecordingEntry: false,
+  };
+}
+
+/** 失败摘要按稳定类别投影（原始诊断另走 reasonDetail，不把中文原文当产品解释） */
+function failureReasonText(
+  code: "PORT_UNAVAILABLE" | "LISTEN_FAILED" | "UNKNOWN",
+  translator: Translator,
+): string {
+  switch (code) {
+    case "PORT_UNAVAILABLE":
+      return translator.t("recording.failedReasonPortUnavailable");
+    case "LISTEN_FAILED":
+      return translator.t("recording.failedReasonListenFailed");
+    case "UNKNOWN":
+      return translator.t("recording.failedReasonUnknown");
+  }
+}
 
 /**
  * 从只读代理状态派生恢复视图。
@@ -57,17 +78,19 @@ const UNKNOWN: ProxyRecoveryView = {
 export function proxyRecoveryView(
   proxy: ProxyState | null,
   statusReadFailed: boolean,
+  translator: Translator,
 ): ProxyRecoveryView {
-  if (statusReadFailed || proxy === null) return UNKNOWN;
+  if (statusReadFailed || proxy === null) return unknownView(translator);
 
   // 判据 3：恢复中优先于 running。恢复期间 running 必为 false，但"正在恢复"
   // 才是此刻最有价值的事实，不能退化成"已停"。
   if (proxy.recovery === "recovering") {
     return {
       phase: "recovering",
-      headline: "代理恢复中…",
-      listenLine: `正在恢复本地监听（按已保存的端口 ${proxy.port} 尝试启动）`,
+      headline: translator.t("recording.recoveringHeadline"),
+      listenLine: translator.t("recording.recoveringListenLine", { port: proxy.port }),
       reason: null,
+      reasonDetail: null,
       needsRecordingEntry: true,
     };
   }
@@ -77,16 +100,19 @@ export function proxyRecoveryView(
     return {
       phase: "failed",
       // 判据 2：不说"已停"。enabled 仍为 true，用户没关过。
-      headline: proxy.enabled ? "代理恢复失败（已启用未监听）" : "代理恢复失败",
+      headline: translator.t(
+        proxy.enabled ? "recording.failedHeadlineEnabled" : "recording.failedHeadline",
+      ),
       // 判据 1：意图与监听两件事分别说清，不混成一句
-      listenLine: proxy.enabled
-        ? "未监听（已启用，但启动时未能监听成功）"
-        : "未监听（启动时未能监听成功）",
+      listenLine: translator.t(
+        proxy.enabled ? "recording.failedListenEnabled" : "recording.failedListen",
+      ),
       // 判据 4：没有诊断就明说没记录，不编
       reason:
         failure === null
-          ? "启动时未能监听成功（本次未留下受控诊断；可在录制工作区重读状态或重新应用）"
-          : failure.message,
+          ? translator.t("recording.failedReasonNoDiagnostic")
+          : failureReasonText(failure.code, translator),
+      reasonDetail: failure === null ? null : failure.message,
       needsRecordingEntry: true,
     };
   }
@@ -94,9 +120,10 @@ export function proxyRecoveryView(
   if (proxy.running) {
     return {
       phase: "listening",
-      headline: `代理 :${proxy.port}`,
-      listenLine: `运行中 · 端口 ${proxy.port}`,
+      headline: translator.t("recording.listeningHeadline", { port: proxy.port }),
+      listenLine: translator.t("recording.listeningLine", { port: proxy.port }),
       reason: null,
+      reasonDetail: null,
       needsRecordingEntry: false,
     };
   }
@@ -104,9 +131,14 @@ export function proxyRecoveryView(
   // stopped：区分"用户本来就没开"与"开着但已停"，文案不混
   return {
     phase: "stopped",
-    headline: proxy.enabled ? "代理已启用 · 未监听" : "代理已停",
-    listenLine: proxy.enabled ? "未监听（启用不等于监听成功）" : "未监听（未启用）",
+    headline: translator.t(
+      proxy.enabled ? "recording.stoppedHeadlineEnabled" : "recording.stoppedHeadline",
+    ),
+    listenLine: translator.t(
+      proxy.enabled ? "recording.stoppedLineEnabled" : "recording.stoppedLine",
+    ),
     reason: null,
+    reasonDetail: null,
     needsRecordingEntry: false,
   };
 }

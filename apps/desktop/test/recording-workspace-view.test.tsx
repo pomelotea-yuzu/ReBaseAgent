@@ -1,5 +1,4 @@
 import type { ProxyState } from "@shared/ipc";
-import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import {
   RecordingWorkspaceView,
@@ -7,6 +6,10 @@ import {
   verifiedProxyAddress,
 } from "../src/renderer/src/components/RecordingWorkspaceView";
 import { ensureRecordingDraft, writeRecordingDraft } from "../src/renderer/src/lib/recording-draft";
+import { createTestTranslator, renderWithLocale } from "./i18n/render-with-locale";
+
+const zh = createTestTranslator("zh-CN");
+const en = createTestTranslator("en-US");
 
 /**
  * U8 任务 2.4/2.7/2.8/2.9 的**纯视图能力断言**（无 jsdom，renderToStaticMarkup 喂 props）。
@@ -37,13 +40,15 @@ function view(
   draftOverrides: Parameters<typeof writeRecordingDraft>[1] = {},
 ): string {
   const draft = writeRecordingDraft(ensureRecordingDraft(null, null), draftOverrides);
-  return renderToStaticMarkup(
+  return renderWithLocale(
+    "zh-CN",
     <RecordingWorkspaceView
       draft={draft}
       proxy={null}
       statusReadFailed={false}
       applying={false}
       applyError={null}
+      applyErrorCode={null}
       onField={() => {}}
       onApply={() => {}}
       onDiscard={() => {}}
@@ -55,16 +60,67 @@ function view(
   );
 }
 
+function viewEn(
+  overrides: Partial<Parameters<typeof RecordingWorkspaceView>[0]> = {},
+  draftOverrides: Parameters<typeof writeRecordingDraft>[1] = {},
+): string {
+  const draft = writeRecordingDraft(ensureRecordingDraft(null, null), draftOverrides);
+  return renderWithLocale(
+    "en-US",
+    <RecordingWorkspaceView
+      draft={draft}
+      proxy={null}
+      statusReadFailed={false}
+      applying={false}
+      applyError={null}
+      applyErrorCode={null}
+      onField={() => {}}
+      onApply={() => {}}
+      onDiscard={() => {}}
+      onRefreshStatus={() => {}}
+      onOpenRecords={() => {}}
+      onRefreshRuns={() => {}}
+      {...overrides}
+    />,
+  );
+}
+
+describe("英文措辞独立书写（录制工作区）", () => {
+  it("状态行、字段错误与接入地址提示随 locale 切换", () => {
+    const lines = recordingStatusLines(
+      proxyState({ enabled: true, running: true, hasKey: false }),
+      false,
+      en,
+    );
+    expect(lines.map((line) => line.label)).toEqual([
+      "Saved enabled intent",
+      "Local listener",
+      "Session credentials",
+    ]);
+    expect(lines[1]?.value).toBe("Running · port 18787");
+    expect(lines[2]?.value).toContain("No key captured yet");
+
+    const html = viewEn(
+      { proxy: proxyState({ enabled: true, running: true }) },
+      { portText: "18787abc" },
+    );
+    expect(html).toContain("Recording configuration");
+    expect(html).toContain("The port must be a whole integer");
+    expect(html).toContain("Save and apply");
+    expect(html).toContain("Read-only state re-read");
+  });
+});
+
 describe("U8 2.7：真实状态三分（意图 / 监听 / 凭据）", () => {
   it("running+hasKey ⇒ 三层事实分行可辨；未监听 ⇒ 明说启用不等于监听成功", () => {
     expect(
-      recordingStatusLines(proxyState({ enabled: true, running: true, hasKey: true }), false),
+      recordingStatusLines(proxyState({ enabled: true, running: true, hasKey: true }), false, zh),
     ).toEqual([
       { label: "保存的启用意图", value: "已启用（配置已保存）" },
       { label: "本地监听", value: "运行中 · 端口 18787" },
       { label: "本会话凭据", value: "已捕获（本会话有请求经过）" },
     ]);
-    const lines = recordingStatusLines(proxyState({ enabled: true, running: false }), false);
+    const lines = recordingStatusLines(proxyState({ enabled: true, running: false }), false, zh);
     expect(lines[1]?.value).toContain("未监听");
     expect(lines[1]?.value).toContain("启用不等于监听成功");
     expect(lines[2]?.value).toContain("尚未捕获 key");
@@ -72,8 +128,8 @@ describe("U8 2.7：真实状态三分（意图 / 监听 / 凭据）", () => {
 
   it("读取失败 / 未读到 ⇒ 「状态待读取」显式呈现，不拿默认值冒充事实", () => {
     for (const lines of [
-      recordingStatusLines(null, false),
-      recordingStatusLines(proxyState(), true),
+      recordingStatusLines(null, false, zh),
+      recordingStatusLines(proxyState(), true, zh),
     ]) {
       expect(lines).toHaveLength(1);
       expect(lines[0]?.value).toContain("状态待读取");
@@ -106,13 +162,15 @@ describe("U8 2.8：接入地址只来自已核实监听", () => {
     expect(html).not.toContain("http://127.0.0.1:");
     expect(html).toContain("data-recording-address-unavailable");
     // 草稿端口即便填了也不进地址
-    const withDraftPort = renderToStaticMarkup(
+    const withDraftPort = renderWithLocale(
+      "zh-CN",
       <RecordingWorkspaceView
         draft={writeRecordingDraft(ensureRecordingDraft(null, null), { portText: "20000" })}
         proxy={null}
         statusReadFailed={false}
         applying={false}
         applyError={null}
+        applyErrorCode={null}
         onField={() => {}}
         onApply={() => {}}
         onDiscard={() => {}}
@@ -163,13 +221,15 @@ describe("U8 2.2/2.9：放弃入口 / 记录与刷新", () => {
       upstreamBaseUrl: "https://api.deepseek.com",
     });
     const dirtyDraft = writeRecordingDraft(withBaseline, { portText: "20000" });
-    const dirtyHtml = renderToStaticMarkup(
+    const dirtyHtml = renderWithLocale(
+      "zh-CN",
       <RecordingWorkspaceView
         draft={dirtyDraft}
         proxy={null}
         statusReadFailed={false}
         applying={false}
         applyError={null}
+        applyErrorCode={null}
         onField={() => {}}
         onApply={() => {}}
         onDiscard={() => {}}

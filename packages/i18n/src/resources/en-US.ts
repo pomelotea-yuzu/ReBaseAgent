@@ -2308,7 +2308,112 @@ export const enUS = {
     exportNotPass:
       "A file export ≠ a test pass; it is the tested input snapshot, contains no logs/material packages, and does not apply patches.",
   },
-  recording: {},
+  recording: {
+    title: "Connect recording",
+    frameDescriptionEmpty: "Recording configuration is managed inside this workspace.",
+    frameDescription:
+      "Point your existing agent's base_url at the local recording proxy to record. Configuration, start/stop, and the real listening state are managed in this workspace.",
+    initButton: "Initialize recording configuration",
+    discardTitle: "Discard unapplied recording configuration changes",
+    discardMessage:
+      "Discard these unapplied recording configuration changes?\n\nPort: {{port}}\nUpstream: {{upstream}}\nEnabled intent: {{enabled}}\n\nThe discard is checked against the revision at confirmation time: if the input has changed since, this discard does not run. Discarding calls no configuration write channel (it only restores the verified saved configuration).",
+    enabledOn: "on",
+    enabledOff: "off",
+    intentLabel: "Saved enabled intent",
+    intentEnabled: "Enabled (configuration saved)",
+    intentDisabled: "Not enabled",
+    listenLabel: "Local listener",
+    failureReasonLabel: "Recovery failure reason",
+    rawReasonLabel: "Raw diagnostic",
+    credentialsLabel: "Session credentials",
+    credentialsCaptured: "Captured (a request passed through this session)",
+    credentialsMissing: "No key captured yet (resend is expected to be unavailable)",
+    statusUnknownLabel: "Real state",
+    statusUnknownValue:
+      "State not read yet (read failed or not read; read-only retry is available)",
+    recoveringHeadline: "Proxy recovering…",
+    recoveringListenLine:
+      "Recovering the local listener (attempting to start on the saved port {{port}})",
+    failedHeadlineEnabled: "Proxy recovery failed (enabled but not listening)",
+    failedHeadline: "Proxy recovery failed",
+    failedListenEnabled: "Not listening (enabled, but startup could not listen)",
+    failedListen: "Not listening (startup could not listen)",
+    failedReasonPortUnavailable:
+      "The port is already in use, so the local listener did not start; choose another port, save, and apply again",
+    failedReasonListenFailed:
+      "The local listener failed to start; check the port and upstream address, then save and apply again",
+    failedReasonUnknown:
+      "The local listener failed to start (unknown reason category); re-read the state or save and apply again",
+    failedReasonNoDiagnostic:
+      "Startup could not listen (no controlled diagnostic was recorded this time; re-read the state or apply again in the recording workspace)",
+    listeningHeadline: "Proxy :{{port}}",
+    listeningLine: "Running · port {{port}}",
+    stoppedHeadlineEnabled: "Proxy enabled · not listening",
+    stoppedHeadline: "Proxy stopped",
+    stoppedLineEnabled: "Not listening (enabled is not the same as listening)",
+    stoppedLine: "Not listening (not enabled)",
+    unknownHeadline: "State not read yet",
+    unknownListenLine: "State not read yet (read failed or not read; read-only retry is available)",
+    configSectionAria: "Recording configuration",
+    configHeading:
+      "Configuration (“Save and apply” saves and starts/stops the local listener together)",
+    enableCheck:
+      "Enable the recording proxy (saved intent; whether listening succeeded is shown in the real state below)",
+    portLabel: "Listening port",
+    upstreamLabel: "Upstream base_url",
+    applyTitleBusy: "Apply in progress (includes status readback); apply again after it finishes",
+    applyTitleReady:
+      "Save the configuration and start/stop the local listener per the enabled intent",
+    applyTitleInvalid:
+      "Fields failed validation: fix them before applying (no partially valid configuration write is sent)",
+    applyBusy: "Applying…",
+    apply: "Save and apply",
+    dirtyNote: "There are unapplied changes (diverging from the verified saved configuration)",
+    discardChanges: "Discard changes",
+    applyFailedSummary: "Apply failed (stable code {{code}}).",
+    applyFailedConsequence:
+      "The configuration may be saved while the listener did not start (the real state below is authoritative); apply again requires another click.",
+    statusSectionAria: "Recording real state",
+    statusHeading: "Real state (independent of configuration input)",
+    refreshStatusTitle: "Read-only state re-read; does not re-apply or start/stop the service",
+    refreshStatus: "Re-read state",
+    recoveryFailedNote:
+      "Startup recovery failed: the saved enabled intent is still kept; resolve it and retry with “Save and apply”",
+    recoveryRecoveringNote:
+      "Recovering the local listener… the result of this attempt will appear here when it finishes",
+    recoveryRefreshTitle:
+      "Read-only state re-read: checks current facts only, starts no listener, calls no model",
+    recoveryApplyTitle:
+      "Explicit retry: attempt listening again with the currently saved configuration (success or failure is shown as-is)",
+    recoveryApplyInvalidTitle:
+      "Configuration fields failed validation: fix the port and upstream above first",
+    stopNote:
+      "Stopping only stops the local access service; it does not promise to cancel external agents or in-flight requests.",
+    addressSectionAria: "Local access address",
+    addressHeading: "Local access address (point the app's base_url here to record)",
+    copyAddressAria: "Copy the access address {{address}}",
+    copyAddress: "Copy address",
+    copyUnavailable: "Copying is not supported in this environment",
+    copyNote: "Copying sends no request (no connectivity test is performed).",
+    addressUnavailableApplying:
+      "Apply in progress: the address can be copied only after this apply finishes and listening is verified",
+    addressUnavailable:
+      "Not listening or state unknown: the access address cannot be copied (no fake address from the draft port)",
+    recordsSectionAria: "Proxy records",
+    recordsHeading: "Proxy records",
+    recordsNote:
+      "Runs recorded through the proxy share one list with local creations; an explicit refresh is read-only.",
+    openRecordsTitle:
+      "Open the run list filtered by proxy source (current selection and search are kept)",
+    openRecords: "View proxy records",
+    refreshRunsTitle: "Read-only refresh of the run list; no toggle, no model call",
+    refreshRuns: "Refresh run list",
+    portEmpty: "The port must not be empty",
+    portNotInteger: "The port must be a whole integer (received “{{received}}”)",
+    portRange: "The port must be between 1 and 65535",
+    upstreamEmpty: "upstream must not be empty",
+    upstreamInvalid: "upstream must be a valid URL (received “{{received}}”)",
+  },
   settings: {},
   export: {},
   errors: {

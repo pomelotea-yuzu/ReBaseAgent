@@ -88,6 +88,7 @@ beforeEach(() => {
     recordingDraft: null,
     recordingApply: null,
     recordingApplyError: null,
+    recordingApplyErrorCode: null,
     recordingStatusReadFailed: false,
     settingsSection: null,
   });
@@ -156,6 +157,7 @@ describe("U8 2.4/2.5：应用收尾与真实状态回读", () => {
     expect(toggleCalls().length).toBe(1);
     expect(stateOf().recordingApply).toBeNull();
     expect(stateOf().recordingApplyError).toBeNull();
+    expect(stateOf().recordingApplyErrorCode).toBeNull();
     expect(stateOf().recordingDraft?.baseline?.port).toBe(20000);
     expect(stateOf().recordingDraft?.baseline?.enabled).toBe(true);
     expect(stateOf().recordingDraft?.portText).toBe("20000");
@@ -174,6 +176,7 @@ describe("U8 2.4/2.5：应用收尾与真实状态回读", () => {
     expect(stateOf().recordingDraft?.portText).toBe("20000");
     expect(stateOf().recordingDraft?.enabled).toBe(true);
     expect(stateOf().recordingApplyError).toContain("EADDRINUSE");
+    expect(stateOf().recordingApplyErrorCode).toBe("EACCES");
     expect(stateOf().proxy?.enabled).toBe(true);
     expect(stateOf().proxy?.running).toBe(false);
     // baseline 已按「实际保存的意图」更新（回读事实），失败输入与之相同 ⇒ 不再 dirty
@@ -189,6 +192,7 @@ describe("U8 2.4/2.5：应用收尾与真实状态回读", () => {
     expect(await stateOf().applyRecordingDraft()).toBe("start-failed");
 
     expect(stateOf().recordingApplyError).toContain("EADDRINUSE");
+    expect(stateOf().recordingApplyErrorCode).toBe("EACCES");
     expect(stateOf().recordingStatusReadFailed).toBe(true);
     expect(stateOf().recordingDraft?.portText).toBe("20000");
     // 回读失败 ⇒ 没有可核实的当前应用值：baseline 撤到「待读取」（null），

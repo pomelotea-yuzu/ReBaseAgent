@@ -147,6 +147,8 @@ const ORIGINAL_REASONS = {
   "packages/agent-loop/src/run-loop.ts": "工具结果与执行错误事实，保留原文",
   "packages/agent-loop/src/tool-registry.ts": "工具注册与调用结果原文，进入模型上下文",
   "packages/llm-proxy/src/diagnostic.ts": "上游错误原文，随录制记录保留",
+  "packages/llm-proxy/src/server.ts":
+    "录制代理监听启动失败与内部错误的原文事实，main 作为受控诊断回传；渲染层按稳定码给出本地化摘要并作为原始诊断展示",
   "packages/llm-proxy/src/handler.ts": "录制代理对外 HTTP 响应原文，不属桌面/MCP/CLI 产品面",
   "packages/replay/src/tool-unwrap.ts": "父录工具声明解析事实，属于模型工具定义原文",
   "packages/replay/src/workspace/file-tools.ts": "隔离文件工具的声明/参数说明，直接进入模型上下文",
@@ -239,6 +241,8 @@ const ORIGINAL_SYMBOLS = {
     "main 返回的分叉失败原始说明，渲染层作为原始详情展示；产品摘要按稳定码本地化",
   "apps/desktop/src/main/exec-endpoints.ts::modelAbChannel.run":
     "main 返回的模型实验 A/B 通道拒绝原始说明（设置未配置/通道误用），渲染层作为原始详情展示；产品摘要按稳定码本地化",
+  "apps/desktop/src/main/proxy-manager.ts::classifyRecoveryFailure.message":
+    "main 回传的监听启动失败原始诊断（已脱敏限长），渲染层按稳定码给出本地化摘要并作为原始诊断展示",
   "apps/desktop/src/main/isolated-prompt-endpoints.ts::runIsolatedPromptCapability":
     "main 返回的隔离 prompt 能力预检原始说明，渲染层作为原始详情展示",
   "apps/desktop/src/main/proxy-manager.ts::ProxyManager.fork":
@@ -270,7 +274,6 @@ const INTERNAL_REASONS = {
 
 const PRODUCT_FILES = new Set([
   "packages/agent-loop/src/config.ts",
-  "packages/llm-proxy/src/server.ts",
   "packages/project-verification/src/prepare/plan.ts",
   "packages/project-verification/src/schema.ts",
   "packages/project-verification/src/records/reader.ts",

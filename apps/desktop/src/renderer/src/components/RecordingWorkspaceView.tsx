@@ -1,9 +1,15 @@
+import type { Translator } from "@rebaseagent/i18n";
 import type { ProxyState } from "@shared/ipc";
 import { useState } from "react";
 import type { ReactNode } from "react";
+import { useTranslator } from "../i18n";
 import { proxyRecoveryView } from "../lib/proxy-recovery-view";
 import type { RecordingDraft, RecordingDraftPatch } from "../lib/recording-draft";
-import { isRecordingDraftDirty, recordingApplyRequest } from "../lib/recording-draft";
+import {
+  isRecordingDraftDirty,
+  recordingApplyRequest,
+  recordingFieldErrorText,
+} from "../lib/recording-draft";
 import { FOCUS_RING } from "./IconButton";
 import { copyPayload } from "./LongText";
 
@@ -49,25 +55,36 @@ export function verifiedProxyAddress(proxy: ProxyState | null, applying: boolean
 export function recordingStatusLines(
   proxy: ProxyState | null,
   statusReadFailed: boolean,
+  translator: Translator,
 ): ReadonlyArray<{ label: string; value: string }> {
   if (statusReadFailed || proxy === null) {
-    return [{ label: "真实状态", value: "状态待读取（读取失败或尚未读到；可只读重试）" }];
+    return [
+      {
+        label: translator.t("recording.statusUnknownLabel"),
+        value: translator.t("recording.statusUnknownValue"),
+      },
+    ];
   }
-  const view = proxyRecoveryView(proxy, statusReadFailed);
+  const view = proxyRecoveryView(proxy, statusReadFailed, translator);
   const lines: Array<{ label: string; value: string }> = [
     {
-      label: "保存的启用意图",
-      value: proxy.enabled ? "已启用（配置已保存）" : "未启用",
+      label: translator.t("recording.intentLabel"),
+      value: translator.t(proxy.enabled ? "recording.intentEnabled" : "recording.intentDisabled"),
     },
-    { label: "本地监听", value: view.listenLine },
+    { label: translator.t("recording.listenLabel"), value: view.listenLine },
   ];
   // 受控原因只在真的有诊断时占一行：没有就不占位，避免出现空承诺的行
   if (view.reason !== null) {
-    lines.push({ label: "恢复失败原因", value: view.reason });
+    lines.push({ label: translator.t("recording.failureReasonLabel"), value: view.reason });
+  }
+  if (view.reasonDetail !== null) {
+    lines.push({ label: translator.t("recording.rawReasonLabel"), value: view.reasonDetail });
   }
   lines.push({
-    label: "本会话凭据",
-    value: proxy.hasKey ? "已捕获（本会话有请求经过）" : "尚未捕获 key（重发预期不可用）",
+    label: translator.t("recording.credentialsLabel"),
+    value: translator.t(
+      proxy.hasKey ? "recording.credentialsCaptured" : "recording.credentialsMissing",
+    ),
   });
   return lines;
 }
@@ -78,6 +95,7 @@ export function RecordingWorkspaceView({
   statusReadFailed,
   applying,
   applyError,
+  applyErrorCode,
   onField,
   onApply,
   onDiscard,
@@ -90,6 +108,7 @@ export function RecordingWorkspaceView({
   readonly statusReadFailed: boolean;
   readonly applying: boolean;
   readonly applyError: string | null;
+  readonly applyErrorCode: string | null;
   readonly onField: (patch: RecordingDraftPatch) => void;
   readonly onApply: () => void;
   readonly onDiscard: (expectedRevision: number) => void;
@@ -97,13 +116,14 @@ export function RecordingWorkspaceView({
   readonly onOpenRecords: () => void;
   readonly onRefreshRuns: () => void;
 }): ReactNode {
+  const translator = useTranslator();
   const request = recordingApplyRequest(draft);
   const fieldErrors = request.ok ? { port: null, upstream: null } : request.errors;
   const dirty = isRecordingDraftDirty(draft);
   const address = verifiedProxyAddress(proxy, applying);
-  const statusLines = recordingStatusLines(proxy, statusReadFailed);
+  const statusLines = recordingStatusLines(proxy, statusReadFailed, translator);
   // 仅在恢复中 / 恢复失败时非 null：正常监听/停止不占用这一块，也不显示重试按钮
-  const recoveryView = proxyRecoveryView(proxy, statusReadFailed);
+  const recoveryView = proxyRecoveryView(proxy, statusReadFailed, translator);
   const recovery =
     recoveryView.phase === "recovering" || recoveryView.phase === "failed" ? recoveryView : null;
   const [copyFeedback, setCopyFeedback] = useState<"copied" | "unavailable" | null>(null);
@@ -128,9 +148,12 @@ export function RecordingWorkspaceView({
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-5" data-recording-body>
       {/* —— 配置区（保存并应用是唯一的配置写通道）—— */}
-      <section className="rounded border border-gray-200" aria-label="录制配置">
+      <section
+        className="rounded border border-gray-200"
+        aria-label={translator.t("recording.configSectionAria")}
+      >
         <div className="border-b border-gray-100 px-4 py-2 text-reading-meta font-medium text-gray-700">
-          配置（「保存并应用」同时保存并启停本地监听）
+          {translator.t("recording.configHeading")}
         </div>
         <div className="flex flex-col gap-3 px-4 py-3">
           <label className="flex items-center gap-2 text-reading-meta text-gray-700">
@@ -142,10 +165,10 @@ export function RecordingWorkspaceView({
               disabled={applying}
               className="h-4 w-4"
             />
-            启用录制代理（保存的意图；监听是否成功以下方真实状态为准）
+            {translator.t("recording.enableCheck")}
           </label>
           <label className="flex flex-col gap-1 text-reading-meta text-gray-700">
-            监听端口
+            {translator.t("recording.portLabel")}
             <input
               type="text"
               data-recording-port
@@ -158,12 +181,12 @@ export function RecordingWorkspaceView({
             />
             {fieldErrors.port !== null ? (
               <span className="text-reading-meta text-red-700" data-recording-port-error>
-                {fieldErrors.port}
+                {recordingFieldErrorText(fieldErrors.port, translator)}
               </span>
             ) : null}
           </label>
           <label className="flex flex-col gap-1 text-reading-meta text-gray-700">
-            upstream base_url
+            {translator.t("recording.upstreamLabel")}
             <input
               type="text"
               data-recording-upstream
@@ -176,7 +199,7 @@ export function RecordingWorkspaceView({
             />
             {fieldErrors.upstream !== null ? (
               <span className="text-reading-meta text-red-700" data-recording-upstream-error>
-                {fieldErrors.upstream}
+                {recordingFieldErrorText(fieldErrors.upstream, translator)}
               </span>
             ) : null}
           </label>
@@ -188,10 +211,10 @@ export function RecordingWorkspaceView({
               disabled={!request.ok || applying}
               title={
                 applying
-                  ? "应用进行中（含状态回读），结束后才能再次应用"
+                  ? translator.t("recording.applyTitleBusy")
                   : request.ok
-                    ? "保存配置并按启用意图启停本地监听"
-                    : "字段未通过校验：修正后才能应用（不会发出部分有效的配置写调用）"
+                    ? translator.t("recording.applyTitleReady")
+                    : translator.t("recording.applyTitleInvalid")
               }
               className={
                 request.ok && !applying
@@ -199,12 +222,12 @@ export function RecordingWorkspaceView({
                   : `cursor-not-allowed rounded bg-gray-200 px-3 py-1 text-reading-meta text-gray-400 ${FOCUS_RING}`
               }
             >
-              {applying ? "应用中…" : "保存并应用"}
+              {applying ? translator.t("recording.applyBusy") : translator.t("recording.apply")}
             </button>
             {dirty ? (
               <>
                 <span className="text-reading-meta text-amber-700" data-recording-dirty>
-                  有未应用的修改（偏离已核实的保存配置）
+                  {translator.t("recording.dirtyNote")}
                 </span>
                 <button
                   type="button"
@@ -212,37 +235,48 @@ export function RecordingWorkspaceView({
                   onClick={() => onDiscard(draft.revision)}
                   className={`rounded border border-gray-300 px-2 py-0.5 text-reading-meta text-gray-600 hover:bg-gray-50 ${FOCUS_RING}`}
                 >
-                  放弃修改
+                  {translator.t("recording.discardChanges")}
                 </button>
               </>
             ) : null}
           </div>
           {applyError !== null ? (
-            <p
+            <div
               className="rounded bg-red-50 px-2 py-1 text-reading-meta text-red-800"
               data-recording-apply-error
             >
-              应用失败：{applyError}
-              。配置可能已保存但监听未启动（以下方真实状态为准）；重新应用须再次点击。
-            </p>
+              <div>
+                {translator.t("recording.applyFailedSummary", {
+                  code: applyErrorCode ?? "UNKNOWN_ERROR",
+                })}
+              </div>
+              <div className="mt-0.5 whitespace-pre-wrap break-words">
+                {translator.t("detail.rawFailureDetail")}
+                {applyError}
+              </div>
+              <div className="mt-0.5">{translator.t("recording.applyFailedConsequence")}</div>
+            </div>
           ) : null}
         </div>
       </section>
 
       {/* —— 状态区（意图 / 监听 / 凭据三层；未知显式呈现 + 只读重试）—— */}
-      <section className="rounded border border-gray-200" aria-label="录制真实状态">
+      <section
+        className="rounded border border-gray-200"
+        aria-label={translator.t("recording.statusSectionAria")}
+      >
         <div className="flex items-center justify-between border-b border-gray-100 px-4 py-2">
           <span className="text-reading-meta font-medium text-gray-700">
-            真实状态（与配置输入无关）
+            {translator.t("recording.statusHeading")}
           </span>
           <button
             type="button"
             data-recording-refresh-status
             onClick={onRefreshStatus}
-            title="只读重读状态；不重新应用、不启停服务"
+            title={translator.t("recording.refreshStatusTitle")}
             className={`rounded border border-gray-300 px-2 py-0.5 text-reading-meta text-gray-600 hover:bg-gray-50 ${FOCUS_RING}`}
           >
-            重读状态
+            {translator.t("recording.refreshStatus")}
           </button>
         </div>
         <dl className="flex flex-col gap-1 px-4 py-3">
@@ -279,17 +313,17 @@ export function RecordingWorkspaceView({
               }`}
             >
               {recovery.phase === "failed"
-                ? "启动恢复失败：已保存的启用意图仍然保留，处理后用「保存并应用」重试"
-                : "正在恢复本地监听…完成后本区会显示本次结果"}
+                ? translator.t("recording.recoveryFailedNote")
+                : translator.t("recording.recoveryRecoveringNote")}
             </span>
             <button
               type="button"
               data-recording-recovery-refresh
               onClick={onRefreshStatus}
-              title="只读重读状态：只核对当前事实，不启动监听、不调用模型"
+              title={translator.t("recording.recoveryRefreshTitle")}
               className={`rounded border border-gray-300 bg-white px-2 py-0.5 text-reading-meta text-gray-700 hover:bg-gray-50 ${FOCUS_RING}`}
             >
-              重读状态
+              {translator.t("recording.refreshStatus")}
             </button>
             {recovery.phase === "failed" ? (
               <button
@@ -299,8 +333,8 @@ export function RecordingWorkspaceView({
                 disabled={!request.ok || applying}
                 title={
                   request.ok
-                    ? "显式重试：按当前保存的配置再次尝试监听（本次成功或失败都会如实呈现）"
-                    : "配置字段未通过校验：请先在上方修正端口与 upstream"
+                    ? translator.t("recording.recoveryApplyTitle")
+                    : translator.t("recording.recoveryApplyInvalidTitle")
                 }
                 className={
                   request.ok && !applying
@@ -308,20 +342,23 @@ export function RecordingWorkspaceView({
                     : `cursor-not-allowed rounded bg-gray-200 px-2 py-0.5 text-reading-meta text-gray-400 ${FOCUS_RING}`
                 }
               >
-                保存并应用
+                {translator.t("recording.apply")}
               </button>
             ) : null}
           </div>
         ) : null}
         <p className="border-t border-gray-100 px-4 py-2 text-reading-meta text-gray-500">
-          停用只停止本地接入服务；不承诺取消外部 Agent 或在途请求。
+          {translator.t("recording.stopNote")}
         </p>
       </section>
 
       {/* —— 接入地址区（只来自已核实监听；停止/在飞/未知不可复制）—— */}
-      <section className="rounded border border-gray-200" aria-label="本地接入地址">
+      <section
+        className="rounded border border-gray-200"
+        aria-label={translator.t("recording.addressSectionAria")}
+      >
         <div className="border-b border-gray-100 px-4 py-2 text-reading-meta font-medium text-gray-700">
-          本地接入地址（把应用的 base_url 指到这里即可录制）
+          {translator.t("recording.addressHeading")}
         </div>
         <div className="flex flex-wrap items-center gap-2 px-4 py-3">
           {address !== null ? (
@@ -332,37 +369,44 @@ export function RecordingWorkspaceView({
               <button
                 type="button"
                 data-recording-copy-address
-                aria-label={`复制接入地址 ${address}`}
+                aria-label={translator.t("recording.copyAddressAria", { address })}
                 onClick={copyAddress}
                 className={`rounded border border-gray-300 px-2 py-0.5 text-reading-meta text-gray-700 hover:bg-gray-50 ${FOCUS_RING}`}
               >
-                复制地址
+                {translator.t("recording.copyAddress")}
               </button>
               {copyFeedback !== null ? (
                 <span className="text-reading-meta text-gray-500" aria-live="polite">
-                  {copyFeedback === "copied" ? "已复制" : "当前环境不支持复制"}
+                  {copyFeedback === "copied"
+                    ? translator.t("common.copied")
+                    : translator.t("recording.copyUnavailable")}
                 </span>
               ) : null}
               <span className="text-reading-meta text-gray-400">
-                复制不发送任何请求（不做连通性测试）。
+                {translator.t("recording.copyNote")}
               </span>
             </>
           ) : (
             <span className="text-reading-meta text-gray-500" data-recording-address-unavailable>
               {applying
-                ? "应用进行中：地址在本次应用结束并核实监听后才可复制"
-                : "当前未监听或状态未知：接入地址不可复制（不提供草稿端口的假地址）"}
+                ? translator.t("recording.addressUnavailableApplying")
+                : translator.t("recording.addressUnavailable")}
             </span>
           )}
         </div>
       </section>
 
       {/* —— 记录区（只读入口 + 显式刷新）—— */}
-      <section className="rounded border border-gray-200" aria-label="代理记录">
+      <section
+        className="rounded border border-gray-200"
+        aria-label={translator.t("recording.recordsSectionAria")}
+      >
         <div className="flex flex-wrap items-center gap-2 border-b border-gray-100 px-4 py-2">
-          <span className="text-reading-meta font-medium text-gray-700">代理记录</span>
+          <span className="text-reading-meta font-medium text-gray-700">
+            {translator.t("recording.recordsHeading")}
+          </span>
           <span className="text-reading-meta text-gray-400">
-            经代理录制的运行与本地创建共用一份列表；显式刷新为只读。
+            {translator.t("recording.recordsNote")}
           </span>
         </div>
         <div className="flex flex-wrap gap-2 px-4 py-3">
@@ -370,19 +414,19 @@ export function RecordingWorkspaceView({
             type="button"
             data-recording-open-records
             onClick={onOpenRecords}
-            title="打开运行列表并按代理来源筛选（保留当前选择与搜索）"
+            title={translator.t("recording.openRecordsTitle")}
             className={`rounded border border-gray-300 px-2 py-0.5 text-reading-meta text-gray-700 hover:bg-gray-50 ${FOCUS_RING}`}
           >
-            查看代理记录
+            {translator.t("recording.openRecords")}
           </button>
           <button
             type="button"
             data-recording-refresh-runs
             onClick={onRefreshRuns}
-            title="只读刷新运行列表；不 toggle、不调用模型"
+            title={translator.t("recording.refreshRunsTitle")}
             className={`rounded border border-gray-300 px-2 py-0.5 text-reading-meta text-gray-700 hover:bg-gray-50 ${FOCUS_RING}`}
           >
-            刷新记录列表
+            {translator.t("recording.refreshRuns")}
           </button>
         </div>
       </section>

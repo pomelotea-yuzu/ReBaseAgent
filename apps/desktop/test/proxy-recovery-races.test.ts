@@ -10,6 +10,9 @@ import { RunRepository } from "../src/main/run-repository";
 import { SettingsStore } from "../src/main/settings";
 import type { SettingsCipher } from "../src/main/settings";
 import { proxyRecoveryView } from "../src/renderer/src/lib/proxy-recovery-view";
+import { createTestTranslator } from "./i18n/render-with-locale";
+
+const zh = createTestTranslator("zh-CN");
 
 /**
  * tasks 2.4：§2 的**跨层场景级回归**（恢复竞争 / 端口占用 / 重启 key 失效 /
@@ -193,16 +196,17 @@ describe("2.4 端口占用的跨层回归（main 事实 ⇒ 渲染层措辞）",
     await f.manager.autoStart();
 
     const state = f.manager.status();
-    const view = proxyRecoveryView(state, false);
+    const view = proxyRecoveryView(state, false, zh);
     expect(state.recovery).toBe("failed");
     expect(view.phase).toBe("failed");
     expect(view.headline).not.toContain("已停");
     expect(view.headline).not.toContain("代理已停");
     expect(view.listenLine).toContain("未监听");
-    // 受控原因原样透出，且不含栈/上游地址
-    expect(view.reason).toContain(String(port));
-    expect(view.reason).not.toContain("node:internal");
-    expect(view.reason).not.toContain("upstream.test");
+    // 产品摘要按稳定类别，原始诊断另行原样透出且不含栈/上游地址
+    expect(view.reason).toContain("端口被占用");
+    expect(view.reasonDetail).toContain(String(port));
+    expect(view.reasonDetail).not.toContain("node:internal");
+    expect(view.reasonDetail).not.toContain("upstream.test");
   });
 
   it("恢复中这一中间态经渲染层派生仍是 recovering（不被 running=false 吞掉）", async () => {
@@ -213,10 +217,10 @@ describe("2.4 端口占用的跨层回归（main 事实 ⇒ 渲染层措辞）",
     // 在恢复窗口内取一次状态：这正是 renderer 首读可能落点
     const midFlight = f.manager.status();
     expect(midFlight.recovery).toBe("recovering");
-    expect(proxyRecoveryView(midFlight, false).phase).toBe("recovering");
+    expect(proxyRecoveryView(midFlight, false, zh).phase).toBe("recovering");
 
     await restoring;
-    expect(proxyRecoveryView(f.manager.status(), false).phase).toBe("listening");
+    expect(proxyRecoveryView(f.manager.status(), false, zh).phase).toBe("listening");
   });
 });
 
@@ -229,7 +233,7 @@ describe("2.4 重启后 key 不恢复：门禁与呈现必须一致", () => {
     const state = f.manager.status();
     expect(state.hasKey).toBe(false);
     expect(state.keyCaptureRevision).toBe(0);
-    const view = proxyRecoveryView(state, false);
+    const view = proxyRecoveryView(state, false, zh);
     expect(view.phase).toBe("listening");
     // 🔴 监听成功也不代表有凭据：呈现层必须留着"未捕获 key"
     expect(view.headline).not.toContain("未捕获 key");
@@ -240,7 +244,7 @@ describe("2.4 重启后 key 不恢复：门禁与呈现必须一致", () => {
     const port = await freePort();
     const f = setup({ enabled: true, port, upstreamBaseUrl: UPSTREAM });
     await f.manager.autoStart();
-    expect(proxyRecoveryView(f.manager.status(), false).reason).toBeNull();
+    expect(proxyRecoveryView(f.manager.status(), false, zh).reason).toBeNull();
   });
 });
 
@@ -286,6 +290,6 @@ describe("2.4 状态回读：乱序 / 失败 / 只读重试", () => {
     await f.manager.autoStart();
     // 重试读到的是新事实，不是第一次的旧值
     expect(f.manager.status().running).toBe(true);
-    expect(proxyRecoveryView(f.manager.status(), false).phase).toBe("listening");
+    expect(proxyRecoveryView(f.manager.status(), false, zh).phase).toBe("listening");
   });
 });

@@ -46,8 +46,8 @@ export function RecordingWorkspace() {
     // 理论不可达（App 打开录制即 ensure）；重载后直接渲染本视图的兜底
     return (
       <AuxWorkspaceFrame
-        title="录制接入"
-        description="录制配置在本工作区内操作。"
+        title={translator.t("recording.title")}
+        description={translator.t("recording.frameDescriptionEmpty")}
         targetLine={null}
         {...returnProps}
       >
@@ -56,7 +56,7 @@ export function RecordingWorkspace() {
           onClick={() => useAppStore.getState().openRecordingWorkspace()}
           className="rounded border border-gray-300 px-2 py-1 text-reading-meta text-gray-700 hover:bg-gray-50"
         >
-          初始化录制配置
+          {translator.t("recording.initButton")}
         </button>
       </AuxWorkspaceFrame>
     );
@@ -81,10 +81,12 @@ function RecordingWorkspaceConnected({
   } | null;
   onReturn: () => void;
 }) {
+  const translator = useTranslator();
   const proxy = useAppStore((s) => s.proxy);
   const statusReadFailed = useAppStore((s) => s.recordingStatusReadFailed);
   const applying = useAppStore((s) => s.recordingApply !== null);
   const applyError = useAppStore((s) => s.recordingApplyError);
+  const applyErrorCode = useAppStore((s) => s.recordingApplyErrorCode);
   const writeRecordingDraftFields = useAppStore((s) => s.writeRecordingDraftFields);
   const discardRecordingDraftConfirmed = useAppStore((s) => s.discardRecordingDraftConfirmed);
   const applyRecordingDraft = useAppStore((s) => s.applyRecordingDraft);
@@ -95,8 +97,8 @@ function RecordingWorkspaceConnected({
 
   return (
     <AuxWorkspaceFrame
-      title="录制接入"
-      description="把现有 Agent 的 base_url 指到本地录制代理即可录制。配置、启停与真实监听状态在本工作区内操作。"
+      title={translator.t("recording.title")}
+      description={translator.t("recording.frameDescription")}
       targetLine={null}
       returnAvailable={returnAvailable}
       returnLabel={returnLabel}
@@ -109,6 +111,7 @@ function RecordingWorkspaceConnected({
         statusReadFailed={statusReadFailed}
         applying={applying}
         applyError={applyError}
+        applyErrorCode={applyErrorCode}
         onField={writeRecordingDraftFields}
         onApply={() => {
           void applyRecordingDraft().then(() => {
@@ -123,8 +126,14 @@ function RecordingWorkspaceConnected({
           const snapshot = useAppStore.getState().recordingDraft;
           if (snapshot === null) return;
           void requestConfirm({
-            title: "放弃录制配置的未应用修改",
-            message: `放弃这些未应用的录制配置修改？\n\n端口：${snapshot.portText}\nupstream：${snapshot.upstreamText}\n启用意图：${snapshot.enabled ? "开" : "关"}\n\n放弃按确认时的修订校验：此后若输入又有变化，本次放弃不会执行；放弃不调用任何配置写通道（只是回到已核实的保存配置）。`,
+            title: translator.t("recording.discardTitle"),
+            message: translator.t("recording.discardMessage", {
+              port: snapshot.portText,
+              upstream: snapshot.upstreamText,
+              enabled: translator.t(
+                snapshot.enabled ? "recording.enabledOn" : "recording.enabledOff",
+              ),
+            }),
           }).then((confirmed) => {
             if (confirmed) discardRecordingDraftConfirmed(expectedRevision);
           });

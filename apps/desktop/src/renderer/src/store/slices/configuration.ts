@@ -68,8 +68,10 @@ export interface ConfigurationState {
    * 响应只有与当前草稿修订匹配才更新基线（「录制应用收尾不覆盖后来输入」）。
    */
   recordingApply: number | null;
-  /** 最近一次应用的启动失败诊断（成功即清；「已保存意图 vs 监听事实」的分层呈现归视图） */
+  /** 最近一次应用的启动失败原始诊断（成功即清；「已保存意图 vs 监听事实」的分层呈现归视图） */
   recordingApplyError: string | null;
+  /** 启动失败信封的稳定码（null = 无失败）；视图据此给本地化摘要，原文按原始诊断展示 */
+  recordingApplyErrorCode: string | null;
   /** 最近一次状态回读失败（2.5：失败也允许只读重试；重试即 loadProxyStatus，不重新 toggle） */
   recordingStatusReadFailed: boolean;
 
@@ -130,6 +132,7 @@ export function createConfigurationSlice({
     recordingDraft: null,
     recordingApply: null,
     recordingApplyError: null,
+    recordingApplyErrorCode: null,
     recordingStatusReadFailed: false,
     proxyReadGeneration: 0,
     proxyStatusRead: initialProxyStatusReadState,
@@ -402,12 +405,17 @@ export function createConfigurationSlice({
       // 纵深防御：组件判据同源，但这里再拦一次——非法字段连在飞标记都不该出现
       if (!request.ok) return "invalid";
       const submittedRevision = draft.revision;
-      set({ recordingApply: submittedRevision, recordingApplyError: null });
+      set({
+        recordingApply: submittedRevision,
+        recordingApplyError: null,
+        recordingApplyErrorCode: null,
+      });
       const envelope = await api.proxyToggle(request.input);
       // toggle 非事务（design D2）：无论启动成败都回读真实状态——成功确认「已保存意图」，
       // 回读给出「监听事实」；回读失败 ⇒ 状态待读取，两层诊断分别呈现
       const startOk = envelope.ok;
       const startMessage = envelope.ok ? "" : envelope.error.message;
+      const startCode = envelope.ok ? null : envelope.error.code;
       await get().loadProxyStatus();
       const current = get();
       // U8 任务 2.6：响应只在「与当前草稿修订匹配」时更新基线——在飞期间的后来输入
@@ -417,8 +425,13 @@ export function createConfigurationSlice({
       const patch: {
         recordingApply: number | null;
         recordingApplyError: string | null;
+        recordingApplyErrorCode: string | null;
         recordingDraft?: RecordingDraft;
-      } = { recordingApply: null, recordingApplyError: startOk ? null : startMessage };
+      } = {
+        recordingApply: null,
+        recordingApplyError: startOk ? null : startMessage,
+        recordingApplyErrorCode: startCode,
+      };
       if (startOk && !stale && current.recordingDraft !== null) {
         patch.recordingDraft = applyRecordingBaseline(current.recordingDraft, {
           enabled: request.input.enabled,

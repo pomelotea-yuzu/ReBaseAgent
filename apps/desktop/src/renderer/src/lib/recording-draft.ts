@@ -1,3 +1,4 @@
+import type { Translator } from "@rebaseagent/i18n";
 import type { ProxyState, ProxyToggleInput } from "@shared/ipc";
 
 /**
@@ -144,31 +145,59 @@ export function discardRecordingDraft(
  * （renderer 的字段级拒绝严于 main schema 的 number 类型，属纵深防御；
  * 判据核心是「拒绝时不产生任何配置写调用」，见定向测试）。
  */
-export function recordingPortError(portText: string): string | null {
+/** 字段级错误用稳定码：store 校验只认码，文案由视图按 translator 派生 */
+export type RecordingFieldError =
+  | { readonly code: "PORT_EMPTY" }
+  | { readonly code: "PORT_NOT_INTEGER"; readonly received: string }
+  | { readonly code: "PORT_RANGE" }
+  | { readonly code: "UPSTREAM_EMPTY" }
+  | { readonly code: "UPSTREAM_INVALID"; readonly received: string };
+
+export function recordingFieldErrorText(
+  error: RecordingFieldError,
+  translator: Translator,
+): string {
+  switch (error.code) {
+    case "PORT_EMPTY":
+      return translator.t("recording.portEmpty");
+    case "PORT_NOT_INTEGER":
+      return translator.t("recording.portNotInteger", { received: error.received });
+    case "PORT_RANGE":
+      return translator.t("recording.portRange");
+    case "UPSTREAM_EMPTY":
+      return translator.t("recording.upstreamEmpty");
+    case "UPSTREAM_INVALID":
+      return translator.t("recording.upstreamInvalid", { received: error.received });
+  }
+}
+
+export function recordingPortError(portText: string): RecordingFieldError | null {
   if (!/^-?\d+$/.test(portText)) {
-    return portText === "" ? "端口不能为空" : `端口必须是完整整数（收到「${portText}」）`;
+    return portText === ""
+      ? { code: "PORT_EMPTY" }
+      : { code: "PORT_NOT_INTEGER", received: portText };
   }
   const value = Number(portText);
   if (!Number.isSafeInteger(value) || value < 1 || value > 65535) {
-    return "端口必须在 1–65535 之间";
+    return { code: "PORT_RANGE" };
   }
   return null;
 }
 
 /** upstream 校验：与 main schema 的 z.string().url() 同判据（URL 构造器） */
-export function recordingUpstreamError(upstreamText: string): string | null {
-  if (upstreamText === "") return "upstream 不能为空";
+export function recordingUpstreamError(upstreamText: string): RecordingFieldError | null {
+  if (upstreamText === "") return { code: "UPSTREAM_EMPTY" };
   try {
     new URL(upstreamText);
     return null;
   } catch {
-    return `upstream 必须是合法 URL（收到「${upstreamText}」）`;
+    return { code: "UPSTREAM_INVALID", received: upstreamText };
   }
 }
 
 export interface RecordingFieldErrors {
-  readonly port: string | null;
-  readonly upstream: string | null;
+  readonly port: RecordingFieldError | null;
+  readonly upstream: RecordingFieldError | null;
 }
 
 export type RecordingApplyRequest =

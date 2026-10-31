@@ -1,5 +1,4 @@
 import type { ProxyState } from "@shared/ipc";
-import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import {
   RecordingWorkspaceView,
@@ -8,6 +7,9 @@ import {
 } from "../src/renderer/src/components/RecordingWorkspaceView";
 import { proxyPhaseDotClass, proxyRecoveryView } from "../src/renderer/src/lib/proxy-recovery-view";
 import { ensureRecordingDraft, writeRecordingDraft } from "../src/renderer/src/lib/recording-draft";
+import { createTestTranslator, renderWithLocale } from "./i18n/render-with-locale";
+
+const zh = createTestTranslator("zh-CN");
 
 /**
  * tasks 2.3b：**代理启动恢复结果就近可见**（呈现半边）。
@@ -45,13 +47,15 @@ function view(
   draftOverrides: Parameters<typeof writeRecordingDraft>[1] = {},
 ): string {
   const draft = writeRecordingDraft(ensureRecordingDraft(null, null), draftOverrides);
-  return renderToStaticMarkup(
+  return renderWithLocale(
+    "zh-CN",
     <RecordingWorkspaceView
       draft={draft}
       proxy={null}
       statusReadFailed={false}
       applying={false}
       applyError={null}
+      applyErrorCode={null}
       onField={() => {}}
       onApply={() => {}}
       onDiscard={() => {}}
@@ -68,6 +72,7 @@ describe("2.3b 恢复中到监听成功同步呈现", () => {
     const view2 = proxyRecoveryView(
       proxyState({ enabled: true, running: false, recovery: "recovering" }),
       false,
+      zh,
     );
     expect(view2.phase).toBe("recovering");
     // 判据 3：恢复中优先于 running=false 这一事实，退化成"已停"就是漏了中间态
@@ -115,19 +120,21 @@ describe("2.3b 恢复失败显示意图与实际状态", () => {
     });
 
   it("同时呈现「已启用」与「未监听」+ 受控原因，不把失败说成已停用", () => {
-    const lines = recordingStatusLines(failed(), false);
+    const lines = recordingStatusLines(failed(), false, zh);
     expect(lines[0]?.value).toContain("已启用");
     expect(lines[1]?.value).toContain("未监听");
     // 🔴 判据 2：enabled 仍是 true，文案不能说成"已停用"
     expect(JSON.stringify(lines)).not.toContain("未启用");
     expect(JSON.stringify(lines)).not.toContain("已停用");
-    // 受控原因原样透出，不二次加工也不吞掉
+    // 产品摘要按稳定类别本地化；原始诊断另行原样透出，不二次加工也不吞掉
     expect(lines[2]?.label).toBe("恢复失败原因");
-    expect(lines[2]?.value).toContain("已被占用");
+    expect(lines[2]?.value).toContain("端口被占用");
+    expect(lines[3]?.label).toBe("原始诊断");
+    expect(lines[3]?.value).toContain("已被占用");
   });
 
   it("失败时凭据行照旧呈现，不因「看起来已启用」就说凭据可用", () => {
-    const lines = recordingStatusLines(failed(), false);
+    const lines = recordingStatusLines(failed(), false, zh);
     const credential = lines[lines.length - 1];
     expect(credential?.label).toBe("本会话凭据");
     expect(credential?.value).toContain("尚未捕获 key");
@@ -162,7 +169,7 @@ describe("2.3b 恢复失败显示意图与实际状态", () => {
 
   it("没有诊断时明说未记录，不编一个原因（也不出现空的「原因」行）", () => {
     const noDiag = failed({ recoveryFailure: null });
-    const lines = recordingStatusLines(noDiag, false);
+    const lines = recordingStatusLines(noDiag, false, zh);
     expect(lines.map((l) => l.label)).toEqual([
       "保存的启用意图",
       "本地监听",
@@ -175,7 +182,7 @@ describe("2.3b 恢复失败显示意图与实际状态", () => {
   });
 
   it("状态未知时不沿用上一次的恢复事实（不把上次成功说成现在还好着）", () => {
-    for (const v of [proxyRecoveryView(null, false), proxyRecoveryView(failed(), true)]) {
+    for (const v of [proxyRecoveryView(null, false, zh), proxyRecoveryView(failed(), true, zh)]) {
       expect(v.phase).toBe("unknown");
       expect(v.reason).toBeNull();
       expect(v.needsRecordingEntry).toBe(false);
@@ -188,8 +195,8 @@ describe("2.3b 恢复失败显示意图与实际状态", () => {
 
 describe("2.3b 停止态与恢复态的措辞不混", () => {
   it("未启用 ⇒ 「已停」；已启用但未监听 ⇒ 明说启用不等于监听成功", () => {
-    expect(proxyRecoveryView(proxyState({ enabled: false }), false).headline).toBe("代理已停");
-    const enabledIdle = proxyRecoveryView(proxyState({ enabled: true }), false);
+    expect(proxyRecoveryView(proxyState({ enabled: false }), false, zh).headline).toBe("代理已停");
+    const enabledIdle = proxyRecoveryView(proxyState({ enabled: true }), false, zh);
     expect(enabledIdle.phase).toBe("stopped");
     expect(enabledIdle.headline).toBe("代理已启用 · 未监听");
     expect(enabledIdle.listenLine).toContain("启用不等于监听成功");
@@ -199,17 +206,19 @@ describe("2.3b 停止态与恢复态的措辞不混", () => {
 
   it("恢复中与失败都需要录制页入口；已监听不需要", () => {
     expect(
-      proxyRecoveryView(proxyState({ enabled: true, recovery: "recovering" }), false)
+      proxyRecoveryView(proxyState({ enabled: true, recovery: "recovering" }), false, zh)
         .needsRecordingEntry,
     ).toBe(true);
     expect(
       proxyRecoveryView(
         proxyState({ enabled: true, recovery: "failed", recoveryFailure: null }),
         false,
+        zh,
       ).needsRecordingEntry,
     ).toBe(true);
     expect(
-      proxyRecoveryView(proxyState({ enabled: true, running: true }), false).needsRecordingEntry,
+      proxyRecoveryView(proxyState({ enabled: true, running: true }), false, zh)
+        .needsRecordingEntry,
     ).toBe(false);
   });
 
@@ -231,7 +240,7 @@ describe("2.3b 停止态与恢复态的措辞不混", () => {
               recoveryFailure:
                 phase === "failed" ? { code: "LISTEN_FAILED", message: "启动失败：原因甲" } : null,
             });
-      expect(proxyRecoveryView(proxy, false).headline.length).toBeGreaterThan(0);
+      expect(proxyRecoveryView(proxy, false, zh).headline.length).toBeGreaterThan(0);
     }
   });
 

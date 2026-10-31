@@ -143,6 +143,20 @@ describe("U8 2.4：应用前字段校验（完整整数 + URL；非法即零请�
     expect(recordingUpstreamError("http://127.0.0.1:11434/v1")).toBeNull();
   });
 
+  it("字段错误是稳定码（store 只认码，文案由视图按语言派生）", () => {
+    expect(recordingPortError("")).toEqual({ code: "PORT_EMPTY" });
+    expect(recordingPortError("18787abc")).toEqual({
+      code: "PORT_NOT_INTEGER",
+      received: "18787abc",
+    });
+    expect(recordingPortError("65536")).toEqual({ code: "PORT_RANGE" });
+    expect(recordingUpstreamError("")).toEqual({ code: "UPSTREAM_EMPTY" });
+    expect(recordingUpstreamError("api.deepseek.com")).toEqual({
+      code: "UPSTREAM_INVALID",
+      received: "api.deepseek.com",
+    });
+  });
+
   it("非法字段 ⇒ 不产出请求（ok:false + 双字段错误），不可能发出半截配置写调用", () => {
     const bad = writeRecordingDraft(ensureRecordingDraft(null, baseline), { portText: "18787abc" });
     const result = recordingApplyRequest(bad);

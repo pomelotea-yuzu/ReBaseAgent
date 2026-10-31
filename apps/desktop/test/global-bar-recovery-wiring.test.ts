@@ -96,8 +96,12 @@ describe("2.3b 录制页恢复呈现接线", () => {
     const normed = norm(VIEW_SRC);
     expect(normed).toMatch(/const recoveryView = proxyRecoveryView\(/u);
     // 状态行取 listenLine / reason —— 换成内联字面量 ⇒ 红
-    expect(normed).toContain('{ label: "本地监听", value: view.listenLine }');
-    expect(normed).toContain('lines.push({ label: "恢复失败原因", value: view.reason });');
+    expect(normed).toContain(
+      '{ label: translator.t("recording.listenLabel"), value: view.listenLine }',
+    );
+    expect(normed).toContain(
+      'lines.push({ label: translator.t("recording.failureReasonLabel"), value: view.reason });',
+    );
     // 处置区的出现条件来自该变量
     expect(normed).toMatch(
       /recoveryView\.phase === "recovering" \|\| recoveryView\.phase === "failed"/u,
