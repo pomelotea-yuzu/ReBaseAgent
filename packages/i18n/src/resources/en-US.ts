@@ -2602,5 +2602,10 @@ export const enUS = {
       "Could not choose the source directory. Try again or pick another directory.",
   },
   mcp: {},
-  cli: {},
+  cli: {
+    localeDuplicateFlag: "Duplicate locale option: --locale may appear only once",
+    localeMissingValue: "Missing locale value: --locale requires zh-CN or en-US",
+    localeUnsupportedValue: "Unsupported locale option: --locale accepts only zh-CN or en-US",
+    localeInvalidEnvValue: "Unsupported REBASEAGENT_LOCALE value: only zh-CN or en-US are accepted",
+  },
 } satisfies ResourceShape;

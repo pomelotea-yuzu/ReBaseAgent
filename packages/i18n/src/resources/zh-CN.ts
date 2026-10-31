@@ -2266,7 +2266,12 @@ export const zhCN = {
     sourceChooseFailed: "选择源目录失败，请重试或换一个目录。",
   },
   mcp: {},
-  cli: {},
+  cli: {
+    localeDuplicateFlag: "语言参数重复：--locale 只能出现一次",
+    localeMissingValue: "语言参数缺值：--locale 需要 zh-CN 或 en-US",
+    localeUnsupportedValue: "语言参数不支持：--locale 只接受 zh-CN 或 en-US",
+    localeInvalidEnvValue: "环境变量 REBASEAGENT_LOCALE 不支持：只接受 zh-CN 或 en-US",
+  },
 } as const;
 
 export type Namespace = keyof typeof zhCN;

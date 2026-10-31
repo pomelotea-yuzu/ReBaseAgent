@@ -8,6 +8,19 @@ export {
   SUPPORTED_LOCALES,
 } from "./locale.js";
 export {
+  type CliLocaleError,
+  type CliLocaleErrorReason,
+  type CliLocaleOutcome,
+  type CliLocaleResolution,
+  type CliLocaleSource,
+  type ResolveCliLocaleInput,
+  CLI_LOCALE_ENV,
+  CLI_LOCALE_EXIT_CODE,
+  CLI_LOCALE_FLAG,
+  CLI_LOCALE_SYSTEM_ENV,
+  resolveCliLocale,
+} from "./cli-locale.js";
+export {
   type CreateTranslatorOptions,
   type MessageParams,
   type MissingKeyEvent,

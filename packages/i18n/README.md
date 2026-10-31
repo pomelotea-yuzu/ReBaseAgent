@@ -23,6 +23,7 @@
 
 ```text
 src/locale.ts            Locale 类型、显式值校验、系统语言/桌面偏好解析
+src/cli-locale.ts        CLI 语言优先级、受控 INVALID_LOCALE 与说明资源键
 src/resources/zh-CN.ts   中文键契约（源）
 src/resources/en-US.ts   英文资源（键必须与中文一致）
 src/resources/index.ts   namespace 清单与资源聚合
@@ -31,6 +32,20 @@ src/index.ts             公共导出
 ```
 
 资源按 `common/run/detail/fork/experiment/compare/files/verification/recording/settings/export/errors/mcp/cli` 分 namespace。0.x 先建立 `common` 通用键；各工作区在对应批次补键，不以中文原句或数字索引作键名。
+
+## CLI 语言解析
+
+`resolveCliLocale({ argv, env, intlLocale })` 是纯函数：不读 `process.env`、不打印、不退出。优先级为
+
+`--locale` > `REBASEAGENT_LOCALE` > `LC_ALL` > `LC_MESSAGES` > `LANG` > Intl > `en-US`。
+
+- 显式值与产品环境变量只接受 `zh-CN` / `en-US`；重复、缺值、不支持或环境变量非法时返回
+  `INVALID_LOCALE`（`reason` + `messageKey` + `messageLocale`），入口应使用
+  `CLI_LOCALE_EXIT_CODE = 2` 退出，且尚未加载用户配置/执行。
+- 系统候选取首个非空值，`zh` 及其变体归 `zh-CN`，`C`/`POSIX`/未知/无系统语言归 `en-US`。
+- 受控说明只用 `cli.locale*` 资源键，不回显调用方传入的非法值；宿主 Intl 建议语言由入口传入
+  （检测不可用或无系统语言时传 `null`）。
+
 
 ## 缺键行为
 
