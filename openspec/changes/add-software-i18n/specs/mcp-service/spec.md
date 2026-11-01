@@ -7,12 +7,12 @@ MCP SHALL 使用共享 CLI 语言规则，启动参数 --locale 优先于产品�
 #### Scenario: M21 独立语言和十三工具发现
 
 - **WHEN** 不运行桌面，以两个不同显式 locale 分别启动并 initialize/tools:list
-- **THEN** 各自恰有十三工具，description/schema 说明/信任声明按语言变化，工具名/参数契约/annotations/只读范围相同，无跨实例污染
+- **THEN** 各自恰有十三工具，description/信任声明及 inputSchema 全部对象属性（含嵌套属性）的非空 description 按语言变化且语境准确；原契约无说明的属性由每实例发布投影补充；去掉 description 后 schema 结构一致，工具名/参数契约/annotations/只读范围相同，无跨实例污染
 
 #### Scenario: M22 非法语言在初始化前失败
 
 - **WHEN** locale 缺值/重复/不支持或生效产品环境变量非法
-- **THEN** stderr 返回受控 INVALID_LOCALE、退出 2，stdout 无协议外文本，不初始化、不读桌面设置、不创建或切换数据根
+- **THEN** 先于数据根核验与服务初始化在 stderr 返回受控 INVALID_LOCALE、退出 2，说明语言遵守 S10，stdout 无协议外文本，不读桌面设置、不创建或切换数据根；合法 locale 不豁免已有唯一显式 --data-dir 校验，也不将 --help 变为成功帮助入口
 
 ### Requirement: MCP 本地化保持稳定事实与过滤
 

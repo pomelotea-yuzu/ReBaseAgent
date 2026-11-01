@@ -58,17 +58,17 @@
 
 ### Requirement: 所有既有 CLI 使用确定的语言选择
 
-现有包层 CLI SHALL 支持 --locale zh-CN|en-US，优先于 REBASEAGENT_LOCALE，之后按 LC_ALL/LC_MESSAGES/LANG/Intl 解析系统语言，再回退英文。系统 zh 变体 SHALL 取简体中文，其余取英文；显式值 SHALL 严格校验。人类产品提示 SHALL 双语，机器契约及原始内容 SHALL 保持。
+现有包层 CLI SHALL 支持分离形式 --locale zh-CN|en-US，优先于 REBASEAGENT_LOCALE，之后按 LC_ALL/LC_MESSAGES/LANG/Intl 解析系统语言，再回退英文。系统 zh 变体 SHALL 取简体中文，其余取英文；显式值 SHALL 严格校验。等号形式不在 locale 语法内，保留入口既有未知参数处理；本 change 不新增通用 -- 终止选项语义。人类产品提示 SHALL 双语，机器契约及原始内容 SHALL 保持。
 
 #### Scenario: S09 优先级和系统回退确定
 
 - **WHEN** 参数、产品环境变量和系统语言冲突，或系统语言为 zh_TW.UTF-8、C、未知值
-- **THEN** 使用最高优先级有效选择，系统 zh 取 zh-CN，C/未知取 en-US；帮助/错误/结果使用同一语言
+- **THEN** 合法 flag 覆盖产品环境变量（即使后者非法）；无 flag 时该变量未设置或精确空串视为未设置，非空白规范值只接受 zh-CN/en-US，纯空白/带空白/其他值拒绝；系统候选取首个非空白值，zh 取 zh-CN，C/未知取 en-US；成功解析后的帮助/结果使用同一语言，解析错误说明遵守 S10
 
 #### Scenario: S10 非法显式语言先于执行失败
 
 - **WHEN** --locale 重复/缺值/不支持，或生效的产品环境变量非法
-- **THEN** 退出 2 并给受控说明，尚未加载用户执行配置、写 baseline、调用模型/工具或初始化 MCP
+- **THEN** 先判重复，再判唯一 flag 缺值（末尾或下一 token 以 - 开头），再判不支持值（含显式空串/空白）；退出 2 并给不回显原始值的受控说明，即使同时请求 --help 也尚未加载用户执行配置、写 baseline、调用模型/工具或初始化 MCP；说明语言依次取被识别 flag 中首个合法规范值、合法产品环境变量、系统语言、英文回退，稳定码/reason 不翻译
 
 #### Scenario: S11 其余包层 CLI 无遗漏
 

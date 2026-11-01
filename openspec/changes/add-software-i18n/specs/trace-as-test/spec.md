@@ -12,7 +12,7 @@ trace-test SHALL 使用共享 CLI 语言规则，覆盖帮助、参数错误、�
 #### Scenario: C02 语言选择不触发 baseline 写入
 
 - **WHEN** --help、非法 locale 或未显式 --update-baseline 的测试使用另一语言
-- **THEN** 不写 baseline，非法语言先于用户模块加载失败；显式更新仍按原成功与写入判据
+- **THEN** 不写 baseline；同时出现 --help 和非法 locale 时仍按 S10 先拒绝语言、退出 2，不加载用户模块；合法语言不改变 help 与其他业务参数的既有解析顺序；显式更新仍按原成功与写入判据
 
 ### Requirement: trace-test JSON 报告与语言无关
 
@@ -21,7 +21,7 @@ trace-test SHALL 使用共享 CLI 语言规则，覆盖帮助、参数错误、�
 #### Scenario: C03 两语言机器报告契约等价
 
 - **WHEN** 相同确定性 fixture 分别用两语言输出 JSON
-- **THEN** 解析后的报告深度相等（仅原有非确定字段按相同规则归一），无新增翻译内部字段或本地化值，退出码相同
+- **THEN** 解析后的报告深度相等（仅原有非确定字段按相同规则归一），既有 assertion/request-drift detail 保留原生成规则及脱敏/截断，即使仍含中文也不自动翻译；内存 display 等人类投影不序列化，无新增翻译内部字段或本地化值，退出码相同
 
 #### Scenario: C04 baseline 文本不污染 JSON
 

@@ -1,6 +1,6 @@
 # 软件 i18n 设计
 
-状态：待实施。以下默认值、选型与切换规则是本 change 的具体提议，不冒充先前已批准的决定。
+状态（2026-11-01 回填）：实施中；tasks.md 已完成 0.x–4.x、5.1–5.6，5.7/5.8 与 6.x 尚未完成，未归档、不代表发行。以下为本 change 的目标契约；§9 区分已核实实现、剩余实施义务及未验证项。本轮仅修订文档，不将历史实验报告当作当前实现状态或验收凭据。
 
 ## 1. 分类与原文边界
 
@@ -66,6 +66,23 @@ CLI 覆盖 trace-test 和盘点发现的其他现有包层入口（含 replay �
 
 trace-test --report json 保留现有 key、值、原始 detail、脱敏和退出码，locale 不改变 JSON 对象。可添加内存描述供人类 formatter 使用，序列化不泄漏翻译内部字段。JSON 模式的 baseline 文本反馈转 stderr，stdout 保持可解析 JSON；其他机器输出同样保持契约。
 
+### 6.1 CLI 解析及失败口径（2026-11-01 回填）
+
+以下明确共享解析器与入口适配的现有行为，不新增参数语法；5.7 的其余 CLI 应沿用同一规则。
+
+- **参数语法**：只支持分离形式 `--locale zh-CN` / `--locale en-US`，严格区分大小写、不 trim、不接受区域别名。`--locale=en-US` / `--locale=` 不属于 locale 语法，由入口既有未知参数处理；不承诺其产生 `INVALID_LOCALE`。共享扫描器不把 `--` 当停止扫描标记，本 change 不新增通用参数解析协议。
+- **错误顺序**：多个被识别的 `--locale` 先判 `duplicate-flag`；唯一 flag 位于末尾或后继 token 以 `-` 开头判 `missing-value`；其余非规范值（包括显式空串/空白）判 `unsupported-value`。错误退出 2，不能降级后继续执行。
+- **产品环境变量**：`REBASEAGENT_LOCALE` 未设置或精确空串视为未设置；纯空白、前后带空白、别名及其他值均非法，不 trim。合法 flag 覆盖该变量，即使低优先级变量非法也不阻断；flag 自身非法则不能被环境变量救活。系统候选另按首个非空白值解析，不能将产品环境变量的严格规则套到系统语言上。
+- **帮助与启动**：先完成 locale 校验，再处理帮助和其他业务参数；因此非法 locale 与 `--help` 同时出现仍退出 2，不加载用户模块、不写 baseline。合法 locale 不改变其他参数与 help 之间原有解析顺序。MCP 没有帮助成功分支，`--help` 仍是未知参数；顺序为 locale → 唯一显式 `--data-dir` 与数据根核验 → 服务/stdio 初始化，不创建或回退到其他数据根。
+- **错误说明语言**：依次取被识别 flag 值中第一个合法规范值、合法产品环境变量、系统语言、英文回退；错误码/reason 不翻译，不回显非法参数或环境变量原值。例如 `--locale zh-CN --locale en-US` 是重复错误并使用中文说明；不能将“取首个合法值用于说明”误解为接受重复 flag。MCP 用受控 stderr 诊断，trace-test 用 stderr 的 `INVALID_LOCALE` 与本地化说明；locale 校验失败路径 stdout 为空。合法 locale 下其他参数错误与帮助输出保留入口既有流向，不借本轮统一所有诊断输出。
+
+### 6.2 schema 说明与原文分界（2026-11-01 回填）
+
+- **M21 的可翻译对象**：每个 server 实例在发布工具元信息时深拷贝 inputSchema，为全部对象属性（含嵌套属性）提供对应语言的非空 `description`；即使 Zod 契约原先无说明，也由发布投影补充，而不是以“无文本可翻译”豁免。不要求凭空给每个 schema 节点加说明；移除 `description` 后参数结构、required、枚举及验证行为必须相同。说明须与具体工具/属性语境一致，不能仅因字段同名便复用错误语义。
+- **按来源与用途划界，不按字段名划界**：trace-test 既有 assertion/request-drift `detail`、用户输入及历史记录正文保留原生成规则和既有脱敏/截断；可另加仅在内存中的受控 `display` 描述，供人类 formatter 翻译，JSON 显式挑选既有字段而不序列化 `display`。英文机器报告保留原有中文 detail 不算漏翻。
+- 配置/运行异常可显示本地化产品摘要及依原隐私规则允许的原始详情；第三方 `Error.message` 不保证翻译，也不得用文本匹配猜领域原因。MCP 自身受控错误/限制解释翻译，但历史 LLM/tool input/output/error、验证记录 `detail`、文件/日志仍为原文，继续经过既有过滤、范围、分页与预算，不能误称“无脱敏的逐字节透传”。MCP 不透传本次服务异常。
+- Agent 发给模型的工具声明与 MCP 对外工具元信息不是同一对象：前者保持原文，后者只在上述明确范围内本地化。已完成的局部 JSON/MCP 回归不能替代 5.8 的模型请求、持久化正文及检查点/导出受控对照。
+
 ## 7. 术语
 
 | 语境 | 英文 | 约束 |
@@ -98,3 +115,38 @@ trace-test --report json 保留现有 key、值、原始 detail、脱敏和退�
 真实 Electron 两语言分别验证 1440/1024/800 CSS px，另做 200% 缩放与键盘全流程；记录实际内容区/zoom/提交/构建/fixture。覆盖长标签、路径、ID、错误、图表、编辑器外围、模态焦点、原生对话框及未授权/已确认未提交/已提交/未知/迟到状态。受控模型/工具桩不产生真实费用，注明哪些是 fixture，不伪称真实模型执行。
 
 实施创建 evidence-index.md，逐场景链接入库测试/可追溯实机证据，未执行如实记录。每任务不超过 2h，超时拆子项而不删保证。全仓 check:ci、单独 desktop build、change strict、diff 检查和双语指南更新后收口；归档不等于发行。
+
+## 9. 2026-11-01 口径回填与证据入口
+
+核对实现基准为 `a289984`；此处记录文档回填，不重跑功能测试、不新增已通过声明。实验使用的 `25f7870` 仅是历史基线，不能代表当前源码。原 2026-10-28 review.md 保留为当时的提案审阅，不冒充本次修订复审。
+
+| 接续审阅项 | 本次处理 | 源码/断言来源（仓库相对路径） |
+|---|---|---|
+| 等号参数语法 | §6.1 明确仅分离形式，等号形式交入口原解析器处理 | `packages/i18n/src/cli-locale.ts` 的 readFlagValues；`packages/mcp-server/src/startup.ts`；`packages/trace-test/src/cli.ts` |
+| help 与非法 locale 优先级 | §6.1 / S10 / C02 固定先校验语言，MCP 不新增 help | `packages/mcp-server/src/cli.ts`；`packages/trace-test/src/cli.ts` |
+| 空环境变量 | §6.1 / S09 区分精确空串、空白与有效 flag 覆盖 | `packages/i18n/src/cli-locale.ts` 的 resolveCliLocale；`packages/i18n/test/cli-locale.test.ts` |
+| 非法 locale 报错语言 | §6.1 / S10 明确第一个合法 flag → 合法 env → 系统 → 英文 | 同模块 messageLocaleOf；同包测试的双语受控错误断言 |
+| M21 schema 无原始说明 | §6.2 / M21 明确发布投影补全对象属性说明、结构保持；这两项已实现，语境准确性仍有 §9.2 缺陷，M21 未全量验收 | `packages/mcp-server/src/tool-metadata.ts`；`packages/mcp-server/test/locale.test.ts` |
+| detail 与产品解释 | §6.2 / C03 明确原始 detail 与内存 display 分离 | `packages/trace-test/src/assertions.ts`、`cassette-llm-client.ts`（drift 生成）、`report.ts`、`cli.ts`；`packages/mcp-server/src/error-projection.ts` |
+| 证据位置 | 下表区分入库断言、本地产物及未完成索引 | tasks 6.7 仍未完成；不以本节代替全场景 evidence-index |
+
+### 9.1 当前可追溯入口（不是本轮测试通过记录）
+
+| 范围 | 入库测试入口 | 本地补充/边界 |
+|---|---|---|
+| 5.1 / S09–S10 | `packages/i18n/test/cli-locale.test.ts` | 共享解析单元断言，不证明未迁移入口已接线 |
+| 5.2 / M21–M22 | `packages/mcp-server/test/locale.test.ts` | 发现、schema、信任声明、初始化前拒绝 |
+| 5.3 / M23–M24 | `packages/mcp-server/test/locale-errors.test.ts` | 受控解释与不可信原文边界 |
+| 5.4 / M25–M26 | `packages/mcp-server/test/locale-budget.test.ts` | 已有 `.workbuddy/i18n-54/stdio-two-locale.json` 仅记录预算测量，不证明 M26；重启游标断言看测试。该本地产物不随仓库交付 |
+| 5.5 / C01–C02 | `packages/trace-test/test/report.test.ts`、`cli-locale.test.ts` | 人类报告与真实 dist CLI 路径 |
+| 5.6 / C03–C04 | `packages/trace-test/test/json-contract.test.ts` | JSON 字段、原始 detail、脱敏与 baseline 反馈 |
+
+后续证据应按项目惯例放在 gitignored `.workbuddy/<任务>/`，由最终 evidence-index 记录场景、执行命令、源码提交/构建、fixture、实际结果及产物相对位置；本地产物不可用时明确“本地证据未随仓库提供”，不把文件存在或任务勾选当作重新验证通过。入库测试名/分组名优先于易漂移行号。
+
+### 9.2 留给现有任务的义务与新发现限制
+
+- **5.7**：`packages/replay/src/model-ab-cli.ts` 尚未接共享语言解析；应落实 §6.1，包括非法 locale 先于帮助/配置/执行，不因本次写入契约而勾选完成。
+- **5.8**：模型请求、工具消息、持久化正文、检查点/导出字节与技术格式的受控双语对照仍待执行；不能用局部 JSON 测试替代。
+- **M21 语义限制**：当前 tool-metadata 按属性名共用说明，`list_verifications.status` 的验证状态却复用了“运行结局类别”说明。全属性非空与去 description 后结构一致的测试无法保证语境准确。本轮只登记；任务 6.5 文案核查须修正语境映射并补独立期望，未修正前不宣称 M21 语义全量通过。
+- 本次没有逐条重新审计四份实验报告的所有发现；只对上述七项回填及新暴露限制负责。不据实验的篇幅、发现数或单次成本推导产品效果。
+- 测试补强：本轮精确化的等号形式、`--` 后扫描、非法 locale 与 help 同现、合法 flag 覆盖非法 env 等组合目前由源码核对支撑，不声称均有专项回归；5.7/6.6 应补入口及共享解析断言，未补前在证据索引中如实标记。
