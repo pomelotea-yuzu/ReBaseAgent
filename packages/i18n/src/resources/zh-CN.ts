@@ -2530,6 +2530,51 @@ export const zhCN = {
     traceErrCassetteEmpty:
       "录制 trace 中没有任何 llm.call span，无卡带素材可用（代理录制的 run 请走静态断言路径）",
     traceErrCassetteMessages: "首个 llm.call 的录制 messages 结构非法：{{detail}}",
+    modelAbUsage:
+      "用法：rebaseagent-model-ab --parent RUN_ID --dir TRACES_DIR --arm SPEC --arm SPEC [--config CONFIG.mjs] [--base-url URL] [--cwd DIR] [--experiment-id ID] [--dry-run] [--confirm-cost] [--report json] [--locale zh-CN|en-US]\n\n" +
+      '  --arm spec："model" 或 "model;k=v;k=v"（首期只支持数值采样参数）\n' +
+      "  --locale zh-CN|en-US  人类可读输出的语言；默认按 REBASEAGENT_LOCALE、系统语言、en-US 解析\n" +
+      "  退出码：0=全部成功 / 1=至少一臂失败 / 2=配置或前置校验错误",
+    modelAbUnknownArgument: "未知参数：{{arg}}",
+    modelAbMissingRequired: "配置错误：--parent 与 --dir 均为必填",
+    modelAbTooFewArms:
+      "模型实验至少需要 2 个 --arm（当前 {{count}} 个）；单臂请用桌面端的 prompt fork",
+    modelAbArmMissingValue:
+      "第 {{index}} 个 --arm 的采样参数缺值：{{part}}（示例：temperature=0.2 或 level=high）",
+    modelAbArmQuoteNotWhole:
+      '第 {{index}} 个 --arm 的引号未包裹整个值：{{part}}（示例：k="a b"；引号必须包住整个值）',
+    modelAbArmBareQuote: '第 {{index}} 个 --arm 的值中出现裸引号：{{part}}（字面双引号请写 \\"）',
+    modelAbArmUnsupportedEscape:
+      '第 {{index}} 个 --arm 的值含不支持的转义：{{part}}（仅支持 \\" 与 \\\\；\\n / \\t / \\uXXXX 等按字面量传入请去掉反斜杠）',
+    modelAbArmEmpty: "第 {{index}} 个 --arm 为空",
+    modelAbArmMultipleModels: "第 {{index}} 个 --arm 有多个模型名：{{spec}}",
+    modelAbArmMissingKey: "第 {{index}} 个 --arm 的采样参数缺键名：{{part}}",
+    modelAbArmMissingModel: "第 {{index}} 个 --arm 缺少模型名：{{spec}}",
+    modelAbConfigModuleShape:
+      "配置模块 {{path}} 需 default 导出 { baseURL, cwd?, maxIterations?, budget? }",
+    modelAbBaseUrlRequired: "配置错误：真实执行需要 baseURL（用 --base-url 或 --config 提供）",
+    modelAbApiKeyRequired:
+      "配置错误：真实执行需要 apiKey，请设置环境变量 REBASEAGENT_API_KEY（--dry-run 不需要密钥）",
+    modelAbConfigError: "配置错误：{{detail}}",
+    modelAbRequestFailed: "配置错误（稳定码 {{code}}）：{{detail}}",
+    modelAbExperimentLine: "实验 {{id}}（父 run {{parent}}）",
+    modelAbArmPlanLine: "  arm {{index}}：{{model}}",
+    modelAbEffectiveParams: "    生效 params：{{params}}",
+    modelAbInheritParentParams: "（沿用父参数）",
+    modelAbTagOverridden: "（覆盖）",
+    modelAbTagAdded: "（新增）",
+    modelAbTagInherited: "（继承）",
+    modelAbDiscardedParams: "    丢弃父录值：{{values}}   ← 整体替换不合并，此项不会进入请求",
+    modelAbWarningLine: "    ⚠ {{key}}：{{reason}}",
+    modelAbWorkaroundLine: "      绕行：{{workaround}}",
+    modelAbChanged: "    改变：{{fields}}",
+    modelAbChangedNone: "（无）",
+    modelAbArmResultLine: "  arm {{index}}（{{model}}）：{{result}}",
+    modelAbArmSuccess: "成功 {{id}}",
+    modelAbArmFailure: "失败 {{error}}",
+    modelAbDryRun: "dry-run：只做了校验与计划展示，未读密钥、未联网、未写文件。",
+    modelAbPrivacy:
+      "[privacy] 真实调用会把父 run 的 prompt 与工具参数原样发给 provider；结果不可复现，费用按臂数计。",
   },
 } as const;
 

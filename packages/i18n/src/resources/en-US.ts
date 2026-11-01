@@ -2898,5 +2898,54 @@ export const enUS = {
       "The recorded trace has no llm.call span, so there is no cassette material (proxy-recorded runs must use the static assertion path)",
     traceErrCassetteMessages:
       "The first llm.call's recorded messages are structurally invalid: {{detail}}",
+    modelAbUsage:
+      "Usage: rebaseagent-model-ab --parent RUN_ID --dir TRACES_DIR --arm SPEC --arm SPEC [--config CONFIG.mjs] [--base-url URL] [--cwd DIR] [--experiment-id ID] [--dry-run] [--confirm-cost] [--report json] [--locale zh-CN|en-US]\n\n" +
+      '  --arm spec: "model" or "model;k=v;k=v" (only numeric sampling parameters for now)\n' +
+      "  --locale zh-CN|en-US  Language of human-readable output; defaults to REBASEAGENT_LOCALE, then system language, then en-US\n" +
+      "  Exit codes: 0 = all succeeded / 1 = at least one arm failed / 2 = configuration or preflight error",
+    modelAbUnknownArgument: "Unknown argument: {{arg}}",
+    modelAbMissingRequired: "Configuration error: --parent and --dir are required",
+    modelAbTooFewArms:
+      "Model experiments require at least 2 --arm options (currently {{count}}); use prompt fork in the desktop app for a single arm",
+    modelAbArmMissingValue:
+      "Sampling parameter in --arm #{{index}} has no value: {{part}} (example: temperature=0.2 or level=high)",
+    modelAbArmQuoteNotWhole:
+      'Quotes in --arm #{{index}} do not wrap the whole value: {{part}} (example: k="a b"; quotes must wrap the entire value)',
+    modelAbArmBareQuote:
+      'Bare quote in the value of --arm #{{index}}: {{part}} (write \\" for a literal double quote)',
+    modelAbArmUnsupportedEscape:
+      'Unsupported escape in the value of --arm #{{index}}: {{part}} (only \\" and \\\\ are supported; remove the backslash to pass \\n / \\t / \\uXXXX literally)',
+    modelAbArmEmpty: "--arm #{{index}} is empty",
+    modelAbArmMultipleModels: "--arm #{{index}} contains multiple model names: {{spec}}",
+    modelAbArmMissingKey: "Sampling parameter in --arm #{{index}} has no key: {{part}}",
+    modelAbArmMissingModel: "--arm #{{index}} is missing a model name: {{spec}}",
+    modelAbConfigModuleShape:
+      "Config module {{path}} must default-export { baseURL, cwd?, maxIterations?, budget? }",
+    modelAbBaseUrlRequired:
+      "Configuration error: real execution requires a baseURL (provide it with --base-url or --config)",
+    modelAbApiKeyRequired:
+      "Configuration error: real execution requires an apiKey; set the REBASEAGENT_API_KEY environment variable (--dry-run needs no key)",
+    modelAbConfigError: "Configuration error: {{detail}}",
+    modelAbRequestFailed: "Configuration error (stable code {{code}}): {{detail}}",
+    modelAbExperimentLine: "Experiment {{id}} (parent run {{parent}})",
+    modelAbArmPlanLine: "  arm {{index}}: {{model}}",
+    modelAbEffectiveParams: "    Effective params: {{params}}",
+    modelAbInheritParentParams: "(inherit the parent's params)",
+    modelAbTagOverridden: "(override)",
+    modelAbTagAdded: "(added)",
+    modelAbTagInherited: "(inherited)",
+    modelAbDiscardedParams:
+      "    Discarded parent values: {{values}}   ← replaced as a whole, not merged; this value does not enter the request",
+    modelAbWarningLine: "    ⚠ {{key}}: {{reason}}",
+    modelAbWorkaroundLine: "      Workaround: {{workaround}}",
+    modelAbChanged: "    Changed: {{fields}}",
+    modelAbChangedNone: "(none)",
+    modelAbArmResultLine: "  arm {{index}} ({{model}}): {{result}}",
+    modelAbArmSuccess: "succeeded {{id}}",
+    modelAbArmFailure: "failed {{error}}",
+    modelAbDryRun:
+      "dry-run: validation and plan preview only; no key was read, no network was used, and no files were written.",
+    modelAbPrivacy:
+      "[privacy] Real calls send the parent run's prompts and tool arguments to the provider as-is; results cannot be reproduced and cost scales with the number of arms.",
   },
 } satisfies ResourceShape;

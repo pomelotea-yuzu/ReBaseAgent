@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-31T07:06:22.267Z",
+  "generatedAt": "2026-11-01T08:01:56.846Z",
   "scanner": "scripts/i18n-attribution.cjs",
   "taxonomy": {
     "product": "产品展示：需要按批次迁移为双语资源",
@@ -9,9 +9,9 @@
     "generated": "生成资产：不作为产品文案"
   },
   "totals": {
-    "files": 145,
-    "occurrences": 1230,
-    "product": 33,
+    "files": 144,
+    "occurrences": 1197,
+    "product": 0,
     "original": 1031,
     "internal": 162,
     "generated": 4
@@ -74,9 +74,9 @@
       "generated": 4
     },
     "pkg:replay": {
-      "files": 32,
-      "occurrences": 352,
-      "product": 33,
+      "files": 31,
+      "occurrences": 319,
+      "product": 0,
       "original": 301,
       "internal": 18,
       "generated": 0
@@ -5337,213 +5337,6 @@
           ],
           "lines": [
             34
-          ]
-        }
-      ]
-    },
-    {
-      "path": "packages/replay/src/model-ab-cli.ts",
-      "layer": "pkg:replay",
-      "package": "replay",
-      "workspace": "pkg:replay",
-      "classification": "product",
-      "batch": 4,
-      "status": "pending",
-      "reason": null,
-      "symbols": [
-        {
-          "symbol": "parseArgs",
-          "role": "internal_log",
-          "context": "console.error",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "未知参数：${…}"
-          ],
-          "lines": [
-            86
-          ]
-        },
-        {
-          "symbol": "printUsageAndExit",
-          "role": "concat",
-          "context": "+",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "用法：rebaseagent-model-ab --parent <runId> --dir <tracesDir> --arm <spec> --arm <spec>",
-            "  --arm spec：\"model\" 或 \"model;k=v;k=v\"（首期只支持数值采样参数）\n"
-          ],
-          "lines": [
-            95,
-            98,
-            99
-          ]
-        },
-        {
-          "symbol": "parseScalarValue",
-          "role": "error_message",
-          "context": "new Error",
-          "classification": "product",
-          "reason": null,
-          "count": 4,
-          "samples": [
-            "第 ${…} 个 --arm 的采样参数缺值：${…}（示例：temperature=0.2 或 level=high）",
-            "第 ${…} 个 --arm 的引号未包裹整个值：${…}（示例：k=\"a b\"；引号必须包住整个值）"
-          ],
-          "lines": [
-            124,
-            132,
-            141,
-            158
-          ]
-        },
-        {
-          "symbol": "parseArm",
-          "role": "error_message",
-          "context": "new Error",
-          "classification": "product",
-          "reason": null,
-          "count": 4,
-          "samples": [
-            "第 ${…} 个 --arm 为空",
-            "第 ${…} 个 --arm 有多个模型名：${…}"
-          ],
-          "lines": [
-            171,
-            178,
-            185,
-            190
-          ]
-        },
-        {
-          "symbol": "loadConfig",
-          "role": "error_message",
-          "context": "new Error",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "配置模块 ${…} 需 default 导出 { baseURL, cwd?, maxIterations?, budget? }"
-          ],
-          "lines": [
-            200
-          ]
-        },
-        {
-          "symbol": "printArmPlan.effectiveStr",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "（沿用父参数）"
-          ],
-          "lines": [
-            221
-          ]
-        },
-        {
-          "symbol": "effectiveStr.tag",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 3,
-          "samples": [
-            "（覆盖）",
-            "（新增）"
-          ],
-          "lines": [
-            225,
-            227,
-            228
-          ]
-        },
-        {
-          "symbol": "printArmPlan",
-          "role": "internal_log",
-          "context": "console.log",
-          "classification": "product",
-          "reason": null,
-          "count": 4,
-          "samples": [
-            "    生效 params：${…}",
-            "    丢弃父录值：${…}   ← 整体替换不合并，此项不会进入请求"
-          ],
-          "lines": [
-            233,
-            237,
-            242,
-            244
-          ]
-        },
-        {
-          "symbol": "printArmPlan",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "（无）"
-          ],
-          "lines": [
-            244
-          ]
-        },
-        {
-          "symbol": "main",
-          "role": "internal_log",
-          "context": "console.error",
-          "classification": "product",
-          "reason": null,
-          "count": 8,
-          "samples": [
-            "配置错误：--parent 与 --dir 均为必填",
-            "配置错误：${…}"
-          ],
-          "lines": [
-            251,
-            266,
-            272,
-            279,
-            337,
-            342,
-            346,
-            356
-          ]
-        },
-        {
-          "symbol": "main",
-          "role": "error_message",
-          "context": "new Error",
-          "classification": "product",
-          "reason": null,
-          "count": 1,
-          "samples": [
-            "模型实验至少需要 2 个 --arm（当前 ${…} 个）；单臂请用桌面端的 prompt fork"
-          ],
-          "lines": [
-            260
-          ]
-        },
-        {
-          "symbol": "main",
-          "role": "ui_text",
-          "context": "ternary",
-          "classification": "product",
-          "reason": null,
-          "count": 2,
-          "samples": [
-            "成功 ${…}",
-            "失败 ${…}"
-          ],
-          "lines": [
-            350
           ]
         }
       ]

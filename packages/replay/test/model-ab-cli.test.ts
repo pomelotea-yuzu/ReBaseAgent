@@ -60,8 +60,9 @@ async function createParent(dir: string, config: RunConfig, tools: Tool[]): Prom
   return record.meta.id;
 }
 
-function runCli(args: string[], env = process.env) {
-  return spawnSync(process.execPath, [CLI_PATH, ...args], {
+function runCli(args: string[], env: NodeJS.ProcessEnv = process.env) {
+  // 宿主 LANG/Intl 在不同机器上可能回退英文；本文件断言中文产品提示，显式钉住语言。
+  return spawnSync(process.execPath, [CLI_PATH, ...args, "--locale", "zh-CN"], {
     encoding: "utf8",
     env,
   });
