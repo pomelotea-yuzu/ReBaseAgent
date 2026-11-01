@@ -160,6 +160,22 @@ describe.skipIf(skip)("rebaseagent-model-ab CLI 语言选择（S09/S10/S11）", 
       expect(c.stdout).toContain("Usage: rebaseagent-model-ab");
     });
 
+    it("LC_ALL 优先于 LANG，LC_MESSAGES 在 LC_ALL 为空时生效", () => {
+      const lcAll = run(
+        ["--help"],
+        envWith({ LC_ALL: "zh_CN.UTF-8", LC_MESSAGES: "en_US.UTF-8", LANG: "en_US.UTF-8" }),
+      );
+      expect(lcAll.status).toBe(0);
+      expect(lcAll.stdout).toContain("用法：rebaseagent-model-ab");
+
+      const lcMessages = run(
+        ["--help"],
+        envWith({ LC_ALL: "", LC_MESSAGES: "zh_CN.UTF-8", LANG: "en_US.UTF-8" }),
+      );
+      expect(lcMessages.status).toBe(0);
+      expect(lcMessages.stdout).toContain("用法：rebaseagent-model-ab");
+    });
+
     it("纯空白/带空白产品环境变量拒绝且不回显原值", () => {
       const blank = run(["--help"], envWith({ REBASEAGENT_LOCALE: "   " }));
       expect(blank.status).toBe(2);
@@ -181,6 +197,29 @@ describe.skipIf(skip)("rebaseagent-model-ab CLI 语言选择（S09/S10/S11）", 
       expect(proc.stderr).toContain("INVALID_LOCALE");
       expect(proc.stderr).not.toContain("Usage");
       expect(proc.stderr).not.toContain("fr-FR");
+    });
+
+    it("非法 flag 不被合法产品环境变量救活，说明取环境语言", () => {
+      const proc = run(["--help", "--locale", "fr-FR"], envWith({ REBASEAGENT_LOCALE: "zh-CN" }));
+      expect(proc.status).toBe(2);
+      expect(proc.stdout).toBe("");
+      expect(proc.stderr).toContain("INVALID_LOCALE");
+      expect(proc.stderr).toContain("语言参数不支持");
+      expect(proc.stderr).not.toContain("fr-FR");
+    });
+
+    it("显式空串/带空白 --locale 值判不支持", () => {
+      const empty = run(["--help", "--locale", ""]);
+      expect(empty.status).toBe(2);
+      expect(empty.stdout).toBe("");
+      expect(empty.stderr).toContain("INVALID_LOCALE");
+      expect(empty.stderr).toContain("Unsupported locale option");
+
+      const padded = run(["--help", "--locale", " en-GB "]);
+      expect(padded.status).toBe(2);
+      expect(padded.stdout).toBe("");
+      expect(padded.stderr).toContain("INVALID_LOCALE");
+      expect(padded.stderr).not.toContain("en-GB");
     });
 
     it("重复 flag 先判重复，说明取首个合法值的语言", () => {
