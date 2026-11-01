@@ -63,9 +63,50 @@
 
 - **未覆盖**：result/prompt/messages 编辑、模型实验（6.1b-2/3）；真实模型不参与本批。
 
-### 待执行（同一 6.1 任务）
+### 6.1b-2 result / prompt 编辑器（成功 / 失败 / 未配置）— 已完成 2026-11-01
 
-- **6.1b-2/3**：result/prompt/messages 编辑、模型实验的成功/失败/不可用两语言实机走查。
-- **6.1c 录制/设置/导出/验证 + 原生对话框**：录制工作区启停与端口冲突、设置保存/清除、
-  导出成功/取消（D20 原生选择器打开时语言）、验证面板可用/不可用/记录读取。
+- **构建/证据**：`b6a2ac8`；受控 mock `18799`；父 run `run_mu2iw4s1`（tool span `s_03`、
+  首次 llm span `s_02`）；本批 **12/12 通过**。报告/截图
+  `.workbuddy/i18n-61/report-61b-edit.json`、`shots-61b-edit/`；运行器 `run-61b-edit.cjs`。
+- **判据**：Monaco 草稿真实写入后核对/提交；成功 = 新 run `Completed` 且受控服务 1 次请求；
+  失败 = 新 run `Ended with error`（HTTP 500）；未配置 = result 侧 `SETTINGS_NOT_CONFIGURED`
+  受控错误，prompt 侧提交门直接禁用并显示 `run.settingsRequiredForFork`，均零请求/零新 trace。
+- **原文边界**：provider 错误详情（`LLM 端点返回 HTTP 500…`）按原文保留，不计漏翻。
+
+### 6.1b-3 模型实验与 messages（成功 / 失败 / 不可用）— 已完成 2026-11-01
+
+- **模型实验**：本批 **10/10 通过**（报告 `report-61b-experiment.json`、截图
+  `shots-61b-experiment/`）。成功 = 两臂各一次受控请求、两个新 run `Completed`；
+  失败 = 第二臂 HTTP 500，结果区显示 `Ended with error` 与失败臂；
+  不可用 = 隔离父本入口禁用并展开 `detail.experimentEntryIsolated` 原因；本批零真实模型。
+- **messages**：本批 **10/10 通过**（报告 `report-61b-messages.json`、截图
+  `shots-61b-messages/`）。受控代理 `18787` + mock upstream `18799`：外部请求捕获 key 并落
+  proxy run；编辑 messages 重发成功成 1 条新 proxy run，失败回合 500 落 errored run；
+  代理停止时编辑器显示 `fork.messagesProxyStopped` 且提交禁用；请求计数 2（捕获+重发）。
+- **原文边界**：provider 原始错误详情与代理请求正文保持原文，不计漏翻。
+
+### 6.1c 录制 / 设置 / 导出 / 验证不可用 / 原生对话框 — 部分完成 2026-11-01
+
+- **录制**（6/6）：成功 = 真实监听并显示访问地址；失败 = 端口 18787 被占用，本地化摘要 +
+  `PORT_UNAVAILABLE` 原始说明；不可用 = upstream 为空时字段错误且应用禁用。
+- **设置**（6/6）：成功 = 保存并回读 `settings.savedVerified`；失败 = 主进程拒绝非法 baseURL，
+  本地化失败摘要 + 原始 Zod 详情；不可用 = 配置缺失时状态行与保存禁用。
+- **导出**（6/6）：通过 dev-only `REBASEAGENT_PICK_DIRECTORY_FILE` 控制目录选择；成功 =
+  files/`changes.patch`/清单落盘并显示导出摘要；取消 = `export.canceled` 零写入；
+  不可用 = 缺附件检查点入口禁用并显示附件不可用原因。
+- **验证**（2/2 不可用）：Docker daemon 未运行（`引擎不可达（exit 1）`），两语言面板均显示
+  本地化不可用说明 + 原始诊断；**成功/失败路径未执行**（需 Docker Desktop 启动后重跑）。
+- **原生对话框 D20**：英文界面真实目录选择框屏幕证据
+  `.workbuddy/i18n-61/shots-61c/en-US-native-dialog.png`：应用标题 `Choose a directory` 为英文，
+  OS 自带控件保持中文（未项目翻译）。中文界面对话框打开后前台被外部窗口抢占，屏幕截图未取得，
+  仅记录页面 `选择中…` 状态；**中文视觉证据待补**。导出取消路径已由控制文件覆盖。
+- **配置保护**：各运行器均逐字节还原 `settings.json` / `ui-preferences.json`
+  （`settingsRestored=true`、`prefsRestored=true`）。
+
+### 6.1 剩余与边界
+
+- **未执行**：验证成功/失败（Docker engine 不可达；需用户启动 Docker Desktop 后重跑）、
+  中文原生目录框屏幕证据。
 - **未覆盖**：真实模型、布局断点与 200%（6.2）、真键盘（6.3）、未提交/在飞/未知状态（6.4）。
+- 本批累计实机场景：6.1a 24 + 6.1b-1 10 + 6.1b-2 12 + 6.1b-3 20 + 6.1c 14 + 导出 6 = **86**
+  个两语言场景通过；真实模型均未参与（受控 mock）。
