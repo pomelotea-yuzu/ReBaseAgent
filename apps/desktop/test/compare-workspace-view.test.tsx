@@ -607,6 +607,39 @@ describe("5.6/5.7 单侧文件入口", () => {
     };
   }
 
+  it("i18n 6.1：文件入口说明使用传入语言，不落回中文", () => {
+    const en = createTestTranslator("en-US");
+    const isolated = {
+      ...completedDetail("r_i", [stepSpan("s_01")]),
+      meta: {
+        ...completedDetail("r_i", [stepSpan("s_01")]).meta,
+        workspace: { profile: "isolated" },
+      } as RunDetail["meta"],
+    };
+    const noSaved = deriveCompareFileEntry(
+      { detail: isolated, selectedSpanId: null, savedTab: undefined },
+      en,
+    );
+    expect(noSaved.kind).toBe("available");
+    if (noSaved.kind === "available") {
+      expect(noSaved.note).toContain("No file-page location was saved");
+      expect(noSaved.note).not.toContain("未在文件页");
+    }
+    const plain = deriveCompareFileEntry(
+      {
+        detail: completedDetail("r_plain", [stepSpan("s_01")]),
+        selectedSpanId: null,
+        savedTab: undefined,
+      },
+      en,
+    );
+    expect(plain.kind).toBe("not-isolated");
+    if (plain.kind === "not-isolated") {
+      expect(plain.reason).toContain("Normal runs have no own file world");
+      expect(plain.reason).not.toContain("普通运行");
+    }
+  });
+
   it("available：按钮可点，可访问名称 = 「打开左列文件/右列文件」", () => {
     const html = renderWithLocale(
       "zh-CN",

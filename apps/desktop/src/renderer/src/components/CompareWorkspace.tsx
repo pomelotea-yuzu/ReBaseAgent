@@ -254,11 +254,14 @@ export function CompareWorkspace({ stacked = false }: { stacked?: boolean } = {}
     const detail = readyItems.find((item) => item.runId === runId)?.detail ?? null;
     // U7 5.6/5.7：单侧文件入口判据（能力门禁 + 步骤定位目标），输入 = 该侧已校验详情
     const reading = readingStateOf(useAppStore.getState().readingByRun, runId);
-    const fileEntry = deriveCompareFileEntry({
-      detail,
-      selectedSpanId: side === "left" ? stepSelection.left : stepSelection.right,
-      savedTab: reading.files !== undefined ? "files" : undefined,
-    });
+    const fileEntry = deriveCompareFileEntry(
+      {
+        detail,
+        selectedSpanId: side === "left" ? stepSelection.left : stepSelection.right,
+        savedTab: reading.files !== undefined ? "files" : undefined,
+      },
+      translator,
+    );
     return {
       side,
       runId,

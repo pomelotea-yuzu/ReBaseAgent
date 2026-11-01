@@ -493,6 +493,7 @@ export function createCompareSlice({
           : undefined;
       const detail = item?.status === "ready" ? item.detail : null;
       const reading = readingStateOf(get().readingByRun, runId);
+      // 这里只判 kind；文件入口的展示文案由 CompareWorkspace 用当前 translator 重新派生。
       const entry = deriveCompareFileEntry({
         detail,
         selectedSpanId:
