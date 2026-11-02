@@ -85,7 +85,7 @@
   代理停止时编辑器显示 `fork.messagesProxyStopped` 且提交禁用；请求计数 2（捕获+重发）。
 - **原文边界**：provider 原始错误详情与代理请求正文保持原文，不计漏翻。
 
-### 6.1c 录制 / 设置 / 导出 / 验证不可用 / 原生对话框 — 部分完成 2026-11-01
+### 6.1c 录制 / 设置 / 导出 / 验证不可用 / 原生对话框 — 已完成 2026-11-01（补验见 6.1d）
 
 - **录制**（6/6）：成功 = 真实监听并显示访问地址；失败 = 端口 18787 被占用，本地化摘要 +
   `PORT_UNAVAILABLE` 原始说明；不可用 = upstream 为空时字段错误且应用禁用。
@@ -95,18 +95,49 @@
   files/`changes.patch`/清单落盘并显示导出摘要；取消 = `export.canceled` 零写入；
   不可用 = 缺附件检查点入口禁用并显示附件不可用原因。
 - **验证**（2/2 不可用）：Docker daemon 未运行（`引擎不可达（exit 1）`），两语言面板均显示
-  本地化不可用说明 + 原始诊断；**成功/失败路径未执行**（需 Docker Desktop 启动后重跑）。
+  本地化不可用说明 + 原始诊断；成功/失败路径于 2026-11-02 补验，见 6.1d。
 - **原生对话框 D20**：英文界面真实目录选择框屏幕证据
   `.workbuddy/i18n-61/shots-61c/en-US-native-dialog.png`：应用标题 `Choose a directory` 为英文，
-  OS 自带控件保持中文（未项目翻译）。中文界面对话框打开后前台被外部窗口抢占，屏幕截图未取得，
-  仅记录页面 `选择中…` 状态；**中文视觉证据待补**。导出取消路径已由控制文件覆盖。
+  OS 自带控件保持中文（未项目翻译）。中文界面对话框屏幕证据于 2026-11-02 补取，见 6.1d。
+  导出取消路径已由控制文件覆盖。
 - **配置保护**：各运行器均逐字节还原 `settings.json` / `ui-preferences.json`
   （`settingsRestored=true`、`prefsRestored=true`）。
 
+### 6.1d 验证成功 / 失败与中文原生目录框 — 已完成 2026-11-02
+
+- **构建/环境**：`be03d11`；Qoder 内
+  `node apps/desktop/scripts/u2-dev-host.cjs --port 9300` 启动真实 Electron（CDP 9300；
+  Windows 当前排除端口含 9594–9693，原 9612 不可用）。数据根 `<仓库根>/.rebaseagent`；
+  Docker engine **29.9.2**；已准备环境 `prep-47c4e5384ed714bd`
+  （image digest `sha256:fd809329…`，manifestVersion 4），run 无需先 prepare。
+- **fixtures**：成功 `run_r3_63_slow`（initial 检查点、`test`、`passed`）；
+  失败 `run_r3_61b_base`（initial、`test`、`check_failed`、exit 1）。
+- **机器判据**：真实 UI 打开验证面板 → 确认执行 → 提交固定检查；`verificationLastOutcome`
+  的 `outcome` / `evidenceComplete` 与预期一致；`data-verification-outcome` 文案当前语言。
+  失败路径额外聚焦可信记录并读取 `test:stdout`：日志含 `not ok 2 - mul(2,3)=6`，
+  记录 `command_end.exitCode=1`；成功路径日志含 `ok 2`、exit 0。英文产品 chrome 汉字残留 **0**；
+  outcome/record 的原始 `detail`（`命令完成…` / `检查失败…`，属 runner 原文）
+  按**完整混排句**白名单保留，不当作漏翻。
+- **证据**：`.workbuddy/i18n-61/report-61-verify.json`、
+  `.workbuddy/i18n-61/shots-61-verify/<lang>-<success|failure>-<outcome|record-log>.png`；
+  运行器 `.workbuddy/i18n-61/run-61-verify.cjs`；**4 个两语言场景通过（8/8 采集）**；
+  `settingsRestored=true`、`prefsRestored=true`。
+
+| 场景 | 路径 | fixture | 结果 |
+|---|---|---|---|
+| 验证成功 | 成功 | `run_r3_63_slow` / initial / test | `passed`、证据完整；日志 `ok 2`、exit 0 |
+| 验证失败 | 失败 | `run_r3_61b_base` / initial / test | `check_failed`、证据完整；日志 `not ok 2`、exit 1 |
+| 原生目录框（中文） | 成功 | 真实「选择目录」 | UIA `#32770` 标题「选择目录」、按钮「选择/取消」；全屏截图已取 |
+
+- **中文原生目录框做法**：`dialog-dump.ps1` 确认 UIA 可读标题与 `选择`/`取消`
+  （2026-11-01 记录的“现代目录框非 #32770、UIA 不可见”是框未稳定/不在场时的误判，已由本轮推翻）；
+  `MoveWindow` 移到 `80,40,1200,860` 让按钮进入屏幕，再全屏 `CopyFromScreen`；收尾
+  `WM_CLOSE` 关闭并用 `dialog-text` 复核 `dialog=none`。截图
+  `.workbuddy/i18n-61/shots-61c/zh-CN-native-dialog.png`。
+
 ### 6.1 剩余与边界
 
-- **未执行**：验证成功/失败（Docker engine 不可达；需用户启动 Docker Desktop 后重跑）、
-  中文原生目录框屏幕证据。
+- **已执行**：验证成功/失败（6.1d）、中文原生目录框屏幕证据（6.1d）。
 - **未覆盖**：真实模型、布局断点与 200%（6.2）、真键盘（6.3）、未提交/在飞/未知状态（6.4）。
-- 本批累计实机场景：6.1a 24 + 6.1b-1 10 + 6.1b-2 12 + 6.1b-3 20 + 6.1c 14 + 导出 6 = **86**
-  个两语言场景通过；真实模型均未参与（受控 mock）。
+- 本批累计实机场景：6.1a 24 + 6.1b-1 10 + 6.1b-2 12 + 6.1b-3 20 + 6.1c 14 + 导出 6 + 6.1d 4
+  = **90** 个两语言场景通过；真实模型均未参与（受控 mock）；另有中英原生目录框屏幕证据各 1。
