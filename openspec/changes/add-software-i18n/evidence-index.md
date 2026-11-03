@@ -169,7 +169,8 @@
   见 6.1d。200% 只复跑一个实测窗口（CSS 924），不宣称 1440/1024/800×200% 笛卡尔积；
   真键盘（6.3）与 6.4 状态竞态仍未做。
 - **证据**：`.workbuddy/i18n-62/report-62-widths.json`、`report-62-zoom200.json`、
+  `report-62-geometry-widths.json`、`report-62-geometry-zoom200.json`、
   `report-62-native-zh-CN.json`、`report-62-native-en-US.json`、`shots/`（34 张）；
-  运行器 `run-62-layout.cjs`、`run-62-native.cjs`、`raise-window.ps1`、
-  `dialog-dump.ps1`、`close-dialog.ps1`。结束后 `--reset-zoom` 清持久 zoom
-  （`cleared=1`，remaining localhost hosts=0）。
+  运行器 `run-62-layout.cjs`、`run-62-native.cjs`、`probe-62-geometry.cjs`、
+  `raise-window.ps1`、`dialog-dump.ps1`、`close-dialog.ps1`。结束后 `--reset-zoom`
+  清持久 zoom（复核 remaining localhost zoom hosts = 0）。
