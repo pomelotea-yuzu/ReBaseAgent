@@ -141,3 +141,35 @@
 - **未覆盖**：真实模型、布局断点与 200%（6.2）、真键盘（6.3）、未提交/在飞/未知状态（6.4）。
 - 本批累计实机场景：6.1a 24 + 6.1b-1 10 + 6.1b-2 12 + 6.1b-3 20 + 6.1c 14 + 导出 6 + 6.1d 4
   = **90** 个两语言场景通过；真实模型均未参与（受控 mock）；另有中英原生目录框屏幕证据各 1。
+
+## 6.2 双语布局与 200% 缩放（D21）— 已完成 2026-11-02
+
+- **构建/环境**：`1b5ff13`；Qoder 内 dev/CDP **9300**（Windows 当前排除段含
+  9594–9693，原 9612 不可用）。100% 组 DPR 2.1；200% 组
+  `REBASEAGENT_ZOOM_FACTOR=2`，DPR 4.2。数据根 `<仓库根>/.rebaseagent`。
+- **实际尺寸**：1440 → inner **1442×701**（outer 2033，ps-win）；1024 → **1024×713**
+  （outer 1034，resizeTo）；800 → **801×713**（outer 810，resizeTo）；
+  200% → **924×582**（outer 2600，按实测 CSS 记录，不冒充具体档位）。
+- **两语言代表视图（每个尺寸）**：步骤页「上下文预算图」echarts canvas、缺失附件长错误、
+  验证面板长只读说明/长 ID/准备与执行按钮、result 编辑器外围（Monaco +
+  确认重跑/取消/外围说明）。
+- **机器判据**：整页无横向溢出；局部纵向滚动存在且无横向溢出；长译文/说明不横向裁切
+  且在视口内；任务标题允许单行省略但 `title` 兜底完整；运行 ID 入口在视口内；
+  图表 canvas 在视口内且不超容器；验证入口/按钮在视口内；Monaco 宽度 >200 且不超宽，
+  确认/取消按钮不裁切。200% 另核 DPR>3.5。
+- **结果**：100% 24 视图 / **318 条判据全过**；200% 8 视图 / **106 条判据全过**；
+  合计 **34 张截图、424 条判据 0 失败**；`settingsRestored=true`、`prefsRestored=true`。
+- **原生目录框（200%）**：zh 标题「选择目录」+ OS 按钮「选择/取消」；en 标题
+  「Choose a directory」+ OS 按钮「Select/取消」（系统本地化混排，OS 控件不在项目
+  翻译承诺内）。Qoder 抢前台时用无 Alt 的 `raise-window.ps1`（AttachThreadInput +
+  BringWindowToTop + SetForegroundWindow）把框抬到前台再全屏截图；`WM_CLOSE` 收尾。
+  两语言均 `raised=true`、`dialog=none`。
+- **环境边界**：6.2 期间 Docker engine 已停止（`engine_unavailable`），验证面板走
+  不可用态（长错误/长 ID/按钮布局已覆盖）；验证 `passed`/`check_failed` 的真实执行证据
+  见 6.1d。200% 只复跑一个实测窗口（CSS 924），不宣称 1440/1024/800×200% 笛卡尔积；
+  真键盘（6.3）与 6.4 状态竞态仍未做。
+- **证据**：`.workbuddy/i18n-62/report-62-widths.json`、`report-62-zoom200.json`、
+  `report-62-native-zh-CN.json`、`report-62-native-en-US.json`、`shots/`（34 张）；
+  运行器 `run-62-layout.cjs`、`run-62-native.cjs`、`raise-window.ps1`、
+  `dialog-dump.ps1`、`close-dialog.ps1`。结束后 `--reset-zoom` 清持久 zoom
+  （`cleared=1`，remaining localhost hosts=0）。
