@@ -1,6 +1,6 @@
 import type { MessageKey } from "@rebaseagent/i18n";
 import type { UiLanguagePreference } from "@shared/ipc";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useTranslator } from "../i18n";
 
 /**
@@ -33,6 +33,30 @@ export function LanguageSettings({
 }): ReactNode {
   const translator = useTranslator();
   const [dismissed, setDismissed] = useState(false);
+  const groupRef = useRef<HTMLDivElement | null>(null);
+  const focusToRestore = useRef<UiLanguagePreference | null>(null);
+
+  /**
+   * 保存期间三个单选被禁用（防重复提交），浏览器会把焦点从当前单选移到 body。
+   * 保存结束后把焦点还给刚才那一项——键盘用户不能因为切语言就丢失位置（D22）。
+   * 只在本组件内恢复，不碰 store；焦点若已被用户移到别处则不抢。
+   */
+  useEffect(() => {
+    const group = groupRef.current;
+    if (group === null) return;
+    if (saving) {
+      const active = document.activeElement;
+      if (active instanceof HTMLInputElement && group.contains(active)) {
+        focusToRestore.current = active.value as UiLanguagePreference;
+      }
+      return;
+    }
+    const target = focusToRestore.current;
+    focusToRestore.current = null;
+    if (target === null || document.activeElement !== document.body) return;
+    group.querySelector<HTMLInputElement>(`[data-language-option="${target}"]`)?.focus();
+  }, [saving]);
+
   return (
     <section
       data-settings-language
@@ -65,6 +89,7 @@ export function LanguageSettings({
         </output>
       ) : null}
       <div
+        ref={groupRef}
         role="radiogroup"
         aria-label={translator.t("settings.languageGroupAria")}
         className="flex flex-wrap gap-3 text-[11px] text-gray-700"

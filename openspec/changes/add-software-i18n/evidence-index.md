@@ -138,7 +138,7 @@
 ### 6.1 剩余与边界
 
 - **已执行**：验证成功/失败（6.1d）、中文原生目录框屏幕证据（6.1d）。
-- **未覆盖**：真实模型、布局断点与 200%（6.2）、真键盘（6.3）、未提交/在飞/未知状态（6.4）。
+- **未覆盖**：真实模型、布局断点与 200%（6.2）、未提交/在飞/未知状态（6.4）；真键盘已由 6.3 覆盖。
 - 本批累计实机场景：6.1a 24 + 6.1b-1 10 + 6.1b-2 12 + 6.1b-3 20 + 6.1c 14 + 导出 6 + 6.1d 4
   = **90** 个两语言场景通过；真实模型均未参与（受控 mock）；另有中英原生目录框屏幕证据各 1。
 
@@ -167,10 +167,36 @@
 - **环境边界**：6.2 期间 Docker engine 已停止（`engine_unavailable`），验证面板走
   不可用态（长错误/长 ID/按钮布局已覆盖）；验证 `passed`/`check_failed` 的真实执行证据
   见 6.1d。200% 只复跑一个实测窗口（CSS 924），不宣称 1440/1024/800×200% 笛卡尔积；
-  真键盘（6.3）与 6.4 状态竞态仍未做。
+  6.4 状态竞态仍未做；真键盘已由 6.3 覆盖。
 - **证据**：`.workbuddy/i18n-62/report-62-widths.json`、`report-62-zoom200.json`、
   `report-62-geometry-widths.json`、`report-62-geometry-zoom200.json`、
   `report-62-native-zh-CN.json`、`report-62-native-en-US.json`、`shots/`（34 张）；
   运行器 `run-62-layout.cjs`、`run-62-native.cjs`、`probe-62-geometry.cjs`、
   `raise-window.ps1`、`dialog-dump.ps1`、`close-dialog.ps1`。结束后 `--reset-zoom`
   清持久 zoom（复核 remaining localhost zoom hosts = 0）。
+
+## 6.3 键盘流程（D22）— 已完成 2026-11-05
+
+- **构建/环境**：源码基线 `3550d36` + 本任务的焦点恢复修复（`LanguageSettings`）；
+  真实 Electron dev（CDP **9300**，`Emulation.setFocusEmulationEnabled`）；数据根
+  `<仓库根>/.rebaseagent`；视口 **1210×713**、DPR **2.1**。设置入口、页签、语言组、
+  核对按钮、文件列表、模态标题与按钮、焦点环均按当前有效语言命名。
+- **通道（如实口径）**：键击经 **CDP `Input.dispatchKeyEvent`（浏览器层受信事件）**
+  投递；本机 OS 物理键盘无法投递到 Electron 窗口（历史实测见 mcp0-61），
+  本批**不宣称 OS 物理键通道**。所有激活均由键击产生受信 click，全程无 `.click()`；
+  仅有少量焦点预放（setup）用于定位夹具，均不计为激活证据。
+- **流程**：`en-US → zh-CN → en-US` 键盘往返；结果编辑器中用键盘键入草稿
+  （Monaco EditContext、Ctrl+A、Ctrl+M 脱离）、核对；在编辑态切语言后草稿/修订保持、
+  执行确认被清除、未重新核对前提交按钮禁用；文件页 Home/ArrowDown 选择文件、
+  切语言后仍停在文件页且所选文件保持、键盘返回概览；放弃确认模态两语言 Escape 关闭、
+  焦点回到开启按钮、草稿逐字保留。
+- **结果**：**124 条判据 0 失败**；全程零新 trace、零执行、`forking` 始终 idle、
+  操作槽登记数不变；`settings.json` 与 `ui-preferences.json` 逐字节还原。
+- **发现并修复**：语言保存期间三个单选被禁用会让焦点落到 `body`，保存完成后不恢复
+  （键盘用户在设置中途丢失位置）。`LanguageSettings` 现在记住被禁用的当前项并在保存
+  结束后归还焦点；实机确认焦点回到所选语言项且可见。
+- **证据**：`.workbuddy/i18n-63/report-63-keyboard.json`、`shots/`（K1a/K1b/K2/K3/K4
+  两语言截图）、运行器 `run-63-keyboard.cjs`。本地产物不随仓库交付。
+- **未覆盖**：真实模型（本批未提交执行）、6.4 的未提交/在飞/未知/迟到竞态；
+  Monaco 内部 EditContext 的可访问名称为库默认 “Editor content”（第三方控件），
+  应用自有控件的名称已随语言切换。
