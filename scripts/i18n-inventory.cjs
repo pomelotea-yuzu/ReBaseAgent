@@ -5,15 +5,22 @@
  * 口径与已知局限见 docs/engineering/reports/2026-10-28-i18n-text-inventory.md。
  * 复跑：node scripts/i18n-inventory.cjs
  */
-const fs = require("fs");
-const path = require("path");
+const fs = require("node:fs");
+const path = require("node:path");
 const ts = require("typescript");
 
 const ROOT = path.resolve(__dirname, "..");
 const HAN = /\p{Script=Han}/u;
 const SKIP_DIRS = new Set([
-  "node_modules", "dist", "out", ".rebaseagent", ".vite", ".tmp",
-  "release", "release-win", "build",
+  "node_modules",
+  "dist",
+  "out",
+  ".rebaseagent",
+  ".vite",
+  ".tmp",
+  "release",
+  "release-win",
+  "build",
 ]);
 
 function walk(dir, exts, out = []) {
@@ -37,15 +44,30 @@ const baseName = (p) => path.basename(p).replace(/\.(tsx?|css|html)$/, "");
 
 const RENDERER_RULES = [
   ["创建运行", /^(CreateRunWorkspace|create-run|create-workspace|entry-gate)$/],
-  ["重跑/分叉", /^(MessagesWorkspace|MessagesForkEditor|MessagesResults|RunActionsBar|ResultForkEditor|PromptForkEditor|IsolatedPromptEntry|isolated-fork|isolated-prompt|prompt-fork|fork-cache-hint|messages-)/],
+  [
+    "重跑/分叉",
+    /^(MessagesWorkspace|MessagesForkEditor|MessagesResults|RunActionsBar|ResultForkEditor|PromptForkEditor|IsolatedPromptEntry|isolated-fork|isolated-prompt|prompt-fork|fork-cache-hint|messages-)/,
+  ],
   ["录制接入", /^(RecordingWorkspace|RecordingWorkspaceView|recording-draft|proxy-)/],
-  ["模型实验", /^(ExperimentWorkspace|ExperimentResults|ModelAbEditor|AbBatchResult|experiment-results|model-ab|prompt-experiment-view)/],
-  ["比较工作区", /^(CompareWorkspace|CompareWorkspaceView|CompareFileWorkspace|CompareMetricsTable|CompareSelectionBar|compare-|DraftCompareGrid|DraftListPanel|DraftSourceBanner|draft-|verification-compare)/],
-  ["文件工作区", /^(WorkspaceFilesPanel|WorkspaceFileView|WorkspaceFileViewBody|FileContent|workspace-file|workspace-files|file-)/],
+  [
+    "模型实验",
+    /^(ExperimentWorkspace|ExperimentResults|ModelAbEditor|AbBatchResult|experiment-results|model-ab|prompt-experiment-view)/,
+  ],
+  [
+    "比较工作区",
+    /^(CompareWorkspace|CompareWorkspaceView|CompareFileWorkspace|CompareMetricsTable|CompareSelectionBar|compare-|DraftCompareGrid|DraftListPanel|DraftSourceBanner|draft-|verification-compare)/,
+  ],
+  [
+    "文件工作区",
+    /^(WorkspaceFilesPanel|WorkspaceFileView|WorkspaceFileViewBody|FileContent|workspace-file|workspace-files|file-)/,
+  ],
   ["项目验证", /^(VerificationPanel|verification-)/],
   ["设置", /^(SettingsDialog|settings-form)$/],
   ["辅助/导出", /^(AuxWorkspaceFrame|WorkspaceExportPanel|aux-workspace|workspace-export-state)/],
-  ["运行总览/详情", /^(RunList|OverviewPanel|BudgetMap|SpanTree|span-tree-view|DetailPanel|DetailNotices|DetailShared|StepDetailView|LlmCallDetail|ToolInvokeDetail|RunStatusBadge|SessionActivity|RunWorkspace|ShortIdLabel|overview-view|tree-view|budget|call-detail-view|detail-)/],
+  [
+    "运行总览/详情",
+    /^(RunList|OverviewPanel|BudgetMap|SpanTree|span-tree-view|DetailPanel|DetailNotices|DetailShared|StepDetailView|LlmCallDetail|ToolInvokeDetail|RunStatusBadge|SessionActivity|RunWorkspace|ShortIdLabel|overview-view|tree-view|budget|call-detail-view|detail-)/,
+  ],
 ];
 const RENDERER_FALLBACK = "通用外壳/组件";
 
@@ -57,8 +79,14 @@ function rendererWorkspace(file) {
 
 function mainWorkspace(file) {
   const b = baseName(file);
-  if (/^(run-create|run-repository|run-read-context|run-lineage-read|run-detail-project|run-source-gate|fork-runner)$/.test(b)) return "运行创建/读取/分叉";
-  if (/^(exec-endpoints|execution-config-state|isolated-prompt-endpoints)$/.test(b)) return "隔离执行/实验";
+  if (
+    /^(run-create|run-repository|run-read-context|run-lineage-read|run-detail-project|run-source-gate|fork-runner)$/.test(
+      b,
+    )
+  )
+    return "运行创建/读取/分叉";
+  if (/^(exec-endpoints|execution-config-state|isolated-prompt-endpoints)$/.test(b))
+    return "隔离执行/实验";
   if (/^verification-/.test(b)) return "项目验证";
   if (/^(compare-endpoints|workspace-compare-endpoint)$/.test(b)) return "比较";
   if (/^(config-endpoints|settings)$/.test(b)) return "设置/配置";
@@ -69,13 +97,21 @@ function mainWorkspace(file) {
 
 /* ---------- classification ---------- */
 
-const UI_PROPS = /(label|title|description|message|hint|placeholder|text|summary|heading|empty|help|error|notice|status|action|confirm|cancel|reason|note|tip|aria)/i;
-const UI_CONSTS = /LABEL|TEXT|MESSAGE|TITLE|HINT|ERROR|NOTICE|STATUS|DESC|PLACEHOLDER|EMPTY|HELP|SUMMARY/;
+const UI_PROPS =
+  /(label|title|description|message|hint|placeholder|text|summary|heading|empty|help|error|notice|status|action|confirm|cancel|reason|note|tip|aria)/i;
+const UI_CONSTS =
+  /LABEL|TEXT|MESSAGE|TITLE|HINT|ERROR|NOTICE|STATUS|DESC|PLACEHOLDER|EMPTY|HELP|SUMMARY/;
 
 function callRole(calleeText) {
-  if (/^(fail|throw)$/.test(calleeText) || /(^|\.)fail$/.test(calleeText) || /Error$/.test(calleeText)) return "error_message";
+  if (
+    /^(fail|throw)$/.test(calleeText) ||
+    /(^|\.)fail$/.test(calleeText) ||
+    /Error$/.test(calleeText)
+  )
+    return "error_message";
   if (/^console\./.test(calleeText)) return "internal_log";
-  if (/^(set|show|open|request|confirm|notify|toast|alert|warn)/i.test(calleeText)) return "ui_message";
+  if (/^(set|show|open|request|confirm|notify|toast|alert|warn)/i.test(calleeText))
+    return "ui_message";
   return "call_arg";
 }
 
@@ -92,7 +128,7 @@ function classify(ancestors, sf) {
       return { role: callRole(callee), context: callee };
     }
     if (ts.isNewExpression(a) && a.expression.getText(sf).endsWith("Error")) {
-      return { role: "error_message", context: "new " + a.expression.getText(sf) };
+      return { role: "error_message", context: `new ${a.expression.getText(sf)}` };
     }
     if (ts.isVariableDeclaration(a)) {
       const name = a.name.getText(sf);
@@ -129,13 +165,22 @@ function hanStringsIn(node, out = []) {
 }
 
 function commentCount(text) {
-  const scanner = ts.createScanner(ts.ScriptTarget.Latest, false, ts.LanguageVariant.Standard, text);
-  let tok;
+  const scanner = ts.createScanner(
+    ts.ScriptTarget.Latest,
+    false,
+    ts.LanguageVariant.Standard,
+    text,
+  );
+  let tok = scanner.scan();
   let n = 0;
-  while ((tok = scanner.scan()) !== ts.SyntaxKind.EndOfFileToken) {
-    if (tok === ts.SyntaxKind.SingleLineCommentTrivia || tok === ts.SyntaxKind.MultiLineCommentTrivia) {
+  while (tok !== ts.SyntaxKind.EndOfFileToken) {
+    if (
+      tok === ts.SyntaxKind.SingleLineCommentTrivia ||
+      tok === ts.SyntaxKind.MultiLineCommentTrivia
+    ) {
       if (HAN.test(scanner.getTokenText())) n++;
     }
+    tok = scanner.scan();
   }
   return n;
 }
@@ -157,7 +202,7 @@ for (const pkg of fs.readdirSync(path.join(ROOT, "packages"))) {
 const records = [];
 const fileStats = [];
 let commentTotal = 0;
-let cssHtml = { files: 0, lines: 0, strings: 0 };
+const cssHtml = { files: 0, lines: 0, strings: 0 };
 
 for (const [layer, relDir] of sourceRoots) {
   const files = walk(path.join(ROOT, relDir), [".ts", ".tsx"]);
@@ -171,14 +216,25 @@ for (const [layer, relDir] of sourceRoots) {
     cssHtml.strings += quoted;
     if (lines) {
       records.push({
-        layer, workspace: "通用外壳/组件", file: rel(f), kind: "css_html",
-        role: "ui_text", context: path.extname(f), text: `<${lines} 行含中文, ${quoted} 处引号串>`,
+        layer,
+        workspace: "通用外壳/组件",
+        file: rel(f),
+        kind: "css_html",
+        role: "ui_text",
+        context: path.extname(f),
+        text: `<${lines} 行含中文, ${quoted} 处引号串>`,
       });
     }
   }
   for (const f of files) {
     const text = fs.readFileSync(f, "utf8");
-    const sf = ts.createSourceFile(f, text, ts.ScriptTarget.Latest, true, f.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
+    const sf = ts.createSourceFile(
+      f,
+      text,
+      ts.ScriptTarget.Latest,
+      true,
+      f.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+    );
     const perFile = [];
     const visit = (node, ancestors) => {
       let rec = null;
@@ -193,7 +249,8 @@ for (const [layer, relDir] of sourceRoots) {
       }
       if (rec) {
         const ctx = classify(ancestors, sf);
-        const workspace = layer === "renderer" ? rendererWorkspace(f) : layer === "main" ? mainWorkspace(f) : layer;
+        const workspace =
+          layer === "renderer" ? rendererWorkspace(f) : layer === "main" ? mainWorkspace(f) : layer;
         const r = { layer, workspace, file: rel(f), ...rec, ...ctx };
         records.push(r);
         perFile.push(r);
@@ -204,24 +261,44 @@ for (const [layer, relDir] of sourceRoots) {
     const comments = commentCount(text);
     commentTotal += comments;
     if (perFile.length || comments) {
-      fileStats.push({ file: rel(f), layer, workspace: perFile[0] ? perFile[0].workspace : (layer === "renderer" ? rendererWorkspace(f) : layer), occurrences: perFile.length, unique: new Set(perFile.map((r) => r.text)).size, comments });
+      fileStats.push({
+        file: rel(f),
+        layer,
+        workspace: perFile[0]
+          ? perFile[0].workspace
+          : layer === "renderer"
+            ? rendererWorkspace(f)
+            : layer,
+        occurrences: perFile.length,
+        unique: new Set(perFile.map((r) => r.text)).size,
+        comments,
+      });
     }
   }
 }
 
 /* ---------- test scan ---------- */
 
-const MATCHERS = /\.(toContain|toHaveTextContent|toMatch|toBe|toEqual|toStrictEqual|toContainEqual)$/;
-const QUERIES = /(getByText|queryByText|findByText|getAllByText|queryAllByText|findAllByText|getByLabelText|queryByLabelText|findByLabelText|getByPlaceholderText|queryByPlaceholderText|findByPlaceholderText|getByTitle|getByAltText|getByDisplayValue|getByRole)$/;
+const MATCHERS =
+  /\.(toContain|toHaveTextContent|toMatch|toBe|toEqual|toStrictEqual|toContainEqual)$/;
+const QUERIES =
+  /(getByText|queryByText|findByText|getAllByText|queryAllByText|findAllByText|getByLabelText|queryByLabelText|findByLabelText|getByPlaceholderText|queryByPlaceholderText|findByPlaceholderText|getByTitle|getByAltText|getByDisplayValue|getByRole)$/;
 
-const rendererStrings = new Set(records.filter((r) => r.layer === "renderer").map((r) => r.text.trim()));
-const serverStrings = new Set(records.filter((r) => r.layer !== "renderer").map((r) => r.text.trim()));
+const rendererStrings = new Set(
+  records.filter((r) => r.layer === "renderer").map((r) => r.text.trim()),
+);
+const serverStrings = new Set(
+  records.filter((r) => r.layer !== "renderer").map((r) => r.text.trim()),
+);
 const rendererList = [...rendererStrings].filter((s) => s.length >= 4);
 const serverList = [...serverStrings].filter((s) => s.length >= 4);
 
 function bucketOf(s) {
   const raw = s.trim();
-  const norm = raw.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+  const norm = raw
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
   if (rendererStrings.has(raw) || rendererStrings.has(norm)) return "ui";
   if (serverStrings.has(raw) || serverStrings.has(norm)) return "domain";
   if (rendererList.some((r) => norm.includes(r) || r.includes(norm))) return "ui";
@@ -231,7 +308,8 @@ function bucketOf(s) {
 
 const testDirs = [["desktop", "apps/desktop/test"]];
 for (const pkg of fs.readdirSync(path.join(ROOT, "packages"))) {
-  if (fs.existsSync(path.join(ROOT, "packages", pkg, "test"))) testDirs.push([pkg, `packages/${pkg}/test`]);
+  if (fs.existsSync(path.join(ROOT, "packages", pkg, "test")))
+    testDirs.push([pkg, `packages/${pkg}/test`]);
 }
 
 const testStats = {
@@ -249,13 +327,21 @@ const testSamples = { ui: [], domain: [], fixture_or_data: [], mixed: [] };
 const testFileStats = [];
 
 for (const [pkg, relDir] of testDirs) {
-  const files = walk(path.join(ROOT, relDir), [".ts", ".tsx"]).filter((f) => /\.test\.tsx?$/.test(f));
+  const files = walk(path.join(ROOT, relDir), [".ts", ".tsx"]).filter((f) =>
+    /\.test\.tsx?$/.test(f),
+  );
   for (const f of files) {
     testStats.files++;
     const text = fs.readFileSync(f, "utf8");
     const hasHan = HAN.test(text);
     if (hasHan) testStats.filesWithHan++;
-    const sf = ts.createSourceFile(f, text, ts.ScriptTarget.Latest, true, f.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
+    const sf = ts.createSourceFile(
+      f,
+      text,
+      ts.ScriptTarget.Latest,
+      true,
+      f.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+    );
     let assertions = 0;
     let queries = 0;
     const visit = (node) => {
@@ -273,10 +359,19 @@ for (const [pkg, relDir] of testDirs) {
             const matched = strs.map((s) => bucketOf(s));
             const uniq = new Set(matched);
             let bucket;
-            if (uniq.size > 1) { testStats.attribution.mixed++; bucket = "mixed"; }
-            else if (matched[0] === "ui") { testStats.attribution.ui++; bucket = "ui"; }
-            else if (matched[0] === "domain") { testStats.attribution.domain++; bucket = "domain"; }
-            else { testStats.attribution.fixture_or_data++; bucket = "fixture_or_data"; }
+            if (uniq.size > 1) {
+              testStats.attribution.mixed++;
+              bucket = "mixed";
+            } else if (matched[0] === "ui") {
+              testStats.attribution.ui++;
+              bucket = "ui";
+            } else if (matched[0] === "domain") {
+              testStats.attribution.domain++;
+              bucket = "domain";
+            } else {
+              testStats.attribution.fixture_or_data++;
+              bucket = "fixture_or_data";
+            }
             if (testSamples[bucket].length < 60) {
               testSamples[bucket].push({ file: rel(f), callee, text: strs[0].slice(0, 120) });
             }
@@ -287,7 +382,11 @@ for (const [pkg, relDir] of testDirs) {
             testStats.byPackage[pkg].queries++;
           }
         }
-        if (/^(test|it|describe)(\.\w+)?$/.test(callee) && args.length && HAN.test(args[0].getText(sf))) {
+        if (
+          /^(test|it|describe)(\.\w+)?$/.test(callee) &&
+          args.length &&
+          HAN.test(args[0].getText(sf))
+        ) {
           testStats.titlesWithHan++;
         }
       }
@@ -301,7 +400,9 @@ for (const [pkg, relDir] of testDirs) {
     }
   }
 }
-testStats.topFiles = testFileStats.sort((a, b) => b.assertions + b.queries - (a.assertions + a.queries)).slice(0, 25);
+testStats.topFiles = testFileStats
+  .sort((a, b) => b.assertions + b.queries - (a.assertions + a.queries))
+  .slice(0, 25);
 
 /* ---------- summarize ---------- */
 
@@ -316,7 +417,12 @@ function sumBy(list, key) {
     e.files.add(r.file);
   }
   return [...m.entries()]
-    .map(([k, v]) => ({ key: k, occurrences: v.occurrences, unique: v.unique.size, files: v.files.size }))
+    .map(([k, v]) => ({
+      key: k,
+      occurrences: v.occurrences,
+      unique: v.unique.size,
+      files: v.files.size,
+    }))
     .sort((a, b) => b.occurrences - a.occurrences);
 }
 
@@ -334,13 +440,24 @@ for (const f of fileStats) {
 }
 
 const roles = [...new Set(records.map((r) => r.role))];
-const roleSamples = Object.fromEntries(roles.map((role) => [
-  role,
-  records.filter((r) => r.role === role).slice(0, 12).map((r) => ({ file: r.file, text: r.text.slice(0, 120), context: r.context })),
-]));
+const roleSamples = Object.fromEntries(
+  roles.map((role) => [
+    role,
+    records
+      .filter((r) => r.role === role)
+      .slice(0, 12)
+      .map((r) => ({ file: r.file, text: r.text.slice(0, 120), context: r.context })),
+  ]),
+);
 
-const attrDist = sumBy(records.filter((r) => r.role === "ui_attr"), "context");
-const propDist = sumBy(records.filter((r) => r.role === "ui_prop"), "context");
+const attrDist = sumBy(
+  records.filter((r) => r.role === "ui_attr"),
+  "context",
+);
+const propDist = sumBy(
+  records.filter((r) => r.role === "ui_prop"),
+  "context",
+);
 
 const result = {
   generatedAt: new Date().toISOString(),
@@ -354,14 +471,27 @@ const result = {
   },
   byLayer: sumBy(records, "layer"),
   byRole: sumBy(records, "role"),
-  rendererByWorkspace: sumBy(records.filter((r) => r.layer === "renderer"), "workspace"),
-  rendererWorkspaceByRole: Object.fromEntries(
-    [...new Set(records.filter((r) => r.layer === "renderer").map((r) => r.workspace))].map((ws) => [
-      ws,
-      Object.fromEntries(sumBy(records.filter((r) => r.layer === "renderer" && r.workspace === ws), "role").map((e) => [e.key, e.occurrences])),
-    ])
+  rendererByWorkspace: sumBy(
+    records.filter((r) => r.layer === "renderer"),
+    "workspace",
   ),
-  mainByWorkspace: sumBy(records.filter((r) => r.layer === "main"), "workspace"),
+  rendererWorkspaceByRole: Object.fromEntries(
+    [...new Set(records.filter((r) => r.layer === "renderer").map((r) => r.workspace))].map(
+      (ws) => [
+        ws,
+        Object.fromEntries(
+          sumBy(
+            records.filter((r) => r.layer === "renderer" && r.workspace === ws),
+            "role",
+          ).map((e) => [e.key, e.occurrences]),
+        ),
+      ],
+    ),
+  ),
+  mainByWorkspace: sumBy(
+    records.filter((r) => r.layer === "main"),
+    "workspace",
+  ),
   topFiles: sumBy(records, "file").slice(0, 30),
   topStrings: [...freq.entries()].sort((a, b) => b[1] - a[1]).slice(0, 40),
   roleSamples,
@@ -373,7 +503,11 @@ const result = {
 };
 
 fs.mkdirSync(path.join(ROOT, ".tmp"), { recursive: true });
-fs.writeFileSync(path.join(ROOT, ".tmp", "i18n-inventory.json"), JSON.stringify(result, null, 2), "utf8");
+fs.writeFileSync(
+  path.join(ROOT, ".tmp", "i18n-inventory.json"),
+  JSON.stringify(result, null, 2),
+  "utf8",
+);
 
 console.log("=== totals ===");
 console.log(result.totals);

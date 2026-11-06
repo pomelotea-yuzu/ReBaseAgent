@@ -1,4 +1,5 @@
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { execSync } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { JsonlTracer } from "@rebaseagent/trace-sdk";
@@ -201,8 +202,40 @@ export function addLateRun(tracesDir: string): string {
 
 export function cleanupStdioFixtures(): void {
   for (const dir of roots.splice(0)) {
-    rmSync(dir, { recursive: true, force: true });
+    rmWithRetry(dir);
   }
+}
+
+/**
+ * Windows 清理临时数据根：agent 命令沙箱拦截层会把删除重定向到回收站、并干扰
+ * %TEMP% 下新建文件的立即删除（6.6 实测：rmSync 报 ENOTEMPTY/EPERM，锁数秒后
+ * 自释放；用户终端实测 junction 与删除完全正常，rc.2 打包同机全绿——是该沙箱
+ * 假象，非机器问题，CI 不受影响）。
+ * 策略：rmSync 有限重试 → win32 `rd /s /q` 走不同 API 路径兜底 → 仍失败则
+ * **显式警告并放弃**（不 throw）：清理属环境收尾，不让它把全过的断言套件染红；
+ * 残留目录在 %TEMP% 下，由系统或后续手工清理。这不是静默吞错：stderr 有明确警告
+ * 与残留路径。正常环境（用户终端 / CI）下第一次 rmSync 即成功，此分支不可达。
+ */
+function rmWithRetry(dir: string, attempts = 8): void {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      rmSync(dir, { recursive: true, force: true });
+      return;
+    } catch {
+      if (attempt >= attempts) break;
+      // 同步等待 500ms：让句柄释放/扫描结束（Atomics.wait 是纯同步等待）
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 500);
+    }
+  }
+  if (process.platform === "win32") {
+    try {
+      execSync(`rd /s /q ${JSON.stringify(dir)}`, { stdio: "ignore", shell: "cmd.exe" });
+      if (!existsSync(dir)) return;
+    } catch {
+      // rd 失败走最终警告
+    }
+  }
+  console.warn(`[stdio-fixtures] 临时数据根清理失败（本机环境锁，测试断言不受影响），残留：${dir}`);
 }
 
 function writeRun(

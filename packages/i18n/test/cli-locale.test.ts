@@ -215,6 +215,40 @@ describe("cli-locale：非法显式值先于执行失败", () => {
   });
 });
 
+describe("cli-locale：共享扫描器不把 -- 当停止标记（design §9.2 / 6.6 专项）", () => {
+  it("-- 之后的 --locale 仍被扫描：重复仍判 duplicate-flag，不会漏判", () => {
+    // 若把 -- 当停止标记，第二个 --locale 会被漏扫，错误地成功解析 zh-CN
+    const outcome = expectInvalid(
+      resolveCliLocale({
+        argv: [CLI_LOCALE_FLAG, "zh-CN", "--", CLI_LOCALE_FLAG, "en-US"],
+        env: emptyEnv,
+        intlLocale: "en-US",
+      }),
+    );
+    expect(outcome.code).toBe("INVALID_LOCALE");
+    expect(outcome.reason).toBe("duplicate-flag");
+    expect(outcome.messageLocale).toBe("zh-CN");
+  });
+
+  it("-- 之后的 --locale 仍生效：合法值按 flag 来源解析", () => {
+    expect(
+      resolveCliLocale({
+        argv: ["--data-dir", "D:/data", "--", CLI_LOCALE_FLAG, "zh-CN"],
+        env: { LANG: "en_US.UTF-8" },
+        intlLocale: "en-US",
+      }),
+    ).toEqual({ ok: true, locale: "zh-CN", source: "flag" });
+  });
+
+  it("--locale 紧跟 -- 判 missing-value（-- 以 - 开头属既有缺值规则）", () => {
+    const outcome = expectInvalid(
+      resolveCliLocale({ argv: [CLI_LOCALE_FLAG, "--", "zh-CN"], env: emptyEnv, intlLocale: null }),
+    );
+    expect(outcome.reason).toBe("missing-value");
+    expect(outcome.messageKey).toBe("cli.localeMissingValue");
+  });
+});
+
 describe("cli-locale：受控说明双语且不回显参数", () => {
   it("四种原因各有独立中英文说明", () => {
     const zh = createTranslator({ locale: "zh-CN" });

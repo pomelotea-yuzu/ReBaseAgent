@@ -65,7 +65,9 @@ describe("文件目录开关就近（任务 1.2）", () => {
     // 目录列标题行的 sticky 容器里有「目录」标题 + 收起按钮（文案走 translator）
     expect(src).toContain("files.directoryTitle");
     // 常驻收起按钮带 aria-expanded="false"（点击后进入收起态），标签与提示同源
-    expect(src).toMatch(/aria-expanded="false"\s*\n\s*aria-label=\{translator\.t\("files\.collapseDirTitle"\)\}/);
+    expect(src).toMatch(
+      /aria-expanded="false"\s*\n\s*aria-label=\{translator\.t\("files\.collapseDirTitle"\)\}/,
+    );
     // 非常驻时 pane 切换条按钮显示相反动作并带 aria-expanded
     expect(src).toContain('dirCollapsed ? "files.expandDir" : "files.collapseDir"');
     expect(src).toContain('aria-expanded={dirCollapsed ? "false" : "true"}');

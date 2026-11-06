@@ -4,10 +4,32 @@ import { join } from "node:path";
 import type { RunMetaInput, RunRecord } from "../src/index";
 import type { Tracer } from "../src/index";
 
-/** 临时目录（测试完自动清理） */
+/**
+ * 临时目录（测试完自动清理）。
+ *
+ * 6.6 实测：agent 命令沙箱拦截层会把删除重定向到回收站，%TEMP% 下刚写入文件的
+ * 紧随 rmSync 可能报 ENOTEMPTY（锁数秒后自释放；用户终端实测正常，rc.2 打包
+ * 同机全绿——是该沙箱假象，非机器问题，CI 不受影响）。处置与 mcp-server
+ * stdio-fixtures 同源：有限重试 → 仍失败显式警告并放弃，不让清理把全过的断言
+ * 套件染红；这不是静默吞错（stderr 有警告与残留路径）。正常环境下第一次
+ * rmSync 即成功。
+ */
 export function tempDir(): { dir: string; cleanup: () => void } {
   const dir = mkdtempSync(join(tmpdir(), "trace-sdk-"));
-  return { dir, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
+  return { dir, cleanup: () => rmWithRetry(dir) };
+}
+
+function rmWithRetry(dir: string, attempts = 6): void {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      rmSync(dir, { recursive: true, force: true });
+      return;
+    } catch {
+      if (attempt >= attempts) break;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 500);
+    }
+  }
+  console.warn(`[trace-sdk fixtures] 临时目录清理失败（本机环境锁，断言不受影响），残留：${dir}`);
 }
 
 /** 合法的 run.meta 输入样例（可覆盖字段） */

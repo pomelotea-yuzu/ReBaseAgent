@@ -27,6 +27,10 @@ let canJunction = false;
 if (process.platform === "win32") {
   try {
     symlinkSync(outside, join(root, "junction"), "junction");
+    // 6.6 实测：agent 命令沙箱拦截层会让 junction 创建假成功后 lstat 持续 ENOENT
+    // （用户终端实测正常，rc.2 打包同机全绿——沙箱假象，非机器问题，CI 不受影响）。
+    // 创建后立即探测可见性，不可见就不谎报该场景可测。
+    lstatSync(join(root, "junction"));
     canJunction = true;
   } catch {
     canJunction = false;

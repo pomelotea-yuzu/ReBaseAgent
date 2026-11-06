@@ -35,6 +35,7 @@
       "**/*.timestamp-*.mjs",
       "**/electron.vite.config.*.mjs",
       "**/.tmp-*",
+      "**/.tmp/**",
       "**/test/fixtures/**",
       "docs/**",
       "i18n/*.json"
