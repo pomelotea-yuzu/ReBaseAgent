@@ -151,4 +151,4 @@ trace-test --report json 保留现有 key、值、原始 detail、脱敏和退�
 - **5.8（已完成，2026-11-01，`d6745a6`）**：受控双语对照已执行——真实 `runLoop` + 真实客户端（捕获请求体、确定性 SSE）比较模型请求、工具声明/消息/结果、trace 正文与模型实验计划；固定时钟导出比较 files/补丁/清单整树字节；技术格式另有定向回归。真实模型与 Electron 实机仍归 6.x。
 - **M21 语义限制（已修正，2026-11-06，任务 6.5）**：原实现 tool-metadata 按属性名共用说明，`list_verifications.status` 的验证状态复用了“运行结局类别”说明。现由 `TOOL_FIELD_DESCRIPTION_KEYS` 按工具语境覆盖：`list_verifications.status` 使用新增资源键 `mcp.fieldVerificationRecordStatus`（两语言，枚举值 sealed/unterminated/corrupt/unsupported_version 与 R3 schema 同源），`localizeInputSchema` 增加 `toolName` 参数由 server 发布时传入；`packages/mcp-server/test/locale.test.ts` 补两语言字面独立语义期望（不得与运行结局说明相同、含枚举语境）。全属性非空与去 description 后结构一致的既有保证不变。
 - 本次没有逐条重新审计四份实验报告的所有发现；只对上述七项回填及新暴露限制负责。不据实验的篇幅、发现数或单次成本推导产品效果。
-- 测试补强：5.7 已补入口专项回归（等号形式、非法 locale 与 help 同现、合法 flag 覆盖非法 env、显式空串/空白值）；共享扫描器不把 `--` 当停止标记的组合仍由源码核对支撑，6.6 如需专项回归再补，未补前在证据索引中如实标记。
+- 测试补强：5.7 已补入口专项回归（等号形式、非法 locale 与 help 同现、合法 flag 覆盖非法 env、显式空串/空白值）；共享扫描器不把 `--` 当停止标记的组合已于 2026-11-06（任务 6.6）补专项回归 3 条（`--` 后重复/生效/缺值组合），见 `packages/i18n/test/cli-locale.test.ts`。

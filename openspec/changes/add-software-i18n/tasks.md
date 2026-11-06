@@ -1,6 +1,6 @@
 # 实施任务
 
-状态（2026-11-06 回填）：实施中；0.x–4.x、5.1–5.8、6.1–6.5 已完成，6.6–6.7 尚未完成。5.7/5.8 实施与证据见 `.workbuddy/memory/2026-11-01.md`，6.1 收口见 `evidence-index.md` 6.1d，6.2 见 6.2 节，6.3 见 6.3 节，6.4 见 6.4 节，6.5 见 6.5 节；精确契约与证据入口见 design §6.1/§6.2/§9。单项预计 0.5—2h；若无法在 2h 内形成可验证结果，先按文件/入口或场景拆子项，不能删减范围。批次不代表缩小本阶段承诺。
+状态（2026-11-06 回填）：实施中；0.x–4.x、5.1–5.8、6.1–6.6 已完成，6.7 尚未完成。5.7/5.8 实施与证据见 `.workbuddy/memory/2026-11-01.md`，6.1 收口见 `evidence-index.md` 6.1d，6.2 见 6.2 节，6.3 见 6.3 节，6.4 见 6.4 节，6.5 见 6.5 节，6.6 见 6.6 节；精确契约与证据入口见 design §6.1/§6.2/§9。单项预计 0.5—2h；若无法在 2h 内形成可验证结果，先按文件/入口或场景拆子项，不能删减范围。批次不代表缩小本阶段承诺。
 
 ## 0. 分类、术语与基础
 
@@ -69,5 +69,5 @@
 - [x] 6.3（1.5h）真键盘操作切语言、编辑核对、结果/文件/模态往返，检查焦点与名称。验收 D22。已完成：真实 Electron（CDP 9300，构建 `3550d36` + 本任务焦点修复）两语言 `en-US ↔ zh-CN` 往返；124 条判据 0 失败，覆盖设置/页签/语言组名称、草稿键盘键入（Monaco EditContext + Ctrl+M 脱离）、执行核对、切语言保留草稿并清确认、未重新核对前提交禁用、文件 Home/方向键与页签往返、放弃确认模态两语言 Escape 关闭与焦点恢复；全程键击受信、无 `.click()`、零新 trace/零执行，`settings.json`/`ui-preferences.json` 逐字节还原。证据见 `.workbuddy/i18n-63/report-63-keyboard.json` 与 `evidence-index.md` 6.3。
 - [x] 6.4（1.5h）实机验证已确认未提交/在飞/未知/迟到状态及未保存设置，回查调用计数/owner/草稿。验收 D14—D18。（已完成 2026-11-06：主跑批 60 判据 + D14 专项 16 判据全过，证据见 evidence-index 6.4 节；unknown 实机不可诚实触发、R3 停止 owner 因 Docker 未运行，均如实登记限制，身份保持由 fork 在飞 owner 与入库测试覆盖）
 - [x] 6.5（1h）同步实际入口涉及的中英指南、CLI/MCP locale 配置示例与原文边界，不扩翻历史材料；修正 design §9.2 登记的 list_verifications.status 说明误用运行结局语境，并补独立语义期望；若超时先拆子项，未修正不得宣称 M21 全量通过。验收 D19/C01/M21/G06。（已完成 2026-11-06：① 语境修正——`tool-metadata.ts` 新增 `TOOL_FIELD_DESCRIPTION_KEYS` 按工具覆盖，`list_verifications.status` 改用新资源键 `mcp.fieldVerificationRecordStatus`（zh/en，与 R3 四状态枚举同源），`localizeInputSchema` 增 `toolName` 参数；`locale.test.ts` 补两语言字面独立语义期望（不等于运行结局说明、含枚举语境），mcp-server locale 三文件 12/12 过、i18n 包 37/37 过、`check:i18n` 通过。② 指南同步——MCP 指南 zh/en 各新增 §2a「服务语言」（优先级、`--locale` 与 `REBASEAGENT_LOCALE` 配置示例、初始化前校验、每进程固定/重启换语言/旧游标过期、zh 变体归一）与「原文边界」段（历史正文/detail/日志/产物保持原样，错误码/字段/枚举/协议版本不变，预算按译文重算），§7 信任声明注明随服务语言切换；根 README zh/en CLI 节补 locale 说明与机器输出边界；trace-test README CLI 节补 `--locale` 与 `--report json` 不受语言影响的边界。未扩翻任何历史材料）
-- [ ] 6.6（2h）最终源码 check:ci、单独 desktop build、change strict、git diff --check，核对测试执行/skip 差异、全部产品待迁移为零。另补 design §9.2 所列 locale 边界组合的专项回归并如实登记覆盖。验收 G01—G05。
+- [x] 6.6（2h）最终源码 check:ci、单独 desktop build、change strict、git diff --check，核对测试执行/skip 差异、全部产品待迁移为零。另补 design §9.2 所列 locale 边界组合的专项回归并如实登记覆盖。验收 G01—G05。（已完成 2026-11-06：全量 check:ci 在用户终端 exit 0——desktop 234 文件/3588、mcp-server 405、replay 620+6skip、trace-test 93、trace-sdk 230+2skip、i18n 40、agent-loop 105、pv 289、run-query 51+1skip、llm-proxy 45，skip 均为既有探测式、本 change 零新增；单独 desktop build exit 0；strict valid；diff 检查干净；check:i18n --final 产品待迁移为零；§9.2 的 `--` 停止标记组合专项回归已补 3 用例。过程修复：mcp-server test 补 --testTimeout=30000 对齐 replay 先例（budget 重负载测试并行满载超 5s）、清 rc.2 后积累的全仓 lint 历史债（.tmp 忽略、i18n-inventory.cjs、panel-collapse-headers）、测试临时目录清理加固与 junction 可见性探测。环境口径与逐项证据见 evidence-index 6.6 节）
 - [ ] 6.7（1h）逐场景填写 evidence-index、登记限制及未执行项，复核完成/发行措辞，再按项目流程归档。验收 G05/G06。

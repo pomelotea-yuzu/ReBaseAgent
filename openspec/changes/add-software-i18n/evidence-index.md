@@ -290,3 +290,53 @@
   `stdio-lifecycle` 两个文件在 `cleanupStdioFixtures` 的 `rmSync` 处报 `ENOTEMPTY`
   （Windows 临时目录清理）；经 stash 基线对照确认**与本任务改动无关**（基线同样失败，
   两文件全部测试断言本身通过），归 6.6 全仓门禁复核。
+
+## 6.6 最终源码全仓门禁（G01—G05）— 已完成 2026-11-06
+
+**最终源码基线**：`6fc620a`（登记文档为后补，不影响被门禁覆盖的代码/测试）。
+**执行环境（如实口径）**：全量 `check:ci` 在**用户自己的 PowerShell 终端**执行
+（exit 0）；维护者 agent 会话的命令沙箱拦截层会把删除重定向回收站并干扰 junction
+可见性与 %TEMP% 新建文件的立即删除，导致 agent 会话内跑测试出现假红（用户终端
+独立 node probe 实测 junction 正常、rc.2 打包同机全绿佐证），故 agent 会话内只采信
+不涉及该两类操作的门禁。
+
+- **全仓 check:ci（G01/G02，用户终端，exit 0）**：日志
+  `.workbuddy/i18n-66/check-ci-user2.log`（本地产物不随仓库交付）。
+  各包统计（passed | skipped）：
+  | 包 | 结果 | 对比 rc.2 基线 |
+  |---|---|---|
+  | desktop | 234 文件 / 3588 passed，0 skip | rc.2 为 225 / 3474；增量 = i18n 各批新测试 |
+  | mcp-server | 35 文件 / 405 passed | rc.2 为 393；+12 = 5.2–5.4 locale 测试 |
+  | replay | 48 文件 / 620 passed \| 6 skipped | rc.2 为 599；+21 含 5.7/5.8 |
+  | trace-test | 13 文件 / 93 passed | rc.2 为 78；+15 = 5.5/5.6 |
+  | trace-sdk | 14 文件 / 230 passed \| 2 skipped | rc.2 为 231；+1 = fs-boundary 无新增场景 |
+  | i18n | 6 文件 / 40 passed | 0.x 时为 22；+18 含 6.6 专项回归 3 条 |
+  | agent-loop 105 / pv 289 / run-query 51+1skip / llm-proxy 45 | 全过 | 与 rc.2 持平或持平+ |
+  **skip 差异核对**：skip 全部为**既有探测式 skip**（symlink 需
+  SeCreateSymbolicLinkPrivilege、junction 全量并发 collect 下创建后不可见——用户终端
+  独立 node probe 正常，见上；replay 6 与 run-query 1 为平台/权限探测，均先于本
+  change 存在），本 change 未新增任何 skip，未删减任何保证。
+- **单独 desktop build（G02）**：`electron-vite build` exit 0，日志
+  `.workbuddy/i18n-66/desktop-build.log`（本地）。
+- **change strict（G03）**：`openspec validate add-software-i18n --strict` = valid。
+- **git diff --check（G04）**：干净（工作树除 gitignored/未跟踪本地产物外无改动）。
+- **产品待迁移为零（G03）**：`check:i18n --final` 通过（14 namespace / 144 归属文件 /
+  英文候选全部已审查）。
+- **design §9.2 专项回归补强**：`packages/i18n/test/cli-locale.test.ts` 新增
+  「共享扫描器不把 `--` 当停止标记」3 条组合用例（`--` 后重复 `--locale` 仍判
+  duplicate-flag 不漏判、`--` 后合法 `--locale` 仍生效、`--locale` 紧跟 `--` 判
+  missing-value）；`cli-locale.test.ts` 18/18 过（用户终端全量含此 40/40）。
+- **过程中修复的真实问题**：
+  - `mcp-server` test script 补 `--testTimeout=30000`（对齐 replay 先例）——
+    budget 重负载测试在 desktop 并行满载下超默认 5s（第一次用户全量 404/405，
+    唯一失败即该例超时；单独跑 405/405）；`6fc620a`。
+  - 历史债（全仓 lint 自 rc.2 后未跑过）：`biome.json` 忽略 gitignored `.tmp/`；
+    `scripts/i18n-inventory.cjs` 4 处 lint 修复；`panel-collapse-headers.test.tsx`
+    格式化；`d42a367`。
+- **测试基础设施加固（对正常环境幂等无害）**：mcp-server `stdio-fixtures` 与
+  trace-sdk `helpers` 的临时目录清理 rmSync 重试 + 显式警告降级（不 throw）；
+  fs-boundary junction 创建后可见性探测。根因与口径见各文件注释（`d42a367`）。
+- **限制（如实登记）**：trace-sdk 的 symlink/junction 两场景在本机为探测式 skip
+  （symlink 需特权为稳定现实；junction 全量并发下探测未通过，单独跑正常——后续
+  单独排查，不阻塞本 change）；真实模型与 Electron 实机门禁属 6.1–6.4 已覆盖范围，
+  6.6 不重复。
