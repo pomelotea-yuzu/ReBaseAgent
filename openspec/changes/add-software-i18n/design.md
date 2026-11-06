@@ -1,6 +1,6 @@
 # 软件 i18n 设计
 
-状态（2026-11-01 回填）：实施中；tasks.md 已完成 0.x–4.x、5.1–5.8，6.x 尚未完成，未归档、不代表发行。以下为本 change 的目标契约；§9 区分已核实实现、剩余实施义务及未验证项。本轮仅修订文档，不将历史实验报告当作当前实现状态或验收凭据。
+状态（2026-11-01 回填）：实施中；tasks.md 已完成 0.x–4.x、5.1–5.8，6.1–6.5 已完成（2026-11-06），6.6–6.7 尚未完成，未归档、不代表发行。以下为本 change 的目标契约；§9 区分已核实实现、剩余实施义务及未验证项。本轮仅修订文档，不将历史实验报告当作当前实现状态或验收凭据。
 
 ## 1. 分类与原文边界
 
@@ -126,7 +126,7 @@ trace-test --report json 保留现有 key、值、原始 detail、脱敏和退�
 | help 与非法 locale 优先级 | §6.1 / S10 / C02 固定先校验语言，MCP 不新增 help | `packages/mcp-server/src/cli.ts`；`packages/trace-test/src/cli.ts` |
 | 空环境变量 | §6.1 / S09 区分精确空串、空白与有效 flag 覆盖 | `packages/i18n/src/cli-locale.ts` 的 resolveCliLocale；`packages/i18n/test/cli-locale.test.ts` |
 | 非法 locale 报错语言 | §6.1 / S10 明确第一个合法 flag → 合法 env → 系统 → 英文 | 同模块 messageLocaleOf；同包测试的双语受控错误断言 |
-| M21 schema 无原始说明 | §6.2 / M21 明确发布投影补全对象属性说明、结构保持；这两项已实现，语境准确性仍有 §9.2 缺陷，M21 未全量验收 | `packages/mcp-server/src/tool-metadata.ts`；`packages/mcp-server/test/locale.test.ts` |
+| M21 schema 无原始说明 | §6.2 / M21 明确发布投影补全对象属性说明、结构保持；这两项已实现，语境准确性缺陷已于 2026-11-06（任务 6.5）修正，见 §9.2 | `packages/mcp-server/src/tool-metadata.ts`；`packages/mcp-server/test/locale.test.ts` |
 | detail 与产品解释 | §6.2 / C03 明确原始 detail 与内存 display 分离 | `packages/trace-test/src/assertions.ts`、`cassette-llm-client.ts`（drift 生成）、`report.ts`、`cli.ts`；`packages/mcp-server/src/error-projection.ts` |
 | 证据位置 | 下表区分入库断言、本地产物及未完成索引 | tasks 6.7 仍未完成；不以本节代替全场景 evidence-index |
 
@@ -149,6 +149,6 @@ trace-test --report json 保留现有 key、值、原始 detail、脱敏和退�
 
 - **5.7（已完成，2026-11-01，`284e0e6` + `ef23b4d`）**：`model-ab-cli.ts` 已接共享语言解析，非法 locale 先于帮助/配置/执行；真实 dist 17 条回归覆盖 S09–S11 与 JSON 契约。
 - **5.8（已完成，2026-11-01，`d6745a6`）**：受控双语对照已执行——真实 `runLoop` + 真实客户端（捕获请求体、确定性 SSE）比较模型请求、工具声明/消息/结果、trace 正文与模型实验计划；固定时钟导出比较 files/补丁/清单整树字节；技术格式另有定向回归。真实模型与 Electron 实机仍归 6.x。
-- **M21 语义限制**：当前 tool-metadata 按属性名共用说明，`list_verifications.status` 的验证状态却复用了“运行结局类别”说明。全属性非空与去 description 后结构一致的测试无法保证语境准确。本轮只登记；任务 6.5 文案核查须修正语境映射并补独立期望，未修正前不宣称 M21 语义全量通过。
+- **M21 语义限制（已修正，2026-11-06，任务 6.5）**：原实现 tool-metadata 按属性名共用说明，`list_verifications.status` 的验证状态复用了“运行结局类别”说明。现由 `TOOL_FIELD_DESCRIPTION_KEYS` 按工具语境覆盖：`list_verifications.status` 使用新增资源键 `mcp.fieldVerificationRecordStatus`（两语言，枚举值 sealed/unterminated/corrupt/unsupported_version 与 R3 schema 同源），`localizeInputSchema` 增加 `toolName` 参数由 server 发布时传入；`packages/mcp-server/test/locale.test.ts` 补两语言字面独立语义期望（不得与运行结局说明相同、含枚举语境）。全属性非空与去 description 后结构一致的既有保证不变。
 - 本次没有逐条重新审计四份实验报告的所有发现；只对上述七项回填及新暴露限制负责。不据实验的篇幅、发现数或单次成本推导产品效果。
 - 测试补强：5.7 已补入口专项回归（等号形式、非法 locale 与 help 同现、合法 flag 覆盖非法 env、显式空串/空白值）；共享扫描器不把 `--` 当停止标记的组合仍由源码核对支撑，6.6 如需专项回归再补，未补前在证据索引中如实标记。

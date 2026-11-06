@@ -92,7 +92,7 @@ export function createQueryServer(
   const publishedTools = tools.map((tool) => ({
     name: tool.name,
     description: toolDescriptionOf(tool.name, translator),
-    inputSchema: localizeInputSchema(tool.inputSchema, translator),
+    inputSchema: localizeInputSchema(tool.inputSchema, translator, tool.name),
     annotations: tool.annotations,
   }));
   const server = new Server(

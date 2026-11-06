@@ -2629,6 +2629,8 @@ export const enUS = {
     toolCompareVerifications:
       "Read-only comparison of two user-specified verifications: per-side facts, shared-condition checks, and limited conclusions (no bodies by default; no automatic selection)",
     fieldStatus: "Filter by run outcome class; does not rewrite the recorded outcome",
+    fieldVerificationRecordStatus:
+      "Filter by verification record status (sealed / unterminated / corrupt / unsupported_version); not a run outcome class; does not rewrite the record",
     fieldQuery: "Exact run identifier or task text match (no fuzzy or regex search)",
     fieldCursor: "Continuation cursor; valid only for the next page of the same query",
     fieldLimit: "Maximum items returned in this page",

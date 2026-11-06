@@ -177,6 +177,29 @@ describe("M21 两语言分别启动：十三工具与信任声明", () => {
       "Filter by run outcome class; does not rewrite the recorded outcome",
     );
 
+    // 6.5 独立语义期望（design §9.2 M21 限制）：同名 status 在 list_verifications
+    // 是验证记录状态（sealed/unterminated/corrupt/unsupported_version），
+    // 不得复用 list_runs 的“运行结局类别”说明；两语言都断言字面文案，不依赖资源键自证。
+    const zhListVerifications = zh.tools.find(
+      (tool) => tool.name === "list_verifications",
+    ) as PublishedTool;
+    const enListVerifications = en.tools.find(
+      (tool) => tool.name === "list_verifications",
+    ) as PublishedTool;
+    const zhVerificationStatus = propertyOf(zhListVerifications, ["status"]).description;
+    const enVerificationStatus = propertyOf(enListVerifications, ["status"]).description;
+    expect(zhVerificationStatus).toBe(
+      "按验证记录状态筛选（sealed 已封存 / unterminated 未终止 / corrupt 损坏 / unsupported_version 版本不受支持）；不等于运行结局，不改写记录本身",
+    );
+    expect(enVerificationStatus).toBe(
+      "Filter by verification record status (sealed / unterminated / corrupt / unsupported_version); not a run outcome class; does not rewrite the record",
+    );
+    expect(zhVerificationStatus).not.toBe(propertyOf(zhListRuns, ["status"]).description);
+    expect(enVerificationStatus).not.toBe(propertyOf(enListRuns, ["status"]).description);
+    // 枚举值来自 R3 四状态 schema，说明不得引入枚举之外的取值语境
+    expect(zhVerificationStatus).toContain("sealed");
+    expect(enVerificationStatus).toContain("unsupported_version");
+
     const zhGetRun = zh.tools.find((tool) => tool.name === "get_run") as PublishedTool;
     const enGetRun = en.tools.find((tool) => tool.name === "get_run") as PublishedTool;
     expect(propertyOf(zhGetRun, ["runId"]).description).toBe("运行标识");

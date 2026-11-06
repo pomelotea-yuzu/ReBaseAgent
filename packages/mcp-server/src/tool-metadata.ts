@@ -5,7 +5,8 @@ import type { MessageKey, Translator } from "@rebaseagent/i18n";
  * initialize 信任声明按 server 实例的语言生成。
  *
  * 工具名、字段名、枚举、annotations 与只读范围不在这里改动；本模块只提供
- * “纯说明”资源键与 JSON Schema 的 description 注入。字段说明按属性名共享，
+ * “纯说明”资源键与 JSON Schema 的 description 注入。字段说明默认按属性名共享，
+ * 同名属性语义不同时由 TOOL_FIELD_DESCRIPTION_KEYS 按工具语境覆盖（design §6.2），
  * 由测试保证契约里的每个属性都有一份说明（不整目录豁免、不静默漏翻）。
  */
 
@@ -45,6 +46,18 @@ const FIELD_DESCRIPTION_KEYS: Readonly<Record<string, MessageKey>> = {
   right: "mcp.fieldRight",
 };
 
+/**
+ * 按工具语境覆盖共用属性说明：同名属性语义不同不得复用同一说明（design §6.2）。
+ * 目前只有 `list_verifications.status` 是验证记录状态（sealed/unterminated/corrupt/
+ * unsupported_version），与 `list_runs.status` 的运行结局类别不是同一语境。
+ */
+const TOOL_FIELD_DESCRIPTION_KEYS: Readonly<Record<string, Readonly<Record<string, MessageKey>>>> =
+  {
+    list_verifications: {
+      status: "mcp.fieldVerificationRecordStatus",
+    },
+  };
+
 const TRUST_KEYS: readonly MessageKey[] = [
   "mcp.trustDataRoot",
   "mcp.trustTools",
@@ -73,24 +86,26 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
 /**
  * 深拷贝 JSON Schema，并给每个属性节点补当前语言的 description。
  * 只加说明，不改 type/required/enum/additionalProperties 等结构。
+ * `toolName` 用于同名属性的语境覆盖（见 TOOL_FIELD_DESCRIPTION_KEYS）。
  */
 export function localizeInputSchema(
   schema: Readonly<Record<string, unknown>>,
   translator: Translator,
+  toolName: string,
 ): Record<string, unknown> {
-  return localizeNode(schema, translator) as Record<string, unknown>;
+  return localizeNode(schema, translator, toolName) as Record<string, unknown>;
 }
 
-function localizeNode(value: unknown, translator: Translator): unknown {
-  if (Array.isArray(value)) return value.map((item) => localizeNode(item, translator));
+function localizeNode(value: unknown, translator: Translator, toolName: string): unknown {
+  if (Array.isArray(value)) return value.map((item) => localizeNode(item, translator, toolName));
   if (!isPlainRecord(value)) return value;
 
   const out: Record<string, unknown> = {};
   for (const [key, child] of Object.entries(value)) {
     out[key] =
       key === "properties" && isPlainRecord(child)
-        ? localizeProperties(child, translator)
-        : localizeNode(child, translator);
+        ? localizeProperties(child, translator, toolName)
+        : localizeNode(child, translator, toolName);
   }
   return out;
 }
@@ -98,11 +113,13 @@ function localizeNode(value: unknown, translator: Translator): unknown {
 function localizeProperties(
   properties: Record<string, unknown>,
   translator: Translator,
+  toolName: string,
 ): Record<string, unknown> {
+  const overrides = TOOL_FIELD_DESCRIPTION_KEYS[toolName];
   const out: Record<string, unknown> = {};
   for (const [name, child] of Object.entries(properties)) {
-    const localized = localizeNode(child, translator);
-    const key = FIELD_DESCRIPTION_KEYS[name];
+    const localized = localizeNode(child, translator, toolName);
+    const key = overrides?.[name] ?? FIELD_DESCRIPTION_KEYS[name];
     out[name] =
       key === undefined || !isPlainRecord(localized)
         ? localized

@@ -46,6 +46,35 @@ node packages/mcp-server/dist/cli.js --data-dir "D:/path/to/data-dir"
 - stdout 只走 MCP 协议帧，诊断信息只写 stderr；
 - 客户端断开（EOF）即释放资源退出，不挂住、不后台续发。
 
+### 2a. 服务语言（`--locale` / `REBASEAGENT_LOCALE`）
+
+服务按**启动时固定**的语言生成对外元信息（十三工具的 description、schema 字段说明、
+initialize 信任声明、受控错误与 content 摘要）。优先级：`--locale` > `REBASEAGENT_LOCALE`
+> 系统语言 > `en-US`：
+
+```bash
+# 显式指定（只接受 zh-CN / en-US 两个规范值）
+node packages/mcp-server/dist/cli.js --data-dir "D:/path/to/data-dir" --locale en-US
+```
+
+MCP 客户端配置里也可用环境变量（与 `--data-dir` 同级放进 `env`）：
+
+```json
+{ "env": { "REBASEAGENT_LOCALE": "en-US" } }
+```
+
+- 语言在协议初始化之前校验：不支持 / 重复 / 缺值 ⇒ stderr `INVALID_LOCALE`、退出 2，
+  stdout 无协议帧，也不读数据根；
+- 每个进程语言固定：不读桌面偏好、没有切语言工具、无语言热更新——换语言需重启服务，
+  旧游标按既有规则过期（`STALE_CURSOR`）；
+- 系统语言为 zh 变体（zh-CN / zh-TW / zh_HK…）时归一为 `zh-CN`，其余回退 `en-US`；
+  合法 `--locale` 覆盖环境变量，即使后者非法也不阻断启动。
+
+**原文边界**：语言只作用于服务自身生成的外围说明；返回的历史正文——trace 消息、
+检查点文件、验证记录 `detail`、日志与产物——保持记录生成时的原样（含原语言），
+不随服务语言改写。错误码、字段名、枚举值、协议版本与 annotations 也不变。
+工具结果预算按译文重新计算（64 KiB 上限不变，见 §5）。
+
 ## 3. 客户端接入（示例来自已通过路径）
 
 以下配置在 **WorkBuddy 5.9.0 + 内置 CLI 2.165.0 + Node v22.22.2** 上实测通过
@@ -133,7 +162,9 @@ MCP2 验证域九个：`VERIFICATION_NOT_FOUND`、`VERIFICATION_UNREADABLE`（�
 
 ## 7. 信任与安全口径（服务端 initialize 同文）
 
-以下四条即服务随 `initialize` 下发的信任说明原文，指南与服务**同一口径**：
+以下四条即服务随 `initialize` 下发的信任说明原文，指南与服务**同一口径**
+（以 `zh-CN` 服务语言为准；`--locale en-US` 启动时该四条随语言切换为英文等价文本，
+见 §2a；四条事实与边界本身不变）：
 
 1. ReBaseAgent 只读诊断：只访问启动时指定的数据根中已有的 trace、检查点与验证记录；
    不运行模型或工具，不写盘，不改变数据根。

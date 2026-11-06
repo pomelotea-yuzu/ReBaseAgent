@@ -200,3 +200,93 @@
 - **未覆盖**：真实模型（本批未提交执行）、6.4 的未提交/在飞/未知/迟到竞态；
   Monaco 内部 EditContext 的可访问名称为库默认 “Editor content”（第三方控件），
   应用自有控件的名称已随语言切换。
+
+## 6.4 未提交/在飞/迟到/竞态状态与未保存设置（D14—D18）— 已完成 2026-11-06
+
+- **构建/环境**：源码基线 `00864e6`；真实 Electron dev（CDP **9630**，本日
+  9123–9622 整段落入 Windows 排除端口段故换口）；数据根 `<仓库根>/.rebaseagent`；
+  受控模型 mock（127.0.0.1:18799，剧本支持 `delayMs` 受控延迟，零费用）。
+- **D14 偏好诚实性（专项 16 判据全过，`run-64-pref.cjs`，每用例独立重启应用）**：
+  - 损坏偏好文件（截断 JSON）⇒ 按 system（zh-CN）启动、文件逐字节不被自动覆盖、
+    设置里 `data-language-issue="corrupt"` 本地化提示；
+  - 未知版本（`version:99,language:"en-US"`）⇒ 同样按 system 启动（不采纳未知版本的
+    language 值）、不覆盖、`unknown_version` 本地化提示；
+  - 保存失败（把 `ui-preferences.json` 换成同名目录构造真实写盘失败）⇒ `saveUiLanguage`
+    返回 `failed`（不误报成功）、有效语言/单选/HTML lang 保持原值、`role=alert` 本地化
+    失败提示（与 `settings.languageSaveFailed` 逐字一致）、目标路径仍是目录（main 未改写）；
+  - 旧响应迟到（代次守卫）：同 tick 双保存 ⇒ 先发请求按 `stale` 丢弃、后发请求 `saved`、
+    最终偏好/有效语言以后发为准、无失败误报；
+  - 无 key 时切语言成功且不提交/不清运行配置（仍未配置）。
+- **D15 草稿+未保存设置（P3）**：结果编辑器含空白草稿（前后空格+换行）+ 设置对话框
+  内未保存的 baseURL 修改，对话框内切语言 ⇒ 未保存输入逐字保留、已保存配置未被提交、
+  编辑器实例未重建（同 DOM 节点标记）、草稿正文/修订保持、可访问名称随新语言；
+  脏关闭走放弃确认后设置仍为已保存值、草稿不受影响。
+- **D16 确认清零（P4/P5）**：已勾执行确认 ⇒ 设置往返（含有效语言 en→zh 变化）后清零、
+  核对文案回待核对、未重新核对前提交禁用、目标与草稿保持、`languageEpoch` 恰 +1、
+  零模型调用、操作登记数不变；重新核对后提交可用。**同效语言不额外撤销**：store 级
+  同值偏好保存（`saveUiLanguage` 同值）后确认保持、epoch 不变（P5 主查，store 级实机）。
+- **D17 在飞/迟到（P6，受控延迟 6s）**：提交在飞中切语言 ⇒ 在飞身份
+  （`operations.pending` 的 epoch+operationId，owner）不变、不重发（调用数恒 1）、
+  不清冻结草稿/不推进修订、不抢导航（视图/所选 run/详情均不变）；迟到结果恰 1 条
+  新 run、恰 1 次模型调用、按新语言（en）展示 Completed 与受控正文。
+- **D18 提交与偏好保存竞态（P7）**：同 tick 发出提交与语言保存 ⇒ 已冻结载荷照常执行
+  （恰 1 次调用、恰 1 条新 run）、偏好保存成功、结算后无错误；P8：P6/P7 两次重跑的
+  模型请求逐字段一致（model/stream/messages/tools），locale 不进载荷。
+- **回查**：调用计数全程恰 2 次（P6+P7，语言切换零新增）；owner = 在飞身份跨语言
+  切换逐字段不变；草稿 = 在飞期冻结逐字保持、验证成功后按设计自动清理回基线原文
+  （draftFrozenNote：可信身份核实到正常结束才清理）。P6 结算后如实记录：提交意图带
+  导航，详情切到新 run（run_mw4iaxbe_awc3）；在飞期无抢导航。
+- **结果**：主跑批 **60 判据 0 失败**（P1–P8 + 收尾安全检查）+ D14 专项 **16 判据
+  0 失败**；新 trace 恰为两次受控提交（run_mw4iaxbe_awc3、run_mw4ib7jb_r1w4），
+  无意外执行；`settings.json`、`ui-preferences.json` 逐字节还原。
+- **关键发现（设计澄清，非缺陷）**：实机 UI 上语言偏好只能经设置对话框修改，而
+  `setSettingsSection` 按 U5 4.4 设计「进设置即撤销待用执行确认（进出都算）」，强于
+  D16 的有效语言规则（分步探针证实：仅打开对话框、epoch 不变即清零）。故 D16 的
+  「同效语言不额外撤销」在实机 UI 路径被更强设计行为包含，只能 store 级验证（P5 主查）。
+- **限制（如实登记）**：unknown 状态（通道失联/回执不可信）实机不可诚实触发——renderer
+  与 main 同生命周期，杀 main 即关窗；该路径由入库测试（tasks 1.5、operations 分片
+  测试）覆盖。R3 定向停止的 owner 绑定需 Docker engine（当前未运行，验证面板走不可用态），
+  实机 owner 检查以 fork 在飞身份为准，R3 停止路径未做。P3/P7 的输入与提交用 DOM 级
+  事件构造时序（非键击通道；键击通道已由 6.3 覆盖）。环境备注：本次曾误用带 BOM 的
+  UTF-8 写偏好文件导致主进程按损坏回退（P1 首跑失败根因），已改无 BOM 重写后通过。
+- **证据**：`.workbuddy/i18n-64/report-64.json`、`report-64-pref.json`、
+  `shots/`（P3/P4/P6/P7 共 6 张）、`shots-pref/`（P1/P2/P3 共 3 张）、
+  运行器 `run-64.cjs`、`run-64-pref.cjs`、诊断 `probe-64-confirm.cjs`。
+  本地产物不随仓库交付。
+
+## 6.5 指南同步与 M21 语境修正（D19/C01/M21/G06）— 已完成 2026-11-06
+
+**证据类型：入库测试 + 源码/文档核对（无本地产物，全部随仓库交付）。**
+
+- **M21 语境修正（入库测试）**：`packages/mcp-server/test/locale.test.ts`——
+  两语言 `tools/list` 实测 `list_verifications.status` 的 schema 说明为
+  `mcp.fieldVerificationRecordStatus` 的字面文案（zh 含 sealed/unterminated/corrupt/
+  unsupported_version 四状态语境；en 同源），且与 `list_runs.status` 的运行结局说明
+  **不相等**；既有全属性非空 description 与去 description 结构一致保证不变。
+  实现：`packages/mcp-server/src/tool-metadata.ts` 新增 `TOOL_FIELD_DESCRIPTION_KEYS`
+  按工具语境覆盖，`localizeInputSchema(schema, translator, toolName)` 由
+  `server.ts` 发布时传入工具名；资源键 zh/en 于
+  `packages/i18n/src/resources/{zh-CN,en-US}.ts`。
+  执行：`vitest run test/locale.test.ts test/locale-errors.test.ts test/locale-budget.test.ts`
+  ⇒ **3 文件 12/12 通过**（i18n 重建后 dist CLI 实测）；i18n 包全量 37/37 通过；
+  `check:i18n` 通过（14 namespace / 144 归属文件 / 英文候选全部已审查）。
+- **指南同步（源码核对，D19/C01 的文档面）**：
+  - `docs/guide/mcp-readonly-diagnostics.md` + `.en.md`：新增 §2a「服务语言」——
+    优先级 `--locale` > `REBASEAGENT_LOCALE` > 系统 > `en-US`、客户端 `env` 配置示例、
+    初始化前校验（`INVALID_LOCALE`/退出 2）、每进程固定/重启换语言/`STALE_CURSOR`、
+    zh 变体归一；新增「原文边界」段（历史正文/验证 `detail`/日志/产物保持原样，
+    错误码/字段/枚举/协议版本/annotations 不变，64 KiB 预算按译文重算）；
+    §7 信任声明注明随服务语言切换（zh 指南对应 `--locale zh-CN`、en 指南对应
+    `--locale en-US`，事实与边界不变）。信任声明两语言等价性由
+    `locale.test.ts` 的 `trustInstructions` 断言覆盖。
+  - 根 `README.md` + `README.en.md`：CLI 节补 `--locale`/`REBASEAGENT_LOCALE`
+    说明与「JSON 机器输出（字段/值/退出码/原始 detail）与历史记录正文不变」边界，
+    链接 MCP 指南 §2a。
+  - `packages/trace-test/README.md`：CLI 节补 `--locale` 优先级与
+    `--report json` 字段/值/原始 detail/退出码不受语言影响（C03/C04 口径）。
+- **边界**：未扩翻任何历史材料（历史报告/实验记录未动）；指南措辞与 design §2/§6.1/§6.2
+  逐条对照，未宣称超出已测范围的语言能力。
+- **环境限制（如实登记）**：本机 `mcp-server` 全量测试中 `stdio-protocol` /
+  `stdio-lifecycle` 两个文件在 `cleanupStdioFixtures` 的 `rmSync` 处报 `ENOTEMPTY`
+  （Windows 临时目录清理）；经 stash 基线对照确认**与本任务改动无关**（基线同样失败，
+  两文件全部测试断言本身通过），归 6.6 全仓门禁复核。

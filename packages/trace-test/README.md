@@ -59,6 +59,7 @@ rebaseagent-trace-test tests/trace-test/ --config ./trace-test.config.mjs [--rep
 
 - 配置模块 `default` 导出 `{ config: RunConfig, tools: Tool[] }`
 - 退出码：`0`=全部通过 / `1`=有断言失败 / `2`=有配置错误
+- `--locale zh-CN|en-US`：帮助与人类提示语言（优先级 `--locale` > `REBASEAGENT_LOCALE` > 系统语言 > 英文；非法值退出 2）。`--report json` 的字段、值、原始 `detail` 与退出码不受语言影响
 - `--update-baseline`：把卡带重跑产生的新轨迹显式写回 trace 路径。合法的结构变化（如新增日志 span）会让默认对齐永久红——重录一次 run，或用此旗标更新基线。**测试失败时绝不静默覆盖**
 
 ## 语义速查

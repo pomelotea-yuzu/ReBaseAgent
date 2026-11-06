@@ -104,6 +104,11 @@ rebaseagent-model-ab --parent <runId> --dir <tracesDir> \
   [--dry-run | --confirm-cost]
 ```
 
+> The CLIs and the MCP service support `--locale zh-CN|en-US` (or the `REBASEAGENT_LOCALE` environment variable;
+> default follows the system language, falling back to English). Language affects help and human-facing messages only:
+> machine JSON output (fields, values, exit codes, raw detail) and historical record bodies stay unchanged.
+> For the MCP server language see the [integration guide](docs/guide/mcp-readonly-diagnostics.en.md) §2a.
+
 ### How time travel works
 
 ```text

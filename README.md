@@ -104,6 +104,10 @@ rebaseagent-model-ab --parent <runId> --dir <tracesDir> \
   [--dry-run | --confirm-cost]
 ```
 
+> 各 CLI 与 MCP 服务支持 `--locale zh-CN|en-US`（或环境变量 `REBASEAGENT_LOCALE`；缺省按系统语言，回退英文）。
+> 语言只作用于帮助与人类提示：JSON 机器输出（字段、值、退出码、原始 detail）与历史记录正文保持不变。
+> MCP 服务语言见[接入指南](docs/guide/mcp-readonly-diagnostics.md) §2a。
+
 ### 时间旅行的实现方式
 
 ```text

@@ -46,6 +46,37 @@ in development mode it is always the repository root `.rebaseagent/`). Startup c
 - stdout carries only MCP protocol frames; diagnostics go only to stderr;
 - When the client disconnects (EOF), resources are released and the process exits; it does not hang or send in the background.
 
+### 2a. Server language (`--locale` / `REBASEAGENT_LOCALE`)
+
+The server generates its outward-facing metadata (the 13 tools' descriptions, schema field descriptions,
+the `initialize` trust statement, controlled errors, and content summaries) in a language **fixed at startup**.
+Priority: `--locale` > `REBASEAGENT_LOCALE` > system language > `en-US`:
+
+```bash
+# Explicit (only the two canonical values zh-CN / en-US are accepted)
+node packages/mcp-server/dist/cli.js --data-dir "D:/path/to/data-dir" --locale en-US
+```
+
+An environment variable also works in MCP client configuration (place it inside `env`, alongside `--data-dir`):
+
+```json
+{ "env": { "REBASEAGENT_LOCALE": "en-US" } }
+```
+
+- The language is validated before protocol initialization: unsupported / duplicated / missing value ⇒
+  `INVALID_LOCALE` on stderr, exit 2, no protocol frames on stdout, and the data root is not read;
+- The language is fixed per process: no desktop preference is read, there is no language-switch tool and no
+  hot language update — changing the language requires restarting the server, and old cursors expire under
+  the existing rules (`STALE_CURSOR`);
+- A zh system language variant (zh-CN / zh-TW / zh_HK…) normalizes to `zh-CN`; anything else falls back to
+  `en-US`. A valid `--locale` overrides the environment variable, which cannot break startup even when invalid.
+
+**Original-text boundary**: the language applies only to the server's own generated wording. Returned historical
+bodies — trace messages, checkpoint files, verification record `detail`, logs, and artifacts — stay exactly as
+they were when recorded (including their original language) and are not rewritten by the server language. Error
+codes, field names, enum values, the protocol version, and annotations are unchanged. Tool-result budgets are
+recomputed over the translated text (the 64 KiB cap is unchanged; see §5).
+
 ## 3. Client integration (example from a verified path)
 
 The following configuration was measured on **WorkBuddy 5.9.0 + bundled CLI 2.165.0 + Node v22.22.2**
@@ -133,7 +164,10 @@ The two most common handling paths (both exercised on real clients):
 
 ## 7. Trust and security posture (same text in the service's `initialize`)
 
-The following four items are the trust statement sent with `initialize`; the guide and the service **share the same wording**:
+The following four items are the trust statement sent with `initialize`; the guide and the service **share the
+same wording** (the English text shown here matches a server launched with `--locale en-US`; with
+`--locale zh-CN` the statement switches to the equivalent Chinese text — see §2a. The four facts and boundaries
+themselves are unchanged):
 
 1. ReBaseAgent read-only diagnostics: access only existing traces, checkpoints, and verification records under the data root specified at startup;
    do not run models or tools, write to disk, or modify the data root.

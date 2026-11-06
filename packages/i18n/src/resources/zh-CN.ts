@@ -2293,6 +2293,8 @@ export const zhCN = {
     toolCompareVerifications:
       "只读比较用户指定的两条验证：逐侧事实、共享条件判据与受限结论（无默认正文，不自动选验证）",
     fieldStatus: "按运行结局类别筛选；不改写记录本身的结局",
+    fieldVerificationRecordStatus:
+      "按验证记录状态筛选（sealed 已封存 / unterminated 未终止 / corrupt 损坏 / unsupported_version 版本不受支持）；不等于运行结局，不改写记录本身",
     fieldQuery: "按完整运行标识或任务文本匹配（不做模糊/正则搜索）",
     fieldCursor: "续读游标；只能用于同一查询的下一页",
     fieldLimit: "本页最多返回的条目数",
