@@ -1,6 +1,6 @@
 # 软件 i18n 设计
 
-状态（2026-11-01 回填）：实施中；tasks.md 已完成 0.x–4.x、5.1–5.8，6.1–6.5 已完成（2026-11-06），6.6–6.7 尚未完成，未归档、不代表发行。以下为本 change 的目标契约；§9 区分已核实实现、剩余实施义务及未验证项。本轮仅修订文档，不将历史实验报告当作当前实现状态或验收凭据。
+状态（2026-11-06 更新）：**全部完成并归档**；tasks.md 已完成 0.x—6.7。以下为本 change 的目标契约；§9 区分已核实实现、剩余实施义务及未验证项。本轮仅修订文档，不将历史实验报告当作当前实现状态或验收凭据。**归档不等于发行**。
 
 ## 1. 分类与原文边界
 
@@ -128,7 +128,7 @@ trace-test --report json 保留现有 key、值、原始 detail、脱敏和退�
 | 非法 locale 报错语言 | §6.1 / S10 明确第一个合法 flag → 合法 env → 系统 → 英文 | 同模块 messageLocaleOf；同包测试的双语受控错误断言 |
 | M21 schema 无原始说明 | §6.2 / M21 明确发布投影补全对象属性说明、结构保持；这两项已实现，语境准确性缺陷已于 2026-11-06（任务 6.5）修正，见 §9.2 | `packages/mcp-server/src/tool-metadata.ts`；`packages/mcp-server/test/locale.test.ts` |
 | detail 与产品解释 | §6.2 / C03 明确原始 detail 与内存 display 分离 | `packages/trace-test/src/assertions.ts`、`cassette-llm-client.ts`（drift 生成）、`report.ts`、`cli.ts`；`packages/mcp-server/src/error-projection.ts` |
-| 证据位置 | 下表区分入库断言、本地产物及未完成索引 | tasks 6.7 仍未完成；不以本节代替全场景 evidence-index |
+| 证据位置 | 下表区分入库断言、本地产物及未完成索引 | tasks 6.7 已完成（2026-11-06）；全场景 evidence-index 见本 change `evidence-index.md` §6.7 映射总表 |
 
 ### 9.1 当前可追溯入口（不是本轮测试通过记录）
 

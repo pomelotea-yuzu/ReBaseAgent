@@ -1,7 +1,8 @@
-# 证据索引（实施中）
+# 证据索引（已收口，2026-11-06）
 
 > 本文件按任务登记“场景 → 入库测试 / 实机证据”。**未执行项如实标注**，不以批次通过宣称全软件双语完成。
 > 实机截图与机器报告按项目惯例放在 gitignored `.workbuddy/<任务>/`，不随仓库交付；本文件记录命令、构建与产物相对位置。
+> 0.x—6.6 已完成；6.7 收口（场景映射总表、限制汇总、措辞复核）见文末。**归档不等于发行**：本 change 未打包、未随任何发行版本交付（见 §6.7 措辞复核）。
 
 ## 6.1 真实 Electron 两语言逐工作区走查（D19/D20/G05）
 
@@ -340,3 +341,81 @@
   （symlink 需特权为稳定现实；junction 全量并发下探测未通过，单独跑正常——后续
   单独排查，不阻塞本 change）；真实模型与 Electron 实机门禁属 6.1–6.4 已覆盖范围，
   6.6 不重复。
+
+## 6.7 收口：场景映射总表、限制汇总与措辞复核（G05/G06）— 已完成 2026-11-06
+
+**证据类型：文档收口（本文件 + tasks/proposal/design 状态行），不重跑测试**；
+所引用的入库测试与实机证据均已在 0.x—6.6 各节执行并有记录。
+
+### 场景 → 证据映射总表（G05）
+
+入库测试以文件/分组名引用（不引易漂移行号）；「实机」指向本文件对应节。
+执行环境：全量 check:ci 于 6.6 在用户终端 exit 0（`6fc620a` 基线），
+单测引用与 6.6 统计一致。
+
+| 场景 | 入库测试 | 实机/补充证据 |
+|---|---|---|
+| D13 偏好首启/保存/换根 | `apps/desktop/test/ui-preferences.test.ts`、`ui-preferences-endpoints.test.ts` | 6.4 P1/P2（每用例独立重启）；6.1b-1/6.1c/6.1d/6.3 配置逐字节还原 |
+| D14 损坏/保存失败诚实处理 | `apps/desktop/test/ui-preferences.test.ts`（损坏回退/严格校验）、`ui-preferences-store.test.ts`（代次守卫） | 6.4 D14 专项 16 判据（损坏/未知版本/写盘失败/旧响应迟到/无 key） |
+| D15 草稿+未保存设置保留 | `apps/desktop/test/ui-preferences-store.test.ts`、`language-settings.test.tsx` | 6.4 P3（草稿逐字保留、编辑器未重建、脏关闭放弃确认） |
+| D16 未提交确认清零 | `apps/desktop/test/ui-preferences-store.test.ts`、`language-reset-wiring.test.ts` | 6.4 P4/P5（epoch 恰 +1、同效语言不额外撤销 store 级主查） |
+| D17 在飞/迟到保持身份 | `apps/desktop/test/ui-preferences-store.test.ts`（在飞/未知/竞态组合，tasks 1.5） | 6.4 P6（owner 跨语言逐字段不变、不重发、不抢导航、迟到结果按新语言展示）；限制见汇总节 |
+| D18 提交与保存竞态 | 同上（tasks 1.5 组合测试） | 6.4 P7/P8（已冻结载荷照常执行、请求体逐字段一致、locale 不进载荷） |
+| D19 全工作区两语言路径 | 各批次迁移测试（2.1—2.8/3.x/4.x，`check:i18n` 归属 144 文件） | 6.1a—6.1d 共 90 个两语言实机场景（成功/失败/不可用） |
+| D20 原生对话框打开时语言 | `apps/desktop/test/language-settings.test.tsx` 等（1.6 批次） | 6.1c 英文目录框 + 6.1d 中文目录框屏幕证据（UIA 标题/按钮）；OS 控件不承诺翻译 |
+| D21 布局/200% 实机 | — | 6.2（100% 24 视图 318 判据 + 200% 8 视图 106 判据，34 张截图，0 失败） |
+| D22 键盘全流程 | — | 6.3（124 判据 0 失败；CDP 受信键击通道口径已登记） |
+| M21 十三工具两语言发现 | `packages/mcp-server/test/locale.test.ts`（含 6.5 语境修正） | 5.2/5.4 stdio 两语言实测；`check:i18n` 归属门禁 |
+| M22 非法语言初始化前失败 | `packages/mcp-server/test/locale.test.ts`、`packages/i18n/test/cli-locale.test.ts` | 5.4 真实 stdio 子进程实测（INVALID_LOCALE/退出 2） |
+| M23 受控事实与原文一致 | `packages/mcp-server/test/locale-errors.test.ts` | 5.3 批次；6.1d 验证记录 detail 原文白名单口径 |
+| M24 不可信正文不影响能力 | `packages/mcp-server/test/locale-errors.test.ts` | 5.3 批次 |
+| M25 两语言 64 KiB 预算 | `packages/mcp-server/test/locale-budget.test.ts` | 5.4 预算测量 `.workbuddy/i18n-54/stdio-two-locale.json`（本地产物，不随仓库交付） |
+| M26 重启换语言游标过期 | `packages/mcp-server/test/locale-budget.test.ts`（重启游标断言） | 5.4 stdio 实测；6.5 指南 §2a 记录 STALE_CURSOR 规则 |
+| C01 人类报告双语等价 | `packages/trace-test/test/report.test.ts`、`cli-locale.test.ts` | 5.6 真实 dist CLI spawn 回归 |
+| C02 语言不触发 baseline | `packages/trace-test/test/cli-locale.test.ts` | 5.6 真实 dist CLI spawn 回归 |
+| C03 JSON 报告语言无关 | `packages/trace-test/test/json-contract.test.ts` | 5.6 真实 dist CLI spawn 回归 |
+| C04 baseline 反馈走 stderr | `packages/trace-test/test/json-contract.test.ts` | 5.6 真实 dist CLI spawn 回归 |
+| S01 无 DOM 同步渲染 | `packages/i18n/test/create-i18n.test.ts`、`apps/desktop/test/i18n/provider.test.tsx`（renderToStaticMarkup） | 0.3/0.4 批次 |
+| S02 实例隔离 | `packages/i18n/test/instance-isolation.test.ts` | 0.3 批次 |
+| S03 复数/富文本/参数 | `packages/i18n/test/resources.test.ts`、`apps/desktop/test/i18n/format-parity.test.ts` | 0.4 批次 |
+| S04 缺键降级不冒充完整 | `packages/i18n/test/create-i18n.test.ts`、`locale.test.ts`（回退链） | G01 联动：`check:i18n --final` 收口判缺键为零 |
+| S05/S06 受控描述契约 | `packages/i18n/test/presentation.test.ts` | 0.6 批次反例；2.2/4.5 迁移接线 |
+| S07/S08 记录/导出不变 | `packages/replay/test/i18n-artifact-parity.test.ts`、`apps/desktop/test/i18n/format-parity.test.ts` | 5.8 受控双语对照（`.workbuddy/i18n-58/`，本地产物）；6.1 系列实机原文白名单口径 |
+| S09/S10 CLI locale 解析 | `packages/i18n/test/cli-locale.test.ts`（含 §9.2 三条 `--` 组合）、`packages/replay/test/model-ab-cli-locale.test.ts` | 5.7 真实 dist 两语言 17 条回归 |
+| S11 其余包层 CLI 无遗漏 | `packages/replay/test/model-ab-cli-locale.test.ts` | 5.7/5.5/5.6；归属表产品候选归零（`check:i18n`） |
+| G01—G04 门禁 | `check:i18n`（13 反例自测 + `--final`）接入 `check:ci` | 6.6 全仓门禁（check:ci / desktop build / strict / diff） |
+| G05 本表 | — | 本节 + 各节实机证据 |
+| G06 措辞 | — | 见下「措辞复核」 |
+
+### 限制与未执行项汇总（如实登记）
+
+- **真实模型不参与**：全部执行证据使用受控 mock/受控 SSE（零费用）；真实模型请求仅在
+  5.8 的请求体捕获对照中出现（捕获层，不外发）。真实模型下的双语走查未执行。
+- **unknown 状态实机不可诚实触发**（6.4）：renderer 与 main 同生命周期，杀 main 即关窗；
+  该路径由入库测试（tasks 1.5 组合、operations 分片）覆盖。
+- **R3 定向停止的 owner 绑定实机未做**（6.4）：需 Docker engine，期间未运行；
+  实机 owner 检查以 fork 在飞身份为准。
+- **键盘通道口径**（6.3）：OS 物理键盘无法投递到 Electron 窗口（历史实测），
+  键击经 CDP `Input.dispatchKeyEvent`（浏览器层受信事件），不宣称物理键通道。
+- **200% 缩放只复跑一个实测窗口**（6.2，CSS 924）：不宣称 1440/1024/800×200% 笛卡尔积。
+- **trace-sdk symlink/junction 探测式 skip**（6.6）：本机为稳定现实（symlink 需特权、
+  junction 全量并发探测未过、单独跑正常），既有 skip、本 change 零新增 skip；
+  junction 待后续单独排查。
+- **6.2 期间 Docker engine 已停止**：验证面板走不可用态；验证成功/失败真实执行证据由
+  6.1d（engine 29.9.2）覆盖。
+- **Monaco 内部可访问名称**为库默认第三方文案（EditContext），不属项目翻译承诺（6.3）。
+- **OS 自带控件语言**（原生目录框按钮等）随系统，不在项目翻译承诺内（6.1c/6.1d/6.2）。
+- **本地产物不随仓库交付**：`.workbuddy/i18n-54/58/61/62/63/64/66/` 全部 gitignored；
+  本文件记录命令、构建与相对位置，产物不可用时以本文件记录为准。
+- **归档≠发行**：本 change 未打包、未随任何发行版本交付；G06 口径见下。
+
+### 措辞复核（G06）
+
+- 全部文档（proposal/design/tasks/evidence-index）状态行已从「实施中」更新为
+  「已完成并归档」口径；无「代表发行」「已发布」「全软件双语已发行」类措辞。
+- 完成声明范围 = 本 change 验收口径（software-i18n / desktop-ui / mcp-service /
+  trace-as-test / ci-gates 五份 delta spec 的 ADDED Requirements），不超出；
+  未覆盖项以上节限制清单如实呈现，不以批次通过冒充全量。
+- 归档动作仅表示验收通过并合入主 spec；打包/发行属后续独立动作（G06）。
+- 本次收口未重跑测试、未新增代码；引用的测试与实机证据均可在 0.x—6.6 各节追溯
+  （执行时间、构建基线、命令、产物位置）。
