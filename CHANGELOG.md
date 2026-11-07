@@ -27,6 +27,7 @@
   - **CLI 双语**：trace-test 人类报告与配置错误、model-ab 人类输出双语；共享语言解析优先级 `--locale` > `REBASEAGENT_LOCALE` > 系统语言 > en-US，非法值受控退出（INVALID_LOCALE）。
   - 逐场景证据与限制登记见 `add-software-i18n` 归档 evidence-index（G05 场景映射总表 + 11 条限制，§6.7）；主 spec 新建 `software-i18n`。
 - **发行 zip 中英双语使用说明**：自本构建起 zip 同时附带 `使用说明.txt` 与 `使用说明.en.txt`（0.7.0-rc.2 已上传包仅中文说明）。
+- 门禁基线：用户终端 `check:ci` exit 0（desktop 234 文件 / 3588 用例、mcp-server 405、replay 625+1skip、trace-test 93、trace-sdk 231+1skip、i18n 40、agent-loop 105、project-verification 289、run-query 52、llm-proxy 45）、biome 971 文件 0、check-spec 16/0；exe release-verify、zip 组装三段自验、解压往返十三工具自跑、离线冒烟 12 判据全过；人工实机验收未执行。
 - 产物与验证依据见[构建记录](docs/engineering/reports/2026-11-07-v0.8.0-rc.1-build-record.md)、[发行文案](docs/engineering/reports/2026-11-07-v0.8.0-rc.1-release-notes.md)。
 - 工程备注：Linux/macOS 三端打包经评估后**不做**（难度中等偏高：无法从 Windows 交叉构建、发行管线绑死 Windows portable exe、测试跨平台行为未知；结论见[评估记录](docs/engineering/notes/2026-11-07-cross-platform-packaging-assessment.md)）。
 

@@ -8,7 +8,7 @@
 
 两条路（Windows x64）：
 
-- **便携版（推荐）**：从 [GitHub](https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.7.0-rc.2) 或 [Gitee](https://gitee.com/yuzu-tea-duck/re-base-agent/releases/tag/v0.7.0-rc.2) 获取 `v0.7.0-rc.2` 的 `ReBaseAgent-0.7.0-rc.2-win-x64.zip`（`100,711,965` bytes，SHA-256 前缀 `46bf35061f7338b0`），用 7-Zip / WinRAR 解压后双击 exe 运行。该候选包含 R3 隔离项目验证、MCP 十三工具与全部已归档桌面能力；已上传 GitHub / Gitee Releases（2026-10-28 维护者确认），哈希与验收边界见[项目状态](../development/project-status.md)。应用数据在 exe 旁的 `data/`，启动时会临时解包。
+- **便携版（推荐）**：从 [GitHub](https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.8.0-rc.1) 或 [Gitee](https://gitee.com/yuzu-tea-duck/re-base-agent/releases/tag/v0.8.0-rc.1) 获取 `v0.8.0-rc.1` 的 `ReBaseAgent-0.8.0-rc.1-win-x64.zip`（`105,840,583` bytes，SHA-256 前缀 `4d2aa5bbbf39a05a`），用 7-Zip / WinRAR 解压后双击 exe 运行。该候选包含软件完整中英双语、R3 隔离项目验证、MCP 十三工具与全部已归档桌面能力；tag 本地已建、Release 上传属独立步骤，哈希与验收边界见[项目状态](../development/project-status.md)。应用数据在 exe 旁的 `data/`，启动时会临时解包。
 - **从源码运行**：
 
 ```bash

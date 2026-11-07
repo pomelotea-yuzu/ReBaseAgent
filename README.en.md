@@ -10,7 +10,7 @@
 
 <p>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"/></a>
-  <a href="https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.7.0-rc.2"><img src="https://img.shields.io/badge/Release-v0.7.0--rc.2-green.svg" alt="Release"/></a>
+  <a href="https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.8.0-rc.1"><img src="https://img.shields.io/badge/Release-v0.8.0--rc.1-green.svg" alt="Release"/></a>
   <a href="https://www.electronjs.org/"><img src="https://img.shields.io/badge/Electron-44-47848F?logo=electron&amp;logoColor=white" alt="Electron 44"/></a>
   <a href="https://react.dev/"><img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&amp;logoColor=black" alt="React 19"/></a>
   <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-5.6-3178C6?logo=typescript&amp;logoColor=white" alt="TypeScript 5.6"/></a>
@@ -39,13 +39,11 @@ Compared with LangGraph checkpoint forking and Langfuse / Phoenix prompt experim
 
 ## 📥 Download
 
-**Windows x64 portable** → [GitHub Releases](https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.7.0-rc.2) / [Gitee Releases](https://gitee.com/yuzu-tea-duck/re-base-agent/releases/tag/v0.7.0-rc.2)
+**Windows x64 portable** → [GitHub Releases](https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.8.0-rc.1) / [Gitee Releases](https://gitee.com/yuzu-tea-duck/re-base-agent/releases/tag/v0.8.0-rc.1)
 
-The latest package is **0.7.0-rc.2** (fix candidate): distributed as a **zip** (`ReBaseAgent-0.7.0-rc.2-win-x64.zip`, `100,711,965` bytes, SHA-256 prefix `46bf35061f7338b0`), containing `ReBaseAgent-0.7.0-rc.2-win-x64-portable.exe` (`95,140,470` bytes), a **read-only `mcp/` diagnostics directory** (13 tools since v0.7.0; see the [MCP guide](docs/guide/mcp-readonly-diagnostics.en.md)), a per-file `SHA256SUMS.txt`, and Chinese usage notes. Extract with 7-Zip / WinRAR and double-click the exe; no installation is required. App data lives in `data/` next to the exe — carry that directory when moving the app. The portable launcher uses a temporary extraction directory; "portable" does not mean "creates no temporary files".
+The latest package is **0.8.0-rc.1** (full software bilingual): distributed as a **zip** (`ReBaseAgent-0.8.0-rc.1-win-x64.zip`, `105,840,583` bytes, SHA-256 prefix `4d2aa5bbbf39a05a`), containing `ReBaseAgent-0.8.0-rc.1-win-x64-portable.exe` (`95,388,231` bytes), a **read-only `mcp/` diagnostics directory** (13 tools; see the [MCP guide](docs/guide/mcp-readonly-diagnostics.en.md)), a per-file `SHA256SUMS.txt`, and **bilingual usage notes** (`使用说明.txt` / `使用说明.en.txt`). Extract with 7-Zip / WinRAR and double-click the exe; no installation is required. App data lives in `data/` next to the exe — carry that directory when moving the app. The portable launcher uses a temporary extraction directory; "portable" does not mean "creates no temporary files".
 
-The packaging script now emits both Chinese and English usage notes (`使用说明.txt` / `使用说明.en.txt`) starting with the next build; the uploaded 0.7.0-rc.2 zip still contains only the Chinese notes.
-
-> 0.7.0-rc.2 is a rebuild of 0.7.0-rc.1: feature scope is unchanged (R3 isolated project verification + 13 MCP tools); it fixes **rc.1's same-millisecond root run ID collision** (which could overwrite historical run records) and several Linux/root/slow-machine CI compatibility issues. **Uploaded to GitHub / Gitee Releases (maintainer-confirmed 2026-10-28)**; automated gates and offline smoke tests are green, but manual on-device acceptance has not been performed (see the [build record](docs/engineering/reports/2026-10-26-v0.7.0-rc.2-build-record.md) (Chinese)). The historical stable release [v0.2.0](https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.2.0) is not a long-term support commitment; see [SECURITY.en.md](SECURITY.en.md) for support scope.
+> 0.8.0-rc.1 opens the 0.8.0 candidate series: the desktop UI, the 13 MCP tools, and CLI human-readable output are fully covered in Simplified Chinese / English, switchable in Settings with immediate effect (see the [release notes](docs/engineering/reports/2026-11-07-v0.8.0-rc.1-release-notes.md) (Chinese)). Feature scope follows 0.7.0 (R3 isolated project verification + 13 MCP tools). **The tag is local-only; uploading the Release is a separate step (download links above are not live until then)**; automated gates and offline smoke tests are green, but manual on-device acceptance has not been performed (see the [build record](docs/engineering/reports/2026-11-07-v0.8.0-rc.1-build-record.md) (Chinese)). The historical stable release [v0.2.0](https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.2.0) is not a long-term support commitment; see [SECURITY.en.md](SECURITY.en.md) for support scope.
 
 > Prefer 7-Zip / WinRAR: it does not add the Mark-of-the-Web flag, avoiding the first SmartScreen "unknown publisher" prompt. With built-in extraction, click "More info → Run anyway" if prompted (this project has not purchased a code-signing certificate).
 
