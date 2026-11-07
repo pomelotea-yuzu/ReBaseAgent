@@ -8,7 +8,7 @@
 
 Two paths (Windows x64):
 
-- **Portable build (recommended)**: get `ReBaseAgent-0.8.0-rc.1-win-x64.zip` (`105,840,583` bytes, SHA-256 prefix `4d2aa5bbbf39a05a`) from [GitHub](https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.8.0-rc.1) or [Gitee](https://gitee.com/yuzu-tea-duck/re-base-agent/releases/tag/v0.8.0-rc.1), extract it with 7-Zip / WinRAR, and double-click the exe. This candidate includes full software bilingual support (Simplified Chinese / English), R3 isolated project verification, the 13 MCP tools, and all archived desktop capabilities. The tag is local-only; uploading the Release is a separate step. Hashes and acceptance boundaries are in [project status](../development/project-status.md) (Chinese). App data lives in `data/` next to the exe; the launcher extracts temporarily at startup.
+- **Portable build (recommended)**: get `ReBaseAgent-0.8.0-rc.1-win-x64.zip` (`105,840,583` bytes, SHA-256 prefix `4d2aa5bbbf39a05a`) from [GitHub Releases](https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.8.0-rc.1), extract it with 7-Zip / WinRAR, and double-click the exe. This zip exceeds Gitee's per-attachment limit; the Gitee [release page](https://gitee.com/yuzu-tea-duck/re-base-agent/releases/tag/v0.8.0-rc.1) carries notes only. This candidate includes full software bilingual support (Simplified Chinese / English), R3 isolated project verification, the 13 MCP tools, and all archived desktop capabilities. The tag is local-only; uploading the Release is a separate step. Hashes and acceptance boundaries are in [project status](../development/project-status.md) (Chinese). App data lives in `data/` next to the exe; the launcher extracts temporarily at startup.
 - **Run from source**:
 
 ```bash

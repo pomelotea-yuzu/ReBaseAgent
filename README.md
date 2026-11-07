@@ -39,7 +39,9 @@ ReBaseAgent 在本项目的执行循环与受控 `read_file` / `write_file` 工�
 
 ## 📥 下载
 
-**Windows x64 便携版** → [GitHub Releases](https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.8.0-rc.1) / [Gitee Releases](https://gitee.com/yuzu-tea-duck/re-base-agent/releases/tag/v0.8.0-rc.1)
+**Windows x64 便携版** → [GitHub Releases](https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.8.0-rc.1)
+
+> 本版 zip（105,840,583 字节 ≈ 100.93 MiB）超出 Gitee 单附件上限，[Gitee Release 页](https://gitee.com/yuzu-tea-duck/re-base-agent/releases/tag/v0.8.0-rc.1)只发布说明文字、不直挂附件，**下载请走 GitHub Releases**。
 
 最新打包为 **0.8.0-rc.1**（软件完整中英双语）：分发形态为 **zip 包**（`ReBaseAgent-0.8.0-rc.1-win-x64.zip`，`105,840,583` bytes，SHA-256 前缀 `4d2aa5bbbf39a05a`），内含 `ReBaseAgent-0.8.0-rc.1-win-x64-portable.exe`（`95,388,231` bytes）、**`mcp/` 只读诊断目录**（十三工具，接入见[指南](docs/guide/mcp-readonly-diagnostics.md)）、逐文件 `SHA256SUMS.txt` 与**中英双语使用说明**（`使用说明.txt` / `使用说明.en.txt`）。用 7-Zip / WinRAR 解压后双击 exe 运行，无需安装；应用数据保存在 exe 旁的 `data/` 目录，迁移时同时携带该目录。便携启动器会使用临时解包目录，不能将便携理解为"不产生临时文件"。
 

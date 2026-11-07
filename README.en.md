@@ -39,7 +39,9 @@ Compared with LangGraph checkpoint forking and Langfuse / Phoenix prompt experim
 
 ## 📥 Download
 
-**Windows x64 portable** → [GitHub Releases](https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.8.0-rc.1) / [Gitee Releases](https://gitee.com/yuzu-tea-duck/re-base-agent/releases/tag/v0.8.0-rc.1)
+**Windows x64 portable** → [GitHub Releases](https://github.com/pomelotea-yuzu/ReBaseAgent/releases/tag/v0.8.0-rc.1)
+
+> This zip (105,840,583 bytes ≈ 100.93 MiB) exceeds Gitee's per-attachment limit; the [Gitee release page](https://gitee.com/yuzu-tea-duck/re-base-agent/releases/tag/v0.8.0-rc.1) carries release notes only — **download from GitHub Releases**.
 
 The latest package is **0.8.0-rc.1** (full software bilingual): distributed as a **zip** (`ReBaseAgent-0.8.0-rc.1-win-x64.zip`, `105,840,583` bytes, SHA-256 prefix `4d2aa5bbbf39a05a`), containing `ReBaseAgent-0.8.0-rc.1-win-x64-portable.exe` (`95,388,231` bytes), a **read-only `mcp/` diagnostics directory** (13 tools; see the [MCP guide](docs/guide/mcp-readonly-diagnostics.en.md)), a per-file `SHA256SUMS.txt`, and **bilingual usage notes** (`使用说明.txt` / `使用说明.en.txt`). Extract with 7-Zip / WinRAR and double-click the exe; no installation is required. App data lives in `data/` next to the exe — carry that directory when moving the app. The portable launcher uses a temporary extraction directory; "portable" does not mean "creates no temporary files".
 
