@@ -2,11 +2,25 @@
 
 > **Language:** English | [简体中文](CHANGELOG.md)
 
-Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). This English file covers recent releases from `0.5.0-rc.1` through `0.7.0-rc.2`; the full history (`0.3.0-k1` and earlier, plus the Chinese `Unreleased` section) is in [CHANGELOG.md](CHANGELOG.md) (Chinese). Facts and boundaries match the Chinese entries; the per-version release notes in `docs/engineering/reports/` are the authoritative records (Chinese).
+Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). This English file covers recent releases from `0.5.0-rc.1` through `0.8.0-rc.1`; the full history (`0.3.0-k1` and earlier) is in [CHANGELOG.md](CHANGELOG.md) (Chinese). Facts and boundaries match the Chinese entries; the per-version release notes in `docs/engineering/reports/` are the authoritative records (Chinese).
 
 ## [Unreleased]
 
-- Packaging: release zips from the next build include both `使用说明.txt` (Chinese) and `使用说明.en.txt` (English). The already-uploaded rc.2 zip still contains only the Chinese usage notes.
+(empty; see [CHANGELOG.md](CHANGELOG.md) for the historical `Unreleased` backlog in Chinese)
+
+## [0.8.0-rc.1] — candidate (built 11/7) 2026-11-07
+
+New relative to 0.7.0-rc.2 (release scope = the `add-software-i18n` change, archived 2026-11-06):
+
+- **Full software bilingual support**: desktop main/preload/renderer product copy fully covered, with zh-CN and en-US interface languages.
+  - **Language switcher**: the "Interface language" section in Settings switches immediately without restart. Unsaved model input, drafts, and reading positions are preserved; unconfirmed cost/copied-write/side-effect/experiment/verification confirmations are reset and must be re-reviewed in the new language. The language preference is stored separately and is not committed with model configuration.
+  - **Default language**: resolved from the system language (zh variants → zh-CN, others → en-US) when no explicit preference exists.
+  - **MCP 13 tools bilingual**: controlled errors, summaries, and startup diagnostics are bilingual; the service startup language supports `--locale` and `REBASEAGENT_LOCALE`.
+  - **CLI bilingual**: trace-test human-readable reports and configuration errors, and model-ab human output are bilingual; shared language resolution priority `--locale` > `REBASEAGENT_LOCALE` > system language > en-US, with invalid values exiting as a controlled error (INVALID_LOCALE).
+  - Per-scenario evidence and limitation registry: the archived `add-software-i18n` evidence-index (G05 scenario mapping table + 11 registered limitations, §6.7); a new main spec `software-i18n` was created.
+- **Bilingual usage notes in the release zip**: from this build on, the zip includes both `使用说明.txt` (Chinese) and `使用说明.en.txt` (English); the already-uploaded rc.2 zip contains only the Chinese notes.
+- Artifacts and verification evidence: [build record](docs/engineering/reports/2026-11-07-v0.8.0-rc.1-build-record.md) (Chinese), [release notes](docs/engineering/reports/2026-11-07-v0.8.0-rc.1-release-notes.md) (Chinese).
+- Engineering note: Linux/macOS packaging was assessed and **not pursued** (moderate-to-high difficulty: cross-building from Windows is not possible, the release pipeline is bound to the Windows portable exe, and cross-platform test behavior is unknown; see the [assessment record](docs/engineering/notes/2026-11-07-cross-platform-packaging-assessment.md), Chinese).
 
 ## [0.7.0-rc.2] — candidate (rebuilt 10/26) 2026-10-26
 

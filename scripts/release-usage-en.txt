@@ -48,6 +48,18 @@ went wrong and rerun only the necessary part. All data stays on your own compute
   sibling data\ folder); all historical run data is preserved.
 - You can also extract to a new folder and start from scratch; the two installations do not affect each other.
 
+[Interface language]
+
+- The interface supports Simplified Chinese and English. The first launch follows
+  the system language: Chinese systems get Simplified Chinese, others get English.
+- How to switch: choose it in the "Interface language" section of Settings. It takes
+  effect immediately, no restart needed.
+- Switching preserves unsaved model input, drafts, and reading positions; unsubmitted
+  confirmations (cost / copied writes / side effects / experiments / verification)
+  are reset and must be re-reviewed under the new language.
+- The language preference is stored separately in the data\ folder and does not
+  affect model configuration.
+
 [Model access]
 
 - The API key is stored only locally, and requests go directly from your computer to the

@@ -15,7 +15,20 @@
 - U7：分支搜索与定位、双运行完整比较工作区、两到四条运行的指标表；文件仍按运行分别阅读，不提供跨运行文件 diff。
 - U8：独立录制、messages 与实验工作区；监听地址依据实际状态，messages 只重发单请求；实验预览绑定当前编辑与配置，结果保留全批逐臂事实并连接共用比较。
 - 开源治理、维护政策、发布交接和第三方声明文档补齐；远程配置与发行物许可核验另行记录。
-- 打包：发行 zip 自下一构建起同时提供 `使用说明.txt` 与 `使用说明.en.txt`（中英双语；0.7.0-rc.2 已上传包仍只有中文说明）。
+
+## [0.8.0-rc.1] — 候选（11/7 构建）2026-11-07
+
+相对 0.7.0-rc.2 新增（发行范围 = `add-software-i18n` change，2026-11-06 归档）：
+
+- **软件完整中英双语**：桌面 main/preload/renderer 三层产品文案全覆盖，支持 zh-CN / en-US 两种界面语言。
+  - **语言入口**：设置页「界面语言」区切换，立即生效、无需重启；切换会保留未保存的模型输入、草稿与阅读位置，但未提交的费用/副本写入/副作用/实验/验证确认清零，需按新语言重新核对；语言偏好单独保存，不随模型配置提交。
+  - **默认语言**：按系统语言解析（zh 及其变体 → zh-CN，其余 → en-US），无显式偏好时生效。
+  - **MCP 十三工具双语**：受控错误、摘要与启动诊断双语；服务启动语言支持 `--locale` 与 `REBASEAGENT_LOCALE`。
+  - **CLI 双语**：trace-test 人类报告与配置错误、model-ab 人类输出双语；共享语言解析优先级 `--locale` > `REBASEAGENT_LOCALE` > 系统语言 > en-US，非法值受控退出（INVALID_LOCALE）。
+  - 逐场景证据与限制登记见 `add-software-i18n` 归档 evidence-index（G05 场景映射总表 + 11 条限制，§6.7）；主 spec 新建 `software-i18n`。
+- **发行 zip 中英双语使用说明**：自本构建起 zip 同时附带 `使用说明.txt` 与 `使用说明.en.txt`（0.7.0-rc.2 已上传包仅中文说明）。
+- 产物与验证依据见[构建记录](docs/engineering/reports/2026-11-07-v0.8.0-rc.1-build-record.md)、[发行文案](docs/engineering/reports/2026-11-07-v0.8.0-rc.1-release-notes.md)。
+- 工程备注：Linux/macOS 三端打包经评估后**不做**（难度中等偏高：无法从 Windows 交叉构建、发行管线绑死 Windows portable exe、测试跨平台行为未知；结论见[评估记录](docs/engineering/notes/2026-11-07-cross-platform-packaging-assessment.md)）。
 
 ## [0.7.0-rc.2] — 候选（10/26 重打）2026-10-26
 
